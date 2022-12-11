@@ -43,7 +43,7 @@ import (
 	tinyfieldr1cs "github.com/consensys/gnark/constraint/tinyfield"
 )
 
-// NewBuilder returns a new R1CS compiler
+// NewBuilder returns a new R1CS builder which implements frontend.API.
 func NewBuilder(field *big.Int, config frontend.CompileConfig) (frontend.Builder, error) {
 	return newBuilder(field, config), nil
 }
@@ -64,14 +64,9 @@ type builder struct {
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 	builder := builder{
-		// R1CS:      constraint.NewSystem(field),
-		// Constraints: make([]constraint.R1C, 0, config.Capacity),
 		mtBooleans: make(map[uint64][]expr.LinearExpression),
 		config:     config,
 	}
-
-	// builder.Public = make([]string, 1)
-	// builder.Secret = make([]string, 0)
 
 	// by default the circuit is given a public wire equal to 1
 
@@ -102,7 +97,6 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 
 	builder.tOne = builder.cs.One()
 	builder.cs.AddPublicVariable("one")
-	// builder.Public[0] = "one"
 
 	builder.q = builder.cs.Field()
 	if builder.q.Cmp(field) != 0 {
@@ -136,12 +130,22 @@ func (builder *builder) SecretVariable(f *schema.Field) frontend.Variable {
 	return expr.NewLinearExpression(idx, builder.tOne)
 }
 
-func (builder *builder) one() expr.LinearExpression {
+// cstOne return the one constant
+func (builder *builder) cstOne() expr.LinearExpression {
 	return expr.NewLinearExpression(0, builder.tOne)
 }
 
-func (builder *builder) zero() expr.LinearExpression {
+// cstZero return the zero constant
+func (builder *builder) cstZero() expr.LinearExpression {
 	return expr.NewLinearExpression(0, constraint.Coeff{})
+}
+
+func (builder *builder) isCstZero(c *constraint.Coeff) bool {
+	return c.IsZero()
+}
+
+func (builder *builder) isCstOne(c *constraint.Coeff) bool {
+	return builder.cs.IsOne(c)
 }
 
 func (builder *builder) Field() *big.Int {
@@ -200,8 +204,7 @@ func (builder *builder) getLinearExpression(l expr.LinearExpression) constraint.
 // that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
 func (builder *builder) MarkBoolean(v frontend.Variable) {
 	if b, ok := builder.constantValue(v); ok {
-		one := builder.cs.One()
-		if !(b.IsZero() || b == one) {
+		if !(builder.isCstZero(&b) || builder.isCstOne(&b)) {
 			panic("MarkBoolean called a non-boolean constant")
 		}
 		return
@@ -221,8 +224,7 @@ func (builder *builder) MarkBoolean(v frontend.Variable) {
 // This returns true if the v is a constant and v == 0 || v == 1.
 func (builder *builder) IsBoolean(v frontend.Variable) bool {
 	if b, ok := builder.constantValue(v); ok {
-		one := builder.cs.One()
-		return (b.IsZero() || b == one)
+		return (builder.isCstZero(&b) || builder.isCstOne(&b))
 	}
 	// v is a linear expression
 	l := v.(expr.LinearExpression)

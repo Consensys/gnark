@@ -22,17 +22,15 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiled"
-	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/frontend/internal/expr"
 )
 
 func TestQuickSort(t *testing.T) {
 
-	toSort := make(compiled.LinearExpression, 12)
+	toSort := make(expr.LinearExpression, 12)
 	rand := 3
 	for i := 0; i < 12; i++ {
-		toSort[i].SetVariableVisibility(schema.Secret)
-		toSort[i].SetWireID(rand)
+		toSort[i].VID = rand
 		rand += 3
 		rand = rand % 13
 	}
@@ -40,8 +38,8 @@ func TestQuickSort(t *testing.T) {
 	sort.Sort(toSort)
 
 	for i := 0; i < 10; i++ {
-		_, cur, _ := toSort[i].Unpack()
-		_, next, _ := toSort[i+1].Unpack()
+		cur := toSort[i].WireID()
+		next := toSort[i+1].WireID()
 		if cur >= next {
 			t.Fatal("err sorting linear expression")
 		}
@@ -63,7 +61,7 @@ func TestReduce(t *testing.T) {
 	e := cs.Mul(z, 2)
 	f := cs.Mul(z, 2)
 
-	toTest := (cs.Add(a, b, c, d, e, f)).(compiled.LinearExpression)
+	toTest := (cs.Add(a, b, c, d, e, f)).(expr.LinearExpression)
 
 	// check sizes
 	if len(toTest) != 3 {

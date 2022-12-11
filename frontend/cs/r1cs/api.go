@@ -244,7 +244,7 @@ func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
 		debug := constraint.NewDebugInfo("div") // TODO restore", v1, "/", v2, " == ", res)
 		v2Inv := builder.newInternalVariable()
 		// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
-		builder.cs.AddConstraint(builder.newR1C(v2, v2Inv, builder.one()), debug)
+		builder.cs.AddConstraint(builder.newR1C(v2, v2Inv, builder.cstOne()), debug)
 		builder.cs.AddConstraint(builder.newR1C(v1, v2Inv, res), debug)
 		return res
 	}
@@ -281,7 +281,7 @@ func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 	res := builder.newInternalVariable()
 
 	debug := constraint.NewDebugInfo("inverse") // TODO restore", vars[0], "*", res, " == 1")
-	builder.cs.AddConstraint(builder.newR1C(res, vars[0], builder.one()), debug)
+	builder.cs.AddConstraint(builder.newR1C(res, vars[0], builder.cstOne()), debug)
 
 	return res
 }
@@ -332,7 +332,7 @@ func (builder *builder) Xor(_a, _b frontend.Variable) frontend.Variable {
 	if len(b) > len(a) {
 		a, b = b, a
 	}
-	t := builder.Sub(builder.one(), builder.Mul(b, 2))
+	t := builder.Sub(builder.cstOne(), builder.Mul(b, 2))
 	t = builder.Add(builder.Mul(a, t), b)
 
 	builder.MarkBoolean(t)
@@ -390,9 +390,8 @@ func (builder *builder) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 	builder.AssertIsBoolean(cond)
 
 	if c, ok := builder.constantValue(cond); ok {
-		one := builder.cs.One()
 		// condition is a constant return i1 if true, i2 if false
-		if c == one {
+		if builder.isCstOne(&c) {
 			return vars[1]
 		}
 		return vars[2]
@@ -411,7 +410,7 @@ func (builder *builder) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 	// special case appearing in AssertIsLessOrEq
 	if ok1 {
 		if n1.IsZero() {
-			v := builder.Sub(builder.one(), vars[0])
+			v := builder.Sub(builder.cstOne(), vars[0])
 			return builder.Mul(v, vars[2])
 		}
 	}
@@ -439,9 +438,8 @@ func (builder *builder) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 fronten
 	c1, b1IsConstant := builder.constantValue(s1)
 
 	if b0IsConstant && b1IsConstant {
-		one := builder.cs.One()
-		b0 := c0 == one
-		b1 := c1 == one
+		b0 := builder.isCstOne(&c0)
+		b1 := builder.isCstOne(&c1)
 
 		if !b0 && !b1 {
 			return in0
@@ -481,9 +479,9 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	a := vars[0]
 	if c, ok := builder.constantValue(a); ok {
 		if c.IsZero() {
-			return builder.one()
+			return builder.cstOne()
 		}
-		return builder.zero()
+		return builder.cstZero()
 	}
 
 	debug := constraint.NewDebugInfo("isZero") // TODO restore", a)
@@ -505,7 +503,7 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	builder.cs.AddConstraint(builder.newR1C(builder.Neg(a), x[0], builder.Sub(m, 1)), debug)
 
 	// a * m = 0            // constrain m to be 0 if a != 0
-	builder.cs.AddConstraint(builder.newR1C(a, m, builder.zero()), debug)
+	builder.cs.AddConstraint(builder.newR1C(a, m, builder.cstZero()), debug)
 
 	return m
 }
@@ -517,7 +515,7 @@ func (builder *builder) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 	bi1 := builder.ToBinary(vars[0], builder.cs.FieldBitLen())
 	bi2 := builder.ToBinary(vars[1], builder.cs.FieldBitLen())
 
-	res := builder.zero()
+	res := builder.cstZero()
 
 	for i := builder.cs.FieldBitLen() - 1; i >= 0; i-- {
 

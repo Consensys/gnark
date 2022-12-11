@@ -77,6 +77,7 @@ type CoeffEngine interface {
 	Neg(a *Coeff)
 	Inverse(a *Coeff)
 	One() Coeff
+	IsOne(*Coeff) bool
 }
 
 // System contains core elements for a constraint System

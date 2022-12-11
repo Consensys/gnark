@@ -28,6 +28,8 @@ type R1CS interface {
 	AddConstraint(r1c R1C, debugInfo ...DebugInfo) error
 	// GetConstraints() []R1C
 	BuildLevelTOREMOVE()
+	// TODO maybe add sort of a constraint iterator / so that build level and isValid
+	// can be factorized between CS and R1CS.
 }
 
 // R1C used to compute the wires

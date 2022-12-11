@@ -121,6 +121,12 @@ func (engine *arithEngine) Inverse(a *constraint.Coeff) {
 	e := (*fr.Element)(a[:])
 	e.Inverse(e)
 }
+
+func (engine *arithEngine) IsOne(a *constraint.Coeff) bool {
+	e := (*fr.Element)(a[:])
+	return e.IsOne()
+}
+
 func (engine *arithEngine) One() constraint.Coeff {
 	e := fr.One()
 	var r constraint.Coeff
