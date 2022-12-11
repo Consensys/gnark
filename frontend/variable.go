@@ -16,7 +16,9 @@ limitations under the License.
 
 package frontend
 
-import "github.com/consensys/gnark/frontend/internal/expr"
+import (
+	"github.com/consensys/gnark/frontend/internal/expr"
+)
 
 // Variable represents a variable in the circuit. Any integer type (e.g. int, *big.Int, fr.Element)
 // can be assigned to it. It is also allowed to set a base-10 encoded string representing an integer value.

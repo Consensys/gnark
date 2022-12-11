@@ -83,7 +83,7 @@ func (system *SparseR1CSCore) IsValid() error {
 	}
 
 	cptHints := len(system.MHints)
-	mHintsConstrained := make(map[int]bool) // TODO @gbotrel can be a bitset
+	mHintsConstrained := make(map[int]bool)
 
 	// for each constraint, we check the terms and mark our inputs / hints as constrained
 	processTerm := func(t Term) {

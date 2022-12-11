@@ -108,8 +108,8 @@ func (builder *scs) FieldBitLen() int {
 }
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
-// func (builder *SparseR1CS) addPlonkConstraint(l, r, o frontend.Variable, cidl, cidr, cidm1, cidm2, cido, k int, debugID ...int) {
-func (builder *scs) addPlonkConstraint(l, r, o REPrivateTermSCS, cidl, cidr, cidm1, cidm2, cido, k int, debug ...constraint.DebugInfo) {
+// qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
+func (builder *scs) addPlonkConstraint(xa, xb, xc TermToRefactor, qL, qR, qM1, qM2, qO, qC int, debug ...constraint.DebugInfo) {
 	// TODO @gbotrel the signature of this function is odd.. and confusing. need refactor.
 	// TODO @gbotrel restore debug info
 	// if len(debugID) > 0 {
@@ -118,27 +118,27 @@ func (builder *scs) addPlonkConstraint(l, r, o REPrivateTermSCS, cidl, cidr, cid
 	// 	builder.MDebug[len(builder.Constraints)] = constraint.NewDebugInfo("")
 	// }
 
-	l.SetCoeffID(cidl)
-	r.SetCoeffID(cidr)
-	o.SetCoeffID(cido)
+	xa.SetCoeffID(qL)
+	xb.SetCoeffID(qR)
+	xc.SetCoeffID(qO)
 
-	u := l
-	v := r
-	u.SetCoeffID(cidm1)
-	v.SetCoeffID(cidm2)
-	L := builder.TOREFACTORAddTerm(&builder.st.Coeffs[l.cID], l.vID)
-	R := builder.TOREFACTORAddTerm(&builder.st.Coeffs[r.cID], r.vID)
-	O := builder.TOREFACTORAddTerm(&builder.st.Coeffs[o.cID], o.vID)
+	u := xa
+	v := xb
+	u.SetCoeffID(qM1)
+	v.SetCoeffID(qM2)
+	L := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xa.cID], xa.vID)
+	R := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xb.cID], xb.vID)
+	O := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xc.cID], xc.vID)
 	U := builder.TOREFACTORAddTerm(&builder.st.Coeffs[u.cID], u.vID)
 	V := builder.TOREFACTORAddTerm(&builder.st.Coeffs[v.cID], v.vID)
-	K := builder.TOREFACTORAddTerm(&builder.st.Coeffs[k], 0)
+	K := builder.TOREFACTORAddTerm(&builder.st.Coeffs[qC], 0)
 	K.MarkConstant()
 	builder.cs.AddConstraint(constraint.SparseR1C{L: L, R: R, O: O, M: [2]constraint.Term{U, V}, K: K.CoeffID()}, debug...) // TODO @gbotrel coeff ID?
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (builder *scs) newInternalVariable() REPrivateTermSCS {
+func (builder *scs) newInternalVariable() TermToRefactor {
 	idx := builder.cs.AddInternalVariable()
 	return newTerm(idx, constraint.CoeffIdOne)
 }
@@ -163,7 +163,7 @@ func (builder *scs) SecretVariable(f *schema.Field) frontend.Variable {
 // It factorizes Variable that appears multiple times with != coeff Ids
 // To ensure the determinism in the compile process, Variables are stored as public∥secret∥internal∥unset
 // for each visibility, the Variables are sorted from lowest ID to highest ID
-func (builder *scs) reduce(l REPrivateLinearExpressionSCS) REPrivateLinearExpressionSCS {
+func (builder *scs) reduce(l LinearExpressionToRefactor) LinearExpressionToRefactor {
 
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	sort.Sort(l)
@@ -185,8 +185,8 @@ func (builder *scs) reduce(l REPrivateLinearExpressionSCS) REPrivateLinearExpres
 }
 
 // to handle wires that don't exist (=coef 0) in a sparse constraint
-func (builder *scs) zero() REPrivateTermSCS {
-	var a REPrivateTermSCS
+func (builder *scs) zero() TermToRefactor {
+	var a TermToRefactor
 	return a
 }
 
@@ -197,7 +197,7 @@ func (builder *scs) IsBoolean(v frontend.Variable) bool {
 	if b, ok := builder.ConstantValue(v); ok {
 		return b.IsUint64() && b.Uint64() <= 1
 	}
-	_, ok := builder.mtBooleans[int(v.(REPrivateTermSCS).cID|(int(v.(REPrivateTermSCS).vID)<<32))] // TODO @gbotrel fixme this is sketchy
+	_, ok := builder.mtBooleans[int(v.(TermToRefactor).cID|(int(v.(TermToRefactor).vID)<<32))] // TODO @gbotrel fixme this is sketchy
 	return ok
 }
 
@@ -210,7 +210,7 @@ func (builder *scs) MarkBoolean(v frontend.Variable) {
 			panic("MarkBoolean called a non-boolean constant")
 		}
 	}
-	builder.mtBooleans[int(v.(REPrivateTermSCS).cID|(int(v.(REPrivateTermSCS).vID)<<32))] = struct{}{} // TODO @gbotrel fixme this is sketchy
+	builder.mtBooleans[int(v.(TermToRefactor).cID|(int(v.(TermToRefactor).vID)<<32))] = struct{}{} // TODO @gbotrel fixme this is sketchy
 }
 
 var tVariable reflect.Type
@@ -276,7 +276,7 @@ func (builder *scs) Compile() (constraint.ConstraintSystem, error) {
 // panics if v.IsConstant() == false
 func (builder *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	switch t := v.(type) {
-	case REPrivateTermSCS:
+	case TermToRefactor:
 		return nil, false
 	default:
 		res := utils.FromInterface(t)
@@ -308,7 +308,7 @@ func (builder *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.V
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
 		switch t := in.(type) {
-		case REPrivateTermSCS:
+		case TermToRefactor:
 			hintInputs[i] = constraint.LinearExpression{builder.TOREFACTORAddTerm(&builder.st.Coeffs[t.cID], t.vID)}
 		default:
 			c := utils.FromInterface(in)
@@ -333,12 +333,12 @@ func (builder *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.V
 }
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
-func (builder *scs) filterConstantSum(in []frontend.Variable) (REPrivateLinearExpressionSCS, big.Int) {
-	res := make(REPrivateLinearExpressionSCS, 0, len(in))
+func (builder *scs) filterConstantSum(in []frontend.Variable) (LinearExpressionToRefactor, big.Int) {
+	res := make(LinearExpressionToRefactor, 0, len(in))
 	var b big.Int
 	for i := 0; i < len(in); i++ {
 		switch t := in[i].(type) {
-		case REPrivateTermSCS:
+		case TermToRefactor:
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
@@ -349,13 +349,13 @@ func (builder *scs) filterConstantSum(in []frontend.Variable) (REPrivateLinearEx
 }
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a bigInt
-func (builder *scs) filterConstantProd(in []frontend.Variable) (REPrivateLinearExpressionSCS, big.Int) {
-	res := make(REPrivateLinearExpressionSCS, 0, len(in))
+func (builder *scs) filterConstantProd(in []frontend.Variable) (LinearExpressionToRefactor, big.Int) {
+	res := make(LinearExpressionToRefactor, 0, len(in))
 	var b big.Int
 	b.SetInt64(1)
 	for i := 0; i < len(in); i++ {
 		switch t := in[i].(type) {
-		case REPrivateTermSCS:
+		case TermToRefactor:
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
@@ -365,7 +365,7 @@ func (builder *scs) filterConstantProd(in []frontend.Variable) (REPrivateLinearE
 	return res, b
 }
 
-func (builder *scs) splitSum(acc REPrivateTermSCS, r REPrivateLinearExpressionSCS) REPrivateTermSCS {
+func (builder *scs) splitSum(acc TermToRefactor, r LinearExpressionToRefactor) TermToRefactor {
 
 	// floor case
 	if len(r) == 0 {
@@ -379,7 +379,7 @@ func (builder *scs) splitSum(acc REPrivateTermSCS, r REPrivateLinearExpressionSC
 	return builder.splitSum(o, r[1:])
 }
 
-func (builder *scs) splitProd(acc REPrivateTermSCS, r REPrivateLinearExpressionSCS) REPrivateTermSCS {
+func (builder *scs) splitProd(acc TermToRefactor, r LinearExpressionToRefactor) TermToRefactor {
 
 	// floor case
 	if len(r) == 0 {

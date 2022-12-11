@@ -17,6 +17,10 @@ func NewLinearExpression(vID int, cID constraint.Coeff) LinearExpression {
 	return LinearExpression{Term{Coeff: cID, VID: vID}}
 }
 
+func NewTerm(vID int, cID constraint.Coeff) Term {
+	return Term{Coeff: cID, VID: vID}
+}
+
 type Term struct {
 	VID   int
 	Coeff constraint.Coeff

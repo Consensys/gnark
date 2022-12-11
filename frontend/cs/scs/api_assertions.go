@@ -44,7 +44,7 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 		c2 = c1
 	}
 	if i2Constant {
-		l := i1.(REPrivateTermSCS)
+		l := i1.(TermToRefactor)
 		lc, _ := l.Unpack()
 		k := c2
 		debug := constraint.NewDebugInfo("assertIsEqual") // TODO restore", l, "+", i2, " == 0")
@@ -53,8 +53,8 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 		builder.addPlonkConstraint(l, builder.zero(), builder.zero(), lc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, _k, debug)
 		return
 	}
-	l := i1.(REPrivateTermSCS)
-	r := builder.Neg(i2).(REPrivateTermSCS)
+	l := i1.(TermToRefactor)
+	r := builder.Neg(i2).(TermToRefactor)
 	lc, _ := l.Unpack()
 	rc, _ := r.Unpack()
 
@@ -75,7 +75,7 @@ func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
 		}
 		return
 	}
-	t := i1.(REPrivateTermSCS)
+	t := i1.(TermToRefactor)
 	if builder.IsBoolean(t) {
 		return
 	}
@@ -92,14 +92,14 @@ func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
 // AssertIsLessOrEqual fails if  v > bound
 func (builder *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
-	case REPrivateTermSCS:
-		builder.mustBeLessOrEqVar(v.(REPrivateTermSCS), b)
+	case TermToRefactor:
+		builder.mustBeLessOrEqVar(v.(TermToRefactor), b)
 	default:
-		builder.mustBeLessOrEqCst(v.(REPrivateTermSCS), utils.FromInterface(b))
+		builder.mustBeLessOrEqCst(v.(TermToRefactor), utils.FromInterface(b))
 	}
 }
 
-func (builder *scs) mustBeLessOrEqVar(a REPrivateTermSCS, bound REPrivateTermSCS) {
+func (builder *scs) mustBeLessOrEqVar(a TermToRefactor, bound TermToRefactor) {
 
 	debug := constraint.NewDebugInfo("mustBeLessOrEq") // TODO restore", a, " <= ", bound)
 
@@ -130,11 +130,11 @@ func (builder *scs) mustBeLessOrEqVar(a REPrivateTermSCS, bound REPrivateTermSCS
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		builder.MarkBoolean(aBits[i].(REPrivateTermSCS)) // this does not create a constraint
+		builder.MarkBoolean(aBits[i].(TermToRefactor)) // this does not create a constraint
 
 		builder.addPlonkConstraint(
-			l.(REPrivateTermSCS),
-			aBits[i].(REPrivateTermSCS),
+			l.(TermToRefactor),
+			aBits[i].(TermToRefactor),
 			builder.zero(),
 			constraint.CoeffIdZero,
 			constraint.CoeffIdZero,
@@ -146,7 +146,7 @@ func (builder *scs) mustBeLessOrEqVar(a REPrivateTermSCS, bound REPrivateTermSCS
 
 }
 
-func (builder *scs) mustBeLessOrEqCst(a REPrivateTermSCS, bound big.Int) {
+func (builder *scs) mustBeLessOrEqCst(a TermToRefactor, bound big.Int) {
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -190,12 +190,12 @@ func (builder *scs) mustBeLessOrEqCst(a REPrivateTermSCS, bound big.Int) {
 
 		if bound.Bit(i) == 0 {
 			// (1 - p(i+1) - ai) * ai == 0
-			l := builder.Sub(1, p[i+1], aBits[i]).(REPrivateTermSCS)
+			l := builder.Sub(1, p[i+1], aBits[i]).(TermToRefactor)
 			//l = builder.Sub(l, ).(term)
 
 			builder.addPlonkConstraint(
 				l,
-				aBits[i].(REPrivateTermSCS),
+				aBits[i].(TermToRefactor),
 				builder.zero(),
 				constraint.CoeffIdZero,
 				constraint.CoeffIdZero,
