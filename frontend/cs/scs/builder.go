@@ -26,6 +26,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs"
+	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -109,7 +110,7 @@ func (builder *scs) FieldBitLen() int {
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
 // qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
-func (builder *scs) addPlonkConstraint(xa, xb, xc TermToRefactor, qL, qR, qM1, qM2, qO, qC int, debug ...constraint.DebugInfo) {
+func (builder *scs) addPlonkConstraint(xa, xb, xc expr.TermToRefactor, qL, qR, qM1, qM2, qO, qC int, debug ...constraint.DebugInfo) {
 	// TODO @gbotrel the signature of this function is odd.. and confusing. need refactor.
 	// TODO @gbotrel restore debug info
 	// if len(debugID) > 0 {
@@ -126,11 +127,11 @@ func (builder *scs) addPlonkConstraint(xa, xb, xc TermToRefactor, qL, qR, qM1, q
 	v := xb
 	u.SetCoeffID(qM1)
 	v.SetCoeffID(qM2)
-	L := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xa.cID], xa.vID)
-	R := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xb.cID], xb.vID)
-	O := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xc.cID], xc.vID)
-	U := builder.TOREFACTORAddTerm(&builder.st.Coeffs[u.cID], u.vID)
-	V := builder.TOREFACTORAddTerm(&builder.st.Coeffs[v.cID], v.vID)
+	L := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xa.CID], xa.VID)
+	R := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xb.CID], xb.VID)
+	O := builder.TOREFACTORAddTerm(&builder.st.Coeffs[xc.CID], xc.VID)
+	U := builder.TOREFACTORAddTerm(&builder.st.Coeffs[u.CID], u.VID)
+	V := builder.TOREFACTORAddTerm(&builder.st.Coeffs[v.CID], v.VID)
 	K := builder.TOREFACTORAddTerm(&builder.st.Coeffs[qC], 0)
 	K.MarkConstant()
 	builder.cs.AddConstraint(constraint.SparseR1C{L: L, R: R, O: O, M: [2]constraint.Term{U, V}, K: K.CoeffID()}, debug...) // TODO @gbotrel coeff ID?
@@ -138,9 +139,9 @@ func (builder *scs) addPlonkConstraint(xa, xb, xc TermToRefactor, qL, qR, qM1, q
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
-func (builder *scs) newInternalVariable() TermToRefactor {
+func (builder *scs) newInternalVariable() expr.TermToRefactor {
 	idx := builder.cs.AddInternalVariable()
-	return newTerm(idx, constraint.CoeffIdOne)
+	return expr.NewTermToRefactor(idx, constraint.CoeffIdOne)
 }
 
 func (builder *scs) VariableCount(t reflect.Type) int {
@@ -150,20 +151,20 @@ func (builder *scs) VariableCount(t reflect.Type) int {
 // PublicVariable creates a new Public Variable
 func (builder *scs) PublicVariable(f *schema.Field) frontend.Variable {
 	idx := builder.cs.AddPublicVariable(f.FullName)
-	return newTerm(idx, constraint.CoeffIdOne)
+	return expr.NewTermToRefactor(idx, constraint.CoeffIdOne)
 }
 
 // SecretVariable creates a new Secret Variable
 func (builder *scs) SecretVariable(f *schema.Field) frontend.Variable {
 	idx := builder.cs.AddSecretVariable(f.FullName)
-	return newTerm(idx, constraint.CoeffIdOne)
+	return expr.NewTermToRefactor(idx, constraint.CoeffIdOne)
 }
 
 // reduces redundancy in linear expression
 // It factorizes Variable that appears multiple times with != coeff Ids
 // To ensure the determinism in the compile process, Variables are stored as public∥secret∥internal∥unset
 // for each visibility, the Variables are sorted from lowest ID to highest ID
-func (builder *scs) reduce(l LinearExpressionToRefactor) LinearExpressionToRefactor {
+func (builder *scs) reduce(l expr.LinearExpressionToRefactor) expr.LinearExpressionToRefactor {
 
 	// ensure our linear expression is sorted, by visibility and by Variable ID
 	sort.Sort(l)
@@ -185,8 +186,8 @@ func (builder *scs) reduce(l LinearExpressionToRefactor) LinearExpressionToRefac
 }
 
 // to handle wires that don't exist (=coef 0) in a sparse constraint
-func (builder *scs) zero() TermToRefactor {
-	var a TermToRefactor
+func (builder *scs) zero() expr.TermToRefactor {
+	var a expr.TermToRefactor
 	return a
 }
 
@@ -197,7 +198,7 @@ func (builder *scs) IsBoolean(v frontend.Variable) bool {
 	if b, ok := builder.ConstantValue(v); ok {
 		return b.IsUint64() && b.Uint64() <= 1
 	}
-	_, ok := builder.mtBooleans[int(v.(TermToRefactor).cID|(int(v.(TermToRefactor).vID)<<32))] // TODO @gbotrel fixme this is sketchy
+	_, ok := builder.mtBooleans[int(v.(expr.TermToRefactor).CID|(int(v.(expr.TermToRefactor).VID)<<32))] // TODO @gbotrel fixme this is sketchy
 	return ok
 }
 
@@ -210,7 +211,7 @@ func (builder *scs) MarkBoolean(v frontend.Variable) {
 			panic("MarkBoolean called a non-boolean constant")
 		}
 	}
-	builder.mtBooleans[int(v.(TermToRefactor).cID|(int(v.(TermToRefactor).vID)<<32))] = struct{}{} // TODO @gbotrel fixme this is sketchy
+	builder.mtBooleans[int(v.(expr.TermToRefactor).CID|(int(v.(expr.TermToRefactor).VID)<<32))] = struct{}{} // TODO @gbotrel fixme this is sketchy
 }
 
 var tVariable reflect.Type
@@ -276,7 +277,7 @@ func (builder *scs) Compile() (constraint.ConstraintSystem, error) {
 // panics if v.IsConstant() == false
 func (builder *scs) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	switch t := v.(type) {
-	case TermToRefactor:
+	case expr.TermToRefactor:
 		return nil, false
 	default:
 		res := utils.FromInterface(t)
@@ -308,8 +309,8 @@ func (builder *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.V
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
 		switch t := in.(type) {
-		case TermToRefactor:
-			hintInputs[i] = constraint.LinearExpression{builder.TOREFACTORAddTerm(&builder.st.Coeffs[t.cID], t.vID)}
+		case expr.TermToRefactor:
+			hintInputs[i] = constraint.LinearExpression{builder.TOREFACTORAddTerm(&builder.st.Coeffs[t.CID], t.VID)}
 		default:
 			c := utils.FromInterface(in)
 			term := builder.TOREFACTORAddTerm(&c, 0)
@@ -326,19 +327,19 @@ func (builder *scs) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.V
 	// make the variables
 	res := make([]frontend.Variable, len(internalVariables))
 	for i, idx := range internalVariables {
-		res[i] = newTerm(idx, constraint.CoeffIdOne)
+		res[i] = expr.NewTermToRefactor(idx, constraint.CoeffIdOne)
 	}
 	return res, nil
 
 }
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
-func (builder *scs) filterConstantSum(in []frontend.Variable) (LinearExpressionToRefactor, big.Int) {
-	res := make(LinearExpressionToRefactor, 0, len(in))
+func (builder *scs) filterConstantSum(in []frontend.Variable) (expr.LinearExpressionToRefactor, big.Int) {
+	res := make(expr.LinearExpressionToRefactor, 0, len(in))
 	var b big.Int
 	for i := 0; i < len(in); i++ {
 		switch t := in[i].(type) {
-		case TermToRefactor:
+		case expr.TermToRefactor:
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
@@ -349,13 +350,13 @@ func (builder *scs) filterConstantSum(in []frontend.Variable) (LinearExpressionT
 }
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a bigInt
-func (builder *scs) filterConstantProd(in []frontend.Variable) (LinearExpressionToRefactor, big.Int) {
-	res := make(LinearExpressionToRefactor, 0, len(in))
+func (builder *scs) filterConstantProd(in []frontend.Variable) (expr.LinearExpressionToRefactor, big.Int) {
+	res := make(expr.LinearExpressionToRefactor, 0, len(in))
 	var b big.Int
 	b.SetInt64(1)
 	for i := 0; i < len(in); i++ {
 		switch t := in[i].(type) {
-		case TermToRefactor:
+		case expr.TermToRefactor:
 			res = append(res, t)
 		default:
 			n := utils.FromInterface(t)
@@ -365,7 +366,7 @@ func (builder *scs) filterConstantProd(in []frontend.Variable) (LinearExpression
 	return res, b
 }
 
-func (builder *scs) splitSum(acc TermToRefactor, r LinearExpressionToRefactor) TermToRefactor {
+func (builder *scs) splitSum(acc expr.TermToRefactor, r expr.LinearExpressionToRefactor) expr.TermToRefactor {
 
 	// floor case
 	if len(r) == 0 {
@@ -379,7 +380,7 @@ func (builder *scs) splitSum(acc TermToRefactor, r LinearExpressionToRefactor) T
 	return builder.splitSum(o, r[1:])
 }
 
-func (builder *scs) splitProd(acc TermToRefactor, r LinearExpressionToRefactor) TermToRefactor {
+func (builder *scs) splitProd(acc expr.TermToRefactor, r expr.LinearExpressionToRefactor) expr.TermToRefactor {
 
 	// floor case
 	if len(r) == 0 {

@@ -1,4 +1,4 @@
-package scs
+package expr
 
 // TODO @gbotrel factorize with R1CS package
 type LinearExpressionToRefactor []TermToRefactor
@@ -9,24 +9,24 @@ func (l LinearExpressionToRefactor) Clone() LinearExpressionToRefactor {
 	return res
 }
 
-func newTerm(vID, cID int) TermToRefactor {
-	return TermToRefactor{cID: cID, vID: vID}
+func NewTermToRefactor(vID, cID int) TermToRefactor {
+	return TermToRefactor{CID: cID, VID: vID}
 }
 
 type TermToRefactor struct {
-	cID int
-	vID int
+	CID int
+	VID int
 }
 
 func (t TermToRefactor) Unpack() (cID, vID int) {
-	return t.cID, t.vID
+	return t.CID, t.VID
 }
 
 func (t *TermToRefactor) SetCoeffID(cID int) {
-	t.cID = cID
+	t.CID = cID
 }
 func (t TermToRefactor) WireID() int {
-	return t.vID
+	return t.VID
 }
 
 // Len return the lenght of the Variable (implements Sort interface)
@@ -69,7 +69,7 @@ func (l LinearExpressionToRefactor) Less(i, j int) bool {
 func (l LinearExpressionToRefactor) HashCode() uint64 {
 	h := uint64(17)
 	for _, val := range l {
-		h = h*23 + uint64(val.cID) + uint64(val.vID<<32) // TODO @gbotrel revisit
+		h = h*23 + uint64(val.CID) + uint64(val.VID<<32) // TODO @gbotrel revisit
 	}
 	return h
 }

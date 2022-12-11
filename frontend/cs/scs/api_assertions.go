@@ -22,6 +22,7 @@ import (
 
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/math/bits"
 )
@@ -44,7 +45,7 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 		c2 = c1
 	}
 	if i2Constant {
-		l := i1.(TermToRefactor)
+		l := i1.(expr.TermToRefactor)
 		lc, _ := l.Unpack()
 		k := c2
 		debug := constraint.NewDebugInfo("assertIsEqual") // TODO restore", l, "+", i2, " == 0")
@@ -53,8 +54,8 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 		builder.addPlonkConstraint(l, builder.zero(), builder.zero(), lc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, _k, debug)
 		return
 	}
-	l := i1.(TermToRefactor)
-	r := builder.Neg(i2).(TermToRefactor)
+	l := i1.(expr.TermToRefactor)
+	r := builder.Neg(i2).(expr.TermToRefactor)
 	lc, _ := l.Unpack()
 	rc, _ := r.Unpack()
 
@@ -75,12 +76,12 @@ func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
 		}
 		return
 	}
-	t := i1.(TermToRefactor)
+	t := i1.(expr.TermToRefactor)
 	if builder.IsBoolean(t) {
 		return
 	}
 	builder.MarkBoolean(t)
-	builder.mtBooleans[int(t.cID)|t.vID<<32] = struct{}{} // TODO @gbotrel smelly fix me
+	builder.mtBooleans[int(t.CID)|t.VID<<32] = struct{}{} // TODO @gbotrel smelly fix me
 	debug := constraint.NewDebugInfo("assertIsBoolean")   // TODO restore", t, " == (0|1)")
 	cID, _ := t.Unpack()
 	var mCoef big.Int
@@ -92,14 +93,14 @@ func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
 // AssertIsLessOrEqual fails if  v > bound
 func (builder *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
-	case TermToRefactor:
-		builder.mustBeLessOrEqVar(v.(TermToRefactor), b)
+	case expr.TermToRefactor:
+		builder.mustBeLessOrEqVar(v.(expr.TermToRefactor), b)
 	default:
-		builder.mustBeLessOrEqCst(v.(TermToRefactor), utils.FromInterface(b))
+		builder.mustBeLessOrEqCst(v.(expr.TermToRefactor), utils.FromInterface(b))
 	}
 }
 
-func (builder *scs) mustBeLessOrEqVar(a TermToRefactor, bound TermToRefactor) {
+func (builder *scs) mustBeLessOrEqVar(a expr.TermToRefactor, bound expr.TermToRefactor) {
 
 	debug := constraint.NewDebugInfo("mustBeLessOrEq") // TODO restore", a, " <= ", bound)
 
@@ -130,11 +131,11 @@ func (builder *scs) mustBeLessOrEqVar(a TermToRefactor, bound TermToRefactor) {
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		builder.MarkBoolean(aBits[i].(TermToRefactor)) // this does not create a constraint
+		builder.MarkBoolean(aBits[i].(expr.TermToRefactor)) // this does not create a constraint
 
 		builder.addPlonkConstraint(
-			l.(TermToRefactor),
-			aBits[i].(TermToRefactor),
+			l.(expr.TermToRefactor),
+			aBits[i].(expr.TermToRefactor),
 			builder.zero(),
 			constraint.CoeffIdZero,
 			constraint.CoeffIdZero,
@@ -146,7 +147,7 @@ func (builder *scs) mustBeLessOrEqVar(a TermToRefactor, bound TermToRefactor) {
 
 }
 
-func (builder *scs) mustBeLessOrEqCst(a TermToRefactor, bound big.Int) {
+func (builder *scs) mustBeLessOrEqCst(a expr.TermToRefactor, bound big.Int) {
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -190,12 +191,12 @@ func (builder *scs) mustBeLessOrEqCst(a TermToRefactor, bound big.Int) {
 
 		if bound.Bit(i) == 0 {
 			// (1 - p(i+1) - ai) * ai == 0
-			l := builder.Sub(1, p[i+1], aBits[i]).(TermToRefactor)
+			l := builder.Sub(1, p[i+1], aBits[i]).(expr.TermToRefactor)
 			//l = builder.Sub(l, ).(term)
 
 			builder.addPlonkConstraint(
 				l,
-				aBits[i].(TermToRefactor),
+				aBits[i].(expr.TermToRefactor),
 				builder.zero(),
 				constraint.CoeffIdZero,
 				constraint.CoeffIdZero,

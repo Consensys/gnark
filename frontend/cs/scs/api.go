@@ -27,6 +27,7 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/std/math/bits"
 )
@@ -74,7 +75,7 @@ func (builder *scs) Neg(i1 frontend.Variable) frontend.Variable {
 		n.Neg(n)
 		return *n
 	} else {
-		v := i1.(TermToRefactor)
+		v := i1.(expr.TermToRefactor)
 		c, _ := v.Unpack()
 		var coef big.Int
 		coef.Set(&builder.st.Coeffs[c])
@@ -98,7 +99,7 @@ func (builder *scs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 }
 
 // returns t*m
-func (builder *scs) mulConstant(t TermToRefactor, m *big.Int) TermToRefactor {
+func (builder *scs) mulConstant(t expr.TermToRefactor, m *big.Int) expr.TermToRefactor {
 	var coef big.Int
 	cid, _ := t.Unpack()
 	coef.Set(&builder.st.Coeffs[cid])
@@ -125,16 +126,16 @@ func (builder *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 		c := c2
 		q := builder.q
 		c.ModInverse(c, q)
-		return builder.mulConstant(i1.(TermToRefactor), c)
+		return builder.mulConstant(i1.(expr.TermToRefactor), c)
 	}
 	if i1Constant {
 		res := builder.Inverse(i2)
-		return builder.mulConstant(res.(TermToRefactor), c1)
+		return builder.mulConstant(res.(expr.TermToRefactor), c1)
 	}
 
 	res := builder.newInternalVariable()
-	r := i2.(TermToRefactor)
-	o := builder.Neg(i1).(TermToRefactor)
+	r := i2.(expr.TermToRefactor)
+	o := builder.Neg(i1).(expr.TermToRefactor)
 	cr, _ := r.Unpack()
 	co, _ := o.Unpack()
 	builder.addPlonkConstraint(res, r, o, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, co, constraint.CoeffIdZero)
@@ -156,7 +157,7 @@ func (builder *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 		c.ModInverse(c, builder.q)
 		return c
 	}
-	t := i1.(TermToRefactor)
+	t := i1.(expr.TermToRefactor)
 	cr, _ := t.Unpack()
 	debug := constraint.NewDebugInfo("inverse") // TODO restore", "1/", i1, " < ∞")
 	res := builder.newInternalVariable()
@@ -212,15 +213,15 @@ func (builder *scs) Xor(a, b frontend.Variable) frontend.Variable {
 		_b = _a
 	}
 	if bConstant {
-		l := a.(TermToRefactor)
+		l := a.(expr.TermToRefactor)
 		r := l
 		oneMinusTwoB := big.NewInt(1)
 		oneMinusTwoB.Sub(oneMinusTwoB, _b).Sub(oneMinusTwoB, _b)
 		builder.addPlonkConstraint(l, r, res, builder.st.CoeffID(oneMinusTwoB), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, builder.st.CoeffID(_b))
 		return res
 	}
-	l := a.(TermToRefactor)
-	r := b.(TermToRefactor)
+	l := a.(expr.TermToRefactor)
+	r := b.(expr.TermToRefactor)
 	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdTwo, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
 	return res
 }
@@ -247,7 +248,7 @@ func (builder *scs) Or(a, b frontend.Variable) frontend.Variable {
 		bConstant = aConstant
 	}
 	if bConstant {
-		l := a.(TermToRefactor)
+		l := a.(expr.TermToRefactor)
 		r := l
 
 		one := big.NewInt(1)
@@ -256,8 +257,8 @@ func (builder *scs) Or(a, b frontend.Variable) frontend.Variable {
 		builder.addPlonkConstraint(l, r, res, idl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdZero)
 		return res
 	}
-	l := a.(TermToRefactor)
-	r := b.(TermToRefactor)
+	l := a.(expr.TermToRefactor)
+	r := b.(expr.TermToRefactor)
 	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
 	return res
 }
@@ -364,7 +365,7 @@ func (builder *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a * m = 0            // constrain m to be 0 if a != 0
-	a := i1.(TermToRefactor)
+	a := i1.(expr.TermToRefactor)
 	m := builder.newInternalVariable()
 
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
@@ -377,7 +378,7 @@ func (builder *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a*x + m - 1 == 0
 	builder.addPlonkConstraint(a,
-		x[0].(TermToRefactor),
+		x[0].(expr.TermToRefactor),
 		m,
 		constraint.CoeffIdZero,
 		constraint.CoeffIdZero,
@@ -439,12 +440,12 @@ func (builder *scs) Println(a ...frontend.Variable) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := arg.(TermToRefactor); ok {
+		if v, ok := arg.(expr.TermToRefactor); ok {
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
 			// can evaluate it before printing it
-			log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.TOREFACTORAddTerm(&builder.st.Coeffs[v.cID], v.vID)})
+			log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.TOREFACTORAddTerm(&builder.st.Coeffs[v.CID], v.VID)})
 		} else {
 			builder.printArg(&log, &sbb, arg)
 		}
@@ -482,10 +483,10 @@ func (builder *scs) printArg(log *constraint.LogEntry, sbb *strings.Builder, a f
 			sbb.WriteString(", ")
 		}
 
-		v := tValue.Interface().(TermToRefactor)
+		v := tValue.Interface().(expr.TermToRefactor)
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
-		log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.TOREFACTORAddTerm(&builder.st.Coeffs[v.cID], v.vID)})
+		log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.TOREFACTORAddTerm(&builder.st.Coeffs[v.CID], v.VID)})
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors
