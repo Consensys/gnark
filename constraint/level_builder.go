@@ -59,7 +59,9 @@ func (system *System) processWire(wireID uint32, maxLevel *int) {
 		}
 		for _, in := range h.Inputs {
 			for _, t := range in {
-				system.processWire(t.VID, maxLevel)
+				if !t.IsConstant() {
+					system.processWire(t.VID, maxLevel)
+				}
 			}
 		}
 
