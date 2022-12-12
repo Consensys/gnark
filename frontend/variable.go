@@ -29,7 +29,6 @@ type Variable interface{}
 // by one of the constraint system builder. In other words, if the Variable is a circuit input OR
 // returned by the API.
 func IsCanonical(v Variable) bool {
-	// TODO @gbotrel ensure plonkish expression are there too, if different
 	switch v.(type) {
 	case expr.LinearExpression, *expr.LinearExpression, expr.Term, *expr.Term:
 		return true
