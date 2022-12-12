@@ -48,7 +48,7 @@ func (cs *SparseR1CSCore) GetNbConstraints() int {
 }
 
 func (cs *SparseR1CSCore) BuildLevelTOREMOVE() {
-	cs.Levels = buildSCSLevels(*cs)
+	buildSCSLevels(cs)
 }
 
 // SparseR1C used to compute the wires

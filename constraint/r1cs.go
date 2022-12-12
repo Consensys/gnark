@@ -55,7 +55,7 @@ func (r1cs *R1CSCore) GetNbConstraints() int {
 }
 
 func (r1cs *R1CSCore) BuildLevelTOREMOVE() {
-	r1cs.Levels = buildR1CSLevels(*r1cs)
+	buildR1CSLevels(r1cs)
 }
 
 // IsValid perform post compilation checks on the Variables
