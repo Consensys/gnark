@@ -524,8 +524,6 @@ func (cs *SparseR1CS) WriteTo(w io.Writer) (int64, error) {
 	return _w.N, err
 }
 
-// TODO @gbotrel initialize coeff table when reading
-
 // ReadFrom attempts to decode SparseR1CS from io.Reader using cbor
 func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	dm, err := cbor.DecOptions{
@@ -536,6 +534,9 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 	decoder := dm.NewDecoder(r)
+
+	// initialize coeff table
+	cs.CoeffTable = newCoeffTable()
 
 	if err := decoder.Decode(cs); err != nil {
 		return int64(decoder.NumBytesRead()), err

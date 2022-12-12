@@ -491,6 +491,9 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	}
 	decoder := dm.NewDecoder(r)
 
+	// initialize coeff table
+	cs.CoeffTable = newCoeffTable()
+
 	if err := decoder.Decode(&cs); err != nil {
 		return int64(decoder.NumBytesRead()), err
 	}
