@@ -159,7 +159,7 @@ func (builder *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 	}
 	t := i1.(expr.TermToRefactor)
 	cr, _ := t.Unpack()
-	debug := constraint.NewDebugInfo("inverse") // TODO restore", "1/", i1, " < ∞")
+	debug := builder.newDebugInfo("inverse", "1/", i1, " < ∞")
 	res := builder.newInternalVariable()
 	builder.addPlonkConstraint(res, t, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, debug)
 	return res

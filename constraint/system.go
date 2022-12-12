@@ -64,7 +64,10 @@ type ConstraintSystem interface {
 	// calls to this function will grow the memory usage of the constraint system.
 	MakeTerm(coeff *Coeff, variableID int) Term
 
-	// TODO @gbotrel we might need a "AttachDebugInfo(debugInfo, constraintID)"
+	// AttachDebugInfo enables attaching debug information to multiple constraints.
+	// This is more efficient than using the AddConstraint(.., debugInfo) since it will store the
+	// debug information only once.
+	AttachDebugInfo(debugInfo DebugInfo, constraintID []int)
 
 	IsValid() error // TODO @gbotrel should take list of Validators
 }
@@ -293,4 +296,12 @@ func (system *System) AddCommitment(c Commitment) error {
 
 func (system *System) AddLog(l LogEntry) {
 	system.Logs = append(system.Logs, l)
+}
+
+func (system *System) AttachDebugInfo(debugInfo DebugInfo, constraintID []int) {
+	system.DebugInfo = append(system.DebugInfo, LogEntry(debugInfo))
+	id := len(system.DebugInfo) - 1
+	for _, cID := range constraintID {
+		system.MDebug[cID] = id
+	}
 }

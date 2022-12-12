@@ -88,6 +88,7 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *scs {
 	default:
 		if field.Cmp(tinyfield.Modulus()) == 0 {
 			builder.cs = tinyfieldr1cs.NewSparseR1CS()
+			break
 		}
 		panic("not implemtented")
 	}
@@ -134,7 +135,7 @@ func (builder *scs) addPlonkConstraint(xa, xb, xc expr.TermToRefactor, qL, qR, q
 	V := builder.TOREFACTORMakeTerm(&builder.st.Coeffs[v.CID], v.VID)
 	K := builder.TOREFACTORMakeTerm(&builder.st.Coeffs[qC], 0)
 	K.MarkConstant()
-	builder.cs.AddConstraint(constraint.SparseR1C{L: L, R: R, O: O, M: [2]constraint.Term{U, V}, K: K.CoeffID()}, debug...) // TODO @gbotrel coeff ID?
+	builder.cs.AddConstraint(constraint.SparseR1C{L: L, R: R, O: O, M: [2]constraint.Term{U, V}, K: K.CoeffID()}, debug...)
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
@@ -397,4 +398,31 @@ func (builder *scs) splitProd(acc expr.TermToRefactor, r expr.LinearExpressionTo
 func (builder *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	//TODO implement me
 	panic("not implemented")
+}
+
+// newDebugInfo this is temporary to restore debug logs
+// something more like builder.sprintf("my message %le %lv", l0, l1)
+// to build logs for both debug and println
+// and append some program location.. (see other todo in debug_info.go)
+func (builder *scs) newDebugInfo(errName string, in ...interface{}) constraint.DebugInfo {
+	for i := 0; i < len(in); i++ {
+		// for inputs that are LinearExpressions or Term, we need to "Make" them in the backend.
+		// TODO @gbotrel this is a duplicate effort with adding a constraint and should be taken care off
+
+		switch t := in[i].(type) {
+		case *expr.LinearExpressionToRefactor, expr.LinearExpressionToRefactor:
+			// shouldn't happen
+		case expr.TermToRefactor:
+			in[i] = builder.TOREFACTORMakeTerm(&builder.st.Coeffs[t.CID], t.VID)
+		case *expr.TermToRefactor:
+			in[i] = builder.TOREFACTORMakeTerm(&builder.st.Coeffs[t.CID], t.VID)
+		case constraint.Coeff:
+			in[i] = builder.cs.String(&t)
+		case *constraint.Coeff:
+			in[i] = builder.cs.String(t)
+		}
+	}
+
+	return constraint.NewDebugInfo(errName, in...)
+
 }

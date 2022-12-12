@@ -48,7 +48,7 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 		l := i1.(expr.TermToRefactor)
 		lc, _ := l.Unpack()
 		k := c2
-		debug := constraint.NewDebugInfo("assertIsEqual") // TODO restore", l, "+", i2, " == 0")
+		debug := builder.newDebugInfo("assertIsEqual", l, "+", i2, " == 0")
 		k.Neg(k)
 		_k := builder.st.CoeffID(k)
 		builder.addPlonkConstraint(l, builder.zero(), builder.zero(), lc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, _k, debug)
@@ -59,7 +59,7 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 	lc, _ := l.Unpack()
 	rc, _ := r.Unpack()
 
-	debug := constraint.NewDebugInfo("assertIsEqual") // TODO restore", l, " + ", r, " == 0")
+	debug := builder.newDebugInfo("assertIsEqual", l, " + ", r, " == 0")
 	builder.addPlonkConstraint(l, r, builder.zero(), lc, rc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
 }
 
@@ -82,7 +82,7 @@ func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
 	}
 	builder.MarkBoolean(t)
 	builder.mtBooleans[int(t.CID)|t.VID<<32] = struct{}{} // TODO @gbotrel smelly fix me
-	debug := constraint.NewDebugInfo("assertIsBoolean")   // TODO restore", t, " == (0|1)")
+	debug := builder.newDebugInfo("assertIsBoolean", t, " == (0|1)")
 	cID, _ := t.Unpack()
 	var mCoef big.Int
 	mCoef.Neg(&builder.st.Coeffs[cID])
@@ -102,7 +102,7 @@ func (builder *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Vari
 
 func (builder *scs) mustBeLessOrEqVar(a expr.TermToRefactor, bound expr.TermToRefactor) {
 
-	debug := constraint.NewDebugInfo("mustBeLessOrEq") // TODO restore", a, " <= ", bound)
+	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -160,7 +160,7 @@ func (builder *scs) mustBeLessOrEqCst(a expr.TermToRefactor, bound big.Int) {
 	}
 
 	// debug info
-	debug := constraint.NewDebugInfo("mustBeLessOrEq") // TODO restore", a, " <= ", bound)
+	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	// note that at this stage, we didn't boolean-constraint these new variables yet
 	// (as opposed to ToBinary)

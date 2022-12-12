@@ -25,7 +25,13 @@ import (
 
 type R1CS interface {
 	ConstraintSystem
-	AddConstraint(r1c R1C, debugInfo ...DebugInfo) error
+
+	// AddConstraint adds a constraint to the sytem and returns its id
+	// This does not check for validity of the constraint.
+	// If a debugInfo parameter is provided, it will be appended to the debug info structure
+	// and will grow the memory usage of the constraint system.
+	AddConstraint(r1c R1C, debugInfo ...DebugInfo) int
+
 	// GetConstraints() []R1C
 	BuildLevelTOREMOVE()
 	// TODO maybe add sort of a constraint iterator / so that build level and isValid

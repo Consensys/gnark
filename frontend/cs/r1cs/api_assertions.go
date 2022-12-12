@@ -94,6 +94,9 @@ func (builder *builder) mustBeLessOrEqVar(a, bound expr.LinearExpression) {
 	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 	boundBits := builder.ToBinary(bound, nbBits)
 
+	// constraint added
+	added := make([]int, 0, nbBits)
+
 	p := make([]frontend.Variable, nbBits+1)
 	p[nbBits] = builder.cstOne()
 
@@ -122,8 +125,10 @@ func (builder *builder) mustBeLessOrEqVar(a, bound expr.LinearExpression) {
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
 		builder.MarkBoolean(aBits[i].(expr.LinearExpression)) // this does not create a constraint
 
-		builder.cs.AddConstraint(builder.newR1C(l, aBits[i], zero), debug)
+		added = append(added, builder.cs.AddConstraint(builder.newR1C(l, aBits[i], zero)))
 	}
+
+	builder.cs.AttachDebugInfo(debug, added)
 
 }
 
@@ -155,6 +160,9 @@ func (builder *builder) mustBeLessOrEqCst(a expr.LinearExpression, bound big.Int
 		t++
 	}
 
+	// constraint added
+	added := make([]int, 0, nbBits)
+
 	p := make([]frontend.Variable, nbBits+1)
 	// p[i] == 1 → a[j] == c[j] for all j ⩾ i
 	p[nbBits] = builder.cstOne()
@@ -173,11 +181,14 @@ func (builder *builder) mustBeLessOrEqCst(a expr.LinearExpression, bound big.Int
 			l := builder.Sub(1, p[i+1])
 			l = builder.Sub(l, aBits[i])
 
-			builder.cs.AddConstraint(builder.newR1C(l, aBits[i], builder.cstZero()), debug)
+			added = append(added, builder.cs.AddConstraint(builder.newR1C(l, aBits[i], builder.cstZero())))
 			builder.MarkBoolean(aBits[i].(expr.LinearExpression))
 		} else {
 			builder.AssertIsBoolean(aBits[i])
 		}
 	}
 
+	if len(added) != 0 {
+		builder.cs.AttachDebugInfo(debug, added)
+	}
 }

@@ -59,11 +59,14 @@ func NewSparseR1CS() *SparseR1CS {
 	return &cs
 }
 
-func (cs *SparseR1CS) AddConstraint(c constraint.SparseR1C, debugInfo ...constraint.DebugInfo) error {
+func (cs *SparseR1CS) AddConstraint(c constraint.SparseR1C, debugInfo ...constraint.DebugInfo) int {
 	profile.RecordConstraint()
 	cs.Constraints = append(cs.Constraints, c)
-	// TODO debug info
-	return nil
+	if len(debugInfo) == 1 {
+		cs.DebugInfo = append(cs.DebugInfo, constraint.LogEntry(debugInfo[0]))
+		cs.MDebug[len(cs.Constraints)-1] = len(cs.DebugInfo) - 1
+	}
+	return len(cs.Constraints) - 1
 }
 
 // Solve sets all the wires.

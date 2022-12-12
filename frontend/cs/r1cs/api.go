@@ -244,8 +244,9 @@ func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
 		debug := builder.newDebugInfo("div", v1, "/", v2, " == ", res)
 		v2Inv := builder.newInternalVariable()
 		// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
-		builder.cs.AddConstraint(builder.newR1C(v2, v2Inv, builder.cstOne()), debug)
-		builder.cs.AddConstraint(builder.newR1C(v1, v2Inv, res), debug)
+		c1 := builder.cs.AddConstraint(builder.newR1C(v2, v2Inv, builder.cstOne()))
+		c2 := builder.cs.AddConstraint(builder.newR1C(v1, v2Inv, res))
+		builder.cs.AttachDebugInfo(debug, []int{c1, c2})
 		return res
 	}
 
@@ -500,10 +501,12 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	}
 
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
-	builder.cs.AddConstraint(builder.newR1C(builder.Neg(a), x[0], builder.Sub(m, 1)), debug)
+	c1 := builder.cs.AddConstraint(builder.newR1C(builder.Neg(a), x[0], builder.Sub(m, 1)))
 
 	// a * m = 0            // constrain m to be 0 if a != 0
-	builder.cs.AddConstraint(builder.newR1C(a, m, builder.cstZero()), debug)
+	c2 := builder.cs.AddConstraint(builder.newR1C(a, m, builder.cstZero()))
+
+	builder.cs.AttachDebugInfo(debug, []int{c1, c2})
 
 	return m
 }
