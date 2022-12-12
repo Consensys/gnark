@@ -88,15 +88,15 @@ func (s *solution) computeTerm(t constraint.Term) fr.Element {
 // r += (t.coeff*t.value)
 func (s *solution) accumulateInto(t constraint.Term, r *fr.Element) {
 	cID := t.CoeffID()
-	vID := t.WireID()
-	{
-		// TODO @gbotrel perf check, this is needed only when evaluating logs & debug info
-		// (or maybe also with plonk for the K constant?)
-		if t.IsConstant() {
-			r.Add(r, &s.coefficients[cID])
-			return
-		}
+
+	if t.IsConstant() {
+		// needed for logs, we may want to not put this in the hot path if we need to 
+		// optimize constraint system solver further.
+		r.Add(r, &s.coefficients[cID])
+		return
 	}
+
+	vID := t.WireID()
 	switch cID {
 	case constraint.CoeffIdZero:
 		return 
@@ -240,24 +240,6 @@ func (s *solution) logValue(log constraint.LogEntry) string {
 			toResolve = append(toResolve, eval.String())
 		}
 
-	
-		// if vID == 0 { // TODO @gbotrel too R1CS will break on SparseR1CS
-		// 	// it's just a constant
-		// 	if cID == constraint.CoeffIdMinusOne {
-		// 		toResolve = append(toResolve, "-1")
-		// 	} else {
-		// 		toResolve = append(toResolve, s.coefficients[cID].String())
-		// 	}
-		// 	continue
-		// }
-		// if !(cID == constraint.CoeffIdMinusOne || cID == constraint.CoeffIdOne) {
-		// 	toResolve = append(toResolve, s.coefficients[cID].String())
-		// }
-		// if !s.solved[vID] {
-		// 	toResolve = append(toResolve, unsolvedVariable)
-		// } else {
-		// 	toResolve = append(toResolve, s.values[vID].String())
-		// }
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
 }
