@@ -86,6 +86,14 @@ type CoeffEngine interface {
 	String(*Coeff) string
 }
 
+type Iterable interface {
+	// WireIterator returns a new iterator to iterate over the wires of the implementer (usually, a constraint)
+	WireIterator() func() int
+}
+
+var _ Iterable = &SparseR1C{}
+var _ Iterable = &R1C{}
+
 // System contains core elements for a constraint System
 type System struct {
 	// serialization header
@@ -115,11 +123,18 @@ type System struct {
 	// each level contains independent constraints and can be parallelized
 	// it is guaranteed that all dependncies for constraints in a level l are solved
 	// in previous levels
+	// TODO @gbotrel these are currently updated after we add a constraint.
+	// but in case the object is built from a serialized reprensentation
+	// we need to init the level builder lbWireLevel from the existing constraints.
 	Levels [][]int
 
 	// scalar field
 	q      *big.Int `cbor:"-"`
 	bitLen int      `cbor:"-"`
+
+	// level builder
+	lbWireLevel []int    `cbor:"-"` // at which level we solve a wire. init at -1.
+	lbOutputs   []uint32 `cbor:"-"` // wire outputs for current constraint.
 
 	CommitmentInfo Commitment
 }

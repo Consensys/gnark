@@ -32,7 +32,6 @@ type SparseR1CS interface {
 	AddConstraint(c SparseR1C, debugInfo ...DebugInfo) int
 
 	// GetConstraints() []R1C
-	BuildLevelTOREMOVE()
 }
 
 // R1CS decsribes a set of SparseR1C constraint
@@ -47,8 +46,8 @@ func (cs *SparseR1CSCore) GetNbConstraints() int {
 	return len(cs.Constraints)
 }
 
-func (cs *SparseR1CSCore) BuildLevelTOREMOVE() {
-	buildSCSLevels(cs)
+func (cs *SparseR1CSCore) UpdateLevel(cID int, c Iterable) {
+	cs.updateLevel(cID, c)
 }
 
 // SparseR1C used to compute the wires
@@ -58,6 +57,25 @@ type SparseR1C struct {
 	L, R, O Term
 	M       [2]Term
 	K       int // stores only the ID of the constant term that is used
+}
+
+// WireIterator implements constraint.Iterable
+func (c *SparseR1C) WireIterator() func() int {
+	curr := 0
+	return func() int {
+		switch curr {
+		case 0:
+			curr++
+			return c.L.WireID()
+		case 1:
+			curr++
+			return c.R.WireID()
+		case 2:
+			curr++
+			return c.O.WireID()
+		}
+		return -1
+	}
 }
 
 func (r1c *SparseR1C) String(getCoeff func(cID int) string, getVisibility func(vID int) schema.Visibility) string {

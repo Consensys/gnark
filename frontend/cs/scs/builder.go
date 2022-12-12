@@ -236,42 +236,7 @@ func (builder *scs) Compile() (constraint.ConstraintSystem, error) {
 		}
 	}
 
-	builder.cs.BuildLevelTOREMOVE()
-
-	// res := constraint.SparseR1CSCore{
-	// 	System:      builder.System,
-	// 	Constraints: builder.Constraints,
-	// }
-
-	// build levels
-	// res.Levels = buildLevels(res)
 	return builder.cs, nil
-
-	// curve := utils.FieldToCurve(cs.q)
-
-	// switch curve {
-	// case ecc.BLS12_377:
-	// 	return bls12377r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	// case ecc.BLS12_381:
-	// 	return bls12381r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	// case ecc.BN254:
-	// 	return bn254r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	// case ecc.BW6_761:
-	// 	return bw6761r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	// case ecc.BLS24_317:
-	// 	return bls24317r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	// case ecc.BLS24_315:
-	// 	return bls24315r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	// case ecc.BW6_633:
-	// 	return bw6633r1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	// default:
-	// 	q := cs.Field()
-	// 	if q.Cmp(tinyfield.Modulus()) == 0 {
-	// 		return tinyfieldr1cs.NewSparseR1CS(res, cs.st.Coeffs), nil
-	// 	}
-	// 	panic("unknown curveID")
-	// }
-
 }
 
 // ConstantValue returns the big.Int value of v. It

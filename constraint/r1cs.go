@@ -33,7 +33,6 @@ type R1CS interface {
 	AddConstraint(r1c R1C, debugInfo ...DebugInfo) int
 
 	// GetConstraints() []R1C
-	BuildLevelTOREMOVE()
 	// TODO maybe add sort of a constraint iterator / so that build level and isValid
 	// can be factorized between CS and R1CS.
 }
@@ -41,6 +40,26 @@ type R1CS interface {
 // R1C used to compute the wires
 type R1C struct {
 	L, R, O LinearExpression
+}
+
+// WireIterator implements constraint.Iterable
+func (r1c *R1C) WireIterator() func() int {
+	curr := 0
+	return func() int {
+		if curr < len(r1c.L) {
+			curr++
+			return r1c.L[curr-1].WireID()
+		}
+		if curr < len(r1c.L)+len(r1c.R) {
+			curr++
+			return r1c.R[curr-1-len(r1c.L)].WireID()
+		}
+		if curr < len(r1c.L)+len(r1c.R)+len(r1c.O) {
+			curr++
+			return r1c.O[curr-1-len(r1c.L)-len(r1c.R)].WireID()
+		}
+		return -1
+	}
 }
 
 // R1CS describes a set of R1C constraint
@@ -54,8 +73,8 @@ func (r1cs *R1CSCore) GetNbConstraints() int {
 	return len(r1cs.Constraints)
 }
 
-func (r1cs *R1CSCore) BuildLevelTOREMOVE() {
-	buildR1CSLevels(r1cs)
+func (r1cs *R1CSCore) UpdateLevel(cID int, c Iterable) {
+	r1cs.updateLevel(cID, c)
 }
 
 // IsValid perform post compilation checks on the Variables
