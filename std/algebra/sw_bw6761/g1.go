@@ -63,10 +63,14 @@ func (p *g1Proj) Neg(api frontend.API, a g1Proj) *g1Proj {
 
 // FromAffine sets p = Q, p in homogenous projective, Q in affine
 func (p *g1Proj) FromAffine(api frontend.API, Q G1Affine) *g1Proj {
-	flag := api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
-	p.z = api.Select(flag, 0, 1)
-	p.x = api.Select(flag, 1, Q.X)
-	p.y = api.Select(flag, 1, Q.Y)
+	// TODO
+	//flag := api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
+	//p.z = api.Select(flag, 0, 1)
+	//p.x = api.Select(flag, 1, Q.X)
+	//p.y = api.Select(flag, 1, Q.Y)
+	p.z = 1
+	p.x = Q.X
+	p.y = Q.Y
 	return p
 }
 

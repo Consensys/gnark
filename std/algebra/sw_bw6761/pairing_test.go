@@ -39,10 +39,10 @@ type pairingBW6761 struct {
 }
 
 func (circuit *pairingBW6761) Define(api frontend.API) error {
+	// TODO
+	Pair(api, []G1Affine{circuit.A}, []G2Affine{circuit.B})
 
-	pairingRes, _ := Pair(api, []G1Affine{circuit.A}, []G2Affine{circuit.B})
-
-	pairingRes.Equal(api, circuit.C)
+	// pairingRes.Equal(api, circuit.C)
 
 	return nil
 }
@@ -113,7 +113,7 @@ func TestPairingBW6761(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := emulated.NewAPI[emulated.BW6761Fp](api)
+		napi, err := emulated.NewField[emulated.BW6761Fp](api)
 		assert.NoError(err)
 		return napi
 	})
