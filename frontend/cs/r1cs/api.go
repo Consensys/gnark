@@ -17,12 +17,14 @@ limitations under the License.
 package r1cs
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/consensys/gnark/backend/hint"
@@ -621,59 +623,48 @@ func (builder *builder) Compiler() frontend.Compiler {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	// we want to build a sorted slice of commited variables, without duplicates
-	// this is the same algorithm as builder.add(...)
+	// this is the same algorithm as builder.add(...); but we expect len(v) to be quite large.
 
 	vars, s := builder.toVariables(v...)
+
+	// sort all the wires
 	committed := make([]int, 0, s)
-
-	// iterators over each linear expression
-	iterators := make([]int, len(vars))
-
-	next := func() (lID, tID int) {
-		min := math.MaxInt
-		lID = -1
-
-		// find the next term to process --> the smallest variableID
-		for i := 0; i < len(iterators); i++ {
-			it := iterators[i]
-			if it < len(vars[i]) && vars[i][it].VID < min {
-				min = vars[i][it].VID
-				lID = i
-				tID = it
+	for _, v := range vars {
+		for _, t := range v {
+			if t.VID != 0 {
+				committed = append(committed, t.VID)
 			}
 		}
+	}
+	sort.Ints(committed)
 
-		// we found one, increment the iterator of the term we are going to process.
-		if lID != -1 {
-			iterators[lID]++
-		}
-		return
+	if len(committed) == 0 {
+		return nil, errors.New("must commit to at least one variable")
 	}
 
-	curr := -1
+	// count number of public wires we encounter
 	nbPublicCommitted := 0
-
-	// process all the terms from all the inputs, in sorted order
-	for lID, tID := next(); lID != -1; lID, tID = next() {
-		t := &vars[lID][tID]
-		if t.VID == 0 {
-			continue // don't commit to ONE_WIRE
-		}
-		if curr != -1 && t.VID == committed[curr] {
-			// it's the same variable ID, do nothing
-			continue
-		} else {
-			// append, it's a new variable ID
-			committed = append(committed, t.VID)
-			if t.VID < builder.cs.GetNbPublicVariables() {
+	if committed[0] < builder.cs.GetNbPublicVariables() {
+		nbPublicCommitted++
+	}
+	// remove redundancy
+	j := 1
+	for i := 1; i < len(committed); i++ {
+		if currentVal := committed[i]; currentVal != committed[i-1] {
+			committed[j] = currentVal
+			if currentVal < builder.cs.GetNbPublicVariables() {
 				nbPublicCommitted++
 			}
-			curr++
+			j++
 		}
 	}
+	committed = committed[:j]
 
+	// build commitment
 	commitment := constraint.NewCommitment(committed, nbPublicCommitted)
 
+	// hint is used at solving time to compute the actual value of the commitment
+	// it is going to be dynamically replaced at solving time.
 	hintOut, err := builder.NewHint(bsb22CommitmentComputePlaceholder, 1, builder.getCommittedVariables(&commitment)...)
 	if err != nil {
 		return nil, err
