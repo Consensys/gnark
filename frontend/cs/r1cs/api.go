@@ -119,12 +119,6 @@ func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int
 		// keep the linear expression valid (assertIsSet)
 		res = expr.NewLinearExpression(0, constraint.Coeff{})
 	}
-	// TODO restore @ivokub
-	//  else if len(res) > 1000 {
-	// 	nr := builder.newInternalVariable()
-	// 	builder.cs.AddConstraint(builder.newR1C(nr, builder.one(), res))
-	// 	return nr
-	// }
 
 	return res
 }

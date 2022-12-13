@@ -41,8 +41,6 @@ import (
 	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
 )
 
-var _ constraint.R1CS = &R1CS{}
-
 // R1CS describes a set of R1CS constraint
 type R1CS struct {
 	constraint.R1CSCore

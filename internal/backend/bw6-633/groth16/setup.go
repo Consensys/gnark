@@ -92,10 +92,10 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	*/
 
 	// get R1CS nb constraints, wires and public/private inputs
-	nbWires := r1cs.NbInternalVariables + len(r1cs.Public) + len(r1cs.Secret)
+	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 	nbPrivateCommittedWires := r1cs.CommitmentInfo.NbPrivateCommitted
-	nbPublicWires := len(r1cs.Public)
-	nbPrivateWires := len(r1cs.Secret) + r1cs.NbInternalVariables - nbPrivateCommittedWires
+	nbPublicWires := r1cs.GetNbPublicVariables()
+	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - nbPrivateCommittedWires
 
 	if r1cs.CommitmentInfo.Is() { // the commitment itself is defined by a hint so the prover considers it private
 		nbPublicWires++  // but the verifier will need to inject the value itself so on the groth16
@@ -155,7 +155,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	for i := range A {
 		isCommittedPrivate := cI < len(privateCommitted) && i == privateCommitted[cI]
 		isCommitment := r1cs.CommitmentInfo.Is() && i == r1cs.CommitmentInfo.CommitmentIndex
-		isPublic := i < len(r1cs.Public)
+		isPublic := i < r1cs.GetNbPublicVariables()
 
 		if isPublic || isCommittedPrivate || isCommitment {
 			computeK(i, &toxicWaste.gammaInv)
@@ -318,7 +318,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
-	nbWires := r1cs.NbInternalVariables + len(r1cs.Public) + len(r1cs.Secret)
+	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 
 	A = make([]fr.Element, nbWires)
 	B = make([]fr.Element, nbWires)
@@ -451,7 +451,7 @@ func sampleToxicWaste() (toxicWaste, error) {
 // used for test or benchmarking purposes
 func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
-	nbWires := r1cs.NbInternalVariables + len(r1cs.Public) + len(r1cs.Secret)
+	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 	nbConstraints := len(r1cs.Constraints)
 
 	// Setting group for fft
@@ -464,7 +464,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires-nbZeroesA)
 	pk.G1.B = make([]curve.G1Affine, nbWires-nbZeroesB)
-	pk.G1.K = make([]curve.G1Affine, nbWires-len(r1cs.Public))
+	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.GetNbPublicVariables())
 	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
 	pk.G2.B = make([]curve.G2Affine, nbWires-nbZeroesB)
 
@@ -526,7 +526,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 // in A and B as it directly impacts prover performance
 func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 
-	nbWires := r1cs.NbInternalVariables + len(r1cs.Public) + len(r1cs.Secret)
+	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 
 	A := make([]bool, nbWires)
 	B := make([]bool, nbWires)

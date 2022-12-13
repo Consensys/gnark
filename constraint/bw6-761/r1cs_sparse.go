@@ -40,8 +40,6 @@ import (
 	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 )
 
-var _ constraint.SparseR1CS = &SparseR1CS{}
-
 // SparseR1CS represents a Plonk like circuit
 type SparseR1CS struct {
 	constraint.SparseR1CSCore

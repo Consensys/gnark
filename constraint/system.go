@@ -69,7 +69,9 @@ type ConstraintSystem interface {
 	// debug information only once.
 	AttachDebugInfo(debugInfo DebugInfo, constraintID []int)
 
-	IsValid() error // TODO @gbotrel should take list of Validators
+	// CheckUnconstrainedWires returns and error if the constraint system has wires that are not uniquely constrained.
+	// This is experimental.
+	CheckUnconstrainedWires() error
 }
 
 // CoeffEngine capability to perform arithmetic on Coeff
@@ -88,7 +90,13 @@ type CoeffEngine interface {
 
 type Iterable interface {
 	// WireIterator returns a new iterator to iterate over the wires of the implementer (usually, a constraint)
-	WireIterator() func() int
+	// Call to next() returns the next wireID of the Iterable object and -1 when iteration is over.
+	//
+	// For example a R1C constraint with L, R, O linear expressions, each of size 2, calling several times
+	// 		next := r1c.WireIterator();
+	// 		for wID := next(); wID != -1; wID = next() {}
+	//		// will return in order L[0],L[1],R[0],R[1],O[0],O[1],-1
+	WireIterator() (next func() int)
 }
 
 var _ Iterable = &SparseR1C{}

@@ -28,6 +28,7 @@ type LogEntry struct {
 }
 
 func (l *LogEntry) WriteVariable(le LinearExpression, sbb *strings.Builder) {
+	// 77 correspond to the ~len(4 word modulus) in base10 string
 	const elSize = 77
 	sbb.Grow(len(le) * elSize)
 	sbb.WriteString("%s")

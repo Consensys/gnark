@@ -1,6 +1,5 @@
 package expr
 
-// TODO @gbotrel factorize with R1CS package
 type LinearExpressionToRefactor []TermToRefactor
 
 func (l LinearExpressionToRefactor) Clone() LinearExpressionToRefactor {

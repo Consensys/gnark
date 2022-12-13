@@ -228,7 +228,7 @@ func (builder *scs) Compile() (constraint.ConstraintSystem, error) {
 		Msg("building constraint builder")
 
 	// ensure all inputs and hints are constrained
-	err := builder.cs.IsValid()
+	err := builder.cs.CheckUnconstrainedWires()
 	if err != nil {
 		log.Warn().Msg("circuit has unconstrained inputs")
 		if !builder.config.IgnoreUnconstrainedInputs {

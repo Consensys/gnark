@@ -150,7 +150,6 @@ func (circuit *notBooleanTrace) Define(api frontend.API) error {
 }
 
 func TestTraceNotBoolean(t *testing.T) {
-	// t.SkipNow() // TODO @gbotrel restore
 	assert := require.New(t)
 
 	var circuit, witness notBooleanTrace

@@ -40,8 +40,6 @@ import (
 	unknownwitness "github.com/consensys/gnark/internal/tinyfield/witness"
 )
 
-var _ constraint.SparseR1CS = &SparseR1CS{}
-
 // SparseR1CS represents a Plonk like circuit
 type SparseR1CS struct {
 	constraint.SparseR1CSCore

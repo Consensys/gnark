@@ -81,11 +81,11 @@ func (r1cs *R1CSCore) UpdateLevel(cID int, c Iterable) {
 //
 // 1. checks that all user inputs are referenced in at least one constraint
 // 2. checks that all hints are constrained
-func (system *R1CSCore) IsValid() error {
+func (r1cs *R1CSCore) CheckUnconstrainedWires() error {
 
 	// TODO @gbotrel add unit test for that.
 
-	inputConstrained := make([]bool, system.GetNbSecretVariables()+system.GetNbPublicVariables())
+	inputConstrained := make([]bool, r1cs.GetNbSecretVariables()+r1cs.GetNbPublicVariables())
 	// one wire does not need to be constrained
 	inputConstrained[0] = true
 	cptInputs := len(inputConstrained) - 1 // marking 1 wire as already constrained // TODO @gbotrel check that
@@ -93,7 +93,7 @@ func (system *R1CSCore) IsValid() error {
 		return errors.New("invalid constraint system: no input defined")
 	}
 
-	cptHints := len(system.MHints)
+	cptHints := len(r1cs.MHints)
 	mHintsConstrained := make(map[int]bool)
 
 	// for each constraint, we check the linear expressions and mark our inputs / hints as constrained
@@ -112,7 +112,7 @@ func (system *R1CSCore) IsValid() error {
 				}
 			} else {
 				// internal variable, let's check if it's a hint
-				if _, ok := system.MHints[vID]; ok {
+				if _, ok := r1cs.MHints[vID]; ok {
 					if !mHintsConstrained[vID] {
 						mHintsConstrained[vID] = true
 						cptHints--
@@ -122,7 +122,7 @@ func (system *R1CSCore) IsValid() error {
 
 		}
 	}
-	for _, r1c := range system.Constraints {
+	for _, r1c := range r1cs.Constraints {
 		processLinearExpression(r1c.L)
 		processLinearExpression(r1c.R)
 		processLinearExpression(r1c.O)
@@ -141,10 +141,10 @@ func (system *R1CSCore) IsValid() error {
 		sbb.WriteByte('\n')
 		for i := 0; i < len(inputConstrained) && cptInputs != 0; i++ {
 			if !inputConstrained[i] {
-				if i < len(system.Public) {
-					sbb.WriteString(system.Public[i])
+				if i < len(r1cs.Public) {
+					sbb.WriteString(r1cs.Public[i])
 				} else {
-					sbb.WriteString(system.Secret[i-len(system.Public)])
+					sbb.WriteString(r1cs.Secret[i-len(r1cs.Public)])
 				}
 
 				sbb.WriteByte('\n')

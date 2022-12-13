@@ -189,16 +189,6 @@ func (builder *builder) getLinearExpression(l expr.LinearExpression) constraint.
 	return L
 }
 
-// func (builder *r1cs) addConstraint(r1c constraint.R1C, debugID ...int) {
-// 	profile.RecordConstraint()
-// 	builder.Constraints = append(builder.Constraints, r1c)
-// 	if len(debugID) > 0 {
-// 		builder.MDebug[len(builder.Constraints)-1] = debugID[0]
-// 	} else if debug.Debug {
-// 		builder.MDebug[len(builder.Constraints)-1] = builder.AddDebugInfo("")
-// 	}
-// }
-
 // MarkBoolean sets (but do not **constraint**!) v to be boolean
 // This is useful in scenarios where a variable is known to be boolean through a constraint
 // that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
@@ -251,43 +241,32 @@ func init() {
 }
 
 // Compile constructs a rank-1 constraint sytem
-func (cs *builder) Compile() (constraint.ConstraintSystem, error) {
+func (builder *builder) Compile() (constraint.ConstraintSystem, error) {
 	// TODO if already compiled, return builder.cs object
 	log := logger.Logger()
 	log.Info().
-		Int("nbConstraints", cs.cs.GetNbConstraints()).
+		Int("nbConstraints", builder.cs.GetNbConstraints()).
 		Msg("building constraint builder")
 
 	// ensure all inputs and hints are constrained
-	if err := cs.cs.IsValid(); err != nil {
+	if err := builder.cs.CheckUnconstrainedWires(); err != nil {
 		log.Warn().Msg("circuit has unconstrained inputs")
-		if !cs.config.IgnoreUnconstrainedInputs {
+		if !builder.config.IgnoreUnconstrainedInputs {
 			return nil, err
 		}
 	}
 
-	return cs.cs, nil
+	return builder.cs, nil
 }
 
 // ConstantValue returns the big.Int value of v.
 // Will panic if v.IsConstant() == false
 func (builder *builder) ConstantValue(v frontend.Variable) (*big.Int, bool) {
-	if _v, ok := v.(expr.LinearExpression); ok {
-		assertIsSet(_v)
-
-		if len(_v) != 1 {
-			// TODO @gbotrel this assumes linear expressions of coeff are not possible
-			// and are always reduced to one element. may not always be true.
-			return nil, false
-		}
-		vID := _v[0].WireID()
-		if !(vID == 0) { // public ONE WIRE
-			return nil, false
-		}
-		return builder.cs.ToBigInt(&_v[0].Coeff), true
+	coeff, ok := builder.constantValue(v)
+	if !ok {
+		return nil, false
 	}
-	r := utils.FromInterface(v)
-	return &r, true
+	return builder.cs.ToBigInt(&coeff), true
 }
 
 func (builder *builder) constantValue(v frontend.Variable) (constraint.Coeff, bool) {

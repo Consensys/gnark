@@ -64,15 +64,17 @@ func getCachedSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	if srs, ok := srsCache[utils.FieldToCurve(ccs.Field())]; ok {
+	curveID := utils.FieldToCurve(ccs.Field())
+
+	if srs, ok := srsCache[curveID]; ok {
 		return srs, nil
 	}
 
-	srs, err := newKZGSRS(utils.FieldToCurve(ccs.Field()), srsCachedSize)
+	srs, err := newKZGSRS(curveID, srsCachedSize)
 	if err != nil {
 		return nil, err
 	}
-	srsCache[utils.FieldToCurve(ccs.Field())] = srs
+	srsCache[curveID] = srs
 	return srs, nil
 }
 

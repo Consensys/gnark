@@ -97,7 +97,7 @@ func (r1c *SparseR1C) String(getCoeff func(cID int) string, getVisibility func(v
 	return sbb.String()
 }
 
-func (system *SparseR1CSCore) IsValid() error {
+func (system *SparseR1CSCore) CheckUnconstrainedWires() error {
 	// TODO @gbotrel add unit test for that.
 
 	inputConstrained := make([]bool, system.GetNbSecretVariables()+system.GetNbPublicVariables())
