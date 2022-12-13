@@ -656,6 +656,9 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	// process all the terms from all the inputs, in sorted order
 	for lID, tID := next(); lID != -1; lID, tID = next() {
 		t := &vars[lID][tID]
+		if t.VID == 0 {
+			continue // don't commit to ONE_WIRE
+		}
 		if curr != -1 && t.VID == committed[curr] {
 			// it's the same variable ID, do nothing
 			continue
