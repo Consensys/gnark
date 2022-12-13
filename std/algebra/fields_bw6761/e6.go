@@ -186,7 +186,8 @@ func (z *E6) DecompressKarabina(api frontend.API, x E6) *E6 {
 	t[1] = api.Add(t[1], t[1])
 
 	// z4 = g4
-	z.B1.A1 = api.Div(t[0], t[1]) // costly
+	// TODO
+	//z.B1.A1 = api.DivUnchecked(t[0], t[1]) // costly
 
 	// t1 = g2 * g1
 	t[1] = api.Mul(x.B0.A2, x.B0.A1)
