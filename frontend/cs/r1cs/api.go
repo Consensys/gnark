@@ -42,18 +42,26 @@ import (
 func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	// extract frontend.Variables from input
 	vars, s := builder.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
-	return builder.add(vars, false, s)
+	if len(vars) > 5 {
+		return builder.addMany(vars, false, s)
+	}
+	return builder.addFew(vars, false, s)
+
 }
 
 // Sub returns res = i1 - i2
 func (builder *builder) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	// extract frontend.Variables from input
 	vars, s := builder.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
-	return builder.add(vars, true, s)
+	if len(vars) > 5 {
+		return builder.addMany(vars, true, s)
+	}
+	return builder.addFew(vars, true, s)
 }
 
 // returns res = Σ(vars) or res = vars[0] - Σ(vars[1:]) if sub == true.
-func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int) frontend.Variable {
+// addFew performs well with small number of inputs (but the linear expressions can be large)
+func (builder *builder) addFew(vars []expr.LinearExpression, sub bool, capacity int) frontend.Variable {
 	// we want to merge all terms from input linear expressions
 	// if they are duplicate, we reduce; that is, if multiple terms in different vars have the
 	// same variable id.
@@ -118,6 +126,54 @@ func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int
 			}
 		}
 	}
+
+	if len(res) == 0 {
+		// keep the linear expression valid (assertIsSet)
+		res = expr.NewLinearExpression(0, constraint.Coeff{})
+	}
+
+	return res
+}
+
+// returns res = Σ(vars) or res = vars[0] - Σ(vars[1:]) if sub == true.
+// addMany performs better with large number of inputs.
+func (builder *builder) addMany(vars []expr.LinearExpression, sub bool, capacity int) frontend.Variable {
+	// we want to merge all terms from input linear expressions
+	// if they are duplicate, we reduce; that is, if multiple terms in different vars have the
+	// same variable id.
+
+	// the frontend/ only builds linear expression that are sorted.
+	// we build a sorted output by iterating all the lists in order and dealing
+	// with the edge cases (same variable ID, coeff == 0, etc.)
+
+	res := make(expr.LinearExpression, 0, capacity)
+	for i, v := range vars {
+		for _, t := range v {
+			if !t.Coeff.IsZero() {
+				if sub && i != 0 {
+					builder.cs.Neg(&t.Coeff)
+				}
+				res = append(res, t)
+			}
+		}
+	}
+	sort.Sort(res)
+
+	// remove redundancy
+	j := 1
+	for i := 1; i < len(res); i++ {
+		if currentVal := res[i].VID; currentVal != res[i-1].VID {
+			res[j] = res[i]
+			j++
+		} else {
+			// same as previous
+			builder.cs.Add(&res[j-1].Coeff, &res[i].Coeff)
+			if res[j-1].Coeff.IsZero() {
+				j--
+			}
+		}
+	}
+	res = res[:j]
 
 	if len(res) == 0 {
 		// keep the linear expression valid (assertIsSet)
