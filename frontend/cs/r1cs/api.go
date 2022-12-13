@@ -65,6 +65,8 @@ func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int
 	// iterators over each linear expression
 	iterators := make([]int, len(vars))
 
+	// next find the next minimum variable ID to process
+	// since this is O(n) efficiency is terrible when len(vars) is big
 	next := func() (lID, tID int) {
 		min := math.MaxInt
 		lID = -1

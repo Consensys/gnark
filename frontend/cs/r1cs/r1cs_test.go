@@ -17,8 +17,10 @@ limitations under the License.
 package r1cs
 
 import (
+	"math/rand"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
@@ -68,4 +70,48 @@ func TestReduce(t *testing.T) {
 		t.Fatal("Error reduce, duplicate variables not collapsed")
 	}
 
+}
+
+func BenchmarkReduce(b *testing.B) {
+	cs := newBuilder(ecc.BN254.ScalarField(), frontend.CompileConfig{})
+	// 4 interesting cases;
+	// Add many small linear expressions
+	// Add few large linear expressions
+	// Add many large linear expressions
+	// Doubling of large linear expressions
+	rand.Seed(time.Now().Unix())
+	const nbTerms = 100000
+	terms := make([]frontend.Variable, nbTerms)
+	for i := 0; i < len(terms); i++ {
+		terms[i] = cs.newInternalVariable()
+	}
+
+	rL := make([]frontend.Variable, 1000)
+	for i := 0; i < len(rL); i++ {
+		rL[i] = cs.Mul(terms[i%50], rand.Uint64())
+	}
+
+	mL := make([]frontend.Variable, 1000)
+	b.ResetTimer()
+	b.Run("reduce redudancy", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			mL[i%len(mL)] = cs.Add(rand.Uint64(), rL[0], rL[1:]...)
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("many small", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = cs.Add(mL[0], mL[1], mL[2:]...)
+		}
+	})
+
+	c := cs.Add(terms[0], terms[1], terms[2:]...)
+
+	b.ResetTimer()
+	b.Run("doubling large", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = cs.Add(c, c)
+		}
+	})
 }
