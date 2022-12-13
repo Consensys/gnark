@@ -84,7 +84,7 @@ func TestAddFp3(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := emulated.NewAPI[emulated.BW6761Fp](api)
+		napi, err := emulated.NewField[emulated.BW6761Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -149,7 +149,7 @@ func TestSubFp3(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := emulated.NewAPI[emulated.BW6761Fp](api)
+		napi, err := emulated.NewField[emulated.BW6761Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -203,7 +203,7 @@ func TestNegFp3(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := emulated.NewAPI[emulated.BW6761Fp](api)
+		napi, err := emulated.NewField[emulated.BW6761Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -257,7 +257,7 @@ func TestDoubleFp3(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := emulated.NewAPI[emulated.BW6761Fp](api)
+		napi, err := emulated.NewField[emulated.BW6761Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -322,7 +322,7 @@ func TestMulFp3(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := emulated.NewAPI[emulated.BW6761Fp](api)
+		napi, err := emulated.NewField[emulated.BW6761Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -376,7 +376,7 @@ func TestMulByNonResidueFp3(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := emulated.NewAPI[emulated.BW6761Fp](api)
+		napi, err := emulated.NewField[emulated.BW6761Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -439,7 +439,7 @@ func TestMulBy01Fp3(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := emulated.NewAPI[emulated.BW6761Fp](api)
+		napi, err := emulated.NewField[emulated.BW6761Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -493,7 +493,7 @@ func TestSquareFp3(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := emulated.NewAPI[emulated.BW6761Fp](api)
+		napi, err := emulated.NewField[emulated.BW6761Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -547,7 +547,7 @@ func TestInverseFp3(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := emulated.NewAPI[emulated.BW6761Fp](api)
+		napi, err := emulated.NewField[emulated.BW6761Fp](api)
 		assert.NoError(err)
 		return napi
 	})
