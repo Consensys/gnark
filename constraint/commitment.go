@@ -2,7 +2,6 @@ package constraint
 
 import (
 	"math/big"
-	"sort"
 
 	"github.com/consensys/gnark/backend/hint"
 )
@@ -29,15 +28,14 @@ func (i *Commitment) Is() bool {
 	return len(i.Committed) != 0
 }
 
-func NewCommitment(committed []int, nbPublicVariables int) (Commitment, error) {
-	var i Commitment
-	sort.Ints(committed)
-	removeRedundancy(&committed)
-	nbPublicCommitted := binarySearch(committed, nbPublicVariables)
-	i.NbPrivateCommitted = len(committed) - nbPublicCommitted
-
-	i.Committed = committed
-	return i, nil
+// NewCommitment initialize a Commitment object
+//   - committed are the sorted wireID to commit to (without duplicate)
+//   - nbPublicCommited is the number of public inputs among the commited wireIDs
+func NewCommitment(committed []int, nbPublicCommitted int) Commitment {
+	return Commitment{
+		Committed:          committed,
+		NbPrivateCommitted: len(committed) - nbPublicCommitted,
+	}
 }
 
 func (i *Commitment) SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, fieldByteLen int) []byte {
@@ -45,51 +43,20 @@ func (i *Commitment) SerializeCommitment(privateCommitment []byte, publicCommitt
 	res := make([]byte, len(privateCommitment)+len(publicCommitted)*fieldByteLen)
 	copy(res, privateCommitment)
 
+	offset := len(privateCommitment)
 	for j, inJ := range publicCommitted {
-		inIBytes := inJ.Bytes()
-		slack := fieldByteLen - len(inIBytes)
-		copy(res[len(privateCommitment)+slack+j*fieldByteLen:], inIBytes)
+		offset += j * fieldByteLen
+		inJ.FillBytes(res[offset : offset+fieldByteLen])
 	}
 
 	return res
 }
 
-// GetPrivateToPublic returns indexes of variables which are private to the constraint system, but public to Groth16. That is, private committed variables and the commitment itself
-func (i *Commitment) GetPrivateToPublic() []int {
+// PrivateToPublic returns indexes of variables which are private to the constraint system, but public to Groth16. That is, private committed variables and the commitment itself
+func (i *Commitment) PrivateToPublic() []int {
 	return i.CommittedAndCommitment[i.NbPublicCommitted():]
 }
 
-func (i *Commitment) GetPrivateCommitted() []int {
+func (i *Commitment) PrivateCommitted() []int {
 	return i.Committed[i.NbPublicCommitted():]
-}
-
-func removeRedundancy(sorted *[]int) {
-	if len(*sorted) == 0 {
-		return
-	}
-
-	j := 1
-	for i := 1; i < len(*sorted); i++ {
-		if currentVal := (*sorted)[i]; currentVal != (*sorted)[i-1] {
-			(*sorted)[j] = currentVal
-			j++
-		}
-	}
-
-	*sorted = (*sorted)[:j]
-}
-
-func binarySearch(slice []int, v int) int { //different from the standard library binary search in that if v is not found, binarySearch returns where it would have been were it to be inserted
-	j, k := 0, len(slice)
-	for j < k {
-		m := (j + k) / 2
-		if sM := slice[m]; sM > v {
-			k = m // if j < k then m < k so this advances the loop
-		} else if sM < v {
-			j = m + 1
-		} else {
-			return m
-		}
-	}
-	return j
 }

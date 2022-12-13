@@ -150,7 +150,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	}
 
 	vI, cI := 0, 0
-	privateCommitted := r1cs.CommitmentInfo.GetPrivateCommitted()
+	privateCommitted := r1cs.CommitmentInfo.PrivateCommitted()
 
 	for i := range A {
 		isCommittedPrivate := cI < len(privateCommitted) && i == privateCommitted[cI]

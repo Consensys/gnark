@@ -219,7 +219,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_633witness.Witness, opt ba
 			chKrs2Done <- err
 		}()
 
-		removeIndexes(&wireValues, r1cs.CommitmentInfo.GetPrivateToPublic()) // WARNING: From this point on, the underlying array of wireValues has been edited
+		removeIndexes(&wireValues, r1cs.CommitmentInfo.PrivateToPublic()) // WARNING: From this point on, the underlying array of wireValues has been edited
 
 		if _, err := krs.MultiExp(pk.G1.K, wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err

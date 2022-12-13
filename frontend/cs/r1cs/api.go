@@ -620,25 +620,57 @@ func (builder *builder) Compiler() frontend.Compiler {
 }
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+	// we want to build a sorted slice of commited variables, without duplicates
+	// this is the same algorithm as builder.add(...)
 
-	committed := make([]int, 0, len(v))
+	vars, s := builder.toVariables(v...)
+	committed := make([]int, 0, s)
 
-	// TODO @Tabaie: Experiment with a threshold for "enforceWire"
-	for _, vI := range v {
-		for _, term := range vI.(expr.LinearExpression) {
-			wireID := term.WireID()
-			if wireID != 0 { // Don't commit to 1
-				committed = append(committed, wireID)
+	// iterators over each linear expression
+	iterators := make([]int, len(vars))
+
+	next := func() (lID, tID int) {
+		min := math.MaxInt
+		lID = -1
+
+		// find the next term to process --> the smallest variableID
+		for i := 0; i < len(iterators); i++ {
+			it := iterators[i]
+			if it < len(vars[i]) && vars[i][it].VID < min {
+				min = vars[i][it].VID
+				lID = i
+				tID = it
 			}
+		}
+
+		// we found one, increment the iterator of the term we are going to process.
+		if lID != -1 {
+			iterators[lID]++
+		}
+		return
+	}
+
+	curr := -1
+	nbPublicCommitted := 0
+
+	// process all the terms from all the inputs, in sorted order
+	for lID, tID := next(); lID != -1; lID, tID = next() {
+		t := &vars[lID][tID]
+		if curr != -1 && t.VID == committed[curr] {
+			// it's the same variable ID, do nothing
+			continue
+		} else {
+			// append, it's a new variable ID
+			committed = append(committed, t.VID)
+			if t.VID < builder.cs.GetNbPublicVariables() {
+				nbPublicCommitted++
+			}
+			curr++
 		}
 	}
 
-	commitment, err := constraint.NewCommitment(committed, builder.cs.GetNbPublicVariables())
-	if err != nil {
-		return nil, err
-	}
+	commitment := constraint.NewCommitment(committed, nbPublicCommitted)
 
-	// TODO @gbotrel the hint logic here bleeds a bit too much in frontend/...
 	hintOut, err := builder.NewHint(bsb22CommitmentComputePlaceholder, 1, builder.getCommittedVariables(&commitment)...)
 	if err != nil {
 		return nil, err
