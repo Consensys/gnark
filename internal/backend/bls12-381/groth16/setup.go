@@ -17,15 +17,13 @@
 package groth16
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-
-	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
-
-	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
-
 	"github.com/consensys/gnark-crypto/ecc"
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/pedersen"
 	"github.com/consensys/gnark/frontend/compiled"
+	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
 	"math/big"
 	"math/bits"
 )
@@ -53,6 +51,8 @@ type ProvingKey struct {
 	// if InfinityA[i] == true, the point G1.A[i] == infinity
 	InfinityA, InfinityB     []bool
 	NbInfinityA, NbInfinityB uint64
+
+	CommitmentKey pedersen.Key
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -74,6 +74,9 @@ type VerifyingKey struct {
 
 	// e(α, β)
 	e curve.GT // not serialized
+
+	CommitmentKey  pedersen.Key
+	CommitmentInfo compiled.Info // since the verifier doesn't input a constraint system, this needs to be provided here
 }
 
 // Setup constructs the SRS
@@ -90,8 +93,14 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
-	nbPublicWires := int(r1cs.NbPublicVariables)
-	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables
+	nbPrivateCommittedWires := r1cs.CommitmentInfo.NbPrivateCommitted
+	nbPublicWires := r1cs.NbPublicVariables
+	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables - nbPrivateCommittedWires
+
+	if r1cs.CommitmentInfo.Is() { // the commitment itself is defined by a hint so the prover considers it private
+		nbPublicWires++  // but the verifier will need to inject the value itself so on the groth16
+		nbPrivateWires-- // level it must be considered public
+	}
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(len(r1cs.Constraints)))
@@ -117,7 +126,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// ---------------------------------------------------------------------------------------------
 	// G1 scalars
 
-	// the G1 scalars are ordered (arbitrary) as follow:
+	// the G1 scalars are ordered (arbitrary) as follows:
 	//
 	// [[α], [β], [δ], [A(i)], [B(i)], [pk.K(i)], [Z(i)], [vk.K(i)]]
 	// len(A) == len(B) == nbWires
@@ -125,35 +134,50 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// len(vk.K) == nbPublicWires
 	// len(Z) == domain.Cardinality
 
-	// compute scalars for pkK and vkK
+	// compute scalars for pkK, vkK and ckK
 	pkK := make([]fr.Element, nbPrivateWires)
 	vkK := make([]fr.Element, nbPublicWires)
+	ckK := make([]fr.Element, nbPrivateCommittedWires)
 
 	var t0, t1 fr.Element
 
-	for i := 0; i < nbPublicWires; i++ {
+	computeK := func(i int, coeff *fr.Element) { // TODO: Inline again
 		t1.Mul(&A[i], &toxicWaste.beta)
 		t0.Mul(&B[i], &toxicWaste.alpha)
 		t1.Add(&t1, &t0).
 			Add(&t1, &C[i]).
-			Mul(&t1, &toxicWaste.gammaInv)
-		vkK[i] = t1.ToRegular()
+			Mul(&t1, coeff)
 	}
 
-	for i := 0; i < nbPrivateWires; i++ {
-		t1.Mul(&A[i+nbPublicWires], &toxicWaste.beta)
-		t0.Mul(&B[i+nbPublicWires], &toxicWaste.alpha)
-		t1.Add(&t1, &t0).
-			Add(&t1, &C[i+nbPublicWires]).
-			Mul(&t1, &toxicWaste.deltaInv)
-		pkK[i] = t1.ToRegular()
+	vI, cI := 0, 0
+	privateCommitted := r1cs.CommitmentInfo.GetPrivateCommitted()
+
+	for i := range A {
+		isCommittedPrivate := cI < len(privateCommitted) && i == privateCommitted[cI]
+		isCommitment := r1cs.CommitmentInfo.Is() && i == r1cs.CommitmentInfo.CommitmentIndex
+		isPublic := i < r1cs.NbPublicVariables
+
+		if isPublic || isCommittedPrivate || isCommitment {
+			computeK(i, &toxicWaste.gammaInv)
+
+			if isCommittedPrivate {
+				ckK[cI] = t1.ToRegular()
+				cI++
+			} else {
+				vkK[vI] = t1.ToRegular()
+				vI++
+			}
+		} else {
+			computeK(i, &toxicWaste.deltaInv)
+			pkK[i-vI-cI] = t1.ToRegular()
+		}
 	}
 
 	// convert A and B to regular form
-	for i := 0; i < int(nbWires); i++ {
+	for i := 0; i < nbWires; i++ {
 		A[i].FromMont()
 	}
-	for i := 0; i < int(nbWires); i++ {
+	for i := 0; i < nbWires; i++ {
 		B[i].FromMont()
 	}
 
@@ -203,9 +227,10 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	g1Scalars = append(g1Scalars, toxicWaste.alphaReg, toxicWaste.betaReg, toxicWaste.deltaReg)
 	g1Scalars = append(g1Scalars, A...)
 	g1Scalars = append(g1Scalars, B...)
-	g1Scalars = append(g1Scalars, pkK...)
 	g1Scalars = append(g1Scalars, Z...)
 	g1Scalars = append(g1Scalars, vkK...)
+	g1Scalars = append(g1Scalars, pkK...)
+	g1Scalars = append(g1Scalars, ckK...)
 
 	g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
 
@@ -221,15 +246,31 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	pk.G1.B = g1PointsAff[offset : offset+len(B)]
 	offset += len(B)
 
-	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
-	offset += nbPrivateWires
-
 	pk.G1.Z = g1PointsAff[offset : offset+int(domain.Cardinality)]
 	bitReverse(pk.G1.Z)
 
 	offset += int(domain.Cardinality)
 
-	vk.G1.K = g1PointsAff[offset:]
+	vk.G1.K = g1PointsAff[offset : offset+nbPublicWires]
+	offset += nbPublicWires
+
+	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
+	offset += nbPrivateWires
+
+	// ---------------------------------------------------------------------------------------------
+	// Commitment setup
+
+	if nbPrivateCommittedWires != 0 {
+		commitmentBasis := g1PointsAff[offset:]
+
+		vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
+		if err != nil {
+			return err
+		}
+		pk.CommitmentKey = vk.CommitmentKey
+	}
+
+	vk.CommitmentInfo = r1cs.CommitmentInfo // unfortunate but necessary
 
 	// ---------------------------------------------------------------------------------------------
 	// G2 scalars
@@ -332,7 +373,7 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// L, R and O being linear expressions
 	// for each term appearing in the linear expression,
 	// we compute term.Coefficient * L, and cumulate it in
-	// A, B or C at the indice of the variable
+	// A, B or C at the index of the variable
 	for i, c := range r1cs.Constraints {
 
 		for _, t := range c.L {

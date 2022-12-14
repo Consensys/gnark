@@ -591,3 +591,8 @@ func (system *scs) splitProd(acc compiled.Term, r compiled.LinearExpression) com
 	system.addPlonkConstraint(acc, r[0], o, compiled.CoeffIdZero, compiled.CoeffIdZero, cl, cr, compiled.CoeffIdMinusOne, compiled.CoeffIdZero)
 	return system.splitProd(o, r[1:])
 }
+
+func (system *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+	//TODO implement me
+	panic("not implemented")
+}

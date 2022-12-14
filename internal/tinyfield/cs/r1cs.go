@@ -76,7 +76,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	}
 	start := time.Now()
 
-	if len(witness) != int(cs.NbPublicVariables-1+cs.NbSecretVariables) { // - 1 for ONE_WIRE
+	if len(witness) != cs.NbPublicVariables-1+cs.NbSecretVariables { // - 1 for ONE_WIRE
 		err = fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(cs.NbPublicVariables-1+cs.NbSecretVariables), cs.NbPublicVariables-1, cs.NbSecretVariables)
 		log.Err(err).Send()
 		return solution.values, err
@@ -92,7 +92,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	solution.solved[0] = true // ONE_WIRE
 	solution.values[0].SetOne()
 	copy(solution.values[1:], witness)
-	for i := 0; i < len(witness); i++ {
+	for i := range witness {
 		solution.solved[i+1] = true
 	}
 
@@ -152,7 +152,7 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 					// for each constraint in the task, solve it.
 					if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
 						var debugInfo *string
-						if dID, ok := cs.MDebug[int(i)]; ok {
+						if dID, ok := cs.MDebug[i]; ok {
 							debugInfo = new(string)
 							*debugInfo = solution.logValue(cs.DebugInfo[dID])
 						}
@@ -183,7 +183,7 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 			for _, i := range level {
 				if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
 					var debugInfo *string
-					if dID, ok := cs.MDebug[int(i)]; ok {
+					if dID, ok := cs.MDebug[i]; ok {
 						debugInfo = new(string)
 						*debugInfo = solution.logValue(cs.DebugInfo[dID])
 					}
@@ -279,7 +279,7 @@ func (cs *R1CS) divByCoeff(res *fr.Element, t compiled.Term) {
 // the constraint is satisfied later.
 func (cs *R1CS) solveConstraint(r compiled.R1C, solution *solution, a, b, c *fr.Element) error {
 
-	// the index of the non zero entry shows if L, R or O has an uninstantiated wire
+	// the index of the non-zero entry shows if L, R or O has an uninstantiated wire
 	// the content is the ID of the wire non instantiated
 	var loc uint8
 

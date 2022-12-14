@@ -576,3 +576,23 @@ func (system *r1cs) negateLinExp(l compiled.LinearExpression) compiled.LinearExp
 func (system *r1cs) Compiler() frontend.Compiler {
 	return system
 }
+
+func (system *r1cs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+
+	if system.CommitmentInfo.Is() {
+		return nil, fmt.Errorf("currently only one commitment per circuit is supported")
+	}
+
+	committed := make([]int, 0, len(v)) // Perf-TODO: Experiment with capacity
+
+	for _, vI := range v {
+		for _, term := range vI.(compiled.LinearExpression) { // Perf-TODO: Experiment with a threshold for "enforceWire"
+			wireID := term.WireID()
+			if wireID != 0 { // Don't commit to 1
+				committed = append(committed, wireID)
+			}
+		}
+	}
+
+	return system.CommitmentInfo.Initialize(committed, system.NbPublicVariables, system)
+}
