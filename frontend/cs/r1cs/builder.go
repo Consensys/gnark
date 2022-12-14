@@ -58,6 +58,7 @@ type builder struct {
 
 	q    *big.Int
 	tOne constraint.Coeff
+	heap minHeap // helps merge k sorted linear expressions
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -66,6 +67,7 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 	builder := builder{
 		mtBooleans: make(map[uint64][]expr.LinearExpression),
 		config:     config,
+		heap:       make(minHeap, 0, 100),
 	}
 
 	// by default the circuit is given a public wire equal to 1

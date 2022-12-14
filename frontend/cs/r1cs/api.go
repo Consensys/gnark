@@ -19,7 +19,6 @@ package r1cs
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"path/filepath"
 	"reflect"
@@ -42,10 +41,7 @@ import (
 func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	// extract frontend.Variables from input
 	vars, s := builder.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
-	if len(vars) > 5 {
-		return builder.addMany(vars, false, s)
-	}
-	return builder.addFew(vars, false, s)
+	return builder.add(vars, false, s)
 
 }
 
@@ -53,15 +49,11 @@ func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) f
 func (builder *builder) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	// extract frontend.Variables from input
 	vars, s := builder.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
-	if len(vars) > 5 {
-		return builder.addMany(vars, true, s)
-	}
-	return builder.addFew(vars, true, s)
+	return builder.add(vars, true, s)
 }
 
 // returns res = Σ(vars) or res = vars[0] - Σ(vars[1:]) if sub == true.
-// addFew performs well with small number of inputs (but the linear expressions can be large)
-func (builder *builder) addFew(vars []expr.LinearExpression, sub bool, capacity int) frontend.Variable {
+func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int) frontend.Variable {
 	// we want to merge all terms from input linear expressions
 	// if they are duplicate, we reduce; that is, if multiple terms in different vars have the
 	// same variable id.
@@ -70,37 +62,28 @@ func (builder *builder) addFew(vars []expr.LinearExpression, sub bool, capacity 
 	// we build a sorted output by iterating all the lists in order and dealing
 	// with the edge cases (same variable ID, coeff == 0, etc.)
 
-	// iterators over each linear expression
-	iterators := make([]int, len(vars))
+	// initialize the min-heap
 
-	// next find the next minimum variable ID to process
-	// since this is O(n) efficiency is terrible when len(vars) is big
-	next := func() (lID, tID int) {
-		min := math.MaxInt
-		lID = -1
-
-		// find the next term to process --> the smallest variableID
-		for i := 0; i < len(iterators); i++ {
-			it := iterators[i]
-			if it < len(vars[i]) && vars[i][it].VID < min {
-				min = vars[i][it].VID
-				lID = i
-				tID = it
-			}
-		}
-
-		// we found one, increment the iterator of the term we are going to process.
-		if lID != -1 {
-			iterators[lID]++
-		}
-		return
+	for lID, v := range vars {
+		builder.heap = append(builder.heap, linMeta{val: v[0].VID, lID: lID})
 	}
+	builder.heap.heapify()
 
 	res := make(expr.LinearExpression, 0, capacity)
 	curr := -1
 
 	// process all the terms from all the inputs, in sorted order
-	for lID, tID := next(); lID != -1; lID, tID = next() {
+	for len(builder.heap) > 0 {
+		lID, tID := builder.heap[0].lID, builder.heap[0].tID
+		if tID == len(vars[lID])-1 {
+			// last element, we remove it from the heap.
+			builder.heap.popHead()
+		} else {
+			// increment and fix the heap
+			builder.heap[0].tID++
+			builder.heap[0].val = vars[lID][tID+1].VID
+			builder.heap.fix(0)
+		}
 		t := &vars[lID][tID]
 		if t.Coeff.IsZero() {
 			continue // is this really needed?
@@ -126,54 +109,6 @@ func (builder *builder) addFew(vars []expr.LinearExpression, sub bool, capacity 
 			}
 		}
 	}
-
-	if len(res) == 0 {
-		// keep the linear expression valid (assertIsSet)
-		res = expr.NewLinearExpression(0, constraint.Coeff{})
-	}
-
-	return res
-}
-
-// returns res = Σ(vars) or res = vars[0] - Σ(vars[1:]) if sub == true.
-// addMany performs better with large number of inputs.
-func (builder *builder) addMany(vars []expr.LinearExpression, sub bool, capacity int) frontend.Variable {
-	// we want to merge all terms from input linear expressions
-	// if they are duplicate, we reduce; that is, if multiple terms in different vars have the
-	// same variable id.
-
-	// the frontend/ only builds linear expression that are sorted.
-	// we build a sorted output by iterating all the lists in order and dealing
-	// with the edge cases (same variable ID, coeff == 0, etc.)
-
-	res := make(expr.LinearExpression, 0, capacity)
-	for i, v := range vars {
-		for _, t := range v {
-			if !t.Coeff.IsZero() {
-				if sub && i != 0 {
-					builder.cs.Neg(&t.Coeff)
-				}
-				res = append(res, t)
-			}
-		}
-	}
-	sort.Sort(res)
-
-	// remove redundancy
-	j := 1
-	for i := 1; i < len(res); i++ {
-		if currentVal := res[i].VID; currentVal != res[i-1].VID {
-			res[j] = res[i]
-			j++
-		} else {
-			// same as previous
-			builder.cs.Add(&res[j-1].Coeff, &res[i].Coeff)
-			if res[j-1].Coeff.IsZero() {
-				j--
-			}
-		}
-	}
-	res = res[:j]
 
 	if len(res) == 0 {
 		// keep the linear expression valid (assertIsSet)
