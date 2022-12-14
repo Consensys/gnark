@@ -772,15 +772,31 @@ func testFourMuls[T FieldParams](t *testing.T) {
 	}, testName[T]())
 }
 
-type PublicElement struct {
-	Y Element[BN254Fp] `gnark:",public"`
-}
-
-func (c *PublicElement) Define(api frontend.API) error {
-	return nil
-}
-
-func TestPublicElement(t *testing.T) {
+func TestIssue348UnconstrainedLimbs(t *testing.T) {
+	t.Skip("regression #348")
+	// The inputs were found by the fuzzer. These inputs represent a case where
+	// addition overflows due to unconstrained limbs. Usually for random inputs
+	// this should lead to some failed assertion, but here the overflow is
+	// exactly a multiple of non-native modulus and the equality assertion
+	// succeeds.
+	//
+	// Usually, the widths of non-native element limbs should be bounded, but
+	// for freshly initialised elements (using NewElement, or directly by
+	// constructing the structure), we do not automatically enforce the widths.
+	//
+	// The bug is tracked in https://github.com/ConsenSys/gnark/issues/348
+	a := big.NewInt(5)
+	b, _ := new(big.Int).SetString("21888242871839275222246405745257275088548364400416034343698204186575808495612", 10)
 	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&PublicElement{}, &PublicElement{}, test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs()))
+	witness := NegationCircuit[Goldilocks]{
+		A: Element[Goldilocks]{overflow: 0, Limbs: []frontend.Variable{a}},
+		B: Element[Goldilocks]{overflow: 0, Limbs: []frontend.Variable{b}}}
+	err := test.IsSolved(&NegationCircuit[Goldilocks]{}, &witness, testCurve.ScalarField())
+	// this should err but does not.
+	assert.Error(err)
+	err = test.IsSolved(&NegationCircuit[Goldilocks]{}, &witness, testCurve.ScalarField(), test.SetAllVariablesAsConstants())
+	// this should err and does. It errs because we consider all inputs as
+	// constants and the field emulation package has a short path for constant
+	// inputs.
+	assert.Error(err)
 }
