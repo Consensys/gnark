@@ -72,6 +72,26 @@ func TestReduce(t *testing.T) {
 
 }
 
+func TestCompress(t *testing.T) {
+	cs := newBuilder(ecc.BN254.ScalarField(), frontend.CompileConfig{CompressThreshold: 3})
+	vars := make([]frontend.Variable, 4)
+	for i := range vars {
+		v := cs.newInternalVariable()
+		vars[i] = cs.Mul(v, 1<<i)
+	}
+
+	// if add two variables, then should not compress
+	v1 := cs.Add(vars[0], vars[1])
+	if vli1 := v1.(expr.LinearExpression); len(vli1) != 2 {
+		t.Fatalf("expected linear expression length 2, got %d", len(vli1))
+	}
+	// if add three vars, then should compress
+	v2 := cs.Add(vars[0], vars[1], vars[2])
+	if vli2 := v2.(expr.LinearExpression); len(vli2) != 1 {
+		t.Fatalf("expected linear expression length 1, got %d", len(vli2))
+	}
+}
+
 func BenchmarkReduce(b *testing.B) {
 	cs := newBuilder(ecc.BN254.ScalarField(), frontend.CompileConfig{})
 	// 4 interesting cases;
