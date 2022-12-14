@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"sort"
 	"strings"
 
 	"github.com/consensys/gnark/backend/hint"
@@ -620,38 +619,51 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 	vars, s := builder.toVariables(v...)
 
+	// initialize the min-heap
+	// this is the same algorithm as api.add --> we want to merge k sorted linear expression
+	for lID, v := range vars {
+		builder.heap = append(builder.heap, linMeta{val: v[0].VID, lID: lID})
+	}
+	builder.heap.heapify()
+
 	// sort all the wires
 	committed := make([]int, 0, s)
-	for _, v := range vars {
-		for _, t := range v {
-			if t.VID != 0 {
-				committed = append(committed, t.VID)
+
+	curr := -1
+	nbPublicCommitted := 0
+
+	// process all the terms from all the inputs, in sorted order
+	for len(builder.heap) > 0 {
+		lID, tID := builder.heap[0].lID, builder.heap[0].tID
+		if tID == len(vars[lID])-1 {
+			// last element, we remove it from the heap.
+			builder.heap.popHead()
+		} else {
+			// increment and fix the heap
+			builder.heap[0].tID++
+			builder.heap[0].val = vars[lID][tID+1].VID
+			builder.heap.fix(0)
+		}
+		t := &vars[lID][tID]
+		if t.VID == 0 {
+			continue // don't commit to ONE_WIRE
+		}
+		if curr != -1 && t.VID == committed[curr] {
+			// it's the same variable ID, do nothing
+			continue
+		} else {
+			// append, it's a new variable ID
+			committed = append(committed, t.VID)
+			if t.VID < builder.cs.GetNbPublicVariables() {
+				nbPublicCommitted++
 			}
+			curr++
 		}
 	}
-	sort.Ints(committed)
 
 	if len(committed) == 0 {
 		return nil, errors.New("must commit to at least one variable")
 	}
-
-	// count number of public wires we encounter
-	nbPublicCommitted := 0
-	if committed[0] < builder.cs.GetNbPublicVariables() {
-		nbPublicCommitted++
-	}
-	// remove redundancy
-	j := 1
-	for i := 1; i < len(committed); i++ {
-		if currentVal := committed[i]; currentVal != committed[i-1] {
-			committed[j] = currentVal
-			if currentVal < builder.cs.GetNbPublicVariables() {
-				nbPublicCommitted++
-			}
-			j++
-		}
-	}
-	committed = committed[:j]
 
 	// build commitment
 	commitment := constraint.NewCommitment(committed, nbPublicCommitted)

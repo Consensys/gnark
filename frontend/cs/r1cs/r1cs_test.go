@@ -88,14 +88,14 @@ func BenchmarkReduce(b *testing.B) {
 
 	rL := make([]frontend.Variable, 1000)
 	for i := 0; i < len(rL); i++ {
-		rL[i] = cs.Mul(terms[i%50], rand.Uint64())
+		rL[i] = cs.Mul(terms[i%50], rand.Uint64()) //#nosec G404 -- This is a false positive
 	}
 
 	mL := make([]frontend.Variable, 1000)
 	b.ResetTimer()
 	b.Run("reduce redudancy", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			mL[i%len(mL)] = cs.Add(rand.Uint64(), rL[0], rL[1:]...)
+			mL[i%len(mL)] = cs.Add(rand.Uint64(), rL[0], rL[1:]...) //#nosec G404 -- This is a false positive
 		}
 	})
 
