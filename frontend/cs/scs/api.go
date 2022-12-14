@@ -25,142 +25,143 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiled"
+	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
 // Add returns res = i1+i2+...in
-func (system *scs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (builder *scs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	zero := big.NewInt(0)
-	vars, k := system.filterConstantSum(append([]frontend.Variable{i1, i2}, in...))
+	vars, k := builder.filterConstantSum(append([]frontend.Variable{i1, i2}, in...))
 
 	if len(vars) == 0 {
 		return k
 	}
-	vars = system.reduce(vars)
+	vars = builder.reduce(vars)
 	if k.Cmp(zero) == 0 {
-		return system.splitSum(vars[0], vars[1:])
+		return builder.splitSum(vars[0], vars[1:])
 	}
-	cl, _, _ := vars[0].Unpack()
-	kID := system.st.CoeffID(&k)
-	o := system.newInternalVariable()
-	system.addPlonkConstraint(vars[0], system.zero(), o, cl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, kID)
-	return system.splitSum(o, vars[1:])
+	cl, _ := vars[0].Unpack()
+	kID := builder.st.CoeffID(&k)
+	o := builder.newInternalVariable()
+	builder.addPlonkConstraint(vars[0], builder.zero(), o, cl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, kID)
+	return builder.splitSum(o, vars[1:])
 
 }
 
 // neg returns -in
-func (system *scs) neg(in []frontend.Variable) []frontend.Variable {
+func (builder *scs) neg(in []frontend.Variable) []frontend.Variable {
 
 	res := make([]frontend.Variable, len(in))
 
 	for i := 0; i < len(in); i++ {
-		res[i] = system.Neg(in[i])
+		res[i] = builder.Neg(in[i])
 	}
 	return res
 }
 
 // Sub returns res = i1 - i2 - ...in
-func (system *scs) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	r := system.neg(append([]frontend.Variable{i2}, in...))
-	return system.Add(i1, r[0], r[1:]...)
+func (builder *scs) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	r := builder.neg(append([]frontend.Variable{i2}, in...))
+	return builder.Add(i1, r[0], r[1:]...)
 }
 
 // Neg returns -i
-func (system *scs) Neg(i1 frontend.Variable) frontend.Variable {
-	if n, ok := system.ConstantValue(i1); ok {
+func (builder *scs) Neg(i1 frontend.Variable) frontend.Variable {
+	if n, ok := builder.ConstantValue(i1); ok {
 		n.Neg(n)
 		return *n
 	} else {
-		v := i1.(compiled.Term)
-		c, _, _ := v.Unpack()
+		v := i1.(expr.TermToRefactor)
+		c, _ := v.Unpack()
 		var coef big.Int
-		coef.Set(&system.st.Coeffs[c])
+		coef.Set(&builder.st.Coeffs[c])
 		coef.Neg(&coef)
-		c = system.st.CoeffID(&coef)
+		c = builder.st.CoeffID(&coef)
 		v.SetCoeffID(c)
 		return v
 	}
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (system *scs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (builder *scs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
-	vars, k := system.filterConstantProd(append([]frontend.Variable{i1, i2}, in...))
+	vars, k := builder.filterConstantProd(append([]frontend.Variable{i1, i2}, in...))
 	if len(vars) == 0 {
 		return k
 	}
-	l := system.mulConstant(vars[0], &k)
-	return system.splitProd(l, vars[1:])
+	l := builder.mulConstant(vars[0], &k)
+	return builder.splitProd(l, vars[1:])
 
 }
 
 // returns t*m
-func (system *scs) mulConstant(t compiled.Term, m *big.Int) compiled.Term {
+func (builder *scs) mulConstant(t expr.TermToRefactor, m *big.Int) expr.TermToRefactor {
 	var coef big.Int
-	cid, _, _ := t.Unpack()
-	coef.Set(&system.st.Coeffs[cid])
-	coef.Mul(m, &coef).Mod(&coef, system.q)
-	cid = system.st.CoeffID(&coef)
+	cid, _ := t.Unpack()
+	coef.Set(&builder.st.Coeffs[cid])
+	coef.Mul(m, &coef).Mod(&coef, builder.q)
+	cid = builder.st.CoeffID(&coef)
 	t.SetCoeffID(cid)
 	return t
 }
 
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
-func (system *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
-	c1, i1Constant := system.ConstantValue(i1)
-	c2, i2Constant := system.ConstantValue(i2)
+func (builder *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+	c1, i1Constant := builder.ConstantValue(i1)
+	c2, i2Constant := builder.ConstantValue(i2)
 
 	if i1Constant && i2Constant {
 		l := c1
 		r := c2
-		q := system.q
+		q := builder.q
 		return r.ModInverse(r, q).
 			Mul(l, r).
 			Mod(r, q)
 	}
 	if i2Constant {
 		c := c2
-		q := system.q
+		q := builder.q
 		c.ModInverse(c, q)
-		return system.mulConstant(i1.(compiled.Term), c)
+		return builder.mulConstant(i1.(expr.TermToRefactor), c)
 	}
 	if i1Constant {
-		res := system.Inverse(i2)
-		return system.mulConstant(res.(compiled.Term), c1)
+		res := builder.Inverse(i2)
+		return builder.mulConstant(res.(expr.TermToRefactor), c1)
 	}
 
-	res := system.newInternalVariable()
-	r := i2.(compiled.Term)
-	o := system.Neg(i1).(compiled.Term)
-	cr, _, _ := r.Unpack()
-	co, _, _ := o.Unpack()
-	system.addPlonkConstraint(res, r, o, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, co, compiled.CoeffIdZero)
+	res := builder.newInternalVariable()
+	r := i2.(expr.TermToRefactor)
+	o := builder.Neg(i1).(expr.TermToRefactor)
+	cr, _ := r.Unpack()
+	co, _ := o.Unpack()
+	builder.addPlonkConstraint(res, r, o, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, co, constraint.CoeffIdZero)
 	return res
 }
 
 // Div returns i1 / i2
-func (system *scs) Div(i1, i2 frontend.Variable) frontend.Variable {
+func (builder *scs) Div(i1, i2 frontend.Variable) frontend.Variable {
 
 	// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
-	system.Inverse(i2)
+	builder.Inverse(i2)
 
-	return system.DivUnchecked(i1, i2)
+	return builder.DivUnchecked(i1, i2)
 }
 
 // Inverse returns res = 1 / i1
-func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
-	if c, ok := system.ConstantValue(i1); ok {
-		c.ModInverse(c, system.q)
+func (builder *scs) Inverse(i1 frontend.Variable) frontend.Variable {
+	if c, ok := builder.ConstantValue(i1); ok {
+		c.ModInverse(c, builder.q)
 		return c
 	}
-	t := i1.(compiled.Term)
-	cr, _, _ := t.Unpack()
-	debug := system.AddDebugInfo("inverse", "1/", i1, " < ∞")
-	res := system.newInternalVariable()
-	system.addPlonkConstraint(res, t, system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, cr, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, debug)
+	t := i1.(expr.TermToRefactor)
+	cr, _ := t.Unpack()
+	debug := builder.newDebugInfo("inverse", "1/", i1, " < ∞")
+	res := builder.newInternalVariable()
+	builder.addPlonkConstraint(res, t, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, debug)
 	return res
 }
 
@@ -172,9 +173,9 @@ func (system *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (builder *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
-	nbBits := system.FieldBitLen()
+	nbBits := builder.cs.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -182,93 +183,93 @@ func (system *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable 
 		}
 	}
 
-	return bits.ToBinary(system, i1, bits.WithNbDigits(nbBits))
+	return bits.ToBinary(builder, i1, bits.WithNbDigits(nbBits))
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (system *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
-	return bits.FromBinary(system, b)
+func (builder *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
+	return bits.FromBinary(builder, b)
 }
 
 // Xor returns a ^ b
 // a and b must be 0 or 1
-func (system *scs) Xor(a, b frontend.Variable) frontend.Variable {
+func (builder *scs) Xor(a, b frontend.Variable) frontend.Variable {
 
-	system.AssertIsBoolean(a)
-	system.AssertIsBoolean(b)
-	_a, aConstant := system.ConstantValue(a)
-	_b, bConstant := system.ConstantValue(b)
+	builder.AssertIsBoolean(a)
+	builder.AssertIsBoolean(b)
+	_a, aConstant := builder.ConstantValue(a)
+	_b, bConstant := builder.ConstantValue(b)
 
 	if aConstant && bConstant {
 		_a.Xor(_a, _b)
 		return _a
 	}
 
-	res := system.newInternalVariable()
-	system.MarkBoolean(res)
+	res := builder.newInternalVariable()
+	builder.MarkBoolean(res)
 	if aConstant {
 		a, b = b, a
 		bConstant = aConstant
 		_b = _a
 	}
 	if bConstant {
-		l := a.(compiled.Term)
+		l := a.(expr.TermToRefactor)
 		r := l
 		oneMinusTwoB := big.NewInt(1)
 		oneMinusTwoB.Sub(oneMinusTwoB, _b).Sub(oneMinusTwoB, _b)
-		system.addPlonkConstraint(l, r, res, system.st.CoeffID(oneMinusTwoB), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdMinusOne, system.st.CoeffID(_b))
+		builder.addPlonkConstraint(l, r, res, builder.st.CoeffID(oneMinusTwoB), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, builder.st.CoeffID(_b))
 		return res
 	}
-	l := a.(compiled.Term)
-	r := b.(compiled.Term)
-	system.addPlonkConstraint(l, r, res, compiled.CoeffIdMinusOne, compiled.CoeffIdMinusOne, compiled.CoeffIdTwo, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero)
+	l := a.(expr.TermToRefactor)
+	r := b.(expr.TermToRefactor)
+	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdTwo, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
 	return res
 }
 
 // Or returns a | b
 // a and b must be 0 or 1
-func (system *scs) Or(a, b frontend.Variable) frontend.Variable {
+func (builder *scs) Or(a, b frontend.Variable) frontend.Variable {
 
-	system.AssertIsBoolean(a)
-	system.AssertIsBoolean(b)
+	builder.AssertIsBoolean(a)
+	builder.AssertIsBoolean(b)
 
-	_a, aConstant := system.ConstantValue(a)
-	_b, bConstant := system.ConstantValue(b)
+	_a, aConstant := builder.ConstantValue(a)
+	_b, bConstant := builder.ConstantValue(b)
 
 	if aConstant && bConstant {
 		_a.Or(_a, _b)
 		return _a
 	}
-	res := system.newInternalVariable()
-	system.MarkBoolean(res)
+	res := builder.newInternalVariable()
+	builder.MarkBoolean(res)
 	if aConstant {
 		a, b = b, a
 		_b = _a
 		bConstant = aConstant
 	}
 	if bConstant {
-		l := a.(compiled.Term)
+		l := a.(expr.TermToRefactor)
 		r := l
 
 		one := big.NewInt(1)
 		_b.Sub(_b, one)
-		idl := system.st.CoeffID(_b)
-		system.addPlonkConstraint(l, r, res, idl, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdZero)
+		idl := builder.st.CoeffID(_b)
+		builder.addPlonkConstraint(l, r, res, idl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdZero)
 		return res
 	}
-	l := a.(compiled.Term)
-	r := b.(compiled.Term)
-	system.addPlonkConstraint(l, r, res, compiled.CoeffIdMinusOne, compiled.CoeffIdMinusOne, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero)
+	l := a.(expr.TermToRefactor)
+	r := b.(expr.TermToRefactor)
+	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
 	return res
 }
 
 // Or returns a & b
 // a and b must be 0 or 1
-func (system *scs) And(a, b frontend.Variable) frontend.Variable {
-	system.AssertIsBoolean(a)
-	system.AssertIsBoolean(b)
-	res := system.Mul(a, b)
-	system.MarkBoolean(res)
+func (builder *scs) And(a, b frontend.Variable) frontend.Variable {
+	builder.AssertIsBoolean(a)
+	builder.AssertIsBoolean(b)
+	res := builder.Mul(a, b)
+	builder.MarkBoolean(res)
 	return res
 }
 
@@ -276,8 +277,8 @@ func (system *scs) And(a, b frontend.Variable) frontend.Variable {
 // Conditionals
 
 // Select if b is true, yields i1 else yields i2
-func (system *scs) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
-	_b, bConstant := system.ConstantValue(b)
+func (builder *scs) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
+	_b, bConstant := builder.ConstantValue(b)
 
 	if bConstant {
 		if !(_b.IsUint64() && (_b.Uint64() <= 1)) {
@@ -289,28 +290,28 @@ func (system *scs) Select(b frontend.Variable, i1, i2 frontend.Variable) fronten
 		return i1
 	}
 
-	u := system.Sub(i1, i2)
-	l := system.Mul(u, b)
+	u := builder.Sub(i1, i2)
+	l := builder.Mul(u, b)
 
-	return system.Add(l, i2)
+	return builder.Add(l, i2)
 }
 
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (system *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
+func (builder *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
 
-	// vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
+	// vars, _ := builder.toVariables(b0, b1, i0, i1, i2, i3)
 	// s0, s1 := vars[0], vars[1]
 	// in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
 
 	// ensure that bits are actually bits. Adds no constraints if the variables
 	// are already constrained.
-	system.AssertIsBoolean(b0)
-	system.AssertIsBoolean(b1)
+	builder.AssertIsBoolean(b0)
+	builder.AssertIsBoolean(b1)
 
-	c0, b0IsConstant := system.ConstantValue(b0)
-	c1, b1IsConstant := system.ConstantValue(b1)
+	c0, b0IsConstant := builder.ConstantValue(b0)
+	c1, b1IsConstant := builder.ConstantValue(b1)
 
 	if b0IsConstant && b1IsConstant {
 		b0 := c0.Uint64() == 1
@@ -338,23 +339,23 @@ func (system *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Var
 
 	// TODO check how it can be optimized for PLONK (currently it's a copy
 	// paste of the r1cs version)
-	tmp1 := system.Add(i3, i0)
-	tmp1 = system.Sub(tmp1, i2, i1)
-	tmp1 = system.Mul(tmp1, b1)
-	tmp1 = system.Add(tmp1, i1)
-	tmp1 = system.Sub(tmp1, i0)  // (1) tmp1 = s1 * (in3 - in2 - in1 + in0) + in1 - in0
-	tmp2 := system.Mul(tmp1, b0) // (2) tmp2 = tmp1 * s0
-	res := system.Sub(i2, i0)
-	res = system.Mul(res, b1)
-	res = system.Add(res, tmp2, i0) // (3) res = (v2 - v0) * s1 + tmp2 + in0
+	tmp1 := builder.Add(i3, i0)
+	tmp1 = builder.Sub(tmp1, i2, i1)
+	tmp1 = builder.Mul(tmp1, b1)
+	tmp1 = builder.Add(tmp1, i1)
+	tmp1 = builder.Sub(tmp1, i0)  // (1) tmp1 = s1 * (in3 - in2 - in1 + in0) + in1 - in0
+	tmp2 := builder.Mul(tmp1, b0) // (2) tmp2 = tmp1 * s0
+	res := builder.Sub(i2, i0)
+	res = builder.Mul(res, b1)
+	res = builder.Add(res, tmp2, i0) // (3) res = (v2 - v0) * s1 + tmp2 + in0
 
 	return res
 
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
-	if a, ok := system.ConstantValue(i1); ok {
+func (builder *scs) IsZero(i1 frontend.Variable) frontend.Variable {
+	if a, ok := builder.ConstantValue(i1); ok {
 		if !(a.IsUint64() && a.Uint64() == 0) {
 			return 0
 		}
@@ -364,11 +365,11 @@ func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a * m = 0            // constrain m to be 0 if a != 0
-	a := i1.(compiled.Term)
-	m := system.newInternalVariable()
+	a := i1.(expr.TermToRefactor)
+	m := builder.newInternalVariable()
 
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
-	x, err := system.NewHint(hint.InvZero, 1, a)
+	x, err := builder.NewHint(hint.InvZero, 1, a)
 	if err != nil {
 		// the function errs only if the number of inputs is invalid.
 		panic(err)
@@ -376,43 +377,43 @@ func (system *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a*x + m - 1 == 0
-	system.addPlonkConstraint(a,
-		x[0].(compiled.Term),
+	builder.addPlonkConstraint(a,
+		x[0].(expr.TermToRefactor),
 		m,
-		compiled.CoeffIdZero,
-		compiled.CoeffIdZero,
-		compiled.CoeffIdOne,
-		compiled.CoeffIdOne,
-		compiled.CoeffIdOne,
-		compiled.CoeffIdMinusOne)
+		constraint.CoeffIdZero,
+		constraint.CoeffIdZero,
+		constraint.CoeffIdOne,
+		constraint.CoeffIdOne,
+		constraint.CoeffIdOne,
+		constraint.CoeffIdMinusOne)
 
 	// a * m = 0            // constrain m to be 0 if a != 0
-	system.addPlonkConstraint(a, m, system.zero(), compiled.CoeffIdZero, compiled.CoeffIdZero, compiled.CoeffIdOne, compiled.CoeffIdOne, compiled.CoeffIdZero, compiled.CoeffIdZero)
+	builder.addPlonkConstraint(a, m, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero)
 
 	return m
 }
 
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
-func (system *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
+func (builder *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
-	bi1 := system.ToBinary(i1, system.FieldBitLen())
-	bi2 := system.ToBinary(i2, system.FieldBitLen())
+	bi1 := builder.ToBinary(i1, builder.cs.FieldBitLen())
+	bi2 := builder.ToBinary(i2, builder.cs.FieldBitLen())
 
 	var res frontend.Variable
 	res = 0
 
-	for i := system.FieldBitLen() - 1; i >= 0; i-- {
+	for i := builder.cs.FieldBitLen() - 1; i >= 0; i-- {
 
-		iszeroi1 := system.IsZero(bi1[i])
-		iszeroi2 := system.IsZero(bi2[i])
+		iszeroi1 := builder.IsZero(bi1[i])
+		iszeroi2 := builder.IsZero(bi2[i])
 
-		i1i2 := system.And(bi1[i], iszeroi2)
-		i2i1 := system.And(bi2[i], iszeroi1)
+		i1i2 := builder.And(bi1[i], iszeroi2)
+		i2i1 := builder.And(bi2[i], iszeroi1)
 
-		n := system.Select(i2i1, -1, 0)
-		m := system.Select(i1i2, 1, n)
+		n := builder.Select(i2i1, -1, 0)
+		m := builder.Select(i1i2, 1, n)
 
-		res = system.Select(system.IsZero(res), m, res)
+		res = builder.Select(builder.IsZero(res), m, res)
 
 	}
 	return res
@@ -425,8 +426,8 @@ func (system *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (system *scs) Println(a ...frontend.Variable) {
-	var log compiled.LogEntry
+func (builder *scs) Println(a ...frontend.Variable) {
+	var log constraint.LogEntry
 
 	// prefix log line with file.go:line
 	if _, file, line, ok := runtime.Caller(1); ok {
@@ -439,26 +440,24 @@ func (system *scs) Println(a ...frontend.Variable) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := arg.(compiled.Term); ok {
+		if v, ok := arg.(expr.TermToRefactor); ok {
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
 			// can evaluate it before printing it
-			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-			log.ToResolve = append(log.ToResolve, v)
-			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+			log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.TOREFACTORMakeTerm(&builder.st.Coeffs[v.CID], v.VID)})
 		} else {
-			printArg(&log, &sbb, arg)
+			builder.printArg(&log, &sbb, arg)
 		}
 	}
 
 	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
 	log.Format = sbb.String()
 
-	system.Logs = append(system.Logs, log)
+	builder.cs.AddLog(log)
 }
 
-func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable) {
+func (builder *scs) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
 	count := 0
 	counter := func(f *schema.Field, tValue reflect.Value) error {
@@ -484,12 +483,10 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 			sbb.WriteString(", ")
 		}
 
-		v := tValue.Interface().(compiled.Term)
+		v := tValue.Interface().(expr.TermToRefactor)
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
-		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-		log.ToResolve = append(log.ToResolve, v)
-		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+		log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.TOREFACTORMakeTerm(&builder.st.Coeffs[v.CID], v.VID)})
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors
@@ -497,6 +494,6 @@ func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable)
 	sbb.WriteByte('}')
 }
 
-func (system *scs) Compiler() frontend.Compiler {
-	return system
+func (builder *scs) Compiler() frontend.Compiler {
+	return builder
 }

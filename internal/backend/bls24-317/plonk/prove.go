@@ -34,7 +34,7 @@ import (
 
 	bls24_317witness "github.com/consensys/gnark/internal/backend/bls24-317/witness"
 
-	"github.com/consensys/gnark/internal/backend/bls24-317/cs"
+	"github.com/consensys/gnark/constraint/bls24-317"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
@@ -84,7 +84,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_317witness.Witn
 			// we need to fill solution with random values
 			var r fr.Element
 			_, _ = r.SetRandom()
-			for i := spr.NbPublicVariables + spr.NbSecretVariables; i < len(solution); i++ {
+			for i := len(spr.Public) + len(spr.Secret); i < len(solution); i++ {
 				solution[i] = r
 				r.Double(&r)
 			}
@@ -113,7 +113,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_317witness.Witn
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *pk.Vk, fullWitness[:spr.NbPublicVariables]); err != nil {
+	if err := bindPublicData(&fs, "gamma", *pk.Vk, fullWitness[:len(spr.Public)]); err != nil {
 		return nil, err
 	}
 	bgamma, err := fs.ComputeChallenge("gamma")
@@ -193,8 +193,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_317witness.Witn
 	go func() {
 		// compute qk in canonical basis, completed with the public inputs
 		qkCompletedCanonical := make([]fr.Element, pk.Domain[0].Cardinality)
-		copy(qkCompletedCanonical, fullWitness[:spr.NbPublicVariables])
-		copy(qkCompletedCanonical[spr.NbPublicVariables:], pk.LQk[spr.NbPublicVariables:])
+		copy(qkCompletedCanonical, fullWitness[:len(spr.Public)])
+		copy(qkCompletedCanonical[len(spr.Public):], pk.LQk[len(spr.Public):])
 		pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 		fft.BitReverse(qkCompletedCanonical)
 
@@ -531,12 +531,12 @@ func evaluateLROSmallDomain(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.El
 	o = make([]fr.Element, s)
 	s0 := solution[0]
 
-	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders
+	for i := 0; i < len(spr.Public); i++ { // placeholders
 		l[i] = solution[i]
 		r[i] = s0
 		o[i] = s0
 	}
-	offset := spr.NbPublicVariables
+	offset := len(spr.Public)
 	for i := 0; i < len(spr.Constraints); i++ { // constraints
 		l[offset+i] = solution[spr.Constraints[i].L.WireID()]
 		r[offset+i] = solution[spr.Constraints[i].R.WireID()]

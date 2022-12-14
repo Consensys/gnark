@@ -21,7 +21,7 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
 
-	"github.com/consensys/gnark/internal/backend/bls24-315/cs"
+	"github.com/consensys/gnark/constraint/bls24-315"
 
 	bls24_315witness "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 
@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
@@ -53,7 +54,7 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit) {
+func referenceCircuit() (constraint.ConstraintSystem, frontend.Circuit) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,

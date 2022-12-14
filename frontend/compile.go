@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"reflect"
 
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
@@ -31,7 +32,7 @@ import (
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem, error) {
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options
@@ -81,7 +82,6 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 		return nil
 	}
 
-	// parse the schema, to count the number of public and secret variables
 	s, err := schema.Parse(circuit, tVariable, counterHandler)
 	if err != nil {
 		return err
@@ -91,30 +91,36 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	log := logger.Logger()
 	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
 
-	// this not only set the schema, but sets the wire offsets for public, secret and internal wires
-	builder.SetSchema(s)
-
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	adderHandler := func(f *schema.Field, tInput reflect.Value) error {
-		if tInput.CanSet() {
-			// log.Trace().Str("name", name).Str("visibility", visibility.String()).Msg("init input wire")
-			switch f.Visibility {
-			case schema.Secret:
-				tInput.Set(reflect.ValueOf(builder.AddSecretVariable(f)))
-			case schema.Public:
-				tInput.Set(reflect.ValueOf(builder.AddPublicVariable(f)))
-			case schema.Unset:
-				return errors.New("can't set val " + f.FullName + " visibility is unset")
-			}
+	variableAdder := func(targetVisibility schema.Visibility) func(f *schema.Field, tInput reflect.Value) error {
+		return func(f *schema.Field, tInput reflect.Value) error {
+			if tInput.CanSet() {
+				if f.Visibility == schema.Unset {
+					return errors.New("can't set val " + f.FullName + " visibility is unset")
+				}
+				if f.Visibility == targetVisibility {
+					if f.Visibility == schema.Public {
+						tInput.Set(reflect.ValueOf(builder.PublicVariable(f)))
+					} else if f.Visibility == schema.Secret {
+						tInput.Set(reflect.ValueOf(builder.SecretVariable(f)))
+					}
+				}
 
-			return nil
+				return nil
+			}
+			return errors.New("can't set val " + f.FullName)
 		}
-		return errors.New("can't set val " + f.FullName)
 	}
-	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
-	// (secret or public inputs)
-	_, err = schema.Parse(circuit, tVariable, adderHandler)
+
+	// add public inputs first to compute correct offsets
+	_, err = schema.Parse(circuit, tVariable, variableAdder(schema.Public))
+	if err != nil {
+		return err
+	}
+
+	// add secret inputs
+	_, err = schema.Parse(circuit, tVariable, variableAdder(schema.Secret))
 	if err != nil {
 		return err
 	}

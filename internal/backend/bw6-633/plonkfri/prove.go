@@ -28,7 +28,7 @@ import (
 
 	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 
-	"github.com/consensys/gnark/internal/backend/bw6-633/cs"
+	"github.com/consensys/gnark/constraint/bw6-633"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fri"
 
@@ -89,7 +89,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_633witness.Witnes
 			// we need to fill solution with random values
 			var r fr.Element
 			_, _ = r.SetRandom()
-			for i := spr.NbPublicVariables + spr.NbSecretVariables; i < len(solution); i++ {
+			for i := len(spr.Public) + len(spr.Secret); i < len(solution); i++ {
 				solution[i] = r
 				r.Double(&r)
 			}
@@ -121,13 +121,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_633witness.Witnes
 	}
 
 	// 3 - compute Z, challenges are derived using L, R, O + public inputs
-	dataFiatShamir := make([][fr.Bytes]byte, spr.NbPublicVariables+3)
-	for i := 0; i < spr.NbPublicVariables; i++ {
+	dataFiatShamir := make([][fr.Bytes]byte, len(spr.Public)+3)
+	for i := 0; i < len(spr.Public); i++ {
 		copy(dataFiatShamir[i][:], fullWitness[i].Marshal())
 	}
-	copy(dataFiatShamir[spr.NbPublicVariables][:], proof.LROpp[0].ID)
-	copy(dataFiatShamir[spr.NbPublicVariables+1][:], proof.LROpp[1].ID)
-	copy(dataFiatShamir[spr.NbPublicVariables+2][:], proof.LROpp[2].ID)
+	copy(dataFiatShamir[len(spr.Public)][:], proof.LROpp[0].ID)
+	copy(dataFiatShamir[len(spr.Public)+1][:], proof.LROpp[1].ID)
+	copy(dataFiatShamir[len(spr.Public)+2][:], proof.LROpp[2].ID)
 
 	beta, err := deriveRandomnessFixedSize(&fs, "gamma", dataFiatShamir...)
 	if err != nil {
@@ -166,8 +166,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_633witness.Witnes
 	// alpha.SetUint64(11)
 
 	evaluationQkCompleteDomainBigBitReversed := make([]fr.Element, pk.Domain[1].Cardinality)
-	copy(evaluationQkCompleteDomainBigBitReversed, fullWitness[:spr.NbPublicVariables])
-	copy(evaluationQkCompleteDomainBigBitReversed[spr.NbPublicVariables:], pk.LQkIncompleteDomainSmall[spr.NbPublicVariables:])
+	copy(evaluationQkCompleteDomainBigBitReversed, fullWitness[:len(spr.Public)])
+	copy(evaluationQkCompleteDomainBigBitReversed[len(spr.Public):], pk.LQkIncompleteDomainSmall[len(spr.Public):])
 	pk.Domain[0].FFTInverse(evaluationQkCompleteDomainBigBitReversed[:pk.Domain[0].Cardinality], fft.DIF)
 	fft.BitReverse(evaluationQkCompleteDomainBigBitReversed[:pk.Domain[0].Cardinality])
 
@@ -600,12 +600,12 @@ func evaluateLROSmallDomain(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.El
 	o = make([]fr.Element, s)
 	s0 := solution[0]
 
-	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders
+	for i := 0; i < len(spr.Public); i++ { // placeholders
 		l[i] = solution[i]
 		r[i] = s0
 		o[i] = s0
 	}
-	offset := spr.NbPublicVariables
+	offset := len(spr.Public)
 	for i := 0; i < len(spr.Constraints); i++ { // constraints
 		l[offset+i] = solution[spr.Constraints[i].L.WireID()]
 		r[offset+i] = solution[spr.Constraints[i].R.WireID()]
