@@ -189,8 +189,8 @@ func getTestCase(path string) (*TestCase, error) {
 }
 
 type WireInfo struct {
-	Gate   string  `json:"gate"`
-	Inputs [][]int `json:"inputs"`
+	Gate   string `json:"gate"`
+	Inputs []int  `json:"inputs"`
 }
 
 type CircuitInfo []WireInfo

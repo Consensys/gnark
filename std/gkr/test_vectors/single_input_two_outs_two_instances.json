@@ -19,19 +19,16 @@
 	],
 	"proof": [
 		{
-			"finalEvalProof": [
-				3
-			],
+			"finalEvalProof": [],
 			"partialSumPolys": [
 				[
 					-6,
-					-21
+					-33
 				]
 			]
 		},
 		{
 			"finalEvalProof": [
-				1,
 				1
 			],
 			"partialSumPolys": [

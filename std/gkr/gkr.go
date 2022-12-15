@@ -508,7 +508,7 @@ func (r *variablesReader) hasNextN(n int) bool {
 
 func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) Proof {
 	proof := make(Proof, len(sorted))
-	logNbInstances := computeLogNbInstances(sorted, len(proof))
+	logNbInstances := computeLogNbInstances(sorted, len(serializedProof))
 
 	reader := variablesReader(serializedProof)
 	for i, wI := range sorted {
