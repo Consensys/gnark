@@ -1,4 +1,3 @@
-// Package keccakf implements the KeccakF-1600 permutation function.
 package keccakf
 
 import (

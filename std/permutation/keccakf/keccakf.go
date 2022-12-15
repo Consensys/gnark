@@ -1,3 +1,13 @@
+// Package keccakf implements the KeccakF-1600 permutation function.
+//
+// This package exposes only the permutation primitive. For SHA3, SHAKE3 etc.
+// functions it is necessary to apply the sponge construction. The constructions
+// will be implemented in future in [github.com/consensys/gnark/std/hash/sha3]
+// package.
+//
+// The cost for a single application of permutation is:
+//   - 193650 constraints in Groth16
+//   - 292032 constraints in Plonk
 package keccakf
 
 import (
@@ -39,6 +49,9 @@ var piln = [24]int{
 	15, 23, 19, 13, 12, 2, 20, 14, 22, 9, 6, 1,
 }
 
+// Permute applies Keccak-F permutation on the input a and returns the permuted
+// vector. The input array must consist of 64-bit (unsigned) integers. The
+// returned array also contains 64-bit unsigned integers.
 func Permute(api frontend.API, a [25]frontend.Variable) [25]frontend.Variable {
 	var in [25]xuint64
 	uapi := newUint64API(api)
