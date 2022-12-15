@@ -11,6 +11,7 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	cs "github.com/consensys/gnark/constraint/tinyfield"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -18,7 +19,6 @@ import (
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/internal/tinyfield"
-	"github.com/consensys/gnark/internal/tinyfield/cs"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -214,7 +214,7 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []hint.Function) e
 	p.r1cs = ccs.(*cs.R1CS)
 
 	// witness len
-	n := p.r1cs.NbPublicVariables - 1 + p.r1cs.NbSecretVariables
+	n := len(p.r1cs.Public) - 1 + len(p.r1cs.Secret)
 	if n > permutterBound {
 		return nil
 	}
@@ -231,7 +231,7 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []hint.Function) e
 	}
 
 	p.scs = ccs.(*cs.SparseR1CS)
-	if (p.scs.NbPublicVariables + p.scs.NbSecretVariables) != n {
+	if (len(p.scs.Public) + len(p.scs.Secret)) != n {
 		return errors.New("mismatch of witness size for same circuit")
 	}
 

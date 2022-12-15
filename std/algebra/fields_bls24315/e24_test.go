@@ -21,6 +21,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
@@ -405,7 +406,7 @@ func TestFrobeniusFp24(t *testing.T) {
 }
 
 // benches
-var ccsBench frontend.CompiledConstraintSystem
+var ccsBench constraint.ConstraintSystem
 
 func BenchmarkMulE24(b *testing.B) {
 	var c fp24Mul

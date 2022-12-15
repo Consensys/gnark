@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
@@ -624,12 +625,8 @@ func builderWrapper[T FieldParams]() frontend.BuilderWrapper {
 	}
 }
 
-func (f *field[T]) Compile() (frontend.CompiledConstraintSystem, error) {
+func (f *field[T]) Compile() (constraint.ConstraintSystem, error) {
 	return f.builder.Compile()
-}
-
-func (f *field[T]) SetSchema(s *schema.Schema) {
-	f.builder.SetSchema(s)
 }
 
 func (f *field[T]) VariableCount(t reflect.Type) int {
@@ -657,12 +654,12 @@ func (f *field[T]) addVariable(sf *schema.Field, recurseFn func(*schema.Field) f
 	return el
 }
 
-func (f *field[T]) AddPublicVariable(sf *schema.Field) frontend.Variable {
-	return f.addVariable(sf, f.builder.AddPublicVariable)
+func (f *field[T]) PublicVariable(sf *schema.Field) frontend.Variable {
+	return f.addVariable(sf, f.builder.PublicVariable)
 }
 
-func (f *field[T]) AddSecretVariable(sf *schema.Field) frontend.Variable {
-	return f.addVariable(sf, f.builder.AddSecretVariable)
+func (f *field[T]) SecretVariable(sf *schema.Field) frontend.Variable {
+	return f.addVariable(sf, f.builder.SecretVariable)
 
 }
 
