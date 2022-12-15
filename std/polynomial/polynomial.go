@@ -8,8 +8,8 @@ import (
 type Polynomial []frontend.Variable
 type MultiLin []frontend.Variable
 
-// Eval assumes len(m) = 1 << len(at)
-func (m MultiLin) Eval(api frontend.API, at []frontend.Variable) frontend.Variable {
+// Evaluate assumes len(m) = 1 << len(at)
+func (m MultiLin) Evaluate(api frontend.API, at []frontend.Variable) frontend.Variable {
 
 	eqs := make([]frontend.Variable, len(m))
 	eqs[0] = 1

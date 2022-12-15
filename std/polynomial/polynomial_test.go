@@ -78,7 +78,7 @@ type evalMultiLinCircuit struct {
 
 func (c *evalMultiLinCircuit) Define(api frontend.API) error {
 	m := MultiLin(c.M)
-	evaluation := m.Eval(api, c.At)
+	evaluation := m.Evaluate(api, c.At)
 	api.AssertIsEqual(evaluation, c.Evaluation)
 	return nil
 }

@@ -4,11 +4,11 @@
     "inputs": []
   },
   {
-    "gate": "identity",
-    "inputs": [0]
+    "gate": "mul",
+    "inputs": [0, 0]
   },
   {
     "gate": "identity",
-    "inputs": [1]
+    "inputs": [0]
   }
 ]

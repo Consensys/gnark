@@ -2,12 +2,12 @@ package gkr
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
-	"github.com/consensys/gnark/std/sumcheck"
+	"github.com/consensys/gnark/std/test_vector_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"os"
@@ -16,7 +16,7 @@ import (
 	"testing"
 )
 
-func TestSingleInputTwoIdentityGatesTwoInstances(t *testing.T) {
+func TestSingleInputTwoIdentityGatesTwoInstances(t *testing.T) { //TODO: Remove
 	generateTestVerifier("./test_vectors/single_input_two_identity_gates_two_instances.json")(t)
 }
 
@@ -46,30 +46,27 @@ func TestGkrVectors(t *testing.T) {
 func generateTestVerifier(path string) func(t *testing.T) {
 	return func(t *testing.T) {
 
-		testCase, err := newTestCase(path)
+		testCase, err := getTestCase(path)
 		assert.NoError(t, err)
 
-		input := testCase.InOutAssignment.At(testCase.Circuit.InputLayer()...)
-		output := testCase.InOutAssignment.At(testCase.Circuit.OutputLayer()...)
-
 		assignment := &GkrVerifierCircuit{
-			Input:           input,
-			Output:          output,
-			SerializedProof: serializeProof(testCase.Proof),
+			Input:           testCase.Input,
+			Output:          testCase.Output,
+			SerializedProof: testCase.Proof.Serialize(),
 			Statement:       0,
 			TestCaseName:    path,
 		}
 
 		circuit := &GkrVerifierCircuit{
-			Input:           make([][]frontend.Variable, len(input)),
-			Output:          make([][]frontend.Variable, len(output)),
+			Input:           make([][]frontend.Variable, len(testCase.Input)),
+			Output:          make([][]frontend.Variable, len(testCase.Output)),
 			SerializedProof: make([]frontend.Variable, len(assignment.SerializedProof)),
 			Statement:       0,
 			TestCaseName:    path,
 		}
 
-		fillWithBlanks(circuit.Input, len(input[0]))
-		fillWithBlanks(circuit.Output, len(input[0]))
+		fillWithBlanks(circuit.Input, len(testCase.Input[0]))
+		fillWithBlanks(circuit.Output, len(testCase.Input[0]))
 
 		test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
 
@@ -88,100 +85,33 @@ type GkrVerifierCircuit struct {
 }
 
 func (c *GkrVerifierCircuit) Define(api frontend.API) error {
-	var circuit Circuit
-	var transcript sumcheck.ArithmeticTranscript
-	var proofTemplate Proof
+	var testCase *TestCase
+	var err error
 	//var proofRef Proof
-	if testCase, err := newTestCase(c.TestCaseName); err == nil {
-		circuit = testCase.Circuit
-		transcript = testCase.Transcript
-		proofTemplate = testCase.Proof
-	} else {
+	if testCase, err = getTestCase(c.TestCaseName); err != nil {
 		return err
 	}
+	sorted := topologicalSort(testCase.Circuit)
 
-	proof := deserializeProof(c.SerializedProof, proofTemplate)
-	assignment := makeInOutAssignment(circuit, c.Input, c.Output)
-	transcript.Update(api, c.Statement)
+	proof := DeserializeProof(sorted, c.SerializedProof)
+	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
 
-	return Verify(api, circuit, assignment, proof, transcript)
-}
-
-type varQueue []frontend.Variable
-
-func (q *varQueue) popN(n int) []frontend.Variable {
-	v := (*q)[:n]
-	*q = (*q)[n:]
-	return v
-}
-
-func (q *varQueue) pop() frontend.Variable {
-	v := (*q)[0]
-	*q = (*q)[1:]
-	return v
-}
-
-func (q *varQueue) add(v ...frontend.Variable) {
-	*q = append(*q, v...)
-}
-
-func (q *varQueue) empty() bool {
-	return len(*q) == 0
-}
-
-func deserializeProof(serializedProof []frontend.Variable, template Proof) Proof {
-	in := varQueue(serializedProof)
-	proof := make(Proof, len(template))
-
-	for i, tI := range template {
-		proof[i] = make([]sumcheck.Proof, len(tI))
-
-		for j, tIJ := range tI {
-			proof[i][j].PartialSumPolys = make([]polynomial.Polynomial, len(tIJ.PartialSumPolys))
-			for k, tIJPk := range tIJ.PartialSumPolys {
-				proof[i][j].PartialSumPolys[k] = in.popN(len(tIJPk))
-			}
-
-			if tIJ.FinalEvalProof == nil {
-				proof[i][j].FinalEvalProof = nil
-			} else {
-				proof[i][j].FinalEvalProof = in.popN(len(tIJ.FinalEvalProof.([]frontend.Variable)))
-			}
-		}
-	}
-	return proof
-}
-
-func serializeProof(proof Proof) []frontend.Variable {
-	in := make(varQueue, 0)
-
-	for i := range proof {
-
-		for _, pIJ := range proof[i] {
-
-			for k := range pIJ.PartialSumPolys {
-				in.add(pIJ.PartialSumPolys[k]...)
-			}
-
-			if pIJ.FinalEvalProof != nil {
-				in.add(pIJ.FinalEvalProof.([]frontend.Variable)...)
-			}
-		}
-	}
-
-	return in
-}
-
-func (a WireAssignment) addLayerValuations(layer CircuitLayer, values [][]frontend.Variable) {
-	for i := range layer {
-		a[&layer[i]] = values[i]
-	}
+	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(&test_vector_utils.MapHash{Map: testCase.ElementMap}))
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
+	sorted := topologicalSort(c)
 	res := make(WireAssignment, len(inputValues)+len(outputValues))
-	res.addLayerValuations(c[len(c)-1], inputValues)
-	res.addLayerValuations(c[0], outputValues)
+	inI, outI := 0, 0
+	for _, w := range sorted {
+		if w.IsInput() {
+			res[w] = inputValues[inI]
+			inI++
+		} else if w.IsOutput() {
+			res[w] = outputValues[outI]
+			outI++
+		}
+	}
 	return res
 }
 
@@ -202,10 +132,11 @@ func (a WireAssignment) At(w ...*Wire) [][]frontend.Variable {
 }
 
 type TestCase struct {
-	Circuit         Circuit
-	Transcript      sumcheck.ArithmeticTranscript
-	Proof           Proof
-	InOutAssignment WireAssignment
+	Circuit    Circuit
+	ElementMap test_vector_utils.ElementMap
+	Proof      Proof
+	Input      [][]frontend.Variable
+	Output     [][]frontend.Variable
 }
 type TestCaseInfo struct {
 	Hash    string          `json:"hash"`
@@ -215,26 +146,19 @@ type TestCaseInfo struct {
 	Proof   PrintableProof  `json:"proof"`
 }
 
-type ParsedTestCase struct {
-	InOutAssignment WireAssignment
-	Proof           Proof
-	Hash            HashMap
-	Circuit         Circuit
-}
+var testCases = make(map[string]*TestCase)
 
-var parsedTestCases = make(map[string]*ParsedTestCase)
-
-func newTestCase(path string) (*TestCase, error) {
+func getTestCase(path string) (*TestCase, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
 	dir := filepath.Dir(path)
 
-	parsedCase, ok := parsedTestCases[path]
+	cse, ok := testCases[path]
 	if !ok {
 		var bytes []byte
-		parsedCase = &ParsedTestCase{}
+		cse = &TestCase{}
 		if bytes, err = os.ReadFile(path); err == nil {
 			var info TestCaseInfo
 			err = json.Unmarshal(bytes, &info)
@@ -242,52 +166,26 @@ func newTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			if parsedCase.Circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
+			if cse.Circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
 				return nil, err
 			}
 
-			if parsedCase.Hash, err = getHash(filepath.Join(dir, info.Hash)); err != nil {
+			if cse.ElementMap, err = test_vector_utils.ElementMapFromFile(filepath.Join(dir, info.Hash)); err != nil {
 				return nil, err
 			}
 
-			parsedCase.Proof = unmarshalProof(info.Proof)
+			cse.Proof = unmarshalProof(info.Proof)
 
-			parsedCase.InOutAssignment = make(WireAssignment)
+			cse.Input = test_vector_utils.ToVariableSliceSlice(info.Input)
+			cse.Output = test_vector_utils.ToVariableSliceSlice(info.Output)
 
-			{
-				i := len(parsedCase.Circuit) - 1
-
-				if len(parsedCase.Circuit[i]) != len(info.Input) {
-					return nil, fmt.Errorf("input layer not the same size as input vector")
-				}
-
-				for j := range parsedCase.Circuit[i] {
-					wire := &parsedCase.Circuit[i][j]
-					wireAssignment := sliceToVariableSlice(info.Input[j])
-					parsedCase.InOutAssignment[wire] = wireAssignment
-				}
-			}
-
-			if len(parsedCase.Circuit[0]) != len(info.Output) {
-				return nil, fmt.Errorf("output layer not the same size as output vector")
-			}
-			for j := range parsedCase.Circuit[0] {
-				wire := &parsedCase.Circuit[0][j]
-				parsedCase.InOutAssignment[wire] = sliceToVariableSlice(info.Output[j])
-			}
-
-			parsedTestCases[path] = parsedCase
+			testCases[path] = cse
 		} else {
 			return nil, err
 		}
 	}
 
-	return &TestCase{
-		Circuit:         parsedCase.Circuit,
-		Transcript:      &MapHashTranscript{hashMap: parsedCase.Hash},
-		InOutAssignment: parsedCase.InOutAssignment,
-		Proof:           parsedCase.Proof,
-	}, nil
+	return cse, nil
 }
 
 type WireInfo struct {
@@ -295,7 +193,7 @@ type WireInfo struct {
 	Inputs [][]int `json:"inputs"`
 }
 
-type CircuitInfo [][]WireInfo
+type CircuitInfo []WireInfo
 
 var circuitCache = make(map[string]Circuit)
 
@@ -325,29 +223,15 @@ func getCircuit(path string) (Circuit, error) {
 func (c CircuitInfo) toCircuit() (circuit Circuit) {
 	isOutput := make(map[*Wire]interface{})
 	circuit = make(Circuit, len(c))
-	for i := len(c) - 1; i >= 0; i-- {
-		circuit[i] = make(CircuitLayer, len(c[i]))
-		for j, wireInfo := range c[i] {
-			circuit[i][j].Gate = gates[wireInfo.Gate]
-			circuit[i][j].Inputs = make([]*Wire, len(wireInfo.Inputs))
-			isOutput[&circuit[i][j]] = nil
-			for k, inputCoord := range wireInfo.Inputs {
-				if len(inputCoord) != 2 {
-					panic("circuit wire has two coordinates")
-				}
-				input := &circuit[inputCoord[0]][inputCoord[1]]
-				input.NumOutputs++
-				circuit[i][j].Inputs[k] = input
-				delete(isOutput, input)
-			}
-			if (i == len(c)-1) != (len(circuit[i][j].Inputs) == 0) {
-				panic("wire is input if and only if in last layer")
-			}
+	for i, wireInfo := range c {
+		circuit[i].Gate = gates[wireInfo.Gate]
+		circuit[i].Inputs = make([]*Wire, len(wireInfo.Inputs))
+		isOutput[&circuit[i]] = nil
+		for k := range wireInfo.Inputs {
+			input := &circuit[k]
+			circuit[i].Inputs[k] = input
+			delete(isOutput, input)
 		}
-	}
-
-	for k := range isOutput {
-		k.NumOutputs = 1
 	}
 
 	return
@@ -357,7 +241,7 @@ var gates map[string]Gate
 
 func init() {
 	gates = make(map[string]Gate)
-	gates["identity"] = identityGate{}
+	gates["identity"] = IdentityGate{}
 	gates["mul"] = mulGate{}
 	gates["mimc"] = mimcCipherGate{ark: 0} //TODO: Add ark
 }
@@ -393,15 +277,7 @@ func (m mimcCipherGate) Degree() int {
 	return 7
 }
 
-func sliceToVariableSlice(v []interface{}) (varSlice []frontend.Variable) {
-	varSlice = make([]frontend.Variable, len(v))
-	for i, vI := range v {
-		varSlice[i] = toVariable(vI)
-	}
-	return
-}
-
-type PrintableProof [][]PrintableSumcheckProof
+type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
 	FinalEvalProof  interface{}     `json:"finalEvalProof"`
@@ -411,24 +287,21 @@ type PrintableSumcheckProof struct {
 func unmarshalProof(printable PrintableProof) (proof Proof) {
 	proof = make(Proof, len(printable))
 	for i := range printable {
-		proof[i] = make([]sumcheck.Proof, len(printable[i]))
-		for j, printableSumcheck := range printable[i] {
 
-			if printableSumcheck.FinalEvalProof != nil {
-				finalEvalSlice := reflect.ValueOf(printableSumcheck.FinalEvalProof)
-				finalEvalProof := make([]frontend.Variable, finalEvalSlice.Len())
-				for k := range finalEvalProof {
-					finalEvalProof[k] = toVariable(finalEvalSlice.Index(k).Interface())
-				}
-				proof[i][j].FinalEvalProof = finalEvalProof
-			} else {
-				proof[i][j].FinalEvalProof = nil
+		if printable[i].FinalEvalProof != nil {
+			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
+			finalEvalProof := make([]frontend.Variable, finalEvalSlice.Len())
+			for k := range finalEvalProof {
+				finalEvalProof[k] = test_vector_utils.ToVariable(finalEvalSlice.Index(k).Interface())
 			}
+			proof[i].FinalEvalProof = finalEvalProof
+		} else {
+			proof[i].FinalEvalProof = nil
+		}
 
-			proof[i][j].PartialSumPolys = make([]polynomial.Polynomial, len(printableSumcheck.PartialSumPolys))
-			for k := range printableSumcheck.PartialSumPolys {
-				proof[i][j].PartialSumPolys[k] = toVariableSlice(printableSumcheck.PartialSumPolys[k])
-			}
+		proof[i].PartialSumPolys = make([]polynomial.Polynomial, len(printable[i].PartialSumPolys))
+		for k := range printable[i].PartialSumPolys {
+			proof[i].PartialSumPolys[k] = test_vector_utils.ToVariableSlice(printable[i].PartialSumPolys[k])
 		}
 	}
 	return

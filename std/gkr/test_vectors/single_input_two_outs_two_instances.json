@@ -1,42 +1,55 @@
 {
 	"hash": "resources/hash.json",
-	"circuit": "resources/two_identity_gates_composed_single_input.json",
+	"circuit": "resources/single_input_two_outs.json",
 	"input": [
 		[
-			2,
-			1
+			1,
+			2
 		]
 	],
 	"output": [
 		[
-			2,
-			1
+			1,
+			4
+		],
+		[
+			1,
+			2
 		]
 	],
 	"proof": [
 		{
-			"finalEvalProof": [],
-			"partialSumPolys": []
-		},
-		{
 			"finalEvalProof": [
-				6
+				3
 			],
 			"partialSumPolys": [
 				[
-					5,
-					0
+					-6,
+					-21
 				]
 			]
 		},
 		{
 			"finalEvalProof": [
-				-3
+				1,
+				1
 			],
 			"partialSumPolys": [
 				[
-					-3,
-					0
+					-12,
+					-90,
+					-272
+				]
+			]
+		},
+		{
+			"finalEvalProof": [
+				-2
+			],
+			"partialSumPolys": [
+				[
+					-6,
+					-30
 				]
 			]
 		}

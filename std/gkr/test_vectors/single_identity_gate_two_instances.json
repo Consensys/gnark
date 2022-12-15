@@ -14,24 +14,20 @@
 		]
 	],
 	"proof": [
-		[
-			{
-				"finalEvalProof": [
-					3
-				],
-				"partialSumPolys": [
-					[
-						3,
-						4
-					]
+		{
+			"finalEvalProof": [],
+			"partialSumPolys": []
+		},
+		{
+			"finalEvalProof": [
+				3
+			],
+			"partialSumPolys": [
+				[
+					-9,
+					-20
 				]
-			}
-		],
-		[
-			{
-				"finalEvalProof": [],
-				"partialSumPolys": []
-			}
-		]
+			]
+		}
 	]
 }
