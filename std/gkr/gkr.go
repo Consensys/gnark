@@ -157,18 +157,6 @@ func (m *claimsManager) add(wire *Wire, evaluationPoint []frontend.Variable, eva
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
 }
 
-// addForInput claims regarding all inputs to the wire, all evaluated at the same point
-func (m *claimsManager) addForInput(wire *Wire, evaluationPoint []frontend.Variable, evaluations []frontend.Variable) {
-	wiresWithClaims := make(map[*Wire]struct{}) // In case the gate takes the same wire as input multiple times, one claim would suffice
-
-	for inputI, inputWire := range wire.Inputs {
-		if _, found := wiresWithClaims[inputWire]; !found { //skip repeated claims
-			wiresWithClaims[inputWire] = struct{}{}
-			m.add(inputWire, evaluationPoint, evaluations[inputI])
-		}
-	}
-}
-
 func (m *claimsManager) getLazyClaim(wire *Wire) *eqTimesGateEvalSumcheckLazyClaims {
 	return m.claimsMap[wire]
 }

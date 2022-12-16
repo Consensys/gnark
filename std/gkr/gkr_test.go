@@ -133,16 +133,6 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 	}
 }
 
-func (a WireAssignment) at(w ...*Wire) [][]frontend.Variable {
-	res := make([][]frontend.Variable, len(w))
-
-	for i, wI := range w {
-		res[i] = a[wI]
-	}
-
-	return res
-}
-
 type TestCase struct {
 	Circuit    Circuit
 	ElementMap test_vector_utils.ElementMap
