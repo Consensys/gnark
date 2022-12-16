@@ -88,7 +88,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r 
 	if e.wire.IsInput() {
 		gateEvaluation = e.manager.assignment[e.wire].Evaluate(api, r)
 	} else {
-		gateEvaluation = e.wire.Gate.Evaluate(api, inputEvaluations)
+		gateEvaluation = e.wire.Gate.Evaluate(api, inputEvaluations...)
 		// defer verification, store the new claims
 		e.manager.addForInput(e.wire, r, inputEvaluations)
 	}
@@ -506,25 +506,24 @@ func (r *variablesReader) hasNextN(n int) bool {
 	return len(*r) >= n
 }
 
-func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) Proof {
+func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proof, error) {
 	proof := make(Proof, len(sorted))
 	logNbInstances := computeLogNbInstances(sorted, len(serializedProof))
 
 	reader := variablesReader(serializedProof)
 	for i, wI := range sorted {
-		if wI.noProof() {
-			continue
-		}
-		proof[i].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
-		for j := range proof[i].PartialSumPolys {
-			proof[i].PartialSumPolys[j] = reader.nextN(wI.Gate.Degree() + 1)
+		if !wI.noProof() {
+			proof[i].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
+			for j := range proof[i].PartialSumPolys {
+				proof[i].PartialSumPolys[j] = reader.nextN(wI.Gate.Degree() + 1)
+			}
 		}
 		proof[i].FinalEvalProof = reader.nextN(wI.nbUniqueInputs())
 	}
 	if reader.hasNextN(1) {
-		panic("oops") // TODO: Remove
+		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
 	}
-	return proof
+	return proof, nil
 }
 
 func (w Wire) nbUniqueInputs() int {

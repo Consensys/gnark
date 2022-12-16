@@ -68,7 +68,6 @@ func (m DoubleMap) Get(api frontend.API, key1, key2 frontend.Variable) frontend.
 	for i := range deltas1 {
 		for j := range deltas2 {
 			if m.values[i][j] != nil {
-				//api.Println(m.keys1[i], m.keys2[j])
 				deltaIJ := api.Mul(deltas1[i], deltas2[j], m.values[i][j])
 				res = api.Add(res, deltaIJ)
 			}
@@ -212,7 +211,7 @@ func ElementMapFromFile(path string) (ElementMap, error) {
 type MapHash struct {
 	Map        ElementMap
 	state      frontend.Variable
-	api        frontend.API
+	API        frontend.API
 	stateValid bool
 }
 
@@ -232,9 +231,9 @@ func (m *MapHash) Reset() {
 
 func (m *MapHash) write(x frontend.Variable) {
 	if m.stateValid {
-		m.state = m.Map.double.Get(m.api, x, m.state)
+		m.state = m.Map.double.Get(m.API, x, m.state)
 	} else {
-		m.state = m.Map.single.Get(m.api, x)
+		m.state = m.Map.single.Get(m.API, x)
 	}
 	m.stateValid = true
 }

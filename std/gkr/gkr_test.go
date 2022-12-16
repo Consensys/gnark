@@ -16,6 +16,10 @@ import (
 	"testing"
 )
 
+func TestSingleIdentityGateTwoInstances(t *testing.T) { // TODO: Remove
+	generateTestVerifier("./test_vectors/single_identity_gate_two_instances.json")(t)
+}
+
 func TestSingleInputTwoIdentityGatesTwoInstances(t *testing.T) { //TODO: Remove
 	generateTestVerifier("./test_vectors/single_input_two_identity_gates_two_instances.json")(t)
 }
@@ -53,7 +57,7 @@ func generateTestVerifier(path string) func(t *testing.T) {
 			Input:           testCase.Input,
 			Output:          testCase.Output,
 			SerializedProof: testCase.Proof.Serialize(),
-			Statement:       0,
+			ProofNoise:      0,
 			TestCaseName:    path,
 		}
 
@@ -61,18 +65,16 @@ func generateTestVerifier(path string) func(t *testing.T) {
 			Input:           make([][]frontend.Variable, len(testCase.Input)),
 			Output:          make([][]frontend.Variable, len(testCase.Output)),
 			SerializedProof: make([]frontend.Variable, len(assignment.SerializedProof)),
-			Statement:       0,
 			TestCaseName:    path,
 		}
 
 		fillWithBlanks(circuit.Input, len(testCase.Input[0]))
 		fillWithBlanks(circuit.Output, len(testCase.Input[0]))
 
-		test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+		test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
 
-		circuit.Statement = 1
-		assignment.Statement = 1
-
+		assignment.ProofNoise = 1
+		test.NewAssert(t).ProverFailed(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
 	}
 }
 
@@ -80,12 +82,13 @@ type GkrVerifierCircuit struct {
 	Input           [][]frontend.Variable
 	Output          [][]frontend.Variable `gnark:",public"`
 	SerializedProof []frontend.Variable
-	Statement       frontend.Variable
+	ProofNoise      frontend.Variable
 	TestCaseName    string
 }
 
 func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	var testCase *TestCase
+	var proof Proof
 	var err error
 	//var proofRef Proof
 	if testCase, err = getTestCase(c.TestCaseName); err != nil {
@@ -93,10 +96,15 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	}
 	sorted := topologicalSort(testCase.Circuit)
 
-	proof := DeserializeProof(sorted, c.SerializedProof)
+	serializedProof := make([]frontend.Variable, len(c.SerializedProof))
+	copy(serializedProof[1:], c.SerializedProof[1:])
+	serializedProof[0] = api.Add(c.SerializedProof[0], c.ProofNoise)
+	if proof, err = DeserializeProof(sorted, serializedProof); err != nil {
+		return err
+	}
 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
 
-	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(&test_vector_utils.MapHash{Map: testCase.ElementMap}))
+	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(&test_vector_utils.MapHash{Map: testCase.ElementMap, API: api}))
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
@@ -121,7 +129,7 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 	}
 }
 
-func (a WireAssignment) At(w ...*Wire) [][]frontend.Variable {
+func (a WireAssignment) at(w ...*Wire) [][]frontend.Variable {
 	res := make([][]frontend.Variable, len(w))
 
 	for i, wI := range w {
@@ -137,6 +145,7 @@ type TestCase struct {
 	Proof      Proof
 	Input      [][]frontend.Variable
 	Output     [][]frontend.Variable
+	Name       string
 }
 type TestCaseInfo struct {
 	Hash    string          `json:"hash"`
@@ -179,6 +188,7 @@ func getTestCase(path string) (*TestCase, error) {
 			cse.Input = test_vector_utils.ToVariableSliceSlice(info.Input)
 			cse.Output = test_vector_utils.ToVariableSliceSlice(info.Output)
 
+			cse.Name = path
 			testCases[path] = cse
 		} else {
 			return nil, err
@@ -221,16 +231,13 @@ func getCircuit(path string) (Circuit, error) {
 }
 
 func (c CircuitInfo) toCircuit() (circuit Circuit) {
-	isOutput := make(map[*Wire]interface{})
 	circuit = make(Circuit, len(c))
 	for i, wireInfo := range c {
 		circuit[i].Gate = gates[wireInfo.Gate]
 		circuit[i].Inputs = make([]*Wire, len(wireInfo.Inputs))
-		isOutput[&circuit[i]] = nil
-		for k := range wireInfo.Inputs {
-			input := &circuit[k]
-			circuit[i].Inputs[k] = input
-			delete(isOutput, input)
+		for iAsInput, iAsWire := range wireInfo.Inputs {
+			input := &circuit[iAsWire]
+			circuit[i].Inputs[iAsInput] = input
 		}
 	}
 
@@ -305,4 +312,22 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 		}
 	}
 	return
+}
+
+func TestLogNbInstances(t *testing.T) {
+	testCase, err := getTestCase("test_vectors/two_identity_gates_composed_single_input_two_instances.json")
+	assert.NoError(t, err)
+	wires := topologicalSort(testCase.Circuit)
+	serializedProof := testCase.Proof.Serialize()
+	logNbInstances := computeLogNbInstances(wires, len(serializedProof))
+	assert.Equal(t, 1, logNbInstances)
+}
+
+func TestLoadCircuit(t *testing.T) {
+	c, err := getCircuit("test_vectors/resources/two_identity_gates_composed_single_input.json")
+	assert.NoError(t, err)
+	assert.Equal(t, []*Wire{}, c[0].Inputs)
+	assert.Equal(t, []*Wire{&c[0]}, c[1].Inputs)
+	assert.Equal(t, []*Wire{&c[1]}, c[2].Inputs)
+
 }
