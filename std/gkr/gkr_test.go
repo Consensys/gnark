@@ -2,6 +2,7 @@ package gkr
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
@@ -28,6 +29,10 @@ func TestSingleInputTwoOutsTwoInstances(t *testing.T) { // TODO: Remove
 	generateTestVerifier("./test_vectors/single_input_two_outs_two_instances.json")(t)
 }
 
+func TestNoisySingleMimcGateTwoInstances(t *testing.T) {
+	generateTestVerifier("./test_vectors/single_mimc_gate_two_instances.json", noSuccess)(t)
+}
+
 func TestGkrVectors(t *testing.T) {
 
 	testDirPath := "./test_vectors"
@@ -51,7 +56,23 @@ func TestGkrVectors(t *testing.T) {
 	}
 }
 
-func generateTestVerifier(path string) func(t *testing.T) {
+type _options struct {
+	noSuccess bool
+	noFail    bool
+}
+
+type option func(*_options)
+
+func noSuccess(o *_options) {
+	o.noSuccess = true
+}
+
+func generateTestVerifier(path string, options ...option) func(t *testing.T) {
+	var opts _options
+	for _, opt := range options {
+		opt(&opts)
+	}
+
 	return func(t *testing.T) {
 
 		testCase, err := getTestCase(path)
@@ -75,10 +96,14 @@ func generateTestVerifier(path string) func(t *testing.T) {
 		fillWithBlanks(circuit.Input, len(testCase.Input[0]))
 		fillWithBlanks(circuit.Output, len(testCase.Input[0]))
 
-		test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+		if !opts.noSuccess {
+			test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+		}
 
-		assignment.ProofNoise = 1
-		test.NewAssert(t).ProverFailed(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+		if !opts.noFail {
+			assignment.ProofNoise = 1
+			test.NewAssert(t).ProverFailed(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+		}
 	}
 }
 
@@ -201,37 +226,40 @@ type CircuitInfo []WireInfo
 
 var circuitCache = make(map[string]Circuit)
 
-func getCircuit(path string) (Circuit, error) {
-	path, err := filepath.Abs(path)
+func getCircuit(path string) (circuit Circuit, err error) {
+	path, err = filepath.Abs(path)
 	if err != nil {
-		return nil, err
+		return
 	}
-	if circuit, ok := circuitCache[path]; ok {
-		return circuit, nil
+	var ok bool
+	if circuit, ok = circuitCache[path]; ok {
+		return
 	}
 	var bytes []byte
 	if bytes, err = os.ReadFile(path); err == nil {
 		var circuitInfo CircuitInfo
 		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
-			circuit := circuitInfo.toCircuit()
-			circuitCache[path] = circuit
-			return circuit, nil
-		} else {
-			return nil, err
+			circuit, err = circuitInfo.toCircuit()
+			if err == nil {
+				circuitCache[path] = circuit
+			}
 		}
-	} else {
-		return nil, err
 	}
+	return
 }
 
-func (c CircuitInfo) toCircuit() (circuit Circuit) {
+func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 	circuit = make(Circuit, len(c))
 	for i, wireInfo := range c {
-		circuit[i].Gate = gates[wireInfo.Gate]
 		circuit[i].Inputs = make([]*Wire, len(wireInfo.Inputs))
 		for iAsInput, iAsWire := range wireInfo.Inputs {
 			input := &circuit[iAsWire]
 			circuit[i].Inputs[iAsInput] = input
+		}
+
+		var found bool
+		if circuit[i].Gate, found = gates[wireInfo.Gate]; !found && wireInfo.Gate != "" {
+			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
 		}
 	}
 
@@ -245,6 +273,7 @@ func init() {
 	gates["identity"] = IdentityGate{}
 	gates["mul"] = mulGate{}
 	gates["mimc"] = mimcCipherGate{ark: 0} //TODO: Add ark
+	gates["select-input-3"] = _select(2)
 }
 
 type mulGate struct{}
@@ -278,6 +307,16 @@ func (m mimcCipherGate) Degree() int {
 	return 7
 }
 
+type _select int
+
+func (g _select) Evaluate(_ frontend.API, in ...frontend.Variable) frontend.Variable {
+	return in[g]
+}
+
+func (g _select) Degree() int {
+	return 1
+}
+
 type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
@@ -309,12 +348,22 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 }
 
 func TestLogNbInstances(t *testing.T) {
-	testCase, err := getTestCase("test_vectors/two_identity_gates_composed_single_input_two_instances.json")
-	assert.NoError(t, err)
-	wires := topologicalSort(testCase.Circuit)
-	serializedProof := testCase.Proof.Serialize()
-	logNbInstances := computeLogNbInstances(wires, len(serializedProof))
-	assert.Equal(t, 1, logNbInstances)
+	testLogNbInstances := func(path string) func(t *testing.T) {
+		return func(t *testing.T) {
+			testCase, err := getTestCase(path)
+			assert.NoError(t, err)
+			wires := topologicalSort(testCase.Circuit)
+			serializedProof := testCase.Proof.Serialize()
+			logNbInstances := computeLogNbInstances(wires, len(serializedProof))
+			assert.Equal(t, 1, logNbInstances)
+		}
+	}
+
+	cases := []string{"two_inputs_select-input-3_gate_two_instances", "two_identity_gates_composed_single_input_two_instances"}
+
+	for _, caseName := range cases {
+		t.Run("log_nb_instances:"+caseName, testLogNbInstances("test_vectors/"+caseName+".json"))
+	}
 }
 
 func TestLoadCircuit(t *testing.T) {
