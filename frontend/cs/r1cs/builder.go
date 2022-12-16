@@ -421,3 +421,18 @@ func (builder *builder) newDebugInfo(errName string, in ...interface{}) constrai
 	return constraint.NewDebugInfo(errName, in...)
 
 }
+
+// compress checks the length of the linear expression le and if it is larger or
+// equal than CompressThreshold in the configuration, replaces it with a linear
+// expression of one term. In that case it adds an equality constraint enforcing
+// the correctness of the returned linear expression.
+func (builder *builder) compress(le expr.LinearExpression) expr.LinearExpression {
+	if builder.config.CompressThreshold <= 0 || len(le) < builder.config.CompressThreshold {
+		return le
+	}
+
+	one := builder.cstOne()
+	t := builder.newInternalVariable()
+	builder.cs.AddConstraint(builder.newR1C(le, one, t))
+	return t
+}

@@ -149,6 +149,7 @@ type CompileConfig struct {
 	Capacity                  int
 	IgnoreUnconstrainedInputs bool
 	wrapper                   BuilderWrapper
+	CompressThreshold         int
 }
 
 // WithCapacity is a compile option that specifies the estimated capacity needed
@@ -184,6 +185,26 @@ type BuilderWrapper func(Builder) Builder
 func WithBuilderWrapper(wrapper BuilderWrapper) CompileOption {
 	return func(opt *CompileConfig) error {
 		opt.wrapper = wrapper
+		return nil
+	}
+}
+
+// WithCompressThreshold is a compile option which enforces automatic variable
+// compression if the length of the linear expression in the variable exceeds
+// given threshold.
+//
+// This option is usable in arithmetisations where the variable is a linear
+// combination, as for example in R1CS. If variable is not a linear combination,
+// then this option does not change the compile behaviour.
+//
+// This compile option should be used in cases when it is known that there are
+// long addition chains and the compile time and memory usage start are growing
+// fast. The compression adds some overhead in the number of constraints. The
+// overhead and compile performance depends on threshold value, and it should be
+// chosen carefully.
+func WithCompressThreshold(threshold int) CompileOption {
+	return func(opt *CompileConfig) error {
+		opt.CompressThreshold = threshold
 		return nil
 	}
 }
