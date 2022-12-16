@@ -24,6 +24,10 @@ func TestSingleInputTwoIdentityGatesTwoInstances(t *testing.T) { //TODO: Remove
 	generateTestVerifier("./test_vectors/single_input_two_identity_gates_two_instances.json")(t)
 }
 
+func TestSingleInputTwoOutsTwoInstances(t *testing.T) { // TODO: Remove
+	generateTestVerifier("./test_vectors/single_input_two_outs_two_instances.json")(t)
+}
+
 func TestGkrVectors(t *testing.T) {
 
 	testDirPath := "./test_vectors"

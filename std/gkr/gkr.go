@@ -43,13 +43,13 @@ func (w Wire) NbClaims() int {
 	return w.nbUniqueOutputs
 }
 
-/*func (w Wire) nbUniqueInputs() int {
-	m := make(map[*Wire]struct{})
-	for _, w := range w.Inputs {
-		m[w] = struct{}{}
+func (w Wire) nbUniqueInputs() int {
+	set := make(map[*Wire]struct{}, len(w.Inputs))
+	for _, in := range w.Inputs {
+		set[in] = struct{}{}
 	}
-	return len(m)
-}*/
+	return len(set)
+}
 
 func (w Wire) noProof() bool {
 	return w.IsInput() && w.NbClaims() == 1
@@ -68,10 +68,10 @@ type eqTimesGateEvalSumcheckLazyClaims struct {
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof interface{}) error {
-	inputEvaluations := proof.([]frontend.Variable)
+	inputEvaluationsNoRedundancy := proof.([]frontend.Variable)
 
+	// the eq terms
 	numClaims := len(e.evaluationPoints)
-
 	evaluation := polynomial.EvalEq(api, e.evaluationPoints[numClaims-1], r)
 	for i := numClaims - 2; i >= 0; i-- {
 		evaluation = api.Mul(evaluation, combinationCoeff)
@@ -79,18 +79,31 @@ func (e *eqTimesGateEvalSumcheckLazyClaims) VerifyFinalEval(api frontend.API, r 
 		evaluation = api.Add(evaluation, eq)
 	}
 
-	if expected, given := len(e.wire.Inputs), len(inputEvaluations); expected != given && (expected != 0 || given != 1) {
-		// TODO: This business with artificially giving input wires themselves as input is dirty. Do away with it.
-		return fmt.Errorf("malformed proof: wire has %d inputs, but %d input evaluations given", expected, given)
-	}
-
+	// the g(...) term
 	var gateEvaluation frontend.Variable
 	if e.wire.IsInput() {
 		gateEvaluation = e.manager.assignment[e.wire].Evaluate(api, r)
 	} else {
+		inputEvaluations := make([]frontend.Variable, len(e.wire.Inputs))
+		indexesInProof := make(map[*Wire]int, len(inputEvaluationsNoRedundancy))
+
+		proofI := 0
+		for inI, in := range e.wire.Inputs {
+			indexInProof, found := indexesInProof[in]
+			if !found {
+				indexInProof = proofI
+				indexesInProof[in] = indexInProof
+
+				// defer verification, store new claim
+				e.manager.add(in, r, inputEvaluationsNoRedundancy[indexInProof])
+				proofI++
+			}
+			inputEvaluations[inI] = inputEvaluationsNoRedundancy[indexInProof]
+		}
+		if proofI != len(inputEvaluationsNoRedundancy) {
+			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
+		}
 		gateEvaluation = e.wire.Gate.Evaluate(api, inputEvaluations...)
-		// defer verification, store the new claims
-		e.manager.addForInput(e.wire, r, inputEvaluations)
 	}
 	evaluation = api.Mul(evaluation, gateEvaluation)
 
@@ -524,12 +537,4 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
 	}
 	return proof, nil
-}
-
-func (w Wire) nbUniqueInputs() int {
-	set := make(map[*Wire]struct{}, len(w.Inputs))
-	for _, in := range w.Inputs {
-		set[in] = struct{}{}
-	}
-	return len(set)
 }
