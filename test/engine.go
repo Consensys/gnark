@@ -409,7 +409,13 @@ func (e *engine) Println(a ...frontend.Variable) {
 			sbb.WriteString(s)
 		} else {
 			v := e.toBigInt(a[i])
-			sbb.WriteString(v.String())
+			var vAsNeg big.Int
+			vAsNeg.Sub(v, e.q)
+			if vAsNeg.IsInt64() {
+				sbb.WriteString(strconv.FormatInt(vAsNeg.Int64(), 10))
+			} else {
+				sbb.WriteString(v.String())
+			}
 		}
 		sbb.WriteByte(' ')
 	}
