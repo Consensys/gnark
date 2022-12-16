@@ -405,8 +405,12 @@ func (e *engine) Println(a ...frontend.Variable) {
 	}
 
 	for i := 0; i < len(a); i++ {
-		v := e.toBigInt(a[i])
-		sbb.WriteString(v.String())
+		if s, ok := a[i].(string); ok {
+			sbb.WriteString(s)
+		} else {
+			v := e.toBigInt(a[i])
+			sbb.WriteString(v.String())
+		}
 		sbb.WriteByte(' ')
 	}
 	fmt.Println(sbb.String())
