@@ -83,8 +83,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	return f, nil
 }
 
-// Zero returns zero as a constant. The returned element is not safe to use as
-// an operation receiver.
+// Zero returns zero as a constant.
 func (f *Field[T]) Zero() *Element[T] {
 	f.zeroConstOnce.Do(func() {
 		f.zeroConst = NewElement[T](nil)
@@ -92,8 +91,7 @@ func (f *Field[T]) Zero() *Element[T] {
 	return &f.zeroConst
 }
 
-// One returns one as a constant. The returned element is not safe to use as an
-// operation receiver.
+// One returns one as a constant.
 func (f *Field[T]) One() *Element[T] {
 	f.oneConstOnce.Do(func() {
 		f.oneConst = NewElement[T](1)
@@ -101,8 +99,7 @@ func (f *Field[T]) One() *Element[T] {
 	return &f.oneConst
 }
 
-// Modulus returns the modulus of the emulated ring as a constant. The returned
-// element is not safe to use as an operation receiver.
+// Modulus returns the modulus of the emulated ring as a constant.
 func (f *Field[T]) Modulus() *Element[T] {
 	f.nConstOnce.Do(func() {
 		f.nConst = NewElement[T](f.fParams.Modulus())
@@ -110,9 +107,8 @@ func (f *Field[T]) Modulus() *Element[T] {
 	return &f.nConst
 }
 
-// PackLimbs returns a constant element from the given limbs. The returned
-// element is not safe to use as an operation receiver. The method constrains
-// the limb widths.
+// PackLimbs returns a constant element from the given limbs. The method
+// constrains the limb widths.
 func (f *Field[T]) PackLimbs(limbs []frontend.Variable) *Element[T] {
 	e := newElementLimbs[T](limbs, 0)
 	f.EnforceWidth(e)

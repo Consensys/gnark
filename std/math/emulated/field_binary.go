@@ -5,7 +5,7 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 )
 
-// ToBinary returns the bit representation of the Element in little-endian (LSB
+// ToBits returns the bit representation of the Element in little-endian (LSB
 // first) order. The returned bits are constrained to be 0-1. The number of
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
 // representation of Element, reduce Element first and take less significant
