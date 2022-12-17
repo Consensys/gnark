@@ -117,28 +117,9 @@ func (f *Field[T]) PackLimbs(limbs []frontend.Variable) *Element[T] {
 	e := newElementLimbs[T](limbs, 0)
 	f.EnforceWidth(e)
 	return e
-	// limbNbBits := int(f.fParams.BitsPerLimb())
-	// for i := range limbs {
-	// 	// bits.ToBinary restricts the least significant NbDigits to be equal to
-	// 	// the limb value. This is sufficient to restrict for the bitlength and
-	// 	// we can discard the bits themselves.
-	// 	bits.ToBinary(f.api, limbs[i], bits.WithNbDigits(limbNbBits))
-	// }
-	// return newElementLimbs[T](limbs, 0)
 }
 
 func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
-	// var limbs []frontend.Variable // emulated limbs
-	// switch vv := v.(type) {
-	// case Element[T]:
-	// 	limbs = vv.Limbs
-	// case *Element[T]:
-	// 	limbs = vv.Limbs
-	// case []frontend.Variable:
-	// 	limbs = vv
-	// default:
-	// 	return f.api.Compiler().ConstantValue(vv)
-	// }
 	var ok bool
 
 	constLimbs := make([]*big.Int, len(v.Limbs))
