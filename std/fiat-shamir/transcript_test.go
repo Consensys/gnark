@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/utils"
@@ -168,7 +169,7 @@ func BenchmarkCompile(b *testing.B) {
 	// create an empty cs
 	var circuit FiatShamirCircuit
 
-	var ccs frontend.CompiledConstraintSystem
+	var ccs constraint.ConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ccs, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)

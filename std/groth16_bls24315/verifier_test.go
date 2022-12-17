@@ -22,9 +22,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint"
+	cs_bls24315 "github.com/consensys/gnark/constraint/bls24-315"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	backend_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
 	groth16_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/groth16"
 	"github.com/consensys/gnark/internal/backend/bls24-315/witness"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
@@ -83,12 +84,12 @@ func generateBls24315InnerProof(t *testing.T, vk *groth16_bls24315.VerifyingKey,
 
 	// generate the data to return for the bls24315 proof
 	var pk groth16_bls24315.ProvingKey
-	err = groth16_bls24315.Setup(r1cs.(*backend_bls24315.R1CS), &pk, vk)
+	err = groth16_bls24315.Setup(r1cs.(*cs_bls24315.R1CS), &pk, vk)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_proof, err := groth16_bls24315.Prove(r1cs.(*backend_bls24315.R1CS), &pk, witness, backend.ProverConfig{})
+	_proof, err := groth16_bls24315.Prove(r1cs.(*cs_bls24315.R1CS), &pk, witness, backend.ProverConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +157,7 @@ func BenchmarkCompile(b *testing.B) {
 	var circuit verifierCircuit
 	circuit.InnerVk.G1.K = make([]sw_bls24315.G1Affine, len(innerVk.G1.K))
 
-	var ccs frontend.CompiledConstraintSystem
+	var ccs constraint.ConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ccs, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &circuit)

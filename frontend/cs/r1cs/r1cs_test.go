@@ -17,22 +17,22 @@ limitations under the License.
 package r1cs
 
 import (
+	"math/rand"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiled"
-	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/frontend/internal/expr"
 )
 
 func TestQuickSort(t *testing.T) {
 
-	toSort := make(compiled.LinearExpression, 12)
+	toSort := make(expr.LinearExpression, 12)
 	rand := 3
 	for i := 0; i < 12; i++ {
-		toSort[i].SetVariableVisibility(schema.Secret)
-		toSort[i].SetWireID(rand)
+		toSort[i].VID = rand
 		rand += 3
 		rand = rand % 13
 	}
@@ -40,8 +40,8 @@ func TestQuickSort(t *testing.T) {
 	sort.Sort(toSort)
 
 	for i := 0; i < 10; i++ {
-		_, cur, _ := toSort[i].Unpack()
-		_, next, _ := toSort[i+1].Unpack()
+		cur := toSort[i].WireID()
+		next := toSort[i+1].WireID()
 		if cur >= next {
 			t.Fatal("err sorting linear expression")
 		}
@@ -63,11 +63,75 @@ func TestReduce(t *testing.T) {
 	e := cs.Mul(z, 2)
 	f := cs.Mul(z, 2)
 
-	toTest := (cs.Add(a, b, c, d, e, f)).(compiled.LinearExpression)
+	toTest := (cs.Add(a, b, c, d, e, f)).(expr.LinearExpression)
 
 	// check sizes
 	if len(toTest) != 3 {
 		t.Fatal("Error reduce, duplicate variables not collapsed")
 	}
 
+}
+
+func TestCompress(t *testing.T) {
+	cs := newBuilder(ecc.BN254.ScalarField(), frontend.CompileConfig{CompressThreshold: 3})
+	vars := make([]frontend.Variable, 4)
+	for i := range vars {
+		v := cs.newInternalVariable()
+		vars[i] = cs.Mul(v, 1<<i)
+	}
+
+	// if add two variables, then should not compress
+	v1 := cs.Add(vars[0], vars[1])
+	if vli1 := v1.(expr.LinearExpression); len(vli1) != 2 {
+		t.Fatalf("expected linear expression length 2, got %d", len(vli1))
+	}
+	// if add three vars, then should compress
+	v2 := cs.Add(vars[0], vars[1], vars[2])
+	if vli2 := v2.(expr.LinearExpression); len(vli2) != 1 {
+		t.Fatalf("expected linear expression length 1, got %d", len(vli2))
+	}
+}
+
+func BenchmarkReduce(b *testing.B) {
+	cs := newBuilder(ecc.BN254.ScalarField(), frontend.CompileConfig{})
+	// 4 interesting cases;
+	// Add many small linear expressions
+	// Add few large linear expressions
+	// Add many large linear expressions
+	// Doubling of large linear expressions
+	rand.Seed(time.Now().Unix())
+	const nbTerms = 100000
+	terms := make([]frontend.Variable, nbTerms)
+	for i := 0; i < len(terms); i++ {
+		terms[i] = cs.newInternalVariable()
+	}
+
+	rL := make([]frontend.Variable, 1000)
+	for i := 0; i < len(rL); i++ {
+		rL[i] = cs.Mul(terms[i%50], rand.Uint64()) //#nosec G404 -- This is a false positive
+	}
+
+	mL := make([]frontend.Variable, 1000)
+	b.ResetTimer()
+	b.Run("reduce redudancy", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			mL[i%len(mL)] = cs.Add(rand.Uint64(), rL[0], rL[1:]...) //#nosec G404 -- This is a false positive
+		}
+	})
+
+	b.ResetTimer()
+	b.Run("many small", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = cs.Add(mL[0], mL[1], mL[2:]...)
+		}
+	})
+
+	c := cs.Add(terms[0], terms[1], terms[2:]...)
+
+	b.ResetTimer()
+	b.Run("doubling large", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = cs.Add(c, c)
+		}
+	})
 }

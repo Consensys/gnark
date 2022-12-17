@@ -22,6 +22,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -380,7 +381,7 @@ func randomPointG1() bls12377.G1Jac {
 	return p1
 }
 
-var ccsBench frontend.CompiledConstraintSystem
+var ccsBench constraint.ConstraintSystem
 
 func BenchmarkConstScalarMulG1(b *testing.B) {
 	var c g1constantScalarMul

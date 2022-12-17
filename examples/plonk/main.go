@@ -20,8 +20,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/plonk"
+	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/internal/backend/bn254/cs"
 	"github.com/consensys/gnark/test"
 
 	"github.com/consensys/gnark/frontend"

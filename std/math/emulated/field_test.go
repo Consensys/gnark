@@ -71,27 +71,27 @@ func TestTestEngineWrapper(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	circuit := WrapperCircuit{
-		X1:  NewElement[Secp256k1](nil),
-		X2:  NewElement[Secp256k1](nil),
-		X3:  NewElement[Secp256k1](nil),
-		X4:  NewElement[Secp256k1](nil),
-		X5:  NewElement[Secp256k1](nil),
-		X6:  NewElement[Secp256k1](nil),
-		Res: NewElement[Secp256k1](nil),
+		X1:  NewElement[Secp256k1Fp](nil),
+		X2:  NewElement[Secp256k1Fp](nil),
+		X3:  NewElement[Secp256k1Fp](nil),
+		X4:  NewElement[Secp256k1Fp](nil),
+		X5:  NewElement[Secp256k1Fp](nil),
+		X6:  NewElement[Secp256k1Fp](nil),
+		Res: NewElement[Secp256k1Fp](nil),
 	}
 
-	x1, x2, x3, x4, x5, x6, res := witnessData(Secp256k1{}.Modulus())
+	x1, x2, x3, x4, x5, x6, res := witnessData(Secp256k1Fp{}.Modulus())
 	witness := WrapperCircuit{
-		X1:  NewElement[Secp256k1](x1),
-		X2:  NewElement[Secp256k1](x2),
-		X3:  NewElement[Secp256k1](x3),
-		X4:  NewElement[Secp256k1](x4),
-		X5:  NewElement[Secp256k1](x5),
-		X6:  NewElement[Secp256k1](x6),
-		Res: NewElement[Secp256k1](res),
+		X1:  NewElement[Secp256k1Fp](x1),
+		X2:  NewElement[Secp256k1Fp](x2),
+		X3:  NewElement[Secp256k1Fp](x3),
+		X4:  NewElement[Secp256k1Fp](x4),
+		X5:  NewElement[Secp256k1Fp](x5),
+		X6:  NewElement[Secp256k1Fp](x6),
+		Res: NewElement[Secp256k1Fp](res),
 	}
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := NewField[Secp256k1](api)
+		napi, err := NewAPI[Secp256k1Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -102,26 +102,26 @@ func TestTestEngineWrapper(t *testing.T) {
 func TestCompilerWrapper(t *testing.T) {
 	assert := test.NewAssert(t)
 	circuit := WrapperCircuit{
-		X1:  NewElement[Secp256k1](nil),
-		X2:  NewElement[Secp256k1](nil),
-		X3:  NewElement[Secp256k1](nil),
-		X4:  NewElement[Secp256k1](nil),
-		X5:  NewElement[Secp256k1](nil),
-		X6:  NewElement[Secp256k1](nil),
-		Res: NewElement[Secp256k1](nil),
+		X1:  NewElement[Secp256k1Fp](nil),
+		X2:  NewElement[Secp256k1Fp](nil),
+		X3:  NewElement[Secp256k1Fp](nil),
+		X4:  NewElement[Secp256k1Fp](nil),
+		X5:  NewElement[Secp256k1Fp](nil),
+		X6:  NewElement[Secp256k1Fp](nil),
+		Res: NewElement[Secp256k1Fp](nil),
 	}
 
-	x1, x2, x3, x4, x5, x6, res := witnessData(Secp256k1{}.Modulus())
+	x1, x2, x3, x4, x5, x6, res := witnessData(Secp256k1Fp{}.Modulus())
 	witness := WrapperCircuit{
-		X1:  NewElement[Secp256k1](x1),
-		X2:  NewElement[Secp256k1](x2),
-		X3:  NewElement[Secp256k1](x3),
-		X4:  NewElement[Secp256k1](x4),
-		X5:  NewElement[Secp256k1](x5),
-		X6:  NewElement[Secp256k1](x6),
-		Res: NewElement[Secp256k1](res),
+		X1:  NewElement[Secp256k1Fp](x1),
+		X2:  NewElement[Secp256k1Fp](x2),
+		X3:  NewElement[Secp256k1Fp](x3),
+		X4:  NewElement[Secp256k1Fp](x4),
+		X5:  NewElement[Secp256k1Fp](x5),
+		X6:  NewElement[Secp256k1Fp](x6),
+		Res: NewElement[Secp256k1Fp](res),
 	}
-	ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithBuilderWrapper(builderWrapper[Secp256k1]()))
+	ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithBuilderWrapper(builderWrapper[Secp256k1Fp]()))
 	assert.NoError(err)
 	t.Log(ccs.GetNbConstraints())
 	// TODO: create proof
@@ -131,7 +131,7 @@ func TestCompilerWrapper(t *testing.T) {
 func TestIntegrationApi(t *testing.T) {
 	assert := test.NewAssert(t)
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := NewField[Secp256k1](api)
+		napi, err := NewAPI[Secp256k1Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -149,7 +149,7 @@ func TestIntegrationApi(t *testing.T) {
 		}
 		tData := circuits.Circuits[name]
 		assert.Run(func(assert *test.Assert) {
-			_, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, tData.Circuit, frontend.WithBuilderWrapper(builderWrapper[Secp256k1]()))
+			_, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, tData.Circuit, frontend.WithBuilderWrapper(builderWrapper[Secp256k1Fp]()))
 			assert.NoError(err)
 		}, name, "compile")
 		for i := range tData.ValidAssignments {
@@ -171,14 +171,12 @@ func TestIntegrationApi(t *testing.T) {
 
 func TestVarToElements(t *testing.T) {
 	assert := require.New(t)
-	_f, _ := NewField[BN254Fp](nil)
-
-	f := _f.(*field[BN254Fp])
+	w, _ := NewAPI[BN254Fp](nil)
 
 	{
 		in := []frontend.Variable{8000, 42}
-		out1 := f.varsToElements(in...)
-		out2 := f.varsToElements(in)
+		out1 := w.varsToElements(in...)
+		out2 := w.varsToElements(in)
 
 		assert.Equal(len(out1), len(out2))
 		assert.Equal(len(out1), 2)
@@ -190,7 +188,7 @@ func TestVarToElements(t *testing.T) {
 		}
 	}()
 	in := []frontend.Variable{8000, nil, 3000}
-	_ = f.varsToElements(in)
+	_ = w.varsToElements(in)
 }
 
 type pairingBLS377 struct {
@@ -263,7 +261,7 @@ func TestPairingBLS377(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := NewField[BLS12377Fp](api)
+		napi, err := NewAPI[BLS12377Fp](api)
 		assert.NoError(err)
 		return napi
 	})
@@ -280,13 +278,13 @@ type ConstantCircuit struct {
 }
 
 func (c *ConstantCircuit) Define(api frontend.API) error {
-	f, err := NewField[Secp256k1](api)
+	f, err := NewField[Secp256k1Fp](api)
 	if err != nil {
 		return err
 	}
 	{
-		c1 := NewElement[Secp256k1](42)
-		b1, ok := f.ConstantValue(c1)
+		c1 := NewElement[Secp256k1Fp](42)
+		b1, ok := f.constantValue(&c1)
 		if !ok {
 			return errors.New("42 should be constant")
 		}
@@ -295,12 +293,12 @@ func (c *ConstantCircuit) Define(api frontend.API) error {
 		}
 	}
 	{
-		m := f.(*field[Secp256k1]).Modulus()
-		b1, ok := f.ConstantValue(m)
+		m := f.Modulus()
+		b1, ok := f.constantValue(m)
 		if !ok {
 			return errors.New("modulus should be constant")
 		}
-		if b1.Cmp(Secp256k1{}.Modulus()) != 0 {
+		if b1.Cmp(Secp256k1Fp{}.Modulus()) != 0 {
 			return errors.New("modulus != constant(modulus)")
 		}
 	}
@@ -324,15 +322,15 @@ type MulConstantCircuit struct {
 }
 
 func (c *MulConstantCircuit) Define(api frontend.API) error {
-	f, err := NewField[Secp256k1](api)
+	f, err := NewField[Secp256k1Fp](api)
 	if err != nil {
 		return err
 	}
-	c0 := NewElement[Secp256k1](0)
-	c1 := NewElement[Secp256k1](0)
-	c2 := NewElement[Secp256k1](0)
-	r := f.Mul(c0, c1)
-	f.AssertIsEqual(r, c2)
+	c0 := NewElement[Secp256k1Fp](0)
+	c1 := NewElement[Secp256k1Fp](0)
+	c2 := NewElement[Secp256k1Fp](0)
+	r := f.Mul(&c0, &c1)
+	f.AssertIsEqual(r, &c2)
 
 	return nil
 }
@@ -353,25 +351,18 @@ type SubConstantCircuit struct {
 }
 
 func (c *SubConstantCircuit) Define(api frontend.API) error {
-	f, err := NewField[Secp256k1](api)
+	f, err := NewField[Secp256k1Fp](api)
 	if err != nil {
 		return err
 	}
-	c0 := NewElement[Secp256k1](0)
-	c1 := NewElement[Secp256k1](0)
-	c2 := NewElement[Secp256k1](0)
-	r := f.Sub(c0, c1)
-	if r.(Element[Secp256k1]).overflow != 0 {
-		return fmt.Errorf("overflow %d != 0", r.(Element[Secp256k1]).overflow)
+	c0 := NewElement[Secp256k1Fp](0)
+	c1 := NewElement[Secp256k1Fp](0)
+	c2 := NewElement[Secp256k1Fp](0)
+	r := f.Sub(&c0, &c1)
+	if r.overflow != 0 {
+		return fmt.Errorf("overflow %d != 0", r.overflow)
 	}
-	// rc, ok := f.ConstantValue(r)
-	// if !ok {
-	// 	return errors.New("0 - 0 is not constant")
-	// }
-	// if !rc.IsUint64() && rc.Uint64() == 0 {
-	// 	return fmt.Errorf("0 - 0 = %s", rc.String())
-	// }
-	f.AssertIsEqual(r, c2)
+	f.AssertIsEqual(r, &c2)
 
 	return nil
 }
