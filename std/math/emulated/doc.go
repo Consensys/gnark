@@ -9,23 +9,21 @@ curve. This package implements non-native arithmetic on top of the native field
 to emulate operations in any field and ring.
 
 This package does this by splitting the element into smaller limbs. The
-parameters for splitting the limb and defining the modulus are stored in Params
-type. A instance of parameters can be initialized using NewParams. As NewParams
-checks if the given modulus is a prime, then it should be called infrequently,
-preferably once in circuit definition.
+parameters for splitting the limb and defining the modulus are stored in types
+implementing [FieldParams] type. The elements are parametrized by those types to
+make compile-time distinction between different emulated fields.
 
-This package defines Element type which stores the element value in split limbs.
-On top of the Element instance, this package defines typical arithmetic as
-addition, multiplication and subtraction. If the modulus is a prime (i.e.
+This package defines [Element] type which stores the element value in split
+limbs. On top of the Element instance, this package defines typical arithmetic
+as addition, multiplication and subtraction. If the modulus is a prime (i.e.
 defines a finite field), then inversion and division operations are also
 possible.
 
 The results of the operations are not always reduced to be less than the
 modulus. For consecutive operations it is necessary to manually reduce the value
-using Reduce() method. The number of operations which can be performed without
-reduction depends when the operations result starts overflowing the limbs. For
-high-level usage which reduces the values on-demand, we plan to implement
-fake-API with non-native operations.
+using [Field.Reduce] method. The number of operations which can be performed
+without reduction depends when the operations result starts overflowing the
+limbs.
 
 # Element representation
 
@@ -57,8 +55,8 @@ know that the limb values do not overflow 2^w, then we say that the element is
 in normal form.
 
 In the implementation, we have two functions for splitting an element into limbs
-and composing an element from limbs -- decompose() and recompose(). The
-recompose() function also accepts element in non-normal form.
+and composing an element from limbs -- [decompose] and [recompose]. The
+[recompose] function also accepts element in non-normal form.
 
 # Elements in non-normal form
 
@@ -76,8 +74,8 @@ individual for every individual element.
 
 To compute the overflow for the operations, we consider the arithmetic
 operations which affect the overflow. In this implementation only addition is
-done natively (limb-wise addition). When adding two elements, the bitwidth of the
-result is up to one bit wider than the width of the widest element.
+done natively (limb-wise addition). When adding two elements, the bitwidth of
+the result is up to one bit wider than the width of the widest element.
 
 In the context of overflows, if the overflows of the addends are f_0 and f_1
 then the overflow value f' for the sum is computed as
@@ -236,7 +234,8 @@ check that k lower bits are equal to the whole limb. We omit the bitwidth
 enforcement for multiplication as the correctness of the limbs is ensured using
 the corresponding system of linear equations.
 
-Additionally, we apply bitwidth enforcement for elements initialized from integers.
+Additionally, we apply bitwidth enforcement for elements initialized from
+integers.
 
 # Modular reduction
 
@@ -250,20 +249,15 @@ using element equality checking.
 
 # Values computed using hints
 
-We additionally define functions for computing inverse of an element and
-ratio of two elements. Both function compute the actual value using hint and
-then assert the correctness of the operation using multiplication.
+We additionally define functions for computing inverse of an element and ratio
+of two elements. Both function compute the actual value using hint and then
+assert the correctness of the operation using multiplication.
 
 # Constant values
 
 The package currently does not explicitly differentiate between constant and
-variable elements. Implementation-wise, the constant values do not store the
-reference to the API and thus are invalid to be used as receiver for arithmetic
-operations. There are several ways to initialize constant values -- using
-pre-defined values (Zero(), One(), Modulus()), from big integer value
-(ConstantFromBig() and ConstantFromBigOrPanic()) and a placeholder value
-(Placeholder()) which can be used to assign variables when compiling circuits.
-We do not assume particular value for placeholder constant and may its
-implementation to speed up compilation.
+variable elements. The builder may track some elements as being constants. Some
+operations have a fast track path for cases when all inputs are constants. There
+is [Field.MulConst], which provides variable by constant multiplication.
 */
 package emulated
