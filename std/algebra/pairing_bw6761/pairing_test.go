@@ -17,3 +17,80 @@
  */
 
 package pairing_bw6761
+
+import (
+	"crypto/rand"
+	"github.com/consensys/gnark-crypto/ecc"
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/test"
+	"testing"
+)
+
+const testCurve = ecc.BN254
+
+type pairingBW6761 struct {
+	A G1Affine
+	B G2Affine
+	C GT
+}
+
+func (circuit *pairingBW6761) Define(api frontend.API) error {
+	pr, err := NewPairing(api)
+	if err != nil {
+		panic(err)
+	}
+	pr.Pair([]*G1Affine{&circuit.A}, []*G2Affine{&circuit.B})
+
+	//pairingRes.Equal(api, circuit.C)
+
+	return nil
+}
+
+func TestPairingBW6761(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var (
+		a     bw6761.G1Affine
+		b     bw6761.G2Affine
+		c     bw6761.GT
+		r1, _ = rand.Int(rand.Reader, fr.Modulus())
+		r2, _ = rand.Int(rand.Reader, fr.Modulus())
+	)
+	_, _, g1, g2 := bw6761.Generators()
+
+	a.ScalarMultiplication(&g1, r1)
+	b.ScalarMultiplication(&g2, r2)
+	c, err := bw6761.Pair([]bw6761.G1Affine{a}, []bw6761.G2Affine{b})
+	if err != nil {
+		panic(err)
+	}
+
+	witness := pairingBW6761{
+		A: G1Affine{
+			X: emulated.NewElement[emulated.BW6761Fp](a.X),
+			Y: emulated.NewElement[emulated.BW6761Fp](a.Y),
+		},
+		B: G2Affine{
+			X: emulated.NewElement[emulated.BW6761Fp](b.X),
+			Y: emulated.NewElement[emulated.BW6761Fp](b.Y),
+		},
+		C: GT{
+			B0: E3{
+				A0: emulated.NewElement[emulated.BW6761Fp](c.B0.A0),
+				A1: emulated.NewElement[emulated.BW6761Fp](c.B0.A1),
+				A2: emulated.NewElement[emulated.BW6761Fp](c.B0.A2),
+			},
+			B1: E3{
+				A0: emulated.NewElement[emulated.BW6761Fp](c.B1.A0),
+				A1: emulated.NewElement[emulated.BW6761Fp](c.B1.A1),
+				A2: emulated.NewElement[emulated.BW6761Fp](c.B1.A2),
+			},
+		},
+	}
+
+	err = test.IsSolved(&pairingBW6761{}, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}

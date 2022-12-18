@@ -17,3 +17,7 @@
  */
 
 package pairing_bw6761
+
+type G2Affine struct {
+	X, Y baseField
+}
