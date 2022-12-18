@@ -16,4 +16,4 @@
  * /
  */
 
-package sw_bw6761
+package pairing_bw6761

@@ -16,16 +16,4 @@
  * /
  */
 
-package sw_bw6761
-
-import "github.com/consensys/gnark/frontend"
-
-// G2Affine point in affine coordinates
-type G2Affine struct {
-	X, Y frontend.Variable
-}
-
-// G2Jac is a point with fp.Element coordinates
-type G2Jac struct {
-	X, Y, Z frontend.Variable
-}
+package pairing_bw6761
