@@ -34,6 +34,16 @@ func NewExt6(baseField *curveF) *ext6 {
 	return &ext6{ext3: NewExt3(baseField)}
 }
 
+// SetZero sets an *E3 elmt to zero
+func (e ext6) Zero() *E6 {
+	b0 := e.ext3.Zero()
+	b1 := e.ext3.Zero()
+	return &E6{
+		B0: *b0,
+		B1: *b1,
+	}
+}
+
 // One sets z to 1 in Montgomery form and returns z
 func (e ext6) One() *E6 {
 	return &E6{
@@ -109,7 +119,7 @@ func (e ext6) Square(x *E6) *E6 {
 // Th. 3.2 with minor modifications to fit our tower
 func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 
-	var z E6
+	z := e.Zero()
 
 	var t [7]*baseField
 
@@ -179,7 +189,7 @@ func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	// z5 = 6 * g3 * g2 + 2 * g5
 	z.B1.A2 = *e.fp.Add(t[5], t[6])
 
-	return &z
+	return z
 }
 
 // DecompressKarabina Karabina's cyclotomic square result
@@ -191,7 +201,6 @@ func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 // if g3=g2=0 then g4=g5=g1=0 and g0=1 (x=1)
 // Theorem 3.1 is well-defined for all x in Gϕₙ\{1}
 func (e ext6) DecompressKarabina(x *E6) *E6 {
-
 	var z E6
 
 	var t [3]*baseField
