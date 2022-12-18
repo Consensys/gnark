@@ -52,21 +52,9 @@ func TestAddFp3(t *testing.T) {
 	c.Add(&a, &b)
 
 	witness := e3Add{
-		A: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](a.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](a.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](a.A2),
-		},
-		B: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](b.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](b.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](b.A2),
-		},
-		C: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](c.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](c.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](c.A2),
-		},
+		A: NewE3(a),
+		B: NewE3(b),
+		C: NewE3(c),
 	}
 
 	err := test.IsSolved(&e3Add{}, &witness, testCurve.ScalarField())
@@ -98,21 +86,9 @@ func TestSubFp3(t *testing.T) {
 	c.Sub(&a, &b)
 
 	witness := e3Sub{
-		A: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](a.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](a.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](a.A2),
-		},
-		B: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](b.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](b.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](b.A2),
-		},
-		C: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](c.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](c.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](c.A2),
-		},
+		A: NewE3(a),
+		B: NewE3(b),
+		C: NewE3(c),
 	}
 
 	err := test.IsSolved(&e3Sub{}, &witness, testCurve.ScalarField())
@@ -143,16 +119,8 @@ func TestNegFp3(t *testing.T) {
 	b.Neg(&a)
 
 	witness := e3Neg{
-		A: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](a.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](a.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](a.A2),
-		},
-		B: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](b.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](b.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](b.A2),
-		},
+		A: NewE3(a),
+		B: NewE3(b),
 	}
 
 	err := test.IsSolved(&e3Neg{}, &witness, testCurve.ScalarField())
@@ -183,16 +151,8 @@ func TestDoubleFp3(t *testing.T) {
 	b.Double(&a)
 
 	witness := e3Double{
-		A: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](a.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](a.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](a.A2),
-		},
-		B: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](b.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](b.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](b.A2),
-		},
+		A: NewE3(a),
+		B: NewE3(b),
 	}
 
 	err := test.IsSolved(&e3Double{}, &witness, testCurve.ScalarField())
@@ -224,21 +184,9 @@ func TestMulFp3(t *testing.T) {
 	c.Mul(&a, &b)
 
 	witness := e3Mul{
-		A: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](a.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](a.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](a.A2),
-		},
-		B: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](b.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](b.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](b.A2),
-		},
-		C: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](c.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](c.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](c.A2),
-		},
+		A: NewE3(a),
+		B: NewE3(b),
+		C: NewE3(c),
 	}
 
 	err := test.IsSolved(&e3Mul{}, &witness, testCurve.ScalarField())
@@ -269,16 +217,8 @@ func TestMulByNonResidueFp3(t *testing.T) {
 	b.MulByNonResidue(&a)
 
 	witness := e3MulByNonResidue{
-		A: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](a.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](a.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](a.A2),
-		},
-		B: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](b.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](b.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](b.A2),
-		},
+		A: NewE3(a),
+		B: NewE3(b),
 	}
 
 	err := test.IsSolved(&e3MulByNonResidue{}, &witness, testCurve.ScalarField())
@@ -314,18 +254,10 @@ func TestMulBy01Fp3(t *testing.T) {
 	b.MulBy01(&c0, &c1)
 
 	witness := e3MulBy01{
-		A: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](a.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](a.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](a.A2),
-		},
+		A:  NewE3(a),
 		C0: emulated.NewElement[emulated.BW6761Fp](c0),
 		C1: emulated.NewElement[emulated.BW6761Fp](c1),
-		B: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](b.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](b.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](b.A2),
-		},
+		B:  NewE3(b),
 	}
 
 	err := test.IsSolved(&e3MulBy01{}, &witness, testCurve.ScalarField())
@@ -356,16 +288,8 @@ func TestSquareFp3(t *testing.T) {
 	b.Square(&a)
 
 	witness := e3Square{
-		A: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](a.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](a.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](a.A2),
-		},
-		B: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](b.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](b.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](b.A2),
-		},
+		A: NewE3(a),
+		B: NewE3(b),
 	}
 
 	err := test.IsSolved(&e3Square{}, &witness, testCurve.ScalarField())
@@ -396,18 +320,42 @@ func TestInverseFp3(t *testing.T) {
 	b.Inverse(&a)
 
 	witness := e3Inverse{
-		A: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](a.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](a.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](a.A2),
-		},
-		B: E3{
-			A0: emulated.NewElement[emulated.BW6761Fp](b.A0),
-			A1: emulated.NewElement[emulated.BW6761Fp](b.A1),
-			A2: emulated.NewElement[emulated.BW6761Fp](b.A2),
-		},
+		A: NewE3(a),
+		B: NewE3(b),
 	}
 
 	err := test.IsSolved(&e3Inverse{}, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type e3Conjugate struct {
+	A, B E3
+}
+
+func (circuit *e3Conjugate) Define(api frontend.API) error {
+	var expected E3
+	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	e := NewExt3(nfield)
+	expected = *e.Conjugate(&circuit.A)
+	e.AssertIsEqual(&expected, &circuit.B)
+	return nil
+}
+
+func TestConjugateFp3(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b bw6761.E3
+	_, _ = a.SetRandom()
+	b.Conjugate(&a)
+
+	witness := e3Conjugate{
+		A: NewE3(a),
+		B: NewE3(b),
+	}
+
+	err := test.IsSolved(&e3Conjugate{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
