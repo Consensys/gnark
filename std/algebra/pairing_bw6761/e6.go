@@ -18,6 +18,10 @@
 
 package pairing_bw6761
 
+import (
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+)
+
 type E6 struct {
 	B0, B1 E3
 }
@@ -327,8 +331,30 @@ func (e ext6) Conjugate(x *E6) *E6 {
 	}
 }
 
+// AssertIsEqual constraint self to be equal to other into the given constraint system
+func (e ext6) AssertIsEqual(a, b *E6) {
+	e.ext3.AssertIsEqual(&a.B0, &b.B0)
+	e.ext3.AssertIsEqual(&a.B1, &b.B1)
+}
+
+func (e ext6) Set(x *E6) *E6 {
+	b0 := e.ext3.Set(&x.B0)
+	b1 := e.ext3.Set(&x.B1)
+	return &E6{
+		B0: *b0,
+		B1: *b1,
+	}
+}
+
 // Equal returns true if z equals x, fasle otherwise
 func (e ext6) Equal(a, b *E6) {
 	e.ext3.Equal(&a.B0, &b.B0)
 	e.ext3.Equal(&a.B1, &b.B1)
+}
+
+func NewE6(a bw6761.E6) E6 {
+	return E6{
+		B0: NewE3(a.B0),
+		B1: NewE3(a.B1),
+	}
 }
