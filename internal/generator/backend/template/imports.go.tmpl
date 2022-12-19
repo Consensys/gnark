@@ -20,9 +20,9 @@
 
 {{- define "import_backend_cs" }}
 	{{- if eq .Curve "tinyfield"}}
-	"github.com/consensys/gnark/internal/tinyfield/cs"
+	"github.com/consensys/gnark/constraint/tinyfield"
 	{{- else}}
-	"github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/cs"
+	"github.com/consensys/gnark/constraint/{{toLower .Curve}}"
 	{{- end}}
 {{- end }}
 

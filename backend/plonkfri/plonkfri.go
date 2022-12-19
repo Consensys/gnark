@@ -18,15 +18,16 @@ package plonkfri
 
 import (
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/constraint"
 
 	"github.com/consensys/gnark/backend/witness"
-	cs_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
-	cs_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/cs"
-	cs_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/cs"
-	cs_bn254 "github.com/consensys/gnark/internal/backend/bn254/cs"
-	cs_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/cs"
-	cs_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	cs_bls12377 "github.com/consensys/gnark/constraint/bls12-377"
+	cs_bls12381 "github.com/consensys/gnark/constraint/bls12-381"
+	cs_bls24315 "github.com/consensys/gnark/constraint/bls24-315"
+	cs_bls24317 "github.com/consensys/gnark/constraint/bls24-317"
+	cs_bn254 "github.com/consensys/gnark/constraint/bn254"
+	cs_bw6633 "github.com/consensys/gnark/constraint/bw6-633"
+	cs_bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 
 	plonk_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/plonkfri"
 	plonk_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/plonkfri"
@@ -42,7 +43,6 @@ import (
 	witness_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/witness"
 	witness_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 
-	cs_bls24317 "github.com/consensys/gnark/internal/backend/bls24-317/cs"
 	plonk_bls24317 "github.com/consensys/gnark/internal/backend/bls24-317/plonkfri"
 	witness_bls24317 "github.com/consensys/gnark/internal/backend/bls24-317/witness"
 )
@@ -75,7 +75,7 @@ type VerifyingKey interface {
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.
-func Setup(ccs frontend.CompiledConstraintSystem) (ProvingKey, VerifyingKey, error) {
+func Setup(ccs constraint.ConstraintSystem) (ProvingKey, VerifyingKey, error) {
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
@@ -104,7 +104,7 @@ func Setup(ccs frontend.CompiledConstraintSystem) (ProvingKey, VerifyingKey, err
 //		will executes all the prover computations, even if the witness is invalid
 //	 will produce an invalid proof
 //		internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
-func Prove(ccs frontend.CompiledConstraintSystem, pk ProvingKey, fullWitness *witness.Witness, opts ...backend.ProverOption) (Proof, error) {
+func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness *witness.Witness, opts ...backend.ProverOption) (Proof, error) {
 
 	// apply options
 	opt, err := backend.NewProverConfig(opts...)

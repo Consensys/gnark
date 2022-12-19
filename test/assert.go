@@ -30,6 +30,7 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/plonkfri"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -46,7 +47,7 @@ var (
 type Assert struct {
 	t *testing.T
 	*require.Assertions
-	compiled map[string]frontend.CompiledConstraintSystem // cache compilation
+	compiled map[string]constraint.ConstraintSystem // cache compilation
 }
 
 // NewAssert returns an Assert helper embedding a testify/require object for convenience
@@ -56,7 +57,7 @@ type Assert struct {
 // the first call to assert.ProverSucceeded/Failed will compile the circuit for n curves, m backends
 // and subsequent calls will re-use the result of the compilation, if available.
 func NewAssert(t *testing.T) *Assert {
-	return &Assert{t: t, Assertions: require.New(t), compiled: make(map[string]frontend.CompiledConstraintSystem)}
+	return &Assert{t: t, Assertions: require.New(t), compiled: make(map[string]constraint.ConstraintSystem)}
 }
 
 // Run runs the test function fn as a subtest. The subtest is parametrized by
@@ -409,7 +410,7 @@ func (assert *Assert) getCircuitAddr(circuit frontend.Circuit) (uintptr, error) 
 }
 
 // compile the given circuit for given curve and backend, if not already present in cache
-func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []frontend.CompileOption) (frontend.CompiledConstraintSystem, error) {
+func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []frontend.CompileOption) (constraint.ConstraintSystem, error) {
 	addr, err := assert.getCircuitAddr(circuit)
 	if err != nil {
 		return nil, err

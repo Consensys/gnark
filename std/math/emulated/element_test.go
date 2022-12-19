@@ -22,12 +22,11 @@ type AssertLimbEqualityCircuit[T FieldParams] struct {
 }
 
 func (c *AssertLimbEqualityCircuit[T]) Define(api frontend.API) error {
-	_f, err := NewField[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	f := _f.(*field[T])
-	f.AssertLimbsEquality(c.A, c.B)
+	f.AssertLimbsEquality(&c.A, &c.B)
 	return nil
 }
 
@@ -38,7 +37,7 @@ func testName[T FieldParams]() string {
 
 func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 	testAssertLimbEqualityNoOverflow[Goldilocks](t)
-	testAssertLimbEqualityNoOverflow[Secp256k1](t)
+	testAssertLimbEqualityNoOverflow[Secp256k1Fp](t)
 	testAssertLimbEqualityNoOverflow[BN254Fp](t)
 }
 
@@ -48,8 +47,8 @@ func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
 	assert.Run(func(assert *test.Assert) {
 		var circuit, witness AssertLimbEqualityCircuit[T]
 		val, _ := rand.Int(rand.Reader, fp.Modulus())
-		witness.A.Assign(val)
-		witness.B.Assign(val)
+		witness.A = NewElement[T](val)
+		witness.B = NewElement[T](val)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -65,13 +64,13 @@ func (c *AssertIsLessEqualThanCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	f.AssertIsLessOrEqual(c.L, c.R)
+	f.AssertIsLessEqualThan(&c.L, &c.R)
 	return nil
 }
 
 func TestAssertIsLessEqualThan(t *testing.T) {
 	testAssertIsLessEqualThan[Goldilocks](t)
-	testAssertIsLessEqualThan[Secp256k1](t)
+	testAssertIsLessEqualThan[Secp256k1Fp](t)
 	testAssertIsLessEqualThan[BN254Fp](t)
 }
 
@@ -82,8 +81,8 @@ func testAssertIsLessEqualThan[T FieldParams](t *testing.T) {
 		var circuit, witness AssertIsLessEqualThanCircuit[T]
 		R, _ := rand.Int(rand.Reader, fp.Modulus())
 		L, _ := rand.Int(rand.Reader, R)
-		witness.R.Assign(R)
-		witness.L.Assign(L)
+		witness.R = NewElement[T](R)
+		witness.L = NewElement[T](L)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -97,14 +96,14 @@ func (c *AddCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := f.Add(c.A, c.B)
-	f.AssertIsEqual(res, c.C)
+	res := f.Add(&c.A, &c.B)
+	f.AssertIsEqual(res, &c.C)
 	return nil
 }
 
 func TestAddCircuitNoOverflow(t *testing.T) {
 	testAddCircuitNoOverflow[Goldilocks](t)
-	testAddCircuitNoOverflow[Secp256k1](t)
+	testAddCircuitNoOverflow[Secp256k1Fp](t)
 	testAddCircuitNoOverflow[BN254Fp](t)
 }
 
@@ -117,9 +116,9 @@ func testAddCircuitNoOverflow[T FieldParams](t *testing.T) {
 		val1, _ := rand.Int(rand.Reader, bound)
 		val2, _ := rand.Int(rand.Reader, bound)
 		res := new(big.Int).Add(val1, val2)
-		witness.A.Assign(val1)
-		witness.B.Assign(val2)
-		witness.C.Assign(res)
+		witness.A = NewElement[T](val1)
+		witness.B = NewElement[T](val2)
+		witness.C = NewElement[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -131,7 +130,7 @@ type MulNoOverflowCircuit[T FieldParams] struct {
 }
 
 func (c *MulNoOverflowCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
@@ -142,7 +141,7 @@ func (c *MulNoOverflowCircuit[T]) Define(api frontend.API) error {
 
 func TestMulCircuitNoOverflow(t *testing.T) {
 	// testMulCircuitNoOverflow[Goldilocks](t)
-	testMulCircuitNoOverflow[Secp256k1](t)
+	testMulCircuitNoOverflow[Secp256k1Fp](t)
 	// testMulCircuitNoOverflow[BN254Fp](t)
 }
 
@@ -154,9 +153,9 @@ func testMulCircuitNoOverflow[T FieldParams](t *testing.T) {
 		val1, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(fp.Modulus().BitLen())/2))
 		val2, _ := rand.Int(rand.Reader, new(big.Int).Div(fp.Modulus(), val1))
 		res := new(big.Int).Mul(val1, val2)
-		witness.A.Assign(val1)
-		witness.B.Assign(val2)
-		witness.C.Assign(res)
+		witness.A = NewElement[T](val1)
+		witness.B = NewElement[T](val2)
+		witness.C = NewElement[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16))
 	}, testName[T]())
 }
@@ -168,7 +167,7 @@ type MulCircuitOverflow[T FieldParams] struct {
 }
 
 func (c *MulCircuitOverflow[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
@@ -179,7 +178,7 @@ func (c *MulCircuitOverflow[T]) Define(api frontend.API) error {
 
 func TestMulCircuitOverflow(t *testing.T) {
 	testMulCircuitOverflow[Goldilocks](t)
-	testMulCircuitOverflow[Secp256k1](t)
+	testMulCircuitOverflow[Secp256k1Fp](t)
 	testMulCircuitOverflow[BN254Fp](t)
 }
 
@@ -192,9 +191,9 @@ func testMulCircuitOverflow[T FieldParams](t *testing.T) {
 		val2, _ := rand.Int(rand.Reader, fp.Modulus())
 		res := new(big.Int).Mul(val1, val2)
 		res.Mod(res, fp.Modulus())
-		witness.A.Assign(val1)
-		witness.B.Assign(val2)
-		witness.C.Assign(res)
+		witness.A = NewElement[T](val1)
+		witness.B = NewElement[T](val2)
+		witness.C = NewElement[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -210,15 +209,15 @@ func (c *ReduceAfterAddCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := f.Add(c.A, c.B)
-	res = f.(*field[T]).reduce(res.(Element[T]))
-	f.AssertIsEqual(res, c.C)
+	res := f.Add(&c.A, &c.B)
+	res = f.Reduce(res)
+	f.AssertIsEqual(res, &c.C)
 	return nil
 }
 
 func TestReduceAfterAdd(t *testing.T) {
 	testReduceAfterAdd[Goldilocks](t)
-	testReduceAfterAdd[Secp256k1](t)
+	testReduceAfterAdd[Secp256k1Fp](t)
 	testReduceAfterAdd[BN254Fp](t)
 }
 
@@ -231,9 +230,9 @@ func testReduceAfterAdd[T FieldParams](t *testing.T) {
 		val1, _ := rand.Int(rand.Reader, val2)
 		val3 := new(big.Int).Add(val1, fp.Modulus())
 		val3.Sub(val3, val2)
-		witness.A.Assign(val3)
-		witness.B.Assign(val2)
-		witness.C.Assign(val1)
+		witness.A = NewElement[T](val3)
+		witness.B = NewElement[T](val2)
+		witness.C = NewElement[T](val1)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -245,7 +244,7 @@ type SubtractCircuit[T FieldParams] struct {
 }
 
 func (c *SubtractCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
@@ -256,11 +255,11 @@ func (c *SubtractCircuit[T]) Define(api frontend.API) error {
 
 func TestSubtractNoOverflow(t *testing.T) {
 	testSubtractNoOverflow[Goldilocks](t)
-	testSubtractNoOverflow[Secp256k1](t)
+	testSubtractNoOverflow[Secp256k1Fp](t)
 	testSubtractNoOverflow[BN254Fp](t)
 
 	testSubtractOverflow[Goldilocks](t)
-	testSubtractOverflow[Secp256k1](t)
+	testSubtractOverflow[Secp256k1Fp](t)
 	testSubtractOverflow[BN254Fp](t)
 }
 
@@ -272,9 +271,9 @@ func testSubtractNoOverflow[T FieldParams](t *testing.T) {
 		val1, _ := rand.Int(rand.Reader, fp.Modulus())
 		val2, _ := rand.Int(rand.Reader, val1)
 		res := new(big.Int).Sub(val1, val2)
-		witness.A.Assign(val1)
-		witness.B.Assign(val2)
-		witness.C.Assign(res)
+		witness.A = NewElement[T](val1)
+		witness.B = NewElement[T](val2)
+		witness.C = NewElement[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -289,9 +288,9 @@ func testSubtractOverflow[T FieldParams](t *testing.T) {
 		val2.Add(val2, val1)
 		res := new(big.Int).Sub(val1, val2)
 		res.Mod(res, fp.Modulus())
-		witness.A.Assign(val1)
-		witness.B.Assign(val2)
-		witness.C.Assign(res)
+		witness.A = NewElement[T](val1)
+		witness.B = NewElement[T](val2)
+		witness.C = NewElement[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -302,7 +301,7 @@ type NegationCircuit[T FieldParams] struct {
 }
 
 func (c *NegationCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
@@ -313,7 +312,7 @@ func (c *NegationCircuit[T]) Define(api frontend.API) error {
 
 func TestNegation(t *testing.T) {
 	testNegation[Goldilocks](t)
-	testNegation[Secp256k1](t)
+	testNegation[Secp256k1Fp](t)
 	testNegation[BN254Fp](t)
 }
 
@@ -324,8 +323,8 @@ func testNegation[T FieldParams](t *testing.T) {
 		var circuit, witness NegationCircuit[T]
 		val1, _ := rand.Int(rand.Reader, fp.Modulus())
 		res := new(big.Int).Sub(fp.Modulus(), val1)
-		witness.A.Assign(val1)
-		witness.B.Assign(res)
+		witness.A = NewElement[T](val1)
+		witness.B = NewElement[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -336,7 +335,7 @@ type InverseCircuit[T FieldParams] struct {
 }
 
 func (c *InverseCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
@@ -347,7 +346,7 @@ func (c *InverseCircuit[T]) Define(api frontend.API) error {
 
 func TestInverse(t *testing.T) {
 	testInverse[Goldilocks](t)
-	testInverse[Secp256k1](t)
+	testInverse[Secp256k1Fp](t)
 	testInverse[BN254Fp](t)
 }
 
@@ -361,8 +360,8 @@ func testInverse[T FieldParams](t *testing.T) {
 		var circuit, witness InverseCircuit[T]
 		val1, _ := rand.Int(rand.Reader, fp.Modulus())
 		res := new(big.Int).ModInverse(val1, fp.Modulus())
-		witness.A.Assign(val1)
-		witness.B.Assign(res)
+		witness.A = NewElement[T](val1)
+		witness.B = NewElement[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -374,7 +373,7 @@ type DivisionCircuit[T FieldParams] struct {
 }
 
 func (c *DivisionCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
@@ -385,7 +384,7 @@ func (c *DivisionCircuit[T]) Define(api frontend.API) error {
 
 func TestDivision(t *testing.T) {
 	testDivision[Goldilocks](t)
-	testDivision[Secp256k1](t)
+	testDivision[Secp256k1Fp](t)
 	testDivision[BN254Fp](t)
 }
 
@@ -403,9 +402,9 @@ func testDivision[T FieldParams](t *testing.T) {
 		res.ModInverse(val2, fp.Modulus())
 		res.Mul(val1, res)
 		res.Mod(res, fp.Modulus())
-		witness.A.Assign(val1)
-		witness.B.Assign(val2)
-		witness.C.Assign(res)
+		witness.A = NewElement[T](val1)
+		witness.B = NewElement[T](val2)
+		witness.C = NewElement[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -416,7 +415,7 @@ type ToBinaryCircuit[T FieldParams] struct {
 }
 
 func (c *ToBinaryCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
@@ -432,7 +431,7 @@ func (c *ToBinaryCircuit[T]) Define(api frontend.API) error {
 
 func TestToBinary(t *testing.T) {
 	testToBinary[Goldilocks](t)
-	testToBinary[Secp256k1](t)
+	testToBinary[Secp256k1Fp](t)
 	testToBinary[BN254Fp](t)
 }
 
@@ -448,7 +447,7 @@ func testToBinary[T FieldParams](t *testing.T) {
 		for i := 0; i < len(bits); i++ {
 			bits[i] = val1.Bit(i)
 		}
-		witness.Value.Assign(val1)
+		witness.Value = NewElement[T](val1)
 		witness.Bits = bits
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
@@ -460,7 +459,7 @@ type FromBinaryCircuit[T FieldParams] struct {
 }
 
 func (c *FromBinaryCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
@@ -471,7 +470,7 @@ func (c *FromBinaryCircuit[T]) Define(api frontend.API) error {
 
 func TestFromBinary(t *testing.T) {
 	testFromBinary[Goldilocks](t)
-	testFromBinary[Secp256k1](t)
+	testFromBinary[Secp256k1Fp](t)
 	testFromBinary[BN254Fp](t)
 }
 
@@ -489,7 +488,7 @@ func testFromBinary[T FieldParams](t *testing.T) {
 			bits[i] = val1.Bit(i)
 		}
 
-		witness.Res.Assign(val1)
+		witness.Res = NewElement[T](val1)
 		witness.Bits = bits
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
@@ -501,19 +500,19 @@ type EqualityCheckCircuit[T FieldParams] struct {
 }
 
 func (c *EqualityCheckCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
-	res := c.A //f.Set(c.A) TODO @gbotrel fixme
-	f.AssertIsEqual(res, c.B)
+	// res := c.A //f.Set(c.A) TODO @gbotrel fixme
+	f.AssertIsEqual(c.A, c.B)
 	return nil
 }
 
 func TestConstantEqual(t *testing.T) {
 	testConstantEqual[Goldilocks](t)
 	testConstantEqual[BN254Fp](t)
-	testConstantEqual[Secp256k1](t)
+	testConstantEqual[Secp256k1Fp](t)
 }
 
 func testConstantEqual[T FieldParams](t *testing.T) {
@@ -522,8 +521,8 @@ func testConstantEqual[T FieldParams](t *testing.T) {
 	assert.Run(func(assert *test.Assert) {
 		var circuit, witness EqualityCheckCircuit[T]
 		val, _ := rand.Int(rand.Reader, fp.Modulus())
-		witness.A.Assign(val)
-		witness.B.Assign(val)
+		witness.A = NewElement[T](val)
+		witness.B = NewElement[T](val)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -533,21 +532,23 @@ type SelectCircuit[T FieldParams] struct {
 	A        Element[T]
 	B        Element[T]
 	C        Element[T]
+	D        Element[T]
 }
 
 func (c *SelectCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
-	res := f.Select(c.Selector, c.A, c.B)
-	f.AssertIsEqual(res, c.C)
+	l := f.Mul(c.A, c.B)
+	res := f.Select(c.Selector, l, c.C)
+	f.AssertIsEqual(res, c.D)
 	return nil
 }
 
 func TestSelect(t *testing.T) {
 	testSelect[Goldilocks](t)
-	testSelect[Secp256k1](t)
+	testSelect[Secp256k1Fp](t)
 	testSelect[BN254Fp](t)
 }
 
@@ -558,12 +559,16 @@ func testSelect[T FieldParams](t *testing.T) {
 		var circuit, witness SelectCircuit[T]
 		val1, _ := rand.Int(rand.Reader, fp.Modulus())
 		val2, _ := rand.Int(rand.Reader, fp.Modulus())
+		val3, _ := rand.Int(rand.Reader, fp.Modulus())
+		l := new(big.Int).Mul(val1, val2)
+		l.Mod(l, fp.Modulus())
 		randbit, _ := rand.Int(rand.Reader, big.NewInt(2))
 		b := randbit.Uint64()
 
-		witness.A.Assign(val1)
-		witness.B.Assign(val2)
-		witness.C.Assign([]*big.Int{val1, val2}[1-b])
+		witness.A = NewElement[T](val1)
+		witness.B = NewElement[T](val2)
+		witness.C = NewElement[T](val3)
+		witness.D = NewElement[T]([]*big.Int{l, val3}[1-b])
 		witness.Selector = b
 
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
@@ -581,7 +586,7 @@ type Lookup2Circuit[T FieldParams] struct {
 }
 
 func (c *Lookup2Circuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
@@ -592,7 +597,7 @@ func (c *Lookup2Circuit[T]) Define(api frontend.API) error {
 
 func TestLookup2(t *testing.T) {
 	testLookup2[Goldilocks](t)
-	testLookup2[Secp256k1](t)
+	testLookup2[Secp256k1Fp](t)
 	testLookup2[BN254Fp](t)
 }
 
@@ -608,11 +613,11 @@ func testLookup2[T FieldParams](t *testing.T) {
 		val4, _ := rand.Int(rand.Reader, fp.Modulus())
 		randbit, _ := rand.Int(rand.Reader, big.NewInt(4))
 
-		witness.A.Assign(val1)
-		witness.B.Assign(val2)
-		witness.C.Assign(val3)
-		witness.D.Assign(val4)
-		witness.E.Assign([]*big.Int{val1, val2, val3, val4}[randbit.Uint64()])
+		witness.A = NewElement[T](val1)
+		witness.B = NewElement[T](val2)
+		witness.C = NewElement[T](val3)
+		witness.D = NewElement[T](val4)
+		witness.E = NewElement[T]([]*big.Int{val1, val2, val3, val4}[randbit.Uint64()])
 		witness.Bit0 = randbit.Bit(0)
 		witness.Bit1 = randbit.Bit(1)
 
@@ -628,22 +633,22 @@ type ComputationCircuit[T FieldParams] struct {
 }
 
 func (c *ComputationCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
+	f, err := NewAPI[T](api)
 	if err != nil {
 		return err
 	}
 	// compute x1^3 + 5*x2 + (x3-x4) / (x5+x6)
 	x13 := f.Mul(c.X1, c.X1)
 	if !c.noReduce {
-		x13 = f.(*field[T]).reduce(x13.(Element[T]))
+		x13 = f.Reduce(x13)
 	}
 	x13 = f.Mul(x13, c.X1)
 	if !c.noReduce {
-		x13 = f.(*field[T]).reduce(x13.(Element[T]))
+		x13 = f.Reduce(x13)
 	}
 
 	fx2 := f.Mul(5, c.X2)
-	fx2 = f.(*field[T]).reduce(fx2.(Element[T]))
+	fx2 = f.Reduce(fx2)
 
 	nom := f.Sub(c.X3, c.X4)
 
@@ -651,7 +656,9 @@ func (c *ComputationCircuit[T]) Define(api frontend.API) error {
 
 	free := f.Div(nom, denom)
 
-	res := f.Add(x13, fx2, free)
+	// res := f.Add(x13, fx2, free)
+	res := f.Add(x13, fx2)
+	res = f.Add(res, free)
 
 	f.AssertIsEqual(res, c.Res)
 	return nil
@@ -659,7 +666,7 @@ func (c *ComputationCircuit[T]) Define(api frontend.API) error {
 
 func TestComputation(t *testing.T) {
 	testComputation[Goldilocks](t)
-	testComputation[Secp256k1](t)
+	testComputation[Secp256k1Fp](t)
 	testComputation[BN254Fp](t)
 }
 
@@ -698,13 +705,13 @@ func testComputation[T FieldParams](t *testing.T) {
 		res.Add(res, tmp)
 		res.Mod(res, fp.Modulus())
 
-		witness.X1.Assign(val1)
-		witness.X2.Assign(val2)
-		witness.X3.Assign(val3)
-		witness.X4.Assign(val4)
-		witness.X5.Assign(val5)
-		witness.X6.Assign(val6)
-		witness.Res.Assign(res)
+		witness.X1 = NewElement[T](val1)
+		witness.X2 = NewElement[T](val2)
+		witness.X3 = NewElement[T](val3)
+		witness.X4 = NewElement[T](val4)
+		witness.X5 = NewElement[T](val5)
+		witness.X6 = NewElement[T](val6)
+		witness.Res = NewElement[T](res)
 
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
@@ -717,10 +724,10 @@ func TestOptimisation(t *testing.T) {
 	}
 	ccs, err := frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
 	assert.NoError(err)
-	assert.LessOrEqual(ccs.GetNbConstraints(), 3291)
+	assert.LessOrEqual(ccs.GetNbConstraints(), 3747)
 	ccs2, err := frontend.Compile(testCurve.ScalarField(), scs.NewBuilder, &circuit)
 	assert.NoError(err)
-	assert.LessOrEqual(ccs2.GetNbConstraints(), 10722)
+	assert.LessOrEqual(ccs2.GetNbConstraints(), 10483)
 }
 
 type FourMulsCircuit[T FieldParams] struct {
@@ -733,14 +740,16 @@ func (c *FourMulsCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := f.Mul(c.A, c.A, c.A, c.A)
-	f.AssertIsEqual(res, c.Res)
+	res := f.Mul(&c.A, &c.A)
+	res = f.Mul(res, &c.A)
+	res = f.Mul(res, &c.A)
+	f.AssertIsEqual(res, &c.Res)
 	return nil
 }
 
 func TestFourMuls(t *testing.T) {
 	testFourMuls[Goldilocks](t)
-	testFourMuls[Secp256k1](t)
+	testFourMuls[Secp256k1Fp](t)
 	testFourMuls[BN254Fp](t)
 }
 
@@ -757,21 +766,37 @@ func testFourMuls[T FieldParams](t *testing.T) {
 		res.Mul(res, val1)
 		res.Mod(res, fp.Modulus())
 
-		witness.A.Assign(val1)
-		witness.Res.Assign(res)
+		witness.A = NewElement[T](val1)
+		witness.Res = NewElement[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
 
-type PublicElement struct {
-	Y Element[BN254Fp] `gnark:",public"`
-}
-
-func (c *PublicElement) Define(api frontend.API) error {
-	return nil
-}
-
-func TestPublicElement(t *testing.T) {
+func TestIssue348UnconstrainedLimbs(t *testing.T) {
+	t.Skip("regression #348")
+	// The inputs were found by the fuzzer. These inputs represent a case where
+	// addition overflows due to unconstrained limbs. Usually for random inputs
+	// this should lead to some failed assertion, but here the overflow is
+	// exactly a multiple of non-native modulus and the equality assertion
+	// succeeds.
+	//
+	// Usually, the widths of non-native element limbs should be bounded, but
+	// for freshly initialised elements (using NewElement, or directly by
+	// constructing the structure), we do not automatically enforce the widths.
+	//
+	// The bug is tracked in https://github.com/ConsenSys/gnark/issues/348
+	a := big.NewInt(5)
+	b, _ := new(big.Int).SetString("21888242871839275222246405745257275088548364400416034343698204186575808495612", 10)
 	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&PublicElement{}, &PublicElement{}, test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs()))
+	witness := NegationCircuit[Goldilocks]{
+		A: Element[Goldilocks]{overflow: 0, Limbs: []frontend.Variable{a}},
+		B: Element[Goldilocks]{overflow: 0, Limbs: []frontend.Variable{b}}}
+	err := test.IsSolved(&NegationCircuit[Goldilocks]{}, &witness, testCurve.ScalarField())
+	// this should err but does not.
+	assert.Error(err)
+	err = test.IsSolved(&NegationCircuit[Goldilocks]{}, &witness, testCurve.ScalarField(), test.SetAllVariablesAsConstants())
+	// this should err and does. It errs because we consider all inputs as
+	// constants and the field emulation package has a short path for constant
+	// inputs.
+	assert.Error(err)
 }

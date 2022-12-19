@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/consensys/bavard"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
+
+	"github.com/consensys/bavard"
 )
 
 const copyrightHolder = "ConsenSys Software Inc."
@@ -17,41 +18,49 @@ func main() {
 
 	bls12_377 := templateData{
 		RootPath: "../../../internal/backend/bls12-377/",
+		CSPath:   "../../../constraint/bls12-377/",
 		Curve:    "BLS12-377",
 		CurveID:  "BLS12_377",
 	}
 	bls12_381 := templateData{
 		RootPath: "../../../internal/backend/bls12-381/",
+		CSPath:   "../../../constraint/bls12-381/",
 		Curve:    "BLS12-381",
 		CurveID:  "BLS12_381",
 	}
 	bn254 := templateData{
 		RootPath: "../../../internal/backend/bn254/",
+		CSPath:   "../../../constraint/bn254/",
 		Curve:    "BN254",
 		CurveID:  "BN254",
 	}
 	bw6_761 := templateData{
 		RootPath: "../../../internal/backend/bw6-761/",
+		CSPath:   "../../../constraint/bw6-761/",
 		Curve:    "BW6-761",
 		CurveID:  "BW6_761",
 	}
 	bls24_315 := templateData{
 		RootPath: "../../../internal/backend/bls24-315/",
+		CSPath:   "../../../constraint/bls24-315/",
 		Curve:    "BLS24-315",
 		CurveID:  "BLS24_315",
 	}
 	bls24_317 := templateData{
 		RootPath: "../../../internal/backend/bls24-317/",
+		CSPath:   "../../../constraint/bls24-317/",
 		Curve:    "BLS24-317",
 		CurveID:  "BLS24_317",
 	}
 	bw6_633 := templateData{
 		RootPath: "../../../internal/backend/bw6-633/",
+		CSPath:   "../../../constraint/bw6-633/",
 		Curve:    "BW6-633",
 		CurveID:  "BW6_633",
 	}
 	tiny_field := templateData{
 		RootPath:  "../../../internal/tinyfield/",
+		CSPath:    "../../../constraint/tinyfield",
 		Curve:     "tinyfield",
 		CurveID:   "UNKNOWN",
 		noBackend: true,
@@ -90,12 +99,13 @@ func main() {
 				panic(err)
 			}
 
-			csDir := filepath.Join(d.RootPath, "cs")
+			csDir := d.CSPath
 			witnessDir := filepath.Join(d.RootPath, "witness")
 
 			// constraint systems
 			entries := []bavard.Entry{
 				{File: filepath.Join(csDir, "r1cs.go"), Templates: []string{"r1cs.go.tmpl", importCurve}},
+				{File: filepath.Join(csDir, "coeff.go"), Templates: []string{"coeff.go.tmpl", importCurve}},
 				{File: filepath.Join(csDir, "r1cs_sparse.go"), Templates: []string{"r1cs.sparse.go.tmpl", importCurve}},
 				{File: filepath.Join(csDir, "solution.go"), Templates: []string{"solution.go.tmpl", importCurve}},
 			}
@@ -201,6 +211,7 @@ func main() {
 
 type templateData struct {
 	RootPath  string
+	CSPath    string
 	Curve     string
 	CurveID   string
 	noBackend bool
