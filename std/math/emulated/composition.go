@@ -3,8 +3,6 @@ package emulated
 import (
 	"fmt"
 	"math/big"
-
-	"github.com/consensys/gnark/frontend"
 )
 
 // recompose takes the limbs in inputs and combines them into res. It errors if
@@ -104,48 +102,4 @@ func subPadding[T FieldParams](overflow uint, nbLimbs uint) []*big.Int {
 		pad[i].Add(pad[i], nLimbs[i])
 	}
 	return pad
-}
-
-// compact returns parameters which allow for most optimal regrouping of
-// limbs. In regrouping the limbs, we encode multiple existing limbs as a linear
-// combination in a single new limb.
-// compact returns a and b minimal (in number of limbs) representation that fits in the snark field
-func (f *field[T]) compact(a, b Element[T]) (ac, bc []frontend.Variable, bitsPerLimb uint) {
-	maxOverflow := max(a.overflow, b.overflow)
-	// subtract one bit as can not potentially use all bits of Fr and one bit as
-	// grouping may overflow
-	maxNbBits := uint(f.api.Compiler().FieldBitLen()) - 2 - maxOverflow
-	groupSize := maxNbBits / a.fParams.BitsPerLimb()
-	if groupSize == 0 {
-		// no space for compact
-		return a.Limbs, b.Limbs, a.fParams.BitsPerLimb()
-	}
-
-	bitsPerLimb = a.fParams.BitsPerLimb() * groupSize
-
-	ac = f.compactLimbs(a, groupSize, bitsPerLimb)
-	bc = f.compactLimbs(b, groupSize, bitsPerLimb)
-	return
-}
-
-// compactLimbs perform the regrouping of limbs between old and new parameters.
-func (f *field[T]) compactLimbs(e Element[T], groupSize, bitsPerLimb uint) []frontend.Variable {
-	if f.fParams.BitsPerLimb() == bitsPerLimb {
-		return e.Limbs
-	}
-	nbLimbs := (uint(len(e.Limbs)) + groupSize - 1) / groupSize
-	r := make([]frontend.Variable, nbLimbs)
-	coeffs := make([]*big.Int, groupSize)
-	one := big.NewInt(1)
-	for i := range coeffs {
-		coeffs[i] = new(big.Int)
-		coeffs[i].Lsh(one, e.fParams.BitsPerLimb()*uint(i))
-	}
-	for i := uint(0); i < nbLimbs; i++ {
-		r[i] = uint(0)
-		for j := uint(0); j < groupSize && i*groupSize+j < uint(len(e.Limbs)); j++ {
-			r[i] = f.api.Add(r[i], f.api.Mul(coeffs[j], e.Limbs[i*groupSize+j]))
-		}
-	}
-	return r
 }
