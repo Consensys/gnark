@@ -18,6 +18,18 @@
 
 package pairing_bw6761
 
+import (
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	"github.com/consensys/gnark/std/math/emulated"
+)
+
 type G2Affine struct {
 	X, Y baseField
+}
+
+func NewG2Affine(a bw6761.G2Affine) G2Affine {
+	return G2Affine{
+		X: emulated.NewElement[emulated.BW6761Fp](a.X),
+		Y: emulated.NewElement[emulated.BW6761Fp](a.Y),
+	}
 }

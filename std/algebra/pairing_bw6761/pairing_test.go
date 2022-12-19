@@ -24,12 +24,111 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 	"testing"
 )
 
 const testCurve = ecc.BN254
+
+type millerLoopBW6761 struct {
+	A G1Affine
+	B G2Affine
+	C GT
+}
+
+func (circuit *millerLoopBW6761) Define(api frontend.API) error {
+	pr, err := NewPairing(api)
+	if err != nil {
+		panic(err)
+	}
+	expected, err := pr.MillerLoop([]*G1Affine{&circuit.A}, []*G2Affine{&circuit.B})
+	if err != nil {
+		return err
+	}
+
+	pr.Equal(expected, &circuit.C)
+
+	return nil
+}
+
+func TestMillerLoopBW6761(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var (
+		a     bw6761.G1Affine
+		b     bw6761.G2Affine
+		c     bw6761.GT
+		r1, _ = rand.Int(rand.Reader, fr.Modulus())
+		r2, _ = rand.Int(rand.Reader, fr.Modulus())
+	)
+	_, _, g1, g2 := bw6761.Generators()
+
+	a.ScalarMultiplication(&g1, r1)
+	b.ScalarMultiplication(&g2, r2)
+	c, err := bw6761.MillerLoop([]bw6761.G1Affine{a}, []bw6761.G2Affine{b})
+	if err != nil {
+		panic(err)
+	}
+
+	witness := millerLoopBW6761{
+		A: NewG1Affine(a),
+		B: NewG2Affine(b),
+		C: NewE6(c),
+	}
+
+	err = test.IsSolved(&millerLoopBW6761{}, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type finalExponentiationBW6761 struct {
+	A GT
+	B GT
+}
+
+func (circuit *finalExponentiationBW6761) Define(api frontend.API) error {
+	pr, err := NewPairing(api)
+	if err != nil {
+		panic(err)
+	}
+	expected := pr.FinalExponentiation(&circuit.A)
+	if err != nil {
+		return err
+	}
+
+	pr.Equal(expected, &circuit.B)
+
+	return nil
+}
+
+func TestFinalExponentiationBW6761(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var (
+		a     bw6761.G1Affine
+		b     bw6761.G2Affine
+		c     bw6761.GT
+		r1, _ = rand.Int(rand.Reader, fr.Modulus())
+		r2, _ = rand.Int(rand.Reader, fr.Modulus())
+	)
+	_, _, g1, g2 := bw6761.Generators()
+
+	a.ScalarMultiplication(&g1, r1)
+	b.ScalarMultiplication(&g2, r2)
+	c, err := bw6761.MillerLoop([]bw6761.G1Affine{a}, []bw6761.G2Affine{b})
+	if err != nil {
+		panic(err)
+	}
+
+	d := bw6761.FinalExponentiation(&c)
+
+	witness := finalExponentiationBW6761{
+		A: NewE6(c),
+		B: NewE6(d),
+	}
+
+	err = test.IsSolved(&finalExponentiationBW6761{}, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
 
 type pairingBW6761 struct {
 	A G1Affine
@@ -69,26 +168,9 @@ func TestPairingBW6761(t *testing.T) {
 	}
 
 	witness := pairingBW6761{
-		A: G1Affine{
-			X: emulated.NewElement[emulated.BW6761Fp](a.X),
-			Y: emulated.NewElement[emulated.BW6761Fp](a.Y),
-		},
-		B: G2Affine{
-			X: emulated.NewElement[emulated.BW6761Fp](b.X),
-			Y: emulated.NewElement[emulated.BW6761Fp](b.Y),
-		},
-		C: GT{
-			B0: E3{
-				A0: emulated.NewElement[emulated.BW6761Fp](c.B0.A0),
-				A1: emulated.NewElement[emulated.BW6761Fp](c.B0.A1),
-				A2: emulated.NewElement[emulated.BW6761Fp](c.B0.A2),
-			},
-			B1: E3{
-				A0: emulated.NewElement[emulated.BW6761Fp](c.B1.A0),
-				A1: emulated.NewElement[emulated.BW6761Fp](c.B1.A1),
-				A2: emulated.NewElement[emulated.BW6761Fp](c.B1.A2),
-			},
-		},
+		A: NewG1Affine(a),
+		B: NewG2Affine(b),
+		C: NewE6(c),
 	}
 
 	err = test.IsSolved(&pairingBW6761{}, &witness, testCurve.ScalarField())

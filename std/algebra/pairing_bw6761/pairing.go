@@ -81,10 +81,7 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 // where s is the cofactor 12(x_0+1) (El Housni and Guillevic)
 func (pr Pairing) FinalExponentiation(z *GT, _z ...*GT) *GT {
 
-	result := &GT{
-		B0: z.B0,
-		B1: z.B1,
-	}
+	result := pr.Set(z)
 
 	for _, a := range _z {
 		result = pr.Mul(result, a)
