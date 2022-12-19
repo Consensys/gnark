@@ -3,7 +3,6 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
@@ -17,22 +16,6 @@ import (
 	"testing"
 )
 
-func TestSingleIdentityGateTwoInstances(t *testing.T) { // TODO: Remove
-	generateTestVerifier("./test_vectors/single_identity_gate_two_instances.json")(t)
-}
-
-func TestSingleInputTwoIdentityGatesTwoInstances(t *testing.T) { //TODO: Remove
-	generateTestVerifier("./test_vectors/single_input_two_identity_gates_two_instances.json")(t)
-}
-
-func TestSingleInputTwoOutsTwoInstances(t *testing.T) { // TODO: Remove
-	generateTestVerifier("./test_vectors/single_input_two_outs_two_instances.json")(t)
-}
-
-func TestNoisySingleMimcGateTwoInstances(t *testing.T) {
-	generateTestVerifier("./test_vectors/single_mimc_gate_two_instances.json", noSuccess)(t)
-}
-
 func TestGkrVectors(t *testing.T) {
 
 	testDirPath := "./test_vectors"
@@ -42,10 +25,6 @@ func TestGkrVectors(t *testing.T) {
 	}
 	for _, dirEntry := range dirEntries {
 		if !dirEntry.IsDir() && filepath.Ext(dirEntry.Name()) == ".json" {
-
-			if dirEntry.Name() == "two_input_single_identity_gate_two_instances.json" {
-				continue
-			}
 
 			path := filepath.Join(testDirPath, dirEntry.Name())
 			noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
@@ -82,7 +61,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			Input:           testCase.Input,
 			Output:          testCase.Output,
 			SerializedProof: testCase.Proof.Serialize(),
-			ProofNoise:      0,
+			PerturbHash:     false,
 			TestCaseName:    path,
 		}
 
@@ -90,6 +69,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			Input:           make([][]frontend.Variable, len(testCase.Input)),
 			Output:          make([][]frontend.Variable, len(testCase.Output)),
 			SerializedProof: make([]frontend.Variable, len(assignment.SerializedProof)),
+			PerturbHash:     false,
 			TestCaseName:    path,
 		}
 
@@ -97,12 +77,13 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 		fillWithBlanks(circuit.Output, len(testCase.Input[0]))
 
 		if !opts.noSuccess {
-			test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+			test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16))
 		}
 
 		if !opts.noFail {
-			assignment.ProofNoise = 1
-			test.NewAssert(t).ProverFailed(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+			assignment.PerturbHash = true // TODO: This one doesn't matter right?
+			circuit.PerturbHash = true
+			test.NewAssert(t).SolvingFailed(circuit, assignment, test.WithBackends(backend.GROTH16))
 		}
 	}
 }
@@ -111,7 +92,7 @@ type GkrVerifierCircuit struct {
 	Input           [][]frontend.Variable
 	Output          [][]frontend.Variable `gnark:",public"`
 	SerializedProof []frontend.Variable
-	ProofNoise      frontend.Variable
+	PerturbHash     bool
 	TestCaseName    string
 }
 
@@ -125,15 +106,17 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	}
 	sorted := topologicalSort(testCase.Circuit)
 
-	serializedProof := make([]frontend.Variable, len(c.SerializedProof))
-	copy(serializedProof[1:], c.SerializedProof[1:])
-	serializedProof[0] = api.Add(c.SerializedProof[0], c.ProofNoise)
-	if proof, err = DeserializeProof(sorted, serializedProof); err != nil {
+	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
 		return err
 	}
 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
 
-	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(&test_vector_utils.MapHash{Map: testCase.ElementMap, API: api}))
+	var baseChallenge []frontend.Variable
+	if c.PerturbHash {
+		baseChallenge = []frontend.Variable{1}
+	}
+
+	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(&test_vector_utils.MapHash{Map: testCase.ElementMap, API: api}, baseChallenge...))
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
