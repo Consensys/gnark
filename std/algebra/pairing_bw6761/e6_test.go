@@ -266,8 +266,8 @@ func (circuit *e6CyclotomicSquareCompressed) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	expected := e.Zero()
-	expected = e.CyclotomicSquareCompressed(&circuit.A)
+	expected := e.Set(&circuit.A)
+	expected = e.CyclotomicSquareCompressed(expected, &circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }
@@ -277,6 +277,7 @@ func TestCyclotomicSquareCompressedFp6(t *testing.T) {
 	// witness values
 	var a, b bw6761.E6
 	_, _ = a.SetRandom()
+	b.Set(&a)
 	b.CyclotomicSquareCompressed(&a)
 
 	witness := e6CyclotomicSquareCompressed{
@@ -330,7 +331,7 @@ func (circuit *e6CyclotomicSquare) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	expected := e.Zero()
+	expected := e.Set(&circuit.A)
 	expected = e.CyclotomicSquare(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
@@ -341,6 +342,7 @@ func TestCyclotomicSquareFp6(t *testing.T) {
 	// witness values
 	var a, b bw6761.E6
 	_, _ = a.SetRandom()
+	b.Set(&a)
 	b.CyclotomicSquare(&a)
 
 	witness := e6CyclotomicSquare{

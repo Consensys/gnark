@@ -117,9 +117,7 @@ func (e ext6) Square(x *E6) *E6 {
 // Karabina's compressed cyclotomic square
 // https://eprint.iacr.org/2010/542.pdf
 // Th. 3.2 with minor modifications to fit our tower
-func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
-
-	z := e.Zero()
+func (e ext6) CyclotomicSquareCompressed(z *E6, x *E6) *E6 {
 
 	var t [7]*baseField
 

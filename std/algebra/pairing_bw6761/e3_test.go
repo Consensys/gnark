@@ -214,6 +214,7 @@ func TestMulByNonResidueFp3(t *testing.T) {
 	// witness values
 	var a, b bw6761.E3
 	_, _ = a.SetRandom()
+	b.Set(&a)
 	b.MulByNonResidue(&a)
 
 	witness := e3MulByNonResidue{
@@ -222,6 +223,43 @@ func TestMulByNonResidueFp3(t *testing.T) {
 	}
 
 	err := test.IsSolved(&e3MulByNonResidue{}, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type e3MulByElement struct {
+	A E3
+	Y baseField
+	B E3
+}
+
+func (circuit *e3MulByElement) Define(api frontend.API) error {
+	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	e := NewExt3(nfield)
+	circuit.A = *e.MulByElement(&circuit.A, &circuit.Y)
+	e.AssertIsEqual(&circuit.A, &circuit.B)
+	return nil
+}
+
+func TestMulByElementFp3(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b bw6761.E3
+	_, _ = a.SetRandom()
+	var y fp.Element
+	y.SetRandom()
+	b.Set(&a)
+	b.MulByElement(&a, &y)
+
+	witness := e3MulByElement{
+		A: NewE3(a),
+		Y: emulated.NewElement[emulated.BW6761Fp](y),
+		B: NewE3(b),
+	}
+
+	err := test.IsSolved(&e3MulByElement{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
 

@@ -18,16 +18,18 @@
 
 package pairing_bw6761
 
-func (e ext6) nSquare(z *E6, n int) {
+func (e ext6) nSquare(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
 		z = e.CyclotomicSquare(z)
 	}
+	return z
 }
 
-func (e ext6) nSquareCompressed(z *E6, n int) {
+func (e ext6) nSquareCompressed(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
-		z = e.CyclotomicSquareCompressed(z)
+		z = e.CyclotomicSquareCompressed(z, z)
 	}
+	return z
 }
 
 // Expt set z to x^t in *E6 and return z
@@ -38,32 +40,23 @@ func (e ext6) Expt(x *E6) *E6 {
 	// Shortest addition chains can be found at https://wwwhomes.uni-bielefeld.de/achim/addition_chain.html
 
 	// a shortest addition chain for 136227
-	result := &E6{
-		B0: x.B0,
-		B1: x.B1,
-	}
-	e.nSquare(result, 5)
+	result := e.Set(x)
+	result = e.nSquare(result, 5)
 	result = e.Mul(result, x)
-	x33 := &E6{
-		B0: result.B0,
-		B1: result.B1,
-	}
-	e.nSquare(result, 7)
+	x33 := e.Set(result)
+	result = e.nSquare(result, 7)
 	result = e.Mul(result, x33)
-	e.nSquare(result, 4)
+	result = e.nSquare(result, 4)
 	result = e.Mul(result, x)
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, x)
 
 	// the remaining 46 bits
-	e.nSquareCompressed(result, 46)
+	result = e.nSquareCompressed(result, 46)
 	result = e.DecompressKarabina(result)
 	result = e.Mul(result, x)
 
-	return &E6{
-		B0: result.B0,
-		B1: result.B1,
-	}
+	return e.Set(result)
 }
 
 // Expc2 set z to x^c2 in *E6 and return z
@@ -78,10 +71,7 @@ func (e ext6) Expc2(x *E6) *E6 {
 	result = e.Mul(result, x)
 	result = e.CyclotomicSquare(result)
 
-	return &E6{
-		B0: result.B0,
-		B1: result.B1,
-	}
+	return e.Set(result)
 }
 
 // Expc1 set z to x^c1 in *E6 and return z
@@ -102,10 +92,7 @@ func (e ext6) Expc1(x *E6) *E6 {
 	result = e.CyclotomicSquare(result)
 	result = e.CyclotomicSquare(result)
 
-	return &E6{
-		B0: result.B0,
-		B1: result.B1,
-	}
+	return e.Set(result)
 }
 
 // MulBy034 multiplication by sparse element (c0,0,0,c3,c4,0)
@@ -113,24 +100,22 @@ func (e ext6) MulBy034(z *E6, c0, c3, c4 *baseField) *E6 {
 
 	a := e.ext3.MulByElement(&z.B0, c0)
 
-	b := &E3{
-		A0: z.B1.A0,
-		A1: z.B1.A1,
-		A2: z.B1.A2,
-	}
-	b = e.ext3.MulBy01(b, c3, c4)
+	b := e.ext3.MulBy01(&z.B1, c3, c4)
 
 	c0 = e.fp.Add(c0, c3)
 	d := e.ext3.Add(&z.B0, &z.B1)
 	d = e.ext3.MulBy01(d, c0, c4)
 
-	z.B1 = *e.ext3.Add(a, b)
-	z.B1 = *e.ext3.Neg(&z.B1)
-	z.B1 = *e.ext3.Add(&z.B1, d)
-	z.B0 = *e.ext3.MulByNonResidue(b)
-	z.B0 = *e.ext3.Add(&z.B0, a)
+	b1 := e.ext3.Add(a, b)
+	b1 = e.ext3.Neg(b1)
+	b1 = e.ext3.Add(b1, d)
+	b0 := e.ext3.MulByNonResidue(b)
+	b0 = e.ext3.Add(b0, a)
 
-	return z
+	return &E6{
+		B0: *b0,
+		B1: *b1,
+	}
 }
 
 // Mul034By034 multiplication of sparse element (c0,0,0,c3,c4,0) by sparse element (d0,0,0,d3,d4,0)
