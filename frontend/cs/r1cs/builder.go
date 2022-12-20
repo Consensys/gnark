@@ -65,7 +65,7 @@ type builder struct {
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 	builder := builder{
-		mtBooleans: make(map[uint64][]expr.LinearExpression),
+		mtBooleans: make(map[uint64][]expr.LinearExpression, config.Capacity/10),
 		config:     config,
 		heap:       make(minHeap, 0, 100),
 	}
@@ -76,22 +76,22 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 
 	switch curve {
 	case ecc.BLS12_377:
-		builder.cs = bls12377r1cs.NewR1CS()
+		builder.cs = bls12377r1cs.NewR1CS(config.Capacity)
 	case ecc.BLS12_381:
-		builder.cs = bls12381r1cs.NewR1CS()
+		builder.cs = bls12381r1cs.NewR1CS(config.Capacity)
 	case ecc.BN254:
-		builder.cs = bn254r1cs.NewR1CS()
+		builder.cs = bn254r1cs.NewR1CS(config.Capacity)
 	case ecc.BW6_761:
-		builder.cs = bw6761r1cs.NewR1CS()
+		builder.cs = bw6761r1cs.NewR1CS(config.Capacity)
 	case ecc.BW6_633:
-		builder.cs = bw6633r1cs.NewR1CS()
+		builder.cs = bw6633r1cs.NewR1CS(config.Capacity)
 	case ecc.BLS24_315:
-		builder.cs = bls24315r1cs.NewR1CS()
+		builder.cs = bls24315r1cs.NewR1CS(config.Capacity)
 	case ecc.BLS24_317:
-		builder.cs = bls24317r1cs.NewR1CS()
+		builder.cs = bls24317r1cs.NewR1CS(config.Capacity)
 	default:
 		if field.Cmp(tinyfield.Modulus()) == 0 {
-			builder.cs = tinyfieldr1cs.NewR1CS()
+			builder.cs = tinyfieldr1cs.NewR1CS(config.Capacity)
 			break
 		}
 		panic("not implemtented")
