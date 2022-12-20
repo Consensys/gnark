@@ -173,14 +173,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		}
 	}
 
-	// convert A and B to regular form
-	/*for i := 0; i < nbWires; i++ {
-		A[i].FromMont()
-	}
-	for i := 0; i < nbWires; i++ {
-		B[i].FromMont()
-	}*/
-
 	// Z part of the proving key (scalars)
 	Z := make([]fr.Element, domain.Cardinality)
 	one := fr.One()
@@ -191,7 +183,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		Mul(&zdt, &toxicWaste.deltaInv) // sets Zdt to Zdt/delta
 
 	for i := 0; i < int(domain.Cardinality); i++ {
-		Z[i] = zdt //.ToRegular()
+		Z[i] = zdt
 		zdt.Mul(&zdt, &toxicWaste.t)
 	}
 
@@ -401,9 +393,6 @@ type toxicWaste struct {
 	// Montgomery form of params
 	t, alpha, beta, gamma, delta fr.Element
 	gammaInv, deltaInv           fr.Element
-
-	// Non Montgomery form of params
-	//alphaReg, betaReg, gammaReg, deltaReg fr.Element
 }
 
 func sampleToxicWaste() (toxicWaste, error) {
@@ -438,11 +427,6 @@ func sampleToxicWaste() (toxicWaste, error) {
 
 	res.gammaInv.Inverse(&res.gamma)
 	res.deltaInv.Inverse(&res.delta)
-
-	/*res.alphaReg = res.alpha.ToRegular()
-	res.betaReg = res.beta.ToRegular()
-	res.gammaReg = res.gamma.ToRegular()
-	res.deltaReg = res.delta.ToRegular()*/
 
 	return res, nil
 }

@@ -110,14 +110,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, opt 
 	}
 	start := time.Now()
 
-	/*wireValuesRegular := make([][fr.Limbs]uint64, len(wireValues))
-	// set the wire values in regular form
-	utils.Parallelize(len(wireValues), func(start, end int) {
-		for i := start; i < end; i++ {
-			wireValuesRegular[i] = wireValues[i].Bits()
-		}
-	})*/
-
 	// H (witness reduction / FFT part)
 	var h []fr.Element
 	chHDone := make(chan struct{}, 1)
@@ -361,12 +353,6 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 
 	// ifft_coset
 	domain.FFTInverse(a, fft.DIF, true)
-
-	/*utils.Parallelize(len(a), func(start, end int) {
-		for i := start; i < end; i++ {
-			a[i].FromMont()
-		}
-	})*/
 
 	return a
 }
