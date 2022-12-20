@@ -192,18 +192,18 @@ var InverseE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 
 	c.Inverse(&a)
 
-	c.C0.B0.A0.ToBigIntRegular(res[0])
-	c.C0.B0.A1.ToBigIntRegular(res[1])
-	c.C0.B1.A0.ToBigIntRegular(res[2])
-	c.C0.B1.A1.ToBigIntRegular(res[3])
-	c.C1.B0.A0.ToBigIntRegular(res[4])
-	c.C1.B0.A1.ToBigIntRegular(res[5])
-	c.C1.B1.A0.ToBigIntRegular(res[6])
-	c.C1.B1.A1.ToBigIntRegular(res[7])
-	c.C2.B0.A0.ToBigIntRegular(res[8])
-	c.C2.B0.A1.ToBigIntRegular(res[9])
-	c.C2.B1.A0.ToBigIntRegular(res[10])
-	c.C2.B1.A1.ToBigIntRegular(res[11])
+	c.C0.B0.A0.BigInt(res[0])
+	c.C0.B0.A1.BigInt(res[1])
+	c.C0.B1.A0.BigInt(res[2])
+	c.C0.B1.A1.BigInt(res[3])
+	c.C1.B0.A0.BigInt(res[4])
+	c.C1.B0.A1.BigInt(res[5])
+	c.C1.B1.A0.BigInt(res[6])
+	c.C1.B1.A1.BigInt(res[7])
+	c.C2.B0.A0.BigInt(res[8])
+	c.C2.B0.A1.BigInt(res[9])
+	c.C2.B1.A0.BigInt(res[10])
+	c.C2.B1.A1.BigInt(res[11])
 
 	return nil
 }
@@ -265,18 +265,18 @@ var DivE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 
 	c.Inverse(&b).Mul(&c, &a)
 
-	c.C0.B0.A0.ToBigIntRegular(res[0])
-	c.C0.B0.A1.ToBigIntRegular(res[1])
-	c.C0.B1.A0.ToBigIntRegular(res[2])
-	c.C0.B1.A1.ToBigIntRegular(res[3])
-	c.C1.B0.A0.ToBigIntRegular(res[4])
-	c.C1.B0.A1.ToBigIntRegular(res[5])
-	c.C1.B1.A0.ToBigIntRegular(res[6])
-	c.C1.B1.A1.ToBigIntRegular(res[7])
-	c.C2.B0.A0.ToBigIntRegular(res[8])
-	c.C2.B0.A1.ToBigIntRegular(res[9])
-	c.C2.B1.A0.ToBigIntRegular(res[10])
-	c.C2.B1.A1.ToBigIntRegular(res[11])
+	c.C0.B0.A0.BigInt(res[0])
+	c.C0.B0.A1.BigInt(res[1])
+	c.C0.B1.A0.BigInt(res[2])
+	c.C0.B1.A1.BigInt(res[3])
+	c.C1.B0.A0.BigInt(res[4])
+	c.C1.B0.A1.BigInt(res[5])
+	c.C1.B1.A0.BigInt(res[6])
+	c.C1.B1.A1.BigInt(res[7])
+	c.C2.B0.A0.BigInt(res[8])
+	c.C2.B0.A1.BigInt(res[9])
+	c.C2.B1.A0.BigInt(res[10])
+	c.C2.B1.A1.BigInt(res[11])
 
 	return nil
 }
