@@ -197,8 +197,8 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 
 	// checks if the amount is correct
 	var bAmount, bBalance big.Int
-	receiverAccount.balance.ToBigIntRegular(&bBalance)
-	t.amount.ToBigIntRegular(&bAmount)
+	receiverAccount.balance.BigInt(&bBalance)
+	t.amount.BigInt(&bAmount)
 	if bAmount.Cmp(&bBalance) == 1 {
 		return ErrAmountTooHigh
 	}
