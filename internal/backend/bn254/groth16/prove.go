@@ -88,7 +88,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bn254witness.Witness, opt back
 
 			var res fr.Element
 			res, err = solveCommitmentWire(&r1cs.CommitmentInfo, &proof.Commitment, in[:r1cs.CommitmentInfo.NbPublicCommitted()])
-			res.ToBigIntRegular(out[0]) //Perf-TODO: Regular (non-mont) hashToField to obviate this conversion?
+			res.BigInt(out[0]) //Perf-TODO: Regular (non-mont) hashToField to obviate this conversion?
 			return err
 		}
 	}

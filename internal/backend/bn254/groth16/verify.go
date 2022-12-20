@@ -72,7 +72,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		publicCommitted := make([]*big.Int, vk.CommitmentInfo.NbPublicCommitted())
 		for i := range publicCommitted {
 			var b big.Int
-			publicWitness[vk.CommitmentInfo.Committed[i]-1].ToBigIntRegular(&b)
+			publicWitness[vk.CommitmentInfo.Committed[i]-1].BigInt(&b)
 			publicCommitted[i] = &b
 		}
 

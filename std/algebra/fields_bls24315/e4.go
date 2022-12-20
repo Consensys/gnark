@@ -156,10 +156,10 @@ var DivE4Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 
 	c.Inverse(&b).Mul(&c, &a)
 
-	c.B0.A0.ToBigIntRegular(res[0])
-	c.B0.A1.ToBigIntRegular(res[1])
-	c.B1.A0.ToBigIntRegular(res[2])
-	c.B1.A1.ToBigIntRegular(res[3])
+	c.B0.A0.BigInt(res[0])
+	c.B0.A1.BigInt(res[1])
+	c.B1.A0.BigInt(res[2])
+	c.B1.A1.BigInt(res[3])
 
 	return nil
 }
@@ -199,10 +199,10 @@ var InverseE4Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 
 	c.Inverse(&a)
 
-	c.B0.A0.ToBigIntRegular(res[0])
-	c.B0.A1.ToBigIntRegular(res[1])
-	c.B1.A0.ToBigIntRegular(res[2])
-	c.B1.A1.ToBigIntRegular(res[3])
+	c.B0.A0.BigInt(res[0])
+	c.B0.A1.BigInt(res[1])
+	c.B1.A0.BigInt(res[2])
+	c.B1.A1.BigInt(res[3])
 
 	return nil
 }

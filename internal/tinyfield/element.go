@@ -681,8 +681,8 @@ func (z *Element) ToBigInt(res *big.Int) *big.Int {
 	return res.SetBytes(b[:])
 }
 
-// ToBigIntRegular returns z as a big.Int in regular form
-func (z Element) ToBigIntRegular(res *big.Int) *big.Int {
+// BigInt returns z as a big.Int in regular form
+func (z Element) BigInt(res *big.Int) *big.Int {
 	z.FromMont()
 	return z.ToBigInt(res)
 }

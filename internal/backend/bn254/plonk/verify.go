@@ -160,7 +160,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	var zetaMPlusTwo fr.Element
 	zetaMPlusTwo.Exp(zeta, mPlusTwo)
 	var zetaMPlusTwoBigInt big.Int
-	zetaMPlusTwo.ToBigIntRegular(&zetaMPlusTwoBigInt)
+	zetaMPlusTwo.BigInt(&zetaMPlusTwoBigInt)
 	foldedH := proof.H[2]
 	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusTwoBigInt)
 	foldedH.Add(&foldedH, &proof.H[1])

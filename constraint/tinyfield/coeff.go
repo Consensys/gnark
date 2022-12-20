@@ -108,7 +108,7 @@ func (engine *arithEngine) FromInterface(i interface{}) constraint.Coeff {
 func (engine *arithEngine) ToBigInt(c *constraint.Coeff) *big.Int {
 	e := (*fr.Element)(c[:])
 	r := new(big.Int)
-	e.ToBigIntRegular(r)
+	e.BigInt(r)
 	return r
 
 }
