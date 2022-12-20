@@ -147,8 +147,8 @@ var InverseE2Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 
 	c.Inverse(&a)
 
-	c.A0.ToBigIntRegular(res[0])
-	c.A1.ToBigIntRegular(res[1])
+	c.A0.BigInt(res[0])
+	c.A1.BigInt(res[1])
 
 	return nil
 }
@@ -189,8 +189,8 @@ var DivE2Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 
 	c.Inverse(&b).Mul(&c, &a)
 
-	c.A0.ToBigIntRegular(res[0])
-	c.A1.ToBigIntRegular(res[1])
+	c.A0.BigInt(res[0])
+	c.A1.BigInt(res[1])
 
 	return nil
 }

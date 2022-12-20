@@ -191,7 +191,7 @@ func (s *solution) solveWithHint(vID int, h *constraint.Hint) error {
 			}
 			s.accumulateInto(term, &v)
 		}
-		v.ToBigIntRegular(inputs[i])
+		v.BigInt(inputs[i])
 	}
 
 	err := f(q, inputs, outputs)
