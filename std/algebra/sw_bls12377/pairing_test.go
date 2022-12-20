@@ -141,8 +141,8 @@ func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairin
 	for i := 1; i < 3; i++ {
 		_, _ = u.SetRandom()
 		_, _ = v.SetRandom()
-		u.ToBigIntRegular(&_u)
-		v.ToBigIntRegular(&_v)
+		u.BigInt(&_u)
+		v.BigInt(&_v)
 		P[i].ScalarMultiplication(&P[0], &_u)
 		Q[i].ScalarMultiplication(&Q[0], &_v)
 	}
