@@ -65,7 +65,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 
 
 	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients)
+	solution, err := newSolution(&cs.System, nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients)
 	if err != nil {
 		return make([]fr.Element, nbWires), err
 	}

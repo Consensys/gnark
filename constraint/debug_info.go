@@ -3,13 +3,12 @@ package constraint
 import (
 	"strings"
 
-	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/internal/utils"
 )
 
 type DebugInfo LogEntry
 
-func NewDebugInfo(errName string, i ...interface{}) DebugInfo {
+func (system *System) NewDebugInfo(errName string, i ...interface{}) DebugInfo {
 	var l LogEntry
 
 	const minLogSize = 500
@@ -33,10 +32,11 @@ func NewDebugInfo(errName string, i ...interface{}) DebugInfo {
 		}
 	}
 	sbb.WriteByte('\n')
-	// TODO this stack should not be stored as string, but as a slice of locations
-	// to avoid overloading with lots of str duplicate the serialized constraint system
-	debug.WriteStack(&sbb)
+	sbb.WriteString("%s\n") // some space for the stack.
 	l.Format = sbb.String()
+
+	// get the stack
+	l.Stack = system.SymbolTable.CollectStack()
 
 	return DebugInfo(l)
 }

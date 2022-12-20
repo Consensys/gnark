@@ -82,6 +82,8 @@ func TestSerialization(t *testing.T) {
 						"arithEngine",
 						"CoeffTable.mCoeffs",
 						"System.lbWireLevel",
+						"System.mFunctions",
+						"System.mLocations",
 						"System.lbOutputs",
 						"System.bitLen")); diff != "" {
 					t.Fatalf("round trip mismatch (-want +got):\n%s", diff)

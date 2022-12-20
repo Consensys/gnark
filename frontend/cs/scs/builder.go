@@ -388,6 +388,6 @@ func (builder *scs) newDebugInfo(errName string, in ...interface{}) constraint.D
 		}
 	}
 
-	return constraint.NewDebugInfo(errName, in...)
+	return builder.cs.NewDebugInfo(errName, in...)
 
 }

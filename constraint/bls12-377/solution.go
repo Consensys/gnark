@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/consensys/gnark/backend/hint"
@@ -32,6 +34,7 @@ import (
 // solution represents elements needed to compute
 // a solution to a R1CS or SparseR1CS
 type solution struct {
+	system               *constraint.System
 	values, coefficients []fr.Element
 	solved               []bool
 	nbSolved             uint64
@@ -39,9 +42,10 @@ type solution struct {
 	mHints               map[int]*constraint.Hint  // maps wireID to hint
 }
 
-func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint, coefficients []fr.Element) (solution, error) {
+func newSolution(system *constraint.System, nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint, coefficients []fr.Element) (solution, error) {
 
 	s := solution{
+		system:          system,
 		values:          make([]fr.Element, nbWires),
 		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
@@ -257,6 +261,22 @@ func (s *solution) logValue(log constraint.LogEntry) string {
 			toResolve = append(toResolve, eval.String())
 		}
 
+	}
+	if len(log.Stack) > 0 {
+		var sbb strings.Builder
+		for _, lID := range log.Stack {
+			location := s.system.SymbolTable.Locations[lID]
+			function := s.system.SymbolTable.Functions[location.FunctionID]
+
+			sbb.WriteString(function.Name)
+			sbb.WriteByte('\n')
+			sbb.WriteByte('\t')
+			sbb.WriteString(function.Filename)
+			sbb.WriteByte(':')
+			sbb.WriteString(strconv.Itoa(int(location.Line)))
+			sbb.WriteByte('\n')
+		}
+		toResolve = append(toResolve, sbb.String())
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
 }

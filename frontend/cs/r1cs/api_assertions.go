@@ -28,8 +28,8 @@ import (
 // AssertIsEqual adds an assertion in the constraint builder (i1 == i2)
 func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 	// encoded 1 * i1 == i2
-	r := builder.toVariable(i1)
-	o := builder.toVariable(i2)
+	r := builder.getLinearExpression(builder.toVariable(i1))
+	o := builder.getLinearExpression(builder.toVariable(i2))
 
 	debug := builder.newDebugInfo("assertIsEqual", r, " == ", o)
 
@@ -58,13 +58,15 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	}
 	builder.MarkBoolean(v)
 
-	debug := builder.newDebugInfo("assertIsBoolean", v, " == (0|1)")
+	// ensure v * (1 - v) == 0
+	_v := builder.Sub(builder.cstOne(), v)
 
 	o := builder.cstZero()
 
-	// ensure v * (1 - v) == 0
-	_v := builder.Sub(1, v)
-	builder.cs.AddConstraint(builder.newR1C(v, _v, o), debug)
+	V := builder.getLinearExpression(v)
+	debug := builder.newDebugInfo("assertIsBoolean", V, " == (0|1)")
+
+	builder.cs.AddConstraint(builder.newR1C(V, _v, o), debug)
 }
 
 // AssertIsLessOrEqual adds assertion in constraint builder  (v ⩽ bound)

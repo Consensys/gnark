@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"strings"
 
 	"github.com/blang/semver/v4"
 	"github.com/consensys/gnark"
@@ -64,6 +63,8 @@ type ConstraintSystem interface {
 	// calls to this function will grow the memory usage of the constraint system.
 	MakeTerm(coeff *Coeff, variableID int) Term
 
+	NewDebugInfo(errName string, i ...interface{}) DebugInfo
+
 	// AttachDebugInfo enables attaching debug information to multiple constraints.
 	// This is more efficient than using the AddConstraint(.., debugInfo) since it will store the
 	// debug information only once.
@@ -119,8 +120,8 @@ type System struct {
 
 	// debug info contains stack trace (including line number) of a call to a system.API that
 	// results in an unsolved constraint
-	DebugInfo []LogEntry
-
+	DebugInfo   []LogEntry
+	SymbolTable debug.SymbolTable
 	// maps constraint id to debugInfo id
 	// several constraints may point to the same debug info
 	MDebug map[int]int
@@ -150,9 +151,10 @@ type System struct {
 // NewSystem initialize the common structure among constraint system
 func NewSystem(scalarField *big.Int) System {
 	return System{
+		SymbolTable:        debug.NewSymbolTable(),
+		MDebug:             map[int]int{},
 		GnarkVersion:       gnark.Version.String(),
 		ScalarField:        scalarField.Text(16),
-		MDebug:             make(map[int]int),
 		MHints:             make(map[int]*Hint),
 		MHintsDependencies: make(map[hint.ID]string),
 		q:                  new(big.Int).Set(scalarField),
@@ -210,47 +212,6 @@ func (system *System) GetNbVariables() (internal, secret, public int) {
 
 func (system *System) Field() *big.Int {
 	return new(big.Int).Set(system.q)
-}
-
-func (system *System) AddDebugInfo(errName string, i ...interface{}) int {
-
-	var l LogEntry
-
-	const minLogSize = 500
-	var sbb strings.Builder
-	sbb.Grow(minLogSize)
-	sbb.WriteString("[")
-	sbb.WriteString(errName)
-	sbb.WriteString("] ")
-
-	for _, _i := range i {
-		switch v := _i.(type) {
-		case LinearExpression:
-			if len(v) > 1 {
-				sbb.WriteString("(")
-			}
-			l.WriteVariable(v, &sbb)
-			if len(v) > 1 {
-				sbb.WriteString(")")
-			}
-		case string:
-			sbb.WriteString(v)
-		case Term:
-			l.WriteVariable(LinearExpression{v}, &sbb)
-		default:
-			_v := utils.FromInterface(v)
-			sbb.WriteString(_v.String())
-		}
-	}
-	sbb.WriteByte('\n')
-	// TODO this stack should not be stored as string, but as a slice of locations
-	// to avoid overloading with lots of str duplicate the serialized constraint system
-	debug.WriteStack(&sbb)
-	l.Format = sbb.String()
-
-	system.DebugInfo = append(system.DebugInfo, l)
-
-	return len(system.DebugInfo) - 1
 }
 
 // bitLen returns the number of bits needed to represent a fr.Element
