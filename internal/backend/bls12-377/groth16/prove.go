@@ -110,12 +110,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, opt 
 	}
 	start := time.Now()
 
+	/*wireValuesRegular := make([][fr.Limbs]uint64, len(wireValues))
 	// set the wire values in regular form
 	utils.Parallelize(len(wireValues), func(start, end int) {
 		for i := start; i < end; i++ {
-			wireValues[i].FromMont()
+			wireValuesRegular[i] = wireValues[i].Bits()
 		}
-	})
+	})*/
 
 	// H (witness reduction / FFT part)
 	var h []fr.Element
@@ -167,11 +168,8 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, opt 
 	}
 	_kr.Mul(&_r, &_s).Neg(&_kr)
 
-	_r.FromMont()
-	_s.FromMont()
-	_kr.FromMont()
-	_r.ToBigInt(&r)
-	_s.ToBigInt(&s)
+	_r.BigInt(&r)
+	_s.BigInt(&s)
 
 	// computes r[δ], s[δ], kr[δ]
 	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r, _s, _kr})
@@ -364,11 +362,11 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	// ifft_coset
 	domain.FFTInverse(a, fft.DIF, true)
 
-	utils.Parallelize(len(a), func(start, end int) {
+	/*utils.Parallelize(len(a), func(start, end int) {
 		for i := start; i < end; i++ {
 			a[i].FromMont()
 		}
-	})
+	})*/
 
 	return a
 }
