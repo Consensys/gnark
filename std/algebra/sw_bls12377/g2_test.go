@@ -287,7 +287,7 @@ func TestConstantScalarMulG2(t *testing.T) {
 	witness.A.Assign(&a)
 	// compute the result
 	br := new(big.Int)
-	r.ToBigIntRegular(br)
+	r.BigInt(br)
 	// br is a circuit parameter
 	circuit.R = br
 	_a.ScalarMultiplication(&_a, br)
@@ -327,7 +327,7 @@ func TestVarScalarMulG2(t *testing.T) {
 	witness.A.Assign(&a)
 	// compute the result
 	var br big.Int
-	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
@@ -367,7 +367,7 @@ func TestScalarMulG2(t *testing.T) {
 	witness.A.Assign(&a)
 	// compute the result
 	var br big.Int
-	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
@@ -380,7 +380,7 @@ func randomPointG2() bls12377.G2Jac {
 	var r1 fr.Element
 	var b big.Int
 	_, _ = r1.SetRandom()
-	p2.ScalarMultiplication(&p2, r1.ToBigIntRegular(&b))
+	p2.ScalarMultiplication(&p2, r1.BigInt(&b))
 	return p2
 }
 

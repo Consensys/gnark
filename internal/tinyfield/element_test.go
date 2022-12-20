@@ -710,7 +710,7 @@ func TestElementAdd(t *testing.T) {
 
 			for _, r := range testValues {
 				var d, e, rb big.Int
-				r.ToBigIntRegular(&rb)
+				r.BigInt(&rb)
 
 				var c Element
 				c.Add(&a.element, &r)
@@ -745,11 +745,11 @@ func TestElementAdd(t *testing.T) {
 
 		for _, a := range testValues {
 			var aBig big.Int
-			a.ToBigIntRegular(&aBig)
+			a.BigInt(&aBig)
 			for _, b := range testValues {
 
 				var bBig, d, e big.Int
-				b.ToBigIntRegular(&bBig)
+				b.BigInt(&bBig)
 
 				var c Element
 				c.Add(&a, &b)
@@ -819,7 +819,7 @@ func TestElementSub(t *testing.T) {
 
 			for _, r := range testValues {
 				var d, e, rb big.Int
-				r.ToBigIntRegular(&rb)
+				r.BigInt(&rb)
 
 				var c Element
 				c.Sub(&a.element, &r)
@@ -854,11 +854,11 @@ func TestElementSub(t *testing.T) {
 
 		for _, a := range testValues {
 			var aBig big.Int
-			a.ToBigIntRegular(&aBig)
+			a.BigInt(&aBig)
 			for _, b := range testValues {
 
 				var bBig, d, e big.Int
-				b.ToBigIntRegular(&bBig)
+				b.BigInt(&bBig)
 
 				var c Element
 				c.Sub(&a, &b)
@@ -928,7 +928,7 @@ func TestElementMul(t *testing.T) {
 
 			for _, r := range testValues {
 				var d, e, rb big.Int
-				r.ToBigIntRegular(&rb)
+				r.BigInt(&rb)
 
 				var c Element
 				c.Mul(&a.element, &r)
@@ -982,11 +982,11 @@ func TestElementMul(t *testing.T) {
 
 		for _, a := range testValues {
 			var aBig big.Int
-			a.ToBigIntRegular(&aBig)
+			a.BigInt(&aBig)
 			for _, b := range testValues {
 
 				var bBig, d, e big.Int
-				b.ToBigIntRegular(&bBig)
+				b.BigInt(&bBig)
 
 				var c Element
 				c.Mul(&a, &b)
@@ -1064,7 +1064,7 @@ func TestElementDiv(t *testing.T) {
 
 			for _, r := range testValues {
 				var d, e, rb big.Int
-				r.ToBigIntRegular(&rb)
+				r.BigInt(&rb)
 
 				var c Element
 				c.Div(&a.element, &r)
@@ -1100,11 +1100,11 @@ func TestElementDiv(t *testing.T) {
 
 		for _, a := range testValues {
 			var aBig big.Int
-			a.ToBigIntRegular(&aBig)
+			a.BigInt(&aBig)
 			for _, b := range testValues {
 
 				var bBig, d, e big.Int
-				b.ToBigIntRegular(&bBig)
+				b.BigInt(&bBig)
 
 				var c Element
 				c.Div(&a, &b)
@@ -1175,7 +1175,7 @@ func TestElementExp(t *testing.T) {
 
 			for _, r := range testValues {
 				var d, e, rb big.Int
-				r.ToBigIntRegular(&rb)
+				r.BigInt(&rb)
 
 				var c Element
 				c.Exp(a.element, &rb)
@@ -1210,11 +1210,11 @@ func TestElementExp(t *testing.T) {
 
 		for _, a := range testValues {
 			var aBig big.Int
-			a.ToBigIntRegular(&aBig)
+			a.BigInt(&aBig)
 			for _, b := range testValues {
 
 				var bBig, d, e big.Int
-				b.ToBigIntRegular(&bBig)
+				b.BigInt(&bBig)
 
 				var c Element
 				c.Exp(a, &bBig)
@@ -1286,7 +1286,7 @@ func TestElementSquare(t *testing.T) {
 
 		for _, a := range testValues {
 			var aBig big.Int
-			a.ToBigIntRegular(&aBig)
+			a.BigInt(&aBig)
 			var c Element
 			c.Square(&a)
 
@@ -1358,7 +1358,7 @@ func TestElementInverse(t *testing.T) {
 
 		for _, a := range testValues {
 			var aBig big.Int
-			a.ToBigIntRegular(&aBig)
+			a.BigInt(&aBig)
 			var c Element
 			c.Inverse(&a)
 
@@ -1430,7 +1430,7 @@ func TestElementSqrt(t *testing.T) {
 
 		for _, a := range testValues {
 			var aBig big.Int
-			a.ToBigIntRegular(&aBig)
+			a.BigInt(&aBig)
 			var c Element
 			c.Sqrt(&a)
 
@@ -1502,7 +1502,7 @@ func TestElementDouble(t *testing.T) {
 
 		for _, a := range testValues {
 			var aBig big.Int
-			a.ToBigIntRegular(&aBig)
+			a.BigInt(&aBig)
 			var c Element
 			c.Double(&a)
 
@@ -1574,7 +1574,7 @@ func TestElementNeg(t *testing.T) {
 
 		for _, a := range testValues {
 			var aBig big.Int
-			a.ToBigIntRegular(&aBig)
+			a.BigInt(&aBig)
 			var c Element
 			c.Neg(&a)
 
@@ -2150,7 +2150,7 @@ func gen() gopter.Gen {
 			}
 		}
 
-		g.element.ToBigIntRegular(&g.bigint)
+		g.element.BigInt(&g.bigint)
 		genResult := gopter.NewGenResult(g, gopter.NoShrinker)
 		return genResult
 	}

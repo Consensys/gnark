@@ -71,7 +71,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_633witness.Witness
 		publicCommitted := make([]*big.Int, vk.CommitmentInfo.NbPublicCommitted())
 		for i := range publicCommitted {
 			var b big.Int
-			publicWitness[vk.CommitmentInfo.Committed[i]-1].ToBigIntRegular(&b)
+			publicWitness[vk.CommitmentInfo.Committed[i]-1].BigInt(&b)
 			publicCommitted[i] = &b
 		}
 
@@ -82,7 +82,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_633witness.Witness
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Jac
-	if _, err := kSum.MultiExp(vk.G1.K[1:], publicWitness, ecc.MultiExpConfig{ScalarsMont: true}); err != nil {
+	if _, err := kSum.MultiExp(vk.G1.K[1:], publicWitness, ecc.MultiExpConfig{}); err != nil {
 		return err
 	}
 	kSum.AddMixed(&vk.G1.K[0])
