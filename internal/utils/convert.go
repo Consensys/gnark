@@ -20,7 +20,7 @@ import (
 )
 
 type toBigIntInterface interface {
-	BigInt(res *big.Int) *big.Int
+	ToBigIntRegular(res *big.Int) *big.Int
 }
 
 // FromInterface converts an interface to a big.Int element
@@ -71,13 +71,13 @@ func FromInterface(input interface{}) big.Int {
 		r.SetBytes(v)
 	default:
 		if v, ok := input.(toBigIntInterface); ok {
-			v.BigInt(&r)
+			v.ToBigIntRegular(&r)
 			return r
-		} else if reflect.ValueOf(input).Kind() == reflect.Ptr {
-			vv := reflect.ValueOf(input).Elem()
+		} else if reflect.ValueOf(input).Kind() == reflect.Pointer {
+			vv := reflect.ValueOf(input)
 			if vv.CanInterface() {
 				if v, ok := vv.Interface().(toBigIntInterface); ok {
-					v.BigInt(&r)
+					v.ToBigIntRegular(&r)
 					return r
 				}
 			}
