@@ -19,14 +19,14 @@ package cs
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/debug"
+	"github.com/rs/zerolog"
 	"math/big"
 	"strconv"
 	"strings"
 	"sync/atomic"
-
-	"github.com/consensys/gnark/backend/hint"
-	"github.com/consensys/gnark/constraint"
-	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 )
@@ -34,18 +34,18 @@ import (
 // solution represents elements needed to compute
 // a solution to a R1CS or SparseR1CS
 type solution struct {
-	system               *constraint.System
 	values, coefficients []fr.Element
 	solved               []bool
 	nbSolved             uint64
 	mHintsFunctions      map[hint.ID]hint.Function // maps hintID to hint function
 	mHints               map[int]*constraint.Hint  // maps wireID to hint
+	st                   *debug.SymbolTable
 }
 
-func newSolution(system *constraint.System, nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint, coefficients []fr.Element) (solution, error) {
+func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint, coefficients []fr.Element, st *debug.SymbolTable) (solution, error) {
 
 	s := solution{
-		system:          system,
+		st:              st,
 		values:          make([]fr.Element, nbWires),
 		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
@@ -265,8 +265,8 @@ func (s *solution) logValue(log constraint.LogEntry) string {
 	if len(log.Stack) > 0 {
 		var sbb strings.Builder
 		for _, lID := range log.Stack {
-			location := s.system.SymbolTable.Locations[lID]
-			function := s.system.SymbolTable.Functions[location.FunctionID]
+			location := s.st.Locations[lID]
+			function := s.st.Functions[location.FunctionID]
 
 			sbb.WriteString(function.Name)
 			sbb.WriteByte('\n')

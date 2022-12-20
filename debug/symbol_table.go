@@ -20,7 +20,67 @@ func NewSymbolTable() SymbolTable {
 	}
 }
 
-func (st *SymbolTable) LocationID(frame *runtime.Frame) int {
+func (st *SymbolTable) CollectStack() []int {
+	var r []int
+	if Debug {
+		r = make([]int, 0, 2)
+	} else {
+		r = make([]int, 0, 5)
+	}
+	// derived from: https://golang.org/pkg/runtime/#example_Frames
+	// we stop when func name == Define as it is where the gnark circuit code should start
+
+	// Ask runtime.Callers for up to 10 pcs
+	var pc [20]uintptr
+	n := runtime.Callers(4, pc[:])
+	if n == 0 {
+		// No pcs available. Stop now.
+		// This can happen if the first argument to runtime.Callers is large.
+		return r
+	}
+	frames := runtime.CallersFrames(pc[:n]) // pass only valid pcs to runtime.CallersFrames
+	cpt := 0
+	// Loop to get frames.
+	// A fixed number of pcs can expand to an indefinite number of Frames.
+	for {
+		frame, more := frames.Next()
+		fe := strings.Split(frame.Function, "/")
+		function := fe[len(fe)-1]
+
+		if !Debug {
+			if cpt == 2 {
+				// limit stack size to 2 when debug is not set.
+				break
+			}
+			if strings.Contains(function, "runtime.gopanic") {
+				continue
+			}
+			if strings.Contains(function, "frontend.(*constraintSystem)") {
+				continue
+			}
+			if strings.Contains(frame.File, "test/engine.go") {
+				continue
+			}
+			if strings.Contains(frame.File, "gnark/frontend") {
+				continue
+			}
+			frame.File = filepath.Base(frame.File)
+		}
+
+		r = append(r, st.locationID(&frame))
+		cpt++
+
+		if !more {
+			break
+		}
+		if strings.HasSuffix(function, "Define") {
+			break
+		}
+	}
+	return r
+}
+
+func (st *SymbolTable) locationID(frame *runtime.Frame) int {
 	lID, ok := st.mLocations[uint64(frame.PC)]
 	if !ok {
 		// first let's see if we have the function.
@@ -47,54 +107,4 @@ func (st *SymbolTable) LocationID(frame *runtime.Frame) int {
 	}
 
 	return lID
-}
-
-func (st *SymbolTable) CollectStack() []int {
-	r := make([]int, 0)
-	// derived from: https://golang.org/pkg/runtime/#example_Frames
-	// we stop when func name == Define as it is where the gnark circuit code should start
-
-	// Ask runtime.Callers for up to 10 pcs
-	pc := make([]uintptr, 20)
-	n := runtime.Callers(4, pc)
-	if n == 0 {
-		// No pcs available. Stop now.
-		// This can happen if the first argument to runtime.Callers is large.
-		return r
-	}
-	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
-	frames := runtime.CallersFrames(pc)
-	// Loop to get frames.
-	// A fixed number of pcs can expand to an indefinite number of Frames.
-	for {
-		frame, more := frames.Next()
-		fe := strings.Split(frame.Function, "/")
-		function := fe[len(fe)-1]
-
-		if !Debug {
-			if strings.Contains(function, "runtime.gopanic") {
-				continue
-			}
-			if strings.Contains(function, "frontend.(*constraintSystem)") {
-				continue
-			}
-			if strings.Contains(frame.File, "test/engine.go") {
-				continue
-			}
-			if strings.Contains(frame.File, "gnark/frontend") {
-				continue
-			}
-			frame.File = filepath.Base(frame.File)
-		}
-
-		r = append(r, st.LocationID(&frame))
-
-		if !more {
-			break
-		}
-		if strings.HasSuffix(function, "Define") {
-			break
-		}
-	}
-	return r
 }
