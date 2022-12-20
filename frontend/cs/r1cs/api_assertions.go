@@ -19,6 +19,7 @@ package r1cs
 import (
 	"math/big"
 
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/internal/utils"
@@ -64,9 +65,13 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	o := builder.cstZero()
 
 	V := builder.getLinearExpression(v)
-	debug := builder.newDebugInfo("assertIsBoolean", V, " == (0|1)")
 
-	builder.cs.AddConstraint(builder.newR1C(V, _v, o), debug)
+	if debug.Debug {
+		debug := builder.newDebugInfo("assertIsBoolean", V, " == (0|1)")
+		builder.cs.AddConstraint(builder.newR1C(V, _v, o), debug)
+	} else {
+		builder.cs.AddConstraint(builder.newR1C(V, _v, o))
+	}
 }
 
 // AssertIsLessOrEqual adds assertion in constraint builder  (v ⩽ bound)
