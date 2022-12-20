@@ -59,6 +59,9 @@ type builder struct {
 	q    *big.Int
 	tOne constraint.Coeff
 	heap minHeap // helps merge k sorted linear expressions
+
+	macBuffer1 expr.LinearExpression
+	macBuffer2 expr.LinearExpression
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -68,6 +71,8 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 		mtBooleans: make(map[uint64][]expr.LinearExpression, config.Capacity/10),
 		config:     config,
 		heap:       make(minHeap, 0, 100),
+		macBuffer1: make(expr.LinearExpression, 0, 100),
+		macBuffer2: make(expr.LinearExpression, 0, 100),
 	}
 
 	// by default the circuit is given a public wire equal to 1
@@ -209,7 +214,7 @@ func (builder *builder) MarkBoolean(v frontend.Variable) {
 		return
 	}
 	// v is a linear expression
-	l := v.(expr.LinearExpression)
+	l, _ := builder.isLinearExpression(v)
 	sort.Sort(l)
 
 	key := l.HashCode()
@@ -226,7 +231,7 @@ func (builder *builder) IsBoolean(v frontend.Variable) bool {
 		return (builder.isCstZero(&b) || builder.isCstOne(&b))
 	}
 	// v is a linear expression
-	l := v.(expr.LinearExpression)
+	l, _ := builder.isLinearExpression(v)
 	sort.Sort(l)
 
 	key := l.HashCode()
@@ -279,7 +284,7 @@ func (builder *builder) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 }
 
 func (builder *builder) constantValue(v frontend.Variable) (constraint.Coeff, bool) {
-	if _v, ok := v.(expr.LinearExpression); ok {
+	if _v, ok := builder.isLinearExpression(v); ok {
 		assertIsSet(_v)
 
 		if len(_v) != 1 {
@@ -306,6 +311,9 @@ func (builder *builder) toVariable(input interface{}) expr.LinearExpression {
 		// this is already a "kwown" variable
 		assertIsSet(t)
 		return t
+	case *expr.LinearExpression:
+		assertIsSet(*t)
+		return *t
 	case constraint.Coeff:
 		return expr.NewLinearExpression(0, t)
 	case *constraint.Coeff:
@@ -352,14 +360,11 @@ func (builder *builder) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 	// TODO @gbotrel hint input pass
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		switch t := in.(type) {
-		case expr.LinearExpression:
+		if t, ok := builder.isLinearExpression(in); ok {
 			assertIsSet(t)
 			hintInputs[i] = builder.getLinearExpression(t)
-		default:
-			// make a term
-			// c := utils.FromInterface(t)
-			c := builder.cs.FromInterface(t)
+		} else {
+			c := builder.cs.FromInterface(in)
 			term := builder.cs.MakeTerm(&c, 0)
 			term.MarkConstant()
 			hintInputs[i] = constraint.LinearExpression{term}
@@ -442,4 +447,14 @@ func (builder *builder) compress(le expr.LinearExpression) expr.LinearExpression
 	t := builder.newInternalVariable()
 	builder.cs.AddConstraint(builder.newR1C(le, one, t))
 	return t
+}
+
+func (builder *builder) isLinearExpression(v frontend.Variable) (expr.LinearExpression, bool) {
+	switch t := v.(type) {
+	case expr.LinearExpression:
+		return t, true
+	case *expr.LinearExpression:
+		return *t, true
+	}
+	return nil, false
 }

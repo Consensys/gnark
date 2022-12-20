@@ -83,14 +83,12 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 func (builder *builder) AssertIsLessOrEqual(_v frontend.Variable, bound frontend.Variable) {
 	v := builder.toVariable(_v)
 
-	switch b := bound.(type) {
-	case expr.LinearExpression:
+	if b, ok := builder.isLinearExpression(bound); ok {
 		assertIsSet(b)
 		builder.mustBeLessOrEqVar(v, b)
-	default:
-		builder.mustBeLessOrEqCst(v, utils.FromInterface(b))
+	} else {
+		builder.mustBeLessOrEqCst(v, utils.FromInterface(bound))
 	}
-
 }
 
 func (builder *builder) mustBeLessOrEqVar(a, bound expr.LinearExpression) {

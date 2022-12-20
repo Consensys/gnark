@@ -52,6 +52,11 @@ func (builder *scs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) front
 
 }
 
+func (builder *scs) MAC(a frontend.Variable, b, c frontend.Variable) frontend.Variable {
+	// TODO can we do better here to limit allocations?
+	return builder.Add(a, builder.Mul(b, c))
+}
+
 // neg returns -in
 func (builder *scs) neg(in []frontend.Variable) []frontend.Variable {
 

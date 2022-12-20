@@ -156,6 +156,11 @@ func (e *engine) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 	return res
 }
 
+func (e *engine) MAC(a frontend.Variable, b, c frontend.Variable) frontend.Variable {
+	// TODO can we do better here to limit allocations?
+	return e.Add(a, e.Mul(b, c))
+}
+
 func (e *engine) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	cptSub++
 	res := new(big.Int)
