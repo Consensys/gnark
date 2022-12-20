@@ -104,7 +104,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	if testCase, err = getTestCase(c.TestCaseName); err != nil {
 		return err
 	}
-	sorted := topologicalSort(testCase.Circuit)
+	sorted := TopologicalSort(testCase.Circuit)
 
 	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
 		return err
@@ -120,7 +120,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
-	sorted := topologicalSort(c)
+	sorted := TopologicalSort(c)
 	res := make(WireAssignment, len(inputValues)+len(outputValues))
 	inI, outI := 0, 0
 	for _, w := range sorted {
@@ -335,7 +335,7 @@ func TestLogNbInstances(t *testing.T) {
 		return func(t *testing.T) {
 			testCase, err := getTestCase(path)
 			assert.NoError(t, err)
-			wires := topologicalSort(testCase.Circuit)
+			wires := TopologicalSort(testCase.Circuit)
 			serializedProof := testCase.Proof.Serialize()
 			logNbInstances := computeLogNbInstances(wires, len(serializedProof))
 			assert.Equal(t, 1, logNbInstances)
