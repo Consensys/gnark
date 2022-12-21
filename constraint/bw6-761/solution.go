@@ -19,12 +19,14 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"math/big"
-	"sync/atomic"
-
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/debug"
 	"github.com/rs/zerolog"
+	"math/big"
+	"strconv"
+	"strings"
+	"sync/atomic"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
@@ -37,11 +39,13 @@ type solution struct {
 	nbSolved             uint64
 	mHintsFunctions      map[hint.ID]hint.Function // maps hintID to hint function
 	mHints               map[int]*constraint.Hint  // maps wireID to hint
+	st                   *debug.SymbolTable
 }
 
-func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint, coefficients []fr.Element) (solution, error) {
+func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint, coefficients []fr.Element, st *debug.SymbolTable) (solution, error) {
 
 	s := solution{
+		st:              st,
 		values:          make([]fr.Element, nbWires),
 		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
@@ -257,6 +261,22 @@ func (s *solution) logValue(log constraint.LogEntry) string {
 			toResolve = append(toResolve, eval.String())
 		}
 
+	}
+	if len(log.Stack) > 0 {
+		var sbb strings.Builder
+		for _, lID := range log.Stack {
+			location := s.st.Locations[lID]
+			function := s.st.Functions[location.FunctionID]
+
+			sbb.WriteString(function.Name)
+			sbb.WriteByte('\n')
+			sbb.WriteByte('\t')
+			sbb.WriteString(function.Filename)
+			sbb.WriteByte(':')
+			sbb.WriteString(strconv.Itoa(int(location.Line)))
+			sbb.WriteByte('\n')
+		}
+		toResolve = append(toResolve, sbb.String())
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
 }
