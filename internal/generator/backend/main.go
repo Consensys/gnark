@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/consensys/bavard"
+	"github.com/consensys/gnark-crypto/field/generator"
+	"github.com/consensys/gnark-crypto/field/generator/config"
 )
 
 const copyrightHolder = "ConsenSys Software Inc."
@@ -64,6 +66,15 @@ func main() {
 		Curve:     "tinyfield",
 		CurveID:   "UNKNOWN",
 		noBackend: true,
+	}
+
+	// autogenerate tinyfield
+	tinyfieldConf, err := config.NewFieldConfig("tinyfield", "Element", "0x2f", false)
+	if err != nil {
+		panic(err)
+	}
+	if err := generator.GenerateFF(tinyfieldConf, tiny_field.RootPath); err != nil {
+		panic(err)
 	}
 
 	datas := []templateData{
