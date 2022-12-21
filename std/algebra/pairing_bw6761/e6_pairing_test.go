@@ -148,18 +148,19 @@ func TestMulBy034Fp6(t *testing.T) {
 	var a, b bw6761.E6
 	_, _ = a.SetRandom()
 	b.Set(&a)
-	var c0, c3, c4 fp.Element
+	var c0, c0Copy, c3, c4 fp.Element
 	c0.SetRandom()
 	c3.SetRandom()
 	c4.SetRandom()
+	c0Copy.Set(&c0)
 	b.MulBy034(&c0, &c3, &c4)
 
 	witness := e6MulBy034{
 		A:  NewE6(a),
-		B:  NewE6(b),
-		C0: emulated.NewElement[emulated.BW6761Fp](c0),
+		C0: emulated.NewElement[emulated.BW6761Fp](c0Copy),
 		C3: emulated.NewElement[emulated.BW6761Fp](c3),
 		C4: emulated.NewElement[emulated.BW6761Fp](c4),
+		B:  NewE6(b),
 	}
 
 	err := test.IsSolved(&e6MulBy034{}, &witness, testCurve.ScalarField())

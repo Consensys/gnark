@@ -18,6 +18,8 @@
 
 package pairing_bw6761
 
+import "fmt"
+
 func (e ext6) nSquare(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
 		z = e.CyclotomicSquare(z)
@@ -27,7 +29,8 @@ func (e ext6) nSquare(z *E6, n int) *E6 {
 
 func (e ext6) nSquareCompressed(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
-		z = e.CyclotomicSquareCompressed(z, z)
+		fmt.Println(i)
+		z = e.CyclotomicSquareCompressed(z)
 	}
 	return z
 }
@@ -120,22 +123,22 @@ func (e ext6) MulBy034(z *E6, c0, c3, c4 *baseField) *E6 {
 
 // Mul034By034 multiplication of sparse element (c0,0,0,c3,c4,0) by sparse element (d0,0,0,d3,d4,0)
 func (e ext6) Mul034By034(d0, d3, d4, c0, c3, c4 *baseField) *E6 {
-	x0 := e.fp.Mul(c0, d0)
-	x3 := e.fp.Mul(c3, d3)
-	x4 := e.fp.Mul(c4, d4)
+	x0 := e.fp.MulMod(c0, d0)
+	x3 := e.fp.MulMod(c3, d3)
+	x4 := e.fp.MulMod(c4, d4)
 	tmp := e.fp.Add(c0, c4)
 	x04 := e.fp.Add(d0, d4)
-	x04 = e.fp.Mul(x04, tmp)
+	x04 = e.fp.MulMod(x04, tmp)
 	x04 = e.fp.Sub(x04, x0)
 	x04 = e.fp.Sub(x04, x4)
 	tmp = e.fp.Add(c0, c3)
 	x03 := e.fp.Add(d0, d3)
-	x03 = e.fp.Mul(x03, tmp)
+	x03 = e.fp.MulMod(x03, tmp)
 	x03 = e.fp.Sub(x03, x0)
 	x03 = e.fp.Sub(x03, x3)
 	tmp = e.fp.Add(c3, c4)
 	x34 := e.fp.Add(d3, d4)
-	x34 = e.fp.Mul(x34, tmp)
+	x34 = e.fp.MulMod(x34, tmp)
 	x34 = e.fp.Sub(x34, x3)
 	x34 = e.fp.Sub(x34, x4)
 

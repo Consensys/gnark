@@ -238,8 +238,8 @@ func (circuit *e3MulByElement) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt3(nfield)
-	circuit.A = *e.MulByElement(&circuit.A, &circuit.Y)
-	e.AssertIsEqual(&circuit.A, &circuit.B)
+	expected := e.MulByElement(&circuit.A, &circuit.Y)
+	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }
 
