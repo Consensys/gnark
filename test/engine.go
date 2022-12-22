@@ -156,7 +156,19 @@ func (e *engine) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 	return res
 }
 
-func (e *engine) MAC(a frontend.Variable, b, c frontend.Variable) frontend.Variable {
+func (e *engine) NewBuffer(int) frontend.Variable {
+	return big.NewInt(0)
+}
+
+func (e *engine) ResetBuffer(in frontend.Variable) frontend.Variable {
+	if b, ok := in.(*big.Int); ok {
+		b.SetInt64(0)
+		return b
+	}
+	return big.NewInt(0)
+}
+
+func (e *engine) MAC(a, b, c frontend.Variable) frontend.Variable {
 	// TODO can we do better here to limit allocations?
 	return e.Add(a, e.Mul(b, c))
 }

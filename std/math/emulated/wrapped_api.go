@@ -76,7 +76,7 @@ func (w *FieldAPI[T]) Add(i1 frontend.Variable, i2 frontend.Variable, in ...fron
 	return res
 }
 
-func (w *FieldAPI[T]) MAC(a frontend.Variable, b, c frontend.Variable) frontend.Variable {
+func (w *FieldAPI[T]) MAC(a, b, c frontend.Variable) frontend.Variable {
 	// TODO can we do better here to limit allocations?
 	return w.Add(a, w.Mul(b, c))
 }

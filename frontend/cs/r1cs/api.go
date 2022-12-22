@@ -41,13 +41,14 @@ func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) f
 	// extract frontend.Variables from input
 	vars, s := builder.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
 	return builder.add(vars, false, s, nil)
-
 }
 
-func (builder *builder) MAC(a frontend.Variable, b, c frontend.Variable) frontend.Variable {
-	builder.macBuffer1 = builder.macBuffer1[:0]
-	// do the multiplication
-	mul := func() {
+func (builder *builder) MAC(a, b, c frontend.Variable) frontend.Variable {
+	// do the multiplication into builder.mbuf1
+	mulBC := func() {
+		// reset the buffer
+		builder.mbuf1 = builder.mbuf1[:0]
+
 		n1, v1Constant := builder.constantValue(b)
 		n2, v2Constant := builder.constantValue(c)
 
@@ -55,59 +56,42 @@ func (builder *builder) MAC(a frontend.Variable, b, c frontend.Variable) fronten
 		if !v1Constant && !v2Constant {
 			res := builder.newInternalVariable()
 			builder.cs.AddConstraint(builder.newR1C(b, c, res))
-			builder.macBuffer1 = append(builder.macBuffer1, res...)
+			builder.mbuf1 = append(builder.mbuf1, res...)
 			return
 		}
 
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
 		if v1Constant && v2Constant {
 			builder.cs.Mul(&n1, &n2)
-			builder.macBuffer1 = append(builder.macBuffer1, expr.NewTerm(0, n1))
+			builder.mbuf1 = append(builder.mbuf1, expr.NewTerm(0, n1))
 			return
 		}
 
 		if v1Constant {
-			builder.macBuffer1 = append(builder.macBuffer1, builder.toVariable(c)...)
-			builder.mulConstant(builder.macBuffer1, n1, true)
+			builder.mbuf1 = append(builder.mbuf1, builder.toVariable(c)...)
+			builder.mulConstant(builder.mbuf1, n1, true)
 			return
 		}
-		builder.macBuffer1 = append(builder.macBuffer1, builder.toVariable(b)...)
-		builder.mulConstant(builder.macBuffer1, n2, true)
+		builder.mbuf1 = append(builder.mbuf1, builder.toVariable(b)...)
+		builder.mulConstant(builder.mbuf1, n2, true)
 	}
-	mul()
+	mulBC()
 
-	// we can't mutate a, but we return an address to mutate it in subsequent calls.
 	_a := builder.toVariable(a)
-	builder.macBuffer2 = builder.macBuffer2[:0]
-	builder.add([]expr.LinearExpression{_a, builder.macBuffer1}, false, 0, &builder.macBuffer2)
-	if cap(_a) >= len(builder.macBuffer2) {
-		_a = _a[:0]
-		_a = append(_a, builder.macBuffer2...)
+	// copy _a in buffer, use _a as result; so if _a was already a linear expression and
+	// results fits, _a is mutated without performing a new memalloc
+	builder.mbuf2 = builder.mbuf2[:0]
+	builder.add([]expr.LinearExpression{_a, builder.mbuf1}, false, 0, &builder.mbuf2)
+	_a = _a[:0]
+	if len(builder.mbuf2) <= cap(_a) {
+		// it fits, no mem alloc
+		_a = append(_a, builder.mbuf2...)
 	} else {
-		_a = make(expr.LinearExpression, len(builder.macBuffer2))
-		copy(_a, builder.macBuffer2)
+		// allocate a expression linear with extended capacity
+		_a = make(expr.LinearExpression, len(builder.mbuf2), len(builder.mbuf2)*3)
+		copy(_a, builder.mbuf2)
 	}
 	return _a
-
-	// if _a, ok := a.(*expr.LinearExpression); ok {
-	// 	// we can mutate a
-	// 	builder.macBuffer2 = builder.macBuffer2[:0]
-	// 	builder.macBuffer2 = append(builder.macBuffer2, *_a...)
-
-	// 	builder.add([]expr.LinearExpression{builder.macBuffer2, builder.macBuffer1}, false, 0, _a)
-	// 	return _a
-	// } else {
-	// 	// we can't mutate a, but we return an address to mutate it in subsequent calls.
-	// 	_a := builder.toVariable(a)
-	// 	r := builder.add([]expr.LinearExpression{_a, builder.macBuffer1}, false, len(_a)+len(builder.macBuffer1), nil).(expr.LinearExpression)
-	// 	return &r
-	// }
-	// // fmt.Println(reflect.TypeOf(a))
-	// // if reflect.TypeOf(a) == tPointerVariable {
-	// // 	fmt.Println("HERE")
-	// // 	a = *(reflect.ValueOf(a).Interface().(*frontend.Variable))
-	// // }
-	// return builder.Add(a, builder.Mul(b, c))
 }
 
 // Sub returns res = i1 - i2
@@ -138,7 +122,6 @@ func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int
 		t := make(expr.LinearExpression, 0, capacity)
 		res = &t
 	}
-	// res := make(expr.LinearExpression, 0, capacity)
 	curr := -1
 
 	// process all the terms from all the inputs, in sorted order
@@ -616,7 +599,7 @@ func (builder *builder) Println(a ...frontend.Variable) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := builder.isLinearExpression(arg); ok {
+		if v, ok := builder.linearExpression(arg); ok {
 			assertIsSet(v)
 
 			sbb.WriteString("%s")

@@ -60,8 +60,9 @@ type builder struct {
 	tOne constraint.Coeff
 	heap minHeap // helps merge k sorted linear expressions
 
-	macBuffer1 expr.LinearExpression
-	macBuffer2 expr.LinearExpression
+	// buffers used to do in place api.MAC
+	mbuf1 expr.LinearExpression
+	mbuf2 expr.LinearExpression
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -71,8 +72,8 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 		mtBooleans: make(map[uint64][]expr.LinearExpression, config.Capacity/10),
 		config:     config,
 		heap:       make(minHeap, 0, 100),
-		macBuffer1: make(expr.LinearExpression, 0, 100),
-		macBuffer2: make(expr.LinearExpression, 0, 100),
+		mbuf1:      make(expr.LinearExpression, 0, 100),
+		mbuf2:      make(expr.LinearExpression, 0, 100),
 	}
 
 	// by default the circuit is given a public wire equal to 1
@@ -111,6 +112,19 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 	}
 
 	return &builder
+}
+
+func (builder *builder) NewBuffer(capacity int) frontend.Variable {
+	r := make(expr.LinearExpression, 0, capacity)
+	r = append(r, expr.NewTerm(0, constraint.Coeff{}))
+	return r
+}
+
+func (builder *builder) ResetBuffer(b frontend.Variable) frontend.Variable {
+	r := builder.toVariable(b)
+	r = r[:0]
+	r = append(r, expr.NewTerm(0, constraint.Coeff{}))
+	return r
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
@@ -214,7 +228,7 @@ func (builder *builder) MarkBoolean(v frontend.Variable) {
 		return
 	}
 	// v is a linear expression
-	l, _ := builder.isLinearExpression(v)
+	l, _ := builder.linearExpression(v)
 	sort.Sort(l)
 
 	key := l.HashCode()
@@ -231,7 +245,7 @@ func (builder *builder) IsBoolean(v frontend.Variable) bool {
 		return (builder.isCstZero(&b) || builder.isCstOne(&b))
 	}
 	// v is a linear expression
-	l, _ := builder.isLinearExpression(v)
+	l, _ := builder.linearExpression(v)
 	sort.Sort(l)
 
 	key := l.HashCode()
@@ -284,7 +298,7 @@ func (builder *builder) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 }
 
 func (builder *builder) constantValue(v frontend.Variable) (constraint.Coeff, bool) {
-	if _v, ok := builder.isLinearExpression(v); ok {
+	if _v, ok := builder.linearExpression(v); ok {
 		assertIsSet(_v)
 
 		if len(_v) != 1 {
@@ -360,7 +374,7 @@ func (builder *builder) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 	// TODO @gbotrel hint input pass
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		if t, ok := builder.isLinearExpression(in); ok {
+		if t, ok := builder.linearExpression(in); ok {
 			assertIsSet(t)
 			hintInputs[i] = builder.getLinearExpression(t)
 		} else {
@@ -449,7 +463,7 @@ func (builder *builder) compress(le expr.LinearExpression) expr.LinearExpression
 	return t
 }
 
-func (builder *builder) isLinearExpression(v frontend.Variable) (expr.LinearExpression, bool) {
+func (builder *builder) linearExpression(v frontend.Variable) (expr.LinearExpression, bool) {
 	switch t := v.(type) {
 	case expr.LinearExpression:
 		return t, true

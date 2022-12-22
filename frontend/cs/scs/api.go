@@ -52,8 +52,9 @@ func (builder *scs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) front
 
 }
 
-func (builder *scs) MAC(a frontend.Variable, b, c frontend.Variable) frontend.Variable {
+func (builder *scs) MAC(a, b, c frontend.Variable) frontend.Variable {
 	// TODO can we do better here to limit allocations?
+	// technically we could do that in one PlonK constraint (against 2 for separate Add & Mul)
 	return builder.Add(a, builder.Mul(b, c))
 }
 
