@@ -67,8 +67,8 @@ func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) fronte
 	c.Lsh(c, uint(startDigit))
 
 	for i := 0; i < len(bits); i++ {
-		Σbi = api.MAC(Σbi, bits[i], c)
-		ΣbiRShift = api.MAC(ΣbiRShift, bits[i], cRShift)
+		Σbi = api.MulAcc(Σbi, bits[i], c)
+		ΣbiRShift = api.MulAcc(ΣbiRShift, bits[i], cRShift)
 
 		c.Lsh(c, 1)
 		cRShift.Lsh(cRShift, 1)

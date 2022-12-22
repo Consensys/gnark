@@ -156,7 +156,7 @@ func (e *engine) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 	return res
 }
 
-func (e *engine) MAC(a, b, c frontend.Variable) frontend.Variable {
+func (e *engine) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	// TODO can we do better here to limit allocations?
 	return e.Add(a, e.Mul(b, c))
 }

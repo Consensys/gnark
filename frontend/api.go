@@ -30,10 +30,10 @@ type API interface {
 	// Add returns res = i1+i2+...in
 	Add(i1, i2 Variable, in ...Variable) Variable
 
-	// MAC sets and return a = a + (b*c)
+	// MulAcc sets and return a = a + (b*c)
 	// ! may mutate a without allocating a new result
-	// ! always use MAC(...) result for correctness
-	MAC(a, b, c Variable) Variable
+	// ! always use MulAcc(...) result for correctness
+	MulAcc(a, b, c Variable) Variable
 
 	// Neg returns -i
 	Neg(i1 Variable) Variable

@@ -68,12 +68,16 @@ type builder struct {
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
+	macCapacity := 100
+	if config.CompressThreshold != 0 {
+		macCapacity = config.CompressThreshold
+	}
 	builder := builder{
 		mtBooleans: make(map[uint64][]expr.LinearExpression, config.Capacity/10),
 		config:     config,
 		heap:       make(minHeap, 0, 100),
-		mbuf1:      make(expr.LinearExpression, 0, 100),
-		mbuf2:      make(expr.LinearExpression, 0, 100),
+		mbuf1:      make(expr.LinearExpression, 0, macCapacity),
+		mbuf2:      make(expr.LinearExpression, 0, macCapacity),
 	}
 
 	// by default the circuit is given a public wire equal to 1
