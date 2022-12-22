@@ -21,7 +21,6 @@ package pairing_bw6761
 import (
 	"fmt"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
-	"math/big"
 )
 
 type E6 struct {
@@ -33,7 +32,7 @@ type ext6 struct {
 }
 
 func (e ext6) String(x *E6) string {
-	return fmt.Sprintf("%s+(%s)*v", e.ext3.String(&x.B0), e.ext3.String(&x.B1))
+	return fmt.Sprintf("%s+(%s)*v\n", e.ext3.String(&x.B0), e.ext3.String(&x.B1))
 }
 
 func NewExt6(baseField *curveF) *ext6 {
@@ -129,8 +128,6 @@ func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	var t [7]*baseField
 
 	// t0 = g1²
-	a1, _ := e.fp.String(&x.B0.A1)
-	fmt.Println(a1)
 	t[0] = e.fp.MulMod(&x.B0.A1, &x.B0.A1)
 	// t1 = g5²
 	t[1] = e.fp.MulMod(&x.B1.A2, &x.B1.A2)
@@ -154,9 +151,8 @@ func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	// t6 = 2 * nr * g1 * g5
 	t[6] = MulByNonResidue(e.fp, t[5])
 	// t5 = 4 * nr * g1 * g5 + 2 * g3
-	two := big.NewInt(2)
 	t[5] = e.fp.Add(t[6], &x.B1.A0)
-	t[5] = e.fp.MulConst(t[5], two)
+	t[5] = e.fp.Add(t[5], t[5])
 	// z3 = 6 * nr * g1 * g5 + 2 * g3
 	z.B1.A0 = *e.fp.Add(t[5], t[6])
 
@@ -171,7 +167,7 @@ func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	t[1] = e.fp.MulMod(&x.B0.A2, &x.B0.A2)
 
 	// t6 = 2 * nr * g5² + 2 * g1² - 2*g2
-	t[6] = e.fp.MulConst(t[6], two)
+	t[6] = e.fp.Add(t[6], t[6])
 	// z2 = 3 * nr * g5² + 3 * g1² - 2*g2
 	z.B0.A2 = *e.fp.Add(t[6], t[5])
 
@@ -182,7 +178,7 @@ func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	// t6 = g3² + nr * g2² - g1
 	t[6] = e.fp.Sub(t[5], &x.B0.A1)
 	// t6 = 2 * g3² + 2 * nr * g2² - 2 * g1
-	t[6] = e.fp.MulConst(t[6], two)
+	t[6] = e.fp.Add(t[6], t[6])
 	// z1 = 3 * g3² + 3 * nr * g2² - 2 * g1
 	z.B0.A1 = *e.fp.Add(t[6], t[5])
 
@@ -193,7 +189,7 @@ func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	// t6 = 2 * g3 * g2 + g5
 	t[6] = e.fp.Add(t[5], &x.B1.A2)
 	// t6 = 4 * g3 * g2 + 2 * g5
-	t[6] = e.fp.MulConst(t[6], two)
+	t[6] = e.fp.Add(t[6], t[6])
 	// z5 = 6 * g3 * g2 + 2 * g5
 	z.B1.A2 = *e.fp.Add(t[5], t[6])
 
@@ -218,27 +214,27 @@ func (e ext6) DecompressKarabina(x *E6) *E6 {
 	// t0 = g1^2
 	t[0] = e.fp.MulMod(&x.B0.A1, &x.B0.A1)
 	// t1 = 3 * g1^2 - 2 * g2
-	two := big.NewInt(2)
 	t[1] = e.fp.Sub(t[0], &x.B0.A2)
-	t[1] = e.fp.MulConst(t[1], two)
+	t[1] = e.fp.Add(t[1], t[1])
 	t[1] = e.fp.Add(t[1], t[0])
 	// t0 = E * g5^2 + t1
 	t[2] = e.fp.MulMod(&x.B1.A2, &x.B1.A2)
 	t[0] = MulByNonResidue(e.fp, t[2])
 	t[0] = e.fp.Add(t[0], t[1])
 	// t1 = 1/(4 * g3)
-	t[1] = e.fp.MulConst(&x.B1.A0, two)
-	t[1] = e.fp.MulConst(t[1], two)
+	t[1] = e.fp.Add(&x.B1.A0, &x.B1.A0)
+	t[1] = e.fp.Add(t[1], t[1])
 
 	// z4 = g4
 	z.B1.A1 = *e.fp.Div(t[0], t[1]) // costly
+	a1 := z.B1.A1
 
 	// t1 = g2 * g1
 	t[1] = e.fp.MulMod(&x.B0.A2, &x.B0.A1)
 	// t2 = 2 * g4² - 3 * g2 * g1
-	t[2] = e.fp.MulMod(&x.B1.A1, &x.B1.A1)
+	t[2] = e.fp.MulMod(&a1, &a1)
 	t[2] = e.fp.Sub(t[2], t[1])
-	t[2] = e.fp.MulConst(t[2], two)
+	t[2] = e.fp.Add(t[2], t[2])
 	t[2] = e.fp.Sub(t[2], t[1])
 	// t1 = g3 * g5 (g3 can be 0)
 	t[1] = e.fp.MulMod(&x.B1.A0, &x.B1.A2)
@@ -297,25 +293,24 @@ func (e ext6) CyclotomicSquare(x *E6) *E6 {
 	t[4] = e.fp.Add(t[4], t[5]) // x5²*u + x1²
 
 	var z E6
-	two := big.NewInt(2)
 	z.B0.A0 = *e.fp.Sub(t[0], &x.B0.A0)
-	z.B0.A0 = *e.fp.MulConst(&z.B0.A0, two)
+	z.B0.A0 = *e.fp.Add(&z.B0.A0, &z.B0.A0)
 	z.B0.A0 = *e.fp.Add(&z.B0.A0, t[0])
 	z.B0.A1 = *e.fp.Sub(t[2], &x.B0.A1)
-	z.B0.A1 = *e.fp.MulConst(&z.B0.A1, two)
+	z.B0.A1 = *e.fp.Add(&z.B0.A1, &z.B0.A1)
 	z.B0.A1 = *e.fp.Add(&z.B0.A1, t[2])
 	z.B0.A2 = *e.fp.Sub(t[4], &x.B0.A2)
-	z.B0.A2 = *e.fp.MulConst(&z.B0.A2, two)
+	z.B0.A2 = *e.fp.Add(&z.B0.A2, &z.B0.A2)
 	z.B0.A2 = *e.fp.Add(&z.B0.A2, t[4])
 
 	z.B1.A0 = *e.fp.Add(t[8], &x.B1.A0)
-	z.B1.A0 = *e.fp.MulConst(&z.B1.A0, two)
+	z.B1.A0 = *e.fp.Add(&z.B1.A0, &z.B1.A0)
 	z.B1.A0 = *e.fp.Add(&z.B1.A0, t[8])
 	z.B1.A1 = *e.fp.Add(t[6], &x.B1.A1)
-	z.B1.A1 = *e.fp.MulConst(&z.B1.A1, two)
+	z.B1.A1 = *e.fp.Add(&z.B1.A1, &z.B1.A1)
 	z.B1.A1 = *e.fp.Add(&z.B1.A1, t[6])
 	z.B1.A2 = *e.fp.Add(t[7], &x.B1.A2)
-	z.B1.A2 = *e.fp.MulConst(&z.B1.A2, two)
+	z.B1.A2 = *e.fp.Add(&z.B1.A2, &z.B1.A2)
 	z.B1.A2 = *e.fp.Add(&z.B1.A2, t[7])
 
 	return &z

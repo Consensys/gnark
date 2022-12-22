@@ -141,9 +141,12 @@ func (circuit *pairingBW6761) Define(api frontend.API) error {
 	if err != nil {
 		panic(err)
 	}
-	pr.Pair([]*G1Affine{&circuit.A}, []*G2Affine{&circuit.B})
+	expected, err := pr.Pair([]*G1Affine{&circuit.A}, []*G2Affine{&circuit.B})
+	if err != nil {
+		return err
+	}
 
-	//pairingRes.Equal(api, circuit.C)
+	pr.Equal(expected, &circuit.C)
 
 	return nil
 }

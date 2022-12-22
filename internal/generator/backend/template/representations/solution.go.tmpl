@@ -3,7 +3,9 @@ import (
     "fmt"
 	"math/big"
 	"sync/atomic"
-
+	"strings"
+	"strconv"
+	"github.com/consensys/gnark/debug"
     "github.com/consensys/gnark/backend/hint"
     "github.com/consensys/gnark/constraint"
     "github.com/rs/zerolog"
@@ -18,11 +20,13 @@ type solution struct {
 	nbSolved             uint64
 	mHintsFunctions      map[hint.ID]hint.Function 	// maps hintID to hint function
 	mHints 				 map[int]*constraint.Hint 	// maps wireID to hint
+	st *debug.SymbolTable
 }
 
-func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint,  coefficients []fr.Element) (solution, error) {
+func newSolution( nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint,  coefficients []fr.Element, st *debug.SymbolTable) (solution, error) {
 
 	s := solution{
+			st: st, 
 			values: make([]fr.Element, nbWires),
 			coefficients: coefficients,
 			solved: make([]bool, nbWires),
@@ -172,7 +176,7 @@ func (s *solution) solveWithHint(vID int, h *constraint.Hint) error {
 			}
 			s.accumulateInto(term, &v)
 		}
-		v.ToBigIntRegular(inputs[i])
+		v.BigInt(inputs[i])
 	}
 
 
@@ -241,9 +245,24 @@ func (s *solution) logValue(log constraint.LogEntry) string {
 		}
 
 	}
+	if len(log.Stack) > 0 {
+		var sbb strings.Builder 
+		for _, lID :=  range log.Stack {
+			location := s.st.Locations[lID]
+			function := s.st.Functions[location.FunctionID]
+
+			sbb.WriteString(function.Name)
+			sbb.WriteByte('\n')
+			sbb.WriteByte('\t')
+			sbb.WriteString(function.Filename)
+			sbb.WriteByte(':')
+			sbb.WriteString(strconv.Itoa(int(location.Line)))
+			sbb.WriteByte('\n')
+		}
+		toResolve = append(toResolve, sbb.String())
+	}
 	return fmt.Sprintf(log.Format, toResolve...)
 }
-
 
 // UnsatisfiedConstraintError wraps an error with useful metadata on the unsatisfied constraint
 type UnsatisfiedConstraintError struct {

@@ -18,8 +18,6 @@
 
 package pairing_bw6761
 
-import "fmt"
-
 func (e ext6) nSquare(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
 		z = e.CyclotomicSquare(z)
@@ -29,7 +27,6 @@ func (e ext6) nSquare(z *E6, n int) *E6 {
 
 func (e ext6) nSquareCompressed(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
-		fmt.Println(i)
 		z = e.CyclotomicSquareCompressed(z)
 	}
 	return z
@@ -99,15 +96,15 @@ func (e ext6) Expc1(x *E6) *E6 {
 }
 
 // MulBy034 multiplication by sparse element (c0,0,0,c3,c4,0)
-func (e ext6) MulBy034(z *E6, c0, c3, c4 *baseField) *E6 {
+func (e ext6) MulBy034(z *E6, l *lineEvaluation) *E6 {
 
-	a := e.ext3.MulByElement(&z.B0, c0)
+	a := e.ext3.MulByElement(&z.B0, &l.r0)
 
-	b := e.ext3.MulBy01(&z.B1, c3, c4)
+	b := e.ext3.MulBy01(&z.B1, &l.r1, &l.r2)
 
-	c0 = e.fp.Add(c0, c3)
+	l.r0 = *e.fp.Add(&l.r0, &l.r1)
 	d := e.ext3.Add(&z.B0, &z.B1)
-	d = e.ext3.MulBy01(d, c0, c4)
+	d = e.ext3.MulBy01(d, &l.r0, &l.r2)
 
 	b1 := e.ext3.Add(a, b)
 	b1 = e.ext3.Neg(b1)

@@ -178,12 +178,12 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	}
 
 	// filter infinity points
-	p0 := make([]*G1Affine, 0, n)
-	q := make([]*G2Affine, 0, n)
+	p0 := make([]G1Affine, 0, n)
+	q := make([]G2Affine, 0, n)
 
 	for k := 0; k < n; k++ {
-		p0 = append(p0, P[k])
-		q = append(q, Q[k])
+		p0 = append(p0, *P[k])
+		q = append(q, *Q[k])
 	}
 
 	n = len(q)
@@ -197,20 +197,20 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	l10 := make([]lineEvaluation, n)
 	for k := 0; k < n; k++ {
 		p1[k].Y = *pr.fp.Neg(&p0[k].Y)
-		p1[k].X = *pr.fp.Mul(&p0[k].X, &thirdRootOneG2)
+		p1[k].X = *pr.fp.MulMod(&p0[k].X, &thirdRootOneG2)
 		pProj1[k].FromAffine(&pr, &p1[k])
 
 		// l_{p0,p1}(q)
-		pProj01[k].Set(pProj1[k])
-		pProj01[k].AddMixedStep(&pr, &l01[k], p0[k])
-		l01[k].r1 = *pr.fp.Mul(&l01[k].r1, &q[k].X)
-		l01[k].r0 = *pr.fp.Mul(&l01[k].r0, &q[k].Y)
+		pProj01[k].Set(&pProj1[k])
+		pProj01[k].AddMixedStep(&pr, &l01[k], &p0[k])
+		l01[k].r1 = *pr.fp.MulMod(&l01[k].r1, &q[k].X)
+		l01[k].r0 = *pr.fp.MulMod(&l01[k].r0, &q[k].Y)
 
 		// l_{p0,-p1}(q)
 		pProj10[k].Neg(&pr, &pProj1[k])
-		pProj10[k].AddMixedStep(&pr, &l10[k], p0[k])
-		l10[k].r1 = *pr.fp.Mul(&l10[k].r1, &q[k].X)
-		l10[k].r0 = *pr.fp.Mul(&l10[k].r0, &q[k].Y)
+		pProj10[k].AddMixedStep(&pr, &l10[k], &p0[k])
+		l10[k].r1 = *pr.fp.MulMod(&l10[k].r1, &q[k].X)
+		l10[k].r0 = *pr.fp.MulMod(&l10[k].r0, &q[k].Y)
 	}
 	p01 := BatchProjectiveToAffineG1(&pr, pProj01)
 	p10 := BatchProjectiveToAffineG1(&pr, pProj10)
@@ -223,11 +223,13 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 
 	// i = len(loopCounter) - 2
 	for k := 0; k < n; k++ {
-		pProj1[k].DoubleStep(pr, &l0)
-		l0.r1 = *pr.fp.Mul(&l0.r1, &q[k].X)
-		l0.r0 = *pr.fp.Mul(&l0.r0, &q[k].Y)
-		result = pr.MulBy034(result, &l0.r0, &l0.r1, &l0.r2)
+		pProj1[k].DoubleStep(&pr, &l0)
+		l0.r1 = *pr.fp.MulMod(&l0.r1, &q[k].X)
+		l0.r0 = *pr.fp.MulMod(&l0.r0, &q[k].Y)
+		result = pr.MulBy034(result, &l0)
 	}
+
+	//fmt.Println("1:", pr.String(result))
 
 	var tmp G1Affine
 	for i := len(loopCounter0) - 3; i >= 0; i-- {
@@ -237,72 +239,73 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 		j = loopCounter1[i]*3 + loopCounter0[i]
 
 		for k := 0; k < n; k++ {
-			pProj1[k].DoubleStep(pr, &l0)
-			l0.r1 = *pr.fp.Mul(&l0.r1, &q[k].X)
-			l0.r0 = *pr.fp.Mul(&l0.r0, &q[k].Y)
+			pProj1[k].DoubleStep(&pr, &l0)
+			l0.r1 = *pr.fp.MulMod(&l0.r1, &q[k].X)
+			l0.r0 = *pr.fp.MulMod(&l0.r0, &q[k].Y)
 
 			switch j {
 			case -4:
 				tmp.Neg(&pr, &p01[k])
 				pProj1[k].AddMixedStep(&pr, &l, &tmp)
-				l.r1 = *pr.fp.Mul(&l.r1, &q[k].X)
-				l.r0 = *pr.fp.Mul(&l.r0, &q[k].Y)
-				ss := *pr.Mul034By034(&l.r0, &l.r1, &l.r2, &l01[k].r0, &l01[k].r1, &l01[k].r2)
-				result = pr.MulBy034(result, &l0.r0, &l0.r1, &l0.r2)
-				result = pr.Mul(result, &ss)
+				l.r1 = *pr.fp.MulMod(&l.r1, &q[k].X)
+				l.r0 = *pr.fp.MulMod(&l.r0, &q[k].Y)
+				ss := pr.Mul034By034(&l.r0, &l.r1, &l.r2, &l01[k].r0, &l01[k].r1, &l01[k].r2)
+				result = pr.MulBy034(result, &l0)
+				result = pr.Mul(result, ss)
 			case -3:
 				tmp.Neg(&pr, &p1[k])
 				pProj1[k].AddMixedStep(&pr, &l, &tmp)
-				l.r1 = *pr.fp.Mul(&l.r1, &q[k].X)
-				l.r0 = *pr.fp.Mul(&l.r0, &q[k].Y)
+				l.r1 = *pr.fp.MulMod(&l.r1, &q[k].X)
+				l.r0 = *pr.fp.MulMod(&l.r0, &q[k].Y)
 				ss := pr.Mul034By034(&l.r0, &l.r1, &l.r2, &l0.r0, &l0.r1, &l0.r2)
 				result = pr.Mul(result, ss)
 			case -2:
 				pProj1[k].AddMixedStep(&pr, &l, &p10[k])
-				l.r1 = *pr.fp.Mul(&l.r1, &q[k].X)
-				l.r0 = *pr.fp.Mul(&l.r0, &q[k].Y)
+				l.r1 = *pr.fp.MulMod(&l.r1, &q[k].X)
+				l.r0 = *pr.fp.MulMod(&l.r0, &q[k].Y)
 				ss := pr.Mul034By034(&l.r0, &l.r1, &l.r2, &l01[k].r0, &l01[k].r1, &l01[k].r2)
-				result = pr.MulBy034(result, &l0.r0, &l0.r1, &l0.r2)
+				result = pr.MulBy034(result, &l0)
 				result = pr.Mul(result, ss)
 			case -1:
-				tmp.Neg(&pr, p0[k])
+				tmp.Neg(&pr, &p0[k])
 				pProj1[k].AddMixedStep(&pr, &l, &tmp)
-				l.r1 = *pr.fp.Mul(&l.r1, &q[k].X)
-				l.r0 = *pr.fp.Mul(&l.r0, &q[k].Y)
+				l.r1 = *pr.fp.MulMod(&l.r1, &q[k].X)
+				l.r0 = *pr.fp.MulMod(&l.r0, &q[k].Y)
 				ss := pr.Mul034By034(&l.r0, &l.r1, &l.r2, &l0.r0, &l0.r1, &l0.r2)
 				result = pr.Mul(result, ss)
 			case 0:
-				result = pr.MulBy034(result, &l0.r0, &l0.r1, &l0.r2)
+				result = pr.MulBy034(result, &l0)
 			case 1:
-				pProj1[k].AddMixedStep(&pr, &l, p0[k])
-				l.r1 = *pr.fp.Mul(&l.r1, &q[k].X)
-				l.r0 = *pr.fp.Mul(&l.r0, &q[k].Y)
+				pProj1[k].AddMixedStep(&pr, &l, &p0[k])
+				l.r1 = *pr.fp.MulMod(&l.r1, &q[k].X)
+				l.r0 = *pr.fp.MulMod(&l.r0, &q[k].Y)
 				ss := pr.Mul034By034(&l.r0, &l.r1, &l.r2, &l0.r0, &l0.r1, &l0.r2)
 				result = pr.Mul(result, ss)
 			case 2:
 				tmp.Neg(&pr, &p10[k])
 				pProj1[k].AddMixedStep(&pr, &l, &tmp)
-				l.r1 = *pr.fp.Mul(&l.r1, &q[k].X)
-				l.r0 = *pr.fp.Mul(&l.r0, &q[k].Y)
+				l.r1 = *pr.fp.MulMod(&l.r1, &q[k].X)
+				l.r0 = *pr.fp.MulMod(&l.r0, &q[k].Y)
 				ss := pr.Mul034By034(&l.r0, &l.r1, &l.r2, &l01[k].r0, &l01[k].r1, &l01[k].r2)
-				result = pr.MulBy034(result, &l0.r0, &l0.r1, &l0.r2)
+				result = pr.MulBy034(result, &l0)
 				result = pr.Mul(result, ss)
 			case 3:
 				pProj1[k].AddMixedStep(&pr, &l, &p1[k])
-				l.r1 = *pr.fp.Mul(&l.r1, &q[k].X)
-				l.r0 = *pr.fp.Mul(&l.r0, &q[k].Y)
+				l.r1 = *pr.fp.MulMod(&l.r1, &q[k].X)
+				l.r0 = *pr.fp.MulMod(&l.r0, &q[k].Y)
 				ss := pr.Mul034By034(&l.r0, &l.r1, &l.r2, &l0.r0, &l0.r1, &l0.r2)
 				result = pr.Mul(result, ss)
 			case 4:
 				pProj1[k].AddMixedStep(&pr, &l, &p01[k])
-				l.r1 = *pr.fp.Mul(&l.r1, &q[k].X)
-				l.r0 = *pr.fp.Mul(&l.r0, &q[k].Y)
+				l.r1 = *pr.fp.MulMod(&l.r1, &q[k].X)
+				l.r0 = *pr.fp.MulMod(&l.r0, &q[k].Y)
 				ss := pr.Mul034By034(&l.r0, &l.r1, &l.r2, &l01[k].r0, &l01[k].r1, &l01[k].r2)
-				result = pr.MulBy034(result, &l0.r0, &l0.r1, &l0.r2)
+				result = pr.MulBy034(result, &l0)
 				result = pr.Mul(result, ss)
 			default:
 				return nil, errors.New("invalid loopCounter")
 			}
+
 		}
 	}
 
@@ -311,15 +314,15 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 
 // DoubleStep doubles a point in Homogenous projective coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2013/722.pdf (Section 4.3)
-func (p *g1Proj) DoubleStep(pr Pairing, evaluations *lineEvaluation) {
+func (p *g1Proj) DoubleStep(pr *Pairing, evaluations *lineEvaluation) {
 
 	// get some Element from our pool
-	A := pr.fp.Mul(&p.x, &p.y)
+	A := pr.fp.MulMod(&p.x, &p.y)
 	//A.Halve()
 	two := emulated.NewElement[emulated.BW6761Fp](2)
 	A = pr.fp.Div(A, &two)
-	B := pr.fp.Mul(&p.y, &p.y)
-	C := pr.fp.Mul(&p.z, &p.z)
+	B := pr.fp.MulMod(&p.y, &p.y)
+	C := pr.fp.MulMod(&p.z, &p.z)
 	D := pr.fp.Add(C, C)
 	D = pr.fp.Add(D, C)
 
@@ -332,21 +335,21 @@ func (p *g1Proj) DoubleStep(pr Pairing, evaluations *lineEvaluation) {
 	//G.Halve()
 	G = pr.fp.Div(G, &two)
 	H := pr.fp.Add(&p.y, &p.z)
-	H = pr.fp.Mul(H, H)
+	H = pr.fp.MulMod(H, H)
 	t1 := pr.fp.Add(B, C)
 	H = pr.fp.Sub(H, t1)
 	I := pr.fp.Sub(E, B)
-	J := pr.fp.Mul(&p.x, &p.x)
-	EE := pr.fp.Mul(E, E)
+	J := pr.fp.MulMod(&p.x, &p.x)
+	EE := pr.fp.MulMod(E, E)
 	K := pr.fp.Add(EE, EE)
 	K = pr.fp.Add(K, EE)
 
 	// X, Y, Z
 	p.x = *pr.fp.Sub(B, F)
-	p.x = *pr.fp.Mul(&p.x, A)
-	p.y = *pr.fp.Mul(G, G)
+	p.x = *pr.fp.MulMod(&p.x, A)
+	p.y = *pr.fp.MulMod(G, G)
 	p.y = *pr.fp.Sub(&p.y, K)
-	p.z = *pr.fp.Mul(B, H)
+	p.z = *pr.fp.MulMod(B, H)
 
 	// Line evaluation
 	evaluations.r0 = *pr.fp.Neg(H)
@@ -360,29 +363,29 @@ func (p *g1Proj) DoubleStep(pr Pairing, evaluations *lineEvaluation) {
 func (p *g1Proj) AddMixedStep(pr *Pairing, evaluations *lineEvaluation, a *G1Affine) {
 
 	// get some Element from our pool
-	Y2Z1 := pr.fp.Mul(&a.Y, &p.z)
+	Y2Z1 := pr.fp.MulMod(&a.Y, &p.z)
 	O := pr.fp.Sub(&p.y, Y2Z1)
-	X2Z1 := pr.fp.Mul(&a.X, &p.z)
+	X2Z1 := pr.fp.MulMod(&a.X, &p.z)
 	L := pr.fp.Sub(&p.x, X2Z1)
-	C := pr.fp.Mul(O, O)
-	D := pr.fp.Mul(L, L)
-	E := pr.fp.Mul(L, D)
-	F := pr.fp.Mul(&p.z, C)
-	G := pr.fp.Mul(&p.x, D)
+	C := pr.fp.MulMod(O, O)
+	D := pr.fp.MulMod(L, L)
+	E := pr.fp.MulMod(L, D)
+	F := pr.fp.MulMod(&p.z, C)
+	G := pr.fp.MulMod(&p.x, D)
 	t0 := pr.fp.Add(G, G)
 	H := pr.fp.Add(E, F)
 	H = pr.fp.Sub(H, t0)
-	t1 := pr.fp.Mul(&p.y, E)
+	t1 := pr.fp.MulMod(&p.y, E)
 
 	// X, Y, Z
-	p.x = *pr.fp.Mul(L, H)
+	p.x = *pr.fp.MulMod(L, H)
 	p.y = *pr.fp.Sub(G, H)
-	p.y = *pr.fp.Mul(&p.y, O)
+	p.y = *pr.fp.MulMod(&p.y, O)
 	p.y = *pr.fp.Sub(&p.y, t1)
-	p.z = *pr.fp.Mul(E, &p.z)
+	p.z = *pr.fp.MulMod(E, &p.z)
 
-	t2 := pr.fp.Mul(L, &a.Y)
-	J := pr.fp.Mul(&a.X, O)
+	t2 := pr.fp.MulMod(L, &a.Y)
+	J := pr.fp.MulMod(&a.X, O)
 	J = pr.fp.Sub(J, t2)
 
 	// Line evaluation

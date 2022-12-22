@@ -22,7 +22,6 @@ import (
 	"fmt"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark/std/math/emulated"
-	"math/big"
 )
 
 type curveF = emulated.Field[emulated.BW6761Fp]
@@ -120,10 +119,10 @@ func (e ext3) Sub(x, y *E3) *E3 {
 
 // Double doubles an element in *E3
 func (e ext3) Double(x *E3) *E3 {
-	two := big.NewInt(2)
-	a0 := e.fp.MulConst(&x.A0, two)
-	a1 := e.fp.MulConst(&x.A1, two)
-	a2 := e.fp.MulConst(&x.A2, two)
+	//two := big.NewInt(2)
+	a0 := e.fp.Add(&x.A0, &x.A0)
+	a1 := e.fp.Add(&x.A1, &x.A1)
+	a2 := e.fp.Add(&x.A2, &x.A2)
 	return &E3{
 		A0: *a0,
 		A1: *a1,
@@ -132,6 +131,7 @@ func (e ext3) Double(x *E3) *E3 {
 }
 
 func MulByNonResidue(fp *curveF, x *baseField) *baseField {
+
 	//z := fp.Add(x, x)
 	//z = fp.Add(z, z)
 	//z = fp.Neg(z)
@@ -260,8 +260,7 @@ func (e ext3) Square(x *E3) *E3 {
 
 	// Algorithm 16 from https://eprint.iacr.org/2010/354.pdf
 
-	two := big.NewInt(2)
-	c6 := e.fp.MulConst(&x.A1, two)
+	c6 := e.fp.Add(&x.A1, &x.A1)
 	c4 := e.fp.MulMod(&x.A0, c6) // x.A0 * xA1 * 2
 	c5 := e.fp.MulMod(&x.A2, &x.A2)
 	c1 := MulByNonResidue(e.fp, c5)

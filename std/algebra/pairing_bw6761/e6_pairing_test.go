@@ -127,8 +127,8 @@ func TestExpc1Fp6(t *testing.T) {
 }
 
 type e6MulBy034 struct {
-	A, B       E6
-	C0, C3, C4 baseField
+	A, B E6
+	L    lineEvaluation
 }
 
 func (circuit *e6MulBy034) Define(api frontend.API) error {
@@ -137,7 +137,7 @@ func (circuit *e6MulBy034) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	circuit.A = *e.MulBy034(&circuit.A, &circuit.C0, &circuit.C3, &circuit.C4)
+	circuit.A = *e.MulBy034(&circuit.A, &circuit.L)
 	e.AssertIsEqual(&circuit.A, &circuit.B)
 	return nil
 }
@@ -156,13 +156,59 @@ func TestMulBy034Fp6(t *testing.T) {
 	b.MulBy034(&c0, &c3, &c4)
 
 	witness := e6MulBy034{
-		A:  NewE6(a),
-		C0: emulated.NewElement[emulated.BW6761Fp](c0Copy),
-		C3: emulated.NewElement[emulated.BW6761Fp](c3),
-		C4: emulated.NewElement[emulated.BW6761Fp](c4),
-		B:  NewE6(b),
+		A: NewE6(a),
+		L: lineEvaluation{
+			r0: emulated.NewElement[emulated.BW6761Fp](c0Copy),
+			r1: emulated.NewElement[emulated.BW6761Fp](c3),
+			r2: emulated.NewElement[emulated.BW6761Fp](c4),
+		},
+		B: NewE6(b),
 	}
 
 	err := test.IsSolved(&e6MulBy034{}, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type e6Mul034By034 struct {
+	D0, D3, D4 baseField
+	C0, C3, C4 baseField
+	Res        E6
+}
+
+func (circuit *e6Mul034By034) Define(api frontend.API) error {
+	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	e := NewExt6(nfield)
+	expected := e.Mul034By034(&circuit.D0, &circuit.D3, &circuit.D4, &circuit.C0, &circuit.C3, &circuit.C4)
+	e.AssertIsEqual(expected, &circuit.Res)
+	return nil
+}
+
+func TestMul034By034Fp6(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var a bw6761.E6
+	var d0, d3, d4, c0, c3, c4 fp.Element
+	d0.SetRandom()
+	d3.SetRandom()
+	d4.SetRandom()
+	c0.SetRandom()
+	c3.SetRandom()
+	c4.SetRandom()
+	a.Mul034By034(&d0, &d3, &d4, &c0, &c3, &c4)
+
+	witness := e6Mul034By034{
+		D0:  emulated.NewElement[emulated.BW6761Fp](d0),
+		D3:  emulated.NewElement[emulated.BW6761Fp](d3),
+		D4:  emulated.NewElement[emulated.BW6761Fp](d4),
+		C0:  emulated.NewElement[emulated.BW6761Fp](c0),
+		C3:  emulated.NewElement[emulated.BW6761Fp](c3),
+		C4:  emulated.NewElement[emulated.BW6761Fp](c4),
+		Res: NewE6(a),
+	}
+
+	err := test.IsSolved(&e6Mul034By034{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
