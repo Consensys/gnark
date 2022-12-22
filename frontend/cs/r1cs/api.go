@@ -599,7 +599,7 @@ func (builder *builder) Println(a ...frontend.Variable) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := builder.linearExpression(arg); ok {
+		if v, ok := arg.(expr.LinearExpression); ok {
 			assertIsSet(v)
 
 			sbb.WriteString("%s")

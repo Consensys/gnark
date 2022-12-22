@@ -215,7 +215,7 @@ func (builder *builder) MarkBoolean(v frontend.Variable) {
 		return
 	}
 	// v is a linear expression
-	l, _ := builder.linearExpression(v)
+	l := v.(expr.LinearExpression)
 	sort.Sort(l)
 
 	key := l.HashCode()
@@ -232,7 +232,7 @@ func (builder *builder) IsBoolean(v frontend.Variable) bool {
 		return (builder.isCstZero(&b) || builder.isCstOne(&b))
 	}
 	// v is a linear expression
-	l, _ := builder.linearExpression(v)
+	l := v.(expr.LinearExpression)
 	sort.Sort(l)
 
 	key := l.HashCode()
@@ -285,7 +285,7 @@ func (builder *builder) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 }
 
 func (builder *builder) constantValue(v frontend.Variable) (constraint.Coeff, bool) {
-	if _v, ok := builder.linearExpression(v); ok {
+	if _v, ok := v.(expr.LinearExpression); ok {
 		assertIsSet(_v)
 
 		if len(_v) != 1 {
@@ -361,7 +361,7 @@ func (builder *builder) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 	// TODO @gbotrel hint input pass
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		if t, ok := builder.linearExpression(in); ok {
+		if t, ok := in.(expr.LinearExpression); ok {
 			assertIsSet(t)
 			hintInputs[i] = builder.getLinearExpression(t)
 		} else {
@@ -448,14 +448,4 @@ func (builder *builder) compress(le expr.LinearExpression) expr.LinearExpression
 	t := builder.newInternalVariable()
 	builder.cs.AddConstraint(builder.newR1C(le, one, t))
 	return t
-}
-
-func (builder *builder) linearExpression(v frontend.Variable) (expr.LinearExpression, bool) {
-	switch t := v.(type) {
-	case expr.LinearExpression:
-		return t, true
-	case *expr.LinearExpression:
-		return *t, true
-	}
-	return nil, false
 }
