@@ -186,14 +186,6 @@ func (builder *scs) reduce(l expr.LinearExpressionToRefactor) expr.LinearExpress
 	return l
 }
 
-func (builder *scs) NewBuffer(int) frontend.Variable {
-	return builder.zero()
-}
-
-func (builder *scs) ResetBuffer(frontend.Variable) frontend.Variable {
-	return builder.zero()
-}
-
 // to handle wires that don't exist (=coef 0) in a sparse constraint
 func (builder *scs) zero() expr.TermToRefactor {
 	var a expr.TermToRefactor

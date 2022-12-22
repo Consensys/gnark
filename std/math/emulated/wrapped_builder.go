@@ -82,12 +82,3 @@ func (w *FieldAPI[T]) Commit(v ...frontend.Variable) (frontend.Variable, error) 
 	//TODO implement me
 	panic("not implemented")
 }
-
-func (w *FieldAPI[T]) NewBuffer(capacity int) frontend.Variable {
-	return NewElement[T](0)
-}
-
-func (w *FieldAPI[T]) ResetBuffer(b frontend.Variable) frontend.Variable {
-	// TODO reset b?
-	return NewElement[T](0)
-}

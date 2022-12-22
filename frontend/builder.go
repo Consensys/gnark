@@ -56,19 +56,6 @@ type Compiler interface {
 	// ! Experimental
 	// TENTATIVE: Functions regarding fiat-shamir-ed proofs over enormous statements  TODO finalize
 	Commit(...Variable) (Variable, error)
-
-	// NewBuffer allocates a new Variable set to 0 with set capacity to grow.
-	//
-	// This is useful in the context of R1CS where we can pre-allocate and re-use buffers
-	// to handle large linear expressions, see api.MAC for example.
-	// ! Experimental
-	NewBuffer(capacity int) Variable
-
-	// ResetBuffer resets a buffer to 0 but keeps its underlying capacity if set.
-	//
-	// Returned result is always 0.
-	// ! Experimental
-	ResetBuffer(Variable) Variable
 }
 
 // Builder represents a constraint system builder

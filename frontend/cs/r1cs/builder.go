@@ -114,19 +114,6 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 	return &builder
 }
 
-func (builder *builder) NewBuffer(capacity int) frontend.Variable {
-	r := make(expr.LinearExpression, 0, capacity)
-	r = append(r, expr.NewTerm(0, constraint.Coeff{}))
-	return r
-}
-
-func (builder *builder) ResetBuffer(b frontend.Variable) frontend.Variable {
-	r := builder.toVariable(b)
-	r = r[:0]
-	r = append(r, expr.NewTerm(0, constraint.Coeff{}))
-	return r
-}
-
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
 // the wire's id to the number of wires, and returns it
 func (builder *builder) newInternalVariable() expr.LinearExpression {
