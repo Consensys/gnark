@@ -168,7 +168,12 @@ func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int
 	}
 	// if the linear expression LE is too long then record an equality
 	// constraint LE * 1 = t and return short linear expression instead.
-	(*res) = builder.compress((*res))
+	compressed := builder.compress((*res))
+	if len(compressed) != len(*res) {
+		// we compressed, but don't want to override buffer
+		*res = (*res)[:0]
+		*res = append(*res, compressed...)
+	}
 
 	return *res
 }
