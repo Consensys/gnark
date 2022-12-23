@@ -132,9 +132,9 @@ func (e ext3) Double(x *E3) *E3 {
 
 func MulByNonResidue(fp *curveF, x *baseField) *baseField {
 
-	z := fp.Add(x, x)
+	z := fp.Neg(x)
 	z = fp.Add(z, z)
-	z = fp.Neg(z)
+	z = fp.Add(z, z)
 	//nonResidue := emulated.NewElement[emulated.BW6761Fp](-4)
 	//z := fp.Mul(x, &nonResidue)
 	//z := fp.MulConst(x, big.NewInt(-4))
