@@ -14,31 +14,31 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-var rc = [24]xuint64{
-	constUint64(0x0000000000000001),
-	constUint64(0x0000000000008082),
-	constUint64(0x800000000000808A),
-	constUint64(0x8000000080008000),
-	constUint64(0x000000000000808B),
-	constUint64(0x0000000080000001),
-	constUint64(0x8000000080008081),
-	constUint64(0x8000000000008009),
-	constUint64(0x000000000000008A),
-	constUint64(0x0000000000000088),
-	constUint64(0x0000000080008009),
-	constUint64(0x000000008000000A),
-	constUint64(0x000000008000808B),
-	constUint64(0x800000000000008B),
-	constUint64(0x8000000000008089),
-	constUint64(0x8000000000008003),
-	constUint64(0x8000000000008002),
-	constUint64(0x8000000000000080),
-	constUint64(0x000000000000800A),
-	constUint64(0x800000008000000A),
-	constUint64(0x8000000080008081),
-	constUint64(0x8000000000008080),
-	constUint64(0x0000000080000001),
-	constUint64(0x8000000080008008),
+var rc = [24]Xuint64{
+	ConstUint64(0x0000000000000001),
+	ConstUint64(0x0000000000008082),
+	ConstUint64(0x800000000000808A),
+	ConstUint64(0x8000000080008000),
+	ConstUint64(0x000000000000808B),
+	ConstUint64(0x0000000080000001),
+	ConstUint64(0x8000000080008081),
+	ConstUint64(0x8000000000008009),
+	ConstUint64(0x000000000000008A),
+	ConstUint64(0x0000000000000088),
+	ConstUint64(0x0000000080008009),
+	ConstUint64(0x000000008000000A),
+	ConstUint64(0x000000008000808B),
+	ConstUint64(0x800000000000008B),
+	ConstUint64(0x8000000000008089),
+	ConstUint64(0x8000000000008003),
+	ConstUint64(0x8000000000008002),
+	ConstUint64(0x8000000000000080),
+	ConstUint64(0x000000000000800A),
+	ConstUint64(0x800000008000000A),
+	ConstUint64(0x8000000080008081),
+	ConstUint64(0x8000000000008080),
+	ConstUint64(0x0000000080000001),
+	ConstUint64(0x8000000080008008),
 }
 var rotc = [24]int{
 	1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 2, 14,
@@ -52,11 +52,11 @@ var piln = [24]int{
 // Permute applies Keccak-F permutation on the input a and returns the permuted
 // vector. The input array must consist of 64-bit (unsigned) integers. The
 // returned array also contains 64-bit unsigned integers.
-func Permute(api frontend.API, a [25]frontend.Variable) [25]frontend.Variable {
-	var in [25]xuint64
-	uapi := newUint64API(api)
+func Permute(api frontend.API, a *[25]Xuint64) [25]frontend.Variable {
+	var in [25]Xuint64
+	uapi := NewUint64API(api)
 	for i := range a {
-		in[i] = uapi.asUint64(a[i])
+		in[i] = a[i]
 	}
 	res := permute(api, in)
 	var out [25]frontend.Variable
@@ -66,19 +66,19 @@ func Permute(api frontend.API, a [25]frontend.Variable) [25]frontend.Variable {
 	return out
 }
 
-func permute(api frontend.API, st [25]xuint64) [25]xuint64 {
-	uapi := newUint64API(api)
-	var t xuint64
-	var bc [5]xuint64
+func permute(api frontend.API, st [25]Xuint64) [25]Xuint64 {
+	uapi := NewUint64API(api)
+	var t Xuint64
+	var bc [5]Xuint64
 	for r := 0; r < 24; r++ {
 		// theta
 		for i := 0; i < 5; i++ {
-			bc[i] = uapi.xor(st[i], st[i+5], st[i+10], st[i+15], st[i+20])
+			bc[i] = uapi.Xor(st[i], st[i+5], st[i+10], st[i+15], st[i+20])
 		}
 		for i := 0; i < 5; i++ {
-			t = uapi.xor(bc[(i+4)%5], uapi.lrot(bc[(i+1)%5], 1))
+			t = uapi.Xor(bc[(i+4)%5], uapi.lrot(bc[(i+1)%5], 1))
 			for j := 0; j < 25; j += 5 {
-				st[j+i] = uapi.xor(st[j+i], t)
+				st[j+i] = uapi.Xor(st[j+i], t)
 			}
 		}
 		// rho pi
@@ -96,11 +96,11 @@ func permute(api frontend.API, st [25]xuint64) [25]xuint64 {
 				bc[i] = st[j+i]
 			}
 			for i := 0; i < 5; i++ {
-				st[j+i] = uapi.xor(st[j+i], uapi.and(uapi.not(bc[(i+1)%5]), bc[(i+2)%5]))
+				st[j+i] = uapi.Xor(st[j+i], uapi.And(uapi.not(bc[(i+1)%5]), bc[(i+2)%5]))
 			}
 		}
 		// iota
-		st[0] = uapi.xor(st[0], rc[r])
+		st[0] = uapi.Xor(st[0], rc[r])
 	}
 	return st
 }
