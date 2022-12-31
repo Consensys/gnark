@@ -34,6 +34,9 @@ func (e ext6) nSquareCompressed(z *E6, n int) *E6 {
 
 // Expt set z to x^t in *E6 and return z
 func (e ext6) Expt(x *E6) *E6 {
+	// TODO reduce first
+	x = e.Reduce(x)
+
 	// const tAbsVal uint64 = 9586122913090633729
 	// tAbsVal in binary: 1000010100001000110000000000000000000000000000000000000000000001
 	// drop the low 46 bits (all 0 except the least significant bit): 100001010000100011 = 136227
@@ -63,6 +66,8 @@ func (e ext6) Expt(x *E6) *E6 {
 // ht, hy = 13, 9
 // c1 = ht+hy = 22 (10110)
 func (e ext6) Expc2(x *E6) *E6 {
+	// TODO reduce first
+	x = e.Reduce(x)
 
 	result := e.CyclotomicSquare(x)
 	result = e.CyclotomicSquare(result)
@@ -78,6 +83,8 @@ func (e ext6) Expc2(x *E6) *E6 {
 // ht, hy = 13, 9
 // c1 = ht**2+3*hy**2 = 412 (110011100)
 func (e ext6) Expc1(x *E6) *E6 {
+	// TODO reduce first
+	x = e.Reduce(x)
 
 	result := e.CyclotomicSquare(x)
 	result = e.Mul(result, x)
@@ -97,6 +104,8 @@ func (e ext6) Expc1(x *E6) *E6 {
 
 // MulBy034 multiplication by sparse element (c0,0,0,c3,c4,0)
 func (e ext6) MulBy034(z *E6, l *lineEvaluation) *E6 {
+	// TODO reduce first
+	z = e.Reduce(z)
 
 	a := e.ext3.MulByElement(&z.B0, &l.r0)
 
@@ -120,22 +129,30 @@ func (e ext6) MulBy034(z *E6, l *lineEvaluation) *E6 {
 
 // Mul034By034 multiplication of sparse element (c0,0,0,c3,c4,0) by sparse element (d0,0,0,d3,d4,0)
 func (e ext6) Mul034By034(d0, d3, d4, c0, c3, c4 *baseField) *E6 {
-	x0 := e.fp.MulMod(c0, d0)
-	x3 := e.fp.MulMod(c3, d3)
-	x4 := e.fp.MulMod(c4, d4)
+	// TODO reduce first
+	//d0 = e.fp.Reduce(d0)
+	//d3 = e.fp.Reduce(d3)
+	//d4 = e.fp.Reduce(d4)
+	//c0 = e.fp.Reduce(c0)
+	//c3 = e.fp.Reduce(c3)
+	//c4 = e.fp.Reduce(c4)
+
+	x0 := e.fp.Mul(c0, d0)
+	x3 := e.fp.Mul(c3, d3)
+	x4 := e.fp.Mul(c4, d4)
 	tmp := e.fp.Add(c0, c4)
 	x04 := e.fp.Add(d0, d4)
-	x04 = e.fp.MulMod(x04, tmp)
+	x04 = e.fp.Mul(x04, tmp)
 	x04 = e.fp.Sub(x04, x0)
 	x04 = e.fp.Sub(x04, x4)
 	tmp = e.fp.Add(c0, c3)
 	x03 := e.fp.Add(d0, d3)
-	x03 = e.fp.MulMod(x03, tmp)
+	x03 = e.fp.Mul(x03, tmp)
 	x03 = e.fp.Sub(x03, x0)
 	x03 = e.fp.Sub(x03, x3)
 	tmp = e.fp.Add(c3, c4)
 	x34 := e.fp.Add(d3, d4)
-	x34 = e.fp.MulMod(x34, tmp)
+	x34 = e.fp.Mul(x34, tmp)
 	x34 = e.fp.Sub(x34, x3)
 	x34 = e.fp.Sub(x34, x4)
 

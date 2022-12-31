@@ -34,12 +34,12 @@ var (
 func (e ext6) Frobenius(x *E6) *E6 {
 	var z E6
 	z.B0.A0 = x.B0.A0
-	z.B0.A1 = *e.fp.MulMod(&x.B0.A1, &_frobA)
-	z.B0.A2 = *e.fp.MulMod(&x.B0.A2, &_frobB)
+	z.B0.A1 = *e.fp.Mul(&x.B0.A1, &_frobA)
+	z.B0.A2 = *e.fp.Mul(&x.B0.A2, &_frobB)
 
-	z.B1.A0 = *e.fp.MulMod(&x.B1.A0, &_frobC)
-	z.B1.A1 = *e.fp.MulMod(&x.B1.A1, &_frobAC)
-	z.B1.A2 = *e.fp.MulMod(&x.B1.A2, &_frobBC)
+	z.B1.A0 = *e.fp.Mul(&x.B1.A0, &_frobC)
+	z.B1.A1 = *e.fp.Mul(&x.B1.A1, &_frobAC)
+	z.B1.A2 = *e.fp.Mul(&x.B1.A2, &_frobBC)
 
 	return &z
 }

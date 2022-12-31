@@ -56,6 +56,8 @@ func TestExptFp6(t *testing.T) {
 		B: NewE6(b),
 	}
 
+	// add=4011683 equals=39002 fromBinary=0 mul=3954956 sub=39153 toBinary=0
+	// add=4011683 equals=39002 fromBinary=0 mul=3954956 sub=39153 toBinary=0
 	err := test.IsSolved(&e6Expt{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -89,6 +91,8 @@ func TestExpc2Fp6(t *testing.T) {
 		B: NewE6(b),
 	}
 
+	// add=287618 equals=4068 fromBinary=0 mul=281540 sub=3690 toBinary=0
+	// add=197836 equals=3048 fromBinary=0 mul=188488 sub=3810 toBinary=0
 	err := test.IsSolved(&e6Expc2{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -122,13 +126,14 @@ func TestExpc1Fp6(t *testing.T) {
 		B: NewE6(b),
 	}
 
+	// add=578954 equals=8028 fromBinary=0 mul=566870 sub=7248 toBinary=0
 	err := test.IsSolved(&e6Expc1{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
 type e6MulBy034 struct {
-	A, B E6
-	L    lineEvaluation
+	A, B       E6
+	R0, R1, R2 baseField
 }
 
 func (circuit *e6MulBy034) Define(api frontend.API) error {
@@ -137,8 +142,12 @@ func (circuit *e6MulBy034) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	circuit.A = *e.MulBy034(&circuit.A, &circuit.L)
-	e.AssertIsEqual(&circuit.A, &circuit.B)
+	var l lineEvaluation
+	l.r0 = circuit.R0
+	l.r1 = circuit.R1
+	l.r2 = circuit.R2
+	expected := e.MulBy034(&circuit.A, &l)
+	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }
 
@@ -156,15 +165,14 @@ func TestMulBy034Fp6(t *testing.T) {
 	b.MulBy034(&c0, &c3, &c4)
 
 	witness := e6MulBy034{
-		A: NewE6(a),
-		L: lineEvaluation{
-			r0: emulated.NewElement[emulated.BW6761Fp](c0Copy),
-			r1: emulated.NewElement[emulated.BW6761Fp](c3),
-			r2: emulated.NewElement[emulated.BW6761Fp](c4),
-		},
-		B: NewE6(b),
+		A:  NewE6(a),
+		R0: emulated.NewElement[emulated.BW6761Fp](c0Copy),
+		R1: emulated.NewElement[emulated.BW6761Fp](c3),
+		R2: emulated.NewElement[emulated.BW6761Fp](c4),
+		B:  NewE6(b),
 	}
 
+	//  add=54322 equals=823 fromBinary=0 mul=53414 sub=702 toBinary=0
 	err := test.IsSolved(&e6MulBy034{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -209,6 +217,7 @@ func TestMul034By034Fp6(t *testing.T) {
 		Res: NewE6(a),
 	}
 
+	// add=28733 equals=438 fromBinary=0 mul=28386 sub=401 toBinary=0
 	err := test.IsSolved(&e6Mul034By034{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }

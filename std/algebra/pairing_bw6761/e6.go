@@ -35,6 +35,13 @@ func (e ext6) String(x *E6) string {
 	return fmt.Sprintf("%s+(%s)*v\n", e.ext3.String(&x.B0), e.ext3.String(&x.B1))
 }
 
+func (e ext6) Reduce(x *E6) *E6 {
+	var z E6
+	z.B0 = *e.ext3.Reduce(&x.B0)
+	z.B1 = *e.ext3.Reduce(&x.B1)
+	return &z
+}
+
 func NewExt6(baseField *curveF) *ext6 {
 	return &ext6{ext3: NewExt3(baseField)}
 }
@@ -83,6 +90,10 @@ func (e ext6) Double(x *E6) *E6 {
 
 // Mul set z=x*y in *E6 and return z
 func (e ext6) Mul(x, y *E6) *E6 {
+	// TODO reduce first
+	x = e.Reduce(x)
+	y = e.Reduce(y)
+
 	a := e.ext3.Add(&x.B0, &x.B1)
 	b := e.ext3.Add(&y.B0, &y.B1)
 	a = e.ext3.Mul(a, b)
@@ -100,6 +111,8 @@ func (e ext6) Mul(x, y *E6) *E6 {
 
 // Square set z=x*x in *E6 and return z
 func (e ext6) Square(x *E6) *E6 {
+	// TODO reduce first
+	//x = e.Reduce(x)
 
 	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
 	c0 := e.ext3.Sub(&x.B0, &x.B1)
@@ -123,18 +136,21 @@ func (e ext6) Square(x *E6) *E6 {
 // https://eprint.iacr.org/2010/542.pdf
 // Th. 3.2 with minor modifications to fit our tower
 func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
+	// TODO reduce first
+	x = e.Reduce(x)
+
 	z := e.Set(x)
 
 	var t [7]*baseField
 
 	// t0 = g1²
-	t[0] = e.fp.MulMod(&x.B0.A1, &x.B0.A1)
+	t[0] = e.fp.Mul(&x.B0.A1, &x.B0.A1)
 	// t1 = g5²
-	t[1] = e.fp.MulMod(&x.B1.A2, &x.B1.A2)
+	t[1] = e.fp.Mul(&x.B1.A2, &x.B1.A2)
 	// t5 = g1 + g5
 	t[5] = e.fp.Add(&x.B0.A1, &x.B1.A2)
 	// t2 = (g1 + g5)²
-	t[2] = e.fp.MulMod(t[5], t[5])
+	t[2] = e.fp.Mul(t[5], t[5])
 
 	// t3 = g1² + g5²
 	t[3] = e.fp.Add(t[0], t[1])
@@ -144,9 +160,9 @@ func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	// t6 = g3 + g2
 	t[6] = e.fp.Add(&x.B1.A0, &x.B0.A2)
 	// t3 = (g3 + g2)²
-	t[3] = e.fp.MulMod(t[6], t[6])
+	t[3] = e.fp.Mul(t[6], t[6])
 	// t2 = g3²
-	t[2] = e.fp.MulMod(&x.B1.A0, &x.B1.A0)
+	t[2] = e.fp.Mul(&x.B1.A0, &x.B1.A0)
 
 	// t6 = 2 * nr * g1 * g5
 	t[6] = MulByNonResidue(e.fp, t[5])
@@ -164,7 +180,7 @@ func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	t[6] = e.fp.Sub(t[5], &x.B0.A2)
 
 	// t1 = g2²
-	t[1] = e.fp.MulMod(&x.B0.A2, &x.B0.A2)
+	t[1] = e.fp.Mul(&x.B0.A2, &x.B0.A2)
 
 	// t6 = 2 * nr * g5² + 2 * g1² - 2*g2
 	t[6] = e.fp.Add(t[6], t[6])
@@ -205,6 +221,10 @@ func (e ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 // if g3=g2=0 then g4=g5=g1=0 and g0=1 (x=1)
 // Theorem 3.1 is well-defined for all x in Gϕₙ\{1}
 func (e ext6) DecompressKarabina(x *E6) *E6 {
+
+	// TODO reduce first
+	x = e.Reduce(x)
+
 	var z E6
 
 	var t [3]*baseField
@@ -212,13 +232,13 @@ func (e ext6) DecompressKarabina(x *E6) *E6 {
 	one = e.fp.One()
 
 	// t0 = g1^2
-	t[0] = e.fp.MulMod(&x.B0.A1, &x.B0.A1)
+	t[0] = e.fp.Mul(&x.B0.A1, &x.B0.A1)
 	// t1 = 3 * g1^2 - 2 * g2
 	t[1] = e.fp.Sub(t[0], &x.B0.A2)
 	t[1] = e.fp.Add(t[1], t[1])
 	t[1] = e.fp.Add(t[1], t[0])
 	// t0 = E * g5^2 + t1
-	t[2] = e.fp.MulMod(&x.B1.A2, &x.B1.A2)
+	t[2] = e.fp.Mul(&x.B1.A2, &x.B1.A2)
 	t[0] = MulByNonResidue(e.fp, t[2])
 	t[0] = e.fp.Add(t[0], t[1])
 	// t1 = 1/(4 * g3)
@@ -227,17 +247,18 @@ func (e ext6) DecompressKarabina(x *E6) *E6 {
 
 	// z4 = g4
 	z.B1.A1 = *e.fp.Div(t[0], t[1]) // costly
+	// TODO
 	a1 := z.B1.A1
 
 	// t1 = g2 * g1
-	t[1] = e.fp.MulMod(&x.B0.A2, &x.B0.A1)
+	t[1] = e.fp.Mul(&x.B0.A2, &x.B0.A1)
 	// t2 = 2 * g4² - 3 * g2 * g1
-	t[2] = e.fp.MulMod(&a1, &a1)
+	t[2] = e.fp.Mul(&a1, &a1)
 	t[2] = e.fp.Sub(t[2], t[1])
 	t[2] = e.fp.Add(t[2], t[2])
 	t[2] = e.fp.Sub(t[2], t[1])
 	// t1 = g3 * g5 (g3 can be 0)
-	t[1] = e.fp.MulMod(&x.B1.A0, &x.B1.A2)
+	t[1] = e.fp.Mul(&x.B1.A0, &x.B1.A2)
 	// c₀ = E * (2 * g4² + g3 * g5 - 3 * g2 * g1) + 1
 	t[2] = e.fp.Add(t[2], t[1])
 
@@ -263,24 +284,27 @@ func (e ext6) CyclotomicSquare(x *E6) *E6 {
 	//					6*x0*x4 + 2*x4,
 	//					6*x2*x3 + 2*x5)
 
+	// TODO reduce first
+	x = e.Reduce(x)
+
 	var t [9]*baseField
 
-	t[0] = e.fp.MulMod(&x.B1.A1, &x.B1.A1)
-	t[1] = e.fp.MulMod(&x.B0.A0, &x.B0.A0)
+	t[0] = e.fp.Mul(&x.B1.A1, &x.B1.A1)
+	t[1] = e.fp.Mul(&x.B0.A0, &x.B0.A0)
 	t[6] = e.fp.Add(&x.B1.A1, &x.B0.A0)
-	t[6] = e.fp.MulMod(t[6], t[6])
+	t[6] = e.fp.Mul(t[6], t[6])
 	t[6] = e.fp.Sub(t[6], t[0])
 	t[6] = e.fp.Sub(t[6], t[1]) // 2*x4*x0
-	t[2] = e.fp.MulMod(&x.B0.A2, &x.B0.A2)
-	t[3] = e.fp.MulMod(&x.B1.A0, &x.B1.A0)
+	t[2] = e.fp.Mul(&x.B0.A2, &x.B0.A2)
+	t[3] = e.fp.Mul(&x.B1.A0, &x.B1.A0)
 	t[7] = e.fp.Add(&x.B0.A2, &x.B1.A0)
-	t[7] = e.fp.MulMod(t[7], t[7])
+	t[7] = e.fp.Mul(t[7], t[7])
 	t[7] = e.fp.Sub(t[7], t[2])
 	t[7] = e.fp.Sub(t[7], t[3]) // 2*x2*x3
-	t[4] = e.fp.MulMod(&x.B1.A2, &x.B1.A2)
-	t[5] = e.fp.MulMod(&x.B0.A1, &x.B0.A1)
+	t[4] = e.fp.Mul(&x.B1.A2, &x.B1.A2)
+	t[5] = e.fp.Mul(&x.B0.A1, &x.B0.A1)
 	t[8] = e.fp.Add(&x.B1.A2, &x.B0.A1)
-	t[8] = e.fp.MulMod(t[8], t[8])
+	t[8] = e.fp.Mul(t[8], t[8])
 	t[8] = e.fp.Sub(t[8], t[4])
 	t[8] = e.fp.Sub(t[8], t[5])
 	t[8] = MulByNonResidue(e.fp, t[8]) // 2*x5*x1*u
@@ -320,6 +344,8 @@ func (e ext6) CyclotomicSquare(x *E6) *E6 {
 //
 // if x == 0, sets and returns z = x
 func (e ext6) Inverse(x *E6) *E6 {
+	// TODO reduce first
+	//x = e.Reduce(x)
 	// Algorithm 23 from https://eprint.iacr.org/2010/354.pdf
 
 	t0 := e.ext3.Square(&x.B0)

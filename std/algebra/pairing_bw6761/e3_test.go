@@ -57,6 +57,7 @@ func TestAddFp3(t *testing.T) {
 		C: NewE3(c),
 	}
 
+	// add=3597 equals=54 fromBinary=0 mul=3495 sub=66 toBinary=0
 	err := test.IsSolved(&e3Add{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -91,6 +92,7 @@ func TestSubFp3(t *testing.T) {
 		C: NewE3(c),
 	}
 
+	// add=3564 equals=54 fromBinary=0 mul=3495 sub=99 toBinary=0
 	err := test.IsSolved(&e3Sub{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -123,6 +125,7 @@ func TestNegFp3(t *testing.T) {
 		B: NewE3(b),
 	}
 
+	// add=3564 equals=54 fromBinary=0 mul=3495 sub=99 toBinary=0
 	err := test.IsSolved(&e3Neg{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -155,6 +158,7 @@ func TestDoubleFp3(t *testing.T) {
 		B: NewE3(b),
 	}
 
+	// add=3597 equals=54 fromBinary=0 mul=3495 sub=66 toBinary=0
 	err := test.IsSolved(&e3Double{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -189,6 +193,8 @@ func TestMulFp3(t *testing.T) {
 		C: NewE3(c),
 	}
 
+	// add=25301 equals=384 fromBinary=0 mul=24891 sub=346 toBinary=0
+	// add=14158 equals=228 fromBinary=0 mul=13677 sub=294 toBinary=0
 	err := test.IsSolved(&e3Mul{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -222,6 +228,7 @@ func TestMulByNonResidueFp3(t *testing.T) {
 		B: NewE3(b),
 	}
 
+	// add=3586 equals=54 fromBinary=0 mul=3495 sub=77 toBinary=0
 	err := test.IsSolved(&e3MulByNonResidue{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -259,6 +266,8 @@ func TestMulByElementFp3(t *testing.T) {
 		B: NewE3(b),
 	}
 
+	// add=14163 equals=219 fromBinary=0 mul=14127 sub=162 toBinary=0
+	// add=10734 equals=165 fromBinary=0 mul=10764 sub=126 toBinary=0
 	err := test.IsSolved(&e3MulByElement{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -298,6 +307,8 @@ func TestMulBy01Fp3(t *testing.T) {
 		B:  NewE3(b),
 	}
 
+	// add=21570 equals=329 fromBinary=0 mul=21303 sub=281 toBinary=0
+	// add=13029 equals=207 fromBinary=0 mul=12750 sub=231 toBinary=0
 	err := test.IsSolved(&e3MulBy01{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -330,6 +341,8 @@ func TestSquareFp3(t *testing.T) {
 		B: NewE3(b),
 	}
 
+	// add=21702 equals=329 fromBinary=0 mul=21391 sub=281 toBinary=0
+	// add=13287 equals=207 fromBinary=0 mul=12904 sub=221 toBinary=0
 	err := test.IsSolved(&e3Square{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -362,6 +375,7 @@ func TestInverseFp3(t *testing.T) {
 		B: NewE3(b),
 	}
 
+	// add=50605 equals=769 fromBinary=0 mul=50315 sub=558 toBinary=0
 	err := test.IsSolved(&e3Inverse{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
@@ -394,6 +408,7 @@ func TestConjugateFp3(t *testing.T) {
 		B: NewE3(b),
 	}
 
+	// add=3542 equals=54 fromBinary=0 mul=3495 sub=77 toBinary=0
 	err := test.IsSolved(&e3Conjugate{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }

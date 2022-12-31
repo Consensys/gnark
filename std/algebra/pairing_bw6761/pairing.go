@@ -228,11 +228,15 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 		l0.r0 = *pr.fp.MulMod(&l0.r0, &q[k].Y)
 		result = pr.MulBy034(result, &l0)
 	}
+	// TODO reduce first
+	//result = pr.Reduce(result)
 
 	//fmt.Println("1:", pr.String(result))
 
 	var tmp G1Affine
 	for i := len(loopCounter0) - 3; i >= 0; i-- {
+		// TODO reduce first
+		result = pr.Reduce(result)
 		// (∏ᵢfᵢ)²
 		result = pr.Square(result)
 
@@ -315,6 +319,10 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 // DoubleStep doubles a point in Homogenous projective coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2013/722.pdf (Section 4.3)
 func (p *g1Proj) DoubleStep(pr *Pairing, evaluations *lineEvaluation) {
+	// TODO reduce first
+	//p.x = *pr.fp.Reduce(&p.x)
+	//p.y = *pr.fp.Reduce(&p.y)
+	//p.z = *pr.fp.Reduce(&p.z)
 
 	// get some Element from our pool
 	A := pr.fp.MulMod(&p.x, &p.y)
@@ -384,6 +392,11 @@ func (p *g1Proj) AddMixedStep(pr *Pairing, evaluations *lineEvaluation, a *G1Aff
 	p.y = *pr.fp.Sub(&p.y, t1)
 	p.z = *pr.fp.MulMod(E, &p.z)
 
+	// TODO reduce first
+	//p.x = *pr.fp.Reduce(&p.x)
+	//p.y = *pr.fp.Reduce(&p.y)
+	//p.z = *pr.fp.Reduce(&p.z)
+
 	t2 := pr.fp.MulMod(L, &a.Y)
 	J := pr.fp.MulMod(&a.X, O)
 	J = pr.fp.Sub(J, t2)
@@ -392,4 +405,9 @@ func (p *g1Proj) AddMixedStep(pr *Pairing, evaluations *lineEvaluation, a *G1Aff
 	evaluations.r0 = *L
 	evaluations.r1 = *pr.fp.Neg(O)
 	evaluations.r2 = *J
+
+	// TODO reduce
+	//evaluations.r0 = *pr.fp.Reduce(&evaluations.r0)
+	//evaluations.r1 = *pr.fp.Reduce(&evaluations.r1)
+	//evaluations.r2 = *pr.fp.Reduce(&evaluations.r2)
 }
