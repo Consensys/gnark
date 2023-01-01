@@ -67,7 +67,7 @@ func (e ext6) Expt(x *E6) *E6 {
 // c1 = ht+hy = 22 (10110)
 func (e ext6) Expc2(x *E6) *E6 {
 	// TODO reduce first
-	x = e.Reduce(x)
+	//x = e.Reduce(x)
 
 	result := e.CyclotomicSquare(x)
 	result = e.CyclotomicSquare(result)

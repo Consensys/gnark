@@ -103,6 +103,11 @@ func (e ext6) Mul(x, y *E6) *E6 {
 	b1 = e.ext3.Sub(b1, c)
 	b0 := e.ext3.MulByNonResidue(c)
 	b0 = e.ext3.Add(b0, b)
+
+	// TODO reduce
+	//b0 = e.ext3.Reduce(b0)
+	//b1 = e.ext3.Reduce(b1)
+
 	return &E6{
 		B0: *b0,
 		B1: *b1,

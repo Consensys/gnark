@@ -87,7 +87,7 @@ func BatchProjectiveToAffineG1(pr *Pairing, points []g1Proj) []G1Affine {
 		//	continue
 		//}
 		result[i].X = *accumulator
-		accumulator = pr.fp.Mul(accumulator, &points[i].z)
+		accumulator = pr.fp.MulMod(accumulator, &points[i].z)
 	}
 
 	accInverse := pr.fp.Inverse(accumulator)
@@ -97,8 +97,8 @@ func BatchProjectiveToAffineG1(pr *Pairing, points []g1Proj) []G1Affine {
 		//	// do nothing, (X=0, Y=0) is infinity point in affine
 		//	continue
 		//}
-		result[i].X = *pr.fp.Mul(&result[i].X, accInverse)
-		accInverse = pr.fp.Mul(accInverse, &points[i].z)
+		result[i].X = *pr.fp.MulMod(&result[i].X, accInverse)
+		accInverse = pr.fp.MulMod(accInverse, &points[i].z)
 	}
 
 	// batch convert to affine.
@@ -108,8 +108,8 @@ func BatchProjectiveToAffineG1(pr *Pairing, points []g1Proj) []G1Affine {
 		//	continue
 		//}
 		a := result[i].X
-		result[i].X = *pr.fp.Mul(&points[i].x, &a)
-		result[i].Y = *pr.fp.Mul(&points[i].y, &a)
+		result[i].X = *pr.fp.MulMod(&points[i].x, &a)
+		result[i].Y = *pr.fp.MulMod(&points[i].y, &a)
 	}
 	return result
 }

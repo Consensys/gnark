@@ -228,10 +228,6 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 		l0.r0 = *pr.fp.MulMod(&l0.r0, &q[k].Y)
 		result = pr.MulBy034(result, &l0)
 	}
-	// TODO reduce first
-	//result = pr.Reduce(result)
-
-	//fmt.Println("1:", pr.String(result))
 
 	var tmp G1Affine
 	for i := len(loopCounter0) - 3; i >= 0; i-- {
@@ -325,7 +321,7 @@ func (p *g1Proj) DoubleStep(pr *Pairing, evaluations *lineEvaluation) {
 	//p.z = *pr.fp.Reduce(&p.z)
 
 	// get some Element from our pool
-	A := pr.fp.MulMod(&p.x, &p.y)
+	A := pr.fp.Mul(&p.x, &p.y)
 	//A.Halve()
 	two := emulated.NewElement[emulated.BW6761Fp](2)
 	A = pr.fp.Div(A, &two)

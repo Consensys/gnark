@@ -84,18 +84,18 @@ func TestMillerLoopBW6761(t *testing.T) {
 	}
 }
 
-type doubleMillerLoopBW6761 struct {
-	A1, A2 G1Affine
-	B1, B2 G2Affine
-	C      GT
+type tripleMillerLoopBW6761 struct {
+	A1, A2, A3 G1Affine
+	B1, B2, B3 G2Affine
+	C          GT
 }
 
-func (circuit *doubleMillerLoopBW6761) Define(api frontend.API) error {
+func (circuit *tripleMillerLoopBW6761) Define(api frontend.API) error {
 	pr, err := NewPairing(api)
 	if err != nil {
 		panic(err)
 	}
-	expected, err := pr.MillerLoop([]*G1Affine{&circuit.A1, &circuit.A2}, []*G2Affine{&circuit.B1, &circuit.B2})
+	expected, err := pr.MillerLoop([]*G1Affine{&circuit.A1, &circuit.A2, &circuit.A3}, []*G2Affine{&circuit.B1, &circuit.B2, &circuit.B3})
 	if err != nil {
 		return err
 	}
@@ -111,34 +111,40 @@ func TestDoubleMillerLoopBW6761(t *testing.T) {
 		fmt.Println("round:", i)
 		// witness values
 		var (
-			a1, a2 bw6761.G1Affine
-			b1, b2 bw6761.G2Affine
-			c      bw6761.GT
-			r1, _  = rand.Int(rand.Reader, fr.Modulus())
-			r2, _  = rand.Int(rand.Reader, fr.Modulus())
-			r3, _  = rand.Int(rand.Reader, fr.Modulus())
-			r4, _  = rand.Int(rand.Reader, fr.Modulus())
+			a1, a2, a3 bw6761.G1Affine
+			b1, b2, b3 bw6761.G2Affine
+			c          bw6761.GT
+			r1, _      = rand.Int(rand.Reader, fr.Modulus())
+			r2, _      = rand.Int(rand.Reader, fr.Modulus())
+			r3, _      = rand.Int(rand.Reader, fr.Modulus())
+			r4, _      = rand.Int(rand.Reader, fr.Modulus())
+			r5, _      = rand.Int(rand.Reader, fr.Modulus())
+			r6, _      = rand.Int(rand.Reader, fr.Modulus())
 		)
 		_, _, g1, g2 := bw6761.Generators()
 
 		a1.ScalarMultiplication(&g1, r1)
 		a2.ScalarMultiplication(&g1, r2)
-		b1.ScalarMultiplication(&g2, r3)
-		b2.ScalarMultiplication(&g2, r4)
-		c, err := bw6761.MillerLoop([]bw6761.G1Affine{a1, a2}, []bw6761.G2Affine{b1, b2})
+		a3.ScalarMultiplication(&g1, r3)
+		b1.ScalarMultiplication(&g2, r4)
+		b2.ScalarMultiplication(&g2, r5)
+		b3.ScalarMultiplication(&g2, r6)
+		c, err := bw6761.MillerLoop([]bw6761.G1Affine{a1, a2, a3}, []bw6761.G2Affine{b1, b2, b3})
 		if err != nil {
 			panic(err)
 		}
 
-		witness := doubleMillerLoopBW6761{
+		witness := tripleMillerLoopBW6761{
 			A1: NewG1Affine(a1),
 			A2: NewG1Affine(a2),
+			A3: NewG1Affine(a3),
 			B1: NewG2Affine(b1),
 			B2: NewG2Affine(b2),
+			B3: NewG2Affine(b3),
 			C:  NewE6(c),
 		}
 
-		err = test.IsSolved(&doubleMillerLoopBW6761{}, &witness, testCurve.ScalarField())
+		err = test.IsSolved(&tripleMillerLoopBW6761{}, &witness, testCurve.ScalarField())
 		assert.NoError(err)
 	}
 }
