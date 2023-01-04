@@ -3,7 +3,7 @@ package gkr
 import (
 	"fmt"
 	"github.com/consensys/gnark/frontend"
-	"math/big"
+	"github.com/consensys/gnark/internal/gkr"
 	"math/bits"
 )
 
@@ -17,32 +17,19 @@ type API struct {
 
 type CircuitData struct {
 	Sorted             []*Wire
-	CircuitInputsIndex [][]int
 	NbInstances        int
-	AssignmentVector   []*big.Int
-	InputDependencies  inputDependencies // InputDependencies indexes first by instance then input wire
+	CircuitInputsIndex [][]int
 	InputIndexes       []int
-	MaxGateDegree      int
 }
 
 type Variable *Wire
-
-type InputDependency struct {
-	Output         Variable
-	OutputInstance int
-}
-
-type IndexedInputDependency struct {
-	OutputInstance  int
-	OutputWireIndex int
-}
 
 func (i *API) NbInstances() int {
 	return 1 << i.logNbInstances
 }
 
-func NewApi() *API {
-	return &API{circuit: make(Circuit, 0), assignments: make(map[Variable][]frontend.Variable)}
+func NewGkrApi() *API {
+	return &API{circuit: make(Circuit, 0), assignments: make(map[Variable][]frontend.Variable), logNbInstances: -1}
 	/*var res API
 	res.inOutEqualities = make([][2]int, len(inOutEqualities))
 	copy(res.inOutEqualities, inOutEqualities)
@@ -74,7 +61,7 @@ func logNbInstances(nbInstances uint) int {
 	if bits.OnesCount(nbInstances) != 1 {
 		return -1
 	}
-	return bits.LeadingZeros(nbInstances)
+	return bits.TrailingZeros(nbInstances)
 }
 
 func (i *API) Series(input, output Variable, inputInstance, outputInstance int) *API {
@@ -94,7 +81,9 @@ func (i *API) Import(assignment []frontend.Variable) (Variable, error) {
 	if logNbInstances == -1 {
 		return nil, fmt.Errorf("number of assignments must be a power of 2")
 	}
-	if logNbInstances != i.logNbInstances {
+	if i.logNbInstances == -1 {
+		i.logNbInstances = logNbInstances
+	} else if logNbInstances != i.logNbInstances {
 		return nil, fmt.Errorf("number of assignments must be consistent across all variables")
 	}
 	i.circuit = append(i.circuit, Wire{
@@ -121,7 +110,7 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 	}
 	i.compiled = true
 
-	i.circuitData.Sorted = TopologicalSort(i.circuit)
+	i.circuitData.Sorted = topologicalSort(i.circuit)
 	i.circuitData.NbInstances = 1 << i.logNbInstances
 	indexes := circuitIndexMap(i.circuitData.Sorted)
 	i.circuitData.CircuitInputsIndex, i.circuitData.InputIndexes =
@@ -151,9 +140,11 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 		}
 	}
 
-	solveHint := func(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
-		return fmt.Errorf("not implemented")
-	}
+	i.circuitData.Sorted = topologicalSort(i.circuit)
+	indexMap := circuitIndexMap(i.circuitData.Sorted)
+	i.circuitData.CircuitInputsIndex, i.circuitData.InputIndexes = circuitInputsIndex(i.circuitData.Sorted, indexMap)
+
+	solveHint := gkr.SolveHint(&i.circuitData)
 
 	outsSerialized, err := parentApi.Compiler().NewHint(solveHint, solveHintNOut, ins...)
 	if err != nil {
@@ -200,7 +191,17 @@ func circuitInputsIndex(sorted []*Wire, indexes map[*Wire]int) ([][]int, []int) 
 	return res, inputIndexes
 }
 
-type inputDependencies [][]IndexedInputDependency
+type InputDependency struct {
+	Output         *Wire
+	OutputInstance int
+}
+
+type IndexedInputDependency struct {
+	OutputInstance  int
+	OutputWireIndex int
+}
+
+type inputDependencies [][]IndexedInputDependency // instance first, then wire
 
 func (d inputDependencies) NbDependencies(inputIndex int) int {
 	count := 0

@@ -4,7 +4,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
-	genericGkr "github.com/consensys/gnark/std/gkr"
+	//stdGkr "github.com/consensys/gnark/std/gkr"
+	"math/big"
 )
 
 type solvingStatus byte
@@ -17,7 +18,7 @@ const (
 
 type solver struct {
 	assignment [][]fr.Element //wire first, instance second
-	d          genericGkr.CircuitData
+	d          *stdGkr.CircuitData
 	circuit    gkr.Circuit
 	status     []solvingStatus
 	offsets    []int // per wire
@@ -65,7 +66,7 @@ func (s solver) complete(i int) {
 	s.pool.Dump(ins)
 }
 
-func Solve(circuitData genericGkr.CircuitData, circuit gkr.Circuit) gkr.WireAssignment {
+func Solve(circuitData *stdGkr.CircuitData, circuit gkr.Circuit) gkr.WireAssignment {
 	solver := solver{
 		assignment: make([][]fr.Element, len(circuit)),
 		d:          circuitData,
@@ -88,4 +89,25 @@ func Solve(circuitData genericGkr.CircuitData, circuit gkr.Circuit) gkr.WireAssi
 		res[&circuit[i]] = solver.assignment[i]
 	}
 	return res
+}
+
+func SolveHint(data interface{}, ins []*big.Int, outs []*big.Int) error {
+	circuitData := data.(*stdGkr.CircuitData)
+	circuit := convertCircuit(circuitData)
+	circuitData.TypedCircuit = circuit
+	circuitData.AssignmentVector = ins
+	assignments := Solve(circuitData, circuit)
+	circuitData.TypedAssignment = assignments
+
+	outI := 0
+	for i, w := range circuitData.Sorted {
+		if w.IsOutput() {
+			assignmentW := assignments[&circuit[i]]
+			for j := range assignmentW {
+				assignmentW[outI].BigInt(outs[outI+j])
+			}
+		}
+	}
+
+	return nil
 }

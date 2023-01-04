@@ -6,10 +6,11 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	genericGkr "github.com/consensys/gnark/std/gkr"
+	"github.com/consensys/gnark/std/gkr/api"
 	"math/big"
 )
 
-func ConvertGate(gate genericGkr.Gate) gkr.Gate {
+func convertGate(gate genericGkr.Gate) gkr.Gate {
 	return gateConverter{gate: gate}
 }
 
@@ -21,10 +22,10 @@ func Map[T, S any](in []T, f func(T) S) []S {
 	return out
 }
 
-func ConvertCircuit(d genericGkr.CircuitData) gkr.Circuit {
+func convertCircuit(d *api.CircuitData) gkr.Circuit {
 	resCircuit := make(gkr.Circuit, len(d.Sorted))
 	for i := range d.Sorted {
-		resCircuit[i].Gate = ConvertGate(d.Sorted[i].Gate)
+		resCircuit[i].Gate = convertGate(d.Sorted[i].Gate)
 		resCircuit[i].Inputs = Map(d.CircuitInputsIndex[i], func(index int) *gkr.Wire {
 			return &resCircuit[i]
 		})

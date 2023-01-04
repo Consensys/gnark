@@ -13,7 +13,7 @@ type mulNoDependencyCircuit struct {
 }
 
 func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
-	gkr := NewApi()
+	gkr := NewGkrApi()
 	var x, y frontend.Variable
 	var err error
 	if x, err = gkr.Import(c.X); err != nil {

@@ -104,7 +104,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	if testCase, err = getTestCase(c.TestCaseName); err != nil {
 		return err
 	}
-	sorted := TopologicalSort(testCase.Circuit)
+	sorted := topologicalSort(testCase.Circuit)
 
 	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
 		return err
@@ -120,7 +120,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
-	sorted := TopologicalSort(c)
+	sorted := topologicalSort(c)
 	res := make(WireAssignment, len(inputValues)+len(outputValues))
 	inI, outI := 0, 0
 	for _, w := range sorted {
@@ -254,22 +254,9 @@ var gates map[string]Gate
 func init() {
 	gates = make(map[string]Gate)
 	gates["identity"] = IdentityGate{}
-	gates["mul"] = mulGate{}
+	gates["mul"] = MulGate{}
 	gates["mimc"] = mimcCipherGate{ark: 0} //TODO: Add ark
 	gates["select-input-3"] = _select(2)
-}
-
-type mulGate struct{}
-
-func (g mulGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
-	if len(x) != 2 {
-		panic("mul has fan-in 2")
-	}
-	return api.Mul(x[0], x[1])
-}
-
-func (g mulGate) Degree() int {
-	return 2
 }
 
 type mimcCipherGate struct {
@@ -335,7 +322,7 @@ func TestLogNbInstances(t *testing.T) {
 		return func(t *testing.T) {
 			testCase, err := getTestCase(path)
 			assert.NoError(t, err)
-			wires := TopologicalSort(testCase.Circuit)
+			wires := topologicalSort(testCase.Circuit)
 			serializedProof := testCase.Proof.Serialize()
 			logNbInstances := computeLogNbInstances(wires, len(serializedProof))
 			assert.Equal(t, 1, logNbInstances)

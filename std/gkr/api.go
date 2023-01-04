@@ -6,6 +6,33 @@ import (
 	"math/big"
 )
 
+func Map[T, S any](in []T, f func(T) S) []S {
+	out := make([]S, len(in))
+	for i, t := range in {
+		out[i] = f(t)
+	}
+	return out
+}
+
+func frontendVarToPtr(a frontend.Variable) *Wire {
+	return a.(Variable)
+}
+
+func (i *API) newVar(gate Gate, in []frontend.Variable) Variable {
+	i.circuit = append(i.circuit, Wire{Gate: gate, Inputs: Map(in, frontendVarToPtr)})
+	return &i.circuit[len(i.circuit)-1]
+}
+
+func (i *API) newVar2PlusIn(gate Gate, in1, in2 frontend.Variable, in ...frontend.Variable) Variable {
+	inCombined := make([]frontend.Variable, 2+len(in))
+	inCombined[0] = in1
+	inCombined[1] = in2
+	for i := range in {
+		inCombined[i+2] = in[i]
+	}
+	return i.newVar(gate, inCombined)
+}
+
 func (i *API) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	//TODO implement me
 	panic("implement me")
@@ -22,8 +49,7 @@ func (i *API) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Va
 }
 
 func (i *API) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	return i.newVar2PlusIn(MulGate{}, i1, i2, in...)
 }
 
 func (i *API) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {

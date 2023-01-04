@@ -194,7 +194,7 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 	}
 
 	if o.sorted == nil {
-		o.sorted = TopologicalSort(c)
+		o.sorted = topologicalSort(c)
 	}
 
 	if transcriptSettings.Transcript == nil {
@@ -425,12 +425,12 @@ func statusList(c Circuit) []int {
 	return res
 }
 
-// TopologicalSort sorts the wires in order of dependence. Such that for any wire, any one it depends on
+// topologicalSort sorts the wires in order of dependence. Such that for any wire, any one it depends on
 // occurs before it. It tries to stick to the input order as much as possible. An already sorted list will remain unchanged.
 // It also sets the nbOutput flags, and a dummy IdentityGate for input wires.
 // Worst-case inefficient O(n^2), but that probably won't matter since the circuits are small.
 // Furthermore, it is efficient with already-close-to-sorted lists, which are the expected input
-func TopologicalSort(c Circuit) []*Wire {
+func topologicalSort(c Circuit) []*Wire {
 	var data topSortData
 	data.index = indexMap(c)
 	data.outputs = outputsList(c, data.index)
@@ -525,4 +525,17 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
 	}
 	return proof, nil
+}
+
+type MulGate struct{}
+
+func (g MulGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 2 {
+		panic("mul has fan-in 2")
+	}
+	return api.Mul(x[0], x[1])
+}
+
+func (g MulGate) Degree() int {
+	return 2
 }
