@@ -2,21 +2,28 @@ package gkr
 
 import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	curveGkr "github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"math/big"
 )
 
-func convertGate(gate Gate) curveGkr.Gate {
+type bn254CircuitData struct {
+	assignments gkr.WireAssignment
+	circuit     gkr.Circuit
+	memoryPool  polynomial.Pool
+}
+
+func convertGate(gate Gate) gkr.Gate {
 	return gateConverter{gate: gate}
 }
 
-func convertCircuit(d *circuitData) curveGkr.Circuit {
-	resCircuit := make(curveGkr.Circuit, len(d.sorted))
+func convertCircuit(d *circuitData) gkr.Circuit {
+	resCircuit := make(gkr.Circuit, len(d.sorted))
 	for i := range d.sorted {
 		resCircuit[i].Gate = convertGate(d.sorted[i].Gate)
-		resCircuit[i].Inputs = Map(d.circuitInputsIndex[i], func(index int) *curveGkr.Wire {
+		resCircuit[i].Inputs = Map(d.circuitInputsIndex[i], func(index int) *gkr.Wire {
 			return &resCircuit[i]
 		})
 	}
