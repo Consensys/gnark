@@ -1,32 +1,22 @@
-package bn254
+package gkr
 
 import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
+	curveGkr "github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
-	genericGkr "github.com/consensys/gnark/std/gkr"
-	"github.com/consensys/gnark/std/gkr/api"
 	"math/big"
 )
 
-func convertGate(gate genericGkr.Gate) gkr.Gate {
+func convertGate(gate Gate) curveGkr.Gate {
 	return gateConverter{gate: gate}
 }
 
-func Map[T, S any](in []T, f func(T) S) []S {
-	out := make([]S, len(in))
-	for i, t := range in {
-		out[i] = f(t)
-	}
-	return out
-}
-
-func convertCircuit(d *api.CircuitData) gkr.Circuit {
-	resCircuit := make(gkr.Circuit, len(d.Sorted))
-	for i := range d.Sorted {
-		resCircuit[i].Gate = convertGate(d.Sorted[i].Gate)
-		resCircuit[i].Inputs = Map(d.CircuitInputsIndex[i], func(index int) *gkr.Wire {
+func convertCircuit(d *circuitData) curveGkr.Circuit {
+	resCircuit := make(curveGkr.Circuit, len(d.sorted))
+	for i := range d.sorted {
+		resCircuit[i].Gate = convertGate(d.sorted[i].Gate)
+		resCircuit[i].Inputs = Map(d.circuitInputsIndex[i], func(index int) *curveGkr.Wire {
 			return &resCircuit[i]
 		})
 	}
@@ -34,7 +24,7 @@ func convertCircuit(d *api.CircuitData) gkr.Circuit {
 }
 
 type gateConverter struct {
-	gate genericGkr.Gate
+	gate Gate
 	api  gateConversionApi
 }
 
@@ -42,7 +32,7 @@ func (c gateConverter) Degree() int {
 	return c.gate.Degree()
 }
 
-func newGateConverter(gate genericGkr.Gate) gateConverter {
+func newGateConverter(gate Gate) gateConverter {
 	return gateConverter{
 		gate: gate,
 		api:  gateConversionApi{},

@@ -2,24 +2,30 @@ package gkr
 
 import (
 	"fmt"
+	bn254Fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/gkr"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/hash/mimc"
+	"math/big"
 	"math/bits"
 )
 
 type API struct {
 	compiled       bool
 	logNbInstances int
-	circuitData    CircuitData
+	circuitData    circuitData
 	circuit        Circuit
-	assignments    map[Variable][]frontend.Variable
+	assignments    WireAssignment
 }
 
-type CircuitData struct {
-	Sorted             []*Wire
-	NbInstances        int
-	CircuitInputsIndex [][]int
-	InputIndexes       []int
+type circuitData struct {
+	sorted             []*Wire
+	nbInstances        int
+	circuitInputsIndex [][]int // circuitInputsIndex is the circuit structure, but with indexes instead of pointers
+	inputIndexes       []int
+	inputDependencies  inputDependencies
+	maxGateDegree      int
+	assignments        interface{} // curve-dependent type. for communication between solver and prover
 }
 
 type Variable *Wire
@@ -29,34 +35,10 @@ func (i *API) NbInstances() int {
 }
 
 func NewGkrApi() *API {
-	return &API{circuit: make(Circuit, 0), assignments: make(map[Variable][]frontend.Variable), logNbInstances: -1}
-	/*var res API
-	res.inOutEqualities = make([][2]int, len(inOutEqualities))
-	copy(res.inOutEqualities, inOutEqualities)
-	sort.Slice(res.inOutEqualities, func(i int, j int) bool {
-		if res.inOutEqualities[i][0] < res.inOutEqualities[j][0] {
-			return true
-		}
-		return res.inOutEqualities[i][1] < res.inOutEqualities[j][1]
-	})
-
-
-	if len(inOutEqualities) == 0 {
-		res.nbOutputBoundIns = 0
-	} else {
-		res.nbOutputBoundIns = 1
-		for i := 1; i < len(res.inOutEqualities); i++ {
-			if res.inOutEqualities[i][0] != res.inOutEqualities[i][1] {
-
-			}
-		}
-	}
-	res.inOutEqualities = inOutEqualities
-	res.circuit = make(Circuit, 0, len(inOutEqualities))
-
-	return res*/
+	return &API{circuit: make(Circuit, 0), assignments: make(WireAssignment), logNbInstances: -1}
 }
 
+// logNbInstances returns -1 if nbInstances is not a power of 2
 func logNbInstances(nbInstances uint) int {
 	if bits.OnesCount(nbInstances) != 1 {
 		return -1
@@ -65,7 +47,7 @@ func logNbInstances(nbInstances uint) int {
 }
 
 func (i *API) Series(input, output Variable, inputInstance, outputInstance int) *API {
-	i.assignments[input][inputInstance] = InputDependency{
+	i.assignments[input][inputInstance] = inputDependency{
 		Output:         output,
 		OutputInstance: outputInstance,
 	}
@@ -96,7 +78,7 @@ func (i *API) Import(assignment []frontend.Variable) (Variable, error) {
 func (i *API) nbInputValueAssignments(variable Variable) int {
 	res := 0
 	for j := range i.assignments[variable] {
-		if _, ok := i.assignments[variable][j].(InputDependency); !ok {
+		if _, ok := i.assignments[variable][j].(inputDependency); !ok {
 			res++
 		}
 	}
@@ -110,21 +92,20 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 	}
 	i.compiled = true
 
-	i.circuitData.Sorted = topologicalSort(i.circuit)
-	i.circuitData.NbInstances = 1 << i.logNbInstances
-	indexes := circuitIndexMap(i.circuitData.Sorted)
-	i.circuitData.CircuitInputsIndex, i.circuitData.InputIndexes =
-		circuitInputsIndex(i.circuitData.Sorted, indexes)
+	i.circuitData.sorted = topologicalSort(i.circuit) // unnecessary(?) but harmless
+	i.circuitData.nbInstances = 1 << i.logNbInstances
+	indexMap := circuitIndexMap(i.circuitData.sorted)
+	i.circuitData.circuitInputsIndex, i.circuitData.inputIndexes =
+		circuitInputsIndex(i.circuitData.sorted, indexMap)
 
 	solveHintNIn := 0
-	//solveHintNOut := ProofSize(i.circuit, i.logNbInstances)
 	solveHintNOut := 0
 	for j := range i.circuit {
 		v := &i.circuit[j]
 		if v.IsInput() {
 			solveHintNIn += i.nbInputValueAssignments(v)
 		} else if v.IsOutput() {
-			solveHintNOut += i.circuitData.NbInstances
+			solveHintNOut += i.circuitData.nbInstances
 		}
 	}
 
@@ -133,39 +114,68 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 		if i.circuit[j].IsInput() {
 			assignment := i.assignments[&i.circuit[j]]
 			for k := range assignment {
-				if _, ok := assignment[k].(InputDependency); !ok {
+				if _, ok := assignment[k].(inputDependency); !ok {
 					ins = append(ins, assignment[k])
 				}
 			}
+		} else {
+			i.circuitData.maxGateDegree = max(i.circuitData.maxGateDegree, i.circuit[j].Gate.Degree())
 		}
 	}
 
-	i.circuitData.Sorted = topologicalSort(i.circuit)
-	indexMap := circuitIndexMap(i.circuitData.Sorted)
-	i.circuitData.CircuitInputsIndex, i.circuitData.InputIndexes = circuitInputsIndex(i.circuitData.Sorted, indexMap)
+	i.circuitData.circuitInputsIndex, i.circuitData.inputIndexes = circuitInputsIndex(i.circuitData.sorted, indexMap)
 
-	solveHint := gkr.SolveHint(&i.circuitData)
-
-	outsSerialized, err := parentApi.Compiler().NewHint(solveHint, solveHintNOut, ins...)
+	outsSerialized, err := parentApi.Compiler().NewHint(solveHint(&i.circuitData), solveHintNOut, ins...)
 	if err != nil {
 		return nil, err
 	}
 
-	outs := make([][]frontend.Variable, len(outsSerialized)/i.circuitData.NbInstances)
+	outs := make([][]frontend.Variable, len(outsSerialized)/i.circuitData.nbInstances)
 
-	offset := 0
 	for j := range outs {
-		outs[j] = outsSerialized[offset : offset+i.circuitData.NbInstances]
-		offset += i.circuitData.NbInstances
+		outs[j] = outsSerialized[:i.circuitData.nbInstances]
+		outsSerialized = outsSerialized[i.circuitData.nbInstances:]
+	}
+
+	var (
+		proofSerialized []frontend.Variable
+		proof           Proof
+		_mimc           mimc.MiMC
+	)
+	if proofSerialized, err = parentApi.Compiler().NewHint(proveHint(&i.circuitData), ProofSize(i.circuit, i.logNbInstances)); // , outsSerialized[0]	<- do this as a hack if order of execution got messed up
+	err != nil {
+		return nil, err
+	}
+	if proof, err = DeserializeProof(i.circuitData.sorted, proofSerialized); err != nil {
+		return nil, err
+	}
+	if _mimc, err = mimc.NewMiMC(parentApi); err != nil {
+		return nil, err
+	}
+
+	i.addOutAssignments(outs)
+	if err = Verify(parentApi, i.circuit, i.assignments, proof, fiatshamir.WithHash(&_mimc), WithSortedCircuit(i.circuitData.sorted)); err != nil { // TODO: Security critical: do a proper transcriptSetting
+
 	}
 
 	return outs, nil
 }
 
-// Verify produces a subcircuit guaranteeing the correctness of the solved values
-func (i *API) Verify(statement []frontend.Variable) error {
-	return fmt.Errorf("not implemented")
+func (i *API) addOutAssignments(outs [][]frontend.Variable) {
+	// TODO: Increase map size here, since we already know how many we're adding?
+	outI := 0
+	for _, w := range i.circuitData.sorted {
+		if w.IsOutput() {
+			i.assignments[w] = outs[outI]
+			outI++
+		}
+	}
 }
+
+// Verify produces a subcircuit guaranteeing the correctness of the solved values
+//func (i *API) Verify(statement []frontend.Variable) error {
+//	return fmt.Errorf("not implemented")
+//}
 
 func circuitIndexMap(sorted []*Wire) map[*Wire]int {
 	indexes := make(map[*Wire]int, len(sorted))
@@ -175,6 +185,7 @@ func circuitIndexMap(sorted []*Wire) map[*Wire]int {
 	return indexes
 }
 
+// circuitInputsIndex returns a description of the circuit, with indexes instead of pointers. It also returns the indexes of the input wires
 func circuitInputsIndex(sorted []*Wire, indexes map[*Wire]int) ([][]int, []int) {
 	res := make([][]int, len(sorted))
 	inputIndexes := make([]int, 0)
@@ -182,28 +193,32 @@ func circuitInputsIndex(sorted []*Wire, indexes map[*Wire]int) ([][]int, []int) 
 		if w.IsInput() {
 			inputIndexes = append(inputIndexes, i)
 		}
-		res[i] = make([]int, len(w.Inputs))
-		for j, v := range w.Inputs {
-			res[i][j] = indexes[v]
-		}
+		res[i] = Map(w.Inputs, func(v *Wire) int {
+			return indexes[v] // is it possible to pass a reference to a particular map object's [] operator?
+		})
 	}
 
 	return res, inputIndexes
 }
 
-type InputDependency struct {
+type inputDependency struct {
 	Output         *Wire
 	OutputInstance int
 }
 
-type IndexedInputDependency struct {
+type indexedInputDependency struct {
 	OutputInstance  int
 	OutputWireIndex int
 }
 
-type inputDependencies [][]IndexedInputDependency // instance first, then wire
+type inputDependencies [][]indexedInputDependency // instance first, then wire
 
-func (d inputDependencies) NbDependencies(inputIndex int) int {
+// inputIndex denotes the index of an input wire AMONG INPUT wires, so that if the intended wire is say, #2 but wire #1 is not an input wire, the inputIndex would be at most 1
+func (d inputDependencies) get(inputIndex, instance int) indexedInputDependency {
+	return d[instance][inputIndex]
+}
+
+func (d inputDependencies) nbDependencies(inputIndex int) int {
 	count := 0
 	for _, instance := range d {
 		if instance[inputIndex].OutputWireIndex != -1 {
@@ -211,4 +226,24 @@ func (d inputDependencies) NbDependencies(inputIndex int) int {
 		}
 	}
 	return count
+}
+
+// solveHint the hint returns the outputs, indexed by output (ordered by SORTED circuit) first and instance second
+func solveHint(data *circuitData) func(*big.Int, []*big.Int, []*big.Int) error {
+	return func(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
+		switch mod {
+		case bn254Fr.Modulus():
+			return bn254SolveHint(data, ins, outs)
+		}
+		return fmt.Errorf("unknow modulus")
+	}
+}
+
+func proveHint(data *circuitData) func(*big.Int, []*big.Int, []*big.Int) error {
+	return func(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
+		if data.assignments == nil {
+			return fmt.Errorf("attempting to run the prove hint before the solve hint is done. find a way to create a dependence between them (perhaps an output of the solver to be input to the prover as a hack)")
+		}
+		return fmt.Errorf("not implemented")
+	}
 }
