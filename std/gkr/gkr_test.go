@@ -344,3 +344,51 @@ func TestLoadCircuit(t *testing.T) {
 	assert.Equal(t, []*Wire{&c[1]}, c[2].Inputs)
 
 }
+
+func TestTopSortTrivial(t *testing.T) {
+	c := make(Circuit, 2)
+	c[0].Inputs = []*Wire{&c[1]}
+	sorted := topologicalSort(c)
+	assert.Equal(t, []*Wire{&c[1], &c[0]}, sorted)
+}
+
+func TestTopSortSingleGate(t *testing.T) {
+	c := make(Circuit, 3)
+	c[0].Inputs = []*Wire{&c[1], &c[2]}
+	sorted := topologicalSort(c)
+	expected := []*Wire{&c[1], &c[2], &c[0]}
+	assert.True(t, test_vector_utils.SliceEqual(sorted, expected)) //TODO: Remove
+	test_vector_utils.AssertSliceEqual(t, sorted, expected)
+	assert.Equal(t, c[0].nbUniqueOutputs, 0)
+	assert.Equal(t, c[1].nbUniqueOutputs, 1)
+	assert.Equal(t, c[2].nbUniqueOutputs, 1)
+}
+
+func TestTopSortDeep(t *testing.T) {
+	c := make(Circuit, 4)
+	c[0].Inputs = []*Wire{&c[2]}
+	c[1].Inputs = []*Wire{&c[3]}
+	c[2].Inputs = []*Wire{}
+	c[3].Inputs = []*Wire{&c[0]}
+	sorted := topologicalSort(c)
+	assert.Equal(t, []*Wire{&c[2], &c[0], &c[3], &c[1]}, sorted)
+}
+
+func TestTopSortWide(t *testing.T) {
+	c := make(Circuit, 10)
+	c[0].Inputs = []*Wire{&c[3], &c[8]}
+	c[1].Inputs = []*Wire{&c[6]}
+	c[2].Inputs = []*Wire{&c[4]}
+	c[3].Inputs = []*Wire{}
+	c[4].Inputs = []*Wire{}
+	c[5].Inputs = []*Wire{&c[9]}
+	c[6].Inputs = []*Wire{&c[9]}
+	c[7].Inputs = []*Wire{&c[9], &c[5], &c[2]}
+	c[8].Inputs = []*Wire{&c[4], &c[3]}
+	c[9].Inputs = []*Wire{}
+
+	sorted := topologicalSort(c)
+	sortedExpected := []*Wire{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
+
+	assert.Equal(t, sortedExpected, sorted)
+}

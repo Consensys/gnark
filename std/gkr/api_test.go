@@ -4,7 +4,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/test_vector_utils"
 	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -13,7 +15,7 @@ type mulNoDependencyCircuit struct {
 }
 
 func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
-	gkr := NewGkrApi()
+	gkr := NewApi()
 	var x, y frontend.Variable
 	var err error
 	if x, err = gkr.Import(c.X); err != nil {
@@ -45,4 +47,31 @@ func TestSolveMulNoDependency(t *testing.T) {
 		Y: make([]frontend.Variable, 2),
 	}
 	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+}
+
+func TestApiMul(t *testing.T) {
+	var (
+		x   *Wire
+		y   *Wire
+		z   *Wire
+		err error
+	)
+	api := NewApi()
+	x, err = api.Import([]frontend.Variable{nil, nil})
+	assert.NoError(t, err)
+	y, err = api.Import([]frontend.Variable{nil, nil})
+	assert.NoError(t, err)
+	z = api.Mul(Variable(x), Variable(y)).(Variable)
+	test_vector_utils.AssertSliceEqual(t, z.Inputs, []*Wire{x, y}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
+
+	unsorted := []*Wire{&api.circuit[0], &api.circuit[1], &api.circuit[2]}
+	test_vector_utils.AssertSliceEqual(t, []*Wire{x, y, z}, unsorted)
+
+	//sorted := topologicalSort(api.circuit)
+
+	//test_vector_utils.AssertSliceEqual(t, sorted, []*Wire{x, y, z})
+
+	/*assert.Equal(t, x.nbUniqueOutputs, 1)
+	assert.Equal(t, y.nbUniqueOutputs, 1)
+	assert.Equal(t, z.nbUniqueOutputs, 0)*/
 }

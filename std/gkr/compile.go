@@ -26,13 +26,13 @@ type circuitData struct {
 	typed              interface{} // curve-dependent data. for communication between solver and prover
 }
 
-type Variable *Wire
+type Variable *Wire // Just an alias to hide implementation details. May be more trouble than worth
 
 func (i *API) NbInstances() int {
 	return 1 << i.logNbInstances
 }
 
-func NewGkrApi() *API {
+func NewApi() *API {
 	return &API{circuit: make(Circuit, 0), assignments: make(WireAssignment), logNbInstances: -1}
 }
 
