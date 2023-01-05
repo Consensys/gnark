@@ -5,18 +5,27 @@ import (
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/utils/algo_utils"
 	"math/bits"
 )
 
+type incompleteCircuitWire struct {
+	assignments []frontend.Variable
+	gate        Gate
+	inputs      []int
+}
+
+type incompleteCircuit []incompleteCircuitWire
+
 type API struct {
-	compiled       bool
 	logNbInstances int
-	circuitData    circuitData
-	circuit        Circuit
-	assignments    WireAssignment
+	compiled       circuitData
+	incomplete     incompleteCircuit
 }
 
 type circuitData struct {
+	circuit            Circuit
+	assignments        WireAssignment
 	sorted             []*Wire
 	nbInstances        int
 	circuitInputsIndex [][]int // circuitInputsIndex is the circuit structure, but with indexes instead of pointers
@@ -26,14 +35,51 @@ type circuitData struct {
 	typed              interface{} // curve-dependent data. for communication between solver and prover
 }
 
-type Variable *Wire // Just an alias to hide implementation details. May be more trouble than worth
+type Variable int // Just an alias to hide implementation details. May be more trouble than worth
+
+func sliceAt[T any](slice []T) func(int) T {
+	return func(i int) T {
+		return slice[i]
+	}
+}
+
+func mapAt[K comparable, V any](mp map[K]V) func(K) V {
+	return func(k K) V {
+		return mp[k]
+	}
+}
 
 func (i *API) NbInstances() int {
 	return 1 << i.logNbInstances
 }
 
+func (c *incompleteCircuit) compile() (circuit Circuit, assignment WireAssignment) {
+	circuit = make(Circuit, len(*c))
+	assignment = make(WireAssignment, len(*c))
+
+	at := func(i int) *Wire {
+		return &circuit[i]
+	}
+	for i := range circuit {
+		cI := (*c)[i]
+		circuit[i].Inputs = algo_utils.Map(cI.inputs, at)
+		assignment[&circuit[i]] = cI.assignments
+	}
+	return
+}
+
+func (c *incompleteCircuit) newVariable(assignment []frontend.Variable) Variable {
+	i := len(*c)
+	*c = append(*c, incompleteCircuitWire{assignments: assignment})
+	return Variable(i)
+}
+
+func (i *API) isCompiled() bool {
+	return i.incomplete == nil
+}
+
 func NewApi() *API {
-	return &API{circuit: make(Circuit, 0), assignments: make(WireAssignment), logNbInstances: -1}
+	return &API{incomplete: make(incompleteCircuit, 0), logNbInstances: -1}
 }
 
 // logNbInstances returns -1 if nbInstances is not a power of 2
@@ -44,8 +90,9 @@ func logNbInstances(nbInstances uint) int {
 	return bits.TrailingZeros(nbInstances)
 }
 
+// Series like in an electric circuit, binds an input of an instance to an output of another
 func (i *API) Series(input, output Variable, inputInstance, outputInstance int) *API {
-	i.assignments[input][inputInstance] = inputDependency{
+	i.incomplete[input].assignments[inputInstance] = inputDependency{
 		Output:         output,
 		OutputInstance: outputInstance,
 	}
@@ -53,24 +100,21 @@ func (i *API) Series(input, output Variable, inputInstance, outputInstance int) 
 }
 
 func (i *API) Import(assignment []frontend.Variable) (Variable, error) {
-	if i.compiled {
-		return nil, fmt.Errorf("cannot import variables into compiled circuit")
+	if i.isCompiled() {
+		return -1, fmt.Errorf("cannot import variables into compiled circuit")
 	}
 	nbInstances := uint(len(assignment))
 	logNbInstances := logNbInstances(nbInstances)
 	if logNbInstances == -1 {
-		return nil, fmt.Errorf("number of assignments must be a power of 2")
+		return -1, fmt.Errorf("number of assignments must be a power of 2")
 	}
 	if i.logNbInstances == -1 {
 		i.logNbInstances = logNbInstances
 	} else if logNbInstances != i.logNbInstances {
-		return nil, fmt.Errorf("number of assignments must be consistent across all variables")
+		return -1, fmt.Errorf("number of assignments must be consistent across all variables")
 	}
-	i.circuit = append(i.circuit, Wire{
-		Gate:   nil,
-		Inputs: []*Wire{},
-	})
-	return &i.circuit[len(i.circuit)-1], nil
+
+	return i.incomplete.newVariable(assignment), nil
 }
 
 func (i *API) nbInputValueAssignments(variable Variable) int {
@@ -85,16 +129,16 @@ func (i *API) nbInputValueAssignments(variable Variable) int {
 
 // Compile finalizes the GKR circuit and returns the output variables in the order created
 func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
-	if i.compiled {
+	if i.isCompiled {
 		return nil, fmt.Errorf("already compiled")
 	}
-	i.compiled = true
+	i.isCompiled = true
 
-	i.circuitData.sorted = topologicalSort(i.circuit) // unnecessary(?) but harmless
-	i.circuitData.nbInstances = 1 << i.logNbInstances
-	indexMap := circuitIndexMap(i.circuitData.sorted)
-	i.circuitData.circuitInputsIndex, i.circuitData.inputIndexes =
-		circuitInputsIndex(i.circuitData.sorted, indexMap)
+	i.compiled.sorted = topologicalSort(i.circuit) // unnecessary(?) but harmless
+	i.compiled.nbInstances = 1 << i.logNbInstances
+	indexMap := circuitIndexMap(i.compiled.sorted)
+	i.compiled.circuitInputsIndex, i.compiled.inputIndexes =
+		circuitInputsIndex(i.compiled.sorted, indexMap)
 
 	solveHintNIn := 0
 	solveHintNOut := 0
@@ -103,7 +147,7 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 		if v.IsInput() {
 			solveHintNIn += i.nbInputValueAssignments(v)
 		} else if v.IsOutput() {
-			solveHintNOut += i.circuitData.nbInstances
+			solveHintNOut += i.compiled.nbInstances
 		}
 	}
 
@@ -117,22 +161,22 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 				}
 			}
 		} else {
-			i.circuitData.maxGateDegree = max(i.circuitData.maxGateDegree, i.circuit[j].Gate.Degree())
+			i.compiled.maxGateDegree = max(i.compiled.maxGateDegree, i.circuit[j].Gate.Degree())
 		}
 	}
 
-	i.circuitData.circuitInputsIndex, i.circuitData.inputIndexes = circuitInputsIndex(i.circuitData.sorted, indexMap)
+	i.compiled.circuitInputsIndex, i.compiled.inputIndexes = circuitInputsIndex(i.compiled.sorted, indexMap)
 
-	outsSerialized, err := parentApi.Compiler().NewHint(solveHint(&i.circuitData), solveHintNOut, ins...)
+	outsSerialized, err := parentApi.Compiler().NewHint(solveHint(&i.compiled), solveHintNOut, ins...)
 	if err != nil {
 		return nil, err
 	}
 
-	outs := make([][]frontend.Variable, len(outsSerialized)/i.circuitData.nbInstances)
+	outs := make([][]frontend.Variable, len(outsSerialized)/i.compiled.nbInstances)
 
 	for j := range outs {
-		outs[j] = outsSerialized[:i.circuitData.nbInstances]
-		outsSerialized = outsSerialized[i.circuitData.nbInstances:]
+		outs[j] = outsSerialized[:i.compiled.nbInstances]
+		outsSerialized = outsSerialized[i.compiled.nbInstances:]
 	}
 
 	var (
@@ -140,11 +184,11 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 		proof           Proof
 		_mimc           mimc.MiMC
 	)
-	if proofSerialized, err = parentApi.Compiler().NewHint(proveHint(&i.circuitData), ProofSize(i.circuit, i.logNbInstances)); // , outsSerialized[0]	<- do this as a hack if order of execution got messed up
+	if proofSerialized, err = parentApi.Compiler().NewHint(proveHint(&i.compiled), ProofSize(i.circuit, i.logNbInstances)); // , outsSerialized[0]	<- do this as a hack if order of execution got messed up
 	err != nil {
 		return nil, err
 	}
-	if proof, err = DeserializeProof(i.circuitData.sorted, proofSerialized); err != nil {
+	if proof, err = DeserializeProof(i.compiled.sorted, proofSerialized); err != nil {
 		return nil, err
 	}
 	if _mimc, err = mimc.NewMiMC(parentApi); err != nil {
@@ -152,7 +196,7 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 	}
 
 	i.addOutAssignments(outs)
-	if err = Verify(parentApi, i.circuit, i.assignments, proof, fiatshamir.WithHash(&_mimc), WithSortedCircuit(i.circuitData.sorted)); err != nil { // TODO: Security critical: do a proper transcriptSetting
+	if err = Verify(parentApi, i.circuit, i.assignments, proof, fiatshamir.WithHash(&_mimc), WithSortedCircuit(i.compiled.sorted)); err != nil { // TODO: Security critical: do a proper transcriptSetting
 
 	}
 
@@ -162,7 +206,7 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 func (i *API) addOutAssignments(outs [][]frontend.Variable) {
 	// TODO: Increase map size here, since we already know how many we're adding?
 	outI := 0
-	for _, w := range i.circuitData.sorted {
+	for _, w := range i.compiled.sorted {
 		if w.IsOutput() {
 			i.assignments[w] = outs[outI]
 			outI++
