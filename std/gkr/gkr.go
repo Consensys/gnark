@@ -425,6 +425,8 @@ func statusList(c Circuit) []int {
 	return res
 }
 
+// TODO: Have this use algo_utils.TopologicalSort underneath
+
 // topologicalSort sorts the wires in order of dependence. Such that for any wire, any one it depends on
 // occurs before it. It tries to stick to the input order as much as possible. An already sorted list will remain unchanged.
 // It also sets the nbOutput flags, and a dummy IdentityGate for input wires.
@@ -452,7 +454,7 @@ func (a WireAssignment) NumInstances() int {
 	for _, aW := range a {
 		return len(aW)
 	}
-	panic("empty assignment")
+	panic("empty assignments")
 }
 
 func (a WireAssignment) NumVars() int {

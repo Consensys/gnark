@@ -9,77 +9,107 @@ import (
 	"math/bits"
 )
 
-type incompleteCircuitWire struct {
-	assignments []frontend.Variable
-	gate        Gate
-	inputs      []int
+type wireNoPtr struct {
+	assignments  []frontend.Variable
+	gate         Gate
+	inputs       []int
+	dependencies []inputDependency // nil for input wires
+	isOutput     bool
 }
 
-type incompleteCircuit []incompleteCircuitWire
+func (w wireNoPtr) isInput() bool {
+	return len(w.inputs) == 0
+}
 
-type API struct {
-	logNbInstances int
-	compiled       circuitData
-	incomplete     incompleteCircuit
+type circuitDataNoPtr struct {
+	circuit         []wireNoPtr
+	maxNIns         int
+	sortedInstances []int
+}
+
+type circuitDataForSnark struct {
+	circuit     Circuit
+	assignments [][]frontend.Variable
 }
 
 type circuitData struct {
-	circuit            Circuit
-	assignments        WireAssignment
-	sorted             []*Wire
-	nbInstances        int
-	circuitInputsIndex [][]int // circuitInputsIndex is the circuit structure, but with indexes instead of pointers
-	inputIndexes       []int
-	inputDependencies  inputDependencies
-	maxGateDegree      int
-	typed              interface{} // curve-dependent data. for communication between solver and prover
+	noPtr    circuitDataNoPtr
+	forSnark circuitDataForSnark
+	typed    interface{} // curve-dependent data. for communication between solver and prover
+}
+
+type API struct {
+	circuitData
 }
 
 type Variable int // Just an alias to hide implementation details. May be more trouble than worth
 
-func sliceAt[T any](slice []T) func(int) T {
-	return func(i int) T {
-		return slice[i]
+func (d *circuitDataNoPtr) nbInstances() int {
+	for i := range d.circuit {
+		if lenI := len(d.circuit[i].inputs); lenI != 0 {
+			return lenI
+		}
 	}
+	return -1
 }
 
-func mapAt[K comparable, V any](mp map[K]V) func(K) V {
-	return func(k K) V {
-		return mp[k]
+func (i *API) nbInstances() int {
+	return i.noPtr.nbInstances()
+}
+
+func (i *API) logNbInstances() int {
+	return logNbInstances(uint(i.nbInstances()))
+}
+
+func (d *circuitDataNoPtr) compile() (circuit Circuit, assignment WireAssignment) {
+
+	inputs := algo_utils.Map(d.circuit, func(w wireNoPtr) []int {
+		return w.inputs
+	})
+
+	sorted, uniqueNbOuts := algo_utils.TopologicalSort(inputs)
+
+	circuitInputsIndex = make([][]int, len(inputs))
+	for i := range circuitInputsIndex {
+		circuitInputsIndex[i] = algo_utils.Map(inputs[i], algo_utils.SliceAt(sorted))
 	}
-}
 
-func (i *API) NbInstances() int {
-	return 1 << i.logNbInstances
-}
+	circuit = make(Circuit, len(*d))
+	circuitPtrAt := slicePtrAt(circuit)
+	for i := range circuit {
+		circuit[i] = Wire{
+			Gate:            (*d)[sorted[i]].gate,
+			Inputs:          algo_utils.Map(circuitInputsIndex[i], circuitPtrAt),
+			nbUniqueOutputs: len(uniqueNbOuts[i]),
+		}
+	}
 
-func (c *incompleteCircuit) compile() (circuit Circuit, assignment WireAssignment) {
-	circuit = make(Circuit, len(*c))
-	assignment = make(WireAssignment, len(*c))
+	circuit = make(Circuit, len(*d))
+	assignment = make(WireAssignment, len(*d))
 
 	at := func(i int) *Wire {
 		return &circuit[i]
 	}
 	for i := range circuit {
-		cI := (*c)[i]
+		cI := (*d)[i]
 		circuit[i].Inputs = algo_utils.Map(cI.inputs, at)
 		assignment[&circuit[i]] = cI.assignments
 	}
 	return
 }
 
-func (c *incompleteCircuit) newVariable(assignment []frontend.Variable) Variable {
-	i := len(*c)
-	*c = append(*c, incompleteCircuitWire{assignments: assignment})
+func (d *circuitDataNoPtr) newVariable(assignment []frontend.Variable) Variable {
+	i := len(*d)
+	*d = append(*d, wireNoPtr{assignments: assignment})
 	return Variable(i)
 }
 
 func (i *API) isCompiled() bool {
-	return i.incomplete == nil
+	return i.dataNoPtr == nil
 }
 
 func NewApi() *API {
-	return &API{incomplete: make(incompleteCircuit, 0), logNbInstances: -1}
+	return &API{dataNoPtr: make(circuitDataNoPtr, 0), logNbInstances: -1}
 }
 
 // logNbInstances returns -1 if nbInstances is not a power of 2
@@ -92,7 +122,7 @@ func logNbInstances(nbInstances uint) int {
 
 // Series like in an electric circuit, binds an input of an instance to an output of another
 func (i *API) Series(input, output Variable, inputInstance, outputInstance int) *API {
-	i.incomplete[input].assignments[inputInstance] = inputDependency{
+	i.dataNoPtr[input].assignments[inputInstance] = inputDependency{
 		Output:         output,
 		OutputInstance: outputInstance,
 	}
@@ -114,7 +144,7 @@ func (i *API) Import(assignment []frontend.Variable) (Variable, error) {
 		return -1, fmt.Errorf("number of assignments must be consistent across all variables")
 	}
 
-	return i.incomplete.newVariable(assignment), nil
+	return i.dataNoPtr.newVariable(assignment), nil
 }
 
 func (i *API) nbInputValueAssignments(variable Variable) int {
@@ -239,28 +269,13 @@ func circuitInputsIndex(sorted []*Wire, indexes map[*Wire]int) ([][]int, []int) 
 }
 
 type inputDependency struct {
-	Output         *Wire
-	OutputInstance int
+	outputWire     int
+	outputInstance int
+	inputInstance  int
 }
 
-type indexedInputDependency struct {
-	OutputInstance  int
-	OutputWireIndex int
-}
-
-type inputDependencies [][]indexedInputDependency // instance first, then wire
-
-// inputIndex denotes the index of an input wire AMONG INPUT wires, so that if the intended wire is say, #2 but wire #1 is not an input wire, the inputIndex would be at most 1
-func (d inputDependencies) get(inputIndex, instance int) indexedInputDependency {
-	return d[instance][inputIndex]
-}
-
-func (d inputDependencies) nbDependencies(inputIndex int) int {
-	count := 0
-	for _, instance := range d {
-		if instance[inputIndex].OutputWireIndex != -1 {
-			count++
-		}
+func slicePtrAt[T any](slice []T) func(int) *T {
+	return func(i int) *T {
+		return &slice[i]
 	}
-	return count
 }

@@ -7,107 +7,82 @@ import (
 	"math/big"
 )
 
-type solvingStatus byte
-
-const (
-	unsolved    solvingStatus = 0
-	beingSolved               = 1
-	solved                    = 2
-)
-
-type bn254Solver struct {
-	assignment       [][]fr.Element //wire first, instance second
-	assignmentVector []*big.Int
-	d                *circuitData
-	typed            *bn254CircuitData
-	status           []solvingStatus
-	offsets          []int // the index of an input wire's first given input in the AssignmentVector
-}
-
-// solve the i'th instance
-func (s bn254Solver) solve(instance int) {
-	if s.status[instance] == solved {
-		return
-	}
-	if s.status[instance] == beingSolved {
-		panic("circular dependency among instances")
-	}
-	//inputI := 0
-	for j, J := range s.d.inputIndexes {
-		offset := s.offsets[j] //[inputI]
-		dependency := s.d.inputDependencies.get(j, instance)
-
-		if dependency.OutputWireIndex == -1 { // no dependency
-			s.assignment[J][instance].SetBigInt(s.assignmentVector[offset+instance])
-			//inputI++
-		} else {
-			s.solve(dependency.OutputInstance)
-			s.assignment[J][instance] = s.assignment[dependency.OutputWireIndex][dependency.OutputInstance]
+func bn254CreateAssignments(noPtr circuitDataNoPtr, assignmentVector []*big.Int) [][]fr.Element {
+	circuit := noPtr.circuit
+	nbInstances := noPtr.nbInstances()
+	assignments := make([][]fr.Element, len(circuit))
+	for wireI := range circuit {
+		assignments[wireI] = make([]fr.Element, nbInstances)
+		if circuit[wireI].isInput() {
+			dependencies := circuit[wireI].dependencies
+			dependencyI := 0
+			for instanceI := range assignments[wireI] {
+				if dependencyI < len(dependencies) && dependencies[dependencyI].inputInstance == instanceI {
+					dependencyI++
+				} else {
+					assignments[wireI][instanceI].SetBigInt(assignmentVector[instanceI-dependencyI])
+				}
+			}
 		}
 	}
-	s.complete(instance) //TODO: This duplicates some of gkr.Complete
-	s.status[instance] = solved
+	return assignments
 }
 
-// complete computes the assignments of an instance given input assignments
-func (s bn254Solver) complete(i int) {
-	circuit := s.d.circuitInputsIndex
-	ins := s.typed.memoryPool.Make(s.d.maxGateDegree) // TODO: Check
-	for j := range circuit {
-		n := len(circuit[j])
-		for k := 0; k < n; k++ {
-			ins[k] = s.assignment[circuit[j][k]][i]
+func bn254Solve(noPtr circuitDataNoPtr, typed bn254CircuitData, assignments [][]fr.Element) {
+
+	inputs := make([]fr.Element, noPtr.maxNIns)
+	for _, instanceI := range noPtr.sortedInstances {
+		dependencyI := 0
+		for wireI := range typed.circuit {
+			dependencies := noPtr.circuit[wireI].dependencies
+			if dependencyI < len(dependencies) && dependencies[dependencyI].inputInstance == instanceI {
+				assignments[instanceI][wireI].Set(&assignments[dependencies[dependencyI].outputWire][dependencies[dependencyI].outputInstance])
+				dependencyI++
+			} else {
+				// assemble the inputs
+				inputIndexes := noPtr.circuit[wireI].inputs
+				for i, inputI := range inputIndexes {
+					inputs[i].Set(&assignments[inputI][instanceI])
+				}
+				gate := typed.circuit[wireI].Gate
+				assignments[instanceI][wireI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
+			}
 		}
-
-		s.assignment[j][i] = s.typed.circuit[j].Gate.Evaluate(ins[:n]...)
-	}
-	s.typed.memoryPool.Dump(ins)
-}
-
-func bn254Solve(circuitData *circuitData, typed *bn254CircuitData, assignmentVector []*big.Int) {
-	solver := bn254Solver{
-		assignment:       make([][]fr.Element, len(typed.circuit)),
-		d:                circuitData,
-		typed:            typed,
-		status:           make([]solvingStatus, circuitData.nbInstances),
-		offsets:          make([]int, len(typed.circuit)),
-		assignmentVector: assignmentVector,
-	}
-
-	solver.offsets[0] = 0
-	for j := 0; j+1 < len(typed.circuit); j++ {
-		solver.offsets[j+1] = solver.offsets[j] + circuitData.nbInstances - circuitData.inputDependencies.nbDependencies(j)
-	}
-
-	for i := 0; i < circuitData.nbInstances; i++ {
-		solver.solve(i)
-	}
-
-	typed.assignments = make(gkr.WireAssignment, len(typed.circuit))
-	for i := range typed.circuit {
-		typed.assignments[&typed.circuit[i]] = solver.assignment[i]
 	}
 }
 
-func bn254SolveHint(data *circuitData, ins []*big.Int, outs []*big.Int) error {
-	circuit := convertCircuit(data)
+func toBn254MapAssignment(circuit gkr.Circuit, assignment [][]fr.Element) gkr.WireAssignment {
+	res := make(gkr.WireAssignment, len(circuit))
+	for i := range circuit {
+		res[&circuit[i]] = assignment[i]
+	}
+	return res
+}
+
+func bn254SetOutputValues(circuit []wireNoPtr, assignments [][]fr.Element, outs []*big.Int) {
+	outsI := 0
+	for i := range circuit {
+		if circuit[i].isOutput {
+			for j := range assignments[i] {
+				assignments[i][j].BigInt(outs[outsI])
+			}
+			outsI++
+		}
+	}
+	// Check if outsI == len(outs)?
+}
+
+func bn254SolveHint(data circuitData, ins []*big.Int, outs []*big.Int) error {
 	typed := bn254CircuitData{
+		circuit:    convertCircuit(data),
 		memoryPool: polynomial.NewPool(256, 1<<11), // TODO: Get clever with limits
 	}
 	data.typed = typed
 
-	bn254Solve(data, &typed, ins)
-
-	outI := 0
-	for i, w := range data.sorted {
-		if w.IsOutput() {
-			assignmentW := typed.assignments[&circuit[i]]
-			for j := range assignmentW {
-				assignmentW[outI].BigInt(outs[outI+j])
-			}
-			outI++
-		}
-	}
+	assignments := bn254CreateAssignments(data.noPtr, ins)
+	bn254Solve(data.noPtr, typed, assignments)
+	typed.assignments = toBn254MapAssignment(typed.circuit, assignments)
+	bn254SetOutputValues(data.noPtr.circuit, assignments, outs)
 
 	return nil
 }

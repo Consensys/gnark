@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/utils/algo_utils"
 	"math/big"
 )
 
@@ -19,13 +20,13 @@ func convertGate(gate Gate) gkr.Gate {
 	return gateConverter{gate: gate}
 }
 
-func convertCircuit(d *circuitData) gkr.Circuit {
-	resCircuit := make(gkr.Circuit, len(d.sorted))
-	for i := range d.sorted {
-		resCircuit[i].Gate = convertGate(d.sorted[i].Gate)
-		resCircuit[i].Inputs = Map(d.circuitInputsIndex[i], func(index int) *gkr.Wire {
-			return &resCircuit[i]
-		})
+func convertCircuit(d circuitData) gkr.Circuit {
+
+	noPtr := d.noPtr.circuit
+	resCircuit := make(gkr.Circuit, len(noPtr))
+	for i := range noPtr {
+		resCircuit[i].Gate = convertGate(d.forSnark.circuit[i].Gate)
+		resCircuit[i].Inputs = algo_utils.Map(noPtr[i].inputs, slicePtrAt(resCircuit))
 	}
 	return resCircuit
 }
