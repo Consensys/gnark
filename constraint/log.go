@@ -25,6 +25,7 @@ type LogEntry struct {
 	Caller    string
 	Format    string
 	ToResolve []LinearExpression // TODO @gbotrel we could store here a struct with a flag that says if we expand or evaluate the expression
+	Stack     []int
 }
 
 func (l *LogEntry) WriteVariable(le LinearExpression, sbb *strings.Builder) {

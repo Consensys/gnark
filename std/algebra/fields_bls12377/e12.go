@@ -272,7 +272,7 @@ func (e *E12) Decompress(api frontend.API, x E12) *E12 {
 	t[1].Sub(api, t[0], x.C0.B2).
 		Double(api, t[1]).
 		Add(api, t[1], t[0])
-		// t0 = E * g5² + t1
+	// t0 = E * g5² + t1
 	t[2].Square(api, x.C1.B2)
 	t[0].MulByNonResidue(api, t[2]).
 		Add(api, t[0], t[1])
@@ -447,18 +447,18 @@ var InverseE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 
 	c.Inverse(&a)
 
-	c.C0.B0.A0.ToBigIntRegular(res[0])
-	c.C0.B0.A1.ToBigIntRegular(res[1])
-	c.C0.B1.A0.ToBigIntRegular(res[2])
-	c.C0.B1.A1.ToBigIntRegular(res[3])
-	c.C0.B2.A0.ToBigIntRegular(res[4])
-	c.C0.B2.A1.ToBigIntRegular(res[5])
-	c.C1.B0.A0.ToBigIntRegular(res[6])
-	c.C1.B0.A1.ToBigIntRegular(res[7])
-	c.C1.B1.A0.ToBigIntRegular(res[8])
-	c.C1.B1.A1.ToBigIntRegular(res[9])
-	c.C1.B2.A0.ToBigIntRegular(res[10])
-	c.C1.B2.A1.ToBigIntRegular(res[11])
+	c.C0.B0.A0.BigInt(res[0])
+	c.C0.B0.A1.BigInt(res[1])
+	c.C0.B1.A0.BigInt(res[2])
+	c.C0.B1.A1.BigInt(res[3])
+	c.C0.B2.A0.BigInt(res[4])
+	c.C0.B2.A1.BigInt(res[5])
+	c.C1.B0.A0.BigInt(res[6])
+	c.C1.B0.A1.BigInt(res[7])
+	c.C1.B1.A0.BigInt(res[8])
+	c.C1.B1.A1.BigInt(res[9])
+	c.C1.B2.A0.BigInt(res[10])
+	c.C1.B2.A1.BigInt(res[11])
 
 	return nil
 }
@@ -520,18 +520,18 @@ var DivE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 
 	c.Inverse(&b).Mul(&c, &a)
 
-	c.C0.B0.A0.ToBigIntRegular(res[0])
-	c.C0.B0.A1.ToBigIntRegular(res[1])
-	c.C0.B1.A0.ToBigIntRegular(res[2])
-	c.C0.B1.A1.ToBigIntRegular(res[3])
-	c.C0.B2.A0.ToBigIntRegular(res[4])
-	c.C0.B2.A1.ToBigIntRegular(res[5])
-	c.C1.B0.A0.ToBigIntRegular(res[6])
-	c.C1.B0.A1.ToBigIntRegular(res[7])
-	c.C1.B1.A0.ToBigIntRegular(res[8])
-	c.C1.B1.A1.ToBigIntRegular(res[9])
-	c.C1.B2.A0.ToBigIntRegular(res[10])
-	c.C1.B2.A1.ToBigIntRegular(res[11])
+	c.C0.B0.A0.BigInt(res[0])
+	c.C0.B0.A1.BigInt(res[1])
+	c.C0.B1.A0.BigInt(res[2])
+	c.C0.B1.A1.BigInt(res[3])
+	c.C0.B2.A0.BigInt(res[4])
+	c.C0.B2.A1.BigInt(res[5])
+	c.C1.B0.A0.BigInt(res[6])
+	c.C1.B0.A1.BigInt(res[7])
+	c.C1.B1.A0.BigInt(res[8])
+	c.C1.B1.A1.BigInt(res[9])
+	c.C1.B2.A0.BigInt(res[10])
+	c.C1.B2.A1.BigInt(res[11])
 
 	return nil
 }

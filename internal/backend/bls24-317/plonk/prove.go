@@ -323,7 +323,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_317witness.Witn
 	bSize.SetUint64(pk.Domain[0].Cardinality + 2) // +2 because of the masking (h of degree 3(n+2)-1)
 	var zetaPowerm fr.Element
 	zetaPowerm.Exp(zeta, &bSize)
-	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
+	zetaPowerm.BigInt(&bZetaPowerm)
 	foldedHDigest := proof.H[2]
 	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm)
 	foldedHDigest.Add(&foldedHDigest, &proof.H[1])                   // ζᵐ⁺²*Comm(h3)
