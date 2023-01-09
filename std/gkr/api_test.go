@@ -51,7 +51,7 @@ func TestSolveMulNoDependency(t *testing.T) {
 
 func TestApiMul(t *testing.T) {
 	var (
-		x   *Wire
+		x   Variable
 		y   *Wire
 		z   *Wire
 		err error

@@ -7,29 +7,36 @@ import (
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"math/bits"
+	"sort"
 )
 
 type wireNoPtr struct {
-	assignments  []frontend.Variable
-	gate         Gate
-	inputs       []int
-	dependencies []inputDependency // nil for input wires
-	isOutput     bool
+	assignments     []frontend.Variable
+	gate            Gate
+	inputs          []int
+	dependencies    []inputDependency // nil for input wires
+	nbUniqueOutputs int
 }
+
+type circuitNoPtr []wireNoPtr
 
 func (w wireNoPtr) isInput() bool {
 	return len(w.inputs) == 0
 }
 
+func (w wireNoPtr) isOutput() bool {
+	return w.nbUniqueOutputs == 0
+}
+
 type circuitDataNoPtr struct {
-	circuit         []wireNoPtr
+	circuit         circuitNoPtr
 	maxNIns         int
 	sortedInstances []int
 }
 
 type circuitDataForSnark struct {
 	circuit     Circuit
-	assignments [][]frontend.Variable
+	assignments WireAssignment
 }
 
 type circuitData struct {
@@ -61,55 +68,111 @@ func (i *API) logNbInstances() int {
 	return logNbInstances(uint(i.nbInstances()))
 }
 
-func (d *circuitDataNoPtr) compile() (circuit Circuit, assignment WireAssignment) {
+// compile sorts the circuit wires, their dependencies and the instances
+func (d *circuitDataNoPtr) compile() error { // (circuit Circuit, assignment WireAssignment) {
+
+	// this whole circuit sorting is a bit of a charade. if things are built using an api, there's no way it could NOT already be topologically sorted
+	// worth keeping for future-proofing?
 
 	inputs := algo_utils.Map(d.circuit, func(w wireNoPtr) []int {
 		return w.inputs
 	})
 
-	sorted, uniqueNbOuts := algo_utils.TopologicalSort(inputs)
+	permutation, uniqueOuts := algo_utils.TopologicalSort(inputs)
+	permutationInv := algo_utils.InvertPermutation(permutation)
+	permutationInvAt := algo_utils.SliceAt(permutationInv)
+	sorted := make([]wireNoPtr, len(d.circuit))
+	for newI, oldI := range permutation {
+		oldW := d.circuit[oldI]
 
-	circuitInputsIndex = make([][]int, len(inputs))
-	for i := range circuitInputsIndex {
-		circuitInputsIndex[i] = algo_utils.Map(inputs[i], algo_utils.SliceAt(sorted))
-	}
+		sort.Slice(oldW.dependencies, func(i, j int) bool {
+			return oldW.dependencies[i].inputInstance < oldW.dependencies[j].inputInstance
+		})
+		for i := 1; i < len(oldW.dependencies); i++ {
+			if oldW.dependencies[i].inputInstance == oldW.dependencies[i-1].inputInstance {
+				return fmt.Errorf("an input wire can only have one dependency per instance")
+			}
+		} // TODO: Check that dependencies and explicit assignments cover all instances
 
-	circuit = make(Circuit, len(*d))
-	circuitPtrAt := slicePtrAt(circuit)
-	for i := range circuit {
-		circuit[i] = Wire{
-			Gate:            (*d)[sorted[i]].gate,
-			Inputs:          algo_utils.Map(circuitInputsIndex[i], circuitPtrAt),
-			nbUniqueOutputs: len(uniqueNbOuts[i]),
+		if !oldW.isInput() {
+			d.maxNIns = max(d.maxNIns, len(oldW.inputs))
+		}
+
+		for j := range oldW.dependencies {
+			oldW.dependencies[j].outputWire = permutationInv[oldW.dependencies[j].outputWire]
+		}
+
+		sorted[newI] = wireNoPtr{
+			assignments:     oldW.assignments,
+			gate:            oldW.gate,
+			inputs:          algo_utils.Map(oldW.inputs, permutationInvAt),
+			dependencies:    oldW.dependencies,
+			nbUniqueOutputs: len(uniqueOuts[oldI]),
 		}
 	}
 
-	circuit = make(Circuit, len(*d))
-	assignment = make(WireAssignment, len(*d))
+	d.circuit = sorted
 
-	at := func(i int) *Wire {
-		return &circuit[i]
+	// sort the instances to decide the order in which they are to be solved
+	instanceDeps := make([][]int, d.nbInstances())
+	for i := range d.circuit {
+		for _, dep := range d.circuit[i].dependencies {
+			instanceDeps[dep.inputInstance] = append(instanceDeps[dep.inputInstance], dep.outputInstance)
+		}
 	}
-	for i := range circuit {
-		cI := (*d)[i]
-		circuit[i].Inputs = algo_utils.Map(cI.inputs, at)
-		assignment[&circuit[i]] = cI.assignments
-	}
-	return
+
+	d.sortedInstances, _ = algo_utils.TopologicalSort(instanceDeps)
+
+	return nil
+	/*	circuitInputsIndex := make([][]int, len(inputs))
+		for i := range circuitInputsIndex {
+			circuitInputsIndex[i] = algo_utils.Map(inputs[i], algo_utils.SliceAt(sorted))
+
+			for j := range
+		}
+
+		circuit = make(Circuit, len(*d))
+		circuitPtrAt := slicePtrAt(circuit)
+		for i := range circuit {
+			circuit[i] = Wire{
+				Gate:            (*d)[sorted[i]].gate,
+				Inputs:          algo_utils.Map(circuitInputsIndex[i], circuitPtrAt),
+				nbUniqueOutputs: len(uniqueNbOuts[i]),
+			}
+		}
+
+		circuit = make(Circuit, len(*d))
+		assignment = make(WireAssignment, len(*d))
+
+		at := func(i int) *Wire {
+			return &circuit[i]
+		}
+		for i := range circuit {
+			cI := (*d)[i]
+			circuit[i].Inputs = algo_utils.Map(cI.inputs, at)
+			assignment[&circuit[i]] = cI.assignments
+		}
+		return*/
 }
 
 func (d *circuitDataNoPtr) newVariable(assignment []frontend.Variable) Variable {
-	i := len(*d)
-	*d = append(*d, wireNoPtr{assignments: assignment})
+	i := len(d.circuit)
+	d.circuit = append(d.circuit, wireNoPtr{assignments: assignment})
 	return Variable(i)
 }
 
 func (i *API) isCompiled() bool {
-	return i.dataNoPtr == nil
+	return i.forSnark.circuit != nil
 }
 
 func NewApi() *API {
-	return &API{dataNoPtr: make(circuitDataNoPtr, 0), logNbInstances: -1}
+	return &API{circuitData{
+		noPtr: circuitDataNoPtr{
+			circuit:         make(circuitNoPtr, 0),
+			maxNIns:         0,
+			sortedInstances: make([]int, 0),
+		},
+	}}
 }
 
 // logNbInstances returns -1 if nbInstances is not a power of 2
@@ -122,10 +185,15 @@ func logNbInstances(nbInstances uint) int {
 
 // Series like in an electric circuit, binds an input of an instance to an output of another
 func (i *API) Series(input, output Variable, inputInstance, outputInstance int) *API {
-	i.dataNoPtr[input].assignments[inputInstance] = inputDependency{
-		Output:         output,
-		OutputInstance: outputInstance,
+	if i.noPtr.circuit[input].assignments[inputInstance] != nil {
+		panic("dependency attempting to override explicit value assignment")
 	}
+	i.noPtr.circuit[input].dependencies =
+		append(i.noPtr.circuit[input].dependencies, inputDependency{
+			outputWire:     int(output),
+			outputInstance: outputInstance,
+			inputInstance:  inputInstance,
+		})
 	return i
 }
 
@@ -133,21 +201,20 @@ func (i *API) Import(assignment []frontend.Variable) (Variable, error) {
 	if i.isCompiled() {
 		return -1, fmt.Errorf("cannot import variables into compiled circuit")
 	}
-	nbInstances := uint(len(assignment))
-	logNbInstances := logNbInstances(nbInstances)
+	nbInstances := len(assignment)
+	logNbInstances := logNbInstances(uint(nbInstances))
 	if logNbInstances == -1 {
 		return -1, fmt.Errorf("number of assignments must be a power of 2")
 	}
-	if i.logNbInstances == -1 {
-		i.logNbInstances = logNbInstances
-	} else if logNbInstances != i.logNbInstances {
+
+	if currentNbInstances := i.nbInstances(); currentNbInstances != -1 && currentNbInstances != nbInstances {
 		return -1, fmt.Errorf("number of assignments must be consistent across all variables")
 	}
 
-	return i.dataNoPtr.newVariable(assignment), nil
+	return i.noPtr.newVariable(assignment), nil
 }
 
-func (i *API) nbInputValueAssignments(variable Variable) int {
+/*func (i *API) nbInputValueAssignments(variable Variable) int {
 	res := 0
 	for j := range i.assignments[variable] {
 		if _, ok := i.assignments[variable][j].(inputDependency); !ok {
@@ -155,117 +222,108 @@ func (i *API) nbInputValueAssignments(variable Variable) int {
 		}
 	}
 	return res
+}*/
+
+func appendNonNil[T any](dst *[]T, src []T) {
+	for i := range src {
+		if src[i] != nil {
+			*dst = append(*dst, src[i])
+		}
+	}
 }
 
 // Compile finalizes the GKR circuit and returns the output variables in the order created
 func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
-	if i.isCompiled {
+	if i.isCompiled() {
 		return nil, fmt.Errorf("already compiled")
 	}
-	i.isCompiled = true
 
-	i.compiled.sorted = topologicalSort(i.circuit) // unnecessary(?) but harmless
-	i.compiled.nbInstances = 1 << i.logNbInstances
-	indexMap := circuitIndexMap(i.compiled.sorted)
-	i.compiled.circuitInputsIndex, i.compiled.inputIndexes =
-		circuitInputsIndex(i.compiled.sorted, indexMap)
+	if err := i.noPtr.compile(); err != nil {
+		return nil, err
+	}
+	nbInstances := i.nbInstances()
+	circuit := i.noPtr.circuit
 
 	solveHintNIn := 0
 	solveHintNOut := 0
-	for j := range i.circuit {
-		v := &i.circuit[j]
-		if v.IsInput() {
-			solveHintNIn += i.nbInputValueAssignments(v)
-		} else if v.IsOutput() {
-			solveHintNOut += i.compiled.nbInstances
+
+	for j := range circuit {
+		v := &circuit[j]
+		if v.isInput() {
+			solveHintNIn += nbInstances - len(v.dependencies)
+		} else if v.isOutput() {
+			solveHintNOut += nbInstances
 		}
 	}
 
 	ins := make([]frontend.Variable, 0, solveHintNIn)
-	for j := range i.circuit {
-		if i.circuit[j].IsInput() {
-			assignment := i.assignments[&i.circuit[j]]
-			for k := range assignment {
-				if _, ok := assignment[k].(inputDependency); !ok {
-					ins = append(ins, assignment[k])
-				}
-			}
-		} else {
-			i.compiled.maxGateDegree = max(i.compiled.maxGateDegree, i.circuit[j].Gate.Degree())
+	for j := range circuit {
+		if circuit[j].isInput() {
+			appendNonNil(&ins, circuit[j].assignments)
 		}
 	}
 
-	i.compiled.circuitInputsIndex, i.compiled.inputIndexes = circuitInputsIndex(i.compiled.sorted, indexMap)
-
-	outsSerialized, err := parentApi.Compiler().NewHint(solveHint(&i.compiled), solveHintNOut, ins...)
+	outsSerialized, err := parentApi.Compiler().NewHint(solveHint(&i.circuitData), solveHintNOut, ins...)
 	if err != nil {
 		return nil, err
 	}
 
-	outs := make([][]frontend.Variable, len(outsSerialized)/i.compiled.nbInstances)
+	outs := make([][]frontend.Variable, len(outsSerialized)/nbInstances)
 
 	for j := range outs {
-		outs[j] = outsSerialized[:i.compiled.nbInstances]
-		outsSerialized = outsSerialized[i.compiled.nbInstances:]
+		outs[j] = outsSerialized[:nbInstances]
+		outsSerialized = outsSerialized[nbInstances:]
 	}
+
+	i.noPtr.circuit.addOutputAssignments(outs)
 
 	var (
 		proofSerialized []frontend.Variable
 		proof           Proof
 		_mimc           mimc.MiMC
 	)
-	if proofSerialized, err = parentApi.Compiler().NewHint(proveHint(&i.compiled), ProofSize(i.circuit, i.logNbInstances)); // , outsSerialized[0]	<- do this as a hack if order of execution got messed up
+
+	i.forSnark = i.noPtr.forSnark()
+
+	if proofSerialized, err = parentApi.Compiler().NewHint(
+		proveHint(i.typed), ProofSize(i.forSnark.circuit, logNbInstances(uint(nbInstances)))); // , outsSerialized[0]	<- do this as a hack if order of execution got messed up
 	err != nil {
 		return nil, err
 	}
-	if proof, err = DeserializeProof(i.compiled.sorted, proofSerialized); err != nil {
+
+	forSnarkSorted := algo_utils.MapRange(0, len(circuit), slicePtrAt(i.forSnark.circuit))
+
+	if proof, err = DeserializeProof(forSnarkSorted, proofSerialized); err != nil {
 		return nil, err
 	}
 	if _mimc, err = mimc.NewMiMC(parentApi); err != nil {
 		return nil, err
 	}
 
-	i.addOutAssignments(outs)
-	if err = Verify(parentApi, i.circuit, i.assignments, proof, fiatshamir.WithHash(&_mimc), WithSortedCircuit(i.compiled.sorted)); err != nil { // TODO: Security critical: do a proper transcriptSetting
-
+	if err = Verify(parentApi, i.forSnark.circuit, i.forSnark.assignments, proof, fiatshamir.WithHash(&_mimc), WithSortedCircuit(forSnarkSorted)); err != nil { // TODO: Security critical: do a proper transcriptSetting
+		return nil, err
 	}
 
 	return outs, nil
 }
 
-func (i *API) addOutAssignments(outs [][]frontend.Variable) {
-	// TODO: Increase map size here, since we already know how many we're adding?
+// completeAssignments creates assignment fields for the output vars and input instances that depend on them
+func (c circuitNoPtr) addOutputAssignments(outs [][]frontend.Variable) {
 	outI := 0
-	for _, w := range i.compiled.sorted {
-		if w.IsOutput() {
-			i.assignments[w] = outs[outI]
+	for i := range c {
+		if c[i].isOutput() {
+			c[i].assignments = outs[outI]
 			outI++
 		}
 	}
-}
-
-func circuitIndexMap(sorted []*Wire) map[*Wire]int {
-	indexes := make(map[*Wire]int, len(sorted))
-	for i := range sorted {
-		indexes[sorted[i]] = i
-	}
-	return indexes
-}
-
-// circuitInputsIndex returns a description of the circuit, with indexes instead of pointers. It also returns the indexes of the input wires
-func circuitInputsIndex(sorted []*Wire, indexes map[*Wire]int) ([][]int, []int) {
-	res := make([][]int, len(sorted))
-	inputIndexes := make([]int, 0)
-	for i, w := range sorted {
-		if w.IsInput() {
-			inputIndexes = append(inputIndexes, i)
+	for i := range c {
+		if c[i].dependencies != nil && !c[i].isInput() { // TODO: Remove
+			panic("data structure poorly maintained")
 		}
-		res[i] = Map(w.Inputs, func(v *Wire) int {
-			return indexes[v] // is it possible to pass a reference to a particular map object's [] operator?
-		})
+		for _, dep := range c[i].dependencies {
+			c[i].assignments[dep.inputInstance] = c[dep.outputWire].assignments[dep.outputInstance]
+		}
 	}
-
-	return res, inputIndexes
 }
 
 type inputDependency struct {
@@ -277,5 +335,27 @@ type inputDependency struct {
 func slicePtrAt[T any](slice []T) func(int) *T {
 	return func(i int) *T {
 		return &slice[i]
+	}
+}
+
+func (d *circuitDataNoPtr) forSnark() circuitDataForSnark {
+	circuit := make(Circuit, len(d.circuit))
+	assignment := make(WireAssignment, len(d.circuit))
+	circuitAt := slicePtrAt(circuit)
+	for i := range circuit {
+		w := d.circuit[i]
+		circuit[i] = Wire{
+			Gate:            w.gate,
+			Inputs:          algo_utils.Map(w.inputs, circuitAt),
+			nbUniqueOutputs: w.nbUniqueOutputs,
+		}
+		if !w.isInput() && !w.isOutput() && w.assignments != nil { // TODO: Remove
+			panic("unexpected!!")
+		}
+		assignment[&circuit[i]] = w.assignments
+	}
+	return circuitDataForSnark{
+		circuit:     circuit,
+		assignments: assignment,
 	}
 }

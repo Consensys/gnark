@@ -15,11 +15,10 @@ func bn254FrToBigInts(dst []*big.Int, src []fr.Element) {
 	}
 }
 
-func bn254ProveHint(typed interface{}, ins []*big.Int, outs []*big.Int) error {
+func bn254ProveHint(data bn254CircuitData, ins []*big.Int, outs []*big.Int) error {
 	if len(ins) != 0 {
 		return fmt.Errorf("the prove hint takes no input")
 	}
-	data := typed.(bn254CircuitData)
 
 	proof, err := gkr.Prove(data.circuit, data.assignments, fiatshamir.WithHash(mimc.NewMiMC()), gkr.WithPool(&data.memoryPool)) // TODO: Do transcriptSettings properly
 	if err != nil {

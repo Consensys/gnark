@@ -72,17 +72,17 @@ func bn254SetOutputValues(circuit []wireNoPtr, assignments [][]fr.Element, outs 
 	// Check if outsI == len(outs)?
 }
 
-func bn254SolveHint(data circuitData, ins []*big.Int, outs []*big.Int) error {
-	typed := bn254CircuitData{
-		circuit:    convertCircuit(data),
+func bn254SolveHint(data circuitDataNoPtr, ins []*big.Int, outs []*big.Int) (bn254CircuitData, error) {
+
+	res := bn254CircuitData{
+		circuit:    convertCircuit(data.circuit),
 		memoryPool: polynomial.NewPool(256, 1<<11), // TODO: Get clever with limits
 	}
-	data.typed = typed
 
-	assignments := bn254CreateAssignments(data.noPtr, ins)
-	bn254Solve(data.noPtr, typed, assignments)
-	typed.assignments = toBn254MapAssignment(typed.circuit, assignments)
-	bn254SetOutputValues(data.noPtr.circuit, assignments, outs)
+	assignments := bn254CreateAssignments(data, ins)
+	bn254Solve(data, res, assignments)
+	res.assignments = toBn254MapAssignment(res.circuit, assignments)
+	bn254SetOutputValues(data.circuit, assignments, outs)
 
-	return nil
+	return res, nil
 }

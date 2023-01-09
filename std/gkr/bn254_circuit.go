@@ -20,12 +20,10 @@ func convertGate(gate Gate) gkr.Gate {
 	return gateConverter{gate: gate}
 }
 
-func convertCircuit(d circuitData) gkr.Circuit {
-
-	noPtr := d.noPtr.circuit
+func convertCircuit(noPtr circuitNoPtr) gkr.Circuit {
 	resCircuit := make(gkr.Circuit, len(noPtr))
 	for i := range noPtr {
-		resCircuit[i].Gate = convertGate(d.forSnark.circuit[i].Gate)
+		resCircuit[i].Gate = convertGate(noPtr[i].gate)
 		resCircuit[i].Inputs = algo_utils.Map(noPtr[i].inputs, slicePtrAt(resCircuit))
 	}
 	return resCircuit
