@@ -2,6 +2,26 @@ package algo_utils
 
 // this package provides some generic (in both senses of the word) algorithmic conveniences.
 
+// Permute operates in-place but is not thread-safe; it uses the permutation for scratching
+// permutation[i] signifies which index slice[i] is going to
+func Permute[T any](slice []T, permutation []int) {
+	var cached T
+	for next := 0; next < len(permutation); next++ {
+
+		cached = slice[next]
+		j := permutation[next]
+		permutation[next] = ^j
+		for j >= 0 {
+			cached, slice[j] = slice[j], cached
+			j, permutation[j] = permutation[j], ^permutation[j]
+		}
+		permutation[next] = ^permutation[next]
+	}
+	for i := range permutation {
+		permutation[i] = ^permutation[i]
+	}
+}
+
 func Map[T, S any](in []T, f func(T) S) []S {
 	out := make([]S, len(in))
 	for i, t := range in {

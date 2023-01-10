@@ -56,3 +56,14 @@ func TestTopSortWide(t *testing.T) {
 
 	testTopSort(t, inputs, expectedSorted, expectedNbUniqueOut)
 }
+
+func TestPermute(t *testing.T) {
+	list := []int{34, 65, 23, 2, 5}
+	permutation := []int{2, 0, 1, 4, 3}
+	permutationCopy := make([]int, len(permutation))
+	copy(permutationCopy, permutation)
+
+	Permute(list, permutation)
+	assert.Equal(t, []int{65, 23, 34, 5, 2}, list)
+	assert.Equal(t, permutationCopy, permutation)
+}

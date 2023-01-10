@@ -32,6 +32,7 @@ type circuitDataNoPtr struct {
 	circuit         circuitNoPtr
 	maxNIns         int
 	sortedInstances []int
+	sortedWires     []int
 }
 
 type circuitDataForSnark struct {
@@ -51,9 +52,9 @@ type API struct {
 
 type Variable int // Just an alias to hide implementation details. May be more trouble than worth
 
-func (d *circuitDataNoPtr) nbInstances() int {
-	for i := range d.circuit {
-		if lenI := len(d.circuit[i].inputs); lenI != 0 {
+func (c circuitNoPtr) nbInstances() int {
+	for i := range c {
+		if lenI := len(c[i].assignments); lenI != 0 {
 			return lenI
 		}
 	}
@@ -61,7 +62,7 @@ func (d *circuitDataNoPtr) nbInstances() int {
 }
 
 func (i *API) nbInstances() int {
-	return i.noPtr.nbInstances()
+	return i.noPtr.circuit.nbInstances()
 }
 
 func (i *API) logNbInstances() int {
@@ -71,6 +72,19 @@ func (i *API) logNbInstances() int {
 // compile sorts the circuit wires, their dependencies and the instances
 func (d *circuitDataNoPtr) compile() error { // (circuit Circuit, assignment WireAssignment) {
 
+	nbInstances := d.circuit.nbInstances()
+	// sort the instances to decide the order in which they are to be solved
+	instanceDeps := make([][]int, nbInstances)
+	for i := range d.circuit {
+		for _, dep := range d.circuit[i].dependencies {
+			instanceDeps[dep.inputInstance] = append(instanceDeps[dep.inputInstance], dep.outputInstance)
+		}
+	}
+
+	d.sortedInstances, _ = algo_utils.TopologicalSort(instanceDeps)
+	instancePermutationInv := algo_utils.InvertPermutation(d.sortedInstances)
+	//instancePermutationInvAt := algo_utils.SliceAt(instancePermutationInv)
+
 	// this whole circuit sorting is a bit of a charade. if things are built using an api, there's no way it could NOT already be topologically sorted
 	// worth keeping for future-proofing?
 
@@ -78,16 +92,14 @@ func (d *circuitDataNoPtr) compile() error { // (circuit Circuit, assignment Wir
 		return w.inputs
 	})
 
-	permutation, uniqueOuts := algo_utils.TopologicalSort(inputs)
-	permutationInv := algo_utils.InvertPermutation(permutation)
-	permutationInvAt := algo_utils.SliceAt(permutationInv)
+	var uniqueOuts [][]int
+	d.sortedWires, uniqueOuts = algo_utils.TopologicalSort(inputs)
+	wirePermutationInv := algo_utils.InvertPermutation(d.sortedWires)
+	wirePermutationInvAt := algo_utils.SliceAt(wirePermutationInv)
 	sorted := make([]wireNoPtr, len(d.circuit))
-	for newI, oldI := range permutation {
+	for newI, oldI := range d.sortedWires {
 		oldW := d.circuit[oldI]
 
-		sort.Slice(oldW.dependencies, func(i, j int) bool {
-			return oldW.dependencies[i].inputInstance < oldW.dependencies[j].inputInstance
-		})
 		for i := 1; i < len(oldW.dependencies); i++ {
 			if oldW.dependencies[i].inputInstance == oldW.dependencies[i-1].inputInstance {
 				return fmt.Errorf("an input wire can only have one dependency per instance")
@@ -99,60 +111,31 @@ func (d *circuitDataNoPtr) compile() error { // (circuit Circuit, assignment Wir
 		}
 
 		for j := range oldW.dependencies {
-			oldW.dependencies[j].outputWire = permutationInv[oldW.dependencies[j].outputWire]
+			dep := &oldW.dependencies[j]
+			dep.outputWire = wirePermutationInv[dep.outputWire]
+			dep.inputInstance = instancePermutationInv[dep.inputInstance]
+			dep.outputInstance = instancePermutationInv[dep.outputInstance]
 		}
+
+		sort.Slice(oldW.dependencies, func(i, j int) bool {
+			return oldW.dependencies[i].inputInstance < oldW.dependencies[j].inputInstance
+		})
+
+		algo_utils.Permute(oldW.assignments, instancePermutationInv)
 
 		sorted[newI] = wireNoPtr{
 			assignments:     oldW.assignments,
 			gate:            oldW.gate,
-			inputs:          algo_utils.Map(oldW.inputs, permutationInvAt),
+			inputs:          algo_utils.Map(oldW.inputs, wirePermutationInvAt),
 			dependencies:    oldW.dependencies,
 			nbUniqueOutputs: len(uniqueOuts[oldI]),
 		}
+
 	}
 
 	d.circuit = sorted
 
-	// sort the instances to decide the order in which they are to be solved
-	instanceDeps := make([][]int, d.nbInstances())
-	for i := range d.circuit {
-		for _, dep := range d.circuit[i].dependencies {
-			instanceDeps[dep.inputInstance] = append(instanceDeps[dep.inputInstance], dep.outputInstance)
-		}
-	}
-
-	d.sortedInstances, _ = algo_utils.TopologicalSort(instanceDeps)
-
 	return nil
-	/*	circuitInputsIndex := make([][]int, len(inputs))
-		for i := range circuitInputsIndex {
-			circuitInputsIndex[i] = algo_utils.Map(inputs[i], algo_utils.SliceAt(sorted))
-
-			for j := range
-		}
-
-		circuit = make(Circuit, len(*d))
-		circuitPtrAt := slicePtrAt(circuit)
-		for i := range circuit {
-			circuit[i] = Wire{
-				Gate:            (*d)[sorted[i]].gate,
-				Inputs:          algo_utils.Map(circuitInputsIndex[i], circuitPtrAt),
-				nbUniqueOutputs: len(uniqueNbOuts[i]),
-			}
-		}
-
-		circuit = make(Circuit, len(*d))
-		assignment = make(WireAssignment, len(*d))
-
-		at := func(i int) *Wire {
-			return &circuit[i]
-		}
-		for i := range circuit {
-			cI := (*d)[i]
-			circuit[i].Inputs = algo_utils.Map(cI.inputs, at)
-			assignment[&circuit[i]] = cI.assignments
-		}
-		return*/
 }
 
 func (d *circuitDataNoPtr) newInputVariable(assignment []frontend.Variable) Variable {
@@ -214,16 +197,6 @@ func (i *API) Import(assignment []frontend.Variable) (Variable, error) {
 	return i.noPtr.newInputVariable(assignment), nil
 }
 
-/*func (i *API) nbInputValueAssignments(variable Variable) int {
-	res := 0
-	for j := range i.assignments[variable] {
-		if _, ok := i.assignments[variable][j].(inputDependency); !ok {
-			res++
-		}
-	}
-	return res
-}*/
-
 func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
 	for i := range src {
 		if src[i] != nil {
@@ -256,6 +229,7 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 		}
 	}
 
+	// arrange inputs wire first, then in the order solved
 	ins := make([]frontend.Variable, 0, solveHintNIn)
 	for j := range circuit {
 		if circuit[j].isInput() {
@@ -303,6 +277,8 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 	if err = Verify(parentApi, i.forSnark.circuit, i.forSnark.assignments, proof, fiatshamir.WithHash(&_mimc), WithSortedCircuit(forSnarkSorted)); err != nil { // TODO: Security critical: do a proper transcriptSetting
 		return nil, err
 	}
+
+	i.noPtr.toVirtualOrder(outs)
 
 	return outs, nil
 }
@@ -358,4 +334,25 @@ func (d *circuitDataNoPtr) forSnark() circuitDataForSnark {
 		circuit:     circuit,
 		assignments: assignment,
 	}
+}
+
+func (d *circuitDataNoPtr) toVirtualOrder(outs [][]frontend.Variable) {
+	for j := range d.circuit {
+		algo_utils.Permute(outs[j], d.sortedInstances)
+	}
+	algo_utils.Permute(outs, d.sortedWires)
+}
+
+// assignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly
+func (c circuitNoPtr) assignmentOffsets() []int {
+	res := make([]int, len(c)+1)
+	nbInstances := c.nbInstances()
+	for i := range c {
+		nbExplicitAssignments := 0
+		if c[i].isInput() {
+			nbExplicitAssignments = nbInstances - len(c[i].dependencies)
+		}
+		res[i+1] = res[i] + nbExplicitAssignments
+	}
+	return res
 }

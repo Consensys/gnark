@@ -4,63 +4,35 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
-	"golang.org/x/exp/slices"
 	"math/big"
 )
 
-type bn254AssignmentNoPtr [][]fr.Element //bn254AssignmentNoPtr is indexed instance first, wire second
+// this module assumes that wire and instance indexes respect dependencies
 
-func bn254CreateAssignments(noPtr circuitDataNoPtr, assignmentVector []*big.Int) bn254AssignmentNoPtr {
+type bn254AssignmentNoPtr [][]fr.Element //bn254AssignmentNoPtr is indexed wire first, instance second
+
+// assumes assignmentVector is arranged wire first, instance second in order of solution
+func bn254Solve(noPtr circuitDataNoPtr, typed bn254CircuitData, assignmentVector []*big.Int) bn254AssignmentNoPtr {
 	circuit := noPtr.circuit
-	nbInstances := noPtr.nbInstances()
+	nbInstances := circuit.nbInstances()
+	offsets := circuit.assignmentOffsets()
+	nbDepsResolved := make([]int, len(circuit))
+	inputs := make([]fr.Element, noPtr.maxNIns)
 
-	/*offsets := make([]int, len(circuit)+1) // offsets shows where the assignments for each wire begin
-	for i := range circuit {
-		nbAssignments := 0
-		if circuit[i].isInput() {
-			nbAssignments = nbInstances - len(circuit[i].dependencies)
-		}
-		offsets[i+1] = offsets[i] + nbAssignments
-	}*/
-	dependenciesI := make([]int, len(circuit))
-	assignments := make([][]fr.Element, nbInstances) // Many short arrays are probably less efficient than a few long arrays. A point against the current instance-first indexing
+	assignments := make(bn254AssignmentNoPtr, len(circuit))
+	for i := range assignments {
+		assignments[i] = make([]fr.Element, nbInstances)
+	}
 
 	for instanceI := 0; instanceI < nbInstances; instanceI++ {
-		assignments[instanceI] = make([]fr.Element, len(circuit))
-		for wireI := range circuit {
-			if circuit[wireI].isInput() {
-				dependencies := circuit[wireI].dependencies
-				dependencyI := dependenciesI[wireI]
-				if dependencyI < len(dependencies) && dependencies[dependencyI].inputInstance == instanceI {
-					dependenciesI[wireI]++
+		for wireI, wire := range circuit {
+			if wire.isInput() {
+				if nbDepsResolved[wireI] < len(wire.dependencies) && instanceI == wire.dependencies[nbDepsResolved[wireI]].inputInstance {
+					dep := wire.dependencies[nbDepsResolved[wireI]]
+					assignments[wireI][instanceI].Set(&assignments[dep.outputWire][dep.outputInstance])
+					nbDepsResolved[wireI]++
 				} else {
-					assignments[instanceI][wireI].SetBigInt(assignmentVector[0])
-					assignmentVector = assignmentVector[1:]
-				}
-			}
-		}
-	}
-	return assignments
-}
-
-func bn254Solve(noPtr circuitDataNoPtr, typed bn254CircuitData, assignments bn254AssignmentNoPtr) {
-
-	inputs := make([]fr.Element, noPtr.maxNIns)
-	for _, instanceI := range noPtr.sortedInstances {
-		for wireI := range typed.circuit {
-			if noPtr.circuit[wireI].isInput() {
-				dependencies := noPtr.circuit[wireI].dependencies
-				dependencyI, dependent := slices.BinarySearchFunc(dependencies, inputDependency{inputInstance: instanceI},
-					func(a, b inputDependency) int {
-						if a.inputInstance > b.inputInstance {
-							return 1
-						} else if a.inputInstance == b.inputInstance {
-							return 0
-						}
-						return -1
-					})
-				if dependent {
-					assignments[instanceI][wireI].Set(&assignments[dependencies[dependencyI].outputInstance][dependencies[dependencyI].outputWire])
+					assignments[wireI][instanceI].SetBigInt(assignmentVector[offsets[wireI]+instanceI-nbDepsResolved[wireI]])
 				}
 			} else {
 				// assemble the inputs
@@ -73,6 +45,7 @@ func bn254Solve(noPtr circuitDataNoPtr, typed bn254CircuitData, assignments bn25
 			}
 		}
 	}
+	return assignments
 }
 
 func toBn254MapAssignment(circuit gkr.Circuit, assignment bn254AssignmentNoPtr) gkr.WireAssignment {
@@ -103,8 +76,7 @@ func bn254SolveHint(data circuitDataNoPtr, ins []*big.Int, outs []*big.Int) (bn2
 		memoryPool: polynomial.NewPool(256, 1<<11), // TODO: Get clever with limits
 	}
 
-	assignments := bn254CreateAssignments(data, ins)
-	bn254Solve(data, res, assignments)
+	assignments := bn254Solve(data, res, ins)
 	res.assignments = toBn254MapAssignment(res.circuit, assignments)
 	bn254SetOutputValues(data.circuit, assignments, outs)
 
