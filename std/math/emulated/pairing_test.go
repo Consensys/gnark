@@ -92,7 +92,7 @@ func TestE12SquareBLS377(t *testing.T) {
 	}
 
 	wrapperOpt := test.WithApiWrapper(func(api frontend.API) frontend.API {
-		napi, err := NewField[BLS12377Fp](api)
+		napi, err := NewAPI[BLS12377Fp](api)
 		assert.NoError(err)
 		return napi
 	})

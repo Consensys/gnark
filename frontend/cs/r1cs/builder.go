@@ -65,7 +65,7 @@ type builder struct {
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 	builder := builder{
-		mtBooleans: make(map[uint64][]expr.LinearExpression),
+		mtBooleans: make(map[uint64][]expr.LinearExpression, config.Capacity/10),
 		config:     config,
 		heap:       make(minHeap, 0, 100),
 	}
@@ -76,22 +76,22 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 
 	switch curve {
 	case ecc.BLS12_377:
-		builder.cs = bls12377r1cs.NewR1CS()
+		builder.cs = bls12377r1cs.NewR1CS(config.Capacity)
 	case ecc.BLS12_381:
-		builder.cs = bls12381r1cs.NewR1CS()
+		builder.cs = bls12381r1cs.NewR1CS(config.Capacity)
 	case ecc.BN254:
-		builder.cs = bn254r1cs.NewR1CS()
+		builder.cs = bn254r1cs.NewR1CS(config.Capacity)
 	case ecc.BW6_761:
-		builder.cs = bw6761r1cs.NewR1CS()
+		builder.cs = bw6761r1cs.NewR1CS(config.Capacity)
 	case ecc.BW6_633:
-		builder.cs = bw6633r1cs.NewR1CS()
+		builder.cs = bw6633r1cs.NewR1CS(config.Capacity)
 	case ecc.BLS24_315:
-		builder.cs = bls24315r1cs.NewR1CS()
+		builder.cs = bls24315r1cs.NewR1CS(config.Capacity)
 	case ecc.BLS24_317:
-		builder.cs = bls24317r1cs.NewR1CS()
+		builder.cs = bls24317r1cs.NewR1CS(config.Capacity)
 	default:
 		if field.Cmp(tinyfield.Modulus()) == 0 {
-			builder.cs = tinyfieldr1cs.NewR1CS()
+			builder.cs = tinyfieldr1cs.NewR1CS(config.Capacity)
 			break
 		}
 		panic("not implemtented")
@@ -160,10 +160,10 @@ func (builder *builder) FieldBitLen() int {
 
 // newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
 // and return a R1C
-func (builder *builder) newR1C(_l, _r, _o frontend.Variable) constraint.R1C {
-	l := _l.(expr.LinearExpression)
-	r := _r.(expr.LinearExpression)
-	o := _o.(expr.LinearExpression)
+func (builder *builder) newR1C(l, r, o frontend.Variable) constraint.R1C {
+	L := builder.getLinearExpression(l)
+	R := builder.getLinearExpression(r)
+	O := builder.getLinearExpression(o)
 
 	// interestingly, this is key to groth16 performance.
 	// l * r == r * l == o
@@ -171,23 +171,30 @@ func (builder *builder) newR1C(_l, _r, _o frontend.Variable) constraint.R1C {
 	// the "r" linear expression is going to end up in the B matrix
 	// the less Variable we have appearing in the B matrix, the more likely groth16.Setup
 	// is going to produce infinity points in pk.G1.B and pk.G2.B, which will speed up proving time
-	if len(l) > len(r) {
+	if len(L) > len(R) {
 		// TODO @gbotrel shouldn't we do the opposite? Code doesn't match comment.
-		l, r = r, l
+		L, R = R, L
 	}
 
-	return constraint.R1C{
-		L: builder.getLinearExpression(l),
-		R: builder.getLinearExpression(r),
-		O: builder.getLinearExpression(o),
-	}
+	return constraint.R1C{L: L, R: R, O: O}
 }
 
-func (builder *builder) getLinearExpression(l expr.LinearExpression) constraint.LinearExpression {
-	L := make(constraint.LinearExpression, 0, len(l))
-	for _, t := range l {
-		L = append(L, builder.cs.MakeTerm(&t.Coeff, t.VID))
+func (builder *builder) getLinearExpression(_l interface{}) constraint.LinearExpression {
+	var L constraint.LinearExpression
+	switch tl := _l.(type) {
+	case expr.LinearExpression:
+		L = make(constraint.LinearExpression, 0, len(tl))
+		for _, t := range tl {
+			L = append(L, builder.cs.MakeTerm(&t.Coeff, t.VID))
+		}
+	case constraint.LinearExpression:
+		L = tl
+	default:
+		if debug.Debug {
+			panic("invalid input for getLinearExpression") // sanity check
+		}
 	}
+
 	return L
 }
 
@@ -418,6 +425,21 @@ func (builder *builder) newDebugInfo(errName string, in ...interface{}) constrai
 		}
 	}
 
-	return constraint.NewDebugInfo(errName, in...)
+	return builder.cs.NewDebugInfo(errName, in...)
 
+}
+
+// compress checks the length of the linear expression le and if it is larger or
+// equal than CompressThreshold in the configuration, replaces it with a linear
+// expression of one term. In that case it adds an equality constraint enforcing
+// the correctness of the returned linear expression.
+func (builder *builder) compress(le expr.LinearExpression) expr.LinearExpression {
+	if builder.config.CompressThreshold <= 0 || len(le) < builder.config.CompressThreshold {
+		return le
+	}
+
+	one := builder.cstOne()
+	t := builder.newInternalVariable()
+	builder.cs.AddConstraint(builder.newR1C(le, one, t))
+	return t
 }

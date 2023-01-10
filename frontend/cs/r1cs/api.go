@@ -113,6 +113,9 @@ func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int
 		// keep the linear expression valid (assertIsSet)
 		res = expr.NewLinearExpression(0, constraint.Coeff{})
 	}
+	// if the linear expression LE is too long then record an equality
+	// constraint LE * 1 = t and return short linear expression instead.
+	res = builder.compress(res)
 
 	return res
 }
