@@ -155,7 +155,7 @@ func (d *circuitDataNoPtr) compile() error { // (circuit Circuit, assignment Wir
 		return*/
 }
 
-func (d *circuitDataNoPtr) newVariable(assignment []frontend.Variable) Variable {
+func (d *circuitDataNoPtr) newInputVariable(assignment []frontend.Variable) Variable {
 	i := len(d.circuit)
 	d.circuit = append(d.circuit, wireNoPtr{assignments: assignment})
 	return Variable(i)
@@ -211,7 +211,7 @@ func (i *API) Import(assignment []frontend.Variable) (Variable, error) {
 		return -1, fmt.Errorf("number of assignments must be consistent across all variables")
 	}
 
-	return i.noPtr.newVariable(assignment), nil
+	return i.noPtr.newInputVariable(assignment), nil
 }
 
 /*func (i *API) nbInputValueAssignments(variable Variable) int {
@@ -224,7 +224,7 @@ func (i *API) Import(assignment []frontend.Variable) (Variable, error) {
 	return res
 }*/
 
-func appendNonNil[T any](dst *[]T, src []T) {
+func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
 	for i := range src {
 		if src[i] != nil {
 			*dst = append(*dst, src[i])

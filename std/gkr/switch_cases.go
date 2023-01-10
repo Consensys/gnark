@@ -10,10 +10,9 @@ import (
 func solveHint(data *circuitData) func(*big.Int, []*big.Int, []*big.Int) error {
 	return func(mod *big.Int, ins []*big.Int, outs []*big.Int) error {
 		var err error
-		switch mod {
-		case bn254.Modulus():
+		if mod.Cmp(bn254.Modulus()) == 0 { // TODO: Switch case?
 			data.typed, err = bn254SolveHint(data.noPtr, ins, outs)
-		default:
+		} else {
 			err = fmt.Errorf("unknow modulus")
 		}
 		return err

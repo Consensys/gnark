@@ -16,14 +16,14 @@ type bn254CircuitData struct {
 	memoryPool  polynomial.Pool
 }
 
-func convertGate(gate Gate) gkr.Gate {
+func bn254ConvertGate(gate Gate) gkr.Gate {
 	return gateConverter{gate: gate}
 }
 
-func convertCircuit(noPtr circuitNoPtr) gkr.Circuit {
+func bn254ConvertCircuit(noPtr circuitNoPtr) gkr.Circuit {
 	resCircuit := make(gkr.Circuit, len(noPtr))
 	for i := range noPtr {
-		resCircuit[i].Gate = convertGate(noPtr[i].gate)
+		resCircuit[i].Gate = bn254ConvertGate(noPtr[i].gate)
 		resCircuit[i].Inputs = algo_utils.Map(noPtr[i].inputs, slicePtrAt(resCircuit))
 	}
 	return resCircuit

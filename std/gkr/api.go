@@ -3,16 +3,20 @@ package gkr
 import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/utils/algo_utils"
 	"math/big"
 )
 
-func frontendVarToPtr(a frontend.Variable) *Wire {
-	return a.(Variable)
+func frontendVarToInt(a frontend.Variable) int {
+	return int(a.(Variable))
 }
 
-func (i *API) newVar(gate Gate, in []frontend.Variable) Variable {
-	i.circuit = append(i.circuit, Wire{Gate: gate, Inputs: Map(in, frontendVarToPtr)})
-	return &i.circuit[len(i.circuit)-1]
+func (i *API) newNonInputVariable(gate Gate, in []frontend.Variable) Variable {
+	i.noPtr.circuit = append(i.noPtr.circuit, wireNoPtr{
+		gate:   gate,
+		inputs: algo_utils.Map(in, frontendVarToInt),
+	})
+	return Variable(len(i.noPtr.circuit) - 1)
 }
 
 func (i *API) newVar2PlusIn(gate Gate, in1, in2 frontend.Variable, in ...frontend.Variable) Variable {
@@ -22,7 +26,7 @@ func (i *API) newVar2PlusIn(gate Gate, in1, in2 frontend.Variable, in ...fronten
 	for i := range in {
 		inCombined[i+2] = in[i]
 	}
-	return i.newVar(gate, inCombined)
+	return i.newNonInputVariable(gate, inCombined)
 }
 
 func (i *API) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {

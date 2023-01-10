@@ -52,8 +52,8 @@ func TestSolveMulNoDependency(t *testing.T) {
 func TestApiMul(t *testing.T) {
 	var (
 		x   Variable
-		y   *Wire
-		z   *Wire
+		y   Variable
+		z   Variable
 		err error
 	)
 	api := NewApi()
@@ -61,11 +61,11 @@ func TestApiMul(t *testing.T) {
 	assert.NoError(t, err)
 	y, err = api.Import([]frontend.Variable{nil, nil})
 	assert.NoError(t, err)
-	z = api.Mul(Variable(x), Variable(y)).(Variable)
-	test_vector_utils.AssertSliceEqual(t, z.Inputs, []*Wire{x, y}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
+	z = api.Mul(x, y).(Variable)
+	test_vector_utils.AssertSliceEqual(t, api.noPtr.circuit[z].inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 
-	unsorted := []*Wire{&api.circuit[0], &api.circuit[1], &api.circuit[2]}
-	test_vector_utils.AssertSliceEqual(t, []*Wire{x, y, z}, unsorted)
+	//unsorted := []*Wire{&api.noPtr.circuit[0], &api.noPtr.circuit[1], &api.noPtr.circuit[2]}
+	//test_vector_utils.AssertSliceEqual(t, []*Wire{x, y, z}, unsorted)
 
 	//sorted := topologicalSort(api.circuit)
 
