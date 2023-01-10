@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/permutation/keccakf"
 	"github.com/consensys/gnark/test"
@@ -34,5 +35,5 @@ func TestKeccakf(t *testing.T) {
 		witness.Expected[i] = nativeOut[i]
 	}
 	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&keccakfCircuit{}, &witness, test.WithCurves(ecc.BN254))
+	assert.ProverSucceeded(&keccakfCircuit{}, &witness, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16, backend.PLONK))
 }
