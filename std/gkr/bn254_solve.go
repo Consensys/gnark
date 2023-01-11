@@ -38,10 +38,10 @@ func bn254Solve(noPtr circuitDataNoPtr, typed bn254CircuitData, assignmentVector
 				// assemble the inputs
 				inputIndexes := noPtr.circuit[wireI].inputs
 				for i, inputI := range inputIndexes {
-					inputs[i].Set(&assignments[instanceI][inputI])
+					inputs[i].Set(&assignments[inputI][instanceI])
 				}
 				gate := typed.circuit[wireI].Gate
-				assignments[instanceI][wireI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
+				assignments[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
 			}
 		}
 	}

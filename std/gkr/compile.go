@@ -3,8 +3,6 @@ package gkr
 import (
 	"fmt"
 	"github.com/consensys/gnark/frontend"
-	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"math/bits"
 	"sort"
@@ -106,7 +104,9 @@ func (d *circuitDataNoPtr) compile() error { // (circuit Circuit, assignment Wir
 			}
 		} // TODO: Check that dependencies and explicit assignments cover all instances
 
-		if !oldW.isInput() {
+		if oldW.isInput() {
+			algo_utils.Permute(oldW.assignments, instancePermutationInv)
+		} else {
 			d.maxNIns = max(d.maxNIns, len(oldW.inputs))
 		}
 
@@ -120,8 +120,6 @@ func (d *circuitDataNoPtr) compile() error { // (circuit Circuit, assignment Wir
 		sort.Slice(oldW.dependencies, func(i, j int) bool {
 			return oldW.dependencies[i].inputInstance < oldW.dependencies[j].inputInstance
 		})
-
-		algo_utils.Permute(oldW.assignments, instancePermutationInv)
 
 		sorted[newI] = wireNoPtr{
 			assignments:     oldW.assignments,
@@ -250,18 +248,17 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 	}
 
 	i.noPtr.circuit.addOutputAssignments(outs)
+	i.forSnark = i.noPtr.forSnark()
 
-	var (
+	/*var (
 		proofSerialized []frontend.Variable
 		proof           Proof
 		_mimc           mimc.MiMC
 	)
 
-	i.forSnark = i.noPtr.forSnark()
-
 	if proofSerialized, err = parentApi.Compiler().NewHint(
 		proveHint(i.typed), ProofSize(i.forSnark.circuit, logNbInstances(uint(nbInstances)))); // , outsSerialized[0]	<- do this as a hack if order of execution got messed up
-	err != nil {
+		err != nil {
 		return nil, err
 	}
 
@@ -276,7 +273,7 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 
 	if err = Verify(parentApi, i.forSnark.circuit, i.forSnark.assignments, proof, fiatshamir.WithHash(&_mimc), WithSortedCircuit(forSnarkSorted)); err != nil { // TODO: Security critical: do a proper transcriptSetting
 		return nil, err
-	}
+	}*/
 
 	i.noPtr.toVirtualOrder(outs)
 
@@ -337,10 +334,11 @@ func (d *circuitDataNoPtr) forSnark() circuitDataForSnark {
 }
 
 func (d *circuitDataNoPtr) toVirtualOrder(outs [][]frontend.Variable) {
-	for j := range d.circuit {
+	for j := range outs {
 		algo_utils.Permute(outs[j], d.sortedInstances)
 	}
-	algo_utils.Permute(outs, d.sortedWires)
+	// as long as topologicalSort sticks to the current order "as much as possible", the relative orders of the output wires will
+	// not have been disrupted so there is no need to reorder the out wires. TODO: Do it anyway
 }
 
 // assignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly

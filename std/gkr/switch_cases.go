@@ -24,10 +24,12 @@ func proveHint(data interface{}) func(*big.Int, []*big.Int, []*big.Int) error {
 		if data == nil {
 			return fmt.Errorf("attempting to run the prove hint before the solve hint is done. find a way to create a dependence between them (perhaps an output of the solver to be input to the prover as a hack)")
 		}
-		switch mod {
-		case bn254.Modulus():
+		var err error
+		if mod.Cmp(bn254.Modulus()) == 0 { // TODO: Switch case?
 			return bn254ProveHint(data.(bn254CircuitData), ins, outs)
+		} else {
+			err = fmt.Errorf("unknow modulus")
 		}
-		return fmt.Errorf("unknow modulus")
+		return err
 	}
 }

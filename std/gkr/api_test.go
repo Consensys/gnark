@@ -32,6 +32,7 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 	Z := gkrOuts[0]
 
 	for i := range c.X {
+		api.Println("z@", i, " = ", Z[i])
 		api.AssertIsEqual(Z[i], api.Mul(c.X[i], c.Y[i]))
 	}
 	return nil

@@ -538,6 +538,7 @@ func (g MulGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Var
 	return api.Mul(x[0], x[1])
 }
 
+// TODO: Degree must take nbInputs as an argument and return degree = nbInputs
 func (g MulGate) Degree() int {
 	return 2
 }
