@@ -39,7 +39,7 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestSolveMulNoDependency(t *testing.T) {
+func TestMulNoDependency(t *testing.T) {
 	assignment := mulNoDependencyCircuit{
 		X: []frontend.Variable{1, 2},
 		Y: []frontend.Variable{0, 3},
@@ -48,6 +48,58 @@ func TestSolveMulNoDependency(t *testing.T) {
 		X: make([]frontend.Variable, 2),
 		Y: make([]frontend.Variable, 2),
 	}
+	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+}
+
+type mulWithDependencyCircuit struct {
+	XLast frontend.Variable
+	Y     []frontend.Variable
+}
+
+func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
+	gkr := NewApi()
+	var x, y frontend.Variable
+	var err error
+
+	X := make([]frontend.Variable, len(c.Y))
+	X[len(c.Y)-1] = c.XLast
+	if x, err = gkr.Import(X); err != nil {
+		return err
+	}
+	if y, err = gkr.Import(c.Y); err != nil {
+		return err
+	}
+	z := gkr.Mul(x, y)
+
+	for i := len(X) - 1; i > 0; i-- {
+		gkr.Series(x, z, i-1, i)
+	}
+
+	var gkrOuts [][]frontend.Variable
+	if gkrOuts, err = gkr.Compile(api); err != nil {
+		return err
+	}
+	Z := gkrOuts[0]
+
+	api.Println("after solving, z=", Z, ", x=", X, ", y=", c.Y)
+
+	for i := len(X) - 1; i >= 0; i-- {
+		api.AssertIsEqual(Z[i], api.Mul(X[i], c.Y[i]))
+		if i > 0 {
+			api.AssertIsEqual(Z[i], X[i-1])
+		}
+	}
+	return nil
+}
+
+func TestSolveMulWithDependency(t *testing.T) {
+
+	assignment := mulWithDependencyCircuit{
+		XLast: 1,
+		Y:     []frontend.Variable{3, 2},
+	}
+	circuit := mulWithDependencyCircuit{Y: make([]frontend.Variable, len(assignment.Y))}
+
 	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
 }
 

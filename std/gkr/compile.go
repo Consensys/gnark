@@ -59,12 +59,12 @@ func (c circuitNoPtr) nbInstances() int {
 	return -1
 }
 
-func (i *API) nbInstances() int {
-	return i.noPtr.circuit.nbInstances()
+func (api *API) nbInstances() int {
+	return api.noPtr.circuit.nbInstances()
 }
 
-func (i *API) logNbInstances() int {
-	return logNbInstances(uint(i.nbInstances()))
+func (api *API) logNbInstances() int {
+	return logNbInstances(uint(api.nbInstances()))
 }
 
 // compile sorts the circuit wires, their dependencies and the instances
@@ -142,8 +142,8 @@ func (d *circuitDataNoPtr) newInputVariable(assignment []frontend.Variable) Vari
 	return Variable(i)
 }
 
-func (i *API) isCompiled() bool {
-	return i.forSnark.circuit != nil
+func (api *API) isCompiled() bool {
+	return api.forSnark.circuit != nil
 }
 
 func NewApi() *API {
@@ -165,21 +165,23 @@ func logNbInstances(nbInstances uint) int {
 }
 
 // Series like in an electric circuit, binds an input of an instance to an output of another
-func (i *API) Series(input, output Variable, inputInstance, outputInstance int) *API {
-	if i.noPtr.circuit[input].assignments[inputInstance] != nil {
+func (api *API) Series(input, output frontend.Variable, inputInstance, outputInstance int) *API {
+	i := input.(Variable)
+	o := output.(Variable)
+	if api.noPtr.circuit[i].assignments[inputInstance] != nil {
 		panic("dependency attempting to override explicit value assignment")
 	}
-	i.noPtr.circuit[input].dependencies =
-		append(i.noPtr.circuit[input].dependencies, inputDependency{
-			outputWire:     int(output),
+	api.noPtr.circuit[i].dependencies =
+		append(api.noPtr.circuit[i].dependencies, inputDependency{
+			outputWire:     int(o),
 			outputInstance: outputInstance,
 			inputInstance:  inputInstance,
 		})
-	return i
+	return api
 }
 
-func (i *API) Import(assignment []frontend.Variable) (Variable, error) {
-	if i.isCompiled() {
+func (api *API) Import(assignment []frontend.Variable) (Variable, error) {
+	if api.isCompiled() {
 		return -1, fmt.Errorf("cannot import variables into compiled circuit")
 	}
 	nbInstances := len(assignment)
@@ -188,11 +190,11 @@ func (i *API) Import(assignment []frontend.Variable) (Variable, error) {
 		return -1, fmt.Errorf("number of assignments must be a power of 2")
 	}
 
-	if currentNbInstances := i.nbInstances(); currentNbInstances != -1 && currentNbInstances != nbInstances {
+	if currentNbInstances := api.nbInstances(); currentNbInstances != -1 && currentNbInstances != nbInstances {
 		return -1, fmt.Errorf("number of assignments must be consistent across all variables")
 	}
 
-	return i.noPtr.newInputVariable(assignment), nil
+	return api.noPtr.newInputVariable(assignment), nil
 }
 
 func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
@@ -204,16 +206,16 @@ func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
 }
 
 // Compile finalizes the GKR circuit and returns the output variables in the order created
-func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
-	if i.isCompiled() {
+func (api *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
+	if api.isCompiled() {
 		return nil, fmt.Errorf("already compiled")
 	}
 
-	if err := i.noPtr.compile(); err != nil {
+	if err := api.noPtr.compile(); err != nil {
 		return nil, err
 	}
-	nbInstances := i.nbInstances()
-	circuit := i.noPtr.circuit
+	nbInstances := api.nbInstances()
+	circuit := api.noPtr.circuit
 
 	solveHintNIn := 0
 	solveHintNOut := 0
@@ -235,7 +237,7 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 		}
 	}
 
-	outsSerialized, err := parentApi.Compiler().NewHint(solveHint(&i.circuitData), solveHintNOut, ins...)
+	outsSerialized, err := parentApi.Compiler().NewHint(solveHint(&api.circuitData), solveHintNOut, ins...)
 	if err != nil {
 		return nil, err
 	}
@@ -247,8 +249,8 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 		outsSerialized = outsSerialized[nbInstances:]
 	}
 
-	i.noPtr.circuit.addOutputAssignments(outs)
-	i.forSnark = i.noPtr.forSnark()
+	api.noPtr.circuit.addOutputAssignments(outs)
+	api.forSnark = api.noPtr.forSnark()
 
 	/*var (
 		proofSerialized []frontend.Variable
@@ -257,12 +259,12 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 	)
 
 	if proofSerialized, err = parentApi.Compiler().NewHint(
-		proveHint(i.typed), ProofSize(i.forSnark.circuit, logNbInstances(uint(nbInstances)))); // , outsSerialized[0]	<- do this as a hack if order of execution got messed up
+		proveHint(api.typed), ProofSize(api.forSnark.circuit, logNbInstances(uint(nbInstances)))); // , outsSerialized[0]	<- do this as a hack if order of execution got messed up
 		err != nil {
 		return nil, err
 	}
 
-	forSnarkSorted := algo_utils.MapRange(0, len(circuit), slicePtrAt(i.forSnark.circuit))
+	forSnarkSorted := algo_utils.MapRange(0, len(circuit), slicePtrAt(api.forSnark.circuit))
 
 	if proof, err = DeserializeProof(forSnarkSorted, proofSerialized); err != nil {
 		return nil, err
@@ -271,11 +273,11 @@ func (i *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 		return nil, err
 	}
 
-	if err = Verify(parentApi, i.forSnark.circuit, i.forSnark.assignments, proof, fiatshamir.WithHash(&_mimc), WithSortedCircuit(forSnarkSorted)); err != nil { // TODO: Security critical: do a proper transcriptSetting
+	if err = Verify(parentApi, api.forSnark.circuit, api.forSnark.assignments, proof, fiatshamir.WithHash(&_mimc), WithSortedCircuit(forSnarkSorted)); err != nil { // TODO: Security critical: do a proper transcriptSetting
 		return nil, err
 	}*/
 
-	i.noPtr.toVirtualOrder(outs)
+	api.noPtr.toVirtualOrder(outs)
 
 	return outs, nil
 }

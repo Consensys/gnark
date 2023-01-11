@@ -405,21 +405,35 @@ func (e *engine) Println(a ...frontend.Variable) {
 	}
 
 	for i := 0; i < len(a); i++ {
-		if s, ok := a[i].(string); ok {
-			sbb.WriteString(s)
-		} else {
-			v := e.toBigInt(a[i])
-			var vAsNeg big.Int
-			vAsNeg.Sub(v, e.q)
-			if vAsNeg.IsInt64() {
-				sbb.WriteString(strconv.FormatInt(vAsNeg.Int64(), 10))
-			} else {
-				sbb.WriteString(v.String())
-			}
-		}
+		e.print(&sbb, a[i])
 		sbb.WriteByte(' ')
 	}
 	fmt.Println(sbb.String())
+}
+
+func (e *engine) print(sbb *strings.Builder, x interface{}) {
+	switch v := x.(type) {
+	case string:
+		sbb.WriteString(v)
+	case []frontend.Variable:
+		sbb.WriteRune('[')
+		for i := range v {
+			e.print(sbb, v[i])
+			if i+1 != len(v) {
+				sbb.WriteRune(',')
+			}
+		}
+		sbb.WriteRune(']')
+	default:
+		i := e.toBigInt(v)
+		var iAsNeg big.Int
+		iAsNeg.Sub(i, e.q)
+		if iAsNeg.IsInt64() {
+			sbb.WriteString(strconv.FormatInt(iAsNeg.Int64(), 10))
+		} else {
+			sbb.WriteString(i.String())
+		}
+	}
 }
 
 func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {

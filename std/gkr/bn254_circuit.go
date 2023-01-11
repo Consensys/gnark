@@ -59,15 +59,6 @@ func (c gateConverter) Evaluate(ins ...fr.Element) fr.Element {
 
 type gateConversionApi struct{}
 
-/*func forceElemPtr(elems []fr.Element, i1, i2 frontend.Variable, in ...frontend.Variable) []*fr.Element {
-	res := make([]*fr.Element, 2+len(in))
-	res[0] = &elems[i1.(int)]
-	res[1] = &elems[i2.(int)]
-	for i := range in {
-		res[2+i] = &elems[in[i].(int)]
-	}
-}*/
-
 func varsToElems(i1, i2 frontend.Variable, in ...frontend.Variable) []fr.Element {
 	res := make([]fr.Element, 2+len(in))
 	res[0] = i1.(fr.Element)
