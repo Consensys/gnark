@@ -33,6 +33,7 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 
 	for i := range c.X {
 		api.Println("z@", i, " = ", Z[i])
+		api.Println("x.y = ", api.Mul(c.X[i], c.Y[i]))
 		api.AssertIsEqual(Z[i], api.Mul(c.X[i], c.Y[i]))
 	}
 	return nil
@@ -41,7 +42,7 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 func TestSolveMulNoDependency(t *testing.T) {
 	assignment := mulNoDependencyCircuit{
 		X: []frontend.Variable{1, 2},
-		Y: []frontend.Variable{2, 3},
+		Y: []frontend.Variable{0, 3},
 	}
 	circuit := mulNoDependencyCircuit{
 		X: make([]frontend.Variable, 2),
