@@ -30,6 +30,7 @@ import (
 	"github.com/consensys/gnark/logger"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -154,6 +155,17 @@ func (e *engine) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 	}
 	res.Mod(res, e.modulus())
 	return res
+}
+
+func (e *engine) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+	bc := field.BigIntPool.Get()
+	bc.Mul(e.toBigInt(b), e.toBigInt(c))
+
+	_a := e.toBigInt(a)
+	_a.Add(_a, bc).Mod(_a, e.modulus())
+
+	field.BigIntPool.Put(bc)
+	return _a
 }
 
 func (e *engine) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {

@@ -67,8 +67,9 @@ func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) fronte
 	c.Lsh(c, uint(startDigit))
 
 	for i := 0; i < len(bits); i++ {
-		Σbi = api.Add(Σbi, api.Mul(bits[i], c))
-		ΣbiRShift = api.Add(ΣbiRShift, api.Mul(bits[i], cRShift))
+		Σbi = api.MulAcc(Σbi, bits[i], c)
+		ΣbiRShift = api.MulAcc(ΣbiRShift, bits[i], cRShift)
+
 		c.Lsh(c, 1)
 		cRShift.Lsh(cRShift, 1)
 		api.AssertIsBoolean(bits[i])

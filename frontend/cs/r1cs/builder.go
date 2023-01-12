@@ -59,15 +59,25 @@ type builder struct {
 	q    *big.Int
 	tOne constraint.Coeff
 	heap minHeap // helps merge k sorted linear expressions
+
+	// buffers used to do in place api.MAC
+	mbuf1 expr.LinearExpression
+	mbuf2 expr.LinearExpression
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
+	macCapacity := 100
+	if config.CompressThreshold != 0 {
+		macCapacity = config.CompressThreshold
+	}
 	builder := builder{
 		mtBooleans: make(map[uint64][]expr.LinearExpression, config.Capacity/10),
 		config:     config,
 		heap:       make(minHeap, 0, 100),
+		mbuf1:      make(expr.LinearExpression, 0, macCapacity),
+		mbuf2:      make(expr.LinearExpression, 0, macCapacity),
 	}
 
 	// by default the circuit is given a public wire equal to 1
@@ -306,6 +316,9 @@ func (builder *builder) toVariable(input interface{}) expr.LinearExpression {
 		// this is already a "kwown" variable
 		assertIsSet(t)
 		return t
+	case *expr.LinearExpression:
+		assertIsSet(*t)
+		return *t
 	case constraint.Coeff:
 		return expr.NewLinearExpression(0, t)
 	case *constraint.Coeff:
@@ -352,14 +365,11 @@ func (builder *builder) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 	// TODO @gbotrel hint input pass
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		switch t := in.(type) {
-		case expr.LinearExpression:
+		if t, ok := in.(expr.LinearExpression); ok {
 			assertIsSet(t)
 			hintInputs[i] = builder.getLinearExpression(t)
-		default:
-			// make a term
-			// c := utils.FromInterface(t)
-			c := builder.cs.FromInterface(t)
+		} else {
+			c := builder.cs.FromInterface(in)
 			term := builder.cs.MakeTerm(&c, 0)
 			term.MarkConstant()
 			hintInputs[i] = constraint.LinearExpression{term}
