@@ -73,6 +73,10 @@ func NewTranscript(api frontend.API, h hash.Hash, challengesID ...string) Transc
 // binded to other values.
 func (t *Transcript) Bind(challengeID string, values []frontend.Variable) error {
 
+	toPrint := []frontend.Variable{"snark binding to ", challengeID, ":"}
+	toPrint = append(toPrint, values...)
+	t.api.Println(toPrint...)
+
 	challenge, ok := t.challenges[challengeID]
 
 	if !ok {
@@ -120,6 +124,10 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 		t.h.Write(t.previous.value)
 	}
 
+	toPrint := []frontend.Variable{"snark bindings:"}
+	toPrint = append(toPrint, challenge.bindings...)
+	t.api.Println(toPrint...)
+
 	// write the binded values in the order they were added
 	t.h.Write(challenge.bindings...)
 
@@ -131,6 +139,8 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 	t.challenges[challengeID] = challenge
 
 	t.h.Reset()
+
+	t.api.Println("snark challenge \"", challengeID, "\" <- ", challenge.value)
 
 	return challenge.value, nil
 

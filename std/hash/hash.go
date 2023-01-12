@@ -17,7 +17,10 @@ limitations under the License.
 // Package hash provides an interface that hash functions (as gadget) should implement.
 package hash
 
-import "github.com/consensys/gnark/frontend"
+import (
+	"github.com/consensys/gnark/frontend"
+	"hash"
+)
 
 type Hash interface {
 
@@ -29,4 +32,6 @@ type Hash interface {
 
 	// Reset empty the internal state and put the intermediate state to zero.
 	Reset()
+
+	ToStandard() hash.Hash
 }

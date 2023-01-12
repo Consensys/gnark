@@ -542,3 +542,17 @@ func (g MulGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Var
 func (g MulGate) Degree() int {
 	return 2
 }
+
+type AddGate struct{}
+
+func (a AddGate) Evaluate(api frontend.API, v ...frontend.Variable) frontend.Variable {
+	var rest []frontend.Variable
+	if len(v) >= 2 {
+		rest = v[2:]
+	}
+	return api.Add(v[0], v[1], rest...)
+}
+
+func (a AddGate) Degree() int {
+	return 1
+}

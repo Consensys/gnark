@@ -30,8 +30,7 @@ func (api *API) newVar2PlusIn(gate Gate, in1, in2 frontend.Variable, in ...front
 }
 
 func (api *API) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	return api.newVar2PlusIn(AddGate{}, i1, i2, in...)
 }
 
 func (api *API) Neg(i1 frontend.Variable) frontend.Variable {

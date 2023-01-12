@@ -1,11 +1,9 @@
 package gkr
 
 import (
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	curveFS "github.com/consensys/gnark-crypto/fiat-shamir"
 	"math/big"
 )
 
@@ -15,12 +13,9 @@ func bn254FrToBigInts(dst []*big.Int, src []fr.Element) {
 	}
 }
 
-func bn254ProveHint(data bn254CircuitData, ins []*big.Int, outs []*big.Int) error {
-	if len(ins) != 0 {
-		return fmt.Errorf("the prove hint takes no input")
-	}
+func bn254ProveHint(data bn254CircuitData, transcriptSettings curveFS.Settings, outs []*big.Int) error {
 
-	proof, err := gkr.Prove(data.circuit, data.assignments, fiatshamir.WithHash(mimc.NewMiMC()), gkr.WithPool(&data.memoryPool)) // TODO: Do transcriptSettings properly
+	proof, err := gkr.Prove(data.circuit, data.assignments, transcriptSettings, gkr.WithPool(&data.memoryPool)) // TODO: Do transcriptSettings properly
 	if err != nil {
 		return err
 	}

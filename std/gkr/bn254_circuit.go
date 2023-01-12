@@ -70,8 +70,13 @@ func varsToElems(i1, i2 frontend.Variable, in ...frontend.Variable) []fr.Element
 }
 
 func (c *gateConversionApi) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	elems := varsToElems(i1, i2, in...)
+	var res fr.Element
+	res.Add(&elems[0], &elems[1])
+	for i := range in {
+		res.Add(&res, &elems[i+2])
+	}
+	return res
 }
 
 func (c *gateConversionApi) Neg(i1 frontend.Variable) frontend.Variable {

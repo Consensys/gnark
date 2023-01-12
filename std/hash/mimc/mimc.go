@@ -19,6 +19,8 @@ package mimc
 
 import (
 	"errors"
+	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"hash"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -71,4 +73,13 @@ func (h *MiMC) Sum() frontend.Variable {
 
 	return h.h
 
+}
+
+func (h *MiMC) ToStandard() hash.Hash {
+	switch h.id {
+	// TODO: Take the parameters into account?
+	case ecc.BN254:
+		return bn254.NewMiMC()
+	}
+	panic("not implemented")
 }

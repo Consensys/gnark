@@ -117,14 +117,3 @@ func sliceSliceToString(slice [][]fr.Element) string {
 	}
 	return string(res)
 }
-
-/*
-func sliceToString(slice []fr.Element) string {
-	printable := test_vector_utils.ElementSliceToInterfaceSlice(slice)
-	res, err := json.Marshal(printable)
-	if err != nil {
-		panic(err.Error())
-	}
-	return string(res)
-}
-*/

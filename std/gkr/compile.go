@@ -3,6 +3,8 @@ package gkr
 import (
 	"fmt"
 	"github.com/consensys/gnark/frontend"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"math/bits"
 	"sort"
@@ -39,13 +41,17 @@ type circuitDataForSnark struct {
 }
 
 type circuitData struct {
-	noPtr    circuitDataNoPtr
-	forSnark circuitDataForSnark
-	typed    interface{} // curve-dependent data. for communication between solver and prover
+	noPtr circuitDataNoPtr
+	typed interface{} // curve-dependent data. for communication between solver and prover
 }
 
 type API struct {
 	circuitData
+}
+
+type Solution struct {
+	circuitData
+	parentApi frontend.API
 }
 
 type Variable int // Just an alias to hide implementation details. May be more trouble than worth
@@ -64,7 +70,7 @@ func (api *API) nbInstances() int {
 }
 
 func (api *API) logNbInstances() int {
-	return logNbInstances(uint(api.nbInstances()))
+	return log2(uint(api.nbInstances()))
 }
 
 // compile sorts the circuit wires, their dependencies and the instances
@@ -81,7 +87,6 @@ func (d *circuitDataNoPtr) compile() error { // (circuit Circuit, assignment Wir
 
 	d.sortedInstances, _ = algo_utils.TopologicalSort(instanceDeps)
 	instancePermutationInv := algo_utils.InvertPermutation(d.sortedInstances)
-	//instancePermutationInvAt := algo_utils.SliceAt(instancePermutationInv)
 
 	// this whole circuit sorting is a bit of a charade. if things are built using an api, there's no way it could NOT already be topologically sorted
 	// worth keeping for future-proofing?
@@ -106,6 +111,7 @@ func (d *circuitDataNoPtr) compile() error { // (circuit Circuit, assignment Wir
 
 		if oldW.isInput() {
 			algo_utils.Permute(oldW.assignments, instancePermutationInv)
+			//oldW.assignments = algo_utils.Map(d.sortedInstances, algo_utils.SliceAt(oldW.assignments)) TODO: This if decided not to modify the user-given assignments
 		} else {
 			d.maxNIns = max(d.maxNIns, len(oldW.inputs))
 		}
@@ -142,10 +148,6 @@ func (d *circuitDataNoPtr) newInputVariable(assignment []frontend.Variable) Vari
 	return Variable(i)
 }
 
-func (api *API) isCompiled() bool {
-	return api.forSnark.circuit != nil
-}
-
 func NewApi() *API {
 	return &API{circuitData{
 		noPtr: circuitDataNoPtr{
@@ -156,12 +158,12 @@ func NewApi() *API {
 	}}
 }
 
-// logNbInstances returns -1 if nbInstances is not a power of 2
-func logNbInstances(nbInstances uint) int {
-	if bits.OnesCount(nbInstances) != 1 {
+// log2 returns -1 if x is not a power of 2
+func log2(x uint) int {
+	if bits.OnesCount(x) != 1 {
 		return -1
 	}
-	return bits.TrailingZeros(nbInstances)
+	return bits.TrailingZeros(x)
 }
 
 // Series like in an electric circuit, binds an input of an instance to an output of another
@@ -181,11 +183,8 @@ func (api *API) Series(input, output frontend.Variable, inputInstance, outputIns
 }
 
 func (api *API) Import(assignment []frontend.Variable) (Variable, error) {
-	if api.isCompiled() {
-		return -1, fmt.Errorf("cannot import variables into compiled circuit")
-	}
 	nbInstances := len(assignment)
-	logNbInstances := logNbInstances(uint(nbInstances))
+	logNbInstances := log2(uint(nbInstances))
 	if logNbInstances == -1 {
 		return -1, fmt.Errorf("number of assignments must be a power of 2")
 	}
@@ -205,23 +204,21 @@ func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
 	}
 }
 
-// Compile finalizes the GKR circuit and returns the output variables in the order created
-func (api *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
-	if api.isCompiled() {
-		return nil, fmt.Errorf("already compiled")
-	}
+// Solve finalizes the GKR circuit and returns the output variables in the order created
+func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 
 	if err := api.noPtr.compile(); err != nil {
-		return nil, err
+		return Solution{}, err
 	}
+
 	nbInstances := api.nbInstances()
 	circuit := api.noPtr.circuit
 
 	solveHintNIn := 0
 	solveHintNOut := 0
 
-	for j := range circuit {
-		v := &circuit[j]
+	for i := range circuit {
+		v := &circuit[i]
 		if v.isInput() {
 			solveHintNIn += nbInstances - len(v.dependencies)
 		} else if v.isOutput() {
@@ -231,74 +228,73 @@ func (api *API) Compile(parentApi frontend.API) ([][]frontend.Variable, error) {
 
 	// arrange inputs wire first, then in the order solved
 	ins := make([]frontend.Variable, 0, solveHintNIn)
-	for j := range circuit {
-		if circuit[j].isInput() {
-			appendNonNil(&ins, circuit[j].assignments)
+	for i := range circuit {
+		if circuit[i].isInput() {
+			appendNonNil(&ins, circuit[i].assignments)
 		}
 	}
 
 	outsSerialized, err := parentApi.Compiler().NewHint(solveHint(&api.circuitData), solveHintNOut, ins...)
 	if err != nil {
-		return nil, err
+		return Solution{}, err
 	}
 
-	outs := make([][]frontend.Variable, len(outsSerialized)/nbInstances)
-
-	for j := range outs {
-		outs[j] = outsSerialized[:nbInstances]
-		outsSerialized = outsSerialized[nbInstances:]
+	for i := range circuit {
+		w := &circuit[i]
+		if w.isOutput() {
+			w.assignments = outsSerialized[:nbInstances]
+			outsSerialized = outsSerialized[nbInstances:]
+		}
 	}
 
-	api.noPtr.circuit.addOutputAssignments(outs)
-	api.forSnark = api.noPtr.forSnark()
-
-	/*var (
-		proofSerialized []frontend.Variable
-		proof           Proof
-		_mimc           mimc.MiMC
-	)
-
-	if proofSerialized, err = parentApi.Compiler().NewHint(
-		proveHint(api.typed), ProofSize(api.forSnark.circuit, logNbInstances(uint(nbInstances)))); // , outsSerialized[0]	<- do this as a hack if order of execution got messed up
-		err != nil {
-		return nil, err
+	for i := range circuit {
+		for _, dep := range circuit[i].dependencies {
+			circuit[i].assignments[dep.inputInstance] = circuit[dep.outputWire].assignments[dep.outputInstance]
+		}
 	}
 
-	forSnarkSorted := algo_utils.MapRange(0, len(circuit), slicePtrAt(api.forSnark.circuit))
-
-	if proof, err = DeserializeProof(forSnarkSorted, proofSerialized); err != nil {
-		return nil, err
-	}
-	if _mimc, err = mimc.NewMiMC(parentApi); err != nil {
-		return nil, err
-	}
-
-	if err = Verify(parentApi, api.forSnark.circuit, api.forSnark.assignments, proof, fiatshamir.WithHash(&_mimc), WithSortedCircuit(forSnarkSorted)); err != nil { // TODO: Security critical: do a proper transcriptSetting
-		return nil, err
-	}*/
-
-	api.noPtr.toVirtualOrder(outs)
-
-	return outs, nil
+	return Solution{
+		circuitData: api.circuitData,
+		parentApi:   parentApi,
+	}, nil
 }
 
-// completeAssignments creates assignment fields for the output vars and input instances that depend on them
-func (c circuitNoPtr) addOutputAssignments(outs [][]frontend.Variable) {
-	outI := 0
-	for i := range c {
-		if c[i].isOutput() {
-			c[i].assignments = outs[outI]
-			outI++
+func (s Solution) Export(v frontend.Variable) []frontend.Variable {
+	return algo_utils.Map(s.noPtr.sortedInstances, algo_utils.SliceAt(s.noPtr.circuit[v.(Variable)].assignments))
+}
+
+func (s Solution) Verify(hash hash.Hash, initialChallenges ...frontend.Variable) error {
+	// TODO: Translate transcriptSettings from snark to field ugh
+	var (
+		err             error
+		proofSerialized []frontend.Variable
+		proof           Proof
+	)
+
+	forSnark := s.noPtr.forSnark()
+	logNbInstances := log2(uint(s.noPtr.circuit.nbInstances()))
+
+	//	TODO: Find out if this hack is necessary
+	/*for i := range s.noPtr.circuit {
+		if s.noPtr.circuit[i].isOutput() {
+			initialChallenges = append(initialChallenges, s.noPtr.circuit[i].assignments[0])
+			break
 		}
+	}*/
+
+	if proofSerialized, err = s.parentApi.Compiler().NewHint(
+		proveHint(s.typed, hash), ProofSize(forSnark.circuit, logNbInstances), initialChallenges...); err != nil {
+		return err
 	}
-	for i := range c {
-		if c[i].dependencies != nil && !c[i].isInput() { // TODO: Remove
-			panic("data structure poorly maintained")
-		}
-		for _, dep := range c[i].dependencies {
-			c[i].assignments[dep.inputInstance] = c[dep.outputWire].assignments[dep.outputInstance]
-		}
+
+	forSnarkSorted := algo_utils.MapRange(0, len(s.noPtr.circuit), slicePtrAt(forSnark.circuit))
+
+	if proof, err = DeserializeProof(forSnarkSorted, proofSerialized); err != nil {
+		return err
 	}
+
+	return Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hash, initialChallenges...), WithSortedCircuit(forSnarkSorted)) // TODO: Security critical: do a proper transcriptSetting
+
 }
 
 type inputDependency struct {
@@ -333,14 +329,6 @@ func (d *circuitDataNoPtr) forSnark() circuitDataForSnark {
 		circuit:     circuit,
 		assignments: assignment,
 	}
-}
-
-func (d *circuitDataNoPtr) toVirtualOrder(outs [][]frontend.Variable) {
-	for j := range outs {
-		algo_utils.Permute(outs[j], d.sortedInstances)
-	}
-	// as long as topologicalSort sticks to the current order "as much as possible", the relative orders of the output wires will
-	// not have been disrupted so there is no need to reorder the out wires. TODO: Do it anyway
 }
 
 // assignmentOffsets returns the index of the first value assigned to a wire TODO: Explain clearly
