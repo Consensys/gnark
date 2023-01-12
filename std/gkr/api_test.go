@@ -5,7 +5,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bn254TestVectorUtils "github.com/consensys/gnark-crypto/ecc/bn254/fr/test_vector_utils"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
@@ -240,4 +242,102 @@ func (c *messageCounter) Reset() {
 
 func (c *messageCounter) ToStandard() hash.Hash {
 	return bn254TestVectorUtils.NewMessageCounter(c.startState, c.step)
+}
+
+func BenchmarkMiMCMerkleTree(b *testing.B) {
+	depth := 3
+	bottom := make([]frontend.Variable, 1<<depth)
+
+	for i := 0; i < 1<<depth; i++ {
+		bottom[i] = i
+	}
+
+	assignment := benchMiMCMerkleTreeCircuit{
+		depth:   depth,
+		XBottom: bottom[:len(bottom)/2],
+		YBottom: bottom[len(bottom)/2:],
+	}
+
+	circuit := benchMiMCMerkleTreeCircuit{
+		depth:   depth,
+		XBottom: make([]frontend.Variable, len(assignment.XBottom)),
+		YBottom: make([]frontend.Variable, len(assignment.YBottom)),
+	}
+
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	assert.NoError(b, err)
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	assert.NoError(b, err)
+	//publicWitness := witness.Public()
+	pk, _, err := groth16.Setup(cs)
+	assert.NoError(b, err)
+
+	b.ResetTimer()
+	_, err = groth16.Prove(cs, pk, witness)
+	assert.NoError(b, err)
+}
+
+type benchMiMCMerkleTreeCircuit struct {
+	depth   int
+	XBottom []frontend.Variable
+	YBottom []frontend.Variable
+}
+
+// hard-coded bn254
+func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
+
+	X := make([]frontend.Variable, 2*len(c.XBottom))
+	Y := make([]frontend.Variable, 2*len(c.YBottom))
+
+	copy(X, c.XBottom)
+	copy(Y, c.YBottom)
+
+	X[len(X)-1] = 0
+	Y[len(X)-1] = 0
+
+	var x, y frontend.Variable
+	var err error
+
+	gkr := NewApi()
+	if x, err = gkr.Import(X); err != nil {
+		return err
+	}
+	if y, err = gkr.Import(Y); err != nil {
+		return err
+	}
+
+	// cheat{
+	gkr.circuitData.noPtr.circuit = append(gkr.circuitData.noPtr.circuit, wireNoPtr{
+		gate:   mimcCipherGate{1},
+		inputs: []int{int(x.(Variable)), int(y.(Variable))},
+	})
+	z := frontend.Variable(Variable(2))
+	// }
+
+	offset := 1 << (c.depth - 1)
+	for d := c.depth - 2; d >= 0; d-- {
+		for i := 0; i < 1<<d; i++ {
+			gkr.Series(x, z, offset+i, offset-1-2*i)
+			gkr.Series(y, z, offset+i, offset-2-2*i)
+		}
+		offset += 1 << d
+	}
+
+	solution, err := gkr.Solve(api)
+	if err != nil {
+		return err
+	}
+	Z := solution.Export(z)
+
+	challenge, err := api.Compiler().Commit(Z...)
+	if err != nil {
+		return err
+	}
+
+	hsh, err := mimc.NewMiMC(api)
+	if err != nil {
+		return err
+	}
+
+	return solution.Verify(&hsh, challenge)
 }
