@@ -209,9 +209,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, opt 
 			chKrs2Done <- err
 		}()
 
-		removeIndexes(&wireValues, r1cs.CommitmentInfo.PrivateToPublic()) // WARNING: From this point on, the underlying array of wireValues has been edited
+		// filter the wire values if needed;
+		_wireValues := filter(wireValues, r1cs.CommitmentInfo.PrivateToPublic())
 
-		if _, err := krs.MultiExp(pk.G1.K, wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+		if _, err := krs.MultiExp(pk.G1.K, _wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
 			return
 		}
@@ -291,25 +292,27 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, opt 
 	return proof, nil
 }
 
-// removeIndexes removes from slice values slice[ remove[i]]
-func removeIndexes(slice *[]fr.Element, remove []int) {
+// if len(toRemove) == 0, returns slice
+// else, returns a new slice without the indexes in toRemove
+// this assumes toRemove indexes are sorted and len(slice) > len(toRemove)
+func filter(slice []fr.Element, toRemove []int) (r []fr.Element) {
 
-	if len(remove) == 0 {
-		return
+	if len(toRemove) == 0 {
+		return slice
 	}
+	r = make([]fr.Element, 0, len(slice)-len(toRemove))
 
-	lastRemoved := remove[0] //removing the first one takes no work
-	for existingDisplacement := range remove {
-		toRemove := len(*slice)
-		if existingDisplacement+1 < len(remove) {
-			toRemove = remove[existingDisplacement+1]
+	j := 0
+	// note: we can optimize that for the likely case where len(slice) >>> len(toRemove)
+	for i := 0; i < len(slice); i++ {
+		if j < len(toRemove) && i == toRemove[j] {
+			j++
+			continue
 		}
-		dst := (*slice)[lastRemoved-existingDisplacement : toRemove-existingDisplacement-1]
-		src := (*slice)[lastRemoved+1 : toRemove]
-		copy(dst, src)
-		lastRemoved = toRemove
+		r = append(r, slice[i])
 	}
-	*slice = (*slice)[:len(*slice)-len(remove)]
+
+	return r
 }
 
 func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
