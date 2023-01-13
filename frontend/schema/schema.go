@@ -17,6 +17,7 @@ limitations under the License.
 package schema
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -386,11 +387,17 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			// nothing to add
 			return r, nil
 		}
+		// ensure the subfields are the same, we don't support heterogenous or arrays
+		for i := 1; i < len(subFields); i++ {
+			if !consistentField(subFields[0], subFields[i]) {
+				return nil, errors.New("heterogenous slices or arrays are not supported")
+			}
+		}
 		return append(r, Field{
 			Name:       parentGoName,
 			NameTag:    parentTagName,
 			Type:       Array,
-			SubFields:  subFields[:1], // TODO @gbotrel we should ensure that elements are not heterogeneous?
+			SubFields:  subFields[:1],
 			Visibility: parentVisibility,
 			ArraySize:  tValue.Len(),
 		}), nil
@@ -398,6 +405,40 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 	}
 
 	return r, nil
+}
+
+func consistentField(f1, f2 Field) bool {
+	if f1.Type != f2.Type {
+		return false
+	}
+	switch f1.Type {
+	case Array:
+		if f1.ArraySize != f2.ArraySize {
+			return false
+		}
+		if (f1.SubFields == nil) != (f2.SubFields == nil) {
+			return false
+		}
+		if len(f1.SubFields) != 0 {
+			// array max subfield len == 1
+			return consistentField(f1.SubFields[0], f2.SubFields[0])
+		}
+		return true
+	case Struct:
+		if len(f1.SubFields) != len(f2.SubFields) {
+			return false
+		}
+		for i, s := range f1.SubFields {
+			if !consistentField(s, f2.SubFields[i]) {
+				return false
+			}
+		}
+		return true
+	case Leaf:
+		return true
+	default:
+		panic("not implemented")
+	}
 }
 
 // specify parentName, name and tag
