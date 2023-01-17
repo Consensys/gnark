@@ -308,6 +308,37 @@ func TestSchemaWithSlices(t *testing.T) {
 
 }
 
+func BenchmarkLargeSchema(b *testing.B) {
+	const n1 = 1 << 16
+	const n2 = 1 << 8
+	var a int
+	intType := reflect.TypeOf(a)
+	b.Run("parse", func(b *testing.B) {
+		t1 := struct {
+			A [][n2]variable
+		}{
+			make([][n2]variable, n1),
+		}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _ = Parse(&t1, tVariable, nil)
+		}
+	})
+
+	b.Run("instantiate", func(b *testing.B) {
+		t1 := struct {
+			A [][n2]variable
+		}{
+			make([][n2]variable, n1),
+		}
+		s, _ := Parse(&t1, tVariable, nil)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = s.Instantiate(intType, false)
+		}
+	})
+}
+
 var tVariable reflect.Type
 
 func init() {
