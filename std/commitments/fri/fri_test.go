@@ -20,7 +20,8 @@ type ProofOfProximityTest struct {
 }
 
 var sizePolyTest = uint64(32)
-var nbSteps = 5
+
+const nbSteps = 5
 
 func (p *ProofOfProximityTest) Define(api frontend.API) error {
 

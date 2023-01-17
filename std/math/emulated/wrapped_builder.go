@@ -58,12 +58,12 @@ func (w *FieldAPI[T]) addVariable(sf *schema.Field, recurseFn func(*schema.Field
 			Visibility: sf.Visibility,
 			FullName:   fmt.Sprintf("%s_%d", sf.FullName, i),
 			Type:       schema.Leaf,
-			ArraySize:  1,
+			NbElements: 1,
 		}
 		subfs = append(subfs, subf)
 		limbs[i] = recurseFn(&subf)
 	}
-	sf.ArraySize = len(subfs)
+	sf.NbElements = len(subfs)
 	sf.Type = schema.Array
 	sf.SubFields = subfs
 	el := w.f.PackLimbs(limbs)

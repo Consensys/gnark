@@ -19,12 +19,20 @@ package schema
 // Field represent a schema Field and is analogous to reflect.StructField (but simplified)
 type Field struct {
 	Name       string
-	NameTag    string
+	Tag        string
 	FullName   string
 	Visibility Visibility
 	Type       FieldType
-	SubFields  []Field // will be set only if it's a struct, or an array of struct
-	ArraySize  int
+
+	// if this field represent a struct, SubFields contains the struct members
+	//
+	// if it is an array or a slice of consistent elements, len(SubFields) == 1, the type of the
+	// consistent element to repeat ArraySize times.
+	//
+	// SubFields are consistents if they have the exact same type, and if they contain slices,
+	// exact same length.
+	SubFields  []Field
+	NbElements int
 }
 
 // FieldType represents the type a field is allowed to have in a gnark Schema
@@ -33,6 +41,7 @@ type FieldType uint8
 const (
 	Leaf FieldType = iota
 	Array
+	Slice
 	Struct
 )
 

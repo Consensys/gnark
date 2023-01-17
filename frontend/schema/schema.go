@@ -17,7 +17,6 @@ limitations under the License.
 package schema
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -65,30 +64,62 @@ func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (*Schem
 //	struct { A []frontend.Variable} -> Schema -> struct {A [12]fr.Element}
 //
 // Default behavior is to add "json:,omitempty" to the generated struct
-func (s Schema) Instantiate(leafType reflect.Type, omitEmptyTag ...bool) interface{} {
+func (s *Schema) Instantiate(leafType reflect.Type, omitEmptyTag ...bool) interface{} {
 	omitEmpty := true
 	if len(omitEmptyTag) == 1 {
 		omitEmpty = omitEmptyTag[0]
 	}
 
 	// first, let's replace the Field by reflect.StructField
-	is := toStructField(s.Fields, leafType, omitEmpty)
+	// we also collect in bfs order the slice capacity to allocate
+	structFields := makeStruct(s.Fields, leafType, omitEmpty)
 
-	// now create the correspoinding type
-	typ := reflect.StructOf(is)
+	// now create the corresponding type
+	concreteType := reflect.StructOf(structFields)
 
 	// instantiate the type
-	v := reflect.New(typ).Elem()
+	instance := reflect.New(concreteType).Elem()
+
+	// allocate the slices;
+	chCapacity := make(chan int, 1)
+
+	// this go routine is going to do a DFS on the schema and return the expected size length
+	go iterateOnSliceLen(&Field{SubFields: s.Fields}, chCapacity)
+
+	// this function is going to do a DFS on the concrete instance and allocated the slices
+	allocateSlices(instance.Addr().Interface(), chCapacity, leafType)
+	close(chCapacity)
 
 	// return interface
-	return v.Addr().Interface()
+	return instance.Addr().Interface()
 }
+
+func iterateOnSliceLen(f *Field, chCapacity chan int) {
+	if f.Type == Slice {
+		chCapacity <- f.NbElements
+	}
+	if (f.Type == Slice || f.Type == Array) && len(f.SubFields) == 1 {
+		// special case where we just stored the first element and have to repeat.
+		for i := 0; i < f.NbElements; i++ {
+			iterateOnSliceLen(&f.SubFields[0], chCapacity)
+		}
+	} else {
+		for _, subField := range f.SubFields {
+			iterateOnSliceLen(&subField, chCapacity)
+		}
+	}
+
+}
+
+// func bfs(is []reflect.StructField) []int {
+
+// }
 
 // WriteSequence writes the expected sequence order of the witness on provided writer
 // witness elements are identified by their tag name, or if unset, struct & field name
 //
 // The expected sequence matches the binary encoding protocol [public | secret]
-func (s Schema) WriteSequence(w io.Writer) error {
+func (s *Schema) WriteSequence(w io.Writer) error {
 	var public, secret []string
 
 	var a int
@@ -133,46 +164,62 @@ func (s Schema) WriteSequence(w io.Writer) error {
 	return nil
 }
 
-// toStructField recurse through Field and builds corresponding reflect.StructField
-func toStructField(fields []Field, leafType reflect.Type, omitEmpty bool) []reflect.StructField {
+// makeStruct recurse through Field and builds corresponding reflect.StructField
+func makeStruct(fields []Field, leafType reflect.Type, omitEmpty bool) []reflect.StructField {
 	r := make([]reflect.StructField, len(fields))
 
 	for i, f := range fields {
 		r[i] = reflect.StructField{
 			Name: f.Name,
-			Tag:  structTag(f.NameTag, f.Visibility, omitEmpty),
+			Tag:  structTag(f.Tag, f.Visibility, omitEmpty),
 		}
 		switch f.Type {
 		case Leaf:
 			r[i].Type = leafType
 		case Array:
-			r[i].Type = arrayElementType(f.ArraySize, f.SubFields, leafType, omitEmpty)
+			r[i].Type = makeArray(&f, leafType, omitEmpty)
+		case Slice:
+			r[i].Type = makeSlice(&f, leafType, omitEmpty)
 		case Struct:
-			r[i].Type = reflect.StructOf(toStructField(f.SubFields, leafType, omitEmpty))
+			r[i].Type = reflect.StructOf(makeStruct(f.SubFields, leafType, omitEmpty))
 		}
 	}
 
 	return r
 }
 
-func arrayElementType(n int, fields []Field, leafType reflect.Type, omitEmpty bool) reflect.Type {
-	// we know parent is an array.
-	// we check first element of fields
-	// if it's a struct or a leaf, we're done.
-	// if it's another array, we recurse
+func makeArray(f *Field, leafType reflect.Type, omitEmpty bool) reflect.Type {
+	n := f.NbElements
 
-	if len(fields) == 0 {
-		// no subfields, we reached an array of leaves
+	// we ignore other subfields; they will be useful when instiating the concrete type
+	// and looking for slice capacities.
+	switch f.SubFields[0].Type {
+	case Leaf:
 		return reflect.ArrayOf(n, leafType)
-	}
-
-	switch fields[0].Type {
 	case Struct:
-		return reflect.ArrayOf(n, reflect.StructOf(toStructField(fields[0].SubFields, leafType, omitEmpty)))
+		return reflect.ArrayOf(n, reflect.StructOf(makeStruct(f.SubFields[0].SubFields, leafType, omitEmpty)))
 	case Array:
-		return reflect.ArrayOf(n, arrayElementType(fields[0].ArraySize, fields[0].SubFields, leafType, omitEmpty))
+		return reflect.ArrayOf(n, makeArray(&f.SubFields[0], leafType, omitEmpty))
+	case Slice:
+		return reflect.ArrayOf(n, makeSlice(&f.SubFields[0], leafType, omitEmpty))
 	}
 	panic("invalid array type")
+}
+
+func makeSlice(f *Field, leafType reflect.Type, omitEmpty bool) reflect.Type {
+	// we ignore other subfields; they will be useful when instiating the concrete type
+	// and looking for slice capacities.
+	switch f.SubFields[0].Type {
+	case Leaf:
+		return reflect.SliceOf(leafType)
+	case Struct:
+		return reflect.SliceOf(reflect.StructOf(makeStruct(f.SubFields[0].SubFields, leafType, omitEmpty)))
+	case Array:
+		return reflect.SliceOf(makeArray(&f.SubFields[0], leafType, omitEmpty))
+	case Slice:
+		return reflect.SliceOf(makeSlice(&f.SubFields[0], leafType, omitEmpty))
+	}
+	panic("invalid slice type")
 }
 
 func structTag(baseNameTag string, visibility Visibility, omitEmpty bool) reflect.StructTag {
@@ -210,12 +257,12 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 	if tValue.Type() == target {
 		f := Field{
 			Name:       parentGoName,
-			NameTag:    parentTagName,
+			Tag:        parentTagName,
 			FullName:   parentFullName,
 			Visibility: parentVisibility,
 			Type:       Leaf,
 			SubFields:  nil,
-			ArraySize:  1,
+			NbElements: 1,
 		}
 		if f.Visibility == Unset {
 			f.Visibility = Secret
@@ -226,9 +273,9 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			}
 		}
 		if f.Visibility == Secret {
-			(*nbSecret) += f.ArraySize
+			(*nbSecret) += f.NbElements
 		} else if f.Visibility == Public {
-			(*nbPublic) += f.ArraySize
+			(*nbPublic) += f.NbElements
 		}
 		return append(r, f), nil
 	}
@@ -327,7 +374,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 		}
 		return append(r, Field{
 			Name:       parentGoName,
-			NameTag:    parentTagName,
+			Tag:        parentTagName,
 			Type:       Struct,
 			SubFields:  subFields,
 			Visibility: parentVisibility, // == Secret,
@@ -335,7 +382,9 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 
 	}
 
-	if tValue.Kind() == reflect.Slice || tValue.Kind() == reflect.Array {
+	isSlice := tValue.Kind() == reflect.Slice
+	isArray := tValue.Kind() == reflect.Array
+	if isSlice || isArray {
 		if tValue.Len() == 0 {
 			if reflect.SliceOf(target) == tValue.Type() {
 				fmt.Printf("ignoring uninitizalized slice: %s %s\n", parentGoName, reflect.SliceOf(target).String())
@@ -346,7 +395,9 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 		// []frontend.Variable
 		// [n]frontend.Variable
 		// [] / [n] of something else.
-		if reflect.SliceOf(target) == tValue.Type() || reflect.ArrayOf(tValue.Len(), target) == tValue.Type() {
+		isSliceOfLeaf := reflect.SliceOf(target) == tValue.Type()
+		isArrayOfLeaf := reflect.ArrayOf(tValue.Len(), target) == tValue.Type()
+		if isSliceOfLeaf || isArrayOfLeaf {
 			// if parentVisibility == Unset {
 			// 	parentVisibility = Secret // default visibility to Secret
 			// }
@@ -361,13 +412,19 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 				}
 			}
 
-			return append(r, Field{
+			newField := Field{
 				Name:       parentGoName,
-				NameTag:    parentTagName,
-				Type:       Array,
+				Tag:        parentTagName,
 				Visibility: parentVisibility,
-				ArraySize:  tValue.Len(),
-			}), nil
+				SubFields:  []Field{{Type: Leaf}},
+				NbElements: tValue.Len(),
+			}
+			if isSliceOfLeaf {
+				newField.Type = Slice
+			} else {
+				newField.Type = Array
+			}
+			return append(r, newField), nil
 		}
 
 		// we have a slice / array of things that may contain variables
@@ -387,45 +444,111 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			// nothing to add
 			return r, nil
 		}
-		// ensure the subfields are the same, we don't support heterogenous or arrays
+
+		consistentChild := true
 		for i := 1; i < len(subFields); i++ {
 			if !consistentField(subFields[0], subFields[i]) {
-				return nil, errors.New("heterogenous slices or arrays are not supported")
+				consistentChild = false
+				break
 			}
 		}
-		return append(r, Field{
+		newField := Field{
 			Name:       parentGoName,
-			NameTag:    parentTagName,
-			Type:       Array,
-			SubFields:  subFields[:1],
+			Tag:        parentTagName,
+			SubFields:  subFields,
 			Visibility: parentVisibility,
-			ArraySize:  tValue.Len(),
-		}), nil
-
+			NbElements: len(subFields), // note that here we don't use tValue.Len() in case we had some empty slices
+		}
+		if isSlice {
+			newField.Type = Slice
+		} else {
+			newField.Type = Array
+		}
+		if consistentChild {
+			// since all the childs represent same objects with same sizes, we don't need to store
+			// duplicate entries here.
+			newField.SubFields = newField.SubFields[:1]
+		}
+		return append(r, newField), nil
 	}
 
 	return r, nil
 }
 
+// allocateSlices recurse through the structure of the input to allocate slices
+func allocateSlices(input interface{}, chCapacity <-chan int, target reflect.Type) {
+	tValue := reflect.ValueOf(input)
+
+	// get pointed value if needed
+	if tValue.Kind() == reflect.Ptr {
+		tValue = tValue.Elem()
+	}
+
+	if tValue.Type() == target {
+		return
+	}
+
+	if tValue.Kind() == reflect.Slice {
+		// do slice allocation
+		n := <-chCapacity
+		tValue.Set(reflect.MakeSlice(tValue.Type(), n, n))
+
+		for j := 0; j < tValue.Len(); j++ {
+			val := tValue.Index(j)
+			if val.CanAddr() && val.Addr().CanInterface() {
+				allocateSlices(val.Addr().Interface(), chCapacity, target)
+			}
+		}
+		return
+	}
+
+	// struct
+	if tValue.Kind() == reflect.Struct {
+
+		// get visible fields
+		fields := reflect.VisibleFields(tValue.Type())
+
+		for _, f := range fields {
+			tag, ok := f.Tag.Lookup(string(tagKey))
+			if ok && tag == string(TagOptOmit) {
+				continue // skipping "-"
+			}
+
+			fValue := tValue.FieldByIndex(f.Index)
+
+			if fValue.CanAddr() && fValue.Addr().CanInterface() {
+				value := fValue.Addr().Interface()
+				allocateSlices(value, chCapacity, target)
+			}
+		}
+
+		return
+	}
+
+	if tValue.Kind() == reflect.Array {
+		// we have a slice / array of things that may contain variables
+		for j := 0; j < tValue.Len(); j++ {
+			val := tValue.Index(j)
+			if val.CanAddr() && val.Addr().CanInterface() {
+				allocateSlices(val.Addr().Interface(), chCapacity, target)
+			}
+		}
+
+		return
+	}
+}
+
+// fields are consistent if they are of the same type (struct or array/slice or leaf)
+// if they are of type struct, they must have the same type of subfields
+// if they are of type array/slice, their lenght can differ, but the underlying subfield
+// graph must be the same.
 func consistentField(f1, f2 Field) bool {
 	if f1.Type != f2.Type {
 		return false
 	}
 	switch f1.Type {
-	case Array:
-		if f1.ArraySize != f2.ArraySize {
-			return false
-		}
-		if (f1.SubFields == nil) != (f2.SubFields == nil) {
-			return false
-		}
-		if len(f1.SubFields) != 0 {
-			// array max subfield len == 1
-			return consistentField(f1.SubFields[0], f2.SubFields[0])
-		}
-		return true
-	case Struct:
-		if len(f1.SubFields) != len(f2.SubFields) {
+	case Struct, Array, Slice:
+		if len(f1.SubFields) != len(f2.SubFields) || f1.NbElements != f2.NbElements {
 			return false
 		}
 		for i, s := range f1.SubFields {

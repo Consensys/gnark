@@ -207,6 +207,107 @@ func TestSchemaInherit2(t *testing.T) {
 	}
 }
 
+func TestSchemaWithSlices(t *testing.T) {
+	assert := require.New(t)
+
+	test := func(input any, expected string) {
+		s, err := Parse(input, tVariable, nil)
+		assert.NoError(err)
+
+		// instantiate a concrete object
+		var a int
+		var instanceBuf bytes.Buffer
+		instance := s.Instantiate(reflect.TypeOf(a), false)
+		err = json.NewEncoder(&instanceBuf).Encode(instance)
+		assert.NoError(err)
+		t.Log(instanceBuf.String())
+		assert.Equal(expected, instanceBuf.String())
+	}
+
+	// slice of slices, same sizes
+	{
+		input := struct {
+			A [][]variable
+		}{
+			[][]variable{{3, 2}, {32, 23}},
+		}
+
+		test(&input, "{\"A\":[[0,0],[0,0]]}\n")
+	}
+
+	// array of slices, same sizes
+	{
+		input := struct {
+			A [2][]variable
+		}{
+			[2][]variable{{3, 2}, {32, 23}},
+		}
+
+		test(&input, "{\"A\":[[0,0],[0,0]]}\n")
+	}
+
+	// slice of slices, different sizes
+	{
+		input := struct {
+			A [][]variable
+		}{
+			[][]variable{{3, 2}, {32, 23, 32}},
+		}
+
+		test(&input, "{\"A\":[[0,0],[0,0,0]]}\n")
+	}
+
+	// array of slices, different sizes
+	{
+		input := struct {
+			A [2][]variable
+		}{
+			[2][]variable{{3, 2}, {32, 23, 32}},
+		}
+
+		test(&input, "{\"A\":[[0,0],[0,0,0]]}\n")
+	}
+
+	// slices of array of slices different sizes
+	{
+		input := struct {
+			A [][2][]variable
+		}{
+			[][2][]variable{
+				[2][]variable{
+					[]variable{
+						2, 3,
+					},
+					[]variable{
+						2, 3, 5,
+					},
+				},
+			},
+		}
+
+		test(&input, "{\"A\":[[[0,0],[0,0,0]]]}\n")
+	}
+
+	// array of struct with slices of different sizes
+	{
+		type point struct {
+			C []variable
+			D variable
+		}
+		input := struct {
+			A [2]point
+		}{
+			[2]point{
+				point{[]variable{2, 3}, 2},
+				point{[]variable{2, 3, 4}, 2},
+			},
+		}
+
+		test(&input, "{\"A\":[{\"C\":[0,0],\"D\":0},{\"C\":[0,0,0],\"D\":0}]}\n")
+	}
+
+}
+
 var tVariable reflect.Type
 
 func init() {
