@@ -209,6 +209,9 @@ func gkrProveHint(hashName string, data *gkrSolvingData, solvingDone *sync.Mutex
 			return b[:]
 		})
 
+		if hashName != "mimc" {
+			return fmt.Errorf("currently only mimc supported")
+		}
 		hsh := mimc.NewMiMC() // TODO: Use hashName
 
 		solvingDone.Lock()

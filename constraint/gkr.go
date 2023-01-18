@@ -95,15 +95,9 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 	p.SortedWires, uniqueOuts = algo_utils.TopologicalSort(inputs)
 	p.WiresPermutation = algo_utils.InvertPermutation(p.SortedWires)
 	wirePermutationAt := algo_utils.SliceAt(p.WiresPermutation)
-	sorted := make([]GkrWire, len(d.Circuit))
+	sorted := make([]GkrWire, len(d.Circuit)) // TODO: Directly manipulate d.Circuit instead
 	for newI, oldI := range p.SortedWires {
 		oldW := d.Circuit[oldI]
-
-		for i := 1; i < len(oldW.Dependencies); i++ {
-			if oldW.Dependencies[i].InputInstance == oldW.Dependencies[i-1].InputInstance {
-				return p, fmt.Errorf("an input wire can only have one dependency per instance")
-			}
-		} // TODO: Check that dependencies and explicit assignments cover all instances
 
 		if !oldW.IsInput() {
 			d.MaxNIns = max(d.MaxNIns, len(oldW.Inputs))
@@ -115,10 +109,14 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 			dep.InputInstance = p.InstancesPermutation[dep.InputInstance]
 			dep.OutputInstance = p.InstancesPermutation[dep.OutputInstance]
 		}
-
 		sort.Slice(oldW.Dependencies, func(i, j int) bool {
 			return oldW.Dependencies[i].InputInstance < oldW.Dependencies[j].InputInstance
 		})
+		for i := 1; i < len(oldW.Dependencies); i++ {
+			if oldW.Dependencies[i].InputInstance == oldW.Dependencies[i-1].InputInstance {
+				return p, fmt.Errorf("an input wire can only have one dependency per instance")
+			}
+		} // TODO: Check that dependencies and explicit assignments cover all instances
 
 		sorted[newI] = GkrWire{
 			Gate:            oldW.Gate,
@@ -126,7 +124,6 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 			Dependencies:    oldW.Dependencies,
 			NbUniqueOutputs: len(uniqueOuts[oldI]),
 		}
-
 	}
 	d.Circuit = sorted
 
