@@ -111,7 +111,7 @@ func (f *Field[T]) Modulus() *Element[T] {
 // constrains the limb widths.
 func (f *Field[T]) PackLimbs(limbs []frontend.Variable) *Element[T] {
 	e := newElementLimbs[T](limbs, 0)
-	f.EnforceWidth(e)
+	f.enforceWidth(e, true)
 	return e
 }
 
