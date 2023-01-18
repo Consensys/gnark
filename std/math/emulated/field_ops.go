@@ -136,6 +136,10 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 	}
 	return f.reduceAndOp(
 		func(a, _ *Element[T], u uint) *Element[T] {
+			if ba, aConst := f.constantValue(a); aConst {
+				ba.Mul(ba, c)
+				return newElementPtr[T](ba)
+			}
 			limbs := make([]frontend.Variable, len(a.Limbs))
 			for i := range a.Limbs {
 				limbs[i] = f.api.Mul(a.Limbs[i], c)
