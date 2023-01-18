@@ -145,6 +145,7 @@ type System struct {
 	lbOutputs   []uint32 `cbor:"-"` // wire outputs for current constraint.
 
 	CommitmentInfo Commitment
+	GkrInfo        GkrInfo
 }
 
 // NewSystem initialize the common structure among constraint system

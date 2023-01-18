@@ -44,6 +44,12 @@ func SliceAt[T any](slice []T) func(int) T {
 	}
 }
 
+func SlicePtrAt[T any](slice []T) func(int) *T {
+	return func(i int) *T {
+		return &slice[i]
+	}
+}
+
 func MapAt[K comparable, V any](mp map[K]V) func(K) V {
 	return func(k K) V {
 		return mp[k]

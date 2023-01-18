@@ -6,6 +6,7 @@ import (
 	bn254TestVectorUtils "github.com/consensys/gnark-crypto/ecc/bn254/fr/test_vector_utils"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -196,9 +197,9 @@ func TestSolveMulWithDependency(t *testing.T) {
 
 func TestApiMul(t *testing.T) {
 	var (
-		x   Variable
-		y   Variable
-		z   Variable
+		x   constraint.GkrVariable
+		y   constraint.GkrVariable
+		z   constraint.GkrVariable
 		err error
 	)
 	api := NewApi()
@@ -206,10 +207,10 @@ func TestApiMul(t *testing.T) {
 	assert.NoError(t, err)
 	y, err = api.Import([]frontend.Variable{nil, nil})
 	assert.NoError(t, err)
-	z = api.Mul(x, y).(Variable)
-	test_vector_utils.AssertSliceEqual(t, api.noPtr.circuit[z].inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
+	z = api.Mul(x, y).(constraint.GkrVariable)
+	test_vector_utils.AssertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 
-	//unsorted := []*Wire{&api.noPtr.circuit[0], &api.noPtr.circuit[1], &api.noPtr.circuit[2]}
+	//unsorted := []*Wire{&api.toStore.circuit[0], &api.toStore.circuit[1], &api.toStore.circuit[2]}
 	//test_vector_utils.AssertSliceEqual(t, []*Wire{x, y, z}, unsorted)
 
 	//sorted := topologicalSort(api.circuit)
@@ -307,11 +308,11 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	}
 
 	// cheat{
-	gkr.circuitData.noPtr.circuit = append(gkr.circuitData.noPtr.circuit, wireNoPtr{
-		gate:   mimcCipherGate{1},
-		inputs: []int{int(x.(Variable)), int(y.(Variable))},
+	gkr.circuitData.toStore.Circuit = append(gkr.circuitData.toStore.Circuit, constraint.GkrWire{
+		Gate:   "mimc",
+		Inputs: []int{int(x.(constraint.GkrVariable)), int(y.(constraint.GkrVariable))},
 	})
-	z := frontend.Variable(Variable(2))
+	z := frontend.Variable(constraint.GkrVariable(2))
 	// }
 
 	offset := 1 << (c.depth - 1)

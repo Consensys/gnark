@@ -1,78 +1,83 @@
 package gkr
 
 import (
-	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/constraint"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestConvertCircuit(t *testing.T) {
-	circuitNoPtr := circuitNoPtr{
+/*func TestConvertCircuit(t *testing.T) {	TODO: Move to cs package
+	circuitNoPtr := frontend.GkrCircuit{
 		{
-			assignments:     []frontend.Variable{1, 2},
-			inputs:          []int{},
-			nbUniqueOutputs: 1,
+			Assignments:     []frontend.Variable{1, 2},
+			Inputs:          []int{},
+			NbUniqueOutputs: 1,
 		},
 		{
-			assignments:     []frontend.Variable{2, 3},
-			inputs:          []int{},
-			nbUniqueOutputs: 1,
+			Assignments:     []frontend.Variable{2, 3},
+			Inputs:          []int{},
+			NbUniqueOutputs: 1,
 		},
 		{
-			gate:            MulGate{},
-			inputs:          []int{0, 1},
-			dependencies:    nil,
-			nbUniqueOutputs: 0,
+			Gate:            "mul",
+			Inputs:          []int{0, 1},
+			Dependencies:    nil,
+			NbUniqueOutputs: 0,
 		},
 	}
-	circuit := bn254ConvertCircuit(circuitNoPtr)
+	circuit := cs.bn254ConvertCircuit(circuitNoPtr)
 	assert.Equal(t, 3, len(circuit))
-}
+}*/
 
 func TestNoPtrCompile(t *testing.T) {
-	var d = circuitDataNoPtr{
-		circuit: circuitNoPtr{
+	var d = constraint.GkrInfo{
+		Circuit: constraint.GkrCircuit{
 			{
-				assignments:  []frontend.Variable{2, 1},
-				inputs:       []int{1},
-				dependencies: nil,
+				Inputs:       []int{1},
+				Dependencies: nil,
 			},
 			{
-				assignments: []frontend.Variable{nil, 0},
-				inputs:      []int{},
-				dependencies: []inputDependency{
+				Inputs: []int{},
+				Dependencies: []constraint.InputDependency{
 					{
-						outputWire:     0,
-						outputInstance: 1,
-						inputInstance:  0,
+						OutputWire:     0,
+						OutputInstance: 1,
+						InputInstance:  0,
 					},
 				},
 			},
 		},
 	}
-	expectedCompiled := circuitDataNoPtr{
-		circuit: circuitNoPtr{
-			{
-				assignments: []frontend.Variable{0, nil},
-				inputs:      []int{},
-				dependencies: []inputDependency{{
-					outputWire:     1,
-					outputInstance: 0,
-					inputInstance:  1,
-				}},
-
-				nbUniqueOutputs: 1,
-			},
-			{
-				assignments:  []frontend.Variable{1, 2},
-				inputs:       []int{0},
-				dependencies: nil,
-			}},
-		maxNIns:         1,
-		sortedInstances: []int{1, 0},
-		sortedWires:     []int{1, 0},
+	assignment := GkrAssignment{
+		{2, 1},
+		{nil, 0},
 	}
 
-	assert.NoError(t, d.compile())
+	expectedCompiled := constraint.GkrInfo{
+		Circuit: constraint.GkrCircuit{
+			{
+				Inputs: []int{},
+				Dependencies: []constraint.InputDependency{{
+					OutputWire:     1,
+					OutputInstance: 0,
+					InputInstance:  1,
+				}},
+
+				NbUniqueOutputs: 1,
+			},
+			{
+				Inputs:       []int{0},
+				Dependencies: nil,
+			}},
+		MaxNIns: 1,
+	}
+	expectedAssignment := GkrAssignment{
+		{0, nil},
+		{1, 2},
+	}
+
+	_, err := d.Compile(assignment.NbInstances()) // TODO: Test the permutation too
+	assert.NoError(t, err)
 	assert.Equal(t, expectedCompiled, d)
+	assert.Equal(t, expectedAssignment, assignment)
 }

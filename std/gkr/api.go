@@ -2,24 +2,25 @@ package gkr
 
 import (
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"math/big"
 )
 
 func frontendVarToInt(a frontend.Variable) int {
-	return int(a.(Variable))
+	return int(a.(constraint.GkrVariable))
 }
 
-func (api *API) newNonInputVariable(gate Gate, in []frontend.Variable) Variable {
-	api.noPtr.circuit = append(api.noPtr.circuit, wireNoPtr{
-		gate:   gate,
-		inputs: algo_utils.Map(in, frontendVarToInt),
+func (api *API) newNonInputVariable(gate string, in []frontend.Variable) constraint.GkrVariable {
+	api.toStore.Circuit = append(api.toStore.Circuit, constraint.GkrWire{
+		Gate:   gate,
+		Inputs: algo_utils.Map(in, frontendVarToInt),
 	})
-	return Variable(len(api.noPtr.circuit) - 1)
+	return constraint.GkrVariable(len(api.toStore.Circuit) - 1)
 }
 
-func (api *API) newVar2PlusIn(gate Gate, in1, in2 frontend.Variable, in ...frontend.Variable) Variable {
+func (api *API) newVar2PlusIn(gate string, in1, in2 frontend.Variable, in ...frontend.Variable) constraint.GkrVariable {
 	inCombined := make([]frontend.Variable, 2+len(in))
 	inCombined[0] = in1
 	inCombined[1] = in2
@@ -30,7 +31,7 @@ func (api *API) newVar2PlusIn(gate Gate, in1, in2 frontend.Variable, in ...front
 }
 
 func (api *API) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	return api.newVar2PlusIn(AddGate{}, i1, i2, in...)
+	return api.newVar2PlusIn("add", i1, i2, in...)
 }
 
 func (api *API) Neg(i1 frontend.Variable) frontend.Variable {
@@ -44,7 +45,7 @@ func (api *API) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.
 }
 
 func (api *API) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	return api.newVar2PlusIn(MulGate{}, i1, i2, in...)
+	return api.newVar2PlusIn("mul", i1, i2, in...)
 }
 
 func (api *API) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {

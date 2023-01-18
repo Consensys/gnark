@@ -241,7 +241,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 		}
 
 		var found bool
-		if circuit[i].Gate, found = gates[wireInfo.Gate]; !found && wireInfo.Gate != "" {
+		if circuit[i].Gate, found = RegisteredGates[wireInfo.Gate]; !found && wireInfo.Gate != "" {
 			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
 		}
 	}
@@ -249,35 +249,11 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 	return
 }
 
-var gates map[string]Gate
+type _select int
 
 func init() {
-	gates = make(map[string]Gate)
-	gates["identity"] = IdentityGate{}
-	gates["mul"] = MulGate{}
-	gates["mimc"] = mimcCipherGate{ark: 0} //TODO: Add ark
-	gates["select-input-3"] = _select(2)
+	RegisteredGates["select-input-3"] = _select(2)
 }
-
-type mimcCipherGate struct {
-	ark frontend.Variable
-}
-
-func (m mimcCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) frontend.Variable {
-	if len(input) != 2 {
-		panic("mimc has fan-in 2")
-	}
-	sum := api.Add(input[0], input[1], m.ark)
-
-	sumCubed := api.Mul(sum, sum, sum) // sum^3
-	return api.Mul(sumCubed, sumCubed, sum)
-}
-
-func (m mimcCipherGate) Degree() int {
-	return 7
-}
-
-type _select int
 
 func (g _select) Evaluate(_ frontend.API, in ...frontend.Variable) frontend.Variable {
 	return in[g]
