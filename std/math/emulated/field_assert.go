@@ -122,6 +122,9 @@ func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
 			panic("constant limb width doesn't match parametrized field")
 		}
 	}
+	if modWidth && len(a.Limbs) != int(f.fParams.NbLimbs()) {
+		panic("enforcing modulus width element with inexact number of limbs")
+	}
 
 	for i := range a.Limbs {
 		limbNbBits := int(f.fParams.BitsPerLimb())
