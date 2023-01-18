@@ -138,7 +138,7 @@ func (f *Field[T]) computeQuoHint(x *Element[T]) (z *Element[T], err error) {
 		return nil, err
 	}
 
-	return f.PackElementLimbs(limbs), nil
+	return f.PackFullLimbs(limbs), nil
 }
 
 // QuoHint sets z to the quotient x/y for y != 0 and returns z.
