@@ -104,8 +104,8 @@ func iterateOnSliceLen(f *Field, chCapacity chan int) {
 			iterateOnSliceLen(&f.SubFields[0], chCapacity)
 		}
 	} else {
-		for _, subField := range f.SubFields {
-			iterateOnSliceLen(&subField, chCapacity)
+		for i := 0; i < len(f.SubFields); i++ {
+			iterateOnSliceLen(&f.SubFields[i], chCapacity)
 		}
 	}
 
@@ -168,7 +168,8 @@ func (s *Schema) WriteSequence(w io.Writer) error {
 func makeStruct(fields []Field, leafType reflect.Type, omitEmpty bool) []reflect.StructField {
 	r := make([]reflect.StructField, len(fields))
 
-	for i, f := range fields {
+	for i := 0; i < len(fields); i++ {
+		f := &fields[i]
 		r[i] = reflect.StructField{
 			Name: f.Name,
 			Tag:  structTag(f.Tag, f.Visibility, omitEmpty),
@@ -177,9 +178,9 @@ func makeStruct(fields []Field, leafType reflect.Type, omitEmpty bool) []reflect
 		case Leaf:
 			r[i].Type = leafType
 		case Array:
-			r[i].Type = makeArray(&f, leafType, omitEmpty)
+			r[i].Type = makeArray(f, leafType, omitEmpty)
 		case Slice:
-			r[i].Type = makeSlice(&f, leafType, omitEmpty)
+			r[i].Type = makeSlice(f, leafType, omitEmpty)
 		case Struct:
 			r[i].Type = reflect.StructOf(makeStruct(f.SubFields, leafType, omitEmpty))
 		}

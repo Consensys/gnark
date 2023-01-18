@@ -274,7 +274,7 @@ func TestSchemaWithSlices(t *testing.T) {
 			A [][2][]variable
 		}{
 			[][2][]variable{
-				[2][]variable{
+				{
 					[]variable{
 						2, 3,
 					},
@@ -298,8 +298,8 @@ func TestSchemaWithSlices(t *testing.T) {
 			A [2]point
 		}{
 			[2]point{
-				point{[]variable{2, 3}, 2},
-				point{[]variable{2, 3, 4}, 2},
+				{[]variable{2, 3}, 2},
+				{[]variable{2, 3, 4}, 2},
 			},
 		}
 
