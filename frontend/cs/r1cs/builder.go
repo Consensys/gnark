@@ -59,15 +59,25 @@ type builder struct {
 	q    *big.Int
 	tOne constraint.Coeff
 	heap minHeap // helps merge k sorted linear expressions
+
+	// buffers used to do in place api.MAC
+	mbuf1 expr.LinearExpression
+	mbuf2 expr.LinearExpression
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
+	macCapacity := 100
+	if config.CompressThreshold != 0 {
+		macCapacity = config.CompressThreshold
+	}
 	builder := builder{
-		mtBooleans: make(map[uint64][]expr.LinearExpression),
+		mtBooleans: make(map[uint64][]expr.LinearExpression, config.Capacity/10),
 		config:     config,
 		heap:       make(minHeap, 0, 100),
+		mbuf1:      make(expr.LinearExpression, 0, macCapacity),
+		mbuf2:      make(expr.LinearExpression, 0, macCapacity),
 	}
 
 	// by default the circuit is given a public wire equal to 1
@@ -76,22 +86,22 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 
 	switch curve {
 	case ecc.BLS12_377:
-		builder.cs = bls12377r1cs.NewR1CS()
+		builder.cs = bls12377r1cs.NewR1CS(config.Capacity)
 	case ecc.BLS12_381:
-		builder.cs = bls12381r1cs.NewR1CS()
+		builder.cs = bls12381r1cs.NewR1CS(config.Capacity)
 	case ecc.BN254:
-		builder.cs = bn254r1cs.NewR1CS()
+		builder.cs = bn254r1cs.NewR1CS(config.Capacity)
 	case ecc.BW6_761:
-		builder.cs = bw6761r1cs.NewR1CS()
+		builder.cs = bw6761r1cs.NewR1CS(config.Capacity)
 	case ecc.BW6_633:
-		builder.cs = bw6633r1cs.NewR1CS()
+		builder.cs = bw6633r1cs.NewR1CS(config.Capacity)
 	case ecc.BLS24_315:
-		builder.cs = bls24315r1cs.NewR1CS()
+		builder.cs = bls24315r1cs.NewR1CS(config.Capacity)
 	case ecc.BLS24_317:
-		builder.cs = bls24317r1cs.NewR1CS()
+		builder.cs = bls24317r1cs.NewR1CS(config.Capacity)
 	default:
 		if field.Cmp(tinyfield.Modulus()) == 0 {
-			builder.cs = tinyfieldr1cs.NewR1CS()
+			builder.cs = tinyfieldr1cs.NewR1CS(config.Capacity)
 			break
 		}
 		panic("not implemtented")
@@ -160,10 +170,10 @@ func (builder *builder) FieldBitLen() int {
 
 // newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
 // and return a R1C
-func (builder *builder) newR1C(_l, _r, _o frontend.Variable) constraint.R1C {
-	l := _l.(expr.LinearExpression)
-	r := _r.(expr.LinearExpression)
-	o := _o.(expr.LinearExpression)
+func (builder *builder) newR1C(l, r, o frontend.Variable) constraint.R1C {
+	L := builder.getLinearExpression(l)
+	R := builder.getLinearExpression(r)
+	O := builder.getLinearExpression(o)
 
 	// interestingly, this is key to groth16 performance.
 	// l * r == r * l == o
@@ -171,23 +181,30 @@ func (builder *builder) newR1C(_l, _r, _o frontend.Variable) constraint.R1C {
 	// the "r" linear expression is going to end up in the B matrix
 	// the less Variable we have appearing in the B matrix, the more likely groth16.Setup
 	// is going to produce infinity points in pk.G1.B and pk.G2.B, which will speed up proving time
-	if len(l) > len(r) {
+	if len(L) > len(R) {
 		// TODO @gbotrel shouldn't we do the opposite? Code doesn't match comment.
-		l, r = r, l
+		L, R = R, L
 	}
 
-	return constraint.R1C{
-		L: builder.getLinearExpression(l),
-		R: builder.getLinearExpression(r),
-		O: builder.getLinearExpression(o),
-	}
+	return constraint.R1C{L: L, R: R, O: O}
 }
 
-func (builder *builder) getLinearExpression(l expr.LinearExpression) constraint.LinearExpression {
-	L := make(constraint.LinearExpression, 0, len(l))
-	for _, t := range l {
-		L = append(L, builder.cs.MakeTerm(&t.Coeff, t.VID))
+func (builder *builder) getLinearExpression(_l interface{}) constraint.LinearExpression {
+	var L constraint.LinearExpression
+	switch tl := _l.(type) {
+	case expr.LinearExpression:
+		L = make(constraint.LinearExpression, 0, len(tl))
+		for _, t := range tl {
+			L = append(L, builder.cs.MakeTerm(&t.Coeff, t.VID))
+		}
+	case constraint.LinearExpression:
+		L = tl
+	default:
+		if debug.Debug {
+			panic("invalid input for getLinearExpression") // sanity check
+		}
 	}
+
 	return L
 }
 
@@ -299,6 +316,9 @@ func (builder *builder) toVariable(input interface{}) expr.LinearExpression {
 		// this is already a "kwown" variable
 		assertIsSet(t)
 		return t
+	case *expr.LinearExpression:
+		assertIsSet(*t)
+		return *t
 	case constraint.Coeff:
 		return expr.NewLinearExpression(0, t)
 	case *constraint.Coeff:
@@ -345,14 +365,11 @@ func (builder *builder) NewHint(f hint.Function, nbOutputs int, inputs ...fronte
 	// TODO @gbotrel hint input pass
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		switch t := in.(type) {
-		case expr.LinearExpression:
+		if t, ok := in.(expr.LinearExpression); ok {
 			assertIsSet(t)
 			hintInputs[i] = builder.getLinearExpression(t)
-		default:
-			// make a term
-			// c := utils.FromInterface(t)
-			c := builder.cs.FromInterface(t)
+		} else {
+			c := builder.cs.FromInterface(in)
 			term := builder.cs.MakeTerm(&c, 0)
 			term.MarkConstant()
 			hintInputs[i] = constraint.LinearExpression{term}
@@ -418,7 +435,7 @@ func (builder *builder) newDebugInfo(errName string, in ...interface{}) constrai
 		}
 	}
 
-	return constraint.NewDebugInfo(errName, in...)
+	return builder.cs.NewDebugInfo(errName, in...)
 
 }
 

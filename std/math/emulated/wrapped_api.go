@@ -76,6 +76,11 @@ func (w *FieldAPI[T]) Add(i1 frontend.Variable, i2 frontend.Variable, in ...fron
 	return res
 }
 
+func (w *FieldAPI[T]) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+	// TODO can we do better here to limit allocations?
+	return w.Add(a, w.Mul(b, c))
+}
+
 func (w *FieldAPI[T]) Neg(i1 frontend.Variable) frontend.Variable {
 	el := w.varToElement(i1)
 	return w.f.Neg(el)

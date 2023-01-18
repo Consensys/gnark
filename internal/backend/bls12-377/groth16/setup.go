@@ -161,24 +161,16 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			computeK(i, &toxicWaste.gammaInv)
 
 			if isCommittedPrivate {
-				ckK[cI] = t1.ToRegular()
+				ckK[cI] = t1
 				cI++
 			} else {
-				vkK[vI] = t1.ToRegular()
+				vkK[vI] = t1
 				vI++
 			}
 		} else {
 			computeK(i, &toxicWaste.deltaInv)
-			pkK[i-vI-cI] = t1.ToRegular()
+			pkK[i-vI-cI] = t1
 		}
-	}
-
-	// convert A and B to regular form
-	for i := 0; i < nbWires; i++ {
-		A[i].FromMont()
-	}
-	for i := 0; i < nbWires; i++ {
-		B[i].FromMont()
 	}
 
 	// Z part of the proving key (scalars)
@@ -191,7 +183,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		Mul(&zdt, &toxicWaste.deltaInv) // sets Zdt to Zdt/delta
 
 	for i := 0; i < int(domain.Cardinality); i++ {
-		Z[i] = zdt.ToRegular()
+		Z[i] = zdt
 		zdt.Mul(&zdt, &toxicWaste.t)
 	}
 
@@ -224,7 +216,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// compute our batch scalar multiplication with g1 elements
 	g1Scalars := make([]fr.Element, 0, (nbWires*3)+int(domain.Cardinality)+3)
-	g1Scalars = append(g1Scalars, toxicWaste.alphaReg, toxicWaste.betaReg, toxicWaste.deltaReg)
+	g1Scalars = append(g1Scalars, toxicWaste.alpha, toxicWaste.beta, toxicWaste.delta)
 	g1Scalars = append(g1Scalars, A...)
 	g1Scalars = append(g1Scalars, B...)
 	g1Scalars = append(g1Scalars, Z...)
@@ -281,7 +273,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// len(B) == nbWires
 
 	// compute our batch scalar multiplication with g2 elements
-	g2Scalars := append(B, toxicWaste.betaReg, toxicWaste.deltaReg, toxicWaste.gammaReg)
+	g2Scalars := append(B, toxicWaste.beta, toxicWaste.delta, toxicWaste.gamma)
 
 	g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
 
@@ -401,9 +393,6 @@ type toxicWaste struct {
 	// Montgomery form of params
 	t, alpha, beta, gamma, delta fr.Element
 	gammaInv, deltaInv           fr.Element
-
-	// Non Montgomery form of params
-	alphaReg, betaReg, gammaReg, deltaReg fr.Element
 }
 
 func sampleToxicWaste() (toxicWaste, error) {
@@ -438,11 +427,6 @@ func sampleToxicWaste() (toxicWaste, error) {
 
 	res.gammaInv.Inverse(&res.gamma)
 	res.deltaInv.Inverse(&res.delta)
-
-	res.alphaReg = res.alpha.ToRegular()
-	res.betaReg = res.beta.ToRegular()
-	res.gammaReg = res.gamma.ToRegular()
-	res.deltaReg = res.delta.ToRegular()
 
 	return res, nil
 }
@@ -490,7 +474,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	var r1Aff curve.G1Affine
 	var b big.Int
 	g1, g2, _, _ := curve.Generators()
-	r1Jac.ScalarMultiplication(&g1, toxicWaste.alphaReg.ToBigInt(&b))
+	r1Jac.ScalarMultiplication(&g1, toxicWaste.alpha.BigInt(&b))
 	r1Aff.FromJacobian(&r1Jac)
 	var r2Jac curve.G2Jac
 	var r2Aff curve.G2Affine

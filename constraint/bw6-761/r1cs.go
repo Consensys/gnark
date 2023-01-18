@@ -49,10 +49,15 @@ type R1CS struct {
 }
 
 // NewR1CS returns a new R1CS and sets cs.Coefficient (fr.Element) from provided big.Int values
-func NewR1CS() *R1CS {
+//
+// capacity pre-allocates memory for capacity nbConstraints
+func NewR1CS(capacity int) *R1CS {
 	r := R1CS{
-		R1CSCore:   constraint.R1CSCore{System: constraint.NewSystem(fr.Modulus())},
-		CoeffTable: newCoeffTable(),
+		R1CSCore: constraint.R1CSCore{
+			System:      constraint.NewSystem(fr.Modulus()),
+			Constraints: make([]constraint.R1C, 0, capacity),
+		},
+		CoeffTable: newCoeffTable(capacity / 10),
 	}
 	return &r
 }
@@ -80,7 +85,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients)
+	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable)
 	if err != nil {
 		return make([]fr.Element, nbWires), err
 	}
@@ -493,7 +498,7 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	decoder := dm.NewDecoder(r)
 
 	// initialize coeff table
-	cs.CoeffTable = newCoeffTable()
+	cs.CoeffTable = newCoeffTable(0)
 
 	if err := decoder.Decode(&cs); err != nil {
 		return int64(decoder.NumBytesRead()), err

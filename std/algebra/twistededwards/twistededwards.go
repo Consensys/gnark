@@ -158,12 +158,12 @@ func newEdBN254() *CurveParams {
 
 	edcurve := edbn254.GetEdwardsCurve()
 	r := newCurveParams()
-	edcurve.A.ToBigIntRegular(r.A)
-	edcurve.D.ToBigIntRegular(r.D)
-	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	edcurve.A.BigInt(r.A)
+	edcurve.D.BigInt(r.D)
+	edcurve.Cofactor.BigInt(r.Cofactor)
 	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.ToBigIntRegular(r.Base[0])
-	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	edcurve.Base.X.BigInt(r.Base[0])
+	edcurve.Base.Y.BigInt(r.Base[1])
 	return r
 
 }
@@ -173,12 +173,12 @@ func newEdBLS12_381() *CurveParams {
 	edcurve := edbls12381.GetEdwardsCurve()
 
 	r := newCurveParams()
-	edcurve.A.ToBigIntRegular(r.A)
-	edcurve.D.ToBigIntRegular(r.D)
-	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	edcurve.A.BigInt(r.A)
+	edcurve.D.BigInt(r.D)
+	edcurve.Cofactor.BigInt(r.Cofactor)
 	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.ToBigIntRegular(r.Base[0])
-	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	edcurve.Base.X.BigInt(r.Base[0])
+	edcurve.Base.Y.BigInt(r.Base[1])
 	return r
 
 }
@@ -188,12 +188,12 @@ func newEdBLS12_381_BANDERSNATCH() *CurveParams {
 	edcurve := edbls12381_bandersnatch.GetEdwardsCurve()
 
 	r := newCurveParams()
-	edcurve.A.ToBigIntRegular(r.A)
-	edcurve.D.ToBigIntRegular(r.D)
-	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	edcurve.A.BigInt(r.A)
+	edcurve.D.BigInt(r.D)
+	edcurve.Cofactor.BigInt(r.Cofactor)
 	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.ToBigIntRegular(r.Base[0])
-	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	edcurve.Base.X.BigInt(r.Base[0])
+	edcurve.Base.Y.BigInt(r.Base[1])
 	return r
 
 }
@@ -203,12 +203,12 @@ func newEdBLS12_377() *CurveParams {
 	edcurve := edbls12377.GetEdwardsCurve()
 
 	r := newCurveParams()
-	edcurve.A.ToBigIntRegular(r.A)
-	edcurve.D.ToBigIntRegular(r.D)
-	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	edcurve.A.BigInt(r.A)
+	edcurve.D.BigInt(r.D)
+	edcurve.Cofactor.BigInt(r.Cofactor)
 	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.ToBigIntRegular(r.Base[0])
-	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	edcurve.Base.X.BigInt(r.Base[0])
+	edcurve.Base.Y.BigInt(r.Base[1])
 	return r
 
 }
@@ -218,12 +218,12 @@ func newEdBW6_633() *CurveParams {
 	edcurve := edbw6633.GetEdwardsCurve()
 
 	r := newCurveParams()
-	edcurve.A.ToBigIntRegular(r.A)
-	edcurve.D.ToBigIntRegular(r.D)
-	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	edcurve.A.BigInt(r.A)
+	edcurve.D.BigInt(r.D)
+	edcurve.Cofactor.BigInt(r.Cofactor)
 	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.ToBigIntRegular(r.Base[0])
-	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	edcurve.Base.X.BigInt(r.Base[0])
+	edcurve.Base.Y.BigInt(r.Base[1])
 	return r
 
 }
@@ -233,12 +233,12 @@ func newEdBW6_761() *CurveParams {
 	edcurve := edbw6761.GetEdwardsCurve()
 
 	r := newCurveParams()
-	edcurve.A.ToBigIntRegular(r.A)
-	edcurve.D.ToBigIntRegular(r.D)
-	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	edcurve.A.BigInt(r.A)
+	edcurve.D.BigInt(r.D)
+	edcurve.Cofactor.BigInt(r.Cofactor)
 	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.ToBigIntRegular(r.Base[0])
-	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	edcurve.Base.X.BigInt(r.Base[0])
+	edcurve.Base.Y.BigInt(r.Base[1])
 	return r
 
 }
@@ -248,12 +248,12 @@ func newEdBLS24_317() *CurveParams {
 	edcurve := edbls24317.GetEdwardsCurve()
 
 	r := newCurveParams()
-	edcurve.A.ToBigIntRegular(r.A)
-	edcurve.D.ToBigIntRegular(r.D)
-	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	edcurve.A.BigInt(r.A)
+	edcurve.D.BigInt(r.D)
+	edcurve.Cofactor.BigInt(r.Cofactor)
 	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.ToBigIntRegular(r.Base[0])
-	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	edcurve.Base.X.BigInt(r.Base[0])
+	edcurve.Base.Y.BigInt(r.Base[1])
 	return r
 
 }
@@ -263,12 +263,12 @@ func newEdBLS24_315() *CurveParams {
 	edcurve := edbls24315.GetEdwardsCurve()
 
 	r := newCurveParams()
-	edcurve.A.ToBigIntRegular(r.A)
-	edcurve.D.ToBigIntRegular(r.D)
-	edcurve.Cofactor.ToBigIntRegular(r.Cofactor)
+	edcurve.A.BigInt(r.A)
+	edcurve.D.BigInt(r.D)
+	edcurve.Cofactor.BigInt(r.Cofactor)
 	r.Order.Set(&edcurve.Order)
-	edcurve.Base.X.ToBigIntRegular(r.Base[0])
-	edcurve.Base.Y.ToBigIntRegular(r.Base[1])
+	edcurve.Base.X.BigInt(r.Base[0])
+	edcurve.Base.Y.BigInt(r.Base[1])
 	return r
 
 }

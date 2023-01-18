@@ -48,10 +48,13 @@ type SparseR1CS struct {
 }
 
 // NewSparseR1CS returns a new SparseR1CS and sets r1cs.Coefficient (fr.Element) from provided big.Int values
-func NewSparseR1CS() *SparseR1CS {
+func NewSparseR1CS(capacity int) *SparseR1CS {
 	cs := SparseR1CS{
-		SparseR1CSCore: constraint.SparseR1CSCore{System: constraint.NewSystem(fr.Modulus())},
-		CoeffTable:     newCoeffTable(),
+		SparseR1CSCore: constraint.SparseR1CSCore{
+			System:      constraint.NewSystem(fr.Modulus()),
+			Constraints: make([]constraint.SparseR1C, 0, capacity),
+		},
+		CoeffTable: newCoeffTable(capacity / 10),
 	}
 
 	return &cs
@@ -94,7 +97,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 	}
 
 	// keep track of wire that have a value
-	solution, err := newSolution(nbVariables, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients)
+	solution, err := newSolution(nbVariables, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable)
 	if err != nil {
 		return solution.values, err
 	}
@@ -537,7 +540,7 @@ func (cs *SparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	decoder := dm.NewDecoder(r)
 
 	// initialize coeff table
-	cs.CoeffTable = newCoeffTable()
+	cs.CoeffTable = newCoeffTable(0)
 
 	if err := decoder.Decode(cs); err != nil {
 		return int64(decoder.NumBytesRead()), err
