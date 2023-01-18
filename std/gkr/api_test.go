@@ -6,10 +6,10 @@ import (
 	bn254TestVectorUtils "github.com/consensys/gnark-crypto/ecc/bn254/fr/test_vector_utils"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
@@ -39,12 +39,7 @@ func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(Z[i], api.Mul(2, c.X[i]))
 	}
 
-	var hsh mimc.MiMC
-	if hsh, err = mimc.NewMiMC(api); err != nil {
-		return err
-	}
-	//hsh := messageCounter{startState: 0, step: 1}
-	return solution.Verify(&hsh)
+	return solution.Verify("mimc")
 }
 
 func TestDoubleNoDependencyCircuit(t *testing.T) {
@@ -76,13 +71,7 @@ func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(Z[i], api.Mul(c.X[i], c.X[i]))
 	}
 
-	var hsh mimc.MiMC
-	if hsh, err = mimc.NewMiMC(api); err != nil {
-		return err
-	}
-	//var hsh hash.Hash = &literalSum{initialState: 0}
-	//hsh := messageCounter{startState: 0, step: 1}
-	return solution.Verify(&hsh)
+	return solution.Verify("mimc")
 }
 
 func TestSqNoDependencyCircuit(t *testing.T) {
@@ -122,12 +111,7 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(Z[i], api.Mul(c.X[i], c.Y[i]))
 	}
 
-	var hsh mimc.MiMC
-	if hsh, err = mimc.NewMiMC(api); err != nil {
-		return err
-	}
-	//hsh := messageCounter{startState: 0, step: 1}
-	return solution.Verify(&hsh)
+	return solution.Verify("mimc")
 }
 
 func TestMulNoDependency(t *testing.T) {
@@ -308,7 +292,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	}
 
 	// cheat{
-	gkr.circuitData.toStore.Circuit = append(gkr.circuitData.toStore.Circuit, constraint.GkrWire{
+	gkr.toStore.Circuit = append(gkr.toStore.Circuit, constraint.GkrWire{
 		Gate:   "mimc",
 		Inputs: []int{int(x.(constraint.GkrVariable)), int(y.(constraint.GkrVariable))},
 	})
@@ -335,10 +319,27 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	hsh, err := mimc.NewMiMC(api)
-	if err != nil {
-		return err
-	}
+	return solution.Verify("mimc", challenge)
+}
 
-	return solution.Verify(&hsh, challenge)
+func solve(t *testing.T, circuit, assignment frontend.Circuit) {
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
+	assert.NoError(t, err)
+	var (
+		fullWitness   *witness.Witness
+		publicWitness *witness.Witness
+		pk            groth16.ProvingKey
+		vk            groth16.VerifyingKey
+		proof         groth16.Proof
+	)
+	fullWitness, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+	assert.NoError(t, err)
+	publicWitness, err = fullWitness.Public()
+	assert.NoError(t, err)
+	pk, vk, err = groth16.Setup(cs)
+	assert.NoError(t, err)
+	proof, err = groth16.Prove(cs, pk, fullWitness)
+	assert.NoError(t, err)
+	err = groth16.Verify(proof, vk, publicWitness)
+	assert.NoError(t, err)
 }

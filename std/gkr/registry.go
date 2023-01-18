@@ -2,12 +2,11 @@ package gkr
 
 import "github.com/consensys/gnark/frontend"
 
-var RegisteredGates = make(map[string]Gate)
-
-func init() {
-	RegisteredGates["identity"] = IdentityGate{}
-	RegisteredGates["mul"] = MulGate{}
-	RegisteredGates["mimc"] = MiMCCipherGate{Ark: 0} //TODO: Add ark
+var RegisteredGates = map[string]Gate{
+	"identity": IdentityGate{},
+	"add":      AddGate{},
+	"mul":      MulGate{},
+	"mimc":     MiMCCipherGate{Ark: 0}, //TODO: Add ark
 }
 
 type MiMCCipherGate struct {

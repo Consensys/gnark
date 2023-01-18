@@ -17,6 +17,7 @@ func (api *API) newNonInputVariable(gate string, in []frontend.Variable) constra
 		Gate:   gate,
 		Inputs: algo_utils.Map(in, frontendVarToInt),
 	})
+	api.assignments = append(api.assignments, nil)
 	return constraint.GkrVariable(len(api.toStore.Circuit) - 1)
 }
 

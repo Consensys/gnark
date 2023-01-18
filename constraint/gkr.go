@@ -64,7 +64,7 @@ func (d *GkrInfo) AssignmentOffsets() []int {
 
 func (d *GkrInfo) NewInputVariable() GkrVariable {
 	i := len(d.Circuit)
-	d.Circuit = append(d.Circuit)
+	d.Circuit = append(d.Circuit, GkrWire{})
 	return GkrVariable(i)
 }
 

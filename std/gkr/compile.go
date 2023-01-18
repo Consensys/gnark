@@ -2,10 +2,12 @@ package gkr
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"math/big"
 	"math/bits"
@@ -16,17 +18,14 @@ type circuitDataForSnark struct {
 	assignments WireAssignment
 }
 
-type circuitData struct {
+type API struct {
 	toStore     constraint.GkrInfo
 	assignments GkrAssignment
 }
 
-type API struct {
-	circuitData
-}
-
 type Solution struct {
-	circuitData
+	toStore      *constraint.GkrInfo
+	assignments  GkrAssignment
 	parentApi    frontend.API
 	permutations constraint.GkrPermutations
 }
@@ -40,12 +39,12 @@ func (api *API) logNbInstances() int {
 }
 
 func NewApi() *API {
-	return &API{circuitData{
+	return &API{
 		toStore: constraint.GkrInfo{
 			Circuit: make(constraint.GkrCircuit, 0),
 			MaxNIns: 0,
 		},
-	}}
+	}
 }
 
 // log2 returns -1 if x is not a power of 2
@@ -82,8 +81,9 @@ func (api *API) Import(assignment []frontend.Variable) (constraint.GkrVariable, 
 	if currentNbInstances := api.nbInstances(); currentNbInstances != -1 && currentNbInstances != nbInstances {
 		return -1, fmt.Errorf("number of assignments must be consistent across all variables")
 	}
-
-	return api.toStore.NewInputVariable(), nil
+	newVar := api.toStore.NewInputVariable()
+	api.assignments = append(api.assignments, assignment)
+	return newVar, nil
 }
 
 func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
@@ -128,6 +128,7 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 	}
 
 	outsSerialized, err := parentApi.Compiler().NewHint(SolveHintPlaceholder, solveHintNOut, ins...)
+	api.toStore.SolveHintID = hint.UUID(SolveHintPlaceholder)
 	if err != nil {
 		return Solution{}, err
 	}
@@ -145,49 +146,33 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 		}
 	}
 
-	setGkrInfo(parentApi, api.toStore)
-
 	return Solution{
-		circuitData:  api.circuitData,
+		toStore:      parentApi.Compiler().SetGkrInfo(api.toStore),
+		assignments:  api.assignments,
 		parentApi:    parentApi,
 		permutations: p,
 	}, nil
-}
-
-func setGkrInfo(api frontend.API, toStore constraint.GkrInfo) {
-	switch sys := api.(type) {
-	default:
-		panic(fmt.Sprintf("unrecognized type %T", sys))
-	}
 }
 
 func (s Solution) Export(v frontend.Variable) []frontend.Variable {
 	return algo_utils.Map(s.permutations.SortedInstances, algo_utils.SliceAt(s.assignments[v.(constraint.GkrVariable)]))
 }
 
-func (s Solution) Verify(hash hash.Hash, initialChallenges ...frontend.Variable) error {
-	// TODO: Translate transcriptSettings from snark to field ugh
+func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable) error {
 	var (
 		err             error
 		proofSerialized []frontend.Variable
 		proof           Proof
 	)
 
-	forSnark := newCircuitDataForSnark(s.toStore, s.assignments)
+	forSnark := newCircuitDataForSnark(*s.toStore, s.assignments)
 	logNbInstances := log2(uint(s.assignments.NbInstances()))
-
-	//	TODO: Find out if this hack is necessary
-	/*for i := range s.toStore.circuit {
-		if s.toStore.circuit[i].isOutput() {
-			initialChallenges = append(initialChallenges, s.toStore.circuit[i].assignments[0])
-			break
-		}
-	}*/
 
 	if proofSerialized, err = s.parentApi.Compiler().NewHint(
 		ProveHintPlaceholder, ProofSize(forSnark.circuit, logNbInstances), initialChallenges...); err != nil {
 		return err
 	}
+	s.toStore.ProveHintID = hint.UUID(ProveHintPlaceholder)
 
 	forSnarkSorted := algo_utils.MapRange(0, len(s.toStore.Circuit), slicePtrAt(forSnark.circuit))
 
@@ -195,7 +180,18 @@ func (s Solution) Verify(hash hash.Hash, initialChallenges ...frontend.Variable)
 		return err
 	}
 
-	return Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hash, initialChallenges...), WithSortedCircuit(forSnarkSorted)) // TODO: Security critical: do a proper transcriptSetting
+	var hsh hash.Hash
+	if hashName == "mimc" {
+		if _mimc, err := mimc.NewMiMC(s.parentApi); err == nil {
+			hsh = &_mimc
+		} else {
+			return err
+		}
+	} else {
+		return fmt.Errorf("unsupported hash \"%s\"", hashName) // TODO: A hash registry
+	}
+
+	return Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), WithSortedCircuit(forSnarkSorted)) // TODO: Security critical: do a proper transcriptSetting
 
 }
 
@@ -249,6 +245,8 @@ func (a GkrAssignment) NbInstances() int {
 func (a GkrAssignment) Permute(p constraint.GkrPermutations) {
 	algo_utils.Permute(a, p.WiresPermutation)
 	for i := range a {
-		algo_utils.Permute(a[i], p.InstancesPermutation)
+		if a[i] != nil {
+			algo_utils.Permute(a[i], p.InstancesPermutation)
+		}
 	}
 }

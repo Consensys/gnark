@@ -58,6 +58,11 @@ type scs struct {
 	q *big.Int
 }
 
+func (builder *scs) SetGkrInfo(info constraint.GkrInfo) *constraint.GkrInfo {
+	panic("not implemented")
+	return nil
+}
+
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 // TODO @gbotrel restore capacity option!

@@ -56,9 +56,18 @@ type builder struct {
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]expr.LinearExpression
 
-	q    *big.Int
-	tOne constraint.Coeff
-	heap minHeap // helps merge k sorted linear expressions
+	q       *big.Int
+	tOne    constraint.Coeff
+	heap    minHeap // helps merge k sorted linear expressions
+	gkrInfo constraint.GkrInfo
+}
+
+func (builder *builder) SetGkrInfo(info constraint.GkrInfo) *constraint.GkrInfo {
+	if builder.gkrInfo.Circuit != nil {
+		panic("currently only one gkr sub-circuit per snark is allowed")
+	}
+	builder.gkrInfo = info
+	return &builder.gkrInfo
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -158,7 +167,7 @@ func (builder *builder) FieldBitLen() int {
 	return builder.cs.FieldBitLen()
 }
 
-// newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
+// newR1C clones the linear expression associated with the Variables (to avoid offsetting the ID multiple time)
 // and return a R1C
 func (builder *builder) newR1C(_l, _r, _o frontend.Variable) constraint.R1C {
 	l := _l.(expr.LinearExpression)
