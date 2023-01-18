@@ -46,7 +46,8 @@ func TestDoubleNoDependencyCircuit(t *testing.T) {
 	assignment := doubleNoDependencyCircuit{X: []frontend.Variable{1, 1}}
 	circuit := doubleNoDependencyCircuit{X: make([]frontend.Variable, 2)}
 
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+	solve(t, &circuit, &assignment)
+	//test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
 }
 
 type sqNoDependencyCircuit struct {

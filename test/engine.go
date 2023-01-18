@@ -582,8 +582,6 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	panic("not implemented")
 }
 
-func (e *engine) SetGkrInfo(info constraint.GkrInfo) *constraint.GkrInfo {
-	//TODO implement me
-	panic("not implemented")
-	return nil
+func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
+	return fmt.Errorf("not implemented")
 }

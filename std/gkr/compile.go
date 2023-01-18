@@ -24,7 +24,7 @@ type API struct {
 }
 
 type Solution struct {
-	toStore      *constraint.GkrInfo
+	toStore      constraint.GkrInfo
 	assignments  GkrAssignment
 	parentApi    frontend.API
 	permutations constraint.GkrPermutations
@@ -147,7 +147,7 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 	}
 
 	return Solution{
-		toStore:      parentApi.Compiler().SetGkrInfo(api.toStore),
+		toStore:      api.toStore,
 		assignments:  api.assignments,
 		parentApi:    parentApi,
 		permutations: p,
@@ -165,7 +165,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 		proof           Proof
 	)
 
-	forSnark := newCircuitDataForSnark(*s.toStore, s.assignments)
+	forSnark := newCircuitDataForSnark(s.toStore, s.assignments)
 	logNbInstances := log2(uint(s.assignments.NbInstances()))
 
 	if proofSerialized, err = s.parentApi.Compiler().NewHint(
@@ -190,9 +190,14 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	} else {
 		return fmt.Errorf("unsupported hash \"%s\"", hashName) // TODO: A hash registry
 	}
+	s.toStore.HashName = hashName
 
-	return Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), WithSortedCircuit(forSnarkSorted)) // TODO: Security critical: do a proper transcriptSetting
+	err = Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), WithSortedCircuit(forSnarkSorted)) // TODO: Security critical: do a proper transcriptSetting
+	if err != nil {
+		return err
+	}
 
+	return s.parentApi.Compiler().SetGkrInfo(s.toStore)
 }
 
 func SolveHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error {

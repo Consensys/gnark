@@ -130,6 +130,10 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 	return p, nil
 }
 
+func (d *GkrInfo) Is() bool {
+	return d.Circuit != nil
+}
+
 func max(a, b int) int {
 	if a > b {
 		return a

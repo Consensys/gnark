@@ -57,6 +57,7 @@ type ConstraintSystem interface {
 	AddSolverHint(f hint.Function, input []LinearExpression, nbOutput int) (internalVariables []int, err error)
 
 	AddCommitment(c Commitment) error
+	AddGkr(gkr GkrInfo) error
 
 	AddLog(l LogEntry)
 
@@ -306,6 +307,15 @@ func (system *System) AddSolverHint(f hint.Function, input []LinearExpression, n
 	}
 
 	return
+}
+
+func (system *System) AddGkr(gkr GkrInfo) error {
+	if system.GkrInfo.Is() {
+		return fmt.Errorf("currently only one GKR sub-circuit per SNARK is supported")
+	}
+
+	system.GkrInfo = gkr
+	return nil
 }
 
 func (system *System) AddCommitment(c Commitment) error {

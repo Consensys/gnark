@@ -56,7 +56,7 @@ type Compiler interface {
 	// This API is experimental
 	// TENTATIVE: Functions regarding fiat-shamir-ed proofs over enormous statements  TODO finalize
 	Commit(...Variable) (Variable, error)
-	SetGkrInfo(constraint.GkrInfo) *constraint.GkrInfo
+	SetGkrInfo(constraint.GkrInfo) error
 }
 
 // Builder represents a constraint system builder
