@@ -171,12 +171,12 @@ func TestScalarMul2(t *testing.T) {
 	witness := ScalarMulTest[emulated.BN254Fp, emulated.BN254Fr]{
 		S: emulated.NewElement[emulated.BN254Fr](s),
 		P: AffinePoint[emulated.BN254Fp]{
-			X: emulated.NewElement[emulated.BN254Fp](gen.X.ToBigIntRegular(new(big.Int))),
-			Y: emulated.NewElement[emulated.BN254Fp](gen.Y.ToBigIntRegular(new(big.Int))),
+			X: emulated.NewElement[emulated.BN254Fp](gen.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.BN254Fp](gen.Y.BigInt(new(big.Int))),
 		},
 		Q: AffinePoint[emulated.BN254Fp]{
-			X: emulated.NewElement[emulated.BN254Fp](res.X.ToBigIntRegular(new(big.Int))),
-			Y: emulated.NewElement[emulated.BN254Fp](res.Y.ToBigIntRegular(new(big.Int))),
+			X: emulated.NewElement[emulated.BN254Fp](res.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.BN254Fp](res.Y.BigInt(new(big.Int))),
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
