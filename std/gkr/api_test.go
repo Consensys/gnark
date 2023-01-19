@@ -5,7 +5,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bn254MiMC "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -15,7 +14,6 @@ import (
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/utils/test_vectors_utils"
-	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"hash"
 	"strconv"
@@ -149,20 +147,37 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 }
 
 func TestMulNoDependency(t *testing.T) {
-	assignment := mulNoDependencyCircuit{
-		X: []frontend.Variable{1, 2},
-		Y: []frontend.Variable{0, 3},
+	xValuess := [][]frontend.Variable{
+		{1, 2},
 	}
-	circuit := mulNoDependencyCircuit{
-		X: make([]frontend.Variable, 2),
-		Y: make([]frontend.Variable, 2),
+	yValuess := [][]frontend.Variable{
+		{0, 3},
 	}
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+
+	hashes := []string{"-1", "-20"}
+
+	for i := range xValuess {
+		for _, hashName := range hashes {
+
+			assignment := mulNoDependencyCircuit{
+				X: xValuess[i],
+				Y: yValuess[i],
+			}
+			circuit := mulNoDependencyCircuit{
+				X:        make([]frontend.Variable, len(xValuess[i])),
+				Y:        make([]frontend.Variable, len(yValuess[i])),
+				hashName: hashName,
+			}
+
+			solve(t, &circuit, &assignment)
+		}
+	}
 }
 
 type mulWithDependencyCircuit struct {
-	XLast frontend.Variable
-	Y     []frontend.Variable
+	XLast    frontend.Variable
+	Y        []frontend.Variable
+	hashName string
 }
 
 func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
@@ -199,7 +214,7 @@ func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
 	for i := 0; i < lastI; i++ {
 		api.AssertIsEqual(Z[i], api.Mul(Z[i+1], Y[i]))
 	}
-	return nil
+	return solution.Verify(c.hashName)
 }
 
 func TestSolveMulWithDependency(t *testing.T) {
@@ -208,7 +223,7 @@ func TestSolveMulWithDependency(t *testing.T) {
 		XLast: 1,
 		Y:     []frontend.Variable{3, 2},
 	}
-	circuit := mulWithDependencyCircuit{Y: make([]frontend.Variable, len(assignment.Y))}
+	circuit := mulWithDependencyCircuit{Y: make([]frontend.Variable, len(assignment.Y)), hashName: "-20"}
 
 	solve(t, &circuit, &assignment)
 }
