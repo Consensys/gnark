@@ -18,6 +18,7 @@ package fiatshamir
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
@@ -140,8 +141,11 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 
 	t.h.Reset()
 
-	t.api.Println("snark challenge \"", challengeID, "\" <- ", challenge.value)
-
+	if valueInt, ok := challenge.value.(int); ok {
+		fmt.Printf("snark challenge \"%s\" <- %d\n", challengeID, valueInt)
+	} else {
+		t.api.Println("snark challenge \"", challengeID, "\" <- ", challenge.value)
+	}
 	return challenge.value, nil
 
 }

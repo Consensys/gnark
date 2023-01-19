@@ -19,7 +19,6 @@ package hash
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"hash"
 )
 
 type Hash interface {
@@ -32,6 +31,6 @@ type Hash interface {
 
 	// Reset empty the internal state and put the intermediate state to zero.
 	Reset()
-
-	ToStandard() hash.Hash
 }
+
+var BuilderRegistry = make(map[string]func(api frontend.API) (Hash, error))

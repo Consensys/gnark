@@ -5,17 +5,15 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/test_vector_utils"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
-	"sync"
-
-	//stdGkr "github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/utils/algo_utils"
+	"hash"
 	"math/big"
+	"sync"
 )
 
 type gkrSolvingData struct {
@@ -209,13 +207,9 @@ func gkrProveHint(hashName string, data *gkrSolvingData, solvingDone *sync.Mutex
 			return b[:]
 		})
 
-		if hashName != "mimc" {
-			return fmt.Errorf("currently only mimc supported")
-		}
-		hsh := mimc.NewMiMC() // TODO: Use hashName
+		hsh := HashBuilderRegistry[hashName]()
 
 		solvingDone.Lock()
-
 		proof, err := gkr.Prove(data.circuit, data.assignments, fiatshamir.WithHash(hsh, insBytes...), gkr.WithPool(&data.memoryPool)) // TODO: Do transcriptSettings properly
 		if err != nil {
 			return err
@@ -251,3 +245,6 @@ func defineGkrHints(info constraint.GkrInfo, hintFunctions map[hint.ID]hint.Func
 	res[info.ProveHintID] = gkrProveHint(info.HashName, &gkrData, &solvingDone)
 	return res
 }
+
+// TODO: Move to gnark-crypto
+var HashBuilderRegistry = make(map[string]func() hash.Hash)

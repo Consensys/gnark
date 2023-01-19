@@ -7,7 +7,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
-	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"math/big"
 	"math/bits"
@@ -20,12 +19,12 @@ type circuitDataForSnark struct {
 
 type API struct {
 	toStore     constraint.GkrInfo
-	assignments GkrAssignment
+	assignments assignment
 }
 
 type Solution struct {
 	toStore      constraint.GkrInfo
-	assignments  GkrAssignment
+	assignments  assignment
 	parentApi    frontend.API
 	permutations constraint.GkrPermutations
 }
@@ -181,15 +180,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	}
 
 	var hsh hash.Hash
-	if hashName == "mimc" {
-		if _mimc, err := mimc.NewMiMC(s.parentApi); err == nil {
-			hsh = &_mimc
-		} else {
-			return err
-		}
-	} else {
-		return fmt.Errorf("unsupported hash \"%s\"", hashName) // TODO: A hash registry
-	}
+	hsh, err = hash.BuilderRegistry[hashName](s.parentApi)
 	s.toStore.HashName = hashName
 
 	err = Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), WithSortedCircuit(forSnarkSorted)) // TODO: Security critical: do a proper transcriptSetting
@@ -214,7 +205,7 @@ func slicePtrAt[T any](slice []T) func(int) *T {
 	}
 }
 
-func newCircuitDataForSnark(info constraint.GkrInfo, assignment GkrAssignment) circuitDataForSnark {
+func newCircuitDataForSnark(info constraint.GkrInfo, assignment assignment) circuitDataForSnark {
 	circuit := make(Circuit, len(info.Circuit))
 	snarkAssignment := make(WireAssignment, len(info.Circuit))
 	circuitAt := slicePtrAt(circuit)
@@ -236,9 +227,9 @@ func newCircuitDataForSnark(info constraint.GkrInfo, assignment GkrAssignment) c
 	}
 }
 
-type GkrAssignment [][]frontend.Variable
+type assignment [][]frontend.Variable
 
-func (a GkrAssignment) NbInstances() int {
+func (a assignment) NbInstances() int {
 	for i := range a {
 		if lenI := len(a[i]); lenI != 0 {
 			return lenI
@@ -247,7 +238,7 @@ func (a GkrAssignment) NbInstances() int {
 	return -1
 }
 
-func (a GkrAssignment) Permute(p constraint.GkrPermutations) {
+func (a assignment) Permute(p constraint.GkrPermutations) {
 	algo_utils.Permute(a, p.WiresPermutation)
 	for i := range a {
 		if a[i] != nil {

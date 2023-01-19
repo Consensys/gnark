@@ -3,22 +3,31 @@ package gkr
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	bn254TestVectorUtils "github.com/consensys/gnark-crypto/ecc/bn254/fr/test_vector_utils"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	bn254MiMC "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
+	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	stdHash "github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"hash"
+	"strconv"
 	"testing"
 )
 
+//const msgCounterTemplate = "messageCounter{startState:%d, step:%d}"
+//var msgCounterParams = messageCounter{}
+
 type doubleNoDependencyCircuit struct {
-	X []frontend.Variable
+	X        []frontend.Variable
+	hashName string
 }
 
 func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
@@ -39,19 +48,31 @@ func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(Z[i], api.Mul(2, c.X[i]))
 	}
 
-	return solution.Verify("mimc")
+	return solution.Verify(c.hashName)
 }
 
 func TestDoubleNoDependencyCircuit(t *testing.T) {
-	assignment := doubleNoDependencyCircuit{X: []frontend.Variable{1, 1}}
-	circuit := doubleNoDependencyCircuit{X: make([]frontend.Variable, 2)}
 
-	solve(t, &circuit, &assignment)
-	//test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+	xValuess := [][]frontend.Variable{
+		{1, 1},
+		{1, 2},
+	}
+
+	hashes := []string{"-1", "-20"}
+
+	for _, xValues := range xValuess {
+		for _, hashName := range hashes {
+			assignment := doubleNoDependencyCircuit{X: xValues}
+			circuit := doubleNoDependencyCircuit{X: make([]frontend.Variable, len(xValues)), hashName: hashName}
+
+			solve(t, &circuit, &assignment)
+		}
+	}
 }
 
 type sqNoDependencyCircuit struct {
-	X []frontend.Variable
+	X        []frontend.Variable
+	hashName string
 }
 
 func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
@@ -72,7 +93,7 @@ func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(Z[i], api.Mul(c.X[i], c.X[i]))
 	}
 
-	return solution.Verify("mimc")
+	return solution.Verify(c.hashName)
 }
 
 func TestSqNoDependencyCircuit(t *testing.T) {
@@ -83,7 +104,8 @@ func TestSqNoDependencyCircuit(t *testing.T) {
 }
 
 type mulNoDependencyCircuit struct {
-	X, Y []frontend.Variable
+	X, Y     []frontend.Variable
+	hashName string
 }
 
 func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
@@ -112,7 +134,7 @@ func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(Z[i], api.Mul(c.X[i], c.Y[i]))
 	}
 
-	return solution.Verify("mimc")
+	return solution.Verify(c.hashName)
 }
 
 func TestMulNoDependency(t *testing.T) {
@@ -177,7 +199,7 @@ func TestSolveMulWithDependency(t *testing.T) {
 	}
 	circuit := mulWithDependencyCircuit{Y: make([]frontend.Variable, len(assignment.Y))}
 
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+	solve(t, &circuit, &assignment)
 }
 
 func TestApiMul(t *testing.T) {
@@ -226,10 +248,6 @@ func (c *messageCounter) Reset() {
 	c.state = c.startState
 }
 
-func (c *messageCounter) ToStandard() hash.Hash {
-	return bn254TestVectorUtils.NewMessageCounter(c.startState, c.step)
-}
-
 func BenchmarkMiMCMerkleTree(b *testing.B) {
 	depth := 3
 	bottom := make([]frontend.Variable, 1<<depth)
@@ -252,14 +270,14 @@ func BenchmarkMiMCMerkleTree(b *testing.B) {
 
 	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	assert.NoError(b, err)
-	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	fullWitness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	assert.NoError(b, err)
-	//publicWitness := witness.Public()
+	//publicWitness := fullWitness.Public()
 	pk, _, err := groth16.Setup(cs)
 	assert.NoError(b, err)
 
 	b.ResetTimer()
-	_, err = groth16.Prove(cs, pk, witness)
+	_, err = groth16.Prove(cs, pk, fullWitness)
 	assert.NoError(b, err)
 }
 
@@ -344,3 +362,108 @@ func solve(t *testing.T, circuit, assignment frontend.Circuit) {
 	err = groth16.Verify(proof, vk, publicWitness)
 	assert.NoError(t, err)
 }
+
+func registerMiMC() {
+	bn254r1cs.HashBuilderRegistry["mimc"] = bn254MiMC.NewMiMC
+	stdHash.BuilderRegistry["mimc"] = func(api frontend.API) (stdHash.Hash, error) {
+		m, err := mimc.NewMiMC(api)
+		return &m, err
+	}
+}
+
+/*func registerMessageCounter(startState int, step int) {
+	name := fmt.Sprintf(msgCounterTemplate, startState, step)
+	bn254r1cs.HashBuilderRegistry[name] = func() hash.Hash {
+		return &bn254SumCounter{
+			startState: startState,
+			step:       step,
+		}
+	}
+	stdHash.BuilderRegistry[name] = func(frontend.API) (stdHash.Hash, error) { // TODO: Move to test_vector_utils?
+		return &messageCounter{
+			startState: startState,
+			step:       step,
+		}, nil
+	}
+}*/
+
+func registerConstant(c int) {
+	name := strconv.Itoa(c)
+	bn254r1cs.HashBuilderRegistry[name] = func() hash.Hash {
+		return constHashBn254(c)
+	}
+	stdHash.BuilderRegistry[name] = func(frontend.API) (stdHash.Hash, error) {
+		return constHash(c), nil
+	}
+}
+
+func init() {
+	registerMiMC()
+	registerConstant(-1)
+	registerConstant(-20)
+	//registerMessageCounter(0, 1)
+}
+
+type constHashBn254 int
+
+func (c constHashBn254) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func (c constHashBn254) Sum([]byte) []byte {
+	var x fr.Element
+	x.SetInt64(int64(c))
+	res := x.Bytes()
+	return res[:]
+}
+
+func (c constHashBn254) Reset() {}
+
+func (c constHashBn254) Size() int {
+	return fr.Bytes
+}
+
+func (c constHashBn254) BlockSize() int {
+	return fr.Bytes
+}
+
+type constHash int
+
+func (c constHash) Sum() frontend.Variable {
+	return int(c)
+}
+
+func (c constHash) Write(...frontend.Variable) {}
+
+func (c constHash) Reset() {}
+
+/*
+// TODO: Incompatible with msgCtr in gnark-crypto. Decide in favor of one or the other (probably this one)
+type bn254SumCounter struct {
+	startState int
+	step       int
+	state      int
+}
+
+func (ctr *bn254SumCounter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+func (ctr *bn254SumCounter) Sum([]byte) []byte {
+	ctr.state += ctr.step
+	res := make([]byte, fr.Bytes)
+	binary.BigEndian.PutUint64(res[len(res)-8:], uint64(ctr.state))
+	return res
+}
+
+func (ctr *bn254SumCounter) Reset() {
+	//ctr.state = ctr.startState
+}
+
+func (ctr *bn254SumCounter) Size() int {
+	return fr.Bytes
+}
+
+func (ctr *bn254SumCounter) BlockSize() int {
+	return fr.Bytes
+}*/

@@ -48,7 +48,7 @@ func TestCompile2Cycles(t *testing.T) {
 			},
 		},
 	}
-	/*assignment := GkrAssignment{
+	/*assignment := assignment{
 		{2, 1},
 		{nil, 0},
 	}*/
@@ -72,7 +72,7 @@ func TestCompile2Cycles(t *testing.T) {
 		MaxNIns:     1,
 		NbInstances: 2,
 	}
-	/*expectedAssignment := GkrAssignment{
+	/*expectedAssignment := assignment{
 		{0, nil},
 		{1, 2},
 	}*/
