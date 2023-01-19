@@ -2,7 +2,6 @@ package cs
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
@@ -100,22 +99,22 @@ func gkrSolve(info constraint.GkrInfo, solvingData gkrSolvingData, assignmentVec
 	}
 
 	for instanceI := 0; instanceI < nbInstances; instanceI++ {
-		fmt.Println("instance", instanceI)
+		//fmt.Println("instance", instanceI)
 		for wireI, wire := range circuit {
-			fmt.Print("\twire ", wireI, ": ")
+			//fmt.Print("\twire ", wireI, ": ")
 			if wire.IsInput() {
-				fmt.Print("input.")
+				//fmt.Print("input.")
 				if nbDepsResolved[wireI] < len(wire.Dependencies) && instanceI == wire.Dependencies[nbDepsResolved[wireI]].InputInstance {
-					fmt.Print(" copying value from dependency")
+					//fmt.Print(" copying value from dependency")
 					dep := wire.Dependencies[nbDepsResolved[wireI]]
 					assignments[wireI][instanceI].Set(&assignments[dep.OutputWire][dep.OutputInstance])
 					nbDepsResolved[wireI]++
 				} else {
-					fmt.Print(" taking value from input")
+					//fmt.Print(" taking value from input")
 					assignments[wireI][instanceI].SetBigInt(assignmentVector[offsets[wireI]+instanceI-nbDepsResolved[wireI]])
 				}
 			} else {
-				fmt.Print("gated.")
+				//fmt.Print("gated.")
 				// assemble the inputs
 				inputIndexes := info.Circuit[wireI].Inputs
 				for i, inputI := range inputIndexes {
@@ -124,7 +123,7 @@ func gkrSolve(info constraint.GkrInfo, solvingData gkrSolvingData, assignmentVec
 				gate := solvingData.circuit[wireI].Gate
 				assignments[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
 			}
-			fmt.Println("\n\t\tresult: ", assignments[wireI][instanceI].Text(10))
+			//fmt.Println("\n\t\tresult: ", assignments[wireI][instanceI].Text(10))
 		}
 	}
 	return assignments
@@ -154,15 +153,15 @@ func gkrSetOutputValues(circuit []constraint.GkrWire, assignments gkrAssignment,
 func gkrSolveHint(data constraint.GkrInfo, res *gkrSolvingData) hint.Function {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 
-		res.circuit = convertCircuit(data.Circuit)      // TODO: Take this out of here into the proving module
-		res.memoryPool = polynomial.NewPool(256, 1<<11) // TODO: Get clever with limits
+		res.circuit = convertCircuit(data.Circuit) // TODO: Take this out of here into the proving module
+		res.memoryPool = polynomial.NewPool(256, data.NbInstances)
 
 		assignments := gkrSolve(data, *res, ins)
 		res.assignments = toMapAssignment(res.circuit, assignments)
 		gkrSetOutputValues(data.Circuit, assignments, outs)
 
-		fmt.Println("assignment ", sliceSliceToString(assignments))
-		fmt.Println("returning ", bigIntPtrSliceToString(outs))
+		//fmt.Println("assignment ", sliceSliceToString(assignments))
+		//fmt.Println("returning ", bigIntPtrSliceToString(outs))
 
 		return nil
 	}

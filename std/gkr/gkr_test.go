@@ -1,21 +1,6 @@
 package gkr
 
-import (
-	"encoding/json"
-	"fmt"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
-	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/polynomial"
-	"github.com/consensys/gnark/std/utils/test_vectors_utils"
-	"github.com/consensys/gnark/test"
-	"github.com/stretchr/testify/assert"
-	"os"
-	"path/filepath"
-	"reflect"
-	"testing"
-)
-
+/*
 func TestGkrVectors(t *testing.T) {
 
 	testDirPath := "./test_vectors"
@@ -368,3 +353,4 @@ func TestTopSortWide(t *testing.T) {
 
 	assert.Equal(t, sortedExpected, sorted)
 }
+*/

@@ -1,6 +1,7 @@
 package gkr
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bn254MiMC "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
@@ -240,37 +241,45 @@ func TestApiMul(t *testing.T) {
 	test_vector_utils.AssertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 }
 
-func BenchmarkMiMCMerkleTree(b *testing.B) {
-	depth := 2
-	bottom := make([]frontend.Variable, 1<<depth)
+/*
+	func BenchmarkMiMCMerkleTree(b *testing.B) {
+		depth := 14
+		//fmt.Println("start")
+		bottom := make([]frontend.Variable, 1<<depth)
 
-	for i := 0; i < 1<<depth; i++ {
-		bottom[i] = i
+		for i := 0; i < 1<<depth; i++ {
+			bottom[i] = i
+		}
+
+		assignment := benchMiMCMerkleTreeCircuit{
+			depth:   depth,
+			XBottom: bottom[:len(bottom)/2],
+			YBottom: bottom[len(bottom)/2:],
+		}
+
+		circuit := benchMiMCMerkleTreeCircuit{
+			depth:   depth,
+			XBottom: make([]frontend.Variable, len(assignment.XBottom)),
+			YBottom: make([]frontend.Variable, len(assignment.YBottom)),
+		}
+
+		solveB(b, &circuit, &assignment)
 	}
-
-	assignment := benchMiMCMerkleTreeCircuit{
-		depth:   depth,
-		XBottom: bottom[:len(bottom)/2],
-		YBottom: bottom[len(bottom)/2:],
-	}
-
-	circuit := benchMiMCMerkleTreeCircuit{
-		depth:   depth,
-		XBottom: make([]frontend.Variable, len(assignment.XBottom)),
-		YBottom: make([]frontend.Variable, len(assignment.YBottom)),
-	}
-
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+*/
+func solveB(b *testing.B, circuit, assignment frontend.Circuit) {
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
 	assert.NoError(b, err)
-	fullWitness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	fullWitness, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 	assert.NoError(b, err)
 	//publicWitness := fullWitness.Public()
 	pk, _, err := groth16.Setup(cs)
 	assert.NoError(b, err)
 
-	b.ResetTimer()
+	//b.ResetTimer()
 	_, err = groth16.Prove(cs, pk, fullWitness)
 	assert.NoError(b, err)
+	//fmt.Println("done")
+	fmt.Println("mimc total calls: fr=", mimcFrTotalCalls, ", snark=", mimcSnarkTotalCalls)
 }
 
 type benchMiMCMerkleTreeCircuit struct {
@@ -421,6 +430,8 @@ func (c constHash) Write(...frontend.Variable) {}
 
 func (c constHash) Reset() {}
 
+var mimcFrTotalCalls = 0
+
 // Copied from gnark-crypto TODO: Make public?
 type mimcCipherGate struct {
 	ark fr.Element
@@ -438,9 +449,104 @@ func (m mimcCipherGate) Evaluate(input ...fr.Element) (res fr.Element) {
 	res.Square(&res)    //sum^6
 	res.Mul(&res, &sum) //sum^7
 
+	mimcFrTotalCalls++
 	return
 }
 
 func (m mimcCipherGate) Degree() int {
 	return 7
+}
+
+type mimcNoGkrNoDepCircuit struct {
+	X []frontend.Variable
+	Y []frontend.Variable
+}
+
+func (c *mimcNoGkrNoDepCircuit) Define(api frontend.API) error {
+	Z := make([]frontend.Variable, len(c.X))
+	zSum := frontend.Variable(0)
+	for i := range Z {
+		Z[i] = MiMCCipherGate{Ark: 0}.Evaluate(api, c.X[i], c.Y[i])
+		zSum = api.Add(zSum, Z[i])
+	}
+	api.AssertIsDifferent(zSum, 0)
+	return nil
+}
+
+/*
+	func BenchmarkMiMCNoGkrNoDep(b *testing.B) {
+		nbInstances := 1 << 14
+		X := make([]frontend.Variable, nbInstances)
+		Y := make([]frontend.Variable, nbInstances)
+		for i := range X {
+			X[i] = i
+			Y[i] = -2*i + 1
+		}
+		assignment := mimcNoGkrNoDepCircuit{
+			X: X,
+			Y: Y,
+		}
+		circuit := mimcNoGkrNoDepCircuit{
+			X: make([]frontend.Variable, nbInstances),
+			Y: make([]frontend.Variable, nbInstances),
+		}
+		solveB(b, &circuit, &assignment)
+	}
+*/
+type mimcNoDepCircuit struct {
+	X []frontend.Variable
+	Y []frontend.Variable
+}
+
+func (c *mimcNoDepCircuit) Define(api frontend.API) error {
+	_gkr := NewApi()
+	x, err := _gkr.Import(c.X)
+	if err != nil {
+		return err
+	}
+	var (
+		y, z     constraint.GkrVariable
+		solution Solution
+	)
+	if y, err = _gkr.Import(c.Y); err != nil {
+		return err
+	}
+
+	// cheat{
+	_gkr.toStore.Circuit = append(_gkr.toStore.Circuit, constraint.GkrWire{
+		Gate:   "mimc",
+		Inputs: []int{int(x), int(y)},
+	})
+	_gkr.assignments = append(_gkr.assignments, nil)
+	z = constraint.GkrVariable(2)
+	// }
+
+	if solution, err = _gkr.Solve(api); err != nil {
+		return err
+	}
+	Z := solution.Export(z)
+	return solution.Verify("-20", Z...)
+}
+
+func BenchmarkMiMCNoDep(b *testing.B) {
+	nbInstances := 1 << 14
+	X := make([]frontend.Variable, nbInstances)
+	Y := make([]frontend.Variable, nbInstances)
+	for i := range X {
+		X[i] = i
+		Y[i] = -2*i + 1
+	}
+	assignment := mimcNoDepCircuit{
+		X: X,
+		Y: Y,
+	}
+	circuit := mimcNoDepCircuit{
+		X: make([]frontend.Variable, nbInstances),
+		Y: make([]frontend.Variable, nbInstances),
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		solveB(b, &circuit, &assignment)
+	}
+
 }
