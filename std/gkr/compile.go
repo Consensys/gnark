@@ -167,8 +167,17 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	forSnark := newCircuitDataForSnark(s.toStore, s.assignments)
 	logNbInstances := log2(uint(s.assignments.NbInstances()))
 
+	hintIns := make([]frontend.Variable, len(initialChallenges)+1) // hack: adding one of the outputs of the solve hint to ensure "prove" is called after "solve"
+	for i, w := range s.toStore.Circuit {
+		if w.IsOutput() {
+			hintIns[0] = s.assignments[i][0]
+			break
+		}
+	}
+	copy(hintIns[1:], initialChallenges)
+
 	if proofSerialized, err = s.parentApi.Compiler().NewHint(
-		ProveHintPlaceholder, ProofSize(forSnark.circuit, logNbInstances), initialChallenges...); err != nil {
+		ProveHintPlaceholder, ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
 		return err
 	}
 	s.toStore.ProveHintID = hint.UUID(ProveHintPlaceholder)

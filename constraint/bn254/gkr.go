@@ -13,7 +13,6 @@ import (
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"hash"
 	"math/big"
-	"sync"
 )
 
 type gkrSolvingData struct {
@@ -153,7 +152,7 @@ func gkrSetOutputValues(circuit []constraint.GkrWire, assignments gkrAssignment,
 	// Check if outsI == len(outs)?
 }
 
-func gkrSolveHint(data constraint.GkrInfo, res *gkrSolvingData, solvingDone *sync.Mutex) hint.Function {
+func gkrSolveHint(data constraint.GkrInfo, res *gkrSolvingData) hint.Function {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 
 		res.circuit = convertCircuit(data.Circuit)      // TODO: Take this out of here into the proving module
@@ -165,8 +164,6 @@ func gkrSolveHint(data constraint.GkrInfo, res *gkrSolvingData, solvingDone *syn
 
 		fmt.Println("assignment ", sliceSliceToString(assignments))
 		fmt.Println("returning ", bigIntPtrSliceToString(outs))
-
-		solvingDone.Unlock()
 
 		return nil
 	}
@@ -199,17 +196,16 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 	}
 }
 
-func gkrProveHint(hashName string, data *gkrSolvingData, solvingDone *sync.Mutex) hint.Function {
+func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
-		insBytes := algo_utils.Map(ins, func(i *big.Int) []byte {
+		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
 			b := i.Bytes()
 			return b[:]
 		})
 
 		hsh := HashBuilderRegistry[hashName]()
 
-		solvingDone.Lock()
 		proof, err := gkr.Prove(data.circuit, data.assignments, fiatshamir.WithHash(hsh, insBytes...), gkr.WithPool(&data.memoryPool)) // TODO: Do transcriptSettings properly
 		if err != nil {
 			return err
@@ -239,10 +235,8 @@ func defineGkrHints(info constraint.GkrInfo, hintFunctions map[hint.ID]hint.Func
 		res[k] = v
 	}
 	var gkrData gkrSolvingData
-	var solvingDone sync.Mutex // if the user manages challenges correctly, the solver will see the "prove" function as dependent on the "solve" function, but better not take chances
-	solvingDone.Lock()
-	res[info.SolveHintID] = gkrSolveHint(info, &gkrData, &solvingDone)
-	res[info.ProveHintID] = gkrProveHint(info.HashName, &gkrData, &solvingDone)
+	res[info.SolveHintID] = gkrSolveHint(info, &gkrData)
+	res[info.ProveHintID] = gkrProveHint(info.HashName, &gkrData)
 	return res
 }
 

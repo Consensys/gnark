@@ -97,10 +97,21 @@ func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
 }
 
 func TestSqNoDependencyCircuit(t *testing.T) {
-	assignment := sqNoDependencyCircuit{X: []frontend.Variable{1, 1}}
-	circuit := sqNoDependencyCircuit{X: make([]frontend.Variable, 2)}
 
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+	xValuess := [][]frontend.Variable{
+		{1, 1},
+		{1, 2},
+	}
+
+	hashes := []string{"-1", "-20"}
+
+	for _, xValues := range xValuess {
+		for _, hashName := range hashes {
+			assignment := sqNoDependencyCircuit{X: xValues}
+			circuit := sqNoDependencyCircuit{X: make([]frontend.Variable, len(xValues)), hashName: hashName}
+			solve(t, &circuit, &assignment)
+		}
+	}
 }
 
 type mulNoDependencyCircuit struct {
@@ -404,7 +415,7 @@ func init() {
 	//registerMessageCounter(0, 1)
 }
 
-type constHashBn254 int
+type constHashBn254 int // TODO @Tabaie move to gnark-crypto
 
 func (c constHashBn254) Write(p []byte) (int, error) {
 	return len(p), nil
