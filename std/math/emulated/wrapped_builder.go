@@ -66,7 +66,7 @@ func (w *FieldAPI[T]) addVariable(sf *schema.Field, recurseFn func(*schema.Field
 	sf.ArraySize = len(subfs)
 	sf.Type = schema.Array
 	sf.SubFields = subfs
-	el := w.f.PackLimbs(limbs)
+	el := w.f.PackElementLimbs(limbs)
 	return el
 }
 

@@ -111,22 +111,24 @@ func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
 	}
 }
 
-// EnforceWidth enforces that the bitlength of the value is exactly the
-// bitlength of the modulus. Any newly initialized variable should be
-// constrained to ensure correct operations.
-func (f *Field[T]) EnforceWidth(a *Element[T]) {
+// enforceWidth enforces the width of the limbs. When modWidth is true, then the
+// limbs are asserted to be the width of the modulus (highest limb may be less
+// than full limb width). Otherwise, every limb is assumed to have same width
+// (defined by the field parameter).
+func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
 	_, aConst := f.constantValue(a)
 	if aConst {
 		if len(a.Limbs) != int(f.fParams.NbLimbs()) {
 			panic("constant limb width doesn't match parametrized field")
 		}
 	}
+	if modWidth && len(a.Limbs) != int(f.fParams.NbLimbs()) {
+		panic("enforcing modulus width element with inexact number of limbs")
+	}
 
 	for i := range a.Limbs {
-		// TODO @gbotrel why check all the limbs here? if len(e.Limbs) <= modulus
-		// && last limb <= bits[lastLimbs] modulus, we're good ?
 		limbNbBits := int(f.fParams.BitsPerLimb())
-		if i == len(a.Limbs)-1 {
+		if modWidth && i == len(a.Limbs)-1 {
 			// take only required bits from the most significant limb
 			limbNbBits = ((f.fParams.Modulus().BitLen() - 1) % int(f.fParams.BitsPerLimb())) + 1
 		}
