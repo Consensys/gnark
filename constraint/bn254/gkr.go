@@ -21,12 +21,11 @@ type gkrSolvingData struct {
 	memoryPool  polynomial.Pool
 }
 
-var gateRegistry = make(map[string]gkr.Gate) // TODO: Migrate to gnark-crypto
+var GkrGateRegistry = make(map[string]gkr.Gate) // TODO: Migrate to gnark-crypto
 
 func init() {
-	gateRegistry["mul"] = mulGate(2) // in-built input count is problematic TODO fix
-	gateRegistry["add"] = addGate{}
-	//gateRegistry["mimc"]
+	GkrGateRegistry["mul"] = mulGate(2) // in-built input count is problematic TODO fix
+	GkrGateRegistry["add"] = addGate{}
 }
 
 type mulGate int
@@ -77,7 +76,7 @@ func (g addGate) Degree() int {
 func convertCircuit(noPtr constraint.GkrCircuit) gkr.Circuit {
 	resCircuit := make(gkr.Circuit, len(noPtr))
 	for i := range noPtr {
-		resCircuit[i].Gate = gateRegistry[noPtr[i].Gate]
+		resCircuit[i].Gate = GkrGateRegistry[noPtr[i].Gate]
 		resCircuit[i].Inputs = algo_utils.Map(noPtr[i].Inputs, algo_utils.SlicePtrAt(resCircuit))
 	}
 	return resCircuit
@@ -169,12 +168,13 @@ func gkrSolveHint(data constraint.GkrInfo, res *gkrSolvingData) hint.Function {
 	}
 }
 
-func bigIntPtrSliceToString(slice []*big.Int) []int64 {
-	return algo_utils.Map(slice, func(e *big.Int) int64 {
-		if !e.IsInt64() {
-			panic("int too big")
+func bigIntPtrSliceToString(slice []*big.Int) []interface{} {
+	return algo_utils.Map(slice, func(e *big.Int) interface{} {
+		if e.IsInt64() {
+			return e.Int64()
+		} else {
+			return e.Text(10)
 		}
-		return e.Int64()
 	})
 }
 

@@ -1,7 +1,6 @@
 package gkr
 
 import (
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bn254MiMC "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
@@ -19,9 +18,6 @@ import (
 	"strconv"
 	"testing"
 )
-
-//const msgCounterTemplate = "messageCounter{startState:%d, step:%d}"
-//var msgCounterParams = messageCounter{}
 
 type doubleNoDependencyCircuit struct {
 	X        []frontend.Variable
@@ -242,40 +238,10 @@ func TestApiMul(t *testing.T) {
 	assert.NoError(t, err)
 	z = api.Mul(x, y).(constraint.GkrVariable)
 	test_vector_utils.AssertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
-
-	//unsorted := []*Wire{&api.toStore.circuit[0], &api.toStore.circuit[1], &api.toStore.circuit[2]}
-	//test_vector_utils.AssertSliceEqual(t, []*Wire{x, y, z}, unsorted)
-
-	//sorted := topologicalSort(api.circuit)
-
-	//test_vector_utils.AssertSliceEqual(t, sorted, []*Wire{x, y, z})
-
-	/*assert.Equal(t, x.nbUniqueOutputs, 1)
-	assert.Equal(t, y.nbUniqueOutputs, 1)
-	assert.Equal(t, z.nbUniqueOutputs, 0)*/
-}
-
-type messageCounter struct {
-	startState int
-	step       int
-	state      int
-}
-
-func (c *messageCounter) Sum() frontend.Variable {
-	fmt.Println("snarkHash returning", c.state)
-	return c.state
-}
-
-func (c *messageCounter) Write(data ...frontend.Variable) {
-	c.state += len(data) * c.step
-}
-
-func (c *messageCounter) Reset() {
-	c.state = c.startState
 }
 
 func BenchmarkMiMCMerkleTree(b *testing.B) {
-	depth := 3
+	depth := 2
 	bottom := make([]frontend.Variable, 1<<depth)
 
 	for i := 0; i < 1<<depth; i++ {
@@ -341,6 +307,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 		Gate:   "mimc",
 		Inputs: []int{int(x.(constraint.GkrVariable)), int(y.(constraint.GkrVariable))},
 	})
+	gkr.assignments = append(gkr.assignments, nil)
 	z := frontend.Variable(constraint.GkrVariable(2))
 	// }
 
@@ -364,7 +331,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	return solution.Verify("mimc", challenge)
+	return solution.Verify("-20", challenge)
 }
 
 func solve(t *testing.T, circuit, assignment frontend.Circuit) {
@@ -397,22 +364,6 @@ func registerMiMC() {
 	}
 }
 
-/*func registerMessageCounter(startState int, step int) {
-	name := fmt.Sprintf(msgCounterTemplate, startState, step)
-	bn254r1cs.HashBuilderRegistry[name] = func() hash.Hash {
-		return &bn254SumCounter{
-			startState: startState,
-			step:       step,
-		}
-	}
-	stdHash.BuilderRegistry[name] = func(frontend.API) (stdHash.Hash, error) { // TODO: Move to test_vector_utils?
-		return &messageCounter{
-			startState: startState,
-			step:       step,
-		}, nil
-	}
-}*/
-
 func registerConstant(c int) {
 	name := strconv.Itoa(c)
 	bn254r1cs.HashBuilderRegistry[name] = func() hash.Hash {
@@ -427,7 +378,14 @@ func init() {
 	registerMiMC()
 	registerConstant(-1)
 	registerConstant(-20)
+
+	registerMiMCGate()
 	//registerMessageCounter(0, 1)
+}
+
+func registerMiMCGate() {
+	RegisteredGates["mimc"] = MiMCCipherGate{Ark: 0}
+	bn254r1cs.GkrGateRegistry["mimc"] = mimcCipherGate{}
 }
 
 type constHashBn254 int // TODO @Tabaie move to gnark-crypto
@@ -463,33 +421,26 @@ func (c constHash) Write(...frontend.Variable) {}
 
 func (c constHash) Reset() {}
 
-/*
-// TODO: Incompatible with msgCtr in gnark-crypto. Decide in favor of one or the other (probably this one)
-type bn254SumCounter struct {
-	startState int
-	step       int
-	state      int
+// Copied from gnark-crypto TODO: Make public?
+type mimcCipherGate struct {
+	ark fr.Element
 }
 
-func (ctr *bn254SumCounter) Write(p []byte) (n int, err error) {
-	return len(p), nil
+func (m mimcCipherGate) Evaluate(input ...fr.Element) (res fr.Element) {
+	var sum fr.Element
+
+	sum.
+		Add(&input[0], &input[1]).
+		Add(&sum, &m.ark)
+
+	res.Square(&sum)    // sum^2
+	res.Mul(&res, &sum) // sum^3
+	res.Square(&res)    //sum^6
+	res.Mul(&res, &sum) //sum^7
+
+	return
 }
 
-func (ctr *bn254SumCounter) Sum([]byte) []byte {
-	ctr.state += ctr.step
-	res := make([]byte, fr.Bytes)
-	binary.BigEndian.PutUint64(res[len(res)-8:], uint64(ctr.state))
-	return res
+func (m mimcCipherGate) Degree() int {
+	return 7
 }
-
-func (ctr *bn254SumCounter) Reset() {
-	//ctr.state = ctr.startState
-}
-
-func (ctr *bn254SumCounter) Size() int {
-	return fr.Bytes
-}
-
-func (ctr *bn254SumCounter) BlockSize() int {
-	return fr.Bytes
-}*/
