@@ -5,12 +5,12 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/weierstrass"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
 type ExampleCurveCircuit[Base, Scalar emulated.FieldParams] struct {
@@ -33,16 +33,17 @@ func (c *ExampleCurveCircuit[B, S]) Define(api frontend.API) error {
 }
 
 func ExampleCurve() {
-	secpCurve := secp256k1.S256()
 	s := big.NewInt(9)
-	sx, sy := secpCurve.ScalarMult(secpCurve.Gx, secpCurve.Gy, s.Bytes())
-	fmt.Printf("result (%d, %d)", sx, sy)
+	_, g := secp256k1.Generators()
+	var Q secp256k1.G1Affine
+	Q.ScalarMultiplication(&g, s)
+	fmt.Printf("result (%d, %d)", Q.X, Q.Y)
 
 	circuit := ExampleCurveCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := ExampleCurveCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		Res: weierstrass.AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gx),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gy),
+			X: emulated.NewElement[emulated.Secp256k1Fp](g.X),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](g.Y),
 		},
 	}
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)

@@ -6,11 +6,12 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/secp256k1"
+	"github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
 var testCurve = ecc.BN254
@@ -31,17 +32,18 @@ func (c *NegTest[T, S]) Define(api frontend.API) error {
 
 func TestNeg(t *testing.T) {
 	assert := test.NewAssert(t)
-	secpCurve := secp256k1.S256()
-	yn := new(big.Int).Sub(secpCurve.P, secpCurve.Gy)
+	_, g := secp256k1.Generators()
+	var yn fp.Element
+	yn.Neg(&g.Y)
 	circuit := NegTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := NegTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		P: AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gx),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gy),
+			X: emulated.NewElement[emulated.Secp256k1Fp](g.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](g.Y.BigInt(new(big.Int))),
 		},
 		Q: AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gx),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](yn),
+			X: emulated.NewElement[emulated.Secp256k1Fp](g.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](yn.BigInt(new(big.Int))),
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
@@ -64,22 +66,27 @@ func (c *AddTest[T, S]) Define(api frontend.API) error {
 
 func TestAdd(t *testing.T) {
 	assert := test.NewAssert(t)
-	secpCurve := secp256k1.S256()
-	xd, yd := secpCurve.Double(secpCurve.Gx, secpCurve.Gy)
-	xa, ya := secpCurve.Add(xd, yd, secpCurve.Gx, secpCurve.Gy)
+	var dJac, aJac secp256k1.G1Jac
+	g, _ := secp256k1.Generators()
+	dJac.Double(&g)
+	aJac.Set(&dJac).
+		AddAssign(&g)
+	var dAff, aAff secp256k1.G1Affine
+	dAff.FromJacobian(&dJac)
+	aAff.FromJacobian(&aJac)
 	circuit := AddTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := AddTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		P: AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gx),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gy),
+			X: emulated.NewElement[emulated.Secp256k1Fp](g.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](g.Y.BigInt(new(big.Int))),
 		},
 		Q: AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](xd),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](yd),
+			X: emulated.NewElement[emulated.Secp256k1Fp](dAff.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](dAff.Y.BigInt(new(big.Int))),
 		},
 		R: AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](xa),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](ya),
+			X: emulated.NewElement[emulated.Secp256k1Fp](aAff.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](aAff.Y.BigInt(new(big.Int))),
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
@@ -102,17 +109,20 @@ func (c *DoubleTest[T, S]) Define(api frontend.API) error {
 
 func TestDouble(t *testing.T) {
 	assert := test.NewAssert(t)
-	secpCurve := secp256k1.S256()
-	xd, yd := secpCurve.Double(secpCurve.Gx, secpCurve.Gy)
+	g, _ := secp256k1.Generators()
+	var dJac secp256k1.G1Jac
+	dJac.Double(&g)
+	var dAff secp256k1.G1Affine
+	dAff.FromJacobian(&dJac)
 	circuit := DoubleTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := DoubleTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		P: AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gx),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gy),
+			X: emulated.NewElement[emulated.Secp256k1Fp](g.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](g.Y.BigInt(new(big.Int))),
 		},
 		Q: AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](xd),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](yd),
+			X: emulated.NewElement[emulated.Secp256k1Fp](dAff.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](dAff.Y.BigInt(new(big.Int))),
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
@@ -136,21 +146,22 @@ func (c *ScalarMulTest[T, S]) Define(api frontend.API) error {
 
 func TestScalarMul(t *testing.T) {
 	assert := test.NewAssert(t)
-	secpCurve := secp256k1.S256()
+	_, g := secp256k1.Generators()
 	s, ok := new(big.Int).SetString("44693544921776318736021182399461740191514036429448770306966433218654680512345", 10)
 	assert.True(ok)
-	sx, sy := secpCurve.ScalarMult(secpCurve.Gx, secpCurve.Gy, s.Bytes())
+	var S secp256k1.G1Affine
+	S.ScalarMultiplication(&g, s)
 
 	circuit := ScalarMulTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := ScalarMulTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		S: emulated.NewElement[emulated.Secp256k1Fr](s),
 		P: AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gx),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](secpCurve.Gy),
+			X: emulated.NewElement[emulated.Secp256k1Fp](g.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](g.Y.BigInt(new(big.Int))),
 		},
 		Q: AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](sx),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](sy),
+			X: emulated.NewElement[emulated.Secp256k1Fp](S.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](S.Y.BigInt(new(big.Int))),
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
@@ -171,8 +182,8 @@ func TestScalarMul2(t *testing.T) {
 	witness := ScalarMulTest[emulated.BN254Fp, emulated.BN254Fr]{
 		S: emulated.NewElement[emulated.BN254Fr](s),
 		P: AffinePoint[emulated.BN254Fp]{
-			X: emulated.NewElement[emulated.BN254Fp](gen.X.ToBigIntRegular(new(big.Int))),
-			Y: emulated.NewElement[emulated.BN254Fp](gen.Y.ToBigIntRegular(new(big.Int))),
+			X: emulated.NewElement[emulated.BN254Fp](gen.X.BigInt(new(big.Int))),
+			Y: emulated.NewElement[emulated.BN254Fp](gen.Y.BigInt(new(big.Int))),
 		},
 		Q: AffinePoint[emulated.BN254Fp]{
 			X: emulated.NewElement[emulated.BN254Fp](res.X.ToBigIntRegular(new(big.Int))),
