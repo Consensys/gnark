@@ -82,6 +82,7 @@ func TestSerialization(t *testing.T) {
 						"arithEngine",
 						"CoeffTable.mCoeffs",
 						"System.lbWireLevel",
+						"System.lbHints",
 						"System.SymbolTable",
 						"System.lbOutputs",
 						"System.bitLen")); diff != "" {
