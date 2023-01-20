@@ -36,13 +36,11 @@ func (api *API) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.
 }
 
 func (api *API) Neg(i1 frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	return api.newNonInputVariable("neg", []frontend.Variable{i1})
 }
 
 func (api *API) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	return api.newVar2PlusIn("sub", i1, i2, in...)
 }
 
 func (api *API) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
@@ -50,101 +48,84 @@ func (api *API) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.
 }
 
 func (api *API) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) Div(i1, i2 frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
+// TODO: This will require some sophistication. The resulting variable will be considered input by the prover but not by the solver
 func (api *API) Inverse(i1 frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) FromBinary(b ...frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) Xor(a, b frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) Or(a, b frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) And(a, b frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) IsZero(i1 frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) Cmp(i1, i2 frontend.Variable) frontend.Variable {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) AssertIsEqual(i1, i2 frontend.Variable) {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) AssertIsDifferent(i1, i2 frontend.Variable) {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) AssertIsBoolean(i1 frontend.Variable) {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
+// TODO: This can be important.
 func (api *API) Println(a ...frontend.Variable) {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
+// This is definitely out of scope. TODO: A CircuitBuilder API that doesn't have to implement this and can be passed on to gadgets
 func (api *API) Compiler() frontend.Compiler {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (api *API) ConstantValue(v frontend.Variable) (*big.Int, bool) {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }

@@ -20,58 +20,6 @@ type gkrSolvingData struct {
 	memoryPool  polynomial.Pool
 }
 
-var GkrGateRegistry = make(map[string]gkr.Gate) // TODO: Migrate to gnark-crypto
-
-func init() {
-	GkrGateRegistry["mul"] = mulGate(2) // in-built input count is problematic TODO fix
-	GkrGateRegistry["add"] = addGate{}
-}
-
-type mulGate int
-
-func (g mulGate) Evaluate(x ...fr.Element) (res fr.Element) {
-	if len(x) != int(g) {
-		panic("wrong input count")
-	}
-	switch len(x) {
-	case 0:
-		res.SetOne()
-	case 1:
-		res.Set(&x[0])
-	default:
-		res.Mul(&x[0], &x[1])
-		for i := 2; i < len(x); i++ {
-			res.Mul(&res, &x[2])
-		}
-	}
-	return
-}
-
-func (g mulGate) Degree() int {
-	return int(g)
-}
-
-type addGate struct{}
-
-func (g addGate) Evaluate(x ...fr.Element) (res fr.Element) {
-	switch len(x) {
-	case 0:
-	// set zero
-	case 1:
-		res.Set(&x[0])
-	case 2:
-		res.Add(&x[0], &x[1])
-		for i := 2; i < len(x); i++ {
-			res.Add(&res, &x[2])
-		}
-	}
-	return
-}
-
-func (g addGate) Degree() int {
-	return 1
-}
-
 func convertCircuit(noPtr constraint.GkrCircuit) gkr.Circuit {
 	resCircuit := make(gkr.Circuit, len(noPtr))
 	for i := range noPtr {
@@ -239,5 +187,82 @@ func defineGkrHints(info constraint.GkrInfo, hintFunctions map[hint.ID]hint.Func
 	return res
 }
 
+var GkrGateRegistry = map[string]gkr.Gate{ // TODO: Migrate to gnark-crypto
+	"mul": mulGate(2),
+	"add": addGate{},
+	"sub": subGate{},
+	"neg": negGate{},
+}
+
 // TODO: Move to gnark-crypto
 var HashBuilderRegistry = make(map[string]func() hash.Hash)
+
+type mulGate int
+type addGate struct{}
+type subGate struct{}
+type negGate struct{}
+
+func (g mulGate) Evaluate(x ...fr.Element) (res fr.Element) {
+	if len(x) != int(g) {
+		panic("wrong input count")
+	}
+	switch len(x) {
+	case 0:
+		res.SetOne()
+	case 1:
+		res.Set(&x[0])
+	default:
+		res.Mul(&x[0], &x[1])
+		for i := 2; i < len(x); i++ {
+			res.Mul(&res, &x[2])
+		}
+	}
+	return
+}
+
+func (g mulGate) Degree() int {
+	return int(g)
+}
+
+func (g addGate) Evaluate(x ...fr.Element) (res fr.Element) {
+	switch len(x) {
+	case 0:
+	// set zero
+	case 1:
+		res.Set(&x[0])
+	case 2:
+		res.Add(&x[0], &x[1])
+		for i := 2; i < len(x); i++ {
+			res.Add(&res, &x[2])
+		}
+	}
+	return
+}
+
+func (g addGate) Degree() int {
+	return 1
+}
+
+func (g *subGate) Evaluate(element ...fr.Element) (diff fr.Element) {
+	if len(element) > 2 {
+		panic("not implemented") //TODO
+	}
+	diff.Sub(&element[0], &element[1])
+	return
+}
+
+func (g *subGate) Degree() int {
+	return 1
+}
+
+func (g *negGate) Evaluate(element ...fr.Element) (neg fr.Element) {
+	if len(element) != 1 {
+		panic("univariate gate")
+	}
+	neg.Neg(&element[0])
+	return
+}
+
+func (g *negGate) Degree() int {
+	return 1
+}
