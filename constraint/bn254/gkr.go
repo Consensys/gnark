@@ -243,7 +243,7 @@ func (g addGate) Degree() int {
 	return 1
 }
 
-func (g *subGate) Evaluate(element ...fr.Element) (diff fr.Element) {
+func (g subGate) Evaluate(element ...fr.Element) (diff fr.Element) {
 	if len(element) > 2 {
 		panic("not implemented") //TODO
 	}
@@ -251,11 +251,11 @@ func (g *subGate) Evaluate(element ...fr.Element) (diff fr.Element) {
 	return
 }
 
-func (g *subGate) Degree() int {
+func (g subGate) Degree() int {
 	return 1
 }
 
-func (g *negGate) Evaluate(element ...fr.Element) (neg fr.Element) {
+func (g negGate) Evaluate(element ...fr.Element) (neg fr.Element) {
 	if len(element) != 1 {
 		panic("univariate gate")
 	}
@@ -263,6 +263,6 @@ func (g *negGate) Evaluate(element ...fr.Element) (neg fr.Element) {
 	return
 }
 
-func (g *negGate) Degree() int {
+func (g negGate) Degree() int {
 	return 1
 }

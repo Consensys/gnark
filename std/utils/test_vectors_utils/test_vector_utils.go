@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"github.com/consensys/gnark/frontend"
 	"github.com/stretchr/testify/assert"
-	"hash"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -216,10 +215,6 @@ type MapHash struct {
 	state      frontend.Variable
 	API        frontend.API
 	stateValid bool
-}
-
-func (m *MapHash) ToStandard() hash.Hash {
-	panic("not implemented")
 }
 
 func (m *MapHash) Sum() frontend.Variable {
