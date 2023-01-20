@@ -20,7 +20,7 @@ func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("compute division: %v", err))
 	}
-	e := f.PackLimbs(div)
+	e := f.PackElementLimbs(div)
 	res := f.Mul(e, b)
 	f.AssertIsEqual(res, a)
 	return e
@@ -35,7 +35,7 @@ func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("compute inverse: %v", err))
 	}
-	e := f.PackLimbs(k)
+	e := f.PackElementLimbs(k)
 	res := f.Mul(e, a)
 	one := f.One()
 	f.AssertIsEqual(res, one)
@@ -136,6 +136,10 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 	}
 	return f.reduceAndOp(
 		func(a, _ *Element[T], u uint) *Element[T] {
+			if ba, aConst := f.constantValue(a); aConst {
+				ba.Mul(ba, c)
+				return newElementPtr[T](ba)
+			}
 			limbs := make([]frontend.Variable, len(a.Limbs))
 			for i := range a.Limbs {
 				limbs[i] = f.api.Mul(a.Limbs[i], c)

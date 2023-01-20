@@ -22,7 +22,7 @@ import (
 
 // Variable represents a variable in the circuit. Any integer type (e.g. int, *big.Int, fr.Element)
 // can be assigned to it. It is also allowed to set a base-10 encoded string representing an integer value.
-// The only purpose of putting this defintion here is to avoid the import cycles (cs/plonk <-> frontend) and (cs/r1cs <-> frontend)
+// The only purpose of putting this definition here is to avoid the import cycles (cs/plonk <-> frontend) and (cs/r1cs <-> frontend)
 type Variable interface{}
 
 // IsCanonical returns true if the Variable has been normalized in a (internal) LinearExpression
