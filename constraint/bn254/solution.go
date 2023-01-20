@@ -52,7 +52,7 @@ func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDepe
 	// hintsDependencies is from compile time; it contains the list of hints the solver **needs**
 	var missing []string
 	for hintUUID, hintID := range hintsDependencies {
-		if _, ok := hintFunctions[hintUUID]; !ok {
+		if _, ok := s.mHintsFunctions[hintUUID]; !ok {
 			missing = append(missing, hintID)
 		}
 	}

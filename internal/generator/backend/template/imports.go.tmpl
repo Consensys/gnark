@@ -57,3 +57,7 @@
 {{- define "import_pedersen"}}
 	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/pedersen"
 {{- end}}
+
+{{- define "import_gkr"}}
+	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/gkr"
+{{- end}}
