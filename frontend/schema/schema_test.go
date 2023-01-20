@@ -171,12 +171,23 @@ func BenchmarkLargeSchema(b *testing.B) {
 	const n1 = 1 << 12
 	const n2 = 1 << 12
 
+	t1 := struct {
+		A [][n2]variable
+	}{
+		make([][n2]variable, n1),
+	}
+
 	b.Run("walk", func(b *testing.B) {
-		t1 := struct {
-			A [][n2]variable
-		}{
-			make([][n2]variable, n1),
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := Walk(&t1, tVariable, nil)
+			if err != nil {
+				b.Fatal(err)
+			}
 		}
+	})
+
+	b.Run("parse", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			_, err := Parse(&t1, tVariable, nil)
@@ -199,11 +210,22 @@ func BenchmarkArrayOfSliceOfStructSchema(b *testing.B) {
 		A [n1][]point
 	}
 
+	var t1 circuit
+	for i := 0; i < len(t1.A); i++ {
+		t1.A[i] = make([]point, n2<<(i%2))
+	}
 	b.Run("walk", func(b *testing.B) {
-		var t1 circuit
-		for i := 0; i < len(t1.A); i++ {
-			t1.A[i] = make([]point, n2<<(i%2))
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := Walk(&t1, tVariable, nil)
+			if err != nil {
+				b.Fatal(err)
+			}
 		}
+	})
+
+	b.Run("parse", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			_, err := Parse(&t1, tVariable, nil)

@@ -140,8 +140,8 @@ func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.
 func (witness *Witness) ToAssignment(assignment interface{}, leafType reflect.Type, publicOnly bool) {
 	i := 0
 	setAddr := leafType.Kind() == reflect.Ptr
-	setHandler := func(v schema.Visibility) schema.LeafHandlerNEW {
-		return func(f schema.LeafInfo, tInput reflect.Value) error {
+	setHandler := func(v schema.Visibility) schema.LeafHandler {
+		return func(f *schema.Field, tInput reflect.Value) error {
 			if f.Visibility == v {
 				if setAddr {
 					tInput.Set(reflect.ValueOf((&(*witness)[i])))
@@ -154,11 +154,11 @@ func (witness *Witness) ToAssignment(assignment interface{}, leafType reflect.Ty
 			return nil
 		}
 	}
-	_, _ = schema.Walk(assignment, leafType, setHandler(schema.Public))
+	_, _ = schema.Parse(assignment, leafType, setHandler(schema.Public))
 	if publicOnly {
 		return
 	}
-	_, _ = schema.Walk(assignment, leafType, setHandler(schema.Secret))
+	_, _ = schema.Parse(assignment, leafType, setHandler(schema.Secret))
 
 }
 
