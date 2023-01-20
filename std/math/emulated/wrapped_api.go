@@ -3,6 +3,7 @@ package emulated
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/constraint"
 	"math/big"
 
 	"github.com/consensys/gnark/backend/hint"
@@ -409,6 +410,10 @@ func (w *FieldAPI[T]) MarkBoolean(v frontend.Variable) {
 	default:
 		w.f.api.Compiler().MarkBoolean(vv)
 	}
+}
+
+func (w *FieldAPI[T]) SetGkrInfo(constraint.GkrInfo) error {
+	return fmt.Errorf("not implemented")
 }
 
 // --- non-API methods

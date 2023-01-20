@@ -17,11 +17,9 @@
 package cs
 
 import (
-	"encoding/json"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial"
-	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/test_vector_utils" // TODO: Seems a bit dubious to use this here. Decide if okay
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
@@ -124,33 +122,8 @@ func gkrSolveHint(data constraint.GkrInfo, res *gkrSolvingData) hint.Function {
 		res.assignments = toMapAssignment(res.circuit, assignments)
 		gkrSetOutputValues(data.Circuit, assignments, outs)
 
-		//fmt.Println("assignment ", sliceSliceToString(assignments))
-		//fmt.Println("returning ", bigIntPtrSliceToString(outs))
-
 		return nil
 	}
-}
-
-func bigIntPtrSliceToString(slice []*big.Int) []interface{} {
-	return algo_utils.Map(slice, func(e *big.Int) interface{} {
-		if e.IsInt64() {
-			return e.Int64()
-		} else {
-			return e.Text(10)
-		}
-	})
-}
-
-func sliceSliceToString(slice [][]fr.Element) string {
-	printable := make([]interface{}, len(slice))
-	for i, s := range slice {
-		printable[i] = test_vector_utils.ElementSliceToInterfaceSlice(s)
-	}
-	res, err := json.Marshal(printable)
-	if err != nil {
-		panic(err.Error())
-	}
-	return string(res)
 }
 
 func frToBigInts(dst []*big.Int, src []fr.Element) {

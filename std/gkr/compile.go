@@ -33,10 +33,6 @@ func (api *API) nbInstances() int {
 	return api.assignments.NbInstances()
 }
 
-func (api *API) logNbInstances() int {
-	return log2(uint(api.nbInstances()))
-}
-
 func NewApi() *API {
 	return &API{
 		toStore: constraint.GkrInfo{
@@ -189,7 +185,9 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	}
 
 	var hsh hash.Hash
-	hsh, err = hash.BuilderRegistry[hashName](s.parentApi)
+	if hsh, err = hash.BuilderRegistry[hashName](s.parentApi); err != nil {
+		return err
+	}
 	s.toStore.HashName = hashName
 
 	err = Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), WithSortedCircuit(forSnarkSorted))
