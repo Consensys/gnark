@@ -165,8 +165,6 @@ func TestSchemaInherit(t *testing.T) {
 	}
 }
 
-// TODO @gbotrel test parsing a leaf with no name (_ in struct).
-
 func BenchmarkLargeSchema(b *testing.B) {
 	const n1 = 1 << 12
 	const n2 = 1 << 12

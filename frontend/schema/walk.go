@@ -186,7 +186,13 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 	}
 
 	if parentVisibility != Unset && parentVisibility != info.Visibility {
-		return fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute" /*w.name()+"_"+*/, info.name, info.Visibility.String()) // TODO @gbotrel full name
+		parentName := w.name()
+		if parentName == "" {
+			parentName = info.name
+		} else {
+			parentName += "_" + info.name
+		}
+		return fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute", parentName, info.Visibility.String())
 	}
 
 	w.path.push(info)
