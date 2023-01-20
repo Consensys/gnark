@@ -147,7 +147,7 @@ func TestSchemaInherit(t *testing.T) {
 	{
 		var c circuitInherit1
 
-		s, err := Parse(&c, tVariable, nil)
+		s, err := Walk(&c, tVariable, nil)
 		assert.NoError(err)
 
 		assert.Equal(2, s.NbPublic)
@@ -157,7 +157,7 @@ func TestSchemaInherit(t *testing.T) {
 	{
 		var c circuitInherit2
 
-		s, err := Parse(&c, tVariable, nil)
+		s, err := Walk(&c, tVariable, nil)
 		assert.NoError(err)
 
 		assert.Equal(3, s.NbPublic)
@@ -193,6 +193,8 @@ type InvalidInheritingCircuit struct {
 	B2 DoubleInheritingType `gnark:",inherit"`
 }
 
+// TODO @gbotrel test parsing a leaf with no name (_ in struct).
+
 func TestSchemaInherit2(t *testing.T) {
 	assert := require.New(t)
 	{
@@ -205,6 +207,54 @@ func TestSchemaInherit2(t *testing.T) {
 		_, err := Parse(&c, tVariable, nil)
 		assert.Error(err)
 	}
+}
+
+func BenchmarkLargeSchema(b *testing.B) {
+	const n1 = 1 << 12
+	const n2 = 1 << 12
+
+	b.Run("walk", func(b *testing.B) {
+		t1 := struct {
+			A [][n2]variable
+		}{
+			make([][n2]variable, n1),
+		}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := Parse(&t1, tVariable, nil)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkArrayOfSliceOfStructSchema(b *testing.B) {
+	const n1 = 1 << 12
+	const n2 = 1 << 12
+
+	type point struct {
+		x, y variable
+		z    string
+	}
+	type circuit struct {
+		A [n1][]point
+	}
+
+	b.Run("walk", func(b *testing.B) {
+		var t1 circuit
+		for i := 0; i < len(t1.A); i++ {
+			t1.A[i] = make([]point, n2<<(i%2))
+		}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := Parse(&t1, tVariable, nil)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
 }
 
 var tVariable reflect.Type

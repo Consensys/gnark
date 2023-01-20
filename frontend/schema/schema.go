@@ -34,6 +34,9 @@ type Schema struct {
 // LeafHandler is the handler function that will be called when Visit reaches leafs of the struct
 type LeafHandler func(field *Field, tValue reflect.Value) error
 
+// LeafHandlerNEW is the handler function that will be called when Visit reaches leafs of the struct
+type LeafHandlerNEW func(field LeafInfo, tValue reflect.Value) error
+
 // An object implementing an init hook knows how to "init" itself
 // when parsed at compile time
 type InitHook interface {
