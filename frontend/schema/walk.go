@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"container/list"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -20,7 +19,6 @@ func Walk(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (count L
 		target:      tLeaf,
 		targetSlice: reflect.SliceOf(tLeaf),
 		handler:     handler,
-		path:        list.New(),
 	}
 	err = reflectwalk.Walk(circuit, &w)
 	if err == reflectwalk.SkipEntry {
@@ -45,7 +43,7 @@ type walker struct {
 	handler            LeafHandler
 	target             reflect.Type
 	targetSlice        reflect.Type
-	path               *list.List
+	path               pathStack
 	nbPublic, nbSecret int
 }
 
@@ -92,7 +90,7 @@ func (w *walker) Slice(value reflect.Value) error {
 }
 
 func (w *walker) SliceElem(index int, _ reflect.Value) error {
-	w.path.PushBack(LeafInfo{Visibility: w.visibility(), name: strconv.Itoa(index)})
+	w.path.push(LeafInfo{Visibility: w.visibility(), name: strconv.Itoa(index)})
 	return nil
 }
 
@@ -104,7 +102,7 @@ func (w *walker) Array(value reflect.Value) error {
 	return nil
 }
 func (w *walker) ArrayElem(index int, _ reflect.Value) error {
-	w.path.PushBack(LeafInfo{Visibility: w.visibility(), name: strconv.Itoa(index)})
+	w.path.push(LeafInfo{Visibility: w.visibility(), name: strconv.Itoa(index)})
 	return nil
 }
 
@@ -191,7 +189,7 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 		return fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute" /*w.name()+"_"+*/, info.name, info.Visibility.String()) // TODO @gbotrel full name
 	}
 
-	w.path.PushBack(info)
+	w.path.push(info)
 
 	return nil
 }
@@ -202,34 +200,57 @@ func (w *walker) Enter(l reflectwalk.Location) error {
 
 func (w *walker) Exit(l reflectwalk.Location) error {
 	if l == reflectwalk.StructField || l == reflectwalk.ArrayElem || l == reflectwalk.SliceElem {
-		w.path.Remove(w.path.Back())
+		w.path.pop()
 	}
 	return nil
 }
 
 // defaults to unset
 func (w *walker) visibility() Visibility {
-	if w.path.Len() > 0 {
-		return w.path.Back().Value.(LeafInfo).Visibility
+	if !w.path.isEmpty() {
+		return w.path.top().Visibility
 	}
 	return Unset
 }
 
 func (w *walker) name() string {
-	if w.path.Len() == 0 {
+	if w.path.isEmpty() {
 		return ""
 	}
 	var sbb strings.Builder
-	sbb.Grow(w.path.Len() * 10)
+	sbb.Grow(w.path.len() * 10)
 	first := true
-	for e := w.path.Front(); e != nil; e = e.Next() {
+	for i := 0; i < w.path.len(); i++ {
 		if !first {
 			sbb.WriteByte('_')
 		} else {
 			first = false
 		}
-		m := e.Value.(LeafInfo)
-		sbb.WriteString(m.name)
+		sbb.WriteString(w.path[i].name)
 	}
 	return sbb.String()
+}
+
+type pathStack []LeafInfo
+
+func (s *pathStack) len() int {
+	return len(*s)
+}
+
+func (s *pathStack) isEmpty() bool {
+	return len(*s) == 0
+}
+
+func (s *pathStack) push(l LeafInfo) {
+	*s = append(*s, l)
+}
+
+func (s *pathStack) pop() {
+	if !s.isEmpty() {
+		*s = (*s)[:len(*s)-1]
+	}
+}
+
+func (s *pathStack) top() LeafInfo {
+	return (*s)[len(*s)-1]
 }

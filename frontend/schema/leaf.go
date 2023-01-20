@@ -6,7 +6,7 @@ import "reflect"
 // and the fully qualified name of the path to reach the leaf in the circuit struct.
 type LeafInfo struct {
 	Visibility Visibility
-	FullName   func() string
+	FullName   func() string // in most instances, we don't need to actually evaluate the name.
 	name       string
 }
 
