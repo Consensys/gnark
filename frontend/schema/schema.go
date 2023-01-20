@@ -31,23 +31,16 @@ type Schema struct {
 	NbSecret int
 }
 
-// LeafHandler is the handler function that will be called when Visit reaches leafs of the struct
-type LeafHandler func(field *Field, tValue reflect.Value) error
+// LeafHandlerDeprecated is the handler function that will be called when Visit reaches leafs of the struct
+type LeafHandlerDeprecated func(field *Field, tValue reflect.Value) error
 
-// LeafHandlerNEW is the handler function that will be called when Visit reaches leafs of the struct
-type LeafHandlerNEW func(field LeafInfo, tValue reflect.Value) error
-
-// An object implementing an init hook knows how to "init" itself
-// when parsed at compile time
-type InitHook interface {
-	GnarkInitHook() // TODO @gbotrel find a better home for this
-}
-
-// Parse filters recursively input data struct and keeps only the fields containing slices, arrays of elements of
+// ParseDeprecated filters recursively input data struct and keeps only the fields containing slices, arrays of elements of
 // type frontend.Variable and return the corresponding  Slices are converted to arrays.
 //
 // If handler is specified, handler will be called on each encountered leaf (of type tLeaf)
-func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (*Schema, error) {
+//
+// Deprecated: use Walk instead
+func ParseDeprecated(circuit interface{}, tLeaf reflect.Type, handler LeafHandlerDeprecated) (*Schema, error) {
 	// note circuit is of type interface{} instead of frontend.Circuit to avoid import cycle
 	// same for tLeaf it is in practice always frontend.Variable
 
@@ -104,7 +97,7 @@ func (s Schema) WriteSequence(w io.Writer) error {
 		}
 		return nil
 	}
-	if _, err := Parse(instance, reflect.TypeOf(a), collectHandler); err != nil {
+	if _, err := ParseDeprecated(instance, reflect.TypeOf(a), collectHandler); err != nil {
 		return err
 	}
 
@@ -200,7 +193,7 @@ func structTag(baseNameTag string, visibility Visibility, omitEmpty bool) reflec
 // parentFullName: the name of parent with its ancestors separated by "_"
 // parentGoName: the name of parent (Go struct definition)
 // parentTagName: may be empty, set if a struct tag with name is set
-func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility Visibility, handler LeafHandler, nbPublic, nbSecret *int) ([]Field, error) {
+func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility Visibility, handler LeafHandlerDeprecated, nbPublic, nbSecret *int) ([]Field, error) {
 	tValue := reflect.ValueOf(input)
 
 	// get pointed value if needed

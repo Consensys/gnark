@@ -10,26 +10,12 @@ import (
 	"github.com/consensys/gnark/frontend/schema/internal/reflectwalk"
 )
 
-type walker struct {
-	handler            LeafHandlerNEW
-	target             reflect.Type
-	targetSlice        reflect.Type
-	path               *list.List
-	nbPublic, nbSecret int
-}
-
-type LeafInfo struct {
-	Visibility Visibility
-	FullName   func() string
-	name       string
-}
-
-type LeafCount struct {
-	NbSecret int // TODO @gbotrel rename to Secret
-	NbPublic int
-}
-
-func Walk(circuit interface{}, tLeaf reflect.Type, handler LeafHandlerNEW) (count LeafCount, err error) {
+// Walk walks through the provided object and stops when it encounters objects of type tLeaf
+//
+// It returns the number of secret and public leafs encountered during the walk.
+//
+// ! known issue: tLeaf must not be a pointer type
+func Walk(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (count LeafCount, err error) {
 	w := walker{
 		target:      tLeaf,
 		targetSlice: reflect.SliceOf(tLeaf),
@@ -40,13 +26,34 @@ func Walk(circuit interface{}, tLeaf reflect.Type, handler LeafHandlerNEW) (coun
 	if err == reflectwalk.SkipEntry {
 		err = nil
 	}
-	count.NbPublic = w.nbPublic
-	count.NbSecret = w.nbSecret
+	count.Public = w.nbPublic
+	count.Secret = w.nbSecret
 	return
 }
 
+// walker implements the interfaces defined in internal/reflectwalk
+//
+// for example;
+//
+//	StructWalker is an interface that has methods that are called for
+//	structs when a Walk is done.
+//	type StructWalker interface {
+//		Struct(reflect.Value) error
+//		StructField(reflect.StructField, reflect.Value) error
+//	}
+type walker struct {
+	handler            LeafHandler
+	target             reflect.Type
+	targetSlice        reflect.Type
+	path               *list.List
+	nbPublic, nbSecret int
+}
+
+// Interface handles interface values as they are encountered during the walk.
+// That's where we handle leaves.
 func (w *walker) Interface(value reflect.Value) error {
 	if value.Type() != w.target {
+		// keep walking.
 		return nil
 	}
 	v := w.visibility()
@@ -66,9 +73,12 @@ func (w *walker) Interface(value reflect.Value) error {
 	} else if v == Public {
 		w.nbPublic++
 	}
+
+	// we return SkipEntry here; the walk will not explore further this object (indirections, ...)
 	return reflectwalk.SkipEntry
 }
 
+// Slice handles slice elements found within complex structures.
 func (w *walker) Slice(value reflect.Value) error {
 	if value.Type() == w.targetSlice {
 		if value.Len() == 0 {
@@ -80,11 +90,13 @@ func (w *walker) Slice(value reflect.Value) error {
 
 	return nil
 }
+
 func (w *walker) SliceElem(index int, _ reflect.Value) error {
 	w.path.PushBack(LeafInfo{Visibility: w.visibility(), name: strconv.Itoa(index)})
 	return nil
 }
 
+// Array handles array elements found within complex structures.
 func (w *walker) Array(value reflect.Value) error {
 	if value.Type() == reflect.ArrayOf(value.Len(), w.target) {
 		return w.handleLeaves(value)
@@ -112,12 +124,6 @@ func (w *walker) handleLeaves(value reflect.Value) error {
 				return n + "_" + strconv.Itoa(i)
 			}
 			vv := value.Index(i)
-			// if vv.Kind() == reflect.Ptr {
-			// 	vv = reflect.Indirect(vv)
-			// }
-			// if vv.Kind() == reflect.Interface {
-			// 	vv = vv.Elem()
-			// }
 			if err := w.handler(LeafInfo{Visibility: v, FullName: fName, name: ""}, vv); err != nil {
 				return err
 			}
@@ -145,7 +151,8 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 	}
 
 	if v.CanAddr() && v.Addr().CanInterface() {
-		// TODO @gbotrel really don't like that hook.
+		// TODO @gbotrel don't like that hook, undesirable side effects
+		// will be hard to detect; (for example calling Parse multiple times will init multiple times!)
 		value := v.Addr().Interface()
 		if ih, hasInitHook := value.(InitHook); hasInitHook {
 			ih.GnarkInitHook()
@@ -154,11 +161,12 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 
 	// default visibility: parent (or unset)
 	parentVisibility := w.visibility()
-	var nameInTag string
-	m := LeafInfo{
+	info := LeafInfo{
 		name:       sf.Name,
 		Visibility: parentVisibility,
 	}
+
+	var nameInTag string
 
 	if ok && tag != "" {
 		// gnark tag is set
@@ -168,22 +176,22 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 			nameInTag = ""
 		}
 		if nameInTag != "" {
-			m.name = nameInTag // TODO @gbotrel when building a schema we need to keep the name to instantiate a valid struct.
+			info.name = nameInTag
 		}
 		opts = tagOptions(strings.TrimSpace(string(opts)))
 		switch {
 		case opts.contains(TagOptSecret):
-			m.Visibility = Secret
+			info.Visibility = Secret
 		case opts.contains(TagOptPublic):
-			m.Visibility = Public
+			info.Visibility = Public
 		}
 	}
 
-	if parentVisibility != Unset && parentVisibility != m.Visibility {
-		return fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute", m.name, m.Visibility.String()) // TODO full name
+	if parentVisibility != Unset && parentVisibility != info.Visibility {
+		return fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute" /*w.name()+"_"+*/, info.name, info.Visibility.String()) // TODO @gbotrel full name
 	}
 
-	w.path.PushBack(m)
+	w.path.PushBack(info)
 
 	return nil
 }

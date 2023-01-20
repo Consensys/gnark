@@ -466,7 +466,7 @@ func (builder *scs) Println(a ...frontend.Variable) {
 func (builder *scs) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
 	leafCount, err := schema.Walk(a, tVariable, nil)
-	count := leafCount.NbPublic + leafCount.NbSecret
+	count := leafCount.Public + leafCount.Secret
 
 	// no variables in nested struct, we use fmt std print function
 	if count == 0 || err != nil {

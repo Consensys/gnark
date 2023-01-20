@@ -87,10 +87,10 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	if err != nil {
 		return err
 	}
-	s.NbPublic *= n
-	s.NbSecret *= n
+	s.Public *= n
+	s.Secret *= n
 	log := logger.Logger()
-	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
+	log.Info().Int("nbSecret", s.Secret).Int("nbPublic", s.Public).Msg("parsed circuit inputs")
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
