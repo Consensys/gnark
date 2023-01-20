@@ -6,29 +6,6 @@ import (
 	"testing"
 )
 
-/*func TestConvertCircuit(t *testing.T) {	TODO: Move to cs package
-	circuitNoPtr := frontend.GkrCircuit{
-		{
-			Assignments:     []frontend.Variable{1, 2},
-			Inputs:          []int{},
-			NbUniqueOutputs: 1,
-		},
-		{
-			Assignments:     []frontend.Variable{2, 3},
-			Inputs:          []int{},
-			NbUniqueOutputs: 1,
-		},
-		{
-			Gate:            "mul",
-			Inputs:          []int{0, 1},
-			Dependencies:    nil,
-			NbUniqueOutputs: 0,
-		},
-	}
-	circuit := cs.bn254ConvertCircuit(circuitNoPtr)
-	assert.Equal(t, 3, len(circuit))
-}*/
-
 func TestCompile2Cycles(t *testing.T) {
 	var d = constraint.GkrInfo{
 		Circuit: constraint.GkrCircuit{
@@ -48,10 +25,6 @@ func TestCompile2Cycles(t *testing.T) {
 			},
 		},
 	}
-	/*assignment := assignment{
-		{2, 1},
-		{nil, 0},
-	}*/
 
 	expectedCompiled := constraint.GkrInfo{
 		Circuit: constraint.GkrCircuit{
@@ -72,10 +45,6 @@ func TestCompile2Cycles(t *testing.T) {
 		MaxNIns:     1,
 		NbInstances: 2,
 	}
-	/*expectedAssignment := assignment{
-		{0, nil},
-		{1, 2},
-	}*/
 
 	expectedPermutations := constraint.GkrPermutations{
 		SortedInstances:      []int{1, 0},
@@ -88,7 +57,6 @@ func TestCompile2Cycles(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedPermutations, p)
 	assert.Equal(t, expectedCompiled, d)
-	//assert.Equal(t, expectedAssignment, assignment)
 }
 
 func TestCompile3Cycles(t *testing.T) {

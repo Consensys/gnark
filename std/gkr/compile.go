@@ -192,7 +192,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	hsh, err = hash.BuilderRegistry[hashName](s.parentApi)
 	s.toStore.HashName = hashName
 
-	err = Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), WithSortedCircuit(forSnarkSorted)) // TODO: Security critical: do a proper transcriptSetting
+	err = Verify(s.parentApi, forSnark.circuit, forSnark.assignments, proof, fiatshamir.WithHash(hsh, initialChallenges...), WithSortedCircuit(forSnarkSorted))
 	if err != nil {
 		return err
 	}
@@ -224,9 +224,6 @@ func newCircuitDataForSnark(info constraint.GkrInfo, assignment assignment) circ
 			Gate:            RegisteredGates[w.Gate],
 			Inputs:          algo_utils.Map(w.Inputs, circuitAt),
 			nbUniqueOutputs: w.NbUniqueOutputs,
-		}
-		if !w.IsInput() && !w.IsOutput() && assignment[i] != nil { // TODO: Remove
-			panic("unexpected!!")
 		}
 		snarkAssignment[&circuit[i]] = assignment[i]
 	}

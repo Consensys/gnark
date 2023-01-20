@@ -454,7 +454,7 @@ func (a WireAssignment) NumInstances() int {
 	for _, aW := range a {
 		return len(aW)
 	}
-	panic("empty assignments")
+	panic("empty assignment")
 }
 
 func (a WireAssignment) NumVars() int {

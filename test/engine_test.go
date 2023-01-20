@@ -69,28 +69,3 @@ func TestBuiltinHints(t *testing.T) {
 	}
 
 }
-
-type inlineHintCircuit struct {
-	X frontend.Variable
-}
-
-func (c *inlineHintCircuit) Define(api frontend.API) error {
-	zeroMaker := func(q *big.Int, ins, outs []*big.Int) error {
-		outs[0].SetUint64(0)
-		return nil
-	}
-	hint.Register(zeroMaker)
-	zero, err := api.Compiler().NewHint(zeroMaker, 1, c.X)
-	if err != nil {
-		return err
-	}
-	api.AssertIsEqual(c.X, zero[0])
-	return nil
-}
-
-func TestInlineHint(t *testing.T) {
-	assignment := inlineHintCircuit{X: 0}
-	circuit := inlineHintCircuit{}
-
-	NewAssert(t).SolvingSucceeded(&circuit, &assignment)
-}

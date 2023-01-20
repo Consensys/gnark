@@ -241,31 +241,30 @@ func TestApiMul(t *testing.T) {
 	test_vector_utils.AssertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 }
 
-/*
-	func BenchmarkMiMCMerkleTree(b *testing.B) {
-		depth := 14
-		//fmt.Println("start")
-		bottom := make([]frontend.Variable, 1<<depth)
+func BenchmarkMiMCMerkleTree(b *testing.B) {
+	depth := 14
+	//fmt.Println("start")
+	bottom := make([]frontend.Variable, 1<<depth)
 
-		for i := 0; i < 1<<depth; i++ {
-			bottom[i] = i
-		}
-
-		assignment := benchMiMCMerkleTreeCircuit{
-			depth:   depth,
-			XBottom: bottom[:len(bottom)/2],
-			YBottom: bottom[len(bottom)/2:],
-		}
-
-		circuit := benchMiMCMerkleTreeCircuit{
-			depth:   depth,
-			XBottom: make([]frontend.Variable, len(assignment.XBottom)),
-			YBottom: make([]frontend.Variable, len(assignment.YBottom)),
-		}
-
-		solveB(b, &circuit, &assignment)
+	for i := 0; i < 1<<depth; i++ {
+		bottom[i] = i
 	}
-*/
+
+	assignment := benchMiMCMerkleTreeCircuit{
+		depth:   depth,
+		XBottom: bottom[:len(bottom)/2],
+		YBottom: bottom[len(bottom)/2:],
+	}
+
+	circuit := benchMiMCMerkleTreeCircuit{
+		depth:   depth,
+		XBottom: make([]frontend.Variable, len(assignment.XBottom)),
+		YBottom: make([]frontend.Variable, len(assignment.YBottom)),
+	}
+
+	solveB(b, &circuit, &assignment)
+}
+
 func solveB(b *testing.B, circuit, assignment frontend.Circuit) {
 	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
 	assert.NoError(b, err)
@@ -387,9 +386,7 @@ func init() {
 	registerMiMC()
 	registerConstant(-1)
 	registerConstant(-20)
-
 	registerMiMCGate()
-	//registerMessageCounter(0, 1)
 }
 
 func registerMiMCGate() {
@@ -473,26 +470,25 @@ func (c *mimcNoGkrNoDepCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-/*
-	func BenchmarkMiMCNoGkrNoDep(b *testing.B) {
-		nbInstances := 1 << 14
-		X := make([]frontend.Variable, nbInstances)
-		Y := make([]frontend.Variable, nbInstances)
-		for i := range X {
-			X[i] = i
-			Y[i] = -2*i + 1
-		}
-		assignment := mimcNoGkrNoDepCircuit{
-			X: X,
-			Y: Y,
-		}
-		circuit := mimcNoGkrNoDepCircuit{
-			X: make([]frontend.Variable, nbInstances),
-			Y: make([]frontend.Variable, nbInstances),
-		}
-		solveB(b, &circuit, &assignment)
+func BenchmarkMiMCNoGkrNoDep(b *testing.B) {
+	nbInstances := 1 << 14
+	X := make([]frontend.Variable, nbInstances)
+	Y := make([]frontend.Variable, nbInstances)
+	for i := range X {
+		X[i] = i
+		Y[i] = -2*i + 1
 	}
-*/
+	assignment := mimcNoGkrNoDepCircuit{
+		X: X,
+		Y: Y,
+	}
+	circuit := mimcNoGkrNoDepCircuit{
+		X: make([]frontend.Variable, nbInstances),
+		Y: make([]frontend.Variable, nbInstances),
+	}
+	solveB(b, &circuit, &assignment)
+}
+
 type mimcNoDepCircuit struct {
 	X []frontend.Variable
 	Y []frontend.Variable
