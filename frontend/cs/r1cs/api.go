@@ -40,19 +40,69 @@ import (
 func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	// extract frontend.Variables from input
 	vars, s := builder.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
-	return builder.add(vars, false, s)
+	return builder.add(vars, false, s, nil)
+}
 
+func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+	// do the multiplication into builder.mbuf1
+	mulBC := func() {
+		// reset the buffer
+		builder.mbuf1 = builder.mbuf1[:0]
+
+		n1, v1Constant := builder.constantValue(b)
+		n2, v2Constant := builder.constantValue(c)
+
+		// v1 and v2 are both unknown, this is the only case we add a constraint
+		if !v1Constant && !v2Constant {
+			res := builder.newInternalVariable()
+			builder.cs.AddConstraint(builder.newR1C(b, c, res))
+			builder.mbuf1 = append(builder.mbuf1, res...)
+			return
+		}
+
+		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
+		if v1Constant && v2Constant {
+			builder.cs.Mul(&n1, &n2)
+			builder.mbuf1 = append(builder.mbuf1, expr.NewTerm(0, n1))
+			return
+		}
+
+		if v1Constant {
+			builder.mbuf1 = append(builder.mbuf1, builder.toVariable(c)...)
+			builder.mulConstant(builder.mbuf1, n1, true)
+			return
+		}
+		builder.mbuf1 = append(builder.mbuf1, builder.toVariable(b)...)
+		builder.mulConstant(builder.mbuf1, n2, true)
+	}
+	mulBC()
+
+	_a := builder.toVariable(a)
+	// copy _a in buffer, use _a as result; so if _a was already a linear expression and
+	// results fits, _a is mutated without performing a new memalloc
+	builder.mbuf2 = builder.mbuf2[:0]
+	builder.add([]expr.LinearExpression{_a, builder.mbuf1}, false, 0, &builder.mbuf2)
+	_a = _a[:0]
+	if len(builder.mbuf2) <= cap(_a) {
+		// it fits, no mem alloc
+		_a = append(_a, builder.mbuf2...)
+	} else {
+		// allocate a expression linear with extended capacity
+		_a = make(expr.LinearExpression, len(builder.mbuf2), len(builder.mbuf2)*3)
+		copy(_a, builder.mbuf2)
+	}
+	return _a
 }
 
 // Sub returns res = i1 - i2
 func (builder *builder) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	// extract frontend.Variables from input
 	vars, s := builder.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
-	return builder.add(vars, true, s)
+	return builder.add(vars, true, s, nil)
 }
 
 // returns res = Σ(vars) or res = vars[0] - Σ(vars[1:]) if sub == true.
-func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int) frontend.Variable {
+func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int, res *expr.LinearExpression) frontend.Variable {
 	// we want to merge all terms from input linear expressions
 	// if they are duplicate, we reduce; that is, if multiple terms in different vars have the
 	// same variable id.
@@ -68,7 +118,10 @@ func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int
 	}
 	builder.heap.heapify()
 
-	res := make(expr.LinearExpression, 0, capacity)
+	if res == nil {
+		t := make(expr.LinearExpression, 0, capacity)
+		res = &t
+	}
 	curr := -1
 
 	// process all the terms from all the inputs, in sorted order
@@ -87,37 +140,42 @@ func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int
 		if t.Coeff.IsZero() {
 			continue // is this really needed?
 		}
-		if curr != -1 && t.VID == res[curr].VID {
+		if curr != -1 && t.VID == (*res)[curr].VID {
 			// accumulate, it's the same variable ID
 			if sub && lID != 0 {
-				builder.cs.Sub(&res[curr].Coeff, &t.Coeff)
+				builder.cs.Sub(&(*res)[curr].Coeff, &t.Coeff)
 			} else {
-				builder.cs.Add(&res[curr].Coeff, &t.Coeff)
+				builder.cs.Add(&(*res)[curr].Coeff, &t.Coeff)
 			}
-			if res[curr].Coeff.IsZero() {
+			if (*res)[curr].Coeff.IsZero() {
 				// remove self.
-				res = res[:curr]
+				(*res) = (*res)[:curr]
 				curr--
 			}
 		} else {
 			// append, it's a new variable ID
-			res = append(res, *t)
+			(*res) = append((*res), *t)
 			curr++
 			if sub && lID != 0 {
-				builder.cs.Neg(&res[curr].Coeff)
+				builder.cs.Neg(&(*res)[curr].Coeff)
 			}
 		}
 	}
 
-	if len(res) == 0 {
+	if len((*res)) == 0 {
 		// keep the linear expression valid (assertIsSet)
-		res = expr.NewLinearExpression(0, constraint.Coeff{})
+		(*res) = append((*res), expr.NewTerm(0, constraint.Coeff{}))
 	}
 	// if the linear expression LE is too long then record an equality
 	// constraint LE * 1 = t and return short linear expression instead.
-	res = builder.compress(res)
+	compressed := builder.compress((*res))
+	if len(compressed) != len(*res) {
+		// we compressed, but don't want to override buffer
+		*res = (*res)[:0]
+		*res = append(*res, compressed...)
+	}
 
-	return res
+	return *res
 }
 
 // Neg returns -i
@@ -151,7 +209,6 @@ func (builder *builder) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
 		if v1Constant && v2Constant {
 			builder.cs.Mul(&n1, &n2)
-			// n1.Mul(n1, n2).Mod(n1, builder.q)
 			return expr.NewLinearExpression(0, n1)
 		}
 

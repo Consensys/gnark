@@ -97,7 +97,7 @@ func (f *Field[T]) computeRemHint(x, y *Element[T]) (z *Element[T], err error) {
 	if err != nil {
 		return nil, err
 	}
-	return f.PackLimbs(limbs), nil
+	return f.PackElementLimbs(limbs), nil
 }
 
 // RemHint sets z to the remainder x%y for y != 0 and returns z.
@@ -138,7 +138,7 @@ func (f *Field[T]) computeQuoHint(x *Element[T]) (z *Element[T], err error) {
 		return nil, err
 	}
 
-	return f.PackLimbs(limbs), nil
+	return f.PackFullLimbs(limbs), nil
 }
 
 // QuoHint sets z to the quotient x/y for y != 0 and returns z.
