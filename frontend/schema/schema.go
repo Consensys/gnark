@@ -415,27 +415,3 @@ func getFullName(parentFullName, name, tagName string) string {
 	}
 	return parentFullName + "_" + n
 }
-
-// TODO @gbotrel this should probably not be here.
-func Copy(from interface{}, fromType reflect.Type, to interface{}, toType reflect.Type) {
-	var wValues []interface{}
-
-	collectHandler := func(f *Field, tInput reflect.Value) error {
-		wValues = append(wValues, tInput.Interface())
-		return nil
-	}
-	_, _ = Parse(from, fromType, collectHandler)
-
-	if len(wValues) == 0 {
-		return
-	}
-
-	i := 0
-	setHandler := func(f *Field, tInput reflect.Value) error {
-		tInput.Set(reflect.ValueOf((wValues[i])))
-		i++
-		return nil
-	}
-	// this can't error.
-	_, _ = Parse(to, toType, setHandler)
-}

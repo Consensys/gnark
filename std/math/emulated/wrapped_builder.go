@@ -49,32 +49,40 @@ func (w *FieldAPI[T]) VariableCount(t reflect.Type) int {
 	return int(w.f.fParams.NbLimbs())
 }
 
-func (w *FieldAPI[T]) addVariable(sf *schema.Field, recurseFn func(*schema.Field) frontend.Variable) frontend.Variable {
+func (w *FieldAPI[T]) addVariable(sf schema.LeafInfo, recurseFn func(schema.LeafInfo) frontend.Variable) frontend.Variable {
 	limbs := make([]frontend.Variable, w.f.fParams.NbLimbs())
-	var subfs []schema.Field
-	for i := range limbs {
-		subf := schema.Field{
-			Name:       strconv.Itoa(i),
-			Visibility: sf.Visibility,
-			FullName:   fmt.Sprintf("%s_%d", sf.FullName, i),
-			Type:       schema.Leaf,
-			ArraySize:  1,
+	n := sf.FullName()
+	for i := 0; i < len(limbs); i++ {
+		li := sf
+		li.FullName = func() string {
+			return n + "_" + strconv.Itoa(i)
 		}
-		subfs = append(subfs, subf)
-		limbs[i] = recurseFn(&subf)
+		limbs[i] = recurseFn(li)
 	}
-	sf.ArraySize = len(subfs)
-	sf.Type = schema.Array
-	sf.SubFields = subfs
+	// var subfs []schema.Field
+	// for i := range limbs {
+	// 	subf := schema.Field{
+	// 		Name:       strconv.Itoa(i),
+	// 		Visibility: sf.Visibility,
+	// 		FullName:   fmt.Sprintf("%s_%d", sf.FullName, i),
+	// 		Type:       schema.Leaf,
+	// 		ArraySize:  1,
+	// 	}
+	// 	subfs = append(subfs, subf)
+	// 	limbs[i] = recurseFn(&subf)
+	// }
+	// sf.ArraySize = len(subfs)
+	// sf.Type = schema.Array
+	// sf.SubFields = subfs
 	el := w.f.PackElementLimbs(limbs)
 	return el
 }
 
-func (w *FieldAPI[T]) PublicVariable(sf *schema.Field) frontend.Variable {
+func (w *FieldAPI[T]) PublicVariable(sf schema.LeafInfo) frontend.Variable {
 	return w.addVariable(sf, w.b.PublicVariable)
 }
 
-func (w *FieldAPI[T]) SecretVariable(sf *schema.Field) frontend.Variable {
+func (w *FieldAPI[T]) SecretVariable(sf schema.LeafInfo) frontend.Variable {
 	return w.addVariable(sf, w.b.SecretVariable)
 }
 

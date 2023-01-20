@@ -95,7 +95,7 @@ type addCircuit struct {
 	DoubleScalarMulResult Point
 	NegResult             Point
 	S1, S2                frontend.Variable
-	fixedPoint            Point
+	fixedPoint            Point `gnark:"-"`
 }
 
 func (circuit *addCircuit) Define(api frontend.API) error {

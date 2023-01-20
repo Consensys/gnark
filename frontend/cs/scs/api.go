@@ -465,24 +465,19 @@ func (builder *scs) Println(a ...frontend.Variable) {
 
 func (builder *scs) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
-	count := 0
-	counter := func(f *schema.Field, tValue reflect.Value) error {
-		count++
-		return nil
-	}
-	// ignoring error, counter() always return nil
-	_, _ = schema.Parse(a, tVariable, counter)
+	leafCount, err := schema.Walk(a, tVariable, nil)
+	count := leafCount.NbPublic + leafCount.NbSecret
 
 	// no variables in nested struct, we use fmt std print function
-	if count == 0 {
+	if count == 0 || err != nil {
 		sbb.WriteString(fmt.Sprint(a))
 		return
 	}
 
 	sbb.WriteByte('{')
-	printer := func(f *schema.Field, tValue reflect.Value) error {
+	printer := func(f schema.LeafInfo, tValue reflect.Value) error {
 		count--
-		sbb.WriteString(f.FullName)
+		sbb.WriteString(f.FullName())
 		sbb.WriteString(": ")
 		sbb.WriteString("%s")
 		if count != 0 {
@@ -496,7 +491,7 @@ func (builder *scs) printArg(log *constraint.LogEntry, sbb *strings.Builder, a f
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors
-	_, _ = schema.Parse(a, tVariable, printer)
+	_, _ = schema.Walk(a, tVariable, printer)
 	sbb.WriteByte('}')
 }
 

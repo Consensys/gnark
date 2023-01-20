@@ -99,6 +99,8 @@ func (w *walker) ArrayElem(index int, _ reflect.Value) error {
 // process an array or slice of leaves; since it's quite common to have large array/slices
 // of frontend.Variable, this speeds up considerably performance.
 func (w *walker) handleLeaves(value reflect.Value) error {
+	// TODO @gbotrel restore
+	return nil
 	v := w.visibility()
 	if v == Unset {
 		v = Secret
@@ -113,7 +115,7 @@ func (w *walker) handleLeaves(value reflect.Value) error {
 		}
 		for i := 0; i < value.Len(); i++ {
 			currI = i
-			if err := w.handler(LeafInfo{Visibility: v, FullName: fName, name: ""}, value); err != nil {
+			if err := w.handler(LeafInfo{Visibility: v, FullName: fName, name: ""}, value.Index(i)); err != nil {
 				return err
 			}
 		}

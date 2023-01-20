@@ -93,11 +93,11 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	variableAdder := func(targetVisibility schema.Visibility) func(f *schema.Field, tInput reflect.Value) error {
-		return func(f *schema.Field, tInput reflect.Value) error {
+	variableAdder := func(targetVisibility schema.Visibility) func(f schema.LeafInfo, tInput reflect.Value) error {
+		return func(f schema.LeafInfo, tInput reflect.Value) error {
 			if tInput.CanSet() {
 				if f.Visibility == schema.Unset {
-					return errors.New("can't set val " + f.FullName + " visibility is unset")
+					return errors.New("can't set val " + f.FullName() + " visibility is unset")
 				}
 				if f.Visibility == targetVisibility {
 					if f.Visibility == schema.Public {
@@ -109,18 +109,18 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 
 				return nil
 			}
-			return errors.New("can't set val " + f.FullName)
+			return errors.New("can't set val " + f.FullName())
 		}
 	}
 
 	// add public inputs first to compute correct offsets
-	_, err = schema.Parse(circuit, tVariable, variableAdder(schema.Public))
+	_, err = schema.Walk(circuit, tVariable, variableAdder(schema.Public))
 	if err != nil {
 		return err
 	}
 
 	// add secret inputs
-	_, err = schema.Parse(circuit, tVariable, variableAdder(schema.Secret))
+	_, err = schema.Walk(circuit, tVariable, variableAdder(schema.Secret))
 	if err != nil {
 		return err
 	}

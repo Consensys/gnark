@@ -537,17 +537,14 @@ func shallowClone(circuit frontend.Circuit) frontend.Circuit {
 }
 
 func copyWitness(to, from frontend.Circuit) {
-	var wValues []interface{}
+	var wValues []reflect.Value
 
 	collectHandler := func(f *schema.Field, tInput reflect.Value) error {
-		v := tInput.Interface().(frontend.Variable)
-
-		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
-			if v == nil {
-				return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName)
-			}
-			wValues = append(wValues, v)
+		if tInput.IsNil() {
+			// TODO @gbotrel test for missing assignment
+			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName)
 		}
+		wValues = append(wValues, tInput)
 		return nil
 	}
 	if _, err := schema.Parse(from, tVariable, collectHandler); err != nil {
@@ -556,10 +553,8 @@ func copyWitness(to, from frontend.Circuit) {
 
 	i := 0
 	setHandler := func(f *schema.Field, tInput reflect.Value) error {
-		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
-			tInput.Set(reflect.ValueOf(wValues[i]))
-			i++
-		}
+		tInput.Set(wValues[i])
+		i++
 		return nil
 	}
 	// this can't error.
