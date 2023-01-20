@@ -13,12 +13,12 @@ import (
 // a slice of limbs. The type parameter defines the field this element belongs
 // to.
 type Element[T FieldParams] struct {
-	Limbs []frontend.Variable `gnark:"limbs,inherit"` // in little-endian (least significant limb first) encoding
+	Limbs []frontend.Variable // in little-endian (least significant limb first) encoding
 
 	// overflow indicates the number of additions on top of the normal form. To
 	// ensure that none of the limbs overflow the scalar field of the snark
 	// curve, we must check that nbBits+overflow < floor(log2(fr modulus))
-	overflow uint `gnark:"-"`
+	overflow uint
 }
 
 // NewElement builds a new emulated element from input. The inputs can be:

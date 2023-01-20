@@ -66,7 +66,7 @@ func (w *walker) Interface(value reflect.Value) error {
 	} else if v == Public {
 		w.nbPublic++
 	}
-	return nil
+	return reflectwalk.SkipEntry
 }
 
 func (w *walker) Slice(value reflect.Value) error {
@@ -99,8 +99,6 @@ func (w *walker) ArrayElem(index int, _ reflect.Value) error {
 // process an array or slice of leaves; since it's quite common to have large array/slices
 // of frontend.Variable, this speeds up considerably performance.
 func (w *walker) handleLeaves(value reflect.Value) error {
-	// TODO @gbotrel restore
-	return nil
 	v := w.visibility()
 	if v == Unset {
 		v = Secret
@@ -109,13 +107,18 @@ func (w *walker) handleLeaves(value reflect.Value) error {
 	// call the handler.
 	if w.handler != nil {
 		n := w.name()
-		currI := 0
-		fName := func() string {
-			return n + "_" + strconv.Itoa(currI)
-		}
 		for i := 0; i < value.Len(); i++ {
-			currI = i
-			if err := w.handler(LeafInfo{Visibility: v, FullName: fName, name: ""}, value.Index(i)); err != nil {
+			fName := func() string {
+				return n + "_" + strconv.Itoa(i)
+			}
+			vv := value.Index(i)
+			// if vv.Kind() == reflect.Ptr {
+			// 	vv = reflect.Indirect(vv)
+			// }
+			// if vv.Kind() == reflect.Interface {
+			// 	vv = vv.Elem()
+			// }
+			if err := w.handler(LeafInfo{Visibility: v, FullName: fName, name: ""}, vv); err != nil {
 				return err
 			}
 		}
@@ -126,6 +129,7 @@ func (w *walker) handleLeaves(value reflect.Value) error {
 	} else if v == Public {
 		w.nbPublic += value.Len()
 	}
+
 	return reflectwalk.SkipEntry
 }
 
@@ -138,6 +142,14 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 	tag, ok := sf.Tag.Lookup(string(tagKey))
 	if ok && tag == string(TagOptOmit) {
 		return reflectwalk.SkipEntry // skipping "-"
+	}
+
+	if v.CanAddr() && v.Addr().CanInterface() {
+		// TODO @gbotrel really don't like that hook.
+		value := v.Addr().Interface()
+		if ih, hasInitHook := value.(InitHook); hasInitHook {
+			ih.GnarkInitHook()
+		}
 	}
 
 	// default visibility: parent (or unset)

@@ -165,49 +165,7 @@ func TestSchemaInherit(t *testing.T) {
 	}
 }
 
-type InheritingType struct {
-	C1 variable
-	C2 variable `gnark:"C2"`
-	C3 variable `gnark:",inherit"`
-}
-
-type DoubleInheritingType struct {
-	D1 InheritingType
-	D2 InheritingType `gnark:"D2"`
-	D3 InheritingType `gnark:",inherit"`
-}
-
-type InheritCircuit struct {
-	A1 InheritingType
-	A2 InheritingType `gnark:"A2"`
-	A3 InheritingType `gnark:",public"`
-	A4 InheritingType `gnark:",secret"`
-	A5 DoubleInheritingType
-	A6 DoubleInheritingType `gnark:"DD"`
-	A7 DoubleInheritingType `gnark:",public"`
-	A8 DoubleInheritingType `gnark:",secret"`
-}
-
-type InvalidInheritingCircuit struct {
-	B1 InheritingType       `gnark:",inherit"`
-	B2 DoubleInheritingType `gnark:",inherit"`
-}
-
 // TODO @gbotrel test parsing a leaf with no name (_ in struct).
-
-func TestSchemaInherit2(t *testing.T) {
-	assert := require.New(t)
-	{
-		c := InheritCircuit{}
-		_, err := Parse(&c, tVariable, nil)
-		assert.NoError(err)
-	}
-	{
-		c := InvalidInheritingCircuit{}
-		_, err := Parse(&c, tVariable, nil)
-		assert.Error(err)
-	}
-}
 
 func BenchmarkLargeSchema(b *testing.B) {
 	const n1 = 1 << 12

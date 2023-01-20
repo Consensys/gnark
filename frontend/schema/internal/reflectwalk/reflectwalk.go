@@ -181,7 +181,7 @@ func walkSlice(v reflect.Value, w interface{}) (err error) {
 			ew.Enter(SliceElem)
 		}
 
-		if err := walk(elem, w); err != nil {
+		if err := walk(elem, w); err != nil && err != SkipEntry {
 			return err
 		}
 
@@ -224,7 +224,7 @@ func walkArray(v reflect.Value, w interface{}) (err error) {
 			ew.Enter(ArrayElem)
 		}
 
-		if err := walk(elem, w); err != nil {
+		if err := walk(elem, w); err != nil && err != SkipEntry {
 			return err
 		}
 
@@ -266,7 +266,7 @@ func walkStruct(v reflect.Value, w interface{}) (err error) {
 			f := v.FieldByIndex([]int{i})
 			if sf.Anonymous { // TODO @gbotrel check this
 				err = walk(f, w)
-				if err != nil {
+				if err != nil && err != SkipEntry {
 					return
 				}
 				continue
@@ -291,7 +291,7 @@ func walkStruct(v reflect.Value, w interface{}) (err error) {
 			}
 
 			err = walk(f, w)
-			if err != nil {
+			if err != nil && err != SkipEntry {
 				return
 			}
 
