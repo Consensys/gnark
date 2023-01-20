@@ -5,9 +5,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/secp256k1"
-	"github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
-	"github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
+	scheme "github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/weierstrass"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -28,18 +26,14 @@ func (c *EcdsaCircuit[T, S]) Define(api frontend.API) error {
 func TestEcdsa(t *testing.T) {
 
 	// generate parameters
-	_, g := secp256k1.Generators()
-	var pp ecdsa.Params
-	pp.Base.Set(&g)
-	pp.Order = fr.Modulus()
-	privKey, _ := pp.GenerateKey(rand.Reader)
+	privKey, _ := scheme.GenerateKey(rand.Reader)
 
 	// sign
 	hash := []byte("testing ECDSA")
-	sig, _ := pp.Sign(hash, *privKey, rand.Reader)
+	sig, _ := scheme.Sign(hash, *privKey, rand.Reader)
 
 	// check that the signature is correct
-	if !pp.Verify(hash, sig, privKey.PublicKey.Q) {
+	if !scheme.Verify(hash, sig, privKey.PublicKey.Q) {
 		t.Errorf("can't verify signature")
 	}
 
@@ -85,15 +79,11 @@ func ExamplePublicKey_Verify() {
 func ExamplePublicKey_Verify_create() {
 
 	// generate parameters
-	_, g := secp256k1.Generators()
-	var pp ecdsa.Params
-	pp.Base.Set(&g)
-	pp.Order = fr.Modulus()
-	privKey, _ := pp.GenerateKey(rand.Reader)
+	privKey, _ := scheme.GenerateKey(rand.Reader)
 
 	// sign
 	hash := []byte("testing ECDSA")
-	sig, _ := pp.Sign(hash, *privKey, rand.Reader)
+	sig, _ := scheme.Sign(hash, *privKey, rand.Reader)
 
 	pubx := privKey.PublicKey.Q.X
 	puby := privKey.PublicKey.Q.Y
