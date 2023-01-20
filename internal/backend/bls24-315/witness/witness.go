@@ -87,7 +87,7 @@ func (witness *Witness) ReadFrom(r io.Reader) (int64, error) {
 
 // FromAssignment extracts the witness and its schema
 func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.Type, publicOnly bool) (*schema.Schema, error) {
-	s, err := schema.Parse(assignment, leafType, nil)
+	s, err := schema.Walk(assignment, leafType, nil)
 	if err != nil {
 		return nil, err
 	}
