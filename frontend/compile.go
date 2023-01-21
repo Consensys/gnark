@@ -70,23 +70,14 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
 
-	// var countedPublic, countedPrivate int
-	// counterHandler := func(f *schema.Field, tInput reflect.Value) error {
-	// 	varCount := builder.VariableCount(tInput.Type())
-	// 	switch f.Visibility {
-	// 	case schema.Secret:
-	// 		countedPrivate += varCount
-	// 	case schema.Public:
-	// 		countedPublic += varCount
-	// 	}
-	// 	return nil
-	// }
-
-	n := builder.VariableCount(nil)
 	s, err := schema.Walk(circuit, tVariable, nil)
 	if err != nil {
 		return err
 	}
+
+	// we scale the number of secret and public variables by n;
+	// scs and r1cs builder always return 1. Emulated arithmetic returns number of limbs per variable.
+	n := builder.VariableCount(nil)
 	s.Public *= n
 	s.Secret *= n
 	log := logger.Logger()
