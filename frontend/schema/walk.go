@@ -21,7 +21,7 @@ func Walk(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (count L
 		handler:     handler,
 	}
 	err = reflectwalk.Walk(circuit, &w)
-	if err == reflectwalk.SkipEntry {
+	if err == reflectwalk.ErrSkipEntry {
 		err = nil
 	}
 	count.Public = w.nbPublic
@@ -73,7 +73,7 @@ func (w *walker) Interface(value reflect.Value) error {
 	}
 
 	// we return SkipEntry here; the walk will not explore further this object (indirections, ...)
-	return reflectwalk.SkipEntry
+	return reflectwalk.ErrSkipEntry
 }
 
 // Slice handles slice elements found within complex structures.
@@ -134,7 +134,7 @@ func (w *walker) handleLeaves(value reflect.Value) error {
 		w.nbPublic += value.Len()
 	}
 
-	return reflectwalk.SkipEntry
+	return reflectwalk.ErrSkipEntry
 }
 
 func (w *walker) Struct(reflect.Value) error {
@@ -145,7 +145,7 @@ func (w *walker) StructField(sf reflect.StructField, v reflect.Value) error {
 	// check if the gnark tag is set
 	tag, ok := sf.Tag.Lookup(string(tagKey))
 	if ok && tag == string(TagOptOmit) {
-		return reflectwalk.SkipEntry // skipping "-"
+		return reflectwalk.ErrSkipEntry // skipping "-"
 	}
 
 	if v.CanAddr() && v.Addr().CanInterface() {

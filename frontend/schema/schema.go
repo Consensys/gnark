@@ -38,8 +38,6 @@ type LeafHandlerDeprecated func(field *Field, tValue reflect.Value) error
 // type frontend.Variable and return the corresponding  Slices are converted to arrays.
 //
 // If handler is specified, handler will be called on each encountered leaf (of type tLeaf)
-//
-// Deprecated: use Walk instead
 func ParseDeprecated(circuit interface{}, tLeaf reflect.Type, handler LeafHandlerDeprecated) (*Schema, error) {
 	// note circuit is of type interface{} instead of frontend.Circuit to avoid import cycle
 	// same for tLeaf it is in practice always frontend.Variable

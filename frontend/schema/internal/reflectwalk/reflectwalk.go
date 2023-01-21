@@ -51,12 +51,12 @@ type EnterExitWalker interface {
 	Exit(Location) error
 }
 
-// SkipEntry can be returned from walk functions to skip walking
+// ErrSkipEntry can be returned from walk functions to skip walking
 // the value of this field. This is only valid in the following functions:
 //
 //   - Struct: skips all fields from being walked
 //   - StructField: skips walking the struct value
-var SkipEntry = errors.New("skip this entry")
+var ErrSkipEntry = errors.New("skip this entry")
 
 // Walk takes an arbitrary value and an interface and traverses the
 // value, calling callbacks on the interface if they are supported.
@@ -181,7 +181,7 @@ func walkSlice(v reflect.Value, w interface{}) (err error) {
 			ew.Enter(SliceElem)
 		}
 
-		if err := walk(elem, w); err != nil && err != SkipEntry {
+		if err := walk(elem, w); err != nil && err != ErrSkipEntry {
 			return err
 		}
 
@@ -224,7 +224,7 @@ func walkArray(v reflect.Value, w interface{}) (err error) {
 			ew.Enter(ArrayElem)
 		}
 
-		if err := walk(elem, w); err != nil && err != SkipEntry {
+		if err := walk(elem, w); err != nil && err != ErrSkipEntry {
 			return err
 		}
 
@@ -250,7 +250,7 @@ func walkStruct(v reflect.Value, w interface{}) (err error) {
 	skip := false
 	if sw, ok := w.(StructWalker); ok {
 		err = sw.Struct(v)
-		if err == SkipEntry {
+		if err == ErrSkipEntry {
 			skip = true
 			err = nil
 		}
@@ -266,7 +266,7 @@ func walkStruct(v reflect.Value, w interface{}) (err error) {
 			f := v.FieldByIndex([]int{i})
 			if sf.Anonymous { // TODO @gbotrel check this
 				err = walk(f, w)
-				if err != nil && err != SkipEntry {
+				if err != nil && err != ErrSkipEntry {
 					return
 				}
 				continue
@@ -276,7 +276,7 @@ func walkStruct(v reflect.Value, w interface{}) (err error) {
 				err = sw.StructField(sf, f)
 
 				// SkipEntry just pretends this field doesn't even exist
-				if err == SkipEntry {
+				if err == ErrSkipEntry {
 					continue
 				}
 
@@ -291,7 +291,7 @@ func walkStruct(v reflect.Value, w interface{}) (err error) {
 			}
 
 			err = walk(f, w)
-			if err != nil && err != SkipEntry {
+			if err != nil && err != ErrSkipEntry {
 				return
 			}
 
