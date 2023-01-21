@@ -45,7 +45,7 @@ func (w *FieldAPI[T]) Compile() (constraint.ConstraintSystem, error) {
 	return w.b.Compile()
 }
 
-func (w *FieldAPI[T]) VariableCount(t reflect.Type) int {
+func (w *FieldAPI[T]) VariableCount(_ reflect.Type) int {
 	return int(w.f.fParams.NbLimbs())
 }
 
