@@ -90,7 +90,7 @@ func TestMarshalPublic(t *testing.T) {
 	assignment.X = new(fr.Element).SetInt64(42)
 	assignment.Y = new(fr.Element).SetInt64(8000)
 
-	// roundTripMarshal(assert, assignment, JSON, true)
+	roundTripMarshal(assert, assignment, JSON, true)
 	roundTripMarshal(assert, assignment, Binary, true)
 }
 
@@ -102,7 +102,7 @@ func TestMarshal(t *testing.T) {
 	assignment.Y = new(fr.Element).SetInt64(8000)
 	assignment.E = new(fr.Element).SetInt64(1)
 
-	// roundTripMarshal(assert, assignment, JSON, false)
+	roundTripMarshal(assert, assignment, JSON, false)
 	roundTripMarshal(assert, assignment, Binary, false)
 }
 
