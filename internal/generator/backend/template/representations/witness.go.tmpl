@@ -72,11 +72,11 @@ func (witness *Witness) ReadFrom(r io.Reader) (int64, error) {
 
 // FromAssignment extracts the witness and its schema
 func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.Type, publicOnly bool) (*schema.Schema, error)  {
-    s, err := schema.ParseDeprecated(assignment, leafType, nil)
+    s, err := schema.Walk(assignment, leafType, nil)
     if err != nil {
         return nil, err 
     }
-    nbSecret, nbPublic := s.NbSecret, s.NbPublic
+    nbSecret, nbPublic := s.Secret, s.Public
 
     if publicOnly {
         nbSecret = 0
@@ -125,8 +125,8 @@ func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.
 func (witness *Witness) ToAssignment(assignment interface{}, leafType reflect.Type, publicOnly bool) {
     i := 0
 	setAddr := leafType.Kind() == reflect.Ptr 
-	setHandler := func(v schema.Visibility) schema.LeafHandlerDeprecated {
-		return func(f *schema.Field, tInput reflect.Value) error {
+	setHandler := func(v schema.Visibility) schema.LeafHandler {
+		return func(f schema.LeafInfo, tInput reflect.Value) error {
 			if f.Visibility == v {
 				if setAddr {
 					tInput.Set(reflect.ValueOf((&(*witness)[i])))
@@ -139,11 +139,11 @@ func (witness *Witness) ToAssignment(assignment interface{}, leafType reflect.Ty
 			return nil
 		}
 	}
-	_, _ = schema.ParseDeprecated(assignment, leafType, setHandler(schema.Public))
+	_, _ = schema.Walk(assignment, leafType, setHandler(schema.Public))
     if publicOnly {
         return
     }
-    _, _ = schema.ParseDeprecated(assignment, leafType, setHandler(schema.Secret))
+    _, _ = schema.Walk(assignment, leafType, setHandler(schema.Secret))
 
 }
 

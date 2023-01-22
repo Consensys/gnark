@@ -87,15 +87,15 @@ func (s Schema) WriteSequence(w io.Writer) error {
 	var a int
 	instance := s.Instantiate(reflect.TypeOf(a), false)
 
-	collectHandler := func(f *Field, _ reflect.Value) error {
+	collectHandler := func(f LeafInfo, _ reflect.Value) error {
 		if f.Visibility == Public {
-			public = append(public, f.FullName)
+			public = append(public, f.FullName())
 		} else if f.Visibility == Secret {
-			secret = append(secret, f.FullName)
+			secret = append(secret, f.FullName())
 		}
 		return nil
 	}
-	if _, err := ParseDeprecated(instance, reflect.TypeOf(a), collectHandler); err != nil {
+	if _, err := Walk(instance, reflect.TypeOf(a), collectHandler); err != nil {
 		return err
 	}
 

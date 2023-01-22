@@ -76,6 +76,10 @@ func (w *walker) Interface(value reflect.Value) error {
 	return reflectwalk.ErrSkipEntry
 }
 
+func (w *walker) Pointer(value reflect.Value) error {
+	return w.Interface(value)
+}
+
 // Slice handles slice elements found within complex structures.
 func (w *walker) Slice(value reflect.Value) error {
 	if value.Type() == w.targetSlice {
