@@ -60,6 +60,14 @@ type Proof struct {
 	ZShiftedOpening kzg.OpeningProof
 }
 
+func printPoly(n string, v []fr.Element) {
+	fmt.Printf("%s = buildPoly([", n)
+	for i := 0; i < len(v); i++ {
+		fmt.Printf("Fr(%s),", v[i].String())
+	}
+	fmt.Println("])")
+}
+
 func printVector(n string, v []fr.Element) {
 	fmt.Printf("%s = [", n)
 	for i := 0; i < len(v); i++ {
@@ -114,8 +122,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		}
 	}
 
-	// ----- [ IOP VERSION ] -----
-
 	// query l, r, o in Lagrange basis, not blinded
 	evaluationLDomainSmall, evaluationRDomainSmall, evaluationODomainSmall := evaluateLROSmallDomain(spr, pk, solution)
 
@@ -156,8 +162,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	beta.SetBytes(bbeta)
 
 	// compute the copy constraint's ratio
+	// We copy liop, riop, oiop because they are fft'ed in the process.
+	// We could have not copied them at the cost of doing one more bit reverse
+	// per poly...
 	ziop, err := iop.BuildRatioCopyConstraint(
-		[]iop.Polynomial{liop, riop, oiop},
+		[]*iop.Polynomial{liop.Copy(), riop.Copy(), oiop.Copy()},
 		pk.Permutation,
 		beta,
 		gamma,
@@ -208,11 +217,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	wqmiop := iop.NewPolynomial(pk.Qm, canReg).WrapMe(0)
 	wqoiop := iop.NewPolynomial(pk.Qo, canReg).WrapMe(0)
 	wqkiop := iop.NewPolynomial(qkCompletedCanonical, canReg).WrapMe(0)
-	// printVector("ql", wqliop.P.Coefficients)
-	// printVector("qr", wqriop.P.Coefficients)
-	// printVector("qm", wqmiop.P.Coefficients)
-	// printVector("qo", wqoiop.P.Coefficients)
-	// printVector("qk", wqkiop.P.Coefficients)
 	wqliop.ToLagrangeCoset(wqliop, &pk.Domain[1])
 	wqriop.ToLagrangeCoset(wqriop, &pk.Domain[1])
 	wqmiop.ToLagrangeCoset(wqmiop, &pk.Domain[1])
@@ -354,7 +358,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	if err := commitToQuotient(
 		h.Coefficients[:pk.Domain[0].Cardinality+2],
 		h.Coefficients[pk.Domain[0].Cardinality+2:2*(pk.Domain[0].Cardinality+2)],
-		h.Coefficients[2*(pk.Domain[0].Cardinality+2):],
+		h.Coefficients[2*(pk.Domain[0].Cardinality+2):3*(pk.Domain[0].Cardinality+2)],
 		proof, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
@@ -365,15 +369,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		return nil, err
 	}
 
-	// ---------------------------
-
 	// compute evaluations of (blinded version of) l, r, o, z at zeta
-	wliop.ToCanonical(wliop, &pk.Domain[1])
-	wriop.ToCanonical(wriop, &pk.Domain[1])
-	woiop.ToCanonical(woiop, &pk.Domain[1])
+	wliop.ToCanonical(wliop, &pk.Domain[1]).ToRegular(wliop)
+	wriop.ToCanonical(wriop, &pk.Domain[1]).ToRegular(wriop)
+	woiop.ToCanonical(woiop, &pk.Domain[1]).ToRegular(woiop)
 
 	var blzeta, brzeta, bozeta fr.Element
-	for i := len(wliop.P.Coefficients) - 1; i > +0; i-- {
+	for i := len(wliop.P.Coefficients) - 1; i >= 0; i-- {
 		blzeta.Mul(&blzeta, &zeta)
 		blzeta.Add(&blzeta, &wliop.P.Coefficients[i])
 
@@ -382,13 +384,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 		bozeta.Mul(&bozeta, &zeta)
 		bozeta.Add(&bozeta, &woiop.P.Coefficients[i])
-	}
+	} // -> CORRECT
 
 	// open blinded Z at zeta*z
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
 	proof.ZShiftedOpening, err = kzg.Open(
-		wziop.P.Coefficients,
+		wziop.P.Coefficients[:pk.Domain[0].Cardinality],
 		zetaShifted,
 		pk.Vk.KZGSRS,
 	)
@@ -404,7 +406,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		linearizedPolynomialDigest    curve.G1Affine
 		errLPoly                      error
 	)
-	chLpoly := make(chan struct{}, 1)
 
 	// compute the linearization polynomial r at zeta
 	// (goal: save committing separately to z, ql, qr, qm, qo, k)
@@ -417,7 +418,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		gamma,
 		zeta,
 		bzuzeta,
-		wziop.P.Coefficients,
+		wziop.P.Coefficients[:pk.Domain[0].Cardinality],
 		pk,
 	)
 
@@ -438,7 +439,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2) + Comm(h1)
 
 	// foldedH = h1 + ζ*h2 + ζ²*h3
-	foldedH := h.Coefficients[2*(pk.Domain[0].Cardinality+2):]
+	foldedH := h.Coefficients[2*(pk.Domain[0].Cardinality+2) : 3*(pk.Domain[0].Cardinality+2)]
 	h2 := h.Coefficients[pk.Domain[0].Cardinality+2 : 2*(pk.Domain[0].Cardinality+2)]
 	h1 := h.Coefficients[:pk.Domain[0].Cardinality+2]
 	utils.Parallelize(len(foldedH), func(start, end int) {
@@ -450,7 +451,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		}
 	})
 
-	<-chLpoly
 	if errLPoly != nil {
 		return nil, errLPoly
 	}
