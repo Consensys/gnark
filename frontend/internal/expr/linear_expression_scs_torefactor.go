@@ -28,6 +28,10 @@ func (t TermToRefactor) WireID() int {
 	return t.VID
 }
 
+func (t TermToRefactor) HashCode() uint64 {
+	return uint64(t.CID) + uint64(t.VID<<32)
+}
+
 // Len return the lenght of the Variable (implements Sort interface)
 func (l LinearExpressionToRefactor) Len() int {
 	return len(l)
@@ -68,7 +72,7 @@ func (l LinearExpressionToRefactor) Less(i, j int) bool {
 func (l LinearExpressionToRefactor) HashCode() uint64 {
 	h := uint64(17)
 	for _, val := range l {
-		h = h*23 + uint64(val.CID) + uint64(val.VID<<32) // TODO @gbotrel revisit
+		h = h*23 + val.HashCode() // TODO @gbotrel revisit
 	}
 	return h
 }

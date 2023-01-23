@@ -37,6 +37,10 @@ func (t Term) WireID() int {
 	return t.VID
 }
 
+func (t Term) HashCode() uint64 {
+	return t.Coeff[0]*29 + uint64(t.VID<<12)
+}
+
 // Len return the lenght of the Variable (implements Sort interface)
 func (l LinearExpression) Len() int {
 	return len(l)
@@ -77,7 +81,7 @@ func (l LinearExpression) Less(i, j int) bool {
 func (l LinearExpression) HashCode() uint64 {
 	h := uint64(17)
 	for _, val := range l {
-		h = h*23 + val.Coeff[0]*29 + uint64(val.VID<<12) // TODO @gbotrel revisit
+		h = h*23 + val.HashCode() // TODO @gbotrel revisit
 	}
 	return h
 }
