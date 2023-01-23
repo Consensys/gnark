@@ -17,7 +17,6 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
-	"fmt"
 	"io"
 	"math/big"
 	"time"
@@ -79,11 +78,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	if err != nil {
 		return err
 	}
-
-	fmt.Printf("[VERIFY] beta = Fr(%s)\n", beta.String())
-	fmt.Printf("[VERIFY] gamma = Fr(%s)\n", gamma.String())
-	fmt.Printf("[VERIFY] alpha = Fr(%s)\n", alpha.String())
-	fmt.Printf("[VERIFY] zeta = Fr(%s)\n", zeta.String())
 
 	// evaluation of Z=Xⁿ⁻¹ at ζ
 	var zetaPowerM, zzeta fr.Element
@@ -153,8 +147,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	linearizedPolynomialZeta.Div(&linearizedPolynomialZeta, &zetaPowerMMinusOne)
 
 	// check that H(ζ) is as claimed
-	fmt.Printf("lienarizedeta: %s\n", linearizedPolynomialZeta.String())
-	fmt.Printf("claimed quotient: %s\n", claimedQuotient.String())
 	if !claimedQuotient.Equal(&linearizedPolynomialZeta) {
 		return errWrongClaimedQuotient
 	}

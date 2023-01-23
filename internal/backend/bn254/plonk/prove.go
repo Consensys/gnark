@@ -160,8 +160,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 	var beta fr.Element
 	beta.SetBytes(bbeta)
-	fmt.Printf("beta = Fr(%s)\n", beta.String())
-	fmt.Printf("gamma = Fr(%s)\n", gamma.String())
 
 	// compute the copy constraint's ratio
 	// We copy liop, riop, oiop because they are fft'ed in the process.
@@ -192,7 +190,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	if err != nil {
 		return proof, err
 	}
-	fmt.Printf("alpha = Fr(%s)\n", alpha.String())
 
 	// compute qk in canonical basis, completed with the public inputs
 	qkCompletedCanonical := make([]fr.Element, pk.Domain[0].Cardinality)
@@ -212,17 +209,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	constraintsCapture.AddMonomial(one, []int{0, 0, 0, 0, 1, 0, 0, 0})
 
 	// l, r, o are blinded here
-	// printPoly("ql", pk.Ql)
-	// printPoly("qr", pk.Qr)
-	// printPoly("qm", pk.Qm)
-	// printPoly("qo", pk.Qo)
-	// printPoly("qk", qkCompletedCanonical)
-	// printPoly("l", wliop.P.Coefficients)
-	// printPoly("r", wriop.P.Coefficients)
-	// printPoly("o", woiop.P.Coefficients)
-	// printPoly("s1", pk.S1Canonical)
-	// printPoly("s2", pk.S2Canonical)
-	// printPoly("s3", pk.S3Canonical)
 	wliop.ToLagrangeCoset(wliop, &pk.Domain[1])
 	wriop.ToLagrangeCoset(wriop, &pk.Domain[1])
 	woiop.ToLagrangeCoset(woiop, &pk.Domain[1])
@@ -244,7 +230,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	if err != nil {
 		return proof, err
 	} // -> CORRECT
-	// printVector("constraints", constraints.Coefficients)
 
 	// constraints ordering, l, r, o, z are blinded here
 	var subOrderingCapture [3]iop.MultivariatePolynomial
@@ -407,8 +392,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 	// open blinded Z at zeta*z
 	wziop.ToCanonical(wziop, &pk.Domain[1]).ToRegular(wziop)
-	// printPoly("z", wziop.P.Coefficients)
-	fmt.Printf("zeta = Fr(%s)\n", zeta.String())
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
 	proof.ZShiftedOpening, err = kzg.Open(
