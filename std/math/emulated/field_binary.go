@@ -37,5 +37,5 @@ func (f *Field[T]) FromBits(bs ...frontend.Variable) *Element[T] {
 		limbs[i] = bits.FromBinary(f.api, bs[i*f.fParams.BitsPerLimb():(i+1)*f.fParams.BitsPerLimb()])
 	}
 	limbs[nbLimbs-1] = bits.FromBinary(f.api, bs[(nbLimbs-1)*f.fParams.BitsPerLimb():])
-	return newElementLimbs[T](limbs, 0)
+	return f.newInternalElement(limbs, 0)
 }

@@ -70,7 +70,7 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Add(ba, bb).Mod(ba, f.fParams.Modulus())
-		return newElementPtr[T](ba)
+		return newConstElement[T](ba)
 	}
 
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
@@ -84,7 +84,7 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 			limbs[i] = f.api.Add(limbs[i], b.Limbs[i])
 		}
 	}
-	return newElementLimbs[T](limbs, nextOverflow)
+	return f.newInternalElement(limbs, nextOverflow)
 }
 
 // Mul computes a*b and returns it. It doesn't reduce the output and it may be
@@ -138,13 +138,13 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 		func(a, _ *Element[T], u uint) *Element[T] {
 			if ba, aConst := f.constantValue(a); aConst {
 				ba.Mul(ba, c)
-				return newElementPtr[T](ba)
+				return newConstElement[T](ba)
 			}
 			limbs := make([]frontend.Variable, len(a.Limbs))
 			for i := range a.Limbs {
 				limbs[i] = f.api.Mul(a.Limbs[i], c)
 			}
-			return newElementLimbs[T](limbs, a.overflow+cbl)
+			return f.newInternalElement(limbs, a.overflow+cbl)
 		},
 		func(a, _ *Element[T]) (nextOverflow uint, err error) {
 			nextOverflow = a.overflow + uint(cbl)
@@ -172,7 +172,7 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Mul(ba, bb).Mod(ba, f.fParams.Modulus())
-		return newElementPtr[T](ba)
+		return newConstElement[T](ba)
 	}
 
 	// mulResult contains the result (out of circuit) of a * b school book multiplication
@@ -206,7 +206,7 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 		}
 		f.api.AssertIsEqual(f.api.Mul(l, r), o)
 	}
-	return newElementLimbs[T](mulResult, nextOverflow)
+	return f.newInternalElement(mulResult, nextOverflow)
 }
 
 // Reduce reduces a modulo the field order and returns it. Uses hint [RemHint].
@@ -258,7 +258,7 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Sub(ba, bb).Mod(ba, f.fParams.Modulus())
-		return newElementPtr[T](ba)
+		return newConstElement[T](ba)
 	}
 
 	// first we have to compute padding to ensure that the subtraction does not
@@ -275,7 +275,7 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 			limbs[i] = f.api.Sub(limbs[i], b.Limbs[i])
 		}
 	}
-	return newElementLimbs[T](limbs, nextOverflow)
+	return f.newInternalElement(limbs, nextOverflow)
 }
 
 func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
@@ -289,7 +289,7 @@ func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
 func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element[T] {
 	overflow := max(a.overflow, b.overflow)
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
-	e := newElementLimbs[T](make([]frontend.Variable, nbLimbs), overflow)
+	e := f.newInternalElement(make([]frontend.Variable, nbLimbs), overflow)
 	normalize := func(limbs []frontend.Variable) []frontend.Variable {
 		if len(limbs) < nbLimbs {
 			tail := make([]frontend.Variable, nbLimbs-len(limbs))
@@ -320,7 +320,7 @@ func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element
 func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *Element[T] {
 	overflow := max(a.overflow, b.overflow, c.overflow, d.overflow)
 	nbLimbs := max(len(a.Limbs), len(b.Limbs), len(c.Limbs), len(d.Limbs))
-	e := newElementLimbs[T](make([]frontend.Variable, nbLimbs), overflow)
+	e := f.newInternalElement(make([]frontend.Variable, nbLimbs), overflow)
 	normalize := func(limbs []frontend.Variable) []frontend.Variable {
 		if len(limbs) < nbLimbs {
 			tail := make([]frontend.Variable, nbLimbs-len(limbs))

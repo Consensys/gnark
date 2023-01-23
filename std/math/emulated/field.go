@@ -28,11 +28,11 @@ type Field[T FieldParams] struct {
 
 	// constants for often used elements n, 0 and 1. Allocated only once
 	nConstOnce    sync.Once
-	nConst        Element[T]
+	nConst        *Element[T]
 	zeroConstOnce sync.Once
-	zeroConst     Element[T]
+	zeroConst     *Element[T]
 	oneConstOnce  sync.Once
-	oneConst      Element[T]
+	oneConst      *Element[T]
 
 	log zerolog.Logger
 }
@@ -86,31 +86,31 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 // Zero returns zero as a constant.
 func (f *Field[T]) Zero() *Element[T] {
 	f.zeroConstOnce.Do(func() {
-		f.zeroConst = NewElement[T](nil)
+		f.zeroConst = newConstElement[T](0)
 	})
-	return &f.zeroConst
+	return f.zeroConst
 }
 
 // One returns one as a constant.
 func (f *Field[T]) One() *Element[T] {
 	f.oneConstOnce.Do(func() {
-		f.oneConst = NewElement[T](1)
+		f.oneConst = newConstElement[T](1)
 	})
-	return &f.oneConst
+	return f.oneConst
 }
 
 // Modulus returns the modulus of the emulated ring as a constant.
 func (f *Field[T]) Modulus() *Element[T] {
 	f.nConstOnce.Do(func() {
-		f.nConst = NewElement[T](f.fParams.Modulus())
+		f.nConst = newConstElement[T](f.fParams.Modulus())
 	})
-	return &f.nConst
+	return f.nConst
 }
 
 // PackElementLimbs returns an element from the given limbs. The method
 // constrains the limbs to have same width as the modulus of the field.
 func (f *Field[T]) PackElementLimbs(limbs []frontend.Variable) *Element[T] {
-	e := newElementLimbs[T](limbs, 0)
+	e := f.newInternalElement(limbs, 0)
 	f.enforceWidth(e, true)
 	return e
 }
@@ -118,7 +118,7 @@ func (f *Field[T]) PackElementLimbs(limbs []frontend.Variable) *Element[T] {
 // PackFullLimbs creates an element from the given limbs and enforces every limb
 // to have NbBits bits.
 func (f *Field[T]) PackFullLimbs(limbs []frontend.Variable) *Element[T] {
-	e := newElementLimbs[T](limbs, 0)
+	e := f.newInternalElement(limbs, 0)
 	f.enforceWidth(e, false)
 	return e
 }

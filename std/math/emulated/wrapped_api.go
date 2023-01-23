@@ -46,7 +46,7 @@ func (w *FieldAPI[T]) varToElement(in frontend.Variable) *Element[T] {
 	case *Element[T]:
 		return vv
 	default:
-		return newElementPtr[T](in)
+		return w.f.newElementPtr(in)
 	}
 }
 
@@ -88,11 +88,11 @@ func (w *FieldAPI[T]) Neg(i1 frontend.Variable) frontend.Variable {
 
 func (w *FieldAPI[T]) Sub(i1 frontend.Variable, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	els := w.varsToElements(i1, i2, in)
-	sub := newElementPtr[T](els[1])
+	tmp := els[1]
 	for i := 2; i < len(els); i++ {
-		sub = w.f.reduceAndOp(w.f.add, w.f.addPreCond, sub, els[i])
+		tmp = w.f.reduceAndOp(w.f.add, w.f.addPreCond, tmp, els[i])
 	}
-	res := w.f.Sub(els[0], sub)
+	res := w.f.Sub(els[0], tmp)
 	return res
 }
 
@@ -151,7 +151,7 @@ func (w *FieldAPI[T]) Xor(a frontend.Variable, b frontend.Variable) frontend.Var
 	w.AssertIsBoolean(els[0])
 	w.AssertIsBoolean(els[1])
 	rv := w.f.api.Xor(els[0].Limbs[0], els[1].Limbs[0])
-	return newElementLimbs[T]([]frontend.Variable{rv}, 0)
+	return w.f.newInternalElement([]frontend.Variable{rv}, 0)
 }
 
 func (w *FieldAPI[T]) Or(a frontend.Variable, b frontend.Variable) frontend.Variable {
@@ -159,7 +159,7 @@ func (w *FieldAPI[T]) Or(a frontend.Variable, b frontend.Variable) frontend.Vari
 	w.AssertIsBoolean(els[0])
 	w.AssertIsBoolean(els[1])
 	rv := w.f.api.Or(els[0].Limbs[0], els[1].Limbs[0])
-	return newElementLimbs[T]([]frontend.Variable{rv}, 0)
+	return w.f.newInternalElement([]frontend.Variable{rv}, 0)
 }
 
 func (w *FieldAPI[T]) And(a frontend.Variable, b frontend.Variable) frontend.Variable {
@@ -167,7 +167,7 @@ func (w *FieldAPI[T]) And(a frontend.Variable, b frontend.Variable) frontend.Var
 	w.AssertIsBoolean(els[0])
 	w.AssertIsBoolean(els[1])
 	rv := w.f.api.And(els[0].Limbs[0], els[1].Limbs[0])
-	return newElementLimbs[T]([]frontend.Variable{rv}, 0)
+	return w.f.newInternalElement([]frontend.Variable{rv}, 0)
 }
 
 func (w *FieldAPI[T]) Select(b frontend.Variable, i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
@@ -211,7 +211,7 @@ func (w *FieldAPI[T]) IsZero(i1 frontend.Variable) frontend.Variable {
 	for i := 1; i < len(reduced.Limbs); i++ {
 		w.f.api.Mul(res, w.f.api.IsZero(reduced.Limbs[i]))
 	}
-	return newElementLimbs[T]([]frontend.Variable{res}, 0)
+	return w.f.newInternalElement([]frontend.Variable{res}, 0)
 }
 
 func (w *FieldAPI[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.Variable {
@@ -228,7 +228,6 @@ func (w *FieldAPI[T]) Cmp(i1 frontend.Variable, i2 frontend.Variable) frontend.V
 
 func (w *FieldAPI[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) {
 	els := w.varsToElements(i1, i2)
-	tmp := newElementPtr[T](els[0])
 	w.f.reduceAndOp(func(a, b *Element[T], nextOverflow uint) *Element[T] {
 		w.f.AssertIsEqual(a, b)
 		return nil
@@ -241,7 +240,7 @@ func (w *FieldAPI[T]) AssertIsEqual(i1 frontend.Variable, i2 frontend.Variable) 
 				return nextOverflow, target
 			}
 			return nextOverflow, err
-		}, tmp, els[1])
+		}, els[0], els[1])
 }
 
 func (w *FieldAPI[T]) AssertIsDifferent(i1 frontend.Variable, i2 frontend.Variable) {
@@ -371,7 +370,7 @@ func (w *FieldAPI[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...fronten
 	ret := make([]frontend.Variable, nbOutputs)
 	for i := 0; i < nbOutputs; i++ {
 		limbs := hintRet[i*int(w.f.fParams.NbLimbs()) : (i+1)*int(w.f.fParams.NbLimbs())]
-		ret[i] = newElementLimbs[T](limbs, 0)
+		ret[i] = w.f.newInternalElement(limbs, 0)
 	}
 	return ret, nil
 }
