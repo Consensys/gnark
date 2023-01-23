@@ -143,8 +143,9 @@ type System struct {
 	bitLen int      `cbor:"-"`
 
 	// level builder
-	lbWireLevel []int    `cbor:"-"` // at which level we solve a wire. init at -1.
-	lbOutputs   []uint32 `cbor:"-"` // wire outputs for current constraint.
+	lbWireLevel []int              `cbor:"-"` // at which level we solve a wire. init at -1.
+	lbOutputs   []uint32           `cbor:"-"` // wire outputs for current constraint.
+	lbHints     map[*Hint]struct{} `cbor:"-"` // hints we processed in current round
 
 	CommitmentInfo Commitment
 	GkrInfo        GkrInfo
@@ -161,6 +162,7 @@ func NewSystem(scalarField *big.Int) System {
 		MHintsDependencies: make(map[hint.ID]string),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
+		lbHints:            map[*Hint]struct{}{},
 	}
 }
 

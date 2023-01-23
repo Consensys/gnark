@@ -131,14 +131,14 @@ func (builder *builder) VariableCount(t reflect.Type) int {
 }
 
 // PublicVariable creates a new public Variable
-func (builder *builder) PublicVariable(f *schema.Field) frontend.Variable {
-	idx := builder.cs.AddPublicVariable(f.FullName)
+func (builder *builder) PublicVariable(f schema.LeafInfo) frontend.Variable {
+	idx := builder.cs.AddPublicVariable(f.FullName())
 	return expr.NewLinearExpression(idx, builder.tOne)
 }
 
 // SecretVariable creates a new secret Variable
-func (builder *builder) SecretVariable(f *schema.Field) frontend.Variable {
-	idx := builder.cs.AddSecretVariable(f.FullName)
+func (builder *builder) SecretVariable(f schema.LeafInfo) frontend.Variable {
+	idx := builder.cs.AddSecretVariable(f.FullName())
 	return expr.NewLinearExpression(idx, builder.tOne)
 }
 
