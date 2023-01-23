@@ -11,6 +11,7 @@ import (
 
 // Div computes a/b and returns it. It uses [DivHint] as a hint function.
 func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
+	// omit width assertion as for a is done in AssertIsEqual and for b is done in Mul below
 	if !f.fParams.IsPrime() {
 		// TODO shouldn't we still try to do a classic int div in a hint, constraint the result, and let it fail?
 		// that would enable things like uint32 div ?
@@ -28,6 +29,7 @@ func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 
 // Inverse compute 1/a and returns it. It uses [InverseHint].
 func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
+	// omit width assertion as is done in Mul below
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
 	}
@@ -211,6 +213,7 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 
 // Reduce reduces a modulo the field order and returns it. Uses hint [RemHint].
 func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
 	if a.overflow == 0 {
 		// fast path - already reduced, omit reduction.
 		return a
@@ -287,6 +290,8 @@ func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
 // overflows. If the inputs are strongly unbalanced, then it would better to
 // reduce the result after the operation.
 func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
 	overflow := max(a.overflow, b.overflow)
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
 	e := f.newInternalElement(make([]frontend.Variable, nbLimbs), overflow)
@@ -318,6 +323,10 @@ func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element
 // The number of the limbs and overflow in the result is the maximum of the
 // inputs'. If the inputs are very unbalanced, then reduce the result.
 func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
+	f.enforceWidthConditional(c)
+	f.enforceWidthConditional(d)
 	overflow := max(a.overflow, b.overflow, c.overflow, d.overflow)
 	nbLimbs := max(len(a.Limbs), len(b.Limbs), len(c.Limbs), len(d.Limbs))
 	e := f.newInternalElement(make([]frontend.Variable, nbLimbs), overflow)
@@ -345,6 +354,8 @@ func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *El
 // errs, then first reduces the input arguments. The reduction is done
 // one-by-one with the element with highest overflow reduced first.
 func (f *Field[T]) reduceAndOp(op func(*Element[T], *Element[T], uint) *Element[T], preCond func(*Element[T], *Element[T]) (uint, error), a, b *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
 	var nextOverflow uint
 	var err error
 	var target errOverflow
@@ -360,6 +371,8 @@ func (f *Field[T]) reduceAndOp(op func(*Element[T], *Element[T], uint) *Element[
 }
 
 func (f *Field[T]) reduceAndOpMutable(op func(*Element[T], *Element[T], uint) *Element[T], preCond func(*Element[T], *Element[T]) (uint, error), a, b *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
 	var nextOverflow uint
 	var err error
 	var target errOverflow

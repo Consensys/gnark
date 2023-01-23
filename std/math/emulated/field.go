@@ -35,6 +35,8 @@ type Field[T FieldParams] struct {
 	oneConst      *Element[T]
 
 	log zerolog.Logger
+
+	constrainedLimbs map[uint64]struct{}
 }
 
 // NewField returns an object to be used in-circuit to perform emulated
@@ -47,8 +49,9 @@ type Field[T FieldParams] struct {
 // is extremly costly. See package doc for more info.
 func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	f := &Field[T]{
-		api: native,
-		log: logger.Logger(),
+		api:              native,
+		log:              logger.Logger(),
+		constrainedLimbs: make(map[uint64]struct{}),
 	}
 
 	// ensure prime is correctly set
@@ -123,6 +126,49 @@ func (f *Field[T]) PackFullLimbs(limbs []frontend.Variable) *Element[T] {
 	return e
 }
 
+func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
+	if a == nil {
+		// for some reason called on nil
+		return false
+	}
+	if a.internal {
+		// internal elements are already constrained in the method which returned it
+		return false
+	}
+	if _, isConst := f.constantValue(a); isConst {
+		// constant values are constant
+		return false
+	}
+	for i := range a.Limbs {
+		if !frontend.IsCanonical(a.Limbs[i]) {
+			// this is not a variable. This may happen when some limbs are
+			// constant and some variables. A strange case but lets try to cover
+			// it anyway.
+			continue
+		}
+		if vv, ok := a.Limbs[i].(interface{ HashCode() uint64 }); ok {
+			// okay, this is a canonical variable and it has a hashcode. We use
+			// it to see if the limb is already constrained.
+			h := vv.HashCode()
+			if _, ok := f.constrainedLimbs[h]; !ok {
+				// we found a limb which hasn't yet been constrained. This means
+				// that we should enforce width for the whole element. But we
+				// still iterate over all limbs just to mark them in the table.
+				didConstrain = true
+				f.constrainedLimbs[h] = struct{}{}
+			}
+		} else {
+			// we have no way of knowing if the limb has been constrained. To be
+			// on the safe side constrain the whole element again.
+			didConstrain = true
+		}
+	}
+	if didConstrain {
+		f.enforceWidth(a, false)
+	}
+	return
+}
+
 func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 	var ok bool
 
@@ -147,6 +193,7 @@ func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 // combination in a single new limb.
 // compact returns a and b minimal (in number of limbs) representation that fits in the snark field
 func (f *Field[T]) compact(a, b *Element[T]) (ac, bc []frontend.Variable, bitsPerLimb uint) {
+	// omit width reduction as is done in the calling method already
 	maxOverflow := max(a.overflow, b.overflow)
 	// subtract one bit as can not potentially use all bits of Fr and one bit as
 	// grouping may overflow

@@ -314,6 +314,7 @@ func (w *FieldAPI[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...fronten
 	for i := range inputs {
 		switch vv := inputs[i].(type) {
 		case Element[T]:
+			w.f.enforceWidthConditional(&vv)
 			expandedInputs = append(expandedInputs, vv.Limbs...)
 			typedInputs[i] = typedInput{
 				pos:       len(expandedInputs) - len(vv.Limbs),
@@ -321,6 +322,7 @@ func (w *FieldAPI[T]) NewHint(hf hint.Function, nbOutputs int, inputs ...fronten
 				isElement: true,
 			}
 		case *Element[T]:
+			w.f.enforceWidthConditional(vv)
 			expandedInputs = append(expandedInputs, vv.Limbs...)
 			typedInputs[i] = typedInput{
 				pos:       len(expandedInputs) - len(vv.Limbs),

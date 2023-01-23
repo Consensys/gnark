@@ -11,6 +11,7 @@ import (
 // representation of Element, reduce Element first and take less significant
 // bits corresponding to the bitwidth of the emulated modulus.
 func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
+	f.enforceWidthConditional(a)
 	ba, aConst := f.constantValue(a)
 	if aConst {
 		return f.api.ToBinary(ba, int(f.fParams.BitsPerLimb()*f.fParams.NbLimbs()))
