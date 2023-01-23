@@ -106,33 +106,36 @@ func (witness *Witness) FromAssignment(assignment interface{}, leafType reflect.
 	var i, j int // indexes for secret / public variables
 	i = nbPublic // offset
 
-	collectHandler := func(f *schema.Field, tInput reflect.Value) error {
+	collectHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
 		if publicOnly && f.Visibility != schema.Public {
 			return nil
 		}
 		if tInput.IsNil() {
-			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName)
+			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName())
 		}
 		v := tInput.Interface()
 
 		if v == nil {
-			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName)
+			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName())
 		}
 
 		if !publicOnly && f.Visibility == schema.Secret {
 			if _, err := (*witness)[i].SetInterface(v); err != nil {
-				return fmt.Errorf("when parsing variable %s: %v", f.FullName, err)
+				return fmt.Errorf("when parsing variable %s: %v", f.FullName(), err)
 			}
 			i++
 		} else if f.Visibility == schema.Public {
 			if _, err := (*witness)[j].SetInterface(v); err != nil {
-				return fmt.Errorf("when parsing variable %s: %v", f.FullName, err)
+				return fmt.Errorf("when parsing variable %s: %v", f.FullName(), err)
 			}
 			j++
 		}
 		return nil
 	}
-	return schema.ParseDeprecated(assignment, leafType, collectHandler)
+	if _, err := schema.Walk(assignment, leafType, collectHandler); err != nil {
+		return nil, err
+	}
+	return schema.New(assignment, leafType)
 }
 
 // ToAssignment sets to leaf values to witness underlying vector element values (in order)

@@ -103,7 +103,7 @@ func TestSchemaCorrectness(t *testing.T) {
 
 	// build schema
 	witness := &Circuit{Z: make([]variable, 3)}
-	s, err := ParseDeprecated(witness, tVariable, nil)
+	s, err := New(witness, tVariable)
 	assert.NoError(err)
 
 	// instantiate a concrete object
@@ -188,7 +188,7 @@ func BenchmarkLargeSchema(b *testing.B) {
 	b.Run("parse", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := ParseDeprecated(&t1, tVariable, nil)
+			_, err := New(&t1, tVariable)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -226,7 +226,7 @@ func BenchmarkArrayOfSliceOfStructSchema(b *testing.B) {
 	b.Run("parse", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := ParseDeprecated(&t1, tVariable, nil)
+			_, err := New(&t1, tVariable)
 			if err != nil {
 				b.Fatal(err)
 			}

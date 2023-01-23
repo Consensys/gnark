@@ -12,8 +12,6 @@ import (
 // Walk walks through the provided object and stops when it encounters objects of type tLeaf
 //
 // It returns the number of secret and public leafs encountered during the walk.
-//
-// ! known issue: tLeaf must not be a pointer type
 func Walk(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (count LeafCount, err error) {
 	w := walker{
 		target:      tLeaf,
