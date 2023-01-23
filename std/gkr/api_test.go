@@ -274,7 +274,7 @@ func solveB(b *testing.B, circuit, assignment frontend.Circuit) {
 	pk, _, err := groth16.Setup(cs)
 	assert.NoError(b, err)
 
-	//b.ResetTimer()
+	b.ResetTimer()
 	_, err = groth16.Prove(cs, pk, fullWitness)
 	assert.NoError(b, err)
 	//fmt.Println("done")
@@ -540,9 +540,9 @@ func BenchmarkMiMCNoDep(b *testing.B) {
 		X: make([]frontend.Variable, nbInstances),
 		Y: make([]frontend.Variable, nbInstances),
 	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		solveB(b, &circuit, &assignment)
-	}
 
+	//fmt.Println(b.N)
+	//for i := 0; i < b.N; i++ {
+	solveB(b, &circuit, &assignment)
+	//}
 }
