@@ -31,25 +31,15 @@ type Schema struct {
 	NbSecret int
 }
 
-// LeafHandler is the handler function that will be called when Visit reaches leafs of the struct
-type LeafHandler func(field *Field, tValue reflect.Value) error
-
-// An object implementing an init hook knows how to "init" itself
-// when parsed at compile time
-type InitHook interface {
-	GnarkInitHook() // TODO @gbotrel find a better home for this
-}
-
-// Parse filters recursively input data struct and keeps only the fields containing slices, arrays of elements of
-// type frontend.Variable and return the corresponding  Slices are converted to arrays.
+// New builds a schema.Schema walking through the provided interface (a circuit structure).
 //
-// If handler is specified, handler will be called on each encountered leaf (of type tLeaf)
-func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (*Schema, error) {
+// schema.Walk performs better and should be used when possible.
+func New(circuit interface{}, tLeaf reflect.Type) (*Schema, error) {
 	// note circuit is of type interface{} instead of frontend.Circuit to avoid import cycle
 	// same for tLeaf it is in practice always frontend.Variable
 
 	var nbPublic, nbSecret int
-	fields, err := parse(nil, circuit, tLeaf, "", "", "", Unset, handler, &nbPublic, &nbSecret)
+	fields, err := parse(nil, circuit, tLeaf, "", "", "", Unset, &nbPublic, &nbSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -93,15 +83,15 @@ func (s Schema) WriteSequence(w io.Writer) error {
 	var a int
 	instance := s.Instantiate(reflect.TypeOf(a), false)
 
-	collectHandler := func(f *Field, _ reflect.Value) error {
+	collectHandler := func(f LeafInfo, _ reflect.Value) error {
 		if f.Visibility == Public {
-			public = append(public, f.FullName)
+			public = append(public, f.FullName())
 		} else if f.Visibility == Secret {
-			secret = append(secret, f.FullName)
+			secret = append(secret, f.FullName())
 		}
 		return nil
 	}
-	if _, err := Parse(instance, reflect.TypeOf(a), collectHandler); err != nil {
+	if _, err := Walk(instance, reflect.TypeOf(a), collectHandler); err != nil {
 		return err
 	}
 
@@ -197,7 +187,7 @@ func structTag(baseNameTag string, visibility Visibility, omitEmpty bool) reflec
 // parentFullName: the name of parent with its ancestors separated by "_"
 // parentGoName: the name of parent (Go struct definition)
 // parentTagName: may be empty, set if a struct tag with name is set
-func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility Visibility, handler LeafHandler, nbPublic, nbSecret *int) ([]Field, error) {
+func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility Visibility, nbPublic, nbSecret *int) ([]Field, error) {
 	tValue := reflect.ValueOf(input)
 
 	// get pointed value if needed
@@ -218,11 +208,6 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 		}
 		if f.Visibility == Unset {
 			f.Visibility = Secret
-		}
-		if handler != nil {
-			if err := handler(&f, tValue); err != nil {
-				return nil, fmt.Errorf("leaf handler: %w", err)
-			}
 		}
 		if f.Visibility == Secret {
 			(*nbSecret) += f.ArraySize
@@ -305,7 +290,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 					ih.GnarkInitHook()
 				}
 				var err error
-				subFields, err = parse(subFields, value, target, getFullName(parentFullName, name, nameTag), name, nameTag, visibility, handler, nbPublic, nbSecret)
+				subFields, err = parse(subFields, value, target, getFullName(parentFullName, name, nameTag), name, nameTag, visibility, nbPublic, nbSecret)
 				if err != nil {
 					return r, err
 				}
@@ -354,7 +339,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 				val := tValue.Index(j)
 				if val.CanAddr() && val.Addr().CanInterface() {
 					fqn := getFullName(parentFullName, strconv.Itoa(j), "")
-					if _, err := parse(nil, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, handler, nbPublic, nbSecret); err != nil {
+					if _, err := parse(nil, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, nbPublic, nbSecret); err != nil {
 						return nil, err
 					}
 				}
@@ -376,7 +361,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			val := tValue.Index(j)
 			if val.CanAddr() && val.Addr().CanInterface() {
 				fqn := getFullName(parentFullName, strconv.Itoa(j), "")
-				subFields, err = parse(subFields, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, handler, nbPublic, nbSecret)
+				subFields, err = parse(subFields, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, nbPublic, nbSecret)
 				if err != nil {
 					return nil, err
 				}
@@ -411,28 +396,4 @@ func getFullName(parentFullName, name, tagName string) string {
 		return n
 	}
 	return parentFullName + "_" + n
-}
-
-// TODO @gbotrel this should probably not be here.
-func Copy(from interface{}, fromType reflect.Type, to interface{}, toType reflect.Type) {
-	var wValues []interface{}
-
-	collectHandler := func(f *Field, tInput reflect.Value) error {
-		wValues = append(wValues, tInput.Interface())
-		return nil
-	}
-	_, _ = Parse(from, fromType, collectHandler)
-
-	if len(wValues) == 0 {
-		return
-	}
-
-	i := 0
-	setHandler := func(f *Field, tInput reflect.Value) error {
-		tInput.Set(reflect.ValueOf((wValues[i])))
-		i++
-		return nil
-	}
-	// this can't error.
-	_, _ = Parse(to, toType, setHandler)
 }
