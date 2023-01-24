@@ -40,13 +40,21 @@ func NewAPI[T FieldParams](native frontend.API) (*FieldAPI[T], error) {
 }
 
 func (w *FieldAPI[T]) varToElement(in frontend.Variable) *Element[T] {
-	switch vv := in.(type) {
-	case Element[T]:
-		return &vv
-	case *Element[T]:
-		return vv
-	default:
-		return w.f.newElementPtr(in)
+	if e, ok := in.(Element[T]); ok {
+		return &e
+	} else if e, ok := in.(*Element[T]); ok {
+		return e
+	} else if frontend.IsCanonical(in) {
+		r := w.f.PackFullLimbs([]frontend.Variable{in})
+		return r
+	} else if in == nil {
+		r := newConstElement[T](0)
+		r.internal = false
+		return r
+	} else {
+		r := newConstElement[T](in)
+		r.internal = false
+		return r
 	}
 }
 
