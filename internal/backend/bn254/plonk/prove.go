@@ -16,7 +16,6 @@ package plonk
 
 import (
 	"crypto/sha256"
-	"fmt"
 	"math/big"
 	"runtime"
 	"time"
@@ -56,37 +55,6 @@ type Proof struct {
 
 	// Opening proof of Z at zeta*mu
 	ZShiftedOpening kzg.OpeningProof
-}
-
-func printPoly(n string, v []fr.Element) {
-	fmt.Printf("%s = buildPoly([", n)
-	for i := 0; i < len(v); i++ {
-		fmt.Printf("Fr(%s),", v[i].String())
-	}
-	fmt.Println("])")
-}
-
-func printVector(n string, v []fr.Element) {
-	fmt.Printf("%s = [", n)
-	for i := 0; i < len(v); i++ {
-		fmt.Printf("Fr(%s),", v[i].String())
-	}
-	fmt.Println("]")
-}
-
-func printLayout(f iop.Form) {
-	if f.Basis == iop.Canonical {
-		fmt.Println("CANONICAL")
-	} else if f.Basis == iop.Lagrange {
-		fmt.Println("LAGRANGE")
-	} else {
-		fmt.Println("LAGRANGECOSET")
-	}
-	if f.Layout == iop.Regular {
-		fmt.Println("REGULAR")
-	} else {
-		fmt.Println("BITREVERSE")
-	}
 }
 
 // Prove from the public data
@@ -174,7 +142,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	if err != nil {
 		return proof, err
 	}
-	// printPoly("z", ziop.Coefficients)
 
 	// TODO blind z here
 	// commit to the blinded version of z
@@ -271,7 +238,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 	// ql+β*σ₁+γ
 	ws1 := iop.NewPolynomial(pk.S1Canonical, canReg).WrapMe(0)
-	// printVector("s1", ws1.P.Coefficients)
 	ws1.ToCanonical(ws1, &pk.Domain[0]).ToRegular(ws1).ToLagrangeCoset(ws1, &pk.Domain[1])
 	u, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{*wliop, *ws1})
 	if err != nil {
@@ -281,7 +247,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 	// qr+β*σ₂+γ
 	ws2 := iop.NewPolynomial(pk.S2Canonical, canReg).WrapMe(0)
-	// printVector("s2", ws2.P.Coefficients)
 	ws2.ToCanonical(ws2, &pk.Domain[0]).ToRegular(ws2).ToLagrangeCoset(ws2, &pk.Domain[1])
 	v, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{*wriop, *ws2})
 	if err != nil {
@@ -291,7 +256,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 
 	// qo+β*σ₃+γ
 	ws3 := iop.NewPolynomial(pk.S3Canonical, canReg).WrapMe(0)
-	// printVector("s3", ws3.P.Coefficients)
 	ws3.ToCanonical(ws3, &pk.Domain[0]).ToRegular(ws3).ToLagrangeCoset(ws3, &pk.Domain[1])
 	w, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{*woiop, *ws3})
 	if err != nil {
@@ -314,7 +278,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	if err != nil {
 		return proof, err
 	}
-	// printVector("ordering", ordering.Coefficients)
 
 	// L₀(z-1), z is blinded
 	lone := make([]fr.Element, pk.Domain[0].Cardinality)
@@ -333,7 +296,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	if err != nil {
 		return proof, err
 	}
-	// printVector("sone", startsAtOne.Coefficients)
 
 	// bundle everything up using α
 	var plonkCapture iop.MultivariatePolynomial
@@ -592,16 +554,6 @@ func evaluateLROSmallDomain(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.El
 // + α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*s3(X) - Z(X)*(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ))
 // + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X)
 func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, blindedZCanonical []fr.Element, pk *ProvingKey) []fr.Element {
-
-	// fmt.Printf("flzeta=Fr(%s)\n", lZeta.String())
-	// fmt.Printf("frzeta=Fr(%s)\n", rZeta.String())
-	// fmt.Printf("fozeta=Fr(%s)\n", oZeta.String())
-	// fmt.Printf("falpha=Fr(%s)\n", alpha.String())
-	// fmt.Printf("fbeta=Fr(%s)\n", beta.String())
-	// fmt.Printf("fgamma=Fr(%s)\n", gamma.String())
-	// fmt.Printf("fzeta=Fr(%s)\n", zeta.String())
-	// fmt.Printf("fzu=Fr(%s)\n", zu.String())
-	// printVector("fz", blindedZCanonical)
 
 	// first part: individual constraints
 	var rl fr.Element
