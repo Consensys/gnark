@@ -1,8 +1,9 @@
 package polynomial
 
 import (
-	"github.com/consensys/gnark/frontend"
 	"math/bits"
+
+	"github.com/consensys/gnark/frontend"
 )
 
 type Polynomial []frontend.Variable
@@ -24,10 +25,7 @@ func (m MultiLin) Evaluate(api frontend.API, at []frontend.Variable) frontend.Va
 
 	evaluation := frontend.Variable(0)
 	for j := range m {
-		evaluation = api.Add(
-			evaluation,
-			api.Mul(eqs[j], m[j]),
-		)
+		evaluation = api.MulAcc(evaluation, eqs[j], m[j])
 	}
 	return evaluation
 }
