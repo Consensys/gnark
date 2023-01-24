@@ -463,7 +463,7 @@ func (c *FromBinaryCircuit[T]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := f.FromBinary(c.Bits)
+	res := f.FromBinary(c.Bits...)
 	f.AssertIsEqual(res, c.Res)
 	return nil
 }
