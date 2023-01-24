@@ -297,7 +297,7 @@ func benchProof(b *testing.B, circuit, assignment frontend.Circuit) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		id := rand.Uint32() % 256
+		id := rand.Uint32() % 256 //#nosec G404 -- This is a false positive
 		start = time.Now().UnixMicro()
 		fmt.Println("groth16 proving", id)
 		_, err = groth16.Prove(cs, pk, fullWitness)
