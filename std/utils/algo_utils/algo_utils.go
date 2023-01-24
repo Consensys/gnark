@@ -1,5 +1,7 @@
 package algo_utils
 
+import "github.com/bits-and-blooms/bitset"
+
 // this package provides some generic (in both senses of the word) algorithmic conveniences.
 
 // Permute operates in-place but is not thread-safe; it uses the permutation for scratching
@@ -104,17 +106,19 @@ func newTopSortData(inputs [][]int) topSortData {
 	for i := range res.uniqueOutputs {
 		res.uniqueOutputs[i] = make([]int, 0)
 	}
-	inputsISet := newIntSet(size) //if size is large, a map to struct{} might serve better
+
+	inputsISet := bitset.New(uint(size))
 	for i := range res.uniqueOutputs {
 		if i != 0 {
-			inputsISet.clear()
+			inputsISet.ClearAll()
 		}
 		for _, in := range inputs[i] {
-			if !inputsISet.put(in) {
+			if !inputsISet.Test(uint(in)) {
+				inputsISet.Set(uint(in))
 				res.uniqueOutputs[in] = append(res.uniqueOutputs[in], i)
 			}
 		}
-		res.status[i] = inputsISet.len()
+		res.status[i] = int(inputsISet.Count())
 	}
 
 	for res.status[res.leastReady] != 0 {
@@ -138,32 +142,4 @@ func (d *topSortData) markDone(i int) {
 	for d.leastReady < len(d.status) && d.status[d.leastReady] != 0 {
 		d.leastReady++
 	}
-}
-
-type intSet struct {
-	contains []bool
-	length   int
-}
-
-func newIntSet(capacity int) intSet { //if capacity is large, a map to struct{} might serve better
-	return intSet{contains: make([]bool, capacity)}
-}
-
-func (s *intSet) clear() {
-	for i := range s.contains {
-		s.contains[i] = false
-	}
-	s.length = 0
-}
-
-func (s *intSet) put(i int) (alreadyContains bool) {
-	if alreadyContains = s.contains[i]; !alreadyContains {
-		s.length++
-	}
-	s.contains[i] = true
-	return
-}
-
-func (s *intSet) len() int {
-	return s.length
 }
