@@ -537,33 +537,28 @@ func shallowClone(circuit frontend.Circuit) frontend.Circuit {
 }
 
 func copyWitness(to, from frontend.Circuit) {
-	var wValues []interface{}
+	var wValues []reflect.Value
 
-	collectHandler := func(f *schema.Field, tInput reflect.Value) error {
-		v := tInput.Interface().(frontend.Variable)
-
-		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
-			if v == nil {
-				return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName)
-			}
-			wValues = append(wValues, v)
+	collectHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
+		if tInput.IsNil() {
+			// TODO @gbotrel test for missing assignment
+			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName())
 		}
+		wValues = append(wValues, tInput)
 		return nil
 	}
-	if _, err := schema.Parse(from, tVariable, collectHandler); err != nil {
+	if _, err := schema.Walk(from, tVariable, collectHandler); err != nil {
 		panic(err)
 	}
 
 	i := 0
-	setHandler := func(f *schema.Field, tInput reflect.Value) error {
-		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
-			tInput.Set(reflect.ValueOf(wValues[i]))
-			i++
-		}
+	setHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
+		tInput.Set(wValues[i])
+		i++
 		return nil
 	}
 	// this can't error.
-	_, _ = schema.Parse(to, tVariable, setHandler)
+	_, _ = schema.Walk(to, tVariable, setHandler)
 
 }
 

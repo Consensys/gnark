@@ -67,6 +67,8 @@ var (
 // 1. Assignment (ie assigning values to a frontend.Circuit object)
 // 2. Witness (this object: an ordered vector of field elements + metadata)
 // 3. Serialized (Binary or JSON) using MarshalBinary or MarshalJSON
+//
+// ! MarshalJSON and UnmarshalJSON are slow, and do not handle all complex circuit structures
 type Witness struct {
 	Vector  Vector         //  TODO @gbotrel the result is an interface for now may change to generic Witness[fr.Element] in an upcoming PR
 	Schema  *schema.Schema // optional, Binary encoding needs no schema
@@ -148,6 +150,8 @@ func (w *Witness) UnmarshalBinary(data []byte) error {
 // MarshalJSON implements json.Marshaler
 //
 // Only the vector of field elements is marshalled: the curveID and the Schema are omitted.
+//
+// ! MarshalJSON and UnmarshalJSON are slow, and do not handle all complex circuit structures
 func (w *Witness) MarshalJSON() (r []byte, err error) {
 	if w.Schema == nil {
 		return nil, errMissingSchema
@@ -171,6 +175,8 @@ func (w *Witness) MarshalJSON() (r []byte, err error) {
 }
 
 // UnmarshalJSON implements json.Unmarshaler
+//
+// ! MarshalJSON and UnmarshalJSON are slow, and do not handle all complex circuit structures
 func (w *Witness) UnmarshalJSON(data []byte) error {
 	if w.Schema == nil {
 		return errMissingSchema

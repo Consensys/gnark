@@ -70,34 +70,26 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
 
-	var countedPublic, countedPrivate int
-	counterHandler := func(f *schema.Field, tInput reflect.Value) error {
-		varCount := builder.VariableCount(tInput.Type())
-		switch f.Visibility {
-		case schema.Secret:
-			countedPrivate += varCount
-		case schema.Public:
-			countedPublic += varCount
-		}
-		return nil
-	}
-
-	s, err := schema.Parse(circuit, tVariable, counterHandler)
+	s, err := schema.Walk(circuit, tVariable, nil)
 	if err != nil {
 		return err
 	}
-	s.NbPublic = countedPublic
-	s.NbSecret = countedPrivate
+
+	// we scale the number of secret and public variables by n;
+	// scs and r1cs builder always return 1. Emulated arithmetic returns number of limbs per variable.
+	n := builder.VariableCount(nil)
+	s.Public *= n
+	s.Secret *= n
 	log := logger.Logger()
-	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
+	log.Info().Int("nbSecret", s.Secret).Int("nbPublic", s.Public).Msg("parsed circuit inputs")
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	variableAdder := func(targetVisibility schema.Visibility) func(f *schema.Field, tInput reflect.Value) error {
-		return func(f *schema.Field, tInput reflect.Value) error {
+	variableAdder := func(targetVisibility schema.Visibility) func(f schema.LeafInfo, tInput reflect.Value) error {
+		return func(f schema.LeafInfo, tInput reflect.Value) error {
 			if tInput.CanSet() {
 				if f.Visibility == schema.Unset {
-					return errors.New("can't set val " + f.FullName + " visibility is unset")
+					return errors.New("can't set val " + f.FullName() + " visibility is unset")
 				}
 				if f.Visibility == targetVisibility {
 					if f.Visibility == schema.Public {
@@ -109,18 +101,18 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 
 				return nil
 			}
-			return errors.New("can't set val " + f.FullName)
+			return errors.New("can't set val " + f.FullName())
 		}
 	}
 
 	// add public inputs first to compute correct offsets
-	_, err = schema.Parse(circuit, tVariable, variableAdder(schema.Public))
+	_, err = schema.Walk(circuit, tVariable, variableAdder(schema.Public))
 	if err != nil {
 		return err
 	}
 
 	// add secret inputs
-	_, err = schema.Parse(circuit, tVariable, variableAdder(schema.Secret))
+	_, err = schema.Walk(circuit, tVariable, variableAdder(schema.Secret))
 	if err != nil {
 		return err
 	}

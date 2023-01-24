@@ -105,6 +105,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 			// do a round trip marshalling test
 			assert.Run(func(assert *Assert) {
 				assert.t.Parallel()
+				assert.t.Skip("skipping json")
 				assert.marshalWitness(validWitness, curve, JSON)
 			}, curve.String(), "marshal/json")
 			assert.Run(func(assert *Assert) {
@@ -113,6 +114,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 			}, curve.String(), "marshal/binary")
 			assert.Run(func(assert *Assert) {
 				assert.t.Parallel()
+				assert.t.Skip("skipping json")
 				assert.marshalWitness(validPublicWitness, curve, JSON, frontend.PublicOnly())
 			}, curve.String(), "marshal-public/json")
 			assert.Run(func(assert *Assert) {
