@@ -13,7 +13,11 @@ import (
 // a slice of limbs. The type parameter defines the field this element belongs
 // to.
 type Element[T FieldParams] struct {
-	Limbs []frontend.Variable // in little-endian (least significant limb first) encoding
+	// Limbs is the decomposition of the integer value into limbs in the native
+	// field. To enforce that the limbs are of expected width, use Pack...
+	// methods on the Field. Uses little-endian (least significant limb first)
+	// encoding.
+	Limbs []frontend.Variable
 
 	// overflow indicates the number of additions on top of the normal form. To
 	// ensure that none of the limbs overflow the scalar field of the snark
