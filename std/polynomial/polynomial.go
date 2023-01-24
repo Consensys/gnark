@@ -16,10 +16,9 @@ func (m MultiLin) Evaluate(api frontend.API, at []frontend.Variable) frontend.Va
 	eqs[0] = 1
 	for i, rI := range at {
 		prevSize := 1 << i
-		oneMinusRI := api.Sub(1, rI)
 		for j := prevSize - 1; j >= 0; j-- {
 			eqs[2*j+1] = api.Mul(rI, eqs[j])
-			eqs[2*j] = api.Mul(oneMinusRI, eqs[j])
+			eqs[2*j] = api.Sub(eqs[j], eqs[2*j+1]) // eq[2j] == (1 - rI) * eq[j]
 		}
 	}
 
