@@ -3,6 +3,7 @@ module github.com/consensys/gnark
 go 1.18
 
 require (
+	github.com/bits-and-blooms/bitset v1.5.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
 	github.com/consensys/gnark-crypto v0.9.0
@@ -17,7 +18,6 @@ require (
 )
 
 require (
-	github.com/bits-and-blooms/bitset v1.5.0 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
