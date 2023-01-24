@@ -23,7 +23,6 @@ type Wire struct {
 	Gate            Gate
 	Inputs          []*Wire // if there are no Inputs, the wire is assumed an input wire
 	nbUniqueOutputs int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
-	//nbUniqueInputs  int     // number of inputs, not counting duplicates
 }
 
 type Circuit []Wire
@@ -452,14 +451,18 @@ func topologicalSort(c Circuit) []*Wire {
 
 func (a WireAssignment) NumInstances() int {
 	for _, aW := range a {
-		return len(aW)
+		if aW != nil {
+			return len(aW)
+		}
 	}
 	panic("empty assignment")
 }
 
 func (a WireAssignment) NumVars() int {
 	for _, aW := range a {
-		return aW.NumVars()
+		if aW != nil {
+			return aW.NumVars()
+		}
 	}
 	panic("empty assignment")
 }

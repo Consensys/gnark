@@ -212,6 +212,13 @@ func slicePtrAt[T any](slice []T) func(int) *T {
 	}
 }
 
+func ite[T any](condition bool, ifNot, IfSo T) T {
+	if condition {
+		return IfSo
+	}
+	return ifNot
+}
+
 func newCircuitDataForSnark(info constraint.GkrInfo, assignment assignment) circuitDataForSnark {
 	circuit := make(Circuit, len(info.Circuit))
 	snarkAssignment := make(WireAssignment, len(info.Circuit))
@@ -219,7 +226,7 @@ func newCircuitDataForSnark(info constraint.GkrInfo, assignment assignment) circ
 	for i := range circuit {
 		w := info.Circuit[i]
 		circuit[i] = Wire{
-			Gate:            RegisteredGates[w.Gate],
+			Gate:            ite(w.IsInput(), RegisteredGates[w.Gate], Gate(IdentityGate{})),
 			Inputs:          algo_utils.Map(w.Inputs, circuitAt),
 			nbUniqueOutputs: w.NbUniqueOutputs,
 		}
