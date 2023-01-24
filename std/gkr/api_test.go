@@ -2,6 +2,12 @@ package gkr
 
 import (
 	"fmt"
+	"hash"
+	"math/rand"
+	"strconv"
+	"testing"
+	"time"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bn254MiMC "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
@@ -13,14 +19,14 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
-	"github.com/consensys/gnark/std/utils/test_vectors_utils"
+	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/stretchr/testify/assert"
-	"hash"
-	"math/rand"
-	"strconv"
-	"testing"
-	"time"
 )
+
+// compressThreshold --> if linear expressions are larger than this, the frontend will introduce
+// intermediate constraints. The lower this number is, the faster compile time should be (to a point)
+// but resulting circuit will have more constraints (slower proving time).
+const compressThreshold = 1000
 
 type doubleNoDependencyCircuit struct {
 	X        []frontend.Variable
@@ -269,7 +275,7 @@ func BenchmarkMiMCMerkleTree(b *testing.B) {
 func benchCompile(b *testing.B, circuit frontend.Circuit) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
+		_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
 		assert.NoError(b, err)
 	}
 }
@@ -277,7 +283,7 @@ func benchCompile(b *testing.B, circuit frontend.Circuit) {
 func benchProof(b *testing.B, circuit, assignment frontend.Circuit) {
 	fmt.Println("compiling...")
 	start := time.Now().UnixMicro()
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
 	assert.NoError(b, err)
 	fmt.Println("compiled in", time.Now().UnixMicro()-start, "μs")
 	fullWitness, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
@@ -364,7 +370,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 }
 
 func testE2E(t *testing.T, circuit, assignment frontend.Circuit) {
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
 	assert.NoError(t, err)
 	var (
 		fullWitness   *witness.Witness
