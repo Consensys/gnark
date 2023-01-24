@@ -2,6 +2,8 @@ package ecdsa
 
 import (
 	"crypto/rand"
+	"crypto/sha512"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -27,26 +29,44 @@ func TestEcdsa(t *testing.T) {
 
 	// generate parameters
 	privKey, _ := scheme.GenerateKey(rand.Reader)
+	publicKey := privKey.PublicKey
 
 	// sign
-	hash := []byte("testing ECDSA")
-	sig, _ := scheme.Sign(hash, *privKey, rand.Reader)
+	msg := []byte("testing ECDSA")
+	md := sha512.New()
+	sigBin, _ := privKey.Sign(msg, md)
 
 	// check that the signature is correct
-	if !scheme.Verify(hash, sig, privKey.PublicKey.Q) {
+	flag, _ := publicKey.Verify(sigBin, msg, md)
+	if !flag {
 		t.Errorf("can't verify signature")
 	}
+
+	// unmarshal signature
+	var sig scheme.Signature
+	sig.SetBytes(sigBin)
+	r, s := new(big.Int), new(big.Int)
+	r.SetBytes(sig.R[:32])
+	s.SetBytes(sig.S[:32])
+
+	// compute the hash of the message as an integer
+	dataToHash := make([]byte, len(msg))
+	copy(dataToHash[:], msg[:])
+	md.Reset()
+	md.Write(dataToHash[:])
+	hramBin := md.Sum(nil)
+	hash := scheme.HashToInt(hramBin)
 
 	circuit := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		Sig: Signature[emulated.Secp256k1Fr]{
-			R: emulated.NewElement[emulated.Secp256k1Fr](sig.R),
-			S: emulated.NewElement[emulated.Secp256k1Fr](sig.S),
+			R: emulated.NewElement[emulated.Secp256k1Fr](r),
+			S: emulated.NewElement[emulated.Secp256k1Fr](s),
 		},
 		Msg: emulated.NewElement[emulated.Secp256k1Fr](hash),
 		Pub: PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](privKey.PublicKey.Q.X),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](privKey.PublicKey.Q.Y),
+			X: emulated.NewElement[emulated.Secp256k1Fp](privKey.PublicKey.A.X),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
 		},
 	}
 	assert := test.NewAssert(t)
@@ -82,11 +102,17 @@ func ExamplePublicKey_Verify_create() {
 	privKey, _ := scheme.GenerateKey(rand.Reader)
 
 	// sign
-	hash := []byte("testing ECDSA")
-	sig, _ := scheme.Sign(hash, *privKey, rand.Reader)
+	msg := []byte("testing ECDSA")
+	md := sha512.New()
+	sigBin, _ := privKey.Sign(msg, md)
 
-	pubx := privKey.PublicKey.Q.X
-	puby := privKey.PublicKey.Q.Y
+	pubx := privKey.PublicKey.A.X
+	puby := privKey.PublicKey.A.Y
+
+	// unmarshal signature
+	var sig scheme.Signature
+	sig.SetBytes(sigBin)
+
 	// can continue in the PublicKey Verify example
-	_, _, _, _, _ = sig.R, sig.S, hash, pubx, puby
+	_, _, _, _, _ = sig.R, sig.S, msg, pubx, puby
 }
