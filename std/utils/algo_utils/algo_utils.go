@@ -103,22 +103,21 @@ func newTopSortData(inputs [][]int) topSortData {
 		status:        make([]int, size),
 		leastReady:    0,
 	}
-	for i := range res.uniqueOutputs {
-		res.uniqueOutputs[i] = make([]int, 0)
-	}
 
 	inputsISet := bitset.New(uint(size))
 	for i := range res.uniqueOutputs {
 		if i != 0 {
 			inputsISet.ClearAll()
 		}
+		cpt := 0
 		for _, in := range inputs[i] {
 			if !inputsISet.Test(uint(in)) {
 				inputsISet.Set(uint(in))
+				cpt++
 				res.uniqueOutputs[in] = append(res.uniqueOutputs[in], i)
 			}
 		}
-		res.status[i] = int(inputsISet.Count())
+		res.status[i] = cpt
 	}
 
 	for res.status[res.leastReady] != 0 {
