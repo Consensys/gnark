@@ -92,22 +92,16 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 		assignment := solvingData.init(info)
 
 		for instanceI := 0; instanceI < nbInstances; instanceI++ {
-			//fmt.Println("instance", instanceI) TODO Remove prints
 			for wireI, wire := range circuit {
-				//fmt.Print("\twire ", wireI, ": ")
 				if wire.IsInput() {
-					//fmt.Print("input.")
 					if nbDepsResolved[wireI] < len(wire.Dependencies) && instanceI == wire.Dependencies[nbDepsResolved[wireI]].InputInstance {
-						//fmt.Print(" copying value from dependency")
 						dep := wire.Dependencies[nbDepsResolved[wireI]]
 						assignment[wireI][instanceI].Set(&assignment[dep.OutputWire][dep.OutputInstance])
 						nbDepsResolved[wireI]++
 					} else {
-						//fmt.Print(" taking value from input")
 						assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-nbDepsResolved[wireI]])
 					}
 				} else {
-					//fmt.Print("gated.")
 					// assemble the inputs
 					inputIndexes := info.Circuit[wireI].Inputs
 					for i, inputI := range inputIndexes {
@@ -116,7 +110,6 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 					gate := solvingData.circuit[wireI].Gate
 					assignment[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
 				}
-				//fmt.Println("\n\t\tresult: ", assignment[wireI][instanceI].Text(10))
 			}
 		}
 

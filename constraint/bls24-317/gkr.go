@@ -43,68 +43,36 @@ func convertCircuit(noPtr constraint.GkrCircuit) gkr.Circuit {
 	return resCircuit
 }
 
+func (d *gkrSolvingData) init(info constraint.GkrInfo) gkrAssignment {
+	d.memoryPool = polynomial.NewPool(256, info.NbInstances)
+	d.circuit = convertCircuit(info.Circuit)
+
+	assignmentsSequential := make(gkrAssignment, len(d.circuit))
+	d.assignments = make(gkr.WireAssignment, len(d.circuit))
+	for i := range assignmentsSequential {
+		assignmentsSequential[i] = d.memoryPool.Make(info.NbInstances)
+		d.assignments[&d.circuit[i]] = assignmentsSequential[i]
+	}
+
+	return assignmentsSequential
+}
+
+func (d *gkrSolvingData) dumpAssignments() {
+	for _, p := range d.assignments {
+		d.memoryPool.Dump(p)
+	}
+}
+
 // this module assumes that wire and instance indexes respect dependencies
 
 type gkrAssignment [][]fr.Element //gkrAssignment is indexed wire first, instance second
 
-// assumes assignmentVector is arranged wire first, instance second in order of solution
-func gkrSolve(info constraint.GkrInfo, solvingData gkrSolvingData, assignmentVector []*big.Int) gkrAssignment {
-	circuit := info.Circuit
-	nbInstances := info.NbInstances
-	offsets := info.AssignmentOffsets()
-	nbDepsResolved := make([]int, len(circuit))
-	inputs := make([]fr.Element, info.MaxNIns)
-
-	assignments := make(gkrAssignment, len(circuit))
-	for i := range assignments {
-		assignments[i] = make([]fr.Element, nbInstances)
-	}
-
-	for instanceI := 0; instanceI < nbInstances; instanceI++ {
-		//fmt.Println("instance", instanceI)
-		for wireI, wire := range circuit {
-			//fmt.Print("\twire ", wireI, ": ")
-			if wire.IsInput() {
-				//fmt.Print("input.")
-				if nbDepsResolved[wireI] < len(wire.Dependencies) && instanceI == wire.Dependencies[nbDepsResolved[wireI]].InputInstance {
-					//fmt.Print(" copying value from dependency")
-					dep := wire.Dependencies[nbDepsResolved[wireI]]
-					assignments[wireI][instanceI].Set(&assignments[dep.OutputWire][dep.OutputInstance])
-					nbDepsResolved[wireI]++
-				} else {
-					//fmt.Print(" taking value from input")
-					assignments[wireI][instanceI].SetBigInt(assignmentVector[offsets[wireI]+instanceI-nbDepsResolved[wireI]])
-				}
-			} else {
-				//fmt.Print("gated.")
-				// assemble the inputs
-				inputIndexes := info.Circuit[wireI].Inputs
-				for i, inputI := range inputIndexes {
-					inputs[i].Set(&assignments[inputI][instanceI])
-				}
-				gate := solvingData.circuit[wireI].Gate
-				assignments[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
-			}
-			//fmt.Println("\n\t\tresult: ", assignments[wireI][instanceI].Text(10))
-		}
-	}
-	return assignments
-}
-
-func toMapAssignment(circuit gkr.Circuit, assignment gkrAssignment) gkr.WireAssignment {
-	res := make(gkr.WireAssignment, len(circuit))
-	for i := range circuit {
-		res[&circuit[i]] = assignment[i]
-	}
-	return res
-}
-
-func gkrSetOutputValues(circuit []constraint.GkrWire, assignments gkrAssignment, outs []*big.Int) {
+func (a gkrAssignment) setOuts(circuit constraint.GkrCircuit, outs []*big.Int) {
 	outsI := 0
 	for i := range circuit {
 		if circuit[i].IsOutput() {
-			for j := range assignments[i] {
-				assignments[i][j].BigInt(outs[outsI])
+			for j := range a[i] {
+				a[i][j].BigInt(outs[outsI])
 				outsI++
 			}
 		}
@@ -112,16 +80,40 @@ func gkrSetOutputValues(circuit []constraint.GkrWire, assignments gkrAssignment,
 	// Check if outsI == len(outs)?
 }
 
-func gkrSolveHint(data constraint.GkrInfo, res *gkrSolvingData) hint.Function {
+func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Function {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 
-		res.circuit = convertCircuit(data.Circuit) // TODO: Take this out of here into the proving module
-		res.memoryPool = polynomial.NewPool(256, data.NbInstances)
+		// assumes assignmentVector is arranged wire first, instance second in order of solution
+		circuit := info.Circuit
+		nbInstances := info.NbInstances
+		offsets := info.AssignmentOffsets()
+		nbDepsResolved := make([]int, len(circuit))
+		inputs := make([]fr.Element, info.MaxNIns)
+		assignment := solvingData.init(info)
 
-		assignments := gkrSolve(data, *res, ins)
-		res.assignments = toMapAssignment(res.circuit, assignments)
-		gkrSetOutputValues(data.Circuit, assignments, outs)
+		for instanceI := 0; instanceI < nbInstances; instanceI++ {
+			for wireI, wire := range circuit {
+				if wire.IsInput() {
+					if nbDepsResolved[wireI] < len(wire.Dependencies) && instanceI == wire.Dependencies[nbDepsResolved[wireI]].InputInstance {
+						dep := wire.Dependencies[nbDepsResolved[wireI]]
+						assignment[wireI][instanceI].Set(&assignment[dep.OutputWire][dep.OutputInstance])
+						nbDepsResolved[wireI]++
+					} else {
+						assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-nbDepsResolved[wireI]])
+					}
+				} else {
+					// assemble the inputs
+					inputIndexes := info.Circuit[wireI].Inputs
+					for i, inputI := range inputIndexes {
+						inputs[i].Set(&assignment[inputI][instanceI])
+					}
+					gate := solvingData.circuit[wireI].Gate
+					assignment[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
+				}
+			}
+		}
 
+		assignment.setOuts(info.Circuit, outs)
 		return nil
 	}
 }
@@ -160,6 +152,9 @@ func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 				offset += len(finalEvalProof)
 			}
 		}
+
+		data.dumpAssignments()
+
 		return nil
 
 	}
@@ -170,6 +165,7 @@ func defineGkrHints(info constraint.GkrInfo, hintFunctions map[hint.ID]hint.Func
 	for k, v := range hintFunctions {
 		res[k] = v
 	}
+
 	var gkrData gkrSolvingData
 	res[info.SolveHintID] = gkrSolveHint(info, &gkrData)
 	res[info.ProveHintID] = gkrProveHint(info.HashName, &gkrData)
