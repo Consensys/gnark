@@ -85,6 +85,8 @@ func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) fronte
 // to overflow). This method does not ensure that the values are equal modulo
 // the field order. For strict equality, use AssertIsEqual.
 func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
 	ba, aConst := f.constantValue(a)
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
@@ -141,6 +143,7 @@ func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
 
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
 func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
+	// we omit width assertion as it is done in Sub below
 	ba, aConst := f.constantValue(a)
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
@@ -170,6 +173,7 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 
 // AssertIsEqualLessThan ensures that e is less or equal than e.
 func (f *Field[T]) AssertIsLessEqualThan(e, a *Element[T]) {
+	// we omit conditional width assertion as is done in ToBits below
 	if e.overflow+a.overflow > 0 {
 		panic("inputs must have 0 overflow")
 	}
