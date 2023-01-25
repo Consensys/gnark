@@ -2,7 +2,7 @@ package ecdsa
 
 import (
 	"crypto/rand"
-	"crypto/sha512"
+	"crypto/sha256"
 	"math/big"
 	"testing"
 
@@ -25,15 +25,57 @@ func (c *EcdsaCircuit[T, S]) Define(api frontend.API) error {
 	return nil
 }
 
-func TestEcdsa(t *testing.T) {
+func TestEcdsaPreHashed(t *testing.T) {
 
 	// generate parameters
 	privKey, _ := scheme.GenerateKey(rand.Reader)
 	publicKey := privKey.PublicKey
 
 	// sign
-	msg := []byte("testing ECDSA")
-	md := sha512.New()
+	msg := []byte("testing ECDSA (pre-hashed)")
+	sigBin, _ := privKey.Sign(msg, nil)
+
+	// check that the signature is correct
+	flag, _ := publicKey.Verify(sigBin, msg, nil)
+	if !flag {
+		t.Errorf("can't verify signature")
+	}
+
+	// unmarshal signature
+	var sig scheme.Signature
+	sig.SetBytes(sigBin)
+	r, s := new(big.Int), new(big.Int)
+	r.SetBytes(sig.R[:32])
+	s.SetBytes(sig.S[:32])
+
+	hash := scheme.HashToInt(msg)
+
+	circuit := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		Sig: Signature[emulated.Secp256k1Fr]{
+			R: emulated.NewElement[emulated.Secp256k1Fr](r),
+			S: emulated.NewElement[emulated.Secp256k1Fr](s),
+		},
+		Msg: emulated.NewElement[emulated.Secp256k1Fr](hash),
+		Pub: PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+			X: emulated.NewElement[emulated.Secp256k1Fp](privKey.PublicKey.A.X),
+			Y: emulated.NewElement[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
+		},
+	}
+	assert := test.NewAssert(t)
+	err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+func TestEcdsaSHA256(t *testing.T) {
+
+	// generate parameters
+	privKey, _ := scheme.GenerateKey(rand.Reader)
+	publicKey := privKey.PublicKey
+
+	// sign
+	msg := []byte("testing ECDSA (sha256)")
+	md := sha256.New()
 	sigBin, _ := privKey.Sign(msg, md)
 
 	// check that the signature is correct
@@ -103,7 +145,7 @@ func ExamplePublicKey_Verify_create() {
 
 	// sign
 	msg := []byte("testing ECDSA")
-	md := sha512.New()
+	md := sha256.New()
 	sigBin, _ := privKey.Sign(msg, md)
 
 	pubx := privKey.PublicKey.A.X
