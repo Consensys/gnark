@@ -11,6 +11,7 @@ import (
 
 // Div computes a/b and returns it. It uses [DivHint] as a hint function.
 func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
+	// omit width assertion as for a is done in AssertIsEqual and for b is done in Mul below
 	if !f.fParams.IsPrime() {
 		// TODO shouldn't we still try to do a classic int div in a hint, constraint the result, and let it fail?
 		// that would enable things like uint32 div ?
@@ -28,6 +29,7 @@ func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 
 // Inverse compute 1/a and returns it. It uses [InverseHint].
 func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
+	// omit width assertion as is done in Mul below
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
 	}
@@ -70,7 +72,7 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Add(ba, bb).Mod(ba, f.fParams.Modulus())
-		return newElementPtr[T](ba)
+		return newConstElement[T](ba)
 	}
 
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
@@ -84,7 +86,7 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 			limbs[i] = f.api.Add(limbs[i], b.Limbs[i])
 		}
 	}
-	return newElementLimbs[T](limbs, nextOverflow)
+	return f.newInternalElement(limbs, nextOverflow)
 }
 
 // Mul computes a*b and returns it. It doesn't reduce the output and it may be
@@ -138,13 +140,13 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 		func(a, _ *Element[T], u uint) *Element[T] {
 			if ba, aConst := f.constantValue(a); aConst {
 				ba.Mul(ba, c)
-				return newElementPtr[T](ba)
+				return newConstElement[T](ba)
 			}
 			limbs := make([]frontend.Variable, len(a.Limbs))
 			for i := range a.Limbs {
 				limbs[i] = f.api.Mul(a.Limbs[i], c)
 			}
-			return newElementLimbs[T](limbs, a.overflow+cbl)
+			return f.newInternalElement(limbs, a.overflow+cbl)
 		},
 		func(a, _ *Element[T]) (nextOverflow uint, err error) {
 			nextOverflow = a.overflow + uint(cbl)
@@ -172,7 +174,7 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Mul(ba, bb).Mod(ba, f.fParams.Modulus())
-		return newElementPtr[T](ba)
+		return newConstElement[T](ba)
 	}
 
 	// mulResult contains the result (out of circuit) of a * b school book multiplication
@@ -206,11 +208,12 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 		}
 		f.api.AssertIsEqual(f.api.Mul(l, r), o)
 	}
-	return newElementLimbs[T](mulResult, nextOverflow)
+	return f.newInternalElement(mulResult, nextOverflow)
 }
 
 // Reduce reduces a modulo the field order and returns it. Uses hint [RemHint].
 func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
 	if a.overflow == 0 {
 		// fast path - already reduced, omit reduction.
 		return a
@@ -258,7 +261,7 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
 		ba.Sub(ba, bb).Mod(ba, f.fParams.Modulus())
-		return newElementPtr[T](ba)
+		return newConstElement[T](ba)
 	}
 
 	// first we have to compute padding to ensure that the subtraction does not
@@ -275,7 +278,7 @@ func (f *Field[T]) sub(a, b *Element[T], nextOverflow uint) *Element[T] {
 			limbs[i] = f.api.Sub(limbs[i], b.Limbs[i])
 		}
 	}
-	return newElementLimbs[T](limbs, nextOverflow)
+	return f.newInternalElement(limbs, nextOverflow)
 }
 
 func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
@@ -287,9 +290,11 @@ func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
 // overflows. If the inputs are strongly unbalanced, then it would better to
 // reduce the result after the operation.
 func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
 	overflow := max(a.overflow, b.overflow)
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
-	e := newElementLimbs[T](make([]frontend.Variable, nbLimbs), overflow)
+	e := f.newInternalElement(make([]frontend.Variable, nbLimbs), overflow)
 	normalize := func(limbs []frontend.Variable) []frontend.Variable {
 		if len(limbs) < nbLimbs {
 			tail := make([]frontend.Variable, nbLimbs-len(limbs))
@@ -318,9 +323,13 @@ func (f *Field[T]) Select(selector frontend.Variable, a, b *Element[T]) *Element
 // The number of the limbs and overflow in the result is the maximum of the
 // inputs'. If the inputs are very unbalanced, then reduce the result.
 func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
+	f.enforceWidthConditional(c)
+	f.enforceWidthConditional(d)
 	overflow := max(a.overflow, b.overflow, c.overflow, d.overflow)
 	nbLimbs := max(len(a.Limbs), len(b.Limbs), len(c.Limbs), len(d.Limbs))
-	e := newElementLimbs[T](make([]frontend.Variable, nbLimbs), overflow)
+	e := f.newInternalElement(make([]frontend.Variable, nbLimbs), overflow)
 	normalize := func(limbs []frontend.Variable) []frontend.Variable {
 		if len(limbs) < nbLimbs {
 			tail := make([]frontend.Variable, nbLimbs-len(limbs))
@@ -345,6 +354,8 @@ func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *El
 // errs, then first reduces the input arguments. The reduction is done
 // one-by-one with the element with highest overflow reduced first.
 func (f *Field[T]) reduceAndOp(op func(*Element[T], *Element[T], uint) *Element[T], preCond func(*Element[T], *Element[T]) (uint, error), a, b *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
 	var nextOverflow uint
 	var err error
 	var target errOverflow
@@ -360,6 +371,8 @@ func (f *Field[T]) reduceAndOp(op func(*Element[T], *Element[T], uint) *Element[
 }
 
 func (f *Field[T]) reduceAndOpMutable(op func(*Element[T], *Element[T], uint) *Element[T], preCond func(*Element[T], *Element[T]) (uint, error), a, b *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
 	var nextOverflow uint
 	var err error
 	var target errOverflow
