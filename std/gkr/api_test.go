@@ -586,7 +586,7 @@ func BenchmarkMiMCNoDepSolve(b *testing.B) {
 }
 
 func BenchmarkMiMCFullDepthNoDepSolve(b *testing.B) {
-	circuit, assignment := mimcNoDepCircuits(91, 1<<14)
+	circuit, assignment := mimcNoDepCircuits(91, 1<<19)
 	benchProof(b, circuit, assignment)
 }
 
@@ -596,7 +596,7 @@ func BenchmarkMiMCFullDepthNoDepCompile(b *testing.B) {
 }
 
 func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
-	circuit, assignment := mimcNoGkrCircuits(91, 1<<14)
+	circuit, assignment := mimcNoGkrCircuits(91, 1<<19)
 	benchProof(b, circuit, assignment)
 }
 
