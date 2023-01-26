@@ -125,11 +125,6 @@ func (builder *builder) newInternalVariable() expr.LinearExpression {
 	return expr.NewLinearExpression(idx, builder.tOne)
 }
 
-func (builder *builder) VariableCount(t reflect.Type) int {
-	// TODO @gbotrel refactor?
-	return 1
-}
-
 // PublicVariable creates a new public Variable
 func (builder *builder) PublicVariable(f schema.LeafInfo) frontend.Variable {
 	idx := builder.cs.AddPublicVariable(f.FullName())
