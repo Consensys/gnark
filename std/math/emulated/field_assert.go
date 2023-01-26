@@ -118,8 +118,7 @@ func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
 // than full limb width). Otherwise, every limb is assumed to have same width
 // (defined by the field parameter).
 func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
-	_, aConst := f.constantValue(a)
-	if aConst {
+	if _, aConst := f.constantValue(a); aConst {
 		if len(a.Limbs) != int(f.fParams.NbLimbs()) {
 			panic("constant limb width doesn't match parametrized field")
 		}

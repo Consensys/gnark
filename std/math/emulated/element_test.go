@@ -130,12 +130,12 @@ type MulNoOverflowCircuit[T FieldParams] struct {
 }
 
 func (c *MulNoOverflowCircuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	res := f.Mul(c.A, c.B)
-	f.AssertIsEqual(res, c.C)
+	res := f.Mul(&c.A, &c.B)
+	f.AssertIsEqual(res, &c.C)
 	return nil
 }
 
@@ -167,12 +167,12 @@ type MulCircuitOverflow[T FieldParams] struct {
 }
 
 func (c *MulCircuitOverflow[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	res := f.Mul(c.A, c.B)
-	f.AssertIsEqual(res, c.C)
+	res := f.Mul(&c.A, &c.B)
+	f.AssertIsEqual(res, &c.C)
 	return nil
 }
 
@@ -244,12 +244,12 @@ type SubtractCircuit[T FieldParams] struct {
 }
 
 func (c *SubtractCircuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	res := f.Sub(c.A, c.B)
-	f.AssertIsEqual(res, c.C)
+	res := f.Sub(&c.A, &c.B)
+	f.AssertIsEqual(res, &c.C)
 	return nil
 }
 
@@ -301,12 +301,12 @@ type NegationCircuit[T FieldParams] struct {
 }
 
 func (c *NegationCircuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	res := f.Neg(c.A)
-	f.AssertIsEqual(res, c.B)
+	res := f.Neg(&c.A)
+	f.AssertIsEqual(res, &c.B)
 	return nil
 }
 
@@ -335,12 +335,12 @@ type InverseCircuit[T FieldParams] struct {
 }
 
 func (c *InverseCircuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	res := f.Inverse(c.A)
-	f.AssertIsEqual(res, c.B)
+	res := f.Inverse(&c.A)
+	f.AssertIsEqual(res, &c.B)
 	return nil
 }
 
@@ -373,12 +373,12 @@ type DivisionCircuit[T FieldParams] struct {
 }
 
 func (c *DivisionCircuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	res := f.Div(c.A, c.B)
-	f.AssertIsEqual(res, c.C)
+	res := f.Div(&c.A, &c.B)
+	f.AssertIsEqual(res, &c.C)
 	return nil
 }
 
@@ -415,11 +415,11 @@ type ToBinaryCircuit[T FieldParams] struct {
 }
 
 func (c *ToBinaryCircuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	bits := f.ToBinary(c.Value)
+	bits := f.ToBits(&c.Value)
 	if len(bits) != len(c.Bits) {
 		return fmt.Errorf("got %d bits, expected %d", len(bits), len(c.Bits))
 	}
@@ -459,12 +459,12 @@ type FromBinaryCircuit[T FieldParams] struct {
 }
 
 func (c *FromBinaryCircuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	res := f.FromBinary(c.Bits...)
-	f.AssertIsEqual(res, c.Res)
+	res := f.FromBits(c.Bits...)
+	f.AssertIsEqual(res, &c.Res)
 	return nil
 }
 
@@ -500,12 +500,12 @@ type EqualityCheckCircuit[T FieldParams] struct {
 }
 
 func (c *EqualityCheckCircuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
 	// res := c.A //f.Set(c.A) TODO @gbotrel fixme
-	f.AssertIsEqual(c.A, c.B)
+	f.AssertIsEqual(&c.A, &c.B)
 	return nil
 }
 
@@ -536,13 +536,13 @@ type SelectCircuit[T FieldParams] struct {
 }
 
 func (c *SelectCircuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	l := f.Mul(c.A, c.B)
-	res := f.Select(c.Selector, l, c.C)
-	f.AssertIsEqual(res, c.D)
+	l := f.Mul(&c.A, &c.B)
+	res := f.Select(c.Selector, l, &c.C)
+	f.AssertIsEqual(res, &c.D)
 	return nil
 }
 
@@ -586,12 +586,12 @@ type Lookup2Circuit[T FieldParams] struct {
 }
 
 func (c *Lookup2Circuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
-	res := f.Lookup2(c.Bit0, c.Bit1, c.A, c.B, c.C, c.D)
-	f.AssertIsEqual(res, c.E)
+	res := f.Lookup2(c.Bit0, c.Bit1, &c.A, &c.B, &c.C, &c.D)
+	f.AssertIsEqual(res, &c.E)
 	return nil
 }
 
@@ -633,26 +633,28 @@ type ComputationCircuit[T FieldParams] struct {
 }
 
 func (c *ComputationCircuit[T]) Define(api frontend.API) error {
-	f, err := NewAPI[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return err
 	}
 	// compute x1^3 + 5*x2 + (x3-x4) / (x5+x6)
-	x13 := f.Mul(c.X1, c.X1)
+	x13 := f.Mul(&c.X1, &c.X1)
 	if !c.noReduce {
 		x13 = f.Reduce(x13)
 	}
-	x13 = f.Mul(x13, c.X1)
+	x13 = f.Mul(x13, &c.X1)
 	if !c.noReduce {
 		x13 = f.Reduce(x13)
 	}
 
-	fx2 := f.Mul(5, c.X2)
+	// TODO @gbotrel better way to deal with constants?
+	five := NewElement[T](5)
+	fx2 := f.Mul(&five, &c.X2)
 	fx2 = f.Reduce(fx2)
 
-	nom := f.Sub(c.X3, c.X4)
+	nom := f.Sub(&c.X3, &c.X4)
 
-	denom := f.Add(c.X5, c.X6)
+	denom := f.Add(&c.X5, &c.X6)
 
 	free := f.Div(nom, denom)
 
@@ -660,7 +662,7 @@ func (c *ComputationCircuit[T]) Define(api frontend.API) error {
 	res := f.Add(x13, fx2)
 	res = f.Add(res, free)
 
-	f.AssertIsEqual(res, c.Res)
+	f.AssertIsEqual(res, &c.Res)
 	return nil
 }
 
