@@ -65,13 +65,13 @@ func TestEcdsa(t *testing.T) {
 	circuit := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		Sig: Signature[emulated.Secp256k1Fr]{
-			R: emulated.NewElement[emulated.Secp256k1Fr](r),
-			S: emulated.NewElement[emulated.Secp256k1Fr](s),
+			R: emulated.NewConstant[emulated.Secp256k1Fr](r),
+			S: emulated.NewConstant[emulated.Secp256k1Fr](s),
 		},
-		Msg: emulated.NewElement[emulated.Secp256k1Fr](m),
+		Msg: emulated.NewConstant[emulated.Secp256k1Fr](m),
 		Pub: PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](_pub.X),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](_pub.Y),
+			X: emulated.NewConstant[emulated.Secp256k1Fp](_pub.X),
+			Y: emulated.NewConstant[emulated.Secp256k1Fp](_pub.Y),
 		},
 	}
 	assert := test.NewAssert(t)
@@ -90,13 +90,13 @@ func ExamplePublicKey_Verify() {
 
 	// can be done in or out-circuit.
 	Sig := Signature[emulated.Secp256k1Fr]{
-		R: emulated.NewElement[emulated.Secp256k1Fr](r),
-		S: emulated.NewElement[emulated.Secp256k1Fr](s),
+		R: emulated.NewConstant[emulated.Secp256k1Fr](r),
+		S: emulated.NewConstant[emulated.Secp256k1Fr](s),
 	}
-	Msg := emulated.NewElement[emulated.Secp256k1Fr](m)
+	Msg := emulated.NewConstant[emulated.Secp256k1Fr](m)
 	Pub := PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
-		X: emulated.NewElement[emulated.Secp256k1Fp](pubx),
-		Y: emulated.NewElement[emulated.Secp256k1Fp](puby),
+		X: emulated.NewConstant[emulated.Secp256k1Fp](pubx),
+		Y: emulated.NewConstant[emulated.Secp256k1Fp](puby),
 	}
 	// signature verification assertion is done in-circuit
 	Pub.Verify(api, weierstrass.GetCurveParams[emulated.Secp256k1Fp](), &Msg, &Sig)

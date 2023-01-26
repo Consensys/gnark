@@ -81,9 +81,9 @@ func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) fronte
 
 }
 
-// AssertLimbsEquality asserts that the limbs represent a same integer value (up
-// to overflow). This method does not ensure that the values are equal modulo
-// the field order. For strict equality, use AssertIsEqual.
+// AssertLimbsEquality asserts that the limbs represent a same integer value.
+// This method does not ensure that the values are equal modulo the field order.
+// For strict equality, use AssertIsEqual.
 func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
@@ -98,7 +98,7 @@ func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
 		return
 	}
 
-	// first, we check if we can compact the e and other; they could be using 8 limbs of 32bits
+	// first, we check if we can compact a and b; they could be using 8 limbs of 32bits
 	// but with our snark field, we could express them in 2 limbs of 128bits, which would make bit decomposition
 	// and limbs equality in-circuit (way) cheaper
 	ca, cb, bitsPerLimb := f.compact(a, b)
@@ -170,8 +170,8 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 	f.AssertLimbsEquality(diff, kp)
 }
 
-// AssertIsEqualLessThan ensures that e is less or equal than e.
-func (f *Field[T]) AssertIsLessEqualThan(e, a *Element[T]) {
+// AssertIsLessOrEqual ensures that e is less or equal than a.
+func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 	// we omit conditional width assertion as is done in ToBits below
 	if e.overflow+a.overflow > 0 {
 		panic("inputs must have 0 overflow")

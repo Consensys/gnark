@@ -64,7 +64,7 @@ func (c *ConstantCircuit) Define(api frontend.API) error {
 		return err
 	}
 	{
-		c1 := NewElement[Secp256k1Fp](42)
+		c1 := NewConstant[Secp256k1Fp](42)
 		b1, ok := f.constantValue(&c1)
 		if !ok {
 			return errors.New("42 should be constant")
@@ -107,9 +107,9 @@ func (c *MulConstantCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	c0 := NewElement[Secp256k1Fp](0)
-	c1 := NewElement[Secp256k1Fp](0)
-	c2 := NewElement[Secp256k1Fp](0)
+	c0 := NewConstant[Secp256k1Fp](0)
+	c1 := NewConstant[Secp256k1Fp](0)
+	c2 := NewConstant[Secp256k1Fp](0)
 	r := f.Mul(&c0, &c1)
 	f.AssertIsEqual(r, &c2)
 
@@ -136,9 +136,9 @@ func (c *SubConstantCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	c0 := NewElement[Secp256k1Fp](0)
-	c1 := NewElement[Secp256k1Fp](0)
-	c2 := NewElement[Secp256k1Fp](0)
+	c0 := NewConstant[Secp256k1Fp](0)
+	c1 := NewConstant[Secp256k1Fp](0)
+	c2 := NewConstant[Secp256k1Fp](0)
 	r := f.Sub(&c0, &c1)
 	if r.overflow != 0 {
 		return fmt.Errorf("overflow %d != 0", r.overflow)
