@@ -110,19 +110,14 @@ func (f *Field[T]) Modulus() *Element[T] {
 	return f.nConst
 }
 
-// PackElementLimbs returns an element from the given limbs. The method
-// constrains the limbs to have same width as the modulus of the field.
-func (f *Field[T]) PackElementLimbs(limbs []frontend.Variable) *Element[T] {
+// packLimbs returns an element from the given limbs.
+// If strict is false, each limbs is constrained to have width as defined by field parameter.
+// If strict is true, the most significant limb will be constrained to have width of the most
+// significant limb of the modulus, which may have less bits than the other limbs. In which case,
+// less constraints will be generated when strict = true.
+func (f *Field[T]) packLimbs(limbs []frontend.Variable, strict bool) *Element[T] {
 	e := f.newInternalElement(limbs, 0)
-	f.enforceWidth(e, true)
-	return e
-}
-
-// PackFullLimbs creates an element from the given limbs and enforces every limb
-// to have NbBits bits.
-func (f *Field[T]) PackFullLimbs(limbs []frontend.Variable) *Element[T] {
-	e := f.newInternalElement(limbs, 0)
-	f.enforceWidth(e, false)
+	f.enforceWidth(e, strict)
 	return e
 }
 
