@@ -337,17 +337,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	wriop.ToCanonical(wriop, &pk.Domain[1]).ToRegular(wriop)
 	woiop.ToCanonical(woiop, &pk.Domain[1]).ToRegular(woiop)
 
-	var blzeta, brzeta, bozeta fr.Element
-	for i := len(wliop.P.Coefficients) - 1; i >= 0; i-- {
-		blzeta.Mul(&blzeta, &zeta)
-		blzeta.Add(&blzeta, &wliop.P.Coefficients[i])
-
-		brzeta.Mul(&brzeta, &zeta)
-		brzeta.Add(&brzeta, &wriop.P.Coefficients[i])
-
-		bozeta.Mul(&bozeta, &zeta)
-		bozeta.Add(&bozeta, &woiop.P.Coefficients[i])
-	} // -> CORRECT
+	// var blzeta, brzeta, bozeta fr.Element
+	blzeta := wliop.Evaluate(zeta)
+	brzeta := wriop.Evaluate(zeta)
+	bozeta := woiop.Evaluate(zeta)
+	// -> CORRECT
 
 	// open blinded Z at zeta*z
 	wziop.ToCanonical(wziop, &pk.Domain[1]).ToRegular(wziop)

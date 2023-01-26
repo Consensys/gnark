@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
-	github.com/consensys/gnark-crypto v0.8.1-0.20230124104621-a147025df490
+	github.com/consensys/gnark-crypto v0.8.1-0.20230126084741-31d96c9b0af0
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/google/go-cmp v0.5.8
 	github.com/google/pprof v0.0.0-20220729232143-a41b82acbcb1
