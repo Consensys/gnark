@@ -33,9 +33,9 @@ type Element[T FieldParams] struct {
 	internal bool
 }
 
-// FromConstant returns an Element[T] from a constant value.
+// ValueOf returns an Element[T] from a constant value.
 // The input is converted to *big.Int and decomposed into limbs and packed into new Element[T].
-func FromConstant[T FieldParams](constant interface{}) Element[T] {
+func ValueOf[T FieldParams](constant interface{}) Element[T] {
 	if constant == nil {
 		r := newConstElement[T](0)
 		// r.internal = false
@@ -91,7 +91,7 @@ func (f *Field[T]) newInternalElement(limbs []frontend.Variable, overflow uint) 
 // GnarkInitHook describes how to initialise the element.
 func (e *Element[T]) GnarkInitHook() {
 	if e.Limbs == nil {
-		*e = FromConstant[T](0)
+		*e = ValueOf[T](0)
 	}
 }
 

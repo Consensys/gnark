@@ -47,8 +47,8 @@ func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
 	assert.Run(func(assert *test.Assert) {
 		var circuit, witness AssertLimbEqualityCircuit[T]
 		val, _ := rand.Int(rand.Reader, fp.Modulus())
-		witness.A = FromConstant[T](val)
-		witness.B = FromConstant[T](val)
+		witness.A = ValueOf[T](val)
+		witness.B = ValueOf[T](val)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -81,8 +81,8 @@ func testAssertIsLessEqualThan[T FieldParams](t *testing.T) {
 		var circuit, witness AssertIsLessEqualThanCircuit[T]
 		R, _ := rand.Int(rand.Reader, fp.Modulus())
 		L, _ := rand.Int(rand.Reader, R)
-		witness.R = FromConstant[T](R)
-		witness.L = FromConstant[T](L)
+		witness.R = ValueOf[T](R)
+		witness.L = ValueOf[T](L)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -116,9 +116,9 @@ func testAddCircuitNoOverflow[T FieldParams](t *testing.T) {
 		val1, _ := rand.Int(rand.Reader, bound)
 		val2, _ := rand.Int(rand.Reader, bound)
 		res := new(big.Int).Add(val1, val2)
-		witness.A = FromConstant[T](val1)
-		witness.B = FromConstant[T](val2)
-		witness.C = FromConstant[T](res)
+		witness.A = ValueOf[T](val1)
+		witness.B = ValueOf[T](val2)
+		witness.C = ValueOf[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -153,9 +153,9 @@ func testMulCircuitNoOverflow[T FieldParams](t *testing.T) {
 		val1, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(fp.Modulus().BitLen())/2))
 		val2, _ := rand.Int(rand.Reader, new(big.Int).Div(fp.Modulus(), val1))
 		res := new(big.Int).Mul(val1, val2)
-		witness.A = FromConstant[T](val1)
-		witness.B = FromConstant[T](val2)
-		witness.C = FromConstant[T](res)
+		witness.A = ValueOf[T](val1)
+		witness.B = ValueOf[T](val2)
+		witness.C = ValueOf[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16))
 	}, testName[T]())
 }
@@ -191,9 +191,9 @@ func testMulCircuitOverflow[T FieldParams](t *testing.T) {
 		val2, _ := rand.Int(rand.Reader, fp.Modulus())
 		res := new(big.Int).Mul(val1, val2)
 		res.Mod(res, fp.Modulus())
-		witness.A = FromConstant[T](val1)
-		witness.B = FromConstant[T](val2)
-		witness.C = FromConstant[T](res)
+		witness.A = ValueOf[T](val1)
+		witness.B = ValueOf[T](val2)
+		witness.C = ValueOf[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -230,9 +230,9 @@ func testReduceAfterAdd[T FieldParams](t *testing.T) {
 		val1, _ := rand.Int(rand.Reader, val2)
 		val3 := new(big.Int).Add(val1, fp.Modulus())
 		val3.Sub(val3, val2)
-		witness.A = FromConstant[T](val3)
-		witness.B = FromConstant[T](val2)
-		witness.C = FromConstant[T](val1)
+		witness.A = ValueOf[T](val3)
+		witness.B = ValueOf[T](val2)
+		witness.C = ValueOf[T](val1)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -271,9 +271,9 @@ func testSubtractNoOverflow[T FieldParams](t *testing.T) {
 		val1, _ := rand.Int(rand.Reader, fp.Modulus())
 		val2, _ := rand.Int(rand.Reader, val1)
 		res := new(big.Int).Sub(val1, val2)
-		witness.A = FromConstant[T](val1)
-		witness.B = FromConstant[T](val2)
-		witness.C = FromConstant[T](res)
+		witness.A = ValueOf[T](val1)
+		witness.B = ValueOf[T](val2)
+		witness.C = ValueOf[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -288,9 +288,9 @@ func testSubtractOverflow[T FieldParams](t *testing.T) {
 		val2.Add(val2, val1)
 		res := new(big.Int).Sub(val1, val2)
 		res.Mod(res, fp.Modulus())
-		witness.A = FromConstant[T](val1)
-		witness.B = FromConstant[T](val2)
-		witness.C = FromConstant[T](res)
+		witness.A = ValueOf[T](val1)
+		witness.B = ValueOf[T](val2)
+		witness.C = ValueOf[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -323,8 +323,8 @@ func testNegation[T FieldParams](t *testing.T) {
 		var circuit, witness NegationCircuit[T]
 		val1, _ := rand.Int(rand.Reader, fp.Modulus())
 		res := new(big.Int).Sub(fp.Modulus(), val1)
-		witness.A = FromConstant[T](val1)
-		witness.B = FromConstant[T](res)
+		witness.A = ValueOf[T](val1)
+		witness.B = ValueOf[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -360,8 +360,8 @@ func testInverse[T FieldParams](t *testing.T) {
 		var circuit, witness InverseCircuit[T]
 		val1, _ := rand.Int(rand.Reader, fp.Modulus())
 		res := new(big.Int).ModInverse(val1, fp.Modulus())
-		witness.A = FromConstant[T](val1)
-		witness.B = FromConstant[T](res)
+		witness.A = ValueOf[T](val1)
+		witness.B = ValueOf[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -402,9 +402,9 @@ func testDivision[T FieldParams](t *testing.T) {
 		res.ModInverse(val2, fp.Modulus())
 		res.Mul(val1, res)
 		res.Mod(res, fp.Modulus())
-		witness.A = FromConstant[T](val1)
-		witness.B = FromConstant[T](val2)
-		witness.C = FromConstant[T](res)
+		witness.A = ValueOf[T](val1)
+		witness.B = ValueOf[T](val2)
+		witness.C = ValueOf[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -447,7 +447,7 @@ func testToBinary[T FieldParams](t *testing.T) {
 		for i := 0; i < len(bits); i++ {
 			bits[i] = val1.Bit(i)
 		}
-		witness.Value = FromConstant[T](val1)
+		witness.Value = ValueOf[T](val1)
 		witness.Bits = bits
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
@@ -488,7 +488,7 @@ func testFromBinary[T FieldParams](t *testing.T) {
 			bits[i] = val1.Bit(i)
 		}
 
-		witness.Res = FromConstant[T](val1)
+		witness.Res = ValueOf[T](val1)
 		witness.Bits = bits
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
@@ -521,8 +521,8 @@ func testConstantEqual[T FieldParams](t *testing.T) {
 	assert.Run(func(assert *test.Assert) {
 		var circuit, witness EqualityCheckCircuit[T]
 		val, _ := rand.Int(rand.Reader, fp.Modulus())
-		witness.A = FromConstant[T](val)
-		witness.B = FromConstant[T](val)
+		witness.A = ValueOf[T](val)
+		witness.B = ValueOf[T](val)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
@@ -565,10 +565,10 @@ func testSelect[T FieldParams](t *testing.T) {
 		randbit, _ := rand.Int(rand.Reader, big.NewInt(2))
 		b := randbit.Uint64()
 
-		witness.A = FromConstant[T](val1)
-		witness.B = FromConstant[T](val2)
-		witness.C = FromConstant[T](val3)
-		witness.D = FromConstant[T]([]*big.Int{l, val3}[1-b])
+		witness.A = ValueOf[T](val1)
+		witness.B = ValueOf[T](val2)
+		witness.C = ValueOf[T](val3)
+		witness.D = ValueOf[T]([]*big.Int{l, val3}[1-b])
 		witness.Selector = b
 
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
@@ -613,11 +613,11 @@ func testLookup2[T FieldParams](t *testing.T) {
 		val4, _ := rand.Int(rand.Reader, fp.Modulus())
 		randbit, _ := rand.Int(rand.Reader, big.NewInt(4))
 
-		witness.A = FromConstant[T](val1)
-		witness.B = FromConstant[T](val2)
-		witness.C = FromConstant[T](val3)
-		witness.D = FromConstant[T](val4)
-		witness.E = FromConstant[T]([]*big.Int{val1, val2, val3, val4}[randbit.Uint64()])
+		witness.A = ValueOf[T](val1)
+		witness.B = ValueOf[T](val2)
+		witness.C = ValueOf[T](val3)
+		witness.D = ValueOf[T](val4)
+		witness.E = ValueOf[T]([]*big.Int{val1, val2, val3, val4}[randbit.Uint64()])
 		witness.Bit0 = randbit.Bit(0)
 		witness.Bit1 = randbit.Bit(1)
 
@@ -648,7 +648,7 @@ func (c *ComputationCircuit[T]) Define(api frontend.API) error {
 	}
 
 	// TODO @gbotrel better way to deal with constants?
-	five := FromConstant[T](5)
+	five := ValueOf[T](5)
 	fx2 := f.Mul(&five, &c.X2)
 	fx2 = f.Reduce(fx2)
 
@@ -707,13 +707,13 @@ func testComputation[T FieldParams](t *testing.T) {
 		res.Add(res, tmp)
 		res.Mod(res, fp.Modulus())
 
-		witness.X1 = FromConstant[T](val1)
-		witness.X2 = FromConstant[T](val2)
-		witness.X3 = FromConstant[T](val3)
-		witness.X4 = FromConstant[T](val4)
-		witness.X5 = FromConstant[T](val5)
-		witness.X6 = FromConstant[T](val6)
-		witness.Res = FromConstant[T](res)
+		witness.X1 = ValueOf[T](val1)
+		witness.X2 = ValueOf[T](val2)
+		witness.X3 = ValueOf[T](val3)
+		witness.X4 = ValueOf[T](val4)
+		witness.X5 = ValueOf[T](val5)
+		witness.X6 = ValueOf[T](val6)
+		witness.Res = ValueOf[T](res)
 
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
@@ -768,8 +768,8 @@ func testFourMuls[T FieldParams](t *testing.T) {
 		res.Mul(res, val1)
 		res.Mod(res, fp.Modulus())
 
-		witness.A = FromConstant[T](val1)
-		witness.Res = FromConstant[T](res)
+		witness.A = ValueOf[T](val1)
+		witness.Res = ValueOf[T](res)
 		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
