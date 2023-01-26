@@ -57,6 +57,22 @@ type Proof struct {
 	ZShiftedOpening kzg.OpeningProof
 }
 
+// func printVector(s string, v []fr.Element) {
+// 	fmt.Printf("%s=[", s)
+// 	for i := 0; i < len(v); i++ {
+// 		fmt.Printf("Fr(%s),", v[i].String())
+// 	}
+// 	fmt.Printf("]\n")
+// }
+
+// func printPoly(s string, v []fr.Element) {
+// 	fmt.Printf("%s=buildPoly([", s)
+// 	for i := 0; i < len(v); i++ {
+// 		fmt.Printf("Fr(%s),", v[i].String())
+// 	}
+// 	fmt.Printf("])\n")
+// }
+
 // Prove from the public data
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness, opt backend.ProverConfig) (*Proof, error) {
 
@@ -103,8 +119,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	woiop.ToCanonical(woiop, &pk.Domain[0]).ToRegular(woiop)
 
 	// TODO l, r, o before committing
-	// Commit to l, r, o (blinded)
-	if err := commitToLRO(wliop.P.Coefficients, wriop.P.Coefficients, woiop.P.Coefficients, proof, pk.Vk.KZGSRS); err != nil {
+	var bwliop, bwriop, bwoiop iop.WrappedPolynomial
+	bwliop.Blind(wliop, 1)
+	bwriop.Blind(wriop, 1)
+	bwoiop.Blind(woiop, 1)
+	// if err := commitToLRO(wliop.P.Coefficients, wriop.P.Coefficients, woiop.P.Coefficients, proof, pk.Vk.KZGSRS); err != nil {
+	// 	return nil, err
+	// }
+	if err := commitToLRO(bwliop.P.Coefficients, bwriop.P.Coefficients, bwoiop.P.Coefficients, proof, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
 
@@ -143,9 +165,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		return proof, err
 	}
 
-	// TODO blind z here
 	// commit to the blinded version of z
-	proof.Z, err = kzg.Commit(ziop.Coefficients, pk.Vk.KZGSRS, runtime.NumCPU()*2)
+	bwziop := ziop.WrapMe(0)
+	bwziop.Blind(bwziop, 2)
+	proof.Z, err = kzg.Commit(bwziop.P.Coefficients, pk.Vk.KZGSRS, runtime.NumCPU()*2)
 	if err != nil {
 		return proof, err
 	}
@@ -174,9 +197,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	constraintsCapture.AddMonomial(one, []int{0, 0, 0, 0, 1, 0, 0, 0})
 
 	// l, r, o are blinded here
-	wliop.ToLagrangeCoset(wliop, &pk.Domain[1])
-	wriop.ToLagrangeCoset(wriop, &pk.Domain[1])
-	woiop.ToLagrangeCoset(woiop, &pk.Domain[1])
+	bwliop.ToLagrangeCoset(&bwliop, &pk.Domain[1])
+	bwriop.ToLagrangeCoset(&bwriop, &pk.Domain[1])
+	bwoiop.ToLagrangeCoset(&bwoiop, &pk.Domain[1])
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
 	wqliop := iop.NewPolynomial(pk.Ql, canReg).WrapMe(0)
 	wqriop := iop.NewPolynomial(pk.Qr, canReg).WrapMe(0)
@@ -190,7 +213,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	wqkiop.ToLagrangeCoset(wqkiop, &pk.Domain[1])
 
 	constraints, err := constraintsCapture.EvaluatePolynomials(
-		[]iop.WrappedPolynomial{*wqliop, *wqriop, *wqmiop, *wqoiop, *wqkiop, *wliop, *wriop, *woiop},
+		[]iop.WrappedPolynomial{*wqliop, *wqriop, *wqmiop, *wqoiop, *wqkiop, bwliop, bwriop, bwoiop},
 	)
 	if err != nil {
 		return proof, err
@@ -216,21 +239,21 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	id[1].SetOne()
 	widiop := iop.NewPolynomial(id, canReg).WrapMe(0)
 	widiop.ToLagrangeCoset(widiop, &pk.Domain[1])
-	a, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{*wliop, *widiop})
+	a, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{bwliop, *widiop})
 	if err != nil {
 		return proof, err
 	}
 	wa := a.WrapMe(0) // -> CORRECT
 
 	// qr+β*ν*x+γ
-	b, err := subOrderingCapture[1].EvaluatePolynomials([]iop.WrappedPolynomial{*wriop, *widiop})
+	b, err := subOrderingCapture[1].EvaluatePolynomials([]iop.WrappedPolynomial{bwriop, *widiop})
 	if err != nil {
 		return proof, err
 	}
 	wb := b.WrapMe(0) // -> CORRECT
 
 	// qo+β*ν²*x+γ
-	c, err := subOrderingCapture[2].EvaluatePolynomials([]iop.WrappedPolynomial{*woiop, *widiop})
+	c, err := subOrderingCapture[2].EvaluatePolynomials([]iop.WrappedPolynomial{bwoiop, *widiop})
 	if err != nil {
 		return proof, err
 	}
@@ -239,7 +262,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	// ql+β*σ₁+γ
 	ws1 := iop.NewPolynomial(pk.S1Canonical, canReg).WrapMe(0)
 	ws1.ToCanonical(ws1, &pk.Domain[0]).ToRegular(ws1).ToLagrangeCoset(ws1, &pk.Domain[1])
-	u, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{*wliop, *ws1})
+	u, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{bwliop, *ws1})
 	if err != nil {
 		return proof, err
 	}
@@ -248,7 +271,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	// qr+β*σ₂+γ
 	ws2 := iop.NewPolynomial(pk.S2Canonical, canReg).WrapMe(0)
 	ws2.ToCanonical(ws2, &pk.Domain[0]).ToRegular(ws2).ToLagrangeCoset(ws2, &pk.Domain[1])
-	v, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{*wriop, *ws2})
+	v, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{bwriop, *ws2})
 	if err != nil {
 		return proof, err
 	}
@@ -257,7 +280,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	// qo+β*σ₃+γ
 	ws3 := iop.NewPolynomial(pk.S3Canonical, canReg).WrapMe(0)
 	ws3.ToCanonical(ws3, &pk.Domain[0]).ToRegular(ws3).ToLagrangeCoset(ws3, &pk.Domain[1])
-	w, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{*woiop, *ws3})
+	w, err := subOrderingCapture[0].EvaluatePolynomials([]iop.WrappedPolynomial{bwoiop, *ws3})
 	if err != nil {
 		return proof, err
 	}
@@ -267,14 +290,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	// Z(ql+βX+γ)(ql+β*νX+γ)(ql+β*ν²X+γ)
 	var orderingCapture iop.MultivariatePolynomial
 	var minusOne fr.Element
-	wziop := ziop.WrapMe(0)
-	wsziop := ziop.WrapMe(1)
-	wsziop.ToCanonical(wsziop, &pk.Domain[0]).ToRegular(wsziop).ToLagrangeCoset(wsziop, &pk.Domain[1])
+	bwsziop := bwziop.WrapMe(1)
+	bwziop.ToLagrangeCoset(bwziop, &pk.Domain[1])
 	minusOne.Neg(&one)
 	orderingCapture.AddMonomial(one, []int{1, 1, 1, 1, 0, 0, 0, 0})
 	orderingCapture.AddMonomial(minusOne, []int{0, 0, 0, 0, 1, 1, 1, 1})
 	ordering, err := orderingCapture.EvaluatePolynomials(
-		[]iop.WrappedPolynomial{*wsziop, *wu, *wv, *ww, *wziop, *wa, *wb, *wc})
+		[]iop.WrappedPolynomial{*bwsziop, *wu, *wv, *ww, *bwziop, *wa, *wb, *wc})
 	if err != nil {
 		return proof, err
 	}
@@ -291,7 +313,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	startsAtOneCapture.AddMonomial(one, []int{1, 1})
 	startsAtOneCapture.AddMonomial(minusOne, []int{0, 1})
 	startsAtOne, err := startsAtOneCapture.EvaluatePolynomials(
-		[]iop.WrappedPolynomial{*wziop, *wloneiop},
+		[]iop.WrappedPolynomial{*bwziop, *wloneiop},
 	)
 	if err != nil {
 		return proof, err
@@ -333,22 +355,22 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 	}
 
 	// compute evaluations of (blinded version of) l, r, o, z at zeta
-	wliop.ToCanonical(wliop, &pk.Domain[1]).ToRegular(wliop)
-	wriop.ToCanonical(wriop, &pk.Domain[1]).ToRegular(wriop)
-	woiop.ToCanonical(woiop, &pk.Domain[1]).ToRegular(woiop)
+	bwliop.ToCanonical(&bwliop, &pk.Domain[1]).ToRegular(&bwliop)
+	bwriop.ToCanonical(&bwriop, &pk.Domain[1]).ToRegular(&bwriop)
+	bwoiop.ToCanonical(&bwoiop, &pk.Domain[1]).ToRegular(&bwoiop)
 
 	// var blzeta, brzeta, bozeta fr.Element
-	blzeta := wliop.Evaluate(zeta)
-	brzeta := wriop.Evaluate(zeta)
-	bozeta := woiop.Evaluate(zeta)
+	blzeta := bwliop.Evaluate(zeta)
+	brzeta := bwriop.Evaluate(zeta)
+	bozeta := bwoiop.Evaluate(zeta)
 	// -> CORRECT
 
 	// open blinded Z at zeta*z
-	wziop.ToCanonical(wziop, &pk.Domain[1]).ToRegular(wziop)
+	bwziop.ToCanonical(bwziop, &pk.Domain[1]).ToRegular(bwziop)
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
 	proof.ZShiftedOpening, err = kzg.Open(
-		wziop.P.Coefficients[:pk.Domain[0].Cardinality],
+		bwziop.P.Coefficients[:bwziop.BlindedSize],
 		zetaShifted,
 		pk.Vk.KZGSRS,
 	)
@@ -376,7 +398,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		gamma,
 		zeta,
 		bzuzeta,
-		wziop.P.Coefficients[:pk.Domain[0].Cardinality+2],
+		bwziop.P.Coefficients[:bwziop.BlindedSize],
 		pk,
 	)
 
@@ -418,9 +440,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		[][]fr.Element{
 			foldedH,
 			linearizedPolynomialCanonical,
-			wliop.P.Coefficients[:wliop.Size],
-			wriop.P.Coefficients[:wriop.Size],
-			woiop.P.Coefficients[:woiop.Size],
+			bwliop.P.Coefficients[:bwliop.BlindedSize],
+			bwriop.P.Coefficients[:bwriop.BlindedSize],
+			bwoiop.P.Coefficients[:bwoiop.BlindedSize],
 			pk.S1Canonical,
 			pk.S2Canonical,
 		},
