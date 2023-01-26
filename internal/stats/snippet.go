@@ -92,7 +92,7 @@ func initSnippets() {
 
 		x13 := secp256k1.Mul(newElement(), newElement())
 		x13 = secp256k1.Mul(x13, newElement())
-		five := emulated.NewConstant[emulated.Secp256k1Fp](5)
+		five := emulated.FromConstant[emulated.Secp256k1Fp](5)
 		fx2 := secp256k1.Mul(&five, newElement())
 		nom := secp256k1.Sub(fx2, x13)
 		denom := secp256k1.Add(newElement(), newElement())

@@ -108,7 +108,7 @@ func (f *Field[T]) NewElement(v interface{}) *Element[T] {
 		}
 		return f.packLimbs(e, true)
 	}
-	c := NewConstant[T](v)
+	c := FromConstant[T](v)
 	return &c
 }
 
