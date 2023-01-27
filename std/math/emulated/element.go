@@ -38,11 +38,9 @@ type Element[T FieldParams] struct {
 func ValueOf[T FieldParams](constant interface{}) Element[T] {
 	if constant == nil {
 		r := newConstElement[T](0)
-		// r.internal = false
 		return *r
 	}
 	r := newConstElement[T](constant)
-	// r.internal = false
 	return *r
 }
 
@@ -92,6 +90,7 @@ func (f *Field[T]) newInternalElement(limbs []frontend.Variable, overflow uint) 
 func (e *Element[T]) GnarkInitHook() {
 	if e.Limbs == nil {
 		*e = ValueOf[T](0)
+		e.internal = false // we need to constrain in later.
 	}
 }
 
