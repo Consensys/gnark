@@ -145,10 +145,6 @@ func (builder *scs) newInternalVariable() expr.TermToRefactor {
 	return expr.NewTermToRefactor(idx, constraint.CoeffIdOne)
 }
 
-func (builder *scs) VariableCount(t reflect.Type) int {
-	return 1
-}
-
 // PublicVariable creates a new Public Variable
 func (builder *scs) PublicVariable(f schema.LeafInfo) frontend.Variable {
 	idx := builder.cs.AddPublicVariable(f.FullName())

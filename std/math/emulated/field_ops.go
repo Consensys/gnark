@@ -21,7 +21,7 @@ func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("compute division: %v", err))
 	}
-	e := f.PackElementLimbs(div)
+	e := f.packLimbs(div, true)
 	res := f.Mul(e, b)
 	f.AssertIsEqual(res, a)
 	return e
@@ -37,7 +37,7 @@ func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("compute inverse: %v", err))
 	}
-	e := f.PackElementLimbs(k)
+	e := f.packLimbs(k, true)
 	res := f.Mul(e, a)
 	one := f.One()
 	f.AssertIsEqual(res, one)
@@ -51,18 +51,11 @@ func (f *Field[T]) Add(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.add, f.addPreCond, a, b)
 }
 
-// AddMutable is the mutating version of the [Field[T].Add] method. It reduces
-// the given inputs a, b if the result wouldn't fit into Element.
-func (f *Field[T]) AddMutable(a, b *Element[T]) *Element[T] {
-	r := f.reduceAndOpMutable(f.add, f.addPreCond, a, b)
-	return r
-}
-
 func (f *Field[T]) addPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow
 	nextOverflow = max(a.overflow, b.overflow) + 1
 	if nextOverflow > f.maxOverflow() {
-		err = errOverflow{op: "add", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
+		err = overflowError{op: "add", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}
 	return
 }
@@ -113,20 +106,13 @@ func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
 	return f.Reduce(r)
 }
 
-// MulModMutable is the mutable version of the [Field[T].MulMod] method,
-// reducing the inputs if the result wouldn't fit into Element.
-func (f *Field[T]) MulModMutable(a, b *Element[T]) *Element[T] {
-	r := f.reduceAndOpMutable(f.mul, f.mulPreCond, a, b)
-	return f.Reduce(r)
-}
-
 // MulConst multiplies a by a constant c and returns it. We assume that the
 // input constant is "small", so that we can compute the product by multiplying
 // all individual limbs with the constant. If it is not small, then use the
 // general [Field[T].Mul] or [Field[T].MulMod] with creating new Element from
 // the constant on-the-fly.
 func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
-	switch c.Cmp(big.NewInt(0)) {
+	switch c.Sign() {
 	case -1:
 		f.MulConst(f.Neg(a), new(big.Int).Neg(c))
 	case 0:
@@ -151,7 +137,7 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 		func(a, _ *Element[T]) (nextOverflow uint, err error) {
 			nextOverflow = a.overflow + uint(cbl)
 			if nextOverflow > f.maxOverflow() {
-				err = errOverflow{op: "mulConst", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow()}
+				err = overflowError{op: "mulConst", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow()}
 			}
 			return
 		},
@@ -164,7 +150,7 @@ func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
 	nextOverflow = f.fParams.BitsPerLimb() + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
 	if nextOverflow > f.maxOverflow() {
-		err = errOverflow{op: "mul", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
+		err = overflowError{op: "mul", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}
 	return
 }
@@ -219,8 +205,7 @@ func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 		return a
 	}
 	// sanity check
-	_, aConst := f.constantValue(a)
-	if aConst {
+	if _, aConst := f.constantValue(a); aConst {
 		panic("trying to reduce a constant, which happen to have an overflow flag set")
 	}
 
@@ -240,18 +225,11 @@ func (f *Field[T]) Sub(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.sub, f.subPreCond, a, b)
 }
 
-// SubMutable is the mutating version of [Field[T].Sub] which modifies the
-// inputs when needed.
-func (f *Field[T]) SubMutable(a, b *Element[T]) *Element[T] {
-	r := f.reduceAndOpMutable(f.sub, f.subPreCond, a, b)
-	return r
-}
-
 func (f *Field[T]) subPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow+2
 	nextOverflow = max(b.overflow+2, a.overflow)
 	if nextOverflow > f.maxOverflow() {
-		err = errOverflow{op: "sub", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
+		err = overflowError{op: "sub", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}
 	return
 }
@@ -358,7 +336,7 @@ func (f *Field[T]) reduceAndOp(op func(*Element[T], *Element[T], uint) *Element[
 	f.enforceWidthConditional(b)
 	var nextOverflow uint
 	var err error
-	var target errOverflow
+	var target overflowError
 
 	for nextOverflow, err = preCond(a, b); errors.As(err, &target); nextOverflow, err = preCond(a, b) {
 		if !target.reduceRight {
@@ -370,30 +348,13 @@ func (f *Field[T]) reduceAndOp(op func(*Element[T], *Element[T], uint) *Element[
 	return op(a, b, nextOverflow)
 }
 
-func (f *Field[T]) reduceAndOpMutable(op func(*Element[T], *Element[T], uint) *Element[T], preCond func(*Element[T], *Element[T]) (uint, error), a, b *Element[T]) *Element[T] {
-	f.enforceWidthConditional(a)
-	f.enforceWidthConditional(b)
-	var nextOverflow uint
-	var err error
-	var target errOverflow
-
-	for nextOverflow, err = preCond(a, b); errors.As(err, &target); nextOverflow, err = preCond(a, b) {
-		if !target.reduceRight {
-			*a = *f.Reduce(a)
-		} else {
-			*b = *f.Reduce(b)
-		}
-	}
-	return op(a, b, nextOverflow)
-}
-
-type errOverflow struct {
+type overflowError struct {
 	op           string
 	nextOverflow uint
 	maxOverflow  uint
 	reduceRight  bool
 }
 
-func (e errOverflow) Error() string {
+func (e overflowError) Error() string {
 	return fmt.Sprintf("op %s overflow %d exceeds max %d", e.op, e.nextOverflow, e.maxOverflow)
 }

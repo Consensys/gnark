@@ -86,6 +86,32 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	return f, nil
 }
 
+// NewElement builds a new Element[T] from input v.
+//   - if v is a Element[T] or *Element[T] it clones it
+//   - if v is a constant this is equivalent to calling emulated.ValueOf[T]
+//   - if this methods interpret v  (frontend.Variable or []frontend.Variable) as being the limbs; and constrain the limbs following the parameters of the Field.
+func (f *Field[T]) NewElement(v interface{}) *Element[T] {
+	if e, ok := v.(Element[T]); ok {
+		return e.copy()
+	}
+	if e, ok := v.(*Element[T]); ok {
+		return e.copy()
+	}
+	if frontend.IsCanonical(v) {
+		return f.packLimbs([]frontend.Variable{v}, true)
+	}
+	if e, ok := v.([]frontend.Variable); ok {
+		for _, sv := range e {
+			if !frontend.IsCanonical(sv) {
+				panic("[]frontend.Variable that are not canonical (known to the compiler) is not a valid input")
+			}
+		}
+		return f.packLimbs(e, true)
+	}
+	c := ValueOf[T](v)
+	return &c
+}
+
 // Zero returns zero as a constant.
 func (f *Field[T]) Zero() *Element[T] {
 	f.zeroConstOnce.Do(func() {
@@ -110,19 +136,14 @@ func (f *Field[T]) Modulus() *Element[T] {
 	return f.nConst
 }
 
-// PackElementLimbs returns an element from the given limbs. The method
-// constrains the limbs to have same width as the modulus of the field.
-func (f *Field[T]) PackElementLimbs(limbs []frontend.Variable) *Element[T] {
+// packLimbs returns an element from the given limbs.
+// If strict is true, the most significant limb will be constrained to have width of the most
+// significant limb of the modulus, which may have less bits than the other limbs. In which case,
+// less constraints will be generated.
+// If strict is false, each limbs is constrained to have width as defined by field parameter.
+func (f *Field[T]) packLimbs(limbs []frontend.Variable, strict bool) *Element[T] {
 	e := f.newInternalElement(limbs, 0)
-	f.enforceWidth(e, true)
-	return e
-}
-
-// PackFullLimbs creates an element from the given limbs and enforces every limb
-// to have NbBits bits.
-func (f *Field[T]) PackFullLimbs(limbs []frontend.Variable) *Element[T] {
-	e := f.newInternalElement(limbs, 0)
-	f.enforceWidth(e, false)
+	f.enforceWidth(e, strict)
 	return e
 }
 
@@ -164,7 +185,7 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 		}
 	}
 	if didConstrain {
-		f.enforceWidth(a, false)
+		f.enforceWidth(a, true)
 	}
 	return
 }
