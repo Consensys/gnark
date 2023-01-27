@@ -23,14 +23,12 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fri"
 	"math/big"
 
-	bls24_315witness "github.com/consensys/gnark/internal/backend/bls24-315/witness"
-
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 var ErrInvalidAlgebraicRelation = errors.New("algebraic relation does not hold")
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witness) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
 
 	// 0 - derive the challenges with Fiat Shamir
 	hFunc := sha256.New()
@@ -354,7 +352,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 }
 
 // completeQk returns ∑_{i<nb_public_inputs}w_i*L_i
-func completeQk(publicWitness bls24_315witness.Witness, vk *VerifyingKey, zeta fr.Element) fr.Element {
+func completeQk(publicWitness []fr.Element, vk *VerifyingKey, zeta fr.Element) fr.Element {
 
 	var res fr.Element
 

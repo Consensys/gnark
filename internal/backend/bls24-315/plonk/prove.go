@@ -32,8 +32,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fft"
 
-	bls24_315witness "github.com/consensys/gnark/internal/backend/bls24-315/witness"
-
 	"github.com/consensys/gnark/constraint/bls24-315"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
@@ -61,7 +59,7 @@ type Proof struct {
 }
 
 // Prove from the public data
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls24_315witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness []fr.Element, opt backend.ProverConfig) (*Proof, error) {
 
 	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
 	start := time.Now()

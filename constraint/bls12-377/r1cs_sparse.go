@@ -36,8 +36,6 @@ import (
 	"github.com/consensys/gnark/profile"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-
-	bls12_377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 )
 
 // SparseR1CS represents a Plonk like circuit
@@ -374,14 +372,14 @@ func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution
 
 // IsSolved returns nil if given witness solves the SparseR1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption) error {
+func (cs *SparseR1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) error {
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
 		return err
 	}
 
-	v := witness.Vector.(*bls12_377witness.Witness)
-	_, err = cs.Solve(*v, opt)
+	v := witness.Vector().(fr.Vector)
+	_, err = cs.Solve(v, opt)
 	return err
 }
 

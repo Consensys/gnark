@@ -42,6 +42,8 @@ package witness
 
 import (
 	"bytes"
+	"encoding"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,122 +51,190 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/utils"
 )
 
-var (
-	ErrInvalidWitness = errors.New("invalid witness")
-	errMissingSchema  = errors.New("missing Schema")
-	errMissingCurveID = errors.New("missing CurveID")
-)
+var ErrInvalidWitness = errors.New("invalid witness")
 
 // Witness represents a zkSNARK witness.
 //
-// A witness can be in 3 states:
-// 1. Assignment (ie assigning values to a frontend.Circuit object)
-// 2. Witness (this object: an ordered vector of field elements + metadata)
-// 3. Serialized (Binary or JSON) using MarshalBinary or MarshalJSON
+// The underlying data structure is a vector of field elements, but a Witness
+// also may have some additional meta information about the number of public elements and
+// secret elements.
 //
-// ! MarshalJSON and UnmarshalJSON are slow, and do not handle all complex circuit structures
-type Witness struct {
-	Vector  Vector         //  TODO @gbotrel the result is an interface for now may change to generic Witness[fr.Element] in an upcoming PR
-	Schema  *schema.Schema // optional, Binary encoding needs no schema
-	CurveID ecc.ID         // should be redundant with generic impl
+// In most cases a Witness should be [de]serialized using a binary protocol.
+// JSON conversions for pretty printing are slow and don't handle all complex circuit structures well.
+type Witness interface {
+	io.WriterTo
+	io.ReaderFrom
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
+
+	// Public returns the Public an object containing the public part of the Witness only.
+	Public() (Witness, error)
+
+	// Vector returns the underlying fr.Vector slice
+	Vector() any
+
+	// ToJSON returns the JSON encoding of the witness following the provided Schema. This is a
+	// convenience method and should be avoided in most cases.
+	ToJSON(s *schema.Schema) ([]byte, error)
+
+	// FromJSON parses a JSON data input and attempt to reconstruct a witness following the provided Schema.
+	// This is a convenience method and should be avoided in most cases.
+	FromJSON(s *schema.Schema, data []byte) error
+
+	// Fill range over the provided chan to fill the underlying vector.
+	// Will allocate the underlying vector with nbPublic + nbSecret elements.
+	// This is typically call by internal APIs to fill the vector by walking a structure.
+	Fill(nbPublic, nbSecret int, values <-chan any) error
 }
 
-func New(field *big.Int, schema *schema.Schema) (*Witness, error) {
-	v, err := newVector(field)
+type witness struct {
+	vector             any
+	nbPublic, nbSecret uint32
+}
+
+// New initialize a new empty Witness.
+func New(field *big.Int) (Witness, error) {
+	v, err := newVector(field, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Witness{
-		CurveID: utils.FieldToCurve(field),
-		Vector:  v,
-		Schema:  schema,
+	return &witness{
+		vector: v,
 	}, nil
 }
 
-// Public extracts the public part of the witness and returns a new witness object
-func (w *Witness) Public() (*Witness, error) {
-	if w.Vector == nil {
-		return nil, fmt.Errorf("%w: empty witness", ErrInvalidWitness)
+func (w *witness) Fill(nbPublic, nbSecret int, values <-chan any) error {
+	n := int(nbPublic + nbSecret)
+	w.vector = resize(w.vector, n)
+	w.nbPublic = uint32(nbPublic)
+	w.nbSecret = uint32(nbSecret)
+
+	i := 0
+
+	// note; this shouldn't be perf critical but if it is we could have 2 input chan and
+	// fill public and secret values concurrently.
+	for v := range values {
+		if i >= n {
+			// we panic here; shouldn't happen and if it does we may leek a chan + producer go routine
+			panic("chan of values returns more elements than expected")
+		}
+		if err := set(w.vector, i, v); err != nil {
+			return err
+		}
+		i++
 	}
-	if w.Schema == nil {
-		return nil, errMissingSchema
+
+	if i != n {
+		return fmt.Errorf("expected %d values, filled only %d", n, i)
 	}
-	v, err := newFrom(w.Vector, w.Schema.NbPublic)
+
+	return nil
+}
+
+func (w *witness) iterate() chan any {
+	return iterate(w.vector)
+}
+
+func (w *witness) Public() (Witness, error) {
+	v, err := newFrom(w.vector, int(w.nbPublic))
 	if err != nil {
 		return nil, err
 	}
-	return &Witness{
-		CurveID: w.CurveID,
-		Vector:  v,
-		Schema:  w.Schema,
+	return &witness{
+		vector:   v,
+		nbPublic: w.nbPublic,
 	}, nil
 }
 
-// MarshalBinary implements encoding.BinaryMarshaler
-// Only the vector of field elements is marshalled: the curveID and the Schema are omitted.
-func (w *Witness) MarshalBinary() (data []byte, err error) {
+func (w *witness) WriteTo(wr io.Writer) (n int64, err error) {
+	// write number of public, number of secret
+	if err := binary.Write(wr, binary.BigEndian, w.nbPublic); err != nil {
+		return 0, err
+	}
+	n = int64(4)
+	if err := binary.Write(wr, binary.BigEndian, w.nbSecret); err != nil {
+		return n, err
+	}
+	n += 4
+
+	// write the vector
+	m, err := w.vector.(io.WriterTo).WriteTo(wr)
+	n += m
+	return n, err
+}
+
+func (w *witness) ReadFrom(r io.Reader) (n int64, err error) {
+	var buf [4]byte
+	if read, err := io.ReadFull(r, buf[:]); err != nil {
+		return int64(read), err
+	}
+	w.nbPublic = binary.BigEndian.Uint32(buf[:4])
+	if read, err := io.ReadFull(r, buf[:]); err != nil {
+		return int64(read) + 4, err
+	}
+	w.nbSecret = binary.BigEndian.Uint32(buf[:4])
+	m, err := w.vector.(io.ReaderFrom).ReadFrom(r)
+	n += m
+	return n, err
+}
+
+// MarshalBinary encodes the number of public, number of secret and the fr.Vector.
+func (w *witness) MarshalBinary() (data []byte, err error) {
 	var buf bytes.Buffer
 
-	if w.Vector == nil {
-		return nil, fmt.Errorf("%w: empty witness", ErrInvalidWitness)
-	}
-
-	if _, err = w.Vector.WriteTo(&buf); err != nil {
+	if _, err = w.WriteTo(&buf); err != nil {
 		return
 	}
 	return buf.Bytes(), nil
 }
 
 // UnmarshalBinary implements encoding.BinaryUnmarshaler
-func (w *Witness) UnmarshalBinary(data []byte) error {
-
-	snarkFieldSize := utils.ByteLen(w.CurveID.ScalarField())
-	var r io.Reader
-	r = bytes.NewReader(data)
-	if w.Schema != nil {
-		// if schema is set we can do a limit reader
-		maxSize := 4 + (w.Schema.NbPublic+w.Schema.NbSecret)*snarkFieldSize
-		r = io.LimitReader(r, int64(maxSize))
-	}
-
-	v, err := newVector(w.CurveID.ScalarField())
-	if err != nil {
-		return err
-	}
-	_, err = v.ReadFrom(r)
-	if err != nil {
-		return err
-	}
-	w.Vector = v
-
-	return nil
+func (w *witness) UnmarshalBinary(data []byte) error {
+	r := bytes.NewReader(data)
+	_, err := w.ReadFrom(r)
+	return err
 }
 
-// MarshalJSON implements json.Marshaler
-//
-// Only the vector of field elements is marshalled: the curveID and the Schema are omitted.
-//
-// ! MarshalJSON and UnmarshalJSON are slow, and do not handle all complex circuit structures
-func (w *Witness) MarshalJSON() (r []byte, err error) {
-	if w.Schema == nil {
-		return nil, errMissingSchema
-	}
-	if w.Vector == nil {
-		return nil, fmt.Errorf("%w: empty witness", ErrInvalidWitness)
-	}
+func (w *witness) Vector() any {
+	return indirect(w.vector)
+}
 
-	typ := w.Vector.Type()
+// ToJSON returns the JSON encoding of the witness following the provided Schema. This is a
+// convenience method and should be avoided in most cases.
+func (w *witness) ToJSON(s *schema.Schema) ([]byte, error) {
+	if s.NbPublic != int(w.nbPublic) || (w.nbSecret != 0 && w.nbSecret != uint32(s.NbSecret)) {
+		return nil, errors.New("schema is inconsistent with Witness")
+	}
+	typ := reflect.PtrTo(leafType(w.vector))
+	instance := s.Instantiate(typ)
 
-	instance := w.Schema.Instantiate(reflect.PtrTo(typ))
-	if err := w.toAssignment(instance, reflect.PtrTo(typ)); err != nil {
+	chValues := w.iterate()
+	if _, err := schema.Walk(instance, typ, func(field schema.LeafInfo, tValue reflect.Value) error {
+		if field.Visibility == schema.Public {
+			v := <-chValues
+			tValue.Set(reflect.ValueOf(v))
+		}
+		return nil
+	}); err != nil {
 		return nil, err
+	}
+
+	if w.nbSecret != 0 {
+		// secret part.
+		if _, err := schema.Walk(instance, typ, func(field schema.LeafInfo, tValue reflect.Value) error {
+			if field.Visibility == schema.Secret {
+				v := <-chValues
+				tValue.Set(reflect.ValueOf(v))
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	if debug.Debug {
@@ -174,23 +244,15 @@ func (w *Witness) MarshalJSON() (r []byte, err error) {
 	}
 }
 
-// UnmarshalJSON implements json.Unmarshaler
-//
-// ! MarshalJSON and UnmarshalJSON are slow, and do not handle all complex circuit structures
-func (w *Witness) UnmarshalJSON(data []byte) error {
-	if w.Schema == nil {
-		return errMissingSchema
-	}
-	v, err := newVector(w.CurveID.ScalarField())
-	if err != nil {
-		return err
-	}
-
-	typ := v.Type()
+// FromJSON parses a JSON data input and attempt to reconstruct a witness following the provided Schema.
+// This is a convenience method and should be avoided in most cases.
+func (w *witness) FromJSON(s *schema.Schema, data []byte) error {
+	typ := leafType(w.vector)
+	ptrTyp := reflect.PtrTo(typ)
 
 	// we instantiate an object matching the schema, with leaf type == field element
 	// note that we pass a pointer here to have nil for zero values
-	instance := w.Schema.Instantiate(reflect.PtrTo(typ))
+	instance := s.Instantiate(ptrTyp)
 
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
@@ -199,50 +261,62 @@ func (w *Witness) UnmarshalJSON(data []byte) error {
 	if err := dec.Decode(instance); err != nil {
 		return err
 	}
+	// walk through the public AND secret values
+	missingAssignment := func(name string) error {
+		return fmt.Errorf("missing assignment for %s", name)
+	}
+	{
+		chValues := make(chan any)
 
-	// optimistic approach: first try to unmarshall everything. then only the public part if it fails
-	// note that our instance has leaf type == *fr.Element, so the zero value is nil
-	// and is going to make the newWitness method error since it doesn't accept missing assignments
-	_, err = v.FromAssignment(instance, reflect.PtrTo(typ), false)
-	if err != nil {
-		// try with public only
-		_, err := v.FromAssignment(instance, reflect.PtrTo(typ), true)
-		if err != nil {
+		go func() {
+			defer close(chValues)
+			schema.Walk(instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
+				if leaf.Visibility == schema.Public {
+					if tValue.IsNil() {
+						return missingAssignment(leaf.FullName())
+					}
+					chValues <- reflect.Indirect(tValue).Interface()
+				}
+				return nil
+			})
+			schema.Walk(instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
+				if leaf.Visibility == schema.Secret {
+					if tValue.IsNil() {
+						return missingAssignment(leaf.FullName())
+					}
+					chValues <- reflect.Indirect(tValue).Interface()
+				}
+				return nil
+			})
+
+		}()
+
+		if err := w.Fill(s.NbPublic, s.NbSecret, chValues); err == nil {
+			return nil // we can return; if there is an error, we try the public values only
+		}
+	}
+
+	{
+		chValues := make(chan any)
+
+		go func() {
+			defer close(chValues)
+			schema.Walk(instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
+				if leaf.Visibility == schema.Public {
+					if tValue.IsNil() {
+						return missingAssignment(leaf.FullName())
+					}
+					chValues <- reflect.Indirect(tValue).Interface()
+				}
+				return nil
+			})
+
+		}()
+
+		if err := w.Fill(s.NbPublic, 0, chValues); err != nil {
 			return err
 		}
-		w.Vector = v
-		return nil
 	}
-	w.Vector = v
-	return nil
-}
-
-func (w *Witness) toAssignment(to interface{}, toLeafType reflect.Type) error {
-	if w.Schema == nil {
-		return errMissingSchema
-	}
-	if w.Vector == nil {
-		return fmt.Errorf("%w: empty witness", ErrInvalidWitness)
-	}
-
-	// we check the size of the underlying vector to determine if we have the full witness
-	// or only the public part
-	n := w.Vector.Len()
-
-	nbSecret, nbPublic := w.Schema.NbSecret, w.Schema.NbPublic
-
-	var publicOnly bool
-	if n == nbPublic {
-		// public witness only
-		publicOnly = true
-	} else if n == (nbPublic + nbSecret) {
-		// full witness
-		publicOnly = false
-	} else {
-		// invalid witness size
-		return fmt.Errorf("%w: got %d elements, expected either %d (public) or %d (full)", ErrInvalidWitness, n, nbPublic, nbPublic+nbSecret)
-	}
-	w.Vector.ToAssignment(to, toLeafType, publicOnly)
 
 	return nil
 }

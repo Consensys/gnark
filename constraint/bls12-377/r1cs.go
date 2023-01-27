@@ -37,8 +37,6 @@ import (
 	"math"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-
-	bls12_377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 )
 
 // R1CS describes a set of R1CS constraint
@@ -254,7 +252,7 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *R1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption) error {
+func (cs *R1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) error {
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
 		return err
@@ -263,8 +261,8 @@ func (cs *R1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption)
 	a := make([]fr.Element, len(cs.Constraints))
 	b := make([]fr.Element, len(cs.Constraints))
 	c := make([]fr.Element, len(cs.Constraints))
-	v := witness.Vector.(*bls12_377witness.Witness)
-	_, err = cs.Solve(*v, a, b, c, opt)
+	v := witness.Vector().(fr.Vector)
+	_, err = cs.Solve(v, a, b, c, opt)
 	return err
 }
 

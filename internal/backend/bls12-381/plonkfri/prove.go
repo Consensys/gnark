@@ -26,8 +26,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 
-	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
-
 	"github.com/consensys/gnark/constraint/bls12-381"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fri"
@@ -69,7 +67,7 @@ type Proof struct {
 	OpeningsId1Id2Id3mp [3]fri.OpeningProof
 }
 
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness []fr.Element, opt backend.ProverConfig) (*Proof, error) {
 
 	var proof Proof
 

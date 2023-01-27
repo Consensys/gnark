@@ -29,8 +29,6 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
-	bls12_377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/logger"
@@ -40,7 +38,7 @@ var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
 )
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls12_377witness.Witness) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
 	log := logger.Logger().With().Str("curve", "bls12_377").Str("backend", "plonk").Logger()
 	start := time.Now()
 

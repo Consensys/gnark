@@ -10,7 +10,6 @@ import (
 	{{ template "import_curve" . }}
 	{{ template "import_kzg" . }}
 	{{ template "import_fft" . }}
-	{{ template "import_witness" . }}
 	{{ template "import_backend_cs" . }}
 
 	"github.com/consensys/gnark/internal/utils"
@@ -38,7 +37,7 @@ type Proof struct {
 }
 
 // Prove from the public data
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }}witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness []fr.Element, opt backend.ProverConfig) (*Proof, error) {
 
 	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
 	start := time.Now()

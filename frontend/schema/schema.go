@@ -63,7 +63,7 @@ func (s Schema) Instantiate(leafType reflect.Type, omitEmptyTag ...bool) interfa
 	// first, let's replace the Field by reflect.StructField
 	is := toStructField(s.Fields, leafType, omitEmpty)
 
-	// now create the correspoinding type
+	// now create the corresponding type
 	typ := reflect.StructOf(is)
 
 	// instantiate the type

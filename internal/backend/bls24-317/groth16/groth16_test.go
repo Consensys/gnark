@@ -21,16 +21,12 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-317"
 
-	"github.com/consensys/gnark/constraint/bls24-317"
-
-	bls24_317witness "github.com/consensys/gnark/internal/backend/bls24-317/witness"
-
 	"bytes"
 	bls24_317groth16 "github.com/consensys/gnark/internal/backend/bls24-317/groth16"
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -83,53 +79,51 @@ func referenceCircuit() (constraint.ConstraintSystem, frontend.Circuit) {
 func BenchmarkSetup(b *testing.B) {
 	r1cs, _ := referenceCircuit()
 
-	var pk bls24_317groth16.ProvingKey
-	var vk bls24_317groth16.VerifyingKey
 	b.ResetTimer()
 
 	b.Run("setup", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			bls24_317groth16.Setup(r1cs.(*cs.R1CS), &pk, &vk)
+			_, _, _ = groth16.Setup(r1cs)
 		}
 	})
 }
 
 func BenchmarkProver(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	fullWitness := bls24_317witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
+	fullWitness, err := frontend.NewWitness(_solution, fr.Modulus())
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	var pk bls24_317groth16.ProvingKey
-	bls24_317groth16.DummySetup(r1cs.(*cs.R1CS), &pk)
+	pk, err := groth16.DummySetup(r1cs)
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	b.ResetTimer()
 	b.Run("prover", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, _ = bls24_317groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, backend.ProverConfig{})
+			_, _ = groth16.Prove(r1cs, pk, fullWitness)
 		}
 	})
 }
 
 func BenchmarkVerifier(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	fullWitness := bls24_317witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
+	fullWitness, err := frontend.NewWitness(_solution, fr.Modulus())
 	if err != nil {
 		b.Fatal(err)
 	}
-	publicWitness := bls24_317witness.Witness{}
-	_, err = publicWitness.FromAssignment(_solution, tVariable, true)
+	publicWitness, err := frontend.NewWitness(_solution, fr.Modulus(), frontend.PublicOnly())
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	var pk bls24_317groth16.ProvingKey
-	var vk bls24_317groth16.VerifyingKey
-	bls24_317groth16.Setup(r1cs.(*cs.R1CS), &pk, &vk)
-	proof, err := bls24_317groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, backend.ProverConfig{})
+	pk, vk, err := groth16.Setup(r1cs)
+	if err != nil {
+		b.Fatal(err)
+	}
+	proof, err := groth16.Prove(r1cs, pk, fullWitness)
 	if err != nil {
 		panic(err)
 	}
@@ -137,23 +131,23 @@ func BenchmarkVerifier(b *testing.B) {
 	b.ResetTimer()
 	b.Run("verifier", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_ = bls24_317groth16.Verify(proof, &vk, publicWitness)
+			_ = groth16.Verify(proof, vk, publicWitness)
 		}
 	})
 }
 
 func BenchmarkProofSerialization(b *testing.B) {
 	r1cs, _solution := referenceCircuit()
-	fullWitness := bls24_317witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
+	fullWitness, err := frontend.NewWitness(_solution, fr.Modulus())
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	var pk bls24_317groth16.ProvingKey
-	var vk bls24_317groth16.VerifyingKey
-	bls24_317groth16.Setup(r1cs.(*cs.R1CS), &pk, &vk)
-	proof, err := bls24_317groth16.Prove(r1cs.(*cs.R1CS), &pk, fullWitness, backend.ProverConfig{})
+	pk, err := groth16.DummySetup(r1cs)
+	if err != nil {
+		b.Fatal(err)
+	}
+	proof, err := groth16.Prove(r1cs, pk, fullWitness)
 	if err != nil {
 		panic(err)
 	}
@@ -213,8 +207,10 @@ func BenchmarkProofSerialization(b *testing.B) {
 func BenchmarkProvingKeySerialization(b *testing.B) {
 	r1cs, _ := referenceCircuit()
 
-	var pk bls24_317groth16.ProvingKey
-	bls24_317groth16.DummySetup(r1cs.(*cs.R1CS), &pk)
+	pk, err := groth16.DummySetup(r1cs)
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	var buf bytes.Buffer
 	// grow the buffer once

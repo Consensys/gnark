@@ -112,6 +112,7 @@ func main() {
 
 			csDir := d.CSPath
 			witnessDir := filepath.Join(d.RootPath, "witness")
+			os.Remove(filepath.Join(witnessDir, "witness.go"))
 
 			// constraint systems
 			entries := []bavard.Entry{
@@ -128,13 +129,6 @@ func main() {
 				{File: filepath.Join(csDir, "r1cs_test.go"), Templates: []string{"tests/r1cs.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "cs_test", "./template/representations/", entries...); err != nil {
-				panic(err)
-			}
-
-			entries = []bavard.Entry{
-				{File: filepath.Join(witnessDir, "witness.go"), Templates: []string{"witness.go.tmpl", importCurve}},
-			}
-			if err := bgen.Generate(d, "witness", "./template/representations/", entries...); err != nil {
 				panic(err)
 			}
 
