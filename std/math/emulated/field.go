@@ -185,7 +185,7 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 		}
 	}
 	if didConstrain {
-		f.enforceWidth(a, false)
+		f.enforceWidth(a, true)
 	}
 	return
 }
