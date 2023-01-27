@@ -10,7 +10,9 @@ import (
 
 // NewWitness build an ordered vector of field elements from the given assignment (Circuit)
 // if PublicOnly is specified, returns the public part of the witness only
-// else returns [public | secret]. The result can then be serialized to / from json & binary
+// else returns [public | secret]. The result can then be serialized to / from json & binary.
+//
+// See ExampleWitness in witness package for usage.
 func NewWitness(assignment Circuit, field *big.Int, opts ...WitnessOption) (witness.Witness, error) {
 	opt, err := options(opts...)
 	if err != nil {
