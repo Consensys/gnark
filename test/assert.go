@@ -67,7 +67,7 @@ func (assert *Assert) Run(fn func(assert *Assert), descs ...string) {
 	desc := strings.Join(descs, "/")
 	assert.t.Run(desc, func(t *testing.T) {
 		// TODO(ivokub): access to compiled cache is not synchronized -- running
-		// the tests in parallel will result in undetermined behaviour. A better
+		// the tests in parallel will result in undetermined behavior. A better
 		// approach would be to synchronize compiled and run the tests in
 		// parallel for a potential speedup.
 		assert := &Assert{t, require.New(t), assert.compiled}

@@ -234,7 +234,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			// default visibility is Unset
 			visibility := Unset
 
-			// variable name is field name, unless overriden by gnark tag value
+			// variable name is field name, unless overridden by gnark tag value
 			name := f.Name
 			var nameTag string
 
@@ -322,7 +322,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 	if tValue.Kind() == reflect.Slice || tValue.Kind() == reflect.Array {
 		if tValue.Len() == 0 {
 			if reflect.SliceOf(target) == tValue.Type() {
-				fmt.Printf("ignoring uninitizalized slice: %s %s\n", parentGoName, reflect.SliceOf(target).String())
+				fmt.Printf("ignoring uninitialized slice: %s %s\n", parentGoName, reflect.SliceOf(target).String())
 			}
 			return r, nil
 		}
