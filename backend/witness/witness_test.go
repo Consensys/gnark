@@ -1,6 +1,7 @@
 package witness_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -24,26 +25,33 @@ func (c *circuit) Define(frontend.API) error {
 	return nil
 }
 
-func roundTripMarshal(assert *require.Assertions, assignment circuit, publicOnly bool) {
-	// build the vector
-	var opts []frontend.WitnessOption
-	if publicOnly {
-		opts = append(opts, frontend.PublicOnly())
+func ExampleWitness() {
+	// Witnesses can be created directly by "walking" through an assignment (circuit structure)
+	// simple assignment
+	assignment := &circuit{
+		X: 42,
+		Y: 8000,
+		E: 1,
 	}
-	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), opts...)
-	assert.NoError(err)
 
-	// serialize the vector to binary
-	data, err := w.MarshalBinary()
-	assert.NoError(err)
+	w, _ := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 
-	// re-read
-	rw, err := witness.New(ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = rw.UnmarshalBinary(data)
-	assert.NoError(err)
+	// Binary [de]serialization
+	data, _ := w.MarshalBinary()
 
-	assert.True(reflect.DeepEqual(rw, w), "witness binary round trip serialization")
+	reconstructed, _ := witness.New(ecc.BN254.ScalarField())
+	reconstructed.UnmarshalBinary(data)
+
+	// For pretty printing, we can do JSON conversions; they are not efficient and don't handle
+	// complex circuit structures well.
+
+	// first get the circuit expected schema
+	schema, _ := frontend.NewSchema(assignment)
+	json, _ := reconstructed.ToJSON(schema)
+
+	fmt.Println(string(json))
+	// Output:
+	// {"X":42,"Y":8000,"E":1}
 
 }
 
@@ -91,8 +99,25 @@ func TestPublic(t *testing.T) {
 	assert.Equal("8000", wt[1].String())
 }
 
-var tVariable reflect.Type
+func roundTripMarshal(assert *require.Assertions, assignment circuit, publicOnly bool) {
+	// build the vector
+	var opts []frontend.WitnessOption
+	if publicOnly {
+		opts = append(opts, frontend.PublicOnly())
+	}
+	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), opts...)
+	assert.NoError(err)
 
-func init() {
-	tVariable = reflect.TypeOf(circuit{}.E)
+	// serialize the vector to binary
+	data, err := w.MarshalBinary()
+	assert.NoError(err)
+
+	// re-read
+	rw, err := witness.New(ecc.BN254.ScalarField())
+	assert.NoError(err)
+	err = rw.UnmarshalBinary(data)
+	assert.NoError(err)
+
+	assert.True(reflect.DeepEqual(rw, w), "witness binary round trip serialization")
+
 }

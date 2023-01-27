@@ -58,6 +58,13 @@ func NewWitness(assignment Circuit, field *big.Int, opts ...WitnessOption) (witn
 	return w, nil
 }
 
+// NewSchema returns the schema corresponding to the circuit structure.
+//
+// This is used to JSON (un)marshall witnesses.
+func NewSchema(circuit Circuit) (*schema.Schema, error) {
+	return schema.New(circuit, tVariable)
+}
+
 // default options
 func options(opts ...WitnessOption) (witnessConfig, error) {
 	// apply options

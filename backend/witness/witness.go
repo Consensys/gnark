@@ -16,12 +16,8 @@
 //
 // Binary protocol
 //
-//	Full witness     ->  [uint32(nbElements) | publicVariables | secretVariables]
-//	Public witness   ->  [uint32(nbElements) | publicVariables ]
-//
-// where
-//   - `nbElements == len(publicVariables) [+ len(secretVariables)]`.
-//   - each variable (a *field element*) is encoded as a big-endian byte array, where `len(bytes(variable)) == len(bytes(modulus))`
+//	Witness     ->  [uint32(nbPublic) | uint32(nbSecret) | fr.Vector(variables)]
+//	fr.Vector is a *field element* vector encoded a big-endian byte array like so: [uint32(len(vector)) | elements]
 //
 // # Ordering
 //
@@ -35,9 +31,9 @@
 //	}
 //
 // A valid witness would be:
-//   - `[uint32(3)|bytes(Y)|bytes(X)|bytes(Z)]`
+//   - `[uint32(1)|uint32(2)|uint32(3)|bytes(Y)|bytes(X)|bytes(Z)]`
 //   - Hex representation with values `Y = 35`, `X = 3`, `Z = 2`
-//     `00000003000000000000000000000000000000000000000000000000000000000000002300000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000002`
+//     `000000010000000200000003000000000000000000000000000000000000000000000000000000000000002300000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000002`
 package witness
 
 import (
@@ -123,6 +119,10 @@ func (w *witness) Fill(nbPublic, nbSecret int, values <-chan any) error {
 			// we panic here; shouldn't happen and if it does we may leek a chan + producer go routine
 			panic("chan of values returns more elements than expected")
 		}
+		// if v == nil {
+		// 	this is caught in the set method. however, error message will be unclear; reason
+		// is there is a nil field in assignment, we could print which one.
+		// }
 		if err := set(w.vector, i, v); err != nil {
 			return err
 		}
