@@ -82,7 +82,7 @@ func options(opts ...WitnessOption) (witnessConfig, error) {
 	return opt, nil
 }
 
-// WitnessOption sets optional parameter to witness instantiation from an assigment
+// WitnessOption sets optional parameter to witness instantiation from an assignment
 type WitnessOption func(*witnessConfig) error
 
 type witnessConfig struct {
