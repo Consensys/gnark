@@ -522,9 +522,10 @@ func BenchmarkMiMCMerkleTreeNoGkrNoDep(b *testing.B) {
 }
 
 type mimcNoDepCircuit struct {
-	X         []frontend.Variable
-	Y         []frontend.Variable
-	mimcDepth int
+	X          []frontend.Variable
+	Y          []frontend.Variable
+	mimcDepth  int
+	solverOnly bool
 }
 
 func (c *mimcNoDepCircuit) Define(api frontend.API) error {
@@ -557,7 +558,26 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 		return err
 	}
 	Z := solution.Export(z)
+	if c.solverOnly {
+		zCorrect := ToyMiMC(api, c.mimcDepth, c.X, c.Y)
+		for i := range zCorrect {
+			api.AssertIsEqual(zCorrect[i], Z[i])
+		}
+		return nil
+	}
 	return solution.Verify("-20", Z...)
+}
+
+func ToyMiMC(api frontend.API, mimcDepth int, X, Y []frontend.Variable) []frontend.Variable {
+	Z := make([]frontend.Variable, len(X))
+	gate := RegisteredGates["mimc"]
+	for i := range Z {
+		Z[i] = Y[i]
+		for n := 0; n < mimcDepth; n++ {
+			Z[i] = gate.Evaluate(api, X[i], Z[i])
+		}
+	}
+	return Z
 }
 
 func mimcNoDepCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend.Circuit) {
@@ -583,6 +603,12 @@ func BenchmarkMiMCNoDepSolve(b *testing.B) {
 	//defer profile.Start().Stop()
 	circuit, assignment := mimcNoDepCircuits(1, 1<<9)
 	benchProof(b, circuit, assignment)
+}
+
+func TestMiMCFullDepthNoDepSolver(t *testing.T) {
+	circuit, assignment := mimcNoDepCircuits(91, 1<<19)
+	circuit.(*mimcNoDepCircuit).solverOnly = true
+	testE2E(t, circuit, assignment)
 }
 
 func BenchmarkMiMCFullDepthNoDepSolve(b *testing.B) {
