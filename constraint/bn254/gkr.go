@@ -48,8 +48,8 @@ func convertCircuit(noPtr constraint.GkrCircuit) gkr.Circuit {
 }
 
 func (d *gkrSolvingData) init(info constraint.GkrInfo) gkrAssignment {
-	d.memoryPool = polynomial.NewPool(256, info.NbInstances)
 	d.circuit = convertCircuit(info.Circuit)
+	d.memoryPool = polynomial.NewPool(d.circuit.MemoryRequirements(info.NbInstances)...)
 	d.workers = utils.NewWorkerPool()
 
 	assignmentsSequential := make(gkrAssignment, len(d.circuit))
