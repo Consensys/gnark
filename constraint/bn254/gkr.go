@@ -17,21 +17,25 @@
 package cs
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"hash"
 	"math/big"
+	"time"
 )
 
 type gkrSolvingData struct {
 	assignments gkr.WireAssignment
 	circuit     gkr.Circuit
 	memoryPool  polynomial.Pool
+	workers     utils.WorkerPool
 }
 
 func convertCircuit(noPtr constraint.GkrCircuit) gkr.Circuit {
@@ -46,6 +50,7 @@ func convertCircuit(noPtr constraint.GkrCircuit) gkr.Circuit {
 func (d *gkrSolvingData) init(info constraint.GkrInfo) gkrAssignment {
 	d.memoryPool = polynomial.NewPool(256, info.NbInstances)
 	d.circuit = convertCircuit(info.Circuit)
+	d.workers = utils.NewWorkerPool()
 
 	assignmentsSequential := make(gkrAssignment, len(d.circuit))
 	d.assignments = make(gkr.WireAssignment, len(d.circuit))
@@ -83,6 +88,8 @@ func (a gkrAssignment) setOuts(circuit constraint.GkrCircuit, outs []*big.Int) {
 func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Function {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 
+		startTime := time.Now().UnixMicro()
+
 		// assumes assignmentVector is arranged wire first, instance second in order of solution
 		circuit := info.Circuit
 		nbInstances := info.NbInstances
@@ -90,30 +97,47 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 		nbDepsResolved := make([]int, len(circuit))
 		inputs := make([]fr.Element, info.MaxNIns)
 		assignment := solvingData.init(info)
+		chunks := circuit.Chunks(nbInstances)
 
-		for instanceI := 0; instanceI < nbInstances; instanceI++ {
-			for wireI, wire := range circuit {
-				if wire.IsInput() {
-					if nbDepsResolved[wireI] < len(wire.Dependencies) && instanceI == wire.Dependencies[nbDepsResolved[wireI]].InputInstance {
-						dep := wire.Dependencies[nbDepsResolved[wireI]]
-						assignment[wireI][instanceI].Set(&assignment[dep.OutputWire][dep.OutputInstance])
-						nbDepsResolved[wireI]++
-					} else {
-						assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-nbDepsResolved[wireI]])
+		solveTask := func(chunkOffset int) utils.Task {
+			return func(startInChunk, endInChunk int) {
+				start := startInChunk + chunkOffset
+				end := endInChunk + chunkOffset
+				for instanceI := start; instanceI < end; instanceI++ {
+					for wireI, wire := range circuit {
+						if wire.IsInput() {
+							if nbDepsResolved[wireI] < len(wire.Dependencies) && instanceI == wire.Dependencies[nbDepsResolved[wireI]].InputInstance {
+								dep := wire.Dependencies[nbDepsResolved[wireI]]
+								assignment[wireI][instanceI].Set(&assignment[dep.OutputWire][dep.OutputInstance])
+								nbDepsResolved[wireI]++
+							} else {
+								assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-nbDepsResolved[wireI]])
+							}
+						} else {
+							// assemble the inputs
+							inputIndexes := info.Circuit[wireI].Inputs
+							for i, inputI := range inputIndexes {
+								inputs[i].Set(&assignment[inputI][instanceI])
+							}
+							gate := solvingData.circuit[wireI].Gate
+							assignment[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
+						}
 					}
-				} else {
-					// assemble the inputs
-					inputIndexes := info.Circuit[wireI].Inputs
-					for i, inputI := range inputIndexes {
-						inputs[i].Set(&assignment[inputI][instanceI])
-					}
-					gate := solvingData.circuit[wireI].Gate
-					assignment[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
 				}
 			}
 		}
 
+		start := 0
+		for _, end := range chunks {
+			solvingData.workers.Dispatch(end-start, 1024, solveTask(start)).Wait()
+			start = end
+		}
+
 		assignment.setOuts(info.Circuit, outs)
+
+		endTime := time.Now().UnixMicro()
+		fmt.Println("gkr solved in", endTime-startTime, "μs")
+
 		return nil
 	}
 }
@@ -127,6 +151,9 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
+
+		startTime := time.Now().UnixMicro()
+
 		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
 			b := i.Bytes()
 			return b[:]
@@ -134,7 +161,7 @@ func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 
 		hsh := HashBuilderRegistry[hashName]()
 
-		proof, err := gkr.Prove(data.circuit, data.assignments, fiatshamir.WithHash(hsh, insBytes...), gkr.WithPool(&data.memoryPool)) // TODO: Do transcriptSettings properly
+		proof, err := gkr.Prove(data.circuit, data.assignments, fiatshamir.WithHash(hsh, insBytes...), gkr.WithPool(&data.memoryPool), gkr.WithWorkers(&data.workers))
 		if err != nil {
 			return err
 		}
@@ -154,6 +181,9 @@ func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 		}
 
 		data.dumpAssignments()
+
+		endTime := time.Now().UnixMicro()
+		fmt.Println("gkr proved in", endTime-startTime, "μs")
 
 		return nil
 

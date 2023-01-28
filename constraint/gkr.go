@@ -2,6 +2,7 @@ package constraint
 
 import (
 	"fmt"
+	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"sort"
@@ -100,7 +101,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 		oldW := d.Circuit[oldI]
 
 		if !oldW.IsInput() {
-			d.MaxNIns = max(d.MaxNIns, len(oldW.Inputs))
+			d.MaxNIns = utils.Max(d.MaxNIns, len(oldW.Inputs))
 		}
 
 		for j := range oldW.Dependencies {
@@ -134,9 +135,24 @@ func (d *GkrInfo) Is() bool {
 	return d.Circuit != nil
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
+// Chunks returns intervals of instances that are independent of each other and can be solved in parallel
+func (c GkrCircuit) Chunks(nbInstances int) []int {
+	res := make([]int, 0, 1)
+	lastSeenDependencyI := make([]int, len(c))
+
+	for start, end := 0, 0; start != nbInstances; start = end {
+		end = nbInstances
+		endWireI := -1
+		for wI, w := range c {
+			if wDepI := lastSeenDependencyI[wI]; wDepI < len(w.Dependencies) && w.Dependencies[wDepI].InputInstance < end {
+				end = w.Dependencies[wDepI].InputInstance
+				endWireI = wI
+			}
+		}
+		if endWireI != -1 {
+			lastSeenDependencyI[endWireI]++
+		}
+		res = append(res, end)
 	}
-	return b
+	return res
 }
