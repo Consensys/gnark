@@ -52,6 +52,8 @@ github.com/consensys/gnark-crypto v0.8.1-0.20230125220515-60bf462f12bc h1:WV7AiK
 github.com/consensys/gnark-crypto v0.8.1-0.20230125220515-60bf462f12bc/go.mod h1:CkbdF9hbRidRJYMRzmfX8TMOr95I2pYXRHF18MzRrvA=
 github.com/consensys/gnark-crypto v0.8.1-0.20230126084741-31d96c9b0af0 h1:RDOa3JmQnYrbqgcirhnbdJyw9kNM3vM90AQ1qsSkMFQ=
 github.com/consensys/gnark-crypto v0.8.1-0.20230126084741-31d96c9b0af0/go.mod h1:CkbdF9hbRidRJYMRzmfX8TMOr95I2pYXRHF18MzRrvA=
+github.com/consensys/gnark-crypto v0.8.1-0.20230127213738-13e646aa2877 h1:BG2x9hs9tymPfH36vD6WlPOrYfrGQLjIfXZpoXb5Wfo=
+github.com/consensys/gnark-crypto v0.8.1-0.20230127213738-13e646aa2877/go.mod h1:CkbdF9hbRidRJYMRzmfX8TMOr95I2pYXRHF18MzRrvA=
 github.com/coreos/go-systemd/v22 v22.3.2/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
