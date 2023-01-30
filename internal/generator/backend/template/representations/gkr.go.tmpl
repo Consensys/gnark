@@ -175,8 +175,10 @@ func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 
 		data.dumpAssignments()
 
-		endTime := time.Now().UnixMicro()
-		fmt.Println("gkr solved in", endTime-startTime, "μs")
+		if log {
+			endTime := time.Now().UnixMicro()
+			fmt.Println("gkr proved in", endTime-startTime, "μs")
+		}
 
 		return nil
 
