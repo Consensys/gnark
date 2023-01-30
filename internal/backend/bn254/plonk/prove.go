@@ -216,49 +216,68 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bn254witness.Witness,
 		WrapMe(0)
 
 	// Full capture usigng latest gnark crypto...
-	// 0 , 1,  2,  3,  4,  5,  6, 7,  8,  9, 10, 11, 12, 13, 14
-	// l , r , o, id, s1, s2, s3, z, zs, ql, qr, qm, qo, qk,lone
-	fm := func(x ...fr.Element) fr.Element {
+	fic := func(fql, fqr, fqm, fqo, fqk, l, r, o fr.Element) fr.Element {
 
-		// individual constraints
 		var ic, tmp fr.Element
-		ic.Mul(&x[9], &x[0])
-		tmp.Mul(&x[10], &x[1])
-		ic.Add(&ic, &tmp)
-		tmp.Mul(&x[11], &x[0]).Mul(&tmp, &x[1])
-		ic.Add(&ic, &tmp)
-		tmp.Mul(&x[12], &x[2])
-		ic.Add(&ic, &tmp).Add(&ic, &x[13])
 
-		// ordering
+		ic.Mul(&fql, &l)
+		tmp.Mul(&fqr, &r)
+		ic.Add(&ic, &tmp)
+		tmp.Mul(&fqm, &l).Mul(&tmp, &r)
+		ic.Add(&ic, &tmp)
+		tmp.Mul(&fqo, &o)
+		ic.Add(&ic, &tmp).Add(&ic, &fqk)
+
+		return ic
+	}
+
+	fo := func(l, r, o, fid, fs1, fs2, fs3, fz, fzs fr.Element) fr.Element {
+
 		var u, uu fr.Element
 		u.Set(&pk.Domain[0].FrMultiplicativeGen)
 		uu.Mul(&u, &pk.Domain[0].FrMultiplicativeGen)
 
-		var a, b fr.Element
-		a.Mul(&beta, &x[3]).Add(&a, &x[0]).Add(&a, &gamma)
-		tmp.Mul(&beta, &u).Mul(&tmp, &x[3]).Add(&tmp, &x[1]).Add(&tmp, &gamma)
+		var a, b, tmp fr.Element
+		a.Mul(&beta, &fid).Add(&a, &l).Add(&a, &gamma)
+		tmp.Mul(&beta, &u).Mul(&tmp, &fid).Add(&tmp, &r).Add(&tmp, &gamma)
 		a.Mul(&a, &tmp)
-		tmp.Mul(&beta, &uu).Mul(&tmp, &x[3]).Add(&tmp, &x[2]).Add(&tmp, &gamma)
-		a.Mul(&a, &tmp).Mul(&a, &x[7])
+		tmp.Mul(&beta, &uu).Mul(&tmp, &fid).Add(&tmp, &o).Add(&tmp, &gamma)
+		a.Mul(&a, &tmp).Mul(&a, &fz)
 
-		b.Mul(&beta, &x[4]).Add(&b, &x[0]).Add(&b, &gamma)
-		tmp.Mul(&beta, &x[5]).Add(&tmp, &x[1]).Add(&tmp, &gamma)
+		b.Mul(&beta, &fs1).Add(&b, &l).Add(&b, &gamma)
+		tmp.Mul(&beta, &fs2).Add(&tmp, &r).Add(&tmp, &gamma)
 		b.Mul(&b, &tmp)
-		tmp.Mul(&beta, &x[6]).Add(&tmp, &x[2]).Add(&tmp, &gamma)
-		b.Mul(&b, &tmp).Mul(&b, &x[8])
+		tmp.Mul(&beta, &fs3).Add(&tmp, &o).Add(&tmp, &gamma)
+		b.Mul(&b, &tmp).Mul(&b, &fzs)
 
 		b.Sub(&b, &a)
 
-		// z(1)=1
-		var sone, cone fr.Element
-		cone.SetOne()
-		sone.Sub(&x[7], &cone).Mul(&sone, &x[14])
+		return b
 
-		// ic + \alpha*ordering + \alpha^{2}*sone
-		sone.Mul(&sone, &alpha).Add(&sone, &b).Mul(&sone, &alpha).Add(&sone, &ic)
+	}
 
-		return sone
+	fone := func(fz, flone fr.Element) fr.Element {
+
+		var one fr.Element
+		one.SetOne()
+
+		one.Sub(&fz, &one).Mul(&one, &flone)
+
+		return one
+
+	}
+
+	// 0 , 1,  2,  3,  4,  5,  6, 7,  8,  9, 10, 11, 12, 13, 14
+	// l , r , o, id, s1, s2, s3, z, zs, ql, qr, qm, qo, qk,lone
+	fm := func(x ...fr.Element) fr.Element {
+
+		a := fic(x[9], x[10], x[11], x[12], x[13], x[0], x[1], x[2])
+		b := fo(x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8])
+		c := fone(x[7], x[14])
+
+		c.Mul(&c, &alpha).Add(&c, &b).Mul(&c, &alpha).Add(&c, &a)
+
+		return c
 	}
 	testEval, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse},
 		&bwliop,
