@@ -131,8 +131,8 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 							assignment[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
 						}
 					}
-					solvingData.memoryPool.Dump(inputs)
 				}
+				solvingData.memoryPool.Dump(inputs)
 			}
 		}
 
