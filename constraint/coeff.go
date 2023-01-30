@@ -28,37 +28,6 @@ type CoeffEngine interface {
 	String(*Coeff) string
 }
 
-// type Formatter interface {
-// 	LinearExpressionToString(l LinearExpression) string
-// 	TermToString(t Term) string
-
-// 	WriteLinearExpression(l LinearExpression)
-// 	WriteTerm(t Term)
-
-// 	String()
-// }
-
-// R1C.String(formatter) {
-// 	formatter.WriteTerm()
-// 	formater.String()
-// }
-
-// type R1CFormatter interface {
-
-// }
-
-// constraints := getConstraints()
-
-// formatter := newFormatter(resolver)
-
-// formatter.
-
-// for c := range constraints {
-// 	c.String()
-// 	c.L.String()
-
-// }
-
 // ids of the coefficients with simple values in any cs.coeffs slice.
 // TODO @gbotrel let's keep that here for the refactoring -- and move it to concrete cs package after
 const (
