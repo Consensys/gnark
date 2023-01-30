@@ -22,7 +22,6 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"io"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -396,67 +395,9 @@ func (cs *R1CS) solveConstraint(r constraint.R1C, solution *solution, a, b, c *f
 	return nil
 }
 
-// GetConstraints return a list of constraint formatted as L⋅R == O
-// such that [0] -> L, [1] -> R, [2] -> O
-func (cs *R1CS) GetConstraints() [][]string {
-	r := make([][]string, 0, len(cs.Constraints))
-	for _, c := range cs.Constraints {
-		// for each constraint, we build a string representation of it's L, R and O part
-		// if we are worried about perf for large cs, we could do a string builder + csv format.
-		var line [3]string
-		line[0] = cs.vtoString(c.L)
-		line[1] = cs.vtoString(c.R)
-		line[2] = cs.vtoString(c.O)
-		r = append(r, line[:])
-	}
-	return r
-}
-
-func (cs *R1CS) vtoString(l constraint.LinearExpression) string {
-	var sbb strings.Builder
-	for i := 0; i < len(l); i++ {
-		cs.termToString(l[i], &sbb)
-		if i+1 < len(l) {
-			sbb.WriteString(" + ")
-		}
-	}
-	return sbb.String()
-}
-
-func (cs *R1CS) termToString(t constraint.Term, sbb *strings.Builder) {
-	tID := t.CoeffID()
-	if tID == constraint.CoeffIdOne {
-		// do nothing, just print the variable
-	} else if tID == constraint.CoeffIdMinusOne {
-		// print neg sign
-		sbb.WriteByte('-')
-	} else if tID == constraint.CoeffIdZero {
-		sbb.WriteByte('0')
-		return
-	} else {
-		sbb.WriteString(cs.Coefficients[tID].String())
-		sbb.WriteString("⋅")
-	}
-	vID := t.WireID()
-
-	if vID < len(cs.Public) {
-		// public
-		if vID == 0 {
-			sbb.WriteByte('1') // one wire
-		} else {
-			sbb.WriteString(fmt.Sprintf("p%d", vID-1))
-		}
-		return
-	}
-	if vID < (len(cs.Public) + len(cs.Secret)) {
-		sbb.WriteString(fmt.Sprintf("s%d", vID-len(cs.Public)))
-		return
-	}
-	if _, isHint := cs.MHints[vID]; isHint {
-		sbb.WriteString(fmt.Sprintf("hv%d", vID-len(cs.Public)-len(cs.Secret)))
-	} else {
-		sbb.WriteString(fmt.Sprintf("v%d", vID-len(cs.Public)-len(cs.Secret)))
-	}
+// GetConstraints return the list of R1C and a coefficient resolver
+func (cs *R1CS) GetConstraints() ([]constraint.R1C, constraint.Resolver) {
+	return cs.Constraints, cs
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS

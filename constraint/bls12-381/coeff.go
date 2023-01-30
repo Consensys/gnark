@@ -73,6 +73,11 @@ func (ct *CoeffTable) MakeTerm(coeff *constraint.Coeff, variableID int) constrai
 	return constraint.Term{VID: uint32(variableID), CID: cID}
 }
 
+// CoeffToString implements constraint.Resolver
+func (ct *CoeffTable) CoeffToString(cID int) string {
+	return ct.Coefficients[cID].String()
+}
+
 var _ constraint.CoeffEngine = &arithEngine{}
 
 var (
