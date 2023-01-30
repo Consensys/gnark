@@ -85,6 +85,8 @@ func (a gkrAssignment) setOuts(circuit constraint.GkrCircuit, outs []*big.Int) {
 	// Check if outsI == len(outs)?
 }
 
+const log = true
+
 func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Function {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 
@@ -129,9 +131,8 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 							assignment[wireI][instanceI] = gate.Evaluate(inputs[:len(inputIndexes)]...)
 						}
 					}
+					solvingData.memoryPool.Dump(inputs)
 				}
-
-				solvingData.memoryPool.Dump(inputs)
 			}
 		}
 
@@ -143,8 +144,10 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 
 		assignment.setOuts(info.Circuit, outs)
 
-		endTime := time.Now().UnixMicro()
-		fmt.Println("gkr solved in", endTime-startTime, "μs")
+		if log {
+			endTime := time.Now().UnixMicro()
+			fmt.Println("gkr proved in", endTime-startTime, "μs")
+		}
 
 		return nil
 	}
@@ -191,7 +194,7 @@ func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 		data.dumpAssignments()
 
 		endTime := time.Now().UnixMicro()
-		fmt.Println("gkr proved in", endTime-startTime, "μs")
+		fmt.Println("gkr solved in", endTime-startTime, "μs")
 
 		return nil
 
