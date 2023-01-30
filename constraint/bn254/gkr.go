@@ -94,8 +94,6 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 		circuit := info.Circuit
 		nbInstances := info.NbInstances
 		offsets := info.AssignmentOffsets()
-		nbDepsResolved := make([]int, len(circuit))
-		inputs := make([]fr.Element, info.MaxNIns)
 		assignment := solvingData.init(info)
 		chunks := circuit.Chunks(nbInstances)
 
@@ -103,15 +101,23 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 			return func(startInChunk, endInChunk int) {
 				start := startInChunk + chunkOffset
 				end := endInChunk + chunkOffset
+				inputs := solvingData.memoryPool.Make(info.MaxNIns)
+				dependencyHeads := make([]int, len(circuit))
+				for wI, w := range circuit {
+					dependencyHeads[wI] = algo_utils.BinarySearchFunc(func(i int) int {
+						return w.Dependencies[i].InputInstance
+					}, len(w.Dependencies), start)
+				}
+
 				for instanceI := start; instanceI < end; instanceI++ {
 					for wireI, wire := range circuit {
 						if wire.IsInput() {
-							if nbDepsResolved[wireI] < len(wire.Dependencies) && instanceI == wire.Dependencies[nbDepsResolved[wireI]].InputInstance {
-								dep := wire.Dependencies[nbDepsResolved[wireI]]
+							if dependencyHeads[wireI] < len(wire.Dependencies) && instanceI == wire.Dependencies[dependencyHeads[wireI]].InputInstance {
+								dep := wire.Dependencies[dependencyHeads[wireI]]
 								assignment[wireI][instanceI].Set(&assignment[dep.OutputWire][dep.OutputInstance])
-								nbDepsResolved[wireI]++
+								dependencyHeads[wireI]++
 							} else {
-								assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-nbDepsResolved[wireI]])
+								assignment[wireI][instanceI].SetBigInt(ins[offsets[wireI]+instanceI-dependencyHeads[wireI]])
 							}
 						} else {
 							// assemble the inputs
@@ -124,6 +130,8 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 						}
 					}
 				}
+
+				solvingData.memoryPool.Dump(inputs)
 			}
 		}
 

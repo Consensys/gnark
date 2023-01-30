@@ -142,3 +142,34 @@ func (d *topSortData) markDone(i int) {
 		d.leastReady++
 	}
 }
+
+// BinarySearch looks for toFind in a sorted slice, and returns the index at which it either is or would be were it to be inserted.
+func BinarySearch(slice []int, toFind int) int {
+	var start int
+	for end := len(slice); start != end; {
+		mid := (start + end) / 2
+		if toFind >= slice[mid] {
+			start = mid
+		}
+		if toFind <= slice[mid] {
+			end = mid
+		}
+	}
+	return start
+}
+
+// BinarySearchFunc looks for toFind in an increasing function of domain 0 ... (end-1), and returns the index at which it either is or would be were it to be inserted.
+func BinarySearchFunc(eval func(int) int, end int, toFind int) int {
+	var start int
+	for start != end {
+		mid := (start + end) / 2
+		val := eval(mid)
+		if toFind >= val {
+			start = mid
+		}
+		if toFind <= val {
+			end = mid
+		}
+	}
+	return start
+}

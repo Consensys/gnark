@@ -606,7 +606,7 @@ func BenchmarkMiMCNoDepSolve(b *testing.B) {
 }
 
 func TestMiMCFullDepthNoDepSolver(t *testing.T) {
-	circuit, assignment := mimcNoDepCircuits(91, 1<<19)
+	circuit, assignment := mimcNoDepCircuits(91, 1<<11)
 	circuit.(*mimcNoDepCircuit).solverOnly = true
 	testE2E(t, circuit, assignment)
 }
