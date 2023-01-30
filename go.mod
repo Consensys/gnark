@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
-	github.com/consensys/gnark-crypto v0.8.1-0.20221220191316-4b7364bddab8
+	github.com/consensys/gnark-crypto v0.9.1-0.20230130161913-861de5490919
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/google/go-cmp v0.5.8
@@ -30,3 +30,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
+
+replace "github.com/consensys/gnark-crypto" => "/Users/arya/gnark-crypto"

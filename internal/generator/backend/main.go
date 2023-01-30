@@ -208,6 +208,15 @@ func main() {
 
 	}
 
+	wg.Add(1)
+	go func() {
+		if err = bgen.Generate(datas, "hardcoded_strings", "./template/representations/",
+			bavard.Entry{File: filepath.Join("../../../std/hardcoded_strings", "hardcoded_strings.go"), Templates: []string{"strings.go.tmpl"}}); err != nil {
+			panic(err)
+		}
+		wg.Done()
+	}()
+
 	wg.Wait()
 
 	// run go fmt on whole directory
