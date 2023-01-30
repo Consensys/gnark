@@ -128,7 +128,7 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 
 		if log {
 			endTime := time.Now().UnixMicro()
-			fmt.Println("gkr proved in", endTime-startTime, "μs")
+			fmt.Println("gkr solved in", endTime-startTime, "μs")
 		}
 
 		return nil
