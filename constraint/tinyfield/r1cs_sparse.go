@@ -24,7 +24,6 @@ import (
 	"io"
 	"math"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -383,98 +382,9 @@ func (cs *SparseR1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOp
 	return err
 }
 
-// GetConstraints return a list of constraint formatted as in the paper
-// https://eprint.iacr.org/2019/953.pdf section 6 such that
-// qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
-// each constraint is thus decomposed in [5]string with
-//
-//	[0] = qL⋅xa
-//	[1] = qR⋅xb
-//	[2] = qO⋅xc
-//	[3] = qM⋅(xaxb)
-//	[4] = qC
-func (cs *SparseR1CS) GetConstraints() [][]string {
-	r := make([][]string, 0, len(cs.Constraints))
-	for _, c := range cs.Constraints {
-		fc := cs.formatConstraint(c)
-		r = append(r, fc[:])
-	}
-	return r
-}
-
-// r[0] = qL⋅xa
-// r[1] = qR⋅xb
-// r[2] = qO⋅xc
-// r[3] = qM⋅(xaxb)
-// r[4] = qC
-func (cs *SparseR1CS) formatConstraint(c constraint.SparseR1C) (r [5]string) {
-	isZeroM := (c.M[0].CoeffID() == constraint.CoeffIdZero) && (c.M[1].CoeffID() == constraint.CoeffIdZero)
-
-	var sbb strings.Builder
-	cs.termToString(c.L, &sbb, false)
-	r[0] = sbb.String()
-
-	sbb.Reset()
-	cs.termToString(c.R, &sbb, false)
-	r[1] = sbb.String()
-
-	sbb.Reset()
-	cs.termToString(c.O, &sbb, false)
-	r[2] = sbb.String()
-
-	if isZeroM {
-		r[3] = "0"
-	} else {
-		sbb.Reset()
-		sbb.WriteString(cs.Coefficients[c.M[0].CoeffID()].String())
-		sbb.WriteString("⋅")
-		sbb.WriteByte('(')
-		cs.termToString(c.M[0], &sbb, true)
-		sbb.WriteString(" × ")
-		cs.termToString(c.M[1], &sbb, true)
-		sbb.WriteByte(')')
-		r[3] = sbb.String()
-	}
-
-	r[4] = cs.Coefficients[c.K].String()
-
-	return
-}
-
-func (cs *SparseR1CS) termToString(t constraint.Term, sbb *strings.Builder, vOnly bool) {
-	if !vOnly {
-		tID := t.CoeffID()
-		if tID == constraint.CoeffIdOne {
-			// do nothing, just print the variable
-			sbb.WriteString("1")
-		} else if tID == constraint.CoeffIdMinusOne {
-			// print neg sign
-			sbb.WriteString("-1")
-		} else if tID == constraint.CoeffIdZero {
-			sbb.WriteByte('0')
-			return
-		} else {
-			sbb.WriteString(cs.Coefficients[tID].String())
-		}
-		sbb.WriteString("⋅")
-	}
-
-	vID := t.WireID()
-
-	// TODO @gbotrel factorize with R1CS
-	if vID < len(cs.Public) {
-		sbb.WriteString(fmt.Sprintf("p%d", vID))
-		return
-	}
-	if vID < (len(cs.Public) + len(cs.Secret)) {
-		sbb.WriteString(fmt.Sprintf("s%d", vID-len(cs.Public)))
-		return
-	}
-	if _, isHint := cs.MHints[vID]; isHint {
-		sbb.WriteString(fmt.Sprintf("hv%d", vID-len(cs.Public)-len(cs.Secret)))
-	} else {
-		sbb.WriteString(fmt.Sprintf("v%d", vID-len(cs.Public)-len(cs.Secret)))
-	}
+// GetConstraints return the list of SparseR1C and a coefficient resolver
+func (cs *SparseR1CS) GetConstraints() ([]constraint.SparseR1C, constraint.Resolver) {
+	return cs.Constraints, cs
 }
 
 // checkConstraint verifies that the constraint holds
