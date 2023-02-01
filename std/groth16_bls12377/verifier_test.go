@@ -21,13 +21,13 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint"
 	cs_bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
-	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
@@ -69,13 +69,12 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	assignment.PreImage = preImage
 	assignment.Hash = publicHash
 
-	var witness, publicWitness witness.Witness
-	_, err = witness.FromAssignment(&assignment, tVariable, false)
+	witness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = publicWitness.FromAssignment(&assignment, tVariable, true)
+	publicWitness, err := witness.Public()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +86,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 		t.Fatal(err)
 	}
 
-	_proof, err := groth16_bls12377.Prove(r1cs.(*cs_bls12377.R1CS), &pk, witness, backend.ProverConfig{})
+	_proof, err := groth16_bls12377.Prove(r1cs.(*cs_bls12377.R1CS), &pk, witness.Vector().(fr.Vector), backend.ProverConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +95,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	proof.Krs = _proof.Krs
 
 	// before returning verifies that the proof passes on bls12377
-	if err := groth16_bls12377.Verify(proof, vk, publicWitness); err != nil {
+	if err := groth16_bls12377.Verify(proof, vk, publicWitness.Vector().(fr.Vector)); err != nil {
 		t.Fatal(err)
 	}
 

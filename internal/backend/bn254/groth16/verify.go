@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/logger"
 	"io"
 	"math/big"
@@ -35,7 +35,7 @@ var (
 )
 
 // Verify verifies a proof with given VerifyingKey and publicWitness
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	nbPublicVars := len(vk.G1.K)
 	if vk.CommitmentInfo.Is() {

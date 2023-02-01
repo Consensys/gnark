@@ -24,7 +24,7 @@ type ConstraintSystem interface {
 	CoeffEngine
 
 	// IsSolved returns nil if given witness solves the constraint system and error otherwise
-	IsSolved(witness *witness.Witness, opts ...backend.ProverOption) error
+	IsSolved(witness witness.Witness, opts ...backend.ProverOption) error
 
 	// GetNbVariables return number of internal, secret and public Variables
 	// Deprecated: use GetNbSecretVariables() instead

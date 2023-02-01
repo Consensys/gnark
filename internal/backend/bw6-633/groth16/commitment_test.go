@@ -51,7 +51,7 @@ func setup(t *testing.T, circuit frontend.Circuit) (constraint.ConstraintSystem,
 	return _r1cs, pk, vk
 }
 
-func prove(t *testing.T, assignment frontend.Circuit, cs constraint.ConstraintSystem, pk groth16.ProvingKey) (*witness.Witness, groth16.Proof) {
+func prove(t *testing.T, assignment frontend.Circuit, cs constraint.ConstraintSystem, pk groth16.ProvingKey) (witness.Witness, groth16.Proof) {
 	_witness, err := frontend.NewWitness(assignment, ecc.BW6_633.ScalarField())
 	assert.NoError(t, err)
 

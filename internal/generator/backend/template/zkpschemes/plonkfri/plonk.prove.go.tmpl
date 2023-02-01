@@ -6,7 +6,6 @@ import (
 
 	{{ template "import_fr" . }}
 	{{ template "import_fft" . }}
-	{{ template "import_witness" . }}
 	{{ template "import_backend_cs" . }}
     {{ template "import_fri" . }}
 	
@@ -47,7 +46,7 @@ type Proof struct {
 	OpeningsId1Id2Id3mp [3]fri.OpeningProof
 }
 
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }}witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
 
 	var proof Proof
 

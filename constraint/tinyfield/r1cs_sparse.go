@@ -36,8 +36,6 @@ import (
 	"github.com/consensys/gnark/profile"
 
 	fr "github.com/consensys/gnark/internal/tinyfield"
-
-	unknownwitness "github.com/consensys/gnark/internal/tinyfield/witness"
 )
 
 // SparseR1CS represents a Plonk like circuit
@@ -77,7 +75,7 @@ func (cs *SparseR1CS) AddConstraint(c constraint.SparseR1C, debugInfo ...constra
 // solution.values =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
+func (cs *SparseR1CS) Solve(witness fr.Vector, opt backend.ProverConfig) (fr.Vector, error) {
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "plonk").Logger()
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
@@ -87,7 +85,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 
 	expectedWitnessSize := int(len(cs.Public) + len(cs.Secret))
 	if len(witness) != expectedWitnessSize {
-		return make([]fr.Element, nbVariables), fmt.Errorf(
+		return make(fr.Vector, nbVariables), fmt.Errorf(
 			"invalid witness size, got %d, expected %d = %d (public) + %d (secret)",
 			len(witness),
 			expectedWitnessSize,
@@ -142,7 +140,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 
 }
 
-func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv []fr.Element) error {
+func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv fr.Vector) error {
 	// minWorkPerCPU is the minimum target number of constraint a task should hold
 	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
 	// sequentially without sync.
@@ -303,7 +301,7 @@ func (cs *SparseR1CS) computeHints(c constraint.SparseR1C, solution *solution) (
 // solveConstraint solve any unsolved wire in given constraint and update the solution
 // a SparseR1C may have up to one unsolved wire (excluding hints)
 // if it doesn't, then this function returns and does nothing
-func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution, coefficientsNegInv []fr.Element) error {
+func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution, coefficientsNegInv fr.Vector) error {
 
 	lro, err := cs.computeHints(c, solution)
 	if err != nil {
@@ -374,14 +372,14 @@ func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution
 
 // IsSolved returns nil if given witness solves the SparseR1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *SparseR1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption) error {
+func (cs *SparseR1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) error {
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
 		return err
 	}
 
-	v := witness.Vector.(*unknownwitness.Witness)
-	_, err = cs.Solve(*v, opt)
+	v := witness.Vector().(fr.Vector)
+	_, err = cs.Solve(v, opt)
 	return err
 }
 
