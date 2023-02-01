@@ -47,8 +47,16 @@ import (
 	"math/big"
 	"reflect"
 
+	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	fr_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
+	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/tinyfield"
 )
 
 var ErrInvalidWitness = errors.New("invalid witness")
@@ -178,7 +186,37 @@ func (w *witness) ReadFrom(r io.Reader) (n int64, err error) {
 		return int64(read) + 4, err
 	}
 	w.nbSecret = binary.BigEndian.Uint32(buf[:4])
-	m, err := w.vector.(io.ReaderFrom).ReadFrom(r)
+
+	var m int64
+	switch t := w.vector.(type) {
+	case fr_bn254.Vector:
+		m, err = t.ReadFrom(r)
+		w.vector = t
+	case fr_bls12377.Vector:
+		m, err = t.ReadFrom(r)
+		w.vector = t
+	case fr_bls12381.Vector:
+		m, err = t.ReadFrom(r)
+		w.vector = t
+	case fr_bw6761.Vector:
+		m, err = t.ReadFrom(r)
+		w.vector = t
+	case fr_bls24317.Vector:
+		m, err = t.ReadFrom(r)
+		w.vector = t
+	case fr_bls24315.Vector:
+		m, err = t.ReadFrom(r)
+		w.vector = t
+	case fr_bw6633.Vector:
+		m, err = t.ReadFrom(r)
+		w.vector = t
+	case tinyfield.Vector:
+		m, err = t.ReadFrom(r)
+		w.vector = t
+	default:
+		panic("invalid input")
+	}
+
 	n += m
 	return n, err
 }
@@ -201,7 +239,7 @@ func (w *witness) UnmarshalBinary(data []byte) error {
 }
 
 func (w *witness) Vector() any {
-	return indirect(w.vector)
+	return w.vector
 }
 
 // ToJSON returns the JSON encoding of the witness following the provided Schema. This is a

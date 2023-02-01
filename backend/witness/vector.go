@@ -2,6 +2,7 @@ package witness
 
 import (
 	"errors"
+	"io"
 	"math/big"
 	"reflect"
 
@@ -21,30 +22,22 @@ func newVector(field *big.Int, size int) (any, error) {
 	curveID := utils.FieldToCurve(field)
 	switch curveID {
 	case ecc.BN254:
-		v := make(fr_bn254.Vector, size)
-		return &v, nil
+		return make(fr_bn254.Vector, size), nil
 	case ecc.BLS12_377:
-		v := make(fr_bls12377.Vector, size)
-		return &v, nil
+		return make(fr_bls12377.Vector, size), nil
 	case ecc.BLS12_381:
-		v := make(fr_bls12381.Vector, size)
-		return &v, nil
+		return make(fr_bls12381.Vector, size), nil
 	case ecc.BW6_761:
-		v := make(fr_bw6761.Vector, size)
-		return &v, nil
+		return make(fr_bw6761.Vector, size), nil
 	case ecc.BLS24_317:
-		v := make(fr_bls24317.Vector, size)
-		return &v, nil
+		return make(fr_bls24317.Vector, size), nil
 	case ecc.BLS24_315:
-		v := make(fr_bls24315.Vector, size)
-		return &v, nil
+		return make(fr_bls24315.Vector, size), nil
 	case ecc.BW6_633:
-		v := make(fr_bw6633.Vector, size)
-		return &v, nil
+		return make(fr_bw6633.Vector, size), nil
 	default:
 		if field.Cmp(tinyfield.Modulus()) == 0 {
-			v := make(tinyfield.Vector, size)
-			return &v, nil
+			return make(tinyfield.Vector, size), nil
 		} else {
 			return nil, errors.New("unsupported modulus")
 		}
@@ -53,38 +46,38 @@ func newVector(field *big.Int, size int) (any, error) {
 
 func newFrom(from any, n int) (any, error) {
 	switch wt := from.(type) {
-	case *fr_bn254.Vector:
+	case fr_bn254.Vector:
 		a := make(fr_bn254.Vector, n)
-		copy(a, *wt)
-		return &a, nil
-	case *fr_bls12377.Vector:
+		copy(a, wt)
+		return a, nil
+	case fr_bls12377.Vector:
 		a := make(fr_bls12377.Vector, n)
-		copy(a, *wt)
-		return &a, nil
-	case *fr_bls12381.Vector:
+		copy(a, wt)
+		return a, nil
+	case fr_bls12381.Vector:
 		a := make(fr_bls12381.Vector, n)
-		copy(a, *wt)
-		return &a, nil
-	case *fr_bw6761.Vector:
+		copy(a, wt)
+		return a, nil
+	case fr_bw6761.Vector:
 		a := make(fr_bw6761.Vector, n)
-		copy(a, *wt)
-		return &a, nil
-	case *fr_bls24317.Vector:
+		copy(a, wt)
+		return a, nil
+	case fr_bls24317.Vector:
 		a := make(fr_bls24317.Vector, n)
-		copy(a, *wt)
-		return &a, nil
-	case *fr_bls24315.Vector:
+		copy(a, wt)
+		return a, nil
+	case fr_bls24315.Vector:
 		a := make(fr_bls24315.Vector, n)
-		copy(a, *wt)
-		return &a, nil
-	case *fr_bw6633.Vector:
+		copy(a, wt)
+		return a, nil
+	case fr_bw6633.Vector:
 		a := make(fr_bw6633.Vector, n)
-		copy(a, *wt)
-		return &a, nil
-	case *tinyfield.Vector:
+		copy(a, wt)
+		return a, nil
+	case tinyfield.Vector:
 		a := make(tinyfield.Vector, n)
-		copy(a, *wt)
-		return &a, nil
+		copy(a, wt)
+		return a, nil
 	default:
 		return nil, errors.New("unsupported modulus")
 	}
@@ -92,21 +85,21 @@ func newFrom(from any, n int) (any, error) {
 
 func leafType(v any) reflect.Type {
 	switch v.(type) {
-	case *fr_bn254.Vector:
+	case fr_bn254.Vector:
 		return reflect.TypeOf(fr_bn254.Element{})
-	case *fr_bls12377.Vector:
+	case fr_bls12377.Vector:
 		return reflect.TypeOf(fr_bls12377.Element{})
-	case *fr_bls12381.Vector:
+	case fr_bls12381.Vector:
 		return reflect.TypeOf(fr_bls12381.Element{})
-	case *fr_bw6761.Vector:
+	case fr_bw6761.Vector:
 		return reflect.TypeOf(fr_bw6761.Element{})
-	case *fr_bls24317.Vector:
+	case fr_bls24317.Vector:
 		return reflect.TypeOf(fr_bls24317.Element{})
-	case *fr_bls24315.Vector:
+	case fr_bls24315.Vector:
 		return reflect.TypeOf(fr_bls24315.Element{})
-	case *fr_bw6633.Vector:
+	case fr_bw6633.Vector:
 		return reflect.TypeOf(fr_bw6633.Element{})
-	case *tinyfield.Vector:
+	case tinyfield.Vector:
 		return reflect.TypeOf(tinyfield.Element{})
 	default:
 		panic("invalid input")
@@ -115,77 +108,54 @@ func leafType(v any) reflect.Type {
 
 func set(v any, index int, value any) error {
 	switch pv := v.(type) {
-	case *fr_bn254.Vector:
-		if index >= len(*pv) {
+	case fr_bn254.Vector:
+		if index >= len(pv) {
 			return errors.New("out of bounds")
 		}
-		_, err := (*pv)[index].SetInterface(value)
+		_, err := pv[index].SetInterface(value)
 		return err
-	case *fr_bls12377.Vector:
-		if index >= len(*pv) {
+	case fr_bls12377.Vector:
+		if index >= len(pv) {
 			return errors.New("out of bounds")
 		}
-		_, err := (*pv)[index].SetInterface(value)
+		_, err := pv[index].SetInterface(value)
 		return err
-	case *fr_bls12381.Vector:
-		if index >= len(*pv) {
+	case fr_bls12381.Vector:
+		if index >= len(pv) {
 			return errors.New("out of bounds")
 		}
-		_, err := (*pv)[index].SetInterface(value)
+		_, err := pv[index].SetInterface(value)
 		return err
-	case *fr_bw6761.Vector:
-		if index >= len(*pv) {
+	case fr_bw6761.Vector:
+		if index >= len(pv) {
 			return errors.New("out of bounds")
 		}
-		_, err := (*pv)[index].SetInterface(value)
+		_, err := pv[index].SetInterface(value)
 		return err
-	case *fr_bls24317.Vector:
-		if index >= len(*pv) {
+	case fr_bls24317.Vector:
+		if index >= len(pv) {
 			return errors.New("out of bounds")
 		}
-		_, err := (*pv)[index].SetInterface(value)
+		_, err := pv[index].SetInterface(value)
 		return err
-	case *fr_bls24315.Vector:
-		if index >= len(*pv) {
+	case fr_bls24315.Vector:
+		if index >= len(pv) {
 			return errors.New("out of bounds")
 		}
-		_, err := (*pv)[index].SetInterface(value)
+		_, err := pv[index].SetInterface(value)
 		return err
-	case *fr_bw6633.Vector:
-		if index >= len(*pv) {
+	case fr_bw6633.Vector:
+		if index >= len(pv) {
 			return errors.New("out of bounds")
 		}
-		_, err := (*pv)[index].SetInterface(value)
+		_, err := pv[index].SetInterface(value)
 		return err
-	case *tinyfield.Vector:
-		if index >= len(*pv) {
+	case tinyfield.Vector:
+		if index >= len(pv) {
 			return errors.New("out of bounds")
 		}
-		_, err := (*pv)[index].SetInterface(value)
+		_, err := pv[index].SetInterface(value)
 		return err
-	default:
-		panic("invalid input")
-	}
-}
-
-func indirect(v any) any {
-	switch pv := v.(type) {
-	case *fr_bn254.Vector:
-		return *pv
-	case *fr_bls12377.Vector:
-		return *pv
-	case *fr_bls12381.Vector:
-		return *pv
-	case *fr_bw6761.Vector:
-		return *pv
-	case *fr_bls24317.Vector:
-		return *pv
-	case *fr_bls24315.Vector:
-		return *pv
-	case *fr_bw6633.Vector:
-		return *pv
-	case *tinyfield.Vector:
-		return *pv
 	default:
 		panic("invalid input")
 	}
@@ -194,59 +164,59 @@ func indirect(v any) any {
 func iterate(v any) chan any {
 	chValues := make(chan any)
 	switch pv := v.(type) {
-	case *fr_bn254.Vector:
+	case fr_bn254.Vector:
 		go func() {
-			for i := 0; i < len(*pv); i++ {
-				chValues <- &(*pv)[i]
+			for i := 0; i < len(pv); i++ {
+				chValues <- &(pv)[i]
 			}
 			close(chValues)
 		}()
-	case *fr_bls12377.Vector:
+	case fr_bls12377.Vector:
 		go func() {
-			for i := 0; i < len(*pv); i++ {
-				chValues <- &(*pv)[i]
+			for i := 0; i < len(pv); i++ {
+				chValues <- &(pv)[i]
 			}
 			close(chValues)
 		}()
-	case *fr_bls12381.Vector:
+	case fr_bls12381.Vector:
 		go func() {
-			for i := 0; i < len(*pv); i++ {
-				chValues <- &(*pv)[i]
+			for i := 0; i < len(pv); i++ {
+				chValues <- &(pv)[i]
 			}
 			close(chValues)
 		}()
-	case *fr_bw6761.Vector:
+	case fr_bw6761.Vector:
 		go func() {
-			for i := 0; i < len(*pv); i++ {
-				chValues <- &(*pv)[i]
+			for i := 0; i < len(pv); i++ {
+				chValues <- &(pv)[i]
 			}
 			close(chValues)
 		}()
-	case *fr_bls24317.Vector:
+	case fr_bls24317.Vector:
 		go func() {
-			for i := 0; i < len(*pv); i++ {
-				chValues <- &(*pv)[i]
+			for i := 0; i < len(pv); i++ {
+				chValues <- &(pv)[i]
 			}
 			close(chValues)
 		}()
-	case *fr_bls24315.Vector:
+	case fr_bls24315.Vector:
 		go func() {
-			for i := 0; i < len(*pv); i++ {
-				chValues <- &(*pv)[i]
+			for i := 0; i < len(pv); i++ {
+				chValues <- &(pv)[i]
 			}
 			close(chValues)
 		}()
-	case *fr_bw6633.Vector:
+	case fr_bw6633.Vector:
 		go func() {
-			for i := 0; i < len(*pv); i++ {
-				chValues <- &(*pv)[i]
+			for i := 0; i < len(pv); i++ {
+				chValues <- &(pv)[i]
 			}
 			close(chValues)
 		}()
-	case *tinyfield.Vector:
+	case tinyfield.Vector:
 		go func() {
-			for i := 0; i < len(*pv); i++ {
-				chValues <- &(*pv)[i]
+			for i := 0; i < len(pv); i++ {
+				chValues <- &(pv)[i]
 			}
 			close(chValues)
 		}()
@@ -257,31 +227,54 @@ func iterate(v any) chan any {
 }
 
 func resize(v any, n int) any {
-	switch v.(type) {
-	case *fr_bn254.Vector:
-		a := make(fr_bn254.Vector, n)
-		return &a
-	case *fr_bls12377.Vector:
-		a := make(fr_bls12377.Vector, n)
-		return &a
-	case *fr_bls12381.Vector:
-		a := make(fr_bls12381.Vector, n)
-		return &a
-	case *fr_bw6761.Vector:
-		a := make(fr_bw6761.Vector, n)
-		return &a
-	case *fr_bls24317.Vector:
-		a := make(fr_bls24317.Vector, n)
-		return &a
-	case *fr_bls24315.Vector:
-		a := make(fr_bls24315.Vector, n)
-		return &a
-	case *fr_bw6633.Vector:
-		a := make(fr_bw6633.Vector, n)
-		return &a
-	case *tinyfield.Vector:
-		a := make(tinyfield.Vector, n)
-		return &a
+	switch t := v.(type) {
+	case fr_bn254.Vector:
+		t = make(fr_bn254.Vector, n)
+		return t
+	case fr_bls12377.Vector:
+		t = make(fr_bls12377.Vector, n)
+		return t
+	case fr_bls12381.Vector:
+		t = make(fr_bls12381.Vector, n)
+		return t
+	case fr_bw6761.Vector:
+		t = make(fr_bw6761.Vector, n)
+		return t
+	case fr_bls24317.Vector:
+		t = make(fr_bls24317.Vector, n)
+		return t
+	case fr_bls24315.Vector:
+		t = make(fr_bls24315.Vector, n)
+		return t
+	case fr_bw6633.Vector:
+		t = make(fr_bw6633.Vector, n)
+		return t
+	case tinyfield.Vector:
+		t = make(tinyfield.Vector, n)
+		return t
+	default:
+		panic("invalid input")
+	}
+}
+
+func readerFrom(wvector any) io.ReaderFrom {
+	switch t := wvector.(type) {
+	case fr_bn254.Vector:
+		return &t
+	case fr_bls12377.Vector:
+		return &t
+	case fr_bls12381.Vector:
+		return &t
+	case fr_bw6761.Vector:
+		return &t
+	case fr_bls24317.Vector:
+		return &t
+	case fr_bls24315.Vector:
+		return &t
+	case fr_bw6633.Vector:
+		return &t
+	case tinyfield.Vector:
+		return &t
 	default:
 		panic("invalid input")
 	}
