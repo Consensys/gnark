@@ -63,6 +63,7 @@ func TestMarshalPublic(t *testing.T) {
 	assignment.Y = new(fr.Element).SetInt64(8000)
 
 	roundTripMarshal(assert, assignment, true)
+	roundTripMarshalJSON(assert, assignment, true)
 }
 
 func TestMarshal(t *testing.T) {
@@ -74,6 +75,7 @@ func TestMarshal(t *testing.T) {
 	assignment.E = new(fr.Element).SetInt64(1)
 
 	roundTripMarshal(assert, assignment, false)
+	roundTripMarshalJSON(assert, assignment, false)
 }
 
 func TestPublic(t *testing.T) {
@@ -119,5 +121,30 @@ func roundTripMarshal(assert *require.Assertions, assignment circuit, publicOnly
 	assert.NoError(err)
 
 	assert.True(reflect.DeepEqual(rw, w), "witness binary round trip serialization")
+
+}
+func roundTripMarshalJSON(assert *require.Assertions, assignment circuit, publicOnly bool) {
+	// build the vector
+	var opts []frontend.WitnessOption
+	if publicOnly {
+		opts = append(opts, frontend.PublicOnly())
+	}
+	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), opts...)
+	assert.NoError(err)
+
+	s, err := frontend.NewSchema(&assignment)
+	assert.NoError(err)
+
+	// serialize the vector to JSON
+	data, err := w.ToJSON(s)
+	assert.NoError(err)
+
+	// re-read
+	rw, err := witness.New(ecc.BN254.ScalarField())
+	assert.NoError(err)
+	err = rw.FromJSON(s, data)
+	assert.NoError(err)
+
+	assert.True(reflect.DeepEqual(rw, w), "witness json round trip serialization")
 
 }
