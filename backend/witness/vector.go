@@ -2,7 +2,6 @@ package witness
 
 import (
 	"errors"
-	"io"
 	"math/big"
 	"reflect"
 
@@ -227,54 +226,23 @@ func iterate(v any) chan any {
 }
 
 func resize(v any, n int) any {
-	switch t := v.(type) {
+	switch v.(type) {
 	case fr_bn254.Vector:
-		t = make(fr_bn254.Vector, n)
-		return t
+		return make(fr_bn254.Vector, n)
 	case fr_bls12377.Vector:
-		t = make(fr_bls12377.Vector, n)
-		return t
+		return make(fr_bls12377.Vector, n)
 	case fr_bls12381.Vector:
-		t = make(fr_bls12381.Vector, n)
-		return t
+		return make(fr_bls12381.Vector, n)
 	case fr_bw6761.Vector:
-		t = make(fr_bw6761.Vector, n)
-		return t
+		return make(fr_bw6761.Vector, n)
 	case fr_bls24317.Vector:
-		t = make(fr_bls24317.Vector, n)
-		return t
+		return make(fr_bls24317.Vector, n)
 	case fr_bls24315.Vector:
-		t = make(fr_bls24315.Vector, n)
-		return t
+		return make(fr_bls24315.Vector, n)
 	case fr_bw6633.Vector:
-		t = make(fr_bw6633.Vector, n)
-		return t
+		return make(fr_bw6633.Vector, n)
 	case tinyfield.Vector:
-		t = make(tinyfield.Vector, n)
-		return t
-	default:
-		panic("invalid input")
-	}
-}
-
-func readerFrom(wvector any) io.ReaderFrom {
-	switch t := wvector.(type) {
-	case fr_bn254.Vector:
-		return &t
-	case fr_bls12377.Vector:
-		return &t
-	case fr_bls12381.Vector:
-		return &t
-	case fr_bw6761.Vector:
-		return &t
-	case fr_bls24317.Vector:
-		return &t
-	case fr_bls24315.Vector:
-		return &t
-	case fr_bw6633.Vector:
-		return &t
-	case tinyfield.Vector:
-		return &t
+		return make(tinyfield.Vector, n)
 	default:
 		panic("invalid input")
 	}

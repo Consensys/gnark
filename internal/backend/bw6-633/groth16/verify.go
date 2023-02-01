@@ -34,7 +34,7 @@ var (
 )
 
 // Verify verifies a proof with given VerifyingKey and publicWitness
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	nbPublicVars := len(vk.G1.K)
 	if vk.CommitmentInfo.Is() {

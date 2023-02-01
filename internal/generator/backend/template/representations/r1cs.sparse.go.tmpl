@@ -58,7 +58,7 @@ func (cs *SparseR1CS) AddConstraint(c constraint.SparseR1C, debugInfo ...constra
 // solution.values =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
+func (cs *SparseR1CS) Solve(witness fr.Vector, opt backend.ProverConfig) (fr.Vector, error) {
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "plonk").Logger()
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
@@ -68,7 +68,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 	
 	expectedWitnessSize := int(len(cs.Public) + len(cs.Secret))
 	if len(witness) != expectedWitnessSize {
-		return make([]fr.Element, nbVariables), fmt.Errorf(
+		return make(fr.Vector, nbVariables), fmt.Errorf(
 			"invalid witness size, got %d, expected %d = %d (public) + %d (secret)",
 			len(witness),
 			expectedWitnessSize,
@@ -125,7 +125,7 @@ func (cs *SparseR1CS) Solve(witness []fr.Element, opt backend.ProverConfig) ([]f
 }
 
 
-func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv []fr.Element) error {
+func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv fr.Vector) error {
 	// minWorkPerCPU is the minimum target number of constraint a task should hold
 	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
 	// sequentially without sync.  
@@ -290,7 +290,7 @@ func (cs *SparseR1CS) computeHints(c constraint.SparseR1C, solution *solution) (
 // solveConstraint solve any unsolved wire in given constraint and update the solution
 // a SparseR1C may have up to one unsolved wire (excluding hints)
 // if it doesn't, then this function returns and does nothing
-func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution, coefficientsNegInv []fr.Element) error {
+func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution, coefficientsNegInv fr.Vector) error {
 
 	lro, err := cs.computeHints(c, solution)
 	if err != nil {
