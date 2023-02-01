@@ -303,58 +303,64 @@ func (w *witness) FromJSON(s *schema.Schema, data []byte) error {
 	missingAssignment := func(name string) error {
 		return fmt.Errorf("missing assignment for %s", name)
 	}
-	{
-		chValues := make(chan any)
 
-		go func() {
-			defer close(chValues)
-			schema.Walk(instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
-				if leaf.Visibility == schema.Public {
-					if tValue.IsNil() {
-						return missingAssignment(leaf.FullName())
-					}
-					chValues <- reflect.Indirect(tValue).Interface()
-				}
-				return nil
-			})
-			schema.Walk(instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
-				if leaf.Visibility == schema.Secret {
-					if tValue.IsNil() {
-						return missingAssignment(leaf.FullName())
-					}
-					chValues <- reflect.Indirect(tValue).Interface()
-				}
-				return nil
-			})
-
-		}()
-
-		if err := w.Fill(s.NbPublic, s.NbSecret, chValues); err == nil {
-			return nil // we can return; if there is an error, we try the public values only
+	// collect all public values; if any are missing, no point going further.
+	publicValues := make([]any, 0, s.NbPublic)
+	if _, err := schema.Walk(instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
+		if leaf.Visibility == schema.Public {
+			if tValue.IsNil() {
+				return missingAssignment(leaf.FullName())
+			}
+			publicValues = append(publicValues, reflect.Indirect(tValue).Interface())
 		}
+		return nil
+	}); err != nil {
+		// missing public values
+		return err
 	}
 
-	{
-		chValues := make(chan any)
-
-		go func() {
-			defer close(chValues)
-			schema.Walk(instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
-				if leaf.Visibility == schema.Public {
-					if tValue.IsNil() {
-						return missingAssignment(leaf.FullName())
-					}
-					chValues <- reflect.Indirect(tValue).Interface()
-				}
-				return nil
-			})
-
-		}()
-
-		if err := w.Fill(s.NbPublic, 0, chValues); err != nil {
-			return err
+	// collect all secret values; if any are missing, we just deal with the public part.
+	secretValues := make([]any, 0, s.NbSecret)
+	publicOnly := false
+	if _, err := schema.Walk(instance, ptrTyp, func(leaf schema.LeafInfo, tValue reflect.Value) error {
+		if leaf.Visibility == schema.Secret {
+			if tValue.IsNil() {
+				return missingAssignment(leaf.FullName())
+			}
+			secretValues = append(secretValues, reflect.Indirect(tValue).Interface())
 		}
+		return nil
+	}); err != nil {
+		// missing secret values, we just do the public part.
+		publicOnly = true
 	}
 
-	return nil
+	// reconstruct the witness
+	// we use a buffered channel to ensure this go routine terminates, even if setting a witness
+	// value failed. All this is not really performant for large witnesses, but again, JSON
+	// shouldn't be used in perf-critical scenario.
+	var chValues chan any
+	if publicOnly {
+		chValues = make(chan any, len(publicValues))
+		s.NbSecret = 0
+	} else {
+		chValues = make(chan any, len(publicValues)+len(secretValues))
+	}
+	go func() {
+		defer close(chValues)
+
+		for _, v := range publicValues {
+			chValues <- v
+		}
+
+		if publicOnly {
+			return
+		}
+
+		for _, v := range secretValues {
+			chValues <- v
+		}
+	}()
+
+	return w.Fill(s.NbPublic, s.NbSecret, chValues)
 }
