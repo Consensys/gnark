@@ -28,7 +28,7 @@ import (
 
 var ErrInvalidAlgebraicRelation = errors.New("algebraic relation does not hold")
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness []fr.Element) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	// 0 - derive the challenges with Fiat Shamir
 	hFunc := sha256.New()

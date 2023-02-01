@@ -79,13 +79,13 @@ func (cs *R1CS) AddConstraint(r1c constraint.R1C, debugInfo ...constraint.DebugI
 // a, b, c vectors: ab-c = hz
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
 // returns  [publicWires | secretWires | internalWires ]
-func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
+func (cs *R1CS) Solve(witness, a, b, c fr.Vector, opt backend.ProverConfig) (fr.Vector, error) {
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
 	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable)
 	if err != nil {
-		return make([]fr.Element, nbWires), err
+		return make(fr.Vector, nbWires), err
 	}
 	start := time.Now()
 
@@ -137,7 +137,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	return solution.values, nil
 }
 
-func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
+func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 	// minWorkPerCPU is the minimum target number of constraint a task should hold
 	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
 	// sequentially without sync.
@@ -258,9 +258,9 @@ func (cs *R1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) 
 		return err
 	}
 
-	a := make([]fr.Element, len(cs.Constraints))
-	b := make([]fr.Element, len(cs.Constraints))
-	c := make([]fr.Element, len(cs.Constraints))
+	a := make(fr.Vector, len(cs.Constraints))
+	b := make(fr.Vector, len(cs.Constraints))
+	c := make(fr.Vector, len(cs.Constraints))
 	v := witness.Vector().(fr.Vector)
 	_, err = cs.Solve(v, a, b, c, opt)
 	return err
