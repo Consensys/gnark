@@ -99,15 +99,15 @@ func TestEddsa(t *testing.T) {
 			var msg big.Int
 			msg.Rand(randomness, snarkField)
 			t.Log("msg to sign", msg.String())
-			//msgData := msg.Bytes()
+			msgData := msg.Bytes()
 
 			// generate signature
-			signature, err := privKey.SignNum(msg, conf.hash.New())
+			signature, err := privKey.Sign(msgData, conf.hash.New())
 			assert.NoError(err, "signing message")
 
 			// check if there is no problem in the signature
 			pubKey := privKey.Public()
-			checkSig, err := pubKey.VerifyNum(signature, msg, conf.hash.New())
+			checkSig, err := pubKey.Verify(signature, msgData, conf.hash.New())
 			assert.NoError(err, "verifying signature")
 			assert.True(checkSig, "signature verification failed")
 
