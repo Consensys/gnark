@@ -24,7 +24,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint/bw6-761"
-	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"math/big"
@@ -52,7 +51,7 @@ func (proof *Proof) CurveID() ecc.ID {
 }
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
-func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bw6_761witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
 	// TODO @gbotrel witness size check is done by R1CS, doesn't mean we shouldn't sanitize here.
 	// if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
 	// 	return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)

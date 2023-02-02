@@ -18,8 +18,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-
-	"github.com/consensys/gnark/frontend/schema"
 )
 
 type SparseR1CS interface {
@@ -31,10 +29,13 @@ type SparseR1CS interface {
 	// and will grow the memory usage of the constraint system.
 	AddConstraint(c SparseR1C, debugInfo ...DebugInfo) int
 
-	// GetConstraints() []R1C
+	// GetConstraints return the list of SparseR1C and a helper for pretty printing.
+	// See StringBuilder for more info.
+	// ! this is an experimental API.
+	GetConstraints() ([]SparseR1C, Resolver)
 }
 
-// R1CS decsribes a set of SparseR1C constraint
+// R1CS describes a set of SparseR1C constraint
 // TODO @gbotrel maybe SparseR1CSCore and R1CSCore should go in code generation directly to avoid confusing this package.
 type SparseR1CSCore struct {
 	System
@@ -48,53 +49,6 @@ func (cs *SparseR1CSCore) GetNbConstraints() int {
 
 func (cs *SparseR1CSCore) UpdateLevel(cID int, c Iterable) {
 	cs.updateLevel(cID, c)
-}
-
-// SparseR1C used to compute the wires
-// L+R+M[0]M[1]+O+k=0
-// if a Term is zero, it means the field doesn't exist (ex M=[0,0] means there is no multiplicative term)
-type SparseR1C struct {
-	L, R, O Term
-	M       [2]Term
-	K       int // stores only the ID of the constant term that is used
-}
-
-// WireIterator implements constraint.Iterable
-func (c *SparseR1C) WireIterator() func() int {
-	curr := 0
-	return func() int {
-		switch curr {
-		case 0:
-			curr++
-			return c.L.WireID()
-		case 1:
-			curr++
-			return c.R.WireID()
-		case 2:
-			curr++
-			return c.O.WireID()
-		}
-		return -1
-	}
-}
-
-func (r1c *SparseR1C) String(getCoeff func(cID int) string, getVisibility func(vID int) schema.Visibility) string {
-	var sbb strings.Builder
-	sbb.WriteString("L[")
-	r1c.L.String(&sbb, getCoeff, getVisibility)
-	sbb.WriteString("] * R[")
-	r1c.R.String(&sbb, getCoeff, getVisibility)
-	sbb.WriteString("] + M0[")
-	r1c.M[0].String(&sbb, getCoeff, getVisibility)
-	sbb.WriteString("] + M1[")
-	r1c.M[1].String(&sbb, getCoeff, getVisibility)
-	sbb.WriteString("] + O[")
-	r1c.O.String(&sbb, getCoeff, getVisibility)
-	sbb.WriteString("] + K[")
-	sbb.WriteString(getCoeff(r1c.K))
-	sbb.WriteString("]")
-
-	return sbb.String()
 }
 
 func (system *SparseR1CSCore) CheckUnconstrainedWires() error {
@@ -173,4 +127,57 @@ func (system *SparseR1CSCore) CheckUnconstrainedWires() error {
 		// debugInfo to find where a hint was declared (and not constrained)
 	}
 	return errors.New(sbb.String())
+}
+
+// SparseR1C used to compute the wires
+// L+R+M[0]M[1]+O+k=0
+// if a Term is zero, it means the field doesn't exist (ex M=[0,0] means there is no multiplicative term)
+type SparseR1C struct {
+	L, R, O Term
+	M       [2]Term
+	K       int // stores only the ID of the constant term that is used
+}
+
+// WireIterator implements constraint.Iterable
+func (c *SparseR1C) WireIterator() func() int {
+	curr := 0
+	return func() int {
+		switch curr {
+		case 0:
+			curr++
+			return c.L.WireID()
+		case 1:
+			curr++
+			return c.R.WireID()
+		case 2:
+			curr++
+			return c.O.WireID()
+		}
+		return -1
+	}
+}
+
+// String formats the constraint as qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
+func (c *SparseR1C) String(r Resolver) string {
+	sbb := NewStringBuilder(r)
+	sbb.WriteTerm(c.L)
+	sbb.WriteString(" + ")
+	sbb.WriteTerm(c.R)
+	sbb.WriteString(" + ")
+	sbb.WriteTerm(c.O)
+	if qM := sbb.CoeffToString(c.M[0].CoeffID()); qM != "0" {
+		xa := sbb.VariableToString(c.M[0].WireID())
+		xb := sbb.VariableToString(c.M[1].WireID())
+		sbb.WriteString(" + ")
+		sbb.WriteString(qM)
+		sbb.WriteString("⋅(")
+		sbb.WriteString(xa)
+		sbb.WriteString("×")
+		sbb.WriteString(xb)
+		sbb.WriteByte(')')
+	}
+	sbb.WriteString(" + ")
+	sbb.WriteString(r.CoeffToString(c.K))
+	sbb.WriteString(" == 0")
+	return sbb.String()
 }

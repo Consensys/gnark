@@ -34,6 +34,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/frontend/schema"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,7 +67,7 @@ func (assert *Assert) Run(fn func(assert *Assert), descs ...string) {
 	desc := strings.Join(descs, "/")
 	assert.t.Run(desc, func(t *testing.T) {
 		// TODO(ivokub): access to compiled cache is not synchronized -- running
-		// the tests in parallel will result in undetermined behaviour. A better
+		// the tests in parallel will result in undetermined behavior. A better
 		// approach would be to synchronize compiled and run the tests in
 		// parallel for a potential speedup.
 		assert := &Assert{t, require.New(t), assert.compiled}
@@ -105,22 +106,26 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 			// do a round trip marshalling test
 			assert.Run(func(assert *Assert) {
 				assert.t.Parallel()
-				assert.t.Skip("skipping json")
-				assert.marshalWitness(validWitness, curve, JSON)
-			}, curve.String(), "marshal/json")
-			assert.Run(func(assert *Assert) {
-				assert.t.Parallel()
-				assert.marshalWitness(validWitness, curve, Binary)
+				assert.marshalWitness(validWitness, curve, false)
 			}, curve.String(), "marshal/binary")
 			assert.Run(func(assert *Assert) {
 				assert.t.Parallel()
-				assert.t.Skip("skipping json")
-				assert.marshalWitness(validPublicWitness, curve, JSON, frontend.PublicOnly())
-			}, curve.String(), "marshal-public/json")
-			assert.Run(func(assert *Assert) {
-				assert.t.Parallel()
-				assert.marshalWitness(validPublicWitness, curve, Binary, frontend.PublicOnly())
+				assert.marshalWitness(validPublicWitness, curve, true)
 			}, curve.String(), "marshal-public/binary")
+
+			if !testing.Short() {
+				assert.Run(func(assert *Assert) {
+					assert.t.Parallel()
+					s := lazySchema(circuit)()
+					assert.marshalWitnessJSON(validWitness, s, curve, false)
+				}, curve.String(), "marshal/json")
+				assert.Run(func(assert *Assert) {
+					assert.t.Parallel()
+					s := lazySchema(circuit)()
+					assert.marshalWitnessJSON(validWitness, s, curve, true)
+				}, curve.String(), "marshal-public/json")
+
+			}
 		}
 
 		for _, b := range opt.backends {
@@ -128,7 +133,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 			b := b
 			assert.Run(func(assert *Assert) {
 
-				checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
+				checkError := func(err error) { assert.checkError(err, b, curve, validWitness, lazySchema(circuit)) }
 
 				// 1- compile the circuit
 				ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
@@ -216,8 +221,8 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 			b := b
 			assert.Run(func(assert *Assert) {
 
-				checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
-				mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
+				checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness, lazySchema(circuit)) }
+				mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness, lazySchema(circuit)) }
 
 				// 1- compile the circuit
 				ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
@@ -289,7 +294,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	validWitness, err := frontend.NewWitness(validAssignment, curve.ScalarField())
 	assert.NoError(err, "can't parse valid assignment")
 
-	checkError := func(err error) { assert.checkError(err, b, curve, validWitness) }
+	checkError := func(err error) { assert.checkError(err, b, curve, validWitness, lazySchema(circuit)) }
 
 	// 1- compile the circuit
 	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
@@ -318,13 +323,24 @@ func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness fro
 	}
 }
 
+func lazySchema(circuit frontend.Circuit) func() *schema.Schema {
+	return func() *schema.Schema {
+		// we only parse the schema if we need to display the witness in json.
+		s, err := schema.New(circuit, tVariable)
+		if err != nil {
+			panic("couldn't parse schema from circuit: " + err.Error())
+		}
+		return s
+	}
+}
+
 func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
 	invalidWitness, err := frontend.NewWitness(invalidAssignment, curve.ScalarField())
 	assert.NoError(err, "can't parse invalid assignment")
 
-	checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness) }
-	mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness) }
+	checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness, lazySchema(circuit)) }
+	mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness, lazySchema(circuit)) }
 
 	// 1- compile the circuit
 	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
@@ -482,12 +498,12 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 }
 
 // ensure the error is set, else fails the test
-func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, witness *witness.Witness) {
+func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, w witness.Witness, lazyS func() *schema.Schema) {
 	if err != nil {
 		return
 	}
 	var json string
-	bjson, err := witness.MarshalJSON()
+	bjson, err := w.ToJSON(lazyS())
 	if err != nil {
 		json = err.Error()
 	} else {
@@ -499,7 +515,7 @@ func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, w
 }
 
 // ensure the error is nil, else fails the test
-func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, witness *witness.Witness) {
+func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, w witness.Witness, lazyS func() *schema.Schema) {
 	if err == nil {
 		return
 	}
@@ -507,7 +523,7 @@ func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, 
 	var json string
 	e := fmt.Errorf("%s(%s): %w", backendID.String(), curve.String(), err)
 
-	bjson, err := witness.MarshalJSON()
+	bjson, err := w.ToJSON(lazyS())
 	if err != nil {
 		json = err.Error()
 	} else {
@@ -518,46 +534,44 @@ func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, 
 	assert.FailNow(e.Error())
 }
 
-type marshaller uint8
-
-const (
-	JSON marshaller = iota
-	Binary
-)
-
-func (m marshaller) String() string {
-	if m == JSON {
-		return "JSON"
-	}
-	return "Binary"
-}
-
-func (assert *Assert) marshalWitness(w *witness.Witness, curveID ecc.ID, m marshaller, opts ...frontend.WitnessOption) {
-	marshal := w.MarshalBinary
-	if m == JSON {
-		marshal = w.MarshalJSON
-	}
-
+func (assert *Assert) marshalWitness(w witness.Witness, curveID ecc.ID, publicOnly bool) {
 	// serialize the vector to binary
-	data, err := marshal()
+	var err error
+	if publicOnly {
+		w, err = w.Public()
+		assert.NoError(err)
+	}
+	data, err := w.MarshalBinary()
 	assert.NoError(err)
 
 	// re-read
-	witness := witness.Witness{CurveID: curveID, Schema: w.Schema}
-	unmarshal := witness.UnmarshalBinary
-	if m == JSON {
-		unmarshal = witness.UnmarshalJSON
-	}
-	err = unmarshal(data)
+	witness, err := witness.New(curveID.ScalarField())
+	assert.NoError(err)
+	err = witness.UnmarshalBinary(data)
 	assert.NoError(err)
 
-	witnessMatch := reflect.DeepEqual(*w, witness)
+	witnessMatch := reflect.DeepEqual(w, witness)
 
-	if !witnessMatch {
-		assert.Log("original json", string(data))
-		// assert.Log("original vector", w.Vector)
-		// assert.Log("reconstructed vector", witness.Vector)
+	assert.True(witnessMatch, "round trip marshaling failed")
+}
+
+func (assert *Assert) marshalWitnessJSON(w witness.Witness, s *schema.Schema, curveID ecc.ID, publicOnly bool) {
+	var err error
+	if publicOnly {
+		w, err = w.Public()
+		assert.NoError(err)
 	}
 
-	assert.True(witnessMatch, m.String()+" round trip marshaling failed")
+	// serialize the vector to binary
+	data, err := w.ToJSON(s)
+	assert.NoError(err)
+
+	// re-read
+	witness, err := witness.New(curveID.ScalarField())
+	assert.NoError(err)
+	err = witness.FromJSON(s, data)
+	assert.NoError(err)
+
+	witnessMatch := reflect.DeepEqual(w, witness)
+	assert.True(witnessMatch, "round trip marshaling failed")
 }
