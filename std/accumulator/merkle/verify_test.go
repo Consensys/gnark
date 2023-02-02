@@ -18,6 +18,7 @@ package merkle
 
 import (
 	"bytes"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"math/rand"
 	"os"
 	"testing"
@@ -34,7 +35,7 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-// MerkleProofTest used for testing onlys
+// MerkleProofTest used for testing only
 type MerkleProofTest struct {
 	M    MerkleProof
 	Leaf frontend.Variable
@@ -84,10 +85,11 @@ func TestVerify(t *testing.T) {
 			// generate random data, the Merkle tree will be of depth log(64) = 6
 			var buf bytes.Buffer
 			for i := 0; i < numLeaves; i++ {
-				for j := 0; j < tData.segmentSize; j++ {
-					r := byte(rand.Int()) //#nosec G404 -- This is a false positive
-					buf.Write([]byte{r})
-				}
+				var leaf fr.Element
+				_, err := leaf.SetRandom()
+				assert.NoError(err)
+				b := leaf.Bytes()
+				buf.Write(b[:])
 			}
 
 			// create the proof using the go code
