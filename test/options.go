@@ -33,6 +33,7 @@ type testingConfig struct {
 	witnessSerialization bool
 	proverOpts           []backend.ProverOption
 	compileOpts          []frontend.CompileOption
+	fuzzing              bool
 }
 
 // WithBackends is testing option which restricts the backends the assertions are
@@ -60,6 +61,14 @@ func WithCurves(c ecc.ID, curves ...ecc.ID) TestingOption {
 func NoSerialization() TestingOption {
 	return func(opt *testingConfig) error {
 		opt.witnessSerialization = false
+		return nil
+	}
+}
+
+// NoFuzzing is a testing option which disables fuzzing tests in assertions.
+func NoFuzzing() TestingOption {
+	return func(opt *testingConfig) error {
+		opt.fuzzing = false
 		return nil
 	}
 }
