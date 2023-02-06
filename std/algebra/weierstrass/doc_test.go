@@ -23,9 +23,9 @@ func (c *ExampleCurveCircuit[B, S]) Define(api frontend.API) error {
 		panic("initalize new curve")
 	}
 	G := curve.Generator()
-	scalar4 := emulated.NewElement[S](4)
+	scalar4 := emulated.ValueOf[S](4)
 	g4 := curve.ScalarMul(G, &scalar4) // 4*G
-	scalar5 := emulated.NewElement[S](5)
+	scalar5 := emulated.ValueOf[S](5)
 	g5 := curve.ScalarMul(G, &scalar5) // 5*G
 	g9 := curve.Add(g4, g5)            // 9*G
 	curve.AssertIsEqual(g9, &c.Res)
@@ -42,8 +42,8 @@ func ExampleCurve() {
 	circuit := ExampleCurveCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := ExampleCurveCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		Res: weierstrass.AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](g.X),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](g.Y),
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
 		},
 	}
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)

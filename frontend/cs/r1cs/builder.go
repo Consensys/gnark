@@ -104,11 +104,11 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 			builder.cs = tinyfieldr1cs.NewR1CS(config.Capacity)
 			break
 		}
-		panic("not implemtented")
+		panic("not implemented")
 	}
 
 	builder.tOne = builder.cs.One()
-	builder.cs.AddPublicVariable("one")
+	builder.cs.AddPublicVariable("1")
 
 	builder.q = builder.cs.Field()
 	if builder.q.Cmp(field) != 0 {
@@ -123,11 +123,6 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 func (builder *builder) newInternalVariable() expr.LinearExpression {
 	idx := builder.cs.AddInternalVariable()
 	return expr.NewLinearExpression(idx, builder.tOne)
-}
-
-func (builder *builder) VariableCount(t reflect.Type) int {
-	// TODO @gbotrel refactor?
-	return 1
 }
 
 // PublicVariable creates a new public Variable

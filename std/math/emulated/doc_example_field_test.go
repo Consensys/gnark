@@ -33,9 +33,9 @@ func (c *ExampleFieldCircuit[T]) Define(api frontend.API) error {
 func ExampleField() {
 	circuit := ExampleFieldCircuit[emulated.BN254Fp]{}
 	witness := ExampleFieldCircuit[emulated.BN254Fp]{
-		In1: emulated.NewElement[emulated.BN254Fp](3),
-		In2: emulated.NewElement[emulated.BN254Fp](5),
-		Res: emulated.NewElement[emulated.BN254Fp](15),
+		In1: emulated.ValueOf[emulated.BN254Fp](3),
+		In2: emulated.ValueOf[emulated.BN254Fp](5),
+		Res: emulated.ValueOf[emulated.BN254Fp](15),
 	}
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {

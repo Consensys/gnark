@@ -21,8 +21,8 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 	if err != nil {
 		return nil, fmt.Errorf("new scalar api: %w", err)
 	}
-	Gx := emulated.NewElement[Base](params.Gx)
-	Gy := emulated.NewElement[Base](params.Gy)
+	Gx := emulated.ValueOf[Base](params.Gx)
+	Gy := emulated.ValueOf[Base](params.Gy)
 	return &Curve[Base, Scalars]{
 		params:    params,
 		api:       api,
@@ -32,7 +32,7 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 			X: Gx,
 			Y: Gy,
 		},
-		a:    emulated.NewElement[Base](params.A),
+		a:    emulated.ValueOf[Base](params.A),
 		addA: params.A.Cmp(big.NewInt(0)) != 0,
 	}, nil
 }

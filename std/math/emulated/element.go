@@ -33,26 +33,15 @@ type Element[T FieldParams] struct {
 	internal bool
 }
 
-// NewElement builds a new emulated element from input. The inputs can be:
-//   - of type Element[T] (or a pointer to it). Then, the limbs are cloned and packed into new Element[T],
-//   - integer-like. Then it is cast to [*big.Int], decomposed into limbs and packed into new Element[T],
-func NewElement[T FieldParams](v interface{}) Element[T] {
-	if e, ok := v.(Element[T]); ok {
-		return *e.copy()
-	} else if e, ok := v.(*Element[T]); ok {
-		return *e.copy()
-	} else if frontend.IsCanonical(v) {
-		// We can not force that v is correct width. Better use PackFullLimbs
-		panic("can not enforec limb width. Use PackLimbs instead")
-	} else if v == nil {
+// ValueOf returns an Element[T] from a constant value.
+// The input is converted to *big.Int and decomposed into limbs and packed into new Element[T].
+func ValueOf[T FieldParams](constant interface{}) Element[T] {
+	if constant == nil {
 		r := newConstElement[T](0)
-		r.internal = false
-		return *r
-	} else {
-		r := newConstElement[T](v)
-		r.internal = false
 		return *r
 	}
+	r := newConstElement[T](constant)
+	return *r
 }
 
 // newConstElement is shorthand for initialising new element using NewElement and
@@ -100,7 +89,8 @@ func (f *Field[T]) newInternalElement(limbs []frontend.Variable, overflow uint) 
 // GnarkInitHook describes how to initialise the element.
 func (e *Element[T]) GnarkInitHook() {
 	if e.Limbs == nil {
-		*e = NewElement[T](0)
+		*e = ValueOf[T](0)
+		e.internal = false // we need to constrain in later.
 	}
 }
 

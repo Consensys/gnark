@@ -53,13 +53,13 @@ func TestEcdsaPreHashed(t *testing.T) {
 	circuit := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		Sig: Signature[emulated.Secp256k1Fr]{
-			R: emulated.NewElement[emulated.Secp256k1Fr](r),
-			S: emulated.NewElement[emulated.Secp256k1Fr](s),
+			R: emulated.ValueOf[emulated.Secp256k1Fr](r),
+			S: emulated.ValueOf[emulated.Secp256k1Fr](s),
 		},
-		Msg: emulated.NewElement[emulated.Secp256k1Fr](hash),
+		Msg: emulated.ValueOf[emulated.Secp256k1Fr](hash),
 		Pub: PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](privKey.PublicKey.A.X),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
+			X: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
 		},
 	}
 	assert := test.NewAssert(t)
@@ -102,13 +102,13 @@ func TestEcdsaSHA256(t *testing.T) {
 	circuit := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		Sig: Signature[emulated.Secp256k1Fr]{
-			R: emulated.NewElement[emulated.Secp256k1Fr](r),
-			S: emulated.NewElement[emulated.Secp256k1Fr](s),
+			R: emulated.ValueOf[emulated.Secp256k1Fr](r),
+			S: emulated.ValueOf[emulated.Secp256k1Fr](s),
 		},
-		Msg: emulated.NewElement[emulated.Secp256k1Fr](hash),
+		Msg: emulated.ValueOf[emulated.Secp256k1Fr](hash),
 		Pub: PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
-			X: emulated.NewElement[emulated.Secp256k1Fp](privKey.PublicKey.A.X),
-			Y: emulated.NewElement[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
+			X: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
 		},
 	}
 	assert := test.NewAssert(t)
@@ -125,13 +125,13 @@ func ExamplePublicKey_Verify() {
 
 	// can be done in or out-circuit.
 	Sig := Signature[emulated.Secp256k1Fr]{
-		R: emulated.NewElement[emulated.Secp256k1Fr](r),
-		S: emulated.NewElement[emulated.Secp256k1Fr](s),
+		R: emulated.ValueOf[emulated.Secp256k1Fr](r),
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
 	}
-	Msg := emulated.NewElement[emulated.Secp256k1Fr](m)
+	Msg := emulated.ValueOf[emulated.Secp256k1Fr](m)
 	Pub := PublicKey[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
-		X: emulated.NewElement[emulated.Secp256k1Fp](pubx),
-		Y: emulated.NewElement[emulated.Secp256k1Fp](puby),
+		X: emulated.ValueOf[emulated.Secp256k1Fp](pubx),
+		Y: emulated.ValueOf[emulated.Secp256k1Fp](puby),
 	}
 	// signature verification assertion is done in-circuit
 	Pub.Verify(api, weierstrass.GetCurveParams[emulated.Secp256k1Fp](), &Msg, &Sig)

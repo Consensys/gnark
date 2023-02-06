@@ -26,8 +26,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
 
-	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
-
 	"github.com/consensys/gnark/constraint/bw6-633"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fri"
@@ -69,7 +67,7 @@ type Proof struct {
 	OpeningsId1Id2Id3mp [3]fri.OpeningProof
 }
 
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bw6_633witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
 
 	var proof Proof
 
