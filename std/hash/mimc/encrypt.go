@@ -128,10 +128,10 @@ func pow5(api frontend.API, x frontend.Variable) frontend.Variable {
 }
 
 func pow7(api frontend.API, x frontend.Variable) frontend.Variable {
-	r := api.Mul(x, x)
-	r = api.Mul(r, r)
-	r = api.Mul(r, r)
-	return api.DivUnchecked(r, x)
+	t := api.Mul(x, x)
+	r := api.Mul(t, t)
+	r = api.Mul(r, t)
+	return api.Mul(r, x)
 }
 
 func pow17(api frontend.API, x frontend.Variable) frontend.Variable {
