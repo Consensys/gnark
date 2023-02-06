@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	scheme "github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
+	"github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/weierstrass"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -28,7 +28,7 @@ func (c *EcdsaCircuit[T, S]) Define(api frontend.API) error {
 func TestEcdsaPreHashed(t *testing.T) {
 
 	// generate parameters
-	privKey, _ := scheme.GenerateKey(rand.Reader)
+	privKey, _ := ecdsa.GenerateKey(rand.Reader)
 	publicKey := privKey.PublicKey
 
 	// sign
@@ -42,13 +42,13 @@ func TestEcdsaPreHashed(t *testing.T) {
 	}
 
 	// unmarshal signature
-	var sig scheme.Signature
+	var sig ecdsa.Signature
 	sig.SetBytes(sigBin)
 	r, s := new(big.Int), new(big.Int)
 	r.SetBytes(sig.R[:32])
 	s.SetBytes(sig.S[:32])
 
-	hash := scheme.HashToInt(msg)
+	hash := ecdsa.HashToInt(msg)
 
 	circuit := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
@@ -70,7 +70,7 @@ func TestEcdsaPreHashed(t *testing.T) {
 func TestEcdsaSHA256(t *testing.T) {
 
 	// generate parameters
-	privKey, _ := scheme.GenerateKey(rand.Reader)
+	privKey, _ := ecdsa.GenerateKey(rand.Reader)
 	publicKey := privKey.PublicKey
 
 	// sign
@@ -85,7 +85,7 @@ func TestEcdsaSHA256(t *testing.T) {
 	}
 
 	// unmarshal signature
-	var sig scheme.Signature
+	var sig ecdsa.Signature
 	sig.SetBytes(sigBin)
 	r, s := new(big.Int), new(big.Int)
 	r.SetBytes(sig.R[:32])
@@ -97,7 +97,7 @@ func TestEcdsaSHA256(t *testing.T) {
 	md.Reset()
 	md.Write(dataToHash[:])
 	hramBin := md.Sum(nil)
-	hash := scheme.HashToInt(hramBin)
+	hash := ecdsa.HashToInt(hramBin)
 
 	circuit := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := EcdsaCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
@@ -141,7 +141,7 @@ func ExamplePublicKey_Verify() {
 func ExamplePublicKey_Verify_create() {
 
 	// generate parameters
-	privKey, _ := scheme.GenerateKey(rand.Reader)
+	privKey, _ := ecdsa.GenerateKey(rand.Reader)
 
 	// sign
 	msg := []byte("testing ECDSA")
@@ -152,7 +152,7 @@ func ExamplePublicKey_Verify_create() {
 	puby := privKey.PublicKey.A.Y
 
 	// unmarshal signature
-	var sig scheme.Signature
+	var sig ecdsa.Signature
 	sig.SetBytes(sigBin)
 
 	// can continue in the PublicKey Verify example
