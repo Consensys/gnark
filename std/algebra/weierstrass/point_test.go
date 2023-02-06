@@ -182,8 +182,8 @@ func TestScalarMul2(t *testing.T) {
 	witness := ScalarMulTest[emulated.BN254Fp, emulated.BN254Fr]{
 		S: emulated.ValueOf[emulated.BN254Fr](s),
 		P: AffinePoint[emulated.BN254Fp]{
-			X: emulated.ValueOf[emulated.BN254Fp](gen.X.BigInt(new(big.Int))),
-			Y: emulated.ValueOf[emulated.BN254Fp](gen.Y.BigInt(new(big.Int))),
+			X: emulated.ValueOf[emulated.BN254Fp](gen.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](gen.Y),
 		},
 		Q: AffinePoint[emulated.BN254Fp]{
 			X: emulated.ValueOf[emulated.BN254Fp](res.X),
