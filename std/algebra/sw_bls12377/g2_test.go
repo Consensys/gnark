@@ -282,12 +282,12 @@ func TestConstantScalarMulG2(t *testing.T) {
 	// create the cs
 	var circuit, witness g2constantScalarMul
 	var r fr.Element
-	r.SetRandom()
+	_, _ = r.SetRandom()
 	// assign the inputs
 	witness.A.Assign(&a)
 	// compute the result
 	br := new(big.Int)
-	r.ToBigIntRegular(br)
+	r.BigInt(br)
 	// br is a circuit parameter
 	circuit.R = br
 	_a.ScalarMultiplication(&_a, br)
@@ -321,13 +321,13 @@ func TestVarScalarMulG2(t *testing.T) {
 	// create the cs
 	var circuit, witness g2varScalarMul
 	var r fr.Element
-	r.SetRandom()
+	_, _ = r.SetRandom()
 	witness.R = r.String()
 	// assign the inputs
 	witness.A.Assign(&a)
 	// compute the result
 	var br big.Int
-	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
@@ -360,14 +360,14 @@ func TestScalarMulG2(t *testing.T) {
 	// create the cs
 	var circuit, witness g2ScalarMul
 	var r fr.Element
-	r.SetRandom()
+	_, _ = r.SetRandom()
 	witness.Rvar = r.String()
 	circuit.Rcon = r
 	// assign the inputs
 	witness.A.Assign(&a)
 	// compute the result
 	var br big.Int
-	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
@@ -379,8 +379,8 @@ func randomPointG2() bls12377.G2Jac {
 
 	var r1 fr.Element
 	var b big.Int
-	r1.SetRandom()
-	p2.ScalarMultiplication(&p2, r1.ToBigIntRegular(&b))
+	_, _ = r1.SetRandom()
+	p2.ScalarMultiplication(&p2, r1.BigInt(&b))
 	return p2
 }
 
@@ -389,7 +389,7 @@ func BenchmarkDoubleAffineG2(b *testing.B) {
 	var c g2DoubleAffine
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -400,7 +400,7 @@ func BenchmarkAddAssignAffineG2(b *testing.B) {
 	var c g2AddAssignAffine
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -411,7 +411,7 @@ func BenchmarkDoubleAndAddAffineG2(b *testing.B) {
 	var c g2DoubleAndAddAffine
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -428,7 +428,7 @@ func BenchmarkConstScalarMulG2(b *testing.B) {
 	c.R = r
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -436,7 +436,7 @@ func BenchmarkConstScalarMulG2(b *testing.B) {
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_761, scs.NewBuilder, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -457,7 +457,7 @@ func BenchmarkVarScalarMulG2(b *testing.B) {
 	c.R = r
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &c)
+			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
 		}
 
 	})
@@ -465,7 +465,7 @@ func BenchmarkVarScalarMulG2(b *testing.B) {
 	b.Run("plonk", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_761, scs.NewBuilder, &c)
+			ccsBench, err = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
 			if err != nil {
 				b.Fatal(err)
 			}

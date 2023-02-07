@@ -19,6 +19,7 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
+	"io"
 	"math/big"
 	"time"
 
@@ -28,7 +29,7 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
-	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
+	"text/template"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
@@ -39,7 +40,7 @@ var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
 )
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	log := logger.Logger().With().Str("curve", "bn254").Str("backend", "plonk").Logger()
 	start := time.Now()
 
@@ -157,7 +158,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 	var zetaMPlusTwo fr.Element
 	zetaMPlusTwo.Exp(zeta, mPlusTwo)
 	var zetaMPlusTwoBigInt big.Int
-	zetaMPlusTwo.ToBigIntRegular(&zetaMPlusTwoBigInt)
+	zetaMPlusTwo.BigInt(&zetaMPlusTwoBigInt)
 	foldedH := proof.H[2]
 	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusTwoBigInt)
 	foldedH.Add(&foldedH, &proof.H[1])
@@ -201,7 +202,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bn254witness.Witness) 
 		l, r, rl, o, one, // first part
 		_s1, _s2, // second & third part
 	}
-	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{ScalarsMont: true}); err != nil {
+	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{}); err != nil {
 		return err
 	}
 
@@ -305,4 +306,17 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 	}
 	r.SetBytes(b)
 	return r, nil
+}
+
+// ExportSolidity exports the verifying key to a solidity smart contract.
+//
+// See https://github.com/ConsenSys/gnark-tests for example usage.
+//
+// Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
+func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+	tmpl, err := template.New("").Parse(solidityTemplate)
+	if err != nil {
+		return err
+	}
+	return tmpl.Execute(w, vk)
 }

@@ -19,6 +19,7 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
+	"io"
 	"math/big"
 	"time"
 
@@ -27,8 +28,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
-
-	bls24_315witness "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
@@ -39,7 +38,7 @@ var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
 )
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witness) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	log := logger.Logger().With().Str("curve", "bls24_315").Str("backend", "plonk").Logger()
 	start := time.Now()
 
@@ -157,7 +156,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 	var zetaMPlusTwo fr.Element
 	zetaMPlusTwo.Exp(zeta, mPlusTwo)
 	var zetaMPlusTwoBigInt big.Int
-	zetaMPlusTwo.ToBigIntRegular(&zetaMPlusTwoBigInt)
+	zetaMPlusTwo.BigInt(&zetaMPlusTwoBigInt)
 	foldedH := proof.H[2]
 	foldedH.ScalarMultiplication(&foldedH, &zetaMPlusTwoBigInt)
 	foldedH.Add(&foldedH, &proof.H[1])
@@ -201,7 +200,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bls24_315witness.Witne
 		l, r, rl, o, one, // first part
 		_s1, _s2, // second & third part
 	}
-	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{ScalarsMont: true}); err != nil {
+	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{}); err != nil {
 		return err
 	}
 
@@ -305,4 +304,9 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 	}
 	r.SetBytes(b)
 	return r, nil
+}
+
+// ExportSolidity not implemented for BLS24-315
+func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+	return errors.New("not implemented")
 }

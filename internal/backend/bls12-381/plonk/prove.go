@@ -32,9 +32,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 
-	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
-
-	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	"github.com/consensys/gnark/constraint/bls12-381"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
@@ -61,7 +59,7 @@ type Proof struct {
 }
 
 // Prove from the public data
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
 
 	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
 	start := time.Now()
@@ -84,7 +82,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 			// we need to fill solution with random values
 			var r fr.Element
 			_, _ = r.SetRandom()
-			for i := spr.NbPublicVariables + spr.NbSecretVariables; i < len(solution); i++ {
+			for i := len(spr.Public) + len(spr.Secret); i < len(solution); i++ {
 				solution[i] = r
 				r.Double(&r)
 			}
@@ -113,7 +111,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *pk.Vk, fullWitness[:spr.NbPublicVariables]); err != nil {
+	if err := bindPublicData(&fs, "gamma", *pk.Vk, fullWitness[:len(spr.Public)]); err != nil {
 		return nil, err
 	}
 	bgamma, err := fs.ComputeChallenge("gamma")
@@ -193,8 +191,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	go func() {
 		// compute qk in canonical basis, completed with the public inputs
 		qkCompletedCanonical := make([]fr.Element, pk.Domain[0].Cardinality)
-		copy(qkCompletedCanonical, fullWitness[:spr.NbPublicVariables])
-		copy(qkCompletedCanonical[spr.NbPublicVariables:], pk.LQk[spr.NbPublicVariables:])
+		copy(qkCompletedCanonical, fullWitness[:len(spr.Public)])
+		copy(qkCompletedCanonical[len(spr.Public):], pk.LQk[len(spr.Public):])
 		pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 		fft.BitReverse(qkCompletedCanonical)
 
@@ -323,7 +321,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness bls12_381witness.Witn
 	bSize.SetUint64(pk.Domain[0].Cardinality + 2) // +2 because of the masking (h of degree 3(n+2)-1)
 	var zetaPowerm fr.Element
 	zetaPowerm.Exp(zeta, &bSize)
-	zetaPowerm.ToBigIntRegular(&bZetaPowerm)
+	zetaPowerm.BigInt(&bZetaPowerm)
 	foldedHDigest := proof.H[2]
 	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm)
 	foldedHDigest.Add(&foldedHDigest, &proof.H[1])                   // ζᵐ⁺²*Comm(h3)
@@ -531,12 +529,12 @@ func evaluateLROSmallDomain(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.El
 	o = make([]fr.Element, s)
 	s0 := solution[0]
 
-	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders
+	for i := 0; i < len(spr.Public); i++ { // placeholders
 		l[i] = solution[i]
 		r[i] = s0
 		o[i] = s0
 	}
-	offset := spr.NbPublicVariables
+	offset := len(spr.Public)
 	for i := 0; i < len(spr.Constraints); i++ { // constraints
 		l[offset+i] = solution[spr.Constraints[i].L.WireID()]
 		r[offset+i] = solution[spr.Constraints[i].R.WireID()]
@@ -556,13 +554,15 @@ func evaluateLROSmallDomain(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.El
 
 // computeZ computes Z, in canonical basis, where:
 //
-// * Z of degree n (domainNum.Cardinality)
-// * Z(1)=1
-// 								   (l(g^k)+β*g^k+γ)*(r(g^k)+uβ*g^k+γ)*(o(g^k)+u²β*g^k+γ)
-// * for i>0: Z(gⁱ) = Π_{k<i} -------------------------------------------------------
-//								     (l(g^k)+β*s1(g^k)+γ)*(r(g^k)+β*s2(g^k)+γ)*(o(g^k)+β*s3(\g^k)+γ)
+//   - Z of degree n (domainNum.Cardinality)
 //
-//	* l, r, o are the solution in Lagrange basis, evaluated on the small domain
+//   - Z(1)=1
+//     (l(g^k)+β*g^k+γ)*(r(g^k)+uβ*g^k+γ)*(o(g^k)+u²β*g^k+γ)
+//
+//   - for i>0: Z(gⁱ) = Π_{k<i} -------------------------------------------------------
+//     (l(g^k)+β*s1(g^k)+γ)*(r(g^k)+β*s2(g^k)+γ)*(o(g^k)+β*s3(\g^k)+γ)
+//
+//   - l, r, o are the solution in Lagrange basis, evaluated on the small domain
 func computeBlindedZCanonical(l, r, o []fr.Element, pk *ProvingKey, beta, gamma fr.Element) ([]fr.Element, error) {
 
 	// note that z has more capacity has its memory is reused for blinded z later on

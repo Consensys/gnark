@@ -21,9 +21,7 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
-	"github.com/consensys/gnark/internal/backend/bn254/cs"
-
-	bn254witness "github.com/consensys/gnark/internal/backend/bn254/witness"
+	"github.com/consensys/gnark/constraint/bn254"
 
 	bn254plonk "github.com/consensys/gnark/internal/backend/bn254/plonk"
 
@@ -35,6 +33,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 )
@@ -57,12 +56,12 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func referenceCircuit() (frontend.CompiledConstraintSystem, frontend.Circuit, *kzg.SRS) {
+func referenceCircuit() (constraint.ConstraintSystem, frontend.Circuit, *kzg.SRS) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
-	ccs, err := frontend.Compile(curve.ID, scs.NewBuilder, &circuit)
+	ccs, err := frontend.Compile(curve.ID.ScalarField(), scs.NewBuilder, &circuit)
 	if err != nil {
 		panic(err)
 	}
@@ -101,8 +100,7 @@ func BenchmarkSetup(b *testing.B) {
 
 func BenchmarkProver(b *testing.B) {
 	ccs, _solution, srs := referenceCircuit()
-	fullWitness := bn254witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
+	fullWitness, err := frontend.NewWitness(_solution, fr.Modulus())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -114,7 +112,7 @@ func BenchmarkProver(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = bn254plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, backend.ProverConfig{})
+		_, err = bn254plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness.Vector().(fr.Vector), backend.ProverConfig{})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -123,13 +121,12 @@ func BenchmarkProver(b *testing.B) {
 
 func BenchmarkVerifier(b *testing.B) {
 	ccs, _solution, srs := referenceCircuit()
-	fullWitness := bn254witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
+	fullWitness, err := frontend.NewWitness(_solution, fr.Modulus())
 	if err != nil {
 		b.Fatal(err)
 	}
-	publicWitness := bn254witness.Witness{}
-	_, err = publicWitness.FromAssignment(_solution, tVariable, true)
+
+	publicWitness, err := frontend.NewWitness(_solution, fr.Modulus(), frontend.PublicOnly())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -139,21 +136,20 @@ func BenchmarkVerifier(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	proof, err := bn254plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, backend.ProverConfig{})
+	proof, err := bn254plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness.Vector().(fr.Vector), backend.ProverConfig{})
 	if err != nil {
 		panic(err)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = bn254plonk.Verify(proof, vk, publicWitness)
+		_ = bn254plonk.Verify(proof, vk, publicWitness.Vector().(fr.Vector))
 	}
 }
 
 func BenchmarkSerialization(b *testing.B) {
 	ccs, _solution, srs := referenceCircuit()
-	fullWitness := bn254witness.Witness{}
-	_, err := fullWitness.FromAssignment(_solution, tVariable, false)
+	fullWitness, err := frontend.NewWitness(_solution, fr.Modulus())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -163,7 +159,7 @@ func BenchmarkSerialization(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	proof, err := bn254plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness, backend.ProverConfig{})
+	proof, err := bn254plonk.Prove(ccs.(*cs.SparseR1CS), pk, fullWitness.Vector().(fr.Vector), backend.ProverConfig{})
 	if err != nil {
 		b.Fatal(err)
 	}

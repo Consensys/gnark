@@ -26,6 +26,7 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark-crypto/signature/eddsa"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/algebra/twistededwards"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
@@ -70,6 +71,7 @@ func TestEddsa(t *testing.T) {
 		{hash.MIMC_BLS12_377, tedwards.BLS12_377},
 		{hash.MIMC_BW6_761, tedwards.BW6_761},
 		{hash.MIMC_BLS24_315, tedwards.BLS24_315},
+		{hash.MIMC_BLS24_317, tedwards.BLS24_317},
 		{hash.MIMC_BW6_633, tedwards.BW6_633},
 	}
 
@@ -81,12 +83,13 @@ func TestEddsa(t *testing.T) {
 	for i := 0; i < bound; i++ {
 		seed := time.Now().Unix()
 		t.Logf("setting seed in rand %d", seed)
-		randomness := rand.New(rand.NewSource(seed))
+		randomness := rand.New(rand.NewSource(seed)) //#nosec G404 -- This is a false positive
 
 		for _, conf := range confs {
 
-			snarkCurve, err := twistededwards.GetSnarkCurve(conf.curve)
+			snarkField, err := twistededwards.GetSnarkField(conf.curve)
 			assert.NoError(err)
+			snarkCurve := utils.FieldToCurve(snarkField)
 
 			// generate parameters for the signatures
 			privKey, err := eddsa.New(conf.curve, randomness)
@@ -94,7 +97,7 @@ func TestEddsa(t *testing.T) {
 
 			// pick a message to sign
 			var msg big.Int
-			msg.Rand(randomness, snarkCurve.Info().Fr.Modulus())
+			msg.Rand(randomness, snarkField)
 			t.Log("msg to sign", msg.String())
 			msgData := msg.Bytes()
 
@@ -116,8 +119,8 @@ func TestEddsa(t *testing.T) {
 			{
 				var witness eddsaCircuit
 				witness.Message = msg
-				witness.PublicKey.Assign(snarkCurve, pubKey.Bytes())
-				witness.Signature.Assign(snarkCurve, signature)
+				witness.PublicKey.Assign(conf.curve, pubKey.Bytes())
+				witness.Signature.Assign(conf.curve, signature)
 
 				assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkCurve))
 			}
@@ -126,10 +129,10 @@ func TestEddsa(t *testing.T) {
 			{
 				var witness eddsaCircuit
 
-				msg.Rand(randomness, snarkCurve.Info().Fr.Modulus())
+				msg.Rand(randomness, snarkField)
 				witness.Message = msg
-				witness.PublicKey.Assign(snarkCurve, pubKey.Bytes())
-				witness.Signature.Assign(snarkCurve, signature)
+				witness.PublicKey.Assign(conf.curve, pubKey.Bytes())
+				witness.Signature.Assign(conf.curve, signature)
 
 				assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkCurve))
 			}

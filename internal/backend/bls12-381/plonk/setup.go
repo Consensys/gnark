@@ -21,7 +21,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
-	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
+	"github.com/consensys/gnark/constraint/bls12-381"
 
 	kzgg "github.com/consensys/gnark-crypto/kzg"
 )
@@ -96,7 +96,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	nbConstraints := len(spr.Constraints)
 
 	// fft domains
-	sizeSystem := uint64(nbConstraints + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
+	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	pk.Domain[0] = *fft.NewDomain(sizeSystem)
 	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 
@@ -112,7 +112,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	vk.Size = pk.Domain[0].Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
-	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
+	vk.NbPublicVariables = uint64(len(spr.Public))
 
 	if err := pk.InitKZG(srs); err != nil {
 		return nil, nil, err
@@ -126,7 +126,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	pk.CQk = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.LQk = make([]fr.Element, pk.Domain[0].Cardinality)
 
-	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
+	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
 		pk.Ql[i].SetOne().Neg(&pk.Ql[i])
 		pk.Qr[i].SetZero()
 		pk.Qm[i].SetZero()
@@ -134,7 +134,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		pk.CQk[i].SetZero()
 		pk.LQk[i].SetZero() // → to be completed by the prover
 	}
-	offset := spr.NbPublicVariables
+	offset := len(spr.Public)
 	for i := 0; i < nbConstraints; i++ { // constraints
 
 		pk.Ql[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
@@ -198,9 +198,9 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 //
 // The permutation s is composed of cycles of maximum length such that
 //
-// 			s. (l∥r∥o) = (l∥r∥o)
+//	s. (l∥r∥o) = (l∥r∥o)
 //
-//, where l∥r∥o is the concatenation of the indices of l, r, o in
+// , where l∥r∥o is the concatenation of the indices of l, r, o in
 // ql.l+qr.r+qm.l.r+qo.O+k = 0.
 //
 // The permutation is encoded as a slice s of size 3*size(l), where the
@@ -208,7 +208,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 // like this: for i in tab: tab[i] = tab[permutation[i]]
 func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
-	nbVariables := spr.NbInternalVariables + spr.NbPublicVariables + spr.NbSecretVariables
+	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
 	sizeSolution := int(pk.Domain[0].Cardinality)
 
 	// init permutation
@@ -219,11 +219,11 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
 	// init LRO position -> variable_ID
 	lro := make([]int, 3*sizeSolution) // position -> variable_ID
-	for i := 0; i < spr.NbPublicVariables; i++ {
+	for i := 0; i < len(spr.Public); i++ {
 		lro[i] = i // IDs of LRO associated to placeholders (only L needs to be taken care of)
 	}
 
-	offset := spr.NbPublicVariables
+	offset := len(spr.Public)
 	for i := 0; i < len(spr.Constraints); i++ { // IDs of LRO associated to constraints
 		lro[offset+i] = spr.Constraints[i].L.WireID()
 		lro[sizeSolution+offset+i] = spr.Constraints[i].R.WireID()
@@ -258,11 +258,14 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 // s1, s2, s3.
 //
 // 1	z 	..	z**n-1	|	u	uz	..	u*z**n-1	|	u**2	u**2*z	..	u**2*z**n-1  |
-//  																					 |
-//        																				 | Permutation
+//
+//																						 |
+//	      																				 | Permutation
+//
 // s11  s12 ..   s1n	   s21 s22 	 ..		s2n		     s31 	s32 	..		s3n		 v
 // \---------------/       \--------------------/        \------------------------/
-// 		s1 (LDE)                s2 (LDE)                          s3 (LDE)
+//
+//	s1 (LDE)                s2 (LDE)                          s3 (LDE)
 func ccomputePermutationPolynomials(pk *ProvingKey) {
 
 	nbElmts := int(pk.Domain[0].Cardinality)
