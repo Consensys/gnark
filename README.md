@@ -13,7 +13,7 @@
 * [`gnark` User Documentation]
 * [`gnark` Playground]
 * [`gnark` Issues]
-* [`gnark` Benchmarks](https://docs.gnark.consensys.net/overview#gnark-is-fast)
+* [`gnark` Benchmarks](https://docs.gnark.consensys.net/overview#gnark-is-fast) 🏁
 * [`gnark-announce`] - Announcement list for new releases and security patches
 
 
@@ -26,7 +26,7 @@ Checkout the [online playground][`gnark` Playground] to compile circuits and vis
 
 ## Warning
 
-**`gnark` has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.**
+**`gnark` has been [partially audited](https://github.com/ConsenSys/gnark-crypto/blob/master/audit_oct2022.pdf) and is provided as-is, we make no guarantees or warranties to its safety and reliability. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.**
 
 `gnark` and `gnark-crypto` packages are optimized for 64bits architectures (x86 `amd64`) and tested on Unix (Linux / macOS).
 
@@ -96,7 +96,7 @@ pk, vk, err := groth16.Setup(ccs)
 
 // witness definition
 assignment := CubicCircuit{X: 3, Y: 35}
-witness, err := frontend.NewWitness(&assignment, ecc.BN254)
+witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 publicWitness, _ := witness.Public()
 
 // groth16: Prove & Verify
@@ -110,19 +110,19 @@ If you use `gnark` in your research a citation would be appreciated.
 Please use the following BibTeX to cite the most recent release.
 
 ```bib
-@software{gnark-v0.6.4,
+@software{gnark-v0.8.0,
   author       = {Gautam Botrel and
                   Thomas Piellard and
                   Youssef El Housni and
                   Ivo Kubjas and
                   Arya Tabaie},
-  title        = {ConsenSys/gnark: v0.6.4},
+  title        = {ConsenSys/gnark: v0.8.0},
   month        = feb,
-  year         = 2022,
+  year         = 2023,
   publisher    = {Zenodo},
-  version      = {v0.6.4},
-  doi          = {10.5281/zenodo.6093969},
-  url          = {https://doi.org/10.5281/zenodo.6093969}
+  version      = {v0.8.0},
+  doi          = {10.5281/zenodo.5819104},
+  url          = {https://doi.org/10.5281/zenodo.5819104}
 }
 ```
 
