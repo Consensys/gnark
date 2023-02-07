@@ -16,7 +16,7 @@ src="logo_new.png">
 * [`gnark` User Documentation]
 * [`gnark` Playground]
 * [`gnark` Issues]
-* [`gnark` Benchmarks](https://docs.gnark.consensys.net/en/latest/#gnark-is-fast)
+* [`gnark` Benchmarks](https://docs.gnark.consensys.net/overview#gnark-is-fast)
 * [`gnark-announce`] - Announcement list for new releases and security patches
 
 
@@ -143,8 +143,8 @@ This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE)
 
 [`gnark` Issues]: https://github.com/consensys/gnark/issues
 [`gnark` Playground]: https://play.gnark.io
-[`gnark` User Documentation]: https://docs.gnark.consensys.net/en/latest/
+[`gnark` User Documentation]: https://docs.gnark.consensys.net/
 [GitHub discussions]: https://github.com/ConsenSys/gnark/discussions
-[Proving schemes and curves]: https://docs.gnark.consensys.net/en/latest/Concepts/schemes_curves/
+[Proving schemes and curves]: https://docs.gnark.consensys.net/Concepts/schemes_curves
 [`gnark-announce`]: https://groups.google.com/g/gnark-announce
 [@gnark_team]: https://twitter.com/gnark_team
