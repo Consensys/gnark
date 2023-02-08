@@ -103,10 +103,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	woiop.ToCanonical(&pk.Domain[0]).ToRegular()
 
 	// Blind l, r, o before committing
-	var bwliop, bwriop, bwoiop iop.WrappedPolynomial
-	bwliop.Blind(wliop, 1)
-	bwriop.Blind(wriop, 1)
-	bwoiop.Blind(woiop, 1)
+	// TODO @gbotrel check need for clone here.
+	bwliop := wliop.Clone().Blind(1)
+	bwriop := wriop.Clone().Blind(1)
+	bwoiop := woiop.Clone().Blind(1)
 	if err := commitToLRO(bwliop.Coefficients, bwriop.Coefficients, bwoiop.Coefficients, proof, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	// We could have not copied them at the cost of doing one more bit reverse
 	// per poly...
 	ziop, err := iop.BuildRatioCopyConstraint(
-		[]*iop.Polynomial{liop.Copy(), riop.Copy(), oiop.Copy()},
+		[]*iop.Polynomial{liop.Clone(), riop.Clone(), oiop.Clone()},
 		pk.Permutation,
 		beta,
 		gamma,
@@ -148,7 +148,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 
 	// commit to the blinded version of z
 	bwziop := iop.NewWrappedPolynomial(&ziop)
-	bwziop.Blind(bwziop, 2)
+	bwziop.Blind(2)
 	proof.Z, err = kzg.Commit(bwziop.Coefficients, pk.Vk.KZGSRS, runtime.NumCPU()*2)
 	if err != nil {
 		return proof, err
@@ -279,9 +279,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 		return c
 	}
 	testEval, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse},
-		&bwliop,
-		&bwriop,
-		&bwoiop,
+		bwliop,
+		bwriop,
+		bwoiop,
 		widiop,
 		ws1,
 		ws2,
