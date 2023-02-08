@@ -2,7 +2,6 @@ package frontend
 
 import (
 	"math/big"
-	"reflect"
 
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
@@ -53,7 +52,7 @@ type Compiler interface {
 	// Commit returns a commitment to the given variables, to be used as initial randomness in
 	// Fiat-Shamir when the statement to prove is particularly large.
 	// TODO cite paper
-	// This API is experimental
+	// ! Experimental
 	// TENTATIVE: Functions regarding fiat-shamir-ed proofs over enormous statements  TODO finalize
 	Commit(...Variable) (Variable, error)
 }
@@ -66,15 +65,11 @@ type Builder interface {
 	// Compile is called after circuit.Define() to produce a final IR (ConstraintSystem)
 	Compile() (constraint.ConstraintSystem, error)
 
-	// VariableCount returns the number of native elements required to represent
-	// the given reflected type as a witness.
-	VariableCount(reflect.Type) int
-
 	// PublicVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
-	PublicVariable(name *schema.Field) Variable
+	PublicVariable(schema.LeafInfo) Variable
 
 	// SecretVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
-	SecretVariable(field *schema.Field) Variable
+	SecretVariable(schema.LeafInfo) Variable
 }

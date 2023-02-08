@@ -103,7 +103,7 @@ func TestSchemaCorrectness(t *testing.T) {
 
 	// build schema
 	witness := &Circuit{Z: make([]variable, 3)}
-	s, err := Parse(witness, tVariable, nil)
+	s, err := New(witness, tVariable)
 	assert.NoError(err)
 
 	// instantiate a concrete object
@@ -147,64 +147,92 @@ func TestSchemaInherit(t *testing.T) {
 	{
 		var c circuitInherit1
 
-		s, err := Parse(&c, tVariable, nil)
+		s, err := Walk(&c, tVariable, nil)
 		assert.NoError(err)
 
-		assert.Equal(2, s.NbPublic)
-		assert.Equal(1, s.NbSecret)
+		assert.Equal(2, s.Public)
+		assert.Equal(1, s.Secret)
 	}
 
 	{
 		var c circuitInherit2
 
-		s, err := Parse(&c, tVariable, nil)
+		s, err := Walk(&c, tVariable, nil)
 		assert.NoError(err)
 
-		assert.Equal(3, s.NbPublic)
-		assert.Equal(1, s.NbSecret)
+		assert.Equal(3, s.Public)
+		assert.Equal(1, s.Secret)
 	}
 }
 
-type InheritingType struct {
-	C1 variable
-	C2 variable `gnark:"C2"`
-	C3 variable `gnark:",inherit"`
-}
+func BenchmarkLargeSchema(b *testing.B) {
+	const n1 = 1 << 12
+	const n2 = 1 << 12
 
-type DoubleInheritingType struct {
-	D1 InheritingType
-	D2 InheritingType `gnark:"D2"`
-	D3 InheritingType `gnark:",inherit"`
-}
-
-type InheritCircuit struct {
-	A1 InheritingType
-	A2 InheritingType `gnark:"A2"`
-	A3 InheritingType `gnark:",public"`
-	A4 InheritingType `gnark:",secret"`
-	A5 DoubleInheritingType
-	A6 DoubleInheritingType `gnark:"DD"`
-	A7 DoubleInheritingType `gnark:",public"`
-	A8 DoubleInheritingType `gnark:",secret"`
-}
-
-type InvalidInheritingCircuit struct {
-	B1 InheritingType       `gnark:",inherit"`
-	B2 DoubleInheritingType `gnark:",inherit"`
-}
-
-func TestSchemaInherit2(t *testing.T) {
-	assert := require.New(t)
-	{
-		c := InheritCircuit{}
-		_, err := Parse(&c, tVariable, nil)
-		assert.NoError(err)
+	t1 := struct {
+		A [][n2]variable
+	}{
+		make([][n2]variable, n1),
 	}
-	{
-		c := InvalidInheritingCircuit{}
-		_, err := Parse(&c, tVariable, nil)
-		assert.Error(err)
+
+	b.Run("walk", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := Walk(&t1, tVariable, nil)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("parse", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := New(&t1, tVariable)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkArrayOfSliceOfStructSchema(b *testing.B) {
+	const n1 = 1 << 12
+	const n2 = 1 << 12
+
+	type point struct {
+		x, y variable
+		z    string
 	}
+	type circuit struct {
+		A [n1][]point
+	}
+
+	var t1 circuit
+	for i := 0; i < len(t1.A); i++ {
+		t1.A[i] = make([]point, n2<<(i%2))
+	}
+	b.Run("walk", func(b *testing.B) {
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := Walk(&t1, tVariable, nil)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("parse", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := New(&t1, tVariable)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
 }
 
 var tVariable reflect.Type

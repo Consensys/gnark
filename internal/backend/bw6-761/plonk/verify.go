@@ -29,8 +29,6 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 
-	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/logger"
@@ -40,8 +38,8 @@ var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
 )
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness) error {
-	log := logger.Logger().With().Str("curve", "bn254").Str("backend", "plonk").Logger()
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
+	log := logger.Logger().With().Str("curve", "bw6_761").Str("backend", "plonk").Logger()
 	start := time.Now()
 
 	// pick a hash function to derive the challenge (the same as in the prover)

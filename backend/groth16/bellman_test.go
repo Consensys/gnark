@@ -106,13 +106,17 @@ func TestVerifyBellmanProof(t *testing.T) {
 
 		// verify groth16 proof
 		// we need to prepend the number of elements in the witness.
+		// witness package expects [nbPublic nbSecret] followed by [n | elements];
+		// note that n is redundant with nbPublic + nbSecret
 		var buf bytes.Buffer
+		_ = binary.Write(&buf, binary.BigEndian, uint32(len(inputsBytes)/(fr.Limbs*8)))
+		_ = binary.Write(&buf, binary.BigEndian, uint32(0))
 		_ = binary.Write(&buf, binary.BigEndian, uint32(len(inputsBytes)/(fr.Limbs*8)))
 		buf.Write(inputsBytes)
 
-		witness := &witness.Witness{
-			CurveID: ecc.BLS12_381,
-		}
+		witness, err := witness.New(ecc.BLS12_381.ScalarField())
+		require.NoError(t, err)
+
 		err = witness.UnmarshalBinary(buf.Bytes())
 		require.NoError(t, err)
 

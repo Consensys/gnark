@@ -145,19 +145,15 @@ func (builder *scs) newInternalVariable() expr.TermToRefactor {
 	return expr.NewTermToRefactor(idx, constraint.CoeffIdOne)
 }
 
-func (builder *scs) VariableCount(t reflect.Type) int {
-	return 1
-}
-
 // PublicVariable creates a new Public Variable
-func (builder *scs) PublicVariable(f *schema.Field) frontend.Variable {
-	idx := builder.cs.AddPublicVariable(f.FullName)
+func (builder *scs) PublicVariable(f schema.LeafInfo) frontend.Variable {
+	idx := builder.cs.AddPublicVariable(f.FullName())
 	return expr.NewTermToRefactor(idx, constraint.CoeffIdOne)
 }
 
 // SecretVariable creates a new Secret Variable
-func (builder *scs) SecretVariable(f *schema.Field) frontend.Variable {
-	idx := builder.cs.AddSecretVariable(f.FullName)
+func (builder *scs) SecretVariable(f schema.LeafInfo) frontend.Variable {
+	idx := builder.cs.AddSecretVariable(f.FullName())
 	return expr.NewTermToRefactor(idx, constraint.CoeffIdOne)
 }
 

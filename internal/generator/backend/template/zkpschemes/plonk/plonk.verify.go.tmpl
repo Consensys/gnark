@@ -7,7 +7,6 @@ import (
 	{{ template "import_fr" . }}
 	{{ template "import_kzg" . }}
 	{{ template "import_curve" . }}
-	{{ template "import_witness" . }}
     {{if eq .Curve "BN254"}}
     "text/template"
     {{end}}
@@ -20,8 +19,8 @@ var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
 )
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness {{ toLower .CurveID }}witness.Witness) error {
-	log := logger.Logger().With().Str("curve", "bn254").Str("backend", "plonk").Logger()
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
+	log := logger.Logger().With().Str("curve", "{{ toLower .CurveID }}").Str("backend", "plonk").Logger()
 	start := time.Now()
 
 	// pick a hash function to derive the challenge (the same as in the prover)

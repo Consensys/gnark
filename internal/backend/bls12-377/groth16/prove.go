@@ -24,7 +24,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint/bls12-377"
-	bls12_377witness "github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"math/big"
@@ -52,7 +51,7 @@ func (proof *Proof) CurveID() ecc.ID {
 }
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
-func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
 	// TODO @gbotrel witness size check is done by R1CS, doesn't mean we shouldn't sanitize here.
 	// if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
 	// 	return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
@@ -209,9 +208,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, opt 
 			chKrs2Done <- err
 		}()
 
-		removeIndexes(&wireValues, r1cs.CommitmentInfo.PrivateToPublic()) // WARNING: From this point on, the underlying array of wireValues has been edited
+		// filter the wire values if needed;
+		_wireValues := filter(wireValues, r1cs.CommitmentInfo.PrivateToPublic())
 
-		if _, err := krs.MultiExp(pk.G1.K, wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+		if _, err := krs.MultiExp(pk.G1.K, _wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
 			return
 		}
@@ -291,25 +291,27 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_377witness.Witness, opt 
 	return proof, nil
 }
 
-// removeIndexes removes from slice values slice[ remove[i]]
-func removeIndexes(slice *[]fr.Element, remove []int) {
+// if len(toRemove) == 0, returns slice
+// else, returns a new slice without the indexes in toRemove
+// this assumes toRemove indexes are sorted and len(slice) > len(toRemove)
+func filter(slice []fr.Element, toRemove []int) (r []fr.Element) {
 
-	if len(remove) == 0 {
-		return
+	if len(toRemove) == 0 {
+		return slice
 	}
+	r = make([]fr.Element, 0, len(slice)-len(toRemove))
 
-	lastRemoved := remove[0] //removing the first one takes no work
-	for existingDisplacement := range remove {
-		toRemove := len(*slice)
-		if existingDisplacement+1 < len(remove) {
-			toRemove = remove[existingDisplacement+1]
+	j := 0
+	// note: we can optimize that for the likely case where len(slice) >>> len(toRemove)
+	for i := 0; i < len(slice); i++ {
+		if j < len(toRemove) && i == toRemove[j] {
+			j++
+			continue
 		}
-		dst := (*slice)[lastRemoved-existingDisplacement : toRemove-existingDisplacement-1]
-		src := (*slice)[lastRemoved+1 : toRemove]
-		copy(dst, src)
-		lastRemoved = toRemove
+		r = append(r, slice[i])
 	}
-	*slice = (*slice)[:len(*slice)-len(remove)]
+
+	return r
 }
 
 func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {

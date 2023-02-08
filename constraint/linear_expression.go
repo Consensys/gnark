@@ -14,12 +14,6 @@
 
 package constraint
 
-import (
-	"strings"
-
-	"github.com/consensys/gnark/frontend/schema"
-)
-
 // A LinearExpression is a linear combination of Term
 type LinearExpression []Term
 
@@ -30,11 +24,8 @@ func (l LinearExpression) Clone() LinearExpression {
 	return res
 }
 
-func (l LinearExpression) String(sbb *strings.Builder, getCoeff func(cID int) string, getVisibility func(vID int) schema.Visibility) {
-	for i := 0; i < len(l); i++ {
-		l[i].String(sbb, getCoeff, getVisibility)
-		if i+1 < len(l) {
-			sbb.WriteString(" + ")
-		}
-	}
+func (l LinearExpression) String(r Resolver) string {
+	sbb := NewStringBuilder(r)
+	sbb.WriteLinearExpression(l)
+	return sbb.String()
 }

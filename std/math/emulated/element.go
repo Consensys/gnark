@@ -13,48 +13,43 @@ import (
 // a slice of limbs. The type parameter defines the field this element belongs
 // to.
 type Element[T FieldParams] struct {
-	Limbs []frontend.Variable `gnark:"limbs,inherit"` // in little-endian (least significant limb first) encoding
+	// Limbs is the decomposition of the integer value into limbs in the native
+	// field. To enforce that the limbs are of expected width, use Pack...
+	// methods on the Field. Uses little-endian (least significant limb first)
+	// encoding.
+	Limbs []frontend.Variable
 
 	// overflow indicates the number of additions on top of the normal form. To
 	// ensure that none of the limbs overflow the scalar field of the snark
 	// curve, we must check that nbBits+overflow < floor(log2(fr modulus))
-	overflow uint `gnark:"-"`
+	overflow uint
+
+	// internal indicates if the element is returned from [Field] methods. If
+	// so, then we can assume that the limbs are already constrained to be
+	// correct width. If the flag is not set, then the Element most probably
+	// comes from the witness (or constructed by the user). Then we have to
+	// ensure that the limbs are width-constrained. We do not store the
+	// enforcement info in the Element to prevent modifying the witness.
+	internal bool
 }
 
-// NewElement builds a new emulated element from input. The inputs can be:
-//   - of type Element[T] (or a pointer to it). Then, the limbs are cloned and packed into new Element[T],
-//   - integer-like. Then it is cast to [*big.Int], decomposed into limbs and packed into new Element[T],
-//   - a variable in circuit. Then, it is packed into new Element[T]
-func NewElement[T FieldParams](v interface{}) Element[T] {
-	r := Element[T]{}
+// ValueOf returns an Element[T] from a constant value.
+// The input is converted to *big.Int and decomposed into limbs and packed into new Element[T].
+func ValueOf[T FieldParams](constant interface{}) Element[T] {
+	if constant == nil {
+		r := newConstElement[T](0)
+		return *r
+	}
+	r := newConstElement[T](constant)
+	return *r
+}
+
+// newConstElement is shorthand for initialising new element using NewElement and
+// taking pointer to it. We only want to have a public method for initialising
+// an element which return a value because the user uses this only for witness
+// creation and it mess up schema parsing.
+func newConstElement[T FieldParams](v interface{}) *Element[T] {
 	var fp T
-
-	if v == nil {
-		r.Limbs = make([]frontend.Variable, fp.NbLimbs())
-		for i := 0; i < len(r.Limbs); i++ {
-			r.Limbs[i] = 0
-		}
-
-		return r
-	}
-	switch tv := v.(type) {
-	case Element[T]:
-		r.Limbs = make([]frontend.Variable, len(tv.Limbs))
-		copy(r.Limbs, tv.Limbs)
-		r.overflow = tv.overflow
-		return r
-	case *Element[T]:
-		r.Limbs = make([]frontend.Variable, len(tv.Limbs))
-		copy(r.Limbs, tv.Limbs)
-		r.overflow = tv.overflow
-		return r
-	}
-	if frontend.IsCanonical(v) {
-		// TODO @gbotrel @ivokub check this -- seems oddd.
-		r.Limbs = []frontend.Variable{v}
-		return r
-	}
-
 	// convert to big.Int
 	bValue := utils.FromInterface(v)
 
@@ -65,41 +60,46 @@ func NewElement[T FieldParams](v interface{}) Element[T] {
 
 	// decompose into limbs
 	// TODO @gbotrel use big.Int pool here
-	limbs := make([]*big.Int, fp.NbLimbs())
-	for i := range limbs {
-		limbs[i] = new(big.Int)
+	blimbs := make([]*big.Int, fp.NbLimbs())
+	for i := range blimbs {
+		blimbs[i] = new(big.Int)
 	}
-	if err := decompose(&bValue, fp.BitsPerLimb(), limbs); err != nil {
+	if err := decompose(&bValue, fp.BitsPerLimb(), blimbs); err != nil {
 		panic(fmt.Errorf("decompose value: %w", err))
 	}
 
 	// assign limb values
-	r.Limbs = make([]frontend.Variable, fp.NbLimbs())
+	limbs := make([]frontend.Variable, len(blimbs))
 	for i := range limbs {
-		r.Limbs[i] = frontend.Variable(limbs[i])
+		limbs[i] = frontend.Variable(blimbs[i])
 	}
-
-	return r
+	return &Element[T]{
+		Limbs:    limbs,
+		overflow: 0,
+		internal: true,
+	}
 }
 
-// newElementPtr is shorthand for initialising new element using NewElement and
-// taking pointer to it. We only want to have a public method for initialising
-// an element which return a value because the user uses this only for witness
-// creation and it mess up schema parsing.
-func newElementPtr[T FieldParams](v interface{}) *Element[T] {
-	el := NewElement[T](v)
-	return &el
-}
-
-// newElementLimbs sets the limbs and overflow. Given as a function for later
+// newInternalElement sets the limbs and overflow. Given as a function for later
 // possible refactor.
-func newElementLimbs[T FieldParams](limbs []frontend.Variable, overflow uint) *Element[T] {
-	return &Element[T]{Limbs: limbs, overflow: overflow}
+func (f *Field[T]) newInternalElement(limbs []frontend.Variable, overflow uint) *Element[T] {
+	return &Element[T]{Limbs: limbs, overflow: overflow, internal: true}
 }
 
 // GnarkInitHook describes how to initialise the element.
 func (e *Element[T]) GnarkInitHook() {
 	if e.Limbs == nil {
-		*e = NewElement[T](nil)
+		*e = ValueOf[T](0)
+		e.internal = false // we need to constrain in later.
 	}
+}
+
+// copy makes a deep copy of the element.
+func (e *Element[T]) copy() *Element[T] {
+	r := Element[T]{}
+	r.Limbs = make([]frontend.Variable, len(e.Limbs))
+	copy(r.Limbs, e.Limbs)
+	r.overflow = e.overflow
+	r.internal = e.internal
+	return &r
 }

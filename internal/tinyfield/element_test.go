@@ -2084,20 +2084,14 @@ func TestElementJSON(t *testing.T) {
 
 	encoded, err := json.Marshal(&s)
 	assert.NoError(err)
-	// since our modulus is on 1 word, we may need to adjust "42" and "8000" values;
+	// we may need to adjust "42" and "8000" values for some moduli; see Text() method for more details.
 	formatValue := func(v int64) string {
-		const maxUint16 = 65535
-		var a, aNeg big.Int
+		var a big.Int
 		a.SetInt64(v)
 		a.Mod(&a, Modulus())
-		aNeg.Neg(&a).Mod(&aNeg, Modulus())
-		fmt.Println("aNeg", aNeg.Text(10))
-		if aNeg.Uint64() != 0 && aNeg.Uint64() <= maxUint16 {
-			return "-" + aNeg.Text(10)
-		}
 		return a.Text(10)
 	}
-	expected := fmt.Sprintf("{\"A\":-1,\"B\":[0,0,%s],\"C\":null,\"D\":%s}", formatValue(42), formatValue(8000))
+	expected := fmt.Sprintf("{\"A\":%s,\"B\":[0,0,%s],\"C\":null,\"D\":%s}", formatValue(-1), formatValue(42), formatValue(8000))
 	assert.Equal(expected, string(encoded))
 
 	// decode valid

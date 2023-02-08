@@ -80,22 +80,27 @@ func initSnippets() {
 		_ = mimc.Sum()
 	})
 	registerSnippet("math/emulated/secp256k1_64", func(api frontend.API, newVariable func() frontend.Variable) {
-		secp256k1, _ := emulated.NewAPI[emulated.Secp256k1Fp](api)
+		secp256k1, _ := emulated.NewField[emulated.Secp256k1Fp](api)
 
-		newElement := func() emulated.Element[emulated.Secp256k1Fp] {
-			r := emulated.NewElement[emulated.Secp256k1Fp](nil)
-			for i := 0; i < len(r.Limbs); i++ {
-				r.Limbs[i] = newVariable()
+		newElement := func() *emulated.Element[emulated.Secp256k1Fp] {
+			limbs := make([]frontend.Variable, emulated.Secp256k1Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
 			}
-			return r
+			return secp256k1.NewElement(limbs)
 		}
 
-		x13 := secp256k1.Mul(newElement(), newElement(), newElement())
-		fx2 := secp256k1.Mul(5, newElement())
+		x13 := secp256k1.Mul(newElement(), newElement())
+		x13 = secp256k1.Mul(x13, newElement())
+		five := emulated.ValueOf[emulated.Secp256k1Fp](5)
+		fx2 := secp256k1.Mul(&five, newElement())
 		nom := secp256k1.Sub(fx2, x13)
-		denom := secp256k1.Add(newElement(), newElement(), newElement(), newElement())
+		denom := secp256k1.Add(newElement(), newElement())
+		denom = secp256k1.Add(denom, newElement())
+		denom = secp256k1.Add(denom, newElement())
 		free := secp256k1.Div(nom, denom)
-		res := secp256k1.Add(x13, fx2, free)
+		res := secp256k1.Add(x13, fx2)
+		res = secp256k1.Add(res, free)
 		secp256k1.AssertIsEqual(res, newElement())
 	})
 

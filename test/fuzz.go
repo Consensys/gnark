@@ -113,15 +113,14 @@ func randomFiller(w frontend.Circuit, curve ecc.ID) {
 }
 
 func fill(w frontend.Circuit, nextValue func() interface{}) {
-	setHandler := func(f *schema.Field, tInput reflect.Value) error {
-		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
-			v := nextValue()
-			tInput.Set(reflect.ValueOf((v)))
-		}
+	setHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
+		v := nextValue()
+		tInput.Set(reflect.ValueOf((v)))
 		return nil
 	}
 	// this can't error.
-	_, _ = schema.Parse(w, tVariable, setHandler)
+	// TODO @gbotrel it might error with .Walk?
+	_, _ = schema.Walk(w, tVariable, setHandler)
 }
 
 var tVariable reflect.Type

@@ -67,8 +67,9 @@ func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) fronte
 	c.Lsh(c, uint(startDigit))
 
 	for i := 0; i < len(bits); i++ {
-		Σbi = api.Add(Σbi, api.Mul(bits[i], c))
-		ΣbiRShift = api.Add(ΣbiRShift, api.Mul(bits[i], cRShift))
+		Σbi = api.MulAcc(Σbi, bits[i], c)
+		ΣbiRShift = api.MulAcc(ΣbiRShift, bits[i], cRShift)
+
 		c.Lsh(c, 1)
 		cRShift.Lsh(cRShift, 1)
 		api.AssertIsBoolean(bits[i])
@@ -80,10 +81,12 @@ func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) fronte
 
 }
 
-// AssertLimbsEquality asserts that the limbs represent a same integer value (up
-// to overflow). This method does not ensure that the values are equal modulo
-// the field order. For strict equality, use AssertIsEqual.
+// AssertLimbsEquality asserts that the limbs represent a same integer value.
+// This method does not ensure that the values are equal modulo the field order.
+// For strict equality, use AssertIsEqual.
 func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
 	ba, aConst := f.constantValue(a)
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
@@ -95,7 +98,7 @@ func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
 		return
 	}
 
-	// first, we check if we can compact the e and other; they could be using 8 limbs of 32bits
+	// first, we check if we can compact a and b; they could be using 8 limbs of 32bits
 	// but with our snark field, we could express them in 2 limbs of 128bits, which would make bit decomposition
 	// and limbs equality in-circuit (way) cheaper
 	ca, cb, bitsPerLimb := f.compact(a, b)
@@ -110,22 +113,23 @@ func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
 	}
 }
 
-// EnforceWidth enforces that the bitlength of the value is exactly the
-// bitlength of the modulus. Any newly initialized variable should be
-// constrained to ensure correct operations.
-func (f *Field[T]) EnforceWidth(a *Element[T]) {
-	_, aConst := f.constantValue(a)
-	if aConst {
+// enforceWidth enforces the width of the limbs. When modWidth is true, then the
+// limbs are asserted to be the width of the modulus (highest limb may be less
+// than full limb width). Otherwise, every limb is assumed to have same width
+// (defined by the field parameter).
+func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
+	if _, aConst := f.constantValue(a); aConst {
 		if len(a.Limbs) != int(f.fParams.NbLimbs()) {
 			panic("constant limb width doesn't match parametrized field")
 		}
 	}
+	if modWidth && len(a.Limbs) != int(f.fParams.NbLimbs()) {
+		panic("enforcing modulus width element with inexact number of limbs")
+	}
 
 	for i := range a.Limbs {
-		// TODO @gbotrel why check all the limbs here? if len(e.Limbs) <= modulus
-		// && last limb <= bits[lastLimbs] modulus, we're good ?
 		limbNbBits := int(f.fParams.BitsPerLimb())
-		if i == len(a.Limbs)-1 {
+		if modWidth && i == len(a.Limbs)-1 {
 			// take only required bits from the most significant limb
 			limbNbBits = ((f.fParams.Modulus().BitLen() - 1) % int(f.fParams.BitsPerLimb())) + 1
 		}
@@ -138,6 +142,7 @@ func (f *Field[T]) EnforceWidth(a *Element[T]) {
 
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
 func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
+	// we omit width assertion as it is done in Sub below
 	ba, aConst := f.constantValue(a)
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
@@ -165,8 +170,9 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 	f.AssertLimbsEquality(diff, kp)
 }
 
-// AssertIsEqualLessThan ensures that e is less or equal than e.
-func (f *Field[T]) AssertIsLessEqualThan(e, a *Element[T]) {
+// AssertIsLessOrEqual ensures that e is less or equal than a.
+func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
+	// we omit conditional width assertion as is done in ToBits below
 	if e.overflow+a.overflow > 0 {
 		panic("inputs must have 0 overflow")
 	}

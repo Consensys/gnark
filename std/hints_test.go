@@ -1,7 +1,6 @@
 package std
 
 import (
-	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 )
 
@@ -17,5 +16,5 @@ func ExampleRegisterHints() {
 	RegisterHints()
 
 	// then -->
-	_ = ccs.IsSolved(&witness.Witness{})
+	_ = ccs.IsSolved(nil)
 }

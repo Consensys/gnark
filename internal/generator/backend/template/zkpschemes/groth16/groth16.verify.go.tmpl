@@ -1,7 +1,7 @@
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	{{- template "import_curve" . }}
-	{{- template "import_witness" . }}
+	{{- template "import_fr" . }}
 	"fmt"
 	"errors"
 	"time"
@@ -19,7 +19,7 @@ var (
 )
 
 // Verify verifies a proof with given VerifyingKey and publicWitness
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness {{ toLower .CurveID}}witness.Witness) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	nbPublicVars := len(vk.G1.K)
 	if vk.CommitmentInfo.Is() {

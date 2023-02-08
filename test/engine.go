@@ -30,6 +30,7 @@ import (
 	"github.com/consensys/gnark/logger"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -154,6 +155,17 @@ func (e *engine) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 	}
 	res.Mod(res, e.modulus())
 	return res
+}
+
+func (e *engine) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+	bc := pool.BigInt.Get()
+	bc.Mul(e.toBigInt(b), e.toBigInt(c))
+
+	_a := e.toBigInt(a)
+	_a.Add(_a, bc).Mod(_a, e.modulus())
+
+	pool.BigInt.Put(bc)
+	return _a
 }
 
 func (e *engine) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
@@ -525,33 +537,28 @@ func shallowClone(circuit frontend.Circuit) frontend.Circuit {
 }
 
 func copyWitness(to, from frontend.Circuit) {
-	var wValues []interface{}
+	var wValues []reflect.Value
 
-	collectHandler := func(f *schema.Field, tInput reflect.Value) error {
-		v := tInput.Interface().(frontend.Variable)
-
-		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
-			if v == nil {
-				return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName)
-			}
-			wValues = append(wValues, v)
+	collectHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
+		if tInput.IsNil() {
+			// TODO @gbotrel test for missing assignment
+			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName())
 		}
+		wValues = append(wValues, tInput)
 		return nil
 	}
-	if _, err := schema.Parse(from, tVariable, collectHandler); err != nil {
+	if _, err := schema.Walk(from, tVariable, collectHandler); err != nil {
 		panic(err)
 	}
 
 	i := 0
-	setHandler := func(f *schema.Field, tInput reflect.Value) error {
-		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
-			tInput.Set(reflect.ValueOf(wValues[i]))
-			i++
-		}
+	setHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
+		tInput.Set(wValues[i])
+		i++
 		return nil
 	}
 	// this can't error.
-	_, _ = schema.Parse(to, tVariable, setHandler)
+	_, _ = schema.Walk(to, tVariable, setHandler)
 
 }
 
