@@ -98,9 +98,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	wliop := liop.WrapMe(0)
 	wriop := riop.WrapMe(0)
 	woiop := oiop.WrapMe(0)
-	wliop.ToCanonical(wliop, &pk.Domain[0]).ToRegular(wliop)
-	wriop.ToCanonical(wriop, &pk.Domain[0]).ToRegular(wriop)
-	woiop.ToCanonical(woiop, &pk.Domain[0]).ToRegular(woiop)
+	wliop.ToCanonical(&pk.Domain[0]).ToRegular()
+	wriop.ToCanonical(&pk.Domain[0]).ToRegular()
+	woiop.ToCanonical(&pk.Domain[0]).ToRegular()
 
 	// Blind l, r, o before committing
 	var bwliop, bwriop, bwoiop iop.WrappedPolynomial
@@ -168,9 +168,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	fft.BitReverse(qkCompletedCanonical)
 
 	// l, r, o are blinded here
-	bwliop.ToLagrangeCoset(&bwliop, &pk.Domain[1])
-	bwriop.ToLagrangeCoset(&bwriop, &pk.Domain[1])
-	bwoiop.ToLagrangeCoset(&bwoiop, &pk.Domain[1])
+	bwliop.ToLagrangeCoset(&pk.Domain[1])
+	bwriop.ToLagrangeCoset(&pk.Domain[1])
+	bwoiop.ToLagrangeCoset(&pk.Domain[1])
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
 	wqliop := iop.NewPolynomial(pk.Ql, canReg).WrapMe(0)
 	wqriop := iop.NewPolynomial(pk.Qr, canReg).WrapMe(0)
@@ -178,39 +178,39 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	wqoiop := iop.NewPolynomial(pk.Qo, canReg).WrapMe(0)
 
 	wqkiop := iop.NewPolynomial(qkCompletedCanonical, canReg).WrapMe(0)
-	wqliop.ToLagrangeCoset(wqliop, &pk.Domain[1])
-	wqriop.ToLagrangeCoset(wqriop, &pk.Domain[1])
-	wqmiop.ToLagrangeCoset(wqmiop, &pk.Domain[1])
-	wqoiop.ToLagrangeCoset(wqoiop, &pk.Domain[1])
-	wqkiop.ToLagrangeCoset(wqkiop, &pk.Domain[1])
+	wqliop.ToLagrangeCoset(&pk.Domain[1])
+	wqriop.ToLagrangeCoset(&pk.Domain[1])
+	wqmiop.ToLagrangeCoset(&pk.Domain[1])
+	wqoiop.ToLagrangeCoset(&pk.Domain[1])
+	wqkiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// storing Id
 	id := make([]fr.Element, pk.Domain[1].Cardinality)
 	id[1].SetOne()
 	widiop := iop.NewPolynomial(id, canReg).WrapMe(0)
-	widiop.ToLagrangeCoset(widiop, &pk.Domain[1])
+	widiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// put the permutations in LagrangeCoset
 	ws1 := iop.NewPolynomial(pk.S1Canonical, canReg).WrapMe(0)
-	ws1.ToCanonical(ws1, &pk.Domain[0]).ToRegular(ws1).ToLagrangeCoset(ws1, &pk.Domain[1])
+	ws1.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
 
 	ws2 := iop.NewPolynomial(pk.S2Canonical, canReg).WrapMe(0)
-	ws2.ToCanonical(ws2, &pk.Domain[0]).ToRegular(ws2).ToLagrangeCoset(ws2, &pk.Domain[1])
+	ws2.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
 
 	ws3 := iop.NewPolynomial(pk.S3Canonical, canReg).WrapMe(0)
-	ws3.ToCanonical(ws3, &pk.Domain[0]).ToRegular(ws3).ToLagrangeCoset(ws3, &pk.Domain[1])
+	ws3.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
 
 	// Store z(g*x), without reallocating a slice
 	bwsziop := bwziop.WrapMe(1)
-	bwziop.ToLagrangeCoset(bwziop, &pk.Domain[1])
+	bwziop.ToLagrangeCoset(&pk.Domain[1])
 
 	// L_{g^{0}}
 	lone := make([]fr.Element, pk.Domain[0].Cardinality)
 	lone[0].SetOne()
 	loneiop := iop.NewPolynomial(lone, lagReg)
-	wloneiop := loneiop.ToCanonical(loneiop, &pk.Domain[0]).
-		ToRegular(loneiop).
-		ToLagrangeCoset(loneiop, &pk.Domain[1]).
+	wloneiop := loneiop.ToCanonical(&pk.Domain[0]).
+		ToRegular().
+		ToLagrangeCoset(&pk.Domain[1]).
 		WrapMe(0)
 
 	// Full capture usigng latest gnark crypto...
@@ -318,9 +318,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	}
 
 	// compute evaluations of (blinded version of) l, r, o, z at zeta
-	bwliop.ToCanonical(&bwliop, &pk.Domain[1]).ToRegular(&bwliop)
-	bwriop.ToCanonical(&bwriop, &pk.Domain[1]).ToRegular(&bwriop)
-	bwoiop.ToCanonical(&bwoiop, &pk.Domain[1]).ToRegular(&bwoiop)
+	bwliop.ToCanonical(&pk.Domain[1]).ToRegular()
+	bwriop.ToCanonical(&pk.Domain[1]).ToRegular()
+	bwoiop.ToCanonical(&pk.Domain[1]).ToRegular()
 
 	// var blzeta, brzeta, bozeta fr.Element
 	blzeta := bwliop.Evaluate(zeta)
@@ -329,7 +329,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	// -> CORRECT
 
 	// open blinded Z at zeta*z
-	bwziop.ToCanonical(bwziop, &pk.Domain[1]).ToRegular(bwziop)
+	bwziop.ToCanonical(&pk.Domain[1]).ToRegular()
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
 	proof.ZShiftedOpening, err = kzg.Open(
