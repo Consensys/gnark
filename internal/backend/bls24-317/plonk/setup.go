@@ -58,8 +58,7 @@ type ProvingKey struct {
 	// Domain[0], Domain[1] fft.Domain
 
 	// Permutation polynomials
-	EvaluationPermutationBigDomainBitReversed []fr.Element
-	S1Canonical, S2Canonical, S3Canonical     []fr.Element
+	S1Canonical, S2Canonical, S3Canonical []fr.Element
 
 	// in lagrange coset basis --> these are not serialized, but computed from S1Canonical, S2Canonical, S3Canonical once.
 	lS1LagrangeCoset, lS2LagrangeCoset, lS3LagrangeCoset []fr.Element
@@ -340,16 +339,6 @@ func ccomputePermutationPolynomials(pk *ProvingKey) {
 	fft.BitReverse(pk.S1Canonical)
 	fft.BitReverse(pk.S2Canonical)
 	fft.BitReverse(pk.S3Canonical)
-
-	// evaluation of permutation on the big domain
-	pk.EvaluationPermutationBigDomainBitReversed = make([]fr.Element, 3*pk.Domain[1].Cardinality)
-	copy(pk.EvaluationPermutationBigDomainBitReversed, pk.S1Canonical)
-	copy(pk.EvaluationPermutationBigDomainBitReversed[pk.Domain[1].Cardinality:], pk.S2Canonical)
-	copy(pk.EvaluationPermutationBigDomainBitReversed[2*pk.Domain[1].Cardinality:], pk.S3Canonical)
-	pk.Domain[1].FFT(pk.EvaluationPermutationBigDomainBitReversed[:pk.Domain[1].Cardinality], fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationPermutationBigDomainBitReversed[pk.Domain[1].Cardinality:2*pk.Domain[1].Cardinality], fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationPermutationBigDomainBitReversed[2*pk.Domain[1].Cardinality:], fft.DIF, true)
-
 }
 
 // getIDSmallDomain returns the Lagrange form of ID on the small domain
