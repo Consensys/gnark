@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"math/big"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -103,7 +104,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	woiop.ToCanonical(&pk.Domain[0]).ToRegular()
 
 	// Blind l, r, o before committing
-	// TODO @gbotrel check need for clone here.
 	bwliop := wliop.Clone().Blind(1)
 	bwriop := wriop.Clone().Blind(1)
 	bwoiop := woiop.Clone().Blind(1)
@@ -167,10 +167,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 	fft.BitReverse(qkCompletedCanonical)
 
+	// batch convert to LagrangeCoset
+	wps := make([]*iop.WrappedPolynomial, 0, 14)
+	wps = append(wps, bwliop, bwriop, bwoiop)
 	// l, r, o are blinded here
-	bwliop.ToLagrangeCoset(&pk.Domain[1])
-	bwriop.ToLagrangeCoset(&pk.Domain[1])
-	bwoiop.ToLagrangeCoset(&pk.Domain[1])
+	// bwliop.ToLagrangeCoset(&pk.Domain[1])
+	// bwriop.ToLagrangeCoset(&pk.Domain[1])
+	// bwoiop.ToLagrangeCoset(&pk.Domain[1])
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
 	wqliop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.Ql, canReg))
 	wqriop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.Qr, canReg))
@@ -178,43 +181,53 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	wqoiop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.Qo, canReg))
 
 	wqkiop := iop.NewWrappedPolynomial(iop.NewPolynomial(qkCompletedCanonical, canReg))
-	wqliop.ToLagrangeCoset(&pk.Domain[1])
-	wqriop.ToLagrangeCoset(&pk.Domain[1])
-	wqmiop.ToLagrangeCoset(&pk.Domain[1])
-	wqoiop.ToLagrangeCoset(&pk.Domain[1])
-	wqkiop.ToLagrangeCoset(&pk.Domain[1])
+	wps = append(wps, wqliop, wqriop, wqmiop, wqoiop, wqkiop)
+	// wqliop.ToLagrangeCoset(&pk.Domain[1])
+	// wqriop.ToLagrangeCoset(&pk.Domain[1])
+	// wqmiop.ToLagrangeCoset(&pk.Domain[1])
+	// wqoiop.ToLagrangeCoset(&pk.Domain[1])
+	// wqkiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// storing Id
 	id := make([]fr.Element, pk.Domain[1].Cardinality)
 	id[1].SetOne()
 	widiop := iop.NewWrappedPolynomial(iop.NewPolynomial(id, canReg))
-	widiop.ToLagrangeCoset(&pk.Domain[1])
+	wps = append(wps, widiop)
+	// widiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// put the permutations in LagrangeCoset
 	ws1 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.S1Canonical, canReg))
-	ws1.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
+	ws1.ToCanonical(&pk.Domain[0]).ToRegular() //.ToLagrangeCoset(&pk.Domain[1])
 
 	ws2 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.S2Canonical, canReg))
-	ws2.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
+	ws2.ToCanonical(&pk.Domain[0]).ToRegular() //.ToLagrangeCoset(&pk.Domain[1])
 
 	ws3 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.S3Canonical, canReg))
-	ws3.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
+	ws3.ToCanonical(&pk.Domain[0]).ToRegular() //.ToLagrangeCoset(&pk.Domain[1])
+
+	wps = append(wps, ws1, ws2, ws3)
 
 	// Store z(g*x), without reallocating a slice
-	// TODO @gbotrel check this refactor need shallow copy
-	bwsziop := *bwziop
-	bwsziop.Shift(1)
-	bwziop.ToLagrangeCoset(&pk.Domain[1])
+	bwsziop := bwziop.ShallowClone().Shift(1)
+	// bwsziop.ToLagrangeCoset(&pk.Domain[1])
+	wps = append(wps, bwsziop)
 
 	// L_{g^{0}}
 	lone := make([]fr.Element, pk.Domain[0].Cardinality)
 	lone[0].SetOne()
 	loneiop := iop.NewPolynomial(lone, lagReg)
-	wloneiop := iop.NewWrappedPolynomial(loneiop.ToCanonical(&pk.Domain[0]).
-		ToRegular().
-		ToLagrangeCoset(&pk.Domain[1]))
+	wloneiop := iop.NewWrappedPolynomial(loneiop.ToCanonical(&pk.Domain[0]).ToRegular())
 
-	// Full capture usigng latest gnark crypto...
+	wps = append(wps, wloneiop)
+
+	// batch convert to lagrange coset
+	utils.Parallelize(len(wps), func(start, end int) {
+		for i := start; i < end; i++ {
+			wps[i].ToLagrangeCoset(&pk.Domain[1])
+		}
+	})
+
+	// Full capture using latest gnark crypto...
 	fic := func(fql, fqr, fqm, fqo, fqk, l, r, o fr.Element) fr.Element {
 
 		var ic, tmp fr.Element
@@ -231,10 +244,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	}
 
 	fo := func(l, r, o, fid, fs1, fs2, fs3, fz, fzs fr.Element) fr.Element {
-
-		var u, uu fr.Element
-		u.Set(&pk.Domain[0].FrMultiplicativeGen)
-		uu.Mul(&u, &pk.Domain[0].FrMultiplicativeGen)
+		var uu fr.Element
+		u := pk.Domain[0].FrMultiplicativeGen
+		uu.Mul(&u, &u)
 
 		var a, b, tmp fr.Element
 		a.Mul(&beta, &fid).Add(&a, &l).Add(&a, &gamma)
@@ -252,18 +264,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 		b.Sub(&b, &a)
 
 		return b
-
 	}
 
 	fone := func(fz, flone fr.Element) fr.Element {
-
-		var one fr.Element
-		one.SetOne()
-
+		one := fr.One()
 		one.Sub(&fz, &one).Mul(&one, &flone)
-
 		return one
-
 	}
 
 	// 0 , 1,  2,  3,  4,  5,  6, 7,  8,  9, 10, 11, 12, 13, 14
@@ -287,7 +293,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 		ws2,
 		ws3,
 		bwziop,
-		&bwsziop,
+		bwsziop,
 		wqliop,
 		wqriop,
 		wqmiop,
@@ -319,15 +325,28 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	}
 
 	// compute evaluations of (blinded version of) l, r, o, z at zeta
-	bwliop.ToCanonical(&pk.Domain[1]).ToRegular()
-	bwriop.ToCanonical(&pk.Domain[1]).ToRegular()
-	bwoiop.ToCanonical(&pk.Domain[1]).ToRegular()
+	var blzeta, brzeta, bozeta fr.Element
 
-	// var blzeta, brzeta, bozeta fr.Element
-	blzeta := bwliop.Evaluate(zeta)
-	brzeta := bwriop.Evaluate(zeta)
-	bozeta := bwoiop.Evaluate(zeta)
-	// -> CORRECT
+	var wgEvals sync.WaitGroup
+	wgEvals.Add(3)
+
+	go func() {
+		bwliop.ToCanonical(&pk.Domain[1]).ToRegular()
+		blzeta = bwliop.Evaluate(zeta)
+		wgEvals.Done()
+	}()
+
+	go func() {
+		bwriop.ToCanonical(&pk.Domain[1]).ToRegular()
+		brzeta = bwriop.Evaluate(zeta)
+		wgEvals.Done()
+	}()
+
+	go func() {
+		bwoiop.ToCanonical(&pk.Domain[1]).ToRegular()
+		bozeta = bwoiop.Evaluate(zeta)
+		wgEvals.Done()
+	}()
 
 	// open blinded Z at zeta*z
 	bwziop.ToCanonical(&pk.Domain[1]).ToRegular()
@@ -350,6 +369,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 		linearizedPolynomialDigest    curve.G1Affine
 		errLPoly                      error
 	)
+
+	wgEvals.Wait() // wait for the evaluations
 
 	// compute the linearization polynomial r at zeta
 	// (goal: save committing separately to z, ql, qr, qm, qo, k
