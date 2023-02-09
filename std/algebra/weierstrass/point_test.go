@@ -129,6 +129,65 @@ func TestDouble(t *testing.T) {
 	assert.NoError(err)
 }
 
+type ScalarMulBaseTest[T, S emulated.FieldParams] struct {
+	Q AffinePoint[T]
+	S emulated.Element[S]
+}
+
+func (c *ScalarMulBaseTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.ScalarMulBase(&c.S)
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+func TestScalarMulBase(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+	s, ok := new(big.Int).SetString("44693544921776318736021182399461740191514036429448770306966433218654680512345", 10)
+	assert.True(ok)
+	var S secp256k1.G1Affine
+	S.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulBaseTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := ScalarMulBaseTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](S.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](S.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
+	assert.NoError(err)
+}
+
+func TestScalarMulBase2(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, g, _ := bn254.Generators()
+	s, ok := new(big.Int).SetString("44693544921776318736021182399461740191514036429448770306966433218654680512345", 10)
+	assert.True(ok)
+	var S bn254.G1Affine
+	S.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulBaseTest[emulated.BN254Fp, emulated.BN254Fr]{}
+	witness := ScalarMulBaseTest[emulated.BN254Fp, emulated.BN254Fr]{
+		S: emulated.ValueOf[emulated.BN254Fr](s),
+		Q: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](S.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](S.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
+	assert.NoError(err)
+}
+
 type ScalarMulTest[T, S emulated.FieldParams] struct {
 	P, Q AffinePoint[T]
 	S    emulated.Element[S]
