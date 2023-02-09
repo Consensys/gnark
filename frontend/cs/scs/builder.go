@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
@@ -57,6 +58,8 @@ type scs struct {
 	mtBooleans map[int]struct{}
 
 	q *big.Int
+
+	kvstore.Store
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -67,6 +70,7 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *scs {
 		mtBooleans: make(map[int]struct{}),
 		st:         cs.NewCoeffTable(),
 		config:     config,
+		Store:      kvstore.New(),
 	}
 
 	curve := utils.FieldToCurve(field)
