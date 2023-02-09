@@ -70,6 +70,15 @@ Refer to the [`gnark` User Documentation]
 Here is what `x**3 + x + 5 = y` looks like
 
 ```golang
+package main
+
+import (
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+)
+
 // CubicCircuit defines a simple circuit
 // x**3 + x + 5 == y
 type CubicCircuit struct {
@@ -87,21 +96,24 @@ func (circuit *CubicCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-// compiles our circuit into a R1CS
-var circuit CubicCircuit
-ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+func main() {
+	// compiles our circuit into a R1CS
+	var circuit CubicCircuit
+	ccs, _ := frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit)
 
-// groth16 zkSNARK: Setup
-pk, vk, err := groth16.Setup(ccs)
+	// groth16 zkSNARK: Setup
+	pk, vk, _ := groth16.Setup(ccs)
 
-// witness definition
-assignment := CubicCircuit{X: 3, Y: 35}
-witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-publicWitness, _ := witness.Public()
+	// witness definition
+	assignment := CubicCircuit{X: 3, Y: 35}
+	witness, _ := frontend.NewWitness(&assignment, ecc.BN254)
+	publicWitness, _ := witness.Public()
 
-// groth16: Prove & Verify
-proof, err := groth16.Prove(ccs, pk, witness)
-err := groth16.Verify(proof, vk, publicWitness)
+	// groth16: Prove & Verify
+	proof, _ := groth16.Prove(ccs, pk, witness)
+	groth16.Verify(proof, vk, publicWitness)
+}
+
 ```
 
 ## Citing
