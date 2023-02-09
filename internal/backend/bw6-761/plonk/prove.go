@@ -104,9 +104,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	woiop.ToCanonical(&pk.Domain[0]).ToRegular()
 
 	// Blind l, r, o before committing
-	bwliop := wliop.Clone().Blind(1)
-	bwriop := wriop.Clone().Blind(1)
-	bwoiop := woiop.Clone().Blind(1)
+	// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
+	bwliop := wliop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
+	bwriop := wriop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
+	bwoiop := woiop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
 	if err := commitToLRO(bwliop.Coefficients, bwriop.Coefficients, bwoiop.Coefficients, proof, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
@@ -135,7 +136,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	// We could have not copied them at the cost of doing one more bit reverse
 	// per poly...
 	ziop, err := iop.BuildRatioCopyConstraint(
-		[]*iop.Polynomial{liop.Clone(), riop.Clone(), oiop.Clone()},
+		[]*iop.Polynomial{
+			liop.Clone(),
+			riop.Clone(),
+			oiop.Clone(),
+		},
 		pk.Permutation,
 		beta,
 		gamma,
@@ -172,10 +177,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	bwriop.ToLagrangeCoset(&pk.Domain[1])
 	bwoiop.ToLagrangeCoset(&pk.Domain[1])
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
-	wqliop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.Ql, canReg))
-	wqriop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.Qr, canReg))
-	wqmiop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.Qm, canReg))
-	wqoiop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.Qo, canReg))
+	// TODO @gbotrel we may want to do that in the Setup.
+	wqliop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Ql, pk.Domain[1].Cardinality), canReg))
+	wqriop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qr, pk.Domain[1].Cardinality), canReg))
+	wqmiop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qm, pk.Domain[1].Cardinality), canReg))
+	wqoiop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qo, pk.Domain[1].Cardinality), canReg))
 
 	wqkiop := iop.NewWrappedPolynomial(iop.NewPolynomial(qkCompletedCanonical, canReg))
 	wqliop.ToLagrangeCoset(&pk.Domain[1])
@@ -191,21 +197,26 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	widiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// put the permutations in LagrangeCoset
-	ws1 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.S1Canonical, canReg))
-	ws1.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
+	// TODO @gbotrel we may want to do that in the Setup.
+	ws1 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S1Canonical, pk.Domain[1].Cardinality), canReg))
+	ws1.ToLagrangeCoset(&pk.Domain[1])
 
-	ws2 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.S2Canonical, canReg))
-	ws2.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
+	ws2 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S2Canonical, pk.Domain[1].Cardinality), canReg))
+	ws2.ToLagrangeCoset(&pk.Domain[1])
 
-	ws3 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.S3Canonical, canReg))
-	ws3.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
+	ws3 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S3Canonical, pk.Domain[1].Cardinality), canReg))
+	ws3.ToLagrangeCoset(&pk.Domain[1])
 
 	// Store z(g*x), without reallocating a slice
 	bwsziop := bwziop.ShallowClone().Shift(1)
 	bwsziop.ToLagrangeCoset(&pk.Domain[1])
 
 	// L_{g^{0}}
-	lone := make([]fr.Element, pk.Domain[0].Cardinality)
+	cap := pk.Domain[1].Cardinality
+	if cap < pk.Domain[0].Cardinality {
+		cap = pk.Domain[0].Cardinality // sanity check
+	}
+	lone := make([]fr.Element, pk.Domain[0].Cardinality, cap)
 	lone[0].SetOne()
 	loneiop := iop.NewPolynomial(lone, lagReg)
 	wloneiop := iop.NewWrappedPolynomial(loneiop.ToCanonical(&pk.Domain[0]).
@@ -438,6 +449,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 
 	return proof, nil
 
+}
+
+func clone(input []fr.Element, capacity uint64) []fr.Element {
+	res := make([]fr.Element, len(input), capacity)
+	copy(res, input)
+	return res
 }
 
 // fills proof.LRO with kzg commits of bcl, bcr and bco
