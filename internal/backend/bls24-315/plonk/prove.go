@@ -167,13 +167,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 	fft.BitReverse(qkCompletedCanonical)
 
-	// batch convert to LagrangeCoset
-	wps := make([]*iop.WrappedPolynomial, 0, 14)
-	wps = append(wps, bwliop, bwriop, bwoiop)
 	// l, r, o are blinded here
-	// bwliop.ToLagrangeCoset(&pk.Domain[1])
-	// bwriop.ToLagrangeCoset(&pk.Domain[1])
-	// bwoiop.ToLagrangeCoset(&pk.Domain[1])
+	bwliop.ToLagrangeCoset(&pk.Domain[1])
+	bwriop.ToLagrangeCoset(&pk.Domain[1])
+	bwoiop.ToLagrangeCoset(&pk.Domain[1])
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
 	wqliop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.Ql, canReg))
 	wqriop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.Qr, canReg))
@@ -181,51 +178,39 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	wqoiop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.Qo, canReg))
 
 	wqkiop := iop.NewWrappedPolynomial(iop.NewPolynomial(qkCompletedCanonical, canReg))
-	wps = append(wps, wqliop, wqriop, wqmiop, wqoiop, wqkiop)
-	// wqliop.ToLagrangeCoset(&pk.Domain[1])
-	// wqriop.ToLagrangeCoset(&pk.Domain[1])
-	// wqmiop.ToLagrangeCoset(&pk.Domain[1])
-	// wqoiop.ToLagrangeCoset(&pk.Domain[1])
-	// wqkiop.ToLagrangeCoset(&pk.Domain[1])
+	wqliop.ToLagrangeCoset(&pk.Domain[1])
+	wqriop.ToLagrangeCoset(&pk.Domain[1])
+	wqmiop.ToLagrangeCoset(&pk.Domain[1])
+	wqoiop.ToLagrangeCoset(&pk.Domain[1])
+	wqkiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// storing Id
 	id := make([]fr.Element, pk.Domain[1].Cardinality)
 	id[1].SetOne()
 	widiop := iop.NewWrappedPolynomial(iop.NewPolynomial(id, canReg))
-	wps = append(wps, widiop)
-	// widiop.ToLagrangeCoset(&pk.Domain[1])
+	widiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// put the permutations in LagrangeCoset
 	ws1 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.S1Canonical, canReg))
-	ws1.ToCanonical(&pk.Domain[0]).ToRegular() //.ToLagrangeCoset(&pk.Domain[1])
+	ws1.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
 
 	ws2 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.S2Canonical, canReg))
-	ws2.ToCanonical(&pk.Domain[0]).ToRegular() //.ToLagrangeCoset(&pk.Domain[1])
+	ws2.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
 
 	ws3 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.S3Canonical, canReg))
-	ws3.ToCanonical(&pk.Domain[0]).ToRegular() //.ToLagrangeCoset(&pk.Domain[1])
-
-	wps = append(wps, ws1, ws2, ws3)
+	ws3.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1])
 
 	// Store z(g*x), without reallocating a slice
 	bwsziop := bwziop.ShallowClone().Shift(1)
-	// bwsziop.ToLagrangeCoset(&pk.Domain[1])
-	wps = append(wps, bwsziop)
+	bwsziop.ToLagrangeCoset(&pk.Domain[1])
 
 	// L_{g^{0}}
 	lone := make([]fr.Element, pk.Domain[0].Cardinality)
 	lone[0].SetOne()
 	loneiop := iop.NewPolynomial(lone, lagReg)
-	wloneiop := iop.NewWrappedPolynomial(loneiop.ToCanonical(&pk.Domain[0]).ToRegular())
-
-	wps = append(wps, wloneiop)
-
-	// batch convert to lagrange coset
-	utils.Parallelize(len(wps), func(start, end int) {
-		for i := start; i < end; i++ {
-			wps[i].ToLagrangeCoset(&pk.Domain[1])
-		}
-	})
+	wloneiop := iop.NewWrappedPolynomial(loneiop.ToCanonical(&pk.Domain[0]).
+		ToRegular().
+		ToLagrangeCoset(&pk.Domain[1]))
 
 	// Full capture using latest gnark crypto...
 	fic := func(fql, fqr, fqm, fqo, fqk, l, r, o fr.Element) fr.Element {

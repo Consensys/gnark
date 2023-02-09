@@ -67,12 +67,12 @@ func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom)
 	var buf bytes.Buffer
 	written, err := from.WriteTo(&buf)
 	if err != nil {
-		t.Fatal("coudln't serialize", err)
+		t.Fatal("couldn't serialize", err)
 	}
 
 	read, err := reconstructed.ReadFrom(&buf)
 	if err != nil {
-		t.Fatal("coudln't deserialize", err)
+		t.Fatal("couldn't deserialize", err)
 	}
 
 	if !reflect.DeepEqual(from, reconstructed) {
@@ -88,12 +88,12 @@ func roundTripCheckRaw(t *testing.T, from gnarkio.WriterRawTo, reconstructed io.
 	var buf bytes.Buffer
 	written, err := from.WriteRawTo(&buf)
 	if err != nil {
-		t.Fatal("coudln't serialize", err)
+		t.Fatal("couldn't serialize", err)
 	}
 
 	read, err := reconstructed.ReadFrom(&buf)
 	if err != nil {
-		t.Fatal("coudln't deserialize", err)
+		t.Fatal("couldn't deserialize", err)
 	}
 
 	if !reflect.DeepEqual(from, reconstructed) {
