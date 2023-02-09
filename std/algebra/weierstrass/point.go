@@ -925,19 +925,22 @@ func (c *Curve[B, S]) Select(b frontend.Variable, p, q *AffinePoint[B]) *AffineP
 
 // ScalarMul computes s * p and returns it. It doesn't modify p nor s.
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
-	res := p
-	acc := c.Double(p)
-
 	var st S
 	sr := c.scalarApi.Reduce(s)
 	sBits := c.scalarApi.ToBits(sr)
-	for i := 1; i < st.Modulus().BitLen(); i++ {
+
+	// i = 1
+	tmp := c.Add(p, c.Double(p))
+	res := c.Select(sBits[1], tmp, p)
+	acc := c.Add(tmp, p)
+
+	for i := 2; i < st.Modulus().BitLen(); i++ {
 		tmp := c.Add(res, acc)
 		res = c.Select(sBits[i], tmp, res)
 		acc = c.Double(acc)
 	}
 
-	tmp := c.Add(res, c.Neg(p))
+	tmp = c.Add(res, c.Neg(p))
 	res = c.Select(sBits[0], res, tmp)
 	return res
 }
