@@ -18,6 +18,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 )
@@ -155,6 +156,7 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 		q:          new(big.Int).Set(field),
 		apiWrapper: func(a frontend.API) frontend.API { return a },
 		constVars:  false,
+		Store:      kvstore.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
