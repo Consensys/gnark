@@ -181,7 +181,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	// Store z(g*x), without reallocating a slice
 	// TODO @gbotrel check this refactor need shallow copy
 	bwsziop := *bwziop
-	bwsziop.ShiftMe(1)
+	bwsziop.Shift(1)
 	bwziop.ToLagrangeCoset(&pk.Domain[1])
 
 	// L_{g^{0}}
@@ -312,7 +312,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
 	proof.ZShiftedOpening, err = kzg.Open(
-		bwziop.Coefficients[:bwziop.BlindedSize],
+		bwziop.Coefficients[:bwziop.BlindedSize()],
 		zetaShifted,
 		pk.Vk.KZGSRS,
 	)
@@ -340,7 +340,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 		gamma,
 		zeta,
 		bzuzeta,
-		bwziop.Coefficients[:bwziop.BlindedSize],
+		bwziop.Coefficients[:bwziop.BlindedSize()],
 		pk,
 	)
 
@@ -382,9 +382,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 		[][]fr.Element{
 			foldedH,
 			linearizedPolynomialCanonical,
-			bwliop.Coefficients[:bwliop.BlindedSize],
-			bwriop.Coefficients[:bwriop.BlindedSize],
-			bwoiop.Coefficients[:bwoiop.BlindedSize],
+			bwliop.Coefficients[:bwliop.BlindedSize()],
+			bwriop.Coefficients[:bwriop.BlindedSize()],
+			bwoiop.Coefficients[:bwoiop.BlindedSize()],
 			pk.S1Canonical,
 			pk.S2Canonical,
 		},
