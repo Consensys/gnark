@@ -176,18 +176,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	bwliop.ToLagrangeCoset(&pk.Domain[1])
 	bwriop.ToLagrangeCoset(&pk.Domain[1])
 	bwoiop.ToLagrangeCoset(&pk.Domain[1])
-	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
-	// TODO @gbotrel we may want to do that in the Setup.
-	wqliop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Ql, pk.Domain[1].Cardinality), canReg))
-	wqriop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qr, pk.Domain[1].Cardinality), canReg))
-	wqmiop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qm, pk.Domain[1].Cardinality), canReg))
-	wqoiop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qo, pk.Domain[1].Cardinality), canReg))
 
+	lagrangeCosetBitReversed := iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}
+	wqliop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lQl, lagrangeCosetBitReversed))
+	wqriop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lQr, lagrangeCosetBitReversed))
+	wqmiop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lQm, lagrangeCosetBitReversed))
+	wqoiop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lQo, lagrangeCosetBitReversed))
+
+	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
 	wqkiop := iop.NewWrappedPolynomial(iop.NewPolynomial(qkCompletedCanonical, canReg))
-	wqliop.ToLagrangeCoset(&pk.Domain[1])
-	wqriop.ToLagrangeCoset(&pk.Domain[1])
-	wqmiop.ToLagrangeCoset(&pk.Domain[1])
-	wqoiop.ToLagrangeCoset(&pk.Domain[1])
 	wqkiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// storing Id
@@ -197,15 +194,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	widiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// put the permutations in LagrangeCoset
-	// TODO @gbotrel we may want to do that in the Setup.
-	ws1 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S1Canonical, pk.Domain[1].Cardinality), canReg))
-	ws1.ToLagrangeCoset(&pk.Domain[1])
-
-	ws2 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S2Canonical, pk.Domain[1].Cardinality), canReg))
-	ws2.ToLagrangeCoset(&pk.Domain[1])
-
-	ws3 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S3Canonical, pk.Domain[1].Cardinality), canReg))
-	ws3.ToLagrangeCoset(&pk.Domain[1])
+	ws1 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lS1LagrangeCoset, lagrangeCosetBitReversed))
+	ws2 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lS2LagrangeCoset, lagrangeCosetBitReversed))
+	ws3 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lS3LagrangeCoset, lagrangeCosetBitReversed))
 
 	// Store z(g*x), without reallocating a slice
 	bwsziop := bwziop.ShallowClone().Shift(1)
@@ -449,12 +440,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 
 	return proof, nil
 
-}
-
-func clone(input []fr.Element, capacity uint64) []fr.Element {
-	res := make([]fr.Element, len(input), capacity)
-	copy(res, input)
-	return res
 }
 
 // fills proof.LRO with kzg commits of bcl, bcr and bco

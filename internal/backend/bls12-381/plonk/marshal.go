@@ -136,6 +136,8 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 		}
 	}
 
+	pk.computeLagrangeCosetPolys()
+
 	return n + enc.BytesWritten(), nil
 }
 

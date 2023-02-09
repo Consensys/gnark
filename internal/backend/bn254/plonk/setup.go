@@ -20,6 +20,7 @@ import (
 	"errors"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"github.com/consensys/gnark/constraint/bn254"
 
@@ -38,8 +39,13 @@ type ProvingKey struct {
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
 
+	// TODO store iop.Polynomial here, not []fr.Element for more "type safety"
+
 	// qr,ql,qm,qo (in canonical basis).
 	Ql, Qr, Qm, Qo []fr.Element
+
+	// qr,ql,qm,qo (in lagrange coset basis) --> these are not serialized, but computed from Ql, Qr, Qm, Qo once.
+	lQl, lQr, lQm, lQo []fr.Element
 
 	// LQk (CQk) qk in Lagrange basis (canonical basis), prepended with as many zeroes as public inputs.
 	// Storing LQk in Lagrange basis saves a fft...
@@ -54,6 +60,9 @@ type ProvingKey struct {
 	// Permutation polynomials
 	EvaluationPermutationBigDomainBitReversed []fr.Element
 	S1Canonical, S2Canonical, S3Canonical     []fr.Element
+
+	// in lagrange coset basis --> these are not serialized, but computed from S1Canonical, S2Canonical, S3Canonical once.
+	lS1LagrangeCoset, lS2LagrangeCoset, lS3LagrangeCoset []fr.Element
 
 	// position -> permuted position (position in [0,3*sizeSystem-1])
 	Permutation []int64
@@ -163,6 +172,9 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	// set s1, s2, s3
 	ccomputePermutationPolynomials(&pk)
 
+	// compute the lagrange coset basis versions (not serialized)
+	pk.computeLagrangeCosetPolys()
+
 	// Commit to the polynomials to set up the verifying key
 	var err error
 	if vk.Ql, err = kzg.Commit(pk.Ql, vk.KZGSRS); err != nil {
@@ -252,6 +264,44 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 			pk.Permutation[i] = cycle[lro[i]]
 		}
 	}
+}
+
+func (pk *ProvingKey) computeLagrangeCosetPolys() {
+	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
+	wqliop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Ql, pk.Domain[1].Cardinality), canReg))
+	wqriop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qr, pk.Domain[1].Cardinality), canReg))
+	wqmiop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qm, pk.Domain[1].Cardinality), canReg))
+	wqoiop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qo, pk.Domain[1].Cardinality), canReg))
+
+	ws1 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S1Canonical, pk.Domain[1].Cardinality), canReg))
+	ws2 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S2Canonical, pk.Domain[1].Cardinality), canReg))
+	ws3 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S3Canonical, pk.Domain[1].Cardinality), canReg))
+
+	wqliop.ToLagrangeCoset(&pk.Domain[1])
+	wqriop.ToLagrangeCoset(&pk.Domain[1])
+	wqmiop.ToLagrangeCoset(&pk.Domain[1])
+	wqoiop.ToLagrangeCoset(&pk.Domain[1])
+
+	ws1.ToLagrangeCoset(&pk.Domain[1])
+	ws2.ToLagrangeCoset(&pk.Domain[1])
+	ws3.ToLagrangeCoset(&pk.Domain[1])
+
+	pk.lQl = wqliop.Coefficients
+	pk.lQr = wqriop.Coefficients
+	pk.lQm = wqmiop.Coefficients
+	pk.lQo = wqoiop.Coefficients
+
+	pk.lS1LagrangeCoset = ws1.Coefficients
+	pk.lS2LagrangeCoset = ws2.Coefficients
+	pk.lS3LagrangeCoset = ws3.Coefficients
+
+	return
+}
+
+func clone(input []fr.Element, capacity uint64) []fr.Element {
+	res := make([]fr.Element, len(input), capacity)
+	copy(res, input)
+	return res
 }
 
 // ccomputePermutationPolynomials computes the LDE (Lagrange basis) of the permutations
