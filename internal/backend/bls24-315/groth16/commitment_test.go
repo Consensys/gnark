@@ -17,6 +17,9 @@
 package groth16_test
 
 import (
+	"fmt"
+	"testing"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
@@ -24,7 +27,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 type singleSecretCommittedCircuit struct {
@@ -33,7 +35,11 @@ type singleSecretCommittedCircuit struct {
 
 func (c *singleSecretCommittedCircuit) Define(api frontend.API) error {
 	api.AssertIsEqual(c.One, 1)
-	commit, err := api.Compiler().Commit(c.One)
+	commitCompiler, ok := api.Compiler().(frontend.Committer)
+	if !ok {
+		return fmt.Errorf("compiler does not commit")
+	}
+	commit, err := commitCompiler.Commit(c.One)
 	if err != nil {
 		return err
 	}
@@ -119,8 +125,11 @@ type oneSecretOnePublicCommittedCircuit struct {
 }
 
 func (c *oneSecretOnePublicCommittedCircuit) Define(api frontend.API) error {
-
-	commit, err := api.Compiler().Commit(c.One, c.Two)
+	commitCompiler, ok := api.Compiler().(frontend.Committer)
+	if !ok {
+		return fmt.Errorf("compiler does not commit")
+	}
+	commit, err := commitCompiler.Commit(c.One, c.Two)
 	if err != nil {
 		return err
 	}
