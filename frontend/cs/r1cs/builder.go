@@ -44,6 +44,7 @@ import (
 )
 
 // NewBuilder returns a new R1CS builder which implements frontend.API.
+// Additionally, this builder also implements [frontend.Committer].
 func NewBuilder(field *big.Int, config frontend.CompileConfig) (frontend.Builder, error) {
 	return newBuilder(field, config), nil
 }
