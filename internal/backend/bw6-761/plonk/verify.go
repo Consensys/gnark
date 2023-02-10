@@ -29,8 +29,6 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 
-	bw6_761witness "github.com/consensys/gnark/internal/backend/bw6-761/witness"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/logger"
@@ -40,7 +38,7 @@ var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
 )
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	log := logger.Logger().With().Str("curve", "bw6_761").Str("backend", "plonk").Logger()
 	start := time.Now()
 
@@ -56,12 +54,10 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	if err := bindPublicData(&fs, "gamma", *vk, publicWitness); err != nil {
 		return err
 	}
-	bgamma, err := fs.ComputeChallenge("gamma")
+	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
 	if err != nil {
 		return err
 	}
-	var gamma fr.Element
-	gamma.SetBytes(bgamma)
 
 	// derive beta from Comm(l), Comm(r), Comm(o)
 	beta, err := deriveRandomness(&fs, "beta")
@@ -122,9 +118,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_761witness.Witness
 	o := proof.BatchedProof.ClaimedValues[4]
 	s1 := proof.BatchedProof.ClaimedValues[5]
 	s2 := proof.BatchedProof.ClaimedValues[6]
-
-	// var beta fr.Element
-	// beta.SetUint64(10)
 
 	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+β*s2(ζ)+γ)

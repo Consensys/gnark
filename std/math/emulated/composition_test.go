@@ -17,6 +17,7 @@ func TestComposition(t *testing.T) {
 }
 
 func testComposition[T FieldParams](t *testing.T) {
+	t.Helper()
 	assert := test.NewAssert(t)
 	var fp T
 	assert.Run(func(assert *test.Assert) {

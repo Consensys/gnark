@@ -111,7 +111,6 @@ func main() {
 			}
 
 			csDir := d.CSPath
-			witnessDir := filepath.Join(d.RootPath, "witness")
 
 			// constraint systems
 			entries := []bavard.Entry{
@@ -136,13 +135,6 @@ func main() {
 				{File: filepath.Join(csDir, "r1cs_test.go"), Templates: []string{"tests/r1cs.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "cs_test", "./template/representations/", entries...); err != nil {
-				panic(err)
-			}
-
-			entries = []bavard.Entry{
-				{File: filepath.Join(witnessDir, "witness.go"), Templates: []string{"witness.go.tmpl", importCurve}},
-			}
-			if err := bgen.Generate(d, "witness", "./template/representations/", entries...); err != nil {
 				panic(err)
 			}
 
@@ -176,7 +168,6 @@ func main() {
 			}
 
 			entries = []bavard.Entry{
-				{File: filepath.Join(groth16Dir, "groth16_test.go"), Templates: []string{"groth16/tests/groth16.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "commitment_test.go"), Templates: []string{"groth16/tests/groth16.commitment.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "groth16_test", "./template/zkpschemes/", entries...); err != nil {

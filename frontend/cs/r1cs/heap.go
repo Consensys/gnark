@@ -1,6 +1,6 @@
 package r1cs
 
-// An minHeap is a min-heap of linear expressions. It facililates merging k-linear expressions.
+// An minHeap is a min-heap of linear expressions. It facilitates merging k-linear expressions.
 //
 // The code is identical to https://pkg.go.dev/container/heap but replaces interfaces with concrete
 // type to avoid memory overhead.

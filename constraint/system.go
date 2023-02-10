@@ -24,7 +24,7 @@ type ConstraintSystem interface {
 	CoeffEngine
 
 	// IsSolved returns nil if given witness solves the constraint system and error otherwise
-	IsSolved(witness *witness.Witness, opts ...backend.ProverOption) error
+	IsSolved(witness witness.Witness, opts ...backend.ProverOption) error
 
 	// GetNbVariables return number of internal, secret and public Variables
 	// Deprecated: use GetNbSecretVariables() instead
@@ -39,13 +39,6 @@ type ConstraintSystem interface {
 
 	Field() *big.Int
 	FieldBitLen() int
-
-	// TODO @gbotrel this should probably go away. check playground usage.
-	// GetSchema() *schema.Schema
-
-	// GetConstraints return a human readable representation of the constraints
-	// TODO @gbotrel restore -- playground uses it.
-	// GetConstraints() [][]string
 
 	AddPublicVariable(name string) int
 	AddSecretVariable(name string) int
@@ -74,20 +67,6 @@ type ConstraintSystem interface {
 	// CheckUnconstrainedWires returns and error if the constraint system has wires that are not uniquely constrained.
 	// This is experimental.
 	CheckUnconstrainedWires() error
-}
-
-// CoeffEngine capability to perform arithmetic on Coeff
-type CoeffEngine interface {
-	FromInterface(interface{}) Coeff
-	ToBigInt(*Coeff) *big.Int
-	Mul(a, b *Coeff)
-	Add(a, b *Coeff)
-	Sub(a, b *Coeff)
-	Neg(a *Coeff)
-	Inverse(a *Coeff)
-	One() Coeff
-	IsOne(*Coeff) bool
-	String(*Coeff) string
 }
 
 type Iterable interface {
@@ -131,10 +110,10 @@ type System struct {
 	MHintsDependencies map[hint.ID]string // maps hintID to hint string identifier
 
 	// each level contains independent constraints and can be parallelized
-	// it is guaranteed that all dependncies for constraints in a level l are solved
+	// it is guaranteed that all dependencies for constraints in a level l are solved
 	// in previous levels
 	// TODO @gbotrel these are currently updated after we add a constraint.
-	// but in case the object is built from a serialized reprensentation
+	// but in case the object is built from a serialized representation
 	// we need to init the level builder lbWireLevel from the existing constraints.
 	Levels [][]int
 
@@ -301,4 +280,20 @@ func (system *System) AttachDebugInfo(debugInfo DebugInfo, constraintID []int) {
 	for _, cID := range constraintID {
 		system.MDebug[cID] = id
 	}
+}
+
+// VariableToString implements Resolver
+func (system *System) VariableToString(vID int) string {
+	nbPublic := system.GetNbPublicVariables()
+	nbSecret := system.GetNbSecretVariables()
+
+	if vID < nbPublic {
+		return system.Public[vID]
+	}
+	vID -= nbPublic
+	if vID < nbSecret {
+		return system.Secret[vID]
+	}
+	vID -= nbSecret
+	return fmt.Sprintf("v%d", vID) // TODO @gbotrel  vs strconv.Itoa.
 }

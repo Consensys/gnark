@@ -422,6 +422,7 @@ func (builder *builder) And(_a, _b frontend.Variable) frontend.Variable {
 	builder.AssertIsBoolean(b)
 
 	res := builder.Mul(a, b)
+	builder.MarkBoolean(res)
 
 	return res
 }

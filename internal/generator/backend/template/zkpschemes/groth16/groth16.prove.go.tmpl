@@ -4,7 +4,6 @@ import (
 	{{- template "import_curve" . }}
 	{{- template "import_backend_cs" . }}
 	{{- template "import_fft" . }}
-	{{- template "import_witness" . }}
 	"runtime"
 	"math/big"
 	"time"
@@ -35,7 +34,7 @@ func (proof *Proof) CurveID() ecc.ID {
 }
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
-func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness {{ toLower .CurveID }}witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
 	// TODO @gbotrel witness size check is done by R1CS, doesn't mean we shouldn't sanitize here.
 	// if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
 	// 	return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
