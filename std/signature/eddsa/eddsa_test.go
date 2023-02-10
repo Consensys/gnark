@@ -99,7 +99,9 @@ func TestEddsa(t *testing.T) {
 			var msg big.Int
 			msg.Rand(randomness, snarkField)
 			t.Log("msg to sign", msg.String())
-			msgData := msg.Bytes()
+			msgDataUnpadded := msg.Bytes()
+			msgData := make([]byte, len(snarkField.Bytes()))
+			copy(msgData[len(msgData)-len(msgDataUnpadded):], msgDataUnpadded)
 
 			// generate signature
 			signature, err := privKey.Sign(msgData, conf.hash.New())
