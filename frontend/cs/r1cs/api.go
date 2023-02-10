@@ -756,6 +756,10 @@ func (builder *builder) getCommittedVariables(i *constraint.Commitment) []fronte
 	return res
 }
 
+func (builder *builder) SetGkrInfo(info constraint.GkrInfo) error {
+	return builder.cs.AddGkr(info)
+}
+
 func bsb22CommitmentComputePlaceholder(*big.Int, []*big.Int, []*big.Int) error {
 	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
 }

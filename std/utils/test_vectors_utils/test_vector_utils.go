@@ -3,10 +3,12 @@ package test_vector_utils
 import (
 	"encoding/json"
 	"github.com/consensys/gnark/frontend"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"testing"
 )
 
 // These data structures fail to equate different representations of the same number. i.e. 5 = -10/-2
@@ -236,4 +238,23 @@ func (m *MapHash) write(x frontend.Variable) {
 		m.state = m.Map.single.Get(m.API, x)
 	}
 	m.stateValid = true
+}
+
+func AssertSliceEqual[T comparable](t *testing.T, expected, seen []T) {
+	assert.Equal(t, len(expected), len(seen))
+	for i := range seen {
+		assert.True(t, expected[i] == seen[i], "@%d: %v != %v", i, expected[i], seen[i]) // assert.Equal is not strict enough when comparing pointers, i.e. it compares what they refer to
+	}
+}
+
+func SliceEqual[T comparable](expected, seen []T) bool {
+	if len(expected) != len(seen) {
+		return false
+	}
+	for i := range seen {
+		if expected[i] != seen[i] {
+			return false
+		}
+	}
+	return true
 }

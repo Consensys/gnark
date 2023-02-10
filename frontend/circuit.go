@@ -17,7 +17,7 @@ limitations under the License.
 package frontend
 
 // Circuit must be implemented by user-defined circuit. The best way to define a
-// circuit is define a type which contains all the witness elements as fields
+// circuit is to define a type which contains all the witness elements as fields
 // and declare `Define` method on the type.
 //
 // For example, the following is a minimal valid circuit:

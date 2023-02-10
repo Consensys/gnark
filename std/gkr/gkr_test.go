@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
-	"github.com/consensys/gnark/std/test_vector_utils"
+	"github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"os"
@@ -241,7 +241,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 		}
 
 		var found bool
-		if circuit[i].Gate, found = gates[wireInfo.Gate]; !found && wireInfo.Gate != "" {
+		if circuit[i].Gate, found = RegisteredGates[wireInfo.Gate]; !found && wireInfo.Gate != "" {
 			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
 		}
 	}
@@ -249,48 +249,11 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 	return
 }
 
-var gates map[string]Gate
+type _select int
 
 func init() {
-	gates = make(map[string]Gate)
-	gates["identity"] = IdentityGate{}
-	gates["mul"] = mulGate{}
-	gates["mimc"] = mimcCipherGate{ark: 0} //TODO: Add ark
-	gates["select-input-3"] = _select(2)
+	RegisteredGates["select-input-3"] = _select(2)
 }
-
-type mulGate struct{}
-
-func (g mulGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
-	if len(x) != 2 {
-		panic("mul has fan-in 2")
-	}
-	return api.Mul(x[0], x[1])
-}
-
-func (g mulGate) Degree() int {
-	return 2
-}
-
-type mimcCipherGate struct {
-	ark frontend.Variable
-}
-
-func (m mimcCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) frontend.Variable {
-	if len(input) != 2 {
-		panic("mimc has fan-in 2")
-	}
-	sum := api.Add(input[0], input[1], m.ark)
-
-	sumCubed := api.Mul(sum, sum, sum) // sum^3
-	return api.Mul(sumCubed, sumCubed, sum)
-}
-
-func (m mimcCipherGate) Degree() int {
-	return 7
-}
-
-type _select int
 
 func (g _select) Evaluate(_ frontend.API, in ...frontend.Variable) frontend.Variable {
 	return in[g]
@@ -356,4 +319,52 @@ func TestLoadCircuit(t *testing.T) {
 	assert.Equal(t, []*Wire{&c[0]}, c[1].Inputs)
 	assert.Equal(t, []*Wire{&c[1]}, c[2].Inputs)
 
+}
+
+func TestTopSortTrivial(t *testing.T) {
+	c := make(Circuit, 2)
+	c[0].Inputs = []*Wire{&c[1]}
+	sorted := topologicalSort(c)
+	assert.Equal(t, []*Wire{&c[1], &c[0]}, sorted)
+}
+
+func TestTopSortSingleGate(t *testing.T) {
+	c := make(Circuit, 3)
+	c[0].Inputs = []*Wire{&c[1], &c[2]}
+	sorted := topologicalSort(c)
+	expected := []*Wire{&c[1], &c[2], &c[0]}
+	assert.True(t, test_vector_utils.SliceEqual(sorted, expected)) //TODO: Remove
+	test_vector_utils.AssertSliceEqual(t, sorted, expected)
+	assert.Equal(t, c[0].nbUniqueOutputs, 0)
+	assert.Equal(t, c[1].nbUniqueOutputs, 1)
+	assert.Equal(t, c[2].nbUniqueOutputs, 1)
+}
+
+func TestTopSortDeep(t *testing.T) {
+	c := make(Circuit, 4)
+	c[0].Inputs = []*Wire{&c[2]}
+	c[1].Inputs = []*Wire{&c[3]}
+	c[2].Inputs = []*Wire{}
+	c[3].Inputs = []*Wire{&c[0]}
+	sorted := topologicalSort(c)
+	assert.Equal(t, []*Wire{&c[2], &c[0], &c[3], &c[1]}, sorted)
+}
+
+func TestTopSortWide(t *testing.T) {
+	c := make(Circuit, 10)
+	c[0].Inputs = []*Wire{&c[3], &c[8]}
+	c[1].Inputs = []*Wire{&c[6]}
+	c[2].Inputs = []*Wire{&c[4]}
+	c[3].Inputs = []*Wire{}
+	c[4].Inputs = []*Wire{}
+	c[5].Inputs = []*Wire{&c[9]}
+	c[6].Inputs = []*Wire{&c[9]}
+	c[7].Inputs = []*Wire{&c[9], &c[5], &c[2]}
+	c[8].Inputs = []*Wire{&c[4], &c[3]}
+	c[9].Inputs = []*Wire{}
+
+	sorted := topologicalSort(c)
+	sortedExpected := []*Wire{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
+
+	assert.Equal(t, sortedExpected, sorted)
 }

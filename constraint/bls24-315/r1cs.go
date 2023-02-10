@@ -82,7 +82,9 @@ func (cs *R1CS) Solve(witness, a, b, c fr.Vector, opt backend.ProverConfig) (fr.
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable)
+	hintFunctions := defineGkrHints(cs.GkrInfo, opt.HintFunctions)
+	solution, err := newSolution(nbWires, hintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable)
+
 	if err != nil {
 		return make(fr.Vector, nbWires), err
 	}
