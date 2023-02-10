@@ -122,7 +122,6 @@ func (pk *ProvingKey) randomize() {
 	pk.S1Canonical = randomScalars(n)
 	pk.S2Canonical = randomScalars(n)
 	pk.S3Canonical = randomScalars(n)
-	pk.EvaluationPermutationBigDomainBitReversed = randomScalars(n)
 
 	pk.Permutation = make([]int64, 3*pk.Domain[0].Cardinality)
 	pk.Permutation[0] = -12

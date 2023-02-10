@@ -93,12 +93,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	evaluationLDomainSmall, evaluationRDomainSmall, evaluationODomainSmall := evaluateLROSmallDomain(spr, pk, solution)
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
-	liop := iop.NewPolynomial(evaluationLDomainSmall, lagReg)
-	riop := iop.NewPolynomial(evaluationRDomainSmall, lagReg)
-	oiop := iop.NewPolynomial(evaluationODomainSmall, lagReg)
-	wliop := iop.NewWrappedPolynomial(liop)
-	wriop := iop.NewWrappedPolynomial(riop)
-	woiop := iop.NewWrappedPolynomial(oiop)
+	liop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
+	riop := iop.NewPolynomial(&evaluationRDomainSmall, lagReg)
+	oiop := iop.NewPolynomial(&evaluationODomainSmall, lagReg)
+	wliop := liop.ShallowClone()
+	wriop := riop.ShallowClone()
+	woiop := oiop.ShallowClone()
 	wliop.ToCanonical(&pk.Domain[0]).ToRegular()
 	wriop.ToCanonical(&pk.Domain[0]).ToRegular()
 	woiop.ToCanonical(&pk.Domain[0]).ToRegular()
@@ -108,7 +108,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	bwliop := wliop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
 	bwriop := wriop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
 	bwoiop := woiop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
-	if err := commitToLRO(bwliop.Coefficients, bwriop.Coefficients, bwoiop.Coefficients, proof, pk.Vk.KZGSRS); err != nil {
+	if err := commitToLRO(bwliop.Coefficients(), bwriop.Coefficients(), bwoiop.Coefficients(), proof, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
 
@@ -152,9 +152,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	}
 
 	// commit to the blinded version of z
-	bwziop := iop.NewWrappedPolynomial(&ziop)
+	bwziop := ziop // iop.NewWrappedPolynomial(&ziop)
 	bwziop.Blind(2)
-	proof.Z, err = kzg.Commit(bwziop.Coefficients, pk.Vk.KZGSRS, runtime.NumCPU()*2)
+	proof.Z, err = kzg.Commit(bwziop.Coefficients(), pk.Vk.KZGSRS, runtime.NumCPU()*2)
 	if err != nil {
 		return proof, err
 	}
@@ -178,25 +178,25 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	bwoiop.ToLagrangeCoset(&pk.Domain[1])
 
 	lagrangeCosetBitReversed := iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}
-	wqliop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lQl, lagrangeCosetBitReversed))
-	wqriop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lQr, lagrangeCosetBitReversed))
-	wqmiop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lQm, lagrangeCosetBitReversed))
-	wqoiop := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lQo, lagrangeCosetBitReversed))
+	wqliop := iop.NewPolynomial(&pk.lQl, lagrangeCosetBitReversed) // TODO CLONE from PK
+	wqriop := iop.NewPolynomial(&pk.lQr, lagrangeCosetBitReversed) // TODO CLONE from PK
+	wqmiop := iop.NewPolynomial(&pk.lQm, lagrangeCosetBitReversed) // TODO CLONE from PK
+	wqoiop := iop.NewPolynomial(&pk.lQo, lagrangeCosetBitReversed) // TODO CLONE from PK
 
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
-	wqkiop := iop.NewWrappedPolynomial(iop.NewPolynomial(qkCompletedCanonical, canReg))
+	wqkiop := iop.NewPolynomial(&qkCompletedCanonical, canReg)
 	wqkiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// storing Id
 	id := make([]fr.Element, pk.Domain[1].Cardinality)
 	id[1].SetOne()
-	widiop := iop.NewWrappedPolynomial(iop.NewPolynomial(id, canReg))
+	widiop := iop.NewPolynomial(&id, canReg)
 	widiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// put the permutations in LagrangeCoset
-	ws1 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lS1LagrangeCoset, lagrangeCosetBitReversed))
-	ws2 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lS2LagrangeCoset, lagrangeCosetBitReversed))
-	ws3 := iop.NewWrappedPolynomial(iop.NewPolynomial(pk.lS3LagrangeCoset, lagrangeCosetBitReversed))
+	ws1 := iop.NewPolynomial(&pk.lS1LagrangeCoset, lagrangeCosetBitReversed) // TODO CLONE from PK
+	ws2 := iop.NewPolynomial(&pk.lS2LagrangeCoset, lagrangeCosetBitReversed) // TODO CLONE from PK
+	ws3 := iop.NewPolynomial(&pk.lS3LagrangeCoset, lagrangeCosetBitReversed) // TODO CLONE from PK
 
 	// Store z(g*x), without reallocating a slice
 	bwsziop := bwziop.ShallowClone().Shift(1)
@@ -209,10 +209,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	}
 	lone := make([]fr.Element, pk.Domain[0].Cardinality, cap)
 	lone[0].SetOne()
-	loneiop := iop.NewPolynomial(lone, lagReg)
-	wloneiop := iop.NewWrappedPolynomial(loneiop.ToCanonical(&pk.Domain[0]).
+	loneiop := iop.NewPolynomial(&lone, lagReg)
+	wloneiop := loneiop.ToCanonical(&pk.Domain[0]).
 		ToRegular().
-		ToLagrangeCoset(&pk.Domain[1]))
+		ToLagrangeCoset(&pk.Domain[1])
 
 	// Full capture using latest gnark crypto...
 	fic := func(fql, fqr, fqm, fqo, fqk, l, r, o fr.Element) fr.Element {
@@ -298,9 +298,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 
 	// compute kzg commitments of h1, h2 and h3
 	if err := commitToQuotient(
-		h.Coefficients[:pk.Domain[0].Cardinality+2],
-		h.Coefficients[pk.Domain[0].Cardinality+2:2*(pk.Domain[0].Cardinality+2)],
-		h.Coefficients[2*(pk.Domain[0].Cardinality+2):3*(pk.Domain[0].Cardinality+2)],
+		h.Coefficients()[:pk.Domain[0].Cardinality+2],
+		h.Coefficients()[pk.Domain[0].Cardinality+2:2*(pk.Domain[0].Cardinality+2)],
+		h.Coefficients()[2*(pk.Domain[0].Cardinality+2):3*(pk.Domain[0].Cardinality+2)],
 		proof, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
@@ -340,7 +340,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
 	proof.ZShiftedOpening, err = kzg.Open(
-		bwziop.Coefficients[:bwziop.BlindedSize()],
+		bwziop.Coefficients()[:bwziop.BlindedSize()],
 		zetaShifted,
 		pk.Vk.KZGSRS,
 	)
@@ -370,7 +370,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 		gamma,
 		zeta,
 		bzuzeta,
-		bwziop.Coefficients[:bwziop.BlindedSize()],
+		bwziop.Coefficients()[:bwziop.BlindedSize()],
 		pk,
 	)
 
@@ -391,9 +391,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2) + Comm(h1)
 
 	// foldedH = h1 + ζ*h2 + ζ²*h3
-	foldedH := h.Coefficients[2*(pk.Domain[0].Cardinality+2) : 3*(pk.Domain[0].Cardinality+2)]
-	h2 := h.Coefficients[pk.Domain[0].Cardinality+2 : 2*(pk.Domain[0].Cardinality+2)]
-	h1 := h.Coefficients[:pk.Domain[0].Cardinality+2]
+	foldedH := h.Coefficients()[2*(pk.Domain[0].Cardinality+2) : 3*(pk.Domain[0].Cardinality+2)]
+	h2 := h.Coefficients()[pk.Domain[0].Cardinality+2 : 2*(pk.Domain[0].Cardinality+2)]
+	h1 := h.Coefficients()[:pk.Domain[0].Cardinality+2]
 	utils.Parallelize(len(foldedH), func(start, end int) {
 		for i := start; i < end; i++ {
 			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // ζᵐ⁺²*h3
@@ -412,9 +412,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 		[][]fr.Element{
 			foldedH,
 			linearizedPolynomialCanonical,
-			bwliop.Coefficients[:bwliop.BlindedSize()],
-			bwriop.Coefficients[:bwriop.BlindedSize()],
-			bwoiop.Coefficients[:bwoiop.BlindedSize()],
+			bwliop.Coefficients()[:bwliop.BlindedSize()],
+			bwriop.Coefficients()[:bwriop.BlindedSize()],
+			bwoiop.Coefficients()[:bwoiop.BlindedSize()],
 			pk.S1Canonical,
 			pk.S2Canonical,
 		},
@@ -552,12 +552,12 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	var s1, s2 fr.Element
 	chS1 := make(chan struct{}, 1)
 	go func() {
-		ps1 := iop.NewPolynomial(pk.S1Canonical, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
+		ps1 := iop.NewPolynomial(&pk.S1Canonical, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 		s1 = ps1.Evaluate(zeta)                              // s1(ζ)
 		s1.Mul(&s1, &beta).Add(&s1, &lZeta).Add(&s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 		close(chS1)
 	}()
-	ps2 := iop.NewPolynomial(pk.S2Canonical, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
+	ps2 := iop.NewPolynomial(&pk.S2Canonical, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 	tmp := ps2.Evaluate(zeta)                                // s2(ζ)
 	tmp.Mul(&tmp, &beta).Add(&tmp, &rZeta).Add(&tmp, &gamma) // (r(ζ)+β*s2(ζ)+γ)
 	<-chS1

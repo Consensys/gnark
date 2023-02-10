@@ -249,14 +249,14 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
 func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
-	wqliop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Ql, pk.Domain[1].Cardinality), canReg))
-	wqriop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qr, pk.Domain[1].Cardinality), canReg))
-	wqmiop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qm, pk.Domain[1].Cardinality), canReg))
-	wqoiop := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.Qo, pk.Domain[1].Cardinality), canReg))
+	wqliop := iop.NewPolynomial(clone(pk.Ql, pk.Domain[1].Cardinality), canReg)
+	wqriop := iop.NewPolynomial(clone(pk.Qr, pk.Domain[1].Cardinality), canReg)
+	wqmiop := iop.NewPolynomial(clone(pk.Qm, pk.Domain[1].Cardinality), canReg)
+	wqoiop := iop.NewPolynomial(clone(pk.Qo, pk.Domain[1].Cardinality), canReg)
 
-	ws1 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S1Canonical, pk.Domain[1].Cardinality), canReg))
-	ws2 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S2Canonical, pk.Domain[1].Cardinality), canReg))
-	ws3 := iop.NewWrappedPolynomial(iop.NewPolynomial(clone(pk.S3Canonical, pk.Domain[1].Cardinality), canReg))
+	ws1 := iop.NewPolynomial(clone(pk.S1Canonical, pk.Domain[1].Cardinality), canReg)
+	ws2 := iop.NewPolynomial(clone(pk.S2Canonical, pk.Domain[1].Cardinality), canReg)
+	ws3 := iop.NewPolynomial(clone(pk.S3Canonical, pk.Domain[1].Cardinality), canReg)
 
 	wqliop.ToLagrangeCoset(&pk.Domain[1])
 	wqriop.ToLagrangeCoset(&pk.Domain[1])
@@ -267,22 +267,22 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	ws2.ToLagrangeCoset(&pk.Domain[1])
 	ws3.ToLagrangeCoset(&pk.Domain[1])
 
-	pk.lQl = wqliop.Coefficients
-	pk.lQr = wqriop.Coefficients
-	pk.lQm = wqmiop.Coefficients
-	pk.lQo = wqoiop.Coefficients
+	pk.lQl = wqliop.Coefficients()
+	pk.lQr = wqriop.Coefficients()
+	pk.lQm = wqmiop.Coefficients()
+	pk.lQo = wqoiop.Coefficients()
 
-	pk.lS1LagrangeCoset = ws1.Coefficients
-	pk.lS2LagrangeCoset = ws2.Coefficients
-	pk.lS3LagrangeCoset = ws3.Coefficients
+	pk.lS1LagrangeCoset = ws1.Coefficients()
+	pk.lS2LagrangeCoset = ws2.Coefficients()
+	pk.lS3LagrangeCoset = ws3.Coefficients()
 
 	return
 }
 
-func clone(input []fr.Element, capacity uint64) []fr.Element {
+func clone(input []fr.Element, capacity uint64) *[]fr.Element {
 	res := make([]fr.Element, len(input), capacity)
 	copy(res, input)
-	return res
+	return &res
 }
 
 // ccomputePermutationPolynomials computes the LDE (Lagrange basis) of the permutations
