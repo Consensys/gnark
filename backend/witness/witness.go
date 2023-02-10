@@ -171,7 +171,27 @@ func (w *witness) WriteTo(wr io.Writer) (n int64, err error) {
 	n += 4
 
 	// write the vector
-	m, err := w.vector.(io.WriterTo).WriteTo(wr)
+	var m int64
+	switch t := w.vector.(type) {
+	case fr_bn254.Vector:
+		m, err = t.WriteTo(wr)
+	case fr_bls12377.Vector:
+		m, err = t.WriteTo(wr)
+	case fr_bls12381.Vector:
+		m, err = t.WriteTo(wr)
+	case fr_bw6761.Vector:
+		m, err = t.WriteTo(wr)
+	case fr_bls24317.Vector:
+		m, err = t.WriteTo(wr)
+	case fr_bls24315.Vector:
+		m, err = t.WriteTo(wr)
+	case fr_bw6633.Vector:
+		m, err = t.WriteTo(wr)
+	case tinyfield.Vector:
+		m, err = t.WriteTo(wr)
+	default:
+		panic("invalid input")
+	}
 	n += m
 	return n, err
 }
