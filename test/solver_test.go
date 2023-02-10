@@ -152,11 +152,10 @@ func (p *permutter) solveR1CS() error {
 // isSolvedEngine behaves like test.IsSolved except it doesn't clone the circuit
 func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption) (err error) {
 	e := &engine{
-		curveID:    utils.FieldToCurve(field),
-		q:          new(big.Int).Set(field),
-		apiWrapper: func(a frontend.API) frontend.API { return a },
-		constVars:  false,
-		Store:      kvstore.New(),
+		curveID:   utils.FieldToCurve(field),
+		q:         new(big.Int).Set(field),
+		constVars: false,
+		Store:     kvstore.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
@@ -170,8 +169,7 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 		}
 	}()
 
-	api := e.apiWrapper(e)
-	err = c.Define(api)
+	err = c.Define(e)
 
 	return
 }
