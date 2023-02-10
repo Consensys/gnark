@@ -373,8 +373,8 @@ func testE2E(t *testing.T, circuit, assignment frontend.Circuit) {
 	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
 	assert.NoError(t, err)
 	var (
-		fullWitness   *witness.Witness
-		publicWitness *witness.Witness
+		fullWitness   witness.Witness
+		publicWitness witness.Witness
 		pk            groth16.ProvingKey
 		vk            groth16.VerifyingKey
 		proof         groth16.Proof
