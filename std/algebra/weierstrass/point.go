@@ -23,8 +23,8 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 	}
 	Gx := emulated.ValueOf[Base](params.Gx)
 	Gy := emulated.ValueOf[Base](params.Gy)
-	G2x := emulated.ValueOf[Base](params.Gmx[0])
-	G2y := emulated.ValueOf[Base](params.Gmy[0])
+	G3x := emulated.ValueOf[Base](params.Gmx[0])
+	G3y := emulated.ValueOf[Base](params.Gmy[0])
 	G4x := emulated.ValueOf[Base](params.Gmx[1])
 	G4y := emulated.ValueOf[Base](params.Gmy[1])
 	G8x := emulated.ValueOf[Base](params.Gmx[2])
@@ -545,7 +545,7 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 			Y: Gy,
 		},
 		gm: [256]AffinePoint[Base]{
-			{X: G2x, Y: G2y},
+			{X: G3x, Y: G3y},
 			{X: G4x, Y: G4y},
 			{X: G8x, Y: G8y},
 			{X: G16x, Y: G16y},
@@ -861,93 +861,93 @@ func (c *Curve[B, S]) AssertIsEqual(p, q *AffinePoint[B]) {
 	c.baseApi.AssertIsEqual(&p.Y, &q.Y)
 }
 
-// Add adds q and r and returns it.
-func (c *Curve[B, S]) Add(q, r *AffinePoint[B]) *AffinePoint[B] {
-	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
-	p1ypy := c.baseApi.Sub(&r.Y, &q.Y)
-	p1xpx := c.baseApi.Sub(&r.X, &q.X)
-	lambda := c.baseApi.Div(p1ypy, p1xpx)
+// Add adds p and q and returns it.
+func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
+	// compute λ = (q.y-p.y)/(q.x-p.x)
+	qypy := c.baseApi.Sub(&q.Y, &p.Y)
+	qxpx := c.baseApi.Sub(&q.X, &p.X)
+	λ := c.baseApi.Div(qypy, qxpx)
 
-	// xr = lambda**2-p.x-p1.x
-	lambdaSq := c.baseApi.MulMod(lambda, lambda)
-	qxrx := c.baseApi.Add(&q.X, &r.X)
-	xr := c.baseApi.Sub(lambdaSq, qxrx)
+	// xr = λ²-p.x-q.x
+	λλ := c.baseApi.MulMod(λ, λ)
+	qxpx = c.baseApi.Add(&p.X, &q.X)
+	xr := c.baseApi.Sub(λλ, qxpx)
 
-	// p.y = lambda(p.x-xr) - p.y
-	pxxr := c.baseApi.Sub(&q.X, xr)
-	lpxxr := c.baseApi.MulMod(lambda, pxxr)
-	py := c.baseApi.Sub(lpxxr, &q.Y)
+	// p.y = λ(p.x-r.x) - p.y
+	pxrx := c.baseApi.Sub(&p.X, xr)
+	λpxrx := c.baseApi.MulMod(λ, pxrx)
+	yr := c.baseApi.Sub(λpxrx, &p.Y)
 
 	return &AffinePoint[B]{
 		X: *c.baseApi.Reduce(xr),
-		Y: *c.baseApi.Reduce(py),
+		Y: *c.baseApi.Reduce(yr),
 	}
 }
 
 // Double doubles p and return it. It doesn't modify p.
 func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 
-	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
-	xSq3a := c.baseApi.MulMod(&p.X, &p.X)
-	xSq3a = c.baseApi.MulConst(xSq3a, big.NewInt(3))
+	// compute λ = (3p.x²+a)/2*p.y, here we assume a=0 (j invariant 0 curve)
+	xx3a := c.baseApi.MulMod(&p.X, &p.X)
+	xx3a = c.baseApi.MulConst(xx3a, big.NewInt(3))
 	if c.addA {
-		xSq3a = c.baseApi.Add(xSq3a, &c.a)
+		xx3a = c.baseApi.Add(xx3a, &c.a)
 	}
 	y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
-	lambda := c.baseApi.Div(xSq3a, y2)
+	λ := c.baseApi.Div(xx3a, y2)
 
-	// xr = lambda**2-p1.x-p1.x
+	// xr = λ²-2p.x
 	x2 := c.baseApi.MulConst(&p.X, big.NewInt(2))
-	lambdaSq := c.baseApi.MulMod(lambda, lambda)
-	xr := c.baseApi.Sub(lambdaSq, x2)
+	λλ := c.baseApi.MulMod(λ, λ)
+	xr := c.baseApi.Sub(λλ, x2)
 
-	// p.y = lambda(p.x-xr) - p.y
-	pxxr := c.baseApi.Sub(&p.X, xr)
-	lpxxr := c.baseApi.MulMod(lambda, pxxr)
-	py := c.baseApi.Sub(lpxxr, &p.Y)
+	// yr = λ(p-xr) - p.y
+	pxrx := c.baseApi.Sub(&p.X, xr)
+	λpxrx := c.baseApi.MulMod(λ, pxrx)
+	yr := c.baseApi.Sub(λpxrx, &p.Y)
 
 	return &AffinePoint[B]{
 		X: *c.baseApi.Reduce(xr),
-		Y: *c.baseApi.Reduce(py),
+		Y: *c.baseApi.Reduce(yr),
 	}
 }
 
 // Triple triples p and return it. It doesn't modify p.
 func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 
-	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
+	// compute λ1 = (3p.x²+a)/2p.y, here we assume a=0 (j invariant 0 curve)
 	xx := c.baseApi.MulMod(&p.X, &p.X)
 	xx = c.baseApi.MulConst(xx, big.NewInt(3))
 	if c.addA {
 		xx = c.baseApi.Add(xx, &c.a)
 	}
 	y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
-	lambda := c.baseApi.Div(xx, y2)
+	λ1 := c.baseApi.Div(xx, y2)
 
-	// xr = lambda**2-p1.x-p1.x
+	// xr = λ1²-2p.x
 	x2 := c.baseApi.MulConst(&p.X, big.NewInt(2))
-	lambdaSq := c.baseApi.MulMod(lambda, lambda)
-	x2 = c.baseApi.Sub(lambdaSq, x2)
+	λ1λ1 := c.baseApi.MulMod(λ1, λ1)
+	x2 = c.baseApi.Sub(λ1λ1, x2)
 
-	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
-	// λ2 = 2y1/(x3 − x1) − λ1.
+	// ommit y2 computation, and
+	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
 	x1x2 := c.baseApi.Sub(&p.X, x2)
-	lambda2 := c.baseApi.Div(y2, x1x2)
-	lambda2 = c.baseApi.Sub(lambda2, lambda)
+	λ2 := c.baseApi.Div(y2, x1x2)
+	λ2 = c.baseApi.Sub(λ2, λ1)
 
-	// xr = lambda**2-p.x-p1.x
-	lambdaSq = c.baseApi.MulMod(lambda2, lambda2)
+	// xr = λ²-p.x-x2
+	λ2λ2 := c.baseApi.MulMod(λ2, λ2)
 	qxrx := c.baseApi.Add(x2, &p.X)
-	x3 := c.baseApi.Sub(lambdaSq, qxrx)
+	xr := c.baseApi.Sub(λ2λ2, qxrx)
 
-	// p.y = lambda(p.x-xr) - p.y
-	pxxr := c.baseApi.Sub(&p.X, x3)
-	lpxxr := c.baseApi.MulMod(lambda2, pxxr)
-	y3 := c.baseApi.Sub(lpxxr, &p.Y)
+	// yr = λ(p.x-xr) - p.y
+	pxrx := c.baseApi.Sub(&p.X, xr)
+	λ2pxrx := c.baseApi.MulMod(λ2, pxrx)
+	yr := c.baseApi.Sub(λ2pxrx, &p.Y)
 
 	return &AffinePoint[B]{
-		X: *c.baseApi.Reduce(x3),
-		Y: *c.baseApi.Reduce(y3),
+		X: *c.baseApi.Reduce(xr),
+		Y: *c.baseApi.Reduce(yr),
 	}
 }
 
@@ -956,6 +956,18 @@ func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 func (c *Curve[B, S]) Select(b frontend.Variable, p, q *AffinePoint[B]) *AffinePoint[B] {
 	x := c.baseApi.Select(b, &p.X, &q.X)
 	y := c.baseApi.Select(b, &p.Y, &q.Y)
+	return &AffinePoint[B]{
+		X: *x,
+		Y: *y,
+	}
+}
+
+// Lookup2 performs a 2-bit lookup between i0, i1, i2, i3 based on bits b0
+// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
+// and i3 if b0=b1=1.
+func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePoint[B]) *AffinePoint[B] {
+	x := c.baseApi.Lookup2(b0, b1, &i0.X, &i1.X, &i2.X, &i3.X)
+	y := c.baseApi.Lookup2(b0, b1, &i0.Y, &i1.Y, &i2.Y, &i3.Y)
 	return &AffinePoint[B]{
 		X: *x,
 		Y: *y,
@@ -988,14 +1000,18 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 	g := c.Generator()
 	gm := c.GeneratorMultiples()
-	res := g
 
 	var st S
 	sr := c.scalarApi.Reduce(s)
 	sBits := c.scalarApi.ToBits(sr)
 
-	for i := 1; i < st.Modulus().BitLen(); i++ {
-		tmp := c.Add(res, &gm[i-1])
+	// i = 1, 2
+	// gm[0] = 3g, gm[0] = 5g, gm[0] = 7g
+	res := c.Lookup2(sBits[1], sBits[2], g, &gm[0], &gm[1], &gm[2])
+
+	for i := 3; i < st.Modulus().BitLen(); i++ {
+		// gm[i] = [2^i]g
+		tmp := c.Add(res, &gm[i])
 		res = c.Select(sBits[i], tmp, res)
 	}
 
