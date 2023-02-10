@@ -35,7 +35,7 @@ type gkrSolvingData struct {
 	assignments gkr.WireAssignment
 	circuit     gkr.Circuit
 	memoryPool  polynomial.Pool
-	workers     utils.WorkerPool
+	workers     *utils.WorkerPool
 }
 
 func convertCircuit(noPtr constraint.GkrCircuit) gkr.Circuit {
@@ -138,7 +138,7 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 
 		start := 0
 		for _, end := range chunks {
-			solvingData.workers.Dispatch(end-start, 1024, solveTask(start)).Wait()
+			solvingData.workers.Submit(end-start, solveTask(start), 1024).Wait()
 			start = end
 		}
 
@@ -146,7 +146,7 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 
 		if log {
 			endTime := time.Now().UnixMicro()
-			fmt.Println("gkr proved in", endTime-startTime, "μs")
+			fmt.Println("gkr solved in", endTime-startTime, "μs")
 		}
 
 		return nil
@@ -172,7 +172,7 @@ func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 
 		hsh := HashBuilderRegistry[hashName]()
 
-		proof, err := gkr.Prove(data.circuit, data.assignments, fiatshamir.WithHash(hsh, insBytes...), gkr.WithPool(&data.memoryPool), gkr.WithWorkers(&data.workers))
+		proof, err := gkr.Prove(data.circuit, data.assignments, fiatshamir.WithHash(hsh, insBytes...), gkr.WithPool(&data.memoryPool), gkr.WithWorkers(data.workers))
 		if err != nil {
 			return err
 		}
