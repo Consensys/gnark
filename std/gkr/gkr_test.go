@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
@@ -25,12 +26,10 @@ func TestGkrVectors(t *testing.T) {
 	}
 	for _, dirEntry := range dirEntries {
 		if !dirEntry.IsDir() && filepath.Ext(dirEntry.Name()) == ".json" {
-
 			path := filepath.Join(testDirPath, dirEntry.Name())
 			noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
 
 			t.Run(noExt, generateTestVerifier(path))
-
 		}
 	}
 }
@@ -61,7 +60,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			Input:           testCase.Input,
 			Output:          testCase.Output,
 			SerializedProof: testCase.Proof.Serialize(),
-			PerturbHash:     false,
+			ToFail:          false,
 			TestCaseName:    path,
 		}
 
@@ -69,7 +68,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			Input:           make([][]frontend.Variable, len(testCase.Input)),
 			Output:          make([][]frontend.Variable, len(testCase.Output)),
 			SerializedProof: make([]frontend.Variable, len(assignment.SerializedProof)),
-			PerturbHash:     false,
+			ToFail:          false,
 			TestCaseName:    path,
 		}
 
@@ -81,8 +80,8 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 		}
 
 		if !opts.noFail {
-			assignment.PerturbHash = true // TODO: This one doesn't matter right?
-			circuit.PerturbHash = true
+			assignment.ToFail = true // TODO: This one doesn't matter right?
+			circuit.ToFail = true
 			test.NewAssert(t).SolvingFailed(circuit, assignment, test.WithBackends(backend.GROTH16))
 		}
 	}
@@ -92,7 +91,7 @@ type GkrVerifierCircuit struct {
 	Input           [][]frontend.Variable
 	Output          [][]frontend.Variable `gnark:",public"`
 	SerializedProof []frontend.Variable
-	PerturbHash     bool
+	ToFail          bool
 	TestCaseName    string
 }
 
@@ -111,12 +110,16 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	}
 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
 
-	var baseChallenge []frontend.Variable
-	if c.PerturbHash {
-		baseChallenge = []frontend.Variable{1}
+	var hsh hash.Hash
+	if c.ToFail {
+		hsh = test_vector_utils.NewMessageCounter(api, 1, 1)
+	} else {
+		if hsh, err = test_vector_utils.HashFromDescription(api, testCase.Hash); err != nil {
+			return err
+		}
 	}
 
-	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(&test_vector_utils.MapHash{Map: testCase.ElementMap, API: api}, baseChallenge...))
+	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(hsh))
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
@@ -142,19 +145,19 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 }
 
 type TestCase struct {
-	Circuit    Circuit
-	ElementMap test_vector_utils.ElementMap
-	Proof      Proof
-	Input      [][]frontend.Variable
-	Output     [][]frontend.Variable
-	Name       string
+	Circuit Circuit
+	Hash    test_vector_utils.HashDescription
+	Proof   Proof
+	Input   [][]frontend.Variable
+	Output  [][]frontend.Variable
+	Name    string
 }
 type TestCaseInfo struct {
-	Hash    string          `json:"hash"`
-	Circuit string          `json:"circuit"`
-	Input   [][]interface{} `json:"input"`
-	Output  [][]interface{} `json:"output"`
-	Proof   PrintableProof  `json:"proof"`
+	Hash    test_vector_utils.HashDescription `json:"hash"`
+	Circuit string                            `json:"circuit"`
+	Input   [][]interface{}                   `json:"input"`
+	Output  [][]interface{}                   `json:"output"`
+	Proof   PrintableProof                    `json:"proof"`
 }
 
 var testCases = make(map[string]*TestCase)
@@ -181,15 +184,11 @@ func getTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			if cse.ElementMap, err = test_vector_utils.ElementMapFromFile(filepath.Join(dir, info.Hash)); err != nil {
-				return nil, err
-			}
-
 			cse.Proof = unmarshalProof(info.Proof)
 
 			cse.Input = test_vector_utils.ToVariableSliceSlice(info.Input)
 			cse.Output = test_vector_utils.ToVariableSliceSlice(info.Output)
-
+			cse.Hash = info.Hash
 			cse.Name = path
 			testCases[path] = cse
 		} else {
