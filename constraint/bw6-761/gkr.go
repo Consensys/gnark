@@ -17,7 +17,6 @@
 package cs
 
 import (
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/polynomial"
@@ -28,7 +27,6 @@ import (
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"hash"
 	"math/big"
-	"time"
 )
 
 type gkrSolvingData struct {
@@ -85,13 +83,8 @@ func (a gkrAssignment) setOuts(circuit constraint.GkrCircuit, outs []*big.Int) {
 	// Check if outsI == len(outs)?
 }
 
-const log = true
-
 func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Function {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
-
-		startTime := time.Now().UnixMicro()
-
 		// assumes assignmentVector is arranged wire first, instance second in order of solution
 		circuit := info.Circuit
 		nbInstances := info.NbInstances
@@ -144,11 +137,6 @@ func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Fun
 
 		assignment.setOuts(info.Circuit, outs)
 
-		if log {
-			endTime := time.Now().UnixMicro()
-			fmt.Println("gkr solved in", endTime-startTime, "μs")
-		}
-
 		return nil
 	}
 }
@@ -162,9 +150,6 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
-
-		startTime := time.Now().UnixMicro()
-
 		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
 			b := i.Bytes()
 			return b[:]
@@ -192,11 +177,6 @@ func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 		}
 
 		data.dumpAssignments()
-
-		if log {
-			endTime := time.Now().UnixMicro()
-			fmt.Println("gkr proved in", endTime-startTime, "μs")
-		}
 
 		return nil
 
