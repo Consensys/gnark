@@ -28,6 +28,7 @@ import (
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
+	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/pool"
@@ -585,5 +586,16 @@ func (e *engine) Compiler() frontend.Compiler {
 }
 
 func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
-	panic("not implemented")
+	nb := (e.FieldBitLen() + 7) / 8
+	buf := make([]byte, nb)
+	hasher := sha3.NewCShake128(nil, []byte("gnark test engine"))
+	for i := range v {
+		vs := e.toBigInt(v[i])
+		bs := vs.FillBytes(buf)
+		hasher.Write(bs)
+	}
+	hasher.Read(buf)
+	res := new(big.Int).SetBytes(buf)
+	res.Mod(res, e.modulus())
+	return res, nil
 }
