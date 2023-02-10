@@ -18,8 +18,8 @@ package fiatshamir
 
 import (
 	"errors"
-	"github.com/consensys/gnark/std/hardcoded_strings"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hardcoded_strings"
 	"github.com/consensys/gnark/std/hash"
 )
 
