@@ -861,7 +861,7 @@ func (c *Curve[B, S]) AssertIsEqual(p, q *AffinePoint[B]) {
 	c.baseApi.AssertIsEqual(&p.Y, &q.Y)
 }
 
-// Add adds p and q and returns it.
+// Add adds p and q and returns it. It doesn't modify p nor q.
 func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 	// compute λ = (q.y-p.y)/(q.x-p.x)
 	qypy := c.baseApi.Sub(&q.Y, &p.Y)
@@ -912,7 +912,11 @@ func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 	}
 }
 
-// Triple triples p and return it. It doesn't modify p.
+// Triple triples p and return it.
+// It follows [ELM03]: https://arxiv.org/pdf/math/0208038.pdf, 3.1
+// Saves the computation of the y coordinate of 2p as it is used only in the computation of λ2,
+// which can be computed as λ2 = -λ1-2*p.y/(x2-p.x) instead.
+// It doesn't modify p.
 func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 
 	// compute λ1 = (3p.x²+a)/2p.y, here we assume a=0 (j invariant 0 curve)
@@ -951,6 +955,47 @@ func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 	}
 }
 
+// DoubleAndAdd computes 2p+q as (p+q)+p. It follows [ELM03]: https://arxiv.org/pdf/math/0208038.pdf, 3.1
+// Saves the computation of the y coordinate of p+q as it is used only in the computation of λ2,
+// which can be computed as λ2 = -λ1-2*p.y/(x2-p.x) instead.
+// It doesn't modify p nor q.
+func (c *Curve[B, S]) DoubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
+
+	// compute λ1 = (q.y-p.y)/(q.x-p.x)
+	yqyp := c.baseApi.Sub(&q.Y, &p.Y)
+	xqxp := c.baseApi.Sub(&q.X, &p.X)
+	λ1 := c.baseApi.Div(yqyp, xqxp)
+
+	// compute x2 = λ1²-p.x-q.x
+	λ1λ1 := c.baseApi.MulMod(λ1, λ1)
+	xqxp = c.baseApi.Add(&p.X, &q.X)
+	x2 := c.baseApi.Sub(λ1λ1, xqxp)
+
+	// ommit y2 computation
+	// compute λ2 = -λ1-2*p.y/(x2-p.x)
+	ypyp := c.baseApi.Add(&p.Y, &p.Y)
+	x2xp := c.baseApi.Sub(x2, &p.X)
+	λ2 := c.baseApi.Div(ypyp, x2xp)
+	λ2 = c.baseApi.Add(λ1, λ2)
+	λ2 = c.baseApi.Neg(λ2)
+
+	// compute x3 =λ2²-p.x-x3
+	λ2λ2 := c.baseApi.MulMod(λ2, λ2)
+	x3 := c.baseApi.Sub(λ2λ2, &p.X)
+	x3 = c.baseApi.Sub(x3, x2)
+
+	// compute y3 = λ2*(p.x - x3)-p.y
+	y3 := c.baseApi.Sub(&p.X, x3)
+	y3 = c.baseApi.Mul(λ2, y3)
+	y3 = c.baseApi.Sub(y3, &p.Y)
+
+	return &AffinePoint[B]{
+		X: *c.baseApi.Reduce(x3),
+		Y: *c.baseApi.Reduce(y3),
+	}
+
+}
+
 // Select selects between p and q given the selector b. If b == 0, then returns
 // p and q otherwise.
 func (c *Curve[B, S]) Select(b frontend.Variable, p, q *AffinePoint[B]) *AffinePoint[B] {
@@ -979,20 +1024,31 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 	var st S
 	sr := c.scalarApi.Reduce(s)
 	sBits := c.scalarApi.ToBits(sr)
+	n := st.Modulus().BitLen()
 
 	// i = 1
 	tmp := c.Triple(p)
 	res := c.Select(sBits[1], tmp, p)
 	acc := c.Add(tmp, p)
 
-	for i := 2; i < st.Modulus().BitLen(); i++ {
+	for i := 2; i <= n-3; i++ {
 		tmp := c.Add(res, acc)
 		res = c.Select(sBits[i], tmp, res)
 		acc = c.Double(acc)
 	}
 
+	// i = n-2
+	tmp = c.Add(res, acc)
+	res = c.Select(sBits[n-2], tmp, res)
+
+	// i = n-1
+	tmp = c.DoubleAndAdd(acc, res)
+	res = c.Select(sBits[n-1], tmp, res)
+
+	// i = 0
 	tmp = c.Add(res, c.Neg(p))
 	res = c.Select(sBits[0], res, tmp)
+
 	return res
 }
 
@@ -1015,7 +1071,9 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 		res = c.Select(sBits[i], tmp, res)
 	}
 
+	// i =0
 	tmp := c.Add(res, c.Neg(g))
 	res = c.Select(sBits[0], res, tmp)
+
 	return res
 }

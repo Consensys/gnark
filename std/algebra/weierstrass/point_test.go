@@ -129,6 +129,87 @@ func TestDouble(t *testing.T) {
 	assert.NoError(err)
 }
 
+type TripleTest[T, S emulated.FieldParams] struct {
+	P, Q AffinePoint[T]
+}
+
+func (c *TripleTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.Triple(&c.P)
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+func TestTriple(t *testing.T) {
+	assert := test.NewAssert(t)
+	g, _ := secp256k1.Generators()
+	var dJac secp256k1.G1Jac
+	dJac.Double(&g).AddAssign(&g)
+	var dAff secp256k1.G1Affine
+	dAff.FromJacobian(&dJac)
+	circuit := TripleTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := TripleTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](dAff.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](dAff.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type DoubleAndAddTest[T, S emulated.FieldParams] struct {
+	P, Q, R AffinePoint[T]
+}
+
+func (c *DoubleAndAddTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.DoubleAndAdd(&c.P, &c.Q)
+	cr.AssertIsEqual(res, &c.R)
+	return nil
+}
+
+func TestDoubleAndAdd(t *testing.T) {
+	assert := test.NewAssert(t)
+	var pJac, qJac, rJac secp256k1.G1Jac
+	g, _ := secp256k1.Generators()
+	pJac.Double(&g)
+	qJac.Set(&g)
+	rJac.Double(&pJac).
+		AddAssign(&qJac)
+	var pAff, qAff, rAff secp256k1.G1Affine
+	pAff.FromJacobian(&pJac)
+	qAff.FromJacobian(&qJac)
+	rAff.FromJacobian(&rJac)
+	circuit := DoubleAndAddTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := DoubleAndAddTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](pAff.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](pAff.Y),
+		},
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](qAff.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](qAff.Y),
+		},
+		R: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](rAff.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](rAff.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
 type ScalarMulBaseTest[T, S emulated.FieldParams] struct {
 	Q AffinePoint[T]
 	S emulated.Element[S]
