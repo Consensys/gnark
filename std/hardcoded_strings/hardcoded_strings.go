@@ -32,7 +32,7 @@ import (
 
 func String(api frontend.API, str []byte) (frontend.Variable, error) {
 	field := api.Compiler().Field()
-	dst := []byte("string:")
+	dst := []byte("hardcoded_string:")
 	var res big.Int
 
 	if field.Cmp(ecc.BLS12_377.ScalarField()) == 0 {
