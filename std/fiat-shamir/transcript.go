@@ -18,8 +18,8 @@ package fiatshamir
 
 import (
 	"errors"
+	"github.com/consensys/gnark/constant"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/hardcoded_strings"
 	"github.com/consensys/gnark/std/hash"
 )
 
@@ -110,7 +110,7 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 
 	// write the challenge name, the purpose is to have a domain separator
 	cChallenge := []byte(challengeID) // if we send a string, it is assumed to be a base10 number
-	if challengeName, err := hardcoded_strings.String(t.api, cChallenge); err == nil {
+	if challengeName, err := constant.HashedBytes(t.api, cChallenge); err == nil {
 		t.h.Write(challengeName)
 	} else {
 		return nil, err

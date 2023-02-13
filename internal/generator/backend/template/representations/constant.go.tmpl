@@ -10,7 +10,7 @@ import (
     "math/big"
 )
 
-func String(api frontend.API, str []byte) (frontend.Variable, error) {
+func HashedBytes(api frontend.API, str []byte) (frontend.Variable, error) {
     field := api.Compiler().Field()
     dst := []byte("string:")
     var res big.Int

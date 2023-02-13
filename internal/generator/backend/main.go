@@ -201,8 +201,8 @@ func main() {
 
 	wg.Add(1)
 	go func() {
-		if err = bgen.Generate(datas, "hardcoded_strings", "./template/representations/",
-			bavard.Entry{File: filepath.Join("../../../std/hardcoded_strings", "hardcoded_strings.go"), Templates: []string{"strings.go.tmpl"}}); err != nil {
+		if err = bgen.Generate(datas, "constant", "./template/representations/",
+			bavard.Entry{File: filepath.Join("../../../constant", "constant.go"), Templates: []string{"constant.go.tmpl"}}); err != nil {
 			panic(err)
 		}
 		wg.Done()
