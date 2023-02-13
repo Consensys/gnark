@@ -6,7 +6,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.5.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
-	github.com/consensys/gnark-crypto v0.9.1-0.20230210193008-6f591e7c0ebd
+	github.com/consensys/gnark-crypto v0.9.1-0.20230213001010-7444bbbba535
 	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/google/go-cmp v0.5.8
 	github.com/google/pprof v0.0.0-20220729232143-a41b82acbcb1
@@ -28,5 +28,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-replace "github.com/consensys/gnark-crypto" => "/Users/arya/gnark-crypto"	//TODO: Remove
