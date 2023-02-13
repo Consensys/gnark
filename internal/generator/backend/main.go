@@ -123,14 +123,6 @@ func main() {
 				panic(err)
 			}
 
-			// gkr backend
-			if d.Curve != "tinyfield" {
-				entries = []bavard.Entry{{File: filepath.Join(csDir, "gkr.go"), Templates: []string{"gkr.go.tmpl", importCurve}}}
-				if err := bgen.Generate(d, "cs", "./template/representations/", entries...); err != nil {
-					panic(err)
-				}
-			}
-
 			entries = []bavard.Entry{
 				{File: filepath.Join(csDir, "r1cs_test.go"), Templates: []string{"tests/r1cs.go.tmpl", importCurve}},
 			}

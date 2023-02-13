@@ -18,7 +18,6 @@ package test
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/constraint"
 	"math/big"
 	"path/filepath"
 	"reflect"
@@ -587,8 +586,4 @@ func (e *engine) Compiler() frontend.Compiler {
 
 func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	panic("not implemented")
-}
-
-func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
-	return fmt.Errorf("not implemented")
 }

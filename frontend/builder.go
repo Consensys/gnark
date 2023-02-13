@@ -55,7 +55,6 @@ type Compiler interface {
 	// ! Experimental
 	// TENTATIVE: Functions regarding fiat-shamir-ed proofs over enormous statements  TODO finalize
 	Commit(...Variable) (Variable, error)
-	SetGkrInfo(constraint.GkrInfo) error
 }
 
 // Builder represents a constraint system builder
