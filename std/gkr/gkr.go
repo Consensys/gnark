@@ -23,7 +23,6 @@ type Wire struct {
 	Gate            Gate
 	Inputs          []*Wire // if there are no Inputs, the wire is assumed an input wire
 	nbUniqueOutputs int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
-	//nbUniqueInputs  int     // number of inputs, not counting duplicates
 }
 
 type Circuit []Wire
@@ -425,6 +424,8 @@ func statusList(c Circuit) []int {
 	return res
 }
 
+// TODO: Have this use algo_utils.TopologicalSort underneath
+
 // topologicalSort sorts the wires in order of dependence. Such that for any wire, any one it depends on
 // occurs before it. It tries to stick to the input order as much as possible. An already sorted list will remain unchanged.
 // It also sets the nbOutput flags, and a dummy IdentityGate for input wires.
@@ -450,14 +451,18 @@ func topologicalSort(c Circuit) []*Wire {
 
 func (a WireAssignment) NumInstances() int {
 	for _, aW := range a {
-		return len(aW)
+		if aW != nil {
+			return len(aW)
+		}
 	}
 	panic("empty assignment")
 }
 
 func (a WireAssignment) NumVars() int {
 	for _, aW := range a {
-		return aW.NumVars()
+		if aW != nil {
+			return aW.NumVars()
+		}
 	}
 	panic("empty assignment")
 }
@@ -525,4 +530,32 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
 	}
 	return proof, nil
+}
+
+type MulGate struct{}
+
+func (g MulGate) Evaluate(api frontend.API, x ...frontend.Variable) frontend.Variable {
+	if len(x) != 2 {
+		panic("mul has fan-in 2")
+	}
+	return api.Mul(x[0], x[1])
+}
+
+// TODO: Degree must take nbInputs as an argument and return degree = nbInputs
+func (g MulGate) Degree() int {
+	return 2
+}
+
+type AddGate struct{}
+
+func (a AddGate) Evaluate(api frontend.API, v ...frontend.Variable) frontend.Variable {
+	var rest []frontend.Variable
+	if len(v) >= 2 {
+		rest = v[2:]
+	}
+	return api.Add(v[0], v[1], rest...)
+}
+
+func (a AddGate) Degree() int {
+	return 1
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package scs
 
 import (
+	"fmt"
 	"math/big"
 	"reflect"
 	"sort"
@@ -357,8 +358,7 @@ func (builder *scs) splitProd(acc expr.TermToRefactor, r expr.LinearExpressionTo
 }
 
 func (builder *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
-	//TODO implement me
-	panic("not implemented")
+	return nil, fmt.Errorf("not implemented")
 }
 
 // newDebugInfo this is temporary to restore debug logs

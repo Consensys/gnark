@@ -178,12 +178,7 @@ func main() {
 				panic(err)
 			}
 
-			entries = []bavard.Entry{
-				{File: filepath.Join(plonkDir, "plonk_test.go"), Templates: []string{"plonk/tests/plonk.go.tmpl", importCurve}},
-			}
-			if err := bgen.Generate(d, "plonk_test", "./template/zkpschemes/", entries...); err != nil {
-				panic(err)
-			}
+			os.Remove(filepath.Join(plonkDir, "plonk_test.go"))
 
 			// plonkfri
 			entries = []bavard.Entry{
@@ -198,6 +193,15 @@ func main() {
 		}(d)
 
 	}
+
+	wg.Add(1)
+	go func() {
+		if err = bgen.Generate(datas, "constant", "./template/representations/",
+			bavard.Entry{File: filepath.Join("../../../constant", "constant.go"), Templates: []string{"constant.go.tmpl"}}); err != nil {
+			panic(err)
+		}
+		wg.Done()
+	}()
 
 	wg.Wait()
 

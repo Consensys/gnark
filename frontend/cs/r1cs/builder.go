@@ -163,7 +163,7 @@ func (builder *builder) FieldBitLen() int {
 	return builder.cs.FieldBitLen()
 }
 
-// newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
+// newR1C clones the linear expression associated with the Variables (to avoid offsetting the ID multiple time)
 // and return a R1C
 func (builder *builder) newR1C(l, r, o frontend.Variable) constraint.R1C {
 	L := builder.getLinearExpression(l)

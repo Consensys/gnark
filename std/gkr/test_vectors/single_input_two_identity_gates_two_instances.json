@@ -1,5 +1,8 @@
 {
-	"hash": "resources/hash.json",
+	"hash": {
+		"type": "const",
+		"val": -1
+	},
 	"circuit": "resources/single_input_two_identity_gates.json",
 	"input": [
 		[
@@ -22,30 +25,30 @@
 			"finalEvalProof": [],
 			"partialSumPolys": [
 				[
-					-33,
-					-128
+					0,
+					0
 				]
 			]
 		},
 		{
 			"finalEvalProof": [
-				5
+				1
 			],
 			"partialSumPolys": [
 				[
-					-9,
-					-40
+					-3,
+					-16
 				]
 			]
 		},
 		{
 			"finalEvalProof": [
-				-3
+				1
 			],
 			"partialSumPolys": [
 				[
-					-9,
-					-40
+					-3,
+					-16
 				]
 			]
 		}

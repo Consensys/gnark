@@ -56,6 +56,7 @@ func next(transcript *fiatshamir.Transcript, bindings []frontend.Variable, remai
 }
 
 func Verify(api frontend.API, claims LazyClaims, proof Proof, transcriptSettings fiatshamir.Settings) error {
+
 	remainingChallengeNames, err := setupTranscript(api, claims.ClaimsNum(), claims.VarsNum(), &transcriptSettings)
 	transcript := transcriptSettings.Transcript
 	if err != nil {

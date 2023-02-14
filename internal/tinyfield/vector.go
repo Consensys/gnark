@@ -35,7 +35,7 @@ import (
 type Vector []Element
 
 // MarshalBinary implements encoding.BinaryMarshaler
-func (vector Vector) MarshalBinary() (data []byte, err error) {
+func (vector *Vector) MarshalBinary() (data []byte, err error) {
 	var buf bytes.Buffer
 
 	if _, err = vector.WriteTo(&buf); err != nil {
@@ -53,17 +53,17 @@ func (vector *Vector) UnmarshalBinary(data []byte) error {
 
 // WriteTo implements io.WriterTo and writes a vector of big endian encoded Element.
 // Length of the vector is encoded as a uint32 on the first 4 bytes.
-func (vector Vector) WriteTo(w io.Writer) (int64, error) {
+func (vector *Vector) WriteTo(w io.Writer) (int64, error) {
 	// encode slice length
-	if err := binary.Write(w, binary.BigEndian, uint32(len(vector))); err != nil {
+	if err := binary.Write(w, binary.BigEndian, uint32(len(*vector))); err != nil {
 		return 0, err
 	}
 
 	n := int64(4)
 
 	var buf [Bytes]byte
-	for i := 0; i < len(vector); i++ {
-		BigEndian.PutElement(&buf, vector[i])
+	for i := 0; i < len(*vector); i++ {
+		BigEndian.PutElement(&buf, (*vector)[i])
 		m, err := w.Write(buf[:])
 		n += int64(m)
 		if err != nil {
