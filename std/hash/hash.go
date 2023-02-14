@@ -30,5 +30,3 @@ type Hash interface {
 	// Reset empty the internal state and put the intermediate state to zero.
 	Reset()
 }
-
-var BuilderRegistry = make(map[string]func(api frontend.API) (Hash, error))

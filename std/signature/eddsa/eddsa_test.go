@@ -75,7 +75,7 @@ func TestEddsa(t *testing.T) {
 		{hash.MIMC_BW6_633, tedwards.BW6_633},
 	}
 
-	bound := 1 //5
+	bound := 5
 	if testing.Short() {
 		bound = 1
 	}
