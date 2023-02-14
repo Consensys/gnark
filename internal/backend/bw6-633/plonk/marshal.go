@@ -135,8 +135,6 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 		}
 	}
 
-	pk.computeLagrangeCosetPolys()
-
 	return n + enc.BytesWritten(), nil
 }
 
@@ -181,6 +179,8 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 			return n + dec.BytesRead(), err
 		}
 	}
+
+	pk.computeLagrangeCosetPolys()
 
 	return n + dec.BytesRead(), nil
 

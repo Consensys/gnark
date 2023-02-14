@@ -112,6 +112,8 @@ func (pk *ProvingKey) randomize() {
 	pk.Permutation = make([]int64, 3*pk.Domain[0].Cardinality)
 	pk.Permutation[0] = -12
 	pk.Permutation[len(pk.Permutation)-1] = 8888
+
+	pk.computeLagrangeCosetPolys()
 }
 
 func (vk *VerifyingKey) randomize() {
