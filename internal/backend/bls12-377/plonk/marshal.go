@@ -123,7 +123,6 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 		([]fr.Element)(pk.Qo),
 		([]fr.Element)(pk.CQk),
 		([]fr.Element)(pk.LQk),
-		([]fr.Element)(pk.EvaluationPermutationBigDomainBitReversed),
 		([]fr.Element)(pk.S1Canonical),
 		([]fr.Element)(pk.S2Canonical),
 		([]fr.Element)(pk.S3Canonical),
@@ -169,7 +168,6 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 		(*[]fr.Element)(&pk.Qo),
 		(*[]fr.Element)(&pk.CQk),
 		(*[]fr.Element)(&pk.LQk),
-		(*[]fr.Element)(&pk.EvaluationPermutationBigDomainBitReversed),
 		(*[]fr.Element)(&pk.S1Canonical),
 		(*[]fr.Element)(&pk.S2Canonical),
 		(*[]fr.Element)(&pk.S3Canonical),
@@ -181,6 +179,8 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 			return n + dec.BytesRead(), err
 		}
 	}
+
+	pk.computeLagrangeCosetPolys()
 
 	return n + dec.BytesRead(), nil
 
