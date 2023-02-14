@@ -194,6 +194,15 @@ func main() {
 
 	}
 
+	wg.Add(1)
+	go func() {
+		if err = bgen.Generate(datas, "constant", "./template/representations/",
+			bavard.Entry{File: filepath.Join("../../../constant", "constant.go"), Templates: []string{"constant.go.tmpl"}}); err != nil {
+			panic(err)
+		}
+		wg.Done()
+	}()
+
 	wg.Wait()
 
 	// run go fmt on whole directory

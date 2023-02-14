@@ -1,5 +1,8 @@
 {
-	"hash": "resources/hash.json",
+	"hash": {
+		"type": "const",
+		"val": -1
+	},
 	"circuit": "resources/single_input_two_outs.json",
 	"input": [
 		[
@@ -22,31 +25,31 @@
 			"finalEvalProof": [],
 			"partialSumPolys": [
 				[
-					-6,
-					-33
+					0,
+					0
 				]
 			]
 		},
 		{
 			"finalEvalProof": [
-				1
+				0
 			],
 			"partialSumPolys": [
 				[
-					-12,
-					-90,
-					-272
+					-4,
+					-36,
+					-112
 				]
 			]
 		},
 		{
 			"finalEvalProof": [
-				-2
+				0
 			],
 			"partialSumPolys": [
 				[
-					-6,
-					-30
+					-2,
+					-12
 				]
 			]
 		}
