@@ -9,7 +9,7 @@ import (
 var registry = make(map[ID]Function)
 var registryM sync.RWMutex
 
-// Register registers an hint function in the global registry.
+// Register registers a hint function in the global registry.
 func Register(hintFns ...Function) {
 	registryM.Lock()
 	defer registryM.Unlock()

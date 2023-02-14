@@ -44,35 +44,32 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	// get the challenges
-	alpha, beta, gamma := getChallenges(api.Compiler().Field())
-
 	// New transcript with 3 challenges to be derived
-	tsSnark := NewTranscript(api, &hSnark, alpha, beta, gamma)
+	tsSnark := NewTranscript(api, &hSnark, "alpha", "beta", "gamma")
 
 	// Bind challenges
-	if err := tsSnark.Bind(alpha, circuit.Bindings[0][:]); err != nil {
+	if err := tsSnark.Bind("alpha", circuit.Bindings[0][:]); err != nil {
 		return err
 	}
-	if err := tsSnark.Bind(beta, circuit.Bindings[1][:]); err != nil {
+	if err := tsSnark.Bind("beta", circuit.Bindings[1][:]); err != nil {
 		return err
 	}
-	if err := tsSnark.Bind(gamma, circuit.Bindings[2][:]); err != nil {
+	if err := tsSnark.Bind("gamma", circuit.Bindings[2][:]); err != nil {
 		return err
 	}
 
 	// derive challenges
 	var challenges [3]frontend.Variable
-	challenges[0], err = tsSnark.ComputeChallenge(alpha)
+	challenges[0], err = tsSnark.ComputeChallenge("alpha")
 	if err != nil {
 		return err
 	}
 
-	challenges[1], err = tsSnark.ComputeChallenge(beta)
+	challenges[1], err = tsSnark.ComputeChallenge("beta")
 	if err != nil {
 		return err
 	}
-	challenges[2], err = tsSnark.ComputeChallenge(gamma)
+	challenges[2], err = tsSnark.ComputeChallenge("gamma")
 	if err != nil {
 		return err
 	}
@@ -83,23 +80,6 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	api.AssertIsEqual(challenges[2], circuit.Challenges[2])
 
 	return nil
-}
-
-func getChallenges(scalarField *big.Int) (string, string, string) {
-	// note: gnark-crypto fiat-shamir is curve-independent ->
-	// it writes the domain separators as bytes
-	// in gnark, we write them as field element
-	// to ensure consistency in this test, we ensure the challengeIDs have a fix byte len (the one of fr.Element)
-	frSize := utils.ByteLen(scalarField)
-	alpha, beta, gamma := make([]byte, frSize), make([]byte, frSize), make([]byte, frSize)
-	_alpha := []byte("alpha")
-	_beta := []byte("beta")
-	_gamma := []byte("gamma")
-	copy(alpha, _alpha) // -> alpha = [xxxxx||0....0]
-	copy(beta, _beta)
-	copy(gamma, _gamma)
-
-	return string(alpha), string(beta), string(gamma)
 }
 
 func TestFiatShamir(t *testing.T) {
@@ -117,12 +97,9 @@ func TestFiatShamir(t *testing.T) {
 
 	// compute the witness for each curve
 	for curveID, h := range testData {
-		// get the domain separators, correctly formatted so they match the frontend.Variable size
-		// (which under the hood is a fr.Element)
-		alpha, beta, gamma := getChallenges(curveID.ScalarField())
 
 		// instantiate the hash and the transcript in plain go
-		ts := fiatshamir.NewTranscript(h.New(), alpha, beta, gamma)
+		ts := fiatshamir.NewTranscript(h.New(), "alpha", "beta", "gamma")
 
 		var bindings [3][4]big.Int
 		for i := 0; i < 3; i++ {
@@ -133,21 +110,21 @@ func TestFiatShamir(t *testing.T) {
 		frSize := utils.ByteLen(curveID.ScalarField())
 		buf := make([]byte, frSize)
 		for i := 0; i < 4; i++ {
-			err := ts.Bind(alpha, bindings[0][i].FillBytes(buf))
+			err := ts.Bind("alpha", bindings[0][i].FillBytes(buf))
 			assert.NoError(err)
-			err = ts.Bind(beta, bindings[1][i].FillBytes(buf))
+			err = ts.Bind("beta", bindings[1][i].FillBytes(buf))
 			assert.NoError(err)
-			err = ts.Bind(gamma, bindings[2][i].FillBytes(buf))
+			err = ts.Bind("gamma", bindings[2][i].FillBytes(buf))
 			assert.NoError(err)
 		}
 
 		var expectedChallenges [3][]byte
 		var err error
-		expectedChallenges[0], err = ts.ComputeChallenge(alpha)
+		expectedChallenges[0], err = ts.ComputeChallenge("alpha")
 		assert.NoError(err)
-		expectedChallenges[1], err = ts.ComputeChallenge(beta)
+		expectedChallenges[1], err = ts.ComputeChallenge("beta")
 		assert.NoError(err)
-		expectedChallenges[2], err = ts.ComputeChallenge(gamma)
+		expectedChallenges[2], err = ts.ComputeChallenge("gamma")
 		assert.NoError(err)
 
 		// instantiate the circuit with provided inputs

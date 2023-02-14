@@ -63,7 +63,7 @@ func (s *solution) isValid() bool {
 	return int(s.nbSolved) == len(s.values)
 }
 
-// computeTerm computes coef*variable
+// computeTerm computes coeff*variable
 func (s *solution) computeTerm(t constraint.Term) fr.Element {
 	cID, vID := t.CoeffID(), t.WireID()
 	if cID != 0 && !s.solved[vID] {
