@@ -293,8 +293,6 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	pk.lS1LagrangeCoset = ws1.Coefficients()
 	pk.lS2LagrangeCoset = ws2.Coefficients()
 	pk.lS3LagrangeCoset = ws3.Coefficients()
-
-	return
 }
 
 func clone(input []fr.Element, capacity uint64) *[]fr.Element {

@@ -178,10 +178,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	bwoiop.ToLagrangeCoset(&pk.Domain[1])
 
 	lagrangeCosetBitReversed := iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}
-	wqliop := iop.NewPolynomial(&pk.lQl, lagrangeCosetBitReversed) // TODO CLONE from PK
-	wqriop := iop.NewPolynomial(&pk.lQr, lagrangeCosetBitReversed) // TODO CLONE from PK
-	wqmiop := iop.NewPolynomial(&pk.lQm, lagrangeCosetBitReversed) // TODO CLONE from PK
-	wqoiop := iop.NewPolynomial(&pk.lQo, lagrangeCosetBitReversed) // TODO CLONE from PK
+
+	// we don't mutate so no need to clone the coefficients from the proving key.
+	wqliop := iop.NewPolynomial(&pk.lQl, lagrangeCosetBitReversed)
+	wqriop := iop.NewPolynomial(&pk.lQr, lagrangeCosetBitReversed)
+	wqmiop := iop.NewPolynomial(&pk.lQm, lagrangeCosetBitReversed)
+	wqoiop := iop.NewPolynomial(&pk.lQo, lagrangeCosetBitReversed)
 
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
 	wqkiop := iop.NewPolynomial(&qkCompletedCanonical, canReg)
@@ -193,10 +195,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	widiop := iop.NewPolynomial(&id, canReg)
 	widiop.ToLagrangeCoset(&pk.Domain[1])
 
-	// put the permutations in LagrangeCoset
-	ws1 := iop.NewPolynomial(&pk.lS1LagrangeCoset, lagrangeCosetBitReversed) // TODO CLONE from PK
-	ws2 := iop.NewPolynomial(&pk.lS2LagrangeCoset, lagrangeCosetBitReversed) // TODO CLONE from PK
-	ws3 := iop.NewPolynomial(&pk.lS3LagrangeCoset, lagrangeCosetBitReversed) // TODO CLONE from PK
+	// permutations in LagrangeCoset: we don't mutate so no need to clone the coefficients from the
+	// proving key.
+	ws1 := iop.NewPolynomial(&pk.lS1LagrangeCoset, lagrangeCosetBitReversed)
+	ws2 := iop.NewPolynomial(&pk.lS2LagrangeCoset, lagrangeCosetBitReversed)
+	ws3 := iop.NewPolynomial(&pk.lS3LagrangeCoset, lagrangeCosetBitReversed)
 
 	// Store z(g*x), without reallocating a slice
 	bwsziop := bwziop.ShallowClone().Shift(1)
