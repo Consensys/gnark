@@ -3,17 +3,19 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
-	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/polynomial"
-	"github.com/consensys/gnark/std/utils/test_vectors_utils"
-	"github.com/consensys/gnark/test"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/polynomial"
+	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/consensys/gnark/std/hash"
 )
 
 func TestGkrVectors(t *testing.T) {
@@ -25,12 +27,10 @@ func TestGkrVectors(t *testing.T) {
 	}
 	for _, dirEntry := range dirEntries {
 		if !dirEntry.IsDir() && filepath.Ext(dirEntry.Name()) == ".json" {
-
 			path := filepath.Join(testDirPath, dirEntry.Name())
 			noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
 
 			t.Run(noExt, generateTestVerifier(path))
-
 		}
 	}
 }
@@ -61,7 +61,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			Input:           testCase.Input,
 			Output:          testCase.Output,
 			SerializedProof: testCase.Proof.Serialize(),
-			PerturbHash:     false,
+			ToFail:          false,
 			TestCaseName:    path,
 		}
 
@@ -69,7 +69,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			Input:           make([][]frontend.Variable, len(testCase.Input)),
 			Output:          make([][]frontend.Variable, len(testCase.Output)),
 			SerializedProof: make([]frontend.Variable, len(assignment.SerializedProof)),
-			PerturbHash:     false,
+			ToFail:          false,
 			TestCaseName:    path,
 		}
 
@@ -81,8 +81,8 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 		}
 
 		if !opts.noFail {
-			assignment.PerturbHash = true // TODO: This one doesn't matter right?
-			circuit.PerturbHash = true
+			assignment.ToFail = true // TODO: This one doesn't matter right?
+			circuit.ToFail = true
 			test.NewAssert(t).SolvingFailed(circuit, assignment, test.WithBackends(backend.GROTH16))
 		}
 	}
@@ -92,7 +92,7 @@ type GkrVerifierCircuit struct {
 	Input           [][]frontend.Variable
 	Output          [][]frontend.Variable `gnark:",public"`
 	SerializedProof []frontend.Variable
-	PerturbHash     bool
+	ToFail          bool
 	TestCaseName    string
 }
 
@@ -111,12 +111,16 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	}
 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
 
-	var baseChallenge []frontend.Variable
-	if c.PerturbHash {
-		baseChallenge = []frontend.Variable{1}
+	var hsh hash.Hash
+	if c.ToFail {
+		hsh = NewMessageCounter(api, 1, 1)
+	} else {
+		if hsh, err = HashFromDescription(api, testCase.Hash); err != nil {
+			return err
+		}
 	}
 
-	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(&test_vector_utils.MapHash{Map: testCase.ElementMap, API: api}, baseChallenge...))
+	return Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHash(hsh))
 }
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
@@ -142,15 +146,15 @@ func fillWithBlanks(slice [][]frontend.Variable, size int) {
 }
 
 type TestCase struct {
-	Circuit    Circuit
-	ElementMap test_vector_utils.ElementMap
-	Proof      Proof
-	Input      [][]frontend.Variable
-	Output     [][]frontend.Variable
-	Name       string
+	Circuit Circuit
+	Hash    HashDescription
+	Proof   Proof
+	Input   [][]frontend.Variable
+	Output  [][]frontend.Variable
+	Name    string
 }
 type TestCaseInfo struct {
-	Hash    string          `json:"hash"`
+	Hash    HashDescription `json:"hash"`
 	Circuit string          `json:"circuit"`
 	Input   [][]interface{} `json:"input"`
 	Output  [][]interface{} `json:"output"`
@@ -181,15 +185,11 @@ func getTestCase(path string) (*TestCase, error) {
 				return nil, err
 			}
 
-			if cse.ElementMap, err = test_vector_utils.ElementMapFromFile(filepath.Join(dir, info.Hash)); err != nil {
-				return nil, err
-			}
-
 			cse.Proof = unmarshalProof(info.Proof)
 
-			cse.Input = test_vector_utils.ToVariableSliceSlice(info.Input)
-			cse.Output = test_vector_utils.ToVariableSliceSlice(info.Output)
-
+			cse.Input = ToVariableSliceSlice(info.Input)
+			cse.Output = ToVariableSliceSlice(info.Output)
+			cse.Hash = info.Hash
 			cse.Name = path
 			testCases[path] = cse
 		} else {
@@ -278,7 +278,7 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
 			finalEvalProof := make([]frontend.Variable, finalEvalSlice.Len())
 			for k := range finalEvalProof {
-				finalEvalProof[k] = test_vector_utils.ToVariable(finalEvalSlice.Index(k).Interface())
+				finalEvalProof[k] = ToVariable(finalEvalSlice.Index(k).Interface())
 			}
 			proof[i].FinalEvalProof = finalEvalProof
 		} else {
@@ -287,7 +287,7 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 
 		proof[i].PartialSumPolys = make([]polynomial.Polynomial, len(printable[i].PartialSumPolys))
 		for k := range printable[i].PartialSumPolys {
-			proof[i].PartialSumPolys[k] = test_vector_utils.ToVariableSlice(printable[i].PartialSumPolys[k])
+			proof[i].PartialSumPolys[k] = ToVariableSlice(printable[i].PartialSumPolys[k])
 		}
 	}
 	return
@@ -333,8 +333,8 @@ func TestTopSortSingleGate(t *testing.T) {
 	c[0].Inputs = []*Wire{&c[1], &c[2]}
 	sorted := topologicalSort(c)
 	expected := []*Wire{&c[1], &c[2], &c[0]}
-	assert.True(t, test_vector_utils.SliceEqual(sorted, expected)) //TODO: Remove
-	test_vector_utils.AssertSliceEqual(t, sorted, expected)
+	assert.True(t, SliceEqual(sorted, expected)) //TODO: Remove
+	AssertSliceEqual(t, sorted, expected)
 	assert.Equal(t, c[0].nbUniqueOutputs, 0)
 	assert.Equal(t, c[1].nbUniqueOutputs, 1)
 	assert.Equal(t, c[2].nbUniqueOutputs, 1)
@@ -367,4 +367,119 @@ func TestTopSortWide(t *testing.T) {
 	sortedExpected := []*Wire{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
 
 	assert.Equal(t, sortedExpected, sorted)
+}
+
+func ToVariable(v interface{}) frontend.Variable {
+	switch vT := v.(type) {
+	case float64:
+		return int(vT)
+	default:
+		return v
+	}
+}
+
+func ToVariableSlice[V any](slice []V) (variableSlice []frontend.Variable) {
+	variableSlice = make([]frontend.Variable, len(slice))
+	for i := range slice {
+		variableSlice[i] = ToVariable(slice[i])
+	}
+	return
+}
+
+func ToVariableSliceSlice[V any](sliceSlice [][]V) (variableSliceSlice [][]frontend.Variable) {
+	variableSliceSlice = make([][]frontend.Variable, len(sliceSlice))
+	for i := range sliceSlice {
+		variableSliceSlice[i] = ToVariableSlice(sliceSlice[i])
+	}
+	return
+}
+
+func AssertSliceEqual[T comparable](t *testing.T, expected, seen []T) {
+	assert.Equal(t, len(expected), len(seen))
+	for i := range seen {
+		assert.True(t, expected[i] == seen[i], "@%d: %v != %v", i, expected[i], seen[i]) // assert.Equal is not strict enough when comparing pointers, i.e. it compares what they refer to
+	}
+}
+
+func SliceEqual[T comparable](expected, seen []T) bool {
+	if len(expected) != len(seen) {
+		return false
+	}
+	for i := range seen {
+		if expected[i] != seen[i] {
+			return false
+		}
+	}
+	return true
+}
+
+type HashDescription map[string]interface{}
+
+func HashFromDescription(api frontend.API, d HashDescription) (hash.Hash, error) {
+	if _type, ok := d["type"]; ok {
+		switch _type {
+		case "const":
+			startState := int64(d["val"].(float64))
+			return &MessageCounter{startState: startState, step: 0, state: startState, api: api}, nil
+		default:
+			return nil, fmt.Errorf("unknown fake hash type \"%s\"", _type)
+		}
+	}
+	return nil, fmt.Errorf("hash description missing type")
+}
+
+type MessageCounter struct {
+	startState int64
+	state      int64
+	step       int64
+
+	// cheap trick to avoid unconstrained input errors
+	api  frontend.API
+	zero frontend.Variable
+}
+
+func (m *MessageCounter) Write(data ...frontend.Variable) {
+
+	for i := range data {
+		sq1, sq2 := m.api.Mul(data[i], data[i]), m.api.Mul(data[i], data[i])
+		m.zero = m.api.Sub(sq1, sq2, m.zero)
+	}
+
+	m.state += int64(len(data)) * m.step
+}
+
+func (m *MessageCounter) Sum() frontend.Variable {
+	return m.api.Add(m.state, m.zero)
+}
+
+func (m *MessageCounter) Reset() {
+	m.zero = 0
+	m.state = m.startState
+}
+
+func NewMessageCounter(api frontend.API, startState, step int) hash.Hash {
+	transcript := &MessageCounter{startState: int64(startState), state: int64(startState), step: int64(step), api: api}
+	return transcript
+}
+
+func NewMessageCounterGenerator(startState, step int) func(frontend.API) hash.Hash {
+	return func(api frontend.API) hash.Hash {
+		return NewMessageCounter(api, startState, step)
+	}
+}
+
+type constHashCircuit struct {
+	X frontend.Variable
+}
+
+func (c *constHashCircuit) Define(api frontend.API) error {
+	hsh := NewMessageCounter(api, 0, 0)
+	hsh.Reset()
+	hsh.Write(c.X)
+	api.AssertIsEqual(hsh.Sum(), 0)
+	return nil
+}
+
+func TestConstHash(t *testing.T) {
+	test.NewAssert(t).SolvingSucceeded(&constHashCircuit{}, &constHashCircuit{X: 1})
 }
