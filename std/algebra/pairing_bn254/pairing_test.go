@@ -42,7 +42,7 @@ func (c *MillerLoopCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
-	pairing.ext12.AssertIsEqual(res, &c.Res)
+	pairing.ext12.assertIsEqual(res, &c.Res)
 	return nil
 }
 
@@ -71,7 +71,7 @@ func (c *FinalExponentiationCircuit) Define(api frontend.API) error {
 		return fmt.Errorf("new pairing: %w", err)
 	}
 	res := pairing.FinalExponentiation(&c.InGt)
-	pairing.ext12.AssertIsEqual(res, &c.Res)
+	pairing.ext12.assertIsEqual(res, &c.Res)
 	return nil
 }
 
@@ -103,7 +103,7 @@ func (c *PairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
-	pairing.ext12.AssertIsEqual(res, &c.Res)
+	pairing.ext12.assertIsEqual(res, &c.Res)
 	return nil
 }
 
