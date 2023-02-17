@@ -276,3 +276,7 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res = pr.FinalExponentiation(res)
 	return res, nil
 }
+
+func (pr Pairing) AssertIsEqual(x, y *GTEl) {
+	pr.ext12.assertIsEqual(x, y)
+}
