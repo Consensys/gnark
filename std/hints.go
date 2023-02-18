@@ -31,6 +31,7 @@ func registerHints() {
 	hint.Register(bits.NNAF)
 	hint.Register(bits.IthBit)
 	hint.Register(bits.NBits)
-	hint.Register(gadgets.SelectionIndicators)
+	hint.Register(gadgets.MuxIndicators)
+	hint.Register(gadgets.LookupIndicators)
 	hint.Register(emulated.GetHints()...)
 }
