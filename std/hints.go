@@ -6,9 +6,9 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
-	"github.com/consensys/gnark/std/gadgets"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/selector"
 )
 
 var registerOnce sync.Once
@@ -31,7 +31,7 @@ func registerHints() {
 	hint.Register(bits.NNAF)
 	hint.Register(bits.IthBit)
 	hint.Register(bits.NBits)
-	hint.Register(gadgets.MuxIndicators)
-	hint.Register(gadgets.LookupIndicators)
+	hint.Register(selector.MuxIndicators)
+	hint.Register(selector.MapIndicators)
 	hint.Register(emulated.GetHints()...)
 }

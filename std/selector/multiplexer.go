@@ -1,4 +1,4 @@
-package gadgets
+package selector
 
 import (
 	"math/big"
@@ -10,15 +10,15 @@ import (
 func init() {
 	// register hints
 	hint.Register(MuxIndicators)
-	hint.Register(LookupIndicators)
+	hint.Register(MapIndicators)
 }
 
-// Lookup is a key value lookup table: the output will be values[i] such that keys[i] == sel. If keys does not
-// contain sel, no proofs can be generated. If keys has more than one key that equals to sel, the output will
+// Map is a key value associative array: the output will be values[i] such that keys[i] == sel. If keys does not
+// contain sel, no proofs can be generated. If keys array has more than one key that equals to sel, the output will
 // be undefined, and the output could be a linear combination of the corresponding values with those keys.
 //
 // In case keys and values do not have the same length, this function will panic.
-func Lookup(api frontend.API, sel frontend.Variable,
+func Map(api frontend.API, sel frontend.Variable,
 	keys []frontend.Variable, values []frontend.Variable) frontend.Variable {
 	// we don't need this check, but we added it to produce more informative errors and disallow
 	// len(keys) < len(values) which is supported by generateSelector.
@@ -36,9 +36,9 @@ func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) f
 	return generateSelector(api, true, sel, nil, inputs)
 }
 
-// generateSelector generates a circuit for a multiplexer or a lookup table. If wantMux is true, a multiplexer is
-// generated and keys are ignored. If wantMux is false, a lookup table is generated and we must have
-// len(keys) <= len(values), otherwise it panics.
+// generateSelector generates a circuit for a multiplexer or an associative array (map). If wantMux is true, a
+// multiplexer is generated and keys are ignored. If wantMux is false, a map is generated, and we must have
+// len(keys) <= len(values), or it panics.
 func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	keys []frontend.Variable, values []frontend.Variable) (out frontend.Variable) {
 
@@ -46,7 +46,7 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	if wantMux {
 		indicators, _ = api.Compiler().NewHint(MuxIndicators, len(values), sel)
 	} else {
-		indicators, _ = api.Compiler().NewHint(LookupIndicators, len(keys), append(keys, sel)...)
+		indicators, _ = api.Compiler().NewHint(MapIndicators, len(keys), append(keys, sel)...)
 	}
 
 	out = 0
@@ -84,7 +84,7 @@ func MuxIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
-func LookupIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+func MapIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	key := inputs[len(inputs)-1]
 	// We must make sure that we are initializing all elements of results
 	for i := 0; i < len(results); i++ {
