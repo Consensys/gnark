@@ -30,14 +30,14 @@ func init() {
 // be undefined, and the output could be a linear combination of the corresponding values with those keys.
 //
 // In case keys and values do not have the same length, this function will panic.
-func Map(api frontend.API, sel frontend.Variable,
+func Map(api frontend.API, queryKey frontend.Variable,
 	keys []frontend.Variable, values []frontend.Variable) frontend.Variable {
 	// we don't need this check, but we added it to produce more informative errors and disallow
 	// len(keys) < len(values) which is supported by generateSelector.
 	if len(keys) != len(values) {
 		panic("The number of keys and values must be equal")
 	}
-	return generateSelector(api, false, sel, keys, values)
+	return generateSelector(api, false, queryKey, keys, values)
 }
 
 // Mux is an n to 1 multiplexer: out = inputs[sel]. In other words, it selects exactly one of its
