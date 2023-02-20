@@ -1,3 +1,15 @@
+// Package selector provides a lookup table and map based on linear scan.
+//
+// The native [frontend.API] provides 1- and 2-bit lookups through the interface
+// methods Select and Lookup2. This package extends the lookups to
+// arbitrary-sized vectors. The lookups can be performed using the index of the
+// elements (function [Mux]) or using a key, for which the user needs to provide
+// the slice of keys (function [Map]).
+//
+// The implementation uses linear scan over all inputs, so the constraint count
+// for every invocation of the function is C*len(values)+1, where:
+//   - for R1CS, C = 3
+//   - for PLONK, C = 5
 package selector
 
 import (
