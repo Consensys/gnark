@@ -20,7 +20,7 @@ type MapCircuit struct {
 
 // Define defines the arithmetic circuit.
 func (c *MapCircuit) Define(api frontend.API) error {
-	result := selector.Map(api, c.QueryKey, c.Keys[:], c.Values[:]) // Note Mux takes var-arg input, need to expand the input vector
+	result := selector.Map(api, c.QueryKey, c.Keys[:], c.Values[:])
 	api.AssertIsEqual(result, c.ExpectedValue)
 	return nil
 }

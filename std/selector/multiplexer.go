@@ -25,9 +25,9 @@ func init() {
 	hint.Register(MapIndicators)
 }
 
-// Map is a key value associative array: the output will be values[i] such that keys[i] == sel. If keys does not
-// contain sel, no proofs can be generated. If keys array has more than one key that equals to sel, the output will
-// be undefined, and the output could be a linear combination of the corresponding values with those keys.
+// Map is a key value associative array: the output will be values[i] such that keys[i] == queryKey. If keys does not
+// contain queryKey, no proofs can be generated. If keys has more than one key that equals to queryKey, the output will
+// be undefined, and the output could be a linear combination of all the corresponding values with that queryKey.
 //
 // In case keys and values do not have the same length, this function will panic.
 func Map(api frontend.API, queryKey frontend.Variable,
@@ -82,7 +82,7 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	return out
 }
 
-// MuxIndicator is a hint function used within [Mux] function. It must be
+// MuxIndicators is a hint function used within [Mux] function. It must be
 // provided to the prover when circuit uses it.
 func MuxIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	sel := inputs[0]

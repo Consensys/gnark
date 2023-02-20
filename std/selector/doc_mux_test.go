@@ -30,7 +30,7 @@ func ExampleMux() {
 	witness := MuxCircuit{
 		Selector: 5,
 		In:       [10]frontend.Variable{0, 2, 4, 6, 8, 10, 12, 14, 16, 18},
-		Expected: 10, // 5-th elemen in vector
+		Expected: 10, // 5-th element in vector
 	}
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
