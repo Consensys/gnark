@@ -1,13 +1,9 @@
 package selector_test
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/selector"
 	"github.com/consensys/gnark/test"
 )
@@ -177,48 +173,5 @@ func TestMap(t *testing.T) {
 			K0: 5, K1: 7,
 			V0: 10, V1: 11,
 		})
-
-}
-
-func Example() {
-	// default options generate gnark.pprof in current dir
-	// use pprof as usual (go tool pprof -http=:8080 gnark.pprof) to read the profile file
-	// overlapping profiles are allowed (define profiles inside Define or subfunction to profile
-	// part of the circuit only)
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &muxCircuit{})
-	p.Stop()
-
-	fmt.Println("Number of constraints:", p.NbConstraints())
-	fmt.Println(p.Top())
-
-	p = profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &mapCircuit{})
-	p.Stop()
-
-	fmt.Println("Number of constraints:", p.NbConstraints())
-	fmt.Println(p.Top())
-	// Output:
-	// Number of constraints: 17
-	// Showing nodes accounting for 17, 100% of 17 total
-	//       flat  flat%   sum%        cum   cum%
-	//          7 41.18% 41.18%          7 41.18%  r1cs.(*builder).AssertIsEqual frontend/cs/r1cs/api_assertions.go:37
-	//          5 29.41% 70.59%         10 58.82%  selector.generateSelector std/selector/multiplexer.go:58
-	//          5 29.41%   100%          5 29.41%  selector.generateSelector std/selector/multiplexer.go:65
-	//          0     0%   100%         16 94.12%  selector.Mux std/selector/multiplexer.go:36
-	//          0     0%   100%          1  5.88%  selector.generateSelector std/selector/multiplexer.go:69
-	//          0     0%   100%         16 94.12%  selector_test.(*muxCircuit).Define std/selector/multiplexer_test.go:23
-	//          0     0%   100%          1  5.88%  selector_test.(*muxCircuit).Define std/selector/multiplexer_test.go:25
-	//
-	// Number of constraints: 14
-	// Showing nodes accounting for 14, 100% of 14 total
-	//       flat  flat%   sum%        cum   cum%
-	//          6 42.86% 42.86%          6 42.86%  r1cs.(*builder).AssertIsEqual frontend/cs/r1cs/api_assertions.go:37
-	//          4 28.57% 71.43%          8 57.14%  selector.generateSelector std/selector/multiplexer.go:61
-	//          4 28.57%   100%          4 28.57%  selector.generateSelector std/selector/multiplexer.go:65
-	//          0     0%   100%         13 92.86%  selector.Map std/selector/multiplexer.go:28
-	//          0     0%   100%          1  7.14%  selector.generateSelector std/selector/multiplexer.go:69
-	//          0     0%   100%         13 92.86%  selector_test.(*mapCircuit).Define std/selector/multiplexer_test.go:78
-	//          0     0%   100%          1  7.14%  selector_test.(*mapCircuit).Define std/selector/multiplexer_test.go:82
 
 }
