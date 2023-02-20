@@ -82,6 +82,8 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	return out
 }
 
+// MuxIndicator is a hint function used within [Mux] function. It must be
+// provided to the prover when circuit uses it.
 func MuxIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	sel := inputs[0]
 	for i := 0; i < len(results); i++ {
@@ -96,6 +98,8 @@ func MuxIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
+// MapIndicators is a hint function used within [Map] function. It must be
+// provided to the prover when circuit uses it.
 func MapIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	key := inputs[len(inputs)-1]
 	// We must make sure that we are initializing all elements of results
