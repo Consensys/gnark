@@ -99,14 +99,14 @@ func (circuit *CubicCircuit) Define(api frontend.API) error {
 func main() {
 	// compiles our circuit into a R1CS
 	var circuit CubicCircuit
-	ccs, _ := frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit)
+	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 
 	// groth16 zkSNARK: Setup
 	pk, vk, _ := groth16.Setup(ccs)
 
 	// witness definition
 	assignment := CubicCircuit{X: 3, Y: 35}
-	witness, _ := frontend.NewWitness(&assignment, ecc.BN254)
+	witness, _ := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	publicWitness, _ := witness.Public()
 
 	// groth16: Prove & Verify
