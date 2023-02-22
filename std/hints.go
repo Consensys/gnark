@@ -33,5 +33,6 @@ func registerHints() {
 	hint.Register(bits.NBits)
 	hint.Register(selector.MuxIndicators)
 	hint.Register(selector.MapIndicators)
+	hint.Register(selector.StepOutput)
 	hint.Register(emulated.GetHints()...)
 }
