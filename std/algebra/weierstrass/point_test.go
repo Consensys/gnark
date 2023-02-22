@@ -6,8 +6,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	fr_bn "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
-	"github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
+	fp_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
+	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -33,7 +35,7 @@ func (c *NegTest[T, S]) Define(api frontend.API) error {
 func TestNeg(t *testing.T) {
 	assert := test.NewAssert(t)
 	_, g := secp256k1.Generators()
-	var yn fp.Element
+	var yn fp_secp.Element
 	yn.Neg(&g.Y)
 	circuit := NegTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := NegTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
@@ -228,8 +230,10 @@ func (c *ScalarMulBaseTest[T, S]) Define(api frontend.API) error {
 func TestScalarMulBase(t *testing.T) {
 	assert := test.NewAssert(t)
 	_, g := secp256k1.Generators()
-	s, ok := new(big.Int).SetString("44693544921776318736021182399461740191514036429448770306966433218654680512345", 10)
-	assert.True(ok)
+	var r fr_secp.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
 	var S secp256k1.G1Affine
 	S.ScalarMultiplication(&g, s)
 
@@ -250,8 +254,10 @@ func TestScalarMulBase(t *testing.T) {
 func TestScalarMulBase2(t *testing.T) {
 	assert := test.NewAssert(t)
 	_, _, g, _ := bn254.Generators()
-	s, ok := new(big.Int).SetString("44693544921776318736021182399461740191514036429448770306966433218654680512345", 10)
-	assert.True(ok)
+	var r fr_bn.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
 	var S bn254.G1Affine
 	S.ScalarMultiplication(&g, s)
 
@@ -287,8 +293,10 @@ func (c *ScalarMulTest[T, S]) Define(api frontend.API) error {
 func TestScalarMul(t *testing.T) {
 	assert := test.NewAssert(t)
 	_, g := secp256k1.Generators()
-	s, ok := new(big.Int).SetString("44693544921776318736021182399461740191514036429448770306966433218654680512345", 10)
-	assert.True(ok)
+	var r fr_secp.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
 	var S secp256k1.G1Affine
 	S.ScalarMultiplication(&g, s)
 
@@ -312,8 +320,10 @@ func TestScalarMul(t *testing.T) {
 
 func TestScalarMul2(t *testing.T) {
 	assert := test.NewAssert(t)
-	s, ok := new(big.Int).SetString("14108069686105661647148607545884343550368786660735262576656400957535521042679", 10)
-	assert.True(ok)
+	var r fr_bn.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
 	var res bn254.G1Affine
 	_, _, gen, _ := bn254.Generators()
 	res.ScalarMultiplication(&gen, s)
