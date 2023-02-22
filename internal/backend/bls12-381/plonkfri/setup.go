@@ -209,10 +209,10 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 		return &pk, &vk, err
 	}
 
-	pk.Domain[1].FFT(pk.EvaluationQlDomainBigBitReversed, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationQrDomainBigBitReversed, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationQmDomainBigBitReversed, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationQoDomainBigBitReversed, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationQlDomainBigBitReversed, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationQrDomainBigBitReversed, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationQmDomainBigBitReversed, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationQoDomainBigBitReversed, fft.DIF, fft.OnCoset())
 
 	// build permutation. Note: at this stage, the permutation takes in account the placeholders
 	buildPermutation(spr, &pk)
@@ -349,9 +349,9 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	if err != nil {
 		return err
 	}
-	pk.Domain[1].FFT(pk.EvaluationId1BigDomain, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationId2BigDomain, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationId3BigDomain, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationId1BigDomain, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationId2BigDomain, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationId3BigDomain, fft.DIF, fft.OnCoset())
 
 	pk.Domain[0].FFTInverse(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality], fft.DIF)
 	pk.Domain[0].FFTInverse(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality], fft.DIF)
@@ -379,9 +379,9 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	if err != nil {
 		return err
 	}
-	pk.Domain[1].FFT(pk.EvaluationS1BigDomain, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationS2BigDomain, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationS3BigDomain, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationS1BigDomain, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationS2BigDomain, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationS3BigDomain, fft.DIF, fft.OnCoset())
 
 	return nil
 
