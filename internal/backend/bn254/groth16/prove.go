@@ -334,9 +334,9 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	domain.FFTInverse(b, fft.DIF)
 	domain.FFTInverse(c, fft.DIF)
 
-	domain.FFT(a, fft.DIT, true)
-	domain.FFT(b, fft.DIT, true)
-	domain.FFT(c, fft.DIT, true)
+	domain.FFT(a, fft.DIT, fft.OnCoset())
+	domain.FFT(b, fft.DIT, fft.OnCoset())
+	domain.FFT(c, fft.DIT, fft.OnCoset())
 
 	var den, one fr.Element
 	one.SetOne()
@@ -354,7 +354,7 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	})
 
 	// ifft_coset
-	domain.FFTInverse(a, fft.DIF, true)
+	domain.FFTInverse(a, fft.DIF, fft.OnCoset())
 
 	return a
 }

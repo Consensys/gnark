@@ -487,7 +487,7 @@ func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReverse
 	for i := 0; i < int(pk.Domain[0].Cardinality); i++ {
 		startsAtOne[i].Set(&pk.Domain[0].CardinalityInv)
 	}
-	pk.Domain[1].FFT(startsAtOne, fft.DIF, true)
+	pk.Domain[1].FFT(startsAtOne, fft.DIF, fft.OnCoset())
 
 	// ql(X)L(X)+qr(X)R(X)+qm(X)L(X)R(X)+qo(X)O(X)+k(X) + α.(z(μX)*g₁(X)*g₂(X)*g₃(X)-z(X)*f₁(X)*f₂(X)*f₃(X)) + α**2*L₁(X)(Z(X)-1)
 	// on a coset of the big domain
@@ -515,7 +515,7 @@ func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReverse
 
 	// put h in canonical form. h is of degree 3*(n+1)+2.
 	// using fft.DIT put h revert bit reverse
-	pk.Domain[1].FFTInverse(h, fft.DIT, true)
+	pk.Domain[1].FFTInverse(h, fft.DIT, fft.OnCoset())
 
 	// degree of hi is n+2 because of the blinding
 	h1 := h[:pk.Domain[0].Cardinality+2]
