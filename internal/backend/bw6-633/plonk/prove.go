@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/consensys/gnark/backend/witness"
+
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
@@ -58,8 +60,7 @@ type Proof struct {
 	ZShiftedOpening kzg.OpeningProof
 }
 
-// Prove from the public data
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 
 	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
 	start := time.Now()
@@ -72,25 +73,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	// result
 	proof := &Proof{}
 
-	// compute the constraint system solution
-	var solution []fr.Element
-	var err error
-	if solution, err = spr.Solve(fullWitness, opt); err != nil {
-		if !opt.Force {
-			return nil, err
-		} else {
-			// we need to fill solution with random values
-			var r fr.Element
-			_, _ = r.SetRandom()
-			for i := len(spr.Public) + len(spr.Secret); i < len(solution); i++ {
-				solution[i] = r
-				r.Double(&r)
-			}
-		}
-	}
-
 	// query l, r, o in Lagrange basis, not blinded
-	evaluationLDomainSmall, evaluationRDomainSmall, evaluationODomainSmall := evaluateLROSmallDomain(spr, pk, solution)
+	trace, err := spr.GetTrace(fullWitness, opts...)
+	if err != nil {
+		return nil, err
+	}
+	traceCast := trace.(*cs.TraceSparseR1CS)
+	evaluationLDomainSmall := []fr.Element(traceCast.L)
+	evaluationRDomainSmall := []fr.Element(traceCast.R)
+	evaluationODomainSmall := []fr.Element(traceCast.O)
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	liop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
@@ -112,10 +103,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 		return nil, err
 	}
 
+	fw, ok := fullWitness.Vector().(fr.Vector)
+	if !ok {
+		return nil, witness.ErrInvalidWitness
+	}
+
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *pk.Vk, fullWitness[:len(spr.Public)]); err != nil {
+	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)]); err != nil {
 		return nil, err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
@@ -167,7 +163,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 
 	// compute qk in canonical basis, completed with the public inputs
 	qkCompletedCanonical := make([]fr.Element, pk.Domain[0].Cardinality)
-	copy(qkCompletedCanonical, fullWitness[:len(spr.Public)])
+	copy(qkCompletedCanonical, fw[:len(spr.Public)])
 	copy(qkCompletedCanonical[len(spr.Public):], pk.LQk[len(spr.Public):])
 	pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 	fft.BitReverse(qkCompletedCanonical)

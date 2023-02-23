@@ -73,6 +73,77 @@ func (cs *R1CS) AddConstraint(r1c constraint.R1C, debugInfo ...constraint.DebugI
 	return cID
 }
 
+// TraceR1CS stores the TraceR1CS of the system, that is the vector w
+// such that Aw o Bw - Cw = 0
+type TraceR1CS struct {
+	W       fr.Vector
+	A, B, C fr.Vector
+}
+
+func (t *TraceR1CS) WriteTo(w io.Writer) (int64, error) {
+	n, err := t.W.WriteTo(w)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.A.WriteTo(w)
+	n += a
+	if err != nil {
+		return n, err
+	}
+	a, err = t.B.WriteTo(w)
+	n += a
+	if err != nil {
+		return n, err
+	}
+	a, err = t.C.WriteTo(w)
+	n += a
+	return n, err
+}
+
+func (t *TraceR1CS) ReadFrom(r io.Reader) (int64, error) {
+	n, err := t.W.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.A.ReadFrom(r)
+	a += n
+	if err != nil {
+		return n, err
+	}
+	a, err = t.B.ReadFrom(r)
+	a += n
+	if err != nil {
+		return n, err
+	}
+	a, err = t.C.ReadFrom(r)
+	n += a
+	return n, err
+}
+
+// GetTraceR1CS returns the vector w solution to the system, that is
+// Aw o Bw - Cw = 0
+func (cs *R1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOption) (constraint.Trace, error) {
+
+	var res TraceR1CS
+
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return &res, err
+	}
+
+	a := make(fr.Vector, len(cs.Constraints))
+	b := make(fr.Vector, len(cs.Constraints))
+	c := make(fr.Vector, len(cs.Constraints))
+	v := witness.Vector().(fr.Vector)
+
+	res.W, err = cs.Solve(v, a, b, c, opt)
+	if err != nil {
+		return &res, err
+	}
+
+	return &res, nil
+}
+
 // Solve sets all the wires and returns the a, b, c vectors.
 // the cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // a, b, c vectors: ab-c = hz

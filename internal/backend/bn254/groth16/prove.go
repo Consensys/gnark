@@ -18,19 +18,18 @@ package groth16
 
 import (
 	"fmt"
-	"math/big"
-	"runtime"
-	"time"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
-	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	"math/big"
+	"runtime"
+	"time"
 )
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified
@@ -66,11 +65,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
 
-	// solve the R1CS and compute the a, b, c vectors
-	// a := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
-	// b := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
-	// c := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
-
 	proof := &Proof{}
 	if r1cs.CommitmentInfo.Is() {
 		opt.HintFunctions[r1cs.CommitmentInfo.HintID] = func(_ *big.Int, in []*big.Int, out []*big.Int) error {
@@ -98,8 +92,8 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			return err
 		}
 	}
-	
-	trace, err :=r1cs.GetTrace(fullWitness, opts...)
+
+	trace, err := r1cs.GetTrace(fullWitness, opts...)
 	if err != nil {
 		return nil, err
 	}

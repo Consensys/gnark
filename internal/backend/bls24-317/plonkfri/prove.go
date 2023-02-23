@@ -22,6 +22,8 @@ import (
 	"math/bits"
 	"runtime"
 
+	"github.com/consensys/gnark/backend/witness"
+
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/fft"
@@ -67,7 +69,7 @@ type Proof struct {
 	OpeningsId1Id2Id3mp [3]fri.OpeningProof
 }
 
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 
 	var proof Proof
 
@@ -78,23 +80,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
 
 	// 1 - solve the system
-	var solution []fr.Element
-	var err error
-	if solution, err = spr.Solve(fullWitness, opt); err != nil {
-		if !opt.Force {
-			return nil, err
-		} else {
-			// we need to fill solution with random values
-			var r fr.Element
-			_, _ = r.SetRandom()
-			for i := len(spr.Public) + len(spr.Secret); i < len(solution); i++ {
-				solution[i] = r
-				r.Double(&r)
-			}
-		}
+	trace, err := spr.GetTrace(fullWitness, opts...)
+	if err != nil {
+		return nil, err
 	}
-
-	evaluationLDomainSmall, evaluationRDomainSmall, evaluationODomainSmall := evaluateLROSmallDomain(spr, pk, solution)
+	traceCast := trace.(*cs.TraceSparseR1CS)
+	evaluationLDomainSmall := []fr.Element(traceCast.L)
+	evaluationRDomainSmall := []fr.Element(traceCast.R)
+	evaluationODomainSmall := []fr.Element(traceCast.O)
 
 	// 2 - commit to lro
 	blindedLCanonical, blindedRCanonical, blindedOCanonical, err := computeBlindedLROCanonical(
@@ -119,9 +112,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	}
 
 	// 3 - compute Z, challenges are derived using L, R, O + public inputs
+	fw, ok := fullWitness.Vector().(fr.Vector)
+	if !ok {
+		return nil, witness.ErrInvalidWitness
+	}
 	dataFiatShamir := make([][fr.Bytes]byte, len(spr.Public)+3)
 	for i := 0; i < len(spr.Public); i++ {
-		copy(dataFiatShamir[i][:], fullWitness[i].Marshal())
+		copy(dataFiatShamir[i][:], fw[i].Marshal())
 	}
 	copy(dataFiatShamir[len(spr.Public)][:], proof.LROpp[0].ID)
 	copy(dataFiatShamir[len(spr.Public)+1][:], proof.LROpp[1].ID)
@@ -164,7 +161,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	// alpha.SetUint64(11)
 
 	evaluationQkCompleteDomainBigBitReversed := make([]fr.Element, pk.Domain[1].Cardinality)
-	copy(evaluationQkCompleteDomainBigBitReversed, fullWitness[:len(spr.Public)])
+	copy(evaluationQkCompleteDomainBigBitReversed, fw[:len(spr.Public)])
 	copy(evaluationQkCompleteDomainBigBitReversed[len(spr.Public):], pk.LQkIncompleteDomainSmall[len(spr.Public):])
 	pk.Domain[0].FFTInverse(evaluationQkCompleteDomainBigBitReversed[:pk.Domain[0].Cardinality], fft.DIF)
 	fft.BitReverse(evaluationQkCompleteDomainBigBitReversed[:pk.Domain[0].Cardinality])

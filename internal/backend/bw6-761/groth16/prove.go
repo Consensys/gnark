@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
@@ -51,18 +52,18 @@ func (proof *Proof) CurveID() ecc.ID {
 }
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
-func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
+func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 	// TODO @gbotrel witness size check is done by R1CS, doesn't mean we shouldn't sanitize here.
 	// if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
 	// 	return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
 	// }
 
-	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
 
-	// solve the R1CS and compute the a, b, c vectors
-	a := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
-	b := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
-	c := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
+	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
 
 	proof := &Proof{}
 	if r1cs.CommitmentInfo.Is() {
@@ -92,31 +93,24 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverC
 		}
 	}
 
-	var wireValues []fr.Element
-	var err error
-	if wireValues, err = r1cs.Solve(witness, a, b, c, opt); err != nil {
-		if !opt.Force {
-			return nil, err
-		} else {
-			// we need to fill wireValues with random values else multi exps don't do much
-			var r fr.Element
-			_, _ = r.SetRandom()
-			for i := r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables(); i < len(wireValues); i++ {
-				wireValues[i] = r
-				r.Double(&r)
-			}
-		}
+	trace, err := r1cs.GetTrace(fullWitness, opts...)
+	if err != nil {
+		return nil, err
 	}
+
+	traceCast := trace.(*cs.TraceR1CS)
+	wireValues := []fr.Element(traceCast.W)
+
 	start := time.Now()
 
 	// H (witness reduction / FFT part)
 	var h []fr.Element
 	chHDone := make(chan struct{}, 1)
 	go func() {
-		h = computeH(a, b, c, &pk.Domain)
-		a = nil
-		b = nil
-		c = nil
+		h = computeH(traceCast.A, traceCast.B, traceCast.C, &pk.Domain)
+		traceCast.A = nil
+		traceCast.B = nil
+		traceCast.C = nil
 		chHDone <- struct{}{}
 	}()
 
@@ -204,7 +198,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverC
 		var krs, krs2, p1 curve.G1Jac
 		chKrs2Done := make(chan error, 1)
 		go func() {
-			_, err := krs2.MultiExp(pk.G1.Z, h, ecc.MultiExpConfig{NbTasks: n / 2})
+			_, err := krs2.MultiExp(pk.G1.Z[:pk.Domain.Cardinality-1], h[:pk.Domain.Cardinality-1], ecc.MultiExpConfig{NbTasks: n / 2})
 			chKrs2Done <- err
 		}()
 
