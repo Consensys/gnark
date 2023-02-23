@@ -41,14 +41,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	// 	return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
 	// }
 
+	proof := &Proof{}
+
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
-		return nil, err
+		return proof, err
 	}
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
 
-	proof := &Proof{}
 	if r1cs.CommitmentInfo.Is() {
 		opt.HintFunctions[r1cs.CommitmentInfo.HintID] = func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 			// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
@@ -75,10 +76,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			return err
 		}
 	}
-	
-	trace, err :=r1cs.GetTrace(fullWitness, opts...)
+
+	trace, err := r1cs.GetTrace(fullWitness, opts...)
 	if err != nil {
-		return nil, err
+		return proof, err
 	}
 
 	traceCast := trace.(*cs.TraceR1CS)

@@ -131,12 +131,12 @@ func (cs *R1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOption) 
 		return &res, err
 	}
 
-	a := make(fr.Vector, len(cs.Constraints))
-	b := make(fr.Vector, len(cs.Constraints))
-	c := make(fr.Vector, len(cs.Constraints))
+	res.A = make(fr.Vector, len(cs.Constraints))
+	res.B = make(fr.Vector, len(cs.Constraints))
+	res.C = make(fr.Vector, len(cs.Constraints))
 	v := witness.Vector().(fr.Vector)
 
-	res.W, err = cs.Solve(v, a, b, c, opt)
+	res.W, err = cs.Solve(v, res.A, res.B, res.C, opt)
 	if err != nil {
 		return &res, err
 	}
