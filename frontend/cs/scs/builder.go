@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -390,4 +391,8 @@ func (builder *scs) newDebugInfo(errName string, in ...interface{}) constraint.D
 
 	return builder.cs.NewDebugInfo(errName, in...)
 
+}
+
+func (builder *scs) Defer(cb func(frontend.API) error) {
+	circuitdefer.Put(builder, cb)
 }

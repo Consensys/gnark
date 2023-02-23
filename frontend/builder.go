@@ -55,6 +55,11 @@ type Compiler interface {
 	// ! Experimental
 	// TENTATIVE: Functions regarding fiat-shamir-ed proofs over enormous statements  TODO finalize
 	Commit(...Variable) (Variable, error)
+
+	// Defer is called after circuit.Define() and before Compile(). This method
+	// allows for the circuits to register callbacks which finalize batching
+	// operations etc. Unlike Go defer, it is not locally scoped.
+	Defer(cb func(api API) error)
 }
 
 // Builder represents a constraint system builder

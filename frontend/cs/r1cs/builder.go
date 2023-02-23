@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -451,4 +452,8 @@ func (builder *builder) compress(le expr.LinearExpression) expr.LinearExpression
 	t := builder.newInternalVariable()
 	builder.cs.AddConstraint(builder.newR1C(le, one, t))
 	return t
+}
+
+func (builder *builder) Defer(cb func(frontend.API) error) {
+	circuitdefer.Put(builder, cb)
 }

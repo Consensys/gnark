@@ -18,6 +18,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -169,7 +170,14 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 		}
 	}()
 
-	err = c.Define(e)
+	if err = c.Define(e); err != nil {
+		return fmt.Errorf("define: %w", err)
+	}
+	for i, cb := range circuitdefer.GetAll[func(frontend.API) error](e) {
+		if err = cb(e); err != nil {
+			return fmt.Errorf("defer %d: %w", i, err)
+		}
+	}
 
 	return
 }
