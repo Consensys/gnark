@@ -26,15 +26,16 @@ func init() {
 //	else
 //	    out[i] = 0
 //
-// We must have pivotPosition >= 1 and pivotPosition <= len(input)-1, otherwise no proof can be generated.
+// We must have pivotPosition >= 1 and pivotPosition <= len(input), otherwise a proof cannot be generated.
 func Partition(api frontend.API, pivotPosition frontend.Variable, rightSide bool,
 	input []frontend.Variable) []frontend.Variable {
 	out := make([]frontend.Variable, len(input))
 	var mask []frontend.Variable
+	// we create a mask of len(input)+1 to be able to handle the case pivotPosition == len(input)
 	if rightSide {
-		mask = StepMask(api, len(input), pivotPosition, 0, 1)
+		mask = StepMask(api, len(input)+1, pivotPosition, 0, 1)
 	} else {
-		mask = StepMask(api, len(input), pivotPosition, 1, 0)
+		mask = StepMask(api, len(input)+1, pivotPosition, 1, 0)
 	}
 	for i := 0; i < len(out); i++ {
 		out[i] = api.Mul(mask[i], input[i])

@@ -50,9 +50,16 @@ func TestPartition(t *testing.T) {
 		Right: [6]frontend.Variable{0, 0, 0, 0, 0, 60},
 	})
 
+	assert.ProverSucceeded(&partitionerCircuit{}, &partitionerCircuit{
+		Pivot: 6,
+		In:    [6]frontend.Variable{10, 20, 30, 40, 50, 60},
+		Left:  [6]frontend.Variable{10, 20, 30, 40, 50, 60},
+		Right: [6]frontend.Variable{0, 0, 0, 0, 0, 0},
+	})
+
 	// Pivot is outside and the prover fails: (todo: this doesn't work. why?)
 	assert.ProverFailed(&partitionerCircuit{}, &partitionerCircuit{
-		Pivot: 6,
+		Pivot: 7,
 		In:    [6]frontend.Variable{10, 20, 30, 40, 50, 60},
 		Left:  [6]frontend.Variable{10, 20, 30, 40, 50, 60},
 		Right: [6]frontend.Variable{0, 0, 0, 0, 0, 0},
@@ -64,5 +71,4 @@ func TestPartition(t *testing.T) {
 		Left:  [6]frontend.Variable{0, 0, 0, 0, 0, 0},
 		Right: [6]frontend.Variable{10, 20, 30, 40, 50, 60},
 	})
-
 }
