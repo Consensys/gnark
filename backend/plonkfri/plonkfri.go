@@ -114,11 +114,7 @@ func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.W
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bn254.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), w, opt)
+		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), fullWitness, opts...)
 
 	case *cs_bls12381.SparseR1CS:
 		w, ok := fullWitness.Vector().(fr_bls12381.Vector)

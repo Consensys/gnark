@@ -188,11 +188,11 @@ func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.
 		}
 		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), w, opt)
 	case *cs_bn254.R1CS:
-		w, ok := fullWitness.Vector().(fr_bn254.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), w, opt)
+		// w, ok := fullWitness.Vector().(fr_bn254.Vector)
+		// if !ok {
+		// 	return nil, witness.ErrInvalidWitness
+		// }
+		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), fullWitness, opts...)
 	case *cs_bw6761.R1CS:
 		w, ok := fullWitness.Vector().(fr_bw6761.Vector)
 		if !ok {

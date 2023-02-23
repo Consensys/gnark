@@ -67,9 +67,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
 
 	// solve the R1CS and compute the a, b, c vectors
-	a := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
-	b := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
-	c := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
+	// a := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
+	// b := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
+	// c := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
 
 	proof := &Proof{}
 	if r1cs.CommitmentInfo.Is() {
@@ -98,21 +98,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			return err
 		}
 	}
-
-	// var wireValues []fr.Element
-	// if wireValues, err = r1cs.Solve(witness, a, b, c, opt); err != nil {
-	// 	if !opt.Force {
-	// 		return nil, err
-	// 	} else {
-	// 		// we need to fill wireValues with random values else multi exps don't do much
-	// 		var r fr.Element
-	// 		_, _ = r.SetRandom()
-	// 		for i := r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables(); i < len(wireValues); i++ {
-	// 			wireValues[i] = r
-	// 			r.Double(&r)
-	// 		}
-	// 	}
-	// }
+	
 	trace, err :=r1cs.GetTrace(fullWitness, opts...)
 	if err != nil {
 		return nil, err
@@ -127,10 +113,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	var h []fr.Element
 	chHDone := make(chan struct{}, 1)
 	go func() {
-		h = computeH(a, b, c, &pk.Domain)
-		a = nil
-		b = nil
-		c = nil
+		h = computeH(traceCast.A, traceCast.B, traceCast.C, &pk.Domain)
+		traceCast.A = nil
+		traceCast.B = nil
+		traceCast.C = nil
 		chHDone <- struct{}{}
 	}()
 

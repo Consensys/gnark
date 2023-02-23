@@ -61,11 +61,6 @@ type Proof struct {
 // Prove from the public data
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 
-	// opt, err := backend.NewProverConfig(opts...)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
 	start := time.Now()
 	// pick a hash function that will be used to derive the challenges

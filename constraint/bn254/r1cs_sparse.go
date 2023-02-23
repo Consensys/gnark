@@ -75,30 +75,34 @@ type TraceSparseR1CS struct {
 }
 
 func (t *TraceSparseR1CS) WriteTo(w io.Writer) (int64, error) {
-
-	// normally the sizes are the same
-	size := len(t.L) + len(t.R) + len(t.O)
-
-	v := make(fr.Vector, size)
-
-	copy(v, t.L)
-	copy(v[len(t.L):], t.R)
-	copy(v[len(t.L)+len(t.R):], t.O)
-
-	return v.WriteTo(w)
-}
-
-func (t *TraceSparseR1CS) ReadFrom(r io.Reader) (int64, error) {
-	var v fr.Vector
-	n, err := v.ReadFrom(r)
+	n, err := t.L.WriteTo(w)
 	if err != nil {
 		return n, err
 	}
-	nn := n / 3
-	t.L = v[:nn]
-	t.R = v[nn : 2*nn]
-	t.O = v[2*nn:]
-	return n, nil
+	a, err := t.R.WriteTo(w)
+	n += a
+	if err != nil {
+		return n, err
+	}
+	a, err = t.O.WriteTo(w)
+	n += a
+	return n, err
+
+}
+
+func (t *TraceSparseR1CS) ReadFrom(r io.Reader) (int64, error) {
+	n, err := t.L.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.R.ReadFrom(r)
+	a += n
+	if err != nil {
+		return n, err
+	}
+	a, err = t.O.ReadFrom(r)
+	a += n
+	return n, err
 }
 
 func (c *SparseR1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOption) (constraint.Trace, error) {
@@ -127,7 +131,7 @@ func (c *SparseR1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOpt
 	}
 
 	// query l, r, o in Lagrange basis, not blinded
-	res.L, res.R, res.O = c.EvaluateLROSmallDomain(solution)
+	res.L, res.R, res.O = c.evaluateLROSmallDomain(solution)
 
 	return &res, nil
 
@@ -135,7 +139,7 @@ func (c *SparseR1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOpt
 
 // evaluateLROSmallDomain extracts the solution l, r, o, and returns it in lagrange form.
 // solution = [ public | secret | internal ]
-func (c *SparseR1CS) EvaluateLROSmallDomain(solution []fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
+func (c *SparseR1CS) evaluateLROSmallDomain(solution []fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
 
 	//s := int(pk.Domain[0].Cardinality)
 	s := c.GetNbConstraints() + len(c.Public) // len(spr.Public) is for the placeholder constraints
