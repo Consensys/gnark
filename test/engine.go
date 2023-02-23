@@ -161,11 +161,12 @@ func (e *engine) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	bc := pool.BigInt.Get()
 	bc.Mul(e.toBigInt(b), e.toBigInt(c))
 
+	res := new(big.Int)
 	_a := e.toBigInt(a)
-	_a.Add(_a, bc).Mod(_a, e.modulus())
+	res.Add(_a, bc).Mod(res, e.modulus())
 
 	pool.BigInt.Put(bc)
-	return _a
+	return res
 }
 
 func (e *engine) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {

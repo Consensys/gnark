@@ -185,12 +185,12 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 		for i := 1; i < len(mulResult); i++ {
 			w.Lsh(w, uint(c))
 			if i < len(a.Limbs) {
-				l = f.api.Add(l, f.api.Mul(a.Limbs[i], w))
+				l = f.api.MulAcc(l, a.Limbs[i], w)
 			}
 			if i < len(b.Limbs) {
-				r = f.api.Add(r, f.api.Mul(b.Limbs[i], w))
+				r = f.api.MulAcc(r, b.Limbs[i], w)
 			}
-			o = f.api.Add(o, f.api.Mul(mulResult[i], w))
+			o = f.api.MulAcc(o, mulResult[i], w)
 		}
 		f.api.AssertIsEqual(f.api.Mul(l, r), o)
 	}
