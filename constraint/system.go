@@ -21,10 +21,13 @@ import (
 type ConstraintSystem interface {
 	io.WriterTo
 	io.ReaderFrom
-	CoeffEngine
+	// CoeffEngine
 
 	// IsSolved returns nil if given witness solves the constraint system and error otherwise
 	IsSolved(witness witness.Witness, opts ...backend.ProverOption) error
+
+	// GetTrace returns the trace of the system, that is the solution vector.
+	GetTrace(witness witness.Witness, opts ...backend.ProverOption) (Trace, error)
 
 	// GetNbVariables return number of internal, secret and public Variables
 	// Deprecated: use GetNbSecretVariables() instead
@@ -66,6 +69,15 @@ type ConstraintSystem interface {
 	// CheckUnconstrainedWires returns and error if the constraint system has wires that are not uniquely constrained.
 	// This is experimental.
 	CheckUnconstrainedWires() error
+}
+
+// Trace solution to a constraint system. The underlying data is composed
+// of the vectors of solution (e.g. w for Groth16, and L,R,O for plonk).
+// In order to access the underlying data one must cast the interface to the
+// correct type.
+type Trace interface {
+	WriteTo(w io.Writer) (int64, error)
+	ReadFrom(r io.Reader) (int64, error)
 }
 
 type Iterable interface {

@@ -18,17 +18,19 @@ package groth16
 
 import (
 	"fmt"
+	"math/big"
+	"runtime"
+	"time"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/backend/witness"
+	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
-	"math/big"
-	"runtime"
-	"time"
 )
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified
@@ -51,11 +53,16 @@ func (proof *Proof) CurveID() ecc.ID {
 }
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
-func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
+func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 	// TODO @gbotrel witness size check is done by R1CS, doesn't mean we shouldn't sanitize here.
 	// if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
 	// 	return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
 	// }
+
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
 
@@ -92,21 +99,28 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverC
 		}
 	}
 
-	var wireValues []fr.Element
-	var err error
-	if wireValues, err = r1cs.Solve(witness, a, b, c, opt); err != nil {
-		if !opt.Force {
-			return nil, err
-		} else {
-			// we need to fill wireValues with random values else multi exps don't do much
-			var r fr.Element
-			_, _ = r.SetRandom()
-			for i := r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables(); i < len(wireValues); i++ {
-				wireValues[i] = r
-				r.Double(&r)
-			}
-		}
+	// var wireValues []fr.Element
+	// if wireValues, err = r1cs.Solve(witness, a, b, c, opt); err != nil {
+	// 	if !opt.Force {
+	// 		return nil, err
+	// 	} else {
+	// 		// we need to fill wireValues with random values else multi exps don't do much
+	// 		var r fr.Element
+	// 		_, _ = r.SetRandom()
+	// 		for i := r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables(); i < len(wireValues); i++ {
+	// 			wireValues[i] = r
+	// 			r.Double(&r)
+	// 		}
+	// 	}
+	// }
+	trace, err :=r1cs.GetTrace(fullWitness, opts...)
+	if err != nil {
+		return nil, err
 	}
+
+	traceCast := trace.(*cs.TraceR1CS)
+	wireValues := []fr.Element(traceCast.W)
+
 	start := time.Now()
 
 	// H (witness reduction / FFT part)
@@ -204,7 +218,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverC
 		var krs, krs2, p1 curve.G1Jac
 		chKrs2Done := make(chan error, 1)
 		go func() {
-			_, err := krs2.MultiExp(pk.G1.Z, h, ecc.MultiExpConfig{NbTasks: n / 2})
+			_, err := krs2.MultiExp(pk.G1.Z[:pk.Domain.Cardinality-1], h[:pk.Domain.Cardinality-1], ecc.MultiExpConfig{NbTasks: n / 2})
 			chKrs2Done <- err
 		}()
 
