@@ -4,9 +4,7 @@ import (
 	"github.com/consensys/gnark/internal/kvstore"
 )
 
-type DeferKey struct{}
-
-// type DeferFn func(frontend.API) error
+type deferKey struct{}
 
 func Put[T any](builder any, cb T) {
 	// we use generics for type safety but to avoid import cycles.
@@ -15,7 +13,7 @@ func Put[T any](builder any, cb T) {
 	if !ok {
 		panic("builder does not implement kvstore.Store")
 	}
-	val := kv.GetKeyValue(DeferKey{})
+	val := kv.GetKeyValue(deferKey{})
 	var deferred []T
 	if val == nil {
 		deferred = []T{cb}
@@ -27,7 +25,7 @@ func Put[T any](builder any, cb T) {
 		}
 	}
 	deferred = append(deferred, cb)
-	kv.SetKeyValue(DeferKey{}, deferred)
+	kv.SetKeyValue(deferKey{}, deferred)
 }
 
 func GetAll[T any](builder any) []T {
@@ -35,7 +33,7 @@ func GetAll[T any](builder any) []T {
 	if !ok {
 		panic("builder does not implement kvstore.Store")
 	}
-	val := kv.GetKeyValue(DeferKey{})
+	val := kv.GetKeyValue(deferKey{})
 	if val == nil {
 		return nil
 	}
