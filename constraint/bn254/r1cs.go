@@ -73,6 +73,44 @@ func (cs *R1CS) AddConstraint(r1c constraint.R1C, debugInfo ...constraint.DebugI
 	return cID
 }
 
+// TraceR1CS stores the TraceR1CS of the system, that is the vector w
+// such that Aw o Bw - Cw = 0
+type TraceR1CS struct {
+	W fr.Vector
+}
+
+func (t *TraceR1CS) WriteTo(w io.Writer) (int64, error) {
+	return t.W.WriteTo(w)
+}
+
+func (t *TraceR1CS) ReadFrom(r io.Reader) (int64, error) {
+	return t.W.ReadFrom(r)
+}
+
+// GetTraceR1CS returns the vector w solution to the system, that is
+// Aw o Bw - Cw = 0
+func (cs *R1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOption) (constraint.Trace, error) {
+
+	var res TraceR1CS
+
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return &res, err
+	}
+
+	a := make(fr.Vector, len(cs.Constraints))
+	b := make(fr.Vector, len(cs.Constraints))
+	c := make(fr.Vector, len(cs.Constraints))
+	v := witness.Vector().(fr.Vector)
+
+	res.W, err = cs.Solve(v, a, b, c, opt)
+	if err != nil {
+		return &res, err
+	}
+
+	return &res, nil
+}
+
 // Solve sets all the wires and returns the a, b, c vectors.
 // the cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // a, b, c vectors: ab-c = hz
@@ -252,16 +290,7 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
 // this method wraps cs.Solve() and allocates cs.Solve() inputs
 func (cs *R1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) error {
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return err
-	}
-
-	a := make(fr.Vector, len(cs.Constraints))
-	b := make(fr.Vector, len(cs.Constraints))
-	c := make(fr.Vector, len(cs.Constraints))
-	v := witness.Vector().(fr.Vector)
-	_, err = cs.Solve(v, a, b, c, opt)
+	_, err := cs.GetTrace(witness, opts...)
 	return err
 }
 
