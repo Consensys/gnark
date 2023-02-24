@@ -182,12 +182,14 @@ func (builder *builder) FromBinary(b ...frontend.Variable) frontend.Variable {
 // Xor returns a ^ b
 // a and b must be 0 or 1
 func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
-
+	// pre condition: a, b must be booleans
 	builder.AssertIsBoolean(a)
 	builder.AssertIsBoolean(b)
+
 	_a, aConstant := builder.constantValue(a)
 	_b, bConstant := builder.constantValue(b)
 
+	// if both inputs are constants
 	if aConstant && bConstant {
 		b0 := 0
 		b1 := 0
@@ -202,6 +204,8 @@ func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
 
 	res := builder.newInternalVariable()
 	builder.MarkBoolean(res)
+
+	// if one input is constant, ensure we put it in b.
 	if aConstant {
 		a, b = b, a
 		bConstant = aConstant
@@ -210,14 +214,16 @@ func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
 	if bConstant {
 		xa := a.(expr.Term)
 		// 1 - 2b
-		oneMinusTwoB := builder.tOne
-		builder.cs.Sub(&oneMinusTwoB, &_b)
-		builder.cs.Sub(&oneMinusTwoB, &_b)
+		qL := builder.tOne
+		builder.cs.Sub(&qL, &_b)
+		builder.cs.Sub(&qL, &_b)
+		builder.cs.Mul(&qL, &xa.Coeff)
+
 		// (1-2b)a + b == res
 		builder.addPlonkConstraint(sparseR1C{
 			xa: xa.VID,
 			xc: res.VID,
-			qL: oneMinusTwoB,
+			qL: qL,
 			qO: builder.tMinusOne,
 			qC: _b,
 		})
@@ -226,18 +232,27 @@ func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
 	}
 	xa := a.(expr.Term)
 	xb := b.(expr.Term)
-	// TODO FIXME we are losing the coeff info of a and b here
+
 	// -a - b + 2ab + res == 0
-	two := builder.tOne
-	builder.cs.Add(&two, &two)
+	qM := builder.tOne
+	builder.cs.Add(&qM, &qM)
+	builder.cs.Mul(&qM, &xa.Coeff)
+	builder.cs.Mul(&qM, &xb.Coeff)
+
+	qL := xa.Coeff
+	qR := xb.Coeff
+
+	builder.cs.Neg(&qL)
+	builder.cs.Neg(&qR)
+
 	builder.addPlonkConstraint(sparseR1C{
 		xa: xa.VID,
 		xb: xb.VID,
 		xc: res.VID,
-		qL: builder.tMinusOne,
-		qR: builder.tMinusOne,
+		qL: qL,
+		qR: qR,
 		qO: builder.tOne,
-		qM: two,
+		qM: qM,
 	})
 	// builder.addPlonkConstraint(xa, xb, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdTwo, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
 	return res
@@ -246,7 +261,6 @@ func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
 // Or returns a | b
 // a and b must be 0 or 1
 func (builder *builder) Or(a, b frontend.Variable) frontend.Variable {
-
 	builder.AssertIsBoolean(a)
 	builder.AssertIsBoolean(b)
 
@@ -254,34 +268,33 @@ func (builder *builder) Or(a, b frontend.Variable) frontend.Variable {
 	_b, bConstant := builder.constantValue(b)
 
 	if aConstant && bConstant {
-		b0 := 0
-		b1 := 0
-		if builder.cs.IsOne(&_a) {
-			b0 = 1
+		if builder.cs.IsOne(&_a) || builder.cs.IsOne(&_b) {
+			return 1
 		}
-		if builder.cs.IsOne(&_b) {
-			b1 = 1
-		}
-		return b0 | b1
+		return 0
 	}
 
 	res := builder.newInternalVariable()
 	builder.MarkBoolean(res)
+
+	// if one input is constant, ensure we put it in b
 	if aConstant {
 		a, b = b, a
 		_b = _a
 		bConstant = aConstant
 	}
+
 	if bConstant {
 		xa := a.(expr.Term)
 		// b = b - 1
-		builder.cs.Sub(&_b, &builder.tOne)
-		// TODO we lose xa coeff here
+		qL := _b
+		builder.cs.Sub(&qL, &builder.tOne)
+		builder.cs.Mul(&qL, &xa.Coeff)
 		// a * (b-1) + res == 0
 		builder.addPlonkConstraint(sparseR1C{
 			xa: xa.VID,
 			xc: res.VID,
-			qL: _b,
+			qL: qL,
 			qO: builder.tOne,
 		})
 		// builder.addPlonkConstraint(xa, xb, res, idl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdZero)
@@ -291,13 +304,22 @@ func (builder *builder) Or(a, b frontend.Variable) frontend.Variable {
 	xb := b.(expr.Term)
 	// -a - b + ab + res == 0
 
+	qM := xa.Coeff
+	builder.cs.Mul(&qM, &xb.Coeff)
+
+	qL := xa.Coeff
+	qR := xb.Coeff
+
+	builder.cs.Neg(&qL)
+	builder.cs.Neg(&qR)
+
 	builder.addPlonkConstraint(sparseR1C{
 		xa: xa.VID,
 		xb: xb.VID,
 		xc: res.VID,
-		qL: builder.tMinusOne,
-		qR: builder.tMinusOne,
-		qM: builder.tOne,
+		qL: qL,
+		qR: qR,
+		qM: qM,
 		qO: builder.tOne,
 	})
 	// builder.addPlonkConstraint(xa, xb, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
@@ -322,7 +344,7 @@ func (builder *builder) Select(b frontend.Variable, i1, i2 frontend.Variable) fr
 	_b, bConstant := builder.constantValue(b)
 
 	if bConstant {
-		if !(_b.IsZero() || builder.cs.IsOne(&_b)) {
+		if !builder.IsBoolean(b) {
 			panic(fmt.Sprintf("%s should be 0 or 1", builder.cs.String(&_b)))
 		}
 		if _b.IsZero() {
