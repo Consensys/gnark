@@ -21,7 +21,7 @@ type adderCircuit struct {
 // Define defines the arithmetic circuit.
 func (c *adderCircuit) Define(api frontend.API) error {
 	selectedPart := selector.Partition(api, c.Count, false, c.In[:])
-	sum := api.Add(0, 0, selectedPart...)
+	sum := api.Add(selectedPart[0], selectedPart[1], selectedPart[2:]...)
 	api.AssertIsEqual(sum, c.ExpectedSum)
 	return nil
 }
