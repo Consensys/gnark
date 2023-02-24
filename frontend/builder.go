@@ -48,6 +48,11 @@ type Compiler interface {
 
 	// FieldBitLen returns the number of bits needed to represent an element in the scalar field
 	FieldBitLen() int
+
+	// Defer is called after circuit.Define() and before Compile(). This method
+	// allows for the circuits to register callbacks which finalize batching
+	// operations etc. Unlike Go defer, it is not locally scoped.
+	Defer(cb func(api API) error)
 }
 
 // Builder represents a constraint system builder

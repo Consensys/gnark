@@ -35,6 +35,8 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/circuitdefer"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -49,24 +51,12 @@ type engine struct {
 	q       *big.Int
 	opt     backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
-	constVars  bool
-	apiWrapper ApiWrapper
+	constVars bool
+	kvstore.Store
 }
 
 // TestEngineOption defines an option for the test engine.
 type TestEngineOption func(e *engine) error
-
-// ApiWrapper defines a function which wraps the API given to the circuit.
-type ApiWrapper func(frontend.API) frontend.API
-
-// WithApiWrapper is a test engine option which which wraps the API before
-// calling the Define method in circuit. If not set, then API is not wrapped.
-func WithApiWrapper(wrapper ApiWrapper) TestEngineOption {
-	return func(e *engine) error {
-		e.apiWrapper = wrapper
-		return nil
-	}
-}
 
 // SetAllVariablesAsConstants is a test engine option which makes the calls to
 // IsConstant() and ConstantValue() always return true. If this test engine
@@ -100,10 +90,10 @@ func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
 // This is an experimental feature.
 func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEngineOption) (err error) {
 	e := &engine{
-		curveID:    utils.FieldToCurve(field),
-		q:          new(big.Int).Set(field),
-		apiWrapper: func(a frontend.API) frontend.API { return a },
-		constVars:  false,
+		curveID:   utils.FieldToCurve(field),
+		q:         new(big.Int).Set(field),
+		constVars: false,
+		Store:     kvstore.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
@@ -132,8 +122,15 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	log := logger.Logger()
 	log.Debug().Msg("running circuit in test engine")
 	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
-	api := e.apiWrapper(e)
-	err = c.Define(api)
+	if err = c.Define(e); err != nil {
+		return fmt.Errorf("define: %w", err)
+	}
+	for i, cb := range circuitdefer.GetAll[func(frontend.API) error](e) {
+		if err = cb(e); err != nil {
+			return fmt.Errorf("defer %d: %w", i, err)
+		}
+	}
+
 	log.Debug().Uint64("add", cptAdd).
 		Uint64("sub", cptSub).
 		Uint64("mul", cptMul).
@@ -599,4 +596,8 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	res := new(big.Int).SetBytes(buf)
 	res.Mod(res, e.modulus())
 	return res, nil
+}
+
+func (e *engine) Defer(cb func(frontend.API) error) {
+	circuitdefer.Put(e, cb)
 }
