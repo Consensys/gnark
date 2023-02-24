@@ -32,39 +32,30 @@ import (
 )
 
 // Add returns res = i1+i2+...in
-func (builder *scs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	// separate the constant part from the variables
 	vars, k := builder.filterConstantSum(append([]frontend.Variable{i1, i2}, in...))
 
 	if len(vars) == 0 {
-		return k
+		// no variables, we return the constant.
+		return builder.cs.ToBigInt(&k)
 	}
-	vars = builder.reduce(vars)
-	if k.Sign() == 0 {
-		return builder.splitSum(vars[0], vars[1:])
-	}
-	qC := builder.cs.FromInterface(k)
-	o := builder.newInternalVariable()
-	// vars[0] + qC == o
-	builder.addPlonkConstraint(sparseR1C{
-		xa: vars[0].VID,
-		xc: o.VID,
-		qL: vars[0].Coeff,
-		qC: qC,
-		qO: builder.tMinusOne,
-	})
-	return builder.splitSum(o, vars[1:])
 
+	vars = builder.reduce(vars)
+	if k.IsZero() {
+		return builder.splitSum(vars[0], vars[1:], nil)
+	}
+	// no constant we decompose the linear expressions in additions of 2 terms
+	return builder.splitSum(vars[0], vars[1:], &k)
 }
 
-func (builder *scs) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	// TODO can we do better here to limit allocations?
-	// technically we could do that in one PlonK constraint (against 2 for separate Add & Mul)
 	return builder.Add(a, builder.Mul(b, c))
 }
 
 // neg returns -in
-func (builder *scs) neg(in []frontend.Variable) []frontend.Variable {
-
+func (builder *builder) neg(in []frontend.Variable) []frontend.Variable {
 	res := make([]frontend.Variable, len(in))
 
 	for i := 0; i < len(in); i++ {
@@ -74,16 +65,16 @@ func (builder *scs) neg(in []frontend.Variable) []frontend.Variable {
 }
 
 // Sub returns res = i1 - i2 - ...in
-func (builder *scs) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (builder *builder) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	r := builder.neg(append([]frontend.Variable{i2}, in...))
 	return builder.Add(i1, r[0], r[1:]...)
 }
 
 // Neg returns -i
-func (builder *scs) Neg(i1 frontend.Variable) frontend.Variable {
-	if n, ok := builder.ConstantValue(i1); ok {
-		n.Neg(n)
-		return *n
+func (builder *builder) Neg(i1 frontend.Variable) frontend.Variable {
+	if n, ok := builder.constantValue(i1); ok {
+		builder.cs.Neg(&n)
+		return builder.cs.ToBigInt(&n)
 	}
 	v := i1.(expr.Term)
 	builder.cs.Neg(&v.Coeff)
@@ -91,7 +82,7 @@ func (builder *scs) Neg(i1 frontend.Variable) frontend.Variable {
 }
 
 // Mul returns res = i1 * i2 * ... in
-func (builder *scs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+func (builder *builder) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 
 	vars, k := builder.filterConstantProd(append([]frontend.Variable{i1, i2}, in...))
 	if len(vars) == 0 {
@@ -103,13 +94,13 @@ func (builder *scs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) front
 }
 
 // returns t*m
-func (builder *scs) mulConstant(t expr.Term, m *constraint.Coeff) expr.Term {
+func (builder *builder) mulConstant(t expr.Term, m *constraint.Coeff) expr.Term {
 	builder.cs.Mul(&t.Coeff, m)
 	return t
 }
 
 // DivUnchecked returns i1 / i2 . if i1 == i2 == 0, returns 0
-func (builder *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	c1, i1Constant := builder.constantValue(i1)
 	c2, i2Constant := builder.constantValue(i2)
 
@@ -134,7 +125,7 @@ func (builder *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 // Div returns i1 / i2
-func (builder *scs) Div(i1, i2 frontend.Variable) frontend.Variable {
+func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
 
 	// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
 	builder.Inverse(i2)
@@ -143,7 +134,7 @@ func (builder *scs) Div(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 // Inverse returns res = 1 / i1
-func (builder *scs) Inverse(i1 frontend.Variable) frontend.Variable {
+func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 	if c, ok := builder.constantValue(i1); ok {
 		builder.cs.Inverse(&c)
 		return builder.cs.ToBigInt(&c)
@@ -170,7 +161,7 @@ func (builder *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (builder *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (builder *builder) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
 	nbBits := builder.cs.FieldBitLen()
 	if len(n) == 1 {
@@ -184,13 +175,13 @@ func (builder *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (builder *scs) FromBinary(b ...frontend.Variable) frontend.Variable {
+func (builder *builder) FromBinary(b ...frontend.Variable) frontend.Variable {
 	return bits.FromBinary(builder, b)
 }
 
 // Xor returns a ^ b
 // a and b must be 0 or 1
-func (builder *scs) Xor(a, b frontend.Variable) frontend.Variable {
+func (builder *builder) Xor(a, b frontend.Variable) frontend.Variable {
 
 	builder.AssertIsBoolean(a)
 	builder.AssertIsBoolean(b)
@@ -198,9 +189,15 @@ func (builder *scs) Xor(a, b frontend.Variable) frontend.Variable {
 	_b, bConstant := builder.constantValue(b)
 
 	if aConstant && bConstant {
-		bigA, bigB := builder.cs.ToBigInt(&_a), builder.cs.ToBigInt(&_b)
-		bigA.Xor(bigA, bigB)
-		return bigA
+		b0 := 0
+		b1 := 0
+		if builder.cs.IsOne(&_a) {
+			b0 = 1
+		}
+		if builder.cs.IsOne(&_b) {
+			b1 = 1
+		}
+		return b0 ^ b1
 	}
 
 	res := builder.newInternalVariable()
@@ -248,7 +245,7 @@ func (builder *scs) Xor(a, b frontend.Variable) frontend.Variable {
 
 // Or returns a | b
 // a and b must be 0 or 1
-func (builder *scs) Or(a, b frontend.Variable) frontend.Variable {
+func (builder *builder) Or(a, b frontend.Variable) frontend.Variable {
 
 	builder.AssertIsBoolean(a)
 	builder.AssertIsBoolean(b)
@@ -257,10 +254,17 @@ func (builder *scs) Or(a, b frontend.Variable) frontend.Variable {
 	_b, bConstant := builder.constantValue(b)
 
 	if aConstant && bConstant {
-		bigA, bigB := builder.cs.ToBigInt(&_a), builder.cs.ToBigInt(&_b)
-		bigA.Or(bigA, bigB)
-		return bigA
+		b0 := 0
+		b1 := 0
+		if builder.cs.IsOne(&_a) {
+			b0 = 1
+		}
+		if builder.cs.IsOne(&_b) {
+			b1 = 1
+		}
+		return b0 | b1
 	}
+
 	res := builder.newInternalVariable()
 	builder.MarkBoolean(res)
 	if aConstant {
@@ -302,7 +306,7 @@ func (builder *scs) Or(a, b frontend.Variable) frontend.Variable {
 
 // Or returns a & b
 // a and b must be 0 or 1
-func (builder *scs) And(a, b frontend.Variable) frontend.Variable {
+func (builder *builder) And(a, b frontend.Variable) frontend.Variable {
 	builder.AssertIsBoolean(a)
 	builder.AssertIsBoolean(b)
 	res := builder.Mul(a, b)
@@ -314,7 +318,7 @@ func (builder *scs) And(a, b frontend.Variable) frontend.Variable {
 // Conditionals
 
 // Select if b is true, yields i1 else yields i2
-func (builder *scs) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
+func (builder *builder) Select(b frontend.Variable, i1, i2 frontend.Variable) frontend.Variable {
 	_b, bConstant := builder.constantValue(b)
 
 	if bConstant {
@@ -336,7 +340,7 @@ func (builder *scs) Select(b frontend.Variable, i1, i2 frontend.Variable) fronte
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (builder *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
+func (builder *builder) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
 
 	// vars, _ := builder.toVariables(b0, b1, i0, i1, i2, i3)
 	// s0, s1 := vars[0], vars[1]
@@ -347,12 +351,12 @@ func (builder *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Va
 	builder.AssertIsBoolean(b0)
 	builder.AssertIsBoolean(b1)
 
-	c0, b0IsConstant := builder.ConstantValue(b0)
-	c1, b1IsConstant := builder.ConstantValue(b1)
+	c0, b0IsConstant := builder.constantValue(b0)
+	c1, b1IsConstant := builder.constantValue(b1)
 
 	if b0IsConstant && b1IsConstant {
-		b0 := c0.Uint64() == 1
-		b1 := c1.Uint64() == 1
+		b0 := builder.cs.IsOne(&c0)
+		b1 := builder.cs.IsOne(&c1)
 
 		if !b0 && !b1 {
 			return i0
@@ -391,7 +395,7 @@ func (builder *scs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Va
 }
 
 // IsZero returns 1 if a is zero, 0 otherwise
-func (builder *scs) IsZero(i1 frontend.Variable) frontend.Variable {
+func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	if a, ok := builder.constantValue(i1); ok {
 		if a.IsZero() {
 			return 1
@@ -445,7 +449,7 @@ func (builder *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 }
 
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
-func (builder *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
+func (builder *builder) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
 	bi1 := builder.ToBinary(i1, builder.cs.FieldBitLen())
 	bi2 := builder.ToBinary(i2, builder.cs.FieldBitLen())
@@ -477,7 +481,7 @@ func (builder *scs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved when R1CS.Solve() method is called
-func (builder *scs) Println(a ...frontend.Variable) {
+func (builder *builder) Println(a ...frontend.Variable) {
 	var log constraint.LogEntry
 
 	// prefix log line with file.go:line
@@ -508,7 +512,7 @@ func (builder *scs) Println(a ...frontend.Variable) {
 	builder.cs.AddLog(log)
 }
 
-func (builder *scs) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
+func (builder *builder) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
 	leafCount, err := schema.Walk(a, tVariable, nil)
 	count := leafCount.Public + leafCount.Secret
@@ -540,6 +544,6 @@ func (builder *scs) printArg(log *constraint.LogEntry, sbb *strings.Builder, a f
 	sbb.WriteByte('}')
 }
 
-func (builder *scs) Compiler() frontend.Compiler {
+func (builder *builder) Compiler() frontend.Compiler {
 	return builder
 }

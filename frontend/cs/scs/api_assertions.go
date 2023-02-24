@@ -27,7 +27,7 @@ import (
 )
 
 // AssertIsEqual fails if i1 != i2
-func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
+func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 
 	c1, i1Constant := builder.constantValue(i1)
 	c2, i2Constant := builder.constantValue(i2)
@@ -72,12 +72,12 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (builder *scs) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
 	builder.Inverse(builder.Sub(i1, i2))
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
-func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
+func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	if c, ok := builder.constantValue(i1); ok {
 		if !(c.IsZero() || builder.cs.IsOne(&c)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", builder.cs.String(&c)))
@@ -107,7 +107,7 @@ func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (builder *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
 	case expr.Term:
 		builder.mustBeLessOrEqVar(v.(expr.Term), b)
@@ -116,7 +116,7 @@ func (builder *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Vari
 	}
 }
 
-func (builder *scs) mustBeLessOrEqVar(a expr.Term, bound expr.Term) {
+func (builder *builder) mustBeLessOrEqVar(a expr.Term, bound expr.Term) {
 
 	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
@@ -169,7 +169,7 @@ func (builder *scs) mustBeLessOrEqVar(a expr.Term, bound expr.Term) {
 
 }
 
-func (builder *scs) mustBeLessOrEqCst(a expr.Term, bound big.Int) {
+func (builder *builder) mustBeLessOrEqCst(a expr.Term, bound big.Int) {
 
 	nbBits := builder.cs.FieldBitLen()
 
