@@ -107,6 +107,7 @@ func (builder *builder) FieldBitLen() int {
 	return builder.cs.FieldBitLen()
 }
 
+// TODO @gbotrel doing a 2-step refactoring for now, frontend only. need to update constraint/SparseR1C.
 // qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
 type sparseR1C struct {
 	xa, xb, xc         int              // wires
@@ -134,9 +135,7 @@ func (builder *builder) addMulGate(a, b, c expr.Term, debug ...constraint.DebugI
 }
 
 // addPlonkConstraint adds a sparseR1C to the underlying constraint system
-// qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
 func (builder *builder) addPlonkConstraint(c sparseR1C, debug ...constraint.DebugInfo) {
-	// TODO @gbotrel doing a 2-step refactoring for now, frontend only need to update constraint/SparseR1C.
 	L := builder.cs.MakeTerm(&c.qL, c.xa)
 	R := builder.cs.MakeTerm(&c.qR, c.xb)
 	O := builder.cs.MakeTerm(&c.qO, c.xc)
@@ -263,7 +262,6 @@ func (builder *builder) constantValue(v frontend.Variable) (constraint.Coeff, bo
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
 func (builder *builder) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-
 	hintInputs := make([]constraint.LinearExpression, len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64

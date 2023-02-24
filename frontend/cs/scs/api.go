@@ -83,14 +83,13 @@ func (builder *builder) Neg(i1 frontend.Variable) frontend.Variable {
 
 // Mul returns res = i1 * i2 * ... in
 func (builder *builder) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-
 	vars, k := builder.filterConstantProd(append([]frontend.Variable{i1, i2}, in...))
 	if len(vars) == 0 {
 		return builder.cs.ToBigInt(&k)
 	}
 	l := builder.mulConstant(vars[0], &k)
-	return builder.splitProd(l, vars[1:])
 
+	return builder.splitProd(l, vars[1:])
 }
 
 // returns t*m
@@ -126,7 +125,6 @@ func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 
 // Div returns i1 / i2
 func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
-
 	// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
 	builder.Inverse(i2)
 
@@ -297,7 +295,6 @@ func (builder *builder) Or(a, b frontend.Variable) frontend.Variable {
 			qL: qL,
 			qO: builder.tOne,
 		})
-		// builder.addPlonkConstraint(xa, xb, res, idl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdZero)
 		return res
 	}
 	xa := a.(expr.Term)
@@ -322,7 +319,6 @@ func (builder *builder) Or(a, b frontend.Variable) frontend.Variable {
 		qM: qM,
 		qO: builder.tOne,
 	})
-	// builder.addPlonkConstraint(xa, xb, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
 	return res
 }
 
@@ -363,11 +359,6 @@ func (builder *builder) Select(b frontend.Variable, i1, i2 frontend.Variable) fr
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
 func (builder *builder) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
-
-	// vars, _ := builder.toVariables(b0, b1, i0, i1, i2, i3)
-	// s0, s1 := vars[0], vars[1]
-	// in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
-
 	// ensure that bits are actually bits. Adds no constraints if the variables
 	// are already constrained.
 	builder.AssertIsBoolean(b0)
@@ -445,19 +436,10 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 		xa: a.VID,
 		xb: X.VID,
 		xc: m.VID,
-		qM: a.Coeff, // TODO @gbotrel --> here we use a.Coeff (post refactor)
+		qM: a.Coeff,
 		qO: builder.tOne,
 		qC: builder.tMinusOne,
 	})
-	// builder.addPlonkConstraint(a,
-	// 	x[0].(expr.Term),
-	// 	m,
-	// 	constraint.CoeffIdZero,
-	// 	constraint.CoeffIdZero,
-	// 	constraint.CoeffIdOne,
-	// 	constraint.CoeffIdOne,
-	// 	constraint.CoeffIdOne,
-	// 	constraint.CoeffIdMinusOne)
 
 	// a * m = 0            // constrain m to be 0 if a != 0
 	builder.addPlonkConstraint(sparseR1C{
@@ -465,7 +447,6 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 		xb: m.VID,
 		qM: a.Coeff,
 	})
-	// builder.addPlonkConstraint(a, m, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero)
 
 	return m
 }
@@ -480,7 +461,6 @@ func (builder *builder) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 	res = 0
 
 	for i := builder.cs.FieldBitLen() - 1; i >= 0; i-- {
-
 		iszeroi1 := builder.IsZero(bi1[i])
 		iszeroi2 := builder.IsZero(bi2[i])
 
@@ -491,7 +471,6 @@ func (builder *builder) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 		m := builder.Select(i1i2, 1, n)
 
 		res = builder.Select(builder.IsZero(res), m, res)
-
 	}
 	return res
 }

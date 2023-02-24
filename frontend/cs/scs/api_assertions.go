@@ -149,22 +149,11 @@ func (builder *builder) mustBeLessOrEqVar(a expr.Term, bound expr.Term) {
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
 		builder.MarkBoolean(aBits[i].(expr.Term)) // this does not create a constraint
 
-		// TODO @gbotrel check me we're ignoring l coeff
 		builder.addPlonkConstraint(sparseR1C{
 			xa: l.VID,
 			xb: aBits[i].(expr.Term).VID,
-			qM: builder.tOne,
+			qM: l.Coeff,
 		}, debug)
-		// builder.addPlonkConstraint(
-		// 	l.(expr.Term),
-		// 	aBits[i].(expr.Term),
-		// 	builder.zero(),
-		// 	constraint.CoeffIdZero,
-		// 	constraint.CoeffIdZero,
-		// 	constraint.CoeffIdOne,
-		// 	constraint.CoeffIdOne,
-		// 	constraint.CoeffIdZero,
-		// 	constraint.CoeffIdZero, debug)
 	}
 
 }
@@ -221,7 +210,6 @@ func (builder *builder) mustBeLessOrEqCst(a expr.Term, bound big.Int) {
 				xb: aBits[i].(expr.Term).VID,
 				qM: builder.tOne,
 			}, debug)
-
 		} else {
 			builder.AssertIsBoolean(aBits[i])
 		}
