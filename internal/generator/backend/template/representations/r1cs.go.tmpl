@@ -103,7 +103,7 @@ func (t *TraceR1CS) ReadFrom(r io.Reader) (int64, error) {
 	return n, err
 }
 
-// GetTraceR1CS returns the vector w solution to the system, that is
+// Solve returns the vector w solution to the system, that is
 // Aw o Bw - Cw = 0
 func (cs *R1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOption) (constraint.Trace, error) {
 
@@ -114,9 +114,10 @@ func (cs *R1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOption) 
 		return &res, err
 	}
 
-	res.A = make(fr.Vector, len(cs.Constraints))
-	res.B = make(fr.Vector, len(cs.Constraints))
-	res.C = make(fr.Vector, len(cs.Constraints))
+	s := ecc.NextPowerOfTwo(uint64(len(cs.Constraints)))
+	res.A = make(fr.Vector, len(cs.Constraints), s)
+	res.B = make(fr.Vector, len(cs.Constraints), s)
+	res.C = make(fr.Vector, len(cs.Constraints), s)
 	v := witness.Vector().(fr.Vector)
 
 	res.W, err = cs.Solve(v, res.A, res.B, res.C, opt)
