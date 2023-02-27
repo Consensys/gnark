@@ -1,7 +1,6 @@
 package test
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -14,7 +13,6 @@ import (
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
-	cs "github.com/consensys/gnark/constraint/tinyfield"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -30,6 +28,8 @@ const permutterBound = 3
 
 // r1cs + sparser1cs
 const nbSystems = 2
+
+var builders [2]frontend.NewBuilder
 
 func TestSolverConsistency(t *testing.T) {
 	if testing.Short() {
@@ -105,14 +105,9 @@ func newPermutterWitness(pv tinyfield.Vector) witness.Witness {
 
 type permutter struct {
 	circuit           frontend.Circuit
-	r1cs              *cs.R1CS
-	scs               *cs.SparseR1CS
 	constraintSystems [2]constraint.ConstraintSystem
 	witness           []tinyfield.Element
 	hints             []hint.Function
-
-	// used to avoid allocations in R1CS solver
-	a, b, c []tinyfield.Element
 }
 
 // note that circuit will be mutated and this is not thread safe
@@ -151,28 +146,6 @@ func (p *permutter) permuteAndTest(index int) error {
 					formatWitness(p.witness))
 			}
 
-			// solve the cs using R1CS solver
-			// errR1CS := p.solveR1CS()
-			// errSCS := p.solveSCS()
-
-			// // solve the cs using test engine
-			// // first copy the witness in the circuit
-			// copyWitnessFromVector(p.circuit, p.witness)
-			// errEngine1 := isSolvedEngine(p.circuit, tinyfield.Modulus())
-
-			// copyWitnessFromVector(p.circuit, p.witness)
-			// errEngine2 := isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
-
-			// if (errR1CS == nil) != (errEngine1 == nil) ||
-			// 	(errSCS == nil) != (errEngine1 == nil) ||
-			// 	(errEngine1 == nil) != (errEngine2 == nil) {
-			// 	return fmt.Errorf("errSCS :%s\nerrR1CS :%s\nerrEngine(const=false): %s\nerrEngine(const=true): %s\nwitness: %s",
-			// 		formatError(errSCS),
-			// 		formatError(errR1CS),
-			// 		formatError(errEngine1),
-			// 		formatError(errEngine2),
-			// 		formatWitness(p.witness))
-			// }
 		} else {
 			// recurse
 			if err := p.permuteAndTest(index + 1); err != nil {
@@ -204,18 +177,6 @@ func formatWitness(witness []tinyfield.Element) string {
 	sbb.WriteByte(']')
 
 	return sbb.String()
-}
-
-func (p *permutter) solveSCS() error {
-	pw := newPermutterWitness(p.witness)
-	_, err := p.scs.Solve(pw, backend.WithHints(p.hints...))
-	return err
-}
-
-func (p *permutter) solveR1CS() error {
-	pw := newPermutterWitness(p.witness)
-	_, err := p.r1cs.Solve(pw, backend.WithHints(p.hints...))
-	return err
 }
 
 func (p *permutter) solve(i int) error {
@@ -281,36 +242,23 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []hint.Function) e
 		hints:   hintFunctions,
 	}
 
-	// compile R1CS
-	ccs, err := frontend.Compile(tinyfield.Modulus(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		return err
-	}
-	p.constraintSystems[0] = ccs
+	// compile the systems
+	for i := 0; i < nbSystems; i++ {
 
-	p.r1cs = ccs.(*cs.R1CS)
+		ccs, err := frontend.Compile(tinyfield.Modulus(), builders[i], circuit)
+		if err != nil {
+			return err
+		}
+		p.constraintSystems[i] = ccs
 
-	// witness len
-	n := len(p.r1cs.Public) - 1 + len(p.r1cs.Secret)
-	if n > permutterBound {
-		return nil
-	}
+		if i == 0 { // the -1 is only for r1cs...
+			n := ccs.GetNbPublicVariables() - 1 + ccs.GetNbSecretVariables()
+			if n > permutterBound {
+				return nil
+			}
+			p.witness = make([]tinyfield.Element, n)
+		}
 
-	p.a = make([]tinyfield.Element, p.r1cs.GetNbConstraints())
-	p.b = make([]tinyfield.Element, p.r1cs.GetNbConstraints())
-	p.c = make([]tinyfield.Element, p.r1cs.GetNbConstraints())
-	p.witness = make([]tinyfield.Element, n)
-
-	// compile SparseR1CS
-	ccs, err = frontend.Compile(tinyfield.Modulus(), scs.NewBuilder, circuit)
-	if err != nil {
-		return err
-	}
-	p.constraintSystems[1] = ccs
-
-	p.scs = ccs.(*cs.SparseR1CS)
-	if (len(p.scs.Public) + len(p.scs.Secret)) != n {
-		return errors.New("mismatch of witness size for same circuit")
 	}
 
 	return p.permuteAndTest(0)
@@ -325,4 +273,7 @@ func init() {
 	for i := uint64(0); i < n; i++ {
 		tinyfieldElements[i] = i
 	}
+
+	builders[0] = r1cs.NewBuilder
+	builders[1] = scs.NewBuilder
 }
