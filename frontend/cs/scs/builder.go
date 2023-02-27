@@ -204,6 +204,7 @@ func (builder *builder) MarkBoolean(v frontend.Variable) {
 		if !builder.IsBoolean(v) {
 			panic("MarkBoolean called a non-boolean constant")
 		}
+		return
 	}
 	builder.mtBooleans[v.(expr.Term)] = struct{}{}
 }
