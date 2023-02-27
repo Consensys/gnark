@@ -74,7 +74,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	proof := &Proof{}
 
 	// query l, r, o in Lagrange basis, not blinded
-	trace, err := spr.GetTrace(fullWitness, opts...)
+	trace, err := spr.Solve(fullWitness, opts...)
 	if err != nil {
 		return nil, err
 	}

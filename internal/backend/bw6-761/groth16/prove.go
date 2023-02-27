@@ -94,7 +94,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		}
 	}
 
-	trace, err := r1cs.GetTrace(fullWitness, opts...)
+	trace, err := r1cs.Solve(fullWitness, opts...)
 	if err != nil {
 		return proof, err
 	}

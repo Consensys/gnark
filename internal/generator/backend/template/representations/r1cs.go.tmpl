@@ -105,7 +105,7 @@ func (t *TraceR1CS) ReadFrom(r io.Reader) (int64, error) {
 
 // Solve returns the vector w solution to the system, that is
 // Aw o Bw - Cw = 0
-func (cs *R1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOption) (constraint.Trace, error) {
+func (cs *R1CS) Solve(witness witness.Witness, opts ...backend.ProverOption) (constraint.Trace, error) {
 
 	var res TraceR1CS
 
@@ -120,7 +120,7 @@ func (cs *R1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOption) 
 	res.C = make(fr.Vector, len(cs.Constraints), s)
 	v := witness.Vector().(fr.Vector)
 
-	res.W, err = cs.Solve(v, res.A, res.B, res.C, opt)
+	res.W, err = cs.solve(v, res.A, res.B, res.C, opt)
 	if err != nil {
 		return &res, err
 	}
@@ -133,7 +133,7 @@ func (cs *R1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOption) 
 // a, b, c vectors: ab-c = hz
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
 // returns  [publicWires | secretWires | internalWires ]
-func (cs *R1CS) Solve(witness, a, b, c fr.Vector, opt backend.ProverConfig) (fr.Vector, error) {
+func (cs *R1CS) solve(witness, a, b, c fr.Vector, opt backend.ProverConfig) (fr.Vector, error) {
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
@@ -321,7 +321,7 @@ func (cs *R1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) 
 	b := make(fr.Vector, len(cs.Constraints))
 	c := make(fr.Vector, len(cs.Constraints))
 	v := witness.Vector().(fr.Vector)
-	_, err = cs.Solve(v, a, b, c, opt)
+	_, err = cs.solve(v, a, b, c, opt)
 	return err
 }
 

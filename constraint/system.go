@@ -27,7 +27,7 @@ type ConstraintSystem interface {
 	IsSolved(witness witness.Witness, opts ...backend.ProverOption) error
 
 	// GetTrace returns the trace of the system, that is the solution vector.
-	GetTrace(witness witness.Witness, opts ...backend.ProverOption) (Trace, error)
+	Solve(witness witness.Witness, opts ...backend.ProverOption) (Trace, error)
 
 	// GetNbVariables return number of internal, secret and public Variables
 	// Deprecated: use GetNbSecretVariables() instead

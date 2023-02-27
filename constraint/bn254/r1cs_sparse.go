@@ -106,7 +106,7 @@ func (t *TraceSparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	return n, err
 }
 
-func (c *SparseR1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOption) (constraint.Trace, error) {
+func (c *SparseR1CS) Solve(witness witness.Witness, opts ...backend.ProverOption) (constraint.Trace, error) {
 
 	var res TraceSparseR1CS
 
@@ -117,7 +117,7 @@ func (c *SparseR1CS) GetTrace(witness witness.Witness, opts ...backend.ProverOpt
 
 	// compute the constraint system solution
 	var solution []fr.Element
-	if solution, err = c.Solve(witness.Vector().(fr.Vector), opt); err != nil {
+	if solution, err = c.solve(witness.Vector().(fr.Vector), opt); err != nil {
 		if !opt.Force {
 			return nil, err
 		} else {
@@ -179,7 +179,7 @@ func (c *SparseR1CS) evaluateLROSmallDomain(solution []fr.Element) ([]fr.Element
 // solution.values =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (cs *SparseR1CS) Solve(witness fr.Vector, opt backend.ProverConfig) (fr.Vector, error) {
+func (cs *SparseR1CS) solve(witness fr.Vector, opt backend.ProverConfig) (fr.Vector, error) {
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "plonk").Logger()
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
@@ -483,7 +483,7 @@ func (cs *SparseR1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOp
 	}
 
 	v := witness.Vector().(fr.Vector)
-	_, err = cs.Solve(v, opt)
+	_, err = cs.solve(v, opt)
 	return err
 }
 

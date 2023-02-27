@@ -3,6 +3,7 @@ package test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/tinyfield"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
@@ -24,6 +27,9 @@ import (
 
 // ignore witness size larger than this bound
 const permutterBound = 3
+
+// r1cs + sparser1cs
+const nbSystems = 2
 
 func TestSolverConsistency(t *testing.T) {
 	if testing.Short() {
@@ -49,12 +55,61 @@ func TestSolverConsistency(t *testing.T) {
 	}
 }
 
+// witness used for the permutter. It implements the Witness interface
+// using mock methods (only the undererlying vector is required).
+type permutterWitness struct {
+	vector any
+}
+
+func (pw *permutterWitness) WriteTo(w io.Writer) (int64, error) {
+	return 0, nil
+}
+
+func (pw *permutterWitness) ReadFrom(r io.Reader) (int64, error) {
+	return 0, nil
+}
+
+func (pw *permutterWitness) MarshalBinary() ([]byte, error) {
+	return nil, nil
+}
+
+func (pw *permutterWitness) UnmarshalBinary([]byte) error {
+	return nil
+}
+
+func (pw *permutterWitness) Public() (witness.Witness, error) {
+	return pw, nil
+}
+
+func (pw *permutterWitness) Vector() any {
+	return pw.vector
+}
+
+func (pw *permutterWitness) ToJSON(s *schema.Schema) ([]byte, error) {
+	return nil, nil
+}
+
+func (pw *permutterWitness) FromJSON(s *schema.Schema, data []byte) error {
+	return nil
+}
+
+func (pw *permutterWitness) Fill(nbPublic, nbSecret int, values <-chan any) error {
+	return nil
+}
+
+func newPermutterWitness(pv tinyfield.Vector) witness.Witness {
+	return &permutterWitness{
+		vector: pv,
+	}
+}
+
 type permutter struct {
-	circuit frontend.Circuit
-	r1cs    *cs.R1CS
-	scs     *cs.SparseR1CS
-	witness []tinyfield.Element
-	hints   []hint.Function
+	circuit           frontend.Circuit
+	r1cs              *cs.R1CS
+	scs               *cs.SparseR1CS
+	constraintSystems [2]constraint.ConstraintSystem
+	witness           []tinyfield.Element
+	hints             []hint.Function
 
 	// used to avoid allocations in R1CS solver
 	a, b, c []tinyfield.Element
@@ -66,30 +121,58 @@ func (p *permutter) permuteAndTest(index int) error {
 	for i := 0; i < len(tinyfieldElements); i++ {
 		p.witness[index].SetUint64(tinyfieldElements[i])
 		if index == len(p.witness)-1 {
+
 			// we have a unique permutation
+			var errorSystems [2]error
+			var errorEngines [2]error
 
-			// solve the cs using R1CS solver
-			errR1CS := p.solveR1CS()
-			errSCS := p.solveSCS()
+			// 2 constraints systems
+			for k := 0; k < nbSystems; k++ {
 
-			// solve the cs using test engine
-			// first copy the witness in the circuit
-			copyWitnessFromVector(p.circuit, p.witness)
-			errEngine1 := isSolvedEngine(p.circuit, tinyfield.Modulus())
+				errorSystems[k] = p.solve(k)
 
-			copyWitnessFromVector(p.circuit, p.witness)
-			errEngine2 := isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
+				// solve the cs using test engine
+				// first copy the witness in the circuit
+				copyWitnessFromVector(p.circuit, p.witness)
+				errorEngines[0] = isSolvedEngine(p.circuit, tinyfield.Modulus())
 
-			if (errR1CS == nil) != (errEngine1 == nil) ||
-				(errSCS == nil) != (errEngine1 == nil) ||
-				(errEngine1 == nil) != (errEngine2 == nil) {
+				copyWitnessFromVector(p.circuit, p.witness)
+				errorEngines[1] = isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
+
+			}
+			if (errorSystems[0] == nil) != (errorEngines[0] == nil) ||
+				(errorSystems[1] == nil) != (errorEngines[0] == nil) ||
+				(errorEngines[0] == nil) != (errorEngines[1] == nil) {
 				return fmt.Errorf("errSCS :%s\nerrR1CS :%s\nerrEngine(const=false): %s\nerrEngine(const=true): %s\nwitness: %s",
-					formatError(errSCS),
-					formatError(errR1CS),
-					formatError(errEngine1),
-					formatError(errEngine2),
+					formatError(errorSystems[0]),
+					formatError(errorSystems[1]),
+					formatError(errorEngines[0]),
+					formatError(errorEngines[1]),
 					formatWitness(p.witness))
 			}
+
+			// solve the cs using R1CS solver
+			// errR1CS := p.solveR1CS()
+			// errSCS := p.solveSCS()
+
+			// // solve the cs using test engine
+			// // first copy the witness in the circuit
+			// copyWitnessFromVector(p.circuit, p.witness)
+			// errEngine1 := isSolvedEngine(p.circuit, tinyfield.Modulus())
+
+			// copyWitnessFromVector(p.circuit, p.witness)
+			// errEngine2 := isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
+
+			// if (errR1CS == nil) != (errEngine1 == nil) ||
+			// 	(errSCS == nil) != (errEngine1 == nil) ||
+			// 	(errEngine1 == nil) != (errEngine2 == nil) {
+			// 	return fmt.Errorf("errSCS :%s\nerrR1CS :%s\nerrEngine(const=false): %s\nerrEngine(const=true): %s\nwitness: %s",
+			// 		formatError(errSCS),
+			// 		formatError(errR1CS),
+			// 		formatError(errEngine1),
+			// 		formatError(errEngine2),
+			// 		formatWitness(p.witness))
+			// }
 		} else {
 			// recurse
 			if err := p.permuteAndTest(index + 1); err != nil {
@@ -124,27 +207,20 @@ func formatWitness(witness []tinyfield.Element) string {
 }
 
 func (p *permutter) solveSCS() error {
-	opt, err := backend.NewProverConfig(backend.WithHints(p.hints...))
-	if err != nil {
-		return err
-	}
-
-	_, err = p.scs.Solve(p.witness, opt)
+	pw := newPermutterWitness(p.witness)
+	_, err := p.scs.Solve(pw, backend.WithHints(p.hints...))
 	return err
 }
 
 func (p *permutter) solveR1CS() error {
-	opt, err := backend.NewProverConfig(backend.WithHints(p.hints...))
-	if err != nil {
-		return err
-	}
+	pw := newPermutterWitness(p.witness)
+	_, err := p.r1cs.Solve(pw, backend.WithHints(p.hints...))
+	return err
+}
 
-	for i := 0; i < len(p.r1cs.Constraints); i++ {
-		p.a[i].SetZero()
-		p.b[i].SetZero()
-		p.c[i].SetZero()
-	}
-	_, err = p.r1cs.Solve(p.witness, p.a, p.b, p.c, opt)
+func (p *permutter) solve(i int) error {
+	pw := newPermutterWitness(p.witness)
+	_, err := p.constraintSystems[i].Solve(pw, backend.WithHints(p.hints...))
 	return err
 }
 
@@ -210,6 +286,7 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []hint.Function) e
 	if err != nil {
 		return err
 	}
+	p.constraintSystems[0] = ccs
 
 	p.r1cs = ccs.(*cs.R1CS)
 
@@ -229,6 +306,7 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []hint.Function) e
 	if err != nil {
 		return err
 	}
+	p.constraintSystems[1] = ccs
 
 	p.scs = ccs.(*cs.SparseR1CS)
 	if (len(p.scs.Public) + len(p.scs.Secret)) != n {
