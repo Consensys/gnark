@@ -104,11 +104,17 @@ func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 	c2, i2Constant := builder.constantValue(i2)
 
 	if i1Constant && i2Constant {
+		if c2.IsZero() {
+			panic("inverse by constant(0)")
+		}
 		builder.cs.Inverse(&c2)
 		builder.cs.Mul(&c2, &c1)
 		return builder.cs.ToBigInt(&c2)
 	}
 	if i2Constant {
+		if c2.IsZero() {
+			panic("inverse by constant(0)")
+		}
 		builder.cs.Inverse(&c2)
 		return builder.mulConstant(i1.(expr.Term), &c2)
 	}
@@ -134,6 +140,9 @@ func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
 // Inverse returns res = 1 / i1
 func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 	if c, ok := builder.constantValue(i1); ok {
+		if c.IsZero() {
+			panic("inverse by constant(0)")
+		}
 		builder.cs.Inverse(&c)
 		return builder.cs.ToBigInt(&c)
 	}
