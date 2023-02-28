@@ -34,6 +34,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -50,6 +51,7 @@ type engine struct {
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars  bool
 	apiWrapper ApiWrapper
+	kvstore.Store
 }
 
 // TestEngineOption defines an option for the test engine.
@@ -103,6 +105,7 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 		q:          new(big.Int).Set(field),
 		apiWrapper: func(a frontend.API) frontend.API { return a },
 		constVars:  false,
+		Store:      kvstore.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {

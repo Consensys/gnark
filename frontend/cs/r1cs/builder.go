@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
@@ -63,6 +64,8 @@ type builder struct {
 	// buffers used to do in place api.MAC
 	mbuf1 expr.LinearExpression
 	mbuf2 expr.LinearExpression
+
+	kvstore.Store
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -78,6 +81,7 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 		heap:       make(minHeap, 0, 100),
 		mbuf1:      make(expr.LinearExpression, 0, macCapacity),
 		mbuf2:      make(expr.LinearExpression, 0, macCapacity),
+		Store:      kvstore.New(),
 	}
 
 	// by default the circuit is given a public wire equal to 1
