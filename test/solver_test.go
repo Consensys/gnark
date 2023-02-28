@@ -19,6 +19,8 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/consensys/gnark/internal/circuitdefer"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 )
@@ -188,10 +190,10 @@ func (p *permutter) solve(i int) error {
 // isSolvedEngine behaves like test.IsSolved except it doesn't clone the circuit
 func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption) (err error) {
 	e := &engine{
-		curveID:    utils.FieldToCurve(field),
-		q:          new(big.Int).Set(field),
-		apiWrapper: func(a frontend.API) frontend.API { return a },
-		constVars:  false,
+		curveID:   utils.FieldToCurve(field),
+		q:         new(big.Int).Set(field),
+		constVars: false,
+		Store:     kvstore.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
@@ -205,8 +207,14 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 		}
 	}()
 
-	api := e.apiWrapper(e)
-	err = c.Define(api)
+	if err = c.Define(e); err != nil {
+		return fmt.Errorf("define: %w", err)
+	}
+	for i, cb := range circuitdefer.GetAll[func(frontend.API) error](e) {
+		if err = cb(e); err != nil {
+			return fmt.Errorf("defer %d: %w", i, err)
+		}
+	}
 
 	return
 }

@@ -75,5 +75,8 @@ func writeStack(sbb *strings.Builder, forceClean ...bool) {
 		if strings.HasSuffix(function, "Define") {
 			break
 		}
+		if strings.HasSuffix(function, "callDeferred") {
+			break
+		}
 	}
 }

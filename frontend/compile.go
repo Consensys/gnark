@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/logger"
 )
 
@@ -122,8 +123,20 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	if err = circuit.Define(builder); err != nil {
 		return fmt.Errorf("define circuit: %w", err)
 	}
+	if err = callDeferred(builder); err != nil {
+		return fmt.Errorf("")
+	}
 
 	return
+}
+
+func callDeferred(builder Builder) error {
+	for i, cb := range circuitdefer.GetAll[func(API) error](builder) {
+		if err := cb(builder); err != nil {
+			return fmt.Errorf("defer fn %d: %w", i, err)
+		}
+	}
+	return nil
 }
 
 // CompileOption defines option for altering the behaviour of the Compile

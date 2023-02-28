@@ -131,7 +131,7 @@ func TestTraceNotEqual(t *testing.T) {
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint #1 is not satisfied: [assertIsEqual] 1 + -66 == 0")
+		assert.Contains(err.Error(), "constraint #1 is not satisfied: [assertIsEqual] 1 == 66")
 		assert.Contains(err.Error(), "(*notEqualTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
