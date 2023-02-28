@@ -36,19 +36,14 @@ func (proof *Proof) CurveID() ecc.ID {
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
 func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
-	// TODO @gbotrel witness size check is done by R1CS, doesn't mean we shouldn't sanitize here.
-	// if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
-	// 	return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
-	// }
-
-	proof := &Proof{}
-
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
-		return proof, err
+		return nil, err
 	}
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
+
+	proof := &Proof{}
 
 	if r1cs.CommitmentInfo.Is() {
 		opt.HintFunctions[r1cs.CommitmentInfo.HintID] = func(_ *big.Int, in []*big.Int, out []*big.Int) error {
@@ -72,18 +67,18 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 			var res fr.Element
 			res, err = solveCommitmentWire(&r1cs.CommitmentInfo, &proof.Commitment, in[:r1cs.CommitmentInfo.NbPublicCommitted()])
-			res.BigInt(out[0]) //Perf-TODO: Regular (non-mont) hashToField to obviate this conversion?
+			res.BigInt(out[0])
 			return err
 		}
 	}
 
-	trace, err := r1cs.Solve(fullWitness, opts...)
+	_solution, err := r1cs.Solve(fullWitness, opts...)
 	if err != nil {
 		return proof, err
 	}
 
-	traceCast := trace.(*cs.R1CSSolution)
-	wireValues := []fr.Element(traceCast.W)
+	solution := _solution.(*cs.R1CSSolution)
+	wireValues := []fr.Element(solution.W)
 
 	start := time.Now()
 
@@ -91,10 +86,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	var h []fr.Element
 	chHDone := make(chan struct{}, 1)
 	go func() {
-		h = computeH(traceCast.A, traceCast.B, traceCast.C, &pk.Domain)
-		traceCast.A = nil
-		traceCast.B = nil
-		traceCast.C = nil
+		h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
+		solution.A = nil
+		solution.B = nil
+		solution.C = nil
 		chHDone <- struct{}{}
 	}()
 
