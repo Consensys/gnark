@@ -17,7 +17,6 @@ limitations under the License.
 package scs
 
 import (
-	"fmt"
 	"math/big"
 	"reflect"
 	"sort"
@@ -360,10 +359,6 @@ func (builder *scs) splitProd(acc expr.TermToRefactor, r expr.LinearExpressionTo
 	o := builder.newInternalVariable()
 	builder.addPlonkConstraint(acc, r[0], o, constraint.CoeffIdZero, constraint.CoeffIdZero, cl, cr, constraint.CoeffIdMinusOne, constraint.CoeffIdZero)
 	return builder.splitProd(o, r[1:])
-}
-
-func (builder *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
-	return nil, fmt.Errorf("not implemented")
 }
 
 // newDebugInfo this is temporary to restore debug logs
