@@ -70,12 +70,12 @@ func (cs *SparseR1CS) AddConstraint(c constraint.SparseR1C, debugInfo ...constra
 	return cID
 }
 
-// TraceSparseR1CS
-type TraceSparseR1CS struct {
+// SparseR1CSSolution
+type SparseR1CSSolution struct {
 	L, R, O fr.Vector
 }
 
-func (t *TraceSparseR1CS) WriteTo(w io.Writer) (int64, error) {
+func (t *SparseR1CSSolution) WriteTo(w io.Writer) (int64, error) {
 	n, err := t.L.WriteTo(w)
 	if err != nil {
 		return n, err
@@ -91,7 +91,7 @@ func (t *TraceSparseR1CS) WriteTo(w io.Writer) (int64, error) {
 
 }
 
-func (t *TraceSparseR1CS) ReadFrom(r io.Reader) (int64, error) {
+func (t *SparseR1CSSolution) ReadFrom(r io.Reader) (int64, error) {
 	n, err := t.L.ReadFrom(r)
 	if err != nil {
 		return n, err
@@ -106,9 +106,9 @@ func (t *TraceSparseR1CS) ReadFrom(r io.Reader) (int64, error) {
 	return n, err
 }
 
-func (c *SparseR1CS) Solve(witness witness.Witness, opts ...backend.ProverOption) (constraint.Trace, error) {
+func (c *SparseR1CS) Solve(witness witness.Witness, opts ...backend.ProverOption) (any, error) {
 
-	var res TraceSparseR1CS
+	var res SparseR1CSSolution
 
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {

@@ -99,7 +99,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		return proof, err
 	}
 
-	traceCast := trace.(*cs.TraceR1CS)
+	traceCast := trace.(*cs.R1CSSolution)
 	wireValues := []fr.Element(traceCast.W)
 
 	start := time.Now()

@@ -56,7 +56,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if err != nil {
 		return nil, err
 	}
-	traceCast := trace.(*cs.TraceSparseR1CS)
+	traceCast := trace.(*cs.SparseR1CSSolution)
 	evaluationLDomainSmall := []fr.Element(traceCast.L)
 	evaluationRDomainSmall := []fr.Element(traceCast.R)
 	evaluationODomainSmall := []fr.Element(traceCast.O)

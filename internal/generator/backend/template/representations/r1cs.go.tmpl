@@ -56,14 +56,14 @@ func (cs *R1CS) AddConstraint(r1c constraint.R1C, debugInfo ...constraint.DebugI
 	return cID
 }
 
-// TraceR1CS stores the TraceR1CS of the system, that is the vector w
+// R1CSSolution stores the R1CSSolution of the system, that is the vector w
 // such that Aw o Bw - Cw = 0
-type TraceR1CS struct {
+type R1CSSolution struct {
 	W       fr.Vector
 	A, B, C fr.Vector
 }
 
-func (t *TraceR1CS) WriteTo(w io.Writer) (int64, error) {
+func (t *R1CSSolution) WriteTo(w io.Writer) (int64, error) {
 	n, err := t.W.WriteTo(w)
 	if err != nil {
 		return n, err
@@ -83,7 +83,7 @@ func (t *TraceR1CS) WriteTo(w io.Writer) (int64, error) {
 	return n, err
 }
 
-func (t *TraceR1CS) ReadFrom(r io.Reader) (int64, error) {
+func (t *R1CSSolution) ReadFrom(r io.Reader) (int64, error) {
 	n, err := t.W.ReadFrom(r)
 	if err != nil {
 		return n, err
@@ -105,9 +105,9 @@ func (t *TraceR1CS) ReadFrom(r io.Reader) (int64, error) {
 
 // Solve returns the vector w solution to the system, that is
 // Aw o Bw - Cw = 0
-func (cs *R1CS) Solve(witness witness.Witness, opts ...backend.ProverOption) (constraint.Trace, error) {
+func (cs *R1CS) Solve(witness witness.Witness, opts ...backend.ProverOption) (any, error) {
 
-	var res TraceR1CS
+	var res R1CSSolution
 
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
