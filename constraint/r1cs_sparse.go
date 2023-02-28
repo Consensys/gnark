@@ -136,6 +136,7 @@ type SparseR1C struct {
 	L, R, O Term
 	M       [2]Term
 	K       int // stores only the ID of the constant term that is used
+	C       int // index among commitment constraints. -1 if not a commitment.
 }
 
 // WireIterator implements constraint.Iterable

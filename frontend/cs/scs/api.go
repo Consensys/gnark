@@ -47,7 +47,7 @@ func (builder *scs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) front
 	cl, _ := vars[0].Unpack()
 	kID := builder.st.CoeffID(&k)
 	o := builder.newInternalVariable()
-	builder.addPlonkConstraint(vars[0], builder.zero(), o, cl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, kID)
+	builder.addPlonkConstraint(vars[0], builder.zero(), o, cl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, kID, -1)
 	return builder.splitSum(o, vars[1:])
 
 }
@@ -144,7 +144,7 @@ func (builder *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	o := builder.Neg(i1).(expr.TermToRefactor)
 	cr, _ := r.Unpack()
 	co, _ := o.Unpack()
-	builder.addPlonkConstraint(res, r, o, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, co, constraint.CoeffIdZero)
+	builder.addPlonkConstraint(res, r, o, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, co, constraint.CoeffIdZero, -1)
 	return res
 }
 
@@ -167,7 +167,7 @@ func (builder *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 	cr, _ := t.Unpack()
 	debug := builder.newDebugInfo("inverse", "1/", i1, " < ∞")
 	res := builder.newInternalVariable()
-	builder.addPlonkConstraint(res, t, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, debug)
+	builder.addPlonkConstraint(res, t, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, -1, debug)
 	return res
 }
 
@@ -223,12 +223,12 @@ func (builder *scs) Xor(a, b frontend.Variable) frontend.Variable {
 		r := l
 		oneMinusTwoB := big.NewInt(1)
 		oneMinusTwoB.Sub(oneMinusTwoB, _b).Sub(oneMinusTwoB, _b)
-		builder.addPlonkConstraint(l, r, res, builder.st.CoeffID(oneMinusTwoB), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, builder.st.CoeffID(_b))
+		builder.addPlonkConstraint(l, r, res, builder.st.CoeffID(oneMinusTwoB), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, builder.st.CoeffID(_b), -1)
 		return res
 	}
 	l := a.(expr.TermToRefactor)
 	r := b.(expr.TermToRefactor)
-	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdTwo, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
+	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdTwo, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, -1)
 	return res
 }
 
@@ -260,12 +260,12 @@ func (builder *scs) Or(a, b frontend.Variable) frontend.Variable {
 		one := big.NewInt(1)
 		_b.Sub(_b, one)
 		idl := builder.st.CoeffID(_b)
-		builder.addPlonkConstraint(l, r, res, idl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdZero)
+		builder.addPlonkConstraint(l, r, res, idl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdZero, -1)
 		return res
 	}
 	l := a.(expr.TermToRefactor)
 	r := b.(expr.TermToRefactor)
-	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
+	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, -1)
 	return res
 }
 
@@ -391,10 +391,11 @@ func (builder *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 		constraint.CoeffIdOne,
 		constraint.CoeffIdOne,
 		constraint.CoeffIdOne,
-		constraint.CoeffIdMinusOne)
+		constraint.CoeffIdMinusOne,
+		-1)
 
 	// a * m = 0            // constrain m to be 0 if a != 0
-	builder.addPlonkConstraint(a, m, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero)
+	builder.addPlonkConstraint(a, m, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero, -1)
 
 	return m
 }

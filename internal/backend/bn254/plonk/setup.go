@@ -42,7 +42,8 @@ type ProvingKey struct {
 	// TODO store iop.Polynomial here, not []fr.Element for more "type safety"
 
 	// qr,ql,qm,qo (in canonical basis).
-	Ql, Qr, Qm, Qo []fr.Element
+	// QcPrime denotes the constraints defining committed variables
+	Ql, Qr, Qm, Qo, QcPrime []fr.Element
 
 	// qr,ql,qm,qo (in lagrange coset basis) --> these are not serialized, but computed from Ql, Qr, Qm, Qo once.
 	lQl, lQr, lQm, lQo []fr.Element
@@ -90,7 +91,7 @@ type VerifyingKey struct {
 
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
-	Ql, Qr, Qm, Qo, Qk kzg.Digest
+	Ql, Qr, Qm, Qo, Qk, QcPrime kzg.Digest
 }
 
 // Setup sets proving and verifying keys
@@ -126,15 +127,16 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		return nil, nil, err
 	}
 
-	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
+	// public polynomials corresponding to constraints: [ placeholders | constraints | assertions ]
 	pk.Ql = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.Qr = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.Qm = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.QcPrime = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.Qo = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.CQk = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.LQk = make([]fr.Element, pk.Domain[0].Cardinality)
 
-	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
+	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistent
 		pk.Ql[i].SetOne().Neg(&pk.Ql[i])
 		pk.Qr[i].SetZero()
 		pk.Qm[i].SetZero()
@@ -152,6 +154,12 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		pk.Qo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
 		pk.CQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
 		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
+
+		if spr.Constraints[i].C == -1 {
+			pk.QcPrime[i].SetZero()
+		} else {
+			pk.QcPrime[i].SetInt64(-1)
+		}
 	}
 
 	pk.Domain[0].FFTInverse(pk.Ql, fft.DIF)
@@ -159,11 +167,13 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	pk.Domain[0].FFTInverse(pk.Qm, fft.DIF)
 	pk.Domain[0].FFTInverse(pk.Qo, fft.DIF)
 	pk.Domain[0].FFTInverse(pk.CQk, fft.DIF)
+	pk.Domain[0].FFTInverse(pk.QcPrime, fft.DIF)
 	fft.BitReverse(pk.Ql)
 	fft.BitReverse(pk.Qr)
 	fft.BitReverse(pk.Qm)
 	fft.BitReverse(pk.Qo)
 	fft.BitReverse(pk.CQk)
+	fft.BitReverse(pk.QcPrime)
 
 	// build permutation. Note: at this stage, the permutation takes in account the placeholders
 	buildPermutation(spr, &pk)
@@ -183,6 +193,9 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		return nil, nil, err
 	}
 	if vk.Qm, err = kzg.Commit(pk.Qm, vk.KZGSRS); err != nil {
+		return nil, nil, err
+	}
+	if vk.QcPrime, err = kzg.Commit(pk.QcPrime, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
 	if vk.Qo, err = kzg.Commit(pk.Qo, vk.KZGSRS); err != nil {

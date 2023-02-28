@@ -82,7 +82,7 @@ func (cs *SparseR1CS) Solve(witness fr.Vector, opt backend.ProverConfig) (fr.Vec
 
 	start := time.Now()
 
-	expectedWitnessSize := int(len(cs.Public) + len(cs.Secret))
+	expectedWitnessSize := len(cs.Public) + len(cs.Secret)
 	if len(witness) != expectedWitnessSize {
 		return make(fr.Vector, nbVariables), fmt.Errorf(
 			"invalid witness size, got %d, expected %d = %d (public) + %d (secret)",

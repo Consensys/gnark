@@ -51,6 +51,9 @@ type Proof struct {
 	// Commitments to h1, h2, h3 such that h = h1 + Xh2 + X**2h3 is the quotient polynomial
 	H [3]kzg.Digest
 
+	// PI2, the BSB22 commitment
+	PI2 kzg.Digest
+
 	// Batch opening proof of h1 + zeta*h2 + zeta**2h3, linearizedPolynomial, l, r, o, s1, s2
 	BatchedProof kzg.BatchOpeningProof
 
@@ -71,6 +74,32 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 
 	// result
 	proof := &Proof{}
+	var pi2 fr.Vector
+
+	if id := spr.CommitmentInfo.HintID; id != 0 {
+		opt.HintFunctions[id] = func(_ *big.Int, ins, outs []*big.Int) error {
+			pi2 = make(fr.Vector, len(spr.Constraints)) //TODO: Correct? Or fft.DomainSize etc?
+			for i, cI := range spr.Constraints {
+				if cI.C != -1 {
+					pi2[i].SetBigInt(ins[cI.C])
+				}
+			}
+			var (
+				err     error
+				hashRes []fr.Element
+			)
+			if proof.PI2, err = kzg.Commit(pi2, pk.Vk.KZGSRS); err != nil {
+				return err
+			}
+
+			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
+				return err
+			}
+
+			hashRes[0].BigInt(outs[0])
+			return nil
+		}
+	}
 
 	// compute the constraint system solution
 	var solution []fr.Element

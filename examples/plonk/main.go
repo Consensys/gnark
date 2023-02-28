@@ -80,7 +80,7 @@ func main() {
 
 	// create the necessary data for KZG.
 	// This is a toy example, normally the trusted setup to build ZKG
-	// has been ran before.
+	// has been run before.
 	// The size of the data in KZG should be the closest power of 2 bounding //
 	// above max(nbConstraints, nbVariables).
 	_r1cs := ccs.(*cs.SparseR1CS)

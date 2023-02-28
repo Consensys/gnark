@@ -51,7 +51,7 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 		debug := builder.newDebugInfo("assertIsEqual", l, "+", i2, " == 0")
 		k.Neg(k)
 		_k := builder.st.CoeffID(k)
-		builder.addPlonkConstraint(l, builder.zero(), builder.zero(), lc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, _k, debug)
+		builder.addPlonkConstraint(l, builder.zero(), builder.zero(), lc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, _k, -1, debug)
 		return
 	}
 	l := i1.(expr.TermToRefactor)
@@ -60,7 +60,7 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 	rc, _ := r.Unpack()
 
 	debug := builder.newDebugInfo("assertIsEqual", l, " + ", r, " == 0")
-	builder.addPlonkConstraint(l, r, builder.zero(), lc, rc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
+	builder.addPlonkConstraint(l, r, builder.zero(), lc, rc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, -1, debug)
 }
 
 // AssertIsDifferent fails if i1 == i2
@@ -87,7 +87,7 @@ func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
 	var mCoef big.Int
 	mCoef.Neg(&builder.st.Coeffs[cID])
 	mcID := builder.st.CoeffID(&mCoef)
-	builder.addPlonkConstraint(t, t, builder.zero(), cID, constraint.CoeffIdZero, mcID, cID, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
+	builder.addPlonkConstraint(t, t, builder.zero(), cID, constraint.CoeffIdZero, mcID, cID, constraint.CoeffIdZero, constraint.CoeffIdZero, -1, debug)
 }
 
 // AssertIsLessOrEqual fails if  v > bound
@@ -142,7 +142,7 @@ func (builder *scs) mustBeLessOrEqVar(a expr.TermToRefactor, bound expr.TermToRe
 			constraint.CoeffIdOne,
 			constraint.CoeffIdOne,
 			constraint.CoeffIdZero,
-			constraint.CoeffIdZero, debug)
+			constraint.CoeffIdZero, -1, debug)
 	}
 
 }
@@ -204,7 +204,7 @@ func (builder *scs) mustBeLessOrEqCst(a expr.TermToRefactor, bound big.Int) {
 				constraint.CoeffIdOne,
 				constraint.CoeffIdZero,
 				constraint.CoeffIdZero,
-				debug)
+				-1, debug)
 			// builder.markBoolean(aBits[i].(term))
 		} else {
 			builder.AssertIsBoolean(aBits[i])
