@@ -24,6 +24,7 @@ type ConstraintSystem interface {
 	CoeffEngine
 
 	// IsSolved returns nil if given witness solves the constraint system and error otherwise
+	// Deprecated: use _, err := Solve(...) instead
 	IsSolved(witness witness.Witness, opts ...backend.ProverOption) error
 
 	// Solve attempts to solves the constraint system using provided witness.

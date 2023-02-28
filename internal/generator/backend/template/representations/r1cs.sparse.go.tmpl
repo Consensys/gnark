@@ -53,7 +53,7 @@ func (cs *SparseR1CS) AddConstraint(c constraint.SparseR1C, debugInfo ...constra
 	return cID
 }
 
-// SparseR1CSSolution
+// SparseR1CSSolution represent a valid assignment to all the variables in the constraint system.
 type SparseR1CSSolution struct {
 	L, R, O fr.Vector
 }
@@ -464,17 +464,11 @@ func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution
 	return nil 
 }
 
-// IsSolved returns nil if given witness solves the SparseR1CS and error otherwise
-// this method wraps cs.Solve() and allocates cs.Solve() inputs
+// IsSolved
+// Deprecated: use _, err := Solve(...) instead
 func (cs *SparseR1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) error {
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return err
-	}
-
-	v := witness.Vector().(fr.Vector)
-	_, err = cs.solve(v, opt)
-	return err
+	_, err := cs.Solve(witness, opts...)
+	return err 
 }
 
 // GetConstraints return the list of SparseR1C and a coefficient resolver

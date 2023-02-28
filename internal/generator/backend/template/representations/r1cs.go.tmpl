@@ -56,8 +56,8 @@ func (cs *R1CS) AddConstraint(r1c constraint.R1C, debugInfo ...constraint.DebugI
 	return cID
 }
 
-// R1CSSolution stores the R1CSSolution of the system, that is the vector w
-// such that Aw o Bw - Cw = 0
+// R1CSSolution represent a valid assignment to all the variables in the constraint system.
+// The vector W such that Aw o Bw - Cw = 0
 type R1CSSolution struct {
 	W       fr.Vector
 	A, B, C fr.Vector
@@ -309,20 +309,11 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 	return nil
 }
 
-// IsSolved returns nil if given witness solves the R1CS and error otherwise
-// this method wraps cs.Solve() and allocates cs.Solve() inputs
+// IsSolved
+// Deprecated: use _, err := Solve(...) instead
 func (cs *R1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) error {
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return err
-	}
-
-	a := make(fr.Vector, len(cs.Constraints))
-	b := make(fr.Vector, len(cs.Constraints))
-	c := make(fr.Vector, len(cs.Constraints))
-	v := witness.Vector().(fr.Vector)
-	_, err = cs.solve(v, a, b, c, opt)
-	return err
+	_, err := cs.Solve(witness, opts...)
+	return err 
 }
 
 // divByCoeff sets res = res / t.Coeff
