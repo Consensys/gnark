@@ -21,7 +21,7 @@ import (
 type ConstraintSystem interface {
 	io.WriterTo
 	io.ReaderFrom
-	// CoeffEngine
+	CoeffEngine
 
 	// IsSolved returns nil if given witness solves the constraint system and error otherwise
 	IsSolved(witness witness.Witness, opts ...backend.ProverOption) error

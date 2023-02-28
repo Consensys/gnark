@@ -23,8 +23,6 @@ import (
 type SparseR1CS interface {
 	ConstraintSystem
 
-	CoeffEngine
-
 	// AddConstraint adds a constraint to the sytem and returns its id
 	// This does not check for validity of the constraint.
 	// If a debugInfo parameter is provided, it will be appended to the debug info structure
