@@ -28,6 +28,7 @@ import (
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
+	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/pool"
@@ -158,11 +159,12 @@ func (e *engine) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	bc := pool.BigInt.Get()
 	bc.Mul(e.toBigInt(b), e.toBigInt(c))
 
+	res := new(big.Int)
 	_a := e.toBigInt(a)
-	_a.Add(_a, bc).Mod(_a, e.modulus())
+	res.Add(_a, bc).Mod(res, e.modulus())
 
 	pool.BigInt.Put(bc)
-	return _a
+	return res
 }
 
 func (e *engine) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
@@ -582,7 +584,18 @@ func (e *engine) Compiler() frontend.Compiler {
 }
 
 func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
-	panic("not implemented")
+	nb := (e.FieldBitLen() + 7) / 8
+	buf := make([]byte, nb)
+	hasher := sha3.NewCShake128(nil, []byte("gnark test engine"))
+	for i := range v {
+		vs := e.toBigInt(v[i])
+		bs := vs.FillBytes(buf)
+		hasher.Write(bs)
+	}
+	hasher.Read(buf)
+	res := new(big.Int).SetBytes(buf)
+	res.Mod(res, e.modulus())
+	return res, nil
 }
 
 func (e *engine) Defer(cb func(frontend.API) error) {
