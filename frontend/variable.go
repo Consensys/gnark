@@ -32,8 +32,6 @@ func IsCanonical(v Variable) bool {
 	switch v.(type) {
 	case expr.LinearExpression, *expr.LinearExpression, expr.Term, *expr.Term:
 		return true
-	case expr.LinearExpressionToRefactor, *expr.LinearExpressionToRefactor, expr.TermToRefactor, *expr.TermToRefactor:
-		return true
 	}
 	return false
 }

@@ -52,22 +52,21 @@ func NewBuilder(field *big.Int, config frontend.CompileConfig) (frontend.Builder
 }
 
 type builder struct {
-	cs constraint.R1CS
-
+	cs     constraint.R1CS
 	config frontend.CompileConfig
+	kvstore.Store
 
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]expr.LinearExpression
 
-	q    *big.Int
 	tOne constraint.Coeff
-	heap minHeap // helps merge k sorted linear expressions
+
+	// helps merge k sorted linear expressions
+	heap minHeap
 
 	// buffers used to do in place api.MAC
 	mbuf1 expr.LinearExpression
 	mbuf2 expr.LinearExpression
-
-	kvstore.Store
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -115,11 +114,6 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 
 	builder.tOne = builder.cs.One()
 	builder.cs.AddPublicVariable("1")
-
-	builder.q = builder.cs.Field()
-	if builder.q.Cmp(field) != 0 {
-		panic("invalid modulus on cs impl") // sanity check
-	}
 
 	return &builder
 }
