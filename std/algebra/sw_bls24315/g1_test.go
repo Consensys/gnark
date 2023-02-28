@@ -22,6 +22,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -280,7 +281,7 @@ func TestConstantScalarMulG1(t *testing.T) {
 	witness.A.Assign(&a)
 	// compute the result
 	br := new(big.Int)
-	r.ToBigIntRegular(br)
+	r.BigInt(br)
 	// br is a circuit parameter
 	circuit.R = br
 	_a.ScalarMultiplication(&_a, br)
@@ -320,7 +321,7 @@ func TestVarScalarMulG1(t *testing.T) {
 	witness.A.Assign(&a)
 	// compute the result
 	var br big.Int
-	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
@@ -360,7 +361,7 @@ func TestScalarMulG1(t *testing.T) {
 	witness.A.Assign(&a)
 	// compute the result
 	var br big.Int
-	_a.ScalarMultiplication(&_a, r.ToBigIntRegular(&br))
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
 
@@ -375,12 +376,12 @@ func randomPointG1() bls24315.G1Jac {
 	var r1 fr.Element
 	var b big.Int
 	_, _ = r1.SetRandom()
-	p1.ScalarMultiplication(&p1, r1.ToBigIntRegular(&b))
+	p1.ScalarMultiplication(&p1, r1.BigInt(&b))
 
 	return p1
 }
 
-var ccsBench frontend.CompiledConstraintSystem
+var ccsBench constraint.ConstraintSystem
 
 func BenchmarkConstScalarMulG1(b *testing.B) {
 	var c g1constantScalarMul

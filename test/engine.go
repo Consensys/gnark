@@ -30,9 +30,11 @@ import (
 	"github.com/consensys/gnark/logger"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -49,6 +51,7 @@ type engine struct {
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars  bool
 	apiWrapper ApiWrapper
+	kvstore.Store
 }
 
 // TestEngineOption defines an option for the test engine.
@@ -66,7 +69,7 @@ func WithApiWrapper(wrapper ApiWrapper) TestEngineOption {
 	}
 }
 
-// SetAlLVariablesAsConstants is a test engine option which makes the calls to
+// SetAllVariablesAsConstants is a test engine option which makes the calls to
 // IsConstant() and ConstantValue() always return true. If this test engine
 // option is not set, then all variables are considered as non-constant,
 // regardless if it is constructed by a call to ConstantValue().
@@ -102,6 +105,7 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 		q:          new(big.Int).Set(field),
 		apiWrapper: func(a frontend.API) frontend.API { return a },
 		constVars:  false,
+		Store:      kvstore.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
@@ -153,6 +157,18 @@ func (e *engine) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 		res.Add(res, e.toBigInt(in[i]))
 	}
 	res.Mod(res, e.modulus())
+	return res
+}
+
+func (e *engine) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+	bc := pool.BigInt.Get()
+	bc.Mul(e.toBigInt(b), e.toBigInt(c))
+
+	res := new(big.Int)
+	_a := e.toBigInt(a)
+	res.Add(_a, bc).Mod(res, e.modulus())
+
+	pool.BigInt.Put(bc)
 	return res
 }
 
@@ -405,11 +421,35 @@ func (e *engine) Println(a ...frontend.Variable) {
 	}
 
 	for i := 0; i < len(a); i++ {
-		v := e.toBigInt(a[i])
-		sbb.WriteString(v.String())
+		e.print(&sbb, a[i])
 		sbb.WriteByte(' ')
 	}
 	fmt.Println(sbb.String())
+}
+
+func (e *engine) print(sbb *strings.Builder, x interface{}) {
+	switch v := x.(type) {
+	case string:
+		sbb.WriteString(v)
+	case []frontend.Variable:
+		sbb.WriteRune('[')
+		for i := range v {
+			e.print(sbb, v[i])
+			if i+1 != len(v) {
+				sbb.WriteRune(',')
+			}
+		}
+		sbb.WriteRune(']')
+	default:
+		i := e.toBigInt(v)
+		var iAsNeg big.Int
+		iAsNeg.Sub(i, e.q)
+		if iAsNeg.IsInt64() {
+			sbb.WriteString(strconv.FormatInt(iAsNeg.Int64(), 10))
+		} else {
+			sbb.WriteString(i.String())
+		}
+	}
 }
 
 func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
@@ -515,33 +555,28 @@ func shallowClone(circuit frontend.Circuit) frontend.Circuit {
 }
 
 func copyWitness(to, from frontend.Circuit) {
-	var wValues []interface{}
+	var wValues []reflect.Value
 
-	collectHandler := func(f *schema.Field, tInput reflect.Value) error {
-		v := tInput.Interface().(frontend.Variable)
-
-		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
-			if v == nil {
-				return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName)
-			}
-			wValues = append(wValues, v)
+	collectHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
+		if tInput.IsNil() {
+			// TODO @gbotrel test for missing assignment
+			return fmt.Errorf("when parsing variable %s: missing assignment", f.FullName())
 		}
+		wValues = append(wValues, tInput)
 		return nil
 	}
-	if _, err := schema.Parse(from, tVariable, collectHandler); err != nil {
+	if _, err := schema.Walk(from, tVariable, collectHandler); err != nil {
 		panic(err)
 	}
 
 	i := 0
-	setHandler := func(f *schema.Field, tInput reflect.Value) error {
-		if f.Visibility == schema.Secret || f.Visibility == schema.Public {
-			tInput.Set(reflect.ValueOf((wValues[i])))
-			i++
-		}
+	setHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
+		tInput.Set(wValues[i])
+		i++
 		return nil
 	}
 	// this can't error.
-	_, _ = schema.Parse(to, tVariable, setHandler)
+	_, _ = schema.Walk(to, tVariable, setHandler)
 
 }
 
@@ -551,4 +586,8 @@ func (e *engine) Field() *big.Int {
 
 func (e *engine) Compiler() frontend.Compiler {
 	return e
+}
+
+func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+	panic("not implemented")
 }

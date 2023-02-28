@@ -17,6 +17,7 @@ limitations under the License.
 package r1cs
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"path/filepath"
@@ -25,8 +26,9 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/compiled"
+	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/std/math/bits"
 )
@@ -35,211 +37,300 @@ import (
 // Arithmetic
 
 // Add returns res = i1+i2+...in
-func (system *r1cs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-
+func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
 	// extract frontend.Variables from input
-	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
-
-	// allocate resulting frontend.Variable
-	res := make(compiled.LinearExpression, 0, s)
-
-	for _, v := range vars {
-		l := v.Clone()
-		res = append(res, l...)
-	}
-
-	res = system.reduce(res)
-
-	return res
+	vars, s := builder.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
+	return builder.add(vars, false, s, nil)
 }
 
-// Neg returns -i
-func (system *r1cs) Neg(i frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i)
+func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+	// do the multiplication into builder.mbuf1
+	mulBC := func() {
+		// reset the buffer
+		builder.mbuf1 = builder.mbuf1[:0]
 
-	if n, ok := system.ConstantValue(vars[0]); ok {
-		n.Neg(n)
-		return system.toVariable(n)
-	}
-
-	return system.negateLinExp(vars[0])
-}
-
-// Sub returns res = i1 - i2
-func (system *r1cs) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-
-	// extract frontend.Variables from input
-	vars, s := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
-
-	// allocate resulting frontend.Variable
-	res := make(compiled.LinearExpression, 0, s)
-
-	c := vars[0].Clone()
-	res = append(res, c...)
-	for i := 1; i < len(vars); i++ {
-		negLinExp := system.negateLinExp(vars[i])
-		res = append(res, negLinExp...)
-	}
-
-	// reduce linear expression
-	res = system.reduce(res)
-
-	return res
-}
-
-// Mul returns res = i1 * i2 * ... in
-func (system *r1cs) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
-
-	mul := func(v1, v2 compiled.LinearExpression) compiled.LinearExpression {
-
-		n1, v1Constant := system.ConstantValue(v1)
-		n2, v2Constant := system.ConstantValue(v2)
+		n1, v1Constant := builder.constantValue(b)
+		n2, v2Constant := builder.constantValue(c)
 
 		// v1 and v2 are both unknown, this is the only case we add a constraint
 		if !v1Constant && !v2Constant {
-			res := system.newInternalVariable()
-			system.addConstraint(newR1C(v1, v2, res))
+			res := builder.newInternalVariable()
+			builder.cs.AddConstraint(builder.newR1C(b, c, res))
+			builder.mbuf1 = append(builder.mbuf1, res...)
+			return
+		}
+
+		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
+		if v1Constant && v2Constant {
+			builder.cs.Mul(&n1, &n2)
+			builder.mbuf1 = append(builder.mbuf1, expr.NewTerm(0, n1))
+			return
+		}
+
+		if v1Constant {
+			builder.mbuf1 = append(builder.mbuf1, builder.toVariable(c)...)
+			builder.mulConstant(builder.mbuf1, n1, true)
+			return
+		}
+		builder.mbuf1 = append(builder.mbuf1, builder.toVariable(b)...)
+		builder.mulConstant(builder.mbuf1, n2, true)
+	}
+	mulBC()
+
+	_a := builder.toVariable(a)
+	// copy _a in buffer, use _a as result; so if _a was already a linear expression and
+	// results fits, _a is mutated without performing a new memalloc
+	builder.mbuf2 = builder.mbuf2[:0]
+	builder.add([]expr.LinearExpression{_a, builder.mbuf1}, false, 0, &builder.mbuf2)
+	_a = _a[:0]
+	if len(builder.mbuf2) <= cap(_a) {
+		// it fits, no mem alloc
+		_a = append(_a, builder.mbuf2...)
+	} else {
+		// allocate a expression linear with extended capacity
+		_a = make(expr.LinearExpression, len(builder.mbuf2), len(builder.mbuf2)*3)
+		copy(_a, builder.mbuf2)
+	}
+	return _a
+}
+
+// Sub returns res = i1 - i2
+func (builder *builder) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	// extract frontend.Variables from input
+	vars, s := builder.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
+	return builder.add(vars, true, s, nil)
+}
+
+// returns res = Σ(vars) or res = vars[0] - Σ(vars[1:]) if sub == true.
+func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int, res *expr.LinearExpression) frontend.Variable {
+	// we want to merge all terms from input linear expressions
+	// if they are duplicate, we reduce; that is, if multiple terms in different vars have the
+	// same variable id.
+
+	// the frontend/ only builds linear expression that are sorted.
+	// we build a sorted output by iterating all the lists in order and dealing
+	// with the edge cases (same variable ID, coeff == 0, etc.)
+
+	// initialize the min-heap
+
+	for lID, v := range vars {
+		builder.heap = append(builder.heap, linMeta{val: v[0].VID, lID: lID})
+	}
+	builder.heap.heapify()
+
+	if res == nil {
+		t := make(expr.LinearExpression, 0, capacity)
+		res = &t
+	}
+	curr := -1
+
+	// process all the terms from all the inputs, in sorted order
+	for len(builder.heap) > 0 {
+		lID, tID := builder.heap[0].lID, builder.heap[0].tID
+		if tID == len(vars[lID])-1 {
+			// last element, we remove it from the heap.
+			builder.heap.popHead()
+		} else {
+			// increment and fix the heap
+			builder.heap[0].tID++
+			builder.heap[0].val = vars[lID][tID+1].VID
+			builder.heap.fix(0)
+		}
+		t := &vars[lID][tID]
+		if t.Coeff.IsZero() {
+			continue // is this really needed?
+		}
+		if curr != -1 && t.VID == (*res)[curr].VID {
+			// accumulate, it's the same variable ID
+			if sub && lID != 0 {
+				builder.cs.Sub(&(*res)[curr].Coeff, &t.Coeff)
+			} else {
+				builder.cs.Add(&(*res)[curr].Coeff, &t.Coeff)
+			}
+			if (*res)[curr].Coeff.IsZero() {
+				// remove self.
+				(*res) = (*res)[:curr]
+				curr--
+			}
+		} else {
+			// append, it's a new variable ID
+			(*res) = append((*res), *t)
+			curr++
+			if sub && lID != 0 {
+				builder.cs.Neg(&(*res)[curr].Coeff)
+			}
+		}
+	}
+
+	if len((*res)) == 0 {
+		// keep the linear expression valid (assertIsSet)
+		(*res) = append((*res), expr.NewTerm(0, constraint.Coeff{}))
+	}
+	// if the linear expression LE is too long then record an equality
+	// constraint LE * 1 = t and return short linear expression instead.
+	compressed := builder.compress((*res))
+	if len(compressed) != len(*res) {
+		// we compressed, but don't want to override buffer
+		*res = (*res)[:0]
+		*res = append(*res, compressed...)
+	}
+
+	return *res
+}
+
+// Neg returns -i
+func (builder *builder) Neg(i frontend.Variable) frontend.Variable {
+	v := builder.toVariable(i)
+
+	if n, ok := builder.constantValue(v); ok {
+		builder.cs.Neg(&n)
+		return expr.NewLinearExpression(0, n)
+	}
+
+	return builder.negateLinExp(v)
+}
+
+// Mul returns res = i1 * i2 * ... in
+func (builder *builder) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
+	vars, _ := builder.toVariables(append([]frontend.Variable{i1, i2}, in...)...)
+
+	mul := func(v1, v2 expr.LinearExpression, first bool) expr.LinearExpression {
+
+		n1, v1Constant := builder.constantValue(v1)
+		n2, v2Constant := builder.constantValue(v2)
+
+		// v1 and v2 are both unknown, this is the only case we add a constraint
+		if !v1Constant && !v2Constant {
+			res := builder.newInternalVariable()
+			builder.cs.AddConstraint(builder.newR1C(v1, v2, res))
 			return res
 		}
 
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
 		if v1Constant && v2Constant {
-			n1.Mul(n1, n2).Mod(n1, system.q)
-			return system.toVariable(n1).(compiled.LinearExpression)
+			builder.cs.Mul(&n1, &n2)
+			return expr.NewLinearExpression(0, n1)
 		}
 
-		// ensure v2 is the constant
 		if v1Constant {
-			v1, v2 = v2, v1
+			return builder.mulConstant(v2, n1, false)
 		}
-
-		return system.mulConstant(v1, v2)
+		return builder.mulConstant(v1, n2, !first)
 	}
 
-	res := mul(vars[0], vars[1])
+	res := mul(vars[0], vars[1], true)
 
 	for i := 2; i < len(vars); i++ {
-		res = mul(res, vars[i])
+		res = mul(res, vars[i], false)
 	}
 
 	return res
 }
 
-func (system *r1cs) mulConstant(v1, constant compiled.LinearExpression) compiled.LinearExpression {
+func (builder *builder) mulConstant(v1 expr.LinearExpression, lambda constraint.Coeff, inPlace bool) expr.LinearExpression {
 	// multiplying a frontend.Variable by a constant -> we updated the coefficients in the linear expression
 	// leading to that frontend.Variable
-	res := v1.Clone()
-	lambda, _ := system.ConstantValue(constant)
+	var res expr.LinearExpression
+	if inPlace {
+		res = v1
+	} else {
+		res = v1.Clone()
+	}
 
-	for i, t := range v1 {
-		cID, vID, visibility := t.Unpack()
-		var newCoeff big.Int
-		switch cID {
-		case compiled.CoeffIdMinusOne:
-			newCoeff.Neg(lambda)
-		case compiled.CoeffIdZero:
-			newCoeff.SetUint64(0)
-		case compiled.CoeffIdOne:
-			newCoeff.Set(lambda)
-		case compiled.CoeffIdTwo:
-			newCoeff.Add(lambda, lambda)
-		default:
-			coeff := system.st.Coeffs[cID]
-			newCoeff.Mul(&coeff, lambda)
-		}
-		res[i] = compiled.Pack(vID, system.st.CoeffID(&newCoeff), visibility)
+	for i := 0; i < len(res); i++ {
+		builder.cs.Mul(&res[i].Coeff, &lambda)
 	}
 	return res
 }
 
-func (system *r1cs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i1, i2)
+func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
+	vars, _ := builder.toVariables(i1, i2)
 
 	v1 := vars[0]
 	v2 := vars[1]
 
-	n1, v1Constant := system.ConstantValue(v1)
-	n2, v2Constant := system.ConstantValue(v2)
+	n1, v1Constant := builder.constantValue(v1)
+	n2, v2Constant := builder.constantValue(v2)
 
 	if !v2Constant {
-		res := system.newInternalVariable()
-		debug := system.AddDebugInfo("div", v1, "/", v2, " == ", res)
+		res := builder.newInternalVariable()
+		debug := builder.newDebugInfo("div", v1, "/", v2, " == ", res)
 		// note that here we don't ensure that divisor is != 0
-		system.addConstraint(newR1C(v2, res, v1), debug)
+		builder.cs.AddConstraint(builder.newR1C(v2, res, v1), debug)
 		return res
 	}
 
 	// v2 is constant
-	if n2.IsUint64() && n2.Uint64() == 0 {
+	if n2.IsZero() {
 		panic("div by constant(0)")
 	}
-	q := system.q
-	n2.ModInverse(n2, q)
+	// q := builder.q
+	builder.cs.Inverse(&n2)
+	// n2.ModInverse(n2, q)
 
 	if v1Constant {
-		n2.Mul(n2, n1).Mod(n2, q)
-		return system.toVariable(n2)
+		builder.cs.Mul(&n2, &n1)
+		return expr.NewLinearExpression(0, n2)
 	}
 
 	// v1 is not constant
-	return system.mulConstant(v1, system.toVariable(n2).(compiled.LinearExpression))
+	return builder.mulConstant(v1, n2, false)
 }
 
 // Div returns res = i1 / i2
-func (system *r1cs) Div(i1, i2 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i1, i2)
+func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
+	vars, _ := builder.toVariables(i1, i2)
 
 	v1 := vars[0]
 	v2 := vars[1]
 
-	n1, v1Constant := system.ConstantValue(v1)
-	n2, v2Constant := system.ConstantValue(v2)
+	n1, v1Constant := builder.constantValue(v1)
+	n2, v2Constant := builder.constantValue(v2)
 
 	if !v2Constant {
-		res := system.newInternalVariable()
-		debug := system.AddDebugInfo("div", v1, "/", v2, " == ", res)
-		v2Inv := system.newInternalVariable()
+		res := builder.newInternalVariable()
+		debug := builder.newDebugInfo("div", v1, "/", v2, " == ", res)
+		v2Inv := builder.newInternalVariable()
 		// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
-		system.addConstraint(newR1C(v2, v2Inv, system.one()), debug)
-		system.addConstraint(newR1C(v1, v2Inv, res), debug)
+		c1 := builder.cs.AddConstraint(builder.newR1C(v2, v2Inv, builder.cstOne()))
+		c2 := builder.cs.AddConstraint(builder.newR1C(v1, v2Inv, res))
+		builder.cs.AttachDebugInfo(debug, []int{c1, c2})
 		return res
 	}
 
 	// v2 is constant
-	if n2.IsUint64() && n2.Uint64() == 0 {
+	if n2.IsZero() {
 		panic("div by constant(0)")
 	}
-	q := system.q
-	n2.ModInverse(n2, q)
+	builder.cs.Inverse(&n2)
 
 	if v1Constant {
-		n2.Mul(n2, n1).Mod(n2, q)
-		return system.toVariable(n2)
+		builder.cs.Mul(&n2, &n1)
+		return expr.NewLinearExpression(0, n2)
 	}
 
 	// v1 is not constant
-	return system.mulConstant(v1, system.toVariable(n2).(compiled.LinearExpression))
+	return builder.mulConstant(v1, n2, false)
 }
 
 // Inverse returns res = inverse(v)
-func (system *r1cs) Inverse(i1 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i1)
+func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
+	vars, _ := builder.toVariables(i1)
 
-	if c, ok := system.ConstantValue(vars[0]); ok {
-		if c.IsUint64() && c.Uint64() == 0 {
+	if c, ok := builder.constantValue(vars[0]); ok {
+		if c.IsZero() {
 			panic("inverse by constant(0)")
 		}
 
-		c.ModInverse(c, system.q)
-		return system.toVariable(c)
+		builder.cs.Inverse(&c)
+		return expr.NewLinearExpression(0, c)
 	}
 
 	// allocate resulting frontend.Variable
-	res := system.newInternalVariable()
+	res := builder.newInternalVariable()
 
-	debug := system.AddDebugInfo("inverse", vars[0], "*", res, " == 1")
-	system.addConstraint(newR1C(res, vars[0], system.one()), debug)
+	debug := builder.newDebugInfo("inverse", vars[0], "*", res, " == 1")
+	builder.cs.AddConstraint(builder.newR1C(res, vars[0], builder.cstOne()), debug)
 
 	return res
 }
@@ -252,9 +343,9 @@ func (system *r1cs) Inverse(i1 frontend.Variable) frontend.Variable {
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
 // The result in in little endian (first bit= lsb)
-func (system *r1cs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
+func (builder *builder) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
-	nbBits := system.FieldBitLen()
+	nbBits := builder.cs.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
 		if nbBits < 0 {
@@ -262,65 +353,76 @@ func (system *r1cs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable
 		}
 	}
 
-	return bits.ToBinary(system, i1, bits.WithNbDigits(nbBits))
+	return bits.ToBinary(builder, i1, bits.WithNbDigits(nbBits))
 }
 
 // FromBinary packs b, seen as a fr.Element in little endian
-func (system *r1cs) FromBinary(_b ...frontend.Variable) frontend.Variable {
-	return bits.FromBinary(system, _b)
+func (builder *builder) FromBinary(_b ...frontend.Variable) frontend.Variable {
+	return bits.FromBinary(builder, _b)
 }
 
 // Xor compute the XOR between two frontend.Variables
-func (system *r1cs) Xor(_a, _b frontend.Variable) frontend.Variable {
+func (builder *builder) Xor(_a, _b frontend.Variable) frontend.Variable {
 
-	vars, _ := system.toVariables(_a, _b)
+	vars, _ := builder.toVariables(_a, _b)
 
 	a := vars[0]
 	b := vars[1]
 
-	system.AssertIsBoolean(a)
-	system.AssertIsBoolean(b)
+	builder.AssertIsBoolean(a)
+	builder.AssertIsBoolean(b)
 
-	t := system.Mul(2, system.Mul(_a, _b))
-	res := system.Sub(system.Add(_a, _b), t)
-	system.MarkBoolean(res)
+	// instead of writing a + b - 2ab
+	// we do a * (1 - 2b) + b
+	// to limit large linear expressions
 
-	return res
+	// moreover, we ensure than b is as small as possible, so that the result
+	// is bounded by len(min(a, b)) + 1
+	if len(b) > len(a) {
+		a, b = b, a
+	}
+	t := builder.Sub(builder.cstOne(), builder.Mul(b, 2))
+	t = builder.Add(builder.Mul(a, t), b)
+
+	builder.MarkBoolean(t)
+
+	return t
 }
 
 // Or compute the OR between two frontend.Variables
-func (system *r1cs) Or(_a, _b frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(_a, _b)
+func (builder *builder) Or(_a, _b frontend.Variable) frontend.Variable {
+	vars, _ := builder.toVariables(_a, _b)
 
 	a := vars[0]
 	b := vars[1]
 
-	system.AssertIsBoolean(a)
-	system.AssertIsBoolean(b)
+	builder.AssertIsBoolean(a)
+	builder.AssertIsBoolean(b)
 
 	// the formulation used is for easing up the conversion to sparse r1cs
-	res := system.newInternalVariable()
-	system.MarkBoolean(res)
-	c := system.Neg(res).(compiled.LinearExpression)
+	res := builder.newInternalVariable()
+	builder.MarkBoolean(res)
+	c := builder.Neg(res).(expr.LinearExpression)
 
 	c = append(c, a...)
 	c = append(c, b...)
-	system.addConstraint(newR1C(a, b, c))
+	builder.cs.AddConstraint(builder.newR1C(a, b, c))
 
 	return res
 }
 
 // And compute the AND between two frontend.Variables
-func (system *r1cs) And(_a, _b frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(_a, _b)
+func (builder *builder) And(_a, _b frontend.Variable) frontend.Variable {
+	vars, _ := builder.toVariables(_a, _b)
 
 	a := vars[0]
 	b := vars[1]
 
-	system.AssertIsBoolean(a)
-	system.AssertIsBoolean(b)
+	builder.AssertIsBoolean(a)
+	builder.AssertIsBoolean(b)
 
-	res := system.Mul(a, b)
+	res := builder.Mul(a, b)
+	builder.MarkBoolean(res)
 
 	return res
 }
@@ -329,65 +431,65 @@ func (system *r1cs) And(_a, _b frontend.Variable) frontend.Variable {
 // Conditionals
 
 // Select if i0 is true, yields i1 else yields i2
-func (system *r1cs) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
+func (builder *builder) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 
-	vars, _ := system.toVariables(i0, i1, i2)
+	vars, _ := builder.toVariables(i0, i1, i2)
 	cond := vars[0]
 
 	// ensures that cond is boolean
-	system.AssertIsBoolean(cond)
+	builder.AssertIsBoolean(cond)
 
-	if c, ok := system.ConstantValue(cond); ok {
+	if c, ok := builder.constantValue(cond); ok {
 		// condition is a constant return i1 if true, i2 if false
-		if c.Uint64() == 1 {
+		if builder.isCstOne(&c) {
 			return vars[1]
 		}
 		return vars[2]
 	}
 
-	n1, ok1 := system.ConstantValue(vars[1])
-	n2, ok2 := system.ConstantValue(vars[2])
+	n1, ok1 := builder.constantValue(vars[1])
+	n2, ok2 := builder.constantValue(vars[2])
 
 	if ok1 && ok2 {
-		diff := n1.Sub(n1, n2)
-		res := system.Mul(cond, diff)  // no constraint is recorded
-		res = system.Add(res, vars[2]) // no constraint is recorded
+		builder.cs.Sub(&n1, &n2)
+		res := builder.Mul(cond, n1)    // no constraint is recorded
+		res = builder.Add(res, vars[2]) // no constraint is recorded
 		return res
 	}
 
 	// special case appearing in AssertIsLessOrEq
 	if ok1 {
-		if n1.IsUint64() && n1.Uint64() == 0 {
-			v := system.Sub(1, vars[0])
-			return system.Mul(v, vars[2])
+		if n1.IsZero() {
+			v := builder.Sub(builder.cstOne(), vars[0])
+			return builder.Mul(v, vars[2])
 		}
 	}
 
-	v := system.Sub(vars[1], vars[2]) // no constraint is recorded
-	w := system.Mul(cond, v)
-	return system.Add(w, vars[2])
+	v := builder.Sub(vars[1], vars[2]) // no constraint is recorded
+	w := builder.Mul(cond, v)
+	return builder.Add(w, vars[2])
 
 }
 
 // Lookup2 performs a 2-bit lookup between i1, i2, i3, i4 based on bits b0
 // and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
 // and i3 if b0=b1=1.
-func (system *r1cs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(b0, b1, i0, i1, i2, i3)
+func (builder *builder) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Variable) frontend.Variable {
+	vars, _ := builder.toVariables(b0, b1, i0, i1, i2, i3)
 	s0, s1 := vars[0], vars[1]
 	in0, in1, in2, in3 := vars[2], vars[3], vars[4], vars[5]
 
 	// ensure that bits are actually bits. Adds no constraints if the variables
 	// are already constrained.
-	system.AssertIsBoolean(s0)
-	system.AssertIsBoolean(s1)
+	builder.AssertIsBoolean(s0)
+	builder.AssertIsBoolean(s1)
 
-	c0, b0IsConstant := system.ConstantValue(s0)
-	c1, b1IsConstant := system.ConstantValue(s1)
+	c0, b0IsConstant := builder.constantValue(s0)
+	c1, b1IsConstant := builder.constantValue(s1)
 
 	if b0IsConstant && b1IsConstant {
-		b0 := c0.Uint64() == 1
-		b1 := c1.Uint64() == 1
+		b0 := builder.isCstOne(&c0)
+		b1 := builder.isCstOne(&c1)
 
 		if !b0 && !b1 {
 			return in0
@@ -409,74 +511,76 @@ func (system *r1cs) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 frontend.Va
 	// the variables tmp1 and tmp2 are new internal variables and the variables
 	// RES will be the returned result
 
-	tmp1 := system.Add(in3, in0)
-	tmp1 = system.Sub(tmp1, in2, in1)
-	tmp1 = system.Mul(tmp1, s1)
-	tmp1 = system.Add(tmp1, in1)
-	tmp1 = system.Sub(tmp1, in0) // (1) tmp1 = s1 * (in3 - in2 - in1 + in0) + in1 - in0
-	tmp2 := system.Mul(tmp1, s0) // (2) tmp2 = tmp1 * s0
-	res := system.Sub(in2, in0)
-	res = system.Mul(res, s1)
-	res = system.Add(res, tmp2, in0) // (3) res = (v2 - v0) * s1 + tmp2 + in0
+	tmp1 := builder.Add(in3, in0)
+	tmp1 = builder.Sub(tmp1, in2, in1)
+	tmp1 = builder.Mul(tmp1, s1)
+	tmp1 = builder.Add(tmp1, in1)
+	tmp1 = builder.Sub(tmp1, in0) // (1) tmp1 = s1 * (in3 - in2 - in1 + in0) + in1 - in0
+	tmp2 := builder.Mul(tmp1, s0) // (2) tmp2 = tmp1 * s0
+	res := builder.Sub(in2, in0)
+	res = builder.Mul(res, s1)
+	res = builder.Add(res, tmp2, in0) // (3) res = (v2 - v0) * s1 + tmp2 + in0
 	return res
 }
 
 // IsZero returns 1 if i1 is zero, 0 otherwise
-func (system *r1cs) IsZero(i1 frontend.Variable) frontend.Variable {
-	vars, _ := system.toVariables(i1)
+func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
+	vars, _ := builder.toVariables(i1)
 	a := vars[0]
-	if c, ok := system.ConstantValue(a); ok {
-		if c.IsUint64() && c.Uint64() == 0 {
-			return system.toVariable(1)
+	if c, ok := builder.constantValue(a); ok {
+		if c.IsZero() {
+			return builder.cstOne()
 		}
-		return system.toVariable(0)
+		return builder.cstZero()
 	}
 
-	debug := system.AddDebugInfo("isZero", a)
+	debug := builder.newDebugInfo("isZero", a)
 
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
 	// a * m = 0            // constrain m to be 0 if a != 0
 
-	m := system.newInternalVariable()
+	m := builder.newInternalVariable()
 
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
-	x, err := system.NewHint(hint.InvZero, 1, a)
+	x, err := builder.NewHint(hint.InvZero, 1, a)
 	if err != nil {
 		// the function errs only if the number of inputs is invalid.
 		panic(err)
 	}
 
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
-	system.addConstraint(newR1C(system.Neg(a), x[0], system.Sub(m, 1)), debug)
+	c1 := builder.cs.AddConstraint(builder.newR1C(builder.Neg(a), x[0], builder.Sub(m, 1)))
 
 	// a * m = 0            // constrain m to be 0 if a != 0
-	system.addConstraint(newR1C(a, m, system.toVariable(0)), debug)
+	c2 := builder.cs.AddConstraint(builder.newR1C(a, m, builder.cstZero()))
+
+	builder.cs.AttachDebugInfo(debug, []int{c1, c2})
 
 	return m
 }
 
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
-func (system *r1cs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
+func (builder *builder) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
-	vars, _ := system.toVariables(i1, i2)
-	bi1 := system.ToBinary(vars[0], system.FieldBitLen())
-	bi2 := system.ToBinary(vars[1], system.FieldBitLen())
+	vars, _ := builder.toVariables(i1, i2)
+	bi1 := builder.ToBinary(vars[0], builder.cs.FieldBitLen())
+	bi2 := builder.ToBinary(vars[1], builder.cs.FieldBitLen())
 
-	res := system.toVariable(0)
+	res := builder.cstZero()
 
-	for i := system.FieldBitLen() - 1; i >= 0; i-- {
+	for i := builder.cs.FieldBitLen() - 1; i >= 0; i-- {
 
-		iszeroi1 := system.IsZero(bi1[i])
-		iszeroi2 := system.IsZero(bi2[i])
+		iszeroi1 := builder.IsZero(bi1[i])
+		iszeroi2 := builder.IsZero(bi2[i])
 
-		i1i2 := system.And(bi1[i], iszeroi2)
-		i2i1 := system.And(bi2[i], iszeroi1)
+		i1i2 := builder.And(bi1[i], iszeroi2)
+		i2i1 := builder.And(bi2[i], iszeroi1)
 
-		n := system.Select(i2i1, -1, 0)
-		m := system.Select(i1i2, 1, n)
+		n := builder.Select(i2i1, -1, 0)
+		m := builder.Select(i1i2, 1, n)
 
-		res = system.Select(system.IsZero(res), m, res)
+		res = builder.Select(builder.IsZero(res), m, res).(expr.LinearExpression)
 
 	}
 	return res
@@ -487,8 +591,8 @@ func (system *r1cs) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 // the print will be done once the R1CS.Solve() method is executed
 //
 // if one of the input is a variable, its value will be resolved avec R1CS.Solve() method is called
-func (system *r1cs) Println(a ...frontend.Variable) {
-	var log compiled.LogEntry
+func (builder *builder) Println(a ...frontend.Variable) {
+	var log constraint.LogEntry
 
 	// prefix log line with file.go:line
 	if _, file, line, ok := runtime.Caller(1); ok {
@@ -501,78 +605,157 @@ func (system *r1cs) Println(a ...frontend.Variable) {
 		if i > 0 {
 			sbb.WriteByte(' ')
 		}
-		if v, ok := arg.(compiled.LinearExpression); ok {
+		if v, ok := arg.(expr.LinearExpression); ok {
 			assertIsSet(v)
 
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
 			// can evaluate it before printing it
-			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-			log.ToResolve = append(log.ToResolve, v...)
-			log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+			log.ToResolve = append(log.ToResolve, builder.getLinearExpression(v))
 		} else {
-			printArg(&log, &sbb, arg)
+			builder.printArg(&log, &sbb, arg)
 		}
 	}
 
 	// set format string to be used with fmt.Sprintf, once the variables are solved in the R1CS.Solve() method
 	log.Format = sbb.String()
 
-	system.Logs = append(system.Logs, log)
+	builder.cs.AddLog(log)
 }
 
-func printArg(log *compiled.LogEntry, sbb *strings.Builder, a frontend.Variable) {
+func (builder *builder) printArg(log *constraint.LogEntry, sbb *strings.Builder, a frontend.Variable) {
 
-	count := 0
-	counter := func(f *schema.Field, tValue reflect.Value) error {
-		count++
-		return nil
-	}
-	// ignoring error, counter() always return nil
-	_, _ = schema.Parse(a, tVariable, counter)
+	leafCount, err := schema.Walk(a, tVariable, nil)
+	count := leafCount.Public + leafCount.Secret
 
 	// no variables in nested struct, we use fmt std print function
-	if count == 0 {
+	if count == 0 || err != nil {
 		sbb.WriteString(fmt.Sprint(a))
 		return
 	}
 
 	sbb.WriteByte('{')
-	printer := func(f *schema.Field, tValue reflect.Value) error {
+	printer := func(f schema.LeafInfo, tValue reflect.Value) error {
 		count--
-		sbb.WriteString(f.FullName)
+		sbb.WriteString(f.FullName())
 		sbb.WriteString(": ")
 		sbb.WriteString("%s")
 		if count != 0 {
 			sbb.WriteString(", ")
 		}
 
-		v := tValue.Interface().(compiled.LinearExpression)
+		v := tValue.Interface().(expr.LinearExpression)
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
-		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
-		log.ToResolve = append(log.ToResolve, v...)
-		log.ToResolve = append(log.ToResolve, compiled.TermDelimitor)
+		log.ToResolve = append(log.ToResolve, builder.getLinearExpression(v))
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors
-	_, _ = schema.Parse(a, tVariable, printer)
+	_, _ = schema.Walk(a, tVariable, printer)
 	sbb.WriteByte('}')
 }
 
 // returns -le, the result is a copy
-func (system *r1cs) negateLinExp(l compiled.LinearExpression) compiled.LinearExpression {
-	res := make(compiled.LinearExpression, len(l))
-	var lambda big.Int
-	for i, t := range l {
-		cID, vID, visibility := t.Unpack()
-		lambda.Neg(&system.st.Coeffs[cID])
-		cID = system.st.CoeffID(&lambda)
-		res[i] = compiled.Pack(vID, cID, visibility)
+func (builder *builder) negateLinExp(l expr.LinearExpression) expr.LinearExpression {
+	res := make(expr.LinearExpression, len(l))
+	copy(res, l)
+	for i := 0; i < len(res); i++ {
+		builder.cs.Neg(&res[i].Coeff)
 	}
 	return res
 }
 
-func (system *r1cs) Compiler() frontend.Compiler {
-	return system
+func (builder *builder) Compiler() frontend.Compiler {
+	return builder
+}
+
+func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+	// we want to build a sorted slice of commited variables, without duplicates
+	// this is the same algorithm as builder.add(...); but we expect len(v) to be quite large.
+
+	vars, s := builder.toVariables(v...)
+
+	// initialize the min-heap
+	// this is the same algorithm as api.add --> we want to merge k sorted linear expression
+	for lID, v := range vars {
+		builder.heap = append(builder.heap, linMeta{val: v[0].VID, lID: lID})
+	}
+	builder.heap.heapify()
+
+	// sort all the wires
+	committed := make([]int, 0, s)
+
+	curr := -1
+	nbPublicCommitted := 0
+
+	// process all the terms from all the inputs, in sorted order
+	for len(builder.heap) > 0 {
+		lID, tID := builder.heap[0].lID, builder.heap[0].tID
+		if tID == len(vars[lID])-1 {
+			// last element, we remove it from the heap.
+			builder.heap.popHead()
+		} else {
+			// increment and fix the heap
+			builder.heap[0].tID++
+			builder.heap[0].val = vars[lID][tID+1].VID
+			builder.heap.fix(0)
+		}
+		t := &vars[lID][tID]
+		if t.VID == 0 {
+			continue // don't commit to ONE_WIRE
+		}
+		if curr != -1 && t.VID == committed[curr] {
+			// it's the same variable ID, do nothing
+			continue
+		} else {
+			// append, it's a new variable ID
+			committed = append(committed, t.VID)
+			if t.VID < builder.cs.GetNbPublicVariables() {
+				nbPublicCommitted++
+			}
+			curr++
+		}
+	}
+
+	if len(committed) == 0 {
+		return nil, errors.New("must commit to at least one variable")
+	}
+
+	// build commitment
+	commitment := constraint.NewCommitment(committed, nbPublicCommitted)
+
+	// hint is used at solving time to compute the actual value of the commitment
+	// it is going to be dynamically replaced at solving time.
+	hintOut, err := builder.NewHint(bsb22CommitmentComputePlaceholder, 1, builder.getCommittedVariables(&commitment)...)
+	if err != nil {
+		return nil, err
+	}
+	cVar := hintOut[0]
+	commitment.HintID = hint.UUID(bsb22CommitmentComputePlaceholder) // TODO @gbotrel probably not needed
+
+	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
+
+	// TODO @Tabaie: Get rid of this field
+	commitment.CommittedAndCommitment = append(commitment.Committed, commitment.CommitmentIndex)
+	if commitment.CommitmentIndex <= commitment.Committed[len(commitment.Committed)-1] {
+		return nil, fmt.Errorf("commitment variable index smaller than some committed variable indices")
+	}
+
+	if err := builder.cs.AddCommitment(commitment); err != nil {
+		return nil, err
+	}
+
+	return cVar, nil
+}
+
+func (builder *builder) getCommittedVariables(i *constraint.Commitment) []frontend.Variable {
+	res := make([]frontend.Variable, len(i.Committed))
+	for j, wireIndex := range i.Committed {
+		res[j] = expr.NewLinearExpression(wireIndex, builder.tOne)
+	}
+	return res
+}
+
+func bsb22CommitmentComputePlaceholder(*big.Int, []*big.Int, []*big.Int) error {
+	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
 }

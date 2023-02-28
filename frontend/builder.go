@@ -2,9 +2,9 @@ package frontend
 
 import (
 	"math/big"
-	"reflect"
 
 	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend/schema"
 )
 
@@ -48,6 +48,13 @@ type Compiler interface {
 
 	// FieldBitLen returns the number of bits needed to represent an element in the scalar field
 	FieldBitLen() int
+
+	// Commit returns a commitment to the given variables, to be used as initial randomness in
+	// Fiat-Shamir when the statement to prove is particularly large.
+	// TODO cite paper
+	// ! Experimental
+	// TENTATIVE: Functions regarding fiat-shamir-ed proofs over enormous statements  TODO finalize
+	Commit(...Variable) (Variable, error)
 }
 
 // Builder represents a constraint system builder
@@ -55,21 +62,14 @@ type Builder interface {
 	API
 	Compiler
 
-	// Compile is called after circuit.Define() to produce a final IR (CompiledConstraintSystem)
-	Compile() (CompiledConstraintSystem, error)
+	// Compile is called after circuit.Define() to produce a final IR (ConstraintSystem)
+	Compile() (constraint.ConstraintSystem, error)
 
-	// VariableCount returns the number of native elements required to represent
-	// the given reflected type as a witness.
-	VariableCount(reflect.Type) int
-
-	// SetSchema is used internally by frontend.Compile to set the circuit schema
-	SetSchema(*schema.Schema)
-
-	// AddPublicVariable is called by the compiler when parsing the circuit schema. It panics if
+	// PublicVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
-	AddPublicVariable(field *schema.Field) Variable
+	PublicVariable(schema.LeafInfo) Variable
 
-	// AddSecretVariable is called by the compiler when parsing the circuit schema. It panics if
+	// SecretVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
-	AddSecretVariable(field *schema.Field) Variable
+	SecretVariable(schema.LeafInfo) Variable
 }

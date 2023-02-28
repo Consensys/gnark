@@ -11,14 +11,15 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
+	cs "github.com/consensys/gnark/constraint/tinyfield"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
-	"github.com/consensys/gnark/internal/tinyfield/cs"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -155,6 +156,7 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 		q:          new(big.Int).Set(field),
 		apiWrapper: func(a frontend.API) frontend.API { return a },
 		constVars:  false,
+		Store:      kvstore.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
@@ -178,7 +180,7 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 // values are assumed to be ordered [public | secret]
 func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 	i := 0
-	schema.Parse(to, tVariable, func(f *schema.Field, tInput reflect.Value) error {
+	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Public {
 			tInput.Set(reflect.ValueOf((from[i])))
 			i++
@@ -186,7 +188,7 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 		return nil
 	})
 
-	schema.Parse(to, tVariable, func(f *schema.Field, tInput reflect.Value) error {
+	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Secret {
 			tInput.Set(reflect.ValueOf((from[i])))
 			i++
@@ -214,7 +216,7 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []hint.Function) e
 	p.r1cs = ccs.(*cs.R1CS)
 
 	// witness len
-	n := p.r1cs.NbPublicVariables - 1 + p.r1cs.NbSecretVariables
+	n := len(p.r1cs.Public) - 1 + len(p.r1cs.Secret)
 	if n > permutterBound {
 		return nil
 	}
@@ -231,7 +233,7 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []hint.Function) e
 	}
 
 	p.scs = ccs.(*cs.SparseR1CS)
-	if (p.scs.NbPublicVariables + p.scs.NbSecretVariables) != n {
+	if (len(p.scs.Public) + len(p.scs.Secret)) != n {
 		return errors.New("mismatch of witness size for same circuit")
 	}
 

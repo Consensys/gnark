@@ -21,7 +21,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fri"
-	"github.com/consensys/gnark/internal/backend/bw6-761/cs"
+	"github.com/consensys/gnark/constraint/bw6-761"
 )
 
 // ProvingKey stores the data needed to generate a proof:
@@ -109,7 +109,7 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	nbConstraints := len(spr.Constraints)
 
 	// fft domains
-	sizeSystem := uint64(nbConstraints + spr.NbPublicVariables) // spr.NbPublicVariables is for the placeholder constraints
+	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	pk.Domain[0] = *fft.NewDomain(sizeSystem)
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
@@ -125,7 +125,7 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	vk.Size = pk.Domain[0].Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
-	vk.NbPublicVariables = uint64(spr.NbPublicVariables)
+	vk.NbPublicVariables = uint64(len(spr.Public))
 
 	// IOP schemess
 	// The +2 is to handle the blinding.
@@ -147,7 +147,7 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	pk.LQkIncompleteDomainSmall = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.CQkIncomplete = make([]fr.Element, pk.Domain[0].Cardinality)
 
-	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
+	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
 		pk.EvaluationQlDomainBigBitReversed[i].SetOne().Neg(&pk.EvaluationQlDomainBigBitReversed[i])
 		pk.EvaluationQrDomainBigBitReversed[i].SetZero()
 		pk.EvaluationQmDomainBigBitReversed[i].SetZero()
@@ -155,7 +155,7 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 		pk.LQkIncompleteDomainSmall[i].SetZero()                 // --> to be completed by the prover
 		pk.CQkIncomplete[i].Set(&pk.LQkIncompleteDomainSmall[i]) // --> to be completed by the prover
 	}
-	offset := spr.NbPublicVariables
+	offset := len(spr.Public)
 	for i := 0; i < nbConstraints; i++ { // constraints
 
 		pk.EvaluationQlDomainBigBitReversed[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
@@ -209,10 +209,10 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 		return &pk, &vk, err
 	}
 
-	pk.Domain[1].FFT(pk.EvaluationQlDomainBigBitReversed, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationQrDomainBigBitReversed, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationQmDomainBigBitReversed, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationQoDomainBigBitReversed, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationQlDomainBigBitReversed, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationQrDomainBigBitReversed, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationQmDomainBigBitReversed, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationQoDomainBigBitReversed, fft.DIF, fft.OnCoset())
 
 	// build permutation. Note: at this stage, the permutation takes in account the placeholders
 	buildPermutation(spr, &pk)
@@ -241,7 +241,7 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 // like this: for i in tab: tab[i] = tab[permutation[i]]
 func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
-	nbVariables := spr.NbInternalVariables + spr.NbPublicVariables + spr.NbSecretVariables
+	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
 	sizeSolution := int(pk.Domain[0].Cardinality)
 
 	// init permutation
@@ -252,11 +252,11 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 
 	// init LRO position -> variable_ID
 	lro := make([]int, 3*sizeSolution) // position -> variable_ID
-	for i := 0; i < spr.NbPublicVariables; i++ {
+	for i := 0; i < len(spr.Public); i++ {
 		lro[i] = i // IDs of LRO associated to placeholders (only L needs to be taken care of)
 	}
 
-	offset := spr.NbPublicVariables
+	offset := len(spr.Public)
 	for i := 0; i < len(spr.Constraints); i++ { // IDs of LRO associated to constraints
 		lro[offset+i] = spr.Constraints[i].L.WireID()
 		lro[sizeSolution+offset+i] = spr.Constraints[i].R.WireID()
@@ -349,9 +349,9 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	if err != nil {
 		return err
 	}
-	pk.Domain[1].FFT(pk.EvaluationId1BigDomain, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationId2BigDomain, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationId3BigDomain, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationId1BigDomain, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationId2BigDomain, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationId3BigDomain, fft.DIF, fft.OnCoset())
 
 	pk.Domain[0].FFTInverse(pk.EvaluationS1BigDomain[:pk.Domain[0].Cardinality], fft.DIF)
 	pk.Domain[0].FFTInverse(pk.EvaluationS2BigDomain[:pk.Domain[0].Cardinality], fft.DIF)
@@ -379,9 +379,9 @@ func computePermutationPolynomials(pk *ProvingKey, vk *VerifyingKey) error {
 	if err != nil {
 		return err
 	}
-	pk.Domain[1].FFT(pk.EvaluationS1BigDomain, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationS2BigDomain, fft.DIF, true)
-	pk.Domain[1].FFT(pk.EvaluationS3BigDomain, fft.DIF, true)
+	pk.Domain[1].FFT(pk.EvaluationS1BigDomain, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationS2BigDomain, fft.DIF, fft.OnCoset())
+	pk.Domain[1].FFT(pk.EvaluationS3BigDomain, fft.DIF, fft.OnCoset())
 
 	return nil
 

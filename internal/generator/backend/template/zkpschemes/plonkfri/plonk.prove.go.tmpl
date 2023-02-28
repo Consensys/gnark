@@ -6,7 +6,6 @@ import (
 
 	{{ template "import_fr" . }}
 	{{ template "import_fft" . }}
-	{{ template "import_witness" . }}
 	{{ template "import_backend_cs" . }}
     {{ template "import_fri" . }}
 	
@@ -47,7 +46,7 @@ type Proof struct {
 	OpeningsId1Id2Id3mp [3]fri.OpeningProof
 }
 
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }}witness.Witness, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
 
 	var proof Proof
 
@@ -67,7 +66,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 			// we need to fill solution with random values
 			var r fr.Element
 			_, _ = r.SetRandom()
-			for i := spr.NbPublicVariables + spr.NbSecretVariables; i < len(solution); i++ {
+			for i := len(spr.Public) + len(spr.Secret); i < len(solution); i++ {
 				solution[i] = r
 				r.Double(&r)
 			}
@@ -99,13 +98,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 	}
 
 	// 3 - compute Z, challenges are derived using L, R, O + public inputs
-	dataFiatShamir := make([][fr.Bytes]byte, spr.NbPublicVariables+3)
-	for i := 0; i < spr.NbPublicVariables; i++ {
+	dataFiatShamir := make([][fr.Bytes]byte, len(spr.Public)+3)
+	for i := 0; i < len(spr.Public); i++ {
 		copy(dataFiatShamir[i][:], fullWitness[i].Marshal())
 	}
-	copy(dataFiatShamir[spr.NbPublicVariables][:], proof.LROpp[0].ID)
-	copy(dataFiatShamir[spr.NbPublicVariables+1][:], proof.LROpp[1].ID)
-	copy(dataFiatShamir[spr.NbPublicVariables+2][:], proof.LROpp[2].ID)
+	copy(dataFiatShamir[len(spr.Public)][:], proof.LROpp[0].ID)
+	copy(dataFiatShamir[len(spr.Public)+1][:], proof.LROpp[1].ID)
+	copy(dataFiatShamir[len(spr.Public)+2][:], proof.LROpp[2].ID)
 
 	beta, err := deriveRandomnessFixedSize(&fs, "gamma", dataFiatShamir...)
 	if err != nil {
@@ -144,8 +143,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 	// alpha.SetUint64(11)
 
 	evaluationQkCompleteDomainBigBitReversed := make([]fr.Element, pk.Domain[1].Cardinality)
-	copy(evaluationQkCompleteDomainBigBitReversed, fullWitness[:spr.NbPublicVariables])
-	copy(evaluationQkCompleteDomainBigBitReversed[spr.NbPublicVariables:], pk.LQkIncompleteDomainSmall[spr.NbPublicVariables:])
+	copy(evaluationQkCompleteDomainBigBitReversed, fullWitness[:len(spr.Public)])
+	copy(evaluationQkCompleteDomainBigBitReversed[len(spr.Public):], pk.LQkIncompleteDomainSmall[len(spr.Public):])
 	pk.Domain[0].FFTInverse(evaluationQkCompleteDomainBigBitReversed[:pk.Domain[0].Cardinality], fft.DIF)
 	fft.BitReverse(evaluationQkCompleteDomainBigBitReversed[:pk.Domain[0].Cardinality])
 
@@ -208,9 +207,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness {{ toLower .CurveID }
 	var bOpeningPosition big.Int
 	bOpeningPosition.SetBytes(frOpeningPosition.Marshal()).Mod(&bOpeningPosition, &bFriSize)
 	openingPosition := bOpeningPosition.Uint64()
-
-	// derive a query position, which is 0<=i<domain[1].Size
-	// openingPosition := uint64(2)
 
 	// ql, qr, qm, qo, qkIncomplete
 	proof.OpeningsQlQrQmQoQkincompletemp[0], err = pk.Vk.Iopp.Open(pk.CQl, openingPosition)
@@ -469,7 +465,7 @@ func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReverse
 	for i := 0; i < int(pk.Domain[0].Cardinality); i++ {
 		startsAtOne[i].Set(&pk.Domain[0].CardinalityInv)
 	}
-	pk.Domain[1].FFT(startsAtOne, fft.DIF, true)
+	pk.Domain[1].FFT(startsAtOne, fft.DIF, fft.OnCoset())
 
 	// ql(X)L(X)+qr(X)R(X)+qm(X)L(X)R(X)+qo(X)O(X)+k(X) + α.(z(μX)*g₁(X)*g₂(X)*g₃(X)-z(X)*f₁(X)*f₂(X)*f₃(X)) + α**2*L₁(X)(Z(X)-1)
 	// on a coset of the big domain
@@ -497,7 +493,7 @@ func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReverse
 
 	// put h in canonical form. h is of degree 3*(n+1)+2.
 	// using fft.DIT put h revert bit reverse
-	pk.Domain[1].FFTInverse(h, fft.DIT, true)
+	pk.Domain[1].FFTInverse(h, fft.DIT, fft.OnCoset())
 
 	// degree of hi is n+2 because of the blinding
 	h1 := h[:pk.Domain[0].Cardinality+2]
@@ -578,12 +574,12 @@ func evaluateLROSmallDomain(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.El
 	o = make([]fr.Element, s)
 	s0 := solution[0]
 
-	for i := 0; i < spr.NbPublicVariables; i++ { // placeholders
+	for i := 0; i < len(spr.Public); i++ { // placeholders
 		l[i] = solution[i]
 		r[i] = s0
 		o[i] = s0
 	}
-	offset := spr.NbPublicVariables
+	offset := len(spr.Public)
 	for i := 0; i < len(spr.Constraints); i++ { // constraints
 		l[offset+i] = solution[spr.Constraints[i].L.WireID()]
 		r[offset+i] = solution[spr.Constraints[i].R.WireID()]

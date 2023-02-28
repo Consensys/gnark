@@ -20,9 +20,9 @@
 
 {{- define "import_backend_cs" }}
 	{{- if eq .Curve "tinyfield"}}
-	"github.com/consensys/gnark/internal/tinyfield/cs"
+	"github.com/consensys/gnark/constraint/tinyfield"
 	{{- else}}
-	"github.com/consensys/gnark/internal/backend/{{toLower .Curve}}/cs"
+	"github.com/consensys/gnark/constraint/{{toLower .Curve}}"
 	{{- end}}
 {{- end }}
 
@@ -53,3 +53,11 @@
 {{- define "import_kzg" }}
 	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/kzg"
 {{- end }}
+
+{{- define "import_pedersen"}}
+	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/pedersen"
+{{- end}}
+
+{{- define "import_gkr"}}
+	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/gkr"
+{{- end}}

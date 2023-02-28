@@ -95,7 +95,7 @@ type addCircuit struct {
 	DoubleScalarMulResult Point
 	NegResult             Point
 	S1, S2                frontend.Variable
-	fixedPoint            Point
+	fixedPoint            Point `gnark:"-"`
 }
 
 func (circuit *addCircuit) Define(api frontend.API) error {
@@ -214,12 +214,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.X.SetBigInt(params.Base[0])
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -238,12 +238,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -262,12 +262,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -286,12 +286,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -310,12 +310,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -334,12 +334,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -358,12 +358,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 
@@ -382,12 +382,12 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 		p1.Y.SetBigInt(params.Base[1])
 		p2.Set(&p1)
 
-		p1.ScalarMul(&p1, scalar1)
-		p2.ScalarMul(&p2, scalar2)
+		p1.ScalarMultiplication(&p1, scalar1)
+		p2.ScalarMultiplication(&p2, scalar2)
 		r.Add(&p1, &p2)
 		d.Double(&p1)
-		rs1.ScalarMul(&p2, scalar2)
-		rs12.ScalarMul(&p1, scalar1)
+		rs1.ScalarMultiplication(&p2, scalar2)
+		rs12.ScalarMultiplication(&p1, scalar1)
 		rs12.Add(&rs12, &rs1)
 		n.Neg(&p2)
 

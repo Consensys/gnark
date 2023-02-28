@@ -70,7 +70,7 @@ func collectSample(pc []uintptr) {
 
 		// to avoid aving a location that concentrates 99% of the calls, we transfer the "addConstraint"
 		// occuring in Mul to the previous level in the stack
-		if strings.Contains(frame.Function, "github.com/consensys/gnark/frontend/cs/r1cs.(*r1cs).Mul") {
+		if strings.Contains(frame.Function, "github.com/consensys/gnark/frontend/cs/r1cs.(*builder).Mul") {
 			continue
 		}
 

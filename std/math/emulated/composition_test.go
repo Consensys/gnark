@@ -11,12 +11,13 @@ import (
 
 func TestComposition(t *testing.T) {
 	testComposition[BN254Fp](t)
-	testComposition[Secp256k1](t)
+	testComposition[Secp256k1Fp](t)
 	testComposition[BLS12377Fp](t)
 	testComposition[Goldilocks](t)
 }
 
 func testComposition[T FieldParams](t *testing.T) {
+	t.Helper()
 	assert := test.NewAssert(t)
 	var fp T
 	assert.Run(func(assert *test.Assert) {
@@ -43,7 +44,7 @@ func testComposition[T FieldParams](t *testing.T) {
 
 func TestSubPadding(t *testing.T) {
 	testSubPadding[BN254Fp](t)
-	testSubPadding[Secp256k1](t)
+	testSubPadding[Secp256k1Fp](t)
 	testSubPadding[BLS12377Fp](t)
 	testSubPadding[Goldilocks](t)
 }

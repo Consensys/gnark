@@ -36,7 +36,7 @@ func init() {
 	encryptFuncs = make(map[ecc.ID]func(MiMC, frontend.Variable) frontend.Variable)
 	encryptFuncs[ecc.BN254] = encryptPow5
 	encryptFuncs[ecc.BLS12_381] = encryptPow5
-	encryptFuncs[ecc.BLS12_377] = encryptInverse
+	encryptFuncs[ecc.BLS12_377] = encryptPow17
 	encryptFuncs[ecc.BW6_761] = encryptPow5
 	encryptFuncs[ecc.BW6_633] = encryptPow5
 	encryptFuncs[ecc.BLS24_315] = encryptPow5
@@ -128,10 +128,18 @@ func pow5(api frontend.API, x frontend.Variable) frontend.Variable {
 }
 
 func pow7(api frontend.API, x frontend.Variable) frontend.Variable {
+	t := api.Mul(x, x)
+	r := api.Mul(t, t)
+	r = api.Mul(r, t)
+	return api.Mul(r, x)
+}
+
+func pow17(api frontend.API, x frontend.Variable) frontend.Variable {
 	r := api.Mul(x, x)
 	r = api.Mul(r, r)
 	r = api.Mul(r, r)
-	return api.DivUnchecked(r, x)
+	r = api.Mul(r, r)
+	return api.Mul(r, x)
 }
 
 // encryptBn256 of a mimc run expressed as r1cs
@@ -155,12 +163,12 @@ func encryptPow7(h MiMC, m frontend.Variable) frontend.Variable {
 }
 
 // encryptBLS377 of a mimc run expressed as r1cs
-// only for bls377
-func encryptInverse(h MiMC, m frontend.Variable) frontend.Variable {
+// m is the message, k the key
+func encryptPow17(h MiMC, m frontend.Variable) frontend.Variable {
 	x := m
 	for i := 0; i < len(h.params); i++ {
-		// res = (res+key+c)**-1
-		x = h.api.Inverse(h.api.Add(x, h.h, h.params[i]))
+		// res = (res+key+c)**17
+		x = pow17(h.api, h.api.Add(x, h.h, h.params[i]))
 	}
 	return h.api.Add(x, h.h)
 

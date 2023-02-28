@@ -23,14 +23,12 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fri"
 	"math/big"
 
-	bw6_633witness "github.com/consensys/gnark/internal/backend/bw6-633/witness"
-
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 
 var ErrInvalidAlgebraicRelation = errors.New("algebraic relation does not hold")
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_633witness.Witness) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	// 0 - derive the challenges with Fiat Shamir
 	hFunc := sha256.New()
@@ -354,18 +352,26 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness bw6_633witness.Witness
 }
 
 // completeQk returns ∑_{i<nb_public_inputs}w_i*L_i
-func completeQk(publicWitness bw6_633witness.Witness, vk *VerifyingKey, zeta fr.Element) fr.Element {
+func completeQk(publicWitness []fr.Element, vk *VerifyingKey, zeta fr.Element) fr.Element {
 
 	var res fr.Element
 
-	// use L_i+1 = w*Li*(X-z**i)/(X-z**i+1)
+	// compute l1(zeta). Exceptional case: if zeta=1, then l1(zeta)=1,
+	// we need to manually initialise l to this value otherwise there
+	// is a denominator equal to zero in the formula.
 	var l, tmp, acc, one fr.Element
 	one.SetOne()
 	acc.SetOne()
-	l.Sub(&zeta, &one).Inverse(&l).Mul(&l, &vk.SizeInv)
-	tmp.Exp(zeta, big.NewInt(int64(vk.Size))).Sub(&tmp, &one)
-	l.Mul(&l, &tmp)
+	l.Sub(&zeta, &one)
+	if l.IsZero() {
+		l.SetOne()
+	} else {
+		l.Inverse(&l).Mul(&l, &vk.SizeInv)
+		tmp.Exp(zeta, big.NewInt(int64(vk.Size))).Sub(&tmp, &one)
+		l.Mul(&l, &tmp)
+	}
 
+	// use L_i+1 = w*Li*(X-z**i)/(X-z**i+1)
 	for i := 0; i < len(publicWitness); i++ {
 
 		tmp.Mul(&l, &publicWitness[i])
@@ -375,7 +381,14 @@ func completeQk(publicWitness bw6_633witness.Witness, vk *VerifyingKey, zeta fr.
 		l.Mul(&l, &tmp).Mul(&l, &vk.Generator)
 		acc.Mul(&acc, &vk.Generator)
 		tmp.Sub(&zeta, &acc)
-		l.Div(&l, &tmp)
+		// if tmp==0, then zeta=vk.Generator**i, so l_i(zeta)=1. We need
+		// to manually set the value to 1, exacty as in the case l_0 before
+		// the loop, otherwise the generic formula leads to a division by zero.
+		if tmp.IsZero() {
+			l.SetOne()
+		} else {
+			l.Div(&l, &tmp)
+		}
 	}
 
 	return res

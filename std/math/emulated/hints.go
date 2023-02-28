@@ -28,15 +28,15 @@ func GetHints() []hint.Function {
 }
 
 // computeMultiplicationHint packs the inputs for the MultiplicationHint hint function.
-func computeMultiplicationHint[T FieldParams](api frontend.API, params *field[T], leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
+func (f *Field[T]) computeMultiplicationHint(leftLimbs, rightLimbs []frontend.Variable) (mulLimbs []frontend.Variable, err error) {
 	hintInputs := []frontend.Variable{
-		params.fParams.BitsPerLimb(),
+		f.fParams.BitsPerLimb(),
 		len(leftLimbs),
 		len(rightLimbs),
 	}
 	hintInputs = append(hintInputs, leftLimbs...)
 	hintInputs = append(hintInputs, rightLimbs...)
-	return api.NewHint(MultiplicationHint, nbMultiplicationResLimbs(len(leftLimbs), len(rightLimbs)), hintInputs...)
+	return f.api.NewHint(MultiplicationHint, nbMultiplicationResLimbs(len(leftLimbs), len(rightLimbs)), hintInputs...)
 }
 
 // nbMultiplicationResLimbs returns the number of limbs which fit the
@@ -85,7 +85,7 @@ func MultiplicationHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 
 // computeRemHint packs inputs for the RemHint hint function.
 // sets z to the remainder x%y for y != 0 and returns z.
-func (f *field[T]) computeRemHint(x, y Element[T]) (z Element[T], err error) {
+func (f *Field[T]) computeRemHint(x, y *Element[T]) (z *Element[T], err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
@@ -95,9 +95,9 @@ func (f *field[T]) computeRemHint(x, y Element[T]) (z Element[T], err error) {
 	hintInputs = append(hintInputs, y.Limbs...)
 	limbs, err := f.api.NewHint(RemHint, int(len(y.Limbs)), hintInputs...)
 	if err != nil {
-		return Element[T]{}, err
+		return nil, err
 	}
-	return f.PackLimbs(limbs), nil
+	return f.packLimbs(limbs, true), nil
 }
 
 // RemHint sets z to the remainder x%y for y != 0 and returns z.
@@ -118,7 +118,7 @@ func RemHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 // computeQuoHint packs the inputs for QuoHint function and returns z = x / y
 // (discards remainder)
-func (f *field[T]) computeQuoHint(x Element[T]) (z Element[T], err error) {
+func (f *Field[T]) computeQuoHint(x *Element[T]) (z *Element[T], err error) {
 	var fp T
 	resLen := (uint(len(x.Limbs))*fp.BitsPerLimb() + x.overflow + 1 - // diff total bitlength
 		uint(fp.Modulus().BitLen()) + // subtract modulus bitlength
@@ -135,10 +135,10 @@ func (f *field[T]) computeQuoHint(x Element[T]) (z Element[T], err error) {
 
 	limbs, err := f.api.NewHint(QuoHint, int(resLen), hintInputs...)
 	if err != nil {
-		return Element[T]{}, err
+		return nil, err
 	}
 
-	return f.PackLimbs(limbs), nil
+	return f.packLimbs(limbs, false), nil
 }
 
 // QuoHint sets z to the quotient x/y for y != 0 and returns z.
@@ -160,16 +160,16 @@ func QuoHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeInverseHint packs the inputs for the InverseHint hint function.
-func computeInverseHint[T FieldParams](api frontend.API, params *field[T], inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
+func (f *Field[T]) computeInverseHint(inLimbs []frontend.Variable) (inverseLimbs []frontend.Variable, err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
 		fp.NbLimbs(),
 	}
-	p := params.Modulus()
+	p := f.Modulus()
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, inLimbs...)
-	return api.NewHint(InverseHint, int(fp.NbLimbs()), hintInputs...)
+	return f.api.NewHint(InverseHint, int(fp.NbLimbs()), hintInputs...)
 }
 
 // InverseHint computes the inverse x^-1 for the input x and stores it in outputs.
@@ -203,18 +203,19 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 }
 
 // computeDivisionHint packs the inputs for DivisionHint hint function.
-func computeDivisionHint[T FieldParams](api frontend.API, params *field[T], nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
+func (f *Field[T]) computeDivisionHint(nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
 	var fp T
 	hintInputs := []frontend.Variable{
 		fp.BitsPerLimb(),
 		fp.NbLimbs(),
+		len(denomLimbs),
 		len(nomLimbs),
 	}
-	p := params.Modulus()
+	p := f.Modulus()
 	hintInputs = append(hintInputs, p.Limbs...)
 	hintInputs = append(hintInputs, nomLimbs...)
 	hintInputs = append(hintInputs, denomLimbs...)
-	return api.NewHint(DivHint, int(fp.NbLimbs()), hintInputs...)
+	return f.api.NewHint(DivHint, int(fp.NbLimbs()), hintInputs...)
 }
 
 // DivHint computes the value z = x/y for inputs x and y and stores z in
@@ -225,25 +226,26 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	}
 	nbBits := uint(inputs[0].Uint64())
 	nbLimbs := int(inputs[1].Int64())
+	nbDenomLimbs := int(inputs[2].Int64())
 	// nominator does not have to be reduced and can be more than nbLimbs.
 	// Denominator and order have to be nbLimbs long.
-	nbNomLimbs := int(inputs[2].Int64())
-	if len(inputs[3:]) != nbNomLimbs+2*nbLimbs {
+	nbNomLimbs := int(inputs[3].Int64())
+	if len(inputs[4:]) != nbLimbs+nbNomLimbs+nbDenomLimbs {
 		return fmt.Errorf("input length mismatch")
 	}
 	if len(outputs) != nbLimbs {
 		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
-	if err := recompose(inputs[3:3+nbLimbs], nbBits, p); err != nil {
+	if err := recompose(inputs[4:4+nbLimbs], nbBits, p); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
 	nominator := new(big.Int)
-	if err := recompose(inputs[3+nbLimbs:3+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
+	if err := recompose(inputs[4+nbLimbs:4+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
 		return fmt.Errorf("recompose nominator: %w", err)
 	}
 	denominator := new(big.Int)
-	if err := recompose(inputs[3+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
+	if err := recompose(inputs[4+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
 		return fmt.Errorf("recompose denominator: %w", err)
 	}
 	res := new(big.Int).ModInverse(denominator, p)
