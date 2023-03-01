@@ -110,13 +110,13 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
 	case expr.Term:
-		builder.mustBeLessOrEqVar(v.(expr.Term), b)
+		builder.mustBeLessOrEqVar(v, b)
 	default:
-		builder.mustBeLessOrEqCst(v.(expr.Term), utils.FromInterface(b))
+		builder.mustBeLessOrEqCst(v, utils.FromInterface(b))
 	}
 }
 
-func (builder *builder) mustBeLessOrEqVar(a expr.Term, bound expr.Term) {
+func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) {
 
 	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
@@ -147,18 +147,29 @@ func (builder *builder) mustBeLessOrEqVar(a expr.Term, bound expr.Term) {
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		builder.MarkBoolean(aBits[i].(expr.Term)) // this does not create a constraint
+		builder.MarkBoolean(aBits[i]) // this does not create a constraint
 
-		builder.addPlonkConstraint(sparseR1C{
-			xa: l.VID,
-			xb: aBits[i].(expr.Term).VID,
-			qM: l.Coeff,
-		}, debug)
+		if ai, ok := builder.constantValue(aBits[i]); ok {
+			// a is constant; ensure l == 0
+			builder.cs.Mul(&l.Coeff, &ai)
+			builder.addPlonkConstraint(sparseR1C{
+				xa: l.VID,
+				qL: l.Coeff,
+			}, debug)
+		} else {
+			// l * a[i] == 0
+			builder.addPlonkConstraint(sparseR1C{
+				xa: l.VID,
+				xb: aBits[i].(expr.Term).VID,
+				qM: l.Coeff,
+			}, debug)
+		}
+
 	}
 
 }
 
-func (builder *builder) mustBeLessOrEqCst(a expr.Term, bound big.Int) {
+func (builder *builder) mustBeLessOrEqCst(a frontend.Variable, bound big.Int) {
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -168,6 +179,14 @@ func (builder *builder) mustBeLessOrEqCst(a expr.Term, bound big.Int) {
 	}
 	if bound.BitLen() > nbBits {
 		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
+	}
+
+	if ca, ok := builder.constantValue(a); ok {
+		// a is constant, compare the big int values
+		ba := builder.cs.ToBigInt(&ca)
+		if ba.Cmp(&bound) == 1 {
+			panic(fmt.Sprintf("AssertIsLessOrEqual: %s > %s", ba.String(), bound.String()))
+		}
 	}
 
 	// debug info

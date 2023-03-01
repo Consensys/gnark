@@ -136,6 +136,12 @@ func (builder *builder) addMulGate(a, b, c expr.Term, debug ...constraint.DebugI
 
 // addPlonkConstraint adds a sparseR1C to the underlying constraint system
 func (builder *builder) addPlonkConstraint(c sparseR1C, debug ...constraint.DebugInfo) {
+	if !c.qM.IsZero() && (c.xa == 0 || c.xb == 0) {
+		// TODO this is internal but not easy to detect; if qM is set, but one or both of xa / xb is not,
+		// since wireID == 0 is a valid wire, it may trigger unexpected behavior.
+		log := logger.Logger()
+		log.Warn().Msg("adding a plonk constraint with qM set but xa or xb == 0 (wire 0)")
+	}
 	L := builder.cs.MakeTerm(&c.qL, c.xa)
 	R := builder.cs.MakeTerm(&c.qR, c.xb)
 	O := builder.cs.MakeTerm(&c.qO, c.xc)
