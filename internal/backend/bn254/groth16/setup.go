@@ -239,7 +239,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	offset += len(B)
 
 	bitReverse(g1PointsAff[offset : offset+int(domain.Cardinality)])
-	sizeZ := int(domain.Cardinality)-1 // deg(H)=deg(A*B-C/X^n-1)=(n-1)+(n-1)-n=n-2
+	sizeZ := int(domain.Cardinality) - 1 // deg(H)=deg(A*B-C/X^n-1)=(n-1)+(n-1)-n=n-2
 	pk.G1.Z = g1PointsAff[offset : offset+sizeZ]
 
 	offset += int(domain.Cardinality)
