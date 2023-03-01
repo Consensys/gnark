@@ -500,41 +500,6 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, srs *kzg.SRS) error
 	return err1
 }
 
-// evaluateLROSmallDomain extracts the solution l, r, o, and returns it in lagrange form.
-// solution = [ public | secret | internal ]
-func evaluateLROSmallDomain(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
-
-	s := int(pk.Domain[0].Cardinality)
-
-	var l, r, o []fr.Element
-	l = make([]fr.Element, s)
-	r = make([]fr.Element, s)
-	o = make([]fr.Element, s)
-	s0 := solution[0]
-
-	for i := 0; i < len(spr.Public); i++ { // placeholders
-		l[i] = solution[i]
-		r[i] = s0
-		o[i] = s0
-	}
-	offset := len(spr.Public)
-	for i := 0; i < len(spr.Constraints); i++ { // constraints
-		l[offset+i] = solution[spr.Constraints[i].L.WireID()]
-		r[offset+i] = solution[spr.Constraints[i].R.WireID()]
-		o[offset+i] = solution[spr.Constraints[i].O.WireID()]
-	}
-	offset += len(spr.Constraints)
-
-	for i := 0; i < s-offset; i++ { // offset to reach 2**n constraints (where the id of l,r,o is 0, so we assign solution[0])
-		l[offset+i] = s0
-		r[offset+i] = s0
-		o[offset+i] = s0
-	}
-
-	return l, r, o
-
-}
-
 // computeLinearizedPolynomial computes the linearized polynomial in canonical basis.
 // The purpose is to commit and open all in one ql, qr, qm, qo, qk.
 // * lZeta, rZeta, oZeta are the evaluation of l, r, o at zeta
