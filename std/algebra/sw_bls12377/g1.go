@@ -457,7 +457,7 @@ func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affin
 
 	points := GetBLS12377Points()
 
-	sBits := api.ToBinary(s)
+	sBits := api.ToBinary(s, 253)
 
 	var res, tmp G1Affine
 
@@ -466,7 +466,7 @@ func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affin
 	res.X = api.Lookup2(sBits[1], sBits[2], points.Gx, points.Gmx[0], points.Gmx[1], points.Gmx[2])
 	res.Y = api.Lookup2(sBits[1], sBits[2], points.Gy, points.Gmy[0], points.Gmy[1], points.Gmy[2])
 
-	for i := 3; i < len(sBits); i++ {
+	for i := 3; i < 253; i++ {
 		// gm[i] = [2^i]g
 		tmp.X = res.X
 		tmp.Y = res.Y
