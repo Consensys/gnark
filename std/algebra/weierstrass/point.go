@@ -153,9 +153,9 @@ func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 // Saves the computation of the y coordinate of 2p as it is used only in the computation of λ2,
 // which can be computed as
 //
-// diffλ2 = -λ1-2*p.y/(x2-p.x) instead.
+//	λ2 = -λ1-2*p.y/(x2-p.x)
 //
-// It doesn't modify p.
+// instead. It doesn't modify p.
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
@@ -200,7 +200,7 @@ func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 // Saves the computation of the y coordinate of p+q as it is used only in the computation of λ2,
 // which can be computed as
 //
-// diffλ2 = -λ1-2*p.y/(x2-p.x)
+//	λ2 = -λ1-2*p.y/(x2-p.x)
 //
 // instead. It doesn't modify p nor q.
 //
@@ -281,7 +281,7 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 // constraints using [ELM03] (Section 3.1)
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
-// [HMV04]: Guide to Elliptic Curve Cryptography
+// [HMV04]: https://link.springer.com/book/10.1007/b97644
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
 	var st S
 	sr := c.scalarApi.Reduce(s)
@@ -324,6 +324,8 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 // precomputed.  The bits at positions 1 and 2 are handled outside of the loop
 // to optimize the number of constraints using a Lookup2 with pre-computed
 // [3]g, [5]g and [7]g points.
+//
+// [HMV04]: https://link.springer.com/book/10.1007/b97644
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 	g := c.Generator()
 	gm := c.GeneratorMultiples()
