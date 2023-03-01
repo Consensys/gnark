@@ -110,7 +110,7 @@ type System struct {
 	// several constraints may point to the same debug info
 	MDebug map[int]int
 
-	MHints             map[int]*Hint            // maps wireID to hint
+	MHints             map[int]*HintMapping     // maps wireID to hint
 	MHintsDependencies map[solver.HintID]string // maps hintID to hint string identifier
 
 	// each level contains independent constraints and can be parallelized
@@ -126,9 +126,9 @@ type System struct {
 	bitLen int      `cbor:"-"`
 
 	// level builder
-	lbWireLevel []int              `cbor:"-"` // at which level we solve a wire. init at -1.
-	lbOutputs   []uint32           `cbor:"-"` // wire outputs for current constraint.
-	lbHints     map[*Hint]struct{} `cbor:"-"` // hints we processed in current round
+	lbWireLevel []int                     `cbor:"-"` // at which level we solve a wire. init at -1.
+	lbOutputs   []uint32                  `cbor:"-"` // wire outputs for current constraint.
+	lbHints     map[*HintMapping]struct{} `cbor:"-"` // hints we processed in current round
 
 	CommitmentInfo Commitment
 }
@@ -140,11 +140,11 @@ func NewSystem(scalarField *big.Int) System {
 		MDebug:             map[int]int{},
 		GnarkVersion:       gnark.Version.String(),
 		ScalarField:        scalarField.Text(16),
-		MHints:             make(map[int]*Hint),
+		MHints:             make(map[int]*HintMapping),
 		MHintsDependencies: make(map[solver.HintID]string),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
-		lbHints:            map[*Hint]struct{}{},
+		lbHints:            map[*HintMapping]struct{}{},
 	}
 }
 
@@ -246,7 +246,7 @@ func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbO
 	}
 
 	// associate these wires with the solver hint
-	ch := &Hint{ID: hintUUID, Inputs: input, Wires: internalVariables}
+	ch := &HintMapping{HintID: hintUUID, Inputs: input, Outputs: internalVariables}
 	for _, vID := range internalVariables {
 		system.MHints[vID] = ch
 	}

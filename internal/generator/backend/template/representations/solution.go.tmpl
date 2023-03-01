@@ -20,11 +20,11 @@ type solution struct {
 	solved               []bool
 	nbSolved             uint64
 	mHintsFunctions      map[solver.HintID]solver.Hint 	// maps hintID to hint function
-	mHints 				 map[int]*constraint.Hint 	// maps wireID to hint
+	mHints 				 map[int]*constraint.HintMapping 	// maps wireID to hint
 	st *debug.SymbolTable
 }
 
-func newSolution( nbWires int, hintFunctions map[solver.HintID]solver.Hint, hintsDependencies map[solver.HintID]string, mHints map[int]*constraint.Hint,  coefficients []fr.Element, st *debug.SymbolTable) (solution, error) {
+func newSolution( nbWires int, hintFunctions map[solver.HintID]solver.Hint, hintsDependencies map[solver.HintID]string, mHints map[int]*constraint.HintMapping,  coefficients []fr.Element, st *debug.SymbolTable) (solution, error) {
 
 	s := solution{
 			st: st, 
@@ -121,21 +121,21 @@ func (s *solution) accumulateInto(t constraint.Term, r *fr.Element) {
 }
 
 // solveHint compute solution.values[vID] using provided solver hint
-func (s *solution) solveWithHint(vID int, h *constraint.Hint) error {
+func (s *solution) solveWithHint(vID int, h *constraint.HintMapping) error {
 	// skip if the wire is already solved by a call to the same hint
 	// function on the same inputs
 	if s.solved[vID] {
 	    return nil
 	}
 	// ensure hint function was provided
-	f, ok := s.mHintsFunctions[h.ID]
+	f, ok := s.mHintsFunctions[h.HintID]
 	if !ok {
 		return errors.New("missing hint function")
 	}
 
 	// tmp IO big int memory
 	nbInputs := len(h.Inputs)
-	nbOutputs := len(h.Wires)
+	nbOutputs := len(h.Outputs)
 	inputs := make([]*big.Int, nbInputs) 
 	outputs :=  make([]*big.Int, nbOutputs)
 	for i :=0; i < nbOutputs; i++ {
@@ -186,7 +186,7 @@ func (s *solution) solveWithHint(vID int, h *constraint.Hint) error {
 	var v fr.Element
 	for i := range outputs {
 		v.SetBigInt(outputs[i])
-		s.set(h.Wires[i], v)
+		s.set(h.Outputs[i], v)
 	}
 
 	return err 
