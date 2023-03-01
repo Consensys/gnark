@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -13,7 +13,7 @@ import (
 var NNAF = nNaf
 
 func init() {
-	hint.Register(NNAF)
+	solver.RegisterHint(NNAF)
 }
 
 // ToNAF returns the NAF decomposition of given input.

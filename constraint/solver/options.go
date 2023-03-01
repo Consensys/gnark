@@ -1,7 +1,6 @@
 package solver
 
 import (
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/logger"
 	"github.com/rs/zerolog"
 )
@@ -13,21 +12,21 @@ type Option func(*Config) error
 
 // Config is the configuration for the solver with the options applied.
 type Config struct {
-	HintFunctions map[hint.ID]hint.Function // defaults to all built-in hint functions
-	Logger        zerolog.Logger            // defaults to gnark.Logger
+	HintFunctions map[HintID]Hint // defaults to all built-in hint functions
+	Logger        zerolog.Logger  // defaults to gnark.Logger
 }
 
 // WithHints is a solver option that specifies additional hint functions to be used
 // by the constraint solver.
-func WithHints(hintFunctions ...hint.Function) Option {
+func WithHints(hintFunctions ...Hint) Option {
 	log := logger.Logger()
 	return func(opt *Config) error {
 		// it is an error to register hint function several times, but as the
 		// prover already checks it then omit here.
 		for _, h := range hintFunctions {
-			uuid := hint.UUID(h)
+			uuid := GetHintID(h)
 			if _, ok := opt.HintFunctions[uuid]; ok {
-				log.Warn().Int("hintID", int(uuid)).Str("name", hint.Name(h)).Msg("duplicate hint function")
+				log.Warn().Int("hintID", int(uuid)).Str("name", GetHintName(h)).Msg("duplicate hint function")
 			} else {
 				opt.HintFunctions[uuid] = h
 			}
@@ -37,7 +36,7 @@ func WithHints(hintFunctions ...hint.Function) Option {
 }
 
 // OverrideHint forces the solver to use provided hint function for given id.
-func OverrideHint(id hint.ID, f hint.Function) Option {
+func OverrideHint(id HintID, f Hint) Option {
 	return func(opt *Config) error {
 		opt.HintFunctions[id] = f
 		return nil
@@ -57,9 +56,9 @@ func WithLogger(l zerolog.Logger) Option {
 // NewConfig returns a default SolverConfig with given prover options opts applied.
 func NewConfig(opts ...Option) (Config, error) {
 	log := logger.Logger()
-	opt := Config{Logger: log, HintFunctions: make(map[hint.ID]hint.Function)}
-	for _, v := range hint.GetRegistered() {
-		opt.HintFunctions[hint.UUID(v)] = v
+	opt := Config{Logger: log, HintFunctions: make(map[HintID]Hint)}
+	for _, v := range GetRegisteredHints() {
+		opt.HintFunctions[GetHintID(v)] = v
 	}
 	for _, option := range opts {
 		if err := option(&opt); err != nil {

@@ -22,7 +22,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	"github.com/consensys/gnark/backend/hint"
+
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -228,7 +229,7 @@ var DecomposeScalarG1 = func(scalarField *big.Int, inputs []*big.Int, res []*big
 }
 
 func init() {
-	hint.Register(DecomposeScalarG1)
+	solver.RegisterHint(DecomposeScalarG1)
 }
 
 // varScalarMul sets P = [s] Q and returns P.

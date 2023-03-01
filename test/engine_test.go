@@ -7,7 +7,8 @@ import (
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
+
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
 )
@@ -28,13 +29,13 @@ func (circuit *hintCircuit) Define(api frontend.API) error {
 	}
 	a25b := res[0]
 
-	res, err = api.Compiler().NewHint(hint.InvZero, 1, circuit.A)
+	res, err = api.Compiler().NewHint(solver.InvZeroHint, 1, circuit.A)
 	if err != nil {
 		return fmt.Errorf("IsZero CircuitA: %w", err)
 	}
 	aInvZero := res[0]
 
-	res, err = api.Compiler().NewHint(hint.InvZero, 1, circuit.B)
+	res, err = api.Compiler().NewHint(solver.InvZeroHint, 1, circuit.B)
 	if err != nil {
 		return fmt.Errorf("IsZero, CircuitB")
 	}

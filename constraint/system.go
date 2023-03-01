@@ -8,7 +8,6 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
@@ -52,7 +51,7 @@ type ConstraintSystem interface {
 
 	// AddSolverHint adds a hint to the solver such that the output variables will be computed
 	// using a call to output := f(input...) at solve time.
-	AddSolverHint(f hint.Function, input []LinearExpression, nbOutput int) (internalVariables []int, err error)
+	AddSolverHint(f solver.Hint, input []LinearExpression, nbOutput int) (internalVariables []int, err error)
 
 	AddCommitment(c Commitment) error
 
@@ -111,8 +110,8 @@ type System struct {
 	// several constraints may point to the same debug info
 	MDebug map[int]int
 
-	MHints             map[int]*Hint      // maps wireID to hint
-	MHintsDependencies map[hint.ID]string // maps hintID to hint string identifier
+	MHints             map[int]*Hint            // maps wireID to hint
+	MHintsDependencies map[solver.HintID]string // maps hintID to hint string identifier
 
 	// each level contains independent constraints and can be parallelized
 	// it is guaranteed that all dependencies for constraints in a level l are solved
@@ -142,7 +141,7 @@ func NewSystem(scalarField *big.Int) System {
 		GnarkVersion:       gnark.Version.String(),
 		ScalarField:        scalarField.Text(16),
 		MHints:             make(map[int]*Hint),
-		MHintsDependencies: make(map[hint.ID]string),
+		MHintsDependencies: make(map[solver.HintID]string),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
 		lbHints:            map[*Hint]struct{}{},
@@ -176,7 +175,7 @@ func (system *System) CheckSerializationHeader() error {
 	}
 
 	// TODO @gbotrel maintain version changes and compare versions properly
-	// (ie if major didn't change,we shouldn't have a compat issue)
+	// (ie if major didn't change,we shouldn't have a compatibility issue)
 
 	scalarField := new(big.Int)
 	_, ok := scalarField.SetString(system.ScalarField, 16)
@@ -185,7 +184,7 @@ func (system *System) CheckSerializationHeader() error {
 	}
 	curveID := utils.FieldToCurve(scalarField)
 	if curveID == ecc.UNKNOWN && scalarField.Cmp(tinyfield.Modulus()) != 0 {
-		return fmt.Errorf("unsupported scalard field %s", scalarField.Text(16))
+		return fmt.Errorf("unsupported scalar field %s", scalarField.Text(16))
 	}
 	system.q = new(big.Int).Set(scalarField)
 	system.bitLen = system.q.BitLen()
@@ -224,13 +223,13 @@ func (system *System) AddSecretVariable(name string) (idx int) {
 	return idx
 }
 
-func (system *System) AddSolverHint(f hint.Function, input []LinearExpression, nbOutput int) (internalVariables []int, err error) {
+func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbOutput int) (internalVariables []int, err error) {
 	if nbOutput <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 
 	// register the hint as dependency
-	hintUUID, hintID := hint.UUID(f), hint.Name(f)
+	hintUUID, hintID := solver.GetHintID(f), solver.GetHintName(f)
 	if id, ok := system.MHintsDependencies[hintUUID]; ok {
 		// hint already registered, let's ensure string id matches
 		if id != hintID {

@@ -19,8 +19,8 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/rs/zerolog"
 	"io"
@@ -38,12 +38,12 @@ type solution struct {
 	values, coefficients []fr.Element
 	solved               []bool
 	nbSolved             uint64
-	mHintsFunctions      map[hint.ID]hint.Function // maps hintID to hint function
-	mHints               map[int]*constraint.Hint  // maps wireID to hint
+	mHintsFunctions      map[solver.HintID]solver.Hint // maps hintID to hint function
+	mHints               map[int]*constraint.Hint      // maps wireID to hint
 	st                   *debug.SymbolTable
 }
 
-func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint, coefficients []fr.Element, st *debug.SymbolTable) (solution, error) {
+func newSolution(nbWires int, hintFunctions map[solver.HintID]solver.Hint, hintsDependencies map[solver.HintID]string, mHints map[int]*constraint.Hint, coefficients []fr.Element, st *debug.SymbolTable) (solution, error) {
 
 	s := solution{
 		st:              st,
