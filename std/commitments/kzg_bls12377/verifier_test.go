@@ -27,6 +27,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 )
 
@@ -98,9 +99,6 @@ func TestVerifierDynamic(t *testing.T) {
 
 	witness.S = point.String()
 
-	witness.VerifKey.G1.X = srs.G1[0].X.String()
-	witness.VerifKey.G1.Y = srs.G1[0].Y.String()
-
 	witness.VerifKey.G2[0].X.A0 = srs.G2[0].X.A0.String()
 	witness.VerifKey.G2[0].X.A1 = srs.G2[0].X.A1.String()
 	witness.VerifKey.G2[0].Y.A0 = srs.G2[0].Y.A0.String()
@@ -132,8 +130,6 @@ func TestVerifier(t *testing.T) {
 
 	witness.Proof.ClaimedValue = "7211341386127354417397285211336133449231039596179023429378585109196698597268"
 	witness.S = "4321"
-	witness.VerifKey.G1.X = "81937999373150964239938255573465948239988671502647976594219695644855304257327692006745978603320413799295628339695"
-	witness.VerifKey.G1.Y = "241266749859715473739788878240585681733927191168601896383759122102112907357779751001206799952863815012735208165030"
 	witness.VerifKey.G2[0].X.A0 = "233578398248691099356572568220835526895379068987715365179118596935057653620464273615301663571204657964920925606294"
 	witness.VerifKey.G2[0].X.A1 = "140913150380207355837477652521042157274541796891053068589147167627541651775299824604154852141315666357241556069118"
 	witness.VerifKey.G2[0].Y.A0 = "63160294768292073209381361943935198908131692476676907196754037919244929611450776219210369229519898517858833747423"
@@ -157,7 +153,9 @@ func BenchmarkVerifyKZG(b *testing.B) {
 	b.ResetTimer()
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
+			p := profile.Start()
 			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
+			p.Stop()
 		}
 	})
 	b.Log("groth16", ccsBench.GetNbConstraints())

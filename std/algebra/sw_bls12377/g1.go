@@ -451,3 +451,36 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 
 	return p
 }
+
+// ScalarMulBase computes s * g and returns it, where g is the fixed generator. It doesn't modify s.
+func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affine {
+
+	points := GetBLS12377Points()
+
+	sBits := api.ToBinary(s)
+
+	var res, tmp G1Affine
+
+	// i = 1, 2
+	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
+	res.X = api.Lookup2(sBits[1], sBits[2], points.Gx, points.Gmx[0], points.Gmx[1], points.Gmx[2])
+	res.Y = api.Lookup2(sBits[1], sBits[2], points.Gy, points.Gmy[0], points.Gmy[1], points.Gmy[2])
+
+	for i := 3; i < len(sBits); i++ {
+		// gm[i] = [2^i]g
+		tmp.X = res.X
+		tmp.Y = res.Y
+		tmp.AddAssign(api, G1Affine{points.Gmx[i], points.Gmy[i]})
+		res.Select(api, sBits[i], tmp, res)
+	}
+
+	// i = 0
+	tmp.Neg(api, G1Affine{points.Gx, points.Gy})
+	tmp.AddAssign(api, res)
+	res.Select(api, sBits[0], res, tmp)
+
+	P.X = res.X
+	P.Y = res.Y
+
+	return P
+}
