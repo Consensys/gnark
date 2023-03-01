@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -183,7 +183,7 @@ func formatWitness(witness []tinyfield.Element) string {
 
 func (p *permutter) solve(i int) error {
 	pw := newPermutterWitness(p.witness)
-	_, err := p.constraintSystems[i].Solve(pw, backend.WithHints(p.hints...))
+	_, err := p.constraintSystems[i].Solve(pw, solver.WithHints(p.hints...))
 	return err
 }
 

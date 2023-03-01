@@ -37,6 +37,7 @@ func addNewEntry(name string, circuit frontend.Circuit, proverGood, proverBad []
 	if _, ok := Circuits[name]; ok {
 		panic("name " + name + "already taken by another test circuit ")
 	}
+	hint.Register(hintFunctions...)
 
 	Circuits[name] = TestCircuit{circuit, proverGood, proverBad, hintFunctions, curves}
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/rs/zerolog"
+	"io"
 	"math/big"
 	"strconv"
 	"strings"
@@ -293,4 +294,87 @@ func (r *UnsatisfiedConstraintError) Error() string {
 		return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, *r.DebugInfo)
 	}
 	return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, r.Err.Error())
+}
+
+// R1CSSolution represent a valid assignment to all the variables in the constraint system.
+// The vector W such that Aw o Bw - Cw = 0
+type R1CSSolution struct {
+	W       fr.Vector
+	A, B, C fr.Vector
+}
+
+func (t *R1CSSolution) WriteTo(w io.Writer) (int64, error) {
+	n, err := t.W.WriteTo(w)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.A.WriteTo(w)
+	n += a
+	if err != nil {
+		return n, err
+	}
+	a, err = t.B.WriteTo(w)
+	n += a
+	if err != nil {
+		return n, err
+	}
+	a, err = t.C.WriteTo(w)
+	n += a
+	return n, err
+}
+
+func (t *R1CSSolution) ReadFrom(r io.Reader) (int64, error) {
+	n, err := t.W.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.A.ReadFrom(r)
+	a += n
+	if err != nil {
+		return n, err
+	}
+	a, err = t.B.ReadFrom(r)
+	a += n
+	if err != nil {
+		return n, err
+	}
+	a, err = t.C.ReadFrom(r)
+	n += a
+	return n, err
+}
+
+// SparseR1CSSolution represent a valid assignment to all the variables in the constraint system.
+type SparseR1CSSolution struct {
+	L, R, O fr.Vector
+}
+
+func (t *SparseR1CSSolution) WriteTo(w io.Writer) (int64, error) {
+	n, err := t.L.WriteTo(w)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.R.WriteTo(w)
+	n += a
+	if err != nil {
+		return n, err
+	}
+	a, err = t.O.WriteTo(w)
+	n += a
+	return n, err
+
+}
+
+func (t *SparseR1CSSolution) ReadFrom(r io.Reader) (int64, error) {
+	n, err := t.L.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.R.ReadFrom(r)
+	a += n
+	if err != nil {
+		return n, err
+	}
+	a, err = t.O.ReadFrom(r)
+	a += n
+	return n, err
 }

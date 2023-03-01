@@ -63,6 +63,12 @@ type Proof struct {
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 
 	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
+
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	start := time.Now()
 	// pick a hash function that will be used to derive the challenges
 	hFunc := sha256.New()
@@ -74,7 +80,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	proof := &Proof{}
 
 	// query l, r, o in Lagrange basis, not blinded
-	trace, err := spr.Solve(fullWitness, opts...)
+	trace, err := spr.Solve(fullWitness, opt.SolverOpts...)
 	if err != nil {
 		return nil, err
 	}

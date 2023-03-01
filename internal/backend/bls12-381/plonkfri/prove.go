@@ -38,7 +38,6 @@ import (
 )
 
 type Proof struct {
-
 	// commitments to the solution vectors
 	LROpp [3]fri.ProofOfProximity
 
@@ -70,6 +69,10 @@ type Proof struct {
 }
 
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
 
 	var proof Proof
 
@@ -80,10 +83,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
 
 	// 1 - solve the system
-	trace, err := spr.Solve(fullWitness, opts...)
+	trace, err := spr.Solve(fullWitness, opt.SolverOpts...)
 	if err != nil {
 		return nil, err
 	}
+
 	traceCast := trace.(*cs.SparseR1CSSolution)
 	evaluationLDomainSmall := []fr.Element(traceCast.L)
 	evaluationRDomainSmall := []fr.Element(traceCast.R)

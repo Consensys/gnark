@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/test"
 )
@@ -55,7 +56,7 @@ func TestIntegrationAPI(t *testing.T) {
 				assert.Run(func(assert *test.Assert) {
 					assert.ProverSucceeded(
 						tData.Circuit, tData.ValidAssignments[i],
-						test.WithProverOpts(backend.WithHints(tData.HintFunctions...)),
+						test.WithSolverOpts(solver.WithHints(tData.HintFunctions...)),
 						test.WithCurves(tData.Curves[0], tData.Curves[1:]...),
 						test.WithBackends(backends[0], backends[1:]...))
 				}, fmt.Sprintf("valid-%d", i))
@@ -66,7 +67,7 @@ func TestIntegrationAPI(t *testing.T) {
 					assert.ProverFailed(
 						tData.Circuit,
 						tData.InvalidAssignments[i],
-						test.WithProverOpts(backend.WithHints(tData.HintFunctions...)),
+						test.WithSolverOpts(solver.WithHints(tData.HintFunctions...)),
 						test.WithCurves(tData.Curves[0], tData.Curves[1:]...),
 						test.WithBackends(backends[0], backends[1:]...))
 				}, fmt.Sprintf("invalid-%d", i))

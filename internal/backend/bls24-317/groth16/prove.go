@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint/bls24-317"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"math/big"
@@ -62,8 +63,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	proof := &Proof{}
 
+	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
+
 	if r1cs.CommitmentInfo.Is() {
-		opt.HintFunctions[r1cs.CommitmentInfo.HintID] = func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo.HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 			// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
 			// If that is the case, figure out a way to feed the solution vector into this function
 			if len(in) != r1cs.CommitmentInfo.NbCommitted() { // TODO: Remove
@@ -86,12 +89,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			res, err = solveCommitmentWire(&r1cs.CommitmentInfo, &proof.Commitment, in[:r1cs.CommitmentInfo.NbPublicCommitted()])
 			res.BigInt(out[0])
 			return err
-		}
+		}))
 	}
 
-	_solution, err := r1cs.Solve(fullWitness, opts...)
+	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
 	if err != nil {
-		return proof, err
+		return nil, err
 	}
 
 	solution := _solution.(*cs.R1CSSolution)
@@ -334,7 +337,7 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	den.Sub(&den, &one).Inverse(&den)
 
 	// h = ifft_coset(ca o cb - cc)
-	// reusing a to avoid unecessary memalloc
+	// reusing a to avoid unnecessary memory allocation
 	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {
 			a[i].Mul(&a[i], &b[i]).

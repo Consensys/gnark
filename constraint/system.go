@@ -8,9 +8,9 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -25,12 +25,12 @@ type ConstraintSystem interface {
 
 	// IsSolved returns nil if given witness solves the constraint system and error otherwise
 	// Deprecated: use _, err := Solve(...) instead
-	IsSolved(witness witness.Witness, opts ...backend.ProverOption) error
+	IsSolved(witness witness.Witness, opts ...solver.Option) error
 
 	// Solve attempts to solves the constraint system using provided witness.
 	// Returns an error if the witness does not allow all the constraints to be satisfied.
 	// Returns a typed solution (R1CSSolution or SparseR1CSSolution) and nil otherwise.
-	Solve(witness witness.Witness, opts ...backend.ProverOption) (any, error)
+	Solve(witness witness.Witness, opts ...solver.Option) (any, error)
 
 	// GetNbVariables return number of internal, secret and public Variables
 	// Deprecated: use GetNbSecretVariables() instead
