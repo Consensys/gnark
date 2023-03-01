@@ -862,6 +862,8 @@ func (c *Curve[B, S]) AssertIsEqual(p, q *AffinePoint[B]) {
 }
 
 // Add adds p and q and returns it. It doesn't modify p nor q.
+// It uses incomplete formulas in affine coordinates.
+// The points p and q should be different and nonzero (neutral element).
 func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 	// compute λ = (q.y-p.y)/(q.x-p.x)
 	qypy := c.baseApi.Sub(&q.Y, &p.Y)
@@ -885,6 +887,7 @@ func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 }
 
 // Double doubles p and return it. It doesn't modify p.
+// It uses affine coordinates.
 func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 
 	// compute λ = (3p.x²+a)/2*p.y, here we assume a=0 (j invariant 0 curve)
@@ -912,11 +915,15 @@ func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 	}
 }
 
-// Triple triples p and return it.
-// It follows [ELM03]: https://arxiv.org/pdf/math/0208038.pdf, 3.1
+// Triple triples p and return it. It follows [ELM03] (Section 3.1).
 // Saves the computation of the y coordinate of 2p as it is used only in the computation of λ2,
-// which can be computed as λ2 = -λ1-2*p.y/(x2-p.x) instead.
+// which can be computed as
+//
+// diffλ2 = -λ1-2*p.y/(x2-p.x) instead.
+//
 // It doesn't modify p.
+//
+// [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 
 	// compute λ1 = (3p.x²+a)/2p.y, here we assume a=0 (j invariant 0 curve)
@@ -955,10 +962,15 @@ func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 	}
 }
 
-// DoubleAndAdd computes 2p+q as (p+q)+p. It follows [ELM03]: https://arxiv.org/pdf/math/0208038.pdf, 3.1
+// DoubleAndAdd computes 2p+q as (p+q)+p. It follows [ELM03] (Section 3.1)
 // Saves the computation of the y coordinate of p+q as it is used only in the computation of λ2,
-// which can be computed as λ2 = -λ1-2*p.y/(x2-p.x) instead.
-// It doesn't modify p nor q.
+// which can be computed as
+//
+// diffλ2 = -λ1-2*p.y/(x2-p.x)
+//
+// instead. It doesn't modify p nor q.
+//
+// [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) DoubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 	// compute λ1 = (q.y-p.y)/(q.x-p.x)
@@ -996,7 +1008,7 @@ func (c *Curve[B, S]) DoubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 }
 
-// Select selects between p and q given the selector b. If b == 0, then returns
+// Select selects between p and q given the selector b. If b == 1, then returns
 // p and q otherwise.
 func (c *Curve[B, S]) Select(b frontend.Variable, p, q *AffinePoint[B]) *AffinePoint[B] {
 	x := c.baseApi.Select(b, &p.X, &q.X)
@@ -1008,8 +1020,11 @@ func (c *Curve[B, S]) Select(b frontend.Variable, p, q *AffinePoint[B]) *AffineP
 }
 
 // Lookup2 performs a 2-bit lookup between i0, i1, i2, i3 based on bits b0
-// and b1. Returns i0 if b0=b1=0, i1 if b0=1 and b1=0, i2 if b0=0 and b1=1
-// and i3 if b0=b1=1.
+// and b1. Returns:
+//   - i0 if b0=0 and b1=0,
+//   - i1 if b0=1 and b1=0,
+//   - i2 if b0=0 and b1=1,
+//   - i3 if b0=1 and b1=1.
 func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePoint[B]) *AffinePoint[B] {
 	x := c.baseApi.Lookup2(b0, b1, &i0.X, &i1.X, &i2.X, &i3.X)
 	y := c.baseApi.Lookup2(b0, b1, &i0.Y, &i1.Y, &i2.Y, &i3.Y)
@@ -1020,6 +1035,19 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 }
 
 // ScalarMul computes s * p and returns it. It doesn't modify p nor s.
+//
+// It computes the standard little-endian variable-base double-and-add algorithm
+// [HMV04] (Algorithm 3.26).
+//
+// Since we use incomplete formulas for the addition law, we need to start with
+// a non-zero accumulator point (res). To do this, we skip the LSB (bit at
+// position 0) and proceed assuming it was 1. At the end, we conditionally
+// subtract the initial value (p) if LSB is 1. We also handle the bits at
+// positions 1, n-2 and n-1 outside of the loop to optimize the number of
+// constraints using [ELM03] (Section 3.1)
+//
+// [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
+// [HMV04]: Guide to Elliptic Curve Cryptography
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
 	var st S
 	sr := c.scalarApi.Reduce(s)
@@ -1052,7 +1080,16 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 	return res
 }
 
-// ScalarMulBase computes s * g and returns it, where g is the fixed generator. It doesn't modify s.
+// ScalarMulBase computes s * g and returns it, where g is the fixed generator.
+// It doesn't modify s.
+//
+// It computes the standard little-endian fixed-base double-and-add algorithm
+// [HMV04] (Algorithm 3.26).
+//
+// The method proceeds similarly to ScalarMul but with the points [2^i]g
+// precomputed.  The bits at positions 1 and 2 are handled outside of the loop
+// to optimize the number of constraints using a Lookup2 with pre-computed
+// [3]g, [5]g and [7]g points.
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 	g := c.Generator()
 	gm := c.GeneratorMultiples()
