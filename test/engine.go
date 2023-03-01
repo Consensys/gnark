@@ -28,12 +28,15 @@ import (
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
+	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/circuitdefer"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -48,24 +51,12 @@ type engine struct {
 	q       *big.Int
 	opt     backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
-	constVars  bool
-	apiWrapper ApiWrapper
+	constVars bool
+	kvstore.Store
 }
 
 // TestEngineOption defines an option for the test engine.
 type TestEngineOption func(e *engine) error
-
-// ApiWrapper defines a function which wraps the API given to the circuit.
-type ApiWrapper func(frontend.API) frontend.API
-
-// WithApiWrapper is a test engine option which which wraps the API before
-// calling the Define method in circuit. If not set, then API is not wrapped.
-func WithApiWrapper(wrapper ApiWrapper) TestEngineOption {
-	return func(e *engine) error {
-		e.apiWrapper = wrapper
-		return nil
-	}
-}
 
 // SetAllVariablesAsConstants is a test engine option which makes the calls to
 // IsConstant() and ConstantValue() always return true. If this test engine
@@ -99,10 +90,10 @@ func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
 // This is an experimental feature.
 func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEngineOption) (err error) {
 	e := &engine{
-		curveID:    utils.FieldToCurve(field),
-		q:          new(big.Int).Set(field),
-		apiWrapper: func(a frontend.API) frontend.API { return a },
-		constVars:  false,
+		curveID:   utils.FieldToCurve(field),
+		q:         new(big.Int).Set(field),
+		constVars: false,
+		Store:     kvstore.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
@@ -131,8 +122,15 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	log := logger.Logger()
 	log.Debug().Msg("running circuit in test engine")
 	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
-	api := e.apiWrapper(e)
-	err = c.Define(api)
+	if err = c.Define(e); err != nil {
+		return fmt.Errorf("define: %w", err)
+	}
+	for i, cb := range circuitdefer.GetAll[func(frontend.API) error](e) {
+		if err = cb(e); err != nil {
+			return fmt.Errorf("defer %d: %w", i, err)
+		}
+	}
+
 	log.Debug().Uint64("add", cptAdd).
 		Uint64("sub", cptSub).
 		Uint64("mul", cptMul).
@@ -161,11 +159,12 @@ func (e *engine) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	bc := pool.BigInt.Get()
 	bc.Mul(e.toBigInt(b), e.toBigInt(c))
 
+	res := new(big.Int)
 	_a := e.toBigInt(a)
-	_a.Add(_a, bc).Mod(_a, e.modulus())
+	res.Add(_a, bc).Mod(res, e.modulus())
 
 	pool.BigInt.Put(bc)
-	return _a
+	return res
 }
 
 func (e *engine) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
@@ -585,5 +584,20 @@ func (e *engine) Compiler() frontend.Compiler {
 }
 
 func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
-	panic("not implemented")
+	nb := (e.FieldBitLen() + 7) / 8
+	buf := make([]byte, nb)
+	hasher := sha3.NewCShake128(nil, []byte("gnark test engine"))
+	for i := range v {
+		vs := e.toBigInt(v[i])
+		bs := vs.FillBytes(buf)
+		hasher.Write(bs)
+	}
+	hasher.Read(buf)
+	res := new(big.Int).SetBytes(buf)
+	res.Mod(res, e.modulus())
+	return res, nil
+}
+
+func (e *engine) Defer(cb func(frontend.API) error) {
+	circuitdefer.Put(e, cb)
 }
