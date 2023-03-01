@@ -241,7 +241,11 @@ func (e *E2) Select(api frontend.API, b frontend.Variable, r1, r2 E2) *E2 {
 	return e
 }
 
-// Lookup2 ...
+// Lookup2 implements two-bit lookup. It returns:
+//   - r1 if b1=0 and b2=0,
+//   - r2 if b1=0 and b2=1,
+//   - r3 if b1=1 and b2=0,
+//   - r3 if b1=1 and b2=1.
 func (e *E2) Lookup2(api frontend.API, b1, b2 frontend.Variable, r1, r2, r3, r4 E2) *E2 {
 
 	e.A0 = api.Lookup2(b1, b2, r1.A0, r2.A0, r3.A0, r4.A0)
