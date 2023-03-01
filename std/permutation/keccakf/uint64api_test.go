@@ -14,10 +14,10 @@ type lrotCirc struct {
 }
 
 func (c *lrotCirc) Define(api frontend.API) error {
-	uapi := newUint64API(api)
-	in := uapi.asUint64(c.In)
-	out := uapi.asUint64(c.Out)
-	res := uapi.lrot(in, c.Shift)
+	uapi := NewUint64API(api)
+	in := uapi.AsUint64(c.In)
+	out := uapi.AsUint64(c.Out)
+	res := uapi.Lrot(in, c.Shift)
 	uapi.assertEq(out, res)
 	return nil
 }

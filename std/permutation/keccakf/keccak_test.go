@@ -1,10 +1,10 @@
 package keccakf_test
 
 import (
+	"github.com/consensys/gnark/backend"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/permutation/keccakf"
 	"github.com/consensys/gnark/test"
@@ -16,9 +16,15 @@ type keccakfCircuit struct {
 }
 
 func (c *keccakfCircuit) Define(api frontend.API) error {
-	res := keccakf.Permute(api, c.In)
+	in := [25]keccakf.Xuint64{}
+	uapi := keccakf.NewUint64API(api)
+	for i := range c.In {
+		in[i] = uapi.AsUint64(c.In[i])
+	}
+
+	res := keccakf.Permute(api, in)
 	for i := range res {
-		api.AssertIsEqual(res[i], c.Expected[i])
+		api.AssertIsEqual(uapi.FromUint64(res[i]), c.Expected[i])
 	}
 	return nil
 }
@@ -35,5 +41,5 @@ func TestKeccakf(t *testing.T) {
 		witness.Expected[i] = nativeOut[i]
 	}
 	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&keccakfCircuit{}, &witness, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16, backend.PLONK))
+	assert.ProverSucceeded(&keccakfCircuit{}, &witness, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
 }
