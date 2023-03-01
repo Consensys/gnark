@@ -27,7 +27,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 )
 
@@ -153,9 +152,7 @@ func BenchmarkVerifyKZG(b *testing.B) {
 	b.ResetTimer()
 	b.Run("groth16", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			p := profile.Start()
 			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-			p.Stop()
 		}
 	})
 	b.Log("groth16", ccsBench.GetNbConstraints())
