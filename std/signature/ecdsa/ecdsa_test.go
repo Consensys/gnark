@@ -3,12 +3,15 @@ package ecdsa
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra/weierstrass"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
@@ -114,6 +117,10 @@ func TestEcdsaSHA256(t *testing.T) {
 	assert := test.NewAssert(t)
 	err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	p.Stop()
+	fmt.Println(p.NbConstraints())
 }
 
 // Example how to verify the signature inside the circuit.
