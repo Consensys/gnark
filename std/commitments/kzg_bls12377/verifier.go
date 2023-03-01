@@ -65,7 +65,7 @@ func Verify(api frontend.API, commitment Digest, proof OpeningProof, point front
 
 	// [α-a]G₂
 	var alphaMinusaG2 sw_bls12377.G2Affine
-	alphaMinusaG2.ScalarMul(api, srs.G2[0], point).
+	alphaMinusaG2.ScalarMulBase(api, point).
 		Neg(api, alphaMinusaG2).
 		AddAssign(api, srs.G2[1])
 
