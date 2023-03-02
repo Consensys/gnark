@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -61,4 +62,45 @@ func getInnerCurveConfig(outerCurveScalarField *big.Int) *innerConfig {
 	})
 
 	return &innerConfigBW6_761
+}
+
+var (
+	computedCurveTable [][2]*big.Int
+	computedTwistTable [][4]*big.Int
+)
+
+func init() {
+	computedCurveTable = computeCurveTable()
+	computedTwistTable = computeTwistTable()
+}
+
+type curvePoints struct {
+	G1x *big.Int      // base point x
+	G1y *big.Int      // base point y
+	G1m [][2]*big.Int // m*base points (x,y)
+}
+
+func getCurvePoints() curvePoints {
+	_, _, g1aff, _ := bls12377.Generators()
+	return curvePoints{
+		G1x: g1aff.X.BigInt(new(big.Int)),
+		G1y: g1aff.Y.BigInt(new(big.Int)),
+		G1m: computedCurveTable,
+	}
+}
+
+type twistPoints struct {
+	G2x [2]*big.Int   // base point x ∈ E2
+	G2y [2]*big.Int   // base point y ∈ E2
+	G2m [][4]*big.Int // m*base points (x,y)
+}
+
+func getTwistPoints() twistPoints {
+	_, _, _, g2aff := bls12377.Generators()
+	return twistPoints{
+		G2x: [2]*big.Int{g2aff.X.A0.BigInt(new(big.Int)), g2aff.X.A1.BigInt(new(big.Int))},
+		G2y: [2]*big.Int{g2aff.Y.A0.BigInt(new(big.Int)), g2aff.Y.A1.BigInt(new(big.Int))},
+		G2m: computedTwistTable,
+	}
+
 }
