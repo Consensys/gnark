@@ -64,6 +64,16 @@ func getInnerCurveConfig(outerCurveScalarField *big.Int) *innerConfig {
 	return &innerConfigBW6_761
 }
 
+var (
+	computedCurveTable [][2]*big.Int
+	computedTwistTable [][4]*big.Int
+)
+
+func init() {
+	computedCurveTable = computeCurveTable()
+	computedTwistTable = computeTwistTable()
+}
+
 type CurvePoints struct {
 	G1x *big.Int      // base point x
 	G1y *big.Int      // base point y
@@ -75,7 +85,7 @@ func GetCurvePoints() CurvePoints {
 	return CurvePoints{
 		G1x: g1aff.X.BigInt(new(big.Int)),
 		G1y: g1aff.Y.BigInt(new(big.Int)),
-		G1m: computeCurveTable(),
+		G1m: computedCurveTable,
 	}
 }
 
@@ -90,7 +100,7 @@ func GetTwistPoints() TwistPoints {
 	return TwistPoints{
 		G2x: [2]*big.Int{g2aff.X.A0.BigInt(new(big.Int)), g2aff.X.A1.BigInt(new(big.Int))},
 		G2y: [2]*big.Int{g2aff.Y.A0.BigInt(new(big.Int)), g2aff.Y.A1.BigInt(new(big.Int))},
-		G2m: computeTwistTable(),
+		G2m: computedTwistTable,
 	}
 
 }

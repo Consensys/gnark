@@ -73,12 +73,22 @@ type CurvePoints struct {
 	G1m [][2]*big.Int // m*base points (x,y)
 }
 
+var (
+	computedCurveTable [][2]*big.Int
+	computedTwistTable [][8]*big.Int
+)
+
+func init() {
+	computedCurveTable = computeCurveTable()
+	computedTwistTable = computeTwistTable()
+}
+
 func GetCurvePoints() CurvePoints {
 	_, _, g1aff, _ := bls24315.Generators()
 	return CurvePoints{
 		G1x: g1aff.X.BigInt(new(big.Int)),
 		G1y: g1aff.Y.BigInt(new(big.Int)),
-		G1m: computeCurveTable(),
+		G1m: computedCurveTable,
 	}
 }
 
@@ -103,7 +113,7 @@ func GetTwistPoints() TwistPoints {
 			g2aff.Y.B1.A0.BigInt(new(big.Int)),
 			g2aff.Y.B1.A1.BigInt(new(big.Int)),
 		},
-		G2m: computeTwistTable(),
+		G2m: computedTwistTable,
 	}
 
 }
