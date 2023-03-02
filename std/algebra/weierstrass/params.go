@@ -13,10 +13,11 @@ import (
 //
 // The base point is defined by (Gx, Gy).
 type CurveParams struct {
-	A  *big.Int // a in curve equation
-	B  *big.Int // b in curve equation
-	Gx *big.Int // base point x
-	Gy *big.Int // base point y
+	A  *big.Int      // a in curve equation
+	B  *big.Int      // b in curve equation
+	Gx *big.Int      // base point x
+	Gy *big.Int      // base point y
+	Gm [][2]*big.Int // m*base point coords
 }
 
 // GetSecp256k1Params returns curve parameters for the curve secp256k1. When
@@ -30,6 +31,7 @@ func GetSecp256k1Params() CurveParams {
 		B:  big.NewInt(7),
 		Gx: gx,
 		Gy: gy,
+		Gm: computeSecp256k1Table(),
 	}
 }
 
@@ -39,11 +41,13 @@ func GetSecp256k1Params() CurveParams {
 func GetBN254Params() CurveParams {
 	gx := big.NewInt(1)
 	gy := big.NewInt(2)
+
 	return CurveParams{
 		A:  big.NewInt(0),
 		B:  big.NewInt(3),
 		Gx: gx,
 		Gy: gy,
+		Gm: computeBN254Table(),
 	}
 }
 

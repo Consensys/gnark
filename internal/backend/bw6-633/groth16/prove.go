@@ -196,8 +196,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 		var krs, krs2, p1 curve.G1Jac
 		chKrs2Done := make(chan error, 1)
+		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
 		go func() {
-			_, err := krs2.MultiExp(pk.G1.Z[:pk.Domain.Cardinality-1], h[:pk.Domain.Cardinality-1], ecc.MultiExpConfig{NbTasks: n / 2})
+			_, err := krs2.MultiExp(pk.G1.Z, h[:sizeH], ecc.MultiExpConfig{NbTasks: n / 2})
 			chKrs2Done <- err
 		}()
 

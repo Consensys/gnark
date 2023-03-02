@@ -263,7 +263,7 @@ func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
 	return f.Sub(f.Zero(), a)
 }
 
-// Select sets e to a if selector == 0 and to b otherwise. Sets the number of
+// Select sets e to a if selector == 1 and to b otherwise. Sets the number of
 // limbs and overflow of the result to be the maximum of the limb lengths and
 // overflows. If the inputs are strongly unbalanced, then it would better to
 // reduce the result after the operation.
