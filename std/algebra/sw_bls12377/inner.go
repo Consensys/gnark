@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -70,11 +71,10 @@ type CurvePoints struct {
 }
 
 func GetCurvePoints() CurvePoints {
-	g1x, _ := new(big.Int).SetString("8848defe740a67c8fc6225bf87ff5485951e2caa9d41bb188282c8bd37cb5cd5481512ffcd394eeab9b16eb21be9ef", 16)
-	g1y, _ := new(big.Int).SetString("1914a69c5102eff1f674f5d30afeec4bd7fb348ca3e52d96d182ad44fb82305c2fe3d3634a9591afd82de55559c8ea6", 16)
+	_, _, g1aff, _ := bls12377.Generators()
 	return CurvePoints{
-		G1x: g1x,
-		G1y: g1y,
+		G1x: g1aff.X.BigInt(new(big.Int)),
+		G1y: g1aff.Y.BigInt(new(big.Int)),
 		G1m: computeCurveTable(),
 	}
 }
@@ -86,13 +86,10 @@ type TwistPoints struct {
 }
 
 func GetTwistPoints() TwistPoints {
-	g2x0, _ := new(big.Int).SetString("18480be71c785fec89630a2a3841d01c565f071203e50317ea501f557db6b9b71889f52bb53540274e3e48f7c005196", 16)
-	g2x1, _ := new(big.Int).SetString("ea6040e700403170dc5a51b1b140d5532777ee6651cecbe7223ece0799c9de5cf89984bff76fe6b26bfefa6ea16afe", 16)
-	g2y0, _ := new(big.Int).SetString("690d665d446f7bd960736bcbb2efb4de03ed7274b49a58e458c282f832d204f2cf88886d8c7c2ef094094409fd4ddf", 16)
-	g2y1, _ := new(big.Int).SetString("f8169fd28355189e549da3151a70aa61ef11ac3d591bf12463b01acee304c24279b83f5e52270bd9a1cdd185eb8f93", 16)
+	_, _, _, g2aff := bls12377.Generators()
 	return TwistPoints{
-		G2x: [2]*big.Int{g2x0, g2x1},
-		G2y: [2]*big.Int{g2y0, g2y1},
+		G2x: [2]*big.Int{g2aff.X.A0.BigInt(new(big.Int)), g2aff.X.A1.BigInt(new(big.Int))},
+		G2y: [2]*big.Int{g2aff.Y.A0.BigInt(new(big.Int)), g2aff.Y.A1.BigInt(new(big.Int))},
 		G2m: computeTwistTable(),
 	}
 
