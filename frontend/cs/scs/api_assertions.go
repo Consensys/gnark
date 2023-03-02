@@ -147,7 +147,6 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		builder.MarkBoolean(aBits[i]) // this does not create a constraint
 
 		if ai, ok := builder.constantValue(aBits[i]); ok {
 			// a is constant; ensure l == 0

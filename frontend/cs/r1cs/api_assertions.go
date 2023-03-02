@@ -144,7 +144,6 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		builder.MarkBoolean(aBits[i]) // this does not create a constraint
 
 		if aConst {
 			// aBits[i] is a constant;
@@ -209,7 +208,6 @@ func (builder *builder) mustBeLessOrEqCst(a expr.LinearExpression, bound *big.In
 			l = builder.Sub(l, aBits[i])
 
 			added = append(added, builder.cs.AddConstraint(builder.newR1C(l, aBits[i], builder.cstZero())))
-			builder.MarkBoolean(aBits[i])
 		} else {
 			builder.AssertIsBoolean(aBits[i])
 		}
