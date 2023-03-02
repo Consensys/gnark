@@ -64,7 +64,7 @@ func TestSetupCircuit(t *testing.T) {
 	switch r1cs := ccs.(type) {
 	case *cs_bn254.R1CS:
 		// Prepare for phase-2
-		evals = contributionsPhase2[0].PreparePhase(&contributionsPhase1[nContributionsPhase1-1], r1cs)
+		evals = contributionsPhase2[0].PreparePhase2(&contributionsPhase1[nContributionsPhase1-1], r1cs)
 	default:
 		panic("Unsupported curve")
 	}

@@ -35,7 +35,7 @@ type Contribution struct {
 	Hash      []byte
 }
 
-func (c2 *Contribution) PreparePhase(c1 *phase1.Contribution, r1cs *cs_bn254.R1CS) Evaluations {
+func (c2 *Contribution) PreparePhase2(c1 *phase1.Contribution, r1cs *cs_bn254.R1CS) Evaluations {
 	srs := c1.Parameters
 	size := len(srs.G1.AlphaTau)
 	if size < r1cs.GetNbConstraints() {
@@ -127,9 +127,8 @@ func (c2 *Contribution) PreparePhase(c1 *phase1.Contribution, r1cs *cs_bn254.R1C
 	for i := 0; i < n-1; i++ {
 		c2.Parameters.G1.Z[i].Sub(&srs.G1.Tau[i+n], &srs.G1.Tau[i])
 	}
-	// this is an extra point that is added for the sake of being compatible with gnark setup
-	// evenutally it is multiplied by zero, hence it won't affect the resutl
-	c2.Parameters.G1.Z[n-1].Set(&g1)
+	utils.BitReverseG1(c2.Parameters.G1.Z)
+	c2.Parameters.G1.Z = c2.Parameters.G1.Z[:n-1]
 
 	// Evaluate L
 	nPrivate := internal + secret
@@ -179,7 +178,7 @@ func (c *Contribution) Contribute(prev *Contribution) {
 		c.Parameters.G1.Z[i].ScalarMultiplication(&prev.Parameters.G1.Z[i], &deltaInvBI)
 	}
 
-	// Update Z using δ⁻¹
+	// Update L using δ⁻¹
 	c.Parameters.G1.L = make([]bn254.G1Affine, len(prev.Parameters.G1.L))
 	for i := 0; i < len(prev.Parameters.G1.L); i++ {
 		c.Parameters.G1.L[i].ScalarMultiplication(&prev.Parameters.G1.L[i], &deltaInvBI)
