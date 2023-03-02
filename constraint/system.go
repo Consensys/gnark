@@ -8,9 +8,8 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -25,12 +24,12 @@ type ConstraintSystem interface {
 
 	// IsSolved returns nil if given witness solves the constraint system and error otherwise
 	// Deprecated: use _, err := Solve(...) instead
-	IsSolved(witness witness.Witness, opts ...backend.ProverOption) error
+	IsSolved(witness witness.Witness, opts ...solver.Option) error
 
 	// Solve attempts to solves the constraint system using provided witness.
 	// Returns an error if the witness does not allow all the constraints to be satisfied.
 	// Returns a typed solution (R1CSSolution or SparseR1CSSolution) and nil otherwise.
-	Solve(witness witness.Witness, opts ...backend.ProverOption) (any, error)
+	Solve(witness witness.Witness, opts ...solver.Option) (any, error)
 
 	// GetNbVariables return number of internal, secret and public Variables
 	// Deprecated: use GetNbSecretVariables() instead
@@ -52,7 +51,7 @@ type ConstraintSystem interface {
 
 	// AddSolverHint adds a hint to the solver such that the output variables will be computed
 	// using a call to output := f(input...) at solve time.
-	AddSolverHint(f hint.Function, input []LinearExpression, nbOutput int) (internalVariables []int, err error)
+	AddSolverHint(f solver.Hint, input []LinearExpression, nbOutput int) (internalVariables []int, err error)
 
 	AddCommitment(c Commitment) error
 
@@ -111,8 +110,8 @@ type System struct {
 	// several constraints may point to the same debug info
 	MDebug map[int]int
 
-	MHints             map[int]*Hint      // maps wireID to hint
-	MHintsDependencies map[hint.ID]string // maps hintID to hint string identifier
+	MHints             map[int]*HintMapping     // maps wireID to hint
+	MHintsDependencies map[solver.HintID]string // maps hintID to hint string identifier
 
 	// each level contains independent constraints and can be parallelized
 	// it is guaranteed that all dependencies for constraints in a level l are solved
@@ -127,9 +126,9 @@ type System struct {
 	bitLen int      `cbor:"-"`
 
 	// level builder
-	lbWireLevel []int              `cbor:"-"` // at which level we solve a wire. init at -1.
-	lbOutputs   []uint32           `cbor:"-"` // wire outputs for current constraint.
-	lbHints     map[*Hint]struct{} `cbor:"-"` // hints we processed in current round
+	lbWireLevel []int                     `cbor:"-"` // at which level we solve a wire. init at -1.
+	lbOutputs   []uint32                  `cbor:"-"` // wire outputs for current constraint.
+	lbHints     map[*HintMapping]struct{} `cbor:"-"` // hints we processed in current round
 
 	CommitmentInfo Commitment
 }
@@ -141,11 +140,11 @@ func NewSystem(scalarField *big.Int) System {
 		MDebug:             map[int]int{},
 		GnarkVersion:       gnark.Version.String(),
 		ScalarField:        scalarField.Text(16),
-		MHints:             make(map[int]*Hint),
-		MHintsDependencies: make(map[hint.ID]string),
+		MHints:             make(map[int]*HintMapping),
+		MHintsDependencies: make(map[solver.HintID]string),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
-		lbHints:            map[*Hint]struct{}{},
+		lbHints:            map[*HintMapping]struct{}{},
 	}
 }
 
@@ -176,7 +175,7 @@ func (system *System) CheckSerializationHeader() error {
 	}
 
 	// TODO @gbotrel maintain version changes and compare versions properly
-	// (ie if major didn't change,we shouldn't have a compat issue)
+	// (ie if major didn't change,we shouldn't have a compatibility issue)
 
 	scalarField := new(big.Int)
 	_, ok := scalarField.SetString(system.ScalarField, 16)
@@ -185,7 +184,7 @@ func (system *System) CheckSerializationHeader() error {
 	}
 	curveID := utils.FieldToCurve(scalarField)
 	if curveID == ecc.UNKNOWN && scalarField.Cmp(tinyfield.Modulus()) != 0 {
-		return fmt.Errorf("unsupported scalard field %s", scalarField.Text(16))
+		return fmt.Errorf("unsupported scalar field %s", scalarField.Text(16))
 	}
 	system.q = new(big.Int).Set(scalarField)
 	system.bitLen = system.q.BitLen()
@@ -224,13 +223,13 @@ func (system *System) AddSecretVariable(name string) (idx int) {
 	return idx
 }
 
-func (system *System) AddSolverHint(f hint.Function, input []LinearExpression, nbOutput int) (internalVariables []int, err error) {
+func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbOutput int) (internalVariables []int, err error) {
 	if nbOutput <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 
 	// register the hint as dependency
-	hintUUID, hintID := hint.UUID(f), hint.Name(f)
+	hintUUID, hintID := solver.GetHintID(f), solver.GetHintName(f)
 	if id, ok := system.MHintsDependencies[hintUUID]; ok {
 		// hint already registered, let's ensure string id matches
 		if id != hintID {
@@ -247,7 +246,7 @@ func (system *System) AddSolverHint(f hint.Function, input []LinearExpression, n
 	}
 
 	// associate these wires with the solver hint
-	ch := &Hint{ID: hintUUID, Inputs: input, Wires: internalVariables}
+	ch := &HintMapping{HintID: hintUUID, Inputs: input, Outputs: internalVariables}
 	for _, vID := range internalVariables {
 		system.MHints[vID] = ch
 	}

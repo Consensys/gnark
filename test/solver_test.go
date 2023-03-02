@@ -9,10 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -109,7 +108,7 @@ type permutter struct {
 	circuit           frontend.Circuit
 	constraintSystems [2]constraint.ConstraintSystem
 	witness           []tinyfield.Element
-	hints             []hint.Function
+	hints             []solver.Hint
 }
 
 // note that circuit will be mutated and this is not thread safe
@@ -183,7 +182,7 @@ func formatWitness(witness []tinyfield.Element) string {
 
 func (p *permutter) solve(i int) error {
 	pw := newPermutterWitness(p.witness)
-	_, err := p.constraintSystems[i].Solve(pw, backend.WithHints(p.hints...))
+	_, err := p.constraintSystems[i].Solve(pw, solver.WithHints(p.hints...))
 	return err
 }
 
@@ -243,7 +242,7 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 // ConsistentSolver solves given circuit with all possible witness combinations using internal/tinyfield
 //
 // Since the goal of this method is to flag potential solver issues, it is not exposed as an API for now
-func consistentSolver(circuit frontend.Circuit, hintFunctions []hint.Function) error {
+func consistentSolver(circuit frontend.Circuit, hintFunctions []solver.Hint) error {
 
 	p := permutter{
 		circuit: circuit,
