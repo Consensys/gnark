@@ -3,7 +3,8 @@ package circuits
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
+
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -11,7 +12,7 @@ import (
 type TestCircuit struct {
 	Circuit                              frontend.Circuit
 	ValidAssignments, InvalidAssignments []frontend.Circuit // good and bad witness for the prover + public verifier data
-	HintFunctions                        []hint.Function
+	HintFunctions                        []solver.Hint
 	Curves                               []ecc.ID
 }
 
@@ -30,13 +31,14 @@ func addEntry(name string, circuit, proverGood, proverBad frontend.Circuit, curv
 	Circuits[name] = TestCircuit{circuit, []frontend.Circuit{proverGood}, []frontend.Circuit{proverBad}, nil, curves}
 }
 
-func addNewEntry(name string, circuit frontend.Circuit, proverGood, proverBad []frontend.Circuit, curves []ecc.ID, hintFunctions ...hint.Function) {
+func addNewEntry(name string, circuit frontend.Circuit, proverGood, proverBad []frontend.Circuit, curves []ecc.ID, hintFunctions ...solver.Hint) {
 	if Circuits == nil {
 		Circuits = make(map[string]TestCircuit)
 	}
 	if _, ok := Circuits[name]; ok {
 		panic("name " + name + "already taken by another test circuit ")
 	}
+	solver.RegisterHint(hintFunctions...)
 
 	Circuits[name] = TestCircuit{circuit, proverGood, proverBad, hintFunctions, curves}
 }

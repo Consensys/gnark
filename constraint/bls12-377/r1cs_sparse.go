@@ -27,9 +27,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/profile"
@@ -70,11 +70,67 @@ func (cs *SparseR1CS) AddConstraint(c constraint.SparseR1C, debugInfo ...constra
 	return cID
 }
 
+func (c *SparseR1CS) Solve(witness witness.Witness, opts ...solver.Option) (any, error) {
+	opt, err := solver.NewConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	// compute the constraint system solution
+	var solution []fr.Element
+	if solution, err = c.solve(witness.Vector().(fr.Vector), opt); err != nil {
+		return nil, err
+	}
+
+	var res SparseR1CSSolution
+	// query l, r, o in Lagrange basis, not blinded
+	res.L, res.R, res.O = c.evaluateLROSmallDomain(solution)
+
+	return &res, nil
+}
+
+// evaluateLROSmallDomain extracts the solution l, r, o, and returns it in lagrange form.
+// solution = [ public | secret | internal ]
+func (c *SparseR1CS) evaluateLROSmallDomain(solution []fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
+
+	//s := int(pk.Domain[0].Cardinality)
+	s := c.GetNbConstraints() + len(c.Public) // len(spr.Public) is for the placeholder constraints
+	s = int(ecc.NextPowerOfTwo(uint64(s)))
+
+	var l, r, o []fr.Element
+	l = make([]fr.Element, s)
+	r = make([]fr.Element, s)
+	o = make([]fr.Element, s)
+	s0 := solution[0]
+
+	for i := 0; i < len(c.Public); i++ { // placeholders
+		l[i] = solution[i]
+		r[i] = s0
+		o[i] = s0
+	}
+	offset := len(c.Public)
+	for i := 0; i < len(c.Constraints); i++ { // constraints
+		l[offset+i] = solution[c.Constraints[i].L.WireID()]
+		r[offset+i] = solution[c.Constraints[i].R.WireID()]
+		o[offset+i] = solution[c.Constraints[i].O.WireID()]
+	}
+	offset += len(c.Constraints)
+
+	for i := 0; i < s-offset; i++ { // offset to reach 2**n constraints (where the id of l,r,o is 0, so we assign solution[0])
+		l[offset+i] = s0
+		r[offset+i] = s0
+		o[offset+i] = s0
+	}
+
+	return l, r, o
+
+}
+
 // Solve sets all the wires.
 // solution.values =  [publicInputs | secretInputs | internalVariables ]
 // witness: contains the input variables
 // it returns the full slice of wires
-func (cs *SparseR1CS) Solve(witness fr.Vector, opt backend.ProverConfig) (fr.Vector, error) {
+func (cs *SparseR1CS) solve(witness fr.Vector, opt solver.Config) (fr.Vector, error) {
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "plonk").Logger()
 
 	// set the slices holding the solution.values and monitoring which variables have been solved
@@ -110,7 +166,7 @@ func (cs *SparseR1CS) Solve(witness fr.Vector, opt backend.ProverConfig) (fr.Vec
 	solution.nbSolved += uint64(len(witness))
 
 	// defer log printing once all solution.values are computed
-	defer solution.printLogs(opt.CircuitLogger, cs.Logs)
+	defer solution.printLogs(opt.Logger, cs.Logs)
 
 	// batch invert the coefficients to avoid many divisions in the solver
 	coefficientsNegInv := fr.BatchInvert(cs.Coefficients)
@@ -210,8 +266,8 @@ func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv fr.Ve
 			continue
 		}
 
-		// number of tasks for this level is set to num cpus
-		// but if we don't have enough work for all our CPUS, it can be lower.
+		// number of tasks for this level is set to number of CPU
+		// but if we don't have enough work for all our CPU, it can be lower.
 		nbTasks := runtime.NumCPU()
 		maxTasks := int(math.Ceil(maxCPU))
 		if nbTasks > maxTasks {
@@ -369,16 +425,10 @@ func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution
 	return nil
 }
 
-// IsSolved returns nil if given witness solves the SparseR1CS and error otherwise
-// this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *SparseR1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) error {
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return err
-	}
-
-	v := witness.Vector().(fr.Vector)
-	_, err = cs.Solve(v, opt)
+// IsSolved
+// Deprecated: use _, err := Solve(...) instead
+func (cs *SparseR1CS) IsSolved(witness witness.Witness, opts ...solver.Option) error {
+	_, err := cs.Solve(witness, opts...)
 	return err
 }
 

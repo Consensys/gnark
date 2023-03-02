@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -46,11 +47,11 @@ func TestPrintln(t *testing.T) {
 	witness.B = 11
 
 	var expected bytes.Buffer
-	expected.WriteString("debug_test.go:28 > 13 is the addition\n")
-	expected.WriteString("debug_test.go:30 > 26 42\n")
-	expected.WriteString("debug_test.go:32 > bits 1\n")
-	expected.WriteString("debug_test.go:33 > circuit {A: 2, B: 11}\n")
-	expected.WriteString("debug_test.go:37 > m .*\n")
+	expected.WriteString("debug_test.go:29 > 13 is the addition\n")
+	expected.WriteString("debug_test.go:31 > 26 42\n")
+	expected.WriteString("debug_test.go:33 > bits 1\n")
+	expected.WriteString("debug_test.go:34 > circuit {A: 2, B: 11}\n")
+	expected.WriteString("debug_test.go:38 > m .*\n")
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
@@ -158,7 +159,7 @@ func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
 		return "", err
 	}
 	log := zerolog.New(&zerolog.ConsoleWriter{Out: &buf, NoColor: true, PartsExclude: []string{zerolog.LevelFieldName, zerolog.TimestampFieldName}})
-	_, err = plonk.Prove(ccs, pk, sw, backend.WithCircuitLogger(log))
+	_, err = plonk.Prove(ccs, pk, sw, backend.WithSolverOptions(solver.WithLogger(log)))
 	return buf.String(), err
 }
 
@@ -179,6 +180,6 @@ func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
 		return "", err
 	}
 	log := zerolog.New(&zerolog.ConsoleWriter{Out: &buf, NoColor: true, PartsExclude: []string{zerolog.LevelFieldName, zerolog.TimestampFieldName}})
-	_, err = groth16.Prove(ccs, pk, sw, backend.WithCircuitLogger(log))
+	_, err = groth16.Prove(ccs, pk, sw, backend.WithSolverOptions(solver.WithLogger(log)))
 	return buf.String(), err
 }

@@ -19,7 +19,7 @@ package frontend
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 )
 
 // API represents the available functions to circuit developers
@@ -122,7 +122,7 @@ type API interface {
 
 	// NewHint is a shortcut to api.Compiler().NewHint()
 	// Deprecated: use api.Compiler().NewHint() instead
-	NewHint(f hint.Function, nbOutputs int, inputs ...Variable) ([]Variable, error)
+	NewHint(f solver.Hint, nbOutputs int, inputs ...Variable) ([]Variable, error)
 
 	// ConstantValue is a shortcut to api.Compiler().ConstantValue()
 	// Deprecated: use api.Compiler().ConstantValue() instead

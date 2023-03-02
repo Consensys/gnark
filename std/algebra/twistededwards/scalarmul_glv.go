@@ -22,7 +22,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -82,7 +82,7 @@ var DecomposeScalar = func(scalarField *big.Int, inputs []*big.Int, res []*big.I
 }
 
 func init() {
-	hint.Register(DecomposeScalar)
+	solver.RegisterHint(DecomposeScalar)
 }
 
 // ScalarMul computes the scalar multiplication of a point on a twisted Edwards curve
