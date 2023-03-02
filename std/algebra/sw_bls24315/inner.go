@@ -72,13 +72,13 @@ type CurvePoints struct {
 	G1m [][2]*big.Int // m*base points (x,y)
 }
 
-func GetBLS24315CurvePoints() CurvePoints {
+func GetCurvePoints() CurvePoints {
 	g1x, _ := new(big.Int).SetString("41a0a424393988da1b2b117076ef6e4f54b344cc46dde3c983603a832cb638dbf4b721710866097", 16)
 	g1y, _ := new(big.Int).SetString("2e6f83c55deff20227ecdf0db2bb2ebb5d72c8a29010871d3cce9059e83dfb96f2922d5da4e4e5f", 16)
 	return CurvePoints{
 		G1x: g1x,
 		G1y: g1y,
-		G1m: computeBLS24315CurveTable(),
+		G1m: computeCurveTable(),
 	}
 }
 
@@ -88,7 +88,7 @@ type TwistPoints struct {
 	G2m [][8]*big.Int // m*base points (x,y)
 }
 
-func GetBLS24315TwistPoints() TwistPoints {
+func GetTwistPoints() TwistPoints {
 	g2x0, _ := new(big.Int).SetString("2f339ada8942f92aefa14196bfee2552a7c5675f5e5e9da798458f72ff50f96f5c357cf13710f63", 16)
 	g2x1, _ := new(big.Int).SetString("20b1a8dca4b18842b40079be727cbfd1a16ed134a080b759ae503618e92871697838dc4c689911c", 16)
 	g2x2, _ := new(big.Int).SetString("16eab1e76670eb9affa1bc77400be688d5cd69566f9325b329b40db85b47f236d5c34e8ffed7536", 16)
@@ -100,7 +100,7 @@ func GetBLS24315TwistPoints() TwistPoints {
 	return TwistPoints{
 		G2x: [4]*big.Int{g2x0, g2x1, g2x2, g2x3},
 		G2y: [4]*big.Int{g2y0, g2y1, g2y2, g2y3},
-		G2m: computeBLS24315TwistTable(),
+		G2m: computeTwistTable(),
 	}
 
 }

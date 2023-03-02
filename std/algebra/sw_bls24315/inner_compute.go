@@ -6,7 +6,7 @@ import (
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 )
 
-func computeBLS24315CurveTable() [][2]*big.Int {
+func computeCurveTable() [][2]*big.Int {
 	G1jac, _, _, _ := bls24315.Generators()
 	table := make([][2]*big.Int, 253)
 	tmp := new(bls24315.G1Jac).Set(&G1jac)
@@ -32,7 +32,7 @@ func computeBLS24315CurveTable() [][2]*big.Int {
 	return table[:]
 }
 
-func computeBLS24315TwistTable() [][8]*big.Int {
+func computeTwistTable() [][8]*big.Int {
 	_, G2jac, _, _ := bls24315.Generators()
 	table := make([][8]*big.Int, 253)
 	tmp := new(bls24315.G2Jac).Set(&G2jac)
