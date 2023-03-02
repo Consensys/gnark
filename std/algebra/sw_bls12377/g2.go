@@ -485,30 +485,30 @@ func (P *G2Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G2Affin
 	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
 	res.X.Lookup2(api, sBits[1], sBits[2],
 		fields_bls12377.E2{
-			A0: points.G2x0,
-			A1: points.G2x1},
+			A0: points.G2x[0],
+			A1: points.G2x[1]},
 		fields_bls12377.E2{
-			A0: points.G2mx0[0],
-			A1: points.G2mx1[0]},
+			A0: points.G2m[0][0],
+			A1: points.G2m[0][1]},
 		fields_bls12377.E2{
-			A0: points.G2mx0[1],
-			A1: points.G2mx1[1]},
+			A0: points.G2m[1][0],
+			A1: points.G2m[1][1]},
 		fields_bls12377.E2{
-			A0: points.G2mx0[2],
-			A1: points.G2mx1[2]})
+			A0: points.G2m[2][0],
+			A1: points.G2m[2][1]})
 	res.Y.Lookup2(api, sBits[1], sBits[2],
 		fields_bls12377.E2{
-			A0: points.G2y0,
-			A1: points.G2y1},
+			A0: points.G2y[0],
+			A1: points.G2y[1]},
 		fields_bls12377.E2{
-			A0: points.G2my0[0],
-			A1: points.G2my1[0]},
+			A0: points.G2m[0][2],
+			A1: points.G2m[0][3]},
 		fields_bls12377.E2{
-			A0: points.G2my0[1],
-			A1: points.G2my1[1]},
+			A0: points.G2m[1][2],
+			A1: points.G2m[1][3]},
 		fields_bls12377.E2{
-			A0: points.G2my0[2],
-			A1: points.G2my1[2]})
+			A0: points.G2m[2][2],
+			A1: points.G2m[2][3]})
 
 	for i := 3; i < 253; i++ {
 		// gm[i] = [2^i]g
@@ -516,18 +516,18 @@ func (P *G2Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G2Affin
 		tmp.Y = res.Y
 		tmp.AddAssign(api, G2Affine{
 			fields_bls12377.E2{
-				A0: points.G2mx0[i],
-				A1: points.G2mx1[i]},
+				A0: points.G2m[i][0],
+				A1: points.G2m[i][1]},
 			fields_bls12377.E2{
-				A0: points.G2my0[i],
-				A1: points.G2my1[i]}})
+				A0: points.G2m[i][2],
+				A1: points.G2m[i][3]}})
 		res.Select(api, sBits[i], tmp, res)
 	}
 
 	// i = 0
 	tmp.Neg(api, G2Affine{
-		fields_bls12377.E2{A0: points.G2x0, A1: points.G2x1},
-		fields_bls12377.E2{A0: points.G2y0, A1: points.G2y1}})
+		fields_bls12377.E2{A0: points.G2x[0], A1: points.G2x[1]},
+		fields_bls12377.E2{A0: points.G2y[0], A1: points.G2y[1]}})
 	tmp.AddAssign(api, res)
 	res.Select(api, sBits[0], res, tmp)
 
