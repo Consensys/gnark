@@ -83,15 +83,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
 
 	// 1 - solve the system
-	trace, err := spr.Solve(fullWitness, opt.SolverOpts...)
+	_solution, err := spr.Solve(fullWitness, opt.SolverOpts...)
 	if err != nil {
 		return nil, err
 	}
 
-	traceCast := trace.(*cs.SparseR1CSSolution)
-	evaluationLDomainSmall := []fr.Element(traceCast.L)
-	evaluationRDomainSmall := []fr.Element(traceCast.R)
-	evaluationODomainSmall := []fr.Element(traceCast.O)
+	solution := _solution.(*cs.SparseR1CSSolution)
+	evaluationLDomainSmall := []fr.Element(solution.L)
+	evaluationRDomainSmall := []fr.Element(solution.R)
+	evaluationODomainSmall := []fr.Element(solution.O)
 
 	// 2 - commit to lro
 	blindedLCanonical, blindedRCanonical, blindedOCanonical, err := computeBlindedLROCanonical(

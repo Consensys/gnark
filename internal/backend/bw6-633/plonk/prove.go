@@ -80,14 +80,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	proof := &Proof{}
 
 	// query l, r, o in Lagrange basis, not blinded
-	trace, err := spr.Solve(fullWitness, opt.SolverOpts...)
+	_solution, err := spr.Solve(fullWitness, opt.SolverOpts...)
 	if err != nil {
 		return nil, err
 	}
-	traceCast := trace.(*cs.SparseR1CSSolution)
-	evaluationLDomainSmall := []fr.Element(traceCast.L)
-	evaluationRDomainSmall := []fr.Element(traceCast.R)
-	evaluationODomainSmall := []fr.Element(traceCast.O)
+	solution := _solution.(*cs.SparseR1CSSolution)
+	evaluationLDomainSmall := []fr.Element(solution.L)
+	evaluationRDomainSmall := []fr.Element(solution.R)
+	evaluationODomainSmall := []fr.Element(solution.O)
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	liop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
