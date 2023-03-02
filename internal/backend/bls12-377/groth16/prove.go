@@ -23,7 +23,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint/bls12-377"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"math/big"
@@ -51,22 +53,20 @@ func (proof *Proof) CurveID() ecc.ID {
 }
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
-func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
-	// TODO @gbotrel witness size check is done by R1CS, doesn't mean we shouldn't sanitize here.
-	// if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
-	// 	return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
-	// }
+func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
 
-	// solve the R1CS and compute the a, b, c vectors
-	a := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
-	b := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
-	c := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
-
 	proof := &Proof{}
+
+	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
+
 	if r1cs.CommitmentInfo.Is() {
-		opt.HintFunctions[r1cs.CommitmentInfo.HintID] = func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo.HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 			// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
 			// If that is the case, figure out a way to feed the solution vector into this function
 			if len(in) != r1cs.CommitmentInfo.NbCommitted() { // TODO: Remove
@@ -87,36 +87,29 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverC
 
 			var res fr.Element
 			res, err = solveCommitmentWire(&r1cs.CommitmentInfo, &proof.Commitment, in[:r1cs.CommitmentInfo.NbPublicCommitted()])
-			res.BigInt(out[0]) //Perf-TODO: Regular (non-mont) hashToField to obviate this conversion?
+			res.BigInt(out[0])
 			return err
-		}
+		}))
 	}
 
-	var wireValues []fr.Element
-	var err error
-	if wireValues, err = r1cs.Solve(witness, a, b, c, opt); err != nil {
-		if !opt.Force {
-			return nil, err
-		} else {
-			// we need to fill wireValues with random values else multi exps don't do much
-			var r fr.Element
-			_, _ = r.SetRandom()
-			for i := r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables(); i < len(wireValues); i++ {
-				wireValues[i] = r
-				r.Double(&r)
-			}
-		}
+	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
+	if err != nil {
+		return nil, err
 	}
+
+	solution := _solution.(*cs.R1CSSolution)
+	wireValues := []fr.Element(solution.W)
+
 	start := time.Now()
 
 	// H (witness reduction / FFT part)
 	var h []fr.Element
 	chHDone := make(chan struct{}, 1)
 	go func() {
-		h = computeH(a, b, c, &pk.Domain)
-		a = nil
-		b = nil
-		c = nil
+		h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
+		solution.A = nil
+		solution.B = nil
+		solution.C = nil
 		chHDone <- struct{}{}
 	}()
 
@@ -345,7 +338,7 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	den.Sub(&den, &one).Inverse(&den)
 
 	// h = ifft_coset(ca o cb - cc)
-	// reusing a to avoid unecessary memalloc
+	// reusing a to avoid unnecessary memory allocation
 	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {
 			a[i].Mul(&a[i], &b[i]).

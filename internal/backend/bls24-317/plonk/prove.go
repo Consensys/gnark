@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/consensys/gnark/backend/witness"
+
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-317"
@@ -58,10 +60,15 @@ type Proof struct {
 	ZShiftedOpening kzg.OpeningProof
 }
 
-// Prove from the public data
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 
 	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
+
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	start := time.Now()
 	// pick a hash function that will be used to derive the challenges
 	hFunc := sha256.New()
@@ -72,25 +79,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	// result
 	proof := &Proof{}
 
-	// compute the constraint system solution
-	var solution []fr.Element
-	var err error
-	if solution, err = spr.Solve(fullWitness, opt); err != nil {
-		if !opt.Force {
-			return nil, err
-		} else {
-			// we need to fill solution with random values
-			var r fr.Element
-			_, _ = r.SetRandom()
-			for i := len(spr.Public) + len(spr.Secret); i < len(solution); i++ {
-				solution[i] = r
-				r.Double(&r)
-			}
-		}
-	}
-
 	// query l, r, o in Lagrange basis, not blinded
-	evaluationLDomainSmall, evaluationRDomainSmall, evaluationODomainSmall := evaluateLROSmallDomain(spr, pk, solution)
+	_solution, err := spr.Solve(fullWitness, opt.SolverOpts...)
+	if err != nil {
+		return nil, err
+	}
+	solution := _solution.(*cs.SparseR1CSSolution)
+	evaluationLDomainSmall := []fr.Element(solution.L)
+	evaluationRDomainSmall := []fr.Element(solution.R)
+	evaluationODomainSmall := []fr.Element(solution.O)
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	liop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
@@ -112,10 +109,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 		return nil, err
 	}
 
+	fw, ok := fullWitness.Vector().(fr.Vector)
+	if !ok {
+		return nil, witness.ErrInvalidWitness
+	}
+
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *pk.Vk, fullWitness[:len(spr.Public)]); err != nil {
+	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)]); err != nil {
 		return nil, err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
@@ -167,7 +169,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 
 	// compute qk in canonical basis, completed with the public inputs
 	qkCompletedCanonical := make([]fr.Element, pk.Domain[0].Cardinality)
-	copy(qkCompletedCanonical, fullWitness[:len(spr.Public)])
+	copy(qkCompletedCanonical, fw[:len(spr.Public)])
 	copy(qkCompletedCanonical[len(spr.Public):], pk.LQk[len(spr.Public):])
 	pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 	fft.BitReverse(qkCompletedCanonical)
@@ -496,41 +498,6 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, srs *kzg.SRS) error
 	}
 
 	return err1
-}
-
-// evaluateLROSmallDomain extracts the solution l, r, o, and returns it in lagrange form.
-// solution = [ public | secret | internal ]
-func evaluateLROSmallDomain(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
-
-	s := int(pk.Domain[0].Cardinality)
-
-	var l, r, o []fr.Element
-	l = make([]fr.Element, s)
-	r = make([]fr.Element, s)
-	o = make([]fr.Element, s)
-	s0 := solution[0]
-
-	for i := 0; i < len(spr.Public); i++ { // placeholders
-		l[i] = solution[i]
-		r[i] = s0
-		o[i] = s0
-	}
-	offset := len(spr.Public)
-	for i := 0; i < len(spr.Constraints); i++ { // constraints
-		l[offset+i] = solution[spr.Constraints[i].L.WireID()]
-		r[offset+i] = solution[spr.Constraints[i].R.WireID()]
-		o[offset+i] = solution[spr.Constraints[i].O.WireID()]
-	}
-	offset += len(spr.Constraints)
-
-	for i := 0; i < s-offset; i++ { // offset to reach 2**n constraints (where the id of l,r,o is 0, so we assign solution[0])
-		l[offset+i] = s0
-		r[offset+i] = s0
-		o[offset+i] = s0
-	}
-
-	return l, r, o
-
 }
 
 // computeLinearizedPolynomial computes the linearized polynomial in canonical basis.
