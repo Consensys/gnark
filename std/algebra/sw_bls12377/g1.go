@@ -463,14 +463,14 @@ func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affin
 
 	// i = 1, 2
 	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
-	res.X = api.Lookup2(sBits[1], sBits[2], points.G1x, points.G1mx[0], points.G1mx[1], points.G1mx[2])
-	res.Y = api.Lookup2(sBits[1], sBits[2], points.G1y, points.G1my[0], points.G1my[1], points.G1my[2])
+	res.X = api.Lookup2(sBits[1], sBits[2], points.G1x, points.G1m[0][0], points.G1m[1][0], points.G1m[2][0])
+	res.Y = api.Lookup2(sBits[1], sBits[2], points.G1y, points.G1m[0][1], points.G1m[1][1], points.G1m[2][1])
 
 	for i := 3; i < 253; i++ {
 		// gm[i] = [2^i]g
 		tmp.X = res.X
 		tmp.Y = res.Y
-		tmp.AddAssign(api, G1Affine{points.G1mx[i], points.G1my[i]})
+		tmp.AddAssign(api, G1Affine{points.G1m[i][0], points.G1m[i][1]})
 		res.Select(api, sBits[i], tmp, res)
 	}
 
