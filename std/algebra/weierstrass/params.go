@@ -3,6 +3,8 @@ package weierstrass
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -24,13 +26,12 @@ type CurveParams struct {
 // initialising new curve, use the base field [emulated.Secp256k1Fp] and scalar
 // field [emulated.Secp256k1Fr].
 func GetSecp256k1Params() CurveParams {
-	gx, _ := new(big.Int).SetString("79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798", 16)
-	gy, _ := new(big.Int).SetString("483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8", 16)
+	_, g1aff := secp256k1.Generators()
 	return CurveParams{
 		A:  big.NewInt(0),
 		B:  big.NewInt(7),
-		Gx: gx,
-		Gy: gy,
+		Gx: g1aff.X.BigInt(new(big.Int)),
+		Gy: g1aff.Y.BigInt(new(big.Int)),
 		Gm: computeSecp256k1Table(),
 	}
 }
@@ -39,14 +40,12 @@ func GetSecp256k1Params() CurveParams {
 // When initialising new curve, use the base field [emulated.BN254Fp] and scalar
 // field [emulated.BN254Fr].
 func GetBN254Params() CurveParams {
-	gx := big.NewInt(1)
-	gy := big.NewInt(2)
-
+	_, _, g1aff, _ := bn254.Generators()
 	return CurveParams{
 		A:  big.NewInt(0),
 		B:  big.NewInt(3),
-		Gx: gx,
-		Gy: gy,
+		Gx: g1aff.X.BigInt(new(big.Int)),
+		Gy: g1aff.Y.BigInt(new(big.Int)),
 		Gm: computeBN254Table(),
 	}
 }
