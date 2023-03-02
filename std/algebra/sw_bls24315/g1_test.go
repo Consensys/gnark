@@ -369,6 +369,37 @@ func TestScalarMulG1(t *testing.T) {
 	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 }
 
+type g1varScalarMulBase struct {
+	C G1Affine `gnark:",public"`
+	R frontend.Variable
+}
+
+func (circuit *g1varScalarMulBase) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.ScalarMulBase(api, circuit.R)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestVarScalarMulBaseG1(t *testing.T) {
+	var c bls24315.G1Affine
+	gJac, _, _, _ := bls24315.Generators()
+
+	// create the cs
+	var circuit, witness g1varScalarMulBase
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// compute the result
+	var br big.Int
+	gJac.ScalarMultiplication(&gJac, r.BigInt(&br))
+	c.FromJacobian(&gJac)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+}
+
 func randomPointG1() bls24315.G1Jac {
 
 	p1, _, _, _ := bls24315.Generators()

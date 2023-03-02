@@ -471,3 +471,73 @@ func (p *G2Affine) DoubleAndAdd(api frontend.API, p1, p2 *G2Affine) *G2Affine {
 
 	return p
 }
+
+// ScalarMulBase computes s * g2 and returns it, where g2 is the fixed generator. It doesn't modify s.
+func (P *G2Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G2Affine {
+
+	points := GetBLS24315TwistPoints()
+
+	sBits := api.ToBinary(s, 253)
+
+	var res, tmp G2Affine
+
+	// i = 1, 2
+	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
+	res.X.Lookup2(api, sBits[1], sBits[2],
+		fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: points.G2x[0], A1: points.G2x[1]},
+			B1: fields_bls24315.E2{A0: points.G2x[2], A1: points.G2x[3]}},
+		fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: points.G2m[0][0], A1: points.G2m[0][1]},
+			B1: fields_bls24315.E2{A0: points.G2m[0][2], A1: points.G2m[0][3]}},
+		fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: points.G2m[1][0], A1: points.G2m[1][1]},
+			B1: fields_bls24315.E2{A0: points.G2m[1][2], A1: points.G2m[1][3]}},
+		fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: points.G2m[2][0], A1: points.G2m[2][1]},
+			B1: fields_bls24315.E2{A0: points.G2m[2][2], A1: points.G2m[2][3]}})
+
+	res.Y.Lookup2(api, sBits[1], sBits[2],
+		fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: points.G2y[0], A1: points.G2y[1]},
+			B1: fields_bls24315.E2{A0: points.G2y[2], A1: points.G2y[3]}},
+		fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: points.G2m[0][4], A1: points.G2m[0][5]},
+			B1: fields_bls24315.E2{A0: points.G2m[0][6], A1: points.G2m[0][7]}},
+		fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: points.G2m[1][4], A1: points.G2m[1][5]},
+			B1: fields_bls24315.E2{A0: points.G2m[1][6], A1: points.G2m[1][7]}},
+		fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: points.G2m[2][4], A1: points.G2m[2][5]},
+			B1: fields_bls24315.E2{A0: points.G2m[2][6], A1: points.G2m[2][7]}})
+
+	for i := 3; i < 253; i++ {
+		// gm[i] = [2^i]g
+		tmp.X = res.X
+		tmp.Y = res.Y
+		tmp.AddAssign(api, G2Affine{
+			X: fields_bls24315.E4{
+				B0: fields_bls24315.E2{A0: points.G2m[i][0], A1: points.G2m[i][1]},
+				B1: fields_bls24315.E2{A0: points.G2m[i][2], A1: points.G2m[i][3]}},
+			Y: fields_bls24315.E4{
+				B0: fields_bls24315.E2{A0: points.G2m[i][4], A1: points.G2m[i][5]},
+				B1: fields_bls24315.E2{A0: points.G2m[i][6], A1: points.G2m[i][7]}}})
+		res.Select(api, sBits[i], tmp, res)
+	}
+
+	// i = 0
+	tmp.Neg(api, G2Affine{
+		X: fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: points.G2x[0], A1: points.G2x[1]},
+			B1: fields_bls24315.E2{A0: points.G2x[2], A1: points.G2x[3]}},
+		Y: fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: points.G2y[0], A1: points.G2y[1]},
+			B1: fields_bls24315.E2{A0: points.G2y[2], A1: points.G2y[3]}}})
+	tmp.AddAssign(api, res)
+	res.Select(api, sBits[0], res, tmp)
+
+	P.X = res.X
+	P.Y = res.Y
+
+	return P
+}
