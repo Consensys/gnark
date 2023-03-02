@@ -67,7 +67,7 @@ func (cc *innerConfig) phi2(api frontend.API, res, P *G2Affine) *G2Affine {
 	return res
 }
 
-type CurvePoints struct {
+type curvePoints struct {
 	G1x *big.Int      // base point x
 	G1y *big.Int      // base point y
 	G1m [][2]*big.Int // m*base points (x,y)
@@ -83,24 +83,24 @@ func init() {
 	computedTwistTable = computeTwistTable()
 }
 
-func GetCurvePoints() CurvePoints {
+func getCurvePoints() curvePoints {
 	_, _, g1aff, _ := bls24315.Generators()
-	return CurvePoints{
+	return curvePoints{
 		G1x: g1aff.X.BigInt(new(big.Int)),
 		G1y: g1aff.Y.BigInt(new(big.Int)),
 		G1m: computedCurveTable,
 	}
 }
 
-type TwistPoints struct {
+type twistPoints struct {
 	G2x [4]*big.Int   // base point x ∈ E4
 	G2y [4]*big.Int   // base point y ∈ E4
 	G2m [][8]*big.Int // m*base points (x,y)
 }
 
-func GetTwistPoints() TwistPoints {
+func getTwistPoints() twistPoints {
 	_, _, _, g2aff := bls24315.Generators()
-	return TwistPoints{
+	return twistPoints{
 		G2x: [4]*big.Int{
 			g2aff.X.B0.A0.BigInt(new(big.Int)),
 			g2aff.X.B0.A1.BigInt(new(big.Int)),

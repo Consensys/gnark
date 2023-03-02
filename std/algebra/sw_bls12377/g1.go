@@ -455,7 +455,7 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 // ScalarMulBase computes s * g1 and returns it, where g1 is the fixed generator. It doesn't modify s.
 func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affine {
 
-	points := GetCurvePoints()
+	points := getCurvePoints()
 
 	sBits := api.ToBinary(s, 253)
 
