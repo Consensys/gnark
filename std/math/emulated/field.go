@@ -90,7 +90,9 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 // NewElement builds a new Element[T] from input v.
 //   - if v is a Element[T] or *Element[T] it clones it
 //   - if v is a constant this is equivalent to calling emulated.ValueOf[T]
-//   - if this methods interpret v  (frontend.Variable or []frontend.Variable) as being the limbs; and constrain the limbs following the parameters of the Field.
+//   - if this methods interprets v as being the limbs (frontend.Variable or []frontend.Variable),
+//     it constructs a new Element[T] with v as limbs and constraints the limbs to the parameters
+//     of the Field[T].
 func (f *Field[T]) NewElement(v interface{}) *Element[T] {
 	if e, ok := v.(Element[T]); ok {
 		return e.copy()
