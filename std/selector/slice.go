@@ -31,7 +31,7 @@ func Partition(api frontend.API, pivotPosition frontend.Variable, rightSide bool
 	input []frontend.Variable) (out []frontend.Variable) {
 	out = make([]frontend.Variable, len(input))
 	var mask []frontend.Variable
-	// we create a mask of len(input)+1 to be able to handle the case pivotPosition == len(input)
+	// we create a bit mask to multiply with the input
 	if rightSide {
 		mask = StepMask(api, len(input), pivotPosition, 0, 1)
 	} else {
@@ -53,12 +53,12 @@ func Partition(api frontend.API, pivotPosition frontend.Variable, rightSide bool
 func StepMask(api frontend.API, outputLen int,
 	stepPosition, startValue, endValue frontend.Variable) []frontend.Variable {
 	if outputLen < 2 {
-		panic("output len must be >= 2")
+		panic("the output len of StepMask must be >= 2")
 	}
 	// get the output as a hint
 	out, _ := api.Compiler().NewHint(StepOutput, outputLen, stepPosition, startValue, endValue)
 
-	// add boundary constraints
+	// add the boundary constraints
 	api.AssertIsEqual(out[0], startValue)
 	api.AssertIsEqual(out[len(out)-1], endValue)
 
