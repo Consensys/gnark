@@ -125,10 +125,8 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	if err = c.Define(e); err != nil {
 		return fmt.Errorf("define: %w", err)
 	}
-	for i, cb := range circuitdefer.GetAll[func(frontend.API) error](e) {
-		if err = cb(e); err != nil {
-			return fmt.Errorf("defer %d: %w", i, err)
-		}
+	if err = callDeferred(e); err != nil {
+		return fmt.Errorf("deferred: %w", err)
 	}
 
 	log.Debug().Uint64("add", cptAdd).
@@ -139,6 +137,15 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 		Uint64("fromBinary", cptFromBinary).Msg("counters")
 
 	return
+}
+
+func callDeferred(builder *engine) error {
+	for i, cb := range circuitdefer.GetAll[func(frontend.API) error](builder) {
+		if err := cb(builder); err != nil {
+			return fmt.Errorf("defer fn %d: %w", i, err)
+		}
+	}
+	return nil
 }
 
 var cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual uint64
