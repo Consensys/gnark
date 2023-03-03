@@ -124,7 +124,7 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 		return fmt.Errorf("define circuit: %w", err)
 	}
 	if err = callDeferred(builder); err != nil {
-		return fmt.Errorf("")
+		return fmt.Errorf("deferred: %w", err)
 	}
 
 	return
