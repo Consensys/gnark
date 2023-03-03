@@ -77,7 +77,6 @@ func TestPartition(t *testing.T) {
 		WantLeft:  [6]frontend.Variable{10, 20, 30, 40, 50, 60},
 		WantRight: [6]frontend.Variable{0, 0, 0, 0, 0, 0},
 	})
-	// todo: fails for /bls24_317/plonkFRI#04
 
 	assert.ProverFailed(&partitionerCircuit{}, &partitionerCircuit{
 		Pivot:     0,

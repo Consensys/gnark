@@ -1,14 +1,14 @@
 package selector
 
 import (
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"math/big"
 )
 
 func init() {
 	// register hints
-	hint.Register(StepOutput)
+	solver.RegisterHint(StepOutput)
 }
 
 // Partition selects left or right side of the input array, with respect to the pivotPosition.

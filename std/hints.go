@@ -33,6 +33,6 @@ func registerHints() {
 	solver.RegisterHint(bits.NBits)
 	solver.RegisterHint(selector.MuxIndicators)
 	solver.RegisterHint(selector.MapIndicators)
-  solver.RegisterHint(selector.StepOutput)
+	solver.RegisterHint(selector.StepOutput)
 	solver.RegisterHint(emulated.GetHints()...)
 }
