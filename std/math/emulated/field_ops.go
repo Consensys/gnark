@@ -185,12 +185,12 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 		for i := 1; i < len(mulResult); i++ {
 			w.Lsh(w, uint(c))
 			if i < len(a.Limbs) {
-				l = f.api.Add(l, f.api.Mul(a.Limbs[i], w))
+				l = f.api.MulAcc(l, a.Limbs[i], w)
 			}
 			if i < len(b.Limbs) {
-				r = f.api.Add(r, f.api.Mul(b.Limbs[i], w))
+				r = f.api.MulAcc(r, b.Limbs[i], w)
 			}
-			o = f.api.Add(o, f.api.Mul(mulResult[i], w))
+			o = f.api.MulAcc(o, mulResult[i], w)
 		}
 		f.api.AssertIsEqual(f.api.Mul(l, r), o)
 	}
@@ -263,7 +263,7 @@ func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
 	return f.Sub(f.Zero(), a)
 }
 
-// Select sets e to a if selector == 0 and to b otherwise. Sets the number of
+// Select sets e to a if selector == 1 and to b otherwise. Sets the number of
 // limbs and overflow of the result to be the maximum of the limb lengths and
 // overflows. If the inputs are strongly unbalanced, then it would better to
 // reduce the result after the operation.

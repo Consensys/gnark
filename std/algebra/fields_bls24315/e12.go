@@ -20,7 +20,7 @@ import (
 	"math/big"
 
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -209,7 +209,7 @@ var InverseE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 }
 
 func init() {
-	hint.Register(InverseE12Hint)
+	solver.RegisterHint(InverseE12Hint)
 }
 
 // Inverse e12 elmts
@@ -282,7 +282,7 @@ var DivE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 }
 
 func init() {
-	hint.Register(DivE12Hint)
+	solver.RegisterHint(DivE12Hint)
 }
 
 // DivUnchecked e12 elmts

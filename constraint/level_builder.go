@@ -10,7 +10,7 @@ package constraint
 // --> l = max(level_of_dependencies(wire)) + 1
 func (system *System) updateLevel(cID int, c Iterable) {
 	system.lbOutputs = system.lbOutputs[:0]
-	system.lbHints = map[*Hint]struct{}{}
+	system.lbHints = map[*HintMapping]struct{}{}
 	level := -1
 	wireIterator := c.WireIterator()
 	for wID := wireIterator(); wID != -1; wID = wireIterator() {
@@ -65,7 +65,7 @@ func (system *System) processWire(wireID uint32, maxLevel *int) {
 		}
 		system.lbHints[h] = struct{}{}
 
-		for _, hwid := range h.Wires {
+		for _, hwid := range h.Outputs {
 			system.lbOutputs = append(system.lbOutputs, uint32(hwid))
 		}
 		for _, in := range h.Inputs {

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"github.com/rs/zerolog"
 	"golang.org/x/exp/constraints"
@@ -89,7 +90,9 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 // NewElement builds a new Element[T] from input v.
 //   - if v is a Element[T] or *Element[T] it clones it
 //   - if v is a constant this is equivalent to calling emulated.ValueOf[T]
-//   - if this methods interpret v  (frontend.Variable or []frontend.Variable) as being the limbs; and constrain the limbs following the parameters of the Field.
+//   - if this methods interprets v as being the limbs (frontend.Variable or []frontend.Variable),
+//     it constructs a new Element[T] with v as limbs and constraints the limbs to the parameters
+//     of the Field[T].
 func (f *Field[T]) NewElement(v interface{}) *Element[T] {
 	if e, ok := v.(Element[T]); ok {
 		return e.copy()
@@ -157,14 +160,27 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 		return false
 	}
 	if _, isConst := f.constantValue(a); isConst {
+		// enforce constant element limbs not to be large.
+		for i := range a.Limbs {
+			val := utils.FromInterface(a.Limbs[i])
+			if val.BitLen() > int(f.fParams.BitsPerLimb()) {
+				panic("constant element limb wider than emulated parameter")
+			}
+		}
 		// constant values are constant
 		return false
 	}
 	for i := range a.Limbs {
 		if !frontend.IsCanonical(a.Limbs[i]) {
-			// this is not a variable. This may happen when some limbs are
-			// constant and some variables. A strange case but lets try to cover
-			// it anyway.
+			// this is not a canonical variable, nor a constant. This may happen
+			// when some limbs are constant and some variables. Or if we are
+			// running in a test engine. In either case, we must check that if
+			// this limb is a [*big.Int] that its bitwidth is less than the
+			// NbBits.
+			val := utils.FromInterface(a.Limbs[i])
+			if val.BitLen() > int(f.fParams.BitsPerLimb()) {
+				panic("non-canonical integer limb wider than emulated parameter")
+			}
 			continue
 		}
 		if vv, ok := a.Limbs[i].(interface{ HashCode() uint64 }); ok {

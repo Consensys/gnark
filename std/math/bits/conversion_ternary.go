@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -13,7 +13,7 @@ import (
 var NTrits = nTrits
 
 func init() {
-	hint.Register(NTrits)
+	solver.RegisterHint(NTrits)
 }
 
 // ToTernary is an alias of ToBase(api, Ternary, v, opts...)

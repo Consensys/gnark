@@ -20,7 +20,7 @@ import (
 	"math/big"
 
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -165,7 +165,7 @@ var DivE4Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 }
 
 func init() {
-	hint.Register(DivE4Hint)
+	solver.RegisterHint(DivE4Hint)
 }
 
 // DivUnchecked e4 elmts
@@ -208,7 +208,7 @@ var InverseE4Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 }
 
 func init() {
-	hint.Register(InverseE4Hint)
+	solver.RegisterHint(InverseE4Hint)
 }
 
 // Inverse e4 elmts
@@ -250,6 +250,19 @@ func (e *E4) Select(api frontend.API, b frontend.Variable, r1, r2 E4) *E4 {
 
 	e.B0.Select(api, b, r1.B0, r2.B0)
 	e.B1.Select(api, b, r1.B1, r2.B1)
+
+	return e
+}
+
+// Lookup2 implements two-bit lookup. It returns:
+//   - r1 if b1=0 and b2=0,
+//   - r2 if b1=0 and b2=1,
+//   - r3 if b1=1 and b2=0,
+//   - r3 if b1=1 and b2=1.
+func (e *E4) Lookup2(api frontend.API, b1, b2 frontend.Variable, r1, r2, r3, r4 E4) *E4 {
+
+	e.B0.Lookup2(api, b1, b2, r1.B0, r2.B0, r3.B0, r4.B0)
+	e.B1.Lookup2(api, b1, b2, r1.B1, r2.B1, r3.B1, r4.B1)
 
 	return e
 }

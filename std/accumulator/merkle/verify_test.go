@@ -19,17 +19,18 @@ package merkle
 import (
 	"bytes"
 	"crypto/rand"
+	"os"
+	"testing"
+
 	"github.com/consensys/gnark-crypto/accumulator/merkletree"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
-	"os"
-	"testing"
 )
 
 // MerkleProofTest used for testing only
@@ -99,7 +100,7 @@ func TestVerify(t *testing.T) {
 				os.Exit(-1)
 			}
 
-			// verfiy the proof in plain go
+			// verify the proof in plain go
 			verified := merkletree.VerifyProof(hGo, merkleRoot, proofPath, proofIndex, numLeaves)
 			if !verified {
 				t.Fatal("The merkle proof in plain go should pass")
@@ -119,7 +120,7 @@ func TestVerify(t *testing.T) {
 				t.Fatal(err)
 			}
 			logger.SetOutput(os.Stdout)
-			err = cc.IsSolved(w, backend.IgnoreSolverError(), backend.WithCircuitLogger(logger.Logger()))
+			err = cc.IsSolved(w, solver.WithLogger(logger.Logger()))
 			if err != nil {
 				t.Fatal(err)
 			}
