@@ -56,9 +56,10 @@ type baseConversionConfig struct {
 // BaseConversionOption configures the behaviour of scalar decomposition.
 type BaseConversionOption func(opt *baseConversionConfig) error
 
-// WithNbDigits set the resulting number of digits to be used in the base conversion.
-// nbDigits must be > 0. If nbDigits is lower than the length of full
-// decomposition, then nbDigits least significant digits are returned. If the
+// WithNbDigits sets the resulting number of digits (nbDigits) to be used in the
+// base conversion. nbDigits must be > 0. If nbDigits is lower than the length of full
+// decomposition and WithUnconstrainedOutputs option is not used,
+// then a proof can not be generated. If WithNbDigits
 // option is not set, then the full decomposition is returned.
 func WithNbDigits(nbDigits int) BaseConversionOption {
 	return func(opt *baseConversionConfig) error {
