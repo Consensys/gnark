@@ -21,6 +21,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/internal/backend/circuits"
+	"github.com/consensys/gnark/test"
 	"reflect"
 	"testing"
 
@@ -77,15 +78,7 @@ func TestSerialization(t *testing.T) {
 
 				// compare original and reconstructed
 				if diff := cmp.Diff(r1cs1, &reconstructed,
-					cmpopts.IgnoreFields(cs.R1CS{},
-						"System.q",
-						"arithEngine",
-						"CoeffTable.mCoeffs",
-						"System.lbWireLevel",
-						"System.lbHints",
-						"System.SymbolTable",
-						"System.lbOutputs",
-						"System.bitLen")); diff != "" {
+					cmpopts.IgnoreFields(cs.R1CS{}, test.IgnoreFieldsCsCmp()...)); diff != "" {
 					t.Fatalf("round trip mismatch (-want +got):\n%s", diff)
 				}
 			}
