@@ -71,6 +71,9 @@ type ConstraintSystem interface {
 	// CheckUnconstrainedWires returns and error if the constraint system has wires that are not uniquely constrained.
 	// This is experimental.
 	CheckUnconstrainedWires() error
+
+	// Equal is used for testing purposes: making sure if compilation is deterministic
+	Equal(o ConstraintSystem) bool
 }
 
 type Iterable interface {

@@ -1,7 +1,14 @@
 package std
 
 import (
+	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
+	"math/big"
+	"testing"
 )
 
 func ExampleRegisterHints() {
@@ -17,4 +24,34 @@ func ExampleRegisterHints() {
 
 	// then -->
 	_ = ccs.IsSolved(nil)
+}
+
+// Test the most basic hint possible
+
+func idHint(_ *big.Int, in []*big.Int, out []*big.Int) error {
+	if len(in) != len(out) {
+		return fmt.Errorf("in/out length mismatch %d≠%d", len(in), len(out))
+	}
+	for i := range in {
+		*out[i] = *in[i]
+	}
+	return nil
+}
+
+type idHintCircuit struct {
+	X frontend.Variable
+}
+
+func (c *idHintCircuit) Define(api frontend.API) error {
+	x, err := api.Compiler().NewHint(idHint, 1, c.X)
+	if err != nil {
+		return err
+	}
+	api.AssertIsEqual(x[0], c.X)
+	return nil
+}
+
+func TestIdHint(t *testing.T) {
+	assignment := idHintCircuit{0}
+	test.NewAssert(t).SolvingSucceeded(&idHintCircuit{}, &assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
 }

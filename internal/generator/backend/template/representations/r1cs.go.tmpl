@@ -461,3 +461,10 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	return int64(decoder.NumBytesRead()), nil
 }
 
+func (cs *R1CS) Equal(o constraint.ConstraintSystem) bool {
+	O, ok := o.(*R1CS)
+	if !ok {
+		return false
+	}
+	return cmp.Equal(*cs, *O, cmp.AllowUnexported(debug.SymbolTable{}, CoeffTable{}, R1CS{}), cmpopts.IgnoreUnexported(constraint.System{}))
+}
