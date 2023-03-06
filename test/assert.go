@@ -19,6 +19,8 @@ package test
 import (
 	"errors"
 	"fmt"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"reflect"
 	"strings"
 	"testing"
@@ -431,7 +433,8 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
 	}
 
-	if !reflect.DeepEqual(ccs, _ccs) {
+	empty := reflect.New(reflect.ValueOf(ccs).Elem().Type()).Elem().Interface() // a new CS object of the same type as ccs
+	if !cmp.Equal(ccs, _ccs, cmpopts.IgnoreFields(empty, IgnoreFieldsCsCmp()...)) {
 		return nil, ErrCompilationNotDeterministic
 	}
 
