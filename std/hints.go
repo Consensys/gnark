@@ -31,6 +31,8 @@ func registerHints() {
 	solver.RegisterHint(bits.NNAF)
 	solver.RegisterHint(bits.IthBit)
 	solver.RegisterHint(bits.NBits)
+	solver.RegisterHint(bits.IsLessOutputHint)
+	solver.RegisterHint(bits.MinOutputHint)
 	solver.RegisterHint(selector.MuxIndicators)
 	solver.RegisterHint(selector.MapIndicators)
 	solver.RegisterHint(emulated.GetHints()...)
