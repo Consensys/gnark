@@ -22,8 +22,8 @@ field. For now, we only have a single curve defined on every base field, but
 this may change in the future with the addition of additional curves.
 
 This package uses field emulation (unlike packages
-[github.com/consensys/gnark/std/algebra/sw_bls12377] and
-[github.com/consensys/gnark/std/algebra/sw_bls24315], which use 2-chains). This
+[github.com/consensys/gnark/std/algebra/native/sw_bls12377] and
+[github.com/consensys/gnark/std/algebra/native/sw_bls24315], which use 2-chains). This
 allows to use any curve over any native (SNARK) field. The drawback of this
 approach is the extreme cost of the operations.
 */
