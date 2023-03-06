@@ -14,26 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sw_bls12377
+package sw_bls24315
 
 import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
 )
 
 // G2Jac point in Jacobian coords
 type G2Jac struct {
-	X, Y, Z fields_bls12377.E2
+	X, Y, Z fields_bls24315.E4
 }
 
 // G2Affine point in affine coords
 type G2Affine struct {
-	X, Y fields_bls12377.E2
+	X, Y fields_bls24315.E4
 }
 
 // Neg outputs -p
@@ -54,7 +54,7 @@ func (p *G2Affine) Neg(api frontend.API, p1 G2Affine) *G2Affine {
 // AddAssign add p1 to p and return p
 func (p *G2Affine) AddAssign(api frontend.API, p1 G2Affine) *G2Affine {
 
-	var n, d, l, xr, yr fields_bls12377.E2
+	var n, d, l, xr, yr fields_bls24315.E4
 
 	// compute lambda = (p1.y-p.y)/(p1.x-p.x)
 	n.Sub(api, p1.Y, p.Y)
@@ -81,7 +81,7 @@ func (p *G2Affine) AddAssign(api frontend.API, p1 G2Affine) *G2Affine {
 // p=p, a=p1
 func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac) *G2Jac {
 
-	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V fields_bls12377.E2
+	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V fields_bls24315.E4
 
 	Z1Z1.Square(api, p1.Z)
 
@@ -134,7 +134,7 @@ func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac) *G2Jac {
 // Double doubles a point in jacobian coords
 func (p *G2Jac) Double(api frontend.API, p1 G2Jac) *G2Jac {
 
-	var XX, YY, YYYY, ZZ, S, M, T fields_bls12377.E2
+	var XX, YY, YYYY, ZZ, S, M, T fields_bls24315.E4
 
 	XX.Square(api, p.X)
 	YY.Square(api, p.Y)
@@ -172,7 +172,7 @@ func (p *G2Affine) Select(api frontend.API, b frontend.Variable, p1, p2 G2Affine
 
 // FromJac sets p to p1 in affine and returns it
 func (p *G2Affine) FromJac(api frontend.API, p1 G2Jac) *G2Affine {
-	var s fields_bls12377.E2
+	var s fields_bls24315.E4
 	s.Mul(api, p1.Z, p1.Z)
 	p.X.DivUnchecked(api, p1.X, s)
 	s.Mul(api, s, p1.Z)
@@ -184,7 +184,7 @@ func (p *G2Affine) FromJac(api frontend.API, p1 G2Jac) *G2Affine {
 // Only for curve with j invariant 0 (a=0).
 func (p *G2Affine) Double(api frontend.API, p1 G2Affine) *G2Affine {
 
-	var n, d, l, xr, yr fields_bls12377.E2
+	var n, d, l, xr, yr fields_bls24315.E4
 
 	// lambda = 3*p1.x**2/2*p.y
 	n.Square(api, p1.X).MulByFp(api, n, 3)
@@ -409,7 +409,7 @@ func (P *G2Affine) constScalarMul(api frontend.API, Q G2Affine, s *big.Int) *G2A
 }
 
 // Assign a value to self (witness assignment)
-func (p *G2Jac) Assign(p1 *bls12377.G2Jac) {
+func (p *G2Jac) Assign(p1 *bls24315.G2Jac) {
 	p.X.Assign(&p1.X)
 	p.Y.Assign(&p1.Y)
 	p.Z.Assign(&p1.Z)
@@ -423,7 +423,7 @@ func (p *G2Jac) AssertIsEqual(api frontend.API, other G2Jac) {
 }
 
 // Assign a value to self (witness assignment)
-func (p *G2Affine) Assign(p1 *bls12377.G2Affine) {
+func (p *G2Affine) Assign(p1 *bls24315.G2Affine) {
 	p.X.Assign(&p1.X)
 	p.Y.Assign(&p1.Y)
 }
@@ -437,7 +437,7 @@ func (p *G2Affine) AssertIsEqual(api frontend.API, other G2Affine) {
 // DoubleAndAdd computes 2*p1+p2 in affine coords
 func (p *G2Affine) DoubleAndAdd(api frontend.API, p1, p2 *G2Affine) *G2Affine {
 
-	var n, d, l1, l2, x3, x4, y4 fields_bls12377.E2
+	var n, d, l1, l2, x3, x4, y4 fields_bls24315.E4
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
 	n.Sub(api, p1.Y, p2.Y)

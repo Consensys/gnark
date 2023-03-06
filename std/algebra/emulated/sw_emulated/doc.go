@@ -1,5 +1,5 @@
 /*
-Package weierstrass implements elliptic curve group operations in (short)
+Package sw_emulated implements elliptic curve group operations in (short)
 Weierstrass form.
 
 The elliptic curve is the set of points (X,Y) satisfying the equation:
@@ -30,4 +30,4 @@ approach is the extreme cost of the operations. In R1CS, point addition on
 4300 constraints. A full scalar multiplication is approximately 2M constraints.
 It is several times more in PLONKish aritmetisation.
 */
-package weierstrass
+package sw_emulated

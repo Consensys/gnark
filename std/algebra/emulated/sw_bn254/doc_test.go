@@ -1,4 +1,4 @@
-package pairing_bn254_test
+package sw_bn254_test
 
 import (
 	"crypto/rand"
@@ -9,21 +9,22 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/algebra/pairing_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 )
 
 type PairCircuit struct {
-	InG1 pairing_bn254.G1Affine
-	InG2 pairing_bn254.G2Affine
-	Res  pairing_bn254.GTEl
+	InG1 sw_bn254.G1Affine
+	InG2 sw_bn254.G2Affine
+	Res  fields_bn254.GTEl
 }
 
 func (c *PairCircuit) Define(api frontend.API) error {
-	pairing, err := pairing_bn254.NewPairing(api)
+	pairing, err := sw_bn254.NewPairing(api)
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.Pair([]*pairing_bn254.G1Affine{&c.InG1}, []*pairing_bn254.G2Affine{&c.InG2})
+	res, err := pairing.Pair([]*sw_bn254.G1Affine{&c.InG1}, []*sw_bn254.G2Affine{&c.InG2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -42,9 +43,9 @@ func ExamplePairing() {
 	}
 	circuit := PairCircuit{}
 	witness := PairCircuit{
-		InG1: pairing_bn254.NewG1Affine(p),
-		InG2: pairing_bn254.NewG2Affine(q),
-		Res:  pairing_bn254.NewGTEl(res),
+		InG1: sw_bn254.NewG1Affine(p),
+		InG2: sw_bn254.NewG2Affine(q),
+		Res:  fields_bn254.NewGTEl(res),
 	}
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {

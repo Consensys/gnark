@@ -1,4 +1,4 @@
-package weierstrass
+package sw_emulated
 
 import (
 	"math/big"

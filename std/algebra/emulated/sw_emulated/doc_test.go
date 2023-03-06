@@ -1,4 +1,4 @@
-package weierstrass_test
+package sw_emulated_test
 
 import (
 	"fmt"
@@ -9,16 +9,16 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/algebra/weierstrass"
+	"github.com/consensys/gnark/std/algebra/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
 type ExampleCurveCircuit[Base, Scalar emulated.FieldParams] struct {
-	Res weierstrass.AffinePoint[Base]
+	Res sw_emulated.AffinePoint[Base]
 }
 
 func (c *ExampleCurveCircuit[B, S]) Define(api frontend.API) error {
-	curve, err := weierstrass.New[B, S](api, weierstrass.GetCurveParams[emulated.BN254Fp]())
+	curve, err := sw_emulated.New[B, S](api, sw_emulated.GetCurveParams[emulated.BN254Fp]())
 	if err != nil {
 		panic("initalize new curve")
 	}
@@ -41,7 +41,7 @@ func ExampleCurve() {
 
 	circuit := ExampleCurveCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := ExampleCurveCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
-		Res: weierstrass.AffinePoint[emulated.Secp256k1Fp]{
+		Res: sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
 			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
 			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
 		},
