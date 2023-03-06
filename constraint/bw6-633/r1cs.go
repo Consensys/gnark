@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/fxamacker/cbor/v2"
 	"io"
+	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -34,10 +35,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"math"
-
-	"github.com/consensys/gnark/debug"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 )
@@ -472,8 +469,8 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 
 func (cs *R1CS) Equal(o constraint.ConstraintSystem) bool {
 	O, ok := o.(*R1CS)
-	if !ok {
-		return false
-	}
-	return cmp.Equal(*cs, *O, cmp.AllowUnexported(debug.SymbolTable{}, CoeffTable{}, R1CS{}), cmpopts.IgnoreUnexported(constraint.System{}))
+	return ok &&
+		reflect.DeepEqual(cs.CoeffTable, O.CoeffTable) &&
+		reflect.DeepEqual(cs.Constraints, O.Constraints) &&
+		cs.System.Equal(&O.System)
 }
