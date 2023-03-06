@@ -61,7 +61,7 @@ func (st *SymbolTable) CollectStack() []int {
 			if strings.Contains(frame.File, "test/engine.go") {
 				continue
 			}
-			if strings.Contains(frame.File, "gnark/frontend") {
+			if strings.Contains(frame.File, "gnark/frontend/cs") {
 				continue
 			}
 			frame.File = filepath.Base(frame.File)

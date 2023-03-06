@@ -1,6 +1,8 @@
 package witness_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
@@ -47,11 +49,17 @@ func ExampleWitness() {
 
 	// first get the circuit expected schema
 	schema, _ := frontend.NewSchema(assignment)
-	json, _ := reconstructed.ToJSON(schema)
+	ret, _ := reconstructed.ToJSON(schema)
 
-	fmt.Println(string(json))
+	var b bytes.Buffer
+	json.Indent(&b, ret, "", "\t")
+	fmt.Println(b.String())
 	// Output:
-	// {"X":42,"Y":8000,"E":1}
+	// {
+	//	"X": 42,
+	//	"Y": 8000,
+	//	"E": 1
+	// }
 
 }
 
