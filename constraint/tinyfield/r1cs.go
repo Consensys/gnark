@@ -35,6 +35,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"math"
 
+	"github.com/consensys/gnark/debug"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+
 	fr "github.com/consensys/gnark/internal/tinyfield"
 )
 
