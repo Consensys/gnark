@@ -25,9 +25,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/profile"
@@ -73,12 +73,37 @@ func (cs *R1CS) AddConstraint(r1c constraint.R1C, debugInfo ...constraint.DebugI
 	return cID
 }
 
+// Solve returns the vector w solution to the system, that is
+// Aw o Bw - Cw = 0
+func (cs *R1CS) Solve(witness witness.Witness, opts ...solver.Option) (any, error) {
+	opt, err := solver.NewConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	var res R1CSSolution
+
+	s := ecc.NextPowerOfTwo(uint64(len(cs.Constraints)))
+	res.A = make(fr.Vector, len(cs.Constraints), s)
+	res.B = make(fr.Vector, len(cs.Constraints), s)
+	res.C = make(fr.Vector, len(cs.Constraints), s)
+
+	v := witness.Vector().(fr.Vector)
+
+	res.W, err = cs.solve(v, res.A, res.B, res.C, opt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &res, nil
+}
+
 // Solve sets all the wires and returns the a, b, c vectors.
 // the cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // a, b, c vectors: ab-c = hz
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
 // returns  [publicWires | secretWires | internalWires ]
-func (cs *R1CS) Solve(witness, a, b, c fr.Vector, opt backend.ProverConfig) (fr.Vector, error) {
+func (cs *R1CS) solve(witness, a, b, c fr.Vector, opt solver.Config) (fr.Vector, error) {
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
@@ -114,7 +139,7 @@ func (cs *R1CS) Solve(witness, a, b, c fr.Vector, opt backend.ProverConfig) (fr.
 
 	// now that we know all inputs are set, defer log printing once all solution.values are computed
 	// (or sooner, if a constraint is not satisfied)
-	defer solution.printLogs(opt.CircuitLogger, cs.Logs)
+	defer solution.printLogs(opt.Logger, cs.Logs)
 
 	if err := cs.parallelSolve(a, b, c, &solution); err != nil {
 		if unsatisfiedErr, ok := err.(*UnsatisfiedConstraintError); ok {
@@ -205,8 +230,8 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 			continue
 		}
 
-		// number of tasks for this level is set to num cpus
-		// but if we don't have enough work for all our CPUS, it can be lower.
+		// number of tasks for this level is set to number of CPU
+		// but if we don't have enough work for all our CPU, it can be lower.
 		nbTasks := runtime.NumCPU()
 		maxTasks := int(math.Ceil(maxCPU))
 		if nbTasks > maxTasks {
@@ -249,19 +274,10 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 	return nil
 }
 
-// IsSolved returns nil if given witness solves the R1CS and error otherwise
-// this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *R1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) error {
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return err
-	}
-
-	a := make(fr.Vector, len(cs.Constraints))
-	b := make(fr.Vector, len(cs.Constraints))
-	c := make(fr.Vector, len(cs.Constraints))
-	v := witness.Vector().(fr.Vector)
-	_, err = cs.Solve(v, a, b, c, opt)
+// IsSolved
+// Deprecated: use _, err := Solve(...) instead
+func (cs *R1CS) IsSolved(witness witness.Witness, opts ...solver.Option) error {
+	_, err := cs.Solve(witness, opts...)
 	return err
 }
 

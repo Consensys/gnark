@@ -3,14 +3,14 @@ package bits
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
 	// register hints
-	hint.Register(IthBit)
-	hint.Register(NBits)
+	solver.RegisterHint(IthBit)
+	solver.RegisterHint(NBits)
 }
 
 // ToBinary is an alias of ToBase(api, Binary, v, opts)

@@ -3,7 +3,7 @@ package fri
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -84,5 +84,5 @@ var DeriveQueriesPositions = func(_ *big.Int, inputs []*big.Int, res []*big.Int)
 }
 
 func init() {
-	hint.Register(DeriveQueriesPositions)
+	solver.RegisterHint(DeriveQueriesPositions)
 }

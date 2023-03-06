@@ -25,9 +25,6 @@ This package uses field emulation (unlike packages
 [github.com/consensys/gnark/std/algebra/sw_bls12377] and
 [github.com/consensys/gnark/std/algebra/sw_bls24315], which use 2-chains). This
 allows to use any curve over any native (SNARK) field. The drawback of this
-approach is the extreme cost of the operations. In R1CS, point addition on
-256-bit fields is approximately 3500 constraints and doubling is approximately
-4300 constraints. A full scalar multiplication is approximately 2M constraints.
-It is several times more in PLONKish aritmetisation.
+approach is the extreme cost of the operations.
 */
 package sw_emulated

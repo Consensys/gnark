@@ -22,7 +22,6 @@ import (
 	"sort"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
@@ -40,6 +39,7 @@ import (
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	bw6633r1cs "github.com/consensys/gnark/constraint/bw6-633"
 	bw6761r1cs "github.com/consensys/gnark/constraint/bw6-761"
+	"github.com/consensys/gnark/constraint/solver"
 	tinyfieldr1cs "github.com/consensys/gnark/constraint/tinyfield"
 )
 
@@ -136,6 +136,12 @@ func (builder *builder) addMulGate(a, b, c expr.Term, debug ...constraint.DebugI
 
 // addPlonkConstraint adds a sparseR1C to the underlying constraint system
 func (builder *builder) addPlonkConstraint(c sparseR1C, debug ...constraint.DebugInfo) {
+	if !c.qM.IsZero() && (c.xa == 0 || c.xb == 0) {
+		// TODO this is internal but not easy to detect; if qM is set, but one or both of xa / xb is not,
+		// since wireID == 0 is a valid wire, it may trigger unexpected behavior.
+		log := logger.Logger()
+		log.Warn().Msg("adding a plonk constraint with qM set but xa or xb == 0 (wire 0)")
+	}
 	L := builder.cs.MakeTerm(&c.qL, c.xa)
 	R := builder.cs.MakeTerm(&c.qR, c.xb)
 	O := builder.cs.MakeTerm(&c.qO, c.xc)
@@ -262,7 +268,7 @@ func (builder *builder) constantValue(v frontend.Variable) (constraint.Coeff, bo
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (builder *builder) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	hintInputs := make([]constraint.LinearExpression, len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64

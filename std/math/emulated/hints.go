@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -12,12 +12,12 @@ import (
 // inside a func, then it becomes anonymous and hint identification is screwed.
 
 func init() {
-	hint.Register(GetHints()...)
+	solver.RegisterHint(GetHints()...)
 }
 
 // GetHints returns all hint functions used in the package.
-func GetHints() []hint.Function {
-	return []hint.Function{
+func GetHints() []solver.Hint {
+	return []solver.Hint{
 		DivHint,
 		QuoHint,
 		InverseHint,

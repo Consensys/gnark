@@ -15,14 +15,14 @@ package selector
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
 	// register hints
-	hint.Register(MuxIndicators)
-	hint.Register(MapIndicators)
+	solver.RegisterHint(MuxIndicators)
+	solver.RegisterHint(MapIndicators)
 }
 
 // Map is a key value associative array: the output will be values[i] such that keys[i] == queryKey. If keys does not

@@ -50,7 +50,7 @@ func (pk PublicKey[T, S]) Verify(api frontend.API, params weierstrass.CurveParam
 	msInv := scalarApi.MulMod(msg, sInv)
 	rsInv := scalarApi.MulMod(&sig.R, sInv)
 
-	qa := cr.ScalarMul(cr.Generator(), msInv)
+	qa := cr.ScalarMulBase(msInv)
 	qb := cr.ScalarMul(&pkpt, rsInv)
 	q := cr.Add(qa, qb)
 	qx := baseApi.Reduce(&q.X)

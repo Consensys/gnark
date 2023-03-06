@@ -22,7 +22,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint"
 	cs_bls24315 "github.com/consensys/gnark/constraint/bls24-315"
 	"github.com/consensys/gnark/frontend"
@@ -87,7 +86,7 @@ func generateBls24315InnerProof(t *testing.T, vk *groth16_bls24315.VerifyingKey,
 		t.Fatal(err)
 	}
 
-	_proof, err := groth16_bls24315.Prove(r1cs.(*cs_bls24315.R1CS), &pk, witness.Vector().(fr.Vector), backend.ProverConfig{})
+	_proof, err := groth16_bls24315.Prove(r1cs.(*cs_bls24315.R1CS), &pk, witness)
 	if err != nil {
 		t.Fatal(err)
 	}

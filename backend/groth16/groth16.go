@@ -168,55 +168,28 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness) error {
 //		internally, the solution vector to the R1CS will be filled with random values which may impact benchmarking
 func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (Proof, error) {
 
-	// apply options
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return nil, err
-	}
-
 	switch _r1cs := r1cs.(type) {
 	case *cs_bls12377.R1CS:
-		w, ok := fullWitness.Vector().(fr_bls12377.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), w, opt)
+		return groth16_bls12377.Prove(_r1cs, pk.(*groth16_bls12377.ProvingKey), fullWitness, opts...)
+
 	case *cs_bls12381.R1CS:
-		w, ok := fullWitness.Vector().(fr_bls12381.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), w, opt)
+		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), fullWitness, opts...)
+
 	case *cs_bn254.R1CS:
-		w, ok := fullWitness.Vector().(fr_bn254.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), w, opt)
+		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), fullWitness, opts...)
+
 	case *cs_bw6761.R1CS:
-		w, ok := fullWitness.Vector().(fr_bw6761.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), w, opt)
+		return groth16_bw6761.Prove(_r1cs, pk.(*groth16_bw6761.ProvingKey), fullWitness, opts...)
+
 	case *cs_bls24317.R1CS:
-		w, ok := fullWitness.Vector().(fr_bls24317.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return groth16_bls24317.Prove(_r1cs, pk.(*groth16_bls24317.ProvingKey), w, opt)
+		return groth16_bls24317.Prove(_r1cs, pk.(*groth16_bls24317.ProvingKey), fullWitness, opts...)
+
 	case *cs_bls24315.R1CS:
-		w, ok := fullWitness.Vector().(fr_bls24315.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), w, opt)
+		return groth16_bls24315.Prove(_r1cs, pk.(*groth16_bls24315.ProvingKey), fullWitness, opts...)
+
 	case *cs_bw6633.R1CS:
-		w, ok := fullWitness.Vector().(fr_bw6633.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return groth16_bw6633.Prove(_r1cs, pk.(*groth16_bw6633.ProvingKey), w, opt)
+		return groth16_bw6633.Prove(_r1cs, pk.(*groth16_bw6633.ProvingKey), fullWitness, opts...)
+
 	default:
 		panic("unrecognized R1CS curve type")
 	}

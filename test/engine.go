@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
@@ -33,7 +34,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/internal/kvstore"
@@ -447,7 +447,7 @@ func (e *engine) print(sbb *strings.Builder, x interface{}) {
 	}
 }
 
-func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (e *engine) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 
 	if nbOutputs <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")

@@ -22,7 +22,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint"
 	cs_bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
@@ -86,7 +85,8 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 		t.Fatal(err)
 	}
 
-	_proof, err := groth16_bls12377.Prove(r1cs.(*cs_bls12377.R1CS), &pk, witness.Vector().(fr.Vector), backend.ProverConfig{})
+	//_proof, err := groth16_bls12377.Prove(r1cs.(*cs_bls12377.R1CS), &pk, witness.Vector().(fr.Vector), backend.ProverConfig{})
+	_proof, err := groth16_bls12377.Prove(r1cs.(*cs_bls12377.R1CS), &pk, witness)
 	if err != nil {
 		t.Fatal(err)
 	}
