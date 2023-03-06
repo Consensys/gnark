@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"reflect"
 
 	"github.com/blang/semver/v4"
 	"github.com/consensys/gnark"
@@ -293,4 +294,28 @@ func (system *System) VariableToString(vID int) string {
 	}
 	vID -= nbSecret
 	return fmt.Sprintf("v%d", vID) // TODO @gbotrel  vs strconv.Itoa.
+}
+
+func (system *System) Equal(o *System) bool {
+	return reflect.DeepEqual(system.GnarkVersion, o.GnarkVersion) &&
+		reflect.DeepEqual(system.ScalarField, o.ScalarField) &&
+		reflect.DeepEqual(system.NbInternalVariables, o.NbInternalVariables) &&
+		reflect.DeepEqual(system.Public, o.Public) &&
+		reflect.DeepEqual(system.Secret, o.Secret) &&
+		reflect.DeepEqual(system.Logs, o.Logs) &&
+		reflect.DeepEqual(system.DebugInfo, o.DebugInfo) &&
+		reflect.DeepEqual(system.SymbolTable, o.SymbolTable) &&
+		reflect.DeepEqual(system.MDebug, o.MDebug) &&
+		reflect.DeepEqual(system.MHints, o.MHints) &&
+		reflect.DeepEqual(system.MHintsDependencies, o.MHintsDependencies) &&
+		//reflect.DeepEqual(system.InjectedVariables, o.InjectedVariables) &&	anticipating injected var PR
+		//reflect.DeepEqual(system.MInjectedVariables, o.MInjectedVariables) &&
+		reflect.DeepEqual(system.Levels, o.Levels) &&
+		reflect.DeepEqual(system.q, o.q) &&
+		reflect.DeepEqual(system.bitLen, o.bitLen) &&
+		reflect.DeepEqual(system.lbWireLevel, o.lbWireLevel) &&
+		reflect.DeepEqual(system.lbOutputs, o.lbOutputs) &&
+		//reflect.DeepEqual(system.lbHints, o.lbHints) &&	// causes trouble
+		//reflect.DeepEqual(system.lbInjected, o.lbInjected) &&
+		reflect.DeepEqual(system.CommitmentInfo, o.CommitmentInfo)
 }
