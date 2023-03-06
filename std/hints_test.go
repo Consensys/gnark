@@ -2,9 +2,8 @@ package std
 
 import (
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 	"math/big"
@@ -33,7 +32,7 @@ func idHint(_ *big.Int, in []*big.Int, out []*big.Int) error {
 		return fmt.Errorf("in/out length mismatch %d≠%d", len(in), len(out))
 	}
 	for i := range in {
-		*out[i] = *in[i]
+		out[i].Set(in[i])
 	}
 	return nil
 }
@@ -52,6 +51,7 @@ func (c *idHintCircuit) Define(api frontend.API) error {
 }
 
 func TestIdHint(t *testing.T) {
+	solver.RegisterHint(idHint)
 	assignment := idHintCircuit{0}
-	test.NewAssert(t).SolvingSucceeded(&idHintCircuit{}, &assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+	test.NewAssert(t).SolvingSucceeded(&idHintCircuit{}, &assignment)
 }
