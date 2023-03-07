@@ -83,11 +83,11 @@ func (e Ext12) MulBy034(z *E12, c0, c3, c4 *E2) *E12 {
 	c0 = e.Ext2.Add(c0, c3)            // c0.Add(c0, c3)
 	d := e.Ext6.Add(&z.C0, &z.C1)      // d.Add(&z.C0, &z.C1)
 	d = e.Ext6.MulBy01(d, c0, c4)      // d.MulBy01(c0, c4)
-	z1 := e.Add(a, b)                  // z.C1.Add(&a, &b).
+	z1 := e.Ext6.Add(a, b)             // z.C1.Add(&a, &b).
 	z1 = e.Neg(z1)                     //      Neg(&z.C1).
-	z1 = e.Add(z1, d)                  //      Add(&z.C1, &d)
+	z1 = e.Ext6.Add(z1, d)             //      Add(&z.C1, &d)
 	z0 := e.MulByNonResidue(b)         // z.C0.MulByNonResidue(&b).
-	z0 = e.Add(z0, a)                  //      Add(&z.C0, &a)
+	z0 = e.Ext6.Add(z0, a)             //      Add(&z.C0, &a)
 	return &E12{                       // return z
 		C0: *z0,
 		C1: *z1,

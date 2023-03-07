@@ -1,5 +1,7 @@
 package fields_bn254
 
+import "github.com/consensys/gnark-crypto/ecc/bn254"
+
 type E12 struct {
 	C0, C1 E6
 }
@@ -11,6 +13,25 @@ type Ext12 struct {
 func NewExt12(baseField *curveF) *Ext12 {
 	return &Ext12{Ext6: NewExt6(baseField)}
 }
+
+func (e Ext12) Add(x, y *E12) *E12 {
+	z0 := e.Ext6.Add(&x.C0, &y.C0) // z.C0.Add(&x.A0, &y.A0)
+	z1 := e.Ext6.Add(&x.C1, &y.C1) // z.C1.Add(&x.A1, &y.A1)
+	return &E12{
+		C0: *z0,
+		C1: *z1,
+	}
+}
+
+func (e Ext12) Sub(x, y *E12) *E12 {
+	z0 := e.Ext6.Sub(&x.C0, &y.C0) // z.C0.Sub(&x.A0, &y.A0)
+	z1 := e.Ext6.Sub(&x.C1, &y.C1) // z.C1.Sub(&x.A1, &y.A1)
+	return &E12{
+		C0: *z0,
+		C1: *z1,
+	}
+}
+
 func (e Ext12) Conjugate(x *E12) *E12 {
 	z1 := e.Ext6.Neg(&x.C1) // z.C1.Neg(&z.C1)
 	return &E12{            // return z
@@ -223,4 +244,9 @@ func (e Ext12) Square(x *E12) *E12 {
 func (e Ext12) AssertIsEqual(x, y *E12) {
 	e.Ext6.AssertIsEqual(&x.C0, &y.C0)
 	e.Ext6.AssertIsEqual(&x.C1, &y.C1)
+}
+
+func (x *E12) assign(y *bn254.E12) {
+	x.C0.assign(&y.C0)
+	x.C1.assign(&y.C1)
 }
