@@ -139,6 +139,154 @@ func (e Ext12) NCycloSquare(z *E12, n int) *E12 {
 	return z
 }
 
+// Karabina's compressed cyclotomic square
+// https://eprint.iacr.org/2010/542.pdf
+// Th. 3.2 with minor modifications to fit our tower
+func (e Ext12) CyclotomicSquareCompressed(x *E12) *E12 {
+
+	// t0 = g1^2
+	t0 := e.Ext6.Ext2.Square(&x.C0.B1)
+	// t1 = g5^2
+	t1 := e.Ext6.Ext2.Square(&x.C1.B2)
+	// t5 = g1 + g5
+	t5 := e.Ext6.Ext2.Add(&x.C0.B1, &x.C1.B2)
+	// t2 = (g1 + g5)^2
+	t2 := e.Ext6.Ext2.Square(t5)
+
+	// t3 = g1^2 + g5^2
+	t3 := e.Ext6.Ext2.Add(t0, t1)
+	// t5 = 2 * g1 * g5
+	t5 = e.Ext6.Ext2.Sub(t2, t3)
+
+	// t6 = g3 + g2
+	t6 := e.Ext6.Ext2.Add(&x.C1.B0, &x.C0.B2)
+	// t3 = (g3 + g2)^2
+	t3 = e.Ext6.Ext2.Square(t6)
+	// t2 = g3^2
+	t2 = e.Ext6.Ext2.Square(&x.C1.B0)
+
+	// t6 = 2 * nr * g1 * g5
+	t6 = e.Ext6.Ext2.MulByNonResidue(t5)
+	// t5 = 4 * nr * g1 * g5 + 2 * g3
+	t5 = e.Ext6.Ext2.Add(t6, &x.C1.B0)
+	t5 = e.Ext6.Ext2.Double(t5)
+	// z3 = 6 * nr * g1 * g5 + 2 * g3
+	C1B0 := *e.Ext6.Ext2.Add(t5, t6)
+
+	// t4 = nr * g5^2
+	t4 := e.Ext6.Ext2.MulByNonResidue(t1)
+	// t5 = nr * g5^2 + g1^2
+	t5 = e.Ext6.Ext2.Add(t0, t4)
+	// t6 = nr * g5^2 + g1^2 - g2
+	t6 = e.Ext6.Ext2.Sub(t5, &x.C0.B2)
+
+	// t1 = g2^2
+	t1 = e.Ext6.Ext2.Square(&x.C0.B2)
+
+	// t6 = 2 * nr * g5^2 + 2 * g1^2 - 2*g2
+	t6 = e.Ext6.Ext2.Double(t6)
+	// z2 = 3 * nr * g5^2 + 3 * g1^2 - 2*g2
+	C0B2 := *e.Ext6.Ext2.Add(t6, t5)
+
+	// t4 = nr * g2^2
+	t4 = e.Ext6.Ext2.MulByNonResidue(t1)
+	// t5 = g3^2 + nr * g2^2
+	t5 = e.Ext6.Ext2.Add(t2, t4)
+	// t6 = g3^2 + nr * g2^2 - g1
+	t6 = e.Ext6.Ext2.Sub(t5, &x.C0.B1)
+	// t6 = 2 * g3^2 + 2 * nr * g2^2 - 2 * g1
+	t6 = e.Ext6.Ext2.Double(t6)
+	// z1 = 3 * g3^2 + 3 * nr * g2^2 - 2 * g1
+	C0B1 := *e.Ext6.Ext2.Add(t6, t5)
+
+	// t0 = g2^2 + g3^2
+	t0 = e.Ext6.Ext2.Add(t2, t1)
+	// t5 = 2 * g3 * g2
+	t5 = e.Ext6.Ext2.Sub(t3, t0)
+	// t6 = 2 * g3 * g2 + g5
+	t6 = e.Ext6.Ext2.Add(t5, &x.C1.B2)
+	// t6 = 4 * g3 * g2 + 2 * g5
+	t6 = e.Ext6.Ext2.Double(t6)
+	// z5 = 6 * g3 * g2 + 2 * g5
+	C1B2 := *e.Ext6.Ext2.Add(t5, t6)
+
+	zero := e.Ext6.Ext2.Zero()
+
+	return &E12{
+		C0: E6{
+			B0: *zero,
+			B1: C0B1,
+			B2: C0B2,
+		},
+		C1: E6{
+			B0: C1B0,
+			B1: *zero,
+			B2: C1B2,
+		},
+	}
+}
+
+func (e Ext12) NCycloSquareCompressed(z *E12, n int) *E12 {
+	for i := 0; i < n; i++ {
+		z = e.CyclotomicSquareCompressed(z)
+	}
+	return z
+}
+
+// DecompressKarabina Karabina's cyclotomic square result
+func (e Ext12) DecompressKarabina(x *E12) *E12 {
+
+	one := e.Ext6.Ext2.One()
+
+	// TODO: hadle the g3==0 case with MUX
+
+	// t0 = g1^2
+	t0 := e.Ext6.Ext2.Square(&x.C0.B1)
+	// t1 = 3 * g1^2 - 2 * g2
+	t1 := e.Ext6.Ext2.Sub(t0, &x.C0.B2)
+	t1 = e.Ext6.Ext2.Double(t1)
+	t1 = e.Ext6.Ext2.Add(t1, t0)
+	// t0 = E * g5^2 + t1
+	t2 := e.Ext6.Ext2.Square(&x.C1.B2)
+	t0 = e.Ext6.Ext2.MulByNonResidue(t2)
+	t0 = e.Ext6.Ext2.Add(t0, t1)
+	// t1 = 4 * g3
+	t1 = e.Ext6.Ext2.Double(&x.C1.B0)
+	t1 = e.Ext6.Ext2.Double(t1)
+
+	// z4 = g4
+	// TODO: Div instead of Inv+Mul
+	C1B1 := e.Ext6.Ext2.Inverse(t1)
+	C1B1 = e.Ext6.Ext2.Mul(C1B1, t0)
+
+	// t1 = g2 * g1
+	t1 = e.Ext6.Ext2.Mul(&x.C0.B2, &x.C0.B1)
+	// t2 = 2 * g4^2 - 3 * g2 * g1
+	t2 = e.Ext6.Ext2.Square(C1B1)
+	t2 = e.Ext6.Ext2.Sub(t2, t1)
+	t2 = e.Ext6.Ext2.Double(t2)
+	t2 = e.Ext6.Ext2.Sub(t2, t1)
+	// t1 = g3 * g5 (g3 can be 0)
+	t1 = e.Ext6.Ext2.Mul(&x.C1.B0, &x.C1.B2)
+	// c_0 = E * (2 * g4^2 + g3 * g5 - 3 * g2 * g1) + 1
+	t2 = e.Ext6.Ext2.Add(t2, t1)
+	C0B0 := e.Ext6.Ext2.MulByNonResidue(t2)
+	C0B0 = e.Ext6.Ext2.Add(C0B0, one)
+
+	return &E12{
+		C0: E6{
+			B0: *C0B0,
+			B1: x.C0.B1,
+			B2: x.C0.B2,
+		},
+		C1: E6{
+			B0: x.C1.B0,
+			B1: *C1B1,
+			B2: x.C1.B2,
+		},
+	}
+}
+
 func (e Ext12) Frobenius(x *E12) *E12 {
 	// var t [6]E2
 	t0 := e.Ext2.Conjugate(&x.C0.B0)       // t[0].Conjugate(&x.C0.B0)

@@ -132,6 +132,7 @@ func TestMulFp12By034by034(t *testing.T) {
 	_, _ = d3.SetRandom()
 	_, _ = d4.SetRandom()
 	c.Mul034by034(&c0, &c3, &c4, &d0, &d3, &d4)
+
 	var witness e12MulBy034by034
 	witness.C0.assign(&c0)
 	witness.C3.assign(&c3)
@@ -207,11 +208,50 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
 	c.CyclotomicSquare(&a)
 
-	var witness e12Conjugate
+	var witness e12CycloSquare
 	witness.A.assign(&a)
 	witness.C.assign(&c)
 
 	err := test.IsSolved(&e12CycloSquare{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type e12CycloSquareKarabina struct {
+	A E12
+	C E12 `gnark:",public"`
+}
+
+func (circuit *e12CycloSquareKarabina) Define(api frontend.API) error {
+
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt12(ba)
+	v := e.CyclotomicSquareCompressed(&circuit.A)
+	v = e.DecompressKarabina(v)
+	e.AssertIsEqual(v, &circuit.C)
+	return nil
+}
+
+func TestFp12CyclotomicSquareKarabina(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+
+	// put a in the cyclotomic subgroup
+	var tmp bn254.E12
+	tmp.Conjugate(&a)
+	a.Inverse(&a)
+	tmp.Mul(&tmp, &a)
+	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
+	c.CyclotomicSquareCompressed(&a)
+	c.DecompressKarabina(&c)
+
+	var witness e12CycloSquareKarabina
+	witness.A.assign(&a)
+	witness.C.assign(&c)
+
+	err := test.IsSolved(&e12CycloSquareKarabina{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 

@@ -226,47 +226,45 @@ func (pr Pairing) MillerLoop(p []*G1Affine, q []*G2Affine) (*fields_bn254.GTEl, 
 }
 
 func (pr Pairing) FinalExponentiation(e *fields_bn254.GTEl) *fields_bn254.GTEl {
-	// var result GT
-	// result.Set(z)
-	var t [4]*fields_bn254.GTEl // var t [4]GT
+	var t [4]*fields_bn254.GTEl
 
 	// easy part
-	t[0] = pr.Ext12.Conjugate(e)            // t[0].Conjugate(&result)
-	result := pr.Ext12.Inverse(e)           // result.Inverse(&result)
-	t[0] = pr.Ext12.Mul(t[0], result)       // t[0].Mul(&t[0], &result)
-	result = pr.Ext12.FrobeniusSquare(t[0]) // result.FrobeniusSquare(&t[0]).
-	result = pr.Ext12.Mul(result, t[0])     // 	Mul(&result, &t[0])
+	t[0] = pr.Ext12.Conjugate(e)
+	result := pr.Ext12.Inverse(e)
+	t[0] = pr.Ext12.Mul(t[0], result)
+	result = pr.Ext12.FrobeniusSquare(t[0])
+	result = pr.Ext12.Mul(result, t[0])
 
 	//hard part
-	t[0] = pr.Ext12.Expt(result)           // t[0].Expt(&result).
-	t[0] = pr.Ext12.Conjugate(t[0])        // 	Conjugate(&t[0])
-	t[0] = pr.Ext12.CyclotomicSquare(t[0]) // t[0].CyclotomicSquare(&t[0])
-	t[2] = pr.Ext12.Expt(t[0])             // t[2].Expt(&t[0]).
-	t[2] = pr.Ext12.Conjugate(t[2])        // 	Conjugate(&t[2])
-	t[1] = pr.Ext12.CyclotomicSquare(t[2]) // t[1].CyclotomicSquare(&t[2])
-	t[2] = pr.Ext12.Mul(t[2], t[1])        // t[2].Mul(&t[2], &t[1])
-	t[2] = pr.Ext12.Mul(t[2], result)      // t[2].Mul(&t[2], &result)
-	t[1] = pr.Ext12.Expt(t[2])             // t[1].Expt(&t[2]).
-	t[1] = pr.Ext12.CyclotomicSquare(t[1]) // 	CyclotomicSquare(&t[1]).
-	t[1] = pr.Ext12.Mul(t[1], t[2])        // 	Mul(&t[1], &t[2]).
-	t[1] = pr.Ext12.Conjugate(t[1])        // 	Conjugate(&t[1])
-	t[3] = pr.Ext12.Conjugate(t[1])        // t[3].Conjugate(&t[1])
-	t[1] = pr.Ext12.CyclotomicSquare(t[0]) // t[1].CyclotomicSquare(&t[0])
-	t[1] = pr.Ext12.Mul(t[1], result)      // t[1].Mul(&t[1], &result)
-	t[1] = pr.Ext12.Conjugate(t[1])        // t[1].Conjugate(&t[1])
-	t[1] = pr.Ext12.Mul(t[1], t[3])        // t[1].Mul(&t[1], &t[3])
-	t[0] = pr.Ext12.Mul(t[0], t[1])        // t[0].Mul(&t[0], &t[1])
-	t[2] = pr.Ext12.Mul(t[2], t[1])        // t[2].Mul(&t[2], &t[1])
-	t[3] = pr.Ext12.FrobeniusSquare(t[1])  // t[3].FrobeniusSquare(&t[1])
-	t[2] = pr.Ext12.Mul(t[2], t[3])        // t[2].Mul(&t[2], &t[3])
-	t[3] = pr.Ext12.Conjugate(result)      // t[3].Conjugate(&result)
-	t[3] = pr.Ext12.Mul(t[3], t[0])        // t[3].Mul(&t[3], &t[0])
-	t[1] = pr.Ext12.FrobeniusCube(t[3])    // t[1].FrobeniusCube(&t[3])
-	t[2] = pr.Ext12.Mul(t[2], t[1])        // t[2].Mul(&t[2], &t[1])
-	t[1] = pr.Ext12.Frobenius(t[0])        // t[1].Frobenius(&t[0])
-	t[1] = pr.Ext12.Mul(t[1], t[2])        // t[1].Mul(&t[1], &t[2])
-	// result.Set(&t[1])
-	return t[1] // return result
+	t[0] = pr.Ext12.Expt(result)
+	t[0] = pr.Ext12.Conjugate(t[0])
+	t[0] = pr.Ext12.CyclotomicSquare(t[0])
+	t[2] = pr.Ext12.Expt(t[0])
+	t[2] = pr.Ext12.Conjugate(t[2])
+	t[1] = pr.Ext12.CyclotomicSquare(t[2])
+	t[2] = pr.Ext12.Mul(t[2], t[1])
+	t[2] = pr.Ext12.Mul(t[2], result)
+	t[1] = pr.Ext12.Expt(t[2])
+	t[1] = pr.Ext12.CyclotomicSquare(t[1])
+	t[1] = pr.Ext12.Mul(t[1], t[2])
+	t[1] = pr.Ext12.Conjugate(t[1])
+	t[3] = pr.Ext12.Conjugate(t[1])
+	t[1] = pr.Ext12.CyclotomicSquare(t[0])
+	t[1] = pr.Ext12.Mul(t[1], result)
+	t[1] = pr.Ext12.Conjugate(t[1])
+	t[1] = pr.Ext12.Mul(t[1], t[3])
+	t[0] = pr.Ext12.Mul(t[0], t[1])
+	t[2] = pr.Ext12.Mul(t[2], t[1])
+	t[3] = pr.Ext12.FrobeniusSquare(t[1])
+	t[2] = pr.Ext12.Mul(t[2], t[3])
+	t[3] = pr.Ext12.Conjugate(result)
+	t[3] = pr.Ext12.Mul(t[3], t[0])
+	t[1] = pr.Ext12.FrobeniusCube(t[3])
+	t[2] = pr.Ext12.Mul(t[2], t[1])
+	t[1] = pr.Ext12.Frobenius(t[0])
+	t[1] = pr.Ext12.Mul(t[1], t[2])
+
+	return t[1]
 }
 
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*fields_bn254.GTEl, error) {
