@@ -22,7 +22,6 @@
           pname = "gnark";
           version = "0.7.0";
           src = ./.;
-          nativeBuildInputs = [ pkgs.git ];
           vendorHash = "sha512-CPND3xDH9Y2NyBlqPJG71q68JPl3CgAXmaUQs9UZhS/374vHgr4ba8bpY6uFAyr8D7PhTstX3KObot8cwG8NBA==";
           meta = with pkgs.lib; {
             description = "gnark zk-SNARK library";
