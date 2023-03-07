@@ -3,6 +3,7 @@ package fields_bn254
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -309,4 +310,9 @@ func (e Ext2) Inverse(x *E2) *E2 {
 func (e Ext2) AssertIsEqual(x, y *E2) {
 	e.fp.AssertIsEqual(&x.A0, &y.A0)
 	e.fp.AssertIsEqual(&x.A1, &y.A1)
+}
+
+func (x *E2) assign(y *bn254.E2) {
+	x.A0 = emulated.ValueOf[emulated.BN254Fp](y.A0)
+	x.A1 = emulated.ValueOf[emulated.BN254Fp](y.A1)
 }
