@@ -55,6 +55,13 @@ type builder struct {
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[expr.Term]struct{}
 
+	// records multiplications constraint to avoid duplicate.
+	// maps hashcode(a) + hashcode(b) --> constraintID
+	// note that we should store a list of int here, but for memory economy, we
+	// rely on limited hashcode collisions + accept that if there is a hashcode collision,
+	// we will duplicate the constraint.
+	mMulConstraints map[uint64]int
+
 	// frequently used coefficients
 	tOne, tMinusOne constraint.Coeff
 }
@@ -63,9 +70,10 @@ type builder struct {
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 	b := builder{
-		mtBooleans: make(map[expr.Term]struct{}),
-		config:     config,
-		Store:      kvstore.New(),
+		mtBooleans:      make(map[expr.Term]struct{}),
+		mMulConstraints: make(map[uint64]int),
+		config:          config,
+		Store:           kvstore.New(),
 	}
 
 	curve := utils.FieldToCurve(field)
@@ -114,6 +122,27 @@ type sparseR1C struct {
 	qL, qR, qO, qM, qC constraint.Coeff // coefficients
 }
 
+func (s *sparseR1C) hashcode() uint64 {
+	h := uint64(17)
+	h = h*23 + uint64(s.xa)
+	h = h*23 + uint64(s.xb)
+	// we do not put xc in it;
+	for _, val := range s.qL {
+		h = h*23 + val
+	}
+	for _, val := range s.qR {
+		h = h*23 + val
+	}
+	// we do not put qO in it;
+	for _, val := range s.qM {
+		h = h*23 + val
+	}
+	for _, val := range s.qC {
+		h = h*23 + val
+	}
+	return h
+}
+
 // a * b == c
 func (builder *builder) addMulGate(a, b, c expr.Term, debug ...constraint.DebugInfo) {
 	qO := builder.tMinusOne
@@ -149,6 +178,7 @@ func (builder *builder) addPlonkConstraint(c sparseR1C, debug ...constraint.Debu
 	V := builder.cs.MakeTerm(&builder.tOne, c.xb)
 	K := builder.cs.MakeTerm(&c.qC, 0)
 	K.MarkConstant()
+
 	builder.cs.AddConstraint(constraint.SparseR1C{L: L, R: R, O: O, M: [2]constraint.Term{U, V}, K: K.CoeffID()}, debug...)
 }
 
@@ -364,15 +394,84 @@ func (builder *builder) splitSum(acc expr.Term, r expr.LinearExpression, k *cons
 	return builder.splitSum(o, r[1:], nil)
 }
 
+func (builder *builder) mulConstraintExist(a, b expr.Term) (expr.Term, bool, uint64) {
+	// idea here is we do a (not collision resistant) quick hash code of a | b.
+	// if a "final" constraint is already associated to it, we double check that
+	// the coeffs match; if they do, we return the existing wire.
+
+	// ensure deterministic combined hashcode
+	if a.VID < b.VID {
+		a, b = b, a
+	}
+	h := uint64(a.WireID()) + uint64(b.WireID()<<32)
+
+	if cID, ok := builder.mMulConstraints[h]; ok {
+		// seems likely we have a fit, let's double check
+		// note that this snippet have some strong assumptions about how
+		// the constraint/ package works.
+		if c := builder.cs.GetConstraint(cID); c != nil {
+			if !(c.K|c.L.CoeffID()|c.R.CoeffID() == 0) {
+				panic("sanity check failed; recorded a mul constraint with qL, qR or qC set")
+			}
+
+			// ensure we have the same wires
+			goodWires := (c.L.WireID() == a.WireID() && c.R.WireID() == b.WireID()) ||
+				(c.R.WireID() == a.WireID() && c.L.WireID() == b.WireID())
+			if !goodWires {
+				log := logger.Logger()
+				log.Debug().Msg("hashcode(expr.Term) collision")
+				return expr.Term{}, false, h
+			}
+
+			// qO == -1
+			if c.O.CoeffID() != constraint.CoeffIdMinusOne {
+				// TODO @gbotrel we could probably handle that case, but it shouldn't
+				// happen with our current APIs
+				return expr.Term{}, false, h
+			}
+
+			// recompute the qM coeff and check that it matches;
+			qM := a.Coeff
+			builder.cs.Mul(&qM, &b.Coeff)
+			m := builder.cs.MakeTerm(&qM, 0)
+			if c.M[0].CoeffID() != m.CoeffID() {
+				// so we wanted to compute
+				// N * xC == qM*xA*xB
+				// but found a constraint
+				// xC == qM'*xA*xB
+				// the coefficient for our resulting wire is different;
+				// N = qM / qM'
+				N := builder.cs.GetCoefficient(c.M[0].CoeffID())
+				builder.cs.Inverse(&N)
+				builder.cs.Mul(&N, &qM)
+
+				return expr.NewTerm(c.O.WireID(), N), true, h
+			}
+
+			// we found the same constraint!
+			return expr.NewTerm(c.O.WireID(), builder.tOne), true, h
+		}
+	}
+	return expr.Term{}, false, h
+}
+
 func (builder *builder) splitProd(acc expr.Term, r expr.LinearExpression) expr.Term {
 	// floor case
 	if len(r) == 0 {
 		return acc
 	}
+	// we want to add a constraint such that acc * r[0] == o
+	// let's check if we didn't already constrain a similar product
+	o, found, h := builder.mulConstraintExist(acc, r[0])
 
-	// constraint to add: acc * r[0] == o
-	o := builder.newInternalVariable()
-	builder.addMulGate(acc, r[0], o)
+	if !found {
+		// constraint to add: acc * r[0] == o
+		o = builder.newInternalVariable()
+		builder.addMulGate(acc, r[0], o)
+		// record the constraint ID
+		builder.mMulConstraints[h] = builder.cs.GetNbConstraints() - 1
+	}
+
 	return builder.splitProd(o, r[1:])
 }
 

@@ -38,6 +38,17 @@ func (t Term) WireID() int {
 }
 
 func (t Term) HashCode() uint64 {
+	// hashCode := t.Coeff[0] * 17
+	// hashCode *= 31
+	// hashCode += t.Coeff[1] * 17
+	// hashCode *= 31
+	// hashCode += t.Coeff[2] * 17
+	// hashCode *= 31
+	// hashCode += t.Coeff[3] * 17
+	// hashCode *= 31
+	// hashCode <<= 29
+	// hashCode |= uint64(t.VID) // << 2**29;
+	// return hashCode
 	return t.Coeff[0]*29 + uint64(t.VID<<12)
 }
 
