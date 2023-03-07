@@ -50,3 +50,6 @@ gnarkd/circuits/**
 
 # Jetbrains stuff
 .idea/
+
+# Nix build results
+result*
