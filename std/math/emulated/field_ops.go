@@ -178,9 +178,9 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 	w := new(big.Int)
 	for c := 1; c <= len(mulResult); c++ {
 		w.SetInt64(1) // c^i
-		l := a.Limbs[0]
-		r := b.Limbs[0]
-		o := mulResult[0]
+		l := f.api.Mul(a.Limbs[0], 1)
+		r := f.api.Mul(b.Limbs[0], 1)
+		o := f.api.Mul(mulResult[0], 1)
 
 		for i := 1; i < len(mulResult); i++ {
 			w.Lsh(w, uint(c))
