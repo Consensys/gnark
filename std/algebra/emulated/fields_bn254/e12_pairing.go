@@ -94,12 +94,6 @@ func (e Ext12) MulBy034(z *E12, c0, c3, c4 *E2) *E12 {
 	}
 }
 
-func (e Ext12) NCycloSquare(z *E12, n int) *E12 {
-	for i := 0; i < n; i++ {
-		z = e.CyclotomicSquare(z)
-	}
-	return z
-}
 func (e Ext12) MulBy034by034(d0, d3, d4, c0, c3, c4 *E2) *E12 {
 	// var tmp, x0, x3, x4, x04, x03, x34 E2
 	x0 := e.Ext2.Mul(c0, d0)          // x0.Mul(c0, d0)

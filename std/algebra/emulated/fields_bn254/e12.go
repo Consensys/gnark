@@ -111,6 +111,13 @@ func (e Ext12) CyclotomicSquare(x *E12) *E12 {
 	}
 }
 
+func (e Ext12) NCycloSquare(z *E12, n int) *E12 {
+	for i := 0; i < n; i++ {
+		z = e.CyclotomicSquare(z)
+	}
+	return z
+}
+
 func (e Ext12) Frobenius(x *E12) *E12 {
 	// var t [6]E2
 	t0 := e.Ext2.Conjugate(&x.C0.B0)       // t[0].Conjugate(&x.C0.B0)
