@@ -62,6 +62,9 @@ type builder struct {
 	// we will duplicate the constraint.
 	mMulConstraints map[uint64]int
 
+	// same thing for addition gates
+	mAddConstraints map[uint64]int
+
 	// frequently used coefficients
 	tOne, tMinusOne constraint.Coeff
 }
@@ -71,7 +74,8 @@ type builder struct {
 func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 	b := builder{
 		mtBooleans:      make(map[expr.Term]struct{}),
-		mMulConstraints: make(map[uint64]int),
+		mMulConstraints: make(map[uint64]int, config.Capacity), // memory greedy :/
+		mAddConstraints: make(map[uint64]int, config.Capacity), // memory greedy :/
 		config:          config,
 		Store:           kvstore.New(),
 	}
@@ -120,27 +124,6 @@ func (builder *builder) FieldBitLen() int {
 type sparseR1C struct {
 	xa, xb, xc         int              // wires
 	qL, qR, qO, qM, qC constraint.Coeff // coefficients
-}
-
-func (s *sparseR1C) hashcode() uint64 {
-	h := uint64(17)
-	h = h*23 + uint64(s.xa)
-	h = h*23 + uint64(s.xb)
-	// we do not put xc in it;
-	for _, val := range s.qL {
-		h = h*23 + val
-	}
-	for _, val := range s.qR {
-		h = h*23 + val
-	}
-	// we do not put qO in it;
-	for _, val := range s.qM {
-		h = h*23 + val
-	}
-	for _, val := range s.qC {
-		h = h*23 + val
-	}
-	return h
 }
 
 // a * b == c
@@ -361,37 +344,108 @@ func (builder *builder) splitSum(acc expr.Term, r expr.LinearExpression, k *cons
 	if len(r) == 0 {
 		if k != nil {
 			// we need to return acc + k
-			o := builder.newInternalVariable()
-			builder.addPlonkConstraint(sparseR1C{
-				xa: acc.VID,
-				xc: o.VID,
-				qL: acc.Coeff,
-				qO: builder.tMinusOne,
-				qC: *k,
-			})
+			o, found, h := builder.addConstraintExist(acc, expr.Term{}, *k)
+			if !found {
+				o = builder.newInternalVariable()
+				builder.addPlonkConstraint(sparseR1C{
+					xa: acc.VID,
+					xc: o.VID,
+					qL: acc.Coeff,
+					qO: builder.tMinusOne,
+					qC: *k,
+				})
+				builder.mAddConstraints[h] = builder.cs.GetNbConstraints() - 1
+			}
+
 			return o
 		}
 		return acc
 	}
 
 	// constraint to add: acc + r[0] (+ k) == o
-	o := builder.newInternalVariable()
-
 	qC := constraint.Coeff{}
 	if k != nil {
 		qC = *k
 	}
-	builder.addPlonkConstraint(sparseR1C{
-		xa: acc.VID,
-		xb: r[0].VID,
-		xc: o.VID,
-		qL: acc.Coeff,
-		qR: r[0].Coeff,
-		qO: builder.tMinusOne,
-		qC: qC,
-	})
+	o, found, h := builder.addConstraintExist(acc, r[0], qC)
+	if !found {
+		o = builder.newInternalVariable()
+
+		builder.addPlonkConstraint(sparseR1C{
+			xa: acc.VID,
+			xb: r[0].VID,
+			xc: o.VID,
+			qL: acc.Coeff,
+			qR: r[0].Coeff,
+			qO: builder.tMinusOne,
+			qC: qC,
+		})
+		builder.mAddConstraints[h] = builder.cs.GetNbConstraints() - 1
+	}
 
 	return builder.splitSum(o, r[1:], nil)
+}
+
+func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Coeff) (expr.Term, bool, uint64) {
+	// idea here is we do a (not collision resistant) quick hash code of a | b.
+	// if a "final" constraint is already associated to it, we double check that
+	// the coeffs match; if they do, we return the existing wire.
+
+	// ensure deterministic combined hashcode
+	if a.VID < b.VID {
+		a, b = b, a
+	}
+	h := uint64(a.WireID()) | uint64(b.WireID()<<32)
+
+	if cID, ok := builder.mAddConstraints[h]; ok {
+		// seems likely we have a fit, let's double check
+		// note that this snippet have some strong assumptions about how
+		// the constraint/ package works.
+		if c := builder.cs.GetConstraint(cID); c != nil {
+			if c.M[0].CoeffID() != constraint.CoeffIdZero {
+				panic("sanity check failed; recorded a add constraint with qM set")
+			}
+
+			// ensure we have the same wires
+			goodWires := (c.L.WireID() == a.WireID() && c.R.WireID() == b.WireID()) ||
+				(c.R.WireID() == a.WireID() && c.L.WireID() == b.WireID())
+			if !goodWires {
+				log := logger.Logger()
+				log.Debug().Msg("hashcode(expr.Term) collision (add)")
+				return expr.Term{}, false, h
+			}
+
+			if a.WireID() == c.R.WireID() {
+				a, b = b, a // ensure a is in qL
+			}
+
+			// qO == -1
+			if c.O.CoeffID() != constraint.CoeffIdMinusOne {
+				// TODO @gbotrel we could probably handle that case, but it shouldn't
+				// happen with our current APIs
+				return expr.Term{}, false, h
+			}
+
+			// check that the coeff matches
+			qL := a.Coeff
+			qR := b.Coeff
+			ta := builder.cs.MakeTerm(&qL, 0)
+			tb := builder.cs.MakeTerm(&qR, 0)
+			if c.L.CoeffID() != ta.CoeffID() || c.R.CoeffID() != tb.CoeffID() {
+				// no point going forward we will need an additional constraint anyway
+				return expr.Term{}, false, h
+			}
+
+			tk := builder.cs.MakeTerm(&k, 0)
+			if tk.CoeffID() != c.K {
+				return expr.Term{}, false, h
+			}
+
+			// we found the same constraint!
+			return expr.NewTerm(c.O.WireID(), builder.tOne), true, h
+		}
+	}
+	return expr.Term{}, false, h
 }
 
 func (builder *builder) mulConstraintExist(a, b expr.Term) (expr.Term, bool, uint64) {
@@ -403,14 +457,14 @@ func (builder *builder) mulConstraintExist(a, b expr.Term) (expr.Term, bool, uin
 	if a.VID < b.VID {
 		a, b = b, a
 	}
-	h := uint64(a.WireID()) + uint64(b.WireID()<<32)
+	h := uint64(a.WireID()) | uint64(b.WireID()<<32)
 
 	if cID, ok := builder.mMulConstraints[h]; ok {
 		// seems likely we have a fit, let's double check
 		// note that this snippet have some strong assumptions about how
 		// the constraint/ package works.
 		if c := builder.cs.GetConstraint(cID); c != nil {
-			if !(c.K|c.L.CoeffID()|c.R.CoeffID() == 0) {
+			if !(c.K|c.L.CoeffID()|c.R.CoeffID() == constraint.CoeffIdZero) {
 				panic("sanity check failed; recorded a mul constraint with qL, qR or qC set")
 			}
 
@@ -419,7 +473,7 @@ func (builder *builder) mulConstraintExist(a, b expr.Term) (expr.Term, bool, uin
 				(c.R.WireID() == a.WireID() && c.L.WireID() == b.WireID())
 			if !goodWires {
 				log := logger.Logger()
-				log.Debug().Msg("hashcode(expr.Term) collision")
+				log.Debug().Msg("hashcode(expr.Term) collision (mul)")
 				return expr.Term{}, false, h
 			}
 
@@ -469,6 +523,9 @@ func (builder *builder) splitProd(acc expr.Term, r expr.LinearExpression) expr.T
 		o = builder.newInternalVariable()
 		builder.addMulGate(acc, r[0], o)
 		// record the constraint ID
+		// TODO @gbotrel this assumes addMulGate appended a constraint
+		// --> we should have addMulGate / addPlonkConstraint return constraint number
+		// to avoid relying on constraint/ internal impl.
 		builder.mMulConstraints[h] = builder.cs.GetNbConstraints() - 1
 	}
 
