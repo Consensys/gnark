@@ -9,7 +9,6 @@ package constraint
 // We build a graph of dependency; we say that a wire is solved at a level l
 // --> l = max(level_of_dependencies(wire)) + 1
 func (system *System) updateLevel(cID int, c Iterable) {
-	system.lbOutputs = system.lbOutputs[:0]
 	level := -1
 	wireIterator := c.WireIterator()
 
@@ -38,6 +37,7 @@ func (system *System) updateLevel(cID int, c Iterable) {
 	}
 	// clean the table. NB! Do not remove or move, this is required to make the
 	// compilation deterministic.
+	system.lbOutputs = system.lbOutputs[:0]
 	system.lbHints = map[*HintMapping]struct{}{}
 }
 
