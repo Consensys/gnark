@@ -1,5 +1,9 @@
 package fields_bn254
 
+import (
+	"github.com/consensys/gnark-crypto/ecc/bn254"
+)
+
 type E6 struct {
 	B0, B1, B2 E2
 }
@@ -198,4 +202,10 @@ func (e Ext6) AssertIsEqual(x, y *E6) {
 	e.Ext2.AssertIsEqual(&x.B0, &y.B0)
 	e.Ext2.AssertIsEqual(&x.B1, &y.B1)
 	e.Ext2.AssertIsEqual(&x.B2, &y.B2)
+}
+
+func (x *E6) assign(y *bn254.E6) {
+	x.B0.assign(&y.B0)
+	x.B1.assign(&y.B1)
+	x.B2.assign(&y.B2)
 }
