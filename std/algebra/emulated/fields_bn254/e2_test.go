@@ -73,6 +73,67 @@ func TestSubFp2(t *testing.T) {
 
 }
 
+type e2Double struct {
+	A, C E2
+}
+
+func (circuit *e2Double) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt2(ba)
+	expected := e.Double(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestDoubleFp2(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bn254.E2
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Double(&a)
+
+	var witness e2Double
+	witness.A.assign(&a)
+	witness.C.assign(&c)
+
+	err := test.IsSolved(&e2Double{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
+type e2Halve struct {
+	A, C E2
+}
+
+func (circuit *e2Halve) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt2(ba)
+	expected := e.Halve(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestHalveFp2(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bn254.E2
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c = a
+	c.Halve()
+
+	var witness e2Halve
+	witness.A.assign(&a)
+	witness.C.assign(&c)
+
+	err := test.IsSolved(&e2Halve{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e2Mul struct {
 	A, B, C E2
 }
@@ -197,6 +258,68 @@ func TestMulFp2BybTwistCurveCoeff(t *testing.T) {
 	witness.C.assign(&c)
 
 	err := test.IsSolved(&e2MulBybTwistCurveCoeff{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
+type e2MulByNonResidue struct {
+	A E2
+	C E2 `gnark:",public"`
+}
+
+func (circuit *e2MulByNonResidue) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt2(ba)
+	expected := e.MulByNonResidue(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+
+	return nil
+}
+
+func TestMulFp2ByNonResidue(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E2
+	_, _ = a.SetRandom()
+	c.MulByNonResidue(&a)
+
+	var witness e2MulByNonResidue
+	witness.A.assign(&a)
+	witness.C.assign(&c)
+
+	err := test.IsSolved(&e2MulByNonResidue{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
+type e2MulByNonResidueInv struct {
+	A E2
+	C E2 `gnark:",public"`
+}
+
+func (circuit *e2MulByNonResidueInv) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt2(ba)
+	expected := e.MulByNonResidueInv(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+
+	return nil
+}
+
+func TestMulFp2ByNonResidueInv(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E2
+	_, _ = a.SetRandom()
+	c.MulByNonResidueInv(&a)
+
+	var witness e2MulByNonResidueInv
+	witness.A.assign(&a)
+	witness.C.assign(&c)
+
+	err := test.IsSolved(&e2MulByNonResidueInv{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
