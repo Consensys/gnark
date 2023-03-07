@@ -1,18 +1,8 @@
-/*
-Copyright © 2020 ConsenSys
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-// Package sw (short weierstrass)
+// Package sw_bls24315 implements the arithmetics of G1, G2 and the pairing
+// computation on BLS24-315 as a SNARK circuit over BW6-633. These two curves
+// form a 2-chain so the operations use native field arithmetic.
+//
+// References:
+// BLS24-315/BW6-633: https://eprint.iacr.org/2021/1359
+// Pairings in R1CS: https://eprint.iacr.org/2022/1162
 package sw_bls24315

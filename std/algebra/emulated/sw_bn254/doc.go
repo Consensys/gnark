@@ -1,4 +1,4 @@
-// Package sw_bn254 implements pairing over BN254 curve.
+// Package sw_bn254 implements G1 and G2 arithmetics and pairing computation over BN254 curve.
 //
 // The implementation follows very closely the implementation of its out-circuit
 // counterpart in [gnark-crypto].
