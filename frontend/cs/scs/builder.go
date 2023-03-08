@@ -115,7 +115,7 @@ func (builder *scs) FieldBitLen() int {
 
 // addPlonkConstraint creates a constraint of the for al+br+clr+k=0
 // qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
-func (builder *scs) addPlonkConstraint(xa, xb, xc expr.TermToRefactor, qL, qR, qM1, qM2, qO, qC int, cIndex int, debug ...constraint.DebugInfo) {
+func (builder *scs) addPlonkConstraint(xa, xb, xc expr.TermToRefactor, qL, qR, qM1, qM2, qO, qC int, debug ...constraint.DebugInfo) {
 	// TODO @gbotrel the signature of this function is odd.. and confusing. need refactor.
 	// TODO @gbotrel restore debug info
 	// if len(debugID) > 0 {
@@ -139,7 +139,7 @@ func (builder *scs) addPlonkConstraint(xa, xb, xc expr.TermToRefactor, qL, qR, q
 	V := builder.TOREFACTORMakeTerm(&builder.st.Coeffs[v.CID], v.VID)
 	K := builder.TOREFACTORMakeTerm(&builder.st.Coeffs[qC], 0)
 	K.MarkConstant()
-	builder.cs.AddConstraint(constraint.SparseR1C{L: L, R: R, O: O, M: [2]constraint.Term{U, V}, K: K.CoeffID(), C: cIndex}, debug...)
+	builder.cs.AddConstraint(constraint.SparseR1C{L: L, R: R, O: O, M: [2]constraint.Term{U, V}, K: K.CoeffID()}, debug...)
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets
@@ -343,7 +343,7 @@ func (builder *scs) splitSum(acc expr.TermToRefactor, r expr.LinearExpressionToR
 	cl, _ := acc.Unpack()
 	cr, _ := r[0].Unpack()
 	o := builder.newInternalVariable()
-	builder.addPlonkConstraint(acc, r[0], o, cl, cr, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, constraint.CoeffIdZero, -1)
+	builder.addPlonkConstraint(acc, r[0], o, cl, cr, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, constraint.CoeffIdZero)
 	return builder.splitSum(o, r[1:])
 }
 
@@ -357,7 +357,7 @@ func (builder *scs) splitProd(acc expr.TermToRefactor, r expr.LinearExpressionTo
 	cl, _ := acc.Unpack()
 	cr, _ := r[0].Unpack()
 	o := builder.newInternalVariable()
-	builder.addPlonkConstraint(acc, r[0], o, constraint.CoeffIdZero, constraint.CoeffIdZero, cl, cr, constraint.CoeffIdMinusOne, constraint.CoeffIdZero, -1)
+	builder.addPlonkConstraint(acc, r[0], o, constraint.CoeffIdZero, constraint.CoeffIdZero, cl, cr, constraint.CoeffIdMinusOne, constraint.CoeffIdZero)
 	return builder.splitProd(o, r[1:])
 }
 

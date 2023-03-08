@@ -51,7 +51,7 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 		debug := builder.newDebugInfo("assertIsEqual", l, "+", i2, " == 0")
 		k.Neg(k)
 		_k := builder.st.CoeffID(k)
-		builder.addPlonkConstraint(l, builder.zero(), builder.zero(), lc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, _k, -1, debug)
+		builder.addPlonkConstraint(l, builder.zero(), builder.zero(), lc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, _k, debug)
 		return
 	}
 	l := i1.(expr.TermToRefactor)
@@ -60,7 +60,7 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 	rc, _ := r.Unpack()
 
 	debug := builder.newDebugInfo("assertIsEqual", l, " + ", r, " == 0")
-	builder.addPlonkConstraint(l, r, builder.zero(), lc, rc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, -1, debug)
+	builder.addPlonkConstraint(l, r, builder.zero(), lc, rc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
 }
 
 // AssertIsDifferent fails if i1 == i2
@@ -87,7 +87,7 @@ func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
 	var mCoef big.Int
 	mCoef.Neg(&builder.st.Coeffs[cID])
 	mcID := builder.st.CoeffID(&mCoef)
-	builder.addPlonkConstraint(t, t, builder.zero(), cID, constraint.CoeffIdZero, mcID, cID, constraint.CoeffIdZero, constraint.CoeffIdZero, -1, debug)
+	builder.addPlonkConstraint(t, t, builder.zero(), cID, constraint.CoeffIdZero, mcID, cID, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
 }
 
 // AssertIsLessOrEqual fails if  v > bound
@@ -133,16 +133,7 @@ func (builder *scs) mustBeLessOrEqVar(a expr.TermToRefactor, bound expr.TermToRe
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
 		builder.MarkBoolean(aBits[i].(expr.TermToRefactor)) // this does not create a constraint
 
-		builder.addPlonkConstraint(
-			l.(expr.TermToRefactor),
-			aBits[i].(expr.TermToRefactor),
-			builder.zero(),
-			constraint.CoeffIdZero,
-			constraint.CoeffIdZero,
-			constraint.CoeffIdOne,
-			constraint.CoeffIdOne,
-			constraint.CoeffIdZero,
-			constraint.CoeffIdZero, -1, debug)
+		builder.addPlonkConstraint(l.(expr.TermToRefactor), aBits[i].(expr.TermToRefactor), builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
 	}
 
 }
@@ -194,17 +185,7 @@ func (builder *scs) mustBeLessOrEqCst(a expr.TermToRefactor, bound big.Int) {
 			l := builder.Sub(1, p[i+1], aBits[i]).(expr.TermToRefactor)
 			//l = builder.Sub(l, ).(term)
 
-			builder.addPlonkConstraint(
-				l,
-				aBits[i].(expr.TermToRefactor),
-				builder.zero(),
-				constraint.CoeffIdZero,
-				constraint.CoeffIdZero,
-				constraint.CoeffIdOne,
-				constraint.CoeffIdOne,
-				constraint.CoeffIdZero,
-				constraint.CoeffIdZero,
-				-1, debug)
+			builder.addPlonkConstraint(l, aBits[i].(expr.TermToRefactor), builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
 			// builder.markBoolean(aBits[i].(term))
 		} else {
 			builder.AssertIsBoolean(aBits[i])

@@ -48,7 +48,7 @@ func (builder *scs) Add(i1, i2 frontend.Variable, in ...frontend.Variable) front
 	cl, _ := vars[0].Unpack()
 	kID := builder.st.CoeffID(&k)
 	o := builder.newInternalVariable()
-	builder.addPlonkConstraint(vars[0], builder.zero(), o, cl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, kID, -1)
+	builder.addPlonkConstraint(vars[0], builder.zero(), o, cl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, kID)
 	return builder.splitSum(o, vars[1:])
 
 }
@@ -145,7 +145,7 @@ func (builder *scs) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable {
 	o := builder.Neg(i1).(expr.TermToRefactor)
 	cr, _ := r.Unpack()
 	co, _ := o.Unpack()
-	builder.addPlonkConstraint(res, r, o, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, co, constraint.CoeffIdZero, -1)
+	builder.addPlonkConstraint(res, r, o, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, co, constraint.CoeffIdZero)
 	return res
 }
 
@@ -168,7 +168,7 @@ func (builder *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 	cr, _ := t.Unpack()
 	debug := builder.newDebugInfo("inverse", "1/", i1, " < ∞")
 	res := builder.newInternalVariable()
-	builder.addPlonkConstraint(res, t, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, -1, debug)
+	builder.addPlonkConstraint(res, t, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, cr, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, debug)
 	return res
 }
 
@@ -224,12 +224,12 @@ func (builder *scs) Xor(a, b frontend.Variable) frontend.Variable {
 		r := l
 		oneMinusTwoB := big.NewInt(1)
 		oneMinusTwoB.Sub(oneMinusTwoB, _b).Sub(oneMinusTwoB, _b)
-		builder.addPlonkConstraint(l, r, res, builder.st.CoeffID(oneMinusTwoB), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, builder.st.CoeffID(_b), -1)
+		builder.addPlonkConstraint(l, r, res, builder.st.CoeffID(oneMinusTwoB), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdMinusOne, builder.st.CoeffID(_b))
 		return res
 	}
 	l := a.(expr.TermToRefactor)
 	r := b.(expr.TermToRefactor)
-	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdTwo, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, -1)
+	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdTwo, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
 	return res
 }
 
@@ -261,12 +261,12 @@ func (builder *scs) Or(a, b frontend.Variable) frontend.Variable {
 		one := big.NewInt(1)
 		_b.Sub(_b, one)
 		idl := builder.st.CoeffID(_b)
-		builder.addPlonkConstraint(l, r, res, idl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdZero, -1)
+		builder.addPlonkConstraint(l, r, res, idl, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdZero)
 		return res
 	}
 	l := a.(expr.TermToRefactor)
 	r := b.(expr.TermToRefactor)
-	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, -1)
+	builder.addPlonkConstraint(l, r, res, constraint.CoeffIdMinusOne, constraint.CoeffIdMinusOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero)
 	return res
 }
 
@@ -393,10 +393,10 @@ func (builder *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 		constraint.CoeffIdOne,
 		constraint.CoeffIdOne,
 		constraint.CoeffIdMinusOne,
-		-1)
+	)
 
 	// a * m = 0            // constrain m to be 0 if a != 0
-	builder.addPlonkConstraint(a, m, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero, -1)
+	builder.addPlonkConstraint(a, m, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero)
 
 	return m
 }
@@ -506,10 +506,16 @@ func scsBsb22CommitmentHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error {
 }
 
 func (builder *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
-	// NOT THREAD SAFE. It is important for these to be consecutive
-	for _, vI := range v { // TODO: Perf; If public, just hash it
-		builder.AssertIsEqual(vI, 0) // We need a constraint per committed value. Will be changed between solving and proof time
-		// Hacky and dangerous: assumes that trivial constraints will not be optimized away
+
+	committed := make([]int, len(v))
+	// NOT THREAD SAFE. Recording constraint indexes
+	for i, vI := range v { // TODO: Perf; If public, just hash it
+		vIExpr := vI.(constraint.LinearExpression)
+		if len(vIExpr) != 1 {
+			return nil, errors.New("can only commit to single terms") // TODO: Create a wire in this case
+		}
+		committed[i] = builder.cs.GetNbConstraints()
+		builder.cs.AddConstraint(constraint.SparseR1C{L: vIExpr[0], Commitment: constraint.COMMITTED})
 	}
 	outs, err := builder.NewHint(scsBsb22CommitmentHintPlaceholder, 1, v...)
 	if err != nil {
@@ -518,11 +524,11 @@ func (builder *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	commitmentVar := outs[0]
 
 	commitmentConstraintIndex := builder.cs.GetNbConstraints()
-	builder.AssertIsEqual(commitmentVar, 0) // value will be injected later
+	builder.cs.AddConstraint(constraint.SparseR1C{L: commitmentVar.(constraint.LinearExpression)[0], Commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
 		HintID:          hint.UUID(scsBsb22CommitmentHintPlaceholder),
 		CommitmentIndex: commitmentConstraintIndex,
-		Committed:       make([]int, len(v)), // only recording the number of committed variables. TODO: Something less revolting
+		Committed:       committed,
 	})
 }
