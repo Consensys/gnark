@@ -69,6 +69,24 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 		for i := 0; i < len(bits); i++ {
 			bits[i] = c.Bit(i)
 		}
+
+		// before returning, we ensure Σ (2**i * bits[i]) == c
+		// to be consistent with the variable path. This is probably unnecessary
+		// but will avoid some hard-to-track fuzzer bugs.
+		pow := big.NewInt(1)
+		r := new(big.Int)
+
+		for i := 0; i < len(bits); i++ {
+			if bits[i].(uint) == 1 {
+				r.Add(r, pow)
+			}
+			pow.Lsh(pow, 1)
+		}
+		r.Mod(r, api.Compiler().Field())
+		if r.Cmp(c) != 0 {
+			panic("bit decomposition does not match: provided nbDigit is smaller than input value. Σ (2**i * bits[i]) != c")
+		}
+
 		return bits
 	}
 

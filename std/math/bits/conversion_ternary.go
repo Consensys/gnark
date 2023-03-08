@@ -80,6 +80,9 @@ func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOpti
 		for ; i < len(trits); i++ {
 			trits[i] = 0
 		}
+
+		// TODO we may want to ensure Σ (3**i * bits[i]) == c, like in binary decomposition.
+
 		return trits
 	}
 
