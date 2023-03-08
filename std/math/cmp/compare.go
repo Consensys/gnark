@@ -1,6 +1,7 @@
 package cmp
 
 import (
+	"fmt"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
@@ -64,7 +65,10 @@ func AssertIsLess(a frontend.Variable, b frontend.Variable) {
 // Note: Before using this function, the package should be configured by calling
 // [ConfigureComparators].
 func IsLess(a frontend.Variable, b frontend.Variable) frontend.Variable {
-	res, _ := cmpCfg.api.Compiler().NewHint(isLessOutputHint, 1, a, b, -1)
+	res, err := cmpCfg.api.Compiler().NewHint(isLessOutputHint, 1, a, b, -1)
+	if err != nil {
+		panic(fmt.Sprintf("error in calling isLessOutputHint: %v", err))
+	}
 	indicator := res[0]
 	// a < b  <==> b - a - 1 >= 0
 	// a >= b <==> a - b >= 0
@@ -81,7 +85,10 @@ func IsLess(a frontend.Variable, b frontend.Variable) frontend.Variable {
 // Note: Before using this function, the package should be configured by calling
 // [ConfigureComparators].
 func Min(a frontend.Variable, b frontend.Variable) frontend.Variable {
-	res, _ := cmpCfg.api.Compiler().NewHint(minOutputHint, 1, a, b, -1)
+	res, err := cmpCfg.api.Compiler().NewHint(minOutputHint, 1, a, b, -1)
+	if err != nil {
+		panic(fmt.Sprintf("error in calling minOutputHint: %v", err))
+	}
 	min := res[0]
 
 	aDiff := cmpCfg.api.Sub(a, min)
