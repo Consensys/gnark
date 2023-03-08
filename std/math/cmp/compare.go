@@ -13,59 +13,66 @@ func init() {
 	RegisterAllHints()
 }
 
-var cmpCfg struct {
-	upperAbsDiffBitLen int
-	api                frontend.API
+// BoundedComparator provides comparison methods, with relatively low circuit complexity, for
+// comparing two numbers a and b, when an upper bound for their absolute difference (|a - b|) is
+// known. These methods perform only one binary conversion of length: absDiffUppBitLen.
+//
+// Let's denote the upper bound of the absolute difference of a and b, with ADU, such that we have
+// |a - b| <= ADU. The absDiffUppBitLen is the number of bits of the binary representation of ADU.
+// Lower values of absDiffUppBitLen will reduce the number of generated constraints.
+//
+// As long as BitLen(|a - b|) <= absDiffUppBitLen all the methods work correctly. In case the
+// programmer has not specified the value of absDiffUppBitLen correctly, If BitLen(|a - b|) >
+// absDiffUppBitLen >= BitLen(|a - b| - 1), a proof can not be generated or the methods work
+// correctly. If BitLen(|a - b| - 1) > absDiffUppBitLen, as long as |a - b| <= (P - 1) / 2, where P
+// is the prime order of the underlying field, no proofs can be generated.
+//
+// When |a - b| > (P - 1) / 2, the behaviour of AssertIsLess, IsLess and Min will be
+// undefined.
+type BoundedComparator struct {
+	// the number of bits in the binary representation of the upper bound of the absolute difference
+	absDiffUppBitLen int
+	api              frontend.API
 }
 
-// ConfigureComparators sets or updates the configuration settings that are used by comparator
-// functions in this package.
+// we will use a value receiver for methods of this struct,
+// since: 1) the struct is small. 2) methods should not modify any fields.
+
+// NewComparator creates a new BoundedComparator.
 //
-// If upperAbsDiff is the upper bound of the absolute difference of a and b, such that |a - b| <=
-// upperAbsDiff, then upperAbsDiffBitLen is the number of bits of the binary representation of
-// upperAbsDiff. Lower values of upperAbsDiffBitLen will reduce the number of generated constraints
-// significantly. Use upperAbsDiffBitLen = 0 to select the maximum possible value.
-//
-// As long as BitLen(|a - b|) <= upperAbsDiffBitLen all functions work correctly. If BitLen(|a - b|)
-// > upperAbsDiffBitLen >= BitLen(|a - b| - 1) sometimes a proof can not be generated. If BitLen(|a
-// - b| - 1) > upperAbsDiffBitLen, as long as |a - b| <= (P - 1) / 2, where P is the order of the
-// underlying field, no proofs can be generated. However, when |a - b| > (P - 1) / 2, the behaviour
-// of [AssertIsLess], [IsLess] and [Min] will be undefined.
-func ConfigureComparators(api frontend.API, upperAbsDiffBitLen int) {
+// This function panics if the provided value for absDiffUppBitLen can not be supported by the
+// underlying field. Use absDiffUppBitLen = 0 to select the maximum supported value.
+func NewComparator(api frontend.API, absDiffUppBitLen int) *BoundedComparator {
 	// We need to have |a - b| <= (P - 1) / 2. The BitLen of (P - 1) / 2 is
 	// exactly FieldBitLen()-1, so to ensure the inequality, we should have:
-	// upperAbsDiffBitLen <= FieldBitLen()-2
+	// absDiffUppBitLen <= FieldBitLen()-2
 	// todo: by having the order of the field (P) we can implement this with tighter bounds
-	if upperAbsDiffBitLen == 0 {
-		upperAbsDiffBitLen = api.Compiler().FieldBitLen() - 2
+	if absDiffUppBitLen == 0 {
+		absDiffUppBitLen = api.Compiler().FieldBitLen() - 2
 	}
-	if upperAbsDiffBitLen > api.Compiler().FieldBitLen()-2 {
+	if absDiffUppBitLen > api.Compiler().FieldBitLen()-2 {
 		panic("ConfigureComparators: the specified upper bound of absolute difference is too high")
 	}
-	cmpCfg.upperAbsDiffBitLen = upperAbsDiffBitLen
-	cmpCfg.api = api
+	return &BoundedComparator{
+		absDiffUppBitLen: absDiffUppBitLen,
+		api:              api,
+	}
 }
 
 // AssertIsLess defines a set of constraints that can not be satisfied when a < b. So, If a < b no
 // proofs can be generated.
-//
-// Note: Before using this function, the package should be configured by calling
-// [ConfigureComparators].
-func AssertIsLess(a frontend.Variable, b frontend.Variable) {
+func (bc BoundedComparator) AssertIsLess(a frontend.Variable, b frontend.Variable) {
 	// a < b <==> b - a - 1 >= 0
 	bits.ToBinary(
-		cmpCfg.api,
-		cmpCfg.api.Sub(b, a, 1),
-		bits.WithNbDigits(cmpCfg.upperAbsDiffBitLen),
+		bc.api,
+		bc.api.Sub(b, a, 1),
+		bits.WithNbDigits(bc.absDiffUppBitLen),
 	)
 }
 
 // IsLess returns 1 if a < b, and returns 0 if a >= b.
-//
-// Note: Before using this function, the package should be configured by calling
-// [ConfigureComparators].
-func IsLess(a frontend.Variable, b frontend.Variable) frontend.Variable {
-	res, err := cmpCfg.api.Compiler().NewHint(isLessOutputHint, 1, a, b, -1)
+func (bc BoundedComparator) IsLess(a frontend.Variable, b frontend.Variable) frontend.Variable {
+	res, err := bc.api.Compiler().NewHint(isLessOutputHint, 1, a, b, -1)
 	if err != nil {
 		panic(fmt.Sprintf("error in calling isLessOutputHint: %v", err))
 	}
@@ -73,31 +80,28 @@ func IsLess(a frontend.Variable, b frontend.Variable) frontend.Variable {
 	// a < b  <==> b - a - 1 >= 0
 	// a >= b <==> a - b >= 0
 	bits.ToBinary(
-		cmpCfg.api,
-		cmpCfg.api.Select(indicator, cmpCfg.api.Sub(b, a, 1), cmpCfg.api.Sub(a, b)),
-		bits.WithNbDigits(cmpCfg.upperAbsDiffBitLen),
+		bc.api,
+		bc.api.Select(indicator, bc.api.Sub(b, a, 1), bc.api.Sub(a, b)),
+		bits.WithNbDigits(bc.absDiffUppBitLen),
 	)
 	return indicator
 }
 
 // Min returns the minimum of a and b.
-//
-// Note: Before using this function, the package should be configured by calling
-// [ConfigureComparators].
-func Min(a frontend.Variable, b frontend.Variable) frontend.Variable {
-	res, err := cmpCfg.api.Compiler().NewHint(minOutputHint, 1, a, b, -1)
+func (bc BoundedComparator) Min(a frontend.Variable, b frontend.Variable) frontend.Variable {
+	res, err := bc.api.Compiler().NewHint(minOutputHint, 1, a, b, -1)
 	if err != nil {
 		panic(fmt.Sprintf("error in calling minOutputHint: %v", err))
 	}
 	min := res[0]
 
-	aDiff := cmpCfg.api.Sub(a, min)
-	bDiff := cmpCfg.api.Sub(b, min)
+	aDiff := bc.api.Sub(a, min)
+	bDiff := bc.api.Sub(b, min)
 	// (a - min) * (b - min) == 0
-	cmpCfg.api.AssertIsEqual(0, cmpCfg.api.Mul(aDiff, bDiff))
+	bc.api.AssertIsEqual(0, bc.api.Mul(aDiff, bDiff))
 
 	// (a - min) + (b - min) >= 0
-	bits.ToBinary(cmpCfg.api, cmpCfg.api.Add(aDiff, bDiff), bits.WithNbDigits(cmpCfg.upperAbsDiffBitLen))
+	bits.ToBinary(bc.api, bc.api.Add(aDiff, bDiff), bits.WithNbDigits(bc.absDiffUppBitLen))
 
 	return min
 }
