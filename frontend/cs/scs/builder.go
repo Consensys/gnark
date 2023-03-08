@@ -344,7 +344,7 @@ func (builder *builder) splitSum(acc expr.Term, r expr.LinearExpression, k *cons
 	if len(r) == 0 {
 		if k != nil {
 			// we need to return acc + k
-			o, found, h := builder.addConstraintExist(acc, expr.Term{}, *k)
+			o, found := builder.addConstraintExist(acc, expr.Term{}, *k)
 			if !found {
 				o = builder.newInternalVariable()
 				builder.addPlonkConstraint(sparseR1C{
@@ -354,7 +354,6 @@ func (builder *builder) splitSum(acc expr.Term, r expr.LinearExpression, k *cons
 					qO: builder.tMinusOne,
 					qC: *k,
 				})
-				builder.mAddConstraints[h] = builder.cs.GetNbConstraints() - 1
 			}
 
 			return o
@@ -367,7 +366,7 @@ func (builder *builder) splitSum(acc expr.Term, r expr.LinearExpression, k *cons
 	if k != nil {
 		qC = *k
 	}
-	o, found, h := builder.addConstraintExist(acc, r[0], qC)
+	o, found := builder.addConstraintExist(acc, r[0], qC)
 	if !found {
 		o = builder.newInternalVariable()
 
@@ -380,29 +379,36 @@ func (builder *builder) splitSum(acc expr.Term, r expr.LinearExpression, k *cons
 			qO: builder.tMinusOne,
 			qC: qC,
 		})
-		builder.mAddConstraints[h] = builder.cs.GetNbConstraints() - 1
 	}
 
 	return builder.splitSum(o, r[1:], nil)
 }
 
-func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Coeff) (expr.Term, bool, uint64) {
-	// idea here is we do a (not collision resistant) quick hash code of a | b.
-	// if a "final" constraint is already associated to it, we double check that
-	// the coeffs match; if they do, we return the existing wire.
-
-	// ensure deterministic combined hashcode
+// addConstraintExist check if we recorded a constraint in the form
+// q1*xa + q2*xb + qC - xc == 0
+//
+// if we find one, this function returns the xc wire with the correct coefficients.
+// if we don't, and no previous addition was recorded with xa and xb, add an entry in the map
+// (this assumes that the caller will add a constraint just after this call if it's not found!)
+//
+// idea:
+// 1. take (xa | (xb << 32)) as a identifier of an addition that used wires xa and xb.
+// 2. look for an entry in builder.mAddConstraints for a previously added constraint that matches.
+// 3. if so, check that the coefficients matches and we can re-use xc wire.
+//
+// limitations:
+// 1. for efficiency, we just store the first addition that occurred with with xa and xb;
+// so if we do 2*xa + 3*xb == c, then want to compute xa + xb == d multiple times, the compiler is
+// not going to catch these duplicates.
+// 2. this piece of code assumes some behavior from constraint/ package (like coeffIDs, or append-style
+// constraint management)
+func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Coeff) (expr.Term, bool) {
+	// ensure deterministic combined identifier;
 	if a.VID < b.VID {
 		a, b = b, a
 	}
 	h := uint64(a.WireID()) | uint64(b.WireID()<<32)
 
-	// TODO @gbotrel consider a list here;
-	// if we do
-	// 1. a + b == c
-	// 2. 2a + b == d
-	// 3. a + b == ...
-	// line 3 will re-add the constraint because 2. hashcode is same as 1.
 	if cID, ok := builder.mAddConstraints[h]; ok {
 		// seems likely we have a fit, let's double check
 		// note that this snippet have some strong assumptions about how
@@ -412,24 +418,30 @@ func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Coeff) (
 				panic("sanity check failed; recorded a add constraint with qM set")
 			}
 
-			// ensure we have the same wires
-			goodWires := (c.L.WireID() == a.WireID() && c.R.WireID() == b.WireID()) ||
-				(c.R.WireID() == a.WireID() && c.L.WireID() == b.WireID())
-			if !goodWires {
-				log := logger.Logger()
-				log.Debug().Msg("hashcode(expr.Term) collision (add)")
-				return expr.Term{}, false, h
-			}
-
 			if a.WireID() == c.R.WireID() {
 				a, b = b, a // ensure a is in qL
+			}
+			if (a.WireID() != c.L.WireID()) || (b.WireID() != c.R.WireID()) {
+				// that shouldn't happen; it means we added an entry in the duplicate add constraint
+				// map with a key that don't match the entries.
+				log := logger.Logger()
+				log.Error().Msg("hashcode(expr.Term) collision (add)")
+				return expr.Term{}, false
 			}
 
 			// qO == -1
 			if c.O.CoeffID() != constraint.CoeffIdMinusOne {
-				// TODO @gbotrel we could probably handle that case, but it shouldn't
-				// happen with our current APIs
-				return expr.Term{}, false, h
+				// we could probably handle that case, but it shouldn't
+				// happen with our current APIs --> each time we record a add gate in the duplicate
+				// map qO == -1
+				return expr.Term{}, false
+			}
+
+			tk := builder.cs.MakeTerm(&k, 0)
+			if tk.CoeffID() != c.K {
+				// the constant part of the addition differs, no point going forward
+				// since we will need to add a new constraint anyway.
+				return expr.Term{}, false
 			}
 
 			// check that the coeff matches
@@ -438,24 +450,34 @@ func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Coeff) (
 			ta := builder.cs.MakeTerm(&qL, 0)
 			tb := builder.cs.MakeTerm(&qR, 0)
 			if c.L.CoeffID() != ta.CoeffID() || c.R.CoeffID() != tb.CoeffID() {
-				// no point going forward we will need an additional constraint anyway
-				// TODO @gbotrel actually, we can compute a new coefficient for the wire
-				// if we can "factorize" the same way the existing L, R wire coeffs with the current ones.
-				// so for example, if we computed a + b == c
-				// computing 3a + 3b == n * c; we can compute n == 3, without adding a constraint.
-				return expr.Term{}, false, h
-			}
-
-			tk := builder.cs.MakeTerm(&k, 0)
-			if tk.CoeffID() != c.K {
-				return expr.Term{}, false, h
+				// we recorded an addition in the form q1*a + q2*b == c
+				// we want to record a new one in the form q3*a + q4*b == n*c
+				// question is; can we re-use c to avoid introducing a new wire & new constraint
+				// this is possible only if n == q3/q1 == q4/q2, that is, q3q2 == q1q4
+				q1 := builder.cs.GetCoefficient(c.L.CoeffID())
+				q2 := builder.cs.GetCoefficient(c.R.CoeffID())
+				q3 := qL
+				q4 := qR
+				builder.cs.Mul(&q3, &q2)
+				builder.cs.Mul(&q1, &q4)
+				if q1 == q3 {
+					// no need to introduce a new constraint;
+					// compute n, the coefficient for the output wire
+					builder.cs.Inverse(&q2)
+					builder.cs.Mul(&q2, &q4)
+					return expr.NewTerm(c.O.WireID(), q2), true
+				}
+				// we will need an additional constraint
+				return expr.Term{}, false
 			}
 
 			// we found the same constraint!
-			return expr.NewTerm(c.O.WireID(), builder.tOne), true, h
+			return expr.NewTerm(c.O.WireID(), builder.tOne), true
 		}
 	}
-	return expr.Term{}, false, h
+	// we are going to add this constraint, so we mark it.
+	builder.mAddConstraints[h] = builder.cs.GetNbConstraints()
+	return expr.Term{}, false
 }
 
 func (builder *builder) mulConstraintExist(a, b expr.Term) (expr.Term, bool, uint64) {
