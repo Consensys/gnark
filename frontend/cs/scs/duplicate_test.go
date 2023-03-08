@@ -37,6 +37,16 @@ func TestDuplicateAdd(t *testing.T) {
 	assert.NoError(err)
 
 	assert.Equal(6, ccs.GetNbConstraints(), "comparing expected number of constraints")
+
+	w, err := frontend.NewWitness(&circuitDupAdd{
+		A: 13,
+		B: 42,
+		R: 165,
+	}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	_, err = ccs.Solve(w)
+	assert.NoError(err, "solving failed")
 }
 
 type circuitDupMul struct {
@@ -67,4 +77,14 @@ func TestDuplicateMul(t *testing.T) {
 	assert.NoError(err)
 
 	assert.Equal(6, ccs.GetNbConstraints(), "comparing expected number of constraints")
+
+	w, err := frontend.NewWitness(&circuitDupMul{
+		A: 13,
+		B: 42,
+		R: 1638,
+	}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	_, err = ccs.Solve(w)
+	assert.NoError(err, "solving failed")
 }
