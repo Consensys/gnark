@@ -38,3 +38,33 @@ func TestDuplicateAdd(t *testing.T) {
 
 	assert.Equal(6, ccs.GetNbConstraints(), "comparing expected number of constraints")
 }
+
+type circuitDupMul struct {
+	A, B frontend.Variable
+	R    frontend.Variable
+}
+
+func (c *circuitDupMul) Define(api frontend.API) error {
+
+	f := api.Mul(c.A, c.B)   // 1 constraint
+	f = api.Mul(c.A, c.B, f) // 1 constraint
+	f = api.Mul(c.A, c.B, f) // 1 constraint
+
+	d := api.Mul(api.Mul(c.A, 2), api.Mul(3, c.B)) // no constraints
+	e := api.Mul(api.Mul(c.A, c.B), 3)             // no constraints
+
+	api.AssertIsEqual(f, e)   // 1 constraint
+	api.AssertIsEqual(d, f)   // 1 constraint
+	api.AssertIsEqual(c.R, e) // 1 constraint
+
+	return nil
+}
+
+func TestDuplicateMul(t *testing.T) {
+	assert := require.New(t)
+
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuitDupMul{})
+	assert.NoError(err)
+
+	assert.Equal(6, ccs.GetNbConstraints(), "comparing expected number of constraints")
+}
