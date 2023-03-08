@@ -10,7 +10,8 @@ import (
 
 func init() {
 	// register hints
-	RegisterAllHints()
+	solver.RegisterHint(minOutputHint)
+	solver.RegisterHint(isLessOutputHint)
 }
 
 // BoundedComparator provides comparison methods, with relatively low circuit complexity, for
@@ -18,25 +19,25 @@ func init() {
 // known. These methods perform only one binary conversion of length: absDiffUppBitLen.
 //
 // Let's denote the upper bound of the absolute difference of a and b, with ADU, such that we have
-// |a - b| <= ADU. The absDiffUppBitLen is the number of bits of the binary representation of ADU.
-// Lower values of absDiffUppBitLen will reduce the number of generated constraints.
+// |a - b| <= ADU. The absDiffUppBitLen must be the number of bits of the binary representation of
+// ADU. In other words, we must have |a - b| <= 2^absDiffUppBitLen - 1. Lower values of
+// absDiffUppBitLen will reduce the number of generated constraints.
 //
-// As long as BitLen(|a - b|) <= absDiffUppBitLen all the methods work correctly. In case the
-// programmer has not specified the value of absDiffUppBitLen correctly, If BitLen(|a - b|) >
-// absDiffUppBitLen >= BitLen(|a - b| - 1), a proof can not be generated or the methods work
-// correctly. If BitLen(|a - b| - 1) > absDiffUppBitLen, as long as |a - b| <= (P - 1) / 2, where P
-// is the prime order of the underlying field, no proofs can be generated.
+// As long as |a - b| <= 2^absDiffUppBitLen - 1 all the methods of BoundedComparator work correctly.
+// If |a - b| = 2^absDiffUppBitLen, either a proof can not be generated or the methods work
+// correctly. If |a - b| > 2^absDiffUppBitLen, as long as |a - b| <= (P - 1) / 2, where P is the
+// prime order of the underlying field, no proofs can be generated.
 //
-// When |a - b| > (P - 1) / 2, the behaviour of AssertIsLess, IsLess and Min will be
+// When |a - b| > (P - 1) / 2, the behaviour of the exported methods of BoundedComparator will be
 // undefined.
 type BoundedComparator struct {
 	// the number of bits in the binary representation of the upper bound of the absolute difference
 	absDiffUppBitLen int
 	api              frontend.API
-}
 
-// we will use a value receiver for methods of this struct,
-// since: 1) the struct is small. 2) methods should not modify any fields.
+	// we will use a value receiver for methods of this struct,
+	// since: 1) the struct is small. 2) methods should not modify any fields.
+}
 
 // NewComparator creates a new BoundedComparator.
 //
