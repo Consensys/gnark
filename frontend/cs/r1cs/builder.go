@@ -23,12 +23,12 @@ import (
 	"sort"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -41,6 +41,7 @@ import (
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	bw6633r1cs "github.com/consensys/gnark/constraint/bw6-633"
 	bw6761r1cs "github.com/consensys/gnark/constraint/bw6-761"
+	"github.com/consensys/gnark/constraint/solver"
 	tinyfieldr1cs "github.com/consensys/gnark/constraint/tinyfield"
 )
 
@@ -51,22 +52,21 @@ func NewBuilder(field *big.Int, config frontend.CompileConfig) (frontend.Builder
 }
 
 type builder struct {
-	cs constraint.R1CS
-
+	cs     constraint.R1CS
 	config frontend.CompileConfig
+	kvstore.Store
 
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]expr.LinearExpression
 
-	q    *big.Int
 	tOne constraint.Coeff
-	heap minHeap // helps merge k sorted linear expressions
+
+	// helps merge k sorted linear expressions
+	heap minHeap
 
 	// buffers used to do in place api.MAC
 	mbuf1 expr.LinearExpression
 	mbuf2 expr.LinearExpression
-
-	kvstore.Store
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -114,11 +114,6 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 
 	builder.tOne = builder.cs.One()
 	builder.cs.AddPublicVariable("1")
-
-	builder.q = builder.cs.Field()
-	if builder.q.Cmp(field) != 0 {
-		panic("invalid modulus on cs impl") // sanity check
-	}
 
 	return &builder
 }
@@ -359,7 +354,7 @@ func (builder *builder) toVariables(in ...frontend.Variable) ([]expr.LinearExpre
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (builder *builder) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	hintInputs := make([]constraint.LinearExpression, len(inputs))
 
 	// TODO @gbotrel hint input pass
@@ -452,4 +447,8 @@ func (builder *builder) compress(le expr.LinearExpression) expr.LinearExpression
 	t := builder.newInternalVariable()
 	builder.cs.AddConstraint(builder.newR1C(le, one, t))
 	return t
+}
+
+func (builder *builder) Defer(cb func(frontend.API) error) {
+	circuitdefer.Put(builder, cb)
 }

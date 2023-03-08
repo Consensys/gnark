@@ -1,17 +1,17 @@
 package test
 
 import (
-	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/hint"
-	cs "github.com/consensys/gnark/constraint/tinyfield"
+	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -25,6 +25,11 @@ import (
 
 // ignore witness size larger than this bound
 const permutterBound = 3
+
+// r1cs + sparser1cs
+const nbSystems = 2
+
+var builders [2]frontend.NewBuilder
 
 func TestSolverConsistency(t *testing.T) {
 	if testing.Short() {
@@ -50,15 +55,59 @@ func TestSolverConsistency(t *testing.T) {
 	}
 }
 
-type permutter struct {
-	circuit frontend.Circuit
-	r1cs    *cs.R1CS
-	scs     *cs.SparseR1CS
-	witness []tinyfield.Element
-	hints   []hint.Function
+// witness used for the permutter. It implements the Witness interface
+// using mock methods (only the undererlying vector is required).
+type permutterWitness struct {
+	vector any
+}
 
-	// used to avoid allocations in R1CS solver
-	a, b, c []tinyfield.Element
+func (pw *permutterWitness) WriteTo(w io.Writer) (int64, error) {
+	return 0, nil
+}
+
+func (pw *permutterWitness) ReadFrom(r io.Reader) (int64, error) {
+	return 0, nil
+}
+
+func (pw *permutterWitness) MarshalBinary() ([]byte, error) {
+	return nil, nil
+}
+
+func (pw *permutterWitness) UnmarshalBinary([]byte) error {
+	return nil
+}
+
+func (pw *permutterWitness) Public() (witness.Witness, error) {
+	return pw, nil
+}
+
+func (pw *permutterWitness) Vector() any {
+	return pw.vector
+}
+
+func (pw *permutterWitness) ToJSON(s *schema.Schema) ([]byte, error) {
+	return nil, nil
+}
+
+func (pw *permutterWitness) FromJSON(s *schema.Schema, data []byte) error {
+	return nil
+}
+
+func (pw *permutterWitness) Fill(nbPublic, nbSecret int, values <-chan any) error {
+	return nil
+}
+
+func newPermutterWitness(pv tinyfield.Vector) witness.Witness {
+	return &permutterWitness{
+		vector: pv,
+	}
+}
+
+type permutter struct {
+	circuit           frontend.Circuit
+	constraintSystems [2]constraint.ConstraintSystem
+	witness           []tinyfield.Element
+	hints             []solver.Hint
 }
 
 // note that circuit will be mutated and this is not thread safe
@@ -67,30 +116,36 @@ func (p *permutter) permuteAndTest(index int) error {
 	for i := 0; i < len(tinyfieldElements); i++ {
 		p.witness[index].SetUint64(tinyfieldElements[i])
 		if index == len(p.witness)-1 {
+
 			// we have a unique permutation
+			var errorSystems [2]error
+			var errorEngines [2]error
 
-			// solve the cs using R1CS solver
-			errR1CS := p.solveR1CS()
-			errSCS := p.solveSCS()
+			// 2 constraints systems
+			for k := 0; k < nbSystems; k++ {
 
-			// solve the cs using test engine
-			// first copy the witness in the circuit
-			copyWitnessFromVector(p.circuit, p.witness)
-			errEngine1 := isSolvedEngine(p.circuit, tinyfield.Modulus())
+				errorSystems[k] = p.solve(k)
 
-			copyWitnessFromVector(p.circuit, p.witness)
-			errEngine2 := isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
+				// solve the cs using test engine
+				// first copy the witness in the circuit
+				copyWitnessFromVector(p.circuit, p.witness)
+				errorEngines[0] = isSolvedEngine(p.circuit, tinyfield.Modulus())
 
-			if (errR1CS == nil) != (errEngine1 == nil) ||
-				(errSCS == nil) != (errEngine1 == nil) ||
-				(errEngine1 == nil) != (errEngine2 == nil) {
+				copyWitnessFromVector(p.circuit, p.witness)
+				errorEngines[1] = isSolvedEngine(p.circuit, tinyfield.Modulus(), SetAllVariablesAsConstants())
+
+			}
+			if (errorSystems[0] == nil) != (errorEngines[0] == nil) ||
+				(errorSystems[1] == nil) != (errorEngines[0] == nil) ||
+				(errorEngines[0] == nil) != (errorEngines[1] == nil) {
 				return fmt.Errorf("errSCS :%s\nerrR1CS :%s\nerrEngine(const=false): %s\nerrEngine(const=true): %s\nwitness: %s",
-					formatError(errSCS),
-					formatError(errR1CS),
-					formatError(errEngine1),
-					formatError(errEngine2),
+					formatError(errorSystems[0]),
+					formatError(errorSystems[1]),
+					formatError(errorEngines[0]),
+					formatError(errorEngines[1]),
 					formatWitness(p.witness))
 			}
+
 		} else {
 			// recurse
 			if err := p.permuteAndTest(index + 1); err != nil {
@@ -124,39 +179,19 @@ func formatWitness(witness []tinyfield.Element) string {
 	return sbb.String()
 }
 
-func (p *permutter) solveSCS() error {
-	opt, err := backend.NewProverConfig(backend.WithHints(p.hints...))
-	if err != nil {
-		return err
-	}
-
-	_, err = p.scs.Solve(p.witness, opt)
-	return err
-}
-
-func (p *permutter) solveR1CS() error {
-	opt, err := backend.NewProverConfig(backend.WithHints(p.hints...))
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < len(p.r1cs.Constraints); i++ {
-		p.a[i].SetZero()
-		p.b[i].SetZero()
-		p.c[i].SetZero()
-	}
-	_, err = p.r1cs.Solve(p.witness, p.a, p.b, p.c, opt)
+func (p *permutter) solve(i int) error {
+	pw := newPermutterWitness(p.witness)
+	_, err := p.constraintSystems[i].Solve(pw, solver.WithHints(p.hints...))
 	return err
 }
 
 // isSolvedEngine behaves like test.IsSolved except it doesn't clone the circuit
 func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption) (err error) {
 	e := &engine{
-		curveID:    utils.FieldToCurve(field),
-		q:          new(big.Int).Set(field),
-		apiWrapper: func(a frontend.API) frontend.API { return a },
-		constVars:  false,
-		Store:      kvstore.New(),
+		curveID:   utils.FieldToCurve(field),
+		q:         new(big.Int).Set(field),
+		constVars: false,
+		Store:     kvstore.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
@@ -170,8 +205,12 @@ func isSolvedEngine(c frontend.Circuit, field *big.Int, opts ...TestEngineOption
 		}
 	}()
 
-	api := e.apiWrapper(e)
-	err = c.Define(api)
+	if err = c.Define(e); err != nil {
+		return fmt.Errorf("define: %w", err)
+	}
+	if err = callDeferred(e); err != nil {
+		return fmt.Errorf("")
+	}
 
 	return
 }
@@ -200,41 +239,30 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 // ConsistentSolver solves given circuit with all possible witness combinations using internal/tinyfield
 //
 // Since the goal of this method is to flag potential solver issues, it is not exposed as an API for now
-func consistentSolver(circuit frontend.Circuit, hintFunctions []hint.Function) error {
+func consistentSolver(circuit frontend.Circuit, hintFunctions []solver.Hint) error {
 
 	p := permutter{
 		circuit: circuit,
 		hints:   hintFunctions,
 	}
 
-	// compile R1CS
-	ccs, err := frontend.Compile(tinyfield.Modulus(), r1cs.NewBuilder, circuit)
-	if err != nil {
-		return err
-	}
+	// compile the systems
+	for i := 0; i < nbSystems; i++ {
 
-	p.r1cs = ccs.(*cs.R1CS)
+		ccs, err := frontend.Compile(tinyfield.Modulus(), builders[i], circuit)
+		if err != nil {
+			return err
+		}
+		p.constraintSystems[i] = ccs
 
-	// witness len
-	n := len(p.r1cs.Public) - 1 + len(p.r1cs.Secret)
-	if n > permutterBound {
-		return nil
-	}
+		if i == 0 { // the -1 is only for r1cs...
+			n := ccs.GetNbPublicVariables() - 1 + ccs.GetNbSecretVariables()
+			if n > permutterBound {
+				return nil
+			}
+			p.witness = make([]tinyfield.Element, n)
+		}
 
-	p.a = make([]tinyfield.Element, p.r1cs.GetNbConstraints())
-	p.b = make([]tinyfield.Element, p.r1cs.GetNbConstraints())
-	p.c = make([]tinyfield.Element, p.r1cs.GetNbConstraints())
-	p.witness = make([]tinyfield.Element, n)
-
-	// compile SparseR1CS
-	ccs, err = frontend.Compile(tinyfield.Modulus(), scs.NewBuilder, circuit)
-	if err != nil {
-		return err
-	}
-
-	p.scs = ccs.(*cs.SparseR1CS)
-	if (len(p.scs.Public) + len(p.scs.Secret)) != n {
-		return errors.New("mismatch of witness size for same circuit")
 	}
 
 	return p.permuteAndTest(0)
@@ -249,4 +277,7 @@ func init() {
 	for i := uint64(0); i < n; i++ {
 		tinyfieldElements[i] = i
 	}
+
+	builders[0] = r1cs.NewBuilder
+	builders[1] = scs.NewBuilder
 }

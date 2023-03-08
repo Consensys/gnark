@@ -135,3 +135,28 @@ func BenchmarkReduce(b *testing.B) {
 		}
 	})
 }
+
+type EmptyCircuit struct {
+	X  frontend.Variable
+	cb func(frontend.API) error
+}
+
+func (c *EmptyCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.X, 0)
+	api.Compiler().Defer(c.cb)
+	return nil
+}
+
+func TestPreCompileHook(t *testing.T) {
+	var called bool
+	c := &EmptyCircuit{
+		cb: func(a frontend.API) error { called = true; return nil },
+	}
+	_, err := frontend.Compile(ecc.BN254.ScalarField(), NewBuilder, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Error("callback not called")
+	}
+}

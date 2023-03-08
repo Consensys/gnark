@@ -3,8 +3,8 @@ package frontend
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend/schema"
 )
 
@@ -36,7 +36,7 @@ type Compiler interface {
 	// manually in the circuit. Failing to do so leads to solver failure.
 	//
 	// If nbOutputs is specified, it must be >= 1 and <= f.NbOutputs
-	NewHint(f hint.Function, nbOutputs int, inputs ...Variable) ([]Variable, error)
+	NewHint(f solver.Hint, nbOutputs int, inputs ...Variable) ([]Variable, error)
 
 	// ConstantValue returns the big.Int value of v and true if op is a success.
 	// nil and false if failure. This API returns a boolean to allow for future refactoring
@@ -48,6 +48,11 @@ type Compiler interface {
 
 	// FieldBitLen returns the number of bits needed to represent an element in the scalar field
 	FieldBitLen() int
+
+	// Defer is called after circuit.Define() and before Compile(). This method
+	// allows for the circuits to register callbacks which finalize batching
+	// operations etc. Unlike Go defer, it is not locally scoped.
+	Defer(cb func(api API) error)
 }
 
 // Builder represents a constraint system builder

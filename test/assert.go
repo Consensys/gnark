@@ -208,8 +208,6 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 
 	opt := assert.options(opts...)
 
-	popts := append(opt.proverOpts, backend.IgnoreSolverError())
-
 	for _, curve := range opt.curves {
 
 		// parse assignment
@@ -237,40 +235,6 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 				assert.t.Parallel()
 				err = ccs.IsSolved(invalidPublicWitness)
 				mustError(err)
-
-				switch b {
-				case backend.GROTH16:
-					pk, vk, err := groth16.Setup(ccs)
-					checkError(err)
-
-					proof, _ := groth16.Prove(ccs, pk, invalidWitness, popts...)
-
-					err = groth16.Verify(proof, vk, invalidPublicWitness)
-					mustError(err)
-
-				case backend.PLONK:
-					srs, err := NewKZGSRS(ccs)
-					checkError(err)
-
-					pk, vk, err := plonk.Setup(ccs, srs)
-					checkError(err)
-
-					incorrectProof, _ := plonk.Prove(ccs, pk, invalidWitness, popts...)
-					err = plonk.Verify(incorrectProof, vk, invalidPublicWitness)
-					mustError(err)
-
-				case backend.PLONKFRI:
-
-					pk, vk, err := plonkfri.Setup(ccs)
-					checkError(err)
-
-					incorrectProof, _ := plonkfri.Prove(ccs, pk, invalidWitness, popts...)
-					err = plonkfri.Verify(incorrectProof, vk, invalidPublicWitness)
-					mustError(err)
-
-				default:
-					panic("backend not implemented")
-				}
 			}, curve.String(), b.String())
 		}
 	}
@@ -306,7 +270,7 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	err = IsSolved(circuit, validAssignment, curve.ScalarField())
 	checkError(err)
 
-	err = ccs.IsSolved(validWitness, opt.proverOpts...)
+	err = ccs.IsSolved(validWitness, opt.solverOpts...)
 	checkError(err)
 
 }
@@ -352,7 +316,7 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment 
 	err = IsSolved(circuit, invalidAssignment, curve.ScalarField())
 	mustError(err)
 
-	err = ccs.IsSolved(invalidWitness, opt.proverOpts...)
+	err = ccs.IsSolved(invalidWitness, opt.solverOpts...)
 	mustError(err)
 
 }

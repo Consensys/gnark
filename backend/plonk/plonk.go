@@ -125,61 +125,27 @@ func Setup(ccs constraint.ConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, Verifyi
 //		internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
 func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (Proof, error) {
 
-	// apply options
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return nil, err
-	}
-
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bn254.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), w, opt)
+		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), fullWitness, opts...)
 
 	case *cs_bls12381.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bls12381.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), w, opt)
+		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), fullWitness, opts...)
 
 	case *cs_bls12377.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bls12377.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), w, opt)
+		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), fullWitness, opts...)
 
 	case *cs_bw6761.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bw6761.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), w, opt)
+		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), fullWitness, opts...)
 
 	case *cs_bw6633.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bw6633.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), w, opt)
+		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), fullWitness, opts...)
 
 	case *cs_bls24317.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bls24317.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bls24317.Prove(tccs, pk.(*plonk_bls24317.ProvingKey), w, opt)
+		return plonk_bls24317.Prove(tccs, pk.(*plonk_bls24317.ProvingKey), fullWitness, opts...)
 
 	case *cs_bls24315.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bls24315.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), w, opt)
+		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), fullWitness, opts...)
 
 	default:
 		panic("unrecognized SparseR1CS curve type")

@@ -3,8 +3,11 @@ package constraint_test
 import (
 	"fmt"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
 
 func ExampleR1CS_GetConstraints() {
@@ -62,4 +65,39 @@ func ExampleR1CS_GetConstraints() {
 	// X ⋅ X == v0
 	// v0 ⋅ X == v1
 	// Y ⋅ 1 == 5 + X + v1
+}
+
+func ExampleR1CS_Solve() {
+	// build a constraint system and a witness;
+	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &cubic{})
+	w, _ := frontend.NewWitness(&cubic{X: 3, Y: 35}, ecc.BN254.ScalarField())
+
+	_solution, _ := ccs.Solve(w)
+
+	// concrete solution
+	solution := _solution.(*cs.R1CSSolution)
+
+	// solution vector should have [1, 3, 35, 9, 27]
+	for _, v := range solution.W {
+		fmt.Println(v.String())
+	}
+
+	// Output:
+	// 1
+	// 3
+	// 35
+	// 9
+	// 27
+}
+
+type cubic struct {
+	X, Y frontend.Variable
+}
+
+// Define declares the circuit constraints
+// x**3 + x + 5 == y
+func (circuit *cubic) Define(api frontend.API) error {
+	x3 := api.Mul(circuit.X, circuit.X, circuit.X)
+	api.AssertIsEqual(circuit.Y, api.Add(x3, circuit.X, 5))
+	return nil
 }

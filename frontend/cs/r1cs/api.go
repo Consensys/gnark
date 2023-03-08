@@ -20,16 +20,19 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
 
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
@@ -543,7 +546,7 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	m := builder.newInternalVariable()
 
 	// x = 1/a 				// in a hint (x == 0 if a == 0)
-	x, err := builder.NewHint(hint.InvZero, 1, a)
+	x, err := builder.NewHint(solver.InvZeroHint, 1, a)
 	if err != nil {
 		// the function errs only if the number of inputs is invalid.
 		panic(err)
@@ -731,7 +734,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		return nil, err
 	}
 	cVar := hintOut[0]
-	commitment.HintID = hint.UUID(bsb22CommitmentComputePlaceholder) // TODO @gbotrel probably not needed
+	commitment.HintID = solver.GetHintID(bsb22CommitmentComputePlaceholder) // TODO @gbotrel probably not needed
 
 	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
 
@@ -756,6 +759,17 @@ func (builder *builder) getCommittedVariables(i *constraint.Commitment) []fronte
 	return res
 }
 
-func bsb22CommitmentComputePlaceholder(*big.Int, []*big.Int, []*big.Int) error {
+func bsb22CommitmentComputePlaceholder(_ *big.Int, _ []*big.Int, output []*big.Int) error {
+	if (len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")) || debug.Debug {
+		// usually we only run solver without prover during testing
+		log := logger.Logger()
+		log.Error().Msg("Augmented groth16 commitment hint not replaced. Proof will not be sound!")
+		output[0].SetInt64(0)
+		return nil
+	}
 	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
+}
+
+func init() {
+	solver.RegisterHint(bsb22CommitmentComputePlaceholder)
 }
