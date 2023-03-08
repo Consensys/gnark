@@ -9,7 +9,7 @@ import (
 
 func init() {
 	// register hints
-	RegisterAllHints()
+	solver.RegisterHint(stepOutput)
 }
 
 // Partition selects left or right side of the input array, with respect to the pivotPosition.

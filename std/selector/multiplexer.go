@@ -14,6 +14,7 @@ package selector
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/constraint/solver"
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
@@ -21,7 +22,8 @@ import (
 
 func init() {
 	// register hints
-	RegisterAllHints()
+	solver.RegisterHint(muxIndicators)
+	solver.RegisterHint(mapIndicators)
 }
 
 // Map is a key value associative array: the output will be values[i] such that keys[i] == queryKey. If keys does not
