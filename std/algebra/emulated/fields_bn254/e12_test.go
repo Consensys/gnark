@@ -31,10 +31,11 @@ func TestAddFp12(t *testing.T) {
 	_, _ = b.SetRandom()
 	c.Add(&a, &b)
 
-	var witness e12Add
-	witness.A.assign(&a)
-	witness.B.assign(&b)
-	witness.C.assign(&c)
+	witness := e12Add{
+		A: FromE12(&a),
+		B: FromE12(&b),
+		C: FromE12(&c),
+	}
 
 	err := test.IsSolved(&e12Add{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -62,10 +63,11 @@ func TestSubFp12(t *testing.T) {
 	_, _ = b.SetRandom()
 	c.Sub(&a, &b)
 
-	var witness e12Sub
-	witness.A.assign(&a)
-	witness.B.assign(&b)
-	witness.C.assign(&c)
+	witness := e12Sub{
+		A: FromE12(&a),
+		B: FromE12(&b),
+		C: FromE12(&c),
+	}
 
 	err := test.IsSolved(&e12Sub{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -94,10 +96,11 @@ func TestMulFp12(t *testing.T) {
 	_, _ = b.SetRandom()
 	c.Mul(&a, &b)
 
-	var witness e12Mul
-	witness.A.assign(&a)
-	witness.B.assign(&b)
-	witness.C.assign(&c)
+	witness := e12Mul{
+		A: FromE12(&a),
+		B: FromE12(&b),
+		C: FromE12(&c),
+	}
 
 	err := test.IsSolved(&e12Mul{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -132,14 +135,16 @@ func TestMulFp12By034by034(t *testing.T) {
 	_, _ = d3.SetRandom()
 	_, _ = d4.SetRandom()
 	c.Mul034by034(&c0, &c3, &c4, &d0, &d3, &d4)
-	var witness e12MulBy034by034
-	witness.C0.assign(&c0)
-	witness.C3.assign(&c3)
-	witness.C4.assign(&c4)
-	witness.D0.assign(&d0)
-	witness.D3.assign(&d3)
-	witness.D4.assign(&d4)
-	witness.C.assign(&c)
+
+	witness := e12MulBy034by034{
+		C0: FromE2(&c0),
+		C3: FromE2(&c3),
+		C4: FromE2(&c4),
+		D0: FromE2(&d0),
+		D3: FromE2(&d3),
+		D4: FromE2(&d4),
+		C:  FromE12(&c),
+	}
 
 	err := test.IsSolved(&e12MulBy034by034{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -167,9 +172,10 @@ func TestSquareFp12(t *testing.T) {
 	_, _ = a.SetRandom()
 	c.Square(&a)
 
-	var witness e12Square
-	witness.A.assign(&a)
-	witness.C.assign(&c)
+	witness := e12Square{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
 
 	err := test.IsSolved(&e12Square{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -207,9 +213,10 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
 	c.CyclotomicSquare(&a)
 
-	var witness e12Conjugate
-	witness.A.assign(&a)
-	witness.C.assign(&c)
+	witness := e12CycloSquare{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
 
 	err := test.IsSolved(&e12CycloSquare{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -237,9 +244,10 @@ func TestConjugateFp12(t *testing.T) {
 	_, _ = a.SetRandom()
 	c.Conjugate(&a)
 
-	var witness e12Conjugate
-	witness.A.assign(&a)
-	witness.C.assign(&c)
+	witness := e12Conjugate{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
 
 	err := test.IsSolved(&e12Conjugate{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -268,9 +276,10 @@ func TestInverseFp12(t *testing.T) {
 	_, _ = a.SetRandom()
 	c.Inverse(&a)
 
-	var witness e12Inverse
-	witness.A.assign(&a)
-	witness.C.assign(&c)
+	witness := e12Inverse{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
 
 	err := test.IsSolved(&e12Inverse{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -307,9 +316,10 @@ func TestFp12Expt(t *testing.T) {
 
 	c.Expt(&a)
 
-	var witness e12Expt
-	witness.A.assign(&a)
-	witness.C.assign(&c)
+	witness := e12Expt{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
 
 	err := test.IsSolved(&e12Expt{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)

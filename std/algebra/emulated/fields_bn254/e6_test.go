@@ -31,10 +31,11 @@ func TestAddFp6(t *testing.T) {
 	_, _ = b.SetRandom()
 	c.Add(&a, &b)
 
-	var witness e6Add
-	witness.A.assign(&a)
-	witness.B.assign(&b)
-	witness.C.assign(&c)
+	witness := e6Add{
+		A: FromE6(&a),
+		B: FromE6(&b),
+		C: FromE6(&c),
+	}
 
 	err := test.IsSolved(&e6Add{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -62,10 +63,11 @@ func TestSubFp6(t *testing.T) {
 	_, _ = b.SetRandom()
 	c.Sub(&a, &b)
 
-	var witness e6Sub
-	witness.A.assign(&a)
-	witness.B.assign(&b)
-	witness.C.assign(&c)
+	witness := e6Sub{
+		A: FromE6(&a),
+		B: FromE6(&b),
+		C: FromE6(&c),
+	}
 
 	err := test.IsSolved(&e6Sub{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -94,10 +96,11 @@ func TestMulFp6(t *testing.T) {
 	_, _ = b.SetRandom()
 	c.Mul(&a, &b)
 
-	var witness e6Mul
-	witness.A.assign(&a)
-	witness.B.assign(&b)
-	witness.C.assign(&c)
+	witness := e6Mul{
+		A: FromE6(&a),
+		B: FromE6(&b),
+		C: FromE6(&c),
+	}
 
 	err := test.IsSolved(&e6Mul{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -125,9 +128,10 @@ func TestSquareFp6(t *testing.T) {
 	_, _ = a.SetRandom()
 	c.Square(&a)
 
-	var witness e6Square
-	witness.A.assign(&a)
-	witness.C.assign(&c)
+	witness := e6Square{
+		A: FromE6(&a),
+		C: FromE6(&c),
+	}
 
 	err := test.IsSolved(&e6Square{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -156,9 +160,10 @@ func TestMulFp6ByNonResidue(t *testing.T) {
 	_, _ = a.SetRandom()
 	c.MulByNonResidue(&a)
 
-	var witness e6MulByNonResidue
-	witness.A.assign(&a)
-	witness.C.assign(&c)
+	witness := e6MulByNonResidue{
+		A: FromE6(&a),
+		C: FromE6(&c),
+	}
 
 	err := test.IsSolved(&e6MulByNonResidue{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -190,10 +195,11 @@ func TestMulFp6ByE2(t *testing.T) {
 	_, _ = b.SetRandom()
 	c.MulByE2(&a, &b)
 
-	var witness e6MulByE2
-	witness.A.assign(&a)
-	witness.B.assign(&b)
-	witness.C.assign(&c)
+	witness := e6MulByE2{
+		A: FromE6(&a),
+		B: FromE2(&b),
+		C: FromE6(&c),
+	}
 
 	err := test.IsSolved(&e6MulByE2{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -227,11 +233,12 @@ func TestMulFp6By01(t *testing.T) {
 	c.Set(&a)
 	c.MulBy01(&C0, &C1)
 
-	var witness e6MulBy01
-	witness.A.assign(&a)
-	witness.C0.assign(&C0)
-	witness.C1.assign(&C1)
-	witness.C.assign(&c)
+	witness := e6MulBy01{
+		A:  FromE6(&a),
+		C0: FromE2(&C0),
+		C1: FromE2(&C1),
+		C:  FromE6(&c),
+	}
 
 	err := test.IsSolved(&e6MulBy01{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -260,9 +267,10 @@ func TestNegFp6(t *testing.T) {
 	_, _ = a.SetRandom()
 	c.Neg(&a)
 
-	var witness e6Neg
-	witness.A.assign(&a)
-	witness.C.assign(&c)
+	witness := e6Neg{
+		A: FromE6(&a),
+		C: FromE6(&c),
+	}
 
 	err := test.IsSolved(&e6Neg{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -291,9 +299,10 @@ func TestInverseFp6(t *testing.T) {
 	_, _ = a.SetRandom()
 	c.Inverse(&a)
 
-	var witness e6Inverse
-	witness.A.assign(&a)
-	witness.C.assign(&c)
+	witness := e6Inverse{
+		A: FromE6(&a),
+		C: FromE6(&c),
+	}
 
 	err := test.IsSolved(&e6Inverse{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)

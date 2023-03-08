@@ -246,7 +246,10 @@ func (e Ext12) AssertIsEqual(x, y *E12) {
 	e.Ext6.AssertIsEqual(&x.C1, &y.C1)
 }
 
-func (x *E12) assign(y *bn254.E12) {
-	x.C0.assign(&y.C0)
-	x.C1.assign(&y.C1)
+func FromE12(y *bn254.E12) E12 {
+	return E12{
+		C0: FromE6(&y.C0),
+		C1: FromE6(&y.C1),
+	}
+
 }

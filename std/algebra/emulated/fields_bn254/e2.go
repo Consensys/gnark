@@ -312,7 +312,10 @@ func (e Ext2) AssertIsEqual(x, y *E2) {
 	e.fp.AssertIsEqual(&x.A1, &y.A1)
 }
 
-func (x *E2) assign(y *bn254.E2) {
-	x.A0 = emulated.ValueOf[emulated.BN254Fp](y.A0)
-	x.A1 = emulated.ValueOf[emulated.BN254Fp](y.A1)
+func FromE2(y *bn254.E2) E2 {
+	return E2{
+		A0: emulated.ValueOf[emulated.BN254Fp](y.A0),
+		A1: emulated.ValueOf[emulated.BN254Fp](y.A1),
+	}
+
 }
