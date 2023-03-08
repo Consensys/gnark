@@ -50,8 +50,8 @@ func TestDuplicateAdd(t *testing.T) {
 }
 
 type circuitDupMul struct {
-	A, B frontend.Variable
-	R    frontend.Variable
+	A, B   frontend.Variable
+	R1, R2 frontend.Variable
 }
 
 func (c *circuitDupMul) Define(api frontend.API) error {
@@ -59,13 +59,16 @@ func (c *circuitDupMul) Define(api frontend.API) error {
 	f := api.Mul(c.A, c.B)   // 1 constraint
 	f = api.Mul(c.A, c.B, f) // 1 constraint
 	f = api.Mul(c.A, c.B, f) // 1 constraint
+	// f == (a*b)**3
 
 	d := api.Mul(api.Mul(c.A, 2), api.Mul(3, c.B)) // no constraints
-	e := api.Mul(api.Mul(c.A, c.B), 3)             // no constraints
+	e := api.Mul(api.Mul(c.A, c.B), 1)             // no constraints
+	e = api.Mul(e, e)                              // e**2 (no constraints)
+	e = api.Mul(e, api.Mul(c.A, c.B), 1)           // e**3 (no constraints)
 
-	api.AssertIsEqual(f, e)   // 1 constraint
-	api.AssertIsEqual(d, f)   // 1 constraint
-	api.AssertIsEqual(c.R, e) // 1 constraint
+	api.AssertIsEqual(f, e)    // 1 constraint
+	api.AssertIsEqual(d, c.R1) // 1 constraint
+	api.AssertIsEqual(c.R2, e) // 1 constraint
 
 	return nil
 }
@@ -79,9 +82,10 @@ func TestDuplicateMul(t *testing.T) {
 	assert.Equal(6, ccs.GetNbConstraints(), "comparing expected number of constraints")
 
 	w, err := frontend.NewWitness(&circuitDupMul{
-		A: 13,
-		B: 42,
-		R: 1638,
+		A:  13,
+		B:  42,
+		R1: (13 * 2) * (42 * 3),
+		R2: (13 * 42) * (13 * 42) * (13 * 42),
 	}, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
