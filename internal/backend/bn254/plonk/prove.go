@@ -57,7 +57,7 @@ type Proof struct {
 	// PI2, the BSB22 commitment
 	PI2 kzg.Digest
 
-	// Batch opening proof of h1 + zeta*h2 + zeta**2h3, linearizedPolynomial, l, r, o, s1, s2
+	// Batch opening proof of h1 + zeta*h2 + zeta**2h3, linearizedPolynomial, l, r, o, s1, s2, qCPrime
 	BatchedProof kzg.BatchOpeningProof
 
 	// Opening proof of Z at zeta*mu

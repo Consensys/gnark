@@ -93,6 +93,8 @@ type VerifyingKey struct {
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
 	Ql, Qr, Qm, Qo, Qk, QcPrime kzg.Digest
+
+	CommitmentInfo constraint.Commitment
 }
 
 // Setup sets proving and verifying keys
@@ -102,6 +104,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 
 	// The verifying key shares data with the proving key
 	pk.Vk = &vk
+	vk.CommitmentInfo = spr.CommitmentInfo
 
 	nbConstraints := len(spr.Constraints)
 
