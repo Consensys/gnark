@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 func butterflyG1(a *bn254.G1Affine, b *bn254.G1Affine) {
@@ -193,10 +194,11 @@ func LagrangeCoeffsG1(powers []bn254.G1Affine, size int) []bn254.G1Affine {
 	var invBigint big.Int
 	domain.CardinalityInv.BigInt(&invBigint)
 
-	for i := 0; i < size; i++ {
-		coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
-	}
-
+	utils.Parallelize(size, func(start, end int) {
+		for i := start; i < end; i++ {
+			 coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
+		}
+ })
 	return coeffs
 }
 
@@ -213,9 +215,10 @@ func LagrangeCoeffsG2(powers []bn254.G2Affine, size int) []bn254.G2Affine {
 	var invBigint big.Int
 	domain.CardinalityInv.BigInt(&invBigint)
 
-	for i := 0; i < size; i++ {
-		coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
-	}
-
+	utils.Parallelize(size, func(start, end int) {
+		for i := start; i < end; i++ {
+			 coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
+		}
+ })
 	return coeffs
 }
