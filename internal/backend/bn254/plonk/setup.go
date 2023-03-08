@@ -383,7 +383,7 @@ func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
 // This should be used after deserializing a VerifyingKey
 // as vk.KZG is NOT serialized
 //
-// Note that this instantiate a new FFT domain using vk.Size
+// Note that this instantiates a new FFT domain using vk.Size
 func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
 	_srs := srs.(*kzg.SRS)
 

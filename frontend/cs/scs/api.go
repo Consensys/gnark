@@ -17,6 +17,7 @@ limitations under the License.
 package scs
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"path/filepath"
@@ -178,7 +179,7 @@ func (builder *scs) Inverse(i1 frontend.Variable) frontend.Variable {
 // n is the number of bits to select (starting from lsb)
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
-// The result in in little endian (first bit= lsb)
+// The result is in little endian (first bit= lsb)
 func (builder *scs) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
 	nbBits := builder.cs.FieldBitLen()
@@ -498,4 +499,30 @@ func (builder *scs) printArg(log *constraint.LogEntry, sbb *strings.Builder, a f
 
 func (builder *scs) Compiler() frontend.Compiler {
 	return builder
+}
+
+func scsBsb22CommitmentHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error {
+	return errors.New("placeholder - should never be called")
+}
+
+func (builder *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+	// NOT THREAD SAFE. It is important for these to be consecutive
+	for _, vI := range v { // TODO: Perf; If public, just hash it
+		builder.AssertIsEqual(vI, 0) // We need a constraint per committed value. Will be changed between solving and proof time
+		// Hacky and dangerous: assumes that trivial constraints will not be optimized away
+	}
+	outs, err := builder.NewHint(scsBsb22CommitmentHintPlaceholder, 1, v...)
+	if err != nil {
+		return nil, err
+	}
+	commitmentVar := outs[0]
+
+	commitmentConstraintIndex := builder.cs.GetNbConstraints()
+	builder.AssertIsEqual(commitmentVar, 0) // value will be injected later
+
+	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
+		HintID:          hint.UUID(scsBsb22CommitmentHintPlaceholder),
+		CommitmentIndex: commitmentConstraintIndex,
+		Committed:       make([]int, len(v)), // only recording the number of committed variables. TODO: Something less revolting
+	})
 }

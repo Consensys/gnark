@@ -78,11 +78,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 
 	if id := spr.CommitmentInfo.HintID; id != 0 {
 		opt.HintFunctions[id] = func(_ *big.Int, ins, outs []*big.Int) error {
-			pi2 = make(fr.Vector, len(spr.Constraints)) //TODO: Correct? Or fft.DomainSize etc?
-			for i, cI := range spr.Constraints {
-				if cI.C != -1 {
-					pi2[i].SetBigInt(ins[cI.C])
-				}
+			pi2 = make(fr.Vector, pk.Domain[0].Cardinality)
+			committedConstraintOffset := spr.CommitmentInfo.CommitmentIndex - len(spr.CommitmentInfo.Committed)
+			for i := range ins {
+				pi2[i+committedConstraintOffset].SetBigInt(ins[i])
 			}
 			var (
 				err     error
@@ -91,10 +90,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 			if proof.PI2, err = kzg.Commit(pi2, pk.Vk.KZGSRS); err != nil {
 				return err
 			}
-
 			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
+
+			commitmentConstIndex := len(spr.Coefficients)
+			spr.Coefficients = append(spr.Coefficients, fr.Element{})
+			spr.Coefficients[commitmentConstIndex].Neg(&hashRes[0])
+			spr.Constraints[spr.CommitmentInfo.CommitmentIndex].K = commitmentConstIndex
 
 			hashRes[0].BigInt(outs[0])
 			return nil

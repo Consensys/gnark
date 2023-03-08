@@ -12,8 +12,8 @@ type Commitment struct {
 	Committed              []int // sorted list of id's of committed variables
 	NbPrivateCommitted     int
 	HintID                 hint.ID // TODO @gbotrel we probably don't need that here
-	CommitmentIndex        int
-	CommittedAndCommitment []int // sorted list of id's of committed variables AND the commitment itself
+	CommitmentIndex        int     // in groth16, CommitmentIndex is the wire index. in plonk, it's the constraint defining it
+	CommittedAndCommitment []int   // sorted list of id's of committed variables AND the commitment itself
 }
 
 func (i *Commitment) NbPublicCommitted() int {

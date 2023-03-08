@@ -17,7 +17,6 @@ limitations under the License.
 package scs
 
 import (
-	"errors"
 	"math/big"
 	"reflect"
 	"sort"
@@ -360,21 +359,6 @@ func (builder *scs) splitProd(acc expr.TermToRefactor, r expr.LinearExpressionTo
 	o := builder.newInternalVariable()
 	builder.addPlonkConstraint(acc, r[0], o, constraint.CoeffIdZero, constraint.CoeffIdZero, cl, cr, constraint.CoeffIdMinusOne, constraint.CoeffIdZero, -1)
 	return builder.splitProd(o, r[1:])
-}
-
-func scsBsb22CommitmentHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error {
-	return errors.New("placeholder - should never be called")
-}
-
-func (builder *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
-	for i, vI := range v { // Perf-TODO: If public, hash it
-		builder.addPlonkConstraint(vI.(expr.TermToRefactor), builder.zero(), builder.zero(), constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, i)
-	}
-	outs, err := builder.NewHint(scsBsb22CommitmentHintPlaceholder, 1, v...)
-	if err != nil {
-		return nil, err
-	}
-	return outs[0], builder.cs.AddCommitment(constraint.Commitment{HintID: hint.UUID(scsBsb22CommitmentHintPlaceholder)})
 }
 
 // newDebugInfo this is temporary to restore debug logs
