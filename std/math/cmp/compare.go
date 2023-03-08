@@ -1,15 +1,15 @@
-package bits
+package cmp
 
 import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bits"
 	"math/big"
 )
 
 func init() {
 	// register hints
-	solver.RegisterHint(MinOutputHint)
-	solver.RegisterHint(IsLessOutputHint)
+	RegisterAllHints()
 }
 
 var cmpCfg struct {
@@ -52,10 +52,10 @@ func ConfigureComparators(api frontend.API, upperAbsDiffBitLen int) {
 // [ConfigureComparators].
 func AssertIsLess(a frontend.Variable, b frontend.Variable) {
 	// a < b <==> b - a - 1 >= 0
-	toBinary(
+	bits.ToBinary(
 		cmpCfg.api,
 		cmpCfg.api.Sub(b, a, 1),
-		WithNbDigits(cmpCfg.upperAbsDiffBitLen),
+		bits.WithNbDigits(cmpCfg.upperAbsDiffBitLen),
 	)
 }
 
@@ -64,14 +64,14 @@ func AssertIsLess(a frontend.Variable, b frontend.Variable) {
 // Note: Before using this function, the package should be configured by calling
 // [ConfigureComparators].
 func IsLess(a frontend.Variable, b frontend.Variable) frontend.Variable {
-	res, _ := cmpCfg.api.Compiler().NewHint(IsLessOutputHint, 1, a, b, -1)
+	res, _ := cmpCfg.api.Compiler().NewHint(isLessOutputHint, 1, a, b, -1)
 	indicator := res[0]
 	// a < b  <==> b - a - 1 >= 0
 	// a >= b <==> a - b >= 0
-	toBinary(
+	bits.ToBinary(
 		cmpCfg.api,
 		cmpCfg.api.Select(indicator, cmpCfg.api.Sub(b, a, 1), cmpCfg.api.Sub(a, b)),
-		WithNbDigits(cmpCfg.upperAbsDiffBitLen),
+		bits.WithNbDigits(cmpCfg.upperAbsDiffBitLen),
 	)
 	return indicator
 }
@@ -81,7 +81,7 @@ func IsLess(a frontend.Variable, b frontend.Variable) frontend.Variable {
 // Note: Before using this function, the package should be configured by calling
 // [ConfigureComparators].
 func Min(a frontend.Variable, b frontend.Variable) frontend.Variable {
-	res, _ := cmpCfg.api.Compiler().NewHint(MinOutputHint, 1, a, b, -1)
+	res, _ := cmpCfg.api.Compiler().NewHint(minOutputHint, 1, a, b, -1)
 	min := res[0]
 
 	aDiff := cmpCfg.api.Sub(a, min)
@@ -90,7 +90,7 @@ func Min(a frontend.Variable, b frontend.Variable) frontend.Variable {
 	cmpCfg.api.AssertIsEqual(0, cmpCfg.api.Mul(aDiff, bDiff))
 
 	// (a - min) + (b - min) >= 0
-	toBinary(cmpCfg.api, cmpCfg.api.Add(aDiff, bDiff), WithNbDigits(cmpCfg.upperAbsDiffBitLen))
+	bits.ToBinary(cmpCfg.api, cmpCfg.api.Add(aDiff, bDiff), bits.WithNbDigits(cmpCfg.upperAbsDiffBitLen))
 
 	return min
 }
@@ -106,7 +106,7 @@ func cmpInField(a *big.Int, b *big.Int, minusOne *big.Int) int {
 }
 
 // MinOutputHint produces the output of [Min] as a hint.
-func MinOutputHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+func minOutputHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	a := inputs[0]
 	b := inputs[1]
 	minusOne := inputs[2]
@@ -122,7 +122,7 @@ func MinOutputHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 }
 
 // IsLessOutputHint produces the output of [IsLess] as a hint.
-func IsLessOutputHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+func isLessOutputHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	a := inputs[0]
 	b := inputs[1]
 	minusOne := inputs[2]
@@ -135,4 +135,11 @@ func IsLessOutputHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 		results[0].SetUint64(0)
 	}
 	return nil
+}
+
+// RegisterAllHints registers all the hint functions that are used by this package by calling
+// solver.RegisterHint.
+func RegisterAllHints() {
+	solver.RegisterHint(minOutputHint)
+	solver.RegisterHint(isLessOutputHint)
 }

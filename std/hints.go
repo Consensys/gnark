@@ -1,6 +1,7 @@
 package std
 
 import (
+	"github.com/consensys/gnark/std/math/cmp"
 	"sync"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -31,8 +32,7 @@ func registerHints() {
 	solver.RegisterHint(bits.NNAF)
 	solver.RegisterHint(bits.IthBit)
 	solver.RegisterHint(bits.NBits)
-	solver.RegisterHint(bits.IsLessOutputHint)
-	solver.RegisterHint(bits.MinOutputHint)
+	cmp.RegisterAllHints()
 	solver.RegisterHint(selector.MuxIndicators)
 	solver.RegisterHint(selector.MapIndicators)
 	solver.RegisterHint(emulated.GetHints()...)
