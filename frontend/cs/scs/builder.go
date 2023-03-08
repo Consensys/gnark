@@ -56,13 +56,11 @@ type builder struct {
 	mtBooleans map[expr.Term]struct{}
 
 	// records multiplications constraint to avoid duplicate.
-	// maps hashcode(a) + hashcode(b) --> constraintID
-	// note that we should store a list of int here, but for memory economy, we
-	// rely on limited hashcode collisions + accept that if there is a hashcode collision,
-	// we will duplicate the constraint.
+	// see mulConstraintExist(...)
 	mMulConstraints map[uint64]int
 
 	// same thing for addition gates
+	// see addConstraintExist(...)
 	mAddConstraints map[uint64]int
 
 	// frequently used coefficients
