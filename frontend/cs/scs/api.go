@@ -19,6 +19,7 @@ package scs
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -563,14 +564,14 @@ func scsBsb22CommitmentHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error {
 	return errors.New("placeholder - should never be called")
 }
 
-func (builder *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
 	committed := make([]int, len(v))
-	// NOT THREAD SAFE. Recording constraint indexes
-	for i, vI := range v { // TODO: Perf; If public, just hash it
+
+	for i, vI := range v { // TODO @Tabaie Perf; If public, just hash it
 		vIExpr := vI.(constraint.LinearExpression)
 		if len(vIExpr) != 1 {
-			return nil, errors.New("can only commit to single terms") // TODO: Create a wire in this case
+			return nil, errors.New("can only commit to single terms") // TODO @Tabaie Create a wire in this case
 		}
 		committed[i] = builder.cs.GetNbConstraints()
 		builder.cs.AddConstraint(constraint.SparseR1C{L: vIExpr[0], Commitment: constraint.COMMITTED})
@@ -585,7 +586,7 @@ func (builder *scs) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	builder.cs.AddConstraint(constraint.SparseR1C{L: commitmentVar.(constraint.LinearExpression)[0], Commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
-		HintID:          hint.UUID(scsBsb22CommitmentHintPlaceholder),
+		HintID:          solver.GetHintID(scsBsb22CommitmentHintPlaceholder),
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,
 	})

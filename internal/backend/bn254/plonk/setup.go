@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bn254"
 
 	kzgg "github.com/consensys/gnark-crypto/kzg"
@@ -154,12 +155,10 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		pk.Qo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
 		pk.CQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
 		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
+	}
 
-		if spr.Constraints[i].C == -1 {
-			pk.QcPrime[i].SetZero()
-		} else {
-			pk.QcPrime[i].SetInt64(-1)
-		}
+	for _, committed := range spr.CommitmentInfo.Committed {
+		pk.QcPrime[committed] = spr.Coefficients[constraint.CoeffIdMinusOne]
 	}
 
 	pk.Domain[0].FFTInverse(pk.Ql, fft.DIF)

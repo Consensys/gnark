@@ -358,6 +358,10 @@ func (cs *SparseR1CS) computeHints(c constraint.SparseR1C, solution *solution) (
 // if it doesn't, then this function returns and does nothing
 func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution, coefficientsNegInv fr.Vector) error {
 
+	if c.Commitment != constraint.NOT { // a constraint of the form f_L - PI_2 = 0 or f_L = Comm.
+		return nil // these are there for enforcing the correctness of the commitment and can be skipped in solving time
+	}
+
 	lro, err := cs.computeHints(c, solution)
 	if err != nil {
 		return err

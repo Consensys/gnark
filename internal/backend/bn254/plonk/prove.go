@@ -18,6 +18,7 @@ package plonk
 
 import (
 	"crypto/sha256"
+	"github.com/consensys/gnark/constraint/solver"
 	"math/big"
 	"runtime"
 	"sync"
@@ -82,18 +83,19 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// result
 	proof := &Proof{}
 	var pi2 fr.Vector
-
-	if id := spr.CommitmentInfo.HintID; id != 0 {
-		opt.HintFunctions[id] = func(_ *big.Int, ins, outs []*big.Int) error {
+	if spr.CommitmentInfo.Is() {
+		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(spr.CommitmentInfo.HintID, func(_ *big.Int, ins, outs []*big.Int) error {
 			pi2 = make(fr.Vector, pk.Domain[0].Cardinality)
-			committedConstraintOffset := spr.CommitmentInfo.CommitmentIndex - len(spr.CommitmentInfo.Committed)
 			for i := range ins {
-				pi2[i+committedConstraintOffset].SetBigInt(ins[i])
+				pi2[spr.CommitmentInfo.Committed[i]].SetBigInt(ins[i])
 			}
 			var (
 				err     error
 				hashRes []fr.Element
 			)
+			if _, err = pi2[spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil {
+				return err
+			}
 			if proof.PI2, err = kzg.Commit(pi2, pk.Vk.KZGSRS); err != nil {
 				return err
 			}
@@ -101,14 +103,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 				return err
 			}
 
-			commitmentConstIndex := len(spr.Coefficients)
-			spr.Coefficients = append(spr.Coefficients, fr.Element{})
-			spr.Coefficients[commitmentConstIndex].Neg(&hashRes[0])
-			spr.Constraints[spr.CommitmentInfo.CommitmentIndex].K = commitmentConstIndex
-
 			hashRes[0].BigInt(outs[0])
 			return nil
-		}
+		}))
 	}
 
 	// query l, r, o in Lagrange basis, not blinded
@@ -152,7 +149,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)]); err != nil {
 		return nil, err
 	}
-	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
+	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2]) // TODO @Tabaie @ThomasPiellard add BSB commitment here?
 	if err != nil {
 		return nil, err
 	}
