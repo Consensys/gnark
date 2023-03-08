@@ -4,8 +4,8 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/std/algebra/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/sw_bls24315"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/selector"
