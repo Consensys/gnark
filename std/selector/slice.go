@@ -9,7 +9,7 @@ import (
 
 func init() {
 	// register hints
-	solver.RegisterHint(StepOutput)
+	RegisterAllHints()
 }
 
 // Partition selects left or right side of the input array, with respect to the pivotPosition.
@@ -57,7 +57,7 @@ func StepMask(api frontend.API, outputLen int,
 		panic("the output len of StepMask must be >= 2")
 	}
 	// get the output as a hint
-	out, err := api.Compiler().NewHint(StepOutput, outputLen, stepPosition, startValue, endValue)
+	out, err := api.Compiler().NewHint(stepOutput, outputLen, stepPosition, startValue, endValue)
 	if err != nil {
 		panic(fmt.Sprintf("error in calling StepMask hint: %v", err))
 	}
@@ -74,9 +74,9 @@ func StepMask(api frontend.API, outputLen int,
 	return out
 }
 
-// StepOutput is a hint function used within [StepMask] function. It must be
+// stepOutput is a hint function used within [StepMask] function. It must be
 // provided to the prover when circuit uses it.
-func StepOutput(_ *big.Int, inputs, results []*big.Int) error {
+func stepOutput(_ *big.Int, inputs, results []*big.Int) error {
 	stepPos := inputs[0]
 	startValue := inputs[1]
 	endValue := inputs[2]
@@ -88,4 +88,10 @@ func StepOutput(_ *big.Int, inputs, results []*big.Int) error {
 		}
 	}
 	return nil
+}
+
+func RegisterAllHints() {
+	solver.RegisterHint(stepOutput)
+	solver.RegisterHint(muxIndicators)
+	solver.RegisterHint(mapIndicators)
 }

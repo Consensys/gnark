@@ -16,14 +16,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
 	// register hints
-	solver.RegisterHint(MuxIndicators)
-	solver.RegisterHint(MapIndicators)
+	RegisterAllHints()
 }
 
 // Map is a key value associative array: the output will be values[i] such that keys[i] == queryKey. If keys does not
@@ -58,9 +56,9 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	var indicators []frontend.Variable
 	var err error
 	if wantMux {
-		indicators, err = api.Compiler().NewHint(MuxIndicators, len(values), sel)
+		indicators, err = api.Compiler().NewHint(muxIndicators, len(values), sel)
 	} else {
-		indicators, err = api.Compiler().NewHint(MapIndicators, len(keys), append(keys, sel)...)
+		indicators, err = api.Compiler().NewHint(mapIndicators, len(keys), append(keys, sel)...)
 	}
 	if err != nil {
 		panic(fmt.Sprintf("error in calling Mux/Map hint: %v", err))
@@ -87,9 +85,9 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	return out
 }
 
-// MuxIndicators is a hint function used within [Mux] function. It must be
+// muxIndicators is a hint function used within [Mux] function. It must be
 // provided to the prover when circuit uses it.
-func MuxIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+func muxIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	sel := inputs[0]
 	for i := 0; i < len(results); i++ {
 		// i is an int which can be int32 or int64. We convert i to int64 then to bigInt, which is safe. We should
@@ -103,9 +101,9 @@ func MuxIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
-// MapIndicators is a hint function used within [Map] function. It must be
+// mapIndicators is a hint function used within [Map] function. It must be
 // provided to the prover when circuit uses it.
-func MapIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+func mapIndicators(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	key := inputs[len(inputs)-1]
 	// We must make sure that we are initializing all elements of results
 	for i := 0; i < len(results); i++ {
