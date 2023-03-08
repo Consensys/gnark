@@ -13,6 +13,7 @@
 package selector
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -55,10 +56,14 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	keys []frontend.Variable, values []frontend.Variable) (out frontend.Variable) {
 
 	var indicators []frontend.Variable
+	var err error
 	if wantMux {
-		indicators, _ = api.Compiler().NewHint(MuxIndicators, len(values), sel)
+		indicators, err = api.Compiler().NewHint(MuxIndicators, len(values), sel)
 	} else {
-		indicators, _ = api.Compiler().NewHint(MapIndicators, len(keys), append(keys, sel)...)
+		indicators, err = api.Compiler().NewHint(MapIndicators, len(keys), append(keys, sel)...)
+	}
+	if err != nil {
+		panic(fmt.Sprintf("error in calling Mux/Map hint: %v", err))
 	}
 
 	out = 0

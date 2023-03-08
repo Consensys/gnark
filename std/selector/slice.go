@@ -1,6 +1,7 @@
 package selector
 
 import (
+	"fmt"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"math/big"
@@ -56,7 +57,10 @@ func StepMask(api frontend.API, outputLen int,
 		panic("the output len of StepMask must be >= 2")
 	}
 	// get the output as a hint
-	out, _ := api.Compiler().NewHint(StepOutput, outputLen, stepPosition, startValue, endValue)
+	out, err := api.Compiler().NewHint(StepOutput, outputLen, stepPosition, startValue, endValue)
+	if err != nil {
+		panic(fmt.Sprintf("error in calling StepMask hint: %v", err))
+	}
 
 	// add the boundary constraints
 	api.AssertIsEqual(out[0], startValue)
