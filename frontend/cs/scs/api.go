@@ -392,8 +392,7 @@ func (builder *scs) IsZero(i1 frontend.Variable) frontend.Variable {
 		constraint.CoeffIdOne,
 		constraint.CoeffIdOne,
 		constraint.CoeffIdOne,
-		constraint.CoeffIdMinusOne,
-	)
+		constraint.CoeffIdMinusOne)
 
 	// a * m = 0            // constrain m to be 0 if a != 0
 	builder.addPlonkConstraint(a, m, builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero)

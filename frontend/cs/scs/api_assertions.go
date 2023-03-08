@@ -133,7 +133,16 @@ func (builder *scs) mustBeLessOrEqVar(a expr.TermToRefactor, bound expr.TermToRe
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
 		builder.MarkBoolean(aBits[i].(expr.TermToRefactor)) // this does not create a constraint
 
-		builder.addPlonkConstraint(l.(expr.TermToRefactor), aBits[i].(expr.TermToRefactor), builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
+		builder.addPlonkConstraint(
+			l.(expr.TermToRefactor),
+			aBits[i].(expr.TermToRefactor),
+			builder.zero(),
+			constraint.CoeffIdZero,
+			constraint.CoeffIdZero,
+			constraint.CoeffIdOne,
+			constraint.CoeffIdOne,
+			constraint.CoeffIdZero,
+			constraint.CoeffIdZero, debug)
 	}
 
 }
@@ -185,8 +194,17 @@ func (builder *scs) mustBeLessOrEqCst(a expr.TermToRefactor, bound big.Int) {
 			l := builder.Sub(1, p[i+1], aBits[i]).(expr.TermToRefactor)
 			//l = builder.Sub(l, ).(term)
 
-			builder.addPlonkConstraint(l, aBits[i].(expr.TermToRefactor), builder.zero(), constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdOne, constraint.CoeffIdOne, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
-			// builder.markBoolean(aBits[i].(term))
+			builder.addPlonkConstraint(
+				l,
+				aBits[i].(expr.TermToRefactor),
+				builder.zero(),
+				constraint.CoeffIdZero,
+				constraint.CoeffIdZero,
+				constraint.CoeffIdOne,
+				constraint.CoeffIdOne,
+				constraint.CoeffIdZero,
+				constraint.CoeffIdZero,
+				debug) // builder.markBoolean(aBits[i].(term))
 		} else {
 			builder.AssertIsBoolean(aBits[i])
 		}
