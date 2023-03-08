@@ -397,6 +397,12 @@ func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Coeff) (
 	}
 	h := uint64(a.WireID()) | uint64(b.WireID()<<32)
 
+	// TODO @gbotrel consider a list here;
+	// if we do
+	// 1. a + b == c
+	// 2. 2a + b == d
+	// 3. a + b == ...
+	// line 3 will re-add the constraint because 2. hashcode is same as 1.
 	if cID, ok := builder.mAddConstraints[h]; ok {
 		// seems likely we have a fit, let's double check
 		// note that this snippet have some strong assumptions about how
@@ -433,6 +439,10 @@ func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Coeff) (
 			tb := builder.cs.MakeTerm(&qR, 0)
 			if c.L.CoeffID() != ta.CoeffID() || c.R.CoeffID() != tb.CoeffID() {
 				// no point going forward we will need an additional constraint anyway
+				// TODO @gbotrel actually, we can compute a new coefficient for the wire
+				// if we can "factorize" the same way the existing L, R wire coeffs with the current ones.
+				// so for example, if we computed a + b == c
+				// computing 3a + 3b == n * c; we can compute n == 3, without adding a constraint.
 				return expr.Term{}, false, h
 			}
 
