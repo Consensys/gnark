@@ -109,9 +109,9 @@ func collectSample(pc []uintptr) {
 
 func filterSCSPrivateFunc(f string) bool {
 	const scsPrefix = "github.com/consensys/gnark/frontend/cs/scs.(*builder)."
-	if idx := strings.Index(f, scsPrefix); idx != -1 && len(f) > (idx+len(scsPrefix)) {
+	if strings.HasPrefix(f, scsPrefix) && len(f) > len(scsPrefix) {
 		// filter plonk frontend private APIs from the trace.
-		c := []rune(f)[idx+len(scsPrefix)]
+		c := []rune(f)[len(scsPrefix)]
 		if unicode.IsLower(c) {
 			return true
 		}
@@ -120,10 +120,10 @@ func filterSCSPrivateFunc(f string) bool {
 }
 
 func filterR1CSPrivateFunc(f string) bool {
-	const scsPrefix = "github.com/consensys/gnark/frontend/cs/r1cs.(*builder)."
-	if idx := strings.Index(f, scsPrefix); idx != -1 && len(f) > (idx+len(scsPrefix)) {
+	const r1csPrefix = "github.com/consensys/gnark/frontend/cs/r1cs.(*builder)."
+	if strings.HasPrefix(f, r1csPrefix) && len(f) > len(r1csPrefix) {
 		// filter r1cs frontend private APIs from the trace.
-		c := []rune(f)[idx+len(scsPrefix)]
+		c := []rune(f)[len(r1csPrefix)]
 		if unicode.IsLower(c) {
 			return true
 		}
