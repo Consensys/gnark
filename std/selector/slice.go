@@ -90,6 +90,8 @@ func stepOutput(_ *big.Int, inputs, results []*big.Int) error {
 	return nil
 }
 
+// RegisterAllHints registers all the hint functions that are used by this package by calling
+// solver.RegisterHint.
 func RegisterAllHints() {
 	solver.RegisterHint(stepOutput)
 	solver.RegisterHint(muxIndicators)
