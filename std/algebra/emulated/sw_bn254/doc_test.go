@@ -9,14 +9,13 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 )
 
 type PairCircuit struct {
 	InG1 sw_bn254.G1Affine
 	InG2 sw_bn254.G2Affine
-	Res  fields_bn254.GTEl
+	Res  sw_bn254.GTEl
 }
 
 func (c *PairCircuit) Define(api frontend.API) error {
@@ -45,7 +44,7 @@ func ExamplePairing() {
 	witness := PairCircuit{
 		InG1: sw_bn254.NewG1Affine(p),
 		InG2: sw_bn254.NewG2Affine(q),
-		Res:  fields_bn254.NewGTEl(res),
+		Res:  sw_bn254.NewGTEl(res),
 	}
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {

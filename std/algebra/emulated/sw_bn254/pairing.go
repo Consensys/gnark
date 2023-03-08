@@ -3,6 +3,7 @@ package sw_bn254
 import (
 	"fmt"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -10,6 +11,41 @@ import (
 
 type Pairing struct {
 	*fields_bn254.Ext12
+}
+
+type GTEl = fields_bn254.E12
+
+func NewGTEl(v bn254.GT) GTEl {
+	return GTEl{
+		C0: fields_bn254.E6{
+			B0: fields_bn254.E2{
+				A0: emulated.ValueOf[emulated.BN254Fp](v.C0.B0.A0),
+				A1: emulated.ValueOf[emulated.BN254Fp](v.C0.B0.A1),
+			},
+			B1: fields_bn254.E2{
+				A0: emulated.ValueOf[emulated.BN254Fp](v.C0.B1.A0),
+				A1: emulated.ValueOf[emulated.BN254Fp](v.C0.B1.A1),
+			},
+			B2: fields_bn254.E2{
+				A0: emulated.ValueOf[emulated.BN254Fp](v.C0.B2.A0),
+				A1: emulated.ValueOf[emulated.BN254Fp](v.C0.B2.A1),
+			},
+		},
+		C1: fields_bn254.E6{
+			B0: fields_bn254.E2{
+				A0: emulated.ValueOf[emulated.BN254Fp](v.C1.B0.A0),
+				A1: emulated.ValueOf[emulated.BN254Fp](v.C1.B0.A1),
+			},
+			B1: fields_bn254.E2{
+				A0: emulated.ValueOf[emulated.BN254Fp](v.C1.B1.A0),
+				A1: emulated.ValueOf[emulated.BN254Fp](v.C1.B1.A1),
+			},
+			B2: fields_bn254.E2{
+				A0: emulated.ValueOf[emulated.BN254Fp](v.C1.B2.A0),
+				A1: emulated.ValueOf[emulated.BN254Fp](v.C1.B2.A1),
+			},
+		},
+	}
 }
 
 func NewPairing(api frontend.API) (*Pairing, error) {
@@ -144,7 +180,7 @@ var loopCounter = [66]int8{
 	-1, 0, -1, 0, 0, 0, 1, 0, -1, 0, 1,
 }
 
-func (pr Pairing) MillerLoop(p []*G1Affine, q []*G2Affine) (*fields_bn254.GTEl, error) {
+func (pr Pairing) MillerLoop(p []*G1Affine, q []*G2Affine) (*GTEl, error) {
 	n := len(p)
 	if n == 0 || n != len(q) {
 		return nil, fmt.Errorf("invalid inputs sizes")
@@ -225,8 +261,10 @@ func (pr Pairing) MillerLoop(p []*G1Affine, q []*G2Affine) (*fields_bn254.GTEl, 
 	return result, nil
 }
 
-func (pr Pairing) FinalExponentiation(e *fields_bn254.GTEl) *fields_bn254.GTEl {
-	var t [4]*fields_bn254.GTEl
+func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
+	// var result GT
+	// result.Set(z)
+	var t [4]*GTEl // var t [4]GT
 
 	// easy part
 	t[0] = pr.Ext12.Conjugate(e)
@@ -267,7 +305,7 @@ func (pr Pairing) FinalExponentiation(e *fields_bn254.GTEl) *fields_bn254.GTEl {
 	return t[1]
 }
 
-func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*fields_bn254.GTEl, error) {
+func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
@@ -276,6 +314,6 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*fields_bn254.GTEl, error)
 	return res, nil
 }
 
-func (pr Pairing) AssertIsEqual(x, y *fields_bn254.GTEl) {
+func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext12.AssertIsEqual(x, y)
 }
