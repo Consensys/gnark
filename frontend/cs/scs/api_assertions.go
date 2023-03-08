@@ -204,7 +204,8 @@ func (builder *scs) mustBeLessOrEqCst(a expr.TermToRefactor, bound big.Int) {
 				constraint.CoeffIdOne,
 				constraint.CoeffIdZero,
 				constraint.CoeffIdZero,
-				debug) // builder.markBoolean(aBits[i].(term))
+				debug)
+			// builder.markBoolean(aBits[i].(term))
 		} else {
 			builder.AssertIsBoolean(aBits[i])
 		}
