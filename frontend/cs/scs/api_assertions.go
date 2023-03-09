@@ -73,7 +73,13 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 
 // AssertIsDifferent fails if i1 == i2
 func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
-	builder.Inverse(builder.Sub(i1, i2))
+	s := builder.Sub(i1, i2)
+	if c, ok := builder.constantValue(s); ok && c.IsZero() {
+		panic("AssertIsDifferent(x,x) will never be satisfied")
+	} else if t := s.(expr.Term); t.Coeff.IsZero() {
+		panic("AssertIsDifferent(x,x) will never be satisfied")
+	}
+	builder.Inverse(s)
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
