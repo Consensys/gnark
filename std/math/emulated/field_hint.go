@@ -19,7 +19,10 @@ func (f *Field[T]) wrapHint(nonnativeInputs ...*Element[T]) []frontend.Variable 
 	return res
 }
 
-func UnwrapHint(nativeInputs, nativeOutputs []*big.Int, nonNativeHint solver.Hint) error {
+// UnwrapHint unwraps the native inputs into nonnative inputs. Then it calls
+// nonnativeHint function with nonnative inputs. After nonnativeHint returns, it
+// decomposes the outputs into limbs.
+func UnwrapHint(nativeInputs, nativeOutputs []*big.Int, nonnativeHint solver.Hint) error {
 	if len(nativeInputs) < 2 {
 		return fmt.Errorf("hint wrapper header is 2 elements")
 	}
@@ -65,7 +68,7 @@ func UnwrapHint(nativeInputs, nativeOutputs []*big.Int, nonNativeHint solver.Hin
 	for i := range nonnativeOutputs {
 		nonnativeOutputs[i] = new(big.Int)
 	}
-	if err := nonNativeHint(nonnativeMod, nonnativeInputs, nonnativeOutputs); err != nil {
+	if err := nonnativeHint(nonnativeMod, nonnativeInputs, nonnativeOutputs); err != nil {
 		return fmt.Errorf("nonnative hint: %w", err)
 	}
 	for i := range nonnativeOutputs {
@@ -77,6 +80,20 @@ func UnwrapHint(nativeInputs, nativeOutputs []*big.Int, nonNativeHint solver.Hin
 	return nil
 }
 
+// NewHint allows to call the emulation hint function hf on inputs, expecting
+// nbOutputs results. This function splits internally the emulated element into
+// limbs and passes these to the hint function. There is [UnwrapHint] function
+// which performs corresponding recomposition of limbs into integer values (and
+// vice verse for output).
+//
+// The hint function for this method is defined as:
+//
+//	func HintFn(mod *big.Int, inputs, outputs []*big.Int) error {
+//	    return emulated.UnwrapHint(inputs, outputs, func(mod *big.Int, inputs, outputs []*big.Int) error { // NB we shadow initial input, output, mod to avoid accidental overwrite!
+//		    // here all inputs and outputs are modulo nonnative mod. we decompose them automatically
+//	    })}
+//
+// See the example for full written example.
 func (f *Field[T]) NewHint(hf solver.Hint, nbOutputs int, inputs ...*Element[T]) ([]*Element[T], error) {
 	nativeInputs := f.wrapHint(inputs...)
 	nbNativeOutputs := int(f.fParams.NbLimbs()) * nbOutputs
