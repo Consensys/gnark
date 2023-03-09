@@ -22,6 +22,13 @@ import (
 
 func init() {
 	// register hints
+	RegisterAllHints()
+}
+
+// RegisterAllHints registers all the hint functions that are used by this package by calling
+// solver.RegisterHint.
+func RegisterAllHints() {
+	solver.RegisterHint(stepOutput)
 	solver.RegisterHint(muxIndicators)
 	solver.RegisterHint(mapIndicators)
 }

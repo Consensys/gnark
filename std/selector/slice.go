@@ -2,15 +2,9 @@ package selector
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"math/big"
 )
-
-func init() {
-	// register hints
-	solver.RegisterHint(stepOutput)
-}
 
 // Partition selects left or right side of the input array, with respect to the pivotPosition.
 // More precisely when rightSide is false, for each i we have:
@@ -88,12 +82,4 @@ func stepOutput(_ *big.Int, inputs, results []*big.Int) error {
 		}
 	}
 	return nil
-}
-
-// RegisterAllHints registers all the hint functions that are used by this package by calling
-// solver.RegisterHint.
-func RegisterAllHints() {
-	solver.RegisterHint(stepOutput)
-	solver.RegisterHint(muxIndicators)
-	solver.RegisterHint(mapIndicators)
 }
