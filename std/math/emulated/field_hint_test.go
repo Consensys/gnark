@@ -15,7 +15,7 @@ import (
 )
 
 func DivTestHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeMod, nativeInputs, nativeOutputs,
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
 			nominator := inputs[0]
 			denominator := inputs[1]

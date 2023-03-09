@@ -19,7 +19,7 @@ func (f *Field[T]) wrapHint(nonnativeInputs ...*Element[T]) []frontend.Variable 
 	return res
 }
 
-func UnwrapHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int, nonNativeHint solver.Hint) error {
+func UnwrapHint(nativeInputs, nativeOutputs []*big.Int, nonNativeHint solver.Hint) error {
 	if len(nativeInputs) < 2 {
 		return fmt.Errorf("hint wrapper header is 2 elements")
 	}
