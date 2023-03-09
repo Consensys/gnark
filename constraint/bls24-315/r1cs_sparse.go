@@ -437,6 +437,18 @@ func (cs *SparseR1CS) GetConstraints() ([]constraint.SparseR1C, constraint.Resol
 	return cs.Constraints, cs
 }
 
+func (cs *SparseR1CS) GetConstraint(i int) *constraint.SparseR1C {
+	if i < 0 || i >= len(cs.Constraints) {
+		return nil
+	}
+	return &cs.Constraints[i]
+}
+
+func (cs *SparseR1CS) GetCoefficient(i int) (r constraint.Coeff) {
+	copy(r[:], cs.Coefficients[i][:])
+	return
+}
+
 // checkConstraint verifies that the constraint holds
 func (cs *SparseR1CS) checkConstraint(c constraint.SparseR1C, solution *solution) error {
 	l := solution.computeTerm(c.L)
