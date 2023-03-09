@@ -94,33 +94,18 @@ func (e Ext2) MulByNonResidueGeneric(x *E2, power, coef int) *E2 {
 }
 
 func (e Ext2) MulByNonResidue(x *E2) *E2 {
-	/*
-		// below is the direct transliteration of the gnark-crypto code. Now only,
-		// for simplicity and debugging purposes, we do the non residue operations
-		// without optimisations.
-
-		nine := big.NewInt(9)
-		// var a, b fp.Element
-		a := e.fp.MulConst(&x.A0, nine) // a.Double(&x.A0).Double(&a).Double(&a).Add(&a, &x.A0).
-		a = e.fp.Sub(a, &x.A1)          //   Sub(&a, &x.A1)
-		b := e.fp.MulConst(&x.A1, nine) // b.Double(&x.A1).Double(&b).Double(&b).Add(&b, &x.A1).
-		b = e.fp.Add(b, &x.A0)          //   Add(&b, &x.A0)
-		return &E2{
-			A0: *a, // z.A0.Set(&a)
-			A1: *b, // z.A1.Set(&b)
-		} // return z
-	*/
-	// TODO: inline non-residue Multiplication
-	return e.MulByNonResidueGeneric(x, 0, 1)
+	nine := big.NewInt(9)
+	a := e.fp.MulConst(&x.A0, nine)
+	a = e.fp.Sub(a, &x.A1)
+	b := e.fp.MulConst(&x.A1, nine)
+	b = e.fp.Add(b, &x.A0)
+	return &E2{
+		A0: *a,
+		A1: *b,
+	}
 }
 
 func (e Ext2) MulByNonResidueInv(x *E2) *E2 {
-	// TODO: to optimise with constant non-residue inverse
-	/*
-		// from gnark-crypto
-		// z.Mul(x, &nonResInverse)
-		// return z
-	*/
 	return e.MulByNonResidueGeneric(x, 0, -1)
 }
 
@@ -189,15 +174,14 @@ func (e Ext2) MulByNonResidue3Power5(x *E2) *E2 {
 }
 
 func (e Ext2) Mul(x, y *E2) *E2 {
-	// var a, b, c fp.Element
-	a := e.fp.Add(&x.A0, &x.A1)    // a.Add(&x.A0, &x.A1)
-	b := e.fp.Add(&y.A0, &y.A1)    // b.Add(&y.A0, &y.A1)
-	a = e.fp.MulMod(a, b)          // a.Mul(&a, &b)
-	b = e.fp.MulMod(&x.A0, &y.A0)  // b.Mul(&x.A0, &y.A0)
-	c := e.fp.MulMod(&x.A1, &y.A1) // c.Mul(&x.A1, &y.A1)
-	z1 := e.fp.Sub(a, b)           // z.A1.Sub(&a, &b).
-	z1 = e.fp.Sub(z1, c)           //   Sub(&z.A1, &c)
-	z0 := e.fp.Sub(b, c)           // z.A0.Sub(&b, &c)
+	a := e.fp.Add(&x.A0, &x.A1)
+	b := e.fp.Add(&y.A0, &y.A1)
+	a = e.fp.MulMod(a, b)
+	b = e.fp.MulMod(&x.A0, &y.A0)
+	c := e.fp.MulMod(&x.A1, &y.A1)
+	z1 := e.fp.Sub(a, b)
+	z1 = e.fp.Sub(z1, c)
+	z0 := e.fp.Sub(b, c)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -205,8 +189,8 @@ func (e Ext2) Mul(x, y *E2) *E2 {
 }
 
 func (e Ext2) Add(x, y *E2) *E2 {
-	z0 := e.fp.Add(&x.A0, &y.A0) // z.A0.Add(&x.A0, &y.A0)
-	z1 := e.fp.Add(&x.A1, &y.A1) // z.A1.Add(&x.A1, &y.A1)
+	z0 := e.fp.Add(&x.A0, &y.A0)
+	z1 := e.fp.Add(&x.A1, &y.A1)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -214,8 +198,8 @@ func (e Ext2) Add(x, y *E2) *E2 {
 }
 
 func (e Ext2) Sub(x, y *E2) *E2 {
-	z0 := e.fp.Sub(&x.A0, &y.A0) // z.A0.Sub(&x.A0, &y.A0)
-	z1 := e.fp.Sub(&x.A1, &y.A1) // z.A1.Sub(&x.A1, &y.A1)
+	z0 := e.fp.Sub(&x.A0, &y.A0)
+	z1 := e.fp.Sub(&x.A1, &y.A1)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -223,8 +207,8 @@ func (e Ext2) Sub(x, y *E2) *E2 {
 }
 
 func (e Ext2) Neg(x *E2) *E2 {
-	z0 := e.fp.Neg(&x.A0) // z.A0.Neg(&x.A0)
-	z1 := e.fp.Neg(&x.A1) // z.A1.Neg(&x.A1)
+	z0 := e.fp.Neg(&x.A0)
+	z1 := e.fp.Neg(&x.A1)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -232,9 +216,9 @@ func (e Ext2) Neg(x *E2) *E2 {
 }
 
 func (e Ext2) One() *E2 {
-	z0 := e.fp.One()  // z.A0.SetOne()
-	z1 := e.fp.Zero() // z.A1.SetZero()
-	return &E2{       // return z
+	z0 := e.fp.One()
+	z1 := e.fp.Zero()
+	return &E2{
 		A0: *z0,
 		A1: *z1,
 	}
@@ -250,22 +234,21 @@ func (e Ext2) Zero() *E2 {
 }
 
 func (e Ext2) Square(x *E2) *E2 {
-	// var a, b fp.Element
-	a := e.fp.Add(&x.A0, &x.A1)         // a.Add(&x.A0, &x.A1)
-	b := e.fp.Sub(&x.A0, &x.A1)         // b.Sub(&x.A0, &x.A1)
-	a = e.fp.MulMod(a, b)               // a.Mul(&a, &b)
-	b = e.fp.MulMod(&x.A0, &x.A1)       // b.Mul(&x.A0, &x.A1).
-	b = e.fp.MulConst(b, big.NewInt(2)) //   Double(&b)
+	a := e.fp.Add(&x.A0, &x.A1)
+	b := e.fp.Sub(&x.A0, &x.A1)
+	a = e.fp.MulMod(a, b)
+	b = e.fp.MulMod(&x.A0, &x.A1)
+	b = e.fp.MulConst(b, big.NewInt(2))
 	return &E2{
-		A0: *a, // z.A0.Set(&a)
-		A1: *b, // z.A1.Set(&b)
+		A0: *a,
+		A1: *b,
 	}
 }
 
 func (e Ext2) Double(x *E2) *E2 {
 	two := big.NewInt(2)
-	z0 := e.fp.MulConst(&x.A0, two) // z.A0.Double(&x.A0)
-	z1 := e.fp.MulConst(&x.A1, two) // z.A1.Double(&x.A1)
+	z0 := e.fp.MulConst(&x.A0, two)
+	z1 := e.fp.MulConst(&x.A1, two)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -287,11 +270,10 @@ func (e Ext2) Halve(x *E2) *E2 {
 }
 
 func (e Ext2) MulBybTwistCurveCoeff(x *E2) *E2 {
-	// var res E2
-	res := e.MulByNonResidueInv(x) // res.MulByNonResidueInv(x)
-	z := e.Double(res)             // z.Double(&res).
-	z = e.Add(z, res)              // 	Add(&res, z)
-	return z                       // return z
+	res := e.MulByNonResidueInv(x)
+	z := e.Double(res)
+	z = e.Add(z, res)
+	return z
 }
 
 func (e Ext2) AssertIsEqual(x, y *E2) {
