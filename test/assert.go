@@ -369,7 +369,7 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 	errConsts := IsSolved(circuit, w, curve.ScalarField(), SetAllVariablesAsConstants())
 
 	if (errVars == nil) != (errConsts == nil) {
-		w, err := frontend.NewWitness(w, ecc.BN254.ScalarField())
+		w, err := frontend.NewWitness(w, curve.ScalarField())
 		if err != nil {
 			panic(err)
 		}
