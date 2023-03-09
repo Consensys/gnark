@@ -101,7 +101,52 @@ type ProvingKeyBis struct {
 	Domain [2]fft.Domain
 
 	// in lagrange coset basis --> these are not serialized, but computed from S1Canonical, S2Canonical, S3Canonical once.
-	lS1LagrangeCoset, lS2LagrangeCoset, lS3LagrangeCoset *iop.Polynomial
+	lcS1, lcS2, lcS3 *iop.Polynomial
+}
+
+func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBis, error) {
+
+	var pk ProvingKeyBis
+	var vk VerifyingKeyBis
+	pk.Vk = &vk
+	// nbConstraints := len(spr.Constraints)
+
+	// step 0: set the fft domains
+	pk.Domain = buildDomains(spr)
+	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
+
+	// step 1: ql, qr, qm, qo, qk in Lagrange Basis
+	buildTrace(spr, &pk.trace, pk.Domain[0].Cardinality)
+
+	// step 2: build the permutation and build the polynomials S1, S2, S3 to encode the permutation.
+	// Note: at this stage, the permutation takes in account the placeholders
+	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
+	buildPermutationBis(spr, &pk.trace, nbVariables)
+	s := computePermutationPolynomialsBis(&pk.trace, &pk.Domain[0])
+	pk.trace.S1 = s[0]
+	pk.trace.S2 = s[1]
+	pk.trace.S3 = s[2]
+
+	// step 3: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
+	// Also the canonical form of the polynomials will be used to compute the openings.
+	pk.LQk = pk.trace.Qk.Clone() // it will be completed by the prover, and the evaluated on the coset
+	err := commitTrace(&pk.trace, &pk)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// step 4: evaluate ql, qr, qm, qo, s1, s2, s3 on LagrangeCoset (NOT qk)
+	// we clone them, because the canonical versions are going to be used in
+	// the opening proof
+	pk.lcQl = pk.trace.Ql.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcQr = pk.trace.Qr.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcQm = pk.trace.Qm.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcQo = pk.trace.Qo.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcS1 = pk.trace.S1.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcS2 = pk.trace.S2.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcS3 = pk.trace.S3.Clone().ToLagrangeCoset(&pk.Domain[1])
+
+	return &pk, &vk, nil
 }
 
 // buildTrace fills the constatn columns ql, qr, qm, qo, qk from the sparser1cs.
@@ -143,34 +188,9 @@ func buildTrace(spr *cs.SparseR1CS, pt *PlonkTrace, size uint64) {
 
 }
 
-func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBis, error) {
-
-	var pk ProvingKeyBis
-	var vk VerifyingKeyBis
-	pk.Vk = &vk
-	// nbConstraints := len(spr.Constraints)
-
-	// step 0: set the fft domains
-	pk.Domain = buildDomains(spr)
-	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
-
-	// step 1: ql, qr, qm, qo, qk in Lagrange Basis
-	var trace PlonkTrace
-	buildTrace(spr, &trace, pk.Domain[0].Cardinality)
-	pk.trace = trace
-
-	// step 2: build the permutation and build the polynomials S1, S2, S3 to encode the permutation.
-	// Note: at this stage, the permutation takes in account the placeholders
-	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
-	buildPermutationBis(spr, &trace, nbVariables)
-	s := computePermutationPolynomialsBis(&trace, &pk.Domain[0])
-	trace.S1 = s[0]
-	trace.S2 = s[1]
-	trace.S3 = s[2]
-
-	// step 3: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
-	// Also the canonical form of the polynomials will be used to compute the openings.
-	pk.LQk = trace.Qk.Clone() // it will be completed by the prover, and the evaluated on the coset
+// commitTrace commits to every polynomials in the trace, and put
+// the commitments int the verifying key.
+func commitTrace(trace *PlonkTrace, pk *ProvingKeyBis) error {
 
 	trace.Ql.ToCanonical(&pk.Domain[0]).ToRegular()
 	trace.Qr.ToCanonical(&pk.Domain[0]).ToRegular()
@@ -182,40 +202,31 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 	trace.S3.ToCanonical(&pk.Domain[0]).ToRegular()
 
 	var err error
-	if vk.Ql, err = kzg.Commit(pk.trace.Ql.Coefficients(), vk.KZGSRS); err != nil {
-		return nil, nil, err
+	if pk.Vk.Ql, err = kzg.Commit(pk.trace.Ql.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
 	}
-	if vk.Qr, err = kzg.Commit(pk.trace.Qr.Coefficients(), vk.KZGSRS); err != nil {
-		return nil, nil, err
+	if pk.Vk.Qr, err = kzg.Commit(pk.trace.Qr.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
 	}
-	if vk.Qm, err = kzg.Commit(pk.trace.Qm.Coefficients(), vk.KZGSRS); err != nil {
-		return nil, nil, err
+	if pk.Vk.Qm, err = kzg.Commit(pk.trace.Qm.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
 	}
-	if vk.Qo, err = kzg.Commit(pk.trace.Qo.Coefficients(), vk.KZGSRS); err != nil {
-		return nil, nil, err
+	if pk.Vk.Qo, err = kzg.Commit(pk.trace.Qo.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
 	}
-	if vk.Qk, err = kzg.Commit(pk.trace.Qk.Coefficients(), vk.KZGSRS); err != nil {
-		return nil, nil, err
+	if pk.Vk.Qk, err = kzg.Commit(pk.trace.Qk.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
 	}
-	if vk.S[0], err = kzg.Commit(pk.trace.S1.Coefficients(), vk.KZGSRS); err != nil {
-		return nil, nil, err
+	if pk.Vk.S[0], err = kzg.Commit(pk.trace.S1.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
 	}
-	if vk.S[1], err = kzg.Commit(pk.trace.S2.Coefficients(), vk.KZGSRS); err != nil {
-		return nil, nil, err
+	if pk.Vk.S[1], err = kzg.Commit(pk.trace.S2.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
 	}
-	if vk.S[2], err = kzg.Commit(pk.trace.S3.Coefficients(), vk.KZGSRS); err != nil {
-		return nil, nil, err
+	if pk.Vk.S[2], err = kzg.Commit(pk.trace.S3.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
 	}
-
-	// step 4: evaluate ql, qr, qm, qo, s1, s2, s3 on LagrangeCoset (NOT qk)
-	// we clone them, because the canonical versions are going to be used in
-	// the opening proof
-	pk.lcQl = trace.Ql.Clone().ToLagrangeCoset(&pk.Domain[1])
-	pk.lcQr = trace.Qr.Clone().ToLagrangeCoset(&pk.Domain[1])
-	pk.lcQm = trace.Qm.Clone().ToLagrangeCoset(&pk.Domain[1])
-	pk.lcQo = trace.Qo.Clone().ToLagrangeCoset(&pk.Domain[1])
-
-	return &pk, &vk, nil
+	return nil
 }
 
 // buildDomains creates the fft domains
@@ -300,18 +311,9 @@ func buildPermutationBis(spr *cs.SparseR1CS, pt *PlonkTrace, nbVariables int) {
 	pt.S = permutation
 }
 
-// computePermutationPolynomials computes the LDE (Lagrange basis) of the permutations
-// s1, s2, s3.
-//
-// 1	z 	..	z**n-1	|	u	uz	..	u*z**n-1	|	u**2	u**2*z	..	u**2*z**n-1  |
-//
-//																						 |
-//	      																				 | Permutation
-//
-// s11  s12 ..   s1n	   s21 s22 	 ..		s2n		     s31 	s32 	..		s3n		 v
-// \---------------/       \--------------------/        \------------------------/
-//
-//	s1 (LDE)                s2 (LDE)                          s3 (LDE)
+// computePermutationPolynomials computes the LDE (Lagrange basis) of the permutation.
+// We let the permutation act on <g> || u<g> || u^{2}<g>, split the result in 3 parts,
+// and interpolate each of the 3 parts on <g>.
 func computePermutationPolynomialsBis(pt *PlonkTrace, domain *fft.Domain) [3]*iop.Polynomial {
 
 	nbElmts := int(domain.Cardinality)
