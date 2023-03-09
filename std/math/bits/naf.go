@@ -32,22 +32,6 @@ func ToNAF(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) 
 		}
 	}
 
-	// if v is a constant, work with the big int value.
-	if c, ok := api.Compiler().ConstantValue(v); ok {
-		bits := make([]*big.Int, cfg.NbDigits)
-		for i := 0; i < len(bits); i++ {
-			bits[i] = big.NewInt(0)
-		}
-		if err := nafDecomposition(c, bits); err != nil {
-			panic(err)
-		}
-		res := make([]frontend.Variable, len(bits))
-		for i := 0; i < len(bits); i++ {
-			res[i] = bits[i]
-		}
-		return res
-	}
-
 	c := big.NewInt(1)
 
 	bits, err := api.Compiler().NewHint(NNAF, cfg.NbDigits, v)
