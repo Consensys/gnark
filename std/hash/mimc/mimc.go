@@ -19,6 +19,7 @@ package mimc
 
 import (
 	"errors"
+	cs "github.com/consensys/gnark/constraint/lazy"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -62,10 +63,12 @@ func (h *MiMC) Reset() {
 func (h *MiMC) Sum() frontend.Variable {
 
 	//h.Write(data...)s
+	h.api.RecordConstraintsForLazy(cs.GetLazyMimcPermutationKey(len(h.data)), false, h.data...)
 	for _, stream := range h.data {
 		r := encryptFuncs[h.id](*h, stream)
 		h.h = h.api.Add(h.h, r, stream)
 	}
+	h.api.RecordConstraintsForLazy(cs.GetLazyMimcPermutationKey(len(h.data)), true, h.data...)
 
 	h.data = nil // flush the data already hashed
 

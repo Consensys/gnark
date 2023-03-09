@@ -6,6 +6,7 @@ import (
 
 func init() {
 	Register(InvZero)
+	Register(Self)
 }
 
 // InvZero computes the value 1/a for the single input a. If a == 0, returns 0.
@@ -21,5 +22,10 @@ func InvZero(q *big.Int, inputs []*big.Int, results []*big.Int) error {
 	}
 
 	result.ModInverse(result, q)
+	return nil
+}
+
+func Self(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+	results[0].Set(inputs[0])
 	return nil
 }

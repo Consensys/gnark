@@ -51,8 +51,11 @@ type R1CS struct {
 func NewR1CS(capacity int) *R1CS {
 	r := R1CS{
 		R1CSCore: constraint.R1CSCore{
-			System:      constraint.NewSystem(fr.Modulus()),
-			Constraints: make([]constraint.R1C, 0, capacity),
+			System:            constraint.NewSystem(fr.Modulus()),
+			Constraints:       make([]constraint.R1C, 0, capacity),
+			LazyCons:          make([]constraint.LazyInputs, 0),
+			LazyConsMap:       make(map[int]constraint.LazyIndexedInputs),
+			StaticConstraints: make(map[string]constraint.StaticConstraints),
 		},
 		CoeffTable: newCoeffTable(capacity / 10),
 	}
@@ -71,6 +74,95 @@ func (cs *R1CS) AddConstraint(r1c constraint.R1C, debugInfo ...constraint.DebugI
 	cs.UpdateLevel(cID, &r1c)
 
 	return cID
+}
+
+func (cs *R1CS) AddStaticConstraints(key string, constraintPos int, finished bool, expressions []constraint.LinearExpression) {
+	// only the first static r1cs need to record static r1cs
+	if c, exists := cs.StaticConstraints[key]; !exists || c.StaticR1CS == nil {
+		// first time enter without any static constraint recorded
+		if !finished {
+			cs.StaticConstraints[key] = constraint.StaticConstraints{StaticR1CS: nil, Begin: constraintPos, InputLinearExpressions: &expressions}
+		} else {
+			// for the first one counting the input threshold
+			inputConstraintsThreshold := constraint.ComputeInputConstraintsThreshold(cs.Constraints[cs.StaticConstraints[key].Begin:constraintPos], cs.StaticConstraints[key].InputLinearExpressions)
+			cs.StaticConstraints[key] = constraint.StaticConstraints{StaticR1CS: cs.Constraints[cs.StaticConstraints[key].Begin:constraintPos], Begin: c.Begin, End: constraintPos, InputConstraintsThreshold: inputConstraintsThreshold}
+		}
+	}
+
+	// first time enter, we need to record this lazy inputs
+	if finished {
+		count := len(cs.StaticConstraints[key].StaticR1CS)
+		inputConstraintCount := cs.StaticConstraints[key].InputConstraintsThreshold
+		// constraintPos - count is the start constraint of the inputs
+		inputConstraints := cs.Constraints[constraintPos-count : constraintPos-count+inputConstraintCount]
+		input := constraint.NewLazyInputs(key, inputConstraints, constraintPos-count, count, len(expressions))
+		cs.LazyCons = append(cs.LazyCons, input)
+	}
+}
+
+func (cs *R1CS) GetStaticConstraints(key string) constraint.StaticConstraints {
+	return cs.StaticConstraints[key]
+}
+
+func (cs *R1CS) Lazify() map[int]int {
+	// remove cons generated from Lazy
+	mapFromFull := make(map[int]int)
+	lastEnd := 0
+	offset := 0
+	bar := len(cs.Constraints) - cs.LazyCons.GetConstraintsAll()
+	ret := make([]constraint.R1C, 0)
+
+	lazyR1CIdx := 0
+	for lazyIndex, con := range cs.LazyCons {
+		start := con.GetLoc()
+		end := con.GetLoc() + con.GetConstraintsNum()
+		if start > lastEnd {
+			ret = append(ret, cs.Constraints[lastEnd:start]...)
+		}
+
+		// map [lastend, start)
+		for j := lastEnd; j < start; j++ {
+			mapFromFull[j] = j - offset
+		}
+		lastEnd = end
+		// map [start, end)
+		for j := start; j < end; j++ {
+			mapFromFull[j] = bar + offset + (j - start)
+		}
+
+		// record the index to cons
+		for i := 0; i < con.GetConstraintsNum(); i++ {
+			cs.LazyConsMap[bar+lazyR1CIdx] = constraint.LazyIndexedInputs{Index: i, LazyIndex: lazyIndex}
+			lazyR1CIdx++
+		}
+
+		offset += con.GetConstraintsNum()
+	}
+	if lastEnd < len(cs.Constraints) {
+		ret = append(ret, cs.Constraints[lastEnd:]...)
+	}
+	// map [end, endCons)
+	nbCons := len(cs.Constraints)
+	for j := lastEnd; j < nbCons; j++ {
+		/// mapFromFull[j+offset] = j
+		mapFromFull[j] = j - offset
+	}
+	cs.Constraints = ret
+
+	badCnt := 0
+	for i, row := range cs.Levels {
+		for j, val := range row {
+
+			if v, ok := mapFromFull[val]; ok {
+				cs.Levels[i][j] = v
+			} else {
+				badCnt++
+				panic(fmt.Sprintf("bad map loc at %d, %d", i, j))
+			}
+		}
+	}
+
+	return mapFromFull
 }
 
 // Solve sets all the wires and returns the a, b, c vectors.
@@ -95,7 +187,9 @@ func (cs *R1CS) Solve(witness, a, b, c fr.Vector, opt backend.ProverConfig) (fr.
 	}
 
 	// compute the wires and the a, b, c polynomials
-	if len(a) != len(cs.Constraints) || len(b) != len(cs.Constraints) || len(c) != len(cs.Constraints) {
+	if len(a) != len(cs.Constraints)+cs.LazyCons.GetConstraintsAll() ||
+		len(b) != len(cs.Constraints)+cs.LazyCons.GetConstraintsAll() ||
+		len(c) != len(cs.Constraints)+cs.LazyCons.GetConstraintsAll() {
 		err = errors.New("invalid input size: len(a, b, c) == len(Constraints)")
 		log.Err(err).Send()
 		return solution.values, err
@@ -161,8 +255,7 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 		go func() {
 			for t := range chTasks {
 				for _, i := range t {
-					// for each constraint in the task, solve it.
-					if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
+					if err := cs.solveConstraint(cs.getConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
 						var debugInfo *string
 						if dID, ok := cs.MDebug[i]; ok {
 							debugInfo = new(string)
@@ -193,7 +286,7 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 		if maxCPU <= 1.0 {
 			// we do it sequentially
 			for _, i := range level {
-				if err := cs.solveConstraint(cs.Constraints[i], solution, &a[i], &b[i], &c[i]); err != nil {
+				if err := cs.solveConstraint(cs.getConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
 					var debugInfo *string
 					if dID, ok := cs.MDebug[i]; ok {
 						debugInfo = new(string)
@@ -257,9 +350,9 @@ func (cs *R1CS) IsSolved(witness witness.Witness, opts ...backend.ProverOption) 
 		return err
 	}
 
-	a := make(fr.Vector, len(cs.Constraints))
-	b := make(fr.Vector, len(cs.Constraints))
-	c := make(fr.Vector, len(cs.Constraints))
+	a := make(fr.Vector, len(cs.Constraints)+cs.LazyCons.GetConstraintsAll())
+	b := make(fr.Vector, len(cs.Constraints)+cs.LazyCons.GetConstraintsAll())
+	c := make(fr.Vector, len(cs.Constraints)+cs.LazyCons.GetConstraintsAll())
 	v := witness.Vector().(fr.Vector)
 	_, err = cs.Solve(v, a, b, c, opt)
 	return err
@@ -393,6 +486,19 @@ func (cs *R1CS) solveConstraint(r constraint.R1C, solution *solution, a, b, c *f
 	solution.set(wID, wire)
 
 	return nil
+}
+
+func (cs *R1CS) getConstraintToSolve(i int) constraint.R1C {
+	// constraint to solve could be lazy constraint or normal constraint
+	var constraintToSolve constraint.R1C
+	// for each constraint in the task, solve it.
+	if lazyCons, exists := cs.LazyConsMap[i]; exists {
+		lazyConstraint := cs.LazyCons[lazyCons.LazyIndex]
+		constraintToSolve = lazyConstraint.FetchLazy(cs, lazyCons.Index)
+	} else {
+		constraintToSolve = cs.Constraints[i]
+	}
+	return constraintToSolve
 }
 
 // GetConstraints return the list of R1C and a coefficient resolver

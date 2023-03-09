@@ -51,8 +51,11 @@ type R1CS struct {
 func NewR1CS(capacity int) *R1CS {
 	r := R1CS{
 		R1CSCore: constraint.R1CSCore{
-			System:      constraint.NewSystem(fr.Modulus()),
-			Constraints: make([]constraint.R1C, 0, capacity),
+			System:            constraint.NewSystem(fr.Modulus()),
+			Constraints:       make([]constraint.R1C, 0, capacity),
+			LazyCons:          make([]constraint.LazyInputs, 0),
+			LazyConsMap:       make(map[int]constraint.LazyIndexedInputs),
+			StaticConstraints: make(map[string]constraint.StaticConstraints),
 		},
 		CoeffTable: newCoeffTable(capacity / 10),
 	}
@@ -398,6 +401,34 @@ func (cs *R1CS) solveConstraint(r constraint.R1C, solution *solution, a, b, c *f
 // GetConstraints return the list of R1C and a coefficient resolver
 func (cs *R1CS) GetConstraints() ([]constraint.R1C, constraint.Resolver) {
 	return cs.Constraints, cs
+}
+
+func (cs *R1CS) AddStaticConstraints(key string, constraintPos int, finished bool, expressions []constraint.LinearExpression) {
+	// only the first static r1cs need to record static r1cs
+	if c, exists := cs.StaticConstraints[key]; !exists || c.StaticR1CS == nil {
+		// first time enter without any static constraint recorded
+		if !finished {
+			cs.StaticConstraints[key] = constraint.StaticConstraints{StaticR1CS: nil, Begin: constraintPos, InputLinearExpressions: &expressions}
+		} else {
+			// for the first one counting the input threshold
+			inputConstraintsThreshold := constraint.ComputeInputConstraintsThreshold(cs.Constraints[cs.StaticConstraints[key].Begin:constraintPos], cs.StaticConstraints[key].InputLinearExpressions)
+			cs.StaticConstraints[key] = constraint.StaticConstraints{StaticR1CS: cs.Constraints[cs.StaticConstraints[key].Begin:constraintPos], Begin: c.Begin, End: constraintPos, InputConstraintsThreshold: inputConstraintsThreshold}
+		}
+	}
+
+	// first time enter, we need to record this lazy inputs
+	if finished {
+		count := len(cs.StaticConstraints[key].StaticR1CS)
+		inputConstraintCount := cs.StaticConstraints[key].InputConstraintsThreshold
+		// constraintPos - count is the start constraint of the inputs
+		inputConstraints := cs.Constraints[constraintPos-count : constraintPos-count+inputConstraintCount]
+		input := constraint.NewLazyInputs(key, inputConstraints, constraintPos-count, count, len(expressions))
+		cs.LazyCons = append(cs.LazyCons, input)
+	}
+}
+
+func (cs *R1CS) GetStaticConstraints(key string) constraint.StaticConstraints {
+	return cs.StaticConstraints[key]
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS

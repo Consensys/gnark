@@ -52,7 +52,6 @@ type builder struct {
 	cs constraint.R1CS
 
 	config frontend.CompileConfig
-
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]expr.LinearExpression
 
@@ -447,4 +446,13 @@ func (builder *builder) compress(le expr.LinearExpression) expr.LinearExpression
 	t := builder.newInternalVariable()
 	builder.cs.AddConstraint(builder.newR1C(le, one, t))
 	return t
+}
+
+func (builder *builder) RecordConstraintsForLazy(key string, finished bool, s ...frontend.Variable) {
+	expressions, _ := builder.toVariables(s...)
+	constraintExpressions := make([]constraint.LinearExpression, len(expressions))
+	for i := range constraintExpressions {
+		constraintExpressions[i] = builder.getLinearExpression(expressions[i])
+	}
+	builder.cs.AddStaticConstraints(key, builder.cs.GetNbConstraints(), finished, constraintExpressions)
 }

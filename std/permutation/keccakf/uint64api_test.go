@@ -24,7 +24,7 @@ func (c *lrotCirc) Define(api frontend.API) error {
 
 func TestLeftRotation(t *testing.T) {
 	assert := test.NewAssert(t)
-	// err := test.IsSolved(&lrotCirc{Shift: 2}, &lrotCirc{In: 6, Shift: 2, Out: 24}, ecc.BN254.ScalarField())
+	// err := test.IsSolved(&lrotCirc{shift: 2}, &lrotCirc{In: 6, shift: 2, Out: 24}, ecc.BN254.ScalarField())
 	// assert.NoError(err)
 	assert.ProverSucceeded(&lrotCirc{Shift: 2}, &lrotCirc{In: 6, Shift: 2, Out: 24})
 }
