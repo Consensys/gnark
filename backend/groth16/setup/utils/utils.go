@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 type PublicKey struct {
@@ -27,44 +28,28 @@ func Powers(a fr.Element, n int) []fr.Element {
 
 // Returns [aᵢAᵢ, ...] in G1
 func ScaleG1(A []bn254.G1Affine, a []fr.Element) []bn254.G1Affine {
-	var tmp big.Int
 	result := make([]bn254.G1Affine, len(A))
-	for i := 0; i < len(A); i++ {
-		a[i].BigInt(&tmp)
-		result[i].ScalarMultiplication(&A[i], &tmp)
-	}
+	utils.Parallelize(len(A), func(start, end int) {
+		for i := start; i < end; i++ {
+			var tmp big.Int
+			a[i].BigInt(&tmp)
+			result[i].ScalarMultiplication(&A[i], &tmp)
+		}
+	})
 	return result
 }
 
 // Returns [aᵢAᵢ, ...] in G2
 func ScaleG2(A []bn254.G2Affine, a []fr.Element) []bn254.G2Affine {
-	var tmp big.Int
 	result := make([]bn254.G2Affine, len(A))
-	for i := 0; i < len(A); i++ {
-		a[i].BigInt(&tmp)
-		result[i].ScalarMultiplication(&A[i], &tmp)
-	}
+	utils.Parallelize(len(A), func(start, end int) {
+		for i := start; i < end; i++ {
+			var tmp big.Int
+			a[i].BigInt(&tmp)
+			result[i].ScalarMultiplication(&A[i], &tmp)
+		}
+	})
 	return result
-}
-
-func EvalG1(scalars []fr.Element, points []bn254.G1Affine) *bn254.G1Jac {
-	nc := runtime.NumCPU()
-
-	var result bn254.G1Jac
-	if _, err := result.MultiExp(points, scalars, ecc.MultiExpConfig{NbTasks: nc / 2}); err != nil {
-		panic("Failed to MultiExp")
-	}
-	return &result
-}
-
-func EvalG2(scalars []fr.Element, points []bn254.G2Affine) *bn254.G2Jac {
-	nc := runtime.NumCPU()
-
-	var result bn254.G2Jac
-	if _, err := result.MultiExp(points, scalars, ecc.MultiExpConfig{NbTasks: nc / 2}); err != nil {
-		panic("Failed to MultiExp")
-	}
-	return &result
 }
 
 // Check e(a₁, a₂) = e(b₁, b₂)

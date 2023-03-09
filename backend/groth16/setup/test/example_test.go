@@ -61,13 +61,10 @@ func TestSetupCircuit(t *testing.T) {
 	nContributionsPhase2 := 3
 	var evals phase2.Evaluations
 	contributionsPhase2 := make([]phase2.Contribution, nContributionsPhase2)
-	switch r1cs := ccs.(type) {
-	case *cs_bn254.R1CS:
-		// Prepare for phase-2
-		evals = contributionsPhase2[0].PreparePhase2(&contributionsPhase1[nContributionsPhase1-1], r1cs)
-	default:
-		panic("Unsupported curve")
-	}
+	r1cs := ccs.(*cs_bn254.R1CS)
+
+	// Prepare for phase-2
+	evals = contributionsPhase2[0].PreparePhase2(&contributionsPhase1[nContributionsPhase1-1], r1cs)
 
 	// Make and verify contributions for phase1
 	for i := 1; i < nContributionsPhase2; i++ {
@@ -80,12 +77,12 @@ func TestSetupCircuit(t *testing.T) {
 
 	pk, vk := keys.ExtractKeys(&contributionsPhase1[nContributionsPhase1-1], &contributionsPhase2[nContributionsPhase2-1], &evals, ccs.GetNbConstraints())
 	var bufPK, bufVK bytes.Buffer
+	
 	// Write PK and VK
 	pk.WriteTo(&bufPK, false)
 	vk.WriteTo(&bufVK, false)
 
 	// Read PK and VK
-
 	pkk := groth16.NewProvingKey(ecc.BN254)
 	pkk.ReadFrom(&bufPK)
 	vkk := groth16.NewVerifyingKey(ecc.BN254)
