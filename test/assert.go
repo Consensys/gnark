@@ -266,6 +266,9 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 	checkError(err)
 
+	// 2- lazify the circuit
+	ccs.Lazify()
+
 	// must not error with big int test engine
 	err = IsSolved(circuit, validAssignment, curve.ScalarField())
 	checkError(err)
@@ -403,7 +406,7 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 	key := fmt.Sprintf("%d%d%s%d", curveID, backendID, reflect.TypeOf(circuit).String(), addr)
 
 	// check if we already compiled it
-	if ccs, ok := assert.compiled[key]; ok {
+	if ccs, ok := assert.compiled[key]; ok && !ccs.IsLazified() {
 		return ccs, nil
 	}
 

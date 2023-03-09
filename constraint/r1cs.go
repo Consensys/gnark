@@ -16,6 +16,7 @@ package constraint
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -35,24 +36,96 @@ type R1CS interface {
 	// See StringBuilder for more info.
 	// ! this is an experimental API.
 	GetConstraints() ([]R1C, Resolver)
+
+	AddStaticConstraints(key string, constraintPos int, finished bool, expressions []LinearExpression)
+
+	GetStaticConstraints(key string) StaticConstraints
 }
 
 // R1CS describes a set of R1C constraint
 type R1CSCore struct {
 	System
-	Constraints []R1C
+	Constraints       []R1C
+	LazyCons          LazyR1CS
+	LazyConsMap       map[int]LazyIndexedInputs
+	StaticConstraints map[string]StaticConstraints
 }
 
 // GetNbConstraints returns the number of constraints
 func (r1cs *R1CSCore) GetNbConstraints() int {
-	return len(r1cs.Constraints)
+	lazified := 0
+	if len(r1cs.LazyConsMap) != 0 {
+		lazified = 1
+	}
+	return len(r1cs.Constraints) + r1cs.LazyCons.GetConstraintsAll()*lazified
 }
 
 func (r1cs *R1CSCore) UpdateLevel(cID int, c Iterable) {
 	r1cs.updateLevel(cID, c)
 }
 
-// IsValid perform post compilation checks on the Variables
+func (cs *R1CSCore) Lazify() map[int]int {
+	// remove cons generated from Lazy
+	mapFromFull := make(map[int]int)
+	lastEnd := 0
+	offset := 0
+	bar := len(cs.Constraints) - cs.LazyCons.GetConstraintsAll()
+	ret := make([]R1C, 0)
+
+	lazyR1CIdx := 0
+	for lazyIndex, con := range cs.LazyCons {
+		start := con.GetLoc()
+		end := con.GetLoc() + con.GetConstraintsNum()
+		if start > lastEnd {
+			ret = append(ret, cs.Constraints[lastEnd:start]...)
+		}
+
+		// map [lastend, start)
+		for j := lastEnd; j < start; j++ {
+			mapFromFull[j] = j - offset
+		}
+		lastEnd = end
+		// map [start, end)
+		for j := start; j < end; j++ {
+			mapFromFull[j] = bar + offset + (j - start)
+		}
+
+		// record the index to cons
+		for i := 0; i < con.GetConstraintsNum(); i++ {
+			cs.LazyConsMap[bar+lazyR1CIdx] = LazyIndexedInputs{Index: i, LazyIndex: lazyIndex}
+			lazyR1CIdx++
+		}
+
+		offset += con.GetConstraintsNum()
+	}
+	if lastEnd < len(cs.Constraints) {
+		ret = append(ret, cs.Constraints[lastEnd:]...)
+	}
+	// map [end, endCons)
+	nbCons := len(cs.Constraints)
+	for j := lastEnd; j < nbCons; j++ {
+		/// mapFromFull[j+offset] = j
+		mapFromFull[j] = j - offset
+	}
+	cs.Constraints = ret
+
+	badCnt := 0
+	for i, row := range cs.Levels {
+		for j, val := range row {
+
+			if v, ok := mapFromFull[val]; ok {
+				cs.Levels[i][j] = v
+			} else {
+				badCnt++
+				panic(fmt.Sprintf("bad map loc at %d, %d", i, j))
+			}
+		}
+	}
+
+	return mapFromFull
+}
+
+// IsValid perform post compilation checks on the NbVariables
 //
 // 1. checks that all user inputs are referenced in at least one constraint
 // 2. checks that all hints are constrained

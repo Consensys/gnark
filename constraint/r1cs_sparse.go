@@ -58,6 +58,14 @@ func (cs *SparseR1CSCore) UpdateLevel(cID int, c Iterable) {
 	cs.updateLevel(cID, c)
 }
 
+func (cs *SparseR1CSCore) Lazify() map[int]int {
+	return nil
+}
+
+func (cs *SparseR1CSCore) IsLazified() bool {
+	return false
+}
+
 func (system *SparseR1CSCore) CheckUnconstrainedWires() error {
 	// TODO @gbotrel add unit test for that.
 

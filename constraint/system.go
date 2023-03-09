@@ -26,6 +26,8 @@ type ConstraintSystem interface {
 	// Deprecated: use _, err := Solve(...) instead
 	IsSolved(witness witness.Witness, opts ...solver.Option) error
 
+	IsLazified() bool
+
 	// Solve attempts to solves the constraint system using provided witness.
 	// Returns an error if the witness does not allow all the constraints to be satisfied.
 	// Returns a typed solution (R1CSSolution or SparseR1CSSolution) and nil otherwise.
@@ -71,6 +73,8 @@ type ConstraintSystem interface {
 	// CheckUnconstrainedWires returns and error if the constraint system has wires that are not uniquely constrained.
 	// This is experimental.
 	CheckUnconstrainedWires() error
+
+	Lazify() map[int]int
 }
 
 type Iterable interface {

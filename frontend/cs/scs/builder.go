@@ -267,6 +267,9 @@ func (builder *builder) constantValue(v frontend.Variable) (constraint.Coeff, bo
 	return builder.cs.FromInterface(v), true
 }
 
+func (builder *builder) RecordConstraintsForLazy(key string, finished bool, s ...frontend.Variable) {
+}
+
 // NewHint initializes internal variables whose value will be evaluated using
 // the provided hint function at run time from the inputs. Inputs must be either
 // variables or convertible to *big.Int. The function returns an error if the
