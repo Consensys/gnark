@@ -52,7 +52,6 @@ type builder struct {
 	cs constraint.R1CS
 
 	config frontend.CompileConfig
-
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]expr.LinearExpression
 
@@ -447,4 +446,32 @@ func (builder *builder) compress(le expr.LinearExpression) expr.LinearExpression
 	t := builder.newInternalVariable()
 	builder.cs.AddConstraint(builder.newR1C(le, one, t))
 	return t
+}
+
+func (builder *builder) RecordConstraintsForLazy(key string, finished bool, s *[]frontend.Variable) {
+	log := logger.Logger()
+	if _, exists := constraint.LazyInputsFactoryMap[key]; !exists {
+		// not register, continue
+		return
+	}
+	expressions, _ := builder.toVariables(*s...)
+	// we are not using constant value because this will change repeatable called function generated constraints structure
+	if !finished {
+		for i := range expressions {
+			if _, constant := builder.constantValue(expressions[i]); constant {
+				one := builder.cstOne()
+				t := builder.newInternalVariable()
+				builder.cs.AddConstraint(builder.newR1C(expressions[i], one, t))
+				expressions[i] = t
+				(*s)[i] = expressions[i]
+				log.Warn().Msg("detect constant variables in lazy, will be converted to internal variables")
+			}
+		}
+	}
+
+	constraintExpressions := make([]constraint.LinearExpression, len(expressions))
+	for i := range constraintExpressions {
+		constraintExpressions[i] = builder.getLinearExpression(expressions[i])
+	}
+	builder.cs.AddStaticConstraints(key, builder.cs.GetNbConstraints(), finished, constraintExpressions)
 }

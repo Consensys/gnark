@@ -66,6 +66,8 @@ type ConstraintSystem interface {
 	// CheckUnconstrainedWires returns and error if the constraint system has wires that are not uniquely constrained.
 	// This is experimental.
 	CheckUnconstrainedWires() error
+
+	Lazify() map[int]int
 }
 
 type Iterable interface {

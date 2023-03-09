@@ -302,6 +302,8 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
 	checkError(err)
 
+	ccs.Lazify()
+
 	// must not error with big int test engine
 	err = IsSolved(circuit, validAssignment, curve.ScalarField())
 	checkError(err)
