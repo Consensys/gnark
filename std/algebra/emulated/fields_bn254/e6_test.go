@@ -138,6 +138,39 @@ func TestSquareFp6(t *testing.T) {
 
 }
 
+type e6Div struct {
+	A, B, C E6
+}
+
+func (circuit *e6Div) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt6(ba)
+
+	expected := e.DivUnchecked(api, circuit.A, circuit.B)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestDivFp6(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bn254.E6
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Div(&a, &b)
+
+	witness := e6Div{
+		A: FromE6(&a),
+		B: FromE6(&b),
+		C: FromE6(&c),
+	}
+
+	err := test.IsSolved(&e6Div{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e6MulByNonResidue struct {
 	A E6
 	C E6 `gnark:",public"`
@@ -285,7 +318,7 @@ func (circuit *e6Inverse) Define(api frontend.API) error {
 
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt6(ba)
-	expected := e.Inverse(&circuit.A)
+	expected := e.Inverse(api, &circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil

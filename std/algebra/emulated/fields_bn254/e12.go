@@ -1,6 +1,13 @@
 package fields_bn254
 
-import "github.com/consensys/gnark-crypto/ecc/bn254"
+import (
+	"math/big"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated"
+)
 
 type E12 struct {
 	C0, C1 E6
@@ -36,22 +43,6 @@ func (e Ext12) Conjugate(x *E12) *E12 {
 	z1 := e.Ext6.Neg(&x.C1) // z.C1.Neg(&z.C1)
 	return &E12{            // return z
 		C0: x.C0,
-		C1: *z1,
-	}
-}
-
-func (e Ext12) Inverse(x *E12) *E12 {
-	// var t0, t1, tmp E6
-	t0 := e.Ext6.Square(&x.C0)        // t0.Square(&x.C0)
-	t1 := e.Ext6.Square(&x.C1)        // t1.Square(&x.C1)
-	tmp := e.Ext6.MulByNonResidue(t1) // tmp.MulByNonResidue(&t1)
-	t0 = e.Ext6.Sub(t0, tmp)          // t0.Sub(&t0, &tmp)
-	t1 = e.Ext6.Inverse(t0)           // t1.Inverse(&t0)
-	z0 := e.Ext6.Mul(&x.C0, t1)       // z.C0.Mul(&x.C0, &t1)
-	z1 := e.Ext6.Mul(&x.C1, t1)       // z.C1.Mul(&x.C1, &t1).
-	z1 = e.Ext6.Neg(z1)               //      Neg(&z.C1)
-	return &E12{                      // return z
-		C0: *z0,
 		C1: *z1,
 	}
 }
@@ -234,7 +225,7 @@ func (e Ext12) NCycloSquareCompressed(z *E12, n int) *E12 {
 }
 
 // DecompressKarabina Karabina's cyclotomic square result
-func (e Ext12) DecompressKarabina(x *E12) *E12 {
+func (e Ext12) DecompressKarabina(api frontend.API, x *E12) *E12 {
 
 	one := e.Ext6.Ext2.One()
 
@@ -256,7 +247,7 @@ func (e Ext12) DecompressKarabina(x *E12) *E12 {
 
 	// z4 = g4
 	// TODO: Div instead of Inv+Mul
-	C1B1 := e.Ext6.Ext2.Inverse(t1)
+	C1B1 := e.Ext6.Ext2.Inverse(api, t1)
 	C1B1 = e.Ext6.Ext2.Mul(C1B1, t0)
 
 	// t1 = g2 * g1
@@ -400,4 +391,163 @@ func FromE12(y *bn254.E12) E12 {
 		C1: FromE6(&y.C1),
 	}
 
+}
+
+func init() {
+	solver.RegisterHint(DivE12Hint)
+	solver.RegisterHint(InverseE12Hint)
+}
+
+func InverseE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var a, c bn254.E12
+
+			a.C0.B0.A0.SetBigInt(inputs[0])
+			a.C0.B0.A1.SetBigInt(inputs[1])
+			a.C0.B1.A0.SetBigInt(inputs[2])
+			a.C0.B1.A1.SetBigInt(inputs[3])
+			a.C0.B2.A0.SetBigInt(inputs[4])
+			a.C0.B2.A1.SetBigInt(inputs[5])
+			a.C1.B0.A0.SetBigInt(inputs[6])
+			a.C1.B0.A1.SetBigInt(inputs[7])
+			a.C1.B1.A0.SetBigInt(inputs[8])
+			a.C1.B1.A1.SetBigInt(inputs[9])
+			a.C1.B2.A0.SetBigInt(inputs[10])
+			a.C1.B2.A1.SetBigInt(inputs[11])
+
+			c.Inverse(&a)
+
+			c.C0.B0.A0.BigInt(outputs[0])
+			c.C0.B0.A1.BigInt(outputs[1])
+			c.C0.B1.A0.BigInt(outputs[2])
+			c.C0.B1.A1.BigInt(outputs[3])
+			c.C0.B2.A0.BigInt(outputs[4])
+			c.C0.B2.A1.BigInt(outputs[5])
+			c.C1.B0.A0.BigInt(outputs[6])
+			c.C1.B0.A1.BigInt(outputs[7])
+			c.C1.B1.A0.BigInt(outputs[8])
+			c.C1.B1.A1.BigInt(outputs[9])
+			c.C1.B2.A0.BigInt(outputs[10])
+			c.C1.B2.A1.BigInt(outputs[11])
+
+			return nil
+		})
+}
+
+func DivE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var a, b, c bn254.E12
+
+			a.C0.B0.A0.SetBigInt(inputs[0])
+			a.C0.B0.A1.SetBigInt(inputs[1])
+			a.C0.B1.A0.SetBigInt(inputs[2])
+			a.C0.B1.A1.SetBigInt(inputs[3])
+			a.C0.B2.A0.SetBigInt(inputs[4])
+			a.C0.B2.A1.SetBigInt(inputs[5])
+			a.C1.B0.A0.SetBigInt(inputs[6])
+			a.C1.B0.A1.SetBigInt(inputs[7])
+			a.C1.B1.A0.SetBigInt(inputs[8])
+			a.C1.B1.A1.SetBigInt(inputs[9])
+			a.C1.B2.A0.SetBigInt(inputs[10])
+			a.C1.B2.A1.SetBigInt(inputs[11])
+
+			b.C0.B0.A0.SetBigInt(inputs[12])
+			b.C0.B0.A1.SetBigInt(inputs[13])
+			b.C0.B1.A0.SetBigInt(inputs[14])
+			b.C0.B1.A1.SetBigInt(inputs[15])
+			b.C0.B2.A0.SetBigInt(inputs[16])
+			b.C0.B2.A1.SetBigInt(inputs[17])
+			b.C1.B0.A0.SetBigInt(inputs[18])
+			b.C1.B0.A1.SetBigInt(inputs[19])
+			b.C1.B1.A0.SetBigInt(inputs[20])
+			b.C1.B1.A1.SetBigInt(inputs[21])
+			b.C1.B2.A0.SetBigInt(inputs[22])
+			b.C1.B2.A1.SetBigInt(inputs[23])
+
+			c.Inverse(&b).Mul(&c, &a)
+
+			c.C0.B0.A0.BigInt(outputs[0])
+			c.C0.B0.A1.BigInt(outputs[1])
+			c.C0.B1.A0.BigInt(outputs[2])
+			c.C0.B1.A1.BigInt(outputs[3])
+			c.C0.B2.A0.BigInt(outputs[4])
+			c.C0.B2.A1.BigInt(outputs[5])
+			c.C1.B0.A0.BigInt(outputs[6])
+			c.C1.B0.A1.BigInt(outputs[7])
+			c.C1.B1.A0.BigInt(outputs[8])
+			c.C1.B1.A1.BigInt(outputs[9])
+			c.C1.B2.A0.BigInt(outputs[10])
+			c.C1.B2.A1.BigInt(outputs[11])
+
+			return nil
+		})
+}
+
+func (e Ext12) Inverse(api frontend.API, x *E12) *E12 {
+	field, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	res, err := field.NewHint(InverseE12Hint, 12, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	inv := E12{
+		C0: E6{
+			B0: E2{A0: *res[0], A1: *res[1]},
+			B1: E2{A0: *res[2], A1: *res[3]},
+			B2: E2{A0: *res[4], A1: *res[5]},
+		},
+		C1: E6{
+			B0: E2{A0: *res[6], A1: *res[7]},
+			B1: E2{A0: *res[8], A1: *res[9]},
+			B2: E2{A0: *res[10], A1: *res[11]},
+		},
+	}
+
+	one := e.One()
+
+	// 1 == inv * x
+	_one := *e.Mul(&inv, x)
+	e.AssertIsEqual(one, &_one)
+
+	return &inv
+
+}
+
+// DivUnchecked e2 elmts
+func (e Ext12) DivUnchecked(api frontend.API, x, y E12) *E12 {
+	field, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	res, err := field.NewHint(DivE12Hint, 12, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1, &y.C0.B0.A0, &y.C0.B0.A1, &y.C0.B1.A0, &y.C0.B1.A1, &y.C0.B2.A0, &y.C0.B2.A1, &y.C1.B0.A0, &y.C1.B0.A1, &y.C1.B1.A0, &y.C1.B1.A1, &y.C1.B2.A0, &y.C1.B2.A1)
+
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	div := E12{
+		C0: E6{
+			B0: E2{A0: *res[0], A1: *res[1]},
+			B1: E2{A0: *res[2], A1: *res[3]},
+			B2: E2{A0: *res[4], A1: *res[5]},
+		},
+		C1: E6{
+			B0: E2{A0: *res[6], A1: *res[7]},
+			B1: E2{A0: *res[8], A1: *res[9]},
+			B2: E2{A0: *res[10], A1: *res[11]},
+		},
+	}
+
+	// x == div * y
+	_x := *e.Mul(&div, &y)
+	e.AssertIsEqual(&x, &_x)
+
+	return &div
 }

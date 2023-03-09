@@ -7,7 +7,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 )
 
@@ -68,7 +71,7 @@ func (c *FinalExponentiationCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res := pairing.FinalExponentiation(&c.InGt)
+	res := pairing.FinalExponentiation(api, &c.InGt)
 	pairing.AssertIsEqual(res, &c.Res)
 	return nil
 }
@@ -97,7 +100,7 @@ func (c *PairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.Pair([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
+	res, err := pairing.Pair(api, []*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -117,4 +120,15 @@ func TestPairTestSolve(t *testing.T) {
 	}
 	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+// bench
+var ccsBench constraint.ConstraintSystem
+
+func BenchmarkFinalExp(b *testing.B) {
+	var c FinalExponentiationCircuit
+	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
+	b.Log("groth16", ccsBench.GetNbConstraints())
+	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	b.Log("plonk", ccsBench.GetNbConstraints())
 }

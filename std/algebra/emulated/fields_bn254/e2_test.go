@@ -202,6 +202,39 @@ func TestSquareFp2(t *testing.T) {
 
 }
 
+type e2Div struct {
+	A, B, C E2
+}
+
+func (circuit *e2Div) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt2(ba)
+
+	expected := e.DivUnchecked(api, circuit.A, circuit.B)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestDivFp2(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bn254.E2
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Div(&a, &b)
+
+	witness := e2Div{
+		A: FromE2(&a),
+		B: FromE2(&b),
+		C: FromE2(&c),
+	}
+
+	err := test.IsSolved(&e2Div{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e2MulByElement struct {
 	A E2
 	B baseEl
@@ -405,7 +438,7 @@ func (circuit *e2Inverse) Define(api frontend.API) error {
 
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt2(ba)
-	expected := e.Inverse(&circuit.A)
+	expected := e.Inverse(api, &circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil

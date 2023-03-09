@@ -4,6 +4,8 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -292,21 +294,6 @@ func (e Ext2) MulBybTwistCurveCoeff(x *E2) *E2 {
 	return z                       // return z
 }
 
-func (e Ext2) Inverse(x *E2) *E2 {
-	// var t0, t1 fp.Element
-	t0 := e.fp.MulMod(&x.A0, &x.A0) // t0.Square(&x.A0)
-	t1 := e.fp.MulMod(&x.A1, &x.A1) // t1.Square(&x.A1)
-	t0 = e.fp.Add(t0, t1)           // t0.Add(&t0, &t1)
-	t1 = e.fp.Inverse(t0)           // t1.Inverse(&t0)
-	z0 := e.fp.MulMod(&x.A0, t1)    // z.A0.Mul(&x.A0, &t1)
-	z1 := e.fp.MulMod(&x.A1, t1)    // z.A1.Mul(&x.A1, &t1).
-	z1 = e.fp.Neg(z1)               //   Neg(&z.A1)
-	return &E2{
-		A0: *z0,
-		A1: *z1,
-	}
-}
-
 func (e Ext2) AssertIsEqual(x, y *E2) {
 	e.fp.AssertIsEqual(&x.A0, &y.A0)
 	e.fp.AssertIsEqual(&x.A1, &y.A1)
@@ -318,4 +305,94 @@ func FromE2(y *bn254.E2) E2 {
 		A1: emulated.ValueOf[emulated.BN254Fp](y.A1),
 	}
 
+}
+
+func init() {
+	solver.RegisterHint(DivE2Hint)
+	solver.RegisterHint(InverseE2Hint)
+}
+
+func InverseE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var a, c bn254.E2
+
+			a.A0.SetBigInt(inputs[0])
+			a.A1.SetBigInt(inputs[1])
+
+			c.Inverse(&a)
+
+			c.A0.BigInt(outputs[0])
+			c.A1.BigInt(outputs[1])
+
+			return nil
+		})
+}
+
+func DivE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var a, b, c bn254.E2
+
+			a.A0.SetBigInt(inputs[0])
+			a.A1.SetBigInt(inputs[1])
+			b.A0.SetBigInt(inputs[2])
+			b.A1.SetBigInt(inputs[3])
+
+			c.Inverse(&b).Mul(&c, &a)
+
+			c.A0.BigInt(outputs[0])
+			c.A1.BigInt(outputs[1])
+
+			return nil
+		})
+}
+
+func (e Ext2) Inverse(api frontend.API, x *E2) *E2 {
+	field, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	res, err := field.NewHint(InverseE2Hint, 2, &x.A0, &x.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	inv := E2{
+		A0: *res[0],
+		A1: *res[1],
+	}
+	one := e.One()
+
+	// 1 == inv * x
+	_one := *e.Mul(&inv, x)
+	e.AssertIsEqual(one, &_one)
+
+	return &inv
+
+}
+
+// DivUnchecked e2 elmts
+func (e Ext2) DivUnchecked(api frontend.API, x, y E2) *E2 {
+	field, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	res, err := field.NewHint(DivE2Hint, 2, &x.A0, &x.A1, &y.A0, &y.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	div := E2{
+		A0: *res[0],
+		A1: *res[1],
+	}
+
+	// x == div * y
+	_x := *e.Mul(&div, &y)
+	e.AssertIsEqual(&x, &_x)
+
+	return &div
 }

@@ -1,7 +1,12 @@
 package fields_bn254
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 type E6 struct {
@@ -14,6 +19,28 @@ type Ext6 struct {
 
 func NewExt6(baseField *curveF) *Ext6 {
 	return &Ext6{Ext2: NewExt2(baseField)}
+}
+
+func (e Ext6) One() *E6 {
+	z0 := e.Ext2.One()
+	z1 := e.Ext2.Zero()
+	z2 := e.Ext2.Zero()
+	return &E6{
+		B0: *z0,
+		B1: *z1,
+		B2: *z2,
+	}
+}
+
+func (e Ext6) Zero() *E6 {
+	z0 := e.Ext2.Zero()
+	z1 := e.Ext2.Zero()
+	z2 := e.Ext2.Zero()
+	return &E6{
+		B0: *z0,
+		B1: *z1,
+		B2: *z2,
+	}
 }
 
 func (e Ext6) Add(x, y *E6) *E6 {
@@ -120,36 +147,6 @@ func (e Ext6) Square(x *E6) *E6 {
 	}
 }
 
-func (e Ext6) Inverse(x *E6) *E6 {
-	// var t0, t1, t2, t3, t4, t5, t6, c0, c1, c2, d1, d2 E2
-	t0 := e.Ext2.Square(&x.B0)       // t0.Square(&x.B0)
-	t1 := e.Ext2.Square(&x.B1)       // t1.Square(&x.B1)
-	t2 := e.Ext2.Square(&x.B2)       // t2.Square(&x.B2)
-	t3 := e.Ext2.Mul(&x.B0, &x.B1)   // t3.Mul(&x.B0, &x.B1)
-	t4 := e.Ext2.Mul(&x.B0, &x.B2)   // t4.Mul(&x.B0, &x.B2)
-	t5 := e.Ext2.Mul(&x.B1, &x.B2)   // t5.Mul(&x.B1, &x.B2)
-	c0 := e.Ext2.MulByNonResidue(t5) // c0.MulByNonResidue(&t5).
-	c0 = e.Ext2.Neg(c0)              //    Neg(&c0).
-	c0 = e.Ext2.Add(c0, t0)          //    Add(&c0, &t0)
-	c1 := e.Ext2.MulByNonResidue(t2) // c1.MulByNonResidue(&t2).
-	c1 = e.Ext2.Sub(c1, t3)          //    Sub(&c1, &t3)
-	c2 := e.Ext2.Sub(t1, t4)         // c2.Sub(&t1, &t4)
-	t6 := e.Ext2.Mul(&x.B0, c0)      // t6.Mul(&x.B0, &c0)
-	d1 := e.Ext2.Mul(&x.B2, c1)      // d1.Mul(&x.B2, &c1)
-	d2 := e.Ext2.Mul(&x.B1, c2)      // d2.Mul(&x.B1, &c2)
-	d1 = e.Ext2.Add(d1, d2)          // d1.Add(&d1, &d2).
-	d1 = e.Ext2.MulByNonResidue(d1)  //    MulByNonResidue(&d1)
-	t6 = e.Ext2.Add(t6, d1)          // t6.Add(&t6, &d1)
-	t6 = e.Ext2.Inverse(t6)          // t6.Inverse(&t6)
-	z0 := e.Ext2.Mul(c0, t6)         // z.B0.Mul(&c0, &t6)
-	z1 := e.Ext2.Mul(c1, t6)         // z.B1.Mul(&c1, &t6)
-	z2 := e.Ext2.Mul(c2, t6)         // z.B2.Mul(&c2, &t6)
-	return &E6{                      // return z
-		B0: *z0,
-		B1: *z1,
-		B2: *z2,
-	}
-}
 func (e Ext6) MulByE2(x *E6, y *E2) *E6 {
 	// var yCopy E2
 	// yCopy.Set(y)
@@ -211,4 +208,118 @@ func FromE6(y *bn254.E6) E6 {
 		B2: FromE2(&y.B2),
 	}
 
+}
+
+func init() {
+	solver.RegisterHint(DivE6Hint)
+	solver.RegisterHint(InverseE6Hint)
+}
+
+func InverseE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var a, c bn254.E6
+
+			a.B0.A0.SetBigInt(inputs[0])
+			a.B0.A1.SetBigInt(inputs[1])
+			a.B1.A0.SetBigInt(inputs[2])
+			a.B1.A1.SetBigInt(inputs[3])
+			a.B2.A0.SetBigInt(inputs[4])
+			a.B2.A1.SetBigInt(inputs[5])
+
+			c.Inverse(&a)
+
+			c.B0.A0.BigInt(outputs[0])
+			c.B0.A1.BigInt(outputs[1])
+			c.B1.A0.BigInt(outputs[2])
+			c.B1.A1.BigInt(outputs[3])
+			c.B2.A0.BigInt(outputs[4])
+			c.B2.A1.BigInt(outputs[5])
+
+			return nil
+		})
+}
+
+func DivE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var a, b, c bn254.E6
+
+			a.B0.A0.SetBigInt(inputs[0])
+			a.B0.A1.SetBigInt(inputs[1])
+			a.B1.A0.SetBigInt(inputs[2])
+			a.B1.A1.SetBigInt(inputs[3])
+			a.B2.A0.SetBigInt(inputs[4])
+			a.B2.A1.SetBigInt(inputs[5])
+
+			b.B0.A0.SetBigInt(inputs[6])
+			b.B0.A1.SetBigInt(inputs[7])
+			b.B1.A0.SetBigInt(inputs[8])
+			b.B1.A1.SetBigInt(inputs[9])
+			b.B2.A0.SetBigInt(inputs[10])
+			b.B2.A1.SetBigInt(inputs[11])
+
+			c.Inverse(&b).Mul(&c, &a)
+
+			c.B0.A0.BigInt(outputs[0])
+			c.B0.A1.BigInt(outputs[1])
+			c.B1.A0.BigInt(outputs[2])
+			c.B1.A1.BigInt(outputs[3])
+			c.B2.A0.BigInt(outputs[4])
+			c.B2.A1.BigInt(outputs[5])
+
+			return nil
+		})
+}
+
+func (e Ext6) Inverse(api frontend.API, x *E6) *E6 {
+	field, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	res, err := field.NewHint(InverseE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	inv := E6{
+		B0: E2{A0: *res[0], A1: *res[1]},
+		B1: E2{A0: *res[2], A1: *res[3]},
+		B2: E2{A0: *res[4], A1: *res[5]},
+	}
+
+	one := e.One()
+
+	// 1 == inv * x
+	_one := *e.Mul(&inv, x)
+	e.AssertIsEqual(one, &_one)
+
+	return &inv
+
+}
+
+// DivUnchecked e2 elmts
+func (e Ext6) DivUnchecked(api frontend.API, x, y E6) *E6 {
+	field, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	res, err := field.NewHint(DivE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1, &y.B0.A0, &y.B0.A1, &y.B1.A0, &y.B1.A1, &y.B2.A0, &y.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	div := E6{
+		B0: E2{A0: *res[0], A1: *res[1]},
+		B1: E2{A0: *res[2], A1: *res[3]},
+		B2: E2{A0: *res[4], A1: *res[5]},
+	}
+
+	// x == div * y
+	_x := *e.Mul(&div, &y)
+	e.AssertIsEqual(&x, &_x)
+
+	return &div
 }

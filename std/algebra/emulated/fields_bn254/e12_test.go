@@ -107,6 +107,39 @@ func TestMulFp12(t *testing.T) {
 
 }
 
+type e12Div struct {
+	A, B, C E12
+}
+
+func (circuit *e12Div) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt12(ba)
+
+	expected := e.DivUnchecked(api, circuit.A, circuit.B)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestDivFp12(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bn254.E12
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Div(&a, &b)
+
+	witness := e12Div{
+		A: FromE12(&a),
+		B: FromE12(&b),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&e12Div{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e12MulBy034by034 struct {
 	C0, C3, C4 E2
 	D0, D3, D4 E2
@@ -232,7 +265,7 @@ func (circuit *e12CycloSquareKarabina) Define(api frontend.API) error {
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
 	v := e.CyclotomicSquareCompressed(&circuit.A)
-	v = e.DecompressKarabina(v)
+	v = e.DecompressKarabina(api, v)
 	e.AssertIsEqual(v, &circuit.C)
 	return nil
 }
@@ -302,7 +335,7 @@ func (circuit *e12Inverse) Define(api frontend.API) error {
 
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
-	expected := e.Inverse(&circuit.A)
+	expected := e.Inverse(api, &circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil
@@ -334,7 +367,7 @@ func (circuit *e12Expt) Define(api frontend.API) error {
 
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
-	expected := e.Expt(&circuit.A)
+	expected := e.Expt(api, &circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil

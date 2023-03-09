@@ -1,6 +1,8 @@
 package fields_bn254
 
-func (e Ext12) Expt(x *E12) *E12 {
+import "github.com/consensys/gnark/frontend"
+
+func (e Ext12) Expt(api frontend.API, x *E12) *E12 {
 	t3 := e.CyclotomicSquare(x)
 	t5 := e.CyclotomicSquare(t3)
 	result := e.CyclotomicSquare(t5)
@@ -13,30 +15,30 @@ func (e Ext12) Expt(x *E12) *E12 {
 	t1 = e.Mul(t0, t1)
 	t0 = e.Mul(t3, t1)
 	t6 = e.NCycloSquareCompressed(t6, 6)
-	t6 = e.DecompressKarabina(t6)
+	t6 = e.DecompressKarabina(api, t6)
 	t5 = e.Mul(t5, t6)
 	t5 = e.Mul(t4, t5)
 	t5 = e.NCycloSquareCompressed(t5, 7)
-	t5 = e.DecompressKarabina(t5)
+	t5 = e.DecompressKarabina(api, t5)
 	t4 = e.Mul(t4, t5)
 	t4 = e.NCycloSquareCompressed(t4, 8)
-	t4 = e.DecompressKarabina(t4)
+	t4 = e.DecompressKarabina(api, t4)
 	t4 = e.Mul(t0, t4)
 	t3 = e.Mul(t3, t4)
 	t3 = e.NCycloSquareCompressed(t3, 6)
-	t3 = e.DecompressKarabina(t3)
+	t3 = e.DecompressKarabina(api, t3)
 	t2 = e.Mul(t2, t3)
 	t2 = e.NCycloSquareCompressed(t2, 8)
-	t2 = e.DecompressKarabina(t2)
+	t2 = e.DecompressKarabina(api, t2)
 	t2 = e.Mul(t0, t2)
 	t2 = e.NCycloSquareCompressed(t2, 6)
-	t2 = e.DecompressKarabina(t2)
+	t2 = e.DecompressKarabina(api, t2)
 	t2 = e.Mul(t0, t2)
 	t2 = e.NCycloSquareCompressed(t2, 10)
-	t2 = e.DecompressKarabina(t2)
+	t2 = e.DecompressKarabina(api, t2)
 	t1 = e.Mul(t1, t2)
 	t1 = e.NCycloSquareCompressed(t1, 6)
-	t1 = e.DecompressKarabina(t1)
+	t1 = e.DecompressKarabina(api, t1)
 	t0 = e.Mul(t0, t1)
 	z := e.Mul(result, t0)
 	return z

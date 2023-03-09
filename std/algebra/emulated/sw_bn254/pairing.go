@@ -261,28 +261,27 @@ func (pr Pairing) MillerLoop(p []*G1Affine, q []*G2Affine) (*GTEl, error) {
 	return result, nil
 }
 
-func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
+func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
 	// var result GT
 	// result.Set(z)
 	var t [4]*GTEl // var t [4]GT
 
 	// easy part
 	t[0] = pr.Ext12.Conjugate(e)
-	result := pr.Ext12.Inverse(e)
-	t[0] = pr.Ext12.Mul(t[0], result)
-	result = pr.Ext12.FrobeniusSquare(t[0])
+	t[0] = pr.Ext12.DivUnchecked(api, *t[0], *e)
+	result := pr.Ext12.FrobeniusSquare(t[0])
 	result = pr.Ext12.Mul(result, t[0])
 
 	//hard part
-	t[0] = pr.Ext12.Expt(result)
+	t[0] = pr.Ext12.Expt(api, result)
 	t[0] = pr.Ext12.Conjugate(t[0])
 	t[0] = pr.Ext12.CyclotomicSquare(t[0])
-	t[2] = pr.Ext12.Expt(t[0])
+	t[2] = pr.Ext12.Expt(api, t[0])
 	t[2] = pr.Ext12.Conjugate(t[2])
 	t[1] = pr.Ext12.CyclotomicSquare(t[2])
 	t[2] = pr.Ext12.Mul(t[2], t[1])
 	t[2] = pr.Ext12.Mul(t[2], result)
-	t[1] = pr.Ext12.Expt(t[2])
+	t[1] = pr.Ext12.Expt(api, t[2])
 	t[1] = pr.Ext12.CyclotomicSquare(t[1])
 	t[1] = pr.Ext12.Mul(t[1], t[2])
 	t[1] = pr.Ext12.Conjugate(t[1])
@@ -305,12 +304,12 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 	return t[1]
 }
 
-func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
+func (pr Pairing) Pair(api frontend.API, P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	res = pr.FinalExponentiation(res)
+	res = pr.FinalExponentiation(api, res)
 	return res, nil
 }
 
