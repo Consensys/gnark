@@ -63,15 +63,6 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 		}
 	}
 
-	// if a is a constant, work with the big int value.
-	if c, ok := api.Compiler().ConstantValue(v); ok {
-		bits := make([]frontend.Variable, cfg.NbDigits)
-		for i := 0; i < len(bits); i++ {
-			bits[i] = c.Bit(i)
-		}
-		return bits
-	}
-
 	c := big.NewInt(1)
 
 	bits, err := api.Compiler().NewHint(NBits, cfg.NbDigits, v)
