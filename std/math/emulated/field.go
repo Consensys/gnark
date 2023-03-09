@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/rs/zerolog"
 	"golang.org/x/exp/constraints"
 )
@@ -38,6 +39,7 @@ type Field[T FieldParams] struct {
 	log zerolog.Logger
 
 	constrainedLimbs map[uint64]struct{}
+	checker          frontend.Rangechecker
 }
 
 // NewField returns an object to be used in-circuit to perform emulated
@@ -53,6 +55,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		api:              native,
 		log:              logger.Logger(),
 		constrainedLimbs: make(map[uint64]struct{}),
+		checker:          rangecheck.New(native),
 	}
 
 	// ensure prime is correctly set
