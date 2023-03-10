@@ -61,7 +61,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 func (pr Pairing) DoubleStep(api frontend.API, p *g2Projective) (*g2Projective, *lineEvaluation) {
 	// var t1, A, B, C, D, E, EE, F, G, H, I, J, K fptower.E2
 	A := pr.Ext2.Mul(&p.X, &p.Y)               // A.Mul(&p.x, &p.y)
-	A = pr.Ext2.Halve(A)                       // A.Halve()
+	A = pr.Ext2.Halve(api, A)                  // A.Halve()
 	B := pr.Ext2.Square(&p.Y)                  // B.Square(&p.y)
 	C := pr.Ext2.Square(&p.Z)                  // C.Square(&p.z)
 	D := pr.Ext2.Double(C)                     // D.Double(&C).
@@ -70,7 +70,7 @@ func (pr Pairing) DoubleStep(api frontend.API, p *g2Projective) (*g2Projective, 
 	F := pr.Ext2.Double(E)                     // F.Double(&E).
 	F = pr.Ext2.Add(F, E)                      // 	Add(&F, &E)
 	G := pr.Ext2.Add(B, F)                     // G.Add(&B, &F)
-	G = pr.Ext2.Halve(G)                       // G.Halve()
+	G = pr.Ext2.Halve(api, G)                  // G.Halve()
 	H := pr.Ext2.Add(&p.Y, &p.Z)               // H.Add(&p.y, &p.z).
 	H = pr.Ext2.Square(H)                      // 	Square(&H)
 	t1 := pr.Ext2.Add(B, C)                    // t1.Add(&B, &C)

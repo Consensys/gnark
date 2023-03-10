@@ -280,18 +280,29 @@ func (e Ext2) Double(x *E2) *E2 {
 	}
 }
 
-func (e Ext2) Halve(x *E2) *E2 {
-	// I'm trying to avoid hard-coding modulus here in case want to make generic
-	// for different curves.
-	// TODO: if implemented Half in field emulation, then replace with it.
-	one := e.fp.One()
-	two := e.fp.MulConst(one, big.NewInt(2))
-	z0 := e.fp.Div(&x.A0, two)
-	z1 := e.fp.Div(&x.A1, two)
-	return &E2{
-		A0: *z0,
-		A1: *z1,
+func (e Ext2) Halve(api frontend.API, x *E2) *E2 {
+	field, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		panic(err)
 	}
+	res, err := field.NewHint(HalveE2Hint, 2, &x.A0, &x.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	// half = x/2
+	half := E2{
+		A0: *res[0],
+		A1: *res[1],
+	}
+
+	// x == 2*half
+	_x := *e.Double(&half)
+	e.AssertIsEqual(x, &_x)
+
+	return &half
+
 }
 
 func (e Ext2) MulBybTwistCurveCoeff(api frontend.API, x *E2) *E2 {
