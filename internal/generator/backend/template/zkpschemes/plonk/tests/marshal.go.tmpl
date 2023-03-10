@@ -10,12 +10,13 @@ import (
 	"math/rand"
 	"io"
 	gnarkio "github.com/consensys/gnark/io"
+	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/iop"
 )
 
 
 func TestProofSerialization(t *testing.T) {
 	// create a  proof
-	var proof, reconstructed Proof 
+	var proof, reconstructed Proof
 	proof.randomize()
 
 	roundTripCheck(t, &proof, &reconstructed)
@@ -23,7 +24,7 @@ func TestProofSerialization(t *testing.T) {
 
 func TestProofSerializationRaw(t *testing.T) {
 	// create a  proof
-	var proof, reconstructed Proof 
+	var proof, reconstructed Proof
 	proof.randomize()
 
 	roundTripCheckRaw(t, &proof, &reconstructed)
@@ -44,8 +45,6 @@ func TestVerifyingKeySerialization(t *testing.T) {
 
 	roundTripCheck(t, &vk, &reconstructed)
 }
-
-
 
 func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom) {
 	var buf bytes.Buffer
@@ -89,29 +88,42 @@ func roundTripCheckRaw(t *testing.T, from gnarkio.WriterRawTo, reconstructed io.
 	}
 }
 
-
 func (pk *ProvingKey) randomize() {
+
 	var vk VerifyingKey
 	vk.randomize()
 	pk.Vk = &vk
 	pk.Domain[0] = *fft.NewDomain(42)
 	pk.Domain[1] = *fft.NewDomain(4 * 42)
-	
+
 	n := int(pk.Domain[0].Cardinality)
-	pk.Ql = randomScalars(n)
-	pk.Qr = randomScalars(n)
-	pk.Qm = randomScalars(n)
-	pk.Qo = randomScalars(n)
-	pk.CQk = randomScalars(n)
-	pk.LQk = randomScalars(n)
-	pk.S1Canonical = randomScalars(n)
-	pk.S2Canonical = randomScalars(n)
-	pk.S3Canonical = randomScalars(n)
+	ql := randomScalars(n)
+	qr := randomScalars(n)
+	qm := randomScalars(n)
+	qo := randomScalars(n)
+	qk := randomScalars(n)
+	lqk := randomScalars(n)
+	s1 := randomScalars(n)
+	s2 := randomScalars(n)
+	s3 := randomScalars(n)
 
+	var trace PlonkTrace
+	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
+	trace.Ql = iop.NewPolynomial(&ql, canReg)
+	trace.Qr = iop.NewPolynomial(&qr, canReg)
+	trace.Qm = iop.NewPolynomial(&qm, canReg)
+	trace.Qo = iop.NewPolynomial(&qo, canReg)
+	trace.Qk = iop.NewPolynomial(&qk, canReg)
+	trace.S1 = iop.NewPolynomial(&s1, canReg)
+	trace.S2 = iop.NewPolynomial(&s2, canReg)
+	trace.S3 = iop.NewPolynomial(&s3, canReg)
 
-	pk.Permutation = make([]int64, 3*pk.Domain[0].Cardinality)
-	pk.Permutation[0] = -12
-	pk.Permutation[len(pk.Permutation)-1] = 8888
+	trace.S = make([]int64, 3*pk.Domain[0].Cardinality)
+	trace.S[0] = -12
+	trace.S[len(trace.S)-1] = 8888
+
+	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
+	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
 
 	pk.computeLagrangeCosetPolys()
 }
@@ -153,7 +165,7 @@ func randomPoint() curve.G1Affine {
 	return r
 }
 
-func randomScalars( n int) []fr.Element {
+func randomScalars(n int) []fr.Element {
 	v := make([]fr.Element, n)
 	one := fr.One()
 	for i := 0; i < len(v); i++ {
@@ -163,5 +175,5 @@ func randomScalars( n int) []fr.Element {
 			v[i].Add(&v[i-1], &one)
 		}
 	}
-	return v 
+	return v
 }

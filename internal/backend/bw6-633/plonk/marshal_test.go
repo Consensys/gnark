@@ -23,6 +23,7 @@ import (
 
 	"bytes"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/iop"
 	gnarkio "github.com/consensys/gnark/io"
 	"io"
 	"math/big"
@@ -106,6 +107,7 @@ func roundTripCheckRaw(t *testing.T, from gnarkio.WriterRawTo, reconstructed io.
 }
 
 func (pk *ProvingKey) randomize() {
+
 	var vk VerifyingKey
 	vk.randomize()
 	pk.Vk = &vk
@@ -113,19 +115,33 @@ func (pk *ProvingKey) randomize() {
 	pk.Domain[1] = *fft.NewDomain(4 * 42)
 
 	n := int(pk.Domain[0].Cardinality)
-	pk.Ql = randomScalars(n)
-	pk.Qr = randomScalars(n)
-	pk.Qm = randomScalars(n)
-	pk.Qo = randomScalars(n)
-	pk.CQk = randomScalars(n)
-	pk.LQk = randomScalars(n)
-	pk.S1Canonical = randomScalars(n)
-	pk.S2Canonical = randomScalars(n)
-	pk.S3Canonical = randomScalars(n)
+	ql := randomScalars(n)
+	qr := randomScalars(n)
+	qm := randomScalars(n)
+	qo := randomScalars(n)
+	qk := randomScalars(n)
+	lqk := randomScalars(n)
+	s1 := randomScalars(n)
+	s2 := randomScalars(n)
+	s3 := randomScalars(n)
 
-	pk.Permutation = make([]int64, 3*pk.Domain[0].Cardinality)
-	pk.Permutation[0] = -12
-	pk.Permutation[len(pk.Permutation)-1] = 8888
+	var trace PlonkTrace
+	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
+	trace.Ql = iop.NewPolynomial(&ql, canReg)
+	trace.Qr = iop.NewPolynomial(&qr, canReg)
+	trace.Qm = iop.NewPolynomial(&qm, canReg)
+	trace.Qo = iop.NewPolynomial(&qo, canReg)
+	trace.Qk = iop.NewPolynomial(&qk, canReg)
+	trace.S1 = iop.NewPolynomial(&s1, canReg)
+	trace.S2 = iop.NewPolynomial(&s2, canReg)
+	trace.S3 = iop.NewPolynomial(&s3, canReg)
+
+	trace.S = make([]int64, 3*pk.Domain[0].Cardinality)
+	trace.S[0] = -12
+	trace.S[len(trace.S)-1] = 8888
+
+	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
+	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
 
 	pk.computeLagrangeCosetPolys()
 }
