@@ -1,12 +1,16 @@
 package fields_bn254
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
@@ -279,7 +283,7 @@ type e2MulBybTwistCurveCoeff struct {
 func (circuit *e2MulBybTwistCurveCoeff) Define(api frontend.API) error {
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt2(ba)
-	expected := e.MulBybTwistCurveCoeff(&circuit.A)
+	expected := e.MulBybTwistCurveCoeff(api, &circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil
@@ -343,7 +347,7 @@ type e2MulByNonResidueInv struct {
 func (circuit *e2MulByNonResidueInv) Define(api frontend.API) error {
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt2(ba)
-	expected := e.MulByNonResidueInv(&circuit.A)
+	expected := e.MulByNonResidueInv(api, &circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil
@@ -459,4 +463,15 @@ func TestInverseFp2(t *testing.T) {
 
 	err := test.IsSolved(&e2Inverse{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+// bench
+var ccsBench constraint.ConstraintSystem
+
+func BenchmarkPairing(b *testing.B) {
+	var c e2MulByNonResidueInv
+	p := profile.Start()
+	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println(p.NbConstraints())
 }

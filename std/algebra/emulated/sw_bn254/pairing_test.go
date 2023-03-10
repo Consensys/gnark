@@ -10,7 +10,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 )
 
@@ -39,7 +39,7 @@ func (c *MillerLoopCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.MillerLoop([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
+	res, err := pairing.MillerLoop(api, []*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -125,10 +125,10 @@ func TestPairTestSolve(t *testing.T) {
 // bench
 var ccsBench constraint.ConstraintSystem
 
-func BenchmarkFinalExp(b *testing.B) {
-	var c FinalExponentiationCircuit
+func BenchmarkPairing(b *testing.B) {
+	var c PairCircuit
+	p := profile.Start()
 	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
-	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	b.Log("plonk", ccsBench.GetNbConstraints())
+	p.Stop()
+	fmt.Println(p.NbConstraints())
 }

@@ -105,10 +105,6 @@ func (e Ext2) MulByNonResidue(x *E2) *E2 {
 	}
 }
 
-func (e Ext2) MulByNonResidueInv(x *E2) *E2 {
-	return e.MulByNonResidueGeneric(x, 0, -1)
-}
-
 func (e Ext2) MulByNonResidue1Power1(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 1)
 }
@@ -269,8 +265,8 @@ func (e Ext2) Halve(x *E2) *E2 {
 	}
 }
 
-func (e Ext2) MulBybTwistCurveCoeff(x *E2) *E2 {
-	res := e.MulByNonResidueInv(x)
+func (e Ext2) MulBybTwistCurveCoeff(api frontend.API, x *E2) *E2 {
+	res := e.MulByNonResidueInv(api, x)
 	z := e.Double(res)
 	z = e.Add(z, res)
 	return z
@@ -292,6 +288,50 @@ func FromE2(y *bn254.E2) E2 {
 func init() {
 	solver.RegisterHint(DivE2Hint)
 	solver.RegisterHint(InverseE2Hint)
+	solver.RegisterHint(MulByNonResidueInvHint)
+}
+
+func MulByNonResidueInvHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var a, c bn254.E2
+
+			a.A0.SetBigInt(inputs[0])
+			a.A1.SetBigInt(inputs[1])
+
+			c.MulByNonResidueInv(&a)
+
+			c.A0.BigInt(outputs[0])
+			c.A1.BigInt(outputs[1])
+
+			return nil
+
+		})
+}
+
+func (e Ext2) MulByNonResidueInv(api frontend.API, x *E2) *E2 {
+	field, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	res, err := field.NewHint(MulByNonResidueInvHint, 2, &x.A0, &x.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	// r <-- x * (1/(9+u))
+	r := E2{
+		A0: *res[0],
+		A1: *res[1],
+	}
+
+	// x == r * (9+u)
+	_x := e.MulByNonResidue(&r)
+	e.AssertIsEqual(x, _x)
+
+	return &r
+
 }
 
 func InverseE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {

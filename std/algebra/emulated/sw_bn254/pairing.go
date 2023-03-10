@@ -58,37 +58,37 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	}, nil
 }
 
-func (pr Pairing) DoubleStep(p *g2Projective) (*g2Projective, *lineEvaluation) {
+func (pr Pairing) DoubleStep(api frontend.API, p *g2Projective) (*g2Projective, *lineEvaluation) {
 	// var t1, A, B, C, D, E, EE, F, G, H, I, J, K fptower.E2
-	A := pr.Ext2.Mul(&p.X, &p.Y)          // A.Mul(&p.x, &p.y)
-	A = pr.Ext2.Halve(A)                  // A.Halve()
-	B := pr.Ext2.Square(&p.Y)             // B.Square(&p.y)
-	C := pr.Ext2.Square(&p.Z)             // C.Square(&p.z)
-	D := pr.Ext2.Double(C)                // D.Double(&C).
-	D = pr.Ext2.Add(D, C)                 // 	Add(&D, &C)
-	E := pr.Ext2.MulBybTwistCurveCoeff(D) // E.MulBybTwistCurveCoeff(&D)
-	F := pr.Ext2.Double(E)                // F.Double(&E).
-	F = pr.Ext2.Add(F, E)                 // 	Add(&F, &E)
-	G := pr.Ext2.Add(B, F)                // G.Add(&B, &F)
-	G = pr.Ext2.Halve(G)                  // G.Halve()
-	H := pr.Ext2.Add(&p.Y, &p.Z)          // H.Add(&p.y, &p.z).
-	H = pr.Ext2.Square(H)                 // 	Square(&H)
-	t1 := pr.Ext2.Add(B, C)               // t1.Add(&B, &C)
-	H = pr.Ext2.Sub(H, t1)                // H.Sub(&H, &t1)
-	I := pr.Ext2.Sub(E, B)                // I.Sub(&E, &B)
-	J := pr.Ext2.Square(&p.X)             // J.Square(&p.x)
-	EE := pr.Ext2.Square(E)               // EE.Square(&E)
-	K := pr.Ext2.Double(EE)               // K.Double(&EE).
-	K = pr.Ext2.Add(K, EE)                // 	Add(&K, &EE)
-	px := pr.Ext2.Sub(B, F)               // p.x.Sub(&B, &F).
-	px = pr.Ext2.Mul(px, A)               // 	Mul(&p.x, &A)
-	py := pr.Ext2.Square(G)               // p.y.Square(&G).
-	py = pr.Ext2.Sub(py, K)               // 	Sub(&p.y, &K)
-	pz := pr.Ext2.Mul(B, H)               // p.z.Mul(&B, &H)
-	ev0 := pr.Ext2.Neg(H)                 // evaluations.r0.Neg(&H)
-	ev1 := pr.Ext2.Double(J)              // evaluations.r1.Double(&J).
-	ev1 = pr.Ext2.Add(ev1, J)             // 	Add(&evaluations.r1, &J)
-	ev2 := I                              // evaluations.r2.Set(&I)
+	A := pr.Ext2.Mul(&p.X, &p.Y)               // A.Mul(&p.x, &p.y)
+	A = pr.Ext2.Halve(A)                       // A.Halve()
+	B := pr.Ext2.Square(&p.Y)                  // B.Square(&p.y)
+	C := pr.Ext2.Square(&p.Z)                  // C.Square(&p.z)
+	D := pr.Ext2.Double(C)                     // D.Double(&C).
+	D = pr.Ext2.Add(D, C)                      // 	Add(&D, &C)
+	E := pr.Ext2.MulBybTwistCurveCoeff(api, D) // E.MulBybTwistCurveCoeff(&D)
+	F := pr.Ext2.Double(E)                     // F.Double(&E).
+	F = pr.Ext2.Add(F, E)                      // 	Add(&F, &E)
+	G := pr.Ext2.Add(B, F)                     // G.Add(&B, &F)
+	G = pr.Ext2.Halve(G)                       // G.Halve()
+	H := pr.Ext2.Add(&p.Y, &p.Z)               // H.Add(&p.y, &p.z).
+	H = pr.Ext2.Square(H)                      // 	Square(&H)
+	t1 := pr.Ext2.Add(B, C)                    // t1.Add(&B, &C)
+	H = pr.Ext2.Sub(H, t1)                     // H.Sub(&H, &t1)
+	I := pr.Ext2.Sub(E, B)                     // I.Sub(&E, &B)
+	J := pr.Ext2.Square(&p.X)                  // J.Square(&p.x)
+	EE := pr.Ext2.Square(E)                    // EE.Square(&E)
+	K := pr.Ext2.Double(EE)                    // K.Double(&EE).
+	K = pr.Ext2.Add(K, EE)                     // 	Add(&K, &EE)
+	px := pr.Ext2.Sub(B, F)                    // p.x.Sub(&B, &F).
+	px = pr.Ext2.Mul(px, A)                    // 	Mul(&p.x, &A)
+	py := pr.Ext2.Square(G)                    // p.y.Square(&G).
+	py = pr.Ext2.Sub(py, K)                    // 	Sub(&p.y, &K)
+	pz := pr.Ext2.Mul(B, H)                    // p.z.Mul(&B, &H)
+	ev0 := pr.Ext2.Neg(H)                      // evaluations.r0.Neg(&H)
+	ev1 := pr.Ext2.Double(J)                   // evaluations.r1.Double(&J).
+	ev1 = pr.Ext2.Add(ev1, J)                  // 	Add(&evaluations.r1, &J)
+	ev2 := I                                   // evaluations.r2.Set(&I)
 	return &g2Projective{
 			X: *px,
 			Y: *py,
@@ -180,7 +180,7 @@ var loopCounter = [66]int8{
 	-1, 0, -1, 0, 0, 0, 1, 0, -1, 0, 1,
 }
 
-func (pr Pairing) MillerLoop(p []*G1Affine, q []*G2Affine) (*GTEl, error) {
+func (pr Pairing) MillerLoop(api frontend.API, p []*G1Affine, q []*G2Affine) (*GTEl, error) {
 	n := len(p)
 	if n == 0 || n != len(q) {
 		return nil, fmt.Errorf("invalid inputs sizes")
@@ -201,7 +201,7 @@ func (pr Pairing) MillerLoop(p []*G1Affine, q []*G2Affine) (*GTEl, error) {
 
 	// i == len(loopCounter) - 2
 	for k := 0; k < n; k++ {
-		qProj[k], l = pr.DoubleStep(qProj[k])                   // qProj[k].DoubleStep(&l)
+		qProj[k], l = pr.DoubleStep(api, qProj[k])              // qProj[k].DoubleStep(&l)
 		l.r0 = *pr.Ext12.Ext2.MulByElement(&l.r0, &p[k].Y)      // l.r0.MulByElement(&l.r0, &p[k].Y)
 		l.r1 = *pr.Ext12.Ext2.MulByElement(&l.r1, &p[k].X)      // l.r1.MulByElement(&l.r1, &p[k].X)
 		result = pr.Ext12.MulBy034(result, &l.r0, &l.r1, &l.r2) // result.MulBy034(&l.r0, &l.r1, &l.r2)
@@ -211,7 +211,7 @@ func (pr Pairing) MillerLoop(p []*G1Affine, q []*G2Affine) (*GTEl, error) {
 		result = pr.Ext12.Square(result) // result.Square(&result)
 
 		for k := 0; k < n; k++ {
-			qProj[k], l = pr.DoubleStep(qProj[k])              // qProj[k].DoubleStep(&l)
+			qProj[k], l = pr.DoubleStep(api, qProj[k])         // qProj[k].DoubleStep(&l)
 			l.r0 = *pr.Ext12.Ext2.MulByElement(&l.r0, &p[k].Y) // l.r0.MulByElement(&l.r0, &p[k].Y)
 			l.r1 = *pr.Ext12.Ext2.MulByElement(&l.r1, &p[k].X) // l.r1.MulByElement(&l.r1, &p[k].X)
 
@@ -305,7 +305,7 @@ func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
 }
 
 func (pr Pairing) Pair(api frontend.API, P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
-	res, err := pr.MillerLoop(P, Q)
+	res, err := pr.MillerLoop(api, P, Q)
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
