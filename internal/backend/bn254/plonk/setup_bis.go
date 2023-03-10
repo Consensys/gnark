@@ -97,7 +97,7 @@ type ProvingKeyBis struct {
 	lcQl, lcQr, lcQm, lcQo *iop.Polynomial
 
 	// LQk qk in Lagrange form -> to be completed by the prover. After being completed,
-	LQk *iop.Polynomial
+	lQk *iop.Polynomial
 
 	// Domains used for the FFTs.
 	// Domain[0] = small Domain
@@ -124,7 +124,7 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(len(spr.Public))
-	if err := pk.InitKZGBis(srs); err != nil {
+	if err := pk.InitKZG(srs); err != nil {
 		return nil, nil, err
 	}
 
@@ -142,7 +142,7 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 
 	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
 	// Also the canonical form of the polynomials will be used to compute the openings.
-	pk.LQk = pk.trace.Qk.Clone() // it will be completed by the prover, and the evaluated on the coset
+	pk.lQk = pk.trace.Qk.Clone() // it will be completed by the prover, and the evaluated on the coset
 	err := commitTrace(&pk.trace, &pk)
 	if err != nil {
 		return nil, nil, err
@@ -151,6 +151,14 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 	// step 5: evaluate ql, qr, qm, qo, s1, s2, s3 on LagrangeCoset (NOT qk)
 	// we clone them, because the canonical versions are going to be used in
 	// the opening proof
+	pk.computeLagrangeCosetPolys()
+
+	return &pk, &vk, nil
+}
+
+// computeLagrangeCosetPolys computes each polynomial except qk in Lagrange coset
+// basis. Qk will be evaluated in Lagrange coset basis once it is completed by the prover.
+func (pk *ProvingKeyBis) computeLagrangeCosetPolys() {
 	pk.lcQl = pk.trace.Ql.Clone().ToLagrangeCoset(&pk.Domain[1])
 	pk.lcQr = pk.trace.Qr.Clone().ToLagrangeCoset(&pk.Domain[1])
 	pk.lcQm = pk.trace.Qm.Clone().ToLagrangeCoset(&pk.Domain[1])
@@ -158,16 +166,14 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 	pk.lcS1 = pk.trace.S1.Clone().ToLagrangeCoset(&pk.Domain[1])
 	pk.lcS2 = pk.trace.S2.Clone().ToLagrangeCoset(&pk.Domain[1])
 	pk.lcS3 = pk.trace.S3.Clone().ToLagrangeCoset(&pk.Domain[1])
-
-	return &pk, &vk, nil
 }
 
 // InitKZG inits pk.Vk.KZG using pk.Domain[0] cardinality and provided SRS
 //
 // This should be used after deserializing a ProvingKey
 // as pk.Vk.KZG is NOT serialized
-func (pk *ProvingKeyBis) InitKZGBis(srs kzgg.SRS) error {
-	return pk.Vk.InitKZGBis(srs)
+func (pk *ProvingKeyBis) InitKZG(srs kzgg.SRS) error {
+	return pk.Vk.InitKZG(srs)
 }
 
 // InitKZG inits vk.KZG using provided SRS
@@ -176,7 +182,7 @@ func (pk *ProvingKeyBis) InitKZGBis(srs kzgg.SRS) error {
 // as vk.KZG is NOT serialized
 //
 // Note that this instantiate a new FFT domain using vk.Size
-func (vk *VerifyingKeyBis) InitKZGBis(srs kzgg.SRS) error {
+func (vk *VerifyingKeyBis) InitKZG(srs kzgg.SRS) error {
 	_srs := srs.(*kzg.SRS)
 
 	if len(_srs.G1) < int(vk.Size) {
