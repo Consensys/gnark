@@ -261,18 +261,25 @@ func (pr Pairing) MillerLoop(api frontend.API, p []*G1Affine, q []*G2Affine) (*G
 	return result, nil
 }
 
+// FinalExponentiation computes the exponentiation eᵈ
+// where d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+// we use instead d'= s ⋅ d, where s is the cofactor 2x₀(6x₀²+3x₀+1)
+// and r does NOT divide d'
 func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
-	// var result GT
-	// result.Set(z)
-	var t [4]*GTEl // var t [4]GT
+	var t [4]*GTEl
 
-	// easy part
+	// Easy part
+	// (p⁶-1)(p²+1)
 	t[0] = pr.Ext12.Conjugate(e)
 	t[0] = pr.Ext12.DivUnchecked(api, *t[0], *e)
 	result := pr.Ext12.FrobeniusSquare(t[0])
 	result = pr.Ext12.Mul(result, t[0])
 
-	//hard part
+	// Hard part (up to permutation)
+	// 2x₀(6x₀²+3x₀+1)(p⁴-p²+1)/r
+	// Duquesne and Ghammam
+	// https://eprint.iacr.org/2015/192.pdf
+	// Fuentes et al. variant (alg. 10)
 	t[0] = pr.Ext12.Expt(api, result)
 	t[0] = pr.Ext12.Conjugate(t[0])
 	t[0] = pr.Ext12.CyclotomicSquare(t[0])

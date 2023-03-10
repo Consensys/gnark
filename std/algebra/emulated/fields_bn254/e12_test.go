@@ -224,10 +224,8 @@ func (circuit *e12CycloSquare) Define(api frontend.API) error {
 
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
-	u := e.Square(&circuit.A)
-	v := e.CyclotomicSquare(&circuit.A)
-	e.AssertIsEqual(u, v)
-	e.AssertIsEqual(u, &circuit.C)
+	expected := e.CyclotomicSquare(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
 	return nil
 }
 
@@ -264,13 +262,51 @@ func (circuit *e12CycloSquareKarabina) Define(api frontend.API) error {
 
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
-	v := e.CyclotomicSquareCompressed(&circuit.A)
-	v = e.DecompressKarabina(api, v)
-	e.AssertIsEqual(v, &circuit.C)
+	expected := e.CyclotomicSquareCompressed(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
 	return nil
 }
 
 func TestFp12CyclotomicSquareKarabina(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+
+	// put a in the cyclotomic subgroup
+	var tmp bn254.E12
+	tmp.Conjugate(&a)
+	a.Inverse(&a)
+	tmp.Mul(&tmp, &a)
+	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
+	c.CyclotomicSquareCompressed(&a)
+
+	witness := e12CycloSquareKarabina{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&e12CycloSquareKarabina{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type e12CycloSquareKarabinaAndDecompress struct {
+	A E12
+	C E12 `gnark:",public"`
+}
+
+func (circuit *e12CycloSquareKarabinaAndDecompress) Define(api frontend.API) error {
+
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt12(ba)
+	expected := e.CyclotomicSquareCompressed(&circuit.A)
+	expected = e.DecompressKarabina(api, expected)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestFp12CyclotomicSquareKarabinaAndDecompress(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
@@ -291,7 +327,7 @@ func TestFp12CyclotomicSquareKarabina(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12CycloSquareKarabina{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&e12CycloSquareKarabinaAndDecompress{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 

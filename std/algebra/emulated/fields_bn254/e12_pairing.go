@@ -45,52 +45,49 @@ func (e Ext12) Expt(api frontend.API, x *E12) *E12 {
 }
 
 func (e Ext12) MulBy034(z *E12, c0, c3, c4 *E2) *E12 {
-	// var a, b, d E6
-	a := e.Ext6.MulByE2(&z.C0, c0) // a.MulByE2(&z.C0, c0)
-	// b.Set(&z.C1)
-	b := e.Ext6.MulBy01(&z.C1, c3, c4) // b.MulBy01(c3, c4)
-	c0 = e.Ext2.Add(c0, c3)            // c0.Add(c0, c3)
-	d := e.Ext6.Add(&z.C0, &z.C1)      // d.Add(&z.C0, &z.C1)
-	d = e.Ext6.MulBy01(d, c0, c4)      // d.MulBy01(c0, c4)
-	z1 := e.Ext6.Add(a, b)             // z.C1.Add(&a, &b).
-	z1 = e.Neg(z1)                     //      Neg(&z.C1).
-	z1 = e.Ext6.Add(z1, d)             //      Add(&z.C1, &d)
-	z0 := e.MulByNonResidue(b)         // z.C0.MulByNonResidue(&b).
-	z0 = e.Ext6.Add(z0, a)             //      Add(&z.C0, &a)
-	return &E12{                       // return z
+	a := e.Ext6.MulByE2(&z.C0, c0)
+	b := e.Ext6.MulBy01(&z.C1, c3, c4)
+	c0 = e.Ext2.Add(c0, c3)
+	d := e.Ext6.Add(&z.C0, &z.C1)
+	d = e.Ext6.MulBy01(d, c0, c4)
+	z1 := e.Ext6.Add(a, b)
+	z1 = e.Neg(z1)
+	z1 = e.Ext6.Add(z1, d)
+	z0 := e.MulByNonResidue(b)
+	z0 = e.Ext6.Add(z0, a)
+	return &E12{
 		C0: *z0,
 		C1: *z1,
 	}
 }
 
 func (e Ext12) MulBy034by034(d0, d3, d4, c0, c3, c4 *E2) *E12 {
-	// var tmp, x0, x3, x4, x04, x03, x34 E2
-	x0 := e.Ext2.Mul(c0, d0)          // x0.Mul(c0, d0)
-	x3 := e.Ext2.Mul(c3, d3)          // x3.Mul(c3, d3)
-	x4 := e.Ext2.Mul(c4, d4)          // x4.Mul(c4, d4)
-	tmp := e.Ext2.Add(c0, c4)         // tmp.Add(c0, c4)
-	x04 := e.Ext2.Add(d0, d4)         // x04.Add(d0, d4).
-	x04 = e.Ext2.Mul(x04, tmp)        // 	Mul(&x04, &tmp).
-	x04 = e.Ext2.Sub(x04, x0)         // 	Sub(&x04, &x0).
-	x04 = e.Ext2.Sub(x04, x4)         // 	Sub(&x04, &x4)
-	tmp = e.Ext2.Add(c0, c3)          // tmp.Add(c0, c3)
-	x03 := e.Ext2.Add(d0, d3)         // x03.Add(d0, d3).
-	x03 = e.Ext2.Mul(x03, tmp)        // 	Mul(&x03, &tmp).
-	x03 = e.Ext2.Sub(x03, x0)         // 	Sub(&x03, &x0).
-	x03 = e.Ext2.Sub(x03, x3)         // 	Sub(&x03, &x3)
-	tmp = e.Ext2.Add(c3, c4)          // tmp.Add(c3, c4)
-	x34 := e.Ext2.Add(d3, d4)         // x34.Add(d3, d4).
-	x34 = e.Ext2.Mul(x34, tmp)        // 	Mul(&x34, &tmp).
-	x34 = e.Ext2.Sub(x34, x3)         // 	Sub(&x34, &x3).
-	x34 = e.Ext2.Sub(x34, x4)         // 	Sub(&x34, &x4)
-	z00 := e.Ext2.MulByNonResidue(x4) // z.C0.B0.MulByNonResidue(&x4).
-	z00 = e.Ext2.Add(z00, x0)         // 	Add(&z.C0.B0, &x0)
-	z01 := x3                         // z.C0.B1.Set(&x3)
-	z02 := x34                        // z.C0.B2.Set(&x34)
-	z10 := x03                        // z.C1.B0.Set(&x03)
-	z11 := x04                        // z.C1.B1.Set(&x04)
-	z12 := e.Ext2.Zero()              // z.C1.B2.SetZero()
-	return &E12{                      // return z
+	x0 := e.Ext2.Mul(c0, d0)
+	x3 := e.Ext2.Mul(c3, d3)
+	x4 := e.Ext2.Mul(c4, d4)
+	tmp := e.Ext2.Add(c0, c4)
+	x04 := e.Ext2.Add(d0, d4)
+	x04 = e.Ext2.Mul(x04, tmp)
+	x04 = e.Ext2.Sub(x04, x0)
+	x04 = e.Ext2.Sub(x04, x4)
+	tmp = e.Ext2.Add(c0, c3)
+	x03 := e.Ext2.Add(d0, d3)
+	x03 = e.Ext2.Mul(x03, tmp)
+	x03 = e.Ext2.Sub(x03, x0)
+	x03 = e.Ext2.Sub(x03, x3)
+	tmp = e.Ext2.Add(c3, c4)
+	x34 := e.Ext2.Add(d3, d4)
+	x34 = e.Ext2.Mul(x34, tmp)
+	x34 = e.Ext2.Sub(x34, x3)
+	x34 = e.Ext2.Sub(x34, x4)
+	z00 := e.Ext2.MulByNonResidue(x4)
+	z00 = e.Ext2.Add(z00, x0)
+	z01 := x3
+	z02 := x34
+	z10 := x03
+	z11 := x04
+	z12 := e.Ext2.Zero()
+	return &E12{
 		C0: E6{
 			B0: *z00,
 			B1: *z01,
