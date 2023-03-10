@@ -168,6 +168,16 @@ func (pk *ProvingKeyBis) computeLagrangeCosetPolys() {
 	pk.lcS3 = pk.trace.S3.Clone().ToLagrangeCoset(&pk.Domain[1])
 }
 
+// NbPublicWitness returns the expected public witness size (number of field elements)
+func (vk *VerifyingKeyBis) NbPublicWitness() int {
+	return int(vk.NbPublicVariables)
+}
+
+// VerifyingKey returns pk.Vk
+func (pk *ProvingKeyBis) VerifyingKey() interface{} {
+	return pk.Vk
+}
+
 // InitKZG inits pk.Vk.KZG using pk.Domain[0] cardinality and provided SRS
 //
 // This should be used after deserializing a ProvingKey
