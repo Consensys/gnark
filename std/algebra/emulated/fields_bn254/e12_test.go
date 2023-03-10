@@ -397,3 +397,96 @@ func TestFp12Expt(t *testing.T) {
 	err := test.IsSolved(&e12Expt{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+type e12Frobenius struct {
+	A, C E12
+}
+
+func (circuit *e12Frobenius) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt12(ba)
+
+	expected := e.Frobenius(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestFrobeniusFp12(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+	c.Frobenius(&a)
+
+	witness := e12Frobenius{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&e12Frobenius{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
+type e12FrobeniusSquare struct {
+	A, C E12
+}
+
+func (circuit *e12FrobeniusSquare) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt12(ba)
+
+	expected := e.FrobeniusSquare(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestFrobeniusSquareFp12(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+	c.FrobeniusSquare(&a)
+
+	witness := e12FrobeniusSquare{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&e12FrobeniusSquare{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
+type e12FrobeniusCube struct {
+	A, C E12
+}
+
+func (circuit *e12FrobeniusCube) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt12(ba)
+
+	expected := e.FrobeniusCube(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestFrobeniusCubeFp12(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E12
+	_, _ = a.SetRandom()
+	c.FrobeniusCube(&a)
+
+	witness := e12FrobeniusCube{
+		A: FromE12(&a),
+		C: FromE12(&c),
+	}
+
+	err := test.IsSolved(&e12FrobeniusCube{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}

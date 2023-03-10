@@ -90,6 +90,7 @@ func (e Ext2) MulByNonResidueGeneric(x *E2, power, coef int) *E2 {
 	return z
 }
 
+// MulByNonResidue1Power1 return x*(9+u)
 func (e Ext2) MulByNonResidue(x *E2) *E2 {
 	nine := big.NewInt(9)
 	a := e.fp.MulConst(&x.A0, nine)
@@ -102,66 +103,97 @@ func (e Ext2) MulByNonResidue(x *E2) *E2 {
 	}
 }
 
+// MulByNonResidue1Power1 returns x*(9+u)^(1*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power1(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 1)
 }
 
+// MulByNonResidue1Power2 returns x*(9+u)^(2*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power2(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 2)
 }
 
+// MulByNonResidue1Power3 returns x*(9+u)^(3*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power3(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 3)
 }
 
+// MulByNonResidue1Power4 returns x*(9+u)^(4*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power4(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 4)
 }
 
+// MulByNonResidue1Power5 returns x*(9+u)^(5*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power5(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 5)
 }
 
+// MulByNonResidue2Power1 returns x*(9+u)^(1*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power1(x *E2) *E2 {
-	// TODO: A1 is 0, we can optimize for it
-	return e.MulByNonResidueGeneric(x, 2, 1)
+	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556617")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
+
+// MulByNonResidue2Power2 returns x*(9+u)^(2*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power2(x *E2) *E2 {
-	// TODO: A1 is 0, we can optimize for it
-	return e.MulByNonResidueGeneric(x, 2, 2)
+	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556616")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
 
+// MulByNonResidue2Power3 returns x*(9+u)^(3*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power3(x *E2) *E2 {
-	// TODO: A1 is 0, we can optimize for it
-	return e.MulByNonResidueGeneric(x, 2, 3)
+	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275222246405745257275088696311157297823662689037894645226208582")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
 
+// MulByNonResidue2Power4 returns x*(9+u)^(4*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power4(x *E2) *E2 {
-	// TODO: A1 is 0, we can optimize for it
-	return e.MulByNonResidueGeneric(x, 2, 4)
+	element := emulated.ValueOf[emulated.BN254Fp]("2203960485148121921418603742825762020974279258880205651966")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
 
+// MulByNonResidue2Power5 returns x*(9+u)^(5*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power5(x *E2) *E2 {
-	// TODO: A1 is 0, we can optimize for it
-	return e.MulByNonResidueGeneric(x, 2, 5)
+	element := emulated.ValueOf[emulated.BN254Fp]("2203960485148121921418603742825762020974279258880205651967")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
 
+// MulByNonResidue3Power1 returns x*(9+u)^(1*(p^3-1)/6)
 func (e Ext2) MulByNonResidue3Power1(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 3, 1)
 }
 
+// MulByNonResidue3Power2 returns x*(9+u)^(2*(p^3-1)/6)
 func (e Ext2) MulByNonResidue3Power2(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 3, 2)
 }
 
+// MulByNonResidue3Power3 returns x*(9+u)^(3*(p^3-1)/6)
 func (e Ext2) MulByNonResidue3Power3(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 3, 3)
 }
 
+// MulByNonResidue3Power4 returns x*(9+u)^(4*(p^3-1)/6)
 func (e Ext2) MulByNonResidue3Power4(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 3, 4)
 }
 
+// MulByNonResidue3Power5 returns x*(9+u)^(5*(p^3-1)/6)
 func (e Ext2) MulByNonResidue3Power5(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 3, 5)
 }

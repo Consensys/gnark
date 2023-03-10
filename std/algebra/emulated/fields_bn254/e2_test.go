@@ -1,16 +1,12 @@
 package fields_bn254
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
@@ -463,15 +459,4 @@ func TestInverseFp2(t *testing.T) {
 
 	err := test.IsSolved(&e2Inverse{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
-}
-
-// bench
-var ccsBench constraint.ConstraintSystem
-
-func BenchmarkPairing(b *testing.B) {
-	var c e2MulByNonResidueInv
-	p := profile.Start()
-	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println(p.NbConstraints())
 }
