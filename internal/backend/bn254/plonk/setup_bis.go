@@ -15,11 +15,14 @@
 package plonk
 
 import (
+	"errors"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
+	kzgg "github.com/consensys/gnark-crypto/kzg"
 	cs "github.com/consensys/gnark/constraint/bn254"
 )
 
@@ -114,12 +117,21 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 
 	// step 0: set the fft domains
 	pk.Domain = buildDomains(spr)
-	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 
-	// step 1: ql, qr, qm, qo, qk in Lagrange Basis
+	// step 1: set the verifying key
+	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
+	vk.Size = pk.Domain[0].Cardinality
+	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
+	vk.Generator.Set(&pk.Domain[0].Generator)
+	vk.NbPublicVariables = uint64(len(spr.Public))
+	if err := pk.InitKZGBis(srs); err != nil {
+		return nil, nil, err
+	}
+
+	// step 2: ql, qr, qm, qo, qk in Lagrange Basis
 	BuildTrace(spr, &pk.trace)
 
-	// step 2: build the permutation and build the polynomials S1, S2, S3 to encode the permutation.
+	// step 3: build the permutation and build the polynomials S1, S2, S3 to encode the permutation.
 	// Note: at this stage, the permutation takes in account the placeholders
 	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
 	buildPermutationBis(spr, &pk.trace, nbVariables)
@@ -128,7 +140,7 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 	pk.trace.S2 = s[1]
 	pk.trace.S3 = s[2]
 
-	// step 3: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
+	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
 	// Also the canonical form of the polynomials will be used to compute the openings.
 	pk.LQk = pk.trace.Qk.Clone() // it will be completed by the prover, and the evaluated on the coset
 	err := commitTrace(&pk.trace, &pk)
@@ -136,7 +148,7 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 		return nil, nil, err
 	}
 
-	// step 4: evaluate ql, qr, qm, qo, s1, s2, s3 on LagrangeCoset (NOT qk)
+	// step 5: evaluate ql, qr, qm, qo, s1, s2, s3 on LagrangeCoset (NOT qk)
 	// we clone them, because the canonical versions are going to be used in
 	// the opening proof
 	pk.lcQl = pk.trace.Ql.Clone().ToLagrangeCoset(&pk.Domain[1])
@@ -148,6 +160,31 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 	pk.lcS3 = pk.trace.S3.Clone().ToLagrangeCoset(&pk.Domain[1])
 
 	return &pk, &vk, nil
+}
+
+// InitKZG inits pk.Vk.KZG using pk.Domain[0] cardinality and provided SRS
+//
+// This should be used after deserializing a ProvingKey
+// as pk.Vk.KZG is NOT serialized
+func (pk *ProvingKeyBis) InitKZGBis(srs kzgg.SRS) error {
+	return pk.Vk.InitKZGBis(srs)
+}
+
+// InitKZG inits vk.KZG using provided SRS
+//
+// This should be used after deserializing a VerifyingKey
+// as vk.KZG is NOT serialized
+//
+// Note that this instantiate a new FFT domain using vk.Size
+func (vk *VerifyingKeyBis) InitKZGBis(srs kzgg.SRS) error {
+	_srs := srs.(*kzg.SRS)
+
+	if len(_srs.G1) < int(vk.Size) {
+		return errors.New("kzg srs is too small")
+	}
+	vk.KZGSRS = _srs
+
+	return nil
 }
 
 // BuildTrace fills the constatn columns ql, qr, qm, qo, qk from the sparser1cs.
