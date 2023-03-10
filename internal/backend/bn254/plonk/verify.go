@@ -87,7 +87,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	zetaPowerM.Exp(zeta, &bExpo)
 	zzeta.Sub(&zetaPowerM, &one)
 
-	// ccompute PI = ∑_{i<n} Lᵢ*wᵢ
+	// compute PI = ∑_{i<n} Lᵢ*wᵢ
 	// TODO use batch inversion
 	var pi, lagrangeOne fr.Element
 	{
@@ -95,14 +95,14 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		lagrange := zzeta // ζⁿ⁻¹
 		wPowI := fr.One()
 		den.Sub(&zeta, &wPowI)
-		lagrange.Div(&lagrange, &den).Mul(&lagrange, &vk.SizeInv) // (1/n)*(ζⁿ-1)/(ζ-1)
+		lagrange.Div(&lagrange, &den).Mul(&lagrange, &vk.SizeInv) // (1/n)(ζⁿ-1)/(ζ-1)
 		lagrangeOne.Set(&lagrange)                                // save it for later
 		for i := 0; i < len(publicWitness); i++ {
 
 			xiLi.Mul(&lagrange, &publicWitness[i])
 			pi.Add(&pi, &xiLi)
 
-			// use Lᵢ₊₁ = w*L_i*(X-zⁱ)/(X-zⁱ⁺¹)
+			// use Lᵢ₊₁ = w×Lᵢ(ζ-wⁱ)/(ζ-wⁱ⁺¹)
 			if i+1 != len(publicWitness) {
 				lagrange.Mul(&lagrange, &vk.Generator).
 					Mul(&lagrange, &den)
@@ -119,14 +119,15 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			}
 
 			// Computing L_{CommitmentIndex}
-			lagrangeNbSteps := vk.CommitmentInfo.CommitmentIndex - len(publicWitness) - 1 // TODO @Tabaie test this lagrange stuff
-			var wPowSteps fr.Element
-			wPowSteps.Exp(vk.Generator, big.NewInt(int64(lagrangeNbSteps)))
-			lagrange.Mul(&lagrange, &wPowSteps).
-				Mul(&lagrange, &den)
-			wPowI.Mul(&wPowI, &wPowSteps)
-			den.Sub(&zeta, &wPowI)
-			lagrange.Div(&lagrange, &den)
+
+			wPowI.Exp(vk.Generator, big.NewInt(int64(vk.CommitmentInfo.CommitmentIndex)))
+			den.Sub(&zeta, &wPowI) // ζ-wⁱ
+
+			lagrange.SetOne().
+				Sub(&zeta, &lagrange).       // ζ-1
+				Mul(&lagrange, &wPowI).      // wⁱ(ζ-1)
+				Div(&lagrange, &den).        // wⁱ(ζ-1)/(ζ-wⁱ)
+				Mul(&lagrange, &lagrangeOne) // wⁱ/n (ζⁿ-1)/(ζ-wⁱ)
 
 			xiLi.Mul(&lagrange, &hashRes[0])
 			pi.Add(&pi, &xiLi)
