@@ -569,7 +569,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	committed := make([]int, len(v))
 
 	for i, vI := range v { // TODO @Tabaie Perf; If public, just hash it
-		vIExpr := vI.(constraint.LinearExpression)
+		vIExpr := builder.Neg(vI).(constraint.LinearExpression)
 		if len(vIExpr) != 1 {
 			return nil, errors.New("can only commit to single terms") // TODO @Tabaie Create a wire in this case
 		}
@@ -583,7 +583,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	commitmentVar := outs[0]
 
 	commitmentConstraintIndex := builder.cs.GetNbConstraints()
-	builder.cs.AddConstraint(constraint.SparseR1C{L: commitmentVar.(constraint.LinearExpression)[0], Commitment: constraint.COMMITMENT}) // value will be injected later
+	builder.cs.AddConstraint(constraint.SparseR1C{L: builder.Neg(commitmentVar).(constraint.LinearExpression)[0], Commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
 		HintID:          solver.GetHintID(scsBsb22CommitmentHintPlaceholder),

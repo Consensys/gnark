@@ -161,7 +161,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	}
 
 	for _, committed := range spr.CommitmentInfo.Committed {
-		pk.QcPrime[committed] = spr.Coefficients[constraint.CoeffIdMinusOne]
+		pk.QcPrime[committed] = spr.Coefficients[constraint.CoeffIdOne]
 	}
 
 	pk.Domain[0].FFTInverse(pk.Ql, fft.DIF)

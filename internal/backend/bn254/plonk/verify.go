@@ -129,7 +129,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			lagrange.Div(&lagrange, &den)
 
 			xiLi.Mul(&lagrange, &hashRes[0])
-			pi.Sub(&pi, &xiLi)
+			pi.Add(&pi, &xiLi)
 		}
 	}
 
