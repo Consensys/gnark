@@ -3,13 +3,19 @@ package cmp
 import (
 	"fmt"
 	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/frontend"
+	frontend "github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
 	"math/big"
 )
 
 func init() {
 	// register hints
+	RegisterAllHints()
+}
+
+// RegisterAllHints registers all the hint functions that are used by this package by calling
+// solver.RegisterHint.
+func RegisterAllHints() {
 	solver.RegisterHint(minOutputHint)
 	solver.RegisterHint(isLessOutputHint)
 }
@@ -23,7 +29,7 @@ func init() {
 // ADU. In other words, we must have |a - b| <= 2^absDiffUppBitLen - 1. Lower values of
 // absDiffUppBitLen will reduce the number of generated constraints.
 //
-// As long as |a - b| <= 2^absDiffUppBitLen - 1 all the methods of BoundedComparator work correctly.
+// As long as |a - b| <= 2^absDiffUppBitLen - 1, all the methods of BoundedComparator work correctly.
 // If |a - b| = 2^absDiffUppBitLen, either a proof can not be generated or the methods work
 // correctly. If |a - b| > 2^absDiffUppBitLen, as long as |a - b| <= (P - 1) / 2, where P is the
 // prime order of the underlying field, no proofs can be generated.
@@ -35,7 +41,7 @@ type BoundedComparator struct {
 	absDiffUppBitLen int
 	api              frontend.API
 
-	// we will use a value receiver for methods of this struct,
+	// we will use value receiver for methods of this struct,
 	// since: 1) the struct is small. 2) methods should not modify any fields.
 }
 
@@ -60,9 +66,8 @@ func NewComparator(api frontend.API, absDiffUppBitLen int) *BoundedComparator {
 	}
 }
 
-// AssertIsLess defines a set of constraints that can not be satisfied when a < b. So, If a < b no
-// proofs can be generated.
-func (bc BoundedComparator) AssertIsLess(a frontend.Variable, b frontend.Variable) {
+// AssertIsLess defines a set of constraints that can not be satisfied when a >= b.
+func (bc BoundedComparator) AssertIsLess(a, b frontend.Variable) {
 	// a < b <==> b - a - 1 >= 0
 	bits.ToBinary(
 		bc.api,
@@ -72,7 +77,7 @@ func (bc BoundedComparator) AssertIsLess(a frontend.Variable, b frontend.Variabl
 }
 
 // IsLess returns 1 if a < b, and returns 0 if a >= b.
-func (bc BoundedComparator) IsLess(a frontend.Variable, b frontend.Variable) frontend.Variable {
+func (bc BoundedComparator) IsLess(a, b frontend.Variable) frontend.Variable {
 	res, err := bc.api.Compiler().NewHint(isLessOutputHint, 1, a, b, -1)
 	if err != nil {
 		panic(fmt.Sprintf("error in calling isLessOutputHint: %v", err))
@@ -89,7 +94,7 @@ func (bc BoundedComparator) IsLess(a frontend.Variable, b frontend.Variable) fro
 }
 
 // Min returns the minimum of a and b.
-func (bc BoundedComparator) Min(a frontend.Variable, b frontend.Variable) frontend.Variable {
+func (bc BoundedComparator) Min(a, b frontend.Variable) frontend.Variable {
 	res, err := bc.api.Compiler().NewHint(minOutputHint, 1, a, b, -1)
 	if err != nil {
 		panic(fmt.Sprintf("error in calling minOutputHint: %v", err))
@@ -98,6 +103,7 @@ func (bc BoundedComparator) Min(a frontend.Variable, b frontend.Variable) fronte
 
 	aDiff := bc.api.Sub(a, min)
 	bDiff := bc.api.Sub(b, min)
+
 	// (a - min) * (b - min) == 0
 	bc.api.AssertIsEqual(0, bc.api.Mul(aDiff, bDiff))
 
@@ -109,7 +115,7 @@ func (bc BoundedComparator) Min(a frontend.Variable, b frontend.Variable) fronte
 
 // cmpInField compares a and b in a finite field of prime order, in which -1 is represented by
 // minusOne.
-func cmpInField(a *big.Int, b *big.Int, minusOne *big.Int) int {
+func cmpInField(a, b, minusOne *big.Int) int {
 	biggestPositiveNum := new(big.Int).Rsh(minusOne, 1)
 	if a.Cmp(biggestPositiveNum)*b.Cmp(biggestPositiveNum) == -1 {
 		return -a.Cmp(b)
@@ -117,8 +123,8 @@ func cmpInField(a *big.Int, b *big.Int, minusOne *big.Int) int {
 	return a.Cmp(b)
 }
 
-// MinOutputHint produces the output of [Min] as a hint.
-func minOutputHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+// minOutputHint produces the output of [BoundedComparator.Min] as a hint.
+func minOutputHint(_ *big.Int, inputs, results []*big.Int) error {
 	a := inputs[0]
 	b := inputs[1]
 	minusOne := inputs[2]
@@ -133,8 +139,8 @@ func minOutputHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
-// IsLessOutputHint produces the output of [IsLess] as a hint.
-func isLessOutputHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+// isLessOutputHint produces the output of [BoundedComparator.IsLess] as a hint.
+func isLessOutputHint(_ *big.Int, inputs, results []*big.Int) error {
 	a := inputs[0]
 	b := inputs[1]
 	minusOne := inputs[2]
@@ -147,11 +153,4 @@ func isLessOutputHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 		results[0].SetUint64(0)
 	}
 	return nil
-}
-
-// RegisterAllHints registers all the hint functions that are used by this package by calling
-// solver.RegisterHint.
-func RegisterAllHints() {
-	solver.RegisterHint(minOutputHint)
-	solver.RegisterHint(isLessOutputHint)
 }
