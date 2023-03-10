@@ -15,6 +15,7 @@
 package plonk
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
@@ -116,7 +117,7 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 
 	// step 1: ql, qr, qm, qo, qk in Lagrange Basis
-	buildTrace(spr, &pk.trace, pk.Domain[0].Cardinality)
+	BuildTrace(spr, &pk.trace)
 
 	// step 2: build the permutation and build the polynomials S1, S2, S3 to encode the permutation.
 	// Note: at this stage, the permutation takes in account the placeholders
@@ -149,9 +150,13 @@ func SetupBis(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKeyBis, *VerifyingKeyBi
 	return &pk, &vk, nil
 }
 
-// buildTrace fills the constatn columns ql, qr, qm, qo, qk from the sparser1cs.
+// BuildTrace fills the constatn columns ql, qr, qm, qo, qk from the sparser1cs.
 // Size is the size of the system that is nb_constraints+nb_public_variables
-func buildTrace(spr *cs.SparseR1CS, pt *PlonkTrace, size uint64) {
+func BuildTrace(spr *cs.SparseR1CS, pt *PlonkTrace) {
+
+	nbConstraints := len(spr.Constraints)
+	sizeSystem := uint64(nbConstraints + len(spr.Public))
+	size := ecc.NextPowerOfTwo(uint64(sizeSystem))
 
 	ql := make([]fr.Element, size)
 	qr := make([]fr.Element, size)
@@ -167,7 +172,6 @@ func buildTrace(spr *cs.SparseR1CS, pt *PlonkTrace, size uint64) {
 		qk[i].SetZero() // → to be completed by the prover
 	}
 	offset := len(spr.Public)
-	nbConstraints := len(spr.Constraints)
 	for i := 0; i < nbConstraints; i++ { // constraints
 
 		ql[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
