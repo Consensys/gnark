@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/consensys/gnark/std/selector"
 )
 
@@ -34,4 +35,5 @@ func registerHints() {
 	solver.RegisterHint(selector.MuxIndicators)
 	solver.RegisterHint(selector.MapIndicators)
 	solver.RegisterHint(emulated.GetHints()...)
+	solver.RegisterHint(rangecheck.CountHint, rangecheck.DecomposeHint)
 }
