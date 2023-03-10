@@ -87,166 +87,7 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 }
 
 // WriteTo writes binary encoding of ProvingKey to w
-// func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
-// 	// encode the verifying key
-// 	n, err = pk.Vk.WriteTo(w)
-// 	if err != nil {
-// 		return
-// 	}
-
-// 	// fft domains
-// 	n2, err := pk.Domain[0].WriteTo(w)
-// 	if err != nil {
-// 		return
-// 	}
-// 	n += n2
-
-// 	n2, err = pk.Domain[1].WriteTo(w)
-// 	if err != nil {
-// 		return
-// 	}
-// 	n += n2
-
-// 	// sanity check len(Permutation) == 3*int(pk.Domain[0].Cardinality)
-// 	if len(pk.Permutation) != (3 * int(pk.Domain[0].Cardinality)) {
-// 		return n, errors.New("invalid permutation size, expected 3*domain cardinality")
-// 	}
-
-// 	enc := curve.NewEncoder(w)
-// 	// note: type Polynomial, which is handled by default binary.Write(...) op and doesn't
-// 	// encode the size (nor does it convert from Montgomery to Regular form)
-// 	// so we explicitly transmit []fr.Element
-// 	toEncode := []interface{}{
-// 		([]fr.Element)(pk.Ql),
-// 		([]fr.Element)(pk.Qr),
-// 		([]fr.Element)(pk.Qm),
-// 		([]fr.Element)(pk.Qo),
-// 		([]fr.Element)(pk.CQk),
-// 		([]fr.Element)(pk.LQk),
-// 		([]fr.Element)(pk.S1Canonical),
-// 		([]fr.Element)(pk.S2Canonical),
-// 		([]fr.Element)(pk.S3Canonical),
-// 		pk.Permutation,
-// 	}
-
-// 	for _, v := range toEncode {
-// 		if err := enc.Encode(v); err != nil {
-// 			return n + enc.BytesWritten(), err
-// 		}
-// 	}
-
-// 	return n + enc.BytesWritten(), nil
-// }
-
-// // ReadFrom reads from binary representation in r into ProvingKey
-// func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
-// 	pk.Vk = &VerifyingKey{}
-// 	n, err := pk.Vk.ReadFrom(r)
-// 	if err != nil {
-// 		return n, err
-// 	}
-
-// 	n2, err := pk.Domain[0].ReadFrom(r)
-// 	n += n2
-// 	if err != nil {
-// 		return n, err
-// 	}
-
-// 	n2, err = pk.Domain[1].ReadFrom(r)
-// 	n += n2
-// 	if err != nil {
-// 		return n, err
-// 	}
-
-// 	pk.Permutation = make([]int64, 3*pk.Domain[0].Cardinality)
-
-// 	dec := curve.NewDecoder(r)
-// 	toDecode := []interface{}{
-// 		(*[]fr.Element)(&pk.Ql),
-// 		(*[]fr.Element)(&pk.Qr),
-// 		(*[]fr.Element)(&pk.Qm),
-// 		(*[]fr.Element)(&pk.Qo),
-// 		(*[]fr.Element)(&pk.CQk),
-// 		(*[]fr.Element)(&pk.LQk),
-// 		(*[]fr.Element)(&pk.S1Canonical),
-// 		(*[]fr.Element)(&pk.S2Canonical),
-// 		(*[]fr.Element)(&pk.S3Canonical),
-// 		&pk.Permutation,
-// 	}
-
-// 	for _, v := range toDecode {
-// 		if err := dec.Decode(v); err != nil {
-// 			return n + dec.BytesRead(), err
-// 		}
-// 	}
-
-// 	pk.computeLagrangeCosetPolys()
-
-// 	return n + dec.BytesRead(), nil
-
-// }
-
-// // WriteTo writes binary encoding of VerifyingKey to w
-// func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
-// 	enc := curve.NewEncoder(w)
-
-// 	toEncode := []interface{}{
-// 		vk.Size,
-// 		&vk.SizeInv,
-// 		&vk.Generator,
-// 		vk.NbPublicVariables,
-// 		&vk.CosetShift,
-// 		&vk.S[0],
-// 		&vk.S[1],
-// 		&vk.S[2],
-// 		&vk.Ql,
-// 		&vk.Qr,
-// 		&vk.Qm,
-// 		&vk.Qo,
-// 		&vk.Qk,
-// 	}
-
-// 	for _, v := range toEncode {
-// 		if err := enc.Encode(v); err != nil {
-// 			return enc.BytesWritten(), err
-// 		}
-// 	}
-
-// 	return enc.BytesWritten(), nil
-// }
-
-// // ReadFrom reads from binary representation in r into VerifyingKey
-// func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
-// 	dec := curve.NewDecoder(r)
-// 	toDecode := []interface{}{
-// 		&vk.Size,
-// 		&vk.SizeInv,
-// 		&vk.Generator,
-// 		&vk.NbPublicVariables,
-// 		&vk.CosetShift,
-// 		&vk.S[0],
-// 		&vk.S[1],
-// 		&vk.S[2],
-// 		&vk.Ql,
-// 		&vk.Qr,
-// 		&vk.Qm,
-// 		&vk.Qo,
-// 		&vk.Qk,
-// 	}
-
-// 	for _, v := range toDecode {
-// 		if err := dec.Decode(v); err != nil {
-// 			return dec.BytesRead(), err
-// 		}
-// 	}
-
-// 	return dec.BytesRead(), nil
-// }
-
-// ---------------------------------------------
-
-// WriteTo writes binary encoding of ProvingKey to w
-func (pk *ProvingKeyBis) WriteTo(w io.Writer) (n int64, err error) {
+func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	// encode the verifying key
 	n, err = pk.Vk.WriteTo(w)
 	if err != nil {
@@ -298,8 +139,8 @@ func (pk *ProvingKeyBis) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 // ReadFrom reads from binary representation in r into ProvingKey
-func (pk *ProvingKeyBis) ReadFrom(r io.Reader) (int64, error) {
-	pk.Vk = &VerifyingKeyBis{}
+func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
+	pk.Vk = &VerifyingKey{}
 	n, err := pk.Vk.ReadFrom(r)
 	if err != nil {
 		return n, err
@@ -357,7 +198,7 @@ func (pk *ProvingKeyBis) ReadFrom(r io.Reader) (int64, error) {
 }
 
 // WriteTo writes binary encoding of VerifyingKey to w
-func (vk *VerifyingKeyBis) WriteTo(w io.Writer) (n int64, err error) {
+func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
 	enc := curve.NewEncoder(w)
 
 	toEncode := []interface{}{
@@ -386,7 +227,7 @@ func (vk *VerifyingKeyBis) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 // ReadFrom reads from binary representation in r into VerifyingKey
-func (vk *VerifyingKeyBis) ReadFrom(r io.Reader) (int64, error) {
+func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 	dec := curve.NewDecoder(r)
 	toDecode := []interface{}{
 		&vk.Size,

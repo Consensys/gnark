@@ -49,7 +49,7 @@ func TestProofSerializationRaw(t *testing.T) {
 
 func TestProvingKeySerialization(t *testing.T) {
 	// random pk
-	var pk, reconstructed ProvingKeyBis
+	var pk, reconstructed ProvingKey
 	pk.randomize()
 
 	roundTripCheck(t, &pk, &reconstructed)
@@ -57,7 +57,7 @@ func TestProvingKeySerialization(t *testing.T) {
 
 func TestVerifyingKeySerialization(t *testing.T) {
 	// create a random vk
-	var vk, reconstructed VerifyingKeyBis
+	var vk, reconstructed VerifyingKey
 	vk.randomize()
 
 	roundTripCheck(t, &vk, &reconstructed)
@@ -105,9 +105,9 @@ func roundTripCheckRaw(t *testing.T, from gnarkio.WriterRawTo, reconstructed io.
 	}
 }
 
-func (pk *ProvingKeyBis) randomize() {
+func (pk *ProvingKey) randomize() {
 
-	var vk VerifyingKeyBis
+	var vk VerifyingKey
 	vk.randomize()
 	pk.Vk = &vk
 	pk.Domain[0] = *fft.NewDomain(42)
@@ -145,7 +145,7 @@ func (pk *ProvingKeyBis) randomize() {
 	pk.computeLagrangeCosetPolys()
 }
 
-func (vk *VerifyingKeyBis) randomize() {
+func (vk *VerifyingKey) randomize() {
 	vk.Size = rand.Uint64()
 	vk.SizeInv.SetRandom()
 	vk.Generator.SetRandom()
