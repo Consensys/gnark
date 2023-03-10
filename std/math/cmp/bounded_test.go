@@ -7,6 +7,23 @@ import (
 	"testing"
 )
 
+func TestAssertIsLess(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	assert.ProverSucceeded(&assertIsLessCircuit{}, &assertIsLessCircuit{A: 2, B: 5})
+	assert.ProverSucceeded(&assertIsLessCircuit{}, &assertIsLessCircuit{A: -2, B: 5})
+	assert.ProverSucceeded(&assertIsLessCircuit{}, &assertIsLessCircuit{A: -5, B: 0})
+
+	assert.ProverFailed(&assertIsLessCircuit{}, &assertIsLessCircuit{A: 1, B: 0})
+	assert.ProverFailed(&assertIsLessCircuit{}, &assertIsLessCircuit{A: 4, B: -3})
+	assert.ProverFailed(&assertIsLessCircuit{}, &assertIsLessCircuit{A: -2, B: -8})
+
+	// large difference:
+	assert.ProverSucceeded(&assertIsLessCircuit{}, &assertIsLessCircuit{A: 10, B: 18})
+
+	assert.ProverFailed(&assertIsLessCircuit{}, &assertIsLessCircuit{A: 10, B: 19})
+}
+
 func TestIsLess(t *testing.T) {
 	assert := test.NewAssert(t)
 
@@ -63,7 +80,6 @@ func TestMin(t *testing.T) {
 	assert.ProverFailed(&minCircuit{}, &minCircuit{A: -10, B: -26, WantMin: -26})
 }
 
-// todo: this circuit does not work, and every test tails!
 type assertIsLessCircuit struct {
 	A, B frontend.Variable `gnark:",public"`
 }
