@@ -453,12 +453,13 @@ func (builder *builder) Defer(cb func(frontend.API) error) {
 	circuitdefer.Put(builder, cb)
 }
 
-func (builder *builder) RecordConstraintsForLazy(key string, finished bool, s ...frontend.Variable) {
+func (builder *builder) RecordConstraintsForLazy(key string, finished bool, s *[]frontend.Variable) {
+	log := logger.Logger()
 	if _, exists := constraint.LazyInputsFactoryMap[key]; !exists {
 		// not register, continue
 		return
 	}
-	expressions, _ := builder.toVariables(s...)
+	expressions, _ := builder.toVariables(*s...)
 	// we are not using constant value because this will change repeatable called function generated constraints structure
 	if !finished {
 		for i := range expressions {
@@ -467,9 +468,12 @@ func (builder *builder) RecordConstraintsForLazy(key string, finished bool, s ..
 				t := builder.newInternalVariable()
 				builder.cs.AddConstraint(builder.newR1C(expressions[i], one, t))
 				expressions[i] = t
+				(*s)[i] = expressions[i]
+				log.Warn().Msg("detect constant variables in lazy, will be converted to internal variables")
 			}
 		}
 	}
+
 	constraintExpressions := make([]constraint.LinearExpression, len(expressions))
 	for i := range constraintExpressions {
 		constraintExpressions[i] = builder.getLinearExpression(expressions[i])

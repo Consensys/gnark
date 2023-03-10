@@ -139,5 +139,5 @@ type API interface {
 	// @params key is the key for the repeatable structure
 	// @params finished will appear in couple around the repeatable structure, first false, then true
 	// @Params s is the inputs and same order with the repeatable structure
-	RecordConstraintsForLazy(key string, finished bool, s ...Variable)
+	RecordConstraintsForLazy(key string, finished bool, s *[]Variable)
 }

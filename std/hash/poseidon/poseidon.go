@@ -93,9 +93,9 @@ func Poseidon(api frontend.API, input ...frontend.Variable) frontend.Variable {
 		for i := 0; i < count; i++ {
 			lastIndex = (i + 1) * maxLength
 			copy(state[1:], input[startIndex:lastIndex])
-			api.RecordConstraintsForLazy(cs.GetLazyPoseidonKey(len(state)), false, state...)
+			api.RecordConstraintsForLazy(cs.GetLazyPoseidonKey(len(state)), false, &state)
 			state = permutation(api, state)
-			api.RecordConstraintsForLazy(cs.GetLazyPoseidonKey(len(state)), true, state...)
+			api.RecordConstraintsForLazy(cs.GetLazyPoseidonKey(len(state)), true, &state)
 			startIndex = lastIndex
 		}
 	}
@@ -105,9 +105,10 @@ func Poseidon(api frontend.API, input ...frontend.Variable) frontend.Variable {
 		lastIndex = inputLength
 		remainigLength := lastIndex - startIndex
 		copy(state[1:], input[startIndex:lastIndex])
-		api.RecordConstraintsForLazy(cs.GetLazyPoseidonKey(len(state[:remainigLength+1])), false, state[:remainigLength+1]...)
-		state = permutation(api, state[:remainigLength+1])
-		api.RecordConstraintsForLazy(cs.GetLazyPoseidonKey(len(state[:remainigLength+1])), true, state[:remainigLength+1]...)
+		input := state[:remainigLength+1]
+		api.RecordConstraintsForLazy(cs.GetLazyPoseidonKey(len(state[:remainigLength+1])), false, &input)
+		state = permutation(api, input)
+		api.RecordConstraintsForLazy(cs.GetLazyPoseidonKey(len(state[:remainigLength+1])), true, &input)
 	}
 	return state[0]
 }

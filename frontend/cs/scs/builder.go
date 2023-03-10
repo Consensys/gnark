@@ -267,7 +267,7 @@ func (builder *builder) constantValue(v frontend.Variable) (constraint.Coeff, bo
 	return builder.cs.FromInterface(v), true
 }
 
-func (builder *builder) RecordConstraintsForLazy(key string, finished bool, s ...frontend.Variable) {
+func (builder *builder) RecordConstraintsForLazy(key string, finished bool, s *[]frontend.Variable) {
 }
 
 // NewHint initializes internal variables whose value will be evaluated using
