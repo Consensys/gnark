@@ -4,7 +4,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -68,20 +67,18 @@ func NewExt2(baseField *curveF) *Ext2 {
 // TODO: check where to use Mod and where ModMul.
 
 func (e Ext2) MulByElement(x *E2, y *baseEl) *E2 {
-	// var yCopy fp.Element
-	// yCopy.Set(y)
-	z0 := e.fp.MulMod(&x.A0, y) // z.A0.Mul(&x.A0, &yCopy)
-	z1 := e.fp.MulMod(&x.A1, y) // z.A1.Mul(&x.A1, &yCopy)
-	return &E2{                 // return z
+	z0 := e.fp.MulMod(&x.A0, y)
+	z1 := e.fp.MulMod(&x.A1, y)
+	return &E2{
 		A0: *z0,
 		A1: *z1,
 	}
 }
 
 func (e Ext2) Conjugate(x *E2) *E2 {
-	z0 := x.A0            // z.A0 = x.A0
-	z1 := e.fp.Neg(&x.A1) // z.A1.Neg(&x.A1)
-	return &E2{           // return z
+	z0 := x.A0
+	z1 := e.fp.Neg(&x.A1)
+	return &E2{
 		A0: z0,
 		A1: *z1,
 	}
@@ -285,91 +282,6 @@ func FromE2(y *bn254.E2) E2 {
 
 }
 
-func init() {
-	solver.RegisterHint(DivE2Hint)
-	solver.RegisterHint(InverseE2Hint)
-	solver.RegisterHint(MulByNonResidueInvHint)
-}
-
-func MulByNonResidueInvHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E2
-
-			a.A0.SetBigInt(inputs[0])
-			a.A1.SetBigInt(inputs[1])
-
-			c.MulByNonResidueInv(&a)
-
-			c.A0.BigInt(outputs[0])
-			c.A1.BigInt(outputs[1])
-
-			return nil
-
-		})
-}
-
-func (e Ext2) MulByNonResidueInv(api frontend.API, x *E2) *E2 {
-	field, err := emulated.NewField[emulated.BN254Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	res, err := field.NewHint(MulByNonResidueInvHint, 2, &x.A0, &x.A1)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-
-	// r <-- x * (1/(9+u))
-	r := E2{
-		A0: *res[0],
-		A1: *res[1],
-	}
-
-	// x == r * (9+u)
-	_x := e.MulByNonResidue(&r)
-	e.AssertIsEqual(x, _x)
-
-	return &r
-
-}
-
-func InverseE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E2
-
-			a.A0.SetBigInt(inputs[0])
-			a.A1.SetBigInt(inputs[1])
-
-			c.Inverse(&a)
-
-			c.A0.BigInt(outputs[0])
-			c.A1.BigInt(outputs[1])
-
-			return nil
-		})
-}
-
-func DivE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, b, c bn254.E2
-
-			a.A0.SetBigInt(inputs[0])
-			a.A1.SetBigInt(inputs[1])
-			b.A0.SetBigInt(inputs[2])
-			b.A1.SetBigInt(inputs[3])
-
-			c.Inverse(&b).Mul(&c, &a)
-
-			c.A0.BigInt(outputs[0])
-			c.A1.BigInt(outputs[1])
-
-			return nil
-		})
-}
-
 func (e Ext2) Inverse(api frontend.API, x *E2) *E2 {
 	field, err := emulated.NewField[emulated.BN254Fp](api)
 	if err != nil {
@@ -417,4 +329,29 @@ func (e Ext2) DivUnchecked(api frontend.API, x, y E2) *E2 {
 	e.AssertIsEqual(&x, &_x)
 
 	return &div
+}
+
+func (e Ext2) MulByNonResidueInv(api frontend.API, x *E2) *E2 {
+	field, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	res, err := field.NewHint(MulByNonResidueInvHint, 2, &x.A0, &x.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	// r <-- x * (1/(9+u))
+	r := E2{
+		A0: *res[0],
+		A1: *res[1],
+	}
+
+	// x == r * (9+u)
+	_x := e.MulByNonResidue(&r)
+	e.AssertIsEqual(x, _x)
+
+	return &r
+
 }

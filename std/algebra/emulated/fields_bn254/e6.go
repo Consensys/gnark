@@ -1,10 +1,7 @@
 package fields_bn254
 
 import (
-	"math/big"
-
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -203,68 +200,6 @@ func FromE6(y *bn254.E6) E6 {
 		B2: FromE2(&y.B2),
 	}
 
-}
-
-func init() {
-	solver.RegisterHint(DivE6Hint)
-	solver.RegisterHint(InverseE6Hint)
-}
-
-func InverseE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E6
-
-			a.B0.A0.SetBigInt(inputs[0])
-			a.B0.A1.SetBigInt(inputs[1])
-			a.B1.A0.SetBigInt(inputs[2])
-			a.B1.A1.SetBigInt(inputs[3])
-			a.B2.A0.SetBigInt(inputs[4])
-			a.B2.A1.SetBigInt(inputs[5])
-
-			c.Inverse(&a)
-
-			c.B0.A0.BigInt(outputs[0])
-			c.B0.A1.BigInt(outputs[1])
-			c.B1.A0.BigInt(outputs[2])
-			c.B1.A1.BigInt(outputs[3])
-			c.B2.A0.BigInt(outputs[4])
-			c.B2.A1.BigInt(outputs[5])
-
-			return nil
-		})
-}
-
-func DivE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, b, c bn254.E6
-
-			a.B0.A0.SetBigInt(inputs[0])
-			a.B0.A1.SetBigInt(inputs[1])
-			a.B1.A0.SetBigInt(inputs[2])
-			a.B1.A1.SetBigInt(inputs[3])
-			a.B2.A0.SetBigInt(inputs[4])
-			a.B2.A1.SetBigInt(inputs[5])
-
-			b.B0.A0.SetBigInt(inputs[6])
-			b.B0.A1.SetBigInt(inputs[7])
-			b.B1.A0.SetBigInt(inputs[8])
-			b.B1.A1.SetBigInt(inputs[9])
-			b.B2.A0.SetBigInt(inputs[10])
-			b.B2.A1.SetBigInt(inputs[11])
-
-			c.Inverse(&b).Mul(&c, &a)
-
-			c.B0.A0.BigInt(outputs[0])
-			c.B0.A1.BigInt(outputs[1])
-			c.B1.A0.BigInt(outputs[2])
-			c.B1.A1.BigInt(outputs[3])
-			c.B2.A0.BigInt(outputs[4])
-			c.B2.A1.BigInt(outputs[5])
-
-			return nil
-		})
 }
 
 func (e Ext6) Inverse(api frontend.API, x *E6) *E6 {
