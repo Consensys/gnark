@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/internal/utils"
@@ -73,7 +74,13 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 
 // AssertIsDifferent fails if i1 == i2
 func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
-	builder.Inverse(builder.Sub(i1, i2))
+	s := builder.Sub(i1, i2)
+	if c, ok := builder.constantValue(s); ok && c.IsZero() {
+		panic("AssertIsDifferent(x,x) will never be satisfied")
+	} else if t := s.(expr.Term); t.Coeff.IsZero() {
+		panic("AssertIsDifferent(x,x) will never be satisfied")
+	}
+	builder.Inverse(s)
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
@@ -90,7 +97,6 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 		return
 	}
 	builder.MarkBoolean(v)
-	debug := builder.newDebugInfo("assertIsBoolean", v, " == (0|1)")
 
 	// ensure v * (1 - v) == 0
 	// that is v + -v*v == 0
@@ -98,12 +104,19 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	qM := v.Coeff
 	builder.cs.Neg(&qM)
 	builder.cs.Mul(&qM, &v.Coeff)
-	builder.addPlonkConstraint(sparseR1C{
+	toAdd := sparseR1C{
 		xa: v.VID,
 		xb: v.VID,
 		qL: v.Coeff,
 		qM: qM,
-	}, debug)
+	}
+	if debug.Debug {
+		debug := builder.newDebugInfo("assertIsBoolean", v, " == (0|1)")
+		builder.addPlonkConstraint(toAdd, debug)
+	} else {
+		builder.addPlonkConstraint(toAdd)
+	}
+
 }
 
 // AssertIsLessOrEqual fails if  v > bound

@@ -19,8 +19,8 @@ package kzg_bls24315
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields_bls24315"
-	"github.com/consensys/gnark/std/algebra/sw_bls24315"
+	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 )
 
 // Digest commitment of a polynomial.

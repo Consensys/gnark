@@ -29,12 +29,23 @@ func Example() {
 	_, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &Circuit{})
 	p.Stop()
 
+	// expected output
+	const _ = `Showing nodes accounting for 2, 100% of 2 total
+----------------------------------------------------------+-------------
+      flat  flat%   sum%        cum   cum%   calls calls% + context              
+----------------------------------------------------------+-------------
+                                                 1   100% |   profile_test.(*Circuit).Define profile/profile_test.go:21
+         1 50.00% 50.00%          1 50.00%                | r1cs.(*builder).AssertIsEqual frontend/cs/r1cs/api_assertions.go:37
+----------------------------------------------------------+-------------
+                                                 1   100% |   profile_test.(*Circuit).Define profile/profile_test.go:21
+         1 50.00%   100%          1 50.00%                | r1cs.(*builder).Mul frontend/cs/r1cs/api.go:221
+----------------------------------------------------------+-------------
+         0     0%   100%          2   100%                | profile_test.(*Circuit).Define profile/profile_test.go:21
+                                                 1 50.00% |   r1cs.(*builder).AssertIsEqual frontend/cs/r1cs/api_assertions.go:37
+                                                 1 50.00% |   r1cs.(*builder).Mul frontend/cs/r1cs/api.go:221
+----------------------------------------------------------+-------------`
+
 	fmt.Println(p.NbConstraints())
-	fmt.Println(p.Top())
 	// Output:
 	// 2
-	// Showing nodes accounting for 2, 100% of 2 total
-	//       flat  flat%   sum%        cum   cum%
-	//          1 50.00% 50.00%          2   100%  profile_test.(*Circuit).Define profile/profile_test.go:19
-	//          1 50.00%   100%          1 50.00%  r1cs.(*builder).AssertIsEqual frontend/cs/r1cs/api_assertions.go:37
 }
