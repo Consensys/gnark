@@ -82,7 +82,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// result
 	proof := &Proof{}
-	var pi2 fr.Vector
+	var (
+		pi2           fr.Vector
+		commitmentVal fr.Element // TODO @Tabaie get rid of this
+	)
 	if spr.CommitmentInfo.Is() {
 		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(spr.CommitmentInfo.HintID, func(_ *big.Int, ins, outs []*big.Int) error {
 			pi2 = make(fr.Vector, pk.Domain[0].Cardinality)
@@ -102,8 +105,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
-
-			hashRes[0].BigInt(outs[0])
+			commitmentVal = hashRes[0] // TODO @Tabaie use CommitmentIndex for this; create a new variable CommitmentConstraintIndex for other uses
+			commitmentVal.BigInt(outs[0])
 			return nil
 		}))
 	}
@@ -200,6 +203,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	qkCompletedCanonical := make([]fr.Element, pk.Domain[0].Cardinality)
 	copy(qkCompletedCanonical, fw[:len(spr.Public)])
 	copy(qkCompletedCanonical[len(spr.Public):], pk.LQk[len(spr.Public):])
+	if spr.CommitmentInfo.Is() {
+		qkCompletedCanonical[spr.CommitmentInfo.CommitmentIndex] = commitmentVal // TODO @Tabaie no need to negate?
+	}
 	pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 	fft.BitReverse(qkCompletedCanonical)
 
@@ -249,7 +255,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		ToLagrangeCoset(&pk.Domain[1])
 
 	// Full capture using latest gnark crypto...
-	fic := func(fql, fqr, fqm, fqo, fqk, l, r, o fr.Element) fr.Element {
+	fic := func(fql, fqr, fqm, fqo, fqk, fqCPrime, l, r, o, pi2 fr.Element) fr.Element { // TODO @Tabaie make use of the fact that qCPrime is a selector: sparse and binary
 
 		var ic, tmp fr.Element
 
@@ -260,6 +266,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		ic.Add(&ic, &tmp)
 		tmp.Mul(&fqo, &o)
 		ic.Add(&ic, &tmp).Add(&ic, &fqk)
+		tmp.Mul(&fqCPrime, &pi2)
+		ic.Add(&ic, &tmp)
 
 		return ic
 	}
@@ -293,13 +301,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return one
 	}
 
-	// 0 , 1,  2,  3,  4,  5,  6, 7,  8,  9, 10, 11, 12, 13, 14
-	// l , r , o, id, s1, s2, s3, z, zs, ql, qr, qm, qo, qk,lone
+	// 0 , 1 , 2, 3 , 4 , 5 , 6 , 7, 8 , 9  , 10, 11, 12, 13, 14,   15   , 16
+	// l , r , o, id, s1, s2, s3, z, zs, PI2, ql, qr, qm, qo, qk, qCPrime, lone
 	fm := func(x ...fr.Element) fr.Element {
 
-		a := fic(x[9], x[10], x[11], x[12], x[13], x[0], x[1], x[2])
+		a := fic(x[10], x[11], x[12], x[13], x[14], x[15], x[0], x[1], x[2], x[9])
 		b := fo(x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8])
-		c := fone(x[7], x[14])
+		c := fone(x[7], x[16])
 
 		c.Mul(&c, &alpha).Add(&c, &b).Mul(&c, &alpha).Add(&c, &a)
 
@@ -315,17 +323,19 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		ws3,
 		bwziop,
 		bwsziop,
+		pi2, // TODO @Tabaie correct format
 		wqliop,
 		wqriop,
 		wqmiop,
 		wqoiop,
 		wqkiop,
+		qCPrime, // TODO @Tabaie correct format
 		wloneiop,
 	)
 	if err != nil {
 		return nil, err
 	}
-	h, err := iop.DivideByXMinusOne(testEval, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]})
+	h, err := iop.DivideByXMinusOne(testEval, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]}) // TODO @Tabaie not x^n - 1?
 	if err != nil {
 		return nil, err
 	}
