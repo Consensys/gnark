@@ -3,7 +3,7 @@ package cmp
 import (
 	"fmt"
 	"github.com/consensys/gnark/constraint/solver"
-	frontend "github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
 	"math/big"
 )
@@ -26,15 +26,16 @@ func RegisterAllHints() {
 //
 // Let's denote the upper bound of the absolute difference of a and b, with ADU, such that we have
 // |a - b| <= ADU. The absDiffUppBitLen must be the number of bits of the binary representation of
-// ADU. In other words, we must have |a - b| <= 2^absDiffUppBitLen - 1. Lower values of
-// absDiffUppBitLen will reduce the number of generated constraints.
+// ADU. In other words, the value of absDiffUppBitLen should be chosen in a way that we always have
+// |a - b| <= 2^absDiffUppBitLen - 1. Lower values of absDiffUppBitLen will reduce the number of
+// generated constraints.
 //
-// As long as |a - b| <= 2^absDiffUppBitLen - 1, all the methods of BoundedComparator work correctly.
-// If |a - b| = 2^absDiffUppBitLen, either a proof can not be generated or the methods work
-// correctly. If |a - b| > 2^absDiffUppBitLen, as long as |a - b| <= (P - 1) / 2, where P is the
-// prime order of the underlying field, no proofs can be generated.
+// As long as |a - b| <= 2^absDiffUppBitLen - 1, all the methods of BoundedComparator work
+// correctly. If |a - b| = 2^absDiffUppBitLen, either a proof can not be generated or the methods
+// work correctly. If |a - b| > 2^absDiffUppBitLen, as long as |a - b| < 2^(FieldBitLen-2), no
+// proofs can be generated.
 //
-// When |a - b| > (P - 1) / 2, the behaviour of the exported methods of BoundedComparator will be
+// When |a - b| >= 2^(FieldBitLen-2), the behaviour of the exported methods of BoundedComparator are
 // undefined.
 type BoundedComparator struct {
 	// the number of bits in the binary representation of the upper bound of the absolute difference
@@ -50,15 +51,18 @@ type BoundedComparator struct {
 // This function panics if the provided value for absDiffUppBitLen can not be supported by the
 // underlying field. Use absDiffUppBitLen = 0 to select the maximum supported value.
 func NewComparator(api frontend.API, absDiffUppBitLen int) *BoundedComparator {
-	// We need to have |a - b| <= (P - 1) / 2. The BitLen of (P - 1) / 2 is
-	// exactly FieldBitLen()-1, so to ensure the inequality, we should have:
-	// absDiffUppBitLen <= FieldBitLen()-2
-	// todo: by having the order of the field (P) we can implement this with tighter bounds
+	// We need to make sure that P - |a - b| has a longer binary representation than |a - b|.
+	// We have |a - b| <= 2^absDiffUppBitLen - 1, so
+	// if P - (2^absDiffUppBitLen - 1) >= 2^absDiffUppBitLen,
+	// then P - |a - b| will have more than absDiffUppBitLen bits. We solve this equation:
+	// 		absDiffUppBitLen <= log(P + 1) - 1
+	// That means we need to have absDiffUppBitLen <= FieldBitLen - 2 and only when P is a power of 2
+	// absDiffUppBitLen can also be equal to FieldBitLen - 1.
 	if absDiffUppBitLen == 0 {
 		absDiffUppBitLen = api.Compiler().FieldBitLen() - 2
 	}
 	if absDiffUppBitLen > api.Compiler().FieldBitLen()-2 {
-		panic("ConfigureComparators: the specified upper bound of absolute difference is too high")
+		panic("cannot construct the comparator, the specified absDiffUppBitLen is too high")
 	}
 	return &BoundedComparator{
 		absDiffUppBitLen: absDiffUppBitLen,
