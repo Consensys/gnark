@@ -22,23 +22,13 @@ func RegisterAllHints() {
 
 // BoundedComparator provides comparison methods, with relatively low circuit complexity, for
 // comparing two numbers a and b, when an upper bound for their absolute difference (|a - b|) is
-// known. These methods perform only one binary conversion of length: absDiffUppBitLen.
-//
-// Let's denote the upper bound of the absolute difference of a and b, with ADU, such that we have
-// |a - b| <= ADU. The absDiffUppBitLen must be the number of bits of the binary representation of
-// ADU. In other words, the value of absDiffUppBitLen should be chosen in a way that we always have
-// |a - b| <= 2^absDiffUppBitLen - 1. Lower values of absDiffUppBitLen will reduce the number of
-// generated constraints.
-//
-// As long as |a - b| <= 2^absDiffUppBitLen - 1, all the methods of BoundedComparator work
-// correctly. If |a - b| = 2^absDiffUppBitLen, either a proof can not be generated or the methods
-// work correctly. If |a - b| > 2^absDiffUppBitLen, as long as |a - b| < 2^(FieldBitLen-2), no
-// proofs can be generated.
-//
-// When |a - b| >= 2^(FieldBitLen-2), the behaviour of the exported methods of BoundedComparator are
-// undefined.
+// known. These methods perform only one binary conversion of length: absDiffUppBitLen. See
+// NewComparator, for more information.
 type BoundedComparator struct {
-	// the number of bits in the binary representation of the upper bound of the absolute difference
+	// Let's denote the upper bound of the absolute difference of a and b, with ADU, such that we have
+	// |a - b| <= ADU. The absDiffUppBitLen must be the number of bits of the binary representation of
+	// ADU. In other words, the value of absDiffUppBitLen should be chosen in a way that we always have
+	// |a - b| <= 2^absDiffUppBitLen - 1.
 	absDiffUppBitLen int
 	api              frontend.API
 
@@ -46,26 +36,38 @@ type BoundedComparator struct {
 	// since: 1) the struct is small. 2) methods should not modify any fields.
 }
 
-// NewComparator creates a new BoundedComparator.
+// NewComparator creates a new BoundedComparator, which provides methods for comparing two numbers a
+// and b.
 //
-// This function panics if the provided value for absDiffUppBitLen can not be supported by the
-// underlying field. Use absDiffUppBitLen = 0 to select the maximum supported value.
-func NewComparator(api frontend.API, absDiffUppBitLen int) *BoundedComparator {
-	// We need to make sure that P - |a - b| has a longer binary representation than |a - b|.
-	// We have |a - b| <= 2^absDiffUppBitLen - 1, so
-	// if P - (2^absDiffUppBitLen - 1) >= 2^absDiffUppBitLen,
-	// then P - |a - b| will have more than absDiffUppBitLen bits. We solve this equation:
-	// 		absDiffUppBitLen <= log(P + 1) - 1
-	// That means we need to have absDiffUppBitLen <= FieldBitLen - 2 and only when P is a power of 2
-	// absDiffUppBitLen can also be equal to FieldBitLen - 1.
-	if absDiffUppBitLen == 0 {
-		absDiffUppBitLen = api.Compiler().FieldBitLen() - 2
+// absDiffUpp is the upper bound of the absolute difference of a and b, such that |a - b| <=
+// absDiffUpp. absDiffUpp must be a positive number, and P - absDiffUpp must have a longer binary
+// representation than absDiffUpp, where P is the order of the underlying field. Lower values of
+// absDiffUpp will reduce the number of generated constraints.
+//
+// This function panics when the provided value for absDiffUpp is not valid.
+//
+// As long as |a - b| < 2^absDiffUpp.BitLen(), all the methods of BoundedComparator work correctly.
+// If |a - b| = 2^absDiffUpp.BitLen(), either a proof can not be generated or the methods work
+// correctly. If |a - b| > 2^absDiffUpp.BitLen(), as long as |a - b| < 2^floor(log(P - |a - b|)), no
+// proofs can be generated.
+//
+// When |a - b| >= 2^floor(log(P - |a - b|)), the behaviour of the exported methods of
+// BoundedComparator is undefined.
+func NewComparator(api frontend.API, absDiffUpp *big.Int) *BoundedComparator {
+	// We need to make sure that always P - |a - b| has a longer binary representation than |a - b|.
+	// These two numbers get closer as |a - b| increases, so we just need to check that P - absDiffUpp
+	// has a longer binary representation than absDiffUpp.
+	P := api.Compiler().Field()
+	if absDiffUpp.Cmp(big.NewInt(0)) != 1 || absDiffUpp.Cmp(P) != -1 {
+		panic("absDiffUpp must be a positive number smaller than the field order")
 	}
-	if absDiffUppBitLen > api.Compiler().FieldBitLen()-2 {
-		panic("cannot construct the comparator, the specified absDiffUppBitLen is too high")
+	bitLenOfNeg := new(big.Int).Sub(P, absDiffUpp).BitLen()
+	bitLenOfPos := absDiffUpp.BitLen()
+	if bitLenOfNeg <= bitLenOfPos {
+		panic("cannot construct the comparator, the specified absDiffUpp is too high")
 	}
 	return &BoundedComparator{
-		absDiffUppBitLen: absDiffUppBitLen,
+		absDiffUppBitLen: bitLenOfPos,
 		api:              api,
 	}
 }

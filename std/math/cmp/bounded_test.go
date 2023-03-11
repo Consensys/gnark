@@ -4,6 +4,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/test"
+	"math/big"
 	"testing"
 )
 
@@ -85,7 +86,7 @@ type assertIsLessCircuit struct {
 }
 
 func (c *assertIsLessCircuit) Define(api frontend.API) error {
-	comparator := cmp.NewComparator(api, 3)
+	comparator := cmp.NewComparator(api, big.NewInt(7))
 	comparator.AssertIsLess(c.A, c.B)
 
 	return nil
@@ -97,7 +98,7 @@ type isLessCircuit struct {
 }
 
 func (c *isLessCircuit) Define(api frontend.API) error {
-	comparator := cmp.NewComparator(api, 3)
+	comparator := cmp.NewComparator(api, big.NewInt(7))
 	api.AssertIsEqual(c.WantIsLess, comparator.IsLess(c.A, c.B))
 
 	return nil
@@ -109,7 +110,7 @@ type minCircuit struct {
 }
 
 func (c *minCircuit) Define(api frontend.API) error {
-	comparator := cmp.NewComparator(api, 4)
+	comparator := cmp.NewComparator(api, big.NewInt(15))
 	api.AssertIsEqual(c.WantMin, comparator.Min(c.A, c.B))
 
 	return nil

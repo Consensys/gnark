@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/cmp"
+	"math/big"
 )
 
 // MapCircuit is a circuit that uses BoundedComparator.IsLess method to verify that an input array
@@ -21,7 +22,7 @@ type sortCheckerCircuit struct {
 // Define defines the arithmetic circuit.
 func (c *sortCheckerCircuit) Define(api frontend.API) error {
 	// constructing a 16bit comparator
-	cmp16bit := cmp.NewComparator(api, 16)
+	cmp16bit := cmp.NewComparator(api, big.NewInt(1<<16-1))
 	res := frontend.Variable(0)
 	for i := 0; i < len(c.UInt16Array)-1; i++ {
 		res = api.Add(res, cmp16bit.IsLess(c.UInt16Array[i+1], c.UInt16Array[i]))
