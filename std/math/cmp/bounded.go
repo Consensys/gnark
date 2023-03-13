@@ -10,14 +10,13 @@ import (
 
 func init() {
 	// register hints
-	RegisterAllHints()
+	solver.RegisterHint(GetHints()...)
 }
 
-// RegisterAllHints registers all the hint functions that are used by this package by calling
-// solver.RegisterHint.
-func RegisterAllHints() {
-	solver.RegisterHint(minOutputHint)
-	solver.RegisterHint(isLessOutputHint)
+// GetHints returns all hint functions used in this package. This method is
+// useful for registering all hints in the solver.
+func GetHints() []solver.Hint {
+	return []solver.Hint{isLessOutputHint, minOutputHint}
 }
 
 // BoundedComparator provides comparison methods, with relatively low circuit complexity, for
