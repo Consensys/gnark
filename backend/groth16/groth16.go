@@ -44,13 +44,13 @@ import (
 
 	gnarkio "github.com/consensys/gnark/io"
 
-	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
-	groth16_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/groth16"
-	groth16_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/groth16"
-	groth16_bls24317 "github.com/consensys/gnark/internal/backend/bls24-317/groth16"
-	groth16_bn254 "github.com/consensys/gnark/internal/backend/bn254/groth16"
-	groth16_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/groth16"
-	groth16_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/groth16"
+	groth16_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
+	groth16_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
+	groth16_bls24315 "github.com/consensys/gnark/backend/groth16/bls24-315"
+	groth16_bls24317 "github.com/consensys/gnark/backend/groth16/bls24-317"
+	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
+	groth16_bw6633 "github.com/consensys/gnark/backend/groth16/bw6-633"
+	groth16_bw6761 "github.com/consensys/gnark/backend/groth16/bw6-761"
 )
 
 type groth16Object interface {
