@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/consensys/bavard"
@@ -19,43 +20,43 @@ var bgen = bavard.NewBatchGenerator(copyrightHolder, 2020, "gnark")
 func main() {
 
 	bls12_377 := templateData{
-		RootPath: "../../../internal/backend/bls12-377/",
+		RootPath: "../../../backend/{?}/bls12-377/",
 		CSPath:   "../../../constraint/bls12-377/",
 		Curve:    "BLS12-377",
 		CurveID:  "BLS12_377",
 	}
 	bls12_381 := templateData{
-		RootPath: "../../../internal/backend/bls12-381/",
+		RootPath: "../../../backend/{?}/bls12-381/",
 		CSPath:   "../../../constraint/bls12-381/",
 		Curve:    "BLS12-381",
 		CurveID:  "BLS12_381",
 	}
 	bn254 := templateData{
-		RootPath: "../../../internal/backend/bn254/",
+		RootPath: "../../../backend/{?}/bn254/",
 		CSPath:   "../../../constraint/bn254/",
 		Curve:    "BN254",
 		CurveID:  "BN254",
 	}
 	bw6_761 := templateData{
-		RootPath: "../../../internal/backend/bw6-761/",
+		RootPath: "../../../backend/{?}/bw6-761/",
 		CSPath:   "../../../constraint/bw6-761/",
 		Curve:    "BW6-761",
 		CurveID:  "BW6_761",
 	}
 	bls24_315 := templateData{
-		RootPath: "../../../internal/backend/bls24-315/",
+		RootPath: "../../../backend/{?}/bls24-315/",
 		CSPath:   "../../../constraint/bls24-315/",
 		Curve:    "BLS24-315",
 		CurveID:  "BLS24_315",
 	}
 	bls24_317 := templateData{
-		RootPath: "../../../internal/backend/bls24-317/",
+		RootPath: "../../../backend/{?}/bls24-317/",
 		CSPath:   "../../../constraint/bls24-317/",
 		Curve:    "BLS24-317",
 		CurveID:  "BLS24_317",
 	}
 	bw6_633 := templateData{
-		RootPath: "../../../internal/backend/bw6-633/",
+		RootPath: "../../../backend/{?}/bw6-633/",
 		CSPath:   "../../../constraint/bw6-633/",
 		Curve:    "BW6-633",
 		CurveID:  "BW6_633",
@@ -97,16 +98,21 @@ func main() {
 		wg.Add(1)
 
 		go func(d templateData) {
-
 			defer wg.Done()
 
-			if err := os.MkdirAll(d.RootPath+"groth16", 0700); err != nil {
+			var (
+				groth16Dir  = strings.Replace(d.RootPath, "{?}", "groth16", 1)
+				plonkDir    = strings.Replace(d.RootPath, "{?}", "plonk", 1)
+				plonkFriDir = strings.Replace(d.RootPath, "{?}", "plonkfri", 1)
+			)
+
+			if err := os.MkdirAll(groth16Dir, 0700); err != nil {
 				panic(err)
 			}
-			if err := os.MkdirAll(d.RootPath+"plonk", 0700); err != nil {
+			if err := os.MkdirAll(plonkDir, 0700); err != nil {
 				panic(err)
 			}
-			if err := os.MkdirAll(d.RootPath+"plonkfri", 0700); err != nil {
+			if err := os.MkdirAll(plonkFriDir, 0700); err != nil {
 				panic(err)
 			}
 
@@ -135,10 +141,6 @@ func main() {
 				// no backend with just the field defined
 				return
 			}
-
-			plonkFriDir := filepath.Join(d.RootPath, "plonkfri")
-			groth16Dir := filepath.Join(d.RootPath, "groth16")
-			plonkDir := filepath.Join(d.RootPath, "plonk")
 
 			if err := os.MkdirAll(groth16Dir, 0700); err != nil {
 				panic(err)
