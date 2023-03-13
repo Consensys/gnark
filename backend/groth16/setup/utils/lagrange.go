@@ -196,9 +196,9 @@ func LagrangeCoeffsG1(powers []bn254.G1Affine, size int) []bn254.G1Affine {
 
 	utils.Parallelize(size, func(start, end int) {
 		for i := start; i < end; i++ {
-			 coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
+			coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
 		}
- })
+	})
 	return coeffs
 }
 
@@ -217,8 +217,8 @@ func LagrangeCoeffsG2(powers []bn254.G2Affine, size int) []bn254.G2Affine {
 
 	utils.Parallelize(size, func(start, end int) {
 		for i := start; i < end; i++ {
-			 coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
+			coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
 		}
- })
+	})
 	return coeffs
 }

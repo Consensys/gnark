@@ -1,47 +1,13 @@
-package keys
+package setup
 
 import (
-	"github.com/consensys/gnark/backend/groth16/setup/phase1"
-	"github.com/consensys/gnark/backend/groth16/setup/phase2"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	groth16 "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/consensys/gnark/backend/groth16/setup/utils"
 )
 
-type ProvingKey struct {
-	Domain fft.Domain
-	// [α]₁ , [β]₁, [δ]₁, [A(t)]₁, [B(t)]₁, [Kpk(t)]₁, [Z(t)]₁
-	G1 struct {
-		Alpha, Beta, Delta bn254.G1Affine
-		A, B, Z            []bn254.G1Affine
-		K                  []bn254.G1Affine // the indexes correspond to the private wires
-	}
-
-	// [β]₂ , [δ]₂, [B(t)]₂
-	G2 struct {
-		Beta, Delta bn254.G2Affine
-		B           []bn254.G2Affine
-	}
-
-	// if InfinityA[i] == true, the point G1.A[i] == infinity
-	InfinityA, InfinityB     []bool
-	NbInfinityA, NbInfinityB uint64
-}
-
-type VerifyingKey struct {
-	// [α]₁, [Kvk]₁
-	G1 struct {
-		Alpha, Beta, Delta bn254.G1Affine
-		K                  []bn254.G1Affine
-	}
-
-	// [β]₂, [δ]₂, [γ]₂,
-	G2 struct {
-		Beta, Delta, Gamma bn254.G2Affine
-	}
-}
-
-func ExtractKeys(srs1 *phase1.Contribution, srs2 *phase2.Contribution, evals *phase2.Evaluations, nConstraints int) (pk ProvingKey, vk VerifyingKey) {
+func ExtractKeys(srs1 *Phase1, srs2 *Phase2, evals *Phase2Evaluations, nConstraints int) (pk groth16.ProvingKey, vk groth16.VerifyingKey) {
 	_, _, _, g2 := bn254.Generators()
 
 	// Initialize PK
@@ -106,6 +72,11 @@ func ExtractKeys(srs1 *phase1.Contribution, srs2 *phase2.Contribution, evals *ph
 	vk.G2.Delta.Set(&srs2.Parameters.G2.Delta)
 	vk.G2.Gamma.Set(&g2)
 	vk.G1.K = evals.G1.VKK
+
+	// sets e, -[δ]2, -[γ]2
+	if err := vk.Precompute(); err != nil {
+		panic(err)
+	}
 
 	return pk, vk
 }

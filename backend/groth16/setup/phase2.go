@@ -1,18 +1,18 @@
-package phase2
+package setup
 
 import (
 	"crypto/sha256"
+	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/backend/groth16/setup/phase1"
 	utils "github.com/consensys/gnark/backend/groth16/setup/utils"
 	"github.com/consensys/gnark/constraint"
 	cs_bn254 "github.com/consensys/gnark/constraint/bn254"
 )
 
-type Evaluations struct {
+type Phase2Evaluations struct {
 	G1 struct {
 		A, B, VKK []bn254.G1Affine
 	}
@@ -21,7 +21,7 @@ type Evaluations struct {
 	}
 }
 
-type Contribution struct {
+type Phase2 struct {
 	Parameters struct {
 		G1 struct {
 			Delta bn254.G1Affine
@@ -35,12 +35,14 @@ type Contribution struct {
 	Hash      []byte
 }
 
-func (c2 *Contribution) PreparePhase2(c1 *phase1.Contribution, r1cs *cs_bn254.R1CS) Evaluations {
-	srs := c1.Parameters
+func NewPhase2(r1cs *cs_bn254.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
+	srs := srs1.Parameters
 	size := len(srs.G1.AlphaTau)
 	if size < r1cs.GetNbConstraints() {
 		panic("Number of constraints is larger than expected")
 	}
+
+	c2 := Phase2{}
 
 	accumulateG1 := func(res *bn254.G1Affine, t constraint.Term, value *bn254.G1Affine) {
 		cID := t.CoeffID()
@@ -90,7 +92,7 @@ func (c2 *Contribution) PreparePhase2(c1 *phase1.Contribution, r1cs *cs_bn254.R1
 
 	internal, secret, public := r1cs.GetNbVariables()
 	nWires := internal + secret + public
-	var evals Evaluations
+	var evals Phase2Evaluations
 	evals.G1.A = make([]bn254.G1Affine, nWires)
 	evals.G1.B = make([]bn254.G1Affine, nWires)
 	evals.G2.B = make([]bn254.G2Affine, nWires)
@@ -151,11 +153,11 @@ func (c2 *Contribution) PreparePhase2(c1 *phase1.Contribution, r1cs *cs_bn254.R1
 	c2.PublicKey = utils.GenPublicKey(delta, nil, 1)
 
 	// Hash initial contribution
-	c2.Hash = HashContribution(c2)
-	return evals
+	c2.Hash = c2.hash()
+	return c2, evals
 }
 
-func (c *Contribution) Contribute(prev *Contribution) {
+func (c *Phase2) Contribute() {
 	// Sample toxic δ
 	var delta, deltaInv fr.Element
 	var deltaBI, deltaInvBI big.Int
@@ -166,29 +168,75 @@ func (c *Contribution) Contribute(prev *Contribution) {
 	deltaInv.BigInt(&deltaInvBI)
 
 	// Set δ public key
-	c.PublicKey = utils.GenPublicKey(delta, prev.Hash, 1)
+	c.PublicKey = utils.GenPublicKey(delta, c.Hash, 1)
 
 	// Update δ
-	c.Parameters.G1.Delta.ScalarMultiplication(&prev.Parameters.G1.Delta, &deltaBI)
-	c.Parameters.G2.Delta.ScalarMultiplication(&prev.Parameters.G2.Delta, &deltaBI)
+	c.Parameters.G1.Delta.ScalarMultiplication(&c.Parameters.G1.Delta, &deltaBI)
+	c.Parameters.G2.Delta.ScalarMultiplication(&c.Parameters.G2.Delta, &deltaBI)
 
 	// Update Z using δ⁻¹
-	c.Parameters.G1.Z = make([]bn254.G1Affine, len(prev.Parameters.G1.Z))
-	for i := 0; i < len(prev.Parameters.G1.Z); i++ {
-		c.Parameters.G1.Z[i].ScalarMultiplication(&prev.Parameters.G1.Z[i], &deltaInvBI)
+	for i := 0; i < len(c.Parameters.G1.Z); i++ {
+		c.Parameters.G1.Z[i].ScalarMultiplication(&c.Parameters.G1.Z[i], &deltaInvBI)
 	}
 
 	// Update L using δ⁻¹
-	c.Parameters.G1.L = make([]bn254.G1Affine, len(prev.Parameters.G1.L))
-	for i := 0; i < len(prev.Parameters.G1.L); i++ {
-		c.Parameters.G1.L[i].ScalarMultiplication(&prev.Parameters.G1.L[i], &deltaInvBI)
+	for i := 0; i < len(c.Parameters.G1.L); i++ {
+		c.Parameters.G1.L[i].ScalarMultiplication(&c.Parameters.G1.L[i], &deltaInvBI)
 	}
 
 	// 4. Hash contribution
-	c.Hash = HashContribution(c)
+	c.Hash = c.hash()
 }
 
-func HashContribution(c *Contribution) []byte {
+func VerifyPhase2(c0, c1 *Phase2, c ...*Phase2) error {
+	contribs := append([]*Phase2{c0, c1}, c...)
+	for i := 0; i < len(contribs)-1; i++ {
+		if err := verifyPhase2(contribs[i], contribs[i+1]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func verifyPhase2(current, contribution *Phase2) error {
+	// Compute R for δ
+	deltaR := utils.GenR(contribution.PublicKey.SG, contribution.PublicKey.SXG, current.Hash[:], 1)
+
+	// Check for knowledge of δ
+	if !utils.SameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.PublicKey.XR, deltaR) {
+		return errors.New("couldn't verify knowledge of δ")
+	}
+
+	// Check for valid updates using previous parameters
+	if !utils.SameRatio(contribution.Parameters.G1.Delta, current.Parameters.G1.Delta, deltaR, contribution.PublicKey.XR) {
+		return errors.New("couldn't verify that [δ]₁ is based on previous contribution")
+	}
+	if !utils.SameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
+		return errors.New("couldn't verify that [δ]₂ is based on previous contribution")
+	}
+
+	// Check for valid updates of L and Z using
+	L, prevL := utils.Merge(contribution.Parameters.G1.L, current.Parameters.G1.L)
+	if !utils.SameRatio(L, prevL, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
+		return errors.New("couldn't verify valid updates of L using δ⁻¹")
+	}
+	Z, prevZ := utils.Merge(contribution.Parameters.G1.Z, current.Parameters.G1.Z)
+	if !utils.SameRatio(Z, prevZ, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
+		return errors.New("couldn't verify valid updates of L using δ⁻¹")
+	}
+
+	// Check hash of the contribution
+	h := contribution.hash()
+	for i := 0; i < len(h); i++ {
+		if h[i] != contribution.Hash[i] {
+			return errors.New("couldn't verify hash of contribution")
+		}
+	}
+
+	return nil
+}
+
+func (c *Phase2) hash() []byte {
 	sha := sha256.New()
 	// Hash contribution
 	toEncode := []interface{}{
