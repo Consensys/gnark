@@ -14,23 +14,22 @@ package selector
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/constraint/solver"
 	"math/big"
+
+	"github.com/consensys/gnark/constraint/solver"
 
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
 	// register hints
-	RegisterAllHints()
+	solver.RegisterHint(GetHints()...)
 }
 
-// RegisterAllHints registers all the hint functions that are used by this package by calling
-// solver.RegisterHint.
-func RegisterAllHints() {
-	solver.RegisterHint(stepOutput)
-	solver.RegisterHint(muxIndicators)
-	solver.RegisterHint(mapIndicators)
+// GetHints returns all hint functions used in this package. This method is
+// useful for registering all hints in the solver.
+func GetHints() []solver.Hint {
+	return []solver.Hint{stepOutput, muxIndicators, mapIndicators}
 }
 
 // Map is a key value associative array: the output will be values[i] such that keys[i] == queryKey. If keys does not
