@@ -162,17 +162,18 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 	pk.trace.S = make([]int64, 3*pk.Domain[0].Cardinality)
 
 	dec := curve.NewDecoder(r)
-	var ql, qr, qm, qo, qk, lqk, s1, s2, s3 *[]fr.Element
+
+	var ql, qr, qm, qo, qk, lqk, s1, s2, s3 []fr.Element
 	toDecode := []interface{}{
-		(*[]fr.Element)(ql),
-		(*[]fr.Element)(qr),
-		(*[]fr.Element)(qm),
-		(*[]fr.Element)(qo),
-		(*[]fr.Element)(qk),
-		(*[]fr.Element)(lqk),
-		(*[]fr.Element)(s1),
-		(*[]fr.Element)(s2),
-		(*[]fr.Element)(s3),
+		&ql,
+		&qr,
+		&qm,
+		&qo,
+		&qk,
+		&lqk,
+		&s1,
+		&s2,
+		&s3,
 		&pk.trace.S,
 	}
 
@@ -183,14 +184,17 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 	}
 
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
-	pk.trace.Ql = iop.NewPolynomial(ql, canReg)
-	pk.trace.Qr = iop.NewPolynomial(qr, canReg)
-	pk.trace.Qm = iop.NewPolynomial(qm, canReg)
-	pk.trace.Qo = iop.NewPolynomial(qo, canReg)
-	pk.trace.Qk = iop.NewPolynomial(qk, canReg)
+	pk.trace.Ql = iop.NewPolynomial(&ql, canReg)
+	pk.trace.Qr = iop.NewPolynomial(&qr, canReg)
+	pk.trace.Qm = iop.NewPolynomial(&qm, canReg)
+	pk.trace.Qo = iop.NewPolynomial(&qo, canReg)
+	pk.trace.Qk = iop.NewPolynomial(&qk, canReg)
+	pk.trace.S1 = iop.NewPolynomial(&s1, canReg)
+	pk.trace.S2 = iop.NewPolynomial(&s2, canReg)
+	pk.trace.S3 = iop.NewPolynomial(&s3, canReg)
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
-	pk.lQk = iop.NewPolynomial(lqk, lagReg)
+	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
 
 	pk.computeLagrangeCosetPolys()
 

@@ -90,6 +90,7 @@ type ProvingKey struct {
 	// and s1, s2, s3. They are set in canonical basis before generating the proof, they will be used
 	// for computing the opening proofs (hence the canonical form). The canonical version
 	// of qk incompleted is used in the linearisation polynomial.
+	// The polynomials in trace are in canonical basis.
 	trace PlonkTrace
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
