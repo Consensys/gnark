@@ -238,22 +238,6 @@ func verifyPhase2(current, contribution *Phase2) error {
 
 func (c *Phase2) hash() []byte {
 	sha := sha256.New()
-	// Hash contribution
-	toEncode := []interface{}{
-		&c.PublicKey.SG,
-		&c.PublicKey.SXG,
-		&c.PublicKey.XR,
-		&c.Parameters.G1.Delta,
-		c.Parameters.G1.L,
-		c.Parameters.G1.Z,
-		&c.Parameters.G2.Delta,
-	}
-
-	enc := bn254.NewEncoder(sha)
-	for _, v := range toEncode {
-		if err := enc.Encode(v); err != nil {
-			panic(err)
-		}
-	}
+	c.writeTo(sha)
 	return sha.Sum(nil)
 }

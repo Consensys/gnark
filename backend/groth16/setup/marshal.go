@@ -74,7 +74,16 @@ func (phase1 *Phase1) ReadFrom(reader io.Reader) (int64, error) {
 }
 
 // WriteTo implements io.WriterTo
-func (c *Phase2) WriteTo(writer io.Writer) (int64, error) {
+func (phase2 *Phase2) WriteTo(writer io.Writer) (int64, error) {
+	n, err := phase2.writeTo(writer)
+	if err != nil {
+		return n, err
+	}
+	nBytes, err := writer.Write(phase2.Hash)
+	return int64(nBytes) + n, err
+}
+
+func (c *Phase2) writeTo(writer io.Writer) (int64, error) {
 	enc := bn254.NewEncoder(writer)
 	toEncode := []interface{}{
 		&c.PublicKey.SG,
@@ -92,9 +101,7 @@ func (c *Phase2) WriteTo(writer io.Writer) (int64, error) {
 		}
 	}
 
-	n, err := writer.Write(c.Hash)
-	return int64(n), err
-
+	return enc.BytesWritten(), nil
 }
 
 // ReadFrom implements io.ReaderFrom
@@ -118,7 +125,7 @@ func (c *Phase2) ReadFrom(reader io.Reader) (int64, error) {
 
 	c.Hash = make([]byte, 32)
 	n, err := reader.Read(c.Hash)
-	return int64(n), err
+	return int64(n) + dec.BytesRead(), err
 
 }
 

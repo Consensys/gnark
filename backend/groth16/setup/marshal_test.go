@@ -5,13 +5,39 @@ import (
 	"io"
 	"reflect"
 	"testing"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254"
+	cs_bn254 "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/stretchr/testify/require"
 )
 
-func TestPhase1Serialization(t *testing.T) {
-	var phase1, reconstructed Phase1
-	phase1 = NewPhase1(8)
+func TestContributionSerialization(t *testing.T) {
+	assert := require.New(t)
 
-	roundTripCheck(t, &phase1, &reconstructed)
+	// Phase 1
+	srs1 := NewPhase1(9)
+	srs1.Contribute()
+	{
+		var reconstructed Phase1
+		roundTripCheck(t, &srs1, &reconstructed)
+	}
+
+	var myCircuit Circuit
+	ccs, err := frontend.Compile(bn254.ID.ScalarField(), r1cs.NewBuilder, &myCircuit)
+	assert.NoError(err)
+
+	r1cs := ccs.(*cs_bn254.R1CS)
+
+	// Phase 2
+	srs2, _ := NewPhase2(r1cs, &srs1)
+	srs2.Contribute()
+
+	{
+		var reconstructed Phase2
+		roundTripCheck(t, &srs2, &reconstructed)
+	}
 }
 
 func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom) {
