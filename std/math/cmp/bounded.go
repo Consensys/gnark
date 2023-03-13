@@ -84,7 +84,7 @@ func (bc BoundedComparator) AssertIsLess(a, b frontend.Variable) {
 
 // IsLess returns 1 if a < b, and returns 0 if a >= b.
 func (bc BoundedComparator) IsLess(a, b frontend.Variable) frontend.Variable {
-	res, err := bc.api.Compiler().NewHint(isLessOutputHint, 1, a, b, -1)
+	res, err := bc.api.Compiler().NewHint(isLessOutputHint, 1, a, b)
 	if err != nil {
 		panic(fmt.Sprintf("error in calling isLessOutputHint: %v", err))
 	}
@@ -101,7 +101,7 @@ func (bc BoundedComparator) IsLess(a, b frontend.Variable) frontend.Variable {
 
 // Min returns the minimum of a and b.
 func (bc BoundedComparator) Min(a, b frontend.Variable) frontend.Variable {
-	res, err := bc.api.Compiler().NewHint(minOutputHint, 1, a, b, -1)
+	res, err := bc.api.Compiler().NewHint(minOutputHint, 1, a, b)
 	if err != nil {
 		panic(fmt.Sprintf("error in calling minOutputHint: %v", err))
 	}
@@ -119,10 +119,9 @@ func (bc BoundedComparator) Min(a, b frontend.Variable) frontend.Variable {
 	return min
 }
 
-// cmpInField compares a and b in a finite field of prime order, in which -1 is represented by
-// minusOne.
-func cmpInField(a, b, minusOne *big.Int) int {
-	biggestPositiveNum := new(big.Int).Rsh(minusOne, 1)
+// cmpInField compares a and b in a finite field of the specified order.
+func cmpInField(a, b, order *big.Int) int {
+	biggestPositiveNum := new(big.Int).Rsh(order, 1)
 	if a.Cmp(biggestPositiveNum)*b.Cmp(biggestPositiveNum) == -1 {
 		return -a.Cmp(b)
 	}
@@ -130,12 +129,11 @@ func cmpInField(a, b, minusOne *big.Int) int {
 }
 
 // minOutputHint produces the output of [BoundedComparator.Min] as a hint.
-func minOutputHint(_ *big.Int, inputs, results []*big.Int) error {
+func minOutputHint(fieldOrder *big.Int, inputs, results []*big.Int) error {
 	a := inputs[0]
 	b := inputs[1]
-	minusOne := inputs[2]
 
-	if cmpInField(a, b, minusOne) == -1 {
+	if cmpInField(a, b, fieldOrder) == -1 {
 		// a < b
 		results[0].Set(a)
 	} else {
@@ -146,12 +144,11 @@ func minOutputHint(_ *big.Int, inputs, results []*big.Int) error {
 }
 
 // isLessOutputHint produces the output of [BoundedComparator.IsLess] as a hint.
-func isLessOutputHint(_ *big.Int, inputs, results []*big.Int) error {
+func isLessOutputHint(fieldOrder *big.Int, inputs, results []*big.Int) error {
 	a := inputs[0]
 	b := inputs[1]
-	minusOne := inputs[2]
 
-	if cmpInField(a, b, minusOne) == -1 {
+	if cmpInField(a, b, fieldOrder) == -1 {
 		// a < b
 		results[0].SetUint64(1)
 	} else {
