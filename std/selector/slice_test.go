@@ -101,3 +101,70 @@ func TestPartition(t *testing.T) {
 		In:    [2]frontend.Variable{10, 20},
 	})
 }
+
+type slicerCircuit struct {
+	Start, End frontend.Variable    `gnark:",public"`
+	In         [7]frontend.Variable `gnark:",public"`
+	WantSlice  [7]frontend.Variable `gnark:",public"`
+}
+
+func (c *slicerCircuit) Define(api frontend.API) error {
+	gotSlice := selector.Slice(api, c.Start, c.End, c.In[:])
+	for i, want := range c.WantSlice {
+		api.AssertIsEqual(gotSlice[i], want)
+	}
+	return nil
+}
+
+func TestSlice(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	assert.ProverSucceeded(&slicerCircuit{}, &slicerCircuit{
+		Start:     2,
+		End:       5,
+		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
+		WantSlice: [7]frontend.Variable{0, 0, 2, 3, 4, 0, 0},
+	})
+
+	assert.ProverSucceeded(&slicerCircuit{}, &slicerCircuit{
+		Start:     3,
+		End:       4,
+		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
+		WantSlice: [7]frontend.Variable{0, 0, 0, 3, 0, 0, 0},
+	})
+
+	assert.ProverSucceeded(&slicerCircuit{}, &slicerCircuit{
+		Start:     3,
+		End:       3,
+		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
+		WantSlice: [7]frontend.Variable{0, 0, 0, 0, 0, 0, 0},
+	})
+
+	assert.ProverSucceeded(&slicerCircuit{}, &slicerCircuit{
+		Start:     3,
+		End:       1,
+		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
+		WantSlice: [7]frontend.Variable{0, 0, 0, 0, 0, 0, 0},
+	})
+
+	assert.ProverSucceeded(&slicerCircuit{}, &slicerCircuit{
+		Start:     3,
+		End:       6,
+		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
+		WantSlice: [7]frontend.Variable{0, 0, 0, 3, 4, 5, 0},
+	})
+
+	assert.ProverFailed(&slicerCircuit{}, &slicerCircuit{
+		Start:     3,
+		End:       7,
+		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
+		WantSlice: [7]frontend.Variable{0, 0, 0, 3, 4, 5, 0},
+	})
+
+	assert.ProverFailed(&slicerCircuit{}, &slicerCircuit{
+		Start:     0,
+		End:       2,
+		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
+		WantSlice: [7]frontend.Variable{0, 1, 0, 0, 0, 0, 0},
+	})
+}
