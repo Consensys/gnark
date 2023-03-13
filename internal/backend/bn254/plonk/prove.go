@@ -120,17 +120,26 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	evaluationLDomainSmall := []fr.Element(solution.L)
 	evaluationRDomainSmall := []fr.Element(solution.R)
 	evaluationODomainSmall := []fr.Element(solution.O)
+	evaluationPI2DomainSmall := []fr.Element(pi2)
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	liop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
 	riop := iop.NewPolynomial(&evaluationRDomainSmall, lagReg)
 	oiop := iop.NewPolynomial(&evaluationODomainSmall, lagReg)
+	pi2iop := iop.NewPolynomial(&evaluationPI2DomainSmall, lagReg)
+	qcpiop := iop.NewPolynomial(&pk.QcPrime, lagReg)
 	wliop := liop.ShallowClone()
 	wriop := riop.ShallowClone()
 	woiop := oiop.ShallowClone()
+	wpi2iop := pi2iop.ShallowClone()
+	wqciop := qcpiop.ShallowClone()
 	wliop.ToCanonical(&pk.Domain[0]).ToRegular()
 	wriop.ToCanonical(&pk.Domain[0]).ToRegular()
 	woiop.ToCanonical(&pk.Domain[0]).ToRegular()
+	wpi2iop.ToCanonical(&pk.Domain[0]).ToRegular()
+	wqciop.ToCanonical(&pk.Domain[0]).ToRegular()
+
+	wpi2iop.Coefficients()
 
 	// Blind l, r, o before committing
 	// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
@@ -204,7 +213,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	copy(qkCompletedCanonical, fw[:len(spr.Public)])
 	copy(qkCompletedCanonical[len(spr.Public):], pk.LQk[len(spr.Public):])
 	if spr.CommitmentInfo.Is() {
-		qkCompletedCanonical[spr.CommitmentInfo.CommitmentIndex] = commitmentVal // TODO @Tabaie no need to negate?
+		qkCompletedCanonical[spr.CommitmentInfo.CommitmentIndex] = commitmentVal
 	}
 	pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 	fft.BitReverse(qkCompletedCanonical)
@@ -323,13 +332,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		ws3,
 		bwziop,
 		bwsziop,
-		pi2, // TODO @Tabaie correct format
+		wpi2iop, // TODO @Tabaie correct format
 		wqliop,
 		wqriop,
 		wqmiop,
 		wqoiop,
 		wqkiop,
-		qCPrime, // TODO @Tabaie correct format
+		qcpiop, // TODO @Tabaie correct format
 		wloneiop,
 	)
 	if err != nil {
@@ -355,29 +364,20 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 
-	// compute evaluations of (blinded version of) l, r, o, z at zeta
-	var blzeta, brzeta, bozeta fr.Element
+	// compute evaluations of (blinded version of) l, r, o, z, qCPrime at zeta
+	var blzeta, brzeta, bozeta, qcpzeta fr.Element
 
 	var wgEvals sync.WaitGroup
-	wgEvals.Add(3)
-
-	go func() {
-		bwliop.ToCanonical(&pk.Domain[1]).ToRegular()
-		blzeta = bwliop.Evaluate(zeta)
+	wgEvals.Add(4)
+	evalAtZeta := func(poly *iop.Polynomial, res *fr.Element) {
+		poly.ToCanonical(&pk.Domain[1]).ToRegular()
+		*res = poly.Evaluate(zeta)
 		wgEvals.Done()
-	}()
-
-	go func() {
-		bwriop.ToCanonical(&pk.Domain[1]).ToRegular()
-		brzeta = bwriop.Evaluate(zeta)
-		wgEvals.Done()
-	}()
-
-	go func() {
-		bwoiop.ToCanonical(&pk.Domain[1]).ToRegular()
-		bozeta = bwoiop.Evaluate(zeta)
-		wgEvals.Done()
-	}()
+	}
+	go evalAtZeta(bwliop, &blzeta)
+	go evalAtZeta(bwriop, &brzeta)
+	go evalAtZeta(bwoiop, &bozeta)
+	go evalAtZeta(wqciop, &qcpzeta)
 
 	// open blinded Z at zeta*z
 	bwziop.ToCanonical(&pk.Domain[1]).ToRegular()
@@ -414,7 +414,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		gamma,
 		zeta,
 		bzuzeta,
+		qcpzeta,
 		bwziop.Coefficients()[:bwziop.BlindedSize()],
+		wpi2iop.Coefficients(),
 		pk,
 	)
 
@@ -539,6 +541,8 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, srs *kzg.SRS) error
 	return err1
 }
 
+// Discuss whether there is a benefit to opening pi2 instead
+
 // computeLinearizedPolynomial computes the linearized polynomial in canonical basis.
 // The purpose is to commit and open all in one ql, qr, qm, qo, qk.
 // * lZeta, rZeta, oZeta are the evaluation of l, r, o at zeta
@@ -550,7 +554,7 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, srs *kzg.SRS) error
 // α²*L₁(ζ)*Z(X)
 // + α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*s3(X) - Z(X)*(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ))
 // + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X)
-func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, blindedZCanonical []fr.Element, pk *ProvingKey) []fr.Element {
+func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu, qcpZeta fr.Element, blindedZCanonical []fr.Element, pi2Canonical []fr.Element, pk *ProvingKey) []fr.Element {
 
 	// first part: individual constraints
 	var rl fr.Element
@@ -559,7 +563,7 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	// second part:
 	// Z(μζ)(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*s3(X)-Z(X)(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ)
 	var s1, s2 fr.Element
-	chS1 := make(chan struct{}, 1)
+	chS1 := make(chan struct{}, 1) // TODO @Tabaie wait group?
 	go func() {
 		ps1 := iop.NewPolynomial(&pk.S1Canonical, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 		s1 = ps1.Evaluate(zeta)                              // s1(ζ)
@@ -594,9 +598,9 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	den.Sub(&zeta, &one).
 		Inverse(&den)
 	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ⁻¹)/(ζ-1)
-						Mul(&lagrangeZeta, &alpha).
-						Mul(&lagrangeZeta, &alpha).
-						Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
+		Mul(&lagrangeZeta, &alpha).
+		Mul(&lagrangeZeta, &alpha).
+		Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
 
 	linPol := make([]fr.Element, len(blindedZCanonical))
 	copy(linPol, blindedZCanonical)
@@ -630,6 +634,9 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 
 				t0.Mul(&pk.Qo[i], &oZeta).Add(&t0, &pk.CQk[i])
 				linPol[i].Add(&linPol[i], &t0) // linPol = linPol + o(ζ)*Qo(X) + Qk(X)
+
+				t0.Mul(&pi2Canonical[i], &qcpZeta)
+				linPol[i].Add(&linPol[i], &t0)
 			}
 
 			t0.Mul(&blindedZCanonical[i], &lagrangeZeta)
