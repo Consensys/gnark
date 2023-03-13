@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/internal/circuitdefer"
+	"github.com/consensys/gnark/internal/frontendtype"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -479,4 +480,8 @@ func (builder *builder) RecordConstraintsForLazy(key string, finished bool, s *[
 		constraintExpressions[i] = builder.getLinearExpression(expressions[i])
 	}
 	builder.cs.AddStaticConstraints(key, builder.cs.GetNbConstraints(), finished, constraintExpressions)
+}
+
+func (*builder) FrontendType() frontendtype.Type {
+	return frontendtype.R1CS
 }

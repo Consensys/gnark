@@ -114,7 +114,8 @@ type System struct {
 	// several constraints may point to the same debug info
 	MDebug map[int]int
 
-	MHints             map[int]*HintMapping     // maps wireID to hint
+	HintMappings       []HintMapping
+	MHints             map[int]int              // maps wireID to hint
 	MHintsDependencies map[solver.HintID]string // maps hintID to hint string identifier
 
 	// each level contains independent constraints and can be parallelized
@@ -130,9 +131,9 @@ type System struct {
 	bitLen int      `cbor:"-"`
 
 	// level builder
-	lbWireLevel []int                     `cbor:"-"` // at which level we solve a wire. init at -1.
-	lbOutputs   []uint32                  `cbor:"-"` // wire outputs for current constraint.
-	lbHints     map[*HintMapping]struct{} `cbor:"-"` // hints we processed in current round
+	lbWireLevel []int            `cbor:"-"` // at which level we solve a wire. init at -1.
+	lbOutputs   []uint32         `cbor:"-"` // wire outputs for current constraint.
+	lbHints     map[int]struct{} `cbor:"-"` // hints we processed in current round
 
 	CommitmentInfo Commitment
 }
@@ -144,11 +145,11 @@ func NewSystem(scalarField *big.Int) System {
 		MDebug:             map[int]int{},
 		GnarkVersion:       gnark.Version.String(),
 		ScalarField:        scalarField.Text(16),
-		MHints:             make(map[int]*HintMapping),
+		MHints:             make(map[int]int),
 		MHintsDependencies: make(map[solver.HintID]string),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
-		lbHints:            map[*HintMapping]struct{}{},
+		lbHints:            map[int]struct{}{},
 	}
 }
 
@@ -250,9 +251,11 @@ func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbO
 	}
 
 	// associate these wires with the solver hint
-	ch := &HintMapping{HintID: hintUUID, Inputs: input, Outputs: internalVariables}
+	hm := HintMapping{HintID: hintUUID, Inputs: input, Outputs: internalVariables}
+	system.HintMappings = append(system.HintMappings, hm)
+	n := len(system.HintMappings) - 1
 	for _, vID := range internalVariables {
-		system.MHints[vID] = ch
+		system.MHints[vID] = n
 	}
 
 	return

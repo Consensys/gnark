@@ -39,7 +39,12 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 
 // AssertIsDifferent constrain i1 and i2 to be different
 func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
-	builder.Inverse(builder.Sub(i1, i2))
+	s := builder.Sub(i1, i2).(expr.LinearExpression)
+	if len(s) == 1 && s[0].Coeff.IsZero() {
+		panic("AssertIsDifferent(x,x) will never be satisfied")
+	}
+
+	builder.Inverse(s)
 }
 
 // AssertIsBoolean adds an assertion in the constraint builder (v == 0 ∥ v == 1)
