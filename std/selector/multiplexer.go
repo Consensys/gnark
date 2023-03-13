@@ -17,7 +17,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
-
 	"github.com/consensys/gnark/frontend"
 )
 
