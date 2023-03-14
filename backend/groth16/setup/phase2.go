@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	utils "github.com/consensys/gnark/backend/groth16/setup/utils"
 	"github.com/consensys/gnark/constraint"
-	cs_bn254 "github.com/consensys/gnark/constraint/bn254"
+	cs "github.com/consensys/gnark/constraint/bn254"
 )
 
 type Phase2Evaluations struct {
@@ -35,7 +35,7 @@ type Phase2 struct {
 	Hash      []byte
 }
 
-func NewPhase2(r1cs *cs_bn254.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
+func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	srs := srs1.Parameters
 	size := len(srs.G1.AlphaTau)
 	if size < r1cs.GetNbConstraints() {

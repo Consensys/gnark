@@ -17,7 +17,7 @@ func TestContributionSerialization(t *testing.T) {
 	assert := require.New(t)
 
 	// Phase 1
-	srs1 := NewPhase1(9)
+	srs1 := InitPhase1(9)
 	srs1.Contribute()
 	{
 		var reconstructed Phase1
@@ -31,7 +31,7 @@ func TestContributionSerialization(t *testing.T) {
 	r1cs := ccs.(*cs_bn254.R1CS)
 
 	// Phase 2
-	srs2, _ := NewPhase2(r1cs, &srs1)
+	srs2, _ := InitPhase2(r1cs, &srs1)
 	srs2.Contribute()
 
 	{

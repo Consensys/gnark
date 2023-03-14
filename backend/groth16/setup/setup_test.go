@@ -5,32 +5,12 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/backend/groth16"
-	cs_bn254 "github.com/consensys/gnark/constraint/bn254"
+	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/stretchr/testify/require"
 )
-
-// Circuit defines a pre-image knowledge proof
-// mimc(secret preImage) = public hash
-type Circuit struct {
-	PreImage frontend.Variable
-	Hash     frontend.Variable `gnark:",public"`
-}
-
-// Define declares the circuit's constraints
-// Hash = mimc(PreImage)
-func (circuit *Circuit) Define(api frontend.API) error {
-	// hash function
-	mimc, _ := mimc.NewMiMC(api)
-
-	// specify constraints
-	mimc.Write(circuit.PreImage)
-	api.AssertIsEqual(circuit.Hash, mimc.Sum())
-
-	return nil
-}
 
 func TestSetupCircuit(t *testing.T) {
 	const (
@@ -41,7 +21,7 @@ func TestSetupCircuit(t *testing.T) {
 
 	assert := require.New(t)
 
-	srs1 := NewPhase1(power)
+	srs1 := InitPhase1(power)
 
 	// Make and verify contributions for phase1
 	for i := 1; i < nContributionsPhase1; i++ {
@@ -56,10 +36,10 @@ func TestSetupCircuit(t *testing.T) {
 	assert.NoError(err)
 
 	var evals Phase2Evaluations
-	r1cs := ccs.(*cs_bn254.R1CS)
+	r1cs := ccs.(*cs.R1CS)
 
 	// Prepare for phase-2
-	srs2, evals := NewPhase2(r1cs, &srs1)
+	srs2, evals := InitPhase2(r1cs, &srs1)
 
 	// Make and verify contributions for phase1
 	for i := 1; i < nContributionsPhase2; i++ {
@@ -90,16 +70,65 @@ func TestSetupCircuit(t *testing.T) {
 	assert.NoError(err)
 }
 
-func (phase2 *Phase2) clone() Phase2 {
-	r := Phase2{}
-	r.Parameters.G1.Delta = phase2.Parameters.G1.Delta
-	r.Parameters.G1.L = append(r.Parameters.G1.L, phase2.Parameters.G1.L...)
-	r.Parameters.G1.Z = append(r.Parameters.G1.Z, phase2.Parameters.G1.Z...)
-	r.Parameters.G2.Delta = phase2.Parameters.G2.Delta
-	r.PublicKey = phase2.PublicKey
-	r.Hash = append(r.Hash, phase2.Hash...)
+func BenchmarkPhase1Contribution(b *testing.B) {
+	const power = 16
+	srs1 := InitPhase1(power)
 
-	return r
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		srs1.Contribute()
+	}
+
+}
+
+func BenchmarkPhase2Contribution(b *testing.B) {
+	const power = 16
+	srs1 := InitPhase1(power)
+	srs1.Contribute()
+
+	var myCircuit Circuit
+	ccs, err := frontend.Compile(bn254.ID.ScalarField(), r1cs.NewBuilder, &myCircuit)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	r1cs := ccs.(*cs.R1CS)
+
+	b.Run("init", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _ = InitPhase2(r1cs, &srs1)
+		}
+	})
+
+	b.Run("contrib", func(b *testing.B) {
+		srs2, _ := InitPhase2(r1cs, &srs1)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			srs2.Contribute()
+		}
+	})
+
+}
+
+// Circuit defines a pre-image knowledge proof
+// mimc(secret preImage) = public hash
+type Circuit struct {
+	PreImage frontend.Variable
+	Hash     frontend.Variable `gnark:",public"`
+}
+
+// Define declares the circuit's constraints
+// Hash = mimc(PreImage)
+func (circuit *Circuit) Define(api frontend.API) error {
+	// hash function
+	mimc, _ := mimc.NewMiMC(api)
+
+	// specify constraints
+	mimc.Write(circuit.PreImage)
+	api.AssertIsEqual(circuit.Hash, mimc.Sum())
+
+	return nil
 }
 
 func (phase1 *Phase1) clone() Phase1 {
@@ -113,6 +142,18 @@ func (phase1 *Phase1) clone() Phase1 {
 
 	r.PublicKeys = phase1.PublicKeys
 	r.Hash = append(r.Hash, phase1.Hash...)
+
+	return r
+}
+
+func (phase2 *Phase2) clone() Phase2 {
+	r := Phase2{}
+	r.Parameters.G1.Delta = phase2.Parameters.G1.Delta
+	r.Parameters.G1.L = append(r.Parameters.G1.L, phase2.Parameters.G1.L...)
+	r.Parameters.G1.Z = append(r.Parameters.G1.Z, phase2.Parameters.G1.Z...)
+	r.Parameters.G2.Delta = phase2.Parameters.G2.Delta
+	r.PublicKey = phase2.PublicKey
+	r.Hash = append(r.Hash, phase2.Hash...)
 
 	return r
 }
