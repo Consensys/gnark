@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/internal/utils"
@@ -96,7 +97,6 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 		return
 	}
 	builder.MarkBoolean(v)
-	debug := builder.newDebugInfo("assertIsBoolean", v, " == (0|1)")
 
 	// ensure v * (1 - v) == 0
 	// that is v + -v*v == 0
@@ -104,12 +104,19 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	qM := v.Coeff
 	builder.cs.Neg(&qM)
 	builder.cs.Mul(&qM, &v.Coeff)
-	builder.addPlonkConstraint(sparseR1C{
+	toAdd := sparseR1C{
 		xa: v.VID,
 		xb: v.VID,
 		qL: v.Coeff,
 		qM: qM,
-	}, debug)
+	}
+	if debug.Debug {
+		debug := builder.newDebugInfo("assertIsBoolean", v, " == (0|1)")
+		builder.addPlonkConstraint(toAdd, debug)
+	} else {
+		builder.addPlonkConstraint(toAdd)
+	}
+
 }
 
 // AssertIsLessOrEqual fails if  v > bound

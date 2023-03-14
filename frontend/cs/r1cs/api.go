@@ -760,7 +760,7 @@ func (builder *builder) getCommittedVariables(i *constraint.Commitment) []fronte
 }
 
 func bsb22CommitmentComputePlaceholder(_ *big.Int, _ []*big.Int, output []*big.Int) error {
-	if (len(os.Args) > 0 && strings.HasSuffix(os.Args[0], ".test")) || debug.Debug {
+	if (len(os.Args) > 0 && (strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe"))) || debug.Debug {
 		// usually we only run solver without prover during testing
 		log := logger.Logger()
 		log.Error().Msg("Augmented groth16 commitment hint not replaced. Proof will not be sound!")

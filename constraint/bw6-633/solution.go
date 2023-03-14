@@ -38,25 +38,25 @@ type solution struct {
 	values, coefficients []fr.Element
 	solved               []bool
 	nbSolved             uint64
-	mHintsFunctions      map[solver.HintID]solver.Hint   // maps hintID to hint function
-	mHints               map[int]*constraint.HintMapping // maps wireID to hint
+	mHintsFunctions      map[solver.HintID]solver.Hint // maps hintID to hint function
 	st                   *debug.SymbolTable
+	cs                   *constraint.System
 }
 
-func newSolution(nbWires int, hintFunctions map[solver.HintID]solver.Hint, hintsDependencies map[solver.HintID]string, mHints map[int]*constraint.HintMapping, coefficients []fr.Element, st *debug.SymbolTable) (solution, error) {
+func newSolution(cs *constraint.System, nbWires int, hintFunctions map[solver.HintID]solver.Hint, coefficients []fr.Element) (solution, error) {
 
 	s := solution{
-		st:              st,
+		cs:              cs,
+		st:              &cs.SymbolTable,
 		values:          make([]fr.Element, nbWires),
 		coefficients:    coefficients,
 		solved:          make([]bool, nbWires),
 		mHintsFunctions: hintFunctions,
-		mHints:          mHints,
 	}
 
 	// hintsDependencies is from compile time; it contains the list of hints the solver **needs**
 	var missing []string
-	for hintUUID, hintID := range hintsDependencies {
+	for hintUUID, hintID := range cs.MHintsDependencies {
 		if _, ok := s.mHintsFunctions[hintUUID]; !ok {
 			missing = append(missing, hintID)
 		}
@@ -140,12 +140,15 @@ func (s *solution) accumulateInto(t constraint.Term, r *fr.Element) {
 }
 
 // solveHint compute solution.values[vID] using provided solver hint
-func (s *solution) solveWithHint(vID int, h *constraint.HintMapping) error {
+func (s *solution) solveWithHint(vID int, hID int) error {
 	// skip if the wire is already solved by a call to the same hint
 	// function on the same inputs
 	if s.solved[vID] {
 		return nil
 	}
+
+	h := &s.cs.HintMappings[hID]
+
 	// ensure hint function was provided
 	f, ok := s.mHintsFunctions[h.HintID]
 	if !ok {
@@ -177,7 +180,7 @@ func (s *solution) solveWithHint(vID int, h *constraint.HintMapping) error {
 			return nil
 		}
 		// unsolved dependency
-		if h, ok := s.mHints[wID]; ok {
+		if h, ok := s.cs.MHints[wID]; ok {
 			// solve recursively.
 			return s.solveWithHint(wID, h)
 		}
