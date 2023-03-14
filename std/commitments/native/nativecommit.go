@@ -57,6 +57,11 @@ func getCached(api frontend.API) *multicommiter {
 func (mct *multicommiter) commitAndCall(api frontend.API) error {
 	// close collecting input in case anyone wants to check more variables to commit to.
 	mct.closed = true
+	if len(mct.cbs) == 0 {
+		// shouldn't happen. we defer this function on creating multicommitter
+		// instance. It is probably some race.
+		panic("calling commiter with zero callbacks")
+	}
 	commiter, ok := api.Compiler().(frontend.Committer)
 	if !ok {
 		panic("compiler doesn't implement frontend.Committer")
