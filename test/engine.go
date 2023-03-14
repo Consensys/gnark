@@ -490,6 +490,9 @@ func (e *engine) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 	return r, e.constVars
 }
 
+func (e *engine) RecordConstraintsForLazy(key string, finished bool, s *[]frontend.Variable) {
+}
+
 func (e *engine) IsBoolean(v frontend.Variable) bool {
 	r := e.toBigInt(v)
 	return r.IsUint64() && r.Uint64() <= 1
