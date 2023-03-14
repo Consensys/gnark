@@ -28,7 +28,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
-func LagrangeCoeffsG1(powers []curve.G1Affine, size int) []curve.G1Affine {
+func lagrangeCoeffsG1(powers []curve.G1Affine, size int) []curve.G1Affine {
 	coeffs := make([]curve.G1Affine, size)
 	copy(coeffs, powers[:size])
 	domain := fft.NewDomain(uint64(size))
@@ -49,7 +49,7 @@ func LagrangeCoeffsG1(powers []curve.G1Affine, size int) []curve.G1Affine {
 	return coeffs
 }
 
-func LagrangeCoeffsG2(powers []curve.G2Affine, size int) []curve.G2Affine {
+func lagrangeCoeffsG2(powers []curve.G2Affine, size int) []curve.G2Affine {
 	coeffs := make([]curve.G2Affine, size)
 	copy(coeffs, powers[:size])
 	domain := fft.NewDomain(uint64(size))

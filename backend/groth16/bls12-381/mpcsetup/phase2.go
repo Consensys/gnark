@@ -100,10 +100,10 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	}
 
 	// Prepare Lagrange coefficients of [τ...]₁, [τ...]₂, [ατ...]₁, [βτ...]₁
-	coeffTau1 := LagrangeCoeffsG1(srs.G1.Tau, size)
-	coeffTau2 := LagrangeCoeffsG2(srs.G2.Tau, size)
-	coeffAlphaTau1 := LagrangeCoeffsG1(srs.G1.AlphaTau, size)
-	coeffBetaTau1 := LagrangeCoeffsG1(srs.G1.BetaTau, size)
+	coeffTau1 := lagrangeCoeffsG1(srs.G1.Tau, size)
+	coeffTau2 := lagrangeCoeffsG2(srs.G2.Tau, size)
+	coeffAlphaTau1 := lagrangeCoeffsG1(srs.G1.AlphaTau, size)
+	coeffBetaTau1 := lagrangeCoeffsG1(srs.G1.BetaTau, size)
 
 	internal, secret, public := r1cs.GetNbVariables()
 	nWires := internal + secret + public
