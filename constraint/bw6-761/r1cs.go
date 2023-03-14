@@ -19,8 +19,10 @@ package cs
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/constraint/lazy"
 	"github.com/fxamacker/cbor/v2"
 	"io"
+	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -536,10 +538,21 @@ func (cs *R1CS) CurveID() ecc.ID {
 	return ecc.BW6_761
 }
 
+// add cbor tags to clarify lazy inputs
+func (h *R1CS) inputsCBORTags() (cbor.TagSet, error) {
+	defTagOpts := cbor.TagOptions{EncTag: cbor.EncTagRequired, DecTag: cbor.DecTagRequired}
+	tags := cbor.NewTagSet()
+	if err := tags.Add(defTagOpts, reflect.TypeOf(lazy.GeneralLazyInputs{}), 25448); err != nil {
+		return nil, fmt.Errorf("new LE tag: %w", err)
+	}
+	return tags, nil
+}
+
 // WriteTo encodes R1CS into provided io.Writer using cbor
 func (cs *R1CS) WriteTo(w io.Writer) (int64, error) {
+	tags, err := cs.inputsCBORTags()
 	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
-	enc, err := cbor.CoreDetEncOptions().EncMode()
+	enc, err := cbor.CoreDetEncOptions().EncModeWithTags(tags)
 	if err != nil {
 		return 0, err
 	}
@@ -552,10 +565,14 @@ func (cs *R1CS) WriteTo(w io.Writer) (int64, error) {
 
 // ReadFrom attempts to decode R1CS from io.Reader using cbor
 func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
+	tags, err := cs.inputsCBORTags()
+	if err != nil {
+		return 0, err
+	}
 	dm, err := cbor.DecOptions{
-		MaxArrayElements: 134217728,
-		MaxMapPairs:      134217728,
-	}.DecMode()
+		MaxArrayElements: 268435456,
+		MaxMapPairs:      268435456,
+	}.DecModeWithTags(tags)
 
 	if err != nil {
 		return 0, err
