@@ -22,11 +22,11 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	groth16_bls24315 "github.com/consensys/gnark/backend/groth16/bls24-315"
 	"github.com/consensys/gnark/constraint"
 	cs_bls24315 "github.com/consensys/gnark/constraint/bls24-315"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	groth16_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/groth16"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
