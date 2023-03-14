@@ -271,38 +271,6 @@ func TestMulByElement(t *testing.T) {
 
 }
 
-type e2MulBybTwistCurveCoeff struct {
-	A E2
-	C E2 `gnark:",public"`
-}
-
-func (circuit *e2MulBybTwistCurveCoeff) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
-	expected := e.MulBybTwistCurveCoeff(api, &circuit.A)
-	e.AssertIsEqual(expected, &circuit.C)
-
-	return nil
-}
-
-func TestMulFp2BybTwistCurveCoeff(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c bn254.E2
-	_, _ = a.SetRandom()
-	c.MulBybTwistCurveCoeff(&a)
-
-	witness := e2MulBybTwistCurveCoeff{
-		A: FromE2(&a),
-		C: FromE2(&c),
-	}
-
-	err := test.IsSolved(&e2MulBybTwistCurveCoeff{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-
-}
-
 type e2MulByNonResidue struct {
 	A E2
 	C E2 `gnark:",public"`
@@ -331,38 +299,6 @@ func TestMulFp2ByNonResidue(t *testing.T) {
 	}
 
 	err := test.IsSolved(&e2MulByNonResidue{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-
-}
-
-type e2MulByNonResidueInv struct {
-	A E2
-	C E2 `gnark:",public"`
-}
-
-func (circuit *e2MulByNonResidueInv) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
-	expected := e.MulByNonResidueInv(api, &circuit.A)
-	e.AssertIsEqual(expected, &circuit.C)
-
-	return nil
-}
-
-func TestMulFp2ByNonResidueInv(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c bn254.E2
-	_, _ = a.SetRandom()
-	c.MulByNonResidueInv(&a)
-
-	witness := e2MulByNonResidueInv{
-		A: FromE2(&a),
-		C: FromE2(&c),
-	}
-
-	err := test.IsSolved(&e2MulByNonResidueInv{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }

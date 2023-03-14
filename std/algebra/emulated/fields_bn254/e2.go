@@ -305,13 +305,6 @@ func (e Ext2) Halve(api frontend.API, x *E2) *E2 {
 
 }
 
-func (e Ext2) MulBybTwistCurveCoeff(api frontend.API, x *E2) *E2 {
-	res := e.MulByNonResidueInv(api, x)
-	z := e.Double(res)
-	z = e.Add(z, res)
-	return z
-}
-
 func (e Ext2) AssertIsEqual(x, y *E2) {
 	e.fp.AssertIsEqual(&x.A0, &y.A0)
 	e.fp.AssertIsEqual(&x.A1, &y.A1)
@@ -372,29 +365,4 @@ func (e Ext2) DivUnchecked(api frontend.API, x, y E2) *E2 {
 	e.AssertIsEqual(&x, &_x)
 
 	return &div
-}
-
-func (e Ext2) MulByNonResidueInv(api frontend.API, x *E2) *E2 {
-	field, err := emulated.NewField[emulated.BN254Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	res, err := field.NewHint(MulByNonResidueInvHint, 2, &x.A0, &x.A1)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-
-	// r <-- x * (1/(9+u))
-	r := E2{
-		A0: *res[0],
-		A1: *res[1],
-	}
-
-	// x == r * (9+u)
-	_x := e.MulByNonResidue(&r)
-	e.AssertIsEqual(x, _x)
-
-	return &r
-
 }
