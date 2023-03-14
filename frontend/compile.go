@@ -131,8 +131,8 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 }
 
 func callDeferred(builder Builder) error {
-	for i, cb := range circuitdefer.GetAll[func(API) error](builder) {
-		if err := cb(builder); err != nil {
+	for i := 0; i < len(circuitdefer.GetAll[func(API) error](builder)); i++ {
+		if err := circuitdefer.GetAll[func(API) error](builder)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)
 		}
 	}
