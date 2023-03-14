@@ -101,9 +101,10 @@ func main() {
 			defer wg.Done()
 
 			var (
-				groth16Dir  = strings.Replace(d.RootPath, "{?}", "groth16", 1)
-				plonkDir    = strings.Replace(d.RootPath, "{?}", "plonk", 1)
-				plonkFriDir = strings.Replace(d.RootPath, "{?}", "plonkfri", 1)
+				groth16Dir         = strings.Replace(d.RootPath, "{?}", "groth16", 1)
+				groth16MpcSetupDir = filepath.Join(groth16Dir, "mpcsetup")
+				plonkDir           = strings.Replace(d.RootPath, "{?}", "plonk", 1)
+				plonkFriDir        = strings.Replace(d.RootPath, "{?}", "plonkfri", 1)
 			)
 
 			if err := os.MkdirAll(groth16Dir, 0700); err != nil {
@@ -165,6 +166,22 @@ func main() {
 				{File: filepath.Join(groth16Dir, "commitment_test.go"), Templates: []string{"groth16/tests/groth16.commitment.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "groth16_test", "./template/zkpschemes/", entries...); err != nil {
+				panic(err) // TODO handle
+			}
+
+			// groth16 mpcsetup
+			entries = []bavard.Entry{
+				{File: filepath.Join(groth16MpcSetupDir, "lagrange.go"), Templates: []string{"groth16/mpcsetup/lagrange.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16MpcSetupDir, "marshal.go"), Templates: []string{"groth16/mpcsetup/marshal.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16MpcSetupDir, "marshal_test.go"), Templates: []string{"groth16/mpcsetup/marshal_test.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16MpcSetupDir, "phase1.go"), Templates: []string{"groth16/mpcsetup/phase1.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16MpcSetupDir, "phase2.go"), Templates: []string{"groth16/mpcsetup/phase2.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16MpcSetupDir, "setup.go"), Templates: []string{"groth16/mpcsetup/setup.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16MpcSetupDir, "setup_test.go"), Templates: []string{"groth16/mpcsetup/setup_test.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16MpcSetupDir, "utils.go"), Templates: []string{"groth16/mpcsetup/utils.go.tmpl", importCurve}},
+			}
+
+			if err := bgen.Generate(d, "mpcsetup", "./template/zkpschemes/", entries...); err != nil {
 				panic(err) // TODO handle
 			}
 
