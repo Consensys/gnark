@@ -70,16 +70,22 @@ func (mct *multicommiter) commitAndCall(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
-	hasher, err := mimc.NewMiMC(api)
-	if err != nil {
-		return fmt.Errorf("new hasher: %w", err)
-	}
-	for i, cb := range mct.cbs {
-		hasher.Reset()
-		hasher.Write(i+1, cmt)
-		localcmt := hasher.Sum()
-		if err = cb(api, localcmt); err != nil {
-			return fmt.Errorf("with commitment callback %d: %w", i, err)
+	if len(mct.cbs) == 1 {
+		if err = mct.cbs[0](api, cmt); err != nil {
+			return fmt.Errorf("single callback: %w", err)
+		}
+	} else {
+		hasher, err := mimc.NewMiMC(api)
+		if err != nil {
+			return fmt.Errorf("new hasher: %w", err)
+		}
+		for i, cb := range mct.cbs {
+			hasher.Reset()
+			hasher.Write(i+1, cmt)
+			localcmt := hasher.Sum()
+			if err = cb(api, localcmt); err != nil {
+				return fmt.Errorf("with commitment callback %d: %w", i, err)
+			}
 		}
 	}
 	return nil
