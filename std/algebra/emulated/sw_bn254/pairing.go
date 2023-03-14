@@ -248,7 +248,7 @@ func (pr Pairing) MillerLoop(api frontend.API, P []*G1Affine, Q []*G2Affine) (GT
 		l1.R1 = *pr.Ext2.MulByElement(&l1.R1, &yInv[k])
 		res = pr.MulBy034(res, l1.R0, l1.R1)
 
-		Qacc[k], l2 = pr.addStep(api, &Qacc[k], Q2)
+		l2 = pr.addStepLineOnly(api, &Qacc[k], Q2)
 		l2.R0 = *pr.MulByElement(&l2.R0, &xOverY[k])
 		l2.R1 = *pr.MulByElement(&l2.R1, &yInv[k])
 		res = pr.MulBy034(res, l2.R0, l2.R1)
@@ -374,5 +374,22 @@ func (pr Pairing) addStep(api frontend.API, p, q *G2Affine) (G2Affine, LineEvalu
 	line.R1 = *pr.Ext2.Sub(&line.R1, &p.Y)
 
 	return res, line
+
+}
+
+// addStepLineOnly computes the line that goes through p and q but does not compute p+q
+func (pr Pairing) addStepLineOnly(api frontend.API, p, q *G2Affine) LineEvaluation {
+
+	// compute λ = (q.y-p.y)/(q.x-p.x)
+	qypy := pr.Ext2.Sub(&q.Y, &p.Y)
+	qxpx := pr.Ext2.Sub(&q.X, &p.X)
+	λ := pr.Ext2.DivUnchecked(api, *qypy, *qxpx)
+
+	var line LineEvaluation
+	line.R0 = *pr.Ext2.Neg(λ)
+	line.R1 = *pr.Ext2.Mul(λ, &p.X)
+	line.R1 = *pr.Ext2.Sub(&line.R1, &p.Y)
+
+	return line
 
 }
