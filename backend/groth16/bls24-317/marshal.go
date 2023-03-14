@@ -171,13 +171,9 @@ func (vk *VerifyingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)
 	}
 
 	// recompute vk.e (e(α, β)) and  -[δ]2, -[γ]2
-	var err error
-	vk.e, err = curve.Pair([]curve.G1Affine{vk.G1.Alpha}, []curve.G2Affine{vk.G2.Beta})
-	if err != nil {
+	if err := vk.Precompute(); err != nil {
 		return dec.BytesRead(), err
 	}
-	vk.G2.deltaNeg.Neg(&vk.G2.Delta)
-	vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 
 	return dec.BytesRead(), nil
 }
