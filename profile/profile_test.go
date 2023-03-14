@@ -15,8 +15,18 @@ type Circuit struct {
 	A frontend.Variable
 }
 
+type obj struct {
+}
+
 func (circuit *Circuit) Define(api frontend.API) error {
-	api.AssertIsEqual(api.Mul(circuit.A, circuit.A), circuit.A)
+	var o obj
+	o.Define(api, circuit.A)
+	// api.AssertIsEqual(api.Mul(circuit.A, circuit.A), circuit.A)
+	return nil
+}
+
+func (o *obj) Define(api frontend.API, A frontend.Variable) error {
+	api.AssertIsEqual(api.Mul(A, A), A)
 	return nil
 }
 
