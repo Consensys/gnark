@@ -10,8 +10,8 @@ import (
 	kzgg "github.com/consensys/gnark-crypto/kzg"
 )
 
-// PlonkTrace stores a plonk trace as columns
-type PlonkTrace struct {
+// Trace stores a plonk trace as columns
+type Trace struct {
 
 	// Constants describing a plonk circuit. The first entries
 	// of LQk (whose index correspond to the public inputs) are set to 0, and are to be
@@ -73,7 +73,7 @@ type ProvingKey struct {
 	// for computing the opening proofs (hence the canonical form). The canonical version
 	// of qk incompleted is used in the linearisation polynomial.
 	// The polynomials in trace are in canonical basis.
-	trace PlonkTrace
+	trace Trace
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
@@ -192,7 +192,7 @@ func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
 
 // BuildTrace fills the constatn columns ql, qr, qm, qo, qk from the sparser1cs.
 // Size is the size of the system that is nb_constraints+nb_public_variables
-func BuildTrace(spr *cs.SparseR1CS, pt *PlonkTrace) {
+func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 
 	nbConstraints := len(spr.Constraints)
 	sizeSystem := uint64(nbConstraints + len(spr.Public))
@@ -234,7 +234,7 @@ func BuildTrace(spr *cs.SparseR1CS, pt *PlonkTrace) {
 
 // commitTrace commits to every polynomials in the trace, and put
 // the commitments int the verifying key.
-func commitTrace(trace *PlonkTrace, pk *ProvingKey) error {
+func commitTrace(trace *Trace, pk *ProvingKey) error {
 
 	trace.Ql.ToCanonical(&pk.Domain[0]).ToRegular()
 	trace.Qr.ToCanonical(&pk.Domain[0]).ToRegular()
@@ -304,7 +304,7 @@ func buildDomains(spr *cs.SparseR1CS) [2]fft.Domain {
 // The permutation is encoded as a slice s of size 3*size(l), where the
 // i-th entry of l∥r∥o is sent to the s[i]-th entry, so it acts on a tab
 // like this: for i in tab: tab[i] = tab[permutation[i]]
-func buildPermutation(spr *cs.SparseR1CS, pt *PlonkTrace, nbVariables int) {
+func buildPermutation(spr *cs.SparseR1CS, pt *Trace, nbVariables int) {
 
 	// nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
 	sizeSolution := len(pt.Ql.Coefficients())
@@ -358,7 +358,7 @@ func buildPermutation(spr *cs.SparseR1CS, pt *PlonkTrace, nbVariables int) {
 // computePermutationPolynomials computes the LDE (Lagrange basis) of the permutation.
 // We let the permutation act on <g> || u<g> || u^{2}<g>, split the result in 3 parts,
 // and interpolate each of the 3 parts on <g>.
-func computePermutationPolynomials(pt *PlonkTrace, domain *fft.Domain) [3]*iop.Polynomial {
+func computePermutationPolynomials(pt *Trace, domain *fft.Domain) [3]*iop.Polynomial {
 
 	nbElmts := int(domain.Cardinality)
 
