@@ -570,8 +570,8 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 	dm, err := cbor.DecOptions{
-		MaxArrayElements: 268435456,
-		MaxMapPairs:      268435456,
+		MaxArrayElements: 134217728,
+		MaxMapPairs:      134217728,
 	}.DecModeWithTags(tags)
 
 	if err != nil {
