@@ -30,7 +30,7 @@ type Phase2 struct {
 			Delta bn254.G2Affine
 		}
 	}
-	PublicKey publicKey
+	PublicKey PublicKey
 	Hash      []byte
 }
 

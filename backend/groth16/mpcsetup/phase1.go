@@ -27,7 +27,7 @@ type Phase1 struct {
 		}
 	}
 	PublicKeys struct {
-		Tau, Alpha, Beta publicKey
+		Tau, Alpha, Beta PublicKey
 	}
 	Hash []byte // sha256 hash
 }
@@ -93,10 +93,11 @@ func (phase1 *Phase1) Contribute() {
 	}
 
 	// Update using previous parameters
-	phase1.Parameters.G1.Tau = scaleG1(phase1.Parameters.G1.Tau, taus)
-	phase1.Parameters.G2.Tau = scaleG2(phase1.Parameters.G2.Tau, taus[0:N])
-	phase1.Parameters.G1.AlphaTau = scaleG1(phase1.Parameters.G1.AlphaTau, alphaTau)
-	phase1.Parameters.G1.BetaTau = scaleG1(phase1.Parameters.G1.BetaTau, betaTau)
+	// TODO @gbotrel working with jacobian points here will help with perf.
+	scaleG1InPlace(phase1.Parameters.G1.Tau, taus)
+	scaleG2InPlace(phase1.Parameters.G2.Tau, taus[0:N])
+	scaleG1InPlace(phase1.Parameters.G1.AlphaTau, alphaTau)
+	scaleG1InPlace(phase1.Parameters.G1.BetaTau, betaTau)
 	var betaBI big.Int
 	beta.BigInt(&betaBI)
 	phase1.Parameters.G2.Beta.ScalarMultiplication(&phase1.Parameters.G2.Beta, &betaBI)

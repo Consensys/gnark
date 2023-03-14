@@ -76,8 +76,8 @@ func TestSetupCircuit(t *testing.T) {
 	assert.NoError(err)
 }
 
-func BenchmarkPhase1Contribution(b *testing.B) {
-	const power = 16
+func BenchmarkPhase1(b *testing.B) {
+	const power = 14
 
 	b.Run("init", func(b *testing.B) {
 		b.ResetTimer()
@@ -96,8 +96,8 @@ func BenchmarkPhase1Contribution(b *testing.B) {
 
 }
 
-func BenchmarkPhase2Contribution(b *testing.B) {
-	const power = 16
+func BenchmarkPhase2(b *testing.B) {
+	const power = 14
 	srs1 := InitPhase1(power)
 	srs1.Contribute()
 

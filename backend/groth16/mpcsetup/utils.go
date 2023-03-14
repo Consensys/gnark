@@ -1,6 +1,7 @@
 package mpcsetup
 
 import (
+	"bytes"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -11,14 +12,14 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
-type publicKey struct {
+type PublicKey struct {
 	SG  bn254.G1Affine
 	SXG bn254.G1Affine
 	XR  bn254.G2Affine
 }
 
-func newPublicKey(x fr.Element, challenge []byte, dst byte) publicKey {
-	var pk publicKey
+func newPublicKey(x fr.Element, challenge []byte, dst byte) PublicKey {
+	var pk PublicKey
 	_, _, g1, _ := bn254.Generators()
 
 	var s fr.Element
@@ -63,29 +64,25 @@ func powers(a fr.Element, n int) []fr.Element {
 }
 
 // Returns [aᵢAᵢ, ...] in G1
-func scaleG1(A []bn254.G1Affine, a []fr.Element) []bn254.G1Affine {
-	result := make([]bn254.G1Affine, len(A))
+func scaleG1InPlace(A []bn254.G1Affine, a []fr.Element) {
 	utils.Parallelize(len(A), func(start, end int) {
+		var tmp big.Int
 		for i := start; i < end; i++ {
-			var tmp big.Int
 			a[i].BigInt(&tmp)
-			result[i].ScalarMultiplication(&A[i], &tmp)
+			A[i].ScalarMultiplication(&A[i], &tmp)
 		}
 	})
-	return result
 }
 
 // Returns [aᵢAᵢ, ...] in G2
-func scaleG2(A []bn254.G2Affine, a []fr.Element) []bn254.G2Affine {
-	result := make([]bn254.G2Affine, len(A))
+func scaleG2InPlace(A []bn254.G2Affine, a []fr.Element) {
 	utils.Parallelize(len(A), func(start, end int) {
+		var tmp big.Int
 		for i := start; i < end; i++ {
-			var tmp big.Int
 			a[i].BigInt(&tmp)
-			result[i].ScalarMultiplication(&A[i], &tmp)
+			A[i].ScalarMultiplication(&A[i], &tmp)
 		}
 	})
-	return result
 }
 
 // Check e(a₁, a₂) = e(b₁, b₂)
@@ -144,9 +141,12 @@ func linearCombinationG2(A []bn254.G2Affine) (L1, L2 bn254.G2Affine) {
 
 // Generate R in G₂ as Hash(gˢ, gˢˣ, challenge, dst)
 func genR(sG1, sxG1 bn254.G1Affine, challenge []byte, dst byte) bn254.G2Affine {
-	buffer := append(sG1.Marshal()[:], sxG1.Marshal()...)
-	buffer = append(buffer, challenge...)
-	spG2, err := bn254.HashToG2(buffer, []byte{dst})
+	var buf bytes.Buffer
+	buf.Grow(len(challenge) + bn254.SizeOfG1AffineUncompressed*2)
+	buf.Write(sG1.Marshal())
+	buf.Write(sxG1.Marshal())
+	buf.Write(challenge)
+	spG2, err := bn254.HashToG2(buf.Bytes(), []byte{dst})
 	if err != nil {
 		panic(err)
 	}
