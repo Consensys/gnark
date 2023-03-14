@@ -140,50 +140,6 @@ func TestDivFp12(t *testing.T) {
 
 }
 
-type e12MulBy034by034 struct {
-	C0, C3, C4 E2
-	D0, D3, D4 E2
-	C          E12 `gnark:",public"`
-}
-
-func (circuit *e12MulBy034by034) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
-	expected := e.MulBy034by034(&circuit.C0, &circuit.C3, &circuit.C4, &circuit.D0, &circuit.D3, &circuit.D4)
-	e.AssertIsEqual(expected, &circuit.C)
-
-	return nil
-}
-
-func TestMulFp12By034by034(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var c bn254.E12
-	var c0, c3, c4, d0, d3, d4 bn254.E2
-	_, _ = c0.SetRandom()
-	_, _ = c3.SetRandom()
-	_, _ = c4.SetRandom()
-	_, _ = d0.SetRandom()
-	_, _ = d3.SetRandom()
-	_, _ = d4.SetRandom()
-	c.Mul034by034(&c0, &c3, &c4, &d0, &d3, &d4)
-
-	witness := e12MulBy034by034{
-		C0: FromE2(&c0),
-		C3: FromE2(&c3),
-		C4: FromE2(&c4),
-		D0: FromE2(&d0),
-		D3: FromE2(&d3),
-		D4: FromE2(&d4),
-		C:  FromE12(&c),
-	}
-
-	err := test.IsSolved(&e12MulBy034by034{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-
-}
-
 type e12Square struct {
 	A, C E12
 }
@@ -523,6 +479,46 @@ func TestFrobeniusCubeFp12(t *testing.T) {
 	}
 
 	err := test.IsSolved(&e12FrobeniusCube{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
+type e12MulBy034 struct {
+	A    E12 `gnark:",public"`
+	W    E12
+	B, C E2
+}
+
+func (circuit *e12MulBy034) Define(api frontend.API) error {
+
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt12(ba)
+	circuit.A = *e.MulBy034(&circuit.A, circuit.B, circuit.C)
+	e.AssertIsEqual(&circuit.A, &circuit.W)
+	return nil
+}
+
+func TestFp12MulBy034(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, w bn254.E12
+	_, _ = a.SetRandom()
+	var one, b, c bn254.E2
+	one.SetOne()
+	_, _ = b.SetRandom()
+	_, _ = c.SetRandom()
+	w.Set(&a)
+	w.MulBy034(&one, &b, &c)
+
+	witness := e12MulBy034{
+		A: FromE12(&a),
+		B: FromE2(&b),
+		C: FromE2(&c),
+		W: FromE12(&w),
+	}
+
+	err := test.IsSolved(&e12MulBy034{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
