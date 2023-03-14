@@ -6,42 +6,42 @@ import (
 
 type GeneralLazyInputs struct {
 	// record the start location constraint
-	loc int
+	Loc int
 
-	// record the shift from the static constraint
-	shift int
+	// record the Shift from the static constraint
+	Shift int
 
-	// record the paramsNum to differ
-	paramsNum int
+	// record the ParamsNum to differ
+	ParamsNum int
 
 	// reusing the constraints related to inputs
-	inputConstraints []constraint.R1C
+	InputConstraints []constraint.R1C
 
 	// record the constraints num for every single lazy inputs
-	constraintsNum int
+	ConstraintsNum int
 
 	// the lazy inputs type, using to extract the static r1cs
-	key string
+	Key string
 }
 
 func (le *GeneralLazyInputs) GetConstraintsNum() int {
-	return le.constraintsNum
+	return le.ConstraintsNum
 }
 
 func (le *GeneralLazyInputs) GetLoc() int {
-	return le.loc
+	return le.Loc
 }
 
 func (le *GeneralLazyInputs) FetchLazy(r1cs constraint.R1CS, j int) constraint.R1C {
-	staticR1cs := r1cs.GetStaticConstraints(le.key).StaticR1CS
+	staticR1cs := r1cs.GetStaticConstraints(le.Key).StaticR1CS
 
-	if j < len(le.inputConstraints) {
-		return le.inputConstraints[j]
+	if j < len(le.InputConstraints) {
+		return le.InputConstraints[j]
 	}
 
-	resL := addShiftToTermsForExpression(staticR1cs[j].L, le.shift)
-	resR := addShiftToTermsForExpression(staticR1cs[j].R, le.shift)
-	resO := addShiftToTermsForExpression(staticR1cs[j].O, le.shift)
+	resL := addShiftToTermsForExpression(staticR1cs[j].L, le.Shift)
+	resR := addShiftToTermsForExpression(staticR1cs[j].R, le.Shift)
+	resO := addShiftToTermsForExpression(staticR1cs[j].O, le.Shift)
 
 	return constraint.R1C{
 		L: resL,
@@ -64,12 +64,12 @@ func addShiftToTermsForExpression(expression constraint.LinearExpression, shift 
 func createGeneralLazyInputsFunc(key string) func(inputs []constraint.R1C, loc int, constraintsNum int, paramsNum int, shift int) constraint.LazyInputs {
 	return func(inputs []constraint.R1C, loc int, constraintsNum int, paramsNum int, shift int) constraint.LazyInputs {
 		return &GeneralLazyInputs{
-			inputConstraints: inputs,
-			paramsNum:        paramsNum,
-			loc:              loc,
-			constraintsNum:   constraintsNum,
-			key:              key,
-			shift:            shift,
+			InputConstraints: inputs,
+			ParamsNum:        paramsNum,
+			Loc:              loc,
+			ConstraintsNum:   constraintsNum,
+			Key:              key,
+			Shift:            shift,
 		}
 	}
 }
