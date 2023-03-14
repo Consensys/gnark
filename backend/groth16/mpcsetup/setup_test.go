@@ -25,7 +25,10 @@ func TestSetupCircuit(t *testing.T) {
 
 	// Make and verify contributions for phase1
 	for i := 1; i < nContributionsPhase1; i++ {
+		// we clone test purposes; but in practice, participant will receive a []byte, deserialize it,
+		// add his contribution and send back to coordinator.
 		prev := srs1.clone()
+
 		srs1.Contribute()
 		assert.NoError(VerifyPhase1(&prev, &srs1))
 	}
@@ -43,7 +46,10 @@ func TestSetupCircuit(t *testing.T) {
 
 	// Make and verify contributions for phase1
 	for i := 1; i < nContributionsPhase2; i++ {
+		// we clone for test purposes; but in practice, participant will receive a []byte, deserialize it,
+		// add his contribution and send back to coordinator.
 		prev := srs2.clone()
+
 		srs2.Contribute()
 		assert.NoError(VerifyPhase2(&prev, &srs2))
 	}
@@ -72,12 +78,21 @@ func TestSetupCircuit(t *testing.T) {
 
 func BenchmarkPhase1Contribution(b *testing.B) {
 	const power = 16
-	srs1 := InitPhase1(power)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		srs1.Contribute()
-	}
+	b.Run("init", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = InitPhase1(power)
+		}
+	})
+
+	b.Run("contrib", func(b *testing.B) {
+		srs1 := InitPhase1(power)
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			srs1.Contribute()
+		}
+	})
 
 }
 

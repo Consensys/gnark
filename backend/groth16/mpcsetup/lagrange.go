@@ -1,4 +1,4 @@
-package utils
+package mpcsetup
 
 import (
 	"math/big"
@@ -11,6 +11,48 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark/internal/utils"
 )
+
+func LagrangeCoeffsG1(powers []bn254.G1Affine, size int) []bn254.G1Affine {
+	coeffs := make([]bn254.G1Affine, size)
+	copy(coeffs, powers[:size])
+	domain := fft.NewDomain(uint64(size))
+	numCPU := uint64(runtime.NumCPU())
+	maxSplits := bits.TrailingZeros64(ecc.NextPowerOfTwo(numCPU))
+
+	difFFTG1(coeffs, domain.TwiddlesInv, 0, maxSplits, nil)
+	bitReverse(coeffs)
+
+	var invBigint big.Int
+	domain.CardinalityInv.BigInt(&invBigint)
+
+	utils.Parallelize(size, func(start, end int) {
+		for i := start; i < end; i++ {
+			coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
+		}
+	})
+	return coeffs
+}
+
+func LagrangeCoeffsG2(powers []bn254.G2Affine, size int) []bn254.G2Affine {
+	coeffs := make([]bn254.G2Affine, size)
+	copy(coeffs, powers[:size])
+	domain := fft.NewDomain(uint64(size))
+	numCPU := uint64(runtime.NumCPU())
+	maxSplits := bits.TrailingZeros64(ecc.NextPowerOfTwo(numCPU))
+
+	difFFTG2(coeffs, domain.TwiddlesInv, 0, maxSplits, nil)
+	bitReverse(coeffs)
+
+	var invBigint big.Int
+	domain.CardinalityInv.BigInt(&invBigint)
+
+	utils.Parallelize(size, func(start, end int) {
+		for i := start; i < end; i++ {
+			coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
+		}
+	})
+	return coeffs
+}
 
 func butterflyG1(a *bn254.G1Affine, b *bn254.G1Affine) {
 	t := *a
@@ -155,70 +197,4 @@ func difFFTG2(a []bn254.G2Affine, twiddles [][]fr.Element, stage, maxSplits int,
 		difFFTG2(a[0:m], twiddles, nextStage, maxSplits, nil)
 		difFFTG2(a[m:n], twiddles, nextStage, maxSplits, nil)
 	}
-}
-
-func BitReverseG1(a []bn254.G1Affine) {
-	n := uint64(len(a))
-	nn := uint64(64 - bits.TrailingZeros64(n))
-
-	for i := uint64(0); i < n; i++ {
-		irev := bits.Reverse64(i) >> nn
-		if irev > i {
-			a[i], a[irev] = a[irev], a[i]
-		}
-	}
-}
-
-func BitReverseG2(a []bn254.G2Affine) {
-	n := uint64(len(a))
-	nn := uint64(64 - bits.TrailingZeros64(n))
-
-	for i := uint64(0); i < n; i++ {
-		irev := bits.Reverse64(i) >> nn
-		if irev > i {
-			a[i], a[irev] = a[irev], a[i]
-		}
-	}
-}
-
-func LagrangeCoeffsG1(powers []bn254.G1Affine, size int) []bn254.G1Affine {
-	coeffs := make([]bn254.G1Affine, size)
-	copy(coeffs, powers[:size])
-	domain := fft.NewDomain(uint64(size))
-	numCPU := uint64(runtime.NumCPU())
-	maxSplits := bits.TrailingZeros64(ecc.NextPowerOfTwo(numCPU))
-
-	difFFTG1(coeffs, domain.TwiddlesInv, 0, maxSplits, nil)
-	BitReverseG1(coeffs)
-
-	var invBigint big.Int
-	domain.CardinalityInv.BigInt(&invBigint)
-
-	utils.Parallelize(size, func(start, end int) {
-		for i := start; i < end; i++ {
-			coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
-		}
-	})
-	return coeffs
-}
-
-func LagrangeCoeffsG2(powers []bn254.G2Affine, size int) []bn254.G2Affine {
-	coeffs := make([]bn254.G2Affine, size)
-	copy(coeffs, powers[:size])
-	domain := fft.NewDomain(uint64(size))
-	numCPU := uint64(runtime.NumCPU())
-	maxSplits := bits.TrailingZeros64(ecc.NextPowerOfTwo(numCPU))
-
-	difFFTG2(coeffs, domain.TwiddlesInv, 0, maxSplits, nil)
-	BitReverseG2(coeffs)
-
-	var invBigint big.Int
-	domain.CardinalityInv.BigInt(&invBigint)
-
-	utils.Parallelize(size, func(start, end int) {
-		for i := start; i < end; i++ {
-			coeffs[i].ScalarMultiplication(&coeffs[i], &invBigint)
-		}
-	})
-	return coeffs
 }

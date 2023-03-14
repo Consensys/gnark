@@ -4,7 +4,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	groth16 "github.com/consensys/gnark/backend/groth16/bn254"
-	"github.com/consensys/gnark/backend/groth16/mpcsetup/utils"
 )
 
 func ExtractKeys(srs1 *Phase1, srs2 *Phase2, evals *Phase2Evaluations, nConstraints int) (pk groth16.ProvingKey, vk groth16.VerifyingKey) {
@@ -16,7 +15,7 @@ func ExtractKeys(srs1 *Phase1, srs2 *Phase2, evals *Phase2Evaluations, nConstrai
 	pk.G1.Beta.Set(&srs1.Parameters.G1.BetaTau[0])
 	pk.G1.Delta.Set(&srs2.Parameters.G1.Delta)
 	pk.G1.Z = srs2.Parameters.G1.Z
-	utils.BitReverseG1(pk.G1.Z)
+	bitReverse(pk.G1.Z)
 
 	pk.G1.K = srs2.Parameters.G1.L
 	pk.G2.Beta.Set(&srs1.Parameters.G2.Beta)

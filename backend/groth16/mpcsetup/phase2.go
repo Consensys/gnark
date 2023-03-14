@@ -7,7 +7,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	utils "github.com/consensys/gnark/backend/groth16/mpcsetup/utils"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
 )
@@ -31,7 +30,7 @@ type Phase2 struct {
 			Delta bn254.G2Affine
 		}
 	}
-	PublicKey utils.PublicKey
+	PublicKey publicKey
 	Hash      []byte
 }
 
@@ -85,10 +84,10 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	}
 
 	// Prepare Lagrange coefficients of [τ...]₁, [τ...]₂, [ατ...]₁, [βτ...]₁
-	coeffTau1 := utils.LagrangeCoeffsG1(srs.G1.Tau, size)
-	coeffTau2 := utils.LagrangeCoeffsG2(srs.G2.Tau, size)
-	coeffAlphaTau1 := utils.LagrangeCoeffsG1(srs.G1.AlphaTau, size)
-	coeffBetaTau1 := utils.LagrangeCoeffsG1(srs.G1.BetaTau, size)
+	coeffTau1 := LagrangeCoeffsG1(srs.G1.Tau, size)
+	coeffTau2 := LagrangeCoeffsG2(srs.G2.Tau, size)
+	coeffAlphaTau1 := LagrangeCoeffsG1(srs.G1.AlphaTau, size)
+	coeffBetaTau1 := LagrangeCoeffsG1(srs.G1.BetaTau, size)
 
 	internal, secret, public := r1cs.GetNbVariables()
 	nWires := internal + secret + public
@@ -129,7 +128,7 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	for i := 0; i < n-1; i++ {
 		c2.Parameters.G1.Z[i].Sub(&srs.G1.Tau[i+n], &srs.G1.Tau[i])
 	}
-	utils.BitReverseG1(c2.Parameters.G1.Z)
+	bitReverse(c2.Parameters.G1.Z)
 	c2.Parameters.G1.Z = c2.Parameters.G1.Z[:n-1]
 
 	// Evaluate L
@@ -150,7 +149,7 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	// Set δ public key
 	var delta fr.Element
 	delta.SetOne()
-	c2.PublicKey = utils.GenPublicKey(delta, nil, 1)
+	c2.PublicKey = newPublicKey(delta, nil, 1)
 
 	// Hash initial contribution
 	c2.Hash = c2.hash()
@@ -168,7 +167,7 @@ func (c *Phase2) Contribute() {
 	deltaInv.BigInt(&deltaInvBI)
 
 	// Set δ public key
-	c.PublicKey = utils.GenPublicKey(delta, c.Hash, 1)
+	c.PublicKey = newPublicKey(delta, c.Hash, 1)
 
 	// Update δ
 	c.Parameters.G1.Delta.ScalarMultiplication(&c.Parameters.G1.Delta, &deltaBI)
@@ -200,28 +199,28 @@ func VerifyPhase2(c0, c1 *Phase2, c ...*Phase2) error {
 
 func verifyPhase2(current, contribution *Phase2) error {
 	// Compute R for δ
-	deltaR := utils.GenR(contribution.PublicKey.SG, contribution.PublicKey.SXG, current.Hash[:], 1)
+	deltaR := genR(contribution.PublicKey.SG, contribution.PublicKey.SXG, current.Hash[:], 1)
 
 	// Check for knowledge of δ
-	if !utils.SameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.PublicKey.XR, deltaR) {
+	if !sameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.PublicKey.XR, deltaR) {
 		return errors.New("couldn't verify knowledge of δ")
 	}
 
 	// Check for valid updates using previous parameters
-	if !utils.SameRatio(contribution.Parameters.G1.Delta, current.Parameters.G1.Delta, deltaR, contribution.PublicKey.XR) {
+	if !sameRatio(contribution.Parameters.G1.Delta, current.Parameters.G1.Delta, deltaR, contribution.PublicKey.XR) {
 		return errors.New("couldn't verify that [δ]₁ is based on previous contribution")
 	}
-	if !utils.SameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
+	if !sameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
 		return errors.New("couldn't verify that [δ]₂ is based on previous contribution")
 	}
 
 	// Check for valid updates of L and Z using
-	L, prevL := utils.Merge(contribution.Parameters.G1.L, current.Parameters.G1.L)
-	if !utils.SameRatio(L, prevL, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
+	L, prevL := merge(contribution.Parameters.G1.L, current.Parameters.G1.L)
+	if !sameRatio(L, prevL, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
 		return errors.New("couldn't verify valid updates of L using δ⁻¹")
 	}
-	Z, prevZ := utils.Merge(contribution.Parameters.G1.Z, current.Parameters.G1.Z)
-	if !utils.SameRatio(Z, prevZ, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
+	Z, prevZ := merge(contribution.Parameters.G1.Z, current.Parameters.G1.Z)
+	if !sameRatio(Z, prevZ, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
 		return errors.New("couldn't verify valid updates of L using δ⁻¹")
 	}
 

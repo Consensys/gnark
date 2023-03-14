@@ -8,7 +8,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/backend/groth16/mpcsetup/utils"
 )
 
 // Phase1 represents the Phase1 of the MPC described in
@@ -28,7 +27,7 @@ type Phase1 struct {
 		}
 	}
 	PublicKeys struct {
-		Tau, Alpha, Beta utils.PublicKey
+		Tau, Alpha, Beta publicKey
 	}
 	Hash []byte // sha256 hash
 }
@@ -43,9 +42,9 @@ func InitPhase1(power int) (phase1 Phase1) {
 	tau.SetOne()
 	alpha.SetOne()
 	beta.SetOne()
-	phase1.PublicKeys.Tau = utils.GenPublicKey(tau, nil, 1)
-	phase1.PublicKeys.Alpha = utils.GenPublicKey(alpha, nil, 2)
-	phase1.PublicKeys.Beta = utils.GenPublicKey(beta, nil, 3)
+	phase1.PublicKeys.Tau = newPublicKey(tau, nil, 1)
+	phase1.PublicKeys.Alpha = newPublicKey(alpha, nil, 2)
+	phase1.PublicKeys.Beta = newPublicKey(beta, nil, 3)
 
 	// First contribution use generators
 	_, _, g1, g2 := bn254.Generators()
@@ -80,12 +79,12 @@ func (phase1 *Phase1) Contribute() {
 	tau.SetRandom()
 	alpha.SetRandom()
 	beta.SetRandom()
-	phase1.PublicKeys.Tau = utils.GenPublicKey(tau, phase1.Hash[:], 1)
-	phase1.PublicKeys.Alpha = utils.GenPublicKey(alpha, phase1.Hash[:], 2)
-	phase1.PublicKeys.Beta = utils.GenPublicKey(beta, phase1.Hash[:], 3)
+	phase1.PublicKeys.Tau = newPublicKey(tau, phase1.Hash[:], 1)
+	phase1.PublicKeys.Alpha = newPublicKey(alpha, phase1.Hash[:], 2)
+	phase1.PublicKeys.Beta = newPublicKey(beta, phase1.Hash[:], 3)
 
 	// Compute powers of τ, ατ, and βτ
-	taus := utils.Powers(tau, 2*N-1)
+	taus := powers(tau, 2*N-1)
 	alphaTau := make([]fr.Element, N)
 	betaTau := make([]fr.Element, N)
 	for i := 0; i < N; i++ {
@@ -94,10 +93,10 @@ func (phase1 *Phase1) Contribute() {
 	}
 
 	// Update using previous parameters
-	phase1.Parameters.G1.Tau = utils.ScaleG1(phase1.Parameters.G1.Tau, taus)
-	phase1.Parameters.G2.Tau = utils.ScaleG2(phase1.Parameters.G2.Tau, taus[0:N])
-	phase1.Parameters.G1.AlphaTau = utils.ScaleG1(phase1.Parameters.G1.AlphaTau, alphaTau)
-	phase1.Parameters.G1.BetaTau = utils.ScaleG1(phase1.Parameters.G1.BetaTau, betaTau)
+	phase1.Parameters.G1.Tau = scaleG1(phase1.Parameters.G1.Tau, taus)
+	phase1.Parameters.G2.Tau = scaleG2(phase1.Parameters.G2.Tau, taus[0:N])
+	phase1.Parameters.G1.AlphaTau = scaleG1(phase1.Parameters.G1.AlphaTau, alphaTau)
+	phase1.Parameters.G1.BetaTau = scaleG1(phase1.Parameters.G1.BetaTau, betaTau)
 	var betaBI big.Int
 	beta.BigInt(&betaBI)
 	phase1.Parameters.G2.Beta.ScalarMultiplication(&phase1.Parameters.G2.Beta, &betaBI)
@@ -119,54 +118,54 @@ func VerifyPhase1(c0, c1 *Phase1, c ...*Phase1) error {
 // verifyPhase1 checks that a contribution is based on a known previous Phase1 state.
 func verifyPhase1(current, contribution *Phase1) error {
 	// Compute R for τ, α, β
-	tauR := utils.GenR(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, current.Hash[:], 1)
-	alphaR := utils.GenR(contribution.PublicKeys.Alpha.SG, contribution.PublicKeys.Alpha.SXG, current.Hash[:], 2)
-	betaR := utils.GenR(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, current.Hash[:], 3)
+	tauR := genR(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, current.Hash[:], 1)
+	alphaR := genR(contribution.PublicKeys.Alpha.SG, contribution.PublicKeys.Alpha.SXG, current.Hash[:], 2)
+	betaR := genR(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, current.Hash[:], 3)
 
 	// Check for knowledge of toxic parameters
-	if !utils.SameRatio(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, contribution.PublicKeys.Tau.XR, tauR) {
+	if !sameRatio(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, contribution.PublicKeys.Tau.XR, tauR) {
 		return errors.New("couldn't verify public key of τ")
 	}
-	if !utils.SameRatio(contribution.PublicKeys.Alpha.SG, contribution.PublicKeys.Alpha.SXG, contribution.PublicKeys.Alpha.XR, alphaR) {
+	if !sameRatio(contribution.PublicKeys.Alpha.SG, contribution.PublicKeys.Alpha.SXG, contribution.PublicKeys.Alpha.XR, alphaR) {
 		return errors.New("couldn't verify public key of α")
 	}
-	if !utils.SameRatio(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, contribution.PublicKeys.Beta.XR, betaR) {
+	if !sameRatio(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, contribution.PublicKeys.Beta.XR, betaR) {
 		return errors.New("couldn't verify public key of β")
 	}
 
 	// Check for valid updates using previous parameters
-	if !utils.SameRatio(contribution.Parameters.G1.Tau[1], current.Parameters.G1.Tau[1], tauR, contribution.PublicKeys.Tau.XR) {
+	if !sameRatio(contribution.Parameters.G1.Tau[1], current.Parameters.G1.Tau[1], tauR, contribution.PublicKeys.Tau.XR) {
 		return errors.New("couldn't verify that [τ]₁ is based on previous contribution")
 	}
-	if !utils.SameRatio(contribution.Parameters.G1.AlphaTau[0], current.Parameters.G1.AlphaTau[0], alphaR, contribution.PublicKeys.Alpha.XR) {
+	if !sameRatio(contribution.Parameters.G1.AlphaTau[0], current.Parameters.G1.AlphaTau[0], alphaR, contribution.PublicKeys.Alpha.XR) {
 		return errors.New("couldn't verify that [α]₁ is based on previous contribution")
 	}
-	if !utils.SameRatio(contribution.Parameters.G1.BetaTau[0], current.Parameters.G1.BetaTau[0], betaR, contribution.PublicKeys.Beta.XR) {
+	if !sameRatio(contribution.Parameters.G1.BetaTau[0], current.Parameters.G1.BetaTau[0], betaR, contribution.PublicKeys.Beta.XR) {
 		return errors.New("couldn't verify that [β]₁ is based on previous contribution")
 	}
-	if !utils.SameRatio(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, contribution.Parameters.G2.Tau[1], current.Parameters.G2.Tau[1]) {
+	if !sameRatio(contribution.PublicKeys.Tau.SG, contribution.PublicKeys.Tau.SXG, contribution.Parameters.G2.Tau[1], current.Parameters.G2.Tau[1]) {
 		return errors.New("couldn't verify that [τ]₂ is based on previous contribution")
 	}
-	if !utils.SameRatio(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, contribution.Parameters.G2.Beta, current.Parameters.G2.Beta) {
+	if !sameRatio(contribution.PublicKeys.Beta.SG, contribution.PublicKeys.Beta.SXG, contribution.Parameters.G2.Beta, current.Parameters.G2.Beta) {
 		return errors.New("couldn't verify that [β]₂ is based on previous contribution")
 	}
 
 	// Check for valid updates using powers of τ
 	_, _, g1, g2 := bn254.Generators()
-	tauL1, tauL2 := utils.LinearCombinationG1(contribution.Parameters.G1.Tau)
-	if !utils.SameRatio(tauL1, tauL2, contribution.Parameters.G2.Tau[1], g2) {
+	tauL1, tauL2 := linearCombinationG1(contribution.Parameters.G1.Tau)
+	if !sameRatio(tauL1, tauL2, contribution.Parameters.G2.Tau[1], g2) {
 		return errors.New("couldn't verify valid powers of τ in G₁")
 	}
-	alphaL1, alphaL2 := utils.LinearCombinationG1(contribution.Parameters.G1.AlphaTau)
-	if !utils.SameRatio(alphaL1, alphaL2, contribution.Parameters.G2.Tau[1], g2) {
+	alphaL1, alphaL2 := linearCombinationG1(contribution.Parameters.G1.AlphaTau)
+	if !sameRatio(alphaL1, alphaL2, contribution.Parameters.G2.Tau[1], g2) {
 		return errors.New("couldn't verify valid powers of α(τ) in G₁")
 	}
-	betaL1, betaL2 := utils.LinearCombinationG1(contribution.Parameters.G1.BetaTau)
-	if !utils.SameRatio(betaL1, betaL2, contribution.Parameters.G2.Tau[1], g2) {
+	betaL1, betaL2 := linearCombinationG1(contribution.Parameters.G1.BetaTau)
+	if !sameRatio(betaL1, betaL2, contribution.Parameters.G2.Tau[1], g2) {
 		return errors.New("couldn't verify valid powers of α(τ) in G₁")
 	}
-	tau2L1, tau2L2 := utils.LinearCombinationG2(contribution.Parameters.G2.Tau)
-	if !utils.SameRatio(contribution.Parameters.G1.Tau[1], g1, tau2L1, tau2L2) {
+	tau2L1, tau2L2 := linearCombinationG2(contribution.Parameters.G2.Tau)
+	if !sameRatio(contribution.Parameters.G1.Tau[1], g1, tau2L1, tau2L2) {
 		return errors.New("couldn't verify valid powers of τ in G₂")
 	}
 
