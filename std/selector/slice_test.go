@@ -70,16 +70,30 @@ func TestPartition(t *testing.T) {
 		WantRight: [6]frontend.Variable{0, 0, 0, 0, 0, 0},
 	})
 
-	// Pivot is outside and the prover fails:
-	assert.ProverFailed(&partitionerCircuit{}, &partitionerCircuit{
+	assert.ProverSucceeded(&partitionerCircuit{}, &partitionerCircuit{
 		Pivot:     6,
 		In:        [6]frontend.Variable{10, 20, 30, 40, 50, 60},
 		WantLeft:  [6]frontend.Variable{10, 20, 30, 40, 50, 60},
 		WantRight: [6]frontend.Variable{0, 0, 0, 0, 0, 0},
 	})
 
-	assert.ProverFailed(&partitionerCircuit{}, &partitionerCircuit{
+	assert.ProverSucceeded(&partitionerCircuit{}, &partitionerCircuit{
 		Pivot:     0,
+		In:        [6]frontend.Variable{10, 20, 30, 40, 50, 60},
+		WantLeft:  [6]frontend.Variable{0, 0, 0, 0, 0, 0},
+		WantRight: [6]frontend.Variable{10, 20, 30, 40, 50, 60},
+	})
+
+	// Pivot is outside and the prover fails:
+	assert.ProverFailed(&partitionerCircuit{}, &partitionerCircuit{
+		Pivot:     7,
+		In:        [6]frontend.Variable{10, 20, 30, 40, 50, 60},
+		WantLeft:  [6]frontend.Variable{10, 20, 30, 40, 50, 60},
+		WantRight: [6]frontend.Variable{0, 0, 0, 0, 0, 0},
+	})
+
+	assert.ProverFailed(&partitionerCircuit{}, &partitionerCircuit{
+		Pivot:     -1,
 		In:        [6]frontend.Variable{10, 20, 30, 40, 50, 60},
 		WantLeft:  [6]frontend.Variable{0, 0, 0, 0, 0, 0},
 		WantRight: [6]frontend.Variable{10, 20, 30, 40, 50, 60},
@@ -92,12 +106,12 @@ func TestPartition(t *testing.T) {
 	})
 
 	assert.ProverFailed(&ignoredOutputPartitionerCircuit{}, &ignoredOutputPartitionerCircuit{
-		Pivot: 0,
+		Pivot: -1,
 		In:    [2]frontend.Variable{10, 20},
 	})
 
 	assert.ProverFailed(&ignoredOutputPartitionerCircuit{}, &ignoredOutputPartitionerCircuit{
-		Pivot: 2,
+		Pivot: 3,
 		In:    [2]frontend.Variable{10, 20},
 	})
 }
@@ -154,15 +168,36 @@ func TestSlice(t *testing.T) {
 		WantSlice: [7]frontend.Variable{0, 0, 0, 3, 4, 5, 0},
 	})
 
-	assert.ProverFailed(&slicerCircuit{}, &slicerCircuit{
+	assert.ProverSucceeded(&slicerCircuit{}, &slicerCircuit{
 		Start:     3,
 		End:       7,
 		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
-		WantSlice: [7]frontend.Variable{0, 0, 0, 3, 4, 5, 0},
+		WantSlice: [7]frontend.Variable{0, 0, 0, 3, 4, 5, 6},
+	})
+
+	assert.ProverSucceeded(&slicerCircuit{}, &slicerCircuit{
+		Start:     0,
+		End:       2,
+		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
+		WantSlice: [7]frontend.Variable{0, 1, 0, 0, 0, 0, 0},
+	})
+
+	assert.ProverSucceeded(&slicerCircuit{}, &slicerCircuit{
+		Start:     0,
+		End:       7,
+		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
+		WantSlice: [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
 	})
 
 	assert.ProverFailed(&slicerCircuit{}, &slicerCircuit{
-		Start:     0,
+		Start:     3,
+		End:       8,
+		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
+		WantSlice: [7]frontend.Variable{0, 0, 0, 3, 4, 5, 6},
+	})
+
+	assert.ProverFailed(&slicerCircuit{}, &slicerCircuit{
+		Start:     -1,
 		End:       2,
 		In:        [7]frontend.Variable{0, 1, 2, 3, 4, 5, 6},
 		WantSlice: [7]frontend.Variable{0, 1, 0, 0, 0, 0, 0},

@@ -14,7 +14,7 @@ import (
 //	else
 //	    out[i] = 0
 //
-// We must have start >= 1 and end <= len(input)-1, otherwise a proof can not be generated.
+// We must have start >= 0 and end <= len(input), otherwise a proof cannot be generated.
 func Slice(api frontend.API, start, end frontend.Variable, input []frontend.Variable) []frontend.Variable {
 	// it appears that this is the most efficient implementation. There is also another implementation
 	// which creates the mask by adding two stepMask outputs, however that would not work correctly when
@@ -39,13 +39,12 @@ func Slice(api frontend.API, start, end frontend.Variable, input []frontend.Vari
 //	else
 //	    out[i] = 0
 //
-// We must have pivotPosition >= 1 and pivotPosition <= len(input)-1, otherwise a proof cannot be generated.
+// We must have pivotPosition >= 0 and pivotPosition <= len(input), otherwise a proof cannot be generated.
 func Partition(api frontend.API, pivotPosition frontend.Variable, rightSide bool,
 	input []frontend.Variable) (out []frontend.Variable) {
 	out = make([]frontend.Variable, len(input))
 	var mask []frontend.Variable
-	// we create a bit mask to multiply with the input, if we create a bigger mask, we can handle
-	// pivotPosition == 0 or pivotPosition == len(input), but that will add extra constraints.
+	// we create a bit mask to multiply with the input.
 	if rightSide {
 		mask = stepMask(api, len(input), pivotPosition, 0, 1)
 	} else {
@@ -62,7 +61,7 @@ func Partition(api frontend.API, pivotPosition frontend.Variable, rightSide bool
 // such that its first stepPosition elements are equal to startValue and the remaining elements are equal to
 // endValue. Note that outputLen cannot be a circuit variable.
 //
-// We must have stepPosition >= 1 and stepPosition <= outputLen, otherwise a proof cannot be generated.
+// We must have stepPosition >= 0 and stepPosition <= outputLen, otherwise a proof cannot be generated.
 // This function panics when outputLen is less than 2.
 func stepMask(api frontend.API, outputLen int,
 	stepPosition, startValue, endValue frontend.Variable) []frontend.Variable {
@@ -75,9 +74,11 @@ func stepMask(api frontend.API, outputLen int,
 		panic(fmt.Sprintf("error in calling StepMask hint: %v", err))
 	}
 
-	// add the boundary constraints
-	api.AssertIsEqual(out[0], startValue)
-	api.AssertIsEqual(out[len(out)-1], endValue)
+	// add the boundary constraints:
+	// (out[0] - startValue) * stepPosition == 0
+	api.AssertIsEqual(api.Mul(api.Sub(out[0], startValue), stepPosition), 0)
+	// (out[len(out)-1] - endValue) * (len(out) - stepPosition) == 0
+	api.AssertIsEqual(api.Mul(api.Sub(out[len(out)-1], endValue), api.Sub(len(out), stepPosition)), 0)
 
 	// add constraints for the correct form of a step function that steps at the stepPosition
 	for i := 1; i < len(out); i++ {
