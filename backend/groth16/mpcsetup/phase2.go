@@ -1,4 +1,4 @@
-package setup
+package mpcsetup
 
 import (
 	"crypto/sha256"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	utils "github.com/consensys/gnark/backend/groth16/setup/utils"
+	utils "github.com/consensys/gnark/backend/groth16/mpcsetup/utils"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
 )

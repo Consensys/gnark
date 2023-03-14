@@ -1,4 +1,4 @@
-package setup
+package mpcsetup
 
 import (
 	"crypto/sha256"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/backend/groth16/setup/utils"
+	"github.com/consensys/gnark/backend/groth16/mpcsetup/utils"
 )
 
 // Phase1 represents the Phase1 of the MPC described in
