@@ -30,9 +30,16 @@ type API interface {
 	// Add returns res = i1+i2+...in
 	Add(i1, i2 Variable, in ...Variable) Variable
 
-	// MulAcc sets and return a = a + (b*c)
-	// ! may mutate a without allocating a new result
-	// ! always use MulAcc(...) result for correctness
+	// MulAcc sets and return a = a + (b*c).
+	//
+	// ! The method may mutate a without allocating a new result. If the input
+	// is used elsewhere, then first initialize new variable, for example by
+	// doing:
+	//
+	//     acopy := api.Mul(a, 1)
+	//     acopy = MulAcc(acopy, b, c)
+	//
+	// ! But it may not modify a, always use MulAcc(...) result for correctness.
 	MulAcc(a, b, c Variable) Variable
 
 	// Neg returns -i

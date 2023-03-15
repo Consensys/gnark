@@ -28,6 +28,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/frontendtype"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
@@ -556,4 +557,8 @@ func (builder *builder) printArg(log *constraint.LogEntry, sbb *strings.Builder,
 
 func (builder *builder) Compiler() frontend.Compiler {
 	return builder
+}
+
+func (*builder) FrontendType() frontendtype.Type {
+	return frontendtype.SCS
 }

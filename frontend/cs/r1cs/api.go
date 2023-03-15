@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -27,9 +28,11 @@ import (
 
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
@@ -756,6 +759,17 @@ func (builder *builder) getCommittedVariables(i *constraint.Commitment) []fronte
 	return res
 }
 
-func bsb22CommitmentComputePlaceholder(*big.Int, []*big.Int, []*big.Int) error {
+func bsb22CommitmentComputePlaceholder(_ *big.Int, _ []*big.Int, output []*big.Int) error {
+	if (len(os.Args) > 0 && (strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe"))) || debug.Debug {
+		// usually we only run solver without prover during testing
+		log := logger.Logger()
+		log.Error().Msg("Augmented groth16 commitment hint not replaced. Proof will not be sound!")
+		output[0].SetInt64(0)
+		return nil
+	}
 	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
+}
+
+func init() {
+	solver.RegisterHint(bsb22CommitmentComputePlaceholder)
 }

@@ -92,7 +92,7 @@ func Start(options ...Option) *Profile {
 
 	log := logger.Logger()
 	if p.filePath == "" {
-		log.Warn().Msg("gnark profiling enabled [not writting to disk]")
+		log.Warn().Msg("gnark profiling enabled [not writing to disk]")
 	} else {
 		log.Info().Str("path", p.filePath).Msg("gnark profiling enabled")
 	}
@@ -131,7 +131,7 @@ func (p *Profile) Stop() {
 		f.Close()
 		log.Info().Str("path", p.filePath).Msg("gnark profiling disabled")
 	} else {
-		log.Warn().Msg("gnark profiling disabled [not writting to disk]")
+		log.Warn().Msg("gnark profiling disabled [not writing to disk]")
 	}
 
 }
@@ -144,7 +144,7 @@ func (p *Profile) NbConstraints() int {
 // Top return a similar output than pprof top command
 func (p *Profile) Top() string {
 	r := report.NewDefault(&p.pprof, report.Options{
-		OutputFormat:  report.Text,
+		OutputFormat:  report.Tree,
 		CompactLabels: true,
 		NodeFraction:  0.005,
 		EdgeFraction:  0.001,

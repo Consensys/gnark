@@ -9,10 +9,9 @@ package constraint
 // We build a graph of dependency; we say that a wire is solved at a level l
 // --> l = max(level_of_dependencies(wire)) + 1
 func (system *System) updateLevel(cID int, c Iterable) {
-	system.lbOutputs = system.lbOutputs[:0]
-	system.lbHints = map[*HintMapping]struct{}{}
 	level := -1
 	wireIterator := c.WireIterator()
+
 	for wID := wireIterator(); wID != -1; wID = wireIterator() {
 		// iterate over all wires of the R1C
 		system.processWire(uint32(wID), &level)
@@ -36,6 +35,10 @@ func (system *System) updateLevel(cID int, c Iterable) {
 	} else {
 		system.Levels[level] = append(system.Levels[level], cID)
 	}
+	// clean the table. NB! Do not remove or move, this is required to make the
+	// compilation deterministic.
+	system.lbOutputs = system.lbOutputs[:0]
+	system.lbHints = map[int]struct{}{}
 }
 
 func (system *System) processWire(wireID uint32, maxLevel *int) {
@@ -54,16 +57,17 @@ func (system *System) processWire(wireID uint32, maxLevel *int) {
 		return
 	}
 	// we don't know how to solve this wire; it's either THE wire we have to solve or a hint.
-	if h, ok := system.MHints[int(wireID)]; ok {
+	if hID, ok := system.MHints[int(wireID)]; ok {
 		// check that we didn't process that hint already; performance wise, if many wires in a
 		// constraint are the output of the same hint, and input to parent hint are themselves
 		// computed with a hint, we can suffer.
 		// (nominal case: not too many different hints involved for a single constraint)
-		if _, ok := system.lbHints[h]; ok {
+		if _, ok := system.lbHints[hID]; ok {
 			// skip
 			return
 		}
-		system.lbHints[h] = struct{}{}
+		system.lbHints[hID] = struct{}{}
+		h := &system.HintMappings[hID]
 
 		for _, hwid := range h.Outputs {
 			system.lbOutputs = append(system.lbOutputs, uint32(hwid))
