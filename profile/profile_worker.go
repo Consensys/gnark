@@ -64,6 +64,11 @@ func collectSample(pc []uintptr) {
 	for {
 		frame, more := frames.Next()
 
+		if strings.Contains(frame.Function, "frontend.parseCircuit") {
+			// we stop; previous frame was the .Define definition of the circuit
+			break
+		}
+
 		if strings.HasSuffix(frame.Function, ".func1") {
 			// TODO @gbotrel filter anonymous func better
 			continue
@@ -90,6 +95,7 @@ func collectSample(pc []uintptr) {
 				sessions[i].onceSetName.Do(func() {
 					// once per profile session, we set the "name of the binary"
 					// here we grep the struct name where "Define" exist: hopefully the circuit Name
+					// note: this won't work well for nested Define calls.
 					fe := strings.Split(frame.Function, "/")
 					circuitName := strings.TrimSuffix(fe[len(fe)-1], ".Define")
 					sessions[i].pprof.Mapping = []*profile.Mapping{
@@ -97,7 +103,7 @@ func collectSample(pc []uintptr) {
 					}
 				})
 			}
-			break
+			// break --> we break when we hit frontend.parseCircuit; in case we have nested Define calls in the stack.
 		}
 	}
 

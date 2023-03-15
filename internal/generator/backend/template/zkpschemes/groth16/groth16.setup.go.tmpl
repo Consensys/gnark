@@ -266,11 +266,9 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	pk.G2.Beta = g2PointsAff[len(B)+0]
 	pk.G2.Delta = g2PointsAff[len(B)+1]
 
-	// sets vk: [δ]2, [γ]2, -[δ]2, -[γ]2
+	// sets vk: [δ]2, [γ]2
 	vk.G2.Delta = g2PointsAff[len(B)+1]
 	vk.G2.Gamma = g2PointsAff[len(B)+2]
-	vk.G2.deltaNeg.Neg(&vk.G2.Delta)
-	vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 
 	// ---------------------------------------------------------------------------------------------
 	// Pairing: vk.e
@@ -281,13 +279,26 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	vk.G1.Beta = pk.G1.Beta
 	vk.G1.Delta = pk.G1.Delta
 
-	vk.e, err = curve.Pair([]curve.G1Affine{pk.G1.Alpha}, []curve.G2Affine{pk.G2.Beta})
-	if err != nil {
-		return err
+	if err := vk.Precompute(); err != nil {
+		return err 
 	}
+
 	// set domain
 	pk.Domain = *domain
 
+	return nil
+}
+
+// Precompute sets e, -[δ]2, -[γ]2
+// This is meant to be called internally during setup or deserialization.
+func (vk *VerifyingKey) Precompute() error {
+	var err error
+	vk.e, err = curve.Pair([]curve.G1Affine{vk.G1.Alpha}, []curve.G2Affine{vk.G2.Beta})
+	if err != nil {
+		return err
+	}
+	vk.G2.deltaNeg.Neg(&vk.G2.Delta)
+	vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 	return nil
 }
 
