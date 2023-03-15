@@ -139,10 +139,10 @@ var loopCounter = [66]int8{
 	-1, 0, -1, 0, 0, 0, 1, 0, -1, 0, 1,
 }
 
-// LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
+// lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
 // line: 1 - R0*(x/y) - R1*(1/y) = 0 instead of R0'*y - R1'*x - R2' = 0
 // This makes the multiplication by lines (MulBy034) circuit-efficient.
-type LineEvaluation struct {
+type lineEvaluation struct {
 	R0, R1 fields_bn254.E2
 }
 
@@ -156,7 +156,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	res := pr.Ext12.One()
 
-	var l1, l2 *LineEvaluation
+	var l1, l2 *lineEvaluation
 	Qacc := make([]*G2Affine, n)
 	QNeg := make([]*G2Affine, n)
 	yInv := make([]*emulated.Element[emulated.BN254Fp], n)
@@ -262,9 +262,9 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) doubleAndAddStep(p1, p2 *G2Affine) (*G2Affine, *LineEvaluation, *LineEvaluation) {
+func (pr Pairing) doubleAndAddStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation, *lineEvaluation) {
 
-	var line1, line2 LineEvaluation
+	var line1, line2 lineEvaluation
 	var p G2Affine
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
@@ -314,10 +314,10 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *G2Affine) (*G2Affine, *LineEvaluation
 
 // doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) doubleStep(p1 *G2Affine) (*G2Affine, *LineEvaluation) {
+func (pr Pairing) doubleStep(p1 *G2Affine) (*G2Affine, *lineEvaluation) {
 
 	var p G2Affine
-	var line LineEvaluation
+	var line lineEvaluation
 
 	// lambda = 3*p1.x**2/2*p.y
 	n := pr.Ext2.Square(&p1.X)
@@ -349,7 +349,7 @@ func (pr Pairing) doubleStep(p1 *G2Affine) (*G2Affine, *LineEvaluation) {
 
 // addStep adds two points in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) addStep(p, q *G2Affine) (*G2Affine, *LineEvaluation) {
+func (pr Pairing) addStep(p, q *G2Affine) (*G2Affine, *lineEvaluation) {
 
 	// compute λ = (q.y-p.y)/(q.x-p.x)
 	qypy := pr.Ext2.Sub(&q.Y, &p.Y)
@@ -370,7 +370,7 @@ func (pr Pairing) addStep(p, q *G2Affine) (*G2Affine, *LineEvaluation) {
 	res.X = *xr
 	res.Y = *yr
 
-	var line LineEvaluation
+	var line lineEvaluation
 	line.R0 = *pr.Ext2.Neg(λ)
 	line.R1 = *pr.Ext2.Mul(λ, &p.X)
 	line.R1 = *pr.Ext2.Sub(&line.R1, &p.Y)
@@ -380,14 +380,14 @@ func (pr Pairing) addStep(p, q *G2Affine) (*G2Affine, *LineEvaluation) {
 }
 
 // addStepLineOnly computes the line that goes through p and q but does not compute p+q
-func (pr Pairing) addStepLineOnly(p, q *G2Affine) *LineEvaluation {
+func (pr Pairing) addStepLineOnly(p, q *G2Affine) *lineEvaluation {
 
 	// compute λ = (q.y-p.y)/(q.x-p.x)
 	qypy := pr.Ext2.Sub(&q.Y, &p.Y)
 	qxpx := pr.Ext2.Sub(&q.X, &p.X)
 	λ := pr.Ext2.DivUnchecked(qypy, qxpx)
 
-	var line LineEvaluation
+	var line lineEvaluation
 	line.R0 = *pr.Ext2.Neg(λ)
 	line.R1 = *pr.Ext2.Mul(λ, &p.X)
 	line.R1 = *pr.Ext2.Sub(&line.R1, &p.Y)
