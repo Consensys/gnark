@@ -61,9 +61,14 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	}, nil
 }
 
-// FinalExponentiation computes the exponentiation eᵈ
-// where d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
-// we use instead d'= s ⋅ d, where s is the cofactor 2x₀(6x₀²+3x₀+1)
+// FinalExponentiation computes the exponentiation eᵈ where
+//
+//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
+//
+// We use instead d'= s ⋅ d, where s is the cofactor
+//
+//	2x₀(6x₀²+3x₀+1)
+//
 // and r does NOT divide d'
 func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 	var t [4]*GTEl
