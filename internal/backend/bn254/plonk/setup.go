@@ -43,11 +43,11 @@ type ProvingKey struct {
 	// TODO store iop.Polynomial here, not []fr.Element for more "type safety"
 
 	// qr,ql,qm,qo (in canonical basis).
-	// QcPrime denotes the constraints defining committed variables
-	Ql, Qr, Qm, Qo, QcPrime []fr.Element
+	// lQcPrime denotes the constraints defining committed variables
+	Ql, Qr, Qm, Qo, QcPrime []fr.Element // TODO @Tabaie QcPrime is not used by the prover; remove it
 
 	// qr,ql,qm,qo (in lagrange coset basis) --> these are not serialized, but computed from Ql, Qr, Qm, Qo once.
-	lQl, lQr, lQm, lQo []fr.Element
+	lQl, lQr, lQm, lQo, lQcPrime []fr.Element
 
 	// LQk (CQk) qk in Lagrange basis (canonical basis), prepended with as many zeroes as public inputs.
 	// Storing LQk in Lagrange basis saves a fft...
@@ -286,6 +286,7 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	wqriop := iop.NewPolynomial(clone(pk.Qr, pk.Domain[1].Cardinality), canReg)
 	wqmiop := iop.NewPolynomial(clone(pk.Qm, pk.Domain[1].Cardinality), canReg)
 	wqoiop := iop.NewPolynomial(clone(pk.Qo, pk.Domain[1].Cardinality), canReg)
+	wqcpiop := iop.NewPolynomial(clone(pk.QcPrime, pk.Domain[1].Cardinality), canReg)
 
 	ws1 := iop.NewPolynomial(clone(pk.S1Canonical, pk.Domain[1].Cardinality), canReg)
 	ws2 := iop.NewPolynomial(clone(pk.S2Canonical, pk.Domain[1].Cardinality), canReg)
@@ -295,6 +296,7 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	wqriop.ToLagrangeCoset(&pk.Domain[1])
 	wqmiop.ToLagrangeCoset(&pk.Domain[1])
 	wqoiop.ToLagrangeCoset(&pk.Domain[1])
+	wqcpiop.ToLagrangeCoset(&pk.Domain[1])
 
 	ws1.ToLagrangeCoset(&pk.Domain[1])
 	ws2.ToLagrangeCoset(&pk.Domain[1])
@@ -304,6 +306,7 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	pk.lQr = wqriop.Coefficients()
 	pk.lQm = wqmiop.Coefficients()
 	pk.lQo = wqoiop.Coefficients()
+	pk.lQcPrime = wqoiop.Coefficients()
 
 	pk.lS1LagrangeCoset = ws1.Coefficients()
 	pk.lS2LagrangeCoset = ws2.Coefficients()

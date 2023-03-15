@@ -443,6 +443,11 @@ func (cs *SparseR1CS) GetConstraints() ([]constraint.SparseR1C, constraint.Resol
 
 // checkConstraint verifies that the constraint holds
 func (cs *SparseR1CS) checkConstraint(c constraint.SparseR1C, solution *solution) error {
+
+	if c.Commitment != constraint.NOT {
+		return nil
+	}
+
 	l := solution.computeTerm(c.L)
 	r := solution.computeTerm(c.R)
 	m0 := solution.computeTerm(c.M[0])

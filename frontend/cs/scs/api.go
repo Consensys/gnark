@@ -569,21 +569,17 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	committed := make([]int, len(v))
 
 	for i, vI := range v { // TODO @Tabaie Perf; If public, just hash it
-		vIExpr := builder.Neg(vI).(constraint.LinearExpression)
-		if len(vIExpr) != 1 {
-			return nil, errors.New("can only commit to single terms") // TODO @Tabaie Create a wire in this case
-		}
+		vINeg := builder.Neg(vI).(expr.Term)
 		committed[i] = builder.cs.GetNbConstraints()
-		builder.cs.AddConstraint(constraint.SparseR1C{L: vIExpr[0], Commitment: constraint.COMMITTED})
+		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
 	outs, err := builder.NewHint(scsBsb22CommitmentHintPlaceholder, 1, v...)
 	if err != nil {
 		return nil, err
 	}
-	commitmentVar := outs[0]
-
+	commitmentVar := builder.Neg(outs[0]).(expr.Term)
 	commitmentConstraintIndex := builder.cs.GetNbConstraints()
-	builder.cs.AddConstraint(constraint.SparseR1C{L: builder.Neg(commitmentVar).(constraint.LinearExpression)[0], Commitment: constraint.COMMITMENT}) // value will be injected later
+	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
 		HintID:          solver.GetHintID(scsBsb22CommitmentHintPlaceholder),

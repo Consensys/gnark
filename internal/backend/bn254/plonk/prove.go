@@ -82,13 +82,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// result
 	proof := &Proof{}
+	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	var (
-		pi2           fr.Vector
-		commitmentVal fr.Element // TODO @Tabaie get rid of this
+		wpi2iop       *iop.Polynomial // canonical
+		commitmentVal fr.Element      // TODO @Tabaie get rid of this
 	)
 	if spr.CommitmentInfo.Is() {
 		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(spr.CommitmentInfo.HintID, func(_ *big.Int, ins, outs []*big.Int) error {
-			pi2 = make(fr.Vector, pk.Domain[0].Cardinality)
+			pi2 := make([]fr.Element, pk.Domain[0].Cardinality)
 			for i := range ins {
 				pi2[spr.CommitmentInfo.Committed[i]].SetBigInt(ins[i])
 			}
@@ -99,7 +100,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			if _, err = pi2[spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil {
 				return err
 			}
-			if proof.PI2, err = kzg.Commit(pi2, pk.Vk.KZGSRS); err != nil {
+			pi2iop := iop.NewPolynomial(&pi2, lagReg)
+			wpi2iop = pi2iop.ShallowClone()
+			wpi2iop.ToCanonical(&pk.Domain[0]).ToRegular()
+			if proof.PI2, err = kzg.Commit(wpi2iop.Coefficients(), pk.Vk.KZGSRS); err != nil {
 				return err
 			}
 			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
@@ -120,26 +124,19 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	evaluationLDomainSmall := []fr.Element(solution.L)
 	evaluationRDomainSmall := []fr.Element(solution.R)
 	evaluationODomainSmall := []fr.Element(solution.O)
-	evaluationPI2DomainSmall := []fr.Element(pi2)
 
-	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	liop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
 	riop := iop.NewPolynomial(&evaluationRDomainSmall, lagReg)
 	oiop := iop.NewPolynomial(&evaluationODomainSmall, lagReg)
-	pi2iop := iop.NewPolynomial(&evaluationPI2DomainSmall, lagReg)
-	qcpiop := iop.NewPolynomial(&pk.QcPrime, lagReg)
+	qcpiop := iop.NewPolynomial(&pk.lQcPrime, lagReg)
 	wliop := liop.ShallowClone()
 	wriop := riop.ShallowClone()
 	woiop := oiop.ShallowClone()
-	wpi2iop := pi2iop.ShallowClone()
 	wqciop := qcpiop.ShallowClone()
 	wliop.ToCanonical(&pk.Domain[0]).ToRegular()
 	wriop.ToCanonical(&pk.Domain[0]).ToRegular()
 	woiop.ToCanonical(&pk.Domain[0]).ToRegular()
-	wpi2iop.ToCanonical(&pk.Domain[0]).ToRegular()
 	wqciop.ToCanonical(&pk.Domain[0]).ToRegular()
-
-	wpi2iop.Coefficients()
 
 	// Blind l, r, o before committing
 	// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
@@ -218,10 +215,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 	fft.BitReverse(qkCompletedCanonical)
 
-	// l, r, o are blinded here
+	// l, r, o are already blinded
 	bwliop.ToLagrangeCoset(&pk.Domain[1])
 	bwriop.ToLagrangeCoset(&pk.Domain[1])
 	bwoiop.ToLagrangeCoset(&pk.Domain[1])
+	pi2iop := wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1])
 
 	lagrangeCosetBitReversed := iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}
 
@@ -332,7 +330,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		ws3,
 		bwziop,
 		bwsziop,
-		wpi2iop, // TODO @Tabaie correct format
+		pi2iop, // TODO @Tabaie correct format
 		wqliop,
 		wqriop,
 		wqmiop,
@@ -492,7 +490,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 func commitToLRO(bcl, bcr, bco []fr.Element, proof *Proof, srs *kzg.SRS) error {
 	n := runtime.NumCPU() / 2
 	var err0, err1, err2 error
-	chCommit0 := make(chan struct{}, 1)
+	chCommit0 := make(chan struct{}, 1) // TODO @Tabaie use wait group?
 	chCommit1 := make(chan struct{}, 1)
 	go func() {
 		proof.LRO[0], err0 = kzg.Commit(bcl, srs, n)
@@ -598,9 +596,9 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	den.Sub(&zeta, &one).
 		Inverse(&den)
 	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ⁻¹)/(ζ-1)
-		Mul(&lagrangeZeta, &alpha).
-		Mul(&lagrangeZeta, &alpha).
-		Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
+						Mul(&lagrangeZeta, &alpha).
+						Mul(&lagrangeZeta, &alpha).
+						Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
 
 	linPol := make([]fr.Element, len(blindedZCanonical))
 	copy(linPol, blindedZCanonical)
