@@ -150,7 +150,7 @@ type lineEvaluation struct {
 }
 
 // MillerLoop computes the multi-Miller loop
-// ∏ᵢ { fᵢ_{ℓ,Q}(P) · ℓᵢ_{Q,π(Q)}(P) · ℓᵢ_{Q,-π²(Q)}(P) }
+// ∏ᵢ { fᵢ_{ℓ,Q}(P) · ℓᵢ_{[ℓ]q,π(q)}(p) · ℓᵢ_{[ℓ]q+π(q),-π²(q)}(p) }
 func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	// check input size match
 	n := len(P)
@@ -268,7 +268,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		}
 	}
 
-	// Compute  ∏ᵢ { ℓᵢ_{Q,π(Q)}(P) · ℓᵢ_{Q,-π²(Q)}(P) }
+	// Compute  ∏ᵢ { ℓᵢ_{[ℓ]q,π(q)}(p) · ℓᵢ_{[ℓ]q+π(q),-π²(q)}(p) }
 	Q1, Q2 := new(G2Affine), new(G2Affine)
 	for k := 0; k < n; k++ {
 		//Q1 = π(Q)

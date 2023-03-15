@@ -121,25 +121,25 @@ func (e Ext12) CyclotomicSquare(x *E12) *E12 {
 // Th. 3.2 with minor modifications to fit our tower
 func (e Ext12) CyclotomicSquareCompressed(x *E12) *E12 {
 
-	// t0 = g1^2
+	// t0 = g1²
 	t0 := e.Ext2.Square(&x.C0.B1)
-	// t1 = g5^2
+	// t1 = g5²
 	t1 := e.Ext2.Square(&x.C1.B2)
 	// t5 = g1 + g5
 	t5 := e.Ext2.Add(&x.C0.B1, &x.C1.B2)
-	// t2 = (g1 + g5)^2
+	// t2 = (g1 + g5)²
 	t2 := e.Ext2.Square(t5)
 
-	// t3 = g1^2 + g5^2
+	// t3 = g1² + g5²
 	t3 := e.Ext2.Add(t0, t1)
 	// t5 = 2 * g1 * g5
 	t5 = e.Ext2.Sub(t2, t3)
 
 	// t6 = g3 + g2
 	t6 := e.Ext2.Add(&x.C1.B0, &x.C0.B2)
-	// t3 = (g3 + g2)^2
+	// t3 = (g3 + g2)²
 	t3 = e.Ext2.Square(t6)
-	// t2 = g3^2
+	// t2 = g3²
 	t2 = e.Ext2.Square(&x.C1.B0)
 
 	// t6 = 2 * nr * g1 * g5
@@ -150,33 +150,33 @@ func (e Ext12) CyclotomicSquareCompressed(x *E12) *E12 {
 	// z3 = 6 * nr * g1 * g5 + 2 * g3
 	C1B0 := e.Ext2.Add(t5, t6)
 
-	// t4 = nr * g5^2
+	// t4 = nr * g5²
 	t4 := e.Ext2.MulByNonResidue(t1)
-	// t5 = nr * g5^2 + g1^2
+	// t5 = nr * g5² + g1²
 	t5 = e.Ext2.Add(t0, t4)
-	// t6 = nr * g5^2 + g1^2 - g2
+	// t6 = nr * g5² + g1² - g2
 	t6 = e.Ext2.Sub(t5, &x.C0.B2)
 
-	// t1 = g2^2
+	// t1 = g2²
 	t1 = e.Ext2.Square(&x.C0.B2)
 
-	// t6 = 2 * nr * g5^2 + 2 * g1^2 - 2*g2
+	// t6 = 2 * nr * g5² + 2 * g1² - 2*g2
 	t6 = e.Ext2.Double(t6)
-	// z2 = 3 * nr * g5^2 + 3 * g1^2 - 2*g2
+	// z2 = 3 * nr * g5² + 3 * g1² - 2*g2
 	C0B2 := e.Ext2.Add(t6, t5)
 
-	// t4 = nr * g2^2
+	// t4 = nr * g2²
 	t4 = e.Ext2.MulByNonResidue(t1)
-	// t5 = g3^2 + nr * g2^2
+	// t5 = g3² + nr * g2²
 	t5 = e.Ext2.Add(t2, t4)
-	// t6 = g3^2 + nr * g2^2 - g1
+	// t6 = g3² + nr * g2² - g1
 	t6 = e.Ext2.Sub(t5, &x.C0.B1)
-	// t6 = 2 * g3^2 + 2 * nr * g2^2 - 2 * g1
+	// t6 = 2 * g3² + 2 * nr * g2² - 2 * g1
 	t6 = e.Ext2.Double(t6)
-	// z1 = 3 * g3^2 + 3 * nr * g2^2 - 2 * g1
+	// z1 = 3 * g3² + 3 * nr * g2² - 2 * g1
 	C0B1 := e.Ext2.Add(t6, t5)
 
-	// t0 = g2^2 + g3^2
+	// t0 = g2² + g3²
 	t0 = e.Ext2.Add(t2, t1)
 	// t5 = 2 * g3 * g2
 	t5 = e.Ext2.Sub(t3, t0)
@@ -217,13 +217,13 @@ func (e Ext12) DecompressKarabina(x *E12) *E12 {
 
 	// TODO: hadle the g3==0 case with MUX
 
-	// t0 = g1^2
+	// t0 = g1²
 	t0 := e.Ext2.Square(&x.C0.B1)
-	// t1 = 3 * g1^2 - 2 * g2
+	// t1 = 3 * g1² - 2 * g2
 	t1 := e.Ext2.Sub(t0, &x.C0.B2)
 	t1 = e.Ext2.Double(t1)
 	t1 = e.Ext2.Add(t1, t0)
-	// t0 = E * g5^2 + t1
+	// t0 = E * g5² + t1
 	t2 := e.Ext2.Square(&x.C1.B2)
 	t0 = e.Ext2.MulByNonResidue(t2)
 	t0 = e.Ext2.Add(t0, t1)
@@ -236,14 +236,14 @@ func (e Ext12) DecompressKarabina(x *E12) *E12 {
 
 	// t1 = g2 * g1
 	t1 = e.Ext2.Mul(&x.C0.B2, &x.C0.B1)
-	// t2 = 2 * g4^2 - 3 * g2 * g1
+	// t2 = 2 * g4² - 3 * g2 * g1
 	t2 = e.Ext2.Square(C1B1)
 	t2 = e.Ext2.Sub(t2, t1)
 	t2 = e.Ext2.Double(t2)
 	t2 = e.Ext2.Sub(t2, t1)
 	// t1 = g3 * g5 (g3 can be 0)
 	t1 = e.Ext2.Mul(&x.C1.B0, &x.C1.B2)
-	// c_0 = E * (2 * g4^2 + g3 * g5 - 3 * g2 * g1) + 1
+	// c₀ = E * (2 * g4² + g3 * g5 - 3 * g2 * g1) + 1
 	t2 = e.Ext2.Add(t2, t1)
 	C0B0 := e.Ext2.MulByNonResidue(t2)
 	C0B0 = e.Ext2.Add(C0B0, one)
