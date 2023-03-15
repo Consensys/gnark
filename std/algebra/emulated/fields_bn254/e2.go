@@ -279,27 +279,6 @@ func (e Ext2) Double(x *E2) *E2 {
 	}
 }
 
-func (e Ext2) Halve(x *E2) *E2 {
-	res, err := e.fp.NewHint(halveE2Hint, 2, &x.A0, &x.A1)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-
-	// half = x/2
-	half := E2{
-		A0: *res[0],
-		A1: *res[1],
-	}
-
-	// x == 2*half
-	_x := e.Double(&half)
-	e.AssertIsEqual(x, _x)
-
-	return &half
-
-}
-
 func (e Ext2) AssertIsEqual(x, y *E2) {
 	e.fp.AssertIsEqual(&x.A0, &y.A0)
 	e.fp.AssertIsEqual(&x.A1, &y.A1)

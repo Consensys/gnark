@@ -106,38 +106,6 @@ func TestDoubleFp2(t *testing.T) {
 
 }
 
-type e2Halve struct {
-	A, C E2
-}
-
-func (circuit *e2Halve) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
-	expected := e.Halve(&circuit.A)
-	e.AssertIsEqual(expected, &circuit.C)
-	return nil
-}
-
-func TestHalveFp2(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, b, c bn254.E2
-	_, _ = a.SetRandom()
-	_, _ = b.SetRandom()
-	c = a
-	c.Halve()
-
-	witness := e2Halve{
-		A: FromE2(&a),
-		C: FromE2(&c),
-	}
-
-	err := test.IsSolved(&e2Halve{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-
-}
-
 type e2Mul struct {
 	A, B, C E2
 }

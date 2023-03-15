@@ -18,7 +18,6 @@ func GetHints() []solver.Hint {
 		// E2
 		divE2Hint,
 		inverseE2Hint,
-		halveE2Hint,
 		// E6
 		divE6Hint,
 		inverseE6Hint,
@@ -56,23 +55,6 @@ func divE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error
 			b.A1.SetBigInt(inputs[3])
 
 			c.Inverse(&b).Mul(&c, &a)
-
-			c.A0.BigInt(outputs[0])
-			c.A1.BigInt(outputs[1])
-
-			return nil
-		})
-}
-
-func halveE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E2
-
-			a.A0.SetBigInt(inputs[0])
-			a.A1.SetBigInt(inputs[1])
-
-			c.Set(&a).Halve()
 
 			c.A0.BigInt(outputs[0])
 			c.A1.BigInt(outputs[1])
