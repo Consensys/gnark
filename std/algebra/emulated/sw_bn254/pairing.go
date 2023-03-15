@@ -292,7 +292,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		res = pr.MulBy034(res, &l1.R0, &l1.R1)
 
 		// l2 the line passing Qacc[k] and -π²(Q)
-		l2 = pr.addStepLineOnly(Qacc[k], Q2)
+		l2 = pr.lineCompute(Qacc[k], Q2)
 		// line evaluation at P[k]
 		l2.R0 = *pr.MulByElement(&l2.R0, xOverY[k])
 		l2.R1 = *pr.MulByElement(&l2.R1, yInv[k])
@@ -423,8 +423,8 @@ func (pr Pairing) addStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation) {
 
 }
 
-// addStepLineOnly computes the line that goes through p1 and p2 but does not compute p1+p2
-func (pr Pairing) addStepLineOnly(p1, p2 *G2Affine) *lineEvaluation {
+// lineCompute computes the line that goes through p1 and p2 but does not compute p1+p2
+func (pr Pairing) lineCompute(p1, p2 *G2Affine) *lineEvaluation {
 
 	// compute λ = (y2-y1)/(x2-x1)
 	qypy := pr.Ext2.Sub(&p2.Y, &p1.Y)
