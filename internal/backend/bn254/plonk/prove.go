@@ -128,15 +128,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	liop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
 	riop := iop.NewPolynomial(&evaluationRDomainSmall, lagReg)
 	oiop := iop.NewPolynomial(&evaluationODomainSmall, lagReg)
-	qcpiop := iop.NewPolynomial(&pk.lQcPrime, lagReg)
 	wliop := liop.ShallowClone()
 	wriop := riop.ShallowClone()
 	woiop := oiop.ShallowClone()
-	wqciop := qcpiop.ShallowClone()
 	wliop.ToCanonical(&pk.Domain[0]).ToRegular()
 	wriop.ToCanonical(&pk.Domain[0]).ToRegular()
 	woiop.ToCanonical(&pk.Domain[0]).ToRegular()
-	wqciop.ToCanonical(&pk.Domain[0]).ToRegular()
 
 	// Blind l, r, o before committing
 	// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
@@ -219,7 +216,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	bwliop.ToLagrangeCoset(&pk.Domain[1])
 	bwriop.ToLagrangeCoset(&pk.Domain[1])
 	bwoiop.ToLagrangeCoset(&pk.Domain[1])
-	pi2iop := wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1])
+	pi2iop := wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
 
 	lagrangeCosetBitReversed := iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}
 
@@ -228,6 +225,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	wqriop := iop.NewPolynomial(&pk.lQr, lagrangeCosetBitReversed)
 	wqmiop := iop.NewPolynomial(&pk.lQm, lagrangeCosetBitReversed)
 	wqoiop := iop.NewPolynomial(&pk.lQo, lagrangeCosetBitReversed)
+	wqcpiop := iop.NewPolynomial(&pk.lQcPrime, lagrangeCosetBitReversed) // lagrange coset form
 
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
 	wqkiop := iop.NewPolynomial(&qkCompletedCanonical, canReg)
@@ -336,7 +334,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		wqmiop,
 		wqoiop,
 		wqkiop,
-		qcpiop, // TODO @Tabaie correct format
+		wqcpiop, // TODO @Tabaie correct format
 		wloneiop,
 	)
 	if err != nil {
@@ -375,7 +373,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	go evalAtZeta(bwliop, &blzeta)
 	go evalAtZeta(bwriop, &brzeta)
 	go evalAtZeta(bwoiop, &bozeta)
-	go evalAtZeta(wqciop, &qcpzeta)
+	go func() {
+		qcpiop := iop.NewPolynomial(&pk.QcPrime, canReg) // TODO @Tabaie canReg correct?
+		qcpzeta = qcpiop.Evaluate(zeta)
+		wgEvals.Done()
+	}()
 
 	// open blinded Z at zeta*z
 	bwziop.ToCanonical(&pk.Domain[1]).ToRegular()
