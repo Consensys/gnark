@@ -463,6 +463,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			bwoiop.Coefficients()[:bwoiop.BlindedSize()],
 			pk.S1Canonical,
 			pk.S2Canonical,
+			pk.QcPrime,
 		},
 		[]kzg.Digest{
 			foldedHDigest,
@@ -472,6 +473,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			proof.LRO[2],
 			pk.Vk.S[0],
 			pk.Vk.S[1],
+			pk.Vk.QcPrime,
 		},
 		zeta,
 		hFunc,

@@ -42,11 +42,11 @@ type ProvingKey struct {
 
 	// TODO store iop.Polynomial here, not []fr.Element for more "type safety"
 
-	// qr,ql,qm,qo (in canonical basis).
-	// lQcPrime denotes the constraints defining committed variables
-	Ql, Qr, Qm, Qo, QcPrime []fr.Element // TODO @Tabaie QcPrime is not used by the prover; remove it
+	// qr,ql,qm,qo,qcp (in canonical basis).
+	// QcPrime denotes the constraints defining committed variables
+	Ql, Qr, Qm, Qo, QcPrime []fr.Element
 
-	// qr,ql,qm,qo (in lagrange coset basis) --> these are not serialized, but computed from Ql, Qr, Qm, Qo once.
+	// qr,ql,qm,qo,qcp (in lagrange coset basis) --> these are not serialized, but computed from Ql, Qr, Qm, Qo once.
 	lQl, lQr, lQm, lQo, lQcPrime []fr.Element
 
 	// LQk (CQk) qk in Lagrange basis (canonical basis), prepended with as many zeroes as public inputs.
