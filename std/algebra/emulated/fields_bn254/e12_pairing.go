@@ -1,8 +1,6 @@
 package fields_bn254
 
-import "github.com/consensys/gnark/frontend"
-
-func (e Ext12) Expt(api frontend.API, x *E12) *E12 {
+func (e Ext12) Expt(x *E12) *E12 {
 	// Expt computation is derived from the addition chain:
 	//
 	//	_10     = 2*1
@@ -37,30 +35,30 @@ func (e Ext12) Expt(api frontend.API, x *E12) *E12 {
 	t1 = e.Mul(t0, t1)
 	t0 = e.Mul(t3, t1)
 	t6 = e.NCycloSquareCompressed(t6, 6)
-	t6 = e.DecompressKarabina(api, t6)
+	t6 = e.DecompressKarabina(t6)
 	t5 = e.Mul(t5, t6)
 	t5 = e.Mul(t4, t5)
 	t5 = e.NCycloSquareCompressed(t5, 7)
-	t5 = e.DecompressKarabina(api, t5)
+	t5 = e.DecompressKarabina(t5)
 	t4 = e.Mul(t4, t5)
 	t4 = e.NCycloSquareCompressed(t4, 8)
-	t4 = e.DecompressKarabina(api, t4)
+	t4 = e.DecompressKarabina(t4)
 	t4 = e.Mul(t0, t4)
 	t3 = e.Mul(t3, t4)
 	t3 = e.NCycloSquareCompressed(t3, 6)
-	t3 = e.DecompressKarabina(api, t3)
+	t3 = e.DecompressKarabina(t3)
 	t2 = e.Mul(t2, t3)
 	t2 = e.NCycloSquareCompressed(t2, 8)
-	t2 = e.DecompressKarabina(api, t2)
+	t2 = e.DecompressKarabina(t2)
 	t2 = e.Mul(t0, t2)
 	t2 = e.NCycloSquareCompressed(t2, 6)
-	t2 = e.DecompressKarabina(api, t2)
+	t2 = e.DecompressKarabina(t2)
 	t2 = e.Mul(t0, t2)
 	t2 = e.NCycloSquareCompressed(t2, 10)
-	t2 = e.DecompressKarabina(api, t2)
+	t2 = e.DecompressKarabina(t2)
 	t1 = e.Mul(t1, t2)
 	t1 = e.NCycloSquareCompressed(t1, 6)
-	t1 = e.DecompressKarabina(api, t1)
+	t1 = e.DecompressKarabina(t1)
 	t0 = e.Mul(t0, t1)
 	z := e.Mul(result, t0)
 	return z
@@ -72,27 +70,27 @@ func (e Ext12) Expt(api frontend.API, x *E12) *E12 {
 //		C0: E6{B0: 1, B1: 0, B2: 0},
 //		C1: E6{B0: c3, B1: c4, B2: 0},
 //	}
-func (e *Ext12) MulBy034(z *E12, c3, c4 E2) *E12 {
+func (e *Ext12) MulBy034(z *E12, c3, c4 *E2) *E12 {
 
 	a := z.C0
 	b := z.C1
 
-	b = *e.MulBy01(&b, &c3, &c4)
+	b = *e.MulBy01(&b, c3, c4)
 	one := e.Ext2.One()
 
-	c3 = *e.Ext2.Add(one, &c3)
+	c3 = e.Ext2.Add(one, c3)
 	d := e.Ext6.Add(&z.C0, &z.C1)
-	d = e.MulBy01(d, &c3, &c4)
+	d = e.MulBy01(d, c3, c4)
 
-	zC1 := *e.Ext6.Add(&a, &b)
-	zC1 = *e.Ext6.Neg(&zC1)
-	zC1 = *e.Ext6.Add(&zC1, d)
-	zC0 := *e.Ext6.MulByNonResidue(&b)
-	zC0 = *e.Ext6.Add(&zC0, &a)
+	zC1 := e.Ext6.Add(&a, &b)
+	zC1 = e.Ext6.Neg(zC1)
+	zC1 = e.Ext6.Add(zC1, d)
+	zC0 := e.Ext6.MulByNonResidue(&b)
+	zC0 = e.Ext6.Add(zC0, &a)
 
 	return &E12{
-		C0: zC0,
-		C1: zC1,
+		C0: *zC0,
+		C1: *zC1,
 	}
 }
 
@@ -109,32 +107,32 @@ func (e *Ext12) MulBy034(z *E12, c3, c4 E2) *E12 {
 //		C0: E6{B0: 1, B1: 0, B2: 0},
 //		C1: E6{B0: d3, B1: d4, B2: 0},
 //	}
-func (e *Ext12) Mul034By034(d3, d4, c3, c4 E2) *E12 {
+func (e *Ext12) Mul034By034(d3, d4, c3, c4 *E2) *E12 {
 	one := e.Ext2.One()
-	x3 := e.Ext2.Mul(&c3, &d3)
-	x4 := e.Ext2.Mul(&c4, &d4)
-	x04 := e.Ext2.Add(&c4, &d4)
-	x03 := e.Ext2.Add(&c3, &d3)
-	tmp := e.Ext2.Add(&c3, &c4)
-	x34 := e.Ext2.Add(&d3, &d4)
+	x3 := e.Ext2.Mul(c3, d3)
+	x4 := e.Ext2.Mul(c4, d4)
+	x04 := e.Ext2.Add(c4, d4)
+	x03 := e.Ext2.Add(c3, d3)
+	tmp := e.Ext2.Add(c3, c4)
+	x34 := e.Ext2.Add(d3, d4)
 	x34 = e.Ext2.Mul(x34, tmp)
 	x34 = e.Ext2.Sub(x34, x3)
 	x34 = e.Ext2.Sub(x34, x4)
 
-	zC0B0 := *e.Ext2.MulByNonResidue(x4)
-	zC0B0 = *e.Ext2.Add(&zC0B0, one)
-	zC0B1 := *x3
-	zC0B2 := *x34
-	zC1B0 := *x03
-	zC1B1 := *x04
-	zC1B2 := *e.Ext2.Zero()
+	zC0B0 := e.Ext2.MulByNonResidue(x4)
+	zC0B0 = e.Ext2.Add(zC0B0, one)
+	zC0B1 := x3
+	zC0B2 := x34
+	zC1B0 := x03
+	zC1B1 := x04
+	zC1B2 := e.Ext2.Zero()
 
 	return &E12{
 		C0: E6{
-			B0: zC0B0, B1: zC0B1, B2: zC0B2,
+			B0: *zC0B0, B1: *zC0B1, B2: *zC0B2,
 		},
 		C1: E6{
-			B0: zC1B0, B1: zC1B1, B2: zC1B2,
+			B0: *zC1B0, B1: *zC1B1, B2: *zC1B2,
 		},
 	}
 }

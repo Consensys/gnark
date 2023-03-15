@@ -2,8 +2,6 @@ package fields_bn254
 
 import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/emulated"
 )
 
 type E12 struct {
@@ -124,83 +122,83 @@ func (e Ext12) CyclotomicSquare(x *E12) *E12 {
 func (e Ext12) CyclotomicSquareCompressed(x *E12) *E12 {
 
 	// t0 = g1^2
-	t0 := e.Ext6.Ext2.Square(&x.C0.B1)
+	t0 := e.Ext2.Square(&x.C0.B1)
 	// t1 = g5^2
-	t1 := e.Ext6.Ext2.Square(&x.C1.B2)
+	t1 := e.Ext2.Square(&x.C1.B2)
 	// t5 = g1 + g5
-	t5 := e.Ext6.Ext2.Add(&x.C0.B1, &x.C1.B2)
+	t5 := e.Ext2.Add(&x.C0.B1, &x.C1.B2)
 	// t2 = (g1 + g5)^2
-	t2 := e.Ext6.Ext2.Square(t5)
+	t2 := e.Ext2.Square(t5)
 
 	// t3 = g1^2 + g5^2
-	t3 := e.Ext6.Ext2.Add(t0, t1)
+	t3 := e.Ext2.Add(t0, t1)
 	// t5 = 2 * g1 * g5
-	t5 = e.Ext6.Ext2.Sub(t2, t3)
+	t5 = e.Ext2.Sub(t2, t3)
 
 	// t6 = g3 + g2
-	t6 := e.Ext6.Ext2.Add(&x.C1.B0, &x.C0.B2)
+	t6 := e.Ext2.Add(&x.C1.B0, &x.C0.B2)
 	// t3 = (g3 + g2)^2
-	t3 = e.Ext6.Ext2.Square(t6)
+	t3 = e.Ext2.Square(t6)
 	// t2 = g3^2
-	t2 = e.Ext6.Ext2.Square(&x.C1.B0)
+	t2 = e.Ext2.Square(&x.C1.B0)
 
 	// t6 = 2 * nr * g1 * g5
-	t6 = e.Ext6.Ext2.MulByNonResidue(t5)
+	t6 = e.Ext2.MulByNonResidue(t5)
 	// t5 = 4 * nr * g1 * g5 + 2 * g3
-	t5 = e.Ext6.Ext2.Add(t6, &x.C1.B0)
-	t5 = e.Ext6.Ext2.Double(t5)
+	t5 = e.Ext2.Add(t6, &x.C1.B0)
+	t5 = e.Ext2.Double(t5)
 	// z3 = 6 * nr * g1 * g5 + 2 * g3
-	C1B0 := *e.Ext6.Ext2.Add(t5, t6)
+	C1B0 := e.Ext2.Add(t5, t6)
 
 	// t4 = nr * g5^2
-	t4 := e.Ext6.Ext2.MulByNonResidue(t1)
+	t4 := e.Ext2.MulByNonResidue(t1)
 	// t5 = nr * g5^2 + g1^2
-	t5 = e.Ext6.Ext2.Add(t0, t4)
+	t5 = e.Ext2.Add(t0, t4)
 	// t6 = nr * g5^2 + g1^2 - g2
-	t6 = e.Ext6.Ext2.Sub(t5, &x.C0.B2)
+	t6 = e.Ext2.Sub(t5, &x.C0.B2)
 
 	// t1 = g2^2
-	t1 = e.Ext6.Ext2.Square(&x.C0.B2)
+	t1 = e.Ext2.Square(&x.C0.B2)
 
 	// t6 = 2 * nr * g5^2 + 2 * g1^2 - 2*g2
-	t6 = e.Ext6.Ext2.Double(t6)
+	t6 = e.Ext2.Double(t6)
 	// z2 = 3 * nr * g5^2 + 3 * g1^2 - 2*g2
-	C0B2 := *e.Ext6.Ext2.Add(t6, t5)
+	C0B2 := e.Ext2.Add(t6, t5)
 
 	// t4 = nr * g2^2
-	t4 = e.Ext6.Ext2.MulByNonResidue(t1)
+	t4 = e.Ext2.MulByNonResidue(t1)
 	// t5 = g3^2 + nr * g2^2
-	t5 = e.Ext6.Ext2.Add(t2, t4)
+	t5 = e.Ext2.Add(t2, t4)
 	// t6 = g3^2 + nr * g2^2 - g1
-	t6 = e.Ext6.Ext2.Sub(t5, &x.C0.B1)
+	t6 = e.Ext2.Sub(t5, &x.C0.B1)
 	// t6 = 2 * g3^2 + 2 * nr * g2^2 - 2 * g1
-	t6 = e.Ext6.Ext2.Double(t6)
+	t6 = e.Ext2.Double(t6)
 	// z1 = 3 * g3^2 + 3 * nr * g2^2 - 2 * g1
-	C0B1 := *e.Ext6.Ext2.Add(t6, t5)
+	C0B1 := e.Ext2.Add(t6, t5)
 
 	// t0 = g2^2 + g3^2
-	t0 = e.Ext6.Ext2.Add(t2, t1)
+	t0 = e.Ext2.Add(t2, t1)
 	// t5 = 2 * g3 * g2
-	t5 = e.Ext6.Ext2.Sub(t3, t0)
+	t5 = e.Ext2.Sub(t3, t0)
 	// t6 = 2 * g3 * g2 + g5
-	t6 = e.Ext6.Ext2.Add(t5, &x.C1.B2)
+	t6 = e.Ext2.Add(t5, &x.C1.B2)
 	// t6 = 4 * g3 * g2 + 2 * g5
-	t6 = e.Ext6.Ext2.Double(t6)
+	t6 = e.Ext2.Double(t6)
 	// z5 = 6 * g3 * g2 + 2 * g5
-	C1B2 := *e.Ext6.Ext2.Add(t5, t6)
+	C1B2 := e.Ext2.Add(t5, t6)
 
-	zero := e.Ext6.Ext2.Zero()
+	zero := e.Ext2.Zero()
 
 	return &E12{
 		C0: E6{
 			B0: *zero,
-			B1: C0B1,
-			B2: C0B2,
+			B1: *C0B1,
+			B2: *C0B2,
 		},
 		C1: E6{
-			B0: C1B0,
+			B0: *C1B0,
 			B1: *zero,
-			B2: C1B2,
+			B2: *C1B2,
 		},
 	}
 }
@@ -213,42 +211,42 @@ func (e Ext12) NCycloSquareCompressed(z *E12, n int) *E12 {
 }
 
 // DecompressKarabina Karabina's cyclotomic square result
-func (e Ext12) DecompressKarabina(api frontend.API, x *E12) *E12 {
+func (e Ext12) DecompressKarabina(x *E12) *E12 {
 
-	one := e.Ext6.Ext2.One()
+	one := e.Ext2.One()
 
 	// TODO: hadle the g3==0 case with MUX
 
 	// t0 = g1^2
-	t0 := e.Ext6.Ext2.Square(&x.C0.B1)
+	t0 := e.Ext2.Square(&x.C0.B1)
 	// t1 = 3 * g1^2 - 2 * g2
-	t1 := e.Ext6.Ext2.Sub(t0, &x.C0.B2)
-	t1 = e.Ext6.Ext2.Double(t1)
-	t1 = e.Ext6.Ext2.Add(t1, t0)
+	t1 := e.Ext2.Sub(t0, &x.C0.B2)
+	t1 = e.Ext2.Double(t1)
+	t1 = e.Ext2.Add(t1, t0)
 	// t0 = E * g5^2 + t1
-	t2 := e.Ext6.Ext2.Square(&x.C1.B2)
-	t0 = e.Ext6.Ext2.MulByNonResidue(t2)
-	t0 = e.Ext6.Ext2.Add(t0, t1)
+	t2 := e.Ext2.Square(&x.C1.B2)
+	t0 = e.Ext2.MulByNonResidue(t2)
+	t0 = e.Ext2.Add(t0, t1)
 	// t1 = 4 * g3
-	t1 = e.Ext6.Ext2.Double(&x.C1.B0)
-	t1 = e.Ext6.Ext2.Double(t1)
+	t1 = e.Ext2.Double(&x.C1.B0)
+	t1 = e.Ext2.Double(t1)
 
 	// z4 = g4
-	C1B1 := e.Ext6.Ext2.DivUnchecked(api, *t0, *t1)
+	C1B1 := e.Ext2.DivUnchecked(t0, t1)
 
 	// t1 = g2 * g1
-	t1 = e.Ext6.Ext2.Mul(&x.C0.B2, &x.C0.B1)
+	t1 = e.Ext2.Mul(&x.C0.B2, &x.C0.B1)
 	// t2 = 2 * g4^2 - 3 * g2 * g1
-	t2 = e.Ext6.Ext2.Square(C1B1)
-	t2 = e.Ext6.Ext2.Sub(t2, t1)
-	t2 = e.Ext6.Ext2.Double(t2)
-	t2 = e.Ext6.Ext2.Sub(t2, t1)
+	t2 = e.Ext2.Square(C1B1)
+	t2 = e.Ext2.Sub(t2, t1)
+	t2 = e.Ext2.Double(t2)
+	t2 = e.Ext2.Sub(t2, t1)
 	// t1 = g3 * g5 (g3 can be 0)
-	t1 = e.Ext6.Ext2.Mul(&x.C1.B0, &x.C1.B2)
+	t1 = e.Ext2.Mul(&x.C1.B0, &x.C1.B2)
 	// c_0 = E * (2 * g4^2 + g3 * g5 - 3 * g2 * g1) + 1
-	t2 = e.Ext6.Ext2.Add(t2, t1)
-	C0B0 := e.Ext6.Ext2.MulByNonResidue(t2)
-	C0B0 = e.Ext6.Ext2.Add(C0B0, one)
+	t2 = e.Ext2.Add(t2, t1)
+	C0B0 := e.Ext2.MulByNonResidue(t2)
+	C0B0 = e.Ext2.Add(C0B0, one)
 
 	return &E12{
 		C0: E6{
@@ -376,12 +374,8 @@ func FromE12(y *bn254.E12) E12 {
 
 }
 
-func (e Ext12) Inverse(api frontend.API, x *E12) *E12 {
-	field, err := emulated.NewField[emulated.BN254Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	res, err := field.NewHint(InverseE12Hint, 12, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1)
+func (e Ext12) Inverse(x *E12) *E12 {
+	res, err := e.fp.NewHint(InverseE12Hint, 12, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -403,20 +397,16 @@ func (e Ext12) Inverse(api frontend.API, x *E12) *E12 {
 	one := e.One()
 
 	// 1 == inv * x
-	_one := *e.Mul(&inv, x)
-	e.AssertIsEqual(one, &_one)
+	_one := e.Mul(&inv, x)
+	e.AssertIsEqual(one, _one)
 
 	return &inv
 
 }
 
 // DivUnchecked e2 elmts
-func (e Ext12) DivUnchecked(api frontend.API, x, y E12) *E12 {
-	field, err := emulated.NewField[emulated.BN254Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	res, err := field.NewHint(DivE12Hint, 12, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1, &y.C0.B0.A0, &y.C0.B0.A1, &y.C0.B1.A0, &y.C0.B1.A1, &y.C0.B2.A0, &y.C0.B2.A1, &y.C1.B0.A0, &y.C1.B0.A1, &y.C1.B1.A0, &y.C1.B1.A1, &y.C1.B2.A0, &y.C1.B2.A1)
+func (e Ext12) DivUnchecked(x, y *E12) *E12 {
+	res, err := e.fp.NewHint(DivE12Hint, 12, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1, &y.C0.B0.A0, &y.C0.B0.A1, &y.C0.B1.A0, &y.C0.B1.A1, &y.C0.B2.A0, &y.C0.B2.A1, &y.C1.B0.A0, &y.C1.B0.A1, &y.C1.B1.A0, &y.C1.B1.A1, &y.C1.B2.A0, &y.C1.B2.A1)
 
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
@@ -437,8 +427,8 @@ func (e Ext12) DivUnchecked(api frontend.API, x, y E12) *E12 {
 	}
 
 	// x == div * y
-	_x := *e.Mul(&div, &y)
-	e.AssertIsEqual(&x, &_x)
+	_x := e.Mul(&div, y)
+	e.AssertIsEqual(x, _x)
 
 	return &div
 }

@@ -113,7 +113,7 @@ type e2Halve struct {
 func (circuit *e2Halve) Define(api frontend.API) error {
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt2(ba)
-	expected := e.Halve(api, &circuit.A)
+	expected := e.Halve(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
 }
@@ -210,7 +210,7 @@ func (circuit *e2Div) Define(api frontend.API) error {
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt2(ba)
 
-	expected := e.DivUnchecked(api, circuit.A, circuit.B)
+	expected := e.DivUnchecked(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
 }
@@ -371,10 +371,9 @@ type e2Inverse struct {
 }
 
 func (circuit *e2Inverse) Define(api frontend.API) error {
-
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt2(ba)
-	expected := e.Inverse(api, &circuit.A)
+	expected := e.Inverse(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil

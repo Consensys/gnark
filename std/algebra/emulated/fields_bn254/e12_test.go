@@ -115,7 +115,7 @@ func (circuit *e12Div) Define(api frontend.API) error {
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
 
-	expected := e.DivUnchecked(api, circuit.A, circuit.B)
+	expected := e.DivUnchecked(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
 }
@@ -177,7 +177,6 @@ type e12CycloSquare struct {
 }
 
 func (circuit *e12CycloSquare) Define(api frontend.API) error {
-
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
 	expected := e.CyclotomicSquare(&circuit.A)
@@ -215,7 +214,6 @@ type e12CycloSquareKarabina struct {
 }
 
 func (circuit *e12CycloSquareKarabina) Define(api frontend.API) error {
-
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
 	expected := e.CyclotomicSquareCompressed(&circuit.A)
@@ -253,11 +251,10 @@ type e12CycloSquareKarabinaAndDecompress struct {
 }
 
 func (circuit *e12CycloSquareKarabinaAndDecompress) Define(api frontend.API) error {
-
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
 	expected := e.CyclotomicSquareCompressed(&circuit.A)
-	expected = e.DecompressKarabina(api, expected)
+	expected = e.DecompressKarabina(expected)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
 }
@@ -324,10 +321,9 @@ type e12Inverse struct {
 }
 
 func (circuit *e12Inverse) Define(api frontend.API) error {
-
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
-	expected := e.Inverse(api, &circuit.A)
+	expected := e.Inverse(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil
@@ -356,10 +352,9 @@ type e12Expt struct {
 }
 
 func (circuit *e12Expt) Define(api frontend.API) error {
-
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
-	expected := e.Expt(api, &circuit.A)
+	expected := e.Expt(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil
@@ -493,8 +488,8 @@ func (circuit *e12MulBy034) Define(api frontend.API) error {
 
 	ba, _ := emulated.NewField[emulated.BN254Fp](api)
 	e := NewExt12(ba)
-	circuit.A = *e.MulBy034(&circuit.A, circuit.B, circuit.C)
-	e.AssertIsEqual(&circuit.A, &circuit.W)
+	res := e.MulBy034(&circuit.A, &circuit.B, &circuit.C)
+	e.AssertIsEqual(res, &circuit.W)
 	return nil
 }
 

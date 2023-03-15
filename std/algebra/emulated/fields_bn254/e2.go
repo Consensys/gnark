@@ -4,7 +4,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -280,12 +279,8 @@ func (e Ext2) Double(x *E2) *E2 {
 	}
 }
 
-func (e Ext2) Halve(api frontend.API, x *E2) *E2 {
-	field, err := emulated.NewField[emulated.BN254Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	res, err := field.NewHint(HalveE2Hint, 2, &x.A0, &x.A1)
+func (e Ext2) Halve(x *E2) *E2 {
+	res, err := e.fp.NewHint(HalveE2Hint, 2, &x.A0, &x.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -298,8 +293,8 @@ func (e Ext2) Halve(api frontend.API, x *E2) *E2 {
 	}
 
 	// x == 2*half
-	_x := *e.Double(&half)
-	e.AssertIsEqual(x, &_x)
+	_x := e.Double(&half)
+	e.AssertIsEqual(x, _x)
 
 	return &half
 
@@ -315,15 +310,10 @@ func FromE2(y *bn254.E2) E2 {
 		A0: emulated.ValueOf[emulated.BN254Fp](y.A0),
 		A1: emulated.ValueOf[emulated.BN254Fp](y.A1),
 	}
-
 }
 
-func (e Ext2) Inverse(api frontend.API, x *E2) *E2 {
-	field, err := emulated.NewField[emulated.BN254Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	res, err := field.NewHint(InverseE2Hint, 2, &x.A0, &x.A1)
+func (e Ext2) Inverse(x *E2) *E2 {
+	res, err := e.fp.NewHint(InverseE2Hint, 2, &x.A0, &x.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -336,20 +326,16 @@ func (e Ext2) Inverse(api frontend.API, x *E2) *E2 {
 	one := e.One()
 
 	// 1 == inv * x
-	_one := *e.Mul(&inv, x)
-	e.AssertIsEqual(one, &_one)
+	_one := e.Mul(&inv, x)
+	e.AssertIsEqual(one, _one)
 
 	return &inv
 
 }
 
 // DivUnchecked e2 elmts
-func (e Ext2) DivUnchecked(api frontend.API, x, y E2) *E2 {
-	field, err := emulated.NewField[emulated.BN254Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	res, err := field.NewHint(DivE2Hint, 2, &x.A0, &x.A1, &y.A0, &y.A1)
+func (e Ext2) DivUnchecked(x, y *E2) *E2 {
+	res, err := e.fp.NewHint(DivE2Hint, 2, &x.A0, &x.A1, &y.A0, &y.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -361,8 +347,8 @@ func (e Ext2) DivUnchecked(api frontend.API, x, y E2) *E2 {
 	}
 
 	// x == div * y
-	_x := *e.Mul(&div, &y)
-	e.AssertIsEqual(&x, &_x)
+	_x := e.Mul(&div, y)
+	e.AssertIsEqual(x, _x)
 
 	return &div
 }

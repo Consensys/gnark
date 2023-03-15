@@ -2,8 +2,6 @@ package fields_bn254
 
 import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/emulated"
 )
 
 type E6 struct {
@@ -202,12 +200,8 @@ func FromE6(y *bn254.E6) E6 {
 
 }
 
-func (e Ext6) Inverse(api frontend.API, x *E6) *E6 {
-	field, err := emulated.NewField[emulated.BN254Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	res, err := field.NewHint(InverseE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1)
+func (e Ext6) Inverse(x *E6) *E6 {
+	res, err := e.fp.NewHint(InverseE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -222,20 +216,16 @@ func (e Ext6) Inverse(api frontend.API, x *E6) *E6 {
 	one := e.One()
 
 	// 1 == inv * x
-	_one := *e.Mul(&inv, x)
-	e.AssertIsEqual(one, &_one)
+	_one := e.Mul(&inv, x)
+	e.AssertIsEqual(one, _one)
 
 	return &inv
 
 }
 
 // DivUnchecked e2 elmts
-func (e Ext6) DivUnchecked(api frontend.API, x, y E6) *E6 {
-	field, err := emulated.NewField[emulated.BN254Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	res, err := field.NewHint(DivE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1, &y.B0.A0, &y.B0.A1, &y.B1.A0, &y.B1.A1, &y.B2.A0, &y.B2.A1)
+func (e Ext6) DivUnchecked(x, y *E6) *E6 {
+	res, err := e.fp.NewHint(DivE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1, &y.B0.A0, &y.B0.A1, &y.B1.A0, &y.B1.A1, &y.B2.A0, &y.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -248,8 +238,8 @@ func (e Ext6) DivUnchecked(api frontend.API, x, y E6) *E6 {
 	}
 
 	// x == div * y
-	_x := *e.Mul(&div, &y)
-	e.AssertIsEqual(&x, &_x)
+	_x := e.Mul(&div, y)
+	e.AssertIsEqual(x, _x)
 
 	return &div
 }
