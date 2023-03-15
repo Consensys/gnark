@@ -16,19 +16,19 @@ func init() {
 func GetHints() []solver.Hint {
 	return []solver.Hint{
 		// E2
-		DivE2Hint,
-		InverseE2Hint,
-		HalveE2Hint,
+		divE2Hint,
+		inverseE2Hint,
+		halveE2Hint,
 		// E6
-		DivE6Hint,
-		InverseE6Hint,
+		divE6Hint,
+		inverseE6Hint,
 		// E12
-		DivE12Hint,
-		InverseE12Hint,
+		divE12Hint,
+		inverseE12Hint,
 	}
 }
 
-func InverseE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+func inverseE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
 			var a, c bn254.E2
@@ -45,7 +45,7 @@ func InverseE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) e
 		})
 }
 
-func DivE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+func divE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
 			var a, b, c bn254.E2
@@ -64,7 +64,7 @@ func DivE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error
 		})
 }
 
-func HalveE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+func halveE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
 			var a, c bn254.E2
@@ -82,7 +82,7 @@ func HalveE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) err
 }
 
 // E6 hints
-func InverseE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+func inverseE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
 			var a, c bn254.E6
@@ -107,7 +107,7 @@ func InverseE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) e
 		})
 }
 
-func DivE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+func divE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
 			var a, b, c bn254.E6
@@ -140,7 +140,7 @@ func DivE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error
 }
 
 // E12 hints
-func InverseE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+func inverseE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
 			var a, c bn254.E12
@@ -177,7 +177,7 @@ func InverseE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) 
 		})
 }
 
-func DivE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+func divE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
 			var a, b, c bn254.E12

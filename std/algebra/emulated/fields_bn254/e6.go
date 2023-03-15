@@ -201,7 +201,7 @@ func FromE6(y *bn254.E6) E6 {
 }
 
 func (e Ext6) Inverse(x *E6) *E6 {
-	res, err := e.fp.NewHint(InverseE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1)
+	res, err := e.fp.NewHint(inverseE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -225,7 +225,7 @@ func (e Ext6) Inverse(x *E6) *E6 {
 
 // DivUnchecked e2 elmts
 func (e Ext6) DivUnchecked(x, y *E6) *E6 {
-	res, err := e.fp.NewHint(DivE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1, &y.B0.A0, &y.B0.A1, &y.B1.A0, &y.B1.A1, &y.B2.A0, &y.B2.A1)
+	res, err := e.fp.NewHint(divE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1, &y.B0.A0, &y.B0.A1, &y.B1.A0, &y.B1.A1, &y.B2.A0, &y.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

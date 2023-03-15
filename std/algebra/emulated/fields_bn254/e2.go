@@ -280,7 +280,7 @@ func (e Ext2) Double(x *E2) *E2 {
 }
 
 func (e Ext2) Halve(x *E2) *E2 {
-	res, err := e.fp.NewHint(HalveE2Hint, 2, &x.A0, &x.A1)
+	res, err := e.fp.NewHint(halveE2Hint, 2, &x.A0, &x.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -313,7 +313,7 @@ func FromE2(y *bn254.E2) E2 {
 }
 
 func (e Ext2) Inverse(x *E2) *E2 {
-	res, err := e.fp.NewHint(InverseE2Hint, 2, &x.A0, &x.A1)
+	res, err := e.fp.NewHint(inverseE2Hint, 2, &x.A0, &x.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -335,7 +335,7 @@ func (e Ext2) Inverse(x *E2) *E2 {
 
 // DivUnchecked e2 elmts
 func (e Ext2) DivUnchecked(x, y *E2) *E2 {
-	res, err := e.fp.NewHint(DivE2Hint, 2, &x.A0, &x.A1, &y.A0, &y.A1)
+	res, err := e.fp.NewHint(divE2Hint, 2, &x.A0, &x.A1, &y.A0, &y.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
