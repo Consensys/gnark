@@ -74,6 +74,15 @@ func (e Ext2) MulByElement(x *E2, y *baseEl) *E2 {
 	}
 }
 
+func (e Ext2) MulByConstElement(x *E2, y *big.Int) *E2 {
+	z0 := e.fp.MulConst(&x.A0, y)
+	z1 := e.fp.MulConst(&x.A1, y)
+	return &E2{
+		A0: *z0,
+		A1: *z1,
+	}
+}
+
 func (e Ext2) Conjugate(x *E2) *E2 {
 	z0 := x.A0
 	z1 := e.fp.Neg(&x.A1)

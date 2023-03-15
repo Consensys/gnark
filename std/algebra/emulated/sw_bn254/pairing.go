@@ -3,6 +3,7 @@ package sw_bn254
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/frontend"
@@ -321,8 +322,8 @@ func (pr Pairing) doubleStep(p1 *G2Affine) (*G2Affine, *lineEvaluation) {
 
 	// lambda = 3*p1.x**2/2*p.y
 	n := pr.Ext2.Square(&p1.X)
-	three := emulated.ValueOf[emulated.BN254Fp](3)
-	n = pr.Ext2.MulByElement(n, &three)
+	three := big.NewInt(3)
+	n = pr.Ext2.MulByConstElement(n, three)
 	d := pr.Ext2.Double(&p1.Y)
 	l := pr.Ext2.DivUnchecked(n, d)
 
