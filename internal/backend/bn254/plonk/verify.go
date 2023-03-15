@@ -17,7 +17,6 @@
 package plonk
 
 import (
-	"crypto/sha256"
 	"errors"
 	"io"
 	"math/big"
@@ -45,7 +44,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	start := time.Now()
 
 	// pick a hash function to derive the challenge (the same as in the prover)
-	hFunc := sha256.New()
+	hFunc := zeroHash{}
 
 	// transcript to derive the challenge
 	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")

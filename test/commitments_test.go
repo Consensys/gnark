@@ -23,10 +23,7 @@ func (c *commitmentCircuit) Define(api frontend.API) error {
 	return err
 }
 
-func TestSingleCommitmentPlonkBn254(t *testing.T) {
-
-	assignment := commitmentCircuit{[]frontend.Variable{1}}
-
+func plonkTestBn254(t *testing.T, assignment frontend.Circuit) {
 	// // building the circuit...
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &commitmentCircuit{make([]frontend.Variable, 1)})
 	assert.NoError(t, err)
@@ -38,10 +35,10 @@ func TestSingleCommitmentPlonkBn254(t *testing.T) {
 	// Witnesses instantiation. Witness is known only by the prover,
 	// while public w is a public data known by the verifier.
 
-	witnessFull, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	witnessFull, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 	assert.NoError(t, err)
 
-	witnessPublic, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
+	witnessPublic, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
 	assert.NoError(t, err)
 
 	// public data consists the polynomials describing the constants involved
@@ -57,4 +54,21 @@ func TestSingleCommitmentPlonkBn254(t *testing.T) {
 	err = plonk.Verify(proof, vk, witnessPublic)
 	assert.NoError(t, err)
 
+}
+
+func TestSingleCommitmentPlonkBn254(t *testing.T) {
+	plonkTestBn254(t, &commitmentCircuit{[]frontend.Variable{1}})
+}
+
+type noCommitmentCircuit struct {
+	X frontend.Variable
+}
+
+func (c *noCommitmentCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.X, 1)
+	return nil
+}
+
+func TestNoCommitmentCircuit(t *testing.T) {
+	plonkTestBn254(t, &noCommitmentCircuit{1})
 }

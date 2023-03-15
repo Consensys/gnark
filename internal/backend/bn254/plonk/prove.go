@@ -17,7 +17,6 @@
 package plonk
 
 import (
-	"crypto/sha256"
 	"github.com/consensys/gnark/constraint/solver"
 	"math/big"
 	"runtime"
@@ -64,6 +63,26 @@ type Proof struct {
 	ZShiftedOpening kzg.OpeningProof
 }
 
+type zeroHash struct{}
+
+func (h zeroHash) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+func (h zeroHash) Sum([]byte) []byte {
+	return make([]byte, fr.Bytes)
+}
+
+func (h zeroHash) Reset() {}
+
+func (h zeroHash) Size() int {
+	return fr.Bytes
+}
+
+func (h zeroHash) BlockSize() int {
+	return fr.Bytes
+}
+
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 
 	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
@@ -75,7 +94,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	start := time.Now()
 	// pick a hash function that will be used to derive the challenges
-	hFunc := sha256.New()
+	hFunc := zeroHash{} // TODO Remove
 
 	// create a transcript manager to apply Fiat Shamir
 	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
@@ -97,9 +116,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 				err     error
 				hashRes []fr.Element
 			)
-			if _, err = pi2[spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil {
+			/*if _, err = pi2[spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil {
 				return err
-			}
+			}*/
 			pi2iop := iop.NewPolynomial(&pi2, lagReg)
 			wpi2iop = pi2iop.ShallowClone()
 			wpi2iop.ToCanonical(&pk.Domain[0]).ToRegular()
@@ -137,9 +156,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// Blind l, r, o before committing
 	// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
-	bwliop := wliop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
-	bwriop := wriop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
-	bwoiop := woiop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
+	bwliop := wliop.Clone(int(pk.Domain[1].Cardinality)) //.Blind(1)
+	bwriop := wriop.Clone(int(pk.Domain[1].Cardinality)) //.Blind(1)
+	bwoiop := woiop.Clone(int(pk.Domain[1].Cardinality)) //.Blind(1)
 	if err := commitToLRO(bwliop.Coefficients(), bwriop.Coefficients(), bwoiop.Coefficients(), proof, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
@@ -190,7 +209,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// commit to the blinded version of z
 	bwziop := ziop // iop.NewWrappedPolynomial(&ziop)
-	bwziop.Blind(2)
+	//bwziop.Blind(2)
 	proof.Z, err = kzg.Commit(bwziop.Coefficients(), pk.Vk.KZGSRS, runtime.NumCPU()*2)
 	if err != nil {
 		return proof, err
