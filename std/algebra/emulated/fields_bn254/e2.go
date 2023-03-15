@@ -63,8 +63,6 @@ func NewExt2(baseField *curveF) *Ext2 {
 	return &Ext2{fp: baseField, nonResidues: nonResidues}
 }
 
-// TODO: check where to use Mod and where ModMul.
-
 func (e Ext2) MulByElement(x *E2, y *baseEl) *E2 {
 	z0 := e.fp.MulMod(&x.A0, y)
 	z1 := e.fp.MulMod(&x.A1, y)
