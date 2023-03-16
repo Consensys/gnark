@@ -225,6 +225,18 @@ func (f *Field[T]) Sub(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.sub, f.subPreCond, a, b)
 }
 
+// subReduce returns a-b and returns it. Contrary to [Field[T].Sub] method this
+// method does not reduce the inputs if the result would overflow. This method
+// is currently only used as a subroutine in [Field[T].Reduce] method to avoid
+// infinite recursion when we are working exactly on the overflow limits.
+func (f *Field[T]) subNoReduce(a, b *Element[T]) *Element[T] {
+	nextOverflow, err := f.subPreCond(a, b)
+	if err != nil {
+		// give me a break, I'm already in the process of reducing
+	}
+	return f.sub(a, b, nextOverflow)
+}
+
 func (f *Field[T]) subPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow+2
 	nextOverflow = max(b.overflow+2, a.overflow)
