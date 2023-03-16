@@ -65,6 +65,7 @@ type Proof struct {
 }
 
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
+
 	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
 
 	opt, err := backend.NewProverConfig(opts...)
@@ -108,7 +109,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
-
 			commitmentVal = hashRes[0] // TODO @Tabaie use CommitmentIndex for this; create a new variable CommitmentConstraintIndex for other uses
 			commitmentVal.BigInt(outs[0])
 			return nil
@@ -144,9 +144,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// Blind l, r, o before committing
 	// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
-	bwliop := wliop.Clone(int(pk.Domain[1].Cardinality)) //.Blind(1)
-	bwriop := wriop.Clone(int(pk.Domain[1].Cardinality)) //.Blind(1)
-	bwoiop := woiop.Clone(int(pk.Domain[1].Cardinality)) //.Blind(1)
+	bwliop := wliop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
+	bwriop := wriop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
+	bwoiop := woiop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
 	if err := commitToLRO(bwliop.Coefficients(), bwriop.Coefficients(), bwoiop.Coefficients(), proof, pk.Vk.KZGSRS); err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// commit to the blinded version of z
 	bwziop := ziop // iop.NewWrappedPolynomial(&ziop)
-	//bwziop.Blind(2)
+	bwziop.Blind(2)
 	proof.Z, err = kzg.Commit(bwziop.Coefficients(), pk.Vk.KZGSRS, runtime.NumCPU()*2)
 	if err != nil {
 		return proof, err
@@ -325,7 +325,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 		return c
 	}
-
 	testEval, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse},
 		bwliop,
 		bwriop,
@@ -345,11 +344,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		wqcpiop, // TODO @Tabaie correct format
 		wloneiop,
 	)
-
 	if err != nil {
 		return nil, err
 	}
-
 	h, err := iop.DivideByXMinusOne(testEval, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]}) // TODO @Tabaie not x^n - 1?
 	if err != nil {
 		return nil, err
@@ -366,7 +363,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// derive zeta
 	zeta, err := deriveRandomness(&fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
-	//zeta.SetZero()
 	if err != nil {
 		return nil, err
 	}

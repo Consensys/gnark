@@ -22,9 +22,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
-	kzgg "github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bn254"
+
+	kzgg "github.com/consensys/gnark-crypto/kzg"
 )
 
 // ProvingKey stores the data needed to generate a proof:
@@ -110,7 +111,6 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	// fft domains
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	pk.Domain[0] = *fft.NewDomain(sizeSystem)
-	_ = pk.Domain[0].Generator
 	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,

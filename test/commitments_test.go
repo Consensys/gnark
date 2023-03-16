@@ -18,7 +18,7 @@ type commitmentCircuit struct {
 func (c *commitmentCircuit) Define(api frontend.API) error {
 	commitment, err := api.Commit(c.X...)
 	if err == nil {
-		api.AssertIsDifferent(commitment, 0) // TODO Change to AssertNotEqual(-, 0)
+		api.AssertIsDifferent(commitment, 0)
 	}
 	return err
 }

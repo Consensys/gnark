@@ -57,21 +57,18 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		return err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
-	//gamma.SetOne()
 	if err != nil {
 		return err
 	}
 
 	// derive beta from Comm(l), Comm(r), Comm(o)
 	beta, err := deriveRandomness(&fs, "beta")
-	//beta.SetZero()
 	if err != nil {
 		return err
 	}
 
 	// derive alpha from Comm(l), Comm(r), Comm(o), Com(Z)
 	alpha, err := deriveRandomness(&fs, "alpha", &proof.Z)
-	//alpha.SetZero()
 	if err != nil {
 		return err
 	}
