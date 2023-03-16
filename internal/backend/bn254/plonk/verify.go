@@ -75,7 +75,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	// derive zeta, the point of evaluation
 	zeta, err := deriveRandomness(&fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
-	//zeta.SetZero()
 	if err != nil {
 		return err
 	}
