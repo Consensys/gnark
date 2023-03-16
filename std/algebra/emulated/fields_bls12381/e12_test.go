@@ -1,11 +1,15 @@
 package fields_bls12381
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
@@ -346,7 +350,6 @@ func TestInverseFp12(t *testing.T) {
 	assert.NoError(err)
 }
 
-/*
 type e12Expt struct {
 	A E12
 	C E12 `gnark:",public"`
@@ -385,7 +388,6 @@ func TestFp12Expt(t *testing.T) {
 	err := test.IsSolved(&e12Expt{}, &witness, ecc.BLS12_381.ScalarField())
 	assert.NoError(err)
 }
-*/
 
 type e12Frobenius struct {
 	A, C E12
@@ -490,3 +492,14 @@ func TestFp12MulBy014(t *testing.T) {
 
 }
 */
+
+// bench
+var ccsBench constraint.ConstraintSystem
+
+func BenchmarkExpt(b *testing.B) {
+	var c e12Expt
+	p := profile.Start()
+	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println(p.NbConstraints())
+}
