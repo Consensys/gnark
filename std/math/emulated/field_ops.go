@@ -230,10 +230,9 @@ func (f *Field[T]) Sub(a, b *Element[T]) *Element[T] {
 // is currently only used as a subroutine in [Field[T].Reduce] method to avoid
 // infinite recursion when we are working exactly on the overflow limits.
 func (f *Field[T]) subNoReduce(a, b *Element[T]) *Element[T] {
-	nextOverflow, err := f.subPreCond(a, b)
-	if err != nil {
-		// give me a break, I'm already in the process of reducing
-	}
+	nextOverflow, _ := f.subPreCond(a, b)
+	// we ignore error as it only indicates if we should reduce or not. But we
+	// are in non-reducing version of sub.
 	return f.sub(a, b, nextOverflow)
 }
 
