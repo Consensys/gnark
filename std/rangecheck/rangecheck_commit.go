@@ -10,7 +10,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/frontendtype"
 	"github.com/consensys/gnark/internal/kvstore"
-	"github.com/consensys/gnark/std/math/bits"
 )
 
 type ctxCheckerKey struct{}
@@ -96,29 +95,23 @@ func (c *commitChecker) commit(api frontend.API) error {
 	if err != nil {
 		panic(fmt.Sprintf("count %v", err))
 	}
-	// compute the poly \pi (X - s_i)^{e_i}
+	// compute the ratoinal function Sum_i e_i / (X - s_i)
 	commitment, err := committer.Commit(collected...)
 	if err != nil {
 		panic(fmt.Sprintf("commit %v", err))
 	}
-	logn := stdbits.Len(uint(len(decomposed)))
-	var lp frontend.Variable = 1
+	// lp = Sum_i e_i / (X - s_i)
+	var lp frontend.Variable = 0
 	for i := 0; i < nbTable; i++ {
-		expbits := bits.ToBinary(api, exps[i], bits.WithNbDigits(logn))
-		var acc frontend.Variable = 1
-		tmp := api.Sub(commitment, i)
-		for j := 0; j < logn; j++ {
-			curr := api.Select(expbits[j], tmp, 1)
-			acc = api.Mul(acc, curr)
-			tmp = api.Mul(tmp, tmp)
-		}
-		lp = api.Mul(lp, acc)
+		tmp := api.Div(exps[i], api.Sub(commitment, i))
+		lp = api.Add(lp, tmp)
 	}
-	// compute the poly \pi (X - f_i)
-	var rp frontend.Variable = 1
+
+	// rp = Sum_i 1 \ (X - f_i)
+	var rp frontend.Variable = 0
 	for i := range decomposed {
-		val := api.Sub(commitment, decomposed[i])
-		rp = api.Mul(rp, val)
+		tmp := api.Inverse(api.Sub(commitment, decomposed[i]))
+		rp = api.Add(rp, tmp)
 	}
 	api.AssertIsEqual(lp, rp)
 	return nil
