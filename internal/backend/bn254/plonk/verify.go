@@ -17,7 +17,9 @@
 package plonk
 
 import (
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"time"
@@ -44,7 +46,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	start := time.Now()
 
 	// pick a hash function to derive the challenge (the same as in the prover)
-	hFunc := zeroHash{}
+	hFunc := sha256.New()
 
 	// transcript to derive the challenge
 	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
@@ -56,24 +58,28 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		return err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
+	gamma.SetOne()
 	if err != nil {
 		return err
 	}
 
 	// derive beta from Comm(l), Comm(r), Comm(o)
 	beta, err := deriveRandomness(&fs, "beta")
+	beta.SetZero()
 	if err != nil {
 		return err
 	}
 
 	// derive alpha from Comm(l), Comm(r), Comm(o), Com(Z)
 	alpha, err := deriveRandomness(&fs, "alpha", &proof.Z)
+	alpha.SetZero()
 	if err != nil {
 		return err
 	}
 
 	// derive zeta, the point of evaluation
 	zeta, err := deriveRandomness(&fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
+	zeta.SetZero()
 	if err != nil {
 		return err
 	}
@@ -116,6 +122,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
+			fmt.Println("commitment computed as", hashRes[0].Text(10))
+			hashRes[0].SetZero() // TODO Remove
 
 			// Computing L_{CommitmentIndex}
 

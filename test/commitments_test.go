@@ -18,34 +18,25 @@ type commitmentCircuit struct {
 func (c *commitmentCircuit) Define(api frontend.API) error {
 	commitment, err := api.Commit(c.X...)
 	if err == nil {
-		api.AssertIsDifferent(commitment, 0)
+		api.AssertIsEqual(commitment, 0) // TODO Change to AssertNotEqual(-, 0)
 	}
 	return err
 }
 
 func plonkTestBn254(t *testing.T, assignment frontend.Circuit) {
-	// // building the circuit...
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &commitmentCircuit{make([]frontend.Variable, 1)})
+	witnessFull, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+	assert.NoError(t, err)
+	witnessPublic, err := witnessFull.Public()
+	assert.NoError(t, err)
+
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, assignment)
 	assert.NoError(t, err)
 
 	_r1cs := ccs.(*cs.SparseR1CS)
 	srs, err := NewKZGSRS(_r1cs)
 	assert.NoError(t, err)
 
-	// Witnesses instantiation. Witness is known only by the prover,
-	// while public w is a public data known by the verifier.
-
-	witnessFull, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
-	assert.NoError(t, err)
-
-	witnessPublic, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
-	assert.NoError(t, err)
-
-	// public data consists the polynomials describing the constants involved
-	// in the constraints, the polynomial describing the permutation ("grand
-	// product argument"), and the FFT domains.
 	pk, vk, err := plonk.Setup(ccs, srs)
-	//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 	assert.NoError(t, err)
 
 	proof, err := plonk.Prove(ccs, pk, witnessFull)
@@ -65,6 +56,7 @@ type noCommitmentCircuit struct {
 }
 
 func (c *noCommitmentCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.X, 1)
 	api.AssertIsEqual(c.X, 1)
 	return nil
 }
