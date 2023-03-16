@@ -125,9 +125,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 				err     error
 				hashRes []fr.Element
 			)
-			/*if _, err = pi2[spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil {
+			if _, err = pi2[spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil {
 				return err
-			}*/
+			}
 			pi2iop := iop.NewPolynomial(&pi2, lagReg)
 			fmt.Println("pi2 =", prints(pi2))
 			wpi2iop = pi2iop.ShallowClone()
