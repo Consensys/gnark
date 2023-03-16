@@ -18,17 +18,13 @@ package plonk
 
 import (
 	"errors"
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
+	kzgg "github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bn254"
-	"strconv"
-	"strings"
-
-	kzgg "github.com/consensys/gnark-crypto/kzg"
 )
 
 // ProvingKey stores the data needed to generate a proof:
@@ -100,77 +96,6 @@ type VerifyingKey struct {
 	CommitmentInfo constraint.Commitment
 }
 
-var domGen fr.Element
-
-func isInt(v fr.Element) bool {
-	return v.IsUint64() || isNeg(v)
-}
-
-func isNeg(v fr.Element) bool {
-	s := v.Text(10)
-	return s[0] == '-'
-}
-
-func tryPrintElemAsIntComb(v fr.Element, sbb *strings.Builder) bool {
-	v.Sub(&v, &domGen)
-	if isInt(v) {
-		sbb.WriteString("(a")
-		if !isNeg(v) {
-			sbb.WriteByte('+')
-		}
-		sbb.WriteString(v.Text(10))
-		sbb.WriteByte(')')
-		return true
-	}
-	v.Add(&v, &domGen)
-	if isInt(v) {
-		sbb.WriteString(v.Text(10))
-		return true
-	}
-	v.Add(&v, &domGen)
-	if isInt(v) {
-		sbb.WriteString("(-a")
-		if !isNeg(v) {
-			sbb.WriteByte('+')
-		}
-		sbb.WriteString(v.Text(10))
-		sbb.WriteByte(')')
-		return true
-	}
-	return false
-}
-
-func printElem(v fr.Element, sbb *strings.Builder) {
-	if tryPrintElemAsIntComb(v, sbb) {
-		return
-	}
-	var tmp fr.Element
-	tmp.Double(&v)
-	for i := 1; i < 10; i++ {
-		if tryPrintElemAsIntComb(tmp, sbb) {
-			sbb.WriteByte('/')
-			sbb.WriteString(strconv.Itoa(1 << i))
-			return
-		}
-		tmp.Double(&tmp)
-	}
-	sbb.WriteString(v.Text(10))
-}
-
-func prints(v []fr.Element) string {
-
-	var sbb strings.Builder
-	sbb.WriteString("[")
-	for i := range v {
-		if i != 0 {
-			sbb.WriteString(", ")
-		}
-		printElem(v[i], &sbb)
-	}
-	sbb.WriteByte(']')
-	return sbb.String()
-}
-
 // Setup sets proving and verifying keys
 func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
 	var pk ProvingKey
@@ -185,7 +110,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	// fft domains
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	pk.Domain[0] = *fft.NewDomain(sizeSystem)
-	domGen = pk.Domain[0].Generator
+	_ = pk.Domain[0].Generator
 	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
@@ -201,9 +126,6 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(len(spr.Public))
-
-	fmt.Println("dom 0:", pk.Domain[0].Cardinality, pk.Domain[0].Generator.Text(10))
-	fmt.Println("dom 1:", pk.Domain[1].Cardinality, pk.Domain[1].Generator.Text(10))
 
 	if err := pk.InitKZG(srs); err != nil {
 		return nil, nil, err
@@ -241,12 +163,6 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	for _, committed := range spr.CommitmentInfo.Committed {
 		pk.QcPrime[committed].SetOne()
 	}
-
-	fmt.Println("ql:", prints(pk.Ql))
-	fmt.Println("qr:", prints(pk.Qr))
-	fmt.Println("qo:", prints(pk.Qo))
-	fmt.Println("lqk:", prints(pk.CQk))
-	fmt.Println("qcp:", prints(pk.QcPrime))
 
 	pk.Domain[0].FFTInverse(pk.Ql, fft.DIF)
 	pk.Domain[0].FFTInverse(pk.Qr, fft.DIF)
@@ -431,10 +347,6 @@ func ccomputePermutationPolynomials(pk *ProvingKey) {
 		pk.S2Canonical[i].Set(&evaluationIDSmallDomain[pk.Permutation[nbElmts+i]])
 		pk.S3Canonical[i].Set(&evaluationIDSmallDomain[pk.Permutation[2*nbElmts+i]])
 	}
-
-	fmt.Println("ls1 =", prints(pk.S1Canonical))
-	fmt.Println("ls2 =", prints(pk.S2Canonical))
-	fmt.Println("ls3 =", prints(pk.S3Canonical))
 
 	// Canonical form of S1, S2, S3
 	pk.Domain[0].FFTInverse(pk.S1Canonical, fft.DIF)

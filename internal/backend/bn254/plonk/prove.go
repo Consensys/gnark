@@ -18,7 +18,6 @@ package plonk
 
 import (
 	"crypto/sha256"
-	"fmt"
 	"github.com/consensys/gnark/constraint/solver"
 	"math/big"
 	"runtime"
@@ -65,35 +64,7 @@ type Proof struct {
 	ZShiftedOpening kzg.OpeningProof
 }
 
-type oneHash struct{}
-
-func (h oneHash) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-func (h oneHash) Sum([]byte) []byte {
-	one := make([]byte, fr.Bytes)
-	one[0] = 1
-	return one
-}
-
-func (h oneHash) Reset() {}
-
-func (h oneHash) Size() int {
-	return fr.Bytes
-}
-
-func (h oneHash) BlockSize() int {
-	return fr.Bytes
-}
-
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
-
-	fmt.Println("qc(canonical) =", prints(pk.QcPrime))
-	domGen = pk.Domain[1].Generator
-	fmt.Println("qc(coset) =", prints(pk.lQcPrime))
-	domGen = pk.Domain[0].Generator
-
 	log := logger.Logger().With().Str("curve", spr.CurveID().String()).Int("nbConstraints", len(spr.Constraints)).Str("backend", "plonk").Logger()
 
 	opt, err := backend.NewProverConfig(opts...)
@@ -129,10 +100,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 				return err
 			}
 			pi2iop := iop.NewPolynomial(&pi2, lagReg)
-			fmt.Println("pi2 =", prints(pi2))
 			wpi2iop = pi2iop.ShallowClone()
 			wpi2iop.ToCanonical(&pk.Domain[0]).ToRegular()
-			fmt.Println("pi2 canonical =", prints(pi2))
 			if proof.PI2, err = kzg.Commit(wpi2iop.Coefficients(), pk.Vk.KZGSRS); err != nil {
 				return err
 			}
@@ -141,9 +110,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			}
 
 			commitmentVal = hashRes[0] // TODO @Tabaie use CommitmentIndex for this; create a new variable CommitmentConstraintIndex for other uses
-			//commitmentVal.SetOne()
 			commitmentVal.BigInt(outs[0])
-			fmt.Println("commitment computed as", hashRes[0].Text(10))
 			return nil
 		}))
 	} else {
@@ -165,10 +132,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	evaluationRDomainSmall := []fr.Element(solution.R)
 	evaluationODomainSmall := []fr.Element(solution.O)
 
-	fmt.Println("evaluationLDomainSmall =", prints(evaluationLDomainSmall))
-	fmt.Println("evaluationRDomainSmall =", prints(evaluationRDomainSmall))
-	fmt.Println("evaluationODomainSmall =", prints(evaluationODomainSmall))
-
 	liop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
 	riop := iop.NewPolynomial(&evaluationRDomainSmall, lagReg)
 	oiop := iop.NewPolynomial(&evaluationODomainSmall, lagReg)
@@ -178,9 +141,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	wliop.ToCanonical(&pk.Domain[0]).ToRegular()
 	wriop.ToCanonical(&pk.Domain[0]).ToRegular()
 	woiop.ToCanonical(&pk.Domain[0]).ToRegular()
-
-	fmt.Println("evaluationLDomainSmall =", prints(evaluationLDomainSmall))
-	fmt.Println("liop =", prints(wliop.Coefficients()))
 
 	// Blind l, r, o before committing
 	// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
@@ -203,12 +163,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2]) // TODO @Tabaie @ThomasPiellard add BSB commitment here?
-	//gamma.SetOne()                                                                            // TODO REMOVE
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("gamma =", gamma.Text(10))
 
 	// Fiat Shamir this
 	bbeta, err := fs.ComputeChallenge("beta")
@@ -217,9 +174,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}
 	var beta fr.Element
 	beta.SetBytes(bbeta)
-	//beta.SetZero()
-
-	fmt.Println("beta =", beta.Text(10))
 
 	// compute the copy constraint's ratio
 	// We copy liop, riop, oiop because they are fft'ed in the process.
@@ -251,11 +205,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// derive alpha from the Comm(l), Comm(r), Comm(o), Com(Z)
 	alpha, err := deriveRandomness(&fs, "alpha", &proof.Z)
-	//alpha.SetZero()
 	if err != nil {
 		return proof, err
 	}
-	fmt.Println("alpha =", alpha.Text(10))
 
 	// compute qk in canonical basis, completed with the public inputs
 	qkCompletedCanonical := make([]fr.Element, pk.Domain[0].Cardinality)
@@ -272,9 +224,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	bwriop.ToLagrangeCoset(&pk.Domain[1])
 	bwoiop.ToLagrangeCoset(&pk.Domain[1])
 	pi2iop := wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
-
-	domGen = pk.Domain[1].Generator
-	fmt.Println("pi2 (lagrange coset) =", prints(pi2iop.Coefficients()))
 
 	lagrangeCosetBitReversed := iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}
 
@@ -377,9 +326,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return c
 	}
 
-	fmt.Println("bwliop evals =", prints(bwliop.Coefficients()))
-	fmt.Println("pi2iop evals =", prints(pi2iop.Coefficients()))
-
 	testEval, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse},
 		bwliop,
 		bwriop,
@@ -404,18 +350,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 
-	cnum := testEval.Clone().ToRegular()
-	fmt.Println("testEval =", prints(cnum.Coefficients()))
-
-	cnum = testEval.Clone().ToCanonical(&pk.Domain[1]).ToRegular()
-	fmt.Println("testEval(coeffs) =", prints(cnum.Coefficients()))
-
 	h, err := iop.DivideByXMinusOne(testEval, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]}) // TODO @Tabaie not x^n - 1?
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("h =", prints(h.Coefficients()))
 
 	// compute kzg commitments of h1, h2 and h3
 	if err := commitToQuotient(
@@ -432,7 +370,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("zeta = ", zeta.Text(10))
 
 	// compute evaluations of (blinded version of) l, r, o, z, qCPrime at zeta
 	var blzeta, brzeta, bozeta, qcpzeta fr.Element

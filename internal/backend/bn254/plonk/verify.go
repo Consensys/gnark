@@ -19,7 +19,6 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
-	"fmt"
 	"io"
 	"math/big"
 	"time"
@@ -122,8 +121,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
-			fmt.Println("commitment computed as", hashRes[0].Text(10))
-			//hashRes[0].SetOne() // TODO Remove
 
 			// Computing L_{CommitmentIndex}
 
