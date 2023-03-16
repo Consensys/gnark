@@ -278,7 +278,7 @@ func (f *Field[T]) compactLimbs(e *Element[T], groupSize, bitsPerLimb uint) []fr
 // then the limbs may overflow the native field.
 func (f *Field[T]) maxOverflow() uint {
 	f.maxOfOnce.Do(func() {
-		f.maxOf = uint(f.api.Compiler().FieldBitLen()-1) - f.fParams.BitsPerLimb()
+		f.maxOf = uint(f.api.Compiler().FieldBitLen()-2) - f.fParams.BitsPerLimb()
 	})
 	return f.maxOf
 }
