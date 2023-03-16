@@ -73,23 +73,19 @@ func (e Ext12) Expt(x *E12) *E12 {
 //		C0: E6{B0: 1, B1: c1, B2: 0},
 //		C1: E6{B0: 0, B1: c4, B2: 0},
 //	}
-//
-// TODO : correct MulByO14 and not 034
 func (e *Ext12) MulBy014(z *E12, c1, c4 *E2) *E12 {
 
 	a := z.C0
+	a = *e.Ext6.MulBy01(&a, c1)
+
 	b := z.C1
+	b = *e.Ext6.MulBy1(&b, c4)
+	d := e.Ext2.Add(c1, c4)
 
-	b = *e.MulBy01(&b, c1, c4)
-	one := e.Ext2.One()
-
-	c1 = e.Ext2.Add(one, c1)
-	d := e.Ext6.Add(&z.C0, &z.C1)
-	d = e.MulBy01(d, c1, c4)
-
-	zC1 := e.Ext6.Add(&a, &b)
-	zC1 = e.Ext6.Neg(zC1)
-	zC1 = e.Ext6.Add(zC1, d)
+	zC1 := e.Ext6.Add(&z.C1, &z.C0)
+	zC1 = e.Ext6.MulBy01(zC1, d)
+	zC1 = e.Ext6.Sub(zC1, &a)
+	zC1 = e.Ext6.Sub(zC1, &b)
 	zC0 := e.Ext6.MulByNonResidue(&b)
 	zC0 = e.Ext6.Add(zC0, &a)
 

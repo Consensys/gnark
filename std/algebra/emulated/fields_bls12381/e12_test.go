@@ -451,7 +451,6 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 
 }
 
-/*
 type e12MulBy014 struct {
 	A    E12 `gnark:",public"`
 	W    E12
@@ -491,7 +490,6 @@ func TestFp12MulBy014(t *testing.T) {
 	assert.NoError(err)
 
 }
-*/
 
 // bench
 var ccsBench constraint.ConstraintSystem
