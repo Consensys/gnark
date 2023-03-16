@@ -140,9 +140,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 				return err
 			}
 
-			// TODO Uncomment
 			commitmentVal = hashRes[0] // TODO @Tabaie use CommitmentIndex for this; create a new variable CommitmentConstraintIndex for other uses
-			commitmentVal.SetZero()
+			//commitmentVal.SetOne()
 			commitmentVal.BigInt(outs[0])
 			fmt.Println("commitment computed as", hashRes[0].Text(10))
 			return nil
@@ -204,7 +203,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2]) // TODO @Tabaie @ThomasPiellard add BSB commitment here?
-	gamma.SetOne()                                                                            // TODO REMOVE
+	//gamma.SetOne()                                                                            // TODO REMOVE
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +217,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}
 	var beta fr.Element
 	beta.SetBytes(bbeta)
-	beta.SetZero()
+	//beta.SetZero()
 
 	fmt.Println("beta =", beta.Text(10))
 
@@ -252,7 +251,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// derive alpha from the Comm(l), Comm(r), Comm(o), Com(Z)
 	alpha, err := deriveRandomness(&fs, "alpha", &proof.Z)
-	alpha.SetZero()
+	//alpha.SetZero()
 	if err != nil {
 		return proof, err
 	}
@@ -429,7 +428,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// derive zeta
 	zeta, err := deriveRandomness(&fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
-	zeta.SetZero()
+	//zeta.SetZero()
 	if err != nil {
 		return nil, err
 	}
@@ -675,9 +674,9 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	den.Sub(&zeta, &one).
 		Inverse(&den)
 	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ⁻¹)/(ζ-1)
-		Mul(&lagrangeZeta, &alpha).
-		Mul(&lagrangeZeta, &alpha).
-		Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
+						Mul(&lagrangeZeta, &alpha).
+						Mul(&lagrangeZeta, &alpha).
+						Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
 
 	linPol := make([]fr.Element, len(blindedZCanonical))
 	copy(linPol, blindedZCanonical)

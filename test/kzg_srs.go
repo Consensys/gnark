@@ -18,7 +18,6 @@ package test
 
 import (
 	"crypto/rand"
-	"math/big"
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -85,7 +84,7 @@ func newKZGSRS(curve ecc.ID, kzgSize uint64) (kzg.SRS, error) {
 	if err != nil {
 		return nil, err
 	}
-	alpha = big.NewInt(0)
+	//alpha = big.NewInt(0)
 
 	switch curve {
 	case ecc.BN254:
