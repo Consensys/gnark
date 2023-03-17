@@ -216,7 +216,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		proof.LRO[2],
 		vk.S[0],
 		vk.S[1],
-		vk.QcPrime,
+		vk.Qcp,
 	},
 		&proof.BatchedProof,
 		zeta,
