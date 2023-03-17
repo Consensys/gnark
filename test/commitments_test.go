@@ -23,6 +23,28 @@ func (c *commitmentCircuit) Define(api frontend.API) error {
 	return err
 }
 
+func TestSingleCommitmentPlonkBn254(t *testing.T) {
+	plonkTestBn254(t, &commitmentCircuit{[]frontend.Variable{1}})
+}
+
+func TestFiveCommitmentsPlonk(t *testing.T) {
+	plonkTestBn254(t, &commitmentCircuit{[]frontend.Variable{1, 2, 3, 4, 5}})
+}
+
+type noCommitmentCircuit struct {
+	X frontend.Variable
+}
+
+func (c *noCommitmentCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.X, 1)
+	api.AssertIsEqual(c.X, 1)
+	return nil
+}
+
+func TestNoCommitmentCircuit(t *testing.T) {
+	plonkTestBn254(t, &noCommitmentCircuit{1})
+}
+
 func plonkTestBn254(t *testing.T, assignment frontend.Circuit) {
 	witnessFull, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 	assert.NoError(t, err)
@@ -45,22 +67,4 @@ func plonkTestBn254(t *testing.T, assignment frontend.Circuit) {
 	err = plonk.Verify(proof, vk, witnessPublic)
 	assert.NoError(t, err)
 
-}
-
-func TestSingleCommitmentPlonkBn254(t *testing.T) {
-	plonkTestBn254(t, &commitmentCircuit{[]frontend.Variable{1}})
-}
-
-type noCommitmentCircuit struct {
-	X frontend.Variable
-}
-
-func (c *noCommitmentCircuit) Define(api frontend.API) error {
-	api.AssertIsEqual(c.X, 1)
-	api.AssertIsEqual(c.X, 1)
-	return nil
-}
-
-func TestNoCommitmentCircuit(t *testing.T) {
-	plonkTestBn254(t, &noCommitmentCircuit{1})
 }

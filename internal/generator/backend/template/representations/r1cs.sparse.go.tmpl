@@ -122,7 +122,7 @@ func (cs *SparseR1CS) solve(witness fr.Vector, opt solver.Config) (fr.Vector, er
 
 	start := time.Now()
 	
-	expectedWitnessSize := int(len(cs.Public) + len(cs.Secret))
+	expectedWitnessSize := len(cs.Public) + len(cs.Secret)
 	if len(witness) != expectedWitnessSize {
 		return make(fr.Vector, nbVariables), fmt.Errorf(
 			"invalid witness size, got %d, expected %d = %d (public) + %d (secret)",
@@ -348,6 +348,10 @@ func (cs *SparseR1CS) computeHints(c constraint.SparseR1C, solution *solution) (
 // if it doesn't, then this function returns and does nothing
 func (cs *SparseR1CS) solveConstraint(c constraint.SparseR1C, solution *solution, coefficientsNegInv fr.Vector) error {
 
+	if c.Commitment != constraint.NOT { // a constraint of the form f_L - PI_2 = 0 or f_L = Comm.
+		return nil // these are there for enforcing the correctness of the commitment and can be skipped in solving time
+	}
+
 	lro, err := cs.computeHints(c, solution)
 	if err != nil {
 		return err
@@ -429,6 +433,11 @@ func (cs *SparseR1CS) GetConstraints() ([]constraint.SparseR1C, constraint.Resol
 
 // checkConstraint verifies that the constraint holds
 func (cs *SparseR1CS) checkConstraint(c constraint.SparseR1C, solution *solution) error {
+
+	if c.Commitment != constraint.NOT { // a constraint of the form f_L - PI_2 = 0 or f_L = Comm.
+		return nil // these are there for enforcing the correctness of the commitment and can be skipped in solving time
+	}
+
 	l := solution.computeTerm(c.L)
 	r := solution.computeTerm(c.R)
 	m0 := solution.computeTerm(c.M[0])

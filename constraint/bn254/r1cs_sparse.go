@@ -444,8 +444,8 @@ func (cs *SparseR1CS) GetConstraints() ([]constraint.SparseR1C, constraint.Resol
 // checkConstraint verifies that the constraint holds
 func (cs *SparseR1CS) checkConstraint(c constraint.SparseR1C, solution *solution) error {
 
-	if c.Commitment != constraint.NOT {
-		return nil
+	if c.Commitment != constraint.NOT { // a constraint of the form f_L - PI_2 = 0 or f_L = Comm.
+		return nil // these are there for enforcing the correctness of the commitment and can be skipped in solving time
 	}
 
 	l := solution.computeTerm(c.L)
