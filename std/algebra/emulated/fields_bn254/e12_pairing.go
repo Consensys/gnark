@@ -132,3 +132,27 @@ func (e *Ext12) Mul034By034(d3, d4, c3, c4 *E2) *E12 {
 		},
 	}
 }
+
+// MulBy01234 multiplies z by an E12 sparse element of the form
+//
+//	E12{
+//		C0: E6{B0: c0, B1: c1, B2: c2},
+//		C1: E6{B0: c3, B1: c4, B2: 0},
+//	}
+func (e *Ext12) MulBy01234(z *E12, b0, b1, b2, b3, b4 *E2) *E12 {
+	c0 := &E6{B0: *b0, B1: *b1, B2: *b2}
+	c1 := &E6{B0: *b3, B1: *b4, B2: *e.Ext2.Zero()}
+	a := e.Ext6.Add(&z.C0, &z.C1)
+	b := e.Ext6.Add(c0, c1)
+	a = e.Ext6.Mul(a, b)
+	b = e.Ext6.Mul(&z.C0, c0)
+	c := e.Ext6.MulBy01(&z.C1, b3, b4)
+	z1 := e.Ext6.Sub(a, b)
+	z1 = e.Ext6.Sub(z1, c)
+	z0 := e.Ext6.MulByNonResidue(c)
+	z0 = e.Ext6.Add(z0, b)
+	return &E12{
+		C0: *z0,
+		C1: *z1,
+	}
+}
