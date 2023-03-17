@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bls24-315"
 
 	kzgg "github.com/consensys/gnark-crypto/kzg"
@@ -37,6 +38,13 @@ type Trace struct {
 	// so the first nb_public_variables constraints look like this:
 	// -1*Wire[i] + 0* + 0 . It is zero when the constant coefficient is replaced by Wire[i].
 	Ql, Qr, Qm, Qo, Qk *iop.Polynomial
+
+	// qcp (in canonical basis).
+	// QcPrime denotes the constraints defining committed variables
+	QcPrime []fr.Element
+
+	// qcp (in lagrange coset basis)
+	lQcPrime []fr.Element
 
 	// Polynomials representing the splitted permutation. The full permutation's support is 3*N where N=nb wires.
 	// The set of interpolation is <g> of size N, so to represent the permutation S we let S acts on the
@@ -73,7 +81,9 @@ type VerifyingKey struct {
 
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
-	Ql, Qr, Qm, Qo, Qk kzg.Digest
+	Ql, Qr, Qm, Qo, Qk, QcPrime kzg.Digest
+
+	CommitmentInfo constraint.Commitment
 }
 
 // ProvingKey stores the data needed to generate a proof:
@@ -116,6 +126,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	var pk ProvingKey
 	var vk VerifyingKey
 	pk.Vk = &vk
+	vk.CommitmentInfo = spr.CommitmentInfo
 	// nbConstraints := len(spr.Constraints)
 
 	// step 0: set the fft domains
@@ -153,6 +164,13 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		return nil, nil, err
 	}
 
+	pk.QcPrime = make([]fr.Element, pk.Domain[0].Cardinality)
+	for _, committed := range spr.CommitmentInfo.Committed {
+		pk.QcPrime[committed].SetOne()
+	}
+	if vk.QcPrime, err = kzg.Commit(pk.QcPrime, vk.KZGSRS); err != nil {
+		return nil, nil, err
+	}
 	// step 5: evaluate ql, qr, qm, qo, s1, s2, s3 on LagrangeCoset (NOT qk)
 	// we clone them, because the canonical versions are going to be used in
 	// the opening proof
@@ -164,6 +182,9 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 // computeLagrangeCosetPolys computes each polynomial except qk in Lagrange coset
 // basis. Qk will be evaluated in Lagrange coset basis once it is completed by the prover.
 func (pk *ProvingKey) computeLagrangeCosetPolys() {
+	wqcpiop := iop.NewPolynomial(clone(pk.QcPrime, pk.Domain[1].Cardinality), iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
+	wqcpiop.ToLagrangeCoset(&pk.Domain[1])
+	pk.lQcPrime = wqcpiop.Coefficients()
 	pk.lcQl = pk.trace.Ql.Clone().ToLagrangeCoset(&pk.Domain[1])
 	pk.lcQr = pk.trace.Qr.Clone().ToLagrangeCoset(&pk.Domain[1])
 	pk.lcQm = pk.trace.Qm.Clone().ToLagrangeCoset(&pk.Domain[1])
@@ -196,7 +217,7 @@ func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
 // This should be used after deserializing a VerifyingKey
 // as vk.KZG is NOT serialized
 //
-// Note that this instantiate a new FFT domain using vk.Size
+// Note that this instantiates a new FFT domain using vk.Size
 func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
 	_srs := srs.(*kzg.SRS)
 
