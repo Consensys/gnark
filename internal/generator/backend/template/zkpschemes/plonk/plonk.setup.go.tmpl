@@ -3,6 +3,7 @@ import (
 	{{- template "import_kzg" . }}
 	{{- template "import_fr" . }}
 	{{- template "import_fft" . }}
+	"github.com/consensys/gnark/constraint"
 	{{- template "import_backend_cs" . }}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/iop"
 
@@ -23,7 +24,8 @@ type ProvingKey struct {
 
 	// TODO store iop.Polynomial here, not []fr.Element for more "type safety"
 
-	// qr,ql,qm,qo,cqp (in canonical basis).
+	// qr,ql,qm,qo,qcp (in canonical basis).
+	// QcPrime denotes the constraints defining committed variables
 	Ql, Qr, Qm, Qo, QcPrime []fr.Element
 
 	// qr,ql,qm,qo,qcp (in lagrange coset basis) --> these are not serialized, but computed from Ql, Qr, Qm, Qo once.
