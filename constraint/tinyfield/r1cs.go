@@ -107,7 +107,7 @@ func (cs *R1CS) solve(witness, a, b, c fr.Vector, opt solver.Config) (fr.Vector,
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable)
+	solution, err := newSolution(&cs.System, nbWires, opt.HintFunctions, cs.Coefficients)
 	if err != nil {
 		return make(fr.Vector, nbWires), err
 	}

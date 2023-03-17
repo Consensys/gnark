@@ -67,22 +67,6 @@ func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOpti
 		}
 	}
 
-	// if a is a constant, work with the big int value.
-	if c, ok := api.Compiler().ConstantValue(v); ok {
-		trits := make([]frontend.Variable, cfg.NbDigits)
-		// TODO using big.Int Text is likely not cheap
-		base3 := c.Text(3)
-		i := 0
-		for j := len(base3) - 1; j >= 0 && i < len(trits); j-- {
-			trits[i] = int(base3[j] - 48)
-			i++
-		}
-		for ; i < len(trits); i++ {
-			trits[i] = 0
-		}
-		return trits
-	}
-
 	c := big.NewInt(1)
 	b := big.NewInt(3)
 

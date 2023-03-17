@@ -163,7 +163,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			riop.Clone(),
 			oiop.Clone(),
 		},
-		pk.Permutation,
+		pk.trace.S,
 		beta,
 		gamma,
 		iop.Form{Basis: iop.Canonical, Layout: iop.Regular},
@@ -188,9 +188,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}
 
 	// compute qk in canonical basis, completed with the public inputs
-	qkCompletedCanonical := make([]fr.Element, pk.Domain[0].Cardinality)
+	// We copy the coeffs of qk to pk is not mutated
+	lqkcoef := pk.lQk.Coefficients()
+	qkCompletedCanonical := make([]fr.Element, len(lqkcoef))
+	copy(qkCompletedCanonical, lqkcoef)
 	copy(qkCompletedCanonical, fw[:len(spr.Public)])
-	copy(qkCompletedCanonical[len(spr.Public):], pk.LQk[len(spr.Public):])
 	if spr.CommitmentInfo.Is() {
 		qkCompletedCanonical[spr.CommitmentInfo.CommitmentIndex] = commitmentVal
 	}
@@ -204,30 +206,17 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	pi2iop := wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
 
 	lagrangeCosetBitReversed := iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}
-
 	// we don't mutate so no need to clone the coefficients from the proving key.
-	wqliop := iop.NewPolynomial(&pk.lQl, lagrangeCosetBitReversed)
-	wqriop := iop.NewPolynomial(&pk.lQr, lagrangeCosetBitReversed)
-	wqmiop := iop.NewPolynomial(&pk.lQm, lagrangeCosetBitReversed)
-	wqoiop := iop.NewPolynomial(&pk.lQo, lagrangeCosetBitReversed)
 	wqcpiop := iop.NewPolynomial(&pk.lQcPrime, lagrangeCosetBitReversed) // lagrange coset form
-
-
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
-	wqkiop := iop.NewPolynomial(&qkCompletedCanonical, canReg)
-	wqkiop.ToLagrangeCoset(&pk.Domain[1])
+	lcqk := iop.NewPolynomial(&qkCompletedCanonical, canReg)
+	lcqk.ToLagrangeCoset(&pk.Domain[1])
 
 	// storing Id
 	id := make([]fr.Element, pk.Domain[1].Cardinality)
 	id[1].SetOne()
 	widiop := iop.NewPolynomial(&id, canReg)
 	widiop.ToLagrangeCoset(&pk.Domain[1])
-
-	// permutations in LagrangeCoset: we don't mutate so no need to clone the coefficients from the
-	// proving key.
-	ws1 := iop.NewPolynomial(&pk.lS1LagrangeCoset, lagrangeCosetBitReversed)
-	ws2 := iop.NewPolynomial(&pk.lS2LagrangeCoset, lagrangeCosetBitReversed)
-	ws3 := iop.NewPolynomial(&pk.lS3LagrangeCoset, lagrangeCosetBitReversed)
 
 	// Store z(g*x), without reallocating a slice
 	bwsziop := bwziop.ShallowClone().Shift(1)
@@ -304,29 +293,29 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 		return c
 	}
-	testEval, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse},
+	systemEvaluation, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse},
 		bwliop,
 		bwriop,
 		bwoiop,
 		widiop,
-		ws1,
-		ws2,
-		ws3,
+		pk.lcS1,
+		pk.lcS2,
+		pk.lcS3,
 		bwziop,
 		bwsziop,
 		pi2iop,
-		wqliop,
-		wqriop,
-		wqmiop,
-		wqoiop,
-		wqkiop,
+		pk.lcQl,
+		pk.lcQr,
+		pk.lcQm,
+		pk.lcQo,
+		lcqk,
 		wqcpiop,
 		wloneiop,
 	)
 	if err != nil {
 		return nil, err
 	}
-	h, err := iop.DivideByXMinusOne(testEval, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]})// TODO Rename to DivideByXNMinusOne or DivideByVanishingPoly etc
+	h, err := iop.DivideByXMinusOne(systemEvaluation, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]}) // TODO Rename to DivideByXNMinusOne or DivideByVanishingPoly etc
 	if err != nil {
 		return nil, err
 	}
@@ -447,8 +436,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			bwliop.Coefficients()[:bwliop.BlindedSize()],
 			bwriop.Coefficients()[:bwriop.BlindedSize()],
 			bwoiop.Coefficients()[:bwoiop.BlindedSize()],
-			pk.S1Canonical,
-			pk.S2Canonical,
+			pk.trace.S1.Coefficients(),
+			pk.trace.S2.Coefficients(),
 			pk.QcPrime,
 		},
 		[]kzg.Digest{
@@ -551,13 +540,12 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	var s1, s2 fr.Element
 	chS1 := make(chan struct{}, 1)
 	go func() {
-		ps1 := iop.NewPolynomial(&pk.S1Canonical, iop.Form{Basis: iop.Canonical, Layout: iop.Regular}) 
-		s1 = ps1.Evaluate(zeta)                              // s1(ζ)
+		s1 = pk.trace.S1.Evaluate(zeta)                      // s1(ζ)
 		s1.Mul(&s1, &beta).Add(&s1, &lZeta).Add(&s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 		close(chS1)
 	}()
-	ps2 := iop.NewPolynomial(&pk.S2Canonical, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
-	tmp := ps2.Evaluate(zeta)                                // s2(ζ)
+	// ps2 := iop.NewPolynomial(&pk.S2Canonical, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
+	tmp := pk.trace.S2.Evaluate(zeta)                        // s2(ζ)
 	tmp.Mul(&tmp, &beta).Add(&tmp, &rZeta).Add(&tmp, &gamma) // (r(ζ)+β*s2(ζ)+γ)
 	<-chS1
 	s1.Mul(&s1, &tmp).Mul(&s1, &zu).Mul(&s1, &beta) // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*β*Z(μζ)
@@ -591,6 +579,7 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	linPol := make([]fr.Element, len(blindedZCanonical))
 	copy(linPol, blindedZCanonical)
 
+	s3canonical := pk.trace.S3.Coefficients()
 	utils.Parallelize(len(linPol), func(start, end int) {
 
 		var t0, t1 fr.Element
@@ -599,26 +588,31 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 
 			linPol[i].Mul(&linPol[i], &s2) // -Z(X)*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 
-			if i < len(pk.S3Canonical) {
+			if i < len(s3canonical) {
 
-				t0.Mul(&pk.S3Canonical[i], &s1) // (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*β*s3(X)
+				t0.Mul(&s3canonical[i], &s1) // (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*β*s3(X)
 
 				linPol[i].Add(&linPol[i], &t0)
 			}
 
 			linPol[i].Mul(&linPol[i], &alpha) // α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*s3(X) - Z(X)*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ))
 
-			if i < len(pk.Qm) {
+			cql := pk.trace.Ql.Coefficients()
+			cqr := pk.trace.Qr.Coefficients()
+			cqm := pk.trace.Qm.Coefficients()
+			cqo := pk.trace.Qo.Coefficients()
+			cqk := pk.trace.Qk.Coefficients()
+			if i < len(cqm) {
 
-				t1.Mul(&pk.Qm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
-				t0.Mul(&pk.Ql[i], &lZeta)
+				t1.Mul(&cqm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
+				t0.Mul(&cql[i], &lZeta)
 				t0.Add(&t0, &t1)
 				linPol[i].Add(&linPol[i], &t0) // linPol = linPol + l(ζ)*Ql(X)
 
-				t0.Mul(&pk.Qr[i], &rZeta)
+				t0.Mul(&cqr[i], &rZeta)
 				linPol[i].Add(&linPol[i], &t0) // linPol = linPol + r(ζ)*Qr(X)
 
-				t0.Mul(&pk.Qo[i], &oZeta).Add(&t0, &pk.CQk[i])
+				t0.Mul(&cqo[i], &oZeta).Add(&t0, &cqk[i])
 				linPol[i].Add(&linPol[i], &t0) // linPol = linPol + o(ζ)*Qo(X) + Qk(X)
 
 				t0.Mul(&pi2Canonical[i], &qcpZeta)

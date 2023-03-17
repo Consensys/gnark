@@ -89,6 +89,7 @@ func WithProverOpts(proverOpts ...backend.ProverOption) TestingOption {
 // calling constraint system solver.
 func WithSolverOpts(solverOpts ...solver.Option) TestingOption {
 	return func(opt *testingConfig) error {
+		opt.proverOpts = append(opt.proverOpts, backend.WithSolverOptions(solverOpts...))
 		opt.solverOpts = solverOpts
 		return nil
 	}

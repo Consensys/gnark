@@ -29,6 +29,13 @@ type SparseR1CS interface {
 	// and will grow the memory usage of the constraint system.
 	AddConstraint(c SparseR1C, debugInfo ...DebugInfo) int
 
+	// GetConstraint return a pointer to the constraint at index i, or nil if out of bounds.
+	GetConstraint(i int) *SparseR1C
+
+	// GetCoefficient returns coefficient with given id in the coeff table.
+	// calls panic if i is out of bounds, because this is called in the hot path of the compiler.
+	GetCoefficient(i int) Coeff
+
 	// GetConstraints return the list of SparseR1C and a helper for pretty printing.
 	// See StringBuilder for more info.
 	// ! this is an experimental API.

@@ -78,3 +78,12 @@ type Committer interface {
 	// Commit commits to the variables and returns the commitment.
 	Commit(toCommit ...Variable) (commitment Variable, err error)
 }
+
+// Rangechecker allows to externally range-check the variables to be of
+// specified width. Not all compilers implement this interface. Users should
+// instead use [github.com/consensys/gnark/std/rangecheck] package which
+// automatically chooses most optimal method for range checking the variables.
+type Rangechecker interface {
+	// Check checks that the given variable v has bit-length bits.
+	Check(v Variable, bits int)
+}

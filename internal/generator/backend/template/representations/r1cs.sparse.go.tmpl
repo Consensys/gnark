@@ -134,7 +134,7 @@ func (cs *SparseR1CS) solve(witness fr.Vector, opt solver.Config) (fr.Vector, er
 	}
 
 	// keep track of wire that have a value
-	solution, err  := newSolution( nbVariables, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable)
+	solution, err := newSolution(&cs.System, nbVariables, opt.HintFunctions, cs.Coefficients)
 	if err != nil {
 		return solution.values, err
 	}
@@ -429,6 +429,18 @@ func (cs *SparseR1CS) IsSolved(witness witness.Witness, opts ...solver.Option) e
 // GetConstraints return the list of SparseR1C and a coefficient resolver
 func (cs *SparseR1CS) GetConstraints() ([]constraint.SparseR1C, constraint.Resolver) {
 	return cs.Constraints, cs
+}
+
+func (cs *SparseR1CS) GetConstraint(i int) (*constraint.SparseR1C) {
+	if i < 0 ||i >= len(cs.Constraints) {
+		return nil 
+	}
+	return &cs.Constraints[i]
+}
+
+func (cs *SparseR1CS) GetCoefficient(i int) (r constraint.Coeff) {
+	copy(r[:], cs.Coefficients[i][:])
+	return
 }
 
 // checkConstraint verifies that the constraint holds
