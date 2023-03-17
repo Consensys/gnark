@@ -159,7 +159,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	}
 
 	res := pr.Ext12.One()
-	prodLines := pr.Ext12.Zero()
+	var prodLines [5]fields_bn254.E2
 
 	var l1, l2 *lineEvaluation
 	Qacc := make([]*G2Affine, n)
@@ -195,12 +195,26 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		// line evaluation at P[1]
 		l1.R0 = *pr.MulByElement(&l1.R0, xOverY[1])
 		l1.R1 = *pr.MulByElement(&l1.R1, yInv[1])
-		res = pr.Mul034By034(&l1.R0, &l1.R1, &res.C1.B0, &res.C1.B1)
+		prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &res.C1.B0, &res.C1.B1)
+		res.C0.B0 = prodLines[0]
+		res.C0.B1 = prodLines[1]
+		res.C0.B2 = prodLines[2]
+		res.C1.B0 = prodLines[3]
+		res.C1.B1 = prodLines[4]
 	}
 
 	if n >= 3 {
-		// k >= 2
-		for k := 2; k < n; k++ {
+		// k = 2, separately to avoid MulBy034 (res × ℓ)
+		// (res has a zero E2 element, so we use Mul01234By034)
+		Qacc[2], l1 = pr.doubleStep(Qacc[2])
+
+		// line evaluation at P[1]
+		l1.R0 = *pr.MulByElement(&l1.R0, xOverY[2])
+		l1.R1 = *pr.MulByElement(&l1.R1, yInv[2])
+		res = pr.Mul01234By034(&prodLines, &l1.R0, &l1.R1)
+
+		// k >= 3
+		for k := 3; k < n; k++ {
 			// Qacc[k] ← 2Qacc[k] and l1 the tangent ℓ passing 2Qacc[k]
 			Qacc[k], l1 = pr.doubleStep(Qacc[k])
 
@@ -234,9 +248,9 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		l1.R1 = *pr.MulByElement(&l1.R1, yInv[k])
 
 		// ℓ × ℓ
-		prodLines = pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
+		prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
 		// (ℓ × ℓ) × res
-		res = pr.MulBy01234(res, &prodLines.C0.B0, &prodLines.C0.B1, &prodLines.C0.B2, &prodLines.C1.B0, &prodLines.C1.B1)
+		res = pr.MulBy01234(res, &prodLines)
 	}
 
 	for i := 62; i >= 0; i-- {
@@ -275,9 +289,9 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 				l2.R1 = *pr.MulByElement(&l2.R1, yInv[k])
 
 				// ℓ × ℓ
-				prodLines = pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
+				prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
 				// (ℓ × ℓ) × res
-				res = pr.MulBy01234(res, &prodLines.C0.B0, &prodLines.C0.B1, &prodLines.C0.B2, &prodLines.C1.B0, &prodLines.C1.B1)
+				res = pr.MulBy01234(res, &prodLines)
 
 			}
 
@@ -297,9 +311,9 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 				l2.R1 = *pr.MulByElement(&l2.R1, yInv[k])
 
 				// ℓ × ℓ
-				prodLines = pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
+				prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
 				// (ℓ × ℓ) × res
-				res = pr.MulBy01234(res, &prodLines.C0.B0, &prodLines.C0.B1, &prodLines.C0.B2, &prodLines.C1.B0, &prodLines.C1.B1)
+				res = pr.MulBy01234(res, &prodLines)
 
 			}
 
@@ -337,9 +351,9 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		l2.R1 = *pr.MulByElement(&l2.R1, yInv[k])
 
 		// ℓ × ℓ
-		prodLines = pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
+		prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
 		// (ℓ × ℓ) × res
-		res = pr.MulBy01234(res, &prodLines.C0.B0, &prodLines.C0.B1, &prodLines.C0.B2, &prodLines.C1.B0, &prodLines.C1.B1)
+		res = pr.MulBy01234(res, &prodLines)
 
 	}
 
