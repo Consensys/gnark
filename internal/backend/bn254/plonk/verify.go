@@ -189,7 +189,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	// Compute the commitment to the linearized polynomial
 	// linearizedPolynomialDigest =
-	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+qc*PI2
+	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+qc*PI2 +
 	// 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
 	// 		α²*L₁(ζ)*Z
 	// first part: individual constraints
@@ -224,7 +224,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		l, r, rl, o, one /* TODO Perf @Tabaie Consider just adding Qk instead */, qC, // first part
 		_s1, _s2, // second & third part
 	}
-
 	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{}); err != nil {
 		return err
 	}
