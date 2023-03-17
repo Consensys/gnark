@@ -227,9 +227,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	bwoiop.ToLagrangeCoset(&pk.Domain[1])
 	pi2iop := wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
 
-	lagrangeCosetBitReversed := iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}
 	// we don't mutate so no need to clone the coefficients from the proving key.
-	wqcpiop := iop.NewPolynomial(&pk.lQcPrime, lagrangeCosetBitReversed) // lagrange coset form
 	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
 	lcqk := iop.NewPolynomial(&qkCompletedCanonical, canReg)
 	lcqk.ToLagrangeCoset(&pk.Domain[1])
@@ -331,7 +329,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		pk.lcQm,
 		pk.lcQo,
 		lcqk,
-		wqcpiop,
+		pk.lcQcp,
 		wloneiop,
 	)
 	if err != nil {
@@ -371,8 +369,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	go evalAtZeta(bwriop, &brzeta)
 	go evalAtZeta(bwoiop, &bozeta)
 	go func() {
-		qcpiop := iop.NewPolynomial(&pk.QcPrime, canReg)
-		qcpzeta = qcpiop.Evaluate(zeta)
+		qcpzeta = pk.trace.Qcp.Evaluate(zeta)
 		wgEvals.Done()
 	}()
 
@@ -460,7 +457,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			bwoiop.Coefficients()[:bwoiop.BlindedSize()],
 			pk.trace.S1.Coefficients(),
 			pk.trace.S2.Coefficients(),
-			pk.QcPrime,
+			pk.trace.Qcp.Coefficients(),
 		},
 		[]kzg.Digest{
 			foldedHDigest,
@@ -470,7 +467,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			proof.LRO[2],
 			pk.Vk.S[0],
 			pk.Vk.S[1],
-			pk.Vk.QcPrime,
+			pk.Vk.Qcp,
 		},
 		zeta,
 		hFunc,
