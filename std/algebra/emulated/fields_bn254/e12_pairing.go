@@ -74,11 +74,8 @@ func (e *Ext12) MulBy034(z *E12, c3, c4 *E2) *E12 {
 
 	a := z.C0
 	b := z.C1
-
 	b = *e.MulBy01(&b, c3, c4)
-	one := e.Ext2.One()
-
-	c3 = e.Ext2.Add(one, c3)
+	c3 = e.Ext2.Add(e.Ext2.One(), c3)
 	d := e.Ext6.Add(&z.C0, &z.C1)
 	d = e.MulBy01(d, c3, c4)
 
@@ -108,7 +105,6 @@ func (e *Ext12) MulBy034(z *E12, c3, c4 *E2) *E12 {
 //		C1: E6{B0: d3, B1: d4, B2: 0},
 //	}
 func (e *Ext12) Mul034By034(d3, d4, c3, c4 *E2) *E12 {
-	one := e.Ext2.One()
 	x3 := e.Ext2.Mul(c3, d3)
 	x4 := e.Ext2.Mul(c4, d4)
 	x04 := e.Ext2.Add(c4, d4)
@@ -120,7 +116,7 @@ func (e *Ext12) Mul034By034(d3, d4, c3, c4 *E2) *E12 {
 	x34 = e.Ext2.Sub(x34, x4)
 
 	zC0B0 := e.Ext2.MulByNonResidue(x4)
-	zC0B0 = e.Ext2.Add(zC0B0, one)
+	zC0B0 = e.Ext2.Add(zC0B0, e.Ext2.One())
 	zC0B1 := x3
 	zC0B2 := x34
 	zC1B0 := x03

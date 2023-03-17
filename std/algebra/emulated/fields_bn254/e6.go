@@ -151,6 +151,13 @@ func (e Ext6) MulByE2(x *E6, y *E2) *E6 {
 	}
 }
 
+// MulBy01 multiplies z by an E6 sparse element of the form
+//
+//	E6{
+//		B0: c0,
+//		B1: c1,
+//		B2: 0,
+//	}
 func (e Ext6) MulBy01(z *E6, c0, c1 *E2) *E6 {
 	a := e.Ext2.Mul(&z.B0, c0)
 	b := e.Ext2.Mul(&z.B1, c1)

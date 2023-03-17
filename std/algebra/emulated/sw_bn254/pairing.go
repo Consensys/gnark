@@ -176,7 +176,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	}
 
 	// Compute ∏ᵢ { fᵢ_{ℓ,Q}(P) }
-	// i = len(loopCounter) - 2, separately to avoid E12 Square
+	// i = 64, separately to avoid an E12 Square
 	// (Square(res) = 1² = 1)
 
 	// k = 0, separately to avoid MulBy034 (res × ℓ)
@@ -209,7 +209,30 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		}
 	}
 
-	for i := len(loopCounter) - 3; i >= 0; i-- {
+	// i = 63, separately to avoid a doubleStep
+	// (at this point Qacc = 2Q, so 2Qacc-Q=3Q is equivalent to Qacc+Q=3Q
+	// this means doubleAddStep is equivalent to addStep here)
+	res = pr.Square(res)
+	for k := 0; k < n; k++ {
+		// l2 the line passing Qacc[k] and -Q
+		l2 = pr.lineCompute(Qacc[k], QNeg[k])
+		// line evaluation at P[k]
+		l2.R0 = *pr.MulByElement(&l2.R0, xOverY[k])
+		l2.R1 = *pr.MulByElement(&l2.R1, yInv[k])
+		// ℓ × res
+		res = pr.MulBy034(res, &l2.R0, &l2.R1)
+
+		// Qacc[k] ← Qacc[k]+Q[k] and
+		// l1 the line ℓ passing Qacc[k] and Q[k]
+		Qacc[k], l1 = pr.addStep(Qacc[k], Q[k])
+		// line evaluation at P[k]
+		l1.R0 = *pr.MulByElement(&l1.R0, xOverY[k])
+		l1.R1 = *pr.MulByElement(&l1.R1, yInv[k])
+		// ℓ × res
+		res = pr.MulBy034(res, &l1.R0, &l1.R1)
+	}
+
+	for i := 62; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res = pr.Square(res)
