@@ -91,10 +91,6 @@ func TestECRecoverCircuitShort(t *testing.T) {
 
 func TestECRecoverCircuitFull(t *testing.T) {
 	t.Skip("skipping very long test")
-	if testing.Short() {
-		t.Skip("skipping full ECRecover in short mode")
-		return
-	}
 	assert := test.NewAssert(t)
 	circuit, witness := testRoutineECRecover(t)
 	assert.ProverSucceeded(circuit, witness,
