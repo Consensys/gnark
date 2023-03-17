@@ -246,7 +246,7 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 		qk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
 	}
 	for _, committed := range spr.CommitmentInfo.Committed {
-		qcp[committed].SetOne()
+		qcp[offset+committed].SetOne()
 	}
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}

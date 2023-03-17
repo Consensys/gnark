@@ -90,14 +90,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if spr.CommitmentInfo.Is() {
 		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(spr.CommitmentInfo.HintID, func(_ *big.Int, ins, outs []*big.Int) error {
 			pi2 := make([]fr.Element, pk.Domain[0].Cardinality)
+			offset := spr.GetNbPublicVariables()
 			for i := range ins {
-				pi2[spr.CommitmentInfo.Committed[i]].SetBigInt(ins[i])
+				pi2[offset+spr.CommitmentInfo.Committed[i]].SetBigInt(ins[i])
 			}
 			var (
 				err     error
 				hashRes []fr.Element
 			)
-			if _, err = pi2[spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil {
+			if _, err = pi2[offset+spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil {
 				return err
 			}
 			pi2iop := iop.NewPolynomial(&pi2, lagReg)
@@ -216,7 +217,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	copy(qkCompletedCanonical, lqkcoef)
 	copy(qkCompletedCanonical, fw[:len(spr.Public)])
 	if spr.CommitmentInfo.Is() {
-		qkCompletedCanonical[spr.CommitmentInfo.CommitmentIndex] = commitmentVal
+		qkCompletedCanonical[spr.GetNbPublicVariables()+spr.CommitmentInfo.CommitmentIndex] = commitmentVal
 	}
 	pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 	fft.BitReverse(qkCompletedCanonical)

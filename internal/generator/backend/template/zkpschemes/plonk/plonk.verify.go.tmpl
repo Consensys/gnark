@@ -99,7 +99,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 			// Computing L_{CommitmentIndex}
 
-			wPowI.Exp(vk.Generator, big.NewInt(int64(vk.CommitmentInfo.CommitmentIndex)))
+			wPowI.Exp(vk.Generator, big.NewInt(int64(vk.NbPublicVariables)+int64(vk.CommitmentInfo.CommitmentIndex)))
 			den.Sub(&zeta, &wPowI) // ζ-wⁱ
 
 			lagrange.SetOne().
