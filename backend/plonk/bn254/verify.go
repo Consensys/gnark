@@ -124,9 +124,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			den.Sub(&zeta, &wPowI) // ζ-wⁱ
 
 			lagrange.SetOne().
-				Sub(&zeta, &lagrange). // ζ-1
-				Mul(&lagrange, &wPowI). // wⁱ(ζ-1)
-				Div(&lagrange, &den). // wⁱ(ζ-1)/(ζ-wⁱ)
+				Sub(&zeta, &lagrange).       // ζ-1
+				Mul(&lagrange, &wPowI).      // wⁱ(ζ-1)
+				Div(&lagrange, &den).        // wⁱ(ζ-1)/(ζ-wⁱ)
 				Mul(&lagrange, &lagrangeOne) // wⁱ/n (ζⁿ-1)/(ζ-wⁱ)
 
 			xiLi.Mul(&lagrange, &hashRes[0])
@@ -161,8 +161,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		Mul(&alphaSquareLagrange, &alpha) // α²*L₁(ζ)
 
 	linearizedPolynomialZeta.
-		Add(&linearizedPolynomialZeta, &pi). // linearizedpolynomial + pi(zeta)
-		Add(&linearizedPolynomialZeta, &_s1). // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
+		Add(&linearizedPolynomialZeta, &pi).                 // linearizedpolynomial + pi(zeta)
+		Add(&linearizedPolynomialZeta, &_s1).                // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
 		Sub(&linearizedPolynomialZeta, &alphaSquareLagrange) // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
 
 	// Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)

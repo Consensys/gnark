@@ -51,7 +51,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *vk, publicWitness); err != nil {
+	if err := bindPublicData(&fs, "gamma", *vk, publicWitness, proof.PI2); err != nil {
 		return err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
@@ -268,7 +268,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	return err
 }
 
-func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element) error {
+func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element, pi2 kzg.Digest) error {
 
 	// permutation
 	if err := fs.Bind(challenge, vk.S[0].Marshal()); err != nil {
@@ -303,6 +303,11 @@ func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey
 		if err := fs.Bind(challenge, publicInputs[i].Marshal()); err != nil {
 			return err
 		}
+	}
+
+	// bsb22 commitment
+	if err := fs.Bind(challenge, pi2.Marshal()); err != nil {
+		return err
 	}
 
 	return nil

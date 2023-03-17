@@ -98,7 +98,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 				err     error
 				hashRes []fr.Element
 			)
-			if _, err = pi2[offset+spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil {
+			if _, err = pi2[offset+spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
+				return err
+			}
+			if _, err = pi2[offset+len(spr.Constraints)-1].SetRandom(); err != nil { // Last constraint has qcp = 0. Safe to use for blinding
 				return err
 			}
 			pi2iop := iop.NewPolynomial(&pi2, lagReg)
@@ -160,7 +163,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)]); err != nil {
+	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)], proof.PI2); err != nil {
 		return nil, err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2]) // TODO @Tabaie @ThomasPiellard add BSB commitment here?

@@ -98,7 +98,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 				err     error
 				hashRes []fr.Element
 			)
-			if _, err = pi2[offset+spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil {
+			if _, err = pi2[offset+spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
+				return err
+			}
+			if _, err = pi2[offset+len(spr.Constraints)-1].SetRandom(); err != nil { // Last constraint has qcp = 0. Safe to use for blinding
 				return err
 			}
 			pi2iop := iop.NewPolynomial(&pi2, lagReg)
