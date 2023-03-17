@@ -41,11 +41,11 @@ type ProvingKey struct {
 
 	// TODO store iop.Polynomial here, not []fr.Element for more "type safety"
 
-	// qr,ql,qm,qo (in canonical basis).
-	Ql, Qr, Qm, Qo []fr.Element
+	// qr,ql,qm,qo,cqp (in canonical basis).
+	Ql, Qr, Qm, Qo, QcPrime []fr.Element
 
-	// qr,ql,qm,qo (in lagrange coset basis) --> these are not serialized, but computed from Ql, Qr, Qm, Qo once.
-	lQl, lQr, lQm, lQo []fr.Element
+	// qr,ql,qm,qo,qcp (in lagrange coset basis) --> these are not serialized, but computed from Ql, Qr, Qm, Qo once.
+	lQl, lQr, lQm, lQo, lQcPrime []fr.Element
 
 	// LQk (CQk) qk in Lagrange basis (canonical basis), prepended with as many zeroes as public inputs.
 	// Storing LQk in Lagrange basis saves a fft...
@@ -90,7 +90,9 @@ type VerifyingKey struct {
 
 	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
-	Ql, Qr, Qm, Qo, Qk kzg.Digest
+	Ql, Qr, Qm, Qo, Qk, QcPrime kzg.Digest
+
+	CommitmentInfo constraint.Commitment
 }
 
 // Setup sets proving and verifying keys
@@ -100,6 +102,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 
 	// The verifying key shares data with the proving key
 	pk.Vk = &vk
+	vk.CommitmentInfo = spr.CommitmentInfo
 
 	nbConstraints := len(spr.Constraints)
 
@@ -126,15 +129,16 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		return nil, nil, err
 	}
 
-	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
+	// public polynomials corresponding to constraints: [ placeholders | constraints | assertions ]
 	pk.Ql = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.Qr = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.Qm = make([]fr.Element, pk.Domain[0].Cardinality)
+	pk.QcPrime = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.Qo = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.CQk = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.LQk = make([]fr.Element, pk.Domain[0].Cardinality)
 
-	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
+	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistent
 		pk.Ql[i].SetOne().Neg(&pk.Ql[i])
 		pk.Qr[i].SetZero()
 		pk.Qm[i].SetZero()
@@ -154,16 +158,22 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
 	}
 
+	for _, committed := range spr.CommitmentInfo.Committed {
+		pk.QcPrime[committed].SetOne()
+	}
+
 	pk.Domain[0].FFTInverse(pk.Ql, fft.DIF)
 	pk.Domain[0].FFTInverse(pk.Qr, fft.DIF)
 	pk.Domain[0].FFTInverse(pk.Qm, fft.DIF)
 	pk.Domain[0].FFTInverse(pk.Qo, fft.DIF)
 	pk.Domain[0].FFTInverse(pk.CQk, fft.DIF)
+	pk.Domain[0].FFTInverse(pk.QcPrime, fft.DIF)
 	fft.BitReverse(pk.Ql)
 	fft.BitReverse(pk.Qr)
 	fft.BitReverse(pk.Qm)
 	fft.BitReverse(pk.Qo)
 	fft.BitReverse(pk.CQk)
+	fft.BitReverse(pk.QcPrime)
 
 	// build permutation. Note: at this stage, the permutation takes in account the placeholders
 	buildPermutation(spr, &pk)
@@ -183,6 +193,9 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 		return nil, nil, err
 	}
 	if vk.Qm, err = kzg.Commit(pk.Qm, vk.KZGSRS); err != nil {
+		return nil, nil, err
+	}
+	if vk.QcPrime, err = kzg.Commit(pk.QcPrime, vk.KZGSRS); err != nil {
 		return nil, nil, err
 	}
 	if vk.Qo, err = kzg.Commit(pk.Qo, vk.KZGSRS); err != nil {
@@ -271,6 +284,7 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	wqriop := iop.NewPolynomial(clone(pk.Qr, pk.Domain[1].Cardinality), canReg)
 	wqmiop := iop.NewPolynomial(clone(pk.Qm, pk.Domain[1].Cardinality), canReg)
 	wqoiop := iop.NewPolynomial(clone(pk.Qo, pk.Domain[1].Cardinality), canReg)
+	wqcpiop := iop.NewPolynomial(clone(pk.QcPrime, pk.Domain[1].Cardinality), canReg)
 
 	ws1 := iop.NewPolynomial(clone(pk.S1Canonical, pk.Domain[1].Cardinality), canReg)
 	ws2 := iop.NewPolynomial(clone(pk.S2Canonical, pk.Domain[1].Cardinality), canReg)
@@ -280,6 +294,7 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	wqriop.ToLagrangeCoset(&pk.Domain[1])
 	wqmiop.ToLagrangeCoset(&pk.Domain[1])
 	wqoiop.ToLagrangeCoset(&pk.Domain[1])
+	wqcpiop.ToLagrangeCoset(&pk.Domain[1])
 
 	ws1.ToLagrangeCoset(&pk.Domain[1])
 	ws2.ToLagrangeCoset(&pk.Domain[1])
@@ -289,6 +304,7 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	pk.lQr = wqriop.Coefficients()
 	pk.lQm = wqmiop.Coefficients()
 	pk.lQo = wqoiop.Coefficients()
+	pk.lQcPrime = wqcpiop.Coefficients()
 
 	pk.lS1LagrangeCoset = ws1.Coefficients()
 	pk.lS2LagrangeCoset = ws2.Coefficients()
@@ -370,7 +386,7 @@ func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
 // This should be used after deserializing a VerifyingKey
 // as vk.KZG is NOT serialized
 //
-// Note that this instantiate a new FFT domain using vk.Size
+// Note that this instantiates a new FFT domain using vk.Size
 func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
 	_srs := srs.(*kzg.SRS)
 
