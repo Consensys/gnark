@@ -7,10 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 )
 
@@ -125,15 +122,4 @@ func TestMultiPairTestSolve(t *testing.T) {
 	}
 	err = test.IsSolved(&MultiPairCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
-}
-
-// bench
-var ccsBench constraint.ConstraintSystem
-
-func BenchmarkPairing(b *testing.B) {
-	var c PairCircuit
-	p := profile.Start()
-	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println(p.NbConstraints())
 }
