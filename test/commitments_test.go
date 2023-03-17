@@ -22,7 +22,7 @@ func (c *commitmentCircuit) Define(api frontend.API) error {
 		api.AssertIsDifferent(commitment, 0)
 	}
 	for _, p := range c.Public {
-		api.AssertIsEqual(p, 0)
+		api.AssertIsDifferent(p, 0)
 	}
 	return err
 }
@@ -42,7 +42,12 @@ func TestFiveCommitmentsPlonk(t *testing.T) {
 }
 
 func TestSingleCommitmentSinglePublicPlonk(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{0}, Public: []frontend.Variable{0}}
+	assignment := &commitmentCircuit{X: []frontend.Variable{0}, Public: []frontend.Variable{1}}
+	plonkTest(t, assignment.hollow(), assignment)
+}
+
+func TestFiveCommitmentsFivePublicPlonk(t *testing.T) {
+	assignment := &commitmentCircuit{X: []frontend.Variable{0, 1, 2, 3, 4}, Public: []frontend.Variable{1, 2, 3, 4, 5}}
 	plonkTest(t, assignment.hollow(), assignment)
 }
 
