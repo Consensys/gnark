@@ -72,7 +72,7 @@ type VerifyingKey struct {
 	// S commitments to S1, S2, S3
 	S [3]kzg.Digest
 
-	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
+	// Commitments to ql, qr, qm, qo, qcp prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
 	Ql, Qr, Qm, Qo, Qk, Qcp kzg.Digest
 
@@ -92,7 +92,7 @@ type ProvingKey struct {
 	// stores ql, qr, qm, qo, qk (-> to be completed by the prover)
 	// and s1, s2, s3. They are set in canonical basis before generating the proof, they will be used
 	// for computing the opening proofs (hence the canonical form). The canonical version
-	// of qk incompleted is used in the linearisation polynomial.
+	// of qk incomplete is used in the linearisation polynomial.
 	// The polynomials in trace are in canonical basis.
 	trace Trace
 
