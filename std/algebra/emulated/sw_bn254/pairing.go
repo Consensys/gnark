@@ -130,8 +130,9 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext12.AssertIsEqual(x, y)
 }
 
-// loopCounter = 6*seed+2 in 2-NAF
-// loopCounter = 29793968203157093288
+// loopCounter = 6x₀+2 = 29793968203157093288
+//
+// in 2-NAF
 var loopCounter = [66]int8{
 	0, 0, 0, 1, 0, 1, 0, -1, 0, 0, -1,
 	0, 0, 0, 1, 0, 0, -1, 0, -1, 0, 0,
@@ -142,7 +143,7 @@ var loopCounter = [66]int8{
 }
 
 // lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
-// line: 1 - R0(x/y) - R1(1/y) = 0 instead of R0'*y - R1'*x - R2' = 0 This
+// line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
 // makes the multiplication by lines (MulBy034) and between lines (Mul034By034)
 // circuit-efficient.
 type lineEvaluation struct {
@@ -150,7 +151,7 @@ type lineEvaluation struct {
 }
 
 // MillerLoop computes the multi-Miller loop
-// ∏ᵢ { fᵢ_{ℓ,Q}(P) · ℓᵢ_{[ℓ]q,π(q)}(p) · ℓᵢ_{[ℓ]q+π(q),-π²(q)}(p) }
+// ∏ᵢ { fᵢ_{6x₀+2,Q}(P) · ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
 func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	// check input size match
 	n := len(P)
@@ -176,7 +177,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		xOverY[k] = pr.curveF.MulMod(&P[k].X, yInv[k])
 	}
 
-	// Compute ∏ᵢ { fᵢ_{ℓ,Q}(P) }
+	// Compute ∏ᵢ { fᵢ_{6x₀+2,Q}(P) }
 	// i = 64, separately to avoid an E12 Square
 	// (Square(res) = 1² = 1)
 
@@ -195,6 +196,8 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		// line evaluation at P[1]
 		l1.R0 = *pr.MulByElement(&l1.R0, xOverY[1])
 		l1.R1 = *pr.MulByElement(&l1.R1, yInv[1])
+
+		// ℓ × res
 		prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &res.C1.B0, &res.C1.B1)
 		res.C0.B0 = prodLines[0]
 		res.C0.B1 = prodLines[1]
@@ -211,6 +214,8 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		// line evaluation at P[1]
 		l1.R0 = *pr.MulByElement(&l1.R0, xOverY[2])
 		l1.R1 = *pr.MulByElement(&l1.R1, yInv[2])
+
+		// ℓ × res
 		res = pr.Mul01234By034(&prodLines, &l1.R0, &l1.R1)
 
 		// k >= 3
@@ -229,7 +234,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	// i = 63, separately to avoid a doubleStep
 	// (at this point Qacc = 2Q, so 2Qacc-Q=3Q is equivalent to Qacc+Q=3Q
-	// this means doubleAddStep is equivalent to addStep here)
+	// this means doubleAndAddStep is equivalent to addStep here)
 	res = pr.Square(res)
 	for k := 0; k < n; k++ {
 		// l2 the line passing Qacc[k] and -Q
@@ -322,7 +327,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		}
 	}
 
-	// Compute  ∏ᵢ { ℓᵢ_{[ℓ]q,π(q)}(p) · ℓᵢ_{[ℓ]q+π(q),-π²(q)}(p) }
+	// Compute  ∏ᵢ { ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
 	Q1, Q2 := new(G2Affine), new(G2Affine)
 	for k := 0; k < n; k++ {
 		//Q1 = π(Q)
