@@ -168,7 +168,6 @@ func (e *Ext12) Mul01234By034(x *[5]E2, z3, z4 *E2) *E12 {
 	a := e.Ext6.Add(e.Ext6.One(), &E6{B0: *z3, B1: *z4, B2: *e.Ext2.Zero()})
 	b := e.Ext6.Add(c0, c1)
 	a = e.Ext6.Mul(a, b)
-	b = c0
 	c := e.Ext6.Mul01By01(z3, z4, &x[3], &x[4])
 	z1 := e.Ext6.Sub(a, c0)
 	z1 = e.Ext6.Sub(z1, c)
