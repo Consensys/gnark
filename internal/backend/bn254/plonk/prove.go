@@ -18,7 +18,6 @@ package plonk
 
 import (
 	"crypto/sha256"
-	"github.com/consensys/gnark/constraint/solver"
 	"math/big"
 	"runtime"
 	"sync"
@@ -39,6 +38,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 )
@@ -335,19 +335,19 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		ws3,
 		bwziop,
 		bwsziop,
-		pi2iop, // TODO @Tabaie correct format
+		pi2iop,
 		wqliop,
 		wqriop,
 		wqmiop,
 		wqoiop,
 		wqkiop,
-		wqcpiop, // TODO @Tabaie correct format
+		wqcpiop,
 		wloneiop,
 	)
 	if err != nil {
 		return nil, err
 	}
-	h, err := iop.DivideByXMinusOne(testEval, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]}) // TODO @Tabaie not x^n - 1?
+	h, err := iop.DivideByXMinusOne(testEval, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]}) // TODO Rename to DivideByXNMinusOne or DivideByVanishingPoly etc
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +381,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	go evalAtZeta(bwriop, &brzeta)
 	go evalAtZeta(bwoiop, &bozeta)
 	go func() {
-		qcpiop := iop.NewPolynomial(&pk.QcPrime, canReg) // TODO @Tabaie canReg correct?
+		qcpiop := iop.NewPolynomial(&pk.QcPrime, canReg)
 		qcpzeta = qcpiop.Evaluate(zeta)
 		wgEvals.Done()
 	}()
@@ -501,7 +501,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 func commitToLRO(bcl, bcr, bco []fr.Element, proof *Proof, srs *kzg.SRS) error {
 	n := runtime.NumCPU() / 2
 	var err0, err1, err2 error
-	chCommit0 := make(chan struct{}, 1) // TODO @Tabaie use wait group?
+	chCommit0 := make(chan struct{}, 1)
 	chCommit1 := make(chan struct{}, 1)
 	go func() {
 		proof.LRO[0], err0 = kzg.Commit(bcl, srs, n)
@@ -550,8 +550,6 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, srs *kzg.SRS) error
 	return err1
 }
 
-// Discuss whether there is a benefit to opening pi2 instead
-
 // computeLinearizedPolynomial computes the linearized polynomial in canonical basis.
 // The purpose is to commit and open all in one ql, qr, qm, qo, qk.
 // * lZeta, rZeta, oZeta are the evaluation of l, r, o at zeta
@@ -572,7 +570,7 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	// second part:
 	// Z(μζ)(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*s3(X)-Z(X)(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ)
 	var s1, s2 fr.Element
-	chS1 := make(chan struct{}, 1) // TODO @Tabaie wait group?
+	chS1 := make(chan struct{}, 1)
 	go func() {
 		ps1 := iop.NewPolynomial(&pk.S1Canonical, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 		s1 = ps1.Evaluate(zeta)                              // s1(ζ)
