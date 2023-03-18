@@ -47,11 +47,11 @@ type BoundedComparator struct {
 //
 // As long as |a - b| <= absDiffUpp, all the methods of BoundedComparator work correctly.
 //
-// If |a - b| > absDiffUpp, as long as |a - b| has a shorter binary representation than
-// P - |a - b| - 1, either a proof can not be generated or the methods work correctly.
+// If |a - b| > absDiffUpp, as long as |a - b| < P - 2^absDiffUpp.BitLen(),
+// either a proof can not be generated or the methods work correctly.
 //
-// If the binary representation of |a - b| is longer or equal with P - |a - b| - 1,
-// the behaviour of the exported methods of BoundedComparator is undefined.
+// If |a - b| >= P - 2^absDiffUpp.BitLen(), the behaviour of the exported methods of
+// BoundedComparator is undefined.
 func NewComparator(api frontend.API, absDiffUpp *big.Int) *BoundedComparator {
 	// Our comparison methods work by using the fact that when a != b,
 	// between certain two numbers at the same time only one can be non-negative (positive or zero):
