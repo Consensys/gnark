@@ -18,7 +18,6 @@ package sw_bls12377
 
 import (
 	"errors"
-	"math/big"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
@@ -27,14 +26,19 @@ import (
 // GT target group of the pairing
 type GT = fields_bls12377.E12
 
-const ateLoop = 9586122913090633729
+// binary decomposition of x₀=9586122913090633729 little endian
+var loopCounter = [64]int8{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1}
 
-// LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
-type LineEvaluation struct {
+// lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
+// line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
+// makes the multiplication by lines (MulBy034) and between lines (Mul034By034)
+// circuit-efficient.
+type lineEvaluation struct {
 	R0, R1 fields_bls12377.E2
 }
 
 // MillerLoop computes the product of n miller loops (n can be 1)
+// ∏ᵢ { fᵢ_{x₀,Q}(P) }
 func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	// check input size match
 	n := len(P)
@@ -42,79 +46,143 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		return GT{}, errors.New("invalid inputs sizes")
 	}
 
-	var ateLoopBin [64]uint
-	var ateLoopBigInt big.Int
-	ateLoopBigInt.SetUint64(ateLoop)
-	for i := 0; i < 64; i++ {
-		ateLoopBin[i] = ateLoopBigInt.Bit(i)
-	}
-
 	var res GT
 	res.SetOne()
+	var prodLines [5]fields_bls12377.E2
 
-	var l1, l2 LineEvaluation
+	var l1, l2 lineEvaluation
 	Qacc := make([]G2Affine, n)
 	yInv := make([]frontend.Variable, n)
 	xOverY := make([]frontend.Variable, n)
 	for k := 0; k < n; k++ {
 		Qacc[k] = Q[k]
+		// x=0x1ae3a4617c510eac63b05c06ca1493b1a22d9f300f5138f1ef3622fba094800170b5d44300000008508c00000000000
+		// TODO: point P=(x,0) should be ruled out
 		yInv[k] = api.DivUnchecked(1, P[k].Y)
-		xOverY[k] = api.DivUnchecked(P[k].X, P[k].Y)
+		xOverY[k] = api.Mul(P[k].X, yInv[k])
 	}
 
-	// k = 0
-	Qacc[0], l1 = DoubleStep(api, &Qacc[0])
+	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
+	// i = 64, separately to avoid an E12 Square
+	// (Square(res) = 1² = 1)
+
+	// k = 0, separately to avoid MulBy034 (res × ℓ)
+	// (assign line to res)
+	Qacc[0], l1 = doubleStep(api, &Qacc[0])
+	// line evaluation at P[0]
 	res.C1.B0.MulByFp(api, l1.R0, xOverY[0])
 	res.C1.B1.MulByFp(api, l1.R1, yInv[0])
 
 	if n >= 2 {
-		// k = 1
-		Qacc[1], l1 = DoubleStep(api, &Qacc[1])
+		// k = 1, separately to avoid MulBy034 (res × ℓ)
+		// (res is also a line at this point, so we use Mul034By034 ℓ × ℓ)
+		Qacc[1], l1 = doubleStep(api, &Qacc[1])
+
+		// line evaluation at P[1]
 		l1.R0.MulByFp(api, l1.R0, xOverY[1])
 		l1.R1.MulByFp(api, l1.R1, yInv[1])
-		res.Mul034By034(api, l1.R0, l1.R1, res.C1.B0, res.C1.B1)
+
+		// ℓ × res
+		prodLines = *fields_bls12377.Mul034By034(api, l1.R0, l1.R1, res.C1.B0, res.C1.B1)
+		res.C0.B0 = prodLines[0]
+		res.C0.B1 = prodLines[1]
+		res.C0.B2 = prodLines[2]
+		res.C1.B0 = prodLines[3]
+		res.C1.B1 = prodLines[4]
+
 	}
 
 	if n >= 3 {
-		// k >= 2
-		for k := 2; k < n; k++ {
-			Qacc[k], l1 = DoubleStep(api, &Qacc[k])
+		// k = 2, separately to avoid MulBy034 (res × ℓ)
+		// (res has a zero E2 element, so we use Mul01234By034)
+		Qacc[2], l1 = doubleStep(api, &Qacc[2])
+
+		// line evaluation at P[1]
+		l1.R0.MulByFp(api, l1.R0, xOverY[2])
+		l1.R1.MulByFp(api, l1.R1, yInv[2])
+
+		// ℓ × res
+		res = *fields_bls12377.Mul01234By034(api, prodLines, l1.R0, l1.R1)
+
+		// k >= 3
+		for k := 3; k < n; k++ {
+			// Qacc[k] ← 2Qacc[k] and l1 the tangent ℓ passing 2Qacc[k]
+			Qacc[k], l1 = doubleStep(api, &Qacc[k])
+
+			// line evaluation at P[k]
 			l1.R0.MulByFp(api, l1.R0, xOverY[k])
 			l1.R1.MulByFp(api, l1.R1, yInv[k])
+
+			// ℓ × res
 			res.MulBy034(api, l1.R0, l1.R1)
 		}
 	}
 
-	for i := len(ateLoopBin) - 3; i >= 0; i-- {
+	for i := 61; i >= 1; i-- {
+		// mutualize the square among n Miller loops
+		// (∏ᵢfᵢ)²
 		res.Square(api, res)
 
-		if ateLoopBin[i] == 0 {
+		if loopCounter[i] == 0 {
 			for k := 0; k < n; k++ {
-				Qacc[k], l1 = DoubleStep(api, &Qacc[k])
+				// Qacc[k] ← 2Qacc[k] and l1 the tangent ℓ passing 2Qacc[k]
+				Qacc[k], l1 = doubleStep(api, &Qacc[k])
+
+				// line evaluation at P[k]
 				l1.R0.MulByFp(api, l1.R0, xOverY[k])
 				l1.R1.MulByFp(api, l1.R1, yInv[k])
+
+				// ℓ × res
 				res.MulBy034(api, l1.R0, l1.R1)
 			}
 			continue
 		}
 
 		for k := 0; k < n; k++ {
-			Qacc[k], l1, l2 = DoubleAndAddStep(api, &Qacc[k], &Q[k])
+			// Qacc[k] ← 2Qacc[k]+Q[k],
+			// l1 the line ℓ passing Qacc[k] and Q[k]
+			// l2 the line ℓ passing (Qacc[k]+Q[k]) and Qacc[k]
+			Qacc[k], l1, l2 = doubleAndAddStep(api, &Qacc[k], &Q[k])
+
+			// lines evaluation at P[k]
 			l1.R0.MulByFp(api, l1.R0, xOverY[k])
 			l1.R1.MulByFp(api, l1.R1, yInv[k])
-			res.MulBy034(api, l1.R0, l1.R1)
 			l2.R0.MulByFp(api, l2.R0, xOverY[k])
 			l2.R1.MulByFp(api, l2.R1, yInv[k])
-			res.MulBy034(api, l2.R0, l2.R1)
+
+			// ℓ × ℓ
+			prodLines = *fields_bls12377.Mul034By034(api, l1.R0, l1.R1, l2.R0, l2.R1)
+			// (ℓ × ℓ) × res
+			res.MulBy01234(api, prodLines)
 		}
+	}
+
+	// i = 0
+	res.Square(api, res)
+	for k := 0; k < n; k++ {
+		// l1 line through Qacc[k] and Q[k]
+		// l2 line through Qacc[k]+Q[k] and Qacc[k]
+		l1, l2 = linesCompute(api, &Qacc[k], &Q[k])
+		l1.R0.MulByFp(api, l1.R0, xOverY[k])
+		l1.R1.MulByFp(api, l1.R1, yInv[k])
+		l2.R0.MulByFp(api, l2.R0, xOverY[k])
+		l2.R1.MulByFp(api, l2.R1, yInv[k])
+
+		// ℓ × ℓ
+		prodLines = *fields_bls12377.Mul034By034(api, l1.R0, l1.R1, l2.R0, l2.R1)
+		// (ℓ × ℓ) × res
+		res.MulBy01234(api, prodLines)
 	}
 
 	return res, nil
 }
 
-// FinalExponentiation computes the final expo x**(p**6-1)(p**2+1)(p**4 - p**2 +1)/r
+// FinalExponentiation computes the exponentiation e1ᵈ
+// where d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+// we use instead d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+// where s is the cofactor 3 (Hayashida et al.)
 func FinalExponentiation(api frontend.API, e1 GT) GT {
-	const genT = ateLoop
+	const genT = 9586122913090633729
 
 	result := e1
 
@@ -122,6 +190,7 @@ func FinalExponentiation(api frontend.API, e1 GT) GT {
 	var t [3]GT
 
 	// easy part
+	// (p⁶-1)(p²+1)
 	t[0].Conjugate(api, result)
 	t[0].DivUnchecked(api, t[0], result)
 	result.FrobeniusSquare(api, t[0]).
@@ -154,6 +223,9 @@ func FinalExponentiation(api frontend.API, e1 GT) GT {
 }
 
 // Pair calculates the reduced pairing for a set of points
+// ∏ᵢ e(Pᵢ, Qᵢ).
+//
+// This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
 func Pair(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	f, err := MillerLoop(api, P, Q)
 	if err != nil {
@@ -162,11 +234,12 @@ func Pair(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	return FinalExponentiation(api, f), nil
 }
 
-// DoubleAndAddStep
-func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, LineEvaluation, LineEvaluation) {
+// doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
+// https://eprint.iacr.org/2022/1162 (Section 6.1)
+func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation, lineEvaluation) {
 
 	var n, d, l1, l2, x3, x4, y4 fields_bls12377.E2
-	var line1, line2 LineEvaluation
+	var line1, line2 lineEvaluation
 	var p G2Affine
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
@@ -211,11 +284,13 @@ func DoubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, LineEvaluat
 	return p, line1, line2
 }
 
-func DoubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
+// doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
+// https://eprint.iacr.org/2022/1162 (Section 6.1)
+func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, lineEvaluation) {
 
 	var n, d, l, xr, yr fields_bls12377.E2
 	var p G2Affine
-	var line LineEvaluation
+	var line lineEvaluation
 
 	// lambda = 3*p1.x**2/2*p.y
 	n.Square(api, p1.X).MulByFp(api, n, 3)
@@ -240,4 +315,39 @@ func DoubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
 
 	return p, line
 
+}
+
+// linesCompute computes the lines that goes through p1 and p2, and (p1+p2) and p1 but does not compute 2p1+p2
+func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvaluation) {
+
+	var n, d, l1, l2, x3 fields_bls12377.E2
+	var line1, line2 lineEvaluation
+
+	// compute lambda1 = (y2-y1)/(x2-x1)
+	n.Sub(api, p1.Y, p2.Y)
+	d.Sub(api, p1.X, p2.X)
+	l1.DivUnchecked(api, n, d)
+
+	// x3 =lambda1**2-p1.x-p2.x
+	x3.Square(api, l1).
+		Sub(api, x3, p1.X).
+		Sub(api, x3, p2.X)
+
+		// omit y3 computation
+
+		// compute line1
+	line1.R0.Neg(api, l1)
+	line1.R1.Mul(api, l1, p1.X).Sub(api, line1.R1, p1.Y)
+
+	// compute lambda2 = -lambda1-2*y1/(x3-x1)
+	n.Double(api, p1.Y)
+	d.Sub(api, x3, p1.X)
+	l2.DivUnchecked(api, n, d)
+	l2.Add(api, l2, l1).Neg(api, l2)
+
+	// compute line2
+	line2.R0.Neg(api, l2)
+	line2.R1.Mul(api, l2, p1.X).Sub(api, line2.R1, p1.Y)
+
+	return line1, line2
 }
