@@ -56,11 +56,11 @@ func NewComparator(api frontend.API, absDiffUpp *big.Int) *BoundedComparator {
 	// Our comparison methods work by using the fact that when a != b,
 	// between certain two numbers at the same time only one can be non-negative (positive or zero):
 	//
-	// AssertIsLessEq	-> (a - b, b - a)
-	// AssertIsLess		-> (a - b - 1, b - a - 1)
-	// IsLess			-> (a - b, b - a - 1)
-	// IsLessEq			-> (a - b - 1, b - a)
-	// Min				-> (a - b, b - a)
+	// AssertIsLessEq -> (a - b, b - a)
+	// AssertIsLess   -> (a - b - 1, b - a - 1)
+	// IsLess         -> (a - b, b - a - 1)
+	// IsLessEq       -> (a - b - 1, b - a)
+	// Min            -> (a - b, b - a)
 	//
 	// We need to be able to determine the non-negative number in each case, and we are doing that
 	// by relying on the fact that the negative number has a longer binary decomposition than a
@@ -72,13 +72,14 @@ func NewComparator(api frontend.API, absDiffUpp *big.Int) *BoundedComparator {
 	// On the other hand, we have |a - b| <= absDiffUpp which means:
 	// -(|a - b| + 1) >= -(absDiffUpp + 1). Therefore, if we let
 	// absDiffUppBitLen = absDiffUpp.BitLen(),
-	// that will be the minimum possible value for absDiffUppBitLen.
+	// that would be the best possible value for absDiffUppBitLen.
 	// Then, we will need to make sure that P - absDiffUpp - 1 has a binary representation longer
 	// than absDiffUppBitLen.
 	P := api.Compiler().Field()
 	if absDiffUpp.Cmp(big.NewInt(0)) != 1 || absDiffUpp.Cmp(P) != -1 {
 		panic("absDiffUpp must be a positive number smaller than the field order")
 	}
+	// we checked absDiffUpp < P, so we'll not have an overflow here.
 	smallestNeg := new(big.Int).Sub(P, absDiffUpp)
 	smallestNeg.Sub(smallestNeg, big.NewInt(1))
 	if smallestNeg.BitLen() <= absDiffUpp.BitLen() {
