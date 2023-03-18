@@ -8,6 +8,22 @@ import (
 	"testing"
 )
 
+func TestAssertIsLessEq(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.ProverSucceeded(&assertIsLessEqCircuit{}, &assertIsLessEqCircuit{A: 2, B: 3})
+	assert.ProverSucceeded(&assertIsLessEqCircuit{}, &assertIsLessEqCircuit{A: 2, B: 2})
+	assert.ProverSucceeded(&assertIsLessEqCircuit{}, &assertIsLessEqCircuit{A: -1, B: -1})
+	assert.ProverSucceeded(&assertIsLessEqCircuit{}, &assertIsLessEqCircuit{A: -2, B: -1})
+
+	assert.ProverFailed(&assertIsLessEqCircuit{}, &assertIsLessEqCircuit{A: -1, B: -2})
+	assert.ProverFailed(&assertIsLessEqCircuit{}, &assertIsLessEqCircuit{A: 4, B: 3})
+
+	// large difference:
+	assert.ProverSucceeded(&assertIsLessEqCircuit{}, &assertIsLessEqCircuit{A: 10, B: 17})
+
+	assert.ProverFailed(&assertIsLessEqCircuit{}, &assertIsLessEqCircuit{A: 10, B: 18})
+}
+
 func TestAssertIsLess(t *testing.T) {
 	assert := test.NewAssert(t)
 
@@ -21,39 +37,38 @@ func TestAssertIsLess(t *testing.T) {
 
 	// large difference:
 	assert.ProverSucceeded(&assertIsLessCircuit{}, &assertIsLessCircuit{A: 10, B: 18})
-
+	assert.ProverSucceeded(&assertIsLessEqCircuit{}, &assertIsLessEqCircuit{A: -7, B: 0})
 	assert.ProverFailed(&assertIsLessCircuit{}, &assertIsLessCircuit{A: 10, B: 19})
+	assert.ProverFailed(&assertIsLessEqCircuit{}, &assertIsLessEqCircuit{A: -8, B: 0})
 }
 
 func TestIsLess(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 2, B: 5, WantIsLess: 1})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: -3, B: 4, WantIsLess: 1, WantIsLessEq: 1})
 
-	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 50, B: 45, WantIsLess: 0})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 50, B: 45, WantIsLess: 0, WantIsLessEq: 0})
 
-	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 30, B: 30, WantIsLess: 0})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 30, B: 30, WantIsLess: 0, WantIsLessEq: 1})
 
-	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: -2, B: 5, WantIsLess: 1})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: -2, B: 5, WantIsLess: 1, WantIsLessEq: 1})
 
-	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: -57, B: -50, WantIsLess: 1})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: -57, B: -50, WantIsLess: 1, WantIsLessEq: 1})
 
-	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 0, B: -3, WantIsLess: 0})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 0, B: -3, WantIsLess: 0, WantIsLessEq: 0})
 
-	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: -4, B: -4, WantIsLess: 0})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: -4, B: -4, WantIsLess: 0, WantIsLessEq: 1})
 
-	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 3, B: 3, WantIsLess: 0})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 3, B: 3, WantIsLess: 0, WantIsLessEq: 1})
 
 	// large difference:
-	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 0, B: 8, WantIsLess: 1})
-	assert.ProverFailed(&isLessCircuit{}, &isLessCircuit{A: 8, B: 0, WantIsLess: 0})
-	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 7, B: 0, WantIsLess: 0})
-	assert.ProverFailed(&isLessCircuit{}, &isLessCircuit{A: 0, B: 9, WantIsLess: 1})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 0, B: 7, WantIsLess: 1, WantIsLessEq: 1})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: 6, B: 0, WantIsLess: 0, WantIsLessEq: 0})
+	assert.ProverSucceeded(&isLessCircuit{}, &isLessCircuit{A: -16, B: -10, WantIsLess: 1, WantIsLessEq: 1})
 
-	assert.ProverFailed(&isLessCircuit{}, &isLessCircuit{A: -7, B: 2, WantIsLess: 1})
-
-	assert.ProverFailed(&isLessCircuit{}, &isLessCircuit{A: -10, B: -18, WantIsLess: 0})
-
+	assert.ProverFailed(&isLessCircuit{}, &isLessCircuit{A: 0, B: 9, WantIsLess: 1, WantIsLessEq: 1})
+	assert.ProverFailed(&isLessCircuit{}, &isLessCircuit{A: -8, B: 0, WantIsLess: 1, WantIsLessEq: 1})
+	assert.ProverFailed(&isLessCircuit{}, &isLessCircuit{A: -10, B: -18, WantIsLess: 0, WantIsLessEq: 0})
 }
 
 func TestMin(t *testing.T) {
@@ -92,14 +107,27 @@ func (c *assertIsLessCircuit) Define(api frontend.API) error {
 	return nil
 }
 
+type assertIsLessEqCircuit struct {
+	A, B frontend.Variable `gnark:",public"`
+}
+
+func (c *assertIsLessEqCircuit) Define(api frontend.API) error {
+	comparator := cmp.NewComparator(api, big.NewInt(7))
+	comparator.AssertIsLessEq(c.A, c.B)
+
+	return nil
+}
+
 type isLessCircuit struct {
-	A, B       frontend.Variable
-	WantIsLess frontend.Variable
+	A, B         frontend.Variable
+	WantIsLess   frontend.Variable
+	WantIsLessEq frontend.Variable
 }
 
 func (c *isLessCircuit) Define(api frontend.API) error {
 	comparator := cmp.NewComparator(api, big.NewInt(7))
 	api.AssertIsEqual(c.WantIsLess, comparator.IsLess(c.A, c.B))
+	api.AssertIsEqual(c.WantIsLessEq, comparator.IsLessEq(c.A, c.B))
 
 	return nil
 }

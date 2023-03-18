@@ -24,10 +24,8 @@ func GetHints() []solver.Hint {
 // known. These methods perform only one binary conversion of length: absDiffUppBitLen. See
 // NewComparator, for more information.
 type BoundedComparator struct {
-	// Let's denote the upper bound of the absolute difference of a and b, with ADU, such that we have
-	// |a - b| <= ADU. The absDiffUppBitLen must be the number of bits of the binary representation of
-	// ADU. In other words, the value of absDiffUppBitLen should be chosen in a way that we always have
-	// |a - b| <= 2^absDiffUppBitLen - 1.
+	// absDiffUppBitLen is the assumed maximum length for the binary representation of |a - b|.
+	// Every method preforms exactly one binary decomposition of this length.
 	absDiffUppBitLen int
 	api              frontend.API
 
@@ -38,47 +36,74 @@ type BoundedComparator struct {
 // NewComparator creates a new BoundedComparator, which provides methods for comparing two numbers a
 // and b.
 //
-// absDiffUpp is the upper bound of the absolute difference of a and b, such that |a - b| <=
-// absDiffUpp. absDiffUpp must be a positive number, and P - absDiffUpp must have a longer binary
+// absDiffUpp is the upper bound of the absolute difference of a and b, such that
+// |a - b| <= absDiffUpp. Notice that |a - b| can be equal to absDiffUpp.
+// absDiffUpp must be a positive number, and P - absDiffUpp - 1 must have a longer binary
 // representation than absDiffUpp, where P is the order of the underlying field. Lower values of
 // absDiffUpp will reduce the number of generated constraints.
 //
-// This function panics when the provided value for absDiffUpp is not valid.
+// This function can detect invalid values of absDiffUpp and panics when the provided value is
+// not positive or is too big.
 //
-// As long as |a - b| < 2^absDiffUpp.BitLen(), all the methods of BoundedComparator work correctly.
-// If |a - b| = 2^absDiffUpp.BitLen(), either a proof can not be generated or the methods work
-// correctly. If |a - b| > 2^absDiffUpp.BitLen(), as long as |a - b| < 2^floor(log(P - |a - b|)), no
-// proofs can be generated.
+// As long as |a - b| <= absDiffUpp, all the methods of BoundedComparator work correctly.
 //
-// When |a - b| >= 2^floor(log(P - |a - b|)), the behaviour of the exported methods of
-// BoundedComparator is undefined.
+// If |a - b| > absDiffUpp, as long as |a - b| has a shorter binary representation than
+// P - |a - b| - 1, either a proof can not be generated or the methods work correctly.
+//
+// If the binary representation of |a - b| is longer or equal with P - |a - b| - 1,
+// the behaviour of the exported methods of BoundedComparator is undefined.
 func NewComparator(api frontend.API, absDiffUpp *big.Int) *BoundedComparator {
-	// We need to make sure that always P - |a - b| has a longer binary representation than |a - b|.
-	// These two numbers get closer as |a - b| increases, so we just need to check that P - absDiffUpp
-	// has a longer binary representation than absDiffUpp.
+	// Our comparison methods work by using the fact that when a != b,
+	// between certain two numbers at the same time only one can be non-negative (positive or zero):
+	//
+	// AssertIsLessEq	-> (a - b, b - a)
+	// AssertIsLess		-> (a - b - 1, b - a - 1)
+	// IsLess			-> (a - b, b - a - 1)
+	// IsLessEq			-> (a - b - 1, b - a)
+	// Min				-> (a - b, b - a)
+	//
+	// We need to be able to determine the non-negative number in each case, and we are doing that
+	// by relying on the fact that the negative number has a longer binary decomposition than a
+	// certain threshold: absDiffUppBitLen.
+	//
+	// We see that the biggest possible positive number is |a - b| and the smallest possible
+	// negative number is -(|a - b| + 1).
+	//
+	// On the other hand, we have |a - b| <= absDiffUpp which means:
+	// -(|a - b| + 1) >= -(absDiffUpp + 1). Therefore, if we let
+	// absDiffUppBitLen = absDiffUpp.BitLen(),
+	// that will be the minimum possible value for absDiffUppBitLen.
+	// Then, we will need to make sure that P - absDiffUpp - 1 has a binary representation longer
+	// than absDiffUppBitLen.
 	P := api.Compiler().Field()
 	if absDiffUpp.Cmp(big.NewInt(0)) != 1 || absDiffUpp.Cmp(P) != -1 {
 		panic("absDiffUpp must be a positive number smaller than the field order")
 	}
-	bitLenOfNeg := new(big.Int).Sub(P, absDiffUpp).BitLen()
-	bitLenOfPos := absDiffUpp.BitLen()
-	if bitLenOfNeg <= bitLenOfPos {
+	smallestNeg := new(big.Int).Sub(P, absDiffUpp)
+	smallestNeg.Sub(smallestNeg, big.NewInt(1))
+	if smallestNeg.BitLen() <= absDiffUpp.BitLen() {
 		panic("cannot construct the comparator, the specified absDiffUpp is too high")
 	}
 	return &BoundedComparator{
-		absDiffUppBitLen: bitLenOfPos,
+		absDiffUppBitLen: absDiffUpp.BitLen(),
 		api:              api,
 	}
 }
 
-// AssertIsLess defines a set of constraints that can not be satisfied when a >= b.
-func (bc BoundedComparator) AssertIsLess(a, b frontend.Variable) {
-	// a < b <==> b - a - 1 >= 0
+// AssertIsLessEq defines a set of constraints that can be satisfied only if a <= b.
+func (bc BoundedComparator) AssertIsLessEq(a, b frontend.Variable) {
+	// a <= b <==> b - a >= 0
 	bits.ToBinary(
 		bc.api,
-		bc.api.Sub(b, a, 1),
+		bc.api.Sub(b, a),
 		bits.WithNbDigits(bc.absDiffUppBitLen),
 	)
+}
+
+// AssertIsLess defines a set of constraints that can be satisfied only if a < b.
+func (bc BoundedComparator) AssertIsLess(a, b frontend.Variable) {
+	// a < b <==> a <= b - 1
+	bc.AssertIsLessEq(a, bc.api.Sub(b, 1))
 }
 
 // IsLess returns 1 if a < b, and returns 0 if a >= b.
@@ -96,6 +121,12 @@ func (bc BoundedComparator) IsLess(a, b frontend.Variable) frontend.Variable {
 		bits.WithNbDigits(bc.absDiffUppBitLen),
 	)
 	return indicator
+}
+
+// IsLessEq returns 1 if a <= b, and returns 0 if a > b.
+func (bc BoundedComparator) IsLessEq(a, b frontend.Variable) frontend.Variable {
+	// a <= b <==> a < b + 1
+	return bc.IsLess(a, bc.api.Add(b, 1))
 }
 
 // Min returns the minimum of a and b.
