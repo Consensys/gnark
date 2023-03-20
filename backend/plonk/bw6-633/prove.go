@@ -211,8 +211,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// We copy the coeffs of qk to pk is not mutated
 	lqkcoef := pk.lQk.Coefficients()
 	qkCompletedCanonical := make([]fr.Element, len(lqkcoef))
-	copy(qkCompletedCanonical, lqkcoef)
 	copy(qkCompletedCanonical, fw[:len(spr.Public)])
+	copy(qkCompletedCanonical[len(spr.Public):], lqkcoef[len(spr.Public):])
 	if spr.CommitmentInfo.Is() {
 		qkCompletedCanonical[spr.GetNbPublicVariables()+spr.CommitmentInfo.CommitmentIndex] = commitmentVal
 	}
