@@ -94,6 +94,9 @@ type ProvingKey struct {
 
 	// in lagrange coset basis --> these are not serialized, but computed from S1Canonical, S2Canonical, S3Canonical once.
 	lcS1, lcS2, lcS3 *iop.Polynomial
+
+	// in lagrange coset basis --> not serialized
+	lcIdIOP *iop.Polynomial
 }
 
 func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
@@ -158,6 +161,13 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	pk.lcS1 = pk.trace.S1.Clone().ToLagrangeCoset(&pk.Domain[1])
 	pk.lcS2 = pk.trace.S2.Clone().ToLagrangeCoset(&pk.Domain[1])
 	pk.lcS3 = pk.trace.S3.Clone().ToLagrangeCoset(&pk.Domain[1])
+
+	// storing Id
+	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
+	id := make([]fr.Element, pk.Domain[1].Cardinality)
+	id[1].SetOne()
+	pk.lcIdIOP = iop.NewPolynomial(&id, canReg)
+	pk.lcIdIOP.ToLagrangeCoset(&pk.Domain[1])
 }
 
 // NbPublicWitness returns the expected public witness size (number of field elements)

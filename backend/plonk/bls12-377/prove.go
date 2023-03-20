@@ -136,23 +136,59 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	evaluationRDomainSmall := []fr.Element(solution.R)
 	evaluationODomainSmall := []fr.Element(solution.O)
 
-	wliop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
-	wriop := iop.NewPolynomial(&evaluationRDomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
-	woiop := iop.NewPolynomial(&evaluationODomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
-
-	// Blind l, r, o before committing
-	// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
-	bwliop := wliop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
-	bwriop := wriop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
-	bwoiop := woiop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
-	if err := commitToLRO(bwliop.Coefficients(), bwriop.Coefficients(), bwoiop.Coefficients(), proof, pk.Vk.KZGSRS); err != nil {
-		return nil, err
-	}
+	// l, r o and blinded versions
+	var (
+		wliop,
+		wriop,
+		woiop,
+		bwliop,
+		bwriop,
+		bwoiop *iop.Polynomial
+	)
+	var wgLRO sync.WaitGroup
+	wgLRO.Add(3)
+	go func() {
+		wliop = iop.NewPolynomial(&evaluationLDomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
+		bwliop = wliop.Clone(int(pk.Domain[1].Cardinality)).Blind(1) // we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
+		wgLRO.Done()
+	}()
+	go func() {
+		wriop = iop.NewPolynomial(&evaluationRDomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
+		bwriop = wriop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
+		wgLRO.Done()
+	}()
+	go func() {
+		woiop = iop.NewPolynomial(&evaluationODomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
+		bwoiop = woiop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
+		wgLRO.Done()
+	}()
 
 	fw, ok := fullWitness.Vector().(fr.Vector)
 	if !ok {
 		return nil, witness.ErrInvalidWitness
 	}
+
+	// start computing lcqk
+	var lcqk *iop.Polynomial
+	chLcqk := make(chan struct{}, 1)
+	go func() {
+		// compute qk in canonical basis, completed with the public inputs
+		// We copy the coeffs of qk to pk is not mutated
+		lqkcoef := pk.lQk.Coefficients()
+		qkCompletedCanonical := make([]fr.Element, len(lqkcoef))
+		copy(qkCompletedCanonical, fw[:len(spr.Public)])
+		copy(qkCompletedCanonical[len(spr.Public):], lqkcoef[len(spr.Public):])
+		if spr.CommitmentInfo.Is() {
+			qkCompletedCanonical[spr.GetNbPublicVariables()+spr.CommitmentInfo.CommitmentIndex] = commitmentVal
+		}
+		pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
+		fft.BitReverse(qkCompletedCanonical)
+
+		canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
+		lcqk = iop.NewPolynomial(&qkCompletedCanonical, canReg)
+		lcqk.ToLagrangeCoset(&pk.Domain[1])
+		close(chLcqk)
+	}()
 
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
@@ -160,6 +196,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)], proof.PI2); err != nil {
 		return nil, err
 	}
+
+	// wait for polys to be blinded
+	wgLRO.Wait()
+	if err := commitToLRO(bwliop.Coefficients(), bwriop.Coefficients(), bwoiop.Coefficients(), proof, pk.Vk.KZGSRS); err != nil {
+		return nil, err
+	}
+
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2]) // TODO @Tabaie @ThomasPiellard add BSB commitment here?
 	if err != nil {
 		return nil, err
@@ -174,9 +217,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	beta.SetBytes(bbeta)
 
 	// compute the copy constraint's ratio
-	// We copy liop, riop, oiop because they are fft'ed in the process.
-	// We could have not copied them at the cost of doing one more bit reverse
-	// per poly...
+	// note that wliop, wriop and woiop are fft'ed (mutated) in the process.
 	ziop, err := iop.BuildRatioCopyConstraint(
 		[]*iop.Polynomial{
 			wliop,
@@ -207,34 +248,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return proof, err
 	}
 
-	// compute qk in canonical basis, completed with the public inputs
-	// We copy the coeffs of qk to pk is not mutated
-	lqkcoef := pk.lQk.Coefficients()
-	qkCompletedCanonical := make([]fr.Element, len(lqkcoef))
-	copy(qkCompletedCanonical, fw[:len(spr.Public)])
-	copy(qkCompletedCanonical[len(spr.Public):], lqkcoef[len(spr.Public):])
-	if spr.CommitmentInfo.Is() {
-		qkCompletedCanonical[spr.GetNbPublicVariables()+spr.CommitmentInfo.CommitmentIndex] = commitmentVal
-	}
-	pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
-	fft.BitReverse(qkCompletedCanonical)
-
 	// l, r, o are already blinded
 	bwliop.ToLagrangeCoset(&pk.Domain[1])
 	bwriop.ToLagrangeCoset(&pk.Domain[1])
 	bwoiop.ToLagrangeCoset(&pk.Domain[1])
 	pi2iop := wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
-
-	// we don't mutate so no need to clone the coefficients from the proving key.
-	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
-	lcqk := iop.NewPolynomial(&qkCompletedCanonical, canReg)
-	lcqk.ToLagrangeCoset(&pk.Domain[1])
-
-	// storing Id
-	id := make([]fr.Element, pk.Domain[1].Cardinality)
-	id[1].SetOne()
-	widiop := iop.NewPolynomial(&id, canReg)
-	widiop.ToLagrangeCoset(&pk.Domain[1])
 
 	// Store z(g*x), without reallocating a slice
 	bwsziop := bwziop.ShallowClone().Shift(1)
@@ -311,11 +329,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 		return c
 	}
+
+	// wait for lcqk
+	<-chLcqk
+
 	systemEvaluation, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse},
 		bwliop,
 		bwriop,
 		bwoiop,
-		widiop,
+		pk.lcIdIOP,
 		pk.lcS1,
 		pk.lcS2,
 		pk.lcS3,
