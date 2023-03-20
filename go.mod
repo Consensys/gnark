@@ -8,7 +8,7 @@ require (
 	github.com/consensys/gnark-crypto v0.9.2-0.20230314094804-5185eb8c3978
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/google/go-cmp v0.5.9
-	github.com/google/pprof v0.0.0-20230207041349-798e818bf904
+	github.com/google/pprof v0.0.0-20230309165930-d61513b1440d
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.29.0
 	github.com/stretchr/testify v1.8.2
@@ -18,10 +18,12 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
+	github.com/pkg/profile v1.7.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/sys v0.5.0 // indirect

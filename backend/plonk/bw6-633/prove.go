@@ -136,15 +136,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	evaluationRDomainSmall := []fr.Element(solution.R)
 	evaluationODomainSmall := []fr.Element(solution.O)
 
-	liop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
-	riop := iop.NewPolynomial(&evaluationRDomainSmall, lagReg)
-	oiop := iop.NewPolynomial(&evaluationODomainSmall, lagReg)
-	wliop := liop.ShallowClone()
-	wriop := riop.ShallowClone()
-	woiop := oiop.ShallowClone()
-	wliop.ToCanonical(&pk.Domain[0]).ToRegular()
-	wriop.ToCanonical(&pk.Domain[0]).ToRegular()
-	woiop.ToCanonical(&pk.Domain[0]).ToRegular()
+	wliop := iop.NewPolynomial(&evaluationLDomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
+	wriop := iop.NewPolynomial(&evaluationRDomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
+	woiop := iop.NewPolynomial(&evaluationODomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
 
 	// Blind l, r, o before committing
 	// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
@@ -185,9 +179,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// per poly...
 	ziop, err := iop.BuildRatioCopyConstraint(
 		[]*iop.Polynomial{
-			liop.Clone(),
-			riop.Clone(),
-			oiop.Clone(),
+			wliop,
+			wriop,
+			woiop,
 		},
 		pk.trace.S,
 		beta,
