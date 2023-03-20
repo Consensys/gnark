@@ -95,7 +95,7 @@ func (c *commitChecker) commit(api frontend.API) error {
 		panic(fmt.Sprintf("count %v", err))
 	}
 	// compute the ratoinal function Sum_i e_i / (X - s_i)
-	commitment, err := committer.Commit(collected...)
+	commitment, err := committer.Commit(append(collected, exps...)...)
 	if err != nil {
 		panic(fmt.Sprintf("commit %v", err))
 	}
