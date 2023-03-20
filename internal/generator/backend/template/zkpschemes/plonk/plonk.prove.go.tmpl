@@ -183,8 +183,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 
-
-
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2]) // TODO @Tabaie @ThomasPiellard add BSB commitment here?
 	if err != nil {
 		return nil, err
@@ -230,7 +228,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return proof, err
 	}
 
-
 	// l, r, o are already blinded
 	bwliop.ToLagrangeCoset(&pk.Domain[1])
 	bwriop.ToLagrangeCoset(&pk.Domain[1])
@@ -242,17 +239,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	bwsziop := bwziop.ShallowClone().Shift(1)
 	bwsziop.ToLagrangeCoset(&pk.Domain[1])
 
-	// L_{g^{0}}
-	cap := pk.Domain[1].Cardinality
-	if cap < pk.Domain[0].Cardinality {
-		cap = pk.Domain[0].Cardinality // sanity check
-	}
-	lone := make([]fr.Element, pk.Domain[0].Cardinality, cap)
-	lone[0].SetOne()
-	loneiop := iop.NewPolynomial(&lone, lagReg)
-	wloneiop := loneiop.ToCanonical(&pk.Domain[0]).
-		ToRegular().
-		ToLagrangeCoset(&pk.Domain[1])
+	
 
 	// Full capture using latest gnark crypto...
 	fic := func(fql, fqr, fqm, fqo, fqk, fqCPrime, l, r, o, pi2 fr.Element) fr.Element { // TODO @Tabaie make use of the fact that qCPrime is a selector: sparse and binary
@@ -334,7 +321,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		pk.lcQo,
 		lcqk,
 		pk.lcQcp,
-		wloneiop,
+		pk.lLoneIOP,
 	)
 	if err != nil {
 		return nil, err
