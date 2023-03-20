@@ -16,11 +16,12 @@
  * /
  */
 
-package pairing_bw6761
+package fields_bw6761
 
 import (
 	"bytes"
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fp"
 	"github.com/consensys/gnark/frontend"
@@ -60,7 +61,7 @@ func TestAddFp6(t *testing.T) {
 		C: NewE6(c),
 	}
 
-	err := test.IsSolved(&e6Add{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Add{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -94,7 +95,7 @@ func TestSubFp6(t *testing.T) {
 		C: NewE6(c),
 	}
 
-	err := test.IsSolved(&e6Sub{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Sub{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -126,7 +127,7 @@ func TestDoubleFp6(t *testing.T) {
 		B: NewE6(b),
 	}
 
-	err := test.IsSolved(&e6Double{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Double{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -162,7 +163,7 @@ func TestMulFp6(t *testing.T) {
 
 	// add=72955 equals=1098 fromBinary=0 mul=71442 sub=1049 toBinary=0
 	// counters add=34695 equals=582 fromBinary=0 mul=32806 sub=903 toBinary=0
-	err := test.IsSolved(&e6Mul{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Mul{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -196,7 +197,7 @@ func TestSquareFp6(t *testing.T) {
 
 	// add=51966 equals=768 fromBinary=0 mul=50706 sub=780 toBinary=0
 	// add=29636 equals=456 fromBinary=0 mul=28014 sub=686 toBinary=0
-	err := test.IsSolved(&e6Square{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Square{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -230,7 +231,7 @@ func TestInverseFp6(t *testing.T) {
 
 	// add=136669 equals=2033 fromBinary=0 mul=134924 sub=1691 toBinary=0
 	// add=114515 equals=1721 fromBinary=0 mul=112628 sub=1617 toBinary=0
-	err := test.IsSolved(&e6Inverse{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Inverse{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -263,7 +264,7 @@ func TestConjugateFp6(t *testing.T) {
 	}
 
 	// add=7095 equals=108 fromBinary=0 mul=6990 sub=165 toBinary=0
-	err := test.IsSolved(&e6Conjugate{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Conjugate{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -298,7 +299,7 @@ func TestCyclotomicSquareCompressedFp6(t *testing.T) {
 
 	// add=28975 equals=438 fromBinary=0 mul=28342 sub=401 toBinary=0
 	// add=19987 equals=298 fromBinary=0 mul=19064 sub=339 toBinary=0
-	err := test.IsSolved(&e6CyclotomicSquareCompressed{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6CyclotomicSquareCompressed{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -332,7 +333,7 @@ func TestDecompressKarabinaFp6(t *testing.T) {
 
 	// add=28723 equals=438 fromBinary=0 mul=28342 sub=389 toBinary=0
 	// add=17214 equals=284 fromBinary=0 mul=16709 sub=289 toBinary=0
-	err := test.IsSolved(&e6DecompressKarabina{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6DecompressKarabina{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -367,7 +368,7 @@ func TestCyclotomicSquareFp6(t *testing.T) {
 
 	// add=39871 equals=603 fromBinary=0 mul=39018 sub=563 toBinary=0
 	// add=26229 equals=393 fromBinary=0 mul=24991 sub=495 toBinary=0
-	err := test.IsSolved(&e6CyclotomicSquare{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6CyclotomicSquare{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -398,7 +399,7 @@ func TestCreateLimbs(t *testing.T) {
 	base := new(big.Int).Lsh(big.NewInt(1), uint(nbBits))
 	fmt.Println("base:", base.String())
 	r, _ := new(big.Int).SetString("21888242871839275222246405745257275088459989201842526013704146201830519410949", 10)
-	fmt.Println(new(big.Int).Sub(testCurve.ScalarField(), r).String())
+	fmt.Println(new(big.Int).Sub(ecc.BN254.ScalarField(), r).String())
 	tmp := new(big.Int).Set(input)
 	for i := 0; i < len(res); i++ {
 		res[i].Mod(tmp, base)

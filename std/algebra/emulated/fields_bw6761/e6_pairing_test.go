@@ -16,9 +16,10 @@
  * /
  */
 
-package pairing_bw6761
+package fields_bw6761
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fp"
 	"github.com/consensys/gnark/frontend"
@@ -56,9 +57,7 @@ func TestExptFp6(t *testing.T) {
 		B: NewE6(b),
 	}
 
-	// add=4011683 equals=39002 fromBinary=0 mul=3954956 sub=39153 toBinary=0
-	// add=4011683 equals=39002 fromBinary=0 mul=3954956 sub=39153 toBinary=0
-	err := test.IsSolved(&e6Expt{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Expt{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -93,7 +92,7 @@ func TestExpc2Fp6(t *testing.T) {
 
 	// add=287618 equals=4068 fromBinary=0 mul=281540 sub=3690 toBinary=0
 	// add=197836 equals=3048 fromBinary=0 mul=188488 sub=3810 toBinary=0
-	err := test.IsSolved(&e6Expc2{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Expc2{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -127,13 +126,13 @@ func TestExpc1Fp6(t *testing.T) {
 	}
 
 	// add=578954 equals=8028 fromBinary=0 mul=566870 sub=7248 toBinary=0
-	err := test.IsSolved(&e6Expc1{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Expc1{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
 type e6MulBy034 struct {
 	A, B       E6
-	R0, R1, R2 baseField
+	R0, R1, R2 BaseField
 }
 
 func (circuit *e6MulBy034) Define(api frontend.API) error {
@@ -142,10 +141,10 @@ func (circuit *e6MulBy034) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	var l lineEvaluation
-	l.r0 = circuit.R0
-	l.r1 = circuit.R1
-	l.r2 = circuit.R2
+	var l LineEvaluation
+	l.R0 = circuit.R0
+	l.R1 = circuit.R1
+	l.R2 = circuit.R2
 	expected := e.MulBy034(&circuit.A, &l)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
@@ -173,13 +172,13 @@ func TestMulBy034Fp6(t *testing.T) {
 	}
 
 	//  add=54322 equals=823 fromBinary=0 mul=53414 sub=702 toBinary=0
-	err := test.IsSolved(&e6MulBy034{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6MulBy034{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
 type e6Mul034By034 struct {
-	D0, D3, D4 baseField
-	C0, C3, C4 baseField
+	D0, D3, D4 BaseField
+	C0, C3, C4 BaseField
 	Res        E6
 }
 
@@ -218,6 +217,6 @@ func TestMul034By034Fp6(t *testing.T) {
 	}
 
 	// add=28733 equals=438 fromBinary=0 mul=28386 sub=401 toBinary=0
-	err := test.IsSolved(&e6Mul034By034{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e6Mul034By034{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }

@@ -16,7 +16,7 @@
  * /
  */
 
-package pairing_bw6761
+package sw_bw6761
 
 import (
 	"crypto/rand"
@@ -26,6 +26,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/std/algebra/emulated/fields_bw6761"
 	"github.com/consensys/gnark/test"
 	"testing"
 )
@@ -77,7 +78,7 @@ func TestMillerLoopBW6761(t *testing.T) {
 		witness := millerLoopBW6761{
 			A: NewG1Affine(a),
 			B: NewG2Affine(b),
-			C: NewE6(c),
+			C: fields_bw6761.NewE6(c),
 		}
 
 		err = test.IsSolved(&millerLoopBW6761{}, &witness, testCurve.ScalarField())
@@ -142,7 +143,7 @@ func TestDoubleMillerLoopBW6761(t *testing.T) {
 			B1: NewG2Affine(b1),
 			B2: NewG2Affine(b2),
 			B3: NewG2Affine(b3),
-			C:  NewE6(c),
+			C:  fields_bw6761.NewE6(c),
 		}
 
 		err = test.IsSolved(&tripleMillerLoopBW6761{}, &witness, testCurve.ScalarField())
@@ -192,8 +193,8 @@ func TestFinalExponentiationBW6761(t *testing.T) {
 	d := bw6761.FinalExponentiation(&c)
 
 	witness := finalExponentiationBW6761{
-		A: NewE6(c),
-		B: NewE6(d),
+		A: fields_bw6761.NewE6(c),
+		B: fields_bw6761.NewE6(d),
 	}
 
 	err = test.IsSolved(&finalExponentiationBW6761{}, &witness, testCurve.ScalarField())
@@ -243,7 +244,7 @@ func TestPairingBW6761(t *testing.T) {
 	witness := pairingBW6761{
 		A: NewG1Affine(a),
 		B: NewG2Affine(b),
-		C: NewE6(c),
+		C: fields_bw6761.NewE6(c),
 	}
 
 	err = test.IsSolved(&pairingBW6761{}, &witness, testCurve.ScalarField())

@@ -16,13 +16,14 @@
  * /
  */
 
-package pairing_bw6761
+package sw_bw6761
 
 import (
 	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/emulated/fields_bw6761"
 	"github.com/consensys/gnark/std/math/emulated"
 	"math/big"
 )
@@ -41,7 +42,7 @@ func init() {
 }
 
 type Pairing struct {
-	*ext6
+	*fields_bw6761.ext6
 }
 
 func NewPairing(api frontend.API) (*Pairing, error) {
@@ -50,17 +51,17 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
 	return &Pairing{
-		ext6: NewExt6(ba),
+		ext6: fields_bw6761.NewExt6(ba),
 	}, nil
 }
 
 // GT target group of the pairing
-type GT = E6
+type GT = fields_bw6761.E6
 
 type lineEvaluation struct {
-	r0 baseField
-	r1 baseField
-	r2 baseField
+	r0 fields_bw6761.baseField
+	r1 fields_bw6761.baseField
+	r2 fields_bw6761.baseField
 }
 
 // Pair calculates the reduced pairing for a set of points

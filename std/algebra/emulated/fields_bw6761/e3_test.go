@@ -16,9 +16,10 @@
  * /
  */
 
-package pairing_bw6761
+package fields_bw6761
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fp"
 	"github.com/consensys/gnark/frontend"
@@ -58,7 +59,7 @@ func TestAddFp3(t *testing.T) {
 	}
 
 	// add=3597 equals=54 fromBinary=0 mul=3495 sub=66 toBinary=0
-	err := test.IsSolved(&e3Add{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3Add{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -93,7 +94,7 @@ func TestSubFp3(t *testing.T) {
 	}
 
 	// add=3564 equals=54 fromBinary=0 mul=3495 sub=99 toBinary=0
-	err := test.IsSolved(&e3Sub{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3Sub{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -126,7 +127,7 @@ func TestNegFp3(t *testing.T) {
 	}
 
 	// add=3564 equals=54 fromBinary=0 mul=3495 sub=99 toBinary=0
-	err := test.IsSolved(&e3Neg{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3Neg{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -159,7 +160,7 @@ func TestDoubleFp3(t *testing.T) {
 	}
 
 	// add=3597 equals=54 fromBinary=0 mul=3495 sub=66 toBinary=0
-	err := test.IsSolved(&e3Double{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3Double{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -195,7 +196,7 @@ func TestMulFp3(t *testing.T) {
 
 	// add=25301 equals=384 fromBinary=0 mul=24891 sub=346 toBinary=0
 	// add=14158 equals=228 fromBinary=0 mul=13677 sub=294 toBinary=0
-	err := test.IsSolved(&e3Mul{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3Mul{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -229,13 +230,13 @@ func TestMulByNonResidueFp3(t *testing.T) {
 	}
 
 	// add=3586 equals=54 fromBinary=0 mul=3495 sub=77 toBinary=0
-	err := test.IsSolved(&e3MulByNonResidue{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3MulByNonResidue{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
 type e3MulByElement struct {
 	A E3
-	Y baseField
+	Y BaseField
 	B E3
 }
 
@@ -268,13 +269,13 @@ func TestMulByElementFp3(t *testing.T) {
 
 	// add=14163 equals=219 fromBinary=0 mul=14127 sub=162 toBinary=0
 	// add=10734 equals=165 fromBinary=0 mul=10764 sub=126 toBinary=0
-	err := test.IsSolved(&e3MulByElement{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3MulByElement{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
 type e3MulBy01 struct {
 	A      E3
-	C0, C1 baseField
+	C0, C1 BaseField
 	B      E3
 }
 
@@ -309,7 +310,7 @@ func TestMulBy01Fp3(t *testing.T) {
 
 	// add=21570 equals=329 fromBinary=0 mul=21303 sub=281 toBinary=0
 	// add=13029 equals=207 fromBinary=0 mul=12750 sub=231 toBinary=0
-	err := test.IsSolved(&e3MulBy01{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3MulBy01{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -343,7 +344,7 @@ func TestSquareFp3(t *testing.T) {
 
 	// add=21702 equals=329 fromBinary=0 mul=21391 sub=281 toBinary=0
 	// add=13287 equals=207 fromBinary=0 mul=12904 sub=221 toBinary=0
-	err := test.IsSolved(&e3Square{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3Square{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -376,7 +377,7 @@ func TestInverseFp3(t *testing.T) {
 	}
 
 	// add=50605 equals=769 fromBinary=0 mul=50315 sub=558 toBinary=0
-	err := test.IsSolved(&e3Inverse{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3Inverse{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -409,6 +410,6 @@ func TestConjugateFp3(t *testing.T) {
 	}
 
 	// add=3542 equals=54 fromBinary=0 mul=3495 sub=77 toBinary=0
-	err := test.IsSolved(&e3Conjugate{}, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&e3Conjugate{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }

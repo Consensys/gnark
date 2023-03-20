@@ -16,7 +16,7 @@
  * /
  */
 
-package pairing_bw6761
+package fields_bw6761
 
 import (
 	"github.com/consensys/gnark/std/math/emulated"
@@ -31,15 +31,15 @@ var (
 )
 
 // Frobenius set z in E6 to Frobenius(x), return z
-func (e ext6) Frobenius(x *E6) *E6 {
+func (e Ext6) Frobenius(x *E6) *E6 {
 	var z E6
 	z.B0.A0 = x.B0.A0
-	z.B0.A1 = *e.fp.Mul(&x.B0.A1, &_frobA)
-	z.B0.A2 = *e.fp.Mul(&x.B0.A2, &_frobB)
+	z.B0.A1 = *e.Fp.Mul(&x.B0.A1, &_frobA)
+	z.B0.A2 = *e.Fp.Mul(&x.B0.A2, &_frobB)
 
-	z.B1.A0 = *e.fp.Mul(&x.B1.A0, &_frobC)
-	z.B1.A1 = *e.fp.Mul(&x.B1.A1, &_frobAC)
-	z.B1.A2 = *e.fp.Mul(&x.B1.A2, &_frobBC)
+	z.B1.A0 = *e.Fp.Mul(&x.B1.A0, &_frobC)
+	z.B1.A1 = *e.Fp.Mul(&x.B1.A1, &_frobAC)
+	z.B1.A2 = *e.Fp.Mul(&x.B1.A2, &_frobBC)
 
 	return &z
 }

@@ -16,15 +16,16 @@
  * /
  */
 
-package pairing_bw6761
+package sw_bw6761
 
 import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	"github.com/consensys/gnark/std/algebra/emulated/fields_bw6761"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
 type G1Affine struct {
-	X, Y baseField
+	X, Y fields_bw6761.baseField
 }
 
 func NewG1Affine(a bw6761.G1Affine) G1Affine {
@@ -43,7 +44,7 @@ func (p *G1Affine) Neg(pr *Pairing, a *G1Affine) *G1Affine {
 
 // g1Proj point in projective coordinates
 type g1Proj struct {
-	x, y, z baseField
+	x, y, z fields_bw6761.baseField
 }
 
 // Set sets p to the provided point

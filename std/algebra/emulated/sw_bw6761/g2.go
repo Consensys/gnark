@@ -16,27 +16,21 @@
  * /
  */
 
-package pairing_bw6761
+package sw_bw6761
 
-import "C"
 import (
-	"fmt"
-	"log"
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	"github.com/consensys/gnark/std/algebra/emulated/fields_bw6761"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
-func init() {
-	log.SetFlags(log.Lshortfile | log.LstdFlags)
+type G2Affine struct {
+	X, Y fields_bw6761.baseField
 }
 
-func StringElement(pr *Pairing, a *baseField) string {
-	s, _ := pr.fp.String(a)
-	return s
-}
-
-func (pr Pairing) StringG1Affine(a *G1Affine) string {
-	return fmt.Sprintf("E([%s,%s])\n", StringElement(&pr, &a.X), StringElement(&pr, &a.Y))
-}
-
-func (pr Pairing) StringG2Affine(a *G2Affine) string {
-	return fmt.Sprintf("E([%s,%s])\n", StringElement(&pr, &a.X), StringElement(&pr, &a.Y))
+func NewG2Affine(a bw6761.G2Affine) G2Affine {
+	return G2Affine{
+		X: emulated.ValueOf[emulated.BW6761Fp](a.X),
+		Y: emulated.ValueOf[emulated.BW6761Fp](a.Y),
+	}
 }
