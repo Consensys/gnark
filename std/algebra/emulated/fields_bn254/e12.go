@@ -327,6 +327,22 @@ func (e Ext12) FrobeniusCube(x *E12) *E12 {
 	}
 }
 
+func (e Ext12) Zero() *E12 {
+	zero := e.fp.Zero()
+	return &E12{
+		C0: E6{
+			B0: E2{A0: *zero, A1: *zero},
+			B1: E2{A0: *zero, A1: *zero},
+			B2: E2{A0: *zero, A1: *zero},
+		},
+		C1: E6{
+			B0: E2{A0: *zero, A1: *zero},
+			B1: E2{A0: *zero, A1: *zero},
+			B2: E2{A0: *zero, A1: *zero},
+		},
+	}
+}
+
 func (e Ext12) One() *E12 {
 	z000 := e.fp.One()
 	zero := e.fp.Zero()

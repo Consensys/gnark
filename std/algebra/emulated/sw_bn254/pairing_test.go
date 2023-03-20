@@ -7,10 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 )
 
@@ -89,13 +86,40 @@ func TestPairTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
-// bench
-var ccsBench constraint.ConstraintSystem
+type MultiPairCircuit struct {
+	In1G1 G1Affine
+	In2G1 G1Affine
+	In1G2 G2Affine
+	In2G2 G2Affine
+	Res   GTEl
+}
 
-func BenchmarkPairing(b *testing.B) {
-	var c PairCircuit
-	p := profile.Start()
-	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println(p.NbConstraints())
+func (c *MultiPairCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res, err := pairing.Pair([]*G1Affine{&c.In1G1, &c.In1G1, &c.In2G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2, &c.In1G2, &c.In2G2})
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiPairTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, q1 := randomG1G2Affines(assert)
+	p2, q2 := randomG1G2Affines(assert)
+	res, err := bn254.Pair([]bn254.G1Affine{p1, p1, p2, p2}, []bn254.G2Affine{q1, q2, q1, q2})
+	assert.NoError(err)
+	witness := MultiPairCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
+		Res:   NewGTEl(res),
+	}
+	err = test.IsSolved(&MultiPairCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }

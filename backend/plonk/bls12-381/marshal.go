@@ -21,6 +21,7 @@ import (
 
 	"errors"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/iop"
 	"io"
 )
 
@@ -108,7 +109,7 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	n += n2
 
 	// sanity check len(Permutation) == 3*int(pk.Domain[0].Cardinality)
-	if len(pk.Permutation) != (3 * int(pk.Domain[0].Cardinality)) {
+	if len(pk.trace.S) != (3 * int(pk.Domain[0].Cardinality)) {
 		return n, errors.New("invalid permutation size, expected 3*domain cardinality")
 	}
 
@@ -117,16 +118,16 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	// encode the size (nor does it convert from Montgomery to Regular form)
 	// so we explicitly transmit []fr.Element
 	toEncode := []interface{}{
-		([]fr.Element)(pk.Ql),
-		([]fr.Element)(pk.Qr),
-		([]fr.Element)(pk.Qm),
-		([]fr.Element)(pk.Qo),
-		([]fr.Element)(pk.CQk),
-		([]fr.Element)(pk.LQk),
-		([]fr.Element)(pk.S1Canonical),
-		([]fr.Element)(pk.S2Canonical),
-		([]fr.Element)(pk.S3Canonical),
-		pk.Permutation,
+		([]fr.Element)(pk.trace.Ql.Coefficients()),
+		([]fr.Element)(pk.trace.Qr.Coefficients()),
+		([]fr.Element)(pk.trace.Qm.Coefficients()),
+		([]fr.Element)(pk.trace.Qo.Coefficients()),
+		([]fr.Element)(pk.trace.Qk.Coefficients()),
+		([]fr.Element)(pk.lQk.Coefficients()),
+		([]fr.Element)(pk.trace.S1.Coefficients()),
+		([]fr.Element)(pk.trace.S2.Coefficients()),
+		([]fr.Element)(pk.trace.S3.Coefficients()),
+		pk.trace.S,
 	}
 
 	for _, v := range toEncode {
@@ -158,20 +159,22 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 		return n, err
 	}
 
-	pk.Permutation = make([]int64, 3*pk.Domain[0].Cardinality)
+	pk.trace.S = make([]int64, 3*pk.Domain[0].Cardinality)
 
 	dec := curve.NewDecoder(r)
+
+	var ql, qr, qm, qo, qk, lqk, s1, s2, s3 []fr.Element
 	toDecode := []interface{}{
-		(*[]fr.Element)(&pk.Ql),
-		(*[]fr.Element)(&pk.Qr),
-		(*[]fr.Element)(&pk.Qm),
-		(*[]fr.Element)(&pk.Qo),
-		(*[]fr.Element)(&pk.CQk),
-		(*[]fr.Element)(&pk.LQk),
-		(*[]fr.Element)(&pk.S1Canonical),
-		(*[]fr.Element)(&pk.S2Canonical),
-		(*[]fr.Element)(&pk.S3Canonical),
-		&pk.Permutation,
+		&ql,
+		&qr,
+		&qm,
+		&qo,
+		&qk,
+		&lqk,
+		&s1,
+		&s2,
+		&s3,
+		&pk.trace.S,
 	}
 
 	for _, v := range toDecode {
@@ -179,6 +182,19 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 			return n + dec.BytesRead(), err
 		}
 	}
+
+	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
+	pk.trace.Ql = iop.NewPolynomial(&ql, canReg)
+	pk.trace.Qr = iop.NewPolynomial(&qr, canReg)
+	pk.trace.Qm = iop.NewPolynomial(&qm, canReg)
+	pk.trace.Qo = iop.NewPolynomial(&qo, canReg)
+	pk.trace.Qk = iop.NewPolynomial(&qk, canReg)
+	pk.trace.S1 = iop.NewPolynomial(&s1, canReg)
+	pk.trace.S2 = iop.NewPolynomial(&s2, canReg)
+	pk.trace.S3 = iop.NewPolynomial(&s3, canReg)
+
+	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
+	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
 
 	pk.computeLagrangeCosetPolys()
 
