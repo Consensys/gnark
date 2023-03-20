@@ -7,7 +7,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 )
 
@@ -49,11 +52,10 @@ func TestFinalExponentiationTestSolve(t *testing.T) {
 		InGt: NewGTEl(gt),
 		Res:  NewGTEl(res),
 	}
-	err := test.IsSolved(&FinalExponentiationCircuit{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&FinalExponentiationCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
-/*
 type PairCircuit struct {
 	InG1 G1Affine
 	InG2 G2Affine
@@ -83,7 +85,7 @@ func TestPairTestSolve(t *testing.T) {
 		InG2: NewG2Affine(q),
 		Res:  NewGTEl(res),
 	}
-	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BLS12_381.ScalarField())
+	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -93,8 +95,7 @@ var ccsBench constraint.ConstraintSystem
 func BenchmarkPairing(b *testing.B) {
 	var c PairCircuit
 	p := profile.Start()
-	ccsBench, _ = frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &c)
+	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
 	p.Stop()
 	fmt.Println(p.NbConstraints())
 }
-*/

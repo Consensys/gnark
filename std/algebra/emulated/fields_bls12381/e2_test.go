@@ -38,7 +38,7 @@ func TestAddFp2(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2Add{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2Add{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -70,7 +70,7 @@ func TestSubFp2(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2Sub{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2Sub{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -101,7 +101,7 @@ func TestDoubleFp2(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2Double{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2Double{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -134,7 +134,7 @@ func TestMulFp2(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2Mul{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2Mul{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -165,7 +165,7 @@ func TestSquareFp2(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2Square{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2Square{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -198,7 +198,7 @@ func TestDivFp2(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2Div{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2Div{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -234,7 +234,7 @@ func TestMulByElement(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2MulByElement{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2MulByElement{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -266,7 +266,7 @@ func TestMulFp2ByNonResidue(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2MulByNonResidue{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2MulByNonResidue{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -298,7 +298,7 @@ func TestNegFp2(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2Neg{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2Neg{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -329,7 +329,7 @@ func TestConjugateFp2(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2Conjugate{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2Conjugate{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -360,6 +360,6 @@ func TestInverseFp2(t *testing.T) {
 		C: FromE2(&c),
 	}
 
-	err := test.IsSolved(&e2Inverse{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e2Inverse{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }

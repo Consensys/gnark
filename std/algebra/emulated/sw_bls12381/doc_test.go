@@ -2,11 +2,16 @@ package sw_bls12381_test
 
 import (
 	"crypto/rand"
+	"fmt"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 )
 
-/*
 type PairCircuit struct {
 	InG1 sw_bls12381.G1Affine
 	InG2 sw_bls12381.G2Affine
@@ -41,7 +46,7 @@ func ExamplePairing() {
 		InG2: sw_bls12381.NewG2Affine(q),
 		Res:  sw_bls12381.NewGTEl(res),
 	}
-	ccs, err := frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &circuit)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		panic(err)
 	} else {
@@ -53,7 +58,7 @@ func ExamplePairing() {
 	} else {
 		fmt.Println("setup done")
 	}
-	secretWitness, err := frontend.NewWitness(&witness, ecc.BLS12_381.ScalarField())
+	secretWitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
 	if err != nil {
 		panic(err)
 	} else {
@@ -78,7 +83,6 @@ func ExamplePairing() {
 		fmt.Println("verify")
 	}
 }
-*/
 
 func randomG1G2Affines() (p bls12381.G1Affine, q bls12381.G2Affine, err error) {
 	_, _, G1AffGen, G2AffGen := bls12381.Generators()

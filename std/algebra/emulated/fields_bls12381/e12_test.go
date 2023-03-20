@@ -41,7 +41,7 @@ func TestAddFp12(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12Add{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12Add{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -73,7 +73,7 @@ func TestSubFp12(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12Sub{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12Sub{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -106,7 +106,7 @@ func TestMulFp12(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12Mul{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12Mul{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -139,7 +139,7 @@ func TestDivFp12(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12Div{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12Div{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -170,7 +170,7 @@ func TestSquareFp12(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12Square{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12Square{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -208,7 +208,7 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12CycloSquare{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12CycloSquare{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -245,7 +245,7 @@ func TestFp12CyclotomicSquareKarabina(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12CycloSquareKarabina{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12CycloSquareKarabina{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -284,7 +284,7 @@ func TestFp12CyclotomicSquareKarabinaAndDecompress(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12CycloSquareKarabinaAndDecompress{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12CycloSquareKarabinaAndDecompress{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -315,7 +315,7 @@ func TestConjugateFp12(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12Conjugate{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12Conjugate{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -346,7 +346,7 @@ func TestInverseFp12(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12Inverse{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12Inverse{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -385,7 +385,7 @@ func TestFp12Expt(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12Expt{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12Expt{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -415,7 +415,7 @@ func TestFrobeniusFp12(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12Frobenius{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12Frobenius{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -446,7 +446,7 @@ func TestFrobeniusSquareFp12(t *testing.T) {
 		C: FromE12(&c),
 	}
 
-	err := test.IsSolved(&e12FrobeniusSquare{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12FrobeniusSquare{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -477,7 +477,7 @@ func TestFp12MulBy014(t *testing.T) {
 	_, _ = b.SetRandom()
 	_, _ = c.SetRandom()
 	w.Set(&a)
-	w.MulBy014(&one, &b, &c)
+	w.MulBy014(&b, &c, &one)
 
 	witness := e12MulBy014{
 		A: FromE12(&a),
@@ -486,7 +486,7 @@ func TestFp12MulBy014(t *testing.T) {
 		W: FromE12(&w),
 	}
 
-	err := test.IsSolved(&e12MulBy014{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e12MulBy014{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }

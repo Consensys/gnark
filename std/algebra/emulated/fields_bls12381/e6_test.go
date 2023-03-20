@@ -37,7 +37,7 @@ func TestAddFp6(t *testing.T) {
 		C: FromE6(&c),
 	}
 
-	err := test.IsSolved(&e6Add{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e6Add{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -69,7 +69,7 @@ func TestSubFp6(t *testing.T) {
 		C: FromE6(&c),
 	}
 
-	err := test.IsSolved(&e6Sub{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e6Sub{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -102,7 +102,7 @@ func TestMulFp6(t *testing.T) {
 		C: FromE6(&c),
 	}
 
-	err := test.IsSolved(&e6Mul{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e6Mul{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -133,7 +133,7 @@ func TestSquareFp6(t *testing.T) {
 		C: FromE6(&c),
 	}
 
-	err := test.IsSolved(&e6Square{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e6Square{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -166,7 +166,7 @@ func TestDivFp6(t *testing.T) {
 		C: FromE6(&c),
 	}
 
-	err := test.IsSolved(&e6Div{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e6Div{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -198,7 +198,7 @@ func TestMulFp6ByNonResidue(t *testing.T) {
 		C: FromE6(&c),
 	}
 
-	err := test.IsSolved(&e6MulByNonResidue{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e6MulByNonResidue{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -234,21 +234,21 @@ func TestMulFp6ByE2(t *testing.T) {
 		C: FromE6(&c),
 	}
 
-	err := test.IsSolved(&e6MulByE2{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e6MulByE2{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
 
 type e6MulBy01 struct {
-	A  E6
-	C1 E2
-	C  E6 `gnark:",public"`
+	A      E6
+	C0, C1 E2
+	C      E6 `gnark:",public"`
 }
 
 func (circuit *e6MulBy01) Define(api frontend.API) error {
 	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
-	expected := e.MulBy01(&circuit.A, &circuit.C1)
+	expected := e.MulBy01(&circuit.A, &circuit.C0, &circuit.C1)
 	e.AssertIsEqual(expected, &circuit.C)
 
 	return nil
@@ -261,18 +261,19 @@ func TestMulFp6By01(t *testing.T) {
 	var a, c bls12381.E6
 	var C0, C1 bls12381.E2
 	_, _ = a.SetRandom()
-	C0.SetOne()
+	_, _ = C0.SetRandom()
 	_, _ = C1.SetRandom()
 	c.Set(&a)
 	c.MulBy01(&C0, &C1)
 
 	witness := e6MulBy01{
 		A:  FromE6(&a),
+		C0: FromE2(&C0),
 		C1: FromE2(&C1),
 		C:  FromE6(&c),
 	}
 
-	err := test.IsSolved(&e6MulBy01{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e6MulBy01{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -304,7 +305,7 @@ func TestNegFp6(t *testing.T) {
 		C: FromE6(&c),
 	}
 
-	err := test.IsSolved(&e6Neg{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e6Neg{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -336,6 +337,6 @@ func TestInverseFp6(t *testing.T) {
 		C: FromE6(&c),
 	}
 
-	err := test.IsSolved(&e6Inverse{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&e6Inverse{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }

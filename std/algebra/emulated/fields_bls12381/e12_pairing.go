@@ -70,20 +70,25 @@ func (e Ext12) Expt(x *E12) *E12 {
 // MulBy014 multiplies z by an E12 sparse element of the form
 //
 //	E12{
-//		C0: E6{B0: 1, B1: c1, B2: 0},
-//		C1: E6{B0: 0, B1: c4, B2: 0},
+//		C0: E6{B0: c0, B1: c1, B2: 0},
+//		C1: E6{B0: 0, B1: 1, B2: 0},
 //	}
-func (e *Ext12) MulBy014(z *E12, c1, c4 *E2) *E12 {
+func (e *Ext12) MulBy014(z *E12, c0, c1 *E2) *E12 {
 
 	a := z.C0
-	a = *e.Ext6.MulBy01(&a, c1)
+	a = *e.MulBy01(&a, c0, c1)
 
-	b := z.C1
-	b = *e.Ext6.MulBy1(&b, c4)
-	d := e.Ext2.Add(c1, c4)
+	var b E6
+	// Mul by E6{0, 1, 0}
+	b.B0 = *e.Ext2.MulByNonResidue(&z.C1.B2)
+	b.B2 = z.C1.B1
+	b.B1 = z.C1.B0
+
+	one := e.Ext2.One()
+	d := e.Ext2.Add(c1, one)
 
 	zC1 := e.Ext6.Add(&z.C1, &z.C0)
-	zC1 = e.Ext6.MulBy01(zC1, d)
+	zC1 = e.Ext6.MulBy01(zC1, c0, d)
 	zC1 = e.Ext6.Sub(zC1, &a)
 	zC1 = e.Ext6.Sub(zC1, &b)
 	zC0 := e.Ext6.MulByNonResidue(&b)
