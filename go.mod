@@ -29,7 +29,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-replace (
-	github.com/consensys/gnark-crypto v0.9.2-0.20230314094804-5185eb8c3978 => ../gnark-crypto
-)
