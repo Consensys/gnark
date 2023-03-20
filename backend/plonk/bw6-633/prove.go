@@ -148,18 +148,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	var wgLRO sync.WaitGroup
 	wgLRO.Add(3)
 	go func() {
-		wliop = iop.NewPolynomial(&evaluationLDomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
-		bwliop = wliop.Clone(int(pk.Domain[1].Cardinality)).Blind(1) // we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
+		wliop = iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
+		bwliop = wliop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1) // we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
 		wgLRO.Done()
 	}()
 	go func() {
-		wriop = iop.NewPolynomial(&evaluationRDomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
-		bwriop = wriop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
+		wriop = iop.NewPolynomial(&evaluationRDomainSmall, lagReg)
+		bwriop = wriop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
 		wgLRO.Done()
 	}()
 	go func() {
-		woiop = iop.NewPolynomial(&evaluationODomainSmall, lagReg).ToCanonical(&pk.Domain[0]).ToRegular()
-		bwoiop = woiop.Clone(int(pk.Domain[1].Cardinality)).Blind(1)
+		woiop = iop.NewPolynomial(&evaluationODomainSmall, lagReg)
+		bwoiop = woiop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
 		wgLRO.Done()
 	}()
 
