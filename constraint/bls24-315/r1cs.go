@@ -22,13 +22,12 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"io"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/profile"
@@ -37,8 +36,6 @@ import (
 	"math"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-
-	bls24_315witness "github.com/consensys/gnark/internal/backend/bls24-315/witness"
 )
 
 // R1CS describes a set of R1CS constraint
@@ -76,18 +73,43 @@ func (cs *R1CS) AddConstraint(r1c constraint.R1C, debugInfo ...constraint.DebugI
 	return cID
 }
 
+// Solve returns the vector w solution to the system, that is
+// Aw o Bw - Cw = 0
+func (cs *R1CS) Solve(witness witness.Witness, opts ...solver.Option) (any, error) {
+	opt, err := solver.NewConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	var res R1CSSolution
+
+	s := ecc.NextPowerOfTwo(uint64(len(cs.Constraints)))
+	res.A = make(fr.Vector, len(cs.Constraints), s)
+	res.B = make(fr.Vector, len(cs.Constraints), s)
+	res.C = make(fr.Vector, len(cs.Constraints), s)
+
+	v := witness.Vector().(fr.Vector)
+
+	res.W, err = cs.solve(v, res.A, res.B, res.C, opt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &res, nil
+}
+
 // Solve sets all the wires and returns the a, b, c vectors.
 // the cs system should have been compiled before. The entries in a, b, c are in Montgomery form.
 // a, b, c vectors: ab-c = hz
 // witness = [publicWires | secretWires] (without the ONE_WIRE !)
 // returns  [publicWires | secretWires | internalWires ]
-func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) ([]fr.Element, error) {
+func (cs *R1CS) solve(witness, a, b, c fr.Vector, opt solver.Config) (fr.Vector, error) {
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable)
+	solution, err := newSolution(&cs.System, nbWires, opt.HintFunctions, cs.Coefficients)
 	if err != nil {
-		return make([]fr.Element, nbWires), err
+		return make(fr.Vector, nbWires), err
 	}
 	start := time.Now()
 
@@ -117,7 +139,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 
 	// now that we know all inputs are set, defer log printing once all solution.values are computed
 	// (or sooner, if a constraint is not satisfied)
-	defer solution.printLogs(opt.CircuitLogger, cs.Logs)
+	defer solution.printLogs(opt.Logger, cs.Logs)
 
 	if err := cs.parallelSolve(a, b, c, &solution); err != nil {
 		if unsatisfiedErr, ok := err.(*UnsatisfiedConstraintError); ok {
@@ -139,7 +161,7 @@ func (cs *R1CS) Solve(witness, a, b, c []fr.Element, opt backend.ProverConfig) (
 	return solution.values, nil
 }
 
-func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
+func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 	// minWorkPerCPU is the minimum target number of constraint a task should hold
 	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
 	// sequentially without sync.
@@ -208,8 +230,8 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 			continue
 		}
 
-		// number of tasks for this level is set to num cpus
-		// but if we don't have enough work for all our CPUS, it can be lower.
+		// number of tasks for this level is set to number of CPU
+		// but if we don't have enough work for all our CPU, it can be lower.
 		nbTasks := runtime.NumCPU()
 		maxTasks := int(math.Ceil(maxCPU))
 		if nbTasks > maxTasks {
@@ -252,19 +274,10 @@ func (cs *R1CS) parallelSolve(a, b, c []fr.Element, solution *solution) error {
 	return nil
 }
 
-// IsSolved returns nil if given witness solves the R1CS and error otherwise
-// this method wraps cs.Solve() and allocates cs.Solve() inputs
-func (cs *R1CS) IsSolved(witness *witness.Witness, opts ...backend.ProverOption) error {
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return err
-	}
-
-	a := make([]fr.Element, len(cs.Constraints))
-	b := make([]fr.Element, len(cs.Constraints))
-	c := make([]fr.Element, len(cs.Constraints))
-	v := witness.Vector.(*bls24_315witness.Witness)
-	_, err = cs.Solve(*v, a, b, c, opt)
+// IsSolved
+// Deprecated: use _, err := Solve(...) instead
+func (cs *R1CS) IsSolved(witness witness.Witness, opts ...solver.Option) error {
+	_, err := cs.Solve(witness, opts...)
 	return err
 }
 
@@ -398,67 +411,9 @@ func (cs *R1CS) solveConstraint(r constraint.R1C, solution *solution, a, b, c *f
 	return nil
 }
 
-// GetConstraints return a list of constraint formatted as L⋅R == O
-// such that [0] -> L, [1] -> R, [2] -> O
-func (cs *R1CS) GetConstraints() [][]string {
-	r := make([][]string, 0, len(cs.Constraints))
-	for _, c := range cs.Constraints {
-		// for each constraint, we build a string representation of it's L, R and O part
-		// if we are worried about perf for large cs, we could do a string builder + csv format.
-		var line [3]string
-		line[0] = cs.vtoString(c.L)
-		line[1] = cs.vtoString(c.R)
-		line[2] = cs.vtoString(c.O)
-		r = append(r, line[:])
-	}
-	return r
-}
-
-func (cs *R1CS) vtoString(l constraint.LinearExpression) string {
-	var sbb strings.Builder
-	for i := 0; i < len(l); i++ {
-		cs.termToString(l[i], &sbb)
-		if i+1 < len(l) {
-			sbb.WriteString(" + ")
-		}
-	}
-	return sbb.String()
-}
-
-func (cs *R1CS) termToString(t constraint.Term, sbb *strings.Builder) {
-	tID := t.CoeffID()
-	if tID == constraint.CoeffIdOne {
-		// do nothing, just print the variable
-	} else if tID == constraint.CoeffIdMinusOne {
-		// print neg sign
-		sbb.WriteByte('-')
-	} else if tID == constraint.CoeffIdZero {
-		sbb.WriteByte('0')
-		return
-	} else {
-		sbb.WriteString(cs.Coefficients[tID].String())
-		sbb.WriteString("⋅")
-	}
-	vID := t.WireID()
-
-	if vID < len(cs.Public) {
-		// public
-		if vID == 0 {
-			sbb.WriteByte('1') // one wire
-		} else {
-			sbb.WriteString(fmt.Sprintf("p%d", vID-1))
-		}
-		return
-	}
-	if vID < (len(cs.Public) + len(cs.Secret)) {
-		sbb.WriteString(fmt.Sprintf("s%d", vID-len(cs.Public)))
-		return
-	}
-	if _, isHint := cs.MHints[vID]; isHint {
-		sbb.WriteString(fmt.Sprintf("hv%d", vID-len(cs.Public)-len(cs.Secret)))
-	} else {
-		sbb.WriteString(fmt.Sprintf("v%d", vID-len(cs.Public)-len(cs.Secret)))
-	}
+// GetConstraints return the list of R1C and a coefficient resolver
+func (cs *R1CS) GetConstraints() ([]constraint.R1C, constraint.Resolver) {
+	return cs.Constraints, cs
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS

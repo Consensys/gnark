@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -13,7 +13,7 @@ import (
 var NNAF = nNaf
 
 func init() {
-	hint.Register(NNAF)
+	solver.RegisterHint(NNAF)
 }
 
 // ToNAF returns the NAF decomposition of given input.
@@ -30,22 +30,6 @@ func ToNAF(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) 
 		if err := o(&cfg); err != nil {
 			panic(err)
 		}
-	}
-
-	// if v is a constant, work with the big int value.
-	if c, ok := api.Compiler().ConstantValue(v); ok {
-		bits := make([]*big.Int, cfg.NbDigits)
-		for i := 0; i < len(bits); i++ {
-			bits[i] = big.NewInt(0)
-		}
-		if err := nafDecomposition(c, bits); err != nil {
-			panic(err)
-		}
-		res := make([]frontend.Variable, len(bits))
-		for i := 0; i < len(bits); i++ {
-			res[i] = bits[i]
-		}
-		return res
 	}
 
 	c := big.NewInt(1)

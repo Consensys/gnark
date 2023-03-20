@@ -262,7 +262,7 @@ func TestMulByElementFp3(t *testing.T) {
 
 	witness := e3MulByElement{
 		A: NewE3(a),
-		Y: emulated.NewElement[emulated.BW6761Fp](y),
+		Y: emulated.ValueOf[emulated.BW6761Fp](y),
 		B: NewE3(b),
 	}
 
@@ -302,8 +302,8 @@ func TestMulBy01Fp3(t *testing.T) {
 
 	witness := e3MulBy01{
 		A:  NewE3(a),
-		C0: emulated.NewElement[emulated.BW6761Fp](c0),
-		C1: emulated.NewElement[emulated.BW6761Fp](c1),
+		C0: emulated.ValueOf[emulated.BW6761Fp](c0),
+		C1: emulated.ValueOf[emulated.BW6761Fp](c1),
 		B:  NewE3(b),
 	}
 

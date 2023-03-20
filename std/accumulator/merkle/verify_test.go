@@ -18,15 +18,14 @@ package merkle
 
 import (
 	"bytes"
-	"math/rand"
+	"crypto/rand"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/consensys/gnark-crypto/accumulator/merkletree"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/logger"
@@ -34,7 +33,7 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-// MerkleProofTest used for testing onlys
+// MerkleProofTest used for testing only
 type MerkleProofTest struct {
 	M    MerkleProof
 	Leaf frontend.Variable
@@ -67,7 +66,6 @@ func TestVerify(t *testing.T) {
 		{hash.MIMC_BN254, 32, ecc.BN254},
 	}
 
-	rand.Seed(time.Now().UTC().UnixNano())
 	for _, tData := range confs {
 
 		// create the circuit
@@ -78,16 +76,20 @@ func TestVerify(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		mod := tData.curve.ScalarField()
+		modNbBytes := len(mod.Bytes())
+
 		// we test the circuit for all leaves...
 		for proofIndex := uint64(0); proofIndex < 32; proofIndex++ {
 
 			// generate random data, the Merkle tree will be of depth log(64) = 6
 			var buf bytes.Buffer
 			for i := 0; i < numLeaves; i++ {
-				for j := 0; j < tData.segmentSize; j++ {
-					r := byte(rand.Int()) //#nosec G404 -- This is a false positive
-					buf.Write([]byte{r})
-				}
+				leaf, err := rand.Int(rand.Reader, mod)
+				assert.NoError(err)
+				b := leaf.Bytes()
+				buf.Write(make([]byte, modNbBytes-len(b)))
+				buf.Write(b)
 			}
 
 			// create the proof using the go code
@@ -98,7 +100,7 @@ func TestVerify(t *testing.T) {
 				os.Exit(-1)
 			}
 
-			// verfiy the proof in plain go
+			// verify the proof in plain go
 			verified := merkletree.VerifyProof(hGo, merkleRoot, proofPath, proofIndex, numLeaves)
 			if !verified {
 				t.Fatal("The merkle proof in plain go should pass")
@@ -118,7 +120,7 @@ func TestVerify(t *testing.T) {
 				t.Fatal(err)
 			}
 			logger.SetOutput(os.Stdout)
-			err = cc.IsSolved(w, backend.IgnoreSolverError(), backend.WithCircuitLogger(logger.Logger()))
+			err = cc.IsSolved(w, solver.WithLogger(logger.Logger()))
 			if err != nil {
 				t.Fatal(err)
 			}

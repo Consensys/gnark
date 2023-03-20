@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/logger"
 )
 
@@ -36,7 +37,7 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options
-	opt := CompileConfig{wrapper: func(b Builder) Builder { return b }}
+	opt := CompileConfig{}
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
 			log.Err(err).Msg("applying compile option")
@@ -50,7 +51,6 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 		log.Err(err).Msg("instantiating builder")
 		return nil, fmt.Errorf("new compiler: %w", err)
 	}
-	builder = opt.wrapper(builder)
 
 	// parse the circuit builds a schema of the circuit
 	// and call circuit.Define() method to initialize a list of constraints in the compiler
@@ -70,34 +70,21 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
 
-	var countedPublic, countedPrivate int
-	counterHandler := func(f *schema.Field, tInput reflect.Value) error {
-		varCount := builder.VariableCount(tInput.Type())
-		switch f.Visibility {
-		case schema.Secret:
-			countedPrivate += varCount
-		case schema.Public:
-			countedPublic += varCount
-		}
-		return nil
-	}
-
-	s, err := schema.Parse(circuit, tVariable, counterHandler)
+	s, err := schema.Walk(circuit, tVariable, nil)
 	if err != nil {
 		return err
 	}
-	s.NbPublic = countedPublic
-	s.NbSecret = countedPrivate
+
 	log := logger.Logger()
-	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
+	log.Info().Int("nbSecret", s.Secret).Int("nbPublic", s.Public).Msg("parsed circuit inputs")
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	variableAdder := func(targetVisibility schema.Visibility) func(f *schema.Field, tInput reflect.Value) error {
-		return func(f *schema.Field, tInput reflect.Value) error {
+	variableAdder := func(targetVisibility schema.Visibility) func(f schema.LeafInfo, tInput reflect.Value) error {
+		return func(f schema.LeafInfo, tInput reflect.Value) error {
 			if tInput.CanSet() {
 				if f.Visibility == schema.Unset {
-					return errors.New("can't set val " + f.FullName + " visibility is unset")
+					return errors.New("can't set val " + f.FullName() + " visibility is unset")
 				}
 				if f.Visibility == targetVisibility {
 					if f.Visibility == schema.Public {
@@ -109,18 +96,18 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 
 				return nil
 			}
-			return errors.New("can't set val " + f.FullName)
+			return errors.New("can't set val " + f.FullName())
 		}
 	}
 
 	// add public inputs first to compute correct offsets
-	_, err = schema.Parse(circuit, tVariable, variableAdder(schema.Public))
+	_, err = schema.Walk(circuit, tVariable, variableAdder(schema.Public))
 	if err != nil {
 		return err
 	}
 
 	// add secret inputs
-	_, err = schema.Parse(circuit, tVariable, variableAdder(schema.Secret))
+	_, err = schema.Walk(circuit, tVariable, variableAdder(schema.Secret))
 	if err != nil {
 		return err
 	}
@@ -136,8 +123,20 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	if err = circuit.Define(builder); err != nil {
 		return fmt.Errorf("define circuit: %w", err)
 	}
+	if err = callDeferred(builder); err != nil {
+		return fmt.Errorf("deferred: %w", err)
+	}
 
 	return
+}
+
+func callDeferred(builder Builder) error {
+	for i, cb := range circuitdefer.GetAll[func(API) error](builder) {
+		if err := cb(builder); err != nil {
+			return fmt.Errorf("defer fn %d: %w", i, err)
+		}
+	}
+	return nil
 }
 
 // CompileOption defines option for altering the behaviour of the Compile
@@ -148,7 +147,6 @@ type CompileOption func(opt *CompileConfig) error
 type CompileConfig struct {
 	Capacity                  int
 	IgnoreUnconstrainedInputs bool
-	wrapper                   BuilderWrapper
 	CompressThreshold         int
 }
 
@@ -172,19 +170,6 @@ func WithCapacity(capacity int) CompileOption {
 func IgnoreUnconstrainedInputs() CompileOption {
 	return func(opt *CompileConfig) error {
 		opt.IgnoreUnconstrainedInputs = true
-		return nil
-	}
-}
-
-// BuilderWrapper wraps existing Builder.
-type BuilderWrapper func(Builder) Builder
-
-// WithBuilderWrapper is a compile option which wraps the builder before parsing
-// the schema and calling Define method of the circuit. If not set, then the
-// builder returned by the NewBuilder is directly used.
-func WithBuilderWrapper(wrapper BuilderWrapper) CompileOption {
-	return func(opt *CompileConfig) error {
-		opt.wrapper = wrapper
 		return nil
 	}
 }

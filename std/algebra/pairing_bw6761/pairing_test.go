@@ -25,6 +25,7 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
 	"testing"
 )
@@ -248,6 +249,6 @@ func TestPairingBW6761(t *testing.T) {
 	err = test.IsSolved(&pairingBW6761{}, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 
-	//_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &pairingBW6761{}, frontend.IgnoreUnconstrainedInputs())
-	//assert.NoError(err)
+	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &pairingBW6761{}, frontend.IgnoreUnconstrainedInputs())
+	assert.NoError(err)
 }

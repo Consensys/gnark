@@ -166,9 +166,9 @@ func TestMulBy034Fp6(t *testing.T) {
 
 	witness := e6MulBy034{
 		A:  NewE6(a),
-		R0: emulated.NewElement[emulated.BW6761Fp](c0Copy),
-		R1: emulated.NewElement[emulated.BW6761Fp](c3),
-		R2: emulated.NewElement[emulated.BW6761Fp](c4),
+		R0: emulated.ValueOf[emulated.BW6761Fp](c0Copy),
+		R1: emulated.ValueOf[emulated.BW6761Fp](c3),
+		R2: emulated.ValueOf[emulated.BW6761Fp](c4),
 		B:  NewE6(b),
 	}
 
@@ -208,12 +208,12 @@ func TestMul034By034Fp6(t *testing.T) {
 	a.Mul034By034(&d0, &d3, &d4, &c0, &c3, &c4)
 
 	witness := e6Mul034By034{
-		D0:  emulated.NewElement[emulated.BW6761Fp](d0),
-		D3:  emulated.NewElement[emulated.BW6761Fp](d3),
-		D4:  emulated.NewElement[emulated.BW6761Fp](d4),
-		C0:  emulated.NewElement[emulated.BW6761Fp](c0),
-		C3:  emulated.NewElement[emulated.BW6761Fp](c3),
-		C4:  emulated.NewElement[emulated.BW6761Fp](c4),
+		D0:  emulated.ValueOf[emulated.BW6761Fp](d0),
+		D3:  emulated.ValueOf[emulated.BW6761Fp](d3),
+		D4:  emulated.ValueOf[emulated.BW6761Fp](d4),
+		C0:  emulated.ValueOf[emulated.BW6761Fp](c0),
+		C3:  emulated.ValueOf[emulated.BW6761Fp](c3),
+		C4:  emulated.ValueOf[emulated.BW6761Fp](c4),
 		Res: NewE6(a),
 	}
 

@@ -374,8 +374,8 @@ func (e ext3) Equal(a, b *E3) {
 
 func NewE3(a bw6761.E3) E3 {
 	return E3{
-		A0: emulated.NewElement[emulated.BW6761Fp](a.A0),
-		A1: emulated.NewElement[emulated.BW6761Fp](a.A1),
-		A2: emulated.NewElement[emulated.BW6761Fp](a.A2),
+		A0: emulated.ValueOf[emulated.BW6761Fp](a.A0),
+		A1: emulated.ValueOf[emulated.BW6761Fp](a.A1),
+		A2: emulated.ValueOf[emulated.BW6761Fp](a.A2),
 	}
 }

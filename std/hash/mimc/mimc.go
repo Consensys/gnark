@@ -55,7 +55,7 @@ func (h *MiMC) Reset() {
 	h.h = 0
 }
 
-// Hash hash (in r1cs form) using Miyaguchi–Preneel:
+// Sum hash (in r1cs form) using Miyaguchi–Preneel:
 // https://en.wikipedia.org/wiki/One-way_compression_function
 // The XOR operation is replaced by field addition.
 // See github.com/consensys/gnark-crypto for reference implementation.

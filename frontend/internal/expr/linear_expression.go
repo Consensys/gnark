@@ -5,7 +5,7 @@ import (
 )
 
 // TODO @gbotrel --> storing a UUID in the linear expressions would enable better perf
-// in the frontends -> check a linear expression is boolean, or has been converted to a
+// in the frontend -> check a linear expression is boolean, or has been converted to a
 // "backend" constraint.LinearExpresion ... and avoid duplicating work would be interesting.
 
 type LinearExpression []Term
@@ -37,7 +37,11 @@ func (t Term) WireID() int {
 	return t.VID
 }
 
-// Len return the lenght of the Variable (implements Sort interface)
+func (t Term) HashCode() uint64 {
+	return t.Coeff[0]*29 + uint64(t.VID<<12)
+}
+
+// Len return the length of the Variable (implements Sort interface)
 func (l LinearExpression) Len() int {
 	return len(l)
 }
@@ -77,7 +81,7 @@ func (l LinearExpression) Less(i, j int) bool {
 func (l LinearExpression) HashCode() uint64 {
 	h := uint64(17)
 	for _, val := range l {
-		h = h*23 + val.Coeff[0]*29 + uint64(val.VID<<12) // TODO @gbotrel revisit
+		h = h*23 + val.HashCode() // TODO @gbotrel revisit
 	}
 	return h
 }

@@ -29,8 +29,8 @@ type G1Affine struct {
 
 func NewG1Affine(a bw6761.G1Affine) G1Affine {
 	return G1Affine{
-		X: emulated.NewElement[emulated.BW6761Fp](a.X),
-		Y: emulated.NewElement[emulated.BW6761Fp](a.Y),
+		X: emulated.ValueOf[emulated.BW6761Fp](a.X),
+		Y: emulated.ValueOf[emulated.BW6761Fp](a.Y),
 	}
 }
 

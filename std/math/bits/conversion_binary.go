@@ -3,14 +3,14 @@ package bits
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
 func init() {
 	// register hints
-	hint.Register(IthBit)
-	hint.Register(NBits)
+	solver.RegisterHint(IthBit)
+	solver.RegisterHint(NBits)
 }
 
 // ToBinary is an alias of ToBase(api, Binary, v, opts)
@@ -61,15 +61,6 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 		if err := o(&cfg); err != nil {
 			panic(err)
 		}
-	}
-
-	// if a is a constant, work with the big int value.
-	if c, ok := api.Compiler().ConstantValue(v); ok {
-		bits := make([]frontend.Variable, cfg.NbDigits)
-		for i := 0; i < len(bits); i++ {
-			bits[i] = c.Bit(i)
-		}
-		return bits
 	}
 
 	c := big.NewInt(1)

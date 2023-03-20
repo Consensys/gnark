@@ -2,10 +2,9 @@ package frontend
 
 import (
 	"math/big"
-	"reflect"
 
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend/schema"
 )
 
@@ -37,7 +36,7 @@ type Compiler interface {
 	// manually in the circuit. Failing to do so leads to solver failure.
 	//
 	// If nbOutputs is specified, it must be >= 1 and <= f.NbOutputs
-	NewHint(f hint.Function, nbOutputs int, inputs ...Variable) ([]Variable, error)
+	NewHint(f solver.Hint, nbOutputs int, inputs ...Variable) ([]Variable, error)
 
 	// ConstantValue returns the big.Int value of v and true if op is a success.
 	// nil and false if failure. This API returns a boolean to allow for future refactoring
@@ -50,12 +49,10 @@ type Compiler interface {
 	// FieldBitLen returns the number of bits needed to represent an element in the scalar field
 	FieldBitLen() int
 
-	// Commit returns a commitment to the given variables, to be used as initial randomness in
-	// Fiat-Shamir when the statement to prove is particularly large.
-	// TODO cite paper
-	// This API is experimental
-	// TENTATIVE: Functions regarding fiat-shamir-ed proofs over enormous statements  TODO finalize
-	Commit(...Variable) (Variable, error)
+	// Defer is called after circuit.Define() and before Compile(). This method
+	// allows for the circuits to register callbacks which finalize batching
+	// operations etc. Unlike Go defer, it is not locally scoped.
+	Defer(cb func(api API) error)
 }
 
 // Builder represents a constraint system builder
@@ -66,15 +63,27 @@ type Builder interface {
 	// Compile is called after circuit.Define() to produce a final IR (ConstraintSystem)
 	Compile() (constraint.ConstraintSystem, error)
 
-	// VariableCount returns the number of native elements required to represent
-	// the given reflected type as a witness.
-	VariableCount(reflect.Type) int
-
 	// PublicVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
-	PublicVariable(name *schema.Field) Variable
+	PublicVariable(schema.LeafInfo) Variable
 
 	// SecretVariable is called by the compiler when parsing the circuit schema. It panics if
 	// called inside circuit.Define()
-	SecretVariable(field *schema.Field) Variable
+	SecretVariable(schema.LeafInfo) Variable
+}
+
+// Committer allows to commit to the variables and returns the commitment. The
+// commitment can be used as a challenge using Fiat-Shamir heuristic.
+type Committer interface {
+	// Commit commits to the variables and returns the commitment.
+	Commit(toCommit ...Variable) (commitment Variable, err error)
+}
+
+// Rangechecker allows to externally range-check the variables to be of
+// specified width. Not all compilers implement this interface. Users should
+// instead use [github.com/consensys/gnark/std/rangecheck] package which
+// automatically chooses most optimal method for range checking the variables.
+type Rangechecker interface {
+	// Check checks that the given variable v has bit-length bits.
+	Check(v Variable, bits int)
 }

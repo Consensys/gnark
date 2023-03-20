@@ -3,7 +3,7 @@ package constraint
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 )
 
 const CommitmentDst = "bsb22-commitment"
@@ -11,7 +11,7 @@ const CommitmentDst = "bsb22-commitment"
 type Commitment struct {
 	Committed              []int // sorted list of id's of committed variables
 	NbPrivateCommitted     int
-	HintID                 hint.ID // TODO @gbotrel we probably don't need that here
+	HintID                 solver.HintID // TODO @gbotrel we probably don't need that here
 	CommitmentIndex        int
 	CommittedAndCommitment []int // sorted list of id's of committed variables AND the commitment itself
 }

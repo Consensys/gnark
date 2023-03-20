@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -33,9 +34,9 @@ func (c *ExampleFieldCircuit[T]) Define(api frontend.API) error {
 func ExampleField() {
 	circuit := ExampleFieldCircuit[emulated.BN254Fp]{}
 	witness := ExampleFieldCircuit[emulated.BN254Fp]{
-		In1: emulated.NewElement[emulated.BN254Fp](3),
-		In2: emulated.NewElement[emulated.BN254Fp](5),
-		Res: emulated.NewElement[emulated.BN254Fp](15),
+		In1: emulated.ValueOf[emulated.BN254Fp](3),
+		In2: emulated.ValueOf[emulated.BN254Fp](5),
+		Res: emulated.ValueOf[emulated.BN254Fp](15),
 	}
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
@@ -61,7 +62,7 @@ func ExampleField() {
 	} else {
 		fmt.Println("setup done")
 	}
-	proof, err := groth16.Prove(ccs, pk, witnessData, backend.WithHints(emulated.GetHints()...))
+	proof, err := groth16.Prove(ccs, pk, witnessData, backend.WithSolverOptions(solver.WithHints(emulated.GetHints()...)))
 	if err != nil {
 		panic(err)
 	} else {

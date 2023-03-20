@@ -19,8 +19,8 @@ package kzg_bls12377
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/fields_bls12377"
-	"github.com/consensys/gnark/std/algebra/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 )
 
 // Digest commitment of a polynomial.
@@ -28,7 +28,6 @@ type Digest = sw_bls12377.G1Affine
 
 // VK verification key (G2 part of SRS)
 type VK struct {
-	G1 sw_bls12377.G1Affine    // G₁
 	G2 [2]sw_bls12377.G2Affine // [G₂, [α]G₂]
 }
 
@@ -53,7 +52,7 @@ func Verify(api frontend.API, commitment Digest, proof OpeningProof, point front
 
 	// [f(a)]G₁
 	var claimedValueG1Aff sw_bls12377.G1Affine
-	claimedValueG1Aff.ScalarMul(api, srs.G1, proof.ClaimedValue)
+	claimedValueG1Aff.ScalarMulBase(api, proof.ClaimedValue)
 
 	// [f(α) - f(a)]G₁
 	var fminusfaG1 sw_bls12377.G1Affine
@@ -66,7 +65,7 @@ func Verify(api frontend.API, commitment Digest, proof OpeningProof, point front
 
 	// [α-a]G₂
 	var alphaMinusaG2 sw_bls12377.G2Affine
-	alphaMinusaG2.ScalarMul(api, srs.G2[0], point).
+	alphaMinusaG2.ScalarMulBase(api, point).
 		Neg(api, alphaMinusaG2).
 		AddAssign(api, srs.G2[1])
 

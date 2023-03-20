@@ -23,12 +23,14 @@ import (
 	"sort"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/circuitdefer"
+	"github.com/consensys/gnark/internal/frontendtype"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
@@ -40,34 +42,48 @@ import (
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	bw6633r1cs "github.com/consensys/gnark/constraint/bw6-633"
 	bw6761r1cs "github.com/consensys/gnark/constraint/bw6-761"
+	"github.com/consensys/gnark/constraint/solver"
 	tinyfieldr1cs "github.com/consensys/gnark/constraint/tinyfield"
 )
 
 // NewBuilder returns a new R1CS builder which implements frontend.API.
+// Additionally, this builder also implements [frontend.Committer].
 func NewBuilder(field *big.Int, config frontend.CompileConfig) (frontend.Builder, error) {
 	return newBuilder(field, config), nil
 }
 
 type builder struct {
-	cs constraint.R1CS
-
+	cs     constraint.R1CS
 	config frontend.CompileConfig
+	kvstore.Store
 
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]expr.LinearExpression
 
-	q    *big.Int
 	tOne constraint.Coeff
-	heap minHeap // helps merge k sorted linear expressions
+
+	// helps merge k sorted linear expressions
+	heap minHeap
+
+	// buffers used to do in place api.MAC
+	mbuf1 expr.LinearExpression
+	mbuf2 expr.LinearExpression
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
 // we may want to add build tags to tune that
 func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
+	macCapacity := 100
+	if config.CompressThreshold != 0 {
+		macCapacity = config.CompressThreshold
+	}
 	builder := builder{
 		mtBooleans: make(map[uint64][]expr.LinearExpression, config.Capacity/10),
 		config:     config,
 		heap:       make(minHeap, 0, 100),
+		mbuf1:      make(expr.LinearExpression, 0, macCapacity),
+		mbuf2:      make(expr.LinearExpression, 0, macCapacity),
+		Store:      kvstore.New(),
 	}
 
 	// by default the circuit is given a public wire equal to 1
@@ -94,16 +110,11 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 			builder.cs = tinyfieldr1cs.NewR1CS(config.Capacity)
 			break
 		}
-		panic("not implemtented")
+		panic("not implemented")
 	}
 
 	builder.tOne = builder.cs.One()
-	builder.cs.AddPublicVariable("one")
-
-	builder.q = builder.cs.Field()
-	if builder.q.Cmp(field) != 0 {
-		panic("invalid modulus on cs impl") // sanity check
-	}
+	builder.cs.AddPublicVariable("1")
 
 	return &builder
 }
@@ -115,20 +126,15 @@ func (builder *builder) newInternalVariable() expr.LinearExpression {
 	return expr.NewLinearExpression(idx, builder.tOne)
 }
 
-func (builder *builder) VariableCount(t reflect.Type) int {
-	// TODO @gbotrel refactor?
-	return 1
-}
-
 // PublicVariable creates a new public Variable
-func (builder *builder) PublicVariable(f *schema.Field) frontend.Variable {
-	idx := builder.cs.AddPublicVariable(f.FullName)
+func (builder *builder) PublicVariable(f schema.LeafInfo) frontend.Variable {
+	idx := builder.cs.AddPublicVariable(f.FullName())
 	return expr.NewLinearExpression(idx, builder.tOne)
 }
 
 // SecretVariable creates a new secret Variable
-func (builder *builder) SecretVariable(f *schema.Field) frontend.Variable {
-	idx := builder.cs.AddSecretVariable(f.FullName)
+func (builder *builder) SecretVariable(f schema.LeafInfo) frontend.Variable {
+	idx := builder.cs.AddSecretVariable(f.FullName())
 	return expr.NewLinearExpression(idx, builder.tOne)
 }
 
@@ -158,7 +164,7 @@ func (builder *builder) FieldBitLen() int {
 	return builder.cs.FieldBitLen()
 }
 
-// newR1C clones the linear expression associated with the Variables (to avoid offseting the ID multiple time)
+// newR1C clones the linear expression associated with the Variables (to avoid offsetting the ID multiple time)
 // and return a R1C
 func (builder *builder) newR1C(l, r, o frontend.Variable) constraint.R1C {
 	L := builder.getLinearExpression(l)
@@ -306,6 +312,9 @@ func (builder *builder) toVariable(input interface{}) expr.LinearExpression {
 		// this is already a "kwown" variable
 		assertIsSet(t)
 		return t
+	case *expr.LinearExpression:
+		assertIsSet(*t)
+		return *t
 	case constraint.Coeff:
 		return expr.NewLinearExpression(0, t)
 	case *constraint.Coeff:
@@ -346,20 +355,17 @@ func (builder *builder) toVariables(in ...frontend.Variable) ([]expr.LinearExpre
 //
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
-func (builder *builder) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	hintInputs := make([]constraint.LinearExpression, len(inputs))
 
 	// TODO @gbotrel hint input pass
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
-		switch t := in.(type) {
-		case expr.LinearExpression:
+		if t, ok := in.(expr.LinearExpression); ok {
 			assertIsSet(t)
 			hintInputs[i] = builder.getLinearExpression(t)
-		default:
-			// make a term
-			// c := utils.FromInterface(t)
-			c := builder.cs.FromInterface(t)
+		} else {
+			c := builder.cs.FromInterface(in)
 			term := builder.cs.MakeTerm(&c, 0)
 			term.MarkConstant()
 			hintInputs[i] = constraint.LinearExpression{term}
@@ -442,4 +448,12 @@ func (builder *builder) compress(le expr.LinearExpression) expr.LinearExpression
 	t := builder.newInternalVariable()
 	builder.cs.AddConstraint(builder.newR1C(le, one, t))
 	return t
+}
+
+func (builder *builder) Defer(cb func(frontend.API) error) {
+	circuitdefer.Put(builder, cb)
+}
+
+func (*builder) FrontendType() frontendtype.Type {
+	return frontendtype.R1CS
 }

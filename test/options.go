@@ -19,10 +19,11 @@ package test
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
-// TestingOption defines option for altering the behaviour of Assert methods.
+// TestingOption defines option for altering the behavior of Assert methods.
 // See the descriptions of functions returning instances of this type for
 // particular options.
 type TestingOption func(*testingConfig) error
@@ -31,8 +32,10 @@ type testingConfig struct {
 	backends             []backend.ID
 	curves               []ecc.ID
 	witnessSerialization bool
+	solverOpts           []solver.Option
 	proverOpts           []backend.ProverOption
 	compileOpts          []frontend.CompileOption
+	fuzzing              bool
 }
 
 // WithBackends is testing option which restricts the backends the assertions are
@@ -64,12 +67,30 @@ func NoSerialization() TestingOption {
 	}
 }
 
+// NoFuzzing is a testing option which disables fuzzing tests in assertions.
+func NoFuzzing() TestingOption {
+	return func(opt *testingConfig) error {
+		opt.fuzzing = false
+		return nil
+	}
+}
+
 // WithProverOpts is a testing option which uses the given proverOpts when
 // calling backend.Prover, backend.ReadAndProve and backend.IsSolved methods in
 // assertions.
 func WithProverOpts(proverOpts ...backend.ProverOption) TestingOption {
 	return func(opt *testingConfig) error {
 		opt.proverOpts = proverOpts
+		return nil
+	}
+}
+
+// WithSolverOpts is a testing option which uses the given solverOpts when
+// calling constraint system solver.
+func WithSolverOpts(solverOpts ...solver.Option) TestingOption {
+	return func(opt *testingConfig) error {
+		opt.proverOpts = append(opt.proverOpts, backend.WithSolverOptions(solverOpts...))
+		opt.solverOpts = solverOpts
 		return nil
 	}
 }

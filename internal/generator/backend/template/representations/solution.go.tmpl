@@ -5,9 +5,10 @@ import (
 	"sync/atomic"
 	"strings"
 	"strconv"
+	"io"
 	"github.com/consensys/gnark/debug"
-    "github.com/consensys/gnark/backend/hint"
     "github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
     "github.com/rs/zerolog"
 	{{ template "import_fr" . }}
 )
@@ -18,25 +19,25 @@ type solution struct {
 	values, coefficients []fr.Element
 	solved               []bool
 	nbSolved             uint64
-	mHintsFunctions      map[hint.ID]hint.Function 	// maps hintID to hint function
-	mHints 				 map[int]*constraint.Hint 	// maps wireID to hint
+	mHintsFunctions      map[solver.HintID]solver.Hint 	// maps hintID to hint function
 	st *debug.SymbolTable
+	cs *constraint.System
 }
 
-func newSolution( nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint,  coefficients []fr.Element, st *debug.SymbolTable) (solution, error) {
+func newSolution(cs *constraint.System, nbWires int, hintFunctions map[solver.HintID]solver.Hint, coefficients []fr.Element) (solution, error) {
 
 	s := solution{
-			st: st, 
+			cs: cs,
+			st: &cs.SymbolTable, 
 			values: make([]fr.Element, nbWires),
 			coefficients: coefficients,
 			solved: make([]bool, nbWires),
 			mHintsFunctions: hintFunctions,
-			mHints: mHints,
 	}
 
 	// hintsDependencies is from compile time; it contains the list of hints the solver **needs**
 	var missing []string
-	for hintUUID, hintID := range hintsDependencies {
+	for hintUUID, hintID := range cs.MHintsDependencies {
 		if _, ok := s.mHintsFunctions[hintUUID]; !ok {
 			missing = append(missing, hintID)
 		}
@@ -63,7 +64,7 @@ func (s *solution) isValid() bool {
 	return int(s.nbSolved) == len(s.values)
 }
 
-// computeTerm computes coef*variable
+// computeTerm computes coeff*variable
 func (s *solution) computeTerm(t constraint.Term) fr.Element {
 	cID, vID := t.CoeffID(), t.WireID()
 	if cID != 0 && !s.solved[vID] {
@@ -120,21 +121,24 @@ func (s *solution) accumulateInto(t constraint.Term, r *fr.Element) {
 }
 
 // solveHint compute solution.values[vID] using provided solver hint
-func (s *solution) solveWithHint(vID int, h *constraint.Hint) error {
+func (s *solution) solveWithHint(vID int, hID int) error {
 	// skip if the wire is already solved by a call to the same hint
 	// function on the same inputs
 	if s.solved[vID] {
 	    return nil
 	}
+
+	h := &s.cs.HintMappings[hID]
+
 	// ensure hint function was provided
-	f, ok := s.mHintsFunctions[h.ID]
+	f, ok := s.mHintsFunctions[h.HintID]
 	if !ok {
 		return errors.New("missing hint function")
 	}
 
 	// tmp IO big int memory
 	nbInputs := len(h.Inputs)
-	nbOutputs := len(h.Wires)
+	nbOutputs := len(h.Outputs)
 	inputs := make([]*big.Int, nbInputs) 
 	outputs :=  make([]*big.Int, nbOutputs)
 	for i :=0; i < nbOutputs; i++ {
@@ -157,7 +161,7 @@ func (s *solution) solveWithHint(vID int, h *constraint.Hint) error {
 			return nil
 		}
 		// unsolved dependency
-		if h, ok := s.mHints[wID]; ok {
+		if h, ok := s.cs.MHints[wID]; ok {
 			// solve recursively.
 			return s.solveWithHint(wID, h)
 		}
@@ -185,7 +189,7 @@ func (s *solution) solveWithHint(vID int, h *constraint.Hint) error {
 	var v fr.Element
 	for i := range outputs {
 		v.SetBigInt(outputs[i])
-		s.set(h.Wires[i], v)
+		s.set(h.Outputs[i], v)
 	}
 
 	return err 
@@ -276,4 +280,91 @@ func (r *UnsatisfiedConstraintError) Error() string {
 		return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, *r.DebugInfo)
 	}
 	return fmt.Sprintf("constraint #%d is not satisfied: %s", r.CID, r.Err.Error())
+}
+
+
+
+// R1CSSolution represent a valid assignment to all the variables in the constraint system.
+// The vector W such that Aw o Bw - Cw = 0
+type R1CSSolution struct {
+	W       fr.Vector
+	A, B, C fr.Vector
+}
+
+func (t *R1CSSolution) WriteTo(w io.Writer) (int64, error) {
+	n, err := t.W.WriteTo(w)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.A.WriteTo(w)
+	n += a
+	if err != nil {
+		return n, err
+	}
+	a, err = t.B.WriteTo(w)
+	n += a
+	if err != nil {
+		return n, err
+	}
+	a, err = t.C.WriteTo(w)
+	n += a
+	return n, err
+}
+
+func (t *R1CSSolution) ReadFrom(r io.Reader) (int64, error) {
+	n, err := t.W.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.A.ReadFrom(r)
+	a += n
+	if err != nil {
+		return n, err
+	}
+	a, err = t.B.ReadFrom(r)
+	a += n
+	if err != nil {
+		return n, err
+	}
+	a, err = t.C.ReadFrom(r)
+	n += a
+	return n, err
+}
+
+
+
+// SparseR1CSSolution represent a valid assignment to all the variables in the constraint system.
+type SparseR1CSSolution struct {
+	L, R, O fr.Vector
+}
+
+func (t *SparseR1CSSolution) WriteTo(w io.Writer) (int64, error) {
+	n, err := t.L.WriteTo(w)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.R.WriteTo(w)
+	n += a
+	if err != nil {
+		return n, err
+	}
+	a, err = t.O.WriteTo(w)
+	n += a
+	return n, err
+
+}
+
+func (t *SparseR1CSSolution) ReadFrom(r io.Reader) (int64, error) {
+	n, err := t.L.ReadFrom(r)
+	if err != nil {
+		return n, err
+	}
+	a, err := t.R.ReadFrom(r)
+	a += n
+	if err != nil {
+		return n, err
+	}
+	a, err = t.O.ReadFrom(r)
+	a += n
+	return n, err
 }

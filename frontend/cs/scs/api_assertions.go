@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/internal/utils"
@@ -28,13 +28,13 @@ import (
 )
 
 // AssertIsEqual fails if i1 != i2
-func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
+func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 
-	c1, i1Constant := builder.ConstantValue(i1)
-	c2, i2Constant := builder.ConstantValue(i2)
+	c1, i1Constant := builder.constantValue(i1)
+	c2, i2Constant := builder.constantValue(i2)
 
 	if i1Constant && i2Constant {
-		if c1.Cmp(c2) != 0 {
+		if c1 != c2 {
 			panic("i1, i2 should be equal")
 		}
 		return
@@ -45,62 +45,91 @@ func (builder *scs) AssertIsEqual(i1, i2 frontend.Variable) {
 		c2 = c1
 	}
 	if i2Constant {
-		l := i1.(expr.TermToRefactor)
-		lc, _ := l.Unpack()
-		k := c2
-		debug := builder.newDebugInfo("assertIsEqual", l, "+", i2, " == 0")
-		k.Neg(k)
-		_k := builder.st.CoeffID(k)
-		builder.addPlonkConstraint(l, builder.zero(), builder.zero(), lc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, _k, debug)
+		xa := i1.(expr.Term)
+		builder.cs.Neg(&c2)
+		debug := builder.newDebugInfo("assertIsEqual", xa, "==", i2)
+
+		// xa - i2 == 0
+		builder.addPlonkConstraint(sparseR1C{
+			xa: xa.VID,
+			qL: xa.Coeff,
+			qC: c2,
+		}, debug)
 		return
 	}
-	l := i1.(expr.TermToRefactor)
-	r := builder.Neg(i2).(expr.TermToRefactor)
-	lc, _ := l.Unpack()
-	rc, _ := r.Unpack()
+	xa := i1.(expr.Term)
+	xb := i2.(expr.Term)
 
-	debug := builder.newDebugInfo("assertIsEqual", l, " + ", r, " == 0")
-	builder.addPlonkConstraint(l, r, builder.zero(), lc, rc, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
+	debug := builder.newDebugInfo("assertIsEqual", xa, " == ", xb)
+
+	builder.cs.Neg(&xb.Coeff)
+	// xa - xb == 0
+	builder.addPlonkConstraint(sparseR1C{
+		xa: xa.VID,
+		xb: xb.VID,
+		qL: xa.Coeff,
+		qR: xb.Coeff,
+	}, debug)
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (builder *scs) AssertIsDifferent(i1, i2 frontend.Variable) {
-	builder.Inverse(builder.Sub(i1, i2))
+func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
+	s := builder.Sub(i1, i2)
+	if c, ok := builder.constantValue(s); ok && c.IsZero() {
+		panic("AssertIsDifferent(x,x) will never be satisfied")
+	} else if t := s.(expr.Term); t.Coeff.IsZero() {
+		panic("AssertIsDifferent(x,x) will never be satisfied")
+	}
+	builder.Inverse(s)
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
-func (builder *scs) AssertIsBoolean(i1 frontend.Variable) {
-	if c, ok := builder.ConstantValue(i1); ok {
-		if !(c.IsUint64() && (c.Uint64() == 0 || c.Uint64() == 1)) {
-			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", c.String()))
+func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
+	if c, ok := builder.constantValue(i1); ok {
+		if !(c.IsZero() || builder.cs.IsOne(&c)) {
+			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", builder.cs.String(&c)))
 		}
 		return
 	}
-	t := i1.(expr.TermToRefactor)
-	if builder.IsBoolean(t) {
+
+	v := i1.(expr.Term)
+	if builder.IsBoolean(v) {
 		return
 	}
-	builder.MarkBoolean(t)
-	builder.mtBooleans[int(t.CID)|t.VID<<32] = struct{}{} // TODO @gbotrel smelly fix me
-	debug := builder.newDebugInfo("assertIsBoolean", t, " == (0|1)")
-	cID, _ := t.Unpack()
-	var mCoef big.Int
-	mCoef.Neg(&builder.st.Coeffs[cID])
-	mcID := builder.st.CoeffID(&mCoef)
-	builder.addPlonkConstraint(t, t, builder.zero(), cID, constraint.CoeffIdZero, mcID, cID, constraint.CoeffIdZero, constraint.CoeffIdZero, debug)
+	builder.MarkBoolean(v)
+
+	// ensure v * (1 - v) == 0
+	// that is v + -v*v == 0
+	// qM = -v.Coeff*v.Coeff
+	qM := v.Coeff
+	builder.cs.Neg(&qM)
+	builder.cs.Mul(&qM, &v.Coeff)
+	toAdd := sparseR1C{
+		xa: v.VID,
+		xb: v.VID,
+		qL: v.Coeff,
+		qM: qM,
+	}
+	if debug.Debug {
+		debug := builder.newDebugInfo("assertIsBoolean", v, " == (0|1)")
+		builder.addPlonkConstraint(toAdd, debug)
+	} else {
+		builder.addPlonkConstraint(toAdd)
+	}
+
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (builder *scs) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
-	case expr.TermToRefactor:
-		builder.mustBeLessOrEqVar(v.(expr.TermToRefactor), b)
+	case expr.Term:
+		builder.mustBeLessOrEqVar(v, b)
 	default:
-		builder.mustBeLessOrEqCst(v.(expr.TermToRefactor), utils.FromInterface(b))
+		builder.mustBeLessOrEqCst(v, utils.FromInterface(b))
 	}
 }
 
-func (builder *scs) mustBeLessOrEqVar(a expr.TermToRefactor, bound expr.TermToRefactor) {
+func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) {
 
 	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
@@ -126,28 +155,33 @@ func (builder *scs) mustBeLessOrEqVar(a expr.TermToRefactor, bound expr.TermToRe
 		t := builder.Select(boundBits[i], 0, p[i+1])
 
 		// (1 - t - ai) * ai == 0
-		l := builder.Sub(1, t, aBits[i])
+		l := builder.Sub(1, t, aBits[i]).(expr.Term)
 
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
-		builder.MarkBoolean(aBits[i].(expr.TermToRefactor)) // this does not create a constraint
 
-		builder.addPlonkConstraint(
-			l.(expr.TermToRefactor),
-			aBits[i].(expr.TermToRefactor),
-			builder.zero(),
-			constraint.CoeffIdZero,
-			constraint.CoeffIdZero,
-			constraint.CoeffIdOne,
-			constraint.CoeffIdOne,
-			constraint.CoeffIdZero,
-			constraint.CoeffIdZero, debug)
+		if ai, ok := builder.constantValue(aBits[i]); ok {
+			// a is constant; ensure l == 0
+			builder.cs.Mul(&l.Coeff, &ai)
+			builder.addPlonkConstraint(sparseR1C{
+				xa: l.VID,
+				qL: l.Coeff,
+			}, debug)
+		} else {
+			// l * a[i] == 0
+			builder.addPlonkConstraint(sparseR1C{
+				xa: l.VID,
+				xb: aBits[i].(expr.Term).VID,
+				qM: l.Coeff,
+			}, debug)
+		}
+
 	}
 
 }
 
-func (builder *scs) mustBeLessOrEqCst(a expr.TermToRefactor, bound big.Int) {
+func (builder *builder) mustBeLessOrEqCst(a frontend.Variable, bound big.Int) {
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -157,6 +191,14 @@ func (builder *scs) mustBeLessOrEqCst(a expr.TermToRefactor, bound big.Int) {
 	}
 	if bound.BitLen() > nbBits {
 		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
+	}
+
+	if ca, ok := builder.constantValue(a); ok {
+		// a is constant, compare the big int values
+		ba := builder.cs.ToBigInt(&ca)
+		if ba.Cmp(&bound) == 1 {
+			panic(fmt.Sprintf("AssertIsLessOrEqual: %s > %s", ba.String(), bound.String()))
+		}
 	}
 
 	// debug info
@@ -191,21 +233,14 @@ func (builder *scs) mustBeLessOrEqCst(a expr.TermToRefactor, bound big.Int) {
 
 		if bound.Bit(i) == 0 {
 			// (1 - p(i+1) - ai) * ai == 0
-			l := builder.Sub(1, p[i+1], aBits[i]).(expr.TermToRefactor)
+			l := builder.Sub(1, p[i+1], aBits[i]).(expr.Term)
 			//l = builder.Sub(l, ).(term)
 
-			builder.addPlonkConstraint(
-				l,
-				aBits[i].(expr.TermToRefactor),
-				builder.zero(),
-				constraint.CoeffIdZero,
-				constraint.CoeffIdZero,
-				constraint.CoeffIdOne,
-				constraint.CoeffIdOne,
-				constraint.CoeffIdZero,
-				constraint.CoeffIdZero,
-				debug)
-			// builder.markBoolean(aBits[i].(term))
+			builder.addPlonkConstraint(sparseR1C{
+				xa: l.VID,
+				xb: aBits[i].(expr.Term).VID,
+				qM: builder.tOne,
+			}, debug)
 		} else {
 			builder.AssertIsBoolean(aBits[i])
 		}
