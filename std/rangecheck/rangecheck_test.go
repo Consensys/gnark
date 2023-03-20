@@ -42,7 +42,6 @@ func TestCheck(t *testing.T) {
 	circuit := CheckCircuit{Vals: make([]frontend.Variable, len(vals)), bits: bits}
 	err = test.IsSolved(&circuit, &witness, goldilocks.Modulus())
 	assert.NoError(err)
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithCompressThreshold(100))
+	_, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithCompressThreshold(100))
 	assert.NoError(err)
-	t.Log(ccs.GetNbConstraints())
 }
