@@ -19,8 +19,6 @@ package frontend
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/hint"
 )
 
@@ -31,6 +29,11 @@ type API interface {
 
 	// Add returns res = i1+i2+...in
 	Add(i1, i2 Variable, in ...Variable) Variable
+
+	// MulAcc sets and return a = a + (b*c)
+	// ! may mutate a without allocating a new result
+	// ! always use MulAcc(...) result for correctness
+	MulAcc(a, b, c Variable) Variable
 
 	// Neg returns -i
 	Neg(i1 Variable) Variable
@@ -58,7 +61,7 @@ type API interface {
 	// n is the number of bits to select (starting from lsb)
 	// n default value is fr.Bits the number of bits needed to represent a field element
 	//
-	// The result in in little endian (first bit= lsb)
+	// The result in little endian (first bit= lsb)
 	ToBinary(i1 Variable, n ...int) []Variable
 
 	// FromBinary packs b, seen as a fr.Element in little endian
@@ -117,27 +120,11 @@ type API interface {
 
 	// Deprecated APIs
 
-	// NewHint is a shorcut to api.Compiler().NewHint()
+	// NewHint is a shortcut to api.Compiler().NewHint()
 	// Deprecated: use api.Compiler().NewHint() instead
 	NewHint(f hint.Function, nbOutputs int, inputs ...Variable) ([]Variable, error)
 
-	// Tag is a shorcut to api.Compiler().Tag()
-	// Deprecated: use api.Compiler().Tag() instead
-	Tag(name string) Tag
-
-	// AddCounter is a shorcut to api.Compiler().AddCounter()
-	// Deprecated: use api.Compiler().AddCounter() instead
-	AddCounter(from, to Tag)
-
-	// ConstantValue is a shorcut to api.Compiler().ConstantValue()
+	// ConstantValue is a shortcut to api.Compiler().ConstantValue()
 	// Deprecated: use api.Compiler().ConstantValue() instead
 	ConstantValue(v Variable) (*big.Int, bool)
-
-	// Curve is a shorcut to api.Compiler().Curve()
-	// Deprecated: use api.Compiler().Curve() instead
-	Curve() ecc.ID
-
-	// Backend is a shorcut to api.Compiler().Backend()
-	// Deprecated: use api.Compiler().Backend() instead
-	Backend() backend.ID
 }

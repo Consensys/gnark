@@ -23,7 +23,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/fields_bls24315"
@@ -87,7 +86,7 @@ func TestPairingBLS24315(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633), test.WithBackends(backend.GROTH16))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -124,7 +123,7 @@ func TestTriplePairingBLS24315(t *testing.T) {
 	witness.Q3.Assign(&Q[2])
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633), test.WithBackends(backend.GROTH16))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -141,10 +140,10 @@ func triplePairingData() (P [3]bls24315.G1Affine, Q [3]bls24315.G2Affine, pairin
 	var u, v fr.Element
 	var _u, _v big.Int
 	for i := 1; i < 3; i++ {
-		u.SetRandom()
-		v.SetRandom()
-		u.ToBigIntRegular(&_u)
-		v.ToBigIntRegular(&_v)
+		_, _ = u.SetRandom()
+		_, _ = v.SetRandom()
+		u.BigInt(&_u)
+		v.BigInt(&_v)
 		P[i].ScalarMultiplication(&P[0], &_u)
 		Q[i].ScalarMultiplication(&Q[0], &_v)
 	}
@@ -184,12 +183,12 @@ func mustbeEq(api frontend.API, fp24 fields_bls24315.E24, e24 *bls24315.GT) {
 // bench
 func BenchmarkPairing(b *testing.B) {
 	var c pairingBLS24315
-	ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
+	ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }
 
 func BenchmarkTriplePairing(b *testing.B) {
 	var c triplePairingBLS24315
-	ccsBench, _ = frontend.Compile(ecc.BW6_633, r1cs.NewBuilder, &c)
+	ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
 	b.Log("groth16", ccsBench.GetNbConstraints())
 }

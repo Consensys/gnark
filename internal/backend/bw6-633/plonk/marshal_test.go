@@ -23,63 +23,59 @@ import (
 
 	"bytes"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
+	gnarkio "github.com/consensys/gnark/io"
+	"io"
+	"math/big"
+	"math/rand"
 	"reflect"
 	"testing"
 )
 
+func TestProofSerialization(t *testing.T) {
+	// create a  proof
+	var proof, reconstructed Proof
+	proof.randomize()
+
+	roundTripCheck(t, &proof, &reconstructed)
+}
+
+func TestProofSerializationRaw(t *testing.T) {
+	// create a  proof
+	var proof, reconstructed Proof
+	proof.randomize()
+
+	roundTripCheckRaw(t, &proof, &reconstructed)
+}
+
 func TestProvingKeySerialization(t *testing.T) {
-	// create a random vk
-	var vk VerifyingKey
-	vk.Size = 42
-	vk.SizeInv = fr.One()
-
-	_, _, g1gen, _ := curve.Generators()
-	vk.S[0] = g1gen
-	vk.S[1] = g1gen
-	vk.S[2] = g1gen
-	vk.Ql = g1gen
-	vk.Qr = g1gen
-	vk.Qm = g1gen
-	vk.Qo = g1gen
-	vk.Qk = g1gen
-	vk.NbPublicVariables = 8000
-
 	// random pk
-	var pk ProvingKey
-	pk.Vk = &vk
-	pk.Domain[0] = *fft.NewDomain(42)
-	pk.Domain[1] = *fft.NewDomain(4 * 42)
-	pk.Ql = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.Qr = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.Qm = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.Qo = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.CQk = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.LQk = make([]fr.Element, pk.Domain[0].Cardinality)
+	var pk, reconstructed ProvingKey
+	pk.randomize()
 
-	for i := 0; i < 12; i++ {
-		pk.Ql[i].SetOne().Neg(&pk.Ql[i])
-		pk.Qr[i].SetOne()
-		pk.Qo[i].SetUint64(42)
-	}
+	roundTripCheck(t, &pk, &reconstructed)
+}
 
-	pk.Permutation = make([]int64, 3*pk.Domain[0].Cardinality)
-	pk.Permutation[0] = -12
-	pk.Permutation[len(pk.Permutation)-1] = 8888
+func TestVerifyingKeySerialization(t *testing.T) {
+	// create a random vk
+	var vk, reconstructed VerifyingKey
+	vk.randomize()
 
+	roundTripCheck(t, &vk, &reconstructed)
+}
+
+func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom) {
 	var buf bytes.Buffer
-	written, err := pk.WriteTo(&buf)
+	written, err := from.WriteTo(&buf)
 	if err != nil {
-		t.Fatal("coudln't serialize", err)
+		t.Fatal("couldn't serialize", err)
 	}
-
-	var reconstructed ProvingKey
 
 	read, err := reconstructed.ReadFrom(&buf)
 	if err != nil {
-		t.Fatal("coudln't deserialize", err)
+		t.Fatal("couldn't deserialize", err)
 	}
 
-	if !reflect.DeepEqual(&pk, &reconstructed) {
+	if !reflect.DeepEqual(from, reconstructed) {
 		t.Fatal("reconstructed object don't match original")
 	}
 
@@ -88,40 +84,98 @@ func TestProvingKeySerialization(t *testing.T) {
 	}
 }
 
-func TestVerifyingKeySerialization(t *testing.T) {
-	// create a random vk
-	var vk VerifyingKey
-	vk.Size = 42
-	vk.SizeInv = fr.One()
-
-	_, _, g1gen, _ := curve.Generators()
-	vk.S[0] = g1gen
-	vk.S[1] = g1gen
-	vk.S[2] = g1gen
-	vk.Ql = g1gen
-	vk.Qr = g1gen
-	vk.Qm = g1gen
-	vk.Qo = g1gen
-	vk.Qk = g1gen
-
+func roundTripCheckRaw(t *testing.T, from gnarkio.WriterRawTo, reconstructed io.ReaderFrom) {
 	var buf bytes.Buffer
-	written, err := vk.WriteTo(&buf)
+	written, err := from.WriteRawTo(&buf)
 	if err != nil {
-		t.Fatal("coudln't serialize", err)
+		t.Fatal("couldn't serialize", err)
 	}
-
-	var reconstructed VerifyingKey
 
 	read, err := reconstructed.ReadFrom(&buf)
 	if err != nil {
-		t.Fatal("coudln't deserialize", err)
+		t.Fatal("couldn't deserialize", err)
 	}
 
-	if !reflect.DeepEqual(&vk, &reconstructed) {
+	if !reflect.DeepEqual(from, reconstructed) {
 		t.Fatal("reconstructed object don't match original")
 	}
 
 	if written != read {
 		t.Fatal("bytes written / read don't match")
 	}
+}
+
+func (pk *ProvingKey) randomize() {
+	var vk VerifyingKey
+	vk.randomize()
+	pk.Vk = &vk
+	pk.Domain[0] = *fft.NewDomain(42)
+	pk.Domain[1] = *fft.NewDomain(4 * 42)
+
+	n := int(pk.Domain[0].Cardinality)
+	pk.Ql = randomScalars(n)
+	pk.Qr = randomScalars(n)
+	pk.Qm = randomScalars(n)
+	pk.Qo = randomScalars(n)
+	pk.CQk = randomScalars(n)
+	pk.LQk = randomScalars(n)
+	pk.S1Canonical = randomScalars(n)
+	pk.S2Canonical = randomScalars(n)
+	pk.S3Canonical = randomScalars(n)
+
+	pk.Permutation = make([]int64, 3*pk.Domain[0].Cardinality)
+	pk.Permutation[0] = -12
+	pk.Permutation[len(pk.Permutation)-1] = 8888
+
+	pk.computeLagrangeCosetPolys()
+}
+
+func (vk *VerifyingKey) randomize() {
+	vk.Size = rand.Uint64()
+	vk.SizeInv.SetRandom()
+	vk.Generator.SetRandom()
+	vk.NbPublicVariables = rand.Uint64()
+	vk.CosetShift.SetRandom()
+
+	vk.S[0] = randomPoint()
+	vk.S[1] = randomPoint()
+	vk.S[2] = randomPoint()
+	vk.Ql = randomPoint()
+	vk.Qr = randomPoint()
+	vk.Qm = randomPoint()
+	vk.Qo = randomPoint()
+	vk.Qk = randomPoint()
+}
+
+func (proof *Proof) randomize() {
+	proof.LRO[0] = randomPoint()
+	proof.LRO[1] = randomPoint()
+	proof.LRO[2] = randomPoint()
+	proof.Z = randomPoint()
+	proof.H[0] = randomPoint()
+	proof.H[1] = randomPoint()
+	proof.H[2] = randomPoint()
+	proof.BatchedProof.H = randomPoint()
+	proof.BatchedProof.ClaimedValues = randomScalars(2)
+	proof.ZShiftedOpening.H = randomPoint()
+	proof.ZShiftedOpening.ClaimedValue.SetRandom()
+}
+
+func randomPoint() curve.G1Affine {
+	_, _, r, _ := curve.Generators()
+	r.ScalarMultiplication(&r, big.NewInt(int64(rand.Uint64())))
+	return r
+}
+
+func randomScalars(n int) []fr.Element {
+	v := make([]fr.Element, n)
+	one := fr.One()
+	for i := 0; i < len(v); i++ {
+		if i == 0 {
+			v[i].SetRandom()
+		} else {
+			v[i].Add(&v[i-1], &one)
+		}
+	}
+	return v
 }

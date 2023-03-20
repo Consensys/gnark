@@ -9,16 +9,27 @@ import (
 
 func Stack() string {
 	var sbb strings.Builder
-	WriteStack(&sbb)
+	writeStack(&sbb)
 	return sbb.String()
 }
 
-func WriteStack(sbb *strings.Builder, forceClean ...bool) {
+type Location struct {
+	FunctionID int
+	Line       int64
+}
+
+type Function struct {
+	Name       string
+	SystemName string
+	Filename   string
+}
+
+func writeStack(sbb *strings.Builder, forceClean ...bool) {
 	// derived from: https://golang.org/pkg/runtime/#example_Frames
 	// we stop when func name == Define as it is where the gnark circuit code should start
 
 	// Ask runtime.Callers for up to 10 pcs
-	pc := make([]uintptr, 10)
+	pc := make([]uintptr, 20)
 	n := runtime.Callers(3, pc)
 	if n == 0 {
 		// No pcs available. Stop now.

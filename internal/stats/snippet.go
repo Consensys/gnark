@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 var (
@@ -77,6 +78,30 @@ func initSnippets() {
 		mimc, _ := mimc.NewMiMC(api)
 		mimc.Write(newVariable())
 		_ = mimc.Sum()
+	})
+	registerSnippet("math/emulated/secp256k1_64", func(api frontend.API, newVariable func() frontend.Variable) {
+		secp256k1, _ := emulated.NewField[emulated.Secp256k1Fp](api)
+
+		newElement := func() *emulated.Element[emulated.Secp256k1Fp] {
+			limbs := make([]frontend.Variable, emulated.Secp256k1Fp{}.NbLimbs())
+			for i := 0; i < len(limbs); i++ {
+				limbs[i] = newVariable()
+			}
+			return secp256k1.NewElement(limbs)
+		}
+
+		x13 := secp256k1.Mul(newElement(), newElement())
+		x13 = secp256k1.Mul(x13, newElement())
+		five := emulated.ValueOf[emulated.Secp256k1Fp](5)
+		fx2 := secp256k1.Mul(&five, newElement())
+		nom := secp256k1.Sub(fx2, x13)
+		denom := secp256k1.Add(newElement(), newElement())
+		denom = secp256k1.Add(denom, newElement())
+		denom = secp256k1.Add(denom, newElement())
+		free := secp256k1.Div(nom, denom)
+		res := secp256k1.Add(x13, fx2)
+		res = secp256k1.Add(res, free)
+		secp256k1.AssertIsEqual(res, newElement())
 	})
 
 	registerSnippet("pairing_bls12377", func(api frontend.API, newVariable func() frontend.Variable) {

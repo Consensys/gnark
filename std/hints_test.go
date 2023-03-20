@@ -1,14 +1,13 @@
 package std
 
 import (
-	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/constraint"
 )
 
 func ExampleRegisterHints() {
 	// this constraint system correspond to a circuit using gnark/std components which rely on hints
 	// like bits.ToNAF(...)
-	var ccs frontend.CompiledConstraintSystem
+	var ccs constraint.ConstraintSystem
 
 	// since package bits is not imported, the hint NNAF is not registered
 	// --> hint.Register(bits.NNAF)
@@ -17,5 +16,5 @@ func ExampleRegisterHints() {
 	RegisterHints()
 
 	// then -->
-	ccs.IsSolved(&witness.Witness{})
+	_ = ccs.IsSolved(nil)
 }

@@ -86,7 +86,7 @@ func TestTraceDivBy0(t *testing.T) {
 	{
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint #0 is not satisfied: [div] 2/(-2 + 2) == <unsolved>")
+		assert.Contains(err.Error(), "constraint #0 is not satisfied: [div] 2/0 == <unsolved>")
 		assert.Contains(err.Error(), "(*divBy0Trace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
@@ -123,7 +123,7 @@ func TestTraceNotEqual(t *testing.T) {
 	{
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint #0 is not satisfied: [assertIsEqual] 1 == (24 + 42)")
+		assert.Contains(err.Error(), "constraint #0 is not satisfied: [assertIsEqual] 1 == 66")
 		assert.Contains(err.Error(), "(*notEqualTrace).Define")
 		assert.Contains(err.Error(), "debug_test.go:")
 	}
@@ -137,45 +137,8 @@ func TestTraceNotEqual(t *testing.T) {
 	}
 }
 
-// -------------------------------------------------------------------------------------------------
-// Not boolean
-type notBooleanTrace struct {
-	B, C frontend.Variable
-}
-
-func (circuit *notBooleanTrace) Define(api frontend.API) error {
-	d := api.Add(circuit.B, circuit.C)
-	api.AssertIsBoolean(d)
-	return nil
-}
-
-func TestTraceNotBoolean(t *testing.T) {
-	assert := require.New(t)
-
-	var circuit, witness notBooleanTrace
-	// witness.A = 1
-	witness.B = 24
-	witness.C = 42
-
-	{
-		_, err := getGroth16Trace(&circuit, &witness)
-		assert.Error(err)
-		assert.Contains(err.Error(), "constraint #0 is not satisfied: [assertIsBoolean] (24 + 42) == (0|1)")
-		assert.Contains(err.Error(), "(*notBooleanTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:")
-	}
-
-	{
-		_, err := getPlonkTrace(&circuit, &witness)
-		assert.Error(err)
-		assert.Contains(err.Error(), "constraint #1 is not satisfied: [assertIsBoolean] 66 == (0|1)")
-		assert.Contains(err.Error(), "(*notBooleanTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:")
-	}
-}
-
 func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
-	ccs, err := frontend.Compile(ecc.BN254, scs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit)
 	if err != nil {
 		return "", err
 	}
@@ -190,7 +153,7 @@ func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	sw, err := frontend.NewWitness(w, ecc.BN254)
+	sw, err := frontend.NewWitness(w, ecc.BN254.ScalarField())
 	if err != nil {
 		return "", err
 	}
@@ -200,7 +163,7 @@ func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
 }
 
 func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
-	ccs, err := frontend.Compile(ecc.BN254, r1cs.NewBuilder, circuit)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
 	if err != nil {
 		return "", err
 	}
@@ -211,7 +174,7 @@ func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	sw, err := frontend.NewWitness(w, ecc.BN254)
+	sw, err := frontend.NewWitness(w, ecc.BN254.ScalarField())
 	if err != nil {
 		return "", err
 	}

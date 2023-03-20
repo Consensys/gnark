@@ -13,8 +13,12 @@ func (circuit *isZero) Define(api frontend.API) error {
 
 	a := api.IsZero(circuit.X)
 	b := api.IsZero(circuit.Y)
+	c := api.IsZero(1)
+	d := api.IsZero(0)
 	api.AssertIsEqual(a, 1)
 	api.AssertIsEqual(b, 0)
+	api.AssertIsEqual(c, 0)
+	api.AssertIsEqual(d, 1)
 
 	return nil
 }

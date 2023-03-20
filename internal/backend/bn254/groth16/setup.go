@@ -17,15 +17,13 @@
 package groth16
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-
-	"github.com/consensys/gnark/internal/backend/bn254/cs"
-
 	"github.com/consensys/gnark-crypto/ecc"
+	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
-	"github.com/consensys/gnark/frontend/compiled"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/bn254"
 	"math/big"
 	"math/bits"
 )
@@ -53,6 +51,8 @@ type ProvingKey struct {
 	// if InfinityA[i] == true, the point G1.A[i] == infinity
 	InfinityA, InfinityB     []bool
 	NbInfinityA, NbInfinityB uint64
+
+	CommitmentKey pedersen.Key
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -74,6 +74,9 @@ type VerifyingKey struct {
 
 	// e(α, β)
 	e curve.GT // not serialized
+
+	CommitmentKey  pedersen.Key
+	CommitmentInfo constraint.Commitment // since the verifier doesn't input a constraint system, this needs to be provided here
 }
 
 // Setup constructs the SRS
@@ -89,9 +92,15 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	*/
 
 	// get R1CS nb constraints, wires and public/private inputs
-	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
-	nbPublicWires := int(r1cs.NbPublicVariables)
-	nbPrivateWires := r1cs.NbSecretVariables + r1cs.NbInternalVariables
+	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
+	nbPrivateCommittedWires := r1cs.CommitmentInfo.NbPrivateCommitted
+	nbPublicWires := r1cs.GetNbPublicVariables()
+	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - nbPrivateCommittedWires
+
+	if r1cs.CommitmentInfo.Is() { // the commitment itself is defined by a hint so the prover considers it private
+		nbPublicWires++  // but the verifier will need to inject the value itself so on the groth16
+		nbPrivateWires-- // level it must be considered public
+	}
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(len(r1cs.Constraints)))
@@ -117,7 +126,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// ---------------------------------------------------------------------------------------------
 	// G1 scalars
 
-	// the G1 scalars are ordered (arbitrary) as follow:
+	// the G1 scalars are ordered (arbitrary) as follows:
 	//
 	// [[α], [β], [δ], [A(i)], [B(i)], [pk.K(i)], [Z(i)], [vk.K(i)]]
 	// len(A) == len(B) == nbWires
@@ -125,36 +134,43 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// len(vk.K) == nbPublicWires
 	// len(Z) == domain.Cardinality
 
-	// compute scalars for pkK and vkK
+	// compute scalars for pkK, vkK and ckK
 	pkK := make([]fr.Element, nbPrivateWires)
 	vkK := make([]fr.Element, nbPublicWires)
+	ckK := make([]fr.Element, nbPrivateCommittedWires)
 
 	var t0, t1 fr.Element
 
-	for i := 0; i < nbPublicWires; i++ {
+	computeK := func(i int, coeff *fr.Element) { // TODO: Inline again
 		t1.Mul(&A[i], &toxicWaste.beta)
 		t0.Mul(&B[i], &toxicWaste.alpha)
 		t1.Add(&t1, &t0).
 			Add(&t1, &C[i]).
-			Mul(&t1, &toxicWaste.gammaInv)
-		vkK[i] = t1.ToRegular()
+			Mul(&t1, coeff)
 	}
 
-	for i := 0; i < nbPrivateWires; i++ {
-		t1.Mul(&A[i+nbPublicWires], &toxicWaste.beta)
-		t0.Mul(&B[i+nbPublicWires], &toxicWaste.alpha)
-		t1.Add(&t1, &t0).
-			Add(&t1, &C[i+nbPublicWires]).
-			Mul(&t1, &toxicWaste.deltaInv)
-		pkK[i] = t1.ToRegular()
-	}
+	vI, cI := 0, 0
+	privateCommitted := r1cs.CommitmentInfo.PrivateCommitted()
 
-	// convert A and B to regular form
-	for i := 0; i < int(nbWires); i++ {
-		A[i].FromMont()
-	}
-	for i := 0; i < int(nbWires); i++ {
-		B[i].FromMont()
+	for i := range A {
+		isCommittedPrivate := cI < len(privateCommitted) && i == privateCommitted[cI]
+		isCommitment := r1cs.CommitmentInfo.Is() && i == r1cs.CommitmentInfo.CommitmentIndex
+		isPublic := i < r1cs.GetNbPublicVariables()
+
+		if isPublic || isCommittedPrivate || isCommitment {
+			computeK(i, &toxicWaste.gammaInv)
+
+			if isCommittedPrivate {
+				ckK[cI] = t1
+				cI++
+			} else {
+				vkK[vI] = t1
+				vI++
+			}
+		} else {
+			computeK(i, &toxicWaste.deltaInv)
+			pkK[i-vI-cI] = t1
+		}
 	}
 
 	// Z part of the proving key (scalars)
@@ -167,7 +183,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		Mul(&zdt, &toxicWaste.deltaInv) // sets Zdt to Zdt/delta
 
 	for i := 0; i < int(domain.Cardinality); i++ {
-		Z[i] = zdt.ToRegular()
+		Z[i] = zdt
 		zdt.Mul(&zdt, &toxicWaste.t)
 	}
 
@@ -200,12 +216,13 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// compute our batch scalar multiplication with g1 elements
 	g1Scalars := make([]fr.Element, 0, (nbWires*3)+int(domain.Cardinality)+3)
-	g1Scalars = append(g1Scalars, toxicWaste.alphaReg, toxicWaste.betaReg, toxicWaste.deltaReg)
+	g1Scalars = append(g1Scalars, toxicWaste.alpha, toxicWaste.beta, toxicWaste.delta)
 	g1Scalars = append(g1Scalars, A...)
 	g1Scalars = append(g1Scalars, B...)
-	g1Scalars = append(g1Scalars, pkK...)
 	g1Scalars = append(g1Scalars, Z...)
 	g1Scalars = append(g1Scalars, vkK...)
+	g1Scalars = append(g1Scalars, pkK...)
+	g1Scalars = append(g1Scalars, ckK...)
 
 	g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
 
@@ -221,15 +238,31 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	pk.G1.B = g1PointsAff[offset : offset+len(B)]
 	offset += len(B)
 
-	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
-	offset += nbPrivateWires
-
 	pk.G1.Z = g1PointsAff[offset : offset+int(domain.Cardinality)]
 	bitReverse(pk.G1.Z)
 
 	offset += int(domain.Cardinality)
 
-	vk.G1.K = g1PointsAff[offset:]
+	vk.G1.K = g1PointsAff[offset : offset+nbPublicWires]
+	offset += nbPublicWires
+
+	pk.G1.K = g1PointsAff[offset : offset+nbPrivateWires]
+	offset += nbPrivateWires
+
+	// ---------------------------------------------------------------------------------------------
+	// Commitment setup
+
+	if nbPrivateCommittedWires != 0 {
+		commitmentBasis := g1PointsAff[offset:]
+
+		vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
+		if err != nil {
+			return err
+		}
+		pk.CommitmentKey = vk.CommitmentKey
+	}
+
+	vk.CommitmentInfo = r1cs.CommitmentInfo // unfortunate but necessary
 
 	// ---------------------------------------------------------------------------------------------
 	// G2 scalars
@@ -240,7 +273,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// len(B) == nbWires
 
 	// compute our batch scalar multiplication with g2 elements
-	g2Scalars := append(B, toxicWaste.betaReg, toxicWaste.deltaReg, toxicWaste.gammaReg)
+	g2Scalars := append(B, toxicWaste.beta, toxicWaste.delta, toxicWaste.gamma)
 
 	g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
 
@@ -277,7 +310,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.Element, B []fr.Element, C []fr.Element) {
 
-	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
+	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 
 	A = make([]fr.Element, nbWires)
 	B = make([]fr.Element, nbWires)
@@ -307,16 +340,16 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	L.Mul(&L, &tInv[0]).
 		Mul(&L, &domain.CardinalityInv)
 
-	accumulate := func(res *fr.Element, t compiled.Term, value *fr.Element) {
+	accumulate := func(res *fr.Element, t constraint.Term, value *fr.Element) {
 		cID := t.CoeffID()
 		switch cID {
-		case compiled.CoeffIdZero:
+		case constraint.CoeffIdZero:
 			return
-		case compiled.CoeffIdOne:
+		case constraint.CoeffIdOne:
 			res.Add(res, value)
-		case compiled.CoeffIdMinusOne:
+		case constraint.CoeffIdMinusOne:
 			res.Sub(res, value)
-		case compiled.CoeffIdTwo:
+		case constraint.CoeffIdTwo:
 			var buffer fr.Element
 			buffer.Double(value)
 			res.Add(res, &buffer)
@@ -332,7 +365,7 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// L, R and O being linear expressions
 	// for each term appearing in the linear expression,
 	// we compute term.Coefficient * L, and cumulate it in
-	// A, B or C at the indice of the variable
+	// A, B or C at the index of the variable
 	for i, c := range r1cs.Constraints {
 
 		for _, t := range c.L {
@@ -360,9 +393,6 @@ type toxicWaste struct {
 	// Montgomery form of params
 	t, alpha, beta, gamma, delta fr.Element
 	gammaInv, deltaInv           fr.Element
-
-	// Non Montgomery form of params
-	alphaReg, betaReg, gammaReg, deltaReg fr.Element
 }
 
 func sampleToxicWaste() (toxicWaste, error) {
@@ -398,11 +428,6 @@ func sampleToxicWaste() (toxicWaste, error) {
 	res.gammaInv.Inverse(&res.gamma)
 	res.deltaInv.Inverse(&res.delta)
 
-	res.alphaReg = res.alpha.ToRegular()
-	res.betaReg = res.beta.ToRegular()
-	res.gammaReg = res.gamma.ToRegular()
-	res.deltaReg = res.delta.ToRegular()
-
 	return res, nil
 }
 
@@ -410,7 +435,7 @@ func sampleToxicWaste() (toxicWaste, error) {
 // used for test or benchmarking purposes
 func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
-	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
+	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 	nbConstraints := len(r1cs.Constraints)
 
 	// Setting group for fft
@@ -423,7 +448,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires-nbZeroesA)
 	pk.G1.B = make([]curve.G1Affine, nbWires-nbZeroesB)
-	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.NbPublicVariables)
+	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.GetNbPublicVariables())
 	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
 	pk.G2.B = make([]curve.G2Affine, nbWires-nbZeroesB)
 
@@ -449,7 +474,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	var r1Aff curve.G1Affine
 	var b big.Int
 	g1, g2, _, _ := curve.Generators()
-	r1Jac.ScalarMultiplication(&g1, toxicWaste.alphaReg.ToBigInt(&b))
+	r1Jac.ScalarMultiplication(&g1, toxicWaste.alpha.BigInt(&b))
 	r1Aff.FromJacobian(&r1Jac)
 	var r2Jac curve.G2Jac
 	var r2Aff curve.G2Affine
@@ -485,7 +510,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 // in A and B as it directly impacts prover performance
 func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 
-	nbWires := r1cs.NbInternalVariables + r1cs.NbPublicVariables + r1cs.NbSecretVariables
+	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 
 	A := make([]bool, nbWires)
 	B := make([]bool, nbWires)

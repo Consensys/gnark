@@ -19,7 +19,6 @@ package fields_bls24315
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
@@ -271,7 +270,7 @@ func (e *E24) Decompress(api frontend.API, x E24) *E24 {
 	t[1].Sub(api, t[0], x.D0.C2).
 		Double(api, t[1]).
 		Add(api, t[1], t[0])
-		// t0 = E * g5² + t1
+	// t0 = E * g5² + t1
 	t[2].Square(api, x.D1.C2)
 	t[0].MulByNonResidue(api, t[2]).
 		Add(api, t[0], t[1])
@@ -389,7 +388,7 @@ func (e *E24) Mul034By034(api frontend.API, d3, d4, c3, c4 E4) *E24 {
 	return e
 }
 
-var InverseE24Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var InverseE24Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls24315.E24
 
 	a.D0.C0.B0.A0.SetBigInt(inputs[0])
@@ -419,30 +418,30 @@ var InverseE24Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error
 
 	c.Inverse(&a)
 
-	c.D0.C0.B0.A0.ToBigIntRegular(res[0])
-	c.D0.C0.B0.A1.ToBigIntRegular(res[1])
-	c.D0.C0.B1.A0.ToBigIntRegular(res[2])
-	c.D0.C0.B1.A1.ToBigIntRegular(res[3])
-	c.D0.C1.B0.A0.ToBigIntRegular(res[4])
-	c.D0.C1.B0.A1.ToBigIntRegular(res[5])
-	c.D0.C1.B1.A0.ToBigIntRegular(res[6])
-	c.D0.C1.B1.A1.ToBigIntRegular(res[7])
-	c.D0.C2.B0.A0.ToBigIntRegular(res[8])
-	c.D0.C2.B0.A1.ToBigIntRegular(res[9])
-	c.D0.C2.B1.A0.ToBigIntRegular(res[10])
-	c.D0.C2.B1.A1.ToBigIntRegular(res[11])
-	c.D1.C0.B0.A0.ToBigIntRegular(res[12])
-	c.D1.C0.B0.A1.ToBigIntRegular(res[13])
-	c.D1.C0.B1.A0.ToBigIntRegular(res[14])
-	c.D1.C0.B1.A1.ToBigIntRegular(res[15])
-	c.D1.C1.B0.A0.ToBigIntRegular(res[16])
-	c.D1.C1.B0.A1.ToBigIntRegular(res[17])
-	c.D1.C1.B1.A0.ToBigIntRegular(res[18])
-	c.D1.C1.B1.A1.ToBigIntRegular(res[19])
-	c.D1.C2.B0.A0.ToBigIntRegular(res[20])
-	c.D1.C2.B0.A1.ToBigIntRegular(res[21])
-	c.D1.C2.B1.A0.ToBigIntRegular(res[22])
-	c.D1.C2.B1.A1.ToBigIntRegular(res[23])
+	c.D0.C0.B0.A0.BigInt(res[0])
+	c.D0.C0.B0.A1.BigInt(res[1])
+	c.D0.C0.B1.A0.BigInt(res[2])
+	c.D0.C0.B1.A1.BigInt(res[3])
+	c.D0.C1.B0.A0.BigInt(res[4])
+	c.D0.C1.B0.A1.BigInt(res[5])
+	c.D0.C1.B1.A0.BigInt(res[6])
+	c.D0.C1.B1.A1.BigInt(res[7])
+	c.D0.C2.B0.A0.BigInt(res[8])
+	c.D0.C2.B0.A1.BigInt(res[9])
+	c.D0.C2.B1.A0.BigInt(res[10])
+	c.D0.C2.B1.A1.BigInt(res[11])
+	c.D1.C0.B0.A0.BigInt(res[12])
+	c.D1.C0.B0.A1.BigInt(res[13])
+	c.D1.C0.B1.A0.BigInt(res[14])
+	c.D1.C0.B1.A1.BigInt(res[15])
+	c.D1.C1.B0.A0.BigInt(res[16])
+	c.D1.C1.B0.A1.BigInt(res[17])
+	c.D1.C1.B1.A0.BigInt(res[18])
+	c.D1.C1.B1.A1.BigInt(res[19])
+	c.D1.C2.B0.A0.BigInt(res[20])
+	c.D1.C2.B0.A1.BigInt(res[21])
+	c.D1.C2.B1.A0.BigInt(res[22])
+	c.D1.C2.B1.A1.BigInt(res[23])
 
 	return nil
 }
@@ -474,7 +473,7 @@ func (e *E24) Inverse(api frontend.API, e1 E24) *E24 {
 	return e
 }
 
-var DivE24Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
+var DivE24Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls24315.E24
 
 	a.D0.C0.B0.A0.SetBigInt(inputs[0])
@@ -529,30 +528,30 @@ var DivE24Hint = func(curve ecc.ID, inputs []*big.Int, res []*big.Int) error {
 
 	c.Inverse(&b).Mul(&c, &a)
 
-	c.D0.C0.B0.A0.ToBigIntRegular(res[0])
-	c.D0.C0.B0.A1.ToBigIntRegular(res[1])
-	c.D0.C0.B1.A0.ToBigIntRegular(res[2])
-	c.D0.C0.B1.A1.ToBigIntRegular(res[3])
-	c.D0.C1.B0.A0.ToBigIntRegular(res[4])
-	c.D0.C1.B0.A1.ToBigIntRegular(res[5])
-	c.D0.C1.B1.A0.ToBigIntRegular(res[6])
-	c.D0.C1.B1.A1.ToBigIntRegular(res[7])
-	c.D0.C2.B0.A0.ToBigIntRegular(res[8])
-	c.D0.C2.B0.A1.ToBigIntRegular(res[9])
-	c.D0.C2.B1.A0.ToBigIntRegular(res[10])
-	c.D0.C2.B1.A1.ToBigIntRegular(res[11])
-	c.D1.C0.B0.A0.ToBigIntRegular(res[12])
-	c.D1.C0.B0.A1.ToBigIntRegular(res[13])
-	c.D1.C0.B1.A0.ToBigIntRegular(res[14])
-	c.D1.C0.B1.A1.ToBigIntRegular(res[15])
-	c.D1.C1.B0.A0.ToBigIntRegular(res[16])
-	c.D1.C1.B0.A1.ToBigIntRegular(res[17])
-	c.D1.C1.B1.A0.ToBigIntRegular(res[18])
-	c.D1.C1.B1.A1.ToBigIntRegular(res[19])
-	c.D1.C2.B0.A0.ToBigIntRegular(res[20])
-	c.D1.C2.B0.A1.ToBigIntRegular(res[21])
-	c.D1.C2.B1.A0.ToBigIntRegular(res[22])
-	c.D1.C2.B1.A1.ToBigIntRegular(res[23])
+	c.D0.C0.B0.A0.BigInt(res[0])
+	c.D0.C0.B0.A1.BigInt(res[1])
+	c.D0.C0.B1.A0.BigInt(res[2])
+	c.D0.C0.B1.A1.BigInt(res[3])
+	c.D0.C1.B0.A0.BigInt(res[4])
+	c.D0.C1.B0.A1.BigInt(res[5])
+	c.D0.C1.B1.A0.BigInt(res[6])
+	c.D0.C1.B1.A1.BigInt(res[7])
+	c.D0.C2.B0.A0.BigInt(res[8])
+	c.D0.C2.B0.A1.BigInt(res[9])
+	c.D0.C2.B1.A0.BigInt(res[10])
+	c.D0.C2.B1.A1.BigInt(res[11])
+	c.D1.C0.B0.A0.BigInt(res[12])
+	c.D1.C0.B0.A1.BigInt(res[13])
+	c.D1.C0.B1.A0.BigInt(res[14])
+	c.D1.C0.B1.A1.BigInt(res[15])
+	c.D1.C1.B0.A0.BigInt(res[16])
+	c.D1.C1.B0.A1.BigInt(res[17])
+	c.D1.C1.B1.A0.BigInt(res[18])
+	c.D1.C1.B1.A1.BigInt(res[19])
+	c.D1.C2.B0.A0.BigInt(res[20])
+	c.D1.C2.B0.A1.BigInt(res[21])
+	c.D1.C2.B1.A0.BigInt(res[22])
+	c.D1.C2.B1.A1.BigInt(res[23])
 
 	return nil
 }
@@ -600,9 +599,8 @@ func (e *E24) nSquare(api frontend.API, n int) {
 // This function is only used for the final expo of the pairing for bls24315, so the exponent is supposed to be hardcoded and on 32 bits.
 func (e *E24) Expt(api frontend.API, x E24, exponent uint64) *E24 {
 
-	res := E24{}
 	xInv := E24{}
-	res = x
+	res := x
 	xInv.Conjugate(api, x)
 
 	res.nSquare(api, 2)

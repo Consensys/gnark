@@ -14,7 +14,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 )
 
-const nbCurves = 6
+const nbCurves = 7
 
 func CurveIdx(curve ecc.ID) int {
 	switch curve {
@@ -30,6 +30,8 @@ func CurveIdx(curve ecc.ID) int {
 		return 4
 	case ecc.BW6_633:
 		return 5
+	case ecc.BLS24_317:
+		return 6
 	default:
 		panic("not implemented")
 	}
@@ -43,7 +45,7 @@ func init() {
 
 func NewGlobalStats() *globalStats {
 	return &globalStats{
-		Stats: make(map[string][backend.PLONK + 1][nbCurves + 1]snippetStats),
+		Stats: make(map[string][backend.PLONKFRI + 1][nbCurves + 1]snippetStats),
 	}
 }
 
@@ -77,13 +79,13 @@ func NewSnippetStats(curve ecc.ID, backendID backend.ID, circuit frontend.Circui
 	switch backendID {
 	case backend.GROTH16:
 		newCompiler = r1cs.NewBuilder
-	case backend.PLONK:
+	case backend.PLONK, backend.PLONKFRI:
 		newCompiler = scs.NewBuilder
 	default:
 		panic("not implemented")
 	}
 
-	ccs, err := frontend.Compile(curve, newCompiler, circuit, frontend.IgnoreUnconstrainedInputs())
+	ccs, err := frontend.Compile(curve.ScalarField(), newCompiler, circuit, frontend.IgnoreUnconstrainedInputs())
 	if err != nil {
 		return snippetStats{}, err
 	}
@@ -110,7 +112,7 @@ type Circuit struct {
 
 type globalStats struct {
 	sync.RWMutex
-	Stats map[string][backend.PLONK + 1][nbCurves + 1]snippetStats
+	Stats map[string][backend.PLONKFRI + 1][nbCurves + 1]snippetStats
 }
 
 type snippetStats struct {

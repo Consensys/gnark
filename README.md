@@ -5,9 +5,6 @@
 [![PkgGoDev](https://pkg.go.dev/badge/mod/github.com/consensys/gnark)](https://pkg.go.dev/mod/github.com/consensys/gnark)
 [![Documentation Status](https://readthedocs.com/projects/pegasys-gnark/badge/)][`gnark` User Documentation] [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5819104.svg)](https://doi.org/10.5281/zenodo.5819104)
 
-<img  width="100px"
-src="logo_new.png">
-
 `gnark` is a fast zk-SNARK library that offers a high-level API to design circuits. The library is open source and developed under the Apache 2.0 license
 
 
@@ -16,7 +13,7 @@ src="logo_new.png">
 * [`gnark` User Documentation]
 * [`gnark` Playground]
 * [`gnark` Issues]
-* [`gnark` Benchmarks](https://docs.gnark.consensys.net/en/latest/#gnark-is-fast)
+* [`gnark` Benchmarks](https://docs.gnark.consensys.net/overview#gnark-is-fast) 🏁
 * [`gnark-announce`] - Announcement list for new releases and security patches
 
 
@@ -29,7 +26,7 @@ Checkout the [online playground][`gnark` Playground] to compile circuits and vis
 
 ## Warning
 
-**`gnark` has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.**
+**`gnark` has been [partially audited](https://github.com/ConsenSys/gnark-crypto/blob/master/audit_oct2022.pdf) and is provided as-is, we make no guarantees or warranties to its safety and reliability. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.**
 
 `gnark` and `gnark-crypto` packages are optimized for 64bits architectures (x86 `amd64`) and tested on Unix (Linux / macOS).
 
@@ -64,6 +61,7 @@ which can be instantiated with the following curves
 - [x] BW6-761
 - [x] BLS24-315
 - [x] BW6-633
+- [x] BLS24-317
 
 ### Example
 
@@ -72,6 +70,15 @@ Refer to the [`gnark` User Documentation]
 Here is what `x**3 + x + 5 = y` looks like
 
 ```golang
+package main
+
+import (
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+)
+
 // CubicCircuit defines a simple circuit
 // x**3 + x + 5 == y
 type CubicCircuit struct {
@@ -89,21 +96,24 @@ func (circuit *CubicCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-// compiles our circuit into a R1CS
-var circuit CubicCircuit
-ccs, err := frontend.Compile(ecc.BN254, r1cs.NewBuilder, &circuit)
+func main() {
+	// compiles our circuit into a R1CS
+	var circuit CubicCircuit
+	ccs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 
-// groth16 zkSNARK: Setup
-pk, vk, err := groth16.Setup(ccs)
+	// groth16 zkSNARK: Setup
+	pk, vk, _ := groth16.Setup(ccs)
 
-// witness definition
-assignment := CubicCircuit{X: 3, Y: 35}
-witness, err := frontend.NewWitness(&assignment, ecc.BN254)
-publicWitness, _ := witness.Public()
+	// witness definition
+	assignment := CubicCircuit{X: 3, Y: 35}
+	witness, _ := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	publicWitness, _ := witness.Public()
 
-// groth16: Prove & Verify
-proof, err := groth16.Prove(ccs, pk, witness)
-err := groth16.Verify(proof, vk, publicWitness)
+	// groth16: Prove & Verify
+	proof, _ := groth16.Prove(ccs, pk, witness)
+	groth16.Verify(proof, vk, publicWitness)
+}
+
 ```
 
 ## Citing
@@ -112,19 +122,19 @@ If you use `gnark` in your research a citation would be appreciated.
 Please use the following BibTeX to cite the most recent release.
 
 ```bib
-@software{gnark-v0.6.4,
+@software{gnark-v0.8.0,
   author       = {Gautam Botrel and
                   Thomas Piellard and
                   Youssef El Housni and
                   Ivo Kubjas and
                   Arya Tabaie},
-  title        = {ConsenSys/gnark: v0.6.4},
+  title        = {ConsenSys/gnark: v0.8.0},
   month        = feb,
-  year         = 2022,
+  year         = 2023,
   publisher    = {Zenodo},
-  version      = {v0.6.4},
-  doi          = {10.5281/zenodo.6093969},
-  url          = {https://doi.org/10.5281/zenodo.6093969}
+  version      = {v0.8.0},
+  doi          = {10.5281/zenodo.5819104},
+  url          = {https://doi.org/10.5281/zenodo.5819104}
 }
 ```
 
@@ -142,8 +152,8 @@ This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE)
 
 [`gnark` Issues]: https://github.com/consensys/gnark/issues
 [`gnark` Playground]: https://play.gnark.io
-[`gnark` User Documentation]: https://docs.gnark.consensys.net/en/latest/
+[`gnark` User Documentation]: https://docs.gnark.consensys.net/
 [GitHub discussions]: https://github.com/ConsenSys/gnark/discussions
-[Proving schemes and curves]: https://docs.gnark.consensys.net/en/latest/Concepts/schemes_curves/
+[Proving schemes and curves]: https://docs.gnark.consensys.net/Concepts/schemes_curves
 [`gnark-announce`]: https://groups.google.com/g/gnark-announce
 [@gnark_team]: https://twitter.com/gnark_team

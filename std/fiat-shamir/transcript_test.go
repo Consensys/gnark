@@ -23,8 +23,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -42,29 +44,32 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	// get the challenges
-	alpha, beta, gamma := getChallenges(api.Compiler().Curve())
-
 	// New transcript with 3 challenges to be derived
-	tsSnark := NewTranscript(api, &hSnark, alpha, beta, gamma)
+	tsSnark := NewTranscript(api, &hSnark, "alpha", "beta", "gamma")
 
 	// Bind challenges
-	tsSnark.Bind(alpha, circuit.Bindings[0][:])
-	tsSnark.Bind(beta, circuit.Bindings[1][:])
-	tsSnark.Bind(gamma, circuit.Bindings[2][:])
+	if err := tsSnark.Bind("alpha", circuit.Bindings[0][:]); err != nil {
+		return err
+	}
+	if err := tsSnark.Bind("beta", circuit.Bindings[1][:]); err != nil {
+		return err
+	}
+	if err := tsSnark.Bind("gamma", circuit.Bindings[2][:]); err != nil {
+		return err
+	}
 
 	// derive challenges
 	var challenges [3]frontend.Variable
-	challenges[0], err = tsSnark.ComputeChallenge(alpha)
+	challenges[0], err = tsSnark.ComputeChallenge("alpha")
 	if err != nil {
 		return err
 	}
 
-	challenges[1], err = tsSnark.ComputeChallenge(beta)
+	challenges[1], err = tsSnark.ComputeChallenge("beta")
 	if err != nil {
 		return err
 	}
-	challenges[2], err = tsSnark.ComputeChallenge(gamma)
+	challenges[2], err = tsSnark.ComputeChallenge("gamma")
 	if err != nil {
 		return err
 	}
@@ -77,20 +82,6 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func getChallenges(curveID ecc.ID) (string, string, string) {
-	// note: gnark-crypto fiat-shamir is curve-independent ->
-	// it writes the domain separators as bytes
-	// in gnark, we write them as field element
-	// to ensure consistency in this test, we ensure the challengeIDs have a fix byte len (the one of fr.Element)
-	frSize := curveID.Info().Fr.Bytes
-	alpha, beta, gamma := make([]byte, frSize), make([]byte, frSize), make([]byte, frSize)
-	alpha[0] = 0xde
-	beta[0] = 0xad
-	gamma[0] = 0xf0
-
-	return string(alpha), string(beta), string(gamma)
-}
-
 func TestFiatShamir(t *testing.T) {
 	assert := test.NewAssert(t)
 
@@ -99,18 +90,16 @@ func TestFiatShamir(t *testing.T) {
 		ecc.BLS12_377: hash.MIMC_BLS12_377,
 		ecc.BLS12_381: hash.MIMC_BLS12_381,
 		ecc.BLS24_315: hash.MIMC_BLS24_315,
+		ecc.BLS24_317: hash.MIMC_BLS24_317,
 		ecc.BW6_761:   hash.MIMC_BW6_761,
 		ecc.BW6_633:   hash.MIMC_BW6_633,
 	}
 
 	// compute the witness for each curve
 	for curveID, h := range testData {
-		// get the domain separators, correctly formatted so they match the frontend.Variable size
-		// (which under the hood is a fr.Element)
-		alpha, beta, gamma := getChallenges(curveID)
 
 		// instantiate the hash and the transcript in plain go
-		ts := fiatshamir.NewTranscript(h.New(), alpha, beta, gamma)
+		ts := fiatshamir.NewTranscript(h.New(), "alpha", "beta", "gamma")
 
 		var bindings [3][4]big.Int
 		for i := 0; i < 3; i++ {
@@ -118,20 +107,24 @@ func TestFiatShamir(t *testing.T) {
 				bindings[i][j].SetUint64(uint64(i * j))
 			}
 		}
-		buf := make([]byte, curveID.Info().Fr.Bytes)
+		frSize := utils.ByteLen(curveID.ScalarField())
+		buf := make([]byte, frSize)
 		for i := 0; i < 4; i++ {
-			ts.Bind(alpha, bindings[0][i].FillBytes(buf))
-			ts.Bind(beta, bindings[1][i].FillBytes(buf))
-			ts.Bind(gamma, bindings[2][i].FillBytes(buf))
+			err := ts.Bind("alpha", bindings[0][i].FillBytes(buf))
+			assert.NoError(err)
+			err = ts.Bind("beta", bindings[1][i].FillBytes(buf))
+			assert.NoError(err)
+			err = ts.Bind("gamma", bindings[2][i].FillBytes(buf))
+			assert.NoError(err)
 		}
 
 		var expectedChallenges [3][]byte
 		var err error
-		expectedChallenges[0], err = ts.ComputeChallenge(alpha)
+		expectedChallenges[0], err = ts.ComputeChallenge("alpha")
 		assert.NoError(err)
-		expectedChallenges[1], err = ts.ComputeChallenge(beta)
+		expectedChallenges[1], err = ts.ComputeChallenge("beta")
 		assert.NoError(err)
-		expectedChallenges[2], err = ts.ComputeChallenge(gamma)
+		expectedChallenges[2], err = ts.ComputeChallenge("gamma")
 		assert.NoError(err)
 
 		// instantiate the circuit with provided inputs
@@ -153,10 +146,10 @@ func BenchmarkCompile(b *testing.B) {
 	// create an empty cs
 	var circuit FiatShamirCircuit
 
-	var ccs frontend.CompiledConstraintSystem
+	var ccs constraint.ConstraintSystem
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BN254, scs.NewBuilder, &circuit)
+		ccs, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
 	}
 	b.Log(ccs.GetNbConstraints())
 }
