@@ -102,7 +102,7 @@ func (c *commitChecker) commit(api frontend.API) error {
 	// lp = Sum_i e_i / (X - s_i)
 	var lp frontend.Variable = 0
 	for i := 0; i < nbTable; i++ {
-		tmp := api.Div(exps[i], api.Sub(commitment, i))
+		tmp := api.DivUnchecked(exps[i], api.Sub(commitment, i))
 		lp = api.Add(lp, tmp)
 	}
 
