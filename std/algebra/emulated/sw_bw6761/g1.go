@@ -25,7 +25,7 @@ import (
 )
 
 type G1Affine struct {
-	X, Y fields_bw6761.baseField
+	X, Y fields_bw6761.BaseField
 }
 
 func NewG1Affine(a bw6761.G1Affine) G1Affine {
@@ -38,13 +38,13 @@ func NewG1Affine(a bw6761.G1Affine) G1Affine {
 // Neg computes -G
 func (p *G1Affine) Neg(pr *Pairing, a *G1Affine) *G1Affine {
 	p.X = a.X
-	p.Y = *pr.fp.Neg(&a.Y)
+	p.Y = *pr.Fp.Neg(&a.Y)
 	return p
 }
 
 // g1Proj point in projective coordinates
 type g1Proj struct {
-	x, y, z fields_bw6761.baseField
+	x, y, z fields_bw6761.BaseField
 }
 
 // Set sets p to the provided point
@@ -56,18 +56,13 @@ func (p *g1Proj) Set(a *g1Proj) *g1Proj {
 // Neg computes -G
 func (p *g1Proj) Neg(pr *Pairing, a *g1Proj) *g1Proj {
 	p.Set(a)
-	p.y = *pr.fp.Neg(&a.y)
+	p.y = *pr.Fp.Neg(&a.y)
 	return p
 }
 
 // FromAffine sets p = Q, p in homogenous projective, Q in affine
 func (p *g1Proj) FromAffine(pr *Pairing, Q *G1Affine) *g1Proj {
-	// TODO
-	//flag := api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
-	//p.z = api.Select(flag, 0, 1)
-	//p.x = api.Select(flag, 1, Q.X)
-	//p.y = api.Select(flag, 1, Q.Y)
-	p.z = *pr.fp.One()
+	p.z = *pr.Fp.One()
 	p.x = Q.X
 	p.y = Q.Y
 	return p
@@ -78,7 +73,7 @@ func (p *g1Proj) FromAffine(pr *Pairing, Q *G1Affine) *g1Proj {
 func BatchProjectiveToAffineG1(pr *Pairing, points []g1Proj) []G1Affine {
 	result := make([]G1Affine, len(points))
 	//zeroes := make([]bool, len(points))
-	accumulator := pr.fp.One()
+	accumulator := pr.Fp.One()
 
 	// batch invert all points[].Z coordinates with Montgomery batch inversion trick
 	// (stores points[].Z^-1 in result[i].X to avoid allocating a slice of fr.Elements)
@@ -88,18 +83,18 @@ func BatchProjectiveToAffineG1(pr *Pairing, points []g1Proj) []G1Affine {
 		//	continue
 		//}
 		result[i].X = *accumulator
-		accumulator = pr.fp.MulMod(accumulator, &points[i].z)
+		accumulator = pr.Fp.MulMod(accumulator, &points[i].z)
 	}
 
-	accInverse := pr.fp.Inverse(accumulator)
+	accInverse := pr.Fp.Inverse(accumulator)
 
 	for i := len(points) - 1; i >= 0; i-- {
 		//if zeroes[i] {
 		//	// do nothing, (X=0, Y=0) is infinity point in affine
 		//	continue
 		//}
-		result[i].X = *pr.fp.MulMod(&result[i].X, accInverse)
-		accInverse = pr.fp.MulMod(accInverse, &points[i].z)
+		result[i].X = *pr.Fp.MulMod(&result[i].X, accInverse)
+		accInverse = pr.Fp.MulMod(accInverse, &points[i].z)
 	}
 
 	// batch convert to affine.
@@ -109,8 +104,8 @@ func BatchProjectiveToAffineG1(pr *Pairing, points []g1Proj) []G1Affine {
 		//	continue
 		//}
 		a := result[i].X
-		result[i].X = *pr.fp.MulMod(&points[i].x, &a)
-		result[i].Y = *pr.fp.MulMod(&points[i].y, &a)
+		result[i].X = *pr.Fp.MulMod(&points[i].x, &a)
+		result[i].Y = *pr.Fp.MulMod(&points[i].y, &a)
 	}
 	return result
 }

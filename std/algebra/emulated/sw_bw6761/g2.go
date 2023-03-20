@@ -25,7 +25,7 @@ import (
 )
 
 type G2Affine struct {
-	X, Y fields_bw6761.baseField
+	X, Y fields_bw6761.BaseField
 }
 
 func NewG2Affine(a bw6761.G2Affine) G2Affine {
