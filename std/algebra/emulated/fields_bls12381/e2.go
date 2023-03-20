@@ -237,6 +237,15 @@ func (e Ext2) Zero() *E2 {
 	}
 }
 
+// returns 1+u
+func (e Ext2) NonResidue() *E2 {
+	one := e.fp.One()
+	return &E2{
+		A0: *one,
+		A1: *one,
+	}
+}
+
 func (e Ext2) Square(x *E2) *E2 {
 	a := e.fp.Add(&x.A0, &x.A1)
 	b := e.fp.Sub(&x.A0, &x.A1)

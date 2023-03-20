@@ -151,6 +151,32 @@ func (e Ext6) MulByE2(x *E6, y *E2) *E6 {
 	}
 }
 
+// MulBy12 multiplication by sparse element (0,b1,b2)
+func (e Ext6) MulBy12(x *E6, b1, b2 *E2) *E6 {
+	t1 := e.Ext2.Mul(&x.B1, b1)
+	t2 := e.Ext2.Mul(&x.B2, b2)
+	c0 := e.Ext2.Add(&x.B1, &x.B2)
+	tmp := e.Ext2.Add(b1, b2)
+	c0 = e.Ext2.Mul(c0, tmp)
+	c0 = e.Ext2.Sub(c0, t1)
+	c0 = e.Ext2.Sub(c0, t2)
+	c0 = e.Ext2.MulByNonResidue(c0)
+	c1 := e.Ext2.Add(&x.B0, &x.B1)
+	c1 = e.Ext2.Mul(c1, b1)
+	c1 = e.Ext2.Sub(c1, t1)
+	tmp = e.Ext2.MulByNonResidue(t2)
+	c1 = e.Ext2.Add(c1, tmp)
+	tmp = e.Ext2.Add(&x.B0, &x.B2)
+	c2 := e.Ext2.Mul(b2, tmp)
+	c2 = e.Ext2.Sub(c2, t2)
+	c2 = e.Ext2.Add(c2, t1)
+	return &E6{
+		B0: *c0,
+		B1: *c1,
+		B2: *c2,
+	}
+}
+
 // MulBy01 multiplication by sparse element (c0,c1,0)
 func (e Ext6) MulBy01(z *E6, c0, c1 *E2) *E6 {
 	a := e.Ext2.Mul(&z.B0, c0)

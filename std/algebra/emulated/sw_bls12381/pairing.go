@@ -155,8 +155,34 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		xOverY[k] = pr.curveF.MulMod(&P[k].X, yInv[k])
 	}
 
-	// i = 62
-	for k := 0; k < n; k++ {
+	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
+
+	// i = 62, separately to avoid an E12 Square
+	// (Square(res) = 1² = 1)
+
+	// k = 0, separately to avoid MulBy034 (res × ℓ)
+
+	// Qacc[k] ← 3Qacc[k],
+	// l1 the tangent ℓ to 2Q[k]
+	// l2 the line ℓ passing 2Q[k] and Q[k]
+	Qacc[0], l1, l2 = pr.tripleStep(Qacc[0])
+	// line evaluation at P[0]
+	// and assign line to res (R1, R0, 0, 0, 1, 0)
+	res.C0.B1 = *pr.MulByElement(&l1.R0, xOverY[0])
+	res.C0.B0 = *pr.MulByElement(&l1.R1, yInv[0])
+	res.C1.B1 = *pr.Ext2.One()
+	// line evaluation at P[0]
+	l2.R0 = *pr.MulByElement(&l2.R0, xOverY[0])
+	l2.R1 = *pr.MulByElement(&l2.R1, yInv[0])
+	// res = ℓ × ℓ
+	prodLines := *pr.Mul014By014(&l2.R1, &l2.R0, &res.C0.B0, &res.C0.B1)
+	res.C0.B0 = prodLines[0]
+	res.C0.B1 = prodLines[1]
+	res.C0.B2 = prodLines[2]
+	res.C1.B1 = prodLines[3]
+	res.C1.B2 = prodLines[4]
+
+	for k := 1; k < n; k++ {
 		// Qacc[k] ← 3Qacc[k],
 		// l1 the tangent ℓ to 2Q[k]
 		// l2 the line ℓ passing 2Q[k] and Q[k]
@@ -198,18 +224,18 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 				// line evaluation at P[k]
 				l1.R0 = *pr.MulByElement(&l1.R0, xOverY[k])
 				l1.R1 = *pr.MulByElement(&l1.R1, yInv[k])
-				// ℓ × res
-				res = pr.MulBy014(res, &l1.R1, &l1.R0)
 				// line evaluation at P[k]
 				l2.R0 = *pr.MulByElement(&l2.R0, xOverY[k])
 				l2.R1 = *pr.MulByElement(&l2.R1, yInv[k])
+				// ℓ × res
+				res = pr.MulBy014(res, &l1.R1, &l1.R0)
 				// ℓ × res
 				res = pr.MulBy014(res, &l2.R1, &l2.R0)
 			}
 		}
 	}
 
-	// i = 0
+	// i = 0, separately to avoid a point doubling
 	res = pr.Square(res)
 	for k := 0; k < n; k++ {
 		// l1 the tangent ℓ passing 2Qacc[k]
