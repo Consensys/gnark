@@ -123,13 +123,21 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 		pi2iop := iop.NewPolynomial(&pi2, lagReg)
 		wpi2iop = pi2iop.ShallowClone()
-		wpi2iop.ToCanonical(&pk.Domain[0]).ToRegular()
+		// wpi2iop.ToCanonical(&pk.Domain[0]).ToRegular()
 	}
 
 	// query l, r, o in Lagrange basis, not blinded
 	_solution, err := spr.Solve(fullWitness, opt.SolverOpts...)
 	if err != nil {
 		return nil, err
+	}
+	// TODO @gbotrel deal with that conversion lazily
+	var lcpi2iop *iop.Polynomial
+	if spr.CommitmentInfo.Is() {
+		lcpi2iop = wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
+	} else {
+		coeffs := make([]fr.Element, pk.Domain[1].Cardinality)
+		lcpi2iop = iop.NewPolynomial(&coeffs, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.Regular})
 	}
 	solution := _solution.(*cs.SparseR1CSSolution)
 	evaluationLDomainSmall := []fr.Element(solution.L)
@@ -276,8 +284,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		close(chZ)
 	}()
 
-	pi2iop := wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
-
 	// Full capture using latest gnark crypto...
 	fic := func(fql, fqr, fqm, fqo, fqk, fqCPrime, l, r, o, pi2 fr.Element) fr.Element { // TODO @Tabaie make use of the fact that qCPrime is a selector: sparse and binary
 
@@ -358,7 +364,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		pk.lcS3,
 		bwziop,
 		bwsziop,
-		pi2iop,
+		lcpi2iop,
 		pk.lcQl,
 		pk.lcQr,
 		pk.lcQm,
