@@ -148,8 +148,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	var wgLRO sync.WaitGroup
 	wgLRO.Add(3)
 	go func() {
+		// we keep in lagrange regular form since iop.BuildRatioCopyConstraint prefers it in this form.
 		wliop = iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
-		bwliop = wliop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1) // we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
+		// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
+		bwliop = wliop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
 		wgLRO.Done()
 	}()
 	go func() {
@@ -295,15 +297,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}
 
 	fo := func(l, r, o, fid, fs1, fs2, fs3, fz, fzs fr.Element) fr.Element {
-		var uu fr.Element
-		u := pk.Domain[0].FrMultiplicativeGen
-		uu.Mul(&u, &u)
-
+		u := &pk.Domain[0].FrMultiplicativeGen
 		var a, b, tmp fr.Element
-		a.Mul(&beta, &fid).Add(&a, &l).Add(&a, &gamma)
-		tmp.Mul(&beta, &u).Mul(&tmp, &fid).Add(&tmp, &r).Add(&tmp, &gamma)
+		b.Mul(&beta, &fid)
+		a.Add(&b, &l).Add(&a, &gamma)
+		b.Mul(&b, u)
+		tmp.Add(&b, &r).Add(&tmp, &gamma)
 		a.Mul(&a, &tmp)
-		tmp.Mul(&beta, &uu).Mul(&tmp, &fid).Add(&tmp, &o).Add(&tmp, &gamma)
+		tmp.Mul(&b, u).Add(&tmp, &o).Add(&tmp, &gamma)
 		a.Mul(&a, &tmp).Mul(&a, &fz)
 
 		b.Mul(&beta, &fs1).Add(&b, &l).Add(&b, &gamma)
@@ -439,6 +440,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// compute the linearization polynomial r at zeta
 	// (goal: save committing separately to z, ql, qr, qm, qo, k
+	// note: we linearizedPolynomialCanonical reuses bwziop memory
 	linearizedPolynomialCanonical = computeLinearizedPolynomial(
 		blzeta,
 		brzeta,
@@ -634,26 +636,23 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 						Mul(&lagrangeZeta, &alpha).
 						Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
 
-	linPol := make([]fr.Element, len(blindedZCanonical))
-	copy(linPol, blindedZCanonical)
-
 	s3canonical := pk.trace.S3.Coefficients()
-	utils.Parallelize(len(linPol), func(start, end int) {
+	utils.Parallelize(len(blindedZCanonical), func(start, end int) {
 
-		var t0, t1 fr.Element
+		var t, t0, t1 fr.Element
 
 		for i := start; i < end; i++ {
 
-			linPol[i].Mul(&linPol[i], &s2) // -Z(X)*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
+			t.Mul(&blindedZCanonical[i], &s2) // -Z(X)*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 
 			if i < len(s3canonical) {
 
 				t0.Mul(&s3canonical[i], &s1) // (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*β*s3(X)
 
-				linPol[i].Add(&linPol[i], &t0)
+				t.Add(&t, &t0)
 			}
 
-			linPol[i].Mul(&linPol[i], &alpha) // α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*s3(X) - Z(X)*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ))
+			t.Mul(&t, &alpha) // α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*s3(X) - Z(X)*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ))
 
 			cql := pk.trace.Ql.Coefficients()
 			cqr := pk.trace.Qr.Coefficients()
@@ -665,21 +664,21 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 				t1.Mul(&cqm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
 				t0.Mul(&cql[i], &lZeta)
 				t0.Add(&t0, &t1)
-				linPol[i].Add(&linPol[i], &t0) // linPol = linPol + l(ζ)*Ql(X)
+				t.Add(&t, &t0) // linPol = linPol + l(ζ)*Ql(X)
 
 				t0.Mul(&cqr[i], &rZeta)
-				linPol[i].Add(&linPol[i], &t0) // linPol = linPol + r(ζ)*Qr(X)
+				t.Add(&t, &t0) // linPol = linPol + r(ζ)*Qr(X)
 
 				t0.Mul(&cqo[i], &oZeta).Add(&t0, &cqk[i])
-				linPol[i].Add(&linPol[i], &t0) // linPol = linPol + o(ζ)*Qo(X) + Qk(X)
+				t.Add(&t, &t0) // linPol = linPol + o(ζ)*Qo(X) + Qk(X)
 
 				t0.Mul(&pi2Canonical[i], &qcpZeta)
-				linPol[i].Add(&linPol[i], &t0)
+				t.Add(&t, &t0)
 			}
 
 			t0.Mul(&blindedZCanonical[i], &lagrangeZeta)
-			linPol[i].Add(&linPol[i], &t0) // finish the computation
+			blindedZCanonical[i].Add(&t, &t0) // finish the computation
 		}
 	})
-	return linPol
+	return blindedZCanonical
 }
