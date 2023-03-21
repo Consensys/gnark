@@ -123,13 +123,21 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 		pi2iop := iop.NewPolynomial(&pi2, lagReg)
 		wpi2iop = pi2iop.ShallowClone()
-		wpi2iop.ToCanonical(&pk.Domain[0]).ToRegular()
+		// wpi2iop.ToCanonical(&pk.Domain[0]).ToRegular()
 	}
 
 	// query l, r, o in Lagrange basis, not blinded
 	_solution, err := spr.Solve(fullWitness, opt.SolverOpts...)
 	if err != nil {
 		return nil, err
+	}
+	// TODO @gbotrel deal with that conversion lazily
+	var lcpi2iop *iop.Polynomial
+	if spr.CommitmentInfo.Is() {
+		lcpi2iop = wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
+	} else {
+		coeffs := make([]fr.Element, pk.Domain[1].Cardinality)
+		lcpi2iop = iop.NewPolynomial(&coeffs, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.Regular})
 	}
 	solution := _solution.(*cs.SparseR1CSSolution)
 	evaluationLDomainSmall := []fr.Element(solution.L)
@@ -276,8 +284,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		close(chZ)
 	}()
 
-	pi2iop := wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
-
 	// Full capture using latest gnark crypto...
 	fic := func(fql, fqr, fqm, fqo, fqk, fqCPrime, l, r, o, pi2 fr.Element) fr.Element { // TODO @Tabaie make use of the fact that qCPrime is a selector: sparse and binary
 
@@ -358,7 +364,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		pk.lcS3,
 		bwziop,
 		bwsziop,
-		pi2iop,
+		lcpi2iop,
 		pk.lcQl,
 		pk.lcQr,
 		pk.lcQm,
@@ -427,8 +433,39 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 
-	// blinded z evaluated at u*zeta
-	bzuzeta := proof.ZShiftedOpening.ClaimedValue
+	// start to compute foldedH and foldedHDigest while computeLinearizedPolynomial runs.
+	computeFoldedH := make(chan struct{}, 1)
+	var foldedH []fr.Element
+	var foldedHDigest kzg.Digest
+	go func() {
+		// foldedHDigest = Comm(h1) + ζᵐ⁺²*Comm(h2) + ζ²⁽ᵐ⁺²⁾*Comm(h3)
+		var bZetaPowerm, bSize big.Int
+		bSize.SetUint64(pk.Domain[0].Cardinality + 2) // +2 because of the masking (h of degree 3(n+2)-1)
+		var zetaPowerm fr.Element
+		zetaPowerm.Exp(zeta, &bSize)
+		zetaPowerm.BigInt(&bZetaPowerm)
+		foldedHDigest = proof.H[2]
+		foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm)
+		foldedHDigest.Add(&foldedHDigest, &proof.H[1])                   // ζᵐ⁺²*Comm(h3)
+		foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm) // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2)
+		foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2) + Comm(h1)
+
+		// foldedH = h1 + ζ*h2 + ζ²*h3
+		foldedH = h.Coefficients()[2*(pk.Domain[0].Cardinality+2) : 3*(pk.Domain[0].Cardinality+2)]
+		h2 := h.Coefficients()[pk.Domain[0].Cardinality+2 : 2*(pk.Domain[0].Cardinality+2)]
+		h1 := h.Coefficients()[:pk.Domain[0].Cardinality+2]
+		utils.Parallelize(len(foldedH), func(start, end int) {
+			for i := start; i < end; i++ {
+				foldedH[i].Mul(&foldedH[i], &zetaPowerm) // ζᵐ⁺²*h3
+				foldedH[i].Add(&foldedH[i], &h2[i])      // ζ^{m+2)*h3+h2
+				foldedH[i].Mul(&foldedH[i], &zetaPowerm) // ζ²⁽ᵐ⁺²⁾*h3+h2*ζᵐ⁺²
+				foldedH[i].Add(&foldedH[i], &h1[i])      // ζ^{2(m+2)*h3+ζᵐ⁺²*h2 + h1
+			}
+		})
+		close(computeFoldedH)
+	}()
+
+	wgEvals.Wait() // wait for the evaluations
 
 	var (
 		linearizedPolynomialCanonical []fr.Element
@@ -436,7 +473,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		errLPoly                      error
 	)
 
-	wgEvals.Wait() // wait for the evaluations
+	// blinded z evaluated at u*zeta
+	bzuzeta := proof.ZShiftedOpening.ClaimedValue
 
 	// compute the linearization polynomial r at zeta
 	// (goal: save committing separately to z, ql, qr, qm, qo, k
@@ -458,35 +496,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// TODO this commitment is only necessary to derive the challenge, we should
 	// be able to avoid doing it and get the challenge in another way
-	linearizedPolynomialDigest, errLPoly = kzg.Commit(linearizedPolynomialCanonical, pk.Vk.KZGSRS)
+	linearizedPolynomialDigest, errLPoly = kzg.Commit(linearizedPolynomialCanonical, pk.Vk.KZGSRS, runtime.NumCPU()*2)
 	if errLPoly != nil {
 		return nil, errLPoly
 	}
 
-	// foldedHDigest = Comm(h1) + ζᵐ⁺²*Comm(h2) + ζ²⁽ᵐ⁺²⁾*Comm(h3)
-	var bZetaPowerm, bSize big.Int
-	bSize.SetUint64(pk.Domain[0].Cardinality + 2) // +2 because of the masking (h of degree 3(n+2)-1)
-	var zetaPowerm fr.Element
-	zetaPowerm.Exp(zeta, &bSize)
-	zetaPowerm.BigInt(&bZetaPowerm)
-	foldedHDigest := proof.H[2]
-	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm)
-	foldedHDigest.Add(&foldedHDigest, &proof.H[1])                   // ζᵐ⁺²*Comm(h3)
-	foldedHDigest.ScalarMultiplication(&foldedHDigest, &bZetaPowerm) // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2)
-	foldedHDigest.Add(&foldedHDigest, &proof.H[0])                   // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2) + Comm(h1)
-
-	// foldedH = h1 + ζ*h2 + ζ²*h3
-	foldedH := h.Coefficients()[2*(pk.Domain[0].Cardinality+2) : 3*(pk.Domain[0].Cardinality+2)]
-	h2 := h.Coefficients()[pk.Domain[0].Cardinality+2 : 2*(pk.Domain[0].Cardinality+2)]
-	h1 := h.Coefficients()[:pk.Domain[0].Cardinality+2]
-	utils.Parallelize(len(foldedH), func(start, end int) {
-		for i := start; i < end; i++ {
-			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // ζᵐ⁺²*h3
-			foldedH[i].Add(&foldedH[i], &h2[i])      // ζ^{m+2)*h3+h2
-			foldedH[i].Mul(&foldedH[i], &zetaPowerm) // ζ²⁽ᵐ⁺²⁾*h3+h2*ζᵐ⁺²
-			foldedH[i].Add(&foldedH[i], &h1[i])      // ζ^{2(m+2)*h3+ζᵐ⁺²*h2 + h1
-		}
-	})
+	// wait for foldedH and foldedHDigest
+	<-computeFoldedH
 
 	// Batch open the first list of polynomials
 	proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
