@@ -72,7 +72,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 //
 // and r does NOT divide d'
 func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	var t [4]*GTEl
+	var t [5]*GTEl
 
 	// Easy part
 	// (p⁶-1)(p²+1)
@@ -85,36 +85,32 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 	// 2x₀(6x₀²+3x₀+1)(p⁴-p²+1)/r
 	// Duquesne and Ghammam
 	// https://eprint.iacr.org/2015/192.pdf
-	// Fuentes et al. variant (alg. 10)
+	// Fuentes et al. (alg. 6)
 	t[0] = pr.Ext12.Expt(result)
 	t[0] = pr.Ext12.Conjugate(t[0])
 	t[0] = pr.Ext12.CyclotomicSquare(t[0])
-	t[2] = pr.Ext12.Expt(t[0])
-	t[2] = pr.Ext12.Conjugate(t[2])
-	t[1] = pr.Ext12.CyclotomicSquare(t[2])
-	t[2] = pr.Ext12.Mul(t[2], t[1])
-	t[2] = pr.Ext12.Mul(t[2], result)
-	t[1] = pr.Ext12.Expt(t[2])
-	t[1] = pr.Ext12.CyclotomicSquare(t[1])
-	t[1] = pr.Ext12.Mul(t[1], t[2])
-	t[1] = pr.Ext12.Conjugate(t[1])
-	t[3] = pr.Ext12.Conjugate(t[1])
 	t[1] = pr.Ext12.CyclotomicSquare(t[0])
-	t[1] = pr.Ext12.Mul(t[1], result)
-	t[1] = pr.Ext12.Conjugate(t[1])
-	t[1] = pr.Ext12.Mul(t[1], t[3])
-	t[0] = pr.Ext12.Mul(t[0], t[1])
-	t[2] = pr.Ext12.Mul(t[2], t[1])
-	t[3] = pr.Ext12.FrobeniusSquare(t[1])
+	t[1] = pr.Ext12.Mul(t[0], t[1])
+	t[2] = pr.Ext12.Expt(t[1])
+	t[2] = pr.Ext12.Conjugate(t[2])
+	t[3] = pr.Ext12.Conjugate(t[1])
+	t[1] = pr.Ext12.Mul(t[2], t[3])
+	t[3] = pr.Ext12.CyclotomicSquare(t[2])
+	t[4] = pr.Ext12.Expt(t[3])
+	t[4] = pr.Ext12.Mul(t[4], t[1])
+	t[3] = pr.Ext12.Mul(t[4], t[0])
+	t[0] = pr.Ext12.Mul(t[4], t[2])
+	t[0] = pr.Ext12.Mul(result, t[0])
+	t[2] = pr.Ext12.Frobenius(t[3])
+	t[0] = pr.Ext12.Mul(t[2], t[0])
+	t[2] = pr.Ext12.FrobeniusSquare(t[4])
+	t[0] = pr.Ext12.Mul(t[2], t[0])
+	t[2] = pr.Ext12.Conjugate(result)
 	t[2] = pr.Ext12.Mul(t[2], t[3])
-	t[3] = pr.Ext12.Conjugate(result)
-	t[3] = pr.Ext12.Mul(t[3], t[0])
-	t[1] = pr.Ext12.FrobeniusCube(t[3])
-	t[2] = pr.Ext12.Mul(t[2], t[1])
-	t[1] = pr.Ext12.Frobenius(t[0])
-	t[1] = pr.Ext12.Mul(t[1], t[2])
+	t[2] = pr.Ext12.FrobeniusCube(t[2])
+	t[0] = pr.Ext12.Mul(t[2], t[0])
 
-	return t[1]
+	return t[0]
 }
 
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
