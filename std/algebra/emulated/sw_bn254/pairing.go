@@ -71,48 +71,61 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 //	2x₀(6x₀²+3x₀+1)
 //
 // and r does NOT divide d'
+//
+// FinalExponentiation returns a decompressed element in E12
 func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	var t [5]*GTEl
+	res := pr.FinalExponentiationTorus(e)
+	return pr.DecompressTorus(res)
+}
+
+// FinalExponentiationTorus returns compressed element in E6
+func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bn254.E6 {
 
 	// Easy part
 	// (p⁶-1)(p²+1)
-	t[0] = pr.Ext12.Conjugate(e)
-	t[0] = pr.Ext12.DivUnchecked(t[0], e)
-	result := pr.Ext12.FrobeniusSquare(t[0])
-	result = pr.Ext12.Mul(result, t[0])
+	// with Torus compression absorbed
+	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
+	c = pr.Ext6.Neg(c)
+	t0 := pr.FrobeniusSquareTorus(c)
+	c = pr.MulTorus(t0, c)
 
 	// Hard part (up to permutation)
 	// 2x₀(6x₀²+3x₀+1)(p⁴-p²+1)/r
 	// Duquesne and Ghammam
 	// https://eprint.iacr.org/2015/192.pdf
 	// Fuentes et al. (alg. 6)
-	t[0] = pr.Ext12.Expt(result)
-	t[0] = pr.Ext12.Conjugate(t[0])
-	t[0] = pr.Ext12.CyclotomicSquare(t[0])
-	t[1] = pr.Ext12.CyclotomicSquare(t[0])
-	t[1] = pr.Ext12.Mul(t[0], t[1])
-	t[2] = pr.Ext12.Expt(t[1])
-	t[2] = pr.Ext12.Conjugate(t[2])
-	t[3] = pr.Ext12.Conjugate(t[1])
-	t[1] = pr.Ext12.Mul(t[2], t[3])
-	t[3] = pr.Ext12.CyclotomicSquare(t[2])
-	t[4] = pr.Ext12.Expt(t[3])
-	t[4] = pr.Ext12.Mul(t[4], t[1])
-	t[3] = pr.Ext12.Mul(t[4], t[0])
-	t[0] = pr.Ext12.Mul(t[4], t[2])
-	t[0] = pr.Ext12.Mul(result, t[0])
-	t[2] = pr.Ext12.Frobenius(t[3])
-	t[0] = pr.Ext12.Mul(t[2], t[0])
-	t[2] = pr.Ext12.FrobeniusSquare(t[4])
-	t[0] = pr.Ext12.Mul(t[2], t[0])
-	t[2] = pr.Ext12.Conjugate(result)
-	t[2] = pr.Ext12.Mul(t[2], t[3])
-	t[2] = pr.Ext12.FrobeniusCube(t[2])
-	t[0] = pr.Ext12.Mul(t[2], t[0])
+	// performed in Torus compressed form
+	t0 = pr.ExptTorus(c)
+	t0 = pr.InverseTorus(t0)
+	t0 = pr.SquareTorus(t0)
+	t1 := pr.SquareTorus(t0)
+	t1 = pr.MulTorus(t0, t1)
+	t2 := pr.ExptTorus(t1)
+	t2 = pr.InverseTorus(t2)
+	t3 := pr.InverseTorus(t1)
+	t1 = pr.MulTorus(t2, t3)
+	t3 = pr.SquareTorus(t2)
+	t4 := pr.ExptTorus(t3)
+	t4 = pr.MulTorus(t1, t4)
+	t3 = pr.MulTorus(t0, t4)
+	t0 = pr.MulTorus(t2, t4)
+	t0 = pr.MulTorus(c, t0)
+	t2 = pr.FrobeniusTorus(t3)
+	t0 = pr.MulTorus(t2, t0)
+	t2 = pr.FrobeniusSquareTorus(t4)
+	t0 = pr.MulTorus(t2, t0)
+	t2 = pr.InverseTorus(c)
+	t2 = pr.MulTorus(t2, t3)
+	t2 = pr.FrobeniusCubeTorus(t2)
+	t0 = pr.MulTorus(t2, t0)
 
-	return t[0]
+	return t0
 }
 
+// Pair calculates the reduced pairing for a set of points
+// ∏ᵢ e(Pᵢ, Qᵢ).
+//
+// This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {

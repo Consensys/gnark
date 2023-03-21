@@ -151,6 +151,29 @@ func (e Ext6) MulByE2(x *E6, y *E2) *E6 {
 	}
 }
 
+// MulBy0 multiplies z by an E6 sparse element of the form
+//
+//	E6{
+//		B0: c0,
+//		B1: 0,
+//		B2: 0,
+//	}
+func (e Ext6) MulBy0(z *E6, c0 *E2) *E6 {
+	a := e.Ext2.Mul(&z.B0, c0)
+	tmp := e.Ext2.Add(&z.B1, &z.B2)
+	tmp = e.Ext2.Add(&z.B0, &z.B2)
+	t2 := e.Ext2.Mul(c0, tmp)
+	t2 = e.Ext2.Sub(t2, a)
+	tmp = e.Ext2.Add(&z.B0, &z.B1)
+	t1 := e.Ext2.Mul(c0, tmp)
+	t1 = e.Ext2.Sub(t1, a)
+	return &E6{
+		B0: *a,
+		B1: *t1,
+		B2: *t2,
+	}
+}
+
 // MulBy01 multiplies z by an E6 sparse element of the form
 //
 //	E6{
@@ -229,6 +252,12 @@ func (e Ext6) MulByNonResidue(x *E6) *E6 {
 	}
 }
 
+func (e Ext6) FrobeniusSquare(x *E6) *E6 {
+	z01 := e.Ext2.MulByNonResidue2Power2(&x.B1)
+	z02 := e.Ext2.MulByNonResidue2Power4(&x.B2)
+	return &E6{B0: x.B0, B1: *z01, B2: *z02}
+}
+
 func (e Ext6) AssertIsEqual(x, y *E6) {
 	e.Ext2.AssertIsEqual(&x.B0, &y.B0)
 	e.Ext2.AssertIsEqual(&x.B1, &y.B1)
@@ -286,4 +315,25 @@ func (e Ext6) DivUnchecked(x, y *E6) *E6 {
 	e.AssertIsEqual(x, _x)
 
 	return &div
+}
+
+func (e Ext6) Halve(x *E6) *E6 {
+	res, err := e.fp.NewHint(halveE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	half := E6{
+		B0: E2{A0: *res[0], A1: *res[1]},
+		B1: E2{A0: *res[2], A1: *res[3]},
+		B2: E2{A0: *res[4], A1: *res[5]},
+	}
+
+	// 2*half == x
+	_x := e.double(&half)
+	e.AssertIsEqual(x, _x)
+
+	return &half
+
 }
