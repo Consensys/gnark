@@ -40,6 +40,20 @@ type R1CS interface {
 	AddStaticConstraints(key string, constraintPos int, finished bool, expressions []LinearExpression)
 
 	GetStaticConstraints(key string) StaticConstraints
+
+	SetGKRMeta(meta GkrMeta)
+
+	FinalizeGKR()
+}
+
+type GkrMeta struct {
+	// if mimc hints > 0 then we will start to add extra constraint
+	MIMCHints         []int
+	GKRConstraintsPos int
+	GKRInputTables    []LinearExpression
+	GKROutputTables   []LinearExpression
+	GKRConstraintsLvl int // record the lvl
+	GKRBN             int
 }
 
 // R1CS describes a set of R1C constraint
@@ -49,6 +63,16 @@ type R1CSCore struct {
 	LazyCons          LazyR1CS
 	LazyConsMap       map[int]LazyIndexedInputs
 	StaticConstraints map[string]StaticConstraints
+}
+
+func (r1cs *R1CSCore) SetGKRMeta(meta GkrMeta) {
+	r1cs.GKRMeta.GKRInputTables = append(r1cs.GKRMeta.GKRInputTables, meta.GKRInputTables...)
+	r1cs.GKRMeta.GKROutputTables = append(r1cs.GKRMeta.GKROutputTables, meta.GKROutputTables...)
+	r1cs.GKRMeta.GKRConstraintsPos = meta.GKRConstraintsPos
+	r1cs.GKRMeta.GKRBN = meta.GKRBN
+}
+
+func (r1cs *R1CSCore) FinalizeGKR() {
 }
 
 // GetNbConstraints returns the number of constraints
