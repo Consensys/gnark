@@ -3,9 +3,10 @@ module github.com/consensys/gnark
 go 1.18
 
 require (
+	github.com/bits-and-blooms/bitset v1.5.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
-	github.com/consensys/gnark-crypto v0.0.0
+	github.com/consensys/gnark-crypto v0.9.2-0.20230321205428-b7ecf7829e90
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/pprof v0.0.0-20230309165930-d61513b1440d
@@ -17,10 +18,7 @@ require (
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 )
 
-replace github.com/consensys/gnark-crypto => ../gnark-crypto
-
 require (
-	github.com/bits-and-blooms/bitset v1.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
