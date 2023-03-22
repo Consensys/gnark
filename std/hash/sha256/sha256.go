@@ -125,69 +125,47 @@ func (sha *SHA256) Hash(preimage []frontend.Variable) [32]frontend.Variable {
 		// computation of alphabet values
 		for i := 0; i < 64; i++ {
 
+			// ^e is a not
 			// t1 := h + ((bits.RotateLeft32(e, -6)) ^ (bits.RotateLeft32(e, -11)) ^ (bits.RotateLeft32(e, -25))) + ((e & f) ^ (^e & g)) + _K[i] + w[i]
 			rotateRight6 := rotateRight(sha.api, e, 6)
 			rotateRight11 := rotateRight(sha.api, e, 11)
 			rotateRight25 := rotateRight(sha.api, e, 25)
-			tmp1Slice := make([]frontend.Variable, 32)
-			// tmp1Slice := sha.api.ToBinary(0, 32)
+			tmp1Slice := sha.api.ToBinary(0, 32)
 			for k := 0; k < 32; k++ {
 				tmp1Slice[k] = sha.api.Xor(sha.api.Xor(rotateRight6[k], rotateRight11[k]), rotateRight25[k])
 			}
 			tmp1 := sha.api.FromBinary(tmp1Slice...)
 
-			// tmp2Slice := sha.api.ToBinary(0, 32)
-			// sha.api.Println("e:", e)
-			// sha.api.Println("e:", f)
-			// sha.api.Println("e:", g)
-			tmp2Slice := make([]frontend.Variable, 32)
+			tmp2Slice := sha.api.ToBinary(0, 32)
 			eBits := sha.api.ToBinary(e, 32)
 			fBits := sha.api.ToBinary(f, 32)
 			gBits := sha.api.ToBinary(g, 32)
 			for k := 0; k < 32; k++ {
-				temp1 := sha.api.Xor(eBits[k], 1)
-				temp2 := sha.api.And(temp1, gBits[k])
-				tmp2Slice[k] = sha.api.Xor(sha.api.And(eBits[k], fBits[k]), temp2)
+				tmp2Slice[k] = sha.api.Xor(sha.api.And(eBits[k], fBits[k]), sha.api.And(sha.api.Xor(eBits[k], frontend.Variable(1)), gBits[k]))
 			}
 			tmp2 := sha.api.FromBinary(tmp2Slice...)
 
+			// t1 computation
 			t1 := sha.api.Add(sha.api.Add(sha.api.Add(sha.api.Add(h, tmp1), tmp2), K[i]), w[i])
 
 			// t2 := ((bits.RotateLeft32(a, -2)) ^ (bits.RotateLeft32(a, -13)) ^ (bits.RotateLeft32(a, -22))) + ((a & b) ^ (a & c) ^ (b & c))
 			rotateRight2 := rotateRight(sha.api, a, 2)
 			rotateRight13 := rotateRight(sha.api, a, 13)
 			rotateRight22 := rotateRight(sha.api, a, 22)
-			// tmp3Slice := sha.api.ToBinary(0, 32)
-			tmp3Slice := make([]frontend.Variable, 32)
+			tmp3Slice := sha.api.ToBinary(0, 32)
 			for l := 0; l < 32; l++ {
 				tmp3Slice[l] = sha.api.Xor(sha.api.Xor(rotateRight2[l], rotateRight13[l]), rotateRight22[l])
 			}
 			tmp3 := sha.api.FromBinary(tmp3Slice...)
 
-			// TODO: modulo from here: https://github.com/akosba/jsnark/blob/master/JsnarkCircuitBuilder/src/examples/gadgets/hash/SHA256Gadget.java
-			// since after each iteration, SHA256 does c = b; and b = a;, we can make use of that to save multiplications in maj computation.
-			// To do this, we make use of the caching feature, by just changing the order of wires sent to maj(). Caching will take care of the rest.
-			minusTwo := [32]frontend.Variable{0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1} // -2 in little endian, of size 32
-			// tmp4Bits := sha.api.ToBinary(0, 32)
-			tmp4Bits := make([]frontend.Variable, 32)
-			var x, y, z []frontend.Variable
-			if i%2 == 1 {
-				x = sha.api.ToBinary(c, 32)
-				y = sha.api.ToBinary(b, 32)
-				z = sha.api.ToBinary(a, 32)
-			} else {
-				x = sha.api.ToBinary(a, 32)
-				y = sha.api.ToBinary(b, 32)
-				z = sha.api.ToBinary(c, 32)
+			aBits := sha.api.ToBinary(a, 32)
+			bBits := sha.api.ToBinary(b, 32)
+			cBits := sha.api.ToBinary(c, 32)
+			tmp4Slice := sha.api.ToBinary(0, 32)
+			for l := 0; l < 32; l++ {
+				tmp4Slice[l] = sha.api.Xor(sha.api.Xor(sha.api.And(aBits[l], bBits[l]), sha.api.And(aBits[l], cBits[l])), sha.api.And(bBits[l], cBits[l]))
 			}
-
-			// working with less complexity compared to uncommented tmp4 calculation below works
-			for j := 0; j < 32; j++ {
-				t4t1 := sha.api.And(x[j], y[j])
-				t4t2 := sha.api.Or(sha.api.Or(x[j], y[j]), sha.api.And(t4t1, minusTwo[j]))
-				tmp4Bits[j] = sha.api.Or(t4t1, sha.api.And(z[j], t4t2))
-			}
-			tmp4 := sha.api.FromBinary(tmp4Bits...)
+			tmp4 := sha.api.FromBinary(tmp4Slice...)
 
 			// t2 computation
 			t2 := sha.api.Add(tmp3, tmp4)
