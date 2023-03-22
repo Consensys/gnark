@@ -315,24 +315,3 @@ func (e Ext6) DivUnchecked(x, y *E6) *E6 {
 
 	return &div
 }
-
-func (e Ext6) Halve(x *E6) *E6 {
-	res, err := e.fp.NewHint(halveE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-
-	half := E6{
-		B0: E2{A0: *res[0], A1: *res[1]},
-		B1: E2{A0: *res[2], A1: *res[3]},
-		B2: E2{A0: *res[4], A1: *res[5]},
-	}
-
-	// 2*half == x
-	_x := e.double(&half)
-	e.AssertIsEqual(x, _x)
-
-	return &half
-
-}

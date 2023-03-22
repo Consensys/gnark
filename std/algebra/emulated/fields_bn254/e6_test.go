@@ -377,38 +377,3 @@ func TestInverseFp6(t *testing.T) {
 	err := test.IsSolved(&e6Inverse{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
-
-type e6Halve struct {
-	A E6
-	C E6 `gnark:",public"`
-}
-
-func (circuit *e6Halve) Define(api frontend.API) error {
-
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt6(ba)
-	expected := e.Halve(&circuit.A)
-	e.AssertIsEqual(expected, &circuit.C)
-
-	return nil
-}
-
-func TestHalveFp6(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c bn254.E6
-	_, _ = a.SetRandom()
-	c.Set(&a)
-	c.B0.Halve()
-	c.B1.Halve()
-	c.B2.Halve()
-
-	witness := e6Halve{
-		A: FromE6(&a),
-		C: FromE6(&c),
-	}
-
-	err := test.IsSolved(&e6Halve{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
