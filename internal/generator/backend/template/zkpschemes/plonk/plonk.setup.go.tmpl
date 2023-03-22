@@ -163,18 +163,19 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	pk.lcS3 = pk.trace.S3.Clone().ToLagrangeCoset(&pk.Domain[1])
 
 	// storing Id
-	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
+	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	id := make([]fr.Element, pk.Domain[1].Cardinality)
-	id[1].SetOne()
-	pk.lcIdIOP = iop.NewPolynomial(&id, canReg)
-	pk.lcIdIOP.ToLagrangeCoset(&pk.Domain[1])
+	id[0].Set(&pk.Domain[1].FrMultiplicativeGen)
+	for i := 1; i < int(pk.Domain[1].Cardinality); i++ {
+		id[i].Mul(&id[i-1], &pk.Domain[1].Generator)
+	}
+	pk.lcIdIOP = iop.NewPolynomial(&id, lagReg)
 
 	// L_{g^{0}}
 	cap := pk.Domain[1].Cardinality
 	if cap < pk.Domain[0].Cardinality {
 		cap = pk.Domain[0].Cardinality // sanity check
 	}
-	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	lone := make([]fr.Element, pk.Domain[0].Cardinality, cap)
 	lone[0].SetOne()
 	pk.lLoneIOP = iop.NewPolynomial(&lone, lagReg).ToCanonical(&pk.Domain[0]).
