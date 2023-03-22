@@ -67,38 +67,46 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 // we use instead d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
 // where s is the cofactor 3 (Hayashida et al.)
 func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	var t [4]*GTEl
+	res := pr.FinalExponentiationTorus(e)
+	return pr.DecompressTorus(res)
+}
+
+func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bls12381.E6 {
 
 	// Easy part
 	// (p⁶-1)(p²+1)
-	t[0] = pr.Ext12.Conjugate(e)
-	t[0] = pr.Ext12.DivUnchecked(t[0], e)
-	result := pr.Ext12.FrobeniusSquare(t[0])
-	result = pr.Ext12.Mul(result, t[0])
+	// with Torus compression absorbed.
+	// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q
+	// are linearly dependant and not from G1 and G2 respectively.
+	// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0
+	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
+	c = pr.Ext6.Neg(c)
+	t0 := pr.FrobeniusSquareTorus(c)
+	c = pr.MulTorus(t0, c)
 
 	// Hard part (up to permutation)
 	// Daiki Hayashida, Kenichiro Hayasaka and Tadanori Teruya
 	// https://eprint.iacr.org/2020/875.pdf
-	t[0] = pr.CyclotomicSquare(result)
-	t[1] = pr.ExptHalf(t[0])
-	t[2] = pr.Conjugate(result)
-	t[1] = pr.Mul(t[1], t[2])
-	t[2] = pr.Expt(t[1])
-	t[1] = pr.Conjugate(t[1])
-	t[1] = pr.Mul(t[1], t[2])
-	t[2] = pr.Expt(t[1])
-	t[1] = pr.Frobenius(t[1])
-	t[1] = pr.Mul(t[1], t[2])
-	result = pr.Mul(result, t[0])
-	t[0] = pr.Expt(t[1])
-	t[2] = pr.Expt(t[0])
-	t[0] = pr.FrobeniusSquare(t[1])
-	t[1] = pr.Conjugate(t[1])
-	t[1] = pr.Mul(t[1], t[2])
-	t[1] = pr.Mul(t[1], t[0])
-	result = pr.Mul(result, t[1])
+	t0 = pr.SquareTorus(c)
+	t1 := pr.ExptHalfTorus(t0)
+	t2 := pr.InverseTorus(c)
+	t1 = pr.MulTorus(t1, t2)
+	t2 = pr.ExptTorus(t1)
+	t1 = pr.InverseTorus(t1)
+	t1 = pr.MulTorus(t1, t2)
+	t2 = pr.ExptTorus(t1)
+	t1 = pr.FrobeniusTorus(t1)
+	t1 = pr.MulTorus(t1, t2)
+	c = pr.MulTorus(c, t0)
+	t0 = pr.ExptTorus(t1)
+	t2 = pr.ExptTorus(t0)
+	t0 = pr.FrobeniusSquareTorus(t1)
+	t1 = pr.InverseTorus(t1)
+	t1 = pr.MulTorus(t1, t2)
+	t1 = pr.MulTorus(t1, t0)
+	c = pr.MulTorus(c, t1)
 
-	return result
+	return c
 }
 
 // lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
