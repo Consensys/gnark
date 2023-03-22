@@ -85,3 +85,41 @@ func TestPairTestSolve(t *testing.T) {
 	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+type MultiPairCircuit struct {
+	In1G1 G1Affine
+	In2G1 G1Affine
+	In1G2 G2Affine
+	In2G2 G2Affine
+	Res   GTEl
+}
+
+func (c *MultiPairCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res, err := pairing.Pair([]*G1Affine{&c.In1G1, &c.In1G1, &c.In2G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2, &c.In1G2, &c.In2G2})
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiPairTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, q1 := randomG1G2Affines(assert)
+	p2, q2 := randomG1G2Affines(assert)
+	res, err := bls12381.Pair([]bls12381.G1Affine{p1, p1, p2, p2}, []bls12381.G2Affine{q1, q2, q1, q2})
+	assert.NoError(err)
+	witness := MultiPairCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
+		Res:   NewGTEl(res),
+	}
+	err = test.IsSolved(&MultiPairCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
