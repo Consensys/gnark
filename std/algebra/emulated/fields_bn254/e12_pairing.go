@@ -4,7 +4,7 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-func (e Ext12) nCycloSquareTorus(z *E6, n int) *E6 {
+func (e Ext12) nSquareTorus(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
 		z = e.SquareTorus(z)
 	}
@@ -47,23 +47,23 @@ func (e Ext12) ExptTorus(x *E6) *E6 {
 	t6 := e.SquareTorus(t2)
 	t1 = e.MulTorus(t0, t1)
 	t0 = e.MulTorus(t3, t1)
-	t6 = e.nCycloSquareTorus(t6, 6)
+	t6 = e.nSquareTorus(t6, 6)
 	t5 = e.MulTorus(t5, t6)
 	t5 = e.MulTorus(t4, t5)
-	t5 = e.nCycloSquareTorus(t5, 7)
+	t5 = e.nSquareTorus(t5, 7)
 	t4 = e.MulTorus(t4, t5)
-	t4 = e.nCycloSquareTorus(t4, 8)
+	t4 = e.nSquareTorus(t4, 8)
 	t4 = e.MulTorus(t0, t4)
 	t3 = e.MulTorus(t3, t4)
-	t3 = e.nCycloSquareTorus(t3, 6)
+	t3 = e.nSquareTorus(t3, 6)
 	t2 = e.MulTorus(t2, t3)
-	t2 = e.nCycloSquareTorus(t2, 8)
+	t2 = e.nSquareTorus(t2, 8)
 	t2 = e.MulTorus(t0, t2)
-	t2 = e.nCycloSquareTorus(t2, 6)
+	t2 = e.nSquareTorus(t2, 6)
 	t2 = e.MulTorus(t0, t2)
-	t2 = e.nCycloSquareTorus(t2, 10)
+	t2 = e.nSquareTorus(t2, 10)
 	t1 = e.MulTorus(t1, t2)
-	t1 = e.nCycloSquareTorus(t1, 6)
+	t1 = e.nSquareTorus(t1, 6)
 	t0 = e.MulTorus(t0, t1)
 	z := e.MulTorus(result, t0)
 	return z
