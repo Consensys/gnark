@@ -160,8 +160,7 @@ func (e Ext6) MulByE2(x *E6, y *E2) *E6 {
 //	}
 func (e Ext6) MulBy0(z *E6, c0 *E2) *E6 {
 	a := e.Ext2.Mul(&z.B0, c0)
-	tmp := e.Ext2.Add(&z.B1, &z.B2)
-	tmp = e.Ext2.Add(&z.B0, &z.B2)
+	tmp := e.Ext2.Add(&z.B0, &z.B2)
 	t2 := e.Ext2.Mul(c0, tmp)
 	t2 = e.Ext2.Sub(t2, a)
 	tmp = e.Ext2.Add(&z.B0, &z.B1)
