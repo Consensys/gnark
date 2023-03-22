@@ -222,19 +222,32 @@ func (e Ext12) InverseTorus(y *E6) *E6 {
 }
 
 // SquareTorus squares a compressed elements y ∈ E6
-// and returns (y + v/g)/2
+// and returns (y + v/y)/2
+//
+// It uses a hint to verify that (2x-y)y = v saving one E6 AssertIsEqual.
 func (e Ext12) SquareTorus(y *E6) *E6 {
-	yInv := e.Ext6.Inverse(y)
-	// Mul by (0,1,0)
-	tmp := yInv.B0
-	yInv.B0 = *e.Ext2.MulByNonResidue(&yInv.B2)
-	yInv.B2 = yInv.B1
-	yInv.B1 = tmp
+	res, err := e.fp.NewHint(squareTorusHint, 6, &y.B0.A0, &y.B0.A1, &y.B1.A0, &y.B1.A1, &y.B2.A0, &y.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
 
-	res := e.Ext6.Add(y, yInv)
-	res = e.Ext6.Halve(res)
+	sq := E6{
+		B0: E2{A0: *res[0], A1: *res[1]},
+		B1: E2{A0: *res[2], A1: *res[3]},
+		B2: E2{A0: *res[4], A1: *res[5]},
+	}
 
-	return res
+	// v = (2x-y)y
+	v := e.Ext6.double(&sq)
+	v = e.Ext6.Sub(v, y)
+	v = e.Ext6.Mul(v, y)
+
+	_v := E6{B0: *e.Ext2.Zero(), B1: *e.Ext2.One(), B2: *e.Ext2.Zero()}
+	e.Ext6.AssertIsEqual(v, &_v)
+
+	return &sq
+
 }
 
 // FrobeniusTorus raises a compressed elements y ∈ E6 to the modulus p
