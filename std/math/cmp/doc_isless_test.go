@@ -23,7 +23,7 @@ type sortCheckerCircuit struct {
 func (c *sortCheckerCircuit) Define(api frontend.API) error {
 	// constructing a 16bit comparator,
 	// the maximum possible difference between 16bit numbers is 2^16-1.
-	cmp16bit := cmp.NewComparator(api, big.NewInt(1<<16-1))
+	cmp16bit := cmp.NewBoundedComparator(api, big.NewInt(1<<16-1))
 	res := frontend.Variable(0)
 	for i := 0; i < len(c.UInt16Array)-1; i++ {
 		res = api.Add(res, cmp16bit.IsLess(c.UInt16Array[i+1], c.UInt16Array[i]))

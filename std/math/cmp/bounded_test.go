@@ -101,7 +101,7 @@ type assertIsLessCircuit struct {
 }
 
 func (c *assertIsLessCircuit) Define(api frontend.API) error {
-	comparator := cmp.NewComparator(api, big.NewInt(7))
+	comparator := cmp.NewBoundedComparator(api, big.NewInt(7))
 	comparator.AssertIsLess(c.A, c.B)
 
 	return nil
@@ -112,7 +112,7 @@ type assertIsLessEqCircuit struct {
 }
 
 func (c *assertIsLessEqCircuit) Define(api frontend.API) error {
-	comparator := cmp.NewComparator(api, big.NewInt(7))
+	comparator := cmp.NewBoundedComparator(api, big.NewInt(7))
 	comparator.AssertIsLessEq(c.A, c.B)
 
 	return nil
@@ -125,7 +125,7 @@ type isLessCircuit struct {
 }
 
 func (c *isLessCircuit) Define(api frontend.API) error {
-	comparator := cmp.NewComparator(api, big.NewInt(7))
+	comparator := cmp.NewBoundedComparator(api, big.NewInt(7))
 	api.AssertIsEqual(c.WantIsLess, comparator.IsLess(c.A, c.B))
 	api.AssertIsEqual(c.WantIsLessEq, comparator.IsLessEq(c.A, c.B))
 
@@ -138,7 +138,7 @@ type minCircuit struct {
 }
 
 func (c *minCircuit) Define(api frontend.API) error {
-	comparator := cmp.NewComparator(api, big.NewInt(15))
+	comparator := cmp.NewBoundedComparator(api, big.NewInt(15))
 	api.AssertIsEqual(c.WantMin, comparator.Min(c.A, c.B))
 
 	return nil
