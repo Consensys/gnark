@@ -83,7 +83,10 @@ func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bn254.E6 {
 
 	// Easy part
 	// (p⁶-1)(p²+1)
-	// with Torus compression absorbed
+	// with Torus compression absorbed.
+	// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q
+	// are linearly dependant and not from G1 and G2 respectively.
+	// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0
 	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
 	c = pr.Ext6.Neg(c)
 	t0 := pr.FrobeniusSquareTorus(c)

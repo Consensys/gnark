@@ -201,7 +201,7 @@ func (e *Ext12) Mul01234By034(x *[5]E2, z3, z4 *E2) *E12 {
 
 // CompressTorus compresses x ∈ E12 to (x.C0 + 1)/x.C1 ∈ E6
 func (e Ext12) CompressTorus(x *E12) *E6 {
-	// x in G_{q,2} \ {-1,1}
+	// x ∈ G_{q,2} \ {-1,1}
 	y := e.Ext6.Add(&x.C0, e.Ext6.One())
 	y = e.Ext6.DivUnchecked(y, &x.C1)
 	return y
@@ -222,6 +222,7 @@ func (e Ext12) DecompressTorus(y *E6) *E12 {
 
 // MulTorus multiplies two compressed elements y1, y2 ∈ E6
 // and returns (y1 * y2 + v)/(y1 + y2)
+// N.B.: we use MulTorus in the final exponentiation throughout y1 ≠ -y2 always.
 func (e Ext12) MulTorus(y1, y2 *E6) *E6 {
 	n := e.Ext6.Mul(y1, y2)
 	n.B1 = *e.Ext2.Add(&n.B1, e.Ext2.One())
