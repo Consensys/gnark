@@ -19,7 +19,6 @@
 package fields_bw6761
 
 import (
-	"fmt"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 )
 
@@ -29,10 +28,6 @@ type E6 struct {
 
 type Ext6 struct {
 	*Ext3
-}
-
-func (e Ext6) String(x *E6) string {
-	return fmt.Sprintf("%s+(%s)*v\n", e.Ext3.String(&x.B0), e.Ext3.String(&x.B1))
 }
 
 func (e Ext6) Reduce(x *E6) *E6 {

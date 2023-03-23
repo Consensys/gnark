@@ -19,7 +19,6 @@
 package fields_bw6761
 
 import (
-	"fmt"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -33,22 +32,6 @@ type E3 struct {
 
 type Ext3 struct {
 	Fp *curveF
-}
-
-func (e Ext3) String(x *E3) string {
-	a0, err := e.Fp.String(&x.A0)
-	if err != nil {
-		a0 = "?"
-	}
-	a1, err := e.Fp.String(&x.A1)
-	if err != nil {
-		a1 = "?"
-	}
-	a2, err := e.Fp.String(&x.A2)
-	if err != nil {
-		a2 = "?"
-	}
-	return fmt.Sprintf("%s+(%s)*u+(%s)*u**2", a0, a1, a2)
 }
 
 func (e Ext3) Reduce(x *E3) *E3 {
