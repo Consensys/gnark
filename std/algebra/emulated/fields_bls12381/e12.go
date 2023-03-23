@@ -83,7 +83,7 @@ func (e Ext12) Square(x *E12) *E12 {
 	c2 := e.Ext6.Mul(&x.C0, &x.C1)
 	c0 = e.Ext6.Mul(c0, c3)
 	c0 = e.Ext6.Add(c0, c2)
-	z1 := e.Ext6.double(c2)
+	z1 := e.Ext6.Double(c2)
 	c2 = e.Ext6.MulByNonResidue(c2)
 	z0 := e.Ext6.Add(c0, c2)
 	return &E12{

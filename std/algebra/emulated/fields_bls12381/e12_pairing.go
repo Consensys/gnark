@@ -239,7 +239,7 @@ func (e Ext12) SquareTorus(y *E6) *E6 {
 	}
 
 	// v = (2x-y)y
-	v := e.Ext6.double(&sq)
+	v := e.Ext6.Double(&sq)
 	v = e.Ext6.Sub(v, y)
 	v = e.Ext6.Mul(v, y)
 

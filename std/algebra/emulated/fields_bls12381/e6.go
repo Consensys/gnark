@@ -102,7 +102,7 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 	}
 }
 
-func (e Ext6) double(x *E6) *E6 {
+func (e Ext6) Double(x *E6) *E6 {
 	z0 := e.Ext2.Double(&x.B0)
 	z1 := e.Ext2.Double(&x.B1)
 	z2 := e.Ext2.Double(&x.B2)
