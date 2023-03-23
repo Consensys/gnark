@@ -71,52 +71,64 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 //	2x₀(6x₀²+3x₀+1)
 //
 // and r does NOT divide d'
+//
+// FinalExponentiation returns a decompressed element in E12
 func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	var t [4]*GTEl
+	res := pr.FinalExponentiationTorus(e)
+	return pr.DecompressTorus(res)
+}
+
+// FinalExponentiationTorus returns compressed element in E6
+func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bn254.E6 {
 
 	// Easy part
 	// (p⁶-1)(p²+1)
-	t[0] = pr.Ext12.Conjugate(e)
-	t[0] = pr.Ext12.DivUnchecked(t[0], e)
-	result := pr.Ext12.FrobeniusSquare(t[0])
-	result = pr.Ext12.Mul(result, t[0])
+	// with Torus compression absorbed.
+	// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q
+	// are linearly dependant and not from G1 and G2 respectively.
+	// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0
+	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
+	c = pr.Ext6.Neg(c)
+	t0 := pr.FrobeniusSquareTorus(c)
+	c = pr.MulTorus(t0, c)
 
 	// Hard part (up to permutation)
 	// 2x₀(6x₀²+3x₀+1)(p⁴-p²+1)/r
 	// Duquesne and Ghammam
 	// https://eprint.iacr.org/2015/192.pdf
-	// Fuentes et al. variant (alg. 10)
-	t[0] = pr.Ext12.Expt(result)
-	t[0] = pr.Ext12.Conjugate(t[0])
-	t[0] = pr.Ext12.CyclotomicSquare(t[0])
-	t[2] = pr.Ext12.Expt(t[0])
-	t[2] = pr.Ext12.Conjugate(t[2])
-	t[1] = pr.Ext12.CyclotomicSquare(t[2])
-	t[2] = pr.Ext12.Mul(t[2], t[1])
-	t[2] = pr.Ext12.Mul(t[2], result)
-	t[1] = pr.Ext12.Expt(t[2])
-	t[1] = pr.Ext12.CyclotomicSquare(t[1])
-	t[1] = pr.Ext12.Mul(t[1], t[2])
-	t[1] = pr.Ext12.Conjugate(t[1])
-	t[3] = pr.Ext12.Conjugate(t[1])
-	t[1] = pr.Ext12.CyclotomicSquare(t[0])
-	t[1] = pr.Ext12.Mul(t[1], result)
-	t[1] = pr.Ext12.Conjugate(t[1])
-	t[1] = pr.Ext12.Mul(t[1], t[3])
-	t[0] = pr.Ext12.Mul(t[0], t[1])
-	t[2] = pr.Ext12.Mul(t[2], t[1])
-	t[3] = pr.Ext12.FrobeniusSquare(t[1])
-	t[2] = pr.Ext12.Mul(t[2], t[3])
-	t[3] = pr.Ext12.Conjugate(result)
-	t[3] = pr.Ext12.Mul(t[3], t[0])
-	t[1] = pr.Ext12.FrobeniusCube(t[3])
-	t[2] = pr.Ext12.Mul(t[2], t[1])
-	t[1] = pr.Ext12.Frobenius(t[0])
-	t[1] = pr.Ext12.Mul(t[1], t[2])
+	// Fuentes et al. (alg. 6)
+	// performed in Torus compressed form
+	t0 = pr.ExptTorus(c)
+	t0 = pr.InverseTorus(t0)
+	t0 = pr.SquareTorus(t0)
+	t1 := pr.SquareTorus(t0)
+	t1 = pr.MulTorus(t0, t1)
+	t2 := pr.ExptTorus(t1)
+	t2 = pr.InverseTorus(t2)
+	t3 := pr.InverseTorus(t1)
+	t1 = pr.MulTorus(t2, t3)
+	t3 = pr.SquareTorus(t2)
+	t4 := pr.ExptTorus(t3)
+	t4 = pr.MulTorus(t1, t4)
+	t3 = pr.MulTorus(t0, t4)
+	t0 = pr.MulTorus(t2, t4)
+	t0 = pr.MulTorus(c, t0)
+	t2 = pr.FrobeniusTorus(t3)
+	t0 = pr.MulTorus(t2, t0)
+	t2 = pr.FrobeniusSquareTorus(t4)
+	t0 = pr.MulTorus(t2, t0)
+	t2 = pr.InverseTorus(c)
+	t2 = pr.MulTorus(t2, t3)
+	t2 = pr.FrobeniusCubeTorus(t2)
+	t0 = pr.MulTorus(t2, t0)
 
-	return t[1]
+	return t0
 }
 
+// Pair calculates the reduced pairing for a set of points
+// ∏ᵢ e(Pᵢ, Qᵢ).
+//
+// This function doesn't check that the inputs are in the correct subgroup.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -171,8 +183,11 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	for k := 0; k < n; k++ {
 		Qacc[k] = Q[k]
 		QNeg[k] = &G2Affine{X: Q[k].X, Y: *pr.Ext2.Neg(&Q[k].Y)}
-		// (x,0) cannot be on BN254 because -3 is a cubic non-residue in Fp
-		// so, 1/y is well defined for all points P's
+		// P and Q are supposed to be on G1 and G2 respectively of prime order r.
+		// The point (x,0) is of order 2. But this function does not check
+		// subgroup membership.
+		// Anyway (x,0) cannot be on BN254 because -3 is a cubic non-residue in Fp.
+		// So, 1/y is well defined for all points P's.
 		yInv[k] = pr.curveF.Inverse(&P[k].Y)
 		xOverY[k] = pr.curveF.MulMod(&P[k].X, yInv[k])
 	}

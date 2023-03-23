@@ -21,6 +21,7 @@ func GetHints() []solver.Hint {
 		// E6
 		divE6Hint,
 		inverseE6Hint,
+		squareTorusHint,
 		// E12
 		divE12Hint,
 		inverseE12Hint,
@@ -109,6 +110,33 @@ func divE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error
 			b.B2.A1.SetBigInt(inputs[11])
 
 			c.Inverse(&b).Mul(&c, &a)
+
+			c.B0.A0.BigInt(outputs[0])
+			c.B0.A1.BigInt(outputs[1])
+			c.B1.A0.BigInt(outputs[2])
+			c.B1.A1.BigInt(outputs[3])
+			c.B2.A0.BigInt(outputs[4])
+			c.B2.A1.BigInt(outputs[5])
+
+			return nil
+		})
+}
+
+func squareTorusHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
+		func(mod *big.Int, inputs, outputs []*big.Int) error {
+			var a, c bn254.E6
+
+			a.B0.A0.SetBigInt(inputs[0])
+			a.B0.A1.SetBigInt(inputs[1])
+			a.B1.A0.SetBigInt(inputs[2])
+			a.B1.A1.SetBigInt(inputs[3])
+			a.B2.A0.SetBigInt(inputs[4])
+			a.B2.A1.SetBigInt(inputs[5])
+
+			_c := a.DecompressTorus()
+			_c.CyclotomicSquare(&_c)
+			c, _ = _c.CompressTorus()
 
 			c.B0.A0.BigInt(outputs[0])
 			c.B0.A1.BigInt(outputs[1])

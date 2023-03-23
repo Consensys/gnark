@@ -151,6 +151,28 @@ func (e Ext6) MulByE2(x *E6, y *E2) *E6 {
 	}
 }
 
+// MulBy0 multiplies z by an E6 sparse element of the form
+//
+//	E6{
+//		B0: c0,
+//		B1: 0,
+//		B2: 0,
+//	}
+func (e Ext6) MulBy0(z *E6, c0 *E2) *E6 {
+	a := e.Ext2.Mul(&z.B0, c0)
+	tmp := e.Ext2.Add(&z.B0, &z.B2)
+	t2 := e.Ext2.Mul(c0, tmp)
+	t2 = e.Ext2.Sub(t2, a)
+	tmp = e.Ext2.Add(&z.B0, &z.B1)
+	t1 := e.Ext2.Mul(c0, tmp)
+	t1 = e.Ext2.Sub(t1, a)
+	return &E6{
+		B0: *a,
+		B1: *t1,
+		B2: *t2,
+	}
+}
+
 // MulBy01 multiplies z by an E6 sparse element of the form
 //
 //	E6{
@@ -227,6 +249,12 @@ func (e Ext6) MulByNonResidue(x *E6) *E6 {
 		B1: *z1,
 		B2: *z2,
 	}
+}
+
+func (e Ext6) FrobeniusSquare(x *E6) *E6 {
+	z01 := e.Ext2.MulByNonResidue2Power2(&x.B1)
+	z02 := e.Ext2.MulByNonResidue2Power4(&x.B2)
+	return &E6{B0: x.B0, B1: *z01, B2: *z02}
 }
 
 func (e Ext6) AssertIsEqual(x, y *E6) {

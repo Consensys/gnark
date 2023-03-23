@@ -278,6 +278,43 @@ func TestMulFp6By01(t *testing.T) {
 
 }
 
+type e6MulBy0 struct {
+	A  E6
+	C0 E2
+	C  E6 `gnark:",public"`
+}
+
+func (circuit *e6MulBy0) Define(api frontend.API) error {
+	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	e := NewExt6(ba)
+	expected := e.MulBy0(&circuit.A, &circuit.C0)
+	e.AssertIsEqual(expected, &circuit.C)
+
+	return nil
+}
+
+func TestMulFp6By0(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bn254.E6
+	var C0, zero bn254.E2
+	_, _ = a.SetRandom()
+	_, _ = C0.SetRandom()
+	c.Set(&a)
+	c.MulBy01(&C0, &zero)
+
+	witness := e6MulBy0{
+		A:  FromE6(&a),
+		C0: FromE2(&C0),
+		C:  FromE6(&c),
+	}
+
+	err := test.IsSolved(&e6MulBy0{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e6Neg struct {
 	A E6
 	C E6 `gnark:",public"`
