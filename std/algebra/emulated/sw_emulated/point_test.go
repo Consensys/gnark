@@ -345,3 +345,37 @@ func TestScalarMul2(t *testing.T) {
 	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &circuit)
 	assert.NoError(err)
 }
+
+type IsOnCurveTest[T, S emulated.FieldParams] struct {
+	Q AffinePoint[T]
+}
+
+func (c *IsOnCurveTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsOnCurve(&c.Q)
+	return nil
+}
+
+func TestIsOnCurve(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+	var r fr_secp.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var Q secp256k1.G1Affine
+	Q.ScalarMultiplication(&g, s)
+
+	circuit := IsOnCurveTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := IsOnCurveTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](Q.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](Q.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}

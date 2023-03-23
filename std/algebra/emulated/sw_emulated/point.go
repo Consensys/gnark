@@ -38,6 +38,7 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 		},
 		gm:   emuGm,
 		a:    emulated.ValueOf[Base](params.A),
+		b:    emulated.ValueOf[Base](params.B),
 		addA: params.A.Cmp(big.NewInt(0)) != 0,
 	}, nil
 }
@@ -60,6 +61,7 @@ type Curve[Base, Scalars emulated.FieldParams] struct {
 	gm []AffinePoint[Base]
 
 	a    emulated.Element[Base]
+	b    emulated.Element[Base]
 	addA bool
 }
 
@@ -118,6 +120,19 @@ func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 		X: *c.baseApi.Reduce(xr),
 		Y: *c.baseApi.Reduce(yr),
 	}
+}
+
+func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
+	// y^2 = x^3+ax+b
+	left := c.baseApi.Mul(&p.Y, &p.Y)
+	right := c.baseApi.Mul(&p.X, &p.X)
+	right = c.baseApi.Mul(right, &p.X)
+	right = c.baseApi.Add(right, &c.b)
+	if c.addA {
+		ax := c.baseApi.Mul(&c.a, &p.X)
+		right = c.baseApi.Add(right, ax)
+	}
+	c.baseApi.AssertIsEqual(left, right)
 }
 
 // Double doubles p and return it. It doesn't modify p.
