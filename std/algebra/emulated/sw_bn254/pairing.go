@@ -128,7 +128,7 @@ func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bn254.E6 {
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
+// This function doesn't check that the inputs are in the correct subgroup.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -183,8 +183,11 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	for k := 0; k < n; k++ {
 		Qacc[k] = Q[k]
 		QNeg[k] = &G2Affine{X: Q[k].X, Y: *pr.Ext2.Neg(&Q[k].Y)}
-		// (x,0) cannot be on BN254 because -3 is a cubic non-residue in Fp
-		// so, 1/y is well defined for all points P's
+		// P and Q are supposed to be on G1 and G2 respectively of prime order r.
+		// The point (x,0) is of order 2. But this function does not check
+		// subgroup membership.
+		// Anyway (x,0) cannot be on BN254 because -3 is a cubic non-residue in Fp.
+		// So, 1/y is well defined for all points P's.
 		yInv[k] = pr.curveF.Inverse(&P[k].Y)
 		xOverY[k] = pr.curveF.MulMod(&P[k].X, yInv[k])
 	}
