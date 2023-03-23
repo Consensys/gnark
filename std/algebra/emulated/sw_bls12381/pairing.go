@@ -157,7 +157,10 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	for k := 0; k < n; k++ {
 		Qacc[k] = Q[k]
-		// (x,0) cannot be on BLS12-381 because -4 is a cubic non-residue in Fp
+		// P and Q are supposed to be on G1 and G2 respectively of prime order r.
+		// The point (x,0) is of order 2. But this function does not check
+		// subgroup membership.
+		// Anyway (x,0) cannot be on BLS12-381 because -4 is a cubic non-residue in Fp.
 		// so, 1/y is well defined for all points P's
 		yInv[k] = pr.curveF.Inverse(&P[k].Y)
 		xOverY[k] = pr.curveF.MulMod(&P[k].X, yInv[k])
