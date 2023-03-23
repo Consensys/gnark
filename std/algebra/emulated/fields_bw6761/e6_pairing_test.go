@@ -38,8 +38,7 @@ func (circuit *e6Expt) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	expected := e.Zero()
-	expected = e.Expt(&circuit.A)
+	expected := e.Expt(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }
@@ -71,8 +70,7 @@ func (circuit *e6Expc2) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	expected := e.Set(&circuit.A)
-	expected = e.Expc2(&circuit.A)
+	expected := e.Expc2(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }
@@ -106,8 +104,7 @@ func (circuit *e6Expc1) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	expected := e.Set(&circuit.A)
-	expected = e.Expc1(&circuit.A)
+	expected := e.Expc1(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }

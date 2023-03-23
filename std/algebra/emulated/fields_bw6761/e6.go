@@ -219,8 +219,7 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	var z E6
 
 	var t [3]*BaseField
-	var one *BaseField
-	one = e.Fp.One()
+	one := e.Fp.One()
 
 	// t0 = g1^2
 	t[0] = e.Fp.Mul(&x.B0.A1, &x.B0.A1)

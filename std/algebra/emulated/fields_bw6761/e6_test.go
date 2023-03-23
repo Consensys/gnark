@@ -278,8 +278,7 @@ func (circuit *e6CyclotomicSquareCompressed) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	expected := e.Set(&circuit.A)
-	expected = e.CyclotomicSquareCompressed(&circuit.A)
+	expected := e.CyclotomicSquareCompressed(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }
@@ -347,8 +346,7 @@ func (circuit *e6CyclotomicSquare) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	expected := e.Set(&circuit.A)
-	expected = e.CyclotomicSquare(&circuit.A)
+	expected := e.CyclotomicSquare(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }

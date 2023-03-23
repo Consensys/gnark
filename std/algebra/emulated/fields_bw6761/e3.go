@@ -145,11 +145,9 @@ func (e Ext3) Conjugate(x *E3) *E3 {
 
 // MulByElement multiplies an element in *E3 by an element in Fp
 func (e Ext3) MulByElement(x *E3, y *BaseField) *E3 {
-	var _y BaseField
-	_y = *y
-	a0 := e.Fp.Mul(&x.A0, &_y)
-	a1 := e.Fp.Mul(&x.A1, &_y)
-	a2 := e.Fp.Mul(&x.A2, &_y)
+	a0 := e.Fp.Mul(&x.A0, y)
+	a1 := e.Fp.Mul(&x.A1, y)
+	a2 := e.Fp.Mul(&x.A2, y)
 	z := &E3{
 		A0: *a0,
 		A1: *a1,
