@@ -20,7 +20,9 @@
 package groth16
 
 import (
+	"fmt"
 	"io"
+	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -438,4 +440,145 @@ func NewCS(curveID ecc.ID) constraint.ConstraintSystem {
 		panic("not implemented")
 	}
 	return r1cs
+}
+
+func ReadSegmentProveKey(filepath string) (pks []ProvingKey, err error) {
+	pks = make([]ProvingKey, 2)
+	// pkE
+	pks[0] = NewProvingKey(ecc.BN254)
+	// pkB2
+	pks[1] = NewProvingKey(ecc.BN254)
+
+	f0, _ := os.Open(filepath + ".pk.E.save")
+	_, err = pks[0].(*groth16_bn254.ProvingKey).UnsafeReadEFrom(f0)
+	if err != nil {
+		return pks, fmt.Errorf("read file error")
+	}
+	err = f0.Close()
+	if err != nil {
+		return pks, err
+	}
+
+	f1, _ := os.Open(filepath + ".pk.B2.save")
+	_, err = pks[1].(*groth16_bn254.ProvingKey).UnsafeReadB2From(f1)
+	if err != nil {
+		return pks, fmt.Errorf("read file error")
+	}
+	err = f1.Close()
+	if err != nil {
+		return pks, err
+	}
+
+	return pks, nil
+}
+
+func ProveRoll(r1cs constraint.ConstraintSystem, pkE, pkB2 ProvingKey, fullWitness witness.Witness, session string, opts ...backend.ProverOption) (Proof, error) {
+
+	// apply options
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	switch _r1cs := r1cs.(type) {
+	case *cs_bn254.R1CS:
+		w, ok := fullWitness.Vector().(fr_bn254.Vector)
+		if !ok {
+			return nil, witness.ErrInvalidWitness
+		}
+		return groth16_bn254.ProveRoll(_r1cs, pkE.(*groth16_bn254.ProvingKey), pkB2.(*groth16_bn254.ProvingKey), w, opt, session)
+	default:
+		panic("unrecognized R1CS curve type")
+	}
+}
+
+func SplitDumpPK(Pk ProvingKey, session string) error {
+	pk := Pk.(*groth16_bn254.ProvingKey)
+	// E part
+	{
+		name := fmt.Sprintf("%s.pk.E.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		cnt, err := pk.WriteRawETo(pkFile)
+		fmt.Println("written ", cnt, "bytes for pk.E.save")
+	}
+
+	// A part
+	{
+		pk2 := &groth16_bn254.ProvingKey{}
+		pk2.G1.A = pk.G1.A
+
+		name := fmt.Sprintf("%s.pk.A.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		cnt, err := pk2.WriteRawATo(pkFile)
+		fmt.Println("written ", cnt, "bytes for pk.A.save")
+
+	}
+
+	// B1 part
+	{
+		pk2 := &groth16_bn254.ProvingKey{}
+		pk2.G1.B = pk.G1.B
+
+		name := fmt.Sprintf("%s.pk.B1.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		cnt, err := pk2.WriteRawB1To(pkFile)
+		fmt.Println("written ", cnt, "bytes for pk.B1.save")
+
+	}
+
+	// K part
+	{
+		pk2 := &groth16_bn254.ProvingKey{}
+		pk2.G1.K = pk.G1.K
+
+		name := fmt.Sprintf("%s.pk.K.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		cnt, err := pk2.WriteRawKTo(pkFile)
+		fmt.Println("written ", cnt, "bytes for pk.K.save")
+
+	}
+
+	// Z part
+	{
+		pk2 := &groth16_bn254.ProvingKey{}
+		pk2.G1.Z = pk.G1.Z
+
+		name := fmt.Sprintf("%s.pk.Z.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		cnt, err := pk2.WriteRawZTo(pkFile)
+		fmt.Println("written ", cnt, "bytes for pk.Z.save")
+
+	}
+
+	// B2 part
+	{
+		pk2 := &groth16_bn254.ProvingKey{}
+		pk2.G2.B = pk.G2.B
+
+		name := fmt.Sprintf("%s.pk.B2.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		cnt, err := pk2.WriteRawB2To(pkFile)
+		fmt.Println("written ", cnt, "bytes for pk.B2.save")
+
+	}
+
+	return nil
 }
