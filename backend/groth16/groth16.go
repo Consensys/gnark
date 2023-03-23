@@ -502,6 +502,9 @@ func SplitDumpPK(Pk ProvingKey, session string) error {
 			return err
 		}
 		cnt, err := pk.WriteRawETo(pkFile)
+		if err != nil {
+			return err
+		}
 		fmt.Println("written ", cnt, "bytes for pk.E.save")
 	}
 
@@ -516,6 +519,9 @@ func SplitDumpPK(Pk ProvingKey, session string) error {
 			return err
 		}
 		cnt, err := pk2.WriteRawATo(pkFile)
+		if err != nil {
+			return err
+		}
 		fmt.Println("written ", cnt, "bytes for pk.A.save")
 
 	}
@@ -531,6 +537,9 @@ func SplitDumpPK(Pk ProvingKey, session string) error {
 			return err
 		}
 		cnt, err := pk2.WriteRawB1To(pkFile)
+		if err != nil {
+			return err
+		}
 		fmt.Println("written ", cnt, "bytes for pk.B1.save")
 
 	}
@@ -546,6 +555,9 @@ func SplitDumpPK(Pk ProvingKey, session string) error {
 			return err
 		}
 		cnt, err := pk2.WriteRawKTo(pkFile)
+		if err != nil {
+			return err
+		}
 		fmt.Println("written ", cnt, "bytes for pk.K.save")
 
 	}
@@ -561,6 +573,9 @@ func SplitDumpPK(Pk ProvingKey, session string) error {
 			return err
 		}
 		cnt, err := pk2.WriteRawZTo(pkFile)
+		if err != nil {
+			return err
+		}
 		fmt.Println("written ", cnt, "bytes for pk.Z.save")
 
 	}
@@ -576,6 +591,9 @@ func SplitDumpPK(Pk ProvingKey, session string) error {
 			return err
 		}
 		cnt, err := pk2.WriteRawB2To(pkFile)
+		if err != nil {
+			return err
+		}
 		fmt.Println("written ", cnt, "bytes for pk.B2.save")
 
 	}
