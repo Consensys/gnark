@@ -6,6 +6,7 @@ import (
 	{{- template "import_fft" . }}
 	"runtime"
 	"math/big"
+	"os"
 	"time"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/internal/utils"
@@ -269,6 +270,343 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverC
 		return nil, err 
 	}
 
+	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
+
+	return proof, nil
+}
+
+func ProveRoll(r1cs *cs.R1CS, pkE, pkB2 *ProvingKey, witness fr.Vector, opt backend.ProverConfig,
+	session string) (*Proof, error) {
+	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)+r1cs.LazyCons.GetConstraintsAll()).Str("backend", "groth16").Logger()
+	var start time.Time
+
+	proof := &Proof{}
+
+	var wireValues []fr.Element
+	var h []fr.Element
+
+	{
+		card := pkE.Card
+		fmt.Println("card:", card)
+		nbCons := r1cs.GetNbConstraints() + r1cs.LazyCons.GetConstraintsAll()
+		a := make([]fr.Element, nbCons, card)
+		b := make([]fr.Element, nbCons, card)
+		c := make([]fr.Element, nbCons, card)
+
+		if r1cs.CommitmentInfo.Is() {
+			opt.HintFunctions[r1cs.CommitmentInfo.HintID] = func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+				// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
+				// If that is the case, figure out a way to feed the solution vector into this function
+				if len(in) != r1cs.CommitmentInfo.NbCommitted() { // TODO: Remove
+					return fmt.Errorf("unexpected number of committed variables")
+				}
+				values := make([]fr.Element, r1cs.CommitmentInfo.NbPrivateCommitted)
+				nbPublicCommitted := len(in) - len(values)
+				inPrivate := in[nbPublicCommitted:]
+				for i, inI := range inPrivate {
+					values[i].SetBigInt(inI)
+				}
+
+				var err error
+				proof.Commitment, proof.CommitmentPok, err = pkE.CommitmentKey.Commit(values)
+				if err != nil {
+					return err
+				}
+
+				var res fr.Element
+				res, err = solveCommitmentWire(&r1cs.CommitmentInfo, &proof.Commitment, in[:r1cs.CommitmentInfo.NbPublicCommitted()])
+				res.BigInt(out[0]) //Perf-TODO: Regular (non-mont) hashToField to obviate this conversion?
+				return err
+			}
+		}
+
+		var err error
+		if wireValues, err = r1cs.Solve(witness, a, b, c, opt); err != nil {
+			if !opt.Force {
+				return nil, err
+			} else {
+				// we need to fill wireValues with random values else multi exps don't do much
+				var r fr.Element
+				_, _ = r.SetRandom()
+				for i := r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables(); i < len(wireValues); i++ {
+					wireValues[i] = r
+					r.Double(&r)
+				}
+			}
+		}
+		start = time.Now()
+
+		// H (witness reduction / FFT part)
+		chHDone := make(chan struct{}, 1)
+		go func() {
+			domain := fft.NewDomain(card)
+			h = computeH(a, b, c, domain)
+			a = nil
+			b = nil
+			c = nil
+			chHDone <- struct{}{}
+		}()
+		<-chHDone
+	}
+	runtime.GC()
+
+	// we need to copy and filter the wireValues for each multi exp
+	// as pk.G1.A, pk.G1.B and pk.G2.B may have (a significant) number of point at infinity
+	var deltas []curve.G1Affine
+	var r, s big.Int
+	{
+		// sample random r and s
+		var _r, _s, _kr fr.Element
+		if _, err := _r.SetRandom(); err != nil {
+			return nil, err
+		}
+		if _, err := _s.SetRandom(); err != nil {
+			return nil, err
+		}
+		_kr.Mul(&_r, &_s).Neg(&_kr)
+
+		_r.BigInt(&r)
+		_s.BigInt(&s)
+
+		// computes r[δ], s[δ], kr[δ]
+		deltas = curve.BatchScalarMultiplicationG1(&pkE.G1.Delta, []fr.Element{_r, _s, _kr})
+	}
+	n := runtime.NumCPU()
+
+	//Bs2
+	var pkA *ProvingKey
+	chPkA := make(chan *ProvingKey, 1)
+	var wireValuesB []fr.Element
+	{
+		chWireValuesB := make(chan struct{}, 1)
+		go func() {
+			wireValuesB = make([]fr.Element, len(wireValues)-int(pkE.NbInfinityB))
+			for i, j := 0, 0; j < len(wireValuesB); i++ {
+				if pkE.InfinityB[i] {
+					continue
+				}
+				wireValuesB[j] = wireValues[i]
+				j++
+			}
+			close(chWireValuesB)
+		}()
+		<-chWireValuesB
+
+		chBs2Done := make(chan error, 1)
+		computeBS2 := func() {
+			// Bs2 (1 multi exp G2 - size = len(wires))
+			var Bs, deltaS curve.G2Jac
+
+			nbTasks := n
+			if nbTasks <= 16 {
+				// if we don't have a lot of CPUs, this may artificially split the MSM
+				nbTasks *= 2
+			}
+			if _, err := Bs.MultiExp(pkB2.G2.B, wireValuesB, ecc.MultiExpConfig{NbTasks: nbTasks}); err != nil {
+				chBs2Done <- err
+			}
+
+			deltaS.FromAffine(&pkE.G2.Delta)
+			deltaS.ScalarMultiplication(&deltaS, &s)
+			Bs.AddAssign(&deltaS)
+			Bs.AddMixed(&pkE.G2.Beta)
+
+			proof.Bs.FromJacobian(&Bs)
+			chBs2Done <- nil
+		}
+		go computeBS2()
+
+		go func() {
+			name := fmt.Sprintf("%s.pk.A.save", session)
+			pkFile, err := os.Open(name)
+			if err != nil {
+				return
+			}
+			pk := ProvingKey{}
+			_, err = pk.UnsafeReadAFrom(pkFile)
+			if err != nil {
+				return
+			}
+			chPkA <- &pk
+			close(chPkA)
+		}()
+		<-chBs2Done
+
+		pkB2.G2.B = make([]curve.G2Affine, 0)
+	}
+	runtime.GC()
+
+	var pkB1 *ProvingKey
+	chPkB1 := make(chan *ProvingKey, 1)
+	var ar curve.G1Jac
+	var wireValuesA []fr.Element
+	{
+		pkA = <-chPkA
+
+		chWireValuesA := make(chan struct{}, 1)
+		go func() {
+			wireValuesA = make([]fr.Element, len(wireValues)-int(pkE.NbInfinityA))
+			for i, j := 0, 0; j < len(wireValuesA); i++ {
+				if pkE.InfinityA[i] {
+					continue
+				}
+				wireValuesA[j] = wireValues[i]
+				j++
+			}
+			close(chWireValuesA)
+		}()
+		<-chWireValuesA
+
+		chArDone := make(chan error, 1)
+		computeAR1 := func() {
+			if _, err := ar.MultiExp(pkA.G1.A, wireValuesA, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+				chArDone <- err
+				close(chArDone)
+				return
+			}
+			ar.AddMixed(&pkE.G1.Alpha)
+			ar.AddMixed(&deltas[0])
+			proof.Ar.FromJacobian(&ar)
+			chArDone <- nil
+		}
+		go computeAR1()
+
+		go func() {
+			name := fmt.Sprintf("%s.pk.B1.save", session)
+			pkFile, err := os.Open(name)
+			if err != nil {
+				return
+			}
+			pk := ProvingKey{}
+			_, err = pk.UnsafeReadB1From(pkFile)
+			if err != nil {
+				return
+			}
+			chPkB1 <- &pk
+			close(chPkB1)
+		}()
+		<-chArDone
+
+		pkA = nil
+	}
+	runtime.GC()
+
+	var pkZ *ProvingKey
+	chPkZ := make(chan *ProvingKey, 1)
+	var bs1 curve.G1Jac
+	{
+		pkB1 = <-chPkB1
+
+		chBs1Done := make(chan error, 1)
+		computeBS1 := func() {
+			if _, err := bs1.MultiExp(pkB1.G1.B, wireValuesB, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+				chBs1Done <- err
+				close(chBs1Done)
+				return
+			}
+			bs1.AddMixed(&pkE.G1.Beta)
+			bs1.AddMixed(&deltas[1])
+			chBs1Done <- nil
+		}
+		go computeBS1()
+		go func() {
+			name := fmt.Sprintf("%s.pk.Z.save", session)
+			pkFile, err := os.Open(name)
+			if err != nil {
+				return
+			}
+			pk := ProvingKey{}
+			_, err = pk.UnsafeReadZFrom(pkFile)
+			if err != nil {
+				return
+			}
+			chPkZ <- &pk
+			close(chPkZ)
+		}()
+		<-chBs1Done
+
+		pkB1 = nil
+	}
+	runtime.GC()
+
+	var pkK *ProvingKey
+	chPkK := make(chan *ProvingKey, 1)
+	var krs2 curve.G1Jac
+	{
+		pkZ = <-chPkZ
+
+		chKrs2Done := make(chan error, 1)
+		go func() {
+			_, err := krs2.MultiExp(pkZ.G1.Z, h, ecc.MultiExpConfig{NbTasks: n / 2})
+			chKrs2Done <- err
+		}()
+		go func() {
+			name := fmt.Sprintf("%s.pk.K.save", session)
+			pkFile, err := os.Open(name)
+			if err != nil {
+				return
+			}
+			pk := ProvingKey{}
+			_, err = pk.UnsafeReadKFrom(pkFile)
+			if err != nil {
+				return
+			}
+			chPkK <- &pk
+			close(chPkK)
+		}()
+		<-chKrs2Done
+
+		pkZ = nil
+	}
+	runtime.GC()
+
+	{
+		pkK = <-chPkK
+
+		chKrsDone := make(chan error, 1)
+		// computeKRS := func() {
+		go func() {
+			// we could NOT split the Krs multiExp in 2, and just append pk.G1.K and pk.G1.Z
+			// however, having similar lengths for our tasks helps with parallelism
+
+			// var krs, krs2, p1 curve.G1Jac
+			var krs, p1 curve.G1Jac
+
+			// filter the wire values if needed;
+			_wireValues := filter(wireValues, r1cs.CommitmentInfo.PrivateToPublic())
+			if _, err := krs.MultiExp(pkK.G1.K, _wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+				chKrsDone <- err
+				return
+			}
+			krs.AddMixed(&deltas[2])
+			p1.ScalarMultiplication(&bs1, &r)
+			krs.AddAssign(&p1)
+			p1.ScalarMultiplication(&ar, &s)
+			krs.AddAssign(&p1)
+			krs.AddAssign(&krs2)
+
+			proof.Krs.FromJacobian(&krs)
+			chKrsDone <- nil
+		}()
+
+		chPkB2 := make(chan struct{}, 1)
+		go func() {
+			name := fmt.Sprintf("%s.pk.B2.save", session)
+			pkFile, err := os.Open(name)
+			if err != nil {
+				return
+			}
+			_, err = pkB2.UnsafeReadB2From(pkFile)
+			if err != nil {
+				return
+			}
+			close(chPkB2)
+		}()
+		<-chPkB2
+		<-chKrsDone
+
+		pkK = nil
+	}
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
 	return proof, nil

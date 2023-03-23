@@ -196,6 +196,26 @@ func (pk *ProvingKey) WriteRawTo(w io.Writer) (n int64, err error) {
 	return pk.writeTo(w, true)
 }
 
+func (pk *ProvingKey) WriteRawETo(w io.Writer) (n int64, err error) {
+	return pk.writeETo(w)
+}
+
+func (pk *ProvingKey) WriteRawATo(w io.Writer) (n int64, err error) {
+	return pk.writeATo(w)
+}
+func (pk *ProvingKey) WriteRawB1To(w io.Writer) (n int64, err error) {
+	return pk.writeB1To(w)
+}
+func (pk *ProvingKey) WriteRawB2To(w io.Writer) (n int64, err error) {
+	return pk.writeB2To(w)
+}
+func (pk *ProvingKey) WriteRawZTo(w io.Writer) (n int64, err error) {
+	return pk.writeZTo(w)
+}
+func (pk *ProvingKey) WriteRawKTo(w io.Writer) (n int64, err error) {
+	return pk.writeKTo(w)
+}
+
 func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 	n, err := pk.Domain.WriteTo(w)
 	if err != nil {
@@ -238,6 +258,144 @@ func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 
 }
 
+func (pk *ProvingKey) writeETo(w io.Writer) (int64, error) {
+	var enc = curve.NewEncoder(w, curve.RawEncoding())
+	nbWires := uint64(len(pk.InfinityA))
+
+	toEncode := []interface{}{
+		&pk.Domain.Cardinality,
+		&pk.G1.Alpha,
+		&pk.G1.Beta,
+		&pk.G1.Delta,
+		//pk.G1.A,
+		//pk.G1.B,
+		//pk.G1.Z,
+		//pk.G1.K,
+		&pk.G2.Beta,
+		&pk.G2.Delta,
+		//pk.G2.B,
+		nbWires,
+		pk.NbInfinityA,
+		pk.NbInfinityB,
+		pk.InfinityA,
+		pk.InfinityB,
+	}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+
+	return enc.BytesWritten(), nil
+
+}
+
+func (pk *ProvingKey) writeATo(w io.Writer) (int64, error) {
+	var enc = curve.NewEncoder(w, curve.RawEncoding())
+
+	toEncode := []interface{}{
+		pk.G1.A,
+		//pk.G1.B,
+		//pk.G1.Z,
+		//pk.G1.K,
+		//pk.G2.B,
+	}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+
+	return enc.BytesWritten(), nil
+
+}
+
+func (pk *ProvingKey) writeB1To(w io.Writer) (int64, error) {
+	var enc = curve.NewEncoder(w, curve.RawEncoding())
+
+	toEncode := []interface{}{
+		//pk.G1.A,
+		pk.G1.B,
+		//pk.G1.Z,
+		//pk.G1.K,
+		//pk.G2.B,
+	}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+
+	return enc.BytesWritten(), nil
+
+}
+
+func (pk *ProvingKey) writeB2To(w io.Writer) (int64, error) {
+	var enc = curve.NewEncoder(w, curve.RawEncoding())
+
+	toEncode := []interface{}{
+		//pk.G1.A,
+		//pk.G1.B,
+		//pk.G1.Z,
+		//pk.G1.K,
+		pk.G2.B,
+	}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+
+	return enc.BytesWritten(), nil
+
+}
+
+func (pk *ProvingKey) writeZTo(w io.Writer) (int64, error) {
+	var enc = curve.NewEncoder(w, curve.RawEncoding())
+
+	toEncode := []interface{}{
+		//pk.G1.A,
+		//pk.G1.B,
+		pk.G1.Z,
+		//pk.G1.K,
+		//pk.G2.B,
+	}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+
+	return enc.BytesWritten(), nil
+
+}
+
+func (pk *ProvingKey) writeKTo(w io.Writer) (int64, error) {
+	var enc = curve.NewEncoder(w, curve.RawEncoding())
+
+	toEncode := []interface{}{
+		//pk.G1.A,
+		//pk.G1.B,
+		//pk.G1.Z,
+		pk.G1.K,
+		//pk.G2.B,
+	}
+
+	for _, v := range toEncode {
+		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+
+	return enc.BytesWritten(), nil
+
+}
+
 // ReadFrom attempts to decode a ProvingKey from reader
 // ProvingKey must be encoded through WriteTo (compressed) or WriteRawTo (uncompressed)
 // note that we don't check that the points are on the curve or in the correct subgroup at this point
@@ -249,6 +407,30 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 // or in the correct subgroup
 func (pk *ProvingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
 	return pk.readFrom(r, curve.NoSubgroupChecks())
+}
+
+func (pk *ProvingKey) UnsafeReadEFrom(r io.Reader) (int64, error) {
+	return pk.readEFrom(r, curve.NoSubgroupChecks())
+}
+
+func (pk *ProvingKey) UnsafeReadAFrom(r io.Reader) (int64, error) {
+	return pk.readAFrom(r, curve.NoSubgroupChecks())
+}
+
+func (pk *ProvingKey) UnsafeReadB1From(r io.Reader) (int64, error) {
+	return pk.readB1From(r, curve.NoSubgroupChecks())
+}
+
+func (pk *ProvingKey) UnsafeReadB2From(r io.Reader) (int64, error) {
+	return pk.readB2From(r, curve.NoSubgroupChecks())
+}
+
+func (pk *ProvingKey) UnsafeReadZFrom(r io.Reader) (int64, error) {
+	return pk.readZFrom(r, curve.NoSubgroupChecks())
+}
+
+func (pk *ProvingKey) UnsafeReadKFrom(r io.Reader) (int64, error) {
+	return pk.readKFrom(r, curve.NoSubgroupChecks())
 }
 
 func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
@@ -293,4 +475,144 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 	}
 
 	return n + dec.BytesRead(), nil
+}
+
+func (pk *ProvingKey) readEFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
+	dec := curve.NewDecoder(r, decOptions...)
+
+	var nbWires uint64
+
+	toDecode := []interface{}{
+		&pk.Card,
+		&pk.G1.Alpha,
+		&pk.G1.Beta,
+		&pk.G1.Delta,
+		//&pk.G1.A,
+		//&pk.G1.B,
+		//&pk.G1.Z,
+		//&pk.G1.K,
+		&pk.G2.Beta,
+		&pk.G2.Delta,
+		//&pk.G2.B,
+		&nbWires,
+		&pk.NbInfinityA,
+		&pk.NbInfinityB,
+	}
+
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+	pk.InfinityA = make([]bool, nbWires)
+	pk.InfinityB = make([]bool, nbWires)
+
+	if err := dec.Decode(&pk.InfinityA); err != nil {
+		return dec.BytesRead(), err
+	}
+	if err := dec.Decode(&pk.InfinityB); err != nil {
+		return dec.BytesRead(), err
+	}
+
+	return dec.BytesRead(), nil
+}
+
+func (pk *ProvingKey) readAFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
+	dec := curve.NewDecoder(r, decOptions...)
+
+	toDecode := []interface{}{
+		&pk.G1.A,
+		//&pk.G1.B,
+		//&pk.G1.Z,
+		//&pk.G1.K,
+		//&pk.G2.B,
+	}
+
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+
+	return dec.BytesRead(), nil
+}
+
+func (pk *ProvingKey) readB1From(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
+	dec := curve.NewDecoder(r, decOptions...)
+
+	toDecode := []interface{}{
+		//&pk.G1.A,
+		&pk.G1.B,
+		//&pk.G1.Z,
+		//&pk.G1.K,
+		//&pk.G2.B,
+	}
+
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+
+	return dec.BytesRead(), nil
+}
+
+func (pk *ProvingKey) readB2From(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
+	dec := curve.NewDecoder(r, decOptions...)
+
+	toDecode := []interface{}{
+		//&pk.G1.A,
+		//&pk.G1.B,
+		//&pk.G1.Z,
+		//&pk.G1.K,
+		&pk.G2.B,
+	}
+
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+
+	return dec.BytesRead(), nil
+}
+
+func (pk *ProvingKey) readZFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
+	dec := curve.NewDecoder(r, decOptions...)
+
+	toDecode := []interface{}{
+		//&pk.G1.A,
+		//&pk.G1.B,
+		&pk.G1.Z,
+		//&pk.G1.K,
+		//&pk.G2.B,
+	}
+
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+
+	return dec.BytesRead(), nil
+}
+
+func (pk *ProvingKey) readKFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
+	dec := curve.NewDecoder(r, decOptions...)
+
+	toDecode := []interface{}{
+		//&pk.G1.A,
+		//&pk.G1.B,
+		//&pk.G1.Z,
+		&pk.G1.K,
+		//&pk.G2.B,
+	}
+
+	for _, v := range toDecode {
+		if err := dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+
+	return dec.BytesRead(), nil
 }
