@@ -195,6 +195,8 @@ func (cs *SparseR1CS) solve(witness fr.Vector, opt solver.Config) (fr.Vector, er
 
 }
 
+var SolveSequentially = false
+
 func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv fr.Vector) error {
 	// minWorkPerCPU is the minimum target number of constraint a task should hold
 	// in other words, if a level has less than minWorkPerCPU, it will not be parallelized and executed
@@ -208,6 +210,8 @@ func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv fr.Ve
 	chTasks := make(chan []int, runtime.NumCPU())
 	chError := make(chan *UnsatisfiedConstraintError, runtime.NumCPU())
 
+	var m sync.Mutex
+
 	// start a worker pool
 	// each worker wait on chTasks
 	// a task is a slice of constraint indexes to be solved
@@ -215,6 +219,10 @@ func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv fr.Ve
 		go func() {
 			for t := range chTasks {
 				for _, i := range t {
+					if SolveSequentially {
+						m.Lock()
+					}
+					//fmt.Println("solving constraint", i)
 					// for each constraint in the task, solve it.
 					if err := cs.solveConstraint(cs.Constraints[i], solution, coefficientsNegInv); err != nil {
 						chError <- &UnsatisfiedConstraintError{CID: i, Err: err}
@@ -230,6 +238,9 @@ func (cs *SparseR1CS) parallelSolve(solution *solution, coefficientsNegInv fr.Ve
 						}
 						wg.Done()
 						return
+					}
+					if SolveSequentially {
+						m.Unlock()
 					}
 				}
 				wg.Done()

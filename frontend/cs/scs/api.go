@@ -17,9 +17,8 @@ limitations under the License.
 package scs
 
 import (
-	"errors"
 	"fmt"
-	"math/big"
+	"github.com/consensys/gnark/frontend/cs"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -561,10 +560,6 @@ func (builder *builder) Compiler() frontend.Compiler {
 	return builder
 }
 
-func scsBsb22CommitmentHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error {
-	return errors.New("placeholder - should never be called")
-}
-
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
 	committed := make([]int, len(v))
@@ -574,7 +569,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		committed[i] = builder.cs.GetNbConstraints()
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
-	outs, err := builder.NewHint(scsBsb22CommitmentHintPlaceholder, 1, v...)
+	outs, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, v...)
 	if err != nil {
 		return nil, err
 	}
@@ -583,7 +578,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
-		HintID:          solver.GetHintID(scsBsb22CommitmentHintPlaceholder),
+		HintID:          solver.GetHintID(cs.Bsb22CommitmentComputePlaceholder),
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,
 	})

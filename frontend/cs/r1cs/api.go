@@ -19,8 +19,7 @@ package r1cs
 import (
 	"errors"
 	"fmt"
-	"math/big"
-	"os"
+	"github.com/consensys/gnark/frontend/cs"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -28,11 +27,9 @@ import (
 
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
@@ -729,12 +726,12 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 	// hint is used at solving time to compute the actual value of the commitment
 	// it is going to be dynamically replaced at solving time.
-	hintOut, err := builder.NewHint(bsb22CommitmentComputePlaceholder, 1, builder.getCommittedVariables(&commitment)...)
+	hintOut, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, builder.getCommittedVariables(&commitment)...)
 	if err != nil {
 		return nil, err
 	}
 	cVar := hintOut[0]
-	commitment.HintID = solver.GetHintID(bsb22CommitmentComputePlaceholder) // TODO @gbotrel probably not needed
+	commitment.HintID = solver.GetHintID(cs.Bsb22CommitmentComputePlaceholder) // TODO @gbotrel probably not needed
 
 	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
 
@@ -757,19 +754,4 @@ func (builder *builder) getCommittedVariables(i *constraint.Commitment) []fronte
 		res[j] = expr.NewLinearExpression(wireIndex, builder.tOne)
 	}
 	return res
-}
-
-func bsb22CommitmentComputePlaceholder(_ *big.Int, _ []*big.Int, output []*big.Int) error {
-	if (len(os.Args) > 0 && (strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe"))) || debug.Debug {
-		// usually we only run solver without prover during testing
-		log := logger.Logger()
-		log.Error().Msg("Augmented groth16 commitment hint not replaced. Proof will not be sound!")
-		output[0].SetInt64(0)
-		return nil
-	}
-	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
-}
-
-func init() {
-	solver.RegisterHint(bsb22CommitmentComputePlaceholder)
 }

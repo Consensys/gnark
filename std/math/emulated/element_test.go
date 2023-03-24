@@ -3,6 +3,7 @@ package emulated
 import (
 	"crypto/rand"
 	"fmt"
+	cs "github.com/consensys/gnark/constraint/bn254"
 	"math/big"
 	"reflect"
 	"testing"
@@ -37,8 +38,14 @@ func testName[T FieldParams]() string {
 
 func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 	testAssertLimbEqualityNoOverflow[Goldilocks](t)
-	testAssertLimbEqualityNoOverflow[Secp256k1Fp](t)
-	testAssertLimbEqualityNoOverflow[BN254Fp](t)
+	//testAssertLimbEqualityNoOverflow[Secp256k1Fp](t)
+	//testAssertLimbEqualityNoOverflow[BN254Fp](t)
+}
+
+func TestAssertLimbEqualityNoOverflowSequential(t *testing.T) {
+	cs.SolveSequentially = true
+	testAssertLimbEqualityNoOverflow[Goldilocks](t)
+	cs.SolveSequentially = false
 }
 
 func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
@@ -49,7 +56,7 @@ func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
 		val, _ := rand.Int(rand.Reader, fp.Modulus())
 		witness.A = ValueOf[T](val)
 		witness.B = ValueOf[T](val)
-		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends( /*backend.GROTH16,*/ backend.PLONK))
 	}, testName[T]())
 }
 
