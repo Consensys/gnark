@@ -759,12 +759,15 @@ func (builder *builder) getCommittedVariables(i *constraint.Commitment) []fronte
 	return res
 }
 
-func bsb22CommitmentComputePlaceholder(_ *big.Int, _ []*big.Int, output []*big.Int) error {
+func bsb22CommitmentComputePlaceholder(mod *big.Int, input []*big.Int, output []*big.Int) error {
 	if (len(os.Args) > 0 && (strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe"))) || debug.Debug {
 		// usually we only run solver without prover during testing
 		log := logger.Logger()
-		log.Error().Msg("Augmented groth16 commitment hint not replaced. Proof will not be sound!")
-		output[0].SetInt64(0)
+		log.Error().Msg("Augmented groth16 commitment hint not replaced. Proof will not be sound and verification will fail!")
+		for i := range input {
+			output[0].Add(output[0], input[i])
+			output[0].Mod(output[0], mod)
+		}
 		return nil
 	}
 	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
