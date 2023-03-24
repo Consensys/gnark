@@ -17,7 +17,7 @@ func sbox(api frontend.API, x frontend.Variable) frontend.Variable {
 // MDS matrix multiply mds * state
 func mix(api frontend.API, state []frontend.Variable) []frontend.Variable {
 	width := len(state)
-	index := width - 3
+	index := width - 2
 	newState := make([]frontend.Variable, width)
 
 	for i := 0; i < width; i++ {
@@ -33,7 +33,7 @@ func mix(api frontend.API, state []frontend.Variable) []frontend.Variable {
 
 func fullRounds(api frontend.API, state []frontend.Variable, roundCounter *int) []frontend.Variable {
 	width := len(state)
-	index := width - 3
+	index := width - 2
 	rf := constants.RF / 2
 	for i := 0; i < rf; i++ {
 		for j := 0; j < width; j++ {
@@ -51,7 +51,7 @@ func fullRounds(api frontend.API, state []frontend.Variable, roundCounter *int) 
 
 func partialRounds(api frontend.API, state []frontend.Variable, roundCounter *int) []frontend.Variable {
 	width := len(state)
-	index := width - 3
+	index := width - 2
 	for i := 0; i < constants.RP[index]; i++ {
 		for j := 0; j < width; j++ {
 			// Add round constants
@@ -77,7 +77,7 @@ func permutation(api frontend.API, state []frontend.Variable) []frontend.Variabl
 func Poseidon(api frontend.API, input ...frontend.Variable) frontend.Variable {
 	inputLength := len(input)
 	// No support for hashing inputs of length less than 2
-	if inputLength < 2 {
+	if inputLength < 1 {
 		panic("Not supported input size")
 	}
 
@@ -100,7 +100,7 @@ func Poseidon(api frontend.API, input ...frontend.Variable) frontend.Variable {
 		}
 	}
 
-	// For the remaining part of the input OR if 2 <= inputLength <= 12
+	// For the remaining part of the input OR if 1 <= inputLength <= 12
 	if lastIndex < inputLength {
 		lastIndex = inputLength
 		remainigLength := lastIndex - startIndex
