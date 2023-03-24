@@ -2,9 +2,8 @@ package poseidon
 
 import (
 	cs "github.com/consensys/gnark/constraint/lazy"
-	"github.com/consensys/gnark/std/hash/poseidon/constants"
-
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hash/poseidon/constants"
 )
 
 // power 5 as s-box
@@ -110,5 +109,6 @@ func Poseidon(api frontend.API, input ...frontend.Variable) frontend.Variable {
 		state = permutation(api, state[:remainigLength+1])
 		api.RecordConstraintsForLazy(cs.GetLazyPoseidonKey(len(state[:remainigLength+1])), true, &input)
 	}
-	return state[0]
+	// Return first element of capacity
+	return state[1]
 }

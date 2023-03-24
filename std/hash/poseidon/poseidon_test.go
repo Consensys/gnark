@@ -89,7 +89,7 @@ func (circuit *poseidonCircuit256) Define(api frontend.API) error {
 func TestPoseidon1(t *testing.T) {
 	assert := test.NewAssert(t)
 	var circuit, witness, wrongWitness poseidonCircuit1
-	hash, _ := new(big.Int).SetString("29176100EAA962BDC1FE6C654D6A3C130E96A4D1168B33848B897DC502820133", 16)
+	hash, _ := new(big.Int).SetString("112A4F9241E384B0EDE4655E6D2BBF7EBD9595775DE9E7536DF87CD487852FC4", 16)
 
 	// Test completeness
 	size := 1
@@ -110,7 +110,7 @@ func TestPoseidon1(t *testing.T) {
 func TestPoseidon2(t *testing.T) {
 	assert := test.NewAssert(t)
 	var circuit, witness, wrongWitness poseidonCircuit2
-	hash, _ := new(big.Int).SetString("115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a", 16)
+	hash, _ := new(big.Int).SetString("FCA49B798923AB0239DE1C9E7A4A9A2210312B6A2F616D18B5A87F9B628AE29", 16)
 
 	// Test completeness
 	size := 2
@@ -131,7 +131,7 @@ func TestPoseidon2(t *testing.T) {
 func TestPoseidon4(t *testing.T) {
 	assert := test.NewAssert(t)
 	var circuit, witness, wrongWitness poseidonCircuit4
-	hash, _ := new(big.Int).SetString("299c867db6c1fdd79dcefa40e4510b9837e60ebb1ce0663dbaa525df65250465", 16)
+	hash, _ := new(big.Int).SetString("1148AAEF609AA338B27DAFD89BB98862D8BB2B429ACEAC47D86206154FFE053D", 16)
 
 	// Test completeness
 	size := 4
@@ -153,7 +153,7 @@ func TestPoseidon4(t *testing.T) {
 func TestPoseidon13(t *testing.T) {
 	assert := test.NewAssert(t)
 	var circuit, witness, wrongWitness poseidonCircuit13
-	hash, _ := new(big.Int).SetString("26E7E372B2FF688EDE991936FA60DE2DDCF6AA80C5610C0DD312F0356321BA6B", 16)
+	hash, _ := new(big.Int).SetString("4EA9108A1551C780A7408570BDEAA3A0294B01F21198B72FF01545A60DA677F", 16)
 
 	// Test completeness
 	size := 13
@@ -175,7 +175,7 @@ func TestPoseidon13(t *testing.T) {
 func TestPoseidon24(t *testing.T) {
 	assert := test.NewAssert(t)
 	var circuit, witness, wrongWitness poseidonCircuit24
-	hash, _ := new(big.Int).SetString("612D378F91DC3422E6C60E54D24E3FA6D8000F0E47CDACE9BDB304506E3C9D3", 16)
+	hash, _ := new(big.Int).SetString("6C7676E83EF8CB9EF6C25746A5F6B2D39FBA4548B4C29B3D41490BBF3C1108D", 16)
 
 	// Test completeness
 	size := 24
@@ -197,7 +197,7 @@ func TestPoseidon24(t *testing.T) {
 func TestPoseidon30(t *testing.T) {
 	assert := test.NewAssert(t)
 	var circuit, witness, wrongWitness poseidonCircuit30
-	hash, _ := new(big.Int).SetString("140CEA90C05A04C7140337789BD4CDE38BA73EE1988D34533F3F8F7B6AAC5675", 16)
+	hash, _ := new(big.Int).SetString("2FF47AB8E9E9F6134600A8DE8B8E99596E573620A7D8D39ED7B2C7CEF9F105F1", 16)
 
 	// Test completeness
 	size := 30
