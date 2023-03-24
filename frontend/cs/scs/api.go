@@ -575,6 +575,8 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	}
 	commitmentVar := builder.Neg(outs[0]).(expr.Term)
 	commitmentConstraintIndex := builder.cs.GetNbConstraints()
+	// a constraint to enforce consistency between the commitment and committed value
+	// - v + comm(n) = 0
 	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
