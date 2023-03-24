@@ -33,6 +33,7 @@ import (
 type ProvingKey struct {
 	// domain
 	Domain fft.Domain
+	Card   uint64
 
 	// [α]1, [β]1, [δ]1
 	// [A(t)]1, [B(t)]1, [Kpk(t)]1, [Z(t)]1
@@ -304,6 +305,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	}
 	// set domain
 	pk.Domain = *domain
+	pk.Card = pk.Domain.Cardinality
 
 	return nil
 }
