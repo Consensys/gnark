@@ -9,6 +9,11 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
+type poseidonCircuit1 struct {
+	Hash frontend.Variable `gnark:"data,public"`
+	Data [1]frontend.Variable
+}
+
 type poseidonCircuit2 struct {
 	Hash frontend.Variable `gnark:"data,public"`
 	Data [2]frontend.Variable
@@ -17,6 +22,11 @@ type poseidonCircuit2 struct {
 type poseidonCircuit4 struct {
 	Hash frontend.Variable `gnark:"data,public"`
 	Data [4]frontend.Variable
+}
+
+type poseidonCircuit13 struct {
+	Hash frontend.Variable `gnark:"data,public"`
+	Data [13]frontend.Variable
 }
 
 type poseidonCircuit24 struct {
@@ -34,6 +44,12 @@ type poseidonCircuit256 struct {
 	Data [256]frontend.Variable
 }
 
+func (circuit *poseidonCircuit1) Define(api frontend.API) error {
+	result := Poseidon(api, circuit.Data[:]...)
+	api.AssertIsEqual(result, circuit.Hash)
+	return nil
+}
+
 func (circuit *poseidonCircuit2) Define(api frontend.API) error {
 	result := Poseidon(api, circuit.Data[:]...)
 	api.AssertIsEqual(result, circuit.Hash)
@@ -41,6 +57,12 @@ func (circuit *poseidonCircuit2) Define(api frontend.API) error {
 }
 
 func (circuit *poseidonCircuit4) Define(api frontend.API) error {
+	result := Poseidon(api, circuit.Data[:]...)
+	api.AssertIsEqual(result, circuit.Hash)
+	return nil
+}
+
+func (circuit *poseidonCircuit13) Define(api frontend.API) error {
 	result := Poseidon(api, circuit.Data[:]...)
 	api.AssertIsEqual(result, circuit.Hash)
 	return nil
@@ -64,9 +86,30 @@ func (circuit *poseidonCircuit256) Define(api frontend.API) error {
 	return nil
 }
 
+func TestPoseidon1(t *testing.T) {
+	assert := test.NewAssert(t)
+	var circuit, witness, wrongWitness poseidonCircuit1
+	hash, _ := new(big.Int).SetString("29176100EAA962BDC1FE6C654D6A3C130E96A4D1168B33848B897DC502820133", 16)
+
+	// Test completeness
+	size := 1
+	for i := 0; i < size; i++ {
+		witness.Data[i] = frontend.Variable(i + 1)
+	}
+	witness.Hash = hash
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
+
+	// Test soundness
+	for i := 0; i < size; i++ {
+		wrongWitness.Data[i] = frontend.Variable(i + 2)
+	}
+	wrongWitness.Hash = hash
+	assert.SolvingFailed(&circuit, &wrongWitness, test.WithCurves(ecc.BN254))
+}
+
 func TestPoseidon2(t *testing.T) {
 	assert := test.NewAssert(t)
-	var circuit, witness poseidonCircuit2
+	var circuit, witness, wrongWitness poseidonCircuit2
 	hash, _ := new(big.Int).SetString("115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a", 16)
 
 	// Test completeness
@@ -75,7 +118,14 @@ func TestPoseidon2(t *testing.T) {
 		witness.Data[i] = frontend.Variable(i + 1)
 	}
 	witness.Hash = hash
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254), test.WithCompileOpts(frontend.IgnoreUnconstrainedInputs()))
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
+
+	// Test soundness
+	for i := 0; i < size; i++ {
+		wrongWitness.Data[i] = frontend.Variable(i + 2)
+	}
+	wrongWitness.Hash = hash
+	assert.SolvingFailed(&circuit, &wrongWitness, test.WithCurves(ecc.BN254))
 }
 
 func TestPoseidon4(t *testing.T) {
@@ -85,6 +135,28 @@ func TestPoseidon4(t *testing.T) {
 
 	// Test completeness
 	size := 4
+	for i := 0; i < size; i++ {
+		witness.Data[i] = frontend.Variable(i + 1)
+	}
+	witness.Hash = hash
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254))
+
+	// Test soundness
+	for i := 0; i < size; i++ {
+		wrongWitness.Data[i] = frontend.Variable(i + 2)
+	}
+	wrongWitness.Hash = hash
+	assert.SolvingFailed(&circuit, &wrongWitness, test.WithCurves(ecc.BN254))
+
+}
+
+func TestPoseidon13(t *testing.T) {
+	assert := test.NewAssert(t)
+	var circuit, witness, wrongWitness poseidonCircuit13
+	hash, _ := new(big.Int).SetString("26E7E372B2FF688EDE991936FA60DE2DDCF6AA80C5610C0DD312F0356321BA6B", 16)
+
+	// Test completeness
+	size := 13
 	for i := 0; i < size; i++ {
 		witness.Data[i] = frontend.Variable(i + 1)
 	}
