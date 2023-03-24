@@ -305,7 +305,7 @@ func ProveRoll(r1cs *cs.R1CS, pkE, pkB2 *ProvingKey, witness fr.Vector, opt back
 	{
 		card := pkE.Card
 		fmt.Println("card:", card)
-		nbCons := r1cs.GetNbConstraints() + r1cs.LazyCons.GetConstraintsAll()
+		nbCons := r1cs.GetNbConstraints()
 		a := make([]fr.Element, nbCons, card)
 		b := make([]fr.Element, nbCons, card)
 		c := make([]fr.Element, nbCons, card)

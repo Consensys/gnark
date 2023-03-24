@@ -269,6 +269,8 @@ func (builder *builder) Compile() (constraint.ConstraintSystem, error) {
 		}
 	}
 
+	builder.cs.FinalizeGKR()
+
 	return builder.cs, nil
 }
 
@@ -474,4 +476,23 @@ func (builder *builder) RecordConstraintsForLazy(key string, finished bool, s *[
 		constraintExpressions[i] = builder.getLinearExpression(expressions[i])
 	}
 	builder.cs.AddStaticConstraints(key, builder.cs.GetNbConstraints(), finished, constraintExpressions)
+}
+
+func (builder *builder) AddGKRInputsAndOutputsMarks(inputs []frontend.Variable, outputs []frontend.Variable) {
+	meta := constraint.GkrMeta{}
+	meta.GKRConstraintsPos = builder.cs.GetNbConstraints()
+	GKRInputTables, _ := builder.toVariables(inputs...)
+	GKROutputTables, _ := builder.toVariables(outputs...)
+	constraintExpressionsInputs := make([]constraint.LinearExpression, len(GKRInputTables))
+	for i := range GKRInputTables {
+		constraintExpressionsInputs[i] = builder.getLinearExpression(GKRInputTables[i])
+	}
+	constraintExpressionsOutputs := make([]constraint.LinearExpression, len(GKROutputTables))
+	for i := range GKROutputTables {
+		constraintExpressionsOutputs[i] = builder.getLinearExpression(GKROutputTables[i])
+	}
+	meta.GKRInputTables = constraintExpressionsInputs
+	meta.GKROutputTables = constraintExpressionsOutputs
+	meta.GKRBN = builder.config.GKRBN
+	builder.cs.SetGKRMeta(meta)
 }

@@ -17,7 +17,7 @@ func GetLazyMimcPermutationKey(params int) string {
 }
 
 func RegisterMimcPermutationFactory() error {
-	for i := 3; i <= 13; i++ {
+	for i := 1; i <= 13; i++ {
 		key := GetLazyMimcPermutationKey(i)
 		constraint.Register(key, createGeneralLazyInputsFunc(key))
 	}
