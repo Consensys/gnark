@@ -3,7 +3,6 @@ package emulated
 import (
 	"crypto/rand"
 	"fmt"
-	cs "github.com/consensys/gnark/constraint/bn254"
 	"math/big"
 	"reflect"
 	"testing"
@@ -38,14 +37,8 @@ func testName[T FieldParams]() string {
 
 func TestAssertLimbEqualityNoOverflow(t *testing.T) {
 	testAssertLimbEqualityNoOverflow[Goldilocks](t)
-	//testAssertLimbEqualityNoOverflow[Secp256k1Fp](t)
-	//testAssertLimbEqualityNoOverflow[BN254Fp](t)
-}
-
-func TestAssertLimbEqualityNoOverflowSequential(t *testing.T) {
-	cs.SolveSequentially = true
-	testAssertLimbEqualityNoOverflow[Goldilocks](t)
-	cs.SolveSequentially = false
+	testAssertLimbEqualityNoOverflow[Secp256k1Fp](t)
+	testAssertLimbEqualityNoOverflow[BN254Fp](t)
 }
 
 func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
