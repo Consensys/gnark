@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -17,7 +18,11 @@ type commitmentCircuit struct {
 }
 
 func (c *commitmentCircuit) Define(api frontend.API) error {
-	commitment, err := api.Commit(c.X...)
+	committer, ok := api.(frontend.Committer)
+	if !ok {
+		return fmt.Errorf("type %T doesn't impl the Committer interface", api)
+	}
+	commitment, err := committer.Commit(c.X...)
 	if err == nil {
 		api.AssertIsDifferent(commitment, 0)
 	}
