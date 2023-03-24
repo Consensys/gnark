@@ -569,6 +569,8 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	for i, vI := range v { // TODO @Tabaie Perf; If public, just hash it
 		vINeg := builder.Neg(vI).(expr.Term)
 		committed[i] = builder.cs.GetNbConstraints()
+		// a constraint to enforce consistency between the commitment and committed value
+		// - v + comm(n) = 0
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
 	outs, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, v...)
@@ -577,8 +579,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	}
 	commitmentVar := builder.Neg(outs[0]).(expr.Term)
 	commitmentConstraintIndex := builder.cs.GetNbConstraints()
-	// a constraint to enforce consistency between the commitment and committed value
-	// - v + comm(n) = 0
+	// RHS will be provided by both prover and verifier independently, as for a public wire
 	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
