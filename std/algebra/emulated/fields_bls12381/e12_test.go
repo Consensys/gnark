@@ -1,10 +1,10 @@
-package fields_bn254
+package fields_bls12381
 
 import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
@@ -15,7 +15,7 @@ type e12Add struct {
 }
 
 func (circuit *e12Add) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	expected := e.Add(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -26,7 +26,7 @@ func TestAddFp12(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, b, c bn254.E12
+	var a, b, c bls12381.E12
 	_, _ = a.SetRandom()
 	_, _ = b.SetRandom()
 	c.Add(&a, &b)
@@ -47,7 +47,7 @@ type e12Sub struct {
 }
 
 func (circuit *e12Sub) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	expected := e.Sub(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -58,7 +58,7 @@ func TestSubFp12(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, b, c bn254.E12
+	var a, b, c bls12381.E12
 	_, _ = a.SetRandom()
 	_, _ = b.SetRandom()
 	c.Sub(&a, &b)
@@ -79,7 +79,7 @@ type e12Mul struct {
 }
 
 func (circuit *e12Mul) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 
 	expected := e.Mul(&circuit.A, &circuit.B)
@@ -91,7 +91,7 @@ func TestMulFp12(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, b, c bn254.E12
+	var a, b, c bls12381.E12
 	_, _ = a.SetRandom()
 	_, _ = b.SetRandom()
 	c.Mul(&a, &b)
@@ -112,7 +112,7 @@ type e12Div struct {
 }
 
 func (circuit *e12Div) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 
 	expected := e.DivUnchecked(&circuit.A, &circuit.B)
@@ -124,7 +124,7 @@ func TestDivFp12(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, b, c bn254.E12
+	var a, b, c bls12381.E12
 	_, _ = a.SetRandom()
 	_, _ = b.SetRandom()
 	c.Div(&a, &b)
@@ -145,7 +145,7 @@ type e12Square struct {
 }
 
 func (circuit *e12Square) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 
 	expected := e.Square(&circuit.A)
@@ -157,7 +157,7 @@ func TestSquareFp12(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c bn254.E12
+	var a, c bls12381.E12
 	_, _ = a.SetRandom()
 	c.Square(&a)
 
@@ -177,7 +177,7 @@ type e12Conjugate struct {
 }
 
 func (circuit *e12Conjugate) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	expected := e.Conjugate(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -189,7 +189,7 @@ func TestConjugateFp12(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c bn254.E12
+	var a, c bls12381.E12
 	_, _ = a.SetRandom()
 	c.Conjugate(&a)
 
@@ -208,7 +208,7 @@ type e12Inverse struct {
 }
 
 func (circuit *e12Inverse) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	expected := e.Inverse(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -220,7 +220,7 @@ func TestInverseFp12(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c bn254.E12
+	var a, c bls12381.E12
 	_, _ = a.SetRandom()
 	c.Inverse(&a)
 
@@ -239,7 +239,7 @@ type e12ExptTorus struct {
 }
 
 func (circuit *e12ExptTorus) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	z := e.ExptTorus(&circuit.A)
 	expected := e.DecompressTorus(z)
@@ -252,11 +252,11 @@ func TestFp12ExptTorus(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c bn254.E12
+	var a, c bls12381.E12
 	_, _ = a.SetRandom()
 
 	// put a in the cyclotomic subgroup
-	var tmp bn254.E12
+	var tmp bls12381.E12
 	tmp.Conjugate(&a)
 	a.Inverse(&a)
 	tmp.Mul(&tmp, &a)
@@ -273,42 +273,42 @@ func TestFp12ExptTorus(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e12MulBy034 struct {
+type e12MulBy014 struct {
 	A    E12 `gnark:",public"`
 	W    E12
 	B, C E2
 }
 
-func (circuit *e12MulBy034) Define(api frontend.API) error {
+func (circuit *e12MulBy014) Define(api frontend.API) error {
 
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
-	res := e.MulBy034(&circuit.A, &circuit.B, &circuit.C)
+	res := e.MulBy014(&circuit.A, &circuit.B, &circuit.C)
 	e.AssertIsEqual(res, &circuit.W)
 	return nil
 }
 
-func TestFp12MulBy034(t *testing.T) {
+func TestFp12MulBy014(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, w bn254.E12
+	var a, w bls12381.E12
 	_, _ = a.SetRandom()
-	var one, b, c bn254.E2
+	var one, b, c bls12381.E2
 	one.SetOne()
 	_, _ = b.SetRandom()
 	_, _ = c.SetRandom()
 	w.Set(&a)
-	w.MulBy034(&one, &b, &c)
+	w.MulBy014(&b, &c, &one)
 
-	witness := e12MulBy034{
+	witness := e12MulBy014{
 		A: FromE12(&a),
 		B: FromE2(&b),
 		C: FromE2(&c),
 		W: FromE12(&w),
 	}
 
-	err := test.IsSolved(&e12MulBy034{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&e12MulBy014{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }
@@ -320,7 +320,7 @@ type torusCompress struct {
 }
 
 func (circuit *torusCompress) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	expected := e.CompressTorus(&circuit.A)
 	e.Ext6.AssertIsEqual(expected, &circuit.C)
@@ -331,11 +331,11 @@ func TestTorusCompress(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a bn254.E12
+	var a bls12381.E12
 	_, _ = a.SetRandom()
 
 	// put a in the cyclotomic subgroup
-	var tmp bn254.E12
+	var tmp bls12381.E12
 	tmp.Conjugate(&a)
 	a.Inverse(&a)
 	tmp.Mul(&tmp, &a)
@@ -358,7 +358,7 @@ type torusDecompress struct {
 }
 
 func (circuit *torusDecompress) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	compressed := e.CompressTorus(&circuit.A)
 	expected := e.DecompressTorus(compressed)
@@ -370,11 +370,11 @@ func TestTorusDecompress(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a bn254.E12
+	var a bls12381.E12
 	_, _ = a.SetRandom()
 
 	// put a in the cyclotomic subgroup
-	var tmp bn254.E12
+	var tmp bls12381.E12
 	tmp.Conjugate(&a)
 	a.Inverse(&a)
 	tmp.Mul(&tmp, &a)
@@ -399,7 +399,7 @@ type torusMul struct {
 }
 
 func (circuit *torusMul) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	compressedA := e.CompressTorus(&circuit.A)
 	compressedB := e.CompressTorus(&circuit.B)
@@ -413,7 +413,7 @@ func TestTorusMul(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, b, c, tmp bn254.E12
+	var a, b, c, tmp bls12381.E12
 	_, _ = a.SetRandom()
 	_, _ = b.SetRandom()
 
@@ -447,7 +447,7 @@ type torusInverse struct {
 }
 
 func (circuit *torusInverse) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	compressed := e.CompressTorus(&circuit.A)
 	compressed = e.InverseTorus(compressed)
@@ -460,7 +460,7 @@ func TestTorusInverse(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c, tmp bn254.E12
+	var a, c, tmp bls12381.E12
 	_, _ = a.SetRandom()
 
 	// put a in the cyclotomic subgroup
@@ -487,7 +487,7 @@ type torusFrobenius struct {
 }
 
 func (circuit *torusFrobenius) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	compressed := e.CompressTorus(&circuit.A)
 	compressed = e.FrobeniusTorus(compressed)
@@ -500,7 +500,7 @@ func TestTorusFrobenius(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c, tmp bn254.E12
+	var a, c, tmp bls12381.E12
 	_, _ = a.SetRandom()
 
 	// put a in the cyclotomic subgroup
@@ -527,7 +527,7 @@ type torusFrobeniusSquare struct {
 }
 
 func (circuit *torusFrobeniusSquare) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	compressed := e.CompressTorus(&circuit.A)
 	compressed = e.FrobeniusSquareTorus(compressed)
@@ -540,7 +540,7 @@ func TestTorusFrobeniusSquare(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c, tmp bn254.E12
+	var a, c, tmp bls12381.E12
 	_, _ = a.SetRandom()
 
 	// put a in the cyclotomic subgroup
@@ -561,53 +561,13 @@ func TestTorusFrobeniusSquare(t *testing.T) {
 	assert.NoError(err)
 }
 
-type torusFrobeniusCube struct {
-	A E12
-	C E12 `gnark:",public"`
-}
-
-func (circuit *torusFrobeniusCube) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
-	compressed := e.CompressTorus(&circuit.A)
-	compressed = e.FrobeniusCubeTorus(compressed)
-	expected := e.DecompressTorus(compressed)
-	e.AssertIsEqual(expected, &circuit.C)
-	return nil
-}
-
-func TestTorusFrobeniusCube(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c, tmp bn254.E12
-	_, _ = a.SetRandom()
-
-	// put a in the cyclotomic subgroup
-	tmp.Conjugate(&a)
-	a.Inverse(&a)
-	tmp.Mul(&tmp, &a)
-	a.FrobeniusSquare(&tmp).Mul(&a, &tmp)
-
-	// uncompressed frobeniusCube
-	c.FrobeniusCube(&a)
-
-	witness := torusFrobeniusCube{
-		A: FromE12(&a),
-		C: FromE12(&c),
-	}
-
-	err := test.IsSolved(&torusFrobeniusCube{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
 type torusSquare struct {
 	A E12
 	C E12 `gnark:",public"`
 }
 
 func (circuit *torusSquare) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt12(ba)
 	compressed := e.CompressTorus(&circuit.A)
 	compressed = e.SquareTorus(compressed)
@@ -620,7 +580,7 @@ func TestTorusSquare(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c, tmp bn254.E12
+	var a, c, tmp bls12381.E12
 	_, _ = a.SetRandom()
 
 	// put a in the cyclotomic subgroup

@@ -1,10 +1,10 @@
-package fields_bn254
+package fields_bls12381
 
 import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
@@ -15,7 +15,7 @@ type e6Add struct {
 }
 
 func (circuit *e6Add) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
 	expected := e.Add(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -26,7 +26,7 @@ func TestAddFp6(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, b, c bn254.E6
+	var a, b, c bls12381.E6
 	_, _ = a.SetRandom()
 	_, _ = b.SetRandom()
 	c.Add(&a, &b)
@@ -47,7 +47,7 @@ type e6Sub struct {
 }
 
 func (circuit *e6Sub) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
 	expected := e.Sub(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -58,7 +58,7 @@ func TestSubFp6(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, b, c bn254.E6
+	var a, b, c bls12381.E6
 	_, _ = a.SetRandom()
 	_, _ = b.SetRandom()
 	c.Sub(&a, &b)
@@ -79,7 +79,7 @@ type e6Mul struct {
 }
 
 func (circuit *e6Mul) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
 
 	expected := e.Mul(&circuit.A, &circuit.B)
@@ -91,7 +91,7 @@ func TestMulFp6(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, b, c bn254.E6
+	var a, b, c bls12381.E6
 	_, _ = a.SetRandom()
 	_, _ = b.SetRandom()
 	c.Mul(&a, &b)
@@ -112,7 +112,7 @@ type e6Square struct {
 }
 
 func (circuit *e6Square) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
 
 	expected := e.Square(&circuit.A)
@@ -124,7 +124,7 @@ func TestSquareFp6(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c bn254.E6
+	var a, c bls12381.E6
 	_, _ = a.SetRandom()
 	c.Square(&a)
 
@@ -143,7 +143,7 @@ type e6Div struct {
 }
 
 func (circuit *e6Div) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
 
 	expected := e.DivUnchecked(&circuit.A, &circuit.B)
@@ -155,7 +155,7 @@ func TestDivFp6(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, b, c bn254.E6
+	var a, b, c bls12381.E6
 	_, _ = a.SetRandom()
 	_, _ = b.SetRandom()
 	c.Div(&a, &b)
@@ -177,7 +177,7 @@ type e6MulByNonResidue struct {
 }
 
 func (circuit *e6MulByNonResidue) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
 	expected := e.MulByNonResidue(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -189,7 +189,7 @@ func TestMulFp6ByNonResidue(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c bn254.E6
+	var a, c bls12381.E6
 	_, _ = a.SetRandom()
 	c.MulByNonResidue(&a)
 
@@ -210,7 +210,7 @@ type e6MulByE2 struct {
 }
 
 func (circuit *e6MulByE2) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
 	expected := e.MulByE2(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -222,8 +222,8 @@ func TestMulFp6ByE2(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c bn254.E6
-	var b bn254.E2
+	var a, c bls12381.E6
+	var b bls12381.E2
 	_, _ = a.SetRandom()
 	_, _ = b.SetRandom()
 	c.MulByE2(&a, &b)
@@ -246,7 +246,7 @@ type e6MulBy01 struct {
 }
 
 func (circuit *e6MulBy01) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
 	expected := e.MulBy01(&circuit.A, &circuit.C0, &circuit.C1)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -258,8 +258,8 @@ func TestMulFp6By01(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c bn254.E6
-	var C0, C1 bn254.E2
+	var a, c bls12381.E6
+	var C0, C1 bls12381.E2
 	_, _ = a.SetRandom()
 	_, _ = C0.SetRandom()
 	_, _ = C1.SetRandom()
@@ -278,50 +278,13 @@ func TestMulFp6By01(t *testing.T) {
 
 }
 
-type e6MulBy0 struct {
-	A  E6
-	C0 E2
-	C  E6 `gnark:",public"`
-}
-
-func (circuit *e6MulBy0) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt6(ba)
-	expected := e.MulBy0(&circuit.A, &circuit.C0)
-	e.AssertIsEqual(expected, &circuit.C)
-
-	return nil
-}
-
-func TestMulFp6By0(t *testing.T) {
-
-	assert := test.NewAssert(t)
-	// witness values
-	var a, c bn254.E6
-	var C0, zero bn254.E2
-	_, _ = a.SetRandom()
-	_, _ = C0.SetRandom()
-	c.Set(&a)
-	c.MulBy01(&C0, &zero)
-
-	witness := e6MulBy0{
-		A:  FromE6(&a),
-		C0: FromE2(&C0),
-		C:  FromE6(&c),
-	}
-
-	err := test.IsSolved(&e6MulBy0{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-
-}
-
 type e6Neg struct {
 	A E6
 	C E6 `gnark:",public"`
 }
 
 func (circuit *e6Neg) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
 	expected := e.Neg(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -333,7 +296,7 @@ func TestNegFp6(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c bn254.E6
+	var a, c bls12381.E6
 	_, _ = a.SetRandom()
 	c.Neg(&a)
 
@@ -353,7 +316,7 @@ type e6Inverse struct {
 
 func (circuit *e6Inverse) Define(api frontend.API) error {
 
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
+	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	e := NewExt6(ba)
 	expected := e.Inverse(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -365,7 +328,7 @@ func TestInverseFp6(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
-	var a, c bn254.E6
+	var a, c bls12381.E6
 	_, _ = a.SetRandom()
 	c.Inverse(&a)
 

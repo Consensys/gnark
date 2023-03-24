@@ -1,9 +1,9 @@
-package fields_bn254
+package fields_bls12381
 
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -31,7 +31,7 @@ func GetHints() []solver.Hint {
 func inverseE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E2
+			var a, c bls12381.E2
 
 			a.A0.SetBigInt(inputs[0])
 			a.A1.SetBigInt(inputs[1])
@@ -48,7 +48,7 @@ func inverseE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) e
 func divE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, b, c bn254.E2
+			var a, b, c bls12381.E2
 
 			a.A0.SetBigInt(inputs[0])
 			a.A1.SetBigInt(inputs[1])
@@ -68,7 +68,7 @@ func divE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error
 func inverseE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E6
+			var a, c bls12381.E6
 
 			a.B0.A0.SetBigInt(inputs[0])
 			a.B0.A1.SetBigInt(inputs[1])
@@ -93,7 +93,7 @@ func inverseE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) e
 func divE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, b, c bn254.E6
+			var a, b, c bls12381.E6
 
 			a.B0.A0.SetBigInt(inputs[0])
 			a.B0.A1.SetBigInt(inputs[1])
@@ -125,7 +125,7 @@ func divE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error
 func squareTorusHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E6
+			var a, c bls12381.E6
 
 			a.B0.A0.SetBigInt(inputs[0])
 			a.B0.A1.SetBigInt(inputs[1])
@@ -153,7 +153,7 @@ func squareTorusHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 func inverseE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E12
+			var a, c bls12381.E12
 
 			a.C0.B0.A0.SetBigInt(inputs[0])
 			a.C0.B0.A1.SetBigInt(inputs[1])
@@ -190,7 +190,7 @@ func inverseE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) 
 func divE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, b, c bn254.E12
+			var a, b, c bls12381.E12
 
 			a.C0.B0.A0.SetBigInt(inputs[0])
 			a.C0.B0.A1.SetBigInt(inputs[1])
