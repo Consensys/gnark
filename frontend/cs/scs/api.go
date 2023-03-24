@@ -562,6 +562,8 @@ func (builder *builder) Compiler() frontend.Compiler {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
+	v = filterConstants(v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?
+
 	committed := make([]int, len(v))
 
 	for i, vI := range v { // TODO @Tabaie Perf; If public, just hash it
@@ -584,6 +586,16 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,
 	})
+}
+
+func filterConstants(v []frontend.Variable) []frontend.Variable {
+	res := make([]frontend.Variable, 0, len(v))
+	for _, vI := range v {
+		if _, ok := vI.(expr.Term); ok {
+			res = append(res, vI)
+		}
+	}
+	return res
 }
 
 func (*builder) FrontendType() frontendtype.Type {

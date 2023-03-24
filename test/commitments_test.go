@@ -18,11 +18,8 @@ type commitmentCircuit struct {
 }
 
 func (c *commitmentCircuit) Define(api frontend.API) error {
-	committer, ok := api.(frontend.Committer)
-	if !ok {
-		return fmt.Errorf("type %T doesn't impl the Committer interface", api)
-	}
-	commitment, err := committer.Commit(c.X...)
+
+	commitment, err := tryCommit(api, c.X...)
 	if err == nil {
 		api.AssertIsDifferent(commitment, 0)
 	}
@@ -111,4 +108,46 @@ func plonkTest(t *testing.T, circuit, assignment frontend.Circuit) {
 	for _, id := range fr {
 		t.Run(id.String(), run(id.ScalarField()))
 	}
+}
+
+type committedConstantCircuit struct {
+	X frontend.Variable
+}
+
+func (c *committedConstantCircuit) Define(api frontend.API) error {
+	commitment, err := tryCommit(api, 1)
+	if err != nil {
+		return err
+	}
+	api.AssertIsDifferent(commitment, c.X)
+	return nil
+}
+
+func TestCommittedConstant(t *testing.T) {
+	plonkTest(t, &committedConstantCircuit{}, &committedConstantCircuit{1})
+}
+
+type committedPublicCircuit struct {
+	X frontend.Variable `gnark:",public"`
+}
+
+func (c *committedPublicCircuit) Define(api frontend.API) error {
+	commitment, err := tryCommit(api, c.X)
+	if err != nil {
+		return err
+	}
+	api.AssertIsDifferent(commitment, c.X)
+	return nil
+}
+
+func TestCommittedPublic(t *testing.T) {
+	plonkTest(t, &committedPublicCircuit{}, &committedPublicCircuit{1})
+}
+
+func tryCommit(api frontend.API, x ...frontend.Variable) (frontend.Variable, error) {
+	committer, ok := api.(frontend.Committer)
+	if !ok {
+		return nil, fmt.Errorf("type %T doesn't impl the Committer interface", api)
+	}
+	return committer.Commit(x...)
 }
