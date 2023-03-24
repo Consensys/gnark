@@ -1,7 +1,7 @@
-package fields_bn254
+package fields_bls12381
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bn254"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 )
 
 type E12 struct {
@@ -58,22 +58,6 @@ func (e Ext12) Mul(x, y *E12) *E12 {
 	}
 }
 
-func (e Ext12) Zero() *E12 {
-	zero := e.fp.Zero()
-	return &E12{
-		C0: E6{
-			B0: E2{A0: *zero, A1: *zero},
-			B1: E2{A0: *zero, A1: *zero},
-			B2: E2{A0: *zero, A1: *zero},
-		},
-		C1: E6{
-			B0: E2{A0: *zero, A1: *zero},
-			B1: E2{A0: *zero, A1: *zero},
-			B2: E2{A0: *zero, A1: *zero},
-		},
-	}
-}
-
 func (e Ext12) One() *E12 {
 	z000 := e.fp.One()
 	zero := e.fp.Zero()
@@ -99,7 +83,7 @@ func (e Ext12) Square(x *E12) *E12 {
 	c2 := e.Ext6.Mul(&x.C0, &x.C1)
 	c0 = e.Ext6.Mul(c0, c3)
 	c0 = e.Ext6.Add(c0, c2)
-	z1 := e.Ext6.double(c2)
+	z1 := e.Ext6.Double(c2)
 	c2 = e.Ext6.MulByNonResidue(c2)
 	z0 := e.Ext6.Add(c0, c2)
 	return &E12{
@@ -113,7 +97,7 @@ func (e Ext12) AssertIsEqual(x, y *E12) {
 	e.Ext6.AssertIsEqual(&x.C1, &y.C1)
 }
 
-func FromE12(y *bn254.E12) E12 {
+func FromE12(y *bls12381.E12) E12 {
 	return E12{
 		C0: FromE6(&y.C0),
 		C1: FromE6(&y.C1),

@@ -1,14 +1,14 @@
-package fields_bn254
+package fields_bls12381
 
 import (
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-type curveF = emulated.Field[emulated.BN254Fp]
-type baseEl = emulated.Element[emulated.BN254Fp]
+type curveF = emulated.Field[emulated.BLS12381Fp]
+type baseEl = emulated.Element[emulated.BLS12381Fp]
 
 type E2 struct {
 	A0, A1 baseEl
@@ -25,24 +25,24 @@ func NewExt2(baseField *curveF) *Ext2 {
 		A1 string
 	}{
 		1: {
-			1: {"8376118865763821496583973867626364092589906065868298776909617916018768340080", "16469823323077808223889137241176536799009286646108169935659301613961712198316"},
-			2: {"21575463638280843010398324269430826099269044274347216827212613867836435027261", "10307601595873709700152284273816112264069230130616436755625194854815875713954"},
-			3: {"2821565182194536844548159561693502659359617185244120367078079554186484126554", "3505843767911556378687030309984248845540243509899259641013678093033130930403"},
-			4: {"2581911344467009335267311115468803099551665605076196740867805258568234346338", "19937756971775647987995932169929341994314640652964949448313374472400716661030"},
-			5: {"685108087231508774477564247770172212460312782337200605669322048753928464687", "8447204650696766136447902020341177575205426561248465145919723016860428151883"},
+			1: {"3850754370037169011952147076051364057158807420970682438676050522613628423219637725072182697113062777891589506424760", "151655185184498381465642749684540099398075398968325446656007613510403227271200139370504932015952886146304766135027"},
+			2: {"0", "4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436"},
+			3: {"1028732146235106349975324479215795277384839936929757896155643118032610843298655225875571310552543014690878354869257", "1028732146235106349975324479215795277384839936929757896155643118032610843298655225875571310552543014690878354869257"},
+			4: {"4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437", "0"},
+			5: {"877076961050607968509681729531255177986764537961432449499635504522207616027455086505066378536590128544573588734230", "3125332594171059424908108096204648978570118281977575435832422631601824034463382777937621250592425535493320683825557"},
 		},
-		3: {
-			1: {"11697423496358154304825782922584725312912383441159505038794027105778954184319", "303847389135065887422783454877609941456349188919719272345083954437860409601"},
-			2: {"3772000881919853776433695186713858239009073593817195771773381919316419345261", "2236595495967245188281701248203181795121068902605861227855261137820944008926"},
-			3: {"19066677689644738377698246183563772429336693972053703295610958340458742082029", "18382399103927718843559375435273026243156067647398564021675359801612095278180"},
-			4: {"5324479202449903542726783395506214481928257762400643279780343368557297135718", "16208900380737693084919495127334387981393726419856888799917914180988844123039"},
-			5: {"8941241848238582420466759817324047081148088512956452953208002715982955420483", "10338197737521362862238855242243140895517409139741313354160881284257516364953"},
+		2: {
+			1: {"793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620351", "0"},
+			2: {"793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620350", "0"},
+			3: {"4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559786", "0"},
+			4: {"4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436", "0"},
+			5: {"4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437", "0"},
 		},
 	}
 	nonResidues := make(map[int]map[int]*E2)
 	for pwr, v := range pwrs {
 		for coeff, v := range v {
-			el := E2{emulated.ValueOf[emulated.BN254Fp](v.A0), emulated.ValueOf[emulated.BN254Fp](v.A1)}
+			el := E2{emulated.ValueOf[emulated.BLS12381Fp](v.A0), emulated.ValueOf[emulated.BLS12381Fp](v.A1)}
 			if nonResidues[pwr] == nil {
 				nonResidues[pwr] = make(map[int]*E2)
 			}
@@ -85,112 +85,96 @@ func (e Ext2) MulByNonResidueGeneric(x *E2, power, coef int) *E2 {
 	return z
 }
 
-// MulByNonResidue return x*(9+u)
+// MulByNonResidue returns x*(1+u)
 func (e Ext2) MulByNonResidue(x *E2) *E2 {
-	nine := big.NewInt(9)
-	a := e.fp.MulConst(&x.A0, nine)
-	a = e.fp.Sub(a, &x.A1)
-	b := e.fp.MulConst(&x.A1, nine)
-	b = e.fp.Add(b, &x.A0)
+	a := e.fp.Sub(&x.A0, &x.A1)
+	b := e.fp.Add(&x.A0, &x.A1)
+
 	return &E2{
 		A0: *a,
 		A1: *b,
 	}
 }
 
-// MulByNonResidue1Power1 returns x*(9+u)^(1*(p^1-1)/6)
+// MulByNonResidue1Power1 returns x*(1+u)^(1*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power1(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 1)
 }
 
-// MulByNonResidue1Power2 returns x*(9+u)^(2*(p^1-1)/6)
+// MulByNonResidue1Power2 returns x*(1+u)^(2*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power2(x *E2) *E2 {
-	return e.MulByNonResidueGeneric(x, 1, 2)
+	element := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
+	a := e.fp.MulMod(&x.A1, &element)
+	a = e.fp.Neg(a)
+	b := e.fp.MulMod(&x.A0, &element)
+	return &E2{
+		A0: *a,
+		A1: *b,
+	}
 }
 
-// MulByNonResidue1Power3 returns x*(9+u)^(3*(p^1-1)/6)
+// MulByNonResidue1Power3 returns x*(1+u)^(3*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power3(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 3)
 }
 
-// MulByNonResidue1Power4 returns x*(9+u)^(4*(p^1-1)/6)
+// MulByNonResidue1Power4 returns x*(1+u)^(4*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power4(x *E2) *E2 {
-	return e.MulByNonResidueGeneric(x, 1, 4)
+	element := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
 
-// MulByNonResidue1Power5 returns x*(9+u)^(5*(p^1-1)/6)
+// MulByNonResidue1Power5 returns x*(1+u)^(5*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power5(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 5)
 }
 
-// MulByNonResidue2Power1 returns x*(9+u)^(1*(p^2-1)/6)
+// MulByNonResidue2Power1 returns x*(1+u)^(1*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power1(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556617")
+	element := emulated.ValueOf[emulated.BLS12381Fp]("793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620351")
 	return &E2{
 		A0: *e.fp.MulMod(&x.A0, &element),
 		A1: *e.fp.MulMod(&x.A1, &element),
 	}
 }
 
-// MulByNonResidue2Power2 returns x*(9+u)^(2*(p^2-1)/6)
+// MulByNonResidue2Power2 returns x*(1+u)^(2*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power2(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556616")
+	element := emulated.ValueOf[emulated.BLS12381Fp]("793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620350")
 	return &E2{
 		A0: *e.fp.MulMod(&x.A0, &element),
 		A1: *e.fp.MulMod(&x.A1, &element),
 	}
 }
 
-// MulByNonResidue2Power3 returns x*(9+u)^(3*(p^2-1)/6)
+// MulByNonResidue2Power3 returns x*(1+u)^(3*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power3(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275222246405745257275088696311157297823662689037894645226208582")
+	element := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559786")
 	return &E2{
 		A0: *e.fp.MulMod(&x.A0, &element),
 		A1: *e.fp.MulMod(&x.A1, &element),
 	}
 }
 
-// MulByNonResidue2Power4 returns x*(9+u)^(4*(p^2-1)/6)
+// MulByNonResidue2Power4 returns x*(1+u)^(4*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power4(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BN254Fp]("2203960485148121921418603742825762020974279258880205651966")
+	element := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436")
 	return &E2{
 		A0: *e.fp.MulMod(&x.A0, &element),
 		A1: *e.fp.MulMod(&x.A1, &element),
 	}
 }
 
-// MulByNonResidue2Power5 returns x*(9+u)^(5*(p^2-1)/6)
+// MulByNonResidue2Power5 returns x*(1+u)^(5*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power5(x *E2) *E2 {
-	element := emulated.ValueOf[emulated.BN254Fp]("2203960485148121921418603742825762020974279258880205651967")
+	element := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
 	return &E2{
 		A0: *e.fp.MulMod(&x.A0, &element),
 		A1: *e.fp.MulMod(&x.A1, &element),
 	}
-}
-
-// MulByNonResidue3Power1 returns x*(9+u)^(1*(p^3-1)/6)
-func (e Ext2) MulByNonResidue3Power1(x *E2) *E2 {
-	return e.MulByNonResidueGeneric(x, 3, 1)
-}
-
-// MulByNonResidue3Power2 returns x*(9+u)^(2*(p^3-1)/6)
-func (e Ext2) MulByNonResidue3Power2(x *E2) *E2 {
-	return e.MulByNonResidueGeneric(x, 3, 2)
-}
-
-// MulByNonResidue3Power3 returns x*(9+u)^(3*(p^3-1)/6)
-func (e Ext2) MulByNonResidue3Power3(x *E2) *E2 {
-	return e.MulByNonResidueGeneric(x, 3, 3)
-}
-
-// MulByNonResidue3Power4 returns x*(9+u)^(4*(p^3-1)/6)
-func (e Ext2) MulByNonResidue3Power4(x *E2) *E2 {
-	return e.MulByNonResidueGeneric(x, 3, 4)
-}
-
-// MulByNonResidue3Power5 returns x*(9+u)^(5*(p^3-1)/6)
-func (e Ext2) MulByNonResidue3Power5(x *E2) *E2 {
-	return e.MulByNonResidueGeneric(x, 3, 5)
 }
 
 func (e Ext2) Mul(x, y *E2) *E2 {
@@ -253,6 +237,15 @@ func (e Ext2) Zero() *E2 {
 	}
 }
 
+// returns 1+u
+func (e Ext2) NonResidue() *E2 {
+	one := e.fp.One()
+	return &E2{
+		A0: *one,
+		A1: *one,
+	}
+}
+
 func (e Ext2) Square(x *E2) *E2 {
 	a := e.fp.Add(&x.A0, &x.A1)
 	b := e.fp.Sub(&x.A0, &x.A1)
@@ -280,10 +273,10 @@ func (e Ext2) AssertIsEqual(x, y *E2) {
 	e.fp.AssertIsEqual(&x.A1, &y.A1)
 }
 
-func FromE2(y *bn254.E2) E2 {
+func FromE2(y *bls12381.E2) E2 {
 	return E2{
-		A0: emulated.ValueOf[emulated.BN254Fp](y.A0),
-		A1: emulated.ValueOf[emulated.BN254Fp](y.A1),
+		A0: emulated.ValueOf[emulated.BLS12381Fp](y.A0),
+		A1: emulated.ValueOf[emulated.BLS12381Fp](y.A1),
 	}
 }
 

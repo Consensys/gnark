@@ -10,14 +10,6 @@ type G2Affine struct {
 	X, Y fields_bn254.E2
 }
 
-type g2Jacobian struct {
-	X, Y, Z fields_bn254.E2
-}
-
-type g2Projective struct {
-	X, Y, Z fields_bn254.E2
-}
-
 func NewG2Affine(v bn254.G2Affine) G2Affine {
 	return G2Affine{
 		X: fields_bn254.E2{

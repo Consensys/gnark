@@ -1,4 +1,4 @@
-package sw_bn254
+package sw_bls12381
 
 import (
 	"crypto/rand"
@@ -6,21 +6,21 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
 
-func randomG1G2Affines(assert *test.Assert) (bn254.G1Affine, bn254.G2Affine) {
-	_, _, G1AffGen, G2AffGen := bn254.Generators()
-	mod := bn254.ID.ScalarField()
+func randomG1G2Affines(assert *test.Assert) (bls12381.G1Affine, bls12381.G2Affine) {
+	_, _, G1AffGen, G2AffGen := bls12381.Generators()
+	mod := bls12381.ID.ScalarField()
 	s1, err := rand.Int(rand.Reader, mod)
 	assert.NoError(err)
 	s2, err := rand.Int(rand.Reader, mod)
 	assert.NoError(err)
-	var p bn254.G1Affine
+	var p bls12381.G1Affine
 	p.ScalarMultiplication(&G1AffGen, s1)
-	var q bn254.G2Affine
+	var q bls12381.G2Affine
 	q.ScalarMultiplication(&G2AffGen, s2)
 	return p, q
 }
@@ -42,9 +42,9 @@ func (c *FinalExponentiationCircuit) Define(api frontend.API) error {
 
 func TestFinalExponentiationTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	var gt bn254.GT
+	var gt bls12381.GT
 	gt.SetRandom()
-	res := bn254.FinalExponentiation(&gt)
+	res := bls12381.FinalExponentiation(&gt)
 	witness := FinalExponentiationCircuit{
 		InGt: NewGTEl(gt),
 		Res:  NewGTEl(res),
@@ -75,7 +75,7 @@ func (c *PairCircuit) Define(api frontend.API) error {
 func TestPairTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
 	p, q := randomG1G2Affines(assert)
-	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{q})
+	res, err := bls12381.Pair([]bls12381.G1Affine{p}, []bls12381.G2Affine{q})
 	assert.NoError(err)
 	witness := PairCircuit{
 		InG1: NewG1Affine(p),
@@ -111,7 +111,7 @@ func TestMultiPairTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
 	p1, q1 := randomG1G2Affines(assert)
 	p2, q2 := randomG1G2Affines(assert)
-	res, err := bn254.Pair([]bn254.G1Affine{p1, p1, p2, p2}, []bn254.G2Affine{q1, q2, q1, q2})
+	res, err := bls12381.Pair([]bls12381.G1Affine{p1, p1, p2, p2}, []bls12381.G2Affine{q1, q2, q1, q2})
 	assert.NoError(err)
 	witness := MultiPairCircuit{
 		In1G1: NewG1Affine(p1),
