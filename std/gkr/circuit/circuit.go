@@ -38,7 +38,13 @@ func NewCircuit(
 func (c *Circuit) Assign(inputs [][]fr.Element, nCore int) Assignment {
 	assignment := make([][][]fr.Element, len(c.Layers)+1)
 	// The first layer of assignment is equal to the inputs
-	assignment[0] = inputs
+	assignment[0] = make([][]fr.Element, len(inputs))
+	for i := range assignment[0] {
+		assignment[0][i] = make([]fr.Element, len(inputs[i]))
+		for j := range assignment[0][i] {
+			assignment[0][i][j].Set(&inputs[i][j])
+		}
+	}
 	// We use the transition funcs to create the next layers
 	// one after the other
 	for i, layer := range c.Layers {

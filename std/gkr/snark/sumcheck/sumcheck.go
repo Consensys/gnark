@@ -2,8 +2,7 @@ package sumcheck
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/std/hash/poseidon"
-
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr/snark/polynomial"
 	"github.com/consensys/gnark/std/gkr/sumcheck"
 
@@ -49,7 +48,7 @@ func (p *Proof) Assign(proof sumcheck.Proof) {
 }
 
 // AssertValid verifies a sumcheck instance EXCEPT FOR THE FINAL VERIFICATION.
-func (p *Proof) AssertValid(cs frontend.API, initialClaim frontend.Variable, bG int) (
+func (p *Proof) AssertValid(cs frontend.API, initialClaim frontend.Variable, bG int, transcript *fiatshamir.Transcript, layers int) (
 	hL, hR, hPrime []frontend.Variable,
 	lastClaim frontend.Variable,
 ) {
@@ -60,9 +59,14 @@ func (p *Proof) AssertValid(cs frontend.API, initialClaim frontend.Variable, bG 
 	for i, poly := range p.HPolys {
 		zeroAndOne := poly.ZeroAndOne(cs)
 		cs.AssertIsEqual(zeroAndOne, claimCurr)
-		coeffs0, coeffs1 := getLeftRightSeed(cs, poly.Coefficients)
-		hs[i] = poseidon.Poseidon(cs, coeffs0, coeffs1) // Hash the polynomial
-		claimCurr = poly.Eval(cs, hs[i])                // Get new current claim
+		challengeName := fmt.Sprintf("layers.%d.hpolys.%d", layers, i)
+		transcript.Bind(challengeName, poly.Coefficients)
+		var err error
+		hs[i], err = transcript.ComputeChallenge(challengeName) // Hash the polynomial
+		if err != nil {
+			panic(err)
+		}
+		claimCurr = poly.Eval(cs, hs[i]) // Get new current claim
 	}
 
 	// A deep-copy to avoid reusing the same underlying slice for all writes
