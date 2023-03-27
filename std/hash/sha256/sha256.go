@@ -131,7 +131,6 @@ func (d *Digest) checkSum() frontend.Variable {
 	if err != nil {
 		panic(fmt.Sprint("err during sha256 hash calculation", err))
 	}
-	fmt.Printf("block number:%d\n", d.len/64)
 
 	if d.nx != 0 {
 		panic("d.nx != 0")
