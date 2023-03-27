@@ -1,6 +1,8 @@
 package sumcheck
 
 import (
+	"fmt"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr/circuit"
 	"github.com/consensys/gnark/std/gkr/common"
 	"github.com/consensys/gnark/std/gkr/polynomial"
@@ -78,7 +80,7 @@ func (p *MultiThreadedProver) GetClaim(nCore int) fr.Element {
 }
 
 // Prove runs a prover with multi-threading
-func (p *MultiThreadedProver) Prove(nCore int) (proof Proof, qPrime, qL, qR, finalClaims []fr.Element) {
+func (p *MultiThreadedProver) Prove(nCore int, transcript *fiatshamir.Transcript, layers int) (proof Proof, qPrime, qL, qR, finalClaims []fr.Element) {
 
 	// Define usefull constants
 	nChunks := len(p.eq)
@@ -111,7 +113,7 @@ func (p *MultiThreadedProver) Prove(nCore int) (proof Proof, qPrime, qL, qR, fin
 	for i := 0; i < 2*bG+bN-logNChunk; i++ {
 		evals := ConsumeAccumulate(evalsChan, nChunks)
 		proof.PolyCoeffs[i] = polynomial.InterpolateOnRange(evals)
-		r := common.GetChallenge(proof.PolyCoeffs[i])
+		r := common.GetChallengeByTranscript(proof.PolyCoeffs[i], transcript, fmt.Sprintf("layers.%d.hpolys.%d", layers, i))
 		Broadcast(rChans, r)
 		if i < bG {
 			qL[i] = r
@@ -128,7 +130,7 @@ func (p *MultiThreadedProver) Prove(nCore int) (proof Proof, qPrime, qL, qR, fin
 	for i := 2*bG + bN - logNChunk; i < bN+2*bG; i++ {
 		evals := newP.GetEvalsOnHPrime()
 		proof.PolyCoeffs[i] = polynomial.InterpolateOnRange(evals)
-		r := common.GetChallenge(proof.PolyCoeffs[i])
+		r := common.GetChallengeByTranscript(proof.PolyCoeffs[i], transcript, fmt.Sprintf("layers.%d.hpolys.%d", layers, i))
 		newP.FoldHPrime(r)
 		qPrime[i-2*bG] = r
 	}

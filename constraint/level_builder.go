@@ -31,7 +31,7 @@ func (system *System) updateLevel(cID int, c Iterable) {
 		}
 	}
 	// create new levels for gkr constraints, and other gkr constraints will base on this levels
-	if cID == system.GKRMeta.GKRConstraintsPos && system.GKRMeta.GKRConstraintsPos != 0 {
+	if cID == system.GKRMeta.GKRConstraintsPos && system.GKRMeta.GKRConstraintsPos != 0 && system.GKRMeta.GKRConstraintsLvl == 0 {
 		system.GKRMeta.GKRConstraintsLvl = level
 	}
 
