@@ -82,6 +82,7 @@ func TestSerialization(t *testing.T) {
 						"System.lbHints",
 						"System.SymbolTable",
 						"System.lbOutputs",
+						"System.gkrTransferMap",
 						"System.bitLen")); diff != "" {
 					t.Fatalf("round trip mismatch (-want +got):\n%s", diff)
 				}

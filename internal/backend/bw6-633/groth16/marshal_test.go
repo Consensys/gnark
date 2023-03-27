@@ -94,7 +94,7 @@ func TestVerifyingKeySerialization(t *testing.T) {
 
 	properties.Property("VerifyingKey -> writer -> reader -> VerifyingKey should stay constant", prop.ForAll(
 		func(p1 curve.G1Affine, p2 curve.G2Affine) bool {
-			var vk, vkCompressed, vkRaw VerifyingKey
+			var vk, vkRaw VerifyingKey
 
 			// create a random vk
 			nbWires := 6
@@ -128,17 +128,6 @@ func TestVerifyingKeySerialization(t *testing.T) {
 				return false
 			}
 
-			read, err := vkCompressed.ReadFrom(&bufCompressed)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-
-			if read != written {
-				t.Log("read != written")
-				return false
-			}
-
 			var bufRaw bytes.Buffer
 			written, err = vk.WriteRawTo(&bufRaw)
 			if err != nil {
@@ -146,7 +135,7 @@ func TestVerifyingKeySerialization(t *testing.T) {
 				return false
 			}
 
-			read, err = vkRaw.ReadFrom(&bufRaw)
+			read, err := vkRaw.ReadFrom(&bufRaw)
 			if err != nil {
 				t.Log(err)
 				return false
@@ -157,7 +146,7 @@ func TestVerifyingKeySerialization(t *testing.T) {
 				return false
 			}
 
-			return reflect.DeepEqual(&vk, &vkCompressed) && reflect.DeepEqual(&vk, &vkRaw)
+			return reflect.DeepEqual(&vk, &vkRaw)
 		},
 		GenG1(),
 		GenG2(),
@@ -174,7 +163,7 @@ func TestProvingKeySerialization(t *testing.T) {
 
 	properties.Property("ProvingKey -> writer -> reader -> ProvingKey should stay constant", prop.ForAll(
 		func(p1 curve.G1Affine, p2 curve.G2Affine) bool {
-			var pk, pkCompressed, pkRaw ProvingKey
+			var pk, pkRaw ProvingKey
 
 			// create a random pk
 			domain := fft.NewDomain(8)
@@ -209,17 +198,6 @@ func TestProvingKeySerialization(t *testing.T) {
 				return false
 			}
 
-			read, err := pkCompressed.ReadFrom(&bufCompressed)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-
-			if read != written {
-				t.Log("read != written")
-				return false
-			}
-
 			var bufRaw bytes.Buffer
 			written, err = pk.WriteRawTo(&bufRaw)
 			if err != nil {
@@ -227,7 +205,7 @@ func TestProvingKeySerialization(t *testing.T) {
 				return false
 			}
 
-			read, err = pkRaw.ReadFrom(&bufRaw)
+			read, err := pkRaw.ReadFrom(&bufRaw)
 			if err != nil {
 				t.Log(err)
 				return false
@@ -238,7 +216,7 @@ func TestProvingKeySerialization(t *testing.T) {
 				return false
 			}
 
-			return reflect.DeepEqual(&pk, &pkCompressed) && reflect.DeepEqual(&pk, &pkRaw)
+			return reflect.DeepEqual(&pk, &pkRaw)
 		},
 		GenG1(),
 		GenG2(),

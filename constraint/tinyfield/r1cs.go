@@ -47,6 +47,12 @@ type R1CS struct {
 	arithEngine
 }
 
+var GKRWitnessGeneratorHandler func(id ecc.ID, inputs [][]fr.Element, bN, batchSize, initialLength int) (values []fr.Element, startLength, endLength int)
+
+func RegisterGKRWitnessGeneratorHandler(f func(id ecc.ID, inputs [][]fr.Element, bN, batchSize, initialLength int) (values []fr.Element, startLength, endLength int)) {
+	GKRWitnessGeneratorHandler = f
+}
+
 // NewR1CS returns a new R1CS and sets cs.Coefficient (fr.Element) from provided big.Int values
 //
 // capacity pre-allocates memory for capacity nbConstraints
@@ -108,7 +114,45 @@ func (cs *R1CS) GetStaticConstraints(key string) constraint.StaticConstraints {
 	return cs.StaticConstraints[key]
 }
 
+func (cs *R1CS) FinalizeGKR() {
+	// adding constraint for gkr inputs / gkr outputs
+	one := cs.One()
+	for i := range cs.GKRMeta.MIMCHints {
+		h := *cs.MHints[cs.GKRMeta.MIMCHints[i]]
+
+		hInputVids := h.Inputs
+		hOutputVid := constraint.LinearExpression{cs.MakeTerm(&one, h.Wires[0])}
+		cstone := constraint.LinearExpression{cs.MakeTerm(&one, 0)}
+		// 1 << bN is the total hashes size and shift of two inputs
+		shift := 1 << cs.GKRMeta.GKRBN
+		li0 := cs.GKRMeta.GKRInputTables[i]
+		li1 := cs.GKRMeta.GKRInputTables[i+shift]
+		// input constraint
+		cs.AddConstraint(constraint.R1C{L: cstone, R: hInputVids[0].Clone(), O: li0.Clone()})
+		cs.AddConstraint(constraint.R1C{L: cstone, R: hInputVids[1].Clone(), O: li1.Clone()})
+
+		// we need to contraints from inputs to outpus
+		for shiftI := 1; shiftI < 7; shiftI++ {
+			li2l := cs.GKRMeta.GKRInputTables[i+2*shiftI*shift]
+			lo2 := cs.GKRMeta.GKROutputTables[i+(shiftI-1)*shift]
+			cs.AddConstraint(constraint.R1C{L: cstone, R: lo2.Clone(), O: li2l.Clone()})
+
+			li2r := cs.GKRMeta.GKRInputTables[i+2*shiftI*shift+shift]
+			cs.AddConstraint(constraint.R1C{L: cstone, R: li1.Clone(), O: li2r.Clone()})
+		}
+
+		lo := cs.GKRMeta.GKROutputTables[i+shift*6]
+		// output constraint
+		cs.AddConstraint(constraint.R1C{L: cstone, R: hOutputVid.Clone(), O: lo.Clone()})
+	}
+}
+
 func (cs *R1CS) Lazify() map[int]int {
+	// already lazify
+	if len(cs.LazyConsMap) != 0 {
+		return nil
+	}
+
 	// remove cons generated from Lazy
 	mapFromFull := make(map[int]int)
 	lastEnd := 0
@@ -178,7 +222,7 @@ func (cs *R1CS) Solve(witness, a, b, c fr.Vector, opt backend.ProverConfig) (fr.
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable)
+	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable, cs.GKRMeta.MIMCHints)
 	if err != nil {
 		return make(fr.Vector, nbWires), err
 	}
@@ -204,6 +248,7 @@ func (cs *R1CS) Solve(witness, a, b, c fr.Vector, opt backend.ProverConfig) (fr.
 		solution.solved[i+1] = true
 	}
 
+	solution.InitialValuesLength = len(witness) + 1
 	// keep track of the number of wire instantiations we do, for a sanity check to ensure
 	// we instantiated all wires
 	solution.nbSolved += uint64(len(witness) + 1)
@@ -280,7 +325,11 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 	}()
 
 	// for each level, we push the tasks
-	for _, level := range cs.Levels {
+	for i, level := range cs.Levels {
+
+		if i == cs.GKRMeta.GKRConstraintsLvl {
+			cs.assignGKRProofs(solution)
+		}
 
 		// max CPU to use
 		maxCPU := float64(len(level)) / minWorkPerCPU
@@ -342,6 +391,31 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 	}
 
 	return nil
+}
+
+func (cs *R1CS) assignGKRProofs(s *solution) {
+
+	// only works fo mimc hints
+	if len(s.MIMCHintsInputs) == 0 {
+		return
+	}
+	var bN = cs.GKRMeta.GKRBN
+	var shift = 1 << bN
+	var batchSize = 13
+	// Creates the assignments values
+	inputs := make([][]fr.Element, 1)
+	inputs[0] = make([]fr.Element, 2*(1<<bN))
+	inputsCovered := 0 // inputs
+	for i := range s.MIMCHintsInputs {
+		inputs[0][inputsCovered].SetBigInt(s.MIMCHintsInputs[i][0])
+		inputs[0][inputsCovered+shift].SetBigInt(s.MIMCHintsInputs[i][1])
+		inputsCovered++
+	}
+	values, startLen, endLen := GKRWitnessGeneratorHandler(cs.CurveID(), inputs, bN, batchSize, s.InitialValuesLength)
+	copy(s.values[startLen:endLen], values)
+	// from here we are using gkr inputs
+	// inputs, batchSize, bN, initial_length
+	// returns fr.Elements, start_length
 }
 
 // IsSolved returns nil if given witness solves the R1CS and error otherwise
