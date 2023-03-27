@@ -75,12 +75,11 @@ func permutation(api frontend.API, state []frontend.Variable) []frontend.Variabl
 
 func Poseidon(api frontend.API, input ...frontend.Variable) frontend.Variable {
 	inputLength := len(input)
-	// No support for hashing inputs of length less than 2
-	if inputLength < 1 {
+	if inputLength == 0 {
 		panic("Not supported input size")
 	}
 
-	const maxLength = 12
+	const maxLength = 16
 	state := make([]frontend.Variable, maxLength+1)
 	state[0] = frontend.Variable(0)
 	startIndex := 0
@@ -99,7 +98,7 @@ func Poseidon(api frontend.API, input ...frontend.Variable) frontend.Variable {
 		}
 	}
 
-	// For the remaining part of the input OR if 1 <= inputLength <= 12
+	// For the remaining part of the input OR if 1 <= inputLength <= 16
 	if lastIndex < inputLength {
 		lastIndex = inputLength
 		remainigLength := lastIndex - startIndex
