@@ -370,10 +370,6 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// for each term appearing in the linear expression,
 	// we compute term.Coefficient * L, and cumulate it in
 	// A, B or C at the index of the variable
-	// for i := 0; i < r1cs.GetNbConstraints(); i++ {
-	// 	c :=
-
-	// }
 	for i, c := range r1cs.Constraints {
 
 		for _, t := range c.L {

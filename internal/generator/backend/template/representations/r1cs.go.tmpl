@@ -323,7 +323,7 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 		if maxCPU <= 1.0 {
 			// we do it sequentially
 			for _, i := range level {
-				if err := cs.solveConstraint(cs.getConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
+				if err := cs.solveConstraint(cs.GetConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
 					var debugInfo *string
 					if dID, ok := cs.MDebug[i]; ok {
 						debugInfo = new(string)

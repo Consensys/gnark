@@ -305,7 +305,7 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 		go func() {
 			for t := range chTasks {
 				for _, i := range t {
-					if err := cs.solveConstraint(cs.getConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
+					if err := cs.solveConstraint(cs.GetConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
 						var debugInfo *string
 						if dID, ok := cs.MDebug[i]; ok {
 							debugInfo = new(string)
@@ -340,7 +340,7 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 		if maxCPU <= 1.0 {
 			// we do it sequentially
 			for _, i := range level {
-				if err := cs.solveConstraint(cs.getConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
+				if err := cs.solveConstraint(cs.GetConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
 					var debugInfo *string
 					if dID, ok := cs.MDebug[i]; ok {
 						debugInfo = new(string)
@@ -567,7 +567,7 @@ func (cs *R1CS) solveConstraint(r constraint.R1C, solution *solution, a, b, c *f
 	return nil
 }
 
-func (cs *R1CS) getConstraintToSolve(i int) constraint.R1C {
+func (cs *R1CS) GetConstraintToSolve(i int) constraint.R1C {
 	// constraint to solve could be lazy constraint or normal constraint
 	var constraintToSolve constraint.R1C
 	// for each constraint in the task, solve it.
