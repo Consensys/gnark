@@ -17,11 +17,14 @@
 package cs
 
 import (
+	"bufio"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"github.com/consensys/gnark/constraint/lazy"
 	"github.com/fxamacker/cbor/v2"
 	"io"
+	"os"
 	"reflect"
 	"runtime"
 	"sync"
@@ -302,7 +305,7 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 		go func() {
 			for t := range chTasks {
 				for _, i := range t {
-					if err := cs.solveConstraint(cs.getConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
+					if err := cs.solveConstraint(cs.GetConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
 						var debugInfo *string
 						if dID, ok := cs.MDebug[i]; ok {
 							debugInfo = new(string)
@@ -337,7 +340,7 @@ func (cs *R1CS) parallelSolve(a, b, c fr.Vector, solution *solution) error {
 		if maxCPU <= 1.0 {
 			// we do it sequentially
 			for _, i := range level {
-				if err := cs.solveConstraint(cs.getConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
+				if err := cs.solveConstraint(cs.GetConstraintToSolve(i), solution, &a[i], &b[i], &c[i]); err != nil {
 					var debugInfo *string
 					if dID, ok := cs.MDebug[i]; ok {
 						debugInfo = new(string)
@@ -564,7 +567,7 @@ func (cs *R1CS) solveConstraint(r constraint.R1C, solution *solution, a, b, c *f
 	return nil
 }
 
-func (cs *R1CS) getConstraintToSolve(i int) constraint.R1C {
+func (cs *R1CS) GetConstraintToSolve(i int) constraint.R1C {
 	// constraint to solve could be lazy constraint or normal constraint
 	var constraintToSolve constraint.R1C
 	// for each constraint in the task, solve it.
@@ -593,7 +596,7 @@ func (cs *R1CS) CurveID() ecc.ID {
 }
 
 // add cbor tags to clarify lazy poseidon inputs
-func (h *R1CS) inputsCBORTags() (cbor.TagSet, error) {
+func (cs *R1CS) inputsCBORTags() (cbor.TagSet, error) {
 	defTagOpts := cbor.TagOptions{EncTag: cbor.EncTagRequired, DecTag: cbor.DecTagRequired}
 	tags := cbor.NewTagSet()
 	if err := tags.Add(defTagOpts, reflect.TypeOf(lazy.GeneralLazyInputs{}), 25448); err != nil {
@@ -642,4 +645,226 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	}
 
 	return int64(decoder.NumBytesRead()), nil
+}
+
+func (cs *R1CS) SplitDump(session string, batchSize int) error {
+
+	// E part
+	{
+		cs2 := &R1CS{}
+		cs2.CoeffTable = cs.CoeffTable
+		cs2.R1CSCore.System = cs.R1CSCore.System
+		cs2.R1CSCore.LazyCons = cs.R1CSCore.LazyCons
+		cs2.R1CSCore.LazyConsMap = cs.R1CSCore.LazyConsMap
+		cs2.R1CSCore.StaticConstraints = cs.R1CSCore.StaticConstraints
+
+		name := fmt.Sprintf("%s.r1cs.E.save", session)
+		csFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		cs2.WriteTo(csFile)
+	}
+
+	N := len(cs.R1CSCore.Constraints)
+	for i := 0; i < N; {
+		// dump R1C[i, min(i+batchSize, end)]
+		cs2 := &R1CS{}
+		iNew := i + batchSize
+		if iNew > N {
+			iNew = N
+		}
+		cs2.R1CSCore.Constraints = cs.R1CSCore.Constraints[i:iNew]
+		name := fmt.Sprintf("%s.r1cs.Cons.%d.%d.save", session, i, iNew)
+		csFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		cs2.WriteTo(csFile)
+
+		i = iNew
+	}
+
+	return nil
+}
+
+func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
+	// E part
+	{
+		cs2 := &R1CS{}
+		cs2.CoeffTable = cs.CoeffTable
+		cs2.R1CSCore.System = cs.R1CSCore.System
+		cs2.R1CSCore.LazyCons = cs.R1CSCore.LazyCons
+		cs2.R1CSCore.LazyConsMap = cs.R1CSCore.LazyConsMap
+		cs2.R1CSCore.StaticConstraints = cs.R1CSCore.StaticConstraints
+
+		name := fmt.Sprintf("%s.r1cs.E.save", session)
+		csFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		cs2.WriteTo(csFile)
+	}
+
+	N := len(cs.R1CSCore.Constraints)
+	for i := 0; i < N; {
+		// dump R1C[i, min(i+batchSize, end)]
+		cs2 := &R1CS{}
+		iNew := i + batchSize
+		if iNew > N {
+			iNew = N
+		}
+		cs2.R1CSCore.Constraints = cs.R1CSCore.Constraints[i:iNew]
+		name := fmt.Sprintf("%s.r1cs.Cons.%d.%d.save", session, i, iNew)
+		csFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		writer := bufio.NewWriter(csFile)
+		enc := gob.NewEncoder(writer)
+		err = enc.Encode(cs2)
+		if err != nil {
+			panic(err)
+		}
+
+		i = iNew
+	}
+
+	return nil
+}
+
+func (cs *R1CS) LoadFromSplitConcurrent(session string, N, batchSize, NCore int) {
+	cs.R1CSCore.Constraints = make([]constraint.R1C, N)
+
+	var wg sync.WaitGroup
+	chTasks := make(chan int, NCore)
+	// worker pool
+	for core := 0; core < NCore; core++ {
+		go func() {
+			for i := range chTasks {
+				if i < 0 {
+					// E part
+					cs2 := &R1CS{}
+
+					name := fmt.Sprintf("%s.r1cs.E.save", session)
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					_, err = cs2.ReadFrom(csFile)
+
+					cs.CoeffTable = cs2.CoeffTable
+					cs.R1CSCore.System = cs2.R1CSCore.System
+					cs.R1CSCore.LazyCons = cs2.R1CSCore.LazyCons
+					cs.R1CSCore.LazyConsMap = cs2.R1CSCore.LazyConsMap
+					cs.R1CSCore.StaticConstraints = cs2.R1CSCore.StaticConstraints
+
+					wg.Done()
+				} else {
+					cs2 := &R1CS{}
+					iNew := i + batchSize
+					if iNew > N {
+						iNew = N
+					}
+					name := fmt.Sprintf("%s.r1cs.Cons.%d.%d.save", session, i, iNew)
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					cs2.ReadFrom(csFile)
+					copy(cs.R1CSCore.Constraints[i:iNew], cs2.R1CSCore.Constraints)
+
+					wg.Done()
+				}
+			}
+		}()
+	}
+
+	defer func() {
+		close(chTasks)
+	}()
+
+	wg.Add(1)
+	chTasks <- -1
+	for i := 0; i < N; {
+		// read R1C[i, min(i+batchSize, end)]
+		iNew := i + batchSize
+		if iNew > N {
+			iNew = N
+		}
+		wg.Add(1)
+		chTasks <- i
+
+		i = iNew
+	}
+	wg.Wait()
+}
+
+func (cs *R1CS) LoadFromSplitBinaryConcurrent(session string, N, batchSize, NCore int) {
+	cs.R1CSCore.Constraints = make([]constraint.R1C, N)
+
+	var wg sync.WaitGroup
+	chTasks := make(chan int, NCore)
+	// worker pool
+	for core := 0; core < NCore; core++ {
+		go func() {
+			for i := range chTasks {
+				if i < 0 {
+					// E part
+					cs2 := &R1CS{}
+
+					name := fmt.Sprintf("%s.r1cs.E.save", session)
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					_, err = cs2.ReadFrom(csFile)
+
+					cs.CoeffTable = cs2.CoeffTable
+					cs.R1CSCore.System = cs2.R1CSCore.System
+					cs.R1CSCore.LazyCons = cs2.R1CSCore.LazyCons
+					cs.R1CSCore.LazyConsMap = cs2.R1CSCore.LazyConsMap
+					cs.R1CSCore.StaticConstraints = cs2.R1CSCore.StaticConstraints
+
+					wg.Done()
+				} else {
+					cs2 := &R1CS{}
+					iNew := i + batchSize
+					if iNew > N {
+						iNew = N
+					}
+					name := fmt.Sprintf("%s.r1cs.Cons.%d.%d.save", session, i, iNew)
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					writer := bufio.NewReader(csFile)
+					enc := gob.NewDecoder(writer)
+					err = enc.Decode(cs2)
+					copy(cs.R1CSCore.Constraints[i:iNew], cs2.R1CSCore.Constraints)
+
+					wg.Done()
+				}
+			}
+		}()
+	}
+
+	defer func() {
+		close(chTasks)
+	}()
+
+	wg.Add(1)
+	chTasks <- -1
+	for i := 0; i < N; {
+		// read R1C[i, min(i+batchSize, end)]
+		iNew := i + batchSize
+		if iNew > N {
+			iNew = N
+		}
+		wg.Add(1)
+		chTasks <- i
+
+		i = iNew
+	}
+	wg.Wait()
 }
