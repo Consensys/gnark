@@ -176,3 +176,62 @@ func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 		f.api.AssertIsEqual(ll, 0)
 	}
 }
+
+// AssertIsInRange ensures that a is less than the emulated modulus. When we
+// call [Reduce] then we only ensure that the result is width-constrained, but
+// not actually less than the modulus. This means that the actual value may be
+// either x or x + p. For arithmetic it is sufficient, but for binary comparison
+// it is not. For binary comparison the values have both to be below the
+// modulus.
+func (f *Field[T]) AssertIsInRange(a *Element[T]) {
+	// we omit conditional width assertion as is done in ToBits down the calling stack
+	f.AssertIsLessOrEqual(a, f.modulusPrev())
+}
+
+// IsZero returns a boolean indicating if the element is strictly zero. The
+// method internally reduces the element and asserts that the value is less than
+// the modulus.
+func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
+	ca := f.Reduce(a)
+	f.AssertIsInRange(ca)
+	res := f.api.IsZero(ca.Limbs[0])
+	for i := 1; i < len(ca.Limbs); i++ {
+		f.api.Mul(res, f.api.IsZero(ca.Limbs[i]))
+	}
+	return res
+}
+
+// Cmp returns:
+//   - -1 if a < b
+//   - 0 if a = b
+//   - 1 if a > b
+//
+// The method internally reduces the element and asserts that the value is less
+// than the modulus.
+func (f *Field[T]) Cmp(a, b *Element[T]) frontend.Variable {
+	ca := f.Reduce(a)
+	f.AssertIsInRange(ca)
+	cb := f.Reduce(b)
+	f.AssertIsInRange(cb)
+	var res frontend.Variable = 0
+	for i := int(f.fParams.NbLimbs() - 1); i >= 0; i-- {
+		lmbCmp := f.api.Cmp(ca.Limbs[i], cb.Limbs[i])
+		res = f.api.Select(f.api.IsZero(res), lmbCmp, res)
+	}
+	return res
+}
+
+// TODO(@ivokub)
+// func (f *Field[T]) AssertIsDifferent(a, b *Element[T]) {
+// 	ca := f.Reduce(a)
+// 	f.AssertIsInRange(ca)
+// 	cb := f.Reduce(b)
+// 	f.AssertIsInRange(cb)
+// 	var res frontend.Variable = 0
+// 	for i := 0; i < int(f.fParams.NbLimbs()); i++ {
+// 		cmp := f.api.Cmp(ca.Limbs[i], cb.Limbs[i])
+// 		cmpsq := f.api.Mul(cmp, cmp)
+// 		res = f.api.Add(res, cmpsq)
+// 	}
+// 	f.api.AssertIsDifferent(res, 0)
+// }
