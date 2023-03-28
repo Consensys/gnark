@@ -10,11 +10,14 @@ import (
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/stretchr/testify/assert"
 	"os"
+	"runtime"
 	"testing"
+
+	cs_bn254 "github.com/consensys/gnark/constraint/bn254"
 )
 
 const (
-	Cnt = 6
+	Cnt = 9
 )
 
 // Circuit defines a pre-image knowledge proof
@@ -33,12 +36,12 @@ func (circuit *Circuit) Define(api frontend.API) error {
 
 	for i := 0; i < cnt; i++ {
 		// hash function
-		mimc, _ := mimc.NewMiMC(api)
+		handler, _ := mimc.NewMiMC(api)
 
 		// specify constraints
 		// mimc(preImage) == hash
-		mimc.Write(circuit.PreImage)
-		api.AssertIsEqual(circuit.Hash, mimc.Sum())
+		handler.Write(circuit.PreImage)
+		api.AssertIsEqual(circuit.Hash, handler.Sum())
 	}
 
 	return nil
@@ -49,17 +52,24 @@ func TestCircuit(t *testing.T) {
 	var myCircuit Circuit
 	ccs, err := frontend.Compile(bn254.ID.ScalarField(), r1cs.NewBuilder, &myCircuit)
 	assert.NoError(t, err)
+	cs := ccs.(*cs_bn254.R1CS)
 	session := "stest"
+	batchSize := 10000
+	err = cs.SplitDumpBinary(session, batchSize)
+	assert.NoError(t, err)
+	cs2 := groth16.NewCS(ecc.BN254)
+	cs2.LoadFromSplitBinaryConcurrent(session, cs.GetNbConstraints(), batchSize, runtime.NumCPU())
 
-	pk, vk, _ := groth16.Setup(ccs)
-	groth16.SplitDumpPK(pk, session+"2")
+	// pk, vk, _ := groth16.Setup(ccs)
+	// groth16.SplitDumpPK(pk, session+"2")
 
-	groth16.SetupDumpKeys(ccs, session)
-	vk = groth16.NewVerifyingKey(ecc.BN254)
-
+	err = groth16.SetupDumpKeys(ccs, session)
+	assert.NoError(t, err)
+	vk := groth16.NewVerifyingKey(ecc.BN254)
 	name := fmt.Sprintf("%s.vk.save", session)
 	vkFile, err := os.Open(name)
-	vk.ReadFrom(vkFile)
+	_, err = vk.ReadFrom(vkFile)
+	assert.NoError(t, err)
 
 	assignment := &Circuit{
 		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
@@ -70,7 +80,7 @@ func TestCircuit(t *testing.T) {
 	pks, err := groth16.ReadSegmentProveKey(ecc.BN254, session)
 	assert.NoError(t, err)
 
-	prf, err := groth16.ProveRoll(ccs, pks[0], pks[1], witness, session)
+	prf, err := groth16.ProveRoll(cs2, pks[0], pks[1], witness, session)
 	assert.NoError(t, err)
 
 	pubWitness, err := witness.Public()
