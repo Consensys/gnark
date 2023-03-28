@@ -1,12 +1,15 @@
 package splitted
 
 import (
+	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 )
 
@@ -49,7 +52,14 @@ func TestCircuit(t *testing.T) {
 	session := "stest"
 
 	pk, vk, _ := groth16.Setup(ccs)
-	groth16.SplitDumpPK(pk, session)
+	groth16.SplitDumpPK(pk, session+"2")
+
+	groth16.SetupDumpKeys(ccs, session)
+	vk = groth16.NewVerifyingKey(ecc.BN254)
+
+	name := fmt.Sprintf("%s.vk.save", session)
+	vkFile, err := os.Open(name)
+	vk.ReadFrom(vkFile)
 
 	assignment := &Circuit{
 		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
@@ -57,7 +67,7 @@ func TestCircuit(t *testing.T) {
 	}
 	witness, _ := frontend.NewWitness(assignment, bn254.ID.ScalarField())
 
-	pks, err := groth16.ReadSegmentProveKey(session)
+	pks, err := groth16.ReadSegmentProveKey(ecc.BN254, session)
 	assert.NoError(t, err)
 
 	prf, err := groth16.ProveRoll(ccs, pks[0], pks[1], witness, session)

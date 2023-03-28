@@ -645,3 +645,46 @@ func SplitDumpPK(Pk ProvingKey, session string) error {
 
 	return nil
 }
+
+func SetupDumpKeys(r1cs constraint.ConstraintSystem, session string) error {
+
+	switch _r1cs := r1cs.(type) {
+	case *cs_bls12377.R1CS:
+		if err := groth16_bls12377.SetupDumpKeys(_r1cs, session); err != nil {
+			return err
+		}
+		return nil
+	case *cs_bls12381.R1CS:
+		if err := groth16_bls12381.SetupDumpKeys(_r1cs, session); err != nil {
+			return err
+		}
+		return nil
+	case *cs_bn254.R1CS:
+		if err := groth16_bn254.SetupDumpKeys(_r1cs, session); err != nil {
+			return err
+		}
+		return nil
+	case *cs_bw6761.R1CS:
+		if err := groth16_bw6761.SetupDumpKeys(_r1cs, session); err != nil {
+			return err
+		}
+		return nil
+	case *cs_bls24317.R1CS:
+		if err := groth16_bls24317.SetupDumpKeys(_r1cs, session); err != nil {
+			return err
+		}
+		return nil
+	case *cs_bls24315.R1CS:
+		if err := groth16_bls24315.SetupDumpKeys(_r1cs, session); err != nil {
+			return err
+		}
+		return nil
+	case *cs_bw6633.R1CS:
+		if err := groth16_bw6633.SetupDumpKeys(_r1cs, session); err != nil {
+			return err
+		}
+		return nil
+	default:
+		panic("unrecognized R1CS curve type")
+	}
+}

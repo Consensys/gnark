@@ -352,7 +352,8 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// for each term appearing in the linear expression,
 	// we compute term.Coefficient * L, and cumulate it in
 	// A, B or C at the index of the variable
-	for i, c := range r1cs.Constraints {
+	for i := 0; i < r1cs.GetNbConstraints(); i++ {
+		c := r1cs.GetConstraintToSolve(i)
 
 		for _, t := range c.L {
 			accumulate(&A[t.WireID()], t, &L)
@@ -369,8 +370,8 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 		L.Mul(&L, &t[i])
 		L.Mul(&L, &tInv[i+1])
 	}
-	return
 
+	return
 }
 
 // toxicWaste toxic waste
@@ -780,12 +781,12 @@ func SetupDumpKeys(r1cs *cs.R1CS, session string) error {
 		g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
 
 		// sets pk: [β]2, [δ]2
-		pk.G2.Beta = g2PointsAff[len(B)+0]
-		pk.G2.Delta = g2PointsAff[len(B)+1]
+		pk.G2.Beta = g2PointsAff[0]
+		pk.G2.Delta = g2PointsAff[1]
 
 		// sets vk: [δ]2, [γ]2, -[δ]2, -[γ]2
-		vk.G2.Delta = g2PointsAff[len(B)+1]
-		vk.G2.Gamma = g2PointsAff[len(B)+2]
+		vk.G2.Delta = g2PointsAff[1]
+		vk.G2.Gamma = g2PointsAff[2]
 		vk.G2.deltaNeg.Neg(&vk.G2.Delta)
 		vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
 
@@ -868,7 +869,7 @@ func SetupDumpKeys(r1cs *cs.R1CS, session string) error {
 		g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
 		pk.G1.B = g1PointsAff
 
-		name := fmt.Sprintf("%s.pk.B.save", session)
+		name := fmt.Sprintf("%s.pk.B1.save", session)
 		pkFile, err := os.Create(name)
 		if err != nil {
 			return err
