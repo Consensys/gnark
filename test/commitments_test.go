@@ -3,6 +3,7 @@ package test
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/stretchr/testify/assert"
@@ -20,9 +21,10 @@ type commitmentCircuit struct {
 func (c *commitmentCircuit) Define(api frontend.API) error {
 
 	commitment, err := tryCommit(api, c.X...)
-	if err == nil {
-		api.AssertIsDifferent(commitment, 0)
+	if err != nil {
+		return err
 	}
+	api.AssertIsDifferent(commitment, c.X[0])
 	for _, p := range c.Public {
 		api.AssertIsDifferent(p, 0)
 	}
@@ -36,6 +38,11 @@ func (c *commitmentCircuit) hollow() frontend.Circuit {
 func TestSingleCommitmentPlonk(t *testing.T) {
 	assignment := &commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}}
 	plonkTest(t, assignment.hollow(), assignment)
+}
+
+func TestSingleCommitmentFuzzer(t *testing.T) {
+	assignment := &commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}}
+	NewAssert(t).ProverSucceeded(assignment.hollow(), assignment, WithCurves(ecc.BN254), WithBackends(backend.GROTH16)) // TODO: Make generic
 }
 
 func TestFiveCommitmentsPlonk(t *testing.T) {
@@ -115,7 +122,7 @@ type committedConstantCircuit struct {
 }
 
 func (c *committedConstantCircuit) Define(api frontend.API) error {
-	commitment, err := tryCommit(api, 1)
+	commitment, err := tryCommit(api, 1, c.X)
 	if err != nil {
 		return err
 	}

@@ -49,7 +49,7 @@ func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
 		val, _ := rand.Int(rand.Reader, fp.Modulus())
 		witness.A = ValueOf[T](val)
 		witness.B = ValueOf[T](val)
-		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends( /*backend.GROTH16,*/ backend.PLONK))
+		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
 
