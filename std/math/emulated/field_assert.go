@@ -144,7 +144,9 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 	f.AssertLimbsEquality(diff, kp)
 }
 
-// AssertIsLessOrEqual ensures that e is less or equal than a.
+// AssertIsLessOrEqual ensures that e is less or equal than a. For proper
+// bitwise comparison first reduce the element using [Reduce] and then assert
+// that its value is less than the modulus using [AssertIsInRange].
 func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 	// we omit conditional width assertion as is done in ToBits below
 	if e.overflow+a.overflow > 0 {
