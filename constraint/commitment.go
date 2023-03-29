@@ -9,11 +9,11 @@ import (
 const CommitmentDst = "bsb22-commitment"
 
 type Commitment struct {
-	Committed              []int // sorted list of id's of committed variables
+	Committed              []int // sorted list of id's of committed variables in groth16. in plonk, list of indexes of constraints defining committed values
 	NbPrivateCommitted     int
 	HintID                 solver.HintID // TODO @gbotrel we probably don't need that here
-	CommitmentIndex        int
-	CommittedAndCommitment []int // sorted list of id's of committed variables AND the commitment itself
+	CommitmentIndex        int           // in groth16, CommitmentIndex is the wire index. in plonk, it's the constraint defining it
+	CommittedAndCommitment []int         // sorted list of id's of committed variables AND the commitment itself
 }
 
 func (i *Commitment) NbPublicCommitted() int {

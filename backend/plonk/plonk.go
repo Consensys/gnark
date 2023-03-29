@@ -120,7 +120,7 @@ func Setup(ccs constraint.ConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, Verifyi
 // Prove generates PLONK proof from a circuit, associated preprocessed public data, and the witness
 // if the force flag is set:
 //
-//		will executes all the prover computations, even if the witness is invalid
+//		will execute all the prover computations, even if the witness is invalid
 //	 will produce an invalid proof
 //		internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
 func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (Proof, error) {

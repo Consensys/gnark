@@ -18,6 +18,7 @@ package scs
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/frontend/cs"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -557,6 +558,45 @@ func (builder *builder) printArg(log *constraint.LogEntry, sbb *strings.Builder,
 
 func (builder *builder) Compiler() frontend.Compiler {
 	return builder
+}
+
+func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+
+	v = filterConstants(v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?
+
+	committed := make([]int, len(v))
+
+	for i, vI := range v { // TODO @Tabaie Perf; If public, just hash it
+		vINeg := builder.Neg(vI).(expr.Term)
+		committed[i] = builder.cs.GetNbConstraints()
+		// a constraint to enforce consistency between the commitment and committed value
+		// - v + comm(n) = 0
+		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
+	}
+	outs, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, v...)
+	if err != nil {
+		return nil, err
+	}
+	commitmentVar := builder.Neg(outs[0]).(expr.Term)
+	commitmentConstraintIndex := builder.cs.GetNbConstraints()
+	// RHS will be provided by both prover and verifier independently, as for a public wire
+	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
+
+	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
+		HintID:          solver.GetHintID(cs.Bsb22CommitmentComputePlaceholder),
+		CommitmentIndex: commitmentConstraintIndex,
+		Committed:       committed,
+	})
+}
+
+func filterConstants(v []frontend.Variable) []frontend.Variable {
+	res := make([]frontend.Variable, 0, len(v))
+	for _, vI := range v {
+		if _, ok := vI.(expr.Term); ok {
+			res = append(res, vI)
+		}
+	}
+	return res
 }
 
 func (*builder) FrontendType() frontendtype.Type {
