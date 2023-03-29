@@ -157,7 +157,7 @@ func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 	ff := func(xbits, ybits []frontend.Variable) []frontend.Variable {
 		diff := len(xbits) - len(ybits)
 		ybits = append(ybits, make([]frontend.Variable, diff)...)
-		for i := len(ybits) - diff - 1; i < len(ybits); i++ {
+		for i := len(ybits) - diff; i < len(ybits); i++ {
 			ybits[i] = 0
 		}
 		return ybits
