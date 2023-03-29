@@ -1,4 +1,4 @@
-// Package native implements native commitment extension.
+// Package multicommit implements commitment expansion.
 //
 // If the builder implements [frontend.Committer] interface, then we can commit
 // to the variables and get a commitment which can be used as a unique
