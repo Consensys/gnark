@@ -1,4 +1,4 @@
-package native_test
+package multicommit_test
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/commitments/native"
+	"github.com/consensys/gnark/std/internal/multicommit"
 )
 
 // MultipleCommitmentCircuit is an example circuit showing usage of multiple
@@ -18,7 +18,7 @@ type MultipleCommitmentsCircuit struct {
 
 func (c *MultipleCommitmentsCircuit) Define(api frontend.API) error {
 	// first callback receives first unique commitment derived from the root commitment
-	native.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		// compute (X-s[0]) * (X-s[1]) for a random X
 		res := api.Mul(api.Sub(commitment, c.Secrets[0]), api.Sub(commitment, c.Secrets[1]))
 		api.AssertIsDifferent(res, 0)
@@ -26,7 +26,7 @@ func (c *MultipleCommitmentsCircuit) Define(api frontend.API) error {
 	}, c.Secrets[:2]...)
 
 	// second callback receives second unique commitment derived from the root commitment
-	native.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		// compute (X-s[2]) * (X-s[3]) for a random X
 		res := api.Mul(api.Sub(commitment, c.Secrets[2]), api.Sub(commitment, c.Secrets[3]))
 		api.AssertIsDifferent(res, 0)
@@ -34,7 +34,7 @@ func (c *MultipleCommitmentsCircuit) Define(api frontend.API) error {
 	}, c.Secrets[2:4]...)
 
 	// we do not have to pass any variables in if other calls to [WithCommitment] have
-	native.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		// compute (X-s[0]) for a random X
 		api.AssertIsDifferent(api.Sub(commitment, c.Secrets[0]), 0)
 		return nil
@@ -42,12 +42,12 @@ func (c *MultipleCommitmentsCircuit) Define(api frontend.API) error {
 
 	// we can share variables between the callbacks
 	var shared, stored frontend.Variable
-	native.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		shared = api.Add(c.Secrets[0], commitment)
 		stored = commitment
 		return nil
 	})
-	native.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		api.AssertIsEqual(api.Sub(shared, stored), c.Secrets[0])
 		return nil
 	})

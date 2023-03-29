@@ -13,7 +13,7 @@
 // committed variables and then uses this commitment to derive a per-callback
 // unique commitment. The callbacks are then called with these unique derived
 // commitments instead.
-package native
+package multicommit
 
 import (
 	"fmt"

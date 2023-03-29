@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/frontendtype"
 	"github.com/consensys/gnark/internal/kvstore"
-	"github.com/consensys/gnark/std/commitments/native"
+	"github.com/consensys/gnark/std/internal/multicommit"
 )
 
 type ctxCheckerKey struct{}
@@ -91,7 +91,7 @@ func (c *commitChecker) commit(api frontend.API) error {
 	if err != nil {
 		panic(fmt.Sprintf("count %v", err))
 	}
-	native.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		// compute the ratoinal function Sum_i e_i / (X - s_i)
 		// lp = Sum_i e_i / (X - s_i)
 		var lp frontend.Variable = 0
