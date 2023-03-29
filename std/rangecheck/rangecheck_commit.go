@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/frontendtype"
 	"github.com/consensys/gnark/internal/kvstore"
+	"github.com/consensys/gnark/std/internal/multicommit"
 )
 
 type ctxCheckerKey struct{}
@@ -61,10 +62,6 @@ func (c *commitChecker) commit(api frontend.API) error {
 	if len(c.collected) == 0 {
 		return nil
 	}
-	committer, ok := api.(frontend.Committer)
-	if !ok {
-		panic("expected committer API")
-	}
 	baseLength := c.getOptimalBasewidth(api)
 	// decompose into smaller limbs
 	decomposed := make([]frontend.Variable, 0, len(c.collected))
@@ -94,25 +91,24 @@ func (c *commitChecker) commit(api frontend.API) error {
 	if err != nil {
 		panic(fmt.Sprintf("count %v", err))
 	}
-	// compute the ratoinal function Sum_i e_i / (X - s_i)
-	commitment, err := committer.Commit(append(collected, exps...)...)
-	if err != nil {
-		panic(fmt.Sprintf("commit %v", err))
-	}
-	// lp = Sum_i e_i / (X - s_i)
-	var lp frontend.Variable = 0
-	for i := 0; i < nbTable; i++ {
-		tmp := api.DivUnchecked(exps[i], api.Sub(commitment, i))
-		lp = api.Add(lp, tmp)
-	}
+	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
+		// compute the ratoinal function Sum_i e_i / (X - s_i)
+		// lp = Sum_i e_i / (X - s_i)
+		var lp frontend.Variable = 0
+		for i := 0; i < nbTable; i++ {
+			tmp := api.DivUnchecked(exps[i], api.Sub(commitment, i))
+			lp = api.Add(lp, tmp)
+		}
 
-	// rp = Sum_i 1 \ (X - f_i)
-	var rp frontend.Variable = 0
-	for i := range decomposed {
-		tmp := api.Inverse(api.Sub(commitment, decomposed[i]))
-		rp = api.Add(rp, tmp)
-	}
-	api.AssertIsEqual(lp, rp)
+		// rp = Sum_i 1 \ (X - f_i)
+		var rp frontend.Variable = 0
+		for i := range decomposed {
+			tmp := api.Inverse(api.Sub(commitment, decomposed[i]))
+			rp = api.Add(rp, tmp)
+		}
+		api.AssertIsEqual(lp, rp)
+		return nil
+	}, append(collected, exps...)...)
 	return nil
 }
 
