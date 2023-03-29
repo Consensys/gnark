@@ -24,7 +24,6 @@ import (
 
 // API represents the available functions to circuit developers
 type API interface {
-	Committer // TODO: Remove and find out how we're supposed to call api.Commit now
 	// ---------------------------------------------------------------------------------------------
 	// Arithmetic
 

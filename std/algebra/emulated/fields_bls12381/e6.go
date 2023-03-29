@@ -1,7 +1,7 @@
-package fields_bn254
+package fields_bls12381
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bn254"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 )
 
 type E6 struct {
@@ -102,7 +102,7 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 	}
 }
 
-func (e Ext6) double(x *E6) *E6 {
+func (e Ext6) Double(x *E6) *E6 {
 	z0 := e.Ext2.Double(&x.B0)
 	z1 := e.Ext2.Double(&x.B1)
 	z2 := e.Ext2.Double(&x.B2)
@@ -151,6 +151,32 @@ func (e Ext6) MulByE2(x *E6, y *E2) *E6 {
 	}
 }
 
+// MulBy12 multiplication by sparse element (0,b1,b2)
+func (e Ext6) MulBy12(x *E6, b1, b2 *E2) *E6 {
+	t1 := e.Ext2.Mul(&x.B1, b1)
+	t2 := e.Ext2.Mul(&x.B2, b2)
+	c0 := e.Ext2.Add(&x.B1, &x.B2)
+	tmp := e.Ext2.Add(b1, b2)
+	c0 = e.Ext2.Mul(c0, tmp)
+	c0 = e.Ext2.Sub(c0, t1)
+	c0 = e.Ext2.Sub(c0, t2)
+	c0 = e.Ext2.MulByNonResidue(c0)
+	c1 := e.Ext2.Add(&x.B0, &x.B1)
+	c1 = e.Ext2.Mul(c1, b1)
+	c1 = e.Ext2.Sub(c1, t1)
+	tmp = e.Ext2.MulByNonResidue(t2)
+	c1 = e.Ext2.Add(c1, tmp)
+	tmp = e.Ext2.Add(&x.B0, &x.B2)
+	c2 := e.Ext2.Mul(b2, tmp)
+	c2 = e.Ext2.Sub(c2, t2)
+	c2 = e.Ext2.Add(c2, t1)
+	return &E6{
+		B0: *c0,
+		B1: *c1,
+		B2: *c2,
+	}
+}
+
 // MulBy0 multiplies z by an E6 sparse element of the form
 //
 //	E6{
@@ -173,13 +199,7 @@ func (e Ext6) MulBy0(z *E6, c0 *E2) *E6 {
 	}
 }
 
-// MulBy01 multiplies z by an E6 sparse element of the form
-//
-//	E6{
-//		B0: c0,
-//		B1: c1,
-//		B2: 0,
-//	}
+// MulBy01 multiplication by sparse element (c0,c1,0)
 func (e Ext6) MulBy01(z *E6, c0, c1 *E2) *E6 {
 	a := e.Ext2.Mul(&z.B0, c0)
 	b := e.Ext2.Mul(&z.B1, c1)
@@ -204,43 +224,6 @@ func (e Ext6) MulBy01(z *E6, c0, c1 *E2) *E6 {
 	}
 }
 
-// Mul01By01 multiplies two E6 sparse element of the form:
-//
-//	E6{
-//		B0: c0,
-//		B1: c1,
-//		B2: 0,
-//	}
-//
-// and
-//
-//	E6{
-//		B0: d0,
-//		B1: d1,
-//		B2: 0,
-//	}
-func (e Ext6) Mul01By01(c0, c1, d0, d1 *E2) *E6 {
-	a := e.Ext2.Mul(d0, c0)
-	b := e.Ext2.Mul(d1, c1)
-	t0 := e.Ext2.Mul(c1, d1)
-	t0 = e.Ext2.Sub(t0, b)
-	t0 = e.Ext2.MulByNonResidue(t0)
-	t0 = e.Ext2.Add(t0, a)
-	t2 := e.Ext2.Mul(c0, d0)
-	t2 = e.Ext2.Sub(t2, a)
-	t2 = e.Ext2.Add(t2, b)
-	t1 := e.Ext2.Add(c0, c1)
-	tmp := e.Ext2.Add(d0, d1)
-	t1 = e.Ext2.Mul(t1, tmp)
-	t1 = e.Ext2.Sub(t1, a)
-	t1 = e.Ext2.Sub(t1, b)
-	return &E6{
-		B0: *t0,
-		B1: *t1,
-		B2: *t2,
-	}
-}
-
 func (e Ext6) MulByNonResidue(x *E6) *E6 {
 	z2, z1, z0 := &x.B1, &x.B0, &x.B2
 	z0 = e.Ext2.MulByNonResidue(z0)
@@ -251,19 +234,13 @@ func (e Ext6) MulByNonResidue(x *E6) *E6 {
 	}
 }
 
-func (e Ext6) FrobeniusSquare(x *E6) *E6 {
-	z01 := e.Ext2.MulByNonResidue2Power2(&x.B1)
-	z02 := e.Ext2.MulByNonResidue2Power4(&x.B2)
-	return &E6{B0: x.B0, B1: *z01, B2: *z02}
-}
-
 func (e Ext6) AssertIsEqual(x, y *E6) {
 	e.Ext2.AssertIsEqual(&x.B0, &y.B0)
 	e.Ext2.AssertIsEqual(&x.B1, &y.B1)
 	e.Ext2.AssertIsEqual(&x.B2, &y.B2)
 }
 
-func FromE6(y *bn254.E6) E6 {
+func FromE6(y *bls12381.E6) E6 {
 	return E6{
 		B0: FromE2(&y.B0),
 		B1: FromE2(&y.B1),

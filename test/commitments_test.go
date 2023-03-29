@@ -1,7 +1,9 @@
 package test
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/stretchr/testify/assert"
@@ -17,10 +19,12 @@ type commitmentCircuit struct {
 }
 
 func (c *commitmentCircuit) Define(api frontend.API) error {
-	commitment, err := api.Commit(c.X...)
-	if err == nil {
-		api.AssertIsDifferent(commitment, 0)
+
+	commitment, err := tryCommit(api, c.X...)
+	if err != nil {
+		return err
 	}
+	api.AssertIsDifferent(commitment, c.X[0])
 	for _, p := range c.Public {
 		api.AssertIsDifferent(p, 0)
 	}
@@ -34,6 +38,11 @@ func (c *commitmentCircuit) hollow() frontend.Circuit {
 func TestSingleCommitmentPlonk(t *testing.T) {
 	assignment := &commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}}
 	plonkTest(t, assignment.hollow(), assignment)
+}
+
+func TestSingleCommitmentFuzzer(t *testing.T) {
+	assignment := &commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}}
+	NewAssert(t).ProverSucceeded(assignment.hollow(), assignment, WithCurves(ecc.BN254), WithBackends(backend.GROTH16)) // TODO: Make generic
 }
 
 func TestFiveCommitmentsPlonk(t *testing.T) {
@@ -106,4 +115,46 @@ func plonkTest(t *testing.T, circuit, assignment frontend.Circuit) {
 	for _, id := range fr {
 		t.Run(id.String(), run(id.ScalarField()))
 	}
+}
+
+type committedConstantCircuit struct {
+	X frontend.Variable
+}
+
+func (c *committedConstantCircuit) Define(api frontend.API) error {
+	commitment, err := tryCommit(api, 1, c.X)
+	if err != nil {
+		return err
+	}
+	api.AssertIsDifferent(commitment, c.X)
+	return nil
+}
+
+func TestCommittedConstant(t *testing.T) {
+	plonkTest(t, &committedConstantCircuit{}, &committedConstantCircuit{1})
+}
+
+type committedPublicCircuit struct {
+	X frontend.Variable `gnark:",public"`
+}
+
+func (c *committedPublicCircuit) Define(api frontend.API) error {
+	commitment, err := tryCommit(api, c.X)
+	if err != nil {
+		return err
+	}
+	api.AssertIsDifferent(commitment, c.X)
+	return nil
+}
+
+func TestCommittedPublic(t *testing.T) {
+	plonkTest(t, &committedPublicCircuit{}, &committedPublicCircuit{1})
+}
+
+func tryCommit(api frontend.API, x ...frontend.Variable) (frontend.Variable, error) {
+	committer, ok := api.(frontend.Committer)
+	if !ok {
+		return nil, fmt.Errorf("type %T doesn't impl the Committer interface", api)
+	}
+	return committer.Commit(x...)
 }
