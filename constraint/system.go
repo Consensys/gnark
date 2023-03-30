@@ -67,12 +67,6 @@ type ConstraintSystem interface {
 	// CheckUnconstrainedWires returns and error if the constraint system has wires that are not uniquely constrained.
 	// This is experimental.
 	CheckUnconstrainedWires() error
-
-	Lazify() map[int]int
-	LoadFromSplitBinaryConcurrent(session string, constraints int, size int, cpu int)
-	LoadFromSplitConcurrent(session string, constraints int, size int, cpu int)
-	SplitDump(session string, batchSize int) error
-	SplitDumpBinary(session string, batchSize int) error
 }
 
 type Iterable interface {

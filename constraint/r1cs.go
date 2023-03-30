@@ -44,6 +44,12 @@ type R1CS interface {
 	SetGKRMeta(meta GkrMeta)
 
 	FinalizeGKR()
+
+	Lazify() map[int]int
+	LoadFromSplitBinaryConcurrent(session string, constraints int, size int, cpu int)
+	LoadFromSplitConcurrent(session string, constraints int, size int, cpu int)
+	SplitDump(session string, batchSize int) error
+	SplitDumpBinary(session string, batchSize int) error
 }
 
 type GkrMeta struct {
