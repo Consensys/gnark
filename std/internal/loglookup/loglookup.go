@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/internal/multicommit"
+	"github.com/consensys/gnark/std/rangecheck"
 )
 
 // XXX: right now only handle constant in table. It becomes slightly difficult
@@ -29,26 +30,85 @@ type committerAPI interface {
 
 type retVals []uint
 type query struct {
-	inX, inY frontend.Variable
-	rets     []frontend.Variable
+	inX, inY uint8
+	rets     []*big.Int
+}
+
+func (q *query) toVariable(rets retVals) frontend.Variable {
+	ret := new(big.Int).SetUint64(uint64(q.inX) | uint64(q.inY)<<8)
 }
 
 type Table struct {
+	api      committerAPI
 	rchecker frontend.Rangechecker
 	compute  solver.Hint
-	queries  []query
+	queries  []frontend.Variable
+	rets     retVals
 }
 
-func build(api committerAPI, table []frontend.Variable, queries []frontend.Variable) {
+func New(api frontend.API, fn solver.Hint, rets retVals) (*Table, error) {
+	// check that the output lengths fit into a single element
+	var s uint = 16
+	for _, v := range rets {
+		s += v
+	}
+	if s >= uint(api.Compiler().FieldBitLen()) {
+		return nil, fmt.Errorf("result doesn't fit into field element")
+	}
+	capi, ok := api.(committerAPI)
+	if !ok {
+		return nil, fmt.Errorf("API not committer")
+	}
+	rchecker := rangecheck.New(capi)
+	t := &Table{
+		api:      capi,
+		rchecker: rchecker,
+		compute:  fn,
+		queries:  nil,
+	}
+	capi.Compiler().Defer(func(api frontend.API) error {
+		capi, ok := api.(committerAPI)
+		if !ok {
+			return fmt.Errorf("API not committer")
+		}
+		return t.build(capi)
+	})
+	return t, nil
+}
+
+func (t *Table) query(x, y frontend.Variable) []frontend.Variable {
+	t.rchecker.Check(x, 8)
+	t.rchecker.Check(y, 8)
+	shift := big.NewInt(1 << 8)
+	query := t.api.Add(x, t.api.Mul(y, shift))
+	rets, err := t.api.Compiler().NewHint(t.compute, len(t.rets), x, y)
+	if err != nil {
+		panic(err)
+	}
+	for i := range t.rets {
+		t.rchecker.Check(rets[i], int(t.rets[i]))
+		shift.Lsh(shift, t.rets[i])
+		query = t.api.Add(query, t.api.Mul(rets[i], shift))
+	}
+	t.queries = append(t.queries, query)
+	return rets
+}
+
+func (t *Table) buildTable() []frontend.Variable {
+	panic("todo")
+}
+
+func (t *Table) build(api committerAPI) error {
+	table := t.buildTable()
 	compiler := api.Compiler()
 	for i := range table {
 		if _, isConst := compiler.ConstantValue(table[i]); !isConst {
-			panic("table input is not constant")
+			return fmt.Errorf("table input is not constant")
 		}
 	}
 	countInputs := []frontend.Variable{len(table)}
 	countInputs = append(countInputs, table...)
-	countInputs = append(countInputs, queries...)
+	countInputs = append(countInputs, t.queries...)
 	exps, err := api.NewHint(countHint, len(table), countInputs...)
 	if err != nil {
 		panic(err)
@@ -60,13 +120,14 @@ func build(api committerAPI, table []frontend.Variable, queries []frontend.Varia
 			lp = api.Add(lp, tmp)
 		}
 		var rp frontend.Variable = 0
-		for i := range queries {
-			tmp := api.Inverse(api.Sub(commitment, queries[i]))
+		for i := range t.queries {
+			tmp := api.Inverse(api.Sub(commitment, t.queries[i]))
 			rp = api.Add(rp, tmp)
 		}
 		api.AssertIsEqual(lp, rp)
 		return nil
-	}, append(exps, queries...))
+	}, append(exps, t.queries...))
+	return nil
 }
 
 func countHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
