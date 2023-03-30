@@ -60,11 +60,9 @@ func (cs *SparseR1CSCore) GetNbR1C() int {
 }
 
 func (cs *SparseR1CSCore) LoadFromSplitBinaryConcurrent(session string, constraints int, size int, cpu int) {
-	return
 }
 
 func (cs *SparseR1CSCore) LoadFromSplitConcurrent(session string, constraints int, size int, cpu int) {
-	return
 }
 
 func (cs *SparseR1CSCore) SplitDump(session string, batchSize int) error {
