@@ -12,8 +12,6 @@ import (
 	"os"
 	"runtime"
 	"testing"
-
-	cs_bn254 "github.com/consensys/gnark/constraint/bn254"
 )
 
 const (
@@ -52,13 +50,13 @@ func TestCircuit(t *testing.T) {
 	var myCircuit Circuit
 	ccs, err := frontend.Compile(bn254.ID.ScalarField(), r1cs.NewBuilder, &myCircuit)
 	assert.NoError(t, err)
-	cs := ccs.(*cs_bn254.R1CS)
+	ccs.Lazify()
 	session := "stest"
 	batchSize := 10000
-	err = cs.SplitDumpBinary(session, batchSize)
+	err = ccs.SplitDumpBinary(session, batchSize)
 	assert.NoError(t, err)
 	cs2 := groth16.NewCS(ecc.BN254)
-	cs2.LoadFromSplitBinaryConcurrent(session, cs.GetNbConstraints(), batchSize, runtime.NumCPU())
+	cs2.LoadFromSplitBinaryConcurrent(session, ccs.GetNbR1C(), batchSize, runtime.NumCPU())
 
 	// pk, vk, _ := groth16.Setup(ccs)
 	// groth16.SplitDumpPK(pk, session+"2")

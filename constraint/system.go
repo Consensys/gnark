@@ -35,6 +35,7 @@ type ConstraintSystem interface {
 	GetNbPublicVariables() int
 
 	GetNbConstraints() int
+	GetNbR1C() int
 	GetNbCoefficients() int
 
 	Field() *big.Int

@@ -84,6 +84,10 @@ func (r1cs *R1CSCore) GetNbConstraints() int {
 	return len(r1cs.Constraints) + r1cs.LazyCons.GetConstraintsAll()*lazified
 }
 
+func (r1cs *R1CSCore) GetNbR1C() int {
+	return len(r1cs.Constraints)
+}
+
 func (r1cs *R1CSCore) UpdateLevel(cID int, c Iterable) {
 	r1cs.updateLevel(cID, c)
 }
