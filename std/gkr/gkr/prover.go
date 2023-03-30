@@ -1,19 +1,24 @@
 package gkr
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	poseidon2 "github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr/circuit"
 	"github.com/consensys/gnark/std/gkr/common"
 	"github.com/consensys/gnark/std/gkr/polynomial"
 	"github.com/consensys/gnark/std/gkr/sumcheck"
+	"github.com/consensys/gnark/std/hash/poseidon"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // Prover contains all relevant data for a GKR prover
 type Prover struct {
-	bN         int
-	circuit    circuit.Circuit
-	assignment circuit.Assignment
+	bN          int
+	circuit     circuit.Circuit
+	assignment  circuit.Assignment
+	initialHash *fr.Element
 }
 
 // Proof contains all the data for a GKR to be verified
@@ -24,12 +29,13 @@ type Proof struct {
 }
 
 // NewProver returns a new prover
-func NewProver(circuit circuit.Circuit, assignment circuit.Assignment) Prover {
+func NewProver(circuit circuit.Circuit, assignment circuit.Assignment, initialHash *fr.Element) Prover {
 	bN := common.Log2Ceil(len(assignment.Values[0])*len(assignment.Values[0][0])) - circuit.Layers[0].BGInputs
 	return Prover{
-		bN:         bN,
-		circuit:    circuit,
-		assignment: assignment,
+		bN:          bN,
+		circuit:     circuit,
+		assignment:  assignment,
+		initialHash: initialHash,
 	}
 }
 
@@ -71,6 +77,23 @@ func GetInitialQPrimeAndQAndInput(bN, bG int, inputs []fr.Element) ([]fr.Element
 	for i := range qPrime {
 		qPrime[i].SetBytes(seed)
 		qPrime[i].Add(&qPrime[i], new(fr.Element).SetUint64(uint64(i+1)))
+	}
+
+	return qPrime, q
+}
+
+// GetInitialQPrimeAndQAndInitialHash it depends on the inputs
+func GetInitialQPrimeAndQAndInitialHash(bN, bG int, initialHash *fr.Element) ([]fr.Element, []fr.Element) {
+	q := make([]fr.Element, bG)
+	qPrime := make([]fr.Element, bN)
+
+	// actually compute qInitial and qPrimeInitial
+	for i := range q {
+		q[i] = *poseidon2.Poseidon(initialHash, new(fr.Element).SetUint64(uint64(i)))
+	}
+
+	for i := range qPrime {
+		qPrime[i] = *poseidon2.Poseidon(initialHash, new(fr.Element).SetUint64(uint64(i)))
 	}
 
 	return qPrime, q
@@ -146,7 +169,7 @@ func (p *Prover) IntermediateRoundsSumcheckProver(
 }
 
 // Prove produces a GKR proof
-func (p *Prover) Prove(nCore int) Proof {
+func (p *Prover) Prove(nCore int, challenges ...string) Proof {
 	// bG := p.circuit.bG
 	nLayers := len(p.circuit.Layers)
 	ClaimsLeft := make([]fr.Element, nLayers)
@@ -154,9 +177,17 @@ func (p *Prover) Prove(nCore int) Proof {
 	SumcheckProofs := make([]sumcheck.Proof, nLayers)
 
 	// Initial round, here we use the inputs layer as randomness, for specific inputs, we got specific assignment
-	qPrime, q := GetInitialQPrimeAndQAndInput(p.bN, p.circuit.Layers[nLayers-1].BGOutputs, p.assignment.Values[0][0])
+	qPrime, q := GetInitialQPrimeAndQAndInitialHash(p.bN, p.circuit.Layers[nLayers-1].BGOutputs, p.initialHash)
+	transcript := fiatshamir.NewTranscript(poseidon.NewPoseidon(), challenges...)
+	qqPrime := append(q, qPrime...)
+	bytes := make([]byte, 0)
+	for i := range qqPrime {
+		qqPrimeBytes := qqPrime[i].Bytes()
+		bytes = append(bytes, qqPrimeBytes[:]...)
+	}
+	transcript.Bind(challenges[0], bytes)
 	prover := p.InitialRoundSumcheckProver(qPrime, q, nCore)
-	proof, qPrime, qL, qR, finalClaims := prover.Prove(nCore)
+	proof, qPrime, qL, qR, finalClaims := prover.Prove(nCore, &transcript, nLayers-1)
 	SumcheckProofs[nLayers-1] = proof
 	ClaimsLeft[nLayers-1], ClaimsRight[nLayers-1] = finalClaims[0], finalClaims[1]
 
@@ -165,14 +196,15 @@ func (p *Prover) Prove(nCore int) Proof {
 		// Compute the random linear comb of the claims
 		var lambdaL fr.Element
 		lambdaL.SetOne()
-		lambdaR := common.GetChallenge([]fr.Element{ClaimsLeft[layer+1], ClaimsRight[layer+1]})
+		challengeName := fmt.Sprintf("layers.%d.next", layer)
+		lambdaR := common.GetChallengeByTranscript([]fr.Element{ClaimsLeft[layer+1], ClaimsRight[layer+1]}, &transcript, challengeName)
 		claim := ClaimsRight[layer+1]
 		claim.Mul(&claim, &lambdaR)
 		claim.Add(&claim, &ClaimsLeft[layer+1])
 
 		// Intermediate round sumcheck and update the GKR proof
 		prover := p.IntermediateRoundsSumcheckProver(layer, qPrime, qL, qR, lambdaL, lambdaR, nCore)
-		SumcheckProofs[layer], qPrime, qL, qR, finalClaims = prover.Prove(nCore)
+		SumcheckProofs[layer], qPrime, qL, qR, finalClaims = prover.Prove(nCore, &transcript, layer)
 		ClaimsLeft[layer], ClaimsRight[layer] = finalClaims[0], finalClaims[1]
 	}
 
