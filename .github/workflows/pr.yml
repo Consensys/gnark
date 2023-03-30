@@ -5,14 +5,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: install Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v3
       with:
-        go-version: 1.19.x
+        go-version: 1.20.x
     - name: checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0
-    - uses: actions/cache@v2
+    - uses: actions/cache@v3
       with:
         path: |
           ~/go/pkg/mod
@@ -40,19 +40,19 @@ jobs:
   test:
     strategy:
       matrix:
-        go-version: [1.19.x]
+        go-version: [1.20.x]
         os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     needs:
       - staticcheck
     steps:
     - name: install Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v3
       with:
         go-version: ${{ matrix.go-version }}
     - name: checkout code
-      uses: actions/checkout@v2
-    - uses: actions/cache@v2
+      uses: actions/checkout@v3
+    - uses: actions/cache@v3
       with:
         path: |
           ~/go/pkg/mod
@@ -78,7 +78,7 @@ jobs:
     steps:
       - name: Notify slack -- workflow failed
         id: slack
-        uses: slackapi/slack-github-action@v1.19.0
+        uses: slackapi/slack-github-action@v1.23.0
         with:
           payload: |
             {
@@ -101,7 +101,7 @@ jobs:
     steps:
       - name: Notify slack -- workflow succeeded
         id: slack
-        uses: slackapi/slack-github-action@v1.19.0
+        uses: slackapi/slack-github-action@v1.23.0
         with:
           payload: |
             {
