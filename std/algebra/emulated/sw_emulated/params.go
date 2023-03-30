@@ -1,6 +1,7 @@
 package sw_emulated
 
 import (
+	"crypto/elliptic"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
@@ -36,6 +37,17 @@ func GetSecp256k1Params() CurveParams {
 	}
 }
 
+func GetSecp256r1Params() CurveParams {
+	curveParams := elliptic.P256().Params()
+	return CurveParams{
+		A:  big.NewInt(-3),
+		B:  curveParams.B,
+		Gx: curveParams.Gx,
+		Gy: curveParams.Gy,
+		Gm: computeSecp256r1Table(),
+	}
+}
+
 // GetBN254Params returns the curve parameters for the curve BN254 (alt_bn128).
 // When initialising new curve, use the base field [emulated.BN254Fp] and scalar
 // field [emulated.BN254Fr].
@@ -56,6 +68,8 @@ func GetCurveParams[Base emulated.FieldParams]() CurveParams {
 	switch t.Modulus().Text(16) {
 	case "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f":
 		return secp256k1Params
+	case "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff":
+		return secp256r1Params
 	case "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47":
 		return bn254Params
 	default:
@@ -66,9 +80,11 @@ func GetCurveParams[Base emulated.FieldParams]() CurveParams {
 var (
 	secp256k1Params CurveParams
 	bn254Params     CurveParams
+	secp256r1Params CurveParams
 )
 
 func init() {
 	secp256k1Params = GetSecp256k1Params()
 	bn254Params = GetBN254Params()
+	secp256r1Params = GetSecp256r1Params()
 }

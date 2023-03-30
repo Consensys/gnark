@@ -16,12 +16,15 @@ type FieldParams interface {
 
 var (
 	qSecp256k1, rSecp256k1 *big.Int
+	qSecp256r1, rSecp256r1 *big.Int
 	qGoldilocks            *big.Int
 )
 
 func init() {
 	qSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
 	rSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141", 16)
+	qSecp256r1, _ = new(big.Int).SetString("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff", 16)
+	rSecp256r1, _ = new(big.Int).SetString("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551", 16)
 	qGoldilocks, _ = new(big.Int).SetString("ffffffff00000001", 16)
 }
 
@@ -53,6 +56,26 @@ func (fp Secp256k1Fr) NbLimbs() uint     { return 4 }
 func (fp Secp256k1Fr) BitsPerLimb() uint { return 64 }
 func (fp Secp256k1Fr) IsPrime() bool     { return true }
 func (fp Secp256k1Fr) Modulus() *big.Int { return rSecp256k1 }
+
+// Secp256r1Fp provide type parametrization for emulated field on 4 limb of width 64bits
+// for modulus 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff.
+// This is the base field of secp256k1 curve
+type Secp256r1Fp struct{}
+
+func (fp Secp256r1Fp) NbLimbs() uint     { return 4 }
+func (fp Secp256r1Fp) BitsPerLimb() uint { return 64 }
+func (fp Secp256r1Fp) IsPrime() bool     { return true }
+func (fp Secp256r1Fp) Modulus() *big.Int { return qSecp256r1 }
+
+// Secp256r1Fr provides type parametrization for emulated field on 4 limbs of width 64bits
+// for modulus 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141.
+// This is the scalar field of secp256k1 curve.
+type Secp256r1Fr struct{}
+
+func (fp Secp256r1Fr) NbLimbs() uint     { return 4 }
+func (fp Secp256r1Fr) BitsPerLimb() uint { return 64 }
+func (fp Secp256r1Fr) IsPrime() bool     { return true }
+func (fp Secp256r1Fr) Modulus() *big.Int { return rSecp256r1 }
 
 // BN254Fp provide type parametrization for emulated field on 4 limb of width
 // 64bits for modulus

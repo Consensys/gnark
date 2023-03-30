@@ -1,6 +1,7 @@
 package sw_emulated
 
 import (
+	"crypto/elliptic"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
@@ -29,6 +30,32 @@ func computeSecp256k1Table() [][2]*big.Int {
 			aff.FromJacobian(tmp)
 			table[i] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
 		}
+	}
+	return table[:]
+}
+
+func computeSecp256r1Table() [][2]*big.Int {
+	curve := elliptic.P256()
+	curveParams := curve.Params()
+	table := make([][2]*big.Int, 256)
+	tmpX := new(big.Int).Set(curveParams.Gx)
+	tmpY := new(big.Int).Set(curveParams.Gy)
+	// TODO pre compute here
+	for i := 1; i < 256; i++ {
+		tmpX, tmpY = curve.Double(tmpX, tmpY)
+		if i == 1 {
+			x, y := curve.ScalarBaseMult(big.NewInt(3).Bytes())
+			table[i-1] = [2]*big.Int{x, y}
+			continue
+		} else if i == 2 {
+			x, y := curve.ScalarBaseMult(big.NewInt(5).Bytes())
+			table[i-1] = [2]*big.Int{x, y}
+			continue
+		} else if i == 3 {
+			x, y := curve.ScalarBaseMult(big.NewInt(7).Bytes())
+			table[i-1] = [2]*big.Int{x, y}
+		}
+		table[i] = [2]*big.Int{new(big.Int).Set(tmpX), new(big.Int).Set(tmpY)}
 	}
 	return table[:]
 }
