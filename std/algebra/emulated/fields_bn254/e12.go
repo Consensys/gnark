@@ -2,6 +2,7 @@ package fields_bn254
 
 import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/frontend"
 )
 
 type E12 struct {
@@ -89,6 +90,12 @@ func (e Ext12) One() *E12 {
 			B2: E2{A0: *zero, A1: *zero},
 		},
 	}
+}
+
+func (e Ext12) IsZero(api frontend.API, z *E12) frontend.Variable {
+	c0 := e.Ext6.IsZero(api, &z.C0)
+	c1 := e.Ext6.IsZero(api, &z.C1)
+	return api.And(c0, c1)
 }
 
 func (e Ext12) Square(x *E12) *E12 {

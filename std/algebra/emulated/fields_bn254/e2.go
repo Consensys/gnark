@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -251,6 +252,12 @@ func (e Ext2) Zero() *E2 {
 		A0: *z0,
 		A1: *z1,
 	}
+}
+
+func (e Ext2) IsZero(api frontend.API, z *E2) frontend.Variable {
+	a0 := e.fp.IsZero(&z.A0)
+	a1 := e.fp.IsZero(&z.A1)
+	return api.And(a0, a1)
 }
 
 func (e Ext2) Square(x *E2) *E2 {
