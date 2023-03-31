@@ -75,26 +75,27 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 // FinalExponentiation returns a decompressed element in E12
 func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
 
-	// Easy part
+	// 1. Easy part
 	// (p⁶-1)(p²+1)
-	// with Torus compression absorbed.
-	// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q
-	// are linearly dependant and not from G1 and G2 respectively.
-	// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0
-	selector := pr.Ext6.IsZero(api, &e.C1)
-	_dummy := fields_bn254.E6{
-		B0: *pr.Ext2.One(),
-		B1: *pr.Ext2.One(),
-		B2: *pr.Ext2.One(),
-	}
-	e.C1 = *pr.Ext6.Select(selector, &_dummy, &e.C1)
+	//
+	// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
+	// linearly dependant and not from G1 and G2 respectively.
+	// So e ∈ G_{q,2}a \ {-1,1} and hence e.C1 ≠ 0.
+	//
+	// However, for a product of Miller loops this might happen.  If this is
+	// the case, the result is 1 in the torus. We assign a dummy one to e.C1
+	// and proceed further.
+	selector1 := pr.Ext6.IsZero(api, &e.C1)
+	_dummy := pr.Ext6.One()
+	e.C1 = *pr.Ext6.Select(selector1, _dummy, &e.C1)
 
+	// Torus compression absorbed
 	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
 	c = pr.Ext6.Neg(c)
 	t0 := pr.FrobeniusSquareTorus(c)
 	c = pr.MulTorus(t0, c)
 
-	// Hard part (up to permutation)
+	// 2. Hard part (up to permutation)
 	// 2x₀(6x₀²+3x₀+1)(p⁴-p²+1)/r
 	// Duquesne and Ghammam
 	// https://eprint.iacr.org/2015/192.pdf
@@ -122,9 +123,13 @@ func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
 	t2 = pr.InverseTorus(c)
 	t2 = pr.MulTorus(t2, t3)
 	t2 = pr.FrobeniusCubeTorus(t2)
-	t0 = pr.MulTorus(t2, t0)
 
-	result := pr.Select(selector, pr.One(), pr.DecompressTorus(t0))
+	// MulTorus(t0, t2) requires t0 ≠ t2. When this is the case it means the
+	// result is 1 in the torus and we return 1.
+	_sum := pr.Ext6.Add(t0, t2)
+	selector2 := pr.Ext6.IsZero(api, _sum)
+	t0 = pr.Ext6.Select(selector2, pr.Ext6.One(), t0)
+	result := pr.Lookup2(selector1, selector2, pr.DecompressTorus(pr.MulTorus(t2, t0)), pr.One(), pr.One(), pr.One())
 
 	return result
 }

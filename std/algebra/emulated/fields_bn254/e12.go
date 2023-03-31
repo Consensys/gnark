@@ -108,7 +108,7 @@ func (e Ext12) Square(x *E12) *E12 {
 	c2 := e.Ext6.Mul(&x.C0, &x.C1)
 	c0 = e.Ext6.Mul(c0, c3)
 	c0 = e.Ext6.Add(c0, c2)
-	z1 := e.Ext6.double(c2)
+	z1 := e.Ext6.Double(c2)
 	c2 = e.Ext6.MulByNonResidue(c2)
 	z0 := e.Ext6.Add(c0, c2)
 	return &E12{
@@ -192,6 +192,12 @@ func (e Ext12) DivUnchecked(x, y *E12) *E12 {
 func (e Ext12) Select(selector frontend.Variable, z1, z0 *E12) *E12 {
 	c0 := e.Ext6.Select(selector, &z1.C0, &z0.C0)
 	c1 := e.Ext6.Select(selector, &z1.C1, &z0.C1)
+	return &E12{C0: *c0, C1: *c1}
+}
+
+func (e Ext12) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E12) *E12 {
+	c0 := e.Ext6.Lookup2(s1, s2, &a.C0, &b.C0, &c.C0, &d.C0)
+	c1 := e.Ext6.Lookup2(s1, s2, &a.C1, &b.C1, &c.C1, &d.C1)
 	return &E12{C0: *c0, C1: *c1}
 }
 

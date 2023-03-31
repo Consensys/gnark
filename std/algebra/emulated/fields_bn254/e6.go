@@ -112,7 +112,7 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 	}
 }
 
-func (e Ext6) double(x *E6) *E6 {
+func (e Ext6) Double(x *E6) *E6 {
 	z0 := e.Ext2.Double(&x.B0)
 	z1 := e.Ext2.Double(&x.B1)
 	z2 := e.Ext2.Double(&x.B2)
@@ -330,6 +330,13 @@ func (e Ext6) Select(selector frontend.Variable, z1, z0 *E6) *E6 {
 	b0 := e.Ext2.Select(selector, &z1.B0, &z0.B0)
 	b1 := e.Ext2.Select(selector, &z1.B1, &z0.B1)
 	b2 := e.Ext2.Select(selector, &z1.B2, &z0.B2)
+	return &E6{B0: *b0, B1: *b1, B2: *b2}
+}
+
+func (e Ext6) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E6) *E6 {
+	b0 := e.Ext2.Lookup2(s1, s2, &a.B0, &b.B0, &c.B0, &d.B0)
+	b1 := e.Ext2.Lookup2(s1, s2, &a.B1, &b.B1, &c.B1, &d.B1)
+	b2 := e.Ext2.Lookup2(s1, s2, &a.B2, &b.B2, &c.B2, &d.B2)
 	return &E6{B0: *b0, B1: *b1, B2: *b2}
 }
 

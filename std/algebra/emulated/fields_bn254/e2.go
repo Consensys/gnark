@@ -342,6 +342,12 @@ func (e Ext2) Select(selector frontend.Variable, z1, z0 *E2) *E2 {
 	return &E2{A0: *a0, A1: *a1}
 }
 
+func (e Ext2) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E2) *E2 {
+	a0 := e.fp.Lookup2(s1, s2, &a.A0, &b.A0, &c.A0, &d.A0)
+	a1 := e.fp.Lookup2(s1, s2, &a.A1, &b.A1, &c.A1, &d.A1)
+	return &E2{A0: *a0, A1: *a1}
+}
+
 func (e Ext2) String(x *E2) string {
 	x0, err := e.fp.String(&x.A0)
 	if err != nil {
