@@ -66,7 +66,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 // where d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
 // we use instead d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
 // where s is the cofactor 3 (Hayashida et al.)
-func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
+func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 
 	// 1. Easy part
 	// (p⁶-1)(p²+1)
@@ -135,12 +135,12 @@ type lineEvaluation struct {
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
 // This function doesn't check that the inputs are in the correct subgroup.
-func (pr Pairing) Pair(api frontend.API, P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
+func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	res = pr.FinalExponentiation(api, res)
+	res = pr.FinalExponentiation(res)
 	return res, nil
 }
 
