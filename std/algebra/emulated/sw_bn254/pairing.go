@@ -85,13 +85,18 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 	// So e ∈ G_{q,2}a \ {-1,1} and hence e.C1 ≠ 0.
 	//
 	// However, for a product of Miller loops this might happen.  If this is
-	// the case, the result is 1 in the torus. We assign a dummy one to e.C1
+	// the case, the result is 1 in the torus. We assign a dummy value (1) to e.C1
 	// and proceed further.
 	selector1 := pr.Ext6.IsZero(&e.C1)
 	_dummy := pr.Ext6.One()
 	e.C1 = *pr.Ext6.Select(selector1, _dummy, &e.C1)
 
-	// Torus compression absorbed
+	// Torus compression absorbed:
+	// Raising e to (p⁶-1) is
+	// e^(p⁶) / e = (e.C0 - w*e.C1) / (e.C0 + w*e.C1)
+	//            = (-e.C0/e.C1 + w) / (-e.C0/e.C1 - w)
+	// So the fraction -e.C0/e.C1 is already in the torus.
+	// This absorbs the torus compression in the easy part.
 	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
 	c = pr.Ext6.Neg(c)
 	t0 := pr.FrobeniusSquareTorus(c)
@@ -126,11 +131,11 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 	t2 = pr.MulTorus(t2, t3)
 	t2 = pr.FrobeniusCubeTorus(t2)
 
-	// MulTorus(t0, t2) requires t0 ≠ -t2. When this is the case it means the
-	// result is 1 in the torus. We assign a dummy one to t0 and proceed furhter.
+	// MulTorus(t0, t2) requires t0 ≠ -t2. When this is t0 = -t2, it means the
+	// product is 1 in the torus. We assign a dummy value (1) to t0 and proceed furhter.
 	// Finally we do a select on both edge cases:
-	//   - Only if seletor1=0 and selector2=0, returns to MulTorus(t2, t0) decompressed,
-	//   - otherwise, returns to 1.
+	//   - Only if seletor1=0 and selector2=0, we return MulTorus(t2, t0) decompressed.
+	//   - Otherwise, we return 1.
 	_sum := pr.Ext6.Add(t0, t2)
 	selector2 := pr.Ext6.IsZero(_sum)
 	t0 = pr.Ext6.Select(selector2, _dummy, t0)
