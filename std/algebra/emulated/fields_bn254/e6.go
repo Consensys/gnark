@@ -323,3 +323,10 @@ func (e Ext6) DivUnchecked(x, y *E6) *E6 {
 
 	return &div
 }
+
+func (e Ext6) Select(selector frontend.Variable, z1, z0 *E6) *E6 {
+	b0 := e.Ext2.Select(selector, &z1.B0, &z0.B0)
+	b1 := e.Ext2.Select(selector, &z1.B1, &z0.B1)
+	b2 := e.Ext2.Select(selector, &z1.B2, &z0.B2)
+	return &E6{B0: *b0, B1: *b1, B2: *b2}
+}
