@@ -1,4 +1,5 @@
 import (
+    "fmt"
 	{{- template "import_fr" . }}
 	{{- template "import_curve" . }}
 	{{- template "import_backend_cs" . }}
@@ -8,6 +9,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"math/big"
 	"math/bits"
+	"os"
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
@@ -350,7 +352,8 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// for each term appearing in the linear expression,
 	// we compute term.Coefficient * L, and cumulate it in
 	// A, B or C at the index of the variable
-	for i, c := range r1cs.Constraints {
+	for i := 0; i < r1cs.GetNbConstraints(); i++ {
+		c := r1cs.GetConstraintToSolve(i)
 
 		for _, t := range c.L {
 			accumulate(&A[t.WireID()], t, &L)
@@ -367,8 +370,8 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 		L.Mul(&L, &t[i])
 		L.Mul(&L, &tInv[i+1])
 	}
-	return
 
+	return
 }
 
 // toxicWaste toxic waste
@@ -601,4 +604,355 @@ func bitReverse(a []curve.G1Affine) {
 			a[i], a[irev] = a[irev], a[i]
 		}
 	}
+}
+
+func SetupDumpKeys(r1cs *cs.R1CS, session string) error {
+	/*
+		Setup
+		-----
+		To build the verifying keys:
+		- compile the r1cs system -> the number of gates is len(GateOrdering)+len(PureStructuralConstraints)+len(InpureStructuralConstraints)
+		- loop through the ordered computational constraints (=gate in r1cs system structure), eValuate A(X), B(X), C(X) with simple formula (the gate number is the current iterator)
+		- loop through the inpure structural constraints, eValuate A(X), B(X), C(X) with simple formula, the gate number is len(gateOrdering)+ current iterator
+		- loop through the pure structural constraints, eValuate A(X), B(X), C(X) with simple formula, the gate number is len(gateOrdering)+len(InpureStructuralConstraints)+current iterator
+	*/
+	var pk ProvingKey
+	var vk VerifyingKey
+
+	// get R1CS nb constraints, wires and public/private inputs
+	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
+	nbPrivateCommittedWires := r1cs.CommitmentInfo.NbPrivateCommitted
+	nbPublicWires := r1cs.GetNbPublicVariables()
+	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - nbPrivateCommittedWires
+
+	if r1cs.CommitmentInfo.Is() { // the commitment itself is defined by a hint so the prover considers it private
+		nbPublicWires++  // but the verifier will need to inject the value itself so on the groth16
+		nbPrivateWires-- // level it must be considered public
+	}
+
+	// Setting group for fft
+	domain := fft.NewDomain(uint64(r1cs.GetNbConstraints()))
+
+	// samples toxic waste
+	toxicWaste, err := sampleToxicWaste()
+	if err != nil {
+		return err
+	}
+
+	// Setup coeffs to compute pk.G1.A, pk.G1.B, pk.G1.K
+	A, B, C := setupABC(r1cs, domain, toxicWaste)
+
+	// To fill in the Proving and Verifying keys, we need to perform a lot of ecc scalar multiplication (with generator)
+	// and convert the resulting points to affine
+	// this is done using the curve.BatchScalarMultiplicationGX API, which takes as input the base point
+	// (in our case the generator) and the list of scalars, and outputs a list of points (len(points) == len(scalars))
+	// to use this batch call, we need to order our scalars in the same slice
+	// we have 1 batch call for G1 and 1 batch call for G1
+	// scalars are fr.Element in non montgomery form
+	_, _, g1, g2 := curve.Generators()
+
+	// ---------------------------------------------------------------------------------------------
+	// G1 scalars
+
+	// the G1 scalars are ordered (arbitrary) as follows:
+	//
+	// [[α], [β], [δ], [A(i)], [B(i)], [pk.K(i)], [Z(i)], [vk.K(i)]]
+	// len(A) == len(B) == nbWires
+	// len(pk.K) == nbPrivateWires
+	// len(vk.K) == nbPublicWires
+	// len(Z) == domain.Cardinality
+
+	// compute scalars for pkK, vkK and ckK
+	pkK := make([]fr.Element, nbPrivateWires)
+	vkK := make([]fr.Element, nbPublicWires)
+	ckK := make([]fr.Element, nbPrivateCommittedWires)
+
+	var t0, t1 fr.Element
+
+	computeK := func(i int, coeff *fr.Element) { // TODO: Inline again
+		t1.Mul(&A[i], &toxicWaste.beta)
+		t0.Mul(&B[i], &toxicWaste.alpha)
+		t1.Add(&t1, &t0).
+			Add(&t1, &C[i]).
+			Mul(&t1, coeff)
+	}
+
+	vI, cI := 0, 0
+	privateCommitted := r1cs.CommitmentInfo.PrivateCommitted()
+
+	for i := range A {
+		isCommittedPrivate := cI < len(privateCommitted) && i == privateCommitted[cI]
+		isCommitment := r1cs.CommitmentInfo.Is() && i == r1cs.CommitmentInfo.CommitmentIndex
+		isPublic := i < r1cs.GetNbPublicVariables()
+
+		if isPublic || isCommittedPrivate || isCommitment {
+			computeK(i, &toxicWaste.gammaInv)
+
+			if isCommittedPrivate {
+				ckK[cI] = t1
+				cI++
+			} else {
+				vkK[vI] = t1
+				vI++
+			}
+		} else {
+			computeK(i, &toxicWaste.deltaInv)
+			pkK[i-vI-cI] = t1
+		}
+	}
+
+	// Z part of the proving key (scalars)
+	Z := make([]fr.Element, domain.Cardinality)
+	one := fr.One()
+	var zdt fr.Element
+
+	zdt.Exp(toxicWaste.t, new(big.Int).SetUint64(domain.Cardinality)).
+		Sub(&zdt, &one).
+		Mul(&zdt, &toxicWaste.deltaInv) // sets Zdt to Zdt/delta
+
+	for i := 0; i < int(domain.Cardinality); i++ {
+		Z[i] = zdt
+		zdt.Mul(&zdt, &toxicWaste.t)
+	}
+
+	// mark points at infinity and filter them
+	pk.InfinityA = make([]bool, len(A))
+	pk.InfinityB = make([]bool, len(B))
+
+	n := 0
+	for i, e := range A {
+		if e.IsZero() {
+			pk.InfinityA[i] = true
+			continue
+		}
+		A[n] = A[i]
+		n++
+	}
+	A = A[:n]
+	pk.NbInfinityA = uint64(nbWires - n)
+	n = 0
+	for i, e := range B {
+		if e.IsZero() {
+			pk.InfinityB[i] = true
+			continue
+		}
+		B[n] = B[i]
+		n++
+	}
+	B = B[:n]
+	pk.NbInfinityB = uint64(nbWires - n)
+
+	// E part
+	{
+		g1Scalars := make([]fr.Element, 0, 3)
+		g1Scalars = append(g1Scalars, toxicWaste.alpha, toxicWaste.beta, toxicWaste.delta)
+		g1Scalars = append(g1Scalars, ckK...)
+		g1Scalars = append(g1Scalars, vkK...)
+		g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
+		// sets pk: [α]1, [β]1, [δ]1
+		pk.G1.Alpha = g1PointsAff[0]
+		pk.G1.Beta = g1PointsAff[1]
+		pk.G1.Delta = g1PointsAff[2]
+
+		offset := 3
+		if nbPrivateCommittedWires != 0 {
+			commitmentBasis := g1PointsAff[offset:]
+
+			vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
+			if err != nil {
+				return err
+			}
+			pk.CommitmentKey = vk.CommitmentKey
+		}
+		offset += nbPrivateCommittedWires
+		vk.G1.K = g1PointsAff[offset : offset+nbPublicWires]
+		// ---------------------------------------------------------------------------------------------
+		// G2 scalars
+
+		// the G2 scalars are ordered as follow:
+		//
+		// [[B(i)], [β], [δ], [γ]]
+		// len(B) == nbWires
+
+		// compute our batch scalar multiplication with g2 elements
+		g2Scalars := make([]fr.Element, 0, 3)
+		g2Scalars = append(g2Scalars, toxicWaste.beta, toxicWaste.delta, toxicWaste.gamma)
+
+		g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
+
+		// sets pk: [β]2, [δ]2
+		pk.G2.Beta = g2PointsAff[0]
+		pk.G2.Delta = g2PointsAff[1]
+
+		// sets vk: [δ]2, [γ]2, -[δ]2, -[γ]2
+		vk.G2.Delta = g2PointsAff[1]
+		vk.G2.Gamma = g2PointsAff[2]
+		vk.G2.deltaNeg.Neg(&vk.G2.Delta)
+		vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
+
+		// ---------------------------------------------------------------------------------------------
+		// Pairing: vk.e
+		vk.G1.Alpha = pk.G1.Alpha
+		vk.G2.Beta = pk.G2.Beta
+
+		// unused, here for compatibility purposes
+		vk.G1.Beta = pk.G1.Beta
+		vk.G1.Delta = pk.G1.Delta
+
+		vk.e, err = curve.Pair([]curve.G1Affine{pk.G1.Alpha}, []curve.G2Affine{pk.G2.Beta})
+		if err != nil {
+			return err
+		}
+		// set domain
+		pk.Domain = *domain
+		pk.Card = pk.Domain.Cardinality
+
+		vk.CommitmentInfo = r1cs.CommitmentInfo // unfortunate but necessary
+
+		name := fmt.Sprintf("%s.pk.E.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = pk.WriteRawETo(pkFile)
+		if err != nil {
+			return err
+		}
+		err = pkFile.Close()
+		if err != nil {
+			return err
+		}
+
+		name = fmt.Sprintf("%s.vk.save", session)
+		vkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = vk.WriteRawTo(vkFile)
+		if err != nil {
+			return err
+		}
+		err = vkFile.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	// A part
+	{
+		var pk ProvingKey
+		g1Scalars := make([]fr.Element, 0, nbWires)
+		g1Scalars = append(g1Scalars, A...)
+		g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
+		pk.G1.A = g1PointsAff
+
+		name := fmt.Sprintf("%s.pk.A.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = pk.WriteRawATo(pkFile)
+		if err != nil {
+			return err
+		}
+		err = pkFile.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	// B1 part
+	{
+		var pk ProvingKey
+		g1Scalars := make([]fr.Element, 0, nbWires)
+		g1Scalars = append(g1Scalars, B...)
+		g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
+		pk.G1.B = g1PointsAff
+
+		name := fmt.Sprintf("%s.pk.B1.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = pk.WriteRawB1To(pkFile)
+		if err != nil {
+			return err
+		}
+		err = pkFile.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Z part
+	{
+		var pk ProvingKey
+		g1Scalars := make([]fr.Element, 0, int(domain.Cardinality))
+		g1Scalars = append(g1Scalars, Z...)
+		g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
+		pk.G1.Z = g1PointsAff
+		bitReverse(pk.G1.Z)
+
+		name := fmt.Sprintf("%s.pk.Z.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = pk.WriteRawZTo(pkFile)
+		if err != nil {
+			return err
+		}
+		err = pkFile.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	// K part
+	{
+		var pk ProvingKey
+		g1Scalars := make([]fr.Element, 0, nbPrivateWires)
+		g1Scalars = append(g1Scalars, pkK...)
+		g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
+		pk.G1.K = g1PointsAff
+
+		name := fmt.Sprintf("%s.pk.K.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = pk.WriteRawKTo(pkFile)
+		if err != nil {
+			return err
+		}
+		err = pkFile.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	// B2 part
+	{
+		var pk ProvingKey
+		g2Scalars := make([]fr.Element, 0, nbWires)
+		g2Scalars = append(g2Scalars, B...)
+		g2PointsAff := curve.BatchScalarMultiplicationG2(&g2, g2Scalars)
+		pk.G2.B = g2PointsAff
+
+		name := fmt.Sprintf("%s.pk.B2.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = pk.WriteRawB2To(pkFile)
+		if err != nil {
+			return err
+		}
+		err = pkFile.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

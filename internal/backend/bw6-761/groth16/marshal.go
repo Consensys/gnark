@@ -17,8 +17,11 @@
 package groth16
 
 import (
+	"fmt"
+
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"io"
+	"os"
 )
 
 // WriteTo writes binary encoding of the Proof elements to writer
@@ -187,6 +190,93 @@ func (vk *VerifyingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)
 // use WriteRawTo(...) to encode the key without point compression
 func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	return pk.writeTo(w, false)
+}
+
+func (pk *ProvingKey) DumpSegmented(session string) (n int64, err error) {
+	// E part
+	{
+		name := fmt.Sprintf("%s.pk.E.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return n, err
+		}
+		n_, err := pk.WriteRawETo(pkFile)
+		if err != nil {
+			return n, err
+		}
+		n += n_
+	}
+
+	// A part
+	{
+		name := fmt.Sprintf("%s.pk.A.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return n, err
+		}
+		n_, err := pk.WriteRawATo(pkFile)
+		if err != nil {
+			return n, err
+		}
+		n += n_
+	}
+
+	// B1 part
+	{
+		name := fmt.Sprintf("%s.pk.B1.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return n, err
+		}
+		n_, err := pk.WriteRawB1To(pkFile)
+		if err != nil {
+			return n, err
+		}
+		n += n_
+	}
+
+	// K part
+	{
+		name := fmt.Sprintf("%s.pk.K.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return n, err
+		}
+		n_, err := pk.WriteRawKTo(pkFile)
+		if err != nil {
+			return n, err
+		}
+		n += n_
+	}
+
+	// Z part
+	{
+		name := fmt.Sprintf("%s.pk.Z.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return n, err
+		}
+		n_, err := pk.WriteRawZTo(pkFile)
+		if err != nil {
+			return n, err
+		}
+		n += n_
+	}
+
+	// B2 part
+	{
+		name := fmt.Sprintf("%s.pk.B2.save", session)
+		pkFile, err := os.Create(name)
+		if err != nil {
+			return n, err
+		}
+		n_, err := pk.WriteRawB2To(pkFile)
+		if err != nil {
+			return n, err
+		}
+		n += n_
+	}
+	return n, err
 }
 
 // WriteRawTo writes binary encoding of the key elements to writer

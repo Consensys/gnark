@@ -55,6 +55,24 @@ func (cs *SparseR1CSCore) Lazify() map[int]int {
 	return nil
 }
 
+func (cs *SparseR1CSCore) GetNbR1C() int {
+	return 0
+}
+
+func (cs *SparseR1CSCore) LoadFromSplitBinaryConcurrent(session string, constraints int, size int, cpu int) {
+}
+
+func (cs *SparseR1CSCore) LoadFromSplitConcurrent(session string, constraints int, size int, cpu int) {
+}
+
+func (cs *SparseR1CSCore) SplitDump(session string, batchSize int) error {
+	return nil
+}
+
+func (cs *SparseR1CSCore) SplitDumpBinary(session string, batchSize int) error {
+	return nil
+}
+
 func (system *SparseR1CSCore) CheckUnconstrainedWires() error {
 	// TODO @gbotrel add unit test for that.
 
