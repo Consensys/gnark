@@ -106,7 +106,8 @@ func (cs *R1CS) AddStaticConstraints(key string, constraintPos int, finished boo
 		count := len(cs.StaticConstraints[key].StaticR1CS)
 		inputConstraintCount := cs.StaticConstraints[key].InputConstraintsThreshold
 		// constraintPos - count is the start constraint of the inputs
-		inputConstraints := cs.Constraints[constraintPos-count : constraintPos-count+inputConstraintCount]
+		inputConstraints := make([]constraint.R1C, inputConstraintCount)
+		copy(inputConstraints, cs.Constraints[constraintPos-count:constraintPos-count+inputConstraintCount])
 		shift := nbVariables - cs.StaticConstraints[key].NbVariables
 		input := constraint.NewLazyInputs(key, inputConstraints, constraintPos-count, count, len(expressions), shift)
 		cs.LazyCons = append(cs.LazyCons, input)
