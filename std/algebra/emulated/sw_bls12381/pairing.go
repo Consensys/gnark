@@ -112,7 +112,7 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 	t1 = pr.MulTorus(t1, t2)
 	t1 = pr.MulTorus(t1, t0)
 
-	// MulTorus(c, t1) requires c ≠ t1. When this is the case it means the
+	// MulTorus(c, t1) requires c ≠ -t1. When this is the case it means the
 	// result is 1 in the torus. We assign a dummy one to t0 and proceed furhter.
 	// Finally we do a select on both edge cases:
 	//   - Only if seletor1=0 and selector2=0, returns to MulTorus(c, t1) decompressed,
