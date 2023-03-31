@@ -128,13 +128,14 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 
 	// MulTorus(t0, t2) requires t0 ≠ t2. When this is the case it means the
 	// result is 1 in the torus. We assign a dummy one to t0 and proceed furhter.
-	// Finally we do a Lookup2 on both edge cases:
+	// Finally we do a select on both edge cases:
 	//   - Only if seletor1=0 and selector2=0, returns to MulTorus(t2, t0) decompressed,
 	//   - otherwise, returns to 1.
 	_sum := pr.Ext6.Add(t0, t2)
 	selector2 := pr.Ext6.IsZero(_sum)
 	t0 = pr.Ext6.Select(selector2, _dummy, t0)
-	result := pr.Lookup2(selector1, selector2, pr.DecompressTorus(pr.MulTorus(t2, t0)), pr.One(), pr.One(), pr.One())
+	selector := pr.api.Mul(pr.api.Sub(1, selector1), pr.api.Sub(1, selector2))
+	result := pr.Select(selector, pr.DecompressTorus(pr.MulTorus(t2, t0)), pr.One())
 
 	return result
 }
