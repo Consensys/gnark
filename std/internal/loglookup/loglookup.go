@@ -29,14 +29,6 @@ type committerAPI interface {
 }
 
 type retVals []uint
-type query struct {
-	inX, inY uint8
-	rets     []*big.Int
-}
-
-func (q *query) toVariable(rets retVals) frontend.Variable {
-	ret := new(big.Int).SetUint64(uint64(q.inX) | uint64(q.inY)<<8)
-}
 
 type Table struct {
 	api      committerAPI
@@ -65,6 +57,7 @@ func New(api frontend.API, fn solver.Hint, rets retVals) (*Table, error) {
 		rchecker: rchecker,
 		compute:  fn,
 		queries:  nil,
+		rets:     rets,
 	}
 	capi.Compiler().Defer(func(api frontend.API) error {
 		capi, ok := api.(committerAPI)
@@ -76,36 +69,63 @@ func New(api frontend.API, fn solver.Hint, rets retVals) (*Table, error) {
 	return t, nil
 }
 
-func (t *Table) query(x, y frontend.Variable) []frontend.Variable {
+func (t *Table) pack(x, y frontend.Variable, rets []frontend.Variable) frontend.Variable {
+	shift := big.NewInt(1 << 8)
+	packed := t.api.Add(x, t.api.Mul(y, shift))
+	for i := range t.rets {
+		shift.Lsh(shift, t.rets[i])
+		packed = t.api.Add(packed, t.api.Mul(rets[i], shift))
+	}
+	return packed
+}
+
+func (t *Table) Query(x, y frontend.Variable) []frontend.Variable {
 	t.rchecker.Check(x, 8)
 	t.rchecker.Check(y, 8)
-	shift := big.NewInt(1 << 8)
-	query := t.api.Add(x, t.api.Mul(y, shift))
 	rets, err := t.api.Compiler().NewHint(t.compute, len(t.rets), x, y)
 	if err != nil {
 		panic(err)
 	}
 	for i := range t.rets {
 		t.rchecker.Check(rets[i], int(t.rets[i]))
-		shift.Lsh(shift, t.rets[i])
-		query = t.api.Add(query, t.api.Mul(rets[i], shift))
+
 	}
-	t.queries = append(t.queries, query)
+	packed := t.pack(x, y, rets)
+	t.queries = append(t.queries, packed)
 	return rets
 }
 
 func (t *Table) buildTable() []frontend.Variable {
-	panic("todo")
+	tmp := new(big.Int)
+	shift := new(big.Int)
+	tbl := make([]frontend.Variable, 65536)
+	inputs := []*big.Int{big.NewInt(0), big.NewInt(0)}
+	outputs := make([]*big.Int, len(t.rets))
+	for i := range outputs {
+		outputs[i] = new(big.Int)
+	}
+	for x := int64(0); x < 256; x++ {
+		inputs[0].SetInt64(x)
+		for y := int64(0); y < 256; y++ {
+			shift.SetInt64(1 << 8)
+			i := x | (y << 8)
+			inputs[1].SetInt64(y)
+			if err := t.compute(t.api.Compiler().Field(), inputs, outputs); err != nil {
+				panic(err)
+			}
+			tblval := new(big.Int).SetInt64(i)
+			for j := range t.rets {
+				shift.Lsh(shift, t.rets[j])
+				tblval.Add(tblval, tmp.Mul(outputs[j], shift))
+			}
+			tbl[i] = tblval
+		}
+	}
+	return tbl
 }
 
 func (t *Table) build(api committerAPI) error {
 	table := t.buildTable()
-	compiler := api.Compiler()
-	for i := range table {
-		if _, isConst := compiler.ConstantValue(table[i]); !isConst {
-			return fmt.Errorf("table input is not constant")
-		}
-	}
 	countInputs := []frontend.Variable{len(table)}
 	countInputs = append(countInputs, table...)
 	countInputs = append(countInputs, t.queries...)
@@ -126,7 +146,7 @@ func (t *Table) build(api committerAPI) error {
 		}
 		api.AssertIsEqual(lp, rp)
 		return nil
-	}, append(exps, t.queries...))
+	}, append(exps, t.queries...)...)
 	return nil
 }
 
