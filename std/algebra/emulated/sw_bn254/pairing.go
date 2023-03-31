@@ -133,7 +133,7 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 	//   - otherwise, returns to 1.
 	_sum := pr.Ext6.Add(t0, t2)
 	selector2 := pr.Ext6.IsZero(_sum)
-	t0 = pr.Ext6.Select(selector2, pr.Ext6.One(), t0)
+	t0 = pr.Ext6.Select(selector2, _dummy, t0)
 	result := pr.Lookup2(selector1, selector2, pr.DecompressTorus(pr.MulTorus(t2, t0)), pr.One(), pr.One(), pr.One())
 
 	return result
