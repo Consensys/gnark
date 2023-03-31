@@ -1,7 +1,6 @@
 package fields_bn254
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
@@ -345,16 +344,4 @@ func (e Ext2) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E2) *E2 {
 	a0 := e.fp.Lookup2(s1, s2, &a.A0, &b.A0, &c.A0, &d.A0)
 	a1 := e.fp.Lookup2(s1, s2, &a.A1, &b.A1, &c.A1, &d.A1)
 	return &E2{A0: *a0, A1: *a1}
-}
-
-func (e Ext2) String(x *E2) string {
-	x0, err := e.fp.String(&x.A0)
-	if err != nil {
-		x0 = "?"
-	}
-	x1, err := e.fp.String(&x.A1)
-	if err != nil {
-		x1 = "?"
-	}
-	return fmt.Sprintf("%s+%s*u", x0, x1)
 }

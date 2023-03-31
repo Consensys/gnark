@@ -1,8 +1,6 @@
 package fields_bls12381
 
 import (
-	"fmt"
-
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark/frontend"
 )
@@ -314,8 +312,4 @@ func (e Ext6) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E6) *E6 {
 	b1 := e.Ext2.Lookup2(s1, s2, &a.B1, &b.B1, &c.B1, &d.B1)
 	b2 := e.Ext2.Lookup2(s1, s2, &a.B2, &b.B2, &c.B2, &d.B2)
 	return &E6{B0: *b0, B1: *b1, B2: *b2}
-}
-
-func (e Ext6) String(x *E6) string {
-	return fmt.Sprintf("%s+(%s)*v+(%s)*v**2", e.Ext2.String(&x.B0), e.Ext2.String(&x.B1), e.Ext2.String(&x.B2))
 }
