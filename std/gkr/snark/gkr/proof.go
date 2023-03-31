@@ -1,11 +1,12 @@
 package gkr
 
 import (
+	"fmt"
+	"github.com/consensys/gnark/frontend"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/gkr/snark/polynomial"
 	"github.com/consensys/gnark/std/gkr/snark/sumcheck"
 	"github.com/consensys/gnark/std/hash/poseidon"
-
-	"github.com/consensys/gnark/frontend"
 )
 
 const nLayers = 13
@@ -45,15 +46,25 @@ func AllocateProof(bN int, circuit Circuit) Proof {
 func (p *Proof) AssertValid(
 	cs frontend.API,
 	circuit Circuit,
-	qInitial []frontend.Variable,
-	qPrimeInitial []frontend.Variable,
 	vInput, vOutput polynomial.MultilinearByValues,
+	qPrimeInitial []frontend.Variable,
+	qInitial []frontend.Variable,
 ) {
 	// record the gkr start position
 	cs.AddGKRInputsAndOutputsMarks(vInput.Table, vOutput.Table)
 	qqPrime := append(append([]frontend.Variable{}, qInitial...), qPrimeInitial...)
 	claim := vOutput.Eval(cs, qqPrime)
-	hL, hR, hPrime, expectedTotalClaim := p.SumcheckProofs[nLayers-1].AssertValid(cs, claim, circuit.Layers[nLayers-1].BG)
+	challenges := make([]string, 0)
+	for i := len(p.SumcheckProofs) - 1; i >= 0; i-- {
+		for j := range p.SumcheckProofs[i].HPolys {
+			challenges = append(challenges, fmt.Sprintf("layers.%d.hpolys.%d", i, j))
+		}
+		challenges = append(challenges, fmt.Sprintf("layers.%d.next", i-1))
+	}
+
+	transcript := fiatshamir.NewTranscript(cs, poseidon.NewPoseidonHash(cs), challenges...)
+	transcript.Bind(challenges[0], qqPrime)
+	hL, hR, hPrime, expectedTotalClaim := p.SumcheckProofs[nLayers-1].AssertValid(cs, claim, circuit.Layers[nLayers-1].BG, &transcript, nLayers-1)
 	actualTotalClaim := circuit.Layers[nLayers-1].Combine(
 		cs,
 		qInitial, qPrimeInitial,
@@ -66,7 +77,9 @@ func (p *Proof) AssertValid(
 
 	for layer := nLayers - 2; layer >= 0; layer-- {
 		lambdaL := 1
-		lambdaR := poseidon.Poseidon(cs, p.ClaimsLeft[layer+1], p.ClaimsRight[layer+1])
+		challengeName := fmt.Sprintf("layers.%d.next", layer)
+		transcript.Bind(challengeName, []frontend.Variable{p.ClaimsLeft[layer+1], p.ClaimsRight[layer+1]})
+		lambdaR, _ := transcript.ComputeChallenge(challengeName)
 		claim = cs.Add(p.ClaimsLeft[layer+1], cs.Mul(lambdaR, p.ClaimsRight[layer+1]))
 
 		// Updates qL and qR values to initialize the next round
@@ -75,7 +88,7 @@ func (p *Proof) AssertValid(
 		qPrime = hPrime
 
 		// Verify the sumcheck
-		hL, hR, hPrime, expectedTotalClaim = p.SumcheckProofs[layer].AssertValid(cs, claim, circuit.Layers[layer].BG)
+		hL, hR, hPrime, expectedTotalClaim = p.SumcheckProofs[layer].AssertValid(cs, claim, circuit.Layers[layer].BG, &transcript, layer)
 		actualTotalClaim = circuit.Layers[layer].CombineWithLinearComb(
 			cs,
 			qL, qR, qPrime,
@@ -91,4 +104,24 @@ func (p *Proof) AssertValid(
 
 	cs.AssertIsEqual(expectedVL, actualVL)
 	cs.AssertIsEqual(expectedVR, actualVR)
+}
+
+// GetInitialQPrimeAndQAndInitialHash it depends on the inputs
+func GetInitialQPrimeAndQAndInitialHash(api frontend.API, bN, bG int, initialHash frontend.Variable) ([]frontend.Variable, []frontend.Variable) {
+	q := make([]frontend.Variable, bG)
+	qPrime := make([]frontend.Variable, bN)
+
+	// used to ensure initialHash was solved before the assign gkr proofs
+	api.AssertIsDifferent(initialHash, 0)
+
+	// actually compute qInitial and qPrimeInitial
+	for i := range q {
+		q[i] = poseidon.Poseidon(api, initialHash, i)
+	}
+
+	for i := range qPrime {
+		qPrime[i] = poseidon.Poseidon(api, initialHash, i)
+	}
+
+	return qPrime, q
 }
