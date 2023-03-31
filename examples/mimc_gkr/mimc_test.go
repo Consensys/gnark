@@ -15,45 +15,77 @@
 package mimc
 
 import (
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"testing"
-
 	"github.com/consensys/gnark/test"
+	"testing"
 )
 
 func TestPreimage(t *testing.T) {
 	assert := test.NewAssert(t)
 
+	// Creates the assignments values
+	var bN = 4
 	var mimcCircuit = Circuit{
 		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
 		Hash:     "13773339841907060410779975660651653092173439740197484094397177791676767249280",
 	}
-
-	var bN = 1
-	// Creates the assignments values
-	var circuit Circuit
 	mimcCircuit.GKRs.AllocateGKRCircuit(bN)
+
+	// circuit
+	var circuit Circuit
 	circuit.GKRs.AllocateGKRCircuit(bN)
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs(), frontend.WithGKRBN(bN))
-
-	witness, err := frontend.NewWitness(&mimcCircuit, ecc.BN254.ScalarField())
 	assert.NoError(err)
-	publicWitness, _ := witness.Public()
 
-	err = ccs.IsSolved(witness)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(ccs.GetNbConstraints())
 	pk, vk, err := groth16.Setup(ccs)
+	assert.NoError(err)
 
 	// groth16: Prove & Verify
+	witness, err := frontend.NewWitness(&mimcCircuit, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
 	proof, err := groth16.Prove(ccs, pk, witness)
-	fmt.Println(err)
+	assert.NoError(err)
+
+	publicWitness, err := witness.Public()
+	assert.NoError(err)
+
+	err = groth16.Verify(proof, vk, publicWitness)
+	assert.NoError(err)
+
+}
+
+func TestPreimagePoseidon(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// Creates the assignments values
+	var bN = 4
+	var mimcCircuit = CircuitByPoseidon{
+		PreImage: "16130099170765464552823636852555369511329944820189892919423002775646948828469",
+		Hash:     "13773339841907060410779975660651653092173439740197484094397177791676767249280",
+	}
+
+	// circuit
+	var circuit CircuitByPoseidon
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.IgnoreUnconstrainedInputs(), frontend.WithGKRBN(bN))
+	assert.NoError(err)
+
+	pk, vk, err := groth16.Setup(ccs)
+	assert.NoError(err)
+
+	// groth16: Prove & Verify
+	witness, err := frontend.NewWitness(&mimcCircuit, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	proof, err := groth16.Prove(ccs, pk, witness)
+	assert.NoError(err)
+
+	publicWitness, err := witness.Public()
+	assert.NoError(err)
+
 	err = groth16.Verify(proof, vk, publicWitness)
 	assert.NoError(err)
 
