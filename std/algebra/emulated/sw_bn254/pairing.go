@@ -125,7 +125,10 @@ func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
 	t2 = pr.FrobeniusCubeTorus(t2)
 
 	// MulTorus(t0, t2) requires t0 ≠ t2. When this is the case it means the
-	// result is 1 in the torus and we return 1.
+	// result is 1 in the torus. We assign a dummy one to t0 and proceed furhter.
+	// Finally we do a Lookup2 on both edge cases:
+	//   - Only if seletor1=0 and selector2=0, returns to MulTorus(t2, t0) decompressed,
+	//   - otherwise, returns to 1.
 	_sum := pr.Ext6.Add(t0, t2)
 	selector2 := pr.Ext6.IsZero(api, _sum)
 	t0 = pr.Ext6.Select(selector2, pr.Ext6.One(), t0)

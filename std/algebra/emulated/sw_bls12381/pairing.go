@@ -66,25 +66,30 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 // where d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
 // we use instead d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
 // where s is the cofactor 3 (Hayashida et al.)
-func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	res := pr.FinalExponentiationTorus(e)
-	return pr.DecompressTorus(res)
-}
+func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
 
-func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bls12381.E6 {
-
-	// Easy part
+	// 1. Easy part
 	// (p⁶-1)(p²+1)
-	// with Torus compression absorbed.
-	// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q
-	// are linearly dependant and not from G1 and G2 respectively.
-	// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0
+	//
+	// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
+	// linearly dependant and not from G1 and G2 respectively.
+	// So e ∈ G_{q,2}a \ {-1,1} and hence e.C1 ≠ 0.
+	//
+	// However, for a product of Miller loops this might happen.  If this is
+	// the case, the result is 1 in the torus. We assign a dummy one to e.C1
+	// and proceed further.
+	selector1 := pr.Ext6.IsZero(api, &e.C1)
+	_dummy := pr.Ext6.One()
+	e.C1 = *pr.Ext6.Select(selector1, _dummy, &e.C1)
+
+	// Torus compression absorbed
 	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
 	c = pr.Ext6.Neg(c)
 	t0 := pr.FrobeniusSquareTorus(c)
 	c = pr.MulTorus(t0, c)
 
-	// Hard part (up to permutation)
+	// 2. Hard part (up to permutation)
+	// 3(p⁴-p²+1)/r
 	// Daiki Hayashida, Kenichiro Hayasaka and Tadanori Teruya
 	// https://eprint.iacr.org/2020/875.pdf
 	t0 = pr.SquareTorus(c)
@@ -104,9 +109,18 @@ func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bls12381.E6 {
 	t1 = pr.InverseTorus(t1)
 	t1 = pr.MulTorus(t1, t2)
 	t1 = pr.MulTorus(t1, t0)
-	c = pr.MulTorus(c, t1)
 
-	return c
+	// MulTorus(c, t1) requires c ≠ t1. When this is the case it means the
+	// result is 1 in the torus. We assign a dummy one to t0 and proceed furhter.
+	// Finally we do a Lookup2 on both edge cases:
+	//   - Only if seletor1=0 and selector2=0, returns to MulTorus(c, t1) decompressed,
+	//   - otherwise, returns to 1.
+	_sum := pr.Ext6.Add(c, t1)
+	selector2 := pr.Ext6.IsZero(api, _sum)
+	t1 = pr.Ext6.Select(selector2, pr.Ext6.One(), t1)
+	result := pr.Lookup2(selector1, selector2, pr.DecompressTorus(pr.MulTorus(c, t1)), pr.One(), pr.One(), pr.One())
+
+	return result
 }
 
 // lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
@@ -121,12 +135,12 @@ type lineEvaluation struct {
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
 // This function doesn't check that the inputs are in the correct subgroup.
-func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
+func (pr Pairing) Pair(api frontend.API, P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	res = pr.FinalExponentiation(res)
+	res = pr.FinalExponentiation(api, res)
 	return res, nil
 }
 

@@ -1,9 +1,11 @@
 package fields_bls12381
 
 import (
+	"fmt"
 	"math/big"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -236,6 +238,11 @@ func (e Ext2) Zero() *E2 {
 		A1: *z1,
 	}
 }
+func (e Ext2) IsZero(api frontend.API, z *E2) frontend.Variable {
+	a0 := e.fp.IsZero(&z.A0)
+	a1 := e.fp.IsZero(&z.A1)
+	return api.And(a0, a1)
+}
 
 // returns 1+u
 func (e Ext2) NonResidue() *E2 {
@@ -301,7 +308,6 @@ func (e Ext2) Inverse(x *E2) *E2 {
 
 }
 
-// DivUnchecked e2 elmts
 func (e Ext2) DivUnchecked(x, y *E2) *E2 {
 	res, err := e.fp.NewHint(divE2Hint, 2, &x.A0, &x.A1, &y.A0, &y.A1)
 	if err != nil {
@@ -319,4 +325,28 @@ func (e Ext2) DivUnchecked(x, y *E2) *E2 {
 	e.AssertIsEqual(x, _x)
 
 	return &div
+}
+
+func (e Ext2) Select(selector frontend.Variable, z1, z0 *E2) *E2 {
+	a0 := e.fp.Select(selector, &z1.A0, &z0.A0)
+	a1 := e.fp.Select(selector, &z1.A1, &z0.A1)
+	return &E2{A0: *a0, A1: *a1}
+}
+
+func (e Ext2) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E2) *E2 {
+	a0 := e.fp.Lookup2(s1, s2, &a.A0, &b.A0, &c.A0, &d.A0)
+	a1 := e.fp.Lookup2(s1, s2, &a.A1, &b.A1, &c.A1, &d.A1)
+	return &E2{A0: *a0, A1: *a1}
+}
+
+func (e Ext2) String(x *E2) string {
+	x0, err := e.fp.String(&x.A0)
+	if err != nil {
+		x0 = "?"
+	}
+	x1, err := e.fp.String(&x.A1)
+	if err != nil {
+		x1 = "?"
+	}
+	return fmt.Sprintf("%s+%s*u", x0, x1)
 }

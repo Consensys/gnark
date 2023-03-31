@@ -305,7 +305,6 @@ func (e Ext6) Inverse(x *E6) *E6 {
 
 }
 
-// DivUnchecked e2 elmts
 func (e Ext6) DivUnchecked(x, y *E6) *E6 {
 	res, err := e.fp.NewHint(divE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1, &y.B0.A0, &y.B0.A1, &y.B1.A0, &y.B1.A1, &y.B2.A0, &y.B2.A1)
 	if err != nil {
