@@ -1,6 +1,8 @@
 package fields_bn254
 
 import (
+	"fmt"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/frontend"
 )
@@ -329,4 +331,8 @@ func (e Ext6) Select(selector frontend.Variable, z1, z0 *E6) *E6 {
 	b1 := e.Ext2.Select(selector, &z1.B1, &z0.B1)
 	b2 := e.Ext2.Select(selector, &z1.B2, &z0.B2)
 	return &E6{B0: *b0, B1: *b1, B2: *b2}
+}
+
+func (e Ext6) String(x *E6) string {
+	return fmt.Sprintf("%s+(%s)*v+(%s)*v**2", e.Ext2.String(&x.B0), e.Ext2.String(&x.B1), e.Ext2.String(&x.B2))
 }
