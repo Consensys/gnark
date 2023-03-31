@@ -57,7 +57,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
 	return &Pairing{
-		Ext12:  fields_bls12381.NewExt12(ba),
+		Ext12:  fields_bls12381.NewExt12(api),
 		curveF: ba,
 	}, nil
 }

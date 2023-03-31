@@ -16,11 +16,16 @@ type E2 struct {
 }
 
 type Ext2 struct {
+	api         frontend.API
 	fp          *curveF
 	nonResidues map[int]map[int]*E2
 }
 
-func NewExt2(baseField *curveF) *Ext2 {
+func NewExt2(api frontend.API) *Ext2 {
+	fp, err := emulated.NewField[emulated.BLS12381Fp](api)
+	if err != nil {
+		panic(err)
+	}
 	pwrs := map[int]map[int]struct {
 		A0 string
 		A1 string
@@ -50,7 +55,7 @@ func NewExt2(baseField *curveF) *Ext2 {
 			nonResidues[pwr][coeff] = &el
 		}
 	}
-	return &Ext2{fp: baseField, nonResidues: nonResidues}
+	return &Ext2{api: api, fp: fp, nonResidues: nonResidues}
 }
 
 func (e Ext2) MulByElement(x *E2, y *baseEl) *E2 {

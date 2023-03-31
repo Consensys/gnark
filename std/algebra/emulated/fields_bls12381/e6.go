@@ -13,8 +13,8 @@ type Ext6 struct {
 	*Ext2
 }
 
-func NewExt6(baseField *curveF) *Ext6 {
-	return &Ext6{Ext2: NewExt2(baseField)}
+func NewExt6(api frontend.API) *Ext6 {
+	return &Ext6{Ext2: NewExt2(api)}
 }
 
 func (e Ext6) One() *E6 {

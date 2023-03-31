@@ -16,8 +16,7 @@ type e2Add struct {
 }
 
 func (circuit *e2Add) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
+	e := NewExt2(api)
 	expected := e.Add(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -80,8 +79,7 @@ type e2Double struct {
 }
 
 func (circuit *e2Double) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
+	e := NewExt2(api)
 	expected := e.Double(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -111,9 +109,7 @@ type e2Mul struct {
 }
 
 func (circuit *e2Mul) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
-
+	e := NewExt2(api)
 	expected := e.Mul(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -144,9 +140,7 @@ type e2Square struct {
 }
 
 func (circuit *e2Square) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
-
+	e := NewExt2(api)
 	expected := e.Square(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -175,9 +169,7 @@ type e2Div struct {
 }
 
 func (circuit *e2Div) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
-
+	e := NewExt2(api)
 	expected := e.DivUnchecked(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -210,8 +202,7 @@ type e2MulByElement struct {
 }
 
 func (circuit *e2MulByElement) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
+	e := NewExt2(api)
 	expected := e.MulByElement(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 
@@ -245,8 +236,7 @@ type e2MulByNonResidue struct {
 }
 
 func (circuit *e2MulByNonResidue) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
+	e := NewExt2(api)
 	expected := e.MulByNonResidue(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
@@ -277,8 +267,7 @@ type e2Neg struct {
 }
 
 func (circuit *e2Neg) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
+	e := NewExt2(api)
 	expected := e.Neg(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
@@ -308,8 +297,7 @@ type e2Conjugate struct {
 }
 
 func (circuit *e2Conjugate) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
+	e := NewExt2(api)
 	expected := e.Conjugate(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
@@ -339,8 +327,7 @@ type e2Inverse struct {
 }
 
 func (circuit *e2Inverse) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
+	e := NewExt2(api)
 	expected := e.Inverse(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
