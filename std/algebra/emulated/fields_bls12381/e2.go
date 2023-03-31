@@ -242,10 +242,10 @@ func (e Ext2) Zero() *E2 {
 		A1: *z1,
 	}
 }
-func (e Ext2) IsZero(api frontend.API, z *E2) frontend.Variable {
+func (e Ext2) IsZero(z *E2) frontend.Variable {
 	a0 := e.fp.IsZero(&z.A0)
 	a1 := e.fp.IsZero(&z.A1)
-	return api.And(a0, a1)
+	return e.api.And(a0, a1)
 }
 
 // returns 1+u

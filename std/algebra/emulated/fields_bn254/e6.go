@@ -39,11 +39,11 @@ func (e Ext6) Zero() *E6 {
 	}
 }
 
-func (e Ext6) IsZero(api frontend.API, z *E6) frontend.Variable {
-	b0 := e.Ext2.IsZero(api, &z.B0)
-	b1 := e.Ext2.IsZero(api, &z.B1)
-	b2 := e.Ext2.IsZero(api, &z.B2)
-	return api.And(api.And(b0, b1), b2)
+func (e Ext6) IsZero(z *E6) frontend.Variable {
+	b0 := e.Ext2.IsZero(&z.B0)
+	b1 := e.Ext2.IsZero(&z.B1)
+	b2 := e.Ext2.IsZero(&z.B2)
+	return e.api.And(e.api.And(b0, b1), b2)
 }
 
 func (e Ext6) Add(x, y *E6) *E6 {

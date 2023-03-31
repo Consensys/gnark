@@ -78,7 +78,7 @@ func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
 	// However, for a product of Miller loops this might happen.  If this is
 	// the case, the result is 1 in the torus. We assign a dummy one to e.C1
 	// and proceed further.
-	selector1 := pr.Ext6.IsZero(api, &e.C1)
+	selector1 := pr.Ext6.IsZero(&e.C1)
 	_dummy := pr.Ext6.One()
 	e.C1 = *pr.Ext6.Select(selector1, _dummy, &e.C1)
 
@@ -116,7 +116,7 @@ func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
 	//   - Only if seletor1=0 and selector2=0, returns to MulTorus(c, t1) decompressed,
 	//   - otherwise, returns to 1.
 	_sum := pr.Ext6.Add(c, t1)
-	selector2 := pr.Ext6.IsZero(api, _sum)
+	selector2 := pr.Ext6.IsZero(_sum)
 	t1 = pr.Ext6.Select(selector2, pr.Ext6.One(), t1)
 	result := pr.Lookup2(selector1, selector2, pr.DecompressTorus(pr.MulTorus(c, t1)), pr.One(), pr.One(), pr.One())
 

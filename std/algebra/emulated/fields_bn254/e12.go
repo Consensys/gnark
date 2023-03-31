@@ -92,10 +92,10 @@ func (e Ext12) One() *E12 {
 	}
 }
 
-func (e Ext12) IsZero(api frontend.API, z *E12) frontend.Variable {
-	c0 := e.Ext6.IsZero(api, &z.C0)
-	c1 := e.Ext6.IsZero(api, &z.C1)
-	return api.And(c0, c1)
+func (e Ext12) IsZero(z *E12) frontend.Variable {
+	c0 := e.Ext6.IsZero(&z.C0)
+	c1 := e.Ext6.IsZero(&z.C1)
+	return e.api.And(c0, c1)
 }
 
 func (e Ext12) Square(x *E12) *E12 {
