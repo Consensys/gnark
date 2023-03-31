@@ -73,13 +73,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 // and r does NOT divide d'
 //
 // FinalExponentiation returns a decompressed element in E12
-func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	res := pr.FinalExponentiationTorus(e)
-	return pr.DecompressTorus(res)
-}
-
-// FinalExponentiationTorus returns compressed element in E6
-func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bn254.E6 {
+func (pr Pairing) FinalExponentiation(api frontend.API, e *GTEl) *GTEl {
 
 	// Easy part
 	// (p⁶-1)(p²+1)
@@ -87,6 +81,14 @@ func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bn254.E6 {
 	// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q
 	// are linearly dependant and not from G1 and G2 respectively.
 	// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0
+	selector := pr.Ext6.IsZero(api, &e.C1)
+	_dummy := fields_bn254.E6{
+		B0: *pr.Ext2.One(),
+		B1: *pr.Ext2.One(),
+		B2: *pr.Ext2.One(),
+	}
+	e.C1 = *pr.Ext6.Select(selector, &_dummy, &e.C1)
+
 	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
 	c = pr.Ext6.Neg(c)
 	t0 := pr.FrobeniusSquareTorus(c)
@@ -122,19 +124,21 @@ func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bn254.E6 {
 	t2 = pr.FrobeniusCubeTorus(t2)
 	t0 = pr.MulTorus(t2, t0)
 
-	return t0
+	result := pr.Select(selector, pr.One(), pr.DecompressTorus(t0))
+
+	return result
 }
 
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
 // This function doesn't check that the inputs are in the correct subgroup.
-func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
+func (pr Pairing) Pair(api frontend.API, P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	res = pr.FinalExponentiation(res)
+	res = pr.FinalExponentiation(api, res)
 	return res, nil
 }
 
