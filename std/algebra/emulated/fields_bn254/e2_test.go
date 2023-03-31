@@ -47,8 +47,7 @@ type e2Sub struct {
 }
 
 func (circuit *e2Sub) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt2(ba)
+	e := NewExt2(api)
 	expected := e.Sub(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
