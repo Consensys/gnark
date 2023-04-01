@@ -86,7 +86,7 @@ func (pr Pairing) FinalExponentiation(e *GTEl, n int) *GTEl {
 	case 1:
 		// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
 		// linearly dependant and not from G1 and G2 respectively.
-		// So e ∈ G_{q,2}a \ {-1,1} and hence e.C1 ≠ 0.
+		// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0.
 		// Nothing to do.
 
 	default:
@@ -113,7 +113,7 @@ func (pr Pairing) FinalExponentiation(e *GTEl, n int) *GTEl {
 	// Duquesne and Ghammam
 	// https://eprint.iacr.org/2015/192.pdf
 	// Fuentes et al. (alg. 6)
-	// performed in Torus compressed form
+	// performed in torus compressed form
 	t0 = pr.ExptTorus(c)
 	t0 = pr.InverseTorus(t0)
 	t0 = pr.SquareTorus(t0)
@@ -163,7 +163,7 @@ func (pr Pairing) FinalExponentiation(e *GTEl, n int) *GTEl {
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroup.
+// This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, n, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -171,6 +171,22 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	}
 	res = pr.FinalExponentiation(res, n)
 	return res, nil
+}
+
+// PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
+// ∏ᵢ e(Pᵢ, Qᵢ) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups.
+func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
+	f, err := pr.Pair(P, Q)
+	if err != nil {
+		return err
+
+	}
+	one := pr.One()
+	pr.AssertIsEqual(f, one)
+
+	return nil
 }
 
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {

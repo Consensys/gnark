@@ -79,7 +79,7 @@ func (pr Pairing) FinalExponentiation(e *GTEl, n int) *GTEl {
 	case 1:
 		// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
 		// linearly dependant and not from G1 and G2 respectively.
-		// So e ∈ G_{q,2}a \ {-1,1} and hence e.C1 ≠ 0.
+		// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0.
 		// Nothing to do.
 
 	default:
@@ -105,6 +105,7 @@ func (pr Pairing) FinalExponentiation(e *GTEl, n int) *GTEl {
 	// 3(p⁴-p²+1)/r
 	// Daiki Hayashida, Kenichiro Hayasaka and Tadanori Teruya
 	// https://eprint.iacr.org/2020/875.pdf
+	// performed in torus compressed form
 	t0 = pr.SquareTorus(c)
 	t1 := pr.ExptHalfTorus(t0)
 	t2 := pr.InverseTorus(c)
@@ -157,7 +158,7 @@ type lineEvaluation struct {
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroup.
+// This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, n, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -167,6 +168,22 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	return res, nil
 }
 
+// PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
+// ∏ᵢ e(Pᵢ, Qᵢ) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups.
+func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
+	f, err := pr.Pair(P, Q)
+	if err != nil {
+		return err
+
+	}
+	one := pr.One()
+	pr.AssertIsEqual(f, one)
+
+	return nil
+}
+
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext12.AssertIsEqual(x, y)
 }
@@ -174,7 +191,14 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 // loopCounter = seed in binary
 //
 //	seed=-15132376222941642752
-var loopCounter = [64]int8{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1}
+var loopCounter = [64]int8{
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+	0, 0, 1, 0, 0, 1, 0, 1, 1,
+}
 
 // MillerLoop computes the multi-Miller loop
 // ∏ᵢ { fᵢ_{u,Q}(P) }
