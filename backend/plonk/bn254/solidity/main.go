@@ -11,7 +11,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/backend/plonk/bn254/solidity/contracts/hashfr"
+	hashfr "github.com/consensys/gnark/backend/plonk/bn254/solidity/gopkg"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
