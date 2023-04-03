@@ -8,7 +8,7 @@ import (
 // it enables the solver to compute a Wire with a function provided at solving time
 // using pre-defined inputs
 type Hint struct {
-	ID     hint.ID            // hint function id
-	Inputs []LinearExpression // terms to inject in the hint function
-	Wires  []int              // IDs of wires the hint outputs map to
+	ID        hint.ID // hint function id
+	InputsIdx int     // index to terms to inject in the hint function
+	WiresIdx  int     // IDs of wires the hint outputs map to
 }

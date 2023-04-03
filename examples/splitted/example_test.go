@@ -57,15 +57,17 @@ func TestCircuit(t *testing.T) {
 	assert.NoError(t, err)
 	cs2 := groth16.NewCS(ecc.BN254)
 	cs2.LoadFromSplitBinaryConcurrent(session, ccs.GetNbR1C(), batchSize, runtime.NumCPU())
+	fmt.Println("nbCons:", cs2.GetNbConstraints(), "nbR1C:", cs2.GetNbR1C())
 
 	// pk, vk, _ := groth16.Setup(ccs)
 	// groth16.SplitDumpPK(pk, session+"2")
 
-	err = groth16.SetupDumpKeys(ccs, session)
+	err = groth16.SetupDumpKeys(cs2, session)
 	assert.NoError(t, err)
 	vk := groth16.NewVerifyingKey(ecc.BN254)
 	name := fmt.Sprintf("%s.vk.save", session)
 	vkFile, err := os.Open(name)
+	assert.NoError(t, err)
 	_, err = vk.ReadFrom(vkFile)
 	assert.NoError(t, err)
 
