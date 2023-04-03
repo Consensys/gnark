@@ -1,4 +1,5 @@
 import (
+	"encoding/gob"
     "fmt"
 	{{ template "import_curve" . }}
 	"io"
@@ -78,6 +79,11 @@ func (vk *VerifyingKey) WriteRawTo(w io.Writer) (n int64, err error) {
 // https://github.com/zkcrypto/bellman/blob/fa9be45588227a8c6ec34957de3f68705f07bd92/src/groth16/mod.rs#L143
 // [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2,uint32(len(Kvk)),[Kvk]1
 func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (int64, error) {
+	n, err := vk.CommitmentKey.WriteTo(w)
+	if err != nil {
+		return n, err
+	}
+
 	var enc *curve.Encoder
 	if raw {
 		enc = curve.NewEncoder(w, curve.RawEncoding())
@@ -85,32 +91,36 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 		enc = curve.NewEncoder(w)
 	}
 
-
 	// [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2
 	if err := enc.Encode(&vk.G1.Alpha); err != nil {
-		return enc.BytesWritten(), err 
+		return n + enc.BytesWritten(), err
 	}
 	if err := enc.Encode(&vk.G1.Beta); err != nil {
-		return enc.BytesWritten(), err 
+		return n + enc.BytesWritten(), err
 	}
 	if err := enc.Encode(&vk.G2.Beta); err != nil {
-		return enc.BytesWritten(), err 
+		return n + enc.BytesWritten(), err
 	}
 	if err := enc.Encode(&vk.G2.Gamma); err != nil {
-		return enc.BytesWritten(), err 
+		return n + enc.BytesWritten(), err
 	}
 	if err := enc.Encode(&vk.G1.Delta); err != nil {
-		return enc.BytesWritten(), err 
+		return n + enc.BytesWritten(), err
 	}
 	if err := enc.Encode(&vk.G2.Delta); err != nil {
-		return enc.BytesWritten(), err 
+		return n + enc.BytesWritten(), err
 	}
 
 	// uint32(len(Kvk)),[Kvk]1
 	if err := enc.Encode(vk.G1.K); err != nil {
-		return enc.BytesWritten(), err 
+		return n + enc.BytesWritten(), err
 	}
-	return enc.BytesWritten(), nil 
+
+	encGob := gob.NewEncoder(w)
+	if err := encGob.Encode(vk.CommitmentInfo); err != nil {
+		return n + enc.BytesWritten(), err
+	}
+	return n + enc.BytesWritten(), nil
 }
 
 // ReadFrom attempts to decode a VerifyingKey from reader
@@ -129,43 +139,50 @@ func (vk *VerifyingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
 }
 
 func (vk *VerifyingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
+	n, err := vk.CommitmentKey.ReadFrom(r, decOptions...)
+	if err != nil {
+		return n, err
+	}
 	dec := curve.NewDecoder(r, decOptions...)
 
 	// [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2
 	if err := dec.Decode(&vk.G1.Alpha); err != nil {
-		return dec.BytesRead(), err
+		return n + dec.BytesRead(), err
 	}
 	if err := dec.Decode(&vk.G1.Beta); err != nil {
-		return dec.BytesRead(), err
+		return n + dec.BytesRead(), err
 	}
 	if err := dec.Decode(&vk.G2.Beta); err != nil {
-		return dec.BytesRead(), err
+		return n + dec.BytesRead(), err
 	}
 	if err := dec.Decode(&vk.G2.Gamma); err != nil {
-		return dec.BytesRead(), err
+		return n + dec.BytesRead(), err
 	}
 	if err := dec.Decode(&vk.G1.Delta); err != nil {
-		return dec.BytesRead(), err
+		return n + dec.BytesRead(), err
 	}
 	if err := dec.Decode(&vk.G2.Delta); err != nil {
-		return dec.BytesRead(), err
+		return n + dec.BytesRead(), err
 	}
 
 	// uint32(len(Kvk)),[Kvk]1
 	if err := dec.Decode(&vk.G1.K); err != nil {
-		return dec.BytesRead(), err
+		return n + dec.BytesRead(), err
 	}
 
+	decGob := gob.NewDecoder(r)
+	if err := decGob.Decode(&vk.CommitmentInfo); err != nil {
+		return n + dec.BytesRead(), err
+	}
 	// recompute vk.e (e(α, β)) and  -[δ]2, -[γ]2
-	var err error 
 	vk.e, err = curve.Pair([]curve.G1Affine{vk.G1.Alpha}, []curve.G2Affine{vk.G2.Beta})
 	if err != nil {
-		return dec.BytesRead(), err
+		return n + dec.BytesRead(), err
 	}
 	vk.G2.deltaNeg.Neg(&vk.G2.Delta)
 	vk.G2.gammaNeg.Neg(&vk.G2.Gamma)
-	
-	return dec.BytesRead(), nil
+
+	return n + dec.BytesRead(), nil
 }
 
 
@@ -273,6 +290,10 @@ func (pk *ProvingKey) WriteRawTo(w io.Writer) (n int64, err error) {
 
 func (pk *ProvingKey) WriteRawETo(w io.Writer) (n int64, err error) {
 	return pk.writeETo(w)
+}
+
+func (pk *ProvingKey) WriteRawCommitmentKeyTo(w io.Writer) (n int64, err error) {
+	return pk.CommitmentKey.WriteTo(w)
 }
 
 func (pk *ProvingKey) WriteRawATo(w io.Writer) (n int64, err error) {
@@ -487,6 +508,10 @@ func (pk *ProvingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
 
 func (pk *ProvingKey) UnsafeReadEFrom(r io.Reader) (int64, error) {
 	return pk.readEFrom(r, curve.NoSubgroupChecks())
+}
+
+func (pk *ProvingKey) UnsafeReadCommitmentKeyFrom(r io.Reader) (int64, error) {
+	return pk.CommitmentKey.ReadFrom(r)
 }
 
 func (pk *ProvingKey) UnsafeReadAFrom(r io.Reader) (int64, error) {
