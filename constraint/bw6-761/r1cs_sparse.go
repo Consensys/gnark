@@ -94,7 +94,7 @@ func (cs *SparseR1CS) Solve(witness fr.Vector, opt backend.ProverConfig) (fr.Vec
 	}
 
 	// keep track of wire that have a value
-	solution, err := newSolution(nbVariables, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable, cs.GKRMeta.MIMCHints)
+	solution, err := newSolution(nbVariables, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.IndexedWires, cs.IndexedInputs, cs.Coefficients, &cs.System.SymbolTable, cs.GKRMeta.MIMCHints)
 	if err != nil {
 		return solution.values, err
 	}

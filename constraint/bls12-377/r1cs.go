@@ -124,8 +124,9 @@ func (cs *R1CS) FinalizeGKR() {
 	for i := range cs.GKRMeta.MIMCHints {
 		h := *cs.MHints[cs.GKRMeta.MIMCHints[i]]
 
-		hInputVids := h.Inputs
-		hOutputVid := constraint.LinearExpression{cs.MakeTerm(&one, h.Wires[0])}
+		hInputVids := cs.IndexedInputs[h.InputsIdx]
+		hWires := cs.IndexedWires[h.WiresIdx]
+		hOutputVid := constraint.LinearExpression{cs.MakeTerm(&one, hWires[0])}
 		cstone := constraint.LinearExpression{cs.MakeTerm(&one, 0)}
 		// 1 << bN is the total hashes size and shift of two inputs
 		shift := 1 << cs.GKRMeta.GKRBN
@@ -226,7 +227,7 @@ func (cs *R1CS) Solve(witness, a, b, c fr.Vector, opt backend.ProverConfig) (fr.
 	log := logger.Logger().With().Int("nbConstraints", len(cs.Constraints)).Str("backend", "groth16").Logger()
 
 	nbWires := len(cs.Public) + len(cs.Secret) + cs.NbInternalVariables
-	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.Coefficients, &cs.System.SymbolTable, cs.GKRMeta.MIMCHints)
+	solution, err := newSolution(nbWires, opt.HintFunctions, cs.MHintsDependencies, cs.MHints, cs.IndexedWires, cs.IndexedInputs, cs.Coefficients, &cs.System.SymbolTable, cs.GKRMeta.MIMCHints)
 	if err != nil {
 		return make(fr.Vector, nbWires), err
 	}
@@ -650,63 +651,148 @@ func (cs *R1CS) ReadFrom(r io.Reader) (int64, error) {
 	return int64(decoder.NumBytesRead()), nil
 }
 
-func (cs *R1CS) SplitDump(session string, batchSize int) error {
-
-	// E part
-	{
-		cs2 := &R1CS{}
-		cs2.CoeffTable = cs.CoeffTable
-		cs2.R1CSCore.System = cs.R1CSCore.System
-		cs2.R1CSCore.LazyCons = cs.R1CSCore.LazyCons
-		cs2.R1CSCore.LazyConsMap = cs.R1CSCore.LazyConsMap
-		cs2.R1CSCore.StaticConstraints = cs.R1CSCore.StaticConstraints
-
-		name := fmt.Sprintf("%s.r1cs.E.save", session)
-		csFile, err := os.Create(name)
-		if err != nil {
-			return err
-		}
-		cs2.WriteTo(csFile)
-	}
-
-	N := len(cs.R1CSCore.Constraints)
-	for i := 0; i < N; {
-		// dump R1C[i, min(i+batchSize, end)]
-		cs2 := &R1CS{}
-		iNew := i + batchSize
-		if iNew > N {
-			iNew = N
-		}
-		cs2.R1CSCore.Constraints = cs.R1CSCore.Constraints[i:iNew]
-		name := fmt.Sprintf("%s.r1cs.Cons.%d.%d.save", session, i, iNew)
-		csFile, err := os.Create(name)
-		if err != nil {
-			return err
-		}
-		cs2.WriteTo(csFile)
-
-		i = iNew
-	}
-
-	return nil
-}
-
 func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 	// E part
 	{
-		cs2 := &R1CS{}
-		cs2.CoeffTable = cs.CoeffTable
-		cs2.R1CSCore.System = cs.R1CSCore.System
-		cs2.R1CSCore.LazyCons = cs.R1CSCore.LazyCons
-		cs2.R1CSCore.LazyConsMap = cs.R1CSCore.LazyConsMap
-		cs2.R1CSCore.StaticConstraints = cs.R1CSCore.StaticConstraints
-
-		name := fmt.Sprintf("%s.r1cs.E.save", session)
+		name := fmt.Sprintf("%s.r1cs.E11.save", session)
 		csFile, err := os.Create(name)
 		if err != nil {
 			return err
 		}
-		cs2.WriteTo(csFile)
+		writer := bufio.NewWriter(csFile)
+		enc := gob.NewEncoder(writer)
+		err = enc.Encode(cs.R1CSCore.System.Levels)
+		if err != nil {
+			panic(err)
+		}
+		cs.R1CSCore.System.Levels = nil
+
+		if len(cs.R1CSCore.System.HintFnWiresToIdx) > 0 {
+			runtime.GC()
+			name = fmt.Sprintf("%s.r1cs.E12.save", session)
+			csFile, err = os.Create(name)
+			if err != nil {
+				return err
+			}
+			writer = bufio.NewWriter(csFile)
+			enc = gob.NewEncoder(writer)
+			err = enc.Encode(cs.R1CSCore.System.HintFnWiresToIdx)
+			if err != nil {
+				panic(err)
+			}
+			cs.R1CSCore.System.HintFnWiresToIdx = nil
+		}
+
+		if len(cs.R1CSCore.System.HintFnInputsToIdx) > 0 {
+			runtime.GC()
+			name = fmt.Sprintf("%s.r1cs.E13.save", session)
+			csFile, err = os.Create(name)
+			if err != nil {
+				return err
+			}
+			writer = bufio.NewWriter(csFile)
+			enc = gob.NewEncoder(writer)
+			err = enc.Encode(cs.R1CSCore.System.HintFnInputsToIdx)
+			if err != nil {
+				panic(err)
+			}
+			cs.R1CSCore.System.HintFnInputsToIdx = nil
+		}
+
+		if len(cs.R1CSCore.System.IndexedWires) > 0 {
+			runtime.GC()
+			name = fmt.Sprintf("%s.r1cs.E14.save", session)
+			csFile, err = os.Create(name)
+			if err != nil {
+				return err
+			}
+			writer = bufio.NewWriter(csFile)
+			enc = gob.NewEncoder(writer)
+			err = enc.Encode(cs.R1CSCore.System.IndexedWires)
+			if err != nil {
+				panic(err)
+			}
+			cs.R1CSCore.System.IndexedWires = nil
+		}
+
+		if len(cs.R1CSCore.System.IndexedInputs) > 0 {
+			runtime.GC()
+			name = fmt.Sprintf("%s.r1cs.E15.save", session)
+			csFile, err = os.Create(name)
+			if err != nil {
+				return err
+			}
+			writer = bufio.NewWriter(csFile)
+			enc = gob.NewEncoder(writer)
+			err = enc.Encode(cs.R1CSCore.System.IndexedInputs)
+			if err != nil {
+				panic(err)
+			}
+			cs.R1CSCore.System.IndexedInputs = nil
+		}
+
+		runtime.GC()
+		name = fmt.Sprintf("%s.r1cs.E1.save", session)
+		csFile, err = os.Create(name)
+		if err != nil {
+			return err
+		}
+		writer = bufio.NewWriter(csFile)
+		enc = gob.NewEncoder(writer)
+		err = enc.Encode(cs.R1CSCore.System)
+		if err != nil {
+			panic(err)
+		}
+		cs.R1CSCore.System = constraint.NewSystem(fr.Modulus())
+	}
+	{
+		cs2 := &R1CS{}
+		cs2.R1CSCore.System = constraint.NewSystem(fr.Modulus())
+		cs2.R1CSCore.LazyCons = cs.R1CSCore.LazyCons
+
+		name := fmt.Sprintf("%s.r1cs.E2.save", session)
+		csFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = cs2.WriteTo(csFile)
+		if err != nil {
+			return err
+		}
+		cs.R1CSCore.LazyCons = nil
+	}
+	{
+		cs2 := &R1CS{}
+		cs2.R1CSCore.System = constraint.NewSystem(fr.Modulus())
+		cs2.R1CSCore.LazyConsMap = cs.R1CSCore.LazyConsMap
+
+		name := fmt.Sprintf("%s.r1cs.E3.save", session)
+		csFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = cs2.WriteTo(csFile)
+		if err != nil {
+			return err
+		}
+		cs.R1CSCore.LazyConsMap = nil
+	}
+	{
+		cs2 := &R1CS{}
+		cs2.R1CSCore.System = constraint.NewSystem(fr.Modulus())
+		cs2.CoeffTable = cs.CoeffTable
+		cs2.R1CSCore.StaticConstraints = cs.R1CSCore.StaticConstraints
+
+		name := fmt.Sprintf("%s.r1cs.E4.save", session)
+		csFile, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = cs2.WriteTo(csFile)
+		if err != nil {
+			return err
+		}
+		cs.R1CSCore.StaticConstraints = nil
 	}
 
 	N := len(cs.R1CSCore.Constraints)
@@ -736,73 +822,6 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 	return nil
 }
 
-func (cs *R1CS) LoadFromSplitConcurrent(session string, N, batchSize, NCore int) {
-	cs.R1CSCore.Constraints = make([]constraint.R1C, N)
-
-	var wg sync.WaitGroup
-	chTasks := make(chan int, NCore)
-	// worker pool
-	for core := 0; core < NCore; core++ {
-		go func() {
-			for i := range chTasks {
-				if i < 0 {
-					// E part
-					cs2 := &R1CS{}
-
-					name := fmt.Sprintf("%s.r1cs.E.save", session)
-					csFile, err := os.Open(name)
-					if err != nil {
-						panic(err)
-					}
-					_, err = cs2.ReadFrom(csFile)
-
-					cs.CoeffTable = cs2.CoeffTable
-					cs.R1CSCore.System = cs2.R1CSCore.System
-					cs.R1CSCore.LazyCons = cs2.R1CSCore.LazyCons
-					cs.R1CSCore.LazyConsMap = cs2.R1CSCore.LazyConsMap
-					cs.R1CSCore.StaticConstraints = cs2.R1CSCore.StaticConstraints
-
-					wg.Done()
-				} else {
-					cs2 := &R1CS{}
-					iNew := i + batchSize
-					if iNew > N {
-						iNew = N
-					}
-					name := fmt.Sprintf("%s.r1cs.Cons.%d.%d.save", session, i, iNew)
-					csFile, err := os.Open(name)
-					if err != nil {
-						panic(err)
-					}
-					cs2.ReadFrom(csFile)
-					copy(cs.R1CSCore.Constraints[i:iNew], cs2.R1CSCore.Constraints)
-
-					wg.Done()
-				}
-			}
-		}()
-	}
-
-	defer func() {
-		close(chTasks)
-	}()
-
-	wg.Add(1)
-	chTasks <- -1
-	for i := 0; i < N; {
-		// read R1C[i, min(i+batchSize, end)]
-		iNew := i + batchSize
-		if iNew > N {
-			iNew = N
-		}
-		wg.Add(1)
-		chTasks <- i
-
-		i = iNew
-	}
-	wg.Wait()
-}
-
 func (cs *R1CS) LoadFromSplitBinaryConcurrent(session string, N, batchSize, NCore int) {
 	cs.R1CSCore.Constraints = make([]constraint.R1C, N)
 
@@ -812,25 +831,189 @@ func (cs *R1CS) LoadFromSplitBinaryConcurrent(session string, N, batchSize, NCor
 	for core := 0; core < NCore; core++ {
 		go func() {
 			for i := range chTasks {
-				if i < 0 {
-					// E part
+				// E part
+				if i == -11 {
 					cs2 := &R1CS{}
 
-					name := fmt.Sprintf("%s.r1cs.E.save", session)
+					name := fmt.Sprintf("%s.r1cs.E11.save", session)
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					reader := bufio.NewReader(csFile)
+					dec := gob.NewDecoder(reader)
+					err = dec.Decode(&cs2.R1CSCore.System.Levels)
+					if err != nil {
+						panic(err)
+					}
+					cs.R1CSCore.System.Levels = cs2.R1CSCore.System.Levels
+
+					wg.Done()
+				} else if i == -12 {
+					cs2 := &R1CS{}
+
+					name := fmt.Sprintf("%s.r1cs.E12.save", session)
+					if _, err := os.Stat(name); err != nil {
+						wg.Done()
+						continue
+					}
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					reader := bufio.NewReader(csFile)
+					dec := gob.NewDecoder(reader)
+					err = dec.Decode(&cs2.R1CSCore.System.HintFnWiresToIdx)
+					if err != nil {
+						panic(err)
+					}
+					cs.R1CSCore.System.HintFnWiresToIdx = cs2.R1CSCore.System.HintFnWiresToIdx
+
+					wg.Done()
+				} else if i == -13 {
+					cs2 := &R1CS{}
+
+					name := fmt.Sprintf("%s.r1cs.E13.save", session)
+					if _, err := os.Stat(name); err != nil {
+						wg.Done()
+						continue
+					}
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					reader := bufio.NewReader(csFile)
+					dec := gob.NewDecoder(reader)
+					err = dec.Decode(&cs2.R1CSCore.System.HintFnInputsToIdx)
+					if err != nil {
+						panic(err)
+					}
+					cs.R1CSCore.System.HintFnInputsToIdx = cs2.R1CSCore.System.HintFnInputsToIdx
+
+					wg.Done()
+				} else if i == -14 {
+					cs2 := &R1CS{}
+
+					name := fmt.Sprintf("%s.r1cs.E14.save", session)
+					if _, err := os.Stat(name); err != nil {
+						wg.Done()
+						continue
+					}
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					reader := bufio.NewReader(csFile)
+					dec := gob.NewDecoder(reader)
+					err = dec.Decode(&cs2.R1CSCore.System.IndexedWires)
+					if err != nil {
+						panic(err)
+					}
+					cs.R1CSCore.System.IndexedWires = cs2.R1CSCore.System.IndexedWires
+
+					wg.Done()
+				} else if i == -15 {
+					cs2 := &R1CS{}
+
+					name := fmt.Sprintf("%s.r1cs.E15.save", session)
+					if _, err := os.Stat(name); err != nil {
+						wg.Done()
+						continue
+					}
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					reader := bufio.NewReader(csFile)
+					dec := gob.NewDecoder(reader)
+					err = dec.Decode(&cs2.R1CSCore.System.IndexedInputs)
+					if err != nil {
+						panic(err)
+					}
+					cs.R1CSCore.System.IndexedInputs = cs2.R1CSCore.System.IndexedInputs
+
+					wg.Done()
+				} else if i == -1 {
+					cs2 := &R1CS{}
+
+					name := fmt.Sprintf("%s.r1cs.E1.save", session)
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					reader := bufio.NewReader(csFile)
+					dec := gob.NewDecoder(reader)
+					err = dec.Decode(cs2)
+					if err != nil {
+						panic(err)
+					}
+
+					cs.R1CSCore.System.GnarkVersion = cs2.R1CSCore.System.GnarkVersion
+					cs.R1CSCore.System.ScalarField = cs2.R1CSCore.System.ScalarField
+					cs.R1CSCore.System.NbInternalVariables = cs2.R1CSCore.System.NbInternalVariables
+					cs.R1CSCore.System.Public = cs2.R1CSCore.System.Public           // Todo
+					cs.R1CSCore.System.Secret = cs2.R1CSCore.System.Secret           // Todo
+					cs.R1CSCore.System.Logs = cs2.R1CSCore.System.Logs               // Todo
+					cs.R1CSCore.System.DebugInfo = cs2.R1CSCore.System.DebugInfo     // Todo
+					cs.R1CSCore.System.SymbolTable = cs2.R1CSCore.System.SymbolTable // Todo
+					cs.R1CSCore.System.MDebug = cs2.R1CSCore.System.MDebug           // Todo
+
+					cs.R1CSCore.System.NbHintFnWires = cs2.R1CSCore.System.NbHintFnWires
+					cs.R1CSCore.System.NbHintFnInputs = cs2.R1CSCore.System.NbHintFnInputs
+					cs.R1CSCore.System.MHints = cs2.R1CSCore.System.MHints
+					cs.R1CSCore.System.MHintsDependencies = cs2.R1CSCore.System.MHintsDependencies
+
+					cs.R1CSCore.System.CommitmentInfo = cs2.R1CSCore.System.CommitmentInfo
+					cs.R1CSCore.System.GKRMeta = cs2.R1CSCore.System.GKRMeta
+
+					wg.Done()
+				} else if i == -2 {
+					cs2 := &R1CS{}
+
+					name := fmt.Sprintf("%s.r1cs.E2.save", session)
 					csFile, err := os.Open(name)
 					if err != nil {
 						panic(err)
 					}
 					_, err = cs2.ReadFrom(csFile)
-
-					cs.CoeffTable = cs2.CoeffTable
-					cs.R1CSCore.System = cs2.R1CSCore.System
+					if err != nil {
+						panic(err)
+					}
 					cs.R1CSCore.LazyCons = cs2.R1CSCore.LazyCons
+
+					wg.Done()
+				} else if i == -3 {
+					cs2 := &R1CS{}
+
+					name := fmt.Sprintf("%s.r1cs.E3.save", session)
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					_, err = cs2.ReadFrom(csFile)
+					if err != nil {
+						panic(err)
+					}
 					cs.R1CSCore.LazyConsMap = cs2.R1CSCore.LazyConsMap
+
+					wg.Done()
+				} else if i == -4 {
+					cs2 := &R1CS{}
+
+					name := fmt.Sprintf("%s.r1cs.E4.save", session)
+					csFile, err := os.Open(name)
+					if err != nil {
+						panic(err)
+					}
+					_, err = cs2.ReadFrom(csFile)
+					if err != nil {
+						panic(err)
+					}
+					cs.CoeffTable = cs2.CoeffTable
 					cs.R1CSCore.StaticConstraints = cs2.R1CSCore.StaticConstraints
 
 					wg.Done()
-				} else {
+				} else { // R1c part
 					cs2 := &R1CS{}
 					iNew := i + batchSize
 					if iNew > N {
@@ -841,9 +1024,12 @@ func (cs *R1CS) LoadFromSplitBinaryConcurrent(session string, N, batchSize, NCor
 					if err != nil {
 						panic(err)
 					}
-					writer := bufio.NewReader(csFile)
-					enc := gob.NewDecoder(writer)
-					err = enc.Decode(cs2)
+					reader := bufio.NewReader(csFile)
+					dec := gob.NewDecoder(reader)
+					err = dec.Decode(cs2)
+					if err != nil {
+						panic(err)
+					}
 					copy(cs.R1CSCore.Constraints[i:iNew], cs2.R1CSCore.Constraints)
 
 					wg.Done()
@@ -856,8 +1042,12 @@ func (cs *R1CS) LoadFromSplitBinaryConcurrent(session string, N, batchSize, NCor
 		close(chTasks)
 	}()
 
-	wg.Add(1)
-	chTasks <- -1
+	eTasks := []int{-1, -11, -12, -13, -14, -15, -2, -3, -4}
+	for _, t := range eTasks {
+		wg.Add(1)
+		chTasks <- t
+	}
+
 	for i := 0; i < N; {
 		// read R1C[i, min(i+batchSize, end)]
 		iNew := i + batchSize
