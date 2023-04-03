@@ -461,6 +461,16 @@ func ReadSegmentProveKey(curveID ecc.ID, filepath string) (pks []ProvingKey, err
 			return pks, err
 		}
 
+		commitmentKey, _ := os.Open(filepath + ".pk.CommitmentKey.save")
+		_, err = pks[0].(*groth16_bn254.ProvingKey).UnsafeReadCommitmentKeyFrom(commitmentKey)
+		if err != nil {
+			return pks, fmt.Errorf("read file error")
+		}
+		err = commitmentKey.Close()
+		if err != nil {
+			return pks, err
+		}
+
 		f1, _ := os.Open(filepath + ".pk.B2.save")
 		_, err = pks[1].(*groth16_bn254.ProvingKey).UnsafeReadB2From(f1)
 		if err != nil {

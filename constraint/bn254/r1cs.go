@@ -707,6 +707,7 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 			return err
 		}
 		cs2.WriteTo(csFile)
+		defer csFile.Close()
 	}
 
 	N := len(cs.R1CSCore.Constraints)
@@ -720,6 +721,7 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 		cs2.R1CSCore.Constraints = cs.R1CSCore.Constraints[i:iNew]
 		name := fmt.Sprintf("%s.r1cs.Cons.%d.%d.save", session, i, iNew)
 		csFile, err := os.Create(name)
+
 		if err != nil {
 			return err
 		}
@@ -729,6 +731,7 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 		if err != nil {
 			panic(err)
 		}
+		csFile.Close()
 
 		i = iNew
 	}
