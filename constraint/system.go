@@ -2,6 +2,7 @@ package constraint
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -247,7 +248,7 @@ func (system *System) GetIdxFromWires(wires []int) int {
 	}
 	h := sha256.New224()
 	h.Write(key)
-	cKey := string(h.Sum(nil))
+	cKey := hex.EncodeToString(h.Sum(nil))
 	if idx, exist := system.HintFnWiresToIdx[cKey]; exist {
 		return idx
 	} else {
@@ -270,7 +271,7 @@ func (system *System) GetIdxFromInputs(inputs []LinearExpression) int {
 	}
 	h := sha256.New224()
 	h.Write(key)
-	cKey := string(h.Sum(nil))
+	cKey := hex.EncodeToString(h.Sum(nil))
 	if idx, exist := system.HintFnInputsToIdx[cKey]; exist {
 		return idx
 	} else {
