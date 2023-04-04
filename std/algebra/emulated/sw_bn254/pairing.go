@@ -74,22 +74,62 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 //
 // and r does NOT divide d'
 //
-// FinalExponentiation returns a decompressed element in E12
-func (pr Pairing) FinalExponentiation(e *GTEl, n int) *GTEl {
+// FinalExponentiation returns a decompressed element in E12.
+//
+// This is the safe version of the method where e may be {-1,1}. If it is known
+// that e ≠ {-1,1} then using the unsafe version of the method saves
+// considerable amount of constraints. When called with the result of
+// [MillerLoop], then current method is applicable when length of the inputs to
+// Miller loop is 1.
+func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
+	return pr.finalExponentiation(e, false)
+}
+
+// FinalExponentiationUnsafe computes the exponentiation eᵈ where
+//
+//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
+//
+// We use instead d'= s ⋅ d, where s is the cofactor
+//
+//	2x₀(6x₀²+3x₀+1)
+//
+// and r does NOT divide d'
+//
+// FinalExponentiationUnsafe returns a decompressed element in E12.
+//
+// This is the unsafe version of the method where e may NOT be {-1,1}. If e ∈
+// {-1, 1}, then there exists no valid solution to the circuit. This method is
+// applicable when called with the result of [MillerLoop] method when the length
+// of the inputs to Miller loop is 1.
+func (pr Pairing) FinalExponentiationUnsafe(e *GTEl) *GTEl {
+	return pr.finalExponentiation(e, true)
+}
+
+// finalExponentiation computes the exponentiation eᵈ where
+//
+//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
+//
+// We use instead d'= s ⋅ d, where s is the cofactor
+//
+//	2x₀(6x₀²+3x₀+1)
+//
+// and r does NOT divide d'
+//
+// finalExponentiation returns a decompressed element in E12
+func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
 
 	// 1. Easy part
 	// (p⁶-1)(p²+1)
 	var selector1, selector2 frontend.Variable
 	_dummy := pr.Ext6.One()
 
-	switch n {
-	case 1:
+	if unsafe {
 		// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
 		// linearly dependant and not from G1 and G2 respectively.
 		// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0.
 		// Nothing to do.
 
-	default:
+	} else {
 		// However, for a product of Miller loops (n>=2) this might happen.  If this is
 		// the case, the result is 1 in the torus. We assign a dummy value (1) to e.C1
 		// and proceed further.
@@ -138,13 +178,12 @@ func (pr Pairing) FinalExponentiation(e *GTEl, n int) *GTEl {
 	t2 = pr.FrobeniusCubeTorus(t2)
 
 	var result GTEl
-	switch n {
 	// MulTorus(t0, t2) requires t0 ≠ -t2. When t0 = -t2, it means the
 	// product is 1 in the torus.
-	case 1:
+	if unsafe {
 		// For a single pairing, this does not happen because the pairing is non-degenerate.
 		result = *pr.DecompressTorus(pr.MulTorus(t2, t0))
-	default:
+	} else {
 		// For a product of pairings this might happen when the result is expected to be 1.
 		// We assign a dummy value (1) to t0 and proceed furhter.
 		// Finally we do a select on both edge cases:
@@ -165,11 +204,11 @@ func (pr Pairing) FinalExponentiation(e *GTEl, n int) *GTEl {
 //
 // This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
-	res, n, err := pr.MillerLoop(P, Q)
+	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	res = pr.FinalExponentiation(res, n)
+	res = pr.finalExponentiation(res, len(P) == 1)
 	return res, nil
 }
 
@@ -215,11 +254,11 @@ type lineEvaluation struct {
 
 // MillerLoop computes the multi-Miller loop
 // ∏ᵢ { fᵢ_{6x₀+2,Q}(P) · ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
-func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, int, error) {
+func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	// check input size match
 	n := len(P)
 	if n == 0 || n != len(Q) {
-		return nil, n, errors.New("invalid inputs sizes")
+		return nil, errors.New("invalid inputs sizes")
 	}
 
 	res := pr.Ext12.One()
@@ -389,7 +428,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, int, error) {
 			}
 
 		default:
-			return nil, n, errors.New("invalid loopCounter")
+			return nil, errors.New("invalid loopCounter")
 		}
 	}
 
@@ -428,7 +467,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, int, error) {
 
 	}
 
-	return res, n, nil
+	return res, nil
 }
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
