@@ -108,14 +108,14 @@ contract PlonkVerifier {
 
         aggregation_challenge.mul_assign(state.v);
 
-        tmp_fr.assign(proof.linearization_polynomial_at_zeta);
+        tmp_fr = proof.linearization_polynomial_at_zeta;
         tmp_fr.mul_assign(aggregation_challenge);
         aggregated_value.add_assign(tmp_fr);
 
         for (uint i = 0; i < proof.wire_values_at_zeta.length; i++) {
             aggregation_challenge.mul_assign(state.v);
 
-            tmp_fr.assign(proof.wire_values_at_zeta[i]);
+            tmp_fr = proof.wire_values_at_zeta[i];
             tmp_fr.mul_assign(aggregation_challenge);
             aggregated_value.add_assign(tmp_fr);
         }
@@ -123,11 +123,11 @@ contract PlonkVerifier {
         for (uint i = 0; i < proof.permutation_polynomials_at_zeta.length; i++) {
             aggregation_challenge.mul_assign(state.v);
 
-            tmp_fr.assign(proof.permutation_polynomials_at_zeta[i]);
+            tmp_fr = proof.permutation_polynomials_at_zeta[i]);
             tmp_fr.mul_assign(aggregation_challenge);
             aggregated_value.add_assign(tmp_fr);
         }
-        tmp_fr.assign(proof.grand_product_at_zeta_omega);
+        tmp_fr = proof.grand_product_at_zeta_omega;
         tmp_fr.mul_assign(state.u);
         aggregated_value.add_assign(tmp_fr);
 
@@ -136,7 +136,7 @@ contract PlonkVerifier {
         Bn254.G1Point memory pair_with_generator = commitment_aggregation;
         pair_with_generator.point_add_assign(proof.opening_at_zeta_proof.point_mul(state.zeta));
 
-        tmp_fr.assign(state.zeta);
+        tmp_fr = state.zeta;
         tmp_fr.mul_assign(vk.omega);
         tmp_fr.mul_assign(state.u);
         pair_with_generator.point_add_assign(proof.opening_at_zeta_omega_proof.point_mul(tmp_fr));
@@ -165,7 +165,7 @@ contract PlonkVerifier {
         }
 
         // multiplication gate
-        tmp_fr.assign(proof.wire_values_at_zeta[0]);
+        tmp_fr = proof.wire_values_at_zeta[0];
         tmp_fr.mul_assign(proof.wire_values_at_zeta[1]);
         tmp_g1 = vk.selector_commitments[STATE_WIDTH].point_mul(tmp_fr);
         res.point_add_assign(tmp_g1);
@@ -176,7 +176,7 @@ contract PlonkVerifier {
         grand_product_part_at_z.add_assign(proof.wire_values_at_zeta[0]);
         grand_product_part_at_z.add_assign(state.gamma);
         for (uint256 i = 0; i < vk.permutation_non_residues.length; i++) {
-            tmp_fr.assign(state.zeta);
+            tmp_fr = state.zeta;
             tmp_fr.mul_assign(vk.permutation_non_residues[i]);
             tmp_fr.mul_assign(state.beta);
             tmp_fr.add_assign(state.gamma);
@@ -187,14 +187,14 @@ contract PlonkVerifier {
 
         grand_product_part_at_z.mul_assign(state.alpha);
 
-        tmp_fr.assign(state.cached_lagrange_evals[0]);
+        tmp_fr = state.cached_lagrange_evals[0];
         tmp_fr.mul_assign(state.alpha);
         tmp_fr.mul_assign(state.alpha);
         // NOTICE
         grand_product_part_at_z.sub_assign(tmp_fr);
         uint256 last_permutation_part_at_z = 1;
         for (uint256 i = 0; i < proof.permutation_polynomials_at_zeta.length; i++) {
-            tmp_fr.assign(state.beta);
+            tmp_fr = state.beta;
             tmp_fr.mul_assign(proof.permutation_polynomials_at_zeta[i]);
             tmp_fr.add_assign(state.gamma);
             tmp_fr.add_assign(proof.wire_values_at_zeta[i]);
@@ -281,34 +281,35 @@ contract PlonkVerifier {
         require(vanishing_at_zeta != 0);
         uint256[] nums = new uint256[](poly_nums.length);
         uint256[] dens = new uint256[](poly_nums.length);
+
         // numerators in a form omega^i * (z^n - 1)
         // denoms in a form (z - omega^i) * N
         for (uint i = 0; i < poly_nums.length; i++) {
             tmp_1 = omega.pow(poly_nums[i]); // power of omega
-            nums[i].assign(vanishing_at_zeta);
+            nums[i] = vanishing_at_zeta);
             nums[i].mul_assign(tmp_1);
 
-            dens[i].assign(at); // (X - omega^i) * N
+            dens[i] = at; // (X - omega^i) * N
             dens[i].sub_assign(tmp_1);
             dens[i].mul_assign(tmp_2); // mul by domain size
         }
 
         uint256[] partial_products = new uint256[](poly_nums.length);
-        partial_products[0].assign(1);
+        partial_products[0] = 1;
         for (uint i = 1; i < dens.length; i++) {
-            partial_products[i].assign(dens[i-1]);
+            partial_products[i] = dens[i-1];
             partial_products[i].mul_assign(partial_products[i-1]);
         }
 
-        tmp_2.assign(partial_products[partial_products.length - 1]);
+        tmp_2 = partial_products[partial_products.length - 1];
         tmp_2.mul_assign(dens[dens.length - 1]);
         tmp_2 = tmp_2.inverse(); // tmp_2 contains a^-1 * b^-1 (with! the last one)
 
         for (uint i = dens.length; i > 0; i--) {
-            tmp_1.assign(tmp_2); // all inversed
+            tmp_1 = tmp_2; // all inversed
             tmp_1.mul_assign(partial_products[i-1]); // clear lowest terms
             tmp_2.mul_assign(dens[i-1]);
-            dens[i-1].assign(tmp_1);
+            dens[i-1] = tmp_1;
         }
 
         for (uint i = 0; i < nums.length; i++) {
@@ -334,7 +335,7 @@ contract PlonkVerifier {
         // public inputs
         uint256 tmp = 0;
         for (uint256 i = 0; i < proof.input_values.length; i++) {
-            tmp.assign(state.cached_lagrange_evals[i]);
+            tmp = state.cached_lagrange_evals[i];
             tmp.mul_assign(proof.input_values[i]);
             rhs.add_assign(tmp);
         }
@@ -343,7 +344,7 @@ contract PlonkVerifier {
 
         uint256 z_part = proof.grand_product_at_zeta_omega;
         for (uint256 i = 0; i < proof.permutation_polynomials_at_zeta.length; i++) {
-            tmp.assign(proof.permutation_polynomials_at_zeta[i]);
+            tmp = proof.permutation_polynomials_at_zeta[i];
             tmp.mul_assign(state.beta);
             tmp.add_assign(state.gamma);
             tmp.add_assign(proof.wire_values_at_zeta[i]);
@@ -351,7 +352,7 @@ contract PlonkVerifier {
             z_part.mul_assign(tmp);
         }
 
-        tmp.assign(state.gamma);
+        tmp = state.gamma;
         // we need a wire value of the last polynomial in enumeration
         tmp.add_assign(proof.wire_values_at_zeta[STATE_WIDTH - 1]);
 
@@ -364,7 +365,7 @@ contract PlonkVerifier {
 
         quotient_challenge.mul_assign(state.alpha);
 
-        tmp.assign(state.cached_lagrange_evals[0]);
+        tmp = state.cached_lagrange_evals[0]);
         tmp.mul_assign(quotient_challenge);
 
         rhs.sub_assign(tmp);
