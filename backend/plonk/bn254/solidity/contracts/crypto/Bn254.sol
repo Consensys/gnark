@@ -5,53 +5,15 @@
 // 
 // According to https://eprint.iacr.org/archive/2019/953/1585767119.pdf
 pragma solidity ^0.8.0;
-pragma experimental ABIEncoderV2;
 
 library Bn254 {
 
   uint256 constant p_mod = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
-  uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint256 constant bn254_b_coeff = 3;
 
   struct G1Point {
     uint256 X;
     uint256 Y;
-  }
-
-  function pow(uint256 x, uint256 power) internal view returns (uint256) {
-    uint256[6] memory input = [32, 32, 32, x, power, r_mod];
-    uint256[1] memory result;
-    bool success;
-    assembly {
-      success := staticcall(gas(), 0x05, input, 0xc0, result, 0x20)
-    }
-    require(success);
-    return result[0];
-  }
-
-  function inverse(uint256 x) internal view returns (uint256) {
-    require(x != 0);
-    return pow(x, r_mod-2);
-  }
-
-  // computes L_i(z) = w^j/n (z^n-1)/(z-w^j)
-  function compute_lagrange(uint256 i, uint256 z, uint256 w, uint256 n) internal view returns (uint256) {
-
-    require(i<n);
-    require(z<r_mod);
-    require(w<r_mod);
-
-    w = pow(w, i);                  // w**i
-    i = addmod(z, r_mod-w, r_mod);  // z-w**i
-    z = pow(z, n);                  // z**n
-    z = addmod(z, r_mod-1, r_mod);  // z**n-1
-    n = inverse(n);                 // n**-1
-    w = mulmod(w, n, r_mod);        // w**i/n
-    i = inverse(i);                 // (z-w**i)**-1
-    w = mulmod(w, i, r_mod);        // w**i/n*(z-w**i)**-1
-    w = mulmod(w, z, r_mod);        // w**i/n*(z**n-1)*(z-w**i)**-1
-    
-    return w;
   }
 
   // Encoding of field elements is: X[0] * z + X[1]
