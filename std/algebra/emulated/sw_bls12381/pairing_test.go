@@ -35,8 +35,10 @@ func (c *FinalExponentiationCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res := pairing.FinalExponentiation(&c.InGt)
-	pairing.AssertIsEqual(res, &c.Res)
+	res1 := pairing.FinalExponentiation(&c.InGt)
+	pairing.AssertIsEqual(res1, &c.Res)
+	res2 := pairing.FinalExponentiationUnsafe(&c.InGt)
+	pairing.AssertIsEqual(res2, &c.Res)
 	return nil
 }
 
