@@ -79,10 +79,12 @@ func (system *System) processWire(wireID uint32, maxLevel *int) {
 		}
 		system.lbHints[h] = struct{}{}
 
-		for _, hwid := range h.Wires {
+		hWires := system.IndexedWires[h.WiresIdx]
+		for _, hwid := range hWires {
 			system.lbOutputs = append(system.lbOutputs, uint32(hwid))
 		}
-		for _, in := range h.Inputs {
+		hInputs := system.IndexedInputs[h.InputsIdx]
+		for _, in := range hInputs {
 			for _, t := range in {
 				if !t.IsConstant() {
 					system.processWire(t.VID, maxLevel)

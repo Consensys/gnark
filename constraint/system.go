@@ -1,6 +1,9 @@
 package constraint
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -71,8 +74,6 @@ type ConstraintSystem interface {
 	GetNbR1C() int
 
 	LoadFromSplitBinaryConcurrent(session string, constraints int, size int, cpu int)
-	LoadFromSplitConcurrent(session string, constraints int, size int, cpu int)
-	SplitDump(session string, batchSize int) error
 	SplitDumpBinary(session string, batchSize int) error
 }
 
@@ -113,6 +114,12 @@ type System struct {
 	// several constraints may point to the same debug info
 	MDebug map[int]int
 
+	HintFnInputsToIdx  map[string]int
+	IndexedInputs      [][]LinearExpression
+	HintFnWiresToIdx   map[string]int
+	IndexedWires       [][]int
+	NbHintFnWires      int
+	NbHintFnInputs     int
 	MHints             map[int]*Hint      // maps wireID to hint
 	MHintsDependencies map[hint.ID]string // maps hintID to hint string identifier
 
@@ -151,6 +158,11 @@ func NewSystem(scalarField *big.Int) System {
 		bitLen:             scalarField.BitLen(),
 		lbHints:            map[*Hint]struct{}{},
 		gkrTransferMap:     make(map[int]int),
+		HintFnInputsToIdx:  make(map[string]int),
+		HintFnWiresToIdx:   make(map[string]int),
+		IndexedWires:       make([][]int, 0),
+		NbHintFnWires:      0,
+		NbHintFnInputs:     0,
 	}
 }
 
@@ -229,6 +241,48 @@ func (system *System) AddSecretVariable(name string) (idx int) {
 	return idx
 }
 
+func (system *System) GetIdxFromWires(wires []int) int {
+	key, err := json.Marshal(wires)
+	if err != nil {
+		panic(err)
+	}
+	h := sha256.New224()
+	h.Write(key)
+	cKey := hex.EncodeToString(h.Sum(nil))
+	if idx, exist := system.HintFnWiresToIdx[cKey]; exist {
+		return idx
+	} else {
+		system.IndexedWires = append(system.IndexedWires, wires)
+		cnt := system.NbHintFnWires
+		system.HintFnWiresToIdx[cKey] = cnt
+		system.NbHintFnWires = cnt + 1
+		return cnt
+	}
+}
+
+func (system *System) GetWiresFromIdx(idx int) []int {
+	return system.IndexedWires[idx]
+}
+
+func (system *System) GetIdxFromInputs(inputs []LinearExpression) int {
+	key, err := json.Marshal(inputs)
+	if err != nil {
+		panic(err)
+	}
+	h := sha256.New224()
+	h.Write(key)
+	cKey := hex.EncodeToString(h.Sum(nil))
+	if idx, exist := system.HintFnInputsToIdx[cKey]; exist {
+		return idx
+	} else {
+		system.IndexedInputs = append(system.IndexedInputs, inputs)
+		cnt := system.NbHintFnInputs
+		system.HintFnInputsToIdx[cKey] = cnt
+		system.NbHintFnInputs = cnt + 1
+		return cnt
+	}
+}
+
 func (system *System) AddSolverHint(f hint.Function, input []LinearExpression, nbOutput int) (internalVariables []int, err error) {
 	if nbOutput <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
@@ -252,7 +306,9 @@ func (system *System) AddSolverHint(f hint.Function, input []LinearExpression, n
 	}
 
 	// associate these wires with the solver hint
-	ch := &Hint{ID: hintUUID, Inputs: input, Wires: internalVariables}
+	wiresIdx := system.GetIdxFromWires(internalVariables)
+	inputIdx := system.GetIdxFromInputs(input)
+	ch := &Hint{ID: hintUUID, InputsIdx: inputIdx, WiresIdx: wiresIdx}
 	for _, vID := range internalVariables {
 		system.MHints[vID] = ch
 	}
