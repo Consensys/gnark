@@ -160,3 +160,39 @@ func TestPairingCheckTestSolve(t *testing.T) {
 	err := test.IsSolved(&PairingCheckCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+type FinalExponentiationSafeCircuit struct {
+	P1, P2 G1Affine
+	Q1, Q2 G2Affine
+}
+
+func (c *FinalExponentiationSafeCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return err
+	}
+	res, err := pairing.MillerLoop([]*G1Affine{&c.P1, &c.P2}, []*G2Affine{&c.Q1, &c.Q2})
+	if err != nil {
+		return err
+	}
+	res2 := pairing.FinalExponentiation(res)
+	one := pairing.Ext12.One()
+	pairing.AssertIsEqual(one, res2)
+	return nil
+}
+
+func TestFinalExponentiationSafeCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, p1, q1 := bls12381.Generators()
+	var p2 bls12381.G1Affine
+	var q2 bls12381.G2Affine
+	p2.Neg(&p1)
+	q2.Set(&q1)
+	err := test.IsSolved(&FinalExponentiationSafeCircuit{}, &FinalExponentiationSafeCircuit{
+		P1: NewG1Affine(p1),
+		P2: NewG1Affine(p2),
+		Q1: NewG2Affine(q1),
+		Q2: NewG2Affine(q2),
+	}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
