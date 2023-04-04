@@ -3,16 +3,16 @@ SHELL=/bin/bash
 .PHONY: clean clean-abi clean-bin clean-go solc
 
 clean-abi:
-	cd contracts/crypto && rm -f *.abi
+	cd abi/ && rm -f *.abi
 
 clean-bin:
-	cd contracts/crypto && rm -f *.bin
+	cd abi/ && rm -f *.bin
 
 clean-go:
 	cd gopkg/ && rm -f *.go
 
 solc:
-	solc --bin --abi contracts/crypto/HashFr.sol -o abi && abigen --abi abi/HashFr.abi --bin abi/HashFr.bin --pkg hashfr --out gopkg/hashfr.go --type HashFr
+	solc --bin --abi contracts/test/Test.sol -o abi && abigen --abi abi/TestContract.abi --bin abi/TestContract.bin --pkg contract --out gopkg/contract.go --type Contract
 
 clean: clean-abi clean-bin clean-go
 

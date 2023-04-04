@@ -11,7 +11,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	hashfr "github.com/consensys/gnark/backend/plonk/bn254/solidity/gopkg"
+	contract "github.com/consensys/gnark/backend/plonk/bn254/solidity/gopkg"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -88,7 +88,7 @@ func main() {
 	checkError(err)
 
 	// deploy the contract
-	contractAddress, _, instance, err := hashfr.DeployHashFr(auth, client)
+	contractAddress, _, instance, err := contract.DeployContract(auth, client)
 	checkError(err)
 	client.Commit()
 
@@ -117,7 +117,7 @@ func main() {
 	logs, err := client.FilterLogs(context.Background(), query)
 	checkError(err)
 
-	contractABI, err := abi.JSON(strings.NewReader(string(hashfr.HashFrABI)))
+	contractABI, err := abi.JSON(strings.NewReader(string(contract.ContractABI)))
 	checkError(err)
 
 	for _, vLog := range logs {

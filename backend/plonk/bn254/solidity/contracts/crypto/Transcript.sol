@@ -1,7 +1,7 @@
 pragma solidity ^0.8.19;
 pragma experimental ABIEncoderV2;
 
-import {Bn254} from '.Bn254.sol'
+import {Bn254} from '.Bn254.sol';
 
 library TranscriptLibrary {
  

@@ -1,4 +1,4 @@
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.0;
 pragma experimental ABIEncoderV2;
 
 /**
@@ -108,24 +108,6 @@ library UtilsFr {
     res = addmod(res, tmp, r_mod);
 
     return res;
-  }
-
-}
-
-contract HashFr {
-
-  using UtilsFr for *;
-
-  event PrintUint256(uint256 a);
-
-  function test_hash(uint256 x, uint256 y, string memory dst) public returns(uint256 res){
-
-    res = UtilsFr.hash_fr(x, y, dst);
-
-    emit PrintUint256(res);
-
-    return res;
-
   }
 
 }
