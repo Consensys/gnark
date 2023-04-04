@@ -6,7 +6,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
 
@@ -15,8 +14,7 @@ type e6Add struct {
 }
 
 func (circuit *e6Add) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	e := NewExt6(ba)
+	e := NewExt6(api)
 	expected := e.Add(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -47,8 +45,7 @@ type e6Sub struct {
 }
 
 func (circuit *e6Sub) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	e := NewExt6(ba)
+	e := NewExt6(api)
 	expected := e.Sub(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -79,9 +76,7 @@ type e6Mul struct {
 }
 
 func (circuit *e6Mul) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	e := NewExt6(ba)
-
+	e := NewExt6(api)
 	expected := e.Mul(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -112,9 +107,7 @@ type e6Square struct {
 }
 
 func (circuit *e6Square) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	e := NewExt6(ba)
-
+	e := NewExt6(api)
 	expected := e.Square(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -143,9 +136,7 @@ type e6Div struct {
 }
 
 func (circuit *e6Div) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	e := NewExt6(ba)
-
+	e := NewExt6(api)
 	expected := e.DivUnchecked(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -177,8 +168,7 @@ type e6MulByNonResidue struct {
 }
 
 func (circuit *e6MulByNonResidue) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	e := NewExt6(ba)
+	e := NewExt6(api)
 	expected := e.MulByNonResidue(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
@@ -210,8 +200,7 @@ type e6MulByE2 struct {
 }
 
 func (circuit *e6MulByE2) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	e := NewExt6(ba)
+	e := NewExt6(api)
 	expected := e.MulByE2(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 
@@ -246,8 +235,7 @@ type e6MulBy01 struct {
 }
 
 func (circuit *e6MulBy01) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	e := NewExt6(ba)
+	e := NewExt6(api)
 	expected := e.MulBy01(&circuit.A, &circuit.C0, &circuit.C1)
 	e.AssertIsEqual(expected, &circuit.C)
 
@@ -284,8 +272,7 @@ type e6Neg struct {
 }
 
 func (circuit *e6Neg) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	e := NewExt6(ba)
+	e := NewExt6(api)
 	expected := e.Neg(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
@@ -315,9 +302,7 @@ type e6Inverse struct {
 }
 
 func (circuit *e6Inverse) Define(api frontend.API) error {
-
-	ba, _ := emulated.NewField[emulated.BLS12381Fp](api)
-	e := NewExt6(ba)
+	e := NewExt6(api)
 	expected := e.Inverse(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 

@@ -2,6 +2,7 @@ package fields_bls12381
 
 import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark/frontend"
 )
 
 type E6 struct {
@@ -12,8 +13,8 @@ type Ext6 struct {
 	*Ext2
 }
 
-func NewExt6(baseField *curveF) *Ext6 {
-	return &Ext6{Ext2: NewExt2(baseField)}
+func NewExt6(api frontend.API) *Ext6 {
+	return &Ext6{Ext2: NewExt2(api)}
 }
 
 func (e Ext6) One() *E6 {
@@ -36,6 +37,13 @@ func (e Ext6) Zero() *E6 {
 		B1: *z1,
 		B2: *z2,
 	}
+}
+
+func (e Ext6) IsZero(z *E6) frontend.Variable {
+	b0 := e.Ext2.IsZero(&z.B0)
+	b1 := e.Ext2.IsZero(&z.B1)
+	b2 := e.Ext2.IsZero(&z.B2)
+	return e.api.And(e.api.And(b0, b1), b2)
 }
 
 func (e Ext6) Add(x, y *E6) *E6 {
@@ -272,7 +280,6 @@ func (e Ext6) Inverse(x *E6) *E6 {
 
 }
 
-// DivUnchecked e2 elmts
 func (e Ext6) DivUnchecked(x, y *E6) *E6 {
 	res, err := e.fp.NewHint(divE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1, &y.B0.A0, &y.B0.A1, &y.B1.A0, &y.B1.A1, &y.B2.A0, &y.B2.A1)
 	if err != nil {
@@ -291,4 +298,18 @@ func (e Ext6) DivUnchecked(x, y *E6) *E6 {
 	e.AssertIsEqual(x, _x)
 
 	return &div
+}
+
+func (e Ext6) Select(selector frontend.Variable, z1, z0 *E6) *E6 {
+	b0 := e.Ext2.Select(selector, &z1.B0, &z0.B0)
+	b1 := e.Ext2.Select(selector, &z1.B1, &z0.B1)
+	b2 := e.Ext2.Select(selector, &z1.B2, &z0.B2)
+	return &E6{B0: *b0, B1: *b1, B2: *b2}
+}
+
+func (e Ext6) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E6) *E6 {
+	b0 := e.Ext2.Lookup2(s1, s2, &a.B0, &b.B0, &c.B0, &d.B0)
+	b1 := e.Ext2.Lookup2(s1, s2, &a.B1, &b.B1, &c.B1, &d.B1)
+	b2 := e.Ext2.Lookup2(s1, s2, &a.B2, &b.B2, &c.B2, &d.B2)
+	return &E6{B0: *b0, B1: *b1, B2: *b2}
 }

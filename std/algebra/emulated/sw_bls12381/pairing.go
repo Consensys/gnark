@@ -12,6 +12,7 @@ import (
 )
 
 type Pairing struct {
+	api frontend.API
 	*fields_bls12381.Ext12
 	curveF *emulated.Field[emulated.BLS12381Fp]
 }
@@ -57,36 +58,94 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
 	return &Pairing{
-		Ext12:  fields_bls12381.NewExt12(ba),
+		api:    api,
+		Ext12:  fields_bls12381.NewExt12(api),
 		curveF: ba,
 	}, nil
 }
 
-// FinalExponentiation computes the exponentiation (∏ᵢ zᵢ)ᵈ
-// where d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
-// we use instead d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
-// where s is the cofactor 3 (Hayashida et al.)
+// FinalExponentiation computes the exponentiation (∏ᵢ zᵢ)ᵈ where
+//
+//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+//
+// we use instead
+//
+//	d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+//
+// where s is the cofactor 3 (Hayashida et al.).
+//
+// This is the safe version of the method where e may be {-1,1}. If it is known
+// that e ≠ {-1,1} then using the unsafe version of the method saves
+// considerable amount of constraints. When called with the result of
+// [MillerLoop], then current method is applicable when length of the inputs to
+// Miller loop is 1.
 func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	res := pr.FinalExponentiationTorus(e)
-	return pr.DecompressTorus(res)
+	return pr.finalExponentiation(e, false)
 }
 
-func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bls12381.E6 {
+// FinalExponentiationUnsafe computes the exponentiation (∏ᵢ zᵢ)ᵈ where
+//
+//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+//
+// we use instead
+//
+//	d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+//
+// where s is the cofactor 3 (Hayashida et al.).
+//
+// This is the unsafe version of the method where e may NOT be {-1,1}. If e ∈
+// {-1, 1}, then there exists no valid solution to the circuit. This method is
+// applicable when called with the result of [MillerLoop] method when the length
+// of the inputs to Miller loop is 1.
+func (pr Pairing) FinalExponentiationUnsafe(e *GTEl) *GTEl {
+	return pr.finalExponentiation(e, true)
+}
 
-	// Easy part
+// finalExponentiation computes the exponentiation (∏ᵢ zᵢ)ᵈ where
+//
+//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+//
+// we use instead
+//
+//	d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
+//
+// where s is the cofactor 3 (Hayashida et al.).
+func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
+
+	// 1. Easy part
 	// (p⁶-1)(p²+1)
-	// with Torus compression absorbed.
-	// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q
-	// are linearly dependant and not from G1 and G2 respectively.
-	// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0
+	var selector1, selector2 frontend.Variable
+	_dummy := pr.Ext6.One()
+
+	if unsafe {
+		// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
+		// linearly dependant and not from G1 and G2 respectively.
+		// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0.
+		// Nothing to do.
+	} else {
+		// However, for a product of Miller loops (n>=2) this might happen.  If this is
+		// the case, the result is 1 in the torus. We assign a dummy value (1) to e.C1
+		// and proceed further.
+		selector1 = pr.Ext6.IsZero(&e.C1)
+		e.C1 = *pr.Ext6.Select(selector1, _dummy, &e.C1)
+	}
+
+	// Torus compression absorbed:
+	// Raising e to (p⁶-1) is
+	// e^(p⁶) / e = (e.C0 - w*e.C1) / (e.C0 + w*e.C1)
+	//            = (-e.C0/e.C1 + w) / (-e.C0/e.C1 - w)
+	// So the fraction -e.C0/e.C1 is already in the torus.
+	// This absorbs the torus compression in the easy part.
 	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
 	c = pr.Ext6.Neg(c)
 	t0 := pr.FrobeniusSquareTorus(c)
 	c = pr.MulTorus(t0, c)
 
-	// Hard part (up to permutation)
+	// 2. Hard part (up to permutation)
+	// 3(p⁴-p²+1)/r
 	// Daiki Hayashida, Kenichiro Hayasaka and Tadanori Teruya
 	// https://eprint.iacr.org/2020/875.pdf
+	// performed in torus compressed form
 	t0 = pr.SquareTorus(c)
 	t1 := pr.ExptHalfTorus(t0)
 	t2 := pr.InverseTorus(c)
@@ -104,9 +163,27 @@ func (pr Pairing) FinalExponentiationTorus(e *GTEl) *fields_bls12381.E6 {
 	t1 = pr.InverseTorus(t1)
 	t1 = pr.MulTorus(t1, t2)
 	t1 = pr.MulTorus(t1, t0)
-	c = pr.MulTorus(c, t1)
 
-	return c
+	var result GTEl
+	// MulTorus(c, t1) requires c ≠ -t1. When c = -t1, it means the
+	// product is 1 in the torus.
+	if unsafe {
+		// For a single pairing, this does not happen because the pairing is non-degenerate.
+		result = *pr.DecompressTorus(pr.MulTorus(c, t1))
+	} else {
+		// For a product of pairings this might happen when the result is expected to be 1.
+		// We assign a dummy value (1) to t1 and proceed furhter.
+		// Finally we do a select on both edge cases:
+		//   - Only if seletor1=0 and selector2=0, we return MulTorus(c, t1) decompressed.
+		//   - Otherwise, we return 1.
+		_sum := pr.Ext6.Add(c, t1)
+		selector2 = pr.Ext6.IsZero(_sum)
+		t1 = pr.Ext6.Select(selector2, _dummy, t1)
+		selector := pr.api.Mul(pr.api.Sub(1, selector1), pr.api.Sub(1, selector2))
+		result = *pr.Select(selector, pr.DecompressTorus(pr.MulTorus(c, t1)), pr.One())
+	}
+
+	return &result
 }
 
 // lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
@@ -120,14 +197,30 @@ type lineEvaluation struct {
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroup.
+// This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	res = pr.FinalExponentiation(res)
+	res = pr.finalExponentiation(res, len(P) == 1)
 	return res, nil
+}
+
+// PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
+// ∏ᵢ e(Pᵢ, Qᵢ) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups.
+func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
+	f, err := pr.Pair(P, Q)
+	if err != nil {
+		return err
+
+	}
+	one := pr.One()
+	pr.AssertIsEqual(f, one)
+
+	return nil
 }
 
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
@@ -137,7 +230,14 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 // loopCounter = seed in binary
 //
 //	seed=-15132376222941642752
-var loopCounter = [64]int8{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1}
+var loopCounter = [64]int8{
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+	0, 0, 1, 0, 0, 1, 0, 1, 1,
+}
 
 // MillerLoop computes the multi-Miller loop
 // ∏ᵢ { fᵢ_{u,Q}(P) }

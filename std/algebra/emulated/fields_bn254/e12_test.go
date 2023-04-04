@@ -6,7 +6,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
 
@@ -15,8 +14,7 @@ type e12Add struct {
 }
 
 func (circuit *e12Add) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	expected := e.Add(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -47,8 +45,7 @@ type e12Sub struct {
 }
 
 func (circuit *e12Sub) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	expected := e.Sub(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -79,9 +76,7 @@ type e12Mul struct {
 }
 
 func (circuit *e12Mul) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
-
+	e := NewExt12(api)
 	expected := e.Mul(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -112,9 +107,7 @@ type e12Div struct {
 }
 
 func (circuit *e12Div) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
-
+	e := NewExt12(api)
 	expected := e.DivUnchecked(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -145,9 +138,7 @@ type e12Square struct {
 }
 
 func (circuit *e12Square) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
-
+	e := NewExt12(api)
 	expected := e.Square(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -177,8 +168,7 @@ type e12Conjugate struct {
 }
 
 func (circuit *e12Conjugate) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	expected := e.Conjugate(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
@@ -208,8 +198,7 @@ type e12Inverse struct {
 }
 
 func (circuit *e12Inverse) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	expected := e.Inverse(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.C)
 
@@ -239,8 +228,7 @@ type e12ExptTorus struct {
 }
 
 func (circuit *e12ExptTorus) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	z := e.ExptTorus(&circuit.A)
 	expected := e.DecompressTorus(z)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -280,9 +268,7 @@ type e12MulBy034 struct {
 }
 
 func (circuit *e12MulBy034) Define(api frontend.API) error {
-
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	res := e.MulBy034(&circuit.A, &circuit.B, &circuit.C)
 	e.AssertIsEqual(res, &circuit.W)
 	return nil
@@ -320,8 +306,7 @@ type torusCompress struct {
 }
 
 func (circuit *torusCompress) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	expected := e.CompressTorus(&circuit.A)
 	e.Ext6.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -358,8 +343,7 @@ type torusDecompress struct {
 }
 
 func (circuit *torusDecompress) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	compressed := e.CompressTorus(&circuit.A)
 	expected := e.DecompressTorus(compressed)
 	e.AssertIsEqual(expected, &circuit.C)
@@ -399,8 +383,7 @@ type torusMul struct {
 }
 
 func (circuit *torusMul) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	compressedA := e.CompressTorus(&circuit.A)
 	compressedB := e.CompressTorus(&circuit.B)
 	compressedAB := e.MulTorus(compressedA, compressedB)
@@ -447,8 +430,7 @@ type torusInverse struct {
 }
 
 func (circuit *torusInverse) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	compressed := e.CompressTorus(&circuit.A)
 	compressed = e.InverseTorus(compressed)
 	expected := e.DecompressTorus(compressed)
@@ -487,8 +469,7 @@ type torusFrobenius struct {
 }
 
 func (circuit *torusFrobenius) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	compressed := e.CompressTorus(&circuit.A)
 	compressed = e.FrobeniusTorus(compressed)
 	expected := e.DecompressTorus(compressed)
@@ -527,8 +508,7 @@ type torusFrobeniusSquare struct {
 }
 
 func (circuit *torusFrobeniusSquare) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	compressed := e.CompressTorus(&circuit.A)
 	compressed = e.FrobeniusSquareTorus(compressed)
 	expected := e.DecompressTorus(compressed)
@@ -567,8 +547,7 @@ type torusFrobeniusCube struct {
 }
 
 func (circuit *torusFrobeniusCube) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	compressed := e.CompressTorus(&circuit.A)
 	compressed = e.FrobeniusCubeTorus(compressed)
 	expected := e.DecompressTorus(compressed)
@@ -607,8 +586,7 @@ type torusSquare struct {
 }
 
 func (circuit *torusSquare) Define(api frontend.API) error {
-	ba, _ := emulated.NewField[emulated.BN254Fp](api)
-	e := NewExt12(ba)
+	e := NewExt12(api)
 	compressed := e.CompressTorus(&circuit.A)
 	compressed = e.SquareTorus(compressed)
 	expected := e.DecompressTorus(compressed)
