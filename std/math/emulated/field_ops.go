@@ -44,6 +44,22 @@ func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 	return e
 }
 
+// Sqrt computes the square root of a and returns it. It uses [SqrtHint].
+func (f *Field[T]) Sqrt(a *Element[T]) *Element[T] {
+	// omit width assertion as is done in Mul below
+	if !f.fParams.IsPrime() {
+		panic("modulus not a prime")
+	}
+	sqrt, err := f.computeSqrtHint(a.Limbs)
+	if err != nil {
+		panic(fmt.Sprintf("compute square root: %v", err))
+	}
+	e := f.packLimbs(sqrt, true)
+	res := f.Mul(e, e)
+	f.AssertIsEqual(res, a)
+	return e
+}
+
 // Add computes a+b and returns it. If the result wouldn't fit into Element, then
 // first reduces the inputs (larger first) and tries again. Doesn't mutate
 // inputs.

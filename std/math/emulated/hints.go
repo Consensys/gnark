@@ -202,6 +202,49 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return nil
 }
 
+// computeSqrtHint packs the inputs for the SqrtHint hint function.
+func (f *Field[T]) computeSqrtHint(inLimbs []frontend.Variable) (sqrtLimbs []frontend.Variable, err error) {
+	var fp T
+	hintInputs := []frontend.Variable{
+		fp.BitsPerLimb(),
+		fp.NbLimbs(),
+	}
+	p := f.Modulus()
+	hintInputs = append(hintInputs, p.Limbs...)
+	hintInputs = append(hintInputs, inLimbs...)
+	return f.api.NewHint(SqrtHint, int(fp.NbLimbs()), hintInputs...)
+}
+
+// SqrtHint computes the square root x^1/2 for the input x and stores it in outputs.
+func SqrtHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) < 2 {
+		return fmt.Errorf("input must be at least two elements")
+	}
+	nbBits := uint(inputs[0].Uint64())
+	nbLimbs := int(inputs[1].Int64())
+	if len(inputs[2:]) < 2*nbLimbs {
+		return fmt.Errorf("inputs missing")
+	}
+	if len(outputs) != nbLimbs {
+		return fmt.Errorf("result does not fit into output")
+	}
+	p := new(big.Int)
+	if err := recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
+		return fmt.Errorf("recompose emulated order: %w", err)
+	}
+	x := new(big.Int)
+	if err := recompose(inputs[2+nbLimbs:], nbBits, x); err != nil {
+		return fmt.Errorf("recompose value: %w", err)
+	}
+	if x.ModSqrt(x, p) == nil {
+		return fmt.Errorf("input is not a square")
+	}
+	if err := decompose(x, nbBits, outputs); err != nil {
+		return fmt.Errorf("decompose: %w", err)
+	}
+	return nil
+}
+
 // computeDivisionHint packs the inputs for DivisionHint hint function.
 func (f *Field[T]) computeDivisionHint(nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
 	var fp T
