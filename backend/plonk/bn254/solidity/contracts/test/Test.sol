@@ -28,4 +28,12 @@ contract TestContract {
 
   }
 
+    function test_compute_sum_li_zi(uint256[] memory inputs, uint256 z, uint256 w, uint256 n) public returns (uint256 res){
+
+    res = Polynomials.compute_sum_li_zi(inputs, z, w, n);
+
+    emit PrintUint256(res);
+
+  }
+
 }

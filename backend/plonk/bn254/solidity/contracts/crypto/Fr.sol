@@ -41,4 +41,10 @@ library Fr {
     return pow(x, r_mod-2);
   }
 
+  function div(uint256 x, uint256 y) internal view returns(uint256) {
+    require(y != 0);
+    y = inverse(y);
+    return mul(x, y);
+  }
+
 }

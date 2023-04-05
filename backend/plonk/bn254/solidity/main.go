@@ -104,13 +104,20 @@ func main() {
 	// checkError(err)
 
 	d := fft.NewDomain(64)
-	var bz, bi, bn, bw big.Int
+	var bz, bn, bw big.Int
 	d.Generator.BigInt(&bw)
 	fmt.Printf("w = Fr(%s)\n", d.Generator.String())
 	bz.SetUint64(29)
 	bn.SetUint64(d.Cardinality)
-	bi.SetUint64(10)
-	_, err = instance.TestEvalIthLagrange(auth, &bi, &bz, &bw, &bn)
+	// bi.SetUint64(10)
+	inputs := make([]*big.Int, 10)
+	fmt.Printf("[")
+	for i := 0; i < 10; i++ {
+		inputs[i] = big.NewInt(int64(i) + 3)
+		fmt.Printf("Fr(%s), ", inputs[i].String())
+	}
+	fmt.Println("]")
+	_, err = instance.TestComputeSumLiZi(auth, inputs, &bz, &bw, &bn)
 	checkError(err)
 
 	client.Commit()
