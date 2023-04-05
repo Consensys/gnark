@@ -32,6 +32,12 @@ type Circuit struct {
 func (circuit *Circuit) Define(api frontend.API) error {
 	cnt := 1 << Cnt
 
+	v1, err := api.Compiler().Commit(circuit.PreImage, circuit.Hash)
+	if err != nil {
+		return err
+	}
+	v2 := api.Mul(v1, v1)
+	api.AssertIsDifferent(v2, 0)
 	for i := 0; i < cnt; i++ {
 		// hash function
 		handler, _ := mimc.NewMiMC(api)

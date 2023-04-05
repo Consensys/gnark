@@ -774,7 +774,8 @@ func SetupDumpKeys(r1cs *cs.R1CS, session string) error {
 
 		offset := 3
 		if nbPrivateCommittedWires != 0 {
-			commitmentBasis := g1PointsAff[offset:]
+			commitmentBasis := g1PointsAff[offset : offset+len(ckK)]
+			offset = offset + len(ckK)
 
 			vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
 			if err != nil {
@@ -782,7 +783,6 @@ func SetupDumpKeys(r1cs *cs.R1CS, session string) error {
 			}
 			pk.CommitmentKey = vk.CommitmentKey
 		}
-		offset += nbPrivateCommittedWires
 		vk.G1.K = g1PointsAff[offset : offset+nbPublicWires]
 		// ---------------------------------------------------------------------------------------------
 		// G2 scalars
@@ -826,8 +826,17 @@ func SetupDumpKeys(r1cs *cs.R1CS, session string) error {
 		pk.Card = pk.Domain.Cardinality
 
 		vk.CommitmentInfo = r1cs.CommitmentInfo // unfortunate but necessary
+		name := fmt.Sprintf("%s.pk.CommitmentKey.save", session)
+		commitmentKey, err := os.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = pk.WriteRawCommitmentKeyTo(commitmentKey)
+		if err != nil {
+			return err
+		}
 
-		name := fmt.Sprintf("%s.pk.E.save", session)
+		name = fmt.Sprintf("%s.pk.E.save", session)
 		pkFile, err := os.Create(name)
 		if err != nil {
 			return err

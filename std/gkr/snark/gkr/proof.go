@@ -111,9 +111,6 @@ func GetInitialQPrimeAndQAndInitialHash(api frontend.API, bN, bG int, initialHas
 	q := make([]frontend.Variable, bG)
 	qPrime := make([]frontend.Variable, bN)
 
-	// used to ensure initialHash was solved before the assign gkr proofs
-	api.AssertIsDifferent(initialHash, 0)
-
 	// actually compute qInitial and qPrimeInitial
 	for i := range q {
 		q[i] = poseidon.Poseidon(api, initialHash, i)
