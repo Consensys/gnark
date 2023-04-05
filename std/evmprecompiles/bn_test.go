@@ -133,41 +133,28 @@ func TestECMulCircuitFull(t *testing.T) {
 }
 
 type ecpairCircuit struct {
-	P        sw_bn254.G1Affine
-	Q        sw_bn254.G2Affine
+	P        [2]sw_bn254.G1Affine
+	Q        [2]sw_bn254.G2Affine
 	Expected sw_bn254.GTEl
 }
 
 func (c *ecpairCircuit) Define(api frontend.API) error {
-	pair, err := sw_bn254.NewPairing(api)
-	if err != nil {
-		return err
-	}
-	res := ECPair(api, &c.P, &c.Q)
-	pair.AssertIsEqual(res, &c.Expected)
+	P := []*sw_bn254.G1Affine{&c.P[0], &c.P[1]}
+	Q := []*sw_bn254.G2Affine{&c.Q[0], &c.Q[1]}
+	ECPair(api, P, Q)
 	return nil
 }
 
 func TestECPairCircuitShort(t *testing.T) {
-	_, _, G1, G2 := bn254.Generators()
-	var u, v fr.Element
-	u.SetRandom()
-	v.SetRandom()
-	var P bn254.G1Affine
-	P.ScalarMultiplication(&G1, u.BigInt(new(big.Int)))
-	var Q bn254.G2Affine
-	Q.ScalarMultiplication(&G2, v.BigInt(new(big.Int)))
-	expected, err := bn254.Pair([]bn254.G1Affine{P}, []bn254.G2Affine{Q})
-	if err != nil {
-		t.Fatal(err)
-	}
-	circuit := ecpairCircuit{}
-	witness := ecpairCircuit{
-		P:        sw_bn254.NewG1Affine(P),
-		Q:        sw_bn254.NewG2Affine(Q),
-		Expected: sw_bn254.NewGTEl(expected),
-	}
 	assert := test.NewAssert(t)
-	err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
+	_, _, p1, q1 := bn254.Generators()
+	var p2 bn254.G1Affine
+	var q2 bn254.G2Affine
+	p2.Neg(&p1)
+	q2.Set(&q1)
+	err := test.IsSolved(&ecpairCircuit{}, &ecpairCircuit{
+		P: [2]sw_bn254.G1Affine{sw_bn254.NewG1Affine(p1), sw_bn254.NewG1Affine(p2)},
+		Q: [2]sw_bn254.G2Affine{sw_bn254.NewG2Affine(q1), sw_bn254.NewG2Affine(q2)},
+	}, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
