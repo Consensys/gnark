@@ -37,7 +37,7 @@ func registerHints() {
 	solver.RegisterHint(bits.NBits)
 	solver.RegisterHint(selector.GetHints()...)
 	solver.RegisterHint(emulated.GetHints()...)
-	solver.RegisterHint(rangecheck.CountHint, rangecheck.DecomposeHint)
+	solver.RegisterHint(rangecheck.GetHints()...)
 	solver.RegisterHint(evmprecompiles.GetHints()...)
 	solver.RegisterHint(logderivarg.GetHints()...)
 	solver.RegisterHint(logderivlookup.GetHints()...)
