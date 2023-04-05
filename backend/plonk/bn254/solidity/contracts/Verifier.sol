@@ -191,7 +191,7 @@ contract PlonkVerifier {
         tmp_fr.mul_assign(state.alpha);
         tmp_fr.mul_assign(state.alpha);
         // NOTICE
-        grand_product_part_at_z.sub_assign(tmp_fr);
+        grand_product_part_at_z = Fr.sub(grand_product_part_at_z, tmp_fr);
         uint256 last_permutation_part_at_z = 1;
         for (uint256 i = 0; i < proof.permutation_polynomials_at_zeta.length; i++) {
             tmp_fr = state.beta;
@@ -276,7 +276,7 @@ contract PlonkVerifier {
         uint256 tmp_1 = 0;
         uint256 tmp_2 = domain_size;
         uint256 vanishing_at_zeta = at.pow(domain_size);
-        vanishing_at_zeta.sub_assign(one);
+        vanishing_at_zeta = Fr.sub(vanishing_at_zeta, one);
         // we can not have random point z be in domain
         require(vanishing_at_zeta != 0);
         uint256[] nums = new uint256[](poly_nums.length);
@@ -290,7 +290,7 @@ contract PlonkVerifier {
             nums[i].mul_assign(tmp_1);
 
             dens[i] = at; // (X - omega^i) * N
-            dens[i].sub_assign(tmp_1);
+            dens[i] = Fr.sub(dens[i],tmp_1);
             dens[i].mul_assign(tmp_2); // mul by domain size
         }
 
@@ -368,7 +368,7 @@ contract PlonkVerifier {
         tmp = state.cached_lagrange_evals[0]);
         tmp.mul_assign(quotient_challenge);
 
-        rhs.sub_assign(tmp);
+        rhs = Fr.sub(rhs, tmp);
 
         return lhs == rhs;
     }
@@ -378,7 +378,7 @@ contract PlonkVerifier {
         uint256 at
     ) internal view returns (uint256 res) {
         res = at.pow(domain_size);
-        res.sub_assign(1);
+        res = Fr.sub(res, 1);
     }
 
 	// This verifier is for a PLONK with a state width 3

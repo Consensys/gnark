@@ -10,6 +10,16 @@ library Fr {
 
     uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
+    // syntaxic sugar, TO REMOVE
+    function add_assign(uint256 self, uint256 y) internal pure returns(uint256) {
+      return add(self, y);
+    }
+
+    // syntaxic sugar, TO REMOVE
+    function mul_assign(uint256 self, uint256 y) internal pure returns(uint256){
+      return mul(self, y);
+    }
+
     function add(uint256 x, uint256 y) internal pure returns(uint256 z) {
         z = addmod(x, y, r_mod);
         return z;
