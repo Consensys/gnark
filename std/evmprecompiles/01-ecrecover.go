@@ -33,7 +33,7 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	if err != nil {
 		panic(fmt.Sprintf("new curve: %v", err))
 	}
-	// we cannot directly use the field emulation hint calling wrappers as we work between to fields.
+	// we cannot directly use the field emulation hint calling wrappers as we work between two fields.
 	Rlimbs, err := api.Compiler().NewHint(recoverPointHint, 2*int(emfp.NbLimbs()), recoverPointHintArgs(v, r)...)
 	if err != nil {
 		panic(fmt.Sprintf("point hint: %v", err))
@@ -42,7 +42,7 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 		X: *fpField.NewElement(Rlimbs[0:emfp.NbLimbs()]),
 		Y: *fpField.NewElement(Rlimbs[emfp.NbLimbs() : 2*emfp.NbLimbs()]),
 	}
-	// we cannot directly use the field emulation hint calling wrappers as we work between to fields.
+	// we cannot directly use the field emulation hint calling wrappers as we work between two fields.
 	Plimbs, err := api.Compiler().NewHint(recoverPublicKeyHint, 2*int(emfp.NbLimbs()), recoverPublicKeyHintArgs(msg, v, r, s)...)
 	if err != nil {
 		panic(fmt.Sprintf("point hint: %v", err))
