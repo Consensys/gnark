@@ -1,10 +1,12 @@
 pragma solidity ^0.8.0;
 
 import {UtilsFr} from '../crypto/HashFr.sol';
+import {Polynomials} from '../crypto/Polynomials.sol';
 
 contract TestContract {
 
   using UtilsFr for *;
+  using Polynomials for *;
 
   event PrintUint256(uint256 a);
 
@@ -15,6 +17,14 @@ contract TestContract {
     emit PrintUint256(res);
 
     return res;
+
+  }
+
+  function test_eval_ith_lagrange(uint256 i, uint256 z, uint256 w, uint256 n) public returns (uint256 res){
+
+    res = Polynomials.compute_ith_lagrange_at_z(i, z, w, n);
+
+    emit PrintUint256(res);
 
   }
 

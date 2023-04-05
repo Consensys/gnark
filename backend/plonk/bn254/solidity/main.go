@@ -9,8 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	contract "github.com/consensys/gnark/backend/plonk/bn254/solidity/gopkg"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -96,11 +95,22 @@ func main() {
 	auth, err = getTransactionOpts(privateKey, auth, client)
 	checkError(err)
 
-	_, _, p, _ := bn254.Generators()
-	var bx, by big.Int
-	p.X.BigInt(&bx)
-	p.Y.BigInt(&by)
-	_, err = instance.TestHash(auth, &bx, &by, "BSB22-Plonk")
+	// test hash
+	// _, _, p, _ := bn254.Generators()
+	// var bx, by big.Int
+	// p.X.BigInt(&bx)
+	// p.Y.BigInt(&by)
+	// _, err = instance.TestHash(auth, &bx, &by, "BSB22-Plonk")
+	// checkError(err)
+
+	d := fft.NewDomain(64)
+	var bz, bi, bn, bw big.Int
+	d.Generator.BigInt(&bw)
+	fmt.Printf("w = Fr(%s)\n", d.Generator.String())
+	bz.SetUint64(29)
+	bn.SetUint64(d.Cardinality)
+	bi.SetUint64(10)
+	_, err = instance.TestEvalIthLagrange(auth, &bi, &bz, &bw, &bn)
 	checkError(err)
 
 	client.Commit()
@@ -122,24 +132,30 @@ func main() {
 
 	for _, vLog := range logs {
 
+		// var event interface{}
+		// err = contractABI.UnpackIntoInterface(&event, "PrintUint256", vLog.Data)
+		// checkError(err)
+		// solidityRes := event.(*big.Int)
+
+		// // check against gnark-crypto
+		// msg := p.Marshal()
+		// dst := []byte("BSB22-Plonk")
+		// count := 1
+		// refRes, err := fr.Hash(msg, dst, count)
+		// checkError(err)
+		// var brefRes big.Int
+		// refRes[0].BigInt(&brefRes)
+
+		// if solidityRes.Cmp(&brefRes) != 0 {
+		// 	fmt.Println("hashes do not match")
+		// 	os.Exit(-1)
+		// }
+
 		var event interface{}
 		err = contractABI.UnpackIntoInterface(&event, "PrintUint256", vLog.Data)
 		checkError(err)
 		solidityRes := event.(*big.Int)
-
-		// check against gnark-crypto
-		msg := p.Marshal()
-		dst := []byte("BSB22-Plonk")
-		count := 1
-		refRes, err := fr.Hash(msg, dst, count)
-		checkError(err)
-		var brefRes big.Int
-		refRes[0].BigInt(&brefRes)
-
-		if solidityRes.Cmp(&brefRes) != 0 {
-			fmt.Println("hashes do not match")
-			os.Exit(-1)
-		}
+		fmt.Println(solidityRes.String())
 	}
 
 }

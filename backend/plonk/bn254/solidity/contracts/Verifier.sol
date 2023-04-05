@@ -286,7 +286,7 @@ contract PlonkVerifier {
         // denoms in a form (z - omega^i) * N
         for (uint i = 0; i < poly_nums.length; i++) {
             tmp_1 = omega.pow(poly_nums[i]); // power of omega
-            nums[i] = vanishing_at_zeta);
+            nums[i] = vanishing_at_zeta;
             nums[i].mul_assign(tmp_1);
 
             dens[i] = at; // (X - omega^i) * N
