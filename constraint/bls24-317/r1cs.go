@@ -663,7 +663,11 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 		enc := gob.NewEncoder(writer)
 		err = enc.Encode(cs.R1CSCore.System.Levels)
 		if err != nil {
-			panic(err)
+			return err
+		}
+		err = writer.Flush()
+		if err != nil {
+			return err
 		}
 		cs.R1CSCore.System.Levels = nil
 
@@ -678,7 +682,11 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 			enc = gob.NewEncoder(writer)
 			err = enc.Encode(cs.R1CSCore.System.HintFnWiresToIdx)
 			if err != nil {
-				panic(err)
+				return err
+			}
+			err = writer.Flush()
+			if err != nil {
+				return err
 			}
 			cs.R1CSCore.System.HintFnWiresToIdx = nil
 		}
@@ -694,7 +702,11 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 			enc = gob.NewEncoder(writer)
 			err = enc.Encode(cs.R1CSCore.System.HintFnInputsToIdx)
 			if err != nil {
-				panic(err)
+				return err
+			}
+			err = writer.Flush()
+			if err != nil {
+				return err
 			}
 			cs.R1CSCore.System.HintFnInputsToIdx = nil
 		}
@@ -710,7 +722,11 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 			enc = gob.NewEncoder(writer)
 			err = enc.Encode(cs.R1CSCore.System.IndexedWires)
 			if err != nil {
-				panic(err)
+				return err
+			}
+			err = writer.Flush()
+			if err != nil {
+				return err
 			}
 			cs.R1CSCore.System.IndexedWires = nil
 		}
@@ -726,7 +742,11 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 			enc = gob.NewEncoder(writer)
 			err = enc.Encode(cs.R1CSCore.System.IndexedInputs)
 			if err != nil {
-				panic(err)
+				return err
+			}
+			err = writer.Flush()
+			if err != nil {
+				return err
 			}
 			cs.R1CSCore.System.IndexedInputs = nil
 		}
@@ -741,7 +761,11 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 		enc = gob.NewEncoder(writer)
 		err = enc.Encode(cs.R1CSCore.System)
 		if err != nil {
-			panic(err)
+			return err
+		}
+		err = writer.Flush()
+		if err != nil {
+			return err
 		}
 		cs.R1CSCore.System = constraint.NewSystem(fr.Modulus())
 	}
@@ -813,7 +837,7 @@ func (cs *R1CS) SplitDumpBinary(session string, batchSize int) error {
 		enc := gob.NewEncoder(writer)
 		err = enc.Encode(cs2)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		i = iNew
