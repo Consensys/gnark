@@ -49,7 +49,7 @@ library Polynomials {
 
     }
 
-    // computes L_i(z) = w^j/n (z^n-1)/(z-w^j)
+    // computes L_i(z) = w^i/n (z^n-1)/(z-w^i)
     function compute_ith_lagrange_at_z(uint256 i, uint256 z, uint256 w, uint256 n) internal view returns (uint256) {
 
         require(i<n);
@@ -67,6 +67,36 @@ library Polynomials {
         w = Fr.mul(w, z);        // w**i/n*(z**n-1)*(z-w**i)**-1
         
         return w;
+    }
+
+    // computes L_0(z) = 1/n (z^n-1)/(z-1) and then recursively L_{i+1}(z) = L_i(z) * w * (z-w^i) / (z-w^{i+1}) for 0 <= i < k
+    function batch_compute_lagranges_at_z(uint256 k, uint256 z, uint256 w, uint256 n) internal view returns (uint256[] memory) {
+
+        uint256[] memory den = new uint256[](n);
+        uint256 wPowI = 1;
+        for (uint i = 0; i < k; i++) {
+            den[i] = Fr.sub(z, wPowI);
+            if (i + 1 != k) {
+                wPowI = Fr.mul(wPowI, w);
+            }
+        }
+
+        den[0] = Fr.mul(den[0], n);
+        uint256[] memory res = Fr.batch_inverse(den);
+
+        wPowI = Fr.pow(w, n);
+        wPowI = Fr.sub(wPowI, 1);   //abusing the name wPowI
+
+        res[0] = Fr.mul(wPowI, res[0]);
+
+        den[0] = Fr.sub(z, 1);  // abusing the name den[0]
+        for (uint i = 1; i < k; i++) {
+            res[i] = Fr.mul(res[i], den[i-1]);  //              (z-w^i) / (z-w^{i+1})
+            res[i] = Fr.mul(res[i], w);         //          w * (z-w^i) / (z-w^{i+1})
+            res[i] = Fr.mul(res[i], res[i-1]);  // L_i(z) * w * (z-w^i) / (z-w^{i+1})
+        }
+
+        return res;
     }
 
 }
