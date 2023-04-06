@@ -57,4 +57,27 @@ library Fr {
     return mul(x, y);
   }
 
+  function batch_inverse(uint256[] memory x) internal view returns(uint256[] memory) {
+    uint n = x.length;
+    uint256[] memory prod_ahead = new uint256[](n);  // prod[i] = x[i] * ... * x[n-1]
+
+    prod_ahead[n-1] = x[n-1];
+    for (uint i = n-1; i > 0; i--) {
+      prod_ahead[i-1] = mul(prod_ahead[i], x[i-1]);
+    }
+
+    uint256 inv = inverse(prod_ahead[n-1]);
+    uint256[] memory res = new uint256[](n);
+    uint256 prod_behind = 1;
+
+    for (uint i = 0; i < n; i++) {
+      res[i] = mul(inv, prod_behind);
+      if (i + 1 != n) {
+        res[i] = mul(inv, prod_ahead[i+1]);
+        prod_behind = mul(prod_behind, x[i]);
+      }
+    }
+    return res;
+  }
+
 }
