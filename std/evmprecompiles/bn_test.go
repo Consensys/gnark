@@ -133,9 +133,8 @@ func TestECMulCircuitFull(t *testing.T) {
 }
 
 type ecpairCircuit struct {
-	P        [2]sw_bn254.G1Affine
-	Q        [2]sw_bn254.G2Affine
-	Expected sw_bn254.GTEl
+	P [2]sw_bn254.G1Affine
+	Q [2]sw_bn254.G2Affine
 }
 
 func (c *ecpairCircuit) Define(api frontend.API) error {
@@ -148,10 +147,19 @@ func (c *ecpairCircuit) Define(api frontend.API) error {
 func TestECPairCircuitShort(t *testing.T) {
 	assert := test.NewAssert(t)
 	_, _, p1, q1 := bn254.Generators()
+
+	var u, v fr.Element
+	u.SetRandom()
+	v.SetRandom()
+
+	p1.ScalarMultiplication(&p1, u.BigInt(new(big.Int)))
+	q1.ScalarMultiplication(&q1, v.BigInt(new(big.Int)))
+
 	var p2 bn254.G1Affine
 	var q2 bn254.G2Affine
 	p2.Neg(&p1)
 	q2.Set(&q1)
+
 	err := test.IsSolved(&ecpairCircuit{}, &ecpairCircuit{
 		P: [2]sw_bn254.G1Affine{sw_bn254.NewG1Affine(p1), sw_bn254.NewG1Affine(p2)},
 		Q: [2]sw_bn254.G2Affine{sw_bn254.NewG2Affine(q1), sw_bn254.NewG2Affine(q2)},
