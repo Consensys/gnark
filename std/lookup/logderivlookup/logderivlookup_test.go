@@ -45,8 +45,6 @@ func TestLookup(t *testing.T) {
 		witness.Queries[i] = q
 		witness.Expected[i] = new(big.Int).Set(witness.Entries[q.Int64()].(*big.Int))
 	}
-	// err := test.IsSolved(&LookupCircuit{}, &witness, field)
-	// assert.NoError(err)
 	assert.ProverSucceeded(&LookupCircuit{}, &witness,
 		test.WithCurves(ecc.BN254),
 		test.WithBackends(backend.GROTH16, backend.PLONK))
