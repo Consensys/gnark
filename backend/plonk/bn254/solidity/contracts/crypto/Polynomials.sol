@@ -98,6 +98,4 @@ library Polynomials {
 
         return res;
     }
-
-    event PrintUint256(uint256 a);
 }
