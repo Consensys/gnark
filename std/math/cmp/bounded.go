@@ -55,14 +55,22 @@ type BoundedComparator struct {
 // correctly.
 //
 // If |a - b| > absDiffUpp, as long as |a - b| < P - 2^absDiffUpp.BitLen(),
-// either a proof can not be generated or the methods work correctly.
+// either a proof can not be generated or the comparison methods work correctly.
 //
-// When |a - b| >= P - 2^absDiffUpp.BitLen(), the behaviour of the exported
-// methods of BoundedComparator is undefined.
-func NewBoundedComparator(api frontend.API, absDiffUpp *big.Int) *BoundedComparator {
-	// Our comparison methods work by using the fact that when a != b, between
-	// certain two numbers at the same time only one can be non-negative (i.e.
-	// positive or zero):
+// When |a - b| >= P - 2^absDiffUpp.BitLen(), if allowNonDeterministicBehaviour
+// is not set, either a proof can not be generated or the methods wrongly
+// produce reversed results. The exact behaviour depends on the specific method
+// and the value of |a - b|, but it will be always well-defined and
+// deterministic.
+//
+// If allowNonDeterministicBehaviour is set, when
+// |a - b| >= P - 2^absDiffUpp.BitLen(), the generated constraint system
+// sometimes may have multiple solutions and hence the behaviour of the exported
+// methods of BoundedComparator will be undefined.
+func NewBoundedComparator(api frontend.API, absDiffUpp *big.Int, allowNonDeterministicBehaviour bool) *BoundedComparator {
+	// Our comparison methods work by using the fact that when a != b,
+	// between certain two numbers at the same time only one can be
+	// non-negative (i.e. positive or zero):
 	//
 	// AssertIsLessEq -> (a - b, b - a)
 	// AssertIsLess   -> (a - b - 1, b - a - 1)
@@ -70,7 +78,7 @@ func NewBoundedComparator(api frontend.API, absDiffUpp *big.Int) *BoundedCompara
 	// IsLessEq       -> (a - b - 1, b - a)
 	// Min            -> (a - b, b - a)
 	//
-	// We assume that the underlying field is of the prime order P, so the negative
+	// We assume that the underlying field is of prime order P, so the negative
 	// of x is P - x. We need to be able to determine the non-negative number in
 	// each case, and we are doing that by relying on the fact that the negative
 	// number has a longer binary decomposition than a certain threshold:
@@ -80,11 +88,24 @@ func NewBoundedComparator(api frontend.API, absDiffUpp *big.Int) *BoundedCompara
 	//
 	// We see that, between different methods, the biggest possible positive number
 	// is |a - b| and the smallest possible negative number is -(|a - b| + 1).
+	//
 	// On the other hand, we have |a - b| <= absDiffUpp which means:
 	// -(|a - b| + 1) >= -(absDiffUpp + 1). Therefore, if we let
-	// absDiffUppBitLen = absDiffUpp.BitLen(), that would be the minimum possible
-	// value for absDiffUppBitLen. Then, we will need to make sure that
-	// P - absDiffUpp - 1 has a binary representation longer than absDiffUppBitLen.
+	// absDiffUppBitLen = absDiffUpp.BitLen(),
+	// that would be the minimum possible value for absDiffUppBitLen.
+	// Then, we will need to make sure that P - absDiffUpp - 1 has a binary
+	// representation longer than absDiffUppBitLen.
+	//
+	// If we increase |a - b|, as soon as P - |a - b| - 1 becomes smaller than
+	// 2^absDiffUpp.BitLen(), the negative number will have a binary representation
+	// that is shorter than the threshold and proofs for wrong results can be
+	// generated. In this case, if the positive number has a longer than threshold
+	// binary representation the behaviour of the comparison methods will stay
+	// well-defined, and the constraint system will have a wrong but unique
+	// solution. The positive number is always bigger than |a - b| - 1. So, we need
+	// to make sure that if
+	// P - |a - b| <= 2^absDiffUpp.BitLen(), then |a - b| - 1 >= 2^absDiffUpp.BitLen().
+	// Obviously this condition holds when P - 1 >= 2^(absDiffUpp.BitLen()+1).
 	P := api.Compiler().Field()
 	if absDiffUpp.Cmp(big.NewInt(0)) != 1 || absDiffUpp.Cmp(P) != -1 {
 		panic("absDiffUpp must be a positive number smaller than the field order")
@@ -95,21 +116,33 @@ func NewBoundedComparator(api frontend.API, absDiffUpp *big.Int) *BoundedCompara
 	if smallestNeg.BitLen() <= absDiffUpp.BitLen() {
 		panic("cannot construct the comparator, the specified absDiffUpp is too high")
 	}
+
+	if !allowNonDeterministicBehaviour {
+		// temp := 2^(absDiffUpp.BitLen()+1)
+		temp := new(big.Int).Lsh(big.NewInt(1), uint(absDiffUpp.BitLen()+1))
+		// temp = temp + 1
+		temp.Add(temp, big.NewInt(1))
+		if P.Cmp(temp) == -1 {
+			panic("absDiffUpp has to be smaller for ensuring deterministic behaviour")
+		}
+	}
+
 	return &BoundedComparator{
 		absDiffUppBitLen: absDiffUpp.BitLen(),
 		api:              api,
 	}
 }
 
+// assertIsNonNegative defines constraints that ensure x >= 0.
+func (bc BoundedComparator) assertIsNonNegative(x frontend.Variable) {
+	bits.ToBinary(bc.api, x, bits.WithNbDigits(bc.absDiffUppBitLen))
+}
+
 // AssertIsLessEq defines a set of constraints that can be satisfied only
 // if a <= b.
 func (bc BoundedComparator) AssertIsLessEq(a, b frontend.Variable) {
 	// a <= b <==> b - a >= 0
-	bits.ToBinary(
-		bc.api,
-		bc.api.Sub(b, a),
-		bits.WithNbDigits(bc.absDiffUppBitLen),
-	)
+	bc.assertIsNonNegative(bc.api.Sub(b, a))
 }
 
 // AssertIsLess defines a set of constraints that can be satisfied only
@@ -128,11 +161,7 @@ func (bc BoundedComparator) IsLess(a, b frontend.Variable) frontend.Variable {
 	indicator := res[0]
 	// a < b  <==> b - a - 1 >= 0
 	// a >= b <==> a - b >= 0
-	bits.ToBinary(
-		bc.api,
-		bc.api.Select(indicator, bc.api.Sub(b, a, 1), bc.api.Sub(a, b)),
-		bits.WithNbDigits(bc.absDiffUppBitLen),
-	)
+	bc.assertIsNonNegative(bc.api.Select(indicator, bc.api.Sub(b, a, 1), bc.api.Sub(a, b)))
 	return indicator
 }
 
@@ -157,7 +186,7 @@ func (bc BoundedComparator) Min(a, b frontend.Variable) frontend.Variable {
 	bc.api.AssertIsEqual(0, bc.api.Mul(aDiff, bDiff))
 
 	// (a - min) + (b - min) >= 0
-	bits.ToBinary(bc.api, bc.api.Add(aDiff, bDiff), bits.WithNbDigits(bc.absDiffUppBitLen))
+	bc.assertIsNonNegative(bc.api.Add(aDiff, bDiff))
 
 	return min
 }
