@@ -34,9 +34,11 @@ library Types {
         uint256 quotient_polynomial_at_zeta;        // t(zeta)
         uint256 linearization_polynomial_at_zeta;   // r(zeta)
         uint256[STATE_WIDTH-1] permutation_polynomials_at_zeta;  // Sσ1(zeta),Sσ2(zeta)
+        uint256 qcp_at_zeta;
 
         Bn254.G1Point opening_at_zeta_proof;            // [Wzeta]
         Bn254.G1Point opening_at_zeta_omega_proof;      // [Wzeta*omega]
+        Bn254.G1Point bsb22_commitment; // PI2
     }
 
     struct PartialVerifierState {
