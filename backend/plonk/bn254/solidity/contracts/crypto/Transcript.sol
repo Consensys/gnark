@@ -1,10 +1,13 @@
 pragma solidity ^0.8.19;
 pragma experimental ABIEncoderV2;
 
-import {Bn254} from '.Bn254.sol';
+import {Fr} from './Fr.sol';
+import {Bn254} from './Bn254.sol';
 
 library TranscriptLibrary {
  
+    using Fr for *;
+
     struct Transcript {
         bytes32 previous_randomness;
         bytes bindings;
@@ -24,8 +27,8 @@ library TranscriptLibrary {
         self.bindings = abi.encodePacked(self.bindings, value);
     }
 
-    function update_with_fr(Transcript memory self, uint254 value) internal pure {
-        self.bindings = abi.encodePacked(self.bindings, value.value);
+    function update_with_fr(Transcript memory self, uint256 value) internal pure {
+        self.bindings = abi.encodePacked(self.bindings, value);
     }
 
     function update_with_g1(Transcript memory self, Bn254.G1Point memory p) internal pure {
@@ -41,7 +44,7 @@ library TranscriptLibrary {
         }
         self.challenge_counter += 1;
         self.previous_randomness = query;
-        challenge = query % Bn254.r_mod;
+        challenge = uint256(query) % Fr.r_mod;
         self.bindings = "";
     }
 }

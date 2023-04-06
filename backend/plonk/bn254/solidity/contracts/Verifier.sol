@@ -6,43 +6,53 @@
 // According to https://eprint.iacr.org/archive/2019/953/1585767119.pdf
 pragma solidity ^0.8.0;
 
-import {Bn254} from './crypto/Bn254.sol'
-import {Fr} from './crypto/Fr.sol'
-import {TranscriptLibrary} from './crypto/Transcript.sol'
+import {Bn254} from './crypto/Bn254.sol';
+import {Fr} from './crypto/Fr.sol';
+import {TranscriptLibrary} from './crypto/Transcript.sol';
+import {Polynomials} from './crypto/Polynomials.sol';
+import {Types} from './crypto/Types.sol';
 
-contract PlonkVerifier {
+// contract PlonkVerifier {
+library PlonkVerifier{
 
     using Bn254 for Bn254.G1Point;
     using Bn254 for Bn254.G2Point;
-    using Fr for uint256
+    using Fr for uint256;
     using TranscriptLibrary for TranscriptLibrary.Transcript;
+    using Polynomials for *;
+    using Types for *;
 
     uint256 constant STATE_WIDTH = 3;
 
-    function verify_initial(
-		PartialVerifierState memory state,
-        Proof memory proof,
-        VerificationKey memory vk) internal view returns (bool) {
+    function derive_gamma_beta_alpha_zeta(
 
-        require(proof.input_values.length == vk.num_inputs, "not match");
-        require(vk.num_inputs >= 1, "inv input");
-        
+        Types.PartialVerifierState memory state,
+        Types.Proof memory proof,
+        Types.VerificationKey memory vk,
+        uint256[] memory public_inputs) internal pure {
+
         TranscriptLibrary.Transcript memory t = TranscriptLibrary.new_transcript();
         t.set_challenge_name("gamma");
+
         for (uint256 i = 0; i < vk.permutation_commitments.length; i++) {
             t.update_with_g1(vk.permutation_commitments[i]);
         }
-        // this is gnark order: Ql, Qr, Qm, Qo, Qk
-        //
-        t.update_with_g1(vk.selector_commitments[0]);
-        t.update_with_g1(vk.selector_commitments[1]);
-        t.update_with_g1(vk.selector_commitments[3]);
-        t.update_with_g1(vk.selector_commitments[2]);
-        t.update_with_g1(vk.selector_commitments[4]);
+       
+        t.update_with_g1(vk.selector_commitments[0]); // ql
+        t.update_with_g1(vk.selector_commitments[1]); // qr
+        t.update_with_g1(vk.selector_commitments[2]); // qm
+        t.update_with_g1(vk.selector_commitments[3]); // qo
+        t.update_with_g1(vk.selector_commitments[4]); // qk
 
-        for (uint256 i = 0; i < proof.input_values.length; i++) {
-            t.update_with_u256(proof.input_values[i]);
+        for (uint256 i = 0; i < public_inputs.length; i++) {
+            t.update_with_u256(public_inputs[i]);
         }
+
+        t.update_with_g1(proof.wire_commitments[3]); // PI2
+        t.update_with_g1(proof.wire_commitments[0]); // [L]
+        t.update_with_g1(proof.wire_commitments[1]); // [R]
+        t.update_with_g1(proof.wire_commitments[2]); // [O]
+
         state.gamma = t.get_challenge();
 
         t.set_challenge_name("beta");
@@ -58,8 +68,19 @@ contract PlonkVerifier {
         }
         state.zeta = t.get_challenge();
 
-        uint256[] memory lagrange_poly_numbers = new uint256[](vk.num_inputs);
-        for (uint256 i = 0; i < lagrange_poly_numbers.length; i++) {
+    }
+
+    function verify_initial(
+        Types.PartialVerifierState memory state,
+        Types.Proof memory proof,
+        Types.VerificationKey memory vk,
+        uint256[] memory public_inputs) internal view returns (bool) {
+        
+        derive_gamma_beta_alpha_zeta(state, proof, vk, public_inputs);
+
+        uint256 num_inputs = public_inputs.length;
+        uint256[] memory lagrange_poly_numbers = new uint256[](num_inputs);
+        for (uint256 i = 0; i < num_inputs; i++) {
             lagrange_poly_numbers[i] = i;
         }
         state.cached_lagrange_evals = batch_evaluate_lagrange_poly_out_of_domain(
@@ -68,14 +89,14 @@ contract PlonkVerifier {
             vk.omega, state.zeta
         );
 
-        bool valid = verify_quotient_poly_eval_at_zeta(state, proof, vk);
+        bool valid = verify_quotient_poly_eval_at_zeta(state, proof, vk, public_inputs);
         return valid;
     }
 
     function verify_commitments(
-        PartialVerifierState memory state,
-        Proof memory proof,
-        VerificationKey memory vk
+        Types.PartialVerifierState memory state,
+        Types.Proof memory proof,
+        Types.VerificationKey memory vk
     ) internal view returns (bool) {
         Bn254.G1Point memory d = reconstruct_d(state, proof, vk);
 
@@ -123,7 +144,7 @@ contract PlonkVerifier {
         for (uint i = 0; i < proof.permutation_polynomials_at_zeta.length; i++) {
             aggregation_challenge.mul_assign(state.v);
 
-            tmp_fr = proof.permutation_polynomials_at_zeta[i]);
+            tmp_fr = proof.permutation_polynomials_at_zeta[i];
             tmp_fr.mul_assign(aggregation_challenge);
             aggregated_value.add_assign(tmp_fr);
         }
@@ -149,9 +170,9 @@ contract PlonkVerifier {
     }
 
     function reconstruct_d(
-        PartialVerifierState memory state,
-        Proof memory proof,
-        VerificationKey memory vk
+        Types.PartialVerifierState memory state,
+        Types.Proof memory proof,
+        Types.VerificationKey memory vk
     ) internal view returns (Bn254.G1Point memory res) {
         res = Bn254.copy_g1(vk.selector_commitments[STATE_WIDTH + 1]);
 
@@ -187,8 +208,9 @@ contract PlonkVerifier {
 
         grand_product_part_at_z.mul_assign(state.alpha);
 
-        tmp_fr = state.cached_lagrange_evals[0];
-        tmp_fr.mul_assign(state.alpha);
+        //tmp_fr = state.cached_lagrange_evals[0];
+        tmp_fr = Polynomials.compute_ith_lagrange_at_z(0, state.zeta, vk.omega, vk.domain_size);
+        tmp_fr = Fr.mul(tmp_fr, state.alpha);
         tmp_fr.mul_assign(state.alpha);
         // NOTICE
         grand_product_part_at_z = Fr.sub(grand_product_part_at_z, tmp_fr);
@@ -230,16 +252,16 @@ contract PlonkVerifier {
     // NOTICE: gnark use zeta^(n+2) which is a bit different with plonk paper
     // generate_v_challenge();
     function generate_uv_challenge(
-        PartialVerifierState memory state,
-        Proof memory proof,
-        VerificationKey memory vk,
+        Types.PartialVerifierState memory state,
+        Types.Proof memory proof,
+        Types.VerificationKey memory vk,
         Bn254.G1Point memory linearization_point) view internal {
 
         TranscriptLibrary.Transcript memory transcript = TranscriptLibrary.new_transcript();
         transcript.set_challenge_name("gamma");
         transcript.update_with_fr(state.zeta);
         uint256 zeta_plus_two = state.zeta;
-        uint256 n_plus_two = vk.domain_size);
+        uint256 n_plus_two = vk.domain_size;
 
         n_plus_two.add_assign(2);
         zeta_plus_two = zeta_plus_two.pow(n_plus_two);
@@ -271,7 +293,7 @@ contract PlonkVerifier {
         uint256 domain_size,
         uint256 omega,
         uint256 at
-    ) internal view returns (uint256[] res) {
+    ) internal view returns (uint256[] memory res) {
         uint256 one = 1;
         uint256 tmp_1 = 0;
         uint256 tmp_2 = domain_size;
@@ -279,8 +301,8 @@ contract PlonkVerifier {
         vanishing_at_zeta = Fr.sub(vanishing_at_zeta, one);
         // we can not have random point z be in domain
         require(vanishing_at_zeta != 0);
-        uint256[] nums = new uint256[](poly_nums.length);
-        uint256[] dens = new uint256[](poly_nums.length);
+        uint256[] memory nums = new uint256[](poly_nums.length);
+        uint256[] memory dens = new uint256[](poly_nums.length);
 
         // numerators in a form omega^i * (z^n - 1)
         // denoms in a form (z - omega^i) * N
@@ -294,7 +316,7 @@ contract PlonkVerifier {
             dens[i].mul_assign(tmp_2); // mul by domain size
         }
 
-        uint256[] partial_products = new uint256[](poly_nums.length);
+        uint256[] memory partial_products = new uint256[](poly_nums.length);
         partial_products[0] = 1;
         for (uint i = 1; i < dens.length; i++) {
             partial_products[i] = dens[i-1];
@@ -321,11 +343,14 @@ contract PlonkVerifier {
 
     // plonk paper verify process step8: Compute quotient polynomial evaluation
     function verify_quotient_poly_eval_at_zeta(
-        PartialVerifierState memory state,
-        Proof memory proof,
-        VerificationKey memory vk
+        Types.PartialVerifierState memory state,
+        Types.Proof memory proof,
+        Types.VerificationKey memory vk,
+        uint256[] memory public_inputs
     ) internal view returns (bool) {
+
         uint256 lhs = evaluate_vanishing(vk.domain_size, state.zeta);
+
         require(lhs != 0); // we can not check a polynomial relationship if point z is in the domain
         lhs.mul_assign(proof.quotient_polynomial_at_zeta);
 
@@ -333,12 +358,14 @@ contract PlonkVerifier {
         uint256 rhs = proof.linearization_polynomial_at_zeta;
 
         // public inputs
-        uint256 tmp = 0;
-        for (uint256 i = 0; i < proof.input_values.length; i++) {
-            tmp = state.cached_lagrange_evals[i];
-            tmp.mul_assign(proof.input_values[i]);
-            rhs.add_assign(tmp);
-        }
+        // uint256 tmp = 0;
+        uint256 tmp = Polynomials.compute_sum_li_zi(public_inputs, state.zeta, vk.omega, vk.domain_size);
+        // for (uint256 i = 0; i < proof.input_values.length; i++) {
+        //     tmp = state.cached_lagrange_evals[i];
+        //     tmp.mul_assign(proof.input_values[i]);
+        //     rhs.add_assign(tmp);
+        // }
+        rhs = Fr.add(rhs, tmp);
 
         quotient_challenge.mul_assign(state.alpha);
 
@@ -365,8 +392,10 @@ contract PlonkVerifier {
 
         quotient_challenge.mul_assign(state.alpha);
 
-        tmp = state.cached_lagrange_evals[0]);
-        tmp.mul_assign(quotient_challenge);
+        //tmp = state.cached_lagrange_evals[0]);
+        uint256 lagrange_one = Polynomials.compute_ith_lagrange_at_z(0, state.zeta, vk.omega, vk.domain_size);
+        tmp = Fr.mul(quotient_challenge, lagrange_one);
+        // tmp.mul_assign(quotient_challenge);
 
         rhs = Fr.sub(rhs, tmp);
 
@@ -390,10 +419,11 @@ contract PlonkVerifier {
     // q_constants(X)+
     // where q_{}(X) are selectors a, b, c - state (witness) polynomials
     
-    function verify(Proof memory proof, VerificationKey memory vk) internal view returns (bool) {
-        PartialVerifierState memory state;
+    function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs) internal view returns (bool) {
         
-        bool valid = verify_initial(state, proof, vk);
+        Types.PartialVerifierState memory state;
+        
+        bool valid = verify_initial(state, proof, vk, public_inputs);
         
         if (valid == false) {
             return false;
