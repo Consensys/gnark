@@ -49,6 +49,18 @@ func (c *mux2to1Circuit) Define(api frontend.API) error {
 	return nil
 }
 
+type mux4to1Circuit struct {
+	SEL frontend.Variable
+	In  [4]frontend.Variable
+	OUT frontend.Variable
+}
+
+func (c *mux4to1Circuit) Define(api frontend.API) error {
+	out := selector.Mux(api, c.SEL, c.In[:]...)
+	api.AssertIsEqual(out, c.OUT)
+	return nil
+}
+
 func TestMux(t *testing.T) {
 	assert := test.NewAssert(t)
 
@@ -79,6 +91,25 @@ func TestMux(t *testing.T) {
 	assert.ProverSucceeded(&mux2to1Circuit{}, &mux2to1Circuit{SEL: 0, I0: 10, I1: 20, OUT: 10})
 
 	assert.ProverFailed(&mux2to1Circuit{}, &mux2to1Circuit{SEL: 2, I0: 10, I1: 20, OUT: 20})
+
+	// 4 to 1 mux
+	assert.ProverSucceeded(&mux4to1Circuit{}, &mux4to1Circuit{
+		SEL: 3,
+		In:  [4]frontend.Variable{11, 22, 33, 44},
+		OUT: 44,
+	})
+
+	assert.ProverSucceeded(&mux4to1Circuit{}, &mux4to1Circuit{
+		SEL: 1,
+		In:  [4]frontend.Variable{11, 22, 33, 44},
+		OUT: 22,
+	})
+
+	assert.ProverFailed(&mux4to1Circuit{}, &mux4to1Circuit{
+		SEL: 4,
+		In:  [4]frontend.Variable{11, 22, 33, 44},
+		OUT: 44,
+	})
 }
 
 // Map tests:

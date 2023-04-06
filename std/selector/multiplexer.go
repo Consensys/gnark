@@ -14,6 +14,7 @@ package selector
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/std/math/bits"
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -66,7 +67,16 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 		if len(values) == 2 {
 			return api.Select(sel, values[1], values[0])
 		}
+
+		if len(values) == 4 {
+			// api.Lookup2 adds constraints for the boolean assertion, so we use
+			// bits.WithUnconstrainedOutputs()
+			selBits := bits.ToBinary(api, sel, bits.WithNbDigits(2), bits.WithUnconstrainedOutputs())
+			return api.Lookup2(selBits[0], selBits[1], values[0], values[1], values[2], values[3])
+		}
+
 		indicators, err = api.Compiler().NewHint(muxIndicators, len(values), sel)
+
 	} else {
 		indicators, err = api.Compiler().NewHint(mapIndicators, len(keys), append(keys, sel)...)
 	}
