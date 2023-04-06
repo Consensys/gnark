@@ -36,6 +36,19 @@ func (c *ignoredOutputMuxCircuit) Define(api frontend.API) error {
 	return nil
 }
 
+type mux2to1Circuit struct {
+	SEL    frontend.Variable
+	I0, I1 frontend.Variable
+	OUT    frontend.Variable
+}
+
+func (c *mux2to1Circuit) Define(api frontend.API) error {
+	// We ignore the output
+	out := selector.Mux(api, c.SEL, c.I0, c.I1)
+	api.AssertIsEqual(out, c.OUT)
+	return nil
+}
+
 func TestMux(t *testing.T) {
 	assert := test.NewAssert(t)
 
@@ -59,6 +72,13 @@ func TestMux(t *testing.T) {
 	assert.ProverFailed(&ignoredOutputMuxCircuit{}, &ignoredOutputMuxCircuit{SEL: 3, I0: 0, I1: 1, I2: 2})
 
 	assert.ProverFailed(&ignoredOutputMuxCircuit{}, &ignoredOutputMuxCircuit{SEL: -1, I0: 0, I1: 1, I2: 2})
+
+	// 2 to 1 mux
+	assert.ProverSucceeded(&mux2to1Circuit{}, &mux2to1Circuit{SEL: 1, I0: 10, I1: 20, OUT: 20})
+
+	assert.ProverSucceeded(&mux2to1Circuit{}, &mux2to1Circuit{SEL: 0, I0: 10, I1: 20, OUT: 10})
+
+	assert.ProverFailed(&mux2to1Circuit{}, &mux2to1Circuit{SEL: 2, I0: 10, I1: 20, OUT: 20})
 }
 
 // Map tests:

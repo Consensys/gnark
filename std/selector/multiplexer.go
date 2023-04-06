@@ -63,6 +63,9 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	var indicators []frontend.Variable
 	var err error
 	if wantMux {
+		if len(values) == 2 {
+			return api.Select(sel, values[1], values[0])
+		}
 		indicators, err = api.Compiler().NewHint(muxIndicators, len(values), sel)
 	} else {
 		indicators, err = api.Compiler().NewHint(mapIndicators, len(keys), append(keys, sel)...)
