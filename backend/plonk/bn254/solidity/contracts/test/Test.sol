@@ -38,10 +38,11 @@ contract TestContract {
 
   }
 
-  function test_batch_invert(uint256[] memory inputs) view public {
+  function test_batch_invert(uint256[] memory inputs) public {
     uint256[] memory res = Fr.batch_inverse(inputs);
     for (uint i = 0; i < res.length; i++) {
       res[i] = Fr.mul(inputs[i], res[i]);
+      emit PrintUint256(res[i]);
       require(res[i] == 1);
     }
   }
