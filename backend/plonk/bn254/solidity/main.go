@@ -120,6 +120,11 @@ func main() {
 	_, err = instance.TestComputeSumLiZi(auth, inputs, &bz, &bw, &bn)
 	checkError(err)
 
+	auth, err = getTransactionOpts(privateKey, auth, client)
+	checkError(err)
+	_, err = instance.TestBatchInvert(auth, inputs)
+	checkError(err)
+
 	client.Commit()
 
 	// query event

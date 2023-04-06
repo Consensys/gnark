@@ -39,6 +39,8 @@ contract TestContract {
   }
 
   function test_batch_invert(uint256[] memory inputs) public {
+    require( 0 == 1);
+    emit PrintUint256(12321);
     uint256[] memory res = Fr.batch_inverse(inputs);
     for (uint i = 0; i < res.length; i++) {
       res[i] = Fr.mul(inputs[i], res[i]);
