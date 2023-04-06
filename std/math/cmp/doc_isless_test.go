@@ -10,10 +10,11 @@ import (
 	"math/big"
 )
 
-// MapCircuit is a circuit that uses BoundedComparator.IsLess method to verify that an input array
-// is sorted. We assume that the input array contains 16bit unsigned integers. If the input array is
-// sorted and is ascending, SortErrors will be zero, otherwise it will be nonzero and equal to the
-// number of adjacent non-ascending pairs.
+// MapCircuit is a circuit that uses BoundedComparator.IsLess method to verify
+// that an input array is sorted. We assume that the input array contains 16bit
+// unsigned integers. If the input array is sorted and is ascending, SortErrors
+// will be zero, otherwise it will be nonzero and equal to the number of
+// adjacent non-ascending pairs.
 type sortCheckerCircuit struct {
 	UInt16Array [10]frontend.Variable
 	SortErrors  frontend.Variable
