@@ -125,6 +125,11 @@ func main() {
 	_, err = instance.TestBatchInvert(auth, inputs)
 	checkError(err)
 
+	auth, err = getTransactionOpts(privateKey, auth, client)
+	checkError(err)
+	_, err = instance.TestBatchComputeLagrange(auth, big.NewInt(12), &bz, &bw, &bn)
+	checkError(err)
+
 	client.Commit()
 
 	// query event
@@ -139,7 +144,7 @@ func main() {
 	logs, err := client.FilterLogs(context.Background(), query)
 	checkError(err)
 
-	contractABI, err := abi.JSON(strings.NewReader(string(contract.ContractABI)))
+	contractABI, err := abi.JSON(strings.NewReader(contract.ContractMetaData.ABI))
 	checkError(err)
 
 	for _, vLog := range logs {

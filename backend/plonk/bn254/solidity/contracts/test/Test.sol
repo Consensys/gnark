@@ -47,4 +47,17 @@ contract TestContract {
     }
   }
 
+  function test_batch_compute_lagrange(uint256 k, uint256 z, uint256 w, uint256 n) public {
+    emit PrintUint256(1001001);
+
+    uint256[] memory got = Polynomials.batch_compute_lagranges_at_z(k, z, w, n);
+    emit PrintUint256(13579);
+    /*for (uint i = 0; i < k; i++) {
+      emit PrintUint256(got[i]);
+    }*/
+    for (uint i = 0; i < k; i++) {
+      uint256 want = Polynomials.compute_ith_lagrange_at_z(i, z, w, n);
+      emit PrintUint256(Fr.sub(got[i], want));
+    }
+  }
 }

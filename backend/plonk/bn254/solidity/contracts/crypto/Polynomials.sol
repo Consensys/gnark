@@ -72,7 +72,7 @@ library Polynomials {
     // computes L_0(z) = 1/n (z^n-1)/(z-1) and then recursively L_{i+1}(z) = L_i(z) * w * (z-w^i) / (z-w^{i+1}) for 0 <= i < k
     function batch_compute_lagranges_at_z(uint256 k, uint256 z, uint256 w, uint256 n) internal view returns (uint256[] memory) {
 
-        uint256[] memory den = new uint256[](n);
+        uint256[] memory den = new uint256[](k);
         uint256 wPowI = 1;
         for (uint i = 0; i < k; i++) {
             den[i] = Fr.sub(z, wPowI);
@@ -84,12 +84,12 @@ library Polynomials {
         den[0] = Fr.mul(den[0], n);
         uint256[] memory res = Fr.batch_inverse(den);
 
-        wPowI = Fr.pow(w, n);
+        wPowI = Fr.pow(z, n);
         wPowI = Fr.sub(wPowI, 1);   //abusing the name wPowI
 
         res[0] = Fr.mul(wPowI, res[0]);
-
         den[0] = Fr.sub(z, 1);  // abusing the name den[0]
+
         for (uint i = 1; i < k; i++) {
             res[i] = Fr.mul(res[i], den[i-1]);  //              (z-w^i) / (z-w^{i+1})
             res[i] = Fr.mul(res[i], w);         //          w * (z-w^i) / (z-w^{i+1})
@@ -99,4 +99,5 @@ library Polynomials {
         return res;
     }
 
+    event PrintUint256(uint256 a);
 }
