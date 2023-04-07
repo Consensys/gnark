@@ -213,8 +213,6 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 		// parse assignment
 		invalidWitness, err := frontend.NewWitness(invalidAssignment, curve.ScalarField())
 		assert.NoError(err, "can't parse invalid assignment")
-		invalidPublicWitness, err := frontend.NewWitness(invalidAssignment, curve.ScalarField(), frontend.PublicOnly())
-		assert.NoError(err, "can't parse invalid assignment")
 
 		for _, b := range opt.backends {
 			curve := curve
@@ -233,7 +231,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 				mustError(err)
 
 				assert.t.Parallel()
-				err = ccs.IsSolved(invalidPublicWitness)
+				err = ccs.IsSolved(invalidWitness)
 				mustError(err)
 			}, curve.String(), b.String())
 		}

@@ -121,6 +121,7 @@ func (pk *ProvingKey) randomize() {
 	qo := randomScalars(n)
 	qk := randomScalars(n)
 	lqk := randomScalars(n)
+	qcp := randomScalars(n)
 	s1 := randomScalars(n)
 	s2 := randomScalars(n)
 	s3 := randomScalars(n)
@@ -131,6 +132,7 @@ func (pk *ProvingKey) randomize() {
 	pk.trace.Qm = iop.NewPolynomial(&qm, canReg)
 	pk.trace.Qo = iop.NewPolynomial(&qo, canReg)
 	pk.trace.Qk = iop.NewPolynomial(&qk, canReg)
+	pk.trace.Qcp = iop.NewPolynomial(&qcp, canReg)
 	pk.trace.S1 = iop.NewPolynomial(&s1, canReg)
 	pk.trace.S2 = iop.NewPolynomial(&s2, canReg)
 	pk.trace.S3 = iop.NewPolynomial(&s3, canReg)
@@ -160,6 +162,7 @@ func (vk *VerifyingKey) randomize() {
 	vk.Qm = randomPoint()
 	vk.Qo = randomPoint()
 	vk.Qk = randomPoint()
+	vk.Qcp = randomPoint()
 }
 
 func (proof *Proof) randomize() {
@@ -174,6 +177,7 @@ func (proof *Proof) randomize() {
 	proof.BatchedProof.ClaimedValues = randomScalars(2)
 	proof.ZShiftedOpening.H = randomPoint()
 	proof.ZShiftedOpening.ClaimedValue.SetRandom()
+	proof.PI2 = randomPoint()
 }
 
 func randomPoint() curve.G1Affine {

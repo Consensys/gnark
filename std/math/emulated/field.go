@@ -29,12 +29,14 @@ type Field[T FieldParams] struct {
 	maxOfOnce sync.Once
 
 	// constants for often used elements n, 0 and 1. Allocated only once
-	nConstOnce    sync.Once
-	nConst        *Element[T]
-	zeroConstOnce sync.Once
-	zeroConst     *Element[T]
-	oneConstOnce  sync.Once
-	oneConst      *Element[T]
+	nConstOnce     sync.Once
+	nConst         *Element[T]
+	nprevConstOnce sync.Once
+	nprevConst     *Element[T]
+	zeroConstOnce  sync.Once
+	zeroConst      *Element[T]
+	oneConstOnce   sync.Once
+	oneConst       *Element[T]
 
 	log zerolog.Logger
 
@@ -107,11 +109,6 @@ func (f *Field[T]) NewElement(v interface{}) *Element[T] {
 		return f.packLimbs([]frontend.Variable{v}, true)
 	}
 	if e, ok := v.([]frontend.Variable); ok {
-		for _, sv := range e {
-			if !frontend.IsCanonical(sv) {
-				panic("[]frontend.Variable that are not canonical (known to the compiler) is not a valid input")
-			}
-		}
 		return f.packLimbs(e, true)
 	}
 	c := ValueOf[T](v)
@@ -140,6 +137,14 @@ func (f *Field[T]) Modulus() *Element[T] {
 		f.nConst = newConstElement[T](f.fParams.Modulus())
 	})
 	return f.nConst
+}
+
+// modulusPrev returns modulus-1 as a constant.
+func (f *Field[T]) modulusPrev() *Element[T] {
+	f.nprevConstOnce.Do(func() {
+		f.nprevConst = newConstElement[T](new(big.Int).Sub(f.fParams.Modulus(), big.NewInt(1)))
+	})
+	return f.nprevConst
 }
 
 // packLimbs returns an element from the given limbs.

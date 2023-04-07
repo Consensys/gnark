@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/field/goldilocks"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
@@ -15,7 +14,6 @@ import (
 type CheckCircuit struct {
 	Vals []frontend.Variable
 	bits int
-	base int
 }
 
 func (c *CheckCircuit) Define(api frontend.API) error {
@@ -30,7 +28,6 @@ func TestCheck(t *testing.T) {
 	assert := test.NewAssert(t)
 	var err error
 	bits := 64
-	base := 11
 	nbVals := 100000
 	bound := new(big.Int).Lsh(big.NewInt(1), uint(bits))
 	vals := make([]frontend.Variable, nbVals)
@@ -40,11 +37,10 @@ func TestCheck(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	witness := CheckCircuit{Vals: vals, bits: bits, base: base}
-	circuit := CheckCircuit{Vals: make([]frontend.Variable, len(vals)), bits: bits, base: base}
-	err = test.IsSolved(&circuit, &witness, goldilocks.Modulus())
+	witness := CheckCircuit{Vals: vals, bits: bits}
+	circuit := CheckCircuit{Vals: make([]frontend.Variable, len(vals)), bits: bits}
+	err = test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	_, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit, frontend.WithCompressThreshold(100))
 	assert.NoError(err)
-	t.Log(ccs.GetNbConstraints())
 }

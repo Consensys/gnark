@@ -122,6 +122,7 @@ func (builder *builder) FieldBitLen() int {
 type sparseR1C struct {
 	xa, xb, xc         int              // wires
 	qL, qR, qO, qM, qC constraint.Coeff // coefficients
+	commitment         constraint.CommitmentConstraint
 }
 
 // a * b == c
@@ -159,8 +160,7 @@ func (builder *builder) addPlonkConstraint(c sparseR1C, debug ...constraint.Debu
 	V := builder.cs.MakeTerm(&builder.tOne, c.xb)
 	K := builder.cs.MakeTerm(&c.qC, 0)
 	K.MarkConstant()
-
-	builder.cs.AddConstraint(constraint.SparseR1C{L: L, R: R, O: O, M: [2]constraint.Term{U, V}, K: K.CoeffID()}, debug...)
+	builder.cs.AddConstraint(constraint.SparseR1C{L: L, R: R, O: O, M: [2]constraint.Term{U, V}, K: K.CoeffID(), Commitment: c.commitment}, debug...)
 }
 
 // newInternalVariable creates a new wire, appends it on the list of wires of the circuit, sets

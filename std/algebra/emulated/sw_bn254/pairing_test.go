@@ -7,10 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 )
 
@@ -38,8 +35,10 @@ func (c *FinalExponentiationCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res := pairing.FinalExponentiation(&c.InGt)
-	pairing.AssertIsEqual(res, &c.Res)
+	res1 := pairing.FinalExponentiation(&c.InGt)
+	pairing.AssertIsEqual(res1, &c.Res)
+	res2 := pairing.FinalExponentiationUnsafe(&c.InGt)
+	pairing.AssertIsEqual(res2, &c.Res)
 	return nil
 }
 
@@ -127,13 +126,73 @@ func TestMultiPairTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
-// bench
-var ccsBench constraint.ConstraintSystem
+type PairingCheckCircuit struct {
+	In1G1 G1Affine
+	In2G1 G1Affine
+	In1G2 G2Affine
+	In2G2 G2Affine
+}
 
-func BenchmarkPairing(b *testing.B) {
-	var c PairCircuit
-	p := profile.Start()
-	ccsBench, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println(p.NbConstraints())
+func (c *PairingCheckCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In1G1, &c.In2G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2, &c.In1G2, &c.In2G2})
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	return nil
+}
+
+func TestPairingCheckTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, q1 := randomG1G2Affines(assert)
+	_, q2 := randomG1G2Affines(assert)
+	var p2 bn254.G1Affine
+	p2.Neg(&p1)
+	witness := PairingCheckCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
+	}
+	err := test.IsSolved(&PairingCheckCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type FinalExponentiationSafeCircuit struct {
+	P1, P2 G1Affine
+	Q1, Q2 G2Affine
+}
+
+func (c *FinalExponentiationSafeCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return err
+	}
+	res, err := pairing.MillerLoop([]*G1Affine{&c.P1, &c.P2}, []*G2Affine{&c.Q1, &c.Q2})
+	if err != nil {
+		return err
+	}
+	res2 := pairing.FinalExponentiation(res)
+	one := pairing.Ext12.One()
+	pairing.AssertIsEqual(one, res2)
+	return nil
+}
+
+func TestFinalExponentiationSafeCircuit(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, p1, q1 := bn254.Generators()
+	var p2 bn254.G1Affine
+	var q2 bn254.G2Affine
+	p2.Neg(&p1)
+	q2.Set(&q1)
+	err := test.IsSolved(&FinalExponentiationSafeCircuit{}, &FinalExponentiationSafeCircuit{
+		P1: NewG1Affine(p1),
+		P2: NewG1Affine(p2),
+		Q1: NewG2Affine(q1),
+		Q2: NewG2Affine(q2),
+	}, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }

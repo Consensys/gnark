@@ -800,3 +800,79 @@ func TestIssue348UnconstrainedLimbs(t *testing.T) {
 	// inputs.
 	assert.Error(err)
 }
+
+type AssertInRangeCircuit[T FieldParams] struct {
+	X Element[T]
+}
+
+func (c *AssertInRangeCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	f.AssertIsInRange(&c.X)
+	return nil
+}
+
+func TestAssertInRange(t *testing.T) {
+	testAssertIsInRange[Goldilocks](t)
+	testAssertIsInRange[Secp256k1Fp](t)
+	testAssertIsInRange[BN254Fp](t)
+}
+
+func testAssertIsInRange[T FieldParams](t *testing.T) {
+	var fp T
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		X, _ := rand.Int(rand.Reader, fp.Modulus())
+		circuit := AssertInRangeCircuit[T]{}
+		witness := AssertInRangeCircuit[T]{X: ValueOf[T](X)}
+		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+		witness2 := AssertInRangeCircuit[T]{X: ValueOf[T](0)}
+		t := 0
+		for i := 0; i < int(fp.NbLimbs())-1; i++ {
+			L := new(big.Int).Lsh(big.NewInt(1), fp.BitsPerLimb())
+			L.Sub(L, big.NewInt(1))
+			witness2.X.Limbs[i] = L
+			t += int(fp.BitsPerLimb())
+		}
+		highlimb := fp.Modulus().BitLen() - t
+		L := new(big.Int).Lsh(big.NewInt(1), uint(highlimb))
+		L.Sub(L, big.NewInt(1))
+		witness2.X.Limbs[fp.NbLimbs()-1] = L
+		assert.ProverFailed(&circuit, &witness2, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+	}, testName[T]())
+}
+
+type IsZeroCircuit[T FieldParams] struct {
+	X, Y Element[T]
+	Zero frontend.Variable
+}
+
+func (c *IsZeroCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	R := f.Add(&c.X, &c.Y)
+	api.AssertIsEqual(c.Zero, f.IsZero(R))
+	return nil
+}
+
+func TestIsZero(t *testing.T) {
+	testIsZero[Goldilocks](t)
+	testIsZero[Secp256k1Fp](t)
+	testIsZero[BN254Fp](t)
+}
+
+func testIsZero[T FieldParams](t *testing.T) {
+	var fp T
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		X, _ := rand.Int(rand.Reader, fp.Modulus())
+		Y := new(big.Int).Sub(fp.Modulus(), X)
+		circuit := IsZeroCircuit[T]{}
+		assert.ProverSucceeded(&circuit, &IsZeroCircuit[T]{X: ValueOf[T](X), Y: ValueOf[T](Y), Zero: 1}, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+		assert.ProverSucceeded(&circuit, &IsZeroCircuit[T]{X: ValueOf[T](X), Y: ValueOf[T](0), Zero: 0}, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+	}, testName[T]())
+}

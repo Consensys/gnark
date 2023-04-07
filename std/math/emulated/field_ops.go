@@ -214,7 +214,6 @@ func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("reduction hint: %v", err))
 	}
-	// TODO @gbotrel fixme: AssertIsEqual(a, e) crashes Pairing test
 	f.AssertIsEqual(e, a)
 	return e
 }
