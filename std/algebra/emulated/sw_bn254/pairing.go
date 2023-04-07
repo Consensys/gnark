@@ -255,6 +255,34 @@ func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 	pr.Ext2.AssertIsEqual(left, right)
 }
 
+func (pr Pairing) AssertIsOnG1(P *G1Affine) {
+	// BN254 has a prime order, so we only
+	// 1- Check P is on the curve
+	pr.AssertIsOnCurve(P)
+}
+
+func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
+	// 1- Check Q is on the curve
+	pr.AssertIsOnTwist(Q)
+
+	// 2- Check Q has the right subgroup order
+	res, err := pr.curveF.NewHint(subgroupG2Hint, 4, &Q.X.A0, &Q.X.A1, &Q.Y.A0, &Q.Y.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	// _Q = ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q
+	_Q := G2Affine{
+		X: fields_bn254.E2{A0: *res[0], A1: *res[1]},
+		Y: fields_bn254.E2{A0: *res[2], A1: *res[3]},
+	}
+
+	// [r]Q == 0 <==>  Q = _Q
+	pr.Ext2.AssertIsEqual(&Q.X, &_Q.X)
+	pr.Ext2.AssertIsEqual(&Q.Y, &_Q.Y)
+}
+
 // loopCounter = 6x₀+2 = 29793968203157093288
 //
 // in 2-NAF
