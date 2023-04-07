@@ -433,3 +433,45 @@ func TestIsOnCurve(t *testing.T) {
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
+
+func TestIsOnCurve2(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, g, _ := bn254.Generators()
+	var r fr_secp.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var Q bn254.G1Affine
+	Q.ScalarMultiplication(&g, s)
+
+	circuit := IsOnCurveTest[emulated.BN254Fp, emulated.BN254Fr]{}
+	witness := IsOnCurveTest[emulated.BN254Fp, emulated.BN254Fr]{
+		Q: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](Q.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](Q.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestIsOnCurve3(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, g, _ := bls12381.Generators()
+	var r fr_secp.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var Q bls12381.G1Affine
+	Q.ScalarMultiplication(&g, s)
+
+	circuit := IsOnCurveTest[emulated.BLS12381Fp, emulated.BLS12381Fr]{}
+	witness := IsOnCurveTest[emulated.BLS12381Fp, emulated.BLS12381Fr]{
+		Q: AffinePoint[emulated.BLS12381Fp]{
+			X: emulated.ValueOf[emulated.BLS12381Fp](Q.X),
+			Y: emulated.ValueOf[emulated.BLS12381Fp](Q.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
