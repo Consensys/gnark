@@ -487,15 +487,15 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	Q1, Q2 := new(G2Affine), new(G2Affine)
 	for k := 0; k < n; k++ {
 		//Q1 = π(Q)
-		Q1.X = *pr.Ext12.Ext2.Conjugate(&Q[k].X)
-		Q1.X = *pr.Ext12.Ext2.MulByNonResidue1Power2(&Q1.X)
-		Q1.Y = *pr.Ext12.Ext2.Conjugate(&Q[k].Y)
-		Q1.Y = *pr.Ext12.Ext2.MulByNonResidue1Power3(&Q1.Y)
+		Q1.X = *pr.Ext2.Conjugate(&Q[k].X)
+		Q1.X = *pr.Ext2.MulByNonResidue1Power2(&Q1.X)
+		Q1.Y = *pr.Ext2.Conjugate(&Q[k].Y)
+		Q1.Y = *pr.Ext2.MulByNonResidue1Power3(&Q1.Y)
 
 		// Q2 = -π²(Q)
-		Q2.X = *pr.Ext12.Ext2.MulByNonResidue2Power2(&Q[k].X)
-		Q2.Y = *pr.Ext12.Ext2.MulByNonResidue2Power3(&Q[k].Y)
-		Q2.Y = *pr.Ext12.Ext2.Neg(&Q2.Y)
+		Q2.X = *pr.Ext2.MulByNonResidue2Power2(&Q[k].X)
+		Q2.Y = *pr.Ext2.MulByNonResidue2Power3(&Q[k].Y)
+		Q2.Y = *pr.Ext2.Neg(&Q2.Y)
 
 		// Qacc[k] ← Qacc[k]+π(Q) and
 		// l1 the line passing Qacc[k] and π(Q)

@@ -250,6 +250,65 @@ func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 	pr.Ext2.AssertIsEqual(left, right)
 }
 
+func (pr Pairing) AssertIsOnG1(P *G1Affine) {
+	// 1- Check P is on the curve
+	pr.AssertIsOnCurve(P)
+
+	// 2- Check P has the right subgroup order
+	res, err := pr.curveF.NewHint(subgroupG1Hint, 2, &P.X, &P.Y)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	// _P = -[x²]ϕ(p)
+	_P := G1Affine{
+		X: *res[0],
+		Y: *res[1],
+	}
+
+	// [r]Q == 0 <==>  P = _P
+	pr.curveF.AssertIsEqual(&P.X, &_P.X)
+	pr.curveF.AssertIsEqual(&P.Y, &_P.Y)
+}
+
+func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
+	// 1- Check Q is on the curve
+	pr.AssertIsOnTwist(Q)
+
+	// 2- Check Q has the right subgroup order
+	res, err := pr.curveF.NewHint(subgroupG2Hint, 4, &Q.X.A0, &Q.X.A1, &Q.Y.A0, &Q.Y.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	// _Q = [x₀]Q
+	_Q := G2Affine{
+		X: fields_bls12381.E2{A0: *res[0], A1: *res[1]},
+		Y: fields_bls12381.E2{A0: *res[2], A1: *res[3]},
+	}
+
+	// [r]Q == 0 <==>  ψ(Q) = _Q
+	var psiQ G2Affine
+	u1 := emulated.ValueOf[emulated.BLS12381Fp]("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939437")
+	v := fields_bls12381.E2{
+		A0: emulated.ValueOf[emulated.BLS12381Fp]("2973677408986561043442465346520108879172042883009249989176415018091420807192182638567116318576472649347015917690530"),
+		A1: emulated.ValueOf[emulated.BLS12381Fp]("1028732146235106349975324479215795277384839936929757896155643118032610843298655225875571310552543014690878354869257"),
+	}
+
+	// ψ(Q)
+	psiQ.X = *pr.Ext2.Conjugate(&Q.X)
+	tmp := *pr.curveF.Mul(&psiQ.X.A1, &u1)
+	psiQ.X.A1 = *pr.curveF.Mul(&psiQ.X.A0, &u1)
+	psiQ.X.A0 = *pr.curveF.Neg(&tmp)
+	psiQ.Y = *pr.Ext2.Conjugate(&Q.Y)
+	psiQ.Y = *pr.Ext2.Mul(&psiQ.Y, &v)
+
+	pr.Ext2.AssertIsEqual(&psiQ.X, &_Q.X)
+	pr.Ext2.AssertIsEqual(&psiQ.Y, &_Q.Y)
+}
+
 // loopCounter = seed in binary
 //
 //	seed=-15132376222941642752
