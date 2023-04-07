@@ -98,6 +98,8 @@ func (c *Curve[B, S]) AssertIsEqual(p, q *AffinePoint[B]) {
 }
 
 // Add adds p and q and returns it. It doesn't modify p nor q.
+// This function doesn't check that the p and q are on the curve. See AssertIsOnCurve.
+//
 // It uses incomplete formulas in affine coordinates.
 // The points p and q should be different and nonzero (neutral element).
 func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
@@ -122,11 +124,11 @@ func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 	}
 }
 
+// AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.
 func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
-	// y^2 = x^3+ax+b
+	// Y² == X³ + aX + b
 	left := c.baseApi.Mul(&p.Y, &p.Y)
-	right := c.baseApi.Mul(&p.X, &p.X)
-	right = c.baseApi.Mul(right, &p.X)
+	right := c.baseApi.Mul(&p.X, c.baseApi.Mul(&p.X, &p.X))
 	right = c.baseApi.Add(right, &c.b)
 	if c.addA {
 		ax := c.baseApi.Mul(&c.a, &p.X)
@@ -136,6 +138,8 @@ func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
 }
 
 // Double doubles p and return it. It doesn't modify p.
+// This function doesn't check that the p is on the curve. See AssertIsOnCurve.
+//
 // It uses affine coordinates.
 func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 
@@ -164,13 +168,14 @@ func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 	}
 }
 
-// Triple triples p and return it. It follows [ELM03] (Section 3.1).
-// Saves the computation of the y coordinate of 2p as it is used only in the computation of λ2,
-// which can be computed as
+// Triple triples p and return it. It doesn't modify p.
+// This function doesn't check that the p is on the curve. See AssertIsOnCurve.
+//
+// It follows [ELM03] (Section 3.1). This saves the computation of the y
+// coordinate of 2p as it is used only in the computation of λ2, which can be
+// computed as
 //
 //	λ2 = -λ1-2*p.y/(x2-p.x)
-//
-// instead. It doesn't modify p.
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
@@ -211,13 +216,14 @@ func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 	}
 }
 
-// DoubleAndAdd computes 2p+q as (p+q)+p. It follows [ELM03] (Section 3.1)
-// Saves the computation of the y coordinate of p+q as it is used only in the computation of λ2,
-// which can be computed as
+// DoubleAndAdd computes 2p+q as (p+q)+p. It doesn't modify p nor q.
+// This function doesn't check that the p and q are on the curve. See AssertIsOnCurve.
+//
+// It follows [ELM03] (Section 3.1). This saves the computation of the y
+// coordinate of p+q as it is used only in the computation of λ2, which can be
+// computed as
 //
 //	λ2 = -λ1-2*p.y/(x2-p.x)
-//
-// instead. It doesn't modify p nor q.
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) DoubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
@@ -284,6 +290,7 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 }
 
 // ScalarMul computes s * p and returns it. It doesn't modify p nor s.
+// This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
 // It computes the standard little-endian variable-base double-and-add algorithm
 // [HMV04] (Algorithm 3.26).

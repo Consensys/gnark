@@ -227,6 +227,29 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext12.AssertIsEqual(x, y)
 }
 
+func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
+	// Curve: Y² == X³ + aX + b, where a=0 and b=4
+	four := emulated.ValueOf[emulated.BLS12381Fp](4)
+	left := pr.curveF.Mul(&P.Y, &P.Y)
+	right := pr.curveF.Mul(&P.X, &P.X)
+	right = pr.curveF.Mul(right, &P.X)
+	right = pr.curveF.Add(right, &four)
+	pr.curveF.AssertIsEqual(left, right)
+}
+
+func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
+	b := fields_bls12381.E2{
+		A0: emulated.ValueOf[emulated.BLS12381Fp]("4"),
+		A1: emulated.ValueOf[emulated.BLS12381Fp]("4"),
+	}
+	left := pr.Ext2.Square(&Q.Y)
+	right := pr.Ext2.Square(&Q.X)
+	right = pr.Ext2.Mul(right, &Q.X)
+	right = pr.Ext2.Add(right, &b)
+	pr.Ext2.AssertIsEqual(left, right)
+}
+
 // loopCounter = seed in binary
 //
 //	seed=-15132376222941642752

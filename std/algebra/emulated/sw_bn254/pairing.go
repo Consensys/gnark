@@ -233,7 +233,7 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 }
 
 func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
-	// Curve: Y^2 = X^3 + b, where b = 3
+	// Curve: Y² == X³ + aX + b, where a=0 and b=3
 	three := emulated.ValueOf[emulated.BN254Fp](3)
 	left := pr.curveF.Mul(&P.Y, &P.Y)
 	right := pr.curveF.Mul(&P.X, &P.X)
@@ -243,7 +243,7 @@ func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 }
 
 func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
-	// Twist: Y^2 = X^3 + b', where b' = 3/(9+u)
+	// Twist: Y² == X³ + aX + b, where a=0 and b=3/(9+u)
 	b := fields_bn254.E2{
 		A0: emulated.ValueOf[emulated.BN254Fp]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
 		A1: emulated.ValueOf[emulated.BN254Fp]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
@@ -282,12 +282,6 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	n := len(P)
 	if n == 0 || n != len(Q) {
 		return nil, errors.New("invalid inputs sizes")
-	}
-
-	// check points are on curve
-	for k := 0; k < n; k++ {
-		pr.AssertIsOnCurve(P[k])
-		pr.AssertIsOnTwist(Q[k])
 	}
 
 	res := pr.Ext12.One()
