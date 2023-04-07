@@ -14,6 +14,7 @@ func ECAdd(api frontend.API, P, Q *sw_emulated.AffinePoint[emulated.BN254Fp]) *s
 	if err != nil {
 		panic(err)
 	}
-	res := curve.Add(P, Q)
+	// We use AddSafe because P can be equal to Q
+	res := curve.AddSafe(P, Q)
 	return res
 }

@@ -9,6 +9,25 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// DivSpecial computes a/b and returns it. It uses [DivHint] as a hint function.
+// if b == 0, return 0
+func (f *Field[T]) DivSpecial(a, b *Element[T]) *Element[T] {
+	// omit width assertion as for a is done in AssertIsEqual and for b is done in Mul below
+	if !f.fParams.IsPrime() {
+		// TODO shouldn't we still try to do a classic int div in a hint, constraint the result, and let it fail?
+		// that would enable things like uint32 div ?
+		panic("modulus not a prime")
+	}
+	div, err := f.computeSpecialDivisionHint(a.Limbs, b.Limbs)
+	if err != nil {
+		panic(fmt.Sprintf("compute division: %v", err))
+	}
+	e := f.packLimbs(div, true)
+	res := f.Mul(e, b)
+	f.AssertIsEqual(res, a)
+	return e
+}
+
 // Div computes a/b and returns it. It uses [DivHint] as a hint function.
 func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 	// omit width assertion as for a is done in AssertIsEqual and for b is done in Mul below
