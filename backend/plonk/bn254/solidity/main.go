@@ -75,7 +75,7 @@ func getTransactionOpts(privateKey *ecdsa.PrivateKey, auth *bind.TransactOpts, c
 
 	auth.Nonce = big.NewInt(int64(nonce))
 	auth.Value = big.NewInt(0)
-	auth.GasLimit = uint64(300000)
+	auth.GasLimit = uint64(500000)
 	auth.GasPrice = gasprice
 
 	return auth, nil
@@ -472,7 +472,6 @@ func main() {
 		var event interface{}
 		err = contractABI.UnpackIntoInterface(&event, "PrintUint256", vLog.Data)
 		checkError(err)
-		solidityRes := event.(*big.Int)
-		fmt.Println(solidityRes.String())
+		fmt.Println(event)
 	}
 }
