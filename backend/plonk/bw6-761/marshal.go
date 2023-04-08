@@ -120,16 +120,16 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	// encode the size (nor does it convert from Montgomery to Regular form)
 	// so we explicitly transmit []fr.Element
 	toEncode := []interface{}{
-		([]fr.Element)(pk.trace.Ql.Coefficients()),
-		([]fr.Element)(pk.trace.Qr.Coefficients()),
-		([]fr.Element)(pk.trace.Qm.Coefficients()),
-		([]fr.Element)(pk.trace.Qo.Coefficients()),
-		([]fr.Element)(pk.trace.Qk.Coefficients()),
-		([]fr.Element)(pk.trace.Qcp.Coefficients()),
-		([]fr.Element)(pk.lQk.Coefficients()),
-		([]fr.Element)(pk.trace.S1.Coefficients()),
-		([]fr.Element)(pk.trace.S2.Coefficients()),
-		([]fr.Element)(pk.trace.S3.Coefficients()),
+		pk.trace.Ql.Coefficients(),
+		pk.trace.Qr.Coefficients(),
+		pk.trace.Qm.Coefficients(),
+		pk.trace.Qo.Coefficients(),
+		pk.trace.Qk.Coefficients(),
+		pk.trace.Qcp.Coefficients(),
+		pk.lQk.Coefficients(),
+		pk.trace.S1.Coefficients(),
+		pk.trace.S2.Coefficients(),
+		pk.trace.S3.Coefficients(),
 		pk.trace.S,
 	}
 
