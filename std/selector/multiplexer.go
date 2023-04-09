@@ -15,6 +15,7 @@ package selector
 import (
 	"fmt"
 	"github.com/consensys/gnark/std/math/bits"
+	"math"
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -64,19 +65,11 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	var indicators []frontend.Variable
 	var err error
 	if wantMux {
-		if len(values) == 2 {
-			return api.Select(sel, values[1], values[0])
+		if log := math.Log2(float64(len(values))); log == math.Trunc(log) {
+			selBits := bits.ToBinary(api, sel, bits.WithNbDigits(int(log)))
+			return BinaryMux(api, selBits, values)
 		}
-
-		if len(values) == 4 {
-			// api.Lookup2 adds constraints for the boolean assertion, so we use
-			// bits.WithUnconstrainedOutputs()
-			selBits := bits.ToBinary(api, sel, bits.WithNbDigits(2), bits.WithUnconstrainedOutputs())
-			return api.Lookup2(selBits[0], selBits[1], values[0], values[1], values[2], values[3])
-		}
-
 		indicators, err = api.Compiler().NewHint(muxIndicators, len(values), sel)
-
 	} else {
 		indicators, err = api.Compiler().NewHint(mapIndicators, len(keys), append(keys, sel)...)
 	}
@@ -103,6 +96,42 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	// it is cheap.
 	api.AssertIsEqual(indicatorsSum, 1)
 	return out
+}
+
+// BinaryMux is an n to 1 multiplexer which uses a binary selector. selBits are
+// the selector bits, and the input at the index equal to the binary number
+// represented by the selector bits will be selected. More precisely the output
+// will be:
+//
+//	inputs[selBits[0]+selBits[1]*(1<<1)+selBits[2]*(1<<2)+...]
+//
+// len(inputs) does not need to be necessarily a power of 2. However, when the
+// index represented by selBits is >= len( inputs), the output will be
+// undefined.
+//
+// BinaryMux does NOT define any boolean constraints for selBits. Outside this
+// function, always all the elements of selBits must be constrained to be binary
+// digits.
+func BinaryMux(api frontend.API, selBits, inputs []frontend.Variable) frontend.Variable {
+	if len(selBits) == 0 {
+		return inputs[0]
+	}
+
+	nextSelBits := selBits[:len(selBits)-1]
+	sel := selBits[len(selBits)-1]
+	pivot := 1 << len(nextSelBits)
+	if pivot >= len(inputs) {
+		return BinaryMux(api, nextSelBits, inputs)
+	}
+	sub := make([]frontend.Variable, len(inputs)-pivot)
+	for i := 0; i < len(sub); i++ {
+		sub[i] = api.Sub(inputs[pivot+i], inputs[i])
+	}
+
+	return api.Add(
+		api.Mul(sel, BinaryMux(api, nextSelBits, sub)),
+		BinaryMux(api, nextSelBits, inputs[:pivot]),
+	)
 }
 
 // muxIndicators is a hint function used within [Mux] function. It must be

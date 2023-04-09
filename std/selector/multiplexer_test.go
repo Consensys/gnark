@@ -105,6 +105,12 @@ func TestMux(t *testing.T) {
 		OUT: 22,
 	})
 
+	assert.ProverSucceeded(&mux4to1Circuit{}, &mux4to1Circuit{
+		SEL: 0,
+		In:  [4]frontend.Variable{11, 22, 33, 44},
+		OUT: 11,
+	})
+
 	assert.ProverFailed(&mux4to1Circuit{}, &mux4to1Circuit{
 		SEL: 4,
 		In:  [4]frontend.Variable{11, 22, 33, 44},
@@ -225,4 +231,53 @@ func TestMap(t *testing.T) {
 			V0: 10, V1: 11,
 		})
 
+}
+
+type binaryMuxCircuit struct {
+	Sel [4]frontend.Variable
+	In  [10]frontend.Variable
+	Out frontend.Variable
+}
+
+func (c *binaryMuxCircuit) Define(api frontend.API) error {
+
+	out := selector.BinaryMux(api, c.Sel[:], c.In[:])
+
+	api.AssertIsEqual(out, c.Out)
+
+	return nil
+}
+
+func TestBinaryMux(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	assert.ProverSucceeded(&binaryMuxCircuit{}, &binaryMuxCircuit{
+		Sel: [4]frontend.Variable{0, 0, 1, 0},
+		In:  [10]frontend.Variable{100, 111, 122, 133, 144, 155, 166, 177, 188, 199},
+		Out: 144,
+	})
+
+	assert.ProverSucceeded(&binaryMuxCircuit{}, &binaryMuxCircuit{
+		Sel: [4]frontend.Variable{0, 0, 0, 0},
+		In:  [10]frontend.Variable{100, 111, 122, 133, 144, 155, 166, 177, 188, 199},
+		Out: 100,
+	})
+
+	assert.ProverSucceeded(&binaryMuxCircuit{}, &binaryMuxCircuit{
+		Sel: [4]frontend.Variable{1, 0, 0, 1},
+		In:  [10]frontend.Variable{100, 111, 122, 133, 144, 155, 166, 177, 188, 199},
+		Out: 199,
+	})
+
+	assert.ProverSucceeded(&binaryMuxCircuit{}, &binaryMuxCircuit{
+		Sel: [4]frontend.Variable{0, 1, 0, 0},
+		In:  [10]frontend.Variable{100, 111, 122, 133, 144, 155, 166, 177, 188, 199},
+		Out: 122,
+	})
+
+	assert.ProverSucceeded(&binaryMuxCircuit{}, &binaryMuxCircuit{
+		Sel: [4]frontend.Variable{0, 0, 0, 1},
+		In:  [10]frontend.Variable{100, 111, 122, 133, 144, 155, 166, 177, 188, 199},
+		Out: 188,
+	})
 }
