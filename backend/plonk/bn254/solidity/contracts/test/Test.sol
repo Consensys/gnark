@@ -113,9 +113,7 @@ contract TestContract {
     vk.g2_x.Y[1] = 21715068306295773599916956786074008492685752252069347482027975832766446299128;
     vk.commitmentIndex = 0;
 
-    // PlonkVerifier.derive_gamma_beta_alpha_zeta(state, proof, vk, public_inputs);
     bool res = PlonkVerifier.verify(proof, vk, public_inputs);
-    // emit PrintBool(res);
 
     // expected gamma = 21625473336763634026948787553361369256520448719159937253746108462373062122442
     // emit PrintUint256(state.gamma);

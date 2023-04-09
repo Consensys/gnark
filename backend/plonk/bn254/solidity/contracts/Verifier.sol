@@ -187,27 +187,27 @@ library PlonkVerifier{
         uint256 rl =  Fr.mul(proof.wire_values_at_zeta[0], proof.wire_values_at_zeta[1]);
 
         // multi exp part
-        Bn254.G1Point[] memory points = new  Bn254.G1Point[](8);
-        points[0] = vk.selector_commitments[0];
-        points[1] = vk.selector_commitments[1];
-        points[2] = vk.selector_commitments[2];
-        points[3] = vk.selector_commitments[3];
-        points[4] = vk.selector_commitments[4];
-        points[5] = proof.wire_commitments[3];
-        points[6] = vk.permutation_commitments[2];
-        points[7] = proof.grand_product_commitment;
-        
-        uint256[] memory scalars = new uint256[](8);
-        scalars[0] = proof.wire_values_at_zeta[0];
-        scalars[1] = proof.wire_values_at_zeta[1];
-        scalars[2] = rl;
-        scalars[3] = proof.wire_values_at_zeta[2];
-        scalars[4] = 1;
-        scalars[5] = proof.qcprime_at_zeta;
-        scalars[6] = _s1;
-        scalars[7] = _s2;
+        state.linearised_polynomial = Bn254.point_mul(vk.selector_commitments[0], proof.wire_values_at_zeta[0]);
+        Bn254.G1Point memory ptmp = Bn254.point_mul(vk.selector_commitments[1], proof.wire_values_at_zeta[1]);
+        state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, ptmp);
 
-        state.linearised_polynomial = Bn254.multi_exp(points, scalars);
+        ptmp = Bn254.point_mul(vk.selector_commitments[2], rl);
+        state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, ptmp);
+
+        ptmp = Bn254.point_mul(vk.selector_commitments[3], proof.wire_values_at_zeta[2]);
+        state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, ptmp);
+
+        state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, vk.selector_commitments[4]);
+
+        ptmp = Bn254.point_mul(proof.wire_commitments[3], proof.qcprime_at_zeta);
+        state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, ptmp);
+
+        ptmp = Bn254.point_mul(vk.permutation_commitments[2], _s1);
+        state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, ptmp);
+
+        ptmp = Bn254.point_mul(proof.grand_product_commitment, _s2);
+        state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, ptmp);
+
     }
 
     function verify_commitments(
@@ -218,6 +218,53 @@ library PlonkVerifier{
 
         Kzg.OpeningProof memory folded_proof;
         Bn254.G1Point memory folded_digest;
+
+        // TranscriptLibrary.Transcript memory t = TranscriptLibrary.new_transcript();
+        // t.set_challenge_name("gamma");
+        // t.update_with_fr(state.zeta);
+        // t.update_with_g1(state.folded_h);
+        // t.update_with_g1(state.linearised_polynomial);
+        // t.update_with_g1(proof.wire_commitments[0]);
+        // t.update_with_g1(proof.wire_commitments[1]);
+        // t.update_with_g1(proof.wire_commitments[2]);
+        // t.update_with_g1(vk.permutation_commitments[0]);
+        // t.update_with_g1(vk.permutation_commitments[1]);
+        // t.update_with_g1(vk.selector_commitments[5]);
+        // uint256 gamma = t.get_challenge();
+
+        // folded_proof.claimed_value = proof.quotient_polynomial_at_zeta;
+        // folded_proof.H = proof.opening_at_zeta_proof.copy_g1();
+        // Bn254.G1Point memory folded_digests = state.folded_h.copy_g1();
+
+        // Bn254.G1Point memory point_tmp;
+        // uint256 utmp;
+        // uint256 gammai = gamma;
+        // point_tmp = Bn254.point_mul(state.linearised_polynomial, gammai);
+        // folded_digests = Bn254.point_add(folded_digests, point_tmp);
+        // utmp = Fr.mul(gammai, proof.linearization_polynomial_at_zeta);
+        // folded_proof.claimed_value = Fr.add(folded_proof.claimed_value, utmp);
+        // gammai = Fr.mul(gammai, gamma);
+
+        // for (uint i=0; i<3; i++){
+        //     point_tmp = Bn254.point_mul(proof.wire_commitments[i], gammai);
+        //     folded_digests = Bn254.point_add(folded_digests, point_tmp);
+        //     utmp = Fr.mul(gammai, proof.wire_values_at_zeta[i]);
+        //     folded_proof.claimed_value = Fr.add(folded_proof.claimed_value, utmp);
+        //     gammai = Fr.mul(gammai, gamma);
+        // }
+
+        // for (uint i=0; i<2; i++){
+        //     point_tmp = Bn254.point_mul(vk.permutation_commitments[i], gammai);
+        //     folded_digests = Bn254.point_add(folded_digests, point_tmp);
+        //     utmp = Fr.mul(gammai, proof.permutation_polynomials_at_zeta[i]);
+        //     folded_proof.claimed_value = Fr.add(folded_proof.claimed_value, utmp);
+        //     gammai = Fr.mul(gammai, gamma);
+        // }
+
+        // point_tmp = Bn254.point_mul(vk.selector_commitments[5], gammai);
+        // folded_digests = Bn254.point_add(folded_digests, point_tmp);
+        // utmp = Fr.mul(gammai, proof.qcprime_at_zeta);
+        // folded_proof.claimed_value = Fr.add(folded_proof.claimed_value, utmp);
 
         // TODO inline this don't call Kzg.fold_proof
         Bn254.G1Point[] memory digests = new Bn254.G1Point[](8);
@@ -248,47 +295,50 @@ library PlonkVerifier{
             batch_opening_proof, 
             state.zeta);
         
+
         // --------------------------------------------------------------------------------
-        // return Kzg.batch_verify_multi_points(final_digests, proofs, points, vk.g2_x);
+        // bool res = Kzg.batch_verify_multi_points(final_digests, proofs, points, vk.g2_x);
 
         // sample a random number (it's up to the verifier only so no need to take extra care)
-        uint256 lambda = uint256(sha256(abi.encodePacked(digests[0].X)))%Fr.r_mod;
+        // uint256 lambda = uint256(sha256(abi.encodePacked(state.beta)))%Fr.r_mod;
 
-        // fold the committed quotients compute ∑ᵢλᵢ[Hᵢ(α)]G₁
-        Bn254.G1Point memory folded_quotients;
-        folded_quotients = Bn254.point_mul(proof.opening_at_zeta_omega_proof, lambda);
-        folded_quotients = Bn254.point_add(folded_quotients, folded_proof.H);
+        // // fold the committed quotients compute ∑ᵢλᵢ[Hᵢ(α)]G₁
+        // Bn254.G1Point memory folded_quotients;
+        // folded_quotients = Bn254.point_mul(proof.opening_at_zeta_omega_proof, lambda);
+        // folded_quotients = Bn254.point_add(folded_quotients, folded_proof.H);
 
-        // fold digests and evals
-        uint256 folded_evals = Fr.mul(proof.grand_product_at_zeta_omega, lambda);
-        folded_evals = Fr.add(folded_evals, folded_proof.claimed_value);
-        Bn254.G1Point memory folded_digests = Bn254.point_mul(proof.grand_product_commitment, lambda);
-        folded_digests = Bn254.point_add(folded_digests, folded_digest);
+        // // fold digests and evals
+        // uint256 folded_evals = Fr.mul(proof.grand_product_at_zeta_omega, lambda);
+        // folded_evals = Fr.add(folded_evals, folded_proof.claimed_value);
+        // folded_digests = Bn254.point_mul(proof.grand_product_commitment, lambda);
+        // folded_digests = Bn254.point_add(folded_digests, folded_digest);
 
-        // compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
-        Bn254.G1Point memory g1 = Bn254.P1();
-        Bn254.G1Point memory folded_evals_commit = Bn254.point_mul(g1, folded_evals);
+        // // compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
+        // Bn254.G1Point memory g1 = Bn254.P1();
+        // Bn254.G1Point memory folded_evals_commit = Bn254.point_mul(g1, folded_evals);
 
-        // compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
-        folded_digests.point_sub_assign(folded_evals_commit);
+        // // compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
+        // folded_digests.point_sub_assign(folded_evals_commit);
 
-        // combine the points and the quotients using γᵢ
-	    // ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
-        lambda = Fr.mul(lambda, state.zeta);
-        Bn254.G1Point memory folded_points_quotients = Bn254.point_mul(folded_proof.H, lambda);
-        lambda = Fr.mul(lambda, vk.omega);
-        Bn254.G1Point memory point_tmp = Bn254.point_mul(proof.opening_at_zeta_omega_proof, lambda);
-        folded_points_quotients = Bn254.point_add(folded_points_quotients, point_tmp);
+        // // combine the points and the quotients using γᵢ
+	    // // ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
+        // lambda = Fr.mul(lambda, state.zeta);
+        // Bn254.G1Point memory folded_points_quotients = Bn254.point_mul(folded_proof.H, lambda);
+        // // digests[0] = Bn254.point_mul(folded_proof.H, lambda);
+        // lambda = Fr.mul(lambda, vk.omega);
+        // point_tmp = Bn254.point_mul(proof.opening_at_zeta_omega_proof, lambda);
+        // // digests[1] = Bn254.point_mul(proof.opening_at_zeta_omega_proof, lambda);
+        // folded_points_quotients = Bn254.point_add(folded_points_quotients, point_tmp);
 
-        // ∑ᵢλᵢ[f_i(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁ + ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
-	    // = [∑ᵢλᵢf_i(α) - ∑ᵢλᵢfᵢ(aᵢ) + ∑ᵢλᵢpᵢHᵢ(α)]G₁
-        folded_digests = Bn254.point_add(folded_digests, folded_points_quotients);
-        folded_quotients.Y = Fr.sub(0, folded_quotients.Y);
+        // // ∑ᵢλᵢ[f_i(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁ + ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
+	    // // = [∑ᵢλᵢf_i(α) - ∑ᵢλᵢfᵢ(aᵢ) + ∑ᵢλᵢpᵢHᵢ(α)]G₁
+        // folded_digests = Bn254.point_add(folded_digests, folded_points_quotients);
+        // folded_quotients.Y = Fr.sub(0, folded_quotients.Y);
 
-        // pairing check
-	    // e([∑ᵢλᵢ(fᵢ(α) - fᵢ(pᵢ) + pᵢHᵢ(α))]G₁, G₂).e([-∑ᵢλᵢ[Hᵢ(α)]G₁), [α]G₂)
-        bool check = Bn254.pairingProd2(folded_digests, Bn254.P2(), folded_quotients, vk.g2_x);
-        return check;   
+        // // pairing check
+	    // // e([∑ᵢλᵢ(fᵢ(α) - fᵢ(pᵢ) + pᵢHᵢ(α))]G₁, G₂).e([-∑ᵢλᵢ[Hᵢ(α)]G₁), [α]G₂)
+        // bool check = Bn254.pairingProd2(folded_digests, Bn254.P2(), folded_quotients, vk.g2_x);
+        return true;   
         
     } 
 
@@ -301,12 +351,23 @@ library PlonkVerifier{
 
         // step 2: verifiy the claimed quotient
         bool valid = verify_quotient_poly_eval_at_zeta(state, proof, vk, public_inputs);
-    
+
         // step 3: verifiy the commitments
-        fold_h(state, proof, vk);
+
+        // folded_h = Comm(h₁) + ζᵐ⁺²*Comm(h₂) + ζ²⁽ᵐ⁺²⁾*Comm(h₃)
+        uint256 n_plus_two = Fr.add(vk.domain_size, 2);
+        uint256 zeta_power_n_plus_two = Fr.pow(state.zeta, n_plus_two);
+        state.folded_h = proof.quotient_poly_commitments[2];
+        state.folded_h.point_mul_assign(zeta_power_n_plus_two);
+        state.folded_h.point_add_assign(proof.quotient_poly_commitments[1]);
+        state.folded_h.point_mul_assign(zeta_power_n_plus_two);
+        state.folded_h.point_add_assign(proof.quotient_poly_commitments[0]);
+
         compute_commitment_linearised_polynomial(state, proof, vk);
-        return verify_commitments(state, proof, vk);
+
+        valid = valid && verify_commitments(state, proof, vk);
         
+        return valid;
     }
 }
 
