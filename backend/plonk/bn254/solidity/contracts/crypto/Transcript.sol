@@ -27,6 +27,7 @@ library TranscriptLibrary {
         self.bindings = abi.encodePacked(self.bindings, value);
     }
 
+    // TODO remove this
     function update_with_fr(Transcript memory self, uint256 value) internal pure {
         self.bindings = abi.encodePacked(self.bindings, value);
     }

@@ -19,6 +19,7 @@ contract TestContract {
   using Fr for *;
 
   event PrintUint256(uint256 a);
+  event PrintBool(bool a);
 
   function test_hash(uint256 x, uint256 y, string memory dst) public returns(uint256 res){
 
@@ -126,6 +127,7 @@ contract TestContract {
     vk.permutation_commitments[1].Y = 5862535421258031008351007678455106726734513536108098615905368693160490744826;
     vk.permutation_commitments[2].X = 18629873756620873235671635932713462746784965955369570126916283160403064656283;
     vk.permutation_commitments[2].Y = 11408802041040746443363674818850983028977499452386819044888810122061678223118;
+    vk.coset_shift = 5;
     vk.permutation_non_residues[0] = 5;
     vk.permutation_non_residues[1] = 25;
     vk.g2_x.X[0] = 14227438095234809947593477115205615798437098135983661833593245518598873470133;
@@ -134,15 +136,15 @@ contract TestContract {
     vk.g2_x.Y[1] = 21715068306295773599916956786074008492685752252069347482027975832766446299128;
     vk.commitmentIndex = 0;
 
-    Types.PartialVerifierState memory state;
-
-    PlonkVerifier.derive_gamma_beta_alpha_zeta(state, proof, vk, public_inputs);
+    // PlonkVerifier.derive_gamma_beta_alpha_zeta(state, proof, vk, public_inputs);
+    bool res = PlonkVerifier.verify(proof, vk, public_inputs);
+    // emit PrintBool(res);
 
     // expected gamma = 21625473336763634026948787553361369256520448719159937253746108462373062122442
-    emit PrintUint256(state.gamma);
-    emit PrintUint256(state.alpha);
-    emit PrintUint256(state.beta);
-    emit PrintUint256(state.zeta);
+    // emit PrintUint256(state.gamma);
+    // emit PrintUint256(state.alpha);
+    // emit PrintUint256(state.beta);
+    // emit PrintUint256(state.zeta);
 
     return true;
   }

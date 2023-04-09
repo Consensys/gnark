@@ -183,6 +183,22 @@ library Bn254 {
     require(success);
   }
 
+  function multi_exp(G1Point[] memory p, uint256[] memory s)
+  internal returns (G1Point memory r)
+  {
+
+    require (p.length==s.length);
+    G1Point memory tmp;
+    r = point_mul(p[0], s[0]);
+
+    for (uint i=1; i<p.length; i++) {
+      tmp = point_mul(p[i], s[i]);
+      r = point_add(r, tmp);
+    }
+
+    return r;
+  }
+
   function pairing(G1Point[] memory p1, G2Point[] memory p2)
   internal view returns (bool)
   {

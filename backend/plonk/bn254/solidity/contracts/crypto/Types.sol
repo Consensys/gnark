@@ -19,9 +19,12 @@ library Types {
         uint256 omega;                                     // w
         Bn254.G1Point[STATE_WIDTH+3] selector_commitments;  // [ql], [qr], [qm], [qo], [qk], [qcp]
         Bn254.G1Point[STATE_WIDTH] permutation_commitments; // [Sσ1(x)],[Sσ2(x)],[Sσ3(x)]
-        uint256[STATE_WIDTH-1] permutation_non_residues;   // k1, k2
+        uint256 coset_shift;                                // generator of Fr*
         Bn254.G2Point g2_x;
         uint256 commitmentIndex;                             // index of the public wire resulting from the hash
+
+        // TODO remove this
+        uint256[STATE_WIDTH-1] permutation_non_residues;   // k1, k2
     }
 
     struct Proof {
@@ -42,14 +45,27 @@ library Types {
     }
 
     struct PartialVerifierState {
+     
+        // challenges to check the claimed quotient
         uint256 alpha;
         uint256 beta;
         uint256 gamma;
+        uint256 zeta;
+
+        // challenges related to KZG
         uint256 v;
         uint256 u;
-        uint256 zeta;
-        uint256[] cached_lagrange_evals;
 
+        // reusable value
+        uint256 alpha_square_lagrange;
+
+        // commitment to H
+        Bn254.G1Point folded_h;
+
+        // commitment to the linearised polynomial
+        Bn254.G1Point linearised_polynomial;
+
+        // TODO remove this
         Bn254.G1Point cached_fold_quotient_ploy_commitments;
     }
 
