@@ -23,7 +23,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bls12-381"
 
 	kzgg "github.com/consensys/gnark-crypto/kzg"
@@ -76,7 +75,7 @@ type VerifyingKey struct {
 	// In particular Qk is not complete.
 	Ql, Qr, Qm, Qo, Qk, Qcp kzg.Digest
 
-	CommitmentInfo constraint.Commitment
+	CommitmentConstraintIndexes []uint64
 }
 
 // ProvingKey stores the data needed to generate a proof:
@@ -122,7 +121,9 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	var pk ProvingKey
 	var vk VerifyingKey
 	pk.Vk = &vk
-	vk.CommitmentInfo = spr.CommitmentInfo
+	if spr.CommitmentInfo.Is() {
+		vk.CommitmentConstraintIndexes = []uint64{uint64(spr.CommitmentInfo.CommitmentIndex)}
+	}
 	// nbConstraints := len(spr.Constraints)
 
 	// step 0: set the fft domains
