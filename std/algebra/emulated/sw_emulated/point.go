@@ -104,9 +104,7 @@ func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 	// compute λ = (q.y-p.y)/(q.x-p.x)
 	qypy := c.baseApi.Sub(&q.Y, &p.Y)
 	qxpx := c.baseApi.Sub(&q.X, &p.X)
-
-	// if qxpx == 0, set λ to 0
-	λ := c.baseApi.DivSpecial(qypy, qxpx)
+	λ := c.baseApi.Div(qypy, qxpx)
 
 	// xr = λ²-p.x-q.x
 	λλ := c.baseApi.MulMod(λ, λ)

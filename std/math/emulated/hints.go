@@ -19,7 +19,6 @@ func init() {
 func GetHints() []solver.Hint {
 	return []solver.Hint{
 		DivHint,
-		DivSpecialHint,
 		QuoHint,
 		InverseHint,
 		MultiplicationHint,
@@ -203,22 +202,6 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return nil
 }
 
-// computeSpecialDivisionHint packs the inputs for DivisionHint hint function.
-func (f *Field[T]) computeSpecialDivisionHint(nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
-	var fp T
-	hintInputs := []frontend.Variable{
-		fp.BitsPerLimb(),
-		fp.NbLimbs(),
-		len(denomLimbs),
-		len(nomLimbs),
-	}
-	p := f.Modulus()
-	hintInputs = append(hintInputs, p.Limbs...)
-	hintInputs = append(hintInputs, nomLimbs...)
-	hintInputs = append(hintInputs, denomLimbs...)
-	return f.api.NewHint(DivSpecialHint, int(fp.NbLimbs()), hintInputs...)
-}
-
 // computeDivisionHint packs the inputs for DivisionHint hint function.
 func (f *Field[T]) computeDivisionHint(nomLimbs, denomLimbs []frontend.Variable) (divLimbs []frontend.Variable, err error) {
 	var fp T
@@ -233,50 +216,6 @@ func (f *Field[T]) computeDivisionHint(nomLimbs, denomLimbs []frontend.Variable)
 	hintInputs = append(hintInputs, nomLimbs...)
 	hintInputs = append(hintInputs, denomLimbs...)
 	return f.api.NewHint(DivHint, int(fp.NbLimbs()), hintInputs...)
-}
-
-// DivSpecialHint computes the value z = x/y for inputs x and y and stores z in
-// outputs.
-// If y == 0, return z=0
-func DivSpecialHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(inputs) < 3 {
-		return fmt.Errorf("input must be at least three elements")
-	}
-	nbBits := uint(inputs[0].Uint64())
-	nbLimbs := int(inputs[1].Int64())
-	nbDenomLimbs := int(inputs[2].Int64())
-	// nominator does not have to be reduced and can be more than nbLimbs.
-	// Denominator and order have to be nbLimbs long.
-	nbNomLimbs := int(inputs[3].Int64())
-	if len(inputs[4:]) != nbLimbs+nbNomLimbs+nbDenomLimbs {
-		return fmt.Errorf("input length mismatch")
-	}
-	if len(outputs) != nbLimbs {
-		return fmt.Errorf("result does not fit into output")
-	}
-	p := new(big.Int)
-	if err := recompose(inputs[4:4+nbLimbs], nbBits, p); err != nil {
-		return fmt.Errorf("recompose emulated order: %w", err)
-	}
-	nominator := new(big.Int)
-	if err := recompose(inputs[4+nbLimbs:4+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
-		return fmt.Errorf("recompose nominator: %w", err)
-	}
-	denominator := new(big.Int)
-	if err := recompose(inputs[4+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
-		return fmt.Errorf("recompose denominator: %w", err)
-	}
-	res := new(big.Int).ModInverse(denominator, p)
-	if res == nil {
-		// if denominator == 0, set res to 0
-		res = new(big.Int)
-	}
-	res.Mul(res, nominator)
-	res.Mod(res, p)
-	if err := decompose(res, nbBits, outputs); err != nil {
-		return fmt.Errorf("decompose division: %w", err)
-	}
-	return nil
 }
 
 // DivHint computes the value z = x/y for inputs x and y and stores z in
