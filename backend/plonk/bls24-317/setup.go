@@ -24,8 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/kzg"
 	"github.com/consensys/gnark/constraint/bls24-317"
-
-	kzgg "github.com/consensys/gnark-crypto/kzg"
+	//kzgg "github.com/consensys/gnark-crypto/kzg" TODO Figure out why this is useful
 )
 
 // Trace stores a plonk trace as columns
@@ -63,7 +62,7 @@ type VerifyingKey struct {
 	NbPublicVariables uint64
 
 	// Commitment scheme that is used for an instantiation of PLONK
-	KZGSRS *kzg.SRS
+	Kzg kzg.VerifyingKey
 
 	// cosetShift generator of the coset on the small domain
 	CosetShift fr.Element
@@ -95,6 +94,8 @@ type ProvingKey struct {
 	// The polynomials in trace are in canonical basis.
 	trace Trace
 
+	Kzg kzg.ProvingKey
+
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
 
@@ -116,7 +117,7 @@ type ProvingKey struct {
 	lcIdIOP, lLoneIOP *iop.Polynomial
 }
 
-func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
+func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
 
 	var pk ProvingKey
 	var vk VerifyingKey
@@ -135,9 +136,11 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(len(spr.Public))
-	if err := pk.InitKZG(srs); err != nil {
-		return nil, nil, err
+	if len(kzgSrs.Pk.G1) < int(vk.Size) {
+		return nil, nil, errors.New("kzg srs is too small")
 	}
+	pk.Kzg = kzgSrs.Pk
+	vk.Kzg = kzgSrs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
 	BuildTrace(spr, &pk.trace)
@@ -212,32 +215,7 @@ func (pk *ProvingKey) VerifyingKey() interface{} {
 	return pk.Vk
 }
 
-// InitKZG inits pk.Vk.KZG using pk.Domain[0] cardinality and provided SRS
-//
-// This should be used after deserializing a ProvingKey
-// as pk.Vk.KZG is NOT serialized
-func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
-	return pk.Vk.InitKZG(srs)
-}
-
-// InitKZG inits vk.KZG using provided SRS
-//
-// This should be used after deserializing a VerifyingKey
-// as vk.KZG is NOT serialized
-//
-// Note that this instantiates a new FFT domain using vk.Size
-func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
-	_srs := srs.(*kzg.SRS)
-
-	if len(_srs.G1) < int(vk.Size) {
-		return errors.New("kzg srs is too small")
-	}
-	vk.KZGSRS = _srs
-
-	return nil
-}
-
-// BuildTrace fills the constatn columns ql, qr, qm, qo, qk from the sparser1cs.
+// BuildTrace fills the constant columns ql, qr, qm, qo, qk from the sparser1cs.
 // Size is the size of the system that is nb_constraints+nb_public_variables
 func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 
@@ -299,31 +277,31 @@ func commitTrace(trace *Trace, pk *ProvingKey) error {
 	trace.S3.ToCanonical(&pk.Domain[0]).ToRegular()
 
 	var err error
-	if pk.Vk.Ql, err = kzg.Commit(pk.trace.Ql.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Ql, err = kzg.Commit(pk.trace.Ql.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.Qr, err = kzg.Commit(pk.trace.Qr.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Qr, err = kzg.Commit(pk.trace.Qr.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.Qm, err = kzg.Commit(pk.trace.Qm.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Qm, err = kzg.Commit(pk.trace.Qm.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.Qo, err = kzg.Commit(pk.trace.Qo.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Qo, err = kzg.Commit(pk.trace.Qo.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.Qk, err = kzg.Commit(pk.trace.Qk.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Qk, err = kzg.Commit(pk.trace.Qk.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.Qcp, err = kzg.Commit(pk.trace.Qcp.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Qcp, err = kzg.Commit(pk.trace.Qcp.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.S[0], err = kzg.Commit(pk.trace.S1.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.S[0], err = kzg.Commit(pk.trace.S1.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.S[1], err = kzg.Commit(pk.trace.S2.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.S[1], err = kzg.Commit(pk.trace.S2.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.S[2], err = kzg.Commit(pk.trace.S3.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.S[2], err = kzg.Commit(pk.trace.S3.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
 	return nil

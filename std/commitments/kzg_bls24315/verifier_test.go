@@ -69,17 +69,17 @@ func TestVerifierDynamic(t *testing.T) {
 	}
 
 	// commit to the polynomial
-	com, err := kzg.Commit(f, srs)
+	com, err := kzg.Commit(f, srs.Pk)
 	assert.NoError(err)
 
 	// create opening proof
 	var point fr.Element
 	point.SetRandom()
-	proof, err := kzg.Open(f, point, srs)
+	proof, err := kzg.Open(f, point, srs.Pk)
 	assert.NoError(err)
 
 	// check that the proof is correct
-	err = kzg.Verify(&com, &proof, point, srs)
+	err = kzg.Verify(&com, &proof, point, srs.Vk)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,23 +98,23 @@ func TestVerifierDynamic(t *testing.T) {
 
 	witness.S = point.String()
 
-	witness.VerifKey.G2[0].X.B0.A0 = srs.G2[0].X.B0.A0.String()
-	witness.VerifKey.G2[0].X.B0.A1 = srs.G2[0].X.B0.A1.String()
-	witness.VerifKey.G2[0].X.B1.A0 = srs.G2[0].X.B1.A0.String()
-	witness.VerifKey.G2[0].X.B1.A1 = srs.G2[0].X.B1.A1.String()
-	witness.VerifKey.G2[0].Y.B0.A0 = srs.G2[0].Y.B0.A0.String()
-	witness.VerifKey.G2[0].Y.B0.A1 = srs.G2[0].Y.B0.A1.String()
-	witness.VerifKey.G2[0].Y.B1.A0 = srs.G2[0].Y.B1.A0.String()
-	witness.VerifKey.G2[0].Y.B1.A1 = srs.G2[0].Y.B1.A1.String()
+	witness.VerifKey.G2[0].X.B0.A0 = srs.Vk.G2[0].X.B0.A0.String()
+	witness.VerifKey.G2[0].X.B0.A1 = srs.Vk.G2[0].X.B0.A1.String()
+	witness.VerifKey.G2[0].X.B1.A0 = srs.Vk.G2[0].X.B1.A0.String()
+	witness.VerifKey.G2[0].X.B1.A1 = srs.Vk.G2[0].X.B1.A1.String()
+	witness.VerifKey.G2[0].Y.B0.A0 = srs.Vk.G2[0].Y.B0.A0.String()
+	witness.VerifKey.G2[0].Y.B0.A1 = srs.Vk.G2[0].Y.B0.A1.String()
+	witness.VerifKey.G2[0].Y.B1.A0 = srs.Vk.G2[0].Y.B1.A0.String()
+	witness.VerifKey.G2[0].Y.B1.A1 = srs.Vk.G2[0].Y.B1.A1.String()
 
-	witness.VerifKey.G2[1].X.B0.A0 = srs.G2[1].X.B0.A0.String()
-	witness.VerifKey.G2[1].X.B0.A1 = srs.G2[1].X.B0.A1.String()
-	witness.VerifKey.G2[1].X.B1.A0 = srs.G2[1].X.B1.A0.String()
-	witness.VerifKey.G2[1].X.B1.A1 = srs.G2[1].X.B1.A1.String()
-	witness.VerifKey.G2[1].Y.B0.A0 = srs.G2[1].Y.B0.A0.String()
-	witness.VerifKey.G2[1].Y.B0.A1 = srs.G2[1].Y.B0.A1.String()
-	witness.VerifKey.G2[1].Y.B1.A0 = srs.G2[1].Y.B1.A0.String()
-	witness.VerifKey.G2[1].Y.B1.A1 = srs.G2[1].Y.B1.A1.String()
+	witness.VerifKey.G2[1].X.B0.A0 = srs.Vk.G2[1].X.B0.A0.String()
+	witness.VerifKey.G2[1].X.B0.A1 = srs.Vk.G2[1].X.B0.A1.String()
+	witness.VerifKey.G2[1].X.B1.A0 = srs.Vk.G2[1].X.B1.A0.String()
+	witness.VerifKey.G2[1].X.B1.A1 = srs.Vk.G2[1].X.B1.A1.String()
+	witness.VerifKey.G2[1].Y.B0.A0 = srs.Vk.G2[1].Y.B0.A0.String()
+	witness.VerifKey.G2[1].Y.B0.A1 = srs.Vk.G2[1].Y.B0.A1.String()
+	witness.VerifKey.G2[1].Y.B1.A0 = srs.Vk.G2[1].Y.B1.A0.String()
+	witness.VerifKey.G2[1].Y.B1.A1 = srs.Vk.G2[1].Y.B1.A1.String()
 
 	// check if the circuit is solved
 	var circuit verifierCircuit

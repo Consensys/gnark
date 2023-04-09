@@ -107,7 +107,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			pi2iop := iop.NewPolynomial(&pi2, lagReg)
 			wpi2iop = pi2iop.ShallowClone()
 			wpi2iop.ToCanonical(&pk.Domain[0]).ToRegular()
-			if proof.PI2, err = kzg.Commit(wpi2iop.Coefficients(), pk.Vk.KZGSRS); err != nil {
+			if proof.PI2, err = kzg.Commit(wpi2iop.Coefficients(), pk.Kzg); err != nil {
 				return err
 			}
 			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
@@ -209,7 +209,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// wait for polys to be blinded
 	wgLRO.Wait()
-	if err := commitToLRO(bwliop.Coefficients(), bwriop.Coefficients(), bwoiop.Coefficients(), proof, pk.Vk.KZGSRS); err != nil {
+	if err := commitToLRO(bwliop.Coefficients(), bwriop.Coefficients(), bwoiop.Coefficients(), proof, pk.Kzg); err != nil {
 		return nil, err
 	}
 
@@ -266,7 +266,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	go func() {
 		bwziop = ziop // iop.NewWrappedPolynomial(&ziop)
 		bwziop.Blind(2)
-		proof.Z, err = kzg.Commit(bwziop.Coefficients(), pk.Vk.KZGSRS, runtime.NumCPU()*2)
+		proof.Z, err = kzg.Commit(bwziop.Coefficients(), pk.Kzg, runtime.NumCPU()*2)
 		if err != nil {
 			chZ <- err
 		}
@@ -393,7 +393,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		h.Coefficients()[:pk.Domain[0].Cardinality+2],
 		h.Coefficients()[pk.Domain[0].Cardinality+2:2*(pk.Domain[0].Cardinality+2)],
 		h.Coefficients()[2*(pk.Domain[0].Cardinality+2):3*(pk.Domain[0].Cardinality+2)],
-		proof, pk.Vk.KZGSRS); err != nil {
+		proof, pk.Kzg); err != nil {
 		return nil, err
 	}
 
@@ -427,7 +427,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	proof.ZShiftedOpening, err = kzg.Open(
 		bwziop.Coefficients()[:bwziop.BlindedSize()],
 		zetaShifted,
-		pk.Vk.KZGSRS,
+		pk.Kzg,
 	)
 	if err != nil {
 		return nil, err
@@ -496,7 +496,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// TODO this commitment is only necessary to derive the challenge, we should
 	// be able to avoid doing it and get the challenge in another way
-	linearizedPolynomialDigest, errLPoly = kzg.Commit(linearizedPolynomialCanonical, pk.Vk.KZGSRS, runtime.NumCPU()*2)
+	linearizedPolynomialDigest, errLPoly = kzg.Commit(linearizedPolynomialCanonical, pk.Kzg, runtime.NumCPU()*2)
 	if errLPoly != nil {
 		return nil, errLPoly
 	}
@@ -528,7 +528,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		},
 		zeta,
 		hFunc,
-		pk.Vk.KZGSRS,
+		pk.Kzg,
 	)
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
@@ -542,20 +542,20 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 }
 
 // fills proof.LRO with kzg commits of bcl, bcr and bco
-func commitToLRO(bcl, bcr, bco []fr.Element, proof *Proof, srs *kzg.SRS) error {
+func commitToLRO(bcl, bcr, bco []fr.Element, proof *Proof, kzgPk kzg.ProvingKey) error {
 	n := runtime.NumCPU()
 	var err0, err1, err2 error
 	chCommit0 := make(chan struct{}, 1)
 	chCommit1 := make(chan struct{}, 1)
 	go func() {
-		proof.LRO[0], err0 = kzg.Commit(bcl, srs, n)
+		proof.LRO[0], err0 = kzg.Commit(bcl, kzgPk, n)
 		close(chCommit0)
 	}()
 	go func() {
-		proof.LRO[1], err1 = kzg.Commit(bcr, srs, n)
+		proof.LRO[1], err1 = kzg.Commit(bcr, kzgPk, n)
 		close(chCommit1)
 	}()
-	if proof.LRO[2], err2 = kzg.Commit(bco, srs, n); err2 != nil {
+	if proof.LRO[2], err2 = kzg.Commit(bco, kzgPk, n); err2 != nil {
 		return err2
 	}
 	<-chCommit0
@@ -568,20 +568,20 @@ func commitToLRO(bcl, bcr, bco []fr.Element, proof *Proof, srs *kzg.SRS) error {
 	return err1
 }
 
-func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, srs *kzg.SRS) error {
+func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKey) error {
 	n := runtime.NumCPU()
 	var err0, err1, err2 error
 	chCommit0 := make(chan struct{}, 1)
 	chCommit1 := make(chan struct{}, 1)
 	go func() {
-		proof.H[0], err0 = kzg.Commit(h1, srs, n)
+		proof.H[0], err0 = kzg.Commit(h1, kzgPk, n)
 		close(chCommit0)
 	}()
 	go func() {
-		proof.H[1], err1 = kzg.Commit(h2, srs, n)
+		proof.H[1], err1 = kzg.Commit(h2, kzgPk, n)
 		close(chCommit1)
 	}()
-	if proof.H[2], err2 = kzg.Commit(h3, srs, n); err2 != nil {
+	if proof.H[2], err2 = kzg.Commit(h3, kzgPk, n); err2 != nil {
 		return err2
 	}
 	<-chCommit0
