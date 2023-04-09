@@ -17,6 +17,7 @@
 package plonk
 
 import (
+	"fmt"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
 	"errors"
@@ -226,9 +227,14 @@ func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
 		&vk.Qo,
 		&vk.Qk,
 		&vk.Qcp,
+		vk.CommitmentConstraintIndexes,
 	}
 
-	for _, v := range toEncode {
+	for i, v := range toEncode {
+		if i == len(toEncode)-1 {
+			fmt.Println("			dis da one")
+		}
+		//fmt.Println("attempting to write")
 		if err := enc.Encode(v); err != nil {
 			return enc.BytesWritten(), err
 		}
@@ -255,6 +261,7 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		&vk.Qo,
 		&vk.Qk,
 		&vk.Qcp,
+		&vk.CommitmentConstraintIndexes,
 	}
 
 	for _, v := range toDecode {

@@ -226,6 +226,7 @@ func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
 		&vk.Qo,
 		&vk.Qk,
 		&vk.Qcp,
+		vk.CommitmentConstraintIndexes,
 	}
 
 	for _, v := range toEncode {
@@ -255,6 +256,7 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		&vk.Qo,
 		&vk.Qk,
 		&vk.Qcp,
+		&vk.CommitmentConstraintIndexes,
 	}
 
 	for _, v := range toDecode {
