@@ -101,44 +101,12 @@ func (c *Curve[B, S]) AssertIsEqual(p, q *AffinePoint[B]) {
 //
 // It uses incomplete formulas in affine coordinates.
 func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
-	return c.add(p, q, false)
-}
-
-// AddSafe adds p and q and returns it. It doesn't modify p nor q.
-//
-// ✅ p can be equal to q, but none nonzero.
-//
-// It uses incomplete formulas in affine coordinates.
-func (c *Curve[B, S]) AddSafe(p, q *AffinePoint[B]) *AffinePoint[B] {
-	return c.add(p, q, true)
-}
-
-// add adds p and q and returns it. It doesn't modify p nor q.
-// It uses incomplete formulas in affine coordinates.
-func (c *Curve[B, S]) add(p, q *AffinePoint[B], safe bool) *AffinePoint[B] {
-
 	// compute λ = (q.y-p.y)/(q.x-p.x)
 	qypy := c.baseApi.Sub(&q.Y, &p.Y)
 	qxpx := c.baseApi.Sub(&q.X, &p.X)
 
 	// if qxpx == 0, set λ to 0
 	λ := c.baseApi.DivSpecial(qypy, qxpx)
-
-	if safe {
-		// compute _λ = (3p.x²+a)/2*p.y
-		xx3a := c.baseApi.MulMod(&p.X, &p.X)
-		xx3a = c.baseApi.MulConst(xx3a, big.NewInt(3))
-		if c.addA {
-			xx3a = c.baseApi.Add(xx3a, &c.a)
-		}
-		y2 := c.baseApi.MulConst(&p.Y, big.NewInt(2))
-		_λ := c.baseApi.Div(xx3a, y2)
-
-		selector := c.api.And(
-			c.baseApi.IsZero(qxpx), c.baseApi.IsZero(qypy),
-		)
-		λ = c.baseApi.Select(selector, _λ, λ)
-	}
 
 	// xr = λ²-p.x-q.x
 	λλ := c.baseApi.MulMod(λ, λ)
@@ -149,6 +117,42 @@ func (c *Curve[B, S]) add(p, q *AffinePoint[B], safe bool) *AffinePoint[B] {
 	pxrx := c.baseApi.Sub(&p.X, xr)
 	λpxrx := c.baseApi.MulMod(λ, pxrx)
 	yr := c.baseApi.Sub(λpxrx, &p.Y)
+
+	return &AffinePoint[B]{
+		X: *c.baseApi.Reduce(xr),
+		Y: *c.baseApi.Reduce(yr),
+	}
+}
+
+// AddUnified adds p and q and returns it. It doesn't modify p nor q.
+//
+// ✅ p can be equal to q, but none nonzero.
+//
+// It uses the unified formulas of Brier and Joye [BriJoy02] (Corollary 1).
+//
+// [BriJoy02]: https://link.springer.com/content/pdf/10.1007/3-540-45664-3_24.pdf
+func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
+
+	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y1 + q.y), if p.y + q.y = 0
+	pxqx := c.baseApi.MulMod(&p.X, &q.X)
+	num := c.baseApi.Add(&p.X, &q.X)
+	num = c.baseApi.MulMod(num, num)
+	num = c.baseApi.Sub(num, pxqx)
+	if c.addA {
+		num = c.baseApi.Add(num, &c.a)
+	}
+	denum := c.baseApi.Add(&p.Y, &q.Y)
+	λ := c.baseApi.Div(num, denum)
+
+	// x = λ^2 - p.x - q.x
+	xr := c.baseApi.MulMod(λ, λ)
+	xr = c.baseApi.Sub(xr, &p.X)
+	xr = c.baseApi.Sub(xr, &q.X)
+
+	// y = λ(p.x - xr) - p.y
+	yr := c.baseApi.Sub(&p.X, xr)
+	yr = c.baseApi.MulMod(yr, λ)
+	yr = c.baseApi.Sub(yr, &p.Y)
 
 	return &AffinePoint[B]{
 		X: *c.baseApi.Reduce(xr),
