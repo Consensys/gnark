@@ -123,15 +123,10 @@ func BinaryMux(api frontend.API, selBits, inputs []frontend.Variable) frontend.V
 	if pivot >= len(inputs) {
 		return BinaryMux(api, nextSelBits, inputs)
 	}
-	sub := make([]frontend.Variable, len(inputs)-pivot)
-	for i := 0; i < len(sub); i++ {
-		sub[i] = api.Sub(inputs[pivot+i], inputs[i])
-	}
 
-	return api.Add(
-		api.Mul(sel, BinaryMux(api, nextSelBits, sub)),
-		BinaryMux(api, nextSelBits, inputs[:pivot]),
-	)
+	left := BinaryMux(api, nextSelBits, inputs[:pivot])
+	right := BinaryMux(api, nextSelBits, inputs[pivot:])
+	return api.Add(left, api.Mul(sel, api.Sub(right, left)))
 }
 
 // muxIndicators is a hint function used within [Mux] function. It must be
