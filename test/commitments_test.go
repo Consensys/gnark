@@ -2,7 +2,7 @@ package test
 
 import (
 	"bytes"
-	"encoding/hex"
+	"encoding/base64"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
@@ -189,16 +189,19 @@ func TestGenerateSolidityCase(t *testing.T) {
 	err = plonk.Verify(proof, vk, witnessPublic)
 	assert.NoError(t, err)
 
-	fmt.Println("kzg vk:", serializeHex(&srs.(*kzg.SRS).Vk))
-	fmt.Println("plonk vk:", serializeHex(vk))
-	fmt.Println("proof:", serializeHex(proof))
+	fmt.Println("kzg vk:", serializeBase64(&srs.(*kzg.SRS).Vk))
+	fmt.Println("plonk vk:", serializeBase64(&vk))
+	fmt.Println("proof:", serializeBase64(proof))
 }
 
-func serializeHex(o io.WriterTo) string {
+type WriterRawTo interface {
+	WriteRawTo(io.Writer) (int64, error)
+}
+
+func serializeBase64(o WriterRawTo) string {
 	var bb bytes.Buffer
-	_, err := o.WriteTo(&bb)
-	if err != nil {
+	if _, err := o.WriteRawTo(&bb); err != nil {
 		panic(err)
 	}
-	return hex.EncodeToString(bb.Bytes())
+	return base64.StdEncoding.EncodeToString(bb.Bytes())
 }
