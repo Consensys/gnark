@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark/backend/plonk"
+	bn254Plonk "github.com/consensys/gnark/backend/plonk/bn254"
 )
 
 type commitmentCircuit struct {
@@ -190,7 +191,7 @@ func TestGenerateSolidityCase(t *testing.T) {
 	assert.NoError(t, err)
 
 	fmt.Println("kzg vk:", serializeBase64(&srs.(*kzg.SRS).Vk))
-	fmt.Println("plonk vk:", serializeBase64(&vk))
+	fmt.Println("plonk vk:", serializeBase64(vk.(*bn254Plonk.VerifyingKey)))
 	fmt.Println("proof:", serializeBase64(proof))
 }
 
