@@ -113,6 +113,8 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 // function, always all the elements of selBits must be constrained to be binary
 // digits.
 func BinaryMux(api frontend.API, selBits, inputs []frontend.Variable) frontend.Variable {
+	// The number of defined R1CS constraints for an input of length n is always n - 1.
+	// n does not need to be a power of 2.
 	if len(selBits) == 0 {
 		return inputs[0]
 	}
