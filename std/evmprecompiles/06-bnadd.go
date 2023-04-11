@@ -14,6 +14,7 @@ func ECAdd(api frontend.API, P, Q *sw_emulated.AffinePoint[emulated.BN254Fp]) *s
 	if err != nil {
 		panic(err)
 	}
+	// Check that P and Q are on the curve (done in the zkEVM ⚠️ )
 	res := curve.Add(P, Q)
 	return res
 }
