@@ -131,7 +131,7 @@ func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 // [BriJoy02]: https://link.springer.com/content/pdf/10.1007/3-540-45664-3_24.pdf
 func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 
-	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y1 + q.y), if p.y + q.y = 0
+	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y1 + q.y)
 	pxqx := c.baseApi.MulMod(&p.X, &q.X)
 	num := c.baseApi.Add(&p.X, &q.X)
 	num = c.baseApi.MulMod(num, num)
@@ -140,6 +140,9 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 		num = c.baseApi.Add(num, &c.a)
 	}
 	denum := c.baseApi.Add(&p.Y, &q.Y)
+	// if p.y + q.y = 0, assign dummy 1 to denum and continue
+	selector := c.baseApi.IsZero(denum)
+	denum = c.baseApi.Select(selector, c.baseApi.One(), denum)
 	λ := c.baseApi.Div(num, denum)
 
 	// x = λ^2 - p.x - q.x
@@ -152,10 +155,14 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	yr = c.baseApi.MulMod(yr, λ)
 	yr = c.baseApi.Sub(yr, &p.Y)
 
-	return &AffinePoint[B]{
-		X: *c.baseApi.Reduce(xr),
-		Y: *c.baseApi.Reduce(yr),
-	}
+	// if p.y + q.y = 0, return (0, 0)
+	result := c.Select(selector, &AffinePoint[B]{X: *denum, Y: *denum},
+		&AffinePoint[B]{
+			X: *c.baseApi.Reduce(xr),
+			Y: *c.baseApi.Reduce(yr),
+		})
+
+	return result
 }
 
 // Double doubles p and return it. It doesn't modify p.
