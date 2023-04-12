@@ -7,7 +7,7 @@ import {Polynomials} from '../crypto/Polynomials.sol';
 import {PlonkVerifier} from '../Verifier.sol';
 import {Types} from '../crypto/Types.sol';
 import {TranscriptLibrary} from '../crypto/Transcript.sol';
-import {Fr} from '../crypto/Fr.sol';
+import {Marshal} from '../Marshal.sol';
 
 contract TestContract {
 
@@ -128,8 +128,9 @@ contract TestContract {
     vk.permutation_commitments[2].X = 18629873756620873235671635932713462746784965955369570126916283160403064656283;
     vk.permutation_commitments[2].Y = 11408802041040746443363674818850983028977499452386819044888810122061678223118;
     vk.coset_shift = 5;
-    vk.permutation_non_residues[0] = 5;
-    vk.permutation_non_residues[1] = 25;
+    //vk.permutation_non_residues[0] = 5;
+    //vk.permutation_non_residues[1] = 25;
+    vk.coset_shift = 5;
     vk.g2_x.X[0] = 14227438095234809947593477115205615798437098135983661833593245518598873470133;
     vk.g2_x.X[1] = 10502847900728352820104995430384591572235862434148733107155956109347693984589;
     vk.g2_x.Y[0] = 7327864992410983220565967131396496522982024563883331581506589780450237498081;
@@ -147,4 +148,11 @@ contract TestContract {
     return true;
   }
 
+}
+
+function test_plonk(uint256[] calldata kzg, bytes calldata preprocessed, uint256[] calldata proof, uint256[] calldata public_inputs) returns (bool) {
+  Types.Proof memory proofD = Marshal.deserialize_proof(proof);
+  Types.VerificationKey memory vk = Marshal.deserialize_vk(kzg, preprocessed);
+  bool res = PlonkVerifier.verify(proofD, vk, public_inputs);
+  return true;
 }

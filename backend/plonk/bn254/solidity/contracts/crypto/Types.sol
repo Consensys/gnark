@@ -24,7 +24,7 @@ library Types {
         uint256 commitmentIndex;                             // index of the public wire resulting from the hash
 
         // TODO remove this
-        uint256[STATE_WIDTH-1] permutation_non_residues;   // k1, k2
+        //uint256[STATE_WIDTH-1] permutation_non_residues;   // k1, k2
     }
 
     struct Proof {
