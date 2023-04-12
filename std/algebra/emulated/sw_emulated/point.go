@@ -124,14 +124,22 @@ func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 // AddUnified adds p and q and returns it. It doesn't modify p nor q.
 //
-// ✅ p can be equal to q, but none nonzero.
+// ✅ p can be equal to q, and either or both can be (0,0).
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the EVM [EYP].
 //
 // It uses the unified formulas of Brier and Joye [BriJoy02] (Corollary 1).
 //
 // [BriJoy02]: https://link.springer.com/content/pdf/10.1007/3-540-45664-3_24.pdf
+// [EYP]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 
-	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y1 + q.y)
+	// selector1 = 1 when p is (0,0) and 0 otherwise
+	selector1 := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+	// selector2 = 1 when q is (0,0) and 0 otherwise
+	selector2 := c.api.And(c.baseApi.IsZero(&q.X), c.baseApi.IsZero(&q.Y))
+
+	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
 	pxqx := c.baseApi.MulMod(&p.X, &q.X)
 	num := c.baseApi.Add(&p.X, &q.X)
 	num = c.baseApi.MulMod(num, num)
@@ -141,8 +149,8 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	}
 	denum := c.baseApi.Add(&p.Y, &q.Y)
 	// if p.y + q.y = 0, assign dummy 1 to denum and continue
-	selector := c.baseApi.IsZero(denum)
-	denum = c.baseApi.Select(selector, c.baseApi.One(), denum)
+	selector3 := c.baseApi.IsZero(denum)
+	denum = c.baseApi.Select(selector3, c.baseApi.One(), denum)
 	λ := c.baseApi.Div(num, denum)
 
 	// x = λ^2 - p.x - q.x
@@ -154,15 +162,21 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	yr := c.baseApi.Sub(&p.X, xr)
 	yr = c.baseApi.MulMod(yr, λ)
 	yr = c.baseApi.Sub(yr, &p.Y)
+	result := AffinePoint[B]{
+		X: *c.baseApi.Reduce(xr),
+		Y: *c.baseApi.Reduce(yr),
+	}
 
+	zero := c.baseApi.Zero()
+	infinity := AffinePoint[B]{X: *zero, Y: *zero}
+	// if p=(0,0) return q
+	result = *c.Select(selector1, q, &result)
+	// if q=(0,0) return p
+	result = *c.Select(selector2, p, &result)
 	// if p.y + q.y = 0, return (0, 0)
-	result := c.Select(selector, &AffinePoint[B]{X: *denum, Y: *denum},
-		&AffinePoint[B]{
-			X: *c.baseApi.Reduce(xr),
-			Y: *c.baseApi.Reduce(yr),
-		})
+	result = *c.Select(selector3, &infinity, &result)
 
-	return result
+	return &result
 }
 
 // Double doubles p and return it. It doesn't modify p.
