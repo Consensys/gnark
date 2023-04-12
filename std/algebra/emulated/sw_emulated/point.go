@@ -97,7 +97,7 @@ func (c *Curve[B, S]) AssertIsEqual(p, q *AffinePoint[B]) {
 
 // Add adds p and q and returns it. It doesn't modify p nor q.
 //
-// ⚠️  p must be different than q and both nonzero.
+// ⚠️  p must be different than q and -q, and both nonzero.
 //
 // It uses incomplete formulas in affine coordinates.
 func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
@@ -180,6 +180,9 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 }
 
 // Double doubles p and return it. It doesn't modify p.
+//
+// ⚠️  p.Y must be nonzero.
+//
 // It uses affine coordinates.
 func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 
@@ -215,6 +218,8 @@ func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 //	λ2 = -λ1-2*p.y/(x2-p.x)
 //
 // instead. It doesn't modify p.
+//
+// ⚠️  p.Y must be nonzero.
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
@@ -262,6 +267,8 @@ func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 //	λ2 = -λ1-2*p.y/(x2-p.x)
 //
 // instead. It doesn't modify p nor q.
+//
+// ⚠️  p must be different than q and -q, and both nonzero.
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 func (c *Curve[B, S]) DoubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
@@ -329,6 +336,10 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 
 // ScalarMul computes s * p and returns it. It doesn't modify p nor s.
 //
+// ✅ p can can be (0,0) and s can be 0.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the EVM [EYP].
+//
 // It computes the standard little-endian variable-base double-and-add algorithm
 // [HMV04] (Algorithm 3.26).
 //
@@ -341,6 +352,7 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
+// [EYP]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
 
 	// if p=(0,0) we assign a dummy (0,1) to p and continue
@@ -388,6 +400,10 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 // ScalarMulBase computes s * g and returns it, where g is the fixed generator.
 // It doesn't modify s.
 //
+// ✅ When s=0, it retruns (0,0).
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the EVM [EYP].
+//
 // It computes the standard little-endian fixed-base double-and-add algorithm
 // [HMV04] (Algorithm 3.26).
 //
@@ -397,6 +413,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 // [3]g, [5]g and [7]g points.
 //
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
+// [EYP]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 	g := c.Generator()
 	gm := c.GeneratorMultiples()
@@ -416,7 +433,7 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 	}
 
 	// i = 0
-	tmp := c.Add(res, c.Neg(g))
+	tmp := c.AddUnified(res, c.Neg(g))
 	res = c.Select(sBits[0], res, tmp)
 
 	return res
