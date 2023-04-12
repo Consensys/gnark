@@ -60,7 +60,7 @@ func (c *AddTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res1 := cr.Add(&c.P, &c.Q)
+	res1 := cr.add(&c.P, &c.Q)
 	res2 := cr.AddUnified(&c.P, &c.Q)
 	cr.AssertIsEqual(res1, &c.R)
 	cr.AssertIsEqual(res2, &c.R)
@@ -105,7 +105,7 @@ func (c *DoubleTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res1 := cr.Double(&c.P)
+	res1 := cr.double(&c.P)
 	res2 := cr.AddUnified(&c.P, &c.P)
 	cr.AssertIsEqual(res1, &c.Q)
 	cr.AssertIsEqual(res2, &c.Q)
@@ -143,7 +143,7 @@ func (c *TripleTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.Triple(&c.P)
+	res := cr.triple(&c.P)
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -179,7 +179,7 @@ func (c *DoubleAndAddTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.DoubleAndAdd(&c.P, &c.Q)
+	res := cr.doubleAndAdd(&c.P, &c.Q)
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
