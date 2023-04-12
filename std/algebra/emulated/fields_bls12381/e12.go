@@ -2,6 +2,7 @@ package fields_bls12381
 
 import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark/frontend"
 )
 
 type E12 struct {
@@ -12,8 +13,8 @@ type Ext12 struct {
 	*Ext6
 }
 
-func NewExt12(baseField *curveF) *Ext12 {
-	return &Ext12{Ext6: NewExt6(baseField)}
+func NewExt12(api frontend.API) *Ext12 {
+	return &Ext12{Ext6: NewExt6(api)}
 }
 
 func (e Ext12) Add(x, y *E12) *E12 {
@@ -58,6 +59,22 @@ func (e Ext12) Mul(x, y *E12) *E12 {
 	}
 }
 
+func (e Ext12) Zero() *E12 {
+	zero := e.fp.Zero()
+	return &E12{
+		C0: E6{
+			B0: E2{A0: *zero, A1: *zero},
+			B1: E2{A0: *zero, A1: *zero},
+			B2: E2{A0: *zero, A1: *zero},
+		},
+		C1: E6{
+			B0: E2{A0: *zero, A1: *zero},
+			B1: E2{A0: *zero, A1: *zero},
+			B2: E2{A0: *zero, A1: *zero},
+		},
+	}
+}
+
 func (e Ext12) One() *E12 {
 	z000 := e.fp.One()
 	zero := e.fp.Zero()
@@ -73,6 +90,12 @@ func (e Ext12) One() *E12 {
 			B2: E2{A0: *zero, A1: *zero},
 		},
 	}
+}
+
+func (e Ext12) IsZero(z *E12) frontend.Variable {
+	c0 := e.Ext6.IsZero(&z.C0)
+	c1 := e.Ext6.IsZero(&z.C1)
+	return e.api.And(c0, c1)
 }
 
 func (e Ext12) Square(x *E12) *E12 {
@@ -135,7 +158,6 @@ func (e Ext12) Inverse(x *E12) *E12 {
 
 }
 
-// DivUnchecked e2 elmts
 func (e Ext12) DivUnchecked(x, y *E12) *E12 {
 	res, err := e.fp.NewHint(divE12Hint, 12, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1, &y.C0.B0.A0, &y.C0.B0.A1, &y.C0.B1.A0, &y.C0.B1.A1, &y.C0.B2.A0, &y.C0.B2.A1, &y.C1.B0.A0, &y.C1.B0.A1, &y.C1.B1.A0, &y.C1.B1.A1, &y.C1.B2.A0, &y.C1.B2.A1)
 
@@ -162,4 +184,16 @@ func (e Ext12) DivUnchecked(x, y *E12) *E12 {
 	e.AssertIsEqual(x, _x)
 
 	return &div
+}
+
+func (e Ext12) Select(selector frontend.Variable, z1, z0 *E12) *E12 {
+	c0 := e.Ext6.Select(selector, &z1.C0, &z0.C0)
+	c1 := e.Ext6.Select(selector, &z1.C1, &z0.C1)
+	return &E12{C0: *c0, C1: *c1}
+}
+
+func (e Ext12) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E12) *E12 {
+	c0 := e.Ext6.Lookup2(s1, s2, &a.C0, &b.C0, &c.C0, &d.C0)
+	c1 := e.Ext6.Lookup2(s1, s2, &a.C1, &b.C1, &c.C1, &d.C1)
+	return &E12{C0: *c0, C1: *c1}
 }

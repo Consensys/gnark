@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -15,11 +16,16 @@ type E2 struct {
 }
 
 type Ext2 struct {
+	api         frontend.API
 	fp          *curveF
 	nonResidues map[int]map[int]*E2
 }
 
-func NewExt2(baseField *curveF) *Ext2 {
+func NewExt2(api frontend.API) *Ext2 {
+	fp, err := emulated.NewField[emulated.BLS12381Fp](api)
+	if err != nil {
+		panic(err)
+	}
 	pwrs := map[int]map[int]struct {
 		A0 string
 		A1 string
@@ -49,7 +55,7 @@ func NewExt2(baseField *curveF) *Ext2 {
 			nonResidues[pwr][coeff] = &el
 		}
 	}
-	return &Ext2{fp: baseField, nonResidues: nonResidues}
+	return &Ext2{api: api, fp: fp, nonResidues: nonResidues}
 }
 
 func (e Ext2) MulByElement(x *E2, y *baseEl) *E2 {
@@ -236,6 +242,11 @@ func (e Ext2) Zero() *E2 {
 		A1: *z1,
 	}
 }
+func (e Ext2) IsZero(z *E2) frontend.Variable {
+	a0 := e.fp.IsZero(&z.A0)
+	a1 := e.fp.IsZero(&z.A1)
+	return e.api.And(a0, a1)
+}
 
 // returns 1+u
 func (e Ext2) NonResidue() *E2 {
@@ -301,7 +312,6 @@ func (e Ext2) Inverse(x *E2) *E2 {
 
 }
 
-// DivUnchecked e2 elmts
 func (e Ext2) DivUnchecked(x, y *E2) *E2 {
 	res, err := e.fp.NewHint(divE2Hint, 2, &x.A0, &x.A1, &y.A0, &y.A1)
 	if err != nil {
@@ -319,4 +329,16 @@ func (e Ext2) DivUnchecked(x, y *E2) *E2 {
 	e.AssertIsEqual(x, _x)
 
 	return &div
+}
+
+func (e Ext2) Select(selector frontend.Variable, z1, z0 *E2) *E2 {
+	a0 := e.fp.Select(selector, &z1.A0, &z0.A0)
+	a1 := e.fp.Select(selector, &z1.A1, &z0.A1)
+	return &E2{A0: *a0, A1: *a1}
+}
+
+func (e Ext2) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E2) *E2 {
+	a0 := e.fp.Lookup2(s1, s2, &a.A0, &b.A0, &c.A0, &d.A0)
+	a1 := e.fp.Lookup2(s1, s2, &a.A1, &b.A1, &c.A1, &d.A1)
+	return &E2{A0: *a0, A1: *a1}
 }

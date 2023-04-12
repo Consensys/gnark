@@ -1,16 +1,21 @@
 package test
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/stretchr/testify/assert"
+	"io"
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark/backend/plonk"
+	bn254Plonk "github.com/consensys/gnark/backend/plonk/bn254"
 )
 
 type commitmentCircuit struct {
@@ -157,4 +162,47 @@ func tryCommit(api frontend.API, x ...frontend.Variable) (frontend.Variable, err
 		return nil, fmt.Errorf("type %T doesn't impl the Committer interface", api)
 	}
 	return committer.Commit(x...)
+}
+
+// TODO @Tabaie develop into full integration test or remove
+func TestGenerateSolidityCase(t *testing.T) {
+
+	assignment := &commitmentCircuit{X: []frontend.Variable{0}, Public: []frontend.Variable{1}}
+	mod := ecc.BN254.ScalarField()
+
+	ccs, err := frontend.Compile(mod, scs.NewBuilder, assignment.hollow())
+	assert.NoError(t, err)
+
+	witnessFull, err := frontend.NewWitness(assignment, mod)
+	assert.NoError(t, err)
+	witnessPublic, err := witnessFull.Public()
+	assert.NoError(t, err)
+
+	srs, err := NewKZGSRS(ccs)
+	assert.NoError(t, err)
+
+	pk, vk, err := plonk.Setup(ccs, srs)
+	assert.NoError(t, err)
+
+	proof, err := plonk.Prove(ccs, pk, witnessFull)
+	assert.NoError(t, err)
+
+	err = plonk.Verify(proof, vk, witnessPublic)
+	assert.NoError(t, err)
+
+	fmt.Println("kzg vk:", serializeBase64(&srs.(*kzg.SRS).Vk))
+	fmt.Println("plonk vk:", serializeBase64(vk.(*bn254Plonk.VerifyingKey)))
+	fmt.Println("proof:", serializeBase64(proof))
+}
+
+type WriterRawTo interface {
+	WriteRawTo(io.Writer) (int64, error)
+}
+
+func serializeBase64(o WriterRawTo) string {
+	var bb bytes.Buffer
+	if _, err := o.WriteRawTo(&bb); err != nil {
+		panic(err)
+	}
+	return base64.StdEncoding.EncodeToString(bb.Bytes())
 }
