@@ -148,11 +148,19 @@ contract TestContract {
     return true;
   }
 
-}
+  function test_plonk(uint256[] calldata kzg, bytes calldata preprocessed, uint256[] calldata proof, uint256[] calldata public_inputs) public returns (bool) {
+    Types.Proof memory proofD = Marshal.deserialize_proof(proof);
+    Types.VerificationKey memory vk = Marshal.deserialize_vk(kzg, preprocessed);
+    bool res = PlonkVerifier.verify(proofD, vk, public_inputs);
+    return true;
+  }
 
-function test_plonk(uint256[] calldata kzg, bytes calldata preprocessed, uint256[] calldata proof, uint256[] calldata public_inputs) returns (bool) {
-  Types.Proof memory proofD = Marshal.deserialize_proof(proof);
-  Types.VerificationKey memory vk = Marshal.deserialize_vk(kzg, preprocessed);
-  bool res = PlonkVerifier.verify(proofD, vk, public_inputs);
-  return true;
+  function test_plonk_deserialize(uint256[] calldata kzg, bytes calldata preprocessed, uint256[] calldata proof, uint256[] calldata public_inputs) public returns (bool) {
+    Types.Proof memory proofD = Marshal.deserialize_proof(proof);
+    Types.VerificationKey memory vk = Marshal.deserialize_vk(kzg, preprocessed);
+    Types.PartialVerifierState memory state;   
+    // step 1: derive gamma, beta, alpha, delta
+    PlonkVerifier.derive_gamma_beta_alpha_zeta(state, proofD, vk, public_inputs);
+    return false;
+  }
 }

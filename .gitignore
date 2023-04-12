@@ -50,11 +50,6 @@ gnarkd/circuits/**
 
 # Jetbrains stuff
 .idea/
-backend/plonk/bn254/solidity/abi/UtilsFr.bin
-backend/plonk/bn254/solidity/abi/UtilsFr.abi
-backend/plonk/bn254/solidity/abi/TestContract.bin
-backend/plonk/bn254/solidity/abi/TestContract.abi
-backend/plonk/bn254/solidity/abi/Polynomials.bin
-backend/plonk/bn254/solidity/abi/Polynomials.abi
-backend/plonk/bn254/solidity/abi/Fr.bin
-backend/plonk/bn254/solidity/abi/Fr.abi
+
+*.abi
+*.bin

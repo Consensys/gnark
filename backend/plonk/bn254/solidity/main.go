@@ -283,17 +283,28 @@ func prettyPrintPublicInputs(pi []fr.Element) {
 	}
 }
 
-type testCaseBase64 struct {
-	kzgVk, plonkVk, proof string
-	public                []*big.Int
+type testCase struct {
+	kzgVk   []*big.Int
+	plonkVk []byte
+	proof   []*big.Int
+	public  []*big.Int
 }
 
-var withCommitment = testCaseBase64{
-	kzgVk:   "GY6Tk5INSDpyYL+3MftdJfGqSTM1qecSl+SFt67zEsIYAN7vEh8edkJqAGZeXER5Z0Mi1Pde2t1G3r1c2ZL27QkGidBYX/B17J6ZrWkMM5W8SzEzcLOO81Ws2tzRIpdbEshepduMbetKq3GAjctAj+PR52kMQ9N7TObMAWb6faoD22GNxX+zzw5NaxYIdjmiBoCe61jOCzumTa/0og0+exGcKRQ6Cn+maGnV9kNOayPbpqVuTKjg56amx2bUndcrJN7w0uf2P/eyd3Jm688Ga4RyPELlBQF03nGvtpo2k00cCEmQuNvxahB2cpq0Pj5RRkMsdN49gsCGSXyfB6hr5wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI=",
-	plonkVk: "AAAAAAAAAAgqV8SkhQtsJIFGPP+xUS1Rgy1rP2qCQn8bZbbhcgAAASszfeHIwU8i7JueL5av7zZSYnNm+BcKCpSNrUrBvV6AAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABd/6i9NA2Ku/waci+HhTZk/MwPxc6lSG/7/t0us1iwTg0JqNYGHcwtYxrd1WnZ2NZljLxSUpJU4QwGMBSRheIl+hE6xzblOPcY26scKvxnkTToc2B5b/iTHT5sXJWmXOLd3ixWf3uSzKwaW0bjfKH1Al28b1jjT5mnZfdzEN/i/ZioBSVOpfeEfRkUflCLzjDsGTkd/yCMwzrQmgbQg18wbTTUfx1P9qIOReKcez/qS6pwx3vWkai5tV2gfsEOF6xMqAUlTqX3hH0ZFH5Qi84w7Bk5Hf8gjMM60JoG0INfMGk01H8dT/aiDkXinHs/6kuqcMd71pGoubVdoH7BDhesTiC+CD9Qc55OF9DU09jfdpp/EtJ2kN2e2N7NdywP6yYQEAAAAAAAAAAQAAAAAAAAA=",
-	proof:   "GlEPQxmraRIU29H/wK18ncuXvsOsPBqqIoTd3uc+Gaosk6KmCK5htfdhLSTTfxewyZw/tknKCq9CHP1WkrsWjwZKlxo4toVd5UIhz6OK8OfMmscd1GDkU3OQ4Gtm9ueUABDQJGfx7u48qgQGZtdg9DPJfQgkV3AdMD5t3yh0sQUR0/mCin9saaN3ZgyRykYPo+CIK75PiCs51UDayxaK/ixjsO8+CVFJoEmpDKPSl9UryJJo/+2pz4DVTuZLQmKvJ/49a3VqB5dEVt51aIbUPjc6a0CI0XLbbTxIcXPH+HMaQncOIyMtfTJi9N7pAB/tfYV8i094sbJ8TLsTYfZwEQ0vYtoOHbagRicslbM0a5rlGZXc27CvEbQzBEoGQn7WAOXkkVH1HbczBFo7ka214/joWKAQwbt35taouJLID3YVHLAGlqG3auw59u/YFIniTM4egM+Dum34wTGkZzqwDASrOs9WFOLtLNEoL45WZtwFyfuK37li/WQSVVFaxPHLCz1wabPq47Ouy4db1ecibVLnwM1dEzikzCKt57uB5PMZo4G107gRqhUY3lTpFCOE5jGTNz4bkN0Wg3O0Bwulwx4Yek3nrdSEZeykQ5HYGosYGGceCO6m73L72tzO/O2tGVUnUfwI2gv9hDqxQ19sMrmZD83gq3pqJgYkbX/i2aAAAAAIGsgojBmi8w4RGkhskqCbIqJer+/e4OLCIC5ecWZBVTANSKEI78fp5pcq/ceE189/ono9dzSH6Ti/gSafLJFhJwMKXyGfeTdovgTcED5l9/kjx6GJkMR62CksijVTwNz0CQpU+fvHM6lBvtm9fMtQhqQfrlv9SEFiNM6R9CqSqpktpGlNBCiAJI08lCPZPCoPAIcdOrLhM3CSpf5531t8WQHacqxuylAl+ZmiCs1JeRQtncP1/W/I6YpXL2xpdyP6G5vwIUvzGCdMGmKaSTSQZqWfyuR8ehoRmIB2lbon7OYD4C2NFDSjcwNkDighcVNkEjOGKcdK5vtrki449DsIZxmsV6jjuvnAvZ4U7gOLwypjPvPvYIGaoSSP1MbB4ovmDLsR3JNR5QpWY0F8X0DIUQsujGwAySOoCzJLK9ywunInuSkpykY5ulGqNDD/PCWPZg6D7SsTUl3LT/+Qi9lt6iJtr9SwGFJtrgjr7F3FZHjpoGuw8Vcro57pdcIJSEtjFXGN6eAaAOSnp+ZyALyazlcuYzD7vdBPGrpdmLY1kw8=",
-	public:  []*big.Int{big.NewInt(1)},
+func newTestCase(kzgVk, plonkVk, proof string, public []*big.Int) testCase {
+	return testCase{
+		kzgVk:   base64ToUint256Slice(kzgVk),
+		plonkVk: base64Decode(plonkVk),
+		proof:   base64ToUint256Slice(proof),
+		public:  public,
+	}
 }
+
+var withCommitment = newTestCase(
+	"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",
+	[]*big.Int{big.NewInt(1)},
+)
 
 func base64ToUint64Slice(s string) []uint64 {
 	bytes, err := base64.StdEncoding.DecodeString(s)
@@ -328,6 +339,14 @@ func base64ToUint256Slice(s string) []*big.Int {
 	return res
 }
 
+func base64Decode(s string) []byte {
+	if res, err := base64.StdEncoding.DecodeString(s); err == nil {
+		return res
+	} else {
+		panic(err)
+	}
+}
+
 func main() {
 
 	// create account
@@ -349,6 +368,26 @@ func main() {
 	auth, err = getTransactionOpts(privateKey, auth, client)
 	checkError(err)
 
+	inputs := make([]*big.Int, 10)
+	fmt.Printf("[")
+	for i := 0; i < 10; i++ {
+		inputs[i] = big.NewInt(int64(i) + 3)
+		fmt.Printf("Fr(%s), ", inputs[i].String())
+	}
+	fmt.Println("]")
+
+	auth, err = getTransactionOpts(privateKey, auth, client)
+	checkError(err)
+	_, err = instance.TestBatchInvert(auth, inputs)
+	checkError(err)
+
+	auth, err = getTransactionOpts(privateKey, auth, client)
+	checkError(err)
+	_, err = instance.TestPlonkDeserialize(auth, withCommitment.kzgVk, withCommitment.plonkVk, withCommitment.proof, withCommitment.public)
+	checkError(err)
+
+	// test plonk with commitment
+
 	// test hash
 	// _, _, p, _ := bn254.Generators()
 	// var bx, by big.Int
@@ -365,13 +404,6 @@ func main() {
 	// bz.SetUint64(29)
 	// bn.SetUint64(d.Cardinality)
 	// // bi.SetUint64(10)
-	// inputs := make([]*big.Int, 10)
-	// fmt.Printf("[")
-	// for i := 0; i < 10; i++ {
-	// 	inputs[i] = big.NewInt(int64(i) + 3)
-	// 	fmt.Printf("Fr(%s), ", inputs[i].String())
-	// }
-	// fmt.Println("]")
 
 	// test circuit
 	// proof, vk, _, _ := getVkProofCubicCircuit()
@@ -393,12 +425,6 @@ func main() {
 			checkError(err)
 			_, err = proof.ReadFrom(rproof)
 			checkError(err)
-
-
-				auth, err = getTransactionOpts(privateKey, auth, client)
-				checkError(err)
-				_, err = instance.TestBatchInvert(auth, inputs)
-				checkError(err)
 
 				auth, err = getTransactionOpts(privateKey, auth, client)
 				checkError(err)
