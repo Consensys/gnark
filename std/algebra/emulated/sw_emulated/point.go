@@ -342,6 +342,12 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
+
+	// if p=(0,0) we assign a dummy (0,1) to p and continue
+	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+	one := c.baseApi.One()
+	p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
+
 	var st S
 	sr := c.scalarApi.Reduce(s)
 	sBits := c.scalarApi.ToBits(sr)
@@ -367,8 +373,14 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 	res = c.Select(sBits[n-1], tmp, res)
 
 	// i = 0
-	tmp = c.Add(res, c.Neg(p))
+	// we use AddUnified here instead of Add so that when s=0, res=(0,0)
+	// because AddUnified(p, -p) = (0,0)
+	tmp = c.AddUnified(res, c.Neg(p))
 	res = c.Select(sBits[0], res, tmp)
+
+	// if p=(0,0), return (0,0)
+	zero := c.baseApi.Zero()
+	res = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, res)
 
 	return res
 }
