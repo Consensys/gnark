@@ -46,7 +46,7 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 	}
 	if i2Constant {
 		xa := i1.(expr.Term)
-		builder.cs.Neg(&c2)
+		c2 := builder.cs.Neg(c2)
 		debug := builder.newDebugInfo("assertIsEqual", xa, "==", i2)
 
 		// xa - i2 == 0
@@ -62,7 +62,7 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 
 	debug := builder.newDebugInfo("assertIsEqual", xa, " == ", xb)
 
-	builder.cs.Neg(&xb.Coeff)
+	xb.Coeff = builder.cs.Neg(xb.Coeff)
 	// xa - xb == 0
 	builder.addPlonkConstraint(sparseR1C{
 		xa: xa.VID,
@@ -86,8 +86,8 @@ func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
 // AssertIsBoolean fails if v != 0 ∥ v != 1
 func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	if c, ok := builder.constantValue(i1); ok {
-		if !(c.IsZero() || builder.cs.IsOne(&c)) {
-			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", builder.cs.String(&c)))
+		if !(c.IsZero() || builder.cs.IsOne(c)) {
+			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", builder.cs.String(c)))
 		}
 		return
 	}
@@ -101,9 +101,8 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	// ensure v * (1 - v) == 0
 	// that is v + -v*v == 0
 	// qM = -v.Coeff*v.Coeff
-	qM := v.Coeff
-	builder.cs.Neg(&qM)
-	builder.cs.Mul(&qM, &v.Coeff)
+	qM := builder.cs.Neg(v.Coeff)
+	qM = builder.cs.Mul(qM, v.Coeff)
 	toAdd := sparseR1C{
 		xa: v.VID,
 		xb: v.VID,
@@ -163,7 +162,7 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 
 		if ai, ok := builder.constantValue(aBits[i]); ok {
 			// a is constant; ensure l == 0
-			builder.cs.Mul(&l.Coeff, &ai)
+			l.Coeff = builder.cs.Mul(l.Coeff, ai)
 			builder.addPlonkConstraint(sparseR1C{
 				xa: l.VID,
 				qL: l.Coeff,
@@ -195,7 +194,7 @@ func (builder *builder) mustBeLessOrEqCst(a frontend.Variable, bound big.Int) {
 
 	if ca, ok := builder.constantValue(a); ok {
 		// a is constant, compare the big int values
-		ba := builder.cs.ToBigInt(&ca)
+		ba := builder.cs.ToBigInt(ca)
 		if ba.Cmp(&bound) == 1 {
 			panic(fmt.Sprintf("AssertIsLessOrEqual: %s > %s", ba.String(), bound.String()))
 		}

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"reflect"
 	"testing"
@@ -150,12 +151,6 @@ func (circuit *circuit) Define(api frontend.API) error {
 
 func BenchmarkSolve(b *testing.B) {
 
-	var c circuit
-	ccs, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, &c)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	var w circuit
 	w.X = 1
 	w.Y = 1
@@ -164,8 +159,32 @@ func BenchmarkSolve(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = ccs.IsSolved(witness)
-	}
+	b.Run("scs", func(b *testing.B) {
+		var c circuit
+		ccs, err := frontend.Compile(fr.Modulus(), scs.NewBuilder, &c)
+		if err != nil {
+			b.Fatal(err)
+		}
+		b.Log("scs nbConstraints", ccs.GetNbConstraints())
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = ccs.IsSolved(witness)
+		}
+	})
+
+	b.Run("r1cs", func(b *testing.B) {
+		var c circuit
+		ccs, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, &c, frontend.WithCompressThreshold(10))
+		if err != nil {
+			b.Fatal(err)
+		}
+		b.Log("r1cs nbConstraints", ccs.GetNbConstraints())
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = ccs.IsSolved(witness)
+		}
+	})
+
 }

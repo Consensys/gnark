@@ -120,11 +120,13 @@ func main() {
 			csDir := d.CSPath
 
 			// constraint systems
+			os.Remove(filepath.Join(csDir, "solution.go"))
+			os.Remove(filepath.Join(csDir, "r1cs.go"))
+			os.Remove(filepath.Join(csDir, "r1cs_sparse.go"))
 			entries := []bavard.Entry{
-				{File: filepath.Join(csDir, "r1cs.go"), Templates: []string{"r1cs.go.tmpl", importCurve}},
+				{File: filepath.Join(csDir, "system.go"), Templates: []string{"system.go.tmpl", importCurve}},
 				{File: filepath.Join(csDir, "coeff.go"), Templates: []string{"coeff.go.tmpl", importCurve}},
-				{File: filepath.Join(csDir, "r1cs_sparse.go"), Templates: []string{"r1cs.sparse.go.tmpl", importCurve}},
-				{File: filepath.Join(csDir, "solution.go"), Templates: []string{"solution.go.tmpl", importCurve}},
+				{File: filepath.Join(csDir, "solver.go"), Templates: []string{"solver.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "cs", "./template/representations/", entries...); err != nil {
 				panic(err)

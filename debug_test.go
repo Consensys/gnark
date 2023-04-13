@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -47,11 +48,11 @@ func TestPrintln(t *testing.T) {
 	witness.B = 11
 
 	var expected bytes.Buffer
-	expected.WriteString("debug_test.go:29 > 13 is the addition\n")
-	expected.WriteString("debug_test.go:31 > 26 42\n")
-	expected.WriteString("debug_test.go:33 > bits 1\n")
-	expected.WriteString("debug_test.go:34 > circuit {A: 2, B: 11}\n")
-	expected.WriteString("debug_test.go:38 > m .*\n")
+	expected.WriteString("debug_test.go:30 > 13 is the addition\n")
+	expected.WriteString("debug_test.go:32 > 26 42\n")
+	expected.WriteString("debug_test.go:34 > bits 1\n")
+	expected.WriteString("debug_test.go:35 > circuit {A: 2, B: 11}\n")
+	expected.WriteString("debug_test.go:39 > m .*\n")
 
 	{
 		trace, _ := getGroth16Trace(&circuit, &witness)
@@ -95,9 +96,14 @@ func TestTraceDivBy0(t *testing.T) {
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint #1 is not satisfied: [inverse] 1/0 < ∞")
-		assert.Contains(err.Error(), "(*divBy0Trace).Define")
-		assert.Contains(err.Error(), "debug_test.go:")
+		if debug.Debug {
+			assert.Contains(err.Error(), "constraint #1 is not satisfied: [inverse] 1/0 < ∞")
+			assert.Contains(err.Error(), "(*divBy0Trace).Define")
+			assert.Contains(err.Error(), "debug_test.go:")
+		} else {
+			assert.Contains(err.Error(), "constraint #1 is not satisfied: qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → 0 + 0 + 0 + (0 × 0) + -1 != 0")
+		}
+
 	}
 }
 
@@ -124,17 +130,26 @@ func TestTraceNotEqual(t *testing.T) {
 	{
 		_, err := getGroth16Trace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint #0 is not satisfied: [assertIsEqual] 1 == 66")
-		assert.Contains(err.Error(), "(*notEqualTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:")
+		if debug.Debug {
+			assert.Contains(err.Error(), "constraint #0 is not satisfied: [assertIsEqual] 1 == 66")
+			assert.Contains(err.Error(), "(*notEqualTrace).Define")
+			assert.Contains(err.Error(), "debug_test.go:")
+		} else {
+			assert.Contains(err.Error(), "constraint #0 is not satisfied: 1 ⋅ 1 != 66")
+		}
 	}
 
 	{
 		_, err := getPlonkTrace(&circuit, &witness)
 		assert.Error(err)
-		assert.Contains(err.Error(), "constraint #1 is not satisfied: [assertIsEqual] 1 == 66")
-		assert.Contains(err.Error(), "(*notEqualTrace).Define")
-		assert.Contains(err.Error(), "debug_test.go:")
+		if debug.Debug {
+			assert.Contains(err.Error(), "constraint #1 is not satisfied: [assertIsEqual] 1 == 66")
+			assert.Contains(err.Error(), "(*notEqualTrace).Define")
+			assert.Contains(err.Error(), "debug_test.go:")
+		} else {
+			assert.Contains(err.Error(), "constraint #1 is not satisfied: qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → 1 + -66 + 0 + (0 × 66) + 0 != 0")
+		}
+
 	}
 }
 

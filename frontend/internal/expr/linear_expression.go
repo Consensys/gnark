@@ -17,22 +17,24 @@ func (l LinearExpression) Clone() LinearExpression {
 }
 
 // NewLinearExpression helper to initialize a linear expression with one term
-func NewLinearExpression(vID int, cID constraint.Coeff) LinearExpression {
+func NewLinearExpression(vID int, cID constraint.Element) LinearExpression {
 	return LinearExpression{Term{Coeff: cID, VID: vID}}
 }
 
-func NewTerm(vID int, cID constraint.Coeff) Term {
+func NewTerm(vID int, cID constraint.Element) Term {
 	return Term{Coeff: cID, VID: vID}
 }
 
 type Term struct {
 	VID   int
-	Coeff constraint.Coeff
+	Coeff constraint.Element
 }
 
-func (t *Term) SetCoeff(c constraint.Coeff) {
+func (t *Term) SetCoeff(c constraint.Element) {
 	t.Coeff = c
 }
+
+// TODO @gbotrel make that return a uint32
 func (t Term) WireID() int {
 	return t.VID
 }

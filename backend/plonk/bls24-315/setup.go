@@ -123,7 +123,7 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	var vk VerifyingKey
 	pk.Vk = &vk
 	vk.CommitmentInfo = spr.CommitmentInfo
-	// nbConstraints := len(spr.Constraints)
+	// nbConstraints := spr.GetNbConstraints()
 
 	// step 0: set the fft domains
 	pk.initDomains(spr)
@@ -240,7 +240,7 @@ func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
 // Size is the size of the system that is nb_constraints+nb_public_variables
 func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 
-	nbConstraints := len(spr.Constraints)
+	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public))
 	size := ecc.NextPowerOfTwo(sizeSystem)
 
@@ -259,15 +259,32 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 		qk[i].SetZero() // → to be completed by the prover
 	}
 	offset := len(spr.Public)
-	for i := 0; i < nbConstraints; i++ { // constraints
 
-		ql[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
-		qr[offset+i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
-		qm[offset+i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
-			Mul(&qm[offset+i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
-		qo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
-		qk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
+	j := 0
+	var sparseR1C constraint.SparseR1C
+	for _, inst := range spr.Instructions {
+		blueprint := spr.Blueprints[inst.BlueprintID]
+		if bc, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
+			calldata := spr.CallData[inst.StartCallData : inst.StartCallData+uint64(blueprint.NbInputs())]
+			bc.DecompressSparseR1C(&sparseR1C, calldata)
+			ql[offset+j].Set(&spr.Coefficients[sparseR1C.QL])
+			qr[offset+j].Set(&spr.Coefficients[sparseR1C.QR])
+			qm[offset+j].Set(&spr.Coefficients[sparseR1C.QM])
+			qo[offset+j].Set(&spr.Coefficients[sparseR1C.QO])
+			qk[offset+j].Set(&spr.Coefficients[sparseR1C.QC])
+
+			j++
+
+		} else {
+			// TODO @gbotrel blocks
+			// panic("not implemented")
+		}
 	}
+
+	if j != nbConstraints {
+		panic("invalid nb constraints")
+	}
+
 	for _, committed := range spr.CommitmentInfo.Committed {
 		qcp[offset+committed].SetOne()
 	}
@@ -330,7 +347,7 @@ func commitTrace(trace *Trace, pk *ProvingKey) error {
 
 func (pk *ProvingKey) initDomains(spr *cs.SparseR1CS) {
 
-	nbConstraints := len(spr.Constraints)
+	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	pk.Domain[0] = *fft.NewDomain(sizeSystem)
 
@@ -376,10 +393,23 @@ func buildPermutation(spr *cs.SparseR1CS, pt *Trace, nbVariables int) {
 	}
 
 	offset := len(spr.Public)
-	for i := 0; i < len(spr.Constraints); i++ { // IDs of LRO associated to constraints
-		lro[offset+i] = spr.Constraints[i].L.WireID()
-		lro[sizeSolution+offset+i] = spr.Constraints[i].R.WireID()
-		lro[2*sizeSolution+offset+i] = spr.Constraints[i].O.WireID()
+
+	j := 0
+	var sparseR1C constraint.SparseR1C
+	for _, inst := range spr.Instructions {
+		blueprint := spr.Blueprints[inst.BlueprintID]
+		if bc, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
+			calldata := spr.CallData[inst.StartCallData : inst.StartCallData+uint64(blueprint.NbInputs())]
+			bc.DecompressSparseR1C(&sparseR1C, calldata)
+			lro[offset+j] = int(sparseR1C.XA)
+			lro[sizeSolution+offset+j] = int(sparseR1C.XB)
+			lro[2*sizeSolution+offset+j] = int(sparseR1C.XC)
+
+			j++
+
+		} else {
+			// TODO @gbotrel blocks
+		}
 	}
 
 	// init cycle:

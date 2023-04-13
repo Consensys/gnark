@@ -114,21 +114,37 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	bA := make([]curve.G1Affine, nWires)
 	aB := make([]curve.G1Affine, nWires)
 	C := make([]curve.G1Affine, nWires)
-	for i, c := range r1cs.Constraints {
-		// A
-		for _, t := range c.L {
-			accumulateG1(&evals.G1.A[t.WireID()], t, &coeffTau1[i])
-			accumulateG1(&bA[t.WireID()], t, &coeffBetaTau1[i])
-		}
-		// B
-		for _, t := range c.R {
-			accumulateG1(&evals.G1.B[t.WireID()], t, &coeffTau1[i])
-			accumulateG2(&evals.G2.B[t.WireID()], t, &coeffTau2[i])
-			accumulateG1(&aB[t.WireID()], t, &coeffAlphaTau1[i])
-		}
-		// C
-		for _, t := range c.O {
-			accumulateG1(&C[t.WireID()], t, &coeffTau1[i])
+
+	// TODO @gbotrel use constraint iterator when available.
+	var c constraint.R1C
+	j := 0
+	for _, inst := range r1cs.Instructions {
+		blueprint := r1cs.Blueprints[inst.BlueprintID]
+		i := int(inst.ConstraintOffset)
+		if bc, ok := blueprint.(constraint.BlueprintR1C); ok {
+			if i != j {
+				panic("TODO @gbotrel handle")
+			}
+			calldata := r1cs.GetCallData(inst)
+			bc.DecompressR1C(&c, calldata)
+
+			// A
+			for _, t := range c.L {
+				accumulateG1(&evals.G1.A[t.WireID()], t, &coeffTau1[i])
+				accumulateG1(&bA[t.WireID()], t, &coeffBetaTau1[i])
+			}
+			// B
+			for _, t := range c.R {
+				accumulateG1(&evals.G1.B[t.WireID()], t, &coeffTau1[i])
+				accumulateG2(&evals.G2.B[t.WireID()], t, &coeffTau2[i])
+				accumulateG1(&aB[t.WireID()], t, &coeffAlphaTau1[i])
+			}
+			// C
+			for _, t := range c.O {
+				accumulateG1(&C[t.WireID()], t, &coeffTau1[i])
+			}
+
+			j++
 		}
 	}
 
