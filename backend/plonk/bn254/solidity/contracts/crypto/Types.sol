@@ -7,10 +7,12 @@
 pragma solidity ^0.8.0;
 
 import {Bn254} from './Bn254.sol';
+import {Kzg} from './Kzg.sol';
 
 library Types {
 
     using Bn254 for *;
+    using Kzg for *;
 
     int256 constant STATE_WIDTH = 3;
 
@@ -62,6 +64,12 @@ library Types {
 
         // commitment to the linearised polynomial
         Bn254.G1Point linearised_polynomial;
+
+        // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
+        Kzg.OpeningProof folded_proof;
+
+        // folded digests of H, linearised poly, l, r, o, s_1, s_2, qcp
+        Bn254.G1Point folded_digests;
 
         // TODO remove this
         Bn254.G1Point cached_fold_quotient_ploy_commitments;

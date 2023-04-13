@@ -121,7 +121,7 @@ contract TestContract {
     // emit PrintUint256(state.beta);
     // emit PrintUint256(state.zeta);
 
-    return true;
+    return res;
   }
 
 }

@@ -184,7 +184,7 @@ library Bn254 {
   }
 
   function multi_exp(G1Point[] memory p, uint256[] memory s)
-  internal returns (G1Point memory r)
+  internal view returns (G1Point memory r)
   {
 
     require (p.length==s.length);
