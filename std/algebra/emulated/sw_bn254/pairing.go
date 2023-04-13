@@ -202,7 +202,7 @@ func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroups.
+// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -215,7 +215,7 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 // PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1
 //
-// This function doesn't check that the inputs are in the correct subgroups.
+// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	f, err := pr.Pair(P, Q)
 	if err != nil {
@@ -234,24 +234,36 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 
 func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 	// Curve: Y² == X³ + aX + b, where a=0 and b=3
-	three := emulated.ValueOf[emulated.BN254Fp](3)
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if P=(0,0) we assign b=0 otherwise 3, and continue
+	selector := pr.api.And(pr.curveF.IsZero(&P.X), pr.curveF.IsZero(&P.Y))
+	bCurve := emulated.ValueOf[emulated.BN254Fp](3)
+	b := pr.curveF.Select(selector, pr.curveF.Zero(), &bCurve)
+
 	left := pr.curveF.Mul(&P.Y, &P.Y)
 	right := pr.curveF.Mul(&P.X, &P.X)
 	right = pr.curveF.Mul(right, &P.X)
-	right = pr.curveF.Add(right, &three)
+	right = pr.curveF.Add(right, b)
 	pr.curveF.AssertIsEqual(left, right)
 }
 
 func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=3/(9+u)
-	b := fields_bn254.E2{
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if Q=(0,0) we assign b=0 otherwise 3/(9+u), and continue
+	selector := pr.api.And(pr.Ext2.IsZero(&Q.X), pr.Ext2.IsZero(&Q.Y))
+	bTwist := fields_bn254.E2{
 		A0: emulated.ValueOf[emulated.BN254Fp]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
 		A1: emulated.ValueOf[emulated.BN254Fp]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
 	}
+	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), &bTwist)
+
 	left := pr.Ext2.Square(&Q.Y)
 	right := pr.Ext2.Square(&Q.X)
 	right = pr.Ext2.Mul(right, &Q.X)
-	right = pr.Ext2.Add(right, &b)
+	right = pr.Ext2.Add(right, b)
 	pr.Ext2.AssertIsEqual(left, right)
 }
 

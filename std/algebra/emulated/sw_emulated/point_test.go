@@ -420,17 +420,28 @@ func TestIsOnCurve(t *testing.T) {
 	_, _ = r.SetRandom()
 	s := new(big.Int)
 	r.BigInt(s)
-	var Q secp256k1.G1Affine
+	var Q, infinity secp256k1.G1Affine
 	Q.ScalarMultiplication(&g, s)
 
+	// Q=[s]G is on curve
 	circuit := IsOnCurveTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
-	witness := IsOnCurveTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+	witness1 := IsOnCurveTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		Q: AffinePoint[emulated.Secp256k1Fp]{
 			X: emulated.ValueOf[emulated.Secp256k1Fp](Q.X),
 			Y: emulated.ValueOf[emulated.Secp256k1Fp](Q.Y),
 		},
 	}
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// (0,0) is on curve
+	witness2 := IsOnCurveTest[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](infinity.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](infinity.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
@@ -441,17 +452,28 @@ func TestIsOnCurve2(t *testing.T) {
 	_, _ = r.SetRandom()
 	s := new(big.Int)
 	r.BigInt(s)
-	var Q bn254.G1Affine
+	var Q, infinity bn254.G1Affine
 	Q.ScalarMultiplication(&g, s)
 
+	// Q=[s]G is on curve
 	circuit := IsOnCurveTest[emulated.BN254Fp, emulated.BN254Fr]{}
-	witness := IsOnCurveTest[emulated.BN254Fp, emulated.BN254Fr]{
+	witness1 := IsOnCurveTest[emulated.BN254Fp, emulated.BN254Fr]{
 		Q: AffinePoint[emulated.BN254Fp]{
 			X: emulated.ValueOf[emulated.BN254Fp](Q.X),
 			Y: emulated.ValueOf[emulated.BN254Fp](Q.Y),
 		},
 	}
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// (0,0) is on curve
+	witness2 := IsOnCurveTest[emulated.BN254Fp, emulated.BN254Fr]{
+		Q: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](infinity.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](infinity.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
@@ -462,16 +484,27 @@ func TestIsOnCurve3(t *testing.T) {
 	_, _ = r.SetRandom()
 	s := new(big.Int)
 	r.BigInt(s)
-	var Q bls12381.G1Affine
+	var Q, infinity bls12381.G1Affine
 	Q.ScalarMultiplication(&g, s)
 
+	// Q=[s]G is on curve
 	circuit := IsOnCurveTest[emulated.BLS12381Fp, emulated.BLS12381Fr]{}
-	witness := IsOnCurveTest[emulated.BLS12381Fp, emulated.BLS12381Fr]{
+	witness1 := IsOnCurveTest[emulated.BLS12381Fp, emulated.BLS12381Fr]{
 		Q: AffinePoint[emulated.BLS12381Fp]{
 			X: emulated.ValueOf[emulated.BLS12381Fp](Q.X),
 			Y: emulated.ValueOf[emulated.BLS12381Fp](Q.Y),
 		},
 	}
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	err := test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// (0,0) is on curve
+	witness2 := IsOnCurveTest[emulated.BLS12381Fp, emulated.BLS12381Fr]{
+		Q: AffinePoint[emulated.BLS12381Fp]{
+			X: emulated.ValueOf[emulated.BLS12381Fp](infinity.X),
+			Y: emulated.ValueOf[emulated.BLS12381Fp](infinity.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
 	assert.NoError(err)
 }

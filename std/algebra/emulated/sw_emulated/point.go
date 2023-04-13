@@ -126,10 +126,15 @@ func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 // AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.
 func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
-	// Y² == X³ + aX + b
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if p=(0,0) we assign b=0 and continue
+	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+	b := c.baseApi.Select(selector, c.baseApi.Zero(), &c.b)
+
 	left := c.baseApi.Mul(&p.Y, &p.Y)
 	right := c.baseApi.Mul(&p.X, c.baseApi.Mul(&p.X, &p.X))
-	right = c.baseApi.Add(right, &c.b)
+	right = c.baseApi.Add(right, b)
 	if c.addA {
 		ax := c.baseApi.Mul(&c.a, &p.X)
 		right = c.baseApi.Add(right, ax)

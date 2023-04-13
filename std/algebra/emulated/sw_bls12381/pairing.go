@@ -229,24 +229,36 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 
 func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 	// Curve: Y² == X³ + aX + b, where a=0 and b=4
-	four := emulated.ValueOf[emulated.BLS12381Fp](4)
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if P=(0,0) we assign b=0 otherwise 3, and continue
+	selector := pr.api.And(pr.curveF.IsZero(&P.X), pr.curveF.IsZero(&P.Y))
+	bCurve := emulated.ValueOf[emulated.BLS12381Fp](4)
+	b := pr.curveF.Select(selector, pr.curveF.Zero(), &bCurve)
+
 	left := pr.curveF.Mul(&P.Y, &P.Y)
 	right := pr.curveF.Mul(&P.X, &P.X)
 	right = pr.curveF.Mul(right, &P.X)
-	right = pr.curveF.Add(right, &four)
+	right = pr.curveF.Add(right, b)
 	pr.curveF.AssertIsEqual(left, right)
 }
 
 func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
-	b := fields_bls12381.E2{
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if Q=(0,0) we assign b=0 otherwise 3/(9+u), and continue
+	selector := pr.api.And(pr.Ext2.IsZero(&Q.X), pr.Ext2.IsZero(&Q.Y))
+	bTwist := fields_bls12381.E2{
 		A0: emulated.ValueOf[emulated.BLS12381Fp]("4"),
 		A1: emulated.ValueOf[emulated.BLS12381Fp]("4"),
 	}
+	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), &bTwist)
+
 	left := pr.Ext2.Square(&Q.Y)
 	right := pr.Ext2.Square(&Q.X)
 	right = pr.Ext2.Mul(right, &Q.X)
-	right = pr.Ext2.Add(right, &b)
+	right = pr.Ext2.Add(right, b)
 	pr.Ext2.AssertIsEqual(left, right)
 }
 
