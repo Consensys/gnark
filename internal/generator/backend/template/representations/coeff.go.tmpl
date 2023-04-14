@@ -139,6 +139,17 @@ func (engine *field) Inverse(a constraint.Element) (constraint.Element, bool) {
 		return a, false
 	}
 	e := (*fr.Element)(a[:])
+	if e.IsZero() {
+		return a, false
+	} else if e.IsOne() {
+		return a, true
+	} 
+	var t fr.Element
+	t.Neg(e)
+	if t.IsOne() {
+		return a, true
+	}
+
 	e.Inverse(e)
 	return a, true
 }
