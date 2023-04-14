@@ -116,32 +116,6 @@ func NewSystem(scalarField *big.Int, capacity int, t SystemType) System {
 	return system
 }
 
-// func (system *System) Compile() error {
-// 	// for each instruction, we iterate through the wires.
-// 	// 1. each instruction depends on a set of wires and potentially introduces new wires
-// 	// 2. this enable us to build a dependence tree of instructions and parallelize solving
-// 	// 3. more over, if a wire doesn't appear in any Constraint, we return an error since the wire
-// 	// is unconstrained.
-
-// 	constrainedWires := bitset.New(uint(system.GetNbInternalVariables() + system.GetNbPublicVariables() + system.GetNbSecretVariables()))
-// 	var wires []uint32
-// 	for _, inst := range system.Instructions {
-// 		b := system.Blueprints[inst.BlueprintID]
-
-// 		// get the wires that appears in this instruction.
-// 		wires = wires[:0]
-// 		b.Wires(system.GetCallData(inst), &wires)
-
-// 		for wID, w := range wires {
-// 			if b.NbConstraints() > 0
-// 			// mark wire as constrained.
-// 			PROBLEM: meta instructions with some wires that are unconstrained. due to being part of a hint...
-// 			constrainedWires.Set(uint(wID))
-// 		}
-
-// 	}
-// }
-
 func (system *System) GetNbInstructions() int {
 	return len(system.Instructions)
 }

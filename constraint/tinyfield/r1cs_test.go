@@ -80,10 +80,11 @@ func TestSerialization(t *testing.T) {
 				if diff := cmp.Diff(r1cs1, &reconstructed,
 					cmpopts.IgnoreFields(cs.R1CS{},
 						"System.q",
-						"arithEngine",
+						"field",
 						"CoeffTable.mCoeffs",
 						"System.lbWireLevel",
 						"System.lbHints",
+						"System.genericHint",
 						"System.SymbolTable",
 						"System.lbOutputs",
 						"System.bitLen")); diff != "" {

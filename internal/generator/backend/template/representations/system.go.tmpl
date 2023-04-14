@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/backend/witness"
+	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 
@@ -128,7 +129,8 @@ func (cs *system) CurveID() ecc.ID {
 // WriteTo encodes R1CS into provided io.Writer using cbor
 func (cs *system) WriteTo(w io.Writer) (int64, error) {
 	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
-	enc, err := cbor.CoreDetEncOptions().EncMode()
+	ts := getTagSet()
+	enc, err := cbor.CoreDetEncOptions().EncModeWithTags(ts)
 	if err != nil {
 		return 0, err
 	}
@@ -141,10 +143,11 @@ func (cs *system) WriteTo(w io.Writer) (int64, error) {
 
 // ReadFrom attempts to decode R1CS from io.Reader using cbor
 func (cs *system) ReadFrom(r io.Reader) (int64, error) {
+	ts := getTagSet()
 	dm, err := cbor.DecOptions{
 		MaxArrayElements: 134217728,
 		MaxMapPairs:      134217728,
-	}.DecMode()
+	}.DecModeWithTags(ts)
 
 	if err != nil {
 		return 0, err
@@ -333,4 +336,31 @@ func (t *SparseR1CSSolution) ReadFrom(r io.Reader) (int64, error) {
 	a, err = t.O.ReadFrom(r)
 	a += n
 	return n, err
+}
+
+
+func getTagSet() cbor.TagSet {
+	// temporary for refactor 
+	ts := cbor.NewTagSet()
+	// https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml
+	// 65536-15309735 Unassigned
+	tagNum := uint64(5309735)
+	addType := func(t reflect.Type) {
+		if err := ts.Add(
+			cbor.TagOptions{EncTag: cbor.EncTagRequired, DecTag: cbor.DecTagRequired},
+			t,
+			tagNum,
+		); err != nil {
+			panic(err)
+		}
+		tagNum++
+	}
+
+	addType(reflect.TypeOf(constraint.BlueprintGenericHint{}))
+	addType(reflect.TypeOf(constraint.BlueprintGenericR1C{}))
+	addType(reflect.TypeOf(constraint.BlueprintGenericSparseR1C{}))
+	addType(reflect.TypeOf(constraint.BlueprintSparseR1CAdd{}))
+	addType(reflect.TypeOf(constraint.BlueprintSparseR1CMul{}))
+	
+	return ts 
 }
