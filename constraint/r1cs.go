@@ -25,6 +25,30 @@ type R1CS interface {
 	// See StringBuilder for more info.
 	// ! this is an experimental API.
 	GetR1Cs() []R1C
+
+	// GetR1CIterator returns an R1CIterator to iterate on the R1C constraints of the system.
+	GetR1CIterator() R1CIterator
+}
+
+// R1CIterator facilitates iterating through R1C constraints.
+type R1CIterator struct {
+	R1C
+	cs *System
+	n  int
+}
+
+func (it *R1CIterator) Next() *R1C {
+	if it.n >= it.cs.GetNbInstructions() {
+		return nil
+	}
+	inst := it.cs.Instructions[it.n]
+	it.n++
+	blueprint := it.cs.Blueprints[inst.BlueprintID]
+	if bc, ok := blueprint.(BlueprintR1C); ok {
+		bc.DecompressR1C(&it.R1C, it.cs.GetCallData(inst))
+		return &it.R1C
+	}
+	return it.Next()
 }
 
 // // IsValid perform post compilation checks on the Variables

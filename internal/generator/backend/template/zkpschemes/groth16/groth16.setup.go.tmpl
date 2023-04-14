@@ -362,30 +362,24 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// A, B or C at the index of the variable
 
 	j := 0
-	var c constraint.R1C
-	for _, inst := range r1cs.Instructions {
-		blueprint := r1cs.Blueprints[inst.BlueprintID]
-		if bc, ok := blueprint.(constraint.BlueprintR1C); ok {
-			calldata := r1cs.GetCallData(inst)
-			bc.DecompressR1C(&c, calldata)
-
-			for _, t := range c.L {
-				accumulate(&A[t.WireID()], t, &L)
-			}
-			for _, t := range c.R {
-				accumulate(&B[t.WireID()], t, &L)
-			}
-			for _, t := range c.O {
-				accumulate(&C[t.WireID()], t, &L)
-			}
-	
-			// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
-			L.Mul(&L, &w)
-			L.Mul(&L, &t[j])
-			L.Mul(&L, &tInv[j+1])
-			
-			j++
+	it := r1cs.GetR1CIterator()
+	for c := it.Next(); c!=nil; c = it.Next() {
+		for _, t := range c.L {
+			accumulate(&A[t.WireID()], t, &L)
 		}
+		for _, t := range c.R {
+			accumulate(&B[t.WireID()], t, &L)
+		}
+		for _, t := range c.O {
+			accumulate(&C[t.WireID()], t, &L)
+		}
+
+		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
+		L.Mul(&L, &w)
+		L.Mul(&L, &t[j])
+		L.Mul(&L, &tInv[j+1])
+		
+		j++
 	}
 
 	return
@@ -520,22 +514,13 @@ func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 	A := make([]bool, nbWires)
 	B := make([]bool, nbWires)
 
-	j := 0
-	var c constraint.R1C
-	for _, inst := range r1cs.Instructions {
-		blueprint := r1cs.Blueprints[inst.BlueprintID]
-		if bc, ok := blueprint.(constraint.BlueprintR1C); ok {
-			calldata := r1cs.GetCallData(inst)
-			bc.DecompressR1C(&c, calldata)
-
-			for _, t := range c.L {
-				A[t.WireID()] = true
-			}
-			for _, t := range c.R {
-				B[t.WireID()] = true
-			}
-			
-			j++
+	it := r1cs.GetR1CIterator()
+	for c := it.Next(); c!=nil; c = it.Next() {
+		for _, t := range c.L {
+			A[t.WireID()] = true
+		}
+		for _, t := range c.R {
+			B[t.WireID()] = true
 		}
 	}
 

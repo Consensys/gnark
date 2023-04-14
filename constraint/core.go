@@ -364,3 +364,7 @@ func (cs *System) CheckUnconstrainedWires() error {
 	// TODO @gbotrel
 	return nil
 }
+
+func (cs *System) GetR1CIterator() R1CIterator {
+	return R1CIterator{cs: cs}
+}
