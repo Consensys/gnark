@@ -240,9 +240,6 @@ func evaluateLROSmallDomain(cs *system, solution []fr.Element) ([]fr.Element, []
 			r[offset+j] = solution[sparseR1C.XB]
 			o[offset+j] = solution[sparseR1C.XC]
 			j++
-		} else {
-			// TODO need to handle block of constraints.
-			// panic("not implemented")
 		}
 	}
 

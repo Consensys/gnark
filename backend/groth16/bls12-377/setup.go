@@ -403,8 +403,6 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 			L.Mul(&L, &tInv[j+1])
 
 			j++
-		} else {
-			// TODO @gbotrel blocks
 		}
 	}
 
@@ -556,8 +554,6 @@ func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 			}
 
 			j++
-		} else {
-			continue // TODO @gbotrel handle blocks
 		}
 	}
 

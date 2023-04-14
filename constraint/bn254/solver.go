@@ -738,7 +738,6 @@ func (solver *solver) wrapErrWithDebugInfo(cID uint32, err error) *UnsatisfiedCo
 
 // temporary variables to avoid memallocs in hotloop
 type scratch struct {
-	tR1C         constraint.R1C
-	tSparseR1C   constraint.SparseR1C
-	tHintMapping constraint.HintMapping
+	tR1C       constraint.R1C
+	tSparseR1C constraint.SparseR1C
 }

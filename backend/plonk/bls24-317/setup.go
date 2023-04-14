@@ -274,10 +274,6 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 			qk[offset+j].Set(&spr.Coefficients[sparseR1C.QC])
 
 			j++
-
-		} else {
-			// TODO @gbotrel blocks
-			// panic("not implemented")
 		}
 	}
 
@@ -407,8 +403,6 @@ func buildPermutation(spr *cs.SparseR1CS, pt *Trace, nbVariables int) {
 
 			j++
 
-		} else {
-			// TODO @gbotrel blocks
 		}
 	}
 

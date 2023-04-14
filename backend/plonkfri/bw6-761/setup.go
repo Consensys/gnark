@@ -175,9 +175,6 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 			pk.CQkIncomplete[offset+j].Set(&pk.LQkIncompleteDomainSmall[offset+j])
 
 			j++
-
-		} else {
-			// TODO @gbotrel blocks
 		}
 	}
 
@@ -283,9 +280,6 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 			lro[sizeSolution+offset+j] = int(sparseR1C.XB)
 			lro[2*sizeSolution+offset+j] = int(sparseR1C.XC)
 			j++
-
-		} else {
-			// TODO @gbotrel blocks
 		}
 	}
 
