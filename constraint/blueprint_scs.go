@@ -7,6 +7,11 @@ import (
 	"github.com/consensys/gnark/debug"
 )
 
+var (
+	errDivideByZero  = errors.New("division by 0")
+	errBoolConstrain = errors.New("boolean constraint doesn't hold")
+)
+
 // BlueprintGenericSparseR1C implements Blueprint and BlueprintSparseR1C.
 // Encodes
 //
@@ -47,8 +52,6 @@ func (b *BlueprintGenericSparseR1C) DecompressSparseR1C(c *SparseR1C, calldata [
 	c.QC = calldata[7]
 	c.Commitment = CommitmentConstraint(calldata[8])
 }
-
-var errDivideByZero = errors.New("division by 0")
 
 func (b *BlueprintGenericSparseR1C) Solve(s Solver, calldata []uint32) error {
 	var c SparseR1C
@@ -250,4 +253,47 @@ func (b *BlueprintSparseR1CAdd) DecompressSparseR1C(c *SparseR1C, calldata []uin
 	c.QR = calldata[4]
 	c.QO = CoeffIdMinusOne
 	c.QC = calldata[5]
+}
+
+// BlueprintSparseR1CBool implements Blueprint, BlueprintSolvable and BlueprintSparseR1C.
+// Encodes
+//
+//	qL⋅xa + qM⋅(xa*xa)  == 0
+//	that is v + -v*v == 0
+type BlueprintSparseR1CBool struct{}
+
+func (b *BlueprintSparseR1CBool) NbInputs() int {
+	return 3
+}
+func (b *BlueprintSparseR1CBool) NbConstraints() int {
+	return 1
+}
+
+func (b *BlueprintSparseR1CBool) CompressSparseR1C(c *SparseR1C) []uint32 {
+	return []uint32{
+		c.XA,
+		c.QL,
+		c.QM,
+	}
+}
+
+func (blueprint *BlueprintSparseR1CBool) Solve(s Solver, calldata []uint32) error {
+	// all wires are already solved, we just check the constraint.
+	v1 := s.GetValue(calldata[1], calldata[0])
+	v2 := s.GetValue(calldata[2], calldata[0])
+	v := s.GetValue(CoeffIdOne, calldata[0])
+	v = s.Mul(v, v2)
+	v = s.Add(v1, v)
+	if !v.IsZero() {
+		return errBoolConstrain
+	}
+	return nil
+}
+
+func (b *BlueprintSparseR1CBool) DecompressSparseR1C(c *SparseR1C, calldata []uint32) {
+	c.Clear()
+	c.XA = calldata[0]
+	c.XB = c.XA
+	c.QL = calldata[1]
+	c.QM = calldata[2]
 }

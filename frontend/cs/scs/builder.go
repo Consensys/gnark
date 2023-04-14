@@ -67,8 +67,8 @@ type builder struct {
 	// frequently used coefficients
 	tOne, tMinusOne constraint.Element
 
-	genericGate      constraint.BlueprintID
-	mulGate, addGate constraint.BlueprintID
+	genericGate                constraint.BlueprintID
+	mulGate, addGate, boolGate constraint.BlueprintID
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -113,6 +113,7 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 	b.genericGate = b.cs.AddBlueprint(&constraint.BlueprintGenericSparseR1C{})
 	b.mulGate = b.cs.AddBlueprint(&constraint.BlueprintSparseR1CMul{})
 	b.addGate = b.cs.AddBlueprint(&constraint.BlueprintSparseR1CAdd{})
+	b.boolGate = b.cs.AddBlueprint(&constraint.BlueprintSparseR1CBool{})
 
 	return &b
 }
@@ -164,27 +165,18 @@ func (builder *builder) addAddGate(a, b expr.Term, xc uint32, k constraint.Eleme
 	}, builder.addGate)
 }
 
-func (builder *builder) addMulGateGeneric(a, b, c expr.Term) {
-	// TODO @gbotrel refactor into addPlonkConstraint;
-	// this is a mul gate, but the unsolved wire may be a or b (instead of c)
-	// and the qO coefficient is arbitrary.
-	qO := builder.tMinusOne
-	if c.Coeff != builder.tOne {
-		// slow path
-		qO = builder.cs.Neg(c.Coeff)
+func (builder *builder) addBoolGate(c sparseR1C, debugInfo ...constraint.DebugInfo) {
+	QL := builder.cs.AddCoeff(c.qL)
+	QM := builder.cs.AddCoeff(c.qM)
+
+	cID := builder.cs.AddSparseR1C(constraint.SparseR1C{
+		XA: uint32(c.xa),
+		QL: QL,
+		QM: QM},
+		builder.boolGate)
+	if debug.Debug && len(debugInfo) == 1 {
+		builder.cs.AttachDebugInfo(debugInfo[0], []int{cID})
 	}
-	qM := builder.cs.Mul(a.Coeff, b.Coeff)
-
-	QM := builder.cs.AddCoeff(qM)
-	QO := builder.cs.AddCoeff(qO)
-
-	builder.cs.AddSparseR1C(constraint.SparseR1C{
-		XA: uint32(a.VID),
-		XB: uint32(b.VID),
-		XC: uint32(c.VID),
-		QM: QM,
-		QO: QO,
-	}, builder.genericGate)
 }
 
 // addPlonkConstraint adds a sparseR1C to the underlying constraint system
@@ -490,7 +482,10 @@ func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Element)
 			if q1 == q3 {
 				// no need to introduce a new constraint;
 				// compute n, the coefficient for the output wire
-				q2, _ = builder.cs.Inverse(q2)
+				q2, ok = builder.cs.Inverse(q2)
+				if !ok {
+					panic("div by 0") // shouldn't happen
+				}
 				q2 = builder.cs.Mul(q2, q4)
 				return expr.NewTerm(int(c.XC), q2), true
 			}
@@ -557,7 +552,10 @@ func (builder *builder) mulConstraintExist(a, b expr.Term) (expr.Term, bool) {
 			// the coefficient for our resulting wire is different;
 			// N = qM / qM'
 			N := builder.cs.GetCoefficient(int(c.QM))
-			N, _ = builder.cs.Inverse(N)
+			N, ok := builder.cs.Inverse(N)
+			if !ok {
+				panic("div by 0") // sanity check.
+			}
 			N = builder.cs.Mul(N, qM)
 
 			return expr.NewTerm(int(c.XC), N), true

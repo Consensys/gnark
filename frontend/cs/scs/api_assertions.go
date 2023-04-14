@@ -105,15 +105,14 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	qM = builder.cs.Mul(qM, v.Coeff)
 	toAdd := sparseR1C{
 		xa: v.VID,
-		xb: v.VID,
 		qL: v.Coeff,
 		qM: qM,
 	}
 	if debug.Debug {
 		debug := builder.newDebugInfo("assertIsBoolean", v, " == (0|1)")
-		builder.addPlonkConstraint(toAdd, debug)
+		builder.addBoolGate(toAdd, debug)
 	} else {
-		builder.addPlonkConstraint(toAdd)
+		builder.addBoolGate(toAdd)
 	}
 
 }

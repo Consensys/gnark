@@ -128,7 +128,13 @@ func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 
 	// res * i2 == i1
 	res := builder.newInternalVariable()
-	builder.addMulGateGeneric(res, i2.(expr.Term), i1.(expr.Term))
+	builder.addPlonkConstraint(sparseR1C{
+		xa: res.VID,
+		xb: i2.(expr.Term).VID,
+		xc: i1.(expr.Term).VID,
+		qM: builder.tOne,
+		qO: builder.tMinusOne,
+	})
 	return res
 }
 
