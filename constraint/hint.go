@@ -14,6 +14,7 @@ type HintMapping struct {
 }
 
 // WireIterator implements constraint.Iterable
+// returns all the wires referenced by the hint.
 func (h *HintMapping) WireIterator() func() int {
 	curr := 0
 	n := 0

@@ -2,10 +2,14 @@ package constraint
 
 import "unsafe"
 
-type BlueprintGenericR1C struct {
-}
+// BlueprintGenericR1C implements Blueprint and BlueprintR1C.
+// Encodes
+//
+//	L * R == 0
+type BlueprintGenericR1C struct{}
 
 func (b *BlueprintGenericR1C) NbInputs() int {
+	// size of linear expressions are unknown.
 	return -1
 }
 func (b *BlueprintGenericR1C) NbConstraints() int {
@@ -35,6 +39,8 @@ func (b *BlueprintGenericR1C) DecompressR1C(c *R1C, calldata []uint32) {
 	lenO := int(((calldata[0] - 3) / 2) - uint32(lenL) - uint32(lenR))
 
 	j := 3
+	// TODO @gbotrel we may not want to use unsafe ptr here since with meta/block of blueprints
+	// we will end up modifying the resulting constraint.
 	c.L = unsafe.Slice((*Term)(unsafe.Pointer(unsafe.SliceData(calldata[j:j+2*lenL]))), lenL)
 	j += 2 * lenL
 	c.R = unsafe.Slice((*Term)(unsafe.Pointer(unsafe.SliceData(calldata[j:j+2*lenR]))), lenR)

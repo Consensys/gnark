@@ -182,7 +182,7 @@ func (s *solver) accumulateInto(t constraint.Term, r *fr.Element) {
 }
 
 // solveWithHint executes a hint and assign the result to its defined outputs.
-func (s *solver) solveWithHint(h constraint.HintMapping) error {
+func (s *solver) solveWithHint(h *constraint.HintMapping) error {
 	// ensure hint function was provided
 	f, ok := s.mHintsFunctions[h.HintID]
 	if !ok {
@@ -374,9 +374,8 @@ func (solver *solver) processInstruction(inst constraint.Instruction, scratch *s
 	// blueprint encodes a hint, we execute.
 	// TODO @gbotrel may be worth it to move hint logic in blueprint "solve"
 	if bc, ok := blueprint.(constraint.BlueprintHint); ok {
-		var hm constraint.HintMapping
-		bc.DecompressHint(&hm, calldata)
-		return solver.solveWithHint(hm)
+		bc.DecompressHint(&scratch.tHint, calldata)
+		return solver.solveWithHint(&scratch.tHint)
 	}
 
 	return nil
@@ -740,4 +739,5 @@ func (solver *solver) wrapErrWithDebugInfo(cID uint32, err error) *UnsatisfiedCo
 type scratch struct {
 	tR1C       constraint.R1C
 	tSparseR1C constraint.SparseR1C
+	tHint      constraint.HintMapping
 }

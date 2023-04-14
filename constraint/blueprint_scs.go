@@ -1,9 +1,13 @@
 package constraint
 
+// BlueprintGenericSparseR1C implements Blueprint and BlueprintSparseR1C.
+// Encodes
+//
+//	qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
 type BlueprintGenericSparseR1C struct{}
 
 func (b *BlueprintGenericSparseR1C) NbInputs() int {
-	return 9 // xa, xb, qL, qR
+	return 9 // number of fields in SparseR1C
 }
 func (b *BlueprintGenericSparseR1C) NbConstraints() int {
 	return 1
@@ -11,7 +15,6 @@ func (b *BlueprintGenericSparseR1C) NbConstraints() int {
 
 func (b *BlueprintGenericSparseR1C) CompressSparseR1C(c *SparseR1C) []uint32 {
 	return []uint32{
-		// generic plonk constraint, the wires first
 		c.XA,
 		c.XB,
 		c.XC,
@@ -38,6 +41,10 @@ func (b *BlueprintGenericSparseR1C) DecompressSparseR1C(c *SparseR1C, calldata [
 	c.Commitment = CommitmentConstraint(calldata[8])
 }
 
+// BlueprintSparseR1CMul implements Blueprint, BlueprintSolvable and BlueprintSparseR1C.
+// Encodes
+//
+//	qM⋅(xaxb)  == xc
 type BlueprintSparseR1CMul struct{}
 
 func (b *BlueprintSparseR1CMul) NbInputs() int {
@@ -57,6 +64,7 @@ func (b *BlueprintSparseR1CMul) CompressSparseR1C(c *SparseR1C) []uint32 {
 }
 
 func (b *BlueprintSparseR1CMul) Solve(s Solver, calldata []uint32) {
+	// qM⋅(xaxb)  == xc
 	m0 := s.GetValue(calldata[3], calldata[0])
 	m1 := s.GetValue(CoeffIdOne, calldata[1])
 
@@ -74,6 +82,10 @@ func (b *BlueprintSparseR1CMul) DecompressSparseR1C(c *SparseR1C, calldata []uin
 	c.QM = calldata[3]
 }
 
+// BlueprintSparseR1CAdd implements Blueprint, BlueprintSolvable and BlueprintSparseR1C.
+// Encodes
+//
+//	qL⋅xa + qR⋅xb + qC == xc
 type BlueprintSparseR1CAdd struct{}
 
 func (b *BlueprintSparseR1CAdd) NbInputs() int {

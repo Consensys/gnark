@@ -2,18 +2,27 @@ package constraint
 
 import "github.com/consensys/gnark/constraint/solver"
 
-type BlueprintGenericHint struct {
-}
+type BlueprintGenericHint struct{}
 
 func (b *BlueprintGenericHint) DecompressHint(h *HintMapping, calldata []uint32) {
 	// ignore first call data == nbInputs
 	h.HintID = solver.HintID(calldata[1])
 	lenInputs := int(calldata[2])
-	h.Inputs = make([]LinearExpression, lenInputs)
+	if cap(h.Inputs) >= lenInputs {
+		h.Inputs = h.Inputs[:lenInputs]
+	} else {
+		h.Inputs = make([]LinearExpression, lenInputs)
+	}
+
 	j := 3
 	for i := 0; i < lenInputs; i++ {
 		n := int(calldata[j]) // len of linear expr
 		j++
+		if cap(h.Inputs[i]) >= n {
+			h.Inputs[i] = h.Inputs[i][:0]
+		} else {
+			h.Inputs[i] = make(LinearExpression, 0, n)
+		}
 		for k := 0; k < n; k++ {
 			h.Inputs[i] = append(h.Inputs[i], Term{CID: calldata[j], VID: calldata[j+1]})
 			j += 2
