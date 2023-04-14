@@ -155,6 +155,7 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 		if aConst {
 			// aBits[i] is a constant;
 			l = builder.Mul(l, aBits[i])
+			// TODO @gbotrel this constraint seems useless.
 			added = append(added, builder.cs.AddR1C(builder.newR1C(l, zero, zero), builder.genericGate))
 		} else {
 			added = append(added, builder.cs.AddR1C(builder.newR1C(l, aBits[i], zero), builder.genericGate))

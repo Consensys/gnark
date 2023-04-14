@@ -60,7 +60,9 @@ type builder struct {
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[uint64][]expr.LinearExpression
 
-	tOne constraint.Element
+	tOne        constraint.Element
+	eZero, eOne expr.LinearExpression
+	cZero, cOne constraint.LinearExpression
 
 	// helps merge k sorted linear expressions
 	heap minHeap
@@ -120,6 +122,12 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 
 	builder.genericGate = builder.cs.AddBlueprint(&constraint.BlueprintGenericR1C{})
 
+	builder.eZero = expr.NewLinearExpression(0, constraint.Element{})
+	builder.eOne = expr.NewLinearExpression(0, builder.tOne)
+
+	builder.cOne = constraint.LinearExpression{constraint.Term{VID: 0, CID: constraint.CoeffIdOne}}
+	builder.cZero = constraint.LinearExpression{constraint.Term{VID: 0, CID: constraint.CoeffIdZero}}
+
 	return &builder
 }
 
@@ -144,12 +152,12 @@ func (builder *builder) SecretVariable(f schema.LeafInfo) frontend.Variable {
 
 // cstOne return the one constant
 func (builder *builder) cstOne() expr.LinearExpression {
-	return expr.NewLinearExpression(0, builder.tOne)
+	return builder.eOne
 }
 
 // cstZero return the zero constant
 func (builder *builder) cstZero() expr.LinearExpression {
-	return expr.NewLinearExpression(0, constraint.Element{})
+	return builder.eZero
 }
 
 func (builder *builder) isCstOne(c constraint.Element) bool {
@@ -189,6 +197,13 @@ func (builder *builder) getLinearExpression(_l interface{}) constraint.LinearExp
 	var L constraint.LinearExpression
 	switch tl := _l.(type) {
 	case expr.LinearExpression:
+		if len(tl) == 1 && tl[0].VID == 0 {
+			if tl[0].Coeff.IsZero() {
+				return builder.cZero
+			} else if tl[0].Coeff == builder.tOne {
+				return builder.cOne
+			}
+		}
 		L = make(constraint.LinearExpression, 0, len(tl))
 		for _, t := range tl {
 			L = append(L, builder.cs.MakeTerm(&t.Coeff, t.VID))
