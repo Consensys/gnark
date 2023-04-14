@@ -132,9 +132,10 @@ func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 		xa: res.VID,
 		xb: i2.(expr.Term).VID,
 		xc: i1.(expr.Term).VID,
-		qM: builder.tOne,
-		qO: builder.tMinusOne,
+		qM: i2.(expr.Term).Coeff,
+		qO: builder.cs.Neg(i1.(expr.Term).Coeff),
 	})
+
 	return res
 }
 
