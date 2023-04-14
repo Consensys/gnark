@@ -52,6 +52,7 @@ type solver struct {
 
 	a, b, c fr.Vector // R1CS solver will compute the a,b,c matrices
 
+	q *big.Int
 }
 
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
@@ -95,6 +96,7 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 		solved:          make([]bool, nbWires),
 		mHintsFunctions: hintFunctions,
 		logger:          opt.Logger,
+		q:               cs.Field(),
 	}
 
 	// set the witness indexes as solved
@@ -199,7 +201,8 @@ func (s *solver) solveWithHint(h *constraint.HintMapping) error {
 		outputs[i].SetUint64(0)
 	}
 
-	q := fr.Modulus()
+	q := pool.BigInt.Get()
+	q.Set(s.q)
 
 	for i := 0; i < nbInputs; i++ {
 		var v fr.Element
@@ -226,6 +229,8 @@ func (s *solver) solveWithHint(h *constraint.HintMapping) error {
 	for i := range inputs {
 		pool.BigInt.Put(inputs[i])
 	}
+
+	pool.BigInt.Put(q)
 
 	return err
 }
