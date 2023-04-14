@@ -120,9 +120,6 @@ func main() {
 			csDir := d.CSPath
 
 			// constraint systems
-			os.Remove(filepath.Join(csDir, "solution.go"))
-			os.Remove(filepath.Join(csDir, "r1cs.go"))
-			os.Remove(filepath.Join(csDir, "r1cs_sparse.go"))
 			entries := []bavard.Entry{
 				{File: filepath.Join(csDir, "system.go"), Templates: []string{"system.go.tmpl", importCurve}},
 				{File: filepath.Join(csDir, "coeff.go"), Templates: []string{"coeff.go.tmpl", importCurve}},
