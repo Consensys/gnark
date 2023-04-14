@@ -134,10 +134,13 @@ func (engine *field) Neg(a constraint.Element) constraint.Element {
 	return a
 
 }
-func (engine *field) Inverse(a constraint.Element) constraint.Element {
+func (engine *field) Inverse(a constraint.Element) (constraint.Element, bool) {
+	if a.IsZero() {
+		return a, false
+	}
 	e := (*fr.Element)(a[:])
 	e.Inverse(e)
-	return a
+	return a, true
 }
 
 func (engine *field) IsOne(a constraint.Element) bool {

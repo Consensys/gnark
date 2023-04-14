@@ -22,7 +22,7 @@ type Field interface {
 	Add(a, b Element) Element
 	Sub(a, b Element) Element
 	Neg(a Element) Element
-	Inverse(a Element) Element
+	Inverse(a Element) (Element, bool)
 	One() Element
 	IsOne(Element) bool
 	String(Element) string

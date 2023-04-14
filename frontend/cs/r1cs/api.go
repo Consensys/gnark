@@ -269,9 +269,7 @@ func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 	if n2.IsZero() {
 		panic("div by constant(0)")
 	}
-	// q := builder.q
-	n2 = builder.cs.Inverse(n2)
-	// n2.ModInverse(n2, q)
+	n2, _ = builder.cs.Inverse(n2)
 
 	if v1Constant {
 		n2 = builder.cs.Mul(n2, n1)
@@ -307,7 +305,7 @@ func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
 	if n2.IsZero() {
 		panic("div by constant(0)")
 	}
-	n2 = builder.cs.Inverse(n2)
+	n2, _ = builder.cs.Inverse(n2)
 
 	if v1Constant {
 		n2 = builder.cs.Mul(n2, n1)
@@ -327,7 +325,7 @@ func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 			panic("inverse by constant(0)")
 		}
 
-		c = builder.cs.Inverse(c)
+		c, _ = builder.cs.Inverse(c)
 		return expr.NewLinearExpression(0, c)
 	}
 

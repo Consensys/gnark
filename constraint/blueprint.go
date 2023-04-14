@@ -23,6 +23,7 @@ type Solver interface {
 	GetValue(cID, vID uint32) Element
 	GetCoeff(cID uint32) Element
 	SetValue(vID uint32, f Element)
+	IsSolved(vID uint32) bool
 }
 
 // BlueprintSolvable represents a blueprint that knows how to solve itself.

@@ -326,6 +326,10 @@ func (s *solver) SetValue(vID uint32, f constraint.Element) {
 	s.set(int(vID), fr.Element(f[:]))
 }
 
+func (s *solver) IsSolved(vID uint32) bool {
+	return s.solved[vID]
+}
+
 
 
 
@@ -348,20 +352,10 @@ func (solver *solver) processInstruction(inst constraint.Instruction, scratch *s
 	} else if solver.Type == constraint.SystemSparseR1CS {
 		// blueprint declared "I know how to solve this."
 		if bc, ok := blueprint.(constraint.BlueprintSolvable); ok {
-			return bc.Solve(solver, calldata)
-		}
-
-		if bc, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
-			// sparse R1CS
-			bc.DecompressSparseR1C(&scratch.tSparseR1C, calldata)
-
-			if err := solver.solveSparseR1C(&scratch.tSparseR1C); err != nil {
+			if err := bc.Solve(solver, calldata); err != nil {
 				return solver.wrapErrWithDebugInfo(cID, err)
 			}
-			if err := solver.checkSparseR1C(&scratch.tSparseR1C); err != nil {
-				return solver.wrapErrWithDebugInfo(cID, err)
-			}
-			return nil 
+			return nil
 		}
 	}
 
@@ -587,142 +581,6 @@ func (solver *solver) solveR1C(cID uint32, r *constraint.R1C) error {
 	return nil
 }
 
-
-
-
-// checkSparseR1C verifies that the constraint holds
-func (solver *solver) checkSparseR1C(c *constraint.SparseR1C) error {
-
-	if c.Commitment != constraint.NOT { // a constraint of the form f_L - PI_2 = 0 or f_L = Comm.
-		return nil // these are there for enforcing the correctness of the commitment and can be skipped in solving time
-	}
-
-	l := solver.computeTerm(constraint.Term{CID: c.QL, VID: c.XA})
-	r := solver.computeTerm(constraint.Term{CID: c.QR, VID: c.XB})
-	m0 := solver.computeTerm(constraint.Term{CID: c.QM, VID: c.XA})
-	m1 := solver.values[c.XB]
-
-	o := solver.computeTerm(constraint.Term{CID: c.QO, VID: c.XC})
-
-	// qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
-	var t fr.Element 
-	t.Mul(&m0, &m1).Add(&t, &l).Add(&t, &r).Add(&t, &o).Add(&t, &solver.Coefficients[c.QC])
-	if !t.IsZero() {
-		return fmt.Errorf("qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → %s + %s + %s + (%s × %s) + %s != 0",
-			l.String(),
-			r.String(),
-			o.String(),
-			m0.String(),
-			m1.String(),
-			solver.Coefficients[c.QC].String(),
-		)
-	}
-	return nil 
-
-}
-
-
-
-// findUnsolvedWireSCS check the constraint for unsolved wire.
-// If xA is unsolved returns 0
-// If xB is unsolved returns 1
-// If xC is unsolved returns 2
-// If all wires are solved, returns -1
-func (solver *solver) findUnsolvedWireSCS(c *constraint.SparseR1C) ( int) {
-	lID, rID, oID := c.XA, c.XB, c.XC
-
-	if (c.QL != 0 || c.QM != 0) && !solver.solved[lID] {
-		return 0
-	}
-
-	if (c.QR != 0 || c.QM != 0) && !solver.solved[rID] {
-		return 1
-	}
-
-	if (c.QO != 0) && !solver.solved[oID] {
-		return 2
-	}
-	return -1
-}
-
-
-// solveSparseR1C solve any unsolved wire in given constraint and update the solver
-// a SparseR1C may have up to one unsolved wire
-// if it doesn't, then this function returns and does nothing
-func (solver *solver) solveSparseR1C(c *constraint.SparseR1C) error {
-
-	if c.Commitment == constraint.COMMITTED { // a constraint of the form f_L - PI_2 = 0 or f_L = Comm.
-		return nil // these are there for enforcing the correctness of the commitment and can be skipped in solving time
-	}
-
-	lro := solver.findUnsolvedWireSCS(c)
-	if lro == -1 {
-		// no unsolved wire
-		// can happen if the constraint contained only hint wires or if it's an assertion.
-		return nil
-	}
-	if lro == 1 { // we solve for R: u1L+u2R+u3LR+u4O+k=0 => R(u2+u3L)+u1L+u4O+k = 0
-		if !solver.solved[c.XA] {
-			panic("L wire should be instantiated when we solve R")
-		}
-		var u1, u2, u3, den, num, v1, v2 fr.Element
-		u3.Set(&solver.Coefficients[c.QM])
-		u1.Set(&solver.Coefficients[c.QL])
-		u2.Set(&solver.Coefficients[c.QR])
-		den.Mul(&u3, &solver.values[c.XA]).Add(&den, &u2)
-
-		v1 = solver.computeTerm(constraint.Term{CID: c.QL, VID: c.XA})
-		v2 = solver.computeTerm(constraint.Term{CID: c.QO, VID: c.XC})
-		num.Add(&v1, &v2).Add(&num, &solver.Coefficients[c.QC])
-
-		// TODO find a way to do lazy div (/ batch inversion)
-		num.Div(&num, &den).Neg(&num)
-		solver.set(int(c.XB), num) // TODO @gbotrel unused path? 
-		return nil
-	}
-
-	if lro == 0 { // we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
-		if !solver.solved[c.XB] {
-			panic("R wire should be instantiated when we solve L")
-		}
-		var u1, u2, u3, den, num, v1, v2 fr.Element
-		u3.Set(&solver.Coefficients[c.QM])
-		u1.Set(&solver.Coefficients[c.QL])
-		u2.Set(&solver.Coefficients[c.QR])
-		den.Mul(&u3, &solver.values[c.XB]).Add(&den, &u1)
-
-		v1 = solver.computeTerm(constraint.Term{CID: c.QR, VID: c.XB})
-		v2 = solver.computeTerm(constraint.Term{CID: c.QO, VID: c.XC})
-		num.Add(&v1, &v2).Add(&num, &solver.Coefficients[c.QC])
-
-		// TODO find a way to do lazy div (/ batch inversion)
-		num.Div(&num, &den).Neg(&num)
-		solver.set(int(c.XA), num)
-		return nil 
-
-	} 
-	// O we solve for O
-	var o fr.Element 
-	cID, vID := c.QO, c.XC
-
-	l := solver.computeTerm(constraint.Term{CID: c.QL, VID: c.XA})
-	r := solver.computeTerm(constraint.Term{CID: c.QR, VID: c.XB})
-	m0 := solver.computeTerm(constraint.Term{CID: c.QM, VID: c.XA})
-	m1 := solver.values[c.XB]
-	
-
-	// o = - ((m0 * m1) + l + r + c.QC) / c.O
-	o.Mul(&m0, &m1).Add(&o, &l).Add(&o, &r).Add(&o, &solver.Coefficients[c.QC])
-
-	solver.divByCoeff(&o, cID)
-	o.Neg(&o)
-
-	
-	solver.set(int(vID), o)
-	return nil 
-}
-
-
 // UnsatisfiedConstraintError wraps an error with useful metadata on the unsatisfied constraint
 type UnsatisfiedConstraintError struct {
 	Err error
@@ -750,7 +608,6 @@ func (solver *solver) wrapErrWithDebugInfo(cID uint32, err error) *UnsatisfiedCo
 // temporary variables to avoid memallocs in hotloop
 type scratch struct {
 	tR1C constraint.R1C
-	tSparseR1C constraint.SparseR1C
 	tHint constraint.HintMapping
 }
 

@@ -101,7 +101,7 @@ func TestTraceDivBy0(t *testing.T) {
 			assert.Contains(err.Error(), "(*divBy0Trace).Define")
 			assert.Contains(err.Error(), "debug_test.go:")
 		} else {
-			assert.Contains(err.Error(), "constraint #1 is not satisfied: qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → 0 + 0 + 0 + (0 × 0) + -1 != 0")
+			assert.Contains(err.Error(), "constraint #1 is not satisfied: division by 0")
 		}
 
 	}
@@ -147,7 +147,7 @@ func TestTraceNotEqual(t *testing.T) {
 			assert.Contains(err.Error(), "(*notEqualTrace).Define")
 			assert.Contains(err.Error(), "debug_test.go:")
 		} else {
-			assert.Contains(err.Error(), "constraint #1 is not satisfied: qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → 1 + -66 + 0 + (0 × 66) + 0 != 0")
+			assert.Contains(err.Error(), "constraint #1 is not satisfied: qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC != 0 → 1 + -66 + 0 + 0 + 0 != 0")
 		}
 
 	}
