@@ -1,7 +1,5 @@
 package constraint
 
-import "unsafe"
-
 // BlueprintGenericR1C implements Blueprint and BlueprintR1C.
 // Encodes
 //
@@ -37,13 +35,25 @@ func (b *BlueprintGenericR1C) DecompressR1C(c *R1C, calldata []uint32) {
 	lenL := int(calldata[1])
 	lenR := int(calldata[2])
 	lenO := int(((calldata[0] - 3) / 2) - uint32(lenL) - uint32(lenR))
+	copySlice := func(slice *LinearExpression, expectedLen, idx int) {
+		if cap(*slice) >= expectedLen {
+			(*slice) = (*slice)[:expectedLen]
+		} else {
+			(*slice) = make(LinearExpression, expectedLen)
+		}
+		for k := 0; k < expectedLen; k++ {
+			(*slice)[k] = Term{
+				calldata[idx],
+				calldata[idx+1],
+			}
+			idx += 2
+		}
+	}
 
 	j := 3
-	// TODO @gbotrel we may not want to use unsafe ptr here since with meta/block of blueprints
-	// we will end up modifying the resulting constraint.
-	c.L = unsafe.Slice((*Term)(unsafe.Pointer(unsafe.SliceData(calldata[j:j+2*lenL]))), lenL)
+	copySlice(&c.L, lenL, j)
 	j += 2 * lenL
-	c.R = unsafe.Slice((*Term)(unsafe.Pointer(unsafe.SliceData(calldata[j:j+2*lenR]))), lenR)
+	copySlice(&c.R, lenR, j)
 	j += 2 * lenR
-	c.O = unsafe.Slice((*Term)(unsafe.Pointer(unsafe.SliceData(calldata[j:j+2*lenO]))), lenO)
+	copySlice(&c.O, lenO, j)
 }
