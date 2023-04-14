@@ -37,6 +37,8 @@ type R1CIterator struct {
 	n  int
 }
 
+// Next returns the next R1C or nil if end. Caller must not store the result since the
+// same memory space is re-used for subsequent calls to Next.
 func (it *R1CIterator) Next() *R1C {
 	if it.n >= it.cs.GetNbInstructions() {
 		return nil

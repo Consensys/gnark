@@ -18,11 +18,9 @@ package plonkfri
 
 import (
 	"crypto/sha256"
-
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fri"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bw6-633"
 )
 
@@ -160,22 +158,16 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	offset := len(spr.Public)
 
 	j := 0
+	it := spr.GetSparseR1CIterator()
+	for c := it.Next(); c != nil; c = it.Next() {
+		pk.EvaluationQlDomainBigBitReversed[offset+j].Set(&spr.Coefficients[c.QL])
+		pk.EvaluationQrDomainBigBitReversed[offset+j].Set(&spr.Coefficients[c.QR])
+		pk.EvaluationQmDomainBigBitReversed[offset+j].Set(&spr.Coefficients[c.QM])
+		pk.EvaluationQoDomainBigBitReversed[offset+j].Set(&spr.Coefficients[c.QO])
+		pk.LQkIncompleteDomainSmall[offset+j].Set(&spr.Coefficients[c.QC])
+		pk.CQkIncomplete[offset+j].Set(&pk.LQkIncompleteDomainSmall[offset+j])
 
-	var sparseR1C constraint.SparseR1C
-	for _, inst := range spr.Instructions {
-		blueprint := spr.Blueprints[inst.BlueprintID]
-		if bc, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
-			calldata := spr.CallData[inst.StartCallData : inst.StartCallData+uint64(blueprint.NbInputs())]
-			bc.DecompressSparseR1C(&sparseR1C, calldata)
-			pk.EvaluationQlDomainBigBitReversed[offset+j].Set(&spr.Coefficients[sparseR1C.QL])
-			pk.EvaluationQrDomainBigBitReversed[offset+j].Set(&spr.Coefficients[sparseR1C.QR])
-			pk.EvaluationQmDomainBigBitReversed[offset+j].Set(&spr.Coefficients[sparseR1C.QM])
-			pk.EvaluationQoDomainBigBitReversed[offset+j].Set(&spr.Coefficients[sparseR1C.QO])
-			pk.LQkIncompleteDomainSmall[offset+j].Set(&spr.Coefficients[sparseR1C.QC])
-			pk.CQkIncomplete[offset+j].Set(&pk.LQkIncompleteDomainSmall[offset+j])
-
-			j++
-		}
+		j++
 	}
 
 	pk.Domain[0].FFTInverse(pk.EvaluationQlDomainBigBitReversed[:pk.Domain[0].Cardinality], fft.DIF)
@@ -270,17 +262,12 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 	offset := len(spr.Public)
 
 	j := 0
-	var sparseR1C constraint.SparseR1C
-	for _, inst := range spr.Instructions {
-		blueprint := spr.Blueprints[inst.BlueprintID]
-		if bc, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
-			calldata := spr.CallData[inst.StartCallData : inst.StartCallData+uint64(blueprint.NbInputs())]
-			bc.DecompressSparseR1C(&sparseR1C, calldata)
-			lro[offset+j] = int(sparseR1C.XA)
-			lro[sizeSolution+offset+j] = int(sparseR1C.XB)
-			lro[2*sizeSolution+offset+j] = int(sparseR1C.XC)
-			j++
-		}
+	it := spr.GetSparseR1CIterator()
+	for c := it.Next(); c != nil; c = it.Next() {
+		lro[offset+j] = int(c.XA)
+		lro[sizeSolution+offset+j] = int(c.XB)
+		lro[2*sizeSolution+offset+j] = int(c.XC)
+		j++
 	}
 
 	// init cycle:

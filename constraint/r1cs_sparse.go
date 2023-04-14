@@ -24,6 +24,32 @@ type SparseR1CS interface {
 	// See StringBuilder for more info.
 	// ! this is an experimental API.
 	GetSparseR1Cs() []SparseR1C
+
+	// GetSparseR1CIterator returns an SparseR1CIterator to iterate on the SparseR1C constraints of the system.
+	GetSparseR1CIterator() SparseR1CIterator
+}
+
+// SparseR1CIterator facilitates iterating through SparseR1C constraints.
+type SparseR1CIterator struct {
+	SparseR1C
+	cs *System
+	n  int
+}
+
+// Next returns the next SparseR1C or nil if end. Caller must not store the result since the
+// same memory space is re-used for subsequent calls to Next.
+func (it *SparseR1CIterator) Next() *SparseR1C {
+	if it.n >= it.cs.GetNbInstructions() {
+		return nil
+	}
+	inst := it.cs.Instructions[it.n]
+	it.n++
+	blueprint := it.cs.Blueprints[inst.BlueprintID]
+	if bc, ok := blueprint.(BlueprintSparseR1C); ok {
+		bc.DecompressSparseR1C(&it.SparseR1C, it.cs.GetCallData(inst))
+		return &it.SparseR1C
+	}
+	return it.Next()
 }
 
 // func (system *SparseR1CSCore) CheckUnconstrainedWires() error {

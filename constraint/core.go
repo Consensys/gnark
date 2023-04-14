@@ -368,3 +368,7 @@ func (cs *System) CheckUnconstrainedWires() error {
 func (cs *System) GetR1CIterator() R1CIterator {
 	return R1CIterator{cs: cs}
 }
+
+func (cs *System) GetSparseR1CIterator() SparseR1CIterator {
+	return SparseR1CIterator{cs: cs}
+}
