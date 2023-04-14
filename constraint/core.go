@@ -227,7 +227,17 @@ func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbO
 	}
 
 	// associate these wires with the solver hint
-	hm := HintMapping{HintID: hintUUID, Inputs: input, Outputs: internalVariables}
+	hm := HintMapping{
+		HintID: hintUUID,
+		Inputs: input,
+		OutputRange: struct {
+			Start uint32
+			End   uint32
+		}{
+			uint32(internalVariables[0]),
+			uint32(internalVariables[len(internalVariables)-1]) + 1,
+		},
+	}
 
 	instruction := system.compressHint(hm, system.genericHint)
 	system.Instructions = append(system.Instructions, instruction)

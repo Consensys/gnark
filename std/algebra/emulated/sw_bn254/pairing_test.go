@@ -1,23 +1,31 @@
 package sw_bn254
 
 import (
+	"bytes"
 	"crypto/rand"
 	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 )
 
-func randomG1G2Affines(assert *test.Assert) (bn254.G1Affine, bn254.G2Affine) {
+func randomG1G2Affines() (bn254.G1Affine, bn254.G2Affine) {
 	_, _, G1AffGen, G2AffGen := bn254.Generators()
 	mod := bn254.ID.ScalarField()
 	s1, err := rand.Int(rand.Reader, mod)
-	assert.NoError(err)
+	if err != nil {
+		panic(err)
+	}
 	s2, err := rand.Int(rand.Reader, mod)
-	assert.NoError(err)
+	if err != nil {
+		panic(err)
+	}
 	var p bn254.G1Affine
 	p.ScalarMultiplication(&G1AffGen, s1)
 	var q bn254.G2Affine
@@ -76,7 +84,7 @@ func (c *PairCircuit) Define(api frontend.API) error {
 
 func TestPairTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p, q := randomG1G2Affines(assert)
+	p, q := randomG1G2Affines()
 	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{q})
 	assert.NoError(err)
 	witness := PairCircuit{
@@ -111,8 +119,8 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 
 func TestMultiPairTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p1, q1 := randomG1G2Affines(assert)
-	p2, q2 := randomG1G2Affines(assert)
+	p1, q1 := randomG1G2Affines()
+	p2, q2 := randomG1G2Affines()
 	res, err := bn254.Pair([]bn254.G1Affine{p1, p1, p2, p2}, []bn254.G2Affine{q1, q2, q1, q2})
 	assert.NoError(err)
 	witness := MultiPairCircuit{
@@ -147,8 +155,8 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 
 func TestPairingCheckTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p1, q1 := randomG1G2Affines(assert)
-	_, q2 := randomG1G2Affines(assert)
+	p1, q1 := randomG1G2Affines()
+	_, q2 := randomG1G2Affines()
 	var p2 bn254.G1Affine
 	p2.Neg(&p1)
 	witness := PairingCheckCircuit{
@@ -195,4 +203,68 @@ func TestFinalExponentiationSafeCircuit(t *testing.T) {
 		Q2: NewG2Affine(q2),
 	}, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
+
+func BenchmarkPairing(b *testing.B) {
+
+	p1, q1 := randomG1G2Affines()
+	_, q2 := randomG1G2Affines()
+	var p2 bn254.G1Affine
+	p2.Neg(&p1)
+	witness := PairingCheckCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
+	}
+	w, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	if err != nil {
+		b.Fatal(err)
+	}
+	var ccs constraint.ConstraintSystem
+	b.Run("compile scs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &PairingCheckCircuit{}); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	var buf bytes.Buffer
+	_, err = ccs.WriteTo(&buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("scs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
+	b.Run("solve scs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if _, err := ccs.Solve(w); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("compile r1cs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &PairingCheckCircuit{}); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	buf.Reset()
+	_, err = ccs.WriteTo(&buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("r1cs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
+
+	b.Run("solve r1cs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if _, err := ccs.Solve(w); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
 }

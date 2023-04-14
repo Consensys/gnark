@@ -10,7 +10,6 @@ func (b *BlueprintGenericHint) DecompressHint(h *HintMapping, calldata []uint32)
 	h.HintID = solver.HintID(calldata[1])
 	lenInputs := int(calldata[2])
 	h.Inputs = make([]LinearExpression, lenInputs)
-	h.Outputs = h.Outputs[:0]
 	j := 3
 	for i := 0; i < lenInputs; i++ {
 		n := int(calldata[j]) // len of linear expr
@@ -20,10 +19,8 @@ func (b *BlueprintGenericHint) DecompressHint(h *HintMapping, calldata []uint32)
 			j += 2
 		}
 	}
-	for j < len(calldata) {
-		h.Outputs = append(h.Outputs, int(calldata[j]))
-		j++
-	}
+	h.OutputRange.Start = calldata[j]
+	h.OutputRange.End = calldata[j+1]
 }
 
 func (b *BlueprintGenericHint) CompressHint(h HintMapping) []uint32 {
@@ -35,7 +32,7 @@ func (b *BlueprintGenericHint) CompressHint(h HintMapping) []uint32 {
 		nbInputs += len(h.Inputs[i]) * 2
 	}
 
-	nbInputs += len(h.Outputs)
+	nbInputs += 2 // output range start / end
 
 	r := make([]uint32, 0, nbInputs)
 	r = append(r, uint32(nbInputs))
@@ -49,9 +46,8 @@ func (b *BlueprintGenericHint) CompressHint(h HintMapping) []uint32 {
 		}
 	}
 
-	for _, t := range h.Outputs {
-		r = append(r, uint32(t))
-	}
+	r = append(r, h.OutputRange.Start)
+	r = append(r, h.OutputRange.End)
 	if len(r) != nbInputs {
 		panic("invalid")
 	}

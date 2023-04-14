@@ -6,9 +6,11 @@ import (
 
 // HintMapping mark a list of output variables to be computed using provided hint and inputs.
 type HintMapping struct {
-	HintID  solver.HintID      // Hint function id
-	Inputs  []LinearExpression // Terms to inject in the hint function
-	Outputs []int              // IDs of wires the hint outputs map to
+	HintID      solver.HintID      // Hint function id
+	Inputs      []LinearExpression // Terms to inject in the hint function
+	OutputRange struct {           // IDs of wires the hint outputs map to
+		Start, End uint32
+	}
 }
 
 // WireIterator implements constraint.Iterable
@@ -28,15 +30,16 @@ func (h *HintMapping) WireIterator() func() int {
 			inputs = append(inputs, int(term.VID))
 		}
 	}
+	lenOutputs := int(h.OutputRange.End - h.OutputRange.Start)
 
 	return func() int {
-		if curr < len(h.Outputs) {
+		if curr < lenOutputs {
 			curr++
-			return h.Outputs[curr-1]
+			return int(h.OutputRange.Start) + curr - 1
 		}
-		if curr < len(h.Outputs)+len(inputs) {
+		if curr < lenOutputs+len(inputs) {
 			curr++
-			return inputs[curr-1-len(h.Outputs)]
+			return inputs[curr-1-lenOutputs]
 		}
 		return -1
 	}

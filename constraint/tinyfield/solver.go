@@ -191,7 +191,7 @@ func (s *solver) solveWithHint(h constraint.HintMapping) error {
 
 	// tmp IO big int memory
 	nbInputs := len(h.Inputs)
-	nbOutputs := len(h.Outputs)
+	nbOutputs := int(h.OutputRange.End - h.OutputRange.Start)
 	inputs := make([]*big.Int, nbInputs)
 	outputs := make([]*big.Int, nbOutputs)
 	for i := 0; i < nbOutputs; i++ {
@@ -219,7 +219,7 @@ func (s *solver) solveWithHint(h constraint.HintMapping) error {
 	var v fr.Element
 	for i := range outputs {
 		v.SetBigInt(outputs[i])
-		s.set(h.Outputs[i], v)
+		s.set(int(h.OutputRange.Start)+i, v)
 		pool.BigInt.Put(outputs[i])
 	}
 
