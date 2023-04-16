@@ -149,7 +149,7 @@ func getVkProofCommitmentCircuit() (bn254plonk.Proof, bn254plonk.VerifyingKey, b
 	tproof := proof.(*bn254plonk.Proof)
 	tsrs := srs.(*kzg.SRS)
 
-	return *tproof, *tvk, tsrs.G2[1]
+	return *tproof, *tvk, tsrs.Vk.G2[1]
 }
 
 func getVkProofCubicCircuit() (bn254plonk.Proof, bn254plonk.VerifyingKey, bn254.G2Affine, []fr.Element) {
@@ -170,7 +170,7 @@ func getVkProofCubicCircuit() (bn254plonk.Proof, bn254plonk.VerifyingKey, bn254.
 	checkError(err)
 
 	tsrs := srs.(*kzg.SRS)
-	fmt.Printf("%s\n", tsrs.G2[1].String())
+	fmt.Printf("%s\n", tsrs.Vk.G2[1].String())
 
 	pk, vk, err := plonk.Setup(ccs, srs)
 	checkError(err)
@@ -185,7 +185,7 @@ func getVkProofCubicCircuit() (bn254plonk.Proof, bn254plonk.VerifyingKey, bn254.
 	tproof := proof.(*bn254plonk.Proof)
 	twitness := witnessPublic.Vector().(fr.Vector)
 
-	return *tproof, *tvk, tsrs.G2[1], twitness
+	return *tproof, *tvk, tsrs.Vk.G2[1], twitness
 }
 
 func prettyPrintProof(proof bn254plonk.Proof) {
@@ -273,7 +273,7 @@ func prettyPrintVk(vk bn254plonk.VerifyingKey, g2 bn254.G2Affine) {
 	fmt.Printf("vk.g2_x.Y[1] = %s;\n", g2.Y.A1.String())
 
 	// commitment index
-	fmt.Printf("vk.commitmentIndex = %d;\n", vk.CommitmentInfo.CommitmentIndex)
+	fmt.Printf("vk.commitmentIndex = %d;\n", vk.CommitmentConstraintIndexes[0])
 
 }
 
@@ -286,7 +286,7 @@ func prettyPrintPublicInputs(pi []fr.Element) {
 type testCase struct {
 	kzgVk   []*big.Int
 	plonkVk []byte
-	proof   []*big.Int
+	proof   []byte
 	public  []*big.Int
 }
 
@@ -294,7 +294,7 @@ func newTestCase(kzgVk, plonkVk, proof string, public []*big.Int) testCase {
 	return testCase{
 		kzgVk:   base64ToUint256Slice(kzgVk),
 		plonkVk: base64Decode(plonkVk),
-		proof:   base64ToUint256Slice(proof),
+		proof:   base64Decode(proof),
 		public:  public,
 	}
 }

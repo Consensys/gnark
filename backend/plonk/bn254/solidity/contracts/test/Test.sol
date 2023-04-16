@@ -148,14 +148,14 @@ contract TestContract {
     return res;
   }
 
-  function test_plonk(uint256[] calldata kzg, bytes calldata preprocessed, uint256[] calldata proof, uint256[] calldata public_inputs) public returns (bool) {
+  function test_plonk(uint256[] calldata kzg, bytes calldata preprocessed, bytes calldata proof, uint256[] calldata public_inputs) public returns (bool) {
     Types.Proof memory proofD = Marshal.deserialize_proof(proof);
     Types.VerificationKey memory vk = Marshal.deserialize_vk(kzg, preprocessed);
     bool res = PlonkVerifier.verify(proofD, vk, public_inputs);
     return true;
   }
 
-  function test_plonk_deserialize(uint256[] calldata kzg, bytes calldata preprocessed, uint256[] calldata proof, uint256[] calldata public_inputs) public returns (bool) {
+  function test_plonk_deserialize(uint256[] calldata kzg, bytes calldata preprocessed, bytes calldata proof, uint256[] calldata public_inputs) public returns (bool) {
     Types.Proof memory proofD = Marshal.deserialize_proof(proof);
     Types.VerificationKey memory vk = Marshal.deserialize_vk(kzg, preprocessed);
     Types.PartialVerifierState memory state;   

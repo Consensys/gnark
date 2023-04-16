@@ -12,6 +12,18 @@ library Marshal {
     function read_uint64(bytes calldata b, uint256 i) internal pure returns (uint64, uint256 offset) {
         return (uint64(bytes8(b[i:i+8])), i+8);
     }
+    
+    function read_uint32(bytes calldata b, uint256 i) internal pure returns (uint32, uint256 offset) {
+        return (uint32(bytes4(b[i:i+4])), i+4);
+    }
+
+    function read_g1_checked(bytes calldata b, uint256 i) internal pure returns (Bn254.G1Point memory p, uint256 offset) {
+        uint256 t1;
+        uint256 t2;
+        (t1, offset) = read_uint256(b, i);
+        (t2, offset) = read_uint256(b, offset);
+        return (Bn254.new_g1_checked(t1, t2), offset);
+    }
 
     function read_g1(bytes calldata b, uint256 i) internal pure returns (Bn254.G1Point memory p, uint256 offset) {
         (p.X, offset) = read_uint256(b, i);
@@ -59,78 +71,57 @@ library Marshal {
     }
 
     function deserialize_proof(
-        uint256[] calldata serialized_proof
+        bytes calldata serialized_proof
     ) internal pure returns(Types.Proof memory proof) {
         require(serialized_proof.length == SERIALIZED_PROOF_LENGTH);
 
         uint256 j = 0;
-        for (uint256 i = 0; i < 3; i++) {     // LRO
-            proof.wire_commitments[i] = Bn254.new_g1_checked(
-                serialized_proof[j],
-                serialized_proof[j+1]
-            );
 
-            j += 2;
+        for (uint256 i = 0; i < 3; i++) {     // LRO
+            (proof.wire_commitments[i], j) = read_g1_checked(serialized_proof, j);
         }
 
-        proof.grand_product_commitment = Bn254.new_g1_checked(      // Z
-            serialized_proof[j],
-            serialized_proof[j+1]
-        );
-        j += 2;
+        (proof.grand_product_commitment, j) = read_g1_checked(serialized_proof, j);      // Z
 
         for (uint256 i = 0; i < 3; i++) {         // H
-            proof.quotient_poly_commitments[i] = Bn254.new_g1_checked(
-                serialized_proof[j],
-                serialized_proof[j+1]
-            );
-
-            j += 2;
+            (proof.quotient_poly_commitments[i], j) = read_g1_checked(serialized_proof, j);
         }
 
-        proof.opening_at_zeta_proof = Bn254.new_g1_checked(
-            serialized_proof[j],
-            serialized_proof[j+1]
-        );
-        j += 2;
-
+        (proof.opening_at_zeta_proof, j) = read_g1_checked(serialized_proof, j);
+    
         // <BACTHED CLAIMED VALUES>
+        uint32 nb_batched_comms;
+       (nb_batched_comms, j) = read_uint32(serialized_proof, j);
+       require(nb_batched_comms == 8);
 
-        proof.quotient_polynomial_at_zeta = serialized_proof[j];
-        j += 1;
+        (proof.quotient_polynomial_at_zeta, j) = read_uint256(serialized_proof, j);
+        nb_batched_comms--;
 
-        proof.linearization_polynomial_at_zeta = serialized_proof[j];
-        j += 1;
+        (proof.linearization_polynomial_at_zeta, j) = read_uint256(serialized_proof, j);
+        nb_batched_comms--;
 
         for (uint256 i = 0; i < 3; i++) {
-            proof.wire_values_at_zeta[i] = serialized_proof[j];
-            j += 1;
+            (proof.wire_values_at_zeta[i], j) = read_uint256(serialized_proof, j);
+            nb_batched_comms--;
         }
 
         for (uint256 i = 0; i < proof.permutation_polynomials_at_zeta.length; i++) {
-            proof.permutation_polynomials_at_zeta[i] = serialized_proof[j];
-            j += 1;
+            (proof.permutation_polynomials_at_zeta[i], j) = read_uint256(serialized_proof, j);
+            nb_batched_comms--;
         }
 
-        proof.qcp_at_zeta = serialized_proof[j];
-        j += 1;
+        (proof.qcp_at_zeta, j) = read_uint256(serialized_proof, j);
+        nb_batched_comms--;
+
+        require(nb_batched_comms == 0);
 
         // </BACTHED CLAIMED VALUES>
 
-        proof.opening_at_zeta_omega_proof = Bn254.new_g1_checked(
-            serialized_proof[j],
-            serialized_proof[j+1]
-        );
-        j+= 2;
+        (proof.opening_at_zeta_omega_proof, j) = read_g1_checked(serialized_proof, j);
 
-        proof.grand_product_at_zeta_omega = serialized_proof[j];
-        j+= 1;
+        (proof.grand_product_at_zeta_omega, j) = read_uint256(serialized_proof, j);
 
-        proof.bsb22_commitment = Bn254.new_g1_checked(
-            serialized_proof[j],
-            serialized_proof[j+1]
-        );
-        j+= 2;
+        (proof.bsb22_commitment, j) = read_g1_checked(serialized_proof, j);
 
         require(j == serialized_proof.length);
     }
