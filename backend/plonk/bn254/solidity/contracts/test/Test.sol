@@ -145,7 +145,7 @@ contract TestContract {
     // emit PrintUint256(state.beta);
     // emit PrintUint256(state.zeta);
 
-    return true;
+    return res;
   }
 
   function test_plonk(uint256[] calldata kzg, bytes calldata preprocessed, uint256[] calldata proof, uint256[] calldata public_inputs) public returns (bool) {
