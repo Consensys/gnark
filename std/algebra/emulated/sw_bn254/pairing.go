@@ -15,6 +15,7 @@ type Pairing struct {
 	api frontend.API
 	*fields_bn254.Ext12
 	curveF *emulated.Field[emulated.BN254Fp]
+	g2     G2
 }
 
 type GTEl = fields_bn254.E12
@@ -61,6 +62,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		api:    api,
 		Ext12:  fields_bn254.NewExt12(api),
 		curveF: ba,
+		g2:     NewG2(api),
 	}, nil
 }
 
@@ -278,19 +280,24 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	pr.AssertIsOnTwist(Q)
 
 	// 2- Check Q has the right subgroup order
-	res, err := pr.curveF.NewHint(subgroupG2Hint, 4, &Q.X.A0, &Q.X.A1, &Q.Y.A0, &Q.Y.A1)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
+
+	// [x₀]Q
+	xQ := *pr.g2.scalarMulBySeed(Q)
+	// ψ([x₀]Q)
+	psixQ := *pr.g2.psi(&xQ)
+	// ψ²([x₀]Q)
+	// TODO: use phi instead (psi^2 = -phi)
+	psi2xQ := *pr.g2.psi(&psixQ)
+	// ψ³([2x₀]Q)
+	psi3xxQ := *pr.g2.double(&psi2xQ)
+	psi3xxQ = *pr.g2.psi(&psi3xxQ)
 
 	// _Q = ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q
-	_Q := G2Affine{
-		X: fields_bn254.E2{A0: *res[0], A1: *res[1]},
-		Y: fields_bn254.E2{A0: *res[2], A1: *res[3]},
-	}
+	_Q := *pr.g2.sub(&psi3xxQ, &psi2xQ)
+	_Q = *pr.g2.sub(&_Q, &psixQ)
+	_Q = *pr.g2.sub(&_Q, &xQ)
 
-	// [r]Q == 0 <==>  Q = _Q
+	// [r]Q == 0 <==>  _Q == Q
 	pr.Ext2.AssertIsEqual(&Q.X, &_Q.X)
 	pr.Ext2.AssertIsEqual(&Q.Y, &_Q.Y)
 }
