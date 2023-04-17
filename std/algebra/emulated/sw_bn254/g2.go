@@ -66,25 +66,38 @@ func (g2 *G2) psi(q *G2Affine) *G2Affine {
 }
 
 func (g2 *G2) scalarMulBySeed(q *G2Affine) *G2Affine {
+	z := g2.double(q)
+	t0 := g2.add(q, z)
+	t2 := g2.add(q, t0)
+	t1 := g2.add(z, t2)
+	z = g2.doubleAndAdd(t1, t0)
+	t0 = g2.add(t0, z)
+	t2 = g2.add(t2, t0)
+	t1 = g2.add(t1, t2)
+	t0 = g2.add(t0, t1)
+	t1 = g2.add(t1, t0)
+	t0 = g2.add(t0, t1)
+	t2 = g2.add(t2, t0)
+	t1 = g2.doubleAndAdd(t2, t1)
+	t2 = g2.add(t2, t1)
+	z = g2.add(z, t2)
+	t2 = g2.add(t2, z)
+	z = g2.doubleAndAdd(t2, z)
+	t0 = g2.add(t0, z)
+	t1 = g2.add(t1, t0)
+	t3 := g2.double(t1)
+	t3 = g2.doubleAndAdd(t3, t1)
+	t2 = g2.add(t2, t3)
+	t1 = g2.add(t1, t2)
+	t2 = g2.add(t2, t1)
+	t2 = g2.doubleN(t2, 16)
+	t1 = g2.doubleAndAdd(t2, t1)
+	t1 = g2.doubleN(t1, 13)
+	t0 = g2.doubleAndAdd(t1, t0)
+	t0 = g2.doubleN(t0, 15)
+	z = g2.doubleAndAdd(t0, z)
 
-	qNeg := g2.neg(q)
-	seed := [63]int8{1, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, -1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0, -1, 0, -1, 0, 1, 0, 1, 0, 0, -1, 0, 1, 0, 1, 0, -1, 0, 0, 1, 0, 1, 0, 0, 0, 1}
-
-	// i = 62
-	res := q
-
-	for i := 61; i >= 0; i-- {
-		switch seed[i] {
-		case 0:
-			res = g2.double(res)
-		case 1:
-			res = g2.doubleAndAdd(res, q)
-		case -1:
-			res = g2.doubleAndAdd(res, qNeg)
-		}
-	}
-
-	return res
+	return z
 }
 
 func (g2 G2) add(p, q *G2Affine) *G2Affine {
@@ -144,6 +157,14 @@ func (g2 *G2) double(p *G2Affine) *G2Affine {
 		X: *xr,
 		Y: *yr,
 	}
+}
+
+func (g2 *G2) doubleN(p *G2Affine, n int) *G2Affine {
+	pn := p
+	for s := 0; s < n; s++ {
+		pn = g2.double(pn)
+	}
+	return pn
 }
 
 func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
