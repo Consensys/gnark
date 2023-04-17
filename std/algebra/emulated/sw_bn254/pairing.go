@@ -15,7 +15,7 @@ type Pairing struct {
 	api frontend.API
 	*fields_bn254.Ext12
 	curveF *emulated.Field[emulated.BN254Fp]
-	g2     G2
+	g2     *G2
 }
 
 type GTEl = fields_bn254.E12
