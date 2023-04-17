@@ -51,21 +51,24 @@ func NewG2Affine(v bn254.G2Affine) G2Affine {
 }
 
 func (g2 *G2) phi(q *G2Affine) *G2Affine {
-	var phiq G2Affine
-	phiq.X = *g2.Ext2.MulByElement(&q.X, g2.w)
-	phiq.Y = q.Y
+	x := g2.Ext2.MulByElement(&q.X, g2.w)
 
-	return &phiq
+	return &G2Affine{
+		X: *x,
+		Y: q.Y,
+	}
 }
 
 func (g2 *G2) psi(q *G2Affine) *G2Affine {
-	var psiq G2Affine
-	psiq.X = *g2.Ext2.Conjugate(&q.X)
-	psiq.X = *g2.Ext2.Mul(&psiq.X, g2.u)
-	psiq.Y = *g2.Ext2.Conjugate(&q.Y)
-	psiq.Y = *g2.Ext2.Mul(&psiq.Y, g2.v)
+	x := g2.Ext2.Conjugate(&q.X)
+	x = g2.Ext2.Mul(x, g2.u)
+	y := g2.Ext2.Conjugate(&q.Y)
+	y = g2.Ext2.Mul(y, g2.v)
 
-	return &psiq
+	return &G2Affine{
+		X: *x,
+		Y: *y,
+	}
 }
 
 func (g2 *G2) scalarMulBySeed(q *G2Affine) *G2Affine {
