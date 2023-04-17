@@ -36,6 +36,16 @@ func NewG2Affine(v bn254.G2Affine) G2Affine {
 	}
 }
 
+func (g2 *G2) phi(q *G2Affine) *G2Affine {
+	w := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556616")
+
+	var phiq G2Affine
+	phiq.X = *g2.Ext2.MulByElement(&q.X, &w)
+	phiq.Y = q.Y
+
+	return &phiq
+}
+
 func (g2 *G2) psi(q *G2Affine) *G2Affine {
 	u := fields_bn254.E2{
 		A0: emulated.ValueOf[emulated.BN254Fp]("21575463638280843010398324269430826099269044274347216827212613867836435027261"),
@@ -77,9 +87,7 @@ func (g2 G2) add(p, q *G2Affine) *G2Affine {
 	// compute λ = (q.y-p.y)/(q.x-p.x)
 	qypy := g2.Ext2.Sub(&q.Y, &p.Y)
 	qxpx := g2.Ext2.Sub(&q.X, &p.X)
-	// TODO: use Div
-	qxpx = g2.Ext2.Inverse(qxpx)
-	λ := g2.Ext2.Mul(qypy, qxpx)
+	λ := g2.Ext2.DivUnchecked(qypy, qxpx)
 
 	// xr = λ²-p.x-q.x
 	λλ := g2.Ext2.Mul(λ, λ)
@@ -116,9 +124,7 @@ func (g2 *G2) double(p *G2Affine) *G2Affine {
 	xx3a := g2.Mul(&p.X, &p.X)
 	xx3a = g2.MulByConstElement(xx3a, big.NewInt(3))
 	y2 := g2.Double(&p.Y)
-	// TODO: use Div
-	y2 = g2.Inverse(y2)
-	λ := g2.Mul(xx3a, y2)
+	λ := g2.DivUnchecked(xx3a, y2)
 
 	// xr = λ²-2p.x
 	x2 := g2.Double(&p.X)

@@ -285,15 +285,14 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	xQ := *pr.g2.scalarMulBySeed(Q)
 	// ψ([x₀]Q)
 	psixQ := *pr.g2.psi(&xQ)
-	// ψ²([x₀]Q)
-	// TODO: use phi instead (psi^2 = -phi)
-	psi2xQ := *pr.g2.psi(&psixQ)
+	// ψ²([x₀]Q) = -ϕ([x₀]Q)
+	psi2xQ := *pr.g2.phi(&xQ)
 	// ψ³([2x₀]Q)
 	psi3xxQ := *pr.g2.double(&psi2xQ)
 	psi3xxQ = *pr.g2.psi(&psi3xxQ)
 
 	// _Q = ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q
-	_Q := *pr.g2.sub(&psi3xxQ, &psi2xQ)
+	_Q := *pr.g2.sub(&psi2xQ, &psi3xxQ)
 	_Q = *pr.g2.sub(&_Q, &psixQ)
 	_Q = *pr.g2.sub(&_Q, &xQ)
 

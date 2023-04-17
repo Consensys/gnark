@@ -87,3 +87,27 @@ func TestScalarMulG2BySeedTestSolve(t *testing.T) {
 	err := test.IsSolved(&scalarMulG2BySeedCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+type endomorphismG2Circuit struct {
+	In1 G2Affine
+}
+
+func (c *endomorphismG2Circuit) Define(api frontend.API) error {
+	g2 := NewG2(api)
+	res1 := g2.phi(&c.In1)
+	res1 = g2.neg(res1)
+	res2 := g2.psi(&c.In1)
+	res2 = g2.psi(res2)
+	g2.AssertIsEqual(res1, res2)
+	return nil
+}
+
+func TestEndomorphismG2TestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, in1 := randomG1G2Affines(assert)
+	witness := endomorphismG2Circuit{
+		In1: NewG2Affine(in1),
+	}
+	err := test.IsSolved(&endomorphismG2Circuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
