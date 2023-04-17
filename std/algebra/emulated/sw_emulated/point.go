@@ -129,12 +129,12 @@ func (c *Curve[B, S]) add(p, q *AffinePoint[B]) *AffinePoint[B] {
 //
 // ✅ p can be equal to q, and either or both can be (0,0).
 // (0,0) is not on the curve but we conventionally take it as the
-// neutral/infinity point as per the EVM [EYP].
+// neutral/infinity point as per the [EVM].
 //
-// It uses the unified formulas of Brier and Joye [BriJoy02] (Corollary 1).
+// It uses the unified formulas of Brier and Joye ([[BriJoy02]] (Corollary 1)).
 //
 // [BriJoy02]: https://link.springer.com/content/pdf/10.1007/3-540-45664-3_24.pdf
-// [EYP]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 	// selector1 = 1 when p is (0,0) and 0 otherwise
@@ -341,7 +341,7 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 //
 // ✅ p can can be (0,0) and s can be 0.
 // (0,0) is not on the curve but we conventionally take it as the
-// neutral/infinity point as per the EVM [EYP].
+// neutral/infinity point as per the [EVM].
 //
 // It computes the standard little-endian variable-base double-and-add algorithm
 // [HMV04] (Algorithm 3.26).
@@ -355,7 +355,7 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
-// [EYP]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
 
 	// if p=(0,0) we assign a dummy (0,1) to p and continue
@@ -405,7 +405,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 //
 // ✅ When s=0, it retruns (0,0).
 // (0,0) is not on the curve but we conventionally take it as the
-// neutral/infinity point as per the EVM [EYP].
+// neutral/infinity point as per the [EVM].
 //
 // It computes the standard little-endian fixed-base double-and-add algorithm
 // [HMV04] (Algorithm 3.26).
@@ -416,7 +416,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 // [3]g, [5]g and [7]g points.
 //
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
-// [EYP]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 	g := c.Generator()
 	gm := c.GeneratorMultiples()
