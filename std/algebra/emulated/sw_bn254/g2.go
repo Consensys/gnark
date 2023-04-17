@@ -66,17 +66,21 @@ func (g2 *G2) psi(q *G2Affine) *G2Affine {
 }
 
 func (g2 *G2) scalarMulBySeed(q *G2Affine) *G2Affine {
-	// TODO: use 2-NAF or addchain (or maybe a ternary expansion)
-	var seed = [63]int8{1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1}
+
+	qNeg := g2.neg(q)
+	seed := [66]int8{1, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, -1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0, -1, 0, -1, 0, 1, 0, 1, 0, 0, -1, 0, 1, 0, 1, 0, -1, 0, 0, 1, 0, 1, 0, 0, 0, 1}
 
 	// i = 62
 	res := q
 
 	for i := 61; i >= 0; i-- {
-		if seed[i] == 0 {
+		switch seed[i] {
+		case 0:
 			res = g2.double(res)
-		} else {
+		case 1:
 			res = g2.doubleAndAdd(res, q)
+		case -1:
+			res = g2.doubleAndAdd(res, qNeg)
 		}
 	}
 
