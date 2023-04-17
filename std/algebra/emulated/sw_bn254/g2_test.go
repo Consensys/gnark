@@ -53,7 +53,10 @@ func TestDoubleG2TestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
 	_, in1 := randomG1G2Affines(assert)
 	var res bn254.G2Affine
-	res.Double(&in1)
+	var in1Jac, resJac bn254.G2Jac
+	in1Jac.FromAffine(&in1)
+	resJac.Double(&in1Jac)
+	res.FromJacobian(&resJac)
 	witness := doubleG2Circuit{
 		In1: NewG2Affine(in1),
 		Res: NewG2Affine(res),
