@@ -77,6 +77,9 @@ func (c *Curve[B, S]) GeneratorMultiples() []AffinePoint[B] {
 
 // AffinePoint represents a point on the elliptic curve. We do not check that
 // the point is actually on the curve.
+//
+// Point (0,0) represents point at the infinity. This representation is
+// compatible with the EVM representations of points at infinity.
 type AffinePoint[Base emulated.FieldParams] struct {
 	X, Y emulated.Element[Base]
 }
