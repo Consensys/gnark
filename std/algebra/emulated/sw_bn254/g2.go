@@ -11,6 +11,8 @@ import (
 
 type G2 struct {
 	*fields_bn254.Ext2
+	w    *emulated.Element[emulated.BN254Fp]
+	u, v *fields_bn254.E2
 }
 
 type G2Affine struct {
@@ -18,8 +20,20 @@ type G2Affine struct {
 }
 
 func NewG2(api frontend.API) G2 {
+	w := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556616")
+	u := fields_bn254.E2{
+		A0: emulated.ValueOf[emulated.BN254Fp]("21575463638280843010398324269430826099269044274347216827212613867836435027261"),
+		A1: emulated.ValueOf[emulated.BN254Fp]("10307601595873709700152284273816112264069230130616436755625194854815875713954"),
+	}
+	v := fields_bn254.E2{
+		A0: emulated.ValueOf[emulated.BN254Fp]("2821565182194536844548159561693502659359617185244120367078079554186484126554"),
+		A1: emulated.ValueOf[emulated.BN254Fp]("3505843767911556378687030309984248845540243509899259641013678093033130930403"),
+	}
 	return G2{
 		Ext2: fields_bn254.NewExt2(api),
+		w:    &w,
+		u:    &u,
+		v:    &v,
 	}
 }
 
@@ -37,30 +51,19 @@ func NewG2Affine(v bn254.G2Affine) G2Affine {
 }
 
 func (g2 *G2) phi(q *G2Affine) *G2Affine {
-	w := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556616")
-
 	var phiq G2Affine
-	phiq.X = *g2.Ext2.MulByElement(&q.X, &w)
+	phiq.X = *g2.Ext2.MulByElement(&q.X, g2.w)
 	phiq.Y = q.Y
 
 	return &phiq
 }
 
 func (g2 *G2) psi(q *G2Affine) *G2Affine {
-	u := fields_bn254.E2{
-		A0: emulated.ValueOf[emulated.BN254Fp]("21575463638280843010398324269430826099269044274347216827212613867836435027261"),
-		A1: emulated.ValueOf[emulated.BN254Fp]("10307601595873709700152284273816112264069230130616436755625194854815875713954"),
-	}
-	v := fields_bn254.E2{
-		A0: emulated.ValueOf[emulated.BN254Fp]("2821565182194536844548159561693502659359617185244120367078079554186484126554"),
-		A1: emulated.ValueOf[emulated.BN254Fp]("3505843767911556378687030309984248845540243509899259641013678093033130930403"),
-	}
-
 	var psiq G2Affine
 	psiq.X = *g2.Ext2.Conjugate(&q.X)
-	psiq.X = *g2.Ext2.Mul(&psiq.X, &u)
+	psiq.X = *g2.Ext2.Mul(&psiq.X, g2.u)
 	psiq.Y = *g2.Ext2.Conjugate(&q.Y)
-	psiq.Y = *g2.Ext2.Mul(&psiq.Y, &v)
+	psiq.Y = *g2.Ext2.Mul(&psiq.Y, g2.v)
 
 	return &psiq
 }
