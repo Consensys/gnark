@@ -73,10 +73,10 @@ func (g2 *G2) scalarMulBySeed(q *G2Affine) *G2Affine {
 	res := q
 
 	for i := 61; i >= 0; i-- {
-		res = g2.double(res)
-		if seed[i] == 1 {
-			// TODO: use doubleAndAdd
-			res = g2.add(res, q)
+		if seed[i] == 0 {
+			res = g2.double(res)
+		} else {
+			res = g2.doubleAndAdd(res, q)
 		}
 	}
 
@@ -90,7 +90,7 @@ func (g2 G2) add(p, q *G2Affine) *G2Affine {
 	λ := g2.Ext2.DivUnchecked(qypy, qxpx)
 
 	// xr = λ²-p.x-q.x
-	λλ := g2.Ext2.Mul(λ, λ)
+	λλ := g2.Ext2.Square(λ)
 	qxpx = g2.Ext2.Add(&p.X, &q.X)
 	xr := g2.Ext2.Sub(λλ, qxpx)
 
@@ -121,14 +121,14 @@ func (g2 G2) sub(p, q *G2Affine) *G2Affine {
 
 func (g2 *G2) double(p *G2Affine) *G2Affine {
 	// compute λ = (3p.x²)/2*p.y
-	xx3a := g2.Mul(&p.X, &p.X)
+	xx3a := g2.Square(&p.X)
 	xx3a = g2.MulByConstElement(xx3a, big.NewInt(3))
 	y2 := g2.Double(&p.Y)
 	λ := g2.DivUnchecked(xx3a, y2)
 
 	// xr = λ²-2p.x
 	x2 := g2.Double(&p.X)
-	λλ := g2.Mul(λ, λ)
+	λλ := g2.Square(λ)
 	xr := g2.Sub(λλ, x2)
 
 	// yr = λ(p-xr) - p.y
@@ -139,6 +139,42 @@ func (g2 *G2) double(p *G2Affine) *G2Affine {
 	return &G2Affine{
 		X: *xr,
 		Y: *yr,
+	}
+}
+
+func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
+
+	// compute λ1 = (q.y-p.y)/(q.x-p.x)
+	yqyp := g2.Ext2.Sub(&q.Y, &p.Y)
+	xqxp := g2.Ext2.Sub(&q.X, &p.X)
+	λ1 := g2.Ext2.DivUnchecked(yqyp, xqxp)
+
+	// compute x2 = λ1²-p.x-q.x
+	λ1λ1 := g2.Ext2.Square(λ1)
+	xqxp = g2.Ext2.Add(&p.X, &q.X)
+	x2 := g2.Ext2.Sub(λ1λ1, xqxp)
+
+	// ommit y2 computation
+	// compute λ2 = -λ1-2*p.y/(x2-p.x)
+	ypyp := g2.Ext2.Add(&p.Y, &p.Y)
+	x2xp := g2.Ext2.Sub(x2, &p.X)
+	λ2 := g2.Ext2.DivUnchecked(ypyp, x2xp)
+	λ2 = g2.Ext2.Add(λ1, λ2)
+	λ2 = g2.Ext2.Neg(λ2)
+
+	// compute x3 =λ2²-p.x-x3
+	λ2λ2 := g2.Ext2.Square(λ2)
+	x3 := g2.Ext2.Sub(λ2λ2, &p.X)
+	x3 = g2.Ext2.Sub(x3, x2)
+
+	// compute y3 = λ2*(p.x - x3)-p.y
+	y3 := g2.Ext2.Sub(&p.X, x3)
+	y3 = g2.Ext2.Mul(λ2, y3)
+	y3 = g2.Ext2.Sub(y3, &p.Y)
+
+	return &G2Affine{
+		X: *x3,
+		Y: *y3,
 	}
 }
 
