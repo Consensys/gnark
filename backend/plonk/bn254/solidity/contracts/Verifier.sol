@@ -86,7 +86,8 @@ library PlonkVerifier{
         zeta_power_n_minus_one = Fr.sub(zeta_power_n_minus_one, 1);
 
         // compute PI = ∑_{i<n} Lᵢ*wᵢ
-        uint256 pi = Polynomials.compute_sum_li_zi(public_inputs, state.zeta, vk.omega, vk.domain_size);
+        uint256 pi = Polynomials.compute_sum_li_zi_batch(public_inputs, state.zeta, vk.omega, vk.domain_size);
+        // TODO Inject commitment value as well
 
         uint256 _s1;
         _s1 = Fr.mul(proof.permutation_polynomials_at_zeta[0], state.beta);
