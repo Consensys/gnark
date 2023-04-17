@@ -144,8 +144,8 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
 	pxqx := c.baseApi.MulMod(&p.X, &q.X)
-	num := c.baseApi.Add(&p.X, &q.X)
-	num = c.baseApi.MulMod(num, num)
+	pxplusqx := c.baseApi.Add(&p.X, &q.X)
+	num := c.baseApi.MulMod(pxplusqx, pxplusqx)
 	num = c.baseApi.Sub(num, pxqx)
 	if c.addA {
 		num = c.baseApi.Add(num, &c.a)
@@ -158,8 +158,7 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 	// x = λ^2 - p.x - q.x
 	xr := c.baseApi.MulMod(λ, λ)
-	xr = c.baseApi.Sub(xr, &p.X)
-	xr = c.baseApi.Sub(xr, &q.X)
+	xr = c.baseApi.Sub(xr, pxplusqx)
 
 	// y = λ(p.x - xr) - p.y
 	yr := c.baseApi.Sub(&p.X, xr)
