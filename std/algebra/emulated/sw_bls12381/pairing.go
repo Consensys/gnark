@@ -8,6 +8,7 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -15,6 +16,7 @@ type Pairing struct {
 	api frontend.API
 	*fields_bls12381.Ext12
 	curveF *emulated.Field[emulated.BLS12381Fp]
+	curve  *sw_emulated.Curve[emulated.BLS12381Fp, emulated.BLS12381Fr]
 }
 
 type GTEl = fields_bls12381.E12
@@ -57,10 +59,15 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
+	curve, err := sw_emulated.New[emulated.BLS12381Fp, emulated.BLS12381Fr](api, sw_emulated.GetBLS12381Params())
+	if err != nil {
+		return nil, fmt.Errorf("new curve: %w", err)
+	}
 	return &Pairing{
 		api:    api,
 		Ext12:  fields_bls12381.NewExt12(api),
 		curveF: ba,
+		curve:  curve,
 	}, nil
 }
 
@@ -228,19 +235,7 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 }
 
 func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
-	// Curve: Y² == X³ + aX + b, where a=0 and b=4
-	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
-
-	// if P=(0,0) we assign b=0 otherwise 3, and continue
-	selector := pr.api.And(pr.curveF.IsZero(&P.X), pr.curveF.IsZero(&P.Y))
-	bCurve := emulated.ValueOf[emulated.BLS12381Fp](4)
-	b := pr.curveF.Select(selector, pr.curveF.Zero(), &bCurve)
-
-	left := pr.curveF.Mul(&P.Y, &P.Y)
-	right := pr.curveF.Mul(&P.X, &P.X)
-	right = pr.curveF.Mul(right, &P.X)
-	right = pr.curveF.Add(right, b)
-	pr.curveF.AssertIsEqual(left, right)
+	pr.curve.AssertIsOnCurve(P)
 }
 
 func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
