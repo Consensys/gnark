@@ -18,6 +18,7 @@ type Pairing struct {
 	curveF *emulated.Field[emulated.BN254Fp]
 	curve  *sw_emulated.Curve[emulated.BN254Fp, emulated.BN254Fr]
 	g2     *G2
+	bTwist *fields_bn254.E2
 }
 
 type GTEl = fields_bn254.E12
@@ -64,12 +65,17 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new curve: %w", err)
 	}
+	bTwist := fields_bn254.E2{
+		A0: emulated.ValueOf[emulated.BN254Fp]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
+		A1: emulated.ValueOf[emulated.BN254Fp]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
+	}
 	return &Pairing{
 		api:    api,
 		Ext12:  fields_bn254.NewExt12(api),
 		curveF: ba,
 		curve:  curve,
 		g2:     NewG2(api),
+		bTwist: &bTwist,
 	}, nil
 }
 
@@ -251,11 +257,7 @@ func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 
 	// if Q=(0,0) we assign b=0 otherwise 3/(9+u), and continue
 	selector := pr.api.And(pr.Ext2.IsZero(&Q.X), pr.Ext2.IsZero(&Q.Y))
-	bTwist := fields_bn254.E2{
-		A0: emulated.ValueOf[emulated.BN254Fp]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
-		A1: emulated.ValueOf[emulated.BN254Fp]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
-	}
-	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), &bTwist)
+	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
 
 	left := pr.Ext2.Square(&Q.Y)
 	right := pr.Ext2.Square(&Q.X)
