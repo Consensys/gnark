@@ -105,7 +105,8 @@ func NewBoundedComparator(api frontend.API, absDiffUpp *big.Int, allowNonDetermi
 	// solution. The positive number is always bigger than |a - b| - 1. So, we need
 	// to make sure that if
 	// P - |a - b| <= 2^absDiffUpp.BitLen(), then |a - b| - 1 >= 2^absDiffUpp.BitLen().
-	// Obviously this condition holds when P - 1 >= 2^(absDiffUpp.BitLen()+1).
+	// Obviously this condition holds when P - 1 >= 2^(absDiffUpp.BitLen()+1) or
+	// P > 2^(absDiffUpp.BitLen()+1).
 	P := api.Compiler().Field()
 	if absDiffUpp.Cmp(big.NewInt(0)) != 1 || absDiffUpp.Cmp(P) != -1 {
 		panic("absDiffUpp must be a positive number smaller than the field order")
@@ -118,11 +119,8 @@ func NewBoundedComparator(api frontend.API, absDiffUpp *big.Int, allowNonDetermi
 	}
 
 	if !allowNonDeterministicBehaviour {
-		// temp := 2^(absDiffUpp.BitLen()+1)
-		temp := new(big.Int).Lsh(big.NewInt(1), uint(absDiffUpp.BitLen()+1))
-		// temp = temp + 1
-		temp.Add(temp, big.NewInt(1))
-		if P.Cmp(temp) == -1 {
+		// if not P > 2^(absDiffUpp.BitLen()+1)
+		if P.Cmp(new(big.Int).Lsh(big.NewInt(1), uint(absDiffUpp.BitLen()+1))) != 1 {
 			panic("absDiffUpp has to be smaller for ensuring deterministic behaviour")
 		}
 	}
