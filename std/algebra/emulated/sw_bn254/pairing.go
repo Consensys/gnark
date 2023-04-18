@@ -294,8 +294,7 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	_Q = pr.g2.sub(_Q, xQ)
 
 	// [r]Q == 0 <==>  _Q == Q
-	pr.Ext2.AssertIsEqual(&Q.X, &_Q.X)
-	pr.Ext2.AssertIsEqual(&Q.Y, &_Q.Y)
+	pr.g2.AssertIsEqual(Q, _Q)
 }
 
 // loopCounter = 6x₀+2 = 29793968203157093288
