@@ -105,12 +105,12 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 //
 //	inputs[selBits[0]+selBits[1]*(1<<1)+selBits[2]*(1<<2)+...]
 //
-// len(inputs) does not need to be necessarily a power of 2. However, when the
-// index represented by selBits is >= len( inputs), the output will be
-// undefined.
+// len(inputs) does not need to be necessarily a power of 2. However, in that
+// case when the index represented by selBits is greater than or equal with
+// len(inputs), the output will be undefined.
 //
 // BinaryMux does NOT define any boolean constraints for selBits. Outside this
-// function, always all the elements of selBits must be constrained to be binary
+// function, all the elements of selBits must be constrained to be binary
 // digits.
 func BinaryMux(api frontend.API, selBits, inputs []frontend.Variable) frontend.Variable {
 	// The number of defined R1CS constraints for an input of length n is always n - 1.
