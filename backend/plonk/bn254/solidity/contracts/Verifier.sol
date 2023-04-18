@@ -248,7 +248,8 @@ library PlonkVerifier{
         
     } 
 
-    function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs) internal returns (bool) {
+    function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs)
+    internal view returns (bool) {
         
         Types.PartialVerifierState memory state;
         
@@ -285,7 +286,7 @@ library PlonkVerifier{
         points[1] = Fr.mul(state.zeta, vk.omega);
 
         valid = valid && Kzg.batch_verify_multi_points(digests, proofs, points, vk.g2_x);
-        
+
         return valid;
     }
 }

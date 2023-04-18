@@ -37,8 +37,6 @@ library Kzg {
         uint256[] claimed_values;
     }
 
-    event PrintUint256(uint256 a);
-
     // fold the digests corresponding to a batch opening proof at a given point
     // return the proof associated to the folded digests, and the folded digest
     function fold_proof(Bn254.G1Point[] memory digests, BatchOpeningProof memory batch_opening_proof, uint256 point)
@@ -73,15 +71,13 @@ library Kzg {
     }
 
     // returns \sum_i [lambda^{i}p_i]H_i \sum_i [lambda^{i)]H_i, \sum_i [lambda_i]Comm_i, \sum_i lambda^i*p_i
-    function fold_digests_quotients_evals(uint256 lambda, uint256[] memory points, Bn254.G1Point[] memory digests, OpeningProof[] memory proofs)
-    internal returns(
+    function fold_digests_quotients_evals(uint256[] memory lambda, uint256[] memory points, Bn254.G1Point[] memory digests, OpeningProof[] memory proofs)
+    internal view returns(
         Bn254.G1Point memory res_quotient, 
         Bn254.G1Point memory res_digest,
         Bn254.G1Point memory res_points_quotients,
         uint256 res_eval)
     {
-
-        uint256 acc = lambda;
         uint256 tmp;
 
         Bn254.G1Point memory tmp_point;
@@ -93,20 +89,19 @@ library Kzg {
 
         for (uint i=1; i<proofs.length; i++){
 
-            tmp_point = Bn254.point_mul(proofs[i].H, acc);
+            tmp_point = Bn254.point_mul(proofs[i].H, lambda[i]);
             res_quotient = Bn254.point_add(res_quotient, tmp_point);
 
-            tmp_point = Bn254.point_mul(digests[i], acc);
+            tmp_point = Bn254.point_mul(digests[i], lambda[i]);
             res_digest = Bn254.point_add(res_digest, tmp_point);
 
-            tmp = Fr.mul(acc, points[i]);
+            tmp = Fr.mul(lambda[i], points[i]);
             tmp_point = Bn254.point_mul(proofs[i].H, tmp);
             res_points_quotients = Bn254.point_add(res_points_quotients, tmp_point);
 
-            tmp = Fr.mul(acc, proofs[i].claimed_value);
+            tmp = Fr.mul(lambda[i], proofs[i].claimed_value);
             res_eval = Fr.add(res_eval, tmp);
 
-            acc = Fr.mul(acc, lambda);      
         }
 
         return (res_points_quotients, res_digest, res_quotient, res_eval);
@@ -114,14 +109,18 @@ library Kzg {
     }
 
     function batch_verify_multi_points(Bn254.G1Point[] memory digests, OpeningProof[] memory proofs, uint256[] memory points, Bn254.G2Point memory g2)
-    internal returns(bool)
+    internal view returns(bool)
     {
 
         require(digests.length == proofs.length);
         require(digests.length == points.length);
 
         // sample a random number (it's up to the verifier only so no need to take extra care)
-        uint256 lambda = uint256(sha256(abi.encodePacked(digests[0].X)))%Fr.r_mod;
+        uint256[] memory lambda = new uint256[](digests.length);
+        lambda[0] = 1;
+        for (uint i=1; i<digests.length; i++){
+            lambda[i] = uint256(sha256(abi.encodePacked(digests[i].X)))%Fr.r_mod;
+        }
 
         Bn254.G1Point memory folded_digests;
         Bn254.G1Point memory folded_quotients;
@@ -139,19 +138,16 @@ library Kzg {
         // ∑ᵢλᵢ[f_i(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁ + ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
 	    // = [∑ᵢλᵢf_i(α) - ∑ᵢλᵢfᵢ(aᵢ) + ∑ᵢλᵢpᵢHᵢ(α)]G₁
         folded_digests = Bn254.point_add(folded_digests, folded_points_quotients);
-        folded_quotients.Y = Fr.sub(0, folded_quotients.Y);
+        folded_quotients.Y = Bn254.p_mod - folded_quotients.Y;
+
 
         // pairing check
 	    // e([∑ᵢλᵢ(fᵢ(α) - fᵢ(pᵢ) + pᵢHᵢ(α))]G₁, G₂).e([-∑ᵢλᵢ[Hᵢ(α)]G₁), [α]G₂)
         Bn254.G2Point memory g2srs = Bn254.P2();
 
-        emit PrintUint256(g2srs.X[0]);
-        emit PrintUint256(g2srs.X[1]);
-        emit PrintUint256(g2srs.Y[0]);
-        emit PrintUint256(g2srs.Y[1]);
-        // bool check = Bn254.pairingProd2(folded_digests, g2srs, folded_quotients, g2);
+        bool check = Bn254.pairingProd2(folded_digests, g2srs, folded_quotients, g2);
 
-        return true;
+        return check;
 
     }
 
