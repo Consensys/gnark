@@ -6,7 +6,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.5.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
-	github.com/consensys/gnark-crypto v0.10.1-0.20230411152222-ebbf6920ad59
+	github.com/consensys/gnark-crypto v0.10.1-0.20230418130058-330c1cb071dc
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/pprof v0.0.0-20230309165930-d61513b1440d
