@@ -279,19 +279,19 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	// 2- Check Q has the right subgroup order
 
 	// [x₀]Q
-	xQ := *pr.g2.scalarMulBySeed(Q)
+	xQ := pr.g2.scalarMulBySeed(Q)
 	// ψ([x₀]Q)
-	psixQ := *pr.g2.psi(&xQ)
+	psixQ := pr.g2.psi(xQ)
 	// ψ²([x₀]Q) = -ϕ([x₀]Q)
-	psi2xQ := *pr.g2.phi(&xQ)
+	psi2xQ := pr.g2.phi(xQ)
 	// ψ³([2x₀]Q)
-	psi3xxQ := *pr.g2.double(&psi2xQ)
-	psi3xxQ = *pr.g2.psi(&psi3xxQ)
+	psi3xxQ := pr.g2.double(psi2xQ)
+	psi3xxQ = pr.g2.psi(psi3xxQ)
 
 	// _Q = ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q
-	_Q := *pr.g2.sub(&psi2xQ, &psi3xxQ)
-	_Q = *pr.g2.sub(&_Q, &psixQ)
-	_Q = *pr.g2.sub(&_Q, &xQ)
+	_Q := pr.g2.sub(psi2xQ, psi3xxQ)
+	_Q = pr.g2.sub(_Q, psixQ)
+	_Q = pr.g2.sub(_Q, xQ)
 
 	// [r]Q == 0 <==>  _Q == Q
 	pr.Ext2.AssertIsEqual(&Q.X, &_Q.X)
