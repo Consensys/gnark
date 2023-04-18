@@ -132,6 +132,27 @@ func Test_IsLessUnsigned(t *testing.T) {
 	}, test.WithCurves(ecc.BN254))
 
 	assert.ProverSucceeded(&isLessUnsignedCircuit{}, &isLessUnsignedCircuit{
+		A:          new(big.Int).Sub(bigNum, big.NewInt(1)),
+		B:          new(big.Int).Sub(bigNum, big.NewInt(2)),
+		WantLess:   0,
+		WantLessEq: 0,
+	}, test.WithCurves(ecc.BN254))
+
+	assert.ProverSucceeded(&isLessUnsignedCircuit{}, &isLessUnsignedCircuit{
+		A:          new(big.Int).Sub(bigNum, big.NewInt(3)),
+		B:          new(big.Int).Sub(bigNum, big.NewInt(2)),
+		WantLess:   1,
+		WantLessEq: 1,
+	}, test.WithCurves(ecc.BN254))
+
+	assert.ProverSucceeded(&isLessUnsignedCircuit{}, &isLessUnsignedCircuit{
+		A:          new(big.Int).Sub(bigNum, big.NewInt(1)),
+		B:          new(big.Int).Sub(bigNum, big.NewInt(1)),
+		WantLess:   0,
+		WantLessEq: 1,
+	}, test.WithCurves(ecc.BN254))
+
+	assert.ProverSucceeded(&isLessUnsignedCircuit{}, &isLessUnsignedCircuit{
 		A:          new(big.Int).Add(bigNum, big.NewInt(200)),
 		B:          new(big.Int).Add(bigNum, big.NewInt(100)),
 		WantLess:   0,
@@ -140,7 +161,7 @@ func Test_IsLessUnsigned(t *testing.T) {
 
 	assert.ProverSucceeded(&isLessUnsignedCircuit{}, &isLessUnsignedCircuit{
 		A:          12345,
-		B:          new(big.Int).Add(bigNum, big.NewInt(10)),
+		B:          new(big.Int).Sub(bigNum, big.NewInt(4568794)),
 		WantLess:   1,
 		WantLessEq: 1,
 	}, test.WithCurves(ecc.BN254))
