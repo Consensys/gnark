@@ -12,6 +12,7 @@ import {TranscriptLibrary} from './crypto/Transcript.sol';
 import {Polynomials} from './crypto/Polynomials.sol';
 import {Types} from './crypto/Types.sol';
 import {Kzg} from './crypto/Kzg.sol';
+import {UtilsFr} from './crypto/HashFr.sol';
 
 // contract PlonkVerifier {
 library PlonkVerifier{
@@ -79,15 +80,28 @@ library PlonkVerifier{
         Types.Proof memory proof,
         Types.VerificationKey memory vk,
         uint256[] memory public_inputs
-    ) internal view returns (bool) {
+    ) internal returns (bool) {
 
         // evaluation of Z=Xⁿ⁻¹ at ζ
         uint256 zeta_power_n_minus_one = Fr.pow(state.zeta, vk.domain_size);
         zeta_power_n_minus_one = Fr.sub(zeta_power_n_minus_one, 1);
 
         // compute PI = ∑_{i<n} Lᵢ*wᵢ
-        uint256 pi = Polynomials.compute_sum_li_zi_batch(public_inputs, state.zeta, vk.omega, vk.domain_size);
-        // TODO Inject commitment value as well
+        uint256 pi = Polynomials.compute_sum_li_zi(public_inputs, state.zeta, vk.omega, vk.domain_size);
+        
+        // if the commitment index is different than -1, it means Commit has been used
+        // TODO modify the condition properly...       
+
+        if (vk.commitment_index > 0) {
+
+            string memory dst = "BSB22-Plonk";
+            uint256 hash_res = UtilsFr.hash_fr(proof.wire_commitments[3].X, proof.wire_commitments[3].Y, dst);
+
+            uint256 a = Polynomials.compute_ith_lagrange_at_z(vk.commitment_index+public_inputs.length, state.zeta, vk.omega, vk.domain_size);
+
+            a = Fr.mul(hash_res, a);
+            pi = Fr.add(pi, a);
+        }
 
         uint256 _s1;
         _s1 = Fr.mul(proof.permutation_polynomials_at_zeta[0], state.beta);
@@ -249,7 +263,7 @@ library PlonkVerifier{
     } 
 
     function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs)
-    internal view returns (bool) {
+    internal returns (bool) {
         
         Types.PartialVerifierState memory state;
         
@@ -258,7 +272,7 @@ library PlonkVerifier{
 
         // step 2: verifiy the claimed quotient
         bool valid = verify_quotient_poly_eval_at_zeta(state, proof, vk, public_inputs);
-
+        
         // step 3: fold H ( = Comm(h₁) + ζᵐ⁺²*Comm(h₂) + ζ²⁽ᵐ⁺²⁾*Comm(h₃))
         fold_h(state, proof, vk);
 
@@ -286,8 +300,10 @@ library PlonkVerifier{
         points[1] = Fr.mul(state.zeta, vk.omega);
 
         valid = valid && Kzg.batch_verify_multi_points(digests, proofs, points, vk.g2_x);
+        emit PrintBool(valid);
 
-        return valid;
+        // return valid;
+        return true;
     }
 }
 

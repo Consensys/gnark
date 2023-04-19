@@ -23,10 +23,8 @@ library Types {
         Bn254.G1Point[STATE_WIDTH] permutation_commitments; // [Sσ1(x)],[Sσ2(x)],[Sσ3(x)]
         uint256 coset_shift;                                // generator of Fr*
         Bn254.G2Point g2_x;
-        uint256 commitmentIndex;                             // index of the public wire resulting from the hash
+        uint256 commitment_index;                             // index of the public wire resulting from the hash. -1 means that there is no commitment.
 
-        // TODO remove this
-        uint256[STATE_WIDTH-1] permutation_non_residues;   // k1, k2
     }
 
     struct Proof {
@@ -71,8 +69,6 @@ library Types {
         // folded digests of H, linearised poly, l, r, o, s_1, s_2, qcp
         Bn254.G1Point folded_digests;
 
-        // TODO remove this
-        Bn254.G1Point cached_fold_quotient_ploy_commitments;
     }
 
 }

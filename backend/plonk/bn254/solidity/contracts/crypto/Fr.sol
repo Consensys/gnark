@@ -36,47 +36,48 @@ library Fr {
     }
 
     function pow(uint256 x, uint256 power) internal view returns(uint256) {
-    uint256[6] memory input = [32, 32, 32, x, power, r_mod];
-    uint256[1] memory result;
-    bool success;
-    assembly {
-      success := staticcall(gas(), 0x05, input, 0xc0, result, 0x20)
-    }
-    require(success);
-    return result[0];
-  }
-
-  function inverse(uint256 x) internal view returns(uint256) {
-    require(x != 0);
-    return pow(x, r_mod-2);
-  }
-
-  function div(uint256 x, uint256 y) internal view returns(uint256) {
-    require(y != 0);
-    y = inverse(y);
-    return mul(x, y);
-  }
-
-  function batch_inverse(uint256[] memory x) internal view returns(uint256[] memory) {
-    uint n = x.length;
-    uint256[] memory prod_ahead = new uint256[](n);  // prod[i] = x[i] * ... * x[n-1]
-
-    prod_ahead[n-1] = x[n-1];
-    for (uint i = n-1; i > 0; i--) {
-      prod_ahead[i-1] = mul(prod_ahead[i], x[i-1]);
+        uint256[6] memory input = [32, 32, 32, x, power, r_mod];
+        uint256[1] memory result;
+        bool success;
+        assembly {
+          success := staticcall(gas(), 0x05, input, 0xc0, result, 0x20)
+        }
+        require(success);
+        return result[0];
     }
 
-    uint256 inv = inverse(prod_ahead[0]);
-    uint256[] memory res = new uint256[](n);
-    uint256 prod_behind = 1;
+    function inverse(uint256 x) internal view returns(uint256) {
+      require(x != 0);
+      return pow(x, r_mod-2);
+    }
 
-    for (uint i = 0; i < n; i++) {
-      res[i] = mul(inv, prod_behind); // prod_behind = x[0] * ... * x[i-1]
-      if (i + 1 != n) {
-        res[i] = mul(res[i], prod_ahead[i+1]);
-        prod_behind = mul(prod_behind, x[i]);
+    function div(uint256 x, uint256 y) internal view returns(uint256) {
+      require(y != 0);
+      y = inverse(y);
+      return mul(x, y);
+    }
+
+    function batch_inverse(uint256[] memory x) internal view returns(uint256[] memory) {
+      uint n = x.length;
+      uint256[] memory prod_ahead = new uint256[](n);  // prod[i] = x[i] * ... * x[n-1]
+
+      prod_ahead[n-1] = x[n-1];
+      for (uint i = n-1; i > 0; i--) {
+        prod_ahead[i-1] = mul(prod_ahead[i], x[i-1]);
       }
+
+      uint256 inv = inverse(prod_ahead[0]);
+      uint256[] memory res = new uint256[](n);
+      uint256 prod_behind = 1;
+
+      for (uint i = 0; i < n; i++) {
+        res[i] = mul(inv, prod_behind); // prod_behind = x[0] * ... * x[i-1]
+        if (i + 1 != n) {
+          res[i] = mul(res[i], prod_ahead[i+1]);
+          prod_behind = mul(prod_behind, x[i]);
+        }
+      }
+      return res;
     }
-    return res;
-  }
+
 }
