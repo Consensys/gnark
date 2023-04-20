@@ -65,7 +65,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	if vk.CommitmentInfo.Is() {
 
-		if err := vk.CommitmentKey.VerifyKnowledgeProof(proof.Commitment, proof.CommitmentPok); err != nil {
+		if err := vk.CommitmentKey.Verify(proof.Commitment, proof.CommitmentPok); err != nil {
 			return err
 		}
 
