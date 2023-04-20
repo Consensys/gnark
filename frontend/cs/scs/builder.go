@@ -69,6 +69,9 @@ type builder struct {
 
 	genericGate                constraint.BlueprintID
 	mulGate, addGate, boolGate constraint.BlueprintID
+
+	// used to avoid repeated allocations
+	lBuf expr.LinearExpression
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -80,6 +83,7 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 		mAddInstructions: make(map[uint64]int, config.Capacity/2),
 		config:           config,
 		Store:            kvstore.New(),
+		lBuf:             make(expr.LinearExpression, 10),
 	}
 
 	curve := utils.FieldToCurve(field)
@@ -355,7 +359,14 @@ func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend
 
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
 func (builder *builder) filterConstantSum(in []frontend.Variable) (expr.LinearExpression, constraint.Element) {
-	res := make(expr.LinearExpression, 0, len(in))
+	var res expr.LinearExpression
+	if len(in) <= cap(builder.lBuf) {
+		// we can use the temp buffer
+		res = builder.lBuf[:0]
+	} else {
+		res = make(expr.LinearExpression, 0, len(in))
+	}
+
 	b := constraint.Element{}
 	for i := 0; i < len(in); i++ {
 		if c, ok := builder.constantValue(in[i]); ok {
@@ -369,7 +380,14 @@ func (builder *builder) filterConstantSum(in []frontend.Variable) (expr.LinearEx
 
 // returns in split into a slice of compiledTerm and the product of all constants in in as a coeff
 func (builder *builder) filterConstantProd(in []frontend.Variable) (expr.LinearExpression, constraint.Element) {
-	res := make(expr.LinearExpression, 0, len(in))
+	var res expr.LinearExpression
+	if len(in) <= cap(builder.lBuf) {
+		// we can use the temp buffer
+		res = builder.lBuf[:0]
+	} else {
+		res = make(expr.LinearExpression, 0, len(in))
+	}
+
 	b := builder.tOne
 	for i := 0; i < len(in); i++ {
 		if c, ok := builder.constantValue(in[i]); ok {

@@ -14,7 +14,8 @@ var (
 // Encodes
 //
 //	qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
-type BlueprintGenericSparseR1C struct{}
+type BlueprintGenericSparseR1C struct {
+}
 
 func (b *BlueprintGenericSparseR1C) NbInputs() int {
 	return 9 // number of fields in SparseR1C
@@ -24,17 +25,16 @@ func (b *BlueprintGenericSparseR1C) NbConstraints() int {
 }
 
 func (b *BlueprintGenericSparseR1C) CompressSparseR1C(c *SparseR1C) []uint32 {
-	return []uint32{
-		c.XA,
-		c.XB,
-		c.XC,
-		c.QL,
-		c.QR,
-		c.QO,
-		c.QM,
-		c.QC,
-		uint32(c.Commitment),
-	}
+	bufSCS[0] = c.XA
+	bufSCS[1] = c.XB
+	bufSCS[2] = c.XC
+	bufSCS[3] = c.QL
+	bufSCS[4] = c.QR
+	bufSCS[5] = c.QO
+	bufSCS[6] = c.QM
+	bufSCS[7] = c.QC
+	bufSCS[8] = uint32(c.Commitment)
+	return bufSCS[:]
 }
 
 func (b *BlueprintGenericSparseR1C) DecompressSparseR1C(c *SparseR1C, calldata []uint32) {
@@ -167,12 +167,11 @@ func (b *BlueprintSparseR1CMul) NbConstraints() int {
 }
 
 func (b *BlueprintSparseR1CMul) CompressSparseR1C(c *SparseR1C) []uint32 {
-	return []uint32{
-		c.XA,
-		c.XB,
-		c.XC,
-		c.QM,
-	}
+	bufSCS[0] = c.XA
+	bufSCS[1] = c.XB
+	bufSCS[2] = c.XC
+	bufSCS[3] = c.QM
+	return bufSCS[:4]
 }
 
 func (b *BlueprintSparseR1CMul) Solve(s Solver, calldata []uint32) error {
@@ -209,14 +208,13 @@ func (b *BlueprintSparseR1CAdd) NbConstraints() int {
 }
 
 func (b *BlueprintSparseR1CAdd) CompressSparseR1C(c *SparseR1C) []uint32 {
-	return []uint32{
-		c.XA,
-		c.XB,
-		c.XC,
-		c.QL,
-		c.QR,
-		c.QC,
-	}
+	bufSCS[0] = c.XA
+	bufSCS[1] = c.XB
+	bufSCS[2] = c.XC
+	bufSCS[3] = c.QL
+	bufSCS[4] = c.QR
+	bufSCS[5] = c.QC
+	return bufSCS[:6]
 }
 
 func (blueprint *BlueprintSparseR1CAdd) Solve(s Solver, calldata []uint32) error {
@@ -258,11 +256,10 @@ func (b *BlueprintSparseR1CBool) NbConstraints() int {
 }
 
 func (b *BlueprintSparseR1CBool) CompressSparseR1C(c *SparseR1C) []uint32 {
-	return []uint32{
-		c.XA,
-		c.QL,
-		c.QM,
-	}
+	bufSCS[0] = c.XA
+	bufSCS[1] = c.QL
+	bufSCS[2] = c.QM
+	return bufSCS[:3]
 }
 
 func (blueprint *BlueprintSparseR1CBool) Solve(s Solver, calldata []uint32) error {
@@ -285,3 +282,7 @@ func (b *BlueprintSparseR1CBool) DecompressSparseR1C(c *SparseR1C, calldata []ui
 	c.QL = calldata[1]
 	c.QM = calldata[2]
 }
+
+// since frontend is single threaded, to avoid allocating slices at each compress call
+// we transit the compressed output through here
+var bufSCS [9]uint32
