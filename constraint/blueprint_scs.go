@@ -3,8 +3,6 @@ package constraint
 import (
 	"errors"
 	"fmt"
-
-	"github.com/consensys/gnark/debug"
 )
 
 var (
@@ -67,11 +65,6 @@ func (b *BlueprintGenericSparseR1C) Solve(s Solver, calldata []uint32) error {
 	// constraint has at most one unsolved wire.
 	if !s.IsSolved(c.XA) {
 		// we solve for L: u1L+u2R+u3LR+u4O+k=0 => L(u1+u3R)+u2R+u4O+k = 0
-		if debug.Debug {
-			if !s.IsSolved(c.XB) || !s.IsSolved(c.XC) {
-				panic("missing wires")
-			}
-		}
 		u1 := s.GetCoeff(c.QL)
 		den := s.GetValue(c.QM, c.XB)
 		den = s.Add(den, u1)
@@ -87,11 +80,6 @@ func (b *BlueprintGenericSparseR1C) Solve(s Solver, calldata []uint32) error {
 		num = s.Neg(num)
 		s.SetValue(c.XA, num)
 	} else if !s.IsSolved(c.XB) {
-		if debug.Debug {
-			if !s.IsSolved(c.XA) || !s.IsSolved(c.XC) {
-				panic("missing wires")
-			}
-		}
 		u2 := s.GetCoeff(c.QR)
 		den := s.GetValue(c.QM, c.XA)
 		den = s.Add(den, u2)
@@ -107,7 +95,7 @@ func (b *BlueprintGenericSparseR1C) Solve(s Solver, calldata []uint32) error {
 		num = s.Add(num, s.GetCoeff(c.QC))
 		num = s.Mul(num, den)
 		num = s.Neg(num)
-		s.SetValue(c.XA, num)
+		s.SetValue(c.XB, num)
 
 	} else if !s.IsSolved(c.XC) {
 		// O we solve for O

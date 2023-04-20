@@ -337,7 +337,7 @@ func (s *solver) GetCoeff(cID uint32) constraint.Element {
 	return r
 }
 func (s *solver) SetValue(vID uint32, f constraint.Element) {
-	s.set(int(vID), fr.Element(f[:]))
+	s.set(int(vID), *(*fr.Element)(f[:]))
 }
 
 func (s *solver) IsSolved(vID uint32) bool {
