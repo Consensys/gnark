@@ -6,13 +6,6 @@ import (
 	"math/big"
 )
 
-// TODO: Correctly handle the case when one of the numbers is a constant
-// Interestingly when one of the two numbers is a constant, using bit by bit
-// comparison will produce five less constraints than using the
-// BoundedComparator. So, even if the gnark solver is able to recognize all
-// constants correctly (which is not currently), we would still need to handle
-// that special case explicitly here to minimize the number of constraints.
-
 // IsLessUnsigned returns 1 if a < b, and returns 0 if a >= b. The comparison
 // will be unsigned and all field elements will be treated as positive numbers.
 // Therefore, If the underlying field is of prime order P, the elements will be
@@ -70,8 +63,10 @@ func isLessRecursive(api frontend.API,
 			return 0
 		}
 	}
-
-	if useBoundedCmp && n <= api.Compiler().FieldBitLen()-2 {
+	// Interestingly when one of the two numbers is a constant, using bit by bit
+	// comparison will produce 3 fewer constraints than using the BoundedComparator.
+	if useBoundedCmp && n <= api.Compiler().FieldBitLen()-2 &&
+		isNotConstant(api, a[n-1]) && isNotConstant(api, b[n-1]) {
 		diffBound := new(big.Int).Lsh(big.NewInt(1), uint(n))
 		diffBound.Sub(diffBound, big.NewInt(1))
 		comparator := NewBoundedComparator(api, diffBound, false)
@@ -88,4 +83,9 @@ func isLessRecursive(api frontend.API,
 	eq := api.Add(a[n-1], b[n-1], api.Mul(-2, a[n-1], b[n-1]))
 	cmp := isLessRecursive(api, a[:n-1], b[:n-1], acceptEquality, useBoundedCmp)
 	return api.Add(cmp, api.Mul(eq, api.Sub(b[n-1], cmp)))
+}
+
+func isNotConstant(api frontend.API, x frontend.Variable) bool {
+	_, isConstant := api.Compiler().ConstantValue(x)
+	return !isConstant
 }
