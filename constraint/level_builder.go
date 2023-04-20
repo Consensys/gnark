@@ -34,7 +34,6 @@ func (system *System) updateLevel(iID int, c Iterable) {
 	// clean the table. NB! Do not remove or move, this is required to make the
 	// compilation deterministic.
 	system.lbOutputs = system.lbOutputs[:0]
-	system.lbHints = map[int]struct{}{}
 }
 
 func (system *System) processWire(wireID uint32, maxLevel *int) {

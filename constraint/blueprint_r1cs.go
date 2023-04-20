@@ -17,22 +17,19 @@ func (b *BlueprintGenericR1C) NbConstraints() int {
 func (b *BlueprintGenericR1C) CompressR1C(c *R1C) []uint32 {
 	// we store total nb inputs, len L, len R, len O, and then the "flatten" linear expressions
 	nbInputs := 4 + 2*(len(c.L)+len(c.R)+len(c.O))
-	if cap(bufR1C) < nbInputs {
-		bufR1C = make([]uint32, 0, nbInputs*2)
-	}
-	bufR1C = bufR1C[:0]
-	bufR1C = append(bufR1C, uint32(nbInputs))
-	bufR1C = append(bufR1C, uint32(len(c.L)), uint32(len(c.R)), uint32(len(c.O)))
+	r := getBuffer(nbInputs)
+	r = append(r, uint32(nbInputs))
+	r = append(r, uint32(len(c.L)), uint32(len(c.R)), uint32(len(c.O)))
 	for _, t := range c.L {
-		bufR1C = append(bufR1C, uint32(t.CoeffID()), uint32(t.WireID()))
+		r = append(r, uint32(t.CoeffID()), uint32(t.WireID()))
 	}
 	for _, t := range c.R {
-		bufR1C = append(bufR1C, uint32(t.CoeffID()), uint32(t.WireID()))
+		r = append(r, uint32(t.CoeffID()), uint32(t.WireID()))
 	}
 	for _, t := range c.O {
-		bufR1C = append(bufR1C, uint32(t.CoeffID()), uint32(t.WireID()))
+		r = append(r, uint32(t.CoeffID()), uint32(t.WireID()))
 	}
-	return bufR1C
+	return r
 }
 
 func (b *BlueprintGenericR1C) DecompressR1C(c *R1C, calldata []uint32) {
@@ -62,4 +59,14 @@ func (b *BlueprintGenericR1C) DecompressR1C(c *R1C, calldata []uint32) {
 
 // since frontend is single threaded, to avoid allocating slices at each compress call
 // we transit the compressed output through here
-var bufR1C []uint32
+var bufCalldata []uint32
+
+// getBuffer return a slice with at least the given capacity to use in Compress methods
+// this is obviously not thread safe, but the frontend is single threaded anyway.
+func getBuffer(size int) []uint32 {
+	if cap(bufCalldata) < size {
+		bufCalldata = make([]uint32, 0, size*2)
+	}
+	bufCalldata = bufCalldata[:0]
+	return bufCalldata
+}

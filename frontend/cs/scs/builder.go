@@ -71,7 +71,8 @@ type builder struct {
 	mulGate, addGate, boolGate constraint.BlueprintID
 
 	// used to avoid repeated allocations
-	lBuf expr.LinearExpression
+	bufL expr.LinearExpression
+	bufH []constraint.LinearExpression
 }
 
 // initialCapacity has quite some impact on frontend performance, especially on large circuits size
@@ -83,8 +84,10 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 		mAddInstructions: make(map[uint64]int, config.Capacity/2),
 		config:           config,
 		Store:            kvstore.New(),
-		lBuf:             make(expr.LinearExpression, 10),
+		bufL:             make(expr.LinearExpression, 20),
 	}
+	// init hint buffer.
+	_ = b.hintBuffer(256)
 
 	curve := utils.FieldToCurve(field)
 
@@ -315,6 +318,17 @@ func (builder *builder) constantValue(v frontend.Variable) (constraint.Element, 
 	return builder.cs.FromInterface(v), true
 }
 
+func (builder *builder) hintBuffer(size int) []constraint.LinearExpression {
+	if cap(builder.bufH) < size {
+		builder.bufH = make([]constraint.LinearExpression, 2*size)
+		for i := 0; i < len(builder.bufH); i++ {
+			builder.bufH[i] = make(constraint.LinearExpression, 1)
+		}
+	}
+
+	return builder.bufH[:size]
+}
+
 // NewHint initializes internal variables whose value will be evaluated using
 // the provided hint function at run time from the inputs. Inputs must be either
 // variables or convertible to *big.Int. The function returns an error if the
@@ -328,18 +342,19 @@ func (builder *builder) constantValue(v frontend.Variable) (constraint.Element, 
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
 func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-	hintInputs := make([]constraint.LinearExpression, len(inputs))
+
+	hintInputs := builder.hintBuffer(len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64
 	for i, in := range inputs {
 		switch t := in.(type) {
 		case expr.Term:
-			hintInputs[i] = constraint.LinearExpression{builder.cs.MakeTerm(&t.Coeff, t.VID)}
+			hintInputs[i][0] = builder.cs.MakeTerm(t.Coeff, t.VID)
 		default:
 			c := builder.cs.FromInterface(in)
-			term := builder.cs.MakeTerm(&c, 0)
+			term := builder.cs.MakeTerm(c, 0)
 			term.MarkConstant()
-			hintInputs[i] = constraint.LinearExpression{term}
+			hintInputs[i][0] = term
 		}
 	}
 
@@ -360,9 +375,9 @@ func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
 func (builder *builder) filterConstantSum(in []frontend.Variable) (expr.LinearExpression, constraint.Element) {
 	var res expr.LinearExpression
-	if len(in) <= cap(builder.lBuf) {
+	if len(in) <= cap(builder.bufL) {
 		// we can use the temp buffer
-		res = builder.lBuf[:0]
+		res = builder.bufL[:0]
 	} else {
 		res = make(expr.LinearExpression, 0, len(in))
 	}
@@ -381,9 +396,9 @@ func (builder *builder) filterConstantSum(in []frontend.Variable) (expr.LinearEx
 // returns in split into a slice of compiledTerm and the product of all constants in in as a coeff
 func (builder *builder) filterConstantProd(in []frontend.Variable) (expr.LinearExpression, constraint.Element) {
 	var res expr.LinearExpression
-	if len(in) <= cap(builder.lBuf) {
+	if len(in) <= cap(builder.bufL) {
 		// we can use the temp buffer
-		res = builder.lBuf[:0]
+		res = builder.bufL[:0]
 	} else {
 		res = make(expr.LinearExpression, 0, len(in))
 	}
@@ -470,7 +485,7 @@ func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Element)
 			a, b = b, a // ensure a is in qL
 		}
 
-		tk := builder.cs.MakeTerm(&k, 0)
+		tk := builder.cs.MakeTerm(k, 0)
 		if tk.CoeffID() != int(c.QC) {
 			// the constant part of the addition differs, no point going forward
 			// since we will need to add a new constraint anyway.
@@ -480,8 +495,8 @@ func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Element)
 		// check that the coeff matches
 		qL := a.Coeff
 		qR := b.Coeff
-		ta := builder.cs.MakeTerm(&qL, 0)
-		tb := builder.cs.MakeTerm(&qR, 0)
+		ta := builder.cs.MakeTerm(qL, 0)
+		tb := builder.cs.MakeTerm(qR, 0)
 		if int(c.QL) != ta.CoeffID() || int(c.QR) != tb.CoeffID() {
 			if !k.IsZero() {
 				// may be for some edge cases we could avoid adding a constraint here.
@@ -561,7 +576,7 @@ func (builder *builder) mulConstraintExist(a, b expr.Term) (expr.Term, bool) {
 
 		// recompute the qM coeff and check that it matches;
 		qM := builder.cs.Mul(a.Coeff, b.Coeff)
-		tm := builder.cs.MakeTerm(&qM, 0)
+		tm := builder.cs.MakeTerm(qM, 0)
 		if int(c.QM) != tm.CoeffID() {
 			// so we wanted to compute
 			// N * xC == qM*xA*xB
@@ -620,9 +635,9 @@ func (builder *builder) newDebugInfo(errName string, in ...interface{}) constrai
 		case *expr.LinearExpression, expr.LinearExpression:
 			// shouldn't happen
 		case expr.Term:
-			in[i] = builder.cs.MakeTerm(&t.Coeff, t.VID)
+			in[i] = builder.cs.MakeTerm(t.Coeff, t.VID)
 		case *expr.Term:
-			in[i] = builder.cs.MakeTerm(&t.Coeff, t.VID)
+			in[i] = builder.cs.MakeTerm(t.Coeff, t.VID)
 		case constraint.Element:
 			in[i] = builder.cs.String(t)
 		case *constraint.Element:
