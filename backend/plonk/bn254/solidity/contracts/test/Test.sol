@@ -44,10 +44,13 @@ contract TestContract {
 
   // }
 
+  event PrintBool(bool a);
+
   function test_plonk_vanilla() public returns(bool) {
 
     Types.Proof memory proof;
     Types.VerificationKey memory vk;
+    
     // uint256[] memory public_inputs = new uint256[](1);
 
     // public_inputs[0] = 35;
@@ -178,7 +181,7 @@ contract TestContract {
     vk.commitment_indices[0] = 3;
 
     bool res = PlonkVerifier.verify(proof, vk, public_inputs);
-
+    emit PrintBool(res);
     return res;
   }
 

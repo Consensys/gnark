@@ -1,10 +1,7 @@
-// Warning this code was contributed into gnark here: 
-// https://github.com/ConsenSys/gnark/pull/358
-// 
 // It has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability. 
 // 
 // According to https://eprint.iacr.org/archive/2019/953/1585767119.pdf
-pragma solidity ^0.8.0;
+pragma solidity >=0.6.0;
 
 library Bn254 {
 

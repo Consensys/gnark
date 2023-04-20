@@ -1,10 +1,7 @@
-// Warning this code was contributed into gnark here: 
-// https://github.com/ConsenSys/gnark/pull/358
-// 
 // It has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability. 
 // 
 // According to https://eprint.iacr.org/archive/2019/953/1585767119.pdf
-pragma solidity ^0.8.0;
+pragma solidity >=0.6.0;
 
 import {Bn254} from './crypto/Bn254.sol';
 import {Fr} from './crypto/Fr.sol';
@@ -25,6 +22,7 @@ library PlonkVerifier{
     using Types for *;
 
     uint256 constant STATE_WIDTH = 3;
+    uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
     function derive_gamma_beta_alpha_zeta(
 
@@ -79,7 +77,7 @@ library PlonkVerifier{
         Types.Proof memory proof,
         Types.VerificationKey memory vk,
         uint256[] memory public_inputs
-    ) internal returns (bool) {
+    ) internal view returns (bool) {
 
         // evaluation of Z=Xⁿ⁻¹ at ζ
         uint256 zeta_power_n_minus_one = Fr.pow(state.zeta, vk.domain_size);
@@ -122,15 +120,15 @@ library PlonkVerifier{
         state.alpha_square_lagrange = Fr.mul(state.alpha_square_lagrange, state.alpha);
         state.alpha_square_lagrange = Fr.mul(state.alpha_square_lagrange, state.alpha);  // α²*L₁(ζ)
         
-        uint256 compute_quotient;
-        compute_quotient = Fr.add(proof.linearization_polynomial_at_zeta, pi); // linearizedpolynomial + pi(zeta)
-        compute_quotient = Fr.add(compute_quotient, _s1); // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
-        compute_quotient = Fr.sub(compute_quotient, state.alpha_square_lagrange); // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
+        uint256 computed_quotient;
+        computed_quotient = Fr.add(proof.linearization_polynomial_at_zeta, pi); // linearizedpolynomial + pi(zeta)
+        computed_quotient = Fr.add(computed_quotient, _s1); // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
+        computed_quotient = Fr.sub(computed_quotient, state.alpha_square_lagrange); // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
 
-        // Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)
-        compute_quotient = Fr.div(compute_quotient, zeta_power_n_minus_one);
+        _s2 = Fr.mul(proof.quotient_polynomial_at_zeta, zeta_power_n_minus_one);
         
-        return compute_quotient == proof.quotient_polynomial_at_zeta;
+        // H(ζ)*(\zeta^{n}-1) ==?  lin_pol(\zeta)
+        return computed_quotient == _s2;
     }
 
     function fold_h(
@@ -239,7 +237,6 @@ library PlonkVerifier{
         digests[4] = proof.wire_commitments[2];
         digests[5] = vk.permutation_commitments[0];
         digests[6] = vk.permutation_commitments[1];
-        // digests[7] = vk.selector_commitments[5];
         for (uint i=0; i<vk.selector_commitments_commit_api.length; i++){
             digests[i+7] = vk.selector_commitments_commit_api[i];
         }
@@ -268,10 +265,9 @@ library PlonkVerifier{
     } 
 
     function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs)
-    internal returns (bool) {
+    internal view returns (bool) {
 
         Types.State memory state;
-
         
         // // step 1: derive gamma, beta, alpha, delta
         derive_gamma_beta_alpha_zeta(state, proof, vk, public_inputs);

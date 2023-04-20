@@ -1,24 +1,11 @@
-// Warning this code was contributed into gnark here: 
-// https://github.com/ConsenSys/gnark/pull/358
-// 
-// It has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability. 
+ // It has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability. 
 // 
 // According to https://eprint.iacr.org/archive/2019/953/1585767119.pdf
-pragma solidity ^0.8.0;
+pragma solidity >=0.6.0;
 
 library Fr {
 
     uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-
-    // syntaxic sugar, TO REMOVE
-    function add_assign(uint256 self, uint256 y) internal pure returns(uint256) {
-      return add(self, y);
-    }
-
-    // syntaxic sugar, TO REMOVE
-    function mul_assign(uint256 self, uint256 y) internal pure returns(uint256){
-      return mul(self, y);
-    }
 
     function add(uint256 x, uint256 y) internal pure returns(uint256 z) {
         z = addmod(x, y, r_mod);
