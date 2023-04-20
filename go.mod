@@ -1,6 +1,6 @@
 module github.com/consensys/gnark
 
-go 1.18
+go 1.19
 
 require (
 	github.com/bits-and-blooms/bitset v1.5.0

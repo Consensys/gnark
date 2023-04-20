@@ -10,11 +10,13 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
 
-func ExampleR1CS_GetConstraints() {
+func ExampleR1CS_GetR1Cs() {
 	// build a constraint system; this is (usually) done by the frontend package
 	// for this Example we want to manipulate the constraints and output a string representation
 	// and build the linear expressions "manually".
 	r1cs := cs.NewR1CS(0)
+
+	blueprint := r1cs.AddBlueprint(&constraint.BlueprintGenericR1C{})
 
 	ONE := r1cs.AddPublicVariable("1") // the "ONE" wire
 	Y := r1cs.AddPublicVariable("Y")
@@ -28,21 +30,21 @@ func ExampleR1CS_GetConstraints() {
 	cFive := r1cs.FromInterface(5)
 
 	// X² == X * X
-	r1cs.AddConstraint(constraint.R1C{
+	r1cs.AddR1C(constraint.R1C{
 		L: constraint.LinearExpression{r1cs.MakeTerm(&cOne, X)},
 		R: constraint.LinearExpression{r1cs.MakeTerm(&cOne, X)},
 		O: constraint.LinearExpression{r1cs.MakeTerm(&cOne, v0)},
-	})
+	}, blueprint)
 
 	// X³ == X² * X
-	r1cs.AddConstraint(constraint.R1C{
+	r1cs.AddR1C(constraint.R1C{
 		L: constraint.LinearExpression{r1cs.MakeTerm(&cOne, v0)},
 		R: constraint.LinearExpression{r1cs.MakeTerm(&cOne, X)},
 		O: constraint.LinearExpression{r1cs.MakeTerm(&cOne, v1)},
-	})
+	}, blueprint)
 
 	// Y == X³ + X + 5
-	r1cs.AddConstraint(constraint.R1C{
+	r1cs.AddR1C(constraint.R1C{
 		R: constraint.LinearExpression{r1cs.MakeTerm(&cOne, ONE)},
 		L: constraint.LinearExpression{r1cs.MakeTerm(&cOne, Y)},
 		O: constraint.LinearExpression{
@@ -50,13 +52,13 @@ func ExampleR1CS_GetConstraints() {
 			r1cs.MakeTerm(&cOne, X),
 			r1cs.MakeTerm(&cOne, v1),
 		},
-	})
+	}, blueprint)
 
 	// get the constraints
-	constraints, r := r1cs.GetConstraints()
+	constraints := r1cs.GetR1Cs()
 
 	for _, r1c := range constraints {
-		fmt.Println(r1c.String(r))
+		fmt.Println(r1c.String(r1cs))
 		// for more granularity use constraint.NewStringBuilder(r) that embeds a string.Builder
 		// and has WriteLinearExpression and WriteTerm methods.
 	}
