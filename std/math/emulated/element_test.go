@@ -876,3 +876,39 @@ func testIsZero[T FieldParams](t *testing.T) {
 		assert.ProverSucceeded(&circuit, &IsZeroCircuit[T]{X: ValueOf[T](X), Y: ValueOf[T](0), Zero: 0}, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
+
+type SqrtCircuit[T FieldParams] struct {
+	X, Expected Element[T]
+}
+
+func (c *SqrtCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	res := f.Sqrt(&c.X)
+	f.AssertIsEqual(res, &c.Expected)
+	return nil
+}
+
+func TestSqrt(t *testing.T) {
+	testSqrt[Goldilocks](t)
+	testSqrt[Secp256k1Fp](t)
+	testSqrt[BN254Fp](t)
+}
+
+func testSqrt[T FieldParams](t *testing.T) {
+	var fp T
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		var X *big.Int
+		exp := new(big.Int)
+		for {
+			X, _ = rand.Int(rand.Reader, fp.Modulus())
+			if exp.ModSqrt(X, fp.Modulus()) != nil {
+				break
+			}
+		}
+		assert.ProverSucceeded(&SqrtCircuit[T]{}, &SqrtCircuit[T]{X: ValueOf[T](X), Expected: ValueOf[T](exp)}, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+	}, testName[T]())
+}
