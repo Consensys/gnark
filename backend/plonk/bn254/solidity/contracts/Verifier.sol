@@ -31,7 +31,7 @@ library PlonkVerifier{
 
     function derive_gamma_beta_alpha_zeta(
 
-        Types.PartialVerifierState memory state,
+        Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk,
         uint256[] memory public_inputs) internal pure {
@@ -76,7 +76,7 @@ library PlonkVerifier{
 
      // plonk paper verify process step8: Compute quotient polynomial evaluation
     function verify_quotient_poly_eval_at_zeta(
-        Types.PartialVerifierState memory state,
+        Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk,
         uint256[] memory public_inputs
@@ -91,14 +91,13 @@ library PlonkVerifier{
         
         // if the commitment index is different than -1, it means Commit has been used
         // TODO modify the condition properly...       
-
         if (vk.commitment_index > 0) {
 
             string memory dst = "BSB22-Plonk";
             uint256 hash_res = UtilsFr.hash_fr(proof.wire_commitments[3].X, proof.wire_commitments[3].Y, dst);
 
             uint256 a = Polynomials.compute_ith_lagrange_at_z(vk.commitment_index+public_inputs.length, state.zeta, vk.omega, vk.domain_size);
-
+    
             a = Fr.mul(hash_res, a);
             pi = Fr.add(pi, a);
         }
@@ -137,7 +136,7 @@ library PlonkVerifier{
     }
 
     function fold_h(
-        Types.PartialVerifierState memory state,
+        Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk
     ) internal view {
@@ -153,7 +152,7 @@ library PlonkVerifier{
     }
 
     function compute_commitment_linearised_polynomial(
-        Types.PartialVerifierState memory state,
+        Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk
     ) internal view {
@@ -227,7 +226,7 @@ library PlonkVerifier{
     }
 
     function fold_state(
-        Types.PartialVerifierState memory state,
+        Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk
     ) internal view{
@@ -265,7 +264,7 @@ library PlonkVerifier{
     function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs)
     internal returns (bool) {
         
-        Types.PartialVerifierState memory state;
+        Types.State memory state;
         
         // step 1: derive gamma, beta, alpha, delta
         derive_gamma_beta_alpha_zeta(state, proof, vk, public_inputs);
@@ -300,7 +299,6 @@ library PlonkVerifier{
         points[1] = Fr.mul(state.zeta, vk.omega);
 
         valid = valid && Kzg.batch_verify_multi_points(digests, proofs, points, vk.g2_x);
-        emit PrintBool(valid);
 
         // return valid;
         return true;

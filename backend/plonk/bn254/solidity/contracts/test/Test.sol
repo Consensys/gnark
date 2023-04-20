@@ -16,34 +16,31 @@ contract TestContract {
   using TranscriptLibrary for *;
   using Fr for *;
 
-  event PrintUint256(uint256 a);
-  event PrintBool(bool a);
+  // function test_hash(uint256 x, uint256 y, string memory dst) public returns(uint256 res){
 
-  function test_hash(uint256 x, uint256 y, string memory dst) public returns(uint256 res){
+  //   res = UtilsFr.hash_fr(x, y, dst);
 
-    res = UtilsFr.hash_fr(x, y, dst);
+  //   emit PrintUint256(res);
 
-    emit PrintUint256(res);
+  //   return res;
 
-    return res;
+  // }
 
-  }
+  // function test_eval_ith_lagrange(uint256 i, uint256 z, uint256 w, uint256 n) public returns (uint256 res){
 
-  function test_eval_ith_lagrange(uint256 i, uint256 z, uint256 w, uint256 n) public returns (uint256 res){
+  //   res = Polynomials.compute_ith_lagrange_at_z(i, z, w, n);
 
-    res = Polynomials.compute_ith_lagrange_at_z(i, z, w, n);
+  //   emit PrintUint256(res);
 
-    emit PrintUint256(res);
+  // }
 
-  }
+  // function test_compute_sum_li_zi(uint256[] memory inputs, uint256 z, uint256 w, uint256 n) public returns (uint256 res){
 
-  function test_compute_sum_li_zi(uint256[] memory inputs, uint256 z, uint256 w, uint256 n) public returns (uint256 res){
+  //   res = Polynomials.compute_sum_li_zi(inputs, z, w, n);
 
-    res = Polynomials.compute_sum_li_zi(inputs, z, w, n);
+  //   emit PrintUint256(res);
 
-    emit PrintUint256(res);
-
-  }
+  // }
 
   function test_plonk_vanilla() public returns(bool) {
 

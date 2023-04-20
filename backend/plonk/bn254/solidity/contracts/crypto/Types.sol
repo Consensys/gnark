@@ -42,7 +42,7 @@ library Types {
         Bn254.G1Point opening_at_zeta_omega_proof;      // [Wzeta*omega]
     }
 
-    struct PartialVerifierState {
+    struct State {
      
         // challenges to check the claimed quotient
         uint256 alpha;
