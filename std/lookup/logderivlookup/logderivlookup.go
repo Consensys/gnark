@@ -135,7 +135,7 @@ func lookupHint(_ *big.Int, in []*big.Int, out []*big.Int) error {
 		if ptr >= nbTable {
 			return fmt.Errorf("lookup query %d outside table size %d", ptr, nbTable)
 		}
-		out[i] = in[ptr]
+		out[i].Set(in[ptr])
 	}
 	return nil
 }
