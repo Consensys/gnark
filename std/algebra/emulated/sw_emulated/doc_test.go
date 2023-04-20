@@ -27,7 +27,7 @@ func (c *ExampleCurveCircuit[B, S]) Define(api frontend.API) error {
 	g4 := curve.ScalarMul(G, &scalar4) // 4*G
 	scalar5 := emulated.ValueOf[S](5)
 	g5 := curve.ScalarMul(G, &scalar5) // 5*G
-	g9 := curve.Add(g4, g5)            // 9*G
+	g9 := curve.AddUnified(g4, g5)     // 9*G
 	curve.AssertIsEqual(g9, &c.Res)
 	return nil
 }

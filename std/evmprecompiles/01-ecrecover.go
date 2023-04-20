@@ -73,7 +73,7 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	// check u1 * G + u2 R == P
 	A := curve.ScalarMulBase(u1)
 	B := curve.ScalarMul(&R, u2)
-	C := curve.Add(A, B)
+	C := curve.AddUnified(A, B)
 	curve.AssertIsEqual(C, &P)
 	return &P
 }
