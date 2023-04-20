@@ -44,9 +44,9 @@ func (i *Commitment) SerializeCommitment(privateCommitment []byte, publicCommitt
 	copy(res, privateCommitment)
 
 	offset := len(privateCommitment)
-	for j, inJ := range publicCommitted {
-		offset += j * fieldByteLen
+	for _, inJ := range publicCommitted {
 		inJ.FillBytes(res[offset : offset+fieldByteLen])
+		offset += fieldByteLen
 	}
 
 	return res
