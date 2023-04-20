@@ -52,7 +52,7 @@ func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParam
 
 	qa := cr.ScalarMulBase(msInv)
 	qb := cr.ScalarMul(&pkpt, rsInv)
-	q := cr.Add(qa, qb)
+	q := cr.AddUnified(qa, qb)
 	qx := baseApi.Reduce(&q.X)
 	qxBits := baseApi.ToBits(qx)
 	rbits := scalarApi.ToBits(&sig.R)

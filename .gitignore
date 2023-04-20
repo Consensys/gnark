@@ -50,3 +50,7 @@ gnarkd/circuits/**
 
 # Jetbrains stuff
 .idea/
+
+# go workspace
+go.work
+go.work.sum

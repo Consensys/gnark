@@ -18,6 +18,7 @@ package plonk
 
 import (
 	"errors"
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
@@ -27,44 +28,25 @@ import (
 	kzgg "github.com/consensys/gnark-crypto/kzg"
 )
 
-// ProvingKey stores the data needed to generate a proof:
-// * the commitment scheme
-// * ql, prepended with as many ones as they are public inputs
-// * qr, qm, qo prepended with as many zeroes as there are public inputs.
-// * qk, prepended with as many zeroes as public inputs, to be completed by the prover
-// with the list of public inputs.
-// * sigma_1, sigma_2, sigma_3 in both basis
-// * the copy constraint permutation
-type ProvingKey struct {
-	// Verifying Key is embedded into the proving key (needed by Prove)
-	Vk *VerifyingKey
+// Trace stores a plonk trace as columns
+type Trace struct {
 
-	// TODO store iop.Polynomial here, not []fr.Element for more "type safety"
+	// Constants describing a plonk circuit. The first entries
+	// of LQk (whose index correspond to the public inputs) are set to 0, and are to be
+	// completed by the prover. At those indices i (so from 0 to nb_public_variables), LQl[i]=-1
+	// so the first nb_public_variables constraints look like this:
+	// -1*Wire[i] + 0* + 0 . It is zero when the constant coefficient is replaced by Wire[i].
+	Ql, Qr, Qm, Qo, Qk, Qcp *iop.Polynomial
 
-	// qr,ql,qm,qo (in canonical basis).
-	Ql, Qr, Qm, Qo []fr.Element
+	// Polynomials representing the splitted permutation. The full permutation's support is 3*N where N=nb wires.
+	// The set of interpolation is <g> of size N, so to represent the permutation S we let S acts on the
+	// set A=(<g>, u*<g>, u^{2}*<g>) of size 3*N, where u is outside <g> (its use is to shift the set <g>).
+	// We obtain a permutation of A, A'. We split A' in 3 (A'_{1}, A'_{2}, A'_{3}), and S1, S2, S3 are
+	// respectively the interpolation of A'_{1}, A'_{2}, A'_{3} on <g>.
+	S1, S2, S3 *iop.Polynomial
 
-	// qr,ql,qm,qo (in lagrange coset basis) --> these are not serialized, but computed from Ql, Qr, Qm, Qo once.
-	lQl, lQr, lQm, lQo []fr.Element
-
-	// LQk (CQk) qk in Lagrange basis (canonical basis), prepended with as many zeroes as public inputs.
-	// Storing LQk in Lagrange basis saves a fft...
-	CQk, LQk []fr.Element
-
-	// Domains used for the FFTs.
-	// Domain[0] = small Domain
-	// Domain[1] = big Domain
-	Domain [2]fft.Domain
-	// Domain[0], Domain[1] fft.Domain
-
-	// Permutation polynomials
-	S1Canonical, S2Canonical, S3Canonical []fr.Element
-
-	// in lagrange coset basis --> these are not serialized, but computed from S1Canonical, S2Canonical, S3Canonical once.
-	lS1LagrangeCoset, lS2LagrangeCoset, lS3LagrangeCoset []fr.Element
-
-	// position -> permuted position (position in [0,3*sizeSystem-1])
-	Permutation []int64
+	// S full permutation, i -> S[i]
+	S []int64
 }
 
 // VerifyingKey stores the data needed to verify a proof:
@@ -73,6 +55,7 @@ type ProvingKey struct {
 // * Commitments of qr, qm, qo, qk prepended with as many zeroes as there are public inputs
 // * Commitments to S1, S2, S3
 type VerifyingKey struct {
+
 	// Size circuit
 	Size              uint64
 	SizeInv           fr.Element
@@ -88,25 +71,269 @@ type VerifyingKey struct {
 	// S commitments to S1, S2, S3
 	S [3]kzg.Digest
 
-	// Commitments to ql, qr, qm, qo prepended with as many zeroes (ones for l) as there are public inputs.
+	// Commitments to ql, qr, qm, qo, qcp prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
-	Ql, Qr, Qm, Qo, Qk kzg.Digest
+	Ql, Qr, Qm, Qo, Qk, Qcp kzg.Digest
+
+	CommitmentConstraintIndexes []uint64
 }
 
-// Setup sets proving and verifying keys
+// ProvingKey stores the data needed to generate a proof:
+// * the commitment scheme
+// * ql, prepended with as many ones as they are public inputs
+// * qr, qm, qo prepended with as many zeroes as there are public inputs.
+// * qk, prepended with as many zeroes as public inputs, to be completed by the prover
+// with the list of public inputs.
+// * sigma_1, sigma_2, sigma_3 in both basis
+// * the copy constraint permutation
+type ProvingKey struct {
+
+	// stores ql, qr, qm, qo, qk (-> to be completed by the prover)
+	// and s1, s2, s3. They are set in canonical basis before generating the proof, they will be used
+	// for computing the opening proofs (hence the canonical form). The canonical version
+	// of qk incomplete is used in the linearisation polynomial.
+	// The polynomials in trace are in canonical basis.
+	trace Trace
+
+	// Verifying Key is embedded into the proving key (needed by Prove)
+	Vk *VerifyingKey
+
+	// qr,ql,qm,qo,qcp in LagrangeCoset --> these are not serialized, but computed from Ql, Qr, Qm, Qo, Qcp once.
+	lcQl, lcQr, lcQm, lcQo, lcQcp *iop.Polynomial
+
+	// LQk qk in Lagrange form -> to be completed by the prover. After being completed,
+	lQk *iop.Polynomial
+
+	// Domains used for the FFTs.
+	// Domain[0] = small Domain
+	// Domain[1] = big Domain
+	Domain [2]fft.Domain
+
+	// in lagrange coset basis --> these are not serialized, but computed from S1Canonical, S2Canonical, S3Canonical once.
+	lcS1, lcS2, lcS3 *iop.Polynomial
+
+	// in lagrange coset basis --> not serialized id and L_{g^{0}}
+	lcIdIOP, lLoneIOP *iop.Polynomial
+}
+
 func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
+
 	var pk ProvingKey
 	var vk VerifyingKey
-
-	// The verifying key shares data with the proving key
 	pk.Vk = &vk
+	if spr.CommitmentInfo.Is() {
+		vk.CommitmentConstraintIndexes = []uint64{uint64(spr.CommitmentInfo.CommitmentIndex)}
+	}
+	// nbConstraints := len(spr.Constraints)
+
+	// step 0: set the fft domains
+	pk.initDomains(spr)
+
+	// step 1: set the verifying key
+	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
+	vk.Size = pk.Domain[0].Cardinality
+	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
+	vk.Generator.Set(&pk.Domain[0].Generator)
+	vk.NbPublicVariables = uint64(len(spr.Public))
+	if err := pk.InitKZG(srs); err != nil {
+		return nil, nil, err
+	}
+
+	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
+	BuildTrace(spr, &pk.trace)
+
+	// step 3: build the permutation and build the polynomials S1, S2, S3 to encode the permutation.
+	// Note: at this stage, the permutation takes in account the placeholders
+	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
+	buildPermutation(spr, &pk.trace, nbVariables)
+	s := computePermutationPolynomials(&pk.trace, &pk.Domain[0])
+	pk.trace.S1 = s[0]
+	pk.trace.S2 = s[1]
+	pk.trace.S3 = s[2]
+
+	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
+	// All the above polynomials are expressed in canonical basis afterwards. This is why
+	// we save lqk before, because the prover needs to complete it in Lagrange form, and
+	// then express it on the Lagrange coset basis.
+	pk.lQk = pk.trace.Qk.Clone() // it will be completed by the prover, and the evaluated on the coset
+	err := commitTrace(&pk.trace, &pk)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// step 5: evaluate ql, qr, qm, qo, s1, s2, s3 on LagrangeCoset (NOT qk)
+	// we clone them, because the canonical versions are going to be used in
+	// the opening proof
+	pk.computeLagrangeCosetPolys()
+
+	return &pk, &vk, nil
+}
+
+// computeLagrangeCosetPolys computes each polynomial except qk in Lagrange coset
+// basis. Qk will be evaluated in Lagrange coset basis once it is completed by the prover.
+func (pk *ProvingKey) computeLagrangeCosetPolys() {
+	pk.lcQcp = pk.trace.Qcp.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcQl = pk.trace.Ql.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcQr = pk.trace.Qr.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcQm = pk.trace.Qm.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcQo = pk.trace.Qo.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcS1 = pk.trace.S1.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcS2 = pk.trace.S2.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcS3 = pk.trace.S3.Clone().ToLagrangeCoset(&pk.Domain[1])
+
+	// storing Id
+	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
+	id := make([]fr.Element, pk.Domain[1].Cardinality)
+	id[0].Set(&pk.Domain[1].FrMultiplicativeGen)
+	for i := 1; i < int(pk.Domain[1].Cardinality); i++ {
+		id[i].Mul(&id[i-1], &pk.Domain[1].Generator)
+	}
+	pk.lcIdIOP = iop.NewPolynomial(&id, lagReg)
+
+	// L_{g^{0}}
+	cap := pk.Domain[1].Cardinality
+	if cap < pk.Domain[0].Cardinality {
+		cap = pk.Domain[0].Cardinality // sanity check
+	}
+	lone := make([]fr.Element, pk.Domain[0].Cardinality, cap)
+	lone[0].SetOne()
+	pk.lLoneIOP = iop.NewPolynomial(&lone, lagReg).ToCanonical(&pk.Domain[0]).
+		ToRegular().
+		ToLagrangeCoset(&pk.Domain[1])
+}
+
+// NbPublicWitness returns the expected public witness size (number of field elements)
+func (vk *VerifyingKey) NbPublicWitness() int {
+	return int(vk.NbPublicVariables)
+}
+
+// VerifyingKey returns pk.Vk
+func (pk *ProvingKey) VerifyingKey() interface{} {
+	return pk.Vk
+}
+
+// InitKZG inits pk.Vk.KZG using pk.Domain[0] cardinality and provided SRS
+//
+// This should be used after deserializing a ProvingKey
+// as pk.Vk.KZG is NOT serialized
+func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
+	return pk.Vk.InitKZG(srs)
+}
+
+// InitKZG inits vk.KZG using provided SRS
+//
+// This should be used after deserializing a VerifyingKey
+// as vk.KZG is NOT serialized
+//
+// Note that this instantiates a new FFT domain using vk.Size
+func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
+	_srs := srs.(*kzg.SRS)
+
+	if len(_srs.G1) < int(vk.Size) {
+		return errors.New("kzg srs is too small")
+	}
+	vk.KZGSRS = _srs
+
+	return nil
+}
+
+// BuildTrace fills the constatn columns ql, qr, qm, qo, qk from the sparser1cs.
+// Size is the size of the system that is nb_constraints+nb_public_variables
+func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 
 	nbConstraints := len(spr.Constraints)
+	sizeSystem := uint64(nbConstraints + len(spr.Public))
+	size := ecc.NextPowerOfTwo(sizeSystem)
 
-	// fft domains
+	ql := make([]fr.Element, size)
+	qr := make([]fr.Element, size)
+	qm := make([]fr.Element, size)
+	qo := make([]fr.Element, size)
+	qk := make([]fr.Element, size)
+	qcp := make([]fr.Element, size)
+
+	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistent
+		ql[i].SetOne().Neg(&ql[i])
+		qr[i].SetZero()
+		qm[i].SetZero()
+		qo[i].SetZero()
+		qk[i].SetZero() // → to be completed by the prover
+	}
+	offset := len(spr.Public)
+	for i := 0; i < nbConstraints; i++ { // constraints
+
+		ql[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
+		qr[offset+i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
+		qm[offset+i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
+			Mul(&qm[offset+i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
+		qo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
+		qk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
+	}
+	for _, committed := range spr.CommitmentInfo.Committed {
+		qcp[offset+committed].SetOne()
+	}
+
+	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
+
+	pt.Ql = iop.NewPolynomial(&ql, lagReg)
+	pt.Qr = iop.NewPolynomial(&qr, lagReg)
+	pt.Qm = iop.NewPolynomial(&qm, lagReg)
+	pt.Qo = iop.NewPolynomial(&qo, lagReg)
+	pt.Qk = iop.NewPolynomial(&qk, lagReg)
+	pt.Qcp = iop.NewPolynomial(&qcp, lagReg)
+
+}
+
+// commitTrace commits to every polynomials in the trace, and put
+// the commitments int the verifying key.
+func commitTrace(trace *Trace, pk *ProvingKey) error {
+
+	trace.Ql.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.Qr.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.Qm.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.Qo.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.Qk.ToCanonical(&pk.Domain[0]).ToRegular() // -> qk is not complete
+	trace.Qcp.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.S1.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.S2.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.S3.ToCanonical(&pk.Domain[0]).ToRegular()
+
+	var err error
+	if pk.Vk.Ql, err = kzg.Commit(pk.trace.Ql.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
+	}
+	if pk.Vk.Qr, err = kzg.Commit(pk.trace.Qr.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
+	}
+	if pk.Vk.Qm, err = kzg.Commit(pk.trace.Qm.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
+	}
+	if pk.Vk.Qo, err = kzg.Commit(pk.trace.Qo.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
+	}
+	if pk.Vk.Qk, err = kzg.Commit(pk.trace.Qk.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
+	}
+	if pk.Vk.Qcp, err = kzg.Commit(pk.trace.Qcp.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
+	}
+	if pk.Vk.S[0], err = kzg.Commit(pk.trace.S1.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
+	}
+	if pk.Vk.S[1], err = kzg.Commit(pk.trace.S2.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
+	}
+	if pk.Vk.S[2], err = kzg.Commit(pk.trace.S3.Coefficients(), pk.Vk.KZGSRS); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (pk *ProvingKey) initDomains(spr *cs.SparseR1CS) {
+
+	nbConstraints := len(spr.Constraints)
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	pk.Domain[0] = *fft.NewDomain(sizeSystem)
-	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
 	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
@@ -116,92 +343,6 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	} else {
 		pk.Domain[1] = *fft.NewDomain(4 * sizeSystem)
 	}
-
-	vk.Size = pk.Domain[0].Cardinality
-	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
-	vk.Generator.Set(&pk.Domain[0].Generator)
-	vk.NbPublicVariables = uint64(len(spr.Public))
-
-	if err := pk.InitKZG(srs); err != nil {
-		return nil, nil, err
-	}
-
-	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
-	pk.Ql = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.Qr = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.Qm = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.Qo = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.CQk = make([]fr.Element, pk.Domain[0].Cardinality)
-	pk.LQk = make([]fr.Element, pk.Domain[0].Cardinality)
-
-	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
-		pk.Ql[i].SetOne().Neg(&pk.Ql[i])
-		pk.Qr[i].SetZero()
-		pk.Qm[i].SetZero()
-		pk.Qo[i].SetZero()
-		pk.CQk[i].SetZero()
-		pk.LQk[i].SetZero() // → to be completed by the prover
-	}
-	offset := len(spr.Public)
-	for i := 0; i < nbConstraints; i++ { // constraints
-
-		pk.Ql[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
-		pk.Qr[offset+i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
-		pk.Qm[offset+i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
-			Mul(&pk.Qm[offset+i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
-		pk.Qo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
-		pk.CQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
-		pk.LQk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
-	}
-
-	pk.Domain[0].FFTInverse(pk.Ql, fft.DIF)
-	pk.Domain[0].FFTInverse(pk.Qr, fft.DIF)
-	pk.Domain[0].FFTInverse(pk.Qm, fft.DIF)
-	pk.Domain[0].FFTInverse(pk.Qo, fft.DIF)
-	pk.Domain[0].FFTInverse(pk.CQk, fft.DIF)
-	fft.BitReverse(pk.Ql)
-	fft.BitReverse(pk.Qr)
-	fft.BitReverse(pk.Qm)
-	fft.BitReverse(pk.Qo)
-	fft.BitReverse(pk.CQk)
-
-	// build permutation. Note: at this stage, the permutation takes in account the placeholders
-	buildPermutation(spr, &pk)
-
-	// set s1, s2, s3
-	ccomputePermutationPolynomials(&pk)
-
-	// compute the lagrange coset basis versions (not serialized)
-	pk.computeLagrangeCosetPolys()
-
-	// Commit to the polynomials to set up the verifying key
-	var err error
-	if vk.Ql, err = kzg.Commit(pk.Ql, vk.KZGSRS); err != nil {
-		return nil, nil, err
-	}
-	if vk.Qr, err = kzg.Commit(pk.Qr, vk.KZGSRS); err != nil {
-		return nil, nil, err
-	}
-	if vk.Qm, err = kzg.Commit(pk.Qm, vk.KZGSRS); err != nil {
-		return nil, nil, err
-	}
-	if vk.Qo, err = kzg.Commit(pk.Qo, vk.KZGSRS); err != nil {
-		return nil, nil, err
-	}
-	if vk.Qk, err = kzg.Commit(pk.CQk, vk.KZGSRS); err != nil {
-		return nil, nil, err
-	}
-	if vk.S[0], err = kzg.Commit(pk.S1Canonical, vk.KZGSRS); err != nil {
-		return nil, nil, err
-	}
-	if vk.S[1], err = kzg.Commit(pk.S2Canonical, vk.KZGSRS); err != nil {
-		return nil, nil, err
-	}
-	if vk.S[2], err = kzg.Commit(pk.S3Canonical, vk.KZGSRS); err != nil {
-		return nil, nil, err
-	}
-
-	return &pk, &vk, nil
 
 }
 
@@ -217,19 +358,20 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 // The permutation is encoded as a slice s of size 3*size(l), where the
 // i-th entry of l∥r∥o is sent to the s[i]-th entry, so it acts on a tab
 // like this: for i in tab: tab[i] = tab[permutation[i]]
-func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
+func buildPermutation(spr *cs.SparseR1CS, pt *Trace, nbVariables int) {
 
-	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
-	sizeSolution := int(pk.Domain[0].Cardinality)
+	// nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
+	sizeSolution := len(pt.Ql.Coefficients())
+	sizePermutation := 3 * sizeSolution
 
 	// init permutation
-	pk.Permutation = make([]int64, 3*sizeSolution)
-	for i := 0; i < len(pk.Permutation); i++ {
-		pk.Permutation[i] = -1
+	permutation := make([]int64, sizePermutation)
+	for i := 0; i < len(permutation); i++ {
+		permutation[i] = -1
 	}
 
 	// init LRO position -> variable_ID
-	lro := make([]int, 3*sizeSolution) // position -> variable_ID
+	lro := make([]int, sizePermutation) // position -> variable_ID
 	for i := 0; i < len(spr.Public); i++ {
 		lro[i] = i // IDs of LRO associated to placeholders (only L needs to be taken care of)
 	}
@@ -252,95 +394,54 @@ func buildPermutation(spr *cs.SparseR1CS, pk *ProvingKey) {
 		if cycle[lro[i]] != -1 {
 			// if != -1, it means we already encountered this value
 			// so we need to set the corresponding permutation index.
-			pk.Permutation[i] = cycle[lro[i]]
+			permutation[i] = cycle[lro[i]]
 		}
 		cycle[lro[i]] = int64(i)
 	}
 
 	// complete the Permutation by filling the first IDs encountered
-	for i := 0; i < len(pk.Permutation); i++ {
-		if pk.Permutation[i] == -1 {
-			pk.Permutation[i] = cycle[lro[i]]
+	for i := 0; i < sizePermutation; i++ {
+		if permutation[i] == -1 {
+			permutation[i] = cycle[lro[i]]
 		}
 	}
+
+	pt.S = permutation
 }
 
-func (pk *ProvingKey) computeLagrangeCosetPolys() {
-	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
-	wqliop := iop.NewPolynomial(clone(pk.Ql, pk.Domain[1].Cardinality), canReg)
-	wqriop := iop.NewPolynomial(clone(pk.Qr, pk.Domain[1].Cardinality), canReg)
-	wqmiop := iop.NewPolynomial(clone(pk.Qm, pk.Domain[1].Cardinality), canReg)
-	wqoiop := iop.NewPolynomial(clone(pk.Qo, pk.Domain[1].Cardinality), canReg)
+// computePermutationPolynomials computes the LDE (Lagrange basis) of the permutation.
+// We let the permutation act on <g> || u<g> || u^{2}<g>, split the result in 3 parts,
+// and interpolate each of the 3 parts on <g>.
+func computePermutationPolynomials(pt *Trace, domain *fft.Domain) [3]*iop.Polynomial {
 
-	ws1 := iop.NewPolynomial(clone(pk.S1Canonical, pk.Domain[1].Cardinality), canReg)
-	ws2 := iop.NewPolynomial(clone(pk.S2Canonical, pk.Domain[1].Cardinality), canReg)
-	ws3 := iop.NewPolynomial(clone(pk.S3Canonical, pk.Domain[1].Cardinality), canReg)
+	nbElmts := int(domain.Cardinality)
 
-	wqliop.ToLagrangeCoset(&pk.Domain[1])
-	wqriop.ToLagrangeCoset(&pk.Domain[1])
-	wqmiop.ToLagrangeCoset(&pk.Domain[1])
-	wqoiop.ToLagrangeCoset(&pk.Domain[1])
-
-	ws1.ToLagrangeCoset(&pk.Domain[1])
-	ws2.ToLagrangeCoset(&pk.Domain[1])
-	ws3.ToLagrangeCoset(&pk.Domain[1])
-
-	pk.lQl = wqliop.Coefficients()
-	pk.lQr = wqriop.Coefficients()
-	pk.lQm = wqmiop.Coefficients()
-	pk.lQo = wqoiop.Coefficients()
-
-	pk.lS1LagrangeCoset = ws1.Coefficients()
-	pk.lS2LagrangeCoset = ws2.Coefficients()
-	pk.lS3LagrangeCoset = ws3.Coefficients()
-}
-
-func clone(input []fr.Element, capacity uint64) *[]fr.Element {
-	res := make([]fr.Element, len(input), capacity)
-	copy(res, input)
-	return &res
-}
-
-// ccomputePermutationPolynomials computes the LDE (Lagrange basis) of the permutations
-// s1, s2, s3.
-//
-// 1	z 	..	z**n-1	|	u	uz	..	u*z**n-1	|	u**2	u**2*z	..	u**2*z**n-1  |
-//
-//																						 |
-//	      																				 | Permutation
-//
-// s11  s12 ..   s1n	   s21 s22 	 ..		s2n		     s31 	s32 	..		s3n		 v
-// \---------------/       \--------------------/        \------------------------/
-//
-//	s1 (LDE)                s2 (LDE)                          s3 (LDE)
-func ccomputePermutationPolynomials(pk *ProvingKey) {
-
-	nbElmts := int(pk.Domain[0].Cardinality)
+	var res [3]*iop.Polynomial
 
 	// Lagrange form of ID
-	evaluationIDSmallDomain := getIDSmallDomain(&pk.Domain[0])
+	evaluationIDSmallDomain := getSupportPermutation(domain)
 
 	// Lagrange form of S1, S2, S3
-	pk.S1Canonical = make([]fr.Element, nbElmts)
-	pk.S2Canonical = make([]fr.Element, nbElmts)
-	pk.S3Canonical = make([]fr.Element, nbElmts)
+	s1Canonical := make([]fr.Element, nbElmts)
+	s2Canonical := make([]fr.Element, nbElmts)
+	s3Canonical := make([]fr.Element, nbElmts)
 	for i := 0; i < nbElmts; i++ {
-		pk.S1Canonical[i].Set(&evaluationIDSmallDomain[pk.Permutation[i]])
-		pk.S2Canonical[i].Set(&evaluationIDSmallDomain[pk.Permutation[nbElmts+i]])
-		pk.S3Canonical[i].Set(&evaluationIDSmallDomain[pk.Permutation[2*nbElmts+i]])
+		s1Canonical[i].Set(&evaluationIDSmallDomain[pt.S[i]])
+		s2Canonical[i].Set(&evaluationIDSmallDomain[pt.S[nbElmts+i]])
+		s3Canonical[i].Set(&evaluationIDSmallDomain[pt.S[2*nbElmts+i]])
 	}
 
-	// Canonical form of S1, S2, S3
-	pk.Domain[0].FFTInverse(pk.S1Canonical, fft.DIF)
-	pk.Domain[0].FFTInverse(pk.S2Canonical, fft.DIF)
-	pk.Domain[0].FFTInverse(pk.S3Canonical, fft.DIF)
-	fft.BitReverse(pk.S1Canonical)
-	fft.BitReverse(pk.S2Canonical)
-	fft.BitReverse(pk.S3Canonical)
+	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
+	res[0] = iop.NewPolynomial(&s1Canonical, lagReg)
+	res[1] = iop.NewPolynomial(&s2Canonical, lagReg)
+	res[2] = iop.NewPolynomial(&s3Canonical, lagReg)
+
+	return res
 }
 
-// getIDSmallDomain returns the Lagrange form of ID on the small domain
-func getIDSmallDomain(domain *fft.Domain) []fr.Element {
+// getSupportPermutation returns the support on which the permutation acts, it is
+// <g> || u<g> || u^{2}<g>
+func getSupportPermutation(domain *fft.Domain) []fr.Element {
 
 	res := make([]fr.Element, 3*domain.Cardinality)
 
@@ -355,39 +456,4 @@ func getIDSmallDomain(domain *fft.Domain) []fr.Element {
 	}
 
 	return res
-}
-
-// InitKZG inits pk.Vk.KZG using pk.Domain[0] cardinality and provided SRS
-//
-// This should be used after deserializing a ProvingKey
-// as pk.Vk.KZG is NOT serialized
-func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
-	return pk.Vk.InitKZG(srs)
-}
-
-// InitKZG inits vk.KZG using provided SRS
-//
-// This should be used after deserializing a VerifyingKey
-// as vk.KZG is NOT serialized
-//
-// Note that this instantiate a new FFT domain using vk.Size
-func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
-	_srs := srs.(*kzg.SRS)
-
-	if len(_srs.G1) < int(vk.Size) {
-		return errors.New("kzg srs is too small")
-	}
-	vk.KZGSRS = _srs
-
-	return nil
-}
-
-// NbPublicWitness returns the expected public witness size (number of field elements)
-func (vk *VerifyingKey) NbPublicWitness() int {
-	return int(vk.NbPublicVariables)
-}
-
-// VerifyingKey returns pk.Vk
-func (pk *ProvingKey) VerifyingKey() interface{} {
-	return pk.Vk
 }

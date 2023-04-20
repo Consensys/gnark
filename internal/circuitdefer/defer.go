@@ -15,9 +15,7 @@ func Put[T any](builder any, cb T) {
 	}
 	val := kv.GetKeyValue(deferKey{})
 	var deferred []T
-	if val == nil {
-		deferred = []T{cb}
-	} else {
+	if val != nil {
 		var ok bool
 		deferred, ok = val.([]T)
 		if !ok {

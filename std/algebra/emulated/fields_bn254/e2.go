@@ -3,6 +3,8 @@ package fields_bn254
 import (
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -14,32 +16,27 @@ type E2 struct {
 }
 
 type Ext2 struct {
+	api         frontend.API
 	fp          *curveF
 	nonResidues map[int]map[int]*E2
 }
 
-func NewExt2(baseField *curveF) *Ext2 {
+func NewExt2(api frontend.API) *Ext2 {
+	fp, err := emulated.NewField[emulated.BN254Fp](api)
+	if err != nil {
+		// TODO: we start returning errors when generifying
+		panic(err)
+	}
 	pwrs := map[int]map[int]struct {
 		A0 string
 		A1 string
 	}{
-		0: {
-			-1: {"21087453498479301738505683583845423561061080261299122796980902361914303298513", "14681138511599513868579906292550611339979233093309515871315818100066920017952"},
-			1:  {"9", "1"},
-		},
 		1: {
 			1: {"8376118865763821496583973867626364092589906065868298776909617916018768340080", "16469823323077808223889137241176536799009286646108169935659301613961712198316"},
 			2: {"21575463638280843010398324269430826099269044274347216827212613867836435027261", "10307601595873709700152284273816112264069230130616436755625194854815875713954"},
 			3: {"2821565182194536844548159561693502659359617185244120367078079554186484126554", "3505843767911556378687030309984248845540243509899259641013678093033130930403"},
 			4: {"2581911344467009335267311115468803099551665605076196740867805258568234346338", "19937756971775647987995932169929341994314640652964949448313374472400716661030"},
 			5: {"685108087231508774477564247770172212460312782337200605669322048753928464687", "8447204650696766136447902020341177575205426561248465145919723016860428151883"},
-		},
-		2: {
-			1: {"21888242871839275220042445260109153167277707414472061641714758635765020556617", "0"},
-			2: {"21888242871839275220042445260109153167277707414472061641714758635765020556616", "0"},
-			3: {"21888242871839275222246405745257275088696311157297823662689037894645226208582", "0"},
-			4: {"2203960485148121921418603742825762020974279258880205651966", "0"},
-			5: {"2203960485148121921418603742825762020974279258880205651967", "0"},
 		},
 		3: {
 			1: {"11697423496358154304825782922584725312912383441159505038794027105778954184319", "303847389135065887422783454877609941456349188919719272345083954437860409601"},
@@ -59,26 +56,31 @@ func NewExt2(baseField *curveF) *Ext2 {
 			nonResidues[pwr][coeff] = &el
 		}
 	}
-	return &Ext2{fp: baseField, nonResidues: nonResidues}
+	return &Ext2{api: api, fp: fp, nonResidues: nonResidues}
 }
 
-// TODO: check where to use Mod and where ModMul.
-
 func (e Ext2) MulByElement(x *E2, y *baseEl) *E2 {
-	// var yCopy fp.Element
-	// yCopy.Set(y)
-	z0 := e.fp.MulMod(&x.A0, y) // z.A0.Mul(&x.A0, &yCopy)
-	z1 := e.fp.MulMod(&x.A1, y) // z.A1.Mul(&x.A1, &yCopy)
-	return &E2{                 // return z
+	z0 := e.fp.MulMod(&x.A0, y)
+	z1 := e.fp.MulMod(&x.A1, y)
+	return &E2{
+		A0: *z0,
+		A1: *z1,
+	}
+}
+
+func (e Ext2) MulByConstElement(x *E2, y *big.Int) *E2 {
+	z0 := e.fp.MulConst(&x.A0, y)
+	z1 := e.fp.MulConst(&x.A1, y)
+	return &E2{
 		A0: *z0,
 		A1: *z1,
 	}
 }
 
 func (e Ext2) Conjugate(x *E2) *E2 {
-	z0 := x.A0            // z.A0 = x.A0
-	z1 := e.fp.Neg(&x.A1) // z.A1.Neg(&x.A1)
-	return &E2{           // return z
+	z0 := x.A0
+	z1 := e.fp.Neg(&x.A1)
+	return &E2{
 		A0: z0,
 		A1: *z1,
 	}
@@ -90,111 +92,123 @@ func (e Ext2) MulByNonResidueGeneric(x *E2, power, coef int) *E2 {
 	return z
 }
 
+// MulByNonResidue return x*(9+u)
 func (e Ext2) MulByNonResidue(x *E2) *E2 {
-	/*
-		// below is the direct transliteration of the gnark-crypto code. Now only,
-		// for simplicity and debugging purposes, we do the non residue operations
-		// without optimisations.
-
-		nine := big.NewInt(9)
-		// var a, b fp.Element
-		a := e.fp.MulConst(&x.A0, nine) // a.Double(&x.A0).Double(&a).Double(&a).Add(&a, &x.A0).
-		a = e.fp.Sub(a, &x.A1)          //   Sub(&a, &x.A1)
-		b := e.fp.MulConst(&x.A1, nine) // b.Double(&x.A1).Double(&b).Double(&b).Add(&b, &x.A1).
-		b = e.fp.Add(b, &x.A0)          //   Add(&b, &x.A0)
-		return &E2{
-			A0: *a, // z.A0.Set(&a)
-			A1: *b, // z.A1.Set(&b)
-		} // return z
-	*/
-	// TODO: inline non-residue Multiplication
-	return e.MulByNonResidueGeneric(x, 0, 1)
+	nine := big.NewInt(9)
+	a := e.fp.MulConst(&x.A0, nine)
+	a = e.fp.Sub(a, &x.A1)
+	b := e.fp.MulConst(&x.A1, nine)
+	b = e.fp.Add(b, &x.A0)
+	return &E2{
+		A0: *a,
+		A1: *b,
+	}
 }
 
-func (e Ext2) MulByNonResidueInv(x *E2) *E2 {
-	// TODO: to optimise with constant non-residue inverse
-	/*
-		// from gnark-crypto
-		// z.Mul(x, &nonResInverse)
-		// return z
-	*/
-	return e.MulByNonResidueGeneric(x, 0, -1)
-}
-
+// MulByNonResidue1Power1 returns x*(9+u)^(1*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power1(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 1)
 }
 
+// MulByNonResidue1Power2 returns x*(9+u)^(2*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power2(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 2)
 }
 
+// MulByNonResidue1Power3 returns x*(9+u)^(3*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power3(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 3)
 }
 
+// MulByNonResidue1Power4 returns x*(9+u)^(4*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power4(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 4)
 }
 
+// MulByNonResidue1Power5 returns x*(9+u)^(5*(p^1-1)/6)
 func (e Ext2) MulByNonResidue1Power5(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 1, 5)
 }
 
+// MulByNonResidue2Power1 returns x*(9+u)^(1*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power1(x *E2) *E2 {
-	// TODO: A1 is 0, we can optimize for it
-	return e.MulByNonResidueGeneric(x, 2, 1)
+	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556617")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
+
+// MulByNonResidue2Power2 returns x*(9+u)^(2*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power2(x *E2) *E2 {
-	// TODO: A1 is 0, we can optimize for it
-	return e.MulByNonResidueGeneric(x, 2, 2)
+	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556616")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
 
+// MulByNonResidue2Power3 returns x*(9+u)^(3*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power3(x *E2) *E2 {
-	// TODO: A1 is 0, we can optimize for it
-	return e.MulByNonResidueGeneric(x, 2, 3)
+	element := emulated.ValueOf[emulated.BN254Fp]("21888242871839275222246405745257275088696311157297823662689037894645226208582")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
 
+// MulByNonResidue2Power4 returns x*(9+u)^(4*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power4(x *E2) *E2 {
-	// TODO: A1 is 0, we can optimize for it
-	return e.MulByNonResidueGeneric(x, 2, 4)
+	element := emulated.ValueOf[emulated.BN254Fp]("2203960485148121921418603742825762020974279258880205651966")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
 
+// MulByNonResidue2Power5 returns x*(9+u)^(5*(p^2-1)/6)
 func (e Ext2) MulByNonResidue2Power5(x *E2) *E2 {
-	// TODO: A1 is 0, we can optimize for it
-	return e.MulByNonResidueGeneric(x, 2, 5)
+	element := emulated.ValueOf[emulated.BN254Fp]("2203960485148121921418603742825762020974279258880205651967")
+	return &E2{
+		A0: *e.fp.MulMod(&x.A0, &element),
+		A1: *e.fp.MulMod(&x.A1, &element),
+	}
 }
 
+// MulByNonResidue3Power1 returns x*(9+u)^(1*(p^3-1)/6)
 func (e Ext2) MulByNonResidue3Power1(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 3, 1)
 }
 
+// MulByNonResidue3Power2 returns x*(9+u)^(2*(p^3-1)/6)
 func (e Ext2) MulByNonResidue3Power2(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 3, 2)
 }
 
+// MulByNonResidue3Power3 returns x*(9+u)^(3*(p^3-1)/6)
 func (e Ext2) MulByNonResidue3Power3(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 3, 3)
 }
 
+// MulByNonResidue3Power4 returns x*(9+u)^(4*(p^3-1)/6)
 func (e Ext2) MulByNonResidue3Power4(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 3, 4)
 }
 
+// MulByNonResidue3Power5 returns x*(9+u)^(5*(p^3-1)/6)
 func (e Ext2) MulByNonResidue3Power5(x *E2) *E2 {
 	return e.MulByNonResidueGeneric(x, 3, 5)
 }
 
 func (e Ext2) Mul(x, y *E2) *E2 {
-	// var a, b, c fp.Element
-	a := e.fp.Add(&x.A0, &x.A1)    // a.Add(&x.A0, &x.A1)
-	b := e.fp.Add(&y.A0, &y.A1)    // b.Add(&y.A0, &y.A1)
-	a = e.fp.MulMod(a, b)          // a.Mul(&a, &b)
-	b = e.fp.MulMod(&x.A0, &y.A0)  // b.Mul(&x.A0, &y.A0)
-	c := e.fp.MulMod(&x.A1, &y.A1) // c.Mul(&x.A1, &y.A1)
-	z1 := e.fp.Sub(a, b)           // z.A1.Sub(&a, &b).
-	z1 = e.fp.Sub(z1, c)           //   Sub(&z.A1, &c)
-	z0 := e.fp.Sub(b, c)           // z.A0.Sub(&b, &c)
+	a := e.fp.Add(&x.A0, &x.A1)
+	b := e.fp.Add(&y.A0, &y.A1)
+	a = e.fp.MulMod(a, b)
+	b = e.fp.MulMod(&x.A0, &y.A0)
+	c := e.fp.MulMod(&x.A1, &y.A1)
+	z1 := e.fp.Sub(a, b)
+	z1 = e.fp.Sub(z1, c)
+	z0 := e.fp.Sub(b, c)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -202,8 +216,8 @@ func (e Ext2) Mul(x, y *E2) *E2 {
 }
 
 func (e Ext2) Add(x, y *E2) *E2 {
-	z0 := e.fp.Add(&x.A0, &y.A0) // z.A0.Add(&x.A0, &y.A0)
-	z1 := e.fp.Add(&x.A1, &y.A1) // z.A1.Add(&x.A1, &y.A1)
+	z0 := e.fp.Add(&x.A0, &y.A0)
+	z1 := e.fp.Add(&x.A1, &y.A1)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -211,8 +225,8 @@ func (e Ext2) Add(x, y *E2) *E2 {
 }
 
 func (e Ext2) Sub(x, y *E2) *E2 {
-	z0 := e.fp.Sub(&x.A0, &y.A0) // z.A0.Sub(&x.A0, &y.A0)
-	z1 := e.fp.Sub(&x.A1, &y.A1) // z.A1.Sub(&x.A1, &y.A1)
+	z0 := e.fp.Sub(&x.A0, &y.A0)
+	z1 := e.fp.Sub(&x.A1, &y.A1)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -220,8 +234,8 @@ func (e Ext2) Sub(x, y *E2) *E2 {
 }
 
 func (e Ext2) Neg(x *E2) *E2 {
-	z0 := e.fp.Neg(&x.A0) // z.A0.Neg(&x.A0)
-	z1 := e.fp.Neg(&x.A1) // z.A1.Neg(&x.A1)
+	z0 := e.fp.Neg(&x.A0)
+	z1 := e.fp.Neg(&x.A1)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -229,9 +243,9 @@ func (e Ext2) Neg(x *E2) *E2 {
 }
 
 func (e Ext2) One() *E2 {
-	z0 := e.fp.One()  // z.A0.SetOne()
-	z1 := e.fp.Zero() // z.A1.SetZero()
-	return &E2{       // return z
+	z0 := e.fp.One()
+	z1 := e.fp.Zero()
+	return &E2{
 		A0: *z0,
 		A1: *z1,
 	}
@@ -246,60 +260,28 @@ func (e Ext2) Zero() *E2 {
 	}
 }
 
+func (e Ext2) IsZero(z *E2) frontend.Variable {
+	a0 := e.fp.IsZero(&z.A0)
+	a1 := e.fp.IsZero(&z.A1)
+	return e.api.And(a0, a1)
+}
+
 func (e Ext2) Square(x *E2) *E2 {
-	// var a, b fp.Element
-	a := e.fp.Add(&x.A0, &x.A1)         // a.Add(&x.A0, &x.A1)
-	b := e.fp.Sub(&x.A0, &x.A1)         // b.Sub(&x.A0, &x.A1)
-	a = e.fp.MulMod(a, b)               // a.Mul(&a, &b)
-	b = e.fp.MulMod(&x.A0, &x.A1)       // b.Mul(&x.A0, &x.A1).
-	b = e.fp.MulConst(b, big.NewInt(2)) //   Double(&b)
+	a := e.fp.Add(&x.A0, &x.A1)
+	b := e.fp.Sub(&x.A0, &x.A1)
+	a = e.fp.MulMod(a, b)
+	b = e.fp.MulMod(&x.A0, &x.A1)
+	b = e.fp.MulConst(b, big.NewInt(2))
 	return &E2{
-		A0: *a, // z.A0.Set(&a)
-		A1: *b, // z.A1.Set(&b)
+		A0: *a,
+		A1: *b,
 	}
 }
 
 func (e Ext2) Double(x *E2) *E2 {
 	two := big.NewInt(2)
-	z0 := e.fp.MulConst(&x.A0, two) // z.A0.Double(&x.A0)
-	z1 := e.fp.MulConst(&x.A1, two) // z.A1.Double(&x.A1)
-	return &E2{
-		A0: *z0,
-		A1: *z1,
-	}
-}
-
-func (e Ext2) Halve(x *E2) *E2 {
-	// I'm trying to avoid hard-coding modulus here in case want to make generic
-	// for different curves.
-	// TODO: if implemented Half in field emulation, then replace with it.
-	one := e.fp.One()
-	two := e.fp.MulConst(one, big.NewInt(2))
-	z0 := e.fp.Div(&x.A0, two)
-	z1 := e.fp.Div(&x.A1, two)
-	return &E2{
-		A0: *z0,
-		A1: *z1,
-	}
-}
-
-func (e Ext2) MulBybTwistCurveCoeff(x *E2) *E2 {
-	// var res E2
-	res := e.MulByNonResidueInv(x) // res.MulByNonResidueInv(x)
-	z := e.Double(res)             // z.Double(&res).
-	z = e.Add(z, res)              // 	Add(&res, z)
-	return z                       // return z
-}
-
-func (e Ext2) Inverse(x *E2) *E2 {
-	// var t0, t1 fp.Element
-	t0 := e.fp.MulMod(&x.A0, &x.A0) // t0.Square(&x.A0)
-	t1 := e.fp.MulMod(&x.A1, &x.A1) // t1.Square(&x.A1)
-	t0 = e.fp.Add(t0, t1)           // t0.Add(&t0, &t1)
-	t1 = e.fp.Inverse(t0)           // t1.Inverse(&t0)
-	z0 := e.fp.MulMod(&x.A0, t1)    // z.A0.Mul(&x.A0, &t1)
-	z1 := e.fp.MulMod(&x.A1, t1)    // z.A1.Mul(&x.A1, &t1).
-	z1 = e.fp.Neg(z1)               //   Neg(&z.A1)
+	z0 := e.fp.MulConst(&x.A0, two)
+	z1 := e.fp.MulConst(&x.A1, two)
 	return &E2{
 		A0: *z0,
 		A1: *z1,
@@ -309,4 +291,63 @@ func (e Ext2) Inverse(x *E2) *E2 {
 func (e Ext2) AssertIsEqual(x, y *E2) {
 	e.fp.AssertIsEqual(&x.A0, &y.A0)
 	e.fp.AssertIsEqual(&x.A1, &y.A1)
+}
+
+func FromE2(y *bn254.E2) E2 {
+	return E2{
+		A0: emulated.ValueOf[emulated.BN254Fp](y.A0),
+		A1: emulated.ValueOf[emulated.BN254Fp](y.A1),
+	}
+}
+
+func (e Ext2) Inverse(x *E2) *E2 {
+	res, err := e.fp.NewHint(inverseE2Hint, 2, &x.A0, &x.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	inv := E2{
+		A0: *res[0],
+		A1: *res[1],
+	}
+	one := e.One()
+
+	// 1 == inv * x
+	_one := e.Mul(&inv, x)
+	e.AssertIsEqual(one, _one)
+
+	return &inv
+
+}
+
+func (e Ext2) DivUnchecked(x, y *E2) *E2 {
+	res, err := e.fp.NewHint(divE2Hint, 2, &x.A0, &x.A1, &y.A0, &y.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	div := E2{
+		A0: *res[0],
+		A1: *res[1],
+	}
+
+	// x == div * y
+	_x := e.Mul(&div, y)
+	e.AssertIsEqual(x, _x)
+
+	return &div
+}
+
+func (e Ext2) Select(selector frontend.Variable, z1, z0 *E2) *E2 {
+	a0 := e.fp.Select(selector, &z1.A0, &z0.A0)
+	a1 := e.fp.Select(selector, &z1.A1, &z0.A1)
+	return &E2{A0: *a0, A1: *a1}
+}
+
+func (e Ext2) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E2) *E2 {
+	a0 := e.fp.Lookup2(s1, s2, &a.A0, &b.A0, &c.A0, &d.A0)
+	a1 := e.fp.Lookup2(s1, s2, &a.A1, &b.A1, &c.A1, &d.A1)
+	return &E2{A0: *a0, A1: *a1}
 }

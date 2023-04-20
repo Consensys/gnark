@@ -77,6 +77,9 @@ func (c *Curve[B, S]) GeneratorMultiples() []AffinePoint[B] {
 
 // AffinePoint represents a point on the elliptic curve. We do not check that
 // the point is actually on the curve.
+//
+// Point (0,0) represents point at the infinity. This representation is
+// compatible with the EVM representations of points at infinity.
 type AffinePoint[Base emulated.FieldParams] struct {
 	X, Y emulated.Element[Base]
 }
@@ -95,10 +98,12 @@ func (c *Curve[B, S]) AssertIsEqual(p, q *AffinePoint[B]) {
 	c.baseApi.AssertIsEqual(&p.Y, &q.Y)
 }
 
-// Add adds p and q and returns it. It doesn't modify p nor q.
+// add adds p and q and returns it. It doesn't modify p nor q.
+//
+// ⚠️  p must be different than q and -q, and both nonzero.
+//
 // It uses incomplete formulas in affine coordinates.
-// The points p and q should be different and nonzero (neutral element).
-func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
+func (c *Curve[B, S]) add(p, q *AffinePoint[B]) *AffinePoint[B] {
 	// compute λ = (q.y-p.y)/(q.x-p.x)
 	qypy := c.baseApi.Sub(&q.Y, &p.Y)
 	qxpx := c.baseApi.Sub(&q.X, &p.X)
@@ -120,9 +125,68 @@ func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 	}
 }
 
-// Double doubles p and return it. It doesn't modify p.
+// AddUnified adds p and q and returns it. It doesn't modify p nor q.
+//
+// ✅ p can be equal to q, and either or both can be (0,0).
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// It uses the unified formulas of Brier and Joye ([[BriJoy02]] (Corollary 1)).
+//
+// [BriJoy02]: https://link.springer.com/content/pdf/10.1007/3-540-45664-3_24.pdf
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
+
+	// selector1 = 1 when p is (0,0) and 0 otherwise
+	selector1 := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+	// selector2 = 1 when q is (0,0) and 0 otherwise
+	selector2 := c.api.And(c.baseApi.IsZero(&q.X), c.baseApi.IsZero(&q.Y))
+
+	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
+	pxqx := c.baseApi.MulMod(&p.X, &q.X)
+	pxplusqx := c.baseApi.Add(&p.X, &q.X)
+	num := c.baseApi.MulMod(pxplusqx, pxplusqx)
+	num = c.baseApi.Sub(num, pxqx)
+	if c.addA {
+		num = c.baseApi.Add(num, &c.a)
+	}
+	denum := c.baseApi.Add(&p.Y, &q.Y)
+	// if p.y + q.y = 0, assign dummy 1 to denum and continue
+	selector3 := c.baseApi.IsZero(denum)
+	denum = c.baseApi.Select(selector3, c.baseApi.One(), denum)
+	λ := c.baseApi.Div(num, denum)
+
+	// x = λ^2 - p.x - q.x
+	xr := c.baseApi.MulMod(λ, λ)
+	xr = c.baseApi.Sub(xr, pxplusqx)
+
+	// y = λ(p.x - xr) - p.y
+	yr := c.baseApi.Sub(&p.X, xr)
+	yr = c.baseApi.MulMod(yr, λ)
+	yr = c.baseApi.Sub(yr, &p.Y)
+	result := AffinePoint[B]{
+		X: *c.baseApi.Reduce(xr),
+		Y: *c.baseApi.Reduce(yr),
+	}
+
+	zero := c.baseApi.Zero()
+	infinity := AffinePoint[B]{X: *zero, Y: *zero}
+	// if p=(0,0) return q
+	result = *c.Select(selector1, q, &result)
+	// if q=(0,0) return p
+	result = *c.Select(selector2, p, &result)
+	// if p.y + q.y = 0, return (0, 0)
+	result = *c.Select(selector3, &infinity, &result)
+
+	return &result
+}
+
+// double doubles p and return it. It doesn't modify p.
+//
+// ⚠️  p.Y must be nonzero.
+//
 // It uses affine coordinates.
-func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
+func (c *Curve[B, S]) double(p *AffinePoint[B]) *AffinePoint[B] {
 
 	// compute λ = (3p.x²+a)/2*p.y, here we assume a=0 (j invariant 0 curve)
 	xx3a := c.baseApi.MulMod(&p.X, &p.X)
@@ -149,7 +213,7 @@ func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 	}
 }
 
-// Triple triples p and return it. It follows [ELM03] (Section 3.1).
+// triple triples p and return it. It follows [ELM03] (Section 3.1).
 // Saves the computation of the y coordinate of 2p as it is used only in the computation of λ2,
 // which can be computed as
 //
@@ -157,8 +221,10 @@ func (c *Curve[B, S]) Double(p *AffinePoint[B]) *AffinePoint[B] {
 //
 // instead. It doesn't modify p.
 //
+// ⚠️  p.Y must be nonzero.
+//
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
-func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
+func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
 
 	// compute λ1 = (3p.x²+a)/2p.y, here we assume a=0 (j invariant 0 curve)
 	xx := c.baseApi.MulMod(&p.X, &p.X)
@@ -196,7 +262,7 @@ func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 	}
 }
 
-// DoubleAndAdd computes 2p+q as (p+q)+p. It follows [ELM03] (Section 3.1)
+// doubleAndAdd computes 2p+q as (p+q)+p. It follows [ELM03] (Section 3.1)
 // Saves the computation of the y coordinate of p+q as it is used only in the computation of λ2,
 // which can be computed as
 //
@@ -204,8 +270,10 @@ func (c *Curve[B, S]) Triple(p *AffinePoint[B]) *AffinePoint[B] {
 //
 // instead. It doesn't modify p nor q.
 //
+// ⚠️  p must be different than q and -q, and both nonzero.
+//
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
-func (c *Curve[B, S]) DoubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
+func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 	// compute λ1 = (q.y-p.y)/(q.x-p.x)
 	yqyp := c.baseApi.Sub(&q.Y, &p.Y)
@@ -270,6 +338,10 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 
 // ScalarMul computes s * p and returns it. It doesn't modify p nor s.
 //
+// ✅ p can can be (0,0) and s can be 0.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
 // It computes the standard little-endian variable-base double-and-add algorithm
 // [HMV04] (Algorithm 3.26).
 //
@@ -282,40 +354,57 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
+
+	// if p=(0,0) we assign a dummy (0,1) to p and continue
+	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+	one := c.baseApi.One()
+	p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
+
 	var st S
 	sr := c.scalarApi.Reduce(s)
 	sBits := c.scalarApi.ToBits(sr)
 	n := st.Modulus().BitLen()
 
 	// i = 1
-	tmp := c.Triple(p)
+	tmp := c.triple(p)
 	res := c.Select(sBits[1], tmp, p)
-	acc := c.Add(tmp, p)
+	acc := c.add(tmp, p)
 
 	for i := 2; i <= n-3; i++ {
-		tmp := c.Add(res, acc)
+		tmp := c.add(res, acc)
 		res = c.Select(sBits[i], tmp, res)
-		acc = c.Double(acc)
+		acc = c.double(acc)
 	}
 
 	// i = n-2
-	tmp = c.Add(res, acc)
+	tmp = c.add(res, acc)
 	res = c.Select(sBits[n-2], tmp, res)
 
 	// i = n-1
-	tmp = c.DoubleAndAdd(acc, res)
+	tmp = c.doubleAndAdd(acc, res)
 	res = c.Select(sBits[n-1], tmp, res)
 
 	// i = 0
-	tmp = c.Add(res, c.Neg(p))
+	// we use AddUnified here instead of Add so that when s=0, res=(0,0)
+	// because AddUnified(p, -p) = (0,0)
+	tmp = c.AddUnified(res, c.Neg(p))
 	res = c.Select(sBits[0], res, tmp)
+
+	// if p=(0,0), return (0,0)
+	zero := c.baseApi.Zero()
+	res = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, res)
 
 	return res
 }
 
 // ScalarMulBase computes s * g and returns it, where g is the fixed generator.
 // It doesn't modify s.
+//
+// ✅ When s=0, it returns (0,0).
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
 //
 // It computes the standard little-endian fixed-base double-and-add algorithm
 // [HMV04] (Algorithm 3.26).
@@ -326,6 +415,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 // [3]g, [5]g and [7]g points.
 //
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 	g := c.Generator()
 	gm := c.GeneratorMultiples()
@@ -340,12 +430,12 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 
 	for i := 3; i < st.Modulus().BitLen(); i++ {
 		// gm[i] = [2^i]g
-		tmp := c.Add(res, &gm[i])
+		tmp := c.add(res, &gm[i])
 		res = c.Select(sBits[i], tmp, res)
 	}
 
 	// i = 0
-	tmp := c.Add(res, c.Neg(g))
+	tmp := c.AddUnified(res, c.Neg(g))
 	res = c.Select(sBits[0], res, tmp)
 
 	return res

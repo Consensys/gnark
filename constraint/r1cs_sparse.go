@@ -136,13 +136,22 @@ func (system *SparseR1CSCore) CheckUnconstrainedWires() error {
 	return errors.New(sbb.String())
 }
 
+type CommitmentConstraint byte
+
+const (
+	NOT        CommitmentConstraint = 0
+	COMMITTED  CommitmentConstraint = 1
+	COMMITMENT CommitmentConstraint = 2
+)
+
 // SparseR1C used to compute the wires
-// L+R+M[0]M[1]+O+k=0
+// L+R+M[0]M[1]+O+k-committed?*PI2-commitment?*commitmentValue=0
 // if a Term is zero, it means the field doesn't exist (ex M=[0,0] means there is no multiplicative term)
 type SparseR1C struct {
-	L, R, O Term
-	M       [2]Term
-	K       int // stores only the ID of the constant term that is used
+	L, R, O    Term
+	M          [2]Term
+	K          int // stores only the ID of the constant term that is used
+	Commitment CommitmentConstraint
 }
 
 // WireIterator implements constraint.Iterable

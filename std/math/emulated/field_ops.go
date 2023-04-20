@@ -44,6 +44,21 @@ func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 	return e
 }
 
+// Sqrt computes square root of a and returns it. It uses [SqrtHint].
+func (f *Field[T]) Sqrt(a *Element[T]) *Element[T] {
+	// omit width assertion as is done in Mul below
+	if !f.fParams.IsPrime() {
+		panic("modulus not a prime")
+	}
+	res, err := f.NewHint(SqrtHint, 1, a)
+	if err != nil {
+		panic(fmt.Sprintf("compute sqrt: %v", err))
+	}
+	_a := f.Mul(res[0], res[0])
+	f.AssertIsEqual(_a, a)
+	return res[0]
+}
+
 // Add computes a+b and returns it. If the result wouldn't fit into Element, then
 // first reduces the inputs (larger first) and tries again. Doesn't mutate
 // inputs.
@@ -214,7 +229,6 @@ func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("reduction hint: %v", err))
 	}
-	// TODO @gbotrel fixme: AssertIsEqual(a, e) crashes Pairing test
 	f.AssertIsEqual(e, a)
 	return e
 }
@@ -225,9 +239,20 @@ func (f *Field[T]) Sub(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.sub, f.subPreCond, a, b)
 }
 
+// subReduce returns a-b and returns it. Contrary to [Field[T].Sub] method this
+// method does not reduce the inputs if the result would overflow. This method
+// is currently only used as a subroutine in [Field[T].Reduce] method to avoid
+// infinite recursion when we are working exactly on the overflow limits.
+func (f *Field[T]) subNoReduce(a, b *Element[T]) *Element[T] {
+	nextOverflow, _ := f.subPreCond(a, b)
+	// we ignore error as it only indicates if we should reduce or not. But we
+	// are in non-reducing version of sub.
+	return f.sub(a, b, nextOverflow)
+}
+
 func (f *Field[T]) subPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
-	reduceRight := a.overflow < b.overflow+2
-	nextOverflow = max(b.overflow+2, a.overflow)
+	reduceRight := a.overflow < (b.overflow + 1)
+	nextOverflow = max(b.overflow+1, a.overflow) + 1
 	if nextOverflow > f.maxOverflow() {
 		err = overflowError{op: "sub", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}
