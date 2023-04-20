@@ -25,7 +25,7 @@ import (
 	"io"
 )
 
-// WriteTo writes binary encoding of Proof to w without point compression
+// WriteRawTo writes binary encoding of Proof to w without point compression
 func (proof *Proof) WriteRawTo(w io.Writer) (int64, error) {
 	return proof.writeTo(w, curve.RawEncoding())
 }
