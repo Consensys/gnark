@@ -152,6 +152,7 @@ func (vk *VerifyingKey) randomize() {
 	vk.SizeInv.SetRandom()
 	vk.Generator.SetRandom()
 	vk.NbPublicVariables = rand.Uint64()
+	vk.CommitmentConstraintIndexes = []uint64{rand.Uint64()}
 	vk.CosetShift.SetRandom()
 
 	vk.S[0] = randomPoint()
