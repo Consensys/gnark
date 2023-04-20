@@ -7,8 +7,6 @@ import (
 	{{- template "import_backend_cs" . }}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc"
-
-	//kzgg "github.com/consensys/gnark-crypto/kzg" TODO Figure out why this is useful
 )
 
 // Trace stores a plonk trace as columns
