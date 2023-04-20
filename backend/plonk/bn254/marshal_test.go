@@ -30,6 +30,8 @@ import (
 	"math/rand"
 	"reflect"
 	"testing"
+
+	"github.com/go-test/deep"
 )
 
 func TestProofSerialization(t *testing.T) {
@@ -76,8 +78,8 @@ func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom)
 		t.Fatal("couldn't deserialize", err)
 	}
 
-	if !reflect.DeepEqual(from, reconstructed) {
-		t.Fatal("reconstructed object don't match original")
+	if diff := deep.Equal(from, reconstructed); diff != nil {
+		t.Fatal("reconstructed object don't match original:\n", diff)
 	}
 
 	if written != read {
