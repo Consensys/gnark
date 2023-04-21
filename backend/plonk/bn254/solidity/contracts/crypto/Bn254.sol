@@ -13,10 +13,12 @@ library Bn254 {
     uint256 Y;
   }
 
-  // Encoding of field elements is: X[0] * z + X[1]
+  // coordinates are understood as eg X0+uX1
   struct G2Point {
-    uint[2] X;
-    uint[2] Y;
+    uint256 X0;
+    uint256 X1;
+    uint256 Y0;
+    uint256 Y1;
   }
 
   function P1() internal pure returns (G1Point memory) {
@@ -46,8 +48,8 @@ library Bn254 {
     return G1Point(x, y);
   }
 
-  function new_g2(uint256[2] memory x, uint256[2] memory y) internal pure returns (G2Point memory) {
-    return G2Point(x, y);
+  function new_g2(uint256 x0, uint256 x1, uint256 y0, uint256 y1) internal pure returns (G2Point memory) {
+    return G2Point(x0, x1, y0, y1);
   }
 
   function copy_g1(G1Point memory self) internal pure returns (G1Point memory result) {
@@ -55,14 +57,13 @@ library Bn254 {
     result.Y = self.Y;
   }
 
-  function P2() internal pure returns (G2Point memory) {
-    // for some reason ethereum expects to have c1*v + c0 form
-
+  function P2() internal pure returns (G2Point memory)
+  { 
     return G2Point(
-      [0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2,
-      0x1800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed],
-      [0x090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b,
-      0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa]
+      0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2,
+      0x1800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed,
+      0x090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b,
+      0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
     );
   }
 
@@ -196,41 +197,41 @@ library Bn254 {
     return r;
   }
 
-  function pairing(G1Point[] memory p1, G2Point[] memory p2)
-  internal view returns (bool)
-  {
-    require(p1.length == p2.length);
-    uint elements = p1.length;
-    uint inputSize = elements * 6;
-    uint[] memory input = new uint[](inputSize);
-    for (uint i = 0; i < elements; i++)
-    {
-      input[i * 6 + 0] = p1[i].X;
-      input[i * 6 + 1] = p1[i].Y;
-      input[i * 6 + 2] = p2[i].X[0];
-      input[i * 6 + 3] = p2[i].X[1];
-      input[i * 6 + 4] = p2[i].Y[0];
-      input[i * 6 + 5] = p2[i].Y[1];
-    }
-    uint[1] memory out;
-    bool success;
-    assembly {
-        success := staticcall(gas(), 8, add(input, 0x20), mul(inputSize, 0x20), out, 0x20)
-    }
-    require(success);
-    return out[0] != 0;
-  }
+  // Returns (e(a1, a2).e(b1, b2) == 1)s
+  function pairingProd2(
+      G1Point memory a1,
+      G2Point memory a2,
+      G1Point memory b1,
+      G2Point memory b2
+  ) internal view returns (bool) {
+      bool success;
+      uint256 out;
+      assembly {
+        let mPtr := mload(0x40)
+        mstore(mPtr, mload(a1))
+        mstore(add(mPtr, 0x20), mload(add(a1, 0x20)))
+        mstore(add(mPtr, 0x40), mload(a2))
+        mstore(add(mPtr, 0x60), mload(add(a2, 0x20)))
+        mstore(add(mPtr, 0x80), mload(add(a2, 0x40)))
+        mstore(add(mPtr, 0xa0), mload(add(a2, 0x60)))
 
-  /// Convenience method for a pairing check for two pairs.
-  function pairingProd2(G1Point memory a1, G2Point memory a2, G1Point memory b1, G2Point memory b2)
-  internal view returns (bool)
-  {
-    G1Point[] memory p1 = new G1Point[](2);
-    G2Point[] memory p2 = new G2Point[](2);
-    p1[0] = a1;
-    p1[1] = b1;
-    p2[0] = a2;
-    p2[1] = b2;
-    return pairing(p1, p2);
+        mstore(add(mPtr, 0xc0), mload(b1))
+        mstore(add(mPtr, 0xe0), mload(add(b1, 0x20)))
+        mstore(add(mPtr, 0x100), mload(b2))
+        mstore(add(mPtr, 0x120), mload(add(b2, 0x20)))
+        mstore(add(mPtr, 0x140), mload(add(b2, 0x40)))
+        mstore(add(mPtr, 0x160), mload(add(b2, 0x60)))
+        success := staticcall(
+          gas(),
+          8,
+          mPtr,
+          0x180,
+          0x00,
+          0x20
+        )
+        out := mload(0x00)
+      }
+      require(success, "Pairing check failed!");
+      return (out != 0);
   }
 }
