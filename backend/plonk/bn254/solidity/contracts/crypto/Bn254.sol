@@ -52,11 +52,6 @@ library Bn254 {
     return G2Point(x0, x1, y0, y1);
   }
 
-  function copy_g1(G1Point memory self) internal pure returns (G1Point memory result) {
-    result.X = self.X;
-    result.Y = self.Y;
-  }
-
   function P2() internal pure returns (G2Point memory)
   { 
     return G2Point(

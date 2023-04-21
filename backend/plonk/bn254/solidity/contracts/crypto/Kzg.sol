@@ -49,7 +49,7 @@ library Kzg {
         }
         uint256 gamma = t.get_challenge();
 
-        opening_proof.H = batch_opening_proof.H.copy_g1();
+        opening_proof.H = batch_opening_proof.H;
         
         // fold the claimed values
         uint256[] memory gammai = new uint256[](digests.length);
