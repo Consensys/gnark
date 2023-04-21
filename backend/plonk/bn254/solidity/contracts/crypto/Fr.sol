@@ -22,20 +22,60 @@ library Fr {
         return z;
     }
 
-    function pow(uint256 x, uint256 power) internal view returns(uint256) {
-        uint256[6] memory input = [32, 32, 32, x, power, r_mod];
-        uint256[1] memory result;
+    function pow(uint256 x, uint256 power) 
+    internal view returns(uint256) 
+    {
         bool success;
+        uint256 result;
+        uint256 p = r_mod;
         assembly {
-          success := staticcall(gas(), 0x05, input, 0xc0, result, 0x20)
+          let mPtr := mload(0x40)
+          mstore(mPtr, 0x20)
+          mstore(add(mPtr, 0x20), 0x20)
+          mstore(add(mPtr, 0x40), 0x20)
+          mstore(add(mPtr, 0x60), x)
+          mstore(add(mPtr, 0x80), power)
+          mstore(add(mPtr, 0xa0), p)
+          success := staticcall(
+            gas(),
+            0x05,
+            mPtr,
+            0xc0,
+            0x00,
+            0x20
+          )
+          result := mload(0x00)
         }
         require(success);
-        return result[0];
+        return result;
     }
 
-    function inverse(uint256 x) internal view returns(uint256) {
-      require(x != 0);
-      return pow(x, r_mod-2);
+    function inverse(uint256 x) 
+    internal view returns(uint256) 
+    {
+      bool success;
+        uint256 result;
+        uint256 p = r_mod;
+        assembly {
+          let mPtr := mload(0x40)
+          mstore(mPtr, 0x20)
+          mstore(add(mPtr, 0x20), 0x20)
+          mstore(add(mPtr, 0x40), 0x20)
+          mstore(add(mPtr, 0x60), x)
+          mstore(add(mPtr, 0x80), sub(p, 2))
+          mstore(add(mPtr, 0xa0), p)
+          success := staticcall(
+            gas(),
+            0x05,
+            mPtr,
+            0xc0,
+            0x00,
+            0x20
+          )
+          result := mload(0x00)
+        }
+        require(success);
+        return result;
     }
 
     function div(uint256 x, uint256 y) internal view returns(uint256) {

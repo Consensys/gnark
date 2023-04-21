@@ -22,7 +22,6 @@ library PlonkVerifier{
     using Types for *;
 
     uint256 constant STATE_WIDTH = 3;
-    uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
     function derive_gamma_beta_alpha_zeta(
 
