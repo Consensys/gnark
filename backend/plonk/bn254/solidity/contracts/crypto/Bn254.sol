@@ -104,16 +104,15 @@ library Bn254 {
       dest.Y = p2.Y;
       return;
     } else {
-      uint256[4] memory input;
-
-      input[0] = p1.X;
-      input[1] = p1.Y;
-      input[2] = p2.X;
-      input[3] = p2.Y;
-
+      
       bool success = false;
       assembly {
-          success := staticcall(gas(), 6, input, 0x80, dest, 0x40)
+          let mPtr := mload(0x40)
+          mstore(mPtr, mload(p1))
+          mstore(add(mPtr, 0x20), mload(add(p1, 0x20)))
+          mstore(add(mPtr, 0x40), mload(p2))
+          mstore(add(mPtr, 0x60), mload(add(p2, 0x20)))
+          success := staticcall(gas(), 6, mPtr, 0x80, dest, 0x40)
       }
       require(success);
     }
@@ -139,16 +138,14 @@ library Bn254 {
       dest.Y = p_mod - p2.Y;
       return;
     } else {
-      uint256[4] memory input;
-
-      input[0] = p1.X;
-      input[1] = p1.Y;
-      input[2] = p2.X;
-      input[3] = p_mod - p2.Y;
-
       bool success = false;
       assembly {
-        success := staticcall(gas(), 6, input, 0x80, dest, 0x40)
+        let mPtr := mload(0x40)
+        mstore(mPtr, mload(p1))
+        mstore(add(mPtr, 0x20), mload(add(p1, 0x20)))
+        mstore(add(mPtr, 0x40), mload(p2))
+        mstore(add(mPtr, 0x60), sub(p_mod, mload(add(p2, 0x20))))
+        success := staticcall(gas(), 6, mPtr, 0x80, dest, 0x40)
       }
       require(success);
     }
