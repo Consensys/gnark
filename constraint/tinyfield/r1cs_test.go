@@ -83,7 +83,6 @@ func TestSerialization(t *testing.T) {
 						"field",
 						"CoeffTable.mCoeffs",
 						"System.lbWireLevel",
-						"System.lbHints",
 						"System.genericHint",
 						"System.SymbolTable",
 						"System.lbOutputs",
