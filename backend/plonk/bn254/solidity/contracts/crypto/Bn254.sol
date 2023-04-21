@@ -112,7 +112,14 @@ library Bn254 {
           mstore(add(mPtr, 0x20), mload(add(p1, 0x20)))
           mstore(add(mPtr, 0x40), mload(p2))
           mstore(add(mPtr, 0x60), mload(add(p2, 0x20)))
-          success := staticcall(gas(), 6, mPtr, 0x80, dest, 0x40)
+          success := staticcall(
+            gas(), 
+            6, 
+            mPtr, 
+            0x80, 
+            dest, 
+            0x40
+          )
       }
       require(success);
     }
@@ -145,7 +152,14 @@ library Bn254 {
         mstore(add(mPtr, 0x20), mload(add(p1, 0x20)))
         mstore(add(mPtr, 0x40), mload(p2))
         mstore(add(mPtr, 0x60), sub(p_mod, mload(add(p2, 0x20))))
-        success := staticcall(gas(), 6, mPtr, 0x80, dest, 0x40)
+        success := staticcall(
+          gas(), 
+          6, 
+          mPtr, 
+          0x80, 
+          dest, 
+          0x40
+        )
       }
       require(success);
     }
@@ -167,13 +181,20 @@ library Bn254 {
   function point_mul_into_dest(G1Point memory p, uint256 s, G1Point memory dest)
   internal view
   {
-    uint[3] memory input;
-    input[0] = p.X;
-    input[1] = p.Y;
-    input[2] = s;
     bool success;
     assembly {
-      success := staticcall(gas(), 7, input, 0x60, dest, 0x40)
+      let mPtr := mload(0x40)
+      mstore(mPtr, mload(p))
+      mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
+      mstore(add(mPtr, 0x40), s)
+      success := staticcall(
+        gas(), 
+        7, 
+        mPtr, 
+        0x60, 
+        dest, 
+        0x40
+      )
     }
     require(success);
   }
@@ -185,7 +206,6 @@ library Bn254 {
     require (p.length==s.length);
     G1Point memory tmp;
     r = point_mul(p[0], s[0]);
-
     for (uint i=1; i<p.length; i++) {
       tmp = point_mul(p[i], s[i]);
       r = point_add(r, tmp);

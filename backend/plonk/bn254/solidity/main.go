@@ -79,7 +79,9 @@ func getTransactionOpts(privateKey *ecdsa.PrivateKey, auth *bind.TransactOpts, c
 	// auth.GasLimit = uint64(594700) // -> + pow assembly
 	// auth.GasLimit = uint64(593400) // -> + inverse assembly
 	// auth.GasLimit = uint64(587000) // -> + ecadd assembly
-	auth.GasLimit = uint64(586500) // -> + eccsub assembly
+	// auth.GasLimit = uint64(586500) // -> + eccsub assembly
+	// auth.GasLimit = uint64(580900) // -> + accmul assembly
+	auth.GasLimit = uint64(579000) // -> + accmul assembly
 	auth.GasPrice = gasprice
 
 	return auth, nil

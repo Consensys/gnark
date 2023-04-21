@@ -144,6 +144,7 @@ library PlonkVerifier{
         state.folded_h.point_add_assign(proof.quotient_poly_commitments[1]);
         state.folded_h.point_mul_assign(zeta_power_n_plus_two);
         state.folded_h.point_add_assign(proof.quotient_poly_commitments[0]);
+       
     }
 
     function compute_commitment_linearised_polynomial(
