@@ -14,12 +14,18 @@ library Polynomials {
         if (inputs.length == 0) {
             return 0;
         }
-
         uint256[] memory basis = batch_compute_lagranges_at_z(inputs.length, z, w, n);
-        uint256 res = Fr.mul(basis[0], inputs[0]);
-        for (uint i = 1; i < inputs.length; i++) {
-            res = Fr.add(res, Fr.mul(basis[i], inputs[i]));
+        uint256 res;
+        uint256 r = Fr.r_mod;
+        assembly {
+            res := mulmod(mload(add(basis,0x20)),mload(add(inputs,0x20)), r)
+            for {let i:=1} lt(i,mload(inputs)) {i:=add(i,1)}
+            {
+                let a:=mulmod(mload(add(basis, add(0x20,mul(i, 0x20)))), mload(add(inputs, add(0x20,mul(i, 0x20)))), r)
+                res := addmod(res, a, r)
+            }
         }
+
         return res;
     }
 
