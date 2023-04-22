@@ -63,17 +63,16 @@ func Verify(api frontend.API, commitment Digest, proof OpeningProof, point front
 	var negH sw_bls12377.G1Affine
 	negH.Neg(api, proof.H)
 
-	// [α-a]G₂
-	var alphaMinusaG2 sw_bls12377.G2Affine
-	alphaMinusaG2.ScalarMulBase(api, point).
-		Neg(api, alphaMinusaG2).
-		AddAssign(api, srs.G2[1])
+	// [f(α) - f(a) + a*H(α)]G₁
+	var totalG1 sw_bls12377.G1Affine
+	totalG1.ScalarMul(api, proof.H, point).
+		AddAssign(api, fminusfaG1)
 
-	// e([f(α) - f(a)]G₁, G₂).e([-H(α)]G₁, [α-a]G₂) ==? 1
+	// e([f(α)-f(a)+aH(α)]G₁], G₂).e([-H(α)]G₁, [α]G₂) == 1
 	resPairing, _ := sw_bls12377.Pair(
 		api,
-		[]sw_bls12377.G1Affine{fminusfaG1, negH},
-		[]sw_bls12377.G2Affine{srs.G2[0], alphaMinusaG2},
+		[]sw_bls12377.G1Affine{totalG1, negH},
+		[]sw_bls12377.G2Affine{srs.G2[0], srs.G2[1]},
 	)
 
 	var one fields_bls12377.E12
