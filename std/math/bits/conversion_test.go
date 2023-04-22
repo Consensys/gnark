@@ -1,6 +1,9 @@
 package bits_test
 
 import (
+	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"testing"
 
 	"github.com/consensys/gnark/frontend"
@@ -63,4 +66,22 @@ func (c *toTernaryCircuit) Define(api frontend.API) error {
 func TestToTernary(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.ProverSucceeded(&toTernaryCircuit{}, &toTernaryCircuit{A: 5, T0: 2, T1: 1, T2: 0})
+}
+
+type Circuit struct {
+	A frontend.Variable
+}
+
+func (circuit *Circuit) Define(api frontend.API) error {
+	bits.ToBinary(api, 17)
+	bits.ToBinary(api, circuit.A)
+	return nil
+}
+
+func Example() {
+	cs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &Circuit{})
+
+	fmt.Println(cs.GetNbConstraints())
+	// Output:
+	// 256
 }

@@ -38,6 +38,11 @@ type Compiler interface {
 	// If nbOutputs is specified, it must be >= 1 and <= f.NbOutputs
 	NewHint(f solver.Hint, nbOutputs int, inputs ...Variable) ([]Variable, error)
 
+	// NewStateLessHint performs the same operation as NewHint with the difference
+	// that the provided hint must be stateless. A stateless hint is a function that
+	// always returns the same outputs for the same inputs.
+	NewStateLessHint(f solver.Hint, nbOutputs int, inputs ...Variable) ([]Variable, error)
+
 	// ConstantValue returns the big.Int value of v and true if op is a success.
 	// nil and false if failure. This API returns a boolean to allow for future refactoring
 	// replacing *big.Int with fr.Element

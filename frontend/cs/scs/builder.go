@@ -353,6 +353,32 @@ func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend
 
 }
 
+func (builder *builder) NewStateLessHint(f solver.Hint, nbOutputs int,
+	inputs ...frontend.Variable) ([]frontend.Variable, error) {
+
+	constantInputs := make([]*big.Int, len(inputs))
+	for i, in := range inputs {
+		constantValue, ok := builder.Compiler().ConstantValue(in)
+		if !ok {
+			return builder.Compiler().NewHint(f, nbOutputs, inputs...)
+		}
+		constantInputs[i] = constantValue
+	}
+
+	constantOutputs := make([]*big.Int, nbOutputs)
+	for i, _ := range constantOutputs {
+		constantOutputs[i] = new(big.Int)
+	}
+	err := f(builder.Compiler().Field(), constantInputs, constantOutputs)
+
+	outputs := make([]frontend.Variable, nbOutputs)
+	for i, c := range constantOutputs {
+		outputs[i] = frontend.Variable(c)
+	}
+
+	return outputs, err
+}
+
 // returns in split into a slice of compiledTerm and the sum of all constants in in as a bigInt
 func (builder *builder) filterConstantSum(in []frontend.Variable) (expr.LinearExpression, constraint.Element) {
 	res := make(expr.LinearExpression, 0, len(in))

@@ -485,6 +485,32 @@ func (e *engine) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variab
 	return out, nil
 }
 
+func (e *engine) NewStateLessHint(f solver.Hint, nbOutputs int,
+	inputs ...frontend.Variable) ([]frontend.Variable, error) {
+
+	constantInputs := make([]*big.Int, len(inputs))
+	for i, in := range inputs {
+		constantValue, ok := e.Compiler().ConstantValue(in)
+		if !ok {
+			return e.Compiler().NewHint(f, nbOutputs, inputs...)
+		}
+		constantInputs[i] = constantValue
+	}
+
+	constantOutputs := make([]*big.Int, nbOutputs)
+	for i, _ := range constantOutputs {
+		constantOutputs[i] = new(big.Int)
+	}
+	err := f(e.Compiler().Field(), constantInputs, constantOutputs)
+
+	outputs := make([]frontend.Variable, nbOutputs)
+	for i, c := range constantOutputs {
+		outputs[i] = frontend.Variable(c)
+	}
+
+	return outputs, err
+}
+
 // IsConstant returns true if v is a constant known at compile time
 func (e *engine) IsConstant(v frontend.Variable) bool {
 	return e.constVars
