@@ -8,17 +8,23 @@ library Fr {
     uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
     function add(uint256 x, uint256 y) internal pure returns(uint256 z) {
-        z = addmod(x, y, r_mod);
+        assembly {
+          z := addmod(x, y, r_mod)
+        }
         return z;
     }
 
     function sub(uint256 x, uint256 y) internal pure returns(uint256 z) {
-        z = addmod(x, r_mod - y, r_mod);
+        assembly {
+          z := addmod(x, sub(r_mod, y), r_mod)
+        }
         return z;
     }
 
     function mul(uint256 x, uint256 y) internal pure returns(uint256 z) {
-        z = mulmod(x, y, r_mod);
+        assembly {
+          z := mulmod(x, y, r_mod)
+        }
         return z;
     }
 
@@ -76,12 +82,6 @@ library Fr {
         }
         require(success);
         return result;
-    }
-
-    function div(uint256 x, uint256 y) internal view returns(uint256) {
-      require(y != 0);
-      y = inverse(y);
-      return mul(x, y);
     }
 
     function batch_inverse(uint256[] memory x) internal view returns(uint256[] memory) {
