@@ -61,21 +61,34 @@ library Kzg {
         }
         uint256 gamma = t.get_challenge();
 
-        //Bn254.copy_g1(opening_proof.H,batch_opening_proof.H);
-        opening_proof.h_x = batch_opening_proof.H.X;
-        opening_proof.h_y = batch_opening_proof.H.Y;
-        
-        // fold the claimed values
+         // fold the claimed values
         uint256[] memory gammai = new uint256[](digests.length);
-        gammai[0] = 1;
-        opening_proof.claimed_value = batch_opening_proof.claimed_values[0];
-        uint256 tmp;
-        for (uint i=1; i<digests.length; i++) {
-            gammai[i] = Fr.mul(gammai[i-1], gamma);
-            tmp = Fr.mul(gammai[i], batch_opening_proof.claimed_values[i]);
-            opening_proof.claimed_value = Fr.add(opening_proof.claimed_value, tmp);
+        uint256 r = Fr.r_mod;
+        assembly {
+            
+            // opening_proof.H <- batch_opening_proof.H
+            mstore(opening_proof, mload(add(batch_opening_proof, 0x40)))
+            mstore(add(opening_proof,0x20), mload(add(batch_opening_proof, 0x60)))
+
+            // opening_proof.claimed_value <- \sum_i batch_opening_proof.claimed_values[i]*gamma[i]
+            // gammai <- [1,\gamma,..,\gamma^n]
+            mstore(add(gammai,0x20), 1)
+            let claimed_value_i := add(batch_opening_proof,0xa0)
+            mstore(add(opening_proof,0x40), mload(claimed_value_i))
+            let tmp := mload(0x40)
+            let n := mload(digests)
+            let prev_gamma := add(gammai,0x20)
+            for {let i:=1} lt(i,n) {i:=add(i,1)}
+            {
+                claimed_value_i := add(claimed_value_i, 0x20)
+                mstore(add(prev_gamma,0x20), mulmod(mload(prev_gamma),gamma,r))
+                mstore(tmp, mulmod(mload(add(prev_gamma,0x20)), mload(claimed_value_i), r))
+                mstore(add(opening_proof,0x40), addmod(mload(add(opening_proof,0x40)),  mload(tmp), r))
+                prev_gamma := add(prev_gamma,0x20)
+            }
         }
 
+        // TODO hardcode the multi exp in the previous chunk ?
         folded_digests = Bn254.multi_exp(digests, gammai);
 
         return (opening_proof, folded_digests);
@@ -89,48 +102,82 @@ library Kzg {
         Bn254.G1Point memory res_points_quotients,
         uint256 res_eval)
     {
-        uint256 tmp;
-        Bn254.G1Point memory tmp_point;
 
-        res_quotient.X = proofs[0].h_x;
-        res_quotient.Y = proofs[0].h_y;
-        // uint256[] memory ss = new uint256[](6);
-        // assembly {
-        //     for {let i:=0} lt(i, 6) {i:=add(i,1)}
-        //     {
-        //         let offset := mul(i, 0x20)
-        //         mstore(add(ss,add(offset,0x20)), mload(add(proofs,offset)))
-        //     } 
-        // }
-        // for (uint i=0; i<6; i++){
-        //     emit PrintUint256(ss[i]);
-        // }
-        
-        Bn254.copy_g1(res_digest, digests[0]);
-        tmp_point.X = proofs[0].h_x;
-        tmp_point.Y = proofs[0].h_y;
-        res_points_quotients = Bn254.point_mul(tmp_point, points[0]);
-        res_eval = proofs[0].claimed_value;
+        uint256 r = Fr.r_mod;
 
-        for (uint i=1; i<proofs.length; i++){
+        assembly {
 
-            tmp_point.X = proofs[i].h_x;
-            tmp_point.Y = proofs[i].h_y;
-            tmp_point = Bn254.point_mul(tmp_point, lambda[i]);
-            res_quotient = Bn254.point_add(res_quotient, tmp_point);
+            // res_quotient <- proofs[0].H
+            let proof_i := add(proofs, mul(add(mload(proofs),1),0x20))
+            mstore(res_quotient, mload(proof_i))
+            mstore(add(res_quotient, 0x20), mload(add(proof_i, 0x20)))
 
-            tmp_point = Bn254.point_mul(digests[i], lambda[i]);
-            res_digest = Bn254.point_add(res_digest, tmp_point);
+            // res_digest <- digests[0]
+            let digest_i := add(digests, mul(add(mload(digests),1), 0x20))
+            mstore(res_digest, mload(digest_i))
+            mstore(add(res_digest, 0x20), mload(add(digest_i, 0x20)))
 
-            tmp = Fr.mul(lambda[i], points[i]);
-            tmp_point.X = proofs[i].h_x;
-            tmp_point.Y = proofs[i].h_y;
-            tmp_point = Bn254.point_mul(tmp_point, tmp);
-            res_points_quotients = Bn254.point_add(res_points_quotients, tmp_point);
+            // dst <- [s]src
+            function point_mul_local(dst,src,s) {
+                let buf := mload(0x40)
+                mstore(buf,mload(src))
+                mstore(add(buf,0x20),mload(add(src,0x20)))
+                mstore(add(buf,0x40),mload(s))
+                pop(staticcall(gas(),7,buf,0x60,dst,0x40)) // TODO should we check success here ?
+            }
 
-            tmp = Fr.mul(lambda[i], proofs[i].claimed_value);
-            res_eval = Fr.add(res_eval, tmp);
+            // dst <- dst + [s]src
+            function point_acc_mul_local(dst,src,s) {
+                let buf := mload(0x40)
+                mstore(buf,mload(src))
+                mstore(add(buf,0x20),mload(add(src,0x20)))
+                mstore(add(buf,0x40),mload(s))
+                pop(staticcall(gas(),7,buf,0x60,buf,0x40)) // TODO should we check success here ?
+                mstore(add(buf,0x40),mload(dst))
+                mstore(add(buf,0x60),mload(add(dst,0x20)))
+                pop(staticcall(gas(),6,buf,0x80,dst, 0x40))
+            }
 
+            // dst <- dst + [ a*b [r] ]src
+            function point_acc_mul_mul_local(dst,src,a,b,rmod) {
+                let buf := mload(0x40)
+                mstore(buf,mload(src))
+                mstore(add(buf,0x20),mload(add(src,0x20)))
+                mstore(add(buf,0x40),mulmod(mload(a),mload(b),rmod))
+                pop(staticcall(gas(),7,buf,0x60,buf,0x40)) // TODO should we check success here ?
+                mstore(add(buf,0x40),mload(dst))
+                mstore(add(buf,0x60),mload(add(dst,0x20)))
+                pop(staticcall(gas(),6,buf,0x80,dst, 0x40))
+            }
+
+            // res_points_quotients <- [points[0]]*proofs[0].H
+            let point_i := add(points,0x20)
+            point_mul_local(res_points_quotients, proof_i, point_i)
+
+            // res_eval <- proofs[0].claimed_value
+            res_eval:= mload(add(proof_i, 0x40))
+
+            let lambda_i := add(lambda,0x20)
+
+            for {let i:=1} lt(i,mload(proofs)) {i:=add(i,1)}
+            {
+
+                digest_i := add(digest_i,0x40)
+                proof_i := add(proof_i,0x60)
+                lambda_i := add(lambda_i,0x20)
+                point_i := add(point_i,0x20)
+
+                // res_quotient <- res_quotient + [\lambda_i]proof[i].H
+                point_acc_mul_local(res_quotient, proof_i, lambda_i)
+                   
+                // res_digest <- res_digest + [\lambda_i]digest[i]
+                point_acc_mul_local(res_digest, digest_i, lambda_i)
+
+                // res_point_quotient <- [\lambda_i point[i]]proof[i].H
+                point_acc_mul_mul_local(res_points_quotients, proof_i, lambda_i, point_i, r)
+                
+                res_eval := addmod(res_eval,mulmod(mload(lambda_i),mload(add(proof_i,0x40)),r),r)
+            }
         }
 
         return (res_points_quotients, res_digest, res_quotient, res_eval);

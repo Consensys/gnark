@@ -262,7 +262,7 @@ library PlonkVerifier{
 
         (state.folded_proof, state.folded_digests) = Kzg.fold_proof(
             digests, 
-            batch_opening_proof, 
+            batch_opening_proof,
             state.zeta);  
         
     } 

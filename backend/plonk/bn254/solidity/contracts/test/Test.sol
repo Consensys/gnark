@@ -8,6 +8,7 @@ import {TranscriptLibrary} from '../crypto/Transcript.sol';
 import {Fr} from '../crypto/Fr.sol';
 import {UtilsFr} from '../crypto/HashFr.sol';
 import {Bn254} from '../crypto/Bn254.sol';
+import {Kzg} from '../crypto/Kzg.sol';
 
 contract TestContract {
 
@@ -17,6 +18,7 @@ contract TestContract {
   using TranscriptLibrary for *;
   using Fr for *;
   using Bn254 for *;
+  using Kzg for *;
 
   // function test_hash(uint256 x, uint256 y, string memory dst) public returns(uint256 res){
 
@@ -49,25 +51,26 @@ contract TestContract {
 
   function test_assembly() public {
   
-    Bn254.G1Point[] memory a = new Bn254.G1Point[](4);
-    a[0].X = 45;
-    a[0].Y = 46;
-    a[1].X = 47;
-    a[1].Y = 48;
-    a[2].X = 49;
-    a[2].Y = 50;
-    a[3].X = 51;
-    a[3].Y = 52;
+    Kzg.OpeningProof[] memory proof = new Kzg.OpeningProof[](2);
+    proof[0].h_x = 10;
+    proof[0].h_y = 20;
+    proof[0].claimed_value = 30;
+    proof[1].h_x = 40;
+    proof[1].h_y = 50;
+    proof[1].claimed_value = 60;
     
-    Bn254.G1Point memory first_point;
+    uint256[] memory s = new uint256[](10);
     assembly {
-      let s:=mload(a)
-      let offset:= mul(add(s,1), 0x20)
-      mstore(first_point, mload(add(a,offset)))
-      mstore(add(first_point, 0x20), mload(add(a,add(0x20,offset))))
+      for {let i:=0} lt(i,10) {i:=add(i,1)}
+      {
+        mstore(add(s,add(0x20,mul(0x20,i))), mload(add(proof, mul(0x20,i))))
+        // ss := mload(add(proof, 0xa0))
+      }
     }
-    emit PrintUint256(first_point.X);
-    emit PrintUint256(first_point.Y);
+    // emit PrintUint256(ss);
+    for (uint i=0; i<10; i++){
+      emit PrintUint256(s[i]);
+    }
   }
 
   function test_plonk_vanilla() public returns(bool) {

@@ -148,14 +148,7 @@ library Bn254 {
       mstore(add(mPtr, 0x20), mload(add(p1, 0x20)))
       mstore(add(mPtr, 0x40), mload(p2))
       mstore(add(mPtr, 0x60), sub(p_mod, mload(add(p2, 0x20))))
-      success := staticcall(
-        gas(), 
-        6, 
-        mPtr, 
-        0x80, 
-        dest, 
-        0x40
-      )
+      success := staticcall(gas(),6,mPtr,0x80,dest,0x40)
     }
     require(success);
     // }
@@ -191,14 +184,7 @@ library Bn254 {
       mstore(mPtr, mload(p))
       mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
       mstore(add(mPtr, 0x40), s)
-      success := staticcall(
-        gas(), 
-        7, 
-        mPtr, 
-        0x60, 
-        dest, 
-        0x40
-      )
+      success := staticcall(gas(),7,mPtr,0x60,dest,0x40)
     }
     require(success);
   }
@@ -206,18 +192,6 @@ library Bn254 {
   function multi_exp(G1Point[] memory p, uint256[] memory s)
   internal view returns (G1Point memory r)
   {
-    
-    // uint256[] memory ss = new uint256[](25);
-    // assembly {
-    //     for {let i:=0} lt(i, 25) {i:=add(i,1)}
-    //     {
-    //         let offset := mul(i, 0x20)
-    //         mstore(add(ss,add(offset,0x20)), mload(add(p,offset)))
-    //     } 
-    // }
-    // for (uint i=0; i<25; i++){
-    //     emit PrintUint256(ss[i]);
-    // }
 
     require (p.length==s.length);
     G1Point memory tmp;
@@ -280,14 +254,7 @@ library Bn254 {
         mstore(add(mPtr, 0x120), mload(add(b2, 0x20)))
         mstore(add(mPtr, 0x140), mload(add(b2, 0x40)))
         mstore(add(mPtr, 0x160), mload(add(b2, 0x60)))
-        success := staticcall(
-          gas(),
-          8,
-          mPtr,
-          0x180,
-          0x00,
-          0x20
-        )
+        success := staticcall(gas(),8,mPtr,0x180,0x00,0x20)
         out := mload(0x00)
       }
       require(success, "Pairing check failed!");
