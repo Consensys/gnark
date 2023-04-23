@@ -38,21 +38,9 @@ library Kzg {
     // fold the digests corresponding to a batch opening proof at a given point
     // return the proof associated to the folded digests, and the folded digest
     function fold_proof(Bn254.G1Point[] memory digests, BatchOpeningProof memory batch_opening_proof, uint256 point)
-    internal returns(OpeningProof memory opening_proof, Bn254.G1Point memory folded_digests)
+    internal view returns(OpeningProof memory opening_proof, Bn254.G1Point memory folded_digests)
     {
         require(digests.length==batch_opening_proof.claimed_values.length);
-
-        // uint256[] memory ss = new uint256[](25);
-        // assembly {
-        //     for {let i:=0} lt(i, 25) {i:=add(i,1)}
-        //     {
-        //         let offset := mul(i, 0x20)
-        //         mstore(add(ss,add(offset,0x20)), mload(add(digests,offset)))
-        //     } 
-        // }
-        // for (uint i=0; i<25; i++){
-        //     emit PrintUint256(ss[i]);
-        // }
 
         TranscriptLibrary.Transcript memory t = TranscriptLibrary.new_transcript();
         t.set_challenge_name("gamma");
@@ -62,7 +50,7 @@ library Kzg {
         }
         uint256 gamma = t.get_challenge();
 
-        opening_proof.H = batch_opening_proof.H;
+        Bn254.copy_g1(opening_proof.H,batch_opening_proof.H);
         
         // fold the claimed values
         uint256[] memory gammai = new uint256[](digests.length);

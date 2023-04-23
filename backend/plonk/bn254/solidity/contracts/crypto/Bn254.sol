@@ -161,7 +161,7 @@ library Bn254 {
   }
 
   function copy_g1(G1Point memory dst, G1Point memory src)
-  internal view {
+  internal pure {
     assembly {
       mstore(dst, mload(src))
       mstore(add(dst, 0x20), mload(add(src, 0x20)))
@@ -203,17 +203,54 @@ library Bn254 {
   }
 
   function multi_exp(G1Point[] memory p, uint256[] memory s)
-  internal returns (G1Point memory r)
+  internal view returns (G1Point memory r)
   {
     
+    // uint256[] memory ss = new uint256[](25);
+    // assembly {
+    //     for {let i:=0} lt(i, 25) {i:=add(i,1)}
+    //     {
+    //         let offset := mul(i, 0x20)
+    //         mstore(add(ss,add(offset,0x20)), mload(add(p,offset)))
+    //     } 
+    // }
+    // for (uint i=0; i<25; i++){
+    //     emit PrintUint256(ss[i]);
+    // }
+
     require (p.length==s.length);
     G1Point memory tmp;
 
-    r = Bn254.point_mul(p[0], s[0]);
-    for (uint i=1; i<p.length; i++) {
-      tmp = point_mul(p[i], s[i]);
-      r = point_add(r, tmp);
+    bool success;
+    assembly {
+
+      // [s[0]]p[0]
+      let n := mload(p)
+      let offset := mul(add(n,1), 0x20)
+      let mPtr := mload(0x40)
+      mstore(mPtr, mload(add(p, offset)))
+      mstore(add(mPtr, 0x20), mload(add(p, add(offset,0x20))))
+      mstore(add(mPtr, 0x40), mload(add(s, 0x20)))
+      success := staticcall(gas(),7,mPtr,0x60,r,0x40)
+
+      for {let i:=1} lt(i,n) {i:=add(i,1)}
+      {
+        // tmp <- [s[i]]p[i]
+        offset:=add(offset, 0x40)
+        mstore(mPtr, mload(add(p, offset)))
+        mstore(add(mPtr, 0x20), mload(add(p, add(offset, 0x20))))
+        mstore(add(mPtr, 0x40), mload(add(s, add(0x20, mul(0x20,i)))))
+        success := and(staticcall(gas(),7,mPtr,0x60,tmp,0x40), success)
+
+        // r <- r + tmp
+        mstore(mPtr, mload(r))
+        mstore(add(mPtr,0x20), mload(add(r, 0x20)))
+        mstore(add(mPtr,0x40), mload(tmp))
+        mstore(add(mPtr,0x60), mload(add(tmp,0x20)))
+        success := and(staticcall(gas(),6,mPtr,0x80,r,0x40), success)
+      }
     }
+    require(success, "multi_exp failed!");
 
     return r;
   }

@@ -229,7 +229,7 @@ library PlonkVerifier{
         Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk
-    ) internal{
+    ) internal view {
 
         // TODO if we don't copy manually the coordinates, can't manage to access memory lcoations with yul...
         Bn254.G1Point[] memory digests = new Bn254.G1Point[](7+vk.selector_commitments_commit_api.length);
@@ -268,7 +268,7 @@ library PlonkVerifier{
     } 
 
     function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs)
-    internal returns (bool) {
+    internal view returns (bool) {
 
         Types.State memory state;
         
