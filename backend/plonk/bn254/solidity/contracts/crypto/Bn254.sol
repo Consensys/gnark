@@ -88,36 +88,35 @@ library Bn254 {
   function point_add_into_dest(G1Point memory p1, G1Point memory p2, G1Point memory dest)
   internal view
   {
-    if (p2.X == 0 && p2.Y == 0) {
-      // we add zero, nothing happens
-      dest.X = p1.X;
-      dest.Y = p1.Y;
-      return;
-    } else if (p1.X == 0 && p1.Y == 0) {
-      // we add into zero, and we add non-zero point
-      dest.X = p2.X;
-      dest.Y = p2.Y;
-      return;
-    } else {
-      
-      bool success = false;
-      assembly {
-          let mPtr := mload(0x40)
-          mstore(mPtr, mload(p1))
-          mstore(add(mPtr, 0x20), mload(add(p1, 0x20)))
-          mstore(add(mPtr, 0x40), mload(p2))
-          mstore(add(mPtr, 0x60), mload(add(p2, 0x20)))
-          success := staticcall(
-            gas(), 
-            6, 
-            mPtr, 
-            0x80, 
-            dest, 
-            0x40
-          )
+    
+    bool success = false;
+    assembly {
+      if and(iszero(mload(p2)), iszero(mload(add(p2,0x20)))) {
+        mstore(dest, mload(p1))
+        mstore(add(dest, 0x20), mload(add(p1, 0x20)))
+        return(0, 0) // TODO not sure about this
       }
-      require(success);
+      if and(iszero(mload(p1)), iszero(mload(add(p1,0x20)))){
+        mstore(dest, p2)
+        mstore(dest, mload(add(p2, 0x20)))
+        return(0, 0) // TODO not sure about this
+      }
+      let mPtr := mload(0x40)
+      mstore(mPtr, mload(p1))
+      mstore(add(mPtr, 0x20), mload(add(p1, 0x20)))
+      mstore(add(mPtr, 0x40), mload(p2))
+      mstore(add(mPtr, 0x60), mload(add(p2, 0x20)))
+      success := staticcall(
+        gas(), 
+        6, 
+        mPtr, 
+        0x80, 
+        dest, 
+        0x40
+      )
     }
+    require(success);
+    // }
   }
 
   function point_sub_assign(G1Point memory p1, G1Point memory p2)
@@ -129,35 +128,37 @@ library Bn254 {
   function point_sub_into_dest(G1Point memory p1, G1Point memory p2, G1Point memory dest)
   internal view
   {
-    if (p2.X == 0 && p2.Y == 0) {
-      // we subtracted zero, nothing happens
-      dest.X = p1.X;
-      dest.Y = p1.Y;
-      return;
-    } else if (p1.X == 0 && p1.Y == 0) {
-      // we subtract from zero, and we subtract non-zero point
-      dest.X = p2.X;
-      dest.Y = p_mod - p2.Y;
-      return;
-    } else {
-      bool success = false;
-      assembly {
-        let mPtr := mload(0x40)
-        mstore(mPtr, mload(p1))
-        mstore(add(mPtr, 0x20), mload(add(p1, 0x20)))
-        mstore(add(mPtr, 0x40), mload(p2))
-        mstore(add(mPtr, 0x60), sub(p_mod, mload(add(p2, 0x20))))
-        success := staticcall(
-          gas(), 
-          6, 
-          mPtr, 
-          0x80, 
-          dest, 
-          0x40
-        )
+    bool success = false;
+    uint256 p = p_mod;
+    assembly {
+
+      if and(iszero(mload(p2)), iszero(mload(add(p2,0x20)))) {
+        mstore(dest, mload(p1))
+        mstore(add(dest, 0x20), mload(add(p1, 0x20)))
+        return(0, 0) // TODO not sure about this
       }
-      require(success);
+      if and(iszero(mload(p1)), iszero(mload(add(p1,0x20)))){
+        mstore(dest, p2)
+        mstore(dest, sub(p, mload(add(p2, 0x20))))
+        return(0, 0) // TODO not sure about this
+      }
+
+      let mPtr := mload(0x40)
+      mstore(mPtr, mload(p1))
+      mstore(add(mPtr, 0x20), mload(add(p1, 0x20)))
+      mstore(add(mPtr, 0x40), mload(p2))
+      mstore(add(mPtr, 0x60), sub(p_mod, mload(add(p2, 0x20))))
+      success := staticcall(
+        gas(), 
+        6, 
+        mPtr, 
+        0x80, 
+        dest, 
+        0x40
+      )
     }
+    require(success);
+    // }
   }
 
   function copy_g1(G1Point memory dst, G1Point memory src)
