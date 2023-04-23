@@ -297,10 +297,13 @@ library PlonkVerifier{
         
         Kzg.OpeningProof[] memory proofs = new Kzg.OpeningProof[](2);
         
-        Bn254.copy_g1(proofs[0].H, state.folded_proof.H);
-        proofs[0].claimed_value = state.folded_proof.claimed_value;
+        // Bn254.copy_g1(proofs[0].H, state.folded_proof.H);
+        // proofs[0].claimed_value = state.folded_proof.claimed_value;
+        Kzg.copy_opening_proof(proofs[0], state.folded_proof);
 
-        Bn254.copy_g1(proofs[1].H, proof.opening_at_zeta_omega_proof);
+        //Bn254.copy_g1(proofs[1].H, proof.opening_at_zeta_omega_proof);
+        proofs[1].h_x = proof.opening_at_zeta_omega_proof.X;
+        proofs[1].h_y = proof.opening_at_zeta_omega_proof.Y;
         proofs[1].claimed_value = proof.grand_product_at_zeta_omega;
 
         uint256[] memory points = new uint256[](2);

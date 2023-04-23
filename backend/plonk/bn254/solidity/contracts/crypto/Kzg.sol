@@ -17,8 +17,10 @@ library Kzg {
     using TranscriptLibrary for TranscriptLibrary.Transcript;
 
     struct OpeningProof {
-        // H quotient polynomial (f - f(z))/(x-z)
-        Bn254.G1Point H;
+        // H = (h_x, h_y) quotient polynomial (f - f(z))/(x-z)
+        //Bn254.G1Point H;
+        uint256 h_x;
+        uint256 h_y;
 
         // claimed_value purported value
         uint256 claimed_value;
@@ -35,6 +37,15 @@ library Kzg {
 
     event PrintUint256(uint256 a);
 
+    function copy_opening_proof(OpeningProof memory src, OpeningProof memory dst)
+    internal pure {
+        assembly {
+            mstore(src, mload(dst))
+            mstore(add(src, 0x20), mload(add(dst, 0x20)))
+            mstore(add(src, 0x40), mload(add(dst, 0x40)))
+        }
+    }
+
     // fold the digests corresponding to a batch opening proof at a given point
     // return the proof associated to the folded digests, and the folded digest
     function fold_proof(Bn254.G1Point[] memory digests, BatchOpeningProof memory batch_opening_proof, uint256 point)
@@ -50,7 +61,9 @@ library Kzg {
         }
         uint256 gamma = t.get_challenge();
 
-        Bn254.copy_g1(opening_proof.H,batch_opening_proof.H);
+        //Bn254.copy_g1(opening_proof.H,batch_opening_proof.H);
+        opening_proof.h_x = batch_opening_proof.H.X;
+        opening_proof.h_y = batch_opening_proof.H.Y;
         
         // fold the claimed values
         uint256[] memory gammai = new uint256[](digests.length);
@@ -79,7 +92,8 @@ library Kzg {
         uint256 tmp;
         Bn254.G1Point memory tmp_point;
 
-        res_quotient = proofs[0].H;
+        res_quotient.X = proofs[0].h_x;
+        res_quotient.Y = proofs[0].h_y;
         // uint256[] memory ss = new uint256[](6);
         // assembly {
         //     for {let i:=0} lt(i, 6) {i:=add(i,1)}
@@ -92,20 +106,26 @@ library Kzg {
         //     emit PrintUint256(ss[i]);
         // }
         
-        res_digest = digests[0];
-        res_points_quotients = Bn254.point_mul(proofs[0].H, points[0]);
+        Bn254.copy_g1(res_digest, digests[0]);
+        tmp_point.X = proofs[0].h_x;
+        tmp_point.Y = proofs[0].h_y;
+        res_points_quotients = Bn254.point_mul(tmp_point, points[0]);
         res_eval = proofs[0].claimed_value;
 
         for (uint i=1; i<proofs.length; i++){
 
-            tmp_point = Bn254.point_mul(proofs[i].H, lambda[i]);
+            tmp_point.X = proofs[i].h_x;
+            tmp_point.Y = proofs[i].h_y;
+            tmp_point = Bn254.point_mul(tmp_point, lambda[i]);
             res_quotient = Bn254.point_add(res_quotient, tmp_point);
 
             tmp_point = Bn254.point_mul(digests[i], lambda[i]);
             res_digest = Bn254.point_add(res_digest, tmp_point);
 
             tmp = Fr.mul(lambda[i], points[i]);
-            tmp_point = Bn254.point_mul(proofs[i].H, tmp);
+            tmp_point.X = proofs[i].h_x;
+            tmp_point.Y = proofs[i].h_y;
+            tmp_point = Bn254.point_mul(tmp_point, tmp);
             res_points_quotients = Bn254.point_add(res_points_quotients, tmp_point);
 
             tmp = Fr.mul(lambda[i], proofs[i].claimed_value);
