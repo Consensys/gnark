@@ -70,17 +70,27 @@ library Kzg {
 
     // returns \sum_i [lambda^{i}p_i]H_i \sum_i [lambda^{i)]H_i, \sum_i [lambda_i]Comm_i, \sum_i lambda^i*p_i
     function fold_digests_quotients_evals(uint256[] memory lambda, uint256[] memory points, Bn254.G1Point[] memory digests, OpeningProof[] memory proofs)
-    internal view returns(
+    internal returns(
         Bn254.G1Point memory res_quotient, 
         Bn254.G1Point memory res_digest,
         Bn254.G1Point memory res_points_quotients,
         uint256 res_eval)
     {
         uint256 tmp;
-
         Bn254.G1Point memory tmp_point;
 
         res_quotient = proofs[0].H;
+        // uint256[] memory ss = new uint256[](6);
+        // assembly {
+        //     for {let i:=0} lt(i, 6) {i:=add(i,1)}
+        //     {
+        //         let offset := mul(i, 0x20)
+        //         mstore(add(ss,add(offset,0x20)), mload(add(proofs,offset)))
+        //     } 
+        // }
+        // for (uint i=0; i<6; i++){
+        //     emit PrintUint256(ss[i]);
+        // }
         
         res_digest = digests[0];
         res_points_quotients = Bn254.point_mul(proofs[0].H, points[0]);
@@ -108,7 +118,7 @@ library Kzg {
     }
 
     function batch_verify_multi_points(Bn254.G1Point[] memory digests, OpeningProof[] memory proofs, uint256[] memory points, Bn254.G2Point memory g2)
-    internal view returns(bool)
+    internal returns(bool)
     {
 
         require(digests.length == proofs.length);

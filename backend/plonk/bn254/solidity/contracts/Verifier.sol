@@ -268,7 +268,7 @@ library PlonkVerifier{
     } 
 
     function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs)
-    internal view returns (bool) {
+    internal returns (bool) {
 
         Types.State memory state;
         
@@ -292,12 +292,15 @@ library PlonkVerifier{
 
         // step 5: batch verify the folded proof and the opening proof at omega*zeta
         Bn254.G1Point[] memory digests = new Bn254.G1Point[](2);
-        digests[0] = state.folded_digests;
-        digests[1] = proof.grand_product_commitment;
+        Bn254.copy_g1(digests[0], state.folded_digests);
+        Bn254.copy_g1(digests[1], proof.grand_product_commitment);
         
         Kzg.OpeningProof[] memory proofs = new Kzg.OpeningProof[](2);
-        proofs[0] = state.folded_proof;
-        proofs[1].H = proof.opening_at_zeta_omega_proof;
+        
+        Bn254.copy_g1(proofs[0].H, state.folded_proof.H);
+        proofs[0].claimed_value = state.folded_proof.claimed_value;
+
+        Bn254.copy_g1(proofs[1].H, proof.opening_at_zeta_omega_proof);
         proofs[1].claimed_value = proof.grand_product_at_zeta_omega;
 
         uint256[] memory points = new uint256[](2);
