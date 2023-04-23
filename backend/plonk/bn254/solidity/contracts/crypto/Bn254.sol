@@ -160,6 +160,14 @@ library Bn254 {
     }
   }
 
+  function copy_g1(G1Point memory dst, G1Point memory src)
+  internal view {
+    assembly {
+      mstore(dst, mload(src))
+      mstore(add(dst, 0x20), mload(add(src, 0x20)))
+    }
+  }
+
   function point_mul(G1Point memory p, uint256 s)
   internal view returns (G1Point memory r)
   {
@@ -195,44 +203,13 @@ library Bn254 {
   }
 
   function multi_exp(G1Point[] memory p, uint256[] memory s)
-  internal view returns (G1Point memory r)
+  internal returns (G1Point memory r)
   {
-
+    
     require (p.length==s.length);
     G1Point memory tmp;
 
-    bool success;
-    G1Point memory tt = p[0];
-    assembly {
-
-      // r = [s[0]]p[0]
-      let a := mload(0x40)
-      // mstore(a, mload(add(p, 0x20)))    
-      // mstore(add(a, 0x20), mload(add(p, 0x40)))
-      mstore(a, mload(tt))    
-      mstore(add(a, 0x20), mload(add(tt, 0x20)))
-      mstore(add(a, 0x40), mload(add(s, 0x20))) // -> offset for s is correct
-      success := staticcall(gas(), 7, a, 0x60, r, 0x40)
-
-      // let l := mload(p)
-      // for {let i := 1} lt(i, l) {i := add(i,1)} {
-        
-      //   a := mload(0x40)
-      //   mstore(a, mload(add(p, add(0x20, mul(i, 0x40)))))   
-      //   mstore(add(a, 0x20), mload(add(p, add(0x40, mul(i, 0x40)))))
-      //   mstore(add(a, 0x40), mload(add(s, add(0x20, mul(i, 0x20)))))
-      //   success := and(staticcall(gas(), 7, a, 0x60, tmp, 0x40), success)
-
-      //   a := mload(0x40)
-      //   mstore(a, mload(tmp))
-      //   mstore(add(a, 0x20), mload(add(tmp, 0x20)))
-      //   mstore(add(a, 0x40), mload(r))
-      //   mstore(add(a, 0x60), mload(add(r, 0x20)))
-      //   success := and(staticcall(gas(),6, a,  0x80, r, 0x40), success)
-      // }
-    }
-    require(success, "multi_exp failed!");
-
+    r = Bn254.point_mul(p[0], s[0]);
     for (uint i=1; i<p.length; i++) {
       tmp = point_mul(p[i], s[i]);
       r = point_add(r, tmp);

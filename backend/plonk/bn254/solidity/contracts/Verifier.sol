@@ -223,27 +223,30 @@ library PlonkVerifier{
 
     }
 
+    event PrintUint256(uint256 a);
+
     function fold_state(
         Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk
-    ) internal view{
+    ) internal{
 
+        // TODO if we don't copy manually the coordinates, can't manage to access memory lcoations with yul...
         Bn254.G1Point[] memory digests = new Bn254.G1Point[](7+vk.selector_commitments_commit_api.length);
-        digests[0] = state.folded_h;
-        digests[1] = state.linearised_polynomial;
-        digests[2] = proof.wire_commitments[0];
-        digests[3] = proof.wire_commitments[1];
-        digests[4] = proof.wire_commitments[2];
-        digests[5] = vk.permutation_commitments[0];
-        digests[6] = vk.permutation_commitments[1];
+        Bn254.copy_g1(digests[0], state.folded_h);
+        Bn254.copy_g1(digests[1], state.linearised_polynomial);
+        Bn254.copy_g1(digests[2], proof.wire_commitments[0]);
+        Bn254.copy_g1(digests[3], proof.wire_commitments[1]);
+        Bn254.copy_g1(digests[4], proof.wire_commitments[2]);
+        Bn254.copy_g1(digests[5], vk.permutation_commitments[0]);
+        Bn254.copy_g1(digests[6], vk.permutation_commitments[1]);
         for (uint i=0; i<vk.selector_commitments_commit_api.length; i++){
-            digests[i+7] = vk.selector_commitments_commit_api[i];
+            Bn254.copy_g1(digests[i+7], vk.selector_commitments_commit_api[i]);
         }
 
         // TODO perhaps we should we inline all this
         Kzg.BatchOpeningProof memory batch_opening_proof;
-        batch_opening_proof.H = proof.opening_at_zeta_proof;
+        Bn254.copy_g1(batch_opening_proof.H, proof.opening_at_zeta_proof);
         batch_opening_proof.claimed_values = new uint256[](7+proof.selector_commit_api_at_zeta.length);
         batch_opening_proof.claimed_values[0] = proof.quotient_polynomial_at_zeta;
         batch_opening_proof.claimed_values[1] = proof.linearization_polynomial_at_zeta;
@@ -265,7 +268,7 @@ library PlonkVerifier{
     } 
 
     function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs)
-    internal view returns (bool) {
+    internal returns (bool) {
 
         Types.State memory state;
         

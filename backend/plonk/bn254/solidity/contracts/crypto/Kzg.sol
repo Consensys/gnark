@@ -16,7 +16,6 @@ library Kzg {
     using Fr for uint256;
     using TranscriptLibrary for TranscriptLibrary.Transcript;
 
-
     struct OpeningProof {
         // H quotient polynomial (f - f(z))/(x-z)
         Bn254.G1Point H;
@@ -34,12 +33,26 @@ library Kzg {
         uint256[] claimed_values;
     }
 
+    event PrintUint256(uint256 a);
+
     // fold the digests corresponding to a batch opening proof at a given point
     // return the proof associated to the folded digests, and the folded digest
     function fold_proof(Bn254.G1Point[] memory digests, BatchOpeningProof memory batch_opening_proof, uint256 point)
-    internal view returns(OpeningProof memory opening_proof, Bn254.G1Point memory folded_digests)
+    internal returns(OpeningProof memory opening_proof, Bn254.G1Point memory folded_digests)
     {
         require(digests.length==batch_opening_proof.claimed_values.length);
+
+        // uint256[] memory ss = new uint256[](25);
+        // assembly {
+        //     for {let i:=0} lt(i, 25) {i:=add(i,1)}
+        //     {
+        //         let offset := mul(i, 0x20)
+        //         mstore(add(ss,add(offset,0x20)), mload(add(digests,offset)))
+        //     } 
+        // }
+        // for (uint i=0; i<25; i++){
+        //     emit PrintUint256(ss[i]);
+        // }
 
         TranscriptLibrary.Transcript memory t = TranscriptLibrary.new_transcript();
         t.set_challenge_name("gamma");
@@ -80,6 +93,7 @@ library Kzg {
         Bn254.G1Point memory tmp_point;
 
         res_quotient = proofs[0].H;
+        
         res_digest = digests[0];
         res_points_quotients = Bn254.point_mul(proofs[0].H, points[0]);
         res_eval = proofs[0].claimed_value;

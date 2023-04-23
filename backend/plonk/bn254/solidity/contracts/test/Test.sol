@@ -45,6 +45,30 @@ contract TestContract {
   // }
 
   event PrintBool(bool a);
+  event PrintUint256(uint256 a);
+
+  function test_assembly() public {
+  
+    Bn254.G1Point[] memory a = new Bn254.G1Point[](4);
+    a[0].X = 45;
+    a[0].Y = 46;
+    a[1].X = 47;
+    a[1].Y = 48;
+    a[2].X = 49;
+    a[2].Y = 50;
+    a[3].X = 51;
+    a[3].Y = 52;
+    
+    Bn254.G1Point memory first_point;
+    assembly {
+      let s:=mload(a)
+      let offset:= mul(add(s,1), 0x20)
+      mstore(first_point, mload(add(a,offset)))
+      mstore(add(first_point, 0x20), mload(add(a,add(0x20,offset))))
+    }
+    emit PrintUint256(first_point.X);
+    emit PrintUint256(first_point.Y);
+  }
 
   function test_plonk_vanilla() public returns(bool) {
 
