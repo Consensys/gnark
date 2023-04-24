@@ -55,7 +55,7 @@ func createSimulatedBackend(privateKey *ecdsa.PrivateKey) (*backends.SimulatedBa
 	}
 
 	// create simulated backend & deploy the contract
-	blockGasLimit := uint64(4712388)
+	blockGasLimit := uint64(14712388)
 	client := backends.NewSimulatedBackend(genesisAlloc, blockGasLimit)
 
 	return client, auth, nil
@@ -77,7 +77,20 @@ func getTransactionOpts(privateKey *ecdsa.PrivateKey, auth *bind.TransactOpts, c
 
 	auth.Nonce = big.NewInt(int64(nonce))
 	auth.Value = big.NewInt(0)
-	auth.GasLimit = uint64(500000)
+	// auth.GasLimit = uint64(597250) // -> pairing assembly
+	// auth.GasLimit = uint64(594700) // -> + pow assembly
+	// auth.GasLimit = uint64(593400) // -> + inverse assembly
+	// auth.GasLimit = uint64(587000) // -> + ecadd assembly
+	// auth.GasLimit = uint64(586500) // -> + eccsub assembly
+	// auth.GasLimit = uint64(580900) // -> + accmul assembly
+	// auth.GasLimit = uint64(579000) // -> + compute_ith_lagrange_at_z assembly
+	// auth.GasLimit = uint64(576000) // -> + 'assembly' keyword in add, sub, etc...
+	// auth.GasLimit = uint64(570950) // -> + batch invert assembly
+	// auth.GasLimit = uint64(568000) // -> + batch_compute_lagranges_at_z assembly
+	// auth.GasLimit = uint64(566500) // -> + compute_sum_li_zi assembly
+	// auth.GasLimit = uint64(562500) // -> + multi_exp assembly
+	// auth.GasLimit = uint64(558000) // -> + fold_proof assembly
+	auth.GasLimit = uint64(554900) // -> + fold_digests_quotients_evals assembly
 	auth.GasPrice = gasprice
 
 	return auth, nil
@@ -147,9 +160,9 @@ func getVkProofCommitmentCircuit() (bn254plonk.Proof, bn254plonk.VerifyingKey, b
 
 	tvk := vk.(*bn254plonk.VerifyingKey)
 	tproof := proof.(*bn254plonk.Proof)
-	tsrs := srs.(*kzg.SRS)
 
-	return *tproof, *tvk, tsrs.Vk.G2[1]
+	tsrs := srs.(*kzg.SRS)
+	return *tproof, *tvk, tsrs.G2[1]
 }
 
 func getVkProofCubicCircuit() (bn254plonk.Proof, bn254plonk.VerifyingKey, bn254.G2Affine, []fr.Element) {
@@ -364,159 +377,44 @@ func main() {
 	checkError(err)
 	client.Commit()
 
+	var proof bn254plonk.Proof
+	var vk bn254plonk.VerifyingKey
+
+	rproof, err := os.Open("proof.commit")
+	checkError(err)
+	_, err = proof.ReadFrom(rproof)
+	checkError(err)
+
+	rvk, err := os.Open("vk.commit")
+	checkError(err)
+	_, err = vk.ReadFrom(rvk)
+	checkError(err)
+
+	vk.KZGSRS = new(kzg.SRS)
+	vk.KZGSRS.G1 = make([]bn254.G1Affine, 1)
+	_, _, vk.KZGSRS.G1[0], vk.KZGSRS.G2[0] = bn254.Generators()
+	vk.KZGSRS.G2[1].X.A0.SetString("3861286923073220011793349409046889289349533020715526625969101603056608090795")
+	vk.KZGSRS.G2[1].X.A1.SetString("4777846902900565418590449384753263717909657903692016614099552076160357595620")
+	vk.KZGSRS.G2[1].Y.A0.SetString("21022748302362729781528857183979865986597752242747307653138221198529458362155")
+	vk.KZGSRS.G2[1].Y.A1.SetString("16406754891999554747479650379038048271643900448173543122927661446988296543616")
+
+	vk.CommitmentInfo.CommitmentIndex = 3
+	vk.CommitmentInfo.Committed = []int{1}
+
+	var witness commitmentCircuit
+	witness.X = [3]frontend.Variable{3, 4, 5}
+	witness.Public = [3]frontend.Variable{6, 7, 8}
+	witnessFull, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	checkError(err)
+	witnessPublic, err := witnessFull.Public()
+	checkError(err)
+
+	err = plonk.Verify(&proof, &vk, witnessPublic)
+	checkError(err)
+
 	// Interact with the contract
 	auth, err = getTransactionOpts(privateKey, auth, client)
 	checkError(err)
-
-	inputs := make([]*big.Int, 10)
-	fmt.Printf("[")
-	for i := 0; i < 10; i++ {
-		inputs[i] = big.NewInt(int64(i) + 3)
-		fmt.Printf("Fr(%s), ", inputs[i].String())
-	}
-	fmt.Println("]")
-
-	auth, err = getTransactionOpts(privateKey, auth, client)
-	checkError(err)
-	_, err = instance.TestBatchInvert(auth, inputs)
-	checkError(err)
-
-	auth, err = getTransactionOpts(privateKey, auth, client)
-	checkError(err)
-	_, err = instance.TestPlonkDeserialize(auth, withCommitment.kzgVk, withCommitment.plonkVk, withCommitment.proof, withCommitment.public)
-	checkError(err)
-
-	// test plonk with commitment
-
-	// test hash
-	// _, _, p, _ := bn254.Generators()
-	// var bx, by big.Int
-	// p.X.BigInt(&bx)
-	// p.Y.BigInt(&by)
-	// _, err = instance.TestHash(auth, &bx, &by, "BSB22-Plonk")
-	// checkError(err)
-
-	// test sum_i li*zi
-	// d := fft.NewDomain(64)
-	// var bz, bn, bw big.Int
-	// d.Generator.BigInt(&bw)
-	// fmt.Printf("w = Fr(%s)\n", d.Generator.String())
-	// bz.SetUint64(29)
-	// bn.SetUint64(d.Cardinality)
-	// // bi.SetUint64(10)
-
-	// test circuit
-	// proof, vk, _, _ := getVkProofCubicCircuit()
-
-	// wproof, err := os.Create("proof")
-	// checkError(err)
-	// proof.WriteRawTo(wproof)
-	// wvk, err := os.Create("vk")
-	// checkError(err)
-	// vk.WriteTo(wvk)
-	// wproof.Close()
-	// wvk.Close()
-
-	/*
-			var proof bn254plonk.Proof
-			var vk bn254plonk.VerifyingKey
-
-			rproof, err := os.Open("proof")
-			checkError(err)
-			_, err = proof.ReadFrom(rproof)
-			checkError(err)
-
-				auth, err = getTransactionOpts(privateKey, auth, client)
-				checkError(err)
-				_, err = instance.TestBatchComputeLagrange(auth, big.NewInt(12), &bz, &bw, &bn)
-				checkError(err)
-
-
-		rvk, err := os.Open("vk")
-		checkError(err)
-		_, err = vk.ReadFrom(rvk)
-		checkError(err)
-
-		rproof.Close()
-		rvk.Close()
-
-		vk.KZGSRS = new(kzg.SRS)
-		vk.KZGSRS.G1 = make([]bn254.G1Affine, 1)
-		_, _, vk.KZGSRS.G1[0], vk.KZGSRS.G2[0] = bn254.Generators()
-		vk.KZGSRS.G2[1].X.A0.SetString("14227438095234809947593477115205615798437098135983661833593245518598873470133")
-		vk.KZGSRS.G2[1].X.A1.SetString("10502847900728352820104995430384591572235862434148733107155956109347693984589")
-		vk.KZGSRS.G2[1].Y.A0.SetString("7327864992410983220565967131396496522982024563883331581506589780450237498081")
-		vk.KZGSRS.G2[1].Y.A1.SetString("21715068306295773599916956786074008492685752252069347482027975832766446299128")
-	*/
-
-	// prettyPrintProof(proof)
-	// fmt.Println("")
-	// prettyPrintVk(vk, vk.KZGSRS.G2[1])
-
-	/*
-		var witness cubicCircuit
-		witness.X = 3
-		witness.Y = 35
-		witnessFull, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
-		checkError(err)
-		witnessPublic, err := witnessFull.Public()
-		checkError(err)
-
-		plonk.Verify(&proof, &vk, witnessPublic)
-		checkError(err)
-	*/
-
-	// hFunc := sha256.New()
-	// fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
-	// var buf [bn254.SizeOfG1AffineUncompressed]byte
-	// var r fr.Element
-
-	// for _, p := range vk.S {
-	// 	buf = p.RawBytes()
-	// 	err = fs.Bind("gamma", buf[:])
-	// 	checkError(err)
-	// }
-	// buf = vk.Ql.RawBytes()
-	// err = fs.Bind("gamma", buf[:])
-	// checkError(err)
-
-	// buf = vk.Qr.RawBytes()
-	// err = fs.Bind("gamma", buf[:])
-	// checkError(err)
-
-	// fmt.Println(vk.Qm.String())
-
-	// buf = vk.Qm.RawBytes()
-	// err = fs.Bind("gamma", buf[:])
-	// checkError(err)
-
-	// buf = vk.Qo.RawBytes()
-	// err = fs.Bind("gamma", buf[:])
-	// checkError(err)
-
-	// buf = vk.Qk.RawBytes()
-	// err = fs.Bind("gamma", buf[:])
-	// checkError(err)
-
-	// var publicInput fr.Element
-	// publicInput.SetUint64(35)
-	// err = fs.Bind("gamma", publicInput.Marshal())
-	// checkError(err)
-
-	// buf = proof.PI2.RawBytes()
-	// err = fs.Bind("gamma", buf[:])
-	// checkError(err)
-
-	// for _, p := range proof.LRO {
-	// 	buf = p.RawBytes()
-	// 	err = fs.Bind("gamma", buf[:])
-	// 	checkError(err)
-	// }
-
-	// b, err := fs.ComputeChallenge("gamma")
-	// checkError(err)
-	// r.SetBytes(b)
-	// fmt.Printf("gamma = %s\n", r.String())
 
 	/*
 		_, err = instance.TestPlonkVanilla(auth)
@@ -525,6 +423,10 @@ func main() {
 	*/
 
 	_ = instance
+
+	// _, err = instance.TestAssembly(auth)
+	// checkError(err)
+	// client.Commit()
 
 	// query event
 	query := ethereum.FilterQuery{
@@ -543,27 +445,9 @@ func main() {
 
 	for _, vLog := range logs {
 
-		// var event interface{}
-		// err = contractABI.UnpackIntoInterface(&event, "PrintUint256", vLog.Data)
-		// checkError(err)
-		// solidityRes := event.(*big.Int)
-
-		// // check against gnark-crypto
-		// msg := p.Marshal()
-		// dst := []byte("BSB22-Plonk")
-		// count := 1
-		// refRes, err := fr.Hash(msg, dst, count)
-		// checkError(err)
-		// var brefRes big.Int
-		// refRes[0].BigInt(&brefRes)
-
-		// if solidityRes.Cmp(&brefRes) != 0 {
-		// 	fmt.Println("hashes do not match")
-		// 	os.Exit(-1)
-		// }
-
 		var event interface{}
-		err = contractABI.UnpackIntoInterface(&event, "PrintUint256", vLog.Data)
+		err = contractABI.UnpackIntoInterface(&event, "PrintBool", vLog.Data)
+		// err = contractABI.UnpackIntoInterface(&event, "PrintUint256", vLog.Data)
 		checkError(err)
 		fmt.Println(event)
 	}

@@ -51,5 +51,6 @@ gnarkd/circuits/**
 # Jetbrains stuff
 .idea/
 
-*.abi
+# Compiled Solidity
 *.bin
+*.abi

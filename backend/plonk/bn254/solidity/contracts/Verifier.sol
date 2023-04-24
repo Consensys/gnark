@@ -1,10 +1,7 @@
-// Warning this code was contributed into gnark here: 
-// https://github.com/ConsenSys/gnark/pull/358
-// 
 // It has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability. 
 // 
 // According to https://eprint.iacr.org/archive/2019/953/1585767119.pdf
-pragma solidity ^0.8.0;
+pragma solidity >=0.6.0;
 
 import {Bn254} from './crypto/Bn254.sol';
 import {Fr} from './crypto/Fr.sol';
@@ -12,6 +9,7 @@ import {TranscriptLibrary} from './crypto/Transcript.sol';
 import {Polynomials} from './crypto/Polynomials.sol';
 import {Types} from './crypto/Types.sol';
 import {Kzg} from './crypto/Kzg.sol';
+import {UtilsFr} from './crypto/HashFr.sol';
 
 // contract PlonkVerifier {
 library PlonkVerifier{
@@ -25,12 +23,9 @@ library PlonkVerifier{
 
     uint256 constant STATE_WIDTH = 3;
 
-    event PrintUint256(uint256 a);
-    event PrintBool(bool a);
-
     function derive_gamma_beta_alpha_zeta(
 
-        Types.PartialVerifierState memory state,
+        Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk,
         uint256[] memory public_inputs) internal pure {
@@ -52,7 +47,9 @@ library PlonkVerifier{
             t.update_with_u256(public_inputs[i]);
         }
 
-        t.update_with_g1(proof.wire_commitments[3]); // PI2
+        for (uint i=0; i<proof.wire_committed_commitments.length; i++){
+            t.update_with_g1(proof.wire_committed_commitments[i]); // PI2_i
+        }
         t.update_with_g1(proof.wire_commitments[0]); // [L]
         t.update_with_g1(proof.wire_commitments[1]); // [R]
         t.update_with_g1(proof.wire_commitments[2]); // [O]
@@ -75,7 +72,7 @@ library PlonkVerifier{
 
      // plonk paper verify process step8: Compute quotient polynomial evaluation
     function verify_quotient_poly_eval_at_zeta(
-        Types.PartialVerifierState memory state,
+        Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk,
         uint256[] memory public_inputs
@@ -87,6 +84,18 @@ library PlonkVerifier{
 
         // compute PI = ∑_{i<n} Lᵢ*wᵢ
         uint256 pi = Polynomials.compute_sum_li_zi(public_inputs, state.zeta, vk.omega, vk.domain_size);
+        
+        if (vk.commitment_indices.length > 0) {
+
+            string memory dst = "BSB22-Plonk";
+
+            for (uint256 i=0; i<vk.commitment_indices.length; i++){
+                uint256 hash_res = UtilsFr.hash_fr(proof.wire_committed_commitments[i].X, proof.wire_committed_commitments[i].Y, dst);
+                uint256 a = Polynomials.compute_ith_lagrange_at_z(vk.commitment_indices[i]+public_inputs.length, state.zeta, vk.omega, vk.domain_size);
+                a = Fr.mul(hash_res, a);
+                pi = Fr.add(pi, a);
+            }
+        }
 
         uint256 _s1;
         _s1 = Fr.mul(proof.permutation_polynomials_at_zeta[0], state.beta);
@@ -110,19 +119,19 @@ library PlonkVerifier{
         state.alpha_square_lagrange = Fr.mul(state.alpha_square_lagrange, state.alpha);
         state.alpha_square_lagrange = Fr.mul(state.alpha_square_lagrange, state.alpha);  // α²*L₁(ζ)
         
-        uint256 compute_quotient;
-        compute_quotient = Fr.add(proof.linearization_polynomial_at_zeta, pi); // linearizedpolynomial + pi(zeta)
-        compute_quotient = Fr.add(compute_quotient, _s1); // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
-        compute_quotient = Fr.sub(compute_quotient, state.alpha_square_lagrange); // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
+        uint256 computed_quotient;
+        computed_quotient = Fr.add(proof.linearization_polynomial_at_zeta, pi); // linearizedpolynomial + pi(zeta)
+        computed_quotient = Fr.add(computed_quotient, _s1); // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
+        computed_quotient = Fr.sub(computed_quotient, state.alpha_square_lagrange); // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
 
-        // Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)
-        compute_quotient = Fr.div(compute_quotient, zeta_power_n_minus_one);
+        _s2 = Fr.mul(proof.quotient_polynomial_at_zeta, zeta_power_n_minus_one);
         
-        return compute_quotient == proof.quotient_polynomial_at_zeta;
+        // H(ζ)*(\zeta^{n}-1) ==?  lin_pol(\zeta)
+        return computed_quotient == _s2;
     }
 
     function fold_h(
-        Types.PartialVerifierState memory state,
+        Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk
     ) internal view {
@@ -135,18 +144,19 @@ library PlonkVerifier{
         state.folded_h.point_add_assign(proof.quotient_poly_commitments[1]);
         state.folded_h.point_mul_assign(zeta_power_n_plus_two);
         state.folded_h.point_add_assign(proof.quotient_poly_commitments[0]);
+       
     }
 
     function compute_commitment_linearised_polynomial(
-        Types.PartialVerifierState memory state,
+        Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk
     ) internal view {
 
         // linearizedPolynomialDigest =
-        // 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+qc*PI2 +
+        // 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+\sum_i qc_i*PI2_i +
         // 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
-        // 		α²*L₁(ζ)*Z
+        // 		α²*L₁(ζ)*Zs
 
         // α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
         uint256 u;
@@ -200,8 +210,10 @@ library PlonkVerifier{
 
         state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, vk.selector_commitments[4]);
 
-        ptmp = Bn254.point_mul(proof.wire_commitments[3], proof.qcprime_at_zeta);
-        state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, ptmp);
+        for (uint i=0; i<proof.selector_commit_api_at_zeta.length; i++){
+            ptmp = Bn254.point_mul(proof.wire_committed_commitments[i], proof.selector_commit_api_at_zeta[i]);
+            state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, ptmp);
+        }
 
         ptmp = Bn254.point_mul(vk.permutation_commitments[2], _s1);
         state.linearised_polynomial = Bn254.point_add(state.linearised_polynomial, ptmp);
@@ -211,26 +223,31 @@ library PlonkVerifier{
 
     }
 
+    event PrintUint256(uint256 a);
+
     function fold_state(
-        Types.PartialVerifierState memory state,
+        Types.State memory state,
         Types.Proof memory proof,
         Types.VerificationKey memory vk
-    ) internal view{
+    ) internal view {
 
-        Bn254.G1Point[] memory digests = new Bn254.G1Point[](8);
-        digests[0] = state.folded_h;
-        digests[1] = state.linearised_polynomial;
-        digests[2] = proof.wire_commitments[0];
-        digests[3] = proof.wire_commitments[1];
-        digests[4] = proof.wire_commitments[2];
-        digests[5] = vk.permutation_commitments[0];
-        digests[6] = vk.permutation_commitments[1];
-        digests[7] = vk.selector_commitments[5];
+        // TODO if we don't copy manually the coordinates, can't manage to access memory lcoations with yul...
+        Bn254.G1Point[] memory digests = new Bn254.G1Point[](7+vk.selector_commitments_commit_api.length);
+        Bn254.copy_g1(digests[0], state.folded_h);
+        Bn254.copy_g1(digests[1], state.linearised_polynomial);
+        Bn254.copy_g1(digests[2], proof.wire_commitments[0]);
+        Bn254.copy_g1(digests[3], proof.wire_commitments[1]);
+        Bn254.copy_g1(digests[4], proof.wire_commitments[2]);
+        Bn254.copy_g1(digests[5], vk.permutation_commitments[0]);
+        Bn254.copy_g1(digests[6], vk.permutation_commitments[1]);
+        for (uint i=0; i<vk.selector_commitments_commit_api.length; i++){
+            Bn254.copy_g1(digests[i+7], vk.selector_commitments_commit_api[i]);
+        }
 
         // TODO perhaps we should we inline all this
         Kzg.BatchOpeningProof memory batch_opening_proof;
-        batch_opening_proof.H = proof.opening_at_zeta_proof;
-        batch_opening_proof.claimed_values = new uint256[](8);
+        Bn254.copy_g1(batch_opening_proof.H, proof.opening_at_zeta_proof);
+        batch_opening_proof.claimed_values = new uint256[](7+proof.selector_commit_api_at_zeta.length);
         batch_opening_proof.claimed_values[0] = proof.quotient_polynomial_at_zeta;
         batch_opening_proof.claimed_values[1] = proof.linearization_polynomial_at_zeta;
         batch_opening_proof.claimed_values[2] = proof.wire_values_at_zeta[0];
@@ -238,45 +255,55 @@ library PlonkVerifier{
         batch_opening_proof.claimed_values[4] = proof.wire_values_at_zeta[2];
         batch_opening_proof.claimed_values[5] = proof.permutation_polynomials_at_zeta[0];
         batch_opening_proof.claimed_values[6] = proof.permutation_polynomials_at_zeta[1];
-        batch_opening_proof.claimed_values[7] = proof.qcprime_at_zeta;
+        //batch_opening_proof.claimed_values[7] = proof.qcprime_at_zeta;
+        for (uint i=0; i<proof.selector_commit_api_at_zeta.length; i++){
+            batch_opening_proof.claimed_values[7+i] = proof.selector_commit_api_at_zeta[i];
+        }
 
         (state.folded_proof, state.folded_digests) = Kzg.fold_proof(
             digests, 
-            batch_opening_proof, 
+            batch_opening_proof,
             state.zeta);  
         
     } 
 
-    function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs) internal returns (bool) {
+    function verify(Types.Proof memory proof, Types.VerificationKey memory vk, uint256[] memory public_inputs)
+    internal returns (bool) {
+
+        Types.State memory state;
         
-        Types.PartialVerifierState memory state;
-        
-        // step 1: derive gamma, beta, alpha, delta
+        // // step 1: derive gamma, beta, alpha, delta
         derive_gamma_beta_alpha_zeta(state, proof, vk, public_inputs);
 
         // step 2: verifiy the claimed quotient
         bool valid = verify_quotient_poly_eval_at_zeta(state, proof, vk, public_inputs);
-
+        
         // step 3: fold H ( = Comm(h₁) + ζᵐ⁺²*Comm(h₂) + ζ²⁽ᵐ⁺²⁾*Comm(h₃))
         fold_h(state, proof, vk);
 
         // linearizedPolynomialDigest =
-        // 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+qc*PI2 +
+        // 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+\sum_i qc_i*PI2_i +
         // 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
         // 		α²*L₁(ζ)*Z
         compute_commitment_linearised_polynomial(state, proof, vk);
 
-        // step 4: fold proof + digests 
+        // // step 4: fold proof + digests 
         fold_state(state, proof, vk);
 
         // step 5: batch verify the folded proof and the opening proof at omega*zeta
         Bn254.G1Point[] memory digests = new Bn254.G1Point[](2);
-        digests[0] = state.folded_digests;
-        digests[1] = proof.grand_product_commitment;
+        Bn254.copy_g1(digests[0], state.folded_digests);
+        Bn254.copy_g1(digests[1], proof.grand_product_commitment);
         
         Kzg.OpeningProof[] memory proofs = new Kzg.OpeningProof[](2);
-        proofs[0] = state.folded_proof;
-        proofs[1].H = proof.opening_at_zeta_omega_proof;
+        
+        // Bn254.copy_g1(proofs[0].H, state.folded_proof.H);
+        // proofs[0].claimed_value = state.folded_proof.claimed_value;
+        Kzg.copy_opening_proof(proofs[0], state.folded_proof);
+
+        //Bn254.copy_g1(proofs[1].H, proof.opening_at_zeta_omega_proof);
+        proofs[1].h_x = proof.opening_at_zeta_omega_proof.X;
+        proofs[1].h_y = proof.opening_at_zeta_omega_proof.Y;
         proofs[1].claimed_value = proof.grand_product_at_zeta_omega;
 
         uint256[] memory points = new uint256[](2);
