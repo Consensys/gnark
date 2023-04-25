@@ -39,7 +39,7 @@ func Example() {
 	_, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &Circuit{})
 	p.Stop()
 
-	// expected output
+	// expected output fmt.Println(p.Top())
 	const _ = `Showing nodes accounting for 2, 100% of 2 total
 ----------------------------------------------------------+-------------
       flat  flat%   sum%        cum   cum%   calls calls% + context              

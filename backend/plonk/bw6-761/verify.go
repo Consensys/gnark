@@ -110,15 +110,15 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			}
 		}
 
-		if vk.CommitmentInfo.Is() {
-			var hashRes []fr.Element
+		for i := range vk.CommitmentConstraintIndexes {
+			var hashRes []fr.Element // TODO: when multi commits are implemented: PI2 -> PI2[i]
 			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
 
 			// Computing L_{CommitmentIndex}
 
-			wPowI.Exp(vk.Generator, big.NewInt(int64(vk.NbPublicVariables)+int64(vk.CommitmentInfo.CommitmentIndex)))
+			wPowI.Exp(vk.Generator, big.NewInt(int64(vk.NbPublicVariables)+int64(vk.CommitmentConstraintIndexes[i])))
 			den.Sub(&zeta, &wPowI) // ζ-wⁱ
 
 			lagrange.SetOne().
@@ -260,7 +260,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			zeta,
 			shiftedZeta,
 		},
-		vk.KZGSRS,
+		vk.Kzg,
 	)
 
 	log.Debug().Dur("took", time.Since(start)).Msg("verifier done")

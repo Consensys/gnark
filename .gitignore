@@ -54,3 +54,5 @@ gnarkd/circuits/**
 # go workspace
 go.work
 go.work.sum
+
+examples/gbotrel/**

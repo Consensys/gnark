@@ -23,10 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bn254"
-
-	kzgg "github.com/consensys/gnark-crypto/kzg"
 )
 
 // Trace stores a plonk trace as columns
@@ -64,7 +61,7 @@ type VerifyingKey struct {
 	NbPublicVariables uint64
 
 	// Commitment scheme that is used for an instantiation of PLONK
-	KZGSRS *kzg.SRS
+	Kzg kzg.VerifyingKey
 
 	// cosetShift generator of the coset on the small domain
 	CosetShift fr.Element
@@ -76,7 +73,7 @@ type VerifyingKey struct {
 	// In particular Qk is not complete.
 	Ql, Qr, Qm, Qo, Qk, Qcp kzg.Digest
 
-	CommitmentInfo constraint.Commitment
+	CommitmentConstraintIndexes []uint64
 }
 
 // ProvingKey stores the data needed to generate a proof:
@@ -95,6 +92,8 @@ type ProvingKey struct {
 	// of qk incomplete is used in the linearisation polynomial.
 	// The polynomials in trace are in canonical basis.
 	trace Trace
+
+	Kzg kzg.ProvingKey
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
@@ -117,12 +116,14 @@ type ProvingKey struct {
 	lcIdIOP, lLoneIOP *iop.Polynomial
 }
 
-func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
+func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
 
 	var pk ProvingKey
 	var vk VerifyingKey
 	pk.Vk = &vk
-	vk.CommitmentInfo = spr.CommitmentInfo
+	if spr.CommitmentInfo.Is() {
+		vk.CommitmentConstraintIndexes = []uint64{uint64(spr.CommitmentInfo.CommitmentIndex)}
+	}
 	// nbConstraints := len(spr.Constraints)
 
 	// step 0: set the fft domains
@@ -134,9 +135,11 @@ func Setup(spr *cs.SparseR1CS, srs *kzg.SRS) (*ProvingKey, *VerifyingKey, error)
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(len(spr.Public))
-	if err := pk.InitKZG(srs); err != nil {
-		return nil, nil, err
+	if len(kzgSrs.Pk.G1) < int(vk.Size) {
+		return nil, nil, errors.New("kzg srs is too small")
 	}
+	pk.Kzg = kzgSrs.Pk
+	vk.Kzg = kzgSrs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
 	BuildTrace(spr, &pk.trace)
@@ -211,36 +214,11 @@ func (pk *ProvingKey) VerifyingKey() interface{} {
 	return pk.Vk
 }
 
-// InitKZG inits pk.Vk.KZG using pk.Domain[0] cardinality and provided SRS
-//
-// This should be used after deserializing a ProvingKey
-// as pk.Vk.KZG is NOT serialized
-func (pk *ProvingKey) InitKZG(srs kzgg.SRS) error {
-	return pk.Vk.InitKZG(srs)
-}
-
-// InitKZG inits vk.KZG using provided SRS
-//
-// This should be used after deserializing a VerifyingKey
-// as vk.KZG is NOT serialized
-//
-// Note that this instantiates a new FFT domain using vk.Size
-func (vk *VerifyingKey) InitKZG(srs kzgg.SRS) error {
-	_srs := srs.(*kzg.SRS)
-
-	if len(_srs.G1) < int(vk.Size) {
-		return errors.New("kzg srs is too small")
-	}
-	vk.KZGSRS = _srs
-
-	return nil
-}
-
-// BuildTrace fills the constatn columns ql, qr, qm, qo, qk from the sparser1cs.
+// BuildTrace fills the constant columns ql, qr, qm, qo, qk from the sparser1cs.
 // Size is the size of the system that is nb_constraints+nb_public_variables
 func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 
-	nbConstraints := len(spr.Constraints)
+	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public))
 	size := ecc.NextPowerOfTwo(sizeSystem)
 
@@ -259,15 +237,18 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 		qk[i].SetZero() // → to be completed by the prover
 	}
 	offset := len(spr.Public)
-	for i := 0; i < nbConstraints; i++ { // constraints
 
-		ql[offset+i].Set(&spr.Coefficients[spr.Constraints[i].L.CoeffID()])
-		qr[offset+i].Set(&spr.Coefficients[spr.Constraints[i].R.CoeffID()])
-		qm[offset+i].Set(&spr.Coefficients[spr.Constraints[i].M[0].CoeffID()]).
-			Mul(&qm[offset+i], &spr.Coefficients[spr.Constraints[i].M[1].CoeffID()])
-		qo[offset+i].Set(&spr.Coefficients[spr.Constraints[i].O.CoeffID()])
-		qk[offset+i].Set(&spr.Coefficients[spr.Constraints[i].K])
+	j := 0
+	it := spr.GetSparseR1CIterator()
+	for c := it.Next(); c != nil; c = it.Next() {
+		ql[offset+j].Set(&spr.Coefficients[c.QL])
+		qr[offset+j].Set(&spr.Coefficients[c.QR])
+		qm[offset+j].Set(&spr.Coefficients[c.QM])
+		qo[offset+j].Set(&spr.Coefficients[c.QO])
+		qk[offset+j].Set(&spr.Coefficients[c.QC])
+		j++
 	}
+
 	for _, committed := range spr.CommitmentInfo.Committed {
 		qcp[offset+committed].SetOne()
 	}
@@ -298,31 +279,31 @@ func commitTrace(trace *Trace, pk *ProvingKey) error {
 	trace.S3.ToCanonical(&pk.Domain[0]).ToRegular()
 
 	var err error
-	if pk.Vk.Ql, err = kzg.Commit(pk.trace.Ql.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Ql, err = kzg.Commit(pk.trace.Ql.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.Qr, err = kzg.Commit(pk.trace.Qr.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Qr, err = kzg.Commit(pk.trace.Qr.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.Qm, err = kzg.Commit(pk.trace.Qm.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Qm, err = kzg.Commit(pk.trace.Qm.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.Qo, err = kzg.Commit(pk.trace.Qo.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Qo, err = kzg.Commit(pk.trace.Qo.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.Qk, err = kzg.Commit(pk.trace.Qk.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Qk, err = kzg.Commit(pk.trace.Qk.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.Qcp, err = kzg.Commit(pk.trace.Qcp.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.Qcp, err = kzg.Commit(pk.trace.Qcp.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.S[0], err = kzg.Commit(pk.trace.S1.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.S[0], err = kzg.Commit(pk.trace.S1.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.S[1], err = kzg.Commit(pk.trace.S2.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.S[1], err = kzg.Commit(pk.trace.S2.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-	if pk.Vk.S[2], err = kzg.Commit(pk.trace.S3.Coefficients(), pk.Vk.KZGSRS); err != nil {
+	if pk.Vk.S[2], err = kzg.Commit(pk.trace.S3.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
 	return nil
@@ -330,7 +311,7 @@ func commitTrace(trace *Trace, pk *ProvingKey) error {
 
 func (pk *ProvingKey) initDomains(spr *cs.SparseR1CS) {
 
-	nbConstraints := len(spr.Constraints)
+	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	pk.Domain[0] = *fft.NewDomain(sizeSystem)
 
@@ -376,10 +357,15 @@ func buildPermutation(spr *cs.SparseR1CS, pt *Trace, nbVariables int) {
 	}
 
 	offset := len(spr.Public)
-	for i := 0; i < len(spr.Constraints); i++ { // IDs of LRO associated to constraints
-		lro[offset+i] = spr.Constraints[i].L.WireID()
-		lro[sizeSolution+offset+i] = spr.Constraints[i].R.WireID()
-		lro[2*sizeSolution+offset+i] = spr.Constraints[i].O.WireID()
+
+	j := 0
+	it := spr.GetSparseR1CIterator()
+	for c := it.Next(); c != nil; c = it.Next() {
+		lro[offset+j] = int(c.XA)
+		lro[sizeSolution+offset+j] = int(c.XB)
+		lro[2*sizeSolution+offset+j] = int(c.XC)
+
+		j++
 	}
 
 	// init cycle:
