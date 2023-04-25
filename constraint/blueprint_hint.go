@@ -43,7 +43,7 @@ func (b *BlueprintGenericHint) CompressHint(h HintMapping) []uint32 {
 
 	nbInputs += 2 // output range start / end
 
-	r := make([]uint32, 0, nbInputs)
+	r := getBuffer(nbInputs)
 	r = append(r, uint32(nbInputs))
 	r = append(r, uint32(h.HintID))
 	r = append(r, uint32(len(h.Inputs)))

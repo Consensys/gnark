@@ -23,6 +23,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/cs"
 
 	"github.com/consensys/gnark/constraint"
@@ -157,16 +158,23 @@ func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 		return builder.cs.ToBigInt(c)
 	}
 	t := i1.(expr.Term)
-	debug := builder.newDebugInfo("inverse", "1/", i1, " < ∞")
 	res := builder.newInternalVariable()
 
 	// res * i1 - 1 == 0
-	builder.addPlonkConstraint(sparseR1C{
+	constraint := sparseR1C{
 		xa: res.VID,
 		xb: t.VID,
 		qM: t.Coeff,
 		qC: builder.tMinusOne,
-	}, debug)
+	}
+
+	if debug.Debug {
+		debug := builder.newDebugInfo("inverse", "1/", i1, " < ∞")
+		builder.addPlonkConstraint(constraint, debug)
+	} else {
+		builder.addPlonkConstraint(constraint)
+	}
+
 	return res
 }
 
@@ -513,7 +521,7 @@ func (builder *builder) Println(a ...frontend.Variable) {
 			sbb.WriteString("%s")
 			// we set limits to the linear expression, so that the log printer
 			// can evaluate it before printing it
-			log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.cs.MakeTerm(&v.Coeff, v.VID)})
+			log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.cs.MakeTerm(v.Coeff, v.VID)})
 		} else {
 			builder.printArg(&log, &sbb, arg)
 		}
@@ -549,7 +557,7 @@ func (builder *builder) printArg(log *constraint.LogEntry, sbb *strings.Builder,
 		v := tValue.Interface().(expr.Term)
 		// we set limits to the linear expression, so that the log printer
 		// can evaluate it before printing it
-		log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.cs.MakeTerm(&v.Coeff, v.VID)})
+		log.ToResolve = append(log.ToResolve, constraint.LinearExpression{builder.cs.MakeTerm(v.Coeff, v.VID)})
 		return nil
 	}
 	// ignoring error, printer() doesn't return errors

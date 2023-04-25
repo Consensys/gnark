@@ -21,14 +21,14 @@ func (h *HintMapping) WireIterator() func() int {
 	for i := 0; i < len(h.Inputs); i++ {
 		n += len(h.Inputs[i])
 	}
-	inputs := make([]int, 0, n)
+	inputs := getBuffer(n)
 	for i := 0; i < len(h.Inputs); i++ {
 		for j := 0; j < len(h.Inputs[i]); j++ {
 			term := h.Inputs[i][j]
 			if term.IsConstant() {
 				continue
 			}
-			inputs = append(inputs, int(term.VID))
+			inputs = append(inputs, term.VID)
 		}
 	}
 	lenOutputs := int(h.OutputRange.End - h.OutputRange.Start)
@@ -40,7 +40,7 @@ func (h *HintMapping) WireIterator() func() int {
 		}
 		if curr < lenOutputs+len(inputs) {
 			curr++
-			return inputs[curr-1-lenOutputs]
+			return int(inputs[curr-1-lenOutputs])
 		}
 		return -1
 	}

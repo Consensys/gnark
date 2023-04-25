@@ -88,9 +88,8 @@ type System struct {
 	bitLen int      `cbor:"-"`
 
 	// level builder
-	lbWireLevel []int            `cbor:"-"` // at which level we solve a wire. init at -1.
-	lbOutputs   []uint32         `cbor:"-"` // wire outputs for current constraint.
-	lbHints     map[int]struct{} `cbor:"-"` // hints we processed in current round
+	lbWireLevel []int    `cbor:"-"` // at which level we solve a wire. init at -1.
+	lbOutputs   []uint32 `cbor:"-"` // wire outputs for current constraint.
 
 	CommitmentInfo Commitment
 
@@ -108,9 +107,11 @@ func NewSystem(scalarField *big.Int, capacity int, t SystemType) System {
 		MHintsDependencies: make(map[solver.HintID]string),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
-		lbHints:            map[int]struct{}{},
 		Instructions:       make([]Instruction, 0, capacity),
-		CallData:           make([]uint32, 0, capacity*2),
+		CallData:           make([]uint32, 0, capacity*8),
+		lbOutputs:          make([]uint32, 0, 256),
+		lbWireLevel:        make([]int, 0, capacity),
+		Levels:             make([][]int, 0, capacity/2),
 	}
 	system.genericHint = system.AddBlueprint(&BlueprintGenericHint{})
 	return system

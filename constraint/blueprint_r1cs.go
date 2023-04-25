@@ -17,7 +17,7 @@ func (b *BlueprintGenericR1C) NbConstraints() int {
 func (b *BlueprintGenericR1C) CompressR1C(c *R1C) []uint32 {
 	// we store total nb inputs, len L, len R, len O, and then the "flatten" linear expressions
 	nbInputs := 4 + 2*(len(c.L)+len(c.R)+len(c.O))
-	r := make([]uint32, 0, nbInputs)
+	r := getBuffer(nbInputs)
 	r = append(r, uint32(nbInputs))
 	r = append(r, uint32(len(c.L)), uint32(len(c.R)), uint32(len(c.O)))
 	for _, t := range c.L {
@@ -55,4 +55,18 @@ func (b *BlueprintGenericR1C) DecompressR1C(c *R1C, calldata []uint32) {
 	copySlice(&c.L, lenL, offset)
 	copySlice(&c.R, lenR, offset+2*lenL)
 	copySlice(&c.O, lenO, offset+2*(lenL+lenR))
+}
+
+// since frontend is single threaded, to avoid allocating slices at each compress call
+// we transit the compressed output through here
+var bufCalldata []uint32
+
+// getBuffer return a slice with at least the given capacity to use in Compress methods
+// this is obviously not thread safe, but the frontend is single threaded anyway.
+func getBuffer(size int) []uint32 {
+	if cap(bufCalldata) < size {
+		bufCalldata = make([]uint32, 0, size*2)
+	}
+	bufCalldata = bufCalldata[:0]
+	return bufCalldata
 }
