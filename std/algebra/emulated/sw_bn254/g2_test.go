@@ -24,8 +24,8 @@ func (c *addG2Circuit) Define(api frontend.API) error {
 
 func TestAddG2TestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	_, in1 := randomG1G2Affines(assert)
-	_, in2 := randomG1G2Affines(assert)
+	_, in1 := randomG1G2Affines()
+	_, in2 := randomG1G2Affines()
 	var res bn254.G2Affine
 	res.Add(&in1, &in2)
 	witness := addG2Circuit{
@@ -51,7 +51,7 @@ func (c *doubleG2Circuit) Define(api frontend.API) error {
 
 func TestDoubleG2TestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	_, in1 := randomG1G2Affines(assert)
+	_, in1 := randomG1G2Affines()
 	var res bn254.G2Affine
 	var in1Jac, resJac bn254.G2Jac
 	in1Jac.FromAffine(&in1)
@@ -79,8 +79,8 @@ func (c *doubleAndAddG2Circuit) Define(api frontend.API) error {
 
 func TestDoubleAndAddG2TestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	_, in1 := randomG1G2Affines(assert)
-	_, in2 := randomG1G2Affines(assert)
+	_, in1 := randomG1G2Affines()
+	_, in2 := randomG1G2Affines()
 	var res bn254.G2Affine
 	res.Double(&in1).
 		Add(&res, &in2)
@@ -107,7 +107,7 @@ func (c *scalarMulG2BySeedCircuit) Define(api frontend.API) error {
 
 func TestScalarMulG2BySeedTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	_, in1 := randomG1G2Affines(assert)
+	_, in1 := randomG1G2Affines()
 	var res bn254.G2Affine
 	x0, _ := new(big.Int).SetString("4965661367192848881", 10)
 	res.ScalarMultiplication(&in1, x0)
@@ -135,7 +135,7 @@ func (c *endomorphismG2Circuit) Define(api frontend.API) error {
 
 func TestEndomorphismG2TestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	_, in1 := randomG1G2Affines(assert)
+	_, in1 := randomG1G2Affines()
 	witness := endomorphismG2Circuit{
 		In1: NewG2Affine(in1),
 	}
