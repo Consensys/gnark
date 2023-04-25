@@ -17,12 +17,15 @@ type FieldParams interface {
 var (
 	qSecp256k1, rSecp256k1 *big.Int
 	qGoldilocks            *big.Int
+	qSTARK                 *big.Int
 )
 
 func init() {
 	qSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
 	rSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141", 16)
 	qGoldilocks, _ = new(big.Int).SetString("ffffffff00000001", 16)
+	qSTARK, _ = new(big.Int).SetString("800000000000011000000000000000000000000000000000000000000000001", 16)
+
 }
 
 // Goldilocks provide type parametrization for emulated field on 1 limb of width 64bits
@@ -97,3 +100,13 @@ func (fp BLS12381Fp) NbLimbs() uint     { return 6 }
 func (fp BLS12381Fp) BitsPerLimb() uint { return 64 }
 func (fp BLS12381Fp) IsPrime() bool     { return true }
 func (fp BLS12381Fp) Modulus() *big.Int { return ecc.BLS12_381.BaseField() }
+
+// STARKCurveFp provide type parametrization for emulated field on 4 limb of width 64bits
+// for modulus 0x800000000000011000000000000000000000000000000000000000000000001.
+// This is the base field of the STARK curve (https://docs.starkware.co/starkex/crypto/stark-curve.html)
+type STARKCurveFp struct{}
+
+func (fp STARKCurveFp) NbLimbs() uint     { return 4 }
+func (fp STARKCurveFp) BitsPerLimb() uint { return 64 }
+func (fp STARKCurveFp) IsPrime() bool     { return true }
+func (fp STARKCurveFp) Modulus() *big.Int { return qSTARK }
