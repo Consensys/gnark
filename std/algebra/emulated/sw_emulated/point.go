@@ -38,6 +38,7 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 		},
 		gm:   emuGm,
 		a:    emulated.ValueOf[Base](params.A),
+		b:    emulated.ValueOf[Base](params.B),
 		addA: params.A.Cmp(big.NewInt(0)) != 0,
 	}, nil
 }
@@ -60,6 +61,7 @@ type Curve[Base, Scalars emulated.FieldParams] struct {
 	gm []AffinePoint[Base]
 
 	a    emulated.Element[Base]
+	b    emulated.Element[Base]
 	addA bool
 }
 
@@ -123,6 +125,24 @@ func (c *Curve[B, S]) add(p, q *AffinePoint[B]) *AffinePoint[B] {
 		X: *c.baseApi.Reduce(xr),
 		Y: *c.baseApi.Reduce(yr),
 	}
+}
+
+// AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.
+func (c *Curve[B, S]) AssertIsOnCurve(p *AffinePoint[B]) {
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if p=(0,0) we assign b=0 and continue
+	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+	b := c.baseApi.Select(selector, c.baseApi.Zero(), &c.b)
+
+	left := c.baseApi.Mul(&p.Y, &p.Y)
+	right := c.baseApi.Mul(&p.X, c.baseApi.Mul(&p.X, &p.X))
+	right = c.baseApi.Add(right, b)
+	if c.addA {
+		ax := c.baseApi.Mul(&c.a, &p.X)
+		right = c.baseApi.Add(right, ax)
+	}
+	c.baseApi.AssertIsEqual(left, right)
 }
 
 // AddUnified adds p and q and returns it. It doesn't modify p nor q.
@@ -337,6 +357,7 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 }
 
 // ScalarMul computes s * p and returns it. It doesn't modify p nor s.
+// This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
 // ✅ p can can be (0,0) and s can be 0.
 // (0,0) is not on the curve but we conventionally take it as the
