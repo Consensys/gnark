@@ -87,7 +87,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		wpi2iop       *iop.Polynomial // canonical
 		commitmentVal fr.Element      // TODO @Tabaie get rid of this
 	)
-	if spr.HasCommitment() {
+	if len(spr.CommitmentInfo) != 0 {
 		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(spr.CommitmentInfo[0].HintID, func(_ *big.Int, ins, outs []*big.Int) error {
 			pi2 := make([]fr.Element, pk.Domain[0].Cardinality)
 			offset := spr.GetNbPublicVariables()
@@ -133,7 +133,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}
 	// TODO @gbotrel deal with that conversion lazily
 	var lcpi2iop *iop.Polynomial
-	if spr.HasCommitment() {
+	if len(spr.CommitmentInfo) != 0 {
 		lcpi2iop = wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
 	} else {
 		coeffs := make([]fr.Element, pk.Domain[1].Cardinality)
@@ -188,7 +188,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		qkCompletedCanonical := make([]fr.Element, len(lqkcoef))
 		copy(qkCompletedCanonical, fw[:len(spr.Public)])
 		copy(qkCompletedCanonical[len(spr.Public):], lqkcoef[len(spr.Public):])
-		if spr.HasCommitment() {
+		if len(spr.CommitmentInfo) != 0 {
 			qkCompletedCanonical[spr.GetNbPublicVariables()+spr.CommitmentInfo[0].CommitmentIndex] = commitmentVal
 		}
 		pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)

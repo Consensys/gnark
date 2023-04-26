@@ -87,18 +87,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		wpi2iop       *iop.Polynomial // canonical
 		commitmentVal fr.Element      // TODO @Tabaie get rid of this
 	)
-	if spr.CommitmentInfo.Is() {
-		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(spr.CommitmentInfo.HintID, func(_ *big.Int, ins, outs []*big.Int) error {
+	if len(spr.CommitmentInfo) != 0 {
+		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(spr.CommitmentInfo[0].HintID, func(_ *big.Int, ins, outs []*big.Int) error {
 			pi2 := make([]fr.Element, pk.Domain[0].Cardinality)
 			offset := spr.GetNbPublicVariables()
 			for i := range ins {
-				pi2[offset+spr.CommitmentInfo.Committed[i]].SetBigInt(ins[i])
+				pi2[offset+spr.CommitmentInfo[0].Committed[i]].SetBigInt(ins[i])
 			}
 			var (
 				err     error
 				hashRes []fr.Element
 			)
-			if _, err = pi2[offset+spr.CommitmentInfo.CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
+			if _, err = pi2[offset+spr.CommitmentInfo[0].CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
 				return err
 			}
 			if _, err = pi2[offset+spr.GetNbConstraints()-1].SetRandom(); err != nil { // Last constraint has qcp = 0. Safe to use for blinding
@@ -133,7 +133,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}
 	// TODO @gbotrel deal with that conversion lazily
 	var lcpi2iop *iop.Polynomial
-	if spr.CommitmentInfo.Is() {
+	if len(spr.CommitmentInfo) != 0 {
 		lcpi2iop = wpi2iop.Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
 	} else {
 		coeffs := make([]fr.Element, pk.Domain[1].Cardinality)
@@ -188,8 +188,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		qkCompletedCanonical := make([]fr.Element, len(lqkcoef))
 		copy(qkCompletedCanonical, fw[:len(spr.Public)])
 		copy(qkCompletedCanonical[len(spr.Public):], lqkcoef[len(spr.Public):])
-		if spr.CommitmentInfo.Is() {
-			qkCompletedCanonical[spr.GetNbPublicVariables()+spr.CommitmentInfo.CommitmentIndex] = commitmentVal
+		if len(spr.CommitmentInfo) != 0 {
+			qkCompletedCanonical[spr.GetNbPublicVariables()+spr.CommitmentInfo[0].CommitmentIndex] = commitmentVal
 		}
 		pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 		fft.BitReverse(qkCompletedCanonical)

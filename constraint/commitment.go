@@ -50,9 +50,6 @@ func SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, f
 // PrivateToPublicGroth16 returns indexes of variables which are private to the constraint system, but public to Groth16. That is, private committed variables and the commitment itself
 // TODO Perhaps move it elsewhere since it's specific to groth16
 func (i *Commitment) PrivateToPublicGroth16() []int {
-	if !i.Is() {
-		return nil
-	}
 	res := make([]int, i.NbPrivateCommitted+1)
 	copy(res, i.PrivateCommitted())
 	res[i.NbPrivateCommitted] = i.CommitmentIndex
