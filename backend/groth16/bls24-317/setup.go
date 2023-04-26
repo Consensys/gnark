@@ -75,8 +75,9 @@ type VerifyingKey struct {
 	// e(α, β)
 	e curve.GT // not serialized
 
-	CommitmentKey  pedersen.VerifyingKey
-	CommitmentInfo constraint.Commitment // since the verifier doesn't input a constraint system, this needs to be provided here
+	CommitmentKey   pedersen.VerifyingKey
+	HasCommitment   bool  // TODO: Make CommitmentKey nullable instead
+	PublicCommitted []int // indexes of public committed variables
 }
 
 // Setup constructs the SRS
@@ -262,7 +263,8 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		}
 	}
 
-	vk.CommitmentInfo = r1cs.CommitmentInfo // unfortunate but necessary
+	vk.HasCommitment = r1cs.CommitmentInfo.Is()
+	vk.PublicCommitted = r1cs.CommitmentInfo.PrivateCommitted()
 
 	// ---------------------------------------------------------------------------------------------
 	// G2 scalars

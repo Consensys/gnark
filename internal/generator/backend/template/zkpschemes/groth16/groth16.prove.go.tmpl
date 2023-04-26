@@ -69,7 +69,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			}
 
 			var res fr.Element
-			res, err = solveCommitmentWire(&r1cs.CommitmentInfo, &proof.Commitment, in[:r1cs.CommitmentInfo.NbPublicCommitted()])
+			res, err = solveCommitmentWire(&proof.Commitment, in[:r1cs.CommitmentInfo.NbPublicCommitted()])
 			res.BigInt(out[0])
 			return err
 		} ))
