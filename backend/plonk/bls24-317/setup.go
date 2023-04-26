@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/kzg"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bls24-317"
 )
 
@@ -121,9 +122,7 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	var pk ProvingKey
 	var vk VerifyingKey
 	pk.Vk = &vk
-	if spr.CommitmentInfo.Is() {
-		vk.CommitmentConstraintIndexes = []uint64{uint64(spr.CommitmentInfo.CommitmentIndex)}
-	}
+	vk.CommitmentConstraintIndexes = constraint.CommitmentIndexes(spr.CommitmentInfo)
 	// nbConstraints := len(spr.Constraints)
 
 	// step 0: set the fft domains
@@ -249,8 +248,10 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 		j++
 	}
 
-	for _, committed := range spr.CommitmentInfo.Committed {
-		qcp[offset+committed].SetOne()
+	if len(spr.CommitmentInfo) != 0 {
+		for _, committed := range spr.CommitmentInfo[0].Committed {
+			qcp[offset+committed].SetOne()
+		}
 	}
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}

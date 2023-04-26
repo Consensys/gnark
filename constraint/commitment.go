@@ -63,3 +63,11 @@ func (i *Commitment) PrivateCommitted() []int {
 func (i *Commitment) PublicCommitted() []int {
 	return i.Committed[:i.NbPublicCommitted()]
 }
+
+func CommitmentIndexes(commitments []Commitment) []uint64 {
+	res := make([]uint64, len(commitments))
+	for i := range res {
+		res[i] = uint64(commitments[i].CommitmentIndex)
+	}
+	return res
+}
