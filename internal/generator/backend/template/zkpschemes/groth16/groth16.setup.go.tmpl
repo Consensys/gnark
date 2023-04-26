@@ -246,7 +246,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	}
 
 	vk.HasCommitment = r1cs.CommitmentInfo.Is()
-	vk.PublicCommitted = r1cs.CommitmentInfo.PrivateCommitted()
+	vk.PublicCommitted = r1cs.CommitmentInfo.PublicCommitted()
 
 	// ---------------------------------------------------------------------------------------------
 	// G2 scalars
