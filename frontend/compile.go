@@ -37,7 +37,7 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options
-	opt := CompileConfig{}
+	opt := defaultCompileConfig()
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
 			log.Err(err).Msg("applying compile option")
@@ -131,8 +131,8 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 }
 
 func callDeferred(builder Builder) error {
-	for i, cb := range circuitdefer.GetAll[func(API) error](builder) {
-		if err := cb(builder); err != nil {
+	for i := 0; i < len(circuitdefer.GetAll[func(API) error](builder)); i++ {
+		if err := circuitdefer.GetAll[func(API) error](builder)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)
 		}
 	}
@@ -143,6 +143,12 @@ func callDeferred(builder Builder) error {
 // method. See the descriptions of the functions returning instances of this
 // type for available options.
 type CompileOption func(opt *CompileConfig) error
+
+func defaultCompileConfig() CompileConfig {
+	return CompileConfig{
+		CompressThreshold: 300,
+	}
+}
 
 type CompileConfig struct {
 	Capacity                  int
@@ -187,6 +193,9 @@ func IgnoreUnconstrainedInputs() CompileOption {
 // fast. The compression adds some overhead in the number of constraints. The
 // overhead and compile performance depends on threshold value, and it should be
 // chosen carefully.
+//
+// If this option is not given then by default we use the compress threshold of
+// 300.
 func WithCompressThreshold(threshold int) CompileOption {
 	return func(opt *CompileConfig) error {
 		opt.CompressThreshold = threshold

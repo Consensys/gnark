@@ -18,6 +18,15 @@ import (
 	"math"
 )
 
+// ids of the coefficients with simple values in any cs.coeffs slice.
+const (
+	CoeffIdZero = iota
+	CoeffIdOne
+	CoeffIdTwo
+	CoeffIdMinusOne
+	CoeffIdMinusTwo
+)
+
 // Term represents a coeff * variable in a constraint system
 type Term struct {
 	CID, VID uint32

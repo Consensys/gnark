@@ -52,7 +52,7 @@ type ProvingKey struct {
 	InfinityA, InfinityB     []bool
 	NbInfinityA, NbInfinityB uint64
 
-	CommitmentKey pedersen.Key
+	CommitmentKey pedersen.ProvingKey
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -75,7 +75,7 @@ type VerifyingKey struct {
 	// e(α, β)
 	e curve.GT // not serialized
 
-	CommitmentKey  pedersen.Key
+	CommitmentKey  pedersen.VerifyingKey
 	CommitmentInfo constraint.Commitment // since the verifier doesn't input a constraint system, this needs to be provided here
 }
 
@@ -103,7 +103,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	}
 
 	// Setting group for fft
-	domain := fft.NewDomain(uint64(len(r1cs.Constraints)))
+	domain := fft.NewDomain(uint64(r1cs.GetNbConstraints()))
 
 	// samples toxic waste
 	toxicWaste, err := sampleToxicWaste()
@@ -256,11 +256,10 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	if nbPrivateCommittedWires != 0 {
 		commitmentBasis := g1PointsAff[offset:]
 
-		vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
+		pk.CommitmentKey, vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
 		if err != nil {
 			return err
 		}
-		pk.CommitmentKey = vk.CommitmentKey
 	}
 
 	vk.CommitmentInfo = r1cs.CommitmentInfo // unfortunate but necessary
@@ -334,7 +333,7 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	var w fr.Element
 	w.Set(&domain.Generator)
 	wi := fr.One()
-	t := make([]fr.Element, len(r1cs.Constraints)+1)
+	t := make([]fr.Element, r1cs.GetNbConstraints()+1)
 	for i := 0; i < len(t); i++ {
 		t[i].Sub(&toxicWaste.t, &wi)
 		wi.Mul(&wi, &w) // TODO this is already pre computed in fft.Domain
@@ -378,8 +377,10 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 	// for each term appearing in the linear expression,
 	// we compute term.Coefficient * L, and cumulate it in
 	// A, B or C at the index of the variable
-	for i, c := range r1cs.Constraints {
 
+	j := 0
+	it := r1cs.GetR1CIterator()
+	for c := it.Next(); c != nil; c = it.Next() {
 		for _, t := range c.L {
 			accumulate(&A[t.WireID()], t, &L)
 		}
@@ -392,9 +393,12 @@ func setupABC(r1cs *cs.R1CS, domain *fft.Domain, toxicWaste toxicWaste) (A []fr.
 
 		// Li+1 = w*Li*(t-w^i)/(t-w^(i+1))
 		L.Mul(&L, &w)
-		L.Mul(&L, &t[i])
-		L.Mul(&L, &tInv[i+1])
+		L.Mul(&L, &t[j])
+		L.Mul(&L, &tInv[j+1])
+
+		j++
 	}
+
 	return
 
 }
@@ -448,7 +452,7 @@ func sampleToxicWaste() (toxicWaste, error) {
 func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
-	nbConstraints := len(r1cs.Constraints)
+	nbConstraints := r1cs.GetNbConstraints()
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(nbConstraints))
@@ -526,7 +530,9 @@ func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 
 	A := make([]bool, nbWires)
 	B := make([]bool, nbWires)
-	for _, c := range r1cs.Constraints {
+
+	it := r1cs.GetR1CIterator()
+	for c := it.Next(); c != nil; c = it.Next() {
 		for _, t := range c.L {
 			A[t.WireID()] = true
 		}
@@ -534,6 +540,7 @@ func dummyInfinityCount(r1cs *cs.R1CS) (nbZeroesA, nbZeroesB int) {
 			B[t.WireID()] = true
 		}
 	}
+
 	for i := 0; i < nbWires; i++ {
 		if !A[i] {
 			nbZeroesA++

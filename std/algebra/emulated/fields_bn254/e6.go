@@ -2,6 +2,7 @@ package fields_bn254
 
 import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/frontend"
 )
 
 type E6 struct {
@@ -12,8 +13,8 @@ type Ext6 struct {
 	*Ext2
 }
 
-func NewExt6(baseField *curveF) *Ext6 {
-	return &Ext6{Ext2: NewExt2(baseField)}
+func NewExt6(api frontend.API) *Ext6 {
+	return &Ext6{Ext2: NewExt2(api)}
 }
 
 func (e Ext6) One() *E6 {
@@ -36,6 +37,13 @@ func (e Ext6) Zero() *E6 {
 		B1: *z1,
 		B2: *z2,
 	}
+}
+
+func (e Ext6) IsZero(z *E6) frontend.Variable {
+	b0 := e.Ext2.IsZero(&z.B0)
+	b1 := e.Ext2.IsZero(&z.B1)
+	b2 := e.Ext2.IsZero(&z.B2)
+	return e.api.And(e.api.And(b0, b1), b2)
 }
 
 func (e Ext6) Add(x, y *E6) *E6 {
@@ -102,7 +110,7 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 	}
 }
 
-func (e Ext6) double(x *E6) *E6 {
+func (e Ext6) Double(x *E6) *E6 {
 	z0 := e.Ext2.Double(&x.B0)
 	z1 := e.Ext2.Double(&x.B1)
 	z2 := e.Ext2.Double(&x.B2)
@@ -148,6 +156,28 @@ func (e Ext6) MulByE2(x *E6, y *E2) *E6 {
 		B0: *z0,
 		B1: *z1,
 		B2: *z2,
+	}
+}
+
+// MulBy0 multiplies z by an E6 sparse element of the form
+//
+//	E6{
+//		B0: c0,
+//		B1: 0,
+//		B2: 0,
+//	}
+func (e Ext6) MulBy0(z *E6, c0 *E2) *E6 {
+	a := e.Ext2.Mul(&z.B0, c0)
+	tmp := e.Ext2.Add(&z.B0, &z.B2)
+	t2 := e.Ext2.Mul(c0, tmp)
+	t2 = e.Ext2.Sub(t2, a)
+	tmp = e.Ext2.Add(&z.B0, &z.B1)
+	t1 := e.Ext2.Mul(c0, tmp)
+	t1 = e.Ext2.Sub(t1, a)
+	return &E6{
+		B0: *a,
+		B1: *t1,
+		B2: *t2,
 	}
 }
 
@@ -229,6 +259,12 @@ func (e Ext6) MulByNonResidue(x *E6) *E6 {
 	}
 }
 
+func (e Ext6) FrobeniusSquare(x *E6) *E6 {
+	z01 := e.Ext2.MulByNonResidue2Power2(&x.B1)
+	z02 := e.Ext2.MulByNonResidue2Power4(&x.B2)
+	return &E6{B0: x.B0, B1: *z01, B2: *z02}
+}
+
 func (e Ext6) AssertIsEqual(x, y *E6) {
 	e.Ext2.AssertIsEqual(&x.B0, &y.B0)
 	e.Ext2.AssertIsEqual(&x.B1, &y.B1)
@@ -267,7 +303,6 @@ func (e Ext6) Inverse(x *E6) *E6 {
 
 }
 
-// DivUnchecked e2 elmts
 func (e Ext6) DivUnchecked(x, y *E6) *E6 {
 	res, err := e.fp.NewHint(divE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B1.A0, &x.B1.A1, &x.B2.A0, &x.B2.A1, &y.B0.A0, &y.B0.A1, &y.B1.A0, &y.B1.A1, &y.B2.A0, &y.B2.A1)
 	if err != nil {
@@ -286,4 +321,18 @@ func (e Ext6) DivUnchecked(x, y *E6) *E6 {
 	e.AssertIsEqual(x, _x)
 
 	return &div
+}
+
+func (e Ext6) Select(selector frontend.Variable, z1, z0 *E6) *E6 {
+	b0 := e.Ext2.Select(selector, &z1.B0, &z0.B0)
+	b1 := e.Ext2.Select(selector, &z1.B1, &z0.B1)
+	b2 := e.Ext2.Select(selector, &z1.B2, &z0.B2)
+	return &E6{B0: *b0, B1: *b1, B2: *b2}
+}
+
+func (e Ext6) Lookup2(s1, s2 frontend.Variable, a, b, c, d *E6) *E6 {
+	b0 := e.Ext2.Lookup2(s1, s2, &a.B0, &b.B0, &c.B0, &d.B0)
+	b1 := e.Ext2.Lookup2(s1, s2, &a.B1, &b.B1, &c.B1, &d.B1)
+	b2 := e.Ext2.Lookup2(s1, s2, &a.B2, &b.B2, &c.B2, &d.B2)
+	return &E6{B0: *b0, B1: *b1, B2: *b2}
 }

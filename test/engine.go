@@ -140,8 +140,8 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 }
 
 func callDeferred(builder *engine) error {
-	for i, cb := range circuitdefer.GetAll[func(frontend.API) error](builder) {
-		if err := cb(builder); err != nil {
+	for i := 0; i < len(circuitdefer.GetAll[func(frontend.API) error](builder)); i++ {
+		if err := circuitdefer.GetAll[func(frontend.API) error](builder)[i](builder); err != nil {
 			return fmt.Errorf("defer fn %d: %w", i, err)
 		}
 	}

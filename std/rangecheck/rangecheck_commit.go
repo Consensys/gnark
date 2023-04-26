@@ -4,19 +4,18 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	stdbits "math/bits"
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/frontendtype"
 	"github.com/consensys/gnark/internal/kvstore"
-	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/internal/logderivarg"
 )
 
 type ctxCheckerKey struct{}
 
 func init() {
-	solver.RegisterHint(DecomposeHint, CountHint)
+	solver.RegisterHint(DecomposeHint)
 }
 
 type checkedVariable struct {
@@ -55,6 +54,14 @@ func (c *commitChecker) Check(in frontend.Variable, bits int) {
 	c.collected = append(c.collected, checkedVariable{v: in, bits: bits})
 }
 
+func (c *commitChecker) buildTable(nbTable int) []frontend.Variable {
+	tbl := make([]frontend.Variable, nbTable)
+	for i := 0; i < nbTable; i++ {
+		tbl[i] = i
+	}
+	return tbl
+}
+
 func (c *commitChecker) commit(api frontend.API) error {
 	if c.closed {
 		return nil
@@ -62,10 +69,6 @@ func (c *commitChecker) commit(api frontend.API) error {
 	defer func() { c.closed = true }()
 	if len(c.collected) == 0 {
 		return nil
-	}
-	committer, ok := api.(frontend.Committer)
-	if !ok {
-		panic("expected committer API")
 	}
 	baseLength := c.getOptimalBasewidth(api)
 	// decompose into smaller limbs
@@ -91,37 +94,7 @@ func (c *commitChecker) commit(api frontend.API) error {
 		api.AssertIsEqual(composed, c.collected[i].v)
 	}
 	nbTable := 1 << baseLength
-	// compute the counts for every value in the range
-	exps, err := api.Compiler().NewHint(CountHint, nbTable, decomposed...)
-	if err != nil {
-		panic(fmt.Sprintf("count %v", err))
-	}
-	// compute the poly \pi (X - s_i)^{e_i}
-	commitment, err := committer.Commit(collected...)
-	if err != nil {
-		panic(fmt.Sprintf("commit %v", err))
-	}
-	logn := stdbits.Len(uint(len(decomposed)))
-	var lp frontend.Variable = 1
-	for i := 0; i < nbTable; i++ {
-		expbits := bits.ToBinary(api, exps[i], bits.WithNbDigits(logn))
-		var acc frontend.Variable = 1
-		tmp := api.Sub(commitment, i)
-		for j := 0; j < logn; j++ {
-			curr := api.Select(expbits[j], tmp, 1)
-			acc = api.Mul(acc, curr)
-			tmp = api.Mul(tmp, tmp)
-		}
-		lp = api.Mul(lp, acc)
-	}
-	// compute the poly \pi (X - f_i)
-	var rp frontend.Variable = 1
-	for i := range decomposed {
-		val := api.Sub(commitment, decomposed[i])
-		rp = api.Mul(rp, val)
-	}
-	api.AssertIsEqual(lp, rp)
-	return nil
+	return logderivarg.Build(api, logderivarg.AsTable(c.buildTable(nbTable)), logderivarg.AsTable(decomposed))
 }
 
 func decompSize(varSize int, limbSize int) int {
@@ -150,28 +123,6 @@ func DecomposeHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	for i := 0; i < len(outputs); i++ {
 		outputs[i].Mod(tmp, base)
 		tmp.Rsh(tmp, uint(limbSize))
-	}
-	return nil
-}
-
-// CountHint is a hint function which is used in range checking using
-// commitment. It counts the occurences of checked variables in the range and
-// returns the counts.
-func CountHint(m *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	nbVals := len(outputs)
-	if len(outputs) != nbVals {
-		return fmt.Errorf("output size %d does not match range size %d", len(outputs), nbVals)
-	}
-	counts := make(map[uint64]uint64, nbVals)
-	for i := 0; i < len(inputs); i++ {
-		if !inputs[i].IsUint64() {
-			return fmt.Errorf("input %d not uint64", i)
-		}
-		c := inputs[i].Uint64()
-		counts[c]++
-	}
-	for i := 0; i < nbVals; i++ {
-		outputs[i].SetUint64(counts[uint64(i)])
 	}
 	return nil
 }
@@ -206,17 +157,10 @@ func nbR1CSConstraints(baseLength int, collected []checkedVariable) int {
 	for i := range collected {
 		nbDecomposed += int(decompSize(collected[i].bits, baseLength))
 	}
-	eqs := len(collected) // single composition check per collected
-	logn := stdbits.Len(uint(nbDecomposed))
-	nbTable := 1 << baseLength
-	nbLeft := nbTable *
-		(logn + // tobinary
-			logn + // select per exponent bit
-			logn + // mul per exponent bit
-			logn + // mul per exponent bit
-			1) // final mul
-	nbRight := nbDecomposed           // mul all decomposed
-	return nbLeft + nbRight + eqs + 1 // single for final equality
+	eqs := len(collected)       // correctness of decomposition
+	nbRight := nbDecomposed     // inverse per decomposed
+	nbleft := (1 << baseLength) // div per table
+	return nbleft + nbRight + eqs + 1
 }
 
 func nbPLONKConstraints(baseLength int, collected []checkedVariable) int {
@@ -224,15 +168,8 @@ func nbPLONKConstraints(baseLength int, collected []checkedVariable) int {
 	for i := range collected {
 		nbDecomposed += int(decompSize(collected[i].bits, baseLength))
 	}
-	eqs := nbDecomposed // check correctness of every decomposition. this is nbDecomp adds + eq cost per collected
-	logn := stdbits.Len(uint(nbDecomposed))
-	nbTable := 1 << baseLength
-	nbLeft := nbTable *
-		(3*logn + // tobinary. decomposition check + binary check
-			2*logn + // select per exponent bit
-			logn + // mul per exponent bit
-			logn + // mul per exponent bit
-			1) // final mul
-	nbRight := 2 * nbDecomposed       // per decomposed sub and mul
-	return nbLeft + nbRight + eqs + 1 // single for final equality
+	eqs := nbDecomposed               // check correctness of every decomposition. this is nbDecomp adds + eq cost per collected
+	nbRight := 3 * nbDecomposed       // denominator sub, inv and large sum per table entry
+	nbleft := 3 * (1 << baseLength)   // denominator sub, div and large sum per table entry
+	return nbleft + nbRight + eqs + 1 // and the final assert
 }

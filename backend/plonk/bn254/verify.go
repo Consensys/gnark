@@ -53,7 +53,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *vk, publicWitness); err != nil {
+	if err := bindPublicData(&fs, "gamma", *vk, publicWitness, proof.PI2); err != nil {
 		return err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
@@ -87,25 +87,51 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	zetaPowerM.Exp(zeta, &bExpo)
 	zzeta.Sub(&zetaPowerM, &one)
 
-	// ccompute PI = ∑_{i<n} Lᵢ*wᵢ
+	// compute PI = ∑_{i<n} Lᵢ*wᵢ
 	// TODO use batch inversion
-	var pi, den, lagrangeOne, xiLi fr.Element
-	lagrange := zzeta // ζⁿ⁻¹
-	acc := fr.One()
-	den.Sub(&zeta, &acc)
-	lagrange.Div(&lagrange, &den).Mul(&lagrange, &vk.SizeInv) // (1/n)*(ζⁿ⁻¹)/(ζ-1)
-	lagrangeOne.Set(&lagrange)                                // save it for later
-	for i := 0; i < len(publicWitness); i++ {
+	var pi, lagrangeOne fr.Element
+	{
+		var den, xiLi fr.Element
+		lagrange := zzeta // ζⁿ⁻¹
+		wPowI := fr.One()
+		den.Sub(&zeta, &wPowI)
+		lagrange.Div(&lagrange, &den).Mul(&lagrange, &vk.SizeInv) // (1/n)(ζⁿ-1)/(ζ-1)
+		lagrangeOne.Set(&lagrange)                                // save it for later
+		for i := 0; i < len(publicWitness); i++ {
 
-		xiLi.Mul(&lagrange, &publicWitness[i])
-		pi.Add(&pi, &xiLi)
+			xiLi.Mul(&lagrange, &publicWitness[i])
+			pi.Add(&pi, &xiLi)
 
-		// use Lᵢ₊₁ = w*L_i*(X-zⁱ)/(X-zⁱ⁺¹)
-		lagrange.Mul(&lagrange, &vk.Generator).
-			Mul(&lagrange, &den)
-		acc.Mul(&acc, &vk.Generator)
-		den.Sub(&zeta, &acc)
-		lagrange.Div(&lagrange, &den)
+			// use Lᵢ₊₁ = w×Lᵢ(ζ-wⁱ)/(ζ-wⁱ⁺¹)
+			if i+1 != len(publicWitness) {
+				lagrange.Mul(&lagrange, &vk.Generator).
+					Mul(&lagrange, &den)
+				wPowI.Mul(&wPowI, &vk.Generator)
+				den.Sub(&zeta, &wPowI)
+				lagrange.Div(&lagrange, &den)
+			}
+		}
+
+		for i := range vk.CommitmentConstraintIndexes {
+			var hashRes []fr.Element // TODO: when multi commits are implemented: PI2 -> PI2[i]
+			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
+				return err
+			}
+
+			// Computing L_{CommitmentIndex}
+
+			wPowI.Exp(vk.Generator, big.NewInt(int64(vk.NbPublicVariables)+int64(vk.CommitmentConstraintIndexes[i])))
+			den.Sub(&zeta, &wPowI) // ζ-wⁱ
+
+			lagrange.SetOne().
+				Sub(&zeta, &lagrange).       // ζ-1
+				Mul(&lagrange, &wPowI).      // wⁱ(ζ-1)
+				Div(&lagrange, &den).        // wⁱ(ζ-1)/(ζ-wⁱ)
+				Mul(&lagrange, &lagrangeOne) // wⁱ/n (ζⁿ-1)/(ζ-wⁱ)
+
+			xiLi.Mul(&lagrange, &hashRes[0])
+			pi.Add(&pi, &xiLi)
+		}
 	}
 
 	// linearizedpolynomial + pi(ζ) + α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ) - α²*L₁(ζ)
@@ -120,6 +146,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	o := proof.BatchedProof.ClaimedValues[4]
 	s1 := proof.BatchedProof.ClaimedValues[5]
 	s2 := proof.BatchedProof.ClaimedValues[6]
+	qC := proof.BatchedProof.ClaimedValues[7]
 
 	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+β*s2(ζ)+γ)
@@ -162,7 +189,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	// Compute the commitment to the linearized polynomial
 	// linearizedPolynomialDigest =
-	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk +
+	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+qc*PI2 +
 	// 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
 	// 		α²*L₁(ζ)*Z
 	// first part: individual constraints
@@ -189,12 +216,12 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	_s2.Mul(&_s2, &alpha).Add(&_s2, &alphaSquareLagrange) // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
 
 	points := []curve.G1Affine{
-		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, // first part
+		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, proof.PI2, // first part
 		vk.S[2], proof.Z, // second & third part
 	}
 
 	scalars := []fr.Element{
-		l, r, rl, o, one, // first part
+		l, r, rl, o, one /* TODO Perf @Tabaie Consider just adding Qk instead */, qC, // first part
 		_s1, _s2, // second & third part
 	}
 	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{}); err != nil {
@@ -210,6 +237,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		proof.LRO[2],
 		vk.S[0],
 		vk.S[1],
+		vk.Qcp,
 	},
 		&proof.BatchedProof,
 		zeta,
@@ -234,7 +262,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			zeta,
 			shiftedZeta,
 		},
-		vk.KZGSRS,
+		vk.Kzg,
 	)
 
 	log.Debug().Dur("took", time.Since(start)).Msg("verifier done")
@@ -242,7 +270,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	return err
 }
 
-func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element) error {
+func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element, pi2 kzg.Digest) error {
 
 	// permutation
 	if err := fs.Bind(challenge, vk.S[0].Marshal()); err != nil {
@@ -277,6 +305,11 @@ func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey
 		if err := fs.Bind(challenge, publicInputs[i].Marshal()); err != nil {
 			return err
 		}
+	}
+
+	// bsb22 commitment
+	if err := fs.Bind(challenge, pi2.Marshal()); err != nil {
+		return err
 	}
 
 	return nil

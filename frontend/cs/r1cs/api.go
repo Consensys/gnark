@@ -19,20 +19,19 @@ package r1cs
 import (
 	"errors"
 	"fmt"
-	"math/big"
-	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
 
+	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend/cs"
+
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
@@ -58,14 +57,14 @@ func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 		// v1 and v2 are both unknown, this is the only case we add a constraint
 		if !v1Constant && !v2Constant {
 			res := builder.newInternalVariable()
-			builder.cs.AddConstraint(builder.newR1C(b, c, res))
+			builder.cs.AddR1C(builder.newR1C(b, c, res), builder.genericGate)
 			builder.mbuf1 = append(builder.mbuf1, res...)
 			return
 		}
 
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
 		if v1Constant && v2Constant {
-			builder.cs.Mul(&n1, &n2)
+			n1 = builder.cs.Mul(n1, n2)
 			builder.mbuf1 = append(builder.mbuf1, expr.NewTerm(0, n1))
 			return
 		}
@@ -146,9 +145,9 @@ func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int
 		if curr != -1 && t.VID == (*res)[curr].VID {
 			// accumulate, it's the same variable ID
 			if sub && lID != 0 {
-				builder.cs.Sub(&(*res)[curr].Coeff, &t.Coeff)
+				(*res)[curr].Coeff = builder.cs.Sub((*res)[curr].Coeff, t.Coeff)
 			} else {
-				builder.cs.Add(&(*res)[curr].Coeff, &t.Coeff)
+				(*res)[curr].Coeff = builder.cs.Add((*res)[curr].Coeff, t.Coeff)
 			}
 			if (*res)[curr].Coeff.IsZero() {
 				// remove self.
@@ -160,14 +159,14 @@ func (builder *builder) add(vars []expr.LinearExpression, sub bool, capacity int
 			(*res) = append((*res), *t)
 			curr++
 			if sub && lID != 0 {
-				builder.cs.Neg(&(*res)[curr].Coeff)
+				(*res)[curr].Coeff = builder.cs.Neg((*res)[curr].Coeff)
 			}
 		}
 	}
 
 	if len((*res)) == 0 {
 		// keep the linear expression valid (assertIsSet)
-		(*res) = append((*res), expr.NewTerm(0, constraint.Coeff{}))
+		(*res) = append((*res), expr.NewTerm(0, constraint.Element{}))
 	}
 	// if the linear expression LE is too long then record an equality
 	// constraint LE * 1 = t and return short linear expression instead.
@@ -186,7 +185,7 @@ func (builder *builder) Neg(i frontend.Variable) frontend.Variable {
 	v := builder.toVariable(i)
 
 	if n, ok := builder.constantValue(v); ok {
-		builder.cs.Neg(&n)
+		n = builder.cs.Neg(n)
 		return expr.NewLinearExpression(0, n)
 	}
 
@@ -205,13 +204,13 @@ func (builder *builder) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 		// v1 and v2 are both unknown, this is the only case we add a constraint
 		if !v1Constant && !v2Constant {
 			res := builder.newInternalVariable()
-			builder.cs.AddConstraint(builder.newR1C(v1, v2, res))
+			builder.cs.AddR1C(builder.newR1C(v1, v2, res), builder.genericGate)
 			return res
 		}
 
 		// v1 and v2 are constants, we multiply big.Int values and return resulting constant
 		if v1Constant && v2Constant {
-			builder.cs.Mul(&n1, &n2)
+			n1 = builder.cs.Mul(n1, n2)
 			return expr.NewLinearExpression(0, n1)
 		}
 
@@ -230,7 +229,7 @@ func (builder *builder) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 	return res
 }
 
-func (builder *builder) mulConstant(v1 expr.LinearExpression, lambda constraint.Coeff, inPlace bool) expr.LinearExpression {
+func (builder *builder) mulConstant(v1 expr.LinearExpression, lambda constraint.Element, inPlace bool) expr.LinearExpression {
 	// multiplying a frontend.Variable by a constant -> we updated the coefficients in the linear expression
 	// leading to that frontend.Variable
 	var res expr.LinearExpression
@@ -241,7 +240,7 @@ func (builder *builder) mulConstant(v1 expr.LinearExpression, lambda constraint.
 	}
 
 	for i := 0; i < len(res); i++ {
-		builder.cs.Mul(&res[i].Coeff, &lambda)
+		res[i].Coeff = builder.cs.Mul(res[i].Coeff, lambda)
 	}
 	return res
 }
@@ -257,9 +256,12 @@ func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 
 	if !v2Constant {
 		res := builder.newInternalVariable()
-		debug := builder.newDebugInfo("div", v1, "/", v2, " == ", res)
 		// note that here we don't ensure that divisor is != 0
-		builder.cs.AddConstraint(builder.newR1C(v2, res, v1), debug)
+		cID := builder.cs.AddR1C(builder.newR1C(v2, res, v1), builder.genericGate)
+		if debug.Debug {
+			debug := builder.newDebugInfo("div", v1, "/", v2, " == ", res)
+			builder.cs.AttachDebugInfo(debug, []int{cID})
+		}
 		return res
 	}
 
@@ -267,12 +269,10 @@ func (builder *builder) DivUnchecked(i1, i2 frontend.Variable) frontend.Variable
 	if n2.IsZero() {
 		panic("div by constant(0)")
 	}
-	// q := builder.q
-	builder.cs.Inverse(&n2)
-	// n2.ModInverse(n2, q)
+	n2, _ = builder.cs.Inverse(n2)
 
 	if v1Constant {
-		builder.cs.Mul(&n2, &n1)
+		n2 = builder.cs.Mul(n2, n1)
 		return expr.NewLinearExpression(0, n2)
 	}
 
@@ -295,8 +295,8 @@ func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
 		debug := builder.newDebugInfo("div", v1, "/", v2, " == ", res)
 		v2Inv := builder.newInternalVariable()
 		// note that here we ensure that v2 can't be 0, but it costs us one extra constraint
-		c1 := builder.cs.AddConstraint(builder.newR1C(v2, v2Inv, builder.cstOne()))
-		c2 := builder.cs.AddConstraint(builder.newR1C(v1, v2Inv, res))
+		c1 := builder.cs.AddR1C(builder.newR1C(v2, v2Inv, builder.cstOne()), builder.genericGate)
+		c2 := builder.cs.AddR1C(builder.newR1C(v1, v2Inv, res), builder.genericGate)
 		builder.cs.AttachDebugInfo(debug, []int{c1, c2})
 		return res
 	}
@@ -305,10 +305,10 @@ func (builder *builder) Div(i1, i2 frontend.Variable) frontend.Variable {
 	if n2.IsZero() {
 		panic("div by constant(0)")
 	}
-	builder.cs.Inverse(&n2)
+	n2, _ = builder.cs.Inverse(n2)
 
 	if v1Constant {
-		builder.cs.Mul(&n2, &n1)
+		n2 = builder.cs.Mul(n2, n1)
 		return expr.NewLinearExpression(0, n2)
 	}
 
@@ -325,15 +325,18 @@ func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 			panic("inverse by constant(0)")
 		}
 
-		builder.cs.Inverse(&c)
+		c, _ = builder.cs.Inverse(c)
 		return expr.NewLinearExpression(0, c)
 	}
 
 	// allocate resulting frontend.Variable
 	res := builder.newInternalVariable()
 
-	debug := builder.newDebugInfo("inverse", vars[0], "*", res, " == 1")
-	builder.cs.AddConstraint(builder.newR1C(res, vars[0], builder.cstOne()), debug)
+	cID := builder.cs.AddR1C(builder.newR1C(res, vars[0], builder.cstOne()), builder.genericGate)
+	if debug.Debug {
+		debug := builder.newDebugInfo("inverse", vars[0], "*", res, " == 1")
+		builder.cs.AttachDebugInfo(debug, []int{cID})
+	}
 
 	return res
 }
@@ -409,7 +412,7 @@ func (builder *builder) Or(_a, _b frontend.Variable) frontend.Variable {
 
 	c = append(c, a...)
 	c = append(c, b...)
-	builder.cs.AddConstraint(builder.newR1C(a, b, c))
+	builder.cs.AddR1C(builder.newR1C(a, b, c), builder.genericGate)
 
 	return res
 }
@@ -444,7 +447,7 @@ func (builder *builder) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 
 	if c, ok := builder.constantValue(cond); ok {
 		// condition is a constant return i1 if true, i2 if false
-		if builder.isCstOne(&c) {
+		if builder.isCstOne(c) {
 			return vars[1]
 		}
 		return vars[2]
@@ -454,7 +457,7 @@ func (builder *builder) Select(i0, i1, i2 frontend.Variable) frontend.Variable {
 	n2, ok2 := builder.constantValue(vars[2])
 
 	if ok1 && ok2 {
-		builder.cs.Sub(&n1, &n2)
+		n1 = builder.cs.Sub(n1, n2)
 		res := builder.Mul(cond, n1)    // no constraint is recorded
 		res = builder.Add(res, vars[2]) // no constraint is recorded
 		return res
@@ -491,8 +494,8 @@ func (builder *builder) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 fronten
 	c1, b1IsConstant := builder.constantValue(s1)
 
 	if b0IsConstant && b1IsConstant {
-		b0 := builder.isCstOne(&c0)
-		b1 := builder.isCstOne(&c1)
+		b0 := builder.isCstOne(c0)
+		b1 := builder.isCstOne(c1)
 
 		if !b0 && !b1 {
 			return in0
@@ -553,10 +556,10 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	}
 
 	// m = -a*x + 1         // constrain m to be 1 if a == 0
-	c1 := builder.cs.AddConstraint(builder.newR1C(builder.Neg(a), x[0], builder.Sub(m, 1)))
+	c1 := builder.cs.AddR1C(builder.newR1C(builder.Neg(a), x[0], builder.Sub(m, 1)), builder.genericGate)
 
 	// a * m = 0            // constrain m to be 0 if a != 0
-	c2 := builder.cs.AddConstraint(builder.newR1C(a, m, builder.cstZero()))
+	c2 := builder.cs.AddR1C(builder.newR1C(a, m, builder.cstZero()), builder.genericGate)
 
 	builder.cs.AttachDebugInfo(debug, []int{c1, c2})
 
@@ -663,7 +666,7 @@ func (builder *builder) negateLinExp(l expr.LinearExpression) expr.LinearExpress
 	res := make(expr.LinearExpression, len(l))
 	copy(res, l)
 	for i := 0; i < len(res); i++ {
-		builder.cs.Neg(&res[i].Coeff)
+		res[i].Coeff = builder.cs.Neg(res[i].Coeff)
 	}
 	return res
 }
@@ -673,7 +676,7 @@ func (builder *builder) Compiler() frontend.Compiler {
 }
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
-	// we want to build a sorted slice of commited variables, without duplicates
+	// we want to build a sorted slice of committed variables, without duplicates
 	// this is the same algorithm as builder.add(...); but we expect len(v) to be quite large.
 
 	vars, s := builder.toVariables(v...)
@@ -729,16 +732,16 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 	// hint is used at solving time to compute the actual value of the commitment
 	// it is going to be dynamically replaced at solving time.
-	hintOut, err := builder.NewHint(bsb22CommitmentComputePlaceholder, 1, builder.getCommittedVariables(&commitment)...)
+	hintOut, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, builder.getCommittedVariables(&commitment)...)
 	if err != nil {
 		return nil, err
 	}
 	cVar := hintOut[0]
-	commitment.HintID = solver.GetHintID(bsb22CommitmentComputePlaceholder) // TODO @gbotrel probably not needed
+	commitment.HintID = solver.GetHintID(cs.Bsb22CommitmentComputePlaceholder) // TODO @gbotrel probably not needed
 
 	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
 
-	// TODO @Tabaie: Get rid of this field
+	// TODO @Tabaie Get rid of this field
 	commitment.CommittedAndCommitment = append(commitment.Committed, commitment.CommitmentIndex)
 	if commitment.CommitmentIndex <= commitment.Committed[len(commitment.Committed)-1] {
 		return nil, fmt.Errorf("commitment variable index smaller than some committed variable indices")
@@ -757,19 +760,4 @@ func (builder *builder) getCommittedVariables(i *constraint.Commitment) []fronte
 		res[j] = expr.NewLinearExpression(wireIndex, builder.tOne)
 	}
 	return res
-}
-
-func bsb22CommitmentComputePlaceholder(_ *big.Int, _ []*big.Int, output []*big.Int) error {
-	if (len(os.Args) > 0 && (strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe"))) || debug.Debug {
-		// usually we only run solver without prover during testing
-		log := logger.Logger()
-		log.Error().Msg("Augmented groth16 commitment hint not replaced. Proof will not be sound!")
-		output[0].SetInt64(0)
-		return nil
-	}
-	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
-}
-
-func init() {
-	solver.RegisterHint(bsb22CommitmentComputePlaceholder)
 }

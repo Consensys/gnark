@@ -25,7 +25,7 @@ import (
 	"io"
 )
 
-// WriteTo writes binary encoding of Proof to w without point compression
+// WriteRawTo writes binary encoding of Proof to w without point compression
 func (proof *Proof) WriteRawTo(w io.Writer) (int64, error) {
 	return proof.writeTo(w, curve.RawEncoding())
 }
@@ -50,6 +50,7 @@ func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64
 		proof.BatchedProof.ClaimedValues,
 		&proof.ZShiftedOpening.H,
 		&proof.ZShiftedOpening.ClaimedValue,
+		&proof.PI2,
 	}
 
 	for _, v := range toEncode {
@@ -76,6 +77,7 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		&proof.BatchedProof.ClaimedValues,
 		&proof.ZShiftedOpening.H,
 		&proof.ZShiftedOpening.ClaimedValue,
+		&proof.PI2,
 	}
 
 	for _, v := range toDecode {
@@ -118,15 +120,16 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	// encode the size (nor does it convert from Montgomery to Regular form)
 	// so we explicitly transmit []fr.Element
 	toEncode := []interface{}{
-		([]fr.Element)(pk.trace.Ql.Coefficients()),
-		([]fr.Element)(pk.trace.Qr.Coefficients()),
-		([]fr.Element)(pk.trace.Qm.Coefficients()),
-		([]fr.Element)(pk.trace.Qo.Coefficients()),
-		([]fr.Element)(pk.trace.Qk.Coefficients()),
-		([]fr.Element)(pk.lQk.Coefficients()),
-		([]fr.Element)(pk.trace.S1.Coefficients()),
-		([]fr.Element)(pk.trace.S2.Coefficients()),
-		([]fr.Element)(pk.trace.S3.Coefficients()),
+		pk.trace.Ql.Coefficients(),
+		pk.trace.Qr.Coefficients(),
+		pk.trace.Qm.Coefficients(),
+		pk.trace.Qo.Coefficients(),
+		pk.trace.Qk.Coefficients(),
+		pk.trace.Qcp.Coefficients(),
+		pk.lQk.Coefficients(),
+		pk.trace.S1.Coefficients(),
+		pk.trace.S2.Coefficients(),
+		pk.trace.S3.Coefficients(),
 		pk.trace.S,
 	}
 
@@ -163,13 +166,14 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 
 	dec := curve.NewDecoder(r)
 
-	var ql, qr, qm, qo, qk, lqk, s1, s2, s3 []fr.Element
+	var ql, qr, qm, qo, qk, qcp, lqk, s1, s2, s3 []fr.Element
 	toDecode := []interface{}{
 		&ql,
 		&qr,
 		&qm,
 		&qo,
 		&qk,
+		&qcp,
 		&lqk,
 		&s1,
 		&s2,
@@ -189,6 +193,7 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 	pk.trace.Qm = iop.NewPolynomial(&qm, canReg)
 	pk.trace.Qo = iop.NewPolynomial(&qo, canReg)
 	pk.trace.Qk = iop.NewPolynomial(&qk, canReg)
+	pk.trace.Qcp = iop.NewPolynomial(&qcp, canReg)
 	pk.trace.S1 = iop.NewPolynomial(&s1, canReg)
 	pk.trace.S2 = iop.NewPolynomial(&s2, canReg)
 	pk.trace.S3 = iop.NewPolynomial(&s3, canReg)
@@ -204,6 +209,15 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 
 // WriteTo writes binary encoding of VerifyingKey to w
 func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
+	return vk.writeTo(w)
+}
+
+// WriteRawTo writes binary encoding of VerifyingKey to w without point compression
+func (vk *VerifyingKey) WriteRawTo(w io.Writer) (int64, error) {
+	return vk.writeTo(w, curve.RawEncoding())
+}
+
+func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n int64, err error) {
 	enc := curve.NewEncoder(w)
 
 	toEncode := []interface{}{
@@ -220,6 +234,8 @@ func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
 		&vk.Qm,
 		&vk.Qo,
 		&vk.Qk,
+		&vk.Qcp,
+		vk.CommitmentConstraintIndexes,
 	}
 
 	for _, v := range toEncode {
@@ -248,6 +264,8 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		&vk.Qm,
 		&vk.Qo,
 		&vk.Qk,
+		&vk.Qcp,
+		&vk.CommitmentConstraintIndexes,
 	}
 
 	for _, v := range toDecode {

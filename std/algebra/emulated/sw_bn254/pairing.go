@@ -8,12 +8,17 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
 type Pairing struct {
+	api frontend.API
 	*fields_bn254.Ext12
 	curveF *emulated.Field[emulated.BN254Fp]
+	curve  *sw_emulated.Curve[emulated.BN254Fp, emulated.BN254Fr]
+	g2     *G2
+	bTwist *fields_bn254.E2
 }
 
 type GTEl = fields_bn254.E12
@@ -56,9 +61,21 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
+	curve, err := sw_emulated.New[emulated.BN254Fp, emulated.BN254Fr](api, sw_emulated.GetBN254Params())
+	if err != nil {
+		return nil, fmt.Errorf("new curve: %w", err)
+	}
+	bTwist := fields_bn254.E2{
+		A0: emulated.ValueOf[emulated.BN254Fp]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
+		A1: emulated.ValueOf[emulated.BN254Fp]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
+	}
 	return &Pairing{
-		Ext12:  fields_bn254.NewExt12(ba),
+		api:    api,
+		Ext12:  fields_bn254.NewExt12(api),
 		curveF: ba,
+		curve:  curve,
+		g2:     NewG2(api),
+		bTwist: &bTwist,
 	}, nil
 }
 
@@ -71,63 +88,213 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 //	2x₀(6x₀²+3x₀+1)
 //
 // and r does NOT divide d'
+//
+// FinalExponentiation returns a decompressed element in E12.
+//
+// This is the safe version of the method where e may be {-1,1}. If it is known
+// that e ≠ {-1,1} then using the unsafe version of the method saves
+// considerable amount of constraints. When called with the result of
+// [MillerLoop], then current method is applicable when length of the inputs to
+// Miller loop is 1.
 func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	var t [4]*GTEl
+	return pr.finalExponentiation(e, false)
+}
 
-	// Easy part
+// FinalExponentiationUnsafe computes the exponentiation eᵈ where
+//
+//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
+//
+// We use instead d'= s ⋅ d, where s is the cofactor
+//
+//	2x₀(6x₀²+3x₀+1)
+//
+// and r does NOT divide d'
+//
+// FinalExponentiationUnsafe returns a decompressed element in E12.
+//
+// This is the unsafe version of the method where e may NOT be {-1,1}. If e ∈
+// {-1, 1}, then there exists no valid solution to the circuit. This method is
+// applicable when called with the result of [MillerLoop] method when the length
+// of the inputs to Miller loop is 1.
+func (pr Pairing) FinalExponentiationUnsafe(e *GTEl) *GTEl {
+	return pr.finalExponentiation(e, true)
+}
+
+// finalExponentiation computes the exponentiation eᵈ where
+//
+//	d = (p¹²-1)/r = (p¹²-1)/Φ₁₂(p) ⋅ Φ₁₂(p)/r = (p⁶-1)(p²+1)(p⁴ - p² +1)/r.
+//
+// We use instead d'= s ⋅ d, where s is the cofactor
+//
+//	2x₀(6x₀²+3x₀+1)
+//
+// and r does NOT divide d'
+//
+// finalExponentiation returns a decompressed element in E12
+func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
+
+	// 1. Easy part
 	// (p⁶-1)(p²+1)
-	t[0] = pr.Ext12.Conjugate(e)
-	t[0] = pr.Ext12.DivUnchecked(t[0], e)
-	result := pr.Ext12.FrobeniusSquare(t[0])
-	result = pr.Ext12.Mul(result, t[0])
+	var selector1, selector2 frontend.Variable
+	_dummy := pr.Ext6.One()
 
-	// Hard part (up to permutation)
+	if unsafe {
+		// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
+		// linearly dependant and not from G1 and G2 respectively.
+		// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0.
+		// Nothing to do.
+
+	} else {
+		// However, for a product of Miller loops (n>=2) this might happen.  If this is
+		// the case, the result is 1 in the torus. We assign a dummy value (1) to e.C1
+		// and proceed further.
+		selector1 = pr.Ext6.IsZero(&e.C1)
+		e.C1 = *pr.Ext6.Select(selector1, _dummy, &e.C1)
+	}
+
+	// Torus compression absorbed:
+	// Raising e to (p⁶-1) is
+	// e^(p⁶) / e = (e.C0 - w*e.C1) / (e.C0 + w*e.C1)
+	//            = (-e.C0/e.C1 + w) / (-e.C0/e.C1 - w)
+	// So the fraction -e.C0/e.C1 is already in the torus.
+	// This absorbs the torus compression in the easy part.
+	c := pr.Ext6.DivUnchecked(&e.C0, &e.C1)
+	c = pr.Ext6.Neg(c)
+	t0 := pr.FrobeniusSquareTorus(c)
+	c = pr.MulTorus(t0, c)
+
+	// 2. Hard part (up to permutation)
 	// 2x₀(6x₀²+3x₀+1)(p⁴-p²+1)/r
 	// Duquesne and Ghammam
 	// https://eprint.iacr.org/2015/192.pdf
-	// Fuentes et al. variant (alg. 10)
-	t[0] = pr.Ext12.Expt(result)
-	t[0] = pr.Ext12.Conjugate(t[0])
-	t[0] = pr.Ext12.CyclotomicSquare(t[0])
-	t[2] = pr.Ext12.Expt(t[0])
-	t[2] = pr.Ext12.Conjugate(t[2])
-	t[1] = pr.Ext12.CyclotomicSquare(t[2])
-	t[2] = pr.Ext12.Mul(t[2], t[1])
-	t[2] = pr.Ext12.Mul(t[2], result)
-	t[1] = pr.Ext12.Expt(t[2])
-	t[1] = pr.Ext12.CyclotomicSquare(t[1])
-	t[1] = pr.Ext12.Mul(t[1], t[2])
-	t[1] = pr.Ext12.Conjugate(t[1])
-	t[3] = pr.Ext12.Conjugate(t[1])
-	t[1] = pr.Ext12.CyclotomicSquare(t[0])
-	t[1] = pr.Ext12.Mul(t[1], result)
-	t[1] = pr.Ext12.Conjugate(t[1])
-	t[1] = pr.Ext12.Mul(t[1], t[3])
-	t[0] = pr.Ext12.Mul(t[0], t[1])
-	t[2] = pr.Ext12.Mul(t[2], t[1])
-	t[3] = pr.Ext12.FrobeniusSquare(t[1])
-	t[2] = pr.Ext12.Mul(t[2], t[3])
-	t[3] = pr.Ext12.Conjugate(result)
-	t[3] = pr.Ext12.Mul(t[3], t[0])
-	t[1] = pr.Ext12.FrobeniusCube(t[3])
-	t[2] = pr.Ext12.Mul(t[2], t[1])
-	t[1] = pr.Ext12.Frobenius(t[0])
-	t[1] = pr.Ext12.Mul(t[1], t[2])
+	// Fuentes et al. (alg. 6)
+	// performed in torus compressed form
+	t0 = pr.ExptTorus(c)
+	t0 = pr.InverseTorus(t0)
+	t0 = pr.SquareTorus(t0)
+	t1 := pr.SquareTorus(t0)
+	t1 = pr.MulTorus(t0, t1)
+	t2 := pr.ExptTorus(t1)
+	t2 = pr.InverseTorus(t2)
+	t3 := pr.InverseTorus(t1)
+	t1 = pr.MulTorus(t2, t3)
+	t3 = pr.SquareTorus(t2)
+	t4 := pr.ExptTorus(t3)
+	t4 = pr.MulTorus(t1, t4)
+	t3 = pr.MulTorus(t0, t4)
+	t0 = pr.MulTorus(t2, t4)
+	t0 = pr.MulTorus(c, t0)
+	t2 = pr.FrobeniusTorus(t3)
+	t0 = pr.MulTorus(t2, t0)
+	t2 = pr.FrobeniusSquareTorus(t4)
+	t0 = pr.MulTorus(t2, t0)
+	t2 = pr.InverseTorus(c)
+	t2 = pr.MulTorus(t2, t3)
+	t2 = pr.FrobeniusCubeTorus(t2)
 
-	return t[1]
+	var result GTEl
+	// MulTorus(t0, t2) requires t0 ≠ -t2. When t0 = -t2, it means the
+	// product is 1 in the torus.
+	if unsafe {
+		// For a single pairing, this does not happen because the pairing is non-degenerate.
+		result = *pr.DecompressTorus(pr.MulTorus(t2, t0))
+	} else {
+		// For a product of pairings this might happen when the result is expected to be 1.
+		// We assign a dummy value (1) to t0 and proceed furhter.
+		// Finally we do a select on both edge cases:
+		//   - Only if seletor1=0 and selector2=0, we return MulTorus(t2, t0) decompressed.
+		//   - Otherwise, we return 1.
+		_sum := pr.Ext6.Add(t0, t2)
+		selector2 = pr.Ext6.IsZero(_sum)
+		t0 = pr.Ext6.Select(selector2, _dummy, t0)
+		selector := pr.api.Mul(pr.api.Sub(1, selector1), pr.api.Sub(1, selector2))
+		result = *pr.Select(selector, pr.DecompressTorus(pr.MulTorus(t2, t0)), pr.One())
+	}
+
+	return &result
 }
 
+// Pair calculates the reduced pairing for a set of points
+// ∏ᵢ e(Pᵢ, Qᵢ).
+//
+// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	res = pr.FinalExponentiation(res)
+	res = pr.finalExponentiation(res, len(P) == 1)
 	return res, nil
+}
+
+// PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
+// ∏ᵢ e(Pᵢ, Qᵢ) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
+	f, err := pr.Pair(P, Q)
+	if err != nil {
+		return err
+
+	}
+	one := pr.One()
+	pr.AssertIsEqual(f, one)
+
+	return nil
 }
 
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext12.AssertIsEqual(x, y)
+}
+
+func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
+	pr.curve.AssertIsOnCurve(P)
+}
+
+func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+	// Twist: Y² == X³ + aX + b, where a=0 and b=3/(9+u)
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if Q=(0,0) we assign b=0 otherwise 3/(9+u), and continue
+	selector := pr.api.And(pr.Ext2.IsZero(&Q.X), pr.Ext2.IsZero(&Q.Y))
+	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
+
+	left := pr.Ext2.Square(&Q.Y)
+	right := pr.Ext2.Square(&Q.X)
+	right = pr.Ext2.Mul(right, &Q.X)
+	right = pr.Ext2.Add(right, b)
+	pr.Ext2.AssertIsEqual(left, right)
+}
+
+func (pr Pairing) AssertIsOnG1(P *G1Affine) {
+	// BN254 has a prime order, so we only
+	// 1- Check P is on the curve
+	pr.AssertIsOnCurve(P)
+}
+
+func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
+	// 1- Check Q is on the curve
+	pr.AssertIsOnTwist(Q)
+
+	// 2- Check Q has the right subgroup order
+
+	// [x₀]Q
+	xQ := pr.g2.scalarMulBySeed(Q)
+	// ψ([x₀]Q)
+	psixQ := pr.g2.psi(xQ)
+	// ψ²([x₀]Q) = -ϕ([x₀]Q)
+	psi2xQ := pr.g2.phi(xQ)
+	// ψ³([2x₀]Q)
+	psi3xxQ := pr.g2.double(psi2xQ)
+	psi3xxQ = pr.g2.psi(psi3xxQ)
+
+	// _Q = ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q
+	_Q := pr.g2.sub(psi2xQ, psi3xxQ)
+	_Q = pr.g2.sub(_Q, psixQ)
+	_Q = pr.g2.sub(_Q, xQ)
+
+	// [r]Q == 0 <==>  _Q == Q
+	pr.g2.AssertIsEqual(Q, _Q)
 }
 
 // loopCounter = 6x₀+2 = 29793968203157093288
@@ -171,8 +338,11 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	for k := 0; k < n; k++ {
 		Qacc[k] = Q[k]
 		QNeg[k] = &G2Affine{X: Q[k].X, Y: *pr.Ext2.Neg(&Q[k].Y)}
-		// (x,0) cannot be on BN254 because -3 is a cubic non-residue in Fp
-		// so, 1/y is well defined for all points P's
+		// P and Q are supposed to be on G1 and G2 respectively of prime order r.
+		// The point (x,0) is of order 2. But this function does not check
+		// subgroup membership.
+		// Anyway (x,0) cannot be on BN254 because -3 is a cubic non-residue in Fp.
+		// So, 1/y is well defined for all points P's.
 		yInv[k] = pr.curveF.Inverse(&P[k].Y)
 		xOverY[k] = pr.curveF.MulMod(&P[k].X, yInv[k])
 	}
@@ -331,15 +501,15 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	Q1, Q2 := new(G2Affine), new(G2Affine)
 	for k := 0; k < n; k++ {
 		//Q1 = π(Q)
-		Q1.X = *pr.Ext12.Ext2.Conjugate(&Q[k].X)
-		Q1.X = *pr.Ext12.Ext2.MulByNonResidue1Power2(&Q1.X)
-		Q1.Y = *pr.Ext12.Ext2.Conjugate(&Q[k].Y)
-		Q1.Y = *pr.Ext12.Ext2.MulByNonResidue1Power3(&Q1.Y)
+		Q1.X = *pr.Ext2.Conjugate(&Q[k].X)
+		Q1.X = *pr.Ext2.MulByNonResidue1Power2(&Q1.X)
+		Q1.Y = *pr.Ext2.Conjugate(&Q[k].Y)
+		Q1.Y = *pr.Ext2.MulByNonResidue1Power3(&Q1.Y)
 
 		// Q2 = -π²(Q)
-		Q2.X = *pr.Ext12.Ext2.MulByNonResidue2Power2(&Q[k].X)
-		Q2.Y = *pr.Ext12.Ext2.MulByNonResidue2Power3(&Q[k].Y)
-		Q2.Y = *pr.Ext12.Ext2.Neg(&Q2.Y)
+		Q2.X = *pr.Ext2.MulByNonResidue2Power2(&Q[k].X)
+		Q2.Y = *pr.Ext2.MulByNonResidue2Power3(&Q[k].Y)
+		Q2.Y = *pr.Ext2.Neg(&Q2.Y)
 
 		// Qacc[k] ← Qacc[k]+π(Q) and
 		// l1 the line passing Qacc[k] and π(Q)
