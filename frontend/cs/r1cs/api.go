@@ -741,8 +741,6 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
 
-	// TODO @Tabaie Get rid of this field
-	commitment.CommittedAndCommitment = append(commitment.Committed, commitment.CommitmentIndex)
 	if commitment.CommitmentIndex <= commitment.Committed[len(commitment.Committed)-1] {
 		return nil, fmt.Errorf("commitment variable index smaller than some committed variable indices")
 	}
