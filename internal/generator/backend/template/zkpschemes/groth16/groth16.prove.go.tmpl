@@ -48,14 +48,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
 
-	if r1cs.CommitmentInfo.Is() {
-		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo.HintID,func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+	if r1cs.HasCommitment() {
+		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[0].HintID,func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 			// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
 			// If that is the case, figure out a way to feed the solution vector into this function
-			if len(in) != r1cs.CommitmentInfo.NbCommitted() { // TODO: Remove
+			if len(in) != r1cs.CommitmentInfo[0].NbCommitted() { // TODO: Remove
 				return fmt.Errorf("unexpected number of committed variables")
 			}
-			values := make([]fr.Element, r1cs.CommitmentInfo.NbPrivateCommitted)
+			values := make([]fr.Element, r1cs.CommitmentInfo[0].NbPrivateCommitted)
 			nbPublicCommitted := len(in) - len(values)
 			inPrivate := in[nbPublicCommitted:]
 			for i, inI := range inPrivate {
@@ -69,7 +69,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			}
 
 			var res fr.Element
-			res, err = solveCommitmentWire(&proof.Commitment, in[:r1cs.CommitmentInfo.NbPublicCommitted()])
+			res, err = solveCommitmentWire(&proof.Commitment, in[:r1cs.CommitmentInfo[0].NbPublicCommitted()])
 			res.BigInt(out[0])
 			return err
 		} ))
@@ -185,8 +185,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			chKrs2Done <- err
 		}()
 
-		// filter the wire values if needed;
-		_wireValues := filter(wireValues, r1cs.CommitmentInfo.PrivateToPublicGroth16())
+		// filter the wire values if needed
+		_wireValues := wireValues
+		if r1cs.HasCommitment() {
+			_wireValues = filter(wireValues, r1cs.CommitmentInfo[0].PrivateToPublicGroth16())
+		}
 
 		if _, err := krs.MultiExp(pk.G1.K, _wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
