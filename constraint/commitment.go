@@ -38,7 +38,7 @@ func NewCommitment(committed []int, nbPublicCommitted int) Commitment {
 	}
 }
 
-func (i *Commitment) SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, fieldByteLen int) []byte {
+func SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, fieldByteLen int) []byte {
 
 	res := make([]byte, len(privateCommitment)+len(publicCommitted)*fieldByteLen)
 	copy(res, privateCommitment)
@@ -59,4 +59,8 @@ func (i *Commitment) PrivateToPublic() []int {
 
 func (i *Commitment) PrivateCommitted() []int {
 	return i.Committed[i.NbPublicCommitted():]
+}
+
+func (i *Commitment) PublicCommitted() []int {
+	return i.Committed[:i.NbPublicCommitted()]
 }

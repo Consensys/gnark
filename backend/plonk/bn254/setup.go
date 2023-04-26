@@ -264,7 +264,7 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 
 }
 
-// commitTrace commits to every polynomials in the trace, and put
+// commitTrace commits to every polynomial in the trace, and put
 // the commitments int the verifying key.
 func commitTrace(trace *Trace, pk *ProvingKey) error {
 
