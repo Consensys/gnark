@@ -17,6 +17,7 @@ limitations under the License.
 package scs
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -570,6 +571,10 @@ func (builder *builder) Compiler() frontend.Compiler {
 }
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+
+	if builder.cs.HasCommitment() {
+		return nil, errors.New("multi-commits not available for groth16 - yet")
+	}
 
 	v = filterConstants(v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?
 

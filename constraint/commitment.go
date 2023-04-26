@@ -23,10 +23,6 @@ func (i *Commitment) NbCommitted() int {
 	return len(i.Committed)
 }
 
-func (i *Commitment) Is() bool {
-	return len(i.Committed) != 0
-}
-
 // NewCommitment initialize a Commitment object
 //   - committed are the sorted wireID to commit to (without duplicate)
 //   - nbPublicCommitted is the number of public inputs among the committed wireIDs

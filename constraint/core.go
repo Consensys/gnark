@@ -91,7 +91,7 @@ type System struct {
 	lbWireLevel []int    `cbor:"-"` // at which level we solve a wire. init at -1.
 	lbOutputs   []uint32 `cbor:"-"` // wire outputs for current constraint.
 
-	CommitmentInfo Commitment
+	CommitmentInfo []Commitment
 
 	genericHint BlueprintID
 }
@@ -249,12 +249,7 @@ func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbO
 }
 
 func (system *System) AddCommitment(c Commitment) error {
-	if system.CommitmentInfo.Is() {
-		return fmt.Errorf("currently only one commitment per circuit is supported")
-	}
-
-	system.CommitmentInfo = c
-
+	system.CommitmentInfo = append(system.CommitmentInfo, c)
 	return nil
 }
 
@@ -372,4 +367,8 @@ func (cs *System) GetR1CIterator() R1CIterator {
 
 func (cs *System) GetSparseR1CIterator() SparseR1CIterator {
 	return SparseR1CIterator{cs: cs}
+}
+
+func (cs *System) HasCommitment() bool {
+	return len(cs.CommitmentInfo) != 0
 }
