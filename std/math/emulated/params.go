@@ -97,3 +97,14 @@ func (fp BLS12381Fp) NbLimbs() uint     { return 6 }
 func (fp BLS12381Fp) BitsPerLimb() uint { return 64 }
 func (fp BLS12381Fp) IsPrime() bool     { return true }
 func (fp BLS12381Fp) Modulus() *big.Int { return ecc.BLS12_381.BaseField() }
+
+// BLS12381Fr provide type parametrization for emulated field on 4 limb of width
+// 64bits for modulus
+// 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001.
+// This is the scalar field of the BLS12-381 curve.
+type BLS12381Fr struct{}
+
+func (fp BLS12381Fr) NbLimbs() uint     { return 4 }
+func (fp BLS12381Fr) BitsPerLimb() uint { return 64 }
+func (fp BLS12381Fr) IsPrime() bool     { return true }
+func (fp BLS12381Fr) Modulus() *big.Int { return ecc.BLS12_381.ScalarField() }

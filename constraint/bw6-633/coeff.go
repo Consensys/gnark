@@ -72,8 +72,8 @@ func (ct *CoeffTable) AddCoeff(coeff constraint.Element) uint32 {
 	return cID
 }
 
-func (ct *CoeffTable) MakeTerm(coeff *constraint.Element, variableID int) constraint.Term {
-	cID := ct.AddCoeff(*coeff)
+func (ct *CoeffTable) MakeTerm(coeff constraint.Element, variableID int) constraint.Term {
+	cID := ct.AddCoeff(coeff)
 	return constraint.Term{VID: uint32(variableID), CID: cID}
 }
 

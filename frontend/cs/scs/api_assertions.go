@@ -47,29 +47,40 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 	if i2Constant {
 		xa := i1.(expr.Term)
 		c2 := builder.cs.Neg(c2)
-		debug := builder.newDebugInfo("assertIsEqual", xa, "==", i2)
 
 		// xa - i2 == 0
-		builder.addPlonkConstraint(sparseR1C{
+		toAdd := sparseR1C{
 			xa: xa.VID,
 			qL: xa.Coeff,
 			qC: c2,
-		}, debug)
+		}
+
+		if debug.Debug {
+			debug := builder.newDebugInfo("assertIsEqual", xa, "==", i2)
+			builder.addPlonkConstraint(toAdd, debug)
+		} else {
+			builder.addPlonkConstraint(toAdd)
+		}
 		return
 	}
 	xa := i1.(expr.Term)
 	xb := i2.(expr.Term)
 
-	debug := builder.newDebugInfo("assertIsEqual", xa, " == ", xb)
-
 	xb.Coeff = builder.cs.Neg(xb.Coeff)
 	// xa - xb == 0
-	builder.addPlonkConstraint(sparseR1C{
+	toAdd := sparseR1C{
 		xa: xa.VID,
 		xb: xb.VID,
 		qL: xa.Coeff,
 		qR: xb.Coeff,
-	}, debug)
+	}
+
+	if debug.Debug {
+		debug := builder.newDebugInfo("assertIsEqual", xa, " == ", xb)
+		builder.addPlonkConstraint(toAdd, debug)
+	} else {
+		builder.addPlonkConstraint(toAdd)
+	}
 }
 
 // AssertIsDifferent fails if i1 == i2

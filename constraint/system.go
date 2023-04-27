@@ -53,7 +53,7 @@ type ConstraintSystem interface {
 
 	// MakeTerm returns a new Term. The constraint system may store coefficients in a map, so
 	// calls to this function will grow the memory usage of the constraint system.
-	MakeTerm(coeff *Element, variableID int) Term
+	MakeTerm(coeff Element, variableID int) Term
 
 	// AddCoeff adds a coefficient to the underlying constraint system. The system will not store duplicate,
 	// but is not purging for unused coeff either, so this grows memory usage.

@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -15,6 +16,9 @@ type Pairing struct {
 	api frontend.API
 	*fields_bn254.Ext12
 	curveF *emulated.Field[emulated.BN254Fp]
+	curve  *sw_emulated.Curve[emulated.BN254Fp, emulated.BN254Fr]
+	g2     *G2
+	bTwist *fields_bn254.E2
 }
 
 type GTEl = fields_bn254.E12
@@ -57,10 +61,21 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
+	curve, err := sw_emulated.New[emulated.BN254Fp, emulated.BN254Fr](api, sw_emulated.GetBN254Params())
+	if err != nil {
+		return nil, fmt.Errorf("new curve: %w", err)
+	}
+	bTwist := fields_bn254.E2{
+		A0: emulated.ValueOf[emulated.BN254Fp]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
+		A1: emulated.ValueOf[emulated.BN254Fp]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
+	}
 	return &Pairing{
 		api:    api,
 		Ext12:  fields_bn254.NewExt12(api),
 		curveF: ba,
+		curve:  curve,
+		g2:     NewG2(api),
+		bTwist: &bTwist,
 	}, nil
 }
 
@@ -202,7 +217,7 @@ func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
-// This function doesn't check that the inputs are in the correct subgroups.
+// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
 func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res, err := pr.MillerLoop(P, Q)
 	if err != nil {
@@ -215,7 +230,7 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 // PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1
 //
-// This function doesn't check that the inputs are in the correct subgroups.
+// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	f, err := pr.Pair(P, Q)
 	if err != nil {
@@ -230,6 +245,56 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext12.AssertIsEqual(x, y)
+}
+
+func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
+	pr.curve.AssertIsOnCurve(P)
+}
+
+func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+	// Twist: Y² == X³ + aX + b, where a=0 and b=3/(9+u)
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if Q=(0,0) we assign b=0 otherwise 3/(9+u), and continue
+	selector := pr.api.And(pr.Ext2.IsZero(&Q.X), pr.Ext2.IsZero(&Q.Y))
+	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
+
+	left := pr.Ext2.Square(&Q.Y)
+	right := pr.Ext2.Square(&Q.X)
+	right = pr.Ext2.Mul(right, &Q.X)
+	right = pr.Ext2.Add(right, b)
+	pr.Ext2.AssertIsEqual(left, right)
+}
+
+func (pr Pairing) AssertIsOnG1(P *G1Affine) {
+	// BN254 has a prime order, so we only
+	// 1- Check P is on the curve
+	pr.AssertIsOnCurve(P)
+}
+
+func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
+	// 1- Check Q is on the curve
+	pr.AssertIsOnTwist(Q)
+
+	// 2- Check Q has the right subgroup order
+
+	// [x₀]Q
+	xQ := pr.g2.scalarMulBySeed(Q)
+	// ψ([x₀]Q)
+	psixQ := pr.g2.psi(xQ)
+	// ψ²([x₀]Q) = -ϕ([x₀]Q)
+	psi2xQ := pr.g2.phi(xQ)
+	// ψ³([2x₀]Q)
+	psi3xxQ := pr.g2.double(psi2xQ)
+	psi3xxQ = pr.g2.psi(psi3xxQ)
+
+	// _Q = ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q
+	_Q := pr.g2.sub(psi2xQ, psi3xxQ)
+	_Q = pr.g2.sub(_Q, psixQ)
+	_Q = pr.g2.sub(_Q, xQ)
+
+	// [r]Q == 0 <==>  _Q == Q
+	pr.g2.AssertIsEqual(Q, _Q)
 }
 
 // loopCounter = 6x₀+2 = 29793968203157093288
@@ -436,15 +501,15 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	Q1, Q2 := new(G2Affine), new(G2Affine)
 	for k := 0; k < n; k++ {
 		//Q1 = π(Q)
-		Q1.X = *pr.Ext12.Ext2.Conjugate(&Q[k].X)
-		Q1.X = *pr.Ext12.Ext2.MulByNonResidue1Power2(&Q1.X)
-		Q1.Y = *pr.Ext12.Ext2.Conjugate(&Q[k].Y)
-		Q1.Y = *pr.Ext12.Ext2.MulByNonResidue1Power3(&Q1.Y)
+		Q1.X = *pr.Ext2.Conjugate(&Q[k].X)
+		Q1.X = *pr.Ext2.MulByNonResidue1Power2(&Q1.X)
+		Q1.Y = *pr.Ext2.Conjugate(&Q[k].Y)
+		Q1.Y = *pr.Ext2.MulByNonResidue1Power3(&Q1.Y)
 
 		// Q2 = -π²(Q)
-		Q2.X = *pr.Ext12.Ext2.MulByNonResidue2Power2(&Q[k].X)
-		Q2.Y = *pr.Ext12.Ext2.MulByNonResidue2Power3(&Q[k].Y)
-		Q2.Y = *pr.Ext12.Ext2.Neg(&Q2.Y)
+		Q2.X = *pr.Ext2.MulByNonResidue2Power2(&Q[k].X)
+		Q2.Y = *pr.Ext2.MulByNonResidue2Power3(&Q[k].Y)
+		Q2.Y = *pr.Ext2.Neg(&Q2.Y)
 
 		// Qacc[k] ← Qacc[k]+π(Q) and
 		// l1 the line passing Qacc[k] and π(Q)

@@ -206,7 +206,7 @@ func (builder *builder) getLinearExpression(_l interface{}) constraint.LinearExp
 		}
 		L = make(constraint.LinearExpression, 0, len(tl))
 		for _, t := range tl {
-			L = append(L, builder.cs.MakeTerm(&t.Coeff, t.VID))
+			L = append(L, builder.cs.MakeTerm(t.Coeff, t.VID))
 		}
 	case constraint.LinearExpression:
 		L = tl
@@ -381,7 +381,7 @@ func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend
 			hintInputs[i] = builder.getLinearExpression(t)
 		} else {
 			c := builder.cs.FromInterface(in)
-			term := builder.cs.MakeTerm(&c, 0)
+			term := builder.cs.MakeTerm(c, 0)
 			term.MarkConstant()
 			hintInputs[i] = constraint.LinearExpression{term}
 		}
