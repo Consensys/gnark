@@ -498,7 +498,7 @@ func (e *engine) NewStateLessHint(f solver.Hint, nbOutputs int,
 	}
 
 	constantOutputs := make([]*big.Int, nbOutputs)
-	for i, _ := range constantOutputs {
+	for i := range constantOutputs {
 		constantOutputs[i] = new(big.Int)
 	}
 	err := f(e.Compiler().Field(), constantInputs, constantOutputs)

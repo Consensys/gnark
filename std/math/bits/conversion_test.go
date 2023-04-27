@@ -31,6 +31,27 @@ func (c *toBinaryCircuit) Define(api frontend.API) error {
 	return nil
 }
 
+type constantToBinaryCircuit struct {
+	B [4]frontend.Variable
+}
+
+func (c *constantToBinaryCircuit) Define(api frontend.API) error {
+	b := bits.ToBinary(api, 11, bits.WithNbDigits(4))
+	api.AssertIsEqual(b[0], c.B[0])
+	api.AssertIsEqual(b[1], c.B[1])
+	api.AssertIsEqual(b[2], c.B[2])
+	api.AssertIsEqual(b[3], c.B[3])
+	return nil
+}
+
+type constantFailCircuit struct {
+}
+
+func (c *constantFailCircuit) Define(api frontend.API) error {
+	bits.ToBinary(api, 120, bits.WithNbDigits(5))
+	return nil
+}
+
 func TestToBinary(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.ProverSucceeded(&toBinaryCircuit{}, &toBinaryCircuit{A: 5, B0: 1, B1: 0, B2: 1})
@@ -41,6 +62,11 @@ func TestToBinary(t *testing.T) {
 	assert.ProverFailed(&toBinaryCircuit{}, &toBinaryCircuit{A: 8, B0: 0, B1: 0, B2: 0})
 
 	assert.ProverFailed(&toBinaryCircuit{}, &toBinaryCircuit{A: 10, B0: 0, B1: 1, B2: 0})
+
+	assert.ProverSucceeded(&constantToBinaryCircuit{}, &constantToBinaryCircuit{B: [4]frontend.Variable{1, 1, 0, 1}})
+
+	// TODO: uncomment this
+	// assert.ProverFailed(&constantFailCircuit{}, &constantFailCircuit{})
 }
 
 type toTernaryCircuit struct {
