@@ -50,9 +50,8 @@ func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParam
 	msInv := scalarApi.MulMod(msg, sInv)
 	rsInv := scalarApi.MulMod(&sig.R, sInv)
 
-	qa := cr.ScalarMulBase(msInv)
-	qb := cr.ScalarMul(&pkpt, rsInv)
-	q := cr.AddUnified(qa, qb)
+	// q = [rsInv]pkpt + [msInv]g
+	q := cr.JointScalarMulBase(&pkpt, rsInv, msInv)
 	qx := baseApi.Reduce(&q.X)
 	qxBits := baseApi.ToBits(qx)
 	rbits := scalarApi.ToBits(&sig.R)
