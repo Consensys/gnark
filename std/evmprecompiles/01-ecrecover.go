@@ -59,10 +59,10 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	rfp := fpField.FromBits(rbits...)
 	tmp = fpField.Add(rfp, tmp)
 	fpField.AssertIsEqual(tmp, &R.X)
-	// check that Ry is correct: highbit(y) = v[0]
+	// check that Ry is correct: oddity(y) = v[0]
 	Rynormal := fpField.Reduce(&R.Y)
 	Rybits := fpField.ToBits(Rynormal)
-	api.AssertIsEqual(vbits[0], Rybits[emfp.Modulus().BitLen()-1])
+	api.AssertIsEqual(vbits[0], Rybits[0])
 	// compute rinv = r^{-1} mod fr
 	rinv := frField.Inverse(&r)
 	// compute u1 = -msg * rinv
