@@ -472,3 +472,34 @@ func (builder *builder) Defer(cb func(frontend.API) error) {
 func (*builder) FrontendType() frontendtype.Type {
 	return frontendtype.R1CS
 }
+
+// AddInstruction is used to add custom instructions to the constraint system.
+func (builder *builder) AddInstruction(bID constraint.BlueprintID, calldata []uint32, c constraint.Iterable) {
+	builder.cs.AddInstruction(bID, calldata, c)
+}
+
+// AddBlueprint adds a custom blueprint to the constraint system.
+func (builder *builder) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
+	return builder.cs.AddBlueprint(b)
+}
+
+// AddInternalVariable adds and returns an internal variable.
+// ! Experimental: use in conjunction with constraint.CustomizableSystem
+func (builder *builder) AddInternalVariable() frontend.CanonicalVariable {
+	v := builder.newInternalVariable()
+	return builder.getLinearExpression(v)
+}
+
+// ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable
+// ! Experimental: use in conjunction with constraint.CustomizableSystem
+func (builder *builder) ToCanonicalVariable(in frontend.Variable) frontend.CanonicalVariable {
+	if t, ok := in.(expr.LinearExpression); ok {
+		assertIsSet(t)
+		return builder.getLinearExpression(t)
+	} else {
+		c := builder.cs.FromInterface(in)
+		term := builder.cs.MakeTerm(c, 0)
+		term.MarkConstant()
+		return constraint.LinearExpression{term}
+	}
+}

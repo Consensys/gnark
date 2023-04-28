@@ -49,3 +49,13 @@ type BlueprintHint interface {
 	CompressHint(HintMapping) []uint32
 	DecompressHint(h *HintMapping, calldata []uint32)
 }
+
+// Compressable represent an object that knows how to encode itself as a []uint32.
+type Compressable interface {
+	Compress(to *[]uint32)
+}
+
+// Decompressable represent an object that knows how to decode itself into a []uint32.
+type Decompressable interface {
+	Decompress(in []uint32)
+}

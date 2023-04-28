@@ -240,10 +240,10 @@ func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbO
 		},
 	}
 
-	instruction := system.compressHint(hm, system.genericHint)
-	system.Instructions = append(system.Instructions, instruction)
+	blueprint := system.Blueprints[system.genericHint]
+	calldata := blueprint.(BlueprintHint).CompressHint(hm)
 
-	system.updateLevel(len(system.Instructions)-1, &hm)
+	system.AddInstruction(system.genericHint, calldata, &hm)
 
 	return
 }
@@ -300,60 +300,46 @@ func (cs *System) GetCallData(instruction Instruction) []uint32 {
 
 func (cs *System) AddR1C(c R1C, bID BlueprintID) int {
 	profile.RecordConstraint()
-	instruction := cs.compressR1C(&c, bID)
-	cs.Instructions = append(cs.Instructions, instruction)
 
-	cs.updateLevel(len(cs.Instructions)-1, &c)
+	blueprint := cs.Blueprints[bID]
+	calldata := blueprint.(BlueprintR1C).CompressR1C(&c)
+
+	cs.AddInstruction(bID, calldata, &c)
 
 	return cs.NbConstraints - 1
 }
 
 func (cs *System) AddSparseR1C(c SparseR1C, bID BlueprintID) int {
 	profile.RecordConstraint()
-	instruction := cs.compressSparseR1C(&c, bID)
-	cs.Instructions = append(cs.Instructions, instruction)
 
-	cs.updateLevel(len(cs.Instructions)-1, &c)
+	blueprint := cs.Blueprints[bID]
+	calldata := blueprint.(BlueprintSparseR1C).CompressSparseR1C(&c)
+
+	cs.AddInstruction(bID, calldata, &c)
 
 	return cs.NbConstraints - 1
 }
 
-func (cs *System) compressSparseR1C(c *SparseR1C, bID BlueprintID) Instruction {
+func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32, c Iterable) {
+	// set the offsets
 	inst := Instruction{
 		StartCallData:    uint64(len(cs.CallData)),
 		ConstraintOffset: uint32(cs.NbConstraints),
 		BlueprintID:      bID,
 	}
-	blueprint := cs.Blueprints[bID]
-	calldata := blueprint.(BlueprintSparseR1C).CompressSparseR1C(c)
-	cs.CallData = append(cs.CallData, calldata...)
-	cs.NbConstraints += blueprint.NbConstraints()
-	return inst
-}
 
-func (cs *System) compressR1C(c *R1C, bID BlueprintID) Instruction {
-	inst := Instruction{
-		StartCallData:    uint64(len(cs.CallData)),
-		ConstraintOffset: uint32(cs.NbConstraints),
-		BlueprintID:      bID,
-	}
-	blueprint := cs.Blueprints[bID]
-	calldata := blueprint.(BlueprintR1C).CompressR1C(c)
+	// append the call data
 	cs.CallData = append(cs.CallData, calldata...)
-	cs.NbConstraints += blueprint.NbConstraints()
-	return inst
-}
 
-func (cs *System) compressHint(hm HintMapping, bID BlueprintID) Instruction {
-	inst := Instruction{
-		StartCallData:    uint64(len(cs.CallData)),
-		ConstraintOffset: uint32(cs.NbConstraints), // unused.
-		BlueprintID:      bID,
-	}
-	blueprint := cs.Blueprints[bID]
-	calldata := blueprint.(BlueprintHint).CompressHint(hm)
-	cs.CallData = append(cs.CallData, calldata...)
-	return inst
+	// update the total number of constraints
+	blueprint := cs.Blueprints[inst.BlueprintID]
+	cs.NbConstraints += blueprint.NbConstraints()
+
+	// add the instruction
+	cs.Instructions = append(cs.Instructions, inst)
+
+	// update the instruction dependency tree
+	cs.updateLevel(len(cs.Instructions)-1, c)
 }
 
 // GetNbConstraints returns the number of constraints

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/internal/logderivarg"
@@ -43,6 +44,9 @@ type Table struct {
 	entries   []frontend.Variable
 	immutable bool
 	results   []result
+
+	bID       constraint.BlueprintID
+	blueprint BlueprintLookupHint
 }
 
 type result struct {
@@ -55,6 +59,7 @@ type result struct {
 func New(api frontend.API) *Table {
 	t := &Table{api: api}
 	api.Compiler().Defer(t.commit)
+	t.bID = api.Compiler().AddBlueprint(&t.blueprint)
 	return t
 }
 
@@ -85,12 +90,23 @@ func (t *Table) Lookup(inds ...frontend.Variable) (vals []frontend.Variable) {
 	return t.callLookupHint(inds)
 }
 
+type lkObj struct {
+	inds []frontend.Variable
+	outs []frontend.Variable
+}
+
 func (t *Table) callLookupHint(inds []frontend.Variable) []frontend.Variable {
+	// compiler := t.api.Compiler()
+	// compiler.AddInternalVariable()
+	// compiler.ToCanonicalVariable(inds[0]...)
+	// compiler.AddInstruction(bID, calldata, lkObj)
+
 	inputs := make([]frontend.Variable, len(t.entries)+len(inds))
 	copy(inputs[:len(t.entries)], t.entries)
 	for i := range inds {
 		inputs[len(t.entries)+i] = inds[i]
 	}
+	fmt.Printf("len(inputs) %d , len(outputs) %d\n", len(inputs), len(inds))
 	hintResp, err := t.api.NewHint(lookupHint, len(inds), inputs...)
 	if err != nil {
 		panic(fmt.Sprintf("lookup hint: %v", err))
@@ -138,4 +154,76 @@ func lookupHint(_ *big.Int, in []*big.Int, out []*big.Int) error {
 		out[i].Set(in[ptr])
 	}
 	return nil
+}
+
+type BlueprintLookupHint struct {
+	// store the table
+	Entries []uint32
+}
+
+func (b *BlueprintLookupHint) DecompressHint(h *constraint.HintMapping, calldata []uint32) {
+	// ignore first call data == nbInputs
+	h.HintID = solver.HintID(calldata[1])
+	lenInputs := int(calldata[2])
+	if cap(h.Inputs) >= lenInputs {
+		h.Inputs = h.Inputs[:lenInputs]
+	} else {
+		h.Inputs = make([]constraint.LinearExpression, lenInputs)
+	}
+
+	j := 3
+	for i := 0; i < lenInputs; i++ {
+		n := int(calldata[j]) // len of linear expr
+		j++
+		if cap(h.Inputs[i]) >= n {
+			h.Inputs[i] = h.Inputs[i][:0]
+		} else {
+			h.Inputs[i] = make(constraint.LinearExpression, 0, n)
+		}
+		for k := 0; k < n; k++ {
+			h.Inputs[i] = append(h.Inputs[i], constraint.Term{CID: calldata[j], VID: calldata[j+1]})
+			j += 2
+		}
+	}
+	h.OutputRange.Start = calldata[j]
+	h.OutputRange.End = calldata[j+1]
+}
+
+func (b *BlueprintLookupHint) CompressHint(h constraint.HintMapping) []uint32 {
+	nbInputs := 1 // storing nb inputs
+	nbInputs++    // hintID
+	nbInputs++    // len(h.Inputs)
+	for i := 0; i < len(h.Inputs); i++ {
+		nbInputs++ // len of h.Inputs[i]
+		nbInputs += len(h.Inputs[i]) * 2
+	}
+
+	nbInputs += 2 // output range start / end
+
+	// TODO @gbotrel use buffer
+	r := make([]uint32, 0, nbInputs) // getBuffer(nbInputs)
+	r = append(r, uint32(nbInputs))
+	r = append(r, uint32(h.HintID))
+	r = append(r, uint32(len(h.Inputs)))
+
+	for _, l := range h.Inputs {
+		r = append(r, uint32(len(l)))
+		for _, t := range l {
+			r = append(r, uint32(t.CoeffID()), uint32(t.WireID()))
+		}
+	}
+
+	r = append(r, h.OutputRange.Start)
+	r = append(r, h.OutputRange.End)
+	if len(r) != nbInputs {
+		panic("invalid")
+	}
+	return r
+}
+
+func (b *BlueprintLookupHint) NbInputs() int {
+	return -1
+}
+func (b *BlueprintLookupHint) NbConstraints() int {
+	return 0
 }

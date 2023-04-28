@@ -53,3 +53,14 @@ func (t Term) String(r Resolver) string {
 	sbb.WriteTerm(t)
 	return sbb.String()
 }
+
+// implements constraint.Compressable
+
+func (t *Term) Decompress(in []uint32) {
+	t.CID = in[0]
+	t.VID = in[1]
+}
+
+func (t Term) Compress(to *[]uint32) {
+	(*to) = append((*to), t.CID, t.VID)
+}

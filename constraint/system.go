@@ -14,6 +14,7 @@ type ConstraintSystem interface {
 	io.ReaderFrom
 	Field
 	Resolver
+	CustomizableSystem
 
 	// IsSolved returns nil if given witness solves the constraint system and error otherwise
 	// Deprecated: use _, err := Solve(...) instead
@@ -70,9 +71,6 @@ type ConstraintSystem interface {
 	// This is experimental.
 	CheckUnconstrainedWires() error
 
-	// AddBlueprint registers the given blueprint and returns its id. This should be called only once per blueprint.
-	AddBlueprint(b Blueprint) BlueprintID
-
 	GetInstruction(int) Instruction
 
 	GetCoefficient(i int) Element
@@ -80,6 +78,13 @@ type ConstraintSystem interface {
 	// GetCallData re-slice the constraint system full calldata slice with the portion
 	// related to the instruction. This does not copy and caller should not modify.
 	GetCallData(instruction Instruction) []uint32
+}
+
+type CustomizableSystem interface {
+	// AddBlueprint registers the given blueprint and returns its id. This should be called only once per blueprint.
+	AddBlueprint(b Blueprint) BlueprintID
+
+	AddInstruction(bID BlueprintID, calldata []uint32, c Iterable)
 }
 
 type Iterable interface {

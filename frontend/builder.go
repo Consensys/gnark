@@ -12,6 +12,8 @@ type NewBuilder func(*big.Int, CompileConfig) (Builder, error)
 
 // Compiler represents a constraint system compiler
 type Compiler interface {
+	constraint.CustomizableSystem
+
 	// MarkBoolean sets (but do not constraint!) v to be boolean
 	// This is useful in scenarios where a variable is known to be boolean through a constraint
 	// that is not api.AssertIsBoolean. If v is a constant, this is a no-op.
@@ -53,6 +55,14 @@ type Compiler interface {
 	// allows for the circuits to register callbacks which finalize batching
 	// operations etc. Unlike Go defer, it is not locally scoped.
 	Defer(cb func(api API) error)
+
+	// AddInternalVariable adds and returns an internal variable.
+	// ! Experimental: use in conjunction with constraint.CustomizableSystem
+	AddInternalVariable() CanonicalVariable
+
+	// ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable
+	// ! Experimental: use in conjunction with constraint.CustomizableSystem
+	ToCanonicalVariable(Variable) CanonicalVariable
 }
 
 // Builder represents a constraint system builder
@@ -86,4 +96,9 @@ type Committer interface {
 type Rangechecker interface {
 	// Check checks that the given variable v has bit-length bits.
 	Check(v Variable, bits int)
+}
+
+// CanonicalVariable represents a variable that's encoded in a constraint system specific way.
+type CanonicalVariable interface {
+	constraint.Compressable
 }

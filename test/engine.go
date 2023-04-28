@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
@@ -53,6 +54,7 @@ type engine struct {
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars bool
 	kvstore.Store
+	blueprints []constraint.Blueprint
 }
 
 // TestEngineOption defines an option for the test engine.
@@ -607,4 +609,26 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
 func (e *engine) Defer(cb func(frontend.API) error) {
 	circuitdefer.Put(e, cb)
+}
+
+// AddInstruction is used to add custom instructions to the constraint system.
+func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32, c constraint.Iterable) {
+	// blueprint := e.blueprints[bID].(constraint.s
+}
+
+// AddBlueprint adds a custom blueprint to the constraint system.
+func (e *engine) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
+	if _, ok := b.(constraint.BlueprintSolvable); !ok {
+		panic("unsupported blueprint in test engine")
+	}
+	e.blueprints = append(e.blueprints, b)
+	return constraint.BlueprintID(len(e.blueprints) - 1)
+}
+
+func (e *engine) AddInternalVariable() frontend.CanonicalVariable {
+	panic("not implemented")
+}
+
+func (e *engine) ToCanonicalVariable(in frontend.Variable) frontend.CanonicalVariable {
+	panic("not implemented")
 }
