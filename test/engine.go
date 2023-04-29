@@ -18,6 +18,7 @@ package test
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/constraint"
 	"math/big"
 	"path/filepath"
 	"reflect"
@@ -485,6 +486,10 @@ func (e *engine) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variab
 	return out, nil
 }
 
+func (e *engine) NewNamedHint(f solver.Hint, _ *constraint.HintIds, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+	return e.NewHint(f, nbOutputs, inputs...)
+}
+
 // IsConstant returns true if v is a constant known at compile time
 func (e *engine) IsConstant(v frontend.Variable) bool {
 	return e.constVars
@@ -520,7 +525,7 @@ func (e *engine) toBigInt(i1 frontend.Variable) *big.Int {
 	}
 }
 
-// bitLen returns the number of bits needed to represent a fr.Element
+// FieldBitLen returns the number of bits needed to represent a fr.Element
 func (e *engine) FieldBitLen() int {
 	return e.q.BitLen()
 }
