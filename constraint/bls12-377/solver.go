@@ -139,6 +139,11 @@ func (s *solver) computeTerm(t constraint.Term) fr.Element {
 	if cID != 0 && !s.solved[vID] {
 		panic("computing a term with an unsolved wire")
 	}
+
+	if t.IsConstant() {
+		return s.Coefficients[cID]
+	}
+
 	switch cID {
 	case constraint.CoeffIdZero:
 		return fr.Element{}
@@ -164,6 +169,11 @@ func (s *solver) computeTerm(t constraint.Term) fr.Element {
 func (s *solver) accumulateInto(t constraint.Term, r *fr.Element) {
 	cID := t.CoeffID()
 	vID := t.WireID()
+
+	if t.IsConstant() {
+		r.Add(r, &s.Coefficients[cID])
+		return
+	}
 
 	switch cID {
 	case constraint.CoeffIdZero:
@@ -342,6 +352,26 @@ func (s *solver) SetValue(vID uint32, f constraint.Element) {
 
 func (s *solver) IsSolved(vID uint32) bool {
 	return s.solved[vID]
+}
+
+// Read interprets input calldata as either a LinearExpression (if R1CS) or a Term (if Plonkish),
+// evaluates it and return the result and the number of uint32 word read.
+func (s *solver) Read(calldata []uint32) (constraint.Element, int) {
+	if s.Type == constraint.SystemSparseR1CS {
+		return s.GetValue(calldata[0], calldata[1]), 2
+	}
+	var r fr.Element
+	n := int(calldata[0])
+	j := 1
+	for k := 0; k < n; k++ {
+		// we read k Terms
+		s.accumulateInto(constraint.Term{CID: calldata[j], VID: calldata[j+1]}, &r)
+		j += 2
+	}
+
+	var ret constraint.Element
+	copy(ret[:], r[:])
+	return ret, j
 }
 
 // processInstruction decodes the instruction and execute blueprint-defined logic.

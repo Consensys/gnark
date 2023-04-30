@@ -26,4 +26,5 @@ type Field interface {
 	One() Element
 	IsOne(Element) bool
 	String(Element) string
+	Uint64(Element) (uint64, bool)
 }

@@ -61,3 +61,10 @@ func (l LinearExpression) HashCode() uint64 {
 	}
 	return h
 }
+
+func (l LinearExpression) RRVariableID() uint32 {
+	if len(l) != 1 {
+		panic("here tmp refactor")
+	}
+	return uint32(l[0].VID)
+}

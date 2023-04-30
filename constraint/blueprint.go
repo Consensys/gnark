@@ -24,6 +24,10 @@ type Solver interface {
 	GetCoeff(cID uint32) Element
 	SetValue(vID uint32, f Element)
 	IsSolved(vID uint32) bool
+
+	// Read interprets input calldata as either a LinearExpression (if R1CS) or a Term (if Plonkish),
+	// evaluates it and return the result and the number of uint32 word read.
+	Read(calldata []uint32) (Element, int)
 }
 
 // BlueprintSolvable represents a blueprint that knows how to solve itself.
@@ -57,5 +61,5 @@ type Compressable interface {
 
 // Decompressable represent an object that knows how to decode itself into a []uint32.
 type Decompressable interface {
-	Decompress(in []uint32)
+	Decompress(in []uint32) int // returns number of uint32 read.
 }

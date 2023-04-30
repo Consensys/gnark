@@ -32,7 +32,7 @@ func (l LinearExpression) String(r Resolver) string {
 
 // implements constraint.Compressable
 
-func (l *LinearExpression) Decompress(in []uint32) {
+func (l *LinearExpression) Decompress(in []uint32) int {
 	n := int(in[0])
 	*l = make(LinearExpression, n)
 	j := 1
@@ -42,11 +42,24 @@ func (l *LinearExpression) Decompress(in []uint32) {
 		(*l)[i].VID = in[j]
 		j++
 	}
+	return j - 1
 }
 
 func (l LinearExpression) Compress(to *[]uint32) {
 	(*to) = append((*to), uint32(len(l)))
 	for i := 0; i < len(l); i++ {
 		(*to) = append((*to), l[i].CID, l[i].VID)
+	}
+}
+
+// implements constraint.Iterable
+func (l LinearExpression) WireIterator() (next func() int) {
+	curr := 0
+	return func() int {
+		if curr < len(l) {
+			curr++
+			return int(l[curr-1].VID)
+		}
+		return -1
 	}
 }

@@ -54,7 +54,25 @@ type engine struct {
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars bool
 	kvstore.Store
-	blueprints []constraint.Blueprint
+	blueprints        []constraint.Blueprint
+	internalVariables []internalVariable
+}
+
+type internalVariable int
+
+func (v internalVariable) Compress(to *[]uint32) {
+	*to = append(*to, uint32(v))
+}
+
+func (v internalVariable) WireIterator() (next func() int) {
+	curr := 0
+	return func() int {
+		curr++
+		if curr == 1 {
+			return int(v)
+		}
+		return -1
+	}
 }
 
 // TestEngineOption defines an option for the test engine.
@@ -625,8 +643,11 @@ func (e *engine) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
 	return constraint.BlueprintID(len(e.blueprints) - 1)
 }
 
-func (e *engine) AddInternalVariable() frontend.CanonicalVariable {
+func (e *engine) AddInternalVariable() frontend.RRVariable {
 	panic("not implemented")
+	// v := internalVariable(len(e.internalVariables))
+	// e.internalVariables = append(e.internalVariables, v)
+	// return v
 }
 
 func (e *engine) ToCanonicalVariable(in frontend.Variable) frontend.CanonicalVariable {

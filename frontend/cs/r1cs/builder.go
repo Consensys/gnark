@@ -485,9 +485,9 @@ func (builder *builder) AddBlueprint(b constraint.Blueprint) constraint.Blueprin
 
 // AddInternalVariable adds and returns an internal variable.
 // ! Experimental: use in conjunction with constraint.CustomizableSystem
-func (builder *builder) AddInternalVariable() frontend.CanonicalVariable {
-	v := builder.newInternalVariable()
-	return builder.getLinearExpression(v)
+func (builder *builder) AddInternalVariable() frontend.RRVariable {
+	return builder.newInternalVariable()
+	// return builder.getLinearExpression(v)
 }
 
 // ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable

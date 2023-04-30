@@ -58,7 +58,7 @@ type Compiler interface {
 
 	// AddInternalVariable adds and returns an internal variable.
 	// ! Experimental: use in conjunction with constraint.CustomizableSystem
-	AddInternalVariable() CanonicalVariable
+	AddInternalVariable() RRVariable
 
 	// ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable
 	// ! Experimental: use in conjunction with constraint.CustomizableSystem
@@ -101,4 +101,9 @@ type Rangechecker interface {
 // CanonicalVariable represents a variable that's encoded in a constraint system specific way.
 type CanonicalVariable interface {
 	constraint.Compressable
+	constraint.Iterable
+}
+
+type RRVariable interface {
+	RRVariableID() uint32
 }
