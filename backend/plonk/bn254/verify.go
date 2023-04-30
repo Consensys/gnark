@@ -114,7 +114,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 		for i := range vk.CommitmentConstraintIndexes {
 			var hashRes []fr.Element // TODO: when multi commits are implemented: PI2 -> PI2[i]
-			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
+			if hashRes, err = fr.Hash(proof.PI2[i].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
 
@@ -215,10 +215,10 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// note since third part =  α²*L₁(ζ)*Z
 	_s2.Mul(&_s2, &alpha).Add(&_s2, &alphaSquareLagrange) // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
 
-	points := []curve.G1Affine{
-		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, proof.PI2, // first part
+	points := append(proof.PI2,
+		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, // first part
 		vk.S[2], proof.Z, // second & third part
-	}
+	)
 
 	scalars := []fr.Element{
 		l, r, rl, o, one /* TODO Perf @Tabaie Consider just adding Qk instead */, qC, // first part
@@ -229,7 +229,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	}
 
 	// Fold the first proof
-	foldedProof, foldedDigest, err := kzg.FoldProof([]kzg.Digest{
+	foldedProof, foldedDigest, err := kzg.FoldProof(append(vk.Qcp,
 		foldedH,
 		linearizedPolynomialDigest,
 		proof.LRO[0],
@@ -237,8 +237,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		proof.LRO[2],
 		vk.S[0],
 		vk.S[1],
-		vk.Qcp,
-	},
+	),
 		&proof.BatchedProof,
 		zeta,
 		hFunc,
@@ -270,7 +269,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	return err
 }
 
-func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element, pi2 kzg.Digest) error {
+func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element, pi2 []kzg.Digest) error {
 
 	// permutation
 	if err := fs.Bind(challenge, vk.S[0].Marshal()); err != nil {
@@ -308,8 +307,10 @@ func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey
 	}
 
 	// bsb22 commitment
-	if err := fs.Bind(challenge, pi2.Marshal()); err != nil {
-		return err
+	for i := range pi2 {
+		if err := fs.Bind(challenge, pi2[i].Marshal()); err != nil {
+			return err
+		}
 	}
 
 	return nil
