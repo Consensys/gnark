@@ -461,3 +461,73 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 
 	return res
 }
+
+// JointScalarMulBase computes s2 * p + s1 * g and returns it, where g is the
+// fixed generator. It doesn't modify p, s1 and s2.
+//
+// ⚠️   p must NOT be (0,0).
+// ⚠️   s1 and s2 must NOT be 0.
+//
+// JointScalarMulBase is used to verify an ECDSA signature (r,s) on the
+// secp256k1 curve. In this case, p is a public key, s2=r/s and s1=hash/s.
+//   - hash cannot be 0, because of pre-image resistance.
+//   - r cannot be 0, because r is the x coordinate of a random point on
+//     secp256k1 (y²=x³+7 mod p) and 7 is not a square mod p. For any other
+//     curve, (_,0) is a point of order 2 which is not the prime subgroup.
+//   - (0,0) is not a valid public key.
+//
+// The [EVM] specifies these checks, wich are performed on the zkEVM
+// arithmetization side before calling the circuit that uses this method.
+//
+// This saves the Select logic related to (0,0) and the use of AddUnified to
+// handle the 0-scalar edge case.
+func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Element[S]) *AffinePoint[B] {
+	g := c.Generator()
+	gm := c.GeneratorMultiples()
+
+	var st S
+	s1r := c.scalarApi.Reduce(s1)
+	s1Bits := c.scalarApi.ToBits(s1r)
+	s2r := c.scalarApi.Reduce(s2)
+	s2Bits := c.scalarApi.ToBits(s2r)
+	n := st.Modulus().BitLen()
+
+	// i = 1, 2
+	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
+	res1 := c.Lookup2(s1Bits[1], s1Bits[2], g, &gm[0], &gm[1], &gm[2])
+	tmp2 := c.triple(p)
+	res2 := c.Select(s2Bits[1], tmp2, p)
+	acc := c.add(tmp2, p)
+	tmp2 = c.add(res2, acc)
+	res2 = c.Select(s2Bits[2], tmp2, res2)
+	acc = c.double(acc)
+
+	for i := 3; i <= n-3; i++ {
+		// gm[i] = [2^i]g
+		tmp1 := c.add(res1, &gm[i])
+		res1 = c.Select(s1Bits[i], tmp1, res1)
+		tmp2 = c.add(res2, acc)
+		res2 = c.Select(s2Bits[i], tmp2, res2)
+		acc = c.double(acc)
+	}
+
+	// i = 0
+	tmp1 := c.add(res1, c.Neg(g))
+	res1 = c.Select(s1Bits[0], res1, tmp1)
+	tmp2 = c.add(res2, c.Neg(p))
+	res2 = c.Select(s2Bits[0], res2, tmp2)
+
+	// i = n-2
+	tmp1 = c.add(res1, &gm[n-2])
+	res1 = c.Select(s1Bits[n-2], tmp1, res1)
+	tmp2 = c.add(res2, acc)
+	res2 = c.Select(s2Bits[n-2], tmp2, res2)
+
+	// i = n-1
+	tmp1 = c.add(res1, &gm[n-1])
+	res1 = c.Select(s1Bits[n-1], tmp1, res1)
+	tmp2 = c.doubleAndAdd(acc, res2)
+	res2 = c.Select(s2Bits[n-1], tmp2, res2)
+
+	return c.add(res1, res2)
+}

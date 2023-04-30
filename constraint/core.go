@@ -205,20 +205,25 @@ func (system *System) AddSecretVariable(name string) (idx int) {
 	return idx
 }
 
-func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbOutput int) (internalVariables []int, err error) {
+func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbOutput int, options ...HintIdOption) (internalVariables []int, err error) {
 	if nbOutput <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 
 	// register the hint as dependency
-	hintUUID, hintID := solver.GetHintID(f), solver.GetHintName(f)
-	if id, ok := system.MHintsDependencies[hintUUID]; ok {
+	ID := HintIds{solver.GetHintID(f), solver.GetHintName(f)}
+
+	for i := range options {
+		options[i](&ID)
+	}
+
+	if id, ok := system.MHintsDependencies[ID.UUID]; ok {
 		// hint already registered, let's ensure string id matches
-		if id != hintID {
-			return nil, fmt.Errorf("hint dependency registration failed; %s previously register with same UUID as %s", hintID, id)
+		if id != ID.Name {
+			return nil, fmt.Errorf("hint dependency registration failed; %s previously register with same UUID as %s", ID.Name, id)
 		}
 	} else {
-		system.MHintsDependencies[hintUUID] = hintID
+		system.MHintsDependencies[ID.UUID] = ID.Name
 	}
 
 	// prepare wires
@@ -229,7 +234,7 @@ func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbO
 
 	// associate these wires with the solver hint
 	hm := HintMapping{
-		HintID: hintUUID,
+		HintID: ID.UUID,
 		Inputs: input,
 		OutputRange: struct {
 			Start uint32
