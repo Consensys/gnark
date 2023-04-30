@@ -143,7 +143,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	for i := range A {
 		isCommittedPrivate := cI < len(privateCommitted) && i == privateCommitted[cI]
-		isCommitment := r1cs.HasCommitment() && i == r1cs.CommitmentInfo[0].CommitmentIndex
+		isCommitment := r1cs.NbCommitments() != 0 && i == r1cs.CommitmentInfo[0].CommitmentIndex
 		isPublic := i < r1cs.GetNbPublicVariables()
 
 		if isPublic || isCommittedPrivate || isCommitment {
@@ -251,7 +251,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		}
 	}
 
-	if vk.HasCommitment = r1cs.HasCommitment(); vk.HasCommitment {
+	if vk.HasCommitment = r1cs.NbCommitments() != 0; vk.HasCommitment {
 		vk.PublicCommitted = r1cs.CommitmentInfo[0].PublicCommitted()
 	}
 
