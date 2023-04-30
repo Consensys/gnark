@@ -374,6 +374,6 @@ func (cs *System) GetSparseR1CIterator() SparseR1CIterator {
 	return SparseR1CIterator{cs: cs}
 }
 
-func (cs *System) HasCommitment() bool {
-	return len(cs.CommitmentInfo) != 0
+func (cs *System) NbCommitments() int {
+	return len(cs.CommitmentInfo)
 }

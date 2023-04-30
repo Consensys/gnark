@@ -17,11 +17,12 @@ limitations under the License.
 package scs
 
 import (
-	"errors"
 	"fmt"
+	"math/rand"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark/debug"
@@ -572,10 +573,6 @@ func (builder *builder) Compiler() frontend.Compiler {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
-	if builder.cs.HasCommitment() {
-		return nil, errors.New("multi-commits not available for plonk - yet")
-	}
-
 	v = filterConstants(v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?
 
 	committed := make([]int, len(v))
@@ -587,7 +584,13 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		// - v + comm(n) = 0
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
-	outs, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, v...)
+
+	hintName := constraint.HintIds{
+		UUID: solver.HintID(rand.Uint32()),
+		Name: "bsb22 commitment #" + strconv.Itoa(builder.cs.NbCommitments()),
+	}
+	outs, err := builder.NewNamedHint(cs.Bsb22CommitmentComputePlaceholder, &hintName, 1, v...)
+
 	if err != nil {
 		return nil, err
 	}
