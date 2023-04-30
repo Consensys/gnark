@@ -18,7 +18,7 @@ package scs
 
 import (
 	"fmt"
-	"math/rand"
+	"hash/fnv"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -586,9 +586,16 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	}
 
 	hintName := constraint.HintIds{
-		UUID: solver.HintID(rand.Uint32()),
-		Name: "bsb22 commitment #" + strconv.Itoa(builder.cs.NbCommitments()),
+		Name: "bsb22 commitment #" + strconv.Itoa(builder.cs.GetNbCommitments()),
 	}
+
+	// mimic solver.GetHintID
+	hf := fnv.New32a()
+	if _, err := hf.Write([]byte(hintName.Name)); err != nil {
+		return nil, err
+	}
+	hintName.UUID = solver.HintID(hf.Sum32())
+
 	outs, err := builder.NewNamedHint(cs.Bsb22CommitmentComputePlaceholder, &hintName, 1, v...)
 
 	if err != nil {
@@ -600,7 +607,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
-		HintID:          solver.GetHintID(cs.Bsb22CommitmentComputePlaceholder),
+		HintID:          hintName.UUID,
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,
 	})

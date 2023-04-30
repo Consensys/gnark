@@ -677,7 +677,7 @@ func (builder *builder) Compiler() frontend.Compiler {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
-	if builder.cs.NbCommitments() != 0 {
+	if builder.cs.GetNbCommitments() != 0 {
 		return nil, errors.New("multi-commits not available for groth16 - yet")
 	}
 

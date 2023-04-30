@@ -210,13 +210,13 @@ func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbO
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 
-	// register the hint as dependency
 	ID := HintIds{solver.GetHintID(f), solver.GetHintName(f)}
 
 	for i := range options {
 		options[i](&ID)
 	}
 
+	// register the hint as dependency
 	if id, ok := system.MHintsDependencies[ID.UUID]; ok {
 		// hint already registered, let's ensure string id matches
 		if id != ID.Name {
@@ -374,6 +374,6 @@ func (cs *System) GetSparseR1CIterator() SparseR1CIterator {
 	return SparseR1CIterator{cs: cs}
 }
 
-func (cs *System) NbCommitments() int {
+func (cs *System) GetNbCommitments() int {
 	return len(cs.CommitmentInfo)
 }

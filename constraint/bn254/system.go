@@ -33,11 +33,11 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 )
 
-type R1CS = system
-type SparseR1CS = system
+type R1CS = System
+type SparseR1CS = System
 
-// system is a curved-typed constraint.System with a concrete coefficient table (fr.Element)
-type system struct {
+// System is a curved-typed constraint.System with a concrete coefficient table (fr.Element)
+type System struct {
 	constraint.System
 	CoeffTable
 	field
@@ -51,8 +51,8 @@ func NewSparseR1CS(capacity int) *SparseR1CS {
 	return newSystem(capacity, constraint.SystemSparseR1CS)
 }
 
-func newSystem(capacity int, t constraint.SystemType) *system {
-	return &system{
+func newSystem(capacity int, t constraint.SystemType) *System {
+	return &System{
 		System:     constraint.NewSystem(fr.Modulus(), capacity, t),
 		CoeffTable: newCoeffTable(capacity / 10),
 	}
@@ -61,7 +61,7 @@ func newSystem(capacity int, t constraint.SystemType) *system {
 // Solve solves the constraint system with provided witness.
 // If it's a R1CS returns R1CSSolution
 // If it's a SparseR1CS returns SparseR1CSSolution
-func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, error) {
+func (cs *System) Solve(witness witness.Witness, opts ...csolver.Option) (any, error) {
 	log := logger.Logger().With().Int("nbConstraints", cs.GetNbConstraints()).Logger()
 	start := time.Now()
 
@@ -108,13 +108,13 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 
 // IsSolved
 // Deprecated: use _, err := Solve(...) instead
-func (cs *system) IsSolved(witness witness.Witness, opts ...csolver.Option) error {
+func (cs *System) IsSolved(witness witness.Witness, opts ...csolver.Option) error {
 	_, err := cs.Solve(witness, opts...)
 	return err
 }
 
 // GetR1Cs return the list of R1C
-func (cs *system) GetR1Cs() []constraint.R1C {
+func (cs *System) GetR1Cs() []constraint.R1C {
 	toReturn := make([]constraint.R1C, 0, cs.GetNbConstraints())
 
 	for _, inst := range cs.Instructions {
@@ -131,17 +131,17 @@ func (cs *system) GetR1Cs() []constraint.R1C {
 }
 
 // GetNbCoefficients return the number of unique coefficients needed in the R1CS
-func (cs *system) GetNbCoefficients() int {
+func (cs *System) GetNbCoefficients() int {
 	return len(cs.Coefficients)
 }
 
 // CurveID returns curve ID as defined in gnark-crypto
-func (cs *system) CurveID() ecc.ID {
+func (cs *System) CurveID() ecc.ID {
 	return ecc.BN254
 }
 
 // WriteTo encodes R1CS into provided io.Writer using cbor
-func (cs *system) WriteTo(w io.Writer) (int64, error) {
+func (cs *System) WriteTo(w io.Writer) (int64, error) {
 	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
 	ts := getTagSet()
 	enc, err := cbor.CoreDetEncOptions().EncModeWithTags(ts)
@@ -156,7 +156,7 @@ func (cs *system) WriteTo(w io.Writer) (int64, error) {
 }
 
 // ReadFrom attempts to decode R1CS from io.Reader using cbor
-func (cs *system) ReadFrom(r io.Reader) (int64, error) {
+func (cs *System) ReadFrom(r io.Reader) (int64, error) {
 	ts := getTagSet()
 	dm, err := cbor.DecOptions{
 		MaxArrayElements: 134217728,
@@ -182,13 +182,13 @@ func (cs *system) ReadFrom(r io.Reader) (int64, error) {
 	return int64(decoder.NumBytesRead()), nil
 }
 
-func (cs *system) GetCoefficient(i int) (r constraint.Element) {
+func (cs *System) GetCoefficient(i int) (r constraint.Element) {
 	copy(r[:], cs.Coefficients[i][:])
 	return
 }
 
 // GetSparseR1Cs return the list of SparseR1C
-func (cs *system) GetSparseR1Cs() []constraint.SparseR1C {
+func (cs *System) GetSparseR1Cs() []constraint.SparseR1C {
 
 	toReturn := make([]constraint.SparseR1C, 0, cs.GetNbConstraints())
 
@@ -209,7 +209,7 @@ func (cs *system) GetSparseR1Cs() []constraint.SparseR1C {
 // evaluateLROSmallDomain extracts the solver l, r, o, and returns it in lagrange form.
 // solver = [ public | secret | internal ]
 // TODO @gbotrel refactor; this seems to be a small util function for plonk
-func evaluateLROSmallDomain(cs *system, solution []fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
+func evaluateLROSmallDomain(cs *System, solution []fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
 
 	//s := int(pk.Domain[0].Cardinality)
 	s := cs.GetNbConstraints() + len(cs.Public) // len(spr.Public) is for the placeholder constraints
