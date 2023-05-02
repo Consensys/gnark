@@ -158,3 +158,26 @@ func tryCommit(api frontend.API, x ...frontend.Variable) (frontend.Variable, err
 	}
 	return committer.Commit(x...)
 }
+
+type twoCommitCircuit struct {
+	X []frontend.Variable
+	Y frontend.Variable
+}
+
+func (c *twoCommitCircuit) Define(api frontend.API) error {
+	c0, err := api.(frontend.Committer).Commit(c.X...)
+	if err != nil {
+		return err
+	}
+	var c1 frontend.Variable
+	if c1, err = api.(frontend.Committer).Commit(c0, c.Y); err != nil {
+		return err
+	}
+	api.AssertIsDifferent(c1, c.Y)
+	return nil
+}
+
+func TestTwoCommitEnginePlonk(t *testing.T) {
+	assignment := &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3}
+	NewAssert(t).SolvingSucceeded(&twoCommitCircuit{X: make([]frontend.Variable, len(assignment.X))}, assignment, WithBackends(backend.PLONK))
+}
