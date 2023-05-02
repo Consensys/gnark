@@ -317,18 +317,6 @@ func (system *System) VariableToString(vID int) string {
 	return fmt.Sprintf("v%d", vID) // TODO @gbotrel  vs strconv.Itoa.
 }
 
-// GetCallData re-slice the constraint system full calldata slice with the portion
-// related to the instruction. This does not copy and caller should not modify.
-func (cs *System) GetCallData(instruction PackedInstruction) []uint32 {
-	blueprint := cs.Blueprints[instruction.BlueprintID]
-	nbInputs := blueprint.NbInputs()
-	if nbInputs < 0 {
-		// by convention, we store nbInputs < 0 for non-static input length.
-		nbInputs = int(cs.CallData[instruction.StartCallData])
-	}
-	return cs.CallData[instruction.StartCallData : instruction.StartCallData+uint64(nbInputs)]
-}
-
 func (cs *System) AddR1C(c R1C, bID BlueprintID) int {
 	profile.RecordConstraint()
 

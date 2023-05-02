@@ -74,10 +74,6 @@ type ConstraintSystem interface {
 	GetInstruction(int) Instruction
 
 	GetCoefficient(i int) Element
-
-	// GetCallData re-slice the constraint system full calldata slice with the portion
-	// related to the instruction. This does not copy and caller should not modify.
-	GetCallData(instruction PackedInstruction) []uint32
 }
 
 type CustomizableSystem interface {
