@@ -3,11 +3,14 @@ package cs
 import (
 	"crypto/sha256"
 	"fmt"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/logger"
+	"hash/fnv"
 	"math/big"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -30,6 +33,24 @@ func Bsb22CommitmentComputePlaceholder(mod *big.Int, input []*big.Int, output []
 	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
 }
 
+var maxNbCommitments int
+
+func RegisterBsb22CommitmentComputePlaceholder(index int) (hintName constraint.HintIds, err error) {
+	hintName = constraint.HintIds{
+		Name: "bsb22 commitment #" + strconv.Itoa(index),
+	}
+	// mimic solver.GetHintID
+	hf := fnv.New32a()
+	if _, err = hf.Write([]byte(hintName.Name)); err != nil {
+		return
+	}
+	hintName.UUID = solver.HintID(hf.Sum32())
+	if maxNbCommitments == index {
+		maxNbCommitments++
+		solver.RegisterNamedHint(Bsb22CommitmentComputePlaceholder, hintName.UUID)
+	}
+	return
+}
 func init() {
 	solver.RegisterHint(Bsb22CommitmentComputePlaceholder)
 }

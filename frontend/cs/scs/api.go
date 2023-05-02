@@ -18,11 +18,9 @@ package scs
 
 import (
 	"fmt"
-	"hash/fnv"
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark/debug"
@@ -585,22 +583,16 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
 
-	hintName := constraint.HintIds{
-		Name: "bsb22 commitment #" + strconv.Itoa(builder.cs.GetNbCommitments()),
-	}
-
-	// mimic solver.GetHintID
-	hf := fnv.New32a()
-	if _, err := hf.Write([]byte(hintName.Name)); err != nil {
-		return nil, err
-	}
-	hintName.UUID = solver.HintID(hf.Sum32())
-
-	outs, err := builder.NewNamedHint(cs.Bsb22CommitmentComputePlaceholder, &hintName, 1, v...)
-
+	hintName, err := cs.RegisterBsb22CommitmentComputePlaceholder(builder.cs.GetNbCommitments())
 	if err != nil {
 		return nil, err
 	}
+
+	var outs []frontend.Variable
+	if outs, err = builder.NewNamedHint(cs.Bsb22CommitmentComputePlaceholder, &hintName, 1, v...); err != nil {
+		return nil, err
+	}
+
 	commitmentVar := builder.Neg(outs[0]).(expr.Term)
 	commitmentConstraintIndex := builder.cs.GetNbConstraints()
 	// RHS will be provided by both prover and verifier independently, as for a public wire
