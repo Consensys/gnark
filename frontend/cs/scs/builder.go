@@ -663,11 +663,8 @@ func (builder *builder) AddBlueprint(b constraint.Blueprint) constraint.Blueprin
 	return builder.cs.AddBlueprint(b)
 }
 
-// AddInternalVariable adds and returns an internal variable.
-// ! Experimental: use in conjunction with constraint.CustomizableSystem
-func (builder *builder) AddInternalVariable() frontend.RRVariable {
-	return builder.newInternalVariable()
-	// return builder.cs.MakeTerm(v.Coeff, v.VID)
+func (builder *builder) InternalVariable(wireID uint32) frontend.Variable {
+	return expr.NewTerm(int(wireID), builder.tOne)
 }
 
 // ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable

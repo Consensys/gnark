@@ -13,7 +13,7 @@ func (b *BlueprintGenericR1C) CalldataSize() int {
 func (b *BlueprintGenericR1C) NbConstraints() int {
 	return 1
 }
-func (b *BlueprintGenericR1C) NbOutputs() int {
+func (b *BlueprintGenericR1C) NbOutputs(inst Instruction) int {
 	return 0
 }
 

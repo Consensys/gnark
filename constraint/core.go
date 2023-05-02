@@ -47,16 +47,16 @@ type PackedInstruction struct {
 func (pi PackedInstruction) Unpack(cs *System) Instruction {
 
 	blueprint := cs.Blueprints[pi.BlueprintID]
-	nbInputs := blueprint.CalldataSize()
-	if nbInputs < 0 {
+	cSize := blueprint.CalldataSize()
+	if cSize < 0 {
 		// by convention, we store nbInputs < 0 for non-static input length.
-		nbInputs = int(cs.CallData[pi.StartCallData])
+		cSize = int(cs.CallData[pi.StartCallData])
 	}
 
 	return Instruction{
 		ConstraintOffset: pi.ConstraintOffset,
 		WireOffset:       pi.WireOffset,
-		Calldata:         cs.CallData[pi.StartCallData : pi.StartCallData+uint64(nbInputs)],
+		Calldata:         cs.CallData[pi.StartCallData : pi.StartCallData+uint64(cSize)],
 	}
 }
 
@@ -341,10 +341,10 @@ func (cs *System) AddSparseR1C(c SparseR1C, bID BlueprintID) int {
 
 func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32) []uint32 {
 	// set the offsets
-	inst := PackedInstruction{
+	pi := PackedInstruction{
 		StartCallData:    uint64(len(cs.CallData)),
 		ConstraintOffset: uint32(cs.NbConstraints),
-		WireOffset:       uint32(cs.NbInternalVariables),
+		WireOffset:       uint32(cs.NbInternalVariables + cs.GetNbPublicVariables() + cs.GetNbSecretVariables()),
 		BlueprintID:      bID,
 	}
 
@@ -352,19 +352,20 @@ func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32) []uint32 {
 	cs.CallData = append(cs.CallData, calldata...)
 
 	// update the total number of constraints
-	blueprint := cs.Blueprints[inst.BlueprintID]
+	blueprint := cs.Blueprints[pi.BlueprintID]
 	cs.NbConstraints += blueprint.NbConstraints()
 
 	// add the output wires
+	inst := pi.Unpack(cs)
 	var wires []uint32
-	for i := 0; i < blueprint.NbOutputs(); i++ {
+	for i := 0; i < blueprint.NbOutputs(inst); i++ {
 		wires = append(wires, uint32(cs.AddInternalVariable()))
 	}
 
 	// add the instruction
-	cs.Instructions = append(cs.Instructions, inst)
+	cs.Instructions = append(cs.Instructions, pi)
 
-	walker := blueprint.Wires(inst.Unpack(cs))
+	walker := blueprint.Wires(inst)
 	// update the instruction dependency tree
 	cs.updateLevel(len(cs.Instructions)-1, walker)
 

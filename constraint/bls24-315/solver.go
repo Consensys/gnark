@@ -358,7 +358,7 @@ func (s *solver) IsSolved(vID uint32) bool {
 // evaluates it and return the result and the number of uint32 word read.
 func (s *solver) Read(calldata []uint32) (constraint.Element, int) {
 	if s.Type == constraint.SystemSparseR1CS {
-		return s.GetValue(calldata[0], calldata[1]), 2
+		return s.GetValue(calldata[1], calldata[2]), 3
 	}
 	var r fr.Element
 	n := int(calldata[0])

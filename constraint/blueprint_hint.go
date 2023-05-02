@@ -72,7 +72,7 @@ func (b *BlueprintGenericHint) NbConstraints() int {
 	return 0
 }
 
-func (b *BlueprintGenericHint) NbOutputs() int {
+func (b *BlueprintGenericHint) NbOutputs(inst Instruction) int {
 	return 0
 }
 

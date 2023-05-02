@@ -23,7 +23,3 @@ func (t Term) WireID() int {
 func (t Term) HashCode() uint64 {
 	return t.Coeff[0]*29 + uint64(t.VID<<12)
 }
-
-func (t Term) RRVariableID() uint32 {
-	return uint32(t.VID)
-}

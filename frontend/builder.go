@@ -56,9 +56,8 @@ type Compiler interface {
 	// operations etc. Unlike Go defer, it is not locally scoped.
 	Defer(cb func(api API) error)
 
-	// AddInternalVariable adds and returns an internal variable.
-	// ! Experimental: use in conjunction with constraint.CustomizableSystem
-	AddInternalVariable() RRVariable
+	// InternalVariable returns the internal variable associated with the given wireID
+	InternalVariable(wireID uint32) Variable
 
 	// ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable
 	// ! Experimental: use in conjunction with constraint.CustomizableSystem
@@ -101,8 +100,4 @@ type Rangechecker interface {
 // CanonicalVariable represents a variable that's encoded in a constraint system specific way.
 type CanonicalVariable interface {
 	constraint.Compressable
-}
-
-type RRVariable interface {
-	RRVariableID() uint32
 }

@@ -56,12 +56,6 @@ func (t Term) String(r Resolver) string {
 
 // implements constraint.Compressable
 
-func (t *Term) Decompress(in []uint32) int {
-	t.CID = in[0]
-	t.VID = in[1]
-	return 2
-}
-
-func (t Term) Compress(to *[]uint32) {
-	(*to) = append((*to), t.CID, t.VID)
+func (t Term) CompressLE(to *[]uint32) {
+	(*to) = append((*to), 1, t.CID, t.VID)
 }

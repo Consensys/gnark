@@ -16,7 +16,7 @@ type Blueprint interface {
 	NbConstraints() int
 
 	// NbOutputs return the number of output wires this blueprint creates.
-	NbOutputs() int
+	NbOutputs(inst Instruction) int
 
 	// Wires returns a function that walks the wires appearing in the blueprint.
 	// This is used by the level builder to build a dependency graph between instructions.
@@ -39,34 +39,34 @@ type Solver interface {
 
 // BlueprintSolvable represents a blueprint that knows how to solve itself.
 type BlueprintSolvable interface {
+	Blueprint
 	// Solve may return an error if the decoded constraint / calldata is unsolvable.
 	Solve(s Solver, instruction Instruction) error
 }
 
 // BlueprintR1C indicates that the blueprint and associated calldata encodes a R1C
 type BlueprintR1C interface {
+	Blueprint
 	CompressR1C(c *R1C) []uint32
 	DecompressR1C(into *R1C, instruction Instruction)
 }
 
 // BlueprintSparseR1C indicates that the blueprint and associated calldata encodes a SparseR1C.
 type BlueprintSparseR1C interface {
+	Blueprint
 	CompressSparseR1C(c *SparseR1C) []uint32
 	DecompressSparseR1C(into *SparseR1C, instruction Instruction)
 }
 
 // BlueprintHint indicates that the blueprint and associated calldata encodes a hint.
 type BlueprintHint interface {
+	Blueprint
 	CompressHint(HintMapping) []uint32
 	DecompressHint(h *HintMapping, instruction Instruction)
 }
 
 // Compressable represent an object that knows how to encode itself as a []uint32.
 type Compressable interface {
-	Compress(to *[]uint32)
-}
-
-// Decompressable represent an object that knows how to decode itself into a []uint32.
-type Decompressable interface {
-	Decompress(in []uint32) int // returns number of uint32 read.
+	// CompressLE interprets the objects as a LinearExpression and encodes it as a []uint32.
+	CompressLE(to *[]uint32)
 }

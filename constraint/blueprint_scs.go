@@ -24,7 +24,7 @@ func (b *BlueprintGenericSparseR1C) NbConstraints() int {
 	return 1
 }
 
-func (b *BlueprintGenericSparseR1C) NbOutputs() int {
+func (b *BlueprintGenericSparseR1C) NbOutputs(inst Instruction) int {
 	return 0
 }
 
@@ -177,7 +177,7 @@ func (b *BlueprintSparseR1CMul) CalldataSize() int {
 func (b *BlueprintSparseR1CMul) NbConstraints() int {
 	return 1
 }
-func (b *BlueprintSparseR1CMul) NbOutputs() int {
+func (b *BlueprintSparseR1CMul) NbOutputs(inst Instruction) int {
 	return 0
 }
 
@@ -229,7 +229,7 @@ func (b *BlueprintSparseR1CAdd) CalldataSize() int {
 func (b *BlueprintSparseR1CAdd) NbConstraints() int {
 	return 1
 }
-func (b *BlueprintSparseR1CAdd) NbOutputs() int {
+func (b *BlueprintSparseR1CAdd) NbOutputs(inst Instruction) int {
 	return 0
 }
 
@@ -288,7 +288,7 @@ func (b *BlueprintSparseR1CBool) CalldataSize() int {
 func (b *BlueprintSparseR1CBool) NbConstraints() int {
 	return 1
 }
-func (b *BlueprintSparseR1CBool) NbOutputs() int {
+func (b *BlueprintSparseR1CBool) NbOutputs(inst Instruction) int {
 	return 0
 }
 

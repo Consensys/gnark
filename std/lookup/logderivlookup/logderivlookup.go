@@ -20,22 +20,20 @@ package logderivlookup
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/internal/logderivarg"
 )
 
-func init() {
-	solver.RegisterHint(GetHints()...)
-}
+// func init() {
+// 	solver.RegisterHint(GetHints()...)
+// }
 
-// GetHints returns all hints used in the package.
-func GetHints() []solver.Hint {
-	return []solver.Hint{lookupHint}
-}
+// // GetHints returns all hints used in the package.
+// func GetHints() []solver.Hint {
+// 	return []solver.Hint{lookupHint}
+// }
 
 // Table holds all the entries and queries.
 type Table struct {
@@ -70,6 +68,11 @@ func (t *Table) Insert(val frontend.Variable) (index int) {
 		panic("inserting into committed lookup table")
 	}
 	t.entries = append(t.entries, val)
+
+	// 1. update the blueprint with the entry
+	v := t.api.Compiler().ToCanonicalVariable(val)
+	v.CompressLE(&t.blueprint.EntriesCalldata)
+
 	return len(t.entries) - 1
 }
 
@@ -90,21 +93,6 @@ func (t *Table) Lookup(inds ...frontend.Variable) (vals []frontend.Variable) {
 	return t.callLookupHint(inds)
 }
 
-// TODO @gbotrel that's a bit ugly and should definitely not be here.
-// temporary while getting a first version working.
-type wires []uint32
-
-func (w wires) WireIterator() func() int {
-	curr := 0
-	return func() int {
-		if curr < len(w) {
-			curr++
-			return int(w[curr-1])
-		}
-		return -1
-	}
-}
-
 func (t *Table) callLookupHint(inds []frontend.Variable) []frontend.Variable {
 	// we encode the "call to the lookup hint"
 	// as a blueprint.
@@ -117,49 +105,32 @@ func (t *Table) callLookupHint(inds []frontend.Variable) []frontend.Variable {
 	// 3. calldata(inputs)
 	// 4. output range --> the wire ids of the resulting variables
 	compiler := t.api.Compiler()
-	w := make(wires, len(inds)*2) // keep track of the wire for the dependency graph
 
 	calldata := make([]uint32, 3, 3+len(inds)*2+2)
 	calldata[1] = uint32(len(t.entries))
 	calldata[2] = uint32(len(inds))
 
-	// TODO append entries to w
-
 	// encode inputs
 	for _, in := range inds {
 		v := compiler.ToCanonicalVariable(in)
-		v.Compress(&calldata)
-		it := v.WireIterator()
-		for wire := it(); wire != -1; wire = it() {
-			w = append(w, uint32(wire))
-		}
+		v.CompressLE(&calldata)
 	}
-
-	// encode outputs
-	res := make([]frontend.Variable, len(inds))
-	start, end := uint32(0), uint32(0)
-	for i := range res {
-		v := compiler.AddInternalVariable()
-		vID := uint32(v.RRVariableID())
-		if i == 0 {
-			start, end = vID, vID
-		} else {
-			end = vID
-		}
-		w = append(w, vID)
-		res[i] = v
-	}
-	calldata = append(calldata, start, end)
 
 	// by convention, first calldata is len of inputs
-	calldata[0] = uint32(len(calldata) - 1)
+	calldata[0] = uint32(len(calldata))
 
 	// now what we are left to do is add an instruction to the constraint system
 	// such that at solving time the blueprint can properly execute the lookup logic.
-	compiler.AddInstruction(t.bID, calldata, w)
+	outputs := compiler.AddInstruction(t.bID, calldata)
 
+	if len(outputs) != len(inds) {
+		panic("sanity check")
+	}
+
+	res := make([]frontend.Variable, len(inds))
 	results := make([]result, len(inds))
 	for i := range inds {
+		res[i] = compiler.InternalVariable(outputs[i])
 		results[i] = result{ind: inds[i], val: res[i]}
 	}
 	t.results = append(t.results, results...)
@@ -183,98 +154,120 @@ func (t *Table) resultsTable() [][]frontend.Variable {
 }
 
 func (t *Table) commit(api frontend.API) error {
-	// TODO @gbotrel check that we do that once only.
-
-	// 1. update the blueprint with the entries.
-	t.blueprint.EntriesCalldata = make([]uint32, 1, len(t.entries)*2)
-	t.blueprint.EntriesCalldata[0] = uint32(len(t.entries))
-	compiler := api.Compiler()
-	for _, e := range t.entries {
-		v := compiler.ToCanonicalVariable(e)
-		v.Compress(&t.blueprint.EntriesCalldata)
-	}
-
-	// 2. build the table
 	return logderivarg.Build(api, t.entryTable(), t.resultsTable())
 }
 
-func lookupHint(_ *big.Int, in []*big.Int, out []*big.Int) error {
-	nbTable := len(in) - len(out)
-	for i := 0; i < len(in)-nbTable; i++ {
-		if !in[nbTable+i].IsInt64() {
-			return fmt.Errorf("lookup query not integer")
-		}
-		ptr := int(in[nbTable+i].Int64())
-		if ptr >= nbTable {
-			return fmt.Errorf("lookup query %d outside table size %d", ptr, nbTable)
-		}
-		out[i].Set(in[ptr])
-	}
-	return nil
-}
+// func lookupHint(_ *big.Int, in []*big.Int, out []*big.Int) error {
+// 	nbTable := len(in) - len(out)
+// 	for i := 0; i < len(in)-nbTable; i++ {
+// 		if !in[nbTable+i].IsInt64() {
+// 			return fmt.Errorf("lookup query not integer")
+// 		}
+// 		ptr := int(in[nbTable+i].Int64())
+// 		if ptr >= nbTable {
+// 			return fmt.Errorf("lookup query %d outside table size %d", ptr, nbTable)
+// 		}
+// 		out[i].Set(in[ptr])
+// 	}
+// 	return nil
+// }
 
 type BlueprintLookupHint struct {
 	// store the table
 	EntriesCalldata []uint32
-
-	// at solving time we can cache the values of the entry table.
-	// entries []constraint.Element
-	// // TODO @gbotrel what if we solve the same cs multiple time?
-	// // TODO we need to init once per solving session
-	// once sync.Once
 }
 
-func (b *BlueprintLookupHint) Solve(s constraint.Solver, calldata []uint32) error {
-	nbEntries := int(calldata[1])
+func (b *BlueprintLookupHint) Solve(s constraint.Solver, inst constraint.Instruction) error {
+	nbEntries := int(inst.Calldata[1])
 	entries := make([]constraint.Element, nbEntries)
 
 	// read the entries
+	// TODO cache that.
 	offset, delta := 0, 0
 	for i := 0; i < nbEntries; i++ {
 		entries[i], delta = s.Read(b.EntriesCalldata[offset:])
 		offset += delta
 	}
 
-	nbInputs := int(calldata[2])
+	nbInputs := int(inst.Calldata[2])
 
 	// read the inputs
 	inputs := make([]constraint.Element, nbInputs)
 	offset, delta = 3, 0
 	for i := 0; i < nbInputs; i++ {
-		inputs[i], delta = s.Read(calldata[offset:])
+		inputs[i], delta = s.Read(inst.Calldata[offset:])
 		offset += delta
 	}
 
 	// read the outputs
-	outStart := int(calldata[offset])
-	outEnd := int(calldata[offset+1])
-	nbOutputs := outEnd - outStart
+	nbOutputs := nbInputs
 
-	in := append(entries, inputs...)
-	nbTable := len(in) - nbOutputs
-	for i := 0; i < len(in)-nbTable; i++ {
-		ptr := in[nbTable+i]
-		// if !in[nbTable+i].IsInt64() {
-		// 	return fmt.Errorf("lookup query not integer")
-		// }
-		// ptr := int(in[nbTable+i].Int64())
-		// if ptr >= nbTable {
+	for i := 0; i < nbOutputs; i++ {
+		ptr := inputs[i]
 		idx, isUint64 := s.Uint64(ptr)
 		if !isUint64 {
 			return fmt.Errorf("lookup query not integer")
 		}
-		if idx >= uint64(nbTable) {
+		if idx >= uint64(len(entries)) {
 			return fmt.Errorf("idx too large")
 		}
-		s.SetValue(uint32(i+outStart), in[idx])
-		// out[i].Set(in[ptr])
+		s.SetValue(uint32(i+int(inst.WireOffset)), entries[idx])
 	}
 	return nil
 }
 
-func (b *BlueprintLookupHint) NbInputs() int {
+func (b *BlueprintLookupHint) CalldataSize() int {
 	return -1
 }
 func (b *BlueprintLookupHint) NbConstraints() int {
 	return 0
+}
+
+// NbOutputs return the number of output wires this blueprint creates.
+func (b *BlueprintLookupHint) NbOutputs(inst constraint.Instruction) int {
+	return int(inst.Calldata[2])
+}
+
+// Wires returns a function that walks the wires appearing in the blueprint.
+// This is used by the level builder to build a dependency graph between instructions.
+func (b *BlueprintLookupHint) Wires(inst constraint.Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		// depend on the table UP to the number of entries at time of instruction creation.
+		nbEntries := int(inst.Calldata[1])
+
+		j := 0
+		for i := 0; i < nbEntries; i++ {
+			// first we have the length of the linear expression
+			n := int(b.EntriesCalldata[j])
+			j++
+			for k := 0; k < n; k++ {
+				t := constraint.Term{CID: b.EntriesCalldata[j], VID: b.EntriesCalldata[j+1]}
+				if !t.IsConstant() {
+					cb(t.VID)
+				}
+				j += 2
+			}
+		}
+
+		// then we have the inputs
+		nbInputs := int(inst.Calldata[2])
+		j = 3
+		for i := 0; i < nbInputs; i++ {
+			// first we have the length of the linear expression
+			n := int(inst.Calldata[j])
+			j++
+			for k := 0; k < n; k++ {
+				t := constraint.Term{CID: inst.Calldata[j], VID: inst.Calldata[j+1]}
+				if !t.IsConstant() {
+					cb(t.VID)
+				}
+				j += 2
+			}
+		}
+
+		// finally we have the outputs
+		for i := 0; i < nbInputs; i++ {
+			cb(uint32(i + int(inst.WireOffset)))
+		}
+	}
 }
