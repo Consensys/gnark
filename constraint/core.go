@@ -47,7 +47,7 @@ type PackedInstruction struct {
 func (pi PackedInstruction) Unpack(cs *System) Instruction {
 
 	blueprint := cs.Blueprints[pi.BlueprintID]
-	nbInputs := blueprint.NbInputs()
+	nbInputs := blueprint.CalldataSize()
 	if nbInputs < 0 {
 		// by convention, we store nbInputs < 0 for non-static input length.
 		nbInputs = int(cs.CallData[pi.StartCallData])
@@ -274,7 +274,7 @@ func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbO
 	blueprint := system.Blueprints[system.genericHint]
 	calldata := blueprint.(BlueprintHint).CompressHint(hm)
 
-	system.AddInstruction(system.genericHint, calldata, &hm)
+	system.AddInstruction(system.genericHint, calldata)
 
 	return
 }
@@ -323,7 +323,7 @@ func (cs *System) AddR1C(c R1C, bID BlueprintID) int {
 	blueprint := cs.Blueprints[bID]
 	calldata := blueprint.(BlueprintR1C).CompressR1C(&c)
 
-	cs.AddInstruction(bID, calldata, &c)
+	cs.AddInstruction(bID, calldata)
 
 	return cs.NbConstraints - 1
 }
@@ -334,16 +334,17 @@ func (cs *System) AddSparseR1C(c SparseR1C, bID BlueprintID) int {
 	blueprint := cs.Blueprints[bID]
 	calldata := blueprint.(BlueprintSparseR1C).CompressSparseR1C(&c)
 
-	cs.AddInstruction(bID, calldata, &c)
+	cs.AddInstruction(bID, calldata)
 
 	return cs.NbConstraints - 1
 }
 
-func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32, c Iterable) {
+func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32) []uint32 {
 	// set the offsets
 	inst := PackedInstruction{
 		StartCallData:    uint64(len(cs.CallData)),
 		ConstraintOffset: uint32(cs.NbConstraints),
+		WireOffset:       uint32(cs.NbInternalVariables),
 		BlueprintID:      bID,
 	}
 
@@ -354,11 +355,20 @@ func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32, c Iterable)
 	blueprint := cs.Blueprints[inst.BlueprintID]
 	cs.NbConstraints += blueprint.NbConstraints()
 
+	// add the output wires
+	var wires []uint32
+	for i := 0; i < blueprint.NbOutputs(); i++ {
+		wires = append(wires, uint32(cs.AddInternalVariable()))
+	}
+
 	// add the instruction
 	cs.Instructions = append(cs.Instructions, inst)
 
+	walker := blueprint.Wires(inst.Unpack(cs))
 	// update the instruction dependency tree
-	cs.updateLevel(len(cs.Instructions)-1, c)
+	cs.updateLevel(len(cs.Instructions)-1, walker)
+
+	return wires
 }
 
 // GetNbConstraints returns the number of constraints

@@ -51,15 +51,3 @@ func (l LinearExpression) Compress(to *[]uint32) {
 		(*to) = append((*to), l[i].CID, l[i].VID)
 	}
 }
-
-// implements constraint.Iterable
-func (l LinearExpression) WireIterator() (next func() int) {
-	curr := 0
-	return func() int {
-		if curr < len(l) {
-			curr++
-			return int(l[curr-1].VID)
-		}
-		return -1
-	}
-}

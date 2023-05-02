@@ -101,7 +101,6 @@ type Rangechecker interface {
 // CanonicalVariable represents a variable that's encoded in a constraint system specific way.
 type CanonicalVariable interface {
 	constraint.Compressable
-	constraint.Iterable
 }
 
 type RRVariable interface {

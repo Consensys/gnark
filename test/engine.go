@@ -630,8 +630,9 @@ func (e *engine) Defer(cb func(frontend.API) error) {
 }
 
 // AddInstruction is used to add custom instructions to the constraint system.
-func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32, c constraint.Iterable) {
+func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
 	// blueprint := e.blueprints[bID].(constraint.s
+	return nil
 }
 
 // AddBlueprint adds a custom blueprint to the constraint system.

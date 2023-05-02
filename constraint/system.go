@@ -80,19 +80,6 @@ type CustomizableSystem interface {
 	// AddBlueprint registers the given blueprint and returns its id. This should be called only once per blueprint.
 	AddBlueprint(b Blueprint) BlueprintID
 
-	AddInstruction(bID BlueprintID, calldata []uint32, c Iterable)
+	// AddInstruction adds an instruction to the system and returns a list of created wires.
+	AddInstruction(bID BlueprintID, calldata []uint32) []uint32
 }
-
-type Iterable interface {
-	// WireIterator returns a new iterator to iterate over the wires of the implementer (usually, a constraint)
-	// Call to next() returns the next wireID of the Iterable object and -1 when iteration is over.
-	//
-	// For example a R1C constraint with L, R, O linear expressions, each of size 2, calling several times
-	// 		next := r1c.WireIterator();
-	// 		for wID := next(); wID != -1; wID = next() {}
-	//		// will return in order L[0],L[1],R[0],R[1],O[0],O[1],-1
-	WireIterator() (next func() int)
-}
-
-var _ Iterable = &SparseR1C{}
-var _ Iterable = &R1C{}

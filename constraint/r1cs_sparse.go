@@ -150,25 +150,6 @@ func (c *SparseR1C) Clear() {
 	*c = SparseR1C{}
 }
 
-// WireIterator implements constraint.Iterable
-func (c *SparseR1C) WireIterator() func() int {
-	curr := 0
-	return func() int {
-		switch curr {
-		case 0:
-			curr++
-			return int(c.XA)
-		case 1:
-			curr++
-			return int(c.XB)
-		case 2:
-			curr++
-			return int(c.XC)
-		}
-		return -1
-	}
-}
-
 // String formats the constraint as qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
 func (c *SparseR1C) String(r Resolver) string {
 	sbb := NewStringBuilder(r)

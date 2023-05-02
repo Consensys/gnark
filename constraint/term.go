@@ -65,15 +65,3 @@ func (t *Term) Decompress(in []uint32) int {
 func (t Term) Compress(to *[]uint32) {
 	(*to) = append((*to), t.CID, t.VID)
 }
-
-// implements constraint.Iterable
-func (t Term) WireIterator() (next func() int) {
-	curr := 0
-	return func() int {
-		curr++
-		if curr == 1 {
-			return int(t.VID)
-		}
-		return -1
-	}
-}

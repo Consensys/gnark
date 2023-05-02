@@ -654,8 +654,8 @@ func (builder *builder) Defer(cb func(frontend.API) error) {
 }
 
 // AddInstruction is used to add custom instructions to the constraint system.
-func (builder *builder) AddInstruction(bID constraint.BlueprintID, calldata []uint32, c constraint.Iterable) {
-	builder.cs.AddInstruction(bID, calldata, c)
+func (builder *builder) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
+	return builder.cs.AddInstruction(bID, calldata)
 }
 
 // AddBlueprint adds a custom blueprint to the constraint system.

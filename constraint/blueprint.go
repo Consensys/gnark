@@ -7,13 +7,20 @@ type BlueprintID uint32
 // constraints or instructions, and specify for the solving (or zksnark setup) part how to
 // "decompress" and optionally "solve" the associated wires.
 type Blueprint interface {
-	// NbInputs return the number of calldata input this blueprint expects.
+	// CalldataSize return the number of calldata input this blueprint expects.
 	// If this is unknown at compile time, implementation must return -1 and store
 	// the actual number of inputs in the first index of the calldata.
-	NbInputs() int
+	CalldataSize() int
 
 	// NbConstraints return the number of constraints this blueprint creates.
 	NbConstraints() int
+
+	// NbOutputs return the number of output wires this blueprint creates.
+	NbOutputs() int
+
+	// Wires returns a function that walks the wires appearing in the blueprint.
+	// This is used by the level builder to build a dependency graph between instructions.
+	Wires(inst Instruction) func(cb func(wire uint32))
 }
 
 // Solver represents the state of a constraint system solver at runtime. Blueprint can interact

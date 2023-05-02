@@ -1,6 +1,8 @@
 package constraint
 
-import "github.com/consensys/gnark/constraint/solver"
+import (
+	"github.com/consensys/gnark/constraint/solver"
+)
 
 type BlueprintGenericHint struct{}
 
@@ -63,9 +65,35 @@ func (b *BlueprintGenericHint) CompressHint(h HintMapping) []uint32 {
 	return r
 }
 
-func (b *BlueprintGenericHint) NbInputs() int {
+func (b *BlueprintGenericHint) CalldataSize() int {
 	return -1
 }
 func (b *BlueprintGenericHint) NbConstraints() int {
 	return 0
+}
+
+func (b *BlueprintGenericHint) NbOutputs() int {
+	return 0
+}
+
+func (b *BlueprintGenericHint) Wires(inst Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		lenInputs := int(inst.Calldata[2])
+		j := 3
+		for i := 0; i < lenInputs; i++ {
+			n := int(inst.Calldata[j]) // len of linear expr
+			j++
+
+			for k := 0; k < n; k++ {
+				t := Term{CID: inst.Calldata[j], VID: inst.Calldata[j+1]}
+				if !t.IsConstant() {
+					cb(t.VID)
+				}
+				j += 2
+			}
+		}
+		for k := inst.Calldata[j]; k < inst.Calldata[j+1]; k++ {
+			cb(k)
+		}
+	}
 }

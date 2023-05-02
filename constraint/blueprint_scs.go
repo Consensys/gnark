@@ -17,11 +17,23 @@ var (
 type BlueprintGenericSparseR1C struct {
 }
 
-func (b *BlueprintGenericSparseR1C) NbInputs() int {
+func (b *BlueprintGenericSparseR1C) CalldataSize() int {
 	return 9 // number of fields in SparseR1C
 }
 func (b *BlueprintGenericSparseR1C) NbConstraints() int {
 	return 1
+}
+
+func (b *BlueprintGenericSparseR1C) NbOutputs() int {
+	return 0
+}
+
+func (b *BlueprintGenericSparseR1C) Wires(inst Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		cb(inst.Calldata[0]) // xa
+		cb(inst.Calldata[1]) // xb
+		cb(inst.Calldata[2]) // xc
+	}
 }
 
 func (b *BlueprintGenericSparseR1C) CompressSparseR1C(c *SparseR1C) []uint32 {
@@ -159,11 +171,22 @@ func (b *BlueprintGenericSparseR1C) checkConstraint(c *SparseR1C, s Solver) erro
 //	qM⋅(xaxb)  == xc
 type BlueprintSparseR1CMul struct{}
 
-func (b *BlueprintSparseR1CMul) NbInputs() int {
+func (b *BlueprintSparseR1CMul) CalldataSize() int {
 	return 4
 }
 func (b *BlueprintSparseR1CMul) NbConstraints() int {
 	return 1
+}
+func (b *BlueprintSparseR1CMul) NbOutputs() int {
+	return 0
+}
+
+func (b *BlueprintSparseR1CMul) Wires(inst Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		cb(inst.Calldata[0]) // xa
+		cb(inst.Calldata[1]) // xb
+		cb(inst.Calldata[2]) // xc
+	}
 }
 
 func (b *BlueprintSparseR1CMul) CompressSparseR1C(c *SparseR1C) []uint32 {
@@ -200,11 +223,22 @@ func (b *BlueprintSparseR1CMul) DecompressSparseR1C(c *SparseR1C, inst Instructi
 //	qL⋅xa + qR⋅xb + qC == xc
 type BlueprintSparseR1CAdd struct{}
 
-func (b *BlueprintSparseR1CAdd) NbInputs() int {
+func (b *BlueprintSparseR1CAdd) CalldataSize() int {
 	return 6
 }
 func (b *BlueprintSparseR1CAdd) NbConstraints() int {
 	return 1
+}
+func (b *BlueprintSparseR1CAdd) NbOutputs() int {
+	return 0
+}
+
+func (b *BlueprintSparseR1CAdd) Wires(inst Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		cb(inst.Calldata[0]) // xa
+		cb(inst.Calldata[1]) // xb
+		cb(inst.Calldata[2]) // xc
+	}
 }
 
 func (b *BlueprintSparseR1CAdd) CompressSparseR1C(c *SparseR1C) []uint32 {
@@ -248,11 +282,20 @@ func (b *BlueprintSparseR1CAdd) DecompressSparseR1C(c *SparseR1C, inst Instructi
 //	that is v + -v*v == 0
 type BlueprintSparseR1CBool struct{}
 
-func (b *BlueprintSparseR1CBool) NbInputs() int {
+func (b *BlueprintSparseR1CBool) CalldataSize() int {
 	return 3
 }
 func (b *BlueprintSparseR1CBool) NbConstraints() int {
 	return 1
+}
+func (b *BlueprintSparseR1CBool) NbOutputs() int {
+	return 0
+}
+
+func (b *BlueprintSparseR1CBool) Wires(inst Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		cb(inst.Calldata[0]) // xa
+	}
 }
 
 func (b *BlueprintSparseR1CBool) CompressSparseR1C(c *SparseR1C) []uint32 {
