@@ -376,7 +376,7 @@ func (s *solver) Read(calldata []uint32) (constraint.Element, int) {
 
 // processInstruction decodes the instruction and execute blueprint-defined logic.
 // an instruction can encode a hint, a custom constraint or a generic constraint.
-func (solver *solver) processInstruction(inst constraint.Instruction, scratch *scratch) error {
+func (solver *solver) processInstruction(inst constraint.PackedInstruction, scratch *scratch) error {
 	// fetch the blueprint
 	blueprint := solver.Blueprints[inst.BlueprintID]
 	calldata := solver.GetCallData(inst)

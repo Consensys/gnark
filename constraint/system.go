@@ -71,13 +71,13 @@ type ConstraintSystem interface {
 	// This is experimental.
 	CheckUnconstrainedWires() error
 
-	GetInstruction(int) Instruction
+	GetInstruction(int) PackedInstruction
 
 	GetCoefficient(i int) Element
 
 	// GetCallData re-slice the constraint system full calldata slice with the portion
 	// related to the instruction. This does not copy and caller should not modify.
-	GetCallData(instruction Instruction) []uint32
+	GetCallData(instruction PackedInstruction) []uint32
 }
 
 type CustomizableSystem interface {

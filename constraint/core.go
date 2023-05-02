@@ -23,9 +23,9 @@ const (
 	SystemSparseR1CS
 )
 
-// Instruction is the lowest element of a constraint system. It stores just enough data to
+// PackedInstruction is the lowest element of a constraint system. It stores just enough data to
 // reconstruct a constraint of any shape or a hint at solving time.
-type Instruction struct {
+type PackedInstruction struct {
 	// BlueprintID maps this instruction to a blueprint
 	BlueprintID BlueprintID
 
@@ -48,7 +48,7 @@ type System struct {
 
 	Type SystemType
 
-	Instructions []Instruction
+	Instructions []PackedInstruction
 	Blueprints   []Blueprint
 	CallData     []uint32 // huge slice.
 
@@ -107,7 +107,7 @@ func NewSystem(scalarField *big.Int, capacity int, t SystemType) System {
 		MHintsDependencies: make(map[solver.HintID]string),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
-		Instructions:       make([]Instruction, 0, capacity),
+		Instructions:       make([]PackedInstruction, 0, capacity),
 		CallData:           make([]uint32, 0, capacity*8),
 		lbOutputs:          make([]uint32, 0, 256),
 		lbWireLevel:        make([]int, 0, capacity),
@@ -117,14 +117,17 @@ func NewSystem(scalarField *big.Int, capacity int, t SystemType) System {
 	return system
 }
 
+// GetNbInstructions returns the number of instructions in the system
 func (system *System) GetNbInstructions() int {
 	return len(system.Instructions)
 }
 
-func (system *System) GetInstruction(id int) Instruction {
+// GetInstruction returns the instruction at index id
+func (system *System) GetInstruction(id int) PackedInstruction {
 	return system.Instructions[id]
 }
 
+// AddBlueprint adds a blueprint to the system and returns its ID
 func (system *System) AddBlueprint(b Blueprint) BlueprintID {
 	system.Blueprints = append(system.Blueprints, b)
 	return BlueprintID(len(system.Blueprints) - 1)
@@ -288,7 +291,7 @@ func (system *System) VariableToString(vID int) string {
 
 // GetCallData re-slice the constraint system full calldata slice with the portion
 // related to the instruction. This does not copy and caller should not modify.
-func (cs *System) GetCallData(instruction Instruction) []uint32 {
+func (cs *System) GetCallData(instruction PackedInstruction) []uint32 {
 	blueprint := cs.Blueprints[instruction.BlueprintID]
 	nbInputs := blueprint.NbInputs()
 	if nbInputs < 0 {
@@ -322,7 +325,7 @@ func (cs *System) AddSparseR1C(c SparseR1C, bID BlueprintID) int {
 
 func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32, c Iterable) {
 	// set the offsets
-	inst := Instruction{
+	inst := PackedInstruction{
 		StartCallData:    uint64(len(cs.CallData)),
 		ConstraintOffset: uint32(cs.NbConstraints),
 		BlueprintID:      bID,
