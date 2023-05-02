@@ -34,10 +34,38 @@ type PackedInstruction struct {
 	// multiple constraints.
 	ConstraintOffset uint32
 
+	// WireOffset stores the starting internal wire ID of this instruction.
+	WireOffset uint32
+
 	// The constraint system stores a single []uint32 calldata slice. StartCallData
 	// points to the starting index in the mentioned slice. This avoid storing a slice per
 	// instruction (3 * uint64 in memory).
 	StartCallData uint64
+}
+
+// Unpack returns the instruction corresponding to the packed instruction.
+func (pi PackedInstruction) Unpack(cs *System) Instruction {
+
+	blueprint := cs.Blueprints[pi.BlueprintID]
+	nbInputs := blueprint.NbInputs()
+	if nbInputs < 0 {
+		// by convention, we store nbInputs < 0 for non-static input length.
+		nbInputs = int(cs.CallData[pi.StartCallData])
+	}
+
+	return Instruction{
+		ConstraintOffset: pi.ConstraintOffset,
+		WireOffset:       pi.WireOffset,
+		Calldata:         cs.CallData[pi.StartCallData : pi.StartCallData+uint64(nbInputs)],
+	}
+}
+
+// Instruction is the lowest element of a constraint system. It stores all the data needed to
+// reconstruct a constraint of any shape or a hint at solving time.
+type Instruction struct {
+	ConstraintOffset uint32
+	WireOffset       uint32
+	Calldata         []uint32
 }
 
 // System contains core elements for a constraint System
@@ -123,8 +151,8 @@ func (system *System) GetNbInstructions() int {
 }
 
 // GetInstruction returns the instruction at index id
-func (system *System) GetInstruction(id int) PackedInstruction {
-	return system.Instructions[id]
+func (system *System) GetInstruction(id int) Instruction {
+	return system.Instructions[id].Unpack(system)
 }
 
 // AddBlueprint adds a blueprint to the system and returns its ID

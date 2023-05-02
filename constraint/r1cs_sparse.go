@@ -46,7 +46,7 @@ func (it *SparseR1CIterator) Next() *SparseR1C {
 	it.n++
 	blueprint := it.cs.Blueprints[inst.BlueprintID]
 	if bc, ok := blueprint.(BlueprintSparseR1C); ok {
-		bc.DecompressSparseR1C(&it.SparseR1C, it.cs.GetCallData(inst))
+		bc.DecompressSparseR1C(&it.SparseR1C, inst.Unpack(it.cs))
 		return &it.SparseR1C
 	}
 	return it.Next()

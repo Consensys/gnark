@@ -71,7 +71,7 @@ type ConstraintSystem interface {
 	// This is experimental.
 	CheckUnconstrainedWires() error
 
-	GetInstruction(int) PackedInstruction
+	GetInstruction(int) Instruction
 
 	GetCoefficient(i int) Element
 

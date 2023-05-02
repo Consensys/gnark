@@ -32,7 +32,7 @@ func (b *BlueprintGenericR1C) CompressR1C(c *R1C) []uint32 {
 	return r
 }
 
-func (b *BlueprintGenericR1C) DecompressR1C(c *R1C, calldata []uint32) {
+func (b *BlueprintGenericR1C) DecompressR1C(c *R1C, inst Instruction) {
 	copySlice := func(slice *LinearExpression, expectedLen, idx int) {
 		if cap(*slice) >= expectedLen {
 			(*slice) = (*slice)[:expectedLen]
@@ -40,16 +40,16 @@ func (b *BlueprintGenericR1C) DecompressR1C(c *R1C, calldata []uint32) {
 			(*slice) = make(LinearExpression, expectedLen, expectedLen*2)
 		}
 		for k := 0; k < expectedLen; k++ {
-			(*slice)[k].CID = calldata[idx]
+			(*slice)[k].CID = inst.Calldata[idx]
 			idx++
-			(*slice)[k].VID = calldata[idx]
+			(*slice)[k].VID = inst.Calldata[idx]
 			idx++
 		}
 	}
 
-	lenL := int(calldata[1])
-	lenR := int(calldata[2])
-	lenO := int(calldata[3])
+	lenL := int(inst.Calldata[1])
+	lenR := int(inst.Calldata[2])
+	lenO := int(inst.Calldata[3])
 
 	const offset = 4
 	copySlice(&c.L, lenL, offset)

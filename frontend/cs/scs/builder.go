@@ -478,7 +478,7 @@ func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Element)
 		inst := builder.cs.GetInstruction(iID)
 		// we know the blueprint we added it.
 		blueprint := constraint.BlueprintSparseR1CAdd{}
-		blueprint.DecompressSparseR1C(&c, builder.cs.GetCallData(inst))
+		blueprint.DecompressSparseR1C(&c, inst)
 
 		// qO == -1
 		if a.WireID() == int(c.XB) {
@@ -566,7 +566,7 @@ func (builder *builder) mulConstraintExist(a, b expr.Term) (expr.Term, bool) {
 		inst := builder.cs.GetInstruction(iID)
 		// we know the blueprint we added it.
 		blueprint := constraint.BlueprintSparseR1CMul{}
-		blueprint.DecompressSparseR1C(&c, builder.cs.GetCallData(inst))
+		blueprint.DecompressSparseR1C(&c, inst)
 
 		// qO == -1
 

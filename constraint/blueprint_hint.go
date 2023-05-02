@@ -4,10 +4,10 @@ import "github.com/consensys/gnark/constraint/solver"
 
 type BlueprintGenericHint struct{}
 
-func (b *BlueprintGenericHint) DecompressHint(h *HintMapping, calldata []uint32) {
+func (b *BlueprintGenericHint) DecompressHint(h *HintMapping, inst Instruction) {
 	// ignore first call data == nbInputs
-	h.HintID = solver.HintID(calldata[1])
-	lenInputs := int(calldata[2])
+	h.HintID = solver.HintID(inst.Calldata[1])
+	lenInputs := int(inst.Calldata[2])
 	if cap(h.Inputs) >= lenInputs {
 		h.Inputs = h.Inputs[:lenInputs]
 	} else {
@@ -16,7 +16,7 @@ func (b *BlueprintGenericHint) DecompressHint(h *HintMapping, calldata []uint32)
 
 	j := 3
 	for i := 0; i < lenInputs; i++ {
-		n := int(calldata[j]) // len of linear expr
+		n := int(inst.Calldata[j]) // len of linear expr
 		j++
 		if cap(h.Inputs[i]) >= n {
 			h.Inputs[i] = h.Inputs[i][:0]
@@ -24,12 +24,12 @@ func (b *BlueprintGenericHint) DecompressHint(h *HintMapping, calldata []uint32)
 			h.Inputs[i] = make(LinearExpression, 0, n)
 		}
 		for k := 0; k < n; k++ {
-			h.Inputs[i] = append(h.Inputs[i], Term{CID: calldata[j], VID: calldata[j+1]})
+			h.Inputs[i] = append(h.Inputs[i], Term{CID: inst.Calldata[j], VID: inst.Calldata[j+1]})
 			j += 2
 		}
 	}
-	h.OutputRange.Start = calldata[j]
-	h.OutputRange.End = calldata[j+1]
+	h.OutputRange.Start = inst.Calldata[j]
+	h.OutputRange.End = inst.Calldata[j+1]
 }
 
 func (b *BlueprintGenericHint) CompressHint(h HintMapping) []uint32 {

@@ -47,7 +47,7 @@ func (it *R1CIterator) Next() *R1C {
 	it.n++
 	blueprint := it.cs.Blueprints[inst.BlueprintID]
 	if bc, ok := blueprint.(BlueprintR1C); ok {
-		bc.DecompressR1C(&it.R1C, it.cs.GetCallData(inst))
+		bc.DecompressR1C(&it.R1C, inst.Unpack(it.cs))
 		return &it.R1C
 	}
 	return it.Next()
