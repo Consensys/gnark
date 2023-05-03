@@ -16,7 +16,7 @@ func TestBigIntToElement(t *testing.T) {
 	s := blueprintSolver{q: ecc.BN254.ScalarField()}
 	b := big.NewInt(0)
 	for i := 0; i < 50; i++ {
-		b.Rand(rand.New(rand.NewSource(time.Now().Unix())), s.q)
+		b.Rand(rand.New(rand.NewSource(time.Now().Unix())), s.q) //#nosec G404 -- This is a false positive
 		e := s.toElement(b)
 		b2 := s.ToBigInt(e)
 		if b.Cmp(b2) != 0 {
@@ -35,8 +35,8 @@ func TestBigIntToUint32Slice(t *testing.T) {
 	b2 := big.NewInt(0)
 
 	for i := 0; i < 50; i++ {
-		b1.Rand(rand.New(rand.NewSource(time.Now().Unix())), s.q)
-		b2.Rand(rand.New(rand.NewSource(time.Now().Unix())), s.q)
+		b1.Rand(rand.New(rand.NewSource(time.Now().Unix())), s.q) //#nosec G404 -- This is a false positive
+		b2.Rand(rand.New(rand.NewSource(time.Now().Unix())), s.q) //#nosec G404 -- This is a false positive
 		wb1 := wrappedBigInt{b1}
 		wb2 := wrappedBigInt{b2}
 		var to []uint32

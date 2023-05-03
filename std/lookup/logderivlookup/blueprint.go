@@ -46,7 +46,7 @@ func (b *BlueprintLookupHint) Solve(s constraint.Solver, inst constraint.Instruc
 
 	// read the inputs from the instruction
 	inputs := make([]constraint.Element, nbInputs)
-	offset, delta = 3, 0
+	offset = 3
 	for i := 0; i < nbInputs; i++ {
 		inputs[i], delta = s.Read(inst.Calldata[offset:])
 		offset += delta
