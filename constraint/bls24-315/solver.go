@@ -133,15 +133,15 @@ func (s *solver) set(id int, value fr.Element) {
 }
 
 // computeTerm computes coeff*variable
-// TODO @gbotrel check if t is a Constant only
 func (s *solver) computeTerm(t constraint.Term) fr.Element {
 	cID, vID := t.CoeffID(), t.WireID()
-	if cID != 0 && !s.solved[vID] {
-		panic("computing a term with an unsolved wire")
-	}
 
 	if t.IsConstant() {
 		return s.Coefficients[cID]
+	}
+
+	if cID != 0 && !s.solved[vID] {
+		panic("computing a term with an unsolved wire")
 	}
 
 	switch cID {
@@ -390,14 +390,14 @@ func (solver *solver) processInstruction(pi constraint.PackedInstruction, scratc
 			bc.DecompressR1C(&scratch.tR1C, inst)
 			return solver.solveR1C(cID, &scratch.tR1C)
 		}
-	} else if solver.Type == constraint.SystemSparseR1CS {
-		// blueprint declared "I know how to solve this."
-		if bc, ok := blueprint.(constraint.BlueprintSolvable); ok {
-			if err := bc.Solve(solver, inst); err != nil {
-				return solver.wrapErrWithDebugInfo(cID, err)
-			}
-			return nil
+	}
+
+	// blueprint declared "I know how to solve this."
+	if bc, ok := blueprint.(constraint.BlueprintSolvable); ok {
+		if err := bc.Solve(solver, inst); err != nil {
+			return solver.wrapErrWithDebugInfo(cID, err)
 		}
+		return nil
 	}
 
 	// blueprint encodes a hint, we execute.
