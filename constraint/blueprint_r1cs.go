@@ -60,7 +60,7 @@ func (b *BlueprintGenericR1C) DecompressR1C(c *R1C, inst Instruction) {
 	copySlice(&c.O, lenO, offset+2*(lenL+lenR))
 }
 
-func (b *BlueprintGenericR1C) Wires(inst Instruction) func(cb func(wire uint32)) {
+func (b *BlueprintGenericR1C) WireWalker(inst Instruction) func(cb func(wire uint32)) {
 	return func(cb func(wire uint32)) {
 		lenL := int(inst.Calldata[1])
 		lenR := int(inst.Calldata[2])

@@ -17,7 +17,6 @@ limitations under the License.
 package test
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math/big"
 	"path/filepath"
@@ -614,18 +613,18 @@ func (e *engine) Defer(cb func(frontend.API) error) {
 }
 
 // AddInstruction is used to add custom instructions to the constraint system.
+// In constraint system, this is asynchronous. In here, we do it synchronously.
 func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
 	blueprint := e.blueprints[bID].(constraint.BlueprintSolvable)
 
-	// in constraint system, this is asynchronous. in here, we do it synchronously
-
-	// create a temporary instruction
+	// create a dummy instruction
 	inst := constraint.Instruction{
 		Calldata:   calldata,
 		WireOffset: uint32(len(e.internalVariables)),
 	}
 
-	// add the internal variables
+	// blueprint declared nbOutputs; add as many internal variables
+	// and return their indices
 	nbOutputs := blueprint.NbOutputs(inst)
 	var r []uint32
 	for i := 0; i < nbOutputs; i++ {
@@ -633,7 +632,7 @@ func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) [
 		e.internalVariables = append(e.internalVariables, new(big.Int))
 	}
 
-	// solve the blueprint
+	// solve the blueprint synchronously
 	s := blueprintSolver{
 		internalVariables: e.internalVariables,
 		q:                 e.q,
@@ -654,6 +653,9 @@ func (e *engine) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
 	return constraint.BlueprintID(len(e.blueprints) - 1)
 }
 
+// InternalVariable returns the value of an internal variable. This is used in custom blueprints.
+// The variableID is the index of the variable in the internalVariables slice, as
+// filled by AddInstruction.
 func (e *engine) InternalVariable(vID uint32) frontend.Variable {
 	if vID >= uint32(len(e.internalVariables)) {
 		panic("internal variable not found")
@@ -661,57 +663,9 @@ func (e *engine) InternalVariable(vID uint32) frontend.Variable {
 	return new(big.Int).Set(e.internalVariables[vID])
 }
 
+// ToCanonicalVariable converts a frontend.Variable to a frontend.CanonicalVariable
+// this is used in custom blueprints to return a variable than can be encoded in blueprints
 func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVariable {
 	r := e.toBigInt(v)
 	return wrappedBigInt{r}
-}
-
-// wrappedBigInt is a wrapper around big.Int to implement the frontend.CanonicalVariable interface
-type wrappedBigInt struct {
-	*big.Int
-}
-
-func (w wrappedBigInt) CompressLE(to *[]uint32) {
-	*to = append(*to, encodeBigIntToUint32Slice(w.Int)...)
-}
-
-func encodeBigIntToUint32Slice(n *big.Int) []uint32 {
-	if n.Sign() == -1 {
-		panic("negative numbers are not supported")
-	}
-	// convert the big.Int to a byte slice
-	bytes := n.Bytes()
-
-	// pad the byte slice with leading zeros if necessary
-	padding := make([]byte, 4-len(bytes)%4)
-	bytes = append(padding, bytes...)
-
-	// initialize the result slice with a length prefix
-	result := make([]uint32, (len(bytes)/4)+1)
-	result[0] = uint32(len(result))
-
-	// iterate over the byte slice in 4-byte chunks
-	for i := 0; i < len(bytes); i += 4 {
-		// convert each 4-byte chunk to a uint32 and append it to the result slice
-		result[i/4+1] = binary.BigEndian.Uint32(bytes[i : i+4])
-	}
-
-	return result
-}
-
-func decodeUint32SliceToBigInt(data []uint32) (*big.Int, int) {
-	// read the length prefix from the data slice
-	length := int(data[0])
-
-	// initialize a byte slice to hold the decoded data
-	bytes := make([]byte, (length-1)*4)
-
-	// iterate over the remaining uint32 values in the data slice
-	for i := 1; i < length; i++ {
-		// convert each uint32 to a 4-byte slice and copy it to the byte slice
-		binary.BigEndian.PutUint32(bytes[(i-1)*4:i*4], data[i])
-	}
-
-	// create a new big.Int from the byte slice and return it along with the number of uint32 values read
-	return new(big.Int).SetBytes(bytes), length
 }

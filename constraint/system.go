@@ -80,6 +80,7 @@ type CustomizableSystem interface {
 	// AddBlueprint registers the given blueprint and returns its id. This should be called only once per blueprint.
 	AddBlueprint(b Blueprint) BlueprintID
 
-	// AddInstruction adds an instruction to the system and returns a list of created wires.
+	// AddInstruction adds an instruction to the system and returns a list of created wires
+	// if the blueprint declared any outputs.
 	AddInstruction(bID BlueprintID, calldata []uint32) []uint32
 }

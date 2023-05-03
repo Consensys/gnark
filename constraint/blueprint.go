@@ -18,9 +18,9 @@ type Blueprint interface {
 	// NbOutputs return the number of output wires this blueprint creates.
 	NbOutputs(inst Instruction) int
 
-	// Wires returns a function that walks the wires appearing in the blueprint.
+	// WireWalker returns a function that walks the wires appearing in the blueprint.
 	// This is used by the level builder to build a dependency graph between instructions.
-	Wires(inst Instruction) func(cb func(wire uint32))
+	WireWalker(inst Instruction) func(cb func(wire uint32))
 }
 
 // Solver represents the state of a constraint system solver at runtime. Blueprint can interact

@@ -357,17 +357,17 @@ func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32) []uint32 {
 
 	// add the output wires
 	inst := pi.Unpack(cs)
+	nbOutputs := blueprint.NbOutputs(inst)
 	var wires []uint32
-	for i := 0; i < blueprint.NbOutputs(inst); i++ {
+	for i := 0; i < nbOutputs; i++ {
 		wires = append(wires, uint32(cs.AddInternalVariable()))
 	}
 
 	// add the instruction
 	cs.Instructions = append(cs.Instructions, pi)
 
-	walker := blueprint.Wires(inst)
 	// update the instruction dependency tree
-	cs.updateLevel(len(cs.Instructions)-1, walker)
+	cs.updateLevel(len(cs.Instructions)-1, blueprint.WireWalker(inst))
 
 	return wires
 }

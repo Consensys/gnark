@@ -57,6 +57,7 @@ type Compiler interface {
 	Defer(cb func(api API) error)
 
 	// InternalVariable returns the internal variable associated with the given wireID
+	// ! Experimental: use in conjunction with constraint.CustomizableSystem
 	InternalVariable(wireID uint32) Variable
 
 	// ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable

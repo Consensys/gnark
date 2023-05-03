@@ -28,7 +28,7 @@ func (b *BlueprintGenericSparseR1C) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintGenericSparseR1C) Wires(inst Instruction) func(cb func(wire uint32)) {
+func (b *BlueprintGenericSparseR1C) WireWalker(inst Instruction) func(cb func(wire uint32)) {
 	return func(cb func(wire uint32)) {
 		cb(inst.Calldata[0]) // xa
 		cb(inst.Calldata[1]) // xb
@@ -181,7 +181,7 @@ func (b *BlueprintSparseR1CMul) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintSparseR1CMul) Wires(inst Instruction) func(cb func(wire uint32)) {
+func (b *BlueprintSparseR1CMul) WireWalker(inst Instruction) func(cb func(wire uint32)) {
 	return func(cb func(wire uint32)) {
 		cb(inst.Calldata[0]) // xa
 		cb(inst.Calldata[1]) // xb
@@ -233,7 +233,7 @@ func (b *BlueprintSparseR1CAdd) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintSparseR1CAdd) Wires(inst Instruction) func(cb func(wire uint32)) {
+func (b *BlueprintSparseR1CAdd) WireWalker(inst Instruction) func(cb func(wire uint32)) {
 	return func(cb func(wire uint32)) {
 		cb(inst.Calldata[0]) // xa
 		cb(inst.Calldata[1]) // xb
@@ -292,7 +292,7 @@ func (b *BlueprintSparseR1CBool) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintSparseR1CBool) Wires(inst Instruction) func(cb func(wire uint32)) {
+func (b *BlueprintSparseR1CBool) WireWalker(inst Instruction) func(cb func(wire uint32)) {
 	return func(cb func(wire uint32)) {
 		cb(inst.Calldata[0]) // xa
 	}
