@@ -27,12 +27,13 @@ type Blueprint interface {
 // with this object to perform run time logic, solve constraints and assign values in the solution.
 type Solver interface {
 	Field
+
 	GetValue(cID, vID uint32) Element
 	GetCoeff(cID uint32) Element
 	SetValue(vID uint32, f Element)
 	IsSolved(vID uint32) bool
 
-	// Read interprets input calldata as either a LinearExpression (if R1CS) or a Term (if Plonkish),
+	// Read interprets input calldata as a LinearExpression,
 	// evaluates it and return the result and the number of uint32 word read.
 	Read(calldata []uint32) (Element, int)
 }

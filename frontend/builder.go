@@ -99,6 +99,9 @@ type Rangechecker interface {
 }
 
 // CanonicalVariable represents a variable that's encoded in a constraint system specific way.
+// For example a R1CS builder may represent this as a constraint.LinearExpression,
+// a PLONK builder --> constraint.Term
+// and the test/Engine --> ~*big.Int.
 type CanonicalVariable interface {
 	constraint.Compressable
 }

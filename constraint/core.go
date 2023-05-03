@@ -34,7 +34,10 @@ type PackedInstruction struct {
 	// multiple constraints.
 	ConstraintOffset uint32
 
-	// WireOffset stores the starting internal wire ID of this instruction.
+	// WireOffset stores the starting internal wire ID of this instruction. Blueprints may use this
+	// and refer to output wires by their offset.
+	// For example, if a blueprint declared 5 outputs, the first output wire will be WireOffset,
+	// the last one WireOffset+4.
 	WireOffset uint32
 
 	// The constraint system stores a single []uint32 calldata slice. StartCallData
