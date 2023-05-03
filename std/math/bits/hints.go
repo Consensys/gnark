@@ -9,10 +9,10 @@ import (
 
 func GetHints() []solver.Hint {
 	return []solver.Hint{
-		IthBit,
-		NBits,
-		NTrits,
-		NNAF,
+		ithBit,
+		nBits,
+		nTrits,
+		nNaf,
 	}
 }
 
@@ -20,18 +20,10 @@ func init() {
 	solver.RegisterHint(GetHints()...)
 }
 
-// NTrits returns the first trits of the input. The number of returned trits is
-// defined by the length of the results slice.
-var NTrits = nTrits
-
-// NNAF returns the NAF decomposition of the input. The number of digits is
-// defined by the number of elements in the results slice.
-var NNAF = nNaf
-
 // IthBit returns the i-tb bit the input. The function expects exactly two
 // integer inputs i and n, takes the little-endian bit representation of n and
 // returns its i-th bit.
-func IthBit(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+func ithBit(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	result := results[0]
 	if !inputs[1].IsUint64() {
 		result.SetUint64(0)
@@ -44,7 +36,7 @@ func IthBit(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 
 // NBits returns the first bits of the input. The number of returned bits is
 // defined by the length of the results slice.
-func NBits(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+func nBits(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	n := inputs[0]
 	for i := 0; i < len(results); i++ {
 		results[i].SetUint64(uint64(n.Bit(i)))
@@ -52,6 +44,8 @@ func NBits(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
+// nTrits returns the first trits of the input. The number of returned trits is
+// defined by the length of the results slice.
 func nTrits(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	n := inputs[0]
 	// TODO using big.Int Text method is likely not cheap
@@ -68,6 +62,8 @@ func nTrits(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	return nil
 }
 
+// NNAF returns the NAF decomposition of the input. The number of digits is
+// defined by the number of elements in the results slice.
 func nNaf(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	n := inputs[0]
 	return nafDecomposition(n, results)

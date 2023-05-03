@@ -61,7 +61,7 @@ func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOpti
 	c := big.NewInt(1)
 	b := big.NewInt(3)
 
-	trits, err := api.Compiler().NewHint(NTrits, cfg.NbDigits, v)
+	trits, err := api.Compiler().NewHint(nTrits, cfg.NbDigits, v)
 	if err != nil {
 		panic(err)
 	}

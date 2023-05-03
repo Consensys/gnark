@@ -58,7 +58,7 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 
 	c := big.NewInt(1)
 
-	bits, err := api.Compiler().NewHint(NBits, cfg.NbDigits, v)
+	bits, err := api.Compiler().NewHint(nBits, cfg.NbDigits, v)
 	if err != nil {
 		panic(err)
 	}

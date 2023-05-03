@@ -24,7 +24,7 @@ func ToNAF(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) 
 
 	c := big.NewInt(1)
 
-	bits, err := api.Compiler().NewHint(NNAF, cfg.NbDigits, v)
+	bits, err := api.Compiler().NewHint(nNaf, cfg.NbDigits, v)
 	if err != nil {
 		panic(err)
 	}
