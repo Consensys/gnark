@@ -35,7 +35,7 @@ func GetHints() []solver.Hint {
 
 // Map is a key value associative array: the output will be values[i] such that keys[i] == queryKey. If keys does not
 // contain queryKey, no proofs can be generated. If keys has more than one key that equals to queryKey, the output will
-// be undefined, and the output could be a linear combination of all the corresponding values with that queryKey.
+// be undefined, and the output could be any linear combination of all the corresponding values with that queryKey.
 //
 // In case keys and values do not have the same length, this function will panic.
 func Map(api frontend.API, queryKey frontend.Variable,
@@ -45,7 +45,7 @@ func Map(api frontend.API, queryKey frontend.Variable,
 	if len(keys) != len(values) {
 		panic("The number of keys and values must be equal")
 	}
-	return generateSelector(api, false, queryKey, keys, values)
+	return dotProduct(api, values, generateIndicators(api, false, queryKey, keys))
 }
 
 // Mux is an n to 1 multiplexer: out = inputs[sel]. In other words, it selects exactly one of its
@@ -53,23 +53,53 @@ func Map(api frontend.API, queryKey frontend.Variable,
 //
 // sel needs to be between 0 and n - 1 (inclusive), where n is the number of inputs, otherwise the proof will fail.
 func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
-	return generateSelector(api, true, sel, nil, inputs)
+	if log := math.Log2(float64(len(inputs))); log == math.Trunc(log) {
+		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(int(log)))
+		return BinaryMux(api, selBits, inputs, DoNotConstrainInputs())
+	}
+	return dotProduct(api, inputs, generateIndicators(api, true, sel, inputs))
+}
+
+// KeyDecoder is a decoder that associates keys to its output wires. It outputs
+// 1 on the wire that is associated to a key that equals to queryKey. In other
+// words:
+//
+//	if keys[i] == queryKey
+//	    out[i] = 1
+//	else
+//	    out[i] = 0
+//
+// If keys has more than one key that equals to queryKey, the output is
+// undefined. However, the output is guaranteed to be zero for the wires that
+// are associated with a key which is not equal to queryKey.
+func KeyDecoder(api frontend.API, queryKey frontend.Variable, keys []frontend.Variable) []frontend.Variable {
+	return generateIndicators(api, false, queryKey, keys)
+}
+
+// Decoder is a decoder with n outputs. It outputs 1 on the wire with index sel,
+// and 0 otherwise. Indices start from zero. In other words:
+//
+//	if i == sel
+//	    out[i] = 1
+//	else
+//	    out[i] = 0
+//
+// sel needs to be between 0 and n - 1 (inclusive) otherwise no proof can be
+// generated.
+func Decoder(api frontend.API, n int, sel frontend.Variable) []frontend.Variable {
+	return generateIndicators(api, true, sel, make([]frontend.Variable, n))
 }
 
 // generateSelector generates a circuit for a multiplexer or an associative array (map). If wantMux is true, a
 // multiplexer is generated and keys are ignored. If wantMux is false, a map is generated, and we must have
 // len(keys) <= len(values), or it panics.
-func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
-	keys []frontend.Variable, values []frontend.Variable) (out frontend.Variable) {
+func generateIndicators(api frontend.API, wantMux bool, sel frontend.Variable,
+	keys []frontend.Variable) []frontend.Variable {
 
 	var indicators []frontend.Variable
 	var err error
 	if wantMux {
-		if log := math.Log2(float64(len(values))); log == math.Trunc(log) {
-			selBits := bits.ToBinary(api, sel, bits.WithNbDigits(int(log)))
-			return BinaryMux(api, selBits, values, DoNotConstrainInputs())
-		}
-		indicators, err = api.Compiler().NewHint(muxIndicators, len(values), sel)
+		indicators, err = api.Compiler().NewHint(muxIndicators, len(keys), sel)
 	} else {
 		indicators, err = api.Compiler().NewHint(mapIndicators, len(keys), append(keys, sel)...)
 	}
@@ -77,7 +107,6 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 		panic(fmt.Sprintf("error in calling Mux/Map hint: %v", err))
 	}
 
-	out = 0
 	indicatorsSum := frontend.Variable(0)
 	for i := 0; i < len(indicators); i++ {
 		// Check that all indicators for inputs that are not selected, are zero.
@@ -89,12 +118,19 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 			api.AssertIsEqual(api.Mul(indicators[i], api.Sub(sel, keys[i])), 0)
 		}
 		indicatorsSum = api.Add(indicatorsSum, indicators[i])
-		// out += indicators[i] * values[i]
-		out = api.MulAcc(out, indicators[i], values[i])
 	}
 	// We need to check that the indicator of the selected input is exactly 1. We used a sum constraint, because usually
 	// it is cheap.
 	api.AssertIsEqual(indicatorsSum, 1)
+	return indicators
+}
+
+func dotProduct(api frontend.API, a, b []frontend.Variable) frontend.Variable {
+	out := frontend.Variable(0)
+	for i := 0; i < len(a); i++ {
+		// out += indicators[i] * values[i]
+		out = api.MulAcc(out, a[i], b[i])
+	}
 	return out
 }
 
