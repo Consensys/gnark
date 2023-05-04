@@ -67,7 +67,7 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	if wantMux {
 		if log := math.Log2(float64(len(values))); log == math.Trunc(log) {
 			selBits := bits.ToBinary(api, sel, bits.WithNbDigits(int(log)))
-			return BinaryMux(api, selBits, values)
+			return BinaryMux(api, selBits, values, DoNotConstrainInputs())
 		}
 		indicators, err = api.Compiler().NewHint(muxIndicators, len(values), sel)
 	} else {
@@ -96,39 +96,6 @@ func generateSelector(api frontend.API, wantMux bool, sel frontend.Variable,
 	// it is cheap.
 	api.AssertIsEqual(indicatorsSum, 1)
 	return out
-}
-
-// BinaryMux is an n to 1 multiplexer which uses a binary selector. selBits are
-// the selector bits, and the input at the index equal to the binary number
-// represented by the selector bits will be selected. More precisely the output
-// will be:
-//
-//	inputs[selBits[0]+selBits[1]*(1<<1)+selBits[2]*(1<<2)+...]
-//
-// len(inputs) does not need to be necessarily a power of 2. However, in that
-// case when the index represented by selBits is greater than or equal with
-// len(inputs), the output will be undefined.
-//
-// BinaryMux does NOT define any boolean constraints for selBits. Outside this
-// function, all the elements of selBits must be constrained to be binary
-// digits.
-func BinaryMux(api frontend.API, selBits, inputs []frontend.Variable) frontend.Variable {
-	// The number of defined R1CS constraints for an input of length n is always n - 1.
-	// n does not need to be a power of 2.
-	if len(selBits) == 0 {
-		return inputs[0]
-	}
-
-	nextSelBits := selBits[:len(selBits)-1]
-	sel := selBits[len(selBits)-1]
-	pivot := 1 << len(nextSelBits)
-	if pivot >= len(inputs) {
-		return BinaryMux(api, nextSelBits, inputs)
-	}
-
-	left := BinaryMux(api, nextSelBits, inputs[:pivot])
-	right := BinaryMux(api, nextSelBits, inputs[pivot:])
-	return api.Add(left, api.Mul(sel, api.Sub(right, left)))
 }
 
 // muxIndicators is a hint function used within [Mux] function. It must be
