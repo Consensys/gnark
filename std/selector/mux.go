@@ -1,15 +1,9 @@
 package selector
 
-import "github.com/consensys/gnark/frontend"
-
-type option struct{ int }
-
-// DoNotConstrainInputs is a function that creates an option type which
-// indicates the passed parameters to a function are already constrained and no
-// additional constraints should be defined by the callee function.
-func DoNotConstrainInputs() option {
-	return option{0}
-}
+import (
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bits"
+)
 
 // BinaryMux is a 2^k to 1 multiplexer which uses a binary selector. selBits are
 // the selector bits, and the input at the index equal to the binary number
@@ -19,23 +13,13 @@ func DoNotConstrainInputs() option {
 //	inputs[selBits[0]+selBits[1]*(1<<1)+selBits[2]*(1<<2)+...]
 //
 // len(inputs) must be 2^len(selBits).
-//
-// Zero or more options can be passed to this function. If DoNotConstrainInputs
-// option is used, the BinaryMux does NOT define any boolean constraints for
-// selBits, and outside this function, all the elements of selBits must be
-// constrained to be binary digits.
-func BinaryMux(api frontend.API, selBits, inputs []frontend.Variable, options ...option) frontend.Variable {
+func BinaryMux(api frontend.API, selBits, inputs []frontend.Variable) frontend.Variable {
 	if len(inputs) != 1<<len(selBits) {
 		panic("invalid input length for BinaryMux")
 	}
 
-	if len(options) > 0 {
-		return binaryMuxRecursive(api, selBits, inputs)
-	}
+	bits.AssertBits(api, selBits)
 
-	for _, sel := range selBits {
-		api.AssertIsBoolean(sel)
-	}
 	return binaryMuxRecursive(api, selBits, inputs)
 }
 

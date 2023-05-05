@@ -59,7 +59,7 @@ func Map(api frontend.API, queryKey frontend.Variable,
 func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
 	if log := math.Log2(float64(len(inputs))); log == math.Trunc(log) {
 		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(int(log)))
-		return BinaryMux(api, selBits, inputs, DoNotConstrainInputs())
+		return BinaryMux(api, selBits, inputs)
 	}
 	return dotProduct(api, inputs, generateIndicators(api, true, sel, inputs))
 }
