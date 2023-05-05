@@ -19,6 +19,7 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"time"
@@ -124,15 +125,17 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			den.Sub(&zeta, &wPowI) // ζ-wⁱ
 
 			lagrange.SetOne().
-				Sub(&zeta, &lagrange). // ζ-1
-				Mul(&lagrange, &wPowI). // wⁱ(ζ-1)
-				Div(&lagrange, &den). // wⁱ(ζ-1)/(ζ-wⁱ)
+				Sub(&zeta, &lagrange).       // ζ-1
+				Mul(&lagrange, &wPowI).      // wⁱ(ζ-1)
+				Div(&lagrange, &den).        // wⁱ(ζ-1)/(ζ-wⁱ)
 				Mul(&lagrange, &lagrangeOne) // wⁱ/n (ζⁿ-1)/(ζ-wⁱ)
 
 			xiLi.Mul(&lagrange, &hashRes[0])
 			pi.Add(&pi, &xiLi)
 		}
 	}
+
+	fmt.Println("pi =", pi.Text(16))
 
 	// linearizedpolynomial + pi(ζ) + α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ) - α²*L₁(ζ)
 	var _s1, _s2, _o, alphaSquareLagrange fr.Element
@@ -161,14 +164,17 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		Mul(&alphaSquareLagrange, &alpha) // α²*L₁(ζ)
 
 	linearizedPolynomialZeta.
-		Add(&linearizedPolynomialZeta, &pi). // linearizedpolynomial + pi(zeta)
-		Add(&linearizedPolynomialZeta, &_s1). // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
+		Add(&linearizedPolynomialZeta, &pi).                 // linearizedpolynomial + pi(zeta)
+		Add(&linearizedPolynomialZeta, &_s1).                // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)
 		Sub(&linearizedPolynomialZeta, &alphaSquareLagrange) // linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
 
 	// Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)
 	var zetaPowerMMinusOne fr.Element
 	zetaPowerMMinusOne.Sub(&zetaPowerM, &one)
 	linearizedPolynomialZeta.Div(&linearizedPolynomialZeta, &zetaPowerMMinusOne)
+
+	fmt.Println("claimed quotient =", claimedQuotient.Text(16))
+	fmt.Println("computed quotient =", linearizedPolynomialZeta.Text(16))
 
 	// check that H(ζ) is as claimed
 	if !claimedQuotient.Equal(&linearizedPolynomialZeta) {
@@ -221,7 +227,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	)
 
 	scalars := append(qC,
-		l, r, rl, o, one /* TODO Perf @Tabaie Consider just adding Qk instead */, // first part
+		l, r, rl, o, one, /* TODO Perf @Tabaie Consider just adding Qk instead */ // first part
 		_s1, _s2, // second & third part
 	)
 	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{}); err != nil {
@@ -333,6 +339,7 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 	if err != nil {
 		return r, err
 	}
+	return r, nil
 	r.SetBytes(b)
 	return r, nil
 }

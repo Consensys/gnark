@@ -83,6 +83,7 @@ func newKZGSRS(curve ecc.ID, kzgSize uint64) (kzg.SRS, error) {
 	if err != nil {
 		return nil, err
 	}
+	alpha.SetUint64(0)
 
 	switch curve {
 	case ecc.BN254:

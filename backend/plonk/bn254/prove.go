@@ -75,12 +75,12 @@ func bsb22ComputeCommitmentHint(spr *cs.SparseR1CS, pk *ProvingKey, proof *Proof
 			err     error
 			hashRes []fr.Element
 		)
-		if _, err = pi2[offset+spr.CommitmentInfo[commDepth].CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
+		/*if _, err = pi2[offset+spr.CommitmentInfo[commDepth].CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
 			return err
 		}
 		if _, err = pi2[offset+spr.GetNbConstraints()-1].SetRandom(); err != nil { // Last constraint has qcp = 0. Safe to use for blinding
 			return err
-		}
+		}*/
 		pi2iop := iop.NewPolynomial(&pi2, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 		wpi2iop[commDepth] = pi2iop.ShallowClone()
 		wpi2iop[commDepth].ToCanonical(&pk.Domain[0]).ToRegular()
