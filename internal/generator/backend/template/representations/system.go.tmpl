@@ -357,6 +357,7 @@ func getTagSet() cbor.TagSet {
 	addType(reflect.TypeOf(constraint.BlueprintGenericSparseR1C{}))
 	addType(reflect.TypeOf(constraint.BlueprintSparseR1CAdd{}))
 	addType(reflect.TypeOf(constraint.BlueprintSparseR1CMul{}))
+	addType(reflect.TypeOf(constraint.BlueprintSparseR1CBool{}))
 	
 	return ts 
 }
