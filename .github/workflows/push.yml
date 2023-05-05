@@ -104,8 +104,43 @@ jobs:
               "repo": "${{ github.repository }}",
               "status": "FAIL",
               "title": "push to ${{ github.event.push.base_ref }}",
-              "pr": ""
+              "pr": "",
+              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs/${{ job.id }}"
             }
+          attachments: |
+            [{
+            "color": "#ff0000",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": ":red_circle: Workflow Failed"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "Actor: @{{ github.actor }}\nRepository: {{ github.repository }}\nTitle: {{ github.event.pull_request.title }}\nPR: {{ github.event.pull_request.head.ref }}"
+                }
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View Failed Step",
+                      "emoji": true
+                    },
+                    "url": "{{ failed_step_url }}"
+                  }
+                ]
+              }
+            ]
+            }]
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
