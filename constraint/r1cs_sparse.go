@@ -46,7 +46,7 @@ func (it *SparseR1CIterator) Next() *SparseR1C {
 	it.n++
 	blueprint := it.cs.Blueprints[inst.BlueprintID]
 	if bc, ok := blueprint.(BlueprintSparseR1C); ok {
-		bc.DecompressSparseR1C(&it.SparseR1C, it.cs.GetCallData(inst))
+		bc.DecompressSparseR1C(&it.SparseR1C, inst.Unpack(it.cs))
 		return &it.SparseR1C
 	}
 	return it.Next()
@@ -148,25 +148,6 @@ type SparseR1C struct {
 
 func (c *SparseR1C) Clear() {
 	*c = SparseR1C{}
-}
-
-// WireIterator implements constraint.Iterable
-func (c *SparseR1C) WireIterator() func() int {
-	curr := 0
-	return func() int {
-		switch curr {
-		case 0:
-			curr++
-			return int(c.XA)
-		case 1:
-			curr++
-			return int(c.XB)
-		case 2:
-			curr++
-			return int(c.XC)
-		}
-		return -1
-	}
 }
 
 // String formats the constraint as qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC == 0
