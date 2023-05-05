@@ -48,21 +48,21 @@ type BlueprintSolvable interface {
 // BlueprintR1C indicates that the blueprint and associated calldata encodes a R1C
 type BlueprintR1C interface {
 	Blueprint
-	CompressR1C(c *R1C) []uint32
+	CompressR1C(c *R1C, to *[]uint32)
 	DecompressR1C(into *R1C, instruction Instruction)
 }
 
 // BlueprintSparseR1C indicates that the blueprint and associated calldata encodes a SparseR1C.
 type BlueprintSparseR1C interface {
 	Blueprint
-	CompressSparseR1C(c *SparseR1C) []uint32
+	CompressSparseR1C(c *SparseR1C, to *[]uint32)
 	DecompressSparseR1C(into *SparseR1C, instruction Instruction)
 }
 
 // BlueprintHint indicates that the blueprint and associated calldata encodes a hint.
 type BlueprintHint interface {
 	Blueprint
-	CompressHint(HintMapping) []uint32
+	CompressHint(h HintMapping, to *[]uint32)
 	DecompressHint(h *HintMapping, instruction Instruction)
 }
 

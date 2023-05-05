@@ -34,7 +34,7 @@ func (b *BlueprintGenericHint) DecompressHint(h *HintMapping, inst Instruction) 
 	h.OutputRange.End = inst.Calldata[j+1]
 }
 
-func (b *BlueprintGenericHint) CompressHint(h HintMapping) []uint32 {
+func (b *BlueprintGenericHint) CompressHint(h HintMapping, to *[]uint32) {
 	nbInputs := 1 // storing nb inputs
 	nbInputs++    // hintID
 	nbInputs++    // len(h.Inputs)
@@ -45,24 +45,19 @@ func (b *BlueprintGenericHint) CompressHint(h HintMapping) []uint32 {
 
 	nbInputs += 2 // output range start / end
 
-	r := getBuffer(nbInputs)
-	r = append(r, uint32(nbInputs))
-	r = append(r, uint32(h.HintID))
-	r = append(r, uint32(len(h.Inputs)))
+	(*to) = append((*to), uint32(nbInputs))
+	(*to) = append((*to), uint32(h.HintID))
+	(*to) = append((*to), uint32(len(h.Inputs)))
 
 	for _, l := range h.Inputs {
-		r = append(r, uint32(len(l)))
+		(*to) = append((*to), uint32(len(l)))
 		for _, t := range l {
-			r = append(r, uint32(t.CoeffID()), uint32(t.WireID()))
+			(*to) = append((*to), uint32(t.CoeffID()), uint32(t.WireID()))
 		}
 	}
 
-	r = append(r, h.OutputRange.Start)
-	r = append(r, h.OutputRange.End)
-	if len(r) != nbInputs {
-		panic("invalid")
-	}
-	return r
+	(*to) = append((*to), h.OutputRange.Start)
+	(*to) = append((*to), h.OutputRange.End)
 }
 
 func (b *BlueprintGenericHint) CalldataSize() int {
