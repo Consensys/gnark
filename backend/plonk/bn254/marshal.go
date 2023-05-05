@@ -255,7 +255,7 @@ func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n
 		&vk.Qm,
 		&vk.Qo,
 		&vk.Qk,
-		&vk.Qcp,
+		vk.Qcp,
 		vk.CommitmentConstraintIndexes,
 	}
 
