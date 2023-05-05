@@ -97,7 +97,7 @@ jobs:
               "status": "FAIL",
               "title": "${{ github.event.pull_request.title }}",
               "pr": "${{ github.event.pull_request.head.ref }}",
-              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/
+              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

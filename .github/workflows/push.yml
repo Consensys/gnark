@@ -105,7 +105,7 @@ jobs:
               "status": "FAIL",
               "title": "push to ${{ github.event.push.base_ref }}",
               "pr": "",
-              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/
+              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
