@@ -25,6 +25,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
@@ -54,6 +55,8 @@ type engine struct {
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars bool
 	kvstore.Store
+	blueprints        []constraint.Blueprint
+	internalVariables []*big.Int
 }
 
 // TestEngineOption defines an option for the test engine.
@@ -152,11 +155,11 @@ func callDeferred(builder *engine) error {
 var cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual uint64
 
 func (e *engine) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	cptAdd++
+	atomic.AddUint64(&cptAdd, 1)
 	res := new(big.Int)
 	res.Add(e.toBigInt(i1), e.toBigInt(i2))
 	for i := 0; i < len(in); i++ {
-		cptAdd++
+		atomic.AddUint64(&cptAdd, 1)
 		res.Add(res, e.toBigInt(in[i]))
 	}
 	res.Mod(res, e.modulus())
@@ -176,11 +179,11 @@ func (e *engine) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	cptSub++
+	atomic.AddUint64(&cptSub, 1)
 	res := new(big.Int)
 	res.Sub(e.toBigInt(i1), e.toBigInt(i2))
 	for i := 0; i < len(in); i++ {
-		cptSub++
+		atomic.AddUint64(&cptSub, 1)
 		res.Sub(res, e.toBigInt(in[i]))
 	}
 	res.Mod(res, e.modulus())
@@ -195,7 +198,7 @@ func (e *engine) Neg(i1 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	cptMul++
+	atomic.AddUint64(&cptMul, 1)
 	b2 := e.toBigInt(i2)
 	if len(in) == 0 && b2.IsUint64() && b2.Uint64() <= 1 {
 		// special path to avoid useless allocations
@@ -209,7 +212,7 @@ func (e *engine) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 	res.Mul(b1, b2)
 	res.Mod(res, e.modulus())
 	for i := 0; i < len(in); i++ {
-		cptMul++
+		atomic.AddUint64(&cptMul, 1)
 		res.Mul(res, e.toBigInt(in[i]))
 		res.Mod(res, e.modulus())
 	}
@@ -249,7 +252,7 @@ func (e *engine) Inverse(i1 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
-	cptToBinary++
+	atomic.AddUint64(&cptToBinary, 1)
 	nbBits := e.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
@@ -281,7 +284,7 @@ func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 }
 
 func (e *engine) FromBinary(v ...frontend.Variable) frontend.Variable {
-	cptFromBinary++
+	atomic.AddUint64(&cptFromBinary, 1)
 	bits := make([]bool, len(v))
 	for i := 0; i < len(v); i++ {
 		be := e.toBigInt(v[i])
@@ -378,7 +381,7 @@ func (e *engine) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) AssertIsEqual(i1, i2 frontend.Variable) {
-	cptAssertIsEqual++
+	atomic.AddUint64(&cptAssertIsEqual, 1)
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.Cmp(b2) != 0 {
 		panic(fmt.Sprintf("[assertIsEqual] %s == %s", b1.String(), b2.String()))
@@ -612,4 +615,62 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
 func (e *engine) Defer(cb func(frontend.API) error) {
 	circuitdefer.Put(e, cb)
+}
+
+// AddInstruction is used to add custom instructions to the constraint system.
+// In constraint system, this is asynchronous. In here, we do it synchronously.
+func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
+	blueprint := e.blueprints[bID].(constraint.BlueprintSolvable)
+
+	// create a dummy instruction
+	inst := constraint.Instruction{
+		Calldata:   calldata,
+		WireOffset: uint32(len(e.internalVariables)),
+	}
+
+	// blueprint declared nbOutputs; add as many internal variables
+	// and return their indices
+	nbOutputs := blueprint.NbOutputs(inst)
+	var r []uint32
+	for i := 0; i < nbOutputs; i++ {
+		r = append(r, uint32(len(e.internalVariables)))
+		e.internalVariables = append(e.internalVariables, new(big.Int))
+	}
+
+	// solve the blueprint synchronously
+	s := blueprintSolver{
+		internalVariables: e.internalVariables,
+		q:                 e.q,
+	}
+	if err := blueprint.Solve(&s, inst); err != nil {
+		panic(err)
+	}
+
+	return r
+}
+
+// AddBlueprint adds a custom blueprint to the constraint system.
+func (e *engine) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
+	if _, ok := b.(constraint.BlueprintSolvable); !ok {
+		panic("unsupported blueprint in test engine")
+	}
+	e.blueprints = append(e.blueprints, b)
+	return constraint.BlueprintID(len(e.blueprints) - 1)
+}
+
+// InternalVariable returns the value of an internal variable. This is used in custom blueprints.
+// The variableID is the index of the variable in the internalVariables slice, as
+// filled by AddInstruction.
+func (e *engine) InternalVariable(vID uint32) frontend.Variable {
+	if vID >= uint32(len(e.internalVariables)) {
+		panic("internal variable not found")
+	}
+	return new(big.Int).Set(e.internalVariables[vID])
+}
+
+// ToCanonicalVariable converts a frontend.Variable to a frontend.CanonicalVariable
+// this is used in custom blueprints to return a variable than can be encoded in blueprints
+func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVariable {
+	r := e.toBigInt(v)
+	return wrappedBigInt{r}
 }

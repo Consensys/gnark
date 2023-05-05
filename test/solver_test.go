@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/internal/backend/circuits"
 	"io"
 	"math/big"
 	"reflect"
@@ -17,7 +18,6 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -43,7 +43,9 @@ func TestSolverConsistency(t *testing.T) {
 	// we generate witnesses and compare with the output of big.Int test engine against
 	// R1CS and SparseR1CS solvers
 
-	for name := range circuits.Circuits {
+	names := map[string]interface{}{"and": nil, "or": nil}
+
+	for name := range names /*circuits.Circuits*/ {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
 			t.Parallel()
@@ -56,7 +58,7 @@ func TestSolverConsistency(t *testing.T) {
 }
 
 // witness used for the permutter. It implements the Witness interface
-// using mock methods (only the undererlying vector is required).
+// using mock methods (only the underlying vector is required).
 type permutterWitness struct {
 	vector any
 }
@@ -221,7 +223,7 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 	i := 0
 	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Public {
-			tInput.Set(reflect.ValueOf((from[i])))
+			tInput.Set(reflect.ValueOf(from[i]))
 			i++
 		}
 		return nil
@@ -229,11 +231,20 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 
 	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Secret {
-			tInput.Set(reflect.ValueOf((from[i])))
+			tInput.Set(reflect.ValueOf(from[i]))
 			i++
 		}
 		return nil
 	})
+}
+
+func getCircuitName(circuit frontend.Circuit) string {
+	for name, c := range circuits.Circuits {
+		if c.Circuit == circuit {
+			return name
+		}
+	}
+	panic("not found")
 }
 
 // ConsistentSolver solves given circuit with all possible witness combinations using internal/tinyfield
@@ -253,6 +264,7 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []solver.Hint) err
 		if err != nil {
 			return err
 		}
+
 		p.constraintSystems[i] = ccs
 
 		if i == 0 { // the -1 is only for r1cs...

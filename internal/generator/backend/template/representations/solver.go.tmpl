@@ -118,12 +118,17 @@ func (s *solver) set(id int, value fr.Element) {
 
 
 // computeTerm computes coeff*variable
-// TODO @gbotrel check if t is a Constant only
 func (s *solver) computeTerm(t constraint.Term) fr.Element {
 	cID, vID := t.CoeffID(), t.WireID()
+
+	if t.IsConstant() {
+		return s.Coefficients[cID]
+	}
+
 	if cID != 0 && !s.solved[vID] {
 		panic("computing a term with an unsolved wire")
 	}
+
 	switch cID {
 	case constraint.CoeffIdZero:
 		return fr.Element{}
@@ -149,6 +154,11 @@ func (s *solver) computeTerm(t constraint.Term) fr.Element {
 func (s *solver) accumulateInto(t constraint.Term, r *fr.Element) {
 	cID := t.CoeffID()
 	vID := t.WireID()
+
+	if t.IsConstant() {
+		r.Add(r, &s.Coefficients[cID])
+		return
+	}
 
 	switch cID {
 	case constraint.CoeffIdZero:
@@ -335,15 +345,37 @@ func (s *solver) IsSolved(vID uint32) bool {
 	return s.solved[vID]
 }
 
+// Read interprets input calldata as either a LinearExpression (if R1CS) or a Term (if Plonkish),
+// evaluates it and return the result and the number of uint32 word read.
+func (s *solver) Read(calldata []uint32) (constraint.Element, int) {
+	if s.Type == constraint.SystemSparseR1CS {
+		if calldata[0] != 1 {
+			panic("invalid calldata")
+		}
+		return s.GetValue(calldata[1], calldata[2]), 3
+	}
+	var r fr.Element
+	n := int(calldata[0])
+	j := 1
+	for k:= 0; k < n; k++ {
+		// we read k Terms
+		s.accumulateInto(constraint.Term{CID:calldata[j],VID: calldata[j+1]} , &r)
+		j+=2
+	}
+
+	var ret constraint.Element
+	copy(ret[:], r[:])
+	return ret, j
+}
 
 
 
 // processInstruction decodes the instruction and execute blueprint-defined logic.
 // an instruction can encode a hint, a custom constraint or a generic constraint.
-func (solver *solver) processInstruction(inst constraint.Instruction, scratch *scratch) error {
+func (solver *solver) processInstruction(pi constraint.PackedInstruction, scratch *scratch) error {
 	// fetch the blueprint
-	blueprint := solver.Blueprints[inst.BlueprintID]
-	calldata := solver.GetCallData(inst)
+	blueprint := solver.Blueprints[pi.BlueprintID]
+	inst := pi.Unpack(&solver.System)
 	cID := inst.ConstraintOffset // here we have 1 constraint in the instruction only
 
 	if solver.Type == constraint.SystemR1CS {
@@ -351,23 +383,23 @@ func (solver *solver) processInstruction(inst constraint.Instruction, scratch *s
 			// TODO @gbotrel we use the solveR1C method for now, having user-defined
 			// blueprint for R1CS would require constraint.Solver interface to add methods
 			// to set a,b,c since it's more efficient to compute these while we solve.
-			bc.DecompressR1C(&scratch.tR1C, calldata)
+			bc.DecompressR1C(&scratch.tR1C, inst)
 			return solver.solveR1C(cID, &scratch.tR1C)
 		}
-	} else if solver.Type == constraint.SystemSparseR1CS {
-		// blueprint declared "I know how to solve this."
-		if bc, ok := blueprint.(constraint.BlueprintSolvable); ok {
-			if err := bc.Solve(solver, calldata); err != nil {
-				return solver.wrapErrWithDebugInfo(cID, err)
-			}
-			return nil
+	} 
+
+	// blueprint declared "I know how to solve this."
+	if bc, ok := blueprint.(constraint.BlueprintSolvable); ok {
+		if err := bc.Solve(solver, inst); err != nil {
+			return solver.wrapErrWithDebugInfo(cID, err)
 		}
+		return nil
 	}
 
 	// blueprint encodes a hint, we execute.
 	// TODO @gbotrel may be worth it to move hint logic in blueprint "solve"
 	if bc, ok := blueprint.(constraint.BlueprintHint); ok {
-		bc.DecompressHint(&scratch.tHint, calldata)
+		bc.DecompressHint(&scratch.tHint,inst)
 		return solver.solveWithHint(&scratch.tHint)
 	}
 

@@ -182,3 +182,11 @@ func (engine *field) String(a constraint.Element) string {
 	e := (*fr.Element)(a[:])
 	return e.String()
 }
+
+func (engine *field) Uint64(a constraint.Element) (uint64, bool) {
+	e := (*fr.Element)(a[:])
+	if !e.IsUint64() {
+		return 0, false
+	}
+	return e.Uint64(), true
+}

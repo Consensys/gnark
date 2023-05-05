@@ -121,7 +121,7 @@ func (cs *system) GetR1Cs() []constraint.R1C {
 		blueprint := cs.Blueprints[inst.BlueprintID]
 		if bc, ok := blueprint.(constraint.BlueprintR1C); ok {
 			var r1c constraint.R1C
-			bc.DecompressR1C(&r1c, cs.GetCallData(inst))
+			bc.DecompressR1C(&r1c, inst.Unpack(&cs.System))
 			toReturn = append(toReturn, r1c)
 		} else {
 			panic("not implemented")
@@ -196,8 +196,7 @@ func (cs *system) GetSparseR1Cs() []constraint.SparseR1C {
 		blueprint := cs.Blueprints[inst.BlueprintID]
 		if bc, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
 			var sparseR1C constraint.SparseR1C
-			calldata := cs.CallData[inst.StartCallData : inst.StartCallData+uint64(blueprint.NbInputs())]
-			bc.DecompressSparseR1C(&sparseR1C, calldata)
+			bc.DecompressSparseR1C(&sparseR1C, inst.Unpack(&cs.System))
 			toReturn = append(toReturn, sparseR1C)
 		} else {
 			panic("not implemented")
@@ -234,7 +233,7 @@ func evaluateLROSmallDomain(cs *system, solution []fr.Element) ([]fr.Element, []
 	for _, inst := range cs.Instructions {
 		blueprint := cs.Blueprints[inst.BlueprintID]
 		if bc, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
-			bc.DecompressSparseR1C(&sparseR1C, cs.GetCallData(inst))
+			bc.DecompressSparseR1C(&sparseR1C, inst.Unpack(&cs.System))
 
 			l[offset+j] = solution[sparseR1C.XA]
 			r[offset+j] = solution[sparseR1C.XB]
@@ -360,6 +359,7 @@ func getTagSet() cbor.TagSet {
 	addType(reflect.TypeOf(constraint.BlueprintGenericSparseR1C{}))
 	addType(reflect.TypeOf(constraint.BlueprintSparseR1CAdd{}))
 	addType(reflect.TypeOf(constraint.BlueprintSparseR1CMul{}))
+	addType(reflect.TypeOf(constraint.BlueprintSparseR1CBool{}))
 
 	return ts
 }
