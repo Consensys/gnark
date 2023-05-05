@@ -27,7 +27,6 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
