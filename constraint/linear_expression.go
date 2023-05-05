@@ -30,22 +30,7 @@ func (l LinearExpression) String(r Resolver) string {
 	return sbb.String()
 }
 
-// implements constraint.Compressable
-
-// func (l *LinearExpression) Decompress(in []uint32) int {
-// 	n := int(in[0])
-// 	*l = make(LinearExpression, n)
-// 	j := 1
-// 	for i := 0; i < n; i++ {
-// 		(*l)[i].CID = in[j]
-// 		j++
-// 		(*l)[i].VID = in[j]
-// 		j++
-// 	}
-// 	return j - 1
-// }
-
-func (l LinearExpression) CompressLE(to *[]uint32) {
+func (l LinearExpression) Compress(to *[]uint32) {
 	(*to) = append((*to), uint32(len(l)))
 	for i := 0; i < len(l); i++ {
 		(*to) = append((*to), l[i].CID, l[i].VID)

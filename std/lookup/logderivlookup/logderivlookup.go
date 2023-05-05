@@ -65,7 +65,7 @@ func (t *Table) Insert(val frontend.Variable) (index int) {
 
 	// each time we insert a new entry, we update the blueprint
 	v := t.api.Compiler().ToCanonicalVariable(val)
-	v.CompressLE(&t.blueprint.EntriesCalldata)
+	v.Compress(&t.blueprint.EntriesCalldata)
 
 	return len(t.entries) - 1
 }
@@ -103,7 +103,7 @@ func (t *Table) performLookup(inds []frontend.Variable) []frontend.Variable {
 	// encode inputs
 	for _, in := range inds {
 		v := compiler.ToCanonicalVariable(in)
-		v.CompressLE(&calldata)
+		v.Compress(&calldata)
 	}
 
 	// by convention, first calldata is len of inputs

@@ -56,9 +56,9 @@ func (t Term) String(r Resolver) string {
 
 // implements constraint.Compressable
 
-// CompressLE compresses the term into a slice of uint32 words.
+// Compress compresses the term into a slice of uint32 words.
 // For compatibility with test engine and LinearExpression, the term is encoded as:
 // 1, CID, VID (i.e a LinearExpression with a single term)
-func (t Term) CompressLE(to *[]uint32) {
+func (t Term) Compress(to *[]uint32) {
 	(*to) = append((*to), 1, t.CID, t.VID)
 }

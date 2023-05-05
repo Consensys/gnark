@@ -128,7 +128,7 @@ type wrappedBigInt struct {
 	*big.Int
 }
 
-func (w wrappedBigInt) CompressLE(to *[]uint32) {
+func (w wrappedBigInt) Compress(to *[]uint32) {
 	// convert to Element.
 	e := bigIntToElement(w.Int)
 

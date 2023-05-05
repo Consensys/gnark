@@ -40,8 +40,8 @@ func TestBigIntToUint32Slice(t *testing.T) {
 		wb1 := wrappedBigInt{b1}
 		wb2 := wrappedBigInt{b2}
 		var to []uint32
-		wb1.CompressLE(&to)
-		wb2.CompressLE(&to)
+		wb1.Compress(&to)
+		wb2.Compress(&to)
 
 		if len(to) != 24 {
 			t.Fatal("wrong length: expected 2*len of constraint.Element (uint32 words)")

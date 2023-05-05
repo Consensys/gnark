@@ -68,6 +68,6 @@ type BlueprintHint interface {
 
 // Compressable represent an object that knows how to encode itself as a []uint32.
 type Compressable interface {
-	// CompressLE interprets the objects as a LinearExpression and encodes it as a []uint32.
-	CompressLE(to *[]uint32)
+	// Compress interprets the objects as a LinearExpression and encodes it as a []uint32.
+	Compress(to *[]uint32)
 }
