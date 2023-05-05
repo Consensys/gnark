@@ -264,6 +264,7 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 	pt.Qcp = make([]*iop.Polynomial, len(qcp))
 
 	for i := range spr.CommitmentInfo {
+		qcp[i] = make([]fr.Element, size)
 		for _, committed := range spr.CommitmentInfo[i].Committed {
 			qcp[i][offset+committed].SetOne()
 		}
@@ -271,7 +272,7 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 	}
 }
 
-// commitTrace commits to every polynomials in the trace, and put
+// commitTrace commits to every polynomial in the trace, and put
 // the commitments int the verifying key.
 func commitTrace(trace *Trace, pk *ProvingKey) error {
 
@@ -285,6 +286,7 @@ func commitTrace(trace *Trace, pk *ProvingKey) error {
 	trace.S3.ToCanonical(&pk.Domain[0]).ToRegular()
 
 	var err error
+	pk.Vk.Qcp = make([]kzg.Digest, len(trace.Qcp))
 	for i := range trace.Qcp {
 		trace.Qcp[i].ToCanonical(&pk.Domain[0]).ToRegular()
 		if pk.Vk.Qcp[i], err = kzg.Commit(pk.trace.Qcp[i].Coefficients(), pk.Kzg); err != nil {
