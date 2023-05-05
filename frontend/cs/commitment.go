@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 func Bsb22CommitmentComputePlaceholder(mod *big.Int, input []*big.Int, output []*big.Int) error {
@@ -34,6 +35,7 @@ func Bsb22CommitmentComputePlaceholder(mod *big.Int, input []*big.Int, output []
 }
 
 var maxNbCommitments int
+var m sync.Mutex // TODO: Remove; this is only used in the frontend which is not required to be thread-safe
 
 func RegisterBsb22CommitmentComputePlaceholder(index int) (hintName constraint.HintIds, err error) {
 	hintName = constraint.HintIds{
@@ -45,10 +47,14 @@ func RegisterBsb22CommitmentComputePlaceholder(index int) (hintName constraint.H
 		return
 	}
 	hintName.UUID = solver.HintID(hf.Sum32())
+
+	m.Lock()
 	if maxNbCommitments == index {
 		maxNbCommitments++
 		solver.RegisterNamedHint(Bsb22CommitmentComputePlaceholder, hintName.UUID)
 	}
+	m.Unlock()
+
 	return
 }
 func init() {

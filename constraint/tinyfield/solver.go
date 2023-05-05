@@ -37,7 +37,7 @@ import (
 
 // solver represent the state of the solver during a call to System.Solve(...)
 type solver struct {
-	*system
+	*System
 
 	// values and solved are index by the wire (variable) id
 	values   []fr.Element
@@ -55,7 +55,7 @@ type solver struct {
 	q *big.Int
 }
 
-func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
+func newSolver(cs *System, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
 	// parse options
 	opt, err := csolver.NewConfig(opts...)
 	if err != nil {
@@ -91,7 +91,7 @@ func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, 
 	}
 
 	s := solver{
-		system:          cs,
+		System:          cs,
 		values:          make([]fr.Element, nbWires),
 		solved:          make([]bool, nbWires),
 		mHintsFunctions: hintFunctions,
