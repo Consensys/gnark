@@ -86,6 +86,13 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 	return bits
 }
 
+// AssertBits defines boolean constraints for every element of bits.
+func AssertBits(api frontend.API, bits []frontend.Variable) {
+	for _, b := range bits {
+		api.AssertIsBoolean(b)
+	}
+}
+
 // IthBit returns the i-tb bit the input. The function expects exactly two
 // integer inputs i and n, takes the little-endian bit representation of n and
 // returns its i-th bit.
