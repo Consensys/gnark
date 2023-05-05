@@ -3,6 +3,7 @@ package constraint
 import (
 	"fmt"
 	"math/big"
+	"sync"
 
 	"github.com/blang/semver/v4"
 	"github.com/consensys/gnark"
@@ -275,9 +276,16 @@ func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbO
 	}
 
 	blueprint := system.Blueprints[system.genericHint]
-	calldata := blueprint.(BlueprintHint).CompressHint(hm)
 
-	system.AddInstruction(system.genericHint, calldata)
+	// get []uint32 from the pool
+	calldata := getBuffer()
+
+	blueprint.(BlueprintHint).CompressHint(hm, calldata)
+
+	system.AddInstruction(system.genericHint, *calldata)
+
+	// return []uint32 to the pool
+	putBuffer(calldata)
 
 	return
 }
@@ -324,9 +332,16 @@ func (cs *System) AddR1C(c R1C, bID BlueprintID) int {
 	profile.RecordConstraint()
 
 	blueprint := cs.Blueprints[bID]
-	calldata := blueprint.(BlueprintR1C).CompressR1C(&c)
 
-	cs.AddInstruction(bID, calldata)
+	// get a []uint32 from a pool
+	calldata := getBuffer()
+
+	// compress the R1C into a []uint32 and add the instruction
+	blueprint.(BlueprintR1C).CompressR1C(&c, calldata)
+	cs.AddInstruction(bID, *calldata)
+
+	// release the []uint32 to the pool
+	putBuffer(calldata)
 
 	return cs.NbConstraints - 1
 }
@@ -335,9 +350,17 @@ func (cs *System) AddSparseR1C(c SparseR1C, bID BlueprintID) int {
 	profile.RecordConstraint()
 
 	blueprint := cs.Blueprints[bID]
-	calldata := blueprint.(BlueprintSparseR1C).CompressSparseR1C(&c)
 
-	cs.AddInstruction(bID, calldata)
+	// get a []uint32 from a pool
+	calldata := getBuffer()
+
+	// compress the SparceR1C into a []uint32 and add the instruction
+	blueprint.(BlueprintSparseR1C).CompressSparseR1C(&c, calldata)
+
+	cs.AddInstruction(bID, *calldata)
+
+	// release the []uint32 to the pool
+	putBuffer(calldata)
 
 	return cs.NbConstraints - 1
 }
@@ -391,4 +414,31 @@ func (cs *System) GetR1CIterator() R1CIterator {
 
 func (cs *System) GetSparseR1CIterator() SparseR1CIterator {
 	return SparseR1CIterator{cs: cs}
+}
+
+// bufPool is a pool of buffers used by getBuffer and putBuffer.
+// It is used to avoid allocating buffers for each constraint.
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		r := make([]uint32, 0, 20)
+		return &r
+	},
+}
+
+// getBuffer returns a buffer of at least the given size.
+// The buffer is taken from the pool if it is large enough,
+// otherwise a new buffer is allocated.
+// Caller must call putBuffer when done with the buffer.
+func getBuffer() *[]uint32 {
+	to := bufPool.Get().(*[]uint32)
+	*to = (*to)[:0]
+	return to
+}
+
+// putBuffer returns a buffer to the pool.
+func putBuffer(buf *[]uint32) {
+	if buf == nil {
+		panic("invalid entry in putBuffer")
+	}
+	bufPool.Put(buf)
 }

@@ -36,17 +36,8 @@ func (b *BlueprintGenericSparseR1C) WireWalker(inst Instruction) func(cb func(wi
 	}
 }
 
-func (b *BlueprintGenericSparseR1C) CompressSparseR1C(c *SparseR1C) []uint32 {
-	bufSCS[0] = c.XA
-	bufSCS[1] = c.XB
-	bufSCS[2] = c.XC
-	bufSCS[3] = c.QL
-	bufSCS[4] = c.QR
-	bufSCS[5] = c.QO
-	bufSCS[6] = c.QM
-	bufSCS[7] = c.QC
-	bufSCS[8] = uint32(c.Commitment)
-	return bufSCS[:]
+func (b *BlueprintGenericSparseR1C) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
+	*to = append(*to, c.XA, c.XB, c.XC, c.QL, c.QR, c.QO, c.QM, c.QC, uint32(c.Commitment))
 }
 
 func (b *BlueprintGenericSparseR1C) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
@@ -189,12 +180,8 @@ func (b *BlueprintSparseR1CMul) WireWalker(inst Instruction) func(cb func(wire u
 	}
 }
 
-func (b *BlueprintSparseR1CMul) CompressSparseR1C(c *SparseR1C) []uint32 {
-	bufSCS[0] = c.XA
-	bufSCS[1] = c.XB
-	bufSCS[2] = c.XC
-	bufSCS[3] = c.QM
-	return bufSCS[:4]
+func (b *BlueprintSparseR1CMul) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
+	*to = append(*to, c.XA, c.XB, c.XC, c.QM)
 }
 
 func (b *BlueprintSparseR1CMul) Solve(s Solver, inst Instruction) error {
@@ -241,14 +228,8 @@ func (b *BlueprintSparseR1CAdd) WireWalker(inst Instruction) func(cb func(wire u
 	}
 }
 
-func (b *BlueprintSparseR1CAdd) CompressSparseR1C(c *SparseR1C) []uint32 {
-	bufSCS[0] = c.XA
-	bufSCS[1] = c.XB
-	bufSCS[2] = c.XC
-	bufSCS[3] = c.QL
-	bufSCS[4] = c.QR
-	bufSCS[5] = c.QC
-	return bufSCS[:6]
+func (b *BlueprintSparseR1CAdd) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
+	*to = append(*to, c.XA, c.XB, c.XC, c.QL, c.QR, c.QC)
 }
 
 func (blueprint *BlueprintSparseR1CAdd) Solve(s Solver, inst Instruction) error {
@@ -298,11 +279,8 @@ func (b *BlueprintSparseR1CBool) WireWalker(inst Instruction) func(cb func(wire 
 	}
 }
 
-func (b *BlueprintSparseR1CBool) CompressSparseR1C(c *SparseR1C) []uint32 {
-	bufSCS[0] = c.XA
-	bufSCS[1] = c.QL
-	bufSCS[2] = c.QM
-	return bufSCS[:3]
+func (b *BlueprintSparseR1CBool) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
+	*to = append(*to, c.XA, c.QL, c.QM)
 }
 
 func (blueprint *BlueprintSparseR1CBool) Solve(s Solver, inst Instruction) error {
@@ -325,7 +303,3 @@ func (b *BlueprintSparseR1CBool) DecompressSparseR1C(c *SparseR1C, inst Instruct
 	c.QL = inst.Calldata[1]
 	c.QM = inst.Calldata[2]
 }
-
-// since frontend is single threaded, to avoid allocating slices at each compress call
-// we transit the compressed output through here
-var bufSCS [9]uint32
