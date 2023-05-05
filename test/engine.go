@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
@@ -53,6 +54,8 @@ type engine struct {
 	// mHintsFunctions map[hint.ID]hintFunction
 	constVars bool
 	kvstore.Store
+	blueprints        []constraint.Blueprint
+	internalVariables []*big.Int
 }
 
 // TestEngineOption defines an option for the test engine.
@@ -607,4 +610,62 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
 func (e *engine) Defer(cb func(frontend.API) error) {
 	circuitdefer.Put(e, cb)
+}
+
+// AddInstruction is used to add custom instructions to the constraint system.
+// In constraint system, this is asynchronous. In here, we do it synchronously.
+func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
+	blueprint := e.blueprints[bID].(constraint.BlueprintSolvable)
+
+	// create a dummy instruction
+	inst := constraint.Instruction{
+		Calldata:   calldata,
+		WireOffset: uint32(len(e.internalVariables)),
+	}
+
+	// blueprint declared nbOutputs; add as many internal variables
+	// and return their indices
+	nbOutputs := blueprint.NbOutputs(inst)
+	var r []uint32
+	for i := 0; i < nbOutputs; i++ {
+		r = append(r, uint32(len(e.internalVariables)))
+		e.internalVariables = append(e.internalVariables, new(big.Int))
+	}
+
+	// solve the blueprint synchronously
+	s := blueprintSolver{
+		internalVariables: e.internalVariables,
+		q:                 e.q,
+	}
+	if err := blueprint.Solve(&s, inst); err != nil {
+		panic(err)
+	}
+
+	return r
+}
+
+// AddBlueprint adds a custom blueprint to the constraint system.
+func (e *engine) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
+	if _, ok := b.(constraint.BlueprintSolvable); !ok {
+		panic("unsupported blueprint in test engine")
+	}
+	e.blueprints = append(e.blueprints, b)
+	return constraint.BlueprintID(len(e.blueprints) - 1)
+}
+
+// InternalVariable returns the value of an internal variable. This is used in custom blueprints.
+// The variableID is the index of the variable in the internalVariables slice, as
+// filled by AddInstruction.
+func (e *engine) InternalVariable(vID uint32) frontend.Variable {
+	if vID >= uint32(len(e.internalVariables)) {
+		panic("internal variable not found")
+	}
+	return new(big.Int).Set(e.internalVariables[vID])
+}
+
+// ToCanonicalVariable converts a frontend.Variable to a frontend.CanonicalVariable
+// this is used in custom blueprints to return a variable than can be encoded in blueprints
+func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVariable {
+	r := e.toBigInt(v)
+	return wrappedBigInt{r}
 }

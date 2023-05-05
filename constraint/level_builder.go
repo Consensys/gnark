@@ -8,14 +8,13 @@ package constraint
 //
 // We build a graph of dependency; we say that a wire is solved at a level l
 // --> l = max(level_of_dependencies(wire)) + 1
-func (system *System) updateLevel(iID int, c Iterable) {
+func (system *System) updateLevel(iID int, walkWires func(cb func(wire uint32))) {
 	level := -1
-	wireIterator := c.WireIterator()
 
-	for wID := wireIterator(); wID != -1; wID = wireIterator() {
-		// iterate over all wires of the instruction
-		system.processWire(uint32(wID), &level)
-	}
+	// process all wires of the instruction
+	walkWires(func(wire uint32) {
+		system.processWire(wire, &level)
+	})
 
 	// level =  max(dependencies) + 1
 	level++

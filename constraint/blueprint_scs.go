@@ -17,11 +17,23 @@ var (
 type BlueprintGenericSparseR1C struct {
 }
 
-func (b *BlueprintGenericSparseR1C) NbInputs() int {
+func (b *BlueprintGenericSparseR1C) CalldataSize() int {
 	return 9 // number of fields in SparseR1C
 }
 func (b *BlueprintGenericSparseR1C) NbConstraints() int {
 	return 1
+}
+
+func (b *BlueprintGenericSparseR1C) NbOutputs(inst Instruction) int {
+	return 0
+}
+
+func (b *BlueprintGenericSparseR1C) WireWalker(inst Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		cb(inst.Calldata[0]) // xa
+		cb(inst.Calldata[1]) // xb
+		cb(inst.Calldata[2]) // xc
+	}
 }
 
 func (b *BlueprintGenericSparseR1C) CompressSparseR1C(c *SparseR1C) []uint32 {
@@ -37,23 +49,23 @@ func (b *BlueprintGenericSparseR1C) CompressSparseR1C(c *SparseR1C) []uint32 {
 	return bufSCS[:]
 }
 
-func (b *BlueprintGenericSparseR1C) DecompressSparseR1C(c *SparseR1C, calldata []uint32) {
+func (b *BlueprintGenericSparseR1C) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
 	c.Clear()
 
-	c.XA = calldata[0]
-	c.XB = calldata[1]
-	c.XC = calldata[2]
-	c.QL = calldata[3]
-	c.QR = calldata[4]
-	c.QO = calldata[5]
-	c.QM = calldata[6]
-	c.QC = calldata[7]
-	c.Commitment = CommitmentConstraint(calldata[8])
+	c.XA = inst.Calldata[0]
+	c.XB = inst.Calldata[1]
+	c.XC = inst.Calldata[2]
+	c.QL = inst.Calldata[3]
+	c.QR = inst.Calldata[4]
+	c.QO = inst.Calldata[5]
+	c.QM = inst.Calldata[6]
+	c.QC = inst.Calldata[7]
+	c.Commitment = CommitmentConstraint(inst.Calldata[8])
 }
 
-func (b *BlueprintGenericSparseR1C) Solve(s Solver, calldata []uint32) error {
+func (b *BlueprintGenericSparseR1C) Solve(s Solver, inst Instruction) error {
 	var c SparseR1C
-	b.DecompressSparseR1C(&c, calldata)
+	b.DecompressSparseR1C(&c, inst)
 	if c.Commitment != NOT {
 		// a constraint of the form f_L - PI_2 = 0 or f_L = Comm.
 		// these are there for enforcing the correctness of the commitment and can be skipped in solving time
@@ -159,11 +171,22 @@ func (b *BlueprintGenericSparseR1C) checkConstraint(c *SparseR1C, s Solver) erro
 //	qM⋅(xaxb)  == xc
 type BlueprintSparseR1CMul struct{}
 
-func (b *BlueprintSparseR1CMul) NbInputs() int {
+func (b *BlueprintSparseR1CMul) CalldataSize() int {
 	return 4
 }
 func (b *BlueprintSparseR1CMul) NbConstraints() int {
 	return 1
+}
+func (b *BlueprintSparseR1CMul) NbOutputs(inst Instruction) int {
+	return 0
+}
+
+func (b *BlueprintSparseR1CMul) WireWalker(inst Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		cb(inst.Calldata[0]) // xa
+		cb(inst.Calldata[1]) // xb
+		cb(inst.Calldata[2]) // xc
+	}
 }
 
 func (b *BlueprintSparseR1CMul) CompressSparseR1C(c *SparseR1C) []uint32 {
@@ -174,24 +197,24 @@ func (b *BlueprintSparseR1CMul) CompressSparseR1C(c *SparseR1C) []uint32 {
 	return bufSCS[:4]
 }
 
-func (b *BlueprintSparseR1CMul) Solve(s Solver, calldata []uint32) error {
+func (b *BlueprintSparseR1CMul) Solve(s Solver, inst Instruction) error {
 	// qM⋅(xaxb)  == xc
-	m0 := s.GetValue(calldata[3], calldata[0])
-	m1 := s.GetValue(CoeffIdOne, calldata[1])
+	m0 := s.GetValue(inst.Calldata[3], inst.Calldata[0])
+	m1 := s.GetValue(CoeffIdOne, inst.Calldata[1])
 
 	m0 = s.Mul(m0, m1)
 
-	s.SetValue(calldata[2], m0)
+	s.SetValue(inst.Calldata[2], m0)
 	return nil
 }
 
-func (b *BlueprintSparseR1CMul) DecompressSparseR1C(c *SparseR1C, calldata []uint32) {
+func (b *BlueprintSparseR1CMul) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
 	c.Clear()
-	c.XA = calldata[0]
-	c.XB = calldata[1]
-	c.XC = calldata[2]
+	c.XA = inst.Calldata[0]
+	c.XB = inst.Calldata[1]
+	c.XC = inst.Calldata[2]
 	c.QO = CoeffIdMinusOne
-	c.QM = calldata[3]
+	c.QM = inst.Calldata[3]
 }
 
 // BlueprintSparseR1CAdd implements Blueprint, BlueprintSolvable and BlueprintSparseR1C.
@@ -200,11 +223,22 @@ func (b *BlueprintSparseR1CMul) DecompressSparseR1C(c *SparseR1C, calldata []uin
 //	qL⋅xa + qR⋅xb + qC == xc
 type BlueprintSparseR1CAdd struct{}
 
-func (b *BlueprintSparseR1CAdd) NbInputs() int {
+func (b *BlueprintSparseR1CAdd) CalldataSize() int {
 	return 6
 }
 func (b *BlueprintSparseR1CAdd) NbConstraints() int {
 	return 1
+}
+func (b *BlueprintSparseR1CAdd) NbOutputs(inst Instruction) int {
+	return 0
+}
+
+func (b *BlueprintSparseR1CAdd) WireWalker(inst Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		cb(inst.Calldata[0]) // xa
+		cb(inst.Calldata[1]) // xb
+		cb(inst.Calldata[2]) // xc
+	}
 }
 
 func (b *BlueprintSparseR1CAdd) CompressSparseR1C(c *SparseR1C) []uint32 {
@@ -217,28 +251,28 @@ func (b *BlueprintSparseR1CAdd) CompressSparseR1C(c *SparseR1C) []uint32 {
 	return bufSCS[:6]
 }
 
-func (blueprint *BlueprintSparseR1CAdd) Solve(s Solver, calldata []uint32) error {
+func (blueprint *BlueprintSparseR1CAdd) Solve(s Solver, inst Instruction) error {
 	// a + b + k == c
-	a := s.GetValue(calldata[3], calldata[0])
-	b := s.GetValue(calldata[4], calldata[1])
-	k := s.GetCoeff(calldata[5])
+	a := s.GetValue(inst.Calldata[3], inst.Calldata[0])
+	b := s.GetValue(inst.Calldata[4], inst.Calldata[1])
+	k := s.GetCoeff(inst.Calldata[5])
 
 	a = s.Add(a, b)
 	a = s.Add(a, k)
 
-	s.SetValue(calldata[2], a)
+	s.SetValue(inst.Calldata[2], a)
 	return nil
 }
 
-func (b *BlueprintSparseR1CAdd) DecompressSparseR1C(c *SparseR1C, calldata []uint32) {
+func (b *BlueprintSparseR1CAdd) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
 	c.Clear()
-	c.XA = calldata[0]
-	c.XB = calldata[1]
-	c.XC = calldata[2]
-	c.QL = calldata[3]
-	c.QR = calldata[4]
+	c.XA = inst.Calldata[0]
+	c.XB = inst.Calldata[1]
+	c.XC = inst.Calldata[2]
+	c.QL = inst.Calldata[3]
+	c.QR = inst.Calldata[4]
 	c.QO = CoeffIdMinusOne
-	c.QC = calldata[5]
+	c.QC = inst.Calldata[5]
 }
 
 // BlueprintSparseR1CBool implements Blueprint, BlueprintSolvable and BlueprintSparseR1C.
@@ -248,11 +282,20 @@ func (b *BlueprintSparseR1CAdd) DecompressSparseR1C(c *SparseR1C, calldata []uin
 //	that is v + -v*v == 0
 type BlueprintSparseR1CBool struct{}
 
-func (b *BlueprintSparseR1CBool) NbInputs() int {
+func (b *BlueprintSparseR1CBool) CalldataSize() int {
 	return 3
 }
 func (b *BlueprintSparseR1CBool) NbConstraints() int {
 	return 1
+}
+func (b *BlueprintSparseR1CBool) NbOutputs(inst Instruction) int {
+	return 0
+}
+
+func (b *BlueprintSparseR1CBool) WireWalker(inst Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		cb(inst.Calldata[0]) // xa
+	}
 }
 
 func (b *BlueprintSparseR1CBool) CompressSparseR1C(c *SparseR1C) []uint32 {
@@ -262,11 +305,11 @@ func (b *BlueprintSparseR1CBool) CompressSparseR1C(c *SparseR1C) []uint32 {
 	return bufSCS[:3]
 }
 
-func (blueprint *BlueprintSparseR1CBool) Solve(s Solver, calldata []uint32) error {
+func (blueprint *BlueprintSparseR1CBool) Solve(s Solver, inst Instruction) error {
 	// all wires are already solved, we just check the constraint.
-	v1 := s.GetValue(calldata[1], calldata[0])
-	v2 := s.GetValue(calldata[2], calldata[0])
-	v := s.GetValue(CoeffIdOne, calldata[0])
+	v1 := s.GetValue(inst.Calldata[1], inst.Calldata[0])
+	v2 := s.GetValue(inst.Calldata[2], inst.Calldata[0])
+	v := s.GetValue(CoeffIdOne, inst.Calldata[0])
 	v = s.Mul(v, v2)
 	v = s.Add(v1, v)
 	if !v.IsZero() {
@@ -275,12 +318,12 @@ func (blueprint *BlueprintSparseR1CBool) Solve(s Solver, calldata []uint32) erro
 	return nil
 }
 
-func (b *BlueprintSparseR1CBool) DecompressSparseR1C(c *SparseR1C, calldata []uint32) {
+func (b *BlueprintSparseR1CBool) DecompressSparseR1C(c *SparseR1C, inst Instruction) {
 	c.Clear()
-	c.XA = calldata[0]
+	c.XA = inst.Calldata[0]
 	c.XB = c.XA
-	c.QL = calldata[1]
-	c.QM = calldata[2]
+	c.QL = inst.Calldata[1]
+	c.QM = inst.Calldata[2]
 }
 
 // since frontend is single threaded, to avoid allocating slices at each compress call
