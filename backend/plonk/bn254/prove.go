@@ -662,9 +662,9 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	den.Sub(&zeta, &one).
 		Inverse(&den)
 	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ⁻¹)/(ζ-1)
-		Mul(&lagrangeZeta, &alpha).
-		Mul(&lagrangeZeta, &alpha).
-		Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
+						Mul(&lagrangeZeta, &alpha).
+						Mul(&lagrangeZeta, &alpha).
+						Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
 
 	s3canonical := pk.trace.S3.Coefficients()
 	utils.Parallelize(len(blindedZCanonical), func(start, end int) {
