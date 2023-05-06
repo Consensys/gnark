@@ -18,6 +18,7 @@ package plonk
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"math/big"
 	"runtime"
 	"sync"
@@ -92,6 +93,9 @@ func bsb22ComputeCommitmentHint(spr *cs.SparseR1CS, pk *ProvingKey, proof *Proof
 		}
 		res.Set(&hashRes[0]) // TODO @Tabaie use CommitmentIndex for this; create a new variable CommitmentConstraintIndex for other uses
 		res.BigInt(outs[0])
+
+		fmt.Println("computed commitment =", outs[0].Text(16))
+
 		return nil
 	}
 }
@@ -658,9 +662,9 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	den.Sub(&zeta, &one).
 		Inverse(&den)
 	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ⁻¹)/(ζ-1)
-						Mul(&lagrangeZeta, &alpha).
-						Mul(&lagrangeZeta, &alpha).
-						Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
+		Mul(&lagrangeZeta, &alpha).
+		Mul(&lagrangeZeta, &alpha).
+		Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
 
 	s3canonical := pk.trace.S3.Coefficients()
 	utils.Parallelize(len(blindedZCanonical), func(start, end int) {
