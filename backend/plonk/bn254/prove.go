@@ -621,6 +621,17 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKe
 // + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X)
 func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta, blindedZCanonical []fr.Element, pi2Canonical [][]fr.Element, pk *ProvingKey) []fr.Element {
 
+	fmt.Println("lZeta =", lZeta.Text(16))
+	fmt.Println("rZeta =", rZeta.Text(16))
+	fmt.Println("oZeta =", oZeta.Text(16))
+	fmt.Println("alpha =", alpha.Text(16))
+	fmt.Println("beta =", beta.Text(16))
+	fmt.Println("gamma =", gamma.Text(16))
+	fmt.Println("zeta =", zeta.Text(16))
+	fmt.Println("zu =", zu.Text(16))
+	//fmt.Println("qcpZeta =", lZeta.Text(16))
+	//fmt.Println("beta =", lZeta.Text(16))
+
 	// first part: individual constraints
 	var rl fr.Element
 	rl.Mul(&rZeta, &lZeta)
@@ -710,6 +721,8 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 
 			t0.Mul(&blindedZCanonical[i], &lagrangeZeta)
 			blindedZCanonical[i].Add(&t, &t0) // finish the computation
+
+			fmt.Printf("linPoly[%d] = %s\n", i, blindedZCanonical[i].Text(16))
 		}
 	})
 	return blindedZCanonical
