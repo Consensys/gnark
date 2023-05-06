@@ -132,6 +132,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if err != nil {
 		return nil, err
 	}
+
+	printSol(_solution.(*cs.SparseR1CSSolution))
+
 	// TODO @gbotrel deal with that conversion lazily
 	lcpi2iop := make([]*iop.Polynomial, len(wpi2iop))
 	for i := range wpi2iop {
@@ -224,6 +227,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}
 	var beta fr.Element
 	beta.SetBytes(bbeta)
+	beta.SetZero()
 
 	// l, r, o are already blinded
 	wgLRO.Add(3)
@@ -545,6 +549,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	return proof, nil
 
+}
+
+func printSol(solution *cs.SparseR1CSSolution) {
+	fmt.Println("Solution L:", solution.L.String())
+	fmt.Println("Solution R:", solution.L.String())
+	fmt.Println("Solution O:", solution.L.String())
 }
 
 func coefficients(p []*iop.Polynomial) [][]fr.Element {
