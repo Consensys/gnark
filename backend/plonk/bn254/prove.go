@@ -269,7 +269,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	var alpha fr.Element
 	go func() {
 		bwziop = ziop // iop.NewWrappedPolynomial(&ziop)
-		bwziop.Blind(2)
+		//bwziop.Blind(2)
 		proof.Z, err = kzg.Commit(bwziop.Coefficients(), pk.Kzg, runtime.NumCPU()*2)
 		if err != nil {
 			chZ <- err
@@ -498,7 +498,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// blinded z evaluated at u*zeta
 	bzuzeta := proof.ZShiftedOpening.ClaimedValue
-
+	fmt.Println("bzuzeta =", bzuzeta.Text(16))
 	// compute the linearization polynomial r at zeta
 	// (goal: save committing separately to z, ql, qr, qm, qo, k
 	// note: we linearizedPolynomialCanonical reuses bwziop memory
