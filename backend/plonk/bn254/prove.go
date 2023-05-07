@@ -133,17 +133,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 
-	printSol(_solution.(*cs.SparseR1CSSolution))
-
 	// TODO @gbotrel deal with that conversion lazily
 	lcpi2iop := make([]*iop.Polynomial, len(wpi2iop))
 	for i := range wpi2iop {
 		lcpi2iop[i] = wpi2iop[i].Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
+		fmt.Println("lcp2iop =", fr.Vector(lcpi2iop[i].Coefficients()).String())
 	}
 	solution := _solution.(*cs.SparseR1CSSolution)
 	evaluationLDomainSmall := []fr.Element(solution.L)
 	evaluationRDomainSmall := []fr.Element(solution.R)
 	evaluationODomainSmall := []fr.Element(solution.O)
+
+	printSol(solution)
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	// l, r o and blinded versions
