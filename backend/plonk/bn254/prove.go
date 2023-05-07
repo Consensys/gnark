@@ -162,17 +162,17 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		// we keep in lagrange regular form since iop.BuildRatioCopyConstraint prefers it in this form.
 		wliop = iop.NewPolynomial(&evaluationLDomainSmall, lagReg)
 		// we set the underlying slice capacity to domain[1].Cardinality to minimize mem moves.
-		bwliop = wliop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
+		bwliop = wliop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular() //.Blind(1)
 		wgLRO.Done()
 	}()
 	go func() {
 		wriop = iop.NewPolynomial(&evaluationRDomainSmall, lagReg)
-		bwriop = wriop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
+		bwriop = wriop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular() //.Blind(1)
 		wgLRO.Done()
 	}()
 	go func() {
 		woiop = iop.NewPolynomial(&evaluationODomainSmall, lagReg)
-		bwoiop = woiop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
+		bwoiop = woiop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular() //.Blind(1)
 		wgLRO.Done()
 	}()
 
@@ -362,6 +362,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// wait for l, r o lagrange coset conversion
 	wgLRO.Wait()
 
+	fmt.Println("lagrange bwliop before batch eval =", fr.Vector(bwliop.Coefficients()).String())
+
 	toEval := []*iop.Polynomial{
 		bwliop,
 		bwriop,
@@ -419,7 +421,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	var wgEvals sync.WaitGroup
 	wgEvals.Add(3)
 	evalAtZeta := func(poly *iop.Polynomial, res *fr.Element) {
+		if poly == bwliop {
+			fmt.Println("lagrange bwliop =", fr.Vector(bwliop.Coefficients()).String())
+		}
 		poly.ToCanonical(&pk.Domain[1]).ToRegular()
+		if poly == bwliop {
+			fmt.Println("canonical bwliop =", fr.Vector(bwliop.Coefficients()).String())
+		}
 		*res = poly.Evaluate(zeta)
 		wgEvals.Done()
 	}
@@ -485,6 +493,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		linearizedPolynomialDigest    curve.G1Affine
 		errLPoly                      error
 	)
+
+	fmt.Println("blzeta =", blzeta.Text(16))
 
 	// blinded z evaluated at u*zeta
 	bzuzeta := proof.ZShiftedOpening.ClaimedValue
