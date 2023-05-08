@@ -569,7 +569,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if _, err = goodProof.ReadFrom(bytes.NewReader(goodB)); err != nil {
 		panic(err)
 	}
-	fmt.Println("diff =", cmp.Diff(*proof, goodProof))
+	fmt.Println("proof diff =", cmp.Diff(*proof, goodProof))
 
 	return proof, nil
 
