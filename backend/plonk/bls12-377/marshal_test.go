@@ -152,11 +152,11 @@ func (pk *ProvingKey) randomize() {
 }
 
 func (vk *VerifyingKey) randomize() {
-	vk.Size = rand.Uint64()
+	vk.Size = rand.Uint64() //#nosec G404 weak rng is fine here
 	vk.SizeInv.SetRandom()
 	vk.Generator.SetRandom()
-	vk.NbPublicVariables = rand.Uint64()
-	vk.CommitmentConstraintIndexes = []uint64{rand.Uint64()}
+	vk.NbPublicVariables = rand.Uint64()                     //#nosec G404 weak rng is fine here
+	vk.CommitmentConstraintIndexes = []uint64{rand.Uint64()} //#nosec G404 weak rng is fine here
 	vk.CosetShift.SetRandom()
 
 	vk.S[0] = randomPoint()
@@ -187,7 +187,7 @@ func (proof *Proof) randomize() {
 
 func randomPoint() curve.G1Affine {
 	_, _, r, _ := curve.Generators()
-	r.ScalarMultiplication(&r, big.NewInt(int64(rand.Uint64())))
+	r.ScalarMultiplication(&r, big.NewInt(int64(rand.Uint64()))) //#nosec G404 weak rng is fine here
 	return r
 }
 

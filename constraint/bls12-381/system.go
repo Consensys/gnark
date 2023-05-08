@@ -287,12 +287,12 @@ func (t *R1CSSolution) ReadFrom(r io.Reader) (int64, error) {
 		return n, err
 	}
 	a, err := t.A.ReadFrom(r)
-	a += n
+	n += a
 	if err != nil {
 		return n, err
 	}
 	a, err = t.B.ReadFrom(r)
-	a += n
+	n += a
 	if err != nil {
 		return n, err
 	}
@@ -328,12 +328,12 @@ func (t *SparseR1CSSolution) ReadFrom(r io.Reader) (int64, error) {
 		return n, err
 	}
 	a, err := t.R.ReadFrom(r)
-	a += n
+	n += a
 	if err != nil {
 		return n, err
 	}
 	a, err = t.O.ReadFrom(r)
-	a += n
+	n += a
 	return n, err
 }
 
