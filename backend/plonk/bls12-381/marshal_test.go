@@ -135,9 +135,9 @@ func (pk *ProvingKey) randomize() {
 	pk.trace.S2 = iop.NewPolynomial(&s2, canReg)
 	pk.trace.S3 = iop.NewPolynomial(&s3, canReg)
 
-	pk.trace.Qcp = make([]*iop.Polynomial, rand.Intn(4))
+	pk.trace.Qcp = make([]*iop.Polynomial, rand.Intn(4)) //#nosec G404 weak rng is fine here
 	for i := range pk.trace.Qcp {
-		qcp := randomScalars(rand.Intn(n / 4))
+		qcp := randomScalars(rand.Intn(n / 4)) //#nosec G404 weak rng is fine here
 		pk.trace.Qcp[i] = iop.NewPolynomial(&qcp, canReg)
 	}
 
@@ -167,7 +167,7 @@ func (vk *VerifyingKey) randomize() {
 	vk.Qm = randomPoint()
 	vk.Qo = randomPoint()
 	vk.Qk = randomPoint()
-	vk.Qcp = randomPoints(rand.Intn(4))
+	vk.Qcp = randomPoints(rand.Intn(4)) //#nosec G404 weak rng is fine here
 }
 
 func (proof *Proof) randomize() {
@@ -182,7 +182,7 @@ func (proof *Proof) randomize() {
 	proof.BatchedProof.ClaimedValues = randomScalars(2)
 	proof.ZShiftedOpening.H = randomPoint()
 	proof.ZShiftedOpening.ClaimedValue.SetRandom()
-	proof.PI2 = randomPoints(rand.Intn(4))
+	proof.PI2 = randomPoints(rand.Intn(4)) //#nosec G404 weak rng is fine here
 }
 
 func randomPoint() curve.G1Affine {
