@@ -2,7 +2,6 @@ package test
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/internal/backend/circuits"
 	"io"
 	"math/big"
 	"reflect"
@@ -18,6 +17,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/tinyfield"
 	"github.com/consensys/gnark/internal/utils"
@@ -43,9 +43,7 @@ func TestSolverConsistency(t *testing.T) {
 	// we generate witnesses and compare with the output of big.Int test engine against
 	// R1CS and SparseR1CS solvers
 
-	names := map[string]interface{}{"and": nil, "or": nil}
-
-	for name := range names /*circuits.Circuits*/ {
+	for name := range circuits.Circuits {
 		t.Run(name, func(t *testing.T) {
 			tc := circuits.Circuits[name]
 			t.Parallel()
@@ -238,15 +236,6 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 	})
 }
 
-func getCircuitName(circuit frontend.Circuit) string {
-	for name, c := range circuits.Circuits {
-		if c.Circuit == circuit {
-			return name
-		}
-	}
-	panic("not found")
-}
-
 // ConsistentSolver solves given circuit with all possible witness combinations using internal/tinyfield
 //
 // Since the goal of this method is to flag potential solver issues, it is not exposed as an API for now
@@ -264,7 +253,6 @@ func consistentSolver(circuit frontend.Circuit, hintFunctions []solver.Hint) err
 		if err != nil {
 			return err
 		}
-
 		p.constraintSystems[i] = ccs
 
 		if i == 0 { // the -1 is only for r1cs...
