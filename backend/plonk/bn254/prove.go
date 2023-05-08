@@ -17,8 +17,11 @@
 package plonk
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
+	"github.com/google/go-cmp/cmp"
 	"math/big"
 	"runtime"
 	"sync"
@@ -381,7 +384,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		lcqk,
 		pk.lLoneIOP,
 	}
-	toEval = append(toEval, lcpi2iop...)
+	toEval = append(toEval, lcpi2iop...) // TODO: Add this at beginning
 	toEval = append(toEval, pk.lcQcp...)
 	systemEvaluation, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}, toEval...)
 	if err != nil {
@@ -557,6 +560,16 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if err != nil {
 		return nil, err
 	}
+
+	var goodB []byte
+	if goodB, err = base64.StdEncoding.DecodeString("hJl1Q3FUFttoNHBC1k42rGbUucAJ7eYJr3KDacCqby7H7J7uMGsM3GGuijBTNS7MP5LSoIarvlcuiox2QHoIVJwk464j2CsfiL3IYn3uooZ8yLWOhq6EdfRLoq3WynmOgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHmf0pEcTp/MMXyWlSfiLUi5DpFdl0JQs0b1apQb35IwUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADBCZLn7wU6waYNfji19EaLiHcUED4EXq5AzE1SvSZpXgAAAAgkSzrWKOU4H0o8NEjhIQJF3ibuNltLFGzy6Xgu9AAAAQdW1JVBMTyCInUD2DaU/wthD0kWpBC0dxVCXds7pMM0LYhjh7N9T4U4TaPwirHhwb0uLXEEE5ydUOsoypaE5JADS7B3MMzQLTmhFzN7D+JEKNa+B2gJYrkoeDm85b9eGxtVZ4IB62BkBVdwJGGV8WXyE9G3/nVTZq5SVgsvrLB7E7c9j10b5Dc5tcDJAPsjvp4QZeUOcdfFf6VpuBXWWD4YMic5cJjQGWynnFlri8PvvXlpteSj1nn3OJov66afpzBkTnLhMaApi18PzzEXEob1YXd0GqfvZ/ut+UsX3A2JQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcFEUCi4DHArBKbdB3F8kbGpWFSfTyGDMApxQh+FOhSs"); err != nil {
+		panic(err)
+	}
+	var goodProof Proof
+	if _, err = goodProof.ReadFrom(bytes.NewReader(goodB)); err != nil {
+		panic(err)
+	}
+	fmt.Println("diff =", cmp.Diff(*proof, goodProof))
 
 	return proof, nil
 

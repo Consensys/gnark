@@ -74,6 +74,8 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 
 	var pi2 []curve.G1Affine
 
+	pi2 = make([]curve.G1Affine, 1) // TODO Remove
+
 	dec := curve.NewDecoder(r)
 	toDecode := []interface{}{
 		&proof.LRO[0],
@@ -87,7 +89,7 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		&proof.BatchedProof.ClaimedValues,
 		&proof.ZShiftedOpening.H,
 		&proof.ZShiftedOpening.ClaimedValue,
-		&pi2,
+		&pi2[0], // TODO Remove index
 	}
 
 	for i, v := range toDecode {
