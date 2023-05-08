@@ -235,6 +235,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		return err
 	}
 
+	fmt.Println("linearizedPolynomialDigest =", linearizedPolynomialDigest.String())
+
 	// Fold the first proof
 	foldedProof, foldedDigest, err := kzg.FoldProof(append(vk.Qcp,
 		foldedH,
