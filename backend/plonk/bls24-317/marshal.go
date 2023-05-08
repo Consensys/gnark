@@ -19,9 +19,11 @@ package plonk
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-317"
 
-	"errors"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
+
+	"errors"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/iop"
+	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/kzg"
 	"io"
 )
 
@@ -50,7 +52,7 @@ func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64
 		proof.BatchedProof.ClaimedValues,
 		&proof.ZShiftedOpening.H,
 		&proof.ZShiftedOpening.ClaimedValue,
-		&proof.PI2,
+		proof.PI2,
 	}
 
 	for _, v := range toEncode {
@@ -84,6 +86,10 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		if err := dec.Decode(v); err != nil {
 			return dec.BytesRead(), err
 		}
+	}
+
+	if proof.PI2 == nil {
+		proof.PI2 = []kzg.Digest{}
 	}
 
 	return dec.BytesRead(), nil
@@ -125,7 +131,7 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 		pk.trace.Qm.Coefficients(),
 		pk.trace.Qo.Coefficients(),
 		pk.trace.Qk.Coefficients(),
-		pk.trace.Qcp.Coefficients(),
+		coefficients(pk.trace.Qcp),
 		pk.lQk.Coefficients(),
 		pk.trace.S1.Coefficients(),
 		pk.trace.S2.Coefficients(),
@@ -166,7 +172,8 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 
 	dec := curve.NewDecoder(r)
 
-	var ql, qr, qm, qo, qk, qcp, lqk, s1, s2, s3 []fr.Element
+	var ql, qr, qm, qo, qk, lqk, s1, s2, s3 []fr.Element
+	var qcp [][]fr.Element
 	toDecode := []interface{}{
 		&ql,
 		&qr,
@@ -193,11 +200,14 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 	pk.trace.Qm = iop.NewPolynomial(&qm, canReg)
 	pk.trace.Qo = iop.NewPolynomial(&qo, canReg)
 	pk.trace.Qk = iop.NewPolynomial(&qk, canReg)
-	pk.trace.Qcp = iop.NewPolynomial(&qcp, canReg)
 	pk.trace.S1 = iop.NewPolynomial(&s1, canReg)
 	pk.trace.S2 = iop.NewPolynomial(&s2, canReg)
 	pk.trace.S3 = iop.NewPolynomial(&s3, canReg)
 
+	pk.trace.Qcp = make([]*iop.Polynomial, len(qcp))
+	for i := range qcp {
+		pk.trace.Qcp[i] = iop.NewPolynomial(&qcp[i], canReg)
+	}
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
 
@@ -234,7 +244,7 @@ func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n
 		&vk.Qm,
 		&vk.Qo,
 		&vk.Qk,
-		&vk.Qcp,
+		vk.Qcp,
 		vk.CommitmentConstraintIndexes,
 	}
 

@@ -308,7 +308,6 @@ func commitTrace(trace *Trace, pk *ProvingKey) error {
 	if pk.Vk.Qk, err = kzg.Commit(pk.trace.Qk.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
-
 	if pk.Vk.S[0], err = kzg.Commit(pk.trace.S1.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}

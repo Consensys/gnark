@@ -140,7 +140,6 @@ func (pk *ProvingKey) randomize() {
 		qcp := randomScalars(rand.Intn(n / 4))
 		pk.trace.Qcp[i] = iop.NewPolynomial(&qcp, canReg)
 	}
-	//pk.trace.Qcp = []*iop.Polynomial{} // TODO Remove
 
 	pk.trace.S = make([]int64, 3*pk.Domain[0].Cardinality)
 	pk.trace.S[0] = -12

@@ -19,7 +19,6 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
-	"fmt"
 	"io"
 	"math/big"
 	"time"
@@ -42,9 +41,6 @@ var (
 )
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
-
-	kzg.DiffWithGoodClaimed(proof.BatchedProof.ClaimedValues)
-
 	log := logger.Logger().With().Str("curve", "bn254").Str("backend", "plonk").Logger()
 	start := time.Now()
 
@@ -138,8 +134,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		}
 	}
 
-	fmt.Println("pi =", pi.Text(16))
-
 	// linearizedpolynomial + pi(ζ) + α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ) - α²*L₁(ζ)
 	var _s1, _s2, _o, alphaSquareLagrange fr.Element
 
@@ -155,8 +149,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	o := claimedValues[4]
 	s1 := claimedValues[5]
 	s2 := claimedValues[6]
-
-	kzg.DiffWithGoodClaimed(proof.BatchedProof.ClaimedValues)
 
 	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+β*s2(ζ)+γ)
@@ -179,10 +171,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	var zetaPowerMMinusOne fr.Element
 	zetaPowerMMinusOne.Sub(&zetaPowerM, &one)
 	linearizedPolynomialZeta.Div(&linearizedPolynomialZeta, &zetaPowerMMinusOne)
-
-	fmt.Println("claimed quotient =", claimedQuotient.Text(16))
-	fmt.Println("computed quotient =", linearizedPolynomialZeta.Text(16))
-	kzg.DiffWithGoodClaimed(proof.BatchedProof.ClaimedValues)
 
 	// check that H(ζ) is as claimed
 	if !claimedQuotient.Equal(&linearizedPolynomialZeta) {
@@ -234,7 +222,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		vk.S[2], proof.Z, // second & third part
 	)
 
-	kzg.DiffWithGoodClaimed(proof.BatchedProof.ClaimedValues)
 	scalars := append(qC,
 		l, r, rl, o, one, /* TODO Perf @Tabaie Consider just adding Qk instead */ // first part
 		_s1, _s2, // second & third part
@@ -242,10 +229,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{}); err != nil {
 		return err
 	}
-	fmt.Println("multiexp")
-	kzg.DiffWithGoodClaimed(proof.BatchedProof.ClaimedValues)
-	fmt.Println("linearizedPolynomialDigest =", linearizedPolynomialDigest.String())
-	fmt.Println("foldedH =", foldedH.String())
 
 	// Fold the first proof
 	foldedProof, foldedDigest, err := kzg.FoldProof(append(vk.Qcp,
@@ -268,9 +251,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// Batch verify
 	var shiftedZeta fr.Element
 	shiftedZeta.Mul(&zeta, &vk.Generator)
-
-	fmt.Println("foldedDigest =", foldedDigest.String())
-
 	err = kzg.BatchVerifyMultiPoints([]kzg.Digest{
 		foldedDigest,
 		proof.Z,
@@ -355,7 +335,6 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 	if err != nil {
 		return r, err
 	}
-	return r, nil
 	r.SetBytes(b)
 	return r, nil
 }

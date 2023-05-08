@@ -93,7 +93,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 		for i := range vk.CommitmentConstraintIndexes {
 			var hashRes []fr.Element	// TODO: when multi commits are implemented: PI2 -> PI2[i]
-			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
+			if hashRes, err = fr.Hash(proof.PI2[i].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
 
@@ -118,14 +118,16 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	zu := proof.ZShiftedOpening.ClaimedValue
 
-	claimedQuotient := proof.BatchedProof.ClaimedValues[0]
-	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1]
-	l := proof.BatchedProof.ClaimedValues[2]
-	r := proof.BatchedProof.ClaimedValues[3]
-	o := proof.BatchedProof.ClaimedValues[4]
-	s1 := proof.BatchedProof.ClaimedValues[5]
-	s2 := proof.BatchedProof.ClaimedValues[6]
-	qC := proof.BatchedProof.ClaimedValues[7]
+	qC := make([]fr.Element, len(proof.PI2))
+	copy(qC, proof.BatchedProof.ClaimedValues)
+	claimedValues := proof.BatchedProof.ClaimedValues[len(proof.PI2):]
+	claimedQuotient := claimedValues[0]
+	linearizedPolynomialZeta := claimedValues[1]
+	l := claimedValues[2]
+	r := claimedValues[3]
+	o := claimedValues[4]
+	s1 := claimedValues[5]
+	s2 := claimedValues[6]
 
 	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+β*s2(ζ)+γ)
@@ -194,21 +196,21 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// note since third part =  α²*L₁(ζ)*Z
 	_s2.Mul(&_s2, &alpha).Add(&_s2, &alphaSquareLagrange) // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
 
-	points := []curve.G1Affine{
-		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, proof.PI2, // first part
+	points := append(proof.PI2,
+		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, // first part
 		vk.S[2], proof.Z, // second & third part
-	}
+	)
 
-	scalars := []fr.Element{
-		l, r, rl, o, one /* TODO Perf @Tabaie Consider just adding Qk instead */, qC, // first part
+	scalars := append(qC,
+		l, r, rl, o, one /* TODO Perf @Tabaie Consider just adding Qk instead */, // first part
 		_s1, _s2, // second & third part
-	}
+	)
 	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{}); err != nil {
 		return err
 	}
 
 	// Fold the first proof
-	foldedProof, foldedDigest, err := kzg.FoldProof([]kzg.Digest{
+	foldedProof, foldedDigest, err := kzg.FoldProof(append(vk.Qcp,
 		foldedH,
 		linearizedPolynomialDigest,
 		proof.LRO[0],
@@ -216,8 +218,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		proof.LRO[2],
 		vk.S[0],
 		vk.S[1],
-		vk.Qcp,
-	},
+	),
 		&proof.BatchedProof,
 		zeta,
 		hFunc,
@@ -249,7 +250,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	return err
 }
 
-func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element, pi2 kzg.Digest) error {
+func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element, pi2 []kzg.Digest) error {
 
 	// permutation
 	if err := fs.Bind(challenge, vk.S[0].Marshal()); err != nil {
@@ -287,8 +288,10 @@ func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey
 	}
 
 	// bsb22 commitment
-	if err := fs.Bind(challenge, pi2.Marshal()); err != nil {
-		return err
+	for i := range pi2 {
+		if err := fs.Bind(challenge, pi2[i].Marshal()); err != nil {
+			return err
+		}
 	}
 
 	return nil

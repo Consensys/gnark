@@ -17,13 +17,13 @@
 package plonk
 
 import (
-	"fmt"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
 	"errors"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"io"
 )
 
@@ -38,11 +38,6 @@ func (proof *Proof) WriteTo(w io.Writer) (int64, error) {
 }
 
 func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64, error) {
-	pi2 := make([]curve.G1Affine, len(proof.PI2))
-	for i := range pi2 {
-		pi2[i] = proof.PI2[i]
-	}
-
 	enc := curve.NewEncoder(w, options...)
 
 	toEncode := []interface{}{
@@ -57,7 +52,7 @@ func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64
 		proof.BatchedProof.ClaimedValues,
 		&proof.ZShiftedOpening.H,
 		&proof.ZShiftedOpening.ClaimedValue,
-		pi2,
+		proof.PI2,
 	}
 
 	for _, v := range toEncode {
@@ -71,11 +66,6 @@ func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64
 
 // ReadFrom reads binary representation of Proof from r
 func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
-
-	var pi2 []curve.G1Affine
-
-	pi2 = make([]curve.G1Affine, 1) // TODO Remove
-
 	dec := curve.NewDecoder(r)
 	toDecode := []interface{}{
 		&proof.LRO[0],
@@ -89,19 +79,17 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		&proof.BatchedProof.ClaimedValues,
 		&proof.ZShiftedOpening.H,
 		&proof.ZShiftedOpening.ClaimedValue,
-		&pi2[0], // TODO Remove index
+		&proof.PI2,
 	}
 
-	for i, v := range toDecode {
+	for _, v := range toDecode {
 		if err := dec.Decode(v); err != nil {
-			fmt.Println("error at", i)
 			return dec.BytesRead(), err
 		}
 	}
 
-	proof.PI2 = make([]kzg.Digest, len(pi2))
-	for i := range pi2 {
-		proof.PI2[i] = pi2[i]
+	if proof.PI2 == nil {
+		proof.PI2 = []kzg.Digest{}
 	}
 
 	return dec.BytesRead(), nil
@@ -220,7 +208,6 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 	for i := range qcp {
 		pk.trace.Qcp[i] = iop.NewPolynomial(&qcp[i], canReg)
 	}
-
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
 
@@ -262,9 +249,6 @@ func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n
 	}
 
 	for _, v := range toEncode {
-		if v == &vk.Qcp {
-			fmt.Println("yo")
-		}
 		if err := enc.Encode(v); err != nil {
 			return enc.BytesWritten(), err
 		}
