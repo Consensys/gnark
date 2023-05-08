@@ -142,14 +142,15 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	zu := proof.ZShiftedOpening.ClaimedValue
 
-	claimedQuotient := proof.BatchedProof.ClaimedValues[0]
-	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1]
-	l := proof.BatchedProof.ClaimedValues[2]
-	r := proof.BatchedProof.ClaimedValues[3]
-	o := proof.BatchedProof.ClaimedValues[4]
-	s1 := proof.BatchedProof.ClaimedValues[5]
-	s2 := proof.BatchedProof.ClaimedValues[6]
-	qC := proof.BatchedProof.ClaimedValues[7:]
+	qC := proof.BatchedProof.ClaimedValues[:len(proof.PI2)]
+	claimedValues := proof.BatchedProof.ClaimedValues[len(proof.PI2):]
+	claimedQuotient := claimedValues[0]
+	linearizedPolynomialZeta := claimedValues[1]
+	l := claimedValues[2]
+	r := claimedValues[3]
+	o := claimedValues[4]
+	s1 := claimedValues[5]
+	s2 := claimedValues[6]
 
 	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+β*s2(ζ)+γ)
