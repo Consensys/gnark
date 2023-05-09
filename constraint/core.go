@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"sync"
 
 	"github.com/blang/semver/v4"
 	"github.com/consensys/gnark"
@@ -24,9 +25,9 @@ const (
 	SystemSparseR1CS
 )
 
-// Instruction is the lowest element of a constraint system. It stores just enough data to
+// PackedInstruction is the lowest element of a constraint system. It stores just enough data to
 // reconstruct a constraint of any shape or a hint at solving time.
-type Instruction struct {
+type PackedInstruction struct {
 	// BlueprintID maps this instruction to a blueprint
 	BlueprintID BlueprintID
 
@@ -35,10 +36,41 @@ type Instruction struct {
 	// multiple constraints.
 	ConstraintOffset uint32
 
+	// WireOffset stores the starting internal wire ID of this instruction. Blueprints may use this
+	// and refer to output wires by their offset.
+	// For example, if a blueprint declared 5 outputs, the first output wire will be WireOffset,
+	// the last one WireOffset+4.
+	WireOffset uint32
+
 	// The constraint system stores a single []uint32 calldata slice. StartCallData
 	// points to the starting index in the mentioned slice. This avoid storing a slice per
 	// instruction (3 * uint64 in memory).
 	StartCallData uint64
+}
+
+// Unpack returns the instruction corresponding to the packed instruction.
+func (pi PackedInstruction) Unpack(cs *System) Instruction {
+
+	blueprint := cs.Blueprints[pi.BlueprintID]
+	cSize := blueprint.CalldataSize()
+	if cSize < 0 {
+		// by convention, we store nbInputs < 0 for non-static input length.
+		cSize = int(cs.CallData[pi.StartCallData])
+	}
+
+	return Instruction{
+		ConstraintOffset: pi.ConstraintOffset,
+		WireOffset:       pi.WireOffset,
+		Calldata:         cs.CallData[pi.StartCallData : pi.StartCallData+uint64(cSize)],
+	}
+}
+
+// Instruction is the lowest element of a constraint system. It stores all the data needed to
+// reconstruct a constraint of any shape or a hint at solving time.
+type Instruction struct {
+	ConstraintOffset uint32
+	WireOffset       uint32
+	Calldata         []uint32
 }
 
 // System contains core elements for a constraint System
@@ -49,7 +81,7 @@ type System struct {
 
 	Type SystemType
 
-	Instructions []Instruction
+	Instructions []PackedInstruction
 	Blueprints   []Blueprint
 	CallData     []uint32 // huge slice.
 
@@ -108,7 +140,7 @@ func NewSystem(scalarField *big.Int, capacity int, t SystemType) System {
 		MHintsDependencies: make(map[solver.HintID]string),
 		q:                  new(big.Int).Set(scalarField),
 		bitLen:             scalarField.BitLen(),
-		Instructions:       make([]Instruction, 0, capacity),
+		Instructions:       make([]PackedInstruction, 0, capacity),
 		CallData:           make([]uint32, 0, capacity*8),
 		lbOutputs:          make([]uint32, 0, 256),
 		lbWireLevel:        make([]int, 0, capacity),
@@ -118,14 +150,17 @@ func NewSystem(scalarField *big.Int, capacity int, t SystemType) System {
 	return system
 }
 
+// GetNbInstructions returns the number of instructions in the system
 func (system *System) GetNbInstructions() int {
 	return len(system.Instructions)
 }
 
+// GetInstruction returns the instruction at index id
 func (system *System) GetInstruction(id int) Instruction {
-	return system.Instructions[id]
+	return system.Instructions[id].Unpack(system)
 }
 
+// AddBlueprint adds a blueprint to the system and returns its ID
 func (system *System) AddBlueprint(b Blueprint) BlueprintID {
 	system.Blueprints = append(system.Blueprints, b)
 	return BlueprintID(len(system.Blueprints) - 1)
@@ -248,10 +283,17 @@ func (system *System) AddSolverHint(f solver.Hint, id solver.HintID, input []Lin
 		},
 	}
 
-	instruction := system.compressHint(hm, system.genericHint)
-	system.Instructions = append(system.Instructions, instruction)
+	blueprint := system.Blueprints[system.genericHint]
 
-	system.updateLevel(len(system.Instructions)-1, &hm)
+	// get []uint32 from the pool
+	calldata := getBuffer()
+
+	blueprint.(BlueprintHint).CompressHint(hm, calldata)
+
+	system.AddInstruction(system.genericHint, *calldata)
+
+	// return []uint32 to the pool
+	putBuffer(calldata)
 
 	return
 }
@@ -294,74 +336,74 @@ func (system *System) VariableToString(vID int) string {
 	return fmt.Sprintf("v%d", vID) // TODO @gbotrel  vs strconv.Itoa.
 }
 
-// GetCallData re-slice the constraint system full calldata slice with the portion
-// related to the instruction. This does not copy and caller should not modify.
-func (cs *System) GetCallData(instruction Instruction) []uint32 {
-	blueprint := cs.Blueprints[instruction.BlueprintID]
-	nbInputs := blueprint.NbInputs()
-	if nbInputs < 0 {
-		// by convention, we store nbInputs < 0 for non-static input length.
-		nbInputs = int(cs.CallData[instruction.StartCallData])
-	}
-	return cs.CallData[instruction.StartCallData : instruction.StartCallData+uint64(nbInputs)]
-}
-
 func (cs *System) AddR1C(c R1C, bID BlueprintID) int {
 	profile.RecordConstraint()
-	instruction := cs.compressR1C(&c, bID)
-	cs.Instructions = append(cs.Instructions, instruction)
 
-	cs.updateLevel(len(cs.Instructions)-1, &c)
+	blueprint := cs.Blueprints[bID]
+
+	// get a []uint32 from a pool
+	calldata := getBuffer()
+
+	// compress the R1C into a []uint32 and add the instruction
+	blueprint.(BlueprintR1C).CompressR1C(&c, calldata)
+	cs.AddInstruction(bID, *calldata)
+
+	// release the []uint32 to the pool
+	putBuffer(calldata)
 
 	return cs.NbConstraints - 1
 }
 
 func (cs *System) AddSparseR1C(c SparseR1C, bID BlueprintID) int {
 	profile.RecordConstraint()
-	instruction := cs.compressSparseR1C(&c, bID)
-	cs.Instructions = append(cs.Instructions, instruction)
 
-	cs.updateLevel(len(cs.Instructions)-1, &c)
+	blueprint := cs.Blueprints[bID]
+
+	// get a []uint32 from a pool
+	calldata := getBuffer()
+
+	// compress the SparceR1C into a []uint32 and add the instruction
+	blueprint.(BlueprintSparseR1C).CompressSparseR1C(&c, calldata)
+
+	cs.AddInstruction(bID, *calldata)
+
+	// release the []uint32 to the pool
+	putBuffer(calldata)
 
 	return cs.NbConstraints - 1
 }
 
-func (cs *System) compressSparseR1C(c *SparseR1C, bID BlueprintID) Instruction {
-	inst := Instruction{
+func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32) []uint32 {
+	// set the offsets
+	pi := PackedInstruction{
 		StartCallData:    uint64(len(cs.CallData)),
 		ConstraintOffset: uint32(cs.NbConstraints),
+		WireOffset:       uint32(cs.NbInternalVariables + cs.GetNbPublicVariables() + cs.GetNbSecretVariables()),
 		BlueprintID:      bID,
 	}
-	blueprint := cs.Blueprints[bID]
-	calldata := blueprint.(BlueprintSparseR1C).CompressSparseR1C(c)
-	cs.CallData = append(cs.CallData, calldata...)
-	cs.NbConstraints += blueprint.NbConstraints()
-	return inst
-}
 
-func (cs *System) compressR1C(c *R1C, bID BlueprintID) Instruction {
-	inst := Instruction{
-		StartCallData:    uint64(len(cs.CallData)),
-		ConstraintOffset: uint32(cs.NbConstraints),
-		BlueprintID:      bID,
-	}
-	blueprint := cs.Blueprints[bID]
-	calldata := blueprint.(BlueprintR1C).CompressR1C(c)
+	// append the call data
 	cs.CallData = append(cs.CallData, calldata...)
-	cs.NbConstraints += blueprint.NbConstraints()
-	return inst
-}
 
-func (cs *System) compressHint(hm HintMapping, bID BlueprintID) Instruction {
-	inst := Instruction{
-		StartCallData:    uint64(len(cs.CallData)),
-		ConstraintOffset: uint32(cs.NbConstraints), // unused.
-		BlueprintID:      bID,
+	// update the total number of constraints
+	blueprint := cs.Blueprints[pi.BlueprintID]
+	cs.NbConstraints += blueprint.NbConstraints()
+
+	// add the output wires
+	inst := pi.Unpack(cs)
+	nbOutputs := blueprint.NbOutputs(inst)
+	var wires []uint32
+	for i := 0; i < nbOutputs; i++ {
+		wires = append(wires, uint32(cs.AddInternalVariable()))
 	}
-	blueprint := cs.Blueprints[bID]
-	calldata := blueprint.(BlueprintHint).CompressHint(hm)
-	cs.CallData = append(cs.CallData, calldata...)
-	return inst
+
+	// add the instruction
+	cs.Instructions = append(cs.Instructions, pi)
+
+	// update the instruction dependency tree
+	cs.updateLevel(len(cs.Instructions)-1, blueprint.WireWalker(inst))
+
+	return wires
 }
 
 // GetNbConstraints returns the number of constraints
@@ -380,4 +422,31 @@ func (cs *System) GetR1CIterator() R1CIterator {
 
 func (cs *System) GetSparseR1CIterator() SparseR1CIterator {
 	return SparseR1CIterator{cs: cs}
+}
+
+// bufPool is a pool of buffers used by getBuffer and putBuffer.
+// It is used to avoid allocating buffers for each constraint.
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		r := make([]uint32, 0, 20)
+		return &r
+	},
+}
+
+// getBuffer returns a buffer of at least the given size.
+// The buffer is taken from the pool if it is large enough,
+// otherwise a new buffer is allocated.
+// Caller must call putBuffer when done with the buffer.
+func getBuffer() *[]uint32 {
+	to := bufPool.Get().(*[]uint32)
+	*to = (*to)[:0]
+	return to
+}
+
+// putBuffer returns a buffer to the pool.
+func putBuffer(buf *[]uint32) {
+	if buf == nil {
+		panic("invalid entry in putBuffer")
+	}
+	bufPool.Put(buf)
 }

@@ -485,7 +485,7 @@ func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Element)
 		inst := builder.cs.GetInstruction(iID)
 		// we know the blueprint we added it.
 		blueprint := constraint.BlueprintSparseR1CAdd{}
-		blueprint.DecompressSparseR1C(&c, builder.cs.GetCallData(inst))
+		blueprint.DecompressSparseR1C(&c, inst)
 
 		// qO == -1
 		if a.WireID() == int(c.XB) {
@@ -573,7 +573,7 @@ func (builder *builder) mulConstraintExist(a, b expr.Term) (expr.Term, bool) {
 		inst := builder.cs.GetInstruction(iID)
 		// we know the blueprint we added it.
 		blueprint := constraint.BlueprintSparseR1CMul{}
-		blueprint.DecompressSparseR1C(&c, builder.cs.GetCallData(inst))
+		blueprint.DecompressSparseR1C(&c, inst)
 
 		// qO == -1
 
@@ -658,4 +658,32 @@ func (builder *builder) newDebugInfo(errName string, in ...interface{}) constrai
 
 func (builder *builder) Defer(cb func(frontend.API) error) {
 	circuitdefer.Put(builder, cb)
+}
+
+// AddInstruction is used to add custom instructions to the constraint system.
+func (builder *builder) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
+	return builder.cs.AddInstruction(bID, calldata)
+}
+
+// AddBlueprint adds a custom blueprint to the constraint system.
+func (builder *builder) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
+	return builder.cs.AddBlueprint(b)
+}
+
+func (builder *builder) InternalVariable(wireID uint32) frontend.Variable {
+	return expr.NewTerm(int(wireID), builder.tOne)
+}
+
+// ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable
+// ! Experimental: use in conjunction with constraint.CustomizableSystem
+func (builder *builder) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVariable {
+	switch t := v.(type) {
+	case expr.Term:
+		return builder.cs.MakeTerm(t.Coeff, t.VID)
+	default:
+		c := builder.cs.FromInterface(v)
+		term := builder.cs.MakeTerm(c, 0)
+		term.MarkConstant()
+		return term
+	}
 }

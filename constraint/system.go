@@ -14,6 +14,7 @@ type ConstraintSystem interface {
 	io.ReaderFrom
 	Field
 	Resolver
+	CustomizableSystem
 
 	// IsSolved returns nil if given witness solves the constraint system and error otherwise
 	// Deprecated: use _, err := Solve(...) instead
@@ -71,28 +72,16 @@ type ConstraintSystem interface {
 	// This is experimental.
 	CheckUnconstrainedWires() error
 
-	// AddBlueprint registers the given blueprint and returns its id. This should be called only once per blueprint.
-	AddBlueprint(b Blueprint) BlueprintID
-
 	GetInstruction(int) Instruction
 
 	GetCoefficient(i int) Element
-
-	// GetCallData re-slice the constraint system full calldata slice with the portion
-	// related to the instruction. This does not copy and caller should not modify.
-	GetCallData(instruction Instruction) []uint32
 }
 
-type Iterable interface {
-	// WireIterator returns a new iterator to iterate over the wires of the implementer (usually, a constraint)
-	// Call to next() returns the next wireID of the Iterable object and -1 when iteration is over.
-	//
-	// For example a R1C constraint with L, R, O linear expressions, each of size 2, calling several times
-	// 		next := r1c.WireIterator();
-	// 		for wID := next(); wID != -1; wID = next() {}
-	//		// will return in order L[0],L[1],R[0],R[1],O[0],O[1],-1
-	WireIterator() (next func() int)
-}
+type CustomizableSystem interface {
+	// AddBlueprint registers the given blueprint and returns its id. This should be called only once per blueprint.
+	AddBlueprint(b Blueprint) BlueprintID
 
-var _ Iterable = &SparseR1C{}
-var _ Iterable = &R1C{}
+	// AddInstruction adds an instruction to the system and returns a list of created wires
+	// if the blueprint declared any outputs.
+	AddInstruction(bID BlueprintID, calldata []uint32) []uint32
+}

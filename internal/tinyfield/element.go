@@ -300,7 +300,7 @@ func (z *Element) SetRandom() (*Element, error) {
 			return nil, err
 		}
 
-		// Clear unused bits in in the most signicant byte to increase probability
+		// Clear unused bits in in the most significant byte to increase probability
 		// that the candidate is < q.
 		bytes[k-1] &= uint8(int(1<<b) - 1)
 		z[0] = binary.LittleEndian.Uint64(bytes[0:8])
