@@ -46,7 +46,8 @@ type ConstraintSystem interface {
 
 	// AddSolverHint adds a hint to the solver such that the output variables will be computed
 	// using a call to output := f(input...) at solve time.
-	// Providing the function f is optional.
+	// Providing the function f is optional. If it is provided, id will be ignored and one will be derived from f's name.
+	// Otherwise, the provided id will be used to register the hint with,
 	AddSolverHint(f solver.Hint, id solver.HintID, input []LinearExpression, nbOutput int) (internalVariables []int, err error)
 
 	AddCommitment(c Commitment) error
