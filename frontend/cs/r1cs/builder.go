@@ -371,10 +371,14 @@ func (builder *builder) toVariables(in ...frontend.Variable) ([]expr.LinearExpre
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
 func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-	return builder.NewNamedHint(f, nil, nbOutputs, inputs...)
+	return builder.newHint(f, 0, nbOutputs, inputs)
 }
 
-func (builder *builder) NewNamedHint(f solver.Hint, nameOptions *constraint.HintIds, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (builder *builder) NewNamedHint(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+	return builder.newHint(nil, id, nbOutputs, inputs)
+}
+
+func (builder *builder) newHint(f solver.Hint, id solver.HintID, nbOutputs int, inputs []frontend.Variable) ([]frontend.Variable, error) {
 	hintInputs := make([]constraint.LinearExpression, len(inputs))
 
 	// TODO @gbotrel hint input pass
@@ -392,10 +396,9 @@ func (builder *builder) NewNamedHint(f solver.Hint, nameOptions *constraint.Hint
 	}
 
 	var options []constraint.HintIdOption
-	if nameOptions != nil {
+	if f == nil {
 		options = []constraint.HintIdOption{
-			constraint.WithHintId(nameOptions.UUID),
-			constraint.WithHintName(nameOptions.Name),
+			constraint.WithHintId(id),
 		}
 	}
 
