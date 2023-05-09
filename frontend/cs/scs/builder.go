@@ -345,7 +345,7 @@ func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend
 	return builder.newHint(f, solver.GetHintID(f), nbOutputs, inputs...)
 }
 
-func (builder *builder) NewNamedHint(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (builder *builder) NewHintForId(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	return builder.newHint(nil, id, nbOutputs, inputs...)
 }
 

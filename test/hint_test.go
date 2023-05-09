@@ -29,7 +29,7 @@ type customNamedHintCircuit struct {
 }
 
 func (c *customNamedHintCircuit) Define(api frontend.API) error {
-	y, err := api.Compiler().NewNamedHint(id, len(c.X), c.X...)
+	y, err := api.Compiler().NewHintForId(id, len(c.X), c.X...)
 
 	if err != nil {
 		return err

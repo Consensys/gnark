@@ -489,7 +489,7 @@ func (e *engine) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variab
 	return out, nil
 }
 
-func (e *engine) NewNamedHint(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (e *engine) NewHintForId(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	if f := solver.GetRegisteredHint(id); f != nil {
 		return e.NewHint(f, nbOutputs, inputs...)
 	}

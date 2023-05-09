@@ -246,7 +246,6 @@ func (system *System) AddSolverHint(f solver.Hint, id solver.HintID, input []Lin
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 
-	// TODO @Tabaie @gbotrel consider getting rid of hint names entirely
 	var name string
 	if id == solver.GetHintID(f) {
 		name = solver.GetHintName(f)
