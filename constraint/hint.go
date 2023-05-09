@@ -4,11 +4,6 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 )
 
-type HintIds struct {
-	UUID solver.HintID
-	Name string
-}
-
 // HintMapping mark a list of output variables to be computed using provided hint and inputs.
 type HintMapping struct {
 	HintID      solver.HintID      // Hint function id
