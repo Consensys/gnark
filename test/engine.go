@@ -18,7 +18,6 @@ package test
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/constraint"
 	"math/big"
 	"path/filepath"
 	"reflect"
@@ -486,8 +485,12 @@ func (e *engine) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variab
 	return out, nil
 }
 
-func (e *engine) NewNamedHint(f solver.Hint, _ *constraint.HintIds, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-	return e.NewHint(f, nbOutputs, inputs...)
+func (e *engine) NewNamedHint(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+	if f := solver.GetRegisteredHint(id); f != nil {
+		return e.NewHint(f, nbOutputs, inputs...)
+	}
+
+	return nil, fmt.Errorf("no hint registered with id #%d. Use solver.RegisterHint or solver.RegisterNamedHint", id)
 }
 
 // IsConstant returns true if v is a constant known at compile time

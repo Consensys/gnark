@@ -371,7 +371,7 @@ func (builder *builder) toVariables(in ...frontend.Variable) ([]expr.LinearExpre
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
 func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-	return builder.newHint(f, 0, nbOutputs, inputs)
+	return builder.newHint(f, solver.GetHintID(f), nbOutputs, inputs)
 }
 
 func (builder *builder) NewNamedHint(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
@@ -395,14 +395,7 @@ func (builder *builder) newHint(f solver.Hint, id solver.HintID, nbOutputs int, 
 		}
 	}
 
-	var options []constraint.HintIdOption
-	if f == nil {
-		options = []constraint.HintIdOption{
-			constraint.WithHintId(id),
-		}
-	}
-
-	internalVariables, err := builder.cs.AddSolverHint(f, hintInputs, nbOutputs, options...)
+	internalVariables, err := builder.cs.AddSolverHint(f, id, hintInputs, nbOutputs)
 	if err != nil {
 		return nil, err
 	}
