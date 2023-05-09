@@ -489,6 +489,14 @@ func (e *engine) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variab
 	return out, nil
 }
 
+func (e *engine) NewHintForId(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+	if f := solver.GetRegisteredHint(id); f != nil {
+		return e.NewHint(f, nbOutputs, inputs...)
+	}
+
+	return nil, fmt.Errorf("no hint registered with id #%d. Use solver.RegisterHint or solver.RegisterNamedHint", id)
+}
+
 // IsConstant returns true if v is a constant known at compile time
 func (e *engine) IsConstant(v frontend.Variable) bool {
 	return e.constVars
@@ -524,7 +532,7 @@ func (e *engine) toBigInt(i1 frontend.Variable) *big.Int {
 	}
 }
 
-// bitLen returns the number of bits needed to represent a fr.Element
+// FieldBitLen returns the number of bits needed to represent a fr.Element
 func (e *engine) FieldBitLen() int {
 	return e.q.BitLen()
 }

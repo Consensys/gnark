@@ -371,6 +371,14 @@ func (builder *builder) toVariables(in ...frontend.Variable) ([]expr.LinearExpre
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
 func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+	return builder.newHint(f, solver.GetHintID(f), nbOutputs, inputs)
+}
+
+func (builder *builder) NewHintForId(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+	return builder.newHint(nil, id, nbOutputs, inputs)
+}
+
+func (builder *builder) newHint(f solver.Hint, id solver.HintID, nbOutputs int, inputs []frontend.Variable) ([]frontend.Variable, error) {
 	hintInputs := make([]constraint.LinearExpression, len(inputs))
 
 	// TODO @gbotrel hint input pass
@@ -387,7 +395,7 @@ func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend
 		}
 	}
 
-	internalVariables, err := builder.cs.AddSolverHint(f, hintInputs, nbOutputs)
+	internalVariables, err := builder.cs.AddSolverHint(f, id, hintInputs, nbOutputs)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +406,6 @@ func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend
 		res[i] = expr.NewLinearExpression(idx, builder.tOne)
 	}
 	return res, nil
-
 }
 
 // assertIsSet panics if the variable is unset
