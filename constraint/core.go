@@ -3,6 +3,7 @@ package constraint
 import (
 	"fmt"
 	"math/big"
+	"strconv"
 	"sync"
 
 	"github.com/blang/semver/v4"
@@ -240,25 +241,26 @@ func (system *System) AddSecretVariable(name string) (idx int) {
 	return idx
 }
 
-func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbOutput int, options ...HintIdOption) (internalVariables []int, err error) {
+func (system *System) AddSolverHint(f solver.Hint, id solver.HintID, input []LinearExpression, nbOutput int) (internalVariables []int, err error) {
 	if nbOutput <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
 	}
 
-	ID := HintIds{solver.GetHintID(f), solver.GetHintName(f)}
-
-	for i := range options {
-		options[i](&ID)
+	var name string
+	if id == solver.GetHintID(f) {
+		name = solver.GetHintName(f)
+	} else {
+		name = strconv.Itoa(int(id))
 	}
 
 	// register the hint as dependency
-	if id, ok := system.MHintsDependencies[ID.UUID]; ok {
-		// hint already registered, let's ensure string id matches
-		if id != ID.Name {
-			return nil, fmt.Errorf("hint dependency registration failed; %s previously register with same UUID as %s", ID.Name, id)
+	if registeredName, ok := system.MHintsDependencies[id]; ok {
+		// hint already registered, let's ensure string registeredName matches
+		if registeredName != name {
+			return nil, fmt.Errorf("hint dependency registration failed; %s previously register with same UUID as %s", name, registeredName)
 		}
 	} else {
-		system.MHintsDependencies[ID.UUID] = ID.Name
+		system.MHintsDependencies[id] = name
 	}
 
 	// prepare wires
@@ -269,7 +271,7 @@ func (system *System) AddSolverHint(f solver.Hint, input []LinearExpression, nbO
 
 	// associate these wires with the solver hint
 	hm := HintMapping{
-		HintID: ID.UUID,
+		HintID: id,
 		Inputs: input,
 		OutputRange: struct {
 			Start uint32

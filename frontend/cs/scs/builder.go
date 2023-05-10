@@ -342,11 +342,14 @@ func (builder *builder) hintBuffer(size int) []constraint.LinearExpression {
 // No new constraints are added to the newly created wire and must be added
 // manually in the circuit. Failing to do so leads to solver failure.
 func (builder *builder) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
-	return builder.NewNamedHint(f, nil, nbOutputs, inputs...)
+	return builder.newHint(f, solver.GetHintID(f), nbOutputs, inputs...)
 }
 
-func (builder *builder) NewNamedHint(f solver.Hint, nameOptions *constraint.HintIds, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (builder *builder) NewHintForId(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+	return builder.newHint(nil, id, nbOutputs, inputs...)
+}
 
+func (builder *builder) newHint(f solver.Hint, id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	hintInputs := builder.hintBuffer(len(inputs))
 
 	// ensure inputs are set and pack them in a []uint64
@@ -362,15 +365,7 @@ func (builder *builder) NewNamedHint(f solver.Hint, nameOptions *constraint.Hint
 		}
 	}
 
-	var options []constraint.HintIdOption
-	if nameOptions != nil {
-		options = []constraint.HintIdOption{
-			constraint.WithHintId(nameOptions.UUID),
-			constraint.WithHintName(nameOptions.Name),
-		}
-	}
-
-	internalVariables, err := builder.cs.AddSolverHint(f, hintInputs, nbOutputs, options...)
+	internalVariables, err := builder.cs.AddSolverHint(f, id, hintInputs, nbOutputs)
 	if err != nil {
 		return nil, err
 	}

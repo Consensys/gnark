@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -13,7 +12,6 @@ import (
 	"testing"
 )
 
-const name = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
 const id = solver.HintID(123454321)
 
 func identityHint(_ *big.Int, in, out []*big.Int) error {
@@ -31,13 +29,7 @@ type customNamedHintCircuit struct {
 }
 
 func (c *customNamedHintCircuit) Define(api frontend.API) error {
-	y, err := api.Compiler().NewNamedHint(identityHint,
-		&constraint.HintIds{
-			UUID: id,
-			Name: name,
-		},
-		len(c.X), c.X...,
-	)
+	y, err := api.Compiler().NewHintForId(id, len(c.X), c.X...)
 
 	if err != nil {
 		return err
