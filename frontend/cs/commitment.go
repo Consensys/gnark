@@ -3,7 +3,6 @@ package cs
 import (
 	"crypto/sha256"
 	"fmt"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/logger"
@@ -35,23 +34,22 @@ func Bsb22CommitmentComputePlaceholder(mod *big.Int, input []*big.Int, output []
 }
 
 var maxNbCommitments int
-var m sync.Mutex // TODO: Remove; this is only used in the frontend which is not required to be thread-safe
+var m sync.Mutex
 
-func RegisterBsb22CommitmentComputePlaceholder(index int) (hintName constraint.HintIds, err error) {
-	hintName = constraint.HintIds{
-		Name: "bsb22 commitment #" + strconv.Itoa(index),
-	}
+func RegisterBsb22CommitmentComputePlaceholder(index int) (hintId solver.HintID, err error) {
+
+	hintName := "bsb22 commitment #" + strconv.Itoa(index)
 	// mimic solver.GetHintID
 	hf := fnv.New32a()
-	if _, err = hf.Write([]byte(hintName.Name)); err != nil {
+	if _, err = hf.Write([]byte(hintName)); err != nil {
 		return
 	}
-	hintName.UUID = solver.HintID(hf.Sum32())
+	hintId = solver.HintID(hf.Sum32())
 
 	m.Lock()
 	if maxNbCommitments == index {
 		maxNbCommitments++
-		solver.RegisterNamedHint(Bsb22CommitmentComputePlaceholder, hintName.UUID)
+		solver.RegisterNamedHint(Bsb22CommitmentComputePlaceholder, hintId)
 	}
 	m.Unlock()
 

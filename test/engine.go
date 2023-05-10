@@ -18,6 +18,7 @@ package test
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/constraint"
 	"math/big"
 	"path/filepath"
 	"reflect"

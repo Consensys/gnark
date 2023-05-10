@@ -583,13 +583,13 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
 
-	hintName, err := cs.RegisterBsb22CommitmentComputePlaceholder(builder.cs.GetNbCommitments())
+	hintId, err := cs.RegisterBsb22CommitmentComputePlaceholder(builder.cs.GetNbCommitments())
 	if err != nil {
 		return nil, err
 	}
 
 	var outs []frontend.Variable
-	if outs, err = builder.NewNamedHint(cs.Bsb22CommitmentComputePlaceholder, &hintName, 1, v...); err != nil {
+	if outs, err = builder.NewHintForId(hintId, 1, v...); err != nil {
 		return nil, err
 	}
 
@@ -599,7 +599,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
-		HintID:          hintName.UUID,
+		HintID:          hintId,
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,
 	})
