@@ -264,5 +264,9 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		}
 	}
 
+	if vk.Qcp == nil {
+		vk.Qcp = []kzg.Digest{}
+	}
+
 	return dec.BytesRead(), nil
 }
