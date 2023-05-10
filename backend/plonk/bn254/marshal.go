@@ -278,6 +278,10 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		&vk.CommitmentConstraintIndexes,
 	}
 
+	if vk.Qcp == nil {
+		vk.Qcp = []kzg.Digest{}
+	}
+
 	for _, v := range toDecode {
 		if err := dec.Decode(v); err != nil {
 			return dec.BytesRead(), err

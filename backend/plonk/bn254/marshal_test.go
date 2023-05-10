@@ -18,6 +18,7 @@ package plonk
 
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
@@ -41,27 +42,35 @@ func TestProofSerialization(t *testing.T) {
 }
 
 func TestProofSerializationRaw(t *testing.T) {
-	// create a  proof
-	var proof, reconstructed Proof
-	proof.randomize()
+	for i := 0; i < 1000; i++ {
+		// create a  proof
+		var proof, reconstructed Proof
+		proof.randomize()
 
-	roundTripCheckRaw(t, &proof, &reconstructed)
+		roundTripCheckRaw(t, &proof, &reconstructed)
+	}
 }
 
 func TestProvingKeySerialization(t *testing.T) {
-	// random pk
-	var pk, reconstructed ProvingKey
-	pk.randomize()
+	for i := 0; i < 1000; i++ {
+		// random pk
+		var pk, reconstructed ProvingKey
+		pk.randomize()
 
-	roundTripCheck(t, &pk, &reconstructed)
+		roundTripCheck(t, &pk, &reconstructed)
+	}
 }
 
 func TestVerifyingKeySerialization(t *testing.T) {
-	// create a random vk
-	var vk, reconstructed VerifyingKey
-	vk.randomize()
 
-	roundTripCheck(t, &vk, &reconstructed)
+	for i := 0; i < 1000; i++ {
+		// create a random vk
+		var vk, reconstructed VerifyingKey
+		vk.randomize()
+
+		roundTripCheck(t, &vk, &reconstructed)
+	}
+
 }
 
 func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom) {
@@ -77,7 +86,7 @@ func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom)
 	}
 
 	if !reflect.DeepEqual(from, reconstructed) {
-		t.Fatal("reconstructed object don't match original")
+		t.Fatal("reconstructed object don't match original", cmp.Diff(from, reconstructed))
 	}
 
 	if written != read {
