@@ -330,7 +330,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}
 
 	// 0 , 1 , 2, 3 , 4 , 5 , 6 , 7, 8 , 9  , 10, 11, 12, 13, 14,  15:15+nbComm  , 15+nbComm:15+2×nbComm
-	// l , r , o, id, s1, s2, s3, z, zs, ql, qr, qm, qo, qk ,lone, PI2           , qCPrime
+	// l , r , o, id, s1, s2, s3, z, zs, ql, qr, qm, qo, qk ,lone, Bsb22Commitments           , qCPrime
 	fm := func(x ...fr.Element) fr.Element {
 
 		a := fic(x[9], x[10], x[11], x[12], x[13], x[0], x[1], x[2], x[15:])

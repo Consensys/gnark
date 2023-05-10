@@ -111,7 +111,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		}
 
 		for i := range vk.CommitmentConstraintIndexes {
-			var hashRes []fr.Element // TODO: when multi commits are implemented: PI2 -> PI2[i]
+			var hashRes []fr.Element // TODO: when multi commits are implemented: Bsb22Commitments -> Bsb22Commitments[i]
 			if hashRes, err = fr.Hash(proof.PI2[i].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
@@ -189,7 +189,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	// Compute the commitment to the linearized polynomial
 	// linearizedPolynomialDigest =
-	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+qc*PI2 +
+	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+qc*Bsb22Commitments +
 	// 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
 	// 		α²*L₁(ζ)*Z
 	// first part: individual constraints
