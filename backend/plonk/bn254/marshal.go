@@ -52,7 +52,7 @@ func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64
 		proof.BatchedProof.ClaimedValues,
 		&proof.ZShiftedOpening.H,
 		&proof.ZShiftedOpening.ClaimedValue,
-		proof.Bsb22Commitments,
+		proof.PI2,
 	}
 
 	for _, v := range toEncode {
@@ -79,7 +79,7 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		&proof.BatchedProof.ClaimedValues,
 		&proof.ZShiftedOpening.H,
 		&proof.ZShiftedOpening.ClaimedValue,
-		&proof.Bsb22Commitments,
+		&proof.PI2,
 	}
 
 	for _, v := range toDecode {
@@ -88,8 +88,8 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		}
 	}
 
-	if proof.Bsb22Commitments == nil {
-		proof.Bsb22Commitments = []kzg.Digest{}
+	if proof.PI2 == nil {
+		proof.PI2 = []kzg.Digest{}
 	}
 
 	return dec.BytesRead(), nil

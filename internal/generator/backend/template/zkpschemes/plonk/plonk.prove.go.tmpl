@@ -32,8 +32,7 @@ type Proof struct {
 	// Commitments to h1, h2, h3 such that h = h1 + Xh2 + X**2h3 is the quotient polynomial
 	H [3]kzg.Digest
 
-	// PI2, the BSB22 commitment
-	PI2 []kzg.Digest
+	Bsb22Commitments []kzg.Digest
 
 	// Batch opening proof of h1 + zeta*h2 + zeta**2h3, linearizedPolynomial, l, r, o, s1, s2, qCPrime
 	BatchedProof kzg.BatchOpeningProof
@@ -42,30 +41,31 @@ type Proof struct {
 	ZShiftedOpening kzg.OpeningProof
 }
 
-func bsb22ComputeCommitmentHint(spr *cs.SparseR1CS, pk *ProvingKey, proof *Proof, wpi2iop []*iop.Polynomial, res *fr.Element, commDepth int) solver.Hint {
+// Computing and verifying Bsb22 multi-commits explained in https://hackmd.io/x8KsadW3RRyX7YTCFJIkHg
+func bsb22ComputeCommitmentHint(spr *cs.SparseR1CS, pk *ProvingKey, proof *Proof, cCommitments []*iop.Polynomial, res *fr.Element, commDepth int) solver.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
-		pi2 := make([]fr.Element, pk.Domain[0].Cardinality)
+		committedValues := make([]fr.Element, pk.Domain[0].Cardinality)
 		offset := spr.GetNbPublicVariables()
 		for i := range ins {
-			pi2[offset+spr.CommitmentInfo[commDepth].Committed[i]].SetBigInt(ins[i])
+			committedValues[offset+spr.CommitmentInfo[commDepth].Committed[i]].SetBigInt(ins[i])
 		}
 		var (
 			err     error
 			hashRes []fr.Element
 		)
-		/*if _, err = pi2[offset+spr.CommitmentInfo[commDepth].CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
+		if _, err = committedValues[offset+spr.CommitmentInfo[commDepth].CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
 			return err
 		}
-		if _, err = pi2[offset+spr.GetNbConstraints()-1].SetRandom(); err != nil { // Last constraint has qcp = 0. Safe to use for blinding
-			return err
-		}*/
-		pi2iop := iop.NewPolynomial(&pi2, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-		wpi2iop[commDepth] = pi2iop.ShallowClone()
-		wpi2iop[commDepth].ToCanonical(&pk.Domain[0]).ToRegular()
-		if proof.PI2[commDepth], err = kzg.Commit(wpi2iop[commDepth].Coefficients(), pk.Kzg); err != nil {
+		if _, err = committedValues[offset+spr.GetNbConstraints()-1].SetRandom(); err != nil { // Last constraint has qcp = 0. Safe to use for blinding
 			return err
 		}
-		if hashRes, err = fr.Hash(proof.PI2[commDepth].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
+		pi2iop := iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
+		cCommitments[commDepth] = pi2iop.ShallowClone()
+		cCommitments[commDepth].ToCanonical(&pk.Domain[0]).ToRegular()
+		if proof.Bsb22Commitments[commDepth], err = kzg.Commit(cCommitments[commDepth].Coefficients(), pk.Kzg); err != nil {
+			return err
+		}
+		if hashRes, err = fr.Hash(proof.Bsb22Commitments[commDepth].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 			return err
 		}
 		res.Set(&hashRes[0]) // TODO @Tabaie use CommitmentIndex for this; create a new variable CommitmentConstraintIndex for other uses
@@ -95,11 +95,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	proof := &Proof{}
 
 	commitmentVal := make([]fr.Element, len(spr.CommitmentInfo)) // TODO @Tabaie get rid of this
-	wpi2iop := make([]*iop.Polynomial, len(spr.CommitmentInfo))
-	proof.PI2 = make([]kzg.Digest, len(spr.CommitmentInfo))
+	cCommitments := make([]*iop.Polynomial, len(spr.CommitmentInfo))
+	proof.Bsb22Commitments = make([]kzg.Digest, len(spr.CommitmentInfo))
 	for i := range spr.CommitmentInfo {
 		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(spr.CommitmentInfo[i].HintID,
-			bsb22ComputeCommitmentHint(spr, pk, proof, wpi2iop, &commitmentVal[i], i)))
+			bsb22ComputeCommitmentHint(spr, pk, proof, cCommitments, &commitmentVal[i], i)))
 	}
 
 	// query l, r, o in Lagrange basis, not blinded
@@ -108,9 +108,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 	// TODO @gbotrel deal with that conversion lazily
-	lcpi2iop := make([]*iop.Polynomial, len(wpi2iop))
-	for i := range wpi2iop {
-		lcpi2iop[i] = wpi2iop[i].Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
+	lcCommitments := make([]*iop.Polynomial, len(cCommitments))
+	for i := range cCommitments {
+		lcCommitments[i] = cCommitments[i].Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
 	}
 	solution := _solution.(*cs.SparseR1CSSolution)
 	evaluationLDomainSmall := []fr.Element(solution.L)
@@ -179,7 +179,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)], proof.PI2); err != nil {
+	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)], proof.Bsb22Commitments); err != nil {
 		return nil, err
 	}
 
@@ -312,8 +312,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return one
 	}
 
-	// 0 , 1 , 2, 3 , 4 , 5 , 6 , 7, 8 , 9  , 10, 11, 12, 13, 14,  15:15+nbComm  , 15+nbComm:15+2×nbComm
-	// l , r , o, id, s1, s2, s3, z, zs, ql, qr, qm, qo, qk ,lone, PI2           , qCPrime
+	// 0 , 1 , 2, 3 , 4 , 5 , 6 , 7, 8 , 9  , 10, 11, 12, 13, 14,  15:15+nbComm    , 15+nbComm:15+2×nbComm
+	// l , r , o, id, s1, s2, s3, z, zs, ql, qr, qm, qo, qk ,lone, Bsb22Commitments, qCPrime
 	fm := func(x ...fr.Element) fr.Element {
 
 		a := fic(x[9], x[10], x[11], x[12], x[13], x[0], x[1], x[2], x[15:])
@@ -354,7 +354,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		pk.lLoneIOP,
 	
 		}
-	toEval = append(toEval, lcpi2iop...) // TODO: Add this at beginning
+	toEval = append(toEval, lcCommitments...) // TODO: Add this at beginning
 	toEval = append(toEval, pk.lcQcp...)
 	systemEvaluation, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}, toEval...)
 	if err != nil {
@@ -480,7 +480,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		bzuzeta,
 		qcpzeta,
 		bwziop.Coefficients()[:bwziop.BlindedSize()],
-		coefficients(wpi2iop),
+		coefficients(cCommitments),
 		pk,
 	)
 

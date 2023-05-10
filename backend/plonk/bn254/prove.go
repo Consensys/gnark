@@ -63,7 +63,8 @@ type Proof struct {
 	ZShiftedOpening kzg.OpeningProof
 }
 
-func bsb22ComputeCommitmentHint(spr *cs.SparseR1CS, pk *ProvingKey, proof *Proof, wpi2iop []*iop.Polynomial, res *fr.Element, commDepth int) solver.Hint {
+// Computing and verifying Bsb22 multi-commits explained in https://hackmd.io/x8KsadW3RRyX7YTCFJIkHg
+func bsb22ComputeCommitmentHint(spr *cs.SparseR1CS, pk *ProvingKey, proof *Proof, cCommitments []*iop.Polynomial, res *fr.Element, commDepth int) solver.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		committedValues := make([]fr.Element, pk.Domain[0].Cardinality)
 		offset := spr.GetNbPublicVariables()
@@ -81,9 +82,9 @@ func bsb22ComputeCommitmentHint(spr *cs.SparseR1CS, pk *ProvingKey, proof *Proof
 			return err
 		}
 		pi2iop := iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-		wpi2iop[commDepth] = pi2iop.ShallowClone()
-		wpi2iop[commDepth].ToCanonical(&pk.Domain[0]).ToRegular()
-		if proof.Bsb22Commitments[commDepth], err = kzg.Commit(wpi2iop[commDepth].Coefficients(), pk.Kzg); err != nil {
+		cCommitments[commDepth] = pi2iop.ShallowClone()
+		cCommitments[commDepth].ToCanonical(&pk.Domain[0]).ToRegular()
+		if proof.Bsb22Commitments[commDepth], err = kzg.Commit(cCommitments[commDepth].Coefficients(), pk.Kzg); err != nil {
 			return err
 		}
 		if hashRes, err = fr.Hash(proof.Bsb22Commitments[commDepth].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
@@ -116,11 +117,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	proof := &Proof{}
 
 	commitmentVal := make([]fr.Element, len(spr.CommitmentInfo)) // TODO @Tabaie get rid of this
-	commitmentsCanonical := make([]*iop.Polynomial, len(spr.CommitmentInfo))
+	cCommitments := make([]*iop.Polynomial, len(spr.CommitmentInfo))
 	proof.Bsb22Commitments = make([]kzg.Digest, len(spr.CommitmentInfo))
 	for i := range spr.CommitmentInfo {
 		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(spr.CommitmentInfo[i].HintID,
-			bsb22ComputeCommitmentHint(spr, pk, proof, commitmentsCanonical, &commitmentVal[i], i)))
+			bsb22ComputeCommitmentHint(spr, pk, proof, cCommitments, &commitmentVal[i], i)))
 	}
 
 	// query l, r, o in Lagrange basis, not blinded
@@ -129,9 +130,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 	// TODO @gbotrel deal with that conversion lazily
-	lcCommitments := make([]*iop.Polynomial, len(commitmentsCanonical))
-	for i := range commitmentsCanonical {
-		lcCommitments[i] = commitmentsCanonical[i].Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
+	lcCommitments := make([]*iop.Polynomial, len(cCommitments))
+	for i := range cCommitments {
+		lcCommitments[i] = cCommitments[i].Clone(int(pk.Domain[1].Cardinality)).ToLagrangeCoset(&pk.Domain[1]) // lagrange coset form
 	}
 	solution := _solution.(*cs.SparseR1CSSolution)
 	evaluationLDomainSmall := []fr.Element(solution.L)
@@ -328,8 +329,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return one
 	}
 
-	// 0 , 1 , 2, 3 , 4 , 5 , 6 , 7, 8 , 9  , 10, 11, 12, 13, 14,  15:15+nbComm  , 15+nbComm:15+2×nbComm
-	// l , r , o, id, s1, s2, s3, z, zs, ql, qr, qm, qo, qk ,lone, Bsb22Commitments           , qCPrime
+	// 0 , 1 , 2, 3 , 4 , 5 , 6 , 7, 8 , 9  , 10, 11, 12, 13, 14,  15:15+nbComm    , 15+nbComm:15+2×nbComm
+	// l , r , o, id, s1, s2, s3, z, zs, ql, qr, qm, qo, qk ,lone, Bsb22Commitments, qCPrime
 	fm := func(x ...fr.Element) fr.Element {
 
 		a := fic(x[9], x[10], x[11], x[12], x[13], x[0], x[1], x[2], x[15:])
@@ -492,7 +493,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		bzuzeta,
 		qcpzeta,
 		bwziop.Coefficients()[:bwziop.BlindedSize()],
-		coefficients(commitmentsCanonical),
+		coefficients(cCommitments),
 		pk,
 	)
 

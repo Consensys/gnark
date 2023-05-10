@@ -51,7 +51,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *vk, publicWitness, proof.PI2); err != nil {
+	if err := bindPublicData(&fs, "gamma", *vk, publicWitness, proof.Bsb22Commitments); err != nil {
 		return err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
@@ -111,8 +111,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		}
 
 		for i := range vk.CommitmentConstraintIndexes {
-			var hashRes []fr.Element // TODO: when multi commits are implemented: Bsb22Commitments -> Bsb22Commitments[i]
-			if hashRes, err = fr.Hash(proof.PI2[i].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
+			var hashRes []fr.Element
+			if hashRes, err = fr.Hash(proof.Bsb22Commitments[i].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
 
@@ -137,9 +137,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	zu := proof.ZShiftedOpening.ClaimedValue
 
-	qC := make([]fr.Element, len(proof.PI2))
+	qC := make([]fr.Element, len(proof.Bsb22Commitments))
 	copy(qC, proof.BatchedProof.ClaimedValues)
-	claimedValues := proof.BatchedProof.ClaimedValues[len(proof.PI2):]
+	claimedValues := proof.BatchedProof.ClaimedValues[len(proof.Bsb22Commitments):]
 	claimedQuotient := claimedValues[0]
 	linearizedPolynomialZeta := claimedValues[1]
 	l := claimedValues[2]
@@ -189,7 +189,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	// Compute the commitment to the linearized polynomial
 	// linearizedPolynomialDigest =
-	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+qc*Bsb22Commitments +
+	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+Σᵢqc'ᵢ(ζ)*BsbCommitmentᵢ +
 	// 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
 	// 		α²*L₁(ζ)*Z
 	// first part: individual constraints
@@ -215,7 +215,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// note since third part =  α²*L₁(ζ)*Z
 	_s2.Mul(&_s2, &alpha).Add(&_s2, &alphaSquareLagrange) // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
 
-	points := append(proof.PI2,
+	points := append(proof.Bsb22Commitments,
 		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, // first part
 		vk.S[2], proof.Z, // second & third part
 	)
