@@ -56,7 +56,7 @@ func TestSolverConsistency(t *testing.T) {
 }
 
 // witness used for the permutter. It implements the Witness interface
-// using mock methods (only the undererlying vector is required).
+// using mock methods (only the underlying vector is required).
 type permutterWitness struct {
 	vector any
 }
@@ -221,7 +221,7 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 	i := 0
 	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Public {
-			tInput.Set(reflect.ValueOf((from[i])))
+			tInput.Set(reflect.ValueOf(from[i]))
 			i++
 		}
 		return nil
@@ -229,7 +229,7 @@ func copyWitnessFromVector(to frontend.Circuit, from []tinyfield.Element) {
 
 	schema.Walk(to, tVariable, func(f schema.LeafInfo, tInput reflect.Value) error {
 		if f.Visibility == schema.Secret {
-			tInput.Set(reflect.ValueOf((from[i])))
+			tInput.Set(reflect.ValueOf(from[i]))
 			i++
 		}
 		return nil

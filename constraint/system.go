@@ -51,6 +51,7 @@ type ConstraintSystem interface {
 	AddSolverHint(f solver.Hint, id solver.HintID, input []LinearExpression, nbOutput int) (internalVariables []int, err error)
 
 	AddCommitment(c Commitment) error
+	GetNbCommitments() int // TODO: Erase once multi-commits are implemented in Groth16
 
 	AddLog(l LogEntry)
 

@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/kzg"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bls24-317"
 )
 
@@ -34,7 +35,8 @@ type Trace struct {
 	// completed by the prover. At those indices i (so from 0 to nb_public_variables), LQl[i]=-1
 	// so the first nb_public_variables constraints look like this:
 	// -1*Wire[i] + 0* + 0 . It is zero when the constant coefficient is replaced by Wire[i].
-	Ql, Qr, Qm, Qo, Qk, Qcp *iop.Polynomial
+	Ql, Qr, Qm, Qo, Qk *iop.Polynomial
+	Qcp                []*iop.Polynomial
 
 	// Polynomials representing the splitted permutation. The full permutation's support is 3*N where N=nb wires.
 	// The set of interpolation is <g> of size N, so to represent the permutation S we let S acts on the
@@ -71,7 +73,8 @@ type VerifyingKey struct {
 
 	// Commitments to ql, qr, qm, qo, qcp prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
-	Ql, Qr, Qm, Qo, Qk, Qcp kzg.Digest
+	Ql, Qr, Qm, Qo, Qk kzg.Digest
+	Qcp                []kzg.Digest
 
 	CommitmentConstraintIndexes []uint64
 }
@@ -99,7 +102,8 @@ type ProvingKey struct {
 	Vk *VerifyingKey
 
 	// qr,ql,qm,qo,qcp in LagrangeCoset --> these are not serialized, but computed from Ql, Qr, Qm, Qo, Qcp once.
-	lcQl, lcQr, lcQm, lcQo, lcQcp *iop.Polynomial
+	lcQl, lcQr, lcQm, lcQo *iop.Polynomial
+	lcQcp                  []*iop.Polynomial
 
 	// LQk qk in Lagrange form -> to be completed by the prover. After being completed,
 	lQk *iop.Polynomial
@@ -121,9 +125,7 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	var pk ProvingKey
 	var vk VerifyingKey
 	pk.Vk = &vk
-	if spr.CommitmentInfo.Is() {
-		vk.CommitmentConstraintIndexes = []uint64{uint64(spr.CommitmentInfo.CommitmentIndex)}
-	}
+	vk.CommitmentConstraintIndexes = constraint.CommitmentIndexes(spr.CommitmentInfo)
 	// nbConstraints := len(spr.Constraints)
 
 	// step 0: set the fft domains
@@ -174,7 +176,10 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 // computeLagrangeCosetPolys computes each polynomial except qk in Lagrange coset
 // basis. Qk will be evaluated in Lagrange coset basis once it is completed by the prover.
 func (pk *ProvingKey) computeLagrangeCosetPolys() {
-	pk.lcQcp = pk.trace.Qcp.Clone().ToLagrangeCoset(&pk.Domain[1])
+	pk.lcQcp = make([]*iop.Polynomial, len(pk.trace.Qcp))
+	for i, qcpI := range pk.trace.Qcp {
+		pk.lcQcp[i] = qcpI.Clone().ToLagrangeCoset(&pk.Domain[1])
+	}
 	pk.lcQl = pk.trace.Ql.Clone().ToLagrangeCoset(&pk.Domain[1])
 	pk.lcQr = pk.trace.Qr.Clone().ToLagrangeCoset(&pk.Domain[1])
 	pk.lcQm = pk.trace.Qm.Clone().ToLagrangeCoset(&pk.Domain[1])
@@ -227,7 +232,7 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 	qm := make([]fr.Element, size)
 	qo := make([]fr.Element, size)
 	qk := make([]fr.Element, size)
-	qcp := make([]fr.Element, size)
+	qcp := make([][]fr.Element, len(spr.CommitmentInfo))
 
 	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistent
 		ql[i].SetOne().Neg(&ql[i])
@@ -249,10 +254,6 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 		j++
 	}
 
-	for _, committed := range spr.CommitmentInfo.Committed {
-		qcp[offset+committed].SetOne()
-	}
-
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 
 	pt.Ql = iop.NewPolynomial(&ql, lagReg)
@@ -260,11 +261,18 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 	pt.Qm = iop.NewPolynomial(&qm, lagReg)
 	pt.Qo = iop.NewPolynomial(&qo, lagReg)
 	pt.Qk = iop.NewPolynomial(&qk, lagReg)
-	pt.Qcp = iop.NewPolynomial(&qcp, lagReg)
+	pt.Qcp = make([]*iop.Polynomial, len(qcp))
 
+	for i := range spr.CommitmentInfo {
+		qcp[i] = make([]fr.Element, size)
+		for _, committed := range spr.CommitmentInfo[i].Committed {
+			qcp[i][offset+committed].SetOne()
+		}
+		pt.Qcp[i] = iop.NewPolynomial(&qcp[i], lagReg)
+	}
 }
 
-// commitTrace commits to every polynomials in the trace, and put
+// commitTrace commits to every polynomial in the trace, and put
 // the commitments int the verifying key.
 func commitTrace(trace *Trace, pk *ProvingKey) error {
 
@@ -273,12 +281,18 @@ func commitTrace(trace *Trace, pk *ProvingKey) error {
 	trace.Qm.ToCanonical(&pk.Domain[0]).ToRegular()
 	trace.Qo.ToCanonical(&pk.Domain[0]).ToRegular()
 	trace.Qk.ToCanonical(&pk.Domain[0]).ToRegular() // -> qk is not complete
-	trace.Qcp.ToCanonical(&pk.Domain[0]).ToRegular()
 	trace.S1.ToCanonical(&pk.Domain[0]).ToRegular()
 	trace.S2.ToCanonical(&pk.Domain[0]).ToRegular()
 	trace.S3.ToCanonical(&pk.Domain[0]).ToRegular()
 
 	var err error
+	pk.Vk.Qcp = make([]kzg.Digest, len(trace.Qcp))
+	for i := range trace.Qcp {
+		trace.Qcp[i].ToCanonical(&pk.Domain[0]).ToRegular()
+		if pk.Vk.Qcp[i], err = kzg.Commit(pk.trace.Qcp[i].Coefficients(), pk.Kzg); err != nil {
+			return err
+		}
+	}
 	if pk.Vk.Ql, err = kzg.Commit(pk.trace.Ql.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
@@ -292,9 +306,6 @@ func commitTrace(trace *Trace, pk *ProvingKey) error {
 		return err
 	}
 	if pk.Vk.Qk, err = kzg.Commit(pk.trace.Qk.Coefficients(), pk.Kzg); err != nil {
-		return err
-	}
-	if pk.Vk.Qcp, err = kzg.Commit(pk.trace.Qcp.Coefficients(), pk.Kzg); err != nil {
 		return err
 	}
 	if pk.Vk.S[0], err = kzg.Commit(pk.trace.S1.Coefficients(), pk.Kzg); err != nil {

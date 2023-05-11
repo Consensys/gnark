@@ -51,7 +51,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *vk, publicWitness, proof.PI2); err != nil {
+	if err := bindPublicData(&fs, "gamma", *vk, publicWitness, proof.Bsb22Commitments); err != nil {
 		return err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
@@ -111,8 +111,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		}
 
 		for i := range vk.CommitmentConstraintIndexes {
-			var hashRes []fr.Element // TODO: when multi commits are implemented: PI2 -> PI2[i]
-			if hashRes, err = fr.Hash(proof.PI2.Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
+			var hashRes []fr.Element
+			if hashRes, err = fr.Hash(proof.Bsb22Commitments[i].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 				return err
 			}
 
@@ -137,14 +137,16 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	zu := proof.ZShiftedOpening.ClaimedValue
 
-	claimedQuotient := proof.BatchedProof.ClaimedValues[0]
-	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1]
-	l := proof.BatchedProof.ClaimedValues[2]
-	r := proof.BatchedProof.ClaimedValues[3]
-	o := proof.BatchedProof.ClaimedValues[4]
-	s1 := proof.BatchedProof.ClaimedValues[5]
-	s2 := proof.BatchedProof.ClaimedValues[6]
-	qC := proof.BatchedProof.ClaimedValues[7]
+	qC := make([]fr.Element, len(proof.Bsb22Commitments))
+	copy(qC, proof.BatchedProof.ClaimedValues)
+	claimedValues := proof.BatchedProof.ClaimedValues[len(proof.Bsb22Commitments):]
+	claimedQuotient := claimedValues[0]
+	linearizedPolynomialZeta := claimedValues[1]
+	l := claimedValues[2]
+	r := claimedValues[3]
+	o := claimedValues[4]
+	s1 := claimedValues[5]
+	s2 := claimedValues[6]
 
 	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+β*s2(ζ)+γ)
@@ -187,7 +189,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	// Compute the commitment to the linearized polynomial
 	// linearizedPolynomialDigest =
-	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+qc*PI2 +
+	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+Σᵢqc'ᵢ(ζ)*BsbCommitmentᵢ +
 	// 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
 	// 		α²*L₁(ζ)*Z
 	// first part: individual constraints
@@ -213,21 +215,21 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// note since third part =  α²*L₁(ζ)*Z
 	_s2.Mul(&_s2, &alpha).Add(&_s2, &alphaSquareLagrange) // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
 
-	points := []curve.G1Affine{
-		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, proof.PI2, // first part
+	points := append(proof.Bsb22Commitments,
+		vk.Ql, vk.Qr, vk.Qm, vk.Qo, vk.Qk, // first part
 		vk.S[2], proof.Z, // second & third part
-	}
+	)
 
-	scalars := []fr.Element{
-		l, r, rl, o, one /* TODO Perf @Tabaie Consider just adding Qk instead */, qC, // first part
+	scalars := append(qC,
+		l, r, rl, o, one, /* TODO Perf @Tabaie Consider just adding Qk instead */ // first part
 		_s1, _s2, // second & third part
-	}
+	)
 	if _, err := linearizedPolynomialDigest.MultiExp(points, scalars, ecc.MultiExpConfig{}); err != nil {
 		return err
 	}
 
 	// Fold the first proof
-	foldedProof, foldedDigest, err := kzg.FoldProof([]kzg.Digest{
+	foldedProof, foldedDigest, err := kzg.FoldProof(append(vk.Qcp,
 		foldedH,
 		linearizedPolynomialDigest,
 		proof.LRO[0],
@@ -235,8 +237,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		proof.LRO[2],
 		vk.S[0],
 		vk.S[1],
-		vk.Qcp,
-	},
+	),
 		&proof.BatchedProof,
 		zeta,
 		hFunc,
@@ -268,7 +269,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	return err
 }
 
-func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element, pi2 kzg.Digest) error {
+func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element, pi2 []kzg.Digest) error {
 
 	// permutation
 	if err := fs.Bind(challenge, vk.S[0].Marshal()); err != nil {
@@ -306,8 +307,10 @@ func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey
 	}
 
 	// bsb22 commitment
-	if err := fs.Bind(challenge, pi2.Marshal()); err != nil {
-		return err
+	for i := range pi2 {
+		if err := fs.Bind(challenge, pi2[i].Marshal()); err != nil {
+			return err
+		}
 	}
 
 	return nil

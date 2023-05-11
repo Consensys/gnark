@@ -139,7 +139,7 @@ const (
 )
 
 // SparseR1C represent a PlonK-ish constraint
-// qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC -committed?*PI2-commitment?*commitmentValue == 0
+// qL⋅xa + qR⋅xb + qO⋅xc + qM⋅(xaxb) + qC -committed?*Bsb22Commitments-commitment?*commitmentValue == 0
 type SparseR1C struct {
 	XA, XB, XC         uint32
 	QL, QR, QO, QM, QC uint32
