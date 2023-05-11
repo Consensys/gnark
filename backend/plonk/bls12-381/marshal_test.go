@@ -182,7 +182,7 @@ func (proof *Proof) randomize() {
 	proof.BatchedProof.ClaimedValues = randomScalars(2)
 	proof.ZShiftedOpening.H = randomPoint()
 	proof.ZShiftedOpening.ClaimedValue.SetRandom()
-	proof.PI2 = randomPoints(rand.Intn(4)) //#nosec G404 weak rng is fine here
+	proof.Bsb22Commitments = randomPoints(rand.Intn(4)) //#nosec G404 weak rng is fine here
 }
 
 func randomPoint() curve.G1Affine {
