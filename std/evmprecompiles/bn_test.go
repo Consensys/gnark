@@ -31,7 +31,7 @@ func (c *ecaddCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func testRoutineECAdd(t *testing.T) (circ, wit frontend.Circuit) {
+func testRoutineECAdd() (circ, wit frontend.Circuit) {
 	_, _, G, _ := bn254.Generators()
 	var u, v fr.Element
 	u.SetRandom()
@@ -61,14 +61,14 @@ func testRoutineECAdd(t *testing.T) (circ, wit frontend.Circuit) {
 
 func TestECAddCircuitShort(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit, witness := testRoutineECAdd(t)
+	circuit, witness := testRoutineECAdd()
 	err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
 func TestECAddCircuitFull(t *testing.T) {
 	assert := test.NewAssert(t)
-	circuit, witness := testRoutineECAdd(t)
+	circuit, witness := testRoutineECAdd()
 	assert.ProverSucceeded(circuit, witness,
 		test.NoFuzzing(), test.NoSerialization(),
 		test.WithBackends(backend.GROTH16, backend.PLONK), test.WithCurves(ecc.BN254),

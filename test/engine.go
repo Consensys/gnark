@@ -18,6 +18,7 @@ package test
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/constraint"
 	"math/big"
 	"path/filepath"
 	"reflect"
@@ -26,7 +27,6 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
