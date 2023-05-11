@@ -47,7 +47,7 @@ func (it *R1CIterator) Next() *R1C {
 	it.n++
 	blueprint := it.cs.Blueprints[inst.BlueprintID]
 	if bc, ok := blueprint.(BlueprintR1C); ok {
-		bc.DecompressR1C(&it.R1C, it.cs.GetCallData(inst))
+		bc.DecompressR1C(&it.R1C, inst.Unpack(it.cs))
 		return &it.R1C
 	}
 	return it.Next()
@@ -149,26 +149,6 @@ func (it *R1CIterator) Next() *R1C {
 // R1C used to compute the wires
 type R1C struct {
 	L, R, O LinearExpression
-}
-
-// WireIterator implements constraint.Iterable
-func (r1c *R1C) WireIterator() func() int {
-	curr := 0
-	return func() int {
-		if curr < len(r1c.L) {
-			curr++
-			return r1c.L[curr-1].WireID()
-		}
-		if curr < len(r1c.L)+len(r1c.R) {
-			curr++
-			return r1c.R[curr-1-len(r1c.L)].WireID()
-		}
-		if curr < len(r1c.L)+len(r1c.R)+len(r1c.O) {
-			curr++
-			return r1c.O[curr-1-len(r1c.L)-len(r1c.R)].WireID()
-		}
-		return -1
-	}
 }
 
 // String formats a R1C as L⋅R == O

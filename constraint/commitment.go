@@ -9,11 +9,10 @@ import (
 const CommitmentDst = "bsb22-commitment"
 
 type Commitment struct {
-	Committed              []int // sorted list of id's of committed variables in groth16. in plonk, list of indexes of constraints defining committed values
-	NbPrivateCommitted     int
-	HintID                 solver.HintID // TODO @gbotrel we probably don't need that here
-	CommitmentIndex        int           // in groth16, CommitmentIndex is the wire index. in plonk, it's the constraint defining it
-	CommittedAndCommitment []int         // sorted list of id's of committed variables AND the commitment itself
+	Committed          []int // sorted list of id's of committed variables in groth16. in plonk, list of indexes of constraints defining committed values
+	NbPrivateCommitted int
+	HintID             solver.HintID // TODO @gbotrel we probably don't need that here
+	CommitmentIndex    int           // in groth16, CommitmentIndex is the wire index. in plonk, it's the constraint defining it
 }
 
 func (i *Commitment) NbPublicCommitted() int {
@@ -24,13 +23,9 @@ func (i *Commitment) NbCommitted() int {
 	return len(i.Committed)
 }
 
-func (i *Commitment) Is() bool {
-	return len(i.Committed) != 0
-}
-
 // NewCommitment initialize a Commitment object
 //   - committed are the sorted wireID to commit to (without duplicate)
-//   - nbPublicCommited is the number of public inputs among the commited wireIDs
+//   - nbPublicCommitted is the number of public inputs among the committed wireIDs
 func NewCommitment(committed []int, nbPublicCommitted int) Commitment {
 	return Commitment{
 		Committed:          committed,
@@ -38,7 +33,7 @@ func NewCommitment(committed []int, nbPublicCommitted int) Commitment {
 	}
 }
 
-func (i *Commitment) SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, fieldByteLen int) []byte {
+func SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, fieldByteLen int) []byte {
 
 	res := make([]byte, len(privateCommitment)+len(publicCommitted)*fieldByteLen)
 	copy(res, privateCommitment)
@@ -52,11 +47,27 @@ func (i *Commitment) SerializeCommitment(privateCommitment []byte, publicCommitt
 	return res
 }
 
-// PrivateToPublic returns indexes of variables which are private to the constraint system, but public to Groth16. That is, private committed variables and the commitment itself
-func (i *Commitment) PrivateToPublic() []int {
-	return i.CommittedAndCommitment[i.NbPublicCommitted():]
+// PrivateToPublicGroth16 returns indexes of variables which are private to the constraint system, but public to Groth16. That is, private committed variables and the commitment itself
+// TODO Perhaps move it elsewhere since it's specific to groth16
+func (i *Commitment) PrivateToPublicGroth16() []int {
+	res := make([]int, i.NbPrivateCommitted+1)
+	copy(res, i.PrivateCommitted())
+	res[i.NbPrivateCommitted] = i.CommitmentIndex
+	return res
 }
 
 func (i *Commitment) PrivateCommitted() []int {
 	return i.Committed[i.NbPublicCommitted():]
+}
+
+func (i *Commitment) PublicCommitted() []int {
+	return i.Committed[:i.NbPublicCommitted()]
+}
+
+func CommitmentIndexes(commitments []Commitment) []uint64 {
+	res := make([]uint64, len(commitments))
+	for i := range res {
+		res[i] = uint64(commitments[i].CommitmentIndex)
+	}
+	return res
 }

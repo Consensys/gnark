@@ -582,17 +582,24 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		// - v + comm(n) = 0
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
-	outs, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, v...)
+
+	hintId, err := cs.RegisterBsb22CommitmentComputePlaceholder(builder.cs.GetNbCommitments())
 	if err != nil {
 		return nil, err
 	}
+
+	var outs []frontend.Variable
+	if outs, err = builder.NewHintForId(hintId, 1, v...); err != nil {
+		return nil, err
+	}
+
 	commitmentVar := builder.Neg(outs[0]).(expr.Term)
 	commitmentConstraintIndex := builder.cs.GetNbConstraints()
 	// RHS will be provided by both prover and verifier independently, as for a public wire
 	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
-		HintID:          solver.GetHintID(cs.Bsb22CommitmentComputePlaceholder),
+		HintID:          hintId,
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,
 	})

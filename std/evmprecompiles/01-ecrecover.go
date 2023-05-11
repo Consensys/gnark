@@ -71,9 +71,7 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	// compute u2 = s * rinv
 	u2 := frField.MulMod(&s, rinv)
 	// check u1 * G + u2 R == P
-	A := curve.ScalarMulBase(u1)
-	B := curve.ScalarMul(&R, u2)
-	C := curve.AddUnified(A, B)
+	C := curve.JointScalarMulBase(&R, u2, u1)
 	curve.AssertIsEqual(C, &P)
 	return &P
 }
