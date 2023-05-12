@@ -108,8 +108,8 @@ type isLessUnsignedCircuit struct {
 }
 
 func (c *isLessUnsignedCircuit) Define(api frontend.API) error {
-	api.AssertIsEqual(c.WantLess, IsLessUnsigned(api, c.A, c.B))
-	api.AssertIsEqual(c.WantLessEq, IsLessOrEqualUnsigned(api, c.A, c.B))
+	api.AssertIsEqual(c.WantLess, IsLess(api, c.A, c.B))
+	api.AssertIsEqual(c.WantLessEq, IsLessOrEqual(api, c.A, c.B))
 	return nil
 }
 

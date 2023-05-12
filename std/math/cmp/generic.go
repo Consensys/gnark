@@ -1,3 +1,4 @@
+// Package cmp provides methods and functions for comparing two numbers.
 package cmp
 
 import (
@@ -6,26 +7,29 @@ import (
 	"math/big"
 )
 
-// IsLessUnsigned returns 1 if a < b, and returns 0 if a >= b. The comparison
-// will be unsigned and all field elements will be treated as positive numbers.
-// Therefore, If the underlying field is of prime order P, the elements will be
-// considered to represent integers in range [0, P-1].
-func IsLessUnsigned(api frontend.API, a, b frontend.Variable) frontend.Variable {
+// IsLess returns 1 if a < b, and returns 0 if a >= b. a and b should be
+// integers in range [0, P-1], where P is the order of the underlying field used
+// by the proof system.
+//
+// When inputs are not in range [0, P-1], the remainder of their division by P
+// will be considered for comparison.
+func IsLess(api frontend.API, a, b frontend.Variable) frontend.Variable {
 	return isLessRecursive(api, bits.ToBinary(api, a), bits.ToBinary(api, b), false, true)
 }
 
-// IsLessOrEqualUnsigned returns 1 if a <= b, and returns 0 if a > b. The
-// comparison will be unsigned and all field elements will be treated as
-// positive numbers. Therefore, If the underlying field is of prime order P, the
-// elements will be considered to represent integers in range [0, P-1].
-func IsLessOrEqualUnsigned(api frontend.API, a, b frontend.Variable) frontend.Variable {
+// IsLessOrEqual returns 1 if a <= b, and returns 0 if a > b. a and b should be
+// integers in range [0, P-1], where P is the order of the underlying field used
+// by the proof system.
+//
+// When inputs are not in range [0, P-1], the remainder of their division by P
+// will be considered for comparison.
+func IsLessOrEqual(api frontend.API, a, b frontend.Variable) frontend.Variable {
 	return isLessRecursive(api, bits.ToBinary(api, a), bits.ToBinary(api, b), true, true)
 }
 
-// IsLessBinary compares two binary numbers represented by aBits and bBits. It
-// returns 1 if uint(aBits) < uint(bBits), and returns 0 if uint(aBits) >=
-// uint(bBits). Here, we assume uint(aBits) returns the unsigned integer whose
-// binary representation is aBits.
+// IsLessBinary compares two non-negative binary numbers represented by aBits
+// and bBits. It returns 1 if the integer represented by aBits is less than the
+// integer represented by bBits, and returns 0 otherwise.
 func IsLessBinary(api frontend.API, aBits, bBits []frontend.Variable) frontend.Variable {
 	if len(aBits) != len(bBits) {
 		panic("a and b must have the same length")
@@ -35,10 +39,9 @@ func IsLessBinary(api frontend.API, aBits, bBits []frontend.Variable) frontend.V
 	return isLessRecursive(api, aBits, bBits, false, true)
 }
 
-// IsLessOrEqualBinary compares two binary numbers represented by aBits and
-// bBits. It returns 1 if uint(aBits) <= uint(bBits), and returns 0 if
-// uint(aBits) > uint(bBits). Here, we assume uint(aBits) returns the unsigned
-// integer whose binary representation is aBits.
+// IsLessOrEqualBinary compares two non-negative binary numbers represented by
+// aBits and bBits. It returns 1 if the integer represented by aBits is less
+// than or equal to the integer represented by bBits, and returns 0 otherwise.
 func IsLessOrEqualBinary(api frontend.API, aBits, bBits []frontend.Variable) frontend.Variable {
 	if len(aBits) != len(bBits) {
 		panic("a and b must have the same length")
