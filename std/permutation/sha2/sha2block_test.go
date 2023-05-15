@@ -95,7 +95,7 @@ func (c *circuitBlock) Define(api frontend.API) error {
 
 func TestBlockGeneric(t *testing.T) {
 	assert := test.NewAssert(t)
-	s := rand.New(rand.NewSource(time.Now().Unix()))
+	s := rand.New(rand.NewSource(time.Now().Unix())) //nolint G404, test code
 	witness := circuitBlock{}
 	dig := digest{}
 	var in [chunk]byte
