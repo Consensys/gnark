@@ -86,7 +86,7 @@ func nodeSum(api frontend.API, h hash.FieldHasher, a, b frontend.Variable) front
 // true if the first element of the proof set is a leaf of data in the Merkle
 // root. False is returned if the proof set or Merkle root is nil, and if
 // 'numLeaves' equals 0.
-func (mp *MerkleProof) VerifyProof(api frontend.API, h hash.Hasher, leaf frontend.Variable) {
+func (mp *MerkleProof) VerifyProof(api frontend.API, h hash.FieldHasher, leaf frontend.Variable) {
 
 	depth := len(mp.Path) - 1
 	sum := leafSum(api, h, mp.Path[0])
