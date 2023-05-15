@@ -263,6 +263,8 @@ func (e *E12) CyclotomicSquareCompressed(api frontend.API, x E12) *E12 {
 // Decompress Karabina's cyclotomic square result
 func (e *E12) Decompress(api frontend.API, x E12) *E12 {
 
+	// TODO: hadle the g3==0 case with MUX
+
 	var t [3]E2
 	var one E2
 	one.SetOne()

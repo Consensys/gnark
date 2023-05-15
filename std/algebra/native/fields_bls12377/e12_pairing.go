@@ -23,8 +23,8 @@ func (e *E12) MulBy034(api frontend.API, c3, c4 E2) *E12 {
 }
 
 // Mul034By034 multiplication of sparse element (1,0,0,c3,c4,0) by sparse element (1,0,0,d3,d4,0)
-func (e *E12) Mul034By034(api frontend.API, d3, d4, c3, c4 E2) *E12 {
-	var one, tmp, x3, x4, x04, x03, x34 E2
+func Mul034By034(api frontend.API, d3, d4, c3, c4 E2) *[5]E2 {
+	var one, tmp, x00, x3, x4, x04, x03, x34 E2
 	one.SetOne()
 	x3.Mul(api, c3, d3)
 	x4.Mul(api, c4, d4)
@@ -36,14 +36,52 @@ func (e *E12) Mul034By034(api frontend.API, d3, d4, c3, c4 E2) *E12 {
 		Sub(api, x34, x3).
 		Sub(api, x34, x4)
 
-	e.C0.B0.MulByNonResidue(api, x4).
-		Add(api, e.C0.B0, one)
-	e.C0.B1 = x3
-	e.C0.B2 = x34
-	e.C1.B0 = x03
-	e.C1.B1 = x04
-	e.C1.B2.SetZero()
+	x00.MulByNonResidue(api, x4).
+		Add(api, x00, one)
 
+	return &[5]E2{x00, x3, x34, x03, x04}
+}
+
+func Mul01234By034(api frontend.API, x [5]E2, z3, z4 E2) *E12 {
+	var a, b, z1, z0, one E6
+	var zero E2
+	zero.SetZero()
+	one.SetOne()
+	c0 := &E6{B0: x[0], B1: x[1], B2: x[2]}
+	c1 := &E6{B0: x[3], B1: x[4], B2: zero}
+	a.Add(api, one, E6{B0: z3, B1: z4, B2: zero})
+	b.Add(api, *c0, *c1)
+	a.Mul(api, a, b)
+	c := *Mul01By01(api, z3, z4, x[3], x[4])
+	z1.Sub(api, a, *c0)
+	z1.Sub(api, z1, c)
+	z0.MulByNonResidue(api, c)
+	z0.Add(api, z0, *c0)
+	return &E12{
+		C0: z0,
+		C1: z1,
+	}
+}
+
+func (e *E12) MulBy01234(api frontend.API, x [5]E2) *E12 {
+	var a, b, c, z1, z0 E6
+	var zero E2
+	zero.SetZero()
+	c0 := &E6{B0: x[0], B1: x[1], B2: x[2]}
+	c1 := &E6{B0: x[3], B1: x[4], B2: zero}
+	a.Add(api, e.C0, e.C1)
+	b.Add(api, *c0, *c1)
+	a.Mul(api, a, b)
+	b.Mul(api, e.C0, *c0)
+	c = e.C1
+	c.MulBy01(api, x[3], x[4])
+	z1.Sub(api, a, b)
+	z1.Sub(api, z1, c)
+	z0.MulByNonResidue(api, c)
+	z0.Add(api, z0, b)
+
+	e.C0 = z0
+	e.C1 = z1
 	return e
 }
 
