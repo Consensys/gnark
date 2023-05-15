@@ -112,8 +112,10 @@ func (vk *VerifyingKey) Assign(_ovk groth16.VerifyingKey) {
 
 }
 
-// Fill one point for inner verifying key
-func (vk *VerifyingKey) FillG1K(_ovk groth16.VerifyingKey) {
+// Allocate memory for the "in-circuit" VerifyingKey
+// This is exposed so that the slices in the structure can be allocated
+// before calling frontend.Compile().
+func (vk *VerifyingKey) Allocate(_ovk groth16.VerifyingKey) {
 	ovk, ok := _ovk.(*groth16_bls12377.VerifyingKey)
 	if !ok {
 		panic("expected *groth16_bls12377.VerifyingKey, got " + reflect.TypeOf(_ovk).String())

@@ -124,7 +124,7 @@ func TestVerifier(t *testing.T) {
 	}
 
 	var circuit verifierCircuit
-	circuit.InnerVk.FillG1K(innerVk)
+	circuit.InnerVk.Allocate(innerVk)
 
 	var witness verifierCircuit
 	witness.InnerProof.Assign(proof)
@@ -181,7 +181,7 @@ func BenchmarkCompile(b *testing.B) {
 	}
 
 	var circuit verifierCircuit
-	circuit.InnerVk.FillG1K(innerVk)
+	circuit.InnerVk.Allocate(innerVk)
 
 	var ccs constraint.ConstraintSystem
 	b.ResetTimer()
