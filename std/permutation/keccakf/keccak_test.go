@@ -16,7 +16,13 @@ type keccakfCircuit struct {
 }
 
 func (c *keccakfCircuit) Define(api frontend.API) error {
-	res := keccakf.Permute(api, c.In)
+	var res [25]frontend.Variable
+	for i := range res {
+		res[i] = c.In[i]
+	}
+	for i := 0; i < 2; i++ {
+		res = keccakf.Permute(api, res)
+	}
 	for i := range res {
 		api.AssertIsEqual(res[i], c.Expected[i])
 	}
@@ -25,15 +31,22 @@ func (c *keccakfCircuit) Define(api frontend.API) error {
 
 func TestKeccakf(t *testing.T) {
 	var nativeIn [25]uint64
+	var res [25]uint64
 	for i := range nativeIn {
 		nativeIn[i] = 2
+		res[i] = 2
 	}
-	nativeOut := keccakF1600(nativeIn)
+	for i := 0; i < 2; i++ {
+		res = keccakF1600(res)
+	}
 	witness := keccakfCircuit{}
 	for i := range nativeIn {
 		witness.In[i] = nativeIn[i]
-		witness.Expected[i] = nativeOut[i]
+		witness.Expected[i] = res[i]
 	}
 	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&keccakfCircuit{}, &witness, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16, backend.PLONK))
+	assert.ProverSucceeded(&keccakfCircuit{}, &witness,
+		test.WithCurves(ecc.BN254),
+		test.WithBackends(backend.GROTH16, backend.PLONK),
+		test.NoFuzzing())
 }
