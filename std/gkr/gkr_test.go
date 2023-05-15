@@ -110,7 +110,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 	}
 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
 
-	var hsh hash.Hash
+	var hsh hash.FieldHasher
 	if c.ToFail {
 		hsh = NewMessageCounter(api, 1, 1)
 	} else {
@@ -414,7 +414,7 @@ func SliceEqual[T comparable](expected, seen []T) bool {
 
 type HashDescription map[string]interface{}
 
-func HashFromDescription(api frontend.API, d HashDescription) (hash.Hash, error) {
+func HashFromDescription(api frontend.API, d HashDescription) (hash.Hasher, error) {
 	if _type, ok := d["type"]; ok {
 		switch _type {
 		case "const":
@@ -456,13 +456,13 @@ func (m *MessageCounter) Reset() {
 	m.state = m.startState
 }
 
-func NewMessageCounter(api frontend.API, startState, step int) hash.Hash {
+func NewMessageCounter(api frontend.API, startState, step int) hash.Hasher {
 	transcript := &MessageCounter{startState: int64(startState), state: int64(startState), step: int64(step), api: api}
 	return transcript
 }
 
-func NewMessageCounterGenerator(startState, step int) func(frontend.API) hash.Hash {
-	return func(api frontend.API) hash.Hash {
+func NewMessageCounterGenerator(startState, step int) func(frontend.API) hash.Hasher {
+	return func(api frontend.API) hash.Hasher {
 		return NewMessageCounter(api, startState, step)
 	}
 }

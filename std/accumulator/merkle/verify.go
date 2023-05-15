@@ -62,7 +62,7 @@ type MerkleProof struct {
 
 // leafSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func leafSum(api frontend.API, h hash.Hash, data frontend.Variable) frontend.Variable {
+func leafSum(api frontend.API, h hash.FieldHasher, data frontend.Variable) frontend.Variable {
 
 	h.Reset()
 	h.Write(data)
@@ -73,7 +73,7 @@ func leafSum(api frontend.API, h hash.Hash, data frontend.Variable) frontend.Var
 
 // nodeSum returns the hash created from data inserted to form a leaf.
 // Without domain separation.
-func nodeSum(api frontend.API, h hash.Hash, a, b frontend.Variable) frontend.Variable {
+func nodeSum(api frontend.API, h hash.FieldHasher, a, b frontend.Variable) frontend.Variable {
 
 	h.Reset()
 	h.Write(a, b)
@@ -86,7 +86,7 @@ func nodeSum(api frontend.API, h hash.Hash, a, b frontend.Variable) frontend.Var
 // true if the first element of the proof set is a leaf of data in the Merkle
 // root. False is returned if the proof set or Merkle root is nil, and if
 // 'numLeaves' equals 0.
-func (mp *MerkleProof) VerifyProof(api frontend.API, h hash.Hash, leaf frontend.Variable) {
+func (mp *MerkleProof) VerifyProof(api frontend.API, h hash.Hasher, leaf frontend.Variable) {
 
 	depth := len(mp.Path) - 1
 	sum := leafSum(api, h, mp.Path[0])
