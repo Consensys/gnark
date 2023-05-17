@@ -156,3 +156,34 @@ func roundTripMarshalJSON(assert *require.Assertions, assignment circuit, public
 	assert.True(reflect.DeepEqual(rw, w), "witness json round trip serialization")
 
 }
+
+type initableVariable struct {
+	Val []frontend.Variable
+}
+
+func (iv *initableVariable) GnarkInitHook() {
+	if iv.Val == nil {
+		iv.Val = []frontend.Variable{1, 2} // need to init value as are assigning to witness
+	}
+}
+
+type initableCircuit struct {
+	X [2]initableVariable
+	Y []initableVariable
+	Z initableVariable
+}
+
+func (c *initableCircuit) Define(api frontend.API) error {
+	panic("not called")
+}
+
+func TestVariableInitHook(t *testing.T) {
+	assert := require.New(t)
+
+	assignment := &initableCircuit{Y: make([]initableVariable, 2)}
+	w, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	fw, ok := w.Vector().(fr.Vector)
+	assert.True(ok)
+	assert.Len(fw, 10, "invalid length")
+}
