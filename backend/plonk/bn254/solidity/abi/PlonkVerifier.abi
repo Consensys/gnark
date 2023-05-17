@@ -1,0 +1,1 @@
+[{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"a","type":"uint256"}],"name":"PrintUint256","type":"event"}]

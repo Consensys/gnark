@@ -139,6 +139,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	zu := proof.ZShiftedOpening.ClaimedValue
 
+	// qC := make([]fr.Element, len(proof.Bsb22Commitments))
+	// claimedValues := proof.BatchedProof.ClaimedValues[len(proof.Bsb22Commitments):]
+	// claimedValues := proof.BatchedProof.ClaimedValues[7:]
 	claimedQuotient := proof.BatchedProof.ClaimedValues[0]
 	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1]
 	l := proof.BatchedProof.ClaimedValues[2]
@@ -232,7 +235,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// Fold the first proof
 	digestsToFold := make([]curve.G1Affine, len(vk.Qcp)+7)
 	copy(digestsToFold[7:], vk.Qcp)
-	// offset := len(vk.Qcp)
 	digestsToFold[0] = foldedH
 	digestsToFold[1] = linearizedPolynomialDigest
 	digestsToFold[2] = proof.LRO[0]
@@ -249,7 +251,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	if err != nil {
 		return err
 	}
-
 
 	// Batch verify
 	var shiftedZeta fr.Element
