@@ -12,6 +12,7 @@
 package emulationparams
 
 import (
+	"crypto/elliptic"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -142,3 +143,31 @@ func (fp BLS12381Fp) Modulus() *big.Int { return ecc.BLS12_381.BaseField() }
 type BLS12381Fr struct{ fourLimbPrimeField }
 
 func (fp BLS12381Fr) Modulus() *big.Int { return ecc.BLS12_381.ScalarField() }
+
+// P384Fp provides type parametrization for field emulation:
+//   - limbs: 6
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeffffffff0000000000000000ffffffff (base 16)
+//	39402006196394479212279040100143613805079739270465446667948293404245721771496870329047266088258938001861606973112319 (base 10)
+//
+// This is the base field of the P-384 (also SECP384r1) curve.
+type P384Fp struct{ sixLimbPrimeField }
+
+func (P384Fp) Modulus() *big.Int { return elliptic.P384().Params().P }
+
+// P384Fr provides type parametrization for field emulation:
+//   - limbs: 6
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0xffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973 (base 16)
+//	39402006196394479212279040100143613805079739270465446667946905279627659399113263569398956308152294913554433653942643 (base 10)
+//
+// This is the scalar field of the P-384 (also SECP384r1) curve.
+type P384Fr struct{ sixLimbPrimeField }
+
+func (P384Fr) Modulus() *big.Int { return elliptic.P384().Params().N }
