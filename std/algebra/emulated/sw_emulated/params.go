@@ -1,12 +1,14 @@
 package sw_emulated
 
 import (
+	"crypto/elliptic"
 	"math/big"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 // CurveParams defines parameters of an elliptic curve in short Weierstrass form
@@ -65,6 +67,36 @@ func GetBLS12381Params() CurveParams {
 	}
 }
 
+// GetP256Params returns the curve parameters for the curve P-256 (also
+// SECP256r1). When initialising new curve, use the base field
+// [emparams.P256Fp] and scalar field [emparams.P256Fr].
+func GetP256Params() CurveParams {
+	pr := elliptic.P256().Params()
+	a := new(big.Int).Sub(pr.P, big.NewInt(3))
+	return CurveParams{
+		A:  a,
+		B:  pr.B,
+		Gx: pr.Gx,
+		Gy: pr.Gy,
+		Gm: computeP384Table(),
+	}
+}
+
+// GetP384Params returns the curve parameters for the curve P-384 (also
+// SECP384r1). When initialising new curve, use the base field
+// [emparams.P384Fp] and scalar field [emparams.P384Fr].
+func GetP384Params() CurveParams {
+	pr := elliptic.P384().Params()
+	a := new(big.Int).Sub(pr.P, big.NewInt(3))
+	return CurveParams{
+		A:  a,
+		B:  pr.B,
+		Gx: pr.Gx,
+		Gy: pr.Gy,
+		Gm: computeP384Table(),
+	}
+}
+
 // GetCurveParams returns suitable curve parameters given the parametric type Base as base field.
 func GetCurveParams[Base emulated.FieldParams]() CurveParams {
 	var t Base
@@ -75,6 +107,10 @@ func GetCurveParams[Base emulated.FieldParams]() CurveParams {
 		return bn254Params
 	case "1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab":
 		return bls12381Params
+	case emparams.P256Fp{}.Modulus().String():
+		return p256Params
+	case emparams.P384Fp{}.Modulus().String():
+		return p384Params
 	default:
 		panic("no stored parameters")
 	}
@@ -84,10 +120,14 @@ var (
 	secp256k1Params CurveParams
 	bn254Params     CurveParams
 	bls12381Params  CurveParams
+	p256Params      CurveParams
+	p384Params      CurveParams
 )
 
 func init() {
 	secp256k1Params = GetSecp256k1Params()
 	bn254Params = GetBN254Params()
 	bls12381Params = GetBLS12381Params()
+	p256Params = GetP256Params()
+	p384Params = GetP384Params()
 }

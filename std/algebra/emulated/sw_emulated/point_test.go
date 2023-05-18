@@ -1,6 +1,8 @@
 package sw_emulated
 
 import (
+	"crypto/elliptic"
+	"crypto/rand"
 	"math/big"
 	"testing"
 
@@ -14,6 +16,7 @@ import (
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
 
@@ -566,6 +569,52 @@ func TestScalarMul3(t *testing.T) {
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestScalarMul4(t *testing.T) {
+	assert := test.NewAssert(t)
+	p256 := elliptic.P256()
+	s, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	px, py := p256.ScalarBaseMult(s.Bytes())
+
+	circuit := ScalarMulTest[emparams.P256Fp, emparams.P256Fr]{}
+	witness := ScalarMulTest[emparams.P256Fp, emparams.P256Fr]{
+		S: emulated.ValueOf[emparams.P256Fr](s),
+		P: AffinePoint[emparams.P256Fp]{
+			X: emulated.ValueOf[emparams.P256Fp](p256.Params().Gx),
+			Y: emulated.ValueOf[emparams.P256Fp](p256.Params().Gy),
+		},
+		Q: AffinePoint[emparams.P256Fp]{
+			X: emulated.ValueOf[emparams.P256Fp](px),
+			Y: emulated.ValueOf[emparams.P256Fp](py),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestScalarMul5(t *testing.T) {
+	assert := test.NewAssert(t)
+	p384 := elliptic.P384()
+	s, err := rand.Int(rand.Reader, p384.Params().N)
+	assert.NoError(err)
+	px, py := p384.ScalarBaseMult(s.Bytes())
+
+	circuit := ScalarMulTest[emparams.P384Fp, emparams.P384Fr]{}
+	witness := ScalarMulTest[emparams.P384Fp, emparams.P384Fr]{
+		S: emulated.ValueOf[emparams.P384Fr](s),
+		P: AffinePoint[emparams.P384Fp]{
+			X: emulated.ValueOf[emparams.P384Fp](p384.Params().Gx),
+			Y: emulated.ValueOf[emparams.P384Fp](p384.Params().Gy),
+		},
+		Q: AffinePoint[emparams.P384Fp]{
+			X: emulated.ValueOf[emparams.P384Fp](px),
+			Y: emulated.ValueOf[emparams.P384Fp](py),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
