@@ -144,6 +144,34 @@ type BLS12381Fr struct{ fourLimbPrimeField }
 
 func (fp BLS12381Fr) Modulus() *big.Int { return ecc.BLS12_381.ScalarField() }
 
+// P256Fp provides type parametrization for field emulation:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff (base 16)
+//	115792089210356248762697446949407573530086143415290314195533631308867097853951 (base 10)
+//
+// This is the base field of the P-256 (also SECP256r1) curve.
+type P256Fp struct{ fourLimbPrimeField }
+
+func (P256Fp) Modulus() *big.Int { return elliptic.P256().Params().P }
+
+// P256Fr provides type parametrization for field emulation:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551 (base 16)
+//	115792089210356248762697446949407573529996955224135760342422259061068512044369 (base 10)
+//
+// This is the base field of the P-256 (also SECP256r1) curve.
+type P256Fr struct{ fourLimbPrimeField }
+
+func (P256Fr) Modulus() *big.Int { return elliptic.P256().Params().N }
+
 // P384Fp provides type parametrization for field emulation:
 //   - limbs: 6
 //   - limb width: 64 bits
