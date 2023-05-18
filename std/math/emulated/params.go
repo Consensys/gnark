@@ -3,11 +3,11 @@ package emulated
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/std/math/emulated/emulationparams"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 // FieldParams describes the emulated field characteristics. For a list of
-// included built-in emulation params refer to the [emulationparams] package.
+// included built-in emulation params refer to the [emparams] package.
 // For backwards compatibility, the current package contains the following
 // parameters:
 //   - [Goldilocks]
@@ -16,7 +16,7 @@ import (
 //   - [BLS12377Fp]
 //   - [BLS12381Fp] and [BLS12381Fr]
 //
-// Any new parameters will be included in [emulationparams] package, not here.
+// Any new parameters will be included in [emparams] package, not here.
 type FieldParams interface {
 	NbLimbs() uint     // number of limbs to represent field element
 	BitsPerLimb() uint // number of bits per limb. Top limb may contain less than limbSize bits.
@@ -24,11 +24,11 @@ type FieldParams interface {
 	Modulus() *big.Int // returns modulus. Do not modify.
 }
 
-type Goldilocks = emulationparams.Goldilocks
-type Secp256k1Fp = emulationparams.Secp256k1Fp
-type Secp256k1Fr = emulationparams.Secp256k1Fr
-type BN254Fp = emulationparams.BN254Fp
-type BN254Fr = emulationparams.BN254Fr
-type BLS12377Fp = emulationparams.BLS12377Fp
-type BLS12381Fp = emulationparams.BLS12381Fp
-type BLS12381Fr = emulationparams.BLS12381Fr
+type Goldilocks = emparams.Goldilocks
+type Secp256k1Fp = emparams.Secp256k1Fp
+type Secp256k1Fr = emparams.Secp256k1Fr
+type BN254Fp = emparams.BN254Fp
+type BN254Fr = emparams.BN254Fr
+type BLS12377Fp = emparams.BLS12377Fp
+type BLS12381Fp = emparams.BLS12381Fp
+type BLS12381Fr = emparams.BLS12381Fr

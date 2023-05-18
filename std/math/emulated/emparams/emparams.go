@@ -1,4 +1,4 @@
-// Package emulationparams contains emulation parameters for well known fields.
+// Package emparams contains emulation parameters for well known fields.
 //
 // We define some well-known parameters in this package for compatibility and
 // ease of use. When needing to use parameters not defined in this package it is
@@ -9,7 +9,7 @@
 //	func (SmallField) BitsPerLimb() uint { return 11 }
 //	func (SmallField) IsPrime() bool { return true }
 //	func (SmallField) Modulus() *big.Int { return big.NewInt(1032) }
-package emulationparams
+package emparams
 
 import (
 	"crypto/elliptic"
