@@ -18,6 +18,18 @@ import (
 	"github.com/consensys/gnark-crypto/field/goldilocks"
 )
 
+type fourLimbPrimeField struct{}
+
+func (fourLimbPrimeField) NbLimbs() uint     { return 4 }
+func (fourLimbPrimeField) BitsPerLimb() uint { return 64 }
+func (fourLimbPrimeField) IsPrime() bool     { return true }
+
+type sixLimbPrimeField struct{}
+
+func (sixLimbPrimeField) NbLimbs() uint     { return 6 }
+func (sixLimbPrimeField) BitsPerLimb() uint { return 64 }
+func (sixLimbPrimeField) IsPrime() bool     { return true }
+
 // Goldilocks provides type parametrization for field emulation:
 //   - limbs: 1
 //   - limb width: 64 bits
@@ -43,11 +55,8 @@ func (fp Goldilocks) Modulus() *big.Int { return goldilocks.Modulus() }
 //	115792089237316195423570985008687907853269984665640564039457584007908834671663 (base 10)
 //
 // This is the base field of the SECP256k1 curve.
-type Secp256k1Fp struct{}
+type Secp256k1Fp struct{ fourLimbPrimeField }
 
-func (fp Secp256k1Fp) NbLimbs() uint     { return 4 }
-func (fp Secp256k1Fp) BitsPerLimb() uint { return 64 }
-func (fp Secp256k1Fp) IsPrime() bool     { return true }
 func (fp Secp256k1Fp) Modulus() *big.Int { return ecc.SECP256K1.BaseField() }
 
 // Secp256k1Fr provides type parametrization for field emulation:
@@ -60,11 +69,8 @@ func (fp Secp256k1Fp) Modulus() *big.Int { return ecc.SECP256K1.BaseField() }
 //	115792089237316195423570985008687907852837564279074904382605163141518161494337 (base 10)
 //
 // This is the scalar field of the SECP256k1 curve.
-type Secp256k1Fr struct{}
+type Secp256k1Fr struct{ fourLimbPrimeField }
 
-func (fp Secp256k1Fr) NbLimbs() uint     { return 4 }
-func (fp Secp256k1Fr) BitsPerLimb() uint { return 64 }
-func (fp Secp256k1Fr) IsPrime() bool     { return true }
 func (fp Secp256k1Fr) Modulus() *big.Int { return ecc.SECP256K1.ScalarField() }
 
 // BN254Fp provides type parametrization for field emulation:
@@ -77,11 +83,8 @@ func (fp Secp256k1Fr) Modulus() *big.Int { return ecc.SECP256K1.ScalarField() }
 //	21888242871839275222246405745257275088696311157297823662689037894645226208583 (base 10)
 //
 // This is the base field of the BN254 curve.
-type BN254Fp struct{}
+type BN254Fp struct{ fourLimbPrimeField }
 
-func (fp BN254Fp) NbLimbs() uint     { return 4 }
-func (fp BN254Fp) BitsPerLimb() uint { return 64 }
-func (fp BN254Fp) IsPrime() bool     { return true }
 func (fp BN254Fp) Modulus() *big.Int { return ecc.BN254.BaseField() }
 
 // BN254Fr provides type parametrization for field emulation:
@@ -94,11 +97,8 @@ func (fp BN254Fp) Modulus() *big.Int { return ecc.BN254.BaseField() }
 //	21888242871839275222246405745257275088548364400416034343698204186575808495617 (base 10)
 //
 // This is the scalar field of the BN254 curve.
-type BN254Fr struct{}
+type BN254Fr struct{ fourLimbPrimeField }
 
-func (fp BN254Fr) NbLimbs() uint     { return 4 }
-func (fp BN254Fr) BitsPerLimb() uint { return 64 }
-func (fp BN254Fr) IsPrime() bool     { return true }
 func (fp BN254Fr) Modulus() *big.Int { return ecc.BN254.ScalarField() }
 
 // BLS12377Fp provides type parametrization for field emulation:
@@ -111,11 +111,8 @@ func (fp BN254Fr) Modulus() *big.Int { return ecc.BN254.ScalarField() }
 //	258664426012969094010652733694893533536393512754914660539884262666720468348340822774968888139573360124440321458177 (base 10)
 //
 // This is the base field of the BLS12-377 curve.
-type BLS12377Fp struct{}
+type BLS12377Fp struct{ sixLimbPrimeField }
 
-func (fp BLS12377Fp) NbLimbs() uint     { return 6 }
-func (fp BLS12377Fp) BitsPerLimb() uint { return 64 }
-func (fp BLS12377Fp) IsPrime() bool     { return true }
 func (fp BLS12377Fp) Modulus() *big.Int { return ecc.BLS12_377.BaseField() }
 
 // BLS12381Fp provides type parametrization for field emulation:
@@ -128,11 +125,8 @@ func (fp BLS12377Fp) Modulus() *big.Int { return ecc.BLS12_377.BaseField() }
 //	4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559787 (base 10)
 //
 // This is the base field of the BLS12-381 curve.
-type BLS12381Fp struct{}
+type BLS12381Fp struct{ sixLimbPrimeField }
 
-func (fp BLS12381Fp) NbLimbs() uint     { return 6 }
-func (fp BLS12381Fp) BitsPerLimb() uint { return 64 }
-func (fp BLS12381Fp) IsPrime() bool     { return true }
 func (fp BLS12381Fp) Modulus() *big.Int { return ecc.BLS12_381.BaseField() }
 
 // BLS12381Fr provides type parametrization for field emulation:
@@ -145,9 +139,6 @@ func (fp BLS12381Fp) Modulus() *big.Int { return ecc.BLS12_381.BaseField() }
 //	52435875175126190479447740508185965837690552500527637822603658699938581184513 (base 10)
 //
 // This is the scalar field of the BLS12-381 curve.
-type BLS12381Fr struct{}
+type BLS12381Fr struct{ fourLimbPrimeField }
 
-func (fp BLS12381Fr) NbLimbs() uint     { return 4 }
-func (fp BLS12381Fr) BitsPerLimb() uint { return 64 }
-func (fp BLS12381Fr) IsPrime() bool     { return true }
 func (fp BLS12381Fr) Modulus() *big.Int { return ecc.BLS12_381.ScalarField() }
