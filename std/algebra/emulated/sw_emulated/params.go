@@ -97,15 +97,17 @@ func GetP384Params() CurveParams {
 	}
 }
 
-// GetCurveParams returns suitable curve parameters given the parametric type Base as base field.
+// GetCurveParams returns suitable curve parameters given the parametric type
+// Base as base field. It caches the parameters and modifying the values in the
+// parameters struct leads to undefined behaviour.
 func GetCurveParams[Base emulated.FieldParams]() CurveParams {
 	var t Base
-	switch t.Modulus().Text(16) {
-	case "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f":
+	switch t.Modulus().String() {
+	case emparams.Secp256k1Fp{}.Modulus().String():
 		return secp256k1Params
-	case "30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47":
+	case emparams.BN254Fp{}.Modulus().String():
 		return bn254Params
-	case "1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab":
+	case emparams.BLS12381Fp{}.Modulus().String():
 		return bls12381Params
 	case emparams.P256Fp{}.Modulus().String():
 		return p256Params
