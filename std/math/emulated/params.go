@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/goldilocks"
 )
 
 // FieldParams describes the emulated field characteristics
@@ -16,13 +17,10 @@ type FieldParams interface {
 
 var (
 	qSecp256k1, rSecp256k1 *big.Int
-	qGoldilocks            *big.Int
 )
-
 func init() {
 	qSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
 	rSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141", 16)
-	qGoldilocks, _ = new(big.Int).SetString("ffffffff00000001", 16)
 }
 
 // Goldilocks provide type parametrization for emulated field on 1 limb of width 64bits
@@ -32,7 +30,7 @@ type Goldilocks struct{}
 func (fp Goldilocks) NbLimbs() uint     { return 1 }
 func (fp Goldilocks) BitsPerLimb() uint { return 64 }
 func (fp Goldilocks) IsPrime() bool     { return true }
-func (fp Goldilocks) Modulus() *big.Int { return qGoldilocks }
+func (fp Goldilocks) Modulus() *big.Int { return goldilocks.Modulus() }
 
 // Secp256k1Fp provide type parametrization for emulated field on 4 limb of width 64bits
 // for modulus 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f.
