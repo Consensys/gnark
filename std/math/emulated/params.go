@@ -15,14 +15,6 @@ type FieldParams interface {
 	Modulus() *big.Int // returns modulus. Do not modify.
 }
 
-var (
-	qSecp256k1, rSecp256k1 *big.Int
-)
-func init() {
-	qSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
-	rSecp256k1, _ = new(big.Int).SetString("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141", 16)
-}
-
 // Goldilocks provide type parametrization for emulated field on 1 limb of width 64bits
 // for modulus 0xffffffff00000001
 type Goldilocks struct{}
@@ -40,7 +32,7 @@ type Secp256k1Fp struct{}
 func (fp Secp256k1Fp) NbLimbs() uint     { return 4 }
 func (fp Secp256k1Fp) BitsPerLimb() uint { return 64 }
 func (fp Secp256k1Fp) IsPrime() bool     { return true }
-func (fp Secp256k1Fp) Modulus() *big.Int { return qSecp256k1 }
+func (fp Secp256k1Fp) Modulus() *big.Int { return ecc.SECP256K1.BaseField() }
 
 // Secp256k1Fr provides type parametrization for emulated field on 4 limbs of width 64bits
 // for modulus 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141.
@@ -50,7 +42,7 @@ type Secp256k1Fr struct{}
 func (fp Secp256k1Fr) NbLimbs() uint     { return 4 }
 func (fp Secp256k1Fr) BitsPerLimb() uint { return 64 }
 func (fp Secp256k1Fr) IsPrime() bool     { return true }
-func (fp Secp256k1Fr) Modulus() *big.Int { return rSecp256k1 }
+func (fp Secp256k1Fr) Modulus() *big.Int { return ecc.SECP256K1.ScalarField() }
 
 // BN254Fp provide type parametrization for emulated field on 4 limb of width
 // 64bits for modulus
