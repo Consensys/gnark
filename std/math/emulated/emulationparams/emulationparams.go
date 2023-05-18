@@ -1,3 +1,14 @@
+// Package emulationparams contains emulation parameters for well known fields.
+//
+// We define some well-known parameters in this package for compatibility and
+// ease of use. When needing to use parameters not defined in this package it is
+// sufficient to define a new type implementing [FieldParams]. For example, as:
+//
+//	type SmallField struct {}
+//	func (SmallField) NbLimbs() uint { return 1 }
+//	func (SmallField) BitsPerLimb() uint { return 11 }
+//	func (SmallField) IsPrime() bool { return true }
+//	func (SmallField) Modulus() *big.Int { return big.NewInt(1032) }
 package emulationparams
 
 import (
