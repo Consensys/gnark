@@ -78,7 +78,7 @@ func GetP256Params() CurveParams {
 		B:  pr.B,
 		Gx: pr.Gx,
 		Gy: pr.Gy,
-		Gm: computeP384Table(),
+		Gm: computeP256Table(),
 	}
 }
 
