@@ -677,10 +677,6 @@ func (builder *builder) Compiler() frontend.Compiler {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
-	if builder.cs.GetNbCommitments() != 0 {
-		return nil, errors.New("multi-commits not available for groth16 - yet")
-	}
-
 	// we want to build a sorted slice of committed variables, without duplicates
 	// this is the same algorithm as builder.add(...); but we expect len(v) to be quite large.
 

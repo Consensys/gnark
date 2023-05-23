@@ -8,6 +8,8 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/stretchr/testify/assert"
 	"math/big"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/consensys/gnark/backend/plonk"
@@ -31,33 +33,24 @@ func (c *commitmentCircuit) Define(api frontend.API) error {
 	return err
 }
 
-func (c *commitmentCircuit) hollow() frontend.Circuit {
-	return &commitmentCircuit{Public: make([]frontend.Variable, len(c.Public)), X: make([]frontend.Variable, len(c.X))}
-}
-
-func TestSingleCommitmentPlonk(t *testing.T) {
+func TestSingleCommitment(t *testing.T) {
 	assignment := &commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}}
-	plonkTest(t, assignment.hollow(), assignment)
+	e2eTest(t, assignment)
 }
 
-func TestSingleCommitmentFuzzer(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}}
-	NewAssert(t).ProverSucceeded(assignment.hollow(), assignment, WithCurves(ecc.BN254), WithBackends(backend.GROTH16)) // TODO: Make generic
-}
-
-func TestFiveCommitmentsPlonk(t *testing.T) {
+func TestFiveCommitments(t *testing.T) {
 	assignment := &commitmentCircuit{X: []frontend.Variable{1, 2, 3, 4, 5}, Public: []frontend.Variable{}}
-	plonkTest(t, assignment.hollow(), assignment)
+	e2eTest(t, assignment)
 }
 
-func TestSingleCommitmentSinglePublicPlonk(t *testing.T) {
+func TestSingleCommitmentSinglePublic(t *testing.T) {
 	assignment := &commitmentCircuit{X: []frontend.Variable{0}, Public: []frontend.Variable{1}}
-	plonkTest(t, assignment.hollow(), assignment)
+	e2eTest(t, assignment)
 }
 
-func TestFiveCommitmentsFivePublicPlonk(t *testing.T) {
+func TestFiveCommitmentsFivePublic(t *testing.T) {
 	assignment := &commitmentCircuit{X: []frontend.Variable{0, 1, 2, 3, 4}, Public: []frontend.Variable{1, 2, 3, 4, 5}}
-	plonkTest(t, assignment.hollow(), assignment)
+	e2eTest(t, assignment)
 }
 
 type noCommitmentCircuit struct {
@@ -70,8 +63,8 @@ func (c *noCommitmentCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestNoCommitmentCircuitPlonk(t *testing.T) {
-	plonkTest(t, &noCommitmentCircuit{}, &noCommitmentCircuit{1})
+func TestNoCommitmentCircuit(t *testing.T) {
+	e2eTest(t, &noCommitmentCircuit{1})
 }
 
 var fr = []ecc.ID{
@@ -131,7 +124,7 @@ func (c *committedConstantCircuit) Define(api frontend.API) error {
 }
 
 func TestCommittedConstant(t *testing.T) {
-	plonkTest(t, &committedConstantCircuit{}, &committedConstantCircuit{1})
+	e2eTest(t, &committedConstantCircuit{1})
 }
 
 type committedPublicCircuit struct {
@@ -148,7 +141,7 @@ func (c *committedPublicCircuit) Define(api frontend.API) error {
 }
 
 func TestCommittedPublic(t *testing.T) {
-	plonkTest(t, &committedPublicCircuit{}, &committedPublicCircuit{1})
+	e2eTest(t, &committedPublicCircuit{1})
 }
 
 func tryCommit(api frontend.API, x ...frontend.Variable) (frontend.Variable, error) {
@@ -177,12 +170,80 @@ func (c *twoCommitCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestTwoCommitEnginePlonk(t *testing.T) {
+func TestTwoCommitEngine(t *testing.T) {
 	assignment := &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3}
-	NewAssert(t).SolvingSucceeded(&twoCommitCircuit{X: make([]frontend.Variable, len(assignment.X))}, assignment, WithBackends(backend.PLONK))
+	NewAssert(t).SolvingSucceeded(&twoCommitCircuit{X: make([]frontend.Variable, len(assignment.X))}, assignment, WithBackends(backend.GROTH16, backend.PLONK))
 }
 
 func TestTwoCommitPlonk(t *testing.T) {
 	assignment := &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3}
 	plonkTest(t, &twoCommitCircuit{X: make([]frontend.Variable, len(assignment.X))}, assignment)
+}
+
+func hollow(c frontend.Circuit) frontend.Circuit {
+	cV := reflect.ValueOf(c).Elem()
+	t := reflect.TypeOf(c).Elem()
+	res := reflect.New(t)
+	resE := res.Elem()
+	resC := res.Interface().(frontend.Circuit)
+
+	frontendVar := reflect.TypeOf((*frontend.Variable)(nil)).Elem()
+
+	for i := 0; i < t.NumField(); i++ {
+		fieldT := t.Field(i).Type
+		if fieldT.Kind() == reflect.Slice && fieldT.Elem().Implements(frontendVar) {
+			resE.Field(i).Set(reflect.ValueOf(make([]frontend.Variable, cV.Field(i).Len())))
+		} else if fieldT != frontendVar {
+			resE.Field(i).Set(cV.Field(i))
+		}
+	}
+
+	return resC
+}
+
+func removePackageName(s string) string {
+	return s[strings.LastIndex(s, ".")+1:]
+}
+
+func TestHollow(t *testing.T) {
+
+	run := func(c, expected frontend.Circuit) func(t *testing.T) {
+		return func(t *testing.T) {
+			seen := hollow(c)
+			assert.Equal(t, expected, seen)
+		}
+	}
+
+	assignments := []frontend.Circuit{
+		&committedConstantCircuit{1},
+		&commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}},
+	}
+
+	expected := []frontend.Circuit{
+		&committedConstantCircuit{nil},
+		&commitmentCircuit{X: []frontend.Variable{nil}, Public: []frontend.Variable{}},
+	}
+
+	for i := range assignments {
+		t.Run(removePackageName(reflect.TypeOf(assignments[i]).String()), run(assignments[i], expected[i]))
+	}
+}
+
+func e2eTest(t *testing.T, assignment frontend.Circuit) {
+	t.Parallel()
+
+	t.Run("fuzzer", func(t *testing.T) {
+		circuit := hollow(assignment).(frontend.Circuit)
+		NewAssert(t).ProverSucceeded(circuit, assignment, WithBackends(backend.GROTH16, backend.PLONK)) // TODO: Support PlonkFri.Commit
+	})
+
+	t.Run("plonk-e2e", func(t *testing.T) {
+		circuit := hollow(assignment).(frontend.Circuit)
+		plonkTest(t, circuit, assignment)
+	})
+
+	t.Run("groth16-e2e", func(t *testing.T) {
+		circuit := hollow(assignment).(frontend.Circuit)
+		groth16Test(t, circuit, assignment)
+	})
 }
