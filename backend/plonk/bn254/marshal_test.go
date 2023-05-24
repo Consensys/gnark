@@ -190,8 +190,8 @@ func (proof *Proof) randomize() {
 	proof.Bsb22Commitments = randomG1Points(rand.Intn(4)) //#nosec G404 weak rng is fine here
 }
 
-func randomG2Point() curve.G2Affine{
-	_,_,_, r := curve.Generators()
+func randomG2Point() curve.G2Affine {
+	_, _, _, r := curve.Generators()
 	r.ScalarMultiplication(&r, big.NewInt(int64(rand.Uint64()))) //#nosec G404 weak rng is fine here
 	return r
 }
