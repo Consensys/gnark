@@ -233,17 +233,17 @@ func e2eTest(t *testing.T, assignment frontend.Circuit) {
 	t.Parallel()
 
 	t.Run("fuzzer", func(t *testing.T) {
-		circuit := hollow(assignment).(frontend.Circuit)
+		circuit := hollow(assignment)
 		NewAssert(t).ProverSucceeded(circuit, assignment, WithBackends(backend.GROTH16, backend.PLONK)) // TODO: Support PlonkFri.Commit
 	})
 
 	t.Run("plonk-e2e", func(t *testing.T) {
-		circuit := hollow(assignment).(frontend.Circuit)
+		circuit := hollow(assignment)
 		plonkTest(t, circuit, assignment)
 	})
 
 	t.Run("groth16-e2e", func(t *testing.T) {
-		circuit := hollow(assignment).(frontend.Circuit)
+		circuit := hollow(assignment)
 		groth16Test(t, circuit, assignment)
 	})
 }

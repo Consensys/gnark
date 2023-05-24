@@ -145,6 +145,6 @@ func (c *oneSecretOnePublicCommittedCircuit) Define(api frontend.API) error {
 func TestOneSecretOnePublicCommitted(t *testing.T) {
 	test(t, &oneSecretOnePublicCommittedCircuit{}, &oneSecretOnePublicCommittedCircuit{
 		One: 1,
-		Two: 2,
+		Two: 2, //public
 	})
 }

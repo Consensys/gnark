@@ -80,8 +80,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			}
 
 			var err error
-			proof.Commitment, proof.CommitmentPok, err = pk.CommitmentKey.Commit(values)
-			if err != nil {
+			if proof.Commitment, err = pk.CommitmentKeys[0].Commit(values); err != nil {
+				return err
+			}
+			if proof.CommitmentPok, err = pk.CommitmentKeys[0].ProveKnowledge(values); err != nil { // TODO: Will have to send proofs of knowledge to after solving
 				return err
 			}
 

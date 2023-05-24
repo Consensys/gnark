@@ -76,7 +76,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			publicCommitted[i] = &b
 		}
 
-		if res, err := solveCommitmentWire(&proof.Commitment, publicCommitted); err == nil {
+		if res, err := solveCommitmentWire(&proof.Commitment, publicCommitted); err != nil {
+			return err
+		} else {
 			publicWitness = append(publicWitness, res)
 		}
 	}

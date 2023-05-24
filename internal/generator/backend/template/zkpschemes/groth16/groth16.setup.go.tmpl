@@ -34,7 +34,7 @@ type ProvingKey struct {
 	InfinityA, InfinityB     []bool
 	NbInfinityA, NbInfinityB uint64
 
-	CommitmentKey pedersen.ProvingKey
+	CommitmentKeys []pedersen.ProvingKey
 }
 
 // VerifyingKey is used by a Groth16 verifier to verify the validity of a proof and a statement
@@ -245,7 +245,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	if nbPrivateCommittedWires != 0 {
 		commitmentBasis := g1PointsAff[offset:]
 
-		pk.CommitmentKey, vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
+		pk.CommitmentKeys, vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
 		if err != nil {
 			return err
 		}

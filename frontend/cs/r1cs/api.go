@@ -744,7 +744,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		return nil, err
 	}
 
-	if hintOut[0], err = builder.NewHintForId(commitment.HintID, 1, v...); err != nil {
+	if hintOut, err = builder.NewHintForId(commitment.HintID, 1, builder.getCommittedVariables(&commitment)...); err != nil {
 		return nil, err
 	}
 
