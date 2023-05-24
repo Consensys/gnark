@@ -76,8 +76,7 @@ type VerifyingKey struct {
 	e curve.GT // not serialized
 
 	CommitmentKey   pedersen.VerifyingKey
-	HasCommitment   bool  // TODO: Make CommitmentKey nullable instead
-	PublicCommitted []int // indexes of public committed variables
+	PublicCommitted [][]int // indexes of public committed variables
 }
 
 // Setup constructs the SRS
@@ -269,8 +268,9 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	}
 	//}
 
-	if vk.HasCommitment = r1cs.GetNbCommitments() != 0; vk.HasCommitment {
-		vk.PublicCommitted = r1cs.CommitmentInfo[0].PublicCommitted()
+	vk.PublicCommitted = make([][]int, len(r1cs.CommitmentInfo))
+	for i := range r1cs.CommitmentInfo {
+		vk.PublicCommitted[i] = r1cs.CommitmentInfo[i].PublicCommitted()
 	}
 
 	// ---------------------------------------------------------------------------------------------

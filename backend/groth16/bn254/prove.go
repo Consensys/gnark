@@ -37,9 +37,10 @@ import (
 // with a valid statement and a VerifyingKey
 // Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type Proof struct {
-	Ar, Krs                   curve.G1Affine
-	Bs                        curve.G2Affine
-	Commitment, CommitmentPok curve.G1Affine
+	Ar, Krs       curve.G1Affine
+	Bs            curve.G2Affine
+	CommitmentPok curve.G1Affine
+	Commitments   []curve.G1Affine
 }
 
 // isValid ensures proof elements are in the correct subgroup
@@ -61,7 +62,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
 
-	proof := &Proof{}
+	proof := &Proof{Commitments: make([]curve.G1Affine, len(r1cs.CommitmentInfo))}
 
 	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
 
@@ -75,12 +76,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			values := make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted)
 			nbPublicCommitted := len(in) - len(values)
 			inPrivate := in[nbPublicCommitted:]
-			for i, inI := range inPrivate {
-				values[i].SetBigInt(inI)
+			for j, inJ := range inPrivate {
+				values[j].SetBigInt(inJ)
 			}
 
 			var err error
-			if proof.Commitment, err = pk.CommitmentKeys[i].Commit(values); err != nil {
+			if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(values); err != nil {
 				return err
 			}
 			if proof.CommitmentPok, err = pk.CommitmentKeys[i].ProveKnowledge(values); err != nil { // TODO: Will have to send proofs of knowledge to after solving
@@ -88,7 +89,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			}
 
 			var res fr.Element
-			res, err = solveCommitmentWire(&proof.Commitment, in[:r1cs.CommitmentInfo[i].NbPublicCommitted()])
+			res, err = solveCommitmentWire(&proof.Commitments[i], in[:r1cs.CommitmentInfo[i].NbPublicCommitted()])
 			res.BigInt(out[0])
 			return err
 		}))

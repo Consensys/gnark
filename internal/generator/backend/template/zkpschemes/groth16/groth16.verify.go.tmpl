@@ -21,10 +21,8 @@ var (
 // Verify verifies a proof with given VerifyingKey and publicWitness
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
-	nbPublicVars := len(vk.G1.K)
-	if vk.HasCommitment {
-		nbPublicVars--
-	}
+	nbPublicVars := len(vk.G1.K) - len(vk.PublicCommitted)
+
 	if len(publicWitness) != nbPublicVars-1 {
 		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(publicWitness), len(vk.G1.K) - 1)
 	}
@@ -47,20 +45,20 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		close(chDone)
 	}()
 
-	if vk.HasCommitment {
+	for i := range vk.PublicCommitted {
 
-		if err := vk.CommitmentKey.Verify(proof.Commitment, proof.CommitmentPok); err != nil {
+		if err := vk.CommitmentKey.Verify(proof.Commitments[i], proof.CommitmentPok); err != nil {
 			return err
 		}
 
-		publicCommitted := make([]*big.Int, len(vk.PublicCommitted))
-		for i := range publicCommitted {
+		publicCommitted := make([]*big.Int, len(vk.PublicCommitted[i]))
+		for j := range publicCommitted {
 			var b big.Int
-			publicWitness[vk.PublicCommitted[i]-1].BigInt(&b)
-			publicCommitted[i] = &b
+			publicWitness[vk.PublicCommitted[i][j]-1].BigInt(&b)
+			publicCommitted[j] = &b
 		}
 		
-		if res, err := solveCommitmentWire(&proof.Commitment, publicCommitted); err != nil {
+		if res, err := solveCommitmentWire(&proof.Commitments[i], publicCommitted); err != nil {
 			return err
 		} else {
 			publicWitness = append(publicWitness, res)
@@ -74,8 +72,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	}
 	kSum.AddMixed(&vk.G1.K[0])
 
-	if vk.HasCommitment {
-		kSum.AddMixed(&proof.Commitment)
+	for i := range proof.Commitments {
+		kSum.AddMixed(&proof.Commitments[i])
 	}
 	
 	var kSumAff curve.G1Affine
