@@ -65,14 +65,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
 
-	if r1cs.GetNbCommitments() != 0 {
-		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[0].HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+	for i := range r1cs.CommitmentInfo {
+		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 			// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
 			// If that is the case, figure out a way to feed the solution vector into this function
-			if len(in) != r1cs.CommitmentInfo[0].NbCommitted() { // TODO: Remove
+			if len(in) != r1cs.CommitmentInfo[i].NbCommitted() { // TODO: Remove
 				return fmt.Errorf("unexpected number of committed variables")
 			}
-			values := make([]fr.Element, r1cs.CommitmentInfo[0].NbPrivateCommitted)
+			values := make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted)
 			nbPublicCommitted := len(in) - len(values)
 			inPrivate := in[nbPublicCommitted:]
 			for i, inI := range inPrivate {
@@ -80,15 +80,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			}
 
 			var err error
-			if proof.Commitment, err = pk.CommitmentKeys[0].Commit(values); err != nil {
+			if proof.Commitment, err = pk.CommitmentKeys[i].Commit(values); err != nil {
 				return err
 			}
-			if proof.CommitmentPok, err = pk.CommitmentKeys[0].ProveKnowledge(values); err != nil { // TODO: Will have to send proofs of knowledge to after solving
+			if proof.CommitmentPok, err = pk.CommitmentKeys[i].ProveKnowledge(values); err != nil { // TODO: Will have to send proofs of knowledge to after solving
 				return err
 			}
 
 			var res fr.Element
-			res, err = solveCommitmentWire(&proof.Commitment, in[:r1cs.CommitmentInfo[0].NbPublicCommitted()])
+			res, err = solveCommitmentWire(&proof.Commitment, in[:r1cs.CommitmentInfo[i].NbPublicCommitted()])
 			res.BigInt(out[0])
 			return err
 		}))
@@ -206,8 +206,8 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 		// filter the wire values if needed
 		_wireValues := wireValues
-		if r1cs.GetNbCommitments() != 0 {
-			_wireValues = filter(wireValues, r1cs.CommitmentInfo[0].PrivateToPublicGroth16())
+		for i := range r1cs.CommitmentInfo {
+			_wireValues = filter(_wireValues, r1cs.CommitmentInfo[i].PrivateToPublicGroth16())
 		}
 
 		if _, err := krs.MultiExp(pk.G1.K, _wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
