@@ -17,23 +17,13 @@
 package groth16
 
 import (
-	"fmt"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/constraint"
 	"math/big"
 )
 
-func printBigInts(x []*big.Int) {
-	for _, v := range x {
-		fmt.Println(v.String())
-	}
-}
-
 func solveCommitmentWire(commitment *curve.G1Affine, publicCommitted []*big.Int) (fr.Element, error) {
-	fmt.Println("solveCommitmentWire")
-	fmt.Println(commitment.String())
-	printBigInts(publicCommitted)
 	res, err := fr.Hash(constraint.SerializeCommitment(commitment.Marshal(), publicCommitted, (fr.Bits-1)/8+1), []byte(constraint.CommitmentDst), 1)
 	return res[0], err
 }
