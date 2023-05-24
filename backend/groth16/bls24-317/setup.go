@@ -260,14 +260,14 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// ---------------------------------------------------------------------------------------------
 	// Commitment setup
 
-	if nbPrivateCommittedWires != 0 {
-		commitmentBasis := g1PointsAff[offset:]
+	//if nbPrivateCommittedWires != 0 {
+	commitmentBasis := g1PointsAff[offset:]
 
-		pk.CommitmentKeys, vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
-		if err != nil {
-			return err
-		}
+	pk.CommitmentKeys, vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
+	if err != nil {
+		return err
 	}
+	//}
 
 	if vk.HasCommitment = r1cs.GetNbCommitments() != 0; vk.HasCommitment {
 		vk.PublicCommitted = r1cs.CommitmentInfo[0].PublicCommitted()
