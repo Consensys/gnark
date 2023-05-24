@@ -118,9 +118,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	zu := proof.ZShiftedOpening.ClaimedValue
 
-	// qC := make([]fr.Element, len(proof.Bsb22Commitments))
-	// claimedValues := proof.BatchedProof.ClaimedValues[len(proof.Bsb22Commitments):]
-	// claimedValues := proof.BatchedProof.ClaimedValues[7:]
 	claimedQuotient := proof.BatchedProof.ClaimedValues[0]
 	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1]
 	l := proof.BatchedProof.ClaimedValues[2]
