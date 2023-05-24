@@ -1,1 +1,0 @@
-- got rid of arrays for G2 points
