@@ -733,12 +733,22 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 	// hint is used at solving time to compute the actual value of the commitment
 	// it is going to be dynamically replaced at solving time.
-	hintOut, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, builder.getCommittedVariables(&commitment)...)
+
+	var (
+		hintOut []frontend.Variable
+		err     error
+	)
+
+	commitment.HintID, err = cs.RegisterBsb22CommitmentComputePlaceholder(builder.cs.GetNbCommitments())
 	if err != nil {
 		return nil, err
 	}
+
+	if hintOut[0], err = builder.NewHintForId(commitment.HintID, 1, v...); err != nil {
+		return nil, err
+	}
+
 	cVar := hintOut[0]
-	commitment.HintID = solver.GetHintID(cs.Bsb22CommitmentComputePlaceholder) // TODO @gbotrel probably not needed
 
 	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
 
