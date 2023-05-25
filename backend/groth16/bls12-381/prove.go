@@ -102,7 +102,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	start := time.Now()
 
-	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommitted, []byte("TODO PUT COMMITMENTS HERE")); err != nil {
+	commitmentsSerialized := make([]byte, fr.Bytes*len(r1cs.CommitmentInfo))
+	for i := range r1cs.CommitmentInfo {
+		copy(commitmentsSerialized[fr.Bytes*i:], wireValues[r1cs.CommitmentInfo[i].CommitmentIndex].Marshal())
+	}
+
+	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommitted, commitmentsSerialized); err != nil {
 		return nil, err
 	}
 

@@ -61,20 +61,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		close(chDone)
 	}()
 
-	if folded, err := pedersen.FoldCommitments(proof.Commitments, []byte("TODO PUT COMMITMENTS HERE")); err != nil {
-		return err
-	} else {
-		if err = vk.CommitmentKey.Verify(folded, proof.CommitmentPok); err != nil {
-			return err
-		}
-	}
-
+	commitmentsSerialized := make([]byte, len(vk.PublicCommitted)*fr.Bytes)
 	for i := range vk.PublicCommitted {
-
-		if err := vk.CommitmentKey.Verify(proof.Commitments[i], proof.CommitmentPok); err != nil {
-			return err
-		}
-
 		publicCommitted := make([]*big.Int, len(vk.PublicCommitted[i]))
 		for j := range publicCommitted {
 			var b big.Int
@@ -86,6 +74,15 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			return err
 		} else {
 			publicWitness = append(publicWitness, res)
+			copy(commitmentsSerialized[i*fr.Bytes:], res.Marshal())
+		}
+	}
+
+	if folded, err := pedersen.FoldCommitments(proof.Commitments, commitmentsSerialized); err != nil {
+		return err
+	} else {
+		if err = vk.CommitmentKey.Verify(folded, proof.CommitmentPok); err != nil {
+			return err
 		}
 	}
 
