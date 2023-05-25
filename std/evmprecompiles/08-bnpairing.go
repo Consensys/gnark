@@ -48,7 +48,14 @@ import (
 //   N.B.: Batches 3, 4 and 5 are sub-optimal compared to Pair() but the result is
 //   a fixed-circuit.
 
-func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine, n int) {
+func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
+	if len(P) != len(Q) {
+		panic("P and Q length mismatch")
+	}
+	if len(P) < 2 {
+		panic("invalid multipairing size bound")
+	}
+	n := len(P)
 	pair, err := sw_bn254.NewPairing(api)
 	if err != nil {
 		panic(err)
