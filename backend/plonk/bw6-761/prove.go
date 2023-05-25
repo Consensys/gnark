@@ -508,25 +508,32 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	<-computeFoldedH
 
 	// Batch open the first list of polynomials
+	polysQcp := coefficients(pk.trace.Qcp)
+	polysToOpen := make([][]fr.Element, 7+len(polysQcp))
+	copy(polysToOpen[7:], polysQcp)
+	// offset := len(polysQcp)
+	polysToOpen[0] = foldedH
+	polysToOpen[1] = linearizedPolynomialCanonical
+	polysToOpen[2] = bwliop.Coefficients()[:bwliop.BlindedSize()]
+	polysToOpen[3] = bwriop.Coefficients()[:bwriop.BlindedSize()]
+	polysToOpen[4] = bwoiop.Coefficients()[:bwoiop.BlindedSize()]
+	polysToOpen[5] = pk.trace.S1.Coefficients()
+	polysToOpen[6] = pk.trace.S2.Coefficients()
+
+	digestsToOpen := make([]curve.G1Affine, len(pk.Vk.Qcp)+7)
+	copy(digestsToOpen[7:], pk.Vk.Qcp)
+	// offset = len(pk.Vk.Qcp)
+	digestsToOpen[0] = foldedHDigest
+	digestsToOpen[1] = linearizedPolynomialDigest
+	digestsToOpen[2] = proof.LRO[0]
+	digestsToOpen[3] = proof.LRO[1]
+	digestsToOpen[4] = proof.LRO[2]
+	digestsToOpen[5] = pk.Vk.S[0]
+	digestsToOpen[6] = pk.Vk.S[1]
+
 	proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
-		append(coefficients(pk.trace.Qcp),
-			foldedH,
-			linearizedPolynomialCanonical,
-			bwliop.Coefficients()[:bwliop.BlindedSize()],
-			bwriop.Coefficients()[:bwriop.BlindedSize()],
-			bwoiop.Coefficients()[:bwoiop.BlindedSize()],
-			pk.trace.S1.Coefficients(),
-			pk.trace.S2.Coefficients(),
-		),
-		append(pk.Vk.Qcp,
-			foldedHDigest,
-			linearizedPolynomialDigest,
-			proof.LRO[0],
-			proof.LRO[1],
-			proof.LRO[2],
-			pk.Vk.S[0],
-			pk.Vk.S[1],
-		),
+		polysToOpen,
+		digestsToOpen,
 		zeta,
 		hFunc,
 		pk.Kzg,

@@ -2,6 +2,7 @@ package evmprecompiles
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
@@ -13,7 +14,8 @@ import (
 //
 // [ECRECOVER]: https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/ecrecover/index.html
 func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
-	v frontend.Variable, r, s emulated.Element[emulated.Secp256k1Fr]) *sw_emulated.AffinePoint[emulated.Secp256k1Fp] {
+	v frontend.Variable, r, s emulated.Element[emulated.Secp256k1Fr],
+	strictRange frontend.Variable) *sw_emulated.AffinePoint[emulated.Secp256k1Fp] {
 	// EVM uses v \in {27, 28}, but everyone else v >= 0. Convert back
 	v = api.Sub(v, 27)
 	var emfp emulated.Secp256k1Fp
@@ -28,7 +30,14 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	}
 	// with the encoding we may have that r,s < 2*Fr (i.e. not r,s < Fr). Apply more thorough checks.
 	frField.AssertIsLessOrEqual(&r, frField.Modulus())
-	frField.AssertIsLessOrEqual(&s, frField.Modulus())
+	// Ethereum Yellow Paper defines that the check for s should be more strict
+	// when checking transaction signatures (Appendix F). There we should check
+	// that s <= (Fr-1)/2
+	halfFr := new(big.Int).Sub(emfr.Modulus(), big.NewInt(1))
+	halfFr.Div(halfFr, big.NewInt(2))
+	bound := frField.Select(strictRange, frField.NewElement(halfFr), frField.Modulus())
+	frField.AssertIsLessOrEqual(&s, bound)
+
 	curve, err := sw_emulated.New[emulated.Secp256k1Fp, emulated.Secp256k1Fr](api, sw_emulated.GetSecp256k1Params())
 	if err != nil {
 		panic(fmt.Sprintf("new curve: %v", err))
