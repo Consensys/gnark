@@ -56,3 +56,6 @@ go.work
 go.work.sum
 
 examples/gbotrel/**
+
+# ignore cached SRS
+internal/ignition/cmd/data/**
