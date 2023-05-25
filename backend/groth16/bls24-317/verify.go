@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-317"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/pedersen"
 	"github.com/consensys/gnark/logger"
 	"io"
 	"math/big"
@@ -59,6 +60,14 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		chDone <- errML
 		close(chDone)
 	}()
+
+	if folded, err := pedersen.FoldCommitments(proof.Commitments, []byte("TODO PUT COMMITMENTS HERE")); err != nil {
+		return err
+	} else {
+		if err = vk.CommitmentKey.Verify(folded, proof.CommitmentPok); err != nil {
+			return err
+		}
+	}
 
 	for i := range vk.PublicCommitted {
 

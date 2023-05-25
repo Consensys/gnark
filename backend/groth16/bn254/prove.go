@@ -70,8 +70,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	privateCommitted := make([][]fr.Element, len(r1cs.CommitmentInfo))
 	for i := range r1cs.CommitmentInfo {
 		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
-			// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
-			// If that is the case, figure out a way to feed the solution vector into this function
 			if len(in) != r1cs.CommitmentInfo[i].NbCommitted() { // TODO: Remove
 				return fmt.Errorf("unexpected number of committed variables")
 			}
@@ -79,7 +77,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			nbPublicCommitted := len(in) - len(privateCommitted[i])
 			inPrivate := in[nbPublicCommitted:]
 			for j, inJ := range inPrivate {
-				privateCommitted[i][j].SetBigInt(inJ)
+				privateCommitted[i][j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
 			}
 
 			var err error
@@ -99,14 +97,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		return nil, err
 	}
 
-	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommitted, []byte("TODO PUT COMMITMENTS HERE")); err != nil {
-		return nil, err
-	}
-
 	solution := _solution.(*cs.R1CSSolution)
 	wireValues := []fr.Element(solution.W)
 
 	start := time.Now()
+
+	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommitted, []byte("TODO PUT COMMITMENTS HERE")); err != nil {
+		return nil, err
+	}
 
 	// H (witness reduction / FFT part)
 	var h []fr.Element

@@ -10,6 +10,7 @@ import (
 	{{- if eq .Curve "BN254"}}
 	"text/template"
 	{{- end}}
+	{{- template "import_pedersen" .}}
 	"github.com/consensys/gnark/logger"
 )
 
@@ -44,6 +45,14 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		chDone <- errML
 		close(chDone)
 	}()
+
+	if folded, err := pedersen.FoldCommitments(proof.Commitments, []byte("TODO PUT COMMITMENTS HERE")); err != nil {
+		return err
+	} else {
+		if err = vk.CommitmentKey.Verify(folded, proof.CommitmentPok); err != nil {
+			return err
+		}
+	}
 
 	for i := range vk.PublicCommitted {
 
