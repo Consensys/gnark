@@ -19,6 +19,7 @@ package r1cs
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/internal/utils"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -719,6 +720,22 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 			committed = append(committed, t.VID)
 			if t.VID < builder.cs.GetNbPublicVariables() {
 				nbPublicCommitted++
+			} else {
+				// Cannot commit to a secret variable that has already been committed to
+				// instead we commit to its commitment
+				commitments := builder.cs.GetCommitments()
+				for i := range commitments {
+					if alreadyCommitted, _ := utils.BinarySearch(commitments[i].Committed, t.VID); alreadyCommitted {
+						toCommit := commitments[i].CommitmentIndex
+						if alreadyCommitted, toInsert := utils.BinarySearch(committed, toCommit); alreadyCommitted {
+							committed = committed[:len(committed)-1] // variable already represented
+						} else {
+							copy(committed[toInsert+1:], committed[toInsert:])
+							committed[toInsert] = toCommit
+						}
+						break
+					}
+				}
 			}
 			curr++
 		}
@@ -739,7 +756,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		err     error
 	)
 
-	commitment.HintID, err = cs.RegisterBsb22CommitmentComputePlaceholder(builder.cs.GetNbCommitments())
+	commitment.HintID, err = cs.RegisterBsb22CommitmentComputePlaceholder(len(builder.cs.GetCommitments()))
 	if err != nil {
 		return nil, err
 	}

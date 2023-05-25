@@ -418,8 +418,8 @@ func (cs *System) GetSparseR1CIterator() SparseR1CIterator {
 	return SparseR1CIterator{cs: cs}
 }
 
-func (cs *System) GetNbCommitments() int {
-	return len(cs.CommitmentInfo)
+func (cs *System) GetCommitments() []Commitment {
+	return cs.CommitmentInfo
 }
 
 // bufPool is a pool of buffers used by getBuffer and putBuffer.
