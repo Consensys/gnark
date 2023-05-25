@@ -8,7 +8,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 // CurveParams defines parameters of an elliptic curve in short Weierstrass form
@@ -69,7 +68,7 @@ func GetBLS12381Params() CurveParams {
 
 // GetP256Params returns the curve parameters for the curve P-256 (also
 // SECP256r1). When initialising new curve, use the base field
-// [emparams.P256Fp] and scalar field [emparams.P256Fr].
+// [emulated.P256Fp] and scalar field [emulated.P256Fr].
 func GetP256Params() CurveParams {
 	pr := elliptic.P256().Params()
 	a := new(big.Int).Sub(pr.P, big.NewInt(3))
@@ -84,7 +83,7 @@ func GetP256Params() CurveParams {
 
 // GetP384Params returns the curve parameters for the curve P-384 (also
 // SECP384r1). When initialising new curve, use the base field
-// [emparams.P384Fp] and scalar field [emparams.P384Fr].
+// [emulated.P384Fp] and scalar field [emulated.P384Fr].
 func GetP384Params() CurveParams {
 	pr := elliptic.P384().Params()
 	a := new(big.Int).Sub(pr.P, big.NewInt(3))
@@ -103,15 +102,15 @@ func GetP384Params() CurveParams {
 func GetCurveParams[Base emulated.FieldParams]() CurveParams {
 	var t Base
 	switch t.Modulus().String() {
-	case emparams.Secp256k1Fp{}.Modulus().String():
+	case emulated.Secp256k1Fp{}.Modulus().String():
 		return secp256k1Params
-	case emparams.BN254Fp{}.Modulus().String():
+	case emulated.BN254Fp{}.Modulus().String():
 		return bn254Params
-	case emparams.BLS12381Fp{}.Modulus().String():
+	case emulated.BLS12381Fp{}.Modulus().String():
 		return bls12381Params
-	case emparams.P256Fp{}.Modulus().String():
+	case emulated.P256Fp{}.Modulus().String():
 		return p256Params
-	case emparams.P384Fp{}.Modulus().String():
+	case emulated.P384Fp{}.Modulus().String():
 		return p384Params
 	default:
 		panic("no stored parameters")

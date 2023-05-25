@@ -11,7 +11,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
@@ -46,16 +45,16 @@ func TestEcdsaP256PreHashed(t *testing.T) {
 		t.Errorf("can't verify signature")
 	}
 
-	circuit := EcdsaCircuit[emparams.P256Fp, emparams.P256Fr]{}
-	witness := EcdsaCircuit[emparams.P256Fp, emparams.P256Fr]{
-		Sig: Signature[emparams.P256Fr]{
-			R: emulated.ValueOf[emparams.P256Fr](r),
-			S: emulated.ValueOf[emparams.P256Fr](s),
+	circuit := EcdsaCircuit[emulated.P256Fp, emulated.P256Fr]{}
+	witness := EcdsaCircuit[emulated.P256Fp, emulated.P256Fr]{
+		Sig: Signature[emulated.P256Fr]{
+			R: emulated.ValueOf[emulated.P256Fr](r),
+			S: emulated.ValueOf[emulated.P256Fr](s),
 		},
-		Msg: emulated.ValueOf[emparams.P256Fr](msgHash[:]),
-		Pub: PublicKey[emparams.P256Fp, emparams.P256Fr]{
-			X: emulated.ValueOf[emparams.P256Fp](privKey.PublicKey.X),
-			Y: emulated.ValueOf[emparams.P256Fp](privKey.PublicKey.Y),
+		Msg: emulated.ValueOf[emulated.P256Fr](msgHash[:]),
+		Pub: PublicKey[emulated.P256Fp, emulated.P256Fr]{
+			X: emulated.ValueOf[emulated.P256Fp](privKey.PublicKey.X),
+			Y: emulated.ValueOf[emulated.P256Fp](privKey.PublicKey.Y),
 		},
 	}
 	assert := test.NewAssert(t)
@@ -93,16 +92,16 @@ func TestEcdsaP384PreHashed(t *testing.T) {
 		t.Errorf("can't verify signature")
 	}
 
-	circuit := EcdsaCircuit[emparams.P384Fp, emparams.P384Fr]{}
-	witness := EcdsaCircuit[emparams.P384Fp, emparams.P384Fr]{
-		Sig: Signature[emparams.P384Fr]{
-			R: emulated.ValueOf[emparams.P384Fr](r),
-			S: emulated.ValueOf[emparams.P384Fr](s),
+	circuit := EcdsaCircuit[emulated.P384Fp, emulated.P384Fr]{}
+	witness := EcdsaCircuit[emulated.P384Fp, emulated.P384Fr]{
+		Sig: Signature[emulated.P384Fr]{
+			R: emulated.ValueOf[emulated.P384Fr](r),
+			S: emulated.ValueOf[emulated.P384Fr](s),
 		},
-		Msg: emulated.ValueOf[emparams.P384Fr](msgHash[:]),
-		Pub: PublicKey[emparams.P384Fp, emparams.P384Fr]{
-			X: emulated.ValueOf[emparams.P384Fp](privKey.PublicKey.X),
-			Y: emulated.ValueOf[emparams.P384Fp](privKey.PublicKey.Y),
+		Msg: emulated.ValueOf[emulated.P384Fr](msgHash[:]),
+		Pub: PublicKey[emulated.P384Fp, emulated.P384Fr]{
+			X: emulated.ValueOf[emulated.P384Fp](privKey.PublicKey.X),
+			Y: emulated.ValueOf[emulated.P384Fp](privKey.PublicKey.Y),
 		},
 	}
 	assert := test.NewAssert(t)
