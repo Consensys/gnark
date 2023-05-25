@@ -15,8 +15,8 @@ import (
 //   - [BN254Fp] and [BN254Fr]
 //   - [BLS12377Fp]
 //   - [BLS12381Fp] and [BLS12381Fr]
-//
-// Any new parameters will be included in [emparams] package, not here.
+//   - [P256Fp] and [P256Fr]
+//   - [P384Fp] and [P384Fr]
 type FieldParams interface {
 	NbLimbs() uint     // number of limbs to represent field element
 	BitsPerLimb() uint // number of bits per limb. Top limb may contain less than limbSize bits.
@@ -24,11 +24,17 @@ type FieldParams interface {
 	Modulus() *big.Int // returns modulus. Do not modify.
 }
 
-type Goldilocks = emparams.Goldilocks
-type Secp256k1Fp = emparams.Secp256k1Fp
-type Secp256k1Fr = emparams.Secp256k1Fr
-type BN254Fp = emparams.BN254Fp
-type BN254Fr = emparams.BN254Fr
-type BLS12377Fp = emparams.BLS12377Fp
-type BLS12381Fp = emparams.BLS12381Fp
-type BLS12381Fr = emparams.BLS12381Fr
+type (
+	Goldilocks  = emparams.Goldilocks
+	Secp256k1Fp = emparams.Secp256k1Fp
+	Secp256k1Fr = emparams.Secp256k1Fr
+	BN254Fp     = emparams.BN254Fp
+	BN254Fr     = emparams.BN254Fr
+	BLS12377Fp  = emparams.BLS12377Fp
+	BLS12381Fp  = emparams.BLS12381Fp
+	BLS12381Fr  = emparams.BLS12381Fr
+	P256Fp      = emparams.P256Fp
+	P256Fr      = emparams.P256Fr
+	P384Fp      = emparams.P384Fp
+	P384Fr      = emparams.P384Fr
+)
