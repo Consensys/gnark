@@ -22,6 +22,7 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint/bn254"
@@ -66,6 +67,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
 
+	privateCommitted := make([][]fr.Element, len(r1cs.CommitmentInfo))
 	for i := range r1cs.CommitmentInfo {
 		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 			// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
@@ -73,18 +75,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			if len(in) != r1cs.CommitmentInfo[i].NbCommitted() { // TODO: Remove
 				return fmt.Errorf("unexpected number of committed variables")
 			}
-			values := make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted)
-			nbPublicCommitted := len(in) - len(values)
+			privateCommitted[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted)
+			nbPublicCommitted := len(in) - len(privateCommitted[i])
 			inPrivate := in[nbPublicCommitted:]
 			for j, inJ := range inPrivate {
-				values[j].SetBigInt(inJ)
+				privateCommitted[i][j].SetBigInt(inJ)
 			}
 
 			var err error
-			if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(values); err != nil {
-				return err
-			}
-			if proof.CommitmentPok, err = pk.CommitmentKeys[i].ProveKnowledge(values); err != nil { // TODO: Will have to send proofs of knowledge to after solving
+			if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(privateCommitted[i]); err != nil {
 				return err
 			}
 
@@ -97,6 +96,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
 	if err != nil {
+		return nil, err
+	}
+
+	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommitted, []byte("TODO PUT COMMITMENTS HERE")); err != nil {
 		return nil, err
 	}
 
