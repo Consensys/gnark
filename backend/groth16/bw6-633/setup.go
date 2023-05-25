@@ -17,6 +17,7 @@
 package groth16
 
 import (
+	"errors"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
@@ -259,14 +260,20 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// ---------------------------------------------------------------------------------------------
 	// Commitment setup
 
-	//if nbPrivateCommittedWires != 0 {
-	commitmentBasis := g1PointsAff[offset:]
+	commitmentBases := make([][]curve.G1Affine, len(r1cs.CommitmentInfo))
+	for i := range commitmentBases {
+		size := r1cs.CommitmentInfo[i].NbPrivateCommitted
+		commitmentBases[i] = g1PointsAff[offset : offset+size]
+		offset += size
+	}
+	if offset != len(g1PointsAff) {
+		return errors.New("didn't consume all G1 points") // TODO @Tabaie Remove this
+	}
 
-	pk.CommitmentKeys, vk.CommitmentKey, err = pedersen.Setup(commitmentBasis)
+	pk.CommitmentKeys, vk.CommitmentKey, err = pedersen.Setup(commitmentBases...)
 	if err != nil {
 		return err
 	}
-	//}
 
 	vk.PublicCommitted = make([][]int, len(r1cs.CommitmentInfo))
 	for i := range r1cs.CommitmentInfo {
