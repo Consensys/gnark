@@ -28,7 +28,8 @@ var fr = []ecc.ID{
 	ecc.BW6_761,
 }
 
-func testPlonk(t *testing.T, circuit, assignment frontend.Circuit) {
+func testPlonk(t *testing.T, assignment frontend.Circuit) {
+	circuit := hollow(assignment)
 
 	run := func(mod *big.Int) func(t *testing.T) {
 		return func(t *testing.T) {
@@ -59,7 +60,8 @@ func testPlonk(t *testing.T, circuit, assignment frontend.Circuit) {
 	}
 }
 
-func testGroth16(t *testing.T, circuit, assignment frontend.Circuit) {
+func testGroth16(t *testing.T, assignment frontend.Circuit) {
+	circuit := hollow(assignment)
 	run := func(mod *big.Int) func(*testing.T) {
 		return func(t *testing.T) {
 			cs, err := frontend.Compile(mod, r1cs.NewBuilder, circuit)
@@ -100,13 +102,11 @@ func testAll(t *testing.T, assignment frontend.Circuit) {
 	})
 
 	t.Run("plonk-e2e", func(t *testing.T) {
-		circuit := hollow(assignment)
-		testPlonk(t, circuit, assignment)
+		testPlonk(t, assignment)
 	})
 
 	t.Run("groth16-e2e", func(t *testing.T) {
-		circuit := hollow(assignment)
-		testGroth16(t, circuit, assignment)
+		testGroth16(t, assignment)
 	})
 }
 

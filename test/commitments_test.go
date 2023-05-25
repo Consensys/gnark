@@ -127,8 +127,27 @@ func TestTwoCommitEngine(t *testing.T) {
 }
 
 func TestTwoCommitPlonk(t *testing.T) {
-	assignment := &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3}
-	testPlonk(t, &twoCommitCircuit{X: make([]frontend.Variable, len(assignment.X))}, assignment)
+	testPlonk(t, &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3})
+}
+
+type independentCommitsCircuit struct {
+	X []frontend.Variable
+}
+
+func (c *independentCommitsCircuit) Define(api frontend.API) error {
+	committer := api.(frontend.Committer)
+	for i := range c.X {
+		if ch, err := committer.Commit(c.X[i]); err != nil {
+			return err
+		} else {
+			api.AssertIsDifferent(ch, 0)
+		}
+	}
+	return nil
+}
+
+func TestTwoIndependentCommitsGroth16(t *testing.T) {
+	testGroth16(t, &independentCommitsCircuit{X: []frontend.Variable{1, 2}})
 }
 
 func TestHollow(t *testing.T) {

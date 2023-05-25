@@ -37,22 +37,22 @@ func (c *customNamedHintCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-var assignment, circuit customNamedHintCircuit
+var assignment customNamedHintCircuit
 
 func init() {
 	solver.RegisterNamedHint(identityHint, id)
 	assignment = customNamedHintCircuit{X: []frontend.Variable{1, 2, 3, 4, 5}}
-	circuit = customNamedHintCircuit{X: make([]frontend.Variable, len(assignment.X))}
 }
 
 func TestHintWithCustomNamePlonk(t *testing.T) {
-	testPlonk(t, &circuit, &assignment)
+	testPlonk(t, &assignment)
 }
 
 func TestHintWithCustomNameGroth16(t *testing.T) {
-	testGroth16(t, &circuit, &assignment)
+	testGroth16(t, &assignment)
 }
 
 func TestHintWithCustomNameEngine(t *testing.T) {
-	NewAssert(t).SolvingSucceeded(&circuit, &assignment)
+	circuit := hollow(&assignment)
+	NewAssert(t).SolvingSucceeded(circuit, &assignment)
 }
