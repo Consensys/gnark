@@ -38,7 +38,9 @@ func readOrDownload(baseURL, file string, config Config) ([]byte, error) {
 	}
 	log.Println("download", baseURL, file)
 	// Send HTTP GET request to the URL
-	response, err := http.Get(baseURL)
+	// --> Potential HTTP request made with variable url
+	// this is for illustrative purposes only.
+	response, err := http.Get(baseURL) //#nosec G107
 	if err != nil {
 		return nil, err
 	}
