@@ -67,24 +67,21 @@ func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	}
 
 	// 3- Check that ∏ᵢ e(Pᵢ, Qᵢ) == 1
-	i := 1
-	ml, err := pair.MillerLoop([]*sw_bn254.G1Affine{P[i-1], P[i]}, []*sw_bn254.G2Affine{Q[0], Q[1]})
+	acc, err := pair.MillerLoop([]*sw_bn254.G1Affine{P[0], P[1]}, []*sw_bn254.G2Affine{Q[0], Q[1]})
 	if err != nil {
 		panic(err)
 	}
-	acc := ml
 
-	for i < n-2 {
-		ml, err = pair.MillerLoop([]*sw_bn254.G1Affine{P[i+1], P[i+2]}, []*sw_bn254.G2Affine{Q[i+1], Q[i+2]})
+	for i := 1; i < n-2; i += 2 {
+		ml, err := pair.MillerLoop([]*sw_bn254.G1Affine{P[i+1], P[i+2]}, []*sw_bn254.G2Affine{Q[i+1], Q[i+2]})
 		if err != nil {
 			panic(err)
 		}
 		acc = pair.Mul(ml, acc)
-		i += 2
 	}
 
 	if n%2 != 0 {
-		ml, err = pair.MillerLoop([]*sw_bn254.G1Affine{P[n-1]}, []*sw_bn254.G2Affine{Q[n-1]})
+		ml, err := pair.MillerLoop([]*sw_bn254.G1Affine{P[n-1]}, []*sw_bn254.G2Affine{Q[n-1]})
 		if err != nil {
 			panic(err)
 		}
