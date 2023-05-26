@@ -117,7 +117,8 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		copy(privToPub[offset:], r1cs.CommitmentInfo[i].PrivateCommitted()) // TODO Take out commitments
 		offset += r1cs.CommitmentInfo[i].NbPrivateCommitted
 	}
-	privToPub.Heapify()*/
+	privToPub.Heapify()
+	*/
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(r1cs.GetNbConstraints()))
@@ -177,14 +178,13 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			Add(&t1, &C[i]).
 			Mul(&t1, coeff)
 	}
-
 	vI := 0
 	cI := make([]int, len(r1cs.CommitmentInfo))
 	nbCommitToCommit := make([]int, len(r1cs.CommitmentInfo))
 	nbPrivateCommittedSeen := 0
 	nbCommitmentsSeen := 0
 
-	/*for j := range r1cs.CommitmentInfo {	// skip commitments to commitments
+	/* for j := range r1cs.CommitmentInfo {	// skip commitments to commitments
 		k := 0
 		l := 0
 		for ; k < len(privateCommitted[j]); k++ {

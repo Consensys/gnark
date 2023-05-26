@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/pedersen"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bls12-377"
+	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"math/bits"
 )
@@ -95,16 +96,29 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 	nbPrivateCommittedWires := 0
-	if r1cs.GetNbCommitments() != 0 {
-		nbPrivateCommittedWires = r1cs.CommitmentInfo[0].NbPrivateCommitted
+	commitmentWires := make([]int, len(r1cs.CommitmentInfo))
+	privateCommitted := make([][]int, len(r1cs.CommitmentInfo))
+	for i := range r1cs.CommitmentInfo {
+		nbPrivateCommittedWires += r1cs.CommitmentInfo[i].NbPrivateCommitted
+		privateCommitted[i] = r1cs.CommitmentInfo[i].PrivateCommitted()
+		commitmentWires[i] = r1cs.CommitmentInfo[i].CommitmentIndex
 	}
-	nbPublicWires := r1cs.GetNbPublicVariables()
-	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - nbPrivateCommittedWires
 
-	if r1cs.GetNbCommitments() != 0 { // the commitment itself is defined by a hint so the prover considers it private
-		nbPublicWires++  // but the verifier will need to inject the value itself so on the groth16
-		nbPrivateWires-- // level it must be considered public
+	// a commitment is itself defined by a hint so the prover considers it private
+	// but the verifier will need to inject the value itself so on the groth16
+	// level it must be considered public
+	nbPublicWires := r1cs.GetNbPublicVariables() + len(r1cs.CommitmentInfo)
+	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - nbPrivateCommittedWires - len(r1cs.CommitmentInfo)
+
+	// we will need to iterate through the private-to-public wires in order
+	/*privToPub := make([], nbPrivateCommittedWires+len(r1cs.CommitmentInfo))
+	offset := 0
+	for i := range r1cs.CommitmentInfo {
+		copy(privToPub[offset:], r1cs.CommitmentInfo[i].PrivateCommitted()) // TODO Take out commitments
+		offset += r1cs.CommitmentInfo[i].NbPrivateCommitted
 	}
+	privToPub.Heapify()
+	*/
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(r1cs.GetNbConstraints()))
@@ -141,7 +155,19 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// compute scalars for pkK, vkK and ckK
 	pkK := make([]fr.Element, nbPrivateWires)
 	vkK := make([]fr.Element, nbPublicWires)
-	ckK := make([]fr.Element, nbPrivateCommittedWires)
+	ckK := make([][]fr.Element, len(r1cs.CommitmentInfo))
+
+	// see if i commits to j
+	for i := range r1cs.CommitmentInfo {
+		commitmentCommitments := 0
+
+		for j := 0; j < i; j++ {
+			if found, _ := utils.BinarySearch(privateCommitted[i], r1cs.CommitmentInfo[j].CommitmentIndex); found {
+				commitmentCommitments++
+			}
+		}
+		ckK[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-commitmentCommitments)
+	}
 
 	var t0, t1 fr.Element
 
@@ -152,31 +178,62 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			Add(&t1, &C[i]).
 			Mul(&t1, coeff)
 	}
+	vI := 0
+	cI := make([]int, len(r1cs.CommitmentInfo))
+	nbCommitToCommit := make([]int, len(r1cs.CommitmentInfo))
+	nbPrivateCommittedSeen := 0
+	nbCommitmentsSeen := 0
 
-	vI, cI := 0, 0
-	var privateCommitted []int
-	if r1cs.GetNbCommitments() != 0 {
-		privateCommitted = r1cs.CommitmentInfo[0].PrivateCommitted()
+	/* for j := range r1cs.CommitmentInfo {	// skip commitments to commitments
+		k := 0
+		l := 0
+		for ; k < len(privateCommitted[j]); k++ {
+			for ; l < len(commitmentWires) && commitmentWires[l] < privateCommitted[j][k]; l++ {}
+			if k != l {
+				break
+			}
+		}
+		cI[j] = k
 	}
+	copy(nbCommitToCommit, cI)*/
 
 	for i := range A {
-		isCommittedPrivate := cI < len(privateCommitted) && i == privateCommitted[cI]
-		isCommitment := r1cs.GetNbCommitments() != 0 && i == r1cs.CommitmentInfo[0].CommitmentIndex
-		isPublic := i < r1cs.GetNbPublicVariables()
+		var isCommitment, isPublic bool
+		if isPublic = i < r1cs.GetNbPublicVariables(); !isPublic {
+			if nbCommitmentsSeen < len(commitmentWires) && commitmentWires[nbCommitmentsSeen] == i {
+				isCommitment = true
+				nbCommitmentsSeen++
+			}
+		}
+		commitment := -1 // index of the commitment that commits to this variable as a private or commitment value
 
-		if isPublic || isCommittedPrivate || isCommitment {
+		if !isPublic {
+			for j := range r1cs.CommitmentInfo {
+				if cI[j] < len(privateCommitted[j]) && privateCommitted[j][cI[j]] == i {
+					commitment = j
+					cI[j]--
+					if isCommitment {
+						nbCommitToCommit[j]++
+					} else {
+						break
+					}
+				}
+			}
+		}
+
+		if isPublic || commitment != -1 || isCommitment {
 			computeK(i, &toxicWaste.gammaInv)
 
-			if isCommittedPrivate {
-				ckK[cI] = t1
-				cI++
-			} else {
+			if isPublic || isCommitment {
 				vkK[vI] = t1
 				vI++
+			} else { // committed and private
+				ckK[commitment][cI[commitment]-nbCommitToCommit[commitment]-1] = t1
+				nbPrivateCommittedSeen++
 			}
 		} else {
 			computeK(i, &toxicWaste.deltaInv)
-			pkK[i-vI-cI] = t1
+			pkK[i-vI-nbPrivateCommittedSeen] = t1 // vI = nbPublicSeen + nbCommitmentsSeen
 		}
 	}
 
@@ -229,7 +286,9 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	g1Scalars = append(g1Scalars, Z...)
 	g1Scalars = append(g1Scalars, vkK...)
 	g1Scalars = append(g1Scalars, pkK...)
-	g1Scalars = append(g1Scalars, ckK...)
+	for i := range ckK {
+		g1Scalars = append(g1Scalars, ckK[i]...)
+	}
 
 	g1PointsAff := curve.BatchScalarMultiplicationG1(&g1, g1Scalars)
 
@@ -262,7 +321,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	commitmentBases := make([][]curve.G1Affine, len(r1cs.CommitmentInfo))
 	for i := range commitmentBases {
-		size := r1cs.CommitmentInfo[i].NbPrivateCommitted
+		size := len(ckK[i])
 		commitmentBases[i] = g1PointsAff[offset : offset+size]
 		offset += size
 	}
