@@ -9,6 +9,20 @@ import (
 	"testing"
 )
 
+type noCommitmentCircuit struct {
+	X frontend.Variable
+}
+
+func (c *noCommitmentCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.X, 1)
+	api.AssertIsEqual(c.X, 1)
+	return nil
+}
+
+func TestNoCommitmentCircuit(t *testing.T) {
+	testAll(t, &noCommitmentCircuit{1})
+}
+
 type commitmentCircuit struct {
 	Public []frontend.Variable `gnark:",public"`
 	X      []frontend.Variable
@@ -47,20 +61,6 @@ func TestFiveCommitmentsFivePublic(t *testing.T) {
 	testAll(t, assignment)
 }
 
-type noCommitmentCircuit struct {
-	X frontend.Variable
-}
-
-func (c *noCommitmentCircuit) Define(api frontend.API) error {
-	api.AssertIsEqual(c.X, 1)
-	api.AssertIsEqual(c.X, 1)
-	return nil
-}
-
-func TestNoCommitmentCircuit(t *testing.T) {
-	testAll(t, &noCommitmentCircuit{1})
-}
-
 type committedConstantCircuit struct {
 	X frontend.Variable
 }
@@ -93,14 +93,6 @@ func (c *committedPublicCircuit) Define(api frontend.API) error {
 
 func TestCommittedPublic(t *testing.T) {
 	testAll(t, &committedPublicCircuit{1})
-}
-
-func tryCommit(api frontend.API, x ...frontend.Variable) (frontend.Variable, error) {
-	committer, ok := api.(frontend.Committer)
-	if !ok {
-		return nil, fmt.Errorf("type %T doesn't impl the Committer interface", api)
-	}
-	return committer.Commit(x...)
 }
 
 type twoCommitCircuit struct {
@@ -172,4 +164,12 @@ func TestHollow(t *testing.T) {
 	for i := range assignments {
 		t.Run(removePackageName(reflect.TypeOf(assignments[i]).String()), run(assignments[i], expected[i]))
 	}
+}
+
+func tryCommit(api frontend.API, x ...frontend.Variable) (frontend.Variable, error) {
+	committer, ok := api.(frontend.Committer)
+	if !ok {
+		return nil, fmt.Errorf("type %T doesn't impl the Committer interface", api)
+	}
+	return committer.Commit(x...)
 }

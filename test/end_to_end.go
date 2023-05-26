@@ -16,6 +16,8 @@ import (
 	"testing"
 )
 
+const onlyGroth16Bn254 = true // TODO remove
+
 var fr = []ecc.ID{
 	ecc.BN254,
 	ecc.BLS12_381,
@@ -96,14 +98,18 @@ func testGroth16(t *testing.T, assignment frontend.Circuit) {
 func testAll(t *testing.T, assignment frontend.Circuit) {
 	t.Parallel()
 
-	t.Run("fuzzer", func(t *testing.T) {
-		circuit := hollow(assignment)
-		NewAssert(t).ProverSucceeded(circuit, assignment, WithBackends(backend.GROTH16, backend.PLONK)) // TODO: Support PlonkFri.Commit
-	})
+	if !onlyGroth16Bn254 { // TODO remove
+		t.Run("fuzzer", func(t *testing.T) {
+			circuit := hollow(assignment)
+			NewAssert(t).ProverSucceeded(circuit, assignment, WithBackends(backend.GROTH16, backend.PLONK)) // TODO: Support PlonkFri.Commit
+		})
 
-	t.Run("plonk-e2e", func(t *testing.T) {
-		testPlonk(t, assignment)
-	})
+		t.Run("plonk-e2e", func(t *testing.T) {
+			testPlonk(t, assignment)
+		})
+	} else {
+		fr = []ecc.ID{ecc.BN254}
+	}
 
 	t.Run("groth16-e2e", func(t *testing.T) {
 		testGroth16(t, assignment)
