@@ -198,16 +198,14 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	copy(nbCommitToCommit, cI)*/
 
 	for i := range A {
+		commitment := -1 // index of the commitment that commits to this variable as a private or commitment value
 		var isCommitment, isPublic bool
 		if isPublic = i < r1cs.GetNbPublicVariables(); !isPublic {
 			if nbCommitmentsSeen < len(commitmentWires) && commitmentWires[nbCommitmentsSeen] == i {
 				isCommitment = true
 				nbCommitmentsSeen++
 			}
-		}
-		commitment := -1 // index of the commitment that commits to this variable as a private or commitment value
 
-		if !isPublic {
 			for j := range r1cs.CommitmentInfo {
 				if cI[j] < len(privateCommitted[j]) && privateCommitted[j][cI[j]] == i {
 					commitment = j

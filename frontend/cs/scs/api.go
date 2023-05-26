@@ -583,7 +583,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
 
-	hintId, err := cs.RegisterBsb22CommitmentComputePlaceholder(builder.cs.GetNbCommitments())
+	hintId, err := cs.RegisterBsb22CommitmentComputePlaceholder(len(builder.cs.GetCommitments()))
 	if err != nil {
 		return nil, err
 	}
