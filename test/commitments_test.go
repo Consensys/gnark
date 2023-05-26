@@ -34,15 +34,24 @@ func (c *commitmentCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	api.AssertIsDifferent(commitment, c.X[0])
-	for _, p := range c.Public {
-		api.AssertIsDifferent(p, 0)
+	sum := frontend.Variable(0)
+	for i, x := range c.X {
+		sum = api.Add(sum, api.Mul(x, i+1))
 	}
+	for _, p := range c.Public {
+		sum = api.Add(sum, p)
+	}
+	api.AssertIsDifferent(commitment, sum)
 	return err
 }
 
 func TestSingleCommitment(t *testing.T) {
 	assignment := &commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}}
+	testAll(t, assignment)
+}
+
+func TestTwoCommitments(t *testing.T) {
+	assignment := &commitmentCircuit{X: []frontend.Variable{1, 2}, Public: []frontend.Variable{}}
 	testAll(t, assignment)
 }
 
@@ -128,21 +137,24 @@ type independentCommitsCircuit struct {
 
 func (c *independentCommitsCircuit) Define(api frontend.API) error {
 	committer := api.(frontend.Committer)
+	/*var (
+		ch []frontend.Variable
+		err error
+	)*/
 	for i := range c.X {
 		if ch, err := committer.Commit(c.X[i]); err != nil {
 			return err
 		} else {
-			api.AssertIsDifferent(ch, 0)
+			api.AssertIsDifferent(ch, c.X[i])
 		}
 	}
 	return nil
 }
 
-/*
-	func TestTwoIndependentCommitsGroth16(t *testing.T) {
-		testGroth16(t, &independentCommitsCircuit{X: []frontend.Variable{1, 2}})
-	}
-*/
+func TestTwoIndependentCommitsGroth16(t *testing.T) {
+	testGroth16(t, &independentCommitsCircuit{X: []frontend.Variable{1, 1}})
+}
+
 func TestHollow(t *testing.T) {
 
 	run := func(c, expected frontend.Circuit) func(t *testing.T) {

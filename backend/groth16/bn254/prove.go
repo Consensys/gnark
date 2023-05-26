@@ -17,7 +17,6 @@
 package groth16
 
 import (
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -69,24 +68,26 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	privateCommitted := make([][]fr.Element, len(r1cs.CommitmentInfo))
 	for i := range r1cs.CommitmentInfo {
+		commitmentInfo := &r1cs.CommitmentInfo[i]
+		privateCommitted[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted)
+		privateCommittedI := privateCommitted[i]
+		commitmentOut := &proof.Commitments[i]
+		commitmentKey := pk.CommitmentKeys[i]
+
 		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
-			if len(in) != r1cs.CommitmentInfo[i].NbCommitted() { // TODO: Remove
-				return fmt.Errorf("unexpected number of committed variables")
-			}
-			privateCommitted[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted)
-			nbPublicCommitted := len(in) - len(privateCommitted[i])
+			nbPublicCommitted := len(in) - len(privateCommittedI)
 			inPrivate := in[nbPublicCommitted:]
 			for j, inJ := range inPrivate {
-				privateCommitted[i][j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
+				privateCommittedI[j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
 			}
 
 			var err error
-			if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(privateCommitted[i]); err != nil {
+			if *commitmentOut, err = commitmentKey.Commit(privateCommittedI); err != nil {
 				return err
 			}
 
 			var res fr.Element
-			res, err = solveCommitmentWire(&proof.Commitments[i], in[:r1cs.CommitmentInfo[i].NbPublicCommitted()])
+			res, err = solveCommitmentWire(commitmentOut, in[:commitmentInfo.NbPublicCommitted()])
 			res.BigInt(out[0])
 			return err
 		}))
@@ -213,6 +214,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 		// filter the wire values if needed
 		_wireValues := wireValues
+
 		for i := range r1cs.CommitmentInfo {
 			_wireValues = filter(_wireValues, r1cs.CommitmentInfo[i].PrivateToPublicGroth16())
 		}
@@ -311,7 +313,9 @@ func filter(slice []fr.Element, toRemove []int) (r []fr.Element) {
 	// note: we can optimize that for the likely case where len(slice) >>> len(toRemove)
 	for i := 0; i < len(slice); i++ {
 		if j < len(toRemove) && i == toRemove[j] {
-			j++
+			for j < len(toRemove) && i == toRemove[j] {
+				j++
+			}
 			continue
 		}
 		r = append(r, slice[i])
