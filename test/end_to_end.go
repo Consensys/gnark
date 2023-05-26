@@ -16,7 +16,7 @@ import (
 	"testing"
 )
 
-const onlyGroth16Bn254 = true // TODO remove
+const onlyGroth16Bn254 = false // TODO remove
 
 var fr = []ecc.ID{
 	ecc.BN254,

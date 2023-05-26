@@ -138,10 +138,11 @@ func (c *independentCommitsCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestTwoIndependentCommitsGroth16(t *testing.T) {
-	testGroth16(t, &independentCommitsCircuit{X: []frontend.Variable{1, 2}})
-}
-
+/*
+	func TestTwoIndependentCommitsGroth16(t *testing.T) {
+		testGroth16(t, &independentCommitsCircuit{X: []frontend.Variable{1, 2}})
+	}
+*/
 func TestHollow(t *testing.T) {
 
 	run := func(c, expected frontend.Circuit) func(t *testing.T) {

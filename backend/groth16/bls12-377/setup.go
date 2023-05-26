@@ -209,7 +209,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			for j := range r1cs.CommitmentInfo {
 				if cI[j] < len(privateCommitted[j]) && privateCommitted[j][cI[j]] == i {
 					commitment = j
-					cI[j]--
 					if isCommitment {
 						nbCommitToCommit[j]++
 					} else {
@@ -226,7 +225,8 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 				vkK[vI] = t1
 				vI++
 			} else { // committed and private
-				ckK[commitment][cI[commitment]-nbCommitToCommit[commitment]-1] = t1
+				ckK[commitment][cI[commitment]-nbCommitToCommit[commitment]] = t1
+				cI[commitment]++
 				nbPrivateCommittedSeen++
 			}
 		} else {
