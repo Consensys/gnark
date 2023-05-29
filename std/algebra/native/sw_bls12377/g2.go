@@ -315,20 +315,18 @@ func (P *G2Affine) varScalarMul(api frontend.API, Q G2Affine, s frontend.Variabl
 	// step value from [2] Acc (instead of conditionally adding step value to
 	// Acc):
 	//     Acc = [2] (Q + Φ(Q)) ± Q ± Φ(Q)
-	Acc.Double(api, Acc)
 	// only y coordinate differs for negation, select on that instead.
 	B.X = tableQ[0].X
 	B.Y.Select(api, s1bits[nbits-1], tableQ[1].Y, tableQ[0].Y)
-	Acc.AddAssign(api, B)
+	Acc.DoubleAndAdd(api, &Acc, &B)
 	B.X = tablePhiQ[0].X
 	B.Y.Select(api, s2bits[nbits-1], tablePhiQ[1].Y, tablePhiQ[0].Y)
 	Acc.AddAssign(api, B)
 
 	// second bit
-	Acc.Double(api, Acc)
 	B.X = tableQ[0].X
 	B.Y.Select(api, s1bits[nbits-2], tableQ[1].Y, tableQ[0].Y)
-	Acc.AddAssign(api, B)
+	Acc.DoubleAndAdd(api, &Acc, &B)
 	B.X = tablePhiQ[0].X
 	B.Y.Select(api, s2bits[nbits-2], tablePhiQ[1].Y, tablePhiQ[0].Y)
 	Acc.AddAssign(api, B)
