@@ -710,7 +710,6 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	// i = 62, separately to avoid an E12 Square
 	// (Square(res) = 1² = 1)
 
-	// k = 0, separately to avoid MulBy034 (res × ℓ)
 	// Qacc ← 3Qacc,
 	// l1 the tangent ℓ to 2Q
 	// l2 the line ℓ passing 2Q and Q

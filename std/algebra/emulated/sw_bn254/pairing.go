@@ -689,7 +689,14 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 	yInv := pr.curveF.Inverse(&P.Y)
 	xOverY := pr.curveF.MulMod(&P.X, yInv)
 	res := pr.Ext12.One()
-	for i := 64; i >= 0; i-- {
+
+	// ℓ × res
+	res = pr.MulBy034(res,
+		pr.MulByElement(&PrecomputedLines[0][64], xOverY),
+		pr.MulByElement(&PrecomputedLines[1][64], yInv),
+	)
+
+	for i := 63; i >= 0; i-- {
 		res = pr.Square(res)
 
 		// ℓ × res
@@ -699,7 +706,6 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 		)
 
 		if loopCounter[i] == 1 {
-			// TODO: store multiples of lines 2-by-2
 
 			// ℓ × res
 			res = pr.MulBy034(res,
@@ -732,6 +738,123 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 	return res, nil
 }
 
+func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, error) {
+	res := pr.Ext12.One()
+
+	var prodLines [5]fields_bn254.E2
+	var l1, l2 *lineEvaluation
+	var Qacc, QNeg *G2Affine
+	Qacc = Q
+	QNeg = &G2Affine{X: Q.X, Y: *pr.Ext2.Neg(&Q.Y)}
+	var yInv, xOverY, y2Inv, x2OverY2 *emulated.Element[emulated.BN254Fp]
+	yInv = pr.curveF.Inverse(&P.Y)
+	xOverY = pr.curveF.MulMod(&P.X, yInv)
+	y2Inv = pr.curveF.Inverse(&T.Y)
+	x2OverY2 = pr.curveF.MulMod(&T.X, y2Inv)
+
+	// Compute ∏ᵢ { fᵢ_{6x₀+2,Q}(P) }
+	for i := 64; i >= 0; i-- {
+		// mutualize the square among n Miller loops
+		// (∏ᵢfᵢ)²
+		res = pr.Square(res)
+
+		res = pr.MulBy034(res,
+			pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
+			pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
+		)
+
+		// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
+		Qacc, l1 = pr.doubleStep(Qacc)
+
+		// line evaluation at P
+		l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
+		l1.R1 = *pr.MulByElement(&l1.R1, yInv)
+
+		// ℓ × res
+		res = pr.MulBy034(res, &l1.R0, &l1.R1)
+
+		if loopCounter[i] == 1 {
+
+			res = pr.MulBy034(res,
+				pr.MulByElement(&PrecomputedLines[2][i], x2OverY2),
+				pr.MulByElement(&PrecomputedLines[3][i], y2Inv),
+			)
+
+			// Qacc ← Qacc+Q,
+			// l1 the line ℓ passing Qacc and Q
+			Qacc, l1 = pr.addStep(Qacc, Q)
+
+			// line evaluation at P
+			l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
+			l1.R1 = *pr.MulByElement(&l1.R1, yInv)
+
+			// ℓ × res
+			res = pr.MulBy034(res, &l1.R0, &l1.R1)
+
+		} else if loopCounter[i] == -1 {
+			res = pr.MulBy034(res,
+				pr.MulByElement(&PrecomputedLines[2][i], x2OverY2),
+				pr.MulByElement(&PrecomputedLines[3][i], y2Inv),
+			)
+
+			// Qacc ← Qacc-Q,
+			// l1 the line ℓ passing Qacc and -Q
+			Qacc, l1 = pr.addStep(Qacc, QNeg)
+
+			// line evaluation at P
+			l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
+			l1.R1 = *pr.MulByElement(&l1.R1, yInv)
+
+			// ℓ × res
+			res = pr.MulBy034(res, &l1.R0, &l1.R1)
+		}
+	}
+
+	// Compute  ∏ᵢ { ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
+	Q1, Q2 := new(G2Affine), new(G2Affine)
+	//Q1 = π(Q)
+	Q1.X = *pr.Ext2.Conjugate(&Q.X)
+	Q1.X = *pr.Ext2.MulByNonResidue1Power2(&Q1.X)
+	Q1.Y = *pr.Ext2.Conjugate(&Q.Y)
+	Q1.Y = *pr.Ext2.MulByNonResidue1Power3(&Q1.Y)
+
+	// Q2 = -π²(Q)
+	Q2.X = *pr.Ext2.MulByNonResidue2Power2(&Q.X)
+	Q2.Y = *pr.Ext2.MulByNonResidue2Power3(&Q.Y)
+	Q2.Y = *pr.Ext2.Neg(&Q2.Y)
+
+	// Qacc ← Qacc+π(Q) and
+	// l1 the line passing Qacc and π(Q)
+	Qacc, l1 = pr.addStep(Qacc, Q1)
+
+	// line evaluation at P
+	l1.R0 = *pr.Ext2.MulByElement(&l1.R0, xOverY)
+	l1.R1 = *pr.Ext2.MulByElement(&l1.R1, yInv)
+
+	// l2 the line passing Qacc and -π²(Q)
+	l2 = pr.lineCompute(Qacc, Q2)
+	// line evaluation at P
+	l2.R0 = *pr.MulByElement(&l2.R0, xOverY)
+	l2.R1 = *pr.MulByElement(&l2.R1, yInv)
+
+	// ℓ × ℓ
+	prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
+	// (ℓ × ℓ) × res
+	res = pr.MulBy01234(res, &prodLines)
+
+	res = pr.MulBy034(res,
+		pr.MulByElement(&PrecomputedLines[0][65], x2OverY2),
+		pr.MulByElement(&PrecomputedLines[1][65], y2Inv),
+	)
+
+	res = pr.MulBy034(res,
+		pr.MulByElement(&PrecomputedLines[0][66], x2OverY2),
+		pr.MulByElement(&PrecomputedLines[1][66], y2Inv),
+	)
+
+	return res, nil
+}
+
 // PairFixedQ calculates the reduced pairing for a set of points
 // e(P, g2), where g2 is fixed.
 //
@@ -742,5 +865,18 @@ func (pr Pairing) PairFixedQ(P *G1Affine) (*GTEl, error) {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
 	res = pr.finalExponentiation(res, true)
+	return res, nil
+}
+
+// DoublePairFixedQ calculates the reduced pairing for a set of points
+// e(P, Q) * e(T, g2), where g2 is fixed.
+//
+// This function doesn't check that the inputs are in the correct subgroups.
+func (pr Pairing) DoublePairFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, error) {
+	res, err := pr.DoubleMillerLoopFixedQ(P, T, Q)
+	if err != nil {
+		return nil, fmt.Errorf("double miller loop: %w", err)
+	}
+	res = pr.finalExponentiation(res, false)
 	return res, nil
 }

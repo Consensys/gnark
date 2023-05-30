@@ -281,6 +281,42 @@ func TestPairFixedTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+type DoublePairFixedCircuit struct {
+	In1G1 G1Affine
+	In2G1 G1Affine
+	In1G2 G2Affine
+	Res   GTEl
+}
+
+func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res, err := pairing.DoublePairFixedQ(&c.In1G1, &c.In2G1, &c.In1G2)
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestDoublePairFixedTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+	_, _, _, G2AffGen := bn254.Generators()
+	res, err := bn254.Pair([]bn254.G1Affine{p, p}, []bn254.G2Affine{q, G2AffGen})
+	assert.NoError(err)
+	witness := DoublePairFixedCircuit{
+		In1G1: NewG1Affine(p),
+		In2G1: NewG1Affine(p),
+		In1G2: NewG2Affine(q),
+		Res:   NewGTEl(res),
+	}
+	err = test.IsSolved(&DoublePairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 // bench
 func BenchmarkPairing(b *testing.B) {
 
