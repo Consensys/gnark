@@ -753,7 +753,25 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	x2OverY2 = pr.curveF.MulMod(&T.X, y2Inv)
 
 	// Compute ∏ᵢ { fᵢ_{6x₀+2,Q}(P) }
-	for i := 64; i >= 0; i-- {
+	// i = 64, separately to avoid an E12 Square
+	// (Square(res) = 1² = 1)
+	res = pr.MulBy034(res,
+		pr.MulByElement(&PrecomputedLines[0][64], x2OverY2),
+		pr.MulByElement(&PrecomputedLines[1][64], y2Inv),
+	)
+
+	// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
+	Qacc, l1 = pr.doubleStep(Qacc)
+
+	// line evaluation at P
+	l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
+	l1.R1 = *pr.MulByElement(&l1.R1, yInv)
+
+	// ℓ × res
+	res = pr.MulBy034(res, &l1.R0, &l1.R1)
+
+	// Compute ∏ᵢ { fᵢ_{6x₀+2,Q}(P) }
+	for i := 63; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res = pr.Square(res)
