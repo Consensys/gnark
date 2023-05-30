@@ -682,6 +682,8 @@ func (pr Pairing) lineCompute(p1, p2 *G2Affine) *lineEvaluation {
 // Q.Y.A0 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
 // Q.Y.A1 = 0x90689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b
 
+// MillerLoopFixed computes the single Miller loop
+// fᵢ_{u,g2}(P), where g2 is fixed.
 func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 
 	yInv := pr.curveF.Inverse(&P.Y)
@@ -730,6 +732,10 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 	return res, nil
 }
 
+// PairFixedQ calculates the reduced pairing for a set of points
+// e(P, g2), where g2 is fixed.
+//
+// This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) PairFixedQ(P *G1Affine) (*GTEl, error) {
 	res, err := pr.MillerLoopFixedQ(P)
 	if err != nil {
