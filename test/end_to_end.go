@@ -63,6 +63,11 @@ func testPlonk(t *testing.T, assignment frontend.Circuit) {
 }
 
 func testGroth16(t *testing.T, assignment frontend.Circuit) {
+
+	if onlyGroth16Bn254 {
+		fr = []ecc.ID{ecc.BN254}
+	}
+
 	circuit := hollow(assignment)
 	run := func(mod *big.Int) func(*testing.T) {
 		return func(t *testing.T) {

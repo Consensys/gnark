@@ -15,6 +15,8 @@ type Commitment struct {
 	CommitmentIndex    int           // in groth16, CommitmentIndex is the wire index. in plonk, it's the constraint defining it
 }
 
+type Commitments []Commitment
+
 func (i *Commitment) NbPublicCommitted() int {
 	return i.NbCommitted() - i.NbPrivateCommitted
 }
@@ -68,6 +70,22 @@ func CommitmentIndexes(commitments []Commitment) []uint64 {
 	res := make([]uint64, len(commitments))
 	for i := range res {
 		res[i] = uint64(commitments[i].CommitmentIndex)
+	}
+	return res
+}
+
+func (c Commitments) CommitmentsAndPrivateCommittedIndexes() []int {
+	nbCommitmentAndPrivCommitted := len(c) // an upper bound
+	for i := range c {
+		nbCommitmentAndPrivCommitted += c[i].NbPrivateCommitted
+	}
+	res := make([]int, nbCommitmentAndPrivCommitted)
+	offset := 0
+	for i := range c {
+		copy(res[offset:], c[i].PrivateCommitted())
+		offset += c[i].NbPrivateCommitted
+		res[offset] = c[i].CommitmentIndex
+		offset++
 	}
 	return res
 }

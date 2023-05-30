@@ -124,7 +124,7 @@ type System struct {
 	lbWireLevel []int    `cbor:"-"` // at which level we solve a wire. init at -1.
 	lbOutputs   []uint32 `cbor:"-"` // wire outputs for current constraint.
 
-	CommitmentInfo []Commitment
+	CommitmentInfo Commitments
 
 	genericHint BlueprintID
 }
