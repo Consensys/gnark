@@ -237,6 +237,51 @@ func TestGroupMembershipSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+//		------------------------
+//		  Fixed-argument pairing
+//	    ------------------------
+//
+// The second argument Q is the fixed canonical generator of G2.
+//
+// Q.X.A0 = 0x1800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed
+// Q.X.A1 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2
+// Q.Y.A0 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
+// Q.Y.A1 = 0x90689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b
+
+// TODO: DoublePairing where one of the point is fixed (special case of multi-pair)
+type PairFixedCircuit struct {
+	InG1 G1Affine
+	Res  GTEl
+}
+
+func (c *PairFixedCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res, err := pairing.PairFixedQ(&c.InG1)
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestPairFixedTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, _ := randomG1G2Affines()
+	_, _, _, G2AffGen := bn254.Generators()
+	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{G2AffGen})
+	assert.NoError(err)
+	witness := PairFixedCircuit{
+		InG1: NewG1Affine(p),
+		Res:  NewGTEl(res),
+	}
+	err = test.IsSolved(&PairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+// bench
 func BenchmarkPairing(b *testing.B) {
 
 	p1, q1 := randomG1G2Affines()
@@ -280,6 +325,70 @@ func BenchmarkPairing(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &PairingCheckCircuit{}); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	buf.Reset()
+	_, err = ccs.WriteTo(&buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("r1cs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
+
+	b.Run("solve r1cs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if _, err := ccs.Solve(w); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkFixedPairing(b *testing.B) {
+
+	p, _ := randomG1G2Affines()
+	_, _, _, G2AffGen := bn254.Generators()
+	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{G2AffGen})
+	if err != nil {
+		b.Fatal(err)
+	}
+	witness := PairFixedCircuit{
+		InG1: NewG1Affine(p),
+		Res:  NewGTEl(res),
+	}
+	w, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	if err != nil {
+		b.Fatal(err)
+	}
+	var ccs constraint.ConstraintSystem
+	b.Run("compile scs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &PairFixedCircuit{}); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	var buf bytes.Buffer
+	_, err = ccs.WriteTo(&buf)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("scs size: %d (bytes), nb constraints %d, nbInstructions: %d", buf.Len(), ccs.GetNbConstraints(), ccs.GetNbInstructions())
+	b.Run("solve scs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if _, err := ccs.Solve(w); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("compile r1cs", func(b *testing.B) {
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &PairFixedCircuit{}); err != nil {
 				b.Fatal(err)
 			}
 		}
