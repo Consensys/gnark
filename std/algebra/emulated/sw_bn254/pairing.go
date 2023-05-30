@@ -682,6 +682,8 @@ func (pr Pairing) lineCompute(p1, p2 *G2Affine) *lineEvaluation {
 // Q.Y.A0 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
 // Q.Y.A1 = 0x90689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b
 
+// TODO: pre-multiply precomputed lines when bits is 1 or -1
+
 // MillerLoopFixed computes the single Miller loop
 // fᵢ_{u,g2}(P), where g2 is fixed.
 func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
@@ -776,55 +778,81 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 		// (∏ᵢfᵢ)²
 		res = pr.Square(res)
 
-		res = pr.MulBy034(res,
-			pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
-			pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
-		)
+		switch loopCounter[i] {
+		case 0:
+			res = pr.MulBy034(res,
+				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
+				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
+			)
 
-		// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
-		Qacc, l1 = pr.doubleStep(Qacc)
+			// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
+			Qacc, l1 = pr.doubleStep(Qacc)
 
-		// line evaluation at P
-		l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
-		l1.R1 = *pr.MulByElement(&l1.R1, yInv)
+			// line evaluation at P
+			l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
+			l1.R1 = *pr.MulByElement(&l1.R1, yInv)
 
-		// ℓ × res
-		res = pr.MulBy034(res, &l1.R0, &l1.R1)
+			// ℓ × res
+			res = pr.MulBy034(res, &l1.R0, &l1.R1)
 
-		if loopCounter[i] == 1 {
-
+		case 1:
+			res = pr.MulBy034(res,
+				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
+				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
+			)
 			res = pr.MulBy034(res,
 				pr.MulByElement(&PrecomputedLines[2][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[3][i], y2Inv),
 			)
 
-			// Qacc ← Qacc+Q,
+			// Qacc ← 2Qacc+Q,
 			// l1 the line ℓ passing Qacc and Q
-			Qacc, l1 = pr.addStep(Qacc, Q)
+			// l2 the line ℓ passing (Qacc+Q) and Qacc
+			Qacc, l1, l2 = pr.doubleAndAddStep(Qacc, Q)
 
 			// line evaluation at P
 			l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
 			l1.R1 = *pr.MulByElement(&l1.R1, yInv)
 
-			// ℓ × res
-			res = pr.MulBy034(res, &l1.R0, &l1.R1)
+			// line evaluation at P
+			l2.R0 = *pr.MulByElement(&l2.R0, xOverY)
+			l2.R1 = *pr.MulByElement(&l2.R1, yInv)
 
-		} else if loopCounter[i] == -1 {
+			// ℓ × ℓ
+			prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
+			// (ℓ × ℓ) × res
+			res = pr.MulBy01234(res, &prodLines)
+
+		case -1:
+			res = pr.MulBy034(res,
+				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
+				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
+			)
 			res = pr.MulBy034(res,
 				pr.MulByElement(&PrecomputedLines[2][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[3][i], y2Inv),
 			)
 
-			// Qacc ← Qacc-Q,
+			// Qacc ← 2Qacc-Q,
 			// l1 the line ℓ passing Qacc and -Q
-			Qacc, l1 = pr.addStep(Qacc, QNeg)
+			// l2 the line ℓ passing (Qacc-Q) and Qacc
+			Qacc, l1, l2 = pr.doubleAndAddStep(Qacc, QNeg)
 
 			// line evaluation at P
 			l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
 			l1.R1 = *pr.MulByElement(&l1.R1, yInv)
 
-			// ℓ × res
-			res = pr.MulBy034(res, &l1.R0, &l1.R1)
+			// line evaluation at P
+			l2.R0 = *pr.MulByElement(&l2.R0, xOverY)
+			l2.R1 = *pr.MulByElement(&l2.R1, yInv)
+
+			// ℓ × ℓ
+			prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
+			// (ℓ × ℓ) × res
+			res = pr.MulBy01234(res, &prodLines)
+
+		default:
+			return nil, errors.New("invalid loopCounter")
 		}
 	}
 
