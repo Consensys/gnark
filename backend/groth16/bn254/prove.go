@@ -78,7 +78,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		commitmentKey := pk.CommitmentKeys[i]
 
 		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
-			committed, hashed := internal.DivideByThresholdOrList(nbPublicI, commitmentSubIndexesI, in)
+			hashed, committed := internal.DivideByThresholdOrList(nbPublicI, commitmentSubIndexesI, in)
 			for j, inJ := range committed {
 				privateCommittedValuesI[j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
 			}
