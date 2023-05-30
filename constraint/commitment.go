@@ -1,6 +1,7 @@
 package constraint
 
 import (
+	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 
 	"github.com/consensys/gnark/constraint/solver"
@@ -66,12 +67,12 @@ func (i *Commitment) PublicCommitted() []int {
 	return i.Committed[:i.NbPublicCommitted()]
 }
 
-func CommitmentIndexes(commitments []Commitment) []uint64 {
-	res := make([]uint64, len(commitments))
-	for i := range res {
-		res[i] = uint64(commitments[i].CommitmentIndex)
+func (c Commitments) CommitmentWireIndexes() []int {
+	commitmentWires := make([]int, len(c))
+	for i := range c {
+		commitmentWires[i] = c[i].CommitmentIndex
 	}
-	return res
+	return commitmentWires
 }
 
 func (c Commitments) CommitmentsAndPrivateCommittedIndexes() []int {
@@ -86,6 +87,42 @@ func (c Commitments) CommitmentsAndPrivateCommittedIndexes() []int {
 		offset += c[i].NbPrivateCommitted
 		res[offset] = c[i].CommitmentIndex
 		offset++
+	}
+	return res
+}
+
+// Interleave returns combined information about the commitments
+// nbPrivateCommittedWires doesn't double count because the frontend guarantees that no private wire is committed to more than once
+func (c Commitments) Interleave() (nbPrivateCommittedWires int, commitmentWires []int, privateCommitted [][]int) {
+	commitmentWires = c.CommitmentWireIndexes()
+
+	privateCommitted = make([][]int, len(c))
+	for i := range c {
+		nonPublicCommitted := c[i].PrivateCommitted()
+		privateCommitted[i] = make([]int, 0, len(nonPublicCommitted))
+
+		for _, j := range nonPublicCommitted {
+			if found, _ := utils.BinarySearch(commitmentWires, j); !found {
+				privateCommitted[i] = append(privateCommitted[i], j)
+			}
+		}
+
+		nbPrivateCommittedWires += len(privateCommitted[i])
+	}
+	return
+}
+
+// CommitmentIndexesInCommittedLists returns the indexes of the commitments in the list of committed wires
+// note that these are not absolute indexes
+func (c Commitments) CommitmentIndexesInCommittedLists() [][]int {
+	res := make([][]int, len(c))
+	for i := range c {
+		res[i] = make([]int, i)
+		for j := 0; j < i; j++ {
+			if found, k := utils.BinarySearch(c[i].PrivateCommitted(), c[j].CommitmentIndex); found {
+				res[i][j] = k + c[i].NbPublicCommitted()
+			}
+		}
 	}
 	return res
 }

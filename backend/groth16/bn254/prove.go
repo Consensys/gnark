@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/constraint/solver"
@@ -66,28 +67,29 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
 
-	privateCommitted := make([][]fr.Element, len(r1cs.CommitmentInfo))
+	commitmentSubIndexes := r1cs.CommitmentInfo.CommitmentIndexesInCommittedLists()
+	privateCommittedValues := make([][]fr.Element, len(r1cs.CommitmentInfo))
 	for i := range r1cs.CommitmentInfo {
-		commitmentInfo := &r1cs.CommitmentInfo[i]
-		privateCommitted[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted)
-		privateCommittedI := privateCommitted[i]
+		nbPublicI := r1cs.CommitmentInfo[i].NbPublicCommitted()
+		commitmentSubIndexesI := commitmentSubIndexes[i]
+		privateCommittedValues[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-len(commitmentSubIndexesI))
+		privateCommittedValuesI := privateCommittedValues[i]
 		commitmentOut := &proof.Commitments[i]
 		commitmentKey := pk.CommitmentKeys[i]
 
 		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
-			nbPublicCommitted := len(in) - len(privateCommittedI)
-			inPrivate := in[nbPublicCommitted:]
-			for j, inJ := range inPrivate {
-				privateCommittedI[j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
+			committed, hashed := internal.DivideByThresholdOrList(nbPublicI, commitmentSubIndexesI, in)
+			for j, inJ := range committed {
+				privateCommittedValuesI[j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
 			}
 
 			var err error
-			if *commitmentOut, err = commitmentKey.Commit(privateCommittedI); err != nil {
+			if *commitmentOut, err = commitmentKey.Commit(privateCommittedValuesI); err != nil {
 				return err
 			}
 
 			var res fr.Element
-			res, err = solveCommitmentWire(commitmentOut, in[:commitmentInfo.NbPublicCommitted()])
+			res, err = solveCommitmentWire(commitmentOut, hashed)
 			res.BigInt(out[0])
 			return err
 		}))
@@ -108,7 +110,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		copy(commitmentsSerialized[fr.Bytes*i:], wireValues[r1cs.CommitmentInfo[i].CommitmentIndex].Marshal())
 	}
 
-	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommitted, commitmentsSerialized); err != nil {
+	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommittedValues, commitmentsSerialized); err != nil {
 		return nil, err
 	}
 
@@ -295,29 +297,28 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	return proof, nil
 }
 
-// if len(toRemove) == 0, returns slice
-// else, returns a new slice without the indexes in toRemove
-// this assumes toRemove indexes are sorted and len(slice) > len(toRemove)
-func filter(slice []fr.Element, toRemove []int) (r []fr.Element) {
+// if len(indexes) == 0, returns slice, nil
+// else, returns a slice with the indexes and another without
+// this assumes the indexes are sorted, without repetition and that len(slice) > len(indexes)
+func split(slice []*big.Int, indexes []int) (with, without []*big.Int) {
 
-	if len(toRemove) == 0 {
-		return slice
+	if len(indexes) == 0 {
+		return slice, nil
 	}
-	r = make([]fr.Element, 0, len(slice)-len(toRemove))
+	with = make([]*big.Int, 0, len(slice)-len(indexes))
+	without = make([]*big.Int, 0, len(indexes))
 
 	j := 0
 	// note: we can optimize that for the likely case where len(slice) >>> len(toRemove)
 	for i := 0; i < len(slice); i++ {
-		if j < len(toRemove) && i == toRemove[j] {
-			for j < len(toRemove) && i == toRemove[j] {
-				j++
-			}
+		if j < len(indexes) && i == indexes[j] {
+			without = append(without, slice[i])
+			j++
 			continue
 		}
-		r = append(r, slice[i])
+		with = append(with, slice[i])
 	}
-
-	return r
+	return
 }
 
 // if len(toRemove) == 0, returns slice

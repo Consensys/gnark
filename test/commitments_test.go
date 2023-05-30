@@ -2,7 +2,6 @@ package test
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/stretchr/testify/assert"
 	"reflect"
@@ -42,7 +41,7 @@ func (c *commitmentCircuit) Define(api frontend.API) error {
 		sum = api.Add(sum, p)
 	}
 	api.AssertIsDifferent(commitment, sum)
-	return err
+	return nil
 }
 
 func TestSingleCommitment(t *testing.T) {
@@ -122,13 +121,8 @@ func (c *twoCommitCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestTwoCommitEngine(t *testing.T) {
-	assignment := &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3}
-	NewAssert(t).SolvingSucceeded(&twoCommitCircuit{X: make([]frontend.Variable, len(assignment.X))}, assignment, WithBackends(backend.GROTH16, backend.PLONK))
-}
-
-func TestTwoCommitPlonk(t *testing.T) {
-	testPlonk(t, &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3})
+func TestTwoCommit(t *testing.T) {
+	testAll(t, &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3})
 }
 
 type independentCommitsCircuit struct {
@@ -151,8 +145,8 @@ func (c *independentCommitsCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestTwoIndependentCommitsGroth16(t *testing.T) {
-	testGroth16(t, &independentCommitsCircuit{X: []frontend.Variable{1, 1}})
+func TestTwoIndependentCommits(t *testing.T) {
+	testAll(t, &independentCommitsCircuit{X: []frontend.Variable{1, 1}})
 }
 
 func TestHollow(t *testing.T) {

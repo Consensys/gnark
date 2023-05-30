@@ -25,6 +25,7 @@ import (
 )
 
 func solveCommitmentWire(commitment *curve.G1Affine, publicCommitted []*big.Int) (fr.Element, error) {
+	fmt.Println("len(pubCom)=", len(publicCommitted))
 	res, err := fr.Hash(constraint.SerializeCommitment(commitment.Marshal(), publicCommitted, (fr.Bits-1)/8+1), []byte(constraint.CommitmentDst), 1)
 	fmt.Println("commitment", res[0].Text(16))
 	return res[0], err

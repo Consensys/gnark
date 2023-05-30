@@ -25,7 +25,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bn254"
-	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"math/bits"
 )
@@ -95,14 +94,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
-	nbPrivateCommittedWires := 0
-	commitmentWires := make([]int, len(r1cs.CommitmentInfo))
-	privateCommitted := make([][]int, len(r1cs.CommitmentInfo))
-	for i := range r1cs.CommitmentInfo {
-		nbPrivateCommittedWires += r1cs.CommitmentInfo[i].NbPrivateCommitted
-		privateCommitted[i] = r1cs.CommitmentInfo[i].PrivateCommitted()
-		commitmentWires[i] = r1cs.CommitmentInfo[i].CommitmentIndex
-	}
+	nbPrivateCommittedWires, commitmentWires, privateCommitted := r1cs.CommitmentInfo.Interleave()
 
 	// a commitment is itself defined by a hint so the prover considers it private
 	// but the verifier will need to inject the value itself so on the groth16
@@ -156,9 +148,12 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	pkK := make([]fr.Element, nbPrivateWires)
 	vkK := make([]fr.Element, nbPublicWires)
 	ckK := make([][]fr.Element, len(r1cs.CommitmentInfo))
+	for i := range r1cs.CommitmentInfo {
+		ckK[i] = make([]fr.Element, len(privateCommitted[i]))
+	}
 
 	// see if i commits to j
-	for i := range r1cs.CommitmentInfo {
+	/*for i := range r1cs.CommitmentInfo {
 		commitmentCommitments := 0
 
 		for j := 0; j < i; j++ {
@@ -167,7 +162,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			}
 		}
 		ckK[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-commitmentCommitments)
-	}
+	}*/
 
 	var t0, t1 fr.Element
 
@@ -180,8 +175,8 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	}
 	vI := 0
 	cI := make([]int, len(r1cs.CommitmentInfo))
-	nbCommitToCommit := make([]int, len(r1cs.CommitmentInfo))
-	nbPrivateCommittedSeen := 0
+	//nbCommitToCommit := make([]int, len(r1cs.CommitmentInfo))
+	nbPrivateCommittedSeen := 0 // = \sum_i cI[i]
 	nbCommitmentsSeen := 0
 
 	/* for j := range r1cs.CommitmentInfo {	// skip commitments to commitments
@@ -209,11 +204,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			for j := range r1cs.CommitmentInfo {
 				if cI[j] < len(privateCommitted[j]) && privateCommitted[j][cI[j]] == i {
 					commitment = j
-					if isCommitment {
-						nbCommitToCommit[j]++
-					} else {
-						break
-					}
+					break // frontend guarantees that no private variable is committed to more than once
 				}
 			}
 		}
@@ -225,7 +216,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 				vkK[vI] = t1
 				vI++
 			} else { // committed and private
-				ckK[commitment][cI[commitment]-nbCommitToCommit[commitment]] = t1
+				ckK[commitment][cI[commitment]] = t1
 				cI[commitment]++
 				nbPrivateCommittedSeen++
 			}
