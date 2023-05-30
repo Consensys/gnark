@@ -324,6 +324,35 @@ func filter(slice []fr.Element, toRemove []int) (r []fr.Element) {
 	return r
 }
 
+// if len(toRemove) == 0, returns slice
+// else, returns a new slice without the indexes in toRemove
+// this assumes toRemove indexes are sorted and len(slice) > len(toRemove)
+// filterHeap modifies toRemove
+func filterHeap(slice []fr.Element, toRemove []int) (r []fr.Element) {
+
+	if len(toRemove) == 0 {
+		return slice
+	}
+
+	heap := utils.IntHeap(toRemove)
+	heap.Heapify()
+
+	r = make([]fr.Element, 0, len(slice)-len(toRemove))
+
+	// note: we can optimize that for the likely case where len(slice) >>> len(toRemove)
+	for i := 0; i < len(slice); i++ {
+		if len(heap) > 0 && i == heap[0] {
+			for len(heap) > 0 && i == heap[0] {
+				heap.Pop()
+			}
+			continue
+		}
+		r = append(r, slice[i])
+	}
+
+	return
+}
+
 func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
