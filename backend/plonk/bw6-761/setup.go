@@ -23,7 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
-	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/backend/plonk/internal"
 	"github.com/consensys/gnark/constraint/bw6-761"
 )
 
@@ -125,7 +125,7 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	var pk ProvingKey
 	var vk VerifyingKey
 	pk.Vk = &vk
-	vk.CommitmentConstraintIndexes = constraint.CommitmentIndexes(spr.CommitmentInfo)
+	vk.CommitmentConstraintIndexes = internal.IntSliceToUint64Slice(spr.CommitmentInfo.CommitmentWireIndexes())
 	// nbConstraints := len(spr.Constraints)
 
 	// step 0: set the fft domains

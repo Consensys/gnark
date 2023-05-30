@@ -6,7 +6,7 @@ import (
 	{{- template "import_backend_cs" . }}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/backend/plonk/internal"
 )
 
 // Trace stores a plonk trace as columns
@@ -107,7 +107,7 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	var pk ProvingKey
 	var vk VerifyingKey
 	pk.Vk = &vk
-	vk.CommitmentConstraintIndexes = constraint.CommitmentIndexes(spr.CommitmentInfo)
+	vk.CommitmentConstraintIndexes = internal.IntSliceToUint64Slice(spr.CommitmentInfo.CommitmentWireIndexes())
 	// nbConstraints := len(spr.Constraints)
 
 	// step 0: set the fft domains
