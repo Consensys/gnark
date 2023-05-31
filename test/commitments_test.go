@@ -103,28 +103,6 @@ func TestCommittedPublic(t *testing.T) {
 	testAll(t, &committedPublicCircuit{1})
 }
 
-type twoCommitCircuit struct {
-	X []frontend.Variable
-	Y frontend.Variable
-}
-
-func (c *twoCommitCircuit) Define(api frontend.API) error {
-	c0, err := api.(frontend.Committer).Commit(c.X...)
-	if err != nil {
-		return err
-	}
-	var c1 frontend.Variable
-	if c1, err = api.(frontend.Committer).Commit(c0, c.Y); err != nil {
-		return err
-	}
-	api.AssertIsDifferent(c1, c.Y)
-	return nil
-}
-
-func TestTwoCommit(t *testing.T) {
-	testAll(t, &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3})
-}
-
 type independentCommitsCircuit struct {
 	X []frontend.Variable
 }
@@ -147,6 +125,28 @@ func (c *independentCommitsCircuit) Define(api frontend.API) error {
 
 func TestTwoIndependentCommits(t *testing.T) {
 	testAll(t, &independentCommitsCircuit{X: []frontend.Variable{1, 1}})
+}
+
+type twoCommitCircuit struct {
+	X []frontend.Variable
+	Y frontend.Variable
+}
+
+func (c *twoCommitCircuit) Define(api frontend.API) error {
+	c0, err := api.(frontend.Committer).Commit(c.X...)
+	if err != nil {
+		return err
+	}
+	var c1 frontend.Variable
+	if c1, err = api.(frontend.Committer).Commit(c0, c.Y); err != nil {
+		return err
+	}
+	api.AssertIsDifferent(c1, c.Y)
+	return nil
+}
+
+func TestTwoCommit(t *testing.T) {
+	testAll(t, &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3})
 }
 
 func TestHollow(t *testing.T) {

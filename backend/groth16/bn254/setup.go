@@ -94,7 +94,8 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
-	nbPrivateCommittedWires, commitmentWires, privateCommitted := r1cs.CommitmentInfo.Interleave()
+	nbPrivateCommittedWires, commitmentWires, privateCommitted, publicAndCommitmentCommitted :=
+		r1cs.CommitmentInfo.Interleave(r1cs.GetNbPublicVariables())
 
 	// a commitment is itself defined by a hint so the prover considers it private
 	// but the verifier will need to inject the value itself so on the groth16
@@ -323,10 +324,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		return err
 	}
 
-	vk.PublicCommitted = make([][]int, len(r1cs.CommitmentInfo))
-	for i := range r1cs.CommitmentInfo {
-		vk.PublicCommitted[i] = r1cs.CommitmentInfo[i].PublicCommitted()
-	}
+	vk.PublicCommitted = publicAndCommitmentCommitted
 
 	// ---------------------------------------------------------------------------------------------
 	// G2 scalars

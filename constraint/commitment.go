@@ -93,16 +93,21 @@ func (c Commitments) CommitmentsAndPrivateCommittedIndexes() []int {
 
 // Interleave returns combined information about the commitments
 // nbPrivateCommittedWires doesn't double count because the frontend guarantees that no private wire is committed to more than once
-func (c Commitments) Interleave() (nbPrivateCommittedWires int, commitmentWires []int, privateCommitted [][]int) {
+// publicAndCommitmentCommitted returns the index of committed wires that would be hashed, and are indexed from the verifier's point of view
+func (c Commitments) Interleave(nbPublicVars int) (nbPrivateCommittedWires int, commitmentWires []int, privateCommitted [][]int, publicAndCommitmentCommitted [][]int) {
 	commitmentWires = c.CommitmentWireIndexes()
 
 	privateCommitted = make([][]int, len(c))
+	publicAndCommitmentCommitted = make([][]int, len(c))
 	for i := range c {
 		nonPublicCommitted := c[i].PrivateCommitted()
 		privateCommitted[i] = make([]int, 0, len(nonPublicCommitted))
-
+		publicAndCommitmentCommitted[i] = make([]int, c[i].NbPublicCommitted(), len(c[i].Committed))
+		copy(publicAndCommitmentCommitted[i], c[i].PublicCommitted())
 		for _, j := range nonPublicCommitted {
-			if found, _ := utils.BinarySearch(commitmentWires, j); !found {
+			if found, k := utils.BinarySearch(commitmentWires, j); found { // if j is a commitment wire
+				publicAndCommitmentCommitted[i] = append(publicAndCommitmentCommitted[i], k+nbPublicVars)
+			} else {
 				privateCommitted[i] = append(privateCommitted[i], j)
 			}
 		}
@@ -117,10 +122,10 @@ func (c Commitments) Interleave() (nbPrivateCommittedWires int, commitmentWires 
 func (c Commitments) CommitmentIndexesInCommittedLists() [][]int {
 	res := make([][]int, len(c))
 	for i := range c {
-		res[i] = make([]int, i)
+		res[i] = make([]int, 0, i)
 		for j := 0; j < i; j++ {
 			if found, k := utils.BinarySearch(c[i].PrivateCommitted(), c[j].CommitmentIndex); found {
-				res[i][j] = k + c[i].NbPublicCommitted()
+				res[i] = append(res[i], k+c[i].NbPublicCommitted())
 			}
 		}
 	}

@@ -17,6 +17,7 @@
 package groth16
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -70,29 +71,30 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	commitmentSubIndexes := r1cs.CommitmentInfo.CommitmentIndexesInCommittedLists()
 	privateCommittedValues := make([][]fr.Element, len(r1cs.CommitmentInfo))
 	for i := range r1cs.CommitmentInfo {
-		nbPublicI := r1cs.CommitmentInfo[i].NbPublicCommitted()
-		commitmentSubIndexesI := commitmentSubIndexes[i]
-		privateCommittedValues[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-len(commitmentSubIndexesI))
-		privateCommittedValuesI := privateCommittedValues[i]
-		commitmentOut := &proof.Commitments[i]
-		commitmentKey := pk.CommitmentKeys[i]
+		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(i int) solver.Hint {
+			fmt.Println("defining, i=", i)
+			return func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+				fmt.Println("executing, i=", i)
+				if i == 1 {
+					print("yo")
+				}
+				privateCommittedValues[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-len(commitmentSubIndexes[i]))
+				hashed, committed := internal.DivideByThresholdOrList(r1cs.CommitmentInfo[i].NbPublicCommitted(), commitmentSubIndexes[i], in)
+				for j, inJ := range committed {
+					privateCommittedValues[i][j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
+				}
 
-		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
-			hashed, committed := internal.DivideByThresholdOrList(nbPublicI, commitmentSubIndexesI, in)
-			for j, inJ := range committed {
-				privateCommittedValuesI[j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
-			}
+				var err error
+				if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(privateCommittedValues[i]); err != nil {
+					return err
+				}
 
-			var err error
-			if *commitmentOut, err = commitmentKey.Commit(privateCommittedValuesI); err != nil {
+				var res fr.Element
+				res, err = solveCommitmentWire(&proof.Commitments[i], hashed)
+				res.BigInt(out[0])
 				return err
 			}
-
-			var res fr.Element
-			res, err = solveCommitmentWire(commitmentOut, hashed)
-			res.BigInt(out[0])
-			return err
-		}))
+		}(i)))
 	}
 
 	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
