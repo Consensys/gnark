@@ -743,7 +743,7 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	)
 
 	// Compute ∏ᵢ { fᵢ_{u,G2}(T) }
-	for i := 61; i >= 0; i-- {
+	for i := 61; i >= 1; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res = pr.Square(res)
@@ -786,6 +786,18 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 
 		}
 	}
+
+	// i = 0, separately to avoid a point doubling
+	res = pr.Square(res)
+	// l1 the tangent ℓ passing 2Qacc
+	l1 = pr.tangentCompute(Qacc)
+	// line evaluation at P
+	l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
+	l1.R1 = *pr.MulByElement(&l1.R1, yInv)
+	// ℓ × ℓ
+	prodLines = *pr.Mul014By014(&l1.R1, &l1.R0, &PrecomputedLines[1][0], &PrecomputedLines[0][0])
+	// (ℓ × ℓ) × res
+	res = pr.MulBy01245(res, &prodLines)
 
 	// negative x₀
 	res = pr.Ext12.Conjugate(res)
