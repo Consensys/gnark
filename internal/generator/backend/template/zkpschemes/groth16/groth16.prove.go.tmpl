@@ -55,12 +55,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	privateCommittedValues := make([][]fr.Element, len(r1cs.CommitmentInfo))
 	for i := range r1cs.CommitmentInfo {
 		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(i int) solver.Hint {
-			fmt.Println("defining, i=", i)
 			return func(_ *big.Int, in []*big.Int, out []*big.Int) error {
-				fmt.Println("executing, i=", i)
-				if i == 1 {
-					print("yo")
-				}
 				privateCommittedValues[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-len(commitmentSubIndexes[i]))
 				hashed, committed := internal.DivideByThresholdOrList(r1cs.CommitmentInfo[i].NbPublicCommitted(), commitmentSubIndexes[i], in)
 				for j, inJ := range committed {
