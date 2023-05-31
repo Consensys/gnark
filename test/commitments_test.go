@@ -109,10 +109,6 @@ type independentCommitsCircuit struct {
 
 func (c *independentCommitsCircuit) Define(api frontend.API) error {
 	committer := api.(frontend.Committer)
-	/*var (
-		ch []frontend.Variable
-		err error
-	)*/
 	for i := range c.X {
 		if ch, err := committer.Commit(c.X[i]); err != nil {
 			return err
