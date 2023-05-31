@@ -25,7 +25,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/pedersen"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bls12-377"
-	"github.com/consensys/gnark/internal/utils"
 	"math/big"
 	"math/bits"
 )
@@ -154,18 +153,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		ckK[i] = make([]fr.Element, len(privateCommitted[i]))
 	}
 
-	// see if i commits to j
-	for i := range r1cs.CommitmentInfo {
-		commitmentCommitments := 0
-
-		for j := 0; j < i; j++ {
-			if found, _ := utils.BinarySearch(privateCommitted[i], r1cs.CommitmentInfo[j].CommitmentIndex); found {
-				commitmentCommitments++
-			}
-		}
-		ckK[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-commitmentCommitments)
-	}
-
 	var t0, t1 fr.Element
 
 	computeK := func(i int, coeff *fr.Element) { // TODO: Inline again
@@ -177,22 +164,8 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	}
 	vI := 0
 	cI := make([]int, len(r1cs.CommitmentInfo))
-	nbCommitToCommit := make([]int, len(r1cs.CommitmentInfo))
-	nbPrivateCommittedSeen := 0
+	nbPrivateCommittedSeen := 0 // = ∑ᵢ cI[i]
 	nbCommitmentsSeen := 0
-
-	/* for j := range r1cs.CommitmentInfo {	// skip commitments to commitments
-		k := 0
-		l := 0
-		for ; k < len(privateCommitted[j]); k++ {
-			for ; l < len(commitmentWires) && commitmentWires[l] < privateCommitted[j][k]; l++ {}
-			if k != l {
-				break
-			}
-		}
-		cI[j] = k
-	}
-	copy(nbCommitToCommit, cI)*/
 
 	for i := range A {
 		commitment := -1 // index of the commitment that commits to this variable as a private or commitment value
@@ -206,11 +179,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			for j := range r1cs.CommitmentInfo {
 				if cI[j] < len(privateCommitted[j]) && privateCommitted[j][cI[j]] == i {
 					commitment = j
-					if isCommitment {
-						nbCommitToCommit[j]++
-					} else {
-						break
-					}
+					break // frontend guarantees that no private variable is committed to more than once
 				}
 			}
 		}
@@ -222,7 +191,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 				vkK[vI] = t1
 				vI++
 			} else { // committed and private
-				ckK[commitment][cI[commitment]-nbCommitToCommit[commitment]] = t1
+				ckK[commitment][cI[commitment]] = t1
 				cI[commitment]++
 				nbPrivateCommittedSeen++
 			}
@@ -329,10 +298,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		return err
 	}
 
-	vk.PublicCommitted = make([][]int, len(r1cs.CommitmentInfo))
-	for i := range r1cs.CommitmentInfo {
-		vk.PublicCommitted[i] = r1cs.CommitmentInfo[i].PublicCommitted()
-	}
+	vk.PublicCommitted = publicAndCommitmentCommitted
 
 	// ---------------------------------------------------------------------------------------------
 	// G2 scalars
