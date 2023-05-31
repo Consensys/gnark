@@ -237,9 +237,9 @@ func TestGroupMembershipSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
-//		------------------------
-//		  Fixed-argument pairing
-//	    ------------------------
+// ----------------------------
+//	  Fixed-argument pairing
+// ----------------------------
 //
 // The second argument Q is the fixed canonical generator of G2.
 //
@@ -248,7 +248,6 @@ func TestGroupMembershipSolve(t *testing.T) {
 // Q.Y.A0 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
 // Q.Y.A1 = 0x90689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b
 
-// TODO: DoublePairing where one of the point is fixed (special case of multi-pair)
 type PairFixedCircuit struct {
 	InG1 G1Affine
 	Res  GTEl

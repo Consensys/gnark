@@ -671,9 +671,9 @@ func (pr Pairing) lineCompute(p1, p2 *G2Affine) *lineEvaluation {
 
 }
 
-//		------------------------
-//		  Fixed-argument pairing
-//	    ------------------------
+// ----------------------------
+//	  Fixed-argument pairing
+// ----------------------------
 //
 // The second argument Q is the fixed canonical generator of G2.
 //
@@ -681,8 +681,6 @@ func (pr Pairing) lineCompute(p1, p2 *G2Affine) *lineEvaluation {
 // Q.X.A1 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2
 // Q.Y.A0 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
 // Q.Y.A1 = 0x90689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b
-
-// TODO: pre-multiply precomputed lines when bits is 1 or -1
 
 // MillerLoopFixed computes the single Miller loop
 // fᵢ_{u,g2}(P), where g2 is fixed.
@@ -701,7 +699,7 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 	for i := 63; i >= 0; i-- {
 		res = pr.Square(res)
 
-		// ℓ × res
+		// line evaluation at P and ℓ × res
 		res = pr.MulBy034(res,
 			pr.MulByElement(&PrecomputedLines[0][i], xOverY),
 			pr.MulByElement(&PrecomputedLines[1][i], yInv),
@@ -709,7 +707,7 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 
 		if loopCounter[i] == 1 {
 
-			// ℓ × res
+			// line evaluation at P and ℓ × res
 			res = pr.MulBy034(res,
 				pr.MulByElement(&PrecomputedLines[2][i], xOverY),
 				pr.MulByElement(&PrecomputedLines[3][i], yInv),
@@ -717,7 +715,7 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 
 		} else if loopCounter[i] == -1 {
 
-			// ℓ × res
+			// line evaluation at P and ℓ × res
 			res = pr.MulBy034(res,
 				pr.MulByElement(&PrecomputedLines[2][i], xOverY),
 				pr.MulByElement(&PrecomputedLines[3][i], yInv),
@@ -725,13 +723,13 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 		}
 	}
 
-	// line evaluation at P
+	// line evaluation at P and ℓ × res
 	res = pr.MulBy034(res,
 		pr.MulByElement(&PrecomputedLines[0][65], xOverY),
 		pr.MulByElement(&PrecomputedLines[1][65], yInv),
 	)
 
-	// line evaluation at P
+	// line evaluation at P and ℓ × res
 	res = pr.MulBy034(res,
 		pr.MulByElement(&PrecomputedLines[0][66], xOverY),
 		pr.MulByElement(&PrecomputedLines[1][66], yInv),
@@ -740,6 +738,8 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 	return res, nil
 }
 
+// DoubleMillerLoopFixedQ computes the double Miller loop
+// fᵢ_{u,g2}(T) * fᵢ_{u,Q}(P), where g2 is fixed.
 func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, error) {
 	res := pr.Ext12.One()
 
@@ -765,14 +765,14 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
 	l1.R1 = *pr.MulByElement(&l1.R1, yInv)
 
-	// ℓ × ℓ
+	// precomputed-ℓ × ℓ
 	prodLines = *pr.Mul034By034(
 		&l1.R0,
 		&l1.R1,
 		pr.MulByElement(&PrecomputedLines[0][64], x2OverY2),
 		pr.MulByElement(&PrecomputedLines[1][64], y2Inv),
 	)
-	// (ℓ × ℓ) × res
+	// (precomputed-ℓ × ℓ) × res
 	res = pr.MulBy01234(res, &prodLines)
 
 	// Compute ∏ᵢ { fᵢ_{6x₀+2,Q}(P) }
@@ -791,23 +791,25 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 			l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
 			l1.R1 = *pr.MulByElement(&l1.R1, yInv)
 
-			// ℓ × ℓ
+			// precomputed-ℓ × ℓ
 			prodLines = *pr.Mul034By034(
 				&l1.R0,
 				&l1.R1,
 				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
 			)
-			// (ℓ × ℓ) × res
+			// (precomputed-ℓ × ℓ) × res
 			res = pr.MulBy01234(res, &prodLines)
 
 		case 1:
+			// precomputed-ℓ × precomputed-ℓ
 			prodLines = *pr.Mul034By034(
 				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
 				pr.MulByElement(&PrecomputedLines[2][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[3][i], y2Inv),
 			)
+			// (precomputed-ℓ × precomputed-ℓ) × res
 			res = pr.MulBy01234(res, &prodLines)
 
 			// Qacc ← 2Qacc+Q,
@@ -829,12 +831,14 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 			res = pr.MulBy01234(res, &prodLines)
 
 		case -1:
+			// precomputed-ℓ × precomputed-ℓ
 			prodLines = *pr.Mul034By034(
 				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
 				pr.MulByElement(&PrecomputedLines[2][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[3][i], y2Inv),
 			)
+			// (precomputed-ℓ × precomputed-ℓ) × res
 			res = pr.MulBy01234(res, &prodLines)
 
 			// Qacc ← 2Qacc-Q,
@@ -892,12 +896,14 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	// (ℓ × ℓ) × res
 	res = pr.MulBy01234(res, &prodLines)
 
+	// precomputed-ℓ × precomputed-ℓ
 	prodLines = *pr.Mul034By034(
 		pr.MulByElement(&PrecomputedLines[0][65], x2OverY2),
 		pr.MulByElement(&PrecomputedLines[1][65], y2Inv),
 		pr.MulByElement(&PrecomputedLines[0][66], x2OverY2),
 		pr.MulByElement(&PrecomputedLines[1][66], y2Inv),
 	)
+	// (precomputed-ℓ × precomputed-ℓ) × res
 	res = pr.MulBy01234(res, &prodLines)
 
 	return res, nil
