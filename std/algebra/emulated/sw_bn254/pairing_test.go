@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 )
 
@@ -380,4 +381,12 @@ func BenchmarkPairing(b *testing.B) {
 			}
 		}
 	})
+}
+
+func BenchmarkDoubleFixedPairing(b *testing.B) {
+	var c DoublePairFixedCircuit
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("groth16: ", p.NbConstraints())
 }

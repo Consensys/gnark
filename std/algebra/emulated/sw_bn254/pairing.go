@@ -757,10 +757,6 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	// Compute ∏ᵢ { fᵢ_{6x₀+2,Q}(P) }
 	// i = 64, separately to avoid an E12 Square
 	// (Square(res) = 1² = 1)
-	res = pr.MulBy034(res,
-		pr.MulByElement(&PrecomputedLines[0][64], x2OverY2),
-		pr.MulByElement(&PrecomputedLines[1][64], y2Inv),
-	)
 
 	// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
 	Qacc, l1 = pr.doubleStep(Qacc)
@@ -769,8 +765,15 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
 	l1.R1 = *pr.MulByElement(&l1.R1, yInv)
 
-	// ℓ × res
-	res = pr.MulBy034(res, &l1.R0, &l1.R1)
+	// ℓ × ℓ
+	prodLines = *pr.Mul034By034(
+		&l1.R0,
+		&l1.R1,
+		pr.MulByElement(&PrecomputedLines[0][64], x2OverY2),
+		pr.MulByElement(&PrecomputedLines[1][64], y2Inv),
+	)
+	// (ℓ × ℓ) × res
+	res = pr.MulBy01234(res, &prodLines)
 
 	// Compute ∏ᵢ { fᵢ_{6x₀+2,Q}(P) }
 	for i := 63; i >= 0; i-- {
@@ -780,10 +783,6 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 
 		switch loopCounter[i] {
 		case 0:
-			res = pr.MulBy034(res,
-				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
-				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
-			)
 
 			// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
 			Qacc, l1 = pr.doubleStep(Qacc)
@@ -792,18 +791,24 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 			l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
 			l1.R1 = *pr.MulByElement(&l1.R1, yInv)
 
-			// ℓ × res
-			res = pr.MulBy034(res, &l1.R0, &l1.R1)
-
-		case 1:
-			res = pr.MulBy034(res,
+			// ℓ × ℓ
+			prodLines = *pr.Mul034By034(
+				&l1.R0,
+				&l1.R1,
 				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
 			)
-			res = pr.MulBy034(res,
+			// (ℓ × ℓ) × res
+			res = pr.MulBy01234(res, &prodLines)
+
+		case 1:
+			prodLines = *pr.Mul034By034(
+				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
+				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
 				pr.MulByElement(&PrecomputedLines[2][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[3][i], y2Inv),
 			)
+			res = pr.MulBy01234(res, &prodLines)
 
 			// Qacc ← 2Qacc+Q,
 			// l1 the line ℓ passing Qacc and Q
@@ -824,14 +829,13 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 			res = pr.MulBy01234(res, &prodLines)
 
 		case -1:
-			res = pr.MulBy034(res,
+			prodLines = *pr.Mul034By034(
 				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
-			)
-			res = pr.MulBy034(res,
 				pr.MulByElement(&PrecomputedLines[2][i], x2OverY2),
 				pr.MulByElement(&PrecomputedLines[3][i], y2Inv),
 			)
+			res = pr.MulBy01234(res, &prodLines)
 
 			// Qacc ← 2Qacc-Q,
 			// l1 the line ℓ passing Qacc and -Q
@@ -888,15 +892,13 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	// (ℓ × ℓ) × res
 	res = pr.MulBy01234(res, &prodLines)
 
-	res = pr.MulBy034(res,
+	prodLines = *pr.Mul034By034(
 		pr.MulByElement(&PrecomputedLines[0][65], x2OverY2),
 		pr.MulByElement(&PrecomputedLines[1][65], y2Inv),
-	)
-
-	res = pr.MulBy034(res,
 		pr.MulByElement(&PrecomputedLines[0][66], x2OverY2),
 		pr.MulByElement(&PrecomputedLines[1][66], y2Inv),
 	)
+	res = pr.MulBy01234(res, &prodLines)
 
 	return res, nil
 }
