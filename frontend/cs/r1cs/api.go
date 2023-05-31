@@ -686,7 +686,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	// initialize the min-heap
 	// this is the same algorithm as api.add --> we want to merge k sorted linear expression
 	for lID, v := range vars {
-		builder.heap = append(builder.heap, linMeta{val: v[0].VID, lID: lID})
+		builder.heap = append(builder.heap, linMeta{val: v[0].VID, lID: lID}) // TODO: Use int heap
 	}
 	builder.heap.heapify()
 
@@ -716,27 +716,27 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 			// it's the same variable ID, do nothing
 			continue
 		} else {
-			// append, it's a new variable ID
-			committed = append(committed, t.VID)
 			if t.VID < builder.cs.GetNbPublicVariables() {
 				nbPublicCommitted++
 			} else {
 				// Cannot commit to a secret variable that has already been committed to
 				// instead we commit to its commitment
 				commitments := builder.cs.GetCommitments()
+				var alreadyCommitted bool
 				for i := range commitments {
-					if alreadyCommitted, _ := utils.BinarySearch(commitments[i].Committed, t.VID); alreadyCommitted {
+					if alreadyCommitted, _ = utils.BinarySearch(commitments[i].Committed, t.VID); alreadyCommitted {
 						toCommit := commitments[i].CommitmentIndex
-						if alreadyCommitted, toInsert := utils.BinarySearch(committed, toCommit); alreadyCommitted {
-							committed = committed[:len(committed)-1] // variable already represented
-						} else {
-							copy(committed[toInsert+1:], committed[toInsert:])
-							committed[toInsert] = toCommit
-						}
+						vars = append(vars, expr.LinearExpression{{Coeff: constraint.Element{1}, VID: toCommit}}) // TODO Replace with mont 1
+						builder.heap.push(linMeta{lID: len(vars) - 1, tID: 0, val: toCommit})
 						break
 					}
 				}
+				if alreadyCommitted {
+					continue
+				}
 			}
+			// append, it's a new variable ID
+			committed = append(committed, t.VID) // if public or not already committed
 			curr++
 		}
 	}

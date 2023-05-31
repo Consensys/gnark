@@ -1,7 +1,8 @@
 package test
 
 import (
-	"fmt"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/stretchr/testify/assert"
 	"reflect"
@@ -29,7 +30,7 @@ type commitmentCircuit struct {
 
 func (c *commitmentCircuit) Define(api frontend.API) error {
 
-	commitment, err := tryCommit(api, c.X...)
+	commitment, err := api.(frontend.Committer).Commit(c.X...)
 	if err != nil {
 		return err
 	}
@@ -74,7 +75,7 @@ type committedConstantCircuit struct {
 }
 
 func (c *committedConstantCircuit) Define(api frontend.API) error {
-	commitment, err := tryCommit(api, 1, c.X)
+	commitment, err := api.(frontend.Committer).Commit(1, c.X)
 	if err != nil {
 		return err
 	}
@@ -91,7 +92,7 @@ type committedPublicCircuit struct {
 }
 
 func (c *committedPublicCircuit) Define(api frontend.API) error {
-	commitment, err := tryCommit(api, c.X)
+	commitment, err := api.(frontend.Committer).Commit(c.X)
 	if err != nil {
 		return err
 	}
@@ -145,6 +146,31 @@ func TestTwoCommit(t *testing.T) {
 	testAll(t, &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3})
 }
 
+type doubleCommitCircuit struct {
+	X, Y frontend.Variable
+}
+
+func (c *doubleCommitCircuit) Define(api frontend.API) error {
+	var c0, c1 frontend.Variable
+	var err error
+	if c0, err = api.(frontend.Committer).Commit(c.X); err != nil {
+		return err
+	}
+	if c1, err = api.(frontend.Committer).Commit(c.X, c.Y); err != nil {
+		return err
+	}
+	api.AssertIsDifferent(c0, c1)
+	return nil
+}
+
+func TestDoubleCommit(t *testing.T) {
+	testAll(t, &doubleCommitCircuit{X: 1, Y: 2})
+}
+
+func TestDoubleCommitFail(t *testing.T) {
+	NewAssert(t).ProverSucceeded(&doubleCommitCircuit{}, &doubleCommitCircuit{X: 1, Y: 1}, WithBackends(backend.PLONK), WithCurves(ecc.BN254))
+}
+
 func TestHollow(t *testing.T) {
 
 	run := func(c, expected frontend.Circuit) func(t *testing.T) {
@@ -167,12 +193,4 @@ func TestHollow(t *testing.T) {
 	for i := range assignments {
 		t.Run(removePackageName(reflect.TypeOf(assignments[i]).String()), run(assignments[i], expected[i]))
 	}
-}
-
-func tryCommit(api frontend.API, x ...frontend.Variable) (frontend.Variable, error) {
-	committer, ok := api.(frontend.Committer)
-	if !ok {
-		return nil, fmt.Errorf("type %T doesn't impl the Committer interface", api)
-	}
-	return committer.Commit(x...)
 }
