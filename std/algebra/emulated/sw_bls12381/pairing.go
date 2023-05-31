@@ -795,7 +795,12 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
 	l1.R1 = *pr.MulByElement(&l1.R1, yInv)
 	// ℓ × ℓ
-	prodLines = *pr.Mul014By014(&l1.R1, &l1.R0, &PrecomputedLines[1][0], &PrecomputedLines[0][0])
+	prodLines = *pr.Mul014By014(
+		&l1.R1,
+		&l1.R0,
+		pr.MulByElement(&PrecomputedLines[1][0], y2Inv),
+		pr.MulByElement(&PrecomputedLines[0][0], x2OverY2),
+	)
 	// (ℓ × ℓ) × res
 	res = pr.MulBy01245(res, &prodLines)
 
