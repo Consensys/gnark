@@ -314,6 +314,7 @@ func TestDoublePairFixedTestSolve(t *testing.T) {
 		Res:   NewGTEl(res),
 	}
 	err = test.IsSolved(&DoublePairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }
 
 // bench
