@@ -373,13 +373,14 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		// line evaluation at P[k]
 		l1.R0 = *pr.MulByElement(&l1.R0, xOverY[k])
 		l1.R1 = *pr.MulByElement(&l1.R1, yInv[k])
-		// ℓ × res
-		res = pr.MulBy014(res, &l1.R1, &l1.R0)
 		// line evaluation at P[k]
 		l2.R0 = *pr.MulByElement(&l2.R0, xOverY[k])
 		l2.R1 = *pr.MulByElement(&l2.R1, yInv[k])
-		// ℓ × res
-		res = pr.MulBy014(res, &l2.R1, &l2.R0)
+		// ℓ × ℓ
+		prodLines = *pr.Mul014By014(&l1.R1, &l1.R0, &l2.R1, &l2.R0)
+		// (ℓ × ℓ) × res
+		res = pr.MulBy01245(res, &prodLines)
+
 	}
 
 	// Compute ∏ᵢ { fᵢ_{u,Q}(P) }
@@ -410,10 +411,10 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 				// line evaluation at P[k]
 				l2.R0 = *pr.MulByElement(&l2.R0, xOverY[k])
 				l2.R1 = *pr.MulByElement(&l2.R1, yInv[k])
-				// ℓ × res
-				res = pr.MulBy014(res, &l1.R1, &l1.R0)
-				// ℓ × res
-				res = pr.MulBy014(res, &l2.R1, &l2.R0)
+				// ℓ × ℓ
+				prodLines = *pr.Mul014By014(&l1.R1, &l1.R0, &l2.R1, &l2.R0)
+				// (ℓ × ℓ) × res
+				res = pr.MulBy01245(res, &prodLines)
 			}
 		}
 	}
@@ -778,10 +779,11 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 			// line evaluation at P
 			l2.R0 = *pr.MulByElement(&l2.R0, xOverY)
 			l2.R1 = *pr.MulByElement(&l2.R1, yInv)
-			// ℓ × res
-			res = pr.MulBy014(res, &l1.R1, &l1.R0)
-			// ℓ × res
-			res = pr.MulBy014(res, &l2.R1, &l2.R0)
+			// ℓ × ℓ
+			prodLines = *pr.Mul014By014(&l1.R1, &l1.R0, &l2.R1, &l2.R0)
+			// (ℓ × ℓ) × res
+			res = pr.MulBy01245(res, &prodLines)
+
 		}
 	}
 
