@@ -95,14 +95,8 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
-	nbPrivateCommittedWires := 0
-	commitmentWires := make([]int, len(r1cs.CommitmentInfo))
-	privateCommitted := make([][]int, len(r1cs.CommitmentInfo))
-	for i := range r1cs.CommitmentInfo {
-		nbPrivateCommittedWires += r1cs.CommitmentInfo[i].NbPrivateCommitted
-		privateCommitted[i] = r1cs.CommitmentInfo[i].PrivateCommitted()
-		commitmentWires[i] = r1cs.CommitmentInfo[i].CommitmentIndex
-	}
+	nbPrivateCommittedWires, commitmentWires, privateCommitted, publicAndCommitmentCommitted :=
+		r1cs.CommitmentInfo.Interleave(r1cs.GetNbPublicVariables())
 
 	// a commitment is itself defined by a hint so the prover considers it private
 	// but the verifier will need to inject the value itself so on the groth16
@@ -156,6 +150,9 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	pkK := make([]fr.Element, nbPrivateWires)
 	vkK := make([]fr.Element, nbPublicWires)
 	ckK := make([][]fr.Element, len(r1cs.CommitmentInfo))
+	for i := range r1cs.CommitmentInfo {
+		ckK[i] = make([]fr.Element, len(privateCommitted[i]))
+	}
 
 	// see if i commits to j
 	for i := range r1cs.CommitmentInfo {

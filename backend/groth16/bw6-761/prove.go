@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/pedersen"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/constraint/solver"
@@ -67,29 +68,33 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
 
-	privateCommitted := make([][]fr.Element, len(r1cs.CommitmentInfo))
+	commitmentSubIndexes := r1cs.CommitmentInfo.CommitmentIndexesInCommittedLists()
+	privateCommittedValues := make([][]fr.Element, len(r1cs.CommitmentInfo))
 	for i := range r1cs.CommitmentInfo {
-		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
-			if len(in) != r1cs.CommitmentInfo[i].NbCommitted() { // TODO: Remove
-				return fmt.Errorf("unexpected number of committed variables")
-			}
-			privateCommitted[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted)
-			nbPublicCommitted := len(in) - len(privateCommitted[i])
-			inPrivate := in[nbPublicCommitted:]
-			for j, inJ := range inPrivate {
-				privateCommitted[i][j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
-			}
+		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(i int) solver.Hint {
+			fmt.Println("defining, i=", i)
+			return func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+				fmt.Println("executing, i=", i)
+				if i == 1 {
+					print("yo")
+				}
+				privateCommittedValues[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-len(commitmentSubIndexes[i]))
+				hashed, committed := internal.DivideByThresholdOrList(r1cs.CommitmentInfo[i].NbPublicCommitted(), commitmentSubIndexes[i], in)
+				for j, inJ := range committed {
+					privateCommittedValues[i][j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
+				}
 
-			var err error
-			if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(privateCommitted[i]); err != nil {
+				var err error
+				if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(privateCommittedValues[i]); err != nil {
+					return err
+				}
+
+				var res fr.Element
+				res, err = solveCommitmentWire(&proof.Commitments[i], hashed)
+				res.BigInt(out[0])
 				return err
 			}
-
-			var res fr.Element
-			res, err = solveCommitmentWire(&proof.Commitments[i], in[:r1cs.CommitmentInfo[i].NbPublicCommitted()])
-			res.BigInt(out[0])
-			return err
-		}))
+		}(i)))
 	}
 
 	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
@@ -107,7 +112,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		copy(commitmentsSerialized[fr.Bytes*i:], wireValues[r1cs.CommitmentInfo[i].CommitmentIndex].Marshal())
 	}
 
-	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommitted, commitmentsSerialized); err != nil {
+	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommittedValues, commitmentsSerialized); err != nil {
 		return nil, err
 	}
 
@@ -212,10 +217,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		}()
 
 		// filter the wire values if needed
-		_wireValues := wireValues
-		for i := range r1cs.CommitmentInfo {
-			_wireValues = filter(_wireValues, r1cs.CommitmentInfo[i].PrivateToPublicGroth16())
-		}
+		_wireValues := filterHeap(wireValues, r1cs.CommitmentInfo.CommitmentsAndPrivateCommittedIndexes())
 
 		if _, err := krs.MultiExp(pk.G1.K, _wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
@@ -297,27 +299,57 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	return proof, nil
 }
 
-// if len(toRemove) == 0, returns slice
-// else, returns a new slice without the indexes in toRemove
-// this assumes toRemove indexes are sorted and len(slice) > len(toRemove)
-func filter(slice []fr.Element, toRemove []int) (r []fr.Element) {
+// if len(indexes) == 0, returns slice, nil
+// else, returns a slice with the indexes and another without
+// this assumes the indexes are sorted, without repetition and that len(slice) > len(indexes)
+func split(slice []*big.Int, indexes []int) (with, without []*big.Int) {
 
-	if len(toRemove) == 0 {
-		return slice
+	if len(indexes) == 0 {
+		return slice, nil
 	}
-	r = make([]fr.Element, 0, len(slice)-len(toRemove))
+	with = make([]*big.Int, 0, len(slice)-len(indexes))
+	without = make([]*big.Int, 0, len(indexes))
 
 	j := 0
 	// note: we can optimize that for the likely case where len(slice) >>> len(toRemove)
 	for i := 0; i < len(slice); i++ {
-		if j < len(toRemove) && i == toRemove[j] {
+		if j < len(indexes) && i == indexes[j] {
+			without = append(without, slice[i])
 			j++
+			continue
+		}
+		with = append(with, slice[i])
+	}
+	return
+}
+
+// if len(toRemove) == 0, returns slice
+// else, returns a new slice without the indexes in toRemove
+// this assumes toRemove indexes are sorted and len(slice) > len(toRemove)
+// filterHeap modifies toRemove
+func filterHeap(slice []fr.Element, toRemove []int) (r []fr.Element) {
+
+	if len(toRemove) == 0 {
+		return slice
+	}
+
+	heap := utils.IntHeap(toRemove)
+	heap.Heapify()
+
+	r = make([]fr.Element, 0, len(slice))
+
+	// note: we can optimize that for the likely case where len(slice) >>> len(toRemove)
+	for i := 0; i < len(slice); i++ {
+		if len(heap) > 0 && i == heap[0] {
+			for len(heap) > 0 && i == heap[0] {
+				heap.Pop()
+			}
 			continue
 		}
 		r = append(r, slice[i])
 	}
 
-	return r
+	return
 }
 
 func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {

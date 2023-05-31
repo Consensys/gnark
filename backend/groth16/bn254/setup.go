@@ -153,18 +153,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		ckK[i] = make([]fr.Element, len(privateCommitted[i]))
 	}
 
-	// see if i commits to j
-	/*for i := range r1cs.CommitmentInfo {
-		commitmentCommitments := 0
-
-		for j := 0; j < i; j++ {
-			if found, _ := utils.BinarySearch(privateCommitted[i], r1cs.CommitmentInfo[j].CommitmentIndex); found {
-				commitmentCommitments++
-			}
-		}
-		ckK[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-commitmentCommitments)
-	}*/
-
 	var t0, t1 fr.Element
 
 	computeK := func(i int, coeff *fr.Element) { // TODO: Inline again
@@ -176,22 +164,8 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	}
 	vI := 0
 	cI := make([]int, len(r1cs.CommitmentInfo))
-	//nbCommitToCommit := make([]int, len(r1cs.CommitmentInfo))
-	nbPrivateCommittedSeen := 0 // = \sum_i cI[i]
+	nbPrivateCommittedSeen := 0 // = ∑ᵢ cI[i]
 	nbCommitmentsSeen := 0
-
-	/* for j := range r1cs.CommitmentInfo {	// skip commitments to commitments
-		k := 0
-		l := 0
-		for ; k < len(privateCommitted[j]); k++ {
-			for ; l < len(commitmentWires) && commitmentWires[l] < privateCommitted[j][k]; l++ {}
-			if k != l {
-				break
-			}
-		}
-		cI[j] = k
-	}
-	copy(nbCommitToCommit, cI)*/
 
 	for i := range A {
 		commitment := -1 // index of the commitment that commits to this variable as a private or commitment value
