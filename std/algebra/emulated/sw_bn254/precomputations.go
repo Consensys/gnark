@@ -1,6 +1,8 @@
 package sw_bn254
 
 import (
+	"sync"
+
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -12,9 +14,18 @@ import (
 // Q.X.A1 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2
 // Q.Y.A0 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
 // Q.Y.A1 = 0x90689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b
-var PrecomputedLines [4][67]fields_bn254.E2
+var precomputedLines [4][67]fields_bn254.E2
+var precomputedLinesOnce sync.Once
 
-func init() {
+func getPrecomputeLines() [4][67]fields_bn254.E2 {
+	precomputedLinesOnce.Do(func() {
+		precomputedLines = computePrecomputeLines()
+	})
+	return precomputedLines
+}
+
+func computePrecomputeLines() [4][67]fields_bn254.E2 {
+	var PrecomputedLines [4][67]fields_bn254.E2
 	// i =  64
 	PrecomputedLines[0][64].A0 = emulated.ValueOf[emulated.BN254Fp]("5835204804648978854777809389163082959673580093383091483568092875198341589362")
 	PrecomputedLines[0][64].A1 = emulated.ValueOf[emulated.BN254Fp]("13632706003546654277482391832141703292091762015816023705040318800028245927696")
@@ -434,4 +445,6 @@ func init() {
 	PrecomputedLines[0][66].A1 = emulated.ValueOf[emulated.BN254Fp]("14973662014392090789260536656747094881206477852734022080621808568128746451734")
 	PrecomputedLines[1][66].A0 = emulated.ValueOf[emulated.BN254Fp]("9419615873784151968180451321627355717720222550586076973652377412738922144509")
 	PrecomputedLines[1][66].A1 = emulated.ValueOf[emulated.BN254Fp]("9757224935408026300679308061023777371092034675697842738078668298357133523844")
+
+	return PrecomputedLines
 }
