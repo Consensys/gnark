@@ -20,6 +20,7 @@ type Pairing struct {
 	g1     *G1
 	curve  *sw_emulated.Curve[emulated.BLS12381Fp, emulated.BLS12381Fr]
 	bTwist *fields_bls12381.E2
+	lines  [4][63]fields_bls12381.E2
 }
 
 type GTEl = fields_bls12381.E12
@@ -82,6 +83,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		g1:     g1,
 		g2:     NewG2(api),
 		bTwist: &bTwist,
+		lines:  getPrecomputedLines(),
 	}, nil
 }
 
@@ -657,12 +659,12 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 	// i = 62, separately to avoid an E12 Square
 	// (Square(res) = 1² = 1)
 	res = pr.MulBy014(res,
-		pr.MulByElement(&PrecomputedLines[1][62], yInv),
-		pr.MulByElement(&PrecomputedLines[0][62], xOverY),
+		pr.MulByElement(&pr.lines[1][62], yInv),
+		pr.MulByElement(&pr.lines[0][62], xOverY),
 	)
 	res = pr.MulBy014(res,
-		pr.MulByElement(&PrecomputedLines[3][62], yInv),
-		pr.MulByElement(&PrecomputedLines[2][62], xOverY),
+		pr.MulByElement(&pr.lines[3][62], yInv),
+		pr.MulByElement(&pr.lines[2][62], xOverY),
 	)
 
 	// Compute ∏ᵢ { fᵢ_{u,Q}(P) }
@@ -673,17 +675,17 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 
 		if loopCounter[i] == 0 {
 			res = pr.MulBy014(res,
-				pr.MulByElement(&PrecomputedLines[1][i], yInv),
-				pr.MulByElement(&PrecomputedLines[0][i], xOverY),
+				pr.MulByElement(&pr.lines[1][i], yInv),
+				pr.MulByElement(&pr.lines[0][i], xOverY),
 			)
 		} else {
 			res = pr.MulBy014(res,
-				pr.MulByElement(&PrecomputedLines[1][i], yInv),
-				pr.MulByElement(&PrecomputedLines[0][i], xOverY),
+				pr.MulByElement(&pr.lines[1][i], yInv),
+				pr.MulByElement(&pr.lines[0][i], xOverY),
 			)
 			res = pr.MulBy014(res,
-				pr.MulByElement(&PrecomputedLines[3][i], yInv),
-				pr.MulByElement(&PrecomputedLines[2][i], xOverY),
+				pr.MulByElement(&pr.lines[3][i], yInv),
+				pr.MulByElement(&pr.lines[2][i], xOverY),
 			)
 		}
 	}
@@ -732,12 +734,12 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	res.C1.B2 = prodLines[4]
 
 	res = pr.MulBy014(res,
-		pr.MulByElement(&PrecomputedLines[1][62], y2Inv),
-		pr.MulByElement(&PrecomputedLines[0][62], x2OverY2),
+		pr.MulByElement(&pr.lines[1][62], y2Inv),
+		pr.MulByElement(&pr.lines[0][62], x2OverY2),
 	)
 	res = pr.MulBy014(res,
-		pr.MulByElement(&PrecomputedLines[3][62], y2Inv),
-		pr.MulByElement(&PrecomputedLines[2][62], x2OverY2),
+		pr.MulByElement(&pr.lines[3][62], y2Inv),
+		pr.MulByElement(&pr.lines[2][62], x2OverY2),
 	)
 
 	// Compute ∏ᵢ { fᵢ_{u,G2}(T) }
@@ -748,8 +750,8 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 
 		if loopCounter[i] == 0 {
 			res = pr.MulBy014(res,
-				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
-				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
+				pr.MulByElement(&pr.lines[1][i], y2Inv),
+				pr.MulByElement(&pr.lines[0][i], x2OverY2),
 			)
 			// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
 			Qacc, l1 = pr.doubleStep(Qacc)
@@ -760,12 +762,12 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 			res = pr.MulBy014(res, &l1.R1, &l1.R0)
 		} else {
 			res = pr.MulBy014(res,
-				pr.MulByElement(&PrecomputedLines[1][i], y2Inv),
-				pr.MulByElement(&PrecomputedLines[0][i], x2OverY2),
+				pr.MulByElement(&pr.lines[1][i], y2Inv),
+				pr.MulByElement(&pr.lines[0][i], x2OverY2),
 			)
 			res = pr.MulBy014(res,
-				pr.MulByElement(&PrecomputedLines[3][i], y2Inv),
-				pr.MulByElement(&PrecomputedLines[2][i], x2OverY2),
+				pr.MulByElement(&pr.lines[3][i], y2Inv),
+				pr.MulByElement(&pr.lines[2][i], x2OverY2),
 			)
 			// Qacc ← 2Qacc+Q,
 			// l1 the line ℓ passing Qacc and Q
@@ -796,8 +798,8 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	prodLines = *pr.Mul014By014(
 		&l1.R1,
 		&l1.R0,
-		pr.MulByElement(&PrecomputedLines[1][0], y2Inv),
-		pr.MulByElement(&PrecomputedLines[0][0], x2OverY2),
+		pr.MulByElement(&pr.lines[1][0], y2Inv),
+		pr.MulByElement(&pr.lines[0][0], x2OverY2),
 	)
 	// (ℓ × ℓ) × res
 	res = pr.MulBy01245(res, &prodLines)

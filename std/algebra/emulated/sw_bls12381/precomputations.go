@@ -1,6 +1,8 @@
 package sw_bls12381
 
 import (
+	"sync"
+
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -12,9 +14,18 @@ import (
 // Q.X.A1 = 0x13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e
 // Q.Y.A0 = 0xce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801
 // Q.Y.A1 = 0x606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be
-var PrecomputedLines [4][63]fields_bls12381.E2
+var precomputedLines [4][63]fields_bls12381.E2
+var precomputedLinesOnce sync.Once
 
-func init() {
+func getPrecomputedLines() [4][63]fields_bls12381.E2 {
+	precomputedLinesOnce.Do(func() {
+		precomputedLines = computePrecomputedLines()
+	})
+	return precomputedLines
+}
+
+func computePrecomputedLines() [4][63]fields_bls12381.E2 {
+	var PrecomputedLines [4][63]fields_bls12381.E2
 	// i = 62
 	PrecomputedLines[0][62].A0 = emulated.ValueOf[emulated.BLS12381Fp]("669548411974166141085976469385723866436472370505741175753098277111398794822779266854375792083840680157046782393346")
 	PrecomputedLines[0][62].A1 = emulated.ValueOf[emulated.BLS12381Fp]("485573966283411892033555951945153738534613704502175152712350069145458247051515827246727572080547567638993006152517")
@@ -351,4 +362,6 @@ func init() {
 	PrecomputedLines[0][0].A1 = emulated.ValueOf[emulated.BLS12381Fp]("2774709764298624490594173467667228199179204402302427867108160491882432826696994080161627641500497330778328523750634")
 	PrecomputedLines[1][0].A0 = emulated.ValueOf[emulated.BLS12381Fp]("887601706871077344640254225359406175214680885957404575459587548760809083522151140664098119031225155506199574629967")
 	PrecomputedLines[1][0].A1 = emulated.ValueOf[emulated.BLS12381Fp]("2676643094794718705520885263561335025726613452251214882260540192490012199952733082631183814711038861520905961974067")
+
+	return PrecomputedLines
 }
