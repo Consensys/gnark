@@ -14,7 +14,7 @@ import (
 	"sync"
 )
 
-func Bsb22CommitmentComputePlaceholder(mod *big.Int, input []*big.Int, output []*big.Int) (err error) {
+func Bsb22CommitmentComputePlaceholder(mod *big.Int, _ []*big.Int, output []*big.Int) (err error) {
 	if (len(os.Args) > 0 && (strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe"))) || debug.Debug {
 		// usually we only run solver without prover during testing
 		log := logger.Logger()
