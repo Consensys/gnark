@@ -2,7 +2,6 @@ package cs
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"fmt"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
@@ -15,25 +14,13 @@ import (
 	"sync"
 )
 
-func Bsb22CommitmentComputePlaceholder(mod *big.Int, input []*big.Int, output []*big.Int) error {
+func Bsb22CommitmentComputePlaceholder(mod *big.Int, input []*big.Int, output []*big.Int) (err error) {
 	if (len(os.Args) > 0 && (strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe"))) || debug.Debug {
 		// usually we only run solver without prover during testing
 		log := logger.Logger()
 		log.Error().Msg("Augmented commitment hint not replaced. Proof will not be sound and verification will fail!")
-		byteLen := 1 + mod.BitLen()/8
-		toHash := make([]byte, byteLen*len(input)+32)
-		for i, in := range input {
-			inBytes := in.Bytes()
-			copy(toHash[(i+1)*byteLen-len(inBytes):], inBytes)
-		}
-		if n, err := rand.Read(toHash[len(toHash)-32:]); err != nil || n != 32 {
-			return fmt.Errorf("generated %d random bytes: %v", n, err)
-		}
-		hsh := sha256.New().Sum(toHash)
-		output[0].SetBytes(hsh)
-		output[0].Mod(output[0], mod)
-
-		return nil
+		output[0], err = rand.Int(rand.Reader, mod)
+		return
 	}
 	return fmt.Errorf("placeholder function: to be replaced by commitment computation")
 }
