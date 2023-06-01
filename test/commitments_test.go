@@ -224,3 +224,34 @@ func TestHollow(t *testing.T) {
 		t.Run(removePackageName(reflect.TypeOf(assignments[i]).String()), run(assignments[i], expected[i]))
 	}
 }
+
+type commitUniquenessCircuit struct {
+	X []frontend.Variable
+}
+
+func (c *commitUniquenessCircuit) Define(api frontend.API) error {
+	var err error
+
+	ch := make([]frontend.Variable, len(c.X))
+	for i := range c.X {
+		if ch[i], err = api.(frontend.Committer).Commit(c.X[i]); err != nil {
+			return err
+		}
+		for j := 0; j < i; j++ {
+			api.AssertIsDifferent(ch[i], ch[j])
+		}
+	}
+	return nil
+}
+
+func TestCommitUniquenessZerosScs(t *testing.T) {
+
+	w, err := frontend.NewWitness(&commitUniquenessCircuit{[]frontend.Variable{0, 0}}, ecc.BN254.ScalarField())
+	assert.NoError(t, err)
+
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &commitUniquenessCircuit{[]frontend.Variable{nil, nil}})
+	assert.NoError(t, err)
+
+	_, err = ccs.Solve(w)
+	assert.NoError(t, err)
+}
