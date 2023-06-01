@@ -498,10 +498,10 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 	// k = 0, separately to avoid MulBy034 (res × ℓ)
 	// (assign line to res)
 	res.D1.C0.MulByFp(api,
-		fields_bls24315.E4{B0: PrecomputedLines[0][31], B1: PrecomputedLines[1][31]},
+		fields_bls24315.E4{B0: precomputedLines[0][31], B1: precomputedLines[1][31]},
 		xOverY)
 	res.D1.C1.MulByFp(api,
-		fields_bls24315.E4{B0: PrecomputedLines[2][31], B1: PrecomputedLines[3][31]},
+		fields_bls24315.E4{B0: precomputedLines[2][31], B1: precomputedLines[3][31]},
 		yInv)
 
 	// i = 30, separately to avoid a doubleStep
@@ -511,17 +511,17 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 
 	// line evaluation at P
 	l1.R0.MulByFp(api,
-		fields_bls24315.E4{B0: PrecomputedLines[0][30], B1: PrecomputedLines[1][30]},
+		fields_bls24315.E4{B0: precomputedLines[0][30], B1: precomputedLines[1][30]},
 		xOverY)
 	l1.R1.MulByFp(api,
-		fields_bls24315.E4{B0: PrecomputedLines[2][30], B1: PrecomputedLines[3][30]},
+		fields_bls24315.E4{B0: precomputedLines[2][30], B1: precomputedLines[3][30]},
 		yInv)
 
 	l2.R0.MulByFp(api,
-		fields_bls24315.E4{B0: PrecomputedLines[4][30], B1: PrecomputedLines[5][30]},
+		fields_bls24315.E4{B0: precomputedLines[4][30], B1: precomputedLines[5][30]},
 		xOverY)
 	l2.R1.MulByFp(api,
-		fields_bls24315.E4{B0: PrecomputedLines[6][30], B1: PrecomputedLines[7][30]},
+		fields_bls24315.E4{B0: precomputedLines[6][30], B1: precomputedLines[7][30]},
 		yInv)
 
 	// ℓ × res
@@ -539,10 +539,10 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 
 			// line evaluation at P
 			l1.R0.MulByFp(api,
-				fields_bls24315.E4{B0: PrecomputedLines[0][i], B1: PrecomputedLines[1][i]},
+				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
 				xOverY)
 			l1.R1.MulByFp(api,
-				fields_bls24315.E4{B0: PrecomputedLines[2][i], B1: PrecomputedLines[3][i]},
+				fields_bls24315.E4{B0: precomputedLines[2][i], B1: precomputedLines[3][i]},
 				yInv)
 
 			// ℓ × res
@@ -550,10 +550,10 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 		case 1:
 			// line evaluation at P
 			l1.R0.MulByFp(api,
-				fields_bls24315.E4{B0: PrecomputedLines[0][i], B1: PrecomputedLines[1][i]},
+				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
 				xOverY)
 			l1.R1.MulByFp(api,
-				fields_bls24315.E4{B0: PrecomputedLines[2][i], B1: PrecomputedLines[3][i]},
+				fields_bls24315.E4{B0: precomputedLines[2][i], B1: precomputedLines[3][i]},
 				yInv)
 
 			// ℓ × res
@@ -561,10 +561,10 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 
 			// line evaluation at P
 			l2.R0.MulByFp(api,
-				fields_bls24315.E4{B0: PrecomputedLines[4][i], B1: PrecomputedLines[5][i]},
+				fields_bls24315.E4{B0: precomputedLines[4][i], B1: precomputedLines[5][i]},
 				xOverY)
 			l2.R1.MulByFp(api,
-				fields_bls24315.E4{B0: PrecomputedLines[6][i], B1: PrecomputedLines[7][i]},
+				fields_bls24315.E4{B0: precomputedLines[6][i], B1: precomputedLines[7][i]},
 				yInv)
 
 			// ℓ × res
@@ -572,10 +572,10 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 		case -1:
 			// line evaluation at P
 			l1.R0.MulByFp(api,
-				fields_bls24315.E4{B0: PrecomputedLines[0][i], B1: PrecomputedLines[1][i]},
+				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
 				xOverY)
 			l1.R1.MulByFp(api,
-				fields_bls24315.E4{B0: PrecomputedLines[2][i], B1: PrecomputedLines[3][i]},
+				fields_bls24315.E4{B0: precomputedLines[2][i], B1: precomputedLines[3][i]},
 				yInv)
 
 			// ℓ × res
@@ -583,10 +583,10 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 
 			// line evaluation at P
 			l2.R0.MulByFp(api,
-				fields_bls24315.E4{B0: PrecomputedLines[4][i], B1: PrecomputedLines[5][i]},
+				fields_bls24315.E4{B0: precomputedLines[4][i], B1: precomputedLines[5][i]},
 				xOverY)
 			l2.R1.MulByFp(api,
-				fields_bls24315.E4{B0: PrecomputedLines[6][i], B1: PrecomputedLines[7][i]},
+				fields_bls24315.E4{B0: precomputedLines[6][i], B1: precomputedLines[7][i]},
 				yInv)
 
 			// ℓ × res
@@ -600,10 +600,10 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 	res.Square(api, res)
 	// line evaluation at P
 	l1.R0.MulByFp(api,
-		fields_bls24315.E4{B0: PrecomputedLines[0][0], B1: PrecomputedLines[1][0]},
+		fields_bls24315.E4{B0: precomputedLines[0][0], B1: precomputedLines[1][0]},
 		xOverY)
 	l1.R1.MulByFp(api,
-		fields_bls24315.E4{B0: PrecomputedLines[2][0], B1: PrecomputedLines[3][0]},
+		fields_bls24315.E4{B0: precomputedLines[2][0], B1: precomputedLines[3][0]},
 		yInv)
 
 	// ℓ × res
@@ -611,10 +611,10 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 
 	// line evaluation at P
 	l2.R0.MulByFp(api,
-		fields_bls24315.E4{B0: PrecomputedLines[4][0], B1: PrecomputedLines[5][0]},
+		fields_bls24315.E4{B0: precomputedLines[4][0], B1: precomputedLines[5][0]},
 		xOverY)
 	l2.R1.MulByFp(api,
-		fields_bls24315.E4{B0: PrecomputedLines[6][0], B1: PrecomputedLines[7][0]},
+		fields_bls24315.E4{B0: precomputedLines[6][0], B1: precomputedLines[7][0]},
 		yInv)
 
 	// ℓ × res
