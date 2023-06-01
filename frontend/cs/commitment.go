@@ -1,6 +1,7 @@
 package cs
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
 	"github.com/consensys/gnark/constraint/solver"
@@ -18,11 +19,15 @@ func Bsb22CommitmentComputePlaceholder(mod *big.Int, input []*big.Int, output []
 	if (len(os.Args) > 0 && (strings.HasSuffix(os.Args[0], ".test") || strings.HasSuffix(os.Args[0], ".test.exe"))) || debug.Debug {
 		// usually we only run solver without prover during testing
 		log := logger.Logger()
-		log.Error().Msg("Augmented groth16 commitment hint not replaced. Proof will not be sound and verification will fail!")
-		toHash := make([]byte, 0, (1+mod.BitLen()/8)*len(input))
-		for _, in := range input {
+		log.Error().Msg("Augmented commitment hint not replaced. Proof will not be sound and verification will fail!")
+		byteLen := 1 + mod.BitLen()/8
+		toHash := make([]byte, byteLen*len(input)+32)
+		for i, in := range input {
 			inBytes := in.Bytes()
-			toHash = append(toHash, inBytes[:]...)
+			copy(toHash[(i+1)*byteLen-len(inBytes):], inBytes)
+		}
+		if n, err := rand.Read(toHash[len(toHash)-32:]); err != nil || n != 32 {
+			return fmt.Errorf("generated %d random bytes: %v", n, err)
 		}
 		hsh := sha256.New().Sum(toHash)
 		output[0].SetBytes(hsh)
