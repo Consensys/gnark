@@ -18,6 +18,14 @@ package sw_bls12377
 
 import "github.com/consensys/gnark/std/algebra/native/fields_bls12377"
 
+// precomputed lines going through Q and multiples of Q
+// where Q is the fixed canonical generator of G2
+//
+// Q.X.A0 = 0x18480be71c785fec89630a2a3841d01c565f071203e50317ea501f557db6b9b71889f52bb53540274e3e48f7c005196
+// Q.X.A1 = 0xea6040e700403170dc5a51b1b140d5532777ee6651cecbe7223ece0799c9de5cf89984bff76fe6b26bfefa6ea16afe
+// Q.Y.A0 = 0x690d665d446f7bd960736bcbb2efb4de03ed7274b49a58e458c282f832d204f2cf88886d8c7c2ef094094409fd4ddf
+// Q.Y.A1 = 0xf8169fd28355189e549da3151a70aa61ef11ac3d591bf12463b01acee304c24279b83f5e52270bd9a1cdd185eb8f93
+
 var PrecomputedLines [4][63]fields_bls12377.E2
 
 func init() {
