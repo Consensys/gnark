@@ -460,3 +460,159 @@ func lineCompute(api frontend.API, p1, p2 *G2Affine) lineEvaluation {
 	return line
 
 }
+
+// ---
+func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
+
+	var ateLoop2NAF [33]int8
+	ecc.NafDecomposition(big.NewInt(ateLoop), ateLoop2NAF[:])
+
+	var res GT
+	res.SetOne()
+
+	var l1, l2 lineEvaluation
+	var yInv, xOverY frontend.Variable
+	yInv = api.DivUnchecked(1, P.Y)
+	xOverY = api.Mul(P.X, yInv)
+
+	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
+	// i = 31, separately to avoid an E24 Square
+	// (Square(res) = 1² = 1)
+
+	// k = 0, separately to avoid MulBy034 (res × ℓ)
+	// (assign line to res)
+	res.D1.C0.MulByFp(api,
+		fields_bls24315.E4{B0: PrecomputedLines[0][31], B1: PrecomputedLines[1][31]},
+		xOverY)
+	res.D1.C1.MulByFp(api,
+		fields_bls24315.E4{B0: PrecomputedLines[2][31], B1: PrecomputedLines[3][31]},
+		yInv)
+
+	// i = 30, separately to avoid a doubleStep
+	// (at this point Qacc = 2Q, so 2Qacc-Q=3Q is equivalent to Qacc+Q=3Q
+	// this means doubleAndAddStep is equivalent to addStep here)
+	res.Square(api, res)
+
+	// line evaluation at P
+	l1.R0.MulByFp(api,
+		fields_bls24315.E4{B0: PrecomputedLines[0][30], B1: PrecomputedLines[1][30]},
+		xOverY)
+	l1.R1.MulByFp(api,
+		fields_bls24315.E4{B0: PrecomputedLines[2][30], B1: PrecomputedLines[3][30]},
+		yInv)
+
+	l2.R0.MulByFp(api,
+		fields_bls24315.E4{B0: PrecomputedLines[4][30], B1: PrecomputedLines[5][30]},
+		xOverY)
+	l2.R1.MulByFp(api,
+		fields_bls24315.E4{B0: PrecomputedLines[6][30], B1: PrecomputedLines[7][30]},
+		yInv)
+
+	// ℓ × res
+	res.MulBy034(api, l1.R0, l1.R1)
+	// ℓ × res
+	res.MulBy034(api, l2.R0, l2.R1)
+
+	for i := 29; i >= 1; i-- {
+		// mutualize the square among n Miller loops
+		// (∏ᵢfᵢ)²
+		res.Square(api, res)
+
+		switch ateLoop2NAF[i] {
+		case 0:
+
+			// line evaluation at P
+			l1.R0.MulByFp(api,
+				fields_bls24315.E4{B0: PrecomputedLines[0][i], B1: PrecomputedLines[1][i]},
+				xOverY)
+			l1.R1.MulByFp(api,
+				fields_bls24315.E4{B0: PrecomputedLines[2][i], B1: PrecomputedLines[3][i]},
+				yInv)
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+		case 1:
+			// line evaluation at P
+			l1.R0.MulByFp(api,
+				fields_bls24315.E4{B0: PrecomputedLines[0][i], B1: PrecomputedLines[1][i]},
+				xOverY)
+			l1.R1.MulByFp(api,
+				fields_bls24315.E4{B0: PrecomputedLines[2][i], B1: PrecomputedLines[3][i]},
+				yInv)
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+
+			// line evaluation at P
+			l2.R0.MulByFp(api,
+				fields_bls24315.E4{B0: PrecomputedLines[4][i], B1: PrecomputedLines[5][i]},
+				xOverY)
+			l2.R1.MulByFp(api,
+				fields_bls24315.E4{B0: PrecomputedLines[6][i], B1: PrecomputedLines[7][i]},
+				yInv)
+
+			// ℓ × res
+			res.MulBy034(api, l2.R0, l2.R1)
+		case -1:
+			// line evaluation at P
+			l1.R0.MulByFp(api,
+				fields_bls24315.E4{B0: PrecomputedLines[0][i], B1: PrecomputedLines[1][i]},
+				xOverY)
+			l1.R1.MulByFp(api,
+				fields_bls24315.E4{B0: PrecomputedLines[2][i], B1: PrecomputedLines[3][i]},
+				yInv)
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+
+			// line evaluation at P
+			l2.R0.MulByFp(api,
+				fields_bls24315.E4{B0: PrecomputedLines[4][i], B1: PrecomputedLines[5][i]},
+				xOverY)
+			l2.R1.MulByFp(api,
+				fields_bls24315.E4{B0: PrecomputedLines[6][i], B1: PrecomputedLines[7][i]},
+				yInv)
+
+			// ℓ × res
+			res.MulBy034(api, l2.R0, l2.R1)
+		default:
+			return GT{}, errors.New("invalid loopCounter")
+		}
+	}
+
+	// i = 0
+	res.Square(api, res)
+	// line evaluation at P
+	l1.R0.MulByFp(api,
+		fields_bls24315.E4{B0: PrecomputedLines[0][0], B1: PrecomputedLines[1][0]},
+		xOverY)
+	l1.R1.MulByFp(api,
+		fields_bls24315.E4{B0: PrecomputedLines[2][0], B1: PrecomputedLines[3][0]},
+		yInv)
+
+	// ℓ × res
+	res.MulBy034(api, l1.R0, l1.R1)
+
+	// line evaluation at P
+	l2.R0.MulByFp(api,
+		fields_bls24315.E4{B0: PrecomputedLines[4][0], B1: PrecomputedLines[5][0]},
+		xOverY)
+	l2.R1.MulByFp(api,
+		fields_bls24315.E4{B0: PrecomputedLines[6][0], B1: PrecomputedLines[7][0]},
+		yInv)
+
+	// ℓ × res
+	res.MulBy034(api, l2.R0, l2.R1)
+
+	res.Conjugate(api, res)
+
+	return res, nil
+}
+
+func PairFixedQ(api frontend.API, P G1Affine) (GT, error) {
+	f, err := MillerLoopFixedQ(api, P)
+	if err != nil {
+		return GT{}, err
+	}
+	return FinalExponentiation(api, f), nil
+}
