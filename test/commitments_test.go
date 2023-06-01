@@ -244,7 +244,7 @@ func (c *commitUniquenessCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestCommitUniquenessZerosScs(t *testing.T) {
+func TestCommitUniquenessZerosScs(t *testing.T) { // TODO @Tabaie Randomize Groth16 commitments for real
 
 	w, err := frontend.NewWitness(&commitUniquenessCircuit{[]frontend.Variable{0, 0}}, ecc.BN254.ScalarField())
 	assert.NoError(t, err)

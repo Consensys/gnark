@@ -97,7 +97,7 @@ func testAll(t *testing.T, assignment frontend.Circuit) {
 	t.Parallel()
 
 	t.Run("fuzzer", func(t *testing.T) {
-		NewAssert(t).ProverSucceeded(hollow(assignment), assignment, WithCurves(ecc.BN254), WithBackends(backend.GROTH16, backend.PLONK)) // TODO: Support PlonkFri.Commit
+		NewAssert(t).ProverSucceeded(hollow(assignment), assignment, WithBackends(backend.GROTH16, backend.PLONK)) // TODO: Support PlonkFri.Commit
 	})
 
 	t.Run("plonk-e2e", func(t *testing.T) {
