@@ -2,7 +2,6 @@ package selector
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/bits"
 )
 
 // BinaryMux is a 2^k to 1 multiplexer which uses a binary selector. selBits are
@@ -18,7 +17,9 @@ func BinaryMux(api frontend.API, selBits, inputs []frontend.Variable) frontend.V
 		panic("invalid input length for BinaryMux")
 	}
 
-	bits.AssertBits(api, selBits)
+	for _, b := range selBits {
+		api.AssertIsBoolean(b)
+	}
 
 	return binaryMuxRecursive(api, selBits, inputs)
 }
