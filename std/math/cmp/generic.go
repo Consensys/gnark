@@ -34,8 +34,8 @@ func IsLessBinary(api frontend.API, aBits, bBits []frontend.Variable) frontend.V
 	if len(aBits) != len(bBits) {
 		panic("a and b must have the same length")
 	}
-	bits.AssertBits(api, aBits)
-	bits.AssertBits(api, bBits)
+	assertBits(api, aBits)
+	assertBits(api, bBits)
 	return isLessRecursive(api, aBits, bBits, false, true)
 }
 
@@ -46,8 +46,8 @@ func IsLessOrEqualBinary(api frontend.API, aBits, bBits []frontend.Variable) fro
 	if len(aBits) != len(bBits) {
 		panic("a and b must have the same length")
 	}
-	bits.AssertBits(api, aBits)
-	bits.AssertBits(api, bBits)
+	assertBits(api, aBits)
+	assertBits(api, bBits)
 	return isLessRecursive(api, aBits, bBits, true, true)
 }
 
@@ -95,4 +95,11 @@ func isLessRecursive(api frontend.API,
 func isNotConstant(api frontend.API, x frontend.Variable) bool {
 	_, isConstant := api.Compiler().ConstantValue(x)
 	return !isConstant
+}
+
+// assertBits defines boolean constraints for every element of bits.
+func assertBits(api frontend.API, bits []frontend.Variable) {
+	for _, b := range bits {
+		api.AssertIsBoolean(b)
+	}
 }
