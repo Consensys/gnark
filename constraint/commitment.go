@@ -105,7 +105,7 @@ func (c Commitments) Interleave(nbPublicVars int) (nbPrivateCommittedWires int, 
 		publicAndCommitmentCommitted[i] = make([]int, c[i].NbPublicCommitted(), len(c[i].Committed))
 		copy(publicAndCommitmentCommitted[i], c[i].PublicCommitted())
 		for _, j := range nonPublicCommitted {
-			if found, k := utils.BinarySearch(commitmentWires, j); found { // if j is a commitment wire
+			if k, found := utils.FindInSlice(commitmentWires, j); found { // if j is a commitment wire
 				publicAndCommitmentCommitted[i] = append(publicAndCommitmentCommitted[i], k+nbPublicVars)
 			} else {
 				privateCommitted[i] = append(privateCommitted[i], j)
@@ -124,7 +124,7 @@ func (c Commitments) CommitmentIndexesInCommittedLists() [][]int {
 	for i := range c {
 		res[i] = make([]int, 0, i)
 		for j := 0; j < i; j++ {
-			if found, k := utils.BinarySearch(c[i].PrivateCommitted(), c[j].CommitmentIndex); found {
+			if k, found := utils.FindInSlice(c[i].PrivateCommitted(), c[j].CommitmentIndex); found {
 				res[i] = append(res[i], k+c[i].NbPublicCommitted())
 			}
 		}

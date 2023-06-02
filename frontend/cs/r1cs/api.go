@@ -724,7 +724,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 				commitments := builder.cs.GetCommitments()
 				var alreadyCommitted bool
 				for i := range commitments {
-					if alreadyCommitted, _ = utils.BinarySearch(commitments[i].Committed, t.VID); alreadyCommitted {
+					if alreadyCommitted, _ = utils.FindInSlice(commitments[i].Committed, t.VID); alreadyCommitted {
 						toCommit := commitments[i].CommitmentIndex
 						vars = append(vars, expr.LinearExpression{{Coeff: constraint.Element{1}, VID: toCommit}}) // TODO Replace with mont 1
 						builder.heap.push(linMeta{lID: len(vars) - 1, tID: 0, val: toCommit})
