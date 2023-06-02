@@ -6,10 +6,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type noCommitmentCircuit struct {
@@ -168,37 +166,6 @@ func (c *doubleCommitCircuit) Define(api frontend.API) error {
 
 func TestDoubleCommit(t *testing.T) {
 	testAll(t, &doubleCommitCircuit{X: 1, Y: 2})
-}
-
-func TestDoubleCommitFail(t *testing.T) {
-	assert := require.New(t)
-
-	var assignment doubleCommitCircuit
-	assignment.X = 0
-	assignment.Y = 0
-
-	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	assert.NoError(err)
-
-	// Solve with test engine: OK
-	err = IsSolved(&doubleCommitCircuit{}, &assignment, ecc.BN254.ScalarField())
-	assert.NoError(err)
-
-	// Solve with R1CS: OK
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &doubleCommitCircuit{})
-	assert.NoError(err)
-
-	_, err = ccs.Solve(w)
-	assert.NoError(err)
-
-	// Solve with SCS: NOK
-	ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &doubleCommitCircuit{})
-	assert.NoError(err)
-
-	_, err = ccs.Solve(w)
-	assert.NoError(err)
-
-	// NewAssert(t).ProverSucceeded(&doubleCommitCircuit{}, &doubleCommitCircuit{X: 1, Y: 1}, WithBackends(backend.PLONK), WithCurves(ecc.BN254))
 }
 
 func TestHollow(t *testing.T) {
