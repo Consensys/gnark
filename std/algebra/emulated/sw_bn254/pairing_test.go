@@ -99,11 +99,10 @@ func TestPairTestSolve(t *testing.T) {
 }
 
 type MultiPairCircuit struct {
-	In1G1 G1Affine
-	In2G1 G1Affine
-	In1G2 G2Affine
-	In2G2 G2Affine
-	Res   GTEl
+	InG1 G1Affine
+	InG2 G2Affine
+	Res  GTEl
+	n    int
 }
 
 func (c *MultiPairCircuit) Define(api frontend.API) error {
@@ -111,33 +110,93 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	pairing.AssertIsOnG1(&c.In1G1)
-	pairing.AssertIsOnG1(&c.In2G1)
-	pairing.AssertIsOnG2(&c.In1G2)
-	pairing.AssertIsOnG2(&c.In2G2)
-	res, err := pairing.Pair([]*G1Affine{&c.In1G1, &c.In1G1, &c.In2G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2, &c.In1G2, &c.In2G2})
-	if err != nil {
-		return fmt.Errorf("pair: %w", err)
+	pairing.AssertIsOnG1(&c.InG1)
+	pairing.AssertIsOnG2(&c.InG2)
+	switch c.n {
+	case 2:
+		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2})
+		if err != nil {
+			return fmt.Errorf("pair: %w", err)
+		}
+		pairing.AssertIsEqual(res, &c.Res)
+
+	case 3:
+		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2})
+		if err != nil {
+			return fmt.Errorf("pair: %w", err)
+		}
+		pairing.AssertIsEqual(res, &c.Res)
+
+	case 4:
+		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2})
+		if err != nil {
+			return fmt.Errorf("pair: %w", err)
+		}
+		pairing.AssertIsEqual(res, &c.Res)
+
+	case 5:
+		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2})
+		if err != nil {
+			return fmt.Errorf("pair: %w", err)
+		}
+		pairing.AssertIsEqual(res, &c.Res)
+
+	case 6:
+		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2})
+		if err != nil {
+			return fmt.Errorf("pair: %w", err)
+		}
+		pairing.AssertIsEqual(res, &c.Res)
+
+	case 7:
+		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2})
+		if err != nil {
+			return fmt.Errorf("pair: %w", err)
+		}
+		pairing.AssertIsEqual(res, &c.Res)
+
+	case 8:
+		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2})
+		if err != nil {
+			return fmt.Errorf("pair: %w", err)
+		}
+		pairing.AssertIsEqual(res, &c.Res)
+
+	case 9:
+		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2})
+		if err != nil {
+			return fmt.Errorf("pair: %w", err)
+		}
+		pairing.AssertIsEqual(res, &c.Res)
+	default:
+		return fmt.Errorf("not handled %d", c.n)
+
 	}
-	pairing.AssertIsEqual(res, &c.Res)
 	return nil
 }
 
 func TestMultiPairTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
 	p1, q1 := randomG1G2Affines()
-	p2, q2 := randomG1G2Affines()
-	res, err := bn254.Pair([]bn254.G1Affine{p1, p1, p2, p2}, []bn254.G2Affine{q1, q2, q1, q2})
-	assert.NoError(err)
-	witness := MultiPairCircuit{
-		In1G1: NewG1Affine(p1),
-		In1G2: NewG2Affine(q1),
-		In2G1: NewG1Affine(p2),
-		In2G2: NewG2Affine(q2),
-		Res:   NewGTEl(res),
+	p := make([]bn254.G1Affine, 10)
+	q := make([]bn254.G2Affine, 10)
+	for i := 0; i < 10; i++ {
+		p[i] = p1
+		q[i] = q1
 	}
-	err = test.IsSolved(&MultiPairCircuit{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
+
+	for i := 2; i < 10; i++ {
+		res, err := bn254.Pair(p[:i], q[:i])
+		assert.NoError(err)
+		witness := MultiPairCircuit{
+			InG1: NewG1Affine(p1),
+			InG2: NewG2Affine(q1),
+			Res:  NewGTEl(res),
+		}
+		err = test.IsSolved(&MultiPairCircuit{n: i}, &witness, ecc.BN254.ScalarField())
+		assert.NoError(err)
+		fmt.Println("Batch of size", i, "✅")
+	}
 }
 
 type PairingCheckCircuit struct {
