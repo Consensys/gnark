@@ -509,8 +509,7 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
 
-		switch ateLoop2NAF[i] {
-		case 0:
+		if ateLoop2NAF[i] == 0 {
 			// line evaluation at P
 			l1.R0.MulByFp(api,
 				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
@@ -521,29 +520,7 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 
 			// ℓ × res
 			res.MulBy034(api, l1.R0, l1.R1)
-		case 1:
-			// line evaluation at P
-			l1.R0.MulByFp(api,
-				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
-				xOverY)
-			l1.R1.MulByFp(api,
-				fields_bls24315.E4{B0: precomputedLines[2][i], B1: precomputedLines[3][i]},
-				yInv)
-
-			// ℓ × res
-			res.MulBy034(api, l1.R0, l1.R1)
-
-			// line evaluation at P
-			l2.R0.MulByFp(api,
-				fields_bls24315.E4{B0: precomputedLines[4][i], B1: precomputedLines[5][i]},
-				xOverY)
-			l2.R1.MulByFp(api,
-				fields_bls24315.E4{B0: precomputedLines[6][i], B1: precomputedLines[7][i]},
-				yInv)
-
-			// ℓ × res
-			res.MulBy034(api, l2.R0, l2.R1)
-		case -1:
+		} else {
 			// line evaluation at P
 			l1.R0.MulByFp(api,
 				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
@@ -565,8 +542,6 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 
 			// ℓ × res
 			res.MulBy034(api, l2.R0, l2.R1)
-		default:
-			return GT{}, errors.New("invalid loopCounter")
 		}
 	}
 
