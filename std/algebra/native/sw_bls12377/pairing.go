@@ -382,12 +382,11 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 	// (Square(res) = 1² = 1)
 
 	// k = 0, separately to avoid MulBy034 (res × ℓ)
-	// (assign line to res)
-	// line evaluation at P
+	// (assign line(P) to res)
 	res.C1.B0.MulByFp(api, precomputedLines[0][62], xOverY)
 	res.C1.B1.MulByFp(api, precomputedLines[1][62], yInv)
 
-	for i := 61; i >= 1; i-- {
+	for i := 61; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
@@ -414,18 +413,6 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 		// (ℓ × ℓ) × res
 		res.MulBy01234(api, prodLines)
 	}
-
-	// i = 0
-	res.Square(api, res)
-	l1.R0.MulByFp(api, precomputedLines[0][0], xOverY)
-	l1.R1.MulByFp(api, precomputedLines[1][0], yInv)
-	l2.R0.MulByFp(api, precomputedLines[2][0], xOverY)
-	l2.R1.MulByFp(api, precomputedLines[3][0], yInv)
-
-	// ℓ × ℓ
-	prodLines = *fields_bls12377.Mul034By034(api, l1.R0, l1.R1, l2.R0, l2.R1)
-	// (ℓ × ℓ) × res
-	res.MulBy01234(api, prodLines)
 
 	return res, nil
 }
