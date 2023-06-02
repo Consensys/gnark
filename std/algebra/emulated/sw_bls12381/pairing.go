@@ -627,9 +627,9 @@ func (pr Pairing) tangentCompute(p1 *G2Affine) *lineEvaluation {
 
 }
 
-//		------------------------
-//		  Fixed-argument pairing
-//	    ------------------------
+// ----------------------------
+//	  Fixed-argument pairing
+// ----------------------------
 //
 // The second argument Q is g2 the fixed canonical generator of G2.
 //

@@ -692,50 +692,52 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 	xOverY := pr.curveF.MulMod(&P.X, yInv)
 	res := pr.Ext12.One()
 
-	// ℓ × res
-	res = pr.MulBy034(res,
-		pr.MulByElement(&pr.lines[0][64], xOverY),
-		pr.MulByElement(&pr.lines[1][64], yInv),
-	)
+	// Compute f_{6x₀+2,Q}(P)
+	// i = 64, separately to avoid an E12 Square
+	// (Square(res) = 1² = 1)
+
+	// k = 0, separately to avoid MulBy034 (res × ℓ)
+	// (assign line(P) to res)
+	res.C1.B0 = *pr.MulByElement(&pr.lines[0][64], xOverY)
+	res.C1.B1 = *pr.MulByElement(&pr.lines[1][64], yInv)
 
 	for i := 63; i >= 0; i-- {
 		res = pr.Square(res)
 
-		// line evaluation at P and ℓ × res
-		res = pr.MulBy034(res,
-			pr.MulByElement(&pr.lines[0][i], xOverY),
-			pr.MulByElement(&pr.lines[1][i], yInv),
-		)
-
-		if loopCounter[i] == 1 {
+		if loopCounter[i] == 0 {
 
 			// line evaluation at P and ℓ × res
 			res = pr.MulBy034(res,
+				pr.MulByElement(&pr.lines[0][i], xOverY),
+				pr.MulByElement(&pr.lines[1][i], yInv),
+			)
+
+		} else {
+			// lines evaluations at P
+			// and ℓ × ℓ
+			prodLines := *pr.Mul034By034(
+				pr.MulByElement(&pr.lines[0][i], xOverY),
+				pr.MulByElement(&pr.lines[1][i], yInv),
 				pr.MulByElement(&pr.lines[2][i], xOverY),
 				pr.MulByElement(&pr.lines[3][i], yInv),
 			)
+			// (ℓ × ℓ) × res
+			res = pr.MulBy01234(res, &prodLines)
 
-		} else if loopCounter[i] == -1 {
-
-			// line evaluation at P and ℓ × res
-			res = pr.MulBy034(res,
-				pr.MulByElement(&pr.lines[2][i], xOverY),
-				pr.MulByElement(&pr.lines[3][i], yInv),
-			)
 		}
 	}
 
-	// line evaluation at P and ℓ × res
-	res = pr.MulBy034(res,
+	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
+	// lines evaluations at P
+	// and ℓ × ℓ
+	prodLines := *pr.Mul034By034(
 		pr.MulByElement(&pr.lines[0][65], xOverY),
 		pr.MulByElement(&pr.lines[1][65], yInv),
-	)
-
-	// line evaluation at P and ℓ × res
-	res = pr.MulBy034(res,
 		pr.MulByElement(&pr.lines[0][66], xOverY),
 		pr.MulByElement(&pr.lines[1][66], yInv),
 	)
+	// (ℓ × ℓ) × res
+	res = pr.MulBy01234(res, &prodLines)
 
 	return res, nil
 }
@@ -777,8 +779,42 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	// (precomputed-ℓ × ℓ) × res
 	res = pr.MulBy01234(res, &prodLines)
 
+	// i = 63, separately to avoid a doubleStep
+	// (at this point Qacc = 2Q, so 2Qacc-Q=3Q is equivalent to Qacc+Q=3Q
+	// this means doubleAndAddStep is equivalent to addStep here)
+	res = pr.Square(res)
+	// l2 the line passing Qacc and -Q
+	l2 = pr.lineCompute(Qacc, QNeg)
+
+	// line evaluation at P
+	l2.R0 = *pr.MulByElement(&l2.R0, xOverY)
+	l2.R1 = *pr.MulByElement(&l2.R1, yInv)
+
+	// Qacc ← Qacc+Q and
+	// l1 the line ℓ passing Qacc and Q
+	Qacc, l1 = pr.addStep(Qacc, Q)
+
+	// line evaluation at P
+	l1.R0 = *pr.MulByElement(&l1.R0, xOverY)
+	l1.R1 = *pr.MulByElement(&l1.R1, yInv)
+
+	// ℓ × ℓ
+	prodLines = *pr.Mul034By034(&l1.R0, &l1.R1, &l2.R0, &l2.R1)
+	// (ℓ × ℓ) × res
+	res = pr.MulBy01234(res, &prodLines)
+
+	// precomputed-ℓ × precomputed-ℓ
+	prodLines = *pr.Mul034By034(
+		pr.MulByElement(&pr.lines[0][63], x2OverY2),
+		pr.MulByElement(&pr.lines[1][63], y2Inv),
+		pr.MulByElement(&pr.lines[2][63], x2OverY2),
+		pr.MulByElement(&pr.lines[3][63], y2Inv),
+	)
+	// (precomputed-ℓ × precomputed-ℓ) × res
+	res = pr.MulBy01234(res, &prodLines)
+
 	// Compute ∏ᵢ { fᵢ_{6x₀+2,Q}(P) }
-	for i := 63; i >= 0; i-- {
+	for i := 62; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res = pr.Square(res)

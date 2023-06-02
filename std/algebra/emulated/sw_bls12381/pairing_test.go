@@ -237,9 +237,9 @@ func TestGroupMembershipSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
-//		------------------------
-//		  Fixed-argument pairing
-//	    ------------------------
+// ----------------------------
+//	  Fixed-argument pairing
+// ----------------------------
 //
 // The second argument Q is the fixed canonical generator of G2.
 //

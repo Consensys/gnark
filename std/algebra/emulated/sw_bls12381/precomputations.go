@@ -14,6 +14,7 @@ import (
 // Q.X.A1 = 0x13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e
 // Q.Y.A0 = 0xce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801
 // Q.Y.A1 = 0x606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be
+
 var precomputedLines [4][63]fields_bls12381.E2
 var precomputedLinesOnce sync.Once
 
