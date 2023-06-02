@@ -18,11 +18,12 @@ package groth16
 
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark/backend/groth16/internal/test_utils"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 
 	"bytes"
 	"math/big"
