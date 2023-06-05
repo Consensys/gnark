@@ -10,13 +10,12 @@
 package selector
 
 import (
-	"fmt"
-	"github.com/consensys/gnark/std/math/bits"
-	"math"
-	"math/big"
-
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bits"
+	"log"
+	"math/big"
+	binary "math/bits"
 )
 
 func init() {
@@ -43,7 +42,7 @@ func Map(api frontend.API, queryKey frontend.Variable,
 	// we don't need this check, but we added it to produce more informative errors
 	// and disallow len(keys) < len(values) which is supported by generateSelector.
 	if len(keys) != len(values) {
-		panic("The number of keys and values must be equal")
+		log.Panicf("The number of keys and values must be equal (%d != %d)", len(keys), len(values))
 	}
 	return dotProduct(api, values, KeyDecoder(api, queryKey, keys))
 }
@@ -54,10 +53,9 @@ func Map(api frontend.API, queryKey frontend.Variable,
 // sel needs to be between 0 and n - 1 (inclusive), where n is the number of
 // inputs, otherwise the proof will fail.
 func Mux(api frontend.API, sel frontend.Variable, inputs ...frontend.Variable) frontend.Variable {
-	// we use BinaryMux when len(inputs) is a power of 2 and its math.Log2 is an
-	// integer.
-	if log := math.Log2(float64(len(inputs))); log == math.Trunc(log) {
-		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(int(log)))
+	// we use BinaryMux when len(inputs) is a power of 2.
+	if binary.OnesCount(uint(len(inputs))) == 1 {
+		selBits := bits.ToBinary(api, sel, bits.WithNbDigits(binary.Len(uint(len(inputs)))-1))
 		return BinaryMux(api, selBits, inputs)
 	}
 	return dotProduct(api, inputs, Decoder(api, len(inputs), sel))
@@ -93,7 +91,7 @@ func Decoder(api frontend.API, n int, sel frontend.Variable) []frontend.Variable
 	return generateDecoder(api, true, n, sel, nil)
 }
 
-// generateDecoder generates a circuit for a decoder, that indicates the
+// generateDecoder generates a circuit for a decoder which indicates the
 // selected index. If sequential is true, an ordinary decoder of size n is
 // generated, and keys are ignored. If sequential is false, a key based decoder
 // is generated, and len(keys) is used to determine the size of the output. n
@@ -109,7 +107,7 @@ func generateDecoder(api frontend.API, sequential bool, n int, sel frontend.Vari
 		indicators, err = api.Compiler().NewHint(mapIndicators, len(keys), append(keys, sel)...)
 	}
 	if err != nil {
-		panic(fmt.Sprintf("error in calling Mux/Map hint: %v", err))
+		log.Panicf("error in calling Mux/Map hint: %v", err)
 	}
 
 	indicatorsSum := frontend.Variable(0)

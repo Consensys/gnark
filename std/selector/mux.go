@@ -2,6 +2,7 @@ package selector
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"log"
 )
 
 // BinaryMux is a 2^k to 1 multiplexer which uses a binary selector. selBits are
@@ -14,7 +15,7 @@ import (
 // len(inputs) must be 2^len(selBits).
 func BinaryMux(api frontend.API, selBits, inputs []frontend.Variable) frontend.Variable {
 	if len(inputs) != 1<<len(selBits) {
-		panic("invalid input length for BinaryMux")
+		log.Panicf("invalid input length for BinaryMux (%d != 2^%d)", len(inputs), len(selBits))
 	}
 
 	for _, b := range selBits {
