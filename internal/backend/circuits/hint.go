@@ -91,7 +91,7 @@ func init() {
 			},
 		}
 
-		addNewEntry("recursive_hint", &recursiveHint{}, good, bad, gnark.Curves(), make3, bits.NBits)
+		addNewEntry("recursive_hint", &recursiveHint{}, good, bad, gnark.Curves(), make3, bits.GetHints()[1])
 	}
 
 	{

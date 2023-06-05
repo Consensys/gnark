@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/std/evmprecompiles"
 	"github.com/consensys/gnark/std/internal/logderivarg"
 	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/math/bitslice"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/consensys/gnark/std/selector"
@@ -30,13 +31,11 @@ func registerHints() {
 	solver.RegisterHint(sw_bls12377.DecomposeScalarG1)
 	solver.RegisterHint(sw_bls24315.DecomposeScalarG2)
 	solver.RegisterHint(sw_bls12377.DecomposeScalarG2)
-	solver.RegisterHint(bits.NTrits)
-	solver.RegisterHint(bits.NNAF)
-	solver.RegisterHint(bits.IthBit)
-	solver.RegisterHint(bits.NBits)
+	solver.RegisterHint(bits.GetHints()...)
 	solver.RegisterHint(selector.GetHints()...)
 	solver.RegisterHint(emulated.GetHints()...)
 	solver.RegisterHint(rangecheck.GetHints()...)
 	solver.RegisterHint(evmprecompiles.GetHints()...)
 	solver.RegisterHint(logderivarg.GetHints()...)
+	solver.RegisterHint(bitslice.GetHints()...)
 }
