@@ -19,13 +19,15 @@ package plonk
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 
-	"errors"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+
+	"errors"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/iop"
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
 	"io"
 )
 
-// WriteTo writes binary encoding of Proof to w without point compression
+// WriteRawTo writes binary encoding of Proof to w without point compression
 func (proof *Proof) WriteRawTo(w io.Writer) (int64, error) {
 	return proof.writeTo(w, curve.RawEncoding())
 }
@@ -50,7 +52,7 @@ func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64
 		proof.BatchedProof.ClaimedValues,
 		&proof.ZShiftedOpening.H,
 		&proof.ZShiftedOpening.ClaimedValue,
-		&proof.PI2,
+		proof.Bsb22Commitments,
 	}
 
 	for _, v := range toEncode {
@@ -77,13 +79,17 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		&proof.BatchedProof.ClaimedValues,
 		&proof.ZShiftedOpening.H,
 		&proof.ZShiftedOpening.ClaimedValue,
-		&proof.PI2,
+		&proof.Bsb22Commitments,
 	}
 
 	for _, v := range toDecode {
 		if err := dec.Decode(v); err != nil {
 			return dec.BytesRead(), err
 		}
+	}
+
+	if proof.Bsb22Commitments == nil {
+		proof.Bsb22Commitments = []kzg.Digest{}
 	}
 
 	return dec.BytesRead(), nil
@@ -120,16 +126,16 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	// encode the size (nor does it convert from Montgomery to Regular form)
 	// so we explicitly transmit []fr.Element
 	toEncode := []interface{}{
-		([]fr.Element)(pk.trace.Ql.Coefficients()),
-		([]fr.Element)(pk.trace.Qr.Coefficients()),
-		([]fr.Element)(pk.trace.Qm.Coefficients()),
-		([]fr.Element)(pk.trace.Qo.Coefficients()),
-		([]fr.Element)(pk.trace.Qk.Coefficients()),
-		([]fr.Element)(pk.trace.Qcp.Coefficients()),
-		([]fr.Element)(pk.lQk.Coefficients()),
-		([]fr.Element)(pk.trace.S1.Coefficients()),
-		([]fr.Element)(pk.trace.S2.Coefficients()),
-		([]fr.Element)(pk.trace.S3.Coefficients()),
+		pk.trace.Ql.Coefficients(),
+		pk.trace.Qr.Coefficients(),
+		pk.trace.Qm.Coefficients(),
+		pk.trace.Qo.Coefficients(),
+		pk.trace.Qk.Coefficients(),
+		coefficients(pk.trace.Qcp),
+		pk.lQk.Coefficients(),
+		pk.trace.S1.Coefficients(),
+		pk.trace.S2.Coefficients(),
+		pk.trace.S3.Coefficients(),
 		pk.trace.S,
 	}
 
@@ -166,7 +172,8 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 
 	dec := curve.NewDecoder(r)
 
-	var ql, qr, qm, qo, qk, qcp, lqk, s1, s2, s3 []fr.Element
+	var ql, qr, qm, qo, qk, lqk, s1, s2, s3 []fr.Element
+	var qcp [][]fr.Element
 	toDecode := []interface{}{
 		&ql,
 		&qr,
@@ -193,11 +200,14 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 	pk.trace.Qm = iop.NewPolynomial(&qm, canReg)
 	pk.trace.Qo = iop.NewPolynomial(&qo, canReg)
 	pk.trace.Qk = iop.NewPolynomial(&qk, canReg)
-	pk.trace.Qcp = iop.NewPolynomial(&qcp, canReg)
 	pk.trace.S1 = iop.NewPolynomial(&s1, canReg)
 	pk.trace.S2 = iop.NewPolynomial(&s2, canReg)
 	pk.trace.S3 = iop.NewPolynomial(&s3, canReg)
 
+	pk.trace.Qcp = make([]*iop.Polynomial, len(qcp))
+	for i := range qcp {
+		pk.trace.Qcp[i] = iop.NewPolynomial(&qcp[i], canReg)
+	}
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
 
@@ -234,7 +244,10 @@ func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n
 		&vk.Qm,
 		&vk.Qo,
 		&vk.Qk,
-		&vk.Qcp,
+		vk.Qcp,
+		&vk.Kzg.G1,
+		&vk.Kzg.G2[0],
+		&vk.Kzg.G2[1],
 		vk.CommitmentConstraintIndexes,
 	}
 
@@ -265,6 +278,9 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		&vk.Qo,
 		&vk.Qk,
 		&vk.Qcp,
+		&vk.Kzg.G1,
+		&vk.Kzg.G2[0],
+		&vk.Kzg.G2[1],
 		&vk.CommitmentConstraintIndexes,
 	}
 
@@ -272,6 +288,10 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		if err := dec.Decode(v); err != nil {
 			return dec.BytesRead(), err
 		}
+	}
+
+	if vk.Qcp == nil {
+		vk.Qcp = []kzg.Digest{}
 	}
 
 	return dec.BytesRead(), nil

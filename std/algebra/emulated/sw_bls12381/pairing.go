@@ -8,6 +8,7 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -15,6 +16,10 @@ type Pairing struct {
 	api frontend.API
 	*fields_bls12381.Ext12
 	curveF *emulated.Field[emulated.BLS12381Fp]
+	g2     *G2
+	g1     *G1
+	curve  *sw_emulated.Curve[emulated.BLS12381Fp, emulated.BLS12381Fr]
+	bTwist *fields_bls12381.E2
 }
 
 type GTEl = fields_bls12381.E12
@@ -57,10 +62,26 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
+	curve, err := sw_emulated.New[emulated.BLS12381Fp, emulated.BLS12381Fr](api, sw_emulated.GetBLS12381Params())
+	if err != nil {
+		return nil, fmt.Errorf("new curve: %w", err)
+	}
+	bTwist := fields_bls12381.E2{
+		A0: emulated.ValueOf[emulated.BLS12381Fp]("4"),
+		A1: emulated.ValueOf[emulated.BLS12381Fp]("4"),
+	}
+	g1, err := NewG1(api)
+	if err != nil {
+		return nil, fmt.Errorf("new G1 struct: %w", err)
+	}
 	return &Pairing{
 		api:    api,
 		Ext12:  fields_bls12381.NewExt12(api),
 		curveF: ba,
+		curve:  curve,
+		g1:     g1,
+		g2:     NewG2(api),
+		bTwist: &bTwist,
 	}, nil
 }
 
@@ -225,6 +246,57 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext12.AssertIsEqual(x, y)
+}
+
+func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
+	pr.curve.AssertIsOnCurve(P)
+}
+
+func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if Q=(0,0) we assign b=0 otherwise 3/(9+u), and continue
+	selector := pr.api.And(pr.Ext2.IsZero(&Q.X), pr.Ext2.IsZero(&Q.Y))
+
+	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
+
+	left := pr.Ext2.Square(&Q.Y)
+	right := pr.Ext2.Square(&Q.X)
+	right = pr.Ext2.Mul(right, &Q.X)
+	right = pr.Ext2.Add(right, b)
+	pr.Ext2.AssertIsEqual(left, right)
+}
+
+func (pr Pairing) AssertIsOnG1(P *G1Affine) {
+	// 1- Check P is on the curve
+	pr.AssertIsOnCurve(P)
+
+	// 2- Check P has the right subgroup order
+	// TODO: add phi and scalarMulBySeedSquare to g1.go
+	// [x²]ϕ(P)
+	phiP := pr.g1.phi(P)
+	seedSquare := emulated.ValueOf[emulated.BLS12381Fr]("228988810152649578064853576960394133504")
+	// TODO: use addchain to construct a fixed-scalar ScalarMul
+	_P := pr.curve.ScalarMul(phiP, &seedSquare)
+	_P = pr.curve.Neg(_P)
+
+	// [r]Q == 0 <==>  P = -[x²]ϕ(P)
+	pr.curve.AssertIsEqual(_P, P)
+}
+
+func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
+	// 1- Check Q is on the curve
+	pr.AssertIsOnTwist(Q)
+
+	// 2- Check Q has the right subgroup order
+	// [x₀]Q
+	xQ := pr.g2.scalarMulBySeed(Q)
+	// ψ(Q)
+	psiQ := pr.g2.psi(Q)
+
+	// [r]Q == 0 <==>  ψ(Q) == [x₀]Q
+	pr.g2.AssertIsEqual(xQ, psiQ)
 }
 
 // loopCounter = seed in binary

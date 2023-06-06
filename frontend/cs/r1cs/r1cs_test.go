@@ -99,7 +99,7 @@ func BenchmarkReduce(b *testing.B) {
 	// Add few large linear expressions
 	// Add many large linear expressions
 	// Doubling of large linear expressions
-	rand.Seed(time.Now().Unix())
+	rand := rand.New(rand.NewSource(time.Now().Unix())) //#nosec G404 weak rng is fine here
 	const nbTerms = 100000
 	terms := make([]frontend.Variable, nbTerms)
 	for i := 0; i < len(terms); i++ {

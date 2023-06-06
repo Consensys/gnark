@@ -13,6 +13,13 @@ func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	if err != nil {
 		panic(err)
 	}
+	// 1- Check that Pᵢ are on G1 (done in the zkEVM ⚠️ )
+	// 2- Check that Qᵢ are on G2
+	for i := 0; i < len(Q); i++ {
+		pair.AssertIsOnG2(Q[i])
+	}
+
+	// 3- Check that ∏ᵢ e(Pᵢ, Qᵢ) == 1
 	if err := pair.PairingCheck(P, Q); err != nil {
 		panic(err)
 	}

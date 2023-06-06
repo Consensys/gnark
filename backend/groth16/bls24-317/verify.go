@@ -37,7 +37,7 @@ var (
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	nbPublicVars := len(vk.G1.K)
-	if vk.CommitmentInfo.Is() {
+	if vk.HasCommitment {
 		nbPublicVars--
 	}
 	if len(publicWitness) != nbPublicVars-1 {
@@ -62,20 +62,20 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		close(chDone)
 	}()
 
-	if vk.CommitmentInfo.Is() {
+	if vk.HasCommitment {
 
-		if err := vk.CommitmentKey.VerifyKnowledgeProof(proof.Commitment, proof.CommitmentPok); err != nil {
+		if err := vk.CommitmentKey.Verify(proof.Commitment, proof.CommitmentPok); err != nil {
 			return err
 		}
 
-		publicCommitted := make([]*big.Int, vk.CommitmentInfo.NbPublicCommitted())
+		publicCommitted := make([]*big.Int, len(vk.PublicCommitted))
 		for i := range publicCommitted {
 			var b big.Int
-			publicWitness[vk.CommitmentInfo.Committed[i]-1].BigInt(&b)
+			publicWitness[vk.PublicCommitted[i]-1].BigInt(&b)
 			publicCommitted[i] = &b
 		}
 
-		if res, err := solveCommitmentWire(&vk.CommitmentInfo, &proof.Commitment, publicCommitted); err == nil {
+		if res, err := solveCommitmentWire(&proof.Commitment, publicCommitted); err == nil {
 			publicWitness = append(publicWitness, res)
 		}
 	}
@@ -87,7 +87,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	}
 	kSum.AddMixed(&vk.G1.K[0])
 
-	if vk.CommitmentInfo.Is() {
+	if vk.HasCommitment {
 		kSum.AddMixed(&proof.Commitment)
 	}
 

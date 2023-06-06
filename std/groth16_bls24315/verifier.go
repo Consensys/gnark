@@ -49,6 +49,7 @@ type VerifyingKey struct {
 	// [Kvk]1
 	G1 struct {
 		K []sw_bls24315.G1Affine // The indexes correspond to the public wires
+
 	}
 }
 
@@ -57,7 +58,8 @@ type VerifyingKey struct {
 // publicInputs do NOT contain the ONE_WIRE
 func Verify(api frontend.API, vk VerifyingKey, proof Proof, publicInputs []frontend.Variable) {
 	if len(vk.G1.K) == 0 {
-		panic("innver verifying key needs at least one point; VerifyingKey.G1 must be initialized before compiling circuit")
+		panic("inner verifying key needs at least one point; VerifyingKey.G1 must be initialized before compiling circuit")
+
 	}
 
 	// compute kSum = Σx.[Kvk(t)]1
@@ -71,11 +73,11 @@ func Verify(api frontend.API, vk VerifyingKey, proof Proof, publicInputs []front
 		var ki sw_bls24315.G1Affine
 		ki.ScalarMul(api, vk.G1.K[k+1], v)
 		kSum.AddAssign(api, ki)
+
 	}
 
 	// compute e(Σx.[Kvk(t)]1, -[γ]2) * e(Krs,δ) * e(Ar,Bs)
-	ml, _ := sw_bls24315.MillerLoop(api, []sw_bls24315.G1Affine{kSum, proof.Krs, proof.Ar}, []sw_bls24315.G2Affine{vk.G2.GammaNeg, vk.G2.DeltaNeg, proof.Bs})
-	pairing := sw_bls24315.FinalExponentiation(api, ml)
+	pairing, _ := sw_bls24315.Pair(api, []sw_bls24315.G1Affine{kSum, proof.Krs, proof.Ar}, []sw_bls24315.G2Affine{vk.G2.GammaNeg, vk.G2.DeltaNeg, proof.Bs})
 
 	// vk.E must be equal to pairing
 	vk.E.AssertIsEqual(api, pairing)
@@ -87,21 +89,51 @@ func (vk *VerifyingKey) Assign(_ovk groth16.VerifyingKey) {
 	ovk, ok := _ovk.(*groth16_bls24315.VerifyingKey)
 	if !ok {
 		panic("expected *groth16_bls24315.VerifyingKey, got " + reflect.TypeOf(_ovk).String())
+
 	}
 
 	e, err := bls24315.Pair([]bls24315.G1Affine{ovk.G1.Alpha}, []bls24315.G2Affine{ovk.G2.Beta})
 	if err != nil {
 		panic(err)
+
 	}
 	vk.E.Assign(&e)
 
 	vk.G1.K = make([]sw_bls24315.G1Affine, len(ovk.G1.K))
 	for i := 0; i < len(ovk.G1.K); i++ {
 		vk.G1.K[i].Assign(&ovk.G1.K[i])
+
 	}
 	var deltaNeg, gammaNeg bls24315.G2Affine
 	deltaNeg.Neg(&ovk.G2.Delta)
 	gammaNeg.Neg(&ovk.G2.Gamma)
 	vk.G2.DeltaNeg.Assign(&deltaNeg)
 	vk.G2.GammaNeg.Assign(&gammaNeg)
+
+}
+
+// Allocate memory for the "in-circuit" VerifyingKey
+// This is exposed so that the slices in the structure can be allocated
+// before calling frontend.Compile().
+func (vk *VerifyingKey) Allocate(_ovk groth16.VerifyingKey) {
+	ovk, ok := _ovk.(*groth16_bls24315.VerifyingKey)
+	if !ok {
+		panic("expected *groth16_bls24315.VerifyingKey, got " + reflect.TypeOf(_ovk).String())
+
+	}
+	vk.G1.K = make([]sw_bls24315.G1Affine, len(ovk.G1.K))
+
+}
+
+// Assign the proof values of Groth16
+func (proof *Proof) Assign(_oproof groth16.Proof) {
+	oproof, ok := _oproof.(*groth16_bls24315.Proof)
+	if !ok {
+		panic("expected *groth16_bls24315.Proof, got " + reflect.TypeOf(oproof).String())
+
+	}
+	proof.Ar.Assign(&oproof.Ar)
+	proof.Krs.Assign(&oproof.Krs)
+	proof.Bs.Assign(&oproof.Bs)
+
 }

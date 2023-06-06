@@ -325,3 +325,28 @@ func (e *E6) MulBy01(api frontend.API, c0, c1 E2) *E6 {
 
 	return e
 }
+
+func Mul01By01(api frontend.API, c0, c1, d0, d1 E2) *E6 {
+	var a, b, t0, t1, t2, tmp E2
+
+	a.Mul(api, d0, c0)
+	b.Mul(api, d1, c1)
+	t0.Mul(api, c1, d1)
+	t0.Sub(api, t0, b)
+	t0.MulByNonResidue(api, t0)
+	t0.Add(api, t0, a)
+	t2.Mul(api, c0, d0)
+	t2.Sub(api, t2, a)
+	t2.Add(api, t2, b)
+	t1.Add(api, c0, c1)
+	tmp.Add(api, d0, d1)
+	t1.Mul(api, t1, tmp)
+	t1.Sub(api, t1, a)
+	t1.Sub(api, t1, b)
+
+	return &E6{
+		B0: t0,
+		B1: t1,
+		B2: t2,
+	}
+}
