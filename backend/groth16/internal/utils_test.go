@@ -14,7 +14,7 @@ type coinToss struct {
 
 func (r *coinToss) rand() (res bool) {
 	if r.remaining == 0 {
-		r.x = rand.Uint64()
+		r.x = rand.Uint64() //#nosec G404 weak rng is fine here
 		r.remaining = 64
 	}
 	r.remaining--
