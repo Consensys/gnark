@@ -85,16 +85,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	nbPublicWires := r1cs.GetNbPublicVariables() + len(r1cs.CommitmentInfo)
 	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - nbPrivateCommittedWires - len(r1cs.CommitmentInfo)
 
-	// we will need to iterate through the private-to-public wires in order
-	/*privToPub := make([], nbPrivateCommittedWires+len(r1cs.CommitmentInfo))
-	offset := 0
-	for i := range r1cs.CommitmentInfo {
-		copy(privToPub[offset:], r1cs.CommitmentInfo[i].PrivateCommitted()) // TODO Take out commitments
-		offset += r1cs.CommitmentInfo[i].NbPrivateCommitted
-	}
-	privToPub.Heapify()
-	*/
-
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(r1cs.GetNbConstraints()))
 
@@ -144,11 +134,12 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 			Add(&t1, &C[i]).
 			Mul(&t1, coeff)
 	}
-	vI := 0
-	cI := make([]int, len(r1cs.CommitmentInfo))
+	vI := 0   // number of public wires seen so far
+	cI := make([]int, len(r1cs.CommitmentInfo))	 // number of private committed wires seen so far for each commitment
 	nbPrivateCommittedSeen := 0 // = ∑ᵢ cI[i]
 	nbCommitmentsSeen := 0
 
+	// i = vI + nbPrivateCommittedSeen + nbCommitmentsSeen
 	for i := range A {
 		commitment := -1 // index of the commitment that commits to this variable as a private or commitment value
 		var isCommitment, isPublic bool
@@ -158,7 +149,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 				nbCommitmentsSeen++
 			}
 
-			for j := range r1cs.CommitmentInfo {
+			for j := range r1cs.CommitmentInfo { // does commitment j commit to i?
 				if cI[j] < len(privateCommitted[j]) && privateCommitted[j][cI[j]] == i {
 					commitment = j
 					break // frontend guarantees that no private variable is committed to more than once

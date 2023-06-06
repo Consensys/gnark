@@ -40,8 +40,8 @@ import (
 type Proof struct {
 	Ar, Krs       curve.G1Affine
 	Bs            curve.G2Affine
-	CommitmentPok curve.G1Affine
-	Commitments   []curve.G1Affine
+	Commitments   []curve.G1Affine // Pedersen commitments a la https://eprint.iacr.org/2022/1072
+	CommitmentPok curve.G1Affine   // Batched proof of knowledge of the above commitments
 }
 
 // isValid ensures proof elements are in the correct subgroup
@@ -291,30 +291,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
 	return proof, nil
-}
-
-// if len(indexes) == 0, returns slice, nil
-// else, returns a slice with the indexes and another without
-// this assumes the indexes are sorted, without repetition and that len(slice) > len(indexes)
-func split(slice []*big.Int, indexes []int) (with, without []*big.Int) {
-
-	if len(indexes) == 0 {
-		return slice, nil
-	}
-	with = make([]*big.Int, 0, len(slice)-len(indexes))
-	without = make([]*big.Int, 0, len(indexes))
-
-	j := 0
-	// note: we can optimize that for the likely case where len(slice) >>> len(toRemove)
-	for i := 0; i < len(slice); i++ {
-		if j < len(indexes) && i == indexes[j] {
-			without = append(without, slice[i])
-			j++
-			continue
-		}
-		with = append(with, slice[i])
-	}
-	return
 }
 
 // if len(toRemove) == 0, returns slice

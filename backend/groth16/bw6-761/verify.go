@@ -23,9 +23,10 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/pedersen"
+	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
 	"io"
-	"math/big"
 	"time"
 )
 
@@ -61,20 +62,24 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		close(chDone)
 	}()
 
+	maxNbPublicCommitted := 0
+	for _, s := range vk.PublicCommitted { // iterate over commitments
+		maxNbPublicCommitted = utils.Max(maxNbPublicCommitted, len(s))
+	}
 	commitmentsSerialized := make([]byte, len(vk.PublicCommitted)*fr.Bytes)
-	for i := range vk.PublicCommitted {
-		publicCommitted := make([]*big.Int, len(vk.PublicCommitted[i]))
-		for j := range publicCommitted {
-			var b big.Int
-			publicWitness[vk.PublicCommitted[i][j]-1].BigInt(&b)
-			publicCommitted[j] = &b
+	commitmentPrehashSerialized := make([]byte, curve.SizeOfG1AffineUncompressed+maxNbPublicCommitted*fr.Bytes)
+	for i := range vk.PublicCommitted { // solveCommitmentWire
+		copy(commitmentPrehashSerialized, proof.Commitments[i].Marshal())
+		offset := curve.SizeOfG1AffineUncompressed
+		for j := range vk.PublicCommitted[i] {
+			copy(commitmentPrehashSerialized[offset:], publicWitness[vk.PublicCommitted[i][j]-1].Marshal())
+			offset += fr.Bytes
 		}
-
-		if res, err := solveCommitmentWire(&proof.Commitments[i], publicCommitted); err != nil {
+		if res, err := fr.Hash(commitmentPrehashSerialized[:offset], []byte(constraint.CommitmentDst), 1); err != nil {
 			return err
 		} else {
-			publicWitness = append(publicWitness, res)
-			copy(commitmentsSerialized[i*fr.Bytes:], res.Marshal())
+			publicWitness = append(publicWitness, res[0])
+			copy(commitmentsSerialized[i*fr.Bytes:], res[0].Marshal())
 		}
 	}
 
