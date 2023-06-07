@@ -67,13 +67,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
 
-	commitmentSubIndexes := r1cs.CommitmentInfo.CommitmentIndexesInCommittedLists()
+	commitmentSubIndexes := r1cs.CommitmentInfo.CommitmentIndexesInCommittedLists() // TODO @Tabaie Precompute
 	privateCommittedValues := make([][]fr.Element, len(r1cs.CommitmentInfo))
 	for i := range r1cs.CommitmentInfo {
 		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(i int) solver.Hint {
 			return func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 				privateCommittedValues[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-len(commitmentSubIndexes[i]))
-				hashed, committed := internal.DivideByThresholdOrList(r1cs.CommitmentInfo[i].NbPublicCommitted(), commitmentSubIndexes[i], in)
+				hashed, committed := internal.DivideByThresholdOrList(r1cs.CommitmentInfo[i].NbPublicCommitted(), commitmentSubIndexes[i], in) // TODO @Tabaie pre-order
 				for j, inJ := range committed {
 					privateCommittedValues[i][j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
 				}
