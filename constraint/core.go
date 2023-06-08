@@ -418,7 +418,7 @@ func (cs *System) GetSparseR1CIterator() SparseR1CIterator {
 	return SparseR1CIterator{cs: cs}
 }
 
-func (cs *System) GetCommitments() []Commitment {
+func (cs *System) GetCommitments() Commitments {
 	return cs.CommitmentInfo
 }
 

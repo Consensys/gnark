@@ -51,7 +51,7 @@ type ConstraintSystem interface {
 	AddSolverHint(f solver.Hint, id solver.HintID, input []LinearExpression, nbOutput int) (internalVariables []int, err error)
 
 	AddCommitment(c Commitment) error
-	GetCommitments() []Commitment
+	GetCommitments() Commitments
 
 	AddLog(l LogEntry)
 

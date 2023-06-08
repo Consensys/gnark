@@ -1,23 +1,50 @@
 package constraint
 
 import (
-	"github.com/consensys/gnark/internal/utils"
-	"math/big"
-
 	"github.com/consensys/gnark/constraint/solver"
 )
 
 const CommitmentDst = "bsb22-commitment"
 
-type Commitment struct {
-	Committed          []int // sorted list of id's of committed variables in groth16. in plonk, list of indexes of constraints defining committed values
-	NbPrivateCommitted int
-	HintID             solver.HintID // TODO @gbotrel we probably don't need that here
-	CommitmentIndex    int           // in groth16, CommitmentIndex is the wire index. in plonk, it's the constraint defining it
+type Groth16Commitment struct {
+	PublicAndCommitmentCommitted []int // PublicAndCommitmentCommitted sorted list of id's of public and commitment committed wires
+	PrivateCommitted             []int // PrivateCommitted sorted list of id's of private/internal committed wires
+	CommitmentIndex              int   // CommitmentIndex the wire index of the commitment
+	HintID                       solver.HintID
+	NbPublicCommitted            int
 }
 
-type Commitments []Commitment
+type PlonkCommitment struct {
+	Committed       []int // sorted list of id's of committed variables in groth16. in plonk, list of indexes of constraints defining committed values
+	CommitmentIndex int   // CommitmentIndex index of the constraint defining the commitment
+	HintID          solver.HintID
+}
 
+type Commitments interface{}
+
+type Groth16Commitments []Groth16Commitment
+
+func (c Groth16Commitments) CommitmentWireIndexes() []int {
+	commitmentWires := make([]int, len(c))
+	for i := range c {
+		commitmentWires[i] = c[i].CommitmentIndex
+	}
+	return commitmentWires
+}
+
+func (c Groth16Commitments) GetPrivateCommitted() [][]int {
+	res := make([][]int, len(c))
+	for i := range c {
+		res[i] = c[i].PrivateCommitted
+	}
+	return res
+}
+
+func (c Groth16Commitments) GetPublicAndCommitmentCommitted() [][]int {
+
+}
+
+/*
 func (i *Commitment) NbPublicCommitted() int {
 	return i.NbCommitted() - i.NbPrivateCommitted
 }
@@ -67,29 +94,7 @@ func (i *Commitment) PublicCommitted() []int {
 	return i.Committed[:i.NbPublicCommitted()]
 }
 
-func (c Commitments) CommitmentWireIndexes() []int {
-	commitmentWires := make([]int, len(c))
-	for i := range c {
-		commitmentWires[i] = c[i].CommitmentIndex
-	}
-	return commitmentWires
-}
 
-func (c Commitments) CommitmentsAndPrivateCommittedIndexes() []int {
-	nbCommitmentAndPrivCommitted := len(c) // an upper bound
-	for i := range c {
-		nbCommitmentAndPrivCommitted += c[i].NbPrivateCommitted
-	}
-	res := make([]int, nbCommitmentAndPrivCommitted)
-	offset := 0
-	for i := range c {
-		copy(res[offset:], c[i].PrivateCommitted())
-		offset += c[i].NbPrivateCommitted
-		res[offset] = c[i].CommitmentIndex
-		offset++
-	}
-	return res
-}
 
 // Interleave returns combined information about the commitments
 // nbPrivateCommittedWires doesn't double count because the frontend guarantees that no private wire is committed to more than once
@@ -131,3 +136,4 @@ func (c Commitments) CommitmentIndexesInCommittedLists() [][]int {
 	}
 	return res
 }
+*/
