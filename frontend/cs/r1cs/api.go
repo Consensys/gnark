@@ -676,25 +676,37 @@ func (builder *builder) Compiler() frontend.Compiler {
 	return builder
 }
 
+func lastIs(slice []int, n int) bool {
+	return len(slice) > 0 && slice[len(slice)-1] == n
+}
+
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+
+	commitments := builder.cs.GetCommitments()
+	existingCommitmentIndexes := commitments.CommitmentWireIndexes()
+	privateCommittedSeeker := utils.MultiListSeeker(commitments.GetPrivateCommitted())
 
 	// we want to build a sorted slice of committed variables, without duplicates
 	// this is the same algorithm as builder.add(...); but we expect len(v) to be quite large.
 
 	vars, s := builder.toVariables(v...)
 
+	nbPublicCommittedBound := 0
 	// initialize the min-heap
 	// this is the same algorithm as api.add --> we want to merge k sorted linear expression
 	for lID, v := range vars {
+		if v[0].VID < builder.cs.GetNbPublicVariables() {
+			nbPublicCommittedBound++
+		}
 		builder.heap = append(builder.heap, linMeta{val: v[0].VID, lID: lID}) // TODO: Use int heap
 	}
 	builder.heap.heapify()
 
 	// sort all the wires
-	committed := make([]int, 0, s)
-
-	curr := -1
-	nbPublicCommitted := 0
+	publicCommitted := make([]int, 0, nbPublicCommittedBound)
+	privateCommitted := make([]int, 0, s)
+	commitmentsCommitted := make([]int, 0, len(existingCommitmentIndexes))
+	lastInsertedWireId := -1
 
 	// process all the terms from all the inputs, in sorted order
 	for len(builder.heap) > 0 {
@@ -712,41 +724,53 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		if t.VID == 0 {
 			continue // don't commit to ONE_WIRE
 		}
-		if curr != -1 && t.VID == committed[curr] {
+		if lastInsertedWireId == t.VID {
 			// it's the same variable ID, do nothing
 			continue
-		} else {
-			if t.VID < builder.cs.GetNbPublicVariables() {
-				nbPublicCommitted++
-			} else {
-				// Cannot commit to a secret variable that has already been committed to
-				// instead we commit to its commitment
-				commitments := builder.cs.GetCommitments()
-				var alreadyCommitted bool
-				for i := range commitments {
-					if _, alreadyCommitted = utils.FindInSlice(commitments[i].Committed, t.VID); alreadyCommitted {
-						toCommit := commitments[i].CommitmentIndex
-						vars = append(vars, expr.LinearExpression{{Coeff: constraint.Element{1}, VID: toCommit}}) // TODO Replace with mont 1
-						builder.heap.push(linMeta{lID: len(vars) - 1, tID: 0, val: toCommit})
-						break
-					}
-				}
-				if alreadyCommitted {
-					continue
-				}
-			}
-			// append, it's a new variable ID
-			committed = append(committed, t.VID) // if public or not already committed
-			curr++
 		}
+
+		if t.VID < builder.cs.GetNbPublicVariables() { // public
+			publicCommitted = append(publicCommitted, t.VID)
+			lastInsertedWireId = t.VID
+			continue
+		}
+
+		// private or commitment
+		for len(existingCommitmentIndexes) > 0 && existingCommitmentIndexes[0] < t.VID {
+			existingCommitmentIndexes = existingCommitmentIndexes[1:]
+		}
+		if len(existingCommitmentIndexes) > 0 && existingCommitmentIndexes[0] == t.VID { // commitment
+			commitmentsCommitted = append(commitmentsCommitted, t.VID)
+			existingCommitmentIndexes = existingCommitmentIndexes[1:] // technically unnecessary
+			lastInsertedWireId = t.VID
+			continue
+		}
+
+		// private
+		// Cannot commit to a secret variable that has already been committed to
+		// instead we commit to its commitment
+		if committer := privateCommittedSeeker.Seek(t.VID); committer != -1 {
+			committerWireIndex := existingCommitmentIndexes[committer]                                          // commit to this commitment instead
+			vars = append(vars, expr.LinearExpression{{Coeff: constraint.Element{1}, VID: committerWireIndex}}) // TODO Replace with mont 1
+			builder.heap.push(linMeta{lID: len(vars) - 1, tID: 0, val: committerWireIndex})                     // pushing to heap mid-op is okay because toCommit > t.VID > anything popped so far
+			continue
+		}
+
+		// so it's a new, so-far-uncommitted private variable
+		privateCommitted = append(privateCommitted, t.VID)
+		lastInsertedWireId = t.VID
 	}
 
-	if len(committed) == 0 {
+	if len(privateCommitted) == 0 {
 		return nil, errors.New("must commit to at least one variable")
 	}
 
 	// build commitment
-	commitment := constraint.NewCommitment(committed, nbPublicCommitted)
+	commitment := constraint.Groth16Commitment{
+		PublicCommitted:     publicCommitted,
+		CommitmentCommitted: commitmentsCommitted,
+		PrivateCommitted:    privateCommitted,
+	}
 
 	// hint is used at solving time to compute the actual value of the commitment
 	// it is going to be dynamically replaced at solving time.
@@ -761,17 +785,17 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		return nil, err
 	}
 
-	if hintOut, err = builder.NewHintForId(commitment.HintID, 1, builder.getCommittedVariables(&commitment)...); err != nil {
+	if hintOut, err = builder.NewHintForId(commitment.HintID, 1, builder.wireIDsToVars(
+		commitment.PublicCommitted,
+		commitment.CommitmentCommitted,
+		commitment.PrivateCommitted,
+	)...); err != nil {
 		return nil, err
 	}
 
 	cVar := hintOut[0]
 
 	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
-
-	if commitment.CommitmentIndex <= commitment.Committed[len(commitment.Committed)-1] {
-		return nil, fmt.Errorf("commitment variable index smaller than some committed variable indices")
-	}
 
 	if err := builder.cs.AddCommitment(commitment); err != nil {
 		return nil, err
@@ -780,10 +804,17 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	return cVar, nil
 }
 
-func (builder *builder) getCommittedVariables(i *constraint.Commitment) []frontend.Variable {
-	res := make([]frontend.Variable, len(i.Committed))
-	for j, wireIndex := range i.Committed {
-		res[j] = expr.NewLinearExpression(wireIndex, builder.tOne)
+func (builder *builder) wireIDsToVars(wireIDs ...[]int) []frontend.Variable {
+	n := 0
+	for i := range wireIDs {
+		n += len(wireIDs[i])
+	}
+	res := make([]frontend.Variable, n)
+	n = 0
+	for _, list := range wireIDs {
+		for i := range list {
+			res[n] = expr.NewLinearExpression(list[i], builder.tOne)
+		}
 	}
 	return res
 }
