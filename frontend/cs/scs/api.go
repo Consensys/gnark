@@ -571,6 +571,7 @@ func (builder *builder) Compiler() frontend.Compiler {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
+	commitments := builder.cs.GetCommitments().(constraint.PlonkCommitments)
 	v = filterConstants(v) // TODO: @Tabaie Settle on a way to represent even constants; conventional hash?
 
 	committed := make([]int, len(v))
@@ -583,7 +584,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
 
-	hintId, err := cs.RegisterBsb22CommitmentComputePlaceholder(len(builder.cs.GetCommitments()))
+	hintId, err := cs.RegisterBsb22CommitmentComputePlaceholder(len(commitments))
 	if err != nil {
 		return nil, err
 	}
@@ -598,7 +599,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	// RHS will be provided by both prover and verifier independently, as for a public wire
 	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
-	return outs[0], builder.cs.AddCommitment(constraint.Commitment{
+	return outs[0], builder.cs.AddCommitment(constraint.PlonkCommitment{
 		HintID:          hintId,
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,

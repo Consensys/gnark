@@ -18,6 +18,7 @@ package plonk
 
 import (
 	"crypto/sha256"
+	"github.com/consensys/gnark/constraint"
 	"math/big"
 	"runtime"
 	"sync"
@@ -66,16 +67,17 @@ type Proof struct {
 // Computing and verifying Bsb22 multi-commits explained in https://hackmd.io/x8KsadW3RRyX7YTCFJIkHg
 func bsb22ComputeCommitmentHint(spr *cs.SparseR1CS, pk *ProvingKey, proof *Proof, cCommitments []*iop.Polynomial, res *fr.Element, commDepth int) solver.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
+		commitmentInfo := spr.CommitmentInfo.(constraint.PlonkCommitments)[commDepth]
 		committedValues := make([]fr.Element, pk.Domain[0].Cardinality)
 		offset := spr.GetNbPublicVariables()
 		for i := range ins {
-			committedValues[offset+spr.CommitmentInfo[commDepth].Committed[i]].SetBigInt(ins[i])
+			committedValues[offset+commitmentInfo.Committed[i]].SetBigInt(ins[i])
 		}
 		var (
 			err     error
 			hashRes []fr.Element
 		)
-		if _, err = committedValues[offset+spr.CommitmentInfo[commDepth].CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
+		if _, err = committedValues[offset+commitmentInfo.CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
 			return err
 		}
 		if _, err = committedValues[offset+spr.GetNbConstraints()-1].SetRandom(); err != nil { // Last constraint has qcp = 0. Safe to use for blinding
@@ -116,11 +118,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// result
 	proof := &Proof{}
 
-	commitmentVal := make([]fr.Element, len(spr.CommitmentInfo)) // TODO @Tabaie get rid of this
-	cCommitments := make([]*iop.Polynomial, len(spr.CommitmentInfo))
-	proof.Bsb22Commitments = make([]kzg.Digest, len(spr.CommitmentInfo))
-	for i := range spr.CommitmentInfo {
-		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(spr.CommitmentInfo[i].HintID,
+	commitmentInfo := spr.CommitmentInfo.(constraint.PlonkCommitments)
+	commitmentVal := make([]fr.Element, len(commitmentInfo)) // TODO @Tabaie get rid of this
+	cCommitments := make([]*iop.Polynomial, len(commitmentInfo))
+	proof.Bsb22Commitments = make([]kzg.Digest, len(commitmentInfo))
+	for i := range commitmentInfo {
+		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(commitmentInfo[i].HintID,
 			bsb22ComputeCommitmentHint(spr, pk, proof, cCommitments, &commitmentVal[i], i)))
 	}
 
@@ -184,8 +187,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		qkCompletedCanonical := make([]fr.Element, len(lqkcoef))
 		copy(qkCompletedCanonical, fw[:len(spr.Public)])
 		copy(qkCompletedCanonical[len(spr.Public):], lqkcoef[len(spr.Public):])
-		for i := range spr.CommitmentInfo {
-			qkCompletedCanonical[spr.GetNbPublicVariables()+spr.CommitmentInfo[i].CommitmentIndex] = commitmentVal[i]
+		for i := range commitmentInfo {
+			qkCompletedCanonical[spr.GetNbPublicVariables()+commitmentInfo[i].CommitmentIndex] = commitmentVal[i]
 		}
 		pk.Domain[0].FFTInverse(qkCompletedCanonical, fft.DIF)
 		fft.BitReverse(qkCompletedCanonical)
@@ -292,8 +295,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		ic.Add(&ic, &tmp)
 		tmp.Mul(&fqo, &o)
 		ic.Add(&ic, &tmp).Add(&ic, &fqk)
-		nbComms := len(spr.CommitmentInfo)
-		for i := range spr.CommitmentInfo {
+		nbComms := len(commitmentInfo)
+		for i := range commitmentInfo {
 			tmp.Mul(&pi2QcPrime[i], &pi2QcPrime[i+nbComms])
 			ic.Add(&ic, &tmp)
 		}
@@ -405,7 +408,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// compute evaluations of (blinded version of) l, r, o, z, qCPrime at zeta
 	var blzeta, brzeta, bozeta fr.Element
-	qcpzeta := make([]fr.Element, len(spr.CommitmentInfo))
+	qcpzeta := make([]fr.Element, len(commitmentInfo))
 
 	var wgEvals sync.WaitGroup
 	wgEvals.Add(3)
@@ -422,7 +425,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			qcpzeta[i] = pk.trace.Qcp[i].Evaluate(zeta)
 		}
 	}
-	utils.Parallelize(len(spr.CommitmentInfo), evalQcpAtZeta)
+	utils.Parallelize(len(commitmentInfo), evalQcpAtZeta)
 
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
