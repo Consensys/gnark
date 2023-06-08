@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bls12-381"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
@@ -63,19 +64,21 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
 
-	proof := &Proof{Commitments: make([]curve.G1Affine, len(r1cs.CommitmentInfo))}
+	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+
+	proof := &Proof{Commitments: make([]curve.G1Affine, len(commitmentInfo))}
 
 	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
 
-	commitmentSubIndexes := r1cs.CommitmentInfo.CommitmentIndexesInCommittedLists()
-	privateCommittedValues := make([][]fr.Element, len(r1cs.CommitmentInfo))
-	for i := range r1cs.CommitmentInfo {
-		solverOpts = append(solverOpts, solver.OverrideHint(r1cs.CommitmentInfo[i].HintID, func(i int) solver.Hint {
+	privateCommittedValues := make([][]fr.Element, len(commitmentInfo))
+	for i := range commitmentInfo {
+		solverOpts = append(solverOpts, solver.OverrideHint(commitmentInfo[i].HintID, func(i int) solver.Hint {
 			return func(_ *big.Int, in []*big.Int, out []*big.Int) error {
-				privateCommittedValues[i] = make([]fr.Element, r1cs.CommitmentInfo[i].NbPrivateCommitted-len(commitmentSubIndexes[i]))
-				hashed, committed := internal.DivideByThresholdOrList(r1cs.CommitmentInfo[i].NbPublicCommitted(), commitmentSubIndexes[i], in)
+				privateCommittedValues[i] = make([]fr.Element, len(commitmentInfo[i].PrivateCommitted))
+				hashed := in[:len(commitmentInfo[i].PublicAndCommitmentCommitted)]
+				committed := in[len(hashed):]
 				for j, inJ := range committed {
-					privateCommittedValues[i][j].SetBigInt(inJ) // TODO @Tabaie Perf If this takes significant time can read values off the witness vector instead
+					privateCommittedValues[i][j].SetBigInt(inJ)
 				}
 
 				var err error
@@ -101,9 +104,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	start := time.Now()
 
-	commitmentsSerialized := make([]byte, fr.Bytes*len(r1cs.CommitmentInfo))
-	for i := range r1cs.CommitmentInfo {
-		copy(commitmentsSerialized[fr.Bytes*i:], wireValues[r1cs.CommitmentInfo[i].CommitmentIndex].Marshal())
+	commitmentsSerialized := make([]byte, fr.Bytes*len(commitmentInfo))
+	for i := range commitmentInfo {
+		copy(commitmentsSerialized[fr.Bytes*i:], wireValues[commitmentInfo[i].CommitmentIndex].Marshal())
 	}
 
 	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommittedValues, commitmentsSerialized); err != nil {
@@ -211,9 +214,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		}()
 
 		// filter the wire values if needed
-		_wireValues := filterHeap(wireValues, r1cs.CommitmentInfo.NonPublicCommittedIndexes())
+		// TODO Perf @Tabaie worst memory allocation offender
+		toRemove := commitmentInfo.GetPrivateCommitted()
+		toRemove = append(toRemove, commitmentInfo.CommitmentWireIndexes())
+		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
 
-		if _, err := krs.MultiExp(pk.G1.K, _wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+		if _, err := krs.MultiExp(pk.G1.K, _wireValues, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
 			return
 		}
@@ -294,10 +300,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 }
 
 // if len(toRemove) == 0, returns slice
-// else, returns a new slice without the indexes in toRemove
-// this assumes toRemove indexes are sorted and len(slice) > len(toRemove)
+// else, returns a new slice without the indexes in toRemove. The first value in the slice is taken as indexes as sliceFirstIndex
+// this assumes len(slice) > len(toRemove)
 // filterHeap modifies toRemove
-func filterHeap(slice []fr.Element, toRemove []int) (r []fr.Element) {
+func filterHeap(slice []fr.Element, sliceFirstIndex int, toRemove []int) (r []fr.Element) {
 
 	if len(toRemove) == 0 {
 		return slice
@@ -310,8 +316,8 @@ func filterHeap(slice []fr.Element, toRemove []int) (r []fr.Element) {
 
 	// note: we can optimize that for the likely case where len(slice) >>> len(toRemove)
 	for i := 0; i < len(slice); i++ {
-		if len(heap) > 0 && i == heap[0] {
-			for len(heap) > 0 && i == heap[0] {
+		if len(heap) > 0 && i+sliceFirstIndex == heap[0] {
+			for len(heap) > 0 && i+sliceFirstIndex == heap[0] {
 				heap.Pop()
 			}
 			continue
