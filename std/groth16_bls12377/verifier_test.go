@@ -21,12 +21,13 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/constraint"
+	cs_bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	backend_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/cs"
 	groth16_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/groth16"
-	"github.com/consensys/gnark/internal/backend/bls12-377/witness"
 	"github.com/consensys/gnark/std/algebra/sw_bls12377"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
@@ -34,7 +35,7 @@ import (
 
 const (
 	preImage   = "4992816046196248432836492760315135318126925090839638585255611512962528270024"
-	publicHash = "4458332240632096997117977163518118563548842578509780924154021342053538349576"
+	publicHash = "7831393781387060555412927989411398077996792073838215843928284475008119358174"
 )
 
 type mimcCircuit struct {
@@ -58,7 +59,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 
 	// create a mock cs: knowing the preimage of a hash using mimc
 	var circuit mimcCircuit
-	r1cs, err := frontend.Compile(ecc.BLS12_377, r1cs.NewBuilder, &circuit)
+	r1cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,22 +69,24 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	assignment.PreImage = preImage
 	assignment.Hash = publicHash
 
-	var witness, publicWitness witness.Witness
-	_, err = witness.FromAssignment(&assignment, tVariable, false)
+	witness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = publicWitness.FromAssignment(&assignment, tVariable, true)
+	publicWitness, err := witness.Public()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// generate the data to return for the bls12377 proof
 	var pk groth16_bls12377.ProvingKey
-	groth16_bls12377.Setup(r1cs.(*backend_bls12377.R1CS), &pk, vk)
+	err = groth16_bls12377.Setup(r1cs.(*cs_bls12377.R1CS), &pk, vk)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	_proof, err := groth16_bls12377.Prove(r1cs.(*backend_bls12377.R1CS), &pk, witness, backend.ProverConfig{})
+	_proof, err := groth16_bls12377.Prove(r1cs.(*cs_bls12377.R1CS), &pk, witness.Vector().(fr.Vector), backend.ProverConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +95,7 @@ func generateBls12377InnerProof(t *testing.T, vk *groth16_bls12377.VerifyingKey,
 	proof.Krs = _proof.Krs
 
 	// before returning verifies that the proof passes on bls12377
-	if err := groth16_bls12377.Verify(proof, vk, publicWitness); err != nil {
+	if err := groth16_bls12377.Verify(proof, vk, publicWitness.Vector().(fr.Vector)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -149,10 +152,14 @@ func BenchmarkCompile(b *testing.B) {
 	var circuit verifierCircuit
 	circuit.InnerVk.G1.K = make([]sw_bls12377.G1Affine, len(innerVk.G1.K))
 
-	var ccs frontend.CompiledConstraintSystem
+	var ccs constraint.ConstraintSystem
+	var err error
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ccs, _ = frontend.Compile(ecc.BW6_761, r1cs.NewBuilder, &circuit)
+		ccs, err = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &circuit)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 	b.Log(ccs.GetNbConstraints())
 }

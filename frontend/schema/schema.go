@@ -31,19 +31,15 @@ type Schema struct {
 	NbSecret int
 }
 
-// LeafHandler is the handler function that will be called when Visit reaches leafs of the struct
-type LeafHandler func(visibility Visibility, name string, tValue reflect.Value) error
-
-// Parse filters recursively input data struct and keeps only the fields containing slices, arrays of elements of
-// type frontend.Variable and return the corresponding  Slices are converted to arrays.
+// New builds a schema.Schema walking through the provided interface (a circuit structure).
 //
-// If handler is specified, handler will be called on each encountered leaf (of type tLeaf)
-func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (*Schema, error) {
+// schema.Walk performs better and should be used when possible.
+func New(circuit interface{}, tLeaf reflect.Type) (*Schema, error) {
 	// note circuit is of type interface{} instead of frontend.Circuit to avoid import cycle
 	// same for tLeaf it is in practice always frontend.Variable
 
 	var nbPublic, nbSecret int
-	fields, err := parse(nil, circuit, tLeaf, "", "", "", Unset, handler, &nbPublic, &nbSecret)
+	fields, err := parse(nil, circuit, tLeaf, "", "", "", Unset, &nbPublic, &nbSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +50,8 @@ func Parse(circuit interface{}, tLeaf reflect.Type, handler LeafHandler) (*Schem
 // Instantiate builds a concrete type using reflect matching the provided schema
 //
 // It replaces leafs by provided type, such that one can do:
-//		struct { A []frontend.Variable} -> Schema -> struct {A [12]fr.Element}
+//
+//	struct { A []frontend.Variable} -> Schema -> struct {A [12]fr.Element}
 //
 // Default behavior is to add "json:,omitempty" to the generated struct
 func (s Schema) Instantiate(leafType reflect.Type, omitEmptyTag ...bool) interface{} {
@@ -66,7 +63,7 @@ func (s Schema) Instantiate(leafType reflect.Type, omitEmptyTag ...bool) interfa
 	// first, let's replace the Field by reflect.StructField
 	is := toStructField(s.Fields, leafType, omitEmpty)
 
-	// now create the correspoinding type
+	// now create the corresponding type
 	typ := reflect.StructOf(is)
 
 	// instantiate the type
@@ -86,15 +83,15 @@ func (s Schema) WriteSequence(w io.Writer) error {
 	var a int
 	instance := s.Instantiate(reflect.TypeOf(a), false)
 
-	collectHandler := func(visibility Visibility, name string, _ reflect.Value) error {
-		if visibility == Public {
-			public = append(public, name)
-		} else if visibility == Secret {
-			secret = append(secret, name)
+	collectHandler := func(f LeafInfo, _ reflect.Value) error {
+		if f.Visibility == Public {
+			public = append(public, f.FullName())
+		} else if f.Visibility == Secret {
+			secret = append(secret, f.FullName())
 		}
 		return nil
 	}
-	if _, err := Parse(instance, reflect.TypeOf(a), collectHandler); err != nil {
+	if _, err := Walk(instance, reflect.TypeOf(a), collectHandler); err != nil {
 		return err
 	}
 
@@ -190,7 +187,7 @@ func structTag(baseNameTag string, visibility Visibility, omitEmpty bool) reflec
 // parentFullName: the name of parent with its ancestors separated by "_"
 // parentGoName: the name of parent (Go struct definition)
 // parentTagName: may be empty, set if a struct tag with name is set
-func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility Visibility, handler LeafHandler, nbPublic, nbSecret *int) ([]Field, error) {
+func parse(r []Field, input interface{}, target reflect.Type, parentFullName, parentGoName, parentTagName string, parentVisibility Visibility, nbPublic, nbSecret *int) ([]Field, error) {
 	tValue := reflect.ValueOf(input)
 
 	// get pointed value if needed
@@ -200,28 +197,24 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 
 	// stop condition
 	if tValue.Type() == target {
-		v := parentVisibility
-		if v == Unset {
-			v = Secret
-		}
-		if v == Secret {
-			(*nbSecret)++
-		} else if v == Public {
-			(*nbPublic)++
-		}
-
-		if handler != nil {
-			if err := handler(v, parentFullName, tValue); err != nil {
-				return nil, err
-			}
-		}
-		// we just add it to our current fields
-		return append(r, Field{
+		f := Field{
 			Name:       parentGoName,
 			NameTag:    parentTagName,
+			FullName:   parentFullName,
+			Visibility: parentVisibility,
 			Type:       Leaf,
-			Visibility: v,
-		}), nil
+			SubFields:  nil,
+			ArraySize:  1,
+		}
+		if f.Visibility == Unset {
+			f.Visibility = Secret
+		}
+		if f.Visibility == Secret {
+			(*nbSecret) += f.ArraySize
+		} else if f.Visibility == Public {
+			(*nbPublic) += f.ArraySize
+		}
+		return append(r, f), nil
 	}
 
 	// struct
@@ -234,14 +227,14 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 		for _, f := range fields {
 			// check if the gnark tag is set
 			tag, ok := f.Tag.Lookup(string(tagKey))
-			if ok && tag == string(optOmit) {
+			if ok && tag == string(TagOptOmit) {
 				continue // skipping "-"
 			}
 
 			// default visibility is Unset
 			visibility := Unset
 
-			// variable name is field name, unless overriden by gnark tag value
+			// variable name is field name, unless overridden by gnark tag value
 			name := f.Name
 			var nameTag string
 
@@ -253,18 +246,34 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 					nameTag = ""
 				}
 				opts = tagOptions(strings.TrimSpace(string(opts)))
-				if opts == "" || opts.contains(string(optSecret)) {
+				switch {
+				case opts.contains(TagOptSecret):
 					visibility = Secret
-				} else if opts.contains(string(optPublic)) {
+				case opts.contains(TagOptPublic):
 					visibility = Public
-				} else {
+				case opts == "" && parentFullName == "":
+					// our promise is to set visibility to secret for empty-tagged elements.
+					visibility = Secret
+				case opts == "":
+					// even though we have the promise, then in tests we have
+					// assumed that sub-elements without any tags assume parents
+					// visibility (see below). For compatibility, make the same
+					// assumption.
+					visibility = parentVisibility
+				case opts.contains(TagOptInherit) && parentFullName != "":
+					// we have been asked explicitly to inherit the visibility
+					visibility = parentVisibility
+				case opts.contains(TagOptInherit):
+					// but we can not inherit the visibility for top-level
+					// elements. Return an error.
+					return r, fmt.Errorf("can not inherit visibility for top-level element %s", getFullName(parentGoName, name, nameTag))
+				default:
 					return r, fmt.Errorf("invalid gnark struct tag option on %s. must be \"public\", \"secret\" or \"-\"", getFullName(parentGoName, name, nameTag))
 				}
 			}
 
 			if ((parentVisibility == Public) && (visibility == Secret)) ||
 				((parentVisibility == Secret) && (visibility == Public)) {
-				// TODO @gbotrel maybe we should just force it to take the parent value.
 				return r, fmt.Errorf("conflicting visibility. %s (%s) has a parent with different visibility attribute", getFullName(parentGoName, name, nameTag), visibility.String())
 			}
 
@@ -277,8 +286,11 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 
 			if fValue.CanAddr() && fValue.Addr().CanInterface() {
 				value := fValue.Addr().Interface()
+				if ih, hasInitHook := value.(InitHook); hasInitHook {
+					ih.GnarkInitHook()
+				}
 				var err error
-				subFields, err = parse(subFields, value, target, getFullName(parentFullName, name, nameTag), name, nameTag, visibility, handler, nbPublic, nbSecret)
+				subFields, err = parse(subFields, value, target, getFullName(parentFullName, name, nameTag), name, nameTag, visibility, nbPublic, nbSecret)
 				if err != nil {
 					return r, err
 				}
@@ -310,7 +322,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 	if tValue.Kind() == reflect.Slice || tValue.Kind() == reflect.Array {
 		if tValue.Len() == 0 {
 			if reflect.SliceOf(target) == tValue.Type() {
-				fmt.Printf("ignoring uninitizalized slice: %s %s\n", parentGoName, reflect.SliceOf(target).String())
+				fmt.Printf("ignoring uninitialized slice: %s %s\n", parentGoName, reflect.SliceOf(target).String())
 			}
 			return r, nil
 		}
@@ -327,7 +339,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 				val := tValue.Index(j)
 				if val.CanAddr() && val.Addr().CanInterface() {
 					fqn := getFullName(parentFullName, strconv.Itoa(j), "")
-					if _, err := parse(nil, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, handler, nbPublic, nbSecret); err != nil {
+					if _, err := parse(nil, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, nbPublic, nbSecret); err != nil {
 						return nil, err
 					}
 				}
@@ -349,7 +361,7 @@ func parse(r []Field, input interface{}, target reflect.Type, parentFullName, pa
 			val := tValue.Index(j)
 			if val.CanAddr() && val.Addr().CanInterface() {
 				fqn := getFullName(parentFullName, strconv.Itoa(j), "")
-				subFields, err = parse(subFields, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, handler, nbPublic, nbSecret)
+				subFields, err = parse(subFields, val.Addr().Interface(), target, fqn, fqn, parentTagName, parentVisibility, nbPublic, nbSecret)
 				if err != nil {
 					return nil, err
 				}
@@ -384,28 +396,4 @@ func getFullName(parentFullName, name, tagName string) string {
 		return n
 	}
 	return parentFullName + "_" + n
-}
-
-// TODO @gbotrel this should probably not be here.
-func Copy(from interface{}, fromType reflect.Type, to interface{}, toType reflect.Type) {
-	var wValues []interface{}
-
-	var collectHandler LeafHandler = func(v Visibility, _ string, tInput reflect.Value) error {
-		wValues = append(wValues, tInput.Interface())
-		return nil
-	}
-	_, _ = Parse(from, fromType, collectHandler)
-
-	if len(wValues) == 0 {
-		return
-	}
-
-	i := 0
-	var setHandler LeafHandler = func(v Visibility, _ string, tInput reflect.Value) error {
-		tInput.Set(reflect.ValueOf((wValues[i])))
-		i++
-		return nil
-	}
-	// this can't error.
-	_, _ = Parse(to, toType, setHandler)
 }

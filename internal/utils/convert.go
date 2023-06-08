@@ -26,12 +26,12 @@ type toBigIntInterface interface {
 // FromInterface converts an interface to a big.Int element
 //
 // input must be primitive (uintXX, intXX, []byte, string) or implement
-// ToBigIntRegular(res *big.Int) (which is the case for gnark-crypto field elements)
+// BigInt(res *big.Int) (which is the case for gnark-crypto field elements)
 //
 // if the input is a string, it calls (big.Int).SetString(input, 0). In particular:
 // The number prefix determines the actual base: A prefix of
-// ''0b'' or ''0B'' selects base 2, ''0'', ''0o'' or ''0O'' selects base 8,
-// and ''0x'' or ''0X'' selects base 16. Otherwise, the selected base is 10
+// ”0b” or ”0B” selects base 2, ”0”, ”0o” or ”0O” selects base 8,
+// and ”0x” or ”0X” selects base 16. Otherwise, the selected base is 10
 // and no prefix is accepted.
 //
 // panics if the input is invalid
@@ -73,8 +73,8 @@ func FromInterface(input interface{}) big.Int {
 		if v, ok := input.(toBigIntInterface); ok {
 			v.ToBigIntRegular(&r)
 			return r
-		} else if reflect.ValueOf(input).Kind() == reflect.Ptr {
-			vv := reflect.ValueOf(input).Elem()
+		} else if reflect.ValueOf(input).Kind() == reflect.Pointer {
+			vv := reflect.ValueOf(input)
 			if vv.CanInterface() {
 				if v, ok := vv.Interface().(toBigIntInterface); ok {
 					v.ToBigIntRegular(&r)

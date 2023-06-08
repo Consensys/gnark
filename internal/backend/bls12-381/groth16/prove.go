@@ -17,18 +17,13 @@
 package groth16
 
 import (
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-
-	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
-
-	"github.com/consensys/gnark/internal/backend/bls12-381/cs"
-
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
-
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark/backend"
-	bls12_381witness "github.com/consensys/gnark/internal/backend/bls12-381/witness"
+	"github.com/consensys/gnark/constraint/bls12-381"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"math/big"
@@ -40,8 +35,9 @@ import (
 // with a valid statement and a VerifyingKey
 // Notation follows Figure 4. in DIZK paper https://eprint.iacr.org/2018/691.pdf
 type Proof struct {
-	Ar, Krs curve.G1Affine
-	Bs      curve.G2Affine
+	Ar, Krs                   curve.G1Affine
+	Bs                        curve.G2Affine
+	Commitment, CommitmentPok curve.G1Affine
 }
 
 // isValid ensures proof elements are in the correct subgroup
@@ -54,11 +50,12 @@ func (proof *Proof) CurveID() ecc.ID {
 	return curve.ID
 }
 
-// Prove generates the proof of knoweldge of a r1cs with full witness (secret + public part).
-func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt backend.ProverConfig) (*Proof, error) {
-	if len(witness) != int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables) {
-		return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), int(r1cs.NbPublicVariables-1+r1cs.NbSecretVariables), r1cs.NbPublicVariables, r1cs.NbSecretVariables)
-	}
+// Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
+func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
+	// TODO @gbotrel witness size check is done by R1CS, doesn't mean we shouldn't sanitize here.
+	// if len(witness) != r1cs.NbPublicVariables-1+r1cs.NbSecretVariables {
+	// 	return nil, fmt.Errorf("invalid witness size, got %d, expected %d = %d (public) + %d (secret)", len(witness), r1cs.NbPublicVariables-1+r1cs.NbSecretVariables, r1cs.NbPublicVariables, r1cs.NbSecretVariables)
+	// }
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", len(r1cs.Constraints)).Str("backend", "groth16").Logger()
 
@@ -66,6 +63,35 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 	a := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
 	b := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
 	c := make([]fr.Element, len(r1cs.Constraints), pk.Domain.Cardinality)
+
+	proof := &Proof{}
+	if r1cs.CommitmentInfo.Is() {
+		opt.HintFunctions[r1cs.CommitmentInfo.HintID] = func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+			// Perf-TODO: Converting these values to big.Int and back may be a performance bottleneck.
+			// If that is the case, figure out a way to feed the solution vector into this function
+			if len(in) != r1cs.CommitmentInfo.NbCommitted() { // TODO: Remove
+				return fmt.Errorf("unexpected number of committed variables")
+			}
+			values := make([]fr.Element, r1cs.CommitmentInfo.NbPrivateCommitted)
+			nbPublicCommitted := len(in) - len(values)
+			inPrivate := in[nbPublicCommitted:]
+			for i, inI := range inPrivate {
+				values[i].SetBigInt(inI)
+			}
+
+			var err error
+			proof.Commitment, proof.CommitmentPok, err = pk.CommitmentKey.Commit(values)
+			if err != nil {
+				return err
+			}
+
+			var res fr.Element
+			res, err = solveCommitmentWire(&r1cs.CommitmentInfo, &proof.Commitment, in[:r1cs.CommitmentInfo.NbPublicCommitted()])
+			res.BigInt(out[0]) //Perf-TODO: Regular (non-mont) hashToField to obviate this conversion?
+			return err
+		}
+	}
+
 	var wireValues []fr.Element
 	var err error
 	if wireValues, err = r1cs.Solve(witness, a, b, c, opt); err != nil {
@@ -75,20 +101,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 			// we need to fill wireValues with random values else multi exps don't do much
 			var r fr.Element
 			_, _ = r.SetRandom()
-			for i := r1cs.NbPublicVariables + r1cs.NbSecretVariables; i < len(wireValues); i++ {
+			for i := r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables(); i < len(wireValues); i++ {
 				wireValues[i] = r
 				r.Double(&r)
 			}
 		}
 	}
 	start := time.Now()
-
-	// set the wire values in regular form
-	utils.Parallelize(len(wireValues), func(start, end int) {
-		for i := start; i < end; i++ {
-			wireValues[i].FromMont()
-		}
-	})
 
 	// H (witness reduction / FFT part)
 	var h []fr.Element
@@ -140,16 +159,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 	}
 	_kr.Mul(&_r, &_s).Neg(&_kr)
 
-	_r.FromMont()
-	_s.FromMont()
-	_kr.FromMont()
-	_r.ToBigInt(&r)
-	_s.ToBigInt(&s)
+	_r.BigInt(&r)
+	_s.BigInt(&s)
 
 	// computes r[δ], s[δ], kr[δ]
 	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r, _s, _kr})
 
-	proof := &Proof{}
 	var bs1, ar curve.G1Jac
 
 	n := runtime.NumCPU()
@@ -192,7 +207,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 			_, err := krs2.MultiExp(pk.G1.Z, h, ecc.MultiExpConfig{NbTasks: n / 2})
 			chKrs2Done <- err
 		}()
-		if _, err := krs.MultiExp(pk.G1.K, wireValues[r1cs.NbPublicVariables:], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+
+		// filter the wire values if needed;
+		_wireValues := filter(wireValues, r1cs.CommitmentInfo.PrivateToPublic())
+
+		if _, err := krs.MultiExp(pk.G1.K, _wireValues[r1cs.GetNbPublicVariables():], ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
 			return
 		}
@@ -272,6 +291,29 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, witness bls12_381witness.Witness, opt 
 	return proof, nil
 }
 
+// if len(toRemove) == 0, returns slice
+// else, returns a new slice without the indexes in toRemove
+// this assumes toRemove indexes are sorted and len(slice) > len(toRemove)
+func filter(slice []fr.Element, toRemove []int) (r []fr.Element) {
+
+	if len(toRemove) == 0 {
+		return slice
+	}
+	r = make([]fr.Element, 0, len(slice)-len(toRemove))
+
+	j := 0
+	// note: we can optimize that for the likely case where len(slice) >>> len(toRemove)
+	for i := 0; i < len(slice); i++ {
+		if j < len(toRemove) && i == toRemove[j] {
+			j++
+			continue
+		}
+		r = append(r, slice[i])
+	}
+
+	return r
+}
+
 func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
@@ -313,12 +355,6 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 
 	// ifft_coset
 	domain.FFTInverse(a, fft.DIF, true)
-
-	utils.Parallelize(len(a), func(start, end int) {
-		for i := start; i < end; i++ {
-			a[i].FromMont()
-		}
-	})
 
 	return a
 }

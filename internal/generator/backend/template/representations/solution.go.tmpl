@@ -3,14 +3,13 @@ import (
     "fmt"
 	"math/big"
 	"sync/atomic"
-
+	"strings"
+	"strconv"
+	"github.com/consensys/gnark/debug"
     "github.com/consensys/gnark/backend/hint"
-    "github.com/consensys/gnark/frontend/compiled"
-	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/frontend/schema"
+    "github.com/consensys/gnark/constraint"
     "github.com/rs/zerolog"
 	{{ template "import_fr" . }}
-	{{ template "import_curve" . }}
 )
 
 // solution represents elements needed to compute
@@ -20,12 +19,14 @@ type solution struct {
 	solved               []bool
 	nbSolved             uint64
 	mHintsFunctions      map[hint.ID]hint.Function 	// maps hintID to hint function
-	mHints 				 map[int]*compiled.Hint 	// maps wireID to hint
+	mHints 				 map[int]*constraint.Hint 	// maps wireID to hint
+	st *debug.SymbolTable
 }
 
-func newSolution(nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*compiled.Hint,  coefficients []fr.Element) (solution, error) {
+func newSolution( nbWires int, hintFunctions map[hint.ID]hint.Function, hintsDependencies map[hint.ID]string, mHints map[int]*constraint.Hint,  coefficients []fr.Element, st *debug.SymbolTable) (solution, error) {
 
 	s := solution{
+			st: st, 
 			values: make([]fr.Element, nbWires),
 			coefficients: coefficients,
 			solved: make([]bool, nbWires),
@@ -62,22 +63,22 @@ func (s *solution) isValid() bool {
 	return int(s.nbSolved) == len(s.values)
 }
 
-// computeTerm computes coef*variable
-func (s *solution) computeTerm(t compiled.Term) fr.Element {
-	cID, vID, _ := t.Unpack()
+// computeTerm computes coeff*variable
+func (s *solution) computeTerm(t constraint.Term) fr.Element {
+	cID, vID := t.CoeffID(), t.WireID()
 	if cID != 0 && !s.solved[vID] {
 		panic("computing a term with an unsolved wire")
 	}
 	switch cID {
-	case compiled.CoeffIdZero:
+	case constraint.CoeffIdZero:
 		return fr.Element{}
-	case compiled.CoeffIdOne:
+	case constraint.CoeffIdOne:
 		return s.values[vID]
-	case compiled.CoeffIdTwo:
+	case constraint.CoeffIdTwo:
 		var res fr.Element
 		res.Double(&s.values[vID])
 		return res
-	case compiled.CoeffIdMinusOne:
+	case constraint.CoeffIdMinusOne:
 		var res fr.Element
 		res.Neg(&s.values[vID])
 		return res
@@ -89,19 +90,27 @@ func (s *solution) computeTerm(t compiled.Term) fr.Element {
 }
 
 // r += (t.coeff*t.value)
-func (s *solution) accumulateInto(t compiled.Term, r *fr.Element) {
+func (s *solution) accumulateInto(t constraint.Term, r *fr.Element) {
 	cID := t.CoeffID()
+
+	if t.IsConstant() {
+		// needed for logs, we may want to not put this in the hot path if we need to 
+		// optimize constraint system solver further.
+		r.Add(r, &s.coefficients[cID])
+		return
+	}
+
 	vID := t.WireID()
 	switch cID {
-	case compiled.CoeffIdZero:
+	case constraint.CoeffIdZero:
 		return 
-	case compiled.CoeffIdOne:
+	case constraint.CoeffIdOne:
 		r.Add(r, &s.values[vID])
-	case compiled.CoeffIdTwo:
+	case constraint.CoeffIdTwo:
 		var res fr.Element
 		res.Double(&s.values[vID])
 		r.Add(r, &res)
-	case compiled.CoeffIdMinusOne:
+	case constraint.CoeffIdMinusOne:
 		r.Sub(r, &s.values[vID])
 	default:
 		var res fr.Element
@@ -111,7 +120,7 @@ func (s *solution) accumulateInto(t compiled.Term, r *fr.Element) {
 }
 
 // solveHint compute solution.values[vID] using provided solver hint
-func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
+func (s *solution) solveWithHint(vID int, h *constraint.Hint) error {
 	// skip if the wire is already solved by a call to the same hint
 	// function on the same inputs
 	if s.solved[vID] {
@@ -134,12 +143,15 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 
 	q := fr.Modulus()
 
-	// for each input, we set it's big int value, IF all the wires are solved
+	// for each input, we set its big int value, IF all the wires are solved
 	// the only case where all wires may not be solved, is if one of the input of this hint 
 	// is the output of another hint. 
 	// it is safe to recursively solve this with the parallel solver, since all hints-output wires 
 	// that we can solve this way are marked to be solved with the current constraint we are processing.
-	recursiveSolve := func(t compiled.Term) error {
+	recursiveSolve := func(t constraint.Term) error {
+		if t.IsConstant() {
+			return nil
+		}
 		wID := t.WireID()
 		if s.solved[wID] {
 			return nil
@@ -157,33 +169,18 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	for i := 0; i < nbInputs; i++ {
 		inputs[i] = big.NewInt(0)
 
-		switch t := h.Inputs[i].(type) {
-		case compiled.LinearExpression:
-			var v fr.Element
-			for _, term := range t {
-				if err := recursiveSolve(term); err != nil {
-					return err
-				}
-				s.accumulateInto(term, &v)
-			}
-			v.ToBigIntRegular(inputs[i])
-		case compiled.Term:
-			if err := recursiveSolve(t); err != nil {
+		var v fr.Element
+		for _, term := range h.Inputs[i] {
+			if err := recursiveSolve(term); err != nil {
 				return err
 			}
-			v := s.computeTerm(t)
-			v.ToBigIntRegular(inputs[i])
-		default:
-			v := utils.FromInterface(t)
-			inputs[i] = &v
-			
-			// here we have no guarantee that v < q, so we mod reduce
-			inputs[i].Mod(inputs[i], q)
+			s.accumulateInto(term, &v)
 		}
+		v.BigInt(inputs[i])
 	}
 
 
-	err := f(curve.ID, inputs, outputs)
+	err := f(q, inputs, outputs)
 
 	var v fr.Element
 	for i := range outputs {
@@ -194,7 +191,7 @@ func (s *solution) solveWithHint(vID int, h *compiled.Hint) error {
 	return err 
 }
 
-func (s *solution) printLogs(log zerolog.Logger, logs []compiled.LogEntry) {
+func (s *solution) printLogs(log zerolog.Logger, logs []constraint.LogEntry) {
 	if log.GetLevel() == zerolog.Disabled {
 		return
 	}
@@ -207,70 +204,65 @@ func (s *solution) printLogs(log zerolog.Logger, logs []compiled.LogEntry) {
 
 const unsolvedVariable = "<unsolved>"
 
-func (s *solution) logValue(log compiled.LogEntry) string {
+func (s *solution) logValue(log constraint.LogEntry) string {
 	var toResolve []interface{}
 	var (
-		isEval       bool
 		eval         fr.Element
 		missingValue bool
 	)
 	for j := 0; j < len(log.ToResolve); j++ {
-		if log.ToResolve[j] == compiled.TermDelimitor {
-			// this is a special case where we want to evaluate the following terms until the next delimitor.
-			if !isEval {
-				isEval = true
-				missingValue = false
-				eval.SetZero()
-				continue
-			}
-			isEval = false
-			if missingValue {
-				toResolve = append(toResolve, unsolvedVariable)
-			} else {
-				// we have to append our accumulator
-				toResolve = append(toResolve, eval.String())
-			}
-			continue
-		}
-		cID, vID, visibility := log.ToResolve[j].Unpack()
+		// before eval le 
 
-		if isEval {
-			// we are evaluating
-			if visibility == schema.Virtual {
+		missingValue = false
+		eval.SetZero()
+
+		for _, t := range log.ToResolve[j] {
+			// for each term in the linear expression
+
+			cID, vID := t.CoeffID(), t.WireID()
+			if t.IsConstant() {
 				// just add the constant
 				eval.Add(&eval, &s.coefficients[cID])
 				continue
 			}
+
 			if !s.solved[vID] {
 				missingValue = true
-				continue
+				break // stop the loop we can't evaluate.
 			}
-			tv := s.computeTerm(log.ToResolve[j])
+
+			tv := s.computeTerm(t)
 			eval.Add(&eval, &tv)
-			continue
 		}
 
-		if visibility == schema.Virtual {
-			// it's just a constant
-			if cID == compiled.CoeffIdMinusOne {
-				toResolve = append(toResolve, "-1")
-			} else {
-				toResolve = append(toResolve, s.coefficients[cID].String())
-			}
-			continue
-		}
-		if !(cID == compiled.CoeffIdMinusOne || cID == compiled.CoeffIdOne) {
-			toResolve = append(toResolve, s.coefficients[cID].String())
-		}
-		if !s.solved[vID] {
+
+		// after
+		if missingValue {
 			toResolve = append(toResolve, unsolvedVariable)
 		} else {
-			toResolve = append(toResolve, s.values[vID].String())
+			// we have to append our accumulator
+			toResolve = append(toResolve, eval.String())
 		}
+
+	}
+	if len(log.Stack) > 0 {
+		var sbb strings.Builder 
+		for _, lID :=  range log.Stack {
+			location := s.st.Locations[lID]
+			function := s.st.Functions[location.FunctionID]
+
+			sbb.WriteString(function.Name)
+			sbb.WriteByte('\n')
+			sbb.WriteByte('\t')
+			sbb.WriteString(function.Filename)
+			sbb.WriteByte(':')
+			sbb.WriteString(strconv.Itoa(int(location.Line)))
+			sbb.WriteByte('\n')
+		}
+		toResolve = append(toResolve, sbb.String())
 	}
 	return fmt.Sprintf(log.Format, toResolve...)
 }
-
 
 // UnsatisfiedConstraintError wraps an error with useful metadata on the unsatisfied constraint
 type UnsatisfiedConstraintError struct {

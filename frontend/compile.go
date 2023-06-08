@@ -3,9 +3,10 @@ package frontend
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"reflect"
 
-	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
@@ -13,25 +14,27 @@ import (
 
 // Compile will generate a ConstraintSystem from the given circuit
 //
-// 1. it will first allocate the user inputs (see type Tag for more info)
+// 1. it will first allocate the user inputs (see [schema.TagOpt] and [Circuit] for more info)
 // example:
-// 		type MyCircuit struct {
-// 			Y frontend.Variable `gnark:"exponent,public"`
-// 		}
+//
+//	type MyCircuit struct {
+//		Y frontend.Variable `gnark:"exponent,public"`
+//	}
+//
 // in that case, Compile() will allocate one public variable with id "exponent"
 //
 // 2. it then calls circuit.Define(curveID, R1CS) to build the internal constraint system
 // from the declarative code
 //
-// 3. finally, it converts that to a ConstraintSystem.
-// 		if zkpID == backend.GROTH16	→ R1CS
-//		if zkpID == backend.PLONK 	→ SparseR1CS
+//  3. finally, it converts that to a ConstraintSystem.
+//     if zkpID == backend.GROTH16	→ R1CS
+//     if zkpID == backend.PLONK 	→ SparseR1CS
 //
 // initialCapacity is an optional parameter that reserves memory in slices
 // it should be set to the estimated number of constraints in the circuit, if known.
-func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (CompiledConstraintSystem, error) {
+func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...CompileOption) (constraint.ConstraintSystem, error) {
 	log := logger.Logger()
-	log.Info().Str("curve", curveID.String()).Msg("compiling circuit")
+	log.Info().Msg("compiling circuit")
 	// parse options
 	opt := CompileConfig{}
 	for _, o := range opts {
@@ -42,7 +45,7 @@ func Compile(curveID ecc.ID, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	}
 
 	// instantiate new builder
-	builder, err := newBuilder(curveID, opt)
+	builder, err := newBuilder(field, opt)
 	if err != nil {
 		log.Err(err).Msg("instantiating builder")
 		return nil, fmt.Errorf("new compiler: %w", err)
@@ -66,38 +69,44 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 		return errors.New("frontend.Circuit methods must be defined on pointer receiver")
 	}
 
-	// parse the schema, to count the number of public and secret variables
-	s, err := schema.Parse(circuit, tVariable, nil)
+	s, err := schema.Walk(circuit, tVariable, nil)
 	if err != nil {
 		return err
 	}
-	log := logger.Logger()
-	log.Info().Int("nbSecret", s.NbSecret).Int("nbPublic", s.NbPublic).Msg("parsed circuit inputs")
 
-	// this not only set the schema, but sets the wire offsets for public, secret and internal wires
-	builder.SetSchema(s)
+	log := logger.Logger()
+	log.Info().Int("nbSecret", s.Secret).Int("nbPublic", s.Public).Msg("parsed circuit inputs")
 
 	// leaf handlers are called when encoutering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
-	var handler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
-		if tInput.CanSet() {
-			// log.Trace().Str("name", name).Str("visibility", visibility.String()).Msg("init input wire")
-			switch visibility {
-			case schema.Secret:
-				tInput.Set(reflect.ValueOf(builder.AddSecretVariable(name)))
-			case schema.Public:
-				tInput.Set(reflect.ValueOf(builder.AddPublicVariable(name)))
-			case schema.Unset:
-				return errors.New("can't set val " + name + " visibility is unset")
-			}
+	variableAdder := func(targetVisibility schema.Visibility) func(f schema.LeafInfo, tInput reflect.Value) error {
+		return func(f schema.LeafInfo, tInput reflect.Value) error {
+			if tInput.CanSet() {
+				if f.Visibility == schema.Unset {
+					return errors.New("can't set val " + f.FullName() + " visibility is unset")
+				}
+				if f.Visibility == targetVisibility {
+					if f.Visibility == schema.Public {
+						tInput.Set(reflect.ValueOf(builder.PublicVariable(f)))
+					} else if f.Visibility == schema.Secret {
+						tInput.Set(reflect.ValueOf(builder.SecretVariable(f)))
+					}
+				}
 
-			return nil
+				return nil
+			}
+			return errors.New("can't set val " + f.FullName())
 		}
-		return errors.New("can't set val " + name)
 	}
-	// recursively parse through reflection the circuits members to find all Constraints that need to be allocated
-	// (secret or public inputs)
-	_, err = schema.Parse(circuit, tVariable, handler)
+
+	// add public inputs first to compute correct offsets
+	_, err = schema.Walk(circuit, tVariable, variableAdder(schema.Public))
+	if err != nil {
+		return err
+	}
+
+	// add secret inputs
+	_, err = schema.Walk(circuit, tVariable, variableAdder(schema.Secret))
 	if err != nil {
 		return err
 	}
@@ -125,6 +134,7 @@ type CompileOption func(opt *CompileConfig) error
 type CompileConfig struct {
 	Capacity                  int
 	IgnoreUnconstrainedInputs bool
+	CompressThreshold         int
 }
 
 // WithCapacity is a compile option that specifies the estimated capacity needed
@@ -147,6 +157,26 @@ func WithCapacity(capacity int) CompileOption {
 func IgnoreUnconstrainedInputs() CompileOption {
 	return func(opt *CompileConfig) error {
 		opt.IgnoreUnconstrainedInputs = true
+		return nil
+	}
+}
+
+// WithCompressThreshold is a compile option which enforces automatic variable
+// compression if the length of the linear expression in the variable exceeds
+// given threshold.
+//
+// This option is usable in arithmetisations where the variable is a linear
+// combination, as for example in R1CS. If variable is not a linear combination,
+// then this option does not change the compile behaviour.
+//
+// This compile option should be used in cases when it is known that there are
+// long addition chains and the compile time and memory usage start are growing
+// fast. The compression adds some overhead in the number of constraints. The
+// overhead and compile performance depends on threshold value, and it should be
+// chosen carefully.
+func WithCompressThreshold(threshold int) CompileOption {
+	return func(opt *CompileConfig) error {
+		opt.CompressThreshold = threshold
 		return nil
 	}
 }

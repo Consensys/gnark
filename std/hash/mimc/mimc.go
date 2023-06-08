@@ -23,6 +23,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 )
 
 // MiMC contains the params of the Mimc hash func and the curves on which it is implemented
@@ -36,7 +37,8 @@ type MiMC struct {
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
 func NewMiMC(api frontend.API) (MiMC, error) {
-	if constructor, ok := newMimc[api.Compiler().Curve()]; ok {
+	// TODO @gbotrel use field
+	if constructor, ok := newMimc[utils.FieldToCurve(api.Compiler().Field())]; ok {
 		return constructor(api), nil
 	}
 	return MiMC{}, errors.New("unknown curve id")
@@ -53,7 +55,7 @@ func (h *MiMC) Reset() {
 	h.h = 0
 }
 
-// Hash hash (in r1cs form) using Miyaguchi–Preneel:
+// Sum hash (in r1cs form) using Miyaguchi–Preneel:
 // https://en.wikipedia.org/wiki/One-way_compression_function
 // The XOR operation is replaced by field addition.
 // See github.com/consensys/gnark-crypto for reference implementation.

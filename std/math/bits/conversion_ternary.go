@@ -4,7 +4,6 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
 )
@@ -56,7 +55,7 @@ func fromTernary(api frontend.API, digits []frontend.Variable, opts ...BaseConve
 
 func toTernary(api frontend.API, v frontend.Variable, opts ...BaseConversionOption) []frontend.Variable {
 	// parse options
-	nbBits := api.Compiler().Curve().Info().Fr.Bits
+	nbBits := api.Compiler().FieldBitLen()
 	nbTrits := int(float64(nbBits)/math.Log2(3.0)) + 1
 	cfg := baseConversionConfig{
 		NbDigits: nbTrits,
@@ -123,7 +122,7 @@ func AssertIsTrit(api frontend.API, v frontend.Variable) {
 	api.AssertIsEqual(api.Mul(v, y), 0)
 }
 
-func nTrits(_ ecc.ID, inputs []*big.Int, results []*big.Int) error {
+func nTrits(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	n := inputs[0]
 	// TODO using big.Int Text method is likely not cheap
 	base3 := n.Text(3)

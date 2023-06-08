@@ -25,8 +25,8 @@ func init() {
 
 	// moduli
 	for _, curve := range gnark.Curves() {
-		fp := curve.Info().Fp.Modulus()
-		fr := curve.Info().Fr.Modulus()
+		fp := curve.BaseField()
+		fr := curve.ScalarField()
 		seedCorpus = append(seedCorpus, fp)
 		seedCorpus = append(seedCorpus, fr)
 
@@ -85,7 +85,7 @@ func seedFiller(w frontend.Circuit, curve ecc.ID) {
 
 	mrand.Seed(time.Now().Unix())
 
-	m := curve.Info().Fr.Modulus()
+	m := curve.ScalarField()
 
 	fill(w, func() interface{} {
 		i := int(mrand.Uint32() % uint32(len(seedCorpus))) //#nosec G404 weak rng is fine here
@@ -99,12 +99,12 @@ func randomFiller(w frontend.Circuit, curve ecc.ID) {
 	mrand.Seed(time.Now().Unix())
 
 	r := mrand.New(mrand.NewSource(time.Now().Unix())) //#nosec G404 weak rng is fine here
-	m := curve.Info().Fr.Modulus()
+	m := curve.ScalarField()
 
 	fill(w, func() interface{} {
 		i := int(mrand.Uint32() % uint32(len(seedCorpus)*2)) //#nosec G404 weak rng is fine here
 		if i >= len(seedCorpus) {
-			b1, _ := rand.Int(r, m)
+			b1, _ := rand.Int(r, m) //#nosec G404 weak rng is fine here
 			return b1
 		}
 		r := new(big.Int).Set(seedCorpus[i])
@@ -113,15 +113,14 @@ func randomFiller(w frontend.Circuit, curve ecc.ID) {
 }
 
 func fill(w frontend.Circuit, nextValue func() interface{}) {
-	var setHandler schema.LeafHandler = func(visibility schema.Visibility, name string, tInput reflect.Value) error {
-		if visibility == schema.Secret || visibility == schema.Public {
-			v := nextValue()
-			tInput.Set(reflect.ValueOf((v)))
-		}
+	setHandler := func(f schema.LeafInfo, tInput reflect.Value) error {
+		v := nextValue()
+		tInput.Set(reflect.ValueOf((v)))
 		return nil
 	}
 	// this can't error.
-	_, _ = schema.Parse(w, tVariable, setHandler)
+	// TODO @gbotrel it might error with .Walk?
+	_, _ = schema.Walk(w, tVariable, setHandler)
 }
 
 var tVariable reflect.Type

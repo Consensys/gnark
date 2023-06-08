@@ -16,22 +16,24 @@ limitations under the License.
 
 package frontend
 
-// Circuit must be implemented by user-defined circuits
+// Circuit must be implemented by user-defined circuit. The best way to define a
+// circuit is to define a type which contains all the witness elements as fields
+// and declare `Define` method on the type.
 //
-// the tag format is as follow:
-// 		type MyCircuit struct {
-// 			Y frontend.Variable `gnark:"name,option"`
-// 		}
-// if empty, default resolves to variable name (here "Y") and secret visibility
-// similarly to json or xml struct tags, these are valid:
-// 		`gnark:",public"` or `gnark:"-"`
-// using "-" marks the variable as ignored by the Compile method. This can be useful when you need to
-// declare variables as aliases that are already allocated. For example
-// 		type MyCircuit struct {
-// 			Y frontend.Variable `gnark:",public"`
-//			Z frontend.Variable `gnark:"-"`
-// 		}
-// it is then the developer responsability to do circuit.Z = circuit.Y in the Define() method
+// For example, the following is a minimal valid circuit:
+//
+//	type MyCircuit struct {
+//	    X frontend.Variable `gnark:"-,public"`
+//	    Y frontend.Variable `gnark:"-,secret"`
+//	}
+//
+//	func (c *MyCircuit) Define(api frontend.API) error {
+//	    api.AssertIsEqual(c.X, c.Y)
+//		return nil
+//	}
+//
+// See the documentation for [schema.TagOpt] for how to use tags to define the
+// behaviour of the compiler and schema parser.
 type Circuit interface {
 	// Define declares the circuit's Constraints
 	Define(api API) error

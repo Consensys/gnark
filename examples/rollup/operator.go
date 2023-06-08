@@ -23,7 +23,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/accumulator/merkletree"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	"github.com/consensys/gnark/std/accumulator/merkle"
 )
 
 var hFunc = mimc.NewMiMC()
@@ -36,9 +35,9 @@ type Queue struct {
 	listTransfers chan Transfer
 }
 
-// NewQueue creates a new queue, batchSize is the capaciy
-func NewQueue(batchSize int) Queue {
-	resChan := make(chan Transfer, batchSize)
+// NewQueue creates a new queue, BatchSizeCircuit is the capaciy
+func NewQueue(BatchSizeCircuit int) Queue {
+	resChan := make(chan Transfer, BatchSizeCircuit)
 	var res Queue
 	res.listTransfers = resChan
 	return res
@@ -59,6 +58,7 @@ type Operator struct {
 // NewOperator creates a new operator.
 // nbAccounts is the number of accounts managed by this operator, h is the hash function for the merkle proofs
 func NewOperator(nbAccounts int) Operator {
+
 	res := Operator{}
 
 	// create a list of empty accounts
@@ -93,7 +93,7 @@ func (o *Operator) readAccount(i uint64) (Account, error) {
 }
 
 // updateAccount updates the state according to transfer
-// numTransfer is the number of the transfer currently handled (between 0 and batchSize)
+// numTransfer is the number of the transfer currently handled (between 0 and BatchSizeCircuit)
 func (o *Operator) updateState(t Transfer, numTransfer int) error {
 
 	var posSender, posReceiver uint64
@@ -111,6 +111,9 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	if err != nil {
 		return err
 	}
+	if senderAccount.index != posSender {
+		return ErrIndexConsistency
+	}
 
 	// read receiver's account
 	b = t.receiverPubKey.A.X.Bytes()
@@ -121,6 +124,13 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	if err != nil {
 		return err
 	}
+	if receiverAccount.index != posReceiver {
+		return ErrIndexConsistency
+	}
+
+	// set witnesses for the leaves
+	o.witnesses.LeafReceiver[numTransfer] = posReceiver
+	o.witnesses.LeafSender[numTransfer] = posSender
 
 	// set witnesses for the public keys
 	o.witnesses.PublicKeysSender[numTransfer].A.X = senderAccount.pubKey.A.X
@@ -147,8 +157,9 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	if err != nil {
 		return err
 	}
+
+	// verify the proof in plain go...
 	merkletree.VerifyProof(o.h, merkleRootBefore, proofInclusionSenderBefore, posSender, numLeaves)
-	merkleProofHelperSenderBefore := merkle.GenerateProofHelper(proofInclusionSenderBefore, posSender, numLeaves)
 
 	buf.Reset() // the buffer needs to be reset
 	_, err = buf.Write(o.HashState)
@@ -159,16 +170,13 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	if err != nil {
 		return err
 	}
-	merkleProofHelperReceiverBefore := merkle.GenerateProofHelper(proofInclusionReceiverBefore, posReceiver, numLeaves)
 	o.witnesses.RootHashesBefore[numTransfer] = merkleRootBefore
-	for i := 0; i < len(proofInclusionSenderBefore); i++ {
-		o.witnesses.MerkleProofsSenderBefore[numTransfer][i] = proofInclusionSenderBefore[i]
-		o.witnesses.MerkleProofsReceiverBefore[numTransfer][i] = proofInclusionReceiverBefore[i]
+	o.witnesses.MerkleProofReceiverBefore[numTransfer].RootHash = merkleRootBefore
+	o.witnesses.MerkleProofSenderBefore[numTransfer].RootHash = merkleRootBefore
 
-		if i < len(proofInclusionReceiverBefore)-1 {
-			o.witnesses.MerkleProofHelperSenderBefore[numTransfer][i] = merkleProofHelperSenderBefore[i]
-			o.witnesses.MerkleProofHelperReceiverBefore[numTransfer][i] = merkleProofHelperReceiverBefore[i]
-		}
+	for i := 0; i < len(proofInclusionSenderBefore); i++ {
+		o.witnesses.MerkleProofReceiverBefore[numTransfer].Path[i] = proofInclusionReceiverBefore[i]
+		o.witnesses.MerkleProofSenderBefore[numTransfer].Path[i] = proofInclusionSenderBefore[i]
 	}
 
 	// set witnesses for the transfer
@@ -189,8 +197,8 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 
 	// checks if the amount is correct
 	var bAmount, bBalance big.Int
-	receiverAccount.balance.ToBigIntRegular(&bBalance)
-	t.amount.ToBigIntRegular(&bAmount)
+	receiverAccount.balance.BigInt(&bBalance)
+	t.amount.BigInt(&bAmount)
 	if bAmount.Cmp(&bBalance) == 1 {
 		return ErrAmountTooHigh
 	}
@@ -200,23 +208,21 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 		return ErrNonce
 	}
 
-	// update the balance of the sender
+	// update balances
 	senderAccount.balance.Sub(&senderAccount.balance, &t.amount)
-
-	// update the balance of the receiver
 	receiverAccount.balance.Add(&receiverAccount.balance, &t.amount)
 
 	// update the nonce of the sender
 	senderAccount.nonce++
 
 	// set the witnesses for the account after update
-	o.witnesses.SenderAccountsAfter[numTransfer].Index = senderAccount.index
-	o.witnesses.SenderAccountsAfter[numTransfer].Nonce = senderAccount.nonce
-	o.witnesses.SenderAccountsAfter[numTransfer].Balance = senderAccount.balance
-
 	o.witnesses.ReceiverAccountsAfter[numTransfer].Index = receiverAccount.index
 	o.witnesses.ReceiverAccountsAfter[numTransfer].Nonce = receiverAccount.nonce
 	o.witnesses.ReceiverAccountsAfter[numTransfer].Balance = receiverAccount.balance
+
+	o.witnesses.SenderAccountsAfter[numTransfer].Index = senderAccount.index
+	o.witnesses.SenderAccountsAfter[numTransfer].Nonce = senderAccount.nonce
+	o.witnesses.SenderAccountsAfter[numTransfer].Balance = senderAccount.balance
 
 	// update the state of the operator
 	copy(o.State[int(posSender)*SizeAccount:], senderAccount.Serialize())
@@ -241,7 +247,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	if err != nil {
 		return err
 	}
-	merkleProofHelperSenderAfter := merkle.GenerateProofHelper(proofInclusionSenderAfter, posSender, numLeaves)
+	// merkleProofHelperSenderAfter := merkle.GenerateProofHelper(proofInclusionSenderAfter, posSender, numLeaves)
 
 	buf.Reset() // the buffer needs to be reset
 	_, err = buf.Write(o.HashState)
@@ -252,17 +258,15 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	if err != nil {
 		return err
 	}
-	merkleProofHelperReceiverAfter := merkle.GenerateProofHelper(proofInclusionReceiverAfter, posReceiver, numLeaves)
+	// merkleProofHelperReceiverAfter := merkle.GenerateProofHelper(proofInclusionReceiverAfter, posReceiver, numLeaves)
 
 	o.witnesses.RootHashesAfter[numTransfer] = merkleRootAfer
-	for i := 0; i < len(proofInclusionSenderAfter); i++ {
-		o.witnesses.MerkleProofsSenderAfter[numTransfer][i] = proofInclusionSenderAfter[i]
-		o.witnesses.MerkleProofsReceiverAfter[numTransfer][i] = proofInclusionReceiverAfter[i]
+	o.witnesses.MerkleProofReceiverAfter[numTransfer].RootHash = merkleRootAfer
+	o.witnesses.MerkleProofSenderAfter[numTransfer].RootHash = merkleRootAfer
 
-		if i < len(proofInclusionReceiverAfter)-1 {
-			o.witnesses.MerkleProofHelperSenderAfter[numTransfer][i] = merkleProofHelperSenderAfter[i]
-			o.witnesses.MerkleProofHelperReceiverAfter[numTransfer][i] = merkleProofHelperReceiverAfter[i]
-		}
+	for i := 0; i < len(proofInclusionSenderAfter); i++ {
+		o.witnesses.MerkleProofReceiverAfter[numTransfer].Path[i] = proofInclusionReceiverAfter[i]
+		o.witnesses.MerkleProofSenderAfter[numTransfer].Path[i] = proofInclusionSenderAfter[i]
 	}
 
 	return nil
