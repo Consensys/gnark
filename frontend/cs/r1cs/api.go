@@ -676,10 +676,6 @@ func (builder *builder) Compiler() frontend.Compiler {
 	return builder
 }
 
-func lastIs(slice []int, n int) bool {
-	return len(slice) > 0 && slice[len(slice)-1] == n
-}
-
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
 	commitments := constraint.ToGroth16Commitments(builder.cs.GetCommitments())
