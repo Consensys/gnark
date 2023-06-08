@@ -17,6 +17,7 @@
 package groth16
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -87,8 +88,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 				}
 
 				var res fr.Element
+				fmt.Println("prover commitment", i)
+				fmt.Println("hashed input")
+				for i := range hashed {
+					fmt.Println(i, hashed[i].String())
+				}
 				res, err = solveCommitmentWire(&proof.Commitments[i], hashed)
 				res.BigInt(out[0])
+				fmt.Println("computed as", res.String())
 				return err
 			}
 		}(i)))

@@ -145,7 +145,9 @@ func NewSystem(scalarField *big.Int, capacity int, t SystemType) System {
 		lbOutputs:          make([]uint32, 0, 256),
 		lbWireLevel:        make([]int, 0, capacity),
 		Levels:             make([][]int, 0, capacity/2),
+		CommitmentInfo:     NewCommitments(t),
 	}
+
 	system.genericHint = system.AddBlueprint(&BlueprintGenericHint{})
 	return system
 }

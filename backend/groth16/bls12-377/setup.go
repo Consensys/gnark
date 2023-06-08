@@ -295,7 +295,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		return err
 	}
 
-	vk.PublicCommitted = commitmentInfo.GetPublicCommitted()
+	vk.PublicCommitted = commitmentInfo.GetPublicAndCommitmentCommitted()
 
 	// ---------------------------------------------------------------------------------------------
 	// G2 scalars

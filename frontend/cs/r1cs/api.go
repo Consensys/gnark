@@ -762,7 +762,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		lastInsertedWireId = t.VID
 	}
 
-	if len(privateCommitted) == 0 {
+	if len(privateCommitted)+len(publicAndCommitmentCommitted) == 0 { // TODO @tabaie Necessary?
 		return nil, errors.New("must commit to at least one variable")
 	}
 

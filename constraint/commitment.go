@@ -51,10 +51,27 @@ func (c Groth16Commitments) GetPrivateCommitted() [][]int {
 	return res
 }
 
-func (c Groth16Commitments) GetPublicCommitted() [][]int {
+// GetPublicAndCommitmentCommitted returns the list of public and commitment committed wires
+// if committedTranslationList is not nil, commitment indexes are translated into their relative positions on the list plus the offset
+func (c Groth16Commitments) GetPublicAndCommitmentCommitted(committedTranslationList []int, offset int) [][]int {
 	res := make([][]int, len(c))
 	for i := range c {
-		res[i] = c[i].PublicAndCommitmentCommitted[:c[i].NbPublicCommitted]
+		res[i] = make([]int, len(c[i].PublicAndCommitmentCommitted))
+		copy(res[i], c[i].GetPublicCommitted())
+		translatedCommitmentCommitted := res[i][c[i].NbPublicCommitted:]
+		commitmentCommitted := c[i].GetCommitmentCommitted()
+		// convert commitment indexes to verifier understandable ones
+		if committedTranslationList == nil {
+			copy(translatedCommitmentCommitted, commitmentCommitted)
+		} else {
+			k := 0
+			for j := range translatedCommitmentCommitted {
+				for committedTranslationList[k] != commitmentCommitted[j] {
+					k++
+				} // find it in the translation list
+				translatedCommitmentCommitted[j] = k + offset
+			}
+		}
 	}
 	return res
 }
@@ -73,6 +90,16 @@ func SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, f
 	return res
 }
 
+func NewCommitments(t SystemType) Commitments {
+	switch t {
+	case SystemR1CS:
+		return Groth16Commitments{}
+	case SystemSparseR1CS:
+		return PlonkCommitments{}
+	}
+	panic("unknown cs type")
+}
+
 func ToGroth16Commitments(c Commitments) Groth16Commitments {
 	if c == nil {
 		return nil
@@ -85,4 +112,12 @@ func ToPlonkCommitments(c Commitments) PlonkCommitments {
 		return nil
 	}
 	return c.(PlonkCommitments)
+}
+
+func (c Groth16Commitment) GetPublicCommitted() []int {
+	return c.PublicAndCommitmentCommitted[:c.NbPublicCommitted]
+}
+
+func (c Groth16Commitment) GetCommitmentCommitted() []int {
+	return c.PublicAndCommitmentCommitted[c.NbPublicCommitted:]
 }

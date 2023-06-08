@@ -70,9 +70,12 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	commitmentsSerialized := make([]byte, len(vk.PublicCommitted)*fr.Bytes)
 	commitmentPrehashSerialized := make([]byte, curve.SizeOfG1AffineUncompressed+maxNbPublicCommitted*fr.Bytes)
 	for i := range vk.PublicCommitted { // solveCommitmentWire
+		fmt.Println("verifier commitment", i)
 		copy(commitmentPrehashSerialized, proof.Commitments[i].Marshal())
 		offset := curve.SizeOfG1AffineUncompressed
+		fmt.Println("hashed input")
 		for j := range vk.PublicCommitted[i] {
+			fmt.Println(j, publicWitness[vk.PublicCommitted[i][j]-1].String())
 			copy(commitmentPrehashSerialized[offset:], publicWitness[vk.PublicCommitted[i][j]-1].Marshal())
 			offset += fr.Bytes
 		}
@@ -80,6 +83,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			return err
 		} else {
 			publicWitness = append(publicWitness, res[0])
+			fmt.Printf("verifier computed commitment #%d = %s\n", i, res[0].String())
 			copy(commitmentsSerialized[i*fr.Bytes:], res[0].Marshal())
 		}
 	}
