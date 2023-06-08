@@ -61,24 +61,3 @@ func (h *IntHeap) down(i0, n int) bool {
 	}
 	return i > i0
 }
-
-// Copied from go codebase but not needed (yet)
-/*
-
-// Fix re-establishes the heap ordering after the element at index i has changed its value.
-// Changing the value of the element at index i and then calling fix is equivalent to,
-// but less expensive than, calling Remove(h, i) followed by a Push of the new value.
-// The complexity is O(log n) where n = len(*h).
-func (h *IntHeap) Fix(i int) {
-	if !h.down(i, len(*h)) {
-		h.up(i)
-	}
-}
-
-// Push the element x onto the heap.
-// The complexity is O(log n) where n = len(*h).
-func (h *IntHeap) Push(x int) {
-	*h = append(*h, x)
-	h.up(len(*h) - 1)
-}
-*/
