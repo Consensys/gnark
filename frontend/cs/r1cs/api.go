@@ -682,7 +682,7 @@ func lastIs(slice []int, n int) bool {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
-	commitments := builder.cs.GetCommitments()
+	commitments := builder.cs.GetCommitments().(constraint.Groth16Commitments)
 	existingCommitmentIndexes := commitments.CommitmentWireIndexes()
 	privateCommittedSeeker := utils.MultiListSeeker(commitments.GetPrivateCommitted())
 
@@ -691,22 +691,22 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 	vars, s := builder.toVariables(v...)
 
-	nbPublicCommittedBound := 0
+	nbPublicCommitted := 0
 	// initialize the min-heap
 	// this is the same algorithm as api.add --> we want to merge k sorted linear expression
 	for lID, v := range vars {
 		if v[0].VID < builder.cs.GetNbPublicVariables() {
-			nbPublicCommittedBound++
+			nbPublicCommitted++
 		}
 		builder.heap = append(builder.heap, linMeta{val: v[0].VID, lID: lID}) // TODO: Use int heap
 	}
 	builder.heap.heapify()
 
 	// sort all the wires
-	publicCommitted := make([]int, 0, nbPublicCommittedBound)
+	publicAndCommitmentCommitted := make([]int, 0, nbPublicCommitted+len(existingCommitmentIndexes)) // right now nbPublicCommitted is an upper bound
 	privateCommitted := make([]int, 0, s)
-	commitmentsCommitted := make([]int, 0, len(existingCommitmentIndexes))
 	lastInsertedWireId := -1
+	nbPublicCommitted = 0
 
 	// process all the terms from all the inputs, in sorted order
 	for len(builder.heap) > 0 {
@@ -730,8 +730,9 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		}
 
 		if t.VID < builder.cs.GetNbPublicVariables() { // public
-			publicCommitted = append(publicCommitted, t.VID)
+			publicAndCommitmentCommitted = append(publicAndCommitmentCommitted, t.VID)
 			lastInsertedWireId = t.VID
+			nbPublicCommitted++
 			continue
 		}
 
@@ -740,7 +741,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 			existingCommitmentIndexes = existingCommitmentIndexes[1:]
 		}
 		if len(existingCommitmentIndexes) > 0 && existingCommitmentIndexes[0] == t.VID { // commitment
-			commitmentsCommitted = append(commitmentsCommitted, t.VID)
+			publicAndCommitmentCommitted = append(publicAndCommitmentCommitted, t.VID)
 			existingCommitmentIndexes = existingCommitmentIndexes[1:] // technically unnecessary
 			lastInsertedWireId = t.VID
 			continue
@@ -767,9 +768,9 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 	// build commitment
 	commitment := constraint.Groth16Commitment{
-		PublicCommitted:     publicCommitted,
-		CommitmentCommitted: commitmentsCommitted,
-		PrivateCommitted:    privateCommitted,
+		PublicAndCommitmentCommitted: publicAndCommitmentCommitted,
+		NbPublicCommitted:            nbPublicCommitted,
+		PrivateCommitted:             privateCommitted,
 	}
 
 	// hint is used at solving time to compute the actual value of the commitment
@@ -780,14 +781,13 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		err     error
 	)
 
-	commitment.HintID, err = cs.RegisterBsb22CommitmentComputePlaceholder(len(builder.cs.GetCommitments()))
+	commitment.HintID, err = cs.RegisterBsb22CommitmentComputePlaceholder(len(commitments))
 	if err != nil {
 		return nil, err
 	}
 
 	if hintOut, err = builder.NewHintForId(commitment.HintID, 1, builder.wireIDsToVars(
-		commitment.PublicCommitted,
-		commitment.CommitmentCommitted,
+		commitment.PublicAndCommitmentCommitted,
 		commitment.PrivateCommitted,
 	)...); err != nil {
 		return nil, err

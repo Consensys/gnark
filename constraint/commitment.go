@@ -20,9 +20,11 @@ type PlonkCommitment struct {
 	HintID          solver.HintID
 }
 
+type Commitment interface{}
 type Commitments interface{}
 
 type Groth16Commitments []Groth16Commitment
+type PlonkCommitments []PlonkCommitment
 
 func (c Groth16Commitments) CommitmentWireIndexes() []int {
 	commitmentWires := make([]int, len(c))
@@ -40,8 +42,12 @@ func (c Groth16Commitments) GetPrivateCommitted() [][]int {
 	return res
 }
 
-func (c Groth16Commitments) GetPublicAndCommitmentCommitted() [][]int {
-
+func (c Groth16Commitments) GetPublicCommitted() [][]int {
+	res := make([][]int, len(c))
+	for i := range c {
+		res[i] = c[i].PublicAndCommitmentCommitted[:c[i].NbPublicCommitted]
+	}
+	return res
 }
 
 /*

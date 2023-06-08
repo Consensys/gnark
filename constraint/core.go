@@ -298,7 +298,14 @@ func (system *System) AddSolverHint(f solver.Hint, id solver.HintID, input []Lin
 }
 
 func (system *System) AddCommitment(c Commitment) error {
-	system.CommitmentInfo = append(system.CommitmentInfo, c)
+	switch v := c.(type) {
+	case Groth16Commitment:
+		system.CommitmentInfo = append(system.CommitmentInfo.(Groth16Commitments), v)
+	case PlonkCommitment:
+		system.CommitmentInfo = append(system.CommitmentInfo.(PlonkCommitments), v)
+	default:
+		return fmt.Errorf("unknown commitment type %T", v)
+	}
 	return nil
 }
 

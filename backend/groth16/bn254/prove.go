@@ -75,7 +75,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		solverOpts = append(solverOpts, solver.OverrideHint(commitmentInfo[i].HintID, func(i int) solver.Hint {
 			return func(_ *big.Int, in []*big.Int, out []*big.Int) error {
 				privateCommittedValues[i] = make([]fr.Element, len(commitmentInfo[i].PrivateCommitted))
-				hashed := in[:len(commitmentInfo[i].PublicCommitted)+len(commitmentInfo[i].CommitmentCommitted)]
+				hashed := in[:len(commitmentInfo[i].PublicAndCommitmentCommitted)]
 				committed := in[len(hashed):]
 				for j, inJ := range committed {
 					privateCommittedValues[i][j].SetBigInt(inJ)
