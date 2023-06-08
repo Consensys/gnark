@@ -1,7 +1,6 @@
 package test
 
 import (
-	"github.com/consensys/gnark/backend"
 	"reflect"
 	"testing"
 
@@ -22,7 +21,6 @@ func (c *noCommitmentCircuit) Define(api frontend.API) error {
 }
 
 func TestNoCommitmentCircuit(t *testing.T) {
-	//NewAssert(t).ProverSucceeded(&noCommitmentCircuit{1}, &noCommitmentCircuit{1}, WithBackends(backend.PLONK), WithCurves(ecc.BN254))
 	testAll(t, &noCommitmentCircuit{1})
 }
 
@@ -146,9 +144,7 @@ func (c *twoCommitCircuit) Define(api frontend.API) error {
 }
 
 func TestTwoCommit(t *testing.T) {
-	assignment := &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3}
-	NewAssert(t).ProverSucceeded(hollow(assignment), assignment, WithCurves(ecc.BN254), WithBackends(backend.GROTH16))
-	//testAll(t, &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3})
+	testAll(t, &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3})
 }
 
 type doubleCommitCircuit struct {
