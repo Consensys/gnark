@@ -678,7 +678,7 @@ func (builder *builder) Compiler() frontend.Compiler {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
-	commitments := constraint.ToGroth16Commitments(builder.cs.GetCommitments())
+	commitments := builder.cs.GetCommitments().(constraint.Groth16Commitments)
 	existingCommitmentIndexes := commitments.CommitmentIndexes()
 	privateCommittedSeeker := utils.MultiListSeeker(commitments.GetPrivateCommitted())
 

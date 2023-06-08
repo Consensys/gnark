@@ -100,20 +100,6 @@ func NewCommitments(t SystemType) Commitments {
 	panic("unknown cs type")
 }
 
-func ToGroth16Commitments(c Commitments) Groth16Commitments {
-	if c == nil {
-		return nil
-	}
-	return c.(Groth16Commitments)
-}
-
-func ToPlonkCommitments(c Commitments) PlonkCommitments {
-	if c == nil {
-		return nil
-	}
-	return c.(PlonkCommitments)
-}
-
 func (c Groth16Commitment) GetPublicCommitted() []int {
 	return c.PublicAndCommitmentCommitted[:c.NbPublicCommitted]
 }
