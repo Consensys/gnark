@@ -73,82 +73,16 @@ func SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, f
 	return res
 }
 
-/*
-func (i *Commitment) NbPublicCommitted() int {
-	return i.NbCommitted() - i.NbPrivateCommitted
-}
-
-func (i *Commitment) NbCommitted() int {
-	return len(i.Committed)
-}
-
-// NewCommitment initialize a Commitment object
-//   - committed are the sorted wireID to commit to (without duplicate)
-//   - nbPublicCommitted is the number of public inputs among the committed wireIDs
-func NewCommitment(committed []int, nbPublicCommitted int) Commitment {
-	return Commitment{
-		Committed:          committed,
-		NbPrivateCommitted: len(committed) - nbPublicCommitted,
+func ToGroth16Commitments(c Commitments) Groth16Commitments {
+	if c == nil {
+		return nil
 	}
+	return c.(Groth16Commitments)
 }
 
-// PrivateToPublicGroth16 returns indexes of variables which are private to the constraint system, but public to Groth16. That is, private committed variables and the commitment itself
-// TODO Perhaps move it elsewhere since it's specific to groth16
-func (i *Commitment) PrivateToPublicGroth16() []int {
-	res := make([]int, i.NbPrivateCommitted+1)
-	copy(res, i.PrivateCommitted())
-	res[i.NbPrivateCommitted] = i.CommitmentIndex
-	return res
-}
-
-func (i *Commitment) PrivateCommitted() []int {
-	return i.Committed[i.NbPublicCommitted():]
-}
-
-func (i *Commitment) PublicCommitted() []int {
-	return i.Committed[:i.NbPublicCommitted()]
-}
-
-
-
-// Interleave returns combined information about the commitments
-// nbPrivateCommittedWires doesn't double count because the frontend guarantees that no private wire is committed to more than once
-// publicAndCommitmentCommitted returns the index of committed wires that would be hashed, and are indexed from the verifier's point of view
-func (c Commitments) Interleave(nbPublicVars int) (nbPrivateCommittedWires int, commitmentWires []int, privateCommitted [][]int, publicAndCommitmentCommitted [][]int) {
-	commitmentWires = c.CommitmentWireIndexes()
-
-	privateCommitted = make([][]int, len(c))
-	publicAndCommitmentCommitted = make([][]int, len(c))
-	for i := range c {
-		nonPublicCommitted := c[i].PrivateCommitted()
-		privateCommitted[i] = make([]int, 0, len(nonPublicCommitted))
-		publicAndCommitmentCommitted[i] = make([]int, c[i].NbPublicCommitted(), len(c[i].Committed))
-		copy(publicAndCommitmentCommitted[i], c[i].PublicCommitted())
-		for _, j := range nonPublicCommitted {
-			if k, found := utils.FindInSlice(commitmentWires, j); found { // if j is a commitment wire
-				publicAndCommitmentCommitted[i] = append(publicAndCommitmentCommitted[i], k+nbPublicVars)
-			} else {
-				privateCommitted[i] = append(privateCommitted[i], j)
-			}
-		}
-
-		nbPrivateCommittedWires += len(privateCommitted[i])
+func ToPlonkCommitments(c Commitments) PlonkCommitments {
+	if c == nil {
+		return nil
 	}
-	return
+	return c.(PlonkCommitments)
 }
-
-// CommitmentIndexesInCommittedLists returns the indexes of the commitments in the list of committed wires
-// note that these are not absolute indexes
-func (c Commitments) CommitmentIndexesInCommittedLists() [][]int {
-	res := make([][]int, len(c))
-	for i := range c {
-		res[i] = make([]int, 0, i)
-		for j := 0; j < i; j++ {
-			if k, found := utils.FindInSlice(c[i].PrivateCommitted(), c[j].CommitmentIndex); found {
-				res[i] = append(res[i], k+c[i].NbPublicCommitted())
-			}
-		}
-	}
-	return res
-}
-*/

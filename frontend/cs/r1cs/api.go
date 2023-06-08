@@ -682,7 +682,7 @@ func lastIs(slice []int, n int) bool {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
-	commitments := builder.cs.GetCommitments().(constraint.Groth16Commitments)
+	commitments := constraint.ToGroth16Commitments(builder.cs.GetCommitments())
 	existingCommitmentIndexes := commitments.CommitmentIndexes()
 	privateCommittedSeeker := utils.MultiListSeeker(commitments.GetPrivateCommitted())
 
@@ -813,8 +813,9 @@ func (builder *builder) wireIDsToVars(wireIDs ...[]int) []frontend.Variable {
 	n = 0
 	for _, list := range wireIDs {
 		for i := range list {
-			res[n] = expr.NewLinearExpression(list[i], builder.tOne)
+			res[n+i] = expr.NewLinearExpression(list[i], builder.tOne)
 		}
+		n += len(list)
 	}
 	return res
 }
