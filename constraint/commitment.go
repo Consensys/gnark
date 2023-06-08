@@ -2,6 +2,7 @@ package constraint
 
 import (
 	"github.com/consensys/gnark/constraint/solver"
+	"math/big"
 )
 
 const CommitmentDst = "bsb22-commitment"
@@ -21,12 +22,20 @@ type PlonkCommitment struct {
 }
 
 type Commitment interface{}
-type Commitments interface{}
+type Commitments interface{ CommitmentIndexes() []int }
 
 type Groth16Commitments []Groth16Commitment
 type PlonkCommitments []PlonkCommitment
 
-func (c Groth16Commitments) CommitmentWireIndexes() []int {
+func (c Groth16Commitments) CommitmentIndexes() []int {
+	commitmentWires := make([]int, len(c))
+	for i := range c {
+		commitmentWires[i] = c[i].CommitmentIndex
+	}
+	return commitmentWires
+}
+
+func (c PlonkCommitments) CommitmentIndexes() []int {
 	commitmentWires := make([]int, len(c))
 	for i := range c {
 		commitmentWires[i] = c[i].CommitmentIndex
@@ -50,6 +59,20 @@ func (c Groth16Commitments) GetPublicCommitted() [][]int {
 	return res
 }
 
+func SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, fieldByteLen int) []byte {
+
+	res := make([]byte, len(privateCommitment)+len(publicCommitted)*fieldByteLen)
+	copy(res, privateCommitment)
+
+	offset := len(privateCommitment)
+	for _, inJ := range publicCommitted {
+		inJ.FillBytes(res[offset : offset+fieldByteLen])
+		offset += fieldByteLen
+	}
+
+	return res
+}
+
 /*
 func (i *Commitment) NbPublicCommitted() int {
 	return i.NbCommitted() - i.NbPrivateCommitted
@@ -67,20 +90,6 @@ func NewCommitment(committed []int, nbPublicCommitted int) Commitment {
 		Committed:          committed,
 		NbPrivateCommitted: len(committed) - nbPublicCommitted,
 	}
-}
-
-func SerializeCommitment(privateCommitment []byte, publicCommitted []*big.Int, fieldByteLen int) []byte {
-
-	res := make([]byte, len(privateCommitment)+len(publicCommitted)*fieldByteLen)
-	copy(res, privateCommitment)
-
-	offset := len(privateCommitment)
-	for _, inJ := range publicCommitted {
-		inJ.FillBytes(res[offset : offset+fieldByteLen])
-		offset += fieldByteLen
-	}
-
-	return res
 }
 
 // PrivateToPublicGroth16 returns indexes of variables which are private to the constraint system, but public to Groth16. That is, private committed variables and the commitment itself

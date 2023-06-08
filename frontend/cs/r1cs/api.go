@@ -683,7 +683,7 @@ func lastIs(slice []int, n int) bool {
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
 	commitments := builder.cs.GetCommitments().(constraint.Groth16Commitments)
-	existingCommitmentIndexes := commitments.CommitmentWireIndexes()
+	existingCommitmentIndexes := commitments.CommitmentIndexes()
 	privateCommittedSeeker := utils.MultiListSeeker(commitments.GetPrivateCommitted())
 
 	// we want to build a sorted slice of committed variables, without duplicates
