@@ -17,8 +17,10 @@ limitations under the License.
 package test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -35,6 +37,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/frontend/schema"
+	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,6 +46,10 @@ var (
 	ErrInvalidWitnessSolvedCS      = errors.New("invalid witness solved the constraint system")
 	ErrInvalidWitnessVerified      = errors.New("invalid witness resulted in a valid proof")
 )
+
+// SerializationThreshold is the number of constraints above which we don't
+// do a systematic round-trip serialization check for the proving and verifying keys.
+const SerializationThreshold = 1000
 
 // Assert is a helper to test circuits
 type Assert struct {
@@ -149,6 +156,16 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 				case backend.GROTH16:
 					pk, vk, err := groth16.Setup(ccs)
 					checkError(err)
+					if ccs.GetNbConstraints() <= SerializationThreshold {
+						pkReconstructed := groth16.NewProvingKey(curve)
+						roundTripCheck(assert.t, pk, pkReconstructed)
+						pkReconstructed = groth16.NewProvingKey(curve)
+						roundTripCheckRaw(assert.t, pk, pkReconstructed)
+						vkReconstructed := groth16.NewVerifyingKey(curve)
+						roundTripCheck(assert.t, vk, vkReconstructed)
+						vkReconstructed = groth16.NewVerifyingKey(curve)
+						roundTripCheckRaw(assert.t, vk, vkReconstructed)
+					}
 
 					// ensure prove / verify works well with valid witnesses
 
@@ -164,6 +181,12 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 
 					pk, vk, err := plonk.Setup(ccs, srs)
 					checkError(err)
+					if ccs.GetNbConstraints() <= SerializationThreshold {
+						pkReconstructed := plonk.NewProvingKey(curve)
+						roundTripCheck(assert.t, pk, pkReconstructed)
+						vkReconstructed := plonk.NewVerifyingKey(curve)
+						roundTripCheck(assert.t, vk, vkReconstructed)
+					}
 
 					correctProof, err := plonk.Prove(ccs, pk, validWitness, opt.proverOpts...)
 					checkError(err)
@@ -553,4 +576,46 @@ func (assert *Assert) marshalWitnessJSON(w witness.Witness, s *schema.Schema, cu
 
 	witnessMatch := reflect.DeepEqual(w, witness)
 	assert.True(witnessMatch, "round trip marshaling failed")
+}
+
+func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom) {
+	var buf bytes.Buffer
+	written, err := from.WriteTo(&buf)
+	if err != nil {
+		t.Fatal("couldn't serialize", err)
+	}
+
+	read, err := reconstructed.ReadFrom(&buf)
+	if err != nil {
+		t.Fatal("couldn't deserialize", err)
+	}
+
+	if !reflect.DeepEqual(from, reconstructed) {
+		t.Fatal("reconstructed object don't match original")
+	}
+
+	if written != read {
+		t.Fatal("bytes written / read don't match")
+	}
+}
+
+func roundTripCheckRaw(t *testing.T, from gnarkio.WriterRawTo, reconstructed io.ReaderFrom) {
+	var buf bytes.Buffer
+	written, err := from.WriteRawTo(&buf)
+	if err != nil {
+		t.Fatal("couldn't serialize", err)
+	}
+
+	read, err := reconstructed.ReadFrom(&buf)
+	if err != nil {
+		t.Fatal("couldn't deserialize", err)
+	}
+
+	if !reflect.DeepEqual(from, reconstructed) {
+		t.Fatal("reconstructed object don't match original")
+	}
+
+	if written != read {
+		t.Fatal("bytes written / read don't match")
+	}
 }
