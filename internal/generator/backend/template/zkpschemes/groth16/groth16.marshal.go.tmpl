@@ -217,6 +217,14 @@ func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 		}
 	}
 
+	// TODO pedersen commitment key only implements WriteTo
+	// missing WriteRawTo
+	n2, err := pk.CommitmentKey.WriteTo(w)
+	n += n2
+	if err != nil {
+		return n, err
+	}	
+
 	return n + enc.BytesWritten(), nil
 
 }
@@ -274,6 +282,12 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 	}
 	if err := dec.Decode(&pk.InfinityB); err != nil {
 		return n + dec.BytesRead(), err
+	}
+
+	n2, err := pk.CommitmentKey.ReadFrom(r)
+	n += n2
+	if err != nil {
+		return n, err
 	}
 
 	return n + dec.BytesRead(), nil

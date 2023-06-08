@@ -116,6 +116,13 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	n += n2
 
+	// KZG key
+	n2, err = pk.Kzg.WriteTo(w)
+	if err != nil {
+		return
+	}
+	n += n2
+
 	// sanity check len(Permutation) == 3*int(pk.Domain[0].Cardinality)
 	if len(pk.trace.S) != (3 * int(pk.Domain[0].Cardinality)) {
 		return n, errors.New("invalid permutation size, expected 3*domain cardinality")
@@ -163,6 +170,12 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 	}
 
 	n2, err = pk.Domain[1].ReadFrom(r)
+	n += n2
+	if err != nil {
+		return n, err
+	}
+
+	n2, err = pk.Kzg.ReadFrom(r)
 	n += n2
 	if err != nil {
 		return n, err
