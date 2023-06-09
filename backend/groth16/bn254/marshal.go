@@ -18,8 +18,8 @@ package groth16
 
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark/internal/utils"
 	"io"
 )
@@ -347,6 +347,7 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 	if err := dec.Decode(&nbCommitments); err != nil {
 		return n + dec.BytesRead(), err
 	}
+
 	pk.CommitmentKeys = make([]pedersen.ProvingKey, nbCommitments)
 	for i := range pk.CommitmentKeys {
 		n2, err := pk.CommitmentKeys[i].ReadFrom(r)

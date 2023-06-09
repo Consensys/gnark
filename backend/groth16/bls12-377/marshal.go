@@ -328,7 +328,6 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 		&nbWires,
 		&pk.NbInfinityA,
 		&pk.NbInfinityB,
-		&nbCommitments,
 	}
 
 	for _, v := range toDecode {
@@ -343,6 +342,9 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 		return n + dec.BytesRead(), err
 	}
 	if err := dec.Decode(&pk.InfinityB); err != nil {
+		return n + dec.BytesRead(), err
+	}
+	if err := dec.Decode(&nbCommitments); err != nil {
 		return n + dec.BytesRead(), err
 	}
 

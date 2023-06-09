@@ -17,13 +17,12 @@
 package groth16
 
 import (
-	"fmt"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark/backend/groth16/internal/test_utils"
-	"github.com/google/go-cmp/cmp"
-	"github.com/leanovate/gopter/gen"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -32,6 +31,7 @@ import (
 	"reflect"
 
 	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 
 	"testing"
@@ -81,9 +81,6 @@ func TestProofSerialization(t *testing.T) {
 			if read != written {
 				return false
 			}
-
-			fmt.Println("compressed diff", cmp.Diff(proof, pCompressed))
-			fmt.Println("raw diff", cmp.Diff(proof, pRaw))
 
 			return reflect.DeepEqual(&proof, &pCompressed) && reflect.DeepEqual(&proof, &pRaw)
 		},
@@ -209,7 +206,6 @@ func TestProvingKeySerialization(t *testing.T) {
 
 	properties.Property("ProvingKey -> writer -> reader -> ProvingKey should stay constant", prop.ForAll(
 		func(p1 curve.G1Affine, p2 curve.G2Affine, nbCommitment int) bool {
-			fmt.Println(nbCommitment)
 			var pk, pkCompressed, pkRaw ProvingKey
 
 			// create a random pk
@@ -286,8 +282,6 @@ func TestProvingKeySerialization(t *testing.T) {
 				t.Log("read raw != written")
 				return false
 			}
-
-			//fmt.Println("raw diff", cmp.Diff(pk, pkRaw))
 
 			return reflect.DeepEqual(&pk, &pkCompressed) && reflect.DeepEqual(&pk, &pkRaw)
 		},
