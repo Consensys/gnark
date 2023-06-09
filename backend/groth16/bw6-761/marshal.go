@@ -18,6 +18,8 @@ package groth16
 
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-761"
+
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/pedersen"
 	"github.com/consensys/gnark/internal/utils"
 	"io"
 )
@@ -258,6 +260,7 @@ func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 		pk.NbInfinityB,
 		pk.InfinityA,
 		pk.InfinityB,
+		uint32(len(pk.CommitmentKeys)),
 	}
 
 	for _, v := range toEncode {
@@ -266,12 +269,21 @@ func (pk *ProvingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 		}
 	}
 
-	// TODO pedersen commitment key only implements WriteTo
-	// missing WriteRawTo
-	n2, err := pk.CommitmentKey.WriteTo(w)
-	n += n2
-	if err != nil {
-		return n, err
+	for i := range pk.CommitmentKeys {
+		var (
+			n2  int64
+			err error
+		)
+		if raw {
+			n2, err = pk.CommitmentKeys[i].WriteRawTo(w)
+		} else {
+			n2, err = pk.CommitmentKeys[i].WriteTo(w)
+		}
+
+		n += n2
+		if err != nil {
+			return n, err
+		}
 	}
 
 	return n + enc.BytesWritten(), nil
@@ -300,6 +312,7 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 	dec := curve.NewDecoder(r, decOptions...)
 
 	var nbWires uint64
+	var nbCommitments uint32
 
 	toDecode := []interface{}{
 		&pk.G1.Alpha,
@@ -315,6 +328,7 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 		&nbWires,
 		&pk.NbInfinityA,
 		&pk.NbInfinityB,
+		&nbCommitments,
 	}
 
 	for _, v := range toDecode {
@@ -332,10 +346,13 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 		return n + dec.BytesRead(), err
 	}
 
-	n2, err := pk.CommitmentKey.ReadFrom(r)
-	n += n2
-	if err != nil {
-		return n, err
+	pk.CommitmentKeys = make([]pedersen.ProvingKey, nbCommitments)
+	for i := range pk.CommitmentKeys {
+		n2, err := pk.CommitmentKeys[i].ReadFrom(r)
+		n += n2
+		if err != nil {
+			return n, err
+		}
 	}
 
 	return n + dec.BytesRead(), nil

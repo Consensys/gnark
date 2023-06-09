@@ -17,13 +17,15 @@
 package groth16
 
 import (
+	"fmt"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
-
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark/backend/groth16/internal/test_utils"
+	"github.com/google/go-cmp/cmp"
+	"github.com/leanovate/gopter/gen"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"bytes"
 	"math/big"
@@ -79,6 +81,9 @@ func TestProofSerialization(t *testing.T) {
 			if read != written {
 				return false
 			}
+
+			fmt.Println("compressed diff", cmp.Diff(proof, pCompressed))
+			fmt.Println("raw diff", cmp.Diff(proof, pRaw))
 
 			return reflect.DeepEqual(&proof, &pCompressed) && reflect.DeepEqual(&proof, &pRaw)
 		},
@@ -203,7 +208,8 @@ func TestProvingKeySerialization(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("ProvingKey -> writer -> reader -> ProvingKey should stay constant", prop.ForAll(
-		func(p1 curve.G1Affine, p2 curve.G2Affine) bool {
+		func(p1 curve.G1Affine, p2 curve.G2Affine, nbCommitment int) bool {
+			fmt.Println(nbCommitment)
 			var pk, pkCompressed, pkRaw ProvingKey
 
 			// create a random pk
@@ -231,6 +237,19 @@ func TestProvingKeySerialization(t *testing.T) {
 			pk.InfinityA = make([]bool, nbWires)
 			pk.InfinityB = make([]bool, nbWires)
 			pk.InfinityA[2] = true
+
+			pedersenBasis := make([]curve.G1Affine, nbCommitment)
+			pedersenBases := make([][]curve.G1Affine, nbCommitment)
+			pk.CommitmentKeys = make([]pedersen.ProvingKey, nbCommitment)
+			for i := range pedersenBasis {
+				pedersenBasis[i] = p1
+				pedersenBases[i] = pedersenBasis[:i+1]
+			}
+			{
+				var err error
+				pk.CommitmentKeys, _, err = pedersen.Setup(pedersenBases...)
+				require.NoError(t, err)
+			}
 
 			var bufCompressed bytes.Buffer
 			written, err := pk.WriteTo(&bufCompressed)
@@ -268,10 +287,13 @@ func TestProvingKeySerialization(t *testing.T) {
 				return false
 			}
 
+			//fmt.Println("raw diff", cmp.Diff(pk, pkRaw))
+
 			return reflect.DeepEqual(&pk, &pkCompressed) && reflect.DeepEqual(&pk, &pkRaw)
 		},
 		GenG1(),
 		GenG2(),
+		gen.IntRange(0, 2),
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
