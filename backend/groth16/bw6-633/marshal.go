@@ -357,8 +357,8 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 		}
 	}
 
-	if pk.G1.K == nil {
-		pk.G1.K = []curve.G1Affine{}
+	if pk.G1.Z == nil {
+		pk.G1.Z = []curve.G1Affine{}
 	}
 
 	return n + dec.BytesRead(), nil
