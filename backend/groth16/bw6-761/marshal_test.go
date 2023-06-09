@@ -122,11 +122,11 @@ func TestVerifyingKeySerialization(t *testing.T) {
 			}
 
 			if withCommitment {
-				vk.PublicCommitted = test_utils.Random2DIntSlice(5, 10) // TODO: Use gopter randomization
-				bases := make([][]curve.G1Affine, len(vk.PublicCommitted))
+				vk.PublicAndCommitmentCommitted = test_utils.Random2DIntSlice(5, 10) // TODO: Use gopter randomization
+				bases := make([][]curve.G1Affine, len(vk.PublicAndCommitmentCommitted))
 				elem := p1
-				for i := 0; i < len(vk.PublicCommitted); i++ {
-					bases[i] = make([]curve.G1Affine, len(vk.PublicCommitted[i]))
+				for i := 0; i < len(vk.PublicAndCommitmentCommitted); i++ {
+					bases[i] = make([]curve.G1Affine, len(vk.PublicAndCommitmentCommitted[i]))
 					for j := range bases[i] {
 						bases[i][j] = elem
 						elem.Add(&elem, &p1)

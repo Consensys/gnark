@@ -77,8 +77,8 @@ type VerifyingKey struct {
 	// e(α, β)
 	e curve.GT // not serialized
 
-	CommitmentKey   pedersen.VerifyingKey
-	PublicCommitted [][]int // indexes of public committed variables
+	CommitmentKey                pedersen.VerifyingKey
+	PublicAndCommitmentCommitted [][]int // indexes of public/commitment committed variables
 }
 
 // Setup constructs the SRS
@@ -100,8 +100,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	commitmentWires := commitmentInfo.CommitmentIndexes()
 	privateCommitted := commitmentInfo.GetPrivateCommitted()
 	nbPrivateCommittedWires := internal.NbElements(privateCommitted)
-	//nbPrivateCommittedWires, privateCommitted, publicAndCommitmentCommitted :=
-	//	commitmentInfo.Interleave(r1cs.GetNbPublicVariables())
 
 	// a commitment is itself defined by a hint so the prover considers it private
 	// but the verifier will need to inject the value itself so on the groth16
@@ -163,7 +161,6 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	nbPrivateCommittedSeen := 0            // = ∑ᵢ cI[i]
 	nbCommitmentsSeen := 0
 
-	// i = vI + nbPrivateCommittedSeen + nbCommitmentsSeen
 	for i := range A {
 		commitment := -1 // index of the commitment that commits to this variable as a private or commitment value
 		var isCommitment, isPublic bool
@@ -295,7 +292,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		return err
 	}
 
-	vk.PublicCommitted = commitmentInfo.GetPublicAndCommitmentCommitted(commitmentWires, r1cs.GetNbPublicVariables())
+	vk.PublicAndCommitmentCommitted = commitmentInfo.GetPublicAndCommitmentCommitted(commitmentWires, r1cs.GetNbPublicVariables())
 
 	// ---------------------------------------------------------------------------------------------
 	// G2 scalars

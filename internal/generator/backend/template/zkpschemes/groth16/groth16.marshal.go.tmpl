@@ -120,10 +120,10 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 		return enc.BytesWritten(), err 
 	}
 
-	if vk.PublicCommitted == nil {
-		vk.PublicCommitted = [][]int{} // only matters in tests
+	if vk.PublicAndCommitmentCommitted == nil {
+		vk.PublicAndCommitmentCommitted = [][]int{} // only matters in tests
 	}
-	if err := enc.Encode(utils.IntSliceSliceToUint64SliceSlice(vk.PublicCommitted)); err != nil {
+	if err := enc.Encode(utils.IntSliceSliceToUint64SliceSlice(vk.PublicAndCommitmentCommitted)); err != nil {
 		return enc.BytesWritten(), err
 	}
 
@@ -188,7 +188,7 @@ func (vk *VerifyingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)
 	if err := dec.Decode(&publicCommitted); err != nil {
 		return dec.BytesRead(), err
 	}
-	vk.PublicCommitted = utils.Uint64SliceSliceToIntSliceSlice(publicCommitted)
+	vk.PublicAndCommitmentCommitted = utils.Uint64SliceSliceToIntSliceSlice(publicCommitted)
 
 	// recompute vk.e (e(α, β)) and  -[δ]2, -[γ]2
 	if err := vk.Precompute(); err != nil {
