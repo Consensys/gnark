@@ -94,6 +94,11 @@ func (pk *ProvingKey) randomize() {
 	pk.Vk = &vk
 	pk.Domain[0] = *fft.NewDomain(42)
 	pk.Domain[1] = *fft.NewDomain(4 * 42)
+	
+	pk.Kzg.G1 = make([]curve.G1Affine, 7)
+	for i := range pk.Kzg.G1 {
+		pk.Kzg.G1[i] = randomG1Point()
+	}
 
 	n := int(pk.Domain[0].Cardinality)
 	ql := randomScalars(n)
