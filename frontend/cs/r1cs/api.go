@@ -19,6 +19,7 @@ package r1cs
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/internal/utils"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -677,27 +678,31 @@ func (builder *builder) Compiler() frontend.Compiler {
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 
-	if builder.cs.GetNbCommitments() != 0 {
-		return nil, errors.New("multi-commits not available for groth16 - yet")
-	}
+	commitments := builder.cs.GetCommitments().(constraint.Groth16Commitments)
+	existingCommitmentIndexes := commitments.CommitmentIndexes()
+	privateCommittedSeeker := utils.MultiListSeeker(commitments.GetPrivateCommitted())
 
 	// we want to build a sorted slice of committed variables, without duplicates
 	// this is the same algorithm as builder.add(...); but we expect len(v) to be quite large.
 
 	vars, s := builder.toVariables(v...)
 
+	nbPublicCommitted := 0
 	// initialize the min-heap
 	// this is the same algorithm as api.add --> we want to merge k sorted linear expression
 	for lID, v := range vars {
-		builder.heap = append(builder.heap, linMeta{val: v[0].VID, lID: lID})
+		if v[0].VID < builder.cs.GetNbPublicVariables() {
+			nbPublicCommitted++
+		}
+		builder.heap = append(builder.heap, linMeta{val: v[0].VID, lID: lID}) // TODO: Use int heap
 	}
 	builder.heap.heapify()
 
 	// sort all the wires
-	committed := make([]int, 0, s)
-
-	curr := -1
-	nbPublicCommitted := 0
+	publicAndCommitmentCommitted := make([]int, 0, nbPublicCommitted+len(existingCommitmentIndexes)) // right now nbPublicCommitted is an upper bound
+	privateCommitted := make([]int, 0, s)
+	lastInsertedWireId := -1
+	nbPublicCommitted = 0
 
 	// process all the terms from all the inputs, in sorted order
 	for len(builder.heap) > 0 {
@@ -715,40 +720,78 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		if t.VID == 0 {
 			continue // don't commit to ONE_WIRE
 		}
-		if curr != -1 && t.VID == committed[curr] {
+		if lastInsertedWireId == t.VID {
 			// it's the same variable ID, do nothing
 			continue
-		} else {
-			// append, it's a new variable ID
-			committed = append(committed, t.VID)
-			if t.VID < builder.cs.GetNbPublicVariables() {
-				nbPublicCommitted++
-			}
-			curr++
 		}
+
+		if t.VID < builder.cs.GetNbPublicVariables() { // public
+			publicAndCommitmentCommitted = append(publicAndCommitmentCommitted, t.VID)
+			lastInsertedWireId = t.VID
+			nbPublicCommitted++
+			continue
+		}
+
+		// private or commitment
+		for len(existingCommitmentIndexes) > 0 && existingCommitmentIndexes[0] < t.VID {
+			existingCommitmentIndexes = existingCommitmentIndexes[1:]
+		}
+		if len(existingCommitmentIndexes) > 0 && existingCommitmentIndexes[0] == t.VID { // commitment
+			publicAndCommitmentCommitted = append(publicAndCommitmentCommitted, t.VID)
+			existingCommitmentIndexes = existingCommitmentIndexes[1:] // technically unnecessary
+			lastInsertedWireId = t.VID
+			continue
+		}
+
+		// private
+		// Cannot commit to a secret variable that has already been committed to
+		// instead we commit to its commitment
+		if committer := privateCommittedSeeker.Seek(t.VID); committer != -1 {
+			committerWireIndex := existingCommitmentIndexes[committer]                                          // commit to this commitment instead
+			vars = append(vars, expr.LinearExpression{{Coeff: constraint.Element{1}, VID: committerWireIndex}}) // TODO Replace with mont 1
+			builder.heap.push(linMeta{lID: len(vars) - 1, tID: 0, val: committerWireIndex})                     // pushing to heap mid-op is okay because toCommit > t.VID > anything popped so far
+			continue
+		}
+
+		// so it's a new, so-far-uncommitted private variable
+		privateCommitted = append(privateCommitted, t.VID)
+		lastInsertedWireId = t.VID
 	}
 
-	if len(committed) == 0 {
+	if len(privateCommitted)+len(publicAndCommitmentCommitted) == 0 { // TODO @tabaie Necessary?
 		return nil, errors.New("must commit to at least one variable")
 	}
 
 	// build commitment
-	commitment := constraint.NewCommitment(committed, nbPublicCommitted)
+	commitment := constraint.Groth16Commitment{
+		PublicAndCommitmentCommitted: publicAndCommitmentCommitted,
+		NbPublicCommitted:            nbPublicCommitted,
+		PrivateCommitted:             privateCommitted,
+	}
 
 	// hint is used at solving time to compute the actual value of the commitment
 	// it is going to be dynamically replaced at solving time.
-	hintOut, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, builder.getCommittedVariables(&commitment)...)
+
+	var (
+		hintOut []frontend.Variable
+		err     error
+	)
+
+	commitment.HintID, err = cs.RegisterBsb22CommitmentComputePlaceholder(len(commitments))
 	if err != nil {
 		return nil, err
 	}
+
+	if hintOut, err = builder.NewHintForId(commitment.HintID, 1, builder.wireIDsToVars(
+		commitment.PublicAndCommitmentCommitted,
+		commitment.PrivateCommitted,
+	)...); err != nil {
+		return nil, err
+	}
+
 	cVar := hintOut[0]
-	commitment.HintID = solver.GetHintID(cs.Bsb22CommitmentComputePlaceholder) // TODO @gbotrel probably not needed
 
 	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
-
-	if commitment.CommitmentIndex <= commitment.Committed[len(commitment.Committed)-1] {
-		return nil, fmt.Errorf("commitment variable index smaller than some committed variable indices")
-	}
 
 	if err := builder.cs.AddCommitment(commitment); err != nil {
 		return nil, err
@@ -757,10 +800,18 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	return cVar, nil
 }
 
-func (builder *builder) getCommittedVariables(i *constraint.Commitment) []frontend.Variable {
-	res := make([]frontend.Variable, len(i.Committed))
-	for j, wireIndex := range i.Committed {
-		res[j] = expr.NewLinearExpression(wireIndex, builder.tOne)
+func (builder *builder) wireIDsToVars(wireIDs ...[]int) []frontend.Variable {
+	n := 0
+	for i := range wireIDs {
+		n += len(wireIDs[i])
+	}
+	res := make([]frontend.Variable, n)
+	n = 0
+	for _, list := range wireIDs {
+		for i := range list {
+			res[n+i] = expr.NewLinearExpression(list[i], builder.tOne)
+		}
+		n += len(list)
 	}
 	return res
 }

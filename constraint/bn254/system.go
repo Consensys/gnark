@@ -179,6 +179,13 @@ func (cs *system) ReadFrom(r io.Reader) (int64, error) {
 		return int64(decoder.NumBytesRead()), err
 	}
 
+	switch v := cs.CommitmentInfo.(type) {
+	case *constraint.Groth16Commitments:
+		cs.CommitmentInfo = *v
+	case *constraint.PlonkCommitments:
+		cs.CommitmentInfo = *v
+	}
+
 	return int64(decoder.NumBytesRead()), nil
 }
 
@@ -360,6 +367,8 @@ func getTagSet() cbor.TagSet {
 	addType(reflect.TypeOf(constraint.BlueprintSparseR1CAdd{}))
 	addType(reflect.TypeOf(constraint.BlueprintSparseR1CMul{}))
 	addType(reflect.TypeOf(constraint.BlueprintSparseR1CBool{}))
+	addType(reflect.TypeOf(constraint.Groth16Commitments{}))
+	addType(reflect.TypeOf(constraint.PlonkCommitments{}))
 
 	return ts
 }

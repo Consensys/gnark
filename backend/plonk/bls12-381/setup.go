@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/iop"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
+	"github.com/consensys/gnark/backend/plonk/internal"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bls12-381"
 )
@@ -125,8 +126,7 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	var pk ProvingKey
 	var vk VerifyingKey
 	pk.Vk = &vk
-	vk.CommitmentConstraintIndexes = constraint.CommitmentIndexes(spr.CommitmentInfo)
-	// nbConstraints := len(spr.Constraints)
+	vk.CommitmentConstraintIndexes = internal.IntSliceToUint64Slice(spr.CommitmentInfo.CommitmentIndexes())
 
 	// step 0: set the fft domains
 	pk.initDomains(spr)
@@ -226,13 +226,14 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public))
 	size := ecc.NextPowerOfTwo(sizeSystem)
+	commitmentInfo := spr.CommitmentInfo.(constraint.PlonkCommitments)
 
 	ql := make([]fr.Element, size)
 	qr := make([]fr.Element, size)
 	qm := make([]fr.Element, size)
 	qo := make([]fr.Element, size)
 	qk := make([]fr.Element, size)
-	qcp := make([][]fr.Element, len(spr.CommitmentInfo))
+	qcp := make([][]fr.Element, len(commitmentInfo))
 
 	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistent
 		ql[i].SetOne().Neg(&ql[i])
@@ -263,9 +264,9 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 	pt.Qk = iop.NewPolynomial(&qk, lagReg)
 	pt.Qcp = make([]*iop.Polynomial, len(qcp))
 
-	for i := range spr.CommitmentInfo {
+	for i := range commitmentInfo {
 		qcp[i] = make([]fr.Element, size)
-		for _, committed := range spr.CommitmentInfo[i].Committed {
+		for _, committed := range commitmentInfo[i].Committed {
 			qcp[i][offset+committed].SetOne()
 		}
 		pt.Qcp[i] = iop.NewPolynomial(&qcp[i], lagReg)
