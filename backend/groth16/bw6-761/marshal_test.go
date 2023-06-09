@@ -21,6 +21,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 
+	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/pedersen"
+	"github.com/consensys/gnark/backend/groth16/internal/test_utils"
+	"github.com/stretchr/testify/assert"
+
 	"bytes"
 	"math/big"
 	"reflect"
@@ -87,13 +91,9 @@ func TestProofSerialization(t *testing.T) {
 }
 
 func TestVerifyingKeySerialization(t *testing.T) {
-	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 10
 
-	properties := gopter.NewProperties(parameters)
-
-	properties.Property("VerifyingKey -> writer -> reader -> VerifyingKey should stay constant", prop.ForAll(
-		func(p1 curve.G1Affine, p2 curve.G2Affine) bool {
+	roundTrip := func(withCommitment bool) func(curve.G1Affine, curve.G2Affine) bool {
+		return func(p1 curve.G1Affine, p2 curve.G2Affine) bool {
 			var vk, vkCompressed, vkRaw VerifyingKey
 
 			// create a random vk
@@ -119,6 +119,21 @@ func TestVerifyingKeySerialization(t *testing.T) {
 			vk.G1.K = make([]curve.G1Affine, nbWires)
 			for i := 0; i < nbWires; i++ {
 				vk.G1.K[i] = p1
+			}
+
+			if withCommitment {
+				vk.PublicAndCommitmentCommitted = test_utils.Random2DIntSlice(5, 10) // TODO: Use gopter randomization
+				bases := make([][]curve.G1Affine, len(vk.PublicAndCommitmentCommitted))
+				elem := p1
+				for i := 0; i < len(vk.PublicAndCommitmentCommitted); i++ {
+					bases[i] = make([]curve.G1Affine, len(vk.PublicAndCommitmentCommitted[i]))
+					for j := range bases[i] {
+						bases[i][j] = elem
+						elem.Add(&elem, &p1)
+					}
+				}
+				_, vk.CommitmentKey, err = pedersen.Setup(bases...)
+				assert.NoError(t, err)
 			}
 
 			var bufCompressed bytes.Buffer
@@ -158,7 +173,22 @@ func TestVerifyingKeySerialization(t *testing.T) {
 			}
 
 			return reflect.DeepEqual(&vk, &vkCompressed) && reflect.DeepEqual(&vk, &vkRaw)
-		},
+		}
+	}
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 10
+
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("VerifyingKey -> writer -> reader -> VerifyingKey should stay constant", prop.ForAll(
+		roundTrip(false),
+		GenG1(),
+		GenG2(),
+	))
+
+	properties.Property("VerifyingKey (with commitments) -> writer -> reader -> VerifyingKey should stay constant", prop.ForAll(
+		roundTrip(true),
 		GenG1(),
 		GenG2(),
 	))

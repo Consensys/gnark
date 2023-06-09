@@ -22,9 +22,11 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/pedersen"
+	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
 	"io"
-	"math/big"
 	"time"
 )
 
@@ -36,10 +38,8 @@ var (
 // Verify verifies a proof with given VerifyingKey and publicWitness
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
-	nbPublicVars := len(vk.G1.K)
-	if vk.HasCommitment {
-		nbPublicVars--
-	}
+	nbPublicVars := len(vk.G1.K) - len(vk.PublicAndCommitmentCommitted)
+
 	if len(publicWitness) != nbPublicVars-1 {
 		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(publicWitness), len(vk.G1.K)-1)
 	}
@@ -62,21 +62,32 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		close(chDone)
 	}()
 
-	if vk.HasCommitment {
-
-		if err := vk.CommitmentKey.Verify(proof.Commitment, proof.CommitmentPok); err != nil {
+	maxNbPublicCommitted := 0
+	for _, s := range vk.PublicAndCommitmentCommitted { // iterate over commitments
+		maxNbPublicCommitted = utils.Max(maxNbPublicCommitted, len(s))
+	}
+	commitmentsSerialized := make([]byte, len(vk.PublicAndCommitmentCommitted)*fr.Bytes)
+	commitmentPrehashSerialized := make([]byte, curve.SizeOfG1AffineUncompressed+maxNbPublicCommitted*fr.Bytes)
+	for i := range vk.PublicAndCommitmentCommitted { // solveCommitmentWire
+		copy(commitmentPrehashSerialized, proof.Commitments[i].Marshal())
+		offset := curve.SizeOfG1AffineUncompressed
+		for j := range vk.PublicAndCommitmentCommitted[i] {
+			copy(commitmentPrehashSerialized[offset:], publicWitness[vk.PublicAndCommitmentCommitted[i][j]-1].Marshal())
+			offset += fr.Bytes
+		}
+		if res, err := fr.Hash(commitmentPrehashSerialized[:offset], []byte(constraint.CommitmentDst), 1); err != nil {
 			return err
+		} else {
+			publicWitness = append(publicWitness, res[0])
+			copy(commitmentsSerialized[i*fr.Bytes:], res[0].Marshal())
 		}
+	}
 
-		publicCommitted := make([]*big.Int, len(vk.PublicCommitted))
-		for i := range publicCommitted {
-			var b big.Int
-			publicWitness[vk.PublicCommitted[i]-1].BigInt(&b)
-			publicCommitted[i] = &b
-		}
-
-		if res, err := solveCommitmentWire(&proof.Commitment, publicCommitted); err == nil {
-			publicWitness = append(publicWitness, res)
+	if folded, err := pedersen.FoldCommitments(proof.Commitments, commitmentsSerialized); err != nil {
+		return err
+	} else {
+		if err = vk.CommitmentKey.Verify(folded, proof.CommitmentPok); err != nil {
+			return err
 		}
 	}
 
@@ -87,8 +98,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	}
 	kSum.AddMixed(&vk.G1.K[0])
 
-	if vk.HasCommitment {
-		kSum.AddMixed(&proof.Commitment)
+	for i := range proof.Commitments {
+		kSum.AddMixed(&proof.Commitments[i])
 	}
 
 	var kSumAff curve.G1Affine

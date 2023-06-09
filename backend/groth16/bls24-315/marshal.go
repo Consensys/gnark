@@ -18,6 +18,7 @@ package groth16
 
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	"github.com/consensys/gnark/internal/utils"
 	"io"
 )
 
@@ -78,14 +79,24 @@ func (proof *Proof) ReadFrom(r io.Reader) (n int64, err error) {
 // points are compressed
 // use WriteRawTo(...) to encode the key without point compression
 func (vk *VerifyingKey) WriteTo(w io.Writer) (n int64, err error) {
-	return vk.writeTo(w, false)
+	if n, err = vk.writeTo(w, false); err != nil {
+		return n, err
+	}
+	var m int64
+	m, err = vk.CommitmentKey.WriteTo(w)
+	return m + n, err
 }
 
 // WriteRawTo writes binary encoding of the key elements to writer
 // points are not compressed
 // use WriteTo(...) to encode the key with point compression
 func (vk *VerifyingKey) WriteRawTo(w io.Writer) (n int64, err error) {
-	return vk.writeTo(w, true)
+	if n, err = vk.writeTo(w, true); err != nil {
+		return n, err
+	}
+	var m int64
+	m, err = vk.CommitmentKey.WriteRawTo(w)
+	return m + n, err
 }
 
 // writeTo serialization format:
@@ -124,6 +135,14 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 	if err := enc.Encode(vk.G1.K); err != nil {
 		return enc.BytesWritten(), err
 	}
+
+	if vk.PublicAndCommitmentCommitted == nil {
+		vk.PublicAndCommitmentCommitted = [][]int{} // only matters in tests
+	}
+	if err := enc.Encode(utils.IntSliceSliceToUint64SliceSlice(vk.PublicAndCommitmentCommitted)); err != nil {
+		return enc.BytesWritten(), err
+	}
+
 	return enc.BytesWritten(), nil
 }
 
@@ -133,13 +152,25 @@ func (vk *VerifyingKey) writeTo(w io.Writer, raw bool) (int64, error) {
 // https://github.com/zkcrypto/bellman/blob/fa9be45588227a8c6ec34957de3f68705f07bd92/src/groth16/mod.rs#L143
 // [α]1,[β]1,[β]2,[γ]2,[δ]1,[δ]2,uint32(len(Kvk)),[Kvk]1
 func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
-	return vk.readFrom(r)
+	n, err := vk.readFrom(r)
+	if err != nil {
+		return n, err
+	}
+	var m int64
+	m, err = vk.CommitmentKey.ReadFrom(r)
+	return m + n, err
 }
 
 // UnsafeReadFrom has the same behavior as ReadFrom, except that it will not check that decode points
 // are on the curve and in the correct subgroup.
 func (vk *VerifyingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
-	return vk.readFrom(r, curve.NoSubgroupChecks())
+	n, err := vk.readFrom(r, curve.NoSubgroupChecks())
+	if err != nil {
+		return n, err
+	}
+	var m int64
+	m, err = vk.CommitmentKey.UnsafeReadFrom(r)
+	return m + n, err
 }
 
 func (vk *VerifyingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) (int64, error) {
@@ -169,6 +200,11 @@ func (vk *VerifyingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)
 	if err := dec.Decode(&vk.G1.K); err != nil {
 		return dec.BytesRead(), err
 	}
+	var publicCommitted [][]uint64
+	if err := dec.Decode(&publicCommitted); err != nil {
+		return dec.BytesRead(), err
+	}
+	vk.PublicAndCommitmentCommitted = utils.Uint64SliceSliceToIntSliceSlice(publicCommitted)
 
 	// recompute vk.e (e(α, β)) and  -[δ]2, -[γ]2
 	if err := vk.Precompute(); err != nil {
