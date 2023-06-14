@@ -549,6 +549,22 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 
 	pk.Domain = *domain
 
+	// ---------------------------------------------------------------------------------------------
+	// Commitment setup
+	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+	privateCommitted := commitmentInfo.GetPrivateCommitted()
+	commitmentBases := make([][]curve.G1Affine, len(commitmentInfo))
+	for i := range commitmentBases {
+		size := len(privateCommitted[i])
+		commitmentBases[i] = make([]curve.G1Affine, size)
+		copy(commitmentBases[i], pk.G1.A[:size])
+	}
+
+	pk.CommitmentKeys, _, err = pedersen.Setup(commitmentBases...)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
