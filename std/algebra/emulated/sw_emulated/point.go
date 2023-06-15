@@ -511,14 +511,8 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 		acc = c.double(acc)
 	}
 
-	// i = 0
-	tmp1 := c.add(res1, c.Neg(g))
-	res1 = c.Select(s1Bits[0], res1, tmp1)
-	tmp2 = c.add(res2, c.Neg(p))
-	res2 = c.Select(s2Bits[0], res2, tmp2)
-
 	// i = n-2
-	tmp1 = c.add(res1, &gm[n-2])
+	tmp1 := c.add(res1, &gm[n-2])
 	res1 = c.Select(s1Bits[n-2], tmp1, res1)
 	tmp2 = c.add(res2, acc)
 	res2 = c.Select(s2Bits[n-2], tmp2, res2)
@@ -528,6 +522,12 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 	res1 = c.Select(s1Bits[n-1], tmp1, res1)
 	tmp2 = c.doubleAndAdd(acc, res2)
 	res2 = c.Select(s2Bits[n-1], tmp2, res2)
+
+	// i = 0
+	tmp1 = c.add(res1, c.Neg(g))
+	res1 = c.Select(s1Bits[0], res1, tmp1)
+	tmp2 = c.add(res2, c.Neg(p))
+	res2 = c.Select(s2Bits[0], res2, tmp2)
 
 	return c.add(res1, res2)
 }

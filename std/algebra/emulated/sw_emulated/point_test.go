@@ -725,3 +725,52 @@ func TestIsOnCurve3(t *testing.T) {
 	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
 	assert.NoError(err)
 }
+
+type JointScalarMulBase[T, S emulated.FieldParams] struct {
+	P, Q   AffinePoint[T]
+	S1, S2 emulated.Element[S]
+}
+
+func (c *JointScalarMulBase[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.JointScalarMulBase(&c.P, &c.S2, &c.S1)
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+func TestJointScalarMulBase(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+	var p secp256k1.G1Affine
+	p.Double(&g)
+	var r1, r2 fr_secp.Element
+	_, _ = r1.SetRandom()
+	_, _ = r2.SetRandom()
+	s1 := new(big.Int)
+	r1.BigInt(s1)
+	s2 := new(big.Int)
+	r2.BigInt(s2)
+	var Sj secp256k1.G1Jac
+	Sj.JointScalarMultiplicationBase(&p, s1, s2)
+	var S secp256k1.G1Affine
+	S.FromJacobian(&Sj)
+
+	circuit := JointScalarMulBase[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
+	witness := JointScalarMulBase[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S1: emulated.ValueOf[emulated.Secp256k1Fr](s1),
+		S2: emulated.ValueOf[emulated.Secp256k1Fr](s2),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](p.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](p.Y),
+		},
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](S.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](S.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
