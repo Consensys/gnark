@@ -492,44 +492,59 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 	s2Bits := c.scalarApi.ToBits(s2r)
 	n := st.Modulus().BitLen()
 
+	// fixed-base
 	// i = 1, 2
 	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
 	res1 := c.Lookup2(s1Bits[1], s1Bits[2], g, &gm[0], &gm[1], &gm[2])
-	tmp2 := c.triple(p)
-	res2 := c.Select(s2Bits[1], tmp2, p)
-	acc := c.add(tmp2, p)
-	tmp2 = c.add(res2, acc)
-	res2 = c.Select(s2Bits[2], tmp2, res2)
-	acc = c.double(acc)
+	// var-base
+	// i = 1
+	R := c.triple(p)
+	R0 := c.Select(s2Bits[1], R, p)
+	R1 := c.Select(s2Bits[1], p, R)
+	R2 := c.add(R0, R1)
+	// i = 2
+	R = c.Select(s2Bits[2], R0, R1)
+	R = c.add(R, R2)
+	R0 = c.Select(s2Bits[2], R, R0)
+	R1 = c.Select(s2Bits[2], R1, R)
+	R2 = c.add(R0, R1)
 
 	for i := 3; i <= n-3; i++ {
+		// fixed-base
 		// gm[i] = [2^i]g
 		tmp1 := c.add(res1, &gm[i])
 		res1 = c.Select(s1Bits[i], tmp1, res1)
-		tmp2 = c.add(res2, acc)
-		res2 = c.Select(s2Bits[i], tmp2, res2)
-		acc = c.double(acc)
+		// var-base
+		R = c.Select(s2Bits[i], R0, R1)
+		R = c.add(R, R2)
+		R0 = c.Select(s2Bits[i], R, R0)
+		R1 = c.Select(s2Bits[i], R1, R)
+		R2 = c.add(R0, R1)
+
 	}
 
 	// i = n-2
 	tmp1 := c.add(res1, &gm[n-2])
 	res1 = c.Select(s1Bits[n-2], tmp1, res1)
-	tmp2 = c.add(res2, acc)
-	res2 = c.Select(s2Bits[n-2], tmp2, res2)
+	R = c.Select(s2Bits[n-2], R0, R1)
+	R = c.add(R, R2)
+	R0 = c.Select(s2Bits[n-2], R, R0)
+	R1 = c.Select(s2Bits[n-2], R1, R)
+	R2 = c.add(R0, R1)
 
 	// i = n-1
 	tmp1 = c.add(res1, &gm[n-1])
 	res1 = c.Select(s1Bits[n-1], tmp1, res1)
-	tmp2 = c.doubleAndAdd(acc, res2)
-	res2 = c.Select(s2Bits[n-1], tmp2, res2)
+	R = c.Select(s2Bits[n-1], R0, R1)
+	R = c.add(R, R2)
+	R0 = c.Select(s2Bits[n-1], R, R0)
 
 	// i = 0
 	tmp1 = c.add(res1, c.Neg(g))
 	res1 = c.Select(s1Bits[0], res1, tmp1)
-	tmp2 = c.add(res2, c.Neg(p))
-	res2 = c.Select(s2Bits[0], res2, tmp2)
+	R0 = c.Select(s2Bits[0], R0, c.AddUnified(R0, c.Neg(p)))
 
-	return c.add(res1, res2)
+	return c.add(res1, R0)
 }
 
 // ScalarMulAddOnly computes s * p and returns it. It doesn't modify p nor s.
