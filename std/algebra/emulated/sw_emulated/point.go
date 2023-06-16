@@ -531,3 +531,43 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 
 	return c.add(res1, res2)
 }
+
+// ScalarMulAddOnly computes s * p and returns it. It doesn't modify p nor s.
+// This function doesn't check that the p is on the curve. See AssertIsOnCurve.
+//
+// ⚠️  p cannot be (0,0) and s cannot be 0.
+//
+// It computes the right-to-left variable-base add-only algorithm ([Joye07, Alg.2]).
+//
+// [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
+func (c *Curve[B, S]) ScalarMulAddOnly(api frontend.API, p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
+
+	var st S
+	sr := c.scalarApi.Reduce(s)
+	sBits := c.scalarApi.ToBits(sr)
+	n := st.Modulus().BitLen()
+
+	// i = 1
+	R := c.triple(p)
+	R0 := c.Select(sBits[1], R, p)
+	R1 := c.Select(sBits[1], p, R)
+	R2 := c.add(R0, R1)
+
+	for i := 2; i < n-1; i++ {
+		R = c.Select(sBits[i], R0, R1)
+		R = c.add(R, R2)
+		R0 = c.Select(sBits[i], R, R0)
+		R1 = c.Select(sBits[i], R1, R)
+		R2 = c.add(R0, R1)
+	}
+
+	// i = n-1
+	R = c.Select(sBits[n-1], R0, R1)
+	R = c.add(R, R2)
+	R0 = c.Select(sBits[n-1], R, R0)
+
+	// i = 0
+	R0 = c.Select(sBits[0], R0, c.add(R0, c.Neg(p)))
+
+	return R0
+}
