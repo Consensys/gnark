@@ -408,7 +408,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 	res = c.Select(sBits[n-1], tmp, res)
 
 	// i = 0
-	// we use AddUnified here instead of Add so that when s=0, res=(0,0)
+	// we use AddUnified here instead of add so that when s=0, res=(0,0)
 	// because AddUnified(p, -p) = (0,0)
 	tmp = c.AddUnified(res, c.Neg(p))
 	res = c.Select(sBits[0], res, tmp)
@@ -535,12 +535,20 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 // ScalarMulAddOnly computes s * p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
-// ⚠️  p cannot be (0,0) and s cannot be 0.
+// ✅ p can can be (0,0) and s can be 0.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
 //
-// It computes the right-to-left variable-base add-only algorithm ([Joye07, Alg.2]).
+// It computes the right-to-left variable-base add-only algorithm ([Joye07], Alg.2).
 //
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 // [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
 func (c *Curve[B, S]) ScalarMulAddOnly(api frontend.API, p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
+
+	// if p=(0,0) we assign a dummy (0,1) to p and continue
+	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+	one := c.baseApi.One()
+	p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
 
 	var st S
 	sr := c.scalarApi.Reduce(s)
@@ -567,7 +575,13 @@ func (c *Curve[B, S]) ScalarMulAddOnly(api frontend.API, p *AffinePoint[B], s *e
 	R0 = c.Select(sBits[n-1], R, R0)
 
 	// i = 0
-	R0 = c.Select(sBits[0], R0, c.add(R0, c.Neg(p)))
+	// we use AddUnified here instead of add so that when s=0, res=(0,0)
+	// because AddUnified(p, -p) = (0,0)
+	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
+
+	// if p=(0,0), return (0,0)
+	zero := c.baseApi.Zero()
+	R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
 
 	return R0
 }
