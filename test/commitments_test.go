@@ -2,15 +2,14 @@ package test
 
 import (
 	"fmt"
-	"reflect"
-	"testing"
-
 	"github.com/consensys/gnark/backend"
 	groth16 "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/consensys/gnark/backend/witness"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/stretchr/testify/require"
+	"reflect"
+	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
@@ -201,6 +200,8 @@ func init() {
 }
 
 func TestCommitment(t *testing.T) {
+	t.Parallel()
+
 	for _, assignment := range commitmentTestCircuits {
 		NewAssert(t).ProverSucceeded(hollow(assignment), assignment, WithBackends(backend.GROTH16, backend.PLONK))
 	}
@@ -234,9 +235,6 @@ func TestCommitmentDummySetup(t *testing.T) {
 
 	for _, assignment := range commitmentTestCircuits {
 		name := removePackageName(reflect.TypeOf(assignment).String())
-		if name != "noCommitmentCircuit" {
-			//continue
-		}
 		if c, ok := assignment.(*commitmentCircuit); ok {
 			name += fmt.Sprintf(":%dprivate %dpublic", len(c.X), len(c.Public))
 		}
