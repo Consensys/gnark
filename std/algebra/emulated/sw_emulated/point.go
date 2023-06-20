@@ -558,7 +558,7 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 //
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 // [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
-func (c *Curve[B, S]) ScalarMulAddOnly(api frontend.API, p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
+func (c *Curve[B, S]) ScalarMulAddOnly(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
 
 	// if p=(0,0) we assign a dummy (0,1) to p and continue
 	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))

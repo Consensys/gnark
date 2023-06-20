@@ -627,7 +627,7 @@ func (c *ScalarMulAddOnlyEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMulAddOnly(api, &c.P, &c.S)
+	res := cr.ScalarMulAddOnly(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -844,7 +844,7 @@ func (c *ScalarMulAddOnlyTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMulAddOnly(api, &c.P, &c.S)
+	res := cr.ScalarMulAddOnly(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
