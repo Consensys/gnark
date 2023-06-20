@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
@@ -363,12 +364,9 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 		},
 	}
 
-
-		t, err := template.New("t").Funcs(funcMap).Parse(tmplSolidityVerifier)
-		if err != nil {
-			return err
-		}
-		return t.Execute(w, vk)
-
-		
+	t, err := template.New("t").Funcs(funcMap).Parse(tmplSolidityVerifier)
+	if err != nil {
+		return err
+	}
+	return t.Execute(w, vk)
 }
