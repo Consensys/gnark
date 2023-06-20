@@ -1,6 +1,7 @@
 package test
 
 import (
+	"github.com/consensys/gnark/backend"
 	"reflect"
 	"testing"
 
@@ -18,10 +19,6 @@ func (c *noCommitmentCircuit) Define(api frontend.API) error {
 	api.AssertIsEqual(c.X, 1)
 	api.AssertIsEqual(c.X, 1)
 	return nil
-}
-
-func TestNoCommitmentCircuit(t *testing.T) {
-	testAll(t, &noCommitmentCircuit{1})
 }
 
 type commitmentCircuit struct {
@@ -46,31 +43,6 @@ func (c *commitmentCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestSingleCommitment(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}}
-	testAll(t, assignment)
-}
-
-func TestTwoCommitments(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{1, 2}, Public: []frontend.Variable{}}
-	testAll(t, assignment)
-}
-
-func TestFiveCommitments(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{1, 2, 3, 4, 5}, Public: []frontend.Variable{}}
-	testAll(t, assignment)
-}
-
-func TestSingleCommitmentSinglePublic(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{0}, Public: []frontend.Variable{1}}
-	testAll(t, assignment)
-}
-
-func TestFiveCommitmentsFivePublic(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{0, 1, 2, 3, 4}, Public: []frontend.Variable{1, 2, 3, 4, 5}}
-	testAll(t, assignment)
-}
-
 type committedConstantCircuit struct {
 	X frontend.Variable
 }
@@ -84,10 +56,6 @@ func (c *committedConstantCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestCommittedConstant(t *testing.T) {
-	testAll(t, &committedConstantCircuit{1})
-}
-
 type committedPublicCircuit struct {
 	X frontend.Variable `gnark:",public"`
 }
@@ -99,10 +67,6 @@ func (c *committedPublicCircuit) Define(api frontend.API) error {
 	}
 	api.AssertIsDifferent(commitment, c.X)
 	return nil
-}
-
-func TestCommittedPublic(t *testing.T) {
-	testAll(t, &committedPublicCircuit{1})
 }
 
 type independentCommitsCircuit struct {
@@ -119,10 +83,6 @@ func (c *independentCommitsCircuit) Define(api frontend.API) error {
 		}
 	}
 	return nil
-}
-
-func TestTwoIndependentCommits(t *testing.T) {
-	testAll(t, &independentCommitsCircuit{X: []frontend.Variable{1, 1}})
 }
 
 type twoCommitCircuit struct {
@@ -143,10 +103,6 @@ func (c *twoCommitCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestTwoCommit(t *testing.T) {
-	testAll(t, &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3})
-}
-
 type doubleCommitCircuit struct {
 	X, Y frontend.Variable
 }
@@ -162,10 +118,6 @@ func (c *doubleCommitCircuit) Define(api frontend.API) error {
 	}
 	api.AssertIsDifferent(c0, c1)
 	return nil
-}
-
-func TestDoubleCommit(t *testing.T) {
-	testAll(t, &doubleCommitCircuit{X: 1, Y: 2})
 }
 
 func TestHollow(t *testing.T) {
@@ -221,4 +173,28 @@ func TestCommitUniquenessZerosScs(t *testing.T) { // TODO @Tabaie Randomize Grot
 
 	_, err = ccs.Solve(w)
 	assert.NoError(t, err)
+}
+
+var commitmentTestCircuits []frontend.Circuit
+
+func init() {
+	commitmentTestCircuits = []frontend.Circuit{
+		&noCommitmentCircuit{1},
+		&commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}},                          // single commitment
+		&commitmentCircuit{X: []frontend.Variable{1, 2}, Public: []frontend.Variable{}},                       // two commitments
+		&commitmentCircuit{X: []frontend.Variable{1, 2, 3, 4, 5}, Public: []frontend.Variable{}},              // five commitments
+		&commitmentCircuit{X: []frontend.Variable{0}, Public: []frontend.Variable{1}},                         // single commitment single public
+		&commitmentCircuit{X: []frontend.Variable{0, 1, 2, 3, 4}, Public: []frontend.Variable{1, 2, 3, 4, 5}}, // five commitments five public
+		&committedConstantCircuit{1},                             // single committed constant
+		&committedPublicCircuit{1},                               // single committed public
+		&independentCommitsCircuit{X: []frontend.Variable{1, 1}}, // two independent commitments
+		&twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3},    // two commitments, second depending on first
+		&doubleCommitCircuit{X: 1, Y: 2},                         // double committing to the same variable
+	}
+}
+
+func TestCommitment(t *testing.T) {
+	for _, assignment := range commitmentTestCircuits {
+		NewAssert(t).ProverSucceeded(hollow(assignment), assignment, WithBackends(backend.GROTH16, backend.PLONK))
+	}
 }

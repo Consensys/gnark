@@ -671,7 +671,7 @@ func (pk *ProvingKey) NbG2() int {
 	return 2 + len(pk.G2.B)
 }
 
-// bitRerverse permutation as in fft.BitReverse , but with []curve.G1Affine
+// bitReverse permutation as in fft.BitReverse , but with []curve.G1Affine
 func bitReverse(a []curve.G1Affine) {
 	n := uint(len(a))
 	nn := uint(bits.UintSize - bits.TrailingZeros(n))
