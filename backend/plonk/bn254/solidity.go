@@ -354,7 +354,7 @@ contract PlonkVerifier {
   }
 
   function load_wire_commitments_commit_api(uint256[] memory wire_commitments, bytes memory proof)
-  internal {
+  pure internal {
     assembly {
       let w := add(wire_commitments, 0x20)
       let p := add(proof, proof_openings_selector_commit_api_at_zeta)
@@ -372,7 +372,7 @@ contract PlonkVerifier {
   }
 
   function compute_ith_lagrange_at_z(uint256 zeta, uint256 i) 
-  internal returns (uint256) {
+  internal view returns (uint256) {
 
     uint256 res;
     assembly {
