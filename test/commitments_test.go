@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -206,7 +207,6 @@ func TestCommitment(t *testing.T) {
 }
 
 func TestCommitmentDummySetup(t *testing.T) {
-
 	t.Parallel()
 
 	run := func(assignment frontend.Circuit) func(t *testing.T) {
@@ -216,10 +216,15 @@ func TestCommitmentDummySetup(t *testing.T) {
 			require.NoError(t, err)
 			_r1cs := _cs.(*cs.R1CS)
 			var (
-				pk groth16.ProvingKey
-				w  witness.Witness
+				dPk, pk groth16.ProvingKey
+				vk      groth16.VerifyingKey
+				w       witness.Witness
 			)
-			require.NoError(t, groth16.DummySetup(_r1cs, &pk))
+			require.NoError(t, groth16.Setup(_r1cs, &pk, &vk))
+			require.NoError(t, groth16.DummySetup(_r1cs, &dPk))
+
+			comparePkSizes(t, dPk, pk)
+
 			w, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 			require.NoError(t, err)
 			_, err = groth16.Prove(_r1cs, &pk, w)
@@ -228,6 +233,30 @@ func TestCommitmentDummySetup(t *testing.T) {
 	}
 
 	for _, assignment := range commitmentTestCircuits {
-		t.Run(removePackageName(reflect.TypeOf(assignment).String()), run(assignment))
+		name := removePackageName(reflect.TypeOf(assignment).String())
+		if name != "noCommitmentCircuit" {
+			//continue
+		}
+		if c, ok := assignment.(*commitmentCircuit); ok {
+			name += fmt.Sprintf(":%dprivate %dpublic", len(c.X), len(c.Public))
+		}
+		t.Run(name, run(assignment))
 	}
+}
+
+func comparePkSizes(t *testing.T, pk1, pk2 groth16.ProvingKey) {
+	// skipping the domain
+	require.Equal(t, len(pk1.G1.A), len(pk2.G1.A))
+	require.Equal(t, len(pk1.G1.B), len(pk2.G1.B))
+	require.Equal(t, len(pk1.G1.Z), len(pk2.G1.Z))
+	require.Equal(t, len(pk1.G1.K), len(pk2.G1.K))
+
+	require.Equal(t, len(pk1.G2.B), len(pk2.G2.B))
+
+	require.Equal(t, len(pk1.InfinityA), len(pk2.InfinityA))
+	require.Equal(t, len(pk1.InfinityB), len(pk2.InfinityB))
+	require.Equal(t, pk1.NbInfinityA, pk2.NbInfinityA)
+	require.Equal(t, pk1.NbInfinityB, pk2.NbInfinityB)
+
+	require.Equal(t, len(pk1.CommitmentKeys), len(pk2.CommitmentKeys)) // TODO @Tabaie Compare the commitment keys
 }

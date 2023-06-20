@@ -494,8 +494,13 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires-nbZeroesA)
 	pk.G1.B = make([]curve.G1Affine, nbWires-nbZeroesB)
-	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.GetNbPublicVariables())
-	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
+
+	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+	privateCommitted := commitmentInfo.GetPrivateCommitted()
+	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - internal.NbElements(privateCommitted) - len(commitmentInfo)
+
+	pk.G1.K = make([]curve.G1Affine, nbPrivateWires)
+	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality-1)
 	pk.G2.B = make([]curve.G2Affine, nbWires-nbZeroesB)
 
 	// set infinity markers
@@ -551,13 +556,13 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 
 	// ---------------------------------------------------------------------------------------------
 	// Commitment setup
-	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
-	privateCommitted := commitmentInfo.GetPrivateCommitted()
 	commitmentBases := make([][]curve.G1Affine, len(commitmentInfo))
 	for i := range commitmentBases {
 		size := len(privateCommitted[i])
 		commitmentBases[i] = make([]curve.G1Affine, size)
-		copy(commitmentBases[i], pk.G1.A[:size])
+		for j := range commitmentBases[i] {
+			commitmentBases[i][j] = r1Aff
+		}
 	}
 
 	pk.CommitmentKeys, _, err = pedersen.Setup(commitmentBases...)
@@ -614,7 +619,7 @@ func (vk *VerifyingKey) IsDifferent(_other interface{}) bool {
 	return true
 }
 
-// IsDifferent returns true if provided pk is different than self
+// IsDifferent returns true if provided pk is different from self
 // this is used by groth16.Assert to ensure random sampling
 func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 	pk2 := _other.(*ProvingKey)
