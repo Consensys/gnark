@@ -2,6 +2,11 @@ package test
 
 import (
 	"github.com/consensys/gnark/backend"
+	groth16 "github.com/consensys/gnark/backend/groth16/bn254"
+	"github.com/consensys/gnark/backend/witness"
+	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
 
@@ -196,5 +201,32 @@ func init() {
 func TestCommitment(t *testing.T) {
 	for _, assignment := range commitmentTestCircuits {
 		NewAssert(t).ProverSucceeded(hollow(assignment), assignment, WithBackends(backend.GROTH16, backend.PLONK))
+	}
+}
+
+func TestCommitmentDummySetup(t *testing.T) {
+
+	t.Parallel()
+
+	run := func(assignment frontend.Circuit) func(t *testing.T) {
+		return func(t *testing.T) {
+			// just test the prover
+			_cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, hollow(assignment))
+			require.NoError(t, err)
+			_r1cs := _cs.(*cs.R1CS)
+			var (
+				pk groth16.ProvingKey
+				w  witness.Witness
+			)
+			require.NoError(t, groth16.DummySetup(_r1cs, &pk))
+			w, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+			require.NoError(t, err)
+			_, err = groth16.Prove(_r1cs, &pk, w)
+			require.NoError(t, err)
+		}
+	}
+
+	for _, assignment := range commitmentTestCircuits {
+		t.Run(removePackageName(reflect.TypeOf(assignment).String()), run(assignment))
 	}
 }
