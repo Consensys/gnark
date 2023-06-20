@@ -483,6 +483,9 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 	nbConstraints := r1cs.GetNbConstraints()
+	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+	privateCommitted := commitmentInfo.GetPrivateCommitted()
+	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - internal.NbElements(privateCommitted) - len(commitmentInfo)
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(nbConstraints))
@@ -494,11 +497,6 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires-nbZeroesA)
 	pk.G1.B = make([]curve.G1Affine, nbWires-nbZeroesB)
-
-	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
-	privateCommitted := commitmentInfo.GetPrivateCommitted()
-	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - internal.NbElements(privateCommitted) - len(commitmentInfo)
-
 	pk.G1.K = make([]curve.G1Affine, nbPrivateWires)
 	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality-1)
 	pk.G2.B = make([]curve.G2Affine, nbWires-nbZeroesB)
@@ -619,7 +617,7 @@ func (vk *VerifyingKey) IsDifferent(_other interface{}) bool {
 	return true
 }
 
-// IsDifferent returns true if provided pk is different from self
+// IsDifferent returns true if provided pk is different than self
 // this is used by groth16.Assert to ensure random sampling
 func (pk *ProvingKey) IsDifferent(_other interface{}) bool {
 	pk2 := _other.(*ProvingKey)
