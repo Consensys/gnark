@@ -86,7 +86,7 @@ library Utils {
 
 }
 
-library PlonkVerifier {
+contract PlonkVerifier {
 
   using Utils for *;
   uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
@@ -232,7 +232,7 @@ library PlonkVerifier {
   event PrintUint256(uint256 a);
 
   function derive_gamma_beta_alpha_zeta(bytes memory proof, uint256[] memory public_inputs)
-  internal returns(uint256, uint256, uint256, uint256) {
+  internal view returns(uint256, uint256, uint256, uint256) {
 
     uint256 gamma;
     uint256 beta;
@@ -407,7 +407,7 @@ library PlonkVerifier {
         bytes memory proof,
         uint256[] memory public_inputs,
         uint256 zeta
-    ) internal returns (uint256) {
+    ) internal view returns (uint256) {
 
       // evaluation of Z=Xⁿ⁻¹ at ζ
       // uint256 zeta_power_n_minus_one = Fr.pow(zeta, vk_domain_size);
@@ -524,7 +524,7 @@ library PlonkVerifier {
     }
 
   function Verify(bytes memory proof, uint256[] memory public_inputs) 
-  internal returns(bool) {
+  public view returns(bool) {
 
     uint256 gamma;
     uint256 beta;
@@ -949,3 +949,84 @@ library PlonkVerifier {
 
 }
 `
+
+// MarshalSolidity converts a proof to a byte array that can be used in a
+// Solidity contract.
+func (proof *Proof) MarshalSolidity() []byte {
+
+	res := make([]byte, 0, 1024)
+
+	// uint256 l_com_x;
+	// uint256 l_com_y;
+	// uint256 r_com_x;
+	// uint256 r_com_y;
+	// uint256 o_com_x;
+	// uint256 o_com_y;
+	var tmp64 [64]byte
+	for i := 0; i < 3; i++ {
+		tmp64 = proof.LRO[i].RawBytes()
+		res = append(res, tmp64[:]...)
+	}
+
+	// uint256 h_0_x;
+	// uint256 h_0_y;
+	// uint256 h_1_x;
+	// uint256 h_1_y;
+	// uint256 h_2_x;
+	// uint256 h_2_y;
+	for i := 0; i < 3; i++ {
+		tmp64 = proof.H[i].RawBytes()
+		res = append(res, tmp64[:]...)
+	}
+	var tmp32 [32]byte
+
+	// uint256 l_at_zeta;
+	// uint256 r_at_zeta;
+	// uint256 o_at_zeta;
+	// uint256 s1_at_zeta;
+	// uint256 s2_at_zeta;
+	for i := 2; i < 7; i++ {
+		tmp32 = proof.BatchedProof.ClaimedValues[i].Bytes()
+		res = append(res, tmp32[:]...)
+	}
+
+	// uint256 grand_product_commitment_x;
+	// uint256 grand_product_commitment_y;
+	tmp64 = proof.Z.RawBytes()
+	res = append(res, tmp64[:]...)
+
+	// uint256 grand_product_at_zeta_omega;
+	tmp32 = proof.ZShiftedOpening.ClaimedValue.Bytes()
+	res = append(res, tmp32[:]...)
+
+	// uint256 quotient_polynomial_at_zeta;
+	// uint256 linearization_polynomial_at_zeta;
+	tmp32 = proof.BatchedProof.ClaimedValues[0].Bytes()
+	res = append(res, tmp32[:]...)
+	tmp32 = proof.BatchedProof.ClaimedValues[1].Bytes()
+	res = append(res, tmp32[:]...)
+
+	// uint256 opening_at_zeta_proof_x;
+	// uint256 opening_at_zeta_proof_y;
+	tmp64 = proof.BatchedProof.H.RawBytes()
+	res = append(res, tmp64[:]...)
+
+	// uint256 opening_at_zeta_omega_proof_x;
+	// uint256 opening_at_zeta_omega_proof_y;
+	tmp64 = proof.ZShiftedOpening.H.RawBytes()
+	res = append(res, tmp64[:]...)
+
+	// uint256[] selector_commit_api_at_zeta;
+	// uint256[] wire_committed_commitments;
+	if len(proof.Bsb22Commitments) > 0 {
+		tmp32 = proof.BatchedProof.ClaimedValues[7].Bytes()
+		res = append(res, tmp32[:]...)
+
+		for _, bc := range proof.Bsb22Commitments {
+			tmp64 = bc.RawBytes()
+			res = append(res, tmp64[:]...)
+		}
+	}
+
+	return res
+}
