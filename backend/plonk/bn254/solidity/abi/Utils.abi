@@ -1,0 +1,1 @@
+[{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"}],"name":"expand_msg","outputs":[{"internalType":"uint8[48]","name":"res","type":"uint8[48]"}],"stateMutability":"pure","type":"function"}]
