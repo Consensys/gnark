@@ -483,6 +483,9 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 	nbConstraints := r1cs.GetNbConstraints()
+	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+	privateCommitted := commitmentInfo.GetPrivateCommitted()
+	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - internal.NbElements(privateCommitted) - len(commitmentInfo)
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(nbConstraints))
@@ -494,8 +497,8 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires-nbZeroesA)
 	pk.G1.B = make([]curve.G1Affine, nbWires-nbZeroesB)
-	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.GetNbPublicVariables())
-	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
+	pk.G1.K = make([]curve.G1Affine, nbPrivateWires)
+	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality-1)
 	pk.G2.B = make([]curve.G2Affine, nbWires-nbZeroesB)
 
 	// set infinity markers
@@ -548,6 +551,22 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	pk.G2.Delta = r2Aff
 
 	pk.Domain = *domain
+
+	// ---------------------------------------------------------------------------------------------
+	// Commitment setup
+	commitmentBases := make([][]curve.G1Affine, len(commitmentInfo))
+	for i := range commitmentBases {
+		size := len(privateCommitted[i])
+		commitmentBases[i] = make([]curve.G1Affine, size)
+		for j := range commitmentBases[i] {
+			commitmentBases[i][j] = r1Aff
+		}
+	}
+
+	pk.CommitmentKeys, _, err = pedersen.Setup(commitmentBases...)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -655,7 +674,7 @@ func (pk *ProvingKey) NbG2() int {
 	return 2 + len(pk.G2.B)
 }
 
-// bitRerverse permutation as in fft.BitReverse , but with []curve.G1Affine
+// bitReverse permutation as in fft.BitReverse , but with []curve.G1Affine
 func bitReverse(a []curve.G1Affine) {
 	n := uint(len(a))
 	nn := uint(bits.UintSize - bits.TrailingZeros(n))

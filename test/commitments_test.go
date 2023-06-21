@@ -1,6 +1,13 @@
 package test
 
 import (
+	"fmt"
+	"github.com/consensys/gnark/backend"
+	groth16 "github.com/consensys/gnark/backend/groth16/bn254"
+	"github.com/consensys/gnark/backend/witness"
+	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
 
@@ -18,10 +25,6 @@ func (c *noCommitmentCircuit) Define(api frontend.API) error {
 	api.AssertIsEqual(c.X, 1)
 	api.AssertIsEqual(c.X, 1)
 	return nil
-}
-
-func TestNoCommitmentCircuit(t *testing.T) {
-	testAll(t, &noCommitmentCircuit{1})
 }
 
 type commitmentCircuit struct {
@@ -46,31 +49,6 @@ func (c *commitmentCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestSingleCommitment(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}}
-	testAll(t, assignment)
-}
-
-func TestTwoCommitments(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{1, 2}, Public: []frontend.Variable{}}
-	testAll(t, assignment)
-}
-
-func TestFiveCommitments(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{1, 2, 3, 4, 5}, Public: []frontend.Variable{}}
-	testAll(t, assignment)
-}
-
-func TestSingleCommitmentSinglePublic(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{0}, Public: []frontend.Variable{1}}
-	testAll(t, assignment)
-}
-
-func TestFiveCommitmentsFivePublic(t *testing.T) {
-	assignment := &commitmentCircuit{X: []frontend.Variable{0, 1, 2, 3, 4}, Public: []frontend.Variable{1, 2, 3, 4, 5}}
-	testAll(t, assignment)
-}
-
 type committedConstantCircuit struct {
 	X frontend.Variable
 }
@@ -84,10 +62,6 @@ func (c *committedConstantCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestCommittedConstant(t *testing.T) {
-	testAll(t, &committedConstantCircuit{1})
-}
-
 type committedPublicCircuit struct {
 	X frontend.Variable `gnark:",public"`
 }
@@ -99,10 +73,6 @@ func (c *committedPublicCircuit) Define(api frontend.API) error {
 	}
 	api.AssertIsDifferent(commitment, c.X)
 	return nil
-}
-
-func TestCommittedPublic(t *testing.T) {
-	testAll(t, &committedPublicCircuit{1})
 }
 
 type independentCommitsCircuit struct {
@@ -119,10 +89,6 @@ func (c *independentCommitsCircuit) Define(api frontend.API) error {
 		}
 	}
 	return nil
-}
-
-func TestTwoIndependentCommits(t *testing.T) {
-	testAll(t, &independentCommitsCircuit{X: []frontend.Variable{1, 1}})
 }
 
 type twoCommitCircuit struct {
@@ -143,10 +109,6 @@ func (c *twoCommitCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestTwoCommit(t *testing.T) {
-	testAll(t, &twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3})
-}
-
 type doubleCommitCircuit struct {
 	X, Y frontend.Variable
 }
@@ -162,10 +124,6 @@ func (c *doubleCommitCircuit) Define(api frontend.API) error {
 	}
 	api.AssertIsDifferent(c0, c1)
 	return nil
-}
-
-func TestDoubleCommit(t *testing.T) {
-	testAll(t, &doubleCommitCircuit{X: 1, Y: 2})
 }
 
 func TestHollow(t *testing.T) {
@@ -221,4 +179,82 @@ func TestCommitUniquenessZerosScs(t *testing.T) { // TODO @Tabaie Randomize Grot
 
 	_, err = ccs.Solve(w)
 	assert.NoError(t, err)
+}
+
+var commitmentTestCircuits []frontend.Circuit
+
+func init() {
+	commitmentTestCircuits = []frontend.Circuit{
+		&noCommitmentCircuit{1},
+		&commitmentCircuit{X: []frontend.Variable{1}, Public: []frontend.Variable{}},                          // single commitment
+		&commitmentCircuit{X: []frontend.Variable{1, 2}, Public: []frontend.Variable{}},                       // two commitments
+		&commitmentCircuit{X: []frontend.Variable{1, 2, 3, 4, 5}, Public: []frontend.Variable{}},              // five commitments
+		&commitmentCircuit{X: []frontend.Variable{0}, Public: []frontend.Variable{1}},                         // single commitment single public
+		&commitmentCircuit{X: []frontend.Variable{0, 1, 2, 3, 4}, Public: []frontend.Variable{1, 2, 3, 4, 5}}, // five commitments five public
+		&committedConstantCircuit{1},                             // single committed constant
+		&committedPublicCircuit{1},                               // single committed public
+		&independentCommitsCircuit{X: []frontend.Variable{1, 1}}, // two independent commitments
+		&twoCommitCircuit{X: []frontend.Variable{1, 2}, Y: 3},    // two commitments, second depending on first
+		&doubleCommitCircuit{X: 1, Y: 2},                         // double committing to the same variable
+	}
+}
+
+func TestCommitment(t *testing.T) {
+	t.Parallel()
+
+	for _, assignment := range commitmentTestCircuits {
+		NewAssert(t).ProverSucceeded(hollow(assignment), assignment, WithBackends(backend.GROTH16, backend.PLONK))
+	}
+}
+
+func TestCommitmentDummySetup(t *testing.T) {
+	t.Parallel()
+
+	run := func(assignment frontend.Circuit) func(t *testing.T) {
+		return func(t *testing.T) {
+			// just test the prover
+			_cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, hollow(assignment))
+			require.NoError(t, err)
+			_r1cs := _cs.(*cs.R1CS)
+			var (
+				dPk, pk groth16.ProvingKey
+				vk      groth16.VerifyingKey
+				w       witness.Witness
+			)
+			require.NoError(t, groth16.Setup(_r1cs, &pk, &vk))
+			require.NoError(t, groth16.DummySetup(_r1cs, &dPk))
+
+			comparePkSizes(t, dPk, pk)
+
+			w, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+			require.NoError(t, err)
+			_, err = groth16.Prove(_r1cs, &pk, w)
+			require.NoError(t, err)
+		}
+	}
+
+	for _, assignment := range commitmentTestCircuits {
+		name := removePackageName(reflect.TypeOf(assignment).String())
+		if c, ok := assignment.(*commitmentCircuit); ok {
+			name += fmt.Sprintf(":%dprivate %dpublic", len(c.X), len(c.Public))
+		}
+		t.Run(name, run(assignment))
+	}
+}
+
+func comparePkSizes(t *testing.T, pk1, pk2 groth16.ProvingKey) {
+	// skipping the domain
+	require.Equal(t, len(pk1.G1.A), len(pk2.G1.A))
+	require.Equal(t, len(pk1.G1.B), len(pk2.G1.B))
+	require.Equal(t, len(pk1.G1.Z), len(pk2.G1.Z))
+	require.Equal(t, len(pk1.G1.K), len(pk2.G1.K))
+
+	require.Equal(t, len(pk1.G2.B), len(pk2.G2.B))
+
+	require.Equal(t, len(pk1.InfinityA), len(pk2.InfinityA))
+	require.Equal(t, len(pk1.InfinityB), len(pk2.InfinityB))
+	require.Equal(t, pk1.NbInfinityA, pk2.NbInfinityA)
+	require.Equal(t, pk1.NbInfinityB, pk2.NbInfinityB)
+
+	require.Equal(t, len(pk1.CommitmentKeys), len(pk2.CommitmentKeys)) // TODO @Tabaie Compare the commitment keys
 }
