@@ -87,6 +87,50 @@ func testAssertIsLessEqualThan[T FieldParams](t *testing.T) {
 	}, testName[T]())
 }
 
+type AssertIsLessEqualThanConstantCiruit[T FieldParams] struct {
+	L Element[T]
+	R *big.Int
+}
+
+func (c *AssertIsLessEqualThanConstantCiruit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	R := f.NewElement(c.R)
+	f.AssertIsLessOrEqual(&c.L, R)
+	return nil
+}
+
+func testAssertIsLessEqualThanConstant[T FieldParams](t *testing.T) {
+	var fp T
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		var circuit, witness AssertIsLessEqualThanConstantCiruit[T]
+		R, _ := rand.Int(rand.Reader, fp.Modulus())
+		L, _ := rand.Int(rand.Reader, R)
+		circuit.R = R
+		witness.R = R
+		witness.L = ValueOf[T](L)
+		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+	}, testName[T]())
+	assert.Run(func(assert *test.Assert) {
+		var circuit, witness AssertIsLessEqualThanConstantCiruit[T]
+		R := new(big.Int).Set(fp.Modulus())
+		L, _ := rand.Int(rand.Reader, R)
+		circuit.R = R
+		witness.R = R
+		witness.L = ValueOf[T](L)
+		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+	}, fmt.Sprintf("overflow/%s", testName[T]()))
+}
+
+func TestAssertIsLessEqualThanConstant(t *testing.T) {
+	testAssertIsLessEqualThanConstant[Goldilocks](t)
+	testAssertIsLessEqualThanConstant[Secp256k1Fp](t)
+	testAssertIsLessEqualThanConstant[BN254Fp](t)
+}
+
 type AddCircuit[T FieldParams] struct {
 	A, B, C Element[T]
 }
