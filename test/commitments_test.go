@@ -1,7 +1,13 @@
 package test
 
 import (
+	"fmt"
 	"github.com/consensys/gnark/backend"
+	groth16 "github.com/consensys/gnark/backend/groth16/bn254"
+	"github.com/consensys/gnark/backend/witness"
+	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
 
@@ -194,7 +200,61 @@ func init() {
 }
 
 func TestCommitment(t *testing.T) {
+	t.Parallel()
+
 	for _, assignment := range commitmentTestCircuits {
 		NewAssert(t).ProverSucceeded(hollow(assignment), assignment, WithBackends(backend.GROTH16, backend.PLONK))
 	}
+}
+
+func TestCommitmentDummySetup(t *testing.T) {
+	t.Parallel()
+
+	run := func(assignment frontend.Circuit) func(t *testing.T) {
+		return func(t *testing.T) {
+			// just test the prover
+			_cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, hollow(assignment))
+			require.NoError(t, err)
+			_r1cs := _cs.(*cs.R1CS)
+			var (
+				dPk, pk groth16.ProvingKey
+				vk      groth16.VerifyingKey
+				w       witness.Witness
+			)
+			require.NoError(t, groth16.Setup(_r1cs, &pk, &vk))
+			require.NoError(t, groth16.DummySetup(_r1cs, &dPk))
+
+			comparePkSizes(t, dPk, pk)
+
+			w, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+			require.NoError(t, err)
+			_, err = groth16.Prove(_r1cs, &pk, w)
+			require.NoError(t, err)
+		}
+	}
+
+	for _, assignment := range commitmentTestCircuits {
+		name := removePackageName(reflect.TypeOf(assignment).String())
+		if c, ok := assignment.(*commitmentCircuit); ok {
+			name += fmt.Sprintf(":%dprivate %dpublic", len(c.X), len(c.Public))
+		}
+		t.Run(name, run(assignment))
+	}
+}
+
+func comparePkSizes(t *testing.T, pk1, pk2 groth16.ProvingKey) {
+	// skipping the domain
+	require.Equal(t, len(pk1.G1.A), len(pk2.G1.A))
+	require.Equal(t, len(pk1.G1.B), len(pk2.G1.B))
+	require.Equal(t, len(pk1.G1.Z), len(pk2.G1.Z))
+	require.Equal(t, len(pk1.G1.K), len(pk2.G1.K))
+
+	require.Equal(t, len(pk1.G2.B), len(pk2.G2.B))
+
+	require.Equal(t, len(pk1.InfinityA), len(pk2.InfinityA))
+	require.Equal(t, len(pk1.InfinityB), len(pk2.InfinityB))
+	require.Equal(t, pk1.NbInfinityA, pk2.NbInfinityA)
+	require.Equal(t, pk1.NbInfinityB, pk2.NbInfinityB)
+
+	require.Equal(t, len(pk1.CommitmentKeys), len(pk2.CommitmentKeys)) // TODO @Tabaie Compare the commitment keys
 }
