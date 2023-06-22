@@ -1,6 +1,8 @@
 package selector_test
 
 import (
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"testing"
 
 	"github.com/consensys/gnark/frontend"
@@ -105,11 +107,21 @@ func TestMux(t *testing.T) {
 		OUT: 22,
 	})
 
+	assert.ProverSucceeded(&mux4to1Circuit{}, &mux4to1Circuit{
+		SEL: 0,
+		In:  [4]frontend.Variable{11, 22, 33, 44},
+		OUT: 11,
+	})
+
 	assert.ProverFailed(&mux4to1Circuit{}, &mux4to1Circuit{
 		SEL: 4,
 		In:  [4]frontend.Variable{11, 22, 33, 44},
 		OUT: 44,
 	})
+
+	cs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &mux4to1Circuit{})
+	// (4 - 1) + (2 + 1) + 1 == 7
+	assert.Equal(7, cs.GetNbConstraints())
 }
 
 // Map tests:
