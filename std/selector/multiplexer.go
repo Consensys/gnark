@@ -10,10 +10,10 @@
 package selector
 
 import (
+	"fmt"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
-	"log"
 	"math/big"
 	binary "math/bits"
 )
@@ -42,7 +42,7 @@ func Map(api frontend.API, queryKey frontend.Variable,
 	// we don't need this check, but we added it to produce more informative errors
 	// and disallow len(keys) < len(values) which is supported by generateSelector.
 	if len(keys) != len(values) {
-		log.Panicf("The number of keys and values must be equal (%d != %d)", len(keys), len(values))
+		panic(fmt.Sprintf("The number of keys and values must be equal (%d != %d)", len(keys), len(values)))
 	}
 	return dotProduct(api, values, KeyDecoder(api, queryKey, keys))
 }
@@ -107,7 +107,7 @@ func generateDecoder(api frontend.API, sequential bool, n int, sel frontend.Vari
 		indicators, err = api.Compiler().NewHint(mapIndicators, len(keys), append(keys, sel)...)
 	}
 	if err != nil {
-		log.Panicf("error in calling Mux/Map hint: %v", err)
+		panic(fmt.Sprintf("error in calling Mux/Map hint: %v", err))
 	}
 
 	indicatorsSum := frontend.Variable(0)
