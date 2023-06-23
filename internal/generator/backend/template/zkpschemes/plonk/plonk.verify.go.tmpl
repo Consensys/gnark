@@ -335,11 +335,17 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 		"inc": func(i int) int {
 			return i + 1
 		},
-		"frptr": func(x fr.Element) *fr.Element {
-			return &x
+		"frstr": func(x fr.Element) string {
+			// we use big.Int to always get a positive string.
+			// not the most efficient hack, but it works better for .sol generation.
+			bv := new(big.Int)
+			x.BigInt(bv)
+			return bv.String()
 		},
-		"fpptr": func(x fp.Element) *fp.Element {
-			return &x
+		"fpstr": func(x fp.Element) string {
+			bv := new(big.Int)
+			x.BigInt(bv)
+			return bv.String()
 		},
 		"add": func(i, j int) int {
 			return i + j

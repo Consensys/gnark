@@ -58,7 +58,8 @@ func TestIntegrationAPI(t *testing.T) {
 						tData.Circuit, tData.ValidAssignments[i],
 						test.WithSolverOpts(solver.WithHints(tData.HintFunctions...)),
 						test.WithCurves(tData.Curves[0], tData.Curves[1:]...),
-						test.WithBackends(backends[0], backends[1:]...))
+						test.WithBackends(backends[0], backends[1:]...),
+						test.WithSolidity())
 				}, fmt.Sprintf("valid-%d", i))
 			}
 

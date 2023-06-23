@@ -175,6 +175,11 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 					err = groth16.Verify(proof, vk, validPublicWitness)
 					checkError(err)
 
+					if opt.solidity && curve == ecc.BN254 && vk.NbPublicWitness() > 0 {
+						// check that the proof can be verified by gnark-solidity-checker
+						assert.solidityVerification(b, vk, proof, validPublicWitness)
+					}
+
 				case backend.PLONK:
 					srs, err := NewKZGSRS(ccs)
 					checkError(err)
@@ -188,11 +193,16 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 						roundTripCheck(assert.t, vk, vkReconstructed)
 					}
 
-					correctProof, err := plonk.Prove(ccs, pk, validWitness, opt.proverOpts...)
+					proof, err := plonk.Prove(ccs, pk, validWitness, opt.proverOpts...)
 					checkError(err)
 
-					err = plonk.Verify(correctProof, vk, validPublicWitness)
+					err = plonk.Verify(proof, vk, validPublicWitness)
 					checkError(err)
+
+					if opt.solidity && curve == ecc.BN254 {
+						// check that the proof can be verified by gnark-solidity-checker
+						assert.solidityVerification(b, vk, proof, validPublicWitness)
+					}
 
 				case backend.PLONKFRI:
 					pk, vk, err := plonkfri.Setup(ccs)

@@ -110,34 +110,34 @@ contract PlonkVerifier {
   uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint256 constant p_mod = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
   {{ range $index, $element := .Kzg.G2 }}
-  uint256 constant g2_srs_{{ $index }}_x_0 = {{ (fpptr $element.X.A1).String }};
-  uint256 constant g2_srs_{{ $index }}_x_1 = {{ (fpptr $element.X.A0).String }};
-  uint256 constant g2_srs_{{ $index }}_y_0 = {{ (fpptr $element.Y.A1).String }};
-  uint256 constant g2_srs_{{ $index }}_y_1 = {{ (fpptr $element.Y.A0).String }};
+  uint256 constant g2_srs_{{ $index }}_x_0 = {{ (fpstr $element.X.A1) }};
+  uint256 constant g2_srs_{{ $index }}_x_1 = {{ (fpstr $element.X.A0) }};
+  uint256 constant g2_srs_{{ $index }}_y_0 = {{ (fpstr $element.Y.A1) }};
+  uint256 constant g2_srs_{{ $index }}_y_1 = {{ (fpstr $element.Y.A0) }};
   {{ end }}
   // ----------------------- vk ---------------------
   uint256 constant vk_domain_size = {{ .Size }};
-  uint256 constant vk_inv_domain_size = {{ (frptr .SizeInv).String }};
-  uint256 constant vk_omega = {{ (frptr .Generator).String }};
-  uint256 constant vk_ql_com_x = {{ (fpptr .Ql.X).String }};
-  uint256 constant vk_ql_com_y = {{ (fpptr .Ql.Y).String }};
-  uint256 constant vk_qr_com_x = {{ (fpptr .Qr.X).String }};
-  uint256 constant vk_qr_com_y = {{ (fpptr .Qr.Y).String }};
-  uint256 constant vk_qm_com_x = {{ (fpptr .Qm.X).String }};
-  uint256 constant vk_qm_com_y = {{ (fpptr .Qm.Y).String }};
-  uint256 constant vk_qo_com_x = {{ (fpptr .Qo.X).String }};
-  uint256 constant vk_qo_com_y = {{ (fpptr .Qo.Y).String }};
-  uint256 constant vk_qk_com_x = {{ (fpptr .Qk.X).String }};
-  uint256 constant vk_qk_com_y = {{ (fpptr .Qk.Y).String }};
+  uint256 constant vk_inv_domain_size = {{ (frstr .SizeInv) }};
+  uint256 constant vk_omega = {{ (frstr .Generator) }};
+  uint256 constant vk_ql_com_x = {{ (fpstr .Ql.X) }};
+  uint256 constant vk_ql_com_y = {{ (fpstr .Ql.Y) }};
+  uint256 constant vk_qr_com_x = {{ (fpstr .Qr.X) }};
+  uint256 constant vk_qr_com_y = {{ (fpstr .Qr.Y) }};
+  uint256 constant vk_qm_com_x = {{ (fpstr .Qm.X) }};
+  uint256 constant vk_qm_com_y = {{ (fpstr .Qm.Y) }};
+  uint256 constant vk_qo_com_x = {{ (fpstr .Qo.X) }};
+  uint256 constant vk_qo_com_y = {{ (fpstr .Qo.Y) }};
+  uint256 constant vk_qk_com_x = {{ (fpstr .Qk.X) }};
+  uint256 constant vk_qk_com_y = {{ (fpstr .Qk.Y) }};
   {{ range $index, $element := .S }}
-  uint256 constant vk_s{{ inc $index }}_com_x = {{ (fpptr $element.X).String }};
-  uint256 constant vk_s{{ inc $index }}_com_y = {{ (fpptr $element.Y).String }};
+  uint256 constant vk_s{{ inc $index }}_com_x = {{ (fpstr $element.X) }};
+  uint256 constant vk_s{{ inc $index }}_com_y = {{ (fpstr $element.Y) }};
   {{ end }}
   uint256 constant vk_coset_shift = 5;
   
   {{ range $index, $element := .Qcp}}
-  uint256 constant vk_selector_commitments_commit_api_{{ $index }}_x = {{ (fpptr $element.X).String }};
-  uint256 constant vk_selector_commitments_commit_api_{{ $index }}_y = {{ (fpptr $element.Y).String }};
+  uint256 constant vk_selector_commitments_commit_api_{{ $index }}_x = {{ (fpstr $element.X) }};
+  uint256 constant vk_selector_commitments_commit_api_{{ $index }}_y = {{ (fpstr $element.Y) }};
   {{ end }}
 
   {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
