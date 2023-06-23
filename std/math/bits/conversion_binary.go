@@ -56,6 +56,13 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 		}
 	}
 
+	// when cfg.NbDigits == 1, v itself has to be a binary digit. This if clause
+	// saves one constraint.
+	if cfg.NbDigits == 1 {
+		api.AssertIsBoolean(v)
+		return []frontend.Variable{v}
+	}
+
 	c := big.NewInt(1)
 
 	bits, err := api.Compiler().NewHint(nBits, cfg.NbDigits, v)
