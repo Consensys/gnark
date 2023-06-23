@@ -25,6 +25,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
@@ -346,9 +348,25 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 //
 // Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
-	tmpl, err := template.New("").Parse(solidityTemplate)
+	funcMap := template.FuncMap{
+		// The name "inc" is what the function will be called in the template text.
+		"inc": func(i int) int {
+			return i + 1
+		},
+		"frptr": func(x fr.Element) *fr.Element {
+			return &x
+		},
+		"fpptr": func(x fp.Element) *fp.Element {
+			return &x
+		},
+		"add": func(i, j int) int {
+			return i + j
+		},
+	}
+
+	t, err := template.New("t").Funcs(funcMap).Parse(tmplSolidityVerifier)
 	if err != nil {
 		return err
 	}
-	return tmpl.Execute(w, vk)
+	return t.Execute(w, vk)
 }
