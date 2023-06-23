@@ -107,7 +107,7 @@ func WithCompileOpts(compileOpts ...frontend.CompileOption) TestingOption {
 
 // WithSolidity is a testing option which enables solidity tests in assertions.
 // If the build tag "solccheck" is not set, this option is ignored.
-// When the tag is set; his requires gnark-solidity-checker to be installed, which in turns
+// When the tag is set; this requires gnark-solidity-checker to be installed, which in turns
 // requires solc and abigen to be reachable in the PATH.
 //
 // See https://github.com/ConsenSys/gnark-solidity-checker for more details.

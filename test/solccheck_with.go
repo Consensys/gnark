@@ -1,5 +1,4 @@
 //go:build solccheck
-// +build solccheck
 
 package test
 

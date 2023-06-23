@@ -24,7 +24,7 @@ func (assert *Assert) solidityVerification(b backend.ID, vk interface {
 },
 	proof any,
 	validPublicWitness witness.Witness) {
-	if vk.NbPublicWitness() == 0 || !solcCheck {
+	if !solcCheck {
 		return // nothing to check, will make solc fail.
 	}
 	assert.t.Helper()

@@ -199,7 +199,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 					err = plonk.Verify(proof, vk, validPublicWitness)
 					checkError(err)
 
-					if opt.solidity && curve == ecc.BN254 && vk.NbPublicWitness() > 0 {
+					if opt.solidity && curve == ecc.BN254 {
 						// check that the proof can be verified by gnark-solidity-checker
 						assert.solidityVerification(b, vk, proof, validPublicWitness)
 					}
