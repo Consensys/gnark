@@ -113,7 +113,7 @@ func New(field *big.Int) (Witness, error) {
 }
 
 func (w *witness) Fill(nbPublic, nbSecret int, values <-chan any) error {
-	n := int(nbPublic + nbSecret)
+	n := nbPublic + nbSecret
 	w.vector = resize(w.vector, n)
 	w.nbPublic = uint32(nbPublic)
 	w.nbSecret = uint32(nbSecret)

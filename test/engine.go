@@ -18,24 +18,27 @@ package test
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/constraint"
 	"math/big"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
-	"github.com/consensys/gnark/constraint"
-
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
 	"github.com/consensys/gnark/logger"
+	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/pool"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/circuitdefer"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 )
 
@@ -50,24 +53,14 @@ type engine struct {
 	q       *big.Int
 	opt     backend.ProverConfig
 	// mHintsFunctions map[hint.ID]hintFunction
-	constVars  bool
-	apiWrapper ApiWrapper
+	constVars bool
+	kvstore.Store
+	blueprints        []constraint.Blueprint
+	internalVariables []*big.Int
 }
 
 // TestEngineOption defines an option for the test engine.
 type TestEngineOption func(e *engine) error
-
-// ApiWrapper defines a function which wraps the API given to the circuit.
-type ApiWrapper func(frontend.API) frontend.API
-
-// WithApiWrapper is a test engine option which which wraps the API before
-// calling the Define method in circuit. If not set, then API is not wrapped.
-func WithApiWrapper(wrapper ApiWrapper) TestEngineOption {
-	return func(e *engine) error {
-		e.apiWrapper = wrapper
-		return nil
-	}
-}
 
 // SetAllVariablesAsConstants is a test engine option which makes the calls to
 // IsConstant() and ConstantValue() always return true. If this test engine
@@ -101,10 +94,10 @@ func WithBackendProverOptions(opts ...backend.ProverOption) TestEngineOption {
 // This is an experimental feature.
 func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEngineOption) (err error) {
 	e := &engine{
-		curveID:    utils.FieldToCurve(field),
-		q:          new(big.Int).Set(field),
-		apiWrapper: func(a frontend.API) frontend.API { return a },
-		constVars:  false,
+		curveID:   utils.FieldToCurve(field),
+		q:         new(big.Int).Set(field),
+		constVars: false,
+		Store:     kvstore.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(e); err != nil {
@@ -133,8 +126,13 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	log := logger.Logger()
 	log.Debug().Msg("running circuit in test engine")
 	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
-	api := e.apiWrapper(e)
-	err = c.Define(api)
+	if err = c.Define(e); err != nil {
+		return fmt.Errorf("define: %w", err)
+	}
+	if err = callDeferred(e); err != nil {
+		return fmt.Errorf("deferred: %w", err)
+	}
+
 	log.Debug().Uint64("add", cptAdd).
 		Uint64("sub", cptSub).
 		Uint64("mul", cptMul).
@@ -145,14 +143,23 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	return
 }
 
+func callDeferred(builder *engine) error {
+	for i := 0; i < len(circuitdefer.GetAll[func(frontend.API) error](builder)); i++ {
+		if err := circuitdefer.GetAll[func(frontend.API) error](builder)[i](builder); err != nil {
+			return fmt.Errorf("defer fn %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
 var cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual uint64
 
 func (e *engine) Add(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	cptAdd++
+	atomic.AddUint64(&cptAdd, 1)
 	res := new(big.Int)
 	res.Add(e.toBigInt(i1), e.toBigInt(i2))
 	for i := 0; i < len(in); i++ {
-		cptAdd++
+		atomic.AddUint64(&cptAdd, 1)
 		res.Add(res, e.toBigInt(in[i]))
 	}
 	res.Mod(res, e.modulus())
@@ -163,19 +170,20 @@ func (e *engine) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 	bc := pool.BigInt.Get()
 	bc.Mul(e.toBigInt(b), e.toBigInt(c))
 
+	res := new(big.Int)
 	_a := e.toBigInt(a)
-	_a.Add(_a, bc).Mod(_a, e.modulus())
+	res.Add(_a, bc).Mod(res, e.modulus())
 
 	pool.BigInt.Put(bc)
-	return _a
+	return res
 }
 
 func (e *engine) Sub(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	cptSub++
+	atomic.AddUint64(&cptSub, 1)
 	res := new(big.Int)
 	res.Sub(e.toBigInt(i1), e.toBigInt(i2))
 	for i := 0; i < len(in); i++ {
-		cptSub++
+		atomic.AddUint64(&cptSub, 1)
 		res.Sub(res, e.toBigInt(in[i]))
 	}
 	res.Mod(res, e.modulus())
@@ -190,7 +198,7 @@ func (e *engine) Neg(i1 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend.Variable {
-	cptMul++
+	atomic.AddUint64(&cptMul, 1)
 	b2 := e.toBigInt(i2)
 	if len(in) == 0 && b2.IsUint64() && b2.Uint64() <= 1 {
 		// special path to avoid useless allocations
@@ -204,7 +212,7 @@ func (e *engine) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) frontend
 	res.Mul(b1, b2)
 	res.Mod(res, e.modulus())
 	for i := 0; i < len(in); i++ {
-		cptMul++
+		atomic.AddUint64(&cptMul, 1)
 		res.Mul(res, e.toBigInt(in[i]))
 		res.Mod(res, e.modulus())
 	}
@@ -244,7 +252,7 @@ func (e *engine) Inverse(i1 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
-	cptToBinary++
+	atomic.AddUint64(&cptToBinary, 1)
 	nbBits := e.FieldBitLen()
 	if len(n) == 1 {
 		nbBits = n[0]
@@ -276,7 +284,7 @@ func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 }
 
 func (e *engine) FromBinary(v ...frontend.Variable) frontend.Variable {
-	cptFromBinary++
+	atomic.AddUint64(&cptFromBinary, 1)
 	bits := make([]bool, len(v))
 	for i := 0; i < len(v); i++ {
 		be := e.toBigInt(v[i])
@@ -373,7 +381,7 @@ func (e *engine) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 }
 
 func (e *engine) AssertIsEqual(i1, i2 frontend.Variable) {
-	cptAssertIsEqual++
+	atomic.AddUint64(&cptAssertIsEqual, 1)
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
 	if b1.Cmp(b2) != 0 {
 		panic(fmt.Sprintf("[assertIsEqual] %s == %s", b1.String(), b2.String()))
@@ -450,7 +458,7 @@ func (e *engine) print(sbb *strings.Builder, x interface{}) {
 	}
 }
 
-func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (e *engine) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 
 	if nbOutputs <= 0 {
 		return nil, fmt.Errorf("hint function must return at least one output")
@@ -479,6 +487,14 @@ func (e *engine) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Vari
 	}
 
 	return out, nil
+}
+
+func (e *engine) NewHintForId(id solver.HintID, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+	if f := solver.GetRegisteredHint(id); f != nil {
+		return e.NewHint(f, nbOutputs, inputs...)
+	}
+
+	return nil, fmt.Errorf("no hint registered with id #%d. Use solver.RegisterHint or solver.RegisterNamedHint", id)
 }
 
 // IsConstant returns true if v is a constant known at compile time
@@ -516,7 +532,7 @@ func (e *engine) toBigInt(i1 frontend.Variable) *big.Int {
 	}
 }
 
-// bitLen returns the number of bits needed to represent a fr.Element
+// FieldBitLen returns the number of bits needed to represent a fr.Element
 func (e *engine) FieldBitLen() int {
 	return e.q.BitLen()
 }
@@ -587,7 +603,80 @@ func (e *engine) Compiler() frontend.Compiler {
 }
 
 func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
-	panic("not implemented")
+	nb := (e.FieldBitLen() + 7) / 8
+	buf := make([]byte, nb)
+	hasher := sha3.NewCShake128(nil, []byte("gnark test engine"))
+	for i := range v {
+		vs := e.toBigInt(v[i])
+		bs := vs.FillBytes(buf)
+		hasher.Write(bs)
+	}
+	hasher.Read(buf)
+	res := new(big.Int).SetBytes(buf)
+	res.Mod(res, e.modulus())
+	return res, nil
+}
+
+func (e *engine) Defer(cb func(frontend.API) error) {
+	circuitdefer.Put(e, cb)
+}
+
+// AddInstruction is used to add custom instructions to the constraint system.
+// In constraint system, this is asynchronous. In here, we do it synchronously.
+func (e *engine) AddInstruction(bID constraint.BlueprintID, calldata []uint32) []uint32 {
+	blueprint := e.blueprints[bID].(constraint.BlueprintSolvable)
+
+	// create a dummy instruction
+	inst := constraint.Instruction{
+		Calldata:   calldata,
+		WireOffset: uint32(len(e.internalVariables)),
+	}
+
+	// blueprint declared nbOutputs; add as many internal variables
+	// and return their indices
+	nbOutputs := blueprint.NbOutputs(inst)
+	var r []uint32
+	for i := 0; i < nbOutputs; i++ {
+		r = append(r, uint32(len(e.internalVariables)))
+		e.internalVariables = append(e.internalVariables, new(big.Int))
+	}
+
+	// solve the blueprint synchronously
+	s := blueprintSolver{
+		internalVariables: e.internalVariables,
+		q:                 e.q,
+	}
+	if err := blueprint.Solve(&s, inst); err != nil {
+		panic(err)
+	}
+
+	return r
+}
+
+// AddBlueprint adds a custom blueprint to the constraint system.
+func (e *engine) AddBlueprint(b constraint.Blueprint) constraint.BlueprintID {
+	if _, ok := b.(constraint.BlueprintSolvable); !ok {
+		panic("unsupported blueprint in test engine")
+	}
+	e.blueprints = append(e.blueprints, b)
+	return constraint.BlueprintID(len(e.blueprints) - 1)
+}
+
+// InternalVariable returns the value of an internal variable. This is used in custom blueprints.
+// The variableID is the index of the variable in the internalVariables slice, as
+// filled by AddInstruction.
+func (e *engine) InternalVariable(vID uint32) frontend.Variable {
+	if vID >= uint32(len(e.internalVariables)) {
+		panic("internal variable not found")
+	}
+	return new(big.Int).Set(e.internalVariables[vID])
+}
+
+// ToCanonicalVariable converts a frontend.Variable to a frontend.CanonicalVariable
+// this is used in custom blueprints to return a variable than can be encoded in blueprints
+func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVariable {
+	r := e.toBigInt(v)
+	return wrappedBigInt{r}
 }
 
 func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {

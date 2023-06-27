@@ -36,13 +36,13 @@ import (
 	cs_bw6633 "github.com/consensys/gnark/constraint/bw6-633"
 	cs_bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 
-	plonk_bls12377 "github.com/consensys/gnark/internal/backend/bls12-377/plonk"
-	plonk_bls12381 "github.com/consensys/gnark/internal/backend/bls12-381/plonk"
-	plonk_bls24315 "github.com/consensys/gnark/internal/backend/bls24-315/plonk"
-	plonk_bls24317 "github.com/consensys/gnark/internal/backend/bls24-317/plonk"
-	plonk_bn254 "github.com/consensys/gnark/internal/backend/bn254/plonk"
-	plonk_bw6633 "github.com/consensys/gnark/internal/backend/bw6-633/plonk"
-	plonk_bw6761 "github.com/consensys/gnark/internal/backend/bw6-761/plonk"
+	plonk_bls12377 "github.com/consensys/gnark/backend/plonk/bls12-377"
+	plonk_bls12381 "github.com/consensys/gnark/backend/plonk/bls12-381"
+	plonk_bls24315 "github.com/consensys/gnark/backend/plonk/bls24-315"
+	plonk_bls24317 "github.com/consensys/gnark/backend/plonk/bls24-317"
+	plonk_bn254 "github.com/consensys/gnark/backend/plonk/bn254"
+	plonk_bw6633 "github.com/consensys/gnark/backend/plonk/bw6-633"
+	plonk_bw6761 "github.com/consensys/gnark/backend/plonk/bw6-761"
 
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
@@ -78,7 +78,6 @@ type Proof interface {
 type ProvingKey interface {
 	io.WriterTo
 	io.ReaderFrom
-	InitKZG(srs kzg.SRS) error
 	VerifyingKey() interface{}
 }
 
@@ -88,29 +87,28 @@ type ProvingKey interface {
 type VerifyingKey interface {
 	io.WriterTo
 	io.ReaderFrom
-	InitKZG(srs kzg.SRS) error
 	NbPublicWitness() int // number of elements expected in the public witness
 	ExportSolidity(w io.Writer) error
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.
-func Setup(ccs constraint.ConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, VerifyingKey, error) {
+func Setup(ccs constraint.ConstraintSystem, kzgSrs kzg.SRS) (ProvingKey, VerifyingKey, error) {
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		return plonk_bn254.Setup(tccs, kzgSRS.(*kzg_bn254.SRS))
+		return plonk_bn254.Setup(tccs, *kzgSrs.(*kzg_bn254.SRS))
 	case *cs_bls12381.SparseR1CS:
-		return plonk_bls12381.Setup(tccs, kzgSRS.(*kzg_bls12381.SRS))
+		return plonk_bls12381.Setup(tccs, *kzgSrs.(*kzg_bls12381.SRS))
 	case *cs_bls12377.SparseR1CS:
-		return plonk_bls12377.Setup(tccs, kzgSRS.(*kzg_bls12377.SRS))
+		return plonk_bls12377.Setup(tccs, *kzgSrs.(*kzg_bls12377.SRS))
 	case *cs_bw6761.SparseR1CS:
-		return plonk_bw6761.Setup(tccs, kzgSRS.(*kzg_bw6761.SRS))
+		return plonk_bw6761.Setup(tccs, *kzgSrs.(*kzg_bw6761.SRS))
 	case *cs_bls24317.SparseR1CS:
-		return plonk_bls24317.Setup(tccs, kzgSRS.(*kzg_bls24317.SRS))
+		return plonk_bls24317.Setup(tccs, *kzgSrs.(*kzg_bls24317.SRS))
 	case *cs_bls24315.SparseR1CS:
-		return plonk_bls24315.Setup(tccs, kzgSRS.(*kzg_bls24315.SRS))
+		return plonk_bls24315.Setup(tccs, *kzgSrs.(*kzg_bls24315.SRS))
 	case *cs_bw6633.SparseR1CS:
-		return plonk_bw6633.Setup(tccs, kzgSRS.(*kzg_bw6633.SRS))
+		return plonk_bw6633.Setup(tccs, *kzgSrs.(*kzg_bw6633.SRS))
 	default:
 		panic("unrecognized SparseR1CS curve type")
 	}
@@ -120,66 +118,32 @@ func Setup(ccs constraint.ConstraintSystem, kzgSRS kzg.SRS) (ProvingKey, Verifyi
 // Prove generates PLONK proof from a circuit, associated preprocessed public data, and the witness
 // if the force flag is set:
 //
-//		will executes all the prover computations, even if the witness is invalid
+//		will execute all the prover computations, even if the witness is invalid
 //	 will produce an invalid proof
 //		internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
 func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (Proof, error) {
 
-	// apply options
-	opt, err := backend.NewProverConfig(opts...)
-	if err != nil {
-		return nil, err
-	}
-
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bn254.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), w, opt)
+		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), fullWitness, opts...)
 
 	case *cs_bls12381.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bls12381.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), w, opt)
+		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), fullWitness, opts...)
 
 	case *cs_bls12377.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bls12377.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), w, opt)
+		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), fullWitness, opts...)
 
 	case *cs_bw6761.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bw6761.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), w, opt)
+		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), fullWitness, opts...)
 
 	case *cs_bw6633.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bw6633.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), w, opt)
+		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), fullWitness, opts...)
 
 	case *cs_bls24317.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bls24317.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bls24317.Prove(tccs, pk.(*plonk_bls24317.ProvingKey), w, opt)
+		return plonk_bls24317.Prove(tccs, pk.(*plonk_bls24317.ProvingKey), fullWitness, opts...)
 
 	case *cs_bls24315.SparseR1CS:
-		w, ok := fullWitness.Vector().(fr_bls24315.Vector)
-		if !ok {
-			return nil, witness.ErrInvalidWitness
-		}
-		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), w, opt)
+		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), fullWitness, opts...)
 
 	default:
 		panic("unrecognized SparseR1CS curve type")

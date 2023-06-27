@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bits-and-blooms/bitset"
 	"github.com/consensys/gnark-crypto/field/hash"
 	"github.com/consensys/gnark-crypto/field/pool"
 )
@@ -299,7 +300,7 @@ func (z *Element) SetRandom() (*Element, error) {
 			return nil, err
 		}
 
-		// Clear unused bits in in the most signicant byte to increase probability
+		// Clear unused bits in in the most significant byte to increase probability
 		// that the candidate is < q.
 		bytes[k-1] &= uint8(int(1<<b) - 1)
 		z[0] = binary.LittleEndian.Uint64(bytes[0:8])
@@ -498,12 +499,12 @@ func BatchInvert(a []Element) []Element {
 		return res
 	}
 
-	zeroes := make([]bool, len(a))
+	zeroes := bitset.New(uint(len(a)))
 	accumulator := One()
 
 	for i := 0; i < len(a); i++ {
 		if a[i].IsZero() {
-			zeroes[i] = true
+			zeroes.Set(uint(i))
 			continue
 		}
 		res[i] = accumulator
@@ -513,7 +514,7 @@ func BatchInvert(a []Element) []Element {
 	accumulator.Inverse(&accumulator)
 
 	for i := len(a) - 1; i >= 0; i-- {
-		if zeroes[i] {
+		if zeroes.Test(uint(i)) {
 			continue
 		}
 		res[i].Mul(&res[i], &accumulator)

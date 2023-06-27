@@ -9,7 +9,7 @@ type Settings struct {
 	Transcript     *Transcript
 	Prefix         string
 	BaseChallenges []frontend.Variable
-	Hash           hash.Hash
+	Hash           hash.FieldHasher
 }
 
 func WithTranscript(transcript *Transcript, prefix string, baseChallenges ...frontend.Variable) Settings {
@@ -20,7 +20,7 @@ func WithTranscript(transcript *Transcript, prefix string, baseChallenges ...fro
 	}
 }
 
-func WithHash(hash hash.Hash, baseChallenges ...frontend.Variable) Settings {
+func WithHash(hash hash.FieldHasher, baseChallenges ...frontend.Variable) Settings {
 	return Settings{
 		BaseChallenges: baseChallenges,
 		Hash:           hash,
