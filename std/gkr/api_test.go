@@ -2,6 +2,10 @@ package gkr
 
 import (
 	"fmt"
+	"github.com/consensys/gnark-crypto/kzg"
+	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/require"
 	"hash"
 	"math/rand"
 	"strconv"
@@ -17,10 +21,10 @@ import (
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
-	"github.com/stretchr/testify/assert"
 )
 
 // compressThreshold --> if linear expressions are larger than this, the frontend will introduce
@@ -68,7 +72,8 @@ func TestDoubleNoDependencyCircuit(t *testing.T) {
 			assignment := doubleNoDependencyCircuit{X: xValues}
 			circuit := doubleNoDependencyCircuit{X: make([]frontend.Variable, len(xValues)), hashName: hashName}
 
-			testE2E(t, &circuit, &assignment)
+			testGroth16(t, &circuit, &assignment)
+			testPlonk(t, &circuit, &assignment)
 		}
 	}
 }
@@ -112,7 +117,8 @@ func TestSqNoDependencyCircuit(t *testing.T) {
 		for _, hashName := range hashes {
 			assignment := sqNoDependencyCircuit{X: xValues}
 			circuit := sqNoDependencyCircuit{X: make([]frontend.Variable, len(xValues)), hashName: hashName}
-			testE2E(t, &circuit, &assignment)
+			testGroth16(t, &circuit, &assignment)
+			testPlonk(t, &circuit, &assignment)
 		}
 	}
 }
@@ -174,7 +180,8 @@ func TestMulNoDependency(t *testing.T) {
 				hashName: hashName,
 			}
 
-			testE2E(t, &circuit, &assignment)
+			testGroth16(t, &circuit, &assignment)
+			testPlonk(t, &circuit, &assignment)
 		}
 	}
 }
@@ -229,7 +236,8 @@ func TestSolveMulWithDependency(t *testing.T) {
 	}
 	circuit := mulWithDependencyCircuit{Y: make([]frontend.Variable, len(assignment.Y)), hashName: "-20"}
 
-	testE2E(t, &circuit, &assignment)
+	testGroth16(t, &circuit, &assignment)
+	testPlonk(t, &circuit, &assignment)
 }
 
 func TestApiMul(t *testing.T) {
@@ -241,9 +249,9 @@ func TestApiMul(t *testing.T) {
 	)
 	api := NewApi()
 	x, err = api.Import([]frontend.Variable{nil, nil})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	y, err = api.Import([]frontend.Variable{nil, nil})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	z = api.Mul(x, y).(constraint.GkrVariable)
 	test_vector_utils.AssertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 }
@@ -276,7 +284,7 @@ func benchCompile(b *testing.B, circuit frontend.Circuit) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
-		assert.NoError(b, err)
+		require.NoError(b, err)
 	}
 }
 
@@ -284,14 +292,14 @@ func benchProof(b *testing.B, circuit, assignment frontend.Circuit) {
 	fmt.Println("compiling...")
 	start := time.Now().UnixMicro()
 	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
-	assert.NoError(b, err)
+	require.NoError(b, err)
 	fmt.Println("compiled in", time.Now().UnixMicro()-start, "μs")
 	fullWitness, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
-	assert.NoError(b, err)
+	require.NoError(b, err)
 	//publicWitness := fullWitness.Public()
 	fmt.Println("setting up...")
 	pk, _, err := groth16.Setup(cs)
-	assert.NoError(b, err)
+	require.NoError(b, err)
 
 	fmt.Println("solving and proving...")
 	b.ResetTimer()
@@ -301,7 +309,7 @@ func benchProof(b *testing.B, circuit, assignment frontend.Circuit) {
 		start = time.Now().UnixMicro()
 		fmt.Println("groth16 proving", id)
 		_, err = groth16.Prove(cs, pk, fullWitness)
-		assert.NoError(b, err)
+		require.NoError(b, err)
 		fmt.Println("groth16 proved", id, "in", time.Now().UnixMicro()-start, "μs")
 
 		fmt.Println("mimc total calls: fr=", mimcFrTotalCalls, ", snark=", mimcSnarkTotalCalls)
@@ -369,9 +377,9 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	return solution.Verify("-20", challenge)
 }
 
-func testE2E(t *testing.T, circuit, assignment frontend.Circuit) {
+func testGroth16(t *testing.T, circuit, assignment frontend.Circuit) {
 	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	var (
 		fullWitness   witness.Witness
 		publicWitness witness.Witness
@@ -380,15 +388,40 @@ func testE2E(t *testing.T, circuit, assignment frontend.Circuit) {
 		proof         groth16.Proof
 	)
 	fullWitness, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	publicWitness, err = fullWitness.Public()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	pk, vk, err = groth16.Setup(cs)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	proof, err = groth16.Prove(cs, pk, fullWitness)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = groth16.Verify(proof, vk, publicWitness)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+}
+
+func testPlonk(t *testing.T, circuit, assignment frontend.Circuit) {
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit, frontend.WithCompressThreshold(compressThreshold))
+	require.NoError(t, err)
+	var (
+		fullWitness   witness.Witness
+		publicWitness witness.Witness
+		pk            plonk.ProvingKey
+		vk            plonk.VerifyingKey
+		proof         plonk.Proof
+		kzgSrs        kzg.SRS
+	)
+	fullWitness, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+	require.NoError(t, err)
+	publicWitness, err = fullWitness.Public()
+	require.NoError(t, err)
+	kzgSrs, err = test.NewKZGSRS(cs)
+	require.NoError(t, err)
+	pk, vk, err = plonk.Setup(cs, kzgSrs)
+	require.NoError(t, err)
+	proof, err = plonk.Prove(cs, pk, fullWitness)
+	require.NoError(t, err)
+	err = plonk.Verify(proof, vk, publicWitness)
+	require.NoError(t, err)
 }
 
 func registerMiMC() {
@@ -603,7 +636,8 @@ func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
 func TestMiMCFullDepthNoDepSolve(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		circuit, assignment := mimcNoDepCircuits(5, 1<<2)
-		testE2E(t, circuit, assignment)
+		testGroth16(t, circuit, assignment)
+		testPlonk(t, circuit, assignment)
 	}
 }
 
