@@ -33,6 +33,7 @@ func (api *API) nbInstances() int {
 	return api.assignments.NbInstances()
 }
 
+// NewApi creates a new GKR API
 func NewApi() *API {
 	return &API{
 		toStore: constraint.GkrInfo{
@@ -66,6 +67,8 @@ func (api *API) Series(input, output frontend.Variable, inputInstance, outputIns
 	return api
 }
 
+// Import creates a new input variable, whose values across all instances are given by assignment.
+// If the value in an instance depends on an output of another instance, leave the corresponding index in assigment nil and use Series to specify the dependency.
 func (api *API) Import(assignment []frontend.Variable) (constraint.GkrVariable, error) {
 	nbInstances := len(assignment)
 	logNbInstances := log2(uint(nbInstances))
@@ -149,10 +152,12 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 	}, nil
 }
 
+// Export returns the values of an output variable across all instances
 func (s Solution) Export(v frontend.Variable) []frontend.Variable {
 	return algo_utils.Map(s.permutations.SortedInstances, algo_utils.SliceAt(s.assignments[v.(constraint.GkrVariable)]))
 }
 
+// Verify encodes the verification circuitry for the GKR circuit
 func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable) error {
 	var (
 		err             error
