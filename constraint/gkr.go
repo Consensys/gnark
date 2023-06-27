@@ -3,7 +3,7 @@ package constraint
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"sort"
 )
@@ -30,8 +30,8 @@ type GkrInfo struct {
 	MaxNIns     int
 	NbInstances int
 	HashName    string
-	SolveHintID hint.ID
-	ProveHintID hint.ID
+	SolveHintID solver.HintID
+	ProveHintID solver.HintID
 }
 
 type GkrPermutations struct {
