@@ -22,8 +22,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
+	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"hash"
 	"math/big"
@@ -83,7 +83,7 @@ func (a gkrAssignment) setOuts(circuit constraint.GkrCircuit, outs []*big.Int) {
 	// Check if outsI == len(outs)?
 }
 
-func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Function {
+func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		// assumes assignmentVector is arranged wire first, instance second in order of solution
 		circuit := info.Circuit
@@ -147,7 +147,7 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 	}
 }
 
-func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
+func gkrProveHint(hashName string, data *gkrSolvingData) hint.Hint {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
@@ -183,8 +183,8 @@ func gkrProveHint(hashName string, data *gkrSolvingData) hint.Function {
 	}
 }
 
-func defineGkrHints(info constraint.GkrInfo, hintFunctions map[hint.ID]hint.Function) map[hint.ID]hint.Function {
-	res := make(map[hint.ID]hint.Function, len(hintFunctions)+2)
+func defineGkrHints(info constraint.GkrInfo, hintFunctions map[hint.HintID]hint.Hint) map[hint.HintID]hint.Hint {
+	res := make(map[hint.HintID]hint.Hint, len(hintFunctions)+2)
 	for k, v := range hintFunctions {
 		res[k] = v
 	}

@@ -2,8 +2,8 @@ package gkr
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
@@ -123,7 +123,7 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 	}
 
 	outsSerialized, err := parentApi.Compiler().NewHint(SolveHintPlaceholder, solveHintNOut, ins...)
-	api.toStore.SolveHintID = hint.UUID(SolveHintPlaceholder)
+	api.toStore.SolveHintID = solver.GetHintID(SolveHintPlaceholder)
 	if err != nil {
 		return Solution{}, err
 	}
@@ -176,7 +176,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 		ProveHintPlaceholder, ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
 		return err
 	}
-	s.toStore.ProveHintID = hint.UUID(ProveHintPlaceholder)
+	s.toStore.ProveHintID = solver.GetHintID(ProveHintPlaceholder)
 
 	forSnarkSorted := algo_utils.MapRange(0, len(s.toStore.Circuit), slicePtrAt(forSnark.circuit))
 
@@ -184,7 +184,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 		return err
 	}
 
-	var hsh hash.Hash
+	var hsh hash.FieldHasher
 	if hsh, err = hash.BuilderRegistry[hashName](s.parentApi); err != nil {
 		return err
 	}

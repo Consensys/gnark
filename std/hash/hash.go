@@ -37,7 +37,7 @@ type FieldHasher interface {
 	Reset()
 }
 
-var BuilderRegistry = make(map[string]func(api frontend.API) (Hash, error))
+var BuilderRegistry = make(map[string]func(api frontend.API) (FieldHasher, error))
 
 // BinaryHasher hashes inputs into a short digest. It takes as inputs bytes and
 // outputs byte array whose length depends on the underlying hash function. For

@@ -361,7 +361,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	}
 	Z := solution.Export(z)
 
-	challenge, err := api.Compiler().Commit(Z...)
+	challenge, err := api.Compiler().(frontend.Committer).Commit(Z...)
 	if err != nil {
 		return err
 	}
@@ -393,7 +393,7 @@ func testE2E(t *testing.T, circuit, assignment frontend.Circuit) {
 
 func registerMiMC() {
 	bn254r1cs.HashBuilderRegistry["mimc"] = bn254MiMC.NewMiMC
-	stdHash.BuilderRegistry["mimc"] = func(api frontend.API) (stdHash.Hash, error) {
+	stdHash.BuilderRegistry["mimc"] = func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err
 	}
@@ -404,7 +404,7 @@ func registerConstant(c int) {
 	bn254r1cs.HashBuilderRegistry[name] = func() hash.Hash {
 		return constHashBn254(c)
 	}
-	stdHash.BuilderRegistry[name] = func(frontend.API) (stdHash.Hash, error) {
+	stdHash.BuilderRegistry[name] = func(frontend.API) (stdHash.FieldHasher, error) {
 		return constHash(c), nil
 	}
 }

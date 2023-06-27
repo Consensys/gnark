@@ -1,8 +1,8 @@
 package gkr
 
 import (
-	"github.com/consensys/gnark/backend/hint"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/utils/algo_utils"
 	"math/big"
@@ -122,7 +122,7 @@ func (api *API) Compiler() frontend.Compiler {
 	panic("not implemented")
 }
 
-func (api *API) NewHint(f hint.Function, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
+func (api *API) NewHint(f solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]frontend.Variable, error) {
 	panic("not implemented")
 }
 
