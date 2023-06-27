@@ -34,7 +34,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
-	"github.com/consensys/gnark/constraint/bn254"
+	cs "github.com/consensys/gnark/constraint/bn254"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"

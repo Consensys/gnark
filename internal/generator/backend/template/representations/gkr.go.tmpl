@@ -11,7 +11,7 @@ import (
 	"math/big"
 )
 
-type gkrSolvingData struct {
+type GkrSolvingData struct {
 	assignments gkr.WireAssignment
 	circuit     gkr.Circuit
 	memoryPool  polynomial.Pool
@@ -27,7 +27,7 @@ func convertCircuit(noPtr constraint.GkrCircuit) gkr.Circuit {
 	return resCircuit
 }
 
-func (d *gkrSolvingData) init(info constraint.GkrInfo) gkrAssignment {
+func (d *GkrSolvingData) init(info constraint.GkrInfo) gkrAssignment {
 	d.circuit = convertCircuit(info.Circuit)
 	d.memoryPool = polynomial.NewPool(d.circuit.MemoryRequirements(info.NbInstances)...)
 	d.workers = utils.NewWorkerPool()
@@ -42,7 +42,7 @@ func (d *gkrSolvingData) init(info constraint.GkrInfo) gkrAssignment {
 	return assignmentsSequential
 }
 
-func (d *gkrSolvingData) dumpAssignments() {
+func (d *GkrSolvingData) dumpAssignments() {
 	for _, p := range d.assignments {
 		d.memoryPool.Dump(p)
 	}
@@ -65,7 +65,7 @@ func (a gkrAssignment) setOuts(circuit constraint.GkrCircuit, outs []*big.Int) {
 	// Check if outsI == len(outs)?
 }
 
-func gkrSolveHint(info constraint.GkrInfo, solvingData *gkrSolvingData) hint.Hint {
+func GkrSolveHint(info constraint.GkrInfo, solvingData *GkrSolvingData) hint.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		// assumes assignmentVector is arranged wire first, instance second in order of solution
 		circuit := info.Circuit
@@ -129,7 +129,7 @@ func frToBigInts(dst []*big.Int, src []fr.Element) {
 	}
 }
 
-func gkrProveHint(hashName string, data *gkrSolvingData) hint.Hint {
+func GkrProveHint(hashName string, data *GkrSolvingData) hint.Hint {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
@@ -163,18 +163,6 @@ func gkrProveHint(hashName string, data *gkrSolvingData) hint.Hint {
 		return nil
 
 	}
-}
-
-func defineGkrHints(info constraint.GkrInfo, hintFunctions map[hint.HintID]hint.Hint) map[hint.HintID]hint.Hint {
-	res := make(map[hint.HintID]hint.Hint, len(hintFunctions)+2)
-	for k, v := range hintFunctions {
-		res[k] = v
-	}
-
-	var gkrData gkrSolvingData
-	res[info.SolveHintID] = gkrSolveHint(info, &gkrData)
-	res[info.ProveHintID] = gkrProveHint(info.HashName, &gkrData)
-	return res
 }
 
 var GkrGateRegistry = map[string]gkr.Gate{ // TODO: Migrate to gnark-crypto

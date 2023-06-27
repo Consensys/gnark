@@ -34,7 +34,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fft"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/iop"
-	"github.com/consensys/gnark/constraint/bw6-761"
+	cs "github.com/consensys/gnark/constraint/bw6-761"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
