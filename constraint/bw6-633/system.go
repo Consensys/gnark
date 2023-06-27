@@ -372,3 +372,7 @@ func getTagSet() cbor.TagSet {
 
 	return ts
 }
+
+func (s *system) AddGkr(gkr constraint.GkrInfo) error {
+	return s.System.AddGkr(gkr)
+}
