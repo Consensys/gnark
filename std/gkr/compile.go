@@ -52,15 +52,13 @@ func log2(x uint) int {
 }
 
 // Series like in an electric circuit, binds an input of an instance to an output of another
-func (api *API) Series(input, output frontend.Variable, inputInstance, outputInstance int) *API {
-	i := input.(constraint.GkrVariable)
-	o := output.(constraint.GkrVariable)
-	if api.assignments[i][inputInstance] != nil {
+func (api *API) Series(input, output constraint.GkrVariable, inputInstance, outputInstance int) *API {
+	if api.assignments[input][inputInstance] != nil {
 		panic("dependency attempting to override explicit value assignment")
 	}
-	api.toStore.Circuit[i].Dependencies =
-		append(api.toStore.Circuit[i].Dependencies, constraint.InputDependency{
-			OutputWire:     int(o),
+	api.toStore.Circuit[input].Dependencies =
+		append(api.toStore.Circuit[input].Dependencies, constraint.InputDependency{
+			OutputWire:     int(output),
 			OutputInstance: outputInstance,
 			InputInstance:  inputInstance,
 		})
@@ -203,11 +201,11 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	return s.parentApi.Compiler().SetGkrInfo(s.toStore)
 }
 
-func SolveHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error {
+func SolveHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error { // TODO @Tabaie Add implementation for testing
 	return fmt.Errorf("placeholder - not meant to be called")
 }
 
-func ProveHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error {
+func ProveHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error { // TODO @Tabaie Add implementation for testing
 	return fmt.Errorf("placeholder - not meant to be called")
 }
 

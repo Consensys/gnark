@@ -39,7 +39,7 @@ type doubleNoDependencyCircuit struct {
 
 func (c *doubleNoDependencyCircuit) Define(api frontend.API) error {
 	gkr := NewApi()
-	var x frontend.Variable
+	var x constraint.GkrVariable
 	var err error
 	if x, err = gkr.Import(c.X); err != nil {
 		return err
@@ -85,7 +85,7 @@ type sqNoDependencyCircuit struct {
 
 func (c *sqNoDependencyCircuit) Define(api frontend.API) error {
 	gkr := NewApi()
-	var x frontend.Variable
+	var x constraint.GkrVariable
 	var err error
 	if x, err = gkr.Import(c.X); err != nil {
 		return err
@@ -130,7 +130,7 @@ type mulNoDependencyCircuit struct {
 
 func (c *mulNoDependencyCircuit) Define(api frontend.API) error {
 	gkr := NewApi()
-	var x, y frontend.Variable
+	var x, y constraint.GkrVariable
 	var err error
 	if x, err = gkr.Import(c.X); err != nil {
 		return err
@@ -194,7 +194,7 @@ type mulWithDependencyCircuit struct {
 
 func (c *mulWithDependencyCircuit) Define(api frontend.API) error {
 	gkr := NewApi()
-	var x, y frontend.Variable
+	var x, y constraint.GkrVariable
 	var err error
 
 	X := make([]frontend.Variable, len(c.Y))
@@ -252,7 +252,7 @@ func TestApiMul(t *testing.T) {
 	require.NoError(t, err)
 	y, err = api.Import([]frontend.Variable{nil, nil})
 	require.NoError(t, err)
-	z = api.Mul(x, y).(constraint.GkrVariable)
+	z = api.Mul(x, y)
 	test_vector_utils.AssertSliceEqual(t, api.toStore.Circuit[z].Inputs, []int{int(x), int(y)}) // TODO: Find out why assert.Equal gives false positives ( []*Wire{x,x} as second argument passes when it shouldn't )
 }
 
@@ -334,7 +334,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	X[len(X)-1] = 0
 	Y[len(X)-1] = 0
 
-	var x, y frontend.Variable
+	var x, y constraint.GkrVariable
 	var err error
 
 	gkr := NewApi()
@@ -348,10 +348,10 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	// cheat{
 	gkr.toStore.Circuit = append(gkr.toStore.Circuit, constraint.GkrWire{
 		Gate:   "mimc",
-		Inputs: []int{int(x.(constraint.GkrVariable)), int(y.(constraint.GkrVariable))},
+		Inputs: []int{int(x), int(y)},
 	})
 	gkr.assignments = append(gkr.assignments, nil)
-	z := frontend.Variable(constraint.GkrVariable(2))
+	z := constraint.GkrVariable(2)
 	// }
 
 	offset := 1 << (c.depth - 1)
