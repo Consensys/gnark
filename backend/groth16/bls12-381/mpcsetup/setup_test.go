@@ -19,7 +19,7 @@ package mpcsetup
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	"github.com/consensys/gnark/constraint/bls12-381"
+	cs "github.com/consensys/gnark/constraint/bls12-381"
 	"testing"
 
 	"github.com/consensys/gnark/backend/groth16"

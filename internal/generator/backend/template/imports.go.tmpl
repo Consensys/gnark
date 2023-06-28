@@ -22,7 +22,7 @@
 	{{- if eq .Curve "tinyfield"}}
 	"github.com/consensys/gnark/constraint/tinyfield"
 	{{- else}}
-	"github.com/consensys/gnark/constraint/{{toLower .Curve}}"
+	cs "github.com/consensys/gnark/constraint/{{toLower .Curve}}"
 	{{- end}}
 {{- end }}
 

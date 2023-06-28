@@ -2,7 +2,7 @@ package constraint
 
 type BlueprintID uint32
 
-// Blueprint enable representing heterogenous constraints or instructions in a constraint system
+// Blueprint enable representing heterogeneous constraints or instructions in a constraint system
 // in a memory efficient way. Blueprints essentially help the frontend/ to "compress"
 // constraints or instructions, and specify for the solving (or zksnark setup) part how to
 // "decompress" and optionally "solve" the associated wires.
@@ -66,8 +66,8 @@ type BlueprintHint interface {
 	DecompressHint(h *HintMapping, instruction Instruction)
 }
 
-// Compressable represent an object that knows how to encode itself as a []uint32.
-type Compressable interface {
+// Compressible represent an object that knows how to encode itself as a []uint32.
+type Compressible interface {
 	// Compress interprets the objects as a LinearExpression and encodes it as a []uint32.
 	Compress(to *[]uint32)
 }

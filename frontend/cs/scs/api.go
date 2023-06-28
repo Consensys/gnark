@@ -619,3 +619,7 @@ func filterConstants(v []frontend.Variable) []frontend.Variable {
 func (*builder) FrontendType() frontendtype.Type {
 	return frontendtype.SCS
 }
+
+func (builder *builder) SetGkrInfo(info constraint.GkrInfo) error {
+	return builder.cs.AddGkr(info)
+}

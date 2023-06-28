@@ -678,3 +678,7 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 	r := e.toBigInt(v)
 	return wrappedBigInt{r}
 }
+
+func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
+	return fmt.Errorf("not implemented")
+}

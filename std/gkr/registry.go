@@ -9,11 +9,14 @@ var RegisteredGates = map[string]Gate{
 	"mimc":     MiMCCipherGate{Ark: 0}, //TODO: Add ark
 }
 
+var mimcSnarkTotalCalls = 0
+
 type MiMCCipherGate struct {
 	Ark frontend.Variable
 }
 
 func (m MiMCCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) frontend.Variable {
+	mimcSnarkTotalCalls++
 
 	if len(input) != 2 {
 		panic("mimc has fan-in 2")

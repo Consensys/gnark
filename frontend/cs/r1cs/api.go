@@ -815,3 +815,7 @@ func (builder *builder) wireIDsToVars(wireIDs ...[]int) []frontend.Variable {
 	}
 	return res
 }
+
+func (builder *builder) SetGkrInfo(info constraint.GkrInfo) error {
+	return builder.cs.AddGkr(info)
+}
