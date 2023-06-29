@@ -103,7 +103,7 @@ library Utils {
 
 }
 
-library PlonkVerifier {
+contract PlonkVerifier {
 
   using Utils for *;
   uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
@@ -249,7 +249,7 @@ library PlonkVerifier {
   event PrintUint256(uint256 a);
 
   function derive_gamma_beta_alpha_zeta(bytes memory proof, uint256[] memory public_inputs)
-  internal returns(uint256, uint256, uint256, uint256) {
+  internal view returns(uint256, uint256, uint256, uint256) {
 
     uint256 gamma;
     uint256 beta;
@@ -371,7 +371,7 @@ library PlonkVerifier {
   }
 
   function load_wire_commitments_commit_api(uint256[] memory wire_commitments, bytes memory proof)
-  internal {
+  internal pure {
     assembly {
       let w := add(wire_commitments, 0x20)
       let p := add(proof, proof_openings_selector_commit_api_at_zeta)
@@ -389,7 +389,7 @@ library PlonkVerifier {
   }
 
   function compute_ith_lagrange_at_z(uint256 zeta, uint256 i) 
-  internal returns (uint256) {
+  internal view returns (uint256) {
 
     uint256 res;
     assembly {
@@ -421,10 +421,9 @@ library PlonkVerifier {
   }
 
   function compute_pi(
-        bytes memory proof,
         uint256[] memory public_inputs,
         uint256 zeta
-    ) internal returns (uint256) {
+    ) internal view returns (uint256) {
 
       // evaluation of Z=Xⁿ⁻¹ at ζ
       // uint256 zeta_power_n_minus_one = Fr.pow(zeta, vk_domain_size);
@@ -541,7 +540,7 @@ library PlonkVerifier {
     }
 
   function Verify(bytes memory proof, uint256[] memory public_inputs) 
-  internal returns(bool) {
+  internal view returns(bool) {
 
     uint256 expected_proof_size = 0x340+vk_nb_commitments_commit_api*0x60;
     uint256 actual_proof_size;
@@ -557,7 +556,7 @@ library PlonkVerifier {
 
     (gamma, beta, alpha, zeta) = derive_gamma_beta_alpha_zeta(proof, public_inputs);
 
-    uint256 pi = compute_pi(proof, public_inputs, zeta);
+    uint256 pi = compute_pi(public_inputs, zeta);
 
     uint256 check;
 
