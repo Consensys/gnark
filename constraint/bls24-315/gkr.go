@@ -17,6 +17,7 @@
 package cs
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/gkr"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/polynomial"
@@ -36,28 +37,32 @@ type GkrSolvingData struct {
 	workers     *utils.WorkerPool
 }
 
-func convertCircuit(noPtr constraint.GkrCircuit) gkr.Circuit {
+func convertCircuit(noPtr constraint.GkrCircuit) (gkr.Circuit, error) {
 	resCircuit := make(gkr.Circuit, len(noPtr))
+	var found bool
 	for i := range noPtr {
-		resCircuit[i].Gate = GkrGateRegistry[noPtr[i].Gate]
+		if resCircuit[i].Gate, found = gkr.Gates[noPtr[i].Gate]; !found && noPtr[i].Gate != "" {
+			return nil, fmt.Errorf("gate \"%s\" not found", noPtr[i].Gate)
+		}
 		resCircuit[i].Inputs = algo_utils.Map(noPtr[i].Inputs, algo_utils.SlicePtrAt(resCircuit))
 	}
-	return resCircuit
+	return resCircuit, nil
 }
 
-func (d *GkrSolvingData) init(info constraint.GkrInfo) gkrAssignment {
-	d.circuit = convertCircuit(info.Circuit)
+func (d *GkrSolvingData) init(info constraint.GkrInfo) (assignment gkrAssignment, err error) {
+	if d.circuit, err = convertCircuit(info.Circuit); err != nil {
+		return
+	}
 	d.memoryPool = polynomial.NewPool(d.circuit.MemoryRequirements(info.NbInstances)...)
 	d.workers = utils.NewWorkerPool()
 
-	assignmentsSequential := make(gkrAssignment, len(d.circuit))
+	assignment = make(gkrAssignment, len(d.circuit))
 	d.assignments = make(gkr.WireAssignment, len(d.circuit))
-	for i := range assignmentsSequential {
-		assignmentsSequential[i] = d.memoryPool.Make(info.NbInstances)
-		d.assignments[&d.circuit[i]] = assignmentsSequential[i]
+	for i := range assignment {
+		assignment[i] = d.memoryPool.Make(info.NbInstances)
+		d.assignments[&d.circuit[i]] = assignment[i]
 	}
-
-	return assignmentsSequential
+	return
 }
 
 func (d *GkrSolvingData) dumpAssignments() {
@@ -89,7 +94,10 @@ func GkrSolveHint(info constraint.GkrInfo, solvingData *GkrSolvingData) hint.Hin
 		circuit := info.Circuit
 		nbInstances := info.NbInstances
 		offsets := info.AssignmentOffsets()
-		assignment := solvingData.init(info)
+		assignment, err := solvingData.init(info)
+		if err != nil {
+			return err
+		}
 		chunks := circuit.Chunks(nbInstances)
 
 		solveTask := func(chunkOffset int) utils.Task {
@@ -183,82 +191,5 @@ func GkrProveHint(hashName string, data *GkrSolvingData) hint.Hint {
 	}
 }
 
-var GkrGateRegistry = map[string]gkr.Gate{ // TODO: Migrate to gnark-crypto
-	"mul": mulGate(2),
-	"add": addGate{},
-	"sub": subGate{},
-	"neg": negGate{},
-}
-
 // TODO: Move to gnark-crypto
 var HashBuilderRegistry = make(map[string]func() hash.Hash)
-
-type mulGate int
-type addGate struct{}
-type subGate struct{}
-type negGate struct{}
-
-func (g mulGate) Evaluate(x ...fr.Element) (res fr.Element) {
-	if len(x) != int(g) {
-		panic("wrong input count")
-	}
-	switch len(x) {
-	case 0:
-		res.SetOne()
-	case 1:
-		res.Set(&x[0])
-	default:
-		res.Mul(&x[0], &x[1])
-		for i := 2; i < len(x); i++ {
-			res.Mul(&res, &x[2])
-		}
-	}
-	return
-}
-
-func (g mulGate) Degree() int {
-	return int(g)
-}
-
-func (g addGate) Evaluate(x ...fr.Element) (res fr.Element) {
-	switch len(x) {
-	case 0:
-	// set zero
-	case 1:
-		res.Set(&x[0])
-	case 2:
-		res.Add(&x[0], &x[1])
-		for i := 2; i < len(x); i++ {
-			res.Add(&res, &x[2])
-		}
-	}
-	return
-}
-
-func (g addGate) Degree() int {
-	return 1
-}
-
-func (g subGate) Evaluate(element ...fr.Element) (diff fr.Element) {
-	if len(element) > 2 {
-		panic("not implemented") //TODO
-	}
-	diff.Sub(&element[0], &element[1])
-	return
-}
-
-func (g subGate) Degree() int {
-	return 1
-}
-
-func (g negGate) Evaluate(element ...fr.Element) (neg fr.Element) {
-	if len(element) != 1 {
-		panic("univariate gate")
-	}
-	neg.Neg(&element[0])
-	return
-}
-
-func (g negGate) Degree() int {
-	return 1
-}

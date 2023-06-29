@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/backend/plonk"
+	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 	"hash"
@@ -14,11 +15,11 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/gkr"
 	bn254MiMC "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
-	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -450,8 +451,8 @@ func init() {
 }
 
 func registerMiMCGate() {
-	RegisteredGates["mimc"] = MiMCCipherGate{Ark: 0}
-	bn254r1cs.GkrGateRegistry["mimc"] = mimcCipherGate{}
+	Gates["mimc"] = MiMCCipherGate{Ark: 0}
+	gkr.Gates["mimc"] = mimcCipherGate{}
 }
 
 type constHashBn254 int // TODO @Tabaie move to gnark-crypto
@@ -634,6 +635,7 @@ func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
 }
 
 func TestMiMCFullDepthNoDepSolve(t *testing.T) {
+	registerMiMC()
 	for i := 0; i < 100; i++ {
 		circuit, assignment := mimcNoDepCircuits(5, 1<<2)
 		testGroth16(t, circuit, assignment)
