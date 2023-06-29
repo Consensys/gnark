@@ -540,7 +540,7 @@ contract PlonkVerifier {
     }
 
   function Verify(bytes memory proof, uint256[] memory public_inputs) 
-  internal view returns(bool) {
+  public view returns(bool) {
 
     uint256 expected_proof_size = 0x340+vk_nb_commitments_commit_api*0x60;
     uint256 actual_proof_size;
