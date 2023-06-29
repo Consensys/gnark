@@ -106,10 +106,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}
 
 	if spr.GkrInfo.Is() {
-		var gkrData cs.GkrSolvingData
-		opt.SolverOpts = append(opt.SolverOpts,
-		solver.OverrideHint(spr.GkrInfo.SolveHintID, cs.GkrSolveHint(spr.GkrInfo, &gkrData)),
-		solver.OverrideHint(spr.GkrInfo.ProveHintID, cs.GkrProveHint(spr.GkrInfo.HashName, &gkrData)))
+		cs.ReplaceGkrHints(&opt.SolverOpts, spr.GkrInfo)
 	}
 
 	// query l, r, o in Lagrange basis, not blinded
