@@ -538,11 +538,11 @@ contract PlonkVerifier {
       
       return pi;
     }
+  
+  function check_inputs_size(uint256[] memory public_inputs)
+  internal view {
 
-  function Verify(bytes memory proof, uint256[] memory public_inputs) 
-  public view returns(bool) {
-
-	bool input_checks = true;
+    bool input_checks = true;
     assembly {
       let s := mload(public_inputs)
       let p := add(public_inputs, 0x20)
@@ -553,6 +553,13 @@ contract PlonkVerifier {
       }
     }
     require(input_checks, "some inputs are bigger than r");
+
+  }
+
+  function Verify(bytes memory proof, uint256[] memory public_inputs) 
+  public view returns(bool) {
+
+    check_inputs_size(public_inputs);
 
     uint256 gamma;
     uint256 beta;
