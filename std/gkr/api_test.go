@@ -2,7 +2,6 @@ package gkr
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/backend"
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
@@ -521,17 +520,10 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	// cheat{
 	z = y
 	for i := 0; i < c.mimcDepth; i++ {
-		_gkr.toStore.Circuit = append(_gkr.toStore.Circuit, constraint.GkrWire{
-			Gate:   "mimc",
-			Inputs: []int{int(x), int(z)},
-		})
-		_gkr.assignments = append(_gkr.assignments, nil)
-		z = constraint.GkrVariable(len(_gkr.toStore.Circuit) - 1)
+		z = _gkr.NamedGate("mimc", x, z)
 	}
-	// }
 
 	if solution, err = _gkr.Solve(api); err != nil {
 		return err
@@ -583,12 +575,9 @@ func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
 func TestMiMCFullDepthNoDepSolve(t *testing.T) {
 	registerMiMC()
 
-	for i := 5; i < 6; i++ { // TODO @Tabaie 0 -> 100
+	for i := 5; i < 100; i++ {
 		circuit, assignment := mimcNoDepCircuits(i, 1<<2)
-		test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
-		//testGroth16(t, circuit, assignment)
-		//testPlonk(t, circuit, assignment)
-
+		test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254))
 	}
 }
 

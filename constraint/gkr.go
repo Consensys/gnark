@@ -191,22 +191,5 @@ func SystemEqual(a, b System) bool {
 		}
 	}
 
-	/*if match := HintsEqual(s.MHintsDependencies, oHints); !match {
-		return false
-	}
-
-	//o.MHintsDependencies = s.MHintsDependencies
-	match := reflect.DeepEqual(s.field, o.field)
-	match = match && reflect.DeepEqual(s.CoeffTable, o.CoeffTable)
-	match = match && reflect.DeepEqual(s.System, o.System)
-	//match := reflect.DeepEqual(s, o)
-
-	fmt.Println(cmp.Diff(s.System, o.System, cmpopts.IgnoreUnexported(constraint.System{}, debug.SymbolTable{})))
-
-	o.MHintsDependencies = oHints
-	return match
-
-	return false*/
-
 	return reflect.DeepEqual(a, b)
 }
