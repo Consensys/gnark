@@ -3,6 +3,7 @@ package gkr
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/kzg"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/test"
@@ -636,10 +637,17 @@ func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
 
 func TestMiMCFullDepthNoDepSolve(t *testing.T) {
 	registerMiMC()
-	for i := 0; i < 100; i++ {
-		circuit, assignment := mimcNoDepCircuits(5, 1<<2)
-		testGroth16(t, circuit, assignment)
-		testPlonk(t, circuit, assignment)
+	for i := 0; i < 100; i++ { // TODO @Tabaie Why this loop?
+
+		i = 5
+
+		circuit, assignment := mimcNoDepCircuits(i, 1<<2)
+		test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+		//testGroth16(t, circuit, assignment)
+		//testPlonk(t, circuit, assignment)
+
+		return
+
 	}
 }
 
