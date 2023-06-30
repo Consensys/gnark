@@ -191,5 +191,12 @@ func GkrProveHint(hashName string, data *GkrSolvingData) hint.Hint {
 	}
 }
 
+func ReplaceGkrHints(solverOpts *[]hint.Option, gkrInfo constraint.GkrInfo) {
+	var gkrData GkrSolvingData
+	*solverOpts = append(*solverOpts,
+		hint.OverrideHint(gkrInfo.SolveHintID, GkrSolveHint(gkrInfo, &gkrData)),
+		hint.OverrideHint(gkrInfo.ProveHintID, GkrProveHint(gkrInfo.HashName, &gkrData)))
+}
+
 // TODO: Move to gnark-crypto
 var HashBuilderRegistry = make(map[string]func() hash.Hash)
