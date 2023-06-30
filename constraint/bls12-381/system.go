@@ -67,6 +67,10 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 
 	v := witness.Vector().(fr.Vector)
 
+	if cs.GkrInfo.Is() {
+		ReplaceGkrHints(&opts, cs.GkrInfo)
+	}
+
 	// init the solver
 	solver, err := newSolver(cs, v, opts...)
 	if err != nil {
