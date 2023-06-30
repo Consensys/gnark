@@ -46,6 +46,12 @@ func RegisterNamedHint(hintFn Hint, key HintID) {
 	registry[key] = hintFn
 }
 
+func RemoveNamedHint(key HintID) {
+	registryM.Lock()
+	defer registryM.Unlock()
+	delete(registry, key)
+}
+
 // GetRegisteredHints returns all registered hint functions.
 func GetRegisteredHints() []Hint {
 	registryM.RLock()

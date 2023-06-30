@@ -164,6 +164,9 @@ func (s Solution) Export(v frontend.Variable) []frontend.Variable {
 }
 
 // Verify encodes the verification circuitry for the GKR circuit
+// hashName denotes the random oracle used to make GKR non-interactive (Fiat-Shamir)
+// initialChallenges are initially fed to the Fiat-Shamir hash. If there is many of them, use api.(Committer).Commit to
+// consolidate them into a few values
 func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable) error {
 	var (
 		err             error
@@ -205,6 +208,9 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	if err != nil {
 		return err
 	}
+
+	solver.RegisterNamedHint(SolveHintPlaceholderGenerator(s.toStore.SolveHintID, s.toStore), s.toStore.SolveHintID)
+	solver.RegisterNamedHint(ProveHintPlaceholderGenerator(hashName, s.toStore.SolveHintID, s.toStore.ProveHintID), s.toStore.ProveHintID)
 
 	return s.parentApi.Compiler().SetGkrInfo(s.toStore)
 }
