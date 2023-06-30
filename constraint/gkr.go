@@ -160,53 +160,6 @@ func (c GkrCircuit) Chunks(nbInstances int) []int {
 	return res
 }
 
-var GkrHints = map[solver.HintID]struct{}{}
-
-type kv struct {
-	k solver.HintID
-	v string
-}
-
-func mapToSortedSlice(m map[solver.HintID]string) []kv {
-	res := make([]kv, 0, len(m))
-	for k, v := range m {
-		res = append(res, kv{k, v})
-	}
-	sort.Slice(res, func(i, j int) bool {
-		return res[i].k < res[j].k
-	})
-	return res
-}
-
-func skipGkrHints(a *[]kv) {
-	for len(*a) > 0 {
-		if _, ok := GkrHints[(*a)[0].k]; ok {
-			*a = (*a)[1:]
-		} else {
-			break
-		}
-	}
-}
-
-func HintsEqual(a, b map[solver.HintID]string) bool {
-	A := mapToSortedSlice(a)
-	B := mapToSortedSlice(b)
-
-	skipGkrHints(&A)
-	skipGkrHints(&B)
-	for len(A) > 0 && len(B) > 0 {
-		if A[0].k != B[0].k || A[0].v != B[0].v {
-			return false
-		}
-		skipGkrHints(&A)
-		skipGkrHints(&B)
-	}
-
-	return len(A) == 0 && len(B) == 0
-}
-
-//MHintsDependencies
-
 func SystemEqual(a, b System) bool {
 
 	hintsNames := [2][2]solver.HintID{{

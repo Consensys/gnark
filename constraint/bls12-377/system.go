@@ -68,7 +68,10 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 	v := witness.Vector().(fr.Vector)
 
 	if cs.GkrInfo.Is() {
-		ReplaceGkrHints(&opts, cs.GkrInfo)
+		var gkrData GkrSolvingData
+		opts = append(opts,
+			csolver.OverrideHint(cs.GkrInfo.SolveHintID, GkrSolveHint(cs.GkrInfo, &gkrData)),
+			csolver.OverrideHint(cs.GkrInfo.ProveHintID, GkrProveHint(cs.GkrInfo.HashName, &gkrData)))
 	}
 
 	// init the solver

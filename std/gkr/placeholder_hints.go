@@ -24,7 +24,6 @@ var placeholderGkrSolvingData = make(map[solver.HintID]any)
 func SolveHintPlaceholderGenerator(hintId solver.HintID, gkrInfo constraint.GkrInfo) func(*big.Int, []*big.Int, []*big.Int) error {
 	return func(mod *big.Int, in []*big.Int, out []*big.Int) (err error) {
 		solver.RemoveNamedHint(hintId)
-		delete(constraint.GkrHints, hintId)
 
 		curve := utils.FieldToCurve(mod)
 		switch curve {
@@ -67,7 +66,6 @@ func SolveHintPlaceholderGenerator(hintId solver.HintID, gkrInfo constraint.GkrI
 func ProveHintPlaceholderGenerator(hashName string, solveHintId, proveHintId solver.HintID) func(*big.Int, []*big.Int, []*big.Int) error {
 	return func(mod *big.Int, in []*big.Int, out []*big.Int) (err error) {
 		solver.RemoveNamedHint(proveHintId)
-		delete(constraint.GkrHints, proveHintId)
 
 		curve := utils.FieldToCurve(mod)
 		switch curve {

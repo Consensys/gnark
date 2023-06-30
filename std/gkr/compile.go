@@ -211,9 +211,6 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 		return err
 	}
 
-	constraint.GkrHints[s.toStore.SolveHintID] = struct{}{} // TODO: Remove
-	constraint.GkrHints[s.toStore.ProveHintID] = struct{}{}
-
 	return s.parentApi.Compiler().SetGkrInfo(s.toStore)
 }
 
