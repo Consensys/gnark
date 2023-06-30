@@ -71,8 +71,20 @@ func ProveHintPlaceholderGenerator(hashName string, solveHintId, proveHintId sol
 
 		curve := utils.FieldToCurve(mod)
 		switch curve {
+		case ecc.BLS12_377:
+			err = bls12_377.GkrProveHint(hashName, placeholderGkrSolvingData[solveHintId].(*bls12_377.GkrSolvingData))(mod, in, out)
+		case ecc.BLS12_381:
+			err = bls12_381.GkrProveHint(hashName, placeholderGkrSolvingData[solveHintId].(*bls12_381.GkrSolvingData))(mod, in, out)
+		case ecc.BLS24_315:
+			err = bls24_315.GkrProveHint(hashName, placeholderGkrSolvingData[solveHintId].(*bls24_315.GkrSolvingData))(mod, in, out)
+		case ecc.BLS24_317:
+			err = bls24_317.GkrProveHint(hashName, placeholderGkrSolvingData[solveHintId].(*bls24_317.GkrSolvingData))(mod, in, out)
 		case ecc.BN254:
 			err = bn254.GkrProveHint(hashName, placeholderGkrSolvingData[solveHintId].(*bn254.GkrSolvingData))(mod, in, out)
+		case ecc.BW6_633:
+			err = bw6_633.GkrProveHint(hashName, placeholderGkrSolvingData[solveHintId].(*bw6_633.GkrSolvingData))(mod, in, out)
+		case ecc.BW6_761:
+			err = bw6_761.GkrProveHint(hashName, placeholderGkrSolvingData[solveHintId].(*bw6_761.GkrSolvingData))(mod, in, out)
 		default:
 			err = errors.New("unsupported curve")
 		}

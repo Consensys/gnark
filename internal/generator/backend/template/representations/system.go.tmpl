@@ -379,18 +379,12 @@ func (s *system) AddGkr(gkr constraint.GkrInfo) error {
 }
 
 func (s *system) Equal(other constraint.ConstraintSystem) bool {
+	if !s.GkrInfo.Is() {
+		return reflect.DeepEqual(s, other) // fast track
+	}
 	if o, ok := other.(*system); !ok {
 		return false
 	} else {
-		oHints := o.MHintsDependencies
-
-		if match := constraint.HintsEqual(s.MHintsDependencies, oHints); !match {
-			return false
-		}
-
-		o.MHintsDependencies = s.MHintsDependencies
-		match := reflect.DeepEqual(s, o)
-		o.MHintsDependencies = oHints
-		return match
+		return reflect.DeepEqual(s.field, o.field) && reflect.DeepEqual(s.CoeffTable, o.CoeffTable) && constraint.SystemEqual(s.System, o.System)
 	}
 }
