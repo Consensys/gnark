@@ -192,6 +192,8 @@ func GkrProveHint(hashName string, data *GkrSolvingData) hint.Hint {
 }
 
 func ReplaceGkrHints(solverOpts *[]hint.Option, gkrInfo constraint.GkrInfo) {
+	delete(constraint.GkrHints, gkrInfo.SolveHintID)
+	delete(constraint.GkrHints, gkrInfo.ProveHintID)
 	var gkrData GkrSolvingData
 	*solverOpts = append(*solverOpts,
 		hint.OverrideHint(gkrInfo.SolveHintID, GkrSolveHint(gkrInfo, &gkrData)),

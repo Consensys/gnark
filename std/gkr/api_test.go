@@ -637,16 +637,12 @@ func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
 
 func TestMiMCFullDepthNoDepSolve(t *testing.T) {
 	registerMiMC()
-	for i := 0; i < 100; i++ { // TODO @Tabaie Why this loop?
 
-		i = 5
-
+	for i := 5; i < 6; i++ { // TODO @Tabaie 0 -> 100
 		circuit, assignment := mimcNoDepCircuits(i, 1<<2)
 		test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
 		//testGroth16(t, circuit, assignment)
 		//testPlonk(t, circuit, assignment)
-
-		return
 
 	}
 }

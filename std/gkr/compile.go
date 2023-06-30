@@ -211,6 +211,8 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 
 	solver.RegisterNamedHint(SolveHintPlaceholderGenerator(s.toStore.SolveHintID, s.toStore), s.toStore.SolveHintID)
 	solver.RegisterNamedHint(ProveHintPlaceholderGenerator(hashName, s.toStore.SolveHintID, s.toStore.ProveHintID), s.toStore.ProveHintID)
+	constraint.GkrHints[s.toStore.SolveHintID] = struct{}{}
+	constraint.GkrHints[s.toStore.ProveHintID] = struct{}{}
 
 	return s.parentApi.Compiler().SetGkrInfo(s.toStore)
 }

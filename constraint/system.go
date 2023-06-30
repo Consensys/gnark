@@ -78,6 +78,8 @@ type ConstraintSystem interface {
 	GetInstruction(int) Instruction
 
 	GetCoefficient(i int) Element
+
+	Equal(ConstraintSystem) bool // for testing deterministic compilation
 }
 
 type CustomizableSystem interface {

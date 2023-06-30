@@ -376,3 +376,20 @@ func getTagSet() cbor.TagSet {
 func (s *system) AddGkr(gkr constraint.GkrInfo) error {
 	return s.System.AddGkr(gkr)
 }
+
+func (s *system) Equal(other constraint.ConstraintSystem) bool {
+	if o, ok := other.(*system); !ok {
+		return false
+	} else {
+		oHints := o.MHintsDependencies
+
+		if match := constraint.HintsEqual(s.MHintsDependencies, oHints); !match {
+			return false
+		}
+
+		o.MHintsDependencies = s.MHintsDependencies
+		match := reflect.DeepEqual(s, o)
+		o.MHintsDependencies = oHints
+		return match
+	}
+}

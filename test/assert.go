@@ -476,7 +476,7 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		return nil, fmt.Errorf("%w: %v", ErrCompilationNotDeterministic, err)
 	}
 
-	if !reflect.DeepEqual(ccs, _ccs) {
+	if !ccs.Equal(_ccs) {
 		return nil, ErrCompilationNotDeterministic
 	}
 

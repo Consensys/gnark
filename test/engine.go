@@ -270,7 +270,7 @@ func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	r := make([]frontend.Variable, nbBits)
 	ri := make([]frontend.Variable, nbBits)
 	for i := 0; i < len(r); i++ {
-		r[i] = (b1.Bit(i))
+		r[i] = b1.Bit(i)
 		ri[i] = r[i]
 	}
 
