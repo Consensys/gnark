@@ -22,85 +22,84 @@ pragma solidity ^0.8.0;
 
 pragma experimental ABIEncoderV2;
 
-
 library Utils {
 
-    uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-
-    /**
-    * @dev ExpandMsgXmd expands msg to a slice of lenInBytes bytes.
-    *      https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5
-    *      https://tools.ietf.org/html/rfc8017#section-4.1 (I2OSP/O2ISP)
-    */
-    function expand_msg(uint256 x, uint256 y) public pure returns(uint8[48] memory res){
-    
-        string memory dst = "BSB22-Plonk";
-
-        //uint8[64] memory pad; // 64 is sha256 block size.
-        // sha256(pad || msg || (0 || 48 || 0) || dst || 11)
-        bytes memory tmp;
-        uint8 zero = 0;
-        uint8 lenInBytes = 48;
-        uint8 sizeDomain = 11; // size of dst
-        
-        for (uint i=0; i<64; i++){
-            tmp = abi.encodePacked(tmp, zero);
-        }
-        tmp = abi.encodePacked(tmp, x, y, zero, lenInBytes, zero, dst, sizeDomain);
-        bytes32 b0 = sha256(tmp);
-
-        tmp = abi.encodePacked(b0, uint8(1), dst, sizeDomain);
-        bytes32 b1 = sha256(tmp);
-        for (uint i=0; i<32; i++){
-            res[i] = uint8(b1[i]);
-        }
-
-        tmp = abi.encodePacked(uint8(b0[0]) ^ uint8(b1[0]));
-        for (uint i=1; i<32; i++){
-            tmp = abi.encodePacked(tmp, uint8(b0[i]) ^ uint8(b1[i]));
-        }
-
-        tmp = abi.encodePacked(tmp, uint8(2), dst, sizeDomain);
-        b1 = sha256(tmp);
-
-        // TODO handle the size of the dst (check gnark-crypto)
-        for (uint i=0; i<16; i++){
-            res[i+32] = uint8(b1[i]);
-        }
-
-        return res;
-    }
+  uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
   /**
-   * @dev cf https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
-   * corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
-   */
-    function hash_fr(uint256 x, uint256 y) internal pure returns(uint256 res) {
+  * @dev ExpandMsgXmd expands msg to a slice of lenInBytes bytes.
+  *      https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5
+  *      https://tools.ietf.org/html/rfc8017#section-4.1 (I2OSP/O2ISP)
+  */
+  function expand_msg(uint256 x, uint256 y) public pure returns(uint8[48] memory res){
+  
+      string memory dst = "BSB22-Plonk";
 
-        // interpret a as a bigEndian integer and reduce it mod r
-        uint8[48] memory xmsg = expand_msg(x, y);
-        // uint8[48] memory xmsg = [0x44, 0x74, 0xb5, 0x29, 0xd7, 0xfb, 0x29, 0x88, 0x3a, 0x7a, 0xc1, 0x65, 0xfd, 0x72, 0xce, 0xd0, 0xd4, 0xd1, 0x3f, 0x9e, 0x85, 0x8a, 0x3, 0x86, 0x1c, 0x90, 0x83, 0x1e, 0x94, 0xdc, 0xfc, 0x1d, 0x70, 0x82, 0xf5, 0xbf, 0x30, 0x3, 0x39, 0x87, 0x21, 0x38, 0x15, 0xed, 0x12, 0x75, 0x44, 0x6a];
+      //uint8[64] memory pad; // 64 is sha256 block size.
+      // sha256(pad || msg || (0 || 48 || 0) || dst || 11)
+      bytes memory tmp;
+      uint8 zero = 0;
+      uint8 lenInBytes = 48;
+      uint8 sizeDomain = 11; // size of dst
+      
+      for (uint i=0; i<64; i++){
+          tmp = abi.encodePacked(tmp, zero);
+      }
+      tmp = abi.encodePacked(tmp, x, y, zero, lenInBytes, zero, dst, sizeDomain);
+      bytes32 b0 = sha256(tmp);
 
-        // reduce xmsg mod r, where xmsg is intrepreted in big endian 
-        // (as SetBytes does for golang's Big.Int library).
-        for (uint i=0; i<32; i++){
-            res += uint256(xmsg[47-i])<<(8*i);
-        }
-        res = res % r_mod;
-        uint256 tmp;
-        for (uint i=0; i<16; i++){
-            tmp += uint256(xmsg[15-i])<<(8*i);
-        }
+      tmp = abi.encodePacked(b0, uint8(1), dst, sizeDomain);
+      bytes32 b1 = sha256(tmp);
+      for (uint i=0; i<32; i++){
+          res[i] = uint8(b1[i]);
+      }
 
-        // 2**256%r
-        uint256 b = 6350874878119819312338956282401532410528162663560392320966563075034087161851; 
-        assembly {
-            tmp := mulmod(tmp, b, r_mod)
-            res := addmod(res, tmp, r_mod)
-        }
+      tmp = abi.encodePacked(uint8(b0[0]) ^ uint8(b1[0]));
+      for (uint i=1; i<32; i++){
+          tmp = abi.encodePacked(tmp, uint8(b0[i]) ^ uint8(b1[i]));
+      }
 
-        return res;
-    }
+      tmp = abi.encodePacked(tmp, uint8(2), dst, sizeDomain);
+      b1 = sha256(tmp);
+
+      // TODO handle the size of the dst (check gnark-crypto)
+      for (uint i=0; i<16; i++){
+          res[i+32] = uint8(b1[i]);
+      }
+
+      return res;
+  }
+
+/**
+ * @dev cf https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
+ * corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
+ */
+  function hash_fr(uint256 x, uint256 y) internal pure returns(uint256 res) {
+
+      // interpret a as a bigEndian integer and reduce it mod r
+      uint8[48] memory xmsg = expand_msg(x, y);
+      // uint8[48] memory xmsg = [0x44, 0x74, 0xb5, 0x29, 0xd7, 0xfb, 0x29, 0x88, 0x3a, 0x7a, 0xc1, 0x65, 0xfd, 0x72, 0xce, 0xd0, 0xd4, 0xd1, 0x3f, 0x9e, 0x85, 0x8a, 0x3, 0x86, 0x1c, 0x90, 0x83, 0x1e, 0x94, 0xdc, 0xfc, 0x1d, 0x70, 0x82, 0xf5, 0xbf, 0x30, 0x3, 0x39, 0x87, 0x21, 0x38, 0x15, 0xed, 0x12, 0x75, 0x44, 0x6a];
+
+      // reduce xmsg mod r, where xmsg is intrepreted in big endian 
+      // (as SetBytes does for golang's Big.Int library).
+      for (uint i=0; i<32; i++){
+          res += uint256(xmsg[47-i])<<(8*i);
+      }
+      res = res % r_mod;
+      uint256 tmp;
+      for (uint i=0; i<16; i++){
+          tmp += uint256(xmsg[15-i])<<(8*i);
+      }
+
+      // 2**256%r
+      uint256 b = 6350874878119819312338956282401532410528162663560392320966563075034087161851; 
+      assembly {
+          tmp := mulmod(tmp, b, r_mod)
+          res := addmod(res, tmp, r_mod)
+      }
+
+      return res;
+  }
 
 }
 
@@ -278,11 +277,24 @@ contract PlonkVerifier {
       alpha := mod(alpha, r_mod)
       zeta := mod(zeta, r_mod)
 
+      // Derive gamma as Sha256(<transcript>)
+      // where transcript is the concatenation (in this order) of:
+      // * the word "gamma" in ascii, equal to [0x67,0x61,0x6d, 0x6d, 0x61] and encoded as a uint256.
+      // * the commitments to the permutation polynomials S1, S2, S3, where we concatenate the coordinates of those points
+      // * the commitments of Ql, Qr, Qm, Qo, Qk
+      // * the public inputs
+      // * the commitments of the wires related to the custom gates (commitments_wires_commit_api)
+      // * commitments to L, R, O (proof_<l,r,o>_com_<x,y>)
+      // The data described above is written starting at mPtr. "gamma" lies on 5 bytes,
+      // and is encoded as a uint256 number n. In basis b = 256, the number looks like this
+      // [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
       function derive_gamma(aproof, pub_inputs) {
         
         let mPtr := mload(0x40)
 
         // gamma
+        // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
+        // (same for alpha, beta, zeta)
         mstore(mPtr, 0x67616d6d61) // "gamma"
 
         mstore(add(mPtr, 0x20), vk_s1_com_x)
@@ -343,6 +355,7 @@ contract PlonkVerifier {
         pop(staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20)) //0x1b -> 000.."gamma"
       }
 
+      // alpha depends on the previous challenge (beta) and on the commitment to the grand product polynomial
       function derive_alpha(aproof, prev_challenge){
         let mPtr := mload(0x40)
         // alpha
@@ -353,6 +366,7 @@ contract PlonkVerifier {
         pop(staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20)) //0x1b -> 000.."gamma"
       }
 
+      // zeta depends on the previous challenge (alpha) and on the commitment to the quotient polynomial
       function derive_zeta(aproof, prev_challenge) {
         let mPtr := mload(0x40)
         // zeta
@@ -371,8 +385,10 @@ contract PlonkVerifier {
     return (gamma, beta, alpha, zeta);
   }
 
+  // read the commitments to the wires related to the commit api and store them in wire_commitments.
+  // The commitments are points on Bn254(Fp) so they are stored on 2 uint256.
   function load_wire_commitments_commit_api(uint256[] memory wire_commitments, bytes memory proof)
-  pure internal {
+  internal pure {
     assembly {
       let w := add(wire_commitments, 0x20)
       let p := add(proof, proof_openings_selector_commit_api_at_zeta)
@@ -389,6 +405,10 @@ contract PlonkVerifier {
     }
   }
 
+  // Computes L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
+  // * n = vk_domain_size
+  // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
+  // * ζ = zeta (challenge derived with Fiat Shamir)
   function compute_ith_lagrange_at_z(uint256 zeta, uint256 i) 
   internal view returns (uint256) {
 
@@ -421,11 +441,20 @@ contract PlonkVerifier {
     return res;
   }
 
+  {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
   function compute_pi(
-        bytes memory proof,
-        uint256[] memory public_inputs,
-        uint256 zeta
-    ) internal view returns (uint256) {
+    uint256[] memory public_inputs,
+    uint256 zeta,
+    bytes memory proof
+  ) internal view returns (uint256) {
+  {{ end }}
+
+  {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
+  function compute_pi(
+    uint256[] memory public_inputs,
+    uint256 zeta
+  ) internal view returns (uint256) {
+  {{ end }}
 
       // evaluation of Z=Xⁿ⁻¹ at ζ
       // uint256 zeta_power_n_minus_one = Fr.pow(zeta, vk_domain_size);
@@ -455,6 +484,11 @@ contract PlonkVerifier {
         }
 
         // mPtr <- [L_0(z), .., L_{n-1}(z)]
+        // 
+        // Here L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
+        // * n = vk_domain_size
+        // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
+        // * ζ = zeta (challenge derived with Fiat Shamir)
         function batch_compute_lagranges_at_z(z, n, mPtr) {
           let zn := addmod(pow(z, vk_domain_size, mPtr), sub(r_mod, 1), r_mod)
           zn := mulmod(zn, vk_inv_domain_size, r_mod)
@@ -477,6 +511,7 @@ contract PlonkVerifier {
           }
         } 
 
+        // batch invert (modulo r) in place the nb_ins uint256 inputs starting at ins.
         function batch_invert(ins, nb_ins, mPtr) {
           mstore(mPtr, 1)
           let offset := 0
@@ -519,6 +554,8 @@ contract PlonkVerifier {
       }
 
       {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+      // compute the contribution of the public inputs whose indices are in commitment_indices,
+      // and whose value is hash_fr of the corresponding commitme
       uint256[] memory commitment_indices = new uint256[](vk_nb_commitments_commit_api);
       load_vk_commitments_indices_commit_api(commitment_indices);
 
@@ -541,8 +578,22 @@ contract PlonkVerifier {
       return pi;
     }
 
+  function check_proof_size(bytes memory proof)
+  internal pure {
+
+    uint256 expected_proof_size = 0x340+vk_nb_commitments_commit_api*0x60;
+    uint256 actual_proof_size;
+    assembly {
+      actual_proof_size := mload(proof)
+    }
+    require(actual_proof_size==expected_proof_size, "wrong proof size");
+
+  }
+
   function Verify(bytes memory proof, uint256[] memory public_inputs) 
   public view returns(bool) {
+
+    check_proof_size(proof);
 
     uint256 gamma;
     uint256 beta;
@@ -551,7 +602,12 @@ contract PlonkVerifier {
 
     (gamma, beta, alpha, zeta) = derive_gamma_beta_alpha_zeta(proof, public_inputs);
 
-    uint256 pi = compute_pi(proof, public_inputs, zeta);
+    {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+    uint256 pi = compute_pi(public_inputs, zeta, proof);
+    {{ end }}
+    {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
+    uint256 pi = compute_pi(public_inputs, zeta);
+    {{ end }}
 
     uint256 check;
 
@@ -567,7 +623,7 @@ contract PlonkVerifier {
       mstore(add(mem, state_beta), beta)
       mstore(add(mem, state_pi), pi)
 
-      compute_alpha_square_lagrange()
+      compute_alpha_square_lagrange_0()
       verify_quotient_poly_eval_at_zeta(proof)
       fold_h(proof)
       compute_commitment_linearised_polynomial(proof)
@@ -579,7 +635,12 @@ contract PlonkVerifier {
       
       check := mload(add(mem, state_check_var))
 
-      function compute_alpha_square_lagrange() {   
+      // compute α² * 1/n * (ζ{n}-1)/(ζ - 1) where
+      // * α = challenge derived in derive_gamma_beta_alpha_zeta
+      // * n = vk_domain_size
+      // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
+      // * ζ = zeta (challenge derived with Fiat Shamir)
+      function compute_alpha_square_lagrange_0() {   
         let state := mload(0x40)
         let mPtr := add(mload(0x40), state_last_mem)
 
@@ -600,6 +661,10 @@ contract PlonkVerifier {
         mstore(add(state, state_alpha_square_lagrange), res)
       }
 
+      // follows alg. p.13 of https://eprint.iacr.org/2019/953.pdf
+      // with t₁ = t₂ = 1, and the proofs are ([digest] + [quotient] +purported evaluation):
+      // * [state_folded_state_digests], [proof_batch_opening_at_zeta_x], state_folded_evals
+      // * [proof_grand_product_commitment], [proof_opening_at_zeta_omega_x], [proof_grand_product_at_zeta_omega]
       function batch_verify_multi_points(aproof) {
 
         let state := mload(0x40)
@@ -661,7 +726,10 @@ contract PlonkVerifier {
         mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
       }
 
-      // at this stage the state of mPtr is the same as in compute_gamma
+      // Fold the opening proofs at ζ:
+      // * at state+state_folded_digest we store: [H] + γ[Linearised_polynomial]+γ²[L] + γ³[R] + γ⁴[O] + γ⁵[S₁] +γ⁶[S₂] + ∑ᵢγ⁶⁺ⁱ[Pi_{i}]
+      // * at state+state_folded_claimed_values we store: H(ζ) + γLinearised_polynomial(ζ)+γ²L(ζ) + γ³R(ζ)+ γ⁴O(ζ) + γ⁵S₁(ζ) +γ⁶S₂(ζ) + ∑ᵢγ⁶⁺ⁱPi_{i}(ζ)
+      // acc_gamma stores the γⁱ
       function fold_state(aproof) {
         
         let state := mload(0x40)
@@ -714,6 +782,21 @@ contract PlonkVerifier {
 
       }
 
+      // generate the challenge (using Fiat Shamir) to fold the opening proofs
+      // at ζ.
+      // The process for deriving γ is the same as in derive_gamma but this time the inputs are
+      // in this order (the [] means it's a commitment):
+      // * ζ
+      // * [H] ( = H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ )
+      // * [Linearised polynomial]
+      // * [L], [R], [O]
+      // * [S₁] [S₂]
+      // * [Pi_{i}] (wires associated to custom gates)
+      // Then there are the purported evaluations of the previous committed polynomials:
+      // * H(ζ)
+      // * Linearised_polynomial(ζ)
+      // * L(ζ), R(ζ), O(ζ), S₁(ζ), S₂(ζ)
+      // * Pi_{i}(ζ)
       function compute_gamma_kzg(aproof) {
 
         let state := mload(0x40)
@@ -815,6 +898,13 @@ contract PlonkVerifier {
 
       }
 
+      // Compute the commitment to the linearized polynomial equal to
+      //	L(ζ)[Qₗ]+r(ζ)[Qᵣ]+R(ζ)L(ζ)[Qₘ]+O(ζ)[Qₒ]+[Qₖ]+Σᵢqc'ᵢ(ζ)[BsbCommitmentᵢ] +
+      //	α*( Z(μζ)(L(ζ)+β*S₁(ζ)+γ)*(R(ζ)+β*S₂(ζ)+γ)[S₃]-[Z](L(ζ)+β*id_{1}(ζ)+γ)*(R(ζ)+β*id_{2(ζ)+γ)*(O(ζ)+β*id_{3}(ζ)+γ) ) +
+      //	α²*L₁(ζ)[Z]
+      // where 
+      // * id_1 = id, id_2 = vk_coset_shift*id, id_3 = vk_coset_shift^{2}*id
+      // * the [] means that it's a commitment (i.e. a point on Bn254(F_p))
       function compute_commitment_linearised_polynomial(aproof) {
         
         let state := mload(0x40)
@@ -855,9 +945,15 @@ contract PlonkVerifier {
         s2 := mulmod(s2, l_alpha, r_mod)
         s2 := addmod(s2, mload(add(state, state_alpha_square_lagrange)), r_mod)
 
+        // at this stage:
+        // * s₁ = α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
+        // * s₂ = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
+
         compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
       }
 
+      // compute H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ and store the result at
+      // state + state_folded_h
       function fold_h(aproof) {
         let state := mload(0x40)
         let n_plus_two := add(vk_domain_size, 2)
@@ -869,6 +965,11 @@ contract PlonkVerifier {
         point_add(add(state, state_folded_h_x), add(state, state_folded_h_x), add(aproof, proof_h_0_x), mPtr)
       }
 
+      // check that
+      //	L(ζ)Qₗ(ζ)+r(ζ)Qᵣ(ζ)+R(ζ)L(ζ)Qₘ(ζ)+O(ζ)Qₒ(ζ)+Qₖ(ζ)+Σᵢqc'ᵢ(ζ)BsbCommitmentᵢ(ζ) +
+      //  α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
+      // + α²*L₁(ζ) = 
+      // (ζⁿ-1)H(ζ)
       function verify_quotient_poly_eval_at_zeta(aproof) {
 
         let state := mload(0x40)
