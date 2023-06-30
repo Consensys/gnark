@@ -48,9 +48,14 @@ func newSystem(capacity int, t constraint.SystemType) *system {
 func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, error) {
 	log := logger.Logger().With().Int("nbConstraints", cs.GetNbConstraints()).Logger()
 	start := time.Now()
-
 	
 	v := witness.Vector().(fr.Vector)
+
+	{{if ne .CurveID "UNKNOWN"}}	{{/* TODO @Tabaie add tinyfield GKR support */}}
+	if cs.GkrInfo.Is() {
+		ReplaceGkrHints(&opts, cs.GkrInfo)
+	}
+	{{- end}}
 
 	// init the solver
 	solver, err := newSolver(cs, v, opts...)
@@ -97,7 +102,6 @@ func (cs *system) IsSolved(witness witness.Witness, opts ...csolver.Option) erro
 	_, err := cs.Solve(witness, opts...)
 	return err 
 }
-
 
 // GetR1Cs return the list of R1C
 func (cs *system) GetR1Cs() []constraint.R1C {

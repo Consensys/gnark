@@ -127,10 +127,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			bsb22ComputeCommitmentHint(spr, pk, proof, cCommitments, &commitmentVal[i], i)))
 	}
 
-	if spr.GkrInfo.Is() {
-		cs.ReplaceGkrHints(&opt.SolverOpts, spr.GkrInfo)
-	}
-
 	// query l, r, o in Lagrange basis, not blinded
 	_solution, err := spr.Solve(fullWitness, opt.SolverOpts...)
 	if err != nil {
