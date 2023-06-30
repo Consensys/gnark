@@ -26,7 +26,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/constraint/bw6-761"
+	cs "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
@@ -92,6 +92,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 				return err
 			}
 		}(i)))
+	}
+
+	if r1cs.GkrInfo.Is() {
+		var gkrData cs.GkrSolvingData
+		solverOpts = append(solverOpts,
+			solver.OverrideHint(r1cs.GkrInfo.SolveHintID, cs.GkrSolveHint(r1cs.GkrInfo, &gkrData)),
+			solver.OverrideHint(r1cs.GkrInfo.ProveHintID, cs.GkrProveHint(r1cs.GkrInfo.HashName, &gkrData)))
 	}
 
 	_solution, err := r1cs.Solve(fullWitness, solverOpts...)

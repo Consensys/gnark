@@ -11,10 +11,11 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/consensys/gnark/std/hash"
 )
 
 func TestGkrVectors(t *testing.T) {
@@ -240,7 +241,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 		}
 
 		var found bool
-		if circuit[i].Gate, found = RegisteredGates[wireInfo.Gate]; !found && wireInfo.Gate != "" {
+		if circuit[i].Gate, found = Gates[wireInfo.Gate]; !found && wireInfo.Gate != "" {
 			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
 		}
 	}
@@ -251,7 +252,7 @@ func (c CircuitInfo) toCircuit() (circuit Circuit, err error) {
 type _select int
 
 func init() {
-	RegisteredGates["select-input-3"] = _select(2)
+	Gates["select-input-3"] = _select(2)
 }
 
 func (g _select) Evaluate(_ frontend.API, in ...frontend.Variable) frontend.Variable {
@@ -481,4 +482,26 @@ func (c *constHashCircuit) Define(api frontend.API) error {
 
 func TestConstHash(t *testing.T) {
 	test.NewAssert(t).SolvingSucceeded(&constHashCircuit{}, &constHashCircuit{X: 1})
+}
+
+var mimcSnarkTotalCalls = 0
+
+type MiMCCipherGate struct {
+	Ark frontend.Variable
+}
+
+func (m MiMCCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) frontend.Variable {
+	mimcSnarkTotalCalls++
+
+	if len(input) != 2 {
+		panic("mimc has fan-in 2")
+	}
+	sum := api.Add(input[0], input[1], m.Ark)
+
+	sumCubed := api.Mul(sum, sum, sum) // sum^3
+	return api.Mul(sumCubed, sumCubed, sum)
+}
+
+func (m MiMCCipherGate) Degree() int {
+	return 7
 }

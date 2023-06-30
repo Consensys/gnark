@@ -677,6 +677,11 @@ func (z *Element) Marshal() []byte {
 	return b[:]
 }
 
+// Unmarshal is an alias for SetBytes, it sets z to the value of e.
+func (z *Element) Unmarshal(e []byte) {
+	z.SetBytes(e)
+}
+
 // SetBytes interprets e as the bytes of a big-endian unsigned integer,
 // sets z to that value, and returns z.
 func (z *Element) SetBytes(e []byte) *Element {

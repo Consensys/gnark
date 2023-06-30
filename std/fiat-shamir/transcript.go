@@ -18,6 +18,7 @@ package fiatshamir
 
 import (
 	"errors"
+
 	"github.com/consensys/gnark/constant"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"

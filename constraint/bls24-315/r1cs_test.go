@@ -28,7 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"github.com/consensys/gnark/constraint/bls24-315"
+	cs "github.com/consensys/gnark/constraint/bls24-315"
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 )

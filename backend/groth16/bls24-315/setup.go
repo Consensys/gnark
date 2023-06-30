@@ -25,7 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr/pedersen"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/constraint/bls24-315"
+	cs "github.com/consensys/gnark/constraint/bls24-315"
 	"math/big"
 	"math/bits"
 )

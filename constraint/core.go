@@ -125,6 +125,7 @@ type System struct {
 	lbOutputs   []uint32 `cbor:"-"` // wire outputs for current constraint.
 
 	CommitmentInfo Commitments
+	GkrInfo        GkrInfo
 
 	genericHint BlueprintID
 }
@@ -456,4 +457,13 @@ func putBuffer(buf *[]uint32) {
 		panic("invalid entry in putBuffer")
 	}
 	bufPool.Put(buf)
+}
+
+func (system *System) AddGkr(gkr GkrInfo) error {
+	if system.GkrInfo.Is() {
+		return fmt.Errorf("currently only one GKR sub-circuit per SNARK is supported")
+	}
+
+	system.GkrInfo = gkr
+	return nil
 }

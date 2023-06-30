@@ -34,7 +34,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/iop"
-	"github.com/consensys/gnark/constraint/bls12-377"
+	cs "github.com/consensys/gnark/constraint/bls12-377"
 
 	"github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
@@ -125,6 +125,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	for i := range commitmentInfo {
 		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(commitmentInfo[i].HintID,
 			bsb22ComputeCommitmentHint(spr, pk, proof, cCommitments, &commitmentVal[i], i)))
+	}
+
+	if spr.GkrInfo.Is() {
+		var gkrData cs.GkrSolvingData
+		opt.SolverOpts = append(opt.SolverOpts,
+			solver.OverrideHint(spr.GkrInfo.SolveHintID, cs.GkrSolveHint(spr.GkrInfo, &gkrData)),
+			solver.OverrideHint(spr.GkrInfo.ProveHintID, cs.GkrProveHint(spr.GkrInfo.HashName, &gkrData)))
 	}
 
 	// query l, r, o in Lagrange basis, not blinded

@@ -25,7 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/pedersen"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/constraint/bls12-381"
+	cs "github.com/consensys/gnark/constraint/bls12-381"
 	"math/big"
 	"math/bits"
 )

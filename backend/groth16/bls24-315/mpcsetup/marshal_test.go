@@ -19,7 +19,7 @@ package mpcsetup
 import (
 	"bytes"
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	"github.com/consensys/gnark/constraint/bls24-315"
+	cs "github.com/consensys/gnark/constraint/bls24-315"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/stretchr/testify/require"

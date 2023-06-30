@@ -25,7 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
 	"github.com/consensys/gnark/backend/plonk/internal"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/constraint/bls12-381"
+	cs "github.com/consensys/gnark/constraint/bls12-381"
 )
 
 // Trace stores a plonk trace as columns
