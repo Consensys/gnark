@@ -420,10 +420,20 @@ contract PlonkVerifier {
     return res;
   }
 
+  {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
   function compute_pi(
-        uint256[] memory public_inputs,
-        uint256 zeta
-    ) internal view returns (uint256) {
+    uint256[] memory public_inputs,
+    uint256 zeta,
+    bytes memory proof
+  ) internal view returns (uint256) {
+  {{ end }}
+
+  {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
+  function compute_pi(
+    uint256[] memory public_inputs,
+    uint256 zeta
+  ) internal view returns (uint256) {
+  {{ end }}
 
       // evaluation of Z=Xⁿ⁻¹ at ζ
       // uint256 zeta_power_n_minus_one = Fr.pow(zeta, vk_domain_size);
@@ -539,8 +549,8 @@ contract PlonkVerifier {
       return pi;
     }
 
-  function Verify(bytes memory proof, uint256[] memory public_inputs) 
-  public view returns(bool) {
+  function check_proof_size(bytes memory proof)
+  internal pure {
 
     uint256 expected_proof_size = 0x340+vk_nb_commitments_commit_api*0x60;
     uint256 actual_proof_size;
@@ -549,6 +559,13 @@ contract PlonkVerifier {
     }
     require(actual_proof_size==expected_proof_size, "wrong proof size");
 
+  }
+
+  function Verify(bytes memory proof, uint256[] memory public_inputs) 
+  public view returns(bool) {
+
+    check_proof_size(proof);
+
     uint256 gamma;
     uint256 beta;
     uint256 alpha;
@@ -556,7 +573,12 @@ contract PlonkVerifier {
 
     (gamma, beta, alpha, zeta) = derive_gamma_beta_alpha_zeta(proof, public_inputs);
 
+    {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+    uint256 pi = compute_pi(public_inputs, zeta, proof);
+    {{ end }}
+    {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
     uint256 pi = compute_pi(public_inputs, zeta);
+    {{ end }}
 
     uint256 check;
 
