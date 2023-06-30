@@ -741,8 +741,8 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0x140), g2_srs_1_y_0)
         mstore(add(mPtr, 0x160), g2_srs_1_y_1)
         let l_success := staticcall(sub(gas(), 2000),8,mPtr,0x180,0x00,0x20)
-        // l_success := true
-        mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
+        let res_pairing := mload(0x00)
+        mstore(add(state, state_success), and(l_success,eq(res_pairing,0x1)))
       }
 
       // Fold the opening proofs at ζ:
