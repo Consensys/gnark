@@ -64,6 +64,10 @@ type builder struct {
 	// see addConstraintExist(...)
 	mAddInstructions map[uint64]int
 
+	// map from wire to column to gate where this wire appears. Used to interleave range
+	// checks with other gates.
+	mRangecheckInterleave map[int]map[int]int
+
 	// frequently used coefficients
 	tOne, tMinusOne constraint.Element
 
@@ -82,9 +86,13 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 		mtBooleans:       make(map[expr.Term]struct{}),
 		mMulInstructions: make(map[uint64]int, config.Capacity/2),
 		mAddInstructions: make(map[uint64]int, config.Capacity/2),
-		config:           config,
-		Store:            kvstore.New(),
-		bufL:             make(expr.LinearExpression, 20),
+		mRangecheckInterleave: map[int]map[int]int{
+			0: make(map[int]int, config.Capacity/2),
+			1: make(map[int]int, config.Capacity/2),
+		},
+		config: config,
+		Store:  kvstore.New(),
+		bufL:   make(expr.LinearExpression, 20),
 	}
 	// init hint buffer.
 	_ = b.hintBuffer(256)
@@ -146,6 +154,7 @@ func (builder *builder) addMulGate(a, b, c expr.Term) {
 	qM := builder.cs.Mul(a.Coeff, b.Coeff)
 	QM := builder.cs.AddCoeff(qM)
 
+	builder.storeWireLocation(a.WireID(), b.WireID())
 	builder.cs.AddSparseR1C(constraint.SparseR1C{
 		XA: uint32(a.VID),
 		XB: uint32(b.VID),
@@ -161,6 +170,7 @@ func (builder *builder) addAddGate(a, b expr.Term, xc uint32, k constraint.Eleme
 	qR := builder.cs.AddCoeff(b.Coeff)
 	qC := builder.cs.AddCoeff(k)
 
+	builder.storeWireLocation(a.WireID(), b.WireID())
 	builder.cs.AddSparseR1C(constraint.SparseR1C{
 		XA: uint32(a.VID),
 		XB: uint32(b.VID),
@@ -200,6 +210,7 @@ func (builder *builder) addPlonkConstraint(c sparseR1C, debugInfo ...constraint.
 	QM := builder.cs.AddCoeff(c.qM)
 	QC := builder.cs.AddCoeff(c.qC)
 
+	builder.storeWireLocation(c.xa, c.xb)
 	cID := builder.cs.AddSparseR1C(constraint.SparseR1C{
 		XA: uint32(c.xa),
 		XB: uint32(c.xb),
@@ -685,4 +696,40 @@ func (builder *builder) ToCanonicalVariable(v frontend.Variable) frontend.Canoni
 		term.MarkConstant()
 		return term
 	}
+}
+
+func (builder *builder) storeWireLocation(a, b int) {
+	for i, v := range []int{a, b} {
+		if _, ok := builder.mRangecheckInterleave[i][v]; !ok {
+			builder.mRangecheckInterleave[i][v] = builder.cs.GetNbConstraints()
+		}
+	}
+}
+
+func (builder *builder) GetWireGates(wires []frontend.Variable) [2][]int {
+	res := [2][]int{
+		make([]int, 0, len(wires)),
+		make([]int, 0, len(wires)),
+	}
+	existing := make(map[int]struct{})
+	for _, w := range wires {
+		ww, ok := w.(expr.Term)
+		if !ok {
+			panic("not Term")
+		}
+		if _, ok := existing[ww.WireID()]; ok {
+			// double check
+			continue
+		}
+		for i := 0; i < 2; i++ {
+			loc, ok := builder.mRangecheckInterleave[i][ww.WireID()]
+			if !ok {
+				continue
+			}
+			res[i] = append(res[i], loc)
+			existing[ww.WireID()] = struct{}{}
+			break
+		}
+	}
+	return res
 }
