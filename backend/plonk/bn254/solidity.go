@@ -451,9 +451,9 @@ contract PlonkVerifier {
 
   {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
   function compute_pi(
-    uint256[] memory public_inputs,
-    uint256 zeta
-  ) internal view returns (uint256) {
+        uint256[] memory public_inputs,
+        uint256 zeta
+    ) internal view returns (uint256) {
   {{ end }}
 
       // evaluation of Z=Xⁿ⁻¹ at ζ
@@ -577,6 +577,23 @@ contract PlonkVerifier {
       
       return pi;
     }
+  
+  function check_inputs_size(uint256[] memory public_inputs)
+  internal view {
+
+    bool input_checks = true;
+    assembly {
+      let s := mload(public_inputs)
+      let p := add(public_inputs, 0x20)
+      for {let i} lt(i, s) {i:=add(i,1)}
+      {
+        input_checks := and(input_checks,lt(mload(p), r_mod))
+        p := add(p, 0x20)
+      }
+    }
+    require(input_checks, "some inputs are bigger than r");
+
+  }
 
   function check_proof_size(bytes memory proof)
   internal pure {
@@ -593,6 +610,8 @@ contract PlonkVerifier {
   function Verify(bytes memory proof, uint256[] memory public_inputs) 
   public view returns(bool) {
 
+    check_inputs_size(public_inputs);
+
     check_proof_size(proof);
 
     uint256 gamma;
@@ -608,7 +627,7 @@ contract PlonkVerifier {
     {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
     uint256 pi = compute_pi(public_inputs, zeta);
     {{ end }}
-
+    
     uint256 check;
 
     bool success = false;
