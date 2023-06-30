@@ -19,7 +19,7 @@ import (
 
 // TODO @Tabaie Autogen this and possibly move to another package
 
-var placeholderGkrSolvingData map[solver.HintID]any
+var placeholderGkrSolvingData = make(map[solver.HintID]any)
 
 func SolveHintPlaceholderGenerator(hintId solver.HintID, gkrInfo constraint.GkrInfo) func(*big.Int, []*big.Int, []*big.Int) error {
 	return func(mod *big.Int, in []*big.Int, out []*big.Int) (err error) {

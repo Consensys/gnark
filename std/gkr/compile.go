@@ -132,6 +132,7 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 	}
 
 	api.toStore.SolveHintID = randHintID() // Possible danger of confusing with other hints?
+	solver.RegisterNamedHint(SolveHintPlaceholderGenerator(api.toStore.SolveHintID, api.toStore), api.toStore.SolveHintID)
 	outsSerialized, err := parentApi.Compiler().NewHintForId(api.toStore.SolveHintID, solveHintNOut, ins...)
 	if err != nil {
 		return Solution{}, err
@@ -187,6 +188,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	copy(hintIns[1:], initialChallenges)
 
 	s.toStore.ProveHintID = randHintID() // Possible danger of confusing with other hints?
+	solver.RegisterNamedHint(ProveHintPlaceholderGenerator(hashName, s.toStore.SolveHintID, s.toStore.ProveHintID), s.toStore.ProveHintID)
 	if proofSerialized, err = s.parentApi.Compiler().NewHintForId(
 		s.toStore.ProveHintID, ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
 		return err
@@ -209,9 +211,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 		return err
 	}
 
-	solver.RegisterNamedHint(SolveHintPlaceholderGenerator(s.toStore.SolveHintID, s.toStore), s.toStore.SolveHintID)
-	solver.RegisterNamedHint(ProveHintPlaceholderGenerator(hashName, s.toStore.SolveHintID, s.toStore.ProveHintID), s.toStore.ProveHintID)
-	constraint.GkrHints[s.toStore.SolveHintID] = struct{}{}
+	constraint.GkrHints[s.toStore.SolveHintID] = struct{}{} // TODO: Remove
 	constraint.GkrHints[s.toStore.ProveHintID] = struct{}{}
 
 	return s.parentApi.Compiler().SetGkrInfo(s.toStore)

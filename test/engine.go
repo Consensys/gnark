@@ -680,5 +680,5 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 }
 
 func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
-	return fmt.Errorf("not implemented")
+	return nil // TODO @Tabaie make sure this is legit. Maybe some deferred computations might need GkrInfo
 }

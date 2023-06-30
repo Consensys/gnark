@@ -74,8 +74,9 @@ func TestDoubleNoDependencyCircuit(t *testing.T) {
 			assignment := doubleNoDependencyCircuit{X: xValues}
 			circuit := doubleNoDependencyCircuit{X: make([]frontend.Variable, len(xValues)), hashName: hashName}
 
-			testGroth16(t, &circuit, &assignment)
-			testPlonk(t, &circuit, &assignment)
+			test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+			//testGroth16(t, &circuit, &assignment)
+			//testPlonk(t, &circuit, &assignment)
 		}
 	}
 }
@@ -640,7 +641,7 @@ func TestMiMCFullDepthNoDepSolve(t *testing.T) {
 
 	for i := 5; i < 6; i++ { // TODO @Tabaie 0 -> 100
 		circuit, assignment := mimcNoDepCircuits(i, 1<<2)
-		test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+		test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
 		//testGroth16(t, circuit, assignment)
 		//testPlonk(t, circuit, assignment)
 

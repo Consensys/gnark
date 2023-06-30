@@ -5,6 +5,9 @@ import (
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/utils/algo_utils"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
+	"reflect"
 	"sort"
 )
 
@@ -200,4 +203,57 @@ func HintsEqual(a, b map[solver.HintID]string) bool {
 	}
 
 	return len(A) == 0 && len(B) == 0
+}
+
+//MHintsDependencies
+
+func SystemEqual(a, b System) bool {
+
+	hintsNames := [2][2]solver.HintID{{
+		a.GkrInfo.SolveHintID, b.GkrInfo.SolveHintID,
+	}, {
+		a.GkrInfo.ProveHintID, b.GkrInfo.ProveHintID,
+	}}
+
+	b.GkrInfo.SolveHintID = a.GkrInfo.SolveHintID
+	b.GkrInfo.ProveHintID = a.GkrInfo.ProveHintID
+
+	b.CallData = slices.Clone(b.CallData) // so as not to corrupt the original data
+	b.MHintsDependencies = maps.Clone(b.MHintsDependencies)
+
+	for i := range b.CallData {
+		for j := range hintsNames {
+			if b.CallData[i] == uint32(hintsNames[j][1]) {
+				b.CallData[i] = uint32(hintsNames[j][0])
+			}
+		}
+	}
+
+	for k := range b.MHintsDependencies {
+		for j := range hintsNames {
+			if k == hintsNames[j][1] {
+				delete(b.MHintsDependencies, k)
+				b.MHintsDependencies[hintsNames[j][0]] = a.MHintsDependencies[hintsNames[j][0]]
+			}
+		}
+	}
+
+	/*if match := HintsEqual(s.MHintsDependencies, oHints); !match {
+		return false
+	}
+
+	//o.MHintsDependencies = s.MHintsDependencies
+	match := reflect.DeepEqual(s.field, o.field)
+	match = match && reflect.DeepEqual(s.CoeffTable, o.CoeffTable)
+	match = match && reflect.DeepEqual(s.System, o.System)
+	//match := reflect.DeepEqual(s, o)
+
+	fmt.Println(cmp.Diff(s.System, o.System, cmpopts.IgnoreUnexported(constraint.System{}, debug.SymbolTable{})))
+
+	o.MHintsDependencies = oHints
+	return match
+
+	return false*/
+
+	return reflect.DeepEqual(a, b)
 }
