@@ -97,8 +97,21 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 
 // WriteTo writes binary encoding of ProvingKey to w
 func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
+	return pk.writeTo(w, true)
+}
+
+// WriteRawTo writes binary encoding of ProvingKey to w without point compression
+func (pk *ProvingKey) WriteRawTo(w io.Writer) (n int64, err error) {
+	return pk.writeTo(w, false)
+}
+
+func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err error) {
 	// encode the verifying key
-	n, err = pk.Vk.WriteTo(w)
+	if withCompression {
+		n, err = pk.Vk.WriteTo(w)
+	} else {
+		n, err = pk.Vk.WriteRawTo(w)
+	}
 	if err != nil {
 		return
 	}
@@ -117,7 +130,11 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 	n += n2
 
 	// KZG key
-	n2, err = pk.Kzg.WriteTo(w)
+	if withCompression {
+		n2, err = pk.Kzg.WriteTo(w)
+	} else {
+		n2, err = pk.Kzg.WriteRawTo(w)
+	}
 	if err != nil {
 		return
 	}
@@ -157,6 +174,15 @@ func (pk *ProvingKey) WriteTo(w io.Writer) (n int64, err error) {
 
 // ReadFrom reads from binary representation in r into ProvingKey
 func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
+	return pk.readFrom(r, true)
+}
+
+// UnsafeReadFrom reads from binary representation in r into ProvingKey without subgroup checks
+func (pk *ProvingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
+	return pk.readFrom(r, false)
+}
+
+func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, error) {
 	pk.Vk = &VerifyingKey{}
 	n, err := pk.Vk.ReadFrom(r)
 	if err != nil {
@@ -175,7 +201,11 @@ func (pk *ProvingKey) ReadFrom(r io.Reader) (int64, error) {
 		return n, err
 	}
 
-	n2, err = pk.Kzg.ReadFrom(r)
+	if withSubgroupChecks {
+		n2, err = pk.Kzg.ReadFrom(r)
+	} else {
+		n2, err = pk.Kzg.UnsafeReadFrom(r)
+	}
 	n += n2
 	if err != nil {
 		return n, err
