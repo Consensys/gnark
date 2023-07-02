@@ -26,6 +26,7 @@ import (
 	"github.com/consensys/gnark/backend/plonk/internal"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
+	"sync"
 )
 
 // Trace stores a plonk trace as columns
@@ -176,18 +177,44 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 // computeLagrangeCosetPolys computes each polynomial except qk in Lagrange coset
 // basis. Qk will be evaluated in Lagrange coset basis once it is completed by the prover.
 func (pk *ProvingKey) computeLagrangeCosetPolys() {
+	var wg sync.WaitGroup
+	wg.Add(7 + len(pk.trace.Qcp))
+	n1 := int(pk.Domain[1].Cardinality)
 	pk.lcQcp = make([]*iop.Polynomial, len(pk.trace.Qcp))
 	for i, qcpI := range pk.trace.Qcp {
-		pk.lcQcp[i] = qcpI.Clone().ToLagrangeCoset(&pk.Domain[1])
+		go func(i int, qcpI *iop.Polynomial) {
+			pk.lcQcp[i] = qcpI.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
+			wg.Done()
+		}(i, qcpI)
 	}
-	pk.lcQl = pk.trace.Ql.Clone().ToLagrangeCoset(&pk.Domain[1])
-	pk.lcQr = pk.trace.Qr.Clone().ToLagrangeCoset(&pk.Domain[1])
-	pk.lcQm = pk.trace.Qm.Clone().ToLagrangeCoset(&pk.Domain[1])
-	pk.lcQo = pk.trace.Qo.Clone().ToLagrangeCoset(&pk.Domain[1])
-	pk.lcS1 = pk.trace.S1.Clone().ToLagrangeCoset(&pk.Domain[1])
-	pk.lcS2 = pk.trace.S2.Clone().ToLagrangeCoset(&pk.Domain[1])
-	pk.lcS3 = pk.trace.S3.Clone().ToLagrangeCoset(&pk.Domain[1])
-
+	go func() {
+		pk.lcQl = pk.trace.Ql.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
+		wg.Done()
+	}()
+	go func() {
+		pk.lcQr = pk.trace.Qr.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
+		wg.Done()
+	}()
+	go func() {
+		pk.lcQm = pk.trace.Qm.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
+		wg.Done()
+	}()
+	go func() {
+		pk.lcQo = pk.trace.Qo.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
+		wg.Done()
+	}()
+	go func() {
+		pk.lcS1 = pk.trace.S1.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
+		wg.Done()
+	}()
+	go func() {
+		pk.lcS2 = pk.trace.S2.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
+		wg.Done()
+	}()
+	go func() {
+		pk.lcS3 = pk.trace.S3.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
+		wg.Done()
+	}()
 	// storing Id
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	id := make([]fr.Element, pk.Domain[1].Cardinality)
@@ -207,6 +234,8 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	pk.lLoneIOP = iop.NewPolynomial(&lone, lagReg).ToCanonical(&pk.Domain[0]).
 		ToRegular().
 		ToLagrangeCoset(&pk.Domain[1])
+
+	wg.Wait()
 }
 
 // NbPublicWitness returns the expected public witness size (number of field elements)
