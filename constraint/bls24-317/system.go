@@ -159,8 +159,8 @@ func (cs *system) WriteTo(w io.Writer) (int64, error) {
 func (cs *system) ReadFrom(r io.Reader) (int64, error) {
 	ts := getTagSet()
 	dm, err := cbor.DecOptions{
-		MaxArrayElements: 134217728,
-		MaxMapPairs:      134217728,
+		MaxArrayElements: 2147483647,
+		MaxMapPairs:      2147483647,
 	}.DecModeWithTags(ts)
 
 	if err != nil {
