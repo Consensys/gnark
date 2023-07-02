@@ -189,13 +189,13 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		return n, err
 	}
 
-	n2, err := pk.Domain[0].ReadFrom(r)
+	n2, err, chDomain0 := pk.Domain[0].AsyncReadFrom(r)
 	n += n2
 	if err != nil {
 		return n, err
 	}
 
-	n2, err = pk.Domain[1].ReadFrom(r)
+	n2, err, chDomain1 := pk.Domain[1].AsyncReadFrom(r)
 	n += n2
 	if err != nil {
 		return n, err
@@ -217,23 +217,65 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 
 	var ql, qr, qm, qo, qk, lqk, s1, s2, s3 []fr.Element
 	var qcp [][]fr.Element
-	toDecode := []interface{}{
-		&ql,
-		&qr,
-		&qm,
-		&qo,
-		&qk,
-		&qcp,
-		&lqk,
-		&s1,
-		&s2,
-		&s3,
-		&pk.trace.S,
+
+	// TODO @gbotrel: this is a bit ugly, we should probably refactor this.
+	// The order of the variables is important, as it matches the order in which they are
+	// encoded in the WriteTo(...) method.
+
+	// Note: instead of calling dec.Decode(...) for each of the above variables,
+	// we call AsyncReadFrom when possible which allows to consume bytes from the reader
+	// and perform the decoding in parallel
+
+	type v struct {
+		data  *fr.Vector
+		chErr chan error
 	}
 
-	for _, v := range toDecode {
-		if err := dec.Decode(v); err != nil {
-			return n + dec.BytesRead(), err
+	vectors := make([]v, 9)
+	vectors[0] = v{data: (*fr.Vector)(&ql)}
+	vectors[1] = v{data: (*fr.Vector)(&qr)}
+	vectors[2] = v{data: (*fr.Vector)(&qm)}
+	vectors[3] = v{data: (*fr.Vector)(&qo)}
+	vectors[4] = v{data: (*fr.Vector)(&qk)}
+	vectors[5] = v{data: (*fr.Vector)(&lqk)}
+	vectors[6] = v{data: (*fr.Vector)(&s1)}
+	vectors[7] = v{data: (*fr.Vector)(&s2)}
+	vectors[8] = v{data: (*fr.Vector)(&s3)}
+
+	// read ql, qr, qm, qo, qk
+	for i := 0; i < 5; i++ {
+		n2, err, ch := vectors[i].data.AsyncReadFrom(r)
+		n += n2
+		if err != nil {
+			return n, err
+		}
+		vectors[i].chErr = ch
+	}
+
+	// read qcp
+	if err := dec.Decode(&qcp); err != nil {
+		return n + dec.BytesRead(), err
+	}
+
+	// read lqk, s1, s2, s3
+	for i := 5; i < 9; i++ {
+		n2, err, ch := vectors[i].data.AsyncReadFrom(r)
+		n += n2
+		if err != nil {
+			return n, err
+		}
+		vectors[i].chErr = ch
+	}
+
+	// read pk.Trace.S
+	if err := dec.Decode(&pk.trace.S); err != nil {
+		return n + dec.BytesRead(), err
+	}
+
+	// wait for all AsyncReadFrom(...) to complete
+	for i := range vectors {
+		if err := <-vectors[i].chErr; err != nil {
+			return n, err
 		}
 	}
 
@@ -253,6 +295,10 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 	}
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
+
+	// wait for FFT to be precomputed
+	<-chDomain0
+	<-chDomain1
 
 	pk.computeLagrangeCosetPolys()
 
