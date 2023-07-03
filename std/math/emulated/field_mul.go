@@ -35,6 +35,19 @@ func (mc *mulCheck[T]) check(api frontend.API, peval, coef frontend.Variable) {
 	api.AssertIsEqual(ls, rs)
 }
 
+func (mc *mulCheck[T]) cleanEvaluations() {
+	mc.a.evaluation = 0
+	mc.a.isEvaluated = false
+	mc.b.evaluation = 0
+	mc.b.isEvaluated = false
+	mc.r.evaluation = 0
+	mc.r.isEvaluated = false
+	mc.k.evaluation = 0
+	mc.k.isEvaluated = false
+	mc.c.evaluation = 0
+	mc.c.isEvaluated = false
+}
+
 func (f *Field[T]) mulMod(a, b *Element[T], nextOverflow uint) *Element[T] {
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
@@ -118,6 +131,11 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 		ccoef := api.Sub(coef, commitment)
 		for i := range f.mulChecks {
 			f.mulChecks[i].check(api, pval.evaluation, ccoef)
+		}
+		// clean cached evaluation. Helps in case we compile the same circuit
+		// multiple times.
+		for i := range f.mulChecks {
+			f.mulChecks[i].cleanEvaluations()
 		}
 		return nil
 	}, toCommit...)
