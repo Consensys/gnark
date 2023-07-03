@@ -106,14 +106,8 @@ func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 	if _, aConst := f.constantValue(a); aConst {
 		panic("trying to reduce a constant, which happen to have an overflow flag set")
 	}
-
 	// slow path - use hint to reduce value
-	e, err := f.computeRemHint(a, f.Modulus())
-	if err != nil {
-		panic(fmt.Sprintf("reduction hint: %v", err))
-	}
-	f.AssertIsEqual(e, a)
-	return e
+	return f.mulMod(a, f.One(), 0)
 }
 
 // Sub subtracts b from a and returns it. Reduces locally if wouldn't fit into
