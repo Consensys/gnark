@@ -43,6 +43,8 @@ type Field[T FieldParams] struct {
 
 	constrainedLimbs map[uint64]struct{}
 	checker          frontend.Rangechecker
+
+	mulChecks []mulCheck[T]
 }
 
 type ctxKey[T FieldParams] struct{}
@@ -98,6 +100,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		return nil, fmt.Errorf("elements with limb length %d does not fit into scalar field", f.fParams.BitsPerLimb())
 	}
 
+	native.Compiler().Defer(f.performMulChecks)
 	if storer, ok := native.(kvstore.Store); ok {
 		storer.SetKeyValue(ctxKey[T]{}, f)
 	}
