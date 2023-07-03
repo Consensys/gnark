@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/rangecheck"
@@ -44,6 +45,8 @@ type Field[T FieldParams] struct {
 	checker          frontend.Rangechecker
 }
 
+type ctxKey[T FieldParams] struct{}
+
 // NewField returns an object to be used in-circuit to perform emulated
 // arithmetic over the field defined by type parameter [FieldParams]. The
 // operations on this type are defined on [Element]. There is also another type
@@ -53,6 +56,12 @@ type Field[T FieldParams] struct {
 // This is an experimental feature and performing emulated arithmetic in-circuit
 // is extremly costly. See package doc for more info.
 func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
+	if storer, ok := native.(kvstore.Store); ok {
+		ff := storer.GetKeyValue(ctxKey[T]{})
+		if ff, ok := ff.(*Field[T]); ok {
+			return ff, nil
+		}
+	}
 	f := &Field[T]{
 		api:              native,
 		log:              logger.Logger(),
@@ -89,6 +98,9 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		return nil, fmt.Errorf("elements with limb length %d does not fit into scalar field", f.fParams.BitsPerLimb())
 	}
 
+	if storer, ok := native.(kvstore.Store); ok {
+		storer.SetKeyValue(ctxKey[T]{}, f)
+	}
 	return f, nil
 }
 
