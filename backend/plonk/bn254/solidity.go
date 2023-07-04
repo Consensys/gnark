@@ -611,8 +611,17 @@ contract PlonkVerifier {
   internal pure {
     bool openings_check = true;
     assembly {
+      
+      // linearised polynomial at zeta
+      let p := add(proof, proof_linearised_polynomial_at_zeta)
+      openings_check := and(openings_check, lt(mload(p), r_mod))
+
+      // quotient polynomial at zeta
+      p := add(proof, proof_quotient_polynomial_at_zeta)
+      openings_check := and(openings_check, lt(mload(p), r_mod))
+      
       // proof_l_at_zeta
-      let p := add(proof, proof_l_at_zeta)
+      p := add(proof, proof_l_at_zeta)
       openings_check := and(openings_check, lt(mload(p), r_mod))
 
       // proof_r_at_zeta
