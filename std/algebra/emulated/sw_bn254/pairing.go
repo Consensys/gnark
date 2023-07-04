@@ -430,6 +430,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		res = pr.MulBy01234(res, &prodLines)
 	}
 
+	l1s := make([]*lineEvaluation, n)
 	for i := 62; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
@@ -438,16 +439,32 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		switch loopCounter[i] {
 
 		case 0:
+			// precompute lines
 			for k := 0; k < n; k++ {
 				// Qacc[k] ← 2Qacc[k] and l1 the tangent ℓ passing 2Qacc[k]
-				Qacc[k], l1 = pr.doubleStep(Qacc[k])
+				Qacc[k], l1s[k] = pr.doubleStep(Qacc[k])
 
 				// line evaluation at P[k]
-				l1.R0 = *pr.MulByElement(&l1.R0, xOverY[k])
-				l1.R1 = *pr.MulByElement(&l1.R1, yInv[k])
+				l1s[k].R0 = *pr.MulByElement(&l1s[k].R0, xOverY[k])
+				l1s[k].R1 = *pr.MulByElement(&l1s[k].R1, yInv[k])
 
+			}
+
+			// if number of lines is odd, mul last line by res
+			// works for n=1 as well
+			if n%2 != 0 {
 				// ℓ × res
-				res = pr.MulBy034(res, &l1.R0, &l1.R1)
+				res = pr.MulBy034(res, &l1s[n-1].R0, &l1s[n-1].R1)
+
+			}
+
+			// mul lines 2-by-2
+			for k := 1; k < n; k += 2 {
+				// ℓ × ℓ
+				prodLines = *pr.Mul034By034(&l1s[k].R0, &l1s[k].R1, &l1s[k-1].R0, &l1s[k-1].R1)
+				// (ℓ × ℓ) × res
+				res = pr.MulBy01234(res, &prodLines)
+
 			}
 
 		case 1:
