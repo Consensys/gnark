@@ -607,12 +607,63 @@ contract PlonkVerifier {
 
   }
 
+  function check_proof_openings_size(bytes memory proof)
+  internal pure {
+    bool openings_check = true;
+    assembly {
+      
+      // linearised polynomial at zeta
+      let p := add(proof, proof_linearised_polynomial_at_zeta)
+      openings_check := and(openings_check, lt(mload(p), r_mod))
+
+      // quotient polynomial at zeta
+      p := add(proof, proof_quotient_polynomial_at_zeta)
+      openings_check := and(openings_check, lt(mload(p), r_mod))
+      
+      // proof_l_at_zeta
+      p := add(proof, proof_l_at_zeta)
+      openings_check := and(openings_check, lt(mload(p), r_mod))
+
+      // proof_r_at_zeta
+      p := add(proof, proof_r_at_zeta)
+      openings_check := and(openings_check, lt(mload(p), r_mod))
+
+      // proof_o_at_zeta
+      p := add(proof, proof_o_at_zeta)
+      openings_check := and(openings_check, lt(mload(p), r_mod))
+
+      // proof_s1_at_zeta
+      p := add(proof, proof_s1_at_zeta)
+      openings_check := and(openings_check, lt(mload(p), r_mod))
+      
+      // proof_s2_at_zeta
+      p := add(proof, proof_s2_at_zeta)
+      openings_check := and(openings_check, lt(mload(p), r_mod))
+
+      // proof_grand_product_at_zeta_omega
+      p := add(proof, proof_grand_product_at_zeta_omega)
+      openings_check := and(openings_check, lt(mload(p), r_mod))
+
+      // proof_openings_selector_commit_api_at_zeta
+      {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+      p := add(proof, proof_openings_selector_commit_api_at_zeta)
+      for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
+      {
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+        p := add(p, 0x20)
+      }
+      {{ end }}
+
+    }
+    require(openings_check, "some openings are bigger than r");
+  }
+
   function Verify(bytes memory proof, uint256[] memory public_inputs) 
   public view returns(bool) {
 
     check_inputs_size(public_inputs);
-
     check_proof_size(proof);
+    check_proof_openings_size(proof);
 
     uint256 gamma;
     uint256 beta;
