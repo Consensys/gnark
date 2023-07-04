@@ -15,6 +15,6 @@ func ECMul(api frontend.API, P *sw_emulated.AffinePoint[emulated.BN254Fp], u *em
 		panic(err)
 	}
 	// Check that P is on the curve (done in the zkEVM ⚠️ )
-	res := curve.ScalarMulAddOnly(P, u)
+	res := curve.ScalarMul(P, u)
 	return res
 }
