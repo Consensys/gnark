@@ -208,43 +208,35 @@ contract PlonkVerifier {
   uint256 constant state_gamma = 0x40;
   uint256 constant state_zeta = 0x60;
 
-  // challenges related to KZG
-  uint256 constant state_sv = 0x80;
-  uint256 constant state_su = 0xa0;
-
   // reusable value
-  uint256 constant state_alpha_square_lagrange = 0xc0;
+  uint256 constant state_alpha_square_lagrange_0 = 0x80;
 
   // commitment to H
-  // Bn254.G1Point folded_h;
-  uint256 constant state_folded_h_x = 0xe0;
-  uint256 constant state_folded_h_y = 0x100;
+  uint256 constant state_folded_h_x = 0xa0;
+  uint256 constant state_folded_h_y = 0xc0;
 
   // commitment to the linearised polynomial
-  uint256 constant state_linearised_polynomial_x = 0x120;
-  uint256 constant state_linearised_polynomial_y = 0x140;
+  uint256 constant state_linearised_polynomial_x = 0xe0;
+  uint256 constant state_linearised_polynomial_y = 0x100;
 
   // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
-  // Kzg.OpeningProof folded_proof;
-  uint256 constant state_folded_claimed_values = 0x160;
+  uint256 constant state_folded_claimed_values = 0x120;
 
   // folded digests of H, linearised poly, l, r, o, s_1, s_2, qcp
   // Bn254.G1Point folded_digests;
-  uint256 constant state_folded_digests_x = 0x180;
-  uint256 constant state_folded_digests_y = 0x1a0;
+  uint256 constant state_folded_digests_x = 0x140;
+  uint256 constant state_folded_digests_y = 0x160;
 
-  uint256 constant state_pi = 0x1c0;
+  uint256 constant state_pi = 0x180;
 
-  uint256 constant state_zeta_power_n_minus_one = 0x1e0;
-  uint256 constant state_alpha_square_lagrange_one = 0x200;
+  uint256 constant state_zeta_power_n_minus_one = 0x1a0;
 
-  uint256 constant state_gamma_kzg = 0x220;
+  uint256 constant state_gamma_kzg = 0x1c0;
 
-  uint256 constant state_success = 0x240;
-  uint256 constant state_check_var = 0x260; // /!\ this slot is used for debugging only
+  uint256 constant state_success = 0x1e0;
+  uint256 constant state_check_var = 0x200; // /!\ this slot is used for debugging only
 
-
-  uint256 constant state_last_mem = 0x280;
+  uint256 constant state_last_mem = 0x220;
 
   event PrintUint256(uint256 a);
 
@@ -677,7 +669,7 @@ contract PlonkVerifier {
         let l_alpha := mload(add(state, state_alpha))
         res := mulmod(res, l_alpha, r_mod)
         res := mulmod(res, l_alpha, r_mod)
-        mstore(add(state, state_alpha_square_lagrange), res)
+        mstore(add(state, state_alpha_square_lagrange_0), res)
       }
 
       // follows alg. p.13 of https://eprint.iacr.org/2019/953.pdf
@@ -962,7 +954,7 @@ contract PlonkVerifier {
         s2 := mulmod(s2, w, r_mod)
         s2 := sub(r_mod, s2)
         s2 := mulmod(s2, l_alpha, r_mod)
-        s2 := addmod(s2, mload(add(state, state_alpha_square_lagrange)), r_mod)
+        s2 := addmod(s2, mload(add(state, state_alpha_square_lagrange_0)), r_mod)
 
         // at this stage:
         // * s₁ = α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
@@ -1021,7 +1013,7 @@ contract PlonkVerifier {
         // linearizedpolynomial + pi(zeta)
         mstore(computed_quotient, addmod(mload(add(aproof, proof_linearised_polynomial_at_zeta)), mload(add(state, state_pi)), r_mod))
         mstore(computed_quotient, addmod(mload(computed_quotient), mload(s1), r_mod))
-        mstore(computed_quotient, addmod(mload(computed_quotient), sub(r_mod,mload(add(state, state_alpha_square_lagrange))), r_mod))
+        mstore(computed_quotient, addmod(mload(computed_quotient), sub(r_mod,mload(add(state, state_alpha_square_lagrange_0))), r_mod))
         mstore(s2, mulmod(mload(add(aproof,proof_quotient_polynomial_at_zeta)), mload(add(state, state_zeta_power_n_minus_one)), r_mod))
 
         mstore(add(state, state_success),eq(mload(computed_quotient), mload(s2)))
