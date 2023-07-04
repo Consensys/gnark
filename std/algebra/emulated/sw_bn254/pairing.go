@@ -673,6 +673,29 @@ func (pr Pairing) lineCompute(p1, p2 *G2Affine) *lineEvaluation {
 
 }
 
+// MillerLoopAndMul computes the Miller loop between P and Q
+// and multiplies it in 𝔽p¹² by previous.
+//
+// This method is needed for evmprecompiles/ecpair.
+func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*GTEl, error) {
+	res, err := pr.MillerLoop([]*G1Affine{P}, []*G2Affine{Q})
+	if err != nil {
+		return nil, fmt.Errorf("miller loop: %w", err)
+	}
+	res = pr.Mul(res, previous)
+	return res, err
+}
+
+// FinalExponentiationIsOne performs the final exponentiation on e
+// and checks that the result in 1 in GT.
+//
+// This method is needed for evmprecompiles/ecpair.
+func (pr Pairing) FinalExponentiationIsOne(e *GTEl) {
+	res := pr.finalExponentiation(e, false)
+	one := pr.One()
+	pr.AssertIsEqual(res, one)
+}
+
 // ----------------------------
 //	  Fixed-argument pairing
 // ----------------------------
