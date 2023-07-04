@@ -112,66 +112,16 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 	}
 	pairing.AssertIsOnG1(&c.InG1)
 	pairing.AssertIsOnG2(&c.InG2)
-	switch c.n {
-	case 2:
-		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2})
-		if err != nil {
-			return fmt.Errorf("pair: %w", err)
-		}
-		pairing.AssertIsEqual(res, &c.Res)
-
-	case 3:
-		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2})
-		if err != nil {
-			return fmt.Errorf("pair: %w", err)
-		}
-		pairing.AssertIsEqual(res, &c.Res)
-
-	case 4:
-		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2})
-		if err != nil {
-			return fmt.Errorf("pair: %w", err)
-		}
-		pairing.AssertIsEqual(res, &c.Res)
-
-	case 5:
-		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2})
-		if err != nil {
-			return fmt.Errorf("pair: %w", err)
-		}
-		pairing.AssertIsEqual(res, &c.Res)
-
-	case 6:
-		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2})
-		if err != nil {
-			return fmt.Errorf("pair: %w", err)
-		}
-		pairing.AssertIsEqual(res, &c.Res)
-
-	case 7:
-		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2})
-		if err != nil {
-			return fmt.Errorf("pair: %w", err)
-		}
-		pairing.AssertIsEqual(res, &c.Res)
-
-	case 8:
-		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2})
-		if err != nil {
-			return fmt.Errorf("pair: %w", err)
-		}
-		pairing.AssertIsEqual(res, &c.Res)
-
-	case 9:
-		res, err := pairing.Pair([]*G1Affine{&c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1, &c.InG1}, []*G2Affine{&c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2, &c.InG2})
-		if err != nil {
-			return fmt.Errorf("pair: %w", err)
-		}
-		pairing.AssertIsEqual(res, &c.Res)
-	default:
-		return fmt.Errorf("not handled %d", c.n)
-
+	P, Q := []*G1Affine{}, []*G2Affine{}
+	for i := 0; i < c.n; i++ {
+		P = append(P, &c.InG1)
+		Q = append(Q, &c.InG2)
 	}
+	res, err := pairing.Pair(P, Q)
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
 	return nil
 }
 
@@ -195,7 +145,6 @@ func TestMultiPairTestSolve(t *testing.T) {
 		}
 		err = test.IsSolved(&MultiPairCircuit{n: i}, &witness, ecc.BN254.ScalarField())
 		assert.NoError(err)
-		fmt.Println("Batch of size", i, "✅")
 	}
 }
 
