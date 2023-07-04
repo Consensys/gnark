@@ -64,6 +64,8 @@ type Compiler interface {
 	// ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable
 	// ! Experimental: use in conjunction with constraint.CustomizableSystem
 	ToCanonicalVariable(Variable) CanonicalVariable
+
+	SetGkrInfo(constraint.GkrInfo) error
 }
 
 // Builder represents a constraint system builder
@@ -104,5 +106,5 @@ type Rangechecker interface {
 // a PLONK builder --> constraint.Term
 // and the test/Engine --> ~*big.Int.
 type CanonicalVariable interface {
-	constraint.Compressable
+	constraint.Compressible
 }

@@ -25,6 +25,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
+
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
@@ -139,16 +141,13 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 	zu := proof.ZShiftedOpening.ClaimedValue
 
-	qC := make([]fr.Element, len(proof.Bsb22Commitments))
-	copy(qC, proof.BatchedProof.ClaimedValues)
-	claimedValues := proof.BatchedProof.ClaimedValues[len(proof.Bsb22Commitments):]
-	claimedQuotient := claimedValues[0]
-	linearizedPolynomialZeta := claimedValues[1]
-	l := claimedValues[2]
-	r := claimedValues[3]
-	o := claimedValues[4]
-	s1 := claimedValues[5]
-	s2 := claimedValues[6]
+	claimedQuotient := proof.BatchedProof.ClaimedValues[0]
+	linearizedPolynomialZeta := proof.BatchedProof.ClaimedValues[1]
+	l := proof.BatchedProof.ClaimedValues[2]
+	r := proof.BatchedProof.ClaimedValues[3]
+	o := proof.BatchedProof.ClaimedValues[4]
+	s1 := proof.BatchedProof.ClaimedValues[5]
+	s2 := proof.BatchedProof.ClaimedValues[6]
 
 	_s1.Mul(&s1, &beta).Add(&_s1, &l).Add(&_s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 	_s2.Mul(&s2, &beta).Add(&_s2, &r).Add(&_s2, &gamma) // (r(ζ)+β*s2(ζ)+γ)
@@ -222,6 +221,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		vk.S[2], proof.Z, // second & third part
 	)
 
+	qC := make([]fr.Element, len(proof.Bsb22Commitments))
+	copy(qC, proof.BatchedProof.ClaimedValues[7:])
 	scalars := append(qC,
 		l, r, rl, o, one, /* TODO Perf @Tabaie Consider just adding Qk instead */ // first part
 		_s1, _s2, // second & third part
@@ -231,15 +232,17 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	}
 
 	// Fold the first proof
-	foldedProof, foldedDigest, err := kzg.FoldProof(append(vk.Qcp,
-		foldedH,
-		linearizedPolynomialDigest,
-		proof.LRO[0],
-		proof.LRO[1],
-		proof.LRO[2],
-		vk.S[0],
-		vk.S[1],
-	),
+	digestsToFold := make([]curve.G1Affine, len(vk.Qcp)+7)
+	copy(digestsToFold[7:], vk.Qcp)
+	digestsToFold[0] = foldedH
+	digestsToFold[1] = linearizedPolynomialDigest
+	digestsToFold[2] = proof.LRO[0]
+	digestsToFold[3] = proof.LRO[1]
+	digestsToFold[4] = proof.LRO[2]
+	digestsToFold[5] = vk.S[0]
+	digestsToFold[6] = vk.S[1]
+	foldedProof, foldedDigest, err := kzg.FoldProof(
+		digestsToFold,
 		&proof.BatchedProof,
 		zeta,
 		hFunc,
@@ -345,9 +348,31 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 //
 // Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
-	tmpl, err := template.New("").Parse(solidityTemplate)
+	funcMap := template.FuncMap{
+		// The name "inc" is what the function will be called in the template text.
+		"inc": func(i int) int {
+			return i + 1
+		},
+		"frstr": func(x fr.Element) string {
+			// we use big.Int to always get a positive string.
+			// not the most efficient hack, but it works better for .sol generation.
+			bv := new(big.Int)
+			x.BigInt(bv)
+			return bv.String()
+		},
+		"fpstr": func(x fp.Element) string {
+			bv := new(big.Int)
+			x.BigInt(bv)
+			return bv.String()
+		},
+		"add": func(i, j int) int {
+			return i + j
+		},
+	}
+
+	t, err := template.New("t").Funcs(funcMap).Parse(tmplSolidityVerifier)
 	if err != nil {
 		return err
 	}
-	return tmpl.Execute(w, vk)
+	return t.Execute(w, vk)
 }

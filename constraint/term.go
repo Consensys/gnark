@@ -54,7 +54,7 @@ func (t Term) String(r Resolver) string {
 	return sbb.String()
 }
 
-// implements constraint.Compressable
+// implements constraint.Compressible
 
 // Compress compresses the term into a slice of uint32 words.
 // For compatibility with test engine and LinearExpression, the term is encoded as:

@@ -124,7 +124,8 @@ type System struct {
 	lbWireLevel []int    `cbor:"-"` // at which level we solve a wire. init at -1.
 	lbOutputs   []uint32 `cbor:"-"` // wire outputs for current constraint.
 
-	CommitmentInfo []Commitment
+	CommitmentInfo Commitments
+	GkrInfo        GkrInfo
 
 	genericHint BlueprintID
 }
@@ -145,7 +146,9 @@ func NewSystem(scalarField *big.Int, capacity int, t SystemType) System {
 		lbOutputs:          make([]uint32, 0, 256),
 		lbWireLevel:        make([]int, 0, capacity),
 		Levels:             make([][]int, 0, capacity/2),
+		CommitmentInfo:     NewCommitments(t),
 	}
+
 	system.genericHint = system.AddBlueprint(&BlueprintGenericHint{})
 	return system
 }
@@ -298,7 +301,14 @@ func (system *System) AddSolverHint(f solver.Hint, id solver.HintID, input []Lin
 }
 
 func (system *System) AddCommitment(c Commitment) error {
-	system.CommitmentInfo = append(system.CommitmentInfo, c)
+	switch v := c.(type) {
+	case Groth16Commitment:
+		system.CommitmentInfo = append(system.CommitmentInfo.(Groth16Commitments), v)
+	case PlonkCommitment:
+		system.CommitmentInfo = append(system.CommitmentInfo.(PlonkCommitments), v)
+	default:
+		return fmt.Errorf("unknown commitment type %T", v)
+	}
 	return nil
 }
 
@@ -418,8 +428,8 @@ func (cs *System) GetSparseR1CIterator() SparseR1CIterator {
 	return SparseR1CIterator{cs: cs}
 }
 
-func (cs *System) GetNbCommitments() int {
-	return len(cs.CommitmentInfo)
+func (cs *System) GetCommitments() Commitments {
+	return cs.CommitmentInfo
 }
 
 // bufPool is a pool of buffers used by getBuffer and putBuffer.
@@ -447,4 +457,13 @@ func putBuffer(buf *[]uint32) {
 		panic("invalid entry in putBuffer")
 	}
 	bufPool.Put(buf)
+}
+
+func (system *System) AddGkr(gkr GkrInfo) error {
+	if system.GkrInfo.Is() {
+		return fmt.Errorf("currently only one GKR sub-circuit per SNARK is supported")
+	}
+
+	system.GkrInfo = gkr
+	return nil
 }

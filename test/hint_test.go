@@ -2,12 +2,8 @@ package test
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"
 )
@@ -41,54 +37,22 @@ func (c *customNamedHintCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-var assignment, circuit customNamedHintCircuit
+var assignment customNamedHintCircuit
 
 func init() {
 	solver.RegisterNamedHint(identityHint, id)
 	assignment = customNamedHintCircuit{X: []frontend.Variable{1, 2, 3, 4, 5}}
-	circuit = customNamedHintCircuit{X: make([]frontend.Variable, len(assignment.X))}
 }
 
 func TestHintWithCustomNamePlonk(t *testing.T) {
-	plonkTest(t, &circuit, &assignment)
+	testPlonk(t, &assignment)
 }
 
 func TestHintWithCustomNameGroth16(t *testing.T) {
-	groth16Test(t, &circuit, &assignment)
+	testGroth16(t, &assignment)
 }
 
 func TestHintWithCustomNameEngine(t *testing.T) {
-	NewAssert(t).SolvingSucceeded(&circuit, &assignment)
-}
-
-func groth16Test(t *testing.T, circuit, assignment frontend.Circuit) {
-	run := func(mod *big.Int) func(*testing.T) {
-		return func(t *testing.T) {
-			cs, err := frontend.Compile(mod, r1cs.NewBuilder, circuit)
-			assert.NoError(t, err)
-			var (
-				pk    groth16.ProvingKey
-				vk    groth16.VerifyingKey
-				w, pw witness.Witness
-				proof groth16.Proof
-			)
-			pk, vk, err = groth16.Setup(cs)
-			assert.NoError(t, err)
-
-			w, err = frontend.NewWitness(assignment, mod)
-			assert.NoError(t, err)
-
-			proof, err = groth16.Prove(cs, pk, w)
-			assert.NoError(t, err)
-
-			pw, err = w.Public()
-			assert.NoError(t, err)
-
-			assert.NoError(t, groth16.Verify(proof, vk, pw))
-		}
-	}
-
-	for _, id := range fr {
-		t.Run(id.String(), run(id.ScalarField()))
-	}
+	circuit := hollow(&assignment)
+	NewAssert(t).SolvingSucceeded(circuit, &assignment)
 }

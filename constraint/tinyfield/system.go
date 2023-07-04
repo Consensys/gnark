@@ -159,8 +159,8 @@ func (cs *system) WriteTo(w io.Writer) (int64, error) {
 func (cs *system) ReadFrom(r io.Reader) (int64, error) {
 	ts := getTagSet()
 	dm, err := cbor.DecOptions{
-		MaxArrayElements: 134217728,
-		MaxMapPairs:      134217728,
+		MaxArrayElements: 2147483647,
+		MaxMapPairs:      2147483647,
 	}.DecModeWithTags(ts)
 
 	if err != nil {
@@ -177,6 +177,13 @@ func (cs *system) ReadFrom(r io.Reader) (int64, error) {
 
 	if err := cs.CheckSerializationHeader(); err != nil {
 		return int64(decoder.NumBytesRead()), err
+	}
+
+	switch v := cs.CommitmentInfo.(type) {
+	case *constraint.Groth16Commitments:
+		cs.CommitmentInfo = *v
+	case *constraint.PlonkCommitments:
+		cs.CommitmentInfo = *v
 	}
 
 	return int64(decoder.NumBytesRead()), nil
@@ -360,6 +367,13 @@ func getTagSet() cbor.TagSet {
 	addType(reflect.TypeOf(constraint.BlueprintSparseR1CAdd{}))
 	addType(reflect.TypeOf(constraint.BlueprintSparseR1CMul{}))
 	addType(reflect.TypeOf(constraint.BlueprintSparseR1CBool{}))
+	addType(reflect.TypeOf(constraint.BlueprintLookupHint{}))
+	addType(reflect.TypeOf(constraint.Groth16Commitments{}))
+	addType(reflect.TypeOf(constraint.PlonkCommitments{}))
 
 	return ts
+}
+
+func (s *system) AddGkr(gkr constraint.GkrInfo) error {
+	return s.System.AddGkr(gkr)
 }

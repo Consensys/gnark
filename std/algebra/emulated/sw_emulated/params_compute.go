@@ -1,6 +1,7 @@
 package sw_emulated
 
 import (
+	"crypto/elliptic"
 	"math/big"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
@@ -81,6 +82,50 @@ func computeBLS12381Table() [][2]*big.Int {
 		default:
 			aff.FromJacobian(tmp)
 			table[i] = [2]*big.Int{aff.X.BigInt(new(big.Int)), aff.Y.BigInt(new(big.Int))}
+		}
+	}
+	return table
+}
+
+func computeP256Table() [][2]*big.Int {
+	table := make([][2]*big.Int, 256)
+	p256 := elliptic.P256()
+	gx, gy := p256.Params().Gx, p256.Params().Gy
+	tmpx, tmpy := new(big.Int).Set(gx), new(big.Int).Set(gy)
+	for i := 1; i < 256; i++ {
+		tmpx, tmpy = p256.Double(tmpx, tmpy)
+		switch i {
+		case 1, 2:
+			xx, yy := p256.Add(tmpx, tmpy, gx, gy)
+			table[i-1] = [2]*big.Int{xx, yy}
+		case 3:
+			xx, yy := p256.Add(tmpx, tmpy, gx, new(big.Int).Sub(p256.Params().P, gy))
+			table[i-1] = [2]*big.Int{xx, yy}
+			fallthrough
+		default:
+			table[i] = [2]*big.Int{tmpx, tmpy}
+		}
+	}
+	return table
+}
+
+func computeP384Table() [][2]*big.Int {
+	table := make([][2]*big.Int, 384)
+	p384 := elliptic.P384()
+	gx, gy := p384.Params().Gx, p384.Params().Gy
+	tmpx, tmpy := new(big.Int).Set(gx), new(big.Int).Set(gy)
+	for i := 1; i < 384; i++ {
+		tmpx, tmpy = p384.Double(tmpx, tmpy)
+		switch i {
+		case 1, 2:
+			xx, yy := p384.Add(tmpx, tmpy, gx, gy)
+			table[i-1] = [2]*big.Int{xx, yy}
+		case 3:
+			xx, yy := p384.Add(tmpx, tmpy, gx, new(big.Int).Sub(p384.Params().P, gy))
+			table[i-1] = [2]*big.Int{xx, yy}
+			fallthrough
+		default:
+			table[i] = [2]*big.Int{tmpx, tmpy}
 		}
 	}
 	return table

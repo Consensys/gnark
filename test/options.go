@@ -36,6 +36,7 @@ type testingConfig struct {
 	proverOpts           []backend.ProverOption
 	compileOpts          []frontend.CompileOption
 	fuzzing              bool
+	solidity             bool
 }
 
 // WithBackends is testing option which restricts the backends the assertions are
@@ -100,6 +101,19 @@ func WithSolverOpts(solverOpts ...solver.Option) TestingOption {
 func WithCompileOpts(compileOpts ...frontend.CompileOption) TestingOption {
 	return func(opt *testingConfig) error {
 		opt.compileOpts = compileOpts
+		return nil
+	}
+}
+
+// WithSolidity is a testing option which enables solidity tests in assertions.
+// If the build tag "solccheck" is not set, this option is ignored.
+// When the tag is set; this requires gnark-solidity-checker to be installed, which in turns
+// requires solc and abigen to be reachable in the PATH.
+//
+// See https://github.com/ConsenSys/gnark-solidity-checker for more details.
+func WithSolidity() TestingOption {
+	return func(opt *testingConfig) error {
+		opt.solidity = true && solcCheck
 		return nil
 	}
 }

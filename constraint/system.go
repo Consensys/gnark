@@ -20,7 +20,7 @@ type ConstraintSystem interface {
 	// Deprecated: use _, err := Solve(...) instead
 	IsSolved(witness witness.Witness, opts ...solver.Option) error
 
-	// Solve attempts to solves the constraint system using provided witness.
+	// Solve attempts to solve the constraint system using provided witness.
 	// Returns an error if the witness does not allow all the constraints to be satisfied.
 	// Returns a typed solution (R1CSSolution or SparseR1CSSolution) and nil otherwise.
 	Solve(witness witness.Witness, opts ...solver.Option) (any, error)
@@ -51,7 +51,8 @@ type ConstraintSystem interface {
 	AddSolverHint(f solver.Hint, id solver.HintID, input []LinearExpression, nbOutput int) (internalVariables []int, err error)
 
 	AddCommitment(c Commitment) error
-	GetNbCommitments() int // TODO: Erase once multi-commits are implemented in Groth16
+	GetCommitments() Commitments
+	AddGkr(gkr GkrInfo) error
 
 	AddLog(l LogEntry)
 

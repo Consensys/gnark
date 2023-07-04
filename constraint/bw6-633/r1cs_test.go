@@ -28,7 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"github.com/consensys/gnark/constraint/bw6-633"
+	cs "github.com/consensys/gnark/constraint/bw6-633"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 )
@@ -49,7 +49,7 @@ func TestSerialization(t *testing.T) {
 				return
 			}
 
-			// copmpile a second time to ensure determinism
+			// compile a second time to ensure determinism
 			r1cs2, err := frontend.Compile(fr.Modulus(), r1cs.NewBuilder, tc.Circuit)
 			if err != nil {
 				t.Fatal(err)
