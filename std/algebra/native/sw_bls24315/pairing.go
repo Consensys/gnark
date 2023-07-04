@@ -460,3 +460,104 @@ func lineCompute(api frontend.API, p1, p2 *G2Affine) lineEvaluation {
 	return line
 
 }
+
+// ----------------------------
+//	  Fixed-argument pairing
+// ----------------------------
+//
+// The second argument Q is the fixed canonical generator of G2.
+//
+// Q.X.B0.A0 = 0x2f339ada8942f92aefa14196bfee2552a7c5675f5e5e9da798458f72ff50f96f5c357cf13710f63
+// Q.X.B0.A1 = 0x20b1a8dca4b18842b40079be727cbfd1a16ed134a080b759ae503618e92871697838dc4c689911c
+// Q.X.B1.A0 = 0x16eab1e76670eb9affa1bc77400be688d5cd69566f9325b329b40db85b47f236d5c34e8ffed7536
+// Q.X.B1.A1 = 0x6e8c608261f21c41f2479ca4824deba561b9689a9c03a5b8b36a6cbbed0a7d9468e07e557d8569
+// Q.Y.B0.A0 = 0x3cdd8218baa5276421c9923cde33a45399a1d878d5202fae600a8502a29681f74ccdcc053b278b7
+// Q.Y.B0.A1 = 0x3a079c670190bb49b1bd21e10aac3191535e32ce99da592ddfa8bd09d57a7374ed63ad7f25e398d
+// Q.Y.B1.A0 = 0x1b38dd0c5ec49a0883a950c631c688eb3b01f45b7c0d2990cd99052005ebf2fa9e7043bbd605ef5
+// Q.Y.B1.A1 = 0x495d6de2e4fed6be3e1d24dd724163e01d88643f7e83d31528ab0a80ced619175a1a104574ac83
+
+// MillerLoopFixed computes the single Miller loop
+// fᵢ_{u,g2}(P), where g2 is fixed.
+func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
+
+	var ateLoop2NAF [33]int8
+	ecc.NafDecomposition(big.NewInt(ateLoop), ateLoop2NAF[:])
+
+	var res GT
+	res.SetOne()
+
+	var l1, l2 lineEvaluation
+	var yInv, xOverY frontend.Variable
+	yInv = api.DivUnchecked(1, P.Y)
+	xOverY = api.Mul(P.X, yInv)
+
+	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
+	// i = 31, separately to avoid an E24 Square
+	// (Square(res) = 1² = 1)
+
+	// k = 0, separately to avoid MulBy034 (res × ℓ)
+	// (assign line(P) to res)
+	res.D1.C0.MulByFp(api,
+		fields_bls24315.E4{B0: precomputedLines[0][31], B1: precomputedLines[1][31]},
+		xOverY)
+	res.D1.C1.MulByFp(api,
+		fields_bls24315.E4{B0: precomputedLines[2][31], B1: precomputedLines[3][31]},
+		yInv)
+
+	for i := 30; i >= 0; i-- {
+		// mutualize the square among n Miller loops
+		// (∏ᵢfᵢ)²
+		res.Square(api, res)
+
+		if ateLoop2NAF[i] == 0 {
+			// line evaluation at P
+			l1.R0.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
+				xOverY)
+			l1.R1.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[2][i], B1: precomputedLines[3][i]},
+				yInv)
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+		} else {
+			// line evaluation at P
+			l1.R0.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
+				xOverY)
+			l1.R1.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[2][i], B1: precomputedLines[3][i]},
+				yInv)
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+
+			// line evaluation at P
+			l2.R0.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[4][i], B1: precomputedLines[5][i]},
+				xOverY)
+			l2.R1.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[6][i], B1: precomputedLines[7][i]},
+				yInv)
+
+			// ℓ × res
+			res.MulBy034(api, l2.R0, l2.R1)
+		}
+	}
+
+	res.Conjugate(api, res)
+
+	return res, nil
+}
+
+// PairFixedQ calculates the reduced pairing for a set of points
+// e(P, g2), where g2 is fixed.
+//
+// This function doesn't check that the inputs are in the correct subgroups.
+func PairFixedQ(api frontend.API, P G1Affine) (GT, error) {
+	f, err := MillerLoopFixedQ(api, P)
+	if err != nil {
+		return GT{}, err
+	}
+	return FinalExponentiation(api, f), nil
+}
