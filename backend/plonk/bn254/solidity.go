@@ -243,10 +243,10 @@ contract PlonkVerifier {
   uint256 constant state_success = 0x240;
   uint256 constant state_check_var = 0x260; // /!\ this slot is used for debugging only
 
-
   uint256 constant state_last_mem = 0x280;
 
-  event PrintUint256(uint256 a);
+  // -------- errors
+  uint256 constant error_string_id = 0x08c379a000000000000000000000000000000000000000000000000000000000; // selector for function Error(string)
 
   {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
   // read the commitments to the wires related to the commit api and store them in wire_commitments.
@@ -301,6 +301,15 @@ contract PlonkVerifier {
       beta := mod(beta, r_mod)
       alpha := mod(alpha, r_mod)
       zeta := mod(zeta, r_mod)
+
+      function error_sha2_256() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x19)
+        mstore(add(ptError, 0x44), "error staticcall sha2-256")
+        revert(ptError, 0x64)
+      }
 
       // Derive gamma as Sha256(<transcript>)
       // where transcript is the concatenation (in this order) of:
@@ -357,7 +366,6 @@ contract PlonkVerifier {
           _mPtr := add(_mPtr, 0x40)
           _proof := add(_proof, 0x40)
         }
-        // pop(staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), 0x2a5, mPtr, 0x20)) //0x1b -> 000.."gamma"
 
         mstore(_mPtr, mload(add(aproof, proof_l_com_x)))
         mstore(add(_mPtr, 0x20), mload(add(aproof, proof_l_com_y)))
@@ -365,11 +373,13 @@ contract PlonkVerifier {
         mstore(add(_mPtr, 0x60), mload(add(aproof, proof_r_com_y)))
         mstore(add(_mPtr, 0x80), mload(add(aproof, proof_o_com_x)))
         mstore(add(_mPtr, 0xa0), mload(add(aproof, proof_o_com_y)))
-        // pop(staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), 0x365, mPtr, 0x20)) //0x1b -> 000.."gamma"
 
         let size := add(0x2c5, mul(mload(pub_inputs), 0x20)) // 0x2c5 = 22*32+5
         size := add(size, mul(vk_nb_commitments_commit_api, 0x40))
-        pop(staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20)) //0x1b -> 000.."gamma"
+        let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if eq(success, 0) {
+          error_sha2_256()
+        }
       }
 
       function derive_beta(aproof, prev_challenge){
@@ -377,7 +387,10 @@ contract PlonkVerifier {
         // beta
         mstore(mPtr, 0x62657461) // "beta"
         mstore(add(mPtr, 0x20), prev_challenge)
-        pop(staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20)) //0x1b -> 000.."gamma"
+        let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if eq(success, 0) {
+          error_sha2_256()
+        }
       }
 
       // alpha depends on the previous challenge (beta) and on the commitment to the grand product polynomial
@@ -388,7 +401,10 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0x20), prev_challenge)
         mstore(add(mPtr, 0x40), mload(add(aproof, proof_grand_product_commitment_x)))
         mstore(add(mPtr, 0x60), mload(add(aproof, proof_grand_product_commitment_y)))
-        pop(staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20)) //0x1b -> 000.."gamma"
+        let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if eq(success, 0) {
+          error_sha2_256()
+        }
       }
 
       // zeta depends on the previous challenge (alpha) and on the commitment to the quotient polynomial
@@ -403,7 +419,10 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0xa0), mload(add(aproof, proof_h_1_y)))
         mstore(add(mPtr, 0xc0), mload(add(aproof, proof_h_2_x)))
         mstore(add(mPtr, 0xe0), mload(add(aproof, proof_h_2_y)))
-        pop(staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20))
+        let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
+        if eq(success, 0) {
+          error_sha2_256()
+        }
       }
     }
 
@@ -420,6 +439,15 @@ contract PlonkVerifier {
     uint256 res;
     assembly {
 
+      function error_pow_local() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x17)
+        mstore(add(ptError, 0x44), "error staticcall modexp")
+        revert(ptError, 0x64)
+      }
+
       // _n^_i [r]
       function pow_local(x, e)->result {
           let mPtr := mload(0x40)
@@ -429,7 +457,10 @@ contract PlonkVerifier {
           mstore(add(mPtr, 0x60), x)
           mstore(add(mPtr, 0x80), e)
           mstore(add(mPtr, 0xa0), r_mod)
-          pop(staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,0x00,0x20))
+          let success := staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,0x00,0x20)
+          if eq(success, 0) {
+            error_pow_local()
+          }
           result := mload(0x00)
       }
 
@@ -452,14 +483,13 @@ contract PlonkVerifier {
     uint256 zeta,
     bytes memory proof
   ) internal view returns (uint256) {
-  {{ end }}
-
+  {{ end -}}
   {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
   function compute_pi(
         uint256[] memory public_inputs,
         uint256 zeta
     ) internal view returns (uint256) {
-  {{ end }}
+  {{ end -}}
 
       // evaluation of Z=Xⁿ⁻¹ at ζ
       // uint256 zeta_power_n_minus_one = Fr.pow(zeta, vk_domain_size);
@@ -469,6 +499,15 @@ contract PlonkVerifier {
       uint256 pi;
 
       assembly {
+
+        function error_pow() {
+          let ptError := mload(0x40)
+          mstore(ptError, error_string_id) // selector for function Error(string)
+          mstore(add(ptError, 0x4), 0x20)
+          mstore(add(ptError, 0x24), 0x17)
+          mstore(add(ptError, 0x44), "error staticcall modexp")
+          revert(ptError, 0x64)
+        }
         
         sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), zeta)
         pi := mload(mload(0x40))
@@ -550,7 +589,10 @@ contract PlonkVerifier {
           mstore(add(mPtr, 0x60), x)
           mstore(add(mPtr, 0x80), e)
           mstore(add(mPtr, 0xa0), r_mod)
-          pop(staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,mPtr,0x20))
+          let success := staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,mPtr,0x20)
+          if eq(success, 0) {
+            error_pow()
+          }
           res := mload(mPtr)
         }
 
@@ -710,6 +752,15 @@ contract PlonkVerifier {
       
       check := mload(add(mem, state_check_var))
 
+      function error_verify() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0xc)
+        mstore(add(ptError, 0x44), "error verify")
+        revert(ptError, 0x64)
+      }
+
       // compute α² * 1/n * (ζ{n}-1)/(ζ - 1) where
       // * α = challenge derived in derive_gamma_beta_alpha_zeta
       // * n = vk_domain_size
@@ -766,7 +817,10 @@ contract PlonkVerifier {
         mstore(folded_evals_commit, 0x1)
         mstore(add(folded_evals_commit, 0x20), 0x2)
         mstore(add(folded_evals_commit, 0x40), mload(folded_evals))
-        pop(staticcall(sub(gas(), 2000),7,folded_evals_commit,0x60,folded_evals_commit,0x40))
+        let check_staticcall := staticcall(sub(gas(), 2000),7,folded_evals_commit,0x60,folded_evals_commit,0x40)
+        if eq(check_staticcall, 0) {
+          error_verify()
+        }
 
         let folded_evals_commit_y := add(folded_evals_commit, 0x20)
         mstore(folded_evals_commit_y, sub(p_mod, mload(folded_evals_commit_y)))
@@ -936,7 +990,10 @@ contract PlonkVerifier {
         let start_input := 0x1b // 00.."gamma"
         let size_input := add(0x16, mul(vk_nb_commitments_commit_api,3)) // number of 32bytes elmts = 0x16 (zeta+2*7+7 for the digests+openings) + 2*vk_nb_commitments_commit_api (for the commitments of the selectors) + vk_nb_commitments_commit_api (for the openings of the selectors)
         size_input := add(0x5, mul(size_input, 0x20)) // size in bytes: 15*32 bytes + 5 bytes for gamma
-        pop(staticcall(sub(gas(), 2000), 0x2, add(mPtr,start_input), size_input, add(state, state_gamma_kzg), 0x20))
+        let check_staticcall := staticcall(sub(gas(), 2000), 0x2, add(mPtr,start_input), size_input, add(state, state_gamma_kzg), 0x20)
+        if eq(check_staticcall, 0) {
+          error_verify()
+        }
         mstore(add(state, state_gamma_kzg), mod(mload(add(state, state_gamma_kzg)), r_mod))
       }
 
@@ -1146,7 +1203,10 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0x60), x)
         mstore(add(mPtr, 0x80), e)
         mstore(add(mPtr, 0xa0), r_mod)
-        pop(staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,mPtr,0x20))
+        let check_staticcall := staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,mPtr,0x20)
+        if eq(check_staticcall, 0) {
+          error_verify()
+        }
         res := mload(mPtr)
       }
     }
