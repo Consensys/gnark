@@ -363,19 +363,18 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
-// It computes the standard little-endian variable-base double-and-add algorithm
-// [HMV04] (Algorithm 3.26).
+// It computes the right-to-left variable-base add-only algorithm ([Joye07], Alg.2).
 //
 // Since we use incomplete formulas for the addition law, we need to start with
-// a non-zero accumulator point (res). To do this, we skip the LSB (bit at
+// a non-zero accumulator point (R0). To do this, we skip the LSB (bit at
 // position 0) and proceed assuming it was 1. At the end, we conditionally
 // subtract the initial value (p) if LSB is 1. We also handle the bits at
-// positions 1, n-2 and n-1 outside of the loop to optimize the number of
+// positions 1 and n-1 outside of the loop to optimize the number of
 // constraints using [ELM03] (Section 3.1)
 //
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
-// [HMV04]: https://link.springer.com/book/10.1007/b97644
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+// [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
 
 	// if p=(0,0) we assign a dummy (0,1) to p and continue
@@ -389,35 +388,34 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 	n := st.Modulus().BitLen()
 
 	// i = 1
-	tmp := c.triple(p)
-	res := c.Select(sBits[1], tmp, p)
-	acc := c.add(tmp, p)
+	R := c.triple(p)
+	R0 := c.Select(sBits[1], R, p)
+	R1 := c.Select(sBits[1], p, R)
+	R2 := c.add(R0, R1)
 
-	for i := 2; i <= n-3; i++ {
-		tmp := c.add(res, acc)
-		res = c.Select(sBits[i], tmp, res)
-		acc = c.double(acc)
+	for i := 2; i < n-1; i++ {
+		R = c.Select(sBits[i], R0, R1)
+		R = c.add(R, R2)
+		R0 = c.Select(sBits[i], R, R0)
+		R1 = c.Select(sBits[i], R1, R)
+		R2 = c.add(R0, R1)
 	}
 
-	// i = n-2
-	tmp = c.add(res, acc)
-	res = c.Select(sBits[n-2], tmp, res)
-
 	// i = n-1
-	tmp = c.doubleAndAdd(acc, res)
-	res = c.Select(sBits[n-1], tmp, res)
+	R = c.Select(sBits[n-1], R0, R1)
+	R = c.add(R, R2)
+	R0 = c.Select(sBits[n-1], R, R0)
 
 	// i = 0
-	// we use AddUnified here instead of Add so that when s=0, res=(0,0)
+	// we use AddUnified here instead of add so that when s=0, res=(0,0)
 	// because AddUnified(p, -p) = (0,0)
-	tmp = c.AddUnified(res, c.Neg(p))
-	res = c.Select(sBits[0], res, tmp)
+	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
 
 	// if p=(0,0), return (0,0)
 	zero := c.baseApi.Zero()
-	res = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, res)
+	R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
 
-	return res
+	return R0
 }
 
 // ScalarMulBase computes s * g and returns it, where g is the fixed generator.
@@ -428,12 +426,9 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 // neutral/infinity point as per the [EVM].
 //
 // It computes the standard little-endian fixed-base double-and-add algorithm
-// [HMV04] (Algorithm 3.26).
-//
-// The method proceeds similarly to ScalarMul but with the points [2^i]g
-// precomputed.  The bits at positions 1 and 2 are handled outside of the loop
-// to optimize the number of constraints using a Lookup2 with pre-computed
-// [3]g, [5]g and [7]g points.
+// [HMV04] (Algorithm 3.26), with the points [2^i]g precomputed.  The bits at
+// positions 1 and 2 are handled outside of the loop to optimize the number of
+// constraints using a Lookup2 with pre-computed [3]g, [5]g and [7]g points.
 //
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
@@ -468,6 +463,8 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
 // ⚠️   p must NOT be (0,0).
 // ⚠️   s1 and s2 must NOT be 0.
 //
+// It uses the logic from ScalarMul() for s1 * g and the logic from ScalarMulBase() for s2 * g.
+//
 // JointScalarMulBase is used to verify an ECDSA signature (r,s) on the
 // secp256k1 curve. In this case, p is a public key, s2=r/s and s1=hash/s.
 //   - hash cannot be 0, because of pre-image resistance.
@@ -492,42 +489,57 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 	s2Bits := c.scalarApi.ToBits(s2r)
 	n := st.Modulus().BitLen()
 
+	// fixed-base
 	// i = 1, 2
 	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
 	res1 := c.Lookup2(s1Bits[1], s1Bits[2], g, &gm[0], &gm[1], &gm[2])
-	tmp2 := c.triple(p)
-	res2 := c.Select(s2Bits[1], tmp2, p)
-	acc := c.add(tmp2, p)
-	tmp2 = c.add(res2, acc)
-	res2 = c.Select(s2Bits[2], tmp2, res2)
-	acc = c.double(acc)
+	// var-base
+	// i = 1
+	R := c.triple(p)
+	R0 := c.Select(s2Bits[1], R, p)
+	R1 := c.Select(s2Bits[1], p, R)
+	R2 := c.add(R0, R1)
+	// i = 2
+	R = c.Select(s2Bits[2], R0, R1)
+	R = c.add(R, R2)
+	R0 = c.Select(s2Bits[2], R, R0)
+	R1 = c.Select(s2Bits[2], R1, R)
+	R2 = c.add(R0, R1)
 
 	for i := 3; i <= n-3; i++ {
+		// fixed-base
 		// gm[i] = [2^i]g
 		tmp1 := c.add(res1, &gm[i])
 		res1 = c.Select(s1Bits[i], tmp1, res1)
-		tmp2 = c.add(res2, acc)
-		res2 = c.Select(s2Bits[i], tmp2, res2)
-		acc = c.double(acc)
+		// var-base
+		R = c.Select(s2Bits[i], R0, R1)
+		R = c.add(R, R2)
+		R0 = c.Select(s2Bits[i], R, R0)
+		R1 = c.Select(s2Bits[i], R1, R)
+		R2 = c.add(R0, R1)
+
 	}
 
-	// i = 0
-	tmp1 := c.add(res1, c.Neg(g))
-	res1 = c.Select(s1Bits[0], res1, tmp1)
-	tmp2 = c.add(res2, c.Neg(p))
-	res2 = c.Select(s2Bits[0], res2, tmp2)
-
 	// i = n-2
-	tmp1 = c.add(res1, &gm[n-2])
+	tmp1 := c.add(res1, &gm[n-2])
 	res1 = c.Select(s1Bits[n-2], tmp1, res1)
-	tmp2 = c.add(res2, acc)
-	res2 = c.Select(s2Bits[n-2], tmp2, res2)
+	R = c.Select(s2Bits[n-2], R0, R1)
+	R = c.add(R, R2)
+	R0 = c.Select(s2Bits[n-2], R, R0)
+	R1 = c.Select(s2Bits[n-2], R1, R)
+	R2 = c.add(R0, R1)
 
 	// i = n-1
 	tmp1 = c.add(res1, &gm[n-1])
 	res1 = c.Select(s1Bits[n-1], tmp1, res1)
-	tmp2 = c.doubleAndAdd(acc, res2)
-	res2 = c.Select(s2Bits[n-1], tmp2, res2)
+	R = c.Select(s2Bits[n-1], R0, R1)
+	R = c.add(R, R2)
+	R0 = c.Select(s2Bits[n-1], R, R0)
 
-	return c.add(res1, res2)
+	// i = 0
+	tmp1 = c.add(res1, c.Neg(g))
+	res1 = c.Select(s1Bits[0], res1, tmp1)
+	R0 = c.Select(s2Bits[0], R0, c.AddUnified(R0, c.Neg(p)))
+
+	return c.add(res1, R0)
 }

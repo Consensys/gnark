@@ -126,6 +126,37 @@ func TestTriplePairingBLS377(t *testing.T) {
 
 }
 
+type pairingFixedBLS377 struct {
+	P          G1Affine `gnark:",public"`
+	pairingRes bls12377.GT
+}
+
+func (circuit *pairingFixedBLS377) Define(api frontend.API) error {
+
+	pairingRes, _ := PairFixedQ(api, circuit.P)
+
+	mustbeEq(api, pairingRes, &circuit.pairingRes)
+
+	return nil
+}
+
+func TestPairingFixedBLS377(t *testing.T) {
+
+	// pairing test data
+	P, _, _, pairingRes := pairingData()
+
+	// create cs
+	var circuit, witness pairingFixedBLS377
+	circuit.pairingRes = pairingRes
+
+	// assign values to witness
+	witness.P.Assign(&P)
+
+	assert := test.NewAssert(t)
+	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+
+}
+
 // utils
 func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
 	_, _, P, Q = bls12377.Generators()
