@@ -791,9 +791,23 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0x120), g2_srs_1_x_1)
         mstore(add(mPtr, 0x140), g2_srs_1_y_0)
         mstore(add(mPtr, 0x160), g2_srs_1_y_1)
+        check_pairing_kzg(mPtr)
+      }
+
+      // check_pairing_kzg checks the result of the final pairing product of the batched
+      // kzg verification. The purpose of this function is too avoid exhausting the stack
+      // in the function batch_verify_multi_points.
+      // mPtr: pointer storing the tuple of pairs
+      function check_pairing_kzg(mPtr) {
+
+        let state := mload(0x40)
+
+        // TODO test the staticcall using the method from audit_4-5
         let l_success := staticcall(sub(gas(), 2000),8,mPtr,0x180,0x00,0x20)
-        // l_success := true
-        mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
+        let res_pairing := mload(0x00)
+        let s_success := mload(add(state, state_success))
+        res_pairing := and(and(res_pairing, l_success), s_success)
+        mstore(add(state, state_success), res_pairing)
       }
 
       // Fold the opening proofs at ζ:
