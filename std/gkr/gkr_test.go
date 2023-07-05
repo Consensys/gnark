@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
@@ -77,13 +76,13 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 		fillWithBlanks(circuit.Output, len(testCase.Input[0]))
 
 		if !opts.noSuccess {
-			test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.GROTH16))
+			test.NewAssert(t).SolvingSucceeded(circuit, assignment)
 		}
 
 		if !opts.noFail {
 			assignment.ToFail = true // TODO: This one doesn't matter right?
 			circuit.ToFail = true
-			test.NewAssert(t).SolvingFailed(circuit, assignment, test.WithBackends(backend.GROTH16))
+			test.NewAssert(t).SolvingFailed(circuit, assignment)
 		}
 	}
 }

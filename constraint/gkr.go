@@ -5,7 +5,6 @@ import (
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/utils/algo_utils"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"reflect"
 	"sort"
@@ -172,7 +171,6 @@ func SystemEqual(a, b System) bool {
 	b.GkrInfo.ProveHintID = a.GkrInfo.ProveHintID
 
 	b.CallData = slices.Clone(b.CallData) // so as not to corrupt the original data
-	b.MHintsDependencies = maps.Clone(b.MHintsDependencies)
 
 	for i := range b.CallData {
 		for j := range hintsNames {
@@ -182,14 +180,24 @@ func SystemEqual(a, b System) bool {
 		}
 	}
 
-	for k := range b.MHintsDependencies {
-		for j := range hintsNames {
-			if k == hintsNames[j][1] {
-				delete(b.MHintsDependencies, k)
-				b.MHintsDependencies[hintsNames[j][0]] = a.MHintsDependencies[hintsNames[j][0]]
-			}
-		}
-	}
-
-	return reflect.DeepEqual(a, b)
+	return a.GnarkVersion == b.GnarkVersion &&
+		a.ScalarField == b.ScalarField &&
+		a.Type == b.Type &&
+		reflect.DeepEqual(a.Instructions, b.Instructions) &&
+		reflect.DeepEqual(a.Blueprints, b.Blueprints) &&
+		reflect.DeepEqual(a.CallData, b.CallData) &&
+		a.NbConstraints == b.NbConstraints &&
+		a.NbInternalVariables == b.NbInternalVariables &&
+		reflect.DeepEqual(a.Public, b.Public) &&
+		reflect.DeepEqual(a.Secret, b.Secret) &&
+		reflect.DeepEqual(a.Logs, b.Logs) &&
+		reflect.DeepEqual(a.DebugInfo, b.DebugInfo) &&
+		reflect.DeepEqual(a.MDebug, b.MDebug) &&
+		reflect.DeepEqual(a.MHintsDependencies, b.MHintsDependencies) &&
+		reflect.DeepEqual(a.Levels, b.Levels) &&
+		reflect.DeepEqual(a.q, b.q) &&
+		a.bitLen == b.bitLen &&
+		reflect.DeepEqual(a.CommitmentInfo, b.CommitmentInfo) &&
+		reflect.DeepEqual(a.GkrInfo, b.GkrInfo) &&
+		reflect.DeepEqual(a.genericHint, b.genericHint)
 }

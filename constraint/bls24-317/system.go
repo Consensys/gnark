@@ -385,9 +385,6 @@ func (s *system) AddGkr(gkr constraint.GkrInfo) error {
 }
 
 func (s *system) Equal(other constraint.ConstraintSystem) bool {
-	if !s.GkrInfo.Is() {
-		return reflect.DeepEqual(s, other) // fast track
-	}
 	if o, ok := other.(*system); !ok {
 		return false
 	} else {
