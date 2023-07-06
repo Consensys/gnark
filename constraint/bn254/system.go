@@ -175,10 +175,6 @@ func (cs *system) ReadFrom(r io.Reader) (int64, error) {
 		return int64(decoder.NumBytesRead()), err
 	}
 
-	if err := cs.CheckSerializationHeader(); err != nil {
-		return int64(decoder.NumBytesRead()), err
-	}
-
 	switch v := cs.CommitmentInfo.(type) {
 	case *constraint.Groth16Commitments:
 		cs.CommitmentInfo = *v

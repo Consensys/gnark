@@ -49,7 +49,7 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 	log := logger.Logger().With().Int("nbConstraints", cs.GetNbConstraints()).Logger()
 	start := time.Now()
 
-	
+
 	v := witness.Vector().(fr.Vector)
 
 	// init the solver
@@ -88,26 +88,26 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 
 		return &res, nil
 	}
-	
+
 }
 
 // IsSolved
 // Deprecated: use _, err := Solve(...) instead
 func (cs *system) IsSolved(witness witness.Witness, opts ...csolver.Option) error {
 	_, err := cs.Solve(witness, opts...)
-	return err 
+	return err
 }
 
 
 // GetR1Cs return the list of R1C
 func (cs *system) GetR1Cs() []constraint.R1C {
 	toReturn := make([]constraint.R1C, 0, cs.GetNbConstraints())
-	
+
 	for _, inst := range cs.Instructions {
 		blueprint := cs.Blueprints[inst.BlueprintID]
 		if bc, ok := blueprint.(constraint.BlueprintR1C); ok {
 			var r1c constraint.R1C
-			bc.DecompressR1C(&r1c, inst.Unpack(&cs.System))	
+			bc.DecompressR1C(&r1c, inst.Unpack(&cs.System))
 			toReturn = append(toReturn, r1c)
 		} else {
 			panic("not implemented")
@@ -135,7 +135,7 @@ func (cs *system) WriteTo(w io.Writer) (int64, error) {
 		return 0, err
 	}
 	encoder := enc.NewEncoder(&_w)
-	
+
 	// encode our object
 	err = encoder.Encode(cs)
 	return _w.N, err
@@ -161,11 +161,6 @@ func (cs *system) ReadFrom(r io.Reader) (int64, error) {
 		return int64(decoder.NumBytesRead()), err
 	}
 
-
-	if err := cs.CheckSerializationHeader(); err != nil {
-		return int64(decoder.NumBytesRead()), err
-	}
-
 	switch v := cs.CommitmentInfo.(type) {
 	case *constraint.Groth16Commitments:
 		cs.CommitmentInfo = *v
@@ -186,13 +181,13 @@ func (cs *system) GetCoefficient(i int) (r constraint.Element) {
 func (cs *system) GetSparseR1Cs() []constraint.SparseR1C {
 
 	toReturn := make([]constraint.SparseR1C, 0, cs.GetNbConstraints())
-	
+
 	for _, inst := range cs.Instructions {
 		blueprint := cs.Blueprints[inst.BlueprintID]
 		if bc, ok := blueprint.(constraint.BlueprintSparseR1C); ok {
 			var sparseR1C constraint.SparseR1C
-			bc.DecompressSparseR1C(&sparseR1C, inst.Unpack(&cs.System))	
-			toReturn = append(toReturn, sparseR1C)	 
+			bc.DecompressSparseR1C(&sparseR1C, inst.Unpack(&cs.System))
+			toReturn = append(toReturn, sparseR1C)
 		} else {
 			panic("not implemented")
 		}
@@ -224,7 +219,7 @@ func evaluateLROSmallDomain(cs *system, solution []fr.Element) ([]fr.Element, []
 	}
 	offset := len(cs.Public)
 	nbConstraints := cs.GetNbConstraints()
-	
+
 
 	var sparseR1C constraint.SparseR1C
 	j := 0
@@ -342,7 +337,7 @@ func (t *SparseR1CSSolution) ReadFrom(r io.Reader) (int64, error) {
 
 
 func getTagSet() cbor.TagSet {
-	// temporary for refactor 
+	// temporary for refactor
 	ts := cbor.NewTagSet()
 	// https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml
 	// 65536-15309735 Unassigned
@@ -368,7 +363,7 @@ func getTagSet() cbor.TagSet {
 	addType(reflect.TypeOf(constraint.Groth16Commitments{}))
 	addType(reflect.TypeOf(constraint.PlonkCommitments{}))
 
-	return ts 
+	return ts
 }
 
 func (s *system) AddGkr(gkr constraint.GkrInfo) error {
