@@ -807,8 +807,8 @@ contract PlonkVerifier {
 
         let folded_evals_commit := mPtr
         mPtr := add(folded_evals_commit, 0x40)
-        mstore(folded_evals_commit, 0x1)
-        mstore(add(folded_evals_commit, 0x20), 0x2)
+        mstore(folded_evals_commit, {{ fpstr .Kzg.G1.X }})
+        mstore(add(folded_evals_commit, 0x20), {{ fpstr .Kzg.G1.Y }})
         mstore(add(folded_evals_commit, 0x40), mload(folded_evals))
         let check_staticcall := staticcall(sub(gas(), 2000),7,folded_evals_commit,0x60,folded_evals_commit,0x40)
         if eq(check_staticcall, 0) {
