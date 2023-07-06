@@ -385,6 +385,9 @@ func (s *system) Equal(other constraint.ConstraintSystem) bool {
 	if o, ok := other.(*system); !ok {
 		return false
 	} else {
-		return reflect.DeepEqual(s.field, o.field) && reflect.DeepEqual(s.CoeffTable, o.CoeffTable) && constraint.SystemEqual(s.System, o.System)
+		systemDiff := constraint.SystemDiff(s.System, o.System)
+		return reflect.DeepEqual(s.field, o.field) &&
+			reflect.DeepEqual(s.CoeffTable.Coefficients, o.CoeffTable.Coefficients) &&
+			systemDiff == ""
 	}
 }

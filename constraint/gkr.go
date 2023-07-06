@@ -159,7 +159,7 @@ func (c GkrCircuit) Chunks(nbInstances int) []int {
 	return res
 }
 
-func SystemEqual(a, b System) bool {
+func SystemDiff(a, b System) string {
 
 	hintsNames := [2][2]solver.HintID{{
 		a.GkrInfo.SolveHintID, b.GkrInfo.SolveHintID,
@@ -180,24 +180,65 @@ func SystemEqual(a, b System) bool {
 		}
 	}
 
-	return a.GnarkVersion == b.GnarkVersion &&
-		a.ScalarField == b.ScalarField &&
-		a.Type == b.Type &&
-		reflect.DeepEqual(a.Instructions, b.Instructions) &&
-		reflect.DeepEqual(a.Blueprints, b.Blueprints) &&
-		reflect.DeepEqual(a.CallData, b.CallData) &&
-		a.NbConstraints == b.NbConstraints &&
-		a.NbInternalVariables == b.NbInternalVariables &&
-		reflect.DeepEqual(a.Public, b.Public) &&
-		reflect.DeepEqual(a.Secret, b.Secret) &&
-		reflect.DeepEqual(a.Logs, b.Logs) &&
-		reflect.DeepEqual(a.DebugInfo, b.DebugInfo) &&
-		reflect.DeepEqual(a.MDebug, b.MDebug) &&
-		reflect.DeepEqual(a.MHintsDependencies, b.MHintsDependencies) &&
-		reflect.DeepEqual(a.Levels, b.Levels) &&
-		reflect.DeepEqual(a.q, b.q) &&
-		a.bitLen == b.bitLen &&
-		reflect.DeepEqual(a.CommitmentInfo, b.CommitmentInfo) &&
-		reflect.DeepEqual(a.GkrInfo, b.GkrInfo) &&
-		reflect.DeepEqual(a.genericHint, b.genericHint)
+	if a.GnarkVersion != b.GnarkVersion {
+		return "GnarkVersion"
+	}
+	if a.ScalarField != b.ScalarField {
+		return "ScalarField"
+	}
+	if a.Type != b.Type {
+		return "Type"
+	}
+	if !reflect.DeepEqual(a.Instructions, b.Instructions) {
+		return "Instructions"
+	}
+	if !reflect.DeepEqual(a.Blueprints, b.Blueprints) {
+		return "Blueprints"
+	}
+	if !reflect.DeepEqual(a.CallData, b.CallData) {
+		return "CallData"
+	}
+	if a.NbConstraints != b.NbConstraints {
+		return "NbConstraints"
+	}
+	if a.NbInternalVariables != b.NbInternalVariables {
+		return "NbInternalVariables"
+	}
+	if !reflect.DeepEqual(a.Public, b.Public) {
+		return "Public"
+	}
+	if !reflect.DeepEqual(a.Secret, b.Secret) {
+		return "Secret"
+	}
+	if !reflect.DeepEqual(a.Logs, b.Logs) {
+		return "Logs"
+	}
+	if !reflect.DeepEqual(a.DebugInfo, b.DebugInfo) {
+		return "DebugInfo"
+	}
+	if !reflect.DeepEqual(a.MDebug, b.MDebug) {
+		return "MDebug"
+	}
+	if !reflect.DeepEqual(a.MHintsDependencies, b.MHintsDependencies) {
+		return "MHintsDependencies"
+	}
+	if !reflect.DeepEqual(a.Levels, b.Levels) {
+		return "Levels"
+	}
+	if !reflect.DeepEqual(a.q, b.q) {
+		return "q"
+	}
+	if a.bitLen != b.bitLen {
+		return "bitLen"
+	}
+	if !reflect.DeepEqual(a.CommitmentInfo, b.CommitmentInfo) {
+		return "CommitmentInfo"
+	}
+	if !reflect.DeepEqual(a.GkrInfo, b.GkrInfo) {
+		return "GkrInfo"
+	}
+	if !reflect.DeepEqual(a.genericHint, b.genericHint) {
+		return "genericHint"
+	}
+	return ""
 }
