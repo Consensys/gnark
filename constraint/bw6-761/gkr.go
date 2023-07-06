@@ -159,7 +159,8 @@ func GkrProveHint(hashName string, data *GkrSolvingData) hint.Hint {
 
 	return func(_ *big.Int, ins, outs []*big.Int) error {
 		insBytes := algo_utils.Map(ins[1:], func(i *big.Int) []byte { // the first input is dummy, just to ensure the solver's work is done before the prover is called
-			b := i.Bytes()
+			b := make([]byte, fr.Bytes)
+			i.FillBytes(b)
 			return b[:]
 		})
 

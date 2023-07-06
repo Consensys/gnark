@@ -1,6 +1,7 @@
 package evmprecompiles
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -132,37 +133,65 @@ func TestECMulCircuitFull(t *testing.T) {
 	)
 }
 
-type ecpairCircuit struct {
-	P [2]sw_bn254.G1Affine
-	Q [2]sw_bn254.G2Affine
+type ecPairBatchCircuit struct {
+	P  sw_bn254.G1Affine
+	NP sw_bn254.G1Affine
+	DP sw_bn254.G1Affine
+	Q  sw_bn254.G2Affine
+	n  int
 }
 
-func (c *ecpairCircuit) Define(api frontend.API) error {
-	P := []*sw_bn254.G1Affine{&c.P[0], &c.P[1]}
-	Q := []*sw_bn254.G2Affine{&c.Q[0], &c.Q[1]}
-	ECPair(api, P, Q)
+func (c *ecPairBatchCircuit) Define(api frontend.API) error {
+	Q := make([]*sw_bn254.G2Affine, c.n)
+	for i := range Q {
+		Q[i] = &c.Q
+	}
+	switch c.n {
+	case 2:
+		ECPair(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP}, Q)
+	case 3:
+		ECPair(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.NP, &c.NP, &c.DP}, Q)
+	case 4:
+		ECPair(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.P, &c.NP}, Q)
+	case 5:
+		ECPair(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.NP, &c.NP, &c.DP}, Q)
+	case 6:
+		ECPair(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP}, Q)
+	case 7:
+		ECPair(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.NP, &c.NP, &c.DP}, Q)
+	case 8:
+		ECPair(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP}, Q)
+	case 9:
+		ECPair(api, []*sw_emulated.AffinePoint[emulated.BN254Fp]{&c.P, &c.NP, &c.P, &c.NP, &c.P, &c.NP, &c.NP, &c.NP, &c.DP}, Q)
+	default:
+		return fmt.Errorf("not handled %d", c.n)
+	}
 	return nil
 }
 
-func TestECPairCircuitShort(t *testing.T) {
+func TestECPairMulBatch(t *testing.T) {
 	assert := test.NewAssert(t)
-	_, _, p1, q1 := bn254.Generators()
+	_, _, p, q := bn254.Generators()
 
 	var u, v fr.Element
 	u.SetRandom()
 	v.SetRandom()
 
-	p1.ScalarMultiplication(&p1, u.BigInt(new(big.Int)))
-	q1.ScalarMultiplication(&q1, v.BigInt(new(big.Int)))
+	p.ScalarMultiplication(&p, u.BigInt(new(big.Int)))
+	q.ScalarMultiplication(&q, v.BigInt(new(big.Int)))
 
-	var p2 bn254.G1Affine
-	var q2 bn254.G2Affine
-	p2.Neg(&p1)
-	q2.Set(&q1)
+	var dp, np bn254.G1Affine
+	dp.Double(&p)
+	np.Neg(&p)
 
-	err := test.IsSolved(&ecpairCircuit{}, &ecpairCircuit{
-		P: [2]sw_bn254.G1Affine{sw_bn254.NewG1Affine(p1), sw_bn254.NewG1Affine(p2)},
-		Q: [2]sw_bn254.G2Affine{sw_bn254.NewG2Affine(q1), sw_bn254.NewG2Affine(q2)},
-	}, ecc.BN254.ScalarField())
-	assert.NoError(err)
+	for i := 2; i < 10; i++ {
+		err := test.IsSolved(&ecPairBatchCircuit{n: i}, &ecPairBatchCircuit{
+			n:  i,
+			P:  sw_bn254.NewG1Affine(p),
+			NP: sw_bn254.NewG1Affine(np),
+			DP: sw_bn254.NewG1Affine(dp),
+			Q:  sw_bn254.NewG2Affine(q),
+		}, ecc.BN254.ScalarField())
+		assert.NoError(err)
+	}
 }

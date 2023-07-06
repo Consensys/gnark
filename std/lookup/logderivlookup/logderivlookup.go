@@ -36,7 +36,7 @@ type Table struct {
 	// the blueprint stores the lookup table entries once
 	// such that each query only need to store the indexes to lookup
 	bID       constraint.BlueprintID
-	blueprint BlueprintLookupHint
+	blueprint constraint.BlueprintLookupHint
 }
 
 type result struct {
