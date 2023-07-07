@@ -31,6 +31,12 @@ func (sixLimbPrimeField) NbLimbs() uint     { return 6 }
 func (sixLimbPrimeField) BitsPerLimb() uint { return 64 }
 func (sixLimbPrimeField) IsPrime() bool     { return true }
 
+type twelveLimbPrimeField struct{}
+
+func (twelveLimbPrimeField) NbLimbs() uint     { return 12 }
+func (twelveLimbPrimeField) BitsPerLimb() uint { return 64 }
+func (twelveLimbPrimeField) IsPrime() bool     { return true }
+
 // Goldilocks provides type parametrization for field emulation:
 //   - limbs: 1
 //   - limb width: 64 bits
@@ -199,3 +205,31 @@ func (P384Fp) Modulus() *big.Int { return elliptic.P384().Params().P }
 type P384Fr struct{ sixLimbPrimeField }
 
 func (P384Fr) Modulus() *big.Int { return elliptic.P384().Params().N }
+
+// BW6761Fp provides type parametrization for field emulation:
+//   - limbs: 12
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0x122e824fb83ce0ad187c94004faff3eb926186a81d14688528275ef8087be41707ba638e584e91903cebaff25b423048689c8ed12f9fd9071dcd3dc73ebff2e98a116c25667a8f8160cf8aeeaf0a437e6913e6870000082f49d00000000008b (base 16)
+//	6891450384315732539396789682275657542479668912536150109513790160209623422243491736087683183289411687640864567753786613451161759120554247759349511699125301598951605099378508850372543631423596795951899700429969112842764913119068299 (base 10)
+//
+// This is the base field of the BW6-761 curve.
+type BW6761Fp struct{ twelveLimbPrimeField }
+
+func (fp BW6761Fp) Modulus() *big.Int { return ecc.BW6_761.BaseField() }
+
+// BW6761Fr provides type parametrization for field emulation:
+//   - limbs: 6
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0x1ae3a4617c510eac63b05c06ca1493b1a22d9f300f5138f1ef3622fba094800170b5d44300000008508c00000000001 (base 16)
+//	258664426012969094010652733694893533536393512754914660539884262666720468348340822774968888139573360124440321458177 (base 10)
+//
+// This is the scalar field of the BW6-761 curve.
+type BW6761Fr struct{ sixLimbPrimeField }
+
+func (fp BW6761Fr) Modulus() *big.Int { return ecc.BW6_761.ScalarField() }
