@@ -331,25 +331,45 @@ func (e Ext6) CyclotomicSquare(x *E6) *E6 {
 	return &z
 }
 
-// Inverse set z to the inverse of x in *E6 and return z
-//
-// if x == 0, sets and returns z = x
 func (e Ext6) Inverse(x *E6) *E6 {
-	// Algorithm 23 from https://eprint.iacr.org/2010/354.pdf
-
-	t0 := e.Ext3.Square(&x.B0)
-	t1 := e.Ext3.Square(&x.B1)
-	tmp := e.Ext3.MulByNonResidue(t1)
-	t0 = e.Ext3.Sub(t0, tmp)
-	t1 = e.Ext3.Inverse(t0)
-	b0 := e.Ext3.Mul(&x.B0, t1)
-	b1 := e.Ext3.Mul(&x.B1, t1)
-	b1 = e.Ext3.Neg(b1)
-
-	return &E6{
-		B0: *b0,
-		B1: *b1,
+	res, err := e.fp.NewHint(inverseE6Hint, 6, &x.B0.A0, &x.B0.A1, &x.B0.A2, &x.B1.A0, &x.B1.A1, &x.B1.A2)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
 	}
+
+	inv := E6{
+		B0: E3{A0: *res[0], A1: *res[1], A2: *res[2]},
+		B1: E3{A0: *res[3], A1: *res[4], A2: *res[5]},
+	}
+	one := e.One()
+
+	// 1 == inv * x
+	_one := e.Mul(&inv, x)
+	e.AssertIsEqual(one, _one)
+
+	return &inv
+
+}
+
+func (e Ext6) DivUnchecked(x, y *E6) *E6 {
+	res, err := e.fp.NewHint(divE6Hint, 12, &x.B0.A0, &x.B0.A1, &x.B0.A2, &x.B1.A0, &x.B1.A1, &x.B1.A2, &y.B0.A0, &y.B0.A1, &y.B0.A2, &y.B1.A0, &y.B1.A1, &y.B1.A2)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	div := E6{
+		B0: E3{A0: *res[0], A1: *res[1], A2: *res[2]},
+		B1: E3{A0: *res[3], A1: *res[4], A2: *res[5]},
+	}
+
+	// 1 == inv * x
+	_x := e.Mul(&div, x)
+	e.AssertIsEqual(x, _x)
+
+	return &div
+
 }
 
 // Conjugate set z to x conjugated and return z
