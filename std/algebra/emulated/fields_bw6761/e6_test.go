@@ -515,7 +515,7 @@ func TestExpc1Fp6(t *testing.T) {
 
 type e6MulBy034 struct {
 	A, B   E6
-	c3, c4 baseEl
+	C3, C4 baseEl
 }
 
 func (circuit *e6MulBy034) Define(api frontend.API) error {
@@ -524,7 +524,7 @@ func (circuit *e6MulBy034) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	expected := e.MulBy034(&circuit.A, &circuit.c3, &circuit.c4)
+	expected := e.MulBy034(&circuit.A, &circuit.C3, &circuit.C4)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }
@@ -543,8 +543,8 @@ func TestMulBy034Fp6(t *testing.T) {
 
 	witness := e6MulBy034{
 		A:  FromE6(&a),
-		c3: emulated.ValueOf[emulated.BW6761Fp](c3),
-		c4: emulated.ValueOf[emulated.BW6761Fp](c4),
+		C3: emulated.ValueOf[emulated.BW6761Fp](c3),
+		C4: emulated.ValueOf[emulated.BW6761Fp](c4),
 		B:  FromE6(&b),
 	}
 
@@ -552,11 +552,10 @@ func TestMulBy034Fp6(t *testing.T) {
 	assert.NoError(err)
 }
 
-/*
 type e6Mul034By034 struct {
-	D0, D3, D4 baseEl
-	C0, C3, C4 baseEl
-	Res        E6
+	D3, D4 baseEl
+	C3, C4 baseEl
+	Res    E6
 }
 
 func (circuit *e6Mul034By034) Define(api frontend.API) error {
@@ -565,36 +564,39 @@ func (circuit *e6Mul034By034) Define(api frontend.API) error {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	expected := e.Mul034By034(&circuit.D0, &circuit.D3, &circuit.D4, &circuit.C0, &circuit.C3, &circuit.C4)
-	e.AssertIsEqual(expected, &circuit.Res)
+	expected := e.Mul034By034(&circuit.D3, &circuit.D4, &circuit.C3, &circuit.C4)
+	e.AssertIsEqual(&E6{
+		B0: E3{A0: expected[0], A1: expected[1], A2: expected[2]},
+		B1: E3{A0: expected[3], A1: expected[4], A2: emulated.ValueOf[emulated.BW6761Fp](0)},
+	}, &circuit.Res)
 	return nil
 }
 
 func TestMul034By034Fp6(t *testing.T) {
 	assert := test.NewAssert(t)
 	// witness values
-	var a bw6761.E6
-	var d0, d3, d4, c0, c3, c4 fp.Element
-	d0.SetRandom()
+	var d0, d3, d4, c0, c3, c4, zero fp.Element
+	zero.SetZero()
+	d0.SetOne()
 	d3.SetRandom()
 	d4.SetRandom()
-	c0.SetRandom()
+	c0.SetOne()
 	c3.SetRandom()
 	c4.SetRandom()
-	a = bw6761.Mul034By034(&d0, &d3, &d4, &c0, &c3, &c4)
+	a := bw6761.E6{
+		B0: bw6761.E3{A0: d0, A1: zero, A2: zero},
+		B1: bw6761.E3{A0: d3, A1: d4, A2: zero},
+	}
+	a.MulBy034(&c0, &c3, &c4)
 
 	witness := e6Mul034By034{
-		D0:  emulated.ValueOf[emulated.BW6761Fp](d0),
 		D3:  emulated.ValueOf[emulated.BW6761Fp](d3),
 		D4:  emulated.ValueOf[emulated.BW6761Fp](d4),
-		C0:  emulated.ValueOf[emulated.BW6761Fp](c0),
 		C3:  emulated.ValueOf[emulated.BW6761Fp](c3),
 		C4:  emulated.ValueOf[emulated.BW6761Fp](c4),
 		Res: FromE6(&a),
 	}
 
-	// add=28733 equals=438 fromBinary=0 mul=28386 sub=401 toBinary=0
 	err := test.IsSolved(&e6Mul034By034{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
-*/
