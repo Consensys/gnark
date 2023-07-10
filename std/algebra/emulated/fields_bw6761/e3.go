@@ -123,8 +123,7 @@ func (e Ext3) Double(x *E3) *E3 {
 func MulByNonResidue(fp *curveF, x *baseEl) *baseEl {
 
 	z := fp.Neg(x)
-	z = fp.Add(z, z)
-	z = fp.Add(z, z)
+	z = fp.MulConst(z, big.NewInt(4))
 	return z
 }
 

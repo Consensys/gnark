@@ -20,6 +20,7 @@ package sw_bw6761
 
 import (
 	"crypto/rand"
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -32,6 +33,24 @@ import (
 )
 
 const testCurve = ecc.BN254
+
+func randomG1G2Affines() (bw6761.G1Affine, bw6761.G2Affine) {
+	_, _, G1AffGen, G2AffGen := bw6761.Generators()
+	mod := bw6761.ID.ScalarField()
+	s1, err := rand.Int(rand.Reader, mod)
+	if err != nil {
+		panic(err)
+	}
+	s2, err := rand.Int(rand.Reader, mod)
+	if err != nil {
+		panic(err)
+	}
+	var p bw6761.G1Affine
+	p.ScalarMultiplication(&G1AffGen, s1)
+	var q bw6761.G2Affine
+	q.ScalarMultiplication(&G2AffGen, s2)
+	return p, q
+}
 
 type finalExponentiationBW6761 struct {
 	A GT
@@ -83,5 +102,38 @@ func TestFinalExponentiationBW6761(t *testing.T) {
 	assert.NoError(err)
 
 	_, err = frontend.Compile(testCurve.ScalarField(), r1cs.NewBuilder, &finalExponentiationBW6761{}, frontend.IgnoreUnconstrainedInputs())
+	assert.NoError(err)
+}
+
+type PairCircuit struct {
+	InG1 G1Affine
+	InG2 G2Affine
+	Res  GT
+}
+
+func (c *PairCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res, err := pairing.Pair(&c.InG1, &c.InG2)
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestPairTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+	res, err := bw6761.Pair([]bw6761.G1Affine{p}, []bw6761.G2Affine{q})
+	assert.NoError(err)
+	witness := PairCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2Affine(q),
+		Res:  NewGT(res),
+	}
+	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
