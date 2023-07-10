@@ -413,3 +413,188 @@ func TestCreateLimbs(t *testing.T) {
 	}
 	fmt.Println(buf.String())
 }
+
+type e6Expt struct {
+	A, B E6
+}
+
+func (circuit *e6Expt) Define(api frontend.API) error {
+	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	e := NewExt6(nfield)
+	expected := e.Expt(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.B)
+	return nil
+}
+
+func TestExptFp6(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b bw6761.E6
+	_, _ = a.SetRandom()
+	b.Set(&a)
+	b.Expt(&a)
+
+	witness := e6Expt{
+		A: FromE6(&a),
+		B: FromE6(&b),
+	}
+
+	err := test.IsSolved(&e6Expt{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type e6Expc2 struct {
+	A, B E6
+}
+
+func (circuit *e6Expc2) Define(api frontend.API) error {
+	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	e := NewExt6(nfield)
+	expected := e.Expc2(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.B)
+	return nil
+}
+
+func TestExpc2Fp6(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b bw6761.E6
+	_, _ = a.SetRandom()
+	b.Set(&a)
+	b.Expc2(&a)
+
+	witness := e6Expc2{
+		A: FromE6(&a),
+		B: FromE6(&b),
+	}
+
+	// add=287618 equals=4068 fromBinary=0 mul=281540 sub=3690 toBinary=0
+	// add=197836 equals=3048 fromBinary=0 mul=188488 sub=3810 toBinary=0
+	err := test.IsSolved(&e6Expc2{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type e6Expc1 struct {
+	A, B E6
+}
+
+func (circuit *e6Expc1) Define(api frontend.API) error {
+	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	e := NewExt6(nfield)
+	expected := e.Expc1(&circuit.A)
+	e.AssertIsEqual(expected, &circuit.B)
+	return nil
+}
+
+func TestExpc1Fp6(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b bw6761.E6
+	_, _ = a.SetRandom()
+	b.Set(&a)
+	b.Expc1(&a)
+
+	witness := e6Expc1{
+		A: FromE6(&a),
+		B: FromE6(&b),
+	}
+
+	// add=578954 equals=8028 fromBinary=0 mul=566870 sub=7248 toBinary=0
+	err := test.IsSolved(&e6Expc1{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type e6MulBy034 struct {
+	A, B   E6
+	c3, c4 baseEl
+}
+
+func (circuit *e6MulBy034) Define(api frontend.API) error {
+	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	e := NewExt6(nfield)
+	expected := e.MulBy034(&circuit.A, &circuit.c3, &circuit.c4)
+	e.AssertIsEqual(expected, &circuit.B)
+	return nil
+}
+
+func TestMulBy034Fp6(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b bw6761.E6
+	_, _ = a.SetRandom()
+	b.Set(&a)
+	var c0, c3, c4 fp.Element
+	c0.SetOne()
+	c3.SetRandom()
+	c4.SetRandom()
+	b.MulBy034(&c0, &c3, &c4)
+
+	witness := e6MulBy034{
+		A:  FromE6(&a),
+		c3: emulated.ValueOf[emulated.BW6761Fp](c3),
+		c4: emulated.ValueOf[emulated.BW6761Fp](c4),
+		B:  FromE6(&b),
+	}
+
+	err := test.IsSolved(&e6MulBy034{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+/*
+type e6Mul034By034 struct {
+	D0, D3, D4 baseEl
+	C0, C3, C4 baseEl
+	Res        E6
+}
+
+func (circuit *e6Mul034By034) Define(api frontend.API) error {
+	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	e := NewExt6(nfield)
+	expected := e.Mul034By034(&circuit.D0, &circuit.D3, &circuit.D4, &circuit.C0, &circuit.C3, &circuit.C4)
+	e.AssertIsEqual(expected, &circuit.Res)
+	return nil
+}
+
+func TestMul034By034Fp6(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var a bw6761.E6
+	var d0, d3, d4, c0, c3, c4 fp.Element
+	d0.SetRandom()
+	d3.SetRandom()
+	d4.SetRandom()
+	c0.SetRandom()
+	c3.SetRandom()
+	c4.SetRandom()
+	a = bw6761.Mul034By034(&d0, &d3, &d4, &c0, &c3, &c4)
+
+	witness := e6Mul034By034{
+		D0:  emulated.ValueOf[emulated.BW6761Fp](d0),
+		D3:  emulated.ValueOf[emulated.BW6761Fp](d3),
+		D4:  emulated.ValueOf[emulated.BW6761Fp](d4),
+		C0:  emulated.ValueOf[emulated.BW6761Fp](c0),
+		C3:  emulated.ValueOf[emulated.BW6761Fp](c3),
+		C4:  emulated.ValueOf[emulated.BW6761Fp](c4),
+		Res: FromE6(&a),
+	}
+
+	// add=28733 equals=438 fromBinary=0 mul=28386 sub=401 toBinary=0
+	err := test.IsSolved(&e6Mul034By034{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+*/
