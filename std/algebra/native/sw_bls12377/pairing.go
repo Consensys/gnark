@@ -118,7 +118,28 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		}
 	}
 
-	for i := 61; i >= 1; i-- {
+	// i = 61, separately to avoid a full E12 Square
+	if n == 1 {
+		res.Square034(api, res)
+
+	} else {
+		res.Square(api, res)
+
+	}
+
+	for k := 0; k < n; k++ {
+		// Qacc[k] ← 2Qacc[k] and l1 the tangent ℓ passing 2Qacc[k]
+		Qacc[k], l1 = doubleStep(api, &Qacc[k])
+
+		// line evaluation at P[k]
+		l1.R0.MulByFp(api, l1.R0, xOverY[k])
+		l1.R1.MulByFp(api, l1.R1, yInv[k])
+
+		// ℓ × res
+		res.MulBy034(api, l1.R0, l1.R1)
+	}
+
+	for i := 60; i >= 1; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
