@@ -394,7 +394,10 @@ func (builder *builder) filterConstantSum(in []frontend.Variable) (expr.LinearEx
 		if c, ok := builder.constantValue(in[i]); ok {
 			b = builder.cs.Add(b, c)
 		} else {
-			res = append(res, in[i].(expr.Term))
+			if inTerm := in[i].(expr.Term); !inTerm.Coeff.IsZero() {
+				// add only term if coefficient is not zero.
+				res = append(res, in[i].(expr.Term))
+			}
 		}
 	}
 	return res, b
