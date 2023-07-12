@@ -76,20 +76,27 @@ func (e Ext12) ExptTorus(x *E6) *E6 {
 //		C1: E6{B0: c3, B1: c4, B2: 0},
 //	}
 func (e *Ext12) Square034(x *E12) *E12 {
-	var c0, c2, c3 E6
-	var z E12
+	c0 := E6{
+		B0: *e.Ext2.Sub(&x.C0.B0, &x.C1.B0),
+		B1: *e.Ext2.Neg(&x.C1.B1),
+		B2: *e.Ext2.Zero(),
+	}
 
-	c0.B0 = *e.Ext2.Sub(&x.C0.B0, &x.C1.B0)
-	c0.B1 = *e.Ext2.Neg(&x.C1.B1)
-	c0.B2 = *e.Ext2.Zero()
+	c3 := E6{
+		B0: x.C0.B0,
+		B1: *e.Ext2.Neg(&x.C1.B0),
+		B2: *e.Ext2.Neg(&x.C1.B1),
+	}
 
-	c3.B0 = x.C0.B0
-	c3.B1 = *e.Ext2.Neg(&x.C1.B0)
-	c3.B2 = *e.Ext2.Neg(&x.C1.B1)
-
-	c2 = *e.Mul0By01(&x.C0.B0, &x.C1.B0, &x.C1.B1)
+	c2 := E6{
+		B0: x.C1.B0,
+		B1: x.C1.B1,
+		B2: *e.Ext2.Zero(),
+	}
 	c3 = *e.MulBy01(&c3, &c0.B0, &c0.B1)
 	c3 = *e.Ext6.Add(&c3, &c2)
+
+	var z E12
 	z.C1.B0 = *e.Ext2.Add(&c2.B0, &c2.B0)
 	z.C1.B1 = *e.Ext2.Add(&c2.B1, &c2.B1)
 
