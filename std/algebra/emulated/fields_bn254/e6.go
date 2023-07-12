@@ -249,6 +249,35 @@ func (e Ext6) Mul01By01(c0, c1, d0, d1 *E2) *E6 {
 	}
 }
 
+// Mul0By01 multiplies two E6 sparse element of the form:
+//
+//	E6{
+//		B0: c0,
+//		B1: 0,
+//		B2: 0,
+//	}
+//
+// and
+//
+//	E6{
+//		B0: b0,
+//		B1: b1,
+//		B2: 0,
+//	}
+func (e *Ext6) Mul0By01(a0, b0, b1 *E2) *E6 {
+
+	t0 := e.Ext2.Mul(a0, b0)
+	c1 := e.Ext2.Add(b0, b1)
+	c1 = e.Ext2.Mul(c1, a0)
+	c1 = e.Ext2.Sub(c1, t0)
+
+	return &E6{
+		B0: *t0,
+		B1: *c1,
+		B2: *e.Ext2.Zero(),
+	}
+}
+
 func (e Ext6) MulByNonResidue(x *E6) *E6 {
 	z2, z1, z0 := &x.B1, &x.B0, &x.B2
 	z0 = e.Ext2.MulByNonResidue(z0)
