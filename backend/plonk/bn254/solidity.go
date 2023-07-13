@@ -25,123 +25,141 @@ pragma experimental ABIEncoderV2;
 library Utils {
 
   uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+  uint8 private constant zero = 0;
+  uint8 private constant lenInBytes = 48;
+  uint8 private constant sizeDomain = 11; // size of dst
 
   /**
   * @dev ExpandMsgXmd expands msg to a slice of lenInBytes bytes.
   *      https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5
   *      https://tools.ietf.org/html/rfc8017#section-4.1 (I2OSP/O2ISP)
   */
-  function expand_msg(uint256 x, uint256 y) public pure returns(uint8[48] memory res){
-  
-      string memory dst = "BSB22-Plonk";
+  function expand_msg(uint256 x, uint256 y) public pure returns (uint8[48] memory res) {
+    string memory dst = "BSB22-Plonk";
 
-      //uint8[64] memory pad; // 64 is sha256 block size.
-      // sha256(pad || msg || (0 || 48 || 0) || dst || 11)
-      bytes memory tmp;
-      uint8 zero = 0;
-      uint8 lenInBytes = 48;
-      uint8 sizeDomain = 11; // size of dst
-      
-      for (uint i=0; i<64; i++){
-          tmp = abi.encodePacked(tmp, zero);
+    //uint8[64] memory pad; // 64 is sha256 block size.
+    // sha256(pad || msg || (0 || 48 || 0) || dst || 11)
+    bytes memory tmp;
+    // size of dst
+
+    bytes32 b0;
+    bytes32 b1;
+
+    unchecked {
+      for (uint i; i < 64; ) {
+        tmp = abi.encodePacked(tmp, zero);
+        ++i;
       }
       tmp = abi.encodePacked(tmp, x, y, zero, lenInBytes, zero, dst, sizeDomain);
-      bytes32 b0 = sha256(tmp);
+      b0 = sha256(tmp);
 
       tmp = abi.encodePacked(b0, uint8(1), dst, sizeDomain);
-      bytes32 b1 = sha256(tmp);
-      for (uint i=0; i<32; i++){
-          res[i] = uint8(b1[i]);
-      }
-
-      tmp = abi.encodePacked(uint8(b0[0]) ^ uint8(b1[0]));
-      for (uint i=1; i<32; i++){
-          tmp = abi.encodePacked(tmp, uint8(b0[i]) ^ uint8(b1[i]));
-      }
-
-      tmp = abi.encodePacked(tmp, uint8(2), dst, sizeDomain);
       b1 = sha256(tmp);
+      for (uint i; i < 32; ) {
+        res[i] = uint8(b1[i]);
+        ++i;
+      }
+    }
 
+    tmp = abi.encodePacked(uint8(b0[0]) ^ uint8(b1[0]));
+    for (uint i = 1; i < 32; ) {
+      tmp = abi.encodePacked(tmp, uint8(b0[i]) ^ uint8(b1[i]));
+      unchecked {
+        ++i;
+      }
+    }
+
+    tmp = abi.encodePacked(tmp, uint8(2), dst, sizeDomain);
+    b1 = sha256(tmp);
+
+    unchecked {
       // TODO handle the size of the dst (check gnark-crypto)
-      for (uint i=0; i<16; i++){
-          res[i+32] = uint8(b1[i]);
+      for (uint i; i < 16; ) {
+        res[i + 32] = uint8(b1[i]);
+        ++i;
       }
+    }
 
-      return res;
+    return res;
   }
 
-/**
- * @dev cf https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
- * corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
- */
-  function hash_fr(uint256 x, uint256 y) internal pure returns(uint256 res) {
 
-      // interpret a as a bigEndian integer and reduce it mod r
-      uint8[48] memory xmsg = expand_msg(x, y);
-      // uint8[48] memory xmsg = [0x44, 0x74, 0xb5, 0x29, 0xd7, 0xfb, 0x29, 0x88, 0x3a, 0x7a, 0xc1, 0x65, 0xfd, 0x72, 0xce, 0xd0, 0xd4, 0xd1, 0x3f, 0x9e, 0x85, 0x8a, 0x3, 0x86, 0x1c, 0x90, 0x83, 0x1e, 0x94, 0xdc, 0xfc, 0x1d, 0x70, 0x82, 0xf5, 0xbf, 0x30, 0x3, 0x39, 0x87, 0x21, 0x38, 0x15, 0xed, 0x12, 0x75, 0x44, 0x6a];
+  /**
+  * @dev cf https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
+  * corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
+  */
+  function hash_fr(uint256 x, uint256 y) internal pure returns (uint256 res) {
+    // interpret a as a bigEndian integer and reduce it mod r
+    uint8[48] memory xmsg = expand_msg(x, y);
+    // uint8[48] memory xmsg = [0x44, 0x74, 0xb5, 0x29, 0xd7, 0xfb, 0x29, 0x88, 0x3a, 0x7a, 0xc1, 0x65, 0xfd, 0x72, 0xce, 0xd0, 0xd4, 0xd1, 0x3f, 0x9e, 0x85, 0x8a, 0x3, 0x86, 0x1c, 0x90, 0x83, 0x1e, 0x94, 0xdc, 0xfc, 0x1d, 0x70, 0x82, 0xf5, 0xbf, 0x30, 0x3, 0x39, 0x87, 0x21, 0x38, 0x15, 0xed, 0x12, 0x75, 0x44, 0x6a];
 
-      // reduce xmsg mod r, where xmsg is intrepreted in big endian 
-      // (as SetBytes does for golang's Big.Int library).
-      for (uint i=0; i<32; i++){
-          res += uint256(xmsg[47-i])<<(8*i);
+    // reduce xmsg mod r, where xmsg is intrepreted in big endian
+    // (as SetBytes does for golang's Big.Int library).
+    for (uint i; i < 32; ) {
+      res += uint256(xmsg[47 - i]) << (8 * i);
+      unchecked {
+        i++;
       }
-      res = res % r_mod;
-      uint256 tmp;
-      for (uint i=0; i<16; i++){
-          tmp += uint256(xmsg[15-i])<<(8*i);
+    }
+    res = res % r_mod;
+    uint256 tmp;
+    for (uint i; i < 16; ) {
+      tmp += uint256(xmsg[15 - i]) << (8 * i);
+      unchecked {
+        i++;
       }
+    }
 
-      // 2**256%r
-      uint256 b = 6350874878119819312338956282401532410528162663560392320966563075034087161851; 
-      assembly {
-          tmp := mulmod(tmp, b, r_mod)
-          res := addmod(res, tmp, r_mod)
-      }
+    // 2**256%r
+    uint256 b = 6350874878119819312338956282401532410528162663560392320966563075034087161851;
+    assembly {
+      tmp := mulmod(tmp, b, r_mod)
+      res := addmod(res, tmp, r_mod)
+    }
 
-      return res;
+    return res;
   }
-
 }
 
 contract PlonkVerifier {
 
   using Utils for *;
-  uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-  uint256 constant p_mod = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
+  uint256 private constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+  uint256 private constant p_mod = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
   {{ range $index, $element := .Kzg.G2 }}
-  uint256 constant g2_srs_{{ $index }}_x_0 = {{ (fpstr $element.X.A1) }};
-  uint256 constant g2_srs_{{ $index }}_x_1 = {{ (fpstr $element.X.A0) }};
-  uint256 constant g2_srs_{{ $index }}_y_0 = {{ (fpstr $element.Y.A1) }};
-  uint256 constant g2_srs_{{ $index }}_y_1 = {{ (fpstr $element.Y.A0) }};
+  uint256 private constant g2_srs_{{ $index }}_x_0 = {{ (fpstr $element.X.A1) }};
+  uint256 private constant g2_srs_{{ $index }}_x_1 = {{ (fpstr $element.X.A0) }};
+  uint256 private constant g2_srs_{{ $index }}_y_0 = {{ (fpstr $element.Y.A1) }};
+  uint256 private constant g2_srs_{{ $index }}_y_1 = {{ (fpstr $element.Y.A0) }};
   {{ end }}
   // ----------------------- vk ---------------------
-  uint256 constant vk_domain_size = {{ .Size }};
-  uint256 constant vk_inv_domain_size = {{ (frstr .SizeInv) }};
-  uint256 constant vk_omega = {{ (frstr .Generator) }};
-  uint256 constant vk_ql_com_x = {{ (fpstr .Ql.X) }};
-  uint256 constant vk_ql_com_y = {{ (fpstr .Ql.Y) }};
-  uint256 constant vk_qr_com_x = {{ (fpstr .Qr.X) }};
-  uint256 constant vk_qr_com_y = {{ (fpstr .Qr.Y) }};
-  uint256 constant vk_qm_com_x = {{ (fpstr .Qm.X) }};
-  uint256 constant vk_qm_com_y = {{ (fpstr .Qm.Y) }};
-  uint256 constant vk_qo_com_x = {{ (fpstr .Qo.X) }};
-  uint256 constant vk_qo_com_y = {{ (fpstr .Qo.Y) }};
-  uint256 constant vk_qk_com_x = {{ (fpstr .Qk.X) }};
-  uint256 constant vk_qk_com_y = {{ (fpstr .Qk.Y) }};
+  uint256 private constant vk_domain_size = {{ .Size }};
+  uint256 private constant vk_inv_domain_size = {{ (frstr .SizeInv) }};
+  uint256 private constant vk_omega = {{ (frstr .Generator) }};
+  uint256 private constant vk_ql_com_x = {{ (fpstr .Ql.X) }};
+  uint256 private constant vk_ql_com_y = {{ (fpstr .Ql.Y) }};
+  uint256 private constant vk_qr_com_x = {{ (fpstr .Qr.X) }};
+  uint256 private constant vk_qr_com_y = {{ (fpstr .Qr.Y) }};
+  uint256 private constant vk_qm_com_x = {{ (fpstr .Qm.X) }};
+  uint256 private constant vk_qm_com_y = {{ (fpstr .Qm.Y) }};
+  uint256 private constant vk_qo_com_x = {{ (fpstr .Qo.X) }};
+  uint256 private constant vk_qo_com_y = {{ (fpstr .Qo.Y) }};
+  uint256 private constant vk_qk_com_x = {{ (fpstr .Qk.X) }};
+  uint256 private constant vk_qk_com_y = {{ (fpstr .Qk.Y) }};
   {{ range $index, $element := .S }}
-  uint256 constant vk_s{{ inc $index }}_com_x = {{ (fpstr $element.X) }};
-  uint256 constant vk_s{{ inc $index }}_com_y = {{ (fpstr $element.Y) }};
+  uint256 private constant vk_s{{ inc $index }}_com_x = {{ (fpstr $element.X) }};
+  uint256 private constant vk_s{{ inc $index }}_com_y = {{ (fpstr $element.Y) }};
   {{ end }}
-  uint256 constant vk_coset_shift = 5;
+  uint256 private constant vk_coset_shift = 5;
   
   {{ range $index, $element := .Qcp}}
-  uint256 constant vk_selector_commitments_commit_api_{{ $index }}_x = {{ (fpstr $element.X) }};
-  uint256 constant vk_selector_commitments_commit_api_{{ $index }}_y = {{ (fpstr $element.Y) }};
+  uint256 private constant vk_selector_commitments_commit_api_{{ $index }}_x = {{ (fpstr $element.X) }};
+  uint256 private constant vk_selector_commitments_commit_api_{{ $index }}_y = {{ (fpstr $element.Y) }};
   {{ end }}
 
   {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
   function load_vk_commitments_indices_commit_api(uint256[] memory v)
-  internal view {
+  internal pure {
     assembly {
     let _v := add(v, 0x20)
     {{ range .CommitmentConstraintIndexes }}
@@ -151,95 +169,95 @@ contract PlonkVerifier {
     }
   }
   {{ end }}
-  uint256 constant vk_nb_commitments_commit_api = {{ len .CommitmentConstraintIndexes }};
+  uint256 private constant vk_nb_commitments_commit_api = {{ len .CommitmentConstraintIndexes }};
 
   // ------------------------------------------------
 
   // offset proof
-  uint256 constant proof_l_com_x = 0x20;
-  uint256 constant proof_l_com_y = 0x40;
-  uint256 constant proof_r_com_x = 0x60;
-  uint256 constant proof_r_com_y = 0x80;
-  uint256 constant proof_o_com_x = 0xa0;
-  uint256 constant proof_o_com_y = 0xc0;
+  uint256 private constant proof_l_com_x = 0x20;
+  uint256 private constant proof_l_com_y = 0x40;
+  uint256 private constant proof_r_com_x = 0x60;
+  uint256 private constant proof_r_com_y = 0x80;
+  uint256 private constant proof_o_com_x = 0xa0;
+  uint256 private constant proof_o_com_y = 0xc0;
 
   // h = h_0 + x^{n+2}h_1 + x^{2(n+2)}h_2
-  uint256 constant proof_h_0_x = 0xe0; 
-  uint256 constant proof_h_0_y = 0x100;
-  uint256 constant proof_h_1_x = 0x120;
-  uint256 constant proof_h_1_y = 0x140;
-  uint256 constant proof_h_2_x = 0x160;
-  uint256 constant proof_h_2_y = 0x180;
+  uint256 private constant proof_h_0_x = 0xe0; 
+  uint256 private constant proof_h_0_y = 0x100;
+  uint256 private constant proof_h_1_x = 0x120;
+  uint256 private constant proof_h_1_y = 0x140;
+  uint256 private constant proof_h_2_x = 0x160;
+  uint256 private constant proof_h_2_y = 0x180;
 
   // wire values at zeta
-  uint256 constant proof_l_at_zeta = 0x1a0;
-  uint256 constant proof_r_at_zeta = 0x1c0;
-  uint256 constant proof_o_at_zeta = 0x1e0;
+  uint256 private constant proof_l_at_zeta = 0x1a0;
+  uint256 private constant proof_r_at_zeta = 0x1c0;
+  uint256 private constant proof_o_at_zeta = 0x1e0;
 
   //uint256[STATE_WIDTH-1] permutation_polynomials_at_zeta; // Sσ1(zeta),Sσ2(zeta)
-  uint256 constant proof_s1_at_zeta = 0x200; // Sσ1(zeta)
-  uint256 constant proof_s2_at_zeta = 0x220; // Sσ2(zeta)
+  uint256 private constant proof_s1_at_zeta = 0x200; // Sσ1(zeta)
+  uint256 private constant proof_s2_at_zeta = 0x220; // Sσ2(zeta)
 
   //Bn254.G1Point grand_product_commitment;                 // [z(x)]
-  uint256 constant proof_grand_product_commitment_x = 0x240;
-  uint256 constant proof_grand_product_commitment_y = 0x260;
+  uint256 private constant proof_grand_product_commitment_x = 0x240;
+  uint256 private constant proof_grand_product_commitment_y = 0x260;
 
-  uint256 constant proof_grand_product_at_zeta_omega = 0x280;                    // z(w*zeta)
-  uint256 constant proof_quotient_polynomial_at_zeta = 0x2a0;                    // t(zeta)
-  uint256 constant proof_linearised_polynomial_at_zeta = 0x2c0;               // r(zeta)
+  uint256 private constant proof_grand_product_at_zeta_omega = 0x280;                    // z(w*zeta)
+  uint256 private constant proof_quotient_polynomial_at_zeta = 0x2a0;                    // t(zeta)
+  uint256 private constant proof_linearised_polynomial_at_zeta = 0x2c0;               // r(zeta)
 
   // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 constant proof_batch_opening_at_zeta_x = 0x2e0;            // [Wzeta]
-  uint256 constant proof_batch_opening_at_zeta_y = 0x300;
+  uint256 private constant proof_batch_opening_at_zeta_x = 0x2e0;            // [Wzeta]
+  uint256 private constant proof_batch_opening_at_zeta_y = 0x300;
 
   //Bn254.G1Point opening_at_zeta_omega_proof;      // [Wzeta*omega]
-  uint256 constant proof_opening_at_zeta_omega_x = 0x320;
-  uint256 constant proof_opening_at_zeta_omega_y = 0x340;
+  uint256 private constant proof_opening_at_zeta_omega_x = 0x320;
+  uint256 private constant proof_opening_at_zeta_omega_y = 0x340;
   
-  uint256 constant proof_openings_selector_commit_api_at_zeta = 0x360;
+  uint256 private constant proof_openings_selector_commit_api_at_zeta = 0x360;
   // -> next part of proof is 
   // [ openings_selector_commits || commitments_wires_commit_api]
 
   // -------- offset state
 
   // challenges to check the claimed quotient
-  uint256 constant state_alpha = 0x00;
-  uint256 constant state_beta = 0x20;
-  uint256 constant state_gamma = 0x40;
-  uint256 constant state_zeta = 0x60;
+  uint256 private constant state_alpha = 0x00;
+  uint256 private constant state_beta = 0x20;
+  uint256 private constant state_gamma = 0x40;
+  uint256 private constant state_zeta = 0x60;
 
   // reusable value
-  uint256 constant state_alpha_square_lagrange_0 = 0x80;
+  uint256 private constant state_alpha_square_lagrange_0 = 0x80;
 
   // commitment to H
-  uint256 constant state_folded_h_x = 0xa0;
-  uint256 constant state_folded_h_y = 0xc0;
+  uint256 private constant state_folded_h_x = 0xa0;
+  uint256 private constant state_folded_h_y = 0xc0;
 
   // commitment to the linearised polynomial
-  uint256 constant state_linearised_polynomial_x = 0xe0;
-  uint256 constant state_linearised_polynomial_y = 0x100;
+  uint256 private constant state_linearised_polynomial_x = 0xe0;
+  uint256 private constant state_linearised_polynomial_y = 0x100;
 
   // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 constant state_folded_claimed_values = 0x120;
+  uint256 private constant state_folded_claimed_values = 0x120;
 
   // folded digests of H, linearised poly, l, r, o, s_1, s_2, qcp
   // Bn254.G1Point folded_digests;
-  uint256 constant state_folded_digests_x = 0x140;
-  uint256 constant state_folded_digests_y = 0x160;
+  uint256 private constant state_folded_digests_x = 0x140;
+  uint256 private constant state_folded_digests_y = 0x160;
 
-  uint256 constant state_pi = 0x180;
+  uint256 private constant state_pi = 0x180;
 
-  uint256 constant state_zeta_power_n_minus_one = 0x1a0;
+  uint256 private constant state_zeta_power_n_minus_one = 0x1a0;
 
-  uint256 constant state_gamma_kzg = 0x1c0;
+  uint256 private constant state_gamma_kzg = 0x1c0;
 
-  uint256 constant state_success = 0x1e0;
-  uint256 constant state_check_var = 0x200; // /!\ this slot is used for debugging only
+  uint256 private constant state_success = 0x1e0;
+  uint256 private constant state_check_var = 0x200; // /!\ this slot is used for debugging only
 
-  uint256 constant state_last_mem = 0x220;
+  uint256 private constant state_last_mem = 0x220;
 
   // -------- errors
-  uint256 constant error_string_id = 0x08c379a000000000000000000000000000000000000000000000000000000000; // selector for function Error(string)
+  uint256 private constant error_string_id = 0x08c379a000000000000000000000000000000000000000000000000000000000; // selector for function Error(string)
 
   {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
   // read the commitments to the wires related to the commit api and store them in wire_commitments.
@@ -596,22 +614,29 @@ contract PlonkVerifier {
       {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
       // compute the contribution of the public inputs whose indices are in commitment_indices,
       // and whose value is hash_fr of the corresponding commitme
-      uint256[] memory commitment_indices = new uint256[](vk_nb_commitments_commit_api);
+      uint256[] memory commitment_indices;
+      unchecked {
+        commitment_indices = new uint256[](vk_nb_commitments_commit_api);
+      }
       load_vk_commitments_indices_commit_api(commitment_indices);
 
       uint256[] memory wire_committed_commitments;
-      wire_committed_commitments = new uint256[](2*vk_nb_commitments_commit_api);
+      unchecked {
+        wire_committed_commitments = new uint256[](2 * vk_nb_commitments_commit_api);
+      }
 
       load_wire_commitments_commit_api(wire_committed_commitments, proof);
 
-      for (uint256 i=0; i<vk_nb_commitments_commit_api; i++){
-          
-          uint256 hash_res = Utils.hash_fr(wire_committed_commitments[2*i], wire_committed_commitments[2*i+1]);
-          uint256 a = compute_ith_lagrange_at_z(zeta, commitment_indices[i]+public_inputs.length);
-          assembly {
-            a := mulmod(hash_res, a, r_mod)
-            pi := addmod(pi, a, r_mod)
-          }
+      for (uint256 i; i < vk_nb_commitments_commit_api; ) {
+        uint256 hash_res = Utils.hash_fr(wire_committed_commitments[2 * i], wire_committed_commitments[2 * i + 1]);
+        uint256 a = compute_ith_lagrange_at_z(zeta, commitment_indices[i] + public_inputs.length);
+        assembly {
+          a := mulmod(hash_res, a, r_mod)
+          pi := addmod(pi, a, r_mod)
+        }
+        unchecked {
+          ++i;
+        }
       }
       {{ end }}
       
@@ -619,7 +644,7 @@ contract PlonkVerifier {
     }
   
   function check_inputs_size(uint256[] memory public_inputs)
-  internal view {
+  internal pure {
 
     bool input_checks = true;
     assembly {
