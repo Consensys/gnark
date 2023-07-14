@@ -533,7 +533,8 @@ contract PlonkVerifier {
         // Here L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
         // * n = vk_domain_size
         // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
-        // * ζ = zeta (challenge derived with Fiat Shamir)
+        // * ζ = z (challenge derived with Fiat Shamir)
+        // * zpnmo = 'zeta power n minus one' (ζⁿ-1) which has been precomputed
         function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
 
           let zn := mulmod(zpnmo, vk_inv_domain_size, r_mod) // 1/n * (ζⁿ - 1)
@@ -739,7 +740,10 @@ contract PlonkVerifier {
       mstore(add(mem, state_gamma), gamma)
       mstore(add(mem, state_zeta), zeta)
       mstore(add(mem, state_beta), beta)
+      
       mstore(add(mem, state_pi), pi)
+
+      mstore(add(mem, state_zeta_power_n_minus_one), zeta_power_n_minus_one)
 
       compute_alpha_square_lagrange_0()
       verify_quotient_poly_eval_at_zeta(proof)
@@ -771,12 +775,7 @@ contract PlonkVerifier {
         let state := mload(0x40)
         let mPtr := add(mload(0x40), state_last_mem)
 
-        // zeta**n - 1
-        let res := pow(mload(add(state, state_zeta)), vk_domain_size, mPtr)
-        res := addmod(res, sub(r_mod,1), r_mod)
-        mstore(add(state, state_zeta_power_n_minus_one), res)
-
-        // let res := mload(add(state, state_zeta_power_n_minus_one))
+        let res := mload(add(state, state_zeta_power_n_minus_one))
         let den := addmod(mload(add(state, state_zeta)), sub(r_mod, 1), r_mod)
         den := pow(den, sub(r_mod, 2), mPtr)
         den := mulmod(den, vk_inv_domain_size, r_mod)
