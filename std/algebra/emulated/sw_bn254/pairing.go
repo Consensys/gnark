@@ -407,7 +407,13 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	// i = 63, separately to avoid a doubleStep
 	// (at this point Qacc = 2Q, so 2Qacc-Q=3Q is equivalent to Qacc+Q=3Q
 	// this means doubleAndAddStep is equivalent to addStep here)
-	res = pr.Square(res)
+	if n == 1 {
+		res = pr.Square034(res)
+
+	} else {
+		res = pr.Square(res)
+
+	}
 	for k := 0; k < n; k++ {
 		// l2 the line passing Qacc[k] and -Q
 		l2 = pr.lineCompute(Qacc[k], QNeg[k])
@@ -741,7 +747,20 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 	res.C1.B0 = *pr.MulByElement(&pr.lines[0][64], xOverY)
 	res.C1.B1 = *pr.MulByElement(&pr.lines[1][64], yInv)
 
-	for i := 63; i >= 0; i-- {
+	// i = 63
+	res = pr.Square034(res)
+	// lines evaluations at P
+	// and ℓ × ℓ
+	prodLines := *pr.Mul034By034(
+		pr.MulByElement(&pr.lines[0][63], xOverY),
+		pr.MulByElement(&pr.lines[1][63], yInv),
+		pr.MulByElement(&pr.lines[2][63], xOverY),
+		pr.MulByElement(&pr.lines[3][63], yInv),
+	)
+	// (ℓ × ℓ) × res
+	res = pr.MulBy01234(res, &prodLines)
+
+	for i := 62; i >= 0; i-- {
 		res = pr.Square(res)
 
 		if loopCounter[i] == 0 {
@@ -770,7 +789,7 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
 	// lines evaluations at P
 	// and ℓ × ℓ
-	prodLines := *pr.Mul034By034(
+	prodLines = *pr.Mul034By034(
 		pr.MulByElement(&pr.lines[0][65], xOverY),
 		pr.MulByElement(&pr.lines[1][65], yInv),
 		pr.MulByElement(&pr.lines[0][66], xOverY),

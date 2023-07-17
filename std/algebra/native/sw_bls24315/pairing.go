@@ -113,7 +113,12 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	// i = 30, separately to avoid a doubleStep
 	// (at this point Qacc = 2Q, so 2Qacc-Q=3Q is equivalent to Qacc+Q=3Q
 	// this means doubleAndAddStep is equivalent to addStep here)
-	res.Square(api, res)
+	if n == 1 {
+		res.Square034(api, res)
+	} else {
+		res.Square(api, res)
+
+	}
 	for k := 0; k < n; k++ {
 		// l2 the line passing Qacc[k] and -Q
 		l2 = lineCompute(api, &Qacc[k], &Qneg[k])
@@ -504,7 +509,31 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 		fields_bls24315.E4{B0: precomputedLines[2][31], B1: precomputedLines[3][31]},
 		yInv)
 
-	for i := 30; i >= 0; i-- {
+	// i = 30
+	res.Square034(api, res)
+	// line evaluation at P
+	l1.R0.MulByFp(api,
+		fields_bls24315.E4{B0: precomputedLines[0][30], B1: precomputedLines[1][30]},
+		xOverY)
+	l1.R1.MulByFp(api,
+		fields_bls24315.E4{B0: precomputedLines[2][30], B1: precomputedLines[3][30]},
+		yInv)
+
+	// ℓ × res
+	res.MulBy034(api, l1.R0, l1.R1)
+
+	// line evaluation at P
+	l2.R0.MulByFp(api,
+		fields_bls24315.E4{B0: precomputedLines[4][30], B1: precomputedLines[5][30]},
+		xOverY)
+	l2.R1.MulByFp(api,
+		fields_bls24315.E4{B0: precomputedLines[6][30], B1: precomputedLines[7][30]},
+		yInv)
+
+	// ℓ × res
+	res.MulBy034(api, l2.R0, l2.R1)
+
+	for i := 29; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
