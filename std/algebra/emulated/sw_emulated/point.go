@@ -363,7 +363,7 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
-// It computes the right-to-left variable-base add-only algorithm ([Joye07], Alg.2).
+// It computes the right-to-left variable-base double-and-add algorithm ([Joye07], Alg.1).
 //
 // Since we use incomplete formulas for the addition law, we need to start with
 // a non-zero accumulator point (R0). To do this, we skip the LSB (bit at
@@ -388,23 +388,23 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 	n := st.Modulus().BitLen()
 
 	// i = 1
-	R := c.triple(p)
-	R0 := c.Select(sBits[1], R, p)
-	R1 := c.Select(sBits[1], p, R)
-	R2 := c.add(R0, R1)
+	Rb := c.triple(p)
+	R0 := c.Select(sBits[1], Rb, p)
+	R1 := c.Select(sBits[1], p, Rb)
 
 	for i := 2; i < n-1; i++ {
-		R = c.Select(sBits[i], R0, R1)
-		R = c.add(R, R2)
-		R0 = c.Select(sBits[i], R, R0)
-		R1 = c.Select(sBits[i], R1, R)
-		R2 = c.add(R0, R1)
+		Rb = c.Select(sBits[i], R0, R1)
+		Rk := c.Select(sBits[i], R1, R0)
+		Rb = c.doubleAndAdd(Rb, Rk)
+		R0 = c.Select(sBits[i], Rb, R0)
+		R1 = c.Select(sBits[i], R1, Rb)
 	}
 
 	// i = n-1
-	R = c.Select(sBits[n-1], R0, R1)
-	R = c.add(R, R2)
-	R0 = c.Select(sBits[n-1], R, R0)
+	Rb = c.Select(sBits[n-1], R0, R1)
+	Rk := c.Select(sBits[n-1], R1, R0)
+	Rb = c.doubleAndAdd(Rb, Rk)
+	R0 = c.Select(sBits[n-1], Rb, R0)
 
 	// i = 0
 	// we use AddUnified here instead of add so that when s=0, res=(0,0)
@@ -495,16 +495,15 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 	res1 := c.Lookup2(s1Bits[1], s1Bits[2], g, &gm[0], &gm[1], &gm[2])
 	// var-base
 	// i = 1
-	R := c.triple(p)
-	R0 := c.Select(s2Bits[1], R, p)
-	R1 := c.Select(s2Bits[1], p, R)
-	R2 := c.add(R0, R1)
+	Rb := c.triple(p)
+	R0 := c.Select(s2Bits[1], Rb, p)
+	R1 := c.Select(s2Bits[1], p, Rb)
 	// i = 2
-	R = c.Select(s2Bits[2], R0, R1)
-	R = c.add(R, R2)
-	R0 = c.Select(s2Bits[2], R, R0)
-	R1 = c.Select(s2Bits[2], R1, R)
-	R2 = c.add(R0, R1)
+	Rb = c.Select(s2Bits[2], R0, R1)
+	Rk := c.Select(s2Bits[2], R1, R0)
+	Rb = c.doubleAndAdd(Rb, Rk)
+	R0 = c.Select(s2Bits[2], Rb, R0)
+	R1 = c.Select(s2Bits[2], R1, Rb)
 
 	for i := 3; i <= n-3; i++ {
 		// fixed-base
@@ -512,33 +511,39 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 		tmp1 := c.add(res1, &gm[i])
 		res1 = c.Select(s1Bits[i], tmp1, res1)
 		// var-base
-		R = c.Select(s2Bits[i], R0, R1)
-		R = c.add(R, R2)
-		R0 = c.Select(s2Bits[i], R, R0)
-		R1 = c.Select(s2Bits[i], R1, R)
-		R2 = c.add(R0, R1)
-
+		Rb = c.Select(s2Bits[i], R0, R1)
+		Rk = c.Select(s2Bits[i], R1, R0)
+		Rb = c.doubleAndAdd(Rb, Rk)
+		R0 = c.Select(s2Bits[i], Rb, R0)
+		R1 = c.Select(s2Bits[i], R1, Rb)
 	}
 
 	// i = n-2
+	// fixed-base
 	tmp1 := c.add(res1, &gm[n-2])
 	res1 = c.Select(s1Bits[n-2], tmp1, res1)
-	R = c.Select(s2Bits[n-2], R0, R1)
-	R = c.add(R, R2)
-	R0 = c.Select(s2Bits[n-2], R, R0)
-	R1 = c.Select(s2Bits[n-2], R1, R)
-	R2 = c.add(R0, R1)
+	// var-base
+	Rb = c.Select(s2Bits[n-2], R0, R1)
+	Rk = c.Select(s2Bits[n-2], R1, R0)
+	Rb = c.doubleAndAdd(Rb, Rk)
+	R0 = c.Select(s2Bits[n-2], Rb, R0)
+	R1 = c.Select(s2Bits[n-2], R1, Rb)
 
 	// i = n-1
+	// fixed-base
 	tmp1 = c.add(res1, &gm[n-1])
 	res1 = c.Select(s1Bits[n-1], tmp1, res1)
-	R = c.Select(s2Bits[n-1], R0, R1)
-	R = c.add(R, R2)
-	R0 = c.Select(s2Bits[n-1], R, R0)
+	// var-base
+	Rb = c.Select(s2Bits[n-1], R0, R1)
+	Rk = c.Select(s2Bits[n-1], R1, R0)
+	Rb = c.doubleAndAdd(Rb, Rk)
+	R0 = c.Select(s2Bits[n-1], Rb, R0)
 
 	// i = 0
+	// fixed-base
 	tmp1 = c.add(res1, c.Neg(g))
 	res1 = c.Select(s1Bits[0], res1, tmp1)
+	// var-base
 	R0 = c.Select(s2Bits[0], R0, c.AddUnified(R0, c.Neg(p)))
 
 	return c.add(res1, R0)
