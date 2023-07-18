@@ -23,32 +23,29 @@ pragma solidity ^0.8.0;
 pragma experimental ABIEncoderV2;
 
 library Utils {
-  uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+  uint256 private constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint8 private constant zero = 0;
   uint8 private constant lenInBytes = 48;
-  uint8 private constant sizeDomain = 11; // size of dst
+  uint8 private constant sizeDomain = 11;
   string private constant dst = "BSB22-Plonk";
   uint256 private constant b = 6350874878119819312338956282401532410528162663560392320966563075034087161851;
+  bytes private constant zeroBuffer =
+    hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
   /**
   * @dev ExpandMsgXmd expands msg to a slice of lenInBytes bytes.
   *      https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5
   *      https://tools.ietf.org/html/rfc8017#section-4.1 (I2OSP/O2ISP)
   */
-  function expand_msg(uint256 x, uint256 y) public pure returns (uint8[48] memory res) {
+  function expand_msg(uint256 x, uint256 y) internal pure returns (uint8[48] memory res) {
     //uint8[64] memory pad; // 64 is sha256 block size.
     // sha256(pad || msg || (0 || 48 || 0) || dst || 11)
-    bytes memory tmp;
-    // size of dst
+    bytes memory tmp = zeroBuffer;
 
+    // size of dst
     bytes32 b0;
     bytes32 b1;
-
     unchecked {
-      for (uint i; i < 64; ) {
-        tmp = abi.encodePacked(tmp, zero);
-        ++i;
-      }
       tmp = abi.encodePacked(tmp, x, y, zero, lenInBytes, zero, dst, sizeDomain);
       b0 = sha256(tmp);
 
@@ -110,7 +107,7 @@ library Utils {
     }
 
     // 2**256%r
-    // left as comment, using constant : uint256 b = 6350874878119819312338956282401532410528162663560392320966563075034087161851;
+    // uint256 b = 6350874878119819312338956282401532410528162663560392320966563075034087161851;
     assembly {
       tmp := mulmod(tmp, b, r_mod)
       res := addmod(res, tmp, r_mod)
