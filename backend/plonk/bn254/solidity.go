@@ -57,15 +57,9 @@ library Utils {
       }
     }
 
-    tmp = abi.encodePacked(uint8(b0[0]) ^ uint8(b1[0]));
-    for (uint i = 1; i < 32; ) {
-      tmp = abi.encodePacked(tmp, uint8(b0[i]) ^ uint8(b1[i]));
-      unchecked {
-        ++i;
-      }
-    }
+    bytes32 xorTmp = b0 ^ b1;
+    tmp = abi.encodePacked(xorTmp, uint8(2), dst, sizeDomain);
 
-    tmp = abi.encodePacked(tmp, uint8(2), dst, sizeDomain);
     b1 = sha256(tmp);
 
     unchecked {
