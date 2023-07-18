@@ -605,9 +605,7 @@ contract PlonkVerifier {
       // compute the contribution of the public inputs whose indices are in commitment_indices,
       // and whose value is hash_fr of the corresponding commitme
       uint256[] memory commitment_indices;
-      unchecked {
-        commitment_indices = new uint256[](vk_nb_commitments_commit_api);
-      }
+      commitment_indices = new uint256[](vk_nb_commitments_commit_api);
       load_vk_commitments_indices_commit_api(commitment_indices);
 
       uint256[] memory wire_committed_commitments;
