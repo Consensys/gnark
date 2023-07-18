@@ -1,4 +1,4 @@
-//go:build !gpu
+//go:build gpu
 
 // Copyright 2020 ConsenSys Software Inc.
 //
@@ -23,13 +23,19 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
-	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/constraint/bn254"
 	"math/big"
+	"math"
 	"math/bits"
+	"unsafe"
+	"fmt"
+	icicle "github.com/ingonyama-zk/icicle/goicicle/curves/bn254"
+	goicicle "github.com/ingonyama-zk/icicle/goicicle"
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
@@ -46,11 +52,26 @@ type ProvingKey struct {
 		K                  []curve.G1Affine // the indexes correspond to the private wires
 	}
 
+	G1Device struct {
+		A, B, K, Z			unsafe.Pointer
+	}
+
+	DomainDevice struct {
+		Twiddles, TwiddlesInv		unsafe.Pointer
+		CosetTable, CosetTableInv	unsafe.Pointer
+	}
+
 	// [β]₂, [δ]₂, [B(t)]₂
 	G2 struct {
 		Beta, Delta curve.G2Affine
 		B           []curve.G2Affine
 	}
+
+	G2Device struct {
+		B			unsafe.Pointer
+	}
+
+	DenDevice		unsafe.Pointer
 
 	// if InfinityA[i] == true, the point G1.A[i] == infinity
 	InfinityA, InfinityB     []bool
@@ -335,7 +356,111 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// set domain
 	pk.Domain = *domain
 
+	pk.setupDevicePointers()
+
 	return nil
+}
+
+func (pk *ProvingKey) setupDevicePointers() {
+	n := int(pk.Domain.Cardinality)
+	sizeBytes := n*fr.Bytes
+	
+	/*************************  Start Domain Device Setup  ***************************/
+	
+	/*************************     CosetTableInv      ***************************/
+	cosetPowersInv_d, _ := goicicle.CudaMalloc(sizeBytes)
+	goicicle.CudaMemCpyHtoD[fr.Element](cosetPowersInv_d, pk.Domain.CosetTableInv, sizeBytes)
+	MontConvOnDevice(cosetPowersInv_d, len(pk.Domain.CosetTable), false)
+
+	pk.DomainDevice.CosetTableInv = cosetPowersInv_d
+	
+	/*************************     CosetTable      ***************************/
+	cosetPowers_d, _ := goicicle.CudaMalloc(sizeBytes)
+	goicicle.CudaMemCpyHtoD[fr.Element](cosetPowers_d, pk.Domain.CosetTable, sizeBytes)
+	MontConvOnDevice(cosetPowers_d, len(pk.Domain.CosetTable), false)
+
+	pk.DomainDevice.CosetTable = cosetPowers_d
+
+	/*************************     Twiddles and Twiddles Inv    ***************************/
+	om_selector := int(math.Log(float64(n)) / math.Log(2))
+	twiddlesInv_d_gen, twddles_err := icicle.GenerateTwiddles(n, om_selector, true)
+
+	if twddles_err != nil {
+		fmt.Print(twiddlesInv_d_gen)
+	}
+
+	twiddles_d_gen, twddles_err := icicle.GenerateTwiddles(n, om_selector, false)
+	if twddles_err != nil {
+		fmt.Print(twiddles_d_gen)
+	}
+
+	pk.DomainDevice.Twiddles = twiddles_d_gen
+	pk.DomainDevice.TwiddlesInv = twiddlesInv_d_gen
+
+	/*************************     Den      ***************************/
+	var denI, oneI fr.Element
+	oneI.SetOne()
+	denI.Exp(pk.Domain.FrMultiplicativeGen, big.NewInt(int64(pk.Domain.Cardinality)))
+	denI.Sub(&denI, &oneI).Inverse(&denI)
+
+	den_d, _ := goicicle.CudaMalloc(sizeBytes)
+	log2Size := int(math.Floor(math.Log2(float64(n))))
+	denIcicle := *icicle.NewFieldFromFrGnark[icicle.ScalarField](denI)
+	denIcicleArr := []icicle.ScalarField{denIcicle}
+	for i := 0; i < log2Size; i++ {
+		denIcicleArr = append(denIcicleArr, denIcicleArr...)
+	}
+	for i := 0; i < (n - int(math.Pow(2, float64(log2Size)))); i++ {
+		denIcicleArr = append(denIcicleArr, denIcicle)
+	}
+
+	goicicle.CudaMemCpyHtoD[icicle.ScalarField](den_d, denIcicleArr, sizeBytes)
+
+	pk.DenDevice = den_d
+
+	/*************************  End Domain Device Setup  ***************************/
+	
+	/*************************  Start G1 Device Setup  ***************************/
+	/*************************     A      ***************************/
+	pointsBytesA := len(pk.G1.A) * fp.Bytes * 2
+	a_d, _ := goicicle.CudaMalloc(pointsBytesA)
+	iciclePointsA := icicle.BatchConvertFromG1Affine(pk.G1.A)
+	goicicle.CudaMemCpyHtoD[icicle.PointAffineNoInfinityBN254](a_d, iciclePointsA, pointsBytesA)
+
+	pk.G1Device.A = a_d
+
+	/*************************     B      ***************************/
+	pointsBytesB := len(pk.G1.B) * fp.Bytes * 2
+	b_d, _ := goicicle.CudaMalloc(pointsBytesB)
+	iciclePointsB := icicle.BatchConvertFromG1Affine(pk.G1.B)
+	goicicle.CudaMemCpyHtoD[icicle.PointAffineNoInfinityBN254](b_d, iciclePointsB, pointsBytesB)
+
+	pk.G1Device.B = b_d
+	
+	/*************************     K      ***************************/
+	pointsBytesK := len(pk.G1.K) * fp.Bytes * 2
+	k_d, _ := goicicle.CudaMalloc(pointsBytesK)
+	iciclePointsK := icicle.BatchConvertFromG1Affine(pk.G1.K)
+	goicicle.CudaMemCpyHtoD[icicle.PointAffineNoInfinityBN254](k_d, iciclePointsK, pointsBytesK)
+
+	pk.G1Device.K = k_d
+
+	/*************************     Z      ***************************/
+	pointsBytesZ := len(pk.G1.Z) * fp.Bytes * 2
+	z_d, _ := goicicle.CudaMalloc(pointsBytesZ)
+	iciclePointsZ := icicle.BatchConvertFromG1Affine(pk.G1.Z)
+	goicicle.CudaMemCpyHtoD[icicle.PointAffineNoInfinityBN254](z_d, iciclePointsZ, pointsBytesZ)
+
+	pk.G1Device.Z = z_d
+	/*************************  End G1 Device Setup  ***************************/
+
+	/*************************  Start G2 Device Setup  ***************************/
+	pointsBytesB2 := len(pk.G2.B) * fp.Bytes * 4
+	b2_d, _ := goicicle.CudaMalloc(pointsBytesB2)
+	iciclePointsB2 := icicle.BatchConvertFromG2Affine(pk.G2.B)
+	goicicle.CudaMemCpyHtoD[icicle.G2PointAffine](b2_d, iciclePointsB2, pointsBytesB2)
+	pk.G2Device.B = b2_d
+	/*************************  End G2 Device Setup  ***************************/
 }
 
 // Precompute sets e, -[δ]₂, -[γ]₂
@@ -485,9 +610,6 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// get R1CS nb constraints, wires and public/private inputs
 	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
 	nbConstraints := r1cs.GetNbConstraints()
-	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
-	privateCommitted := commitmentInfo.GetPrivateCommitted()
-	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - internal.NbElements(privateCommitted) - len(commitmentInfo)
 
 	// Setting group for fft
 	domain := fft.NewDomain(uint64(nbConstraints))
@@ -499,8 +621,8 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	// initialize proving key
 	pk.G1.A = make([]curve.G1Affine, nbWires-nbZeroesA)
 	pk.G1.B = make([]curve.G1Affine, nbWires-nbZeroesB)
-	pk.G1.K = make([]curve.G1Affine, nbPrivateWires)
-	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality-1)
+	pk.G1.K = make([]curve.G1Affine, nbWires-r1cs.GetNbPublicVariables())
+	pk.G1.Z = make([]curve.G1Affine, domain.Cardinality)
 	pk.G2.B = make([]curve.G2Affine, nbWires-nbZeroesB)
 
 	// set infinity markers
@@ -553,22 +675,6 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 	pk.G2.Delta = r2Aff
 
 	pk.Domain = *domain
-
-	// ---------------------------------------------------------------------------------------------
-	// Commitment setup
-	commitmentBases := make([][]curve.G1Affine, len(commitmentInfo))
-	for i := range commitmentBases {
-		size := len(privateCommitted[i])
-		commitmentBases[i] = make([]curve.G1Affine, size)
-		for j := range commitmentBases[i] {
-			commitmentBases[i][j] = r1Aff
-		}
-	}
-
-	pk.CommitmentKeys, _, err = pedersen.Setup(commitmentBases...)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -676,7 +782,7 @@ func (pk *ProvingKey) NbG2() int {
 	return 2 + len(pk.G2.B)
 }
 
-// bitReverse permutation as in fft.BitReverse , but with []curve.G1Affine
+// bitRerverse permutation as in fft.BitReverse , but with []curve.G1Affine
 func bitReverse(a []curve.G1Affine) {
 	n := uint(len(a))
 	nn := uint(bits.UintSize - bits.TrailingZeros(n))
