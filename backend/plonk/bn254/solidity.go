@@ -23,11 +23,12 @@ pragma solidity ^0.8.0;
 pragma experimental ABIEncoderV2;
 
 library Utils {
-
   uint256 constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint8 private constant zero = 0;
   uint8 private constant lenInBytes = 48;
   uint8 private constant sizeDomain = 11; // size of dst
+  string private constant dst = "BSB22-Plonk";
+  uint256 private constant b = 6350874878119819312338956282401532410528162663560392320966563075034087161851;
 
   /**
   * @dev ExpandMsgXmd expands msg to a slice of lenInBytes bytes.
@@ -35,8 +36,6 @@ library Utils {
   *      https://tools.ietf.org/html/rfc8017#section-4.1 (I2OSP/O2ISP)
   */
   function expand_msg(uint256 x, uint256 y) public pure returns (uint8[48] memory res) {
-    string memory dst = "BSB22-Plonk";
-
     //uint8[64] memory pad; // 64 is sha256 block size.
     // sha256(pad || msg || (0 || 48 || 0) || dst || 11)
     bytes memory tmp;
@@ -111,7 +110,7 @@ library Utils {
     }
 
     // 2**256%r
-    uint256 b = 6350874878119819312338956282401532410528162663560392320966563075034087161851;
+    // left as comment, using constant : uint256 b = 6350874878119819312338956282401532410528162663560392320966563075034087161851;
     assembly {
       tmp := mulmod(tmp, b, r_mod)
       res := addmod(res, tmp, r_mod)
