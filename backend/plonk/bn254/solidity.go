@@ -422,11 +422,13 @@ contract PlonkVerifier {
     return (gamma, beta, alpha, zeta);
   }
 
+{{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
   // Computes L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
   // * n = vk_domain_size
   // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
   // * ζ = zeta (challenge derived with Fiat Shamir)
-  function compute_ith_lagrange_at_z(uint256 zeta, uint256 i) 
+  // * zpnmo = ζⁿ-1
+  function compute_ith_lagrange_at_z(uint256 zeta, uint256 zpnmo, uint256 i) 
   internal view returns (uint256) {
 
     uint256 res;
@@ -459,34 +461,34 @@ contract PlonkVerifier {
 
       let w := pow_local(vk_omega,i) // w**i
       i := addmod(zeta, sub(r_mod, w), r_mod) // z-w**i
-      zeta := pow_local(zeta, vk_domain_size) // z**n
-      zeta := addmod(zeta, sub(r_mod, 1), r_mod) // z**n-1
       w := mulmod(w, vk_inv_domain_size, r_mod) // w**i/n
       i := pow_local(i, sub(r_mod,2)) // (z-w**i)**-1
       w := mulmod(w, i, r_mod) // w**i/n*(z-w)**-1
-      res := mulmod(w, zeta, r_mod)
+      res := mulmod(w, zpnmo, r_mod)
     }
     
     return res;
   }
+{{ end }}
 
+  // returns the contribution of the public inputs + ζⁿ-1 which will
+  // be reused several times
   {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
   function compute_pi(
     uint256[] memory public_inputs,
     uint256 zeta,
     bytes memory proof
-  ) internal view returns (uint256) {
+  ) internal view returns (uint256, uint256) {
   {{ end -}}
   {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
   function compute_pi(
         uint256[] memory public_inputs,
         uint256 zeta
-    ) internal view returns (uint256) {
-  {{ end -}}
+    ) internal view returns (uint256, uint256) {
+  {{ end }}
 
-      // evaluation of Z=Xⁿ⁻¹ at ζ
-      // uint256 zeta_power_n_minus_one = Fr.pow(zeta, vk_domain_size);
-      // zeta_power_n_minus_one = Fr.sub(zeta_power_n_minus_one, 1);
+      // ζⁿ-1
+      // this value will be reused several times in the code
       uint256 zeta_power_n_minus_one;
 
       uint256 pi;
@@ -502,12 +504,18 @@ contract PlonkVerifier {
           revert(ptError, 0x64)
         }
         
-        sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), zeta)
+        // evaluation of Z=Xⁿ⁻¹ at ζ, we save this value
+        zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, mload(0x40)), sub(r_mod, 1), r_mod)
+        sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), zeta, zeta_power_n_minus_one)
         pi := mload(mload(0x40))
 
-        function sum_pi_wo_api_commit(ins, n, z) {
+        function sum_pi_wo_api_commit(ins, n, z, zpnmo) {
+          
           let li := mload(0x40)
-          batch_compute_lagranges_at_z(z, n, li)
+          batch_compute_lagranges_at_z(z, zpnmo, n, li)
+
+          // at this stage zeta_power_n_minus_one is computed
+
           let res := 0
           let tmp := 0
           for {let i:=0} lt(i,n) {i:=add(i,1)}
@@ -525,10 +533,12 @@ contract PlonkVerifier {
         // Here L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
         // * n = vk_domain_size
         // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
-        // * ζ = zeta (challenge derived with Fiat Shamir)
-        function batch_compute_lagranges_at_z(z, n, mPtr) {
-          let zn := addmod(pow(z, vk_domain_size, mPtr), sub(r_mod, 1), r_mod)
-          zn := mulmod(zn, vk_inv_domain_size, r_mod)
+        // * ζ = z (challenge derived with Fiat Shamir)
+        // * zpnmo = 'zeta power n minus one' (ζⁿ-1) which has been precomputed
+        function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
+
+          let zn := mulmod(zpnmo, vk_inv_domain_size, r_mod) // 1/n * (ζⁿ - 1)
+          
           let _w := 1
           let _mPtr := mPtr
           for {let i:=0} lt(i,n) {i:=add(i,1)}
@@ -588,9 +598,6 @@ contract PlonkVerifier {
           }
           res := mload(mPtr)
         }
-
-        zeta_power_n_minus_one := pow(zeta, vk_domain_size, mload(0x40))
-        zeta_power_n_minus_one := addmod(zeta_power_n_minus_one, sub(r_mod, 1), r_mod)
       }
 
       {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
@@ -607,7 +614,7 @@ contract PlonkVerifier {
       for (uint256 i=0; i<vk_nb_commitments_commit_api; i++){
           
           uint256 hash_res = Utils.hash_fr(wire_committed_commitments[2*i], wire_committed_commitments[2*i+1]);
-          uint256 a = compute_ith_lagrange_at_z(zeta, commitment_indices[i]+public_inputs.length);
+          uint256 a = compute_ith_lagrange_at_z(zeta, zeta_power_n_minus_one, commitment_indices[i]+public_inputs.length);
           assembly {
             a := mulmod(hash_res, a, r_mod)
             pi := addmod(pi, a, r_mod)
@@ -615,7 +622,7 @@ contract PlonkVerifier {
       }
       {{ end }}
       
-      return pi;
+      return (pi, zeta_power_n_minus_one);
     }
   
   function check_inputs_size(uint256[] memory public_inputs)
@@ -712,11 +719,13 @@ contract PlonkVerifier {
 
     (gamma, beta, alpha, zeta) = derive_gamma_beta_alpha_zeta(proof, public_inputs);
 
+    uint256 pi;
+    uint256 zeta_power_n_minus_one;
     {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-    uint256 pi = compute_pi(public_inputs, zeta, proof);
+    (pi, zeta_power_n_minus_one) = compute_pi(public_inputs, zeta, proof);
     {{ end }}
     {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
-    uint256 pi = compute_pi(public_inputs, zeta);
+    (pi, zeta_power_n_minus_one) = compute_pi(public_inputs, zeta);
     {{ end }}
     
     uint256 check;
@@ -731,7 +740,10 @@ contract PlonkVerifier {
       mstore(add(mem, state_gamma), gamma)
       mstore(add(mem, state_zeta), zeta)
       mstore(add(mem, state_beta), beta)
+      
       mstore(add(mem, state_pi), pi)
+
+      mstore(add(mem, state_zeta_power_n_minus_one), zeta_power_n_minus_one)
 
       compute_alpha_square_lagrange_0()
       verify_quotient_poly_eval_at_zeta(proof)
@@ -763,12 +775,7 @@ contract PlonkVerifier {
         let state := mload(0x40)
         let mPtr := add(mload(0x40), state_last_mem)
 
-        // zeta**n - 1
-        let res := pow(mload(add(state, state_zeta)), vk_domain_size, mPtr)
-        res := addmod(res, sub(r_mod,1), r_mod)
-        mstore(add(state, state_zeta_power_n_minus_one), res)
-
-        // let res := mload(add(state, state_zeta_power_n_minus_one))
+        let res := mload(add(state, state_zeta_power_n_minus_one))
         let den := addmod(mload(add(state, state_zeta)), sub(r_mod, 1), r_mod)
         den := pow(den, sub(r_mod, 2), mPtr)
         den := mulmod(den, vk_inv_domain_size, r_mod)
