@@ -368,7 +368,7 @@ contract PlonkVerifier {
         let size := add(0x2c5, mul(mload(pub_inputs), 0x20)) // 0x2c5 = 22*32+5
         size := add(size, mul(vk_nb_commitments_commit_api, 0x40))
         let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if eq(success, 0) {
+        if iszero(success) {
           error_sha2_256()
         }
       }
@@ -379,7 +379,7 @@ contract PlonkVerifier {
         mstore(mPtr, 0x62657461) // "beta"
         mstore(add(mPtr, 0x20), prev_challenge)
         let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if eq(success, 0) {
+        if iszero(success) {
           error_sha2_256()
         }
       }
@@ -393,7 +393,7 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0x40), mload(add(aproof, proof_grand_product_commitment_x)))
         mstore(add(mPtr, 0x60), mload(add(aproof, proof_grand_product_commitment_y)))
         let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if eq(success, 0) {
+        if iszero(success) {
           error_sha2_256()
         }
       }
@@ -411,7 +411,7 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0xc0), mload(add(aproof, proof_h_2_x)))
         mstore(add(mPtr, 0xe0), mload(add(aproof, proof_h_2_y)))
         let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
-        if eq(success, 0) {
+        if iszero(success) {
           error_sha2_256()
         }
       }
@@ -447,7 +447,7 @@ contract PlonkVerifier {
           mstore(add(mPtr, 0x80), e)
           mstore(add(mPtr, 0xa0), r_mod)
           let success := staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,0x00,0x20)
-          if eq(success, 0) {
+          if iszero(success) {
             error_pow_local()
           }
           result := mload(0x00)
@@ -582,7 +582,7 @@ contract PlonkVerifier {
           mstore(add(mPtr, 0x80), e)
           mstore(add(mPtr, 0xa0), r_mod)
           let success := staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,mPtr,0x20)
-          if eq(success, 0) {
+          if iszero(success) {
             error_pow()
           }
           res := mload(mPtr)
@@ -605,7 +605,14 @@ contract PlonkVerifier {
 
 
       for (uint256 i; i < vk_nb_commitments_commit_api; ) {
-        uint256 hash_res = Utils.hash_fr(wire_committed_commitments[2 * i], wire_committed_commitments[2 * i + 1]);
+        uint256 hash_fr_x;
+        uint256 hash_fr_y;
+        unchecked{
+          hash_fr_x = wire_committed_commitments[2 * i];
+          hash_fr_y = wire_committed_commitments[2 * i + 1];
+        }
+
+        uint256 hash_res = Utils.hash_fr(hash_fr_x, hash_fr_y);
         uint256 a = compute_ith_lagrange_at_z(zeta, zeta_power_n_minus_one, commitment_indices[i] + public_inputs.length);
         assembly {
           a := mulmod(hash_res, a, r_mod)
