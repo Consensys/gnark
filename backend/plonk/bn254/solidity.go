@@ -362,7 +362,7 @@ contract PlonkVerifier {
 
         let size := add(0x2c5, mul(mload(pub_inputs), 0x20)) // 0x2c5 = 22*32+5
         size := add(size, mul(vk_nb_commitments_commit_api, 0x40))
-        let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
+        let success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
         if iszero(success) {
           error_sha2_256()
         }
@@ -373,7 +373,7 @@ contract PlonkVerifier {
         // beta
         mstore(mPtr, 0x62657461) // "beta"
         mstore(add(mPtr, 0x20), prev_challenge)
-        let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
+        let success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
         if iszero(success) {
           error_sha2_256()
         }
@@ -387,7 +387,7 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0x20), prev_challenge)
         mstore(add(mPtr, 0x40), mload(add(aproof, proof_grand_product_commitment_x)))
         mstore(add(mPtr, 0x60), mload(add(aproof, proof_grand_product_commitment_y)))
-        let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
+        let success := staticcall(gas(), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
         if iszero(success) {
           error_sha2_256()
         }
@@ -405,7 +405,7 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0xa0), mload(add(aproof, proof_h_1_y)))
         mstore(add(mPtr, 0xc0), mload(add(aproof, proof_h_2_x)))
         mstore(add(mPtr, 0xe0), mload(add(aproof, proof_h_2_y)))
-        let success := staticcall(sub(gas(), 2000), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
+        let success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
         if iszero(success) {
           error_sha2_256()
         }
@@ -441,7 +441,7 @@ contract PlonkVerifier {
           mstore(add(mPtr, 0x60), x)
           mstore(add(mPtr, 0x80), e)
           mstore(add(mPtr, 0xa0), r_mod)
-          let success := staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,0x00,0x20)
+          let success := staticcall(gas(),0x05,mPtr,0xc0,0x00,0x20)
           if iszero(success) {
             error_pow_local()
           }
@@ -576,7 +576,7 @@ contract PlonkVerifier {
           mstore(add(mPtr, 0x60), x)
           mstore(add(mPtr, 0x80), e)
           mstore(add(mPtr, 0xa0), r_mod)
-          let success := staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,mPtr,0x20)
+          let success := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
           if iszero(success) {
             error_pow()
           }
@@ -799,7 +799,7 @@ contract PlonkVerifier {
         mstore(folded_evals_commit, {{ fpstr .Kzg.G1.X }})
         mstore(add(folded_evals_commit, 0x20), {{ fpstr .Kzg.G1.Y }})
         mstore(add(folded_evals_commit, 0x40), mload(folded_evals))
-        let check_staticcall := staticcall(sub(gas(), 2000),7,folded_evals_commit,0x60,folded_evals_commit,0x40)
+        let check_staticcall := staticcall(gas(),7,folded_evals_commit,0x60,folded_evals_commit,0x40)
         if eq(check_staticcall, 0) {
           error_verify()
         }
@@ -844,7 +844,7 @@ contract PlonkVerifier {
         let state := mload(0x40)
 
         // TODO test the staticcall using the method from audit_4-5
-        let l_success := staticcall(sub(gas(), 2000),8,mPtr,0x180,0x00,0x20)
+        let l_success := staticcall(gas(),8,mPtr,0x180,0x00,0x20)
         let res_pairing := mload(0x00)
         let s_success := mload(add(state, state_success))
         res_pairing := and(and(res_pairing, l_success), s_success)
@@ -972,7 +972,7 @@ contract PlonkVerifier {
         let start_input := 0x1b // 00.."gamma"
         let size_input := add(0x16, mul(vk_nb_commitments_commit_api,3)) // number of 32bytes elmts = 0x16 (zeta+2*7+7 for the digests+openings) + 2*vk_nb_commitments_commit_api (for the commitments of the selectors) + vk_nb_commitments_commit_api (for the openings of the selectors)
         size_input := add(0x5, mul(size_input, 0x20)) // size in bytes: 15*32 bytes + 5 bytes for gamma
-        let check_staticcall := staticcall(sub(gas(), 2000), 0x2, add(mPtr,start_input), size_input, add(state, state_gamma_kzg), 0x20)
+        let check_staticcall := staticcall(gas(), 0x2, add(mPtr,start_input), size_input, add(state, state_gamma_kzg), 0x20)
         if eq(check_staticcall, 0) {
           error_verify()
         }
@@ -1143,7 +1143,7 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
         mstore(add(mPtr, 0x40), mload(q))
         mstore(add(mPtr, 0x60), mload(add(q, 0x20)))
-        let l_success := staticcall(sub(gas(), 2000),6,mPtr,0x80,dst,0x40)
+        let l_success := staticcall(gas(),6,mPtr,0x80,dst,0x40)
         mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
       }
 
@@ -1154,7 +1154,7 @@ contract PlonkVerifier {
         mstore(mPtr,mload(src))
         mstore(add(mPtr,0x20),mload(add(src,0x20)))
         mstore(add(mPtr,0x40),s)
-        let l_success := staticcall(sub(gas(), 2000),7,mPtr,0x60,dst,0x40)
+        let l_success := staticcall(gas(),7,mPtr,0x60,dst,0x40)
         mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
       }
 
@@ -1164,10 +1164,10 @@ contract PlonkVerifier {
         mstore(mPtr,mload(src))
         mstore(add(mPtr,0x20),mload(add(src,0x20)))
         mstore(add(mPtr,0x40),s)
-        let l_success := staticcall(sub(gas(), 2000),7,mPtr,0x60,mPtr,0x40)
+        let l_success := staticcall(gas(),7,mPtr,0x60,mPtr,0x40)
         mstore(add(mPtr,0x40),mload(dst))
         mstore(add(mPtr,0x60),mload(add(dst,0x20)))
-        l_success := and(l_success, staticcall(sub(gas(), 2000),6,mPtr,0x80,dst, 0x40))
+        l_success := and(l_success, staticcall(gas(),6,mPtr,0x80,dst, 0x40))
         mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
       }
 
@@ -1185,7 +1185,7 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0x60), x)
         mstore(add(mPtr, 0x80), e)
         mstore(add(mPtr, 0xa0), r_mod)
-        let check_staticcall := staticcall(sub(gas(), 2000),0x05,mPtr,0xc0,mPtr,0x20)
+        let check_staticcall := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
         if eq(check_staticcall, 0) {
           error_verify()
         }
