@@ -57,8 +57,7 @@ library Utils {
       }
     }
 
-    bytes32 xorTmp = b0 ^ b1;
-    tmp = abi.encodePacked(xorTmp, uint8(2), dst, sizeDomain);
+    tmp = abi.encodePacked(b0 ^ b1, uint8(2), dst, sizeDomain);
 
     b1 = sha256(tmp);
 
@@ -71,7 +70,6 @@ library Utils {
     }
   }
 
-
   /**
   * @dev cf https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
   * corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
@@ -83,14 +81,23 @@ library Utils {
 
     // reduce xmsg mod r, where xmsg is intrepreted in big endian
     // (as SetBytes does for golang's Big.Int library).
+    // ****************************************************
+    // NB: IF  res += uint256(xmsg[47 - i]) << (8 * i); will never overflow, move the unchecked around the for loop
+    // ****************************************************
     for (uint i; i < 32; ) {
       res += uint256(xmsg[47 - i]) << (8 * i);
       unchecked {
         i++;
       }
     }
-    res = res % r_mod;
+    unchecked {
+      res = res % r_mod;
+    }
+
     uint256 tmp;
+    // ****************************************************
+    // NB: IF   tmp += uint256(xmsg[15 - i]) << (8 * i); will never overflow, move the unchecked around the for loop
+    // ****************************************************
     for (uint i; i < 16; ) {
       tmp += uint256(xmsg[15 - i]) << (8 * i);
       unchecked {
