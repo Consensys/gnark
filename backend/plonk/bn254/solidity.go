@@ -69,8 +69,6 @@ library Utils {
         ++i;
       }
     }
-
-    return res;
   }
 
 
@@ -106,8 +104,6 @@ library Utils {
       tmp := mulmod(tmp, b, r_mod)
       res := addmod(res, tmp, r_mod)
     }
-
-    return res;
   }
 }
 
@@ -275,13 +271,7 @@ contract PlonkVerifier {
   {{ end }}
   
   function derive_gamma_beta_alpha_zeta(bytes memory proof, uint256[] memory public_inputs)
-  internal view returns(uint256, uint256, uint256, uint256) {
-
-    uint256 gamma;
-    uint256 beta;
-    uint256 alpha;
-    uint256 zeta;
-
+  internal view returns(uint256 gamma, uint256 beta, uint256 alpha, uint256 zeta) {
     assembly {
 
       let mem := mload(0x40)
@@ -426,8 +416,6 @@ contract PlonkVerifier {
         }
       }
     }
-
-    return (gamma, beta, alpha, zeta);
   }
 
 {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
@@ -437,9 +425,7 @@ contract PlonkVerifier {
   // * ζ = zeta (challenge derived with Fiat Shamir)
   // * zpnmo = ζⁿ-1
   function compute_ith_lagrange_at_z(uint256 zeta, uint256 zpnmo, uint256 i) 
-  internal view returns (uint256) {
-
-    uint256 res;
+  internal view returns (uint256 res) {
     assembly {
 
       function error_pow_local() {
@@ -474,35 +460,30 @@ contract PlonkVerifier {
       w := mulmod(w, i, r_mod) // w**i/n*(z-w)**-1
       res := mulmod(w, zpnmo, r_mod)
     }
-    
-    return res;
   }
 {{ end }}
 
   // returns the contribution of the public inputs + ζⁿ-1 which will
   // be reused several times
   {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+  
+  // ζⁿ-1
+  // this value will be reused several times in the code
+
   function compute_pi(
     uint256[] memory public_inputs,
     uint256 zeta,
     bytes memory proof
-  ) internal view returns (uint256, uint256) {
+  ) internal view returns (uint256 pi, uint256 zeta_power_n_minus_one) {
   {{ end -}}
   {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
   function compute_pi(
         uint256[] memory public_inputs,
         uint256 zeta
-    ) internal view returns (uint256, uint256) {
+    ) internal view returns (uint256 pi, uint256 zeta_power_n_minus_one) {
   {{ end }}
 
-      // ζⁿ-1
-      // this value will be reused several times in the code
-      uint256 zeta_power_n_minus_one;
-
-      uint256 pi;
-
       assembly {
-
         function error_pow() {
           let ptError := mload(0x40)
           mstore(ptError, error_string_id) // selector for function Error(string)
@@ -635,8 +616,6 @@ contract PlonkVerifier {
         }
       }
       {{ end }}
-      
-      return (pi, zeta_power_n_minus_one);
     }
   
   function check_inputs_size(uint256[] memory public_inputs)
@@ -720,18 +699,12 @@ contract PlonkVerifier {
   }
 
   function Verify(bytes memory proof, uint256[] memory public_inputs) 
-  public view returns(bool) {
-
+  public view returns(bool success) {
     check_inputs_size(public_inputs);
     check_proof_size(proof);
     check_proof_openings_size(proof);
 
-    uint256 gamma;
-    uint256 beta;
-    uint256 alpha;
-    uint256 zeta;
-
-    (gamma, beta, alpha, zeta) = derive_gamma_beta_alpha_zeta(proof, public_inputs);
+    (uint256 gamma, uint256 beta, uint256 alpha, uint256 zeta) = derive_gamma_beta_alpha_zeta(proof, public_inputs);
 
     uint256 pi;
     uint256 zeta_power_n_minus_one;
@@ -743,9 +716,6 @@ contract PlonkVerifier {
     {{ end }}
     
     uint256 check;
-
-    bool success = false;
-    // uint256 success;
 
     assembly {
 
@@ -1224,11 +1194,7 @@ contract PlonkVerifier {
         res := mload(mPtr)
       }
     }
-
-    return success;
-
   }
-
 }
 `
 
