@@ -488,7 +488,7 @@ contract PlonkVerifier {
           revert(ptError, 0x64)
         }
         
-        // evaluation of Z=Xⁿ⁻¹ at ζ, we save this value
+        // evaluation of Z=Xⁿ-1 at ζ, we save this value
         zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, mload(0x40)), sub(r_mod, 1), r_mod)
         sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), zeta, zeta_power_n_minus_one)
         pi := mload(mload(0x40))
@@ -605,7 +605,7 @@ contract PlonkVerifier {
           hash_fr_y = wire_committed_commitments[2 * i + 1];
   
           uint256 hash_res = Utils.hash_fr(hash_fr_x, hash_fr_y);
-          uint256 a = compute_ith_lagrange_at_z(zeta, commitment_indices[i] + public_inputs.length);
+          uint256 a = compute_ith_lagrange_at_z(zeta, zeta_power_n_minus_one, commitment_indices[i] + public_inputs.length);
           assembly {
             a := mulmod(hash_res, a, r_mod)
             pi := addmod(pi, a, r_mod)
