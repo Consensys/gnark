@@ -20,8 +20,6 @@ const tmplSolidityVerifier = `// SPDX-License-Identifier: Apache-2.0
 
 pragma solidity ^0.8.19;
 
-pragma experimental ABIEncoderV2;
-
 library Utils {
   uint256 private constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint8 private constant zero = 0;
