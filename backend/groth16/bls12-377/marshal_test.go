@@ -44,13 +44,15 @@ func TestProofSerialization(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("Proof -> writer -> reader -> Proof should stay constant", prop.ForAll(
-		func(ar, krs curve.G1Affine, bs curve.G2Affine) bool {
+		func(ar, krs, commitmentPok curve.G1Affine, bs curve.G2Affine, commitments []curve.G1Affine) bool {
 			var proof, pCompressed, pRaw Proof
 
 			// create a random proof
 			proof.Ar = ar
 			proof.Krs = krs
 			proof.Bs = bs
+			proof.Commitments = commitments
+			proof.CommitmentPok = commitmentPok
 
 			var bufCompressed bytes.Buffer
 			written, err := proof.WriteTo(&bufCompressed)
@@ -86,7 +88,9 @@ func TestProofSerialization(t *testing.T) {
 		},
 		GenG1(),
 		GenG1(),
+		GenG1(),
 		GenG2(),
+		GenG1Slice(),
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
@@ -291,6 +295,23 @@ func TestProvingKeySerialization(t *testing.T) {
 	))
 
 	properties.TestingRun(t, gopter.ConsoleReporter(false))
+}
+
+func GenG1Slice() gopter.Gen {
+	_, _, g1GenAff, _ := curve.Generators()
+	return func(genParams *gopter.GenParameters) *gopter.GenResult {
+		const maxSliceLength = 10
+		length := genParams.NextUint64() % maxSliceLength
+
+		g1Slice := make([]curve.G1Affine, length)
+		for i := 0; i < len(g1Slice); i++ {
+			scalar := new(big.Int).SetUint64(genParams.NextUint64())
+			g1Slice[i].ScalarMultiplication(&g1GenAff, scalar)
+		}
+
+		genResult := gopter.NewGenResult(g1Slice, gopter.NoShrinker)
+		return genResult
+	}
 }
 
 func GenG1() gopter.Gen {
