@@ -62,17 +62,18 @@ library Utils {
 
       // reduce xmsg mod r, where xmsg is intrepreted in big endian
       // (as SetBytes does for golang's Big.Int library).
-      for (uint i; i < 32; ) {
+      uint256 tmp;
+      for (uint i; i < 16; ) {
+        res += uint256(uint8(xmsg[47 - i])) << (8 * i);
+        tmp += uint256(uint8(xmsg[15 - i])) << (8 * i);
+        ++i;
+      }
+      for (uint i = 16; i < 32; ) {
         res += uint256(uint8(xmsg[47 - i])) << (8 * i);
         ++i;
       }
 
       res = res % r_mod;
-      uint256 tmp;
-      for (uint i; i < 16; ) {
-        tmp += uint256(uint8(xmsg[15 - i])) << (8 * i);
-        ++i;
-      }
 
       // 2**256%r
       assembly {
