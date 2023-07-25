@@ -246,6 +246,9 @@ func ExampleMultiLin_Evaluate() {
 	fmt.Println("r1cs size:", cs.GetNbConstraints())
 
 	cs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &evalMultiLinCircuit{M: m, At: e, Evaluation: 0})
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println("scs size:", cs.GetNbConstraints())
 
 	// Output: r1cs size: 1048576
