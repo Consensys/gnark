@@ -31,67 +31,33 @@ library Utils {
     hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
   /**
-  * @dev ExpandMsgXmd expands msg to a slice of lenInBytes bytes.
+  * @dev xmsg expands msg to a slice of lenInBytes bytes.
   *      https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5
   *      https://tools.ietf.org/html/rfc8017#section-4.1 (I2OSP/O2ISP)
-  */
-  function expand_msg(uint256 x, uint256 y) internal pure returns (uint8[48] memory res) {
-    //uint8[64] memory pad; // 64 is sha256 block size.
-    // sha256(pad || msg || (0 || 48 || 0) || dst || 11)
-    unchecked {
-      bytes memory tmp = zeroBuffer;
-
-      // size of dst
-      bytes32 b0;
-      bytes32 b1;
-
-      tmp = abi.encodePacked(tmp, x, y, zero, lenInBytes, zero, dst, sizeDomain);
-      b0 = sha256(tmp);
-
-      tmp = abi.encodePacked(b0, uint8(1), dst, sizeDomain);
-      b1 = sha256(tmp);
-      for (uint i; i < 32; ) {
-        res[i] = uint8(b1[i]);
-        ++i;
-      }
-
-      tmp = abi.encodePacked(b0 ^ b1, uint8(2), dst, sizeDomain);
-
-      b1 = sha256(tmp);
-
-      // TODO handle the size of the dst (check gnark-crypto)
-      for (uint i; i < 16; ) {
-        res[i + 32] = uint8(b1[i]);
-        ++i;
-      }
-    }
-  }
-
-  /**
   * @dev cf https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
   * corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
   */
   function hash_fr(uint256 x, uint256 y) internal pure returns (uint256 res) {
     // interpret a as a bigEndian integer and reduce it mod r
     unchecked {
-      uint8[48] memory xmsg = expand_msg(x, y);
-      // uint8[48] memory xmsg = [0x44, 0x74, 0xb5, 0x29, 0xd7, 0xfb, 0x29, 0x88, 0x3a, 0x7a, 0xc1, 0x65, 0xfd, 0x72, 0xce, 0xd0, 0xd4, 0xd1, 0x3f, 0x9e, 0x85, 0x8a, 0x3, 0x86, 0x1c, 0x90, 0x83, 0x1e, 0x94, 0xdc, 0xfc, 0x1d, 0x70, 0x82, 0xf5, 0xbf, 0x30, 0x3, 0x39, 0x87, 0x21, 0x38, 0x15, 0xed, 0x12, 0x75, 0x44, 0x6a];
+      bytes32 b0 = sha256(abi.encodePacked(zeroBuffer, x, y, zero, lenInBytes, zero, dst, sizeDomain));
+      bytes32 b1 = sha256(abi.encodePacked(b0, uint8(1), dst, sizeDomain));
+      
+      // bytes memory xmsg = [0x44, 0x74, 0xb5, 0x29, 0xd7, 0xfb, 0x29, 0x88, 0x3a, 0x7a, 0xc1, 0x65, 0xfd, 0x72, 0xce, 0xd0, 0xd4, 0xd1, 0x3f, 0x9e, 0x85, 0x8a, 0x3, 0x86, 0x1c, 0x90, 0x83, 0x1e, 0x94, 0xdc, 0xfc, 0x1d, 0x70, 0x82, 0xf5, 0xbf, 0x30, 0x3, 0x39, 0x87, 0x21, 0x38, 0x15, 0xed, 0x12, 0x75, 0x44, 0x6a];
+      bytes memory xmsg = bytes.concat(b1, bytes16(sha256(abi.encodePacked(b0 ^ b1, uint8(2), dst, sizeDomain))));
 
       // reduce xmsg mod r, where xmsg is intrepreted in big endian
       // (as SetBytes does for golang's Big.Int library).
-      for (uint i; i < 32; ) {
-        res += uint256(xmsg[47 - i]) << (8 * i);
-        ++i;
-      }
-      res = res % r_mod;
       uint256 tmp;
       for (uint i; i < 16; ) {
-        tmp += uint256(xmsg[15 - i]) << (8 * i);
+        res += (uint256(uint8(xmsg[47 - i])) << (8 * i)) + (uint256(uint8(xmsg[31 - i])) << (8 * (i+16)));
+        tmp += uint256(uint8(xmsg[15 - i])) << (8 * i);
         ++i;
       }
 
+      res = res % r_mod;
+
       // 2**256%r
-      // uint256 b = 6350874878119819312338956282401532410528162663560392320966563075034087161851;
       assembly {
         tmp := mulmod(tmp, b, r_mod)
         res := addmod(res, tmp, r_mod)
@@ -585,8 +551,7 @@ contract PlonkVerifier {
       {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
       // compute the contribution of the public inputs whose indices are in commitment_indices,
       // and whose value is hash_fr of the corresponding commitme
-      uint256[] memory commitment_indices;
-      commitment_indices = new uint256[](vk_nb_commitments_commit_api);
+      uint256[] memory commitment_indices = new uint256[](vk_nb_commitments_commit_api);
       load_vk_commitments_indices_commit_api(commitment_indices);
 
       uint256[] memory wire_committed_commitments;
@@ -595,18 +560,23 @@ contract PlonkVerifier {
         wire_committed_commitments = new uint256[](2 * vk_nb_commitments_commit_api);
   
         load_wire_commitments_commit_api(wire_committed_commitments, proof);
-  
+        uint256 hash_res;
+        uint256 ith_lagrange_at_z;
         for (uint256 i; i < vk_nb_commitments_commit_api; ) {
           uint256 hash_fr_x;
           uint256 hash_fr_y;
           hash_fr_x = wire_committed_commitments[2 * i];
           hash_fr_y = wire_committed_commitments[2 * i + 1];
   
-          uint256 hash_res = Utils.hash_fr(hash_fr_x, hash_fr_y);
-          uint256 a = compute_ith_lagrange_at_z(zeta, zeta_power_n_minus_one, commitment_indices[i] + public_inputs.length);
+          hash_res = Utils.hash_fr(wire_committed_commitments[2 * i], wire_committed_commitments[2 * i + 1]);
+          ith_lagrange_at_z = compute_ith_lagrange_at_z(
+            zeta,
+            zeta_power_n_minus_one,
+            commitment_indices[i] + public_inputs.length
+          );
           assembly {
-            a := mulmod(hash_res, a, r_mod)
-            pi := addmod(pi, a, r_mod)
+            ith_lagrange_at_z := mulmod(hash_res, ith_lagrange_at_z, r_mod)
+            pi := addmod(pi, ith_lagrange_at_z, r_mod)
           }
           ++i;
         }
