@@ -553,21 +553,14 @@ contract PlonkVerifier {
       // and whose value is hash_fr of the corresponding commitme
       uint256[] memory commitment_indices = new uint256[](vk_nb_commitments_commit_api);
       load_vk_commitments_indices_commit_api(commitment_indices);
-
-      uint256[] memory wire_committed_commitments;
       
       unchecked {
-        wire_committed_commitments = new uint256[](2 * vk_nb_commitments_commit_api);
+        uint256[] memory wire_committed_commitments = new uint256[](2 * vk_nb_commitments_commit_api);
   
         load_wire_commitments_commit_api(wire_committed_commitments, proof);
         uint256 hash_res;
         uint256 ith_lagrange_at_z;
-        for (uint256 i; i < vk_nb_commitments_commit_api; ) {
-          uint256 hash_fr_x;
-          uint256 hash_fr_y;
-          hash_fr_x = wire_committed_commitments[2 * i];
-          hash_fr_y = wire_committed_commitments[2 * i + 1];
-  
+        for (uint256 i; i < vk_nb_commitments_commit_api; ) { 
           hash_res = Utils.hash_fr(wire_committed_commitments[2 * i], wire_committed_commitments[2 * i + 1]);
           ith_lagrange_at_z = compute_ith_lagrange_at_z(
             zeta,
