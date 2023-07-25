@@ -5,6 +5,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 	"testing"
 )
@@ -203,4 +205,23 @@ func int64SliceToVariableSlice(slice []int64) []frontend.Variable {
 		res = append(res, v)
 	}
 	return res
+}
+
+func ExampleMultiLin_Evaluate() {
+	const logSize = 20
+	const size = 1 << logSize
+	m := MultiLin(make([]frontend.Variable, size))
+	e := MultiLin(make([]frontend.Variable, logSize))
+
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &evalMultiLinCircuit{M: m, At: e, Evaluation: 0})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("r1cs size:", cs.GetNbConstraints())
+
+	cs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &evalMultiLinCircuit{M: m, At: e, Evaluation: 0})
+	fmt.Println("scs size:", cs.GetNbConstraints())
+
+	// Output: r1cs size: 2100657
+	//scs size: 4194301
 }
