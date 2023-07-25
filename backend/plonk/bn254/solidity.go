@@ -50,12 +50,8 @@ library Utils {
       // (as SetBytes does for golang's Big.Int library).
       uint256 tmp;
       for (uint i; i < 16; ) {
-        res += uint256(uint8(xmsg[47 - i])) << (8 * i);
+        res += (uint256(uint8(xmsg[47 - i])) << (8 * i)) + (uint256(uint8(xmsg[31 - i])) << (8 * (i+16)));
         tmp += uint256(uint8(xmsg[15 - i])) << (8 * i);
-        ++i;
-      }
-      for (uint i = 16; i < 32; ) {
-        res += uint256(uint8(xmsg[47 - i])) << (8 * i);
         ++i;
       }
 
