@@ -31,34 +31,20 @@ library Utils {
     hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
   /**
-  * @dev ExpandMsgXmd expands msg to a slice of lenInBytes bytes.
+  * @dev xmsg expands msg to a slice of lenInBytes bytes.
   *      https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5
   *      https://tools.ietf.org/html/rfc8017#section-4.1 (I2OSP/O2ISP)
-  */
-  function expand_msg(uint256 x, uint256 y) internal pure returns (bytes memory res) {
-    //uint8[64] memory pad; // 64 is sha256 block size.
-    // sha256(pad || msg || (0 || 48 || 0) || dst || 11)
-    // size of dst
-    bytes memory tmp = abi.encodePacked(zeroBuffer, x, y, zero, lenInBytes, zero, dst, sizeDomain);
-    bytes32 b0 = sha256(tmp);
-
-    tmp = abi.encodePacked(b0, uint8(1), dst, sizeDomain);
-
-    bytes32 b1 = sha256(tmp);
-    tmp = abi.encodePacked(b0 ^ b1, uint8(2), dst, sizeDomain);
-
-    res = bytes.concat(b1, bytes16(sha256(tmp)));
-  }
-
-  /**
   * @dev cf https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
   * corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
   */
   function hash_fr(uint256 x, uint256 y) internal pure returns (uint256 res) {
     // interpret a as a bigEndian integer and reduce it mod r
     unchecked {
-      bytes memory xmsg = expand_msg(x, y);
-      // uint8[48] memory xmsg = [0x44, 0x74, 0xb5, 0x29, 0xd7, 0xfb, 0x29, 0x88, 0x3a, 0x7a, 0xc1, 0x65, 0xfd, 0x72, 0xce, 0xd0, 0xd4, 0xd1, 0x3f, 0x9e, 0x85, 0x8a, 0x3, 0x86, 0x1c, 0x90, 0x83, 0x1e, 0x94, 0xdc, 0xfc, 0x1d, 0x70, 0x82, 0xf5, 0xbf, 0x30, 0x3, 0x39, 0x87, 0x21, 0x38, 0x15, 0xed, 0x12, 0x75, 0x44, 0x6a];
+      bytes32 b0 = sha256(abi.encodePacked(zeroBuffer, x, y, zero, lenInBytes, zero, dst, sizeDomain));
+      bytes32 b1 = sha256(abi.encodePacked(b0, uint8(1), dst, sizeDomain));
+      
+      // bytes memory xmsg = [0x44, 0x74, 0xb5, 0x29, 0xd7, 0xfb, 0x29, 0x88, 0x3a, 0x7a, 0xc1, 0x65, 0xfd, 0x72, 0xce, 0xd0, 0xd4, 0xd1, 0x3f, 0x9e, 0x85, 0x8a, 0x3, 0x86, 0x1c, 0x90, 0x83, 0x1e, 0x94, 0xdc, 0xfc, 0x1d, 0x70, 0x82, 0xf5, 0xbf, 0x30, 0x3, 0x39, 0x87, 0x21, 0x38, 0x15, 0xed, 0x12, 0x75, 0x44, 0x6a];
+      bytes memory xmsg = bytes.concat(b1, bytes16(sha256(abi.encodePacked(b0 ^ b1, uint8(2), dst, sizeDomain))));
 
       // reduce xmsg mod r, where xmsg is intrepreted in big endian
       // (as SetBytes does for golang's Big.Int library).
