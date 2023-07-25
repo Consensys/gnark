@@ -10,27 +10,44 @@ type Polynomial []frontend.Variable
 type MultiLin []frontend.Variable
 
 // Evaluate assumes len(m) = 1 << len(at)
+// it doesn't modify m
 func (m MultiLin) Evaluate(api frontend.API, at []frontend.Variable) frontend.Variable {
+	_m := m.Clone()
 
-	eqs := make([]frontend.Variable, len(m))
-	eqs[0] = 1
-	for i, rI := range at {
-		prevSize := 1 << i
-		for j := prevSize - 1; j >= 0; j-- {
-			eqs[2*j+1] = api.Mul(rI, eqs[j])
-			eqs[2*j] = api.Sub(eqs[j], eqs[2*j+1]) // eq[2j] == (1 - rI) * eq[j]
-		}
+	// at each iteration fold by at[i]
+	for len(_m) > 1 {
+		_m.fold(api, at[0])
+		_m = _m[:len(_m)/2]
+		//api.Println(_m...)
+		at = at[1:]
 	}
 
-	evaluation := frontend.Variable(0)
-	for j := range m {
-		evaluation = api.MulAcc(evaluation, eqs[j], m[j])
+	if len(at) != 0 {
+		panic("incompatible evaluation vector size")
 	}
-	return evaluation
+
+	return _m[0]
+}
+
+// fold fixes the value of m's first variable to at, thus halving m's required bookkeeping table size
+// WARNING: The user should halve m themselves after the call
+func (m MultiLin) fold(api frontend.API, at frontend.Variable) {
+	zero := m[:len(m)/2]
+	one := m[len(m)/2:]
+	for j := range zero {
+		diff := api.Sub(one[j], zero[j])
+		zero[j] = api.MulAcc(zero[j], diff, at)
+	}
 }
 
 func (m MultiLin) NumVars() int {
 	return bits.TrailingZeros(uint(len(m)))
+}
+
+func (m MultiLin) Clone() MultiLin {
+	clone := make(MultiLin, len(m))
+	copy(clone, m)
+	return clone
 }
 
 func (p Polynomial) Eval(api frontend.API, at frontend.Variable) (pAt frontend.Variable) {

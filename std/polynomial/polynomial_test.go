@@ -1,6 +1,7 @@
 package polynomial
 
 import (
+	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -70,6 +71,31 @@ func TestEvalDeltasLinear(t *testing.T) {
 
 func TestEvalDeltasQuadratic(t *testing.T) {
 	testEvalDeltas(t, 3, []int64{1, -3, 3})
+}
+
+type foldMultiLinCircuit struct {
+	M      []frontend.Variable
+	At     frontend.Variable
+	Result []frontend.Variable
+}
+
+func (c *foldMultiLinCircuit) Define(api frontend.API) error {
+	if len(c.M) != 2*len(c.Result) {
+		return errors.New("folding size mismatch")
+	}
+	m := MultiLin(c.M)
+	m.fold(api, c.At)
+	for i := range c.Result {
+		api.AssertIsEqual(m[i], c.Result[i])
+	}
+	return nil
+}
+
+func TestFoldTrivial(t *testing.T) {
+	test.NewAssert(t).SolvingSucceeded(
+		&foldMultiLinCircuit{M: make([]frontend.Variable, 4), Result: make([]frontend.Variable, 2)},
+		&foldMultiLinCircuit{M: []frontend.Variable{0, 1, 2, 3}, At: 2, Result: []frontend.Variable{4, 5}},
+	)
 }
 
 type evalMultiLinCircuit struct {
