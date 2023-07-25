@@ -18,7 +18,6 @@ func (m MultiLin) Evaluate(api frontend.API, at []frontend.Variable) frontend.Va
 	for len(_m) > 1 {
 		_m.fold(api, at[0])
 		_m = _m[:len(_m)/2]
-		//api.Println(_m...)
 		at = at[1:]
 	}
 

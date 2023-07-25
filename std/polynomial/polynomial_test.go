@@ -91,7 +91,7 @@ func (c *foldMultiLinCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestFoldTrivial(t *testing.T) {
+func TestFoldSmall(t *testing.T) {
 	test.NewAssert(t).SolvingSucceeded(
 		&foldMultiLinCircuit{M: make([]frontend.Variable, 4), Result: make([]frontend.Variable, 2)},
 		&foldMultiLinCircuit{M: []frontend.Variable{0, 1, 2, 3}, At: 2, Result: []frontend.Variable{4, 5}},
@@ -248,6 +248,6 @@ func ExampleMultiLin_Evaluate() {
 	cs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &evalMultiLinCircuit{M: m, At: e, Evaluation: 0})
 	fmt.Println("scs size:", cs.GetNbConstraints())
 
-	// Output: r1cs size: 2100657
-	//scs size: 4194301
+	// Output: r1cs size: 1048576
+	//scs size: 3145726
 }
