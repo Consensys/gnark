@@ -29,7 +29,9 @@ library Utils {
   uint256 private constant b = 6350874878119819312338956282401532410528162663560392320966563075034087161851;
   bytes private constant zeroBuffer =
     hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-
+  uint8 private constant one = 1;
+  uint8 private constant two = 2;
+  
   /**
   * @dev xmsg expands msg to a slice of lenInBytes bytes.
   *      https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5
@@ -41,26 +43,24 @@ library Utils {
     // interpret a as a bigEndian integer and reduce it mod r
     unchecked {
       bytes32 b0 = sha256(abi.encodePacked(zeroBuffer, x, y, zero, lenInBytes, zero, dst, sizeDomain));
-      bytes32 b1 = sha256(abi.encodePacked(b0, uint8(1), dst, sizeDomain));
-      
+      bytes32 b1 = sha256(abi.encodePacked(b0, one, dst, sizeDomain));
+
       // bytes memory xmsg = [0x44, 0x74, 0xb5, 0x29, 0xd7, 0xfb, 0x29, 0x88, 0x3a, 0x7a, 0xc1, 0x65, 0xfd, 0x72, 0xce, 0xd0, 0xd4, 0xd1, 0x3f, 0x9e, 0x85, 0x8a, 0x3, 0x86, 0x1c, 0x90, 0x83, 0x1e, 0x94, 0xdc, 0xfc, 0x1d, 0x70, 0x82, 0xf5, 0xbf, 0x30, 0x3, 0x39, 0x87, 0x21, 0x38, 0x15, 0xed, 0x12, 0x75, 0x44, 0x6a];
-      bytes memory xmsg = bytes.concat(b1, bytes16(sha256(abi.encodePacked(b0 ^ b1, uint8(2), dst, sizeDomain))));
+      bytes16 b2 = bytes16(sha256(abi.encodePacked(b0 ^ b1, two, dst, sizeDomain)));
 
       // reduce xmsg mod r, where xmsg is intrepreted in big endian
       // (as SetBytes does for golang's Big.Int library).
       uint256 tmp;
       for (uint i; i < 16; ) {
-        res += (uint256(uint8(xmsg[47 - i])) << (8 * i)) + (uint256(uint8(xmsg[31 - i])) << (8 * (i+16)));
-        tmp += uint256(uint8(xmsg[15 - i])) << (8 * i);
+        res += (uint256(uint8(b2[15 - i])) << (8 * i)) + (uint256(uint8(b1[31 - i])) << (8 * (i + 16)));
+        tmp += uint256(uint8(b1[15 - i])) << (8 * i);
         ++i;
       }
-
-      res = res % r_mod;
 
       // 2**256%r
       assembly {
         tmp := mulmod(tmp, b, r_mod)
-        res := addmod(res, tmp, r_mod)
+        res := addmod(mod(res, r_mod), tmp, r_mod)
       }
     }
   }
@@ -665,13 +665,11 @@ contract PlonkVerifier {
 
     (uint256 gamma, uint256 beta, uint256 alpha, uint256 zeta) = derive_gamma_beta_alpha_zeta(proof, public_inputs);
 
-    uint256 pi;
-    uint256 zeta_power_n_minus_one;
     {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-    (pi, zeta_power_n_minus_one) = compute_pi(public_inputs, zeta, proof);
+    (uint256 pi, uint256 zeta_power_n_minus_one) = compute_pi(public_inputs, zeta, proof);
     {{ end }}
     {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
-    (pi, zeta_power_n_minus_one) = compute_pi(public_inputs, zeta);
+    (uint256 pi, uint256 zeta_power_n_minus_one) = compute_pi(public_inputs, zeta);
     {{ end }}
     
     uint256 check;
