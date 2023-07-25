@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/internal/multicommit"
+	"github.com/consensys/gnark/std/multicommit"
 )
 
 // MultipleCommitmentCircuit is an example circuit showing usage of multiple
