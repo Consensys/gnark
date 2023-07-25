@@ -9,14 +9,26 @@ import (
 type Polynomial []frontend.Variable
 type MultiLin []frontend.Variable
 
+var minFoldScaledLogSize = 16
+
 // Evaluate assumes len(m) = 1 << len(at)
 // it doesn't modify m
 func (m MultiLin) Evaluate(api frontend.API, at []frontend.Variable) frontend.Variable {
 	_m := m.Clone()
 
+	/*minFoldScaledLogSize := 16
+	if api is r1cs {
+		minFoldScaledLogSize = math.MaxInt64  // no scaling for r1cs
+	}*/
+
+	scaleCorrectionFactor := frontend.Variable(1)
 	// at each iteration fold by at[i]
 	for len(_m) > 1 {
-		_m.fold(api, at[0])
+		if len(_m) >= minFoldScaledLogSize {
+			scaleCorrectionFactor = api.Mul(scaleCorrectionFactor, _m.foldScaled(api, at[0]))
+		} else {
+			_m.fold(api, at[0])
+		}
 		_m = _m[:len(_m)/2]
 		at = at[1:]
 	}
@@ -25,7 +37,7 @@ func (m MultiLin) Evaluate(api frontend.API, at []frontend.Variable) frontend.Va
 		panic("incompatible evaluation vector size")
 	}
 
-	return _m[0]
+	return api.Mul(_m[0], scaleCorrectionFactor)
 }
 
 // fold fixes the value of m's first variable to at, thus halving m's required bookkeeping table size
@@ -37,6 +49,19 @@ func (m MultiLin) fold(api frontend.API, at frontend.Variable) {
 		diff := api.Sub(one[j], zero[j])
 		zero[j] = api.MulAcc(zero[j], diff, at)
 	}
+}
+
+// foldScaled(m, at) = fold(m, at) / (1 - at)
+// it returns 1 - at, for convenience
+func (m MultiLin) foldScaled(api frontend.API, at frontend.Variable) (denom frontend.Variable) {
+	denom = api.Sub(1, at)
+	coeff := api.Div(at, denom)
+	zero := m[:len(m)/2]
+	one := m[len(m)/2:]
+	for j := range zero {
+		zero[j] = api.MulAcc(zero[j], one[j], coeff)
+	}
+	return
 }
 
 func (m MultiLin) NumVars() int {

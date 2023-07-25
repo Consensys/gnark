@@ -251,6 +251,6 @@ func ExampleMultiLin_Evaluate() {
 	}
 	fmt.Println("scs size:", cs.GetNbConstraints())
 
-	// Output: r1cs size: 1048576
-	//scs size: 3145726
+	// Output: r1cs size: 1048627
+	//scs size: 2097226
 }
