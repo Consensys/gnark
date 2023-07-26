@@ -20,149 +20,8 @@ const tmplSolidityVerifier = `// SPDX-License-Identifier: Apache-2.0
 
 pragma solidity ^0.8.19;
 
-library Utils {
-
-	uint256 private constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-	uint256 private constant bb = 340282366920938463463374607431768211456; // 2**128
-	uint256 private constant error_string_id = 0x08c379a000000000000000000000000000000000000000000000000000000000; // selector for function Error(string)
-	uint256 private constant zero_uint256 = 0;
-
-	uint8 private constant lenInBytes = 48;
-	uint8 private constant sizeDomain = 11;
-	uint8 private constant one = 1;
-	uint8 private constant two = 2;
-
-  /**
-  * @dev xmsg expands msg to a slice of lenInBytes bytes.
-  *      https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5
-  *      https://tools.ietf.org/html/rfc8017#section-4.1 (I2OSP/O2ISP)
-  * @dev cf https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
-  * corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
-  */
-  function hash_fr(uint256 x, uint256 y) internal view returns (uint256 res) {
-
-    assembly {
-
-      function error_sha2_256() {
-        let ptError := mload(0x40)
-        mstore(ptError, error_string_id) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x19)
-        mstore(add(ptError, 0x44), "error staticcall sha2-256")
-        revert(ptError, 0x64)
-      }
-
-      // [0x00, .. , 0x00 || x, y, || 0, 48, 0, dst, sizeDomain]
-      // <-  64 bytes  ->  <-64b -> <-       1 bytes each     ->
-      let mPtr := mload(0x40)
-      
-      // [0x00, .., 0x00] 64 bytes of zero
-      mstore(mPtr, zero_uint256)
-      mstore(add(mPtr, 0x20), zero_uint256)
-  
-      // msg =  x || y , both on 32 bytes
-      mstore(add(mPtr, 0x40), x)
-      mstore(add(mPtr, 0x60), y)
-
-      // 0 || 48 || 0 all on 1 byte
-      mstore8(add(mPtr, 0x80), 0)
-      mstore8(add(mPtr, 0x81), lenInBytes)
-      mstore8(add(mPtr, 0x82), 0)
-
-      // "BSB22-Plonk" = [42, 53, 42, 32, 32, 2d, 50, 6c, 6f, 6e, 6b,]
-      mstore8(add(mPtr, 0x83), 0x42)
-      mstore8(add(mPtr, 0x84), 0x53)
-      mstore8(add(mPtr, 0x85), 0x42)
-      mstore8(add(mPtr, 0x86), 0x32)
-      mstore8(add(mPtr, 0x87), 0x32)
-      mstore8(add(mPtr, 0x88), 0x2d)
-      mstore8(add(mPtr, 0x89), 0x50)
-      mstore8(add(mPtr, 0x8a), 0x6c)
-      mstore8(add(mPtr, 0x8b), 0x6f)
-      mstore8(add(mPtr, 0x8c), 0x6e)
-      mstore8(add(mPtr, 0x8d), 0x6b)
-
-      // size domain
-      mstore8(add(mPtr, 0x8e), sizeDomain)
-
-      let success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
-      if iszero(success) {
-        error_sha2_256()
-      }
-
-      let b0 := mload(mPtr)
-
-      // [b0         || one || dst || sizeDomain]
-      // <-64bytes ->  <-    1 byte each      ->
-      mstore8(add(mPtr, 0x20), one) // 1
-      
-      mstore8(add(mPtr, 0x21), 0x42) // dst
-      mstore8(add(mPtr, 0x22), 0x53)
-      mstore8(add(mPtr, 0x23), 0x42)
-      mstore8(add(mPtr, 0x24), 0x32)
-      mstore8(add(mPtr, 0x25), 0x32)
-      mstore8(add(mPtr, 0x26), 0x2d)
-      mstore8(add(mPtr, 0x27), 0x50)
-      mstore8(add(mPtr, 0x28), 0x6c)
-      mstore8(add(mPtr, 0x29), 0x6f)
-      mstore8(add(mPtr, 0x2a), 0x6e)
-      mstore8(add(mPtr, 0x2b), 0x6b)
-
-      mstore8(add(mPtr, 0x2c), sizeDomain) // size domain
-      success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
-      if iszero(success) {
-        error_sha2_256()
-      }
-
-      // b1 is located at mPtr. We store b2 at add(mPtr, 0x20)
-
-      // [b0^b1      || two || dst || sizeDomain]
-      // <-64bytes ->  <-    1 byte each      ->
-      mstore(add(mPtr, 0x20), xor(mload(mPtr), b0))
-      mstore8(add(mPtr, 0x40), two)
-
-      mstore8(add(mPtr, 0x41), 0x42) // dst
-      mstore8(add(mPtr, 0x42), 0x53)
-      mstore8(add(mPtr, 0x43), 0x42)
-      mstore8(add(mPtr, 0x44), 0x32)
-      mstore8(add(mPtr, 0x45), 0x32)
-      mstore8(add(mPtr, 0x46), 0x2d)
-      mstore8(add(mPtr, 0x47), 0x50)
-      mstore8(add(mPtr, 0x48), 0x6c)
-      mstore8(add(mPtr, 0x49), 0x6f)
-      mstore8(add(mPtr, 0x4a), 0x6e)
-      mstore8(add(mPtr, 0x4b), 0x6b)
-
-      mstore8(add(mPtr, 0x4c), sizeDomain) // size domain
-
-      let offset := add(mPtr, 0x20)
-      success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
-      if iszero(success) {
-        error_sha2_256()
-      }
-
-      // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
-      // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
-      // the result is then 2**(8*16)*mPtr[:32] + mPtr[32:48]
-      res := mulmod(mload(mPtr), bb, r_mod) // <- res = 2**128 * mPtr[:32]
-      offset := add(mPtr, 0x10)
-      for {let i:=0} lt(i, 0x10) {i:=add(i,1)} // mPtr <- [xx, xx, ..,  | 0, 0, .. 0  ||    b2   ]
-      {
-        mstore8(offset, 0x00)
-        offset := add(offset, 0x1)
-      }
-      let b1 := mload(add(mPtr, 0x10)) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
-      res := addmod(res, b1, r_mod)
-
-    }
-
-  }
-
-}
-
 contract PlonkVerifier {
 
-  using Utils for *;
   uint256 private constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint256 private constant p_mod = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
   {{ range $index, $element := .Kzg.G2 }}
@@ -297,6 +156,17 @@ contract PlonkVerifier {
 
   // -------- errors
   uint256 private constant error_string_id = 0x08c379a000000000000000000000000000000000000000000000000000000000; // selector for function Error(string)
+
+  {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+  // -------- utils (for hash_fr)
+	uint256 private constant bb = 340282366920938463463374607431768211456; // 2**128
+	uint256 private constant zero_uint256 = 0;
+
+	uint8 private constant lenInBytes = 48;
+	uint8 private constant sizeDomain = 11;
+	uint8 private constant one = 1;
+	uint8 private constant two = 2;
+  {{ end }}
 
   {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
   // read the commitments to the wires related to the commit api and store them in wire_commitments.
@@ -514,15 +384,134 @@ contract PlonkVerifier {
       res := mulmod(w, zpnmo, r_mod)
     }
   }
-{{ end }}
+  {{ end }}
+
+  {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+  // corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
+  // function used to hash points resulting from calls to Commit() in the circuit.
+  function hash_fr(uint256 x, uint256 y) internal view returns (uint256 res) {
+
+    assembly {
+
+      function error_sha2_256() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x19)
+        mstore(add(ptError, 0x44), "error staticcall sha2-256")
+        revert(ptError, 0x64)
+      }
+
+      // [0x00, .. , 0x00 || x, y, || 0, 48, 0, dst, sizeDomain]
+      // <-  64 bytes  ->  <-64b -> <-       1 bytes each     ->
+      let mPtr := mload(0x40)
+      
+      // [0x00, .., 0x00] 64 bytes of zero
+      mstore(mPtr, zero_uint256)
+      mstore(add(mPtr, 0x20), zero_uint256)
+  
+      // msg =  x || y , both on 32 bytes
+      mstore(add(mPtr, 0x40), x)
+      mstore(add(mPtr, 0x60), y)
+
+      // 0 || 48 || 0 all on 1 byte
+      mstore8(add(mPtr, 0x80), 0)
+      mstore8(add(mPtr, 0x81), lenInBytes)
+      mstore8(add(mPtr, 0x82), 0)
+
+      // "BSB22-Plonk" = [42, 53, 42, 32, 32, 2d, 50, 6c, 6f, 6e, 6b,]
+      mstore8(add(mPtr, 0x83), 0x42)
+      mstore8(add(mPtr, 0x84), 0x53)
+      mstore8(add(mPtr, 0x85), 0x42)
+      mstore8(add(mPtr, 0x86), 0x32)
+      mstore8(add(mPtr, 0x87), 0x32)
+      mstore8(add(mPtr, 0x88), 0x2d)
+      mstore8(add(mPtr, 0x89), 0x50)
+      mstore8(add(mPtr, 0x8a), 0x6c)
+      mstore8(add(mPtr, 0x8b), 0x6f)
+      mstore8(add(mPtr, 0x8c), 0x6e)
+      mstore8(add(mPtr, 0x8d), 0x6b)
+
+      // size domain
+      mstore8(add(mPtr, 0x8e), sizeDomain)
+
+      let success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
+      if iszero(success) {
+        error_sha2_256()
+      }
+
+      let b0 := mload(mPtr)
+
+      // [b0         || one || dst || sizeDomain]
+      // <-64bytes ->  <-    1 byte each      ->
+      mstore8(add(mPtr, 0x20), one) // 1
+      
+      mstore8(add(mPtr, 0x21), 0x42) // dst
+      mstore8(add(mPtr, 0x22), 0x53)
+      mstore8(add(mPtr, 0x23), 0x42)
+      mstore8(add(mPtr, 0x24), 0x32)
+      mstore8(add(mPtr, 0x25), 0x32)
+      mstore8(add(mPtr, 0x26), 0x2d)
+      mstore8(add(mPtr, 0x27), 0x50)
+      mstore8(add(mPtr, 0x28), 0x6c)
+      mstore8(add(mPtr, 0x29), 0x6f)
+      mstore8(add(mPtr, 0x2a), 0x6e)
+      mstore8(add(mPtr, 0x2b), 0x6b)
+
+      mstore8(add(mPtr, 0x2c), sizeDomain) // size domain
+      success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
+      if iszero(success) {
+        error_sha2_256()
+      }
+
+      // b1 is located at mPtr. We store b2 at add(mPtr, 0x20)
+
+      // [b0^b1      || two || dst || sizeDomain]
+      // <-64bytes ->  <-    1 byte each      ->
+      mstore(add(mPtr, 0x20), xor(mload(mPtr), b0))
+      mstore8(add(mPtr, 0x40), two)
+
+      mstore8(add(mPtr, 0x41), 0x42) // dst
+      mstore8(add(mPtr, 0x42), 0x53)
+      mstore8(add(mPtr, 0x43), 0x42)
+      mstore8(add(mPtr, 0x44), 0x32)
+      mstore8(add(mPtr, 0x45), 0x32)
+      mstore8(add(mPtr, 0x46), 0x2d)
+      mstore8(add(mPtr, 0x47), 0x50)
+      mstore8(add(mPtr, 0x48), 0x6c)
+      mstore8(add(mPtr, 0x49), 0x6f)
+      mstore8(add(mPtr, 0x4a), 0x6e)
+      mstore8(add(mPtr, 0x4b), 0x6b)
+
+      mstore8(add(mPtr, 0x4c), sizeDomain) // size domain
+
+      let offset := add(mPtr, 0x20)
+      success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
+      if iszero(success) {
+        error_sha2_256()
+      }
+
+      // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
+      // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
+      // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
+      res := mulmod(mload(mPtr), bb, r_mod) // <- res = 2**128 * mPtr[:32]
+      offset := add(mPtr, 0x10)
+      for {let i:=0} lt(i, 0x10) {i:=add(i,1)} // mPtr <- [xx, xx, ..,  | 0, 0, .. 0  ||    b2   ]
+      {
+        mstore8(offset, 0x00)
+        offset := add(offset, 0x1)
+      }
+      let b1 := mload(add(mPtr, 0x10)) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
+      res := addmod(res, b1, r_mod)
+
+    }
+
+  }
+  {{ end }}
 
   // returns the contribution of the public inputs + ζⁿ-1 which will
   // be reused several times
   {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-  
-  // ζⁿ-1
-  // this value will be reused several times in the code
-
   function compute_pi(
     uint256[] memory public_inputs,
     uint256 zeta,
@@ -536,140 +525,140 @@ contract PlonkVerifier {
     ) internal view returns (uint256 pi, uint256 zeta_power_n_minus_one) {
   {{ end }}
 
-      assembly {
-        function error_pow() {
-          let ptError := mload(0x40)
-          mstore(ptError, error_string_id) // selector for function Error(string)
-          mstore(add(ptError, 0x4), 0x20)
-          mstore(add(ptError, 0x24), 0x17)
-          mstore(add(ptError, 0x44), "error staticcall modexp")
-          revert(ptError, 0x64)
-        }
-        
-        // evaluation of Z=Xⁿ-1 at ζ, we save this value
-        zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, mload(0x40)), sub(r_mod, 1), r_mod)
-        sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), zeta, zeta_power_n_minus_one)
-        pi := mload(mload(0x40))
-
-        function sum_pi_wo_api_commit(ins, n, z, zpnmo) {
-          
-          let li := mload(0x40)
-          batch_compute_lagranges_at_z(z, zpnmo, n, li)
-
-          // at this stage zeta_power_n_minus_one is computed
-
-          let res := 0
-          let tmp := 0
-          for {let i:=0} lt(i,n) {i:=add(i,1)}
-          {
-            tmp := mulmod(mload(li), mload(ins), r_mod)
-            res := addmod(res, tmp, r_mod)
-            li := add(li, 0x20)
-            ins := add(ins, 0x20)
-          }
-          mstore(mload(0x40), res)
-        }
-
-        // mPtr <- [L_0(z), .., L_{n-1}(z)]
-        // 
-        // Here L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
-        // * n = vk_domain_size
-        // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
-        // * ζ = z (challenge derived with Fiat Shamir)
-        // * zpnmo = 'zeta power n minus one' (ζⁿ-1) which has been precomputed
-        function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
-
-          let zn := mulmod(zpnmo, vk_inv_domain_size, r_mod) // 1/n * (ζⁿ - 1)
-          
-          let _w := 1
-          let _mPtr := mPtr
-          for {let i:=0} lt(i,n) {i:=add(i,1)}
-          {
-            mstore(_mPtr, addmod(z,sub(r_mod, _w), r_mod))
-            _w := mulmod(_w, vk_omega, r_mod)
-            _mPtr := add(_mPtr, 0x20)
-          }
-          batch_invert(mPtr, n, _mPtr)
-          _mPtr := mPtr
-          _w := 1
-          for {let i:=0} lt(i,n) {i:=add(i,1)}
-          {
-            mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , r_mod), _w, r_mod))
-            _mPtr := add(_mPtr, 0x20)
-            _w := mulmod(_w, vk_omega, r_mod)
-          }
-        } 
-
-        // batch invert (modulo r) in place the nb_ins uint256 inputs starting at ins.
-        function batch_invert(ins, nb_ins, mPtr) {
-          mstore(mPtr, 1)
-          let offset := 0
-          for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
-          {
-            let prev := mload(add(mPtr, offset))
-            let cur := mload(add(ins, offset))
-            cur := mulmod(prev, cur, r_mod)
-            offset := add(offset, 0x20)
-            mstore(add(mPtr, offset), cur)
-          }
-          ins := add(ins, sub(offset, 0x20))
-          mPtr := add(mPtr, offset)
-          let inv := pow(mload(mPtr), sub(r_mod,2), add(mPtr, 0x20))
-          for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
-          {
-            mPtr := sub(mPtr, 0x20)
-            let tmp := mload(ins)
-            let cur := mulmod(inv, mload(mPtr), r_mod)
-            mstore(ins, cur)
-            inv := mulmod(inv, tmp, r_mod)
-            ins := sub(ins, 0x20)
-          }
-        }
-
-        // res <- x^e mod r
-        function pow(x, e, mPtr)->res {
-          mstore(mPtr, 0x20)
-          mstore(add(mPtr, 0x20), 0x20)
-          mstore(add(mPtr, 0x40), 0x20)
-          mstore(add(mPtr, 0x60), x)
-          mstore(add(mPtr, 0x80), e)
-          mstore(add(mPtr, 0xa0), r_mod)
-          let success := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
-          if iszero(success) {
-            error_pow()
-          }
-          res := mload(mPtr)
-        }
+    assembly {
+      function error_pow() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x17)
+        mstore(add(ptError, 0x44), "error staticcall modexp")
+        revert(ptError, 0x64)
       }
-
-      {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-      // compute the contribution of the public inputs whose indices are in commitment_indices,
-      // and whose value is hash_fr of the corresponding commitme
-      uint256[] memory commitment_indices = new uint256[](vk_nb_commitments_commit_api);
-      load_vk_commitments_indices_commit_api(commitment_indices);
       
-      unchecked {
-        uint256[] memory wire_committed_commitments = new uint256[](2 * vk_nb_commitments_commit_api);
-  
-        load_wire_commitments_commit_api(wire_committed_commitments, proof);
-        uint256 hash_res;
-        uint256 ith_lagrange_at_z;
-        for (uint256 i; i < vk_nb_commitments_commit_api; ) { 
-          hash_res = Utils.hash_fr(wire_committed_commitments[2 * i], wire_committed_commitments[2 * i + 1]);
-          ith_lagrange_at_z = compute_ith_lagrange_at_z(
-            zeta,
-            zeta_power_n_minus_one,
-            commitment_indices[i] + public_inputs.length
-          );
-          assembly {
-            ith_lagrange_at_z := mulmod(hash_res, ith_lagrange_at_z, r_mod)
-            pi := addmod(pi, ith_lagrange_at_z, r_mod)
-          }
-          ++i;
+      // evaluation of Z=Xⁿ-1 at ζ, we save this value
+      zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, mload(0x40)), sub(r_mod, 1), r_mod)
+      sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), zeta, zeta_power_n_minus_one)
+      pi := mload(mload(0x40))
+
+      function sum_pi_wo_api_commit(ins, n, z, zpnmo) {
+        
+        let li := mload(0x40)
+        batch_compute_lagranges_at_z(z, zpnmo, n, li)
+
+        // at this stage zeta_power_n_minus_one is computed
+
+        let res := 0
+        let tmp := 0
+        for {let i:=0} lt(i,n) {i:=add(i,1)}
+        {
+          tmp := mulmod(mload(li), mload(ins), r_mod)
+          res := addmod(res, tmp, r_mod)
+          li := add(li, 0x20)
+          ins := add(ins, 0x20)
+        }
+        mstore(mload(0x40), res)
+      }
+
+      // mPtr <- [L_0(z), .., L_{n-1}(z)]
+      // 
+      // Here L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
+      // * n = vk_domain_size
+      // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
+      // * ζ = z (challenge derived with Fiat Shamir)
+      // * zpnmo = 'zeta power n minus one' (ζⁿ-1) which has been precomputed
+      function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
+
+        let zn := mulmod(zpnmo, vk_inv_domain_size, r_mod) // 1/n * (ζⁿ - 1)
+        
+        let _w := 1
+        let _mPtr := mPtr
+        for {let i:=0} lt(i,n) {i:=add(i,1)}
+        {
+          mstore(_mPtr, addmod(z,sub(r_mod, _w), r_mod))
+          _w := mulmod(_w, vk_omega, r_mod)
+          _mPtr := add(_mPtr, 0x20)
+        }
+        batch_invert(mPtr, n, _mPtr)
+        _mPtr := mPtr
+        _w := 1
+        for {let i:=0} lt(i,n) {i:=add(i,1)}
+        {
+          mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , r_mod), _w, r_mod))
+          _mPtr := add(_mPtr, 0x20)
+          _w := mulmod(_w, vk_omega, r_mod)
+        }
+      } 
+
+      // batch invert (modulo r) in place the nb_ins uint256 inputs starting at ins.
+      function batch_invert(ins, nb_ins, mPtr) {
+        mstore(mPtr, 1)
+        let offset := 0
+        for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
+        {
+          let prev := mload(add(mPtr, offset))
+          let cur := mload(add(ins, offset))
+          cur := mulmod(prev, cur, r_mod)
+          offset := add(offset, 0x20)
+          mstore(add(mPtr, offset), cur)
+        }
+        ins := add(ins, sub(offset, 0x20))
+        mPtr := add(mPtr, offset)
+        let inv := pow(mload(mPtr), sub(r_mod,2), add(mPtr, 0x20))
+        for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
+        {
+          mPtr := sub(mPtr, 0x20)
+          let tmp := mload(ins)
+          let cur := mulmod(inv, mload(mPtr), r_mod)
+          mstore(ins, cur)
+          inv := mulmod(inv, tmp, r_mod)
+          ins := sub(ins, 0x20)
         }
       }
-      {{ end }}
+
+      // res <- x^e mod r
+      function pow(x, e, mPtr)->res {
+        mstore(mPtr, 0x20)
+        mstore(add(mPtr, 0x20), 0x20)
+        mstore(add(mPtr, 0x40), 0x20)
+        mstore(add(mPtr, 0x60), x)
+        mstore(add(mPtr, 0x80), e)
+        mstore(add(mPtr, 0xa0), r_mod)
+        let success := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
+        if iszero(success) {
+          error_pow()
+        }
+        res := mload(mPtr)
+      }
     }
+
+    {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+    // compute the contribution of the public inputs whose indices are in commitment_indices,
+    // and whose value is hash_fr of the corresponding commitme
+    uint256[] memory commitment_indices = new uint256[](vk_nb_commitments_commit_api);
+    load_vk_commitments_indices_commit_api(commitment_indices);
+    
+    unchecked {
+      uint256[] memory wire_committed_commitments = new uint256[](2 * vk_nb_commitments_commit_api);
+
+      load_wire_commitments_commit_api(wire_committed_commitments, proof);
+      uint256 hash_res;
+      uint256 ith_lagrange_at_z;
+      for (uint256 i; i < vk_nb_commitments_commit_api; ) { 
+        hash_res = hash_fr(wire_committed_commitments[2 * i], wire_committed_commitments[2 * i + 1]);
+        ith_lagrange_at_z = compute_ith_lagrange_at_z(
+          zeta,
+          zeta_power_n_minus_one,
+          commitment_indices[i] + public_inputs.length
+        );
+        assembly {
+          ith_lagrange_at_z := mulmod(hash_res, ith_lagrange_at_z, r_mod)
+          pi := addmod(pi, ith_lagrange_at_z, r_mod)
+        }
+        ++i;
+      }
+    }
+    {{ end }}
+  }
   
   function check_inputs_size(uint256[] memory public_inputs)
   internal pure {
