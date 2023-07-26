@@ -1,10 +1,13 @@
 package polynomial
 
 import (
+	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 	"testing"
 )
@@ -68,6 +71,31 @@ func TestEvalDeltasLinear(t *testing.T) {
 
 func TestEvalDeltasQuadratic(t *testing.T) {
 	testEvalDeltas(t, 3, []int64{1, -3, 3})
+}
+
+type foldMultiLinCircuit struct {
+	M      []frontend.Variable
+	At     frontend.Variable
+	Result []frontend.Variable
+}
+
+func (c *foldMultiLinCircuit) Define(api frontend.API) error {
+	if len(c.M) != 2*len(c.Result) {
+		return errors.New("folding size mismatch")
+	}
+	m := MultiLin(c.M)
+	m.fold(api, c.At)
+	for i := range c.Result {
+		api.AssertIsEqual(m[i], c.Result[i])
+	}
+	return nil
+}
+
+func TestFoldSmall(t *testing.T) {
+	test.NewAssert(t).SolvingSucceeded(
+		&foldMultiLinCircuit{M: make([]frontend.Variable, 4), Result: make([]frontend.Variable, 2)},
+		&foldMultiLinCircuit{M: []frontend.Variable{0, 1, 2, 3}, At: 2, Result: []frontend.Variable{4, 5}},
+	)
 }
 
 type evalMultiLinCircuit struct {
@@ -203,4 +231,26 @@ func int64SliceToVariableSlice(slice []int64) []frontend.Variable {
 		res = append(res, v)
 	}
 	return res
+}
+
+func ExampleMultiLin_Evaluate() {
+	const logSize = 20
+	const size = 1 << logSize
+	m := MultiLin(make([]frontend.Variable, size))
+	e := MultiLin(make([]frontend.Variable, logSize))
+
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &evalMultiLinCircuit{M: m, At: e, Evaluation: 0})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("r1cs size:", cs.GetNbConstraints())
+
+	cs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &evalMultiLinCircuit{M: m, At: e, Evaluation: 0})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("scs size:", cs.GetNbConstraints())
+
+	// Output: r1cs size: 1048627
+	//scs size: 2097226
 }
