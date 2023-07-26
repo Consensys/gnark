@@ -21,16 +21,16 @@ const tmplSolidityVerifier = `// SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.19;
 
 library Utils {
-  uint256 private constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-  uint8 private constant zero = 0;
-  uint8 private constant lenInBytes = 48;
-  uint8 private constant sizeDomain = 11;
-  string private constant dst = "BSB22-Plonk";
-  uint256 private constant b = 6350874878119819312338956282401532410528162663560392320966563075034087161851;
-  bytes private constant zeroBuffer =
-    hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-  uint8 private constant one = 1;
-  uint8 private constant two = 2;
+
+	uint256 private constant r_mod = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+	uint256 private constant bb = 340282366920938463463374607431768211456; // 2**128
+	uint256 private constant error_string_id = 0x08c379a000000000000000000000000000000000000000000000000000000000; // selector for function Error(string)
+	uint256 private constant zero_uint256 = 0;
+
+	uint8 private constant lenInBytes = 48;
+	uint8 private constant sizeDomain = 11;
+	uint8 private constant one = 1;
+	uint8 private constant two = 2;
 
   /**
   * @dev xmsg expands msg to a slice of lenInBytes bytes.
@@ -39,33 +39,125 @@ library Utils {
   * @dev cf https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
   * corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
   */
-  function hash_fr(uint256 x, uint256 y) internal pure returns (uint256 res) {
-    // interpret a as a bigEndian integer and reduce it mod r
-    unchecked {
-      bytes32 b0 = sha256(abi.encodePacked(zeroBuffer, x, y, zero, lenInBytes, zero, dst, sizeDomain));
-      bytes32 b1 = sha256(abi.encodePacked(b0, one, dst, sizeDomain));
+  function hash_fr(uint256 x, uint256 y) internal view returns (uint256 res) {
 
-      // bytes memory xmsg = [0x44, 0x74, 0xb5, 0x29, 0xd7, 0xfb, 0x29, 0x88, 0x3a, 0x7a, 0xc1, 0x65, 0xfd, 0x72, 0xce, 0xd0, 0xd4, 0xd1, 0x3f, 0x9e, 0x85, 0x8a, 0x3, 0x86, 0x1c, 0x90, 0x83, 0x1e, 0x94, 0xdc, 0xfc, 0x1d, 0x70, 0x82, 0xf5, 0xbf, 0x30, 0x3, 0x39, 0x87, 0x21, 0x38, 0x15, 0xed, 0x12, 0x75, 0x44, 0x6a];
-      bytes16 b2 = bytes16(sha256(abi.encodePacked(b0 ^ b1, two, dst, sizeDomain)));
+    assembly {
 
-      // reduce xmsg mod r, where xmsg is intrepreted in big endian
-      // (as SetBytes does for golang's Big.Int library).
-      uint256 tmp;
-      uint256 arrayIndex;
-      for (uint i; i < 16; ) {
-        arrayIndex = 15 - i;
-        res += (uint256(uint8(b2[arrayIndex])) << (8 * i)) + (uint256(uint8(b1[31 - i])) << (8 * (i + 16)));
-        tmp += uint256(uint8(b1[arrayIndex])) << (8 * i);
-        ++i;
+      function error_sha2_256() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x19)
+        mstore(add(ptError, 0x44), "error staticcall sha2-256")
+        revert(ptError, 0x64)
       }
 
-      // 2**256%r
-      assembly {
-        tmp := mulmod(tmp, b, r_mod)
-        res := addmod(mod(res, r_mod), tmp, r_mod)
+      // [0x00, .. , 0x00 || x, y, || 0, 48, 0, dst, sizeDomain]
+      // <-  64 bytes  ->  <-64b -> <-       1 bytes each     ->
+      let mPtr := mload(0x40)
+      
+      // [0x00, .., 0x00] 64 bytes of zero
+      mstore(mPtr, zero_uint256)
+      mstore(add(mPtr, 0x20), zero_uint256)
+  
+      // msg =  x || y , both on 32 bytes
+      mstore(add(mPtr, 0x40), x)
+      mstore(add(mPtr, 0x60), y)
+
+      // 0 || 48 || 0 all on 1 byte
+      mstore8(add(mPtr, 0x80), 0)
+      mstore8(add(mPtr, 0x81), lenInBytes)
+      mstore8(add(mPtr, 0x82), 0)
+
+      // "BSB22-Plonk" = [42, 53, 42, 32, 32, 2d, 50, 6c, 6f, 6e, 6b,]
+      mstore8(add(mPtr, 0x83), 0x42)
+      mstore8(add(mPtr, 0x84), 0x53)
+      mstore8(add(mPtr, 0x85), 0x42)
+      mstore8(add(mPtr, 0x86), 0x32)
+      mstore8(add(mPtr, 0x87), 0x32)
+      mstore8(add(mPtr, 0x88), 0x2d)
+      mstore8(add(mPtr, 0x89), 0x50)
+      mstore8(add(mPtr, 0x8a), 0x6c)
+      mstore8(add(mPtr, 0x8b), 0x6f)
+      mstore8(add(mPtr, 0x8c), 0x6e)
+      mstore8(add(mPtr, 0x8d), 0x6b)
+
+      // size domain
+      mstore8(add(mPtr, 0x8e), sizeDomain)
+
+      let success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
+      if iszero(success) {
+        error_sha2_256()
       }
+
+      let b0 := mload(mPtr)
+
+      // [b0         || one || dst || sizeDomain]
+      // <-64bytes ->  <-    1 byte each      ->
+      mstore8(add(mPtr, 0x20), one) // 1
+      
+      mstore8(add(mPtr, 0x21), 0x42) // dst
+      mstore8(add(mPtr, 0x22), 0x53)
+      mstore8(add(mPtr, 0x23), 0x42)
+      mstore8(add(mPtr, 0x24), 0x32)
+      mstore8(add(mPtr, 0x25), 0x32)
+      mstore8(add(mPtr, 0x26), 0x2d)
+      mstore8(add(mPtr, 0x27), 0x50)
+      mstore8(add(mPtr, 0x28), 0x6c)
+      mstore8(add(mPtr, 0x29), 0x6f)
+      mstore8(add(mPtr, 0x2a), 0x6e)
+      mstore8(add(mPtr, 0x2b), 0x6b)
+
+      mstore8(add(mPtr, 0x2c), sizeDomain) // size domain
+      success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
+      if iszero(success) {
+        error_sha2_256()
+      }
+
+      // b1 is located at mPtr. We store b2 at add(mPtr, 0x20)
+
+      // [b0^b1      || two || dst || sizeDomain]
+      // <-64bytes ->  <-    1 byte each      ->
+      mstore(add(mPtr, 0x20), xor(mload(mPtr), b0))
+      mstore8(add(mPtr, 0x40), two)
+
+      mstore8(add(mPtr, 0x41), 0x42) // dst
+      mstore8(add(mPtr, 0x42), 0x53)
+      mstore8(add(mPtr, 0x43), 0x42)
+      mstore8(add(mPtr, 0x44), 0x32)
+      mstore8(add(mPtr, 0x45), 0x32)
+      mstore8(add(mPtr, 0x46), 0x2d)
+      mstore8(add(mPtr, 0x47), 0x50)
+      mstore8(add(mPtr, 0x48), 0x6c)
+      mstore8(add(mPtr, 0x49), 0x6f)
+      mstore8(add(mPtr, 0x4a), 0x6e)
+      mstore8(add(mPtr, 0x4b), 0x6b)
+
+      mstore8(add(mPtr, 0x4c), sizeDomain) // size domain
+
+      let offset := add(mPtr, 0x20)
+      success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
+      if iszero(success) {
+        error_sha2_256()
+      }
+
+      // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
+      // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
+      // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
+      res := mulmod(mload(mPtr), bb, r_mod) // <- res = 2**128 * mPtr[:32]
+      offset := add(mPtr, 0x10)
+      for {let i:=0} lt(i, 0x10) {i:=add(i,1)} // mPtr <- [xx, xx, ..,  | 0, 0, .. 0  ||    b2   ]
+      {
+        mstore8(offset, 0x00)
+        offset := add(offset, 0x1)
+      }
+      let b1 := mload(add(mPtr, 0x10)) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
+      res := addmod(res, b1, r_mod)
+
     }
+
   }
+
 }
 
 contract PlonkVerifier {
