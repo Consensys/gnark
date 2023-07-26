@@ -31,7 +31,7 @@ library Utils {
     hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
   uint8 private constant one = 1;
   uint8 private constant two = 2;
-  
+
   /**
   * @dev xmsg expands msg to a slice of lenInBytes bytes.
   *      https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5
@@ -51,9 +51,11 @@ library Utils {
       // reduce xmsg mod r, where xmsg is intrepreted in big endian
       // (as SetBytes does for golang's Big.Int library).
       uint256 tmp;
+      uint256 arrayIndex;
       for (uint i; i < 16; ) {
-        res += (uint256(uint8(b2[15 - i])) << (8 * i)) + (uint256(uint8(b1[31 - i])) << (8 * (i + 16)));
-        tmp += uint256(uint8(b1[15 - i])) << (8 * i);
+        arrayIndex = 15 - i;
+        res += (uint256(uint8(b2[arrayIndex])) << (8 * i)) + (uint256(uint8(b1[31 - i])) << (8 * (i + 16)));
+        tmp += uint256(uint8(b1[arrayIndex])) << (8 * i);
         ++i;
       }
 
