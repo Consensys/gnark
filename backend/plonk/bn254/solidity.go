@@ -143,7 +143,7 @@ library Utils {
 
       // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
       // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
-      // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
+      // the result is then 2**(8*16)*mPtr[:32] + mPtr[32:48]
       res := mulmod(mload(mPtr), bb, r_mod) // <- res = 2**128 * mPtr[:32]
       offset := add(mPtr, 0x10)
       for {let i:=0} lt(i, 0x10) {i:=add(i,1)} // mPtr <- [xx, xx, ..,  | 0, 0, .. 0  ||    b2   ]
