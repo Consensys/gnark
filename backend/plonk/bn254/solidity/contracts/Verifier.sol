@@ -175,77 +175,8 @@ contract PlonkVerifier {
   
   event PrintUint256(uint256 a);
 
-  function check_proof_size(bytes memory proof)
-  internal pure {
-    unchecked {
-      uint256 expected_proof_size = 0x340+vk_nb_commitments_commit_api*0x60;
-      uint256 actual_proof_size;
-      assembly {
-        actual_proof_size := mload(proof)
-      }
-      require(actual_proof_size==expected_proof_size, "wrong proof size");
-    }
-  }
-
-  function check_proof_openings_size(bytes memory proof)
-  internal pure {
-    bool openings_check = true;
-    assembly {
-      
-      // linearised polynomial at zeta
-      let p := add(proof, proof_linearised_polynomial_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // quotient polynomial at zeta
-      p := add(proof, proof_quotient_polynomial_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-      
-      // proof_l_at_zeta
-      p := add(proof, proof_l_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // proof_r_at_zeta
-      p := add(proof, proof_r_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // proof_o_at_zeta
-      p := add(proof, proof_o_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // proof_s1_at_zeta
-      p := add(proof, proof_s1_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-      
-      // proof_s2_at_zeta
-      p := add(proof, proof_s2_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // proof_grand_product_at_zeta_omega
-      p := add(proof, proof_grand_product_at_zeta_omega)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // proof_openings_selector_commit_api_at_zeta
-      
-      p := add(proof, proof_openings_selector_commit_api_at_zeta)
-      for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-      {
-        openings_check := and(openings_check, lt(mload(p), r_mod))
-        p := add(p, 0x20)
-      }
-      
-
-    }
-    require(openings_check, "some openings are bigger than r");
-  }
-
   function Verify(bytes memory proof, uint256[] memory public_inputs) 
   public view returns(bool success) {
-    
-    check_proof_size(proof);
-    check_proof_openings_size(proof);
-
-    // (uint256 pi, uint256 zeta_power_n_minus_one) = compute_pi(public_inputs, zeta, proof);
-    // emit PrintUint256(pi);
     
     assembly {
 
@@ -253,6 +184,8 @@ contract PlonkVerifier {
 
       // sanity checks
       check_inputs_size(public_inputs)
+      check_proof_size(proof)
+      check_proof_openings_size(proof)
 
       // compute the challenges
       let gamma_nr := derive_gamma(proof, public_inputs)
@@ -305,7 +238,83 @@ contract PlonkVerifier {
           error_inputs_size()
         }
       }
+
+      function error_proof_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x10)
+        mstore(add(ptError, 0x44), "wrong proof size")
+        revert(ptError, 0x64)
+      }
+
+      function check_proof_size(aproof) {
+        let expected_proof_size := add(0x340, mul(vk_nb_commitments_commit_api,0x60))
+        let actual_proof_size := mload(aproof)
+        if iszero(eq(actual_proof_size,expected_proof_size)) {
+         error_proof_size() 
+        }
+      }
+
+      function error_proof_openings_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x16)
+        mstore(add(ptError, 0x44), "openings bigger than r")
+        revert(ptError, 0x64)
+      }
     
+      function check_proof_openings_size(aproof) {
+  
+        let openings_check := 1
+      
+        // linearised polynomial at zeta
+        let p := add(aproof, proof_linearised_polynomial_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // quotient polynomial at zeta
+        p := add(aproof, proof_quotient_polynomial_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+        
+        // proof_l_at_zeta
+        p := add(aproof, proof_l_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // proof_r_at_zeta
+        p := add(aproof, proof_r_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // proof_o_at_zeta
+        p := add(aproof, proof_o_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // proof_s1_at_zeta
+        p := add(aproof, proof_s1_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+        
+        // proof_s2_at_zeta
+        p := add(aproof, proof_s2_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // proof_grand_product_at_zeta_omega
+        p := add(aproof, proof_grand_product_at_zeta_omega)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // proof_openings_selector_commit_api_at_zeta
+        
+        p := add(aproof, proof_openings_selector_commit_api_at_zeta)
+        for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
+        {
+          openings_check := and(openings_check, lt(mload(p), r_mod))
+          p := add(p, 0x20)
+        }
+      
+        if iszero(openings_check) {
+          error_proof_openings_size()
+        }
+
+      }
       // end checks -------------------------------------------------
 
       // Beginning challenges -------------------------------------------------
