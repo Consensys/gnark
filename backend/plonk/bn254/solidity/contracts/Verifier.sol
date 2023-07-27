@@ -73,23 +73,6 @@ contract PlonkVerifier {
   uint256 private constant vk_index_commit_api_1 = 7;
   uint256 private constant vk_index_commit_api_2 = 11;
   
-  function load_vk_commitments_indices_commit_api(uint256[] memory v)
-  internal pure {
-    assembly {
-    let _v := add(v, 0x20)
-    
-    mstore(_v, 3)
-    _v := add(_v, 0x20)
-    
-    mstore(_v, 7)
-    _v := add(_v, 0x20)
-    
-    mstore(_v, 11)
-    _v := add(_v, 0x20)
-    
-    }
-  }
-  
   uint256 private constant vk_nb_commitments_commit_api = 3;
 
   // ------------------------------------------------
@@ -188,32 +171,7 @@ contract PlonkVerifier {
 	uint8 private constant lenInBytes = 48;
 	uint8 private constant sizeDomain = 11;
 	uint8 private constant one = 1;
-	uint8 private constant two = 2;
-  
-
-  // read the commitments to the wires related to the commit api and store them in wire_commitments.
-  // The commitments are points on Bn254(Fp) so they are stored on 2 uint256.
-  function load_wire_commitments_commit_api(uint256[] memory wire_commitments, bytes memory proof)
-  internal pure {
-    assembly {
-      let w := add(wire_commitments, 0x20)
-      let p := add(proof, proof_openings_selector_commit_api_at_zeta)
-      p := add(p, mul(vk_nb_commitments_commit_api, 0x20))
-      for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-      {
-        // x coordinate
-        mstore(w, mload(p))
-        w := add(w,0x20)
-        p := add(p,0x20)
-
-        // y coordinate
-        mstore(w, mload(p))
-        w := add(w,0x20)
-        p := add(p,0x20)
-      }
-    }
-  }
-  
+	uint8 private constant two = 2;  
   
   function derive_gamma_beta_alpha_zeta(bytes memory proof, uint256[] memory public_inputs)
   internal view returns(uint256 gamma, uint256 beta, uint256 alpha, uint256 zeta) {
