@@ -181,6 +181,7 @@ contract PlonkVerifier {
     assembly {
 
       let mem := mload(0x40)
+      let freeMem := add(mem, state_last_mem)
 
       // sanity checks
       check_inputs_size(public_inputs)
@@ -192,6 +193,11 @@ contract PlonkVerifier {
       let beta_nr := derive_beta(proof, gamma_nr)
       let alpha_nr := derive_alpha(proof, beta_nr)
       derive_zeta(proof, alpha_nr)
+
+      // evaluation of Z=Xⁿ-1 at ζ, we save this value
+      let zeta := mload(add(mem, state_zeta))
+      let zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, freeMem), sub(r_mod, 1), r_mod)
+      mstore(add(mem, state_zeta_power_n_minus_one), zeta_power_n_minus_one)
 
       // public inputs contribution
       compute_pi(public_inputs, proof)
@@ -457,15 +463,12 @@ contract PlonkVerifier {
       
         let state := mload(0x40)
         let mPtr := add(mload(0x40), state_last_mem) 
-
-        // evaluation of Z=Xⁿ-1 at ζ, we save this value
-        let z := mload(add(state, state_zeta))
-        let zpnmo := addmod(pow(z, vk_domain_size, mPtr), sub(r_mod, 1), r_mod)
-        mstore(add(state, state_zeta_power_n_minus_one), zpnmo)
       
         let l_pi := sum_pi_wo_api_commit(add(ins,0x20), mload(ins), mPtr)
+        
         let l_wocommit := sum_pi_commit(aproof, mload(ins), mPtr)
         l_pi := addmod(l_wocommit, l_pi, r_mod)
+
         mstore(add(state, state_pi), l_pi)
 
       }
