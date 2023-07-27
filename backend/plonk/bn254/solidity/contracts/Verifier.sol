@@ -173,172 +173,7 @@ contract PlonkVerifier {
 	uint8 private constant one = 1;
 	uint8 private constant two = 2;  
   
-  function derive_gamma_beta_alpha_zeta(bytes memory proof, uint256[] memory public_inputs)
-  internal view returns(uint256 gamma, uint256 beta, uint256 alpha, uint256 zeta) {
-    assembly {
-
-      let mem := mload(0x40)
-
-      derive_gamma(proof, public_inputs)
-      gamma := mload(mem)
-
-      derive_beta(proof, gamma)
-      beta := mload(mem)
-
-      derive_alpha(proof, beta)
-      alpha := mload(mem)
-
-      derive_zeta(proof, alpha)
-      zeta := mload(mem)
-
-      gamma := mod(gamma, r_mod)
-      beta := mod(beta, r_mod)
-      alpha := mod(alpha, r_mod)
-      zeta := mod(zeta, r_mod)
-
-      function error_sha2_256() {
-        let ptError := mload(0x40)
-        mstore(ptError, error_string_id) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x19)
-        mstore(add(ptError, 0x44), "error staticcall sha2-256")
-        revert(ptError, 0x64)
-      }
-
-      // Derive gamma as Sha256(<transcript>)
-      // where transcript is the concatenation (in this order) of:
-      // * the word "gamma" in ascii, equal to [0x67,0x61,0x6d, 0x6d, 0x61] and encoded as a uint256.
-      // * the commitments to the permutation polynomials S1, S2, S3, where we concatenate the coordinates of those points
-      // * the commitments of Ql, Qr, Qm, Qo, Qk
-      // * the public inputs
-      // * the commitments of the wires related to the custom gates (commitments_wires_commit_api)
-      // * commitments to L, R, O (proof_<l,r,o>_com_<x,y>)
-      // The data described above is written starting at mPtr. "gamma" lies on 5 bytes,
-      // and is encoded as a uint256 number n. In basis b = 256, the number looks like this
-      // [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
-      function derive_gamma(aproof, pub_inputs) {
-        
-        let mPtr := mload(0x40)
-
-        // gamma
-        // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
-        // (same for alpha, beta, zeta)
-        mstore(mPtr, 0x67616d6d61) // "gamma"
-
-        mstore(add(mPtr, 0x20), vk_s1_com_x)
-        mstore(add(mPtr, 0x40), vk_s1_com_y)
-        mstore(add(mPtr, 0x60), vk_s2_com_x)
-        mstore(add(mPtr, 0x80), vk_s2_com_y)
-        mstore(add(mPtr, 0xa0), vk_s3_com_x)
-        mstore(add(mPtr, 0xc0), vk_s3_com_y)
-        mstore(add(mPtr, 0xe0), vk_ql_com_x)
-        mstore(add(mPtr, 0x100), vk_ql_com_y)
-        mstore(add(mPtr, 0x120), vk_qr_com_x)
-        mstore(add(mPtr, 0x140), vk_qr_com_y)
-        mstore(add(mPtr, 0x160), vk_qm_com_x)
-        mstore(add(mPtr, 0x180), vk_qm_com_y)
-        mstore(add(mPtr, 0x1a0), vk_qo_com_x)
-        mstore(add(mPtr, 0x1c0), vk_qo_com_y)
-        mstore(add(mPtr, 0x1e0), vk_qk_com_x)
-        mstore(add(mPtr, 0x200), vk_qk_com_y)
-
-        let pi := add(pub_inputs, 0x20)
-        let _mPtr := add(mPtr, 0x220)
-        for {let i:=0} lt(i, mload(pub_inputs)) {i:=add(i,1)}
-        {
-          mstore(_mPtr, mload(pi))
-          pi := add(pi, 0x20)
-          _mPtr := add(_mPtr, 0x20)
-        }
-
-        let _proof := add(aproof, proof_openings_selector_commit_api_at_zeta)
-        _proof := add(_proof, mul(vk_nb_commitments_commit_api, 0x20))
-        for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-        {
-          mstore(_mPtr, mload(_proof))
-          mstore(add(_mPtr, 0x20), mload(add(_proof, 0x20)))
-          _mPtr := add(_mPtr, 0x40)
-          _proof := add(_proof, 0x40)
-        }
-
-        mstore(_mPtr, mload(add(aproof, proof_l_com_x)))
-        mstore(add(_mPtr, 0x20), mload(add(aproof, proof_l_com_y)))
-        mstore(add(_mPtr, 0x40), mload(add(aproof, proof_r_com_x)))
-        mstore(add(_mPtr, 0x60), mload(add(aproof, proof_r_com_y)))
-        mstore(add(_mPtr, 0x80), mload(add(aproof, proof_o_com_x)))
-        mstore(add(_mPtr, 0xa0), mload(add(aproof, proof_o_com_y)))
-
-        let size := add(0x2c5, mul(mload(pub_inputs), 0x20)) // 0x2c5 = 22*32+5
-        size := add(size, mul(vk_nb_commitments_commit_api, 0x40))
-        let success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if iszero(success) {
-          error_sha2_256()
-        }
-      }
-
-      function derive_beta(aproof, prev_challenge){
-        let mPtr := mload(0x40)
-        // beta
-        mstore(mPtr, 0x62657461) // "beta"
-        mstore(add(mPtr, 0x20), prev_challenge)
-        let success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if iszero(success) {
-          error_sha2_256()
-        }
-      }
-
-      // alpha depends on the previous challenge (beta) and on the commitment to the grand product polynomial
-      function derive_alpha(aproof, prev_challenge){
-        let mPtr := mload(0x40)
-        // alpha
-        mstore(mPtr, 0x616C706861) // "alpha"
-        mstore(add(mPtr, 0x20), prev_challenge)
-        mstore(add(mPtr, 0x40), mload(add(aproof, proof_grand_product_commitment_x)))
-        mstore(add(mPtr, 0x60), mload(add(aproof, proof_grand_product_commitment_y)))
-        let success := staticcall(gas(), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if iszero(success) {
-          error_sha2_256()
-        }
-      }
-
-      // zeta depends on the previous challenge (alpha) and on the commitment to the quotient polynomial
-      function derive_zeta(aproof, prev_challenge) {
-        let mPtr := mload(0x40)
-        // zeta
-        mstore(mPtr, 0x7a657461) // "zeta"
-        mstore(add(mPtr, 0x20), prev_challenge)
-        mstore(add(mPtr, 0x40), mload(add(aproof, proof_h_0_x)))
-        mstore(add(mPtr, 0x60), mload(add(aproof, proof_h_0_y)))
-        mstore(add(mPtr, 0x80), mload(add(aproof, proof_h_1_x)))
-        mstore(add(mPtr, 0xa0), mload(add(aproof, proof_h_1_y)))
-        mstore(add(mPtr, 0xc0), mload(add(aproof, proof_h_2_x)))
-        mstore(add(mPtr, 0xe0), mload(add(aproof, proof_h_2_y)))
-        let success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
-        if iszero(success) {
-          error_sha2_256()
-        }
-      }
-    }
-  }
-
   event PrintUint256(uint256 a);
-  
-  function check_inputs_size(uint256[] memory public_inputs)
-  internal pure {
-
-    bool input_checks = true;
-    assembly {
-      let s := mload(public_inputs)
-      let p := add(public_inputs, 0x20)
-      for {let i} lt(i, s) {i:=add(i,1)}
-      {
-        input_checks := and(input_checks,lt(mload(p), r_mod))
-        p := add(p, 0x20)
-      }
-    }
-    require(input_checks, "some inputs are bigger than r");
-
-  }
 
   function check_proof_size(bytes memory proof)
   internal pure {
@@ -406,25 +241,24 @@ contract PlonkVerifier {
   function Verify(bytes memory proof, uint256[] memory public_inputs) 
   public view returns(bool success) {
     
-    check_inputs_size(public_inputs);
     check_proof_size(proof);
     check_proof_openings_size(proof);
 
     // (uint256 pi, uint256 zeta_power_n_minus_one) = compute_pi(public_inputs, zeta, proof);
     // emit PrintUint256(pi);
     
-    uint256 check;
-
     assembly {
 
       let mem := mload(0x40)
-      
+
+      // sanity checks
+      check_inputs_size(public_inputs)
+
       // compute the challenges
       let gamma_nr := derive_gamma(proof, public_inputs)
       let beta_nr := derive_beta(proof, gamma_nr)
       let alpha_nr := derive_alpha(proof, beta_nr)
       derive_zeta(proof, alpha_nr)
-      // check := mload(add(mem, state_zeta))
 
       // public inputs contribution
       compute_pi(public_inputs, proof)
@@ -436,12 +270,9 @@ contract PlonkVerifier {
       compute_gamma_kzg(proof)
       fold_state(proof)
       batch_verify_multi_points(proof)
-      // check := mload(add(mem, state_pi))
 
       success := mload(add(mem, state_success))
       
-      // check := mload(add(mem, state_check_var))
-
       function error_verify() {
         let ptError := mload(0x40)
         mstore(ptError, error_string_id) // selector for function Error(string)
@@ -451,7 +282,33 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
-      // END challenges -------------------------------------------------
+      // Beginning checks -------------------------------------------------
+      function error_inputs_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x18)
+        mstore(add(ptError, 0x44), "inputs are bigger than r")
+        revert(ptError, 0x64)
+      }
+
+      function check_inputs_size(ins) {
+        let s := mload(ins)
+        let p := add(ins, 0x20)
+        let input_checks := 1
+        for {let i} lt(i, s) {i:=add(i,1)}
+        {
+          input_checks := and(input_checks,lt(mload(p), r_mod))
+          p := add(p, 0x20)
+        }
+        if iszero(input_checks) {
+          error_inputs_size()
+        }
+      }
+    
+      // end checks -------------------------------------------------
+
+      // Beginning challenges -------------------------------------------------
 
       // Derive gamma as Sha256(<transcript>)
       // where transcript is the concatenation (in this order) of:
