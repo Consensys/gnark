@@ -539,9 +539,9 @@ contract PlonkVerifier {
     uint256[] memory public_inputs,
     uint256 zeta,
     bytes memory proof
-  ) internal returns (uint256 pi, uint256 zeta_power_n_minus_one) {
+  ) internal view returns (uint256 pi, uint256 zeta_power_n_minus_one) {
   
-    uint256 check;
+    // uint256 check;
 
     assembly {
 
@@ -560,10 +560,10 @@ contract PlonkVerifier {
       // free mem
       let freeMem := mload(0x40)
     
+      let wocommit
       pi := sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), zeta, zeta_power_n_minus_one, freeMem)
-
-      check := sum_pi_commit(proof, mload(public_inputs), zeta, zeta_power_n_minus_one, freeMem)
-      check := addmod(check, pi, r_mod)
+      wocommit := sum_pi_commit(proof, mload(public_inputs), zeta, zeta_power_n_minus_one, freeMem)
+      pi := addmod(wocommit, pi, r_mod)
 
       function sum_pi_wo_api_commit(ins, n, z, zpnmo, mPtr)->pi_wo_commit {
         
@@ -809,34 +809,6 @@ contract PlonkVerifier {
       }
     
     }
-    emit PrintUint256(check);
-
-    
-    // compute the contribution of the public inputs whose indices are in commitment_indices,
-    // and whose value is hash_fr of the corresponding commitme
-    uint256[] memory commitment_indices = new uint256[](vk_nb_commitments_commit_api);
-    load_vk_commitments_indices_commit_api(commitment_indices);
-    
-    unchecked {
-      uint256[] memory wire_committed_commitments = new uint256[](2 * vk_nb_commitments_commit_api);
-
-      load_wire_commitments_commit_api(wire_committed_commitments, proof);
-      uint256 hash_res;
-      uint256 ith_lagrange_at_z;
-      for (uint256 i; i < vk_nb_commitments_commit_api; ) { 
-        hash_res = hash_fr(wire_committed_commitments[2 * i], wire_committed_commitments[2 * i + 1]);
-        ith_lagrange_at_z = compute_ith_lagrange_at_z(
-          zeta,
-          zeta_power_n_minus_one,
-          commitment_indices[i] + public_inputs.length
-        );
-        assembly {
-          ith_lagrange_at_z := mulmod(hash_res, ith_lagrange_at_z, r_mod)
-          pi := addmod(pi, ith_lagrange_at_z, r_mod)
-        }
-        ++i;
-      }
-    }
     
   }
   
@@ -921,7 +893,7 @@ contract PlonkVerifier {
   }
 
   function Verify(bytes memory proof, uint256[] memory public_inputs) 
-  public returns(bool success) {
+  public view returns(bool success) {
     check_inputs_size(public_inputs);
     check_proof_size(proof);
     check_proof_openings_size(proof);
@@ -930,7 +902,7 @@ contract PlonkVerifier {
 
     
     (uint256 pi, uint256 zeta_power_n_minus_one) = compute_pi(public_inputs, zeta, proof);
-    emit PrintUint256(pi);
+    // emit PrintUint256(pi);
     
     
     uint256 check;
