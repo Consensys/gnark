@@ -192,6 +192,16 @@ contract PlonkVerifier {
       {{ end -}}
       mstore(add(mem, state_pi), l_pi)
 
+      compute_alpha_square_lagrange_0()
+      verify_quotient_poly_eval_at_zeta(proof)
+      fold_h(proof)
+      compute_commitment_linearised_polynomial(proof)
+      compute_gamma_kzg(proof)
+      fold_state(proof)
+      batch_verify_multi_points(proof)
+
+      success := mload(add(mem, state_success))
+
       // Beginning checks -------------------------------------------------
       function error_inputs_size() {
         let ptError := mload(0x40)
@@ -653,16 +663,6 @@ contract PlonkVerifier {
       {{ end }}
       // END compute_pi -------------------------------------------------
 
-      compute_alpha_square_lagrange_0()
-      verify_quotient_poly_eval_at_zeta(proof)
-      fold_h(proof)
-      compute_commitment_linearised_polynomial(proof)
-      compute_gamma_kzg(proof)
-      fold_state(proof)
-      batch_verify_multi_points(proof)
-
-      success := mload(add(mem, state_success))
-      
       function error_verify() {
         let ptError := mload(0x40)
         mstore(ptError, error_string_id) // selector for function Error(string)
