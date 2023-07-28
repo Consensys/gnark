@@ -195,7 +195,7 @@ contract PlonkVerifier {
 
       compute_alpha_square_lagrange_0()
       verify_quotient_poly_eval_at_zeta(proof.offset)
-      // fold_h(proof)
+      fold_h(proof.offset)
       // compute_commitment_linearised_polynomial(proof)
       // compute_gamma_kzg(proof)
       // fold_state(proof)
@@ -997,18 +997,18 @@ contract PlonkVerifier {
       //   compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
       // }
 
-      // // compute H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ and store the result at
-      // // state + state_folded_h
-      // function fold_h(aproof) {
-      //   let state := mload(0x40)
-      //   let n_plus_two := add(vk_domain_size, 2)
-      //   let mPtr := add(mload(0x40), state_last_mem)
-      //   let zeta_power_n_plus_two := pow(mload(add(state, state_zeta)), n_plus_two, mPtr)
-      //   point_mul(add(state, state_folded_h_x), add(aproof, proof_h_2_x), zeta_power_n_plus_two, mPtr)
-      //   point_add(add(state, state_folded_h_x), add(state, state_folded_h_x), add(aproof, proof_h_1_x), mPtr)
-      //   point_mul(add(state, state_folded_h_x), add(state, state_folded_h_x), zeta_power_n_plus_two, mPtr)
-      //   point_add(add(state, state_folded_h_x), add(state, state_folded_h_x), add(aproof, proof_h_0_x), mPtr)
-      // }
+      // compute H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ and store the result at
+      // state + state_folded_h
+      function fold_h(aproof) {
+        let state := mload(0x40)
+        let n_plus_two := add(vk_domain_size, 2)
+        let mPtr := add(mload(0x40), state_last_mem)
+        let zeta_power_n_plus_two := pow(mload(add(state, state_zeta)), n_plus_two, mPtr)
+        point_mul_calldata(add(state, state_folded_h_x), add(aproof, proof_h_2_x), zeta_power_n_plus_two, mPtr)
+        point_add_calldata(add(state, state_folded_h_x), add(state, state_folded_h_x), add(aproof, proof_h_1_x), mPtr)
+        point_mul(add(state, state_folded_h_x), add(state, state_folded_h_x), zeta_power_n_plus_two, mPtr)
+        point_add_calldata(add(state, state_folded_h_x), add(state, state_folded_h_x), add(aproof, proof_h_0_x), mPtr)
+      }
 
       // check that
       //	L(ζ)Qₗ(ζ)+r(ζ)Qᵣ(ζ)+R(ζ)L(ζ)Qₘ(ζ)+O(ζ)Qₒ(ζ)+Qₖ(ζ)+Σᵢqc'ᵢ(ζ)BsbCommitmentᵢ(ζ) +
@@ -1052,27 +1052,50 @@ contract PlonkVerifier {
         mstore(add(state, state_success), eq(mload(computed_quotient), mload(s2)))
       }
 
-      // function point_add(dst, p, q, mPtr) {
-      //   // let mPtr := add(mload(0x40), state_last_mem)
-      //   let state := mload(0x40)
-      //   mstore(mPtr, mload(p))
-      //   mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
-      //   mstore(add(mPtr, 0x40), mload(q))
-      //   mstore(add(mPtr, 0x60), mload(add(q, 0x20)))
-      //   let l_success := staticcall(gas(),6,mPtr,0x80,dst,0x40)
-      //   mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
-      // }
+      // BEGINNING utils math functions -------------------------------------------------
+      function point_add(dst, p, q, mPtr) {
+        // let mPtr := add(mload(0x40), state_last_mem)
+        let state := mload(0x40)
+        mstore(mPtr, mload(p))
+        mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
+        mstore(add(mPtr, 0x40), mload(q))
+        mstore(add(mPtr, 0x60), mload(add(q, 0x20)))
+        let l_success := staticcall(gas(),6,mPtr,0x80,dst,0x40)
+        mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
+      }
+
+      function point_add_calldata(dst, p, q, mPtr) {
+        // let mPtr := add(mload(0x40), state_last_mem)
+        let state := mload(0x40)
+        mstore(mPtr, mload(p))
+        mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
+        mstore(add(mPtr, 0x40), calldataload(q))
+        mstore(add(mPtr, 0x60), calldataload(add(q, 0x20)))
+        let l_success := staticcall(gas(), 6, mPtr, 0x80, dst, 0x40)
+        mstore(add(state, state_success), and(l_success, mload(add(state, state_success))))
+      }
 
       // // dst <- [s]src
-      // function point_mul(dst,src,s, mPtr) {
-      //   // let mPtr := add(mload(0x40), state_last_mem)
-      //   let state := mload(0x40)
-      //   mstore(mPtr,mload(src))
-      //   mstore(add(mPtr,0x20),mload(add(src,0x20)))
-      //   mstore(add(mPtr,0x40),s)
-      //   let l_success := staticcall(gas(),7,mPtr,0x60,dst,0x40)
-      //   mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
-      // }
+      function point_mul(dst,src,s, mPtr) {
+        // let mPtr := add(mload(0x40), state_last_mem)
+        let state := mload(0x40)
+        mstore(mPtr,mload(src))
+        mstore(add(mPtr,0x20),mload(add(src,0x20)))
+        mstore(add(mPtr,0x40),s)
+        let l_success := staticcall(gas(),7,mPtr,0x60,dst,0x40)
+        mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
+      }
+
+      // dst <- [s]src
+      function point_mul_calldata(dst, src, s, mPtr) {
+        // let mPtr := add(mload(0x40), state_last_mem)
+        let state := mload(0x40)
+        mstore(mPtr, calldataload(src))
+        mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
+        mstore(add(mPtr, 0x40), s)
+        let l_success := staticcall(gas(), 7, mPtr, 0x60, dst, 0x40)
+        mstore(add(state, state_success), and(l_success, mload(add(state, state_success))))
+      }
 
       // // dst <- dst + [s]src (Elliptic curve)
       // function point_acc_mul(dst,src,s, mPtr) {
