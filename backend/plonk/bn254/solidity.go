@@ -196,7 +196,7 @@ contract PlonkVerifier {
       compute_alpha_square_lagrange_0()
       verify_quotient_poly_eval_at_zeta(proof.offset)
       fold_h(proof.offset)
-      // compute_commitment_linearised_polynomial(proof)
+      compute_commitment_linearised_polynomial(proof.offset)
       // compute_gamma_kzg(proof)
       // fold_state(proof)
       // batch_verify_multi_points(proof)
@@ -896,106 +896,134 @@ contract PlonkVerifier {
       //   mstore(add(state, state_gamma_kzg), mod(mload(add(state, state_gamma_kzg)), r_mod))
       // }
 
-      // function compute_commitment_linearised_polynomial_ec(aproof, s1, s2) {
+      function compute_commitment_linearised_polynomial_ec(aproof, s1, s2) {
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), state_last_mem)
 
-      //   let state := mload(0x40)
-      //   let mPtr := add(mload(0x40), state_last_mem)
+        mstore(mPtr, vk_ql_com_x)
+        mstore(add(mPtr, 0x20), vk_ql_com_y)
+        point_mul(
+          add(state, state_linearised_polynomial_x),
+          mPtr,
+          calldataload(add(aproof, proof_l_at_zeta)),
+          add(mPtr, 0x40)
+        )
 
-      //   mstore(mPtr, vk_ql_com_x)
-      //   mstore(add(mPtr,0x20), vk_ql_com_y)
-      //   point_mul(add(state, state_linearised_polynomial_x), mPtr, mload(add(aproof, proof_l_at_zeta)), add(mPtr,0x40))
+        mstore(mPtr, vk_qr_com_x)
+        mstore(add(mPtr, 0x20), vk_qr_com_y)
+        point_acc_mul(
+          add(state, state_linearised_polynomial_x),
+          mPtr,
+          calldataload(add(aproof, proof_r_at_zeta)),
+          add(mPtr, 0x40)
+        )
 
-      //   mstore(mPtr, vk_qr_com_x)
-      //   mstore(add(mPtr,0x20), vk_qr_com_y)
-      //   point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,mload(add(aproof, proof_r_at_zeta)),add(mPtr,0x40))
-        
-      //   let rl := mulmod(mload(add(aproof, proof_l_at_zeta)), mload(add(aproof, proof_r_at_zeta)), r_mod)
-      //   mstore(mPtr, vk_qm_com_x)
-      //   mstore(add(mPtr,0x20), vk_qm_com_y)
-      //   point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,rl,add(mPtr,0x40))
-        
-      //   mstore(mPtr, vk_qo_com_x)
-      //   mstore(add(mPtr,0x20), vk_qo_com_y)
-      //   point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,mload(add(aproof, proof_o_at_zeta)),add(mPtr,0x40))
-        
-      //   mstore(mPtr, vk_qk_com_x)
-      //   mstore(add(mPtr, 0x20), vk_qk_com_y)
-      //   point_add(add(state, state_linearised_polynomial_x),add(state, state_linearised_polynomial_x),mPtr,add(mPtr, 0x40))
+        let rl := mulmod(calldataload(add(aproof, proof_l_at_zeta)), calldataload(add(aproof, proof_r_at_zeta)), r_mod)
+        mstore(mPtr, vk_qm_com_x)
+        mstore(add(mPtr, 0x20), vk_qm_com_y)
+        point_acc_mul(add(state, state_linearised_polynomial_x), mPtr, rl, add(mPtr, 0x40))
 
-      //   let commits_api_at_zeta := add(aproof, proof_openings_selector_commit_api_at_zeta)
-      //   let commits_api := add(aproof, add(proof_openings_selector_commit_api_at_zeta, mul(vk_nb_commitments_commit_api, 0x20)))
-      //   for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-      //   {
-      //     mstore(mPtr, mload(commits_api))
-      //     mstore(add(mPtr, 0x20), mload(add(commits_api, 0x20)))
-      //     point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,mload(commits_api_at_zeta),add(mPtr,0x40))
-      //     commits_api_at_zeta := add(commits_api_at_zeta, 0x20)
-      //     commits_api := add(commits_api, 0x40)
-      //   }
+        mstore(mPtr, vk_qo_com_x)
+        mstore(add(mPtr, 0x20), vk_qo_com_y)
+        point_acc_mul(
+          add(state, state_linearised_polynomial_x),
+          mPtr,
+          calldataload(add(aproof, proof_o_at_zeta)),
+          add(mPtr, 0x40)
+        )
 
-      //   mstore(mPtr, vk_s3_com_x)
-      //   mstore(add(mPtr, 0x20), vk_s3_com_y)
-      //   point_acc_mul(add(state, state_linearised_polynomial_x), mPtr, s1, add(mPtr, 0x40))
+        mstore(mPtr, vk_qk_com_x)
+        mstore(add(mPtr, 0x20), vk_qk_com_y)
+        point_add(
+          add(state, state_linearised_polynomial_x),
+          add(state, state_linearised_polynomial_x),
+          mPtr,
+          add(mPtr, 0x40)
+        )
 
-      //   mstore(mPtr, mload(add(aproof, proof_grand_product_commitment_x)))
-      //   mstore(add(mPtr, 0x20), mload(add(aproof, proof_grand_product_commitment_y)))
-      //   point_acc_mul(add(state, state_linearised_polynomial_x), mPtr, s2, add(mPtr, 0x40))
+        let commits_api_at_zeta := add(aproof, proof_openings_selector_commit_api_at_zeta)
+        let commits_api := add(
+          aproof,
+          add(proof_openings_selector_commit_api_at_zeta, mul(vk_nb_commitments_commit_api, 0x20))
+        )
+        for {
+          let i := 0
+        } lt(i, vk_nb_commitments_commit_api) {
+          i := add(i, 1)
+        } {
+          mstore(mPtr, calldataload(commits_api))
+          mstore(add(mPtr, 0x20), calldataload(add(commits_api, 0x20)))
+          point_acc_mul(
+            add(state, state_linearised_polynomial_x),
+            mPtr,
+            calldataload(commits_api_at_zeta),
+            add(mPtr, 0x40)
+          )
+          commits_api_at_zeta := add(commits_api_at_zeta, 0x20)
+          commits_api := add(commits_api, 0x40)
+        }
 
-      // }
+        mstore(mPtr, vk_s3_com_x)
+        mstore(add(mPtr, 0x20), vk_s3_com_y)
+        point_acc_mul(add(state, state_linearised_polynomial_x), mPtr, s1, add(mPtr, 0x40))
 
-      // // Compute the commitment to the linearized polynomial equal to
-      // //	L(ζ)[Qₗ]+r(ζ)[Qᵣ]+R(ζ)L(ζ)[Qₘ]+O(ζ)[Qₒ]+[Qₖ]+Σᵢqc'ᵢ(ζ)[BsbCommitmentᵢ] +
-      // //	α*( Z(μζ)(L(ζ)+β*S₁(ζ)+γ)*(R(ζ)+β*S₂(ζ)+γ)[S₃]-[Z](L(ζ)+β*id_{1}(ζ)+γ)*(R(ζ)+β*id_{2(ζ)+γ)*(O(ζ)+β*id_{3}(ζ)+γ) ) +
-      // //	α²*L₁(ζ)[Z]
-      // // where 
-      // // * id_1 = id, id_2 = vk_coset_shift*id, id_3 = vk_coset_shift^{2}*id
-      // // * the [] means that it's a commitment (i.e. a point on Bn254(F_p))
-      // function compute_commitment_linearised_polynomial(aproof) {
-        
-      //   let state := mload(0x40)
-      //   let l_beta := mload(add(state, state_beta))
-      //   let l_gamma := mload(add(state, state_gamma))
-      //   let l_zeta := mload(add(state, state_zeta))
-      //   let l_alpha := mload(add(state, state_alpha))
+        mstore(mPtr, calldataload(add(aproof, proof_grand_product_commitment_x)))
+        mstore(add(mPtr, 0x20), calldataload(add(aproof, proof_grand_product_commitment_y)))
+        point_acc_mul(add(state, state_linearised_polynomial_x), mPtr, s2, add(mPtr, 0x40))
+      }
 
-      //   let u := mulmod(mload(add(aproof,proof_grand_product_at_zeta_omega)), l_beta, r_mod)
-      //   let v := mulmod(l_beta, mload(add(aproof, proof_s1_at_zeta)), r_mod)
-      //   v := addmod(v, mload(add(aproof, proof_l_at_zeta)), r_mod)
-      //   v := addmod(v, l_gamma, r_mod)
+      // Compute the commitment to the linearized polynomial equal to
+      //	L(ζ)[Qₗ]+r(ζ)[Qᵣ]+R(ζ)L(ζ)[Qₘ]+O(ζ)[Qₒ]+[Qₖ]+Σᵢqc'ᵢ(ζ)[BsbCommitmentᵢ] +
+      //	α*( Z(μζ)(L(ζ)+β*S₁(ζ)+γ)*(R(ζ)+β*S₂(ζ)+γ)[S₃]-[Z](L(ζ)+β*id_{1}(ζ)+γ)*(R(ζ)+β*id_{2(ζ)+γ)*(O(ζ)+β*id_{3}(ζ)+γ) ) +
+      //	α²*L₁(ζ)[Z]
+      // where
+      // * id_1 = id, id_2 = vk_coset_shift*id, id_3 = vk_coset_shift^{2}*id
+      // * the [] means that it's a commitment (i.e. a point on Bn254(F_p))
+      function compute_commitment_linearised_polynomial(aproof) {
+        let state := mload(0x40)
+        let l_beta := mload(add(state, state_beta))
+        let l_gamma := mload(add(state, state_gamma))
+        let l_zeta := mload(add(state, state_zeta))
+        let l_alpha := mload(add(state, state_alpha))
 
-      //   let w := mulmod(l_beta, mload(add(aproof, proof_s2_at_zeta)), r_mod)
-      //   w := addmod(w, mload(add(aproof, proof_r_at_zeta)), r_mod)
-      //   w := addmod(w, l_gamma, r_mod)
+        let u := mulmod(calldataload(add(aproof, proof_grand_product_at_zeta_omega)), l_beta, r_mod)
+        let v := mulmod(l_beta, calldataload(add(aproof, proof_s1_at_zeta)), r_mod)
+        v := addmod(v, calldataload(add(aproof, proof_l_at_zeta)), r_mod)
+        v := addmod(v, l_gamma, r_mod)
 
-      //   let s1 := mulmod(u, v, r_mod)
-      //   s1 := mulmod(s1, w, r_mod)
-      //   s1 := mulmod(s1, l_alpha, r_mod)
+        let w := mulmod(l_beta, calldataload(add(aproof, proof_s2_at_zeta)), r_mod)
+        w := addmod(w, calldataload(add(aproof, proof_r_at_zeta)), r_mod)
+        w := addmod(w, l_gamma, r_mod)
 
-      //   let coset_square := mulmod(vk_coset_shift, vk_coset_shift, r_mod)
-      //   let betazeta := mulmod(l_beta, l_zeta, r_mod)
-      //   u := addmod(betazeta, mload(add(aproof, proof_l_at_zeta)), r_mod)
-      //   u := addmod(u, l_gamma, r_mod)
+        let s1 := mulmod(u, v, r_mod)
+        s1 := mulmod(s1, w, r_mod)
+        s1 := mulmod(s1, l_alpha, r_mod)
 
-      //   v := mulmod(betazeta, vk_coset_shift, r_mod)
-      //   v := addmod(v, mload(add(aproof, proof_r_at_zeta)), r_mod)
-      //   v := addmod(v, l_gamma, r_mod)
+        let coset_square := mulmod(vk_coset_shift, vk_coset_shift, r_mod)
+        let betazeta := mulmod(l_beta, l_zeta, r_mod)
+        u := addmod(betazeta, calldataload(add(aproof, proof_l_at_zeta)), r_mod)
+        u := addmod(u, l_gamma, r_mod)
 
-      //   w := mulmod(betazeta, coset_square, r_mod)
-      //   w := addmod(w, mload(add(aproof, proof_o_at_zeta)), r_mod)
-      //   w := addmod(w, l_gamma, r_mod)
+        v := mulmod(betazeta, vk_coset_shift, r_mod)
+        v := addmod(v, calldataload(add(aproof, proof_r_at_zeta)), r_mod)
+        v := addmod(v, l_gamma, r_mod)
 
-      //   let s2 := mulmod(u, v, r_mod)
-      //   s2 := mulmod(s2, w, r_mod)
-      //   s2 := sub(r_mod, s2)
-      //   s2 := mulmod(s2, l_alpha, r_mod)
-      //   s2 := addmod(s2, mload(add(state, state_alpha_square_lagrange_0)), r_mod)
+        w := mulmod(betazeta, coset_square, r_mod)
+        w := addmod(w, calldataload(add(aproof, proof_o_at_zeta)), r_mod)
+        w := addmod(w, l_gamma, r_mod)
 
-      //   // at this stage:
-      //   // * s₁ = α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
-      //   // * s₂ = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
+        let s2 := mulmod(u, v, r_mod)
+        s2 := mulmod(s2, w, r_mod)
+        s2 := sub(r_mod, s2)
+        s2 := mulmod(s2, l_alpha, r_mod)
+        s2 := addmod(s2, mload(add(state, state_alpha_square_lagrange_0)), r_mod)
 
-      //   compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
-      // }
+        // at this stage:
+        // * s₁ = α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
+        // * s₂ = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
+
+        compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
+      }
 
       // compute H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ and store the result at
       // state + state_folded_h
@@ -1097,18 +1125,18 @@ contract PlonkVerifier {
         mstore(add(state, state_success), and(l_success, mload(add(state, state_success))))
       }
 
-      // // dst <- dst + [s]src (Elliptic curve)
-      // function point_acc_mul(dst,src,s, mPtr) {
-      //   let state := mload(0x40)
-      //   mstore(mPtr,mload(src))
-      //   mstore(add(mPtr,0x20),mload(add(src,0x20)))
-      //   mstore(add(mPtr,0x40),s)
-      //   let l_success := staticcall(gas(),7,mPtr,0x60,mPtr,0x40)
-      //   mstore(add(mPtr,0x40),mload(dst))
-      //   mstore(add(mPtr,0x60),mload(add(dst,0x20)))
-      //   l_success := and(l_success, staticcall(gas(),6,mPtr,0x80,dst, 0x40))
-      //   mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
-      // }
+      // dst <- dst + [s]src (Elliptic curve)
+      function point_acc_mul(dst,src,s, mPtr) {
+        let state := mload(0x40)
+        mstore(mPtr,mload(src))
+        mstore(add(mPtr,0x20),mload(add(src,0x20)))
+        mstore(add(mPtr,0x40),s)
+        let l_success := staticcall(gas(),7,mPtr,0x60,mPtr,0x40)
+        mstore(add(mPtr,0x40),mload(dst))
+        mstore(add(mPtr,0x60),mload(add(dst,0x20)))
+        l_success := and(l_success, staticcall(gas(),6,mPtr,0x80,dst, 0x40))
+        mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
+      }
 
       // // dst <- dst + src (Fr) dst,src are addresses, s is a value
       // function fr_acc_mul(dst, src, s) {
