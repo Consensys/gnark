@@ -708,15 +708,12 @@ contract PlonkVerifier {
         point_acc_mul_calldata(folded_digests, add(aproof, proof_grand_product_commitment_x), random, mPtr)
 
         let folded_evals := add(state, state_folded_claimed_values)
-        fr_acc_mul(folded_evals, add(aproof, proof_grand_product_at_zeta_omega), random)
+        fr_acc_mul_calldata(folded_evals, add(aproof, proof_grand_product_at_zeta_omega), random)
 
         let folded_evals_commit := mPtr
         mPtr := add(folded_evals_commit, 0x40)
-        mstore(folded_evals_commit, 14312776538779914388377568895031746459131577658076416373430523308756343304251)
-        mstore(
-          add(folded_evals_commit, 0x20),
-          11763105256161367503191792604679297387056316997144156930871823008787082098465
-        )
+        mstore(folded_evals_commit, {{ fpstr .Kzg.G1.X }})
+        mstore(add(folded_evals_commit, 0x20), {{ fpstr .Kzg.G1.Y }})
         mstore(add(folded_evals_commit, 0x40), mload(folded_evals))
         let check_staticcall := staticcall(gas(), 7, folded_evals_commit, 0x60, folded_evals_commit, 0x40)
         if eq(check_staticcall, 0) {
@@ -793,27 +790,27 @@ contract PlonkVerifier {
         mstore(add(state, state_folded_claimed_values), calldataload(add(aproof, proof_quotient_polynomial_at_zeta)))
 
         point_acc_mul(add(state, state_folded_digests_x), add(mPtr, 0x80), acc_gamma, mPtrOffset)
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_linearised_polynomial_at_zeta), acc_gamma)
+        fr_acc_mul_calldata(add(state, state_folded_claimed_values), add(aproof, proof_linearised_polynomial_at_zeta), acc_gamma)
 
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
         point_acc_mul(add(state, state_folded_digests_x), add(mPtr, 0xc0), acc_gamma, mPtrOffset)
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_l_at_zeta), acc_gamma)
+        fr_acc_mul_calldata(add(state, state_folded_claimed_values), add(aproof, proof_l_at_zeta), acc_gamma)
 
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
         point_acc_mul(add(state, state_folded_digests_x), add(mPtr, 0x100), acc_gamma, add(mPtr, offset))
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_r_at_zeta), acc_gamma)
+        fr_acc_mul_calldata(add(state, state_folded_claimed_values), add(aproof, proof_r_at_zeta), acc_gamma)
 
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
         point_acc_mul(add(state, state_folded_digests_x), add(mPtr, 0x140), acc_gamma, add(mPtr, offset))
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_o_at_zeta), acc_gamma)
+        fr_acc_mul_calldata(add(state, state_folded_claimed_values), add(aproof, proof_o_at_zeta), acc_gamma)
 
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
         point_acc_mul(add(state, state_folded_digests_x), add(mPtr, 0x180), acc_gamma, add(mPtr, offset))
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_s1_at_zeta), acc_gamma)
+        fr_acc_mul_calldata(add(state, state_folded_claimed_values), add(aproof, proof_s1_at_zeta), acc_gamma)
 
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
         point_acc_mul(add(state, state_folded_digests_x), add(mPtr, 0x1c0), acc_gamma, add(mPtr, offset))
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_s2_at_zeta), acc_gamma)
+        fr_acc_mul_calldata(add(state, state_folded_claimed_values), add(aproof, proof_s2_at_zeta), acc_gamma)
 
         let poscaz := add(aproof, proof_openings_selector_commit_api_at_zeta)
         let opca := add(mPtr, 0x200) // offset_proof_commits_api
@@ -821,7 +818,7 @@ contract PlonkVerifier {
         {
           acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
           point_acc_mul(add(state, state_folded_digests_x), opca, acc_gamma, add(mPtr, offset))
-          fr_acc_mul(add(state, state_folded_claimed_values), poscaz, acc_gamma)
+          fr_acc_mul_calldata(add(state, state_folded_claimed_values), poscaz, acc_gamma)
           poscaz := add(poscaz, 0x20)
           opca := add(opca, 0x40)
         }
@@ -1150,8 +1147,8 @@ contract PlonkVerifier {
       }
 
       // dst <- dst + src (Fr) dst,src are addresses, s is a value
-      function fr_acc_mul(dst, src, s) {
-        let tmp :=  mulmod(mload(src), s, r_mod)
+      function fr_acc_mul_calldata(dst, src, s) {
+        let tmp :=  mulmod(calldataload(src), s, r_mod)
         mstore(dst, addmod(mload(dst), tmp, r_mod))
       }
 
