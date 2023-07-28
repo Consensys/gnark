@@ -179,18 +179,18 @@ contract PlonkVerifier {
       let alpha_nr := derive_alpha(proof.offset, beta_nr)
       derive_zeta(proof.offset, alpha_nr)
 
-      // // evaluation of Z=Xⁿ-1 at ζ, we save this value
-      // let zeta := mload(add(mem, state_zeta))
-      // let zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, freeMem), sub(r_mod, 1), r_mod)
-      // mstore(add(mem, state_zeta_power_n_minus_one), zeta_power_n_minus_one)
+      // evaluation of Z=Xⁿ-1 at ζ, we save this value
+      let zeta := mload(add(mem, state_zeta))
+      let zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, freeMem), sub(r_mod, 1), r_mod)
+      mstore(add(mem, state_zeta_power_n_minus_one), zeta_power_n_minus_one)
 
-      // // public inputs contribution
-      // let l_pi := sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), freeMem)
-      // {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
+      // public inputs contribution
+      let l_pi := sum_pi_wo_api_commit(public_inputs.offset, public_inputs.length, freeMem)
+      {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
       // let l_wocommit := sum_pi_commit(proof, mload(public_inputs), freeMem)
       // l_pi := addmod(l_wocommit, l_pi, r_mod)
-      // {{ end -}}
-      // mstore(add(mem, state_pi), l_pi)
+      {{ end -}}
+      mstore(add(mem, state_pi), l_pi)
 
       // compute_alpha_square_lagrange_0()
       // verify_quotient_poly_eval_at_zeta(proof)
@@ -437,82 +437,85 @@ contract PlonkVerifier {
       }
       // END challenges -------------------------------------------------
 
-      // // BEGINNING compute_pi -------------------------------------------------
-      // function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
+      // BEGINNING compute_pi -------------------------------------------------
+
+      // public input (not comming from the commit api) contribution
+      // ins, n are the public inputs and number of public inputs respectively
+      function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
         
-      //   let state := mload(0x40)
-      //   let z := mload(add(state, state_zeta))
-      //   let zpnmo := mload(add(state, state_zeta_power_n_minus_one))
+        let state := mload(0x40)
+        let z := mload(add(state, state_zeta))
+        let zpnmo := mload(add(state, state_zeta_power_n_minus_one))
 
-      //   let li := mPtr
-      //   batch_compute_lagranges_at_z(z, zpnmo, n, li)
+        let li := mPtr
+        batch_compute_lagranges_at_z(z, zpnmo, n, li)
 
-      //   let tmp := 0
-      //   for {let i:=0} lt(i,n) {i:=add(i,1)}
-      //   {
-      //     tmp := mulmod(mload(li), mload(ins), r_mod)
-      //     pi_wo_commit := addmod(pi_wo_commit, tmp, r_mod)
-      //     li := add(li, 0x20)
-      //     ins := add(ins, 0x20)
-      //   }
+        let tmp := 0
+        for {let i:=0} lt(i,n) {i:=add(i,1)}
+        {
+          tmp := mulmod(mload(li), calldataload(ins), r_mod)
+          pi_wo_commit := addmod(pi_wo_commit, tmp, r_mod)
+          li := add(li, 0x20)
+          ins := add(ins, 0x20)
+        }
         
-      // }
+      }
 
-      // // mPtr <- [L_0(z), .., L_{n-1}(z)]
-      // // 
-      // // Here L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
-      // // * n = vk_domain_size
-      // // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
-      // // * ζ = z (challenge derived with Fiat Shamir)
-      // // * zpnmo = 'zeta power n minus one' (ζⁿ-1) which has been precomputed
-      // function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
+      // mPtr <- [L_0(z), .., L_{n-1}(z)]
+      // 
+      // Here L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
+      // * n = vk_domain_size
+      // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
+      // * ζ = z (challenge derived with Fiat Shamir)
+      // * zpnmo = 'zeta power n minus one' (ζⁿ-1) which has been precomputed
+      function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
 
-      //   let zn := mulmod(zpnmo, vk_inv_domain_size, r_mod) // 1/n * (ζⁿ - 1)
+        let zn := mulmod(zpnmo, vk_inv_domain_size, r_mod) // 1/n * (ζⁿ - 1)
         
-      //   let _w := 1
-      //   let _mPtr := mPtr
-      //   for {let i:=0} lt(i,n) {i:=add(i,1)}
-      //   {
-      //     mstore(_mPtr, addmod(z,sub(r_mod, _w), r_mod))
-      //     _w := mulmod(_w, vk_omega, r_mod)
-      //     _mPtr := add(_mPtr, 0x20)
-      //   }
-      //   batch_invert(mPtr, n, _mPtr)
-      //   _mPtr := mPtr
-      //   _w := 1
-      //   for {let i:=0} lt(i,n) {i:=add(i,1)}
-      //   {
-      //     mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , r_mod), _w, r_mod))
-      //     _mPtr := add(_mPtr, 0x20)
-      //     _w := mulmod(_w, vk_omega, r_mod)
-      //   }
-      // } 
+        let _w := 1
+        let _mPtr := mPtr
+        for {let i:=0} lt(i,n) {i:=add(i,1)}
+        {
+          mstore(_mPtr, addmod(z,sub(r_mod, _w), r_mod))
+          _w := mulmod(_w, vk_omega, r_mod)
+          _mPtr := add(_mPtr, 0x20)
+        }
+        batch_invert(mPtr, n, _mPtr)
+        _mPtr := mPtr
+        _w := 1
+        for {let i:=0} lt(i,n) {i:=add(i,1)}
+        {
+          mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , r_mod), _w, r_mod))
+          _mPtr := add(_mPtr, 0x20)
+          _w := mulmod(_w, vk_omega, r_mod)
+        }
+      } 
 
-      // // batch invert (modulo r) in place the nb_ins uint256 inputs starting at ins.
-      // function batch_invert(ins, nb_ins, mPtr) {
-      //   mstore(mPtr, 1)
-      //   let offset := 0
-      //   for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
-      //   {
-      //     let prev := mload(add(mPtr, offset))
-      //     let cur := mload(add(ins, offset))
-      //     cur := mulmod(prev, cur, r_mod)
-      //     offset := add(offset, 0x20)
-      //     mstore(add(mPtr, offset), cur)
-      //   }
-      //   ins := add(ins, sub(offset, 0x20))
-      //   mPtr := add(mPtr, offset)
-      //   let inv := pow(mload(mPtr), sub(r_mod,2), add(mPtr, 0x20))
-      //   for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
-      //   {
-      //     mPtr := sub(mPtr, 0x20)
-      //     let tmp := mload(ins)
-      //     let cur := mulmod(inv, mload(mPtr), r_mod)
-      //     mstore(ins, cur)
-      //     inv := mulmod(inv, tmp, r_mod)
-      //     ins := sub(ins, 0x20)
-      //   }
-      // }
+      // batch invert (modulo r) in place the nb_ins uint256 inputs starting at ins.
+      function batch_invert(ins, nb_ins, mPtr) {
+        mstore(mPtr, 1)
+        let offset := 0
+        for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
+        {
+          let prev := mload(add(mPtr, offset))
+          let cur := mload(add(ins, offset))
+          cur := mulmod(prev, cur, r_mod)
+          offset := add(offset, 0x20)
+          mstore(add(mPtr, offset), cur)
+        }
+        ins := add(ins, sub(offset, 0x20))
+        mPtr := add(mPtr, offset)
+        let inv := pow(mload(mPtr), sub(r_mod,2), add(mPtr, 0x20))
+        for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
+        {
+          mPtr := sub(mPtr, 0x20)
+          let tmp := mload(ins)
+          let cur := mulmod(inv, mload(mPtr), r_mod)
+          mstore(ins, cur)
+          inv := mulmod(inv, tmp, r_mod)
+          ins := sub(ins, 0x20)
+        }
+      }
 
       // {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
       // // mPtr free memory. Computes the public input contribution related to the commit
@@ -1090,20 +1093,20 @@ contract PlonkVerifier {
       //   mstore(dst, addmod(mload(dst), tmp, r_mod))
       // }
 
-      // // dst <- x ** e mod r (x, e are values, not pointers)
-      // function pow(x, e, mPtr)->res {
-      //   mstore(mPtr, 0x20)
-      //   mstore(add(mPtr, 0x20), 0x20)
-      //   mstore(add(mPtr, 0x40), 0x20)
-      //   mstore(add(mPtr, 0x60), x)
-      //   mstore(add(mPtr, 0x80), e)
-      //   mstore(add(mPtr, 0xa0), r_mod)
-      //   let check_staticcall := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
-      //   if eq(check_staticcall, 0) {
-      //     error_verify()
-      //   }
-      //   res := mload(mPtr)
-      // }
+      // dst <- x ** e mod r (x, e are values, not pointers)
+      function pow(x, e, mPtr)->res {
+        mstore(mPtr, 0x20)
+        mstore(add(mPtr, 0x20), 0x20)
+        mstore(add(mPtr, 0x40), 0x20)
+        mstore(add(mPtr, 0x60), x)
+        mstore(add(mPtr, 0x80), e)
+        mstore(add(mPtr, 0xa0), r_mod)
+        let check_staticcall := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
+        if eq(check_staticcall, 0) {
+          error_verify()
+        }
+        res := mload(mPtr)
+      }
     }
     success = true;
   }
