@@ -64,48 +64,48 @@ contract PlonkVerifier {
   // ------------------------------------------------
 
   // offset proof
-  uint256 private constant proof_l_com_x = 0x20;
-  uint256 private constant proof_l_com_y = 0x40;
-  uint256 private constant proof_r_com_x = 0x60;
-  uint256 private constant proof_r_com_y = 0x80;
-  uint256 private constant proof_o_com_x = 0xa0;
-  uint256 private constant proof_o_com_y = 0xc0;
+  uint256 private constant proof_l_com_x = 0x00;
+  uint256 private constant proof_l_com_y = 0x20;
+  uint256 private constant proof_r_com_x = 0x40;
+  uint256 private constant proof_r_com_y = 0x60;
+  uint256 private constant proof_o_com_x = 0x80;
+  uint256 private constant proof_o_com_y = 0xa0;
 
   // h = h_0 + x^{n+2}h_1 + x^{2(n+2)}h_2
-  uint256 private constant proof_h_0_x = 0xe0; 
-  uint256 private constant proof_h_0_y = 0x100;
-  uint256 private constant proof_h_1_x = 0x120;
-  uint256 private constant proof_h_1_y = 0x140;
-  uint256 private constant proof_h_2_x = 0x160;
-  uint256 private constant proof_h_2_y = 0x180;
+  uint256 private constant proof_h_0_x = 0xc0;
+  uint256 private constant proof_h_0_y = 0xe0;
+  uint256 private constant proof_h_1_x = 0x100;
+  uint256 private constant proof_h_1_y = 0x120;
+  uint256 private constant proof_h_2_x = 0x140;
+  uint256 private constant proof_h_2_y = 0x160;
 
   // wire values at zeta
-  uint256 private constant proof_l_at_zeta = 0x1a0;
-  uint256 private constant proof_r_at_zeta = 0x1c0;
-  uint256 private constant proof_o_at_zeta = 0x1e0;
+  uint256 private constant proof_l_at_zeta = 0x180;
+  uint256 private constant proof_r_at_zeta = 0x1a0;
+  uint256 private constant proof_o_at_zeta = 0x1c0;
 
   //uint256[STATE_WIDTH-1] permutation_polynomials_at_zeta; // Sσ1(zeta),Sσ2(zeta)
-  uint256 private constant proof_s1_at_zeta = 0x200; // Sσ1(zeta)
-  uint256 private constant proof_s2_at_zeta = 0x220; // Sσ2(zeta)
+  uint256 private constant proof_s1_at_zeta = 0x1e0; // Sσ1(zeta)
+  uint256 private constant proof_s2_at_zeta = 0x200; // Sσ2(zeta)
 
   //Bn254.G1Point grand_product_commitment;                 // [z(x)]
-  uint256 private constant proof_grand_product_commitment_x = 0x240;
-  uint256 private constant proof_grand_product_commitment_y = 0x260;
+  uint256 private constant proof_grand_product_commitment_x = 0x220;
+  uint256 private constant proof_grand_product_commitment_y = 0x240;
 
-  uint256 private constant proof_grand_product_at_zeta_omega = 0x280;                    // z(w*zeta)
-  uint256 private constant proof_quotient_polynomial_at_zeta = 0x2a0;                    // t(zeta)
-  uint256 private constant proof_linearised_polynomial_at_zeta = 0x2c0;               // r(zeta)
+  uint256 private constant proof_grand_product_at_zeta_omega = 0x260; // z(w*zeta)
+  uint256 private constant proof_quotient_polynomial_at_zeta = 0x280; // t(zeta)
+  uint256 private constant proof_linearised_polynomial_at_zeta = 0x2a0; // r(zeta)
 
   // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 private constant proof_batch_opening_at_zeta_x = 0x2e0;            // [Wzeta]
-  uint256 private constant proof_batch_opening_at_zeta_y = 0x300;
+  uint256 private constant proof_batch_opening_at_zeta_x = 0x2c0; // [Wzeta]
+  uint256 private constant proof_batch_opening_at_zeta_y = 0x2e0;
 
   //Bn254.G1Point opening_at_zeta_omega_proof;      // [Wzeta*omega]
-  uint256 private constant proof_opening_at_zeta_omega_x = 0x320;
-  uint256 private constant proof_opening_at_zeta_omega_y = 0x340;
-  
-  uint256 private constant proof_openings_selector_commit_api_at_zeta = 0x360;
-  // -> next part of proof is 
+  uint256 private constant proof_opening_at_zeta_omega_x = 0x300;
+  uint256 private constant proof_opening_at_zeta_omega_y = 0x320;
+
+  uint256 private constant proof_openings_selector_commit_api_at_zeta = 0x340;
+  // -> next part of proof is
   // [ openings_selector_commits || commitments_wires_commit_api]
 
   // -------- offset state
@@ -160,7 +160,7 @@ contract PlonkVerifier {
 	uint8 private constant two = 2;
   {{ end }}
   
-  function Verify(bytes memory proof, uint256[] memory public_inputs) 
+  function Verify(bytes calldata proof, uint256[] calldata public_inputs) 
   public view returns(bool success) {
 
     assembly {
@@ -169,38 +169,38 @@ contract PlonkVerifier {
       let freeMem := add(mem, state_last_mem)
 
       // sanity checks
-      check_inputs_size(public_inputs)
-      check_proof_size(proof)
-      check_proof_openings_size(proof)
+      check_inputs_size(public_inputs.length, public_inputs.offset)
+      check_proof_size(proof.length, proof.offset)
+      check_proof_openings_size(proof.offset)
 
       // compute the challenges
-      let gamma_nr := derive_gamma(proof, public_inputs)
-      let beta_nr := derive_beta(proof, gamma_nr)
-      let alpha_nr := derive_alpha(proof, beta_nr)
-      derive_zeta(proof, alpha_nr)
+      // let gamma_nr := derive_gamma(proof, public_inputs)
+      // let beta_nr := derive_beta(proof, gamma_nr)
+      // let alpha_nr := derive_alpha(proof, beta_nr)
+      // derive_zeta(proof, alpha_nr)
 
-      // evaluation of Z=Xⁿ-1 at ζ, we save this value
-      let zeta := mload(add(mem, state_zeta))
-      let zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, freeMem), sub(r_mod, 1), r_mod)
-      mstore(add(mem, state_zeta_power_n_minus_one), zeta_power_n_minus_one)
+      // // evaluation of Z=Xⁿ-1 at ζ, we save this value
+      // let zeta := mload(add(mem, state_zeta))
+      // let zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, freeMem), sub(r_mod, 1), r_mod)
+      // mstore(add(mem, state_zeta_power_n_minus_one), zeta_power_n_minus_one)
 
-      // public inputs contribution
-      let l_pi := sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), freeMem)
-      {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
-      let l_wocommit := sum_pi_commit(proof, mload(public_inputs), freeMem)
-      l_pi := addmod(l_wocommit, l_pi, r_mod)
-      {{ end -}}
-      mstore(add(mem, state_pi), l_pi)
+      // // public inputs contribution
+      // let l_pi := sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), freeMem)
+      // {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
+      // let l_wocommit := sum_pi_commit(proof, mload(public_inputs), freeMem)
+      // l_pi := addmod(l_wocommit, l_pi, r_mod)
+      // {{ end -}}
+      // mstore(add(mem, state_pi), l_pi)
 
-      compute_alpha_square_lagrange_0()
-      verify_quotient_poly_eval_at_zeta(proof)
-      fold_h(proof)
-      compute_commitment_linearised_polynomial(proof)
-      compute_gamma_kzg(proof)
-      fold_state(proof)
-      batch_verify_multi_points(proof)
+      // compute_alpha_square_lagrange_0()
+      // verify_quotient_poly_eval_at_zeta(proof)
+      // fold_h(proof)
+      // compute_commitment_linearised_polynomial(proof)
+      // compute_gamma_kzg(proof)
+      // fold_state(proof)
+      // batch_verify_multi_points(proof)
 
-      success := mload(add(mem, state_success))
+      // success := mload(add(mem, state_success))
 
       // Beginning checks -------------------------------------------------
       function error_inputs_size() {
@@ -212,13 +212,12 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
-      function check_inputs_size(ins) {
-        let s := mload(ins)
-        let p := add(ins, 0x20)
+      // s number of public inputs, p pointer the public inputs
+      function check_inputs_size(s, p) {
         let input_checks := 1
         for {let i} lt(i, s) {i:=add(i,1)}
         {
-          input_checks := and(input_checks,lt(mload(p), r_mod))
+          input_checks := and(input_checks,lt(calldataload(p), r_mod))
           p := add(p, 0x20)
         }
         if iszero(input_checks) {
@@ -235,10 +234,10 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
-      function check_proof_size(aproof) {
+      // the 'a' prepending proof in aproof stands for 'assembly'. It's just to not use again the name proof (not allowed)
+      function check_proof_size(actual_proof_size, aproof) {
         let expected_proof_size := add(0x340, mul(vk_nb_commitments_commit_api,0x60))
-        let actual_proof_size := mload(aproof)
-        if iszero(eq(actual_proof_size,expected_proof_size)) {
+        if iszero(eq(actual_proof_size, expected_proof_size)) {
          error_proof_size() 
         }
       }
@@ -258,42 +257,42 @@ contract PlonkVerifier {
       
         // linearised polynomial at zeta
         let p := add(aproof, proof_linearised_polynomial_at_zeta)
-        openings_check := and(openings_check, lt(mload(p), r_mod))
+        openings_check := and(openings_check, lt(calldataload(p), r_mod))
 
         // quotient polynomial at zeta
         p := add(aproof, proof_quotient_polynomial_at_zeta)
-        openings_check := and(openings_check, lt(mload(p), r_mod))
+        openings_check := and(openings_check, lt(calldataload(p), r_mod))
         
         // proof_l_at_zeta
         p := add(aproof, proof_l_at_zeta)
-        openings_check := and(openings_check, lt(mload(p), r_mod))
+        openings_check := and(openings_check, lt(calldataload(p), r_mod))
 
         // proof_r_at_zeta
         p := add(aproof, proof_r_at_zeta)
-        openings_check := and(openings_check, lt(mload(p), r_mod))
+        openings_check := and(openings_check, lt(calldataload(p), r_mod))
 
         // proof_o_at_zeta
         p := add(aproof, proof_o_at_zeta)
-        openings_check := and(openings_check, lt(mload(p), r_mod))
+        openings_check := and(openings_check, lt(calldataload(p), r_mod))
 
         // proof_s1_at_zeta
         p := add(aproof, proof_s1_at_zeta)
-        openings_check := and(openings_check, lt(mload(p), r_mod))
+        openings_check := and(openings_check, lt(calldataload(p), r_mod))
         
         // proof_s2_at_zeta
         p := add(aproof, proof_s2_at_zeta)
-        openings_check := and(openings_check, lt(mload(p), r_mod))
+        openings_check := and(openings_check, lt(calldataload(p), r_mod))
 
         // proof_grand_product_at_zeta_omega
         p := add(aproof, proof_grand_product_at_zeta_omega)
-        openings_check := and(openings_check, lt(mload(p), r_mod))
+        openings_check := and(openings_check, lt(calldataload(p), r_mod))
 
         // proof_openings_selector_commit_api_at_zeta
         
         p := add(aproof, proof_openings_selector_commit_api_at_zeta)
         for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
         {
-          openings_check := and(openings_check, lt(mload(p), r_mod))
+          openings_check := and(openings_check, lt(calldataload(p), r_mod))
           p := add(p, 0x20)
         }
       
@@ -304,818 +303,819 @@ contract PlonkVerifier {
       }
       // end checks -------------------------------------------------
 
-      // Beginning challenges -------------------------------------------------
+      // // Beginning challenges -------------------------------------------------
 
-      // Derive gamma as Sha256(<transcript>)
-      // where transcript is the concatenation (in this order) of:
-      // * the word "gamma" in ascii, equal to [0x67,0x61,0x6d, 0x6d, 0x61] and encoded as a uint256.
-      // * the commitments to the permutation polynomials S1, S2, S3, where we concatenate the coordinates of those points
-      // * the commitments of Ql, Qr, Qm, Qo, Qk
-      // * the public inputs
-      // * the commitments of the wires related to the custom gates (commitments_wires_commit_api)
-      // * commitments to L, R, O (proof_<l,r,o>_com_<x,y>)
-      // The data described above is written starting at mPtr. "gamma" lies on 5 bytes,
-      // and is encoded as a uint256 number n. In basis b = 256, the number looks like this
-      // [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
-      function derive_gamma(aproof, ins)->gamma_not_reduced {
+      // // Derive gamma as Sha256(<transcript>)
+      // // where transcript is the concatenation (in this order) of:
+      // // * the word "gamma" in ascii, equal to [0x67,0x61,0x6d, 0x6d, 0x61] and encoded as a uint256.
+      // // * the commitments to the permutation polynomials S1, S2, S3, where we concatenate the coordinates of those points
+      // // * the commitments of Ql, Qr, Qm, Qo, Qk
+      // // * the public inputs
+      // // * the commitments of the wires related to the custom gates (commitments_wires_commit_api)
+      // // * commitments to L, R, O (proof_<l,r,o>_com_<x,y>)
+      // // The data described above is written starting at mPtr. "gamma" lies on 5 bytes,
+      // // and is encoded as a uint256 number n. In basis b = 256, the number looks like this
+      // // [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
+      // function derive_gamma(aproof, ins)->gamma_not_reduced {
         
-        let state := mload(0x40)
-        let mPtr := add(mload(0x40), state_last_mem)
+      //   let state := mload(0x40)
+      //   let mPtr := add(mload(0x40), state_last_mem)
 
-        // gamma
-        // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
-        // (same for alpha, beta, zeta)
-        mstore(mPtr, 0x67616d6d61) // "gamma"
+      //   // gamma
+      //   // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
+      //   // (same for alpha, beta, zeta)
+      //   mstore(mPtr, 0x67616d6d61) // "gamma"
 
-        mstore(add(mPtr, 0x20), vk_s1_com_x)
-        mstore(add(mPtr, 0x40), vk_s1_com_y)
-        mstore(add(mPtr, 0x60), vk_s2_com_x)
-        mstore(add(mPtr, 0x80), vk_s2_com_y)
-        mstore(add(mPtr, 0xa0), vk_s3_com_x)
-        mstore(add(mPtr, 0xc0), vk_s3_com_y)
-        mstore(add(mPtr, 0xe0), vk_ql_com_x)
-        mstore(add(mPtr, 0x100), vk_ql_com_y)
-        mstore(add(mPtr, 0x120), vk_qr_com_x)
-        mstore(add(mPtr, 0x140), vk_qr_com_y)
-        mstore(add(mPtr, 0x160), vk_qm_com_x)
-        mstore(add(mPtr, 0x180), vk_qm_com_y)
-        mstore(add(mPtr, 0x1a0), vk_qo_com_x)
-        mstore(add(mPtr, 0x1c0), vk_qo_com_y)
-        mstore(add(mPtr, 0x1e0), vk_qk_com_x)
-        mstore(add(mPtr, 0x200), vk_qk_com_y)
+      //   mstore(add(mPtr, 0x20), vk_s1_com_x)
+      //   mstore(add(mPtr, 0x40), vk_s1_com_y)
+      //   mstore(add(mPtr, 0x60), vk_s2_com_x)
+      //   mstore(add(mPtr, 0x80), vk_s2_com_y)
+      //   mstore(add(mPtr, 0xa0), vk_s3_com_x)
+      //   mstore(add(mPtr, 0xc0), vk_s3_com_y)
+      //   mstore(add(mPtr, 0xe0), vk_ql_com_x)
+      //   mstore(add(mPtr, 0x100), vk_ql_com_y)
+      //   mstore(add(mPtr, 0x120), vk_qr_com_x)
+      //   mstore(add(mPtr, 0x140), vk_qr_com_y)
+      //   mstore(add(mPtr, 0x160), vk_qm_com_x)
+      //   mstore(add(mPtr, 0x180), vk_qm_com_y)
+      //   mstore(add(mPtr, 0x1a0), vk_qo_com_x)
+      //   mstore(add(mPtr, 0x1c0), vk_qo_com_y)
+      //   mstore(add(mPtr, 0x1e0), vk_qk_com_x)
+      //   mstore(add(mPtr, 0x200), vk_qk_com_y)
 
-        let pi := add(ins, 0x20)
-        let _mPtr := add(mPtr, 0x220)
-        for {let i:=0} lt(i, mload(ins)) {i:=add(i,1)}
-        {
-          mstore(_mPtr, mload(pi))
-          pi := add(pi, 0x20)
-          _mPtr := add(_mPtr, 0x20)
-        }
+      //   let pi := add(ins, 0x20)
+      //   let _mPtr := add(mPtr, 0x220)
+      //   for {let i:=0} lt(i, mload(ins)) {i:=add(i,1)}
+      //   {
+      //     mstore(_mPtr, mload(pi))
+      //     pi := add(pi, 0x20)
+      //     _mPtr := add(_mPtr, 0x20)
+      //   }
 
-        let _proof := add(aproof, proof_openings_selector_commit_api_at_zeta)
-        _proof := add(_proof, mul(vk_nb_commitments_commit_api, 0x20))
-        for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-        {
-          mstore(_mPtr, mload(_proof))
-          mstore(add(_mPtr, 0x20), mload(add(_proof, 0x20)))
-          _mPtr := add(_mPtr, 0x40)
-          _proof := add(_proof, 0x40)
-        }
+      //   let _proof := add(aproof, proof_openings_selector_commit_api_at_zeta)
+      //   _proof := add(_proof, mul(vk_nb_commitments_commit_api, 0x20))
+      //   for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
+      //   {
+      //     mstore(_mPtr, mload(_proof))
+      //     mstore(add(_mPtr, 0x20), mload(add(_proof, 0x20)))
+      //     _mPtr := add(_mPtr, 0x40)
+      //     _proof := add(_proof, 0x40)
+      //   }
 
-        mstore(_mPtr, mload(add(aproof, proof_l_com_x)))
-        mstore(add(_mPtr, 0x20), mload(add(aproof, proof_l_com_y)))
-        mstore(add(_mPtr, 0x40), mload(add(aproof, proof_r_com_x)))
-        mstore(add(_mPtr, 0x60), mload(add(aproof, proof_r_com_y)))
-        mstore(add(_mPtr, 0x80), mload(add(aproof, proof_o_com_x)))
-        mstore(add(_mPtr, 0xa0), mload(add(aproof, proof_o_com_y)))
+      //   mstore(_mPtr, mload(add(aproof, proof_l_com_x)))
+      //   mstore(add(_mPtr, 0x20), mload(add(aproof, proof_l_com_y)))
+      //   mstore(add(_mPtr, 0x40), mload(add(aproof, proof_r_com_x)))
+      //   mstore(add(_mPtr, 0x60), mload(add(aproof, proof_r_com_y)))
+      //   mstore(add(_mPtr, 0x80), mload(add(aproof, proof_o_com_x)))
+      //   mstore(add(_mPtr, 0xa0), mload(add(aproof, proof_o_com_y)))
 
-        let size := add(0x2c5, mul(mload(ins), 0x20)) // 0x2c5 = 22*32+5
-        size := add(size, mul(vk_nb_commitments_commit_api, 0x40))
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if iszero(l_success) {
-          error_verify()
-        }
-        gamma_not_reduced := mload(mPtr)
-        mstore(add(state, state_gamma), mod(gamma_not_reduced, r_mod))
-      }
+      //   let size := add(0x2c5, mul(mload(ins), 0x20)) // 0x2c5 = 22*32+5
+      //   size := add(size, mul(vk_nb_commitments_commit_api, 0x40))
+      //   let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
+      //   if iszero(l_success) {
+      //     error_verify()
+      //   }
+      //   gamma_not_reduced := mload(mPtr)
+      //   mstore(add(state, state_gamma), mod(gamma_not_reduced, r_mod))
+      // }
 
-      function derive_beta(aproof, gamma_not_reduced)->beta_not_reduced{
+      // function derive_beta(aproof, gamma_not_reduced)->beta_not_reduced{
         
-        let state := mload(0x40)
-        let mPtr := add(mload(0x40), state_last_mem)
+      //   let state := mload(0x40)
+      //   let mPtr := add(mload(0x40), state_last_mem)
 
-        // beta
-        mstore(mPtr, 0x62657461) // "beta"
-        mstore(add(mPtr, 0x20), gamma_not_reduced)
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if iszero(l_success) {
-          error_verify()
-        }
-        beta_not_reduced := mload(mPtr)
-        mstore(add(state, state_beta), mod(beta_not_reduced, r_mod))
-      }
+      //   // beta
+      //   mstore(mPtr, 0x62657461) // "beta"
+      //   mstore(add(mPtr, 0x20), gamma_not_reduced)
+      //   let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
+      //   if iszero(l_success) {
+      //     error_verify()
+      //   }
+      //   beta_not_reduced := mload(mPtr)
+      //   mstore(add(state, state_beta), mod(beta_not_reduced, r_mod))
+      // }
 
-      // alpha depends on the previous challenge (beta) and on the commitment to the grand product polynomial
-      function derive_alpha(aproof, beta_not_reduced)->alpha_not_reduced {
+      // // alpha depends on the previous challenge (beta) and on the commitment to the grand product polynomial
+      // function derive_alpha(aproof, beta_not_reduced)->alpha_not_reduced {
         
-        let state := mload(0x40)
-        let mPtr := add(mload(0x40), state_last_mem)
+      //   let state := mload(0x40)
+      //   let mPtr := add(mload(0x40), state_last_mem)
 
-        // alpha
-        mstore(mPtr, 0x616C706861) // "alpha"
-        mstore(add(mPtr, 0x20), beta_not_reduced)
-        mstore(add(mPtr, 0x40), mload(add(aproof, proof_grand_product_commitment_x)))
-        mstore(add(mPtr, 0x60), mload(add(aproof, proof_grand_product_commitment_y)))
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if iszero(l_success) {
-          error_verify()
-        }
-        alpha_not_reduced := mload(mPtr)
-        mstore(add(state, state_alpha), mod(alpha_not_reduced, r_mod))
-      }
+      //   // alpha
+      //   mstore(mPtr, 0x616C706861) // "alpha"
+      //   mstore(add(mPtr, 0x20), beta_not_reduced)
+      //   mstore(add(mPtr, 0x40), mload(add(aproof, proof_grand_product_commitment_x)))
+      //   mstore(add(mPtr, 0x60), mload(add(aproof, proof_grand_product_commitment_y)))
+      //   let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
+      //   if iszero(l_success) {
+      //     error_verify()
+      //   }
+      //   alpha_not_reduced := mload(mPtr)
+      //   mstore(add(state, state_alpha), mod(alpha_not_reduced, r_mod))
+      // }
 
-      // zeta depends on the previous challenge (alpha) and on the commitment to the quotient polynomial
-      function derive_zeta(aproof, alpha_not_reduced) {
+      // // zeta depends on the previous challenge (alpha) and on the commitment to the quotient polynomial
+      // function derive_zeta(aproof, alpha_not_reduced) {
         
-        let state := mload(0x40)
-        let mPtr := add(mload(0x40), state_last_mem)
+      //   let state := mload(0x40)
+      //   let mPtr := add(mload(0x40), state_last_mem)
 
-        // zeta
-        mstore(mPtr, 0x7a657461) // "zeta"
-        mstore(add(mPtr, 0x20), alpha_not_reduced)
-        mstore(add(mPtr, 0x40), mload(add(aproof, proof_h_0_x)))
-        mstore(add(mPtr, 0x60), mload(add(aproof, proof_h_0_y)))
-        mstore(add(mPtr, 0x80), mload(add(aproof, proof_h_1_x)))
-        mstore(add(mPtr, 0xa0), mload(add(aproof, proof_h_1_y)))
-        mstore(add(mPtr, 0xc0), mload(add(aproof, proof_h_2_x)))
-        mstore(add(mPtr, 0xe0), mload(add(aproof, proof_h_2_y)))
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
-        if iszero(l_success) {
-          error_verify()
-        }
-        let zeta_not_reduced := mload(mPtr)
-        mstore(add(state, state_zeta), mod(zeta_not_reduced, r_mod))
-      }
-      // END challenges -------------------------------------------------
+      //   // zeta
+      //   mstore(mPtr, 0x7a657461) // "zeta"
+      //   mstore(add(mPtr, 0x20), alpha_not_reduced)
+      //   mstore(add(mPtr, 0x40), mload(add(aproof, proof_h_0_x)))
+      //   mstore(add(mPtr, 0x60), mload(add(aproof, proof_h_0_y)))
+      //   mstore(add(mPtr, 0x80), mload(add(aproof, proof_h_1_x)))
+      //   mstore(add(mPtr, 0xa0), mload(add(aproof, proof_h_1_y)))
+      //   mstore(add(mPtr, 0xc0), mload(add(aproof, proof_h_2_x)))
+      //   mstore(add(mPtr, 0xe0), mload(add(aproof, proof_h_2_y)))
+      //   let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
+      //   if iszero(l_success) {
+      //     error_verify()
+      //   }
+      //   let zeta_not_reduced := mload(mPtr)
+      //   mstore(add(state, state_zeta), mod(zeta_not_reduced, r_mod))
+      // }
+      // // END challenges -------------------------------------------------
 
-      // BEGINNING compute_pi -------------------------------------------------
-      function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
+      // // BEGINNING compute_pi -------------------------------------------------
+      // function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
         
-        let state := mload(0x40)
-        let z := mload(add(state, state_zeta))
-        let zpnmo := mload(add(state, state_zeta_power_n_minus_one))
+      //   let state := mload(0x40)
+      //   let z := mload(add(state, state_zeta))
+      //   let zpnmo := mload(add(state, state_zeta_power_n_minus_one))
 
-        let li := mPtr
-        batch_compute_lagranges_at_z(z, zpnmo, n, li)
+      //   let li := mPtr
+      //   batch_compute_lagranges_at_z(z, zpnmo, n, li)
 
-        let tmp := 0
-        for {let i:=0} lt(i,n) {i:=add(i,1)}
-        {
-          tmp := mulmod(mload(li), mload(ins), r_mod)
-          pi_wo_commit := addmod(pi_wo_commit, tmp, r_mod)
-          li := add(li, 0x20)
-          ins := add(ins, 0x20)
-        }
+      //   let tmp := 0
+      //   for {let i:=0} lt(i,n) {i:=add(i,1)}
+      //   {
+      //     tmp := mulmod(mload(li), mload(ins), r_mod)
+      //     pi_wo_commit := addmod(pi_wo_commit, tmp, r_mod)
+      //     li := add(li, 0x20)
+      //     ins := add(ins, 0x20)
+      //   }
         
-      }
+      // }
 
-      // mPtr <- [L_0(z), .., L_{n-1}(z)]
-      // 
-      // Here L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
-      // * n = vk_domain_size
-      // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
-      // * ζ = z (challenge derived with Fiat Shamir)
-      // * zpnmo = 'zeta power n minus one' (ζⁿ-1) which has been precomputed
-      function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
+      // // mPtr <- [L_0(z), .., L_{n-1}(z)]
+      // // 
+      // // Here L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
+      // // * n = vk_domain_size
+      // // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
+      // // * ζ = z (challenge derived with Fiat Shamir)
+      // // * zpnmo = 'zeta power n minus one' (ζⁿ-1) which has been precomputed
+      // function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
 
-        let zn := mulmod(zpnmo, vk_inv_domain_size, r_mod) // 1/n * (ζⁿ - 1)
+      //   let zn := mulmod(zpnmo, vk_inv_domain_size, r_mod) // 1/n * (ζⁿ - 1)
         
-        let _w := 1
-        let _mPtr := mPtr
-        for {let i:=0} lt(i,n) {i:=add(i,1)}
-        {
-          mstore(_mPtr, addmod(z,sub(r_mod, _w), r_mod))
-          _w := mulmod(_w, vk_omega, r_mod)
-          _mPtr := add(_mPtr, 0x20)
-        }
-        batch_invert(mPtr, n, _mPtr)
-        _mPtr := mPtr
-        _w := 1
-        for {let i:=0} lt(i,n) {i:=add(i,1)}
-        {
-          mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , r_mod), _w, r_mod))
-          _mPtr := add(_mPtr, 0x20)
-          _w := mulmod(_w, vk_omega, r_mod)
-        }
-      } 
+      //   let _w := 1
+      //   let _mPtr := mPtr
+      //   for {let i:=0} lt(i,n) {i:=add(i,1)}
+      //   {
+      //     mstore(_mPtr, addmod(z,sub(r_mod, _w), r_mod))
+      //     _w := mulmod(_w, vk_omega, r_mod)
+      //     _mPtr := add(_mPtr, 0x20)
+      //   }
+      //   batch_invert(mPtr, n, _mPtr)
+      //   _mPtr := mPtr
+      //   _w := 1
+      //   for {let i:=0} lt(i,n) {i:=add(i,1)}
+      //   {
+      //     mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , r_mod), _w, r_mod))
+      //     _mPtr := add(_mPtr, 0x20)
+      //     _w := mulmod(_w, vk_omega, r_mod)
+      //   }
+      // } 
 
-      // batch invert (modulo r) in place the nb_ins uint256 inputs starting at ins.
-      function batch_invert(ins, nb_ins, mPtr) {
-        mstore(mPtr, 1)
-        let offset := 0
-        for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
-        {
-          let prev := mload(add(mPtr, offset))
-          let cur := mload(add(ins, offset))
-          cur := mulmod(prev, cur, r_mod)
-          offset := add(offset, 0x20)
-          mstore(add(mPtr, offset), cur)
-        }
-        ins := add(ins, sub(offset, 0x20))
-        mPtr := add(mPtr, offset)
-        let inv := pow(mload(mPtr), sub(r_mod,2), add(mPtr, 0x20))
-        for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
-        {
-          mPtr := sub(mPtr, 0x20)
-          let tmp := mload(ins)
-          let cur := mulmod(inv, mload(mPtr), r_mod)
-          mstore(ins, cur)
-          inv := mulmod(inv, tmp, r_mod)
-          ins := sub(ins, 0x20)
-        }
-      }
+      // // batch invert (modulo r) in place the nb_ins uint256 inputs starting at ins.
+      // function batch_invert(ins, nb_ins, mPtr) {
+      //   mstore(mPtr, 1)
+      //   let offset := 0
+      //   for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
+      //   {
+      //     let prev := mload(add(mPtr, offset))
+      //     let cur := mload(add(ins, offset))
+      //     cur := mulmod(prev, cur, r_mod)
+      //     offset := add(offset, 0x20)
+      //     mstore(add(mPtr, offset), cur)
+      //   }
+      //   ins := add(ins, sub(offset, 0x20))
+      //   mPtr := add(mPtr, offset)
+      //   let inv := pow(mload(mPtr), sub(r_mod,2), add(mPtr, 0x20))
+      //   for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
+      //   {
+      //     mPtr := sub(mPtr, 0x20)
+      //     let tmp := mload(ins)
+      //     let cur := mulmod(inv, mload(mPtr), r_mod)
+      //     mstore(ins, cur)
+      //     inv := mulmod(inv, tmp, r_mod)
+      //     ins := sub(ins, 0x20)
+      //   }
+      // }
 
-      {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-      // mPtr free memory. Computes the public input contribution related to the commit
-      function sum_pi_commit(aproof, nb_public_inputs, mPtr)->pi_commit {
+      // {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+      // // mPtr free memory. Computes the public input contribution related to the commit
+      // function sum_pi_commit(aproof, nb_public_inputs, mPtr)->pi_commit {
 
-        let state := mload(0x40)
-        let z := mload(add(state, state_zeta))
-        let zpnmo := mload(add(state, state_zeta_power_n_minus_one))
+      //   let state := mload(0x40)
+      //   let z := mload(add(state, state_zeta))
+      //   let zpnmo := mload(add(state, state_zeta_power_n_minus_one))
 
-        let p := add(aproof, proof_openings_selector_commit_api_at_zeta)
-        p := add(p, mul(vk_nb_commitments_commit_api, 0x20)) // p points now to the wire commitments
+      //   let p := add(aproof, proof_openings_selector_commit_api_at_zeta)
+      //   p := add(p, mul(vk_nb_commitments_commit_api, 0x20)) // p points now to the wire commitments
 
-        let h_fr, ith_lagrange
+      //   let h_fr, ith_lagrange
        
-        {{ range $index, $element := .CommitmentConstraintIndexes}}
-        h_fr := hash_fr(mload(p), mload(add(p, 0x20)), mPtr)
-        ith_lagrange := compute_ith_lagrange_at_z(z, zpnmo, add(nb_public_inputs, vk_index_commit_api_{{ $index }}), mPtr)
-        pi_commit := addmod(pi_commit, mulmod(h_fr, ith_lagrange, r_mod), r_mod)
-        p := add(p, 0x40)
-        {{ end }}
+      //   {{ range $index, $element := .CommitmentConstraintIndexes}}
+      //   h_fr := hash_fr(mload(p), mload(add(p, 0x20)), mPtr)
+      //   ith_lagrange := compute_ith_lagrange_at_z(z, zpnmo, add(nb_public_inputs, vk_index_commit_api_{{ $index }}), mPtr)
+      //   pi_commit := addmod(pi_commit, mulmod(h_fr, ith_lagrange, r_mod), r_mod)
+      //   p := add(p, 0x40)
+      //   {{ end }}
 
-      }
+      // }
 
-      // z zeta
-      // zpmno ζⁿ-1
-      // i i-th lagrange
-      // mPtr free memory
-      // Computes L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
-      function compute_ith_lagrange_at_z(z, zpnmo, i, mPtr)->res {
+      // // z zeta
+      // // zpmno ζⁿ-1
+      // // i i-th lagrange
+      // // mPtr free memory
+      // // Computes L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
+      // function compute_ith_lagrange_at_z(z, zpnmo, i, mPtr)->res {
 
-        let w := pow(vk_omega, i, mPtr) // w**i
-        i := addmod(z, sub(r_mod, w), r_mod) // z-w**i
-        w := mulmod(w, vk_inv_domain_size, r_mod) // w**i/n
-        i := pow(i, sub(r_mod,2), mPtr) // (z-w**i)**-1
-        w := mulmod(w, i, r_mod) // w**i/n*(z-w)**-1
-        res := mulmod(w, zpnmo, r_mod)
+      //   let w := pow(vk_omega, i, mPtr) // w**i
+      //   i := addmod(z, sub(r_mod, w), r_mod) // z-w**i
+      //   w := mulmod(w, vk_inv_domain_size, r_mod) // w**i/n
+      //   i := pow(i, sub(r_mod,2), mPtr) // (z-w**i)**-1
+      //   w := mulmod(w, i, r_mod) // w**i/n*(z-w)**-1
+      //   res := mulmod(w, zpnmo, r_mod)
       
-      }
+      // }
 
-      // (x, y) point on bn254, both on 32bytes
-      // mPtr free memory
-      function hash_fr(x, y, mPtr)->res {
+      // // (x, y) point on bn254, both on 32bytes
+      // // mPtr free memory
+      // function hash_fr(x, y, mPtr)->res {
 
-        // [0x00, .. , 0x00 || x, y, || 0, 48, 0, dst, sizeDomain]
-        // <-  64 bytes  ->  <-64b -> <-       1 bytes each     ->
+      //   // [0x00, .. , 0x00 || x, y, || 0, 48, 0, dst, sizeDomain]
+      //   // <-  64 bytes  ->  <-64b -> <-       1 bytes each     ->
 
-        // [0x00, .., 0x00] 64 bytes of zero
-        mstore(mPtr, zero_uint256)
-        mstore(add(mPtr, 0x20), zero_uint256)
+      //   // [0x00, .., 0x00] 64 bytes of zero
+      //   mstore(mPtr, zero_uint256)
+      //   mstore(add(mPtr, 0x20), zero_uint256)
     
-        // msg =  x || y , both on 32 bytes
-        mstore(add(mPtr, 0x40), x)
-        mstore(add(mPtr, 0x60), y)
+      //   // msg =  x || y , both on 32 bytes
+      //   mstore(add(mPtr, 0x40), x)
+      //   mstore(add(mPtr, 0x60), y)
 
-        // 0 || 48 || 0 all on 1 byte
-        mstore8(add(mPtr, 0x80), 0)
-        mstore8(add(mPtr, 0x81), lenInBytes)
-        mstore8(add(mPtr, 0x82), 0)
+      //   // 0 || 48 || 0 all on 1 byte
+      //   mstore8(add(mPtr, 0x80), 0)
+      //   mstore8(add(mPtr, 0x81), lenInBytes)
+      //   mstore8(add(mPtr, 0x82), 0)
 
-        // "BSB22-Plonk" = [42, 53, 42, 32, 32, 2d, 50, 6c, 6f, 6e, 6b,]
-        mstore8(add(mPtr, 0x83), 0x42)
-        mstore8(add(mPtr, 0x84), 0x53)
-        mstore8(add(mPtr, 0x85), 0x42)
-        mstore8(add(mPtr, 0x86), 0x32)
-        mstore8(add(mPtr, 0x87), 0x32)
-        mstore8(add(mPtr, 0x88), 0x2d)
-        mstore8(add(mPtr, 0x89), 0x50)
-        mstore8(add(mPtr, 0x8a), 0x6c)
-        mstore8(add(mPtr, 0x8b), 0x6f)
-        mstore8(add(mPtr, 0x8c), 0x6e)
-        mstore8(add(mPtr, 0x8d), 0x6b)
+      //   // "BSB22-Plonk" = [42, 53, 42, 32, 32, 2d, 50, 6c, 6f, 6e, 6b,]
+      //   mstore8(add(mPtr, 0x83), 0x42)
+      //   mstore8(add(mPtr, 0x84), 0x53)
+      //   mstore8(add(mPtr, 0x85), 0x42)
+      //   mstore8(add(mPtr, 0x86), 0x32)
+      //   mstore8(add(mPtr, 0x87), 0x32)
+      //   mstore8(add(mPtr, 0x88), 0x2d)
+      //   mstore8(add(mPtr, 0x89), 0x50)
+      //   mstore8(add(mPtr, 0x8a), 0x6c)
+      //   mstore8(add(mPtr, 0x8b), 0x6f)
+      //   mstore8(add(mPtr, 0x8c), 0x6e)
+      //   mstore8(add(mPtr, 0x8d), 0x6b)
 
-        // size domain
-        mstore8(add(mPtr, 0x8e), sizeDomain)
+      //   // size domain
+      //   mstore8(add(mPtr, 0x8e), sizeDomain)
 
-        let l_success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
-        if iszero(l_success) {
-          error_verify()
-        }
+      //   let l_success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
+      //   if iszero(l_success) {
+      //     error_verify()
+      //   }
 
-        let b0 := mload(mPtr)
+      //   let b0 := mload(mPtr)
 
-        // [b0         || one || dst || sizeDomain]
-        // <-64bytes ->  <-    1 byte each      ->
-        mstore8(add(mPtr, 0x20), one) // 1
+      //   // [b0         || one || dst || sizeDomain]
+      //   // <-64bytes ->  <-    1 byte each      ->
+      //   mstore8(add(mPtr, 0x20), one) // 1
         
-        mstore8(add(mPtr, 0x21), 0x42) // dst
-        mstore8(add(mPtr, 0x22), 0x53)
-        mstore8(add(mPtr, 0x23), 0x42)
-        mstore8(add(mPtr, 0x24), 0x32)
-        mstore8(add(mPtr, 0x25), 0x32)
-        mstore8(add(mPtr, 0x26), 0x2d)
-        mstore8(add(mPtr, 0x27), 0x50)
-        mstore8(add(mPtr, 0x28), 0x6c)
-        mstore8(add(mPtr, 0x29), 0x6f)
-        mstore8(add(mPtr, 0x2a), 0x6e)
-        mstore8(add(mPtr, 0x2b), 0x6b)
+      //   mstore8(add(mPtr, 0x21), 0x42) // dst
+      //   mstore8(add(mPtr, 0x22), 0x53)
+      //   mstore8(add(mPtr, 0x23), 0x42)
+      //   mstore8(add(mPtr, 0x24), 0x32)
+      //   mstore8(add(mPtr, 0x25), 0x32)
+      //   mstore8(add(mPtr, 0x26), 0x2d)
+      //   mstore8(add(mPtr, 0x27), 0x50)
+      //   mstore8(add(mPtr, 0x28), 0x6c)
+      //   mstore8(add(mPtr, 0x29), 0x6f)
+      //   mstore8(add(mPtr, 0x2a), 0x6e)
+      //   mstore8(add(mPtr, 0x2b), 0x6b)
 
-        mstore8(add(mPtr, 0x2c), sizeDomain) // size domain
-        l_success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
-        if iszero(l_success) {
-          error_verify()
-        }
+      //   mstore8(add(mPtr, 0x2c), sizeDomain) // size domain
+      //   l_success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
+      //   if iszero(l_success) {
+      //     error_verify()
+      //   }
 
-        // b1 is located at mPtr. We store b2 at add(mPtr, 0x20)
+      //   // b1 is located at mPtr. We store b2 at add(mPtr, 0x20)
 
-        // [b0^b1      || two || dst || sizeDomain]
-        // <-64bytes ->  <-    1 byte each      ->
-        mstore(add(mPtr, 0x20), xor(mload(mPtr), b0))
-        mstore8(add(mPtr, 0x40), two)
+      //   // [b0^b1      || two || dst || sizeDomain]
+      //   // <-64bytes ->  <-    1 byte each      ->
+      //   mstore(add(mPtr, 0x20), xor(mload(mPtr), b0))
+      //   mstore8(add(mPtr, 0x40), two)
 
-        mstore8(add(mPtr, 0x41), 0x42) // dst
-        mstore8(add(mPtr, 0x42), 0x53)
-        mstore8(add(mPtr, 0x43), 0x42)
-        mstore8(add(mPtr, 0x44), 0x32)
-        mstore8(add(mPtr, 0x45), 0x32)
-        mstore8(add(mPtr, 0x46), 0x2d)
-        mstore8(add(mPtr, 0x47), 0x50)
-        mstore8(add(mPtr, 0x48), 0x6c)
-        mstore8(add(mPtr, 0x49), 0x6f)
-        mstore8(add(mPtr, 0x4a), 0x6e)
-        mstore8(add(mPtr, 0x4b), 0x6b)
+      //   mstore8(add(mPtr, 0x41), 0x42) // dst
+      //   mstore8(add(mPtr, 0x42), 0x53)
+      //   mstore8(add(mPtr, 0x43), 0x42)
+      //   mstore8(add(mPtr, 0x44), 0x32)
+      //   mstore8(add(mPtr, 0x45), 0x32)
+      //   mstore8(add(mPtr, 0x46), 0x2d)
+      //   mstore8(add(mPtr, 0x47), 0x50)
+      //   mstore8(add(mPtr, 0x48), 0x6c)
+      //   mstore8(add(mPtr, 0x49), 0x6f)
+      //   mstore8(add(mPtr, 0x4a), 0x6e)
+      //   mstore8(add(mPtr, 0x4b), 0x6b)
 
-        mstore8(add(mPtr, 0x4c), sizeDomain) // size domain
+      //   mstore8(add(mPtr, 0x4c), sizeDomain) // size domain
 
-        let offset := add(mPtr, 0x20)
-        l_success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
-        if iszero(l_success) {
-          error_verify()
-        }
+      //   let offset := add(mPtr, 0x20)
+      //   l_success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
+      //   if iszero(l_success) {
+      //     error_verify()
+      //   }
 
-        // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
-        // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
-        // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
-        res := mulmod(mload(mPtr), bb, r_mod) // <- res = 2**128 * mPtr[:32]
-        offset := add(mPtr, 0x10)
-        for {let i:=0} lt(i, 0x10) {i:=add(i,1)} // mPtr <- [xx, xx, ..,  | 0, 0, .. 0  ||    b2   ]
-        {
-          mstore8(offset, 0x00)
-          offset := add(offset, 0x1)
-        }
-        let b1 := mload(add(mPtr, 0x10)) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
-        res := addmod(res, b1, r_mod)
+      //   // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
+      //   // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
+      //   // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
+      //   res := mulmod(mload(mPtr), bb, r_mod) // <- res = 2**128 * mPtr[:32]
+      //   offset := add(mPtr, 0x10)
+      //   for {let i:=0} lt(i, 0x10) {i:=add(i,1)} // mPtr <- [xx, xx, ..,  | 0, 0, .. 0  ||    b2   ]
+      //   {
+      //     mstore8(offset, 0x00)
+      //     offset := add(offset, 0x1)
+      //   }
+      //   let b1 := mload(add(mPtr, 0x10)) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
+      //   res := addmod(res, b1, r_mod)
 
-      }
-      {{ end }}
-      // END compute_pi -------------------------------------------------
+      // }
+      // {{ end }}
+      // // END compute_pi -------------------------------------------------
 
-      function error_verify() {
-        let ptError := mload(0x40)
-        mstore(ptError, error_string_id) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0xc)
-        mstore(add(ptError, 0x44), "error verify")
-        revert(ptError, 0x64)
-      }
+      // function error_verify() {
+      //   let ptError := mload(0x40)
+      //   mstore(ptError, error_string_id) // selector for function Error(string)
+      //   mstore(add(ptError, 0x4), 0x20)
+      //   mstore(add(ptError, 0x24), 0xc)
+      //   mstore(add(ptError, 0x44), "error verify")
+      //   revert(ptError, 0x64)
+      // }
 
-      // compute α² * 1/n * (ζ{n}-1)/(ζ - 1) where
-      // * α = challenge derived in derive_gamma_beta_alpha_zeta
-      // * n = vk_domain_size
-      // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
-      // * ζ = zeta (challenge derived with Fiat Shamir)
-      function compute_alpha_square_lagrange_0() {   
-        let state := mload(0x40)
-        let mPtr := add(mload(0x40), state_last_mem)
+      // // compute α² * 1/n * (ζ{n}-1)/(ζ - 1) where
+      // // * α = challenge derived in derive_gamma_beta_alpha_zeta
+      // // * n = vk_domain_size
+      // // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
+      // // * ζ = zeta (challenge derived with Fiat Shamir)
+      // function compute_alpha_square_lagrange_0() {   
+      //   let state := mload(0x40)
+      //   let mPtr := add(mload(0x40), state_last_mem)
 
-        let res := mload(add(state, state_zeta_power_n_minus_one))
-        let den := addmod(mload(add(state, state_zeta)), sub(r_mod, 1), r_mod)
-        den := pow(den, sub(r_mod, 2), mPtr)
-        den := mulmod(den, vk_inv_domain_size, r_mod)
-        res := mulmod(den, res, r_mod)
+      //   let res := mload(add(state, state_zeta_power_n_minus_one))
+      //   let den := addmod(mload(add(state, state_zeta)), sub(r_mod, 1), r_mod)
+      //   den := pow(den, sub(r_mod, 2), mPtr)
+      //   den := mulmod(den, vk_inv_domain_size, r_mod)
+      //   res := mulmod(den, res, r_mod)
 
-        let l_alpha := mload(add(state, state_alpha))
-        res := mulmod(res, l_alpha, r_mod)
-        res := mulmod(res, l_alpha, r_mod)
-        mstore(add(state, state_alpha_square_lagrange_0), res)
-      }
+      //   let l_alpha := mload(add(state, state_alpha))
+      //   res := mulmod(res, l_alpha, r_mod)
+      //   res := mulmod(res, l_alpha, r_mod)
+      //   mstore(add(state, state_alpha_square_lagrange_0), res)
+      // }
 
-      // follows alg. p.13 of https://eprint.iacr.org/2019/953.pdf
-      // with t₁ = t₂ = 1, and the proofs are ([digest] + [quotient] +purported evaluation):
-      // * [state_folded_state_digests], [proof_batch_opening_at_zeta_x], state_folded_evals
-      // * [proof_grand_product_commitment], [proof_opening_at_zeta_omega_x], [proof_grand_product_at_zeta_omega]
-      function batch_verify_multi_points(aproof) {
+      // // follows alg. p.13 of https://eprint.iacr.org/2019/953.pdf
+      // // with t₁ = t₂ = 1, and the proofs are ([digest] + [quotient] +purported evaluation):
+      // // * [state_folded_state_digests], [proof_batch_opening_at_zeta_x], state_folded_evals
+      // // * [proof_grand_product_commitment], [proof_opening_at_zeta_omega_x], [proof_grand_product_at_zeta_omega]
+      // function batch_verify_multi_points(aproof) {
 
-        let state := mload(0x40)
-        let mPtr := add(state, state_last_mem)
+      //   let state := mload(0x40)
+      //   let mPtr := add(state, state_last_mem)
 
-        // here the random is not a challenge, hence no need to use Fiat Shamir, we just
-        // need an unpredictible result.
-        let random := mod(keccak256(state, 0x20), r_mod)
+      //   // here the random is not a challenge, hence no need to use Fiat Shamir, we just
+      //   // need an unpredictible result.
+      //   let random := mod(keccak256(state, 0x20), r_mod)
 
-        let folded_quotients := mPtr
-        mPtr := add(folded_quotients, 0x40)
-        mstore(folded_quotients, mload(add(aproof, proof_batch_opening_at_zeta_x)))
-        mstore(add(folded_quotients, 0x20), mload(add(aproof, proof_batch_opening_at_zeta_y)))
-        point_acc_mul(folded_quotients, add(aproof, proof_opening_at_zeta_omega_x), random, mPtr)
+      //   let folded_quotients := mPtr
+      //   mPtr := add(folded_quotients, 0x40)
+      //   mstore(folded_quotients, mload(add(aproof, proof_batch_opening_at_zeta_x)))
+      //   mstore(add(folded_quotients, 0x20), mload(add(aproof, proof_batch_opening_at_zeta_y)))
+      //   point_acc_mul(folded_quotients, add(aproof, proof_opening_at_zeta_omega_x), random, mPtr)
 
-        let folded_digests := add(state, state_folded_digests_x)
-        point_acc_mul(folded_digests, add(aproof, proof_grand_product_commitment_x), random, mPtr)
+      //   let folded_digests := add(state, state_folded_digests_x)
+      //   point_acc_mul(folded_digests, add(aproof, proof_grand_product_commitment_x), random, mPtr)
 
-        let folded_evals := add(state, state_folded_claimed_values)
-        fr_acc_mul(folded_evals, add(aproof, proof_grand_product_at_zeta_omega), random)
+      //   let folded_evals := add(state, state_folded_claimed_values)
+      //   fr_acc_mul(folded_evals, add(aproof, proof_grand_product_at_zeta_omega), random)
 
-        let folded_evals_commit := mPtr
-        mPtr := add(folded_evals_commit, 0x40)
-        mstore(folded_evals_commit, {{ fpstr .Kzg.G1.X }})
-        mstore(add(folded_evals_commit, 0x20), {{ fpstr .Kzg.G1.Y }})
-        mstore(add(folded_evals_commit, 0x40), mload(folded_evals))
-        let check_staticcall := staticcall(gas(),7,folded_evals_commit,0x60,folded_evals_commit,0x40)
-        if eq(check_staticcall, 0) {
-          error_verify()
-        }
+      //   let folded_evals_commit := mPtr
+      //   mPtr := add(folded_evals_commit, 0x40)
+      //   mstore(folded_evals_commit, {{ fpstr .Kzg.G1.X }})
+      //   mstore(add(folded_evals_commit, 0x20), {{ fpstr .Kzg.G1.Y }})
+      //   mstore(add(folded_evals_commit, 0x40), mload(folded_evals))
+      //   let check_staticcall := staticcall(gas(),7,folded_evals_commit,0x60,folded_evals_commit,0x40)
+      //   if eq(check_staticcall, 0) {
+      //     error_verify()
+      //   }
 
-        let folded_evals_commit_y := add(folded_evals_commit, 0x20)
-        mstore(folded_evals_commit_y, sub(p_mod, mload(folded_evals_commit_y)))
-        point_add(folded_digests, folded_digests, folded_evals_commit, mPtr)
+      //   let folded_evals_commit_y := add(folded_evals_commit, 0x20)
+      //   mstore(folded_evals_commit_y, sub(p_mod, mload(folded_evals_commit_y)))
+      //   point_add(folded_digests, folded_digests, folded_evals_commit, mPtr)
 
-        let folded_points_quotients := mPtr
-        mPtr := add(mPtr, 0x40)
-        point_mul(folded_points_quotients, add(aproof, proof_batch_opening_at_zeta_x), mload(add(state, state_zeta)), mPtr)
-        let zeta_omega := mulmod(mload(add(state, state_zeta)), vk_omega, r_mod)
-        random := mulmod(random, zeta_omega, r_mod)
-        point_acc_mul(folded_points_quotients, add(aproof, proof_opening_at_zeta_omega_x), random, mPtr)
+      //   let folded_points_quotients := mPtr
+      //   mPtr := add(mPtr, 0x40)
+      //   point_mul(folded_points_quotients, add(aproof, proof_batch_opening_at_zeta_x), mload(add(state, state_zeta)), mPtr)
+      //   let zeta_omega := mulmod(mload(add(state, state_zeta)), vk_omega, r_mod)
+      //   random := mulmod(random, zeta_omega, r_mod)
+      //   point_acc_mul(folded_points_quotients, add(aproof, proof_opening_at_zeta_omega_x), random, mPtr)
 
-        point_add(folded_digests, folded_digests, folded_points_quotients, mPtr)
+      //   point_add(folded_digests, folded_digests, folded_points_quotients, mPtr)
 
-        let folded_quotients_y := add(folded_quotients, 0x20)
-        mstore(folded_quotients_y, sub(p_mod, mload(folded_quotients_y)))
+      //   let folded_quotients_y := add(folded_quotients, 0x20)
+      //   mstore(folded_quotients_y, sub(p_mod, mload(folded_quotients_y)))
 
-        mstore(mPtr, mload(folded_digests))
-        mstore(add(mPtr, 0x20), mload(add(folded_digests, 0x20)))
-        mstore(add(mPtr, 0x40), g2_srs_0_x_0) // the 4 lines are the canonical G2 point on BN254
-        mstore(add(mPtr, 0x60), g2_srs_0_x_1)
-        mstore(add(mPtr, 0x80), g2_srs_0_y_0)
-        mstore(add(mPtr, 0xa0), g2_srs_0_y_1)
-        mstore(add(mPtr, 0xc0), mload(folded_quotients))
-        mstore(add(mPtr, 0xe0), mload(add(folded_quotients, 0x20)))
-        mstore(add(mPtr, 0x100), g2_srs_1_x_0)
-        mstore(add(mPtr, 0x120), g2_srs_1_x_1)
-        mstore(add(mPtr, 0x140), g2_srs_1_y_0)
-        mstore(add(mPtr, 0x160), g2_srs_1_y_1)
-        check_pairing_kzg(mPtr)
-      }
+      //   mstore(mPtr, mload(folded_digests))
+      //   mstore(add(mPtr, 0x20), mload(add(folded_digests, 0x20)))
+      //   mstore(add(mPtr, 0x40), g2_srs_0_x_0) // the 4 lines are the canonical G2 point on BN254
+      //   mstore(add(mPtr, 0x60), g2_srs_0_x_1)
+      //   mstore(add(mPtr, 0x80), g2_srs_0_y_0)
+      //   mstore(add(mPtr, 0xa0), g2_srs_0_y_1)
+      //   mstore(add(mPtr, 0xc0), mload(folded_quotients))
+      //   mstore(add(mPtr, 0xe0), mload(add(folded_quotients, 0x20)))
+      //   mstore(add(mPtr, 0x100), g2_srs_1_x_0)
+      //   mstore(add(mPtr, 0x120), g2_srs_1_x_1)
+      //   mstore(add(mPtr, 0x140), g2_srs_1_y_0)
+      //   mstore(add(mPtr, 0x160), g2_srs_1_y_1)
+      //   check_pairing_kzg(mPtr)
+      // }
 
-      // check_pairing_kzg checks the result of the final pairing product of the batched
-      // kzg verification. The purpose of this function is too avoid exhausting the stack
-      // in the function batch_verify_multi_points.
-      // mPtr: pointer storing the tuple of pairs
-      function check_pairing_kzg(mPtr) {
+      // // check_pairing_kzg checks the result of the final pairing product of the batched
+      // // kzg verification. The purpose of this function is too avoid exhausting the stack
+      // // in the function batch_verify_multi_points.
+      // // mPtr: pointer storing the tuple of pairs
+      // function check_pairing_kzg(mPtr) {
 
-        let state := mload(0x40)
+      //   let state := mload(0x40)
 
-        // TODO test the staticcall using the method from audit_4-5
-        let l_success := staticcall(gas(),8,mPtr,0x180,0x00,0x20)
-        let res_pairing := mload(0x00)
-        let s_success := mload(add(state, state_success))
-        res_pairing := and(and(res_pairing, l_success), s_success)
-        mstore(add(state, state_success), res_pairing)
-      }
+      //   // TODO test the staticcall using the method from audit_4-5
+      //   let l_success := staticcall(gas(),8,mPtr,0x180,0x00,0x20)
+      //   let res_pairing := mload(0x00)
+      //   let s_success := mload(add(state, state_success))
+      //   res_pairing := and(and(res_pairing, l_success), s_success)
+      //   mstore(add(state, state_success), res_pairing)
+      // }
 
-      // Fold the opening proofs at ζ:
-      // * at state+state_folded_digest we store: [H] + γ[Linearised_polynomial]+γ²[L] + γ³[R] + γ⁴[O] + γ⁵[S₁] +γ⁶[S₂] + ∑ᵢγ⁶⁺ⁱ[Pi_{i}]
-      // * at state+state_folded_claimed_values we store: H(ζ) + γLinearised_polynomial(ζ)+γ²L(ζ) + γ³R(ζ)+ γ⁴O(ζ) + γ⁵S₁(ζ) +γ⁶S₂(ζ) + ∑ᵢγ⁶⁺ⁱPi_{i}(ζ)
-      // acc_gamma stores the γⁱ
-      function fold_state(aproof) {
+      // // Fold the opening proofs at ζ:
+      // // * at state+state_folded_digest we store: [H] + γ[Linearised_polynomial]+γ²[L] + γ³[R] + γ⁴[O] + γ⁵[S₁] +γ⁶[S₂] + ∑ᵢγ⁶⁺ⁱ[Pi_{i}]
+      // // * at state+state_folded_claimed_values we store: H(ζ) + γLinearised_polynomial(ζ)+γ²L(ζ) + γ³R(ζ)+ γ⁴O(ζ) + γ⁵S₁(ζ) +γ⁶S₂(ζ) + ∑ᵢγ⁶⁺ⁱPi_{i}(ζ)
+      // // acc_gamma stores the γⁱ
+      // function fold_state(aproof) {
         
-        let state := mload(0x40)
-        let mPtr := add(mload(0x40), state_last_mem)
+      //   let state := mload(0x40)
+      //   let mPtr := add(mload(0x40), state_last_mem)
 
-        let l_gamma_kzg := mload(add(state, state_gamma_kzg))
-        let acc_gamma := l_gamma_kzg
+      //   let l_gamma_kzg := mload(add(state, state_gamma_kzg))
+      //   let acc_gamma := l_gamma_kzg
 
-        let offset := add(0x200, mul(vk_nb_commitments_commit_api, 0x40)) // 0x40 = 2*0x20
-        let mPtrOffset := add(mPtr, offset)
+      //   let offset := add(0x200, mul(vk_nb_commitments_commit_api, 0x40)) // 0x40 = 2*0x20
+      //   let mPtrOffset := add(mPtr, offset)
 
-        mstore(add(state, state_folded_digests_x), mload(add(mPtr,0x40)))
-        mstore(add(state, state_folded_digests_y), mload(add(mPtr,0x60)))
-        mstore(add(state, state_folded_claimed_values), mload(add(aproof, proof_quotient_polynomial_at_zeta)))
+      //   mstore(add(state, state_folded_digests_x), mload(add(mPtr,0x40)))
+      //   mstore(add(state, state_folded_digests_y), mload(add(mPtr,0x60)))
+      //   mstore(add(state, state_folded_claimed_values), mload(add(aproof, proof_quotient_polynomial_at_zeta)))
 
-        point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0x80), acc_gamma, mPtrOffset)
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_linearised_polynomial_at_zeta), acc_gamma)
-        mstore(add(state, state_check_var), acc_gamma)
+      //   point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0x80), acc_gamma, mPtrOffset)
+      //   fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_linearised_polynomial_at_zeta), acc_gamma)
+      //   mstore(add(state, state_check_var), acc_gamma)
         
-        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
-        point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0xc0), acc_gamma, mPtrOffset)
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_l_at_zeta), acc_gamma)
+      //   acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
+      //   point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0xc0), acc_gamma, mPtrOffset)
+      //   fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_l_at_zeta), acc_gamma)
         
-        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
-        point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0x100), acc_gamma, add(mPtr, offset))
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_r_at_zeta), acc_gamma)
+      //   acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
+      //   point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0x100), acc_gamma, add(mPtr, offset))
+      //   fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_r_at_zeta), acc_gamma)
 
-        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
-        point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0x140), acc_gamma, add(mPtr, offset))
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_o_at_zeta), acc_gamma)
+      //   acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
+      //   point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0x140), acc_gamma, add(mPtr, offset))
+      //   fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_o_at_zeta), acc_gamma)
         
-        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
-        point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0x180), acc_gamma, add(mPtr, offset))
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_s1_at_zeta), acc_gamma)
+      //   acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
+      //   point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0x180), acc_gamma, add(mPtr, offset))
+      //   fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_s1_at_zeta), acc_gamma)
         
-        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
-        point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0x1c0), acc_gamma, add(mPtr, offset))
-        fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_s2_at_zeta), acc_gamma)
+      //   acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
+      //   point_acc_mul(add(state, state_folded_digests_x), add(mPtr,0x1c0), acc_gamma, add(mPtr, offset))
+      //   fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_s2_at_zeta), acc_gamma)
         
-        let poscaz := add(aproof, proof_openings_selector_commit_api_at_zeta)
-        let opca := add(mPtr, 0x200) // offset_proof_commits_api
-        for {let i := 0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-        {
-          acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
-          point_acc_mul(add(state, state_folded_digests_x), opca, acc_gamma, add(mPtr, offset))
-          fr_acc_mul(add(state, state_folded_claimed_values), poscaz, acc_gamma)
-          poscaz := add(poscaz, 0x20)
-          opca := add(opca, 0x40)
-        }
+      //   let poscaz := add(aproof, proof_openings_selector_commit_api_at_zeta)
+      //   let opca := add(mPtr, 0x200) // offset_proof_commits_api
+      //   for {let i := 0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
+      //   {
+      //     acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
+      //     point_acc_mul(add(state, state_folded_digests_x), opca, acc_gamma, add(mPtr, offset))
+      //     fr_acc_mul(add(state, state_folded_claimed_values), poscaz, acc_gamma)
+      //     poscaz := add(poscaz, 0x20)
+      //     opca := add(opca, 0x40)
+      //   }
 
-      }
+      // }
 
-      // generate the challenge (using Fiat Shamir) to fold the opening proofs
-      // at ζ.
-      // The process for deriving γ is the same as in derive_gamma but this time the inputs are
-      // in this order (the [] means it's a commitment):
-      // * ζ
-      // * [H] ( = H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ )
-      // * [Linearised polynomial]
-      // * [L], [R], [O]
-      // * [S₁] [S₂]
-      // * [Pi_{i}] (wires associated to custom gates)
-      // Then there are the purported evaluations of the previous committed polynomials:
-      // * H(ζ)
-      // * Linearised_polynomial(ζ)
-      // * L(ζ), R(ζ), O(ζ), S₁(ζ), S₂(ζ)
-      // * Pi_{i}(ζ)
-      function compute_gamma_kzg(aproof) {
+      // // generate the challenge (using Fiat Shamir) to fold the opening proofs
+      // // at ζ.
+      // // The process for deriving γ is the same as in derive_gamma but this time the inputs are
+      // // in this order (the [] means it's a commitment):
+      // // * ζ
+      // // * [H] ( = H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ )
+      // // * [Linearised polynomial]
+      // // * [L], [R], [O]
+      // // * [S₁] [S₂]
+      // // * [Pi_{i}] (wires associated to custom gates)
+      // // Then there are the purported evaluations of the previous committed polynomials:
+      // // * H(ζ)
+      // // * Linearised_polynomial(ζ)
+      // // * L(ζ), R(ζ), O(ζ), S₁(ζ), S₂(ζ)
+      // // * Pi_{i}(ζ)
+      // function compute_gamma_kzg(aproof) {
 
-        let state := mload(0x40)
-        let mPtr := add(mload(0x40), state_last_mem)
-        mstore(mPtr, 0x67616d6d61) // "gamma"
-        mstore(add(mPtr, 0x20), mload(add(state, state_zeta)))
-        mstore(add(mPtr,0x40), mload(add(state, state_folded_h_x)))
-        mstore(add(mPtr,0x60), mload(add(state, state_folded_h_y)))
-        mstore(add(mPtr,0x80), mload(add(state, state_linearised_polynomial_x)))
-        mstore(add(mPtr,0xa0), mload(add(state, state_linearised_polynomial_y)))
-        mstore(add(mPtr,0xc0), mload(add(aproof, proof_l_com_x)))
-        mstore(add(mPtr,0xe0), mload(add(aproof, proof_l_com_y)))
-        mstore(add(mPtr,0x100), mload(add(aproof, proof_r_com_x)))
-        mstore(add(mPtr,0x120), mload(add(aproof, proof_r_com_y)))
-        mstore(add(mPtr,0x140), mload(add(aproof, proof_o_com_x)))
-        mstore(add(mPtr,0x160), mload(add(aproof, proof_o_com_y)))
-        mstore(add(mPtr,0x180), vk_s1_com_x)
-        mstore(add(mPtr,0x1a0), vk_s1_com_y)
-        mstore(add(mPtr,0x1c0), vk_s2_com_x)
-        mstore(add(mPtr,0x1e0), vk_s2_com_y)
+      //   let state := mload(0x40)
+      //   let mPtr := add(mload(0x40), state_last_mem)
+      //   mstore(mPtr, 0x67616d6d61) // "gamma"
+      //   mstore(add(mPtr, 0x20), mload(add(state, state_zeta)))
+      //   mstore(add(mPtr,0x40), mload(add(state, state_folded_h_x)))
+      //   mstore(add(mPtr,0x60), mload(add(state, state_folded_h_y)))
+      //   mstore(add(mPtr,0x80), mload(add(state, state_linearised_polynomial_x)))
+      //   mstore(add(mPtr,0xa0), mload(add(state, state_linearised_polynomial_y)))
+      //   mstore(add(mPtr,0xc0), mload(add(aproof, proof_l_com_x)))
+      //   mstore(add(mPtr,0xe0), mload(add(aproof, proof_l_com_y)))
+      //   mstore(add(mPtr,0x100), mload(add(aproof, proof_r_com_x)))
+      //   mstore(add(mPtr,0x120), mload(add(aproof, proof_r_com_y)))
+      //   mstore(add(mPtr,0x140), mload(add(aproof, proof_o_com_x)))
+      //   mstore(add(mPtr,0x160), mload(add(aproof, proof_o_com_y)))
+      //   mstore(add(mPtr,0x180), vk_s1_com_x)
+      //   mstore(add(mPtr,0x1a0), vk_s1_com_y)
+      //   mstore(add(mPtr,0x1c0), vk_s2_com_x)
+      //   mstore(add(mPtr,0x1e0), vk_s2_com_y)
         
-        let offset := 0x200
-        {{ range $index, $element := .CommitmentConstraintIndexes }}
-        mstore(add(mPtr,offset), vk_selector_commitments_commit_api_{{ $index }}_x)
-        mstore(add(mPtr,add(offset, 0x20)), vk_selector_commitments_commit_api_{{ $index }}_y)
-        offset := add(offset, 0x40)
-        {{ end }}
+      //   let offset := 0x200
+      //   {{ range $index, $element := .CommitmentConstraintIndexes }}
+      //   mstore(add(mPtr,offset), vk_selector_commitments_commit_api_{{ $index }}_x)
+      //   mstore(add(mPtr,add(offset, 0x20)), vk_selector_commitments_commit_api_{{ $index }}_y)
+      //   offset := add(offset, 0x40)
+      //   {{ end }}
 
-        mstore(add(mPtr, offset), mload(add(aproof, proof_quotient_polynomial_at_zeta)))
-        mstore(add(mPtr, add(offset, 0x20)), mload(add(aproof, proof_linearised_polynomial_at_zeta)))
-        mstore(add(mPtr, add(offset, 0x40)), mload(add(aproof, proof_l_at_zeta)))
-        mstore(add(mPtr, add(offset, 0x60)), mload(add(aproof, proof_r_at_zeta)))
-        mstore(add(mPtr, add(offset, 0x80)), mload(add(aproof, proof_o_at_zeta)))
-        mstore(add(mPtr, add(offset, 0xa0)), mload(add(aproof, proof_s1_at_zeta)))
-        mstore(add(mPtr, add(offset, 0xc0)), mload(add(aproof, proof_s2_at_zeta)))
+      //   mstore(add(mPtr, offset), mload(add(aproof, proof_quotient_polynomial_at_zeta)))
+      //   mstore(add(mPtr, add(offset, 0x20)), mload(add(aproof, proof_linearised_polynomial_at_zeta)))
+      //   mstore(add(mPtr, add(offset, 0x40)), mload(add(aproof, proof_l_at_zeta)))
+      //   mstore(add(mPtr, add(offset, 0x60)), mload(add(aproof, proof_r_at_zeta)))
+      //   mstore(add(mPtr, add(offset, 0x80)), mload(add(aproof, proof_o_at_zeta)))
+      //   mstore(add(mPtr, add(offset, 0xa0)), mload(add(aproof, proof_s1_at_zeta)))
+      //   mstore(add(mPtr, add(offset, 0xc0)), mload(add(aproof, proof_s2_at_zeta)))
 
-        {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-        let _mPtr := add(mPtr, add(offset, 0xe0))
-        let _poscaz := add(aproof, proof_openings_selector_commit_api_at_zeta)
-        for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-        {
-          mstore(_mPtr, mload(_poscaz))
-          _poscaz := add(_poscaz, 0x20)
-          _mPtr := add(_mPtr, 0x20)
-        }
-        {{ end }}
+      //   {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+      //   let _mPtr := add(mPtr, add(offset, 0xe0))
+      //   let _poscaz := add(aproof, proof_openings_selector_commit_api_at_zeta)
+      //   for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
+      //   {
+      //     mstore(_mPtr, mload(_poscaz))
+      //     _poscaz := add(_poscaz, 0x20)
+      //     _mPtr := add(_mPtr, 0x20)
+      //   }
+      //   {{ end }}
 
-        let start_input := 0x1b // 00.."gamma"
-        let size_input := add(0x16, mul(vk_nb_commitments_commit_api,3)) // number of 32bytes elmts = 0x16 (zeta+2*7+7 for the digests+openings) + 2*vk_nb_commitments_commit_api (for the commitments of the selectors) + vk_nb_commitments_commit_api (for the openings of the selectors)
-        size_input := add(0x5, mul(size_input, 0x20)) // size in bytes: 15*32 bytes + 5 bytes for gamma
-        let check_staticcall := staticcall(gas(), 0x2, add(mPtr,start_input), size_input, add(state, state_gamma_kzg), 0x20)
-        if eq(check_staticcall, 0) {
-          error_verify()
-        }
-        mstore(add(state, state_gamma_kzg), mod(mload(add(state, state_gamma_kzg)), r_mod))
-      }
+      //   let start_input := 0x1b // 00.."gamma"
+      //   let size_input := add(0x16, mul(vk_nb_commitments_commit_api,3)) // number of 32bytes elmts = 0x16 (zeta+2*7+7 for the digests+openings) + 2*vk_nb_commitments_commit_api (for the commitments of the selectors) + vk_nb_commitments_commit_api (for the openings of the selectors)
+      //   size_input := add(0x5, mul(size_input, 0x20)) // size in bytes: 15*32 bytes + 5 bytes for gamma
+      //   let check_staticcall := staticcall(gas(), 0x2, add(mPtr,start_input), size_input, add(state, state_gamma_kzg), 0x20)
+      //   if eq(check_staticcall, 0) {
+      //     error_verify()
+      //   }
+      //   mstore(add(state, state_gamma_kzg), mod(mload(add(state, state_gamma_kzg)), r_mod))
+      // }
 
-      function compute_commitment_linearised_polynomial_ec(aproof, s1, s2) {
+      // function compute_commitment_linearised_polynomial_ec(aproof, s1, s2) {
 
-        let state := mload(0x40)
-        let mPtr := add(mload(0x40), state_last_mem)
+      //   let state := mload(0x40)
+      //   let mPtr := add(mload(0x40), state_last_mem)
 
-        mstore(mPtr, vk_ql_com_x)
-        mstore(add(mPtr,0x20), vk_ql_com_y)
-        point_mul(add(state, state_linearised_polynomial_x), mPtr, mload(add(aproof, proof_l_at_zeta)), add(mPtr,0x40))
+      //   mstore(mPtr, vk_ql_com_x)
+      //   mstore(add(mPtr,0x20), vk_ql_com_y)
+      //   point_mul(add(state, state_linearised_polynomial_x), mPtr, mload(add(aproof, proof_l_at_zeta)), add(mPtr,0x40))
 
-        mstore(mPtr, vk_qr_com_x)
-        mstore(add(mPtr,0x20), vk_qr_com_y)
-        point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,mload(add(aproof, proof_r_at_zeta)),add(mPtr,0x40))
+      //   mstore(mPtr, vk_qr_com_x)
+      //   mstore(add(mPtr,0x20), vk_qr_com_y)
+      //   point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,mload(add(aproof, proof_r_at_zeta)),add(mPtr,0x40))
         
-        let rl := mulmod(mload(add(aproof, proof_l_at_zeta)), mload(add(aproof, proof_r_at_zeta)), r_mod)
-        mstore(mPtr, vk_qm_com_x)
-        mstore(add(mPtr,0x20), vk_qm_com_y)
-        point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,rl,add(mPtr,0x40))
+      //   let rl := mulmod(mload(add(aproof, proof_l_at_zeta)), mload(add(aproof, proof_r_at_zeta)), r_mod)
+      //   mstore(mPtr, vk_qm_com_x)
+      //   mstore(add(mPtr,0x20), vk_qm_com_y)
+      //   point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,rl,add(mPtr,0x40))
         
-        mstore(mPtr, vk_qo_com_x)
-        mstore(add(mPtr,0x20), vk_qo_com_y)
-        point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,mload(add(aproof, proof_o_at_zeta)),add(mPtr,0x40))
+      //   mstore(mPtr, vk_qo_com_x)
+      //   mstore(add(mPtr,0x20), vk_qo_com_y)
+      //   point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,mload(add(aproof, proof_o_at_zeta)),add(mPtr,0x40))
         
-        mstore(mPtr, vk_qk_com_x)
-        mstore(add(mPtr, 0x20), vk_qk_com_y)
-        point_add(add(state, state_linearised_polynomial_x),add(state, state_linearised_polynomial_x),mPtr,add(mPtr, 0x40))
+      //   mstore(mPtr, vk_qk_com_x)
+      //   mstore(add(mPtr, 0x20), vk_qk_com_y)
+      //   point_add(add(state, state_linearised_polynomial_x),add(state, state_linearised_polynomial_x),mPtr,add(mPtr, 0x40))
 
-        let commits_api_at_zeta := add(aproof, proof_openings_selector_commit_api_at_zeta)
-        let commits_api := add(aproof, add(proof_openings_selector_commit_api_at_zeta, mul(vk_nb_commitments_commit_api, 0x20)))
-        for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-        {
-          mstore(mPtr, mload(commits_api))
-          mstore(add(mPtr, 0x20), mload(add(commits_api, 0x20)))
-          point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,mload(commits_api_at_zeta),add(mPtr,0x40))
-          commits_api_at_zeta := add(commits_api_at_zeta, 0x20)
-          commits_api := add(commits_api, 0x40)
-        }
+      //   let commits_api_at_zeta := add(aproof, proof_openings_selector_commit_api_at_zeta)
+      //   let commits_api := add(aproof, add(proof_openings_selector_commit_api_at_zeta, mul(vk_nb_commitments_commit_api, 0x20)))
+      //   for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
+      //   {
+      //     mstore(mPtr, mload(commits_api))
+      //     mstore(add(mPtr, 0x20), mload(add(commits_api, 0x20)))
+      //     point_acc_mul(add(state, state_linearised_polynomial_x),mPtr,mload(commits_api_at_zeta),add(mPtr,0x40))
+      //     commits_api_at_zeta := add(commits_api_at_zeta, 0x20)
+      //     commits_api := add(commits_api, 0x40)
+      //   }
 
-        mstore(mPtr, vk_s3_com_x)
-        mstore(add(mPtr, 0x20), vk_s3_com_y)
-        point_acc_mul(add(state, state_linearised_polynomial_x), mPtr, s1, add(mPtr, 0x40))
+      //   mstore(mPtr, vk_s3_com_x)
+      //   mstore(add(mPtr, 0x20), vk_s3_com_y)
+      //   point_acc_mul(add(state, state_linearised_polynomial_x), mPtr, s1, add(mPtr, 0x40))
 
-        mstore(mPtr, mload(add(aproof, proof_grand_product_commitment_x)))
-        mstore(add(mPtr, 0x20), mload(add(aproof, proof_grand_product_commitment_y)))
-        point_acc_mul(add(state, state_linearised_polynomial_x), mPtr, s2, add(mPtr, 0x40))
+      //   mstore(mPtr, mload(add(aproof, proof_grand_product_commitment_x)))
+      //   mstore(add(mPtr, 0x20), mload(add(aproof, proof_grand_product_commitment_y)))
+      //   point_acc_mul(add(state, state_linearised_polynomial_x), mPtr, s2, add(mPtr, 0x40))
 
-      }
+      // }
 
-      // Compute the commitment to the linearized polynomial equal to
-      //	L(ζ)[Qₗ]+r(ζ)[Qᵣ]+R(ζ)L(ζ)[Qₘ]+O(ζ)[Qₒ]+[Qₖ]+Σᵢqc'ᵢ(ζ)[BsbCommitmentᵢ] +
-      //	α*( Z(μζ)(L(ζ)+β*S₁(ζ)+γ)*(R(ζ)+β*S₂(ζ)+γ)[S₃]-[Z](L(ζ)+β*id_{1}(ζ)+γ)*(R(ζ)+β*id_{2(ζ)+γ)*(O(ζ)+β*id_{3}(ζ)+γ) ) +
-      //	α²*L₁(ζ)[Z]
-      // where 
-      // * id_1 = id, id_2 = vk_coset_shift*id, id_3 = vk_coset_shift^{2}*id
-      // * the [] means that it's a commitment (i.e. a point on Bn254(F_p))
-      function compute_commitment_linearised_polynomial(aproof) {
+      // // Compute the commitment to the linearized polynomial equal to
+      // //	L(ζ)[Qₗ]+r(ζ)[Qᵣ]+R(ζ)L(ζ)[Qₘ]+O(ζ)[Qₒ]+[Qₖ]+Σᵢqc'ᵢ(ζ)[BsbCommitmentᵢ] +
+      // //	α*( Z(μζ)(L(ζ)+β*S₁(ζ)+γ)*(R(ζ)+β*S₂(ζ)+γ)[S₃]-[Z](L(ζ)+β*id_{1}(ζ)+γ)*(R(ζ)+β*id_{2(ζ)+γ)*(O(ζ)+β*id_{3}(ζ)+γ) ) +
+      // //	α²*L₁(ζ)[Z]
+      // // where 
+      // // * id_1 = id, id_2 = vk_coset_shift*id, id_3 = vk_coset_shift^{2}*id
+      // // * the [] means that it's a commitment (i.e. a point on Bn254(F_p))
+      // function compute_commitment_linearised_polynomial(aproof) {
         
-        let state := mload(0x40)
-        let l_beta := mload(add(state, state_beta))
-        let l_gamma := mload(add(state, state_gamma))
-        let l_zeta := mload(add(state, state_zeta))
-        let l_alpha := mload(add(state, state_alpha))
+      //   let state := mload(0x40)
+      //   let l_beta := mload(add(state, state_beta))
+      //   let l_gamma := mload(add(state, state_gamma))
+      //   let l_zeta := mload(add(state, state_zeta))
+      //   let l_alpha := mload(add(state, state_alpha))
 
-        let u := mulmod(mload(add(aproof,proof_grand_product_at_zeta_omega)), l_beta, r_mod)
-        let v := mulmod(l_beta, mload(add(aproof, proof_s1_at_zeta)), r_mod)
-        v := addmod(v, mload(add(aproof, proof_l_at_zeta)), r_mod)
-        v := addmod(v, l_gamma, r_mod)
+      //   let u := mulmod(mload(add(aproof,proof_grand_product_at_zeta_omega)), l_beta, r_mod)
+      //   let v := mulmod(l_beta, mload(add(aproof, proof_s1_at_zeta)), r_mod)
+      //   v := addmod(v, mload(add(aproof, proof_l_at_zeta)), r_mod)
+      //   v := addmod(v, l_gamma, r_mod)
 
-        let w := mulmod(l_beta, mload(add(aproof, proof_s2_at_zeta)), r_mod)
-        w := addmod(w, mload(add(aproof, proof_r_at_zeta)), r_mod)
-        w := addmod(w, l_gamma, r_mod)
+      //   let w := mulmod(l_beta, mload(add(aproof, proof_s2_at_zeta)), r_mod)
+      //   w := addmod(w, mload(add(aproof, proof_r_at_zeta)), r_mod)
+      //   w := addmod(w, l_gamma, r_mod)
 
-        let s1 := mulmod(u, v, r_mod)
-        s1 := mulmod(s1, w, r_mod)
-        s1 := mulmod(s1, l_alpha, r_mod)
+      //   let s1 := mulmod(u, v, r_mod)
+      //   s1 := mulmod(s1, w, r_mod)
+      //   s1 := mulmod(s1, l_alpha, r_mod)
 
-        let coset_square := mulmod(vk_coset_shift, vk_coset_shift, r_mod)
-        let betazeta := mulmod(l_beta, l_zeta, r_mod)
-        u := addmod(betazeta, mload(add(aproof, proof_l_at_zeta)), r_mod)
-        u := addmod(u, l_gamma, r_mod)
+      //   let coset_square := mulmod(vk_coset_shift, vk_coset_shift, r_mod)
+      //   let betazeta := mulmod(l_beta, l_zeta, r_mod)
+      //   u := addmod(betazeta, mload(add(aproof, proof_l_at_zeta)), r_mod)
+      //   u := addmod(u, l_gamma, r_mod)
 
-        v := mulmod(betazeta, vk_coset_shift, r_mod)
-        v := addmod(v, mload(add(aproof, proof_r_at_zeta)), r_mod)
-        v := addmod(v, l_gamma, r_mod)
+      //   v := mulmod(betazeta, vk_coset_shift, r_mod)
+      //   v := addmod(v, mload(add(aproof, proof_r_at_zeta)), r_mod)
+      //   v := addmod(v, l_gamma, r_mod)
 
-        w := mulmod(betazeta, coset_square, r_mod)
-        w := addmod(w, mload(add(aproof, proof_o_at_zeta)), r_mod)
-        w := addmod(w, l_gamma, r_mod)
+      //   w := mulmod(betazeta, coset_square, r_mod)
+      //   w := addmod(w, mload(add(aproof, proof_o_at_zeta)), r_mod)
+      //   w := addmod(w, l_gamma, r_mod)
 
-        let s2 := mulmod(u, v, r_mod)
-        s2 := mulmod(s2, w, r_mod)
-        s2 := sub(r_mod, s2)
-        s2 := mulmod(s2, l_alpha, r_mod)
-        s2 := addmod(s2, mload(add(state, state_alpha_square_lagrange_0)), r_mod)
+      //   let s2 := mulmod(u, v, r_mod)
+      //   s2 := mulmod(s2, w, r_mod)
+      //   s2 := sub(r_mod, s2)
+      //   s2 := mulmod(s2, l_alpha, r_mod)
+      //   s2 := addmod(s2, mload(add(state, state_alpha_square_lagrange_0)), r_mod)
 
-        // at this stage:
-        // * s₁ = α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
-        // * s₂ = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
+      //   // at this stage:
+      //   // * s₁ = α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
+      //   // * s₂ = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
 
-        compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
-      }
+      //   compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
+      // }
 
-      // compute H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ and store the result at
-      // state + state_folded_h
-      function fold_h(aproof) {
-        let state := mload(0x40)
-        let n_plus_two := add(vk_domain_size, 2)
-        let mPtr := add(mload(0x40), state_last_mem)
-        let zeta_power_n_plus_two := pow(mload(add(state, state_zeta)), n_plus_two, mPtr)
-        point_mul(add(state, state_folded_h_x), add(aproof, proof_h_2_x), zeta_power_n_plus_two, mPtr)
-        point_add(add(state, state_folded_h_x), add(state, state_folded_h_x), add(aproof, proof_h_1_x), mPtr)
-        point_mul(add(state, state_folded_h_x), add(state, state_folded_h_x), zeta_power_n_plus_two, mPtr)
-        point_add(add(state, state_folded_h_x), add(state, state_folded_h_x), add(aproof, proof_h_0_x), mPtr)
-      }
+      // // compute H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ and store the result at
+      // // state + state_folded_h
+      // function fold_h(aproof) {
+      //   let state := mload(0x40)
+      //   let n_plus_two := add(vk_domain_size, 2)
+      //   let mPtr := add(mload(0x40), state_last_mem)
+      //   let zeta_power_n_plus_two := pow(mload(add(state, state_zeta)), n_plus_two, mPtr)
+      //   point_mul(add(state, state_folded_h_x), add(aproof, proof_h_2_x), zeta_power_n_plus_two, mPtr)
+      //   point_add(add(state, state_folded_h_x), add(state, state_folded_h_x), add(aproof, proof_h_1_x), mPtr)
+      //   point_mul(add(state, state_folded_h_x), add(state, state_folded_h_x), zeta_power_n_plus_two, mPtr)
+      //   point_add(add(state, state_folded_h_x), add(state, state_folded_h_x), add(aproof, proof_h_0_x), mPtr)
+      // }
 
-      // check that
-      //	L(ζ)Qₗ(ζ)+r(ζ)Qᵣ(ζ)+R(ζ)L(ζ)Qₘ(ζ)+O(ζ)Qₒ(ζ)+Qₖ(ζ)+Σᵢqc'ᵢ(ζ)BsbCommitmentᵢ(ζ) +
-      //  α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
-      // + α²*L₁(ζ) = 
-      // (ζⁿ-1)H(ζ)
-      function verify_quotient_poly_eval_at_zeta(aproof) {
+      // // check that
+      // //	L(ζ)Qₗ(ζ)+r(ζ)Qᵣ(ζ)+R(ζ)L(ζ)Qₘ(ζ)+O(ζ)Qₒ(ζ)+Qₖ(ζ)+Σᵢqc'ᵢ(ζ)BsbCommitmentᵢ(ζ) +
+      // //  α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
+      // // + α²*L₁(ζ) = 
+      // // (ζⁿ-1)H(ζ)
+      // function verify_quotient_poly_eval_at_zeta(aproof) {
 
-        let state := mload(0x40)
+      //   let state := mload(0x40)
 
-        // (l(ζ)+β*s1(ζ)+γ)
-        let s1 := add(mload(0x40), state_last_mem)
-        mstore(s1, mulmod(mload(add(aproof,proof_s1_at_zeta)),mload(add(state, state_beta)), r_mod))
-        mstore(s1, addmod(mload(s1), mload(add(state, state_gamma)), r_mod))
-        mstore(s1, addmod(mload(s1), mload(add(aproof, proof_l_at_zeta)), r_mod))
+      //   // (l(ζ)+β*s1(ζ)+γ)
+      //   let s1 := add(mload(0x40), state_last_mem)
+      //   mstore(s1, mulmod(mload(add(aproof,proof_s1_at_zeta)),mload(add(state, state_beta)), r_mod))
+      //   mstore(s1, addmod(mload(s1), mload(add(state, state_gamma)), r_mod))
+      //   mstore(s1, addmod(mload(s1), mload(add(aproof, proof_l_at_zeta)), r_mod))
 
-        // (r(ζ)+β*s2(ζ)+γ)
-        let s2 := add(s1,0x20)
-        mstore(s2, mulmod(mload(add(aproof,proof_s2_at_zeta)),mload(add(state, state_beta)), r_mod))
-        mstore(s2, addmod(mload(s2), mload(add(state, state_gamma)), r_mod))
-        mstore(s2, addmod(mload(s2), mload(add(aproof, proof_r_at_zeta)), r_mod))
-        // _s2 := mload(s2)
+      //   // (r(ζ)+β*s2(ζ)+γ)
+      //   let s2 := add(s1,0x20)
+      //   mstore(s2, mulmod(mload(add(aproof,proof_s2_at_zeta)),mload(add(state, state_beta)), r_mod))
+      //   mstore(s2, addmod(mload(s2), mload(add(state, state_gamma)), r_mod))
+      //   mstore(s2, addmod(mload(s2), mload(add(aproof, proof_r_at_zeta)), r_mod))
+      //   // _s2 := mload(s2)
 
-        // (o(ζ)+γ)
-        let o := add(s1,0x40)
-        mstore(o, addmod(mload(add(aproof,proof_o_at_zeta)), mload(add(state, state_gamma)), r_mod))
+      //   // (o(ζ)+γ)
+      //   let o := add(s1,0x40)
+      //   mstore(o, addmod(mload(add(aproof,proof_o_at_zeta)), mload(add(state, state_gamma)), r_mod))
 
-        //  α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
-        mstore(s1, mulmod(mload(s1), mload(s2), r_mod))
-        mstore(s1, mulmod(mload(s1), mload(o), r_mod))
-        mstore(s1, mulmod(mload(s1), mload(add(state, state_alpha)), r_mod))
-        mstore(s1, mulmod(mload(s1), mload(add(aproof, proof_grand_product_at_zeta_omega)), r_mod))
+      //   //  α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
+      //   mstore(s1, mulmod(mload(s1), mload(s2), r_mod))
+      //   mstore(s1, mulmod(mload(s1), mload(o), r_mod))
+      //   mstore(s1, mulmod(mload(s1), mload(add(state, state_alpha)), r_mod))
+      //   mstore(s1, mulmod(mload(s1), mload(add(aproof, proof_grand_product_at_zeta_omega)), r_mod))
 
-        let computed_quotient := add(s1,0x60)
+      //   let computed_quotient := add(s1,0x60)
 
-        // linearizedpolynomial + pi(zeta)
-        mstore(computed_quotient, addmod(mload(add(aproof, proof_linearised_polynomial_at_zeta)), mload(add(state, state_pi)), r_mod))
-        mstore(computed_quotient, addmod(mload(computed_quotient), mload(s1), r_mod))
-        mstore(computed_quotient, addmod(mload(computed_quotient), sub(r_mod,mload(add(state, state_alpha_square_lagrange_0))), r_mod))
-        mstore(s2, mulmod(mload(add(aproof,proof_quotient_polynomial_at_zeta)), mload(add(state, state_zeta_power_n_minus_one)), r_mod))
+      //   // linearizedpolynomial + pi(zeta)
+      //   mstore(computed_quotient, addmod(mload(add(aproof, proof_linearised_polynomial_at_zeta)), mload(add(state, state_pi)), r_mod))
+      //   mstore(computed_quotient, addmod(mload(computed_quotient), mload(s1), r_mod))
+      //   mstore(computed_quotient, addmod(mload(computed_quotient), sub(r_mod,mload(add(state, state_alpha_square_lagrange_0))), r_mod))
+      //   mstore(s2, mulmod(mload(add(aproof,proof_quotient_polynomial_at_zeta)), mload(add(state, state_zeta_power_n_minus_one)), r_mod))
 
-        mstore(add(state, state_success),eq(mload(computed_quotient), mload(s2)))
-      }
+      //   mstore(add(state, state_success),eq(mload(computed_quotient), mload(s2)))
+      // }
 
-      function point_add(dst, p, q, mPtr) {
-        // let mPtr := add(mload(0x40), state_last_mem)
-        let state := mload(0x40)
-        mstore(mPtr, mload(p))
-        mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
-        mstore(add(mPtr, 0x40), mload(q))
-        mstore(add(mPtr, 0x60), mload(add(q, 0x20)))
-        let l_success := staticcall(gas(),6,mPtr,0x80,dst,0x40)
-        mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
-      }
+      // function point_add(dst, p, q, mPtr) {
+      //   // let mPtr := add(mload(0x40), state_last_mem)
+      //   let state := mload(0x40)
+      //   mstore(mPtr, mload(p))
+      //   mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
+      //   mstore(add(mPtr, 0x40), mload(q))
+      //   mstore(add(mPtr, 0x60), mload(add(q, 0x20)))
+      //   let l_success := staticcall(gas(),6,mPtr,0x80,dst,0x40)
+      //   mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
+      // }
 
-      // dst <- [s]src
-      function point_mul(dst,src,s, mPtr) {
-        // let mPtr := add(mload(0x40), state_last_mem)
-        let state := mload(0x40)
-        mstore(mPtr,mload(src))
-        mstore(add(mPtr,0x20),mload(add(src,0x20)))
-        mstore(add(mPtr,0x40),s)
-        let l_success := staticcall(gas(),7,mPtr,0x60,dst,0x40)
-        mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
-      }
+      // // dst <- [s]src
+      // function point_mul(dst,src,s, mPtr) {
+      //   // let mPtr := add(mload(0x40), state_last_mem)
+      //   let state := mload(0x40)
+      //   mstore(mPtr,mload(src))
+      //   mstore(add(mPtr,0x20),mload(add(src,0x20)))
+      //   mstore(add(mPtr,0x40),s)
+      //   let l_success := staticcall(gas(),7,mPtr,0x60,dst,0x40)
+      //   mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
+      // }
 
-      // dst <- dst + [s]src (Elliptic curve)
-      function point_acc_mul(dst,src,s, mPtr) {
-        let state := mload(0x40)
-        mstore(mPtr,mload(src))
-        mstore(add(mPtr,0x20),mload(add(src,0x20)))
-        mstore(add(mPtr,0x40),s)
-        let l_success := staticcall(gas(),7,mPtr,0x60,mPtr,0x40)
-        mstore(add(mPtr,0x40),mload(dst))
-        mstore(add(mPtr,0x60),mload(add(dst,0x20)))
-        l_success := and(l_success, staticcall(gas(),6,mPtr,0x80,dst, 0x40))
-        mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
-      }
+      // // dst <- dst + [s]src (Elliptic curve)
+      // function point_acc_mul(dst,src,s, mPtr) {
+      //   let state := mload(0x40)
+      //   mstore(mPtr,mload(src))
+      //   mstore(add(mPtr,0x20),mload(add(src,0x20)))
+      //   mstore(add(mPtr,0x40),s)
+      //   let l_success := staticcall(gas(),7,mPtr,0x60,mPtr,0x40)
+      //   mstore(add(mPtr,0x40),mload(dst))
+      //   mstore(add(mPtr,0x60),mload(add(dst,0x20)))
+      //   l_success := and(l_success, staticcall(gas(),6,mPtr,0x80,dst, 0x40))
+      //   mstore(add(state, state_success), and(l_success,mload(add(state, state_success))))
+      // }
 
-      // dst <- dst + src (Fr) dst,src are addresses, s is a value
-      function fr_acc_mul(dst, src, s) {
-        let tmp :=  mulmod(mload(src), s, r_mod)
-        mstore(dst, addmod(mload(dst), tmp, r_mod))
-      }
+      // // dst <- dst + src (Fr) dst,src are addresses, s is a value
+      // function fr_acc_mul(dst, src, s) {
+      //   let tmp :=  mulmod(mload(src), s, r_mod)
+      //   mstore(dst, addmod(mload(dst), tmp, r_mod))
+      // }
 
-      // dst <- x ** e mod r (x, e are values, not pointers)
-      function pow(x, e, mPtr)->res {
-        mstore(mPtr, 0x20)
-        mstore(add(mPtr, 0x20), 0x20)
-        mstore(add(mPtr, 0x40), 0x20)
-        mstore(add(mPtr, 0x60), x)
-        mstore(add(mPtr, 0x80), e)
-        mstore(add(mPtr, 0xa0), r_mod)
-        let check_staticcall := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
-        if eq(check_staticcall, 0) {
-          error_verify()
-        }
-        res := mload(mPtr)
-      }
+      // // dst <- x ** e mod r (x, e are values, not pointers)
+      // function pow(x, e, mPtr)->res {
+      //   mstore(mPtr, 0x20)
+      //   mstore(add(mPtr, 0x20), 0x20)
+      //   mstore(add(mPtr, 0x40), 0x20)
+      //   mstore(add(mPtr, 0x60), x)
+      //   mstore(add(mPtr, 0x80), e)
+      //   mstore(add(mPtr, 0xa0), r_mod)
+      //   let check_staticcall := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
+      //   if eq(check_staticcall, 0) {
+      //     error_verify()
+      //   }
+      //   res := mload(mPtr)
+      // }
     }
+    success = true;
   }
 }
 `
