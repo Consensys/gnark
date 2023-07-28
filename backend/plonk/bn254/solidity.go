@@ -55,18 +55,10 @@ contract PlonkVerifier {
   uint256 private constant vk_selector_commitments_commit_api_{{ $index }}_y = {{ (fpstr $element.Y) }};
   {{ end }}
 
-  {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-  function load_vk_commitments_indices_commit_api(uint256[] memory v)
-  internal pure {
-    assembly {
-    let _v := add(v, 0x20)
-    {{ range .CommitmentConstraintIndexes }}
-    mstore(_v, {{ . }})
-    _v := add(_v, 0x20)
-    {{ end }}
-    }
-  }
+  {{ range $index, $element := .CommitmentConstraintIndexes -}}
+  uint256 private constant vk_index_commit_api_{{ $index }} = {{ $element }};
   {{ end }}
+
   uint256 private constant vk_nb_commitments_commit_api = {{ len .CommitmentConstraintIndexes }};
 
   // ------------------------------------------------
@@ -167,63 +159,152 @@ contract PlonkVerifier {
 	uint8 private constant one = 1;
 	uint8 private constant two = 2;
   {{ end }}
-
-  {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
-  // read the commitments to the wires related to the commit api and store them in wire_commitments.
-  // The commitments are points on Bn254(Fp) so they are stored on 2 uint256.
-  function load_wire_commitments_commit_api(uint256[] memory wire_commitments, bytes memory proof)
-  internal pure {
-    assembly {
-      let w := add(wire_commitments, 0x20)
-      let p := add(proof, proof_openings_selector_commit_api_at_zeta)
-      p := add(p, mul(vk_nb_commitments_commit_api, 0x20))
-      for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-      {
-        // x coordinate
-        mstore(w, mload(p))
-        w := add(w,0x20)
-        p := add(p,0x20)
-
-        // y coordinate
-        mstore(w, mload(p))
-        w := add(w,0x20)
-        p := add(p,0x20)
-      }
-    }
-  }
-  {{ end }}
   
-  function derive_gamma_beta_alpha_zeta(bytes memory proof, uint256[] memory public_inputs)
-  internal view returns(uint256 gamma, uint256 beta, uint256 alpha, uint256 zeta) {
+  function Verify(bytes memory proof, uint256[] memory public_inputs) 
+  public view returns(bool success) {
+
     assembly {
 
       let mem := mload(0x40)
+      let freeMem := add(mem, state_last_mem)
 
-      derive_gamma(proof, public_inputs)
-      gamma := mload(mem)
+      // sanity checks
+      check_inputs_size(public_inputs)
+      check_proof_size(proof)
+      check_proof_openings_size(proof)
 
-      derive_beta(proof, gamma)
-      beta := mload(mem)
+      // compute the challenges
+      let gamma_nr := derive_gamma(proof, public_inputs)
+      let beta_nr := derive_beta(proof, gamma_nr)
+      let alpha_nr := derive_alpha(proof, beta_nr)
+      derive_zeta(proof, alpha_nr)
 
-      derive_alpha(proof, beta)
-      alpha := mload(mem)
+      // evaluation of Z=Xⁿ-1 at ζ, we save this value
+      let zeta := mload(add(mem, state_zeta))
+      let zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, freeMem), sub(r_mod, 1), r_mod)
+      mstore(add(mem, state_zeta_power_n_minus_one), zeta_power_n_minus_one)
 
-      derive_zeta(proof, alpha)
-      zeta := mload(mem)
+      // public inputs contribution
+      let l_pi := sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), freeMem)
+      {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
+      let l_wocommit := sum_pi_commit(proof, mload(public_inputs), freeMem)
+      l_pi := addmod(l_wocommit, l_pi, r_mod)
+      {{ end -}}
+      mstore(add(mem, state_pi), l_pi)
 
-      gamma := mod(gamma, r_mod)
-      beta := mod(beta, r_mod)
-      alpha := mod(alpha, r_mod)
-      zeta := mod(zeta, r_mod)
+      compute_alpha_square_lagrange_0()
+      verify_quotient_poly_eval_at_zeta(proof)
+      fold_h(proof)
+      compute_commitment_linearised_polynomial(proof)
+      compute_gamma_kzg(proof)
+      fold_state(proof)
+      batch_verify_multi_points(proof)
 
-      function error_sha2_256() {
+      success := mload(add(mem, state_success))
+
+      // Beginning checks -------------------------------------------------
+      function error_inputs_size() {
         let ptError := mload(0x40)
         mstore(ptError, error_string_id) // selector for function Error(string)
         mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x19)
-        mstore(add(ptError, 0x44), "error staticcall sha2-256")
+        mstore(add(ptError, 0x24), 0x18)
+        mstore(add(ptError, 0x44), "inputs are bigger than r")
         revert(ptError, 0x64)
       }
+
+      function check_inputs_size(ins) {
+        let s := mload(ins)
+        let p := add(ins, 0x20)
+        let input_checks := 1
+        for {let i} lt(i, s) {i:=add(i,1)}
+        {
+          input_checks := and(input_checks,lt(mload(p), r_mod))
+          p := add(p, 0x20)
+        }
+        if iszero(input_checks) {
+          error_inputs_size()
+        }
+      }
+
+      function error_proof_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x10)
+        mstore(add(ptError, 0x44), "wrong proof size")
+        revert(ptError, 0x64)
+      }
+
+      function check_proof_size(aproof) {
+        let expected_proof_size := add(0x340, mul(vk_nb_commitments_commit_api,0x60))
+        let actual_proof_size := mload(aproof)
+        if iszero(eq(actual_proof_size,expected_proof_size)) {
+         error_proof_size() 
+        }
+      }
+
+      function error_proof_openings_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x16)
+        mstore(add(ptError, 0x44), "openings bigger than r")
+        revert(ptError, 0x64)
+      }
+    
+      function check_proof_openings_size(aproof) {
+  
+        let openings_check := 1
+      
+        // linearised polynomial at zeta
+        let p := add(aproof, proof_linearised_polynomial_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // quotient polynomial at zeta
+        p := add(aproof, proof_quotient_polynomial_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+        
+        // proof_l_at_zeta
+        p := add(aproof, proof_l_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // proof_r_at_zeta
+        p := add(aproof, proof_r_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // proof_o_at_zeta
+        p := add(aproof, proof_o_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // proof_s1_at_zeta
+        p := add(aproof, proof_s1_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+        
+        // proof_s2_at_zeta
+        p := add(aproof, proof_s2_at_zeta)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // proof_grand_product_at_zeta_omega
+        p := add(aproof, proof_grand_product_at_zeta_omega)
+        openings_check := and(openings_check, lt(mload(p), r_mod))
+
+        // proof_openings_selector_commit_api_at_zeta
+        
+        p := add(aproof, proof_openings_selector_commit_api_at_zeta)
+        for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
+        {
+          openings_check := and(openings_check, lt(mload(p), r_mod))
+          p := add(p, 0x20)
+        }
+      
+        if iszero(openings_check) {
+          error_proof_openings_size()
+        }
+
+      }
+      // end checks -------------------------------------------------
+
+      // Beginning challenges -------------------------------------------------
 
       // Derive gamma as Sha256(<transcript>)
       // where transcript is the concatenation (in this order) of:
@@ -236,9 +317,10 @@ contract PlonkVerifier {
       // The data described above is written starting at mPtr. "gamma" lies on 5 bytes,
       // and is encoded as a uint256 number n. In basis b = 256, the number looks like this
       // [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
-      function derive_gamma(aproof, pub_inputs) {
+      function derive_gamma(aproof, ins)->gamma_not_reduced {
         
-        let mPtr := mload(0x40)
+        let state := mload(0x40)
+        let mPtr := add(state, state_last_mem)
 
         // gamma
         // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
@@ -262,9 +344,9 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0x1e0), vk_qk_com_x)
         mstore(add(mPtr, 0x200), vk_qk_com_y)
 
-        let pi := add(pub_inputs, 0x20)
+        let pi := add(ins, 0x20)
         let _mPtr := add(mPtr, 0x220)
-        for {let i:=0} lt(i, mload(pub_inputs)) {i:=add(i,1)}
+        for {let i:=0} lt(i, mload(ins)) {i:=add(i,1)}
         {
           mstore(_mPtr, mload(pi))
           pi := add(pi, 0x20)
@@ -288,275 +370,94 @@ contract PlonkVerifier {
         mstore(add(_mPtr, 0x80), mload(add(aproof, proof_o_com_x)))
         mstore(add(_mPtr, 0xa0), mload(add(aproof, proof_o_com_y)))
 
-        let size := add(0x2c5, mul(mload(pub_inputs), 0x20)) // 0x2c5 = 22*32+5
+        let size := add(0x2c5, mul(mload(ins), 0x20)) // 0x2c5 = 22*32+5
         size := add(size, mul(vk_nb_commitments_commit_api, 0x40))
-        let success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if iszero(success) {
-          error_sha2_256()
+        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if iszero(l_success) {
+          error_verify()
         }
+        gamma_not_reduced := mload(mPtr)
+        mstore(add(state, state_gamma), mod(gamma_not_reduced, r_mod))
       }
 
-      function derive_beta(aproof, prev_challenge){
-        let mPtr := mload(0x40)
+      function derive_beta(aproof, gamma_not_reduced)->beta_not_reduced{
+        
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), state_last_mem)
+
         // beta
         mstore(mPtr, 0x62657461) // "beta"
-        mstore(add(mPtr, 0x20), prev_challenge)
-        let success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if iszero(success) {
-          error_sha2_256()
+        mstore(add(mPtr, 0x20), gamma_not_reduced)
+        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if iszero(l_success) {
+          error_verify()
         }
+        beta_not_reduced := mload(mPtr)
+        mstore(add(state, state_beta), mod(beta_not_reduced, r_mod))
       }
 
       // alpha depends on the previous challenge (beta) and on the commitment to the grand product polynomial
-      function derive_alpha(aproof, prev_challenge){
-        let mPtr := mload(0x40)
+      function derive_alpha(aproof, beta_not_reduced)->alpha_not_reduced {
+        
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), state_last_mem)
+
         // alpha
         mstore(mPtr, 0x616C706861) // "alpha"
-        mstore(add(mPtr, 0x20), prev_challenge)
+        mstore(add(mPtr, 0x20), beta_not_reduced)
         mstore(add(mPtr, 0x40), mload(add(aproof, proof_grand_product_commitment_x)))
         mstore(add(mPtr, 0x60), mload(add(aproof, proof_grand_product_commitment_y)))
-        let success := staticcall(gas(), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
-        if iszero(success) {
-          error_sha2_256()
+        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if iszero(l_success) {
+          error_verify()
         }
+        alpha_not_reduced := mload(mPtr)
+        mstore(add(state, state_alpha), mod(alpha_not_reduced, r_mod))
       }
 
       // zeta depends on the previous challenge (alpha) and on the commitment to the quotient polynomial
-      function derive_zeta(aproof, prev_challenge) {
-        let mPtr := mload(0x40)
+      function derive_zeta(aproof, alpha_not_reduced) {
+        
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), state_last_mem)
+
         // zeta
         mstore(mPtr, 0x7a657461) // "zeta"
-        mstore(add(mPtr, 0x20), prev_challenge)
+        mstore(add(mPtr, 0x20), alpha_not_reduced)
         mstore(add(mPtr, 0x40), mload(add(aproof, proof_h_0_x)))
         mstore(add(mPtr, 0x60), mload(add(aproof, proof_h_0_y)))
         mstore(add(mPtr, 0x80), mload(add(aproof, proof_h_1_x)))
         mstore(add(mPtr, 0xa0), mload(add(aproof, proof_h_1_y)))
         mstore(add(mPtr, 0xc0), mload(add(aproof, proof_h_2_x)))
         mstore(add(mPtr, 0xe0), mload(add(aproof, proof_h_2_y)))
-        let success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
-        if iszero(success) {
-          error_sha2_256()
+        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
+        if iszero(l_success) {
+          error_verify()
         }
+        let zeta_not_reduced := mload(mPtr)
+        mstore(add(state, state_zeta), mod(zeta_not_reduced, r_mod))
       }
-    }
-  }
+      // END challenges -------------------------------------------------
 
-{{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-  // Computes L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
-  // * n = vk_domain_size
-  // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
-  // * ζ = zeta (challenge derived with Fiat Shamir)
-  // * zpnmo = ζⁿ-1
-  function compute_ith_lagrange_at_z(uint256 zeta, uint256 zpnmo, uint256 i) 
-  internal view returns (uint256 res) {
-    assembly {
-
-      function error_pow_local() {
-        let ptError := mload(0x40)
-        mstore(ptError, error_string_id)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x17)
-        mstore(add(ptError, 0x44), "error staticcall modexp")
-        revert(ptError, 0x64)
-      }
-
-      // _n^_i [r]
-      function pow_local(x, e)->result {
-          let mPtr := mload(0x40)
-          mstore(mPtr, 0x20)
-          mstore(add(mPtr, 0x20), 0x20)
-          mstore(add(mPtr, 0x40), 0x20)
-          mstore(add(mPtr, 0x60), x)
-          mstore(add(mPtr, 0x80), e)
-          mstore(add(mPtr, 0xa0), r_mod)
-          let success := staticcall(gas(),0x05,mPtr,0xc0,0x00,0x20)
-          if iszero(success) {
-            error_pow_local()
-          }
-          result := mload(0x00)
-      }
-
-      let w := pow_local(vk_omega,i) // w**i
-      i := addmod(zeta, sub(r_mod, w), r_mod) // z-w**i
-      w := mulmod(w, vk_inv_domain_size, r_mod) // w**i/n
-      i := pow_local(i, sub(r_mod,2)) // (z-w**i)**-1
-      w := mulmod(w, i, r_mod) // w**i/n*(z-w)**-1
-      res := mulmod(w, zpnmo, r_mod)
-    }
-  }
-  {{ end }}
-
-  {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-  // corresponds to https://github.com/ConsenSys/gnark-crypto/blob/develop/ecc/bn254/fr/element.go
-  // function used to hash points resulting from calls to Commit() in the circuit.
-  function hash_fr(uint256 x, uint256 y) internal view returns (uint256 res) {
-
-    assembly {
-
-      function error_sha2_256() {
-        let ptError := mload(0x40)
-        mstore(ptError, error_string_id) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x19)
-        mstore(add(ptError, 0x44), "error staticcall sha2-256")
-        revert(ptError, 0x64)
-      }
-
-      // [0x00, .. , 0x00 || x, y, || 0, 48, 0, dst, sizeDomain]
-      // <-  64 bytes  ->  <-64b -> <-       1 bytes each     ->
-      let mPtr := mload(0x40)
-      
-      // [0x00, .., 0x00] 64 bytes of zero
-      mstore(mPtr, zero_uint256)
-      mstore(add(mPtr, 0x20), zero_uint256)
-  
-      // msg =  x || y , both on 32 bytes
-      mstore(add(mPtr, 0x40), x)
-      mstore(add(mPtr, 0x60), y)
-
-      // 0 || 48 || 0 all on 1 byte
-      mstore8(add(mPtr, 0x80), 0)
-      mstore8(add(mPtr, 0x81), lenInBytes)
-      mstore8(add(mPtr, 0x82), 0)
-
-      // "BSB22-Plonk" = [42, 53, 42, 32, 32, 2d, 50, 6c, 6f, 6e, 6b,]
-      mstore8(add(mPtr, 0x83), 0x42)
-      mstore8(add(mPtr, 0x84), 0x53)
-      mstore8(add(mPtr, 0x85), 0x42)
-      mstore8(add(mPtr, 0x86), 0x32)
-      mstore8(add(mPtr, 0x87), 0x32)
-      mstore8(add(mPtr, 0x88), 0x2d)
-      mstore8(add(mPtr, 0x89), 0x50)
-      mstore8(add(mPtr, 0x8a), 0x6c)
-      mstore8(add(mPtr, 0x8b), 0x6f)
-      mstore8(add(mPtr, 0x8c), 0x6e)
-      mstore8(add(mPtr, 0x8d), 0x6b)
-
-      // size domain
-      mstore8(add(mPtr, 0x8e), sizeDomain)
-
-      let success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
-      if iszero(success) {
-        error_sha2_256()
-      }
-
-      let b0 := mload(mPtr)
-
-      // [b0         || one || dst || sizeDomain]
-      // <-64bytes ->  <-    1 byte each      ->
-      mstore8(add(mPtr, 0x20), one) // 1
-      
-      mstore8(add(mPtr, 0x21), 0x42) // dst
-      mstore8(add(mPtr, 0x22), 0x53)
-      mstore8(add(mPtr, 0x23), 0x42)
-      mstore8(add(mPtr, 0x24), 0x32)
-      mstore8(add(mPtr, 0x25), 0x32)
-      mstore8(add(mPtr, 0x26), 0x2d)
-      mstore8(add(mPtr, 0x27), 0x50)
-      mstore8(add(mPtr, 0x28), 0x6c)
-      mstore8(add(mPtr, 0x29), 0x6f)
-      mstore8(add(mPtr, 0x2a), 0x6e)
-      mstore8(add(mPtr, 0x2b), 0x6b)
-
-      mstore8(add(mPtr, 0x2c), sizeDomain) // size domain
-      success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
-      if iszero(success) {
-        error_sha2_256()
-      }
-
-      // b1 is located at mPtr. We store b2 at add(mPtr, 0x20)
-
-      // [b0^b1      || two || dst || sizeDomain]
-      // <-64bytes ->  <-    1 byte each      ->
-      mstore(add(mPtr, 0x20), xor(mload(mPtr), b0))
-      mstore8(add(mPtr, 0x40), two)
-
-      mstore8(add(mPtr, 0x41), 0x42) // dst
-      mstore8(add(mPtr, 0x42), 0x53)
-      mstore8(add(mPtr, 0x43), 0x42)
-      mstore8(add(mPtr, 0x44), 0x32)
-      mstore8(add(mPtr, 0x45), 0x32)
-      mstore8(add(mPtr, 0x46), 0x2d)
-      mstore8(add(mPtr, 0x47), 0x50)
-      mstore8(add(mPtr, 0x48), 0x6c)
-      mstore8(add(mPtr, 0x49), 0x6f)
-      mstore8(add(mPtr, 0x4a), 0x6e)
-      mstore8(add(mPtr, 0x4b), 0x6b)
-
-      mstore8(add(mPtr, 0x4c), sizeDomain) // size domain
-
-      let offset := add(mPtr, 0x20)
-      success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
-      if iszero(success) {
-        error_sha2_256()
-      }
-
-      // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
-      // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
-      // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
-      res := mulmod(mload(mPtr), bb, r_mod) // <- res = 2**128 * mPtr[:32]
-      offset := add(mPtr, 0x10)
-      for {let i:=0} lt(i, 0x10) {i:=add(i,1)} // mPtr <- [xx, xx, ..,  | 0, 0, .. 0  ||    b2   ]
-      {
-        mstore8(offset, 0x00)
-        offset := add(offset, 0x1)
-      }
-      let b1 := mload(add(mPtr, 0x10)) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
-      res := addmod(res, b1, r_mod)
-
-    }
-
-  }
-  {{ end }}
-
-  // returns the contribution of the public inputs + ζⁿ-1 which will
-  // be reused several times
-  {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-  function compute_pi(
-    uint256[] memory public_inputs,
-    uint256 zeta,
-    bytes memory proof
-  ) internal view returns (uint256 pi, uint256 zeta_power_n_minus_one) {
-  {{ end -}}
-  {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
-  function compute_pi(
-        uint256[] memory public_inputs,
-        uint256 zeta
-    ) internal view returns (uint256 pi, uint256 zeta_power_n_minus_one) {
-  {{ end }}
-
-    assembly {
-      function error_pow() {
-        let ptError := mload(0x40)
-        mstore(ptError, error_string_id) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x17)
-        mstore(add(ptError, 0x44), "error staticcall modexp")
-        revert(ptError, 0x64)
-      }
-      
-      // evaluation of Z=Xⁿ-1 at ζ, we save this value
-      zeta_power_n_minus_one := addmod(pow(zeta, vk_domain_size, mload(0x40)), sub(r_mod, 1), r_mod)
-      sum_pi_wo_api_commit(add(public_inputs,0x20), mload(public_inputs), zeta, zeta_power_n_minus_one)
-      pi := mload(mload(0x40))
-
-      function sum_pi_wo_api_commit(ins, n, z, zpnmo) {
+      // BEGINNING compute_pi -------------------------------------------------
+      function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
         
-        let li := mload(0x40)
+        let state := mload(0x40)
+        let z := mload(add(state, state_zeta))
+        let zpnmo := mload(add(state, state_zeta_power_n_minus_one))
+
+        let li := mPtr
         batch_compute_lagranges_at_z(z, zpnmo, n, li)
 
-        // at this stage zeta_power_n_minus_one is computed
-
-        let res := 0
         let tmp := 0
         for {let i:=0} lt(i,n) {i:=add(i,1)}
         {
           tmp := mulmod(mload(li), mload(ins), r_mod)
-          res := addmod(res, tmp, r_mod)
+          pi_wo_commit := addmod(pi_wo_commit, tmp, r_mod)
           li := add(li, 0x20)
           ins := add(ins, 0x20)
         }
-        mstore(mload(0x40), res)
+        
       }
 
       // mPtr <- [L_0(z), .., L_{n-1}(z)]
@@ -615,171 +516,152 @@ contract PlonkVerifier {
         }
       }
 
-      // res <- x^e mod r
-      function pow(x, e, mPtr)->res {
-        mstore(mPtr, 0x20)
-        mstore(add(mPtr, 0x20), 0x20)
-        mstore(add(mPtr, 0x40), 0x20)
-        mstore(add(mPtr, 0x60), x)
-        mstore(add(mPtr, 0x80), e)
-        mstore(add(mPtr, 0xa0), r_mod)
-        let success := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
-        if iszero(success) {
-          error_pow()
-        }
-        res := mload(mPtr)
-      }
-    }
-
-    {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-    // compute the contribution of the public inputs whose indices are in commitment_indices,
-    // and whose value is hash_fr of the corresponding commitme
-    uint256[] memory commitment_indices = new uint256[](vk_nb_commitments_commit_api);
-    load_vk_commitments_indices_commit_api(commitment_indices);
-    
-    unchecked {
-      uint256[] memory wire_committed_commitments = new uint256[](2 * vk_nb_commitments_commit_api);
-
-      load_wire_commitments_commit_api(wire_committed_commitments, proof);
-      uint256 hash_res;
-      uint256 ith_lagrange_at_z;
-      for (uint256 i; i < vk_nb_commitments_commit_api; ) { 
-        hash_res = hash_fr(wire_committed_commitments[2 * i], wire_committed_commitments[2 * i + 1]);
-        ith_lagrange_at_z = compute_ith_lagrange_at_z(
-          zeta,
-          zeta_power_n_minus_one,
-          commitment_indices[i] + public_inputs.length
-        );
-        assembly {
-          ith_lagrange_at_z := mulmod(hash_res, ith_lagrange_at_z, r_mod)
-          pi := addmod(pi, ith_lagrange_at_z, r_mod)
-        }
-        ++i;
-      }
-    }
-    {{ end }}
-  }
-  
-  function check_inputs_size(uint256[] memory public_inputs)
-  internal pure {
-
-    bool input_checks = true;
-    assembly {
-      let s := mload(public_inputs)
-      let p := add(public_inputs, 0x20)
-      for {let i} lt(i, s) {i:=add(i,1)}
-      {
-        input_checks := and(input_checks,lt(mload(p), r_mod))
-        p := add(p, 0x20)
-      }
-    }
-    require(input_checks, "some inputs are bigger than r");
-
-  }
-
-  function check_proof_size(bytes memory proof)
-  internal pure {
-    unchecked {
-      uint256 expected_proof_size = 0x340+vk_nb_commitments_commit_api*0x60;
-      uint256 actual_proof_size;
-      assembly {
-        actual_proof_size := mload(proof)
-      }
-      require(actual_proof_size==expected_proof_size, "wrong proof size");
-    }
-  }
-
-  function check_proof_openings_size(bytes memory proof)
-  internal pure {
-    bool openings_check = true;
-    assembly {
-      
-      // linearised polynomial at zeta
-      let p := add(proof, proof_linearised_polynomial_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // quotient polynomial at zeta
-      p := add(proof, proof_quotient_polynomial_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-      
-      // proof_l_at_zeta
-      p := add(proof, proof_l_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // proof_r_at_zeta
-      p := add(proof, proof_r_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // proof_o_at_zeta
-      p := add(proof, proof_o_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // proof_s1_at_zeta
-      p := add(proof, proof_s1_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-      
-      // proof_s2_at_zeta
-      p := add(proof, proof_s2_at_zeta)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // proof_grand_product_at_zeta_omega
-      p := add(proof, proof_grand_product_at_zeta_omega)
-      openings_check := and(openings_check, lt(mload(p), r_mod))
-
-      // proof_openings_selector_commit_api_at_zeta
       {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-      p := add(proof, proof_openings_selector_commit_api_at_zeta)
-      for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-      {
-        openings_check := and(openings_check, lt(mload(p), r_mod))
-        p := add(p, 0x20)
+      // mPtr free memory. Computes the public input contribution related to the commit
+      function sum_pi_commit(aproof, nb_public_inputs, mPtr)->pi_commit {
+
+        let state := mload(0x40)
+        let z := mload(add(state, state_zeta))
+        let zpnmo := mload(add(state, state_zeta_power_n_minus_one))
+
+        let p := add(aproof, proof_openings_selector_commit_api_at_zeta)
+        p := add(p, mul(vk_nb_commitments_commit_api, 0x20)) // p points now to the wire commitments
+
+        let h_fr, ith_lagrange
+       
+        {{ range $index, $element := .CommitmentConstraintIndexes}}
+        h_fr := hash_fr(mload(p), mload(add(p, 0x20)), mPtr)
+        ith_lagrange := compute_ith_lagrange_at_z(z, zpnmo, add(nb_public_inputs, vk_index_commit_api_{{ $index }}), mPtr)
+        pi_commit := addmod(pi_commit, mulmod(h_fr, ith_lagrange, r_mod), r_mod)
+        p := add(p, 0x40)
+        {{ end }}
+
+      }
+
+      // z zeta
+      // zpmno ζⁿ-1
+      // i i-th lagrange
+      // mPtr free memory
+      // Computes L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
+      function compute_ith_lagrange_at_z(z, zpnmo, i, mPtr)->res {
+
+        let w := pow(vk_omega, i, mPtr) // w**i
+        i := addmod(z, sub(r_mod, w), r_mod) // z-w**i
+        w := mulmod(w, vk_inv_domain_size, r_mod) // w**i/n
+        i := pow(i, sub(r_mod,2), mPtr) // (z-w**i)**-1
+        w := mulmod(w, i, r_mod) // w**i/n*(z-w)**-1
+        res := mulmod(w, zpnmo, r_mod)
+      
+      }
+
+      // (x, y) point on bn254, both on 32bytes
+      // mPtr free memory
+      function hash_fr(x, y, mPtr)->res {
+
+        // [0x00, .. , 0x00 || x, y, || 0, 48, 0, dst, sizeDomain]
+        // <-  64 bytes  ->  <-64b -> <-       1 bytes each     ->
+
+        // [0x00, .., 0x00] 64 bytes of zero
+        mstore(mPtr, zero_uint256)
+        mstore(add(mPtr, 0x20), zero_uint256)
+    
+        // msg =  x || y , both on 32 bytes
+        mstore(add(mPtr, 0x40), x)
+        mstore(add(mPtr, 0x60), y)
+
+        // 0 || 48 || 0 all on 1 byte
+        mstore8(add(mPtr, 0x80), 0)
+        mstore8(add(mPtr, 0x81), lenInBytes)
+        mstore8(add(mPtr, 0x82), 0)
+
+        // "BSB22-Plonk" = [42, 53, 42, 32, 32, 2d, 50, 6c, 6f, 6e, 6b,]
+        mstore8(add(mPtr, 0x83), 0x42)
+        mstore8(add(mPtr, 0x84), 0x53)
+        mstore8(add(mPtr, 0x85), 0x42)
+        mstore8(add(mPtr, 0x86), 0x32)
+        mstore8(add(mPtr, 0x87), 0x32)
+        mstore8(add(mPtr, 0x88), 0x2d)
+        mstore8(add(mPtr, 0x89), 0x50)
+        mstore8(add(mPtr, 0x8a), 0x6c)
+        mstore8(add(mPtr, 0x8b), 0x6f)
+        mstore8(add(mPtr, 0x8c), 0x6e)
+        mstore8(add(mPtr, 0x8d), 0x6b)
+
+        // size domain
+        mstore8(add(mPtr, 0x8e), sizeDomain)
+
+        let l_success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
+        if iszero(l_success) {
+          error_verify()
+        }
+
+        let b0 := mload(mPtr)
+
+        // [b0         || one || dst || sizeDomain]
+        // <-64bytes ->  <-    1 byte each      ->
+        mstore8(add(mPtr, 0x20), one) // 1
+        
+        mstore8(add(mPtr, 0x21), 0x42) // dst
+        mstore8(add(mPtr, 0x22), 0x53)
+        mstore8(add(mPtr, 0x23), 0x42)
+        mstore8(add(mPtr, 0x24), 0x32)
+        mstore8(add(mPtr, 0x25), 0x32)
+        mstore8(add(mPtr, 0x26), 0x2d)
+        mstore8(add(mPtr, 0x27), 0x50)
+        mstore8(add(mPtr, 0x28), 0x6c)
+        mstore8(add(mPtr, 0x29), 0x6f)
+        mstore8(add(mPtr, 0x2a), 0x6e)
+        mstore8(add(mPtr, 0x2b), 0x6b)
+
+        mstore8(add(mPtr, 0x2c), sizeDomain) // size domain
+        l_success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
+        if iszero(l_success) {
+          error_verify()
+        }
+
+        // b1 is located at mPtr. We store b2 at add(mPtr, 0x20)
+
+        // [b0^b1      || two || dst || sizeDomain]
+        // <-64bytes ->  <-    1 byte each      ->
+        mstore(add(mPtr, 0x20), xor(mload(mPtr), b0))
+        mstore8(add(mPtr, 0x40), two)
+
+        mstore8(add(mPtr, 0x41), 0x42) // dst
+        mstore8(add(mPtr, 0x42), 0x53)
+        mstore8(add(mPtr, 0x43), 0x42)
+        mstore8(add(mPtr, 0x44), 0x32)
+        mstore8(add(mPtr, 0x45), 0x32)
+        mstore8(add(mPtr, 0x46), 0x2d)
+        mstore8(add(mPtr, 0x47), 0x50)
+        mstore8(add(mPtr, 0x48), 0x6c)
+        mstore8(add(mPtr, 0x49), 0x6f)
+        mstore8(add(mPtr, 0x4a), 0x6e)
+        mstore8(add(mPtr, 0x4b), 0x6b)
+
+        mstore8(add(mPtr, 0x4c), sizeDomain) // size domain
+
+        let offset := add(mPtr, 0x20)
+        l_success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
+        if iszero(l_success) {
+          error_verify()
+        }
+
+        // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
+        // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
+        // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
+        res := mulmod(mload(mPtr), bb, r_mod) // <- res = 2**128 * mPtr[:32]
+        offset := add(mPtr, 0x10)
+        for {let i:=0} lt(i, 0x10) {i:=add(i,1)} // mPtr <- [xx, xx, ..,  | 0, 0, .. 0  ||    b2   ]
+        {
+          mstore8(offset, 0x00)
+          offset := add(offset, 0x1)
+        }
+        let b1 := mload(add(mPtr, 0x10)) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
+        res := addmod(res, b1, r_mod)
+
       }
       {{ end }}
-
-    }
-    require(openings_check, "some openings are bigger than r");
-  }
-
-  function Verify(bytes memory proof, uint256[] memory public_inputs) 
-  public view returns(bool success) {
-    check_inputs_size(public_inputs);
-    check_proof_size(proof);
-    check_proof_openings_size(proof);
-
-    (uint256 gamma, uint256 beta, uint256 alpha, uint256 zeta) = derive_gamma_beta_alpha_zeta(proof, public_inputs);
-
-    {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-    (uint256 pi, uint256 zeta_power_n_minus_one) = compute_pi(public_inputs, zeta, proof);
-    {{ end }}
-    {{ if (eq (len .CommitmentConstraintIndexes) 0 )}}
-    (uint256 pi, uint256 zeta_power_n_minus_one) = compute_pi(public_inputs, zeta);
-    {{ end }}
-    
-    uint256 check;
-
-    assembly {
-
-      let mem := mload(0x40)
-      mstore(add(mem, state_alpha), alpha)
-      mstore(add(mem, state_gamma), gamma)
-      mstore(add(mem, state_zeta), zeta)
-      mstore(add(mem, state_beta), beta)
-      
-      mstore(add(mem, state_pi), pi)
-
-      mstore(add(mem, state_zeta_power_n_minus_one), zeta_power_n_minus_one)
-
-      compute_alpha_square_lagrange_0()
-      verify_quotient_poly_eval_at_zeta(proof)
-      fold_h(proof)
-      compute_commitment_linearised_polynomial(proof)
-      compute_gamma_kzg(proof)
-      fold_state(proof)
-      batch_verify_multi_points(proof)
-
-      success := mload(add(mem, state_success))
-      
-      check := mload(add(mem, state_check_var))
+      // END compute_pi -------------------------------------------------
 
       function error_verify() {
         let ptError := mload(0x40)
