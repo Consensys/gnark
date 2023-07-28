@@ -178,7 +178,7 @@ contract PlonkVerifier {
       prev_challenge_non_reduced := derive_gamma(proof.offset, public_inputs.length, public_inputs.offset)
       prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
       prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
-      derive_zeta(proof.offset, alpha_nr)
+      derive_zeta(proof.offset, prev_challenge_non_reduced)
 
       // evaluation of Z=Xⁿ-1 at ζ, we save this value
       let zeta := mload(add(mem, state_zeta))
@@ -193,15 +193,15 @@ contract PlonkVerifier {
       {{ end -}}
       mstore(add(mem, state_pi), l_pi)
 
-      // compute_alpha_square_lagrange_0()
-      // verify_quotient_poly_eval_at_zeta(proof)
+      compute_alpha_square_lagrange_0()
+      verify_quotient_poly_eval_at_zeta(proof.offset)
       // fold_h(proof)
       // compute_commitment_linearised_polynomial(proof)
       // compute_gamma_kzg(proof)
       // fold_state(proof)
       // batch_verify_multi_points(proof)
 
-      // success := mload(add(mem, state_success))
+      success := mload(add(mem, state_success))
 
       // Beginning errors -------------------------------------------------
       function error_inputs_size() {
@@ -663,28 +663,28 @@ contract PlonkVerifier {
 
       }
       {{ end }}
-      // // END compute_pi -------------------------------------------------
+      // END compute_pi -------------------------------------------------
 
-      // // compute α² * 1/n * (ζ{n}-1)/(ζ - 1) where
-      // // * α = challenge derived in derive_gamma_beta_alpha_zeta
-      // // * n = vk_domain_size
-      // // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
-      // // * ζ = zeta (challenge derived with Fiat Shamir)
-      // function compute_alpha_square_lagrange_0() {   
-      //   let state := mload(0x40)
-      //   let mPtr := add(mload(0x40), state_last_mem)
+      // compute α² * 1/n * (ζ{n}-1)/(ζ - 1) where
+      // * α = challenge derived in derive_gamma_beta_alpha_zeta
+      // * n = vk_domain_size
+      // * ω = vk_omega (generator of the multiplicative cyclic group of order n in (ℤ/rℤ)*)
+      // * ζ = zeta (challenge derived with Fiat Shamir)
+      function compute_alpha_square_lagrange_0() {   
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), state_last_mem)
 
-      //   let res := mload(add(state, state_zeta_power_n_minus_one))
-      //   let den := addmod(mload(add(state, state_zeta)), sub(r_mod, 1), r_mod)
-      //   den := pow(den, sub(r_mod, 2), mPtr)
-      //   den := mulmod(den, vk_inv_domain_size, r_mod)
-      //   res := mulmod(den, res, r_mod)
+        let res := mload(add(state, state_zeta_power_n_minus_one))
+        let den := addmod(mload(add(state, state_zeta)), sub(r_mod, 1), r_mod)
+        den := pow(den, sub(r_mod, 2), mPtr)
+        den := mulmod(den, vk_inv_domain_size, r_mod)
+        res := mulmod(den, res, r_mod)
 
-      //   let l_alpha := mload(add(state, state_alpha))
-      //   res := mulmod(res, l_alpha, r_mod)
-      //   res := mulmod(res, l_alpha, r_mod)
-      //   mstore(add(state, state_alpha_square_lagrange_0), res)
-      // }
+        let l_alpha := mload(add(state, state_alpha))
+        res := mulmod(res, l_alpha, r_mod)
+        res := mulmod(res, l_alpha, r_mod)
+        mstore(add(state, state_alpha_square_lagrange_0), res)
+      }
 
       // // follows alg. p.13 of https://eprint.iacr.org/2019/953.pdf
       // // with t₁ = t₂ = 1, and the proofs are ([digest] + [quotient] +purported evaluation):
@@ -1010,48 +1010,47 @@ contract PlonkVerifier {
       //   point_add(add(state, state_folded_h_x), add(state, state_folded_h_x), add(aproof, proof_h_0_x), mPtr)
       // }
 
-      // // check that
-      // //	L(ζ)Qₗ(ζ)+r(ζ)Qᵣ(ζ)+R(ζ)L(ζ)Qₘ(ζ)+O(ζ)Qₒ(ζ)+Qₖ(ζ)+Σᵢqc'ᵢ(ζ)BsbCommitmentᵢ(ζ) +
-      // //  α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
-      // // + α²*L₁(ζ) = 
-      // // (ζⁿ-1)H(ζ)
-      // function verify_quotient_poly_eval_at_zeta(aproof) {
+      // check that
+      //	L(ζ)Qₗ(ζ)+r(ζ)Qᵣ(ζ)+R(ζ)L(ζ)Qₘ(ζ)+O(ζ)Qₒ(ζ)+Qₖ(ζ)+Σᵢqc'ᵢ(ζ)BsbCommitmentᵢ(ζ) +
+      //  α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
+      // + α²*L₁(ζ) = 
+      // (ζⁿ-1)H(ζ)
+      function verify_quotient_poly_eval_at_zeta(aproof) {
+        let state := mload(0x40)
 
-      //   let state := mload(0x40)
+        // (l(ζ)+β*s1(ζ)+γ)
+        let s1 := add(mload(0x40), state_last_mem)
+        mstore(s1, mulmod(calldataload(add(aproof, proof_s1_at_zeta)), mload(add(state, state_beta)), r_mod))
+        mstore(s1, addmod(mload(s1), mload(add(state, state_gamma)), r_mod))
+        mstore(s1, addmod(mload(s1), calldataload(add(aproof, proof_l_at_zeta)), r_mod))
 
-      //   // (l(ζ)+β*s1(ζ)+γ)
-      //   let s1 := add(mload(0x40), state_last_mem)
-      //   mstore(s1, mulmod(mload(add(aproof,proof_s1_at_zeta)),mload(add(state, state_beta)), r_mod))
-      //   mstore(s1, addmod(mload(s1), mload(add(state, state_gamma)), r_mod))
-      //   mstore(s1, addmod(mload(s1), mload(add(aproof, proof_l_at_zeta)), r_mod))
+        // (r(ζ)+β*s2(ζ)+γ)
+        let s2 := add(s1, 0x20)
+        mstore(s2, mulmod(calldataload(add(aproof, proof_s2_at_zeta)), mload(add(state, state_beta)), r_mod))
+        mstore(s2, addmod(mload(s2), mload(add(state, state_gamma)), r_mod))
+        mstore(s2, addmod(mload(s2), calldataload(add(aproof, proof_r_at_zeta)), r_mod))
+        // _s2 := mload(s2)
 
-      //   // (r(ζ)+β*s2(ζ)+γ)
-      //   let s2 := add(s1,0x20)
-      //   mstore(s2, mulmod(mload(add(aproof,proof_s2_at_zeta)),mload(add(state, state_beta)), r_mod))
-      //   mstore(s2, addmod(mload(s2), mload(add(state, state_gamma)), r_mod))
-      //   mstore(s2, addmod(mload(s2), mload(add(aproof, proof_r_at_zeta)), r_mod))
-      //   // _s2 := mload(s2)
+        // (o(ζ)+γ)
+        let o := add(s1, 0x40)
+        mstore(o, addmod(calldataload(add(aproof, proof_o_at_zeta)), mload(add(state, state_gamma)), r_mod))
 
-      //   // (o(ζ)+γ)
-      //   let o := add(s1,0x40)
-      //   mstore(o, addmod(mload(add(aproof,proof_o_at_zeta)), mload(add(state, state_gamma)), r_mod))
+        //  α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
+        mstore(s1, mulmod(mload(s1), mload(s2), r_mod))
+        mstore(s1, mulmod(mload(s1), mload(o), r_mod))
+        mstore(s1, mulmod(mload(s1), mload(add(state, state_alpha)), r_mod))
+        mstore(s1, mulmod(mload(s1), calldataload(add(aproof, proof_grand_product_at_zeta_omega)), r_mod))
 
-      //   //  α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
-      //   mstore(s1, mulmod(mload(s1), mload(s2), r_mod))
-      //   mstore(s1, mulmod(mload(s1), mload(o), r_mod))
-      //   mstore(s1, mulmod(mload(s1), mload(add(state, state_alpha)), r_mod))
-      //   mstore(s1, mulmod(mload(s1), mload(add(aproof, proof_grand_product_at_zeta_omega)), r_mod))
+        let computed_quotient := add(s1, 0x60)
 
-      //   let computed_quotient := add(s1,0x60)
+        // linearizedpolynomial + pi(zeta)
+        mstore(computed_quotient,addmod(calldataload(add(aproof, proof_linearised_polynomial_at_zeta)), mload(add(state, state_pi)), r_mod))
+        mstore(computed_quotient, addmod(mload(computed_quotient), mload(s1), r_mod))
+        mstore(computed_quotient,addmod(mload(computed_quotient), sub(r_mod, mload(add(state, state_alpha_square_lagrange_0))), r_mod))
+        mstore(s2,mulmod(calldataload(add(aproof, proof_quotient_polynomial_at_zeta)),mload(add(state, state_zeta_power_n_minus_one)),r_mod))
 
-      //   // linearizedpolynomial + pi(zeta)
-      //   mstore(computed_quotient, addmod(mload(add(aproof, proof_linearised_polynomial_at_zeta)), mload(add(state, state_pi)), r_mod))
-      //   mstore(computed_quotient, addmod(mload(computed_quotient), mload(s1), r_mod))
-      //   mstore(computed_quotient, addmod(mload(computed_quotient), sub(r_mod,mload(add(state, state_alpha_square_lagrange_0))), r_mod))
-      //   mstore(s2, mulmod(mload(add(aproof,proof_quotient_polynomial_at_zeta)), mload(add(state, state_zeta_power_n_minus_one)), r_mod))
-
-      //   mstore(add(state, state_success),eq(mload(computed_quotient), mload(s2)))
-      // }
+        mstore(add(state, state_success), eq(mload(computed_quotient), mload(s2)))
+      }
 
       // function point_add(dst, p, q, mPtr) {
       //   // let mPtr := add(mload(0x40), state_last_mem)
