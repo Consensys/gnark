@@ -36,29 +36,63 @@ type NativeArithmetization struct {
 	mod *big.Int
 }
 
-func (n NativeArithmetization) Add(in1, in2 *big.Int, other ...*big.Int) *big.Int {
+func (na NativeArithmetization) Add(in1, in2 *big.Int, other ...*big.Int) *big.Int {
 	res := new(big.Int)
 	res.Add(in1, in2)
 	for i := range other {
+		res.Mod(res, na.mod)
 		res.Add(res, other[i])
 	}
-	return res.Mod(res, n.mod)
+	return res.Mod(res, na.mod)
 }
 
-func (n NativeArithmetization) Mul(in1, in2 *big.Int, other ...*big.Int) *big.Int {
+func (na NativeArithmetization) Mul(in1, in2 *big.Int, other ...*big.Int) *big.Int {
 	res := new(big.Int)
 	res.Mul(in1, in2)
 	for i := range other {
-		res.Mod(res, n.mod)
+		res.Mod(res, na.mod)
 		res.Mul(res, other[i])
 	}
-	return res.Mod(res, n.mod)
+	return res.Mod(res, na.mod)
+}
+
+type APIArithmetization struct {
+	api frontend.API
+}
+
+func (aa APIArithmetization) Add(in1, in2 frontend.Variable, other ...frontend.Variable) frontend.Variable {
+	return aa.api.Add(in1, in2, other...)
+}
+
+func (aa APIArithmetization) Mul(in1, in2 frontend.Variable, other ...frontend.Variable) frontend.Variable {
+	return aa.api.Mul(in1, in2, other...)
 }
 
 type ArithmFn[A Arithmetization[V], V any] func(a A, in1, in2 V) V
 
 func SimpleMul[A Arithmetization[V], V any](a A, in1, in2 V) V {
 	return a.Mul(in1, in2)
+}
+
+func WithGKR(api frontend.API, fn ArithmFn[*gkr.API, constraint.GkrVariable], inputs1 []frontend.Variable, inputs2 []frontend.Variable) (res []frontend.Variable, commit func() error, err error) {
+	f := gkr.NewApi()
+	in1, err := f.Import(inputs1)
+	if err != nil {
+		return nil, nil, fmt.Errorf("import %w", err)
+	}
+	in2, err := f.Import(inputs2)
+	if err != nil {
+		return nil, nil, fmt.Errorf("import2: %w", err)
+	}
+	gkrres := fn(f, in1, in2)
+	solution, err := f.Solve(api)
+	if err != nil {
+		return nil, nil, fmt.Errorf("solution: %w", err)
+	}
+	nres := solution.Export(gkrres)
+	return nres, func() error {
+		return solution.Verify("mimc")
+	}, nil
 }
 
 type TestCircuit struct {
@@ -69,28 +103,14 @@ type TestCircuit struct {
 }
 
 func (c *TestCircuit) Define(api frontend.API) error {
-	f := gkr.NewApi()
-	in1, err := f.Import(c.Inputs1[:])
+	res, verify, err := WithGKR(api, c.fn, c.Inputs1, c.Inputs2)
 	if err != nil {
-		return fmt.Errorf("import %w", err)
+		return err
 	}
-	in2, err := f.Import(c.Inputs2[:])
-	if err != nil {
-		return fmt.Errorf("import2: %w", err)
+	for i := range res {
+		api.AssertIsEqual(res[i], c.Outputs[i])
 	}
-	res := c.fn(f, in1, in2)
-	solution, err := f.Solve(api)
-	if err != nil {
-		return fmt.Errorf("solution: %w", err)
-	}
-	nres := solution.Export(res)
-	if len(nres) != len(c.Outputs) {
-		return fmt.Errorf("lengths mismatch %d %d", len(nres), len(c.Outputs))
-	}
-	for i := range nres {
-		api.AssertIsEqual(nres[i], c.Outputs[i])
-	}
-	return solution.Verify("mimc")
+	return verify()
 }
 
 func TestGKR(t *testing.T) {
