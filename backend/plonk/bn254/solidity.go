@@ -174,10 +174,10 @@ contract PlonkVerifier {
       check_proof_openings_size(proof.offset)
 
       // compute the challenges
-      // let gamma_nr := derive_gamma(proof, public_inputs)
-      // let beta_nr := derive_beta(proof, gamma_nr)
-      // let alpha_nr := derive_alpha(proof, beta_nr)
-      // derive_zeta(proof, alpha_nr)
+      let gamma_nr := derive_gamma(proof.offset, public_inputs.length, public_inputs.offset)
+      let beta_nr := derive_beta(gamma_nr)
+      let alpha_nr := derive_alpha(proof.offset, beta_nr)
+      derive_zeta(proof.offset, alpha_nr)
 
       // // evaluation of Z=Xⁿ-1 at ζ, we save this value
       // let zeta := mload(add(mem, state_zeta))
@@ -202,7 +202,7 @@ contract PlonkVerifier {
 
       // success := mload(add(mem, state_success))
 
-      // Beginning checks -------------------------------------------------
+      // Beginning errors -------------------------------------------------
       function error_inputs_size() {
         let ptError := mload(0x40)
         mstore(ptError, error_string_id) // selector for function Error(string)
@@ -212,6 +212,36 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
+      function error_proof_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x10)
+        mstore(add(ptError, 0x44), "wrong proof size")
+        revert(ptError, 0x64)
+      }
+
+      function error_proof_openings_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x16)
+        mstore(add(ptError, 0x44), "openings bigger than r")
+        revert(ptError, 0x64)
+      }
+
+      function error_verify() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0xc)
+        mstore(add(ptError, 0x44), "error verify")
+        revert(ptError, 0x64)
+      }
+      // end errors -------------------------------------------------
+
+      // Beginning checks -------------------------------------------------
+    
       // s number of public inputs, p pointer the public inputs
       function check_inputs_size(s, p) {
         let input_checks := 1
@@ -225,30 +255,12 @@ contract PlonkVerifier {
         }
       }
 
-      function error_proof_size() {
-        let ptError := mload(0x40)
-        mstore(ptError, error_string_id) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x10)
-        mstore(add(ptError, 0x44), "wrong proof size")
-        revert(ptError, 0x64)
-      }
-
       // the 'a' prepending proof in aproof stands for 'assembly'. It's just to not use again the name proof (not allowed)
       function check_proof_size(actual_proof_size, aproof) {
         let expected_proof_size := add(0x340, mul(vk_nb_commitments_commit_api,0x60))
         if iszero(eq(actual_proof_size, expected_proof_size)) {
          error_proof_size() 
         }
-      }
-
-      function error_proof_openings_size() {
-        let ptError := mload(0x40)
-        mstore(ptError, error_string_id) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x16)
-        mstore(add(ptError, 0x44), "openings bigger than r")
-        revert(ptError, 0x64)
       }
     
       function check_proof_openings_size(aproof) {
@@ -305,138 +317,125 @@ contract PlonkVerifier {
 
       // // Beginning challenges -------------------------------------------------
 
-      // // Derive gamma as Sha256(<transcript>)
-      // // where transcript is the concatenation (in this order) of:
-      // // * the word "gamma" in ascii, equal to [0x67,0x61,0x6d, 0x6d, 0x61] and encoded as a uint256.
-      // // * the commitments to the permutation polynomials S1, S2, S3, where we concatenate the coordinates of those points
-      // // * the commitments of Ql, Qr, Qm, Qo, Qk
-      // // * the public inputs
-      // // * the commitments of the wires related to the custom gates (commitments_wires_commit_api)
-      // // * commitments to L, R, O (proof_<l,r,o>_com_<x,y>)
-      // // The data described above is written starting at mPtr. "gamma" lies on 5 bytes,
-      // // and is encoded as a uint256 number n. In basis b = 256, the number looks like this
-      // // [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
-      // function derive_gamma(aproof, ins)->gamma_not_reduced {
+      // Derive gamma as Sha256(<transcript>)
+      // where transcript is the concatenation (in this order) of:
+      // * the word "gamma" in ascii, equal to [0x67,0x61,0x6d, 0x6d, 0x61] and encoded as a uint256.
+      // * the commitments to the permutation polynomials S1, S2, S3, where we concatenate the coordinates of those points
+      // * the commitments of Ql, Qr, Qm, Qo, Qk
+      // * the public inputs
+      // * the commitments of the wires related to the custom gates (commitments_wires_commit_api)
+      // * commitments to L, R, O (proof_<l,r,o>_com_<x,y>)
+      // The data described above is written starting at mPtr. "gamma" lies on 5 bytes,
+      // and is encoded as a uint256 number n. In basis b = 256, the number looks like this
+      // [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
+      // nb_pi, pi respectively number of public inputs and public inputs
+      function derive_gamma(aproof, nb_pi, pi)->gamma_not_reduced {
         
-      //   let state := mload(0x40)
-      //   let mPtr := add(mload(0x40), state_last_mem)
+        let state := mload(0x40)
+        let mPtr := add(state, state_last_mem)
 
-      //   // gamma
-      //   // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
-      //   // (same for alpha, beta, zeta)
-      //   mstore(mPtr, 0x67616d6d61) // "gamma"
+        // gamma
+        // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
+        // (same for alpha, beta, zeta)
+        mstore(mPtr, 0x67616d6d61) // "gamma"
 
-      //   mstore(add(mPtr, 0x20), vk_s1_com_x)
-      //   mstore(add(mPtr, 0x40), vk_s1_com_y)
-      //   mstore(add(mPtr, 0x60), vk_s2_com_x)
-      //   mstore(add(mPtr, 0x80), vk_s2_com_y)
-      //   mstore(add(mPtr, 0xa0), vk_s3_com_x)
-      //   mstore(add(mPtr, 0xc0), vk_s3_com_y)
-      //   mstore(add(mPtr, 0xe0), vk_ql_com_x)
-      //   mstore(add(mPtr, 0x100), vk_ql_com_y)
-      //   mstore(add(mPtr, 0x120), vk_qr_com_x)
-      //   mstore(add(mPtr, 0x140), vk_qr_com_y)
-      //   mstore(add(mPtr, 0x160), vk_qm_com_x)
-      //   mstore(add(mPtr, 0x180), vk_qm_com_y)
-      //   mstore(add(mPtr, 0x1a0), vk_qo_com_x)
-      //   mstore(add(mPtr, 0x1c0), vk_qo_com_y)
-      //   mstore(add(mPtr, 0x1e0), vk_qk_com_x)
-      //   mstore(add(mPtr, 0x200), vk_qk_com_y)
+        mstore(add(mPtr, 0x20), vk_s1_com_x)
+        mstore(add(mPtr, 0x40), vk_s1_com_y)
+        mstore(add(mPtr, 0x60), vk_s2_com_x)
+        mstore(add(mPtr, 0x80), vk_s2_com_y)
+        mstore(add(mPtr, 0xa0), vk_s3_com_x)
+        mstore(add(mPtr, 0xc0), vk_s3_com_y)
+        mstore(add(mPtr, 0xe0), vk_ql_com_x)
+        mstore(add(mPtr, 0x100), vk_ql_com_y)
+        mstore(add(mPtr, 0x120), vk_qr_com_x)
+        mstore(add(mPtr, 0x140), vk_qr_com_y)
+        mstore(add(mPtr, 0x160), vk_qm_com_x)
+        mstore(add(mPtr, 0x180), vk_qm_com_y)
+        mstore(add(mPtr, 0x1a0), vk_qo_com_x)
+        mstore(add(mPtr, 0x1c0), vk_qo_com_y)
+        mstore(add(mPtr, 0x1e0), vk_qk_com_x)
+        mstore(add(mPtr, 0x200), vk_qk_com_y)
 
-      //   let pi := add(ins, 0x20)
-      //   let _mPtr := add(mPtr, 0x220)
-      //   for {let i:=0} lt(i, mload(ins)) {i:=add(i,1)}
-      //   {
-      //     mstore(_mPtr, mload(pi))
-      //     pi := add(pi, 0x20)
-      //     _mPtr := add(_mPtr, 0x20)
-      //   }
+        // public inputs
+        let _mPtr := add(mPtr, 0x220)
+        let size_pi_in_bytes := mul(nb_pi, 0x20)
+        calldatacopy(_mPtr, pi, size_pi_in_bytes)
+        _mPtr := add(_mPtr, size_pi_in_bytes)
 
-      //   let _proof := add(aproof, proof_openings_selector_commit_api_at_zeta)
-      //   _proof := add(_proof, mul(vk_nb_commitments_commit_api, 0x20))
-      //   for {let i:=0} lt(i, vk_nb_commitments_commit_api) {i:=add(i,1)}
-      //   {
-      //     mstore(_mPtr, mload(_proof))
-      //     mstore(add(_mPtr, 0x20), mload(add(_proof, 0x20)))
-      //     _mPtr := add(_mPtr, 0x40)
-      //     _proof := add(_proof, 0x40)
-      //   }
+        // wire commitment commit api
+        let _proof := add(aproof, proof_openings_selector_commit_api_at_zeta)
+        _proof := add(_proof, mul(vk_nb_commitments_commit_api, 0x20))
+        let size_wire_commitments_commit_api_in_bytes := mul(vk_nb_commitments_commit_api, 0x40)
+        calldatacopy(_mPtr, _proof, size_wire_commitments_commit_api_in_bytes)
+        _mPtr := add(_mPtr, size_wire_commitments_commit_api_in_bytes)
 
-      //   mstore(_mPtr, mload(add(aproof, proof_l_com_x)))
-      //   mstore(add(_mPtr, 0x20), mload(add(aproof, proof_l_com_y)))
-      //   mstore(add(_mPtr, 0x40), mload(add(aproof, proof_r_com_x)))
-      //   mstore(add(_mPtr, 0x60), mload(add(aproof, proof_r_com_y)))
-      //   mstore(add(_mPtr, 0x80), mload(add(aproof, proof_o_com_x)))
-      //   mstore(add(_mPtr, 0xa0), mload(add(aproof, proof_o_com_y)))
+        // commitments to l, r, o
+        let size_commitments_lro_in_bytes := 0xc0
+        calldatacopy(_mPtr, aproof, size_commitments_lro_in_bytes)
+        _mPtr := add(_mPtr, size_commitments_lro_in_bytes)
 
-      //   let size := add(0x2c5, mul(mload(ins), 0x20)) // 0x2c5 = 22*32+5
-      //   size := add(size, mul(vk_nb_commitments_commit_api, 0x40))
-      //   let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
-      //   if iszero(l_success) {
-      //     error_verify()
-      //   }
-      //   gamma_not_reduced := mload(mPtr)
-      //   mstore(add(state, state_gamma), mod(gamma_not_reduced, r_mod))
-      // }
+        let size := add(0x2c5, mul(nb_pi, 0x20)) // 0x2c5 = 22*32+5
+        size := add(size, mul(vk_nb_commitments_commit_api, 0x40))
+        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if iszero(l_success) {
+          error_verify()
+        }
+        gamma_not_reduced := mload(mPtr)
+        mstore(add(state, state_gamma), mod(gamma_not_reduced, r_mod))
+      }
 
-      // function derive_beta(aproof, gamma_not_reduced)->beta_not_reduced{
+      function derive_beta(gamma_not_reduced)->beta_not_reduced{
         
-      //   let state := mload(0x40)
-      //   let mPtr := add(mload(0x40), state_last_mem)
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), state_last_mem)
 
-      //   // beta
-      //   mstore(mPtr, 0x62657461) // "beta"
-      //   mstore(add(mPtr, 0x20), gamma_not_reduced)
-      //   let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
-      //   if iszero(l_success) {
-      //     error_verify()
-      //   }
-      //   beta_not_reduced := mload(mPtr)
-      //   mstore(add(state, state_beta), mod(beta_not_reduced, r_mod))
-      // }
+        // beta
+        mstore(mPtr, 0x62657461) // "beta"
+        mstore(add(mPtr, 0x20), gamma_not_reduced)
+        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if iszero(l_success) {
+          error_verify()
+        }
+        beta_not_reduced := mload(mPtr)
+        mstore(add(state, state_beta), mod(beta_not_reduced, r_mod))
+      }
 
-      // // alpha depends on the previous challenge (beta) and on the commitment to the grand product polynomial
-      // function derive_alpha(aproof, beta_not_reduced)->alpha_not_reduced {
+      // alpha depends on the previous challenge (beta) and on the commitment to the grand product polynomial
+      function derive_alpha(aproof, beta_not_reduced)->alpha_not_reduced {
         
-      //   let state := mload(0x40)
-      //   let mPtr := add(mload(0x40), state_last_mem)
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), state_last_mem)
 
-      //   // alpha
-      //   mstore(mPtr, 0x616C706861) // "alpha"
-      //   mstore(add(mPtr, 0x20), beta_not_reduced)
-      //   mstore(add(mPtr, 0x40), mload(add(aproof, proof_grand_product_commitment_x)))
-      //   mstore(add(mPtr, 0x60), mload(add(aproof, proof_grand_product_commitment_y)))
-      //   let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
-      //   if iszero(l_success) {
-      //     error_verify()
-      //   }
-      //   alpha_not_reduced := mload(mPtr)
-      //   mstore(add(state, state_alpha), mod(alpha_not_reduced, r_mod))
-      // }
+        // alpha
+        mstore(mPtr, 0x616C706861) // "alpha"
+        mstore(add(mPtr, 0x20), beta_not_reduced)
+        calldatacopy(add(mPtr, 0x40), add(aproof, proof_grand_product_commitment_x), 0x40)
+        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), 0x65, mPtr, 0x20) //0x1b -> 000.."gamma"
+        if iszero(l_success) {
+          error_verify()
+        }
+        alpha_not_reduced := mload(mPtr)
+        mstore(add(state, state_alpha), mod(alpha_not_reduced, r_mod))
+      }
 
-      // // zeta depends on the previous challenge (alpha) and on the commitment to the quotient polynomial
-      // function derive_zeta(aproof, alpha_not_reduced) {
+      // zeta depends on the previous challenge (alpha) and on the commitment to the quotient polynomial
+      function derive_zeta(aproof, alpha_not_reduced) {
         
-      //   let state := mload(0x40)
-      //   let mPtr := add(mload(0x40), state_last_mem)
+        let state := mload(0x40)
+        let mPtr := add(mload(0x40), state_last_mem)
 
-      //   // zeta
-      //   mstore(mPtr, 0x7a657461) // "zeta"
-      //   mstore(add(mPtr, 0x20), alpha_not_reduced)
-      //   mstore(add(mPtr, 0x40), mload(add(aproof, proof_h_0_x)))
-      //   mstore(add(mPtr, 0x60), mload(add(aproof, proof_h_0_y)))
-      //   mstore(add(mPtr, 0x80), mload(add(aproof, proof_h_1_x)))
-      //   mstore(add(mPtr, 0xa0), mload(add(aproof, proof_h_1_y)))
-      //   mstore(add(mPtr, 0xc0), mload(add(aproof, proof_h_2_x)))
-      //   mstore(add(mPtr, 0xe0), mload(add(aproof, proof_h_2_y)))
-      //   let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
-      //   if iszero(l_success) {
-      //     error_verify()
-      //   }
-      //   let zeta_not_reduced := mload(mPtr)
-      //   mstore(add(state, state_zeta), mod(zeta_not_reduced, r_mod))
-      // }
-      // // END challenges -------------------------------------------------
+        // zeta
+        mstore(mPtr, 0x7a657461) // "zeta"
+        mstore(add(mPtr, 0x20), alpha_not_reduced)
+        calldatacopy(add(mPtr, 0x40), add(aproof, proof_h_0_x), 0xc0)
+        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
+        if iszero(l_success) {
+          error_verify()
+        }
+        let zeta_not_reduced := mload(mPtr)
+        mstore(add(state, state_zeta), mod(zeta_not_reduced, r_mod))
+      }
+      // END challenges -------------------------------------------------
 
       // // BEGINNING compute_pi -------------------------------------------------
       // function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
@@ -661,15 +660,6 @@ contract PlonkVerifier {
       // }
       // {{ end }}
       // // END compute_pi -------------------------------------------------
-
-      // function error_verify() {
-      //   let ptError := mload(0x40)
-      //   mstore(ptError, error_string_id) // selector for function Error(string)
-      //   mstore(add(ptError, 0x4), 0x20)
-      //   mstore(add(ptError, 0x24), 0xc)
-      //   mstore(add(ptError, 0x44), "error verify")
-      //   revert(ptError, 0x64)
-      // }
 
       // // compute α² * 1/n * (ζ{n}-1)/(ζ - 1) where
       // // * α = challenge derived in derive_gamma_beta_alpha_zeta
