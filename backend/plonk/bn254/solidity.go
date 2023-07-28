@@ -794,7 +794,6 @@ contract PlonkVerifier {
 
         point_acc_mul(add(state, state_folded_digests_x), add(mPtr, 0x80), acc_gamma, mPtrOffset)
         fr_acc_mul(add(state, state_folded_claimed_values), add(aproof, proof_linearised_polynomial_at_zeta), acc_gamma)
-        mstore(add(state, state_check_var), acc_gamma)
 
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
         point_acc_mul(add(state, state_folded_digests_x), add(mPtr, 0xc0), acc_gamma, mPtrOffset)
@@ -818,11 +817,8 @@ contract PlonkVerifier {
 
         let poscaz := add(aproof, proof_openings_selector_commit_api_at_zeta)
         let opca := add(mPtr, 0x200) // offset_proof_commits_api
-        for {
-          let i := 0
-        } lt(i, vk_nb_commitments_commit_api) {
-          i := add(i, 1)
-        } {
+        for {let i := 0} lt(i, vk_nb_commitments_commit_api) {i := add(i, 1)}
+        {
           acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
           point_acc_mul(add(state, state_folded_digests_x), opca, acc_gamma, add(mPtr, offset))
           fr_acc_mul(add(state, state_folded_claimed_values), poscaz, acc_gamma)
@@ -869,7 +865,7 @@ contract PlonkVerifier {
         offset := add(offset, 0x40)
         {{ end }}
 
-        mstore(add(mPtr, offset), mload(add(aproof, proof_quotient_polynomial_at_zeta)))
+        mstore(add(mPtr, offset), calldataload(add(aproof, proof_quotient_polynomial_at_zeta)))
         mstore(add(mPtr, add(offset, 0x20)), calldataload(add(aproof, proof_linearised_polynomial_at_zeta)))
         mstore(add(mPtr, add(offset, 0x40)), calldataload(add(aproof, proof_l_at_zeta)))
         mstore(add(mPtr, add(offset, 0x60)), calldataload(add(aproof, proof_r_at_zeta)))
@@ -1174,7 +1170,6 @@ contract PlonkVerifier {
         res := mload(mPtr)
       }
     }
-    success = true;
   }
 }
 `
