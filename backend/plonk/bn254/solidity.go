@@ -320,7 +320,7 @@ contract PlonkVerifier {
       function derive_gamma(aproof, ins)->gamma_not_reduced {
         
         let state := mload(0x40)
-        let mPtr := add(mload(0x40), state_last_mem)
+        let mPtr := add(state, state_last_mem)
 
         // gamma
         // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
