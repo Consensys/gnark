@@ -19,13 +19,15 @@ package groth16
 import (
 	"errors"
 	"fmt"
+	"io"
+	"math/big"
+	"text/template"
+	"time"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/logger"
-	"io"
-	"math/big"
-	"time"
 )
 
 var (
@@ -116,4 +118,31 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 // ExportSolidity not implemented for BLS12-381
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	return errors.New("not implemented")
+}
+
+// ExportNeoGo writes a Go Verifier contract for Neo blockchain on provided writer
+// the contract template was not audited and is delivered "As Is" by the NeoGo developers
+// contract template source https://github.com/nspcc-dev/neo-go/pull/3043 // TODO
+// this is an experimental feature and gnark NeoGo generator as not been thoroughly tested.
+//
+// See https://github.com/ConsenSys/gnark-tests for example usage.
+func (vk *VerifyingKey) ExportNeoGo(w io.Writer) error {
+	helpers := template.FuncMap{
+		// byteSliceToStr is a codegen helper that converts byte slice to a go-like slice.
+		"byteSliceToStr": func(s []byte) string {
+			var res string
+			for _, b := range s {
+				res += fmt.Sprintf("%d, ", b)
+			}
+			return `{` + res[:len(res)-2] + `}`
+		},
+	}
+
+	tmpl, err := template.New("").Funcs(helpers).Parse(neoGoTemplate)
+	if err != nil {
+		return err
+	}
+
+	// execute template
+	return tmpl.Execute(w, vk)
 }

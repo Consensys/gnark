@@ -19,14 +19,15 @@ package groth16
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/logger"
 	"io"
 	"math/big"
 	"text/template"
 	"time"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark/logger"
 )
 
 var (
@@ -134,4 +135,9 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 
 	// execute template
 	return tmpl.Execute(w, vk)
+}
+
+// ExportNeoGo not implemented for BN254
+func (vk *VerifyingKey) ExportNeoGo(w io.Writer) error {
+	return errors.New("not implemented")
 }

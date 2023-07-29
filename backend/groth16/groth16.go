@@ -88,6 +88,7 @@ type ProvingKey interface {
 // it's underlying implementation is strongly typed with the curve (see gnark/internal/backend)
 //
 // ExportSolidity is implemented for BN254 and will return an error with other curves
+// ExportNeoGo is implemented for BLS12-381 and will return an error with other curves
 type VerifyingKey interface {
 	groth16Object
 	gnarkio.UnsafeReaderFrom
@@ -104,6 +105,10 @@ type VerifyingKey interface {
 	// ExportSolidity writes a solidity Verifier contract from the VerifyingKey
 	// this will return an error if not supported on the CurveID()
 	ExportSolidity(w io.Writer) error
+
+	// ExportNeoGo writes a Go Verifier contract for Neo blockchain from the VerifyingKey
+	// this will return an error if not supported on the CurveID()
+	ExportNeoGo(w io.Writer) error
 
 	IsDifferent(interface{}) bool
 }

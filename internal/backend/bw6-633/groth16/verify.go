@@ -19,13 +19,14 @@ package groth16
 import (
 	"errors"
 	"fmt"
+	"io"
+	"math/big"
+	"time"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark/logger"
-	"io"
-	"math/big"
-	"time"
 )
 
 var (
@@ -115,5 +116,10 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 // ExportSolidity not implemented for BW6-633
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+	return errors.New("not implemented")
+}
+
+// ExportNeoGo not implemented for BW6-633
+func (vk *VerifyingKey) ExportNeoGo(w io.Writer) error {
 	return errors.New("not implemented")
 }
