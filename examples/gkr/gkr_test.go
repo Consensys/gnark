@@ -1,7 +1,6 @@
 package gkr_test
 
 import (
-	"crypto/rand"
 	"fmt"
 	"math/big"
 	"testing"
@@ -12,6 +11,7 @@ import (
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/gkr"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -76,7 +76,7 @@ func DeepMul[API Arithmetization[VAR], VAR any](api API, in1, in2 VAR, other ...
 	c := api.Mul(b, b)
 	d := api.Mul(c, c)
 	e := api.Mul(d, d)
-	f := api.Mul(e, e)
+	f := api.Add(e, e)
 	return f
 
 }
@@ -161,32 +161,44 @@ func (c *TestCircuit) Define(api frontend.API) error {
 
 func TestGKR(t *testing.T) {
 	nbInstances := 1 << 20
-	withGKR := false
 	assert := test.NewAssert(t)
-	bound := ecc.BN254.ScalarField()
-	circuit := TestCircuit{
-		withGKR: withGKR,
+	circuitNative := TestCircuit{
+		withGKR: false,
 		Inputs1: make([]frontend.Variable, nbInstances),
 		Inputs2: make([]frontend.Variable, nbInstances),
 		Outputs: make([]frontend.Variable, nbInstances),
 	}
-	witness := TestCircuit{
-		withGKR: withGKR,
+	circuitGKR := TestCircuit{
+		withGKR: true,
 		Inputs1: make([]frontend.Variable, nbInstances),
 		Inputs2: make([]frontend.Variable, nbInstances),
 		Outputs: make([]frontend.Variable, nbInstances),
 	}
-	for i := 0; i < nbInstances; i++ {
-		input1, err := rand.Int(rand.Reader, bound)
-		assert.NoError(err)
-		input2, err := rand.Int(rand.Reader, bound)
-		assert.NoError(err)
-		witness.Inputs1[i] = input1
-		witness.Inputs2[i] = input2
-		witness.Outputs[i] = DeepMul(NativeArithmetization{bound}, input1, input2)
-	}
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	ccs1, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuitNative)
 	assert.NoError(err)
+	ccs2, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuitNative)
+	assert.NoError(err)
+	ccs3, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuitGKR)
+	assert.NoError(err)
+	ccs4, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuitGKR)
+	assert.NoError(err)
+	// bound := ecc.BN254.ScalarField()
+	// witness := TestCircuit{
+	// 	withGKR: withGKR,
+	// 	Inputs1: make([]frontend.Variable, nbInstances),
+	// 	Inputs2: make([]frontend.Variable, nbInstances),
+	// 	Outputs: make([]frontend.Variable, nbInstances),
+	// }
+	// for i := 0; i < nbInstances; i++ {
+	// 	input1, err := rand.Int(rand.Reader, bound)
+	// 	assert.NoError(err)
+	// 	input2, err := rand.Int(rand.Reader, bound)
+	// 	assert.NoError(err)
+	// 	witness.Inputs1[i] = input1
+	// 	witness.Inputs2[i] = input2
+	// 	witness.Outputs[i] = DeepMul(NativeArithmetization{bound}, input1, input2)
+	// }
+
 	// fullWitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
 	// assert.NoError(err)
 	// publicWitness, err := fullWitness.Public()
@@ -197,5 +209,8 @@ func TestGKR(t *testing.T) {
 	// assert.NoError(err)
 	// err = groth16.Verify(proof, vk, publicWitness)
 	// assert.NoError(err)
-	_, _ = ccs, witness
+	_ = ccs1
+	_ = ccs2
+	_ = ccs3
+	_ = ccs4
 }
