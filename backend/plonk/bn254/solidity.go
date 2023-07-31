@@ -315,7 +315,7 @@ contract PlonkVerifier {
       }
       // end checks -------------------------------------------------
 
-      // // Beginning challenges -------------------------------------------------
+      // Beginning challenges -------------------------------------------------
 
       // Derive gamma as Sha256(<transcript>)
       // where transcript is the concatenation (in this order) of:
@@ -1097,7 +1097,7 @@ contract PlonkVerifier {
         mstore(add(state, state_success), and(l_success, mload(add(state, state_success))))
       }
 
-      // // dst <- [s]src
+      // dst <- [s]src
       function point_mul(dst,src,s, mPtr) {
         // let mPtr := add(mload(0x40), state_last_mem)
         let state := mload(0x40)
