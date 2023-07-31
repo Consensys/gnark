@@ -68,13 +68,23 @@ func (aa APIArithmetization) Mul(in1, in2 frontend.Variable, other ...frontend.V
 	return aa.api.Mul(in1, in2, other...)
 }
 
-type ArithmFn[A Arithmetization[V], V any] func(a A, in1, in2 V) V
+type ArithmFn[API Arithmetization[VAR], VAR any] func(api API, in1, in2 VAR, other ...VAR) VAR
 
-func SimpleMul[A Arithmetization[V], V any](a A, in1, in2 V) V {
-	return a.Mul(in1, in2)
+func SimpleMul[API Arithmetization[VAR], VAR any](api API, in1, in2 VAR, other ...VAR) VAR {
+	return api.Mul(in1, in2, other...)
 }
 
-func WithGKR(api frontend.API, fn ArithmFn[*gkr.API, constraint.GkrVariable], inputs1 []frontend.Variable, inputs2 []frontend.Variable) (res []frontend.Variable, commit func() error, err error) {
+func DeepMul[API Arithmetization[VAR], VAR any](api API, in1, in2 VAR, other ...VAR) VAR {
+	b := api.Mul(in1, in2)
+	c := api.Mul(b, b)
+	d := api.Mul(c, c)
+	e := api.Mul(d, d)
+	f := api.Mul(e, e)
+	return f
+
+}
+
+func WithGKR(api frontend.API, fn ArithmFn[*gkr.API, constraint.GkrVariable], inputs1 []frontend.Variable, inputs2 []frontend.Variable, other ...[]frontend.Variable) (res []frontend.Variable, commit func() error, err error) {
 	f := gkr.NewApi()
 	in1, err := f.Import(inputs1)
 	if err != nil {
@@ -84,7 +94,14 @@ func WithGKR(api frontend.API, fn ArithmFn[*gkr.API, constraint.GkrVariable], in
 	if err != nil {
 		return nil, nil, fmt.Errorf("import2: %w", err)
 	}
-	gkrres := fn(f, in1, in2)
+	gkrOther := make([]constraint.GkrVariable, len(other))
+	for i := range other {
+		gkrOther[i], err = f.Import(other[i])
+		if err != nil {
+			return nil, nil, fmt.Errorf("import other: %w", err)
+		}
+	}
+	gkrres := fn(f, in1, in2, gkrOther...)
 	solution, err := f.Solve(api)
 	if err != nil {
 		return nil, nil, fmt.Errorf("solution: %w", err)
@@ -95,17 +112,49 @@ func WithGKR(api frontend.API, fn ArithmFn[*gkr.API, constraint.GkrVariable], in
 	}, nil
 }
 
+func WithAPI(api frontend.API, fn ArithmFn[frontend.API, frontend.Variable], inputs1 []frontend.Variable, inputs2 []frontend.Variable, other ...[]frontend.Variable) (res []frontend.Variable, err error) {
+	if len(inputs1) != len(inputs2) {
+		return nil, fmt.Errorf("mismatching nb of inputs")
+	}
+	nbInputs := len(inputs1)
+	for i := range other {
+		if len(other[i]) != nbInputs {
+			return nil, fmt.Errorf("mismatching nb of inputs")
+		}
+	}
+	outputs := make([]frontend.Variable, nbInputs)
+	for i := 0; i < nbInputs; i++ {
+		otherInputs := make([]frontend.Variable, len(other))
+		for j := range otherInputs {
+			otherInputs[j] = other[j][i]
+		}
+		outputs[i] = fn(api, inputs1[i], inputs2[i], otherInputs...)
+	}
+	return outputs, nil
+}
+
 type TestCircuit struct {
+	withGKR bool
 	Inputs1 []frontend.Variable
 	Inputs2 []frontend.Variable
 	Outputs []frontend.Variable
-	fn      ArithmFn[*gkr.API, constraint.GkrVariable]
 }
 
 func (c *TestCircuit) Define(api frontend.API) error {
-	res, verify, err := WithGKR(api, c.fn, c.Inputs1, c.Inputs2)
-	if err != nil {
-		return err
+	var res []frontend.Variable
+	var verify func() error
+	var err error
+	if c.withGKR {
+		res, verify, err = WithGKR(api, DeepMul[*gkr.API, constraint.GkrVariable], c.Inputs1, c.Inputs2)
+		if err != nil {
+			return err
+		}
+	} else {
+		res, err = WithAPI(api, DeepMul[frontend.API, frontend.Variable], c.Inputs1, c.Inputs2)
+		if err != nil {
+			return err
+		}
+		verify = func() error { return nil }
 	}
 	for i := range res {
 		api.AssertIsEqual(res[i], c.Outputs[i])
@@ -114,20 +163,21 @@ func (c *TestCircuit) Define(api frontend.API) error {
 }
 
 func TestGKR(t *testing.T) {
-	nbVars := 1 << 16
+	nbVars := 1 << 20
+	withGKR := true
 	assert := test.NewAssert(t)
 	bound := ecc.BN254.ScalarField()
 	circuit := TestCircuit{
+		withGKR: withGKR,
 		Inputs1: make([]frontend.Variable, nbVars),
 		Inputs2: make([]frontend.Variable, nbVars),
 		Outputs: make([]frontend.Variable, nbVars),
-		fn:      SimpleMul[*gkr.API, constraint.GkrVariable],
 	}
 	witness := TestCircuit{
+		withGKR: withGKR,
 		Inputs1: make([]frontend.Variable, nbVars),
 		Inputs2: make([]frontend.Variable, nbVars),
 		Outputs: make([]frontend.Variable, nbVars),
-		fn:      SimpleMul[*gkr.API, constraint.GkrVariable],
 	}
 	for i := 0; i < nbVars; i++ {
 		input1, err := rand.Int(rand.Reader, bound)
@@ -136,7 +186,7 @@ func TestGKR(t *testing.T) {
 		assert.NoError(err)
 		witness.Inputs1[i] = input1
 		witness.Inputs2[i] = input2
-		witness.Outputs[i] = SimpleMul(NativeArithmetization{bound}, input1, input2)
+		witness.Outputs[i] = DeepMul(NativeArithmetization{bound}, input1, input2)
 	}
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	assert.NoError(err)
