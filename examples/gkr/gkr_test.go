@@ -26,9 +26,19 @@ func init() {
 	}
 }
 
+// variable types we are interested in are:
+//   * frontend.Variable
+//   * constraint.GkrVariable
+//   * *big.Int for testing
+//   * long term emulated.Element
+
 type Arithmetization[T any] interface {
 	Add(T, T, ...T) T
 	Mul(T, T, ...T) T
+	// Sub TODO
+	// Neg TODO
+	// Div TODO
+	// Inverse TODO
 }
 
 type NativeArithmetization struct {
@@ -53,18 +63,6 @@ func (na NativeArithmetization) Mul(in1, in2 *big.Int, other ...*big.Int) *big.I
 		res.Mul(res, other[i])
 	}
 	return res.Mod(res, na.mod)
-}
-
-type APIArithmetization struct {
-	api frontend.API
-}
-
-func (aa APIArithmetization) Add(in1, in2 frontend.Variable, other ...frontend.Variable) frontend.Variable {
-	return aa.api.Add(in1, in2, other...)
-}
-
-func (aa APIArithmetization) Mul(in1, in2 frontend.Variable, other ...frontend.Variable) frontend.Variable {
-	return aa.api.Mul(in1, in2, other...)
 }
 
 type ArithmFn[API Arithmetization[VAR], VAR any] func(api API, in1, in2 VAR, other ...VAR) VAR
@@ -162,23 +160,23 @@ func (c *TestCircuit) Define(api frontend.API) error {
 }
 
 func TestGKR(t *testing.T) {
-	nbVars := 1 << 20
-	withGKR := true
+	nbInstances := 1 << 20
+	withGKR := false
 	assert := test.NewAssert(t)
 	bound := ecc.BN254.ScalarField()
 	circuit := TestCircuit{
 		withGKR: withGKR,
-		Inputs1: make([]frontend.Variable, nbVars),
-		Inputs2: make([]frontend.Variable, nbVars),
-		Outputs: make([]frontend.Variable, nbVars),
+		Inputs1: make([]frontend.Variable, nbInstances),
+		Inputs2: make([]frontend.Variable, nbInstances),
+		Outputs: make([]frontend.Variable, nbInstances),
 	}
 	witness := TestCircuit{
 		withGKR: withGKR,
-		Inputs1: make([]frontend.Variable, nbVars),
-		Inputs2: make([]frontend.Variable, nbVars),
-		Outputs: make([]frontend.Variable, nbVars),
+		Inputs1: make([]frontend.Variable, nbInstances),
+		Inputs2: make([]frontend.Variable, nbInstances),
+		Outputs: make([]frontend.Variable, nbInstances),
 	}
-	for i := 0; i < nbVars; i++ {
+	for i := 0; i < nbInstances; i++ {
 		input1, err := rand.Int(rand.Reader, bound)
 		assert.NoError(err)
 		input2, err := rand.Int(rand.Reader, bound)
