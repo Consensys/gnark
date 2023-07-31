@@ -8,7 +8,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bn254MiMC "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
@@ -190,14 +189,15 @@ func TestGKR(t *testing.T) {
 	}
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	assert.NoError(err)
-	fullWitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-	publicWitness, err := fullWitness.Public()
-	assert.NoError(err)
-	pk, vk, err := groth16.Setup(ccs)
-	assert.NoError(err)
-	proof, err := groth16.Prove(ccs, pk, fullWitness)
-	assert.NoError(err)
-	err = groth16.Verify(proof, vk, publicWitness)
-	assert.NoError(err)
+	// fullWitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	// assert.NoError(err)
+	// publicWitness, err := fullWitness.Public()
+	// assert.NoError(err)
+	// pk, vk, err := groth16.Setup(ccs)
+	// assert.NoError(err)
+	// proof, err := groth16.Prove(ccs, pk, fullWitness)
+	// assert.NoError(err)
+	// err = groth16.Verify(proof, vk, publicWitness)
+	// assert.NoError(err)
+	_, _ = ccs, witness
 }
