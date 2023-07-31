@@ -1099,7 +1099,6 @@ contract PlonkVerifier {
 
       // dst <- [s]src
       function point_mul(dst,src,s, mPtr) {
-        // let mPtr := add(mload(0x40), state_last_mem)
         let state := mload(0x40)
         mstore(mPtr,mload(src))
         mstore(add(mPtr,0x20),mload(add(src,0x20)))
@@ -1110,7 +1109,6 @@ contract PlonkVerifier {
 
       // dst <- [s]src
       function point_mul_calldata(dst, src, s, mPtr) {
-        // let mPtr := add(mload(0x40), state_last_mem)
         let state := mload(0x40)
         mstore(mPtr, calldataload(src))
         mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
