@@ -170,7 +170,7 @@ contract PlonkVerifier {
 
       // sanity checks
       check_inputs_size(public_inputs.length, public_inputs.offset)
-      check_proof_size(proof.length, proof.offset)
+      check_proof_size(proof.length)
       check_proof_openings_size(proof.offset)
 
       // compute the challenges
@@ -256,8 +256,7 @@ contract PlonkVerifier {
         }
       }
 
-      // the 'a' prepending proof in aproof stands for 'assembly'. It's just to not use again the name proof (not allowed)
-      function check_proof_size(actual_proof_size, aproof) {
+      function check_proof_size(actual_proof_size) {
         let expected_proof_size := add(0x340, mul(vk_nb_commitments_commit_api,0x60))
         if iszero(eq(actual_proof_size, expected_proof_size)) {
          error_proof_size() 
