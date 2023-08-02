@@ -261,6 +261,11 @@ func newDecompressionProofCircuitBn254(t *testing.T, data []byte) *decompression
 		}
 	}
 
+	fmt.Println("data", data)
+	fmt.Println("compressed", compressed)
+	fmt.Println("input index", inputIndex)
+	fmt.Println("zeros to write", zerosToWrite)
+
 	return &decompressionProofCircuit{
 		DataBytes:       BytesToVars(data),
 		CompressedBytes: BytesToVars(compressed),
@@ -309,6 +314,8 @@ func ByteIsZero(api frontend.API, b frontend.Variable) frontend.Variable {
 func (c *decompressionProofCircuit) Define(api frontend.API) error {
 	// TODO assert that compressed bytes are actually bytes
 
+	bytesDomain := fft.NewDomain(256)
+
 	data, compressed := c.DataBytes, c.CompressedBytes
 	inputIndex := make([]frontend.Variable, len(c.DataBytes)) //, zerosToWrite := c.InputIndex, c.ZerosToWrite
 	zerosToWrite := make([]frontend.Variable, len(c.DataBytes))
@@ -329,14 +336,17 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 	currentInput := compressed[0]
 	inputLookAhead := compressed[1]
 	prevInputZero := frontend.Variable(0)
-	zerosToWrite[0] = api.Mul(ByteIsZero(api, currentInput), inputLookAhead)
-	api.Println("zerosToWrite[0] =", zerosToWrite[0])
+	currentInputZero := ByteIsZero(api, currentInput)
+	zerosToWrite[0] = api.Mul(currentInputZero, inputLookAhead)
+	api.Println("zerosToWrite[ 0 ] =", DecodeByte(api, zerosToWrite[0]))
 
-	prevInput := compressed[0]
+	//prevInput := compressed[0]
 	inputIndex[0] = 0
 	for i := 1; i < len(data); i++ {
+		prevInputZero = currentInputZero
+		//fmt.Println("data[", i, "] =", data[i])
+
 		// input index
-		prevInputZero = ByteIsZero(api, prevInput)               // p
 		noMoreZerosToWrite := ByteIsZero(api, zerosToWrite[i-1]) // z
 		/*if compressed[inputIndex[i-1]] == 0 {
 			if zerosToWrite[i-1] == 0 {
@@ -347,21 +357,29 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 		} else {
 			inputIndex[i] = inputIndex[i-1] + 1
 		}*/
-		twiceNoMoreZerosToWrite := api.Add(noMoreZerosToWrite, noMoreZerosToWrite) // 2z
-		diff := api.MulAcc(1, twiceNoMoreZerosToWrite, prevInputZero)              // 2zp + 1
-		diff = api.Sub(diff, prevInputZero)                                        // 2zp + 1 - p
-		// the last two lines could be a single plonk constraint
+		coeff := api.Add(noMoreZerosToWrite, noMoreZerosToWrite, -1) // 2z - 1
+		api.Println("step 1", coeff)
+		api.Println("prevInputZero", prevInputZero)
+		diff := api.MulAcc(1, prevInputZero, coeff)
+		api.Println("diff", diff)
 		inputIndex[i] = api.Add(inputIndex[i-1], diff)
 		api.Println("inputIndex[", i, "] =", inputIndex[i])
 		// Current input
 		currentInput = compressedMap.Get(api, inputIndex[i])
 		inputLookAhead = compressedMap.Get(api, api.Add(inputIndex[i], 1))
+		api.Println("currentInput[", i, "] =", DecodeByte(api, currentInput))
+		api.Println("inputLookAhead[", i, "] =", DecodeByte(api, inputLookAhead))
+		currentInputZero = ByteIsZero(api, currentInput)
 
 		// zeros to write
-		coeff := api.MulAcc(1, prevInputZero, inputLookAhead)
-		coeff = api.Sub(coeff, prevInput) // this and the previous line could be a single plonk constraint
-		zerosToWrite[i] = api.MulAcc(prevInput, coeff, noMoreZerosToWrite)
-		zerosToWrite[i] = api.Sub(zerosToWrite[i], 1)
+		oneFewerZeroToWrite := api.Mul(zerosToWrite[i-1], bytesDomain.GeneratorInv)
+		coeff = api.Sub(inputLookAhead, 1)
+		coeff = api.MulAcc(1, coeff, currentInputZero)
+		coeff = api.Sub(coeff, oneFewerZeroToWrite) // this and the previous line could be a single plonk constraint
+		zerosToWrite[i] = api.MulAcc(oneFewerZeroToWrite, noMoreZerosToWrite, coeff)
+
+		api.Println("zerosToWrite[", i, "] =", DecodeByte(api, zerosToWrite[i]))
+
 		/*
 
 				// zeros to write
@@ -381,13 +399,26 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 			} else {
 				assert.Equal(t, byte(0), data[i])
 			}*/
+
 		api.AssertIsEqual(data[i], currentInput)
 
-		prevInput = currentInput
-
+		//prevInput = currentInput
 	}
 
 	return nil
+}
+
+func DecodeByte(api frontend.API, b frontend.Variable) frontend.Variable {
+	g := fft.NewDomain(256).Generator
+	keys := make([]frontend.Variable, 256)
+	values := make([]frontend.Variable, 256)
+	gPow := frontend.Variable(1)
+	for i := range keys {
+		keys[i] = gPow
+		values[i] = i
+		gPow = api.Mul(gPow, g)
+	}
+	return test_vector_utils.Map{Keys: keys, Values: values}.Get(api, b)
 }
 
 func TestCreateProof(t *testing.T) {
