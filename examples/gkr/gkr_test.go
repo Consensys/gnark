@@ -78,7 +78,49 @@ func DeepMul[API Arithmetization[VAR], VAR any](api API, in1, in2 VAR, other ...
 	e := api.Mul(d, d)
 	f := api.Add(e, e)
 	return f
+}
 
+func PolynomialEval[API Arithmetization[VAR], VAR any](api API, in1, in2 VAR, other ...VAR) VAR {
+	// inputs are cm1, cm2, cm3, cm4, cm5, cm6, cm7, a0, a1, a2, a3, b0, b1, b2, b3, c0, c1, c2, c3, c4, c5, c6, c7
+	cm1 := in1
+	cm2 := in2
+	cm3 := other[0]
+	cm4 := other[1]
+	cm5 := other[2]
+	cm6 := other[3]
+	cm7 := other[4]
+	a0 := other[5]
+	a1 := other[6]
+	a2 := other[7]
+	a3 := other[8]
+	b0 := other[9]
+	b1 := other[10]
+	b2 := other[11]
+	b3 := other[12]
+	c0 := other[13]
+	c1 := other[14]
+	c2 := other[15]
+	c3 := other[16]
+	c4 := other[17]
+	c5 := other[18]
+	c6 := other[19]
+	c7 := other[20]
+	a := api.Add(a0, api.Mul(a1, cm1))
+	a = api.Add(a, api.Mul(a2, cm2))
+	a = api.Add(a, api.Mul(a3, cm3))
+	b := api.Add(b0, api.Mul(b1, cm1))
+	b = api.Add(b, api.Mul(b2, cm2))
+	b = api.Add(b, api.Mul(b3, cm3))
+	c := api.Add(c0, api.Mul(c1, cm1))
+	c = api.Add(c, api.Mul(c2, cm2))
+	c = api.Add(c, api.Mul(c3, cm3))
+	c = api.Add(c, api.Mul(c4, cm4))
+	c = api.Add(c, api.Mul(c5, cm5))
+	c = api.Add(c, api.Mul(c6, cm6))
+	c = api.Add(c, api.Mul(c7, cm7))
+	k := api.Add(a, b)
+	k = api.Add(k, c)
+	return k
 }
 
 func WithGKR(api frontend.API, fn ArithmFn[*gkr.API, constraint.GkrVariable], inputs1 []frontend.Variable, inputs2 []frontend.Variable, other ...[]frontend.Variable) (res []frontend.Variable, commit func() error, err error) {
@@ -134,6 +176,7 @@ type TestCircuit struct {
 	withGKR bool
 	Inputs1 []frontend.Variable
 	Inputs2 []frontend.Variable
+	Other   [][]frontend.Variable
 	Outputs []frontend.Variable
 }
 
@@ -142,12 +185,12 @@ func (c *TestCircuit) Define(api frontend.API) error {
 	var verify func() error
 	var err error
 	if c.withGKR {
-		res, verify, err = WithGKR(api, DeepMul[*gkr.API, constraint.GkrVariable], c.Inputs1, c.Inputs2)
+		res, verify, err = WithGKR(api, PolynomialEval[*gkr.API, constraint.GkrVariable], c.Inputs1, c.Inputs2, c.Other...)
 		if err != nil {
 			return err
 		}
 	} else {
-		res, err = WithAPI(api, DeepMul[frontend.API, frontend.Variable], c.Inputs1, c.Inputs2)
+		res, err = WithAPI(api, PolynomialEval[frontend.API, frontend.Variable], c.Inputs1, c.Inputs2, c.Other...)
 		if err != nil {
 			return err
 		}
@@ -166,13 +209,19 @@ func TestGKR(t *testing.T) {
 		withGKR: false,
 		Inputs1: make([]frontend.Variable, nbInstances),
 		Inputs2: make([]frontend.Variable, nbInstances),
+		Other:   make([][]frontend.Variable, 21),
 		Outputs: make([]frontend.Variable, nbInstances),
 	}
 	circuitGKR := TestCircuit{
 		withGKR: true,
 		Inputs1: make([]frontend.Variable, nbInstances),
 		Inputs2: make([]frontend.Variable, nbInstances),
+		Other:   make([][]frontend.Variable, 21),
 		Outputs: make([]frontend.Variable, nbInstances),
+	}
+	for i := range circuitNative.Other {
+		circuitNative.Other[i] = make([]frontend.Variable, nbInstances)
+		circuitGKR.Other[i] = make([]frontend.Variable, nbInstances)
 	}
 	ccs1, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuitNative)
 	assert.NoError(err)
