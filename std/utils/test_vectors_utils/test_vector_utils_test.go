@@ -16,7 +16,7 @@ type TestSingleMapCircuit struct {
 
 func (c *TestSingleMapCircuit) Define(api frontend.API) error {
 
-	for i, k := range c.M.keys {
+	for i, k := range c.M.Keys {
 		v := c.M.Get(api, k)
 		api.AssertIsEqual(v, c.Values[i])
 	}
@@ -34,7 +34,7 @@ func TestSingleMap(t *testing.T) {
 
 	assignment := TestSingleMapCircuit{
 		M:      single,
-		Values: single.values,
+		Values: single.Values,
 	}
 
 	circuit := TestSingleMapCircuit{
