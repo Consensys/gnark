@@ -56,4 +56,4 @@ go.work
 go.work.sum
 
 examples/gbotrel/**
-std/compress/data.zct.patterns.raw
+*.raw
