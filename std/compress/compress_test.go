@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
@@ -317,25 +318,37 @@ func ByteIsZero(api frontend.API, b frontend.Variable) frontend.Variable {
 
 // only for bn254
 func (c *decompressionProofCircuit) Define(api frontend.API) error {
-	// TODO assert that compressed bytes are actually bytes
 
 	bytesDomain := fft.NewDomain(256)
+	/*bytesTable := logderivlookup.New(api)
+	gPow := frontend.Variable(1)
+	for i := 0; i < 256; i++ {
+		bytesTable.Insert(gPow)
+		gPow = api.Mul(gPow, bytesDomain.Generator)
+	}*/
 
 	data, compressed := c.DataBytes, c.CompressedBytes
-	inputIndex := make([]frontend.Variable, len(c.DataBytes)) //, zerosToWrite := c.InputIndex, c.ZerosToWrite
+	inputIndex := make([]frontend.Variable, len(c.DataBytes))
 	zerosToWrite := make([]frontend.Variable, len(c.DataBytes))
 
-	//indexDomain := fft.NewDomain(uint64(len(data)))
+	// assert that the input are actually bytes
+	for i := range compressed {
+		pow := compressed[i]
+		for j := 0; j < 8; j++ {
+			pow = api.Mul(pow, pow) // TODO: Useful to cache these for later? Does gnark do this automatically?
+		}
+		api.AssertIsEqual(pow, 1)
+	}
+
 	api.AssertIsEqual(data[0], compressed[0])
 
 	// this is insanely inefficient TODO replace with an efficient lookup method
-	compressedMap := test_vector_utils.Map{
-		Keys:   make([]frontend.Variable, len(compressed)),
-		Values: make([]frontend.Variable, len(compressed)),
-	}
+	compressedMap := logderivlookup.New(api)
 	for i := range compressed {
-		compressedMap.Keys[i] = frontend.Variable(i)
-		compressedMap.Values[i] = compressed[i]
+		j := compressedMap.Insert(compressed[i]) // TODO remove j
+		if j != i {
+			panic("index mismatch")
+		}
 	}
 
 	currentInput := compressed[0]
@@ -370,10 +383,10 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 		inputIndex[i] = api.Add(inputIndex[i-1], diff)
 		api.Println("inputIndex[", i, "] =", inputIndex[i])
 		// Current input
-		currentInput = compressedMap.Get(api, inputIndex[i])
-		inputLookAhead = compressedMap.Get(api, api.Add(inputIndex[i], 1))
 		api.Println("currentInput[", i, "] =", DecodeByte(api, currentInput))
 		api.Println("inputLookAhead[", i, "] =", DecodeByte(api, inputLookAhead))
+		ins := compressedMap.Lookup(inputIndex[i], api.Add(inputIndex[i], 1))
+		currentInput, inputLookAhead = ins[0], ins[1]
 		currentInputZero = ByteIsZero(api, currentInput)
 
 		// zeros to write
