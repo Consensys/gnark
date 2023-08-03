@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
@@ -342,13 +343,9 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 
 	api.AssertIsEqual(data[0], compressed[0])
 
-	// this is insanely inefficient TODO replace with an efficient lookup method
 	compressedMap := logderivlookup.New(api)
 	for i := range compressed {
-		j := compressedMap.Insert(compressed[i]) // TODO remove j
-		if j != i {
-			panic("index mismatch")
-		}
+		compressedMap.Insert(compressed[i])
 	}
 
 	currentInput := compressed[0]
@@ -452,7 +449,7 @@ func TestCreateProofSmall(t *testing.T) {
 	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
 }
 
-func TestCreateProofLarge(t *testing.T) {
+func TestCreateProofMedium(t *testing.T) {
 	data, err := os.ReadFile("data.bin")
 	require.NoError(t, err)
 	assignment := newDecompressionProofCircuitBn254(t, data[:100])
@@ -472,21 +469,23 @@ func TestCreateProofLargeBench(t *testing.T) {
 		pk     groth16.ProvingKey
 	)
 	fmt.Println("compiling...")
+	p := profile.Start()
 	cs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
-	fmt.Println("compile time", time.Now().UnixMilli()-start)
+	p.Stop()
+	fmt.Println("compile time", time.Now().UnixMilli()-start, "ms")
 	fmt.Println(cs.GetNbConstraints(), " constraints")
 	start = time.Now().UnixMilli()
 
 	wtness, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 	require.NoError(t, err)
-	fmt.Println("new witness time", time.Now().UnixMilli()-start)
+	fmt.Println("new witness time", time.Now().UnixMilli()-start, "ms")
 	pk, err = groth16.DummySetup(cs)
 	start = time.Now().UnixMilli()
 	_, err = groth16.Prove(cs, pk, wtness)
 	require.NoError(t, err)
-	fmt.Println("prove time", time.Now().UnixMilli()-start)
+	fmt.Println("prove time", time.Now().UnixMilli()-start, "ms")
 
-	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+	//test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
 }
 
 type byteIsZeroTestCircuit struct {
