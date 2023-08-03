@@ -8,6 +8,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -387,4 +389,81 @@ func BenchmarkPairing(b *testing.B) {
 			}
 		}
 	})
+}
+
+var proof plonk.Proof
+var proof2 groth16.Proof
+
+func BenchmarkPairingPLONK(t *testing.B) {
+	p1, q1 := randomG1G2Affines()
+	_, q2 := randomG1G2Affines()
+	var p2 bn254.G1Affine
+	p2.Neg(&p1)
+	circuit := PairingCheckCircuit{}
+	witness := PairingCheckCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
+	}
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(ccs.GetNbConstraints())
+	srs, err := test.NewKZGSRS(ccs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pk, _, err := plonk.Setup(ccs, srs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ass, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.ResetTimer()
+	for i := 0; i < t.N; i++ {
+		t.Log("proving", i)
+		proof, err = plonk.Prove(ccs, pk, ass)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkPairingGroth16(t *testing.B) {
+	p1, q1 := randomG1G2Affines()
+	_, q2 := randomG1G2Affines()
+	var p2 bn254.G1Affine
+	p2.Neg(&p1)
+	circuit := PairingCheckCircuit{}
+	witness := PairingCheckCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
+	}
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(ccs.GetNbConstraints())
+	pk, _, err := groth16.Setup(ccs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ass, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.ResetTimer()
+	for i := 0; i < t.N; i++ {
+		t.Log("proving", i)
+		proof2, err = groth16.Prove(ccs, pk, ass)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 }

@@ -6,7 +6,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/internal/multicommit"
+	"github.com/consensys/gnark/std/multicommit"
 )
 
 type mulCheck[T FieldParams] struct {
