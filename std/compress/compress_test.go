@@ -8,7 +8,11 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
@@ -17,6 +21,7 @@ import (
 	"math/big"
 	"os"
 	"testing"
+	"time"
 )
 
 // TODO Edge case where "compressed" is longer than original data
@@ -421,12 +426,41 @@ func DecodeByte(api frontend.API, b frontend.Variable) frontend.Variable {
 	return test_vector_utils.Map{Keys: keys, Values: values}.Get(api, b)
 }
 
-func TestCreateProof(t *testing.T) {
+func TestCreateProofSmall(t *testing.T) {
 	data, err := hex.DecodeString("0000002b23dd5f0000")
 	require.NoError(t, err)
 	assignment := newDecompressionProofCircuitBn254(t, data)
 	circuit := assignment.hollow()
 	circuit.hollow() // noop todo remove
+	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+}
+
+func TestCreateProofLarge(t *testing.T) {
+	data, err := os.ReadFile("data.bin")
+	require.NoError(t, err)
+	start := time.Now().UnixMilli()
+	assignment := newDecompressionProofCircuitBn254(t, data[:100])
+	circuit := assignment.hollow()
+	var (
+		cs     constraint.ConstraintSystem
+		wtness witness.Witness
+		pk     groth16.ProvingKey
+	)
+	fmt.Println("compiling...")
+	cs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
+	fmt.Println("compile time", time.Now().UnixMilli()-start)
+	fmt.Println(cs.GetNbConstraints(), " constraints")
+	start = time.Now().UnixMilli()
+
+	wtness, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+	require.NoError(t, err)
+	fmt.Println("new witness time", time.Now().UnixMilli()-start)
+	pk, err = groth16.DummySetup(cs)
+	start = time.Now().UnixMilli()
+	_, err = groth16.Prove(cs, pk, wtness)
+	require.NoError(t, err)
+	fmt.Println("prove time", time.Now().UnixMilli()-start)
+
 	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
 }
 
