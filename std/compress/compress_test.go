@@ -356,7 +356,7 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 	prevInputZero := frontend.Variable(0)
 	currentInputZero := ByteIsZero(api, currentInput)
 	zerosToWrite[0] = api.Mul(currentInputZero, inputLookAhead)
-	api.Println("zerosToWrite[ 0 ] =", DecodeByte(api, zerosToWrite[0]))
+	//api.Println("zerosToWrite[ 0 ] =", DecodeByte(api, zerosToWrite[0]))
 
 	//prevInput := compressed[0]
 	inputIndex[0] = 0
@@ -383,10 +383,15 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 		inputIndex[i] = api.Add(inputIndex[i-1], diff)
 		api.Println("inputIndex[", i, "] =", inputIndex[i])
 		// Current input
-		api.Println("currentInput[", i, "] =", DecodeByte(api, currentInput))
-		api.Println("inputLookAhead[", i, "] =", DecodeByte(api, inputLookAhead))
-		ins := compressedMap.Lookup(inputIndex[i], api.Add(inputIndex[i], 1))
-		currentInput, inputLookAhead = ins[0], ins[1]
+		//api.Println("currentInput[", i, "] =", DecodeByte(api, currentInput))
+		//api.Println("inputLookAhead[", i, "] =", DecodeByte(api, inputLookAhead))
+		if i+1 < len(data) {
+			ins := compressedMap.Lookup(inputIndex[i], api.Add(inputIndex[i], 1))
+			currentInput, inputLookAhead = ins[0], ins[1]
+		} else {
+			currentInput = compressedMap.Lookup(inputIndex[i])[0]
+			api.AssertIsDifferent(currentInput, 0)
+		}
 		currentInputZero = ByteIsZero(api, currentInput)
 
 		// zeros to write
@@ -396,7 +401,7 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 		coeff = api.Sub(coeff, oneFewerZeroToWrite) // this and the previous line could be a single plonk constraint
 		zerosToWrite[i] = api.MulAcc(oneFewerZeroToWrite, noMoreZerosToWrite, coeff)
 
-		api.Println("zerosToWrite[", i, "] =", DecodeByte(api, zerosToWrite[i]))
+		//api.Println("zerosToWrite[", i, "] =", DecodeByte(api, zerosToWrite[i]))
 
 		/*
 
@@ -444,15 +449,22 @@ func TestCreateProofSmall(t *testing.T) {
 	require.NoError(t, err)
 	assignment := newDecompressionProofCircuitBn254(t, data)
 	circuit := assignment.hollow()
-	circuit.hollow() // noop todo remove
 	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
 }
 
 func TestCreateProofLarge(t *testing.T) {
 	data, err := os.ReadFile("data.bin")
 	require.NoError(t, err)
-	start := time.Now().UnixMilli()
 	assignment := newDecompressionProofCircuitBn254(t, data[:100])
+	circuit := assignment.hollow()
+	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+}
+
+func TestCreateProofLargeBench(t *testing.T) {
+	data, err := os.ReadFile("data.bin")
+	require.NoError(t, err)
+	start := time.Now().UnixMilli()
+	assignment := newDecompressionProofCircuitBn254(t, data)
 	circuit := assignment.hollow()
 	var (
 		cs     constraint.ConstraintSystem
