@@ -50,7 +50,7 @@ func (m *patternMap) add(i, j int) {
 }
 
 func TestFindPatterns(t *testing.T) {
-	in, err := os.ReadFile("data.zct")
+	in, err := os.ReadFile(TestCase + "data.zct")
 	require.NoError(t, err)
 	findPatterns(in)
 }
@@ -89,7 +89,7 @@ func findPatterns(d []byte) {
 			}
 		}
 	}
-	if err := os.WriteFile("data.zct.patterns.raw", bbb.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(TestCase+"data.zct.patterns.raw", bbb.Bytes(), 0644); err != nil {
 		panic(err)
 	}
 
@@ -124,7 +124,7 @@ func findPatterns(d []byte) {
 			bb.WriteString(s)
 		}
 	}
-	if err := os.WriteFile("data.zct.patterns", []byte(bb.String()), 0644); err != nil {
+	if err := os.WriteFile(TestCase+"data.zct.patterns", []byte(bb.String()), 0644); err != nil {
 		panic(err)
 	}
 }
