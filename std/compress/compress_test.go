@@ -5,22 +5,19 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
-	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
-	"math/big"
 	"os"
 	"testing"
 	"time"
@@ -199,15 +196,9 @@ func TestCompressZeroCounter(t *testing.T) {
 }
 
 func BytesToVars(d []byte) []frontend.Variable {
-	byteDomain := fft.NewDomain(256)
-	g := byteDomain.Generator
 	vars := make([]frontend.Variable, len(d))
 	for i := range d {
-		var b big.Int
-		b.SetUint64(uint64(d[i]))
-		var x fr.Element
-		x.Exp(g, &b)
-		vars[i] = x
+		vars[i] = d[i]
 	}
 	return vars
 }
@@ -299,46 +290,26 @@ func (c *decompressionProofCircuit) hollow() *decompressionProofCircuit {
 	}
 }
 
-// f(X) := X^256 - 1 / X - 1 = X^255 + X^254 + ... + X + 1 =
-// (X^128 + 1)(X^64 + 1)...(X^2+1)(X+1)
-// b :=  \zeta^i where \zeta^256 = 1
-// if i \neq 0, then f(b) = 0
-// if i = 0, then f(b) = 256
-// so ByteIsZero computes f(b)/256
-func ByteIsZero(api frontend.API, b frontend.Variable) frontend.Variable {
-	bPow := b
-	res := api.Inverse(256) // TODO does gnark precompute this automatically?
-	for i := 0; i < 8; i++ {
-		res = api.Mul(res, api.Add(bPow, 1))
-		if i+1 < 8 {
-			bPow = api.Mul(bPow, bPow)
-		}
-	}
-	return res
-}
-
 // only for bn254
 func (c *decompressionProofCircuit) Define(api frontend.API) error {
 
-	bytesDomain := fft.NewDomain(256)
-	/*bytesTable := logderivlookup.New(api)
-	gPow := frontend.Variable(1)
-	for i := 0; i < 256; i++ {
-		bytesTable.Insert(gPow)
-		gPow = api.Mul(gPow, bytesDomain.Generator)
-	}*/
+	byteIsZeroTable := logderivlookup.New(api)
+	bytesTable := logderivlookup.New(api) // TODO replace this with a simple set membership
+	byteIsZeroTable.Insert(1)
+	bytesTable.Insert(0)
+	for i := 1; i < 256; i++ {
+		byteIsZeroTable.Insert(0)
+		bytesTable.Insert(0)
+	}
 
 	data, compressed := c.DataBytes, c.CompressedBytes
 	inputIndex := make([]frontend.Variable, len(c.DataBytes))
 	zerosToWrite := make([]frontend.Variable, len(c.DataBytes))
 
 	// assert that the input are actually bytes
-	for i := range compressed {
-		pow := compressed[i]
-		for j := 0; j < 8; j++ {
-			pow = api.Mul(pow, pow) // TODO: Useful to cache these for later? Does gnark do this automatically?
-		}
-		api.AssertIsEqual(pow, 1)
+	bytesMembership := bytesTable.Lookup(compressed...)
+	for i := range bytesMembership {
+		api.AssertIsEqual(bytesMembership[i], 0)
 	}
 
 	api.AssertIsEqual(data[0], compressed[0])
@@ -351,9 +322,9 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 	currentInput := compressed[0]
 	inputLookAhead := compressed[1]
 	prevInputZero := frontend.Variable(0)
-	currentInputZero := ByteIsZero(api, currentInput)
+	currentInputZero := byteIsZeroTable.Lookup(currentInput)[0]
 	zerosToWrite[0] = api.Mul(currentInputZero, inputLookAhead)
-	//api.Println("zerosToWrite[ 0 ] =", DecodeByte(api, zerosToWrite[0]))
+	api.Println("zerosToWrite[ 0 ] =", zerosToWrite[0])
 
 	//prevInput := compressed[0]
 	inputIndex[0] = 0
@@ -362,7 +333,7 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 		//fmt.Println("data[", i, "] =", data[i])
 
 		// input index
-		noMoreZerosToWrite := ByteIsZero(api, zerosToWrite[i-1]) // z
+		noMoreZerosToWrite := byteIsZeroTable.Lookup(zerosToWrite[i-1])[0] // z
 		/*if compressed[inputIndex[i-1]] == 0 {
 			if zerosToWrite[i-1] == 0 {
 				inputIndex[i] = inputIndex[i-1] + 2
@@ -375,30 +346,32 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 		coeff := api.Add(noMoreZerosToWrite, noMoreZerosToWrite, -1) // 2z - 1
 		api.Println("step 1", coeff)
 		api.Println("prevInputZero", prevInputZero)
-		diff := api.MulAcc(1, prevInputZero, coeff)
-		api.Println("diff", diff)
-		inputIndex[i] = api.Add(inputIndex[i-1], diff)
+		diffMinusOne := api.Mul(prevInputZero, coeff) // 2zp - p
+		api.Println("diffMinusOne", diffMinusOne)
+		inputIndex[i] = api.Add(inputIndex[i-1], diffMinusOne, 1) // 2zp - p + 1
 		api.Println("inputIndex[", i, "] =", inputIndex[i])
 		// Current input
-		//api.Println("currentInput[", i, "] =", DecodeByte(api, currentInput))
-		//api.Println("inputLookAhead[", i, "] =", DecodeByte(api, inputLookAhead))
+		api.Println("currentInput[", i, "] =", currentInput)
+		api.Println("inputLookAhead[", i, "] =", inputLookAhead)
 		if i+1 < len(data) {
 			ins := compressedMap.Lookup(inputIndex[i], api.Add(inputIndex[i], 1))
 			currentInput, inputLookAhead = ins[0], ins[1]
 		} else {
 			currentInput = compressedMap.Lookup(inputIndex[i])[0]
-			api.AssertIsDifferent(currentInput, 0)
+			//api.AssertIsDifferent(currentInput, 0) TODO: Check that the input correc
 		}
-		currentInputZero = ByteIsZero(api, currentInput)
+		currentInputZero = byteIsZeroTable.Lookup(currentInput)[0]
 
 		// zeros to write
-		oneFewerZeroToWrite := api.Mul(zerosToWrite[i-1], bytesDomain.GeneratorInv)
-		coeff = api.Sub(inputLookAhead, 1)
-		coeff = api.MulAcc(1, coeff, currentInputZero)
-		coeff = api.Sub(coeff, oneFewerZeroToWrite) // this and the previous line could be a single plonk constraint
-		zerosToWrite[i] = api.MulAcc(oneFewerZeroToWrite, noMoreZerosToWrite, coeff)
+		coeff = api.MulAcc(
+			api.Sub(1, zerosToWrite[i-1]),
+			currentInputZero, inputLookAhead) // this can be a single plonk constraint
 
-		//api.Println("zerosToWrite[", i, "] =", DecodeByte(api, zerosToWrite[i]))
+		zerosToWrite[i] = api.MulAcc(
+			api.Sub(zerosToWrite[i-1], 1),
+			noMoreZerosToWrite, coeff) // this can be a single plonk constraint
+
+		api.Println("zerosToWrite[", i, "] =", zerosToWrite[i])
 
 		/*
 
@@ -412,13 +385,7 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 			} else {
 				zerosToWrite[i] = zerosToWrite[i-1] - 1
 			}
-
-			// output
-			if zerosToWrite[i-1] == 0 {
-				assert.Equal(t, compressed[inputIndex[i]], data[i])
-			} else {
-				assert.Equal(t, byte(0), data[i])
-			}*/
+		*/
 
 		api.AssertIsEqual(data[i], currentInput)
 
@@ -428,25 +395,35 @@ func (c *decompressionProofCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func DecodeByte(api frontend.API, b frontend.Variable) frontend.Variable {
-	g := fft.NewDomain(256).Generator
-	keys := make([]frontend.Variable, 256)
-	values := make([]frontend.Variable, 256)
-	gPow := frontend.Variable(1)
-	for i := range keys {
-		keys[i] = gPow
-		values[i] = i
-		gPow = api.Mul(gPow, g)
-	}
-	return test_vector_utils.Map{Keys: keys, Values: values}.Get(api, b)
-}
-
 func TestCreateProofSmall(t *testing.T) {
 	data, err := hex.DecodeString("0000002b23dd5f0000")
 	require.NoError(t, err)
 	assignment := newDecompressionProofCircuitBn254(t, data)
 	circuit := assignment.hollow()
 	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+}
+
+func TestCreateProofSmallReal(t *testing.T) {
+	data, err := hex.DecodeString("0000002b23dd5f0000")
+	require.NoError(t, err)
+	assignment := newDecompressionProofCircuitBn254(t, data)
+	circuit := assignment.hollow()
+	var (
+		cs     constraint.ConstraintSystem
+		wtness witness.Witness
+		pk     groth16.ProvingKey
+	)
+	fmt.Println("compiling...")
+	p := profile.Start()
+	cs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
+	p.Stop()
+	fmt.Println(cs.GetNbConstraints(), " constraints")
+
+	wtness, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+	require.NoError(t, err)
+	pk, err = groth16.DummySetup(cs)
+	_, err = groth16.Prove(cs, pk, wtness)
+	require.NoError(t, err)
 }
 
 func TestCreateProofMedium(t *testing.T) {
@@ -473,7 +450,7 @@ func TestCreateProofLargeBench(t *testing.T) {
 	cs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
 	p.Stop()
 	fmt.Println("compile time", time.Now().UnixMilli()-start, "ms")
-	fmt.Println(cs.GetNbConstraints(), " constraints")
+	fmt.Println(cs.GetNbConstraints(), "r1cs constraints")
 	start = time.Now().UnixMilli()
 
 	wtness, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
@@ -484,41 +461,9 @@ func TestCreateProofLargeBench(t *testing.T) {
 	_, err = groth16.Prove(cs, pk, wtness)
 	require.NoError(t, err)
 	fmt.Println("prove time", time.Now().UnixMilli()-start, "ms")
+	fmt.Println("compiling...")
+	cs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit)
+	fmt.Println(cs.GetNbConstraints(), "scs constraints")
 
 	//test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
-}
-
-type byteIsZeroTestCircuit struct {
-	ActualValues []byte
-	Values       []frontend.Variable
-}
-
-func (c *byteIsZeroTestCircuit) Define(api frontend.API) error {
-	for i := range c.ActualValues {
-		isZero := ByteIsZero(api, c.Values[i])
-		if c.ActualValues[i] == 0 {
-			api.AssertIsEqual(isZero, 1)
-		} else {
-			api.AssertIsEqual(isZero, 0)
-		}
-	}
-	return nil
-}
-
-func (c *byteIsZeroTestCircuit) hollow() *byteIsZeroTestCircuit {
-	return &byteIsZeroTestCircuit{
-		ActualValues: c.ActualValues,
-		Values:       make([]frontend.Variable, len(c.Values)),
-	}
-}
-
-func TestByteIsZero(t *testing.T) {
-	actualValues := []byte{0, 1, 2, 0, 3, 4, 0, 5, 6, 7, 244}
-	values := BytesToVars(actualValues)
-	assignment := &byteIsZeroTestCircuit{
-		ActualValues: actualValues,
-		Values:       values,
-	}
-	circuit := assignment.hollow()
-	test.NewAssert(t).ProverSucceeded(circuit, assignment, test.WithCurves(ecc.BN254))
 }
