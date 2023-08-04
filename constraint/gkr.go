@@ -180,6 +180,15 @@ func SystemDiff(a, b System) string {
 		}
 	}
 
+	for k := range b.MHintsDependencies {
+		for j := range hintsNames {
+			if k == hintsNames[j][1] {
+				delete(b.MHintsDependencies, k)
+				b.MHintsDependencies[hintsNames[j][0]] = a.MHintsDependencies[hintsNames[j][0]]
+			}
+		}
+	}
+
 	if a.GnarkVersion != b.GnarkVersion {
 		return "GnarkVersion"
 	}
