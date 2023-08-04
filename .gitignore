@@ -56,3 +56,4 @@ go.work
 go.work.sum
 
 examples/gbotrel/**
+*.raw
