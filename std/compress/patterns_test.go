@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/stretchr/testify/require"
@@ -74,9 +75,9 @@ func findPatterns(d []byte) {
 
 	fmt.Println("writing raw results")
 
-	scored := maps.Values(m.m)
+	vals := maps.Values(m.m)
 	var bbb bytes.Buffer
-	for _, r := range scored {
+	for _, r := range vals {
 		if err := binary.Write(&bbb, binary.BigEndian, uint32(r.length)); err != nil {
 			panic(err)
 		}
@@ -93,38 +94,124 @@ func findPatterns(d []byte) {
 		panic(err)
 	}
 
+	analyzePatterns(d, vals)
+}
+
+type byteReader struct {
+	data []byte
+	pos  int
+}
+
+func (b *byteReader) Read(p []byte) (n int, err error) {
+	copy(p, b.data[b.pos:])
+	if b.pos+len(p) >= len(b.data) {
+		n = len(b.data) - b.pos
+		b.pos = len(b.data)
+		return n, errors.New("eof")
+	}
+	b.pos += len(p)
+	return len(p), nil
+}
+
+func (b *byteReader) eof() bool {
+	return b.pos >= len(b.data)
+}
+
+func TestAnalyzePatterns(t *testing.T) {
+	// read raw results
+	d, err := os.ReadFile(TestCase + "data.zct")
+	require.NoError(t, err)
+	raw, err := os.ReadFile(TestCase + "data.zct.patterns.raw")
+	require.NoError(t, err)
+	vals := make([]patternRecord, 0)
+	bbb := &byteReader{raw, 0}
+	var i uint32
+	for n := 0; !bbb.eof(); n++ { // todo eof
+		if n%3000000 == 0 {
+			fmt.Println("reading record number", n)
+			fmt.Println("consumed", 100*bbb.pos/len(raw), "% of raw data")
+		}
+		var r patternRecord
+		err = binary.Read(bbb, binary.BigEndian, &i)
+		require.NoError(t, err)
+		r.length = int(i)
+
+		require.NoError(t, binary.Read(bbb, binary.BigEndian, &i))
+		r.starts = make([]int, i)
+		for j := range r.starts {
+			require.NoError(t, binary.Read(bbb, binary.BigEndian, &i))
+			r.starts[j] = int(i)
+		}
+		vals = append(vals, r)
+	}
+
+	analyzePatterns(d, vals)
+}
+
+func isSubSeq(small, big []byte) bool {
+	for i := 0; i < len(big)-len(small); i++ {
+		if bytes.Equal(small, big[i:i+len(small)]) {
+			return true
+		}
+	}
+	return false
+}
+
+func analyzePatterns(d []byte, vals []patternRecord) {
 	fmt.Println("scoring")
-	utils.Parallelize(len(scored), func(start, end int) {
+	n := 0
+	utils.Parallelize(len(vals), func(start, end int) {
 		taken := make([]bool, len(d))
 		for i := start; i < end; i++ {
-			for j := range scored[i].starts {
-				taken[scored[i].starts[j]+scored[i].length] = true
+			/*v := &vals[i]
+			if v.length == 334 {
+				fmt.Println("ooooh wow")
+			}*/
+			for j := range vals[i].starts {
+				for k := 0; k < vals[i].length; k++ {
+					taken[vals[i].starts[j]+k] = true
+				}
 			}
 			for j := range taken {
 				if taken[j] {
-					scored[i].score++
+					vals[i].score++
 				}
 				taken[j] = false
 			}
+			vals[i].score -= vals[i].length + 1 // overhead of describing it once
 		}
+		n += end - start
+		fmt.Println("\tscored", 100*n/len(vals), "%")
 	})
 
 	fmt.Println("sorting")
-	sort.Slice(scored, func(i, j int) bool {
-		return scored[i].score > scored[j].score
+	sort.Slice(vals, func(i, j int) bool {
+		return vals[i].score > vals[j].score
 	})
 
-	fmt.Println("writing analyzed results")
+	fmt.Println("filtering and writing analyzed results")
+	var included []int
 	var bb strings.Builder
-	for _, r := range scored {
-		if r.count() > 1 {
+	for i, r := range vals {
+		include := true
+		for _, j := range included {
+			if isSubSeq(d[r.starts[0]:r.starts[0]+r.length], d[vals[j].starts[0]:vals[j].starts[0]+vals[j].length]) {
+				include = false
+				break
+			}
+		}
+		if include {
+			included = append(included, i)
+
 			s := fmt.Sprint(r.score, ":", r.count(), "\t", hex.EncodeToString(d[r.starts[0]:r.starts[0]+r.length]), "\n")
 			bb.WriteString(s)
 			s = fmt.Sprint("\tat", r.starts, "\n")
 			bb.WriteString(s)
 		}
+
 	}
 	if err := os.WriteFile(TestCase+"data.zct.patterns", []byte(bb.String()), 0644); err != nil {
 		panic(err)
 	}
+
 }
