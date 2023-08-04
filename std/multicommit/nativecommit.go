@@ -23,38 +23,62 @@ import (
 	"github.com/consensys/gnark/std/hash/mimc"
 )
 
-type multicommiter struct {
+type multicommitter struct {
 	closed bool
 	vars   []frontend.Variable
 	cbs    []WithCommitmentFn
 }
 
-type ctxMulticommiterKey struct{}
+type ctxMulticommitterKey struct{}
 
-// getCached gets the cached committer from the key-value storage. If it is not
-// there then creates, stores and defers it, and then returns.
-func getCached(api frontend.API) *multicommiter {
+// Initialize creates a multicommitter in the cache and defers its finalization.
+// This can be useful in a context where `api.Defer` is already called and where
+// calls to `WithCommitment` are deferred. Panics if the multicommit is already
+// initialized.
+func Initialize(api frontend.API) {
 	kv, ok := api.(kvstore.Store)
 	if !ok {
 		// if the builder doesn't implement key-value store then cannot store
 		// multi-committer in cache.
 		panic("builder should implement key-value store")
 	}
-	mc := kv.GetKeyValue(ctxMulticommiterKey{})
+
+	// check if the multicommit is already initialized
+	mc := kv.GetKeyValue(ctxMulticommitterKey{})
 	if mc != nil {
-		if mct, ok := mc.(*multicommiter); ok {
+		panic("multicommit is already initialized")
+	}
+
+	// initialize the multicommit
+	mct := &multicommitter{}
+	kv.SetKeyValue(ctxMulticommitterKey{}, mct)
+	api.Compiler().Defer(mct.commitAndCall)
+}
+
+// getCached gets the cached committer from the key-value storage. If it is not
+// there then creates, stores and defers it, and then returns.
+func getCached(api frontend.API) *multicommitter {
+	kv, ok := api.(kvstore.Store)
+	if !ok {
+		// if the builder doesn't implement key-value store then cannot store
+		// multi-committer in cache.
+		panic("builder should implement key-value store")
+	}
+	mc := kv.GetKeyValue(ctxMulticommitterKey{})
+	if mc != nil {
+		if mct, ok := mc.(*multicommitter); ok {
 			return mct
 		} else {
 			panic("stored multicommiter is of invalid type")
 		}
 	}
-	mct := &multicommiter{}
-	kv.SetKeyValue(ctxMulticommiterKey{}, mct)
+	mct := &multicommitter{}
+	kv.SetKeyValue(ctxMulticommitterKey{}, mct)
 	api.Compiler().Defer(mct.commitAndCall)
 	return mct
 }
 
-func (mct *multicommiter) commitAndCall(api frontend.API) error {
+func (mct *multicommitter) commitAndCall(api frontend.API) error {
 	// close collecting input in case anyone wants to check more variables to commit to.
 	mct.closed = true
 	if len(mct.cbs) == 0 {

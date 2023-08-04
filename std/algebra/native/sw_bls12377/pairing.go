@@ -118,7 +118,44 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		}
 	}
 
-	for i := 61; i >= 1; i-- {
+	// i = 61, separately to use a special E12 Square
+	// k = 0
+	// Qacc[0] ← 2Qacc[0] and l1 the tangent ℓ passing 2Qacc[0]
+	Qacc[0], l1 = doubleStep(api, &Qacc[0])
+	// line evaluation at P[0]
+	l1.R0.MulByFp(api, l1.R0, xOverY[0])
+	l1.R1.MulByFp(api, l1.R1, yInv[0])
+
+	if n == 1 {
+		res.Square034(api, res)
+		prodLines[0] = res.C0.B0
+		prodLines[1] = res.C0.B1
+		prodLines[2] = res.C0.B2
+		prodLines[3] = res.C1.B0
+		prodLines[4] = res.C1.B1
+		// ℓ × res
+		res = *fields_bls12377.Mul01234By034(api, prodLines, l1.R0, l1.R1)
+
+	} else {
+		res.Square(api, res)
+		// ℓ × res
+		res.MulBy034(api, l1.R0, l1.R1)
+
+	}
+
+	for k := 1; k < n; k++ {
+		// Qacc[k] ← 2Qacc[k] and l1 the tangent ℓ passing 2Qacc[k]
+		Qacc[k], l1 = doubleStep(api, &Qacc[k])
+
+		// line evaluation at P[k]
+		l1.R0.MulByFp(api, l1.R0, xOverY[k])
+		l1.R1.MulByFp(api, l1.R1, yInv[k])
+
+		// ℓ × res
+		res.MulBy034(api, l1.R0, l1.R1)
+	}
+
+	for i := 60; i >= 1; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
@@ -386,7 +423,20 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 	res.C1.B0.MulByFp(api, precomputedLines[0][62], xOverY)
 	res.C1.B1.MulByFp(api, precomputedLines[1][62], yInv)
 
-	for i := 61; i >= 0; i-- {
+	// i = 61, separately to use a special E12 Square
+	res.Square034(api, res)
+	prodLines[0] = res.C0.B0
+	prodLines[1] = res.C0.B1
+	prodLines[2] = res.C0.B2
+	prodLines[3] = res.C1.B0
+	prodLines[4] = res.C1.B1
+	// line evaluation at P
+	l1.R0.MulByFp(api, precomputedLines[0][61], xOverY)
+	l1.R1.MulByFp(api, precomputedLines[1][61], yInv)
+	// ℓ × res
+	res = *fields_bls12377.Mul01234By034(api, prodLines, l1.R0, l1.R1)
+
+	for i := 60; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
