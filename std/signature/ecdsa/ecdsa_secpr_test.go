@@ -7,7 +7,6 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"math/big"
-	"runtime"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -163,7 +162,6 @@ func BenchmarkECDSAP384VerifyPLONK(t *testing.B) {
 		t.Fatal(err)
 	}
 	t.Log(ccs.GetNbConstraints())
-	PrintMemUsage("before setup")
 	srs, err := test.NewKZGSRS(ccs)
 	if err != nil {
 		t.Fatal(err)
@@ -176,21 +174,16 @@ func BenchmarkECDSAP384VerifyPLONK(t *testing.B) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	PrintMemUsage("before prove")
 	p := profile.Start(profile.CPUProfile)
 	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
 		t.Log("proving", i)
 		proof, err = plonk.Prove(ccs, pk, ass)
-		PrintMemUsage("after prove")
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 	p.Stop()
-
-	runtime.GC()
-	PrintMemUsage("after GC collect")
 }
 
 func BenchmarkECDSAP384VerifyGroth16(t *testing.B) {
