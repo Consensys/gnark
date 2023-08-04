@@ -264,6 +264,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	if err != nil {
 		return proof, err
 	}
+	// free some memory.
+	wliop = nil
+	wriop = nil
+	woiop = nil
+	runtime.GC()
 
 	// commit to the blinded version of z
 	chZ := make(chan error, 1)
@@ -341,11 +346,29 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// 0 , 1 , 2, 3 , 4 , 5 , 6 , 7, 8 , 9  , 10, 11, 12, 13, 14,  15:15+nbComm    , 15+nbComm:15+2×nbComm
 	// l , r , o, id, s1, s2, s3, z, zs, ql, qr, qm, qo, qk ,lone, Bsb22Commitments, qCPrime
+	const (
+		idx_L                int = iota // bwliop
+		idx_R                           // bwriop
+		idx_O                           // bwoiop
+		idx_ID                          // pk.lcIdIOP
+		idx_S1                          // pk.lcS1
+		idx_S2                          // pk.lcS2
+		idx_S3                          // pk.lcS3
+		idx_Z                           // bwziop
+		idx_ZS                          // bwsziop
+		idx_QL                          // pk.lcQl
+		idx_QR                          // pk.lcQr
+		idx_QM                          // pk.lcQm
+		idx_QO                          // pk.lcQo
+		idx_QK                          // lcqk
+		idx_Lone                        // pk.lLoneIOP
+		idx_Bsb22Commitments            // lcCommitments ... pk.lcQcp...
+	)
 	fm := func(x ...fr.Element) fr.Element {
 
-		a := fic(x[9], x[10], x[11], x[12], x[13], x[0], x[1], x[2], x[15:])
-		b := fo(x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8])
-		c := fone(x[7], x[14])
+		a := fic(x[idx_QL], x[idx_QR], x[idx_QM], x[idx_QO], x[idx_QK], x[idx_L], x[idx_R], x[idx_O], x[idx_Bsb22Commitments:])
+		b := fo(x[idx_L], x[idx_R], x[idx_O], x[idx_ID], x[idx_S1], x[idx_S2], x[idx_S3], x[idx_Z], x[idx_ZS])
+		c := fone(x[idx_Z], x[idx_Lone])
 
 		c.Mul(&c, &alpha).Add(&c, &b).Mul(&c, &alpha).Add(&c, &a)
 
@@ -362,26 +385,25 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// wait for l, r o lagrange coset conversion
 	wgLRO.Wait()
+	toEval := make([]*iop.Polynomial, 15+2*len(commitmentInfo))
+	toEval[idx_L] = bwliop
+	toEval[idx_R] = bwriop
+	toEval[idx_O] = bwoiop
+	toEval[idx_ID] = pk.lcIdIOP
+	toEval[idx_S1] = pk.lcS1
+	toEval[idx_S2] = pk.lcS2
+	toEval[idx_S3] = pk.lcS3
+	toEval[idx_Z] = bwziop
+	toEval[idx_ZS] = bwsziop
+	toEval[idx_QL] = pk.lcQl
+	toEval[idx_QR] = pk.lcQr
+	toEval[idx_QM] = pk.lcQm
+	toEval[idx_QO] = pk.lcQo
+	toEval[idx_QK] = lcqk
+	toEval[idx_Lone] = pk.lLoneIOP
+	copy(toEval[idx_Bsb22Commitments:], lcCommitments)
+	copy(toEval[idx_Bsb22Commitments+len(lcCommitments):], pk.lcQcp)
 
-	toEval := []*iop.Polynomial{
-		bwliop,
-		bwriop,
-		bwoiop,
-		pk.lcIdIOP,
-		pk.lcS1,
-		pk.lcS2,
-		pk.lcS3,
-		bwziop,
-		bwsziop,
-		pk.lcQl,
-		pk.lcQr,
-		pk.lcQm,
-		pk.lcQo,
-		lcqk,
-		pk.lLoneIOP,
-	}
-	toEval = append(toEval, lcCommitments...) // TODO: Add this at beginning
-	toEval = append(toEval, pk.lcQcp...)
 	systemEvaluation, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}, toEval...)
 	if err != nil {
 		return nil, err

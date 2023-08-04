@@ -3,7 +3,9 @@ package ecdsa
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"math/big"
+	"runtime"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -16,7 +18,6 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
-	"github.com/pkg/profile"
 )
 
 type EcdsaCircuit[T, S emulated.FieldParams] struct {
@@ -167,7 +168,7 @@ func ExamplePublicKey_Verify_create() {
 var proof plonk.Proof
 var proof2 groth16.Proof
 
-func BenchmarkECDSASecp256k1VerifyPLONK(t *testing.B) {
+func BenchmarkECDSASecp256k1VerifyPLONK(b *testing.B) {
 	// generate parameters
 	privKey, _ := ecdsa.GenerateKey(rand.Reader)
 	publicKey := privKey.PublicKey
@@ -177,9 +178,12 @@ func BenchmarkECDSASecp256k1VerifyPLONK(t *testing.B) {
 	sigBin, _ := privKey.Sign(msg, nil)
 
 	// check that the signature is correct
-	flag, _ := publicKey.Verify(sigBin, msg, nil)
+	flag, err := publicKey.Verify(sigBin, msg, nil)
 	if !flag {
-		t.Errorf("can't verify signature")
+		b.Errorf("can't verify signature")
+	}
+	if err != nil {
+		b.Fatal(err)
 	}
 
 	// unmarshal signature
@@ -203,33 +207,51 @@ func BenchmarkECDSASecp256k1VerifyPLONK(t *testing.B) {
 			Y: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
 		},
 	}
+	PrintMemUsage("before compile")
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
 	if err != nil {
-		t.Fatal(err)
+		b.Fatal(err)
 	}
-	t.Log(ccs.GetNbConstraints())
+	PrintMemUsage("after compile")
+	b.Log(ccs.GetNbConstraints())
 	srs, err := test.NewKZGSRS(ccs)
 	if err != nil {
-		t.Fatal(err)
+		b.Fatal(err)
 	}
 	pk, _, err := plonk.Setup(ccs, srs)
 	if err != nil {
-		t.Fatal(err)
+		b.Fatal(err)
 	}
 	ass, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
 	if err != nil {
-		t.Fatal(err)
+		b.Fatal(err)
 	}
-	t.ResetTimer()
-	p := profile.Start(profile.CPUProfile)
-	for i := 0; i < 1; i++ {
-		t.Log("proving", i)
+	PrintMemUsage("before prove")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.Log("proving", i)
 		proof, err = plonk.Prove(ccs, pk, ass)
+		PrintMemUsage("after prove")
 		if err != nil {
-			t.Fatal(err)
+			b.Fatal(err)
 		}
 	}
-	p.Stop()
+}
+
+// PrintMemUsage outputs the current, total and OS memory being used. As well as the number
+// of garage collection cycles completed.
+func PrintMemUsage(prefix string) {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+	fmt.Printf("[%s]: Alloc = %v MiB", prefix, bToMb(m.Alloc))
+	fmt.Printf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
+	fmt.Printf("\tSys = %v MiB", bToMb(m.Sys))
+	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+}
+
+func bToMb(b uint64) uint64 {
+	return b / 1024 / 1024
 }
 
 func BenchmarkECDSASecp256k1VerifyGroth16(t *testing.B) {
@@ -268,10 +290,12 @@ func BenchmarkECDSASecp256k1VerifyGroth16(t *testing.B) {
 			Y: emulated.ValueOf[emulated.Secp256k1Fp](privKey.PublicKey.A.Y),
 		},
 	}
+	PrintMemUsage("before compile")
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		t.Fatal(err)
 	}
+	PrintMemUsage("after compile")
 	t.Log(ccs.GetNbConstraints())
 	pk, _, err := groth16.Setup(ccs)
 	if err != nil {
@@ -281,10 +305,12 @@ func BenchmarkECDSASecp256k1VerifyGroth16(t *testing.B) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	PrintMemUsage("before prove")
 	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
 		t.Log("proving", i)
 		proof2, err = groth16.Prove(ccs, pk, ass)
+		PrintMemUsage("after prove")
 		if err != nil {
 			t.Fatal(err)
 		}
