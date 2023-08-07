@@ -17,7 +17,10 @@ require (
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 )
 
-require github.com/felixge/fgprof v0.9.3 // indirect
+require (
+	github.com/felixge/fgprof v0.9.3 // indirect
+	golang.org/x/tools v0.6.0 // indirect
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

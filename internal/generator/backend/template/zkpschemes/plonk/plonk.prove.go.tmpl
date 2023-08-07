@@ -1,9 +1,11 @@
 import (
 	"crypto/sha256"
 	"math/big"
+	"math/bits"
 	"runtime"
 	"time"
 	"sync"
+	"errors"
 
 	"github.com/consensys/gnark/backend/witness"
 
@@ -169,7 +171,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		// compute qk in canonical basis, completed with the public inputs
 		// We copy the coeffs of qk to pk is not mutated
 		lqkcoef := pk.lQk.Coefficients()
-		qkCompletedCanonical := make([]fr.Element, len(lqkcoef))
+		qkCompletedCanonical := make([]fr.Element, len(lqkcoef), pk.Domain[1].Cardinality)
 		copy(qkCompletedCanonical, fw[:len(spr.Public)])
 		copy(qkCompletedCanonical[len(spr.Public):], lqkcoef[len(spr.Public):])
 		for i := range commitmentInfo {
@@ -342,16 +344,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		idx_Lone 		// pk.lLoneIOP
 		idx_Bsb22Commitments // lcCommitments ... pk.lcQcp...
 	)
-	fm := func(x ...fr.Element) fr.Element {
 
-		a := fic(x[idx_QL], x[idx_QR], x[idx_QM], x[idx_QO], x[idx_QK], x[idx_L], x[idx_R], x[idx_O], x[idx_Bsb22Commitments:])
-		b := fo(x[idx_L], x[idx_R], x[idx_O], x[idx_ID], x[idx_S1], x[idx_S2], x[idx_S3], x[idx_Z], x[idx_ZS])
-		c := fone(x[idx_Z], x[idx_Lone])
-
-		c.Mul(&c, &alpha).Add(&c, &b).Mul(&c, &alpha).Add(&c, &a)
-
-		return c
-	}
 
 	// wait for lcqk
 	<-chLcqk
@@ -382,8 +375,17 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	copy(toEval[idx_Bsb22Commitments:], lcCommitments) 
 	copy(toEval[idx_Bsb22Commitments+len(lcCommitments):], pk.lcQcp)
 
+	fm := func(x ...fr.Element) fr.Element {
+		a := fic(x[idx_QL], x[idx_QR], x[idx_QM], x[idx_QO], x[idx_QK], x[idx_L], x[idx_R], x[idx_O], x[idx_Bsb22Commitments:])
+		b := fo(x[idx_L], x[idx_R], x[idx_O], x[idx_ID], x[idx_S1], x[idx_S2], x[idx_S3], x[idx_Z], x[idx_ZS])
+		c := fone(x[idx_Z], x[idx_Lone])
 
-	systemEvaluation, err := iop.Evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}, toEval...)
+		c.Mul(&c, &alpha).Add(&c, &b).Mul(&c, &alpha).Add(&c, &a)
+
+		return c
+	}
+
+	systemEvaluation, err := evaluate(fm, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse}, toEval...)
 	if err != nil {
 		return nil, err
 	}
@@ -726,4 +728,60 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 		}
 	})
 	return blindedZCanonical
+}
+
+
+
+
+// expression represents a multivariate polynomial.
+type expression func(x ...fr.Element) fr.Element
+
+// Evaluate evaluates f on each entry of x. The returned value is
+// the vector of evaluations of e on x.
+// The form of the result is form.
+// The Size field of the result is the same as the one of x[0].
+// The blindedSize field of the result is the same as Size.
+// The Shift field of the result is 0.
+func evaluate(f expression, form iop.Form, x ...*iop.Polynomial) (*iop.Polynomial, error) {
+	if len(x) == 0 {
+		return nil, errors.New("need at lest one input")
+	}
+
+	// check that the sizes are consistent
+	n := len(x[0].Coefficients())
+	m := len(x)
+	for i := 1; i < m; i++ {
+		if n != len(x[i].Coefficients()) {
+			return nil, errors.New("inconsistent sizes")
+		}
+	}
+
+	// result coefficients
+	r := make([]fr.Element, n)
+	idx := func(i int) int {
+		return i
+	}
+	if form.Layout != iop.Regular {
+		nn := uint64(64 - bits.TrailingZeros(uint(n)))
+		idx = func(i int) int {
+			return int(bits.Reverse64(uint64(i)) >> nn)
+		}
+	}
+
+	utils.Parallelize(n, func(start, end int) {
+		vx := make([]fr.Element, m)
+		for i := start; i < end; i++ {
+			for j := 0; j < m; j++ {
+				vx[j] = x[j].GetCoeff(i)
+			}
+			r[idx(i)] = f(vx...)
+		}
+	})
+
+	res := iop.NewPolynomial(&r, form)
+	res.SetSize(x[0].Size())
+	res.SetBlindedSize(x[0].Size())
+
+
+	return res, nil
 }
