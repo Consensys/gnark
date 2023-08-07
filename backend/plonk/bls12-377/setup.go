@@ -120,6 +120,8 @@ type ProvingKey struct {
 
 	// in lagrange coset basis --> not serialized id and L_{g^{0}}
 	lcIdIOP, lLoneIOP *iop.Polynomial
+
+	evalStuff [][9]fr.Element // precomputed stuff for the system evaluation
 }
 
 func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
@@ -173,6 +175,18 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 
 	return &pk, &vk, nil
 }
+
+const (
+	idx_QL int = iota
+	idx_QR
+	idx_QM
+	idx_QO
+	idx_S1
+	idx_S2
+	idx_S3
+	idx_ID
+	idx_LONE
+)
 
 // computeLagrangeCosetPolys computes each polynomial except qk in Lagrange coset
 // basis. Qk will be evaluated in Lagrange coset basis once it is completed by the prover.
@@ -236,6 +250,24 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 		ToLagrangeCoset(&pk.Domain[1])
 
 	wg.Wait()
+
+	// temporary; eval stuff
+
+	pk.evalStuff = make([][9]fr.Element, pk.Domain[1].Cardinality)
+	for i := 0; i < int(pk.Domain[1].Cardinality); i++ {
+		pk.evalStuff[i] = [9]fr.Element{
+			pk.lcQl.GetCoeff(i),
+			pk.lcQr.GetCoeff(i),
+			pk.lcQm.GetCoeff(i),
+			pk.lcQo.GetCoeff(i),
+			pk.lcS1.GetCoeff(i),
+			pk.lcS2.GetCoeff(i),
+			pk.lcS3.GetCoeff(i),
+			pk.lcIdIOP.GetCoeff(i),
+			pk.lLoneIOP.GetCoeff(i),
+		}
+	}
+
 }
 
 // NbPublicWitness returns the expected public witness size (number of field elements)

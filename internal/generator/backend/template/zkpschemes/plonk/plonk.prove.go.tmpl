@@ -276,30 +276,34 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}()
 
 	// Full capture using latest gnark crypto...
-	fic := func(fql, fqr, fqm, fqo, fqk, l, r, o fr.Element, pi2QcPrime []fr.Element) fr.Element { // TODO @Tabaie make use of the fact that qCPrime is a selector: sparse and binary
+	fic := func(i int, fqk, l, r, o fr.Element, pi2QcPrime []fr.Element) fr.Element { // TODO @Tabaie make use of the fact that qCPrime is a selector: sparse and binary
 
 		var ic, tmp fr.Element
 
-		ic.Mul(&fql, &l)
-		tmp.Mul(&fqr, &r)
+
+		ic.Mul(&pk.evalStuff[i][idx_QL], &l)
+		tmp.Mul(&pk.evalStuff[i][idx_QR], &r)
 		ic.Add(&ic, &tmp)
-		tmp.Mul(&fqm, &l).Mul(&tmp, &r)
+		tmp.Mul(&pk.evalStuff[i][idx_QM], &l).Mul(&tmp, &r)
 		ic.Add(&ic, &tmp)
-		tmp.Mul(&fqo, &o)
+		tmp.Mul(&pk.evalStuff[i][idx_QO], &o)
 		ic.Add(&ic, &tmp).Add(&ic, &fqk)
 		nbComms := len(commitmentInfo)
-		for i := range commitmentInfo {
-			tmp.Mul(&pi2QcPrime[i], &pi2QcPrime[i+nbComms])
+		for j := range commitmentInfo {
+			tmp.Mul(&pi2QcPrime[j], &pi2QcPrime[j+nbComms])
 			ic.Add(&ic, &tmp)
 		}
 
 		return ic
 	}
 
-	fo := func(l, r, o, fid, fs1, fs2, fs3, fz, fzs fr.Element) fr.Element {
+	fo := func(i int,l, r, o, fz, fzs fr.Element) fr.Element {
 		u := &pk.Domain[0].FrMultiplicativeGen
 		var a, b, tmp fr.Element
-		b.Mul(&beta, &fid)
+
+
+
+		b.Mul(&beta, &pk.evalStuff[i][idx_ID])
 		a.Add(&b, &l).Add(&a, &gamma)
 		b.Mul(&b, u)
 		tmp.Add(&b, &r).Add(&tmp, &gamma)
@@ -307,10 +311,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		tmp.Mul(&b, u).Add(&tmp, &o).Add(&tmp, &gamma)
 		a.Mul(&a, &tmp).Mul(&a, &fz)
 
-		b.Mul(&beta, &fs1).Add(&b, &l).Add(&b, &gamma)
-		tmp.Mul(&beta, &fs2).Add(&tmp, &r).Add(&tmp, &gamma)
+		b.Mul(&beta, &pk.evalStuff[i][idx_S1]).Add(&b, &l).Add(&b, &gamma)
+		tmp.Mul(&beta, &pk.evalStuff[i][idx_S2]).Add(&tmp, &r).Add(&tmp, &gamma)
 		b.Mul(&b, &tmp)
-		tmp.Mul(&beta, &fs3).Add(&tmp, &o).Add(&tmp, &gamma)
+		tmp.Mul(&beta, &pk.evalStuff[i][idx_S3]).Add(&tmp, &o).Add(&tmp, &gamma)
 		b.Mul(&b, &tmp).Mul(&b, &fzs)
 
 		b.Sub(&b, &a)
@@ -318,9 +322,10 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return b
 	}
 
-	fone := func(fz, flone fr.Element) fr.Element {
+	fone := func(i int, fz fr.Element) fr.Element {
 		one := fr.One()
-		one.Sub(&fz, &one).Mul(&one, &flone)
+		// c := pk.lLoneIOP.GetCoeff(i)
+		one.Sub(&fz, &one).Mul(&one, &pk.evalStuff[i][idx_LONE])
 		return one
 	}
 
@@ -330,18 +335,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		idx_L int = iota // bwliop
 		idx_R 			// bwriop
 		idx_O 			// bwoiop
-		idx_ID 			// pk.lcIdIOP
-		idx_S1 			// pk.lcS1
-		idx_S2 			// pk.lcS2
-		idx_S3 			// pk.lcS3
 		idx_Z 			// bwziop
 		idx_ZS 			// bwsziop
-		idx_QL 			// pk.lcQl
-		idx_QR 			// pk.lcQr
-		idx_QM 			// pk.lcQm
-		idx_QO 			// pk.lcQo
 		idx_QK 			// lcqk
-		idx_Lone 		// pk.lLoneIOP
 		idx_Bsb22Commitments // lcCommitments ... pk.lcQcp...
 	)
 
@@ -356,29 +352,20 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// wait for l, r o lagrange coset conversion
 	wgLRO.Wait()
-	toEval := make([]*iop.Polynomial, 15+2*len(commitmentInfo))
+	toEval := make([]*iop.Polynomial, 6+2*len(commitmentInfo))
 	toEval[idx_L] = bwliop
 	toEval[idx_R] = bwriop
 	toEval[idx_O] = bwoiop
-	toEval[idx_ID] = pk.lcIdIOP
-	toEval[idx_S1] = pk.lcS1
-	toEval[idx_S2] = pk.lcS2
-	toEval[idx_S3] = pk.lcS3
 	toEval[idx_Z] = bwziop
 	toEval[idx_ZS] = bwsziop
-	toEval[idx_QL] = pk.lcQl
-	toEval[idx_QR] = pk.lcQr
-	toEval[idx_QM] = pk.lcQm
-	toEval[idx_QO] = pk.lcQo
 	toEval[idx_QK] = lcqk
-	toEval[idx_Lone] = pk.lLoneIOP
 	copy(toEval[idx_Bsb22Commitments:], lcCommitments) 
 	copy(toEval[idx_Bsb22Commitments+len(lcCommitments):], pk.lcQcp)
 
-	fm := func(x ...fr.Element) fr.Element {
-		a := fic(x[idx_QL], x[idx_QR], x[idx_QM], x[idx_QO], x[idx_QK], x[idx_L], x[idx_R], x[idx_O], x[idx_Bsb22Commitments:])
-		b := fo(x[idx_L], x[idx_R], x[idx_O], x[idx_ID], x[idx_S1], x[idx_S2], x[idx_S3], x[idx_Z], x[idx_ZS])
-		c := fone(x[idx_Z], x[idx_Lone])
+	fm := func(i int, x ...fr.Element) fr.Element {
+		a := fic(i,  x[idx_QK], x[idx_L], x[idx_R], x[idx_O], x[idx_Bsb22Commitments:])
+		b := fo(i, x[idx_L], x[idx_R], x[idx_O],  x[idx_Z], x[idx_ZS])
+		c := fone(i, x[idx_Z])
 
 		c.Mul(&c, &alpha).Add(&c, &b).Mul(&c, &alpha).Add(&c, &a)
 
@@ -734,7 +721,7 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 
 
 // expression represents a multivariate polynomial.
-type expression func(x ...fr.Element) fr.Element
+type expression func(i int, x ...fr.Element) fr.Element
 
 // Evaluate evaluates f on each entry of x. The returned value is
 // the vector of evaluations of e on x.
@@ -774,7 +761,7 @@ func evaluate(f expression, form iop.Form, x ...*iop.Polynomial) (*iop.Polynomia
 			for j := 0; j < m; j++ {
 				vx[j] = x[j].GetCoeff(i)
 			}
-			r[idx(i)] = f(vx...)
+			r[idx(i)] = f(i, vx...)
 		}
 	})
 
