@@ -156,7 +156,7 @@ func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err e
 		pk.trace.Qo.Coefficients(),
 		pk.trace.Qk.Coefficients(),
 		coefficients(pk.trace.Qcp),
-		pk.lQk.Coefficients(),
+		// pk.lQk.Coefficients(),
 		pk.trace.S1.Coefficients(),
 		pk.trace.S2.Coefficients(),
 		pk.trace.S3.Coefficients(),
@@ -293,8 +293,8 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 	for i := range qcp {
 		pk.trace.Qcp[i] = iop.NewPolynomial(&qcp[i], canReg)
 	}
-	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
-	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
+	// lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
+	// pk.lQk = iop.NewPolynomial(&lqk, lagReg)
 
 	// wait for FFT to be precomputed
 	<-chDomain0
