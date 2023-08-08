@@ -702,8 +702,6 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 		cqo := pk.trace.Qo.Coefficients()
 		cqk := pk.trace.Qk.Coefficients()
 
-		minusOne := fr.One()
-		minusOne.Neg(&minusOne)
 		var t, t0, t1 fr.Element
 
 		for i := start; i < end; i++ {
@@ -777,6 +775,9 @@ func evaluate(result *iop.Polynomial, pk *ProvingKey, f expression, x ...*iop.Po
 
 	// result coefficients
 	r := result.Coefficients()
+	if len(r) != n {
+		return nil, errors.New("inconsistent sizes")
+	}
 
 	utils.Parallelize(n, func(start, end int) {
 		// inputs to the expression we will evaluate
@@ -784,14 +785,9 @@ func evaluate(result *iop.Polynomial, pk *ProvingKey, f expression, x ...*iop.Po
 		generator := pk.Domain[1].Generator
 
 		// we inject id polynomial
-		fid := pk.Domain[1].FrMultiplicativeGen
-		if start < len(pk.Domain[1].Twiddles[0]) {
-			fid.Mul(&fid, &pk.Domain[1].Twiddles[0][start])
-		} else {
-			genI := generator
-			genI.Exp(genI, big.NewInt(int64(start)))
-			fid.Mul(&fid, &genI)
-		}
+		var fid fr.Element
+		fid.Exp(generator, big.NewInt(int64(start)))
+		fid.Mul(&fid, &pk.Domain[1].FrMultiplicativeGen)
 
 		for i := start; i < end; i++ {
 			for j := 0; j < m; j++ {
