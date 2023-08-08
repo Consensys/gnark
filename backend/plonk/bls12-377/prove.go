@@ -742,19 +742,27 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 
 			if i < len(cqm) {
 
-				t1.Mul(&cqm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
-				t0.Mul(&cql[i], &lZeta)
+				// t1.Mul(&cqm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
+				mulHint(&t1, &cqm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
+				// t0.Mul(&cql[i], &lZeta)
+				mulHint(&t0, &cql[i], &lZeta)
 				t0.Add(&t0, &t1)
 				t.Add(&t, &t0) // linPol = linPol + l(ζ)*Ql(X)
 
-				t0.Mul(&cqr[i], &rZeta)
+				// t0.Mul(&cqr[i], &rZeta)
+				mulHint(&t0, &cqr[i], &rZeta)
+
 				t.Add(&t, &t0) // linPol = linPol + r(ζ)*Qr(X)
 
-				t0.Mul(&cqo[i], &oZeta).Add(&t0, &cqk[i])
+				// t0.Mul(&cqo[i], &oZeta)
+				mulHint(&t0, &cqo[i], &oZeta)
+
+				t0.Add(&t0, &cqk[i])
 				t.Add(&t, &t0) // linPol = linPol + o(ζ)*Qo(X) + Qk(X)
 
 				for j := range qcpZeta {
-					t0.Mul(&pi2Canonical[j][i], &qcpZeta[j])
+					// t0.Mul(&pi2Canonical[j][i], &qcpZeta[j])
+					mulHint(&t0, &pi2Canonical[j][i], &qcpZeta[j])
 					t.Add(&t, &t0)
 				}
 			}
@@ -764,6 +772,16 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 		}
 	})
 	return blindedZCanonical
+}
+
+func mulHint(res, a, b *fr.Element) {
+	if a.IsZero() {
+		res.SetZero()
+	} else if a.IsOne() {
+		res.Set(b)
+	} else {
+		res.Mul(a, b)
+	}
 }
 
 // TODO @gbotrel these changes below should be merge upstream in gnark-crypto

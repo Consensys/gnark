@@ -27,6 +27,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/logger"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -170,6 +171,40 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	pk.trace.S2 = s[1]
 	pk.trace.S3 = s[2]
 
+	{
+		log := logger.Logger().With().Str("backend", "plonk").Logger()
+		counters := func(p []fr.Element) (zeroes, ones, small, size int) {
+			for _, c := range p {
+				if c.IsZero() {
+					zeroes++
+				} else if c.IsOne() {
+					ones++
+				} else if c.IsUint64() {
+					small++
+				} else {
+					c.Neg(&c)
+					if c.IsUint64() {
+						small++
+					}
+				}
+			}
+			return zeroes, ones, small, len(p)
+		}
+
+		s0 := s[0].Coefficients()
+		zeroes, ones, small, ss := counters(s0)
+		log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("s0")
+
+		s1 := s[1].Coefficients()
+		zeroes, ones, small, ss = counters(s1)
+		log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("s1")
+
+		s2 := s[2].Coefficients()
+		zeroes, ones, small, ss = counters(s2)
+		log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("s2")
+
+	}
+
 	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
 	// All the above polynomials are expressed in canonical basis afterwards. This is why
 	// we save lqk before, because the prover needs to complete it in Lagrange form, and
@@ -193,12 +228,35 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 	pk.expandedTrace = &ExpandedTrace{
 		Polynomials: make([][sizeExpandedTrace]fr.Element, pk.Domain[1].Cardinality),
 	}
-	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
 	log := logger.Logger().With().Str("backend", "plonk").Logger()
 	start := time.Now()
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(8)
+
+	// fillFunc converts p to LagrangeCoset and fills the pk.expandedTrace.Polynomials structure.
+	fillFunc := func(p *iop.Polynomial, idx int) {
+		scratch := make([]fr.Element, len(p.Coefficients()), pk.Domain[1].Cardinality)
+		copy(scratch, p.Coefficients())
+		pp := iop.NewPolynomial(&scratch, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
+		pp.SetSize(p.Size())
+		pp.SetBlindedSize(p.BlindedSize())
+		pp.ToLagrangeCoset(&pk.Domain[1]).ToRegular()
+
+		for i := 0; i < int(pk.Domain[1].Cardinality); i++ {
+			pk.expandedTrace.Polynomials[i][idx] = pp.GetCoeff(i)
+		}
+
+		wg.Done()
+	}
+
+	go fillFunc(pk.trace.Ql, idx_QL)
+	go fillFunc(pk.trace.Qr, idx_QR)
+	go fillFunc(pk.trace.Qm, idx_QM)
+	go fillFunc(pk.trace.Qo, idx_QO)
+	go fillFunc(pk.trace.S1, idx_S1)
+	go fillFunc(pk.trace.S2, idx_S2)
+	go fillFunc(pk.trace.S3, idx_S3)
 
 	go func() {
 		n1 := int(pk.Domain[1].Cardinality)
@@ -209,49 +267,21 @@ func (pk *ProvingKey) computeLagrangeCosetPolys() {
 		wg.Done()
 	}()
 
-	scratch := make([]fr.Element, pk.Domain[1].Cardinality)
-
-	fillFunc := func(p *iop.Polynomial, idx int) {
-		scratch = scratch[:len(p.Coefficients())]
-		copy(scratch, p.Coefficients())
-		pp := iop.NewPolynomial(&scratch, canReg)
-		pp.SetSize(p.Size())
-		pp.SetBlindedSize(p.BlindedSize())
-		pp.ToLagrangeCoset(&pk.Domain[1])
-
-		for i := 0; i < int(pk.Domain[1].Cardinality); i++ {
-			pk.expandedTrace.Polynomials[i][idx] = pp.GetCoeff(i)
-		}
-	}
-
-	fillFunc(pk.trace.Ql, idx_QL)
-	fillFunc(pk.trace.Qr, idx_QR)
-	fillFunc(pk.trace.Qm, idx_QM)
-	fillFunc(pk.trace.Qo, idx_QO)
-	fillFunc(pk.trace.S1, idx_S1)
-	fillFunc(pk.trace.S2, idx_S2)
-	fillFunc(pk.trace.S3, idx_S3)
-
 	// L_{g^{0}}
-	scratch = scratch[:pk.Domain[0].Cardinality]
+	scratch := make([]fr.Element, pk.Domain[0].Cardinality, pk.Domain[1].Cardinality)
 	scratch[0].SetOne()
-	// set the rest to Zeroes
-	for i := 1; i < int(pk.Domain[0].Cardinality); i++ {
-		scratch[i].SetZero()
-	}
 
-	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
-	p := iop.NewPolynomial(&scratch, lagReg)
-	p.ToCanonical(&pk.Domain[0])
-	p.ToRegular()
-	p.ToLagrangeCoset(&pk.Domain[1])
+	p := iop.NewPolynomial(&scratch, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
+	p.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1]).ToRegular()
 
 	for i := 0; i < int(pk.Domain[1].Cardinality); i++ {
 		pk.expandedTrace.Polynomials[i][idx_LONE] = p.GetCoeff(i)
 	}
 
-	log.Debug().Dur("computeLagrangeCosetPolys", time.Since(start)).Msg("setup done")
+	wg.Wait()
+	runtime.GC()
 
+	log.Debug().Dur("computeLagrangeCosetPolys", time.Since(start)).Msg("setup done")
 }
 
 // NbPublicWitness returns the expected public witness size (number of field elements)
@@ -267,6 +297,7 @@ func (pk *ProvingKey) VerifyingKey() interface{} {
 // BuildTrace fills the constant columns ql, qr, qm, qo, qk from the sparser1cs.
 // Size is the size of the system that is nb_constraints+nb_public_variables
 func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
+	log := logger.Logger().With().Str("backend", "plonk").Logger()
 
 	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public))
@@ -299,6 +330,35 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 		qk[offset+j].Set(&spr.Coefficients[c.QC])
 		j++
 	}
+
+	counters := func(p []fr.Element) (zeroes, ones, small, size int) {
+		for _, c := range p {
+			if c.IsZero() {
+				zeroes++
+			} else if c.IsOne() {
+				ones++
+			} else if c.IsUint64() {
+				small++
+			} else {
+				c.Neg(&c)
+				if c.IsUint64() {
+					small++
+				}
+			}
+		}
+		return zeroes, ones, small, len(p)
+	}
+
+	zeroes, ones, small, ss := counters(ql)
+	log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("ql")
+	zeroes, ones, small, ss = counters(qr)
+	log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("qr")
+	zeroes, ones, small, ss = counters(qm)
+	log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("qm")
+	zeroes, ones, small, ss = counters(qo)
+	log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("qo")
+	zeroes, ones, small, ss = counters(qk)
+	log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("qk")
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 
