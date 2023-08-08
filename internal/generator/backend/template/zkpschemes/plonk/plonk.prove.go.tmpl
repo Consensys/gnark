@@ -42,31 +42,6 @@ type Proof struct {
 	// Opening proof of Z at zeta*mu
 	ZShiftedOpening kzg.OpeningProof
 }
-
-type dumbMemoryAllocator struct {
-	lock  sync.Mutex
-	memory []fr.Element
-	offset int
-}
-
-func newDumbMemoryAllocator(size int) *dumbMemoryAllocator {
-	return &dumbMemoryAllocator{
-		memory: make([]fr.Element, size),
-		offset: 0,
-	}
-}
-
-func (a *dumbMemoryAllocator) Allocate(n int) []fr.Element {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	if a.offset+n > len(a.memory) {
-		panic("dumbMemoryAllocator out of memory")
-	}
-	res := a.memory[a.offset : a.offset+n]
-	a.offset += n
-	return res
-}
-
 // Computing and verifying Bsb22 multi-commits explained in https://hackmd.io/x8KsadW3RRyX7YTCFJIkHg
 func bsb22ComputeCommitmentHint(spr *cs.SparseR1CS, pk *ProvingKey, proof *Proof, cCommitments []*iop.Polynomial, res *fr.Element, commDepth int) solver.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
@@ -698,15 +673,19 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 						Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
 
 	s3canonical := pk.trace.S3.Coefficients()
-	utils.Parallelize(len(blindedZCanonical), func(start, end int) {
 
-		var t, t0, t1 fr.Element
+	utils.Parallelize(len(blindedZCanonical), func(start, end int) {
 
 		cql := pk.trace.Ql.Coefficients()
 		cqr := pk.trace.Qr.Coefficients()
 		cqm := pk.trace.Qm.Coefficients()
 		cqo := pk.trace.Qo.Coefficients()
 		cqk := pk.trace.Qk.Coefficients()
+	
+
+		minusOne := fr.One()
+		minusOne.Neg(&minusOne)
+		var t, t0, t1 fr.Element
 
 		for i := start; i < end; i++ {
 
@@ -723,27 +702,24 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 
 			if i < len(cqm) {
 
-				// t1.Mul(&cqm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
-				mulHint(&t1, &cqm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
-				// t0.Mul(&cql[i], &lZeta)
-				mulHint(&t0, &cql[i], &lZeta)
+				t1.Mul(&cqm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
+				
+				t0.Mul(&cql[i], &lZeta)
 				t0.Add(&t0, &t1)
+				
 				t.Add(&t, &t0) // linPol = linPol + l(ζ)*Ql(X)
 
-				// t0.Mul(&cqr[i], &rZeta)
-				mulHint(&t0, &cqr[i], &rZeta)
-
+				t0.Mul(&cqr[i], &rZeta)
 				t.Add(&t, &t0) // linPol = linPol + r(ζ)*Qr(X)
 
-				// t0.Mul(&cqo[i], &oZeta)
-				mulHint(&t0, &cqo[i], &oZeta)
-				
+
+				t0.Mul(&cqo[i], &oZeta)
 				t0.Add(&t0, &cqk[i])
+				
 				t.Add(&t, &t0) // linPol = linPol + o(ζ)*Qo(X) + Qk(X)
 
 				for j := range qcpZeta {
-					// t0.Mul(&pi2Canonical[j][i], &qcpZeta[j])
-					mulHint(&t0, &pi2Canonical[j][i], &qcpZeta[j])
+					t0.Mul(&pi2Canonical[j][i], &qcpZeta[j])
 					t.Add(&t, &t0)
 				}
 			}
@@ -753,16 +729,6 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 		}
 	})
 	return blindedZCanonical
-}
-
-func mulHint(res, a, b *fr.Element) {
-	if a.IsZero() {
-		res.SetZero()
-	} else if a.IsOne() {
-		res.Set(b)
-	} else {
-		res.Mul(a, b)
-	}
 }
 
 
