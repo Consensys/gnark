@@ -171,40 +171,6 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	pk.trace.S2 = s[1]
 	pk.trace.S3 = s[2]
 
-	{
-		log := logger.Logger().With().Str("backend", "plonk").Logger()
-		counters := func(p []fr.Element) (zeroes, ones, small, size int) {
-			for _, c := range p {
-				if c.IsZero() {
-					zeroes++
-				} else if c.IsOne() {
-					ones++
-				} else if c.IsUint64() {
-					small++
-				} else {
-					c.Neg(&c)
-					if c.IsUint64() {
-						small++
-					}
-				}
-			}
-			return zeroes, ones, small, len(p)
-		}
-
-		s0 := s[0].Coefficients()
-		zeroes, ones, small, ss := counters(s0)
-		log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("s0")
-
-		s1 := s[1].Coefficients()
-		zeroes, ones, small, ss = counters(s1)
-		log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("s1")
-
-		s2 := s[2].Coefficients()
-		zeroes, ones, small, ss = counters(s2)
-		log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("s2")
-
-	}
-
 	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
 	// All the above polynomials are expressed in canonical basis afterwards. This is why
 	// we save lqk before, because the prover needs to complete it in Lagrange form, and
@@ -297,7 +263,6 @@ func (pk *ProvingKey) VerifyingKey() interface{} {
 // BuildTrace fills the constant columns ql, qr, qm, qo, qk from the sparser1cs.
 // Size is the size of the system that is nb_constraints+nb_public_variables
 func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
-	log := logger.Logger().With().Str("backend", "plonk").Logger()
 
 	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public))
@@ -330,35 +295,6 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 		qk[offset+j].Set(&spr.Coefficients[c.QC])
 		j++
 	}
-
-	counters := func(p []fr.Element) (zeroes, ones, small, size int) {
-		for _, c := range p {
-			if c.IsZero() {
-				zeroes++
-			} else if c.IsOne() {
-				ones++
-			} else if c.IsUint64() {
-				small++
-			} else {
-				c.Neg(&c)
-				if c.IsUint64() {
-					small++
-				}
-			}
-		}
-		return zeroes, ones, small, len(p)
-	}
-
-	zeroes, ones, small, ss := counters(ql)
-	log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("ql")
-	zeroes, ones, small, ss = counters(qr)
-	log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("qr")
-	zeroes, ones, small, ss = counters(qm)
-	log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("qm")
-	zeroes, ones, small, ss = counters(qo)
-	log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("qo")
-	zeroes, ones, small, ss = counters(qk)
-	log.Debug().Int("zeroes", zeroes).Int("ones", ones).Int("small", small).Int("size", ss).Msg("qk")
 
 	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
 
