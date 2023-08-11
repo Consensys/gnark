@@ -34,22 +34,22 @@ contract Verifier {
     uint256 constant ALPHA_Y = {{.G1.Alpha.Y.String}};
 
     // Groth16 beta point in G2 in powers of i
-    uint256 constant BETA_X_0 = {{.G2.Beta.X.A0.String}};
-    uint256 constant BETA_X_1 = {{.G2.Beta.X.A1.String}};
-    uint256 constant BETA_Y_0 = {{.G2.Beta.Y.A0.String}};
-    uint256 constant BETA_Y_1 = {{.G2.Beta.Y.A1.String}};
+    uint256 constant BETA_NEG_X_0 = {{.G2.Beta.X.A0.String}};
+    uint256 constant BETA_NEG_X_1 = {{.G2.Beta.X.A1.String}};
+    uint256 constant BETA_NEG_Y_0 = {{.G2.Beta.Y.A0.String}};
+    uint256 constant BETA_NEG_Y_1 = {{.G2.Beta.Y.A1.String}};
 
     // Groth16 gamma point in G2 in powers of i
-    uint256 constant GAMMA_X_0 = {{.G2.Gamma.X.A0.String}};
-    uint256 constant GAMMA_X_1 = {{.G2.Gamma.X.A1.String}};
-    uint256 constant GAMMA_Y_0 = {{.G2.Gamma.Y.A0.String}};
-    uint256 constant GAMMA_Y_1 = {{.G2.Gamma.Y.A1.String}};
+    uint256 constant GAMMA_NEG_X_0 = {{.G2.Gamma.X.A0.String}};
+    uint256 constant GAMMA_NEG_X_1 = {{.G2.Gamma.X.A1.String}};
+    uint256 constant GAMMA_NEG_Y_0 = {{.G2.Gamma.Y.A0.String}};
+    uint256 constant GAMMA_NEG_Y_1 = {{.G2.Gamma.Y.A1.String}};
 
     // Groth16 delta point in G2 in powers of i
-    uint256 constant DELTA_X_0 = {{.G2.Delta.X.A0.String}};
-    uint256 constant DELTA_X_1 = {{.G2.Delta.X.A1.String}};
-    uint256 constant DELTA_Y_0 = {{.G2.Delta.Y.A0.String}};
-    uint256 constant DELTA_Y_1 = {{.G2.Delta.Y.A1.String}};
+    uint256 constant DELTA_NEG_X_0 = {{.G2.Delta.X.A0.String}};
+    uint256 constant DELTA_NEG_X_1 = {{.G2.Delta.X.A1.String}};
+    uint256 constant DELTA_NEG_Y_0 = {{.G2.Delta.Y.A0.String}};
+    uint256 constant DELTA_NEG_Y_1 = {{.G2.Delta.Y.A1.String}};
 
     // Constant and public input points
     {{- $k0 := index .G1.K 0}}
@@ -227,24 +227,24 @@ contract Verifier {
         // e(α, -β)
         input[ 6] = ALPHA_X;
         input[ 7] = ALPHA_Y;
-        input[ 8] = BETA_X_1;
-        input[ 9] = BETA_X_0;
-        input[10] = BETA_Y_1;
-        input[11] = BETA_Y_0;
+        input[ 8] = BETA_NEG_X_1;
+        input[ 9] = BETA_NEG_X_0;
+        input[10] = BETA_NEG_Y_1;
+        input[11] = BETA_NEG_Y_0;
         // e(L_pub, -γ)
         input[12] = x;
         input[13] = y;
-        input[14] = GAMMA_X_1;
-        input[15] = GAMMA_X_0;
-        input[16] = GAMMA_Y_1;
-        input[17] = GAMMA_Y_0;
+        input[14] = GAMMA_NEG_X_1;
+        input[15] = GAMMA_NEG_X_0;
+        input[16] = GAMMA_NEG_Y_1;
+        input[17] = GAMMA_NEG_Y_0;
         // e(C, -δ)
         input[18] = proof[6]; // C_x
         input[19] = proof[7]; // C_y
-        input[20] = DELTA_X_1;
-        input[21] = DELTA_X_0;
-        input[22] = DELTA_Y_1;
-        input[23] = DELTA_Y_0;
+        input[20] = DELTA_NEG_X_1;
+        input[21] = DELTA_NEG_X_0;
+        input[22] = DELTA_NEG_Y_1;
+        input[23] = DELTA_NEG_Y_0;
 
         bool success;
         uint256[1] memory output;
