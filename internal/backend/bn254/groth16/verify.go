@@ -114,10 +114,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	return nil
 }
 
-// ExportSolidity writes a solidity Verifier contract on provided writer
-// while this uses an audited template https://github.com/appliedzkp/semaphore/blob/master/contracts/sol/verifier.sol
-// audit report https://github.com/appliedzkp/semaphore/blob/master/audit/Audit%20Report%20Summary%20for%20Semaphore%20and%20MicroMix.pdf
-// this is an experimental feature and gnark solidity generator as not been thoroughly tested.
+// ExportSolidity writes a solidity Verifier contract on provided writer.
+// This is an experimental feature and gnark solidity generator as not been thoroughly tested.
 //
 // See https://github.com/ConsenSys/gnark-tests for example usage.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
@@ -125,7 +123,16 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 		"sub": func(a, b int) int {
 			return a - b
 		},
+		"intRange": func(max int) []int {
+			out := make([]int, max)
+			for i := 0; i < max; i++ {
+				out[i] = i
+			}
+			return out
+		},
 	}
+
+	// TODO: Negate beta, gamma and delta here.
 
 	tmpl, err := template.New("").Funcs(helpers).Parse(solidityTemplate)
 	if err != nil {
