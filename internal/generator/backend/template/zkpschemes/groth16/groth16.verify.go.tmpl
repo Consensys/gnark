@@ -118,15 +118,28 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 		},
 	}
 
-	// TODO: Negate beta, gamma and delta here.
-
 	tmpl, err := template.New("").Funcs(helpers).Parse(solidityTemplate)
 	if err != nil {
 		return err
 	}
 
+	// negate Beta, Gamma and Delta, to avoid negating proof elements in the verifier
+	var betaNeg curve.G2Affine
+	betaNeg.Neg(&vk.G2.Beta)
+	beta := vk.G2.Beta
+	vk.G2.Beta = betaNeg
+	vk.G2.Gamma, vk.G2.gammaNeg = vk.G2.gammaNeg, vk.G2.Gamma
+	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
+
 	// execute template
-	return tmpl.Execute(w, vk)
+	err = tmpl.Execute(w, vk)
+
+	// restore Beta, Gamma and Delta
+	vk.G2.Beta = beta
+	vk.G2.Gamma, vk.G2.gammaNeg = vk.G2.gammaNeg, vk.G2.Gamma
+	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
+
+	return err
 }
 
 {{else}}

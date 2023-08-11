@@ -210,7 +210,6 @@ contract Verifier {
         (x, y) = muladd(x, y, PUB_{{$i}}_X, PUB_{{$i}}_Y, input[{{$i}}]);
         {{- end }}
 
-        // OPT: Statically negate beta, gamma, delta instead of proof[1].
         // OPT: Calldatacopy proof to input. Swap pairings so proof is contiguous.
         // OPT: Codecopy remaining points except (x, y) to input.
 
@@ -218,28 +217,28 @@ contract Verifier {
         // Note: The precompile expects the F2 coefficients in big-endian order.
         // Note: The pairing precompile rejects unreduced values, so we won't check that here.
         uint256[24] memory input;
-        // e(-A, B)
+        // e(A, B)
         input[ 0] = proof[0]; // A_x
-        input[ 1] = negate(proof[1]); // A_y
+        input[ 1] = proof[1]; // A_y
         input[ 2] = proof[2]; // B_x_1
         input[ 3] = proof[3]; // B_x_0
         input[ 4] = proof[4]; // B_y_1
         input[ 5] = proof[5]; // B_y_0
-        // e(α, β)
+        // e(α, -β)
         input[ 6] = ALPHA_X;
         input[ 7] = ALPHA_Y;
         input[ 8] = BETA_X_1;
         input[ 9] = BETA_X_0;
         input[10] = BETA_Y_1;
         input[11] = BETA_Y_0;
-        // e(γ, δ)
+        // e(L_pub, -γ)
         input[12] = x;
         input[13] = y;
         input[14] = GAMMA_X_1;
         input[15] = GAMMA_X_0;
         input[16] = GAMMA_Y_1;
         input[17] = GAMMA_Y_0;
-        // e(C, δ)
+        // e(C, -δ)
         input[18] = proof[6]; // C_x
         input[19] = proof[7]; // C_y
         input[20] = DELTA_X_1;
