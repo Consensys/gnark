@@ -193,45 +193,41 @@ contract Verifier {
         }
     }
 
-    // Returns a + s ⋅ b with a,b in G1 and s in FR
-    // Reverts if s is not reduced or if a, b is not a valid point.
-    // See <https://eips.ethereum.org/EIPS/eip-196>
-    function muladd(uint256 a_x, uint256 a_y, uint256 b_x, uint256 b_y,uint256 s)
-    internal view returns (uint256 x, uint256 y) {
-        // Note: PRECOMPILE_MUL does not check if the scalar is reduced modulo R. So we do it here.
-        require(s < R); // Public input out of range.
-        bool success;
-        assembly ("memory-safe") {
-            let f := mload(0x40)
-            mstore(f, b_x)
-            mstore(add(f, 0x20), b_y)
-            mstore(add(f, 0x40), s)
-            // ECMUL has input (x, y, scalar) and output (x', y').
-            success := staticcall(sub(gas(), 2000), PRECOMPILE_MUL, f, 0x60, f, 0x40)
-            // ECMUL ouput is already in the first point argument.
-            mstore(add(f, 0x40), a_x)
-            mstore(add(f, 0x60), a_y)
-            // ECADD has input (x1, y1, x2, y2) and output (x', y').
-            success := and(success, staticcall(sub(gas(), 2000), PRECOMPILE_ADD, f, 0x80, f, 0x40))
-            x := mload(f)
-            y := mload(add(f, 0x20))
-        }
-        // The precompiles can fail iff they are out of gas or if the inputs are not valid points.
-        // The points are hardcoded part of the verification key, so they should be valid.
-        require(success); // Verification key invalid or out of gas.
-    }
-
     // Compute the public input linear combination.
     // Reverts if the input is not in the field.
     function publicInputMSM(uint256[{{$numPublic}}] calldata input)
     internal view returns (uint256 x, uint256 y) {
-        // Note: The ECMUL precompile does not reject unreduced values, so we check in muladd.
+        // Note: The ECMUL precompile does not reject unreduced values, so we check this.
         // Note: Unrolling this loop does not cost much extra in code-size, the bulk of the
         //       code-size is in the PUB_ constants.
-        (x, y) = (CONSTANT_X, CONSTANT_Y);
-        {{- range $i := intRange $numPublic }}
-        (x, y) = muladd(x, y, PUB_{{$i}}_X, PUB_{{$i}}_Y, input[{{$i}}]);
-        {{- end }}
+        // ECMUL has input (x, y, scalar) and output (x', y').
+        // ECADD has input (x1, y1, x2, y2) and output (x', y').
+        // We call them such that ecmul output is already in the second point
+        // argument to ECADD so we can have a tight loop.
+        bool success = true;
+        assembly ("memory-safe") {
+            let f := mload(0x40)
+            let g := add(f, 0x40)
+            let s
+            mstore(f, CONSTANT_X)
+            mstore(add(f, 0x20), CONSTANT_Y)
+            {{- range $i := intRange $numPublic }}
+            mstore(g, PUB_{{$i}}_X)
+            mstore(add(g, 0x20), PUB_{{$i}}_Y)
+            {{- if eq $i 0 }}
+            s :=  calldataload(input)
+            {{- else }}
+            s :=  calldataload(add(input, {{mul $i 0x20}}))
+            {{- end }}
+            mstore(add(g, 0x40), s)
+            success := and(success, lt(s, R))
+            success := and(success, staticcall(sub(gas(), 2000), PRECOMPILE_MUL, g, 0x60, g, 0x40))
+            success := and(success, staticcall(sub(gas(), 2000), PRECOMPILE_ADD, f, 0x80, f, 0x40))
+            {{- end }}
+            x := mload(f)
+            y := mload(add(f, 0x20))
+        }
+        require(success); // Public input not in field, verification key invalid or out of gas.
     }
 
     // Verify a Groth16 proof with compressed points.
