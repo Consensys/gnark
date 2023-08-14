@@ -92,7 +92,7 @@ contract Verifier {
             mstore(add(f, 0x60), a)
             mstore(add(f, 0x80), e)
             mstore(add(f, 0xa0), P)
-            success := staticcall(sub(gas(), 2000), PRECOMPILE_MODEXP, f, 0xc0, f, 0x20)
+            success := staticcall(gas(), PRECOMPILE_MODEXP, f, 0xc0, f, 0x20)
             x := mload(f)
         }
         require(success);
@@ -221,8 +221,8 @@ contract Verifier {
             {{- end }}
             mstore(add(g, 0x40), s)
             success := and(success, lt(s, R))
-            success := and(success, staticcall(sub(gas(), 2000), PRECOMPILE_MUL, g, 0x60, g, 0x40))
-            success := and(success, staticcall(sub(gas(), 2000), PRECOMPILE_ADD, f, 0x80, f, 0x40))
+            success := and(success, staticcall(gas(), PRECOMPILE_MUL, g, 0x60, g, 0x40))
+            success := and(success, staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
             {{- end }}
             x := mload(f)
             y := mload(add(f, 0x20))
@@ -280,9 +280,7 @@ contract Verifier {
         bool success;
         uint256[1] memory output;
         assembly ("memory-safe") {
-            // We should need exactly 147000 gas, but we give most of it in case this is
-            // different in the future or on alternative EVM chains.
-            success := staticcall(sub(gas(), 2000), PRECOMPILE_VERIFY, pairings, 0x300, output, 0x20)
+            success := staticcall(gas(), PRECOMPILE_VERIFY, pairings, 0x300, output, 0x20)
         }
         require(success && output[0] == 1);
     }
@@ -290,7 +288,7 @@ contract Verifier {
     // Verify a Groth16 proof.
     // Reverts if the proof is invalid.
     function verifyProof(
-        uint256[8] calldata proof, // TODO make these calldata
+        uint256[8] calldata proof,
         uint256[{{$numPublic}}] calldata input
     ) public view {
         (uint256 x, uint256 y) = publicInputMSM(input);
@@ -328,9 +326,7 @@ contract Verifier {
             mstore(add(f, 0x2e0), GAMMA_NEG_Y_0)
 
             // Check pairing equation.
-            // We should need exactly 147000 gas, but we give most of it in case this is
-            // different in the future or on alternative EVM chains.
-            success := staticcall(sub(gas(), 2000), PRECOMPILE_VERIFY, f, 0x300, f, 0x20)
+            success := staticcall(gas(), PRECOMPILE_VERIFY, f, 0x300, f, 0x20)
             // Also check returned value (both are either 1 or 0).
             success := and(success, mload(f))
         }
