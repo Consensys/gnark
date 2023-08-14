@@ -66,10 +66,10 @@ contract Verifier {
     uint256 constant CONSTANT_X = {{$k0.X.String}};
     uint256 constant CONSTANT_Y = {{$k0.Y.String}};
     {{- range $i, $ki := .G1.K }}
-        {{- if gt $i 0 -}}
+        {{- if gt $i 0 }}
     uint256 constant PUB_{{sub $i 1}}_X = {{$ki.X.String}};
     uint256 constant PUB_{{sub $i 1}}_Y = {{$ki.Y.String}};
-        {{- end -}}
+        {{- end }}
     {{- end }}
 
     // Negation in Fp.
@@ -231,8 +231,8 @@ contract Verifier {
     }
 
     // Verify a Groth16 proof with compressed points.
-    // Reverts if the proof is invalid.
-    // See decompress_g1 and decompress_g2 for the point encoding.
+    // Reverts if the proof is invalid or the public input is not reduced.
+    // Proof is (A, B, C), see decompress_g1 and decompress_g2 for the point encoding.
     function verifyCompressedProof(
         uint256[4] calldata compressedProof,
         uint256[{{$numPublic}}] calldata input
@@ -286,7 +286,8 @@ contract Verifier {
     }
 
     // Verify a Groth16 proof.
-    // Reverts if the proof is invalid.
+    // Reverts if the proof is invalid or the public input is not reduced.
+    // Proof is (A, B, C) encoded as in EIP-197.
     function verifyProof(
         uint256[8] calldata proof,
         uint256[{{$numPublic}}] calldata input
@@ -300,8 +301,8 @@ contract Verifier {
         assembly ("memory-safe") {
             let f := mload(0x40) // Free memory pointer.
 
-            // Copy points (A, B, C) to memory. They are already in correct order.
-            // This is pairings e(A, B) and e(C, -).
+            // Copy points (A, B, C) to memory. They are already in correct encoding.
+            // This is pairing e(A, B) and G1 of e(C, -δ).
             calldatacopy(f, proof, 0x100)
 
             // Complete e(C, -δ) and write e(α, -β), e(L_pub, -γ) to memory.
