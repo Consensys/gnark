@@ -294,55 +294,51 @@ contract Verifier {
     // Verify a Groth16 proof.
     // Reverts if the proof is invalid.
     function verifyProof(
-        uint256[8] memory proof, // TODO make these calldata
+        uint256[8] calldata proof, // TODO make these calldata
         uint256[{{$numPublic}}] calldata input
     ) public view {
         (uint256 x, uint256 y) = publicInputMSM(input);
 
-        // Verify the pairing
         // Note: The precompile expects the F2 coefficients in big-endian order.
         // Note: The pairing precompile rejects unreduced values, so we won't check that here.
-        // OPT: Calldatacopy proof to input.
-        // OPT: Codecopy remaining points except (x, y) to input.
-        uint256[24] memory pairings;
-        // e(A, B)
-        pairings[ 0] = proof[0]; // A_x
-        pairings[ 1] = proof[1]; // A_y
-        pairings[ 2] = proof[2]; // B_x_1
-        pairings[ 3] = proof[3]; // B_x_0
-        pairings[ 4] = proof[4]; // B_y_1
-        pairings[ 5] = proof[5]; // B_y_0
-        // e(C, -δ)
-        pairings[ 6] = proof[6]; // C_x
-        pairings[ 7] = proof[7]; // C_y
-        pairings[ 8] = DELTA_NEG_X_1;
-        pairings[ 9] = DELTA_NEG_X_0;
-        pairings[10] = DELTA_NEG_Y_1;
-        pairings[11] = DELTA_NEG_Y_0;
-        // e(α, -β)
-        pairings[12] = ALPHA_X;
-        pairings[13] = ALPHA_Y;
-        pairings[14] = BETA_NEG_X_1;
-        pairings[15] = BETA_NEG_X_0;
-        pairings[16] = BETA_NEG_Y_1;
-        pairings[17] = BETA_NEG_Y_0;
-        // e(L_pub, -γ)
-        pairings[18] = x;
-        pairings[19] = y;
-        pairings[20] = GAMMA_NEG_X_1;
-        pairings[21] = GAMMA_NEG_X_0;
-        pairings[22] = GAMMA_NEG_Y_1;
-        pairings[23] = GAMMA_NEG_Y_0;
-
-        // Check pairing equation.
+        
         bool success;
-        uint256[1] memory output;
         assembly ("memory-safe") {
+            let f := mload(0x40) // Free memory pointer.
+
+            // Copy points (A, B, C) to memory. They are already in correct order.
+            // This is pairings e(A, B) and e(C, -).
+            calldatacopy(f, proof, 0x100)
+
+            // Complete e(C, -δ) and write e(α, -β), e(L_pub, -γ) to memory.
+            // OPT: This could be better done using a single codecopy, but
+            //      Solidity (unlike standalone Yul) doesn't provide a way to
+            //      to do this.
+            mstore(add(f, 0x100), DELTA_NEG_X_1)
+            mstore(add(f, 0x120), DELTA_NEG_X_0)
+            mstore(add(f, 0x140), DELTA_NEG_Y_1)
+            mstore(add(f, 0x160), DELTA_NEG_Y_0)
+            mstore(add(f, 0x180), ALPHA_X)
+            mstore(add(f, 0x1a0), ALPHA_Y)
+            mstore(add(f, 0x1c0), BETA_NEG_X_1)
+            mstore(add(f, 0x1e0), BETA_NEG_X_0)
+            mstore(add(f, 0x200), BETA_NEG_Y_1)
+            mstore(add(f, 0x220), BETA_NEG_Y_0)
+            mstore(add(f, 0x240), x)
+            mstore(add(f, 0x260), y)
+            mstore(add(f, 0x280), GAMMA_NEG_X_1)
+            mstore(add(f, 0x2a0), GAMMA_NEG_X_0)
+            mstore(add(f, 0x2c0), GAMMA_NEG_Y_1)
+            mstore(add(f, 0x2e0), GAMMA_NEG_Y_0)
+
+            // Check pairing equation.
             // We should need exactly 147000 gas, but we give most of it in case this is
             // different in the future or on alternative EVM chains.
-            success := staticcall(sub(gas(), 2000), PRECOMPILE_VERIFY, pairings, 0x300, output, 0x20)
+            success := staticcall(sub(gas(), 2000), PRECOMPILE_VERIFY, f, 0x300, f, 0x20)
+            // Also check returned value (both are either 1 or 0).
+            success := and(success, mload(f))
         }
-        require(success && output[0] == 1);
+        require(success);
     }
 }
 `
