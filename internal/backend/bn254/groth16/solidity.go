@@ -227,7 +227,7 @@ contract Verifier {
             x := mload(f)
             y := mload(add(f, 0x20))
         }
-        require(success); // Public input not in field, verification key invalid or out of gas.
+        require(success); // Public input not in field, verification key invalid.
     }
 
     // Verify a Groth16 proof with compressed points.
@@ -282,7 +282,7 @@ contract Verifier {
         assembly ("memory-safe") {
             success := staticcall(gas(), PRECOMPILE_VERIFY, pairings, 0x300, output, 0x20)
         }
-        require(success && output[0] == 1);
+        require(success && output[0] == 1); // Proof invalid or verification key invalid.
     }
 
     // Verify a Groth16 proof.
@@ -330,7 +330,7 @@ contract Verifier {
             // Also check returned value (both are either 1 or 0).
             success := and(success, mload(f))
         }
-        require(success);
+        require(success); // Proof invalid or verification key invalid.
     }
 }
 `
