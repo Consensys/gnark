@@ -73,16 +73,18 @@ contract Verifier {
     {{- end }}
 
     // Negation in Fp.
-    // The input must be reduced.
+    // The input does not need to be reduced.
     function negate(uint256 a) internal pure returns (uint256 x) {
-        x = (P - a) % P; // Modulo is cheaper than branching
+        unchecked {
+            x = (P - (a % P)) % P; // Modulo is cheaper than branching
+        }
     }
 
     // Modular exponentiation in Fp.
     // The input does not need to be reduced.
     function exp(uint256 a, uint256 e) internal view returns (uint256 x) {
         bool success;
-        assembly {
+        assembly ("memory-safe") {
             let f := mload(0x40)
             mstore(f, 0x20)
             mstore(add(f, 0x20), 0x20)
@@ -199,7 +201,7 @@ contract Verifier {
         // Note: PRECOMPILE_MUL does not check if the scalar is reduced modulo R. So we do it here.
         require(s < R); // Public input out of range.
         bool success;
-        assembly {
+        assembly ("memory-safe") {
             let f := mload(0x40)
             mstore(f, b_x)
             mstore(add(f, 0x20), b_y)
@@ -221,7 +223,7 @@ contract Verifier {
 
     // Verify a Groth16 proof with compressed points.
     // Reverts if the proof is invalid.
-    // See `decompress_g1` and `decompress_g2` for the point encoding.
+    // See decompress_g1 and decompress_g2 for the point encoding.
     function verifyCompressedProof(
         uint256[4] calldata compressedProof,
         uint256[{{$numPublic}}] calldata input
@@ -297,7 +299,7 @@ contract Verifier {
 
         bool success;
         uint256[1] memory output;
-        assembly {
+        assembly ("memory-safe") {
             // We should need exactly 147000 gas, but we give most of it in case this is
             // different in the future or on alternative EVM chains.
             success := staticcall(sub(gas(), 2000), PRECOMPILE_VERIFY, pairings, 0x300, output, 0x20)
