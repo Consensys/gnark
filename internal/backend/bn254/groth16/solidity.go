@@ -219,29 +219,34 @@ contract Verifier {
         require(success); // Verification key invalid or out of gas.
     }
 
+    // Verify a Groth16 proof with compressed points.
+    // Reverts if the proof is invalid.
+    // See `decompress_g1` and `decompress_g2` for the point encoding.
     function verifyCompressedProof(
         uint256[4] calldata compressedProof,
         uint256[{{$numPublic}}] calldata input
     ) public view {
         uint256[8] memory proof;
-        (uint256 x, uint256 y) = decompress_g1(compressedProof[0]); // A
+        // Point A in G1
+        (uint256 x, uint256 y) = decompress_g1(compressedProof[0]);
         proof[0] = x;
         proof[1] = y;
-
-        (uint256 x0, uint256 x1, uint256 y0, uint256 y1) = decompress_g2(compressedProof[2], compressedProof[1]); // B
-
+        // Point B in G2
+        (uint256 x0, uint256 x1, uint256 y0, uint256 y1) = decompress_g2(
+            compressedProof[2], compressedProof[1]);
         proof[2] = x1;
         proof[3] = x0;
         proof[4] = y1;
         proof[5] = y0;
-        
-        (x,y) = decompress_g1(compressedProof[3]); // C
+        // Point C in G1
+        (x,y) = decompress_g1(compressedProof[3]);
         proof[6] = x;
         proof[7] = y;
-
         verifyProof(proof, input);
     }
 
+    // Verify a Groth16 proof.
+    // Reverts if the proof is invalid.
     function verifyProof(
         uint256[8] memory proof, // TODO make these calldata
         uint256[{{$numPublic}}] calldata input
@@ -250,19 +255,16 @@ contract Verifier {
         // Note: The ECMUL precompile does not reject unreduced values, so we check in muladd.
         // Note: Unrolling this loop does not cost much extra in code-size, the bulk of the
         //       code-size is in the PUB_ constants.
-        uint256 x;
-        uint256 y;
-        (x, y) = (CONSTANT_X, CONSTANT_Y);
+        (uint256 x, uint256 y) = (CONSTANT_X, CONSTANT_Y);
         {{- range $i := intRange $numPublic }}
         (x, y) = muladd(x, y, PUB_{{$i}}_X, PUB_{{$i}}_Y, input[{{$i}}]);
         {{- end }}
 
-        // OPT: Calldatacopy proof to input. Swap pairings so proof is contiguous.
-        // OPT: Codecopy remaining points except (x, y) to input.
-
         // Verify the pairing
         // Note: The precompile expects the F2 coefficients in big-endian order.
         // Note: The pairing precompile rejects unreduced values, so we won't check that here.
+        // OPT: Calldatacopy proof to input. Swap pairings so proof is contiguous.
+        // OPT: Codecopy remaining points except (x, y) to input.
         uint256[24] memory pairings;
         // e(A, B)
         pairings[ 0] = proof[0]; // A_x
