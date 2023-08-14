@@ -221,6 +221,19 @@ contract Verifier {
         require(success); // Verification key invalid or out of gas.
     }
 
+    // Compute the public input linear combination.
+    // Reverts if the input is not in the field.
+    function publicInputMSM(uint256[{{$numPublic}}] calldata input)
+    internal view returns (uint256 x, uint256 y) {
+        // Note: The ECMUL precompile does not reject unreduced values, so we check in muladd.
+        // Note: Unrolling this loop does not cost much extra in code-size, the bulk of the
+        //       code-size is in the PUB_ constants.
+        (x, y) = (CONSTANT_X, CONSTANT_Y);
+        {{- range $i := intRange $numPublic }}
+        (x, y) = muladd(x, y, PUB_{{$i}}_X, PUB_{{$i}}_Y, input[{{$i}}]);
+        {{- end }}
+    }
+
     // Verify a Groth16 proof with compressed points.
     // Reverts if the proof is invalid.
     // See decompress_g1 and decompress_g2 for the point encoding.
@@ -228,23 +241,54 @@ contract Verifier {
         uint256[4] calldata compressedProof,
         uint256[{{$numPublic}}] calldata input
     ) public view {
-        uint256[8] memory proof;
-        // Point A in G1
-        (uint256 x, uint256 y) = decompress_g1(compressedProof[0]);
-        proof[0] = x;
-        proof[1] = y;
-        // Point B in G2
-        (uint256 x0, uint256 x1, uint256 y0, uint256 y1) = decompress_g2(
-            compressedProof[2], compressedProof[1]);
-        proof[2] = x1;
-        proof[3] = x0;
-        proof[4] = y1;
-        proof[5] = y0;
-        // Point C in G1
-        (x,y) = decompress_g1(compressedProof[3]);
-        proof[6] = x;
-        proof[7] = y;
-        verifyProof(proof, input);
+        (uint256 Ax, uint256 Ay) = decompress_g1(compressedProof[0]);
+        (uint256 Bx0, uint256 Bx1, uint256 By0, uint256 By1) = decompress_g2(
+                compressedProof[2], compressedProof[1]);
+        (uint256 Cx, uint256 Cy) = decompress_g1(compressedProof[3]);
+        (uint256 Lx, uint256 Ly) = publicInputMSM(input);
+
+        // Verify the pairing
+        // Note: The precompile expects the F2 coefficients in big-endian order.
+        // Note: The pairing precompile rejects unreduced values, so we won't check that here.
+        uint256[24] memory pairings;
+        // e(A, B)
+        pairings[ 0] = Ax;
+        pairings[ 1] = Ay;
+        pairings[ 2] = Bx1;
+        pairings[ 3] = Bx0;
+        pairings[ 4] = By1;
+        pairings[ 5] = By0;
+        // e(C, -δ)
+        pairings[ 6] = Cx;
+        pairings[ 7] = Cy;
+        pairings[ 8] = DELTA_NEG_X_1;
+        pairings[ 9] = DELTA_NEG_X_0;
+        pairings[10] = DELTA_NEG_Y_1;
+        pairings[11] = DELTA_NEG_Y_0;
+        // e(α, -β)
+        pairings[12] = ALPHA_X;
+        pairings[13] = ALPHA_Y;
+        pairings[14] = BETA_NEG_X_1;
+        pairings[15] = BETA_NEG_X_0;
+        pairings[16] = BETA_NEG_Y_1;
+        pairings[17] = BETA_NEG_Y_0;
+        // e(L_pub, -γ)
+        pairings[18] = Lx;
+        pairings[19] = Ly;
+        pairings[20] = GAMMA_NEG_X_1;
+        pairings[21] = GAMMA_NEG_X_0;
+        pairings[22] = GAMMA_NEG_Y_1;
+        pairings[23] = GAMMA_NEG_Y_0;
+
+        // Check pairing equation.
+        bool success;
+        uint256[1] memory output;
+        assembly ("memory-safe") {
+            // We should need exactly 147000 gas, but we give most of it in case this is
+            // different in the future or on alternative EVM chains.
+            success := staticcall(sub(gas(), 2000), PRECOMPILE_VERIFY, pairings, 0x300, output, 0x20)
+        }
+        require(success && output[0] == 1);
     }
 
     // Verify a Groth16 proof.
@@ -253,19 +297,12 @@ contract Verifier {
         uint256[8] memory proof, // TODO make these calldata
         uint256[{{$numPublic}}] calldata input
     ) public view {
-        // Compute the public input linear combination
-        // Note: The ECMUL precompile does not reject unreduced values, so we check in muladd.
-        // Note: Unrolling this loop does not cost much extra in code-size, the bulk of the
-        //       code-size is in the PUB_ constants.
-        (uint256 x, uint256 y) = (CONSTANT_X, CONSTANT_Y);
-        {{- range $i := intRange $numPublic }}
-        (x, y) = muladd(x, y, PUB_{{$i}}_X, PUB_{{$i}}_Y, input[{{$i}}]);
-        {{- end }}
+        (uint256 x, uint256 y) = publicInputMSM(input);
 
         // Verify the pairing
         // Note: The precompile expects the F2 coefficients in big-endian order.
         // Note: The pairing precompile rejects unreduced values, so we won't check that here.
-        // OPT: Calldatacopy proof to input. Swap pairings so proof is contiguous.
+        // OPT: Calldatacopy proof to input.
         // OPT: Codecopy remaining points except (x, y) to input.
         uint256[24] memory pairings;
         // e(A, B)
@@ -275,28 +312,29 @@ contract Verifier {
         pairings[ 3] = proof[3]; // B_x_0
         pairings[ 4] = proof[4]; // B_y_1
         pairings[ 5] = proof[5]; // B_y_0
-        // e(α, -β)
-        pairings[ 6] = ALPHA_X;
-        pairings[ 7] = ALPHA_Y;
-        pairings[ 8] = BETA_NEG_X_1;
-        pairings[ 9] = BETA_NEG_X_0;
-        pairings[10] = BETA_NEG_Y_1;
-        pairings[11] = BETA_NEG_Y_0;
-        // e(L_pub, -γ)
-        pairings[12] = x;
-        pairings[13] = y;
-        pairings[14] = GAMMA_NEG_X_1;
-        pairings[15] = GAMMA_NEG_X_0;
-        pairings[16] = GAMMA_NEG_Y_1;
-        pairings[17] = GAMMA_NEG_Y_0;
         // e(C, -δ)
-        pairings[18] = proof[6]; // C_x
-        pairings[19] = proof[7]; // C_y
-        pairings[20] = DELTA_NEG_X_1;
-        pairings[21] = DELTA_NEG_X_0;
-        pairings[22] = DELTA_NEG_Y_1;
-        pairings[23] = DELTA_NEG_Y_0;
+        pairings[ 6] = proof[6]; // C_x
+        pairings[ 7] = proof[7]; // C_y
+        pairings[ 8] = DELTA_NEG_X_1;
+        pairings[ 9] = DELTA_NEG_X_0;
+        pairings[10] = DELTA_NEG_Y_1;
+        pairings[11] = DELTA_NEG_Y_0;
+        // e(α, -β)
+        pairings[12] = ALPHA_X;
+        pairings[13] = ALPHA_Y;
+        pairings[14] = BETA_NEG_X_1;
+        pairings[15] = BETA_NEG_X_0;
+        pairings[16] = BETA_NEG_Y_1;
+        pairings[17] = BETA_NEG_Y_0;
+        // e(L_pub, -γ)
+        pairings[18] = x;
+        pairings[19] = y;
+        pairings[20] = GAMMA_NEG_X_1;
+        pairings[21] = GAMMA_NEG_X_0;
+        pairings[22] = GAMMA_NEG_Y_1;
+        pairings[23] = GAMMA_NEG_Y_0;
 
+        // Check pairing equation.
         bool success;
         uint256[1] memory output;
         assembly ("memory-safe") {
