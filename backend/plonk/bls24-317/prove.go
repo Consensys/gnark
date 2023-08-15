@@ -278,7 +278,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		}
 
 		// derive alpha from the Comm(l), Comm(r), Comm(o), Com(Z)
-		alpha, err = deriveRandomness(&fs, "alpha", &proof.Z)
+		alphaDeps := make([]*curve.G1Affine, len(proof.Bsb22Commitments)+1)
+		for i := range proof.Bsb22Commitments {
+			alphaDeps[i] = &proof.Bsb22Commitments[i]
+		}
+		alphaDeps[len(alphaDeps)-1] = &proof.Z
+		alpha, err = deriveRandomness(&fs, "alpha", alphaDeps...)
 		if err != nil {
 			chZ <- err
 		}
