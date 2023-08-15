@@ -209,7 +209,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)], proof.Bsb22Commitments); err != nil {
+	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)]); err != nil {
 		return nil, err
 	}
 
