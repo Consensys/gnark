@@ -283,6 +283,11 @@ func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey
 	if err := fs.Bind(challenge, vk.Qk.Marshal()); err != nil {
 		return err
 	}
+	for i := range vk.Qcp {
+		if err := fs.Bind(challenge, vk.Qcp[i].Marshal()); err != nil {
+			return err
+		}
+	}
 
 	// public inputs
 	for i := 0; i < len(publicInputs); i++ {
