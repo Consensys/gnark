@@ -171,15 +171,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	var wgLRO sync.WaitGroup
 	wgLRO.Add(3)
 	go func() {
-		bwliop = wliop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
+		bwliop = wliop.Clone(int(pk.Domain[0].Cardinality) + 2).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
 		wgLRO.Done()
 	}()
 	go func() {
-		bwriop = wriop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
+		bwriop = wriop.Clone(int(pk.Domain[0].Cardinality) + 2).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
 		wgLRO.Done()
 	}()
 	go func() {
-		bwoiop = woiop.Clone(int(pk.Domain[1].Cardinality)).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
+		bwoiop = woiop.Clone(int(pk.Domain[0].Cardinality) + 2).ToCanonical(&pk.Domain[0]).ToRegular().Blind(1)
 		wgLRO.Done()
 	}()
 
@@ -233,22 +233,30 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// l, r, o are already blinded
 	wgLRO.Add(3)
+
+	// compute l,r,o (blinded version) in LagrangeCoset basis.
+	// we keep the regular version in memory for the next step
+	var lcbwliop, lcbwriop, lcbwoiop *iop.Polynomial
+
 	go func() {
-		bwliop.ToLagrangeCoset(&pk.Domain[1]).ToRegular()
+		lcbwliop = bwliop.Clone(int(pk.Domain[1].Cardinality))
+		lcbwliop.ToLagrangeCoset(&pk.Domain[1]).ToRegular()
 		wgLRO.Done()
 	}()
 	go func() {
-		bwriop.ToLagrangeCoset(&pk.Domain[1]).ToRegular()
+		lcbwriop = bwriop.Clone(int(pk.Domain[1].Cardinality))
+		lcbwriop.ToLagrangeCoset(&pk.Domain[1]).ToRegular()
 		wgLRO.Done()
 	}()
 	go func() {
-		bwoiop.ToLagrangeCoset(&pk.Domain[1]).ToRegular()
+		lcbwoiop = bwoiop.Clone(int(pk.Domain[1].Cardinality))
+		lcbwoiop.ToLagrangeCoset(&pk.Domain[1]).ToRegular()
 		wgLRO.Done()
 	}()
 
 	// compute the copy constraint's ratio
 	// note that wliop, wriop and woiop are fft'ed (mutated) in the process.
-	ziop, err := iop.BuildRatioCopyConstraint(
+	bwziop, err := iop.BuildRatioCopyConstraint(
 		[]*iop.Polynomial{
 			wliop,
 			wriop,
@@ -270,10 +278,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	// commit to the blinded version of z
 	chZ := make(chan error, 1)
-	var bwziop, bwsziop *iop.Polynomial
+	var bwsziop *iop.Polynomial
 	var alpha fr.Element
 	go func() {
-		bwziop = ziop // iop.NewWrappedPolynomial(&ziop)
+		// blind Z
+		// TODO @gbotrel memory wise we should allocate a bigger result for BuildRatioCopyConstraint
 		bwziop.Blind(2)
 		proof.Z, err = kzg.Commit(bwziop.Coefficients(), pk.Kzg, runtime.NumCPU()*2)
 		if err != nil {
@@ -286,9 +295,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 			chZ <- err
 		}
 
-		// Store z(g*x), without reallocating a slice
-		bwsziop = bwziop.ShallowClone().Shift(1)
-		bwsziop.ToLagrangeCoset(&pk.Domain[1]).ToRegular()
+		// Store z(g*x)
+		bwsziop = bwziop.Clone().ToLagrangeCoset(&pk.Domain[1]).ToRegular()
+
 		chZ <- nil
 		close(chZ)
 	}()
@@ -298,8 +307,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		idx_L                int = iota // bwliop
 		idx_R                           // bwriop
 		idx_O                           // bwoiop
-		idx_Z                           // bwziop
-		idx_ZS                          // bwsziop
+		idx_Z                           // bwsziop
+		idx_ZS                          // bwsziop shifted
 		idx_QK                          // lcqk
 		idx_Bsb22Commitments            // lcCommitments ... pk.lcQcp...
 	)
@@ -376,11 +385,11 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	<-chLcc
 	wgLRO.Wait()
 	toEval := make([]*iop.Polynomial, 6+2*len(commitmentInfo))
-	toEval[idx_L] = bwliop
-	toEval[idx_R] = bwriop
-	toEval[idx_O] = bwoiop
-	toEval[idx_Z] = bwziop
-	toEval[idx_ZS] = bwsziop
+	toEval[idx_L] = lcbwliop
+	toEval[idx_R] = lcbwriop
+	toEval[idx_O] = lcbwoiop
+	toEval[idx_Z] = bwsziop.ShallowClone()
+	toEval[idx_ZS] = bwsziop.Shift(1)
 	toEval[idx_QK] = lcqk
 	copy(toEval[idx_Bsb22Commitments:], lcCommitments)
 	copy(toEval[idx_Bsb22Commitments+len(lcCommitments):], pk.lcQcp)
@@ -394,17 +403,14 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	toEval = nil
 	bwsziop = nil
 	lcqk = nil
+	lcbwliop = nil
+	lcbwriop = nil
+	lcbwoiop = nil
+
 	for i := range lcCommitments {
 		lcCommitments[i] = nil
 	}
 	// runtime.GC()
-
-	// open blinded Z at zeta*z
-	chbwzIOP := make(chan struct{}, 1)
-	go func() {
-		bwziop.ToCanonical(&pk.Domain[1]).ToRegular()
-		close(chbwzIOP)
-	}()
 
 	h, err := divideByXMinusOne(systemEvaluation, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]}) // TODO Rename to DivideByXNMinusOne or DivideByVanishingPoly etc
 	if err != nil {
@@ -433,7 +439,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	var wgEvals sync.WaitGroup
 	wgEvals.Add(3)
 	evalAtZeta := func(poly *iop.Polynomial, res *fr.Element) {
-		poly.ToCanonical(&pk.Domain[1]).ToRegular()
 		*res = poly.Evaluate(zeta)
 		wgEvals.Done()
 	}
@@ -449,7 +454,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
-	<-chbwzIOP
 	proof.ZShiftedOpening, err = kzg.Open(
 		bwziop.Coefficients()[:bwziop.BlindedSize()],
 		zetaShifted,
@@ -829,6 +833,7 @@ func divideByXMinusOne(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomi
 		}
 	})
 
+	// TODO @gbotrel this is the only place we do a FFT inverse (on coset) with domain[1]
 	a.ToCanonical(domains[1]).ToRegular()
 
 	return a, nil
