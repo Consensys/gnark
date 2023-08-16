@@ -275,7 +275,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		}
 
 		// Store z(g*x)
-		bwsziop = bwziop.Clone().ToLagrangeCoset(&pk.Domain[1]).ToRegular()
+		// perf note: converting ToRegular here perfoms better on Apple M1, but not on a hpc machine.
+		bwsziop = bwziop.Clone().ToLagrangeCoset(&pk.Domain[1])//.ToRegular()
 
 		chZ <- nil
 		close(chZ)
@@ -390,7 +391,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	for i := range lcCommitments {
 		lcCommitments[i] = nil
 	}
-	// runtime.GC()
 
 
 	h, err := divideByXMinusOne(systemEvaluation, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]}) // TODO Rename to DivideByXNMinusOne or DivideByVanishingPoly etc
