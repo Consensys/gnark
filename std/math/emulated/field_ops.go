@@ -44,6 +44,21 @@ func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 	return e
 }
 
+// Sqrt computes square root of a and returns it. It uses [SqrtHint].
+func (f *Field[T]) Sqrt(a *Element[T]) *Element[T] {
+	// omit width assertion as is done in Mul below
+	if !f.fParams.IsPrime() {
+		panic("modulus not a prime")
+	}
+	res, err := f.NewHint(SqrtHint, 1, a)
+	if err != nil {
+		panic(fmt.Sprintf("compute sqrt: %v", err))
+	}
+	_a := f.Mul(res[0], res[0])
+	f.AssertIsEqual(_a, a)
+	return res[0]
+}
+
 // Add computes a+b and returns it. If the result wouldn't fit into Element, then
 // first reduces the inputs (larger first) and tries again. Doesn't mutate
 // inputs.
@@ -178,19 +193,19 @@ func (f *Field[T]) mul(a, b *Element[T], nextOverflow uint) *Element[T] {
 	w := new(big.Int)
 	for c := 1; c <= len(mulResult); c++ {
 		w.SetInt64(1) // c^i
-		l := a.Limbs[0]
-		r := b.Limbs[0]
-		o := mulResult[0]
+		l := f.api.Mul(a.Limbs[0], 1)
+		r := f.api.Mul(b.Limbs[0], 1)
+		o := f.api.Mul(mulResult[0], 1)
 
 		for i := 1; i < len(mulResult); i++ {
 			w.Lsh(w, uint(c))
 			if i < len(a.Limbs) {
-				l = f.api.Add(l, f.api.Mul(a.Limbs[i], w))
+				l = f.api.MulAcc(l, a.Limbs[i], w)
 			}
 			if i < len(b.Limbs) {
-				r = f.api.Add(r, f.api.Mul(b.Limbs[i], w))
+				r = f.api.MulAcc(r, b.Limbs[i], w)
 			}
-			o = f.api.Add(o, f.api.Mul(mulResult[i], w))
+			o = f.api.MulAcc(o, mulResult[i], w)
 		}
 		f.api.AssertIsEqual(f.api.Mul(l, r), o)
 	}
@@ -214,7 +229,6 @@ func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 	if err != nil {
 		panic(fmt.Sprintf("reduction hint: %v", err))
 	}
-	// TODO @gbotrel fixme: AssertIsEqual(a, e) crashes Pairing test
 	f.AssertIsEqual(e, a)
 	return e
 }
@@ -225,9 +239,20 @@ func (f *Field[T]) Sub(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.sub, f.subPreCond, a, b)
 }
 
+// subReduce returns a-b and returns it. Contrary to [Field[T].Sub] method this
+// method does not reduce the inputs if the result would overflow. This method
+// is currently only used as a subroutine in [Field[T].Reduce] method to avoid
+// infinite recursion when we are working exactly on the overflow limits.
+func (f *Field[T]) subNoReduce(a, b *Element[T]) *Element[T] {
+	nextOverflow, _ := f.subPreCond(a, b)
+	// we ignore error as it only indicates if we should reduce or not. But we
+	// are in non-reducing version of sub.
+	return f.sub(a, b, nextOverflow)
+}
+
 func (f *Field[T]) subPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
-	reduceRight := a.overflow < b.overflow+2
-	nextOverflow = max(b.overflow+2, a.overflow)
+	reduceRight := a.overflow < (b.overflow + 1)
+	nextOverflow = max(b.overflow+1, a.overflow) + 1
 	if nextOverflow > f.maxOverflow() {
 		err = overflowError{op: "sub", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}
@@ -263,7 +288,7 @@ func (f *Field[T]) Neg(a *Element[T]) *Element[T] {
 	return f.Sub(f.Zero(), a)
 }
 
-// Select sets e to a if selector == 0 and to b otherwise. Sets the number of
+// Select sets e to a if selector == 1 and to b otherwise. Sets the number of
 // limbs and overflow of the result to be the maximum of the limb lengths and
 // overflows. If the inputs are strongly unbalanced, then it would better to
 // reduce the result after the operation.

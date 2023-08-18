@@ -5,13 +5,12 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/bits"
 )
 
 // assertLimbsEqualitySlow is the main routine in the package. It asserts that the
 // two slices of limbs represent the same integer value. This is also the most
 // costly operation in the package as it does bit decomposition of the limbs.
-func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits, nbCarryBits uint) {
+func (f *Field[T]) assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits, nbCarryBits uint) {
 
 	nbLimbs := max(len(l), len(r))
 	maxValue := new(big.Int).Lsh(big.NewInt(1), nbBits+nbCarryBits)
@@ -33,52 +32,29 @@ func assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits,
 		// carry is stored in the highest bits of diff[nbBits:nbBits+nbCarryBits+1]
 		// we know that diff[:nbBits] are 0 bits, but still need to constrain them.
 		// to do both; we do a "clean" right shift and only need to boolean constrain the carry part
-		carry = rsh(api, diff, int(nbBits), int(nbBits+nbCarryBits+1))
+		carry = f.rsh(diff, int(nbBits), int(nbBits+nbCarryBits+1))
 	}
 	api.AssertIsEqual(carry, maxValueShift)
 }
 
-// rsh right shifts a variable endDigit-startDigit bits and returns it.
-func rsh(api frontend.API, v frontend.Variable, startDigit, endDigit int) frontend.Variable {
+func (f *Field[T]) rsh(v frontend.Variable, startDigit, endDigit int) frontend.Variable {
 	// if v is a constant, work with the big int value.
-	if c, ok := api.Compiler().ConstantValue(v); ok {
+	if c, ok := f.api.Compiler().ConstantValue(v); ok {
 		bits := make([]frontend.Variable, endDigit-startDigit)
 		for i := 0; i < len(bits); i++ {
 			bits[i] = c.Bit(i + startDigit)
 		}
 		return bits
 	}
-
-	bits, err := api.Compiler().NewHint(NBitsShifted, endDigit-startDigit, v, startDigit)
+	shifted, err := f.api.Compiler().NewHint(RightShift, 1, startDigit, v)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("right shift: %v", err))
 	}
-
-	// we compute 2 sums;
-	// Σbi ensures that "ignoring" the lowest bits (< startDigit) still is a valid bit decomposition.
-	// that is, it ensures that bits from startDigit to endDigit * corresponding coefficients (powers of 2 shifted)
-	// are equal to the input variable
-	// ΣbiRShift computes the actual result; that is, the Σ (2**i * b[i])
-	Σbi := frontend.Variable(0)
-	ΣbiRShift := frontend.Variable(0)
-
-	cRShift := big.NewInt(1)
-	c := big.NewInt(1)
-	c.Lsh(c, uint(startDigit))
-
-	for i := 0; i < len(bits); i++ {
-		Σbi = api.MulAcc(Σbi, bits[i], c)
-		ΣbiRShift = api.MulAcc(ΣbiRShift, bits[i], cRShift)
-
-		c.Lsh(c, 1)
-		cRShift.Lsh(cRShift, 1)
-		api.AssertIsBoolean(bits[i])
-	}
-
-	// constraint Σ (2**i_shift * b[i]) == v
-	api.AssertIsEqual(Σbi, v)
-	return ΣbiRShift
-
+	f.checker.Check(shifted[0], endDigit-startDigit)
+	shift := new(big.Int).Lsh(big.NewInt(1), uint(startDigit))
+	composed := f.api.Mul(shifted[0], shift)
+	f.api.AssertIsEqual(composed, v)
+	return shifted[0]
 }
 
 // AssertLimbsEquality asserts that the limbs represent a same integer value.
@@ -107,9 +83,9 @@ func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
 	// TODO: we previously assumed that one side was "larger" than the other
 	// side, but I think this assumption is not valid anymore
 	if a.overflow > b.overflow {
-		assertLimbsEqualitySlow(f.api, ca, cb, bitsPerLimb, a.overflow)
+		f.assertLimbsEqualitySlow(f.api, ca, cb, bitsPerLimb, a.overflow)
 	} else {
-		assertLimbsEqualitySlow(f.api, cb, ca, bitsPerLimb, b.overflow)
+		f.assertLimbsEqualitySlow(f.api, cb, ca, bitsPerLimb, b.overflow)
 	}
 }
 
@@ -133,16 +109,14 @@ func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
 			// take only required bits from the most significant limb
 			limbNbBits = ((f.fParams.Modulus().BitLen() - 1) % int(f.fParams.BitsPerLimb())) + 1
 		}
-		// bits.ToBinary restricts the least significant NbDigits to be equal to
-		// the limb value. This is sufficient to restrict for the bitlength and
-		// we can discard the bits themselves.
-		bits.ToBinary(f.api, a.Limbs[i], bits.WithNbDigits(limbNbBits))
+		f.checker.Check(a.Limbs[i], limbNbBits)
 	}
 }
 
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
 func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
-	// we omit width assertion as it is done in Sub below
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
 	ba, aConst := f.constantValue(a)
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {
@@ -154,7 +128,7 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 		return
 	}
 
-	diff := f.Sub(b, a)
+	diff := f.subNoReduce(b, a)
 
 	// we compute k such that diff / p == k
 	// so essentially, we say "I know an element k such that k*p == diff"
@@ -170,7 +144,9 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 	f.AssertLimbsEquality(diff, kp)
 }
 
-// AssertIsLessOrEqual ensures that e is less or equal than a.
+// AssertIsLessOrEqual ensures that e is less or equal than a. For proper
+// bitwise comparison first reduce the element using [Reduce] and then assert
+// that its value is less than the modulus using [AssertIsInRange].
 func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 	// we omit conditional width assertion as is done in ToBits below
 	if e.overflow+a.overflow > 0 {
@@ -181,7 +157,7 @@ func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 	ff := func(xbits, ybits []frontend.Variable) []frontend.Variable {
 		diff := len(xbits) - len(ybits)
 		ybits = append(ybits, make([]frontend.Variable, diff)...)
-		for i := len(ybits) - diff - 1; i < len(ybits); i++ {
+		for i := len(ybits) - diff; i < len(ybits); i++ {
 			ybits[i] = 0
 		}
 		return ybits
@@ -202,3 +178,62 @@ func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 		f.api.AssertIsEqual(ll, 0)
 	}
 }
+
+// AssertIsInRange ensures that a is less than the emulated modulus. When we
+// call [Reduce] then we only ensure that the result is width-constrained, but
+// not actually less than the modulus. This means that the actual value may be
+// either x or x + p. For arithmetic it is sufficient, but for binary comparison
+// it is not. For binary comparison the values have both to be below the
+// modulus.
+func (f *Field[T]) AssertIsInRange(a *Element[T]) {
+	// we omit conditional width assertion as is done in ToBits down the calling stack
+	f.AssertIsLessOrEqual(a, f.modulusPrev())
+}
+
+// IsZero returns a boolean indicating if the element is strictly zero. The
+// method internally reduces the element and asserts that the value is less than
+// the modulus.
+func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
+	ca := f.Reduce(a)
+	f.AssertIsInRange(ca)
+	res := f.api.IsZero(ca.Limbs[0])
+	for i := 1; i < len(ca.Limbs); i++ {
+		f.api.Mul(res, f.api.IsZero(ca.Limbs[i]))
+	}
+	return res
+}
+
+// // Cmp returns:
+// //   - -1 if a < b
+// //   - 0 if a = b
+// //   - 1 if a > b
+// //
+// // The method internally reduces the element and asserts that the value is less
+// // than the modulus.
+// func (f *Field[T]) Cmp(a, b *Element[T]) frontend.Variable {
+// 	ca := f.Reduce(a)
+// 	f.AssertIsInRange(ca)
+// 	cb := f.Reduce(b)
+// 	f.AssertIsInRange(cb)
+// 	var res frontend.Variable = 0
+// 	for i := int(f.fParams.NbLimbs() - 1); i >= 0; i-- {
+// 		lmbCmp := f.api.Cmp(ca.Limbs[i], cb.Limbs[i])
+// 		res = f.api.Select(f.api.IsZero(res), lmbCmp, res)
+// 	}
+// 	return res
+// }
+
+// TODO(@ivokub)
+// func (f *Field[T]) AssertIsDifferent(a, b *Element[T]) {
+// 	ca := f.Reduce(a)
+// 	f.AssertIsInRange(ca)
+// 	cb := f.Reduce(b)
+// 	f.AssertIsInRange(cb)
+// 	var res frontend.Variable = 0
+// 	for i := 0; i < int(f.fParams.NbLimbs()); i++ {
+// 		cmp := f.api.Cmp(ca.Limbs[i], cb.Limbs[i])
+// 		cmpsq := f.api.Mul(cmp, cmp)
+// 		res = f.api.Add(res, cmpsq)
+// 	}
+// 	f.api.AssertIsDifferent(res, 0)
+// }

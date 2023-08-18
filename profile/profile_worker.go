@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unicode"
 
 	"github.com/google/pprof/profile"
 )
@@ -63,31 +64,18 @@ func collectSample(pc []uintptr) {
 	for {
 		frame, more := frames.Next()
 
+		if strings.Contains(frame.Function, "frontend.parseCircuit") {
+			// we stop; previous frame was the .Define definition of the circuit
+			break
+		}
+
 		if strings.HasSuffix(frame.Function, ".func1") {
 			// TODO @gbotrel filter anonymous func better
 			continue
 		}
 
-		// to avoid aving a location that concentrates 99% of the calls, we transfer the "addConstraint"
-		// occuring in Mul to the previous level in the stack
-		if strings.Contains(frame.Function, "github.com/consensys/gnark/frontend/cs/r1cs.(*builder).Mul") {
-			continue
-		}
-
-		if strings.HasPrefix(frame.Function, "github.com/consensys/gnark/frontend/cs/scs.(*scs).Mul") {
-			continue
-		}
-
-		if strings.HasPrefix(frame.Function, "github.com/consensys/gnark/frontend/cs/scs.(*scs).split") {
-			continue
-		}
-
-		// with scs.Builder (Plonk) Add and Sub always add a constraint --> we record the caller as the constraint adder
-		// but in the future we may record a different type of sample for these
-		if strings.HasPrefix(frame.Function, "github.com/consensys/gnark/frontend/cs/scs.(*scs).Add") {
-			continue
-		}
-		if strings.HasPrefix(frame.Function, "github.com/consensys/gnark/frontend/cs/scs.(*scs).Sub") {
+		// filter internal builder functions
+		if filterSCSPrivateFunc(frame.Function) || filterR1CSPrivateFunc(frame.Function) {
 			continue
 		}
 
@@ -107,6 +95,7 @@ func collectSample(pc []uintptr) {
 				sessions[i].onceSetName.Do(func() {
 					// once per profile session, we set the "name of the binary"
 					// here we grep the struct name where "Define" exist: hopefully the circuit Name
+					// note: this won't work well for nested Define calls.
 					fe := strings.Split(frame.Function, "/")
 					circuitName := strings.TrimSuffix(fe[len(fe)-1], ".Define")
 					sessions[i].pprof.Mapping = []*profile.Mapping{
@@ -114,7 +103,7 @@ func collectSample(pc []uintptr) {
 					}
 				})
 			}
-			break
+			// break --> we break when we hit frontend.parseCircuit; in case we have nested Define calls in the stack.
 		}
 	}
 
@@ -122,4 +111,28 @@ func collectSample(pc []uintptr) {
 		sessions[i].pprof.Sample = append(sessions[i].pprof.Sample, samples[i])
 	}
 
+}
+
+func filterSCSPrivateFunc(f string) bool {
+	const scsPrefix = "github.com/consensys/gnark/frontend/cs/scs.(*builder)."
+	if strings.HasPrefix(f, scsPrefix) && len(f) > len(scsPrefix) {
+		// filter plonk frontend private APIs from the trace.
+		c := []rune(f)[len(scsPrefix)]
+		if unicode.IsLower(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func filterR1CSPrivateFunc(f string) bool {
+	const r1csPrefix = "github.com/consensys/gnark/frontend/cs/r1cs.(*builder)."
+	if strings.HasPrefix(f, r1csPrefix) && len(f) > len(r1csPrefix) {
+		// filter r1cs frontend private APIs from the trace.
+		c := []rune(f)[len(r1csPrefix)]
+		if unicode.IsLower(c) {
+			return true
+		}
+	}
+	return false
 }

@@ -6,7 +6,9 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/rs/zerolog"
 	"golang.org/x/exp/constraints"
 )
@@ -27,16 +29,19 @@ type Field[T FieldParams] struct {
 	maxOfOnce sync.Once
 
 	// constants for often used elements n, 0 and 1. Allocated only once
-	nConstOnce    sync.Once
-	nConst        *Element[T]
-	zeroConstOnce sync.Once
-	zeroConst     *Element[T]
-	oneConstOnce  sync.Once
-	oneConst      *Element[T]
+	nConstOnce     sync.Once
+	nConst         *Element[T]
+	nprevConstOnce sync.Once
+	nprevConst     *Element[T]
+	zeroConstOnce  sync.Once
+	zeroConst      *Element[T]
+	oneConstOnce   sync.Once
+	oneConst       *Element[T]
 
 	log zerolog.Logger
 
 	constrainedLimbs map[uint64]struct{}
+	checker          frontend.Rangechecker
 }
 
 // NewField returns an object to be used in-circuit to perform emulated
@@ -52,6 +57,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 		api:              native,
 		log:              logger.Logger(),
 		constrainedLimbs: make(map[uint64]struct{}),
+		checker:          rangecheck.New(native),
 	}
 
 	// ensure prime is correctly set
@@ -89,7 +95,9 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 // NewElement builds a new Element[T] from input v.
 //   - if v is a Element[T] or *Element[T] it clones it
 //   - if v is a constant this is equivalent to calling emulated.ValueOf[T]
-//   - if this methods interpret v  (frontend.Variable or []frontend.Variable) as being the limbs; and constrain the limbs following the parameters of the Field.
+//   - if this methods interprets v as being the limbs (frontend.Variable or []frontend.Variable),
+//     it constructs a new Element[T] with v as limbs and constraints the limbs to the parameters
+//     of the Field[T].
 func (f *Field[T]) NewElement(v interface{}) *Element[T] {
 	if e, ok := v.(Element[T]); ok {
 		return e.copy()
@@ -101,11 +109,6 @@ func (f *Field[T]) NewElement(v interface{}) *Element[T] {
 		return f.packLimbs([]frontend.Variable{v}, true)
 	}
 	if e, ok := v.([]frontend.Variable); ok {
-		for _, sv := range e {
-			if !frontend.IsCanonical(sv) {
-				panic("[]frontend.Variable that are not canonical (known to the compiler) is not a valid input")
-			}
-		}
 		return f.packLimbs(e, true)
 	}
 	c := ValueOf[T](v)
@@ -136,6 +139,14 @@ func (f *Field[T]) Modulus() *Element[T] {
 	return f.nConst
 }
 
+// modulusPrev returns modulus-1 as a constant.
+func (f *Field[T]) modulusPrev() *Element[T] {
+	f.nprevConstOnce.Do(func() {
+		f.nprevConst = newConstElement[T](new(big.Int).Sub(f.fParams.Modulus(), big.NewInt(1)))
+	})
+	return f.nprevConst
+}
+
 // packLimbs returns an element from the given limbs.
 // If strict is true, the most significant limb will be constrained to have width of the most
 // significant limb of the modulus, which may have less bits than the other limbs. In which case,
@@ -157,14 +168,27 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 		return false
 	}
 	if _, isConst := f.constantValue(a); isConst {
+		// enforce constant element limbs not to be large.
+		for i := range a.Limbs {
+			val := utils.FromInterface(a.Limbs[i])
+			if val.BitLen() > int(f.fParams.BitsPerLimb()) {
+				panic("constant element limb wider than emulated parameter")
+			}
+		}
 		// constant values are constant
 		return false
 	}
 	for i := range a.Limbs {
 		if !frontend.IsCanonical(a.Limbs[i]) {
-			// this is not a variable. This may happen when some limbs are
-			// constant and some variables. A strange case but lets try to cover
-			// it anyway.
+			// this is not a canonical variable, nor a constant. This may happen
+			// when some limbs are constant and some variables. Or if we are
+			// running in a test engine. In either case, we must check that if
+			// this limb is a [*big.Int] that its bitwidth is less than the
+			// NbBits.
+			val := utils.FromInterface(a.Limbs[i])
+			if val.BitLen() > int(f.fParams.BitsPerLimb()) {
+				panic("non-canonical integer limb wider than emulated parameter")
+			}
 			continue
 		}
 		if vv, ok := a.Limbs[i].(interface{ HashCode() uint64 }); ok {
@@ -259,7 +283,7 @@ func (f *Field[T]) compactLimbs(e *Element[T], groupSize, bitsPerLimb uint) []fr
 // then the limbs may overflow the native field.
 func (f *Field[T]) maxOverflow() uint {
 	f.maxOfOnce.Do(func() {
-		f.maxOf = uint(f.api.Compiler().FieldBitLen()-1) - f.fParams.BitsPerLimb()
+		f.maxOf = uint(f.api.Compiler().FieldBitLen()-2) - f.fParams.BitsPerLimb()
 	})
 	return f.maxOf
 }

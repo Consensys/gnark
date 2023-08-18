@@ -99,7 +99,7 @@ func BenchmarkReduce(b *testing.B) {
 	// Add few large linear expressions
 	// Add many large linear expressions
 	// Doubling of large linear expressions
-	rand.Seed(time.Now().Unix())
+	rand := rand.New(rand.NewSource(time.Now().Unix())) //#nosec G404 weak rng is fine here
 	const nbTerms = 100000
 	terms := make([]frontend.Variable, nbTerms)
 	for i := 0; i < len(terms); i++ {
@@ -134,4 +134,29 @@ func BenchmarkReduce(b *testing.B) {
 			_ = cs.Add(c, c)
 		}
 	})
+}
+
+type EmptyCircuit struct {
+	X  frontend.Variable
+	cb func(frontend.API) error
+}
+
+func (c *EmptyCircuit) Define(api frontend.API) error {
+	api.AssertIsEqual(c.X, 0)
+	api.Compiler().Defer(c.cb)
+	return nil
+}
+
+func TestPreCompileHook(t *testing.T) {
+	var called bool
+	c := &EmptyCircuit{
+		cb: func(a frontend.API) error { called = true; return nil },
+	}
+	_, err := frontend.Compile(ecc.BN254.ScalarField(), NewBuilder, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Error("callback not called")
+	}
 }

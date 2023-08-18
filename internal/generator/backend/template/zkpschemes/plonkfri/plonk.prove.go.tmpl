@@ -4,6 +4,8 @@ import (
 	"math/bits"
 	"runtime"
 
+	"github.com/consensys/gnark/backend/witness"
+
 	{{ template "import_fr" . }}
 	{{ template "import_fft" . }}
 	{{ template "import_backend_cs" . }}
@@ -15,7 +17,6 @@ import (
 )
 
 type Proof struct {
-
 	// commitments to the solution vectors
 	LROpp [3]fri.ProofOfProximity
 
@@ -46,7 +47,11 @@ type Proof struct {
 	OpeningsId1Id2Id3mp [3]fri.OpeningProof
 }
 
-func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backend.ProverConfig) (*Proof, error) {
+func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
 
 	var proof Proof
 
@@ -57,23 +62,15 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
 
 	// 1 - solve the system
-	var solution []fr.Element
-	var err error
-	if solution, err = spr.Solve(fullWitness, opt); err != nil {
-		if !opt.Force {
-			return nil, err
-		} else {
-			// we need to fill solution with random values
-			var r fr.Element
-			_, _ = r.SetRandom()
-			for i := len(spr.Public) + len(spr.Secret); i < len(solution); i++ {
-				solution[i] = r
-				r.Double(&r)
-			}
-		}
-	}
-
-	evaluationLDomainSmall, evaluationRDomainSmall, evaluationODomainSmall := evaluateLROSmallDomain(spr, pk, solution)
+	_solution, err := spr.Solve(fullWitness, opt.SolverOpts...)
+	if err != nil {
+		return nil, err
+	} 
+	
+	solution := _solution.(*cs.SparseR1CSSolution)
+	evaluationLDomainSmall := []fr.Element(solution.L)
+	evaluationRDomainSmall := []fr.Element(solution.R)
+	evaluationODomainSmall := []fr.Element(solution.O)
 
 	// 2 - commit to lro
 	blindedLCanonical, blindedRCanonical, blindedOCanonical, err := computeBlindedLROCanonical(
@@ -98,9 +95,13 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	}
 
 	// 3 - compute Z, challenges are derived using L, R, O + public inputs
+	fw, ok := fullWitness.Vector().(fr.Vector)
+	if !ok {
+		return nil, witness.ErrInvalidWitness
+	}
 	dataFiatShamir := make([][fr.Bytes]byte, len(spr.Public)+3)
 	for i := 0; i < len(spr.Public); i++ {
-		copy(dataFiatShamir[i][:], fullWitness[i].Marshal())
+		copy(dataFiatShamir[i][:], fw[i].Marshal())
 	}
 	copy(dataFiatShamir[len(spr.Public)][:], proof.LROpp[0].ID)
 	copy(dataFiatShamir[len(spr.Public)+1][:], proof.LROpp[1].ID)
@@ -143,7 +144,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness fr.Vector, opt backen
 	// alpha.SetUint64(11)
 
 	evaluationQkCompleteDomainBigBitReversed := make([]fr.Element, pk.Domain[1].Cardinality)
-	copy(evaluationQkCompleteDomainBigBitReversed, fullWitness[:len(spr.Public)])
+	copy(evaluationQkCompleteDomainBigBitReversed, fw[:len(spr.Public)])
 	copy(evaluationQkCompleteDomainBigBitReversed[len(spr.Public):], pk.LQkIncompleteDomainSmall[len(spr.Public):])
 	pk.Domain[0].FFTInverse(evaluationQkCompleteDomainBigBitReversed[:pk.Domain[0].Cardinality], fft.DIF)
 	fft.BitReverse(evaluationQkCompleteDomainBigBitReversed[:pk.Domain[0].Cardinality])
@@ -465,7 +466,7 @@ func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReverse
 	for i := 0; i < int(pk.Domain[0].Cardinality); i++ {
 		startsAtOne[i].Set(&pk.Domain[0].CardinalityInv)
 	}
-	pk.Domain[1].FFT(startsAtOne, fft.DIF, true)
+	pk.Domain[1].FFT(startsAtOne, fft.DIF, fft.OnCoset())
 
 	// ql(X)L(X)+qr(X)R(X)+qm(X)L(X)R(X)+qo(X)O(X)+k(X) + α.(z(μX)*g₁(X)*g₂(X)*g₃(X)-z(X)*f₁(X)*f₂(X)*f₃(X)) + α**2*L₁(X)(Z(X)-1)
 	// on a coset of the big domain
@@ -493,7 +494,7 @@ func computeQuotientCanonical(pk *ProvingKey, evaluationConstraintsIndBitReverse
 
 	// put h in canonical form. h is of degree 3*(n+1)+2.
 	// using fft.DIT put h revert bit reverse
-	pk.Domain[1].FFTInverse(h, fft.DIT, true)
+	pk.Domain[1].FFTInverse(h, fft.DIT, fft.OnCoset())
 
 	// degree of hi is n+2 because of the blinding
 	h1 := h[:pk.Domain[0].Cardinality+2]
@@ -559,41 +560,6 @@ func computeBlindedZCanonical(l, r, o []fr.Element, pk *ProvingKey, beta, gamma 
 	fft.BitReverse(z)
 
 	return blindPoly(z, pk.Domain[0].Cardinality, 2)
-
-}
-
-// evaluateLROSmallDomain extracts the solution l, r, o, and returns it in lagrange form.
-// solution = [ public | secret | internal ]
-func evaluateLROSmallDomain(spr *cs.SparseR1CS, pk *ProvingKey, solution []fr.Element) ([]fr.Element, []fr.Element, []fr.Element) {
-
-	s := int(pk.Domain[0].Cardinality)
-
-	var l, r, o []fr.Element
-	l = make([]fr.Element, s)
-	r = make([]fr.Element, s)
-	o = make([]fr.Element, s)
-	s0 := solution[0]
-
-	for i := 0; i < len(spr.Public); i++ { // placeholders
-		l[i] = solution[i]
-		r[i] = s0
-		o[i] = s0
-	}
-	offset := len(spr.Public)
-	for i := 0; i < len(spr.Constraints); i++ { // constraints
-		l[offset+i] = solution[spr.Constraints[i].L.WireID()]
-		r[offset+i] = solution[spr.Constraints[i].R.WireID()]
-		o[offset+i] = solution[spr.Constraints[i].O.WireID()]
-	}
-	offset += len(spr.Constraints)
-
-	for i := 0; i < s-offset; i++ { // offset to reach 2**n constraints (where the id of l,r,o is 0, so we assign solution[0])
-		l[offset+i] = s0
-		r[offset+i] = s0
-		o[offset+i] = s0
-	}
-
-	return l, r, o
 
 }
 

@@ -24,7 +24,7 @@ import (
 	"github.com/consensys/gnark/std/hash"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/twistededwards"
+	"github.com/consensys/gnark/std/algebra/native/twistededwards"
 
 	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
 
@@ -55,7 +55,7 @@ type Signature struct {
 
 // Verify verifies an eddsa signature using MiMC hash function
 // cf https://en.wikipedia.org/wiki/EdDSA
-func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pubKey PublicKey, hash hash.Hash) error {
+func Verify(curve twistededwards.Curve, sig Signature, msg frontend.Variable, pubKey PublicKey, hash hash.FieldHasher) error {
 
 	// compute H(R, A, M)
 	hash.Write(sig.R.X)

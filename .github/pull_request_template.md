@@ -1,13 +1,13 @@
 # Description
 
-Please include a summary of the changes and the related issue. Please also include relevant motivation and context.
-Note that in most cases the PR should be against the `develop` branch.
+<!-- Please include a summary of the changes and the related issue. Please also include relevant motivation and context.
+Note that in most cases the PR should be against the `develop` branch. -->
 
 Fixes # (issue)
 
 ## Type of change
 
-Please delete options that are not relevant.
+<!-- Please delete options that are not relevant. -->
 
 - [ ] Bug fix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
@@ -16,14 +16,14 @@ Please delete options that are not relevant.
 
 # How has this been tested?
 
-Please describe the tests that you ran or implemented to verify your changes. Provide instructions so we can reproduce.
+<!-- Please describe the tests that you ran or implemented to verify your changes. Provide instructions so we can reproduce. -->
 
 - [ ] Test A
 - [ ] Test B
 
 # How has this been benchmarked?
 
-Please describe the benchmarks that you ran to verify your changes.
+<!-- Please describe the benchmarks that you ran to verify your changes. -->
 
 - [ ] Benchmark A, on Macbook pro M1, 32GB RAM
 - [ ] Benchmark B, on x86 Intel xxx, 16GB RAM

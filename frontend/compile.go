@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/internal/circuitdefer"
 	"github.com/consensys/gnark/logger"
 )
 
@@ -36,7 +37,7 @@ func Compile(field *big.Int, newBuilder NewBuilder, circuit Circuit, opts ...Com
 	log := logger.Logger()
 	log.Info().Msg("compiling circuit")
 	// parse options
-	opt := CompileConfig{}
+	opt := defaultCompileConfig()
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
 			log.Err(err).Msg("applying compile option")
@@ -122,14 +123,32 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	if err = circuit.Define(builder); err != nil {
 		return fmt.Errorf("define circuit: %w", err)
 	}
+	if err = callDeferred(builder); err != nil {
+		return fmt.Errorf("deferred: %w", err)
+	}
 
 	return
+}
+
+func callDeferred(builder Builder) error {
+	for i := 0; i < len(circuitdefer.GetAll[func(API) error](builder)); i++ {
+		if err := circuitdefer.GetAll[func(API) error](builder)[i](builder); err != nil {
+			return fmt.Errorf("defer fn %d: %w", i, err)
+		}
+	}
+	return nil
 }
 
 // CompileOption defines option for altering the behaviour of the Compile
 // method. See the descriptions of the functions returning instances of this
 // type for available options.
 type CompileOption func(opt *CompileConfig) error
+
+func defaultCompileConfig() CompileConfig {
+	return CompileConfig{
+		CompressThreshold: 300,
+	}
+}
 
 type CompileConfig struct {
 	Capacity                  int
@@ -174,6 +193,9 @@ func IgnoreUnconstrainedInputs() CompileOption {
 // fast. The compression adds some overhead in the number of constraints. The
 // overhead and compile performance depends on threshold value, and it should be
 // chosen carefully.
+//
+// If this option is not given then by default we use the compress threshold of
+// 300.
 func WithCompressThreshold(threshold int) CompileOption {
 	return func(opt *CompileConfig) error {
 		opt.CompressThreshold = threshold

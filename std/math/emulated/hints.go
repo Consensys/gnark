@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark/backend/hint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -12,18 +12,19 @@ import (
 // inside a func, then it becomes anonymous and hint identification is screwed.
 
 func init() {
-	hint.Register(GetHints()...)
+	solver.RegisterHint(GetHints()...)
 }
 
 // GetHints returns all hint functions used in the package.
-func GetHints() []hint.Function {
-	return []hint.Function{
+func GetHints() []solver.Hint {
+	return []solver.Hint{
 		DivHint,
 		QuoHint,
 		InverseHint,
 		MultiplicationHint,
 		RemHint,
-		NBitsShifted,
+		RightShift,
+		SqrtHint,
 	}
 }
 
@@ -287,13 +288,38 @@ func parseHintDivInputs(inputs []*big.Int) (uint, int, *big.Int, *big.Int, error
 	return nbBits, nbLimbs, x, y, nil
 }
 
-// NBitsShifted returns the first bits of the input, with a shift. The number of returned bits is
-// defined by the length of the results slice.
-func NBitsShifted(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
-	n := inputs[0]
-	shift := inputs[1].Uint64() // TODO @gbotrel validate input vs perf in large circuits.
-	for i := 0; i < len(results); i++ {
-		results[i].SetUint64(uint64(n.Bit(i + int(shift))))
+// RightShift shifts input by the given number of bits. Expects two inputs:
+//   - first input is the shift, will be represented as uint64;
+//   - second input is the value to be shifted.
+//
+// Returns a single output which is the value shifted. Errors if number of
+// inputs is not 2 and number of outputs is not 1.
+func RightShift(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) != 2 {
+		return fmt.Errorf("expecting two inputs")
 	}
+	if len(outputs) != 1 {
+		return fmt.Errorf("expecting single output")
+	}
+	shift := inputs[0].Uint64()
+	outputs[0].Rsh(inputs[1], uint(shift))
 	return nil
+}
+
+// SqrtHint compute square root of the input.
+func SqrtHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 1 {
+			return fmt.Errorf("expecting single input")
+		}
+		if len(outputs) != 1 {
+			return fmt.Errorf("expecting single output")
+		}
+		res := new(big.Int)
+		if res.ModSqrt(inputs[0], field) == nil {
+			return fmt.Errorf("no square root")
+		}
+		outputs[0].Set(res)
+		return nil
+	})
 }
