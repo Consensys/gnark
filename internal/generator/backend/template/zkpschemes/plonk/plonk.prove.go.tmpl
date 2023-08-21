@@ -187,7 +187,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)], proof.Bsb22Commitments); err != nil {
+	if err := bindPublicData(&fs, "gamma", *pk.Vk, fw[:len(spr.Public)]); err != nil {
 		return nil, err
 	}
 
@@ -256,7 +256,12 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		}
 
 		// derive alpha from the Comm(l), Comm(r), Comm(o), Com(Z)
-		alpha, err = deriveRandomness(&fs, "alpha", &proof.Z)
+		alphaDeps := make([]*curve.G1Affine, len(proof.Bsb22Commitments)+1)
+		for i := range proof.Bsb22Commitments {
+			alphaDeps[i] = &proof.Bsb22Commitments[i]
+		}
+		alphaDeps[len(alphaDeps)-1] = &proof.Z
+		alpha, err = deriveRandomness(&fs, "alpha", alphaDeps...)
 		if err != nil {
 			chZ <- err
 		}
