@@ -193,7 +193,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	chLcqk := make(chan struct{}, 1)
 	go func() {
 		// compute qk in canonical basis, completed with the public inputs
-		// TODO @ThomasPiellard should we do ToLagrange or ToLagrangeCoset here?
 		lcqk = pk.trace.Qk.Clone(int(pk.Domain[1].Cardinality)).ToLagrange(&pk.Domain[0]).ToRegular()
 		qkCompletedCanonical := lcqk.Coefficients()
 		copy(qkCompletedCanonical, fw[:len(spr.Public)])
