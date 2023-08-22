@@ -88,13 +88,17 @@ jobs:
         sudo add-apt-repository ppa:ethereum/ethereum
         sudo apt-get update
         sudo apt-get install solc
-    - name: Test with solc
+    - name: Test (windows / mac)
+      # on macOS CI / Windows CI we avoid running the std/ tests (they are run on ubuntu CI)
+      if: matrix.os != 'ubuntu-latest'
       run: |
-        go test -v -timeout=60m ./...
+        go test -v -timeout=60m .
+        go test -v -timeout=60m ./frontend/...
+        go test -v -timeout=60m ./backend/...
     - name: Test (race and solc)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        go test -v -tags=solccheck -short .
+        go test -v -tags=solccheck ./...
         go test -v -timeout=60m -race -short ./...
   
   slack-workflow-status-failed:
