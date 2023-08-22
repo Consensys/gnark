@@ -109,8 +109,6 @@ func (cs *system) GetR1Cs() []constraint.R1C {
 			var r1c constraint.R1C
 			bc.DecompressR1C(&r1c, inst.Unpack(&cs.System))	
 			toReturn = append(toReturn, r1c)
-		} else {
-			panic("not implemented")
 		}
 	}
 	return toReturn
@@ -193,8 +191,6 @@ func (cs *system) GetSparseR1Cs() []constraint.SparseR1C {
 			var sparseR1C constraint.SparseR1C
 			bc.DecompressSparseR1C(&sparseR1C, inst.Unpack(&cs.System))	
 			toReturn = append(toReturn, sparseR1C)	 
-		} else {
-			panic("not implemented")
 		}
 	}
 	return toReturn

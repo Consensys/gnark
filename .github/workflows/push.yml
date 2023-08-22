@@ -11,7 +11,7 @@ jobs:
     - name: install Go
       uses: actions/setup-go@v3
       with:
-        go-version: 1.20.x
+        go-version: 1.21.x
     - name: checkout code
       uses: actions/checkout@v3
       with:
@@ -54,7 +54,7 @@ jobs:
   test:
     strategy:
       matrix:
-        go-version: [1.20.x]
+        go-version: [1.21.x]
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     needs:
@@ -76,15 +76,22 @@ jobs:
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
+
     - name: install deps
-      run: go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
+      run: |
+        go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
+        go install github.com/ethereum/go-ethereum/cmd/abigen@v1.12.0
+        go install github.com/consensys/gnark-solidity-checker@latest
+        sudo add-apt-repository ppa:ethereum/ethereum
+        sudo apt-get update
+        sudo apt-get install solc
     - name: Test
       run: |
-        go test -v -timeout=30m ./...
+        go test -v -tags=solccheck -timeout=60m ./...
     - name: Test (race)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        go test -v -timeout=50m -race -short ./...
+        go test -v -timeout=60m -race -short ./...
   
   slack-workflow-status-failed:
     if: failure()
