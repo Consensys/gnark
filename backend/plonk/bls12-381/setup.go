@@ -26,30 +26,11 @@ import (
 	"github.com/consensys/gnark/backend/plonk/internal"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bls12-381"
+	"github.com/consensys/gnark/logger"
+	"runtime"
 	"sync"
+	"time"
 )
-
-// Trace stores a plonk trace as columns
-type Trace struct {
-
-	// Constants describing a plonk circuit. The first entries
-	// of LQk (whose index correspond to the public inputs) are set to 0, and are to be
-	// completed by the prover. At those indices i (so from 0 to nb_public_variables), LQl[i]=-1
-	// so the first nb_public_variables constraints look like this:
-	// -1*Wire[i] + 0* + 0 . It is zero when the constant coefficient is replaced by Wire[i].
-	Ql, Qr, Qm, Qo, Qk *iop.Polynomial
-	Qcp                []*iop.Polynomial
-
-	// Polynomials representing the splitted permutation. The full permutation's support is 3*N where N=nb wires.
-	// The set of interpolation is <g> of size N, so to represent the permutation S we let S acts on the
-	// set A=(<g>, u*<g>, u^{2}*<g>) of size 3*N, where u is outside <g> (its use is to shift the set <g>).
-	// We obtain a permutation of A, A'. We split A' in 3 (A'_{1}, A'_{2}, A'_{3}), and S1, S2, S3 are
-	// respectively the interpolation of A'_{1}, A'_{2}, A'_{3} on <g>.
-	S1, S2, S3 *iop.Polynomial
-
-	// S full permutation, i -> S[i]
-	S []int64
-}
 
 // VerifyingKey stores the data needed to verify a proof:
 // * The commitment scheme
@@ -57,7 +38,6 @@ type Trace struct {
 // * Commitments of qr, qm, qo, qk prepended with as many zeroes as there are public inputs
 // * Commitments to S1, S2, S3
 type VerifyingKey struct {
-
 	// Size circuit
 	Size              uint64
 	SizeInv           fr.Element
@@ -81,6 +61,46 @@ type VerifyingKey struct {
 	CommitmentConstraintIndexes []uint64
 }
 
+// Trace stores a plonk trace as columns
+type Trace struct {
+	// Constants describing a plonk circuit. The first entries
+	// of LQk (whose index correspond to the public inputs) are set to 0, and are to be
+	// completed by the prover. At those indices i (so from 0 to nb_public_variables), LQl[i]=-1
+	// so the first nb_public_variables constraints look like this:
+	// -1*Wire[i] + 0* + 0 . It is zero when the constant coefficient is replaced by Wire[i].
+	Ql, Qr, Qm, Qo, Qk *iop.Polynomial
+	Qcp                []*iop.Polynomial
+
+	// Polynomials representing the splitted permutation. The full permutation's support is 3*N where N=nb wires.
+	// The set of interpolation is <g> of size N, so to represent the permutation S we let S acts on the
+	// set A=(<g>, u*<g>, u^{2}*<g>) of size 3*N, where u is outside <g> (its use is to shift the set <g>).
+	// We obtain a permutation of A, A'. We split A' in 3 (A'_{1}, A'_{2}, A'_{3}), and S1, S2, S3 are
+	// respectively the interpolation of A'_{1}, A'_{2}, A'_{3} on <g>.
+	S1, S2, S3 *iop.Polynomial
+
+	// S full permutation, i -> S[i]
+	S []int64
+}
+
+// ExpandedTrace stores Ql, Qr, Qm, Qo, Qk, Qcp, S1, S2, S3 in LagrangeCoset form;
+// the expanded trace is stored in a memory layout that is optimized for the prover
+type ExpandedTrace struct {
+	Polynomials [][sizeExpandedTrace]fr.Element
+}
+
+// Enum for the expanded trace indexes.
+const (
+	idx_QL int = iota
+	idx_QR
+	idx_QM
+	idx_QO
+	idx_S1
+	idx_S2
+	idx_S3
+	idx_LONE
+	sizeExpandedTrace
+)
+
 // ProvingKey stores the data needed to generate a proof:
 // * the commitment scheme
 // * ql, prepended with as many ones as they are public inputs
@@ -90,7 +110,6 @@ type VerifyingKey struct {
 // * sigma_1, sigma_2, sigma_3 in both basis
 // * the copy constraint permutation
 type ProvingKey struct {
-
 	// stores ql, qr, qm, qo, qk (-> to be completed by the prover)
 	// and s1, s2, s3. They are set in canonical basis before generating the proof, they will be used
 	// for computing the opening proofs (hence the canonical form). The canonical version
@@ -98,28 +117,24 @@ type ProvingKey struct {
 	// The polynomials in trace are in canonical basis.
 	trace Trace
 
+	// perf: this is quite fat; so we don't serialize it by default.
+	expandedTrace *ExpandedTrace
+
 	Kzg kzg.ProvingKey
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
 
-	// qr,ql,qm,qo,qcp in LagrangeCoset --> these are not serialized, but computed from Ql, Qr, Qm, Qo, Qcp once.
-	lcQl, lcQr, lcQm, lcQo *iop.Polynomial
-	lcQcp                  []*iop.Polynomial
+	// qcp in LagrangeCoset form; not serialized
+	lcQcp []*iop.Polynomial
 
 	// LQk qk in Lagrange form -> to be completed by the prover. After being completed,
-	lQk *iop.Polynomial
+	// lQk *iop.Polynomial
 
 	// Domains used for the FFTs.
 	// Domain[0] = small Domain
 	// Domain[1] = big Domain
 	Domain [2]fft.Domain
-
-	// in lagrange coset basis --> these are not serialized, but computed from S1Canonical, S2Canonical, S3Canonical once.
-	lcS1, lcS2, lcS3 *iop.Polynomial
-
-	// in lagrange coset basis --> not serialized id and L_{g^{0}}
-	lcIdIOP, lLoneIOP *iop.Polynomial
 }
 
 func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
@@ -160,7 +175,6 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	// All the above polynomials are expressed in canonical basis afterwards. This is why
 	// we save lqk before, because the prover needs to complete it in Lagrange form, and
 	// then express it on the Lagrange coset basis.
-	pk.lQk = pk.trace.Qk.Clone() // it will be completed by the prover, and the evaluated on the coset
 	err := commitTrace(&pk.trace, &pk)
 	if err != nil {
 		return nil, nil, err
@@ -177,65 +191,63 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 // computeLagrangeCosetPolys computes each polynomial except qk in Lagrange coset
 // basis. Qk will be evaluated in Lagrange coset basis once it is completed by the prover.
 func (pk *ProvingKey) computeLagrangeCosetPolys() {
+	pk.expandedTrace = &ExpandedTrace{
+		Polynomials: make([][sizeExpandedTrace]fr.Element, pk.Domain[1].Cardinality),
+	}
+	log := logger.Logger().With().Str("backend", "plonk").Logger()
+	start := time.Now()
+
 	var wg sync.WaitGroup
-	wg.Add(7 + len(pk.trace.Qcp))
-	n1 := int(pk.Domain[1].Cardinality)
-	pk.lcQcp = make([]*iop.Polynomial, len(pk.trace.Qcp))
-	for i, qcpI := range pk.trace.Qcp {
-		go func(i int, qcpI *iop.Polynomial) {
-			pk.lcQcp[i] = qcpI.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
-			wg.Done()
-		}(i, qcpI)
+	wg.Add(8)
+
+	// fillFunc converts p to LagrangeCoset and fills the pk.expandedTrace.Polynomials structure.
+	fillFunc := func(p *iop.Polynomial, idx int) {
+		scratch := make([]fr.Element, len(p.Coefficients()), pk.Domain[1].Cardinality)
+		copy(scratch, p.Coefficients())
+		pp := iop.NewPolynomial(&scratch, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
+		pp.SetSize(p.Size())
+		pp.SetBlindedSize(p.BlindedSize())
+		pp.ToLagrangeCoset(&pk.Domain[1]).ToRegular()
+
+		for i := 0; i < int(pk.Domain[1].Cardinality); i++ {
+			pk.expandedTrace.Polynomials[i][idx] = pp.GetCoeff(i)
+		}
+
+		wg.Done()
 	}
+
+	go fillFunc(pk.trace.Ql, idx_QL)
+	go fillFunc(pk.trace.Qr, idx_QR)
+	go fillFunc(pk.trace.Qm, idx_QM)
+	go fillFunc(pk.trace.Qo, idx_QO)
+	go fillFunc(pk.trace.S1, idx_S1)
+	go fillFunc(pk.trace.S2, idx_S2)
+	go fillFunc(pk.trace.S3, idx_S3)
+
 	go func() {
-		pk.lcQl = pk.trace.Ql.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
+		n1 := int(pk.Domain[1].Cardinality)
+		pk.lcQcp = make([]*iop.Polynomial, len(pk.trace.Qcp))
+		for i, qcpI := range pk.trace.Qcp {
+			pk.lcQcp[i] = qcpI.Clone(n1).ToLagrangeCoset(&pk.Domain[1]).ToRegular()
+		}
 		wg.Done()
 	}()
-	go func() {
-		pk.lcQr = pk.trace.Qr.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
-		wg.Done()
-	}()
-	go func() {
-		pk.lcQm = pk.trace.Qm.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
-		wg.Done()
-	}()
-	go func() {
-		pk.lcQo = pk.trace.Qo.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
-		wg.Done()
-	}()
-	go func() {
-		pk.lcS1 = pk.trace.S1.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
-		wg.Done()
-	}()
-	go func() {
-		pk.lcS2 = pk.trace.S2.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
-		wg.Done()
-	}()
-	go func() {
-		pk.lcS3 = pk.trace.S3.Clone(n1).ToLagrangeCoset(&pk.Domain[1])
-		wg.Done()
-	}()
-	// storing Id
-	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
-	id := make([]fr.Element, pk.Domain[1].Cardinality)
-	id[0].Set(&pk.Domain[1].FrMultiplicativeGen)
-	for i := 1; i < int(pk.Domain[1].Cardinality); i++ {
-		id[i].Mul(&id[i-1], &pk.Domain[1].Generator)
-	}
-	pk.lcIdIOP = iop.NewPolynomial(&id, lagReg)
 
 	// L_{g^{0}}
-	cap := pk.Domain[1].Cardinality
-	if cap < pk.Domain[0].Cardinality {
-		cap = pk.Domain[0].Cardinality // sanity check
+	scratch := make([]fr.Element, pk.Domain[0].Cardinality, pk.Domain[1].Cardinality)
+	scratch[0].SetOne()
+
+	p := iop.NewPolynomial(&scratch, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
+	p.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1]).ToRegular()
+
+	for i := 0; i < int(pk.Domain[1].Cardinality); i++ {
+		pk.expandedTrace.Polynomials[i][idx_LONE] = p.GetCoeff(i)
 	}
-	lone := make([]fr.Element, pk.Domain[0].Cardinality, cap)
-	lone[0].SetOne()
-	pk.lLoneIOP = iop.NewPolynomial(&lone, lagReg).ToCanonical(&pk.Domain[0]).
-		ToRegular().
-		ToLagrangeCoset(&pk.Domain[1])
 
 	wg.Wait()
+	runtime.GC()
+
+	log.Debug().Dur("computeLagrangeCosetPolys", time.Since(start)).Msg("setup done")
 }
 
 // NbPublicWitness returns the expected public witness size (number of field elements)
