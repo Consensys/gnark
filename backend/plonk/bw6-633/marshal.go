@@ -156,7 +156,6 @@ func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err e
 		pk.trace.Qo.Coefficients(),
 		pk.trace.Qk.Coefficients(),
 		coefficients(pk.trace.Qcp),
-		pk.lQk.Coefficients(),
 		pk.trace.S1.Coefficients(),
 		pk.trace.S2.Coefficients(),
 		pk.trace.S3.Coefficients(),
@@ -215,7 +214,7 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 
 	dec := curve.NewDecoder(r)
 
-	var ql, qr, qm, qo, qk, lqk, s1, s2, s3 []fr.Element
+	var ql, qr, qm, qo, qk, s1, s2, s3 []fr.Element
 	var qcp [][]fr.Element
 
 	// TODO @gbotrel: this is a bit ugly, we should probably refactor this.
@@ -231,16 +230,15 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		chErr chan error
 	}
 
-	vectors := make([]v, 9)
+	vectors := make([]v, 8)
 	vectors[0] = v{data: (*fr.Vector)(&ql)}
 	vectors[1] = v{data: (*fr.Vector)(&qr)}
 	vectors[2] = v{data: (*fr.Vector)(&qm)}
 	vectors[3] = v{data: (*fr.Vector)(&qo)}
 	vectors[4] = v{data: (*fr.Vector)(&qk)}
-	vectors[5] = v{data: (*fr.Vector)(&lqk)}
-	vectors[6] = v{data: (*fr.Vector)(&s1)}
-	vectors[7] = v{data: (*fr.Vector)(&s2)}
-	vectors[8] = v{data: (*fr.Vector)(&s3)}
+	vectors[5] = v{data: (*fr.Vector)(&s1)}
+	vectors[6] = v{data: (*fr.Vector)(&s2)}
+	vectors[7] = v{data: (*fr.Vector)(&s3)}
 
 	// read ql, qr, qm, qo, qk
 	for i := 0; i < 5; i++ {
@@ -258,7 +256,7 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 	}
 
 	// read lqk, s1, s2, s3
-	for i := 5; i < 9; i++ {
+	for i := 5; i < 8; i++ {
 		n2, err, ch := vectors[i].data.AsyncReadFrom(r)
 		n += n2
 		if err != nil {
@@ -293,8 +291,6 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 	for i := range qcp {
 		pk.trace.Qcp[i] = iop.NewPolynomial(&qcp[i], canReg)
 	}
-	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
-	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
 
 	// wait for FFT to be precomputed
 	<-chDomain0

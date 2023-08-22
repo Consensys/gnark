@@ -166,7 +166,6 @@ func (pk *ProvingKey) randomize() {
 	qm := randomScalars(n)
 	qo := randomScalars(n)
 	qk := randomScalars(n)
-	lqk := randomScalars(n)
 	s1 := randomScalars(n)
 	s2 := randomScalars(n)
 	s3 := randomScalars(n)
@@ -190,9 +189,6 @@ func (pk *ProvingKey) randomize() {
 	pk.trace.S = make([]int64, 3*pk.Domain[0].Cardinality)
 	pk.trace.S[0] = -12
 	pk.trace.S[len(pk.trace.S)-1] = 8888
-
-	lagReg := iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}
-	pk.lQk = iop.NewPolynomial(&lqk, lagReg)
 
 	pk.computeLagrangeCosetPolys()
 }
