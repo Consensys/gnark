@@ -9,6 +9,17 @@ const solidityTemplate = `
 pragma solidity ^0.8.0;
 
 contract Verifier {
+    
+    // Some of the provided public input values are larger than the field modulus.
+    // Public input elements are not automatically reduced, as this is can be
+    // a dangerous source of bugs.
+    error PublicInputNotInField();
+
+    // The proof is invalid. This can mean that provided Groth16 proof points are
+    // not on their curves, that pairing equation does not check out, or that
+    // the proof is not for the provided public input.
+    error ProofInvalid();
+
     // Addresses of precompiles
     uint256 constant PRECOMPILE_MODEXP = 0x05;
     uint256 constant PRECOMPILE_ADD = 0x06;
@@ -95,7 +106,11 @@ contract Verifier {
             success := staticcall(gas(), PRECOMPILE_MODEXP, f, 0xc0, f, 0x20)
             x := mload(f)
         }
-        require(success);
+        if (!success) {
+            // Exponentiation failed.
+            // Should not happen.
+            revert ProofInvalid();
+        }
     }
 
     // Inverts an element in Fp.
@@ -103,7 +118,11 @@ contract Verifier {
     // If the inverse does not exist, the operation reverts.
     function invert_Fp(uint256 a) internal view returns (uint256 x) {
         x = exp(a, EXP_INVERSE_FP);
-        require(mulmod(a, x, P) == 1);
+        if (mulmod(a, x, P) != 1) {
+            // Inverse does not exist.
+            // Can only happen during G2 point decompression.
+            revert ProofInvalid();
+        }
     }
 
     // Square root in Fp.
@@ -111,7 +130,11 @@ contract Verifier {
     // If a square root does not exist, the operation reverts.
     function sqrt_Fp(uint256 a) internal view returns (uint256 x) {
         x = exp(a, EXP_SQRT_FP);
-        require(mulmod(x, x, P) == a); // Reverts if a is not reduced.
+        if (mulmod(x, x, P) != a) {
+            // Square root does not exist or `a` is not reduced.
+            // Happens when G1 point is not on curve.
+            revert ProofInvalid();
+        }
     }
 
     // Square root in Fp2.
@@ -125,6 +148,8 @@ contract Verifier {
         }
         x0 = sqrt_Fp(mulmod(addmod(a0, d, P), FRACTION_1_2_FP, P));
         x1 = mulmod(a1, invert_Fp(mulmod(x0, 2, P)), P);
+
+        // Check result.
 
         require(a0 == addmod(mulmod(x0, x0, P), negate(mulmod(x1, x1, P)), P));
         require(a1 == mulmod(2, mulmod(x0, x1, P), P));
@@ -145,7 +170,11 @@ contract Verifier {
         }
         bool negate_point = c & 1 == 1;
         x = c >> 1;
-        require(x < P);
+        if (x >= P) {
+            // G1 x coordinate not in field.
+            revert ProofInvalid();
+        }
+
         // Note: (x³ + 3) is irreducible in Fp, so it can not be zero and therefore
         //       y can not be zero.
         // Note: sqrt_Fp reverts if there is no solution, i.e. the point is not on the curve.
@@ -173,8 +202,10 @@ contract Verifier {
         bool hint = c0 & 2 == 2;
         x0 = c0 >> 2;
         x1 = c1;
-        require(x0 < P);
-        require(x1 < P);
+        if (x0 >= P || x1 >= P) {
+            // G2 x0 or x1 coefficient not in field.
+            revert ProofInvalid();
+        }
 
         uint256 n3ab = mulmod(mulmod(x0, x1, P), P-3, P);
         uint256 a_3 = mulmod(mulmod(x0, x0, P), x0, P);
@@ -227,7 +258,11 @@ contract Verifier {
             x := mload(f)
             y := mload(add(f, 0x20))
         }
-        require(success); // Public input not in field, verification key invalid.
+        if (!success) {
+            // Either Public input not in field, or verification key invalid.
+            // We assume the contract is correctly generated, so the verification key is valid.
+            revert PublicInputNotInField();
+        }
     }
 
     // Verify a Groth16 proof with compressed points.
@@ -236,7 +271,7 @@ contract Verifier {
     function verifyCompressedProof(
         uint256[4] calldata compressedProof,
         uint256[{{$numPublic}}] calldata input
-    ) public view {
+    ) public view returns (uint256, uint256) {
         (uint256 Ax, uint256 Ay) = decompress_g1(compressedProof[0]);
         (uint256 Bx0, uint256 Bx1, uint256 By0, uint256 By1) = decompress_g2(
                 compressedProof[2], compressedProof[1]);
@@ -282,7 +317,11 @@ contract Verifier {
         assembly ("memory-safe") {
             success := staticcall(gas(), PRECOMPILE_VERIFY, pairings, 0x300, output, 0x20)
         }
-        require(success && output[0] == 1); // Proof invalid or verification key invalid.
+        if (!success || output[0] != 1) {
+            // Either proof or verification key invalid.
+            // We assume the contract is correctly generated, so the verification key is valid.
+            revert ProofInvalid();
+        }
     }
 
     // Verify a Groth16 proof.
@@ -331,7 +370,11 @@ contract Verifier {
             // Also check returned value (both are either 1 or 0).
             success := and(success, mload(f))
         }
-        require(success); // Proof invalid or verification key invalid.
+        if (!success) {
+            // Either proof or verification key invalid.
+            // We assume the contract is correctly generated, so the verification key is valid.
+            revert ProofInvalid();
+        }
     }
 }
 `
