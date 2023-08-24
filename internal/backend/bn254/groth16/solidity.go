@@ -90,16 +90,23 @@ contract Verifier {
         {{- end }}
     {{- end }}
 
-    // Negation in Fp.
-    // The input does not need to be reduced.
+    /// Negation in Fp.
+    /// @notice Returns a number `x` such that `a` + `x` = 0 in Fp.
+    /// @notice The input does not need to be reduced.
+    /// @param a the base
+    /// @return x the result
     function negate(uint256 a) internal pure returns (uint256 x) {
         unchecked {
             x = (P - (a % P)) % P; // Modulo is cheaper than branching
         }
     }
 
-    // Modular exponentiation in Fp.
-    // The input does not need to be reduced.
+    /// Exponentiation in Fp.
+    /// @notice Returns a number `x` such that `a` ^ `e` = `x` in Fp.
+    /// @notice The input does not need to be reduced.
+    /// @param a the base
+    /// @param e the exponent
+    /// @return x the result
     function exp(uint256 a, uint256 e) internal view returns (uint256 x) {
         bool success;
         assembly ("memory-safe") {
@@ -117,12 +124,15 @@ contract Verifier {
             // Exponentiation failed.
             // Should not happen.
             revert ProofInvalid();
-        }
+        } 
     }
 
-    // Inverts an element in Fp.
-    // The input does not need to be reduced.
-    // If the inverse does not exist, the operation reverts.
+    /// Invertsion in Fp.
+    /// @notice Returns a number `x` such that `a` * `x` = 1 in Fp.
+    /// @notice The input does not need to be reduced.
+    /// @notice Reverts with `ProofInvalid()` if the inverse does not exist
+    /// @param a the input
+    /// @return x the solution
     function invert_Fp(uint256 a) internal view returns (uint256 x) {
         x = exp(a, EXP_INVERSE_FP);
         if (mulmod(a, x, P) != 1) {
@@ -132,9 +142,12 @@ contract Verifier {
         }
     }
 
-    // Square root in Fp.
-    // The input must be reduced or the operation reverts.
-    // If a square root does not exist, the operation reverts.
+    /// Square root in Fp.
+    /// @notice Returns a number `x` such that `x` * `x` = `a` in Fp.
+    /// @notice Will revert with `InvalidProof()` if the input is not a square
+    /// or not reduced.
+    /// @param a the square
+    /// @return x the solution
     function sqrt_Fp(uint256 a) internal view returns (uint256 x) {
         x = exp(a, EXP_SQRT_FP);
         if (mulmod(x, x, P) != a) {
@@ -144,15 +157,29 @@ contract Verifier {
         }
     }
 
+    /// Square test in Fp.
+    /// @notice Returns wheter a number `x` exists such that `x` * `x` = `a` in Fp.
+    /// @notice Will revert with `InvalidProof()` if the input is not a square
+    /// or not reduced.
+    /// @param a the square
+    /// @return x the solution
     function isSquare_Fp(uint256 a) internal view returns (bool) {
         x = exp(a, EXP_SQRT_FP);
         return mulmod(x, x, P) == a;
     }
 
-    // Square root in Fp2.
-    // The input must be reduced or the operation reverts.
-    // If a square root does not exist, the operation reverts.
-    // The hint parameter is used to pick a sign internally.
+    /// Square root in Fp2.
+    /// @notice Fp2 is the complex extension Fp[i]/(i^2 + 1). The input is
+    /// `a0` + `a1` ⋅ i and the result is `x0` + `x1` ⋅ i.
+    /// @notice Will revert with `InvalidProof()` if
+    ///   * the input is not a square,
+    ///   * the hint is incorrect, or
+    ///   * the input coefficents are not reduced.
+    /// @param a0 The real part of the input.
+    /// @param a1 The imaginary part of the input.
+    /// @param hint A hint which of two possible signs to pick in the equation.
+    /// @return x0 The real part of the square root.
+    /// @return x1 The imaginary part of the square root.
     function sqrt_Fp2(uint256 a0, uint256 a1, bool hint) internal view returns (uint256 x0, uint256 x1) {
         // If this square root reverts there is no solution in Fp2.
         uint256 d = sqrt_Fp(addmod(mulmod(a0, a0, P), mulmod(a1, a1, P), P));
@@ -163,12 +190,21 @@ contract Verifier {
         x0 = sqrt_Fp(mulmod(addmod(a0, d, P), FRACTION_1_2_FP, P));
         x1 = mulmod(a1, invert_Fp(mulmod(x0, 2, P)), P);
 
-        // Check result.
-
-        require(a0 == addmod(mulmod(x0, x0, P), negate(mulmod(x1, x1, P)), P));
-        require(a1 == mulmod(2, mulmod(x0, x1, P), P));
+        // Check result to make sure we found a root.
+        // Note: this also fails if a0 or a1 is not reduced.
+        if (a0 != addmod(mulmod(x0, x0, P), negate(mulmod(x1, x1, P)), P)
+        ||  a1 != mulmod(2, mulmod(x0, x1, P), P)) {
+            revert ProofInvalid();
+        }
     }
 
+    /// Compress a G1 point.
+    /// @notice Reverts with `InvalidProof` if the coordinates are not reduced
+    /// or if the point is not on the curve.
+    /// @notice The point at infinity is encoded as (0,0) and compressed to 0.
+    /// @param x The X coordinate in Fp.
+    /// @param y The Y coordinate in Fp.
+    /// @return c The compresed point (`x` with one signal bit).
     function compress_g1(uint256 x, uint256 y) internal view returns (uint256 c) {
         if (x >= P || y >= P) {
             // G1 point not in field.
@@ -191,12 +227,12 @@ contract Verifier {
         }
     }
 
-    // Decompress a point in G1 from a compressed representation.
-    // The input is (X << 1 | sign_bit) for regular points and (0) for the point
-    // at infinity.
-    // If X is not reduced, the operation reverts.
-    // If the point is not on the curve, the operation reverts.
-    // See <https://2π.com/23/bn254-compression>
+    /// Decompress a G1 point.
+    /// @notice Reverts with `InvalidProof` if the input does not represent a valid point.
+    /// @notice The point at infinity is encoded as (0,0) and compressed to 0.
+    /// @param c The compresed point (`x` with one signal bit).
+    /// @return x The X coordinate in Fp.
+    /// @return y The Y coordinate in Fp.
     function decompress_g1(uint256 c) internal view returns (uint256 x, uint256 y) {
         // Note that X = 0 is not on the curve since 0³ + 3 = 3 is not a square.
         // so we can use it to represent the point at infinity.
@@ -221,16 +257,17 @@ contract Verifier {
     }
 
     /// Compress a G2 point.
-    /// @notice Reverts if the coefficients are not reduced or if the point is
-    /// not on the curve.
-    /// @notice The G2 curved is defined over the complex extension Fp[i]/(i^2 + 1).
+    /// @notice Reverts with `InvalidProof` if the coefficients are not reduced
+    /// or if the point is not on the curve.
+    /// @notice The G2 curve is defined over the complex extension Fp[i]/(i^2 + 1)
+    /// with coordinates (`x0` + `x1` ⋅ i,` y0` + `y1` ⋅ i). 
     /// @notice The point at infinity is encoded as (0,0,0,0) and compressed to (0,0).
     /// @param x0 The real part of the X coordinate.
     /// @param x1 The imaginary poart of the X coordinate.
     /// @param y0 The real part of the Y coordinate.
     /// @param y1 The imaginary part of the Y coordinate.
-    /// @return c0 The first half of the compresed point (x0 with two signal bits).
-    /// @return c1 The second half of the compressed point (x1 unmodified).
+    /// @return c0 The first half of the compresed point (`x0` with two signal bits).
+    /// @return c1 The second half of the compressed point (`x1` unmodified).
     function compress_g2(uint256 x0, uint256 x1, uint256 y0, uint256 y1)
     internal view returns (uint256 c0, uint256 c1) {
         if (x0 >= P || x1 >= P || y0 >= P || y1 >= P) {
@@ -271,11 +308,12 @@ contract Verifier {
     }
 
     /// Decompress a G2 point.
-    /// @notice Reverts if the input does not represent a valid point.
-    /// @notice The G2 curved is defined over the complex extension Fp[i]/(i^2 + 1).
+    /// @notice Reverts with `InvalidProof` if the input does not represent a valid point.
+    /// @notice The G2 curve is defined over the complex extension Fp[i]/(i^2 + 1)
+    /// with coordinates (`x0` + `x1` ⋅ i,` y0` + `y1` ⋅ i). 
     /// @notice The point at infinity is encoded as (0,0,0,0) and compressed to (0,0).
-    /// @param c0 The first half of the compresed point (x0 with two signal bits).
-    /// @param c1 The second half of the compressed point (x1 unmodified).
+    /// @param c0 The first half of the compresed point (`x0` with two signal bits).
+    /// @param c1 The second half of the compressed point (`x1` unmodified).
     /// @return x0 The real part of the X coordinate.
     /// @return x1 The imaginary poart of the X coordinate.
     /// @return y0 The real part of the Y coordinate.
@@ -315,7 +353,7 @@ contract Verifier {
     }
 
     /// Compute the public input linear combination.
-    /// @notice Reverts if the input is not in the field.
+    /// @notice Reverts with `PublicInputNotInField` if the input is not in the field.
     /// @notice Computes the multi-scalar-multiplication of the public input
     /// elements and the verification key including the constant term.
     /// @param input The public inputs. These are elements of the scalar field Fr.
