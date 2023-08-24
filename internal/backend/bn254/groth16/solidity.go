@@ -137,15 +137,22 @@ contract Verifier {
         }
     }
 
+    function isSquare_Fp(uint256 a) internal view returns (bool) {
+        x = exp(a, EXP_SQRT_FP);
+        return mulmod(x, x, P) == a;
+    }
+
     // Square root in Fp2.
     // The input must be reduced or the operation reverts.
     // If a square root does not exist, the operation reverts.
     // The hint parameter is used to pick a sign internally.
     function sqrt_Fp2(uint256 a0, uint256 a1, bool hint) internal view returns (uint256 x0, uint256 x1) {
+        // If this square root reverts there is no solution in Fp2.
         uint256 d = sqrt_Fp(addmod(mulmod(a0, a0, P), mulmod(a1, a1, P), P));
         if (hint) {
             d = negate(d);
         }
+        // If this square root reverts there is no solution in Fp2.
         x0 = sqrt_Fp(mulmod(addmod(a0, d, P), FRACTION_1_2_FP, P));
         x1 = mulmod(a1, invert_Fp(mulmod(x0, 2, P)), P);
 
@@ -153,6 +160,28 @@ contract Verifier {
 
         require(a0 == addmod(mulmod(x0, x0, P), negate(mulmod(x1, x1, P)), P));
         require(a1 == mulmod(2, mulmod(x0, x1, P), P));
+    }
+
+    function compress_g1(uint256 x, uint256 y) internal view returns (uint256 c) {
+        if (x >= P || y >= P) {
+            // G1 point not in field.
+            revert ProofInvalid();
+        }
+        if (x == 0 && y == 0) {
+            // Point at infinity
+            return 0;
+        }
+        // Note: sqrt_Fp reverts if there is no solution, i.e. the x coordinate is invalid.
+        y_pos = sqrt_Fp(addmod(mulmod(mulmod(x, x, P), x, P), 3, P));
+        y_neg = negate(y);
+        if (y == y_pos) {
+            return (x << 1) | 0;
+        } else if (y == y_neg) {
+            return (x << 1) | 1;
+        } else {
+            // G1 point not on curve.
+            revert ProofInvalid();
+        }
     }
 
     // Decompress a point in G1 from a compressed representation.
@@ -181,6 +210,45 @@ contract Verifier {
         y = sqrt_Fp(addmod(mulmod(mulmod(x, x, P), x, P), 3, P));
         if (negate_point) {
             y = negate(y);
+        }
+    }
+
+    function compress_g2(uint256 x0, uint256 x1, uint256 y0, uint256 y1)
+    internal view returns (uint256 c0, uint256 c1) {
+        if (x0 >= P || x1 >= P || y0 >= P || y1 >= P) {
+            // G2 point not in field.
+            revert ProofInvalid();
+        }
+        if ((x0 | x1 | y0 | y1) == 0) {
+            // Point at infinity
+            return (0, 0);
+        }
+
+        // Compute y^2
+        uint256 n3ab = mulmod(mulmod(x0, x1, P), P-3, P);
+        uint256 a_3 = mulmod(mulmod(x0, x0, P), x0, P);
+        uint256 b_3 = mulmod(mulmod(x1, x1, P), x1, P);
+        uint256 y0_pos2 = addmod(FRACTION_27_82_FP, addmod(a_3, mulmod(n3ab, x1, P), P), P);
+        uint256 y1_pos2 = negate(addmod(FRACTION_3_82_FP,  addmod(b_3, mulmod(n3ab, x0, P), P), P));
+
+        // Determine hint bit
+        // If this sqrt fails the x coordinate is not on the curve.
+        uint256 d = sqrt_Fp(addmod(mulmod(y0_pos2, y0_pos2, P), mulmod(y1_pos2, y1_pos2, P), P));
+        bool hint = !isSquare_Fp2(mulmod(addmod(y0_pos2, d, P), FRACTION_1_2_FP, P))
+
+        // Recover y
+        (uint256 y0_pos, uint256 y1_pos) = sqrt_Fp2(y0_pos2, y1_pos2, hint);
+        uint256 y0_neg = negate(y0_pos);
+        uint256 y1_neg = negate(y1_pos);
+        if (y0 == y0_pos && y1 == y1_pos) {
+            c0 = (x0 << 2) | (hint ? 2  : 0) | 0;
+            c1 = x1;
+        } else if (y0 == y0_neg && y1 == y1_neg) {
+            c0 = (x0 << 2) | (hint ? 2  : 0) | 1;
+            c1 = x1;
+        } else {
+            // G1 point not on curve.
+            revert ProofInvalid();
         }
     }
 
@@ -263,6 +331,12 @@ contract Verifier {
             // We assume the contract is correctly generated, so the verification key is valid.
             revert PublicInputNotInField();
         }
+    }
+
+    function compressProof(uint256[8] calldata proof) internal view returns (uint256[4] compressed) {
+        compressed[0] = compress_g1(proof[0], proof[1]);
+        compressed[2], compressed[1] = compress_g2(proof[3], proof[2], proof[5], proof[4]);
+        compressed[3] = compress_g1(proof[6], proof[7]);
     }
 
     // Verify a Groth16 proof with compressed points.
