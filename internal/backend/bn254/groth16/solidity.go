@@ -164,7 +164,7 @@ contract Verifier {
     /// @param a the square
     /// @return x the solution
     function isSquare_Fp(uint256 a) internal view returns (bool) {
-        x = exp(a, EXP_SQRT_FP);
+        uint256 x = exp(a, EXP_SQRT_FP);
         return mulmod(x, x, P) == a;
     }
 
@@ -215,8 +215,8 @@ contract Verifier {
             return 0;
         }
         // Note: sqrt_Fp reverts if there is no solution, i.e. the x coordinate is invalid.
-        y_pos = sqrt_Fp(addmod(mulmod(mulmod(x, x, P), x, P), 3, P));
-        y_neg = negate(y);
+        uint256 y_pos = sqrt_Fp(addmod(mulmod(mulmod(x, x, P), x, P), 3, P));
+        uint256 y_neg = negate(y);
         if (y == y_pos) {
             return (x << 1) | 0;
         } else if (y == y_neg) {
@@ -289,7 +289,7 @@ contract Verifier {
         // Determine hint bit
         // If this sqrt fails the x coordinate is not on the curve.
         uint256 d = sqrt_Fp(addmod(mulmod(y0_pos2, y0_pos2, P), mulmod(y1_pos2, y1_pos2, P), P));
-        bool hint = !isSquare_Fp2(mulmod(addmod(y0_pos2, d, P), FRACTION_1_2_FP, P))
+        bool hint = !isSquare_Fp(mulmod(addmod(y0_pos2, d, P), FRACTION_1_2_FP, P));
 
         // Recover y
         (uint256 y0_pos, uint256 y1_pos) = sqrt_Fp2(y0_pos2, y1_pos2, hint);
@@ -406,9 +406,9 @@ contract Verifier {
     /// @return compressed The compressed proof. Elements are in the same order as for
     /// verifyCompressedProof. I.e. points (A, B, C) in compressed format.
     function compressProof(uint256[8] calldata proof)
-    internal view returns (uint256[4] compressed) {
+    internal view returns (uint256[4] memory compressed) {
         compressed[0] = compress_g1(proof[0], proof[1]);
-        compressed[2], compressed[1] = compress_g2(proof[3], proof[2], proof[5], proof[4]);
+        (compressed[2], compressed[1]) = compress_g2(proof[3], proof[2], proof[5], proof[4]);
         compressed[3] = compress_g1(proof[6], proof[7]);
     }
 
