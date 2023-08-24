@@ -91,7 +91,7 @@ contract Verifier {
     {{- end }}
 
     /// Negation in Fp.
-    /// @notice Returns a number `x` such that `a` + `x` = 0 in Fp.
+    /// @notice Returns a number x such that a + x = 0 in Fp.
     /// @notice The input does not need to be reduced.
     /// @param a the base
     /// @return x the result
@@ -102,7 +102,7 @@ contract Verifier {
     }
 
     /// Exponentiation in Fp.
-    /// @notice Returns a number `x` such that `a` ^ `e` = `x` in Fp.
+    /// @notice Returns a number x such that a ^ e = x in Fp.
     /// @notice The input does not need to be reduced.
     /// @param a the base
     /// @param e the exponent
@@ -128,9 +128,9 @@ contract Verifier {
     }
 
     /// Invertsion in Fp.
-    /// @notice Returns a number `x` such that `a` * `x` = 1 in Fp.
+    /// @notice Returns a number x such that a * x = 1 in Fp.
     /// @notice The input does not need to be reduced.
-    /// @notice Reverts with `ProofInvalid()` if the inverse does not exist
+    /// @notice Reverts with ProofInvalid() if the inverse does not exist
     /// @param a the input
     /// @return x the solution
     function invert_Fp(uint256 a) internal view returns (uint256 x) {
@@ -143,23 +143,23 @@ contract Verifier {
     }
 
     /// Square root in Fp.
-    /// @notice Returns a number `x` such that `x` * `x` = `a` in Fp.
-    /// @notice Will revert with `InvalidProof()` if the input is not a square
+    /// @notice Returns a number x such that x * x = a in Fp.
+    /// @notice Will revert with InvalidProof() if the input is not a square
     /// or not reduced.
     /// @param a the square
     /// @return x the solution
     function sqrt_Fp(uint256 a) internal view returns (uint256 x) {
         x = exp(a, EXP_SQRT_FP);
         if (mulmod(x, x, P) != a) {
-            // Square root does not exist or `a` is not reduced.
+            // Square root does not exist or a is not reduced.
             // Happens when G1 point is not on curve.
             revert ProofInvalid();
         }
     }
 
     /// Square test in Fp.
-    /// @notice Returns wheter a number `x` exists such that `x` * `x` = `a` in Fp.
-    /// @notice Will revert with `InvalidProof()` if the input is not a square
+    /// @notice Returns wheter a number x exists such that x * x = a in Fp.
+    /// @notice Will revert with InvalidProof() if the input is not a square
     /// or not reduced.
     /// @param a the square
     /// @return x the solution
@@ -170,8 +170,8 @@ contract Verifier {
 
     /// Square root in Fp2.
     /// @notice Fp2 is the complex extension Fp[i]/(i^2 + 1). The input is
-    /// `a0` + `a1` ⋅ i and the result is `x0` + `x1` ⋅ i.
-    /// @notice Will revert with `InvalidProof()` if
+    /// a0 + a1 ⋅ i and the result is x0 + x1 ⋅ i.
+    /// @notice Will revert with InvalidProof() if
     ///   * the input is not a square,
     ///   * the hint is incorrect, or
     ///   * the input coefficents are not reduced.
@@ -199,12 +199,12 @@ contract Verifier {
     }
 
     /// Compress a G1 point.
-    /// @notice Reverts with `InvalidProof` if the coordinates are not reduced
+    /// @notice Reverts with InvalidProof if the coordinates are not reduced
     /// or if the point is not on the curve.
     /// @notice The point at infinity is encoded as (0,0) and compressed to 0.
     /// @param x The X coordinate in Fp.
     /// @param y The Y coordinate in Fp.
-    /// @return c The compresed point (`x` with one signal bit).
+    /// @return c The compresed point (x with one signal bit).
     function compress_g1(uint256 x, uint256 y) internal view returns (uint256 c) {
         if (x >= P || y >= P) {
             // G1 point not in field.
@@ -228,9 +228,9 @@ contract Verifier {
     }
 
     /// Decompress a G1 point.
-    /// @notice Reverts with `InvalidProof` if the input does not represent a valid point.
+    /// @notice Reverts with InvalidProof if the input does not represent a valid point.
     /// @notice The point at infinity is encoded as (0,0) and compressed to 0.
-    /// @param c The compresed point (`x` with one signal bit).
+    /// @param c The compresed point (x with one signal bit).
     /// @return x The X coordinate in Fp.
     /// @return y The Y coordinate in Fp.
     function decompress_g1(uint256 c) internal view returns (uint256 x, uint256 y) {
@@ -257,17 +257,17 @@ contract Verifier {
     }
 
     /// Compress a G2 point.
-    /// @notice Reverts with `InvalidProof` if the coefficients are not reduced
+    /// @notice Reverts with InvalidProof if the coefficients are not reduced
     /// or if the point is not on the curve.
     /// @notice The G2 curve is defined over the complex extension Fp[i]/(i^2 + 1)
-    /// with coordinates (`x0` + `x1` ⋅ i,` y0` + `y1` ⋅ i). 
+    /// with coordinates (x0 + x1 ⋅ i, y0 + y1 ⋅ i). 
     /// @notice The point at infinity is encoded as (0,0,0,0) and compressed to (0,0).
     /// @param x0 The real part of the X coordinate.
     /// @param x1 The imaginary poart of the X coordinate.
     /// @param y0 The real part of the Y coordinate.
     /// @param y1 The imaginary part of the Y coordinate.
-    /// @return c0 The first half of the compresed point (`x0` with two signal bits).
-    /// @return c1 The second half of the compressed point (`x1` unmodified).
+    /// @return c0 The first half of the compresed point (x0 with two signal bits).
+    /// @return c1 The second half of the compressed point (x1 unmodified).
     function compress_g2(uint256 x0, uint256 x1, uint256 y0, uint256 y1)
     internal view returns (uint256 c0, uint256 c1) {
         if (x0 >= P || x1 >= P || y0 >= P || y1 >= P) {
@@ -308,12 +308,12 @@ contract Verifier {
     }
 
     /// Decompress a G2 point.
-    /// @notice Reverts with `InvalidProof` if the input does not represent a valid point.
+    /// @notice Reverts with InvalidProof if the input does not represent a valid point.
     /// @notice The G2 curve is defined over the complex extension Fp[i]/(i^2 + 1)
-    /// with coordinates (`x0` + `x1` ⋅ i,` y0` + `y1` ⋅ i). 
+    /// with coordinates (x0 + x1 ⋅ i, y0 + y1 ⋅ i). 
     /// @notice The point at infinity is encoded as (0,0,0,0) and compressed to (0,0).
-    /// @param c0 The first half of the compresed point (`x0` with two signal bits).
-    /// @param c1 The second half of the compressed point (`x1` unmodified).
+    /// @param c0 The first half of the compresed point (x0 with two signal bits).
+    /// @param c1 The second half of the compressed point (x1 unmodified).
     /// @return x0 The real part of the X coordinate.
     /// @return x1 The imaginary poart of the X coordinate.
     /// @return y0 The real part of the Y coordinate.
@@ -353,7 +353,7 @@ contract Verifier {
     }
 
     /// Compute the public input linear combination.
-    /// @notice Reverts with `PublicInputNotInField` if the input is not in the field.
+    /// @notice Reverts with PublicInputNotInField if the input is not in the field.
     /// @notice Computes the multi-scalar-multiplication of the public input
     /// elements and the verification key including the constant term.
     /// @param input The public inputs. These are elements of the scalar field Fr.
@@ -399,12 +399,12 @@ contract Verifier {
     }
 
     /// Compress a proof.
-    /// @notice Will revert with `InvalidProof` if the curve points are invalid,
+    /// @notice Will revert with InvalidProof if the curve points are invalid,
     /// but does not verify the proof itself.
     /// @param proof The uncompressed Groth16 proof. Elements are in the same order as for
-    /// `verifyProof`. I.e. Groth16 points (A, B, C) encoded as in EIP-197.
+    /// verifyProof. I.e. Groth16 points (A, B, C) encoded as in EIP-197.
     /// @return compressed The compressed proof. Elements are in the same order as for
-    /// `verifyCompressedProof`. I.e. points (A, B, C) in compressed format.
+    /// verifyCompressedProof. I.e. points (A, B, C) in compressed format.
     function compressProof(uint256[8] calldata proof)
     internal view returns (uint256[4] compressed) {
         compressed[0] = compress_g1(proof[0], proof[1]);
@@ -413,12 +413,12 @@ contract Verifier {
     }
 
     /// Verify a Groth16 proof with compressed points.
-    /// @notice Reverts with `InvalidProof` if the proof is invalid or
-    /// with `PublicInputNotInField` the public input is not reduced.
+    /// @notice Reverts with InvalidProof if the proof is invalid or
+    /// with PublicInputNotInField the public input is not reduced.
     /// @notice There is no return value. If the function does not revert, the
     /// proof was succesfully verified.
     /// @param compressedProof the points (A, B, C) in compressed format
-    /// matching the output of `compressProof`.
+    /// matching the output of compressProof.
     /// @param input the public input field elements in the scalar field Fr.
     /// Elements must be reduced.
     function verifyCompressedProof(
@@ -478,12 +478,12 @@ contract Verifier {
     }
 
     /// Verify an uncompressed Groth16 proof.
-    /// @notice Reverts with `InvalidProof` if the proof is invalid or
-    /// with `PublicInputNotInField` the public input is not reduced.
+    /// @notice Reverts with InvalidProof if the proof is invalid or
+    /// with PublicInputNotInField the public input is not reduced.
     /// @notice There is no return value. If the function does not revert, the
     /// proof was succesfully verified.
     /// @param proof the points (A, B, C) in EIP-197 format matching the output
-    /// of `compressProof`.
+    /// of compressProof.
     /// @param input the public input field elements in the scalar field Fr.
     /// Elements must be reduced.
     function verifyProof(
