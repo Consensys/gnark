@@ -214,12 +214,12 @@ contract Verifier {
             // Point at infinity
             return 0;
         }
+        
         // Note: sqrt_Fp reverts if there is no solution, i.e. the x coordinate is invalid.
         uint256 y_pos = sqrt_Fp(addmod(mulmod(mulmod(x, x, P), x, P), 3, P));
-        uint256 y_neg = negate(y);
         if (y == y_pos) {
             return (x << 1) | 0;
-        } else if (y == y_neg) {
+        } else if (y == negate(y_pos)) {
             return (x << 1) | 1;
         } else {
             // G1 point not on curve.
@@ -280,25 +280,31 @@ contract Verifier {
         }
 
         // Compute y^2
-        uint256 n3ab = mulmod(mulmod(x0, x1, P), P-3, P);
-        uint256 a_3 = mulmod(mulmod(x0, x0, P), x0, P);
-        uint256 b_3 = mulmod(mulmod(x1, x1, P), x1, P);
-        uint256 y0_pos2 = addmod(FRACTION_27_82_FP, addmod(a_3, mulmod(n3ab, x1, P), P), P);
-        uint256 y1_pos2 = negate(addmod(FRACTION_3_82_FP,  addmod(b_3, mulmod(n3ab, x0, P), P), P));
+        // Note: shadowing variables and scoping to avoid stack-to-deep.
+        uint256 y0_pos;
+        uint256 y1_pos;
+        {
+            uint256 n3ab = mulmod(mulmod(x0, x1, P), P-3, P);
+            uint256 a_3 = mulmod(mulmod(x0, x0, P), x0, P);
+            uint256 b_3 = mulmod(mulmod(x1, x1, P), x1, P);
+            y0_pos = addmod(FRACTION_27_82_FP, addmod(a_3, mulmod(n3ab, x1, P), P), P);
+            y1_pos = negate(addmod(FRACTION_3_82_FP,  addmod(b_3, mulmod(n3ab, x0, P), P), P));
+        }
 
         // Determine hint bit
         // If this sqrt fails the x coordinate is not on the curve.
-        uint256 d = sqrt_Fp(addmod(mulmod(y0_pos2, y0_pos2, P), mulmod(y1_pos2, y1_pos2, P), P));
-        bool hint = !isSquare_Fp(mulmod(addmod(y0_pos2, d, P), FRACTION_1_2_FP, P));
+        bool hint;
+        {
+            uint256 d = sqrt_Fp(addmod(mulmod(y0_pos, y0_pos, P), mulmod(y1_pos, y1_pos, P), P));
+            hint = !isSquare_Fp(mulmod(addmod(y0_pos, d, P), FRACTION_1_2_FP, P));
+        }
 
         // Recover y
-        (uint256 y0_pos, uint256 y1_pos) = sqrt_Fp2(y0_pos2, y1_pos2, hint);
-        uint256 y0_neg = negate(y0_pos);
-        uint256 y1_neg = negate(y1_pos);
+        (y0_pos, y1_pos) = sqrt_Fp2(y0_pos, y1_pos, hint);
         if (y0 == y0_pos && y1 == y1_pos) {
             c0 = (x0 << 2) | (hint ? 2  : 0) | 0;
             c1 = x1;
-        } else if (y0 == y0_neg && y1 == y1_neg) {
+        } else if (y0 == negate(y0_pos) && y1 == negate(y1_pos)) {
             c0 = (x0 << 2) | (hint ? 2  : 0) | 1;
             c1 = x1;
         } else {
@@ -406,7 +412,7 @@ contract Verifier {
     /// @return compressed The compressed proof. Elements are in the same order as for
     /// verifyCompressedProof. I.e. points (A, B, C) in compressed format.
     function compressProof(uint256[8] calldata proof)
-    internal view returns (uint256[4] memory compressed) {
+    public view returns (uint256[4] memory compressed) {
         compressed[0] = compress_g1(proof[0], proof[1]);
         (compressed[2], compressed[1]) = compress_g2(proof[3], proof[2], proof[5], proof[4]);
         compressed[3] = compress_g1(proof[6], proof[7]);
