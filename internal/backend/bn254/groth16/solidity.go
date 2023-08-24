@@ -8,16 +8,23 @@ const solidityTemplate = `
 
 pragma solidity ^0.8.0;
 
+/// @title Groth16 verifier template.
+/// @author Remco Bloemen
+/// @notice Supports verifying Groth16 proofs. Proofs can be in uncompressed
+/// (256 bytes) and compressed (128 bytes) format. A view function is provided
+/// to compress proofs.
+/// @notice See <https://2π.com/23/bn254-compression> for further explanation.
 contract Verifier {
     
-    // Some of the provided public input values are larger than the field modulus.
-    // Public input elements are not automatically reduced, as this is can be
-    // a dangerous source of bugs.
+    /// Some of the provided public input values are larger than the field modulus.
+    /// @dev Public input elements are not automatically reduced, as this is can be
+    /// a dangerous source of bugs.
     error PublicInputNotInField();
 
-    // The proof is invalid. This can mean that provided Groth16 proof points are
-    // not on their curves, that pairing equation does not check out, or that
-    // the proof is not for the provided public input.
+    /// The proof is invalid.
+    /// @dev This can mean that provided Groth16 proof points are not on their
+    /// curves, that pairing equation fails, or that the proof is not for the
+    /// provided public input.
     error ProofInvalid();
 
     // Addresses of precompiles
@@ -213,6 +220,17 @@ contract Verifier {
         }
     }
 
+    /// Compress a G2 point.
+    /// @notice Reverts if the coefficients are not reduced or if the point is
+    /// not on the curve.
+    /// @notice The G2 curved is defined over the complex extension Fp[i]/(i^2 + 1).
+    /// @notice The point at infinity is encoded as (0,0,0,0) and compressed to (0,0).
+    /// @param x0 The real part of the X coordinate.
+    /// @param x1 The imaginary poart of the X coordinate.
+    /// @param y0 The real part of the Y coordinate.
+    /// @param y1 The imaginary part of the Y coordinate.
+    /// @return c0 The first half of the compresed point (x0 with two signal bits).
+    /// @return c1 The second half of the compressed point (x1 unmodified).
     function compress_g2(uint256 x0, uint256 x1, uint256 y0, uint256 y1)
     internal view returns (uint256 c0, uint256 c1) {
         if (x0 >= P || x1 >= P || y0 >= P || y1 >= P) {
@@ -252,12 +270,16 @@ contract Verifier {
         }
     }
 
-    // Decompress a point in G2 from a compressed representation.
-    // The input is (X₀ << 2 | hint_bit << 1 | sign_bit, X₁) for regular points
-    // and (0, 0) for the point at infinity.
-    // If X is not reduced, the operation reverts.
-    // If the point is not on the curve, the operation reverts.
-    // See <https://2π.com/23/bn254-compression>
+    /// Decompress a G2 point.
+    /// @notice Reverts if the input does not represent a valid point.
+    /// @notice The G2 curved is defined over the complex extension Fp[i]/(i^2 + 1).
+    /// @notice The point at infinity is encoded as (0,0,0,0) and compressed to (0,0).
+    /// @param c0 The first half of the compresed point (x0 with two signal bits).
+    /// @param c1 The second half of the compressed point (x1 unmodified).
+    /// @return x0 The real part of the X coordinate.
+    /// @return x1 The imaginary poart of the X coordinate.
+    /// @return y0 The real part of the Y coordinate.
+    /// @return y1 The imaginary part of the Y coordinate.
     function decompress_g2(uint256 c0, uint256 c1)
     internal view returns (uint256 x0, uint256 x1, uint256 y0, uint256 y1) {
         // Note that X = (0, 0) is not on the curve since 0³ + 3/(9 + i) is not a square.
@@ -292,8 +314,13 @@ contract Verifier {
         }
     }
 
-    // Compute the public input linear combination.
-    // Reverts if the input is not in the field.
+    /// Compute the public input linear combination.
+    /// @notice Reverts if the input is not in the field.
+    /// @notice Computes the multi-scalar-multiplication of the public input
+    /// elements and the verification key including the constant term.
+    /// @param input The public inputs. These are elements of the scalar field Fr.
+    /// @return x The X coordinate of the resulting G1 point.
+    /// @return y The Y coordinate of the resulting G1 point.
     function publicInputMSM(uint256[{{$numPublic}}] calldata input)
     internal view returns (uint256 x, uint256 y) {
         // Note: The ECMUL precompile does not reject unreduced values, so we check this.
@@ -333,19 +360,33 @@ contract Verifier {
         }
     }
 
-    function compressProof(uint256[8] calldata proof) internal view returns (uint256[4] compressed) {
+    /// Compress a proof.
+    /// @notice Will revert with `InvalidProof` if the curve points are invalid,
+    /// but does not verify the proof itself.
+    /// @param proof The uncompressed Groth16 proof. Elements are in the same order as for
+    /// `verifyProof`. I.e. Groth16 points (A, B, C) encoded as in EIP-197.
+    /// @return compressed The compressed proof. Elements are in the same order as for
+    /// `verifyCompressedProof`. I.e. points (A, B, C) in compressed format.
+    function compressProof(uint256[8] calldata proof)
+    internal view returns (uint256[4] compressed) {
         compressed[0] = compress_g1(proof[0], proof[1]);
         compressed[2], compressed[1] = compress_g2(proof[3], proof[2], proof[5], proof[4]);
         compressed[3] = compress_g1(proof[6], proof[7]);
     }
 
-    // Verify a Groth16 proof with compressed points.
-    // Reverts if the proof is invalid or the public input is not reduced.
-    // Proof is (A, B, C), see decompress_g1 and decompress_g2 for the point encoding.
+    /// Verify a Groth16 proof with compressed points.
+    /// @notice Reverts with `InvalidProof` if the proof is invalid or
+    /// with `PublicInputNotInField` the public input is not reduced.
+    /// @notice There is no return value. If the function does not revert, the
+    /// proof was succesfully verified.
+    /// @param compressedProof the points (A, B, C) in compressed format
+    /// matching the output of `compressProof`.
+    /// @param input the public input field elements in the scalar field Fr.
+    /// Elements must be reduced.
     function verifyCompressedProof(
         uint256[4] calldata compressedProof,
         uint256[{{$numPublic}}] calldata input
-    ) public view returns (uint256, uint256) {
+    ) public view {
         (uint256 Ax, uint256 Ay) = decompress_g1(compressedProof[0]);
         (uint256 Bx0, uint256 Bx1, uint256 By0, uint256 By1) = decompress_g2(
                 compressedProof[2], compressedProof[1]);
@@ -398,9 +439,15 @@ contract Verifier {
         }
     }
 
-    // Verify a Groth16 proof.
-    // Reverts if the proof is invalid or the public input is not reduced.
-    // Proof is (A, B, C) encoded as in EIP-197.
+    /// Verify an uncompressed Groth16 proof.
+    /// @notice Reverts with `InvalidProof` if the proof is invalid or
+    /// with `PublicInputNotInField` the public input is not reduced.
+    /// @notice There is no return value. If the function does not revert, the
+    /// proof was succesfully verified.
+    /// @param proof the points (A, B, C) in EIP-197 format matching the output
+    /// of `compressProof`.
+    /// @param input the public input field elements in the scalar field Fr.
+    /// Elements must be reduced.
     function verifyProof(
         uint256[8] calldata proof,
         uint256[{{$numPublic}}] calldata input
