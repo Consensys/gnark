@@ -24,7 +24,6 @@ import (
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
 	"github.com/consensys/gnark/test"
 )
@@ -209,17 +208,4 @@ func mustbeEq(api frontend.API, fp24 fields_bls24315.E24, e24 *bls24315.GT) {
 	api.AssertIsEqual(fp24.D1.C2.B0.A1, e24.D1.C2.B0.A1)
 	api.AssertIsEqual(fp24.D1.C2.B1.A0, e24.D1.C2.B1.A0)
 	api.AssertIsEqual(fp24.D1.C2.B1.A1, e24.D1.C2.B1.A1)
-}
-
-// bench
-func BenchmarkPairing(b *testing.B) {
-	var c pairingBLS24315
-	ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkTriplePairing(b *testing.B) {
-	var c triplePairingBLS24315
-	ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
 }
