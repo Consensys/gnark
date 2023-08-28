@@ -1,6 +1,8 @@
 package sha3
 
 import (
+	"crypto/rand"
+	"fmt"
 	"hash"
 	"testing"
 
@@ -25,15 +27,19 @@ var testCases = map[string]testCase{
 	"Keccak-512": {NewLegacyKeccak512, sha3.NewLegacyKeccak512},
 }
 
-var currentHash func(api frontend.API) (zkhash.BinaryHasher, error)
-
 type sha3Circuit struct {
 	In       []uints.U8
 	Expected []uints.U8
+
+	hasher string
 }
 
 func (c *sha3Circuit) Define(api frontend.API) error {
-	h, err := currentHash(api)
+	newHasher, ok := testCases[c.hasher]
+	if !ok {
+		return fmt.Errorf("hash function unknown: %s", c.hasher)
+	}
+	h, err := newHasher.zk(api)
 	if err != nil {
 		return err
 	}
@@ -52,27 +58,33 @@ func (c *sha3Circuit) Define(api frontend.API) error {
 }
 
 func TestSHA3(t *testing.T) {
+	assert := test.NewAssert(t)
 	in := make([]byte, 310)
+	_, err := rand.Reader.Read(in)
+	assert.NoError(err)
 
-	for name, strategy := range testCases {
-		h := strategy.native()
-		h.Write(in)
-		expected := h.Sum(nil)
+	for name := range testCases {
+		assert.Run(func(assert *test.Assert) {
+			name := name
+			strategy := testCases[name]
+			h := strategy.native()
+			h.Write(in)
+			expected := h.Sum(nil)
 
-		circuit := &sha3Circuit{
-			In:       make([]uints.U8, len(in)),
-			Expected: make([]uints.U8, len(expected)),
-		}
+			circuit := &sha3Circuit{
+				In:       make([]uints.U8, len(in)),
+				Expected: make([]uints.U8, len(expected)),
+				hasher:   name,
+			}
 
-		witness := &sha3Circuit{
-			In:       uints.NewU8Array(in),
-			Expected: uints.NewU8Array(expected),
-		}
+			witness := &sha3Circuit{
+				In:       uints.NewU8Array(in),
+				Expected: uints.NewU8Array(expected),
+			}
 
-		currentHash = strategy.zk
-
-		if err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField()); err != nil {
-			t.Fatalf("%s: %s", name, err)
-		}
+			if err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField()); err != nil {
+				t.Fatalf("%s: %s", name, err)
+			}
+		}, name)
 	}
 }
