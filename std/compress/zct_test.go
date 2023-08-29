@@ -23,7 +23,13 @@ import (
 	"time"
 )
 
-const TestCase = "705b24/"
+const TestCase = //"705b24/"
+
+"777003/"
+
+//"c9b5a2/"
+//"fa4a22/"
+//"e4207e/"
 
 //"3c2943/"
 
@@ -66,7 +72,8 @@ func compressZeroCounter(out io.ByteWriter, in []byte) error {
 				i++
 			}
 			i--
-			//fmt.Println(i-i0, i0, i)
+
+			fmt.Println("zero sequence length", i-i0)
 			if err := out.WriteByte(byte(i - i0)); err != nil {
 				return err
 			}
@@ -110,7 +117,11 @@ func TestCompressZeroCounter(t *testing.T) {
 	compressed := out.Bytes()
 
 	require.NoError(t, os.WriteFile(TestCase+"data.zct", compressed, 0644))
-	fmt.Printf("achieved %d%% compression", 100*len(compressed)/len(in))
+	fmt.Println("original size", len(in))
+	fmt.Printf("achieved %d%% compression\n", 100*len(compressed)/len(in))
+	fmt.Println("compression rate", float64(len(in))/float64(len(compressed)))
+	zerosGasCost := float64(len(in)-len(compressed)) * .25
+	fmt.Println("gas cost", float64(len(compressed))/(float64(len(compressed))+zerosGasCost))
 
 	// decompress and check match
 	var decompressed bytes.Buffer
@@ -357,9 +368,8 @@ func TestCreateProofLargeBench(t *testing.T) {
 		pk     groth16.ProvingKey
 	)
 	fmt.Println("compiling...")
-	p := profile.Start()
+
 	cs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, circuit)
-	p.Stop()
 	fmt.Println("compile time", time.Now().UnixMilli()-start, "ms")
 	fmt.Println(cs.GetNbConstraints(), "r1cs constraints")
 	start = time.Now().UnixMilli()
@@ -373,8 +383,28 @@ func TestCreateProofLargeBench(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println("prove time", time.Now().UnixMilli()-start, "ms")
 	fmt.Println("compiling...")
+	p := profile.Start()
 	cs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit)
+	p.Stop()
 	fmt.Println(cs.GetNbConstraints(), "scs constraints")
 
 	//test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+}
+
+func TestLongestZerosChunk(t *testing.T) {
+	data, err := os.ReadFile(TestCase + "data.bin")
+	require.NoError(t, err)
+
+	chunk, largestChunk := 0, 0
+	for i := range data {
+		if data[i] == 0 {
+			chunk++
+		} else {
+			if chunk > largestChunk {
+				largestChunk = chunk
+			}
+			chunk = 0
+		}
+	}
+	fmt.Println("largest chunk", largestChunk)
 }
