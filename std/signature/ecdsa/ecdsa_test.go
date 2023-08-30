@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/weierstrass"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
@@ -21,7 +21,7 @@ type EcdsaCircuit[T, S emulated.FieldParams] struct {
 }
 
 func (c *EcdsaCircuit[T, S]) Define(api frontend.API) error {
-	c.Pub.Verify(api, weierstrass.GetCurveParams[T](), &c.Msg, &c.Sig)
+	c.Pub.Verify(api, sw_emulated.GetCurveParams[T](), &c.Msg, &c.Sig)
 	return nil
 }
 
@@ -134,7 +134,7 @@ func ExamplePublicKey_Verify() {
 		Y: emulated.ValueOf[emulated.Secp256k1Fp](puby),
 	}
 	// signature verification assertion is done in-circuit
-	Pub.Verify(api, weierstrass.GetCurveParams[emulated.Secp256k1Fp](), &Msg, &Sig)
+	Pub.Verify(api, sw_emulated.GetCurveParams[emulated.Secp256k1Fp](), &Msg, &Sig)
 }
 
 // Example how to create a valid signature for secp256k1

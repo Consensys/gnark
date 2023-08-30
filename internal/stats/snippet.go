@@ -7,8 +7,8 @@ import (
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/sw_bls24315"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -116,10 +116,8 @@ func initSnippets() {
 		dummyG2.Y.A1 = newVariable()
 
 		// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-		resMillerLoop, _ := sw_bls12377.MillerLoop(api, []sw_bls12377.G1Affine{dummyG1}, []sw_bls12377.G2Affine{dummyG2})
+		_, _ = sw_bls12377.Pair(api, []sw_bls12377.G1Affine{dummyG1}, []sw_bls12377.G2Affine{dummyG2})
 
-		// performs the final expo
-		_ = sw_bls12377.FinalExponentiation(api, resMillerLoop)
 	}, ecc.BW6_761)
 
 	registerSnippet("pairing_bls24315", func(api frontend.API, newVariable func() frontend.Variable) {
@@ -138,10 +136,8 @@ func initSnippets() {
 		dummyG2.Y.B1.A1 = newVariable()
 
 		// e(psi0, -gamma)*e(-πC, -δ)*e(πA, πB)
-		resMillerLoop, _ := sw_bls24315.MillerLoop(api, []sw_bls24315.G1Affine{dummyG1}, []sw_bls24315.G2Affine{dummyG2})
+		_, _ = sw_bls24315.Pair(api, []sw_bls24315.G1Affine{dummyG1}, []sw_bls24315.G2Affine{dummyG2})
 
-		// performs the final expo
-		_ = sw_bls24315.FinalExponentiation(api, resMillerLoop)
 	}, ecc.BW6_633)
 
 }

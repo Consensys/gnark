@@ -1,6 +1,8 @@
 package witness_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
@@ -47,11 +49,17 @@ func ExampleWitness() {
 
 	// first get the circuit expected schema
 	schema, _ := frontend.NewSchema(assignment)
-	json, _ := reconstructed.ToJSON(schema)
+	ret, _ := reconstructed.ToJSON(schema)
 
-	fmt.Println(string(json))
+	var b bytes.Buffer
+	json.Indent(&b, ret, "", "\t")
+	fmt.Println(b.String())
 	// Output:
-	// {"X":42,"Y":8000,"E":1}
+	// {
+	//	"X": 42,
+	//	"Y": 8000,
+	//	"E": 1
+	// }
 
 }
 
@@ -147,4 +155,35 @@ func roundTripMarshalJSON(assert *require.Assertions, assignment circuit, public
 
 	assert.True(reflect.DeepEqual(rw, w), "witness json round trip serialization")
 
+}
+
+type initableVariable struct {
+	Val []frontend.Variable
+}
+
+func (iv *initableVariable) GnarkInitHook() {
+	if iv.Val == nil {
+		iv.Val = []frontend.Variable{1, 2} // need to init value as are assigning to witness
+	}
+}
+
+type initableCircuit struct {
+	X [2]initableVariable
+	Y []initableVariable
+	Z initableVariable
+}
+
+func (c *initableCircuit) Define(api frontend.API) error {
+	panic("not called")
+}
+
+func TestVariableInitHook(t *testing.T) {
+	assert := require.New(t)
+
+	assignment := &initableCircuit{Y: make([]initableVariable, 2)}
+	w, err := frontend.NewWitness(assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	fw, ok := w.Vector().(fr.Vector)
+	assert.True(ok)
+	assert.Len(fw, 10, "invalid length")
 }

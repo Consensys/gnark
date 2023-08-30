@@ -56,7 +56,7 @@ func writeStack(sbb *strings.Builder, forceClean ...bool) {
 			if strings.Contains(frame.File, "test/engine.go") {
 				continue
 			}
-			if strings.Contains(frame.File, "gnark/frontend") {
+			if strings.Contains(frame.File, "gnark/frontend/cs") {
 				continue
 			}
 			file = filepath.Base(file)
@@ -73,6 +73,9 @@ func writeStack(sbb *strings.Builder, forceClean ...bool) {
 			break
 		}
 		if strings.HasSuffix(function, "Define") {
+			break
+		}
+		if strings.HasSuffix(function, "callDeferred") {
 			break
 		}
 	}

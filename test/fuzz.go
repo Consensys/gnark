@@ -74,7 +74,7 @@ func zeroFiller(w frontend.Circuit, curve ecc.ID) {
 }
 
 func binaryFiller(w frontend.Circuit, curve ecc.ID) {
-	mrand.Seed(time.Now().Unix())
+	mrand := mrand.New(mrand.NewSource(time.Now().Unix())) //#nosec G404 weak rng is fine here
 
 	fill(w, func() interface{} {
 		return int(mrand.Uint32() % 2) //#nosec G404 weak rng is fine here
@@ -83,7 +83,7 @@ func binaryFiller(w frontend.Circuit, curve ecc.ID) {
 
 func seedFiller(w frontend.Circuit, curve ecc.ID) {
 
-	mrand.Seed(time.Now().Unix())
+	mrand := mrand.New(mrand.NewSource(time.Now().Unix())) //#nosec G404 weak rng is fine here
 
 	m := curve.ScalarField()
 
@@ -95,8 +95,6 @@ func seedFiller(w frontend.Circuit, curve ecc.ID) {
 }
 
 func randomFiller(w frontend.Circuit, curve ecc.ID) {
-
-	mrand.Seed(time.Now().Unix())
 
 	r := mrand.New(mrand.NewSource(time.Now().Unix())) //#nosec G404 weak rng is fine here
 	m := curve.ScalarField()

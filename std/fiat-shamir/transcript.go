@@ -18,6 +18,7 @@ package fiatshamir
 
 import (
 	"errors"
+
 	"github.com/consensys/gnark/constant"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
@@ -33,7 +34,7 @@ var (
 // Transcript handles the creation of challenges for Fiat Shamir.
 type Transcript struct {
 	// hash function that is used.
-	h hash.Hash
+	h hash.FieldHasher
 
 	challenges map[string]challenge
 	previous   *challenge
@@ -52,7 +53,7 @@ type challenge struct {
 // NewTranscript returns a new transcript.
 // h is the hash function that is used to compute the challenges.
 // challenges are the name of the challenges. The order is important.
-func NewTranscript(api frontend.API, h hash.Hash, challengesID ...string) Transcript {
+func NewTranscript(api frontend.API, h hash.FieldHasher, challengesID ...string) Transcript {
 	n := len(challengesID)
 	t := Transcript{
 		challenges: make(map[string]challenge, n),

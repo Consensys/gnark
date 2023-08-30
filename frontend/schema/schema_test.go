@@ -165,6 +165,31 @@ func TestSchemaInherit(t *testing.T) {
 	}
 }
 
+type initableVariable struct {
+	Val []variable
+}
+
+func (iv *initableVariable) GnarkInitHook() {
+	if iv.Val == nil {
+		iv.Val = make([]variable, 2)
+	}
+}
+
+type initableCircuit struct {
+	X [2]initableVariable
+	Y []initableVariable
+	Z initableVariable
+}
+
+func TestVariableInitHook(t *testing.T) {
+	assert := require.New(t)
+
+	witness := &initableCircuit{Y: make([]initableVariable, 2)}
+	s, err := New(witness, tVariable)
+	assert.NoError(err)
+	assert.Equal(s.NbSecret, 10) // X: 2*2, Y: 2*2, Z: 2
+}
+
 func BenchmarkLargeSchema(b *testing.B) {
 	const n1 = 1 << 12
 	const n2 = 1 << 12
