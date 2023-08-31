@@ -60,11 +60,14 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 
 	i := 0
 	for i < len(d) {
-
+		*settings.LogHeads = append(*settings.LogHeads, LogHeads{
+			Compressed:   out.Len(),
+			Decompressed: i,
+		})
 		//fmt.Println("i:", i)
 		hereon, leadup := d[i:], d[utils.Max(0, i-40):i]
 		_, _ = hereon, leadup
-		if i == 288 {
+		if i == 1247 {
 			fmt.Println("trouble at", i)
 		}
 
@@ -82,7 +85,7 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 			i+1 <= backRefAddressRange { // TODO make sure the boundary is correct
 				maxNegativeBackRefLength := backRefAddressRange - i - 1
 				// try and get it all done with a "negative" ref
-				currentRun := utils.Min(runLength, maxNegativeBackRefLength)
+				currentRun := min(runLength, maxNegativeBackRefLength, backRefLengthRange)
 				emitBackRef(i+currentRun, currentRun)
 				for remainingRun := runLength - currentRun; remainingRun > 0; remainingRun -= backRefLengthRange {
 					emitBackRef(1, utils.Min(remainingRun, backRefLengthRange))
@@ -153,8 +156,10 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 
 			if minViableBackRefLength != -1 {
 				if addr, length := longestMostRecentBackRef(d, i, i-backRefAddressRange-1, minViableBackRefLength); length != -1 {
-					emitBackRef(i-addr, length)
-					i += length
+					for remainingLen := length; remainingLen > 0; remainingLen -= backRefLengthRange {
+						emitBackRef(i-addr, utils.Min(remainingLen, backRefLengthRange))
+						i += length
+					}
 					continue
 				}
 			}
@@ -167,7 +172,7 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	return out.Bytes(), nil
 }
 
-func longestMostRecentBackRef(d []byte, i int, minBackRefAddr, minViableBackRefLen int) (addr, length int) {
+func longestMostRecentBackRef(d []byte, i, minBackRefAddr, minViableBackRefLen int) (addr, length int) {
 	// TODO: Implement an efficient string search algorithm
 	// greedily find the longest backref with smallest offset TODO better heuristic?
 	minViableBackRef := d[i : i+minViableBackRefLen]
@@ -214,4 +219,14 @@ func emit(bb *bytes.Buffer, n int, nbBytes uint) {
 	if n != 0 {
 		panic("n does not fit in nbBytes")
 	}
+}
+
+func min(a ...int) int {
+	res := a[0]
+	for _, v := range a[1:] {
+		if v < res {
+			res = v
+		}
+	}
+	return res
 }

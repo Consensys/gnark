@@ -30,7 +30,12 @@ type BackRefSettings struct {
 	AddressingMode AddressingMode
 }
 
+type LogHeads struct {
+	Compressed, Decompressed int
+}
+
 type Settings struct {
 	BackRefSettings
-	Log bool
+	Log      bool
+	LogHeads *[]LogHeads
 }

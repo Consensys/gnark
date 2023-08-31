@@ -7,18 +7,29 @@ import (
 )
 
 func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
+	var heads []LogHeads
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: nbBytesAddress,
 			NbBytesLength:  1,
 			Symbol:         0,
 		},
-		Log: false,
+		Log:      false,
+		LogHeads: &heads,
 	}
 	c, err := Compress(d, settings)
 	require.NoError(t, err)
 	dBack, err := Decompress(c, settings)
 	require.NoError(t, err)
+	for i := range d {
+		if len(heads) > 1 && i == heads[1].Decompressed {
+			heads = heads[1:]
+		}
+		if d[i] != dBack[i] {
+			t.Errorf("d[%d] = 0x%x, dBack[%d] = 0x%x. Failure starts at data index %d and compressed index %d", i, d[i], i, dBack[i], heads[0].Decompressed, heads[0].Compressed)
+			t.FailNow()
+		}
+	}
 	require.Equal(t, d, dBack)
 }
 
