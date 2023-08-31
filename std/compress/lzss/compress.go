@@ -3,8 +3,11 @@ package lzss
 import (
 	"bytes"
 	"errors"
+	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/std/compress"
 )
+
+// TODO CRITICAL BUG: REMOVE ANY INSTANCE OF 1 + NbBytesLength
 
 // The backref logic can produce RLE as a special case, which is good for decompressor state machine complexity
 // however we have to make some sacrifices such as allowing very small lengths/offsets that wouldn't be viable for a "real" backref
@@ -14,7 +17,7 @@ import (
 // Compress applies a DEFLATE-inspired, LZSS-type compression on d.
 // It does well on data with many long repeated substrings and long runs of similar bytes, e.g. programmatic data.
 // It can be improved by further compression using a prefix-free code, such as Huffman coding.
-// In fact, DEFLATE is LZSS + Huffman coding. It is used by gzip which is the standard tool for compressing programmatic data.
+// In fact, DEFLATE is LZSS + Huffman coding. It is implemented in gzip which is the standard tool for compressing programmatic data.
 // For more information, refer to Bill Bird's fantastic undergraduate course on Data Compression
 // In particular those on the LZ family: https://youtu.be/z1I1o7zySUI and DEFLATE: https://youtu.be/SJPvNi4HrWQ
 func Compress(d []byte, settings Settings) (c []byte, err error) {
@@ -38,18 +41,17 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	backRefAddressRange := 1 << (settings.NbBytesAddress * 8)
 	backRefLengthRange := 1 << (settings.NbBytesLength * 8)
 	emitBackRef := func(offset, length int) {
+		out.WriteByte(settings.Symbol)
 		emit(&out, offset-1, settings.NbBytesAddress)
 		emit(&out, length-1, settings.NbBytesLength)
 	}
 	// this also means that very short runs of zeros are expanded rather than compressed
 	// TODO replace this with a "dynamic" gas-cost related heuristic
 
-	getRunLength := func(i int, cap int) int {
-		if cap == -1 {
-			cap = len(d)
-		}
+	getRunLength := func(i int) int {
+
 		j := i + 1
-		for j < len(d) && j < cap && d[j] == settings.Symbol {
+		for j < len(d) && d[j] == settings.Symbol {
 			j++
 		}
 		return j - i
@@ -57,23 +59,38 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 
 	i := 0
 	for i < len(d) {
+
+		/*fmt.Println("i:", i)
+		hereon, leadup := d[i:], d[utils.Max(0, i-40):i]
+		_, _ = hereon, leadup
+		if i == 288 {
+			fmt.Println("trouble at 288")
+		}*/
+
 		// if there is a run of the character used to mark backrefs, we have to make a backref regardless of whether it achieves compression
 		if d[i] == settings.Symbol {
 
-			maxJExpressible := i + 1 + backRefLengthRange
-			runLength := getRunLength(i, maxJExpressible) // TODO If logging, go past maxJExpressible to spot missed opportunities
+			runLength := getRunLength(i) // TODO If logging, go past maxJExpressible to spot missed opportunities
 			// making a "back reference" to negative indices
 			if i == 0 { // "back reference" the stream itself as it is being written
-				emitBackRef(1, runLength)
+				for remainingRun := runLength; remainingRun > 0; remainingRun -= backRefLengthRange {
+					emitBackRef(1, utils.Min(remainingRun, backRefLengthRange))
+				}
 			} else if
 			// TODO Limit the negative index idea to only -1 and add an explicit rule to handle it in the decompressor if the extra 1 << NbLengthBytes table entries were too expensive
-			i <= backRefAddressRange { // TODO make sure the boundary is correct
-				emit(&out, i, settings.BackRefSettings.NbBytesAddress)
-				emit(&out, runLength-1, settings.BackRefSettings.NbBytesLength)
+			i+1 <= backRefAddressRange { // TODO make sure the boundary is correct
+				maxNegativeBackRefLength := backRefLengthRange - i - 1
+				// try and get it all done with a "negative" ref
+				currentRun := utils.Min(runLength, maxNegativeBackRefLength)
+				emitBackRef(i+currentRun, currentRun)
+				for remainingRun := runLength - currentRun; remainingRun > 0; remainingRun -= backRefLengthRange {
+					emitBackRef(1, utils.Min(remainingRun, backRefLengthRange))
+				}
+
 			} else {
 				// no access to negative indices, so we have to find actual backrefs
 				// TODO cache the symb-run backrefs?
-				for runLength > 0 {
+				for remainingRun := runLength; remainingRun > 0; {
 					longestRunLen := 0
 					longestRunStartIndex := 0
 					currentRunLength := 0
@@ -96,10 +113,8 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 						return nil, errors.New("no backref found")
 					}
 					emitBackRef(i-longestRunStartIndex, longestRunLen)
+					remainingRun -= longestRunLen
 				}
-
-				// TODO Find as many actual backrefs as needed
-				return nil, errors.New("not yet implemented")
 			}
 			i += runLength
 		} else {
@@ -124,22 +139,24 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 					}
 					midRle = false
 
-					noBackRefCost += int(compress.ByteGasCost(d[i+minViableBackRefLength-1]))
-					if noBackRefCost >= minNontrivialBackRefCost {
+					noBackRefCost += int(compress.ByteGasCost(curr))
+					if noBackRefCost > minNontrivialBackRefCost {
 						break
 					}
 				}
 				minViableBackRefLength++
 			}
 
-			if addr, length := longestMostRecentBackRef(d, i, i-backRefAddressRange-1, minViableBackRefLength); length != -1 {
-				emitBackRef(i-addr-1, length-1)
-				i += length
-			} else {
-				// no backref found
-				out.WriteByte(d[i])
-				i++
+			if minViableBackRefLength != -1 {
+				if addr, length := longestMostRecentBackRef(d, i, i-backRefAddressRange-1, minViableBackRefLength); length != -1 {
+					emitBackRef(i-addr, length)
+					i += length
+					continue
+				}
 			}
+			// no backref found
+			out.WriteByte(d[i])
+			i++
 		}
 	}
 
@@ -150,7 +167,7 @@ func longestMostRecentBackRef(d []byte, i int, minBackRefAddr, minViableBackRefL
 	// TODO: Implement an efficient string search algorithm
 	// greedily find the longest backref with smallest offset TODO better heuristic?
 	minViableBackRef := d[i : i+minViableBackRefLen]
-	var remainingOptions map[int]struct{}
+	remainingOptions := make(map[int]struct{})
 	for j := i - 1; j >= 0 && j >= minBackRefAddr; j-- { // TODO If logging is enabled, go past minBackRefAddr to spot missed opportunities
 		if j+minViableBackRefLen > len(d) {
 			continue
@@ -161,7 +178,7 @@ func longestMostRecentBackRef(d []byte, i int, minBackRefAddr, minViableBackRefL
 	}
 	var toDelete []int
 	l := minViableBackRefLen
-	for ; len(toDelete) < len(remainingOptions); l++ {
+	for ; i+l < len(d) && len(toDelete) < len(remainingOptions); l++ {
 		for _, j := range toDelete {
 			delete(remainingOptions, j)
 		}
@@ -175,8 +192,8 @@ func longestMostRecentBackRef(d []byte, i int, minBackRefAddr, minViableBackRefL
 	if len(remainingOptions) == 0 {
 		return -1, -1
 	}
-	mostRecent := toDelete[0]
-	for _, j := range toDelete {
+	mostRecent := minBackRefAddr - 1
+	for j := range remainingOptions {
 		if j > mostRecent {
 			mostRecent = j
 		}

@@ -43,7 +43,7 @@ func Decompress(c []byte, settings Settings) (d []byte, err error) {
 				return nil, err
 			}
 			for i := 0; i < length; i++ {
-				out.WriteByte(outAt(out.Len() - offset - 1))
+				out.WriteByte(outAt(out.Len() - offset))
 			}
 		} else {
 			out.WriteByte(s)
