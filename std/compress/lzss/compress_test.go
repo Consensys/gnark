@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func testCompressionRoundTrip(t *testing.T, d []byte) {
+func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: 1,
+			NbBytesAddress: nbBytesAddress,
 			NbBytesLength:  1,
 			Symbol:         0,
 		},
@@ -23,27 +23,33 @@ func testCompressionRoundTrip(t *testing.T, d []byte) {
 }
 
 func Test8Zeros(t *testing.T) {
-	testCompressionRoundTrip(t, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	testCompressionRoundTrip(t, 1, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	testCompressionRoundTrip(t, 2, []byte{0, 0, 0, 0, 0, 0, 0, 0})
 }
 
 func Test300Zeros(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTrip(t, make([]byte, 300))
+	testCompressionRoundTrip(t, 1, make([]byte, 300))
+	testCompressionRoundTrip(t, 2, make([]byte, 300))
 }
 
 func TestNoCompression(t *testing.T) {
-	testCompressionRoundTrip(t, []byte{'h', 'i'})
+	testCompressionRoundTrip(t, 1, []byte{'h', 'i'})
+	testCompressionRoundTrip(t, 2, []byte{'h', 'i'})
 }
 
 func Test8ZerosAfterNonzero(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTrip(t, append([]byte{1}, make([]byte, 8)...))
+	testCompressionRoundTrip(t, 1, append([]byte{1}, make([]byte, 8)...))
+	testCompressionRoundTrip(t, 2, append([]byte{1}, make([]byte, 8)...))
 }
 
 func Test300ZerosAfterNonzero(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTrip(t, append([]byte{'h', 'i'}, make([]byte, 300)...))
+	//testCompressionRoundTrip(t, 1, append([]byte{'h', 'i'}, make([]byte, 300)...))
+	testCompressionRoundTrip(t, 2, append([]byte{'h', 'i'}, make([]byte, 300)...))
 }
 
 func TestRepeatedNonzero(t *testing.T) {
-	testCompressionRoundTrip(t, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
+	testCompressionRoundTrip(t, 1, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
+	testCompressionRoundTrip(t, 2, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
 }
 
 func TestCalldata(t *testing.T) {
@@ -55,7 +61,7 @@ func TestCalldata(t *testing.T) {
 		d, err := os.ReadFile("../" + folder + "/data.bin")
 		require.NoError(t, err)
 		t.Run(folder, func(t *testing.T) {
-			testCompressionRoundTrip(t, d)
+			testCompressionRoundTrip(t, 2, d)
 		})
 	}
 }

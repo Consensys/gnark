@@ -3,6 +3,7 @@ package lzss
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/std/compress"
 )
@@ -60,12 +61,12 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	i := 0
 	for i < len(d) {
 
-		/*fmt.Println("i:", i)
+		//fmt.Println("i:", i)
 		hereon, leadup := d[i:], d[utils.Max(0, i-40):i]
 		_, _ = hereon, leadup
 		if i == 288 {
-			fmt.Println("trouble at 288")
-		}*/
+			fmt.Println("trouble at", i)
+		}
 
 		// if there is a run of the character used to mark backrefs, we have to make a backref regardless of whether it achieves compression
 		if d[i] == settings.Symbol {
@@ -79,7 +80,7 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 			} else if
 			// TODO Limit the negative index idea to only -1 and add an explicit rule to handle it in the decompressor if the extra 1 << NbLengthBytes table entries were too expensive
 			i+1 <= backRefAddressRange { // TODO make sure the boundary is correct
-				maxNegativeBackRefLength := backRefLengthRange - i - 1
+				maxNegativeBackRefLength := backRefAddressRange - i - 1
 				// try and get it all done with a "negative" ref
 				currentRun := utils.Min(runLength, maxNegativeBackRefLength)
 				emitBackRef(i+currentRun, currentRun)
@@ -90,30 +91,33 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 			} else {
 				// no access to negative indices, so we have to find actual backrefs
 				// TODO cache the symb-run backrefs?
-				for remainingRun := runLength; remainingRun > 0; {
-					longestRunLen := 0
-					longestRunStartIndex := 0
-					currentRunLength := 0
+				longestRunLen := 0
+				longestRunStartIndex := 0
+				currentRunLength := 0
 
-					for k := i - 1; k >= 0; k-- {
-						if d[k] == settings.Symbol {
-							currentRunLength++
-						} else {
-							currentRunLength = 0
-						}
-						if currentRunLength > longestRunLen {
-							longestRunLen = currentRunLength
-							longestRunStartIndex = k
-							if currentRunLength == runLength {
-								break
-							}
+				for k := i - 1; k >= 0 && k >= i-backRefAddressRange; k-- {
+					if d[k] == settings.Symbol {
+						currentRunLength++
+					} else {
+						currentRunLength = 0
+					}
+					if currentRunLength > longestRunLen {
+						longestRunLen = currentRunLength
+						longestRunStartIndex = k
+						if currentRunLength == runLength {
+							break
 						}
 					}
-					if currentRunLength == 0 {
-						return nil, errors.New("no backref found")
-					}
-					emitBackRef(i-longestRunStartIndex, longestRunLen)
-					remainingRun -= longestRunLen
+				}
+
+				remainingRun := runLength
+				if longestRunLen == 0 {
+					return nil, errors.New("no backref found")
+				}
+				emitBackRef(i-longestRunStartIndex, longestRunLen)
+
+				for remainingRun -= longestRunLen; remainingRun > 0; remainingRun -= backRefLengthRange {
+					emitBackRef(1, utils.Min(remainingRun, backRefLengthRange))
 				}
 			}
 			i += runLength

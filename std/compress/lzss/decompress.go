@@ -54,9 +54,9 @@ func Decompress(c []byte, settings Settings) (d []byte, err error) {
 	return out.Bytes(), nil
 }
 
-func readNum(bytes []byte) int {
+func readNum(bytes []byte) int { //little endian
 	var res int
-	for i := range bytes {
+	for i := len(bytes) - 1; i >= 0; i-- {
 		res <<= 8
 		res |= int(bytes[i])
 	}
