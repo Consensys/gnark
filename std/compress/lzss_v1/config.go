@@ -1,4 +1,4 @@
-package lzss
+package lzss_v1
 
 type ReferenceTo bool
 type AddressingMode bool

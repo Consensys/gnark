@@ -1,4 +1,4 @@
-package lzss
+package lzss_v1
 
 import (
 	"bytes"
@@ -187,7 +187,7 @@ func longestMostRecentBackRef(d []byte, i, minBackRefAddr, minViableBackRefLen i
 	}
 	var toDelete []int
 	l := minViableBackRefLen
-	for ; i+l < len(d) && len(toDelete) < len(remainingOptions); l++ {
+	for ; i+l < len(d); l++ {
 		for _, j := range toDelete {
 			delete(remainingOptions, j)
 		}
@@ -195,6 +195,9 @@ func longestMostRecentBackRef(d []byte, i, minBackRefAddr, minViableBackRefLen i
 		for j := range remainingOptions {
 			if j+l > len(d) || d[j+l] != d[i+l] {
 				toDelete = append(toDelete, j)
+				if len(toDelete) == len(remainingOptions) {
+					break
+				}
 			}
 		}
 	}

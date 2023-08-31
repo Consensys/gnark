@@ -1,6 +1,9 @@
-package lzss
+package lzss_v1
 
 import (
+	"fmt"
+	"github.com/consensys/gnark/std/compress"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
@@ -19,6 +22,9 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 	}
 	c, err := Compress(d, settings)
 	require.NoError(t, err)
+	cp, err := DescribeCompressionActions(c, settings)
+	assert.NoError(t, err)
+	assert.NoError(t, os.WriteFile("compression-summary.txt", []byte(cp), 0644))
 	dBack, err := Decompress(c, settings)
 	require.NoError(t, err)
 	for i := range d {
@@ -31,6 +37,8 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 		}
 	}
 	require.Equal(t, d, dBack)
+	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
+	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 }
 
 func Test8Zeros(t *testing.T) {

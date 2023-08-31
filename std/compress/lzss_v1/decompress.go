@@ -1,8 +1,11 @@
-package lzss
+package lzss_v1
 
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"github.com/consensys/gnark-crypto/utils"
+	"strings"
 )
 
 func Decompress(c []byte, settings Settings) (d []byte, err error) {
@@ -61,4 +64,37 @@ func readNum(bytes []byte) int { //little endian
 		res |= int(bytes[i])
 	}
 	return res
+}
+
+func DescribeCompressionActions(c []byte, settings Settings) (string, error) {
+	// d[i < 0] = settings.BackRefSettings.Symbol by convention
+	var out strings.Builder
+	in := bytes.NewReader(c)
+	copyBuf := make([]byte, settings.NbBytesAddress+settings.NbBytesLength)
+	maxOffset, maxLen := -1, -1
+
+	readBackRef := func() (offset, length int, err error) {
+		_, err = in.Read(copyBuf)
+		offset = readNum(copyBuf[:settings.NbBytesAddress]) + 1
+		length = readNum(copyBuf[settings.NbBytesAddress:settings.NbBytesAddress+settings.NbBytesLength]) + 1
+		maxOffset = utils.Max(maxOffset, offset)
+		maxLen = utils.Max(maxLen, length)
+		return
+	}
+
+	s, err := in.ReadByte()
+	for err == nil {
+		if s == settings.BackRefSettings.Symbol {
+			if offset, length, err := readBackRef(); err != nil {
+				return "", err
+			} else {
+				out.WriteString(fmt.Sprintf("\n%d:%d\n", offset, length))
+			}
+		} else {
+			out.WriteString(fmt.Sprintf("%x", s))
+		}
+		s, err = in.ReadByte()
+	}
+
+	return fmt.Sprintf("maxOffset: %d, maxLen: %d\n", maxOffset, maxLen) + out.String(), nil
 }
