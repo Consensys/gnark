@@ -3,7 +3,6 @@ package lzss_v1
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/std/compress"
 )
@@ -64,16 +63,56 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 			Compressed:   out.Len(),
 			Decompressed: i,
 		})
-		//fmt.Println("i:", i)
+		/*fmt.Println("i:", i)
 		hereon, leadup := d[i:], d[utils.Max(0, i-40):i]
 		_, _ = hereon, leadup
 		if i == 1247 {
 			fmt.Println("trouble at", i)
-		}
+		}*/
 
 		// if there is a run of the character used to mark backrefs, we have to make a backref regardless of whether it achieves compression
-		if d[i] == settings.Symbol {
 
+		// attempt to find a backref, if it's worthwhile
+		minViableBackRefLength := 2
+		noBackRefCost := int(compress.ByteGasCost(d[i]))
+		var midRle bool
+		for {
+			// not even trying to factor in the cost of RLE TODO: that
+			if i+minViableBackRefLength > len(d) {
+				minViableBackRefLength = -1 // just not viable
+				break
+			}
+
+			curr := d[i+minViableBackRefLength-1]
+
+			if curr == settings.Symbol {
+				midRle = true
+			} else {
+				if midRle {
+					noBackRefCost += minViableBackRefLength // getting rid of an RLE, though the cost is not exact. TODO: fix that (probably move the RLE logic to a separate function that could be called here)
+				}
+				midRle = false
+
+				noBackRefCost += int(compress.ByteGasCost(curr))
+				if noBackRefCost > minNontrivialBackRefCost {
+					break
+				}
+			}
+			minViableBackRefLength++
+		}
+
+		if minViableBackRefLength != -1 {
+			if addr, length := longestMostRecentBackRef(d, i, i-backRefAddressRange-1, minViableBackRefLength); length != -1 {
+				for remainingLen := length; remainingLen > 0; remainingLen -= backRefLengthRange {
+					emitBackRef(i-addr, utils.Min(remainingLen, backRefLengthRange))
+					i += length
+				}
+				continue
+			}
+		}
+
+		// no backref found
+		if d[i] == settings.Symbol {
 			runLength := getRunLength(i) // TODO If logging, go past maxJExpressible to spot missed opportunities
 			// making a "back reference" to negative indices
 			if i == 0 { // "back reference" the stream itself as it is being written
@@ -90,83 +129,13 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 				for remainingRun := runLength - currentRun; remainingRun > 0; remainingRun -= backRefLengthRange {
 					emitBackRef(1, utils.Min(remainingRun, backRefLengthRange))
 				}
-
-			} else {
-				// no access to negative indices, so we have to find actual backrefs
-				// TODO cache the symb-run backrefs?
-				longestRunLen := 0
-				longestRunStartIndex := 0
-				currentRunLength := 0
-
-				for k := i - 1; k >= 0 && k >= i-backRefAddressRange; k-- {
-					if d[k] == settings.Symbol {
-						currentRunLength++
-					} else {
-						currentRunLength = 0
-					}
-					if currentRunLength > longestRunLen {
-						longestRunLen = currentRunLength
-						longestRunStartIndex = k
-						if currentRunLength == runLength {
-							break
-						}
-					}
-				}
-
-				remainingRun := runLength
-				if longestRunLen == 0 {
-					return nil, errors.New("no backref found")
-				}
-				emitBackRef(i-longestRunStartIndex, longestRunLen)
-
-				for remainingRun -= longestRunLen; remainingRun > 0; remainingRun -= backRefLengthRange {
-					emitBackRef(1, utils.Min(remainingRun, backRefLengthRange))
-				}
 			}
 			i += runLength
 		} else {
-			// attempt to find a backref, if it's worthwhile
-			minViableBackRefLength := 2
-			noBackRefCost := int(compress.ByteGasCost(d[i]))
-			var midRle bool
-			for {
-				// not even trying to factor in the cost of RLE TODO: that
-				if i+minViableBackRefLength > len(d) {
-					minViableBackRefLength = -1 // just not viable
-					break
-				}
-
-				curr := d[i+minViableBackRefLength-1]
-
-				if curr == settings.Symbol {
-					midRle = true
-				} else {
-					if midRle {
-						noBackRefCost += minViableBackRefLength // getting rid of an RLE, though the cost is not exact. TODO: fix that (probably move the RLE logic to a separate function that could be called here)
-					}
-					midRle = false
-
-					noBackRefCost += int(compress.ByteGasCost(curr))
-					if noBackRefCost > minNontrivialBackRefCost {
-						break
-					}
-				}
-				minViableBackRefLength++
-			}
-
-			if minViableBackRefLength != -1 {
-				if addr, length := longestMostRecentBackRef(d, i, i-backRefAddressRange-1, minViableBackRefLength); length != -1 {
-					for remainingLen := length; remainingLen > 0; remainingLen -= backRefLengthRange {
-						emitBackRef(i-addr, utils.Min(remainingLen, backRefLengthRange))
-						i += length
-					}
-					continue
-				}
-			}
-			// no backref found
 			out.WriteByte(d[i])
 			i++
 		}
+
 	}
 
 	return out.Bytes(), nil
