@@ -21,6 +21,9 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 	}
 	c, err := Compress(d, settings)
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
+	if len(c) > 1024 {
+		fmt.Printf("Compressed size: %dKB\n", int(float64(len(c)*100)/1024)/100)
+	}
 	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 	require.NoError(t, err)
 	//cp, err := DescribeCompressionActions(c, settings)
