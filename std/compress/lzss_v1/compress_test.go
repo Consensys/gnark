@@ -3,7 +3,6 @@ package lzss_v1
 import (
 	"fmt"
 	"github.com/consensys/gnark/std/compress"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
@@ -17,14 +16,16 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 			NbBytesLength:  1,
 			Symbol:         0,
 		},
-		Log:      false,
+		//Log:      false,
 		LogHeads: &heads,
 	}
 	c, err := Compress(d, settings)
+	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
+	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 	require.NoError(t, err)
-	cp, err := DescribeCompressionActions(c, settings)
-	assert.NoError(t, err)
-	assert.NoError(t, os.WriteFile("compression-summary.txt", []byte(cp), 0644))
+	//cp, err := DescribeCompressionActions(c, settings)
+	//assert.NoError(t, err)
+	//assert.NoError(t, os.WriteFile("compression-summary.txt", []byte(cp), 0644))
 	dBack, err := Decompress(c, settings)
 	require.NoError(t, err)
 	for i := range d {
@@ -33,12 +34,12 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 		}
 		if d[i] != dBack[i] {
 			t.Errorf("d[%d] = 0x%x, dBack[%d] = 0x%x. Failure starts at data index %d and compressed index %d", i, d[i], i, dBack[i], heads[0].Decompressed, heads[0].Compressed)
+			printHex(c)
 			t.FailNow()
 		}
 	}
+	printHex(c)
 	require.Equal(t, d, dBack)
-	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
-	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 }
 
 func Test8Zeros(t *testing.T) {
@@ -62,7 +63,7 @@ func Test8ZerosAfterNonzero(t *testing.T) { // probably won't happen in our call
 }
 
 func Test300ZerosAfterNonzero(t *testing.T) { // probably won't happen in our calldata
-	//testCompressionRoundTrip(t, 1, append([]byte{'h', 'i'}, make([]byte, 300)...))
+	testCompressionRoundTrip(t, 1, append([]byte{'h', 'i'}, make([]byte, 300)...))
 	testCompressionRoundTrip(t, 2, append([]byte{'h', 'i'}, make([]byte, 300)...))
 }
 
@@ -83,4 +84,57 @@ func TestCalldata(t *testing.T) {
 			testCompressionRoundTrip(t, 2, d)
 		})
 	}
+}
+
+func TestCalldataSymb1(t *testing.T) {
+	var heads []LogHeads
+	settings := Settings{
+		BackRefSettings: BackRefSettings{
+			NbBytesAddress: 2,
+			NbBytesLength:  1,
+			Symbol:         1,
+			ReferenceTo:    false,
+			AddressingMode: false,
+		},
+		Logger:   nil,
+		LogHeads: &heads,
+	}
+
+	d, err := os.ReadFile("../" + "3c2943" + "/data.bin")
+
+	c, err := Compress(d, settings)
+	require.NoError(t, err)
+	//printHex(c)
+	//cp, err := DescribeCompressionActions(c, settings)
+	//assert.NoError(t, err)
+	//assert.NoError(t, os.WriteFile("compression-summary.txt", []byte(cp), 0644))
+	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
+	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
+	dBack, err := Decompress(c, settings)
+	require.NoError(t, err)
+	for i := range d {
+		if len(heads) > 1 && i == heads[1].Decompressed {
+			heads = heads[1:]
+		}
+		if d[i] != dBack[i] {
+			t.Errorf("d[%d] = 0x%x, dBack[%d] = 0x%x. Failure starts at data index %d and compressed index %d", i, d[i], i, dBack[i], heads[0].Decompressed, heads[0].Compressed)
+			t.FailNow()
+		}
+	}
+	require.Equal(t, d, dBack)
+
+}
+
+func printHex(d []byte) {
+	for i := range d {
+		if i%32 == 0 {
+			fmt.Printf("\n[%d]: ", i)
+		}
+		s := fmt.Sprintf("%x", d[i])
+		if len(s) == 1 {
+			s = "0" + s
+		}
+		fmt.Print(s)
+	}
+	fmt.Println()
 }

@@ -1,5 +1,7 @@
 package lzss_v1
 
+import "io"
+
 type ReferenceTo bool
 type AddressingMode bool
 
@@ -36,6 +38,6 @@ type LogHeads struct {
 
 type Settings struct {
 	BackRefSettings
-	Log      bool
+	Logger   io.StringWriter
 	LogHeads *[]LogHeads
 }

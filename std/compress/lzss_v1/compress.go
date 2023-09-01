@@ -2,7 +2,9 @@ package lzss_v1
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/std/compress"
 )
@@ -30,9 +32,6 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	if settings.AddressingMode == Absolute {
 		return nil, errors.New("absolute addressing not implemented")
 	}
-	if settings.Log {
-		return nil, errors.New("logging not implemented")
-	}
 
 	// we write offset first and then length, for no particular reason
 	// "nontrivial" meaning of length and offset more than 1
@@ -40,18 +39,12 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	// any string of lesser cost than minBackrefCost is not worth compressing
 	backRefAddressRange := 1 << (settings.NbBytesAddress * 8)
 	backRefLengthRange := 1 << (settings.NbBytesLength * 8)
-	emitBackRef := func(offset, length int) {
-		out.WriteByte(settings.Symbol)
-		emit(&out, offset-1, settings.NbBytesAddress)
-		emit(&out, length-1, settings.NbBytesLength)
-	}
 	// this also means that very short runs of zeros are expanded rather than compressed
 	// TODO replace this with a "dynamic" gas-cost related heuristic
 
 	getRunLength := func(i int) int {
-
 		j := i + 1
-		for j < len(d) && d[j] == settings.Symbol {
+		for j < len(d) && d[j] == d[i] {
 			j++
 		}
 		return j - i
@@ -63,12 +56,23 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 			Compressed:   out.Len(),
 			Decompressed: i,
 		})
-		/*fmt.Println("i:", i)
+
+		emitBackRef := func(offset, length int) {
+			out.WriteByte(settings.Symbol)
+			emit(&out, offset-1, settings.NbBytesAddress)
+			emit(&out, length-1, settings.NbBytesLength)
+			if settings.Logger != nil {
+				_, err = settings.Logger.WriteString(
+					fmt.Sprintf("(%d:%d) %d->%d\t%s", offset, length, i, i-offset, hex.EncodeToString(d[i-offset:min(i-offset+length, len(d))])),
+				)
+			}
+		}
+
 		hereon, leadup := d[i:], d[utils.Max(0, i-40):i]
 		_, _ = hereon, leadup
-		if i == 1247 {
+		if i == 3610 {
 			fmt.Println("trouble at", i)
-		}*/
+		}
 
 		// if there is a run of the character used to mark backrefs, we have to make a backref regardless of whether it achieves compression
 
@@ -103,10 +107,17 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 
 		if minViableBackRefLength != -1 {
 			if addr, length := longestMostRecentBackRef(d, i, i-backRefAddressRange-1, minViableBackRefLength); length != -1 {
-				for remainingLen := length; remainingLen > 0; remainingLen -= backRefLengthRange {
-					emitBackRef(i-addr, utils.Min(remainingLen, backRefLengthRange))
-					i += length
+
+				// sanity check TODO Remove
+				if a, b := d[i:i+length], d[addr:addr+length]; !bytesEqual(a, b) {
+					return nil, fmt.Errorf("sanity check fail at %d->%d (%d):\n%s !=\n%s", i, i-addr, length, hex.EncodeToString(a), hex.EncodeToString(b))
 				}
+
+				for remainingLen := length; remainingLen > 0; remainingLen -= backRefLengthRange {
+					nbWriting := utils.Min(remainingLen, backRefLengthRange)
+					emitBackRef(i-addr, nbWriting)
+				}
+				i += length
 				continue
 			}
 		}
@@ -150,7 +161,7 @@ func longestMostRecentBackRef(d []byte, i, minBackRefAddr, minViableBackRefLen i
 		if j+minViableBackRefLen > len(d) {
 			continue
 		}
-		if bytes.Equal(d[j:j+minViableBackRefLen], minViableBackRef) {
+		if bytesEqual(d[j:j+minViableBackRefLen], minViableBackRef) {
 			remainingOptions[j] = struct{}{}
 		}
 	}
@@ -164,10 +175,10 @@ func longestMostRecentBackRef(d []byte, i, minBackRefAddr, minViableBackRefLen i
 		for j := range remainingOptions {
 			if j+l > len(d) || d[j+l] != d[i+l] {
 				toDelete = append(toDelete, j)
-				if len(toDelete) == len(remainingOptions) {
-					break
-				}
 			}
+		}
+		if len(toDelete) == len(remainingOptions) {
+			break
 		}
 	}
 	if len(remainingOptions) == 0 {
@@ -201,4 +212,17 @@ func min(a ...int) int {
 		}
 	}
 	return res
+}
+
+// bytes.Equal is acting erratically?
+func bytesEqual(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
