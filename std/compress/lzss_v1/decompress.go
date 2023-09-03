@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-func Decompress(c []byte, settings Settings) (d []byte, err error) {
+func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 	// d[i < 0] = settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
 	in := bytes.NewReader(c)

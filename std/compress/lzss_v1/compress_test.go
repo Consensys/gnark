@@ -29,7 +29,7 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 	//cp, err := DescribeCompressionActions(c, settings)
 	//assert.NoError(t, err)
 	//assert.NoError(t, os.WriteFile("compression-summary.txt", []byte(cp), 0644))
-	dBack, err := Decompress(c, settings)
+	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
 	for i := range d {
 		if len(heads) > 1 && i == heads[1].Decompressed {
@@ -113,7 +113,7 @@ func TestCalldataSymb1(t *testing.T) {
 	//assert.NoError(t, os.WriteFile("compression-summary.txt", []byte(cp), 0644))
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
 	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
-	dBack, err := Decompress(c, settings)
+	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
 	for i := range d {
 		if len(heads) > 1 && i == heads[1].Decompressed {
