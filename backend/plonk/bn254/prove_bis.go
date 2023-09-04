@@ -177,15 +177,15 @@ func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, o
 		return nil, err
 	}
 	bp := make([]*iop.Polynomial, nb_blinding_polynomials)
-	bp[id_Bl] = getRandomPolynomial(1)
-	bp[id_Br] = getRandomPolynomial(1)
-	bp[id_Bo] = getRandomPolynomial(1)
+	bp[id_Bl] = getRandomPolynomial(-1)
+	bp[id_Br] = getRandomPolynomial(-1)
+	bp[id_Bo] = getRandomPolynomial(-1)
 	cbl := commitBlindingFactor(int(pk.Domain[0].Cardinality), bp[id_Bl], pk.Kzg)
-	// cbr := commitBlindingFactor(int(pk.Domain[0].Cardinality), br, pk.Kzg)
-	// cbo := commitBlindingFactor(int(pk.Domain[0].Cardinality), bo, pk.Kzg)
+	cbr := commitBlindingFactor(int(pk.Domain[0].Cardinality), bp[id_Br], pk.Kzg)
+	cbo := commitBlindingFactor(int(pk.Domain[0].Cardinality), bp[id_Bo], pk.Kzg)
 	proof.LRO[0].Add(&cbl, &proof.LRO[0])
-	// proof.LRO[1].Add(&cbr, &proof.LRO[1])
-	// proof.LRO[2].Add(&cbo, &proof.LRO[2])
+	proof.LRO[1].Add(&cbr, &proof.LRO[1])
+	proof.LRO[2].Add(&cbo, &proof.LRO[2])
 
 	// derive gamma (copy constraint)
 	if err := bindPublicData(&fs, "gamma", pk.Vk, fw[:len(spr.Public)]); err != nil {
@@ -226,9 +226,9 @@ func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, o
 	if err != nil {
 		return proof, err
 	}
-	bp[id_Bz] = getRandomPolynomial(2)
-	// cbz := commitBlindingFactor(int(pk.Domain[0].Cardinality), bz, pk.Kzg)
-	// proof.LRO[0].Add(&cbz, &proof.LRO[0])
+	bp[id_Bz] = getRandomPolynomial(-1)
+	cbz := commitBlindingFactor(int(pk.Domain[0].Cardinality), bp[id_Bz], pk.Kzg)
+	proof.Z.Add(&cbz, &proof.Z)
 
 	// TODO complete waste of memory find another way to do that
 	identity := make([]fr.Element, pk.Domain[0].Cardinality)
@@ -253,7 +253,7 @@ func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, o
 		x[id_Qci+2*i] = pk.trace.Qcp[i]
 		x[id_Qci+2*i+1] = cCommitments[i]
 	}
-	prettyPrint("cl", x[id_L], &pk.Domain[0])
+	// prettyPrint("cl", x[id_L], &pk.Domain[0])
 	// prettyPrint("cr", x[id_R], &pk.Domain[0])
 	// prettyPrint("co", x[id_O], &pk.Domain[0])
 	// prettyPrint("ql", x[id_Ql], &pk.Domain[0])
@@ -261,7 +261,7 @@ func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, o
 	// prettyPrint("qm", x[id_Qm], &pk.Domain[0])
 	// prettyPrint("qo", x[id_Qo], &pk.Domain[0])
 	// prettyPrint("qk", x[id_Qk], &pk.Domain[0])
-	prettyPrint("bl", bp[id_Bl], &pk.Domain[0])
+	// prettyPrint("bl", bp[id_Bl], &pk.Domain[0])
 
 	var alpha fr.Element
 	alphaDeps := make([]*curve.G1Affine, len(proof.Bsb22Commitments)+1)
@@ -273,16 +273,17 @@ func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, o
 	if err != nil {
 		return proof, err
 	}
+
 	constraintsEvaluation, err := computeNumerator(*pk, x, bp, alpha, beta, gamma)
 	if err != nil {
 		return proof, err
 	}
-	printPoly(constraintsEvaluation)
 
 	h, err := divideByXMinusOne(constraintsEvaluation, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]})
 	if err != nil {
 		return nil, err
 	}
+	printPoly(h)
 
 	// compute kzg commitments of h1, h2 and h3
 	if err := commitToQuotient(
@@ -302,8 +303,9 @@ func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, o
 	// open Z (blinded) at ωζ
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&zeta, &pk.Vk.Generator)
+	blindedZCoeffs := getBlindedCoefficients(x[id_Z], bp[id_Bz])
 	proof.ZShiftedOpening, err = kzg.Open(
-		x[id_Z].Coefficients(),
+		blindedZCoeffs,
 		zetaShifted,
 		pk.Kzg,
 	)
@@ -337,76 +339,78 @@ func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, o
 			Add(&foldedH[i], &h2[i])
 	}
 
-	// // linearised polynomial
-	// // var linearizedPolynomialCanonical []fr.Element
-	// // var linearizedPolynomialDigest curve.G1Affine
-	// qcpzeta := make([]fr.Element, len(commitmentInfo))
-	// blzeta := x[id_L].ToRegular().Evaluate(zeta)
-	// brzeta := x[id_R].ToRegular().Evaluate(zeta)
-	// bozeta := x[id_O].ToRegular().Evaluate(zeta)
-	// for i := 0; i < len(commitmentInfo); i++ {
-	// 	qcpzeta[i] = pk.trace.Qcp[i].ToRegular().Evaluate(zeta)
-	// }
-	// bzuzeta := proof.ZShiftedOpening.ClaimedValue
+	// linearised polynomial
+	// var linearizedPolynomialCanonical []fr.Element
+	// var linearizedPolynomialDigest curve.G1Affine
+	qcpzeta := make([]fr.Element, len(commitmentInfo))
+	blzeta := evaluateBlinded(x[id_L], bp[id_Bl], zeta) // x[id_L].ToRegular().Evaluate(zeta)
+	brzeta := evaluateBlinded(x[id_R], bp[id_Br], zeta) // x[id_R].ToRegular().Evaluate(zeta)
+	bozeta := evaluateBlinded(x[id_O], bp[id_Bo], zeta) // x[id_O].ToRegular().Evaluate(zeta)
+	for i := 0; i < len(commitmentInfo); i++ {
+		qcpzeta[i] = pk.trace.Qcp[i].ToRegular().Evaluate(zeta)
+	}
+	bzuzeta := proof.ZShiftedOpening.ClaimedValue
 
-	// linearizedPolynomialCanonical := computeLinearizedPolynomial(
-	// 	blzeta,
-	// 	brzeta,
-	// 	bozeta,
-	// 	alpha,
-	// 	beta,
-	// 	gamma,
-	// 	zeta,
-	// 	bzuzeta,
-	// 	qcpzeta,
-	// 	x[id_Z].Coefficients(), // blinded Z
-	// 	coefficients(cCommitments),
-	// 	pk,
-	// )
+	linearizedPolynomialCanonical := computeLinearizedPolynomial(
+		blzeta,
+		brzeta,
+		bozeta,
+		alpha,
+		beta,
+		gamma,
+		zeta,
+		bzuzeta,
+		qcpzeta,
+		blindedZCoeffs,
+		coefficients(cCommitments),
+		pk,
+	)
 
-	// linearizedPolynomialDigest, err := kzg.Commit(linearizedPolynomialCanonical, pk.Kzg, runtime.NumCPU()*2)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	linearizedPolynomialDigest, err := kzg.Commit(linearizedPolynomialCanonical, pk.Kzg, runtime.NumCPU()*2)
+	if err != nil {
+		return nil, err
+	}
 
-	// // Batch opening
-	// polysQcp := coefficients(pk.trace.Qcp)
-	// polysToOpen := make([][]fr.Element, 7+len(polysQcp))
-	// copy(polysToOpen[7:], polysQcp)
-	// polysToOpen[0] = foldedH
-	// polysToOpen[1] = linearizedPolynomialCanonical
-	// polysToOpen[2] = x[id_L].Coefficients() // blinded l
-	// polysToOpen[3] = x[id_R].Coefficients() // blinded r
-	// polysToOpen[4] = x[id_O].Coefficients() // blinded o
-	// polysToOpen[5] = x[id_S1].Coefficients()
-	// polysToOpen[6] = x[id_S2].Coefficients()
+	// Batch opening
+	polysQcp := coefficients(pk.trace.Qcp)
+	polysToOpen := make([][]fr.Element, 7+len(polysQcp))
+	copy(polysToOpen[7:], polysQcp)
+	polysToOpen[0] = foldedH
+	polysToOpen[1] = linearizedPolynomialCanonical
+	polysToOpen[2] = getBlindedCoefficients(x[id_L], bp[id_Bl])
+	polysToOpen[3] = getBlindedCoefficients(x[id_R], bp[id_Br])
+	polysToOpen[4] = getBlindedCoefficients(x[id_O], bp[id_Bo])
+	polysToOpen[5] = x[id_S1].Coefficients()
+	polysToOpen[6] = x[id_S2].Coefficients()
 
-	// digestsToOpen := make([]curve.G1Affine, len(pk.Vk.Qcp)+7)
-	// copy(digestsToOpen[7:], pk.Vk.Qcp)
-	// digestsToOpen[0] = foldedHDigest
-	// digestsToOpen[1] = linearizedPolynomialDigest
-	// digestsToOpen[2] = proof.LRO[0]
-	// digestsToOpen[3] = proof.LRO[1]
-	// digestsToOpen[4] = proof.LRO[2]
-	// digestsToOpen[5] = pk.Vk.S[0]
-	// digestsToOpen[6] = pk.Vk.S[1]
+	digestsToOpen := make([]curve.G1Affine, len(pk.Vk.Qcp)+7)
+	copy(digestsToOpen[7:], pk.Vk.Qcp)
+	digestsToOpen[0] = foldedHDigest
+	digestsToOpen[1] = linearizedPolynomialDigest
+	digestsToOpen[2] = proof.LRO[0]
+	digestsToOpen[3] = proof.LRO[1]
+	digestsToOpen[4] = proof.LRO[2]
+	digestsToOpen[5] = pk.Vk.S[0]
+	digestsToOpen[6] = pk.Vk.S[1]
 
-	// proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
-	// 	polysToOpen,
-	// 	digestsToOpen,
-	// 	zeta,
-	// 	hFunc,
-	// 	pk.Kzg,
-	// )
-	// if err != nil {
-	// 	return nil, err
-	// }
+	proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
+		polysToOpen,
+		digestsToOpen,
+		zeta,
+		hFunc,
+		pk.Kzg,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
 	return proof, nil
 }
 
+// evaluate the full set of constraints, all polynomials in x are back in
+// canonical regular form at the end
 func computeNumerator(pk ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial, alpha, beta, gamma fr.Element) (*iop.Polynomial, error) {
 
 	scale(x[id_S1], beta)
@@ -415,66 +419,65 @@ func computeNumerator(pk ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial, 
 
 	cres := make([]fr.Element, pk.Domain[1].Cardinality)
 
-	// nbBsbGates := (len(x) - id_Qci + 1) >> 1
+	nbBsbGates := (len(x) - id_Qci + 1) >> 1
 
-	// gateConstraint := func(u ...fr.Element) fr.Element {
+	gateConstraint := func(u ...fr.Element) fr.Element {
 
-	// 	var ic, tmp fr.Element
+		var ic, tmp fr.Element
 
-	// 	ic.Mul(&u[id_Ql], &u[id_L])
-	// 	tmp.Mul(&u[id_Qr], &u[id_R])
-	// 	ic.Add(&ic, &tmp)
-	// 	tmp.Mul(&u[id_Qm], &u[id_L]).Mul(&tmp, &u[id_R])
-	// 	ic.Add(&ic, &tmp)
-	// 	tmp.Mul(&u[id_Qo], &u[id_O])
-	// 	ic.Add(&ic, &tmp).Add(&ic, &u[id_Qk])
-	// 	for i := 0; i < nbBsbGates; i++ {
-	// 		tmp.Mul(&u[id_Qci+2*i], &u[id_Qci+2*i+1])
-	// 		ic.Add(&ic, &tmp)
-	// 	}
+		ic.Mul(&u[id_Ql], &u[id_L])
+		tmp.Mul(&u[id_Qr], &u[id_R])
+		ic.Add(&ic, &tmp)
+		tmp.Mul(&u[id_Qm], &u[id_L]).Mul(&tmp, &u[id_R])
+		ic.Add(&ic, &tmp)
+		tmp.Mul(&u[id_Qo], &u[id_O])
+		ic.Add(&ic, &tmp).Add(&ic, &u[id_Qk])
+		for i := 0; i < nbBsbGates; i++ {
+			tmp.Mul(&u[id_Qci+2*i], &u[id_Qci+2*i+1])
+			ic.Add(&ic, &tmp)
+		}
 
-	// 	return ic
-	// }
+		return ic
+	}
 
 	var s, ss fr.Element
 	s.Set(&pk.Domain[1].FrMultiplicativeGen)
 	ss.Square(&s)
 
-	// orderingConstraint := func(u ...fr.Element) fr.Element {
+	orderingConstraint := func(u ...fr.Element) fr.Element {
 
-	// 	var a, b, c, r, l fr.Element
+		var a, b, c, r, l fr.Element
 
-	// 	a.Add(&gamma, &u[id_L]).Add(&a, &u[id_ID])
-	// 	b.Mul(&u[id_ID], &s).Add(&b, &u[id_R]).Add(&b, &gamma)
-	// 	c.Mul(&u[id_ID], &ss).Add(&c, &u[id_O]).Add(&c, &gamma)
-	// 	r.Mul(&a, &b).Mul(&r, &c).Mul(&r, &u[id_Z])
+		a.Add(&gamma, &u[id_L]).Add(&a, &u[id_ID])
+		b.Mul(&u[id_ID], &s).Add(&b, &u[id_R]).Add(&b, &gamma)
+		c.Mul(&u[id_ID], &ss).Add(&c, &u[id_O]).Add(&c, &gamma)
+		r.Mul(&a, &b).Mul(&r, &c).Mul(&r, &u[id_Z])
 
-	// 	a.Add(&u[id_S1], &u[id_L]).Add(&a, &gamma)
-	// 	b.Add(&u[id_S2], &u[id_R]).Add(&b, &gamma)
-	// 	c.Add(&u[id_S3], &u[id_O]).Add(&c, &gamma)
-	// 	l.Mul(&a, &b).Mul(&l, &c).Mul(&l, &u[id_ZS])
+		a.Add(&u[id_S1], &u[id_L]).Add(&a, &gamma)
+		b.Add(&u[id_S2], &u[id_R]).Add(&b, &gamma)
+		c.Add(&u[id_S3], &u[id_O]).Add(&c, &gamma)
+		l.Mul(&a, &b).Mul(&l, &c).Mul(&l, &u[id_ZS])
 
-	// 	l.Sub(&l, &r)
+		l.Sub(&l, &r)
 
-	// 	return l
-	// }
+		return l
+	}
 
-	// ratioLocalConstraint := func(u ...fr.Element) fr.Element {
+	ratioLocalConstraint := func(u ...fr.Element) fr.Element {
 
-	// 	var res fr.Element
-	// 	res.SetOne()
-	// 	res.Sub(&u[id_Z], &res).Mul(&res, &u[id_LOne])
+		var res fr.Element
+		res.SetOne()
+		res.Sub(&u[id_Z], &res).Mul(&res, &u[id_LOne])
 
-	// 	return res
-	// }
+		return res
+	}
 
 	allConstraints := func(u ...fr.Element) fr.Element {
-		// a := gateConstraint(u...)
-		// b := orderingConstraint(u...)
-		// c := ratioLocalConstraint(u...)
-		// c.Mul(&c, &alpha).Add(&c, &b).Mul(&c, &alpha).Add(&c, &a)
-		// return c
-		return u[id_L]
+		a := gateConstraint(u...)
+		b := orderingConstraint(u...)
+		c := ratioLocalConstraint(u...)
+		c.Mul(&c, &alpha).Add(&c, &b).Mul(&c, &alpha).Add(&c, &a)
+		return c
 	}
 
 	rho := int(pk.Domain[1].Cardinality / pk.Domain[0].Cardinality)
@@ -504,8 +507,8 @@ func computeNumerator(pk ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial, 
 		batchScalePowers(bp, shifters[i])
 		coset.Mul(&coset, &shifters[i])
 		tmp.Exp(coset, bn).Sub(&tmp, &one)
-		scale(bp[id_Bl], tmp) // bl <- bl *( (s*ωⁱ)ⁿ-1 )s
-		blind(x[id_L], bp[id_Bl], pk.Domain[0].Generator)
+		batchScale(bp, tmp) // bl <- bl *( (s*ωⁱ)ⁿ-1 )s
+		batchBlind(x[id_L:id_Z], bp, pk.Domain[0].Generator)
 
 		// TODO modify Evaluate so it takes a buffer to store the result insted of allocating a new polynomial
 		buf, err := iop.Evaluate(
@@ -522,9 +525,9 @@ func computeNumerator(pk ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial, 
 		}
 
 		// unblind l, r, o, z
-		unblind(x[id_L], bp[id_Bl], pk.Domain[0].Generator)
+		batchUnblind(x[id_L:id_Z], bp, pk.Domain[0].Generator)
 		tmp.Inverse(&tmp)
-		scale(bp[id_Bl], tmp)
+		batchScale(bp, tmp) // bl <- bl *( (s*ωⁱ)ⁿ-1 )s
 
 	}
 
@@ -548,6 +551,12 @@ func computeNumerator(pk ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial, 
 
 }
 
+func batchUnblind(p, b []*iop.Polynomial, w fr.Element) {
+	for i := 0; i < len(p); i++ {
+		unblind(p[i], b[i], w)
+	}
+}
+
 // computes p - b on <\omega>
 func unblind(p, b *iop.Polynomial, w fr.Element) {
 	cp := p.Coefficients()
@@ -569,6 +578,12 @@ func unblind(p, b *iop.Polynomial, w fr.Element) {
 			cp[iRev].Sub(&cp[iRev], &y)
 			x.Mul(&x, &w)
 		}
+	}
+}
+
+func batchBlind(p, b []*iop.Polynomial, w fr.Element) {
+	for i := 0; i < len(p); i++ {
+		blind(p[i], b[i], w)
 	}
 }
 
@@ -628,11 +643,40 @@ func scalePowers(p *iop.Polynomial, w fr.Element) {
 	}
 }
 
+func batchScale(p []*iop.Polynomial, w fr.Element) {
+	for i := 0; i < len(p); i++ {
+		scale(p[i], w)
+	}
+}
+
 func scale(p *iop.Polynomial, w fr.Element) {
 	cp := p.Coefficients()
 	for i := 0; i < p.Size(); i++ {
 		cp[i].Mul(&cp[i], &w)
 	}
+}
+
+func evaluateBlinded(p, bp *iop.Polynomial, zeta fr.Element) fr.Element {
+	n := p.Size()
+	bn := big.NewInt(int64(n))
+	var tmp, one fr.Element
+	tmp.Exp(zeta, bn).Sub(&tmp, &one)
+	pz := p.Evaluate(zeta)
+	bpz := bp.Evaluate(zeta)
+	bpz.Mul(&bpz, &tmp)
+	pz.Add(&pz, &bpz)
+	return pz
+}
+
+// /!\ modifies p's underlying array of coefficients, in particular the size changes
+func getBlindedCoefficients(p, bp *iop.Polynomial) []fr.Element {
+	cp := p.Coefficients()
+	cbp := bp.Coefficients()
+	cp = append(cp, cbp...)
+	for i := 0; i < len(cbp); i++ {
+		cp[i].Sub(&cp[i], &cbp[i])
+	}
+	return cp
 }
 
 // commits to a polynomial of the form b*(Xⁿ-1) where b is of small degree
