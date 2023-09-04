@@ -9,8 +9,6 @@ import (
 	"github.com/consensys/gnark/std/compress"
 )
 
-// TODO CRITICAL BUG: REMOVE ANY INSTANCE OF 1 + NbBytesLength
-
 // The backref logic can produce RLE as a special case, which is good for decompressor state machine complexity
 // however we have to make some sacrifices such as allowing very small lengths/offsets that wouldn't be viable for a "real" backref
 // if the state machine logic turned out to be a tiny portion of total decompressor constraints, as it's expected to be,
@@ -37,10 +35,9 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	// "nontrivial" meaning of length and offset more than 1
 	minNontrivialBackRefCost := int(compress.ByteGasCost(settings.Symbol)) + 8 + int(settings.NbBytesAddress+settings.NbBytesLength-2)
 	// any string of lesser cost than minBackrefCost is not worth compressing
+	// this also means that very short runs of zeros are expanded rather than compressed
 	backRefAddressRange := 1 << (settings.NbBytesAddress * 8)
 	backRefLengthRange := 1 << (settings.NbBytesLength * 8)
-	// this also means that very short runs of zeros are expanded rather than compressed
-	// TODO replace this with a "dynamic" gas-cost related heuristic
 
 	getRunLength := func(i int) int {
 		j := i + 1
@@ -68,20 +65,15 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 			}
 		}
 
-		hereon, leadup := d[i:], d[utils.Max(0, i-40):i]
-		_, _ = hereon, leadup
-		if i == 3610 {
-			fmt.Println("trouble at", i)
-		}
-
 		// if there is a run of the character used to mark backrefs, we have to make a backref regardless of whether it achieves compression
 
 		// attempt to find a backref, if it's worthwhile
+		// first we decide how long a backref would have to be just to be worth it
+		// this would minimize the backref search space early on and thus improve performance
 		minViableBackRefLength := 2
 		noBackRefCost := int(compress.ByteGasCost(d[i]))
 		var midRle bool
 		for {
-			// not even trying to factor in the cost of RLE TODO: that
 			if i+minViableBackRefLength > len(d) {
 				minViableBackRefLength = -1 // just not viable
 				break
@@ -105,14 +97,10 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 			minViableBackRefLength++
 		}
 
-		if minViableBackRefLength != -1 {
+		if minViableBackRefLength != -1 { // if a backref is deemed possible, try and find one
 			if addr, length := longestMostRecentBackRef(d, i, i-backRefAddressRange-1, minViableBackRefLength); length != -1 {
 
-				// sanity check TODO Remove
-				if a, b := d[i:i+length], d[addr:addr+length]; !bytesEqual(a, b) {
-					return nil, fmt.Errorf("sanity check fail at %d->%d (%d):\n%s !=\n%s", i, i-addr, length, hex.EncodeToString(a), hex.EncodeToString(b))
-				}
-
+				// if we're fortunate enough to have found a backref that is "too long", break it up
 				for remainingLen := length; remainingLen > 0; remainingLen -= backRefLengthRange {
 					nbWriting := utils.Min(remainingLen, backRefLengthRange)
 					emitBackRef(i-addr, nbWriting)
@@ -123,7 +111,9 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		}
 
 		// no backref found
-		if d[i] == settings.Symbol {
+		if d[i] == settings.Symbol { // TODO Make negative indices a last resort. Better to still try and find a "real" backref first.
+			// TODO This way we may be able to reduce the size of offsets dramatically and possibly get away with fewer bytes dedicated
+			// TODO to denoting offsets. Removing extra bytes that are zeros may not help gas compression much, but will likely help with snark efficiency
 			runLength := getRunLength(i) // TODO If logging, go past maxJExpressible to spot missed opportunities
 			// making a "back reference" to negative indices
 			if i == 0 { // "back reference" the stream itself as it is being written
@@ -152,11 +142,13 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	return out.Bytes(), nil
 }
 
+// longestMostRecentBackRef attempts to find a backref that is 1) longest 2) most recent in that order of priority
 func longestMostRecentBackRef(d []byte, i, minBackRefAddr, minViableBackRefLen int) (addr, length int) {
 	// TODO: Implement an efficient string search algorithm
 	// greedily find the longest backref with smallest offset TODO better heuristic?
 	minViableBackRef := d[i : i+minViableBackRefLen]
 	remainingOptions := make(map[int]struct{})
+	// find backref candidates that satisfy the minimum length requirement
 	for j := i - 1; j >= 0 && j >= minBackRefAddr; j-- { // TODO If logging is enabled, go past minBackRefAddr to spot missed opportunities
 		if j+minViableBackRefLen > len(d) {
 			continue
@@ -167,6 +159,7 @@ func longestMostRecentBackRef(d []byte, i, minBackRefAddr, minViableBackRefLen i
 	}
 	var toDelete []int
 	l := minViableBackRefLen
+	// now find the longest backref among the candidates
 	for ; i+l < len(d); l++ {
 		for _, j := range toDelete {
 			delete(remainingOptions, j)
@@ -177,13 +170,16 @@ func longestMostRecentBackRef(d []byte, i, minBackRefAddr, minViableBackRefLen i
 				toDelete = append(toDelete, j)
 			}
 		}
+		// no options left
 		if len(toDelete) == len(remainingOptions) {
 			break
 		}
 	}
+	// never had any candidates in the first place
 	if len(remainingOptions) == 0 {
 		return -1, -1
 	}
+	// we have candidates of the same length, so pick the most recent
 	mostRecent := minBackRefAddr - 1
 	for j := range remainingOptions {
 		if j > mostRecent {
