@@ -171,8 +171,6 @@ func (pk *ProvingKey) randomize() {
 	pk.trace.S[0] = -12
 	pk.trace.S[len(pk.trace.S)-1] = 8888
 
-
-	pk.computeLagrangeCosetPolys()
 }
 
 func (vk *VerifyingKey) randomize() {
