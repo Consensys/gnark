@@ -97,6 +97,14 @@ const (
 	nb_blinding_polynomials
 )
 
+// blinding orders (-1 to deactivate)
+const (
+	order_blinding_L = 1
+	order_blinding_R = 1
+	order_blinding_O = 1
+	order_blinding_Z = -1
+)
+
 func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 
 	log := logger.Logger().With().
@@ -177,9 +185,9 @@ func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, o
 		return nil, err
 	}
 	bp := make([]*iop.Polynomial, nb_blinding_polynomials)
-	bp[id_Bl] = getRandomPolynomial(-1)
-	bp[id_Br] = getRandomPolynomial(-1)
-	bp[id_Bo] = getRandomPolynomial(-1)
+	bp[id_Bl] = getRandomPolynomial(order_blinding_L)
+	bp[id_Br] = getRandomPolynomial(order_blinding_R)
+	bp[id_Bo] = getRandomPolynomial(order_blinding_O)
 	cbl := commitBlindingFactor(int(pk.Domain[0].Cardinality), bp[id_Bl], pk.Kzg)
 	cbr := commitBlindingFactor(int(pk.Domain[0].Cardinality), bp[id_Br], pk.Kzg)
 	cbo := commitBlindingFactor(int(pk.Domain[0].Cardinality), bp[id_Bo], pk.Kzg)
@@ -226,7 +234,7 @@ func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, o
 	if err != nil {
 		return proof, err
 	}
-	bp[id_Bz] = getRandomPolynomial(-1)
+	bp[id_Bz] = getRandomPolynomial(order_blinding_Z)
 	cbz := commitBlindingFactor(int(pk.Domain[0].Cardinality), bp[id_Bz], pk.Kzg)
 	proof.Z.Add(&cbz, &proof.Z)
 
@@ -278,6 +286,7 @@ func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, o
 	if err != nil {
 		return proof, err
 	}
+	// printPoly(constraintsEvaluation)
 
 	h, err := divideByXMinusOne(constraintsEvaluation, [2]*fft.Domain{&pk.Domain[0], &pk.Domain[1]})
 	if err != nil {
@@ -660,6 +669,7 @@ func evaluateBlinded(p, bp *iop.Polynomial, zeta fr.Element) fr.Element {
 	n := p.Size()
 	bn := big.NewInt(int64(n))
 	var tmp, one fr.Element
+	one.SetOne()
 	tmp.Exp(zeta, bn).Sub(&tmp, &one)
 	pz := p.Evaluate(zeta)
 	bpz := bp.Evaluate(zeta)
