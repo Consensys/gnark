@@ -102,7 +102,7 @@ const (
 	order_blinding_L = 1
 	order_blinding_R = 1
 	order_blinding_O = 1
-	order_blinding_Z = -1
+	order_blinding_Z = 2
 )
 
 func ProveBis(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
@@ -517,7 +517,7 @@ func computeNumerator(pk ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial, 
 		coset.Mul(&coset, &shifters[i])
 		tmp.Exp(coset, bn).Sub(&tmp, &one)
 		batchScale(bp, tmp) // bl <- bl *( (s*ωⁱ)ⁿ-1 )s
-		batchBlind(x[id_L:id_Z], bp, pk.Domain[0].Generator)
+		batchBlind(x[id_L:id_Z+1], bp, pk.Domain[0].Generator)
 
 		// TODO modify Evaluate so it takes a buffer to store the result insted of allocating a new polynomial
 		buf, err := iop.Evaluate(
@@ -534,7 +534,7 @@ func computeNumerator(pk ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial, 
 		}
 
 		// unblind l, r, o, z
-		batchUnblind(x[id_L:id_Z], bp, pk.Domain[0].Generator)
+		batchUnblind(x[id_L:id_Z+1], bp, pk.Domain[0].Generator)
 		tmp.Inverse(&tmp)
 		batchScale(bp, tmp) // bl <- bl *( (s*ωⁱ)ⁿ-1 )s
 
