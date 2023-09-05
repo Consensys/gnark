@@ -25,6 +25,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
@@ -357,6 +358,12 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	funcMap := template.FuncMap{
 		// The name "inc" is what the function will be called in the template text.
+		"hex": func(i int) string {
+			return fmt.Sprintf("%x0x", i)
+		},
+		"mul": func(a, b int) int {
+			return a * b
+		},
 		"inc": func(i int) int {
 			return i + 1
 		},

@@ -7,6 +7,7 @@ import (
 	{{ template "import_fr" . }}
 	{{if eq .Curve "BN254"}}
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	"fmt"
 	{{end}}
 	{{ template "import_kzg" . }}
 	{{ template "import_curve" . }}
@@ -339,6 +340,12 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	funcMap := template.FuncMap{
 		// The name "inc" is what the function will be called in the template text.
+		"hex": func(i int) string {
+			return fmt.Sprintf("%x0x", i)
+		},
+		"mul": func(a, b int) int {
+			return a*b
+		},
 		"inc": func(i int) int {
 			return i + 1
 		},
