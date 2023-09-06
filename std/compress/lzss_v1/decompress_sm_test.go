@@ -21,7 +21,7 @@ func Test8ZerosSm(t *testing.T) {
 	testCompressionRoundTripSm(t, 2, []byte{0, 0, 0, 0, 0, 0, 0, 0})
 }
 
-func TestTwoConsecutiveBackrefs(t *testing.T) {
+func TestTwoConsecutiveBackrefsSm(t *testing.T) {
 	testDecompressionSm(t, 1, make([]byte, 6), []byte{0, 0})
 }
 func Test300ZerosSm(t *testing.T) { // probably won't happen in our calldata
@@ -49,7 +49,7 @@ func Test8ZerosAfterNonzeroSm(t *testing.T) {
 	testCompressionRoundTripSm(t, 2, append([]byte{1}, make([]byte, 8)...))
 }
 
-func TestTwoBackrefsAfterNonzero(t *testing.T) {
+func TestTwoBackrefsAfterNonzeroSm(t *testing.T) {
 	testDecompressionSm(t, 1, []byte{1, 0, 1, 0, 0, 0, 0}, []byte{1, 0, 0})
 }
 
