@@ -55,7 +55,7 @@ func decompressStateMachine(c []byte, cLength int, d []byte, settings Settings) 
 	inI := 0
 	copyI := 0
 	copyLen := 0 // remaining length of the current copy
-	//copyLen01 := 1
+	copyLen01 := 1
 	copying := 0
 	//currIsSymb := isSymb(int(c[0]))
 	//brOffset, brLen := readBackRef(0)
@@ -63,15 +63,18 @@ func decompressStateMachine(c []byte, cLength int, d []byte, settings Settings) 
 	for outI := range d {
 
 		curr := readC(inI, inI+1)[0]
+
 		currIsSymb := isSymb(curr)
 		brOffset, brLen := readBackRef(inI)
 
-		copyI = intIte(copying, outI-brOffset, copyI+1) // TODO Make sure this is always in range
-		copyLen = intIte(copying, currIsSymb*brLen, copyLen-1)
+		// TODO Make sure copyI+copyLen is always in range, in particular when reading the padding in c[cLength:]
+		copyI = intIte(copying, outI-brOffset, copyI+1)
+		copyLen = intIte(copyLen01, copyLen-1, currIsSymb*brLen)
 		toCopy := readD(copyI)
 
-		copyLen01 := isBit(copyLen)
-		copying = 1 - copyLen01 + copyLen01*copyLen // copyLen != 0
+		copyLen01 = isBit(copyLen)
+		// copying = copyLen != 0
+		copying = 1 - copyLen01 + copyLen01*copyLen
 
 		// write to output
 		d[outI] = byte(copying)*toCopy + curr // TODO full-on ite for the case where symb != 0

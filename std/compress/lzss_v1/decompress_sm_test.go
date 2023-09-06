@@ -20,12 +20,7 @@ func Test8ZerosSm(t *testing.T) {
 	testCompressionRoundTripSm(t, 2, []byte{0, 0, 0, 0, 0, 0, 0, 0})
 }
 
-func Test300ZerosSm(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTripSm(t, 1, make([]byte, 300))
-	//testCompressionRoundTripSm(t, 2, make([]byte, 300))
-}
-
-func TestTwoBackrefs(t *testing.T) {
+func TestTwoConsecutiveBackrefs(t *testing.T) {
 	c := make([]byte, 9)
 	d := c[:2]
 	dBack := make([]byte, 4)
@@ -42,6 +37,10 @@ func TestTwoBackrefs(t *testing.T) {
 	dLen, err := decompressStateMachine(c, 6, dBack, settings)
 	require.NoError(t, err)
 	require.Equal(t, d, dBack[:dLen])
+}
+func Test300ZerosSm(t *testing.T) { // probably won't happen in our calldata
+	testCompressionRoundTripSm(t, 1, make([]byte, 300))
+	//testCompressionRoundTripSm(t, 2, make([]byte, 300))
 }
 
 func testCompressionRoundTripSm(t *testing.T, nbBytesOffset uint, d []byte) {
