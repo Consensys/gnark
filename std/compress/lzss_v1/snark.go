@@ -59,6 +59,71 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		length = api.Add(readLittleEndian(api, readC(i, int(settings.NbBytesLength))), 1)
 		return
 	}
+
+	/*isZero := func(n frontend.Variable, nIsBit ...frontend.Variable) frontend.Variable {
+		var bit frontend.Variable
+		switch len(nIsBit) {
+		case 0:
+			bit = isBit(n)
+		case 1:
+			bit = nIsBit[0]
+		default:
+			panic("at most one isBit allowed")
+		}
+		return api.Mul(bit, api.Sub(1, n)) // TODO MulAcc
+	}
+
+	isOne := func(n frontend.Variable, nIsBit ...frontend.Variable) frontend.Variable {
+		var bit frontend.Variable
+		switch len(nIsBit) {
+		case 0:
+			bit = isBit(n)
+		case 1:
+			bit = nIsBit[0]
+		default:
+			panic("at most one isBit allowed")
+		}
+		return api.Mul(bit, n)
+	}*/
+
+	inI := frontend.Variable(0)
+	copyI := frontend.Variable(0)
+	copyLen := frontend.Variable(0) // remaining length of the current copy
+	copyLen01 := frontend.Variable(1)
+	copying := frontend.Variable(0)
+
+	for outI := range d {
+
+		curr := readC(inI, 1)[0]
+
+		currIsSymb := isSymb(curr)
+		brOffset, brLen := readBackRef(inI)
+
+		copying = api.Mul(copying, api.Sub(1, copyLen01)) // still copying from previous iterations TODO MulAcc
+		copyI = ite(api, copying, api.Sub(outI, brOffset), api.Add(copyI, 1))
+		copyLen = ite(api, copying, api.Mul(currIsSymb, brLen), api.Sub(copyLen, 1))
+		copyLen01 = isBit(copyLen)
+		copying = api.Add(api.Sub(1, copyLen01), api.Mul(copyLen01, copyLen)) // either from previous iterations or starting a new copy TODO MulAcc
+		copyI = api.Mul(copyI, copying)                                       // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
+		toCopy := readD(copyI)
+
+		// write to output
+		// TODO MulAcc
+		d[outI] = api.Add(api.Mul(copying, toCopy), curr) // TODO full-on ite for the case where symb != 0
+
+		inI = api.Add(inI, ite(api, copying, 1,
+			ite(api, copyLen01, 0, 1+int(settings.NbBytesAddress+settings.NbBytesLength)),
+		))
+		inputRemaining := api.Sub(cLength, inI)
+		// TODO isBit won't work because the table is small. Use a special EOF symbol (-1 or something) in the input
+		inputJustExhausted := api.Mul(api.Sub(1, inputRemaining), isBit(inputRemaining)) // TODO MulAcc
+		inputExhausted = api.Add(inputExhausted, inputJustExhausted)                     // TODO Obviate this by forcing inI = 0 when inputExhausted
+		inI = ite(api, inputExhausted, inI, cLength)
+
+		dLength = api.Add(dLength, api.Mul(inputJustExhausted, outI+1))
+	}
+
+	return
 }
 
 func ite(api frontend.API, c, if0, if1 frontend.Variable) frontend.Variable {

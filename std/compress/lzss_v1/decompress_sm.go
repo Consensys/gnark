@@ -53,8 +53,6 @@ func decompressStateMachine(c []byte, cLength int, d []byte, settings Settings) 
 	copyLen := 0 // remaining length of the current copy
 	copyLen01 := 1
 	copying := 0
-	//currIsSymb := isSymb(int(c[0]))
-	//brOffset, brLen := readBackRef(0)
 
 	for outI := range d {
 
