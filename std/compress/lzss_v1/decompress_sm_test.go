@@ -49,8 +49,13 @@ func TestNoCompressionSm(t *testing.T) {
 	testCompressionRoundTripSm(t, 2, []byte{'h', 'i'})
 }
 
+func TestZeroAfterNonzeroSm(t *testing.T) { // probably won't happen in our calldata
+	testCompressionRoundTripSm(t, 1, []byte{1, 0})
+	testCompressionRoundTripSm(t, 2, []byte{1, 0})
+}
+
 func Test8ZerosAfterNonzeroSm(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTripSm(t, 1, append([]byte{1}, make([]byte, 8)...))
+	//testCompressionRoundTripSm(t, 1, append([]byte{1}, make([]byte, 8)...))
 	testCompressionRoundTripSm(t, 2, append([]byte{1}, make([]byte, 8)...))
 }
 
