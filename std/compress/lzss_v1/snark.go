@@ -1,96 +1,65 @@
 package lzss_v1
 
 import (
+	"errors"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
+	"sort"
 )
 
-/*
-// Decompress a widget that performs DecompressPureGo in a circuit.
-// For now c are bytes. TODO: Pack it
-// d must be of length cMax * len(c) where cMax is an upper bound on the expected compression ratio
-func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, settings Settings) (length frontend.Variable, err error) {
-
+// Decompress implements the decompression logic implemented in both DecompressPureGo and decompressStateMachine, pretty much identical to the latter.
+func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d []frontend.Variable, settings Settings) (dLength frontend.Variable, err error) {
 	if settings.BackRefSettings.NbBytesLength != 1 {
-		return nil, errors.New("currently only byte-long backrefs supported")
+		return -1, errors.New("currently only byte-long backrefs supported")
 	}
 	if settings.BackRefSettings.Symbol != 0 {
-		return nil, errors.New("currently only 0 is supported as the backreference signifier")
+		return -1, errors.New("currently only 0 is supported as the backreference signifier")
 	}
 
-	var isSymbT *logderivlookup.Table
-	if settings.Symbol != 0 {
-		isSymbT = newByteIs(api, settings.Symbol)
-	}
-
-	isBit := newIsBit(api, 256)
-
-	/*isOne := func(i frontend.Variable) frontend.Variable {
-		return api.Mul(isBit.Lookup(i)[0], i)
-	}*/ /*
-
-	isZero := func(i frontend.Variable) frontend.Variable {
-		b := isBit.Lookup(i)[0]
-		return api.MulAcc(b, b, api.Neg(i)) // b - bi = b(1-i)
-	}
-
-	isSymb := func(i frontend.Variable) frontend.Variable {
-		if settings.Symbol == 0 {
-			return isZero(i)
-		} else {
-			return isSymbT.Lookup(i)[0]
-		}
-	}
-
-	out := newOutputTable(api, settings)
-	_in := newInputTable(api, c)
 	brLengthRange := 1 << (settings.NbBytesLength * 8)
-	//brAddrRange := 1 << (settings.NbBytesAddress * 8)
-	readD := func(i frontend.Variable) frontend.Variable { // reading from the decompressed stream as we write to it
-		return out.Lookup(api.Add(i, brLengthRange))[0]
+	isBitTable := newTable(api, brLengthRange, []intPair{{0, 1}, {1, 1}})
+	isBit := func(n frontend.Variable) frontend.Variable {
+		return isBitTable.Lookup(n)[0]
 	}
-	readBackRef := func(i frontend.Variable) (offset, length frontend.Variable) { // need some lookahead in case of a backref
-		nbLookahead := settings.NbBytesAddress + settings.NbBytesLength
-		indices := make([]frontend.Variable, nbLookahead)
-		for j := range indices {
-			indices[j] = api.Add(i, j+1)
+	var isSymbTable *logderivlookup.Table
+	if settings.Symbol != 0 && settings.Symbol != 1 {
+		isSymbTable = newTable(api, 256, []intPair{{int(settings.Symbol), 1}})
+	}
+	isSymb := func(n frontend.Variable) frontend.Variable {
+		switch settings.Symbol {
+		case 0:
+			return api.Mul(isBit(n), api.Sub(1, n)) // TODO Ascertain this is actually more efficient than just having another table
+		case 1:
+			return api.Mul(isBit(n), n)
+		default:
+			return isSymbTable.Lookup(n)[0]
 		}
-		vals := _in.Lookup(indices...)
-		offset = readLittleEndian(api, vals[:settings.NbBytesAddress])
-		length = readLittleEndian(api, vals[settings.NbBytesAddress:])
+	}
+
+	inputExhausted := frontend.Variable(0)
+
+	dTable := newOutputTable(api, settings)
+	readD := func(i frontend.Variable) frontend.Variable { // reading from the decompressed stream as we write to it
+		return dTable.Lookup(api.Sub(i, brLengthRange))[0]
+	}
+
+	cTable := newInputTable(api, c)
+	readC := func(start frontend.Variable, length int) []frontend.Variable {
+		indices := make([]frontend.Variable, length)
+		for i := 0; i < length; i++ {
+			indices[i] = api.Add(start, i)
+		}
+		return cTable.Lookup(indices...)
+	}
+
+	readBackRef := func(i frontend.Variable) (offset, length frontend.Variable) { // need some lookahead in case of a backref
+		i = api.Add(i, 1)
+		offset = api.Add(readLittleEndian(api, readC(i, int(settings.NbBytesAddress))), 1)
+		i = api.Add(i, settings.NbBytesAddress)
+		length = api.Add(readLittleEndian(api, readC(i, int(settings.NbBytesLength))), 1)
 		return
 	}
-
-	i := frontend.Variable(0)
-	copyI := frontend.Variable(0)
-	copyLenRemaining := frontend.Variable(0)
-	//copying := isSymb(c[0])
-
-	for range d {
-		// if we use compressed-offsets, we could combine the reads for toCopy and curr, getting rid of a very expensive read
-		// (from a table being written to)
-
-		// read a byte to copy
-		copyLen01 := isBit.Lookup(copyLenRemaining)[0]
-		copying := api.Sub(1, api.MulAcc(api.Mul(1, copyLen01), copyLen01, api.Neg(copyLenRemaining))) // copying = (copyLengthRemaining != 0)
-		copyingLastRound := api.Mul(copying, copyLen01)
-		toCopy := readD(copyI)
-
-		// read current input
-		curr := _in.Lookup(i)[0]
-		currIsSymb := isSymb(curr)
-		brOffset, brLen := readBackRef(i)
-
-		// write output
-		// WARNING THIS MODIFIES curr
-		temp := api.MulAcc(curr, copying, toCopy) // TODO don't assume symb = 0
-		out.Insert(temp)
-
-		// update state variables
-		copyLenRemaining = ite(api, copying, 0, api.Sub(copyLenRemaining, 1))
-		//i = api.MulAcc(i, copyingLastRound)
-	}
-}*/
+}
 
 func ite(api frontend.API, c, if0, if1 frontend.Variable) frontend.Variable {
 	res := api.Mul(if0, 1) // just a copy, refer to MulAcc docs
@@ -124,25 +93,19 @@ func newOutputTable(api frontend.API, settings Settings) *logderivlookup.Table {
 	return res
 }
 
-func newByteIs(api frontend.API, symb byte) *logderivlookup.Table {
+type intPair struct{ k, v int }
+
+// the default value is 0
+func newTable(api frontend.API, bound int, vals []intPair) *logderivlookup.Table {
+	sort.Slice(vals, func(i, j int) bool { return vals[i].k < vals[j].k })
 	res := logderivlookup.New(api)
-	s := int(symb)
-	for i := 0; i < 256; i++ {
-		if i == s {
-			res.Insert(1)
+	for i := 0; i < bound; i++ {
+		if len(vals) > 0 && vals[0].k == i {
+			res.Insert(vals[0].v)
+			vals = vals[1:]
 		} else {
 			res.Insert(0)
 		}
-	}
-	return res
-}
-
-func newIsBit(api frontend.API, bound int) *logderivlookup.Table {
-	res := logderivlookup.New(api)
-	res.Insert(1)
-	res.Insert(1)
-	for i := 2; i < bound; i++ {
-		res.Insert(0)
 	}
 	return res
 }

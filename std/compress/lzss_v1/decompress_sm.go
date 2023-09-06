@@ -19,10 +19,6 @@ func decompressStateMachine(c []byte, cLength int, d []byte, settings Settings) 
 		return boolToInt(n == 0 || n == 1)
 	}
 
-	/*isZero := func(i int) int {
-		return isBit(i) * (1 - int(c[i]))
-	}*/
-
 	brLengthRange := 1 << (settings.NbBytesLength * 8)
 
 	inputExhausted := 0
