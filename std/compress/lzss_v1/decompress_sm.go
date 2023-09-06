@@ -67,11 +67,12 @@ func decompressStateMachine(c []byte, cLength int, d []byte, settings Settings) 
 		currIsSymb := isSymb(curr)
 		brOffset, brLen := readBackRef(inI)
 
+		copying *= 1 - copyLen01 // still copying from previous iterations
 		copyI = intIte(copying, outI-brOffset, copyI+1)
-		copyLen = intIte(copyLen01, copyLen-1, currIsSymb*brLen)
+		copyLen = intIte(copying, currIsSymb*brLen, copyLen-1)
 		copyLen01 = isBit(copyLen)
-		copying = 1 - copyLen01 + copyLen01*copyLen
-		copyI *= copying // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
+		copying = 1 - copyLen01 + copyLen01*copyLen // either from previous iterations or starting a new copy
+		copyI *= copying                            // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
 		toCopy := readD(copyI)
 
 		// write to output
