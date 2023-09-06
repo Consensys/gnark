@@ -64,6 +64,11 @@ func Test8ZerosAfterNonzeroSm(t *testing.T) {
 	testCompressionRoundTripSm(t, 2, append([]byte{1}, make([]byte, 8)...))
 }
 
+func Test257ZerosAfterNonzeroSm(t *testing.T) { // probably won't happen in our calldata
+	testCompressionRoundTripSm(t, 1, append([]byte{1}, make([]byte, 257)...))
+	//testCompressionRoundTripSm(t, 2, append([]byte{1}, make([]byte, 257)...))
+}
+
 func Test300ZerosAfterNonzeroSm(t *testing.T) { // probably won't happen in our calldata
 	testCompressionRoundTripSm(t, 1, append([]byte{'h', 'i'}, make([]byte, 300)...))
 	testCompressionRoundTripSm(t, 2, append([]byte{'h', 'i'}, make([]byte, 300)...))
