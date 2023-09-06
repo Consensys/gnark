@@ -91,6 +91,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	copyLen := frontend.Variable(0) // remaining length of the current copy
 	copyLen01 := frontend.Variable(1)
 	copying := frontend.Variable(0)
+	dLength = 0
 
 	for outI := range d {
 
@@ -109,7 +110,9 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		// write to output
 		// TODO MulAcc
+
 		d[outI] = api.Add(api.Mul(copying, toCopy), curr) // TODO full-on ite for the case where symb != 0
+		dTable.Insert(d[outI])
 
 		inI = api.Add(inI, ite(api, copying, 1,
 			ite(api, copyLen01, 0, 1+int(settings.NbBytesAddress+settings.NbBytesLength)),

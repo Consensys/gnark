@@ -143,9 +143,12 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 		decompressor := &decompressionTestCircuit{
 			C:        make([]frontend.Variable, len(cVars)),
 			D:        d,
+			CLen:     nil,
 			settings: settings,
 		}
+		//p := profile.Start()
 		cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, decompressor)
+		//p.Stop()
 		require.NoError(t, err)
 		kzgSrs, err := test.NewKZGSRS(cs)
 		require.NoError(t, err)
