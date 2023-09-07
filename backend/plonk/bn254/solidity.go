@@ -366,7 +366,7 @@ contract PlonkVerifier {
         mstore(add(mPtr, {{ hex (add 576 (mul $index 64)) }}), vk_qc_{{ $index }}_y)
         {{ end }}
         // public inputs
-        let _mPtr := add(mPtr, 0x2a0)
+        let _mPtr := add(mPtr, {{ hex (add (mul (len .CommitmentConstraintIndexes) 64) 544) }})
         let size_pi_in_bytes := mul(nb_pi, 0x20)
         calldatacopy(_mPtr, pi, size_pi_in_bytes)
         _mPtr := add(_mPtr, size_pi_in_bytes)
