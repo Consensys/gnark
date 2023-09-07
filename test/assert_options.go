@@ -35,13 +35,13 @@ func (assert *Assert) options(opts ...TestingOption) testingConfig {
 	// go test -tags=release_checks 	--> releaseProfile
 
 	if releaseTestFlag {
-		opt.profile = releaseProfile
+		opt.profile = releaseChecks
 	} else if proverTestFlag {
-		opt.profile = proverOnlyProfile
+		opt.profile = proverChecks
 	} else if testing.Short() {
-		opt.profile = testEngineOnly
+		opt.profile = testEngineChecks
 	} else {
-		opt.profile = constraintOnlyProfile
+		opt.profile = constraintSolverChecks
 	}
 
 	// apply user provided options.

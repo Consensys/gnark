@@ -20,24 +20,24 @@ type profile struct {
 	fuzzing            bool
 }
 
-var testEngineOnly = profile{
+var testEngineChecks = profile{
 	backends: []backend.ID{},
 	curves:   []ecc.ID{ecc.BN254, ecc.BLS12_381},
 }
 
-var constraintOnlyProfile = profile{
+var constraintSolverChecks = profile{
 	backends: []backend.ID{backend.GROTH16, backend.PLONK},
 	curves:   []ecc.ID{ecc.BN254, ecc.BLS12_381},
 }
 
-var proverOnlyProfile = profile{
+var proverChecks = profile{
 	backends:      []backend.ID{backend.GROTH16, backend.PLONK},
 	curves:        []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BW6_761},
 	checkSolidity: true && solcCheck,
 	checkProver:   true,
 }
 
-var releaseProfile = profile{
+var releaseChecks = profile{
 	backends:           []backend.ID{backend.GROTH16, backend.PLONK},
 	curves:             []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BW6_761, ecc.BLS12_377},
 	checkSolidity:      true && solcCheck,

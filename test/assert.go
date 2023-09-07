@@ -72,16 +72,7 @@ func (assert *Assert) Log(v ...interface{}) {
 	assert.t.Log(v...)
 }
 
-// ProverSucceeded fails the test if any of the following step errored:
-//
-// 1. compiles the circuit (or fetch it from the cache)
-// 2. using the test execution engine, executes the circuit with provided witness
-// 3. run Setup / Prove / Verify with the backend
-// 4. if set, (de)serializes the witness and call ReadAndProve and ReadAndVerify on the backend
-//
-// By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
-//
-// Deprecated: use CheckCircuit instead
+// ProverSucceeded is deprecated: use CheckCircuit instead
 func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, opts ...TestingOption) {
 	// copy the options
 	newOpts := make([]TestingOption, len(opts), len(opts)+2)
@@ -91,14 +82,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 	assert.CheckCircuit(circuit, newOpts...)
 }
 
-// ProverSucceeded fails the test if any of the following step errored:
-//
-// 1. compiles the circuit (or fetch it from the cache)
-// 2. using the test execution engine, executes the circuit with provided witness (must fail)
-// 3. run Setup / Prove / Verify with the backend (must fail)
-//
-// By default, this tests on all curves and proving schemes supported by gnark. See available TestingOption.
-// Deprecated: use CheckCircuit instead
+// ProverSucceeded is Deprecated use CheckCircuit instead
 func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...TestingOption) {
 	// copy the options
 	newOpts := make([]TestingOption, len(opts), len(opts)+2)
@@ -108,7 +92,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 	assert.CheckCircuit(circuit, newOpts...)
 }
 
-// Deprecated: use CheckCircuit instead
+// SolvingSucceeded is deprecated: use CheckCircuit instead
 func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...TestingOption) {
 
 	// copy the options
@@ -119,7 +103,7 @@ func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness fr
 	assert.CheckCircuit(circuit, newOpts...)
 }
 
-// Deprecated: use CheckCircuit instead
+// SolvingFailed is deprecated: use CheckCircuit instead
 func (assert *Assert) SolvingFailed(circuit frontend.Circuit, invalidWitness frontend.Circuit, opts ...TestingOption) {
 	// copy the options
 	newOpts := make([]TestingOption, len(opts), len(opts)+1)

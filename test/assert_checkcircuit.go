@@ -9,10 +9,24 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/schema"
 )
 
-// CheckCircuit
-// TODO @gbotrel
+// CheckCircuit performs a series of check on the provided circuit.
+//
+//	go test -short 					--> testEngineChecks
+//	go test 						--> constraintSolverChecks
+//	go test -tags=prover_checks 	--> proverChecks
+//	go test -tags=release_checks 	--> releaseChecks
+//
+// Depending on the above flags, the following checks are performed:
+// - the circuit compiles
+// - the circuit can be solved with the test engine
+// - the circuit can be solved with the constraint system solver
+// - the circuit can be solved with the prover
+// - the circuit can be verified with the verifier
+// - the circuit can be verified with gnark-solidity-checker
+// - the circuit, witness, proving and verifying keys can be serialized and deserialized
 func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOption) {
 	// get the testing configuration
 	opt := assert.options(opts...)
@@ -61,6 +75,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					// we need to run the solver on the constraint system only
 					if !opt.checkProver {
 						for _, w := range invalidWitnesses {
+							w := w
 							assert.Run(func(assert *Assert) {
 								assert.t.Parallel()
 								_, err = ccs.Solve(w.full, opt.solverOpts...)
@@ -69,6 +84,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 						}
 
 						for _, w := range validWitnesses {
+							w := w
 							assert.Run(func(assert *Assert) {
 								assert.t.Parallel()
 								_, err = ccs.Solve(w.full, opt.solverOpts...)
@@ -101,6 +117,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 					// for each valid witness, run the prover and verifier
 					for _, w := range validWitnesses {
+						w := w
 						assert.Run(func(assert *Assert) {
 							assert.t.Parallel()
 							proof, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
@@ -126,6 +143,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 					// for each invalid witness, run the prover only, it should fail.
 					for _, w := range invalidWitnesses {
+						w := w
 						assert.Run(func(assert *Assert) {
 							assert.t.Parallel()
 							_, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
@@ -145,8 +163,8 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 		}, curve.String())
 	}
 
-	// TODO @gbotrel re-activate this.
-	if false && opt.fuzzing {
+	// TODO @gbotrel revisit this.
+	if opt.fuzzing {
 		// TODO may not be the right place, but ensures all our tests call these minimal tests
 		// (like filling a witness with zeroes, or binary values, ...)
 		assert.Run(func(assert *Assert) {
@@ -182,16 +200,21 @@ func (assert *Assert) parseAssignment(circuit frontend.Circuit, assignment front
 		assert.roundTripCheck(full, witnessBuilder, "witness", "full")
 		assert.roundTripCheck(public, witnessBuilder, "witness", "public")
 
-		// TODO @gbotrel we probably don't want to run that for every circuit since
-		// JSON conversion does not behave well for complex circuits.
-		assert.Run(func(assert *Assert) {
-			s := lazySchema(circuit)()
-			assert.marshalWitnessJSON(full, s, curve, false)
-		}, curve.String(), "marshal/json")
-		assert.Run(func(assert *Assert) {
-			s := lazySchema(circuit)()
-			assert.marshalWitnessJSON(public, s, curve, true)
-		}, curve.String(), "marshal-public/json")
+		// count number of element in witness.
+		// if too many, we don't do JSON serialization.
+		s, err := schema.Walk(assignment, tVariable, nil)
+		assert.NoError(err)
+
+		if s.Public+s.Secret <= serializationThreshold {
+			assert.Run(func(assert *Assert) {
+				s := lazySchema(circuit)()
+				assert.marshalWitnessJSON(full, s, curve, false)
+			}, curve.String(), "marshal/json")
+			assert.Run(func(assert *Assert) {
+				s := lazySchema(circuit)()
+				assert.marshalWitnessJSON(public, s, curve, true)
+			}, curve.String(), "marshal-public/json")
+		}
 	}
 
 	return _witness{full: full, public: public, assignment: assignment}
