@@ -34,7 +34,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/frontend/schema"
 	gnarkio "github.com/consensys/gnark/io"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -50,7 +50,7 @@ const SerializationThreshold = 1000
 // Assert is a helper to test circuits
 type Assert struct {
 	t *testing.T
-	*assert.Assertions
+	*require.Assertions
 }
 
 // NewAssert returns an Assert helper embedding a testify/require object for convenience
@@ -60,7 +60,7 @@ type Assert struct {
 // the first call to assert.ProverSucceeded/Failed will compile the circuit for n curves, m backends
 // and subsequent calls will re-use the result of the compilation, if available.
 func NewAssert(t *testing.T) *Assert {
-	return &Assert{t: t, Assertions: assert.New(t)}
+	return &Assert{t: t, Assertions: require.New(t)}
 }
 
 // Run runs the test function fn as a subtest. The subtest is parametrized by
@@ -68,7 +68,7 @@ func NewAssert(t *testing.T) *Assert {
 func (a *Assert) Run(fn func(assert *Assert), descs ...string) {
 	desc := strings.Join(descs, "/")
 	a.t.Run(desc, func(t *testing.T) {
-		assert := &Assert{t, assert.New(t)}
+		assert := &Assert{t, require.New(t)}
 		fn(assert)
 	})
 }
