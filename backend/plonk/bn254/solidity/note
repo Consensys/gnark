@@ -1,1 +1,0 @@
-{{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
