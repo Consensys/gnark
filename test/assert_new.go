@@ -172,13 +172,18 @@ func (assert *Assert) parseAssignment(circuit frontend.Circuit, assignment front
 	assert.NoError(err, "can't parse assignment into public witness")
 
 	if checkSerialization {
-		assert.Run(func(assert *Assert) {
-			assert.marshalWitness(full, curve, false)
-		}, curve.String(), "marshal/binary")
-		assert.Run(func(assert *Assert) {
-			assert.marshalWitness(public, curve, true)
-		}, curve.String(), "marshal-public/binary")
+		witnessBuilder := func() any {
+			w, err := witness.New(curve.ScalarField())
+			if err != nil {
+				panic(err)
+			}
+			return w
+		}
+		assert.roundTripCheck(full, witnessBuilder, "witness", "full")
+		assert.roundTripCheck(public, witnessBuilder, "witness", "public")
 
+		// TODO @gbotrel we probably don't want to run that for every circuit since
+		// JSON conversion does not behave well for complex circuits.
 		assert.Run(func(assert *Assert) {
 			s := lazySchema(circuit)()
 			assert.marshalWitnessJSON(full, s, curve, false)

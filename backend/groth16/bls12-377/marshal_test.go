@@ -23,12 +23,11 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/pedersen"
 	"github.com/consensys/gnark/backend/groth16/internal/test_utils"
+	"github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"bytes"
 	"math/big"
-	"reflect"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -45,7 +44,7 @@ func TestProofSerialization(t *testing.T) {
 
 	properties.Property("Proof -> writer -> reader -> Proof should stay constant", prop.ForAll(
 		func(ar, krs curve.G1Affine, bs curve.G2Affine) bool {
-			var proof, pCompressed, pRaw Proof
+			var proof Proof
 
 			// create a random proof
 			proof.Ar = ar
@@ -57,37 +56,8 @@ func TestProofSerialization(t *testing.T) {
 			}
 			proof.CommitmentPok = ar
 
-			var bufCompressed bytes.Buffer
-			written, err := proof.WriteTo(&bufCompressed)
-			if err != nil {
-				return false
-			}
-
-			read, err := pCompressed.ReadFrom(&bufCompressed)
-			if err != nil {
-				return false
-			}
-
-			if read != written {
-				return false
-			}
-
-			var bufRaw bytes.Buffer
-			written, err = proof.WriteRawTo(&bufRaw)
-			if err != nil {
-				return false
-			}
-
-			read, err = pRaw.ReadFrom(&bufRaw)
-			if err != nil {
-				return false
-			}
-
-			if read != written {
-				return false
-			}
-
-			return reflect.DeepEqual(&proof, &pCompressed) && reflect.DeepEqual(&proof, &pRaw)
+			err := io.RoundTripCheck(&proof, func() any { return new(Proof) })
+			return err == nil
 		},
 		GenG1(),
 		GenG1(),
@@ -101,7 +71,7 @@ func TestVerifyingKeySerialization(t *testing.T) {
 
 	roundTrip := func(withCommitment bool) func(curve.G1Affine, curve.G2Affine) bool {
 		return func(p1 curve.G1Affine, p2 curve.G2Affine) bool {
-			var vk, vkCompressed, vkRaw VerifyingKey
+			var vk VerifyingKey
 
 			// create a random vk
 			nbWires := 6
@@ -143,43 +113,8 @@ func TestVerifyingKeySerialization(t *testing.T) {
 				assert.NoError(t, err)
 			}
 
-			var bufCompressed bytes.Buffer
-			written, err := vk.WriteTo(&bufCompressed)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-
-			read, err := vkCompressed.ReadFrom(&bufCompressed)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-
-			if read != written {
-				t.Log("read != written")
-				return false
-			}
-
-			var bufRaw bytes.Buffer
-			written, err = vk.WriteRawTo(&bufRaw)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-
-			read, err = vkRaw.ReadFrom(&bufRaw)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-
-			if read != written {
-				t.Log("read raw != written")
-				return false
-			}
-
-			return reflect.DeepEqual(&vk, &vkCompressed) && reflect.DeepEqual(&vk, &vkRaw)
+			err = io.RoundTripCheck(&vk, func() any { return new(VerifyingKey) })
+			return err == nil
 		}
 	}
 
@@ -211,7 +146,7 @@ func TestProvingKeySerialization(t *testing.T) {
 
 	properties.Property("ProvingKey -> writer -> reader -> ProvingKey should stay constant", prop.ForAll(
 		func(p1 curve.G1Affine, p2 curve.G2Affine, nbCommitment int) bool {
-			var pk, pkCompressed, pkRaw ProvingKey
+			var pk ProvingKey
 
 			// create a random pk
 			domain := fft.NewDomain(8)
@@ -252,43 +187,9 @@ func TestProvingKeySerialization(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			var bufCompressed bytes.Buffer
-			written, err := pk.WriteTo(&bufCompressed)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
+			err := io.RoundTripCheck(&pk, func() any { return new(ProvingKey) })
+			return err == nil
 
-			read, err := pkCompressed.ReadFrom(&bufCompressed)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-
-			if read != written {
-				t.Log("read != written")
-				return false
-			}
-
-			var bufRaw bytes.Buffer
-			written, err = pk.WriteRawTo(&bufRaw)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-
-			read, err = pkRaw.ReadFrom(&bufRaw)
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-
-			if read != written {
-				t.Log("read raw != written")
-				return false
-			}
-
-			return reflect.DeepEqual(&pk, &pkCompressed) && reflect.DeepEqual(&pk, &pkRaw)
 		},
 		GenG1(),
 		GenG2(),

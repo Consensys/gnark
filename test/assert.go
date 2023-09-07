@@ -17,10 +17,8 @@ limitations under the License.
 package test
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -142,123 +140,6 @@ func lazySchema(circuit frontend.Circuit) func() *schema.Schema {
 	}
 }
 
-// Fuzz fuzzes the given circuit by instantiating "randomized" witnesses and cross checking
-// execution result between constraint system solver and big.Int test execution engine
-//
-// note: this is experimental and will be more tightly integrated with go1.18 built-in fuzzing
-func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...TestingOption) {
-	opt := assert.options(opts...)
-
-	// first we clone the circuit
-	// then we parse the frontend.Variable and set them to a random value  or from our interesting pool
-	// (% of allocations to be tuned)
-	w := shallowClone(circuit)
-
-	fillers := []filler{randomFiller, binaryFiller, seedFiller}
-
-	for _, curve := range opt.curves {
-		for _, b := range opt.backends {
-			curve := curve
-			b := b
-			assert.Run(func(assert *Assert) {
-				// this puts the compiled circuit in the cache
-				// we do this here in case our fuzzWitness method mutates some references in the circuit
-				// (like []frontend.Variable) before cleaning up
-				_, err := assert.compile(circuit, curve, b, opt.compileOpts)
-				assert.NoError(err)
-				valid := 0
-				// "fuzz" with zeros
-				valid += assert.fuzzer(zeroFiller, circuit, w, b, curve, &opt)
-
-				for i := 0; i < fuzzCount; i++ {
-					for _, f := range fillers {
-						valid += assert.fuzzer(f, circuit, w, b, curve, &opt)
-					}
-				}
-
-			}, curve.String(), b.String())
-
-		}
-	}
-}
-
-func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) int {
-	// fuzz a witness
-	fuzzer(w, curve)
-
-	errVars := IsSolved(circuit, w, curve.ScalarField())
-	errConsts := IsSolved(circuit, w, curve.ScalarField(), SetAllVariablesAsConstants())
-
-	if (errVars == nil) != (errConsts == nil) {
-		w, err := frontend.NewWitness(w, curve.ScalarField())
-		if err != nil {
-			panic(err)
-		}
-		s, err := frontend.NewSchema(circuit)
-		if err != nil {
-			panic(err)
-		}
-		bb, err := w.ToJSON(s)
-		if err != nil {
-			panic(err)
-		}
-
-		assert.Log("errVars", errVars)
-		assert.Log("errConsts", errConsts)
-		assert.Log("fuzzer witness", string(bb))
-		assert.FailNow("solving circuit with values as constants vs non-constants mismatched result")
-	}
-
-	if errVars == nil && errConsts == nil {
-		// valid witness
-		assert.solvingSucceeded(circuit, w, b, curve, opt)
-		return 1
-	}
-
-	// invalid witness
-	assert.solvingFailed(circuit, w, b, curve, opt)
-	return 0
-}
-
-func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
-	// parse assignment
-	w := assert.parseAssignment(circuit, validAssignment, curve, opt.checkSerialization)
-
-	checkError := func(err error) { assert.noError(err, &w) }
-
-	// 1- compile the circuit
-	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
-	checkError(err)
-
-	// must not error with big int test engine
-	err = IsSolved(circuit, validAssignment, curve.ScalarField())
-	checkError(err)
-
-	err = ccs.IsSolved(w.full, opt.solverOpts...)
-	checkError(err)
-
-}
-
-func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
-	// parse assignment
-	w := assert.parseAssignment(circuit, invalidAssignment, curve, opt.checkSerialization)
-
-	checkError := func(err error) { assert.noError(err, &w) }
-	mustError := func(err error) { assert.error(err, &w) }
-
-	// 1- compile the circuit
-	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
-	checkError(err)
-
-	// must error with big int test engine
-	err = IsSolved(circuit, invalidAssignment, curve.ScalarField())
-	mustError(err)
-
-	err = ccs.IsSolved(w.full, opt.solverOpts...)
-	mustError(err)
-
-}
-
 // compile the given circuit for given curve and backend, if not already present in cache
 func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendID backend.ID, compileOpts []frontend.CompileOption) (constraint.ConstraintSystem, error) {
 	var newBuilder frontend.NewBuilder
@@ -335,27 +216,6 @@ func (assert *Assert) noError(err error, w *_witness) {
 	assert.FailNow(e.Error())
 }
 
-func (assert *Assert) marshalWitness(w witness.Witness, curveID ecc.ID, publicOnly bool) {
-	// serialize the vector to binary
-	var err error
-	if publicOnly {
-		w, err = w.Public()
-		assert.NoError(err)
-	}
-	data, err := w.MarshalBinary()
-	assert.NoError(err)
-
-	// re-read
-	witness, err := witness.New(curveID.ScalarField())
-	assert.NoError(err)
-	err = witness.UnmarshalBinary(data)
-	assert.NoError(err)
-
-	witnessMatch := reflect.DeepEqual(w, witness)
-
-	assert.True(witnessMatch, "round trip marshaling failed")
-}
-
 func (assert *Assert) marshalWitnessJSON(w witness.Witness, s *schema.Schema, curveID ecc.ID, publicOnly bool) {
 	var err error
 	if publicOnly {
@@ -383,44 +243,6 @@ func (assert *Assert) roundTripCheck(from any, builder func() any, descs ...stri
 	}
 	assert.Run(func(assert *Assert) {
 		assert.t.Parallel()
-		var buf bytes.Buffer
-
-		check := func(written int64) {
-			// if builder implements io.ReaderFrom
-			if r, ok := builder().(io.ReaderFrom); ok {
-				read, err := r.ReadFrom(bytes.NewReader(buf.Bytes()))
-				assert.NoError(err)
-				assert.True(reflect.DeepEqual(from, r), "reconstructed object don't match original (ReadFrom)")
-				assert.Log("reconstruction with ReadFrom OK")
-				assert.Equal(written, read, "bytes written / read don't match")
-			}
-
-			// if builder implements gnarkio.UnsafeReaderFrom
-			if r, ok := builder().(gnarkio.UnsafeReaderFrom); ok {
-				read, err := r.UnsafeReadFrom(bytes.NewReader(buf.Bytes()))
-				assert.NoError(err)
-				assert.True(reflect.DeepEqual(from, r), "reconstructed object don't match original (UnsafeReadFrom)")
-				assert.Log("reconstruction with UnsafeReadFrom OK")
-				assert.Equal(written, read, "bytes written / read don't match")
-			}
-		}
-
-		// if from implements io.WriterTo
-		if w, ok := from.(io.WriterTo); ok {
-			written, err := w.WriteTo(&buf)
-			assert.NoError(err)
-
-			check(written)
-		}
-
-		buf.Reset()
-
-		// if from implements gnarkio.WriterRawTo
-		if w, ok := from.(gnarkio.WriterRawTo); ok {
-			written, err := w.WriteRawTo(&buf)
-			assert.NoError(err)
-
-			check(written)
-		}
+		assert.NoError(gnarkio.RoundTripCheck(from, builder))
 	}, descs...)
 }
