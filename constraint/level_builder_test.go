@@ -5,8 +5,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
@@ -38,5 +36,6 @@ func (c *idHintCircuit) Define(api frontend.API) error {
 func TestIdHint(t *testing.T) {
 	solver.RegisterHint(idHint)
 	assignment := idHintCircuit{0}
-	test.NewAssert(t).SolvingSucceeded(&idHintCircuit{}, &assignment, test.WithBackends(backend.GROTH16), test.WithCurves(ecc.BN254))
+
+	test.NewAssert(t).CheckCircuit(&idHintCircuit{}, test.WithDefaultProfile(), test.WithValidAssignment(&assignment))
 }

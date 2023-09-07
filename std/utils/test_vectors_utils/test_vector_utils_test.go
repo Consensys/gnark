@@ -2,11 +2,11 @@ package test_vector_utils
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/backend"
+	"testing"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 type TestSingleMapCircuit struct {
@@ -42,7 +42,7 @@ func TestSingleMap(t *testing.T) {
 		Values: make([]frontend.Variable, len(m)), // Okay to use the same object?
 	}
 
-	test.NewAssert(t).ProverSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16))
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithDefaultProfile())
 }
 
 type TestDoubleMapCircuit struct {
@@ -138,7 +138,7 @@ func TestDoubleMap(t *testing.T) {
 		Values: make([]frontend.Variable, len(m)), // Okay to use the same object?
 	}
 
-	test.NewAssert(t).ProverSucceeded(&circuit, &assignment, test.WithBackends(backend.GROTH16))
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithDefaultProfile())
 }
 
 func TestDoubleMapManyTimes(t *testing.T) {

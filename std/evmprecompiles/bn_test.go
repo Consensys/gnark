@@ -8,7 +8,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
@@ -70,9 +69,8 @@ func TestECAddCircuitShort(t *testing.T) {
 func TestECAddCircuitFull(t *testing.T) {
 	assert := test.NewAssert(t)
 	circuit, witness := testRoutineECAdd()
-	assert.ProverSucceeded(circuit, witness,
-		test.NoFuzzing(), test.NoSerialization(),
-		test.WithBackends(backend.GROTH16, backend.PLONK), test.WithCurves(ecc.BN254),
+	assert.CheckCircuit(circuit, test.WithValidAssignment(witness),
+		test.WithDefaultProfile(),
 	)
 }
 
@@ -127,9 +125,8 @@ func TestECMulCircuitFull(t *testing.T) {
 	t.Skip("skipping very long test")
 	assert := test.NewAssert(t)
 	circuit, witness := testRoutineECMul(t)
-	assert.ProverSucceeded(circuit, witness,
-		test.NoFuzzing(), test.NoSerialization(),
-		test.WithBackends(backend.GROTH16, backend.PLONK), test.WithCurves(ecc.BN254),
+	assert.CheckCircuit(circuit, test.WithValidAssignment(witness),
+		test.WithDefaultProfile(),
 	)
 }
 

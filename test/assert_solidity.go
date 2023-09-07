@@ -15,13 +15,15 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 )
 
+type verifyingKey interface {
+	NbPublicWitness() int
+	ExportSolidity(io.Writer) error
+}
+
 // solidityVerification checks that the exported solidity contract can verify the proof
 // and that the proof is valid.
 // It uses gnark-solidity-checker see test.WithSolidity option.
-func (assert *Assert) solidityVerification(b backend.ID, vk interface {
-	NbPublicWitness() int
-	ExportSolidity(io.Writer) error
-},
+func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
 	proof any,
 	validPublicWitness witness.Witness) {
 	if !solcCheck {

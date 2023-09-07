@@ -61,7 +61,7 @@ func TestIsOnCurve(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	for _, curve := range curves {
-		var circuit, witness mustBeOnCurve
+		var circuit, validWitness, invalidWitness mustBeOnCurve
 		circuit.curveID = curve
 
 		// get matching snark curve
@@ -73,15 +73,19 @@ func TestIsOnCurve(t *testing.T) {
 		params, err := GetCurveParams(curve)
 		assert.NoError(err)
 
-		witness.P.X = params.Base[0]
-		witness.P.Y = params.Base[1]
+		// create witness
+		validWitness.P.X = params.Base[0]
+		validWitness.P.Y = params.Base[1]
 
-		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkCurve))
+		invalidWitness.P.X = params.Base[0]
+		invalidWitness.P.Y = params.randomScalar()
 
-		witness.P.X = params.Base[0]
-		witness.P.Y = params.randomScalar()
+		// check circuits.
+		assert.CheckCircuit(&circuit, test.WithDefaultProfile(),
+			test.WithValidAssignment(&validWitness),
+			test.WithInvalidAssignment(&invalidWitness),
+			test.WithCurves(snarkCurve))
 
-		assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkCurve))
 	}
 
 }
@@ -184,11 +188,16 @@ func TestCurve(t *testing.T) {
 
 		circuit.fixedPoint = witness.P2
 
-		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkCurve))
+		invalidWitness := witness
+		invalidWitness.P1.Y = params.randomScalar()
 
-		witness.P1.Y = params.randomScalar()
-
-		assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkCurve))
+		assert.CheckCircuit(
+			&circuit,
+			test.WithDefaultProfile(),
+			test.WithValidAssignment(&witness),
+			test.WithInvalidAssignment(&invalidWitness),
+			test.WithCurves(snarkCurve),
+		)
 	}
 }
 

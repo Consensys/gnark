@@ -58,7 +58,7 @@ func TestMimcAll(t *testing.T) {
 	for curve, hashFunc := range curves {
 
 		// minimal cs res = hash(data)
-		var circuit, witness, wrongWitness mimcCircuit
+		var circuit, validWitness, invalidWitness mimcCircuit
 
 		modulus := curve.ScalarField()
 		var data [10]big.Int
@@ -76,17 +76,20 @@ func TestMimcAll(t *testing.T) {
 
 		// assert correctness against correct witness
 		for i := 0; i < 10; i++ {
-			witness.Data[i] = data[i].String()
+			validWitness.Data[i] = data[i].String()
 		}
-		witness.ExpectedResult = expectedh
-		assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(curve))
+		validWitness.ExpectedResult = expectedh
 
 		// assert failure against wrong witness
 		for i := 0; i < 10; i++ {
-			wrongWitness.Data[i] = data[i].Sub(&data[i], big.NewInt(1)).String()
+			invalidWitness.Data[i] = data[i].Sub(&data[i], big.NewInt(1)).String()
 		}
-		wrongWitness.ExpectedResult = expectedh
-		assert.SolvingFailed(&circuit, &wrongWitness, test.WithCurves(curve))
+		invalidWitness.ExpectedResult = expectedh
+
+		assert.CheckCircuit(&circuit, test.WithDefaultProfile(),
+			test.WithValidAssignment(&validWitness),
+			test.WithInvalidAssignment(&invalidWitness),
+			test.WithCurves(curve))
 	}
 
 }

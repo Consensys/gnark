@@ -57,7 +57,7 @@ func TestAddFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Sub struct {
@@ -74,7 +74,7 @@ func (circuit *fp12Sub) Define(api frontend.API) error {
 
 func TestSubFp12(t *testing.T) {
 
-	var circuit, witness fp12Sub
+	var witness fp12Sub
 
 	// witness values
 	var a, b, c bls12377.E12
@@ -88,7 +88,12 @@ func TestSubFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+
+	assert.CheckCircuit(
+		&fp12Sub{},
+		test.WithValidAssignment(&witness),
+		test.WithCurves(ecc.BW6_761),
+	)
 }
 
 type fp12Mul struct {
@@ -106,7 +111,7 @@ func (circuit *fp12Mul) Define(api frontend.API) error {
 
 func TestMulFp12(t *testing.T) {
 
-	var circuit, witness fp12Mul
+	var witness fp12Mul
 
 	// witness values
 	var a, b, c bls12377.E12
@@ -120,7 +125,7 @@ func TestMulFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&fp12Mul{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Square struct {
@@ -149,7 +154,7 @@ func TestSquareFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -189,7 +194,7 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -231,7 +236,7 @@ func TestFp12CyclotomicSquareCompressed(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -261,7 +266,7 @@ func TestConjugateFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Frobenius struct {
@@ -305,7 +310,7 @@ func TestFrobeniusFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
 }
 
 type fp12Inverse struct {
@@ -335,7 +340,7 @@ func TestInverseFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
 }
 
 type e12Div struct {
@@ -402,7 +407,7 @@ func TestExpFixedExpoFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
 }
 
 type fp12MulBy034 struct {
@@ -439,6 +444,6 @@ func TestFp12MulBy034(t *testing.T) {
 	witness.W.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
 
 }
