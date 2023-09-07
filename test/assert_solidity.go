@@ -26,7 +26,7 @@ type verifyingKey interface {
 func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
 	proof any,
 	validPublicWitness witness.Witness) {
-	if !solcCheck {
+	if !solcCheck || vk.NbPublicWitness() == 0 {
 		return // nothing to check, will make solc fail.
 	}
 	assert.t.Helper()
@@ -63,7 +63,10 @@ func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
 		_proof := proof.(*groth16_bn254.Proof)
 		_, err = _proof.WriteRawTo(&buf)
 		assert.NoError(err)
-		proofStr = hex.EncodeToString(buf.Bytes())
+		proofBytes := buf.Bytes()
+		// keep only fpSize * 8 bytes; for now solidity contract doesn't handle the commitment part.
+		proofBytes = proofBytes[:32*8]
+		proofStr = hex.EncodeToString(proofBytes)
 	} else if b == backend.PLONK {
 		optBackend = "--plonk"
 		_proof := proof.(*plonk_bn254.Proof)

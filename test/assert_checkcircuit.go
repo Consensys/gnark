@@ -119,20 +119,25 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					for _, w := range validWitnesses {
 						w := w
 						assert.Run(func(assert *Assert) {
-							assert.t.Parallel()
+							checkSolidity := opt.checkSolidity && curve == ecc.BN254
+							if !checkSolidity {
+								// TODO @gbotrel FIXME running with t.Parallel() makes the test fail
+								// when calling solidityVerification
+								assert.t.Parallel()
+							}
 							proof, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
 							assert.noError(err, &w)
 
 							err = concreteBackend.verify(proof, vk, w.public)
 							assert.noError(err, &w)
 
-							if opt.checkSolidity {
+							if checkSolidity {
 								// check that the proof can be verified by gnark-solidity-checker
 								if _vk, ok := vk.(verifyingKey); ok {
-									assert.Run(func(assert *Assert) {
-										assert.t.Parallel()
-										assert.solidityVerification(b, _vk, proof, w.public)
-									}, "solidity")
+									// assert.Run(func(assert *Assert) {
+									// 	assert.t.Parallel()
+									assert.solidityVerification(b, _vk, proof, w.public)
+									// }, "solidity")
 								}
 							}
 
