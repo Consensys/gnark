@@ -37,5 +37,5 @@ func TestIdHint(t *testing.T) {
 	solver.RegisterHint(idHint)
 	assignment := idHintCircuit{0}
 
-	test.NewAssert(t).CheckCircuit(&idHintCircuit{}, test.WithDefaultProfile(), test.WithValidAssignment(&assignment))
+	test.NewAssert(t).CheckCircuit(&idHintCircuit{}, test.WithValidAssignment(&assignment))
 }

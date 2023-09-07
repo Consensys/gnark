@@ -81,7 +81,7 @@ func TestIsOnCurve(t *testing.T) {
 		invalidWitness.P.Y = params.randomScalar()
 
 		// check circuits.
-		assert.CheckCircuit(&circuit, test.WithDefaultProfile(),
+		assert.CheckCircuit(&circuit,
 			test.WithValidAssignment(&validWitness),
 			test.WithInvalidAssignment(&invalidWitness),
 			test.WithCurves(snarkCurve))
@@ -193,7 +193,7 @@ func TestCurve(t *testing.T) {
 
 		assert.CheckCircuit(
 			&circuit,
-			test.WithDefaultProfile(),
+
 			test.WithValidAssignment(&witness),
 			test.WithInvalidAssignment(&invalidWitness),
 			test.WithCurves(snarkCurve),

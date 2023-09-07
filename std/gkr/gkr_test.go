@@ -492,7 +492,7 @@ func (c *constHashCircuit) Define(api frontend.API) error {
 func TestConstHash(t *testing.T) {
 	test.NewAssert(t).CheckCircuit(
 		&constHashCircuit{},
-		test.WithDefaultProfile(),
+
 		test.WithValidAssignment(&constHashCircuit{X: 1}),
 	)
 }

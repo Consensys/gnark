@@ -34,7 +34,7 @@ func testEvalPoly(t *testing.T, p []int64, at int64, evaluation int64) {
 		Evaluation: evaluation,
 	}
 
-	assert.CheckCircuit(&evalPolyCircuit{P: make(Polynomial, len(p))}, test.WithDefaultProfile(), test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&evalPolyCircuit{P: make(Polynomial, len(p))}, test.WithValidAssignment(&witness))
 }
 
 func TestEvalPoly(t *testing.T) {
@@ -58,7 +58,7 @@ func testEvalDeltas(t *testing.T, at int64, expected []int64) {
 
 	test.NewAssert(t).CheckCircuit(
 		&evalDeltasCircuit{ExpectedDeltas: make([]frontend.Variable, len(expected))},
-		test.WithDefaultProfile(),
+
 		test.WithValidAssignment(&evalDeltasCircuit{ExpectedDeltas: int64SliceToVariableSlice(expected), At: at}),
 	)
 }
@@ -92,7 +92,7 @@ func (c *foldMultiLinCircuit) Define(api frontend.API) error {
 func TestFoldSmall(t *testing.T) {
 	test.NewAssert(t).CheckCircuit(
 		&foldMultiLinCircuit{M: make([]frontend.Variable, 4), Result: make([]frontend.Variable, 2)},
-		test.WithDefaultProfile(),
+
 		test.WithValidAssignment(&foldMultiLinCircuit{M: []frontend.Variable{0, 1, 2, 3}, At: 2, Result: []frontend.Variable{4, 5}}),
 	)
 }
@@ -120,7 +120,7 @@ func TestEvalMultiLin(t *testing.T) {
 		Evaluation: 17,
 	}
 
-	assert.CheckCircuit(&evalMultiLinCircuit{M: make(MultiLin, 4), At: make([]frontend.Variable, 2)}, test.WithDefaultProfile(), test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&evalMultiLinCircuit{M: make(MultiLin, 4), At: make([]frontend.Variable, 2)}, test.WithValidAssignment(&witness))
 }
 
 type evalEqCircuit struct {
@@ -144,7 +144,7 @@ func TestEvalEq(t *testing.T) {
 		Eq: 148665,
 	}
 
-	assert.CheckCircuit(&evalEqCircuit{X: make([]frontend.Variable, 4), Y: make([]frontend.Variable, 4)}, test.WithDefaultProfile(), test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&evalEqCircuit{X: make([]frontend.Variable, 4), Y: make([]frontend.Variable, 4)}, test.WithValidAssignment(&witness))
 }
 
 type interpolateLDECircuit struct {
@@ -163,7 +163,7 @@ func testInterpolateLDE(t *testing.T, at int64, values []int64, expectedInterpol
 
 	test.NewAssert(t).CheckCircuit(
 		&interpolateLDECircuit{Values: make([]frontend.Variable, len(values))},
-		test.WithDefaultProfile(),
+
 		test.WithValidAssignment(&interpolateLDECircuit{At: at, Values: int64SliceToVariableSlice(values), ExpectedInterpolation: expectedInterpolation}),
 	)
 }

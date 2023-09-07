@@ -86,7 +86,7 @@ func TestMimcAll(t *testing.T) {
 		}
 		invalidWitness.ExpectedResult = expectedh
 
-		assert.CheckCircuit(&circuit, test.WithDefaultProfile(),
+		assert.CheckCircuit(&circuit,
 			test.WithValidAssignment(&validWitness),
 			test.WithInvalidAssignment(&invalidWitness),
 			test.WithCurves(curve))

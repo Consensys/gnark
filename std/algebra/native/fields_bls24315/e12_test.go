@@ -56,7 +56,7 @@ func TestAddFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 }
 
 type fp12Sub struct {
@@ -87,7 +87,7 @@ func TestSubFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 }
 
 type fp12Mul struct {
@@ -119,7 +119,7 @@ func TestMulFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithDefaultProfile(), test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 }
 
 type fp12MulByNonResidue struct {
@@ -150,7 +150,7 @@ func TestMulByNonResidueFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -211,6 +211,6 @@ func TestInverseFp12(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 
 }

@@ -129,7 +129,7 @@ func TestEddsa(t *testing.T) {
 			invalidWitness.PublicKey.Assign(conf.curve, pubKey.Bytes())
 			invalidWitness.Signature.Assign(conf.curve, signature)
 
-			assert.CheckCircuit(&circuit, test.WithDefaultProfile(),
+			assert.CheckCircuit(&circuit,
 				test.WithValidAssignment(&validWitness),
 				test.WithInvalidAssignment(&invalidWitness),
 				test.WithCurves(snarkCurve))

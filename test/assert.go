@@ -43,10 +43,6 @@ var (
 	ErrInvalidWitnessVerified      = errors.New("invalid witness resulted in a valid proof")
 )
 
-// SerializationThreshold is the number of constraints above which we don't
-// do a systematic round-trip serialization check for the proving and verifying keys.
-const SerializationThreshold = 1000
-
 // Assert is a helper to test circuits
 type Assert struct {
 	t *testing.T
@@ -94,12 +90,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 	copy(newOpts, opts)
 	newOpts = append(newOpts, WithValidAssignment(validAssignment))
 
-	if !testing.Short() {
-		newOpts = append(newOpts, WithFullProver())
-	}
-
 	assert.CheckCircuit(circuit, newOpts...)
-
 }
 
 // ProverSucceeded fails the test if any of the following step errored:
@@ -115,10 +106,6 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 	newOpts := make([]TestingOption, len(opts), len(opts)+2)
 	copy(newOpts, opts)
 	newOpts = append(newOpts, WithInvalidAssignment(invalidAssignment))
-
-	if !testing.Short() {
-		newOpts = append(newOpts, WithFullProver())
-	}
 
 	assert.CheckCircuit(circuit, newOpts...)
 }
@@ -169,8 +156,8 @@ func (assert *Assert) Fuzz(circuit frontend.Circuit, fuzzCount int, opts ...Test
 
 	fillers := []filler{randomFiller, binaryFiller, seedFiller}
 
-	for _, curve := range opt.Curves {
-		for _, b := range opt.Backends {
+	for _, curve := range opt.curves {
+		for _, b := range opt.backends {
 			curve := curve
 			b := b
 			assert.Run(func(assert *Assert) {
@@ -235,10 +222,9 @@ func (assert *Assert) fuzzer(fuzzer filler, circuit, w frontend.Circuit, b backe
 
 func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
-	validWitness, err := frontend.NewWitness(validAssignment, curve.ScalarField())
-	assert.NoError(err, "can't parse valid assignment")
+	w := assert.parseAssignment(circuit, validAssignment, curve, opt.checkSerialization)
 
-	checkError := func(err error) { assert.checkError(err, b, curve, validWitness, lazySchema(circuit)) }
+	checkError := func(err error) { assert.noError(err, &w) }
 
 	// 1- compile the circuit
 	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
@@ -248,18 +234,17 @@ func (assert *Assert) solvingSucceeded(circuit frontend.Circuit, validAssignment
 	err = IsSolved(circuit, validAssignment, curve.ScalarField())
 	checkError(err)
 
-	err = ccs.IsSolved(validWitness, opt.solverOpts...)
+	err = ccs.IsSolved(w.full, opt.solverOpts...)
 	checkError(err)
 
 }
 
 func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, b backend.ID, curve ecc.ID, opt *testingConfig) {
 	// parse assignment
-	invalidWitness, err := frontend.NewWitness(invalidAssignment, curve.ScalarField())
-	assert.NoError(err, "can't parse invalid assignment")
+	w := assert.parseAssignment(circuit, invalidAssignment, curve, opt.checkSerialization)
 
-	checkError := func(err error) { assert.checkError(err, b, curve, invalidWitness, lazySchema(circuit)) }
-	mustError := func(err error) { assert.mustError(err, b, curve, invalidWitness, lazySchema(circuit)) }
+	checkError := func(err error) { assert.noError(err, &w) }
+	mustError := func(err error) { assert.error(err, &w) }
 
 	// 1- compile the circuit
 	ccs, err := assert.compile(circuit, curve, b, opt.compileOpts)
@@ -269,7 +254,7 @@ func (assert *Assert) solvingFailed(circuit frontend.Circuit, invalidAssignment 
 	err = IsSolved(circuit, invalidAssignment, curve.ScalarField())
 	mustError(err)
 
-	err = ccs.IsSolved(invalidWitness, opt.solverOpts...)
+	err = ccs.IsSolved(w.full, opt.solverOpts...)
 	mustError(err)
 
 }
@@ -307,34 +292,38 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 	return ccs, nil
 }
 
-// ensure the error is set, else fails the test
-func (assert *Assert) mustError(err error, backendID backend.ID, curve ecc.ID, w witness.Witness, lazyS func() *schema.Schema) {
+// error ensure the error is set, else fails the test
+// add a witness to the error message if provided
+func (assert *Assert) error(err error, w *_witness) {
 	if err != nil {
 		return
 	}
-	var json string
-	bjson, err := w.ToJSON(lazyS())
-	if err != nil {
-		json = err.Error()
-	} else {
-		json = string(bjson)
+	json := "<nil>"
+	if w != nil {
+		bjson, err := w.full.ToJSON(lazySchema(w.assignment)())
+		if err != nil {
+			json = err.Error()
+		} else {
+			json = string(bjson)
+		}
 	}
 
-	e := fmt.Errorf("did not error (but should have) %s(%s)\nwitness:%s", backendID.String(), curve.String(), json)
+	e := fmt.Errorf("did not error (but should have)\nwitness:%s", json)
 	assert.FailNow(e.Error())
 }
 
 // ensure the error is nil, else fails the test
-func (assert *Assert) checkError(err error, backendID backend.ID, curve ecc.ID, w witness.Witness, lazyS func() *schema.Schema) {
+// add a witness to the error message if provided
+func (assert *Assert) noError(err error, w *_witness) {
 	if err == nil {
 		return
 	}
 
-	e := fmt.Errorf("%s(%s): %w", backendID.String(), curve.String(), err)
+	e := err
 
 	if w != nil {
 		var json string
-		bjson, err := w.ToJSON(lazyS())
+		bjson, err := w.full.ToJSON(lazySchema(w.assignment)())
 		if err != nil {
 			json = err.Error()
 		} else {

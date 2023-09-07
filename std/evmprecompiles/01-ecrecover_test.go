@@ -137,6 +137,5 @@ func TestECRecoverCircuitFull(t *testing.T) {
 	assert.CheckCircuit(
 		circuit,
 		test.WithValidAssignment(witness),
-		test.WithDefaultProfile(),
 	)
 }

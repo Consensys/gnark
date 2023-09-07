@@ -1,47 +1,47 @@
 package test
 
 import (
-	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 )
 
-type Profile struct {
-	Backends []backend.ID
-	Curves   []ecc.ID
+// serializationThreshold is the number of constraints above which we don't
+// don't do serialization check for the proving and verifying keys.
+const serializationThreshold = 1000
 
-	WitnessSerialization bool
-	Solidity             bool
-	FullProver           bool
-	Fuzzing              bool
+// see assert.CheckCircuit for details
+type profile struct {
+	backends []backend.ID
+	curves   []ecc.ID
+
+	checkSerialization bool
+	checkSolidity      bool
+	checkProver        bool
+	fuzzing            bool
 }
 
-// TestEngineOnly profile; good presets to check correctness of the circuit.
-// Runs the test engine with
-// * BN254 scalar field only if -short flag is set
-// * BN254 and BLS12-381 scalar fields otherwise
-// No prover, no serialization checks, no fuzzing, no solidity.
-// It does not compile the circuit to a constraint system.
-var TestEngineOnly = Profile{
-	Backends: []backend.ID{},
+var testEngineOnly = profile{
+	backends: []backend.ID{},
+	curves:   []ecc.ID{ecc.BN254, ecc.BLS12_381},
 }
 
-// ConstraintOnlyProfile profile; good presets to check correctness of the circuit.
-// and the validity of the constraint system.
-// It is the same as TestEngineOnly, but it compiles the circuit to a constraint system.
-// and runs the constraint system solver on the valid and invalid assignments.
-var ConstraintOnlyProfile = Profile{
-	Backends: nil, // default option for backend == nil will fill that.
+var constraintOnlyProfile = profile{
+	backends: []backend.ID{backend.GROTH16, backend.PLONK},
+	curves:   []ecc.ID{ecc.BN254, ecc.BLS12_381},
 }
 
-// FullProfile profile; good presets to check correctness of the circuit.
-// and the validity of the constraint system.
-// It is the same as ConstraintOnlyProfile, but it also runs the prover.
-var FullProfile = Profile{
-	Backends:             []backend.ID{backend.GROTH16, backend.PLONK},
-	Curves:               gnark.Curves(),
-	WitnessSerialization: true,
-	Solidity:             true,
-	FullProver:           true,
-	Fuzzing:              true,
+var proverOnlyProfile = profile{
+	backends:      []backend.ID{backend.GROTH16, backend.PLONK},
+	curves:        []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BW6_761},
+	checkSolidity: true && solcCheck,
+	checkProver:   true,
+}
+
+var releaseProfile = profile{
+	backends:           []backend.ID{backend.GROTH16, backend.PLONK},
+	curves:             []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BW6_761, ecc.BLS12_377},
+	checkSolidity:      true && solcCheck,
+	checkProver:        true,
+	checkSerialization: true,
+	fuzzing:            true,
 }

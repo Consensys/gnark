@@ -126,7 +126,7 @@ func TestVerify(t *testing.T) {
 			}
 
 			// verify the circuit
-			assert.CheckCircuit(&circuit, test.WithDefaultProfile(), test.WithValidAssignment(&witness), test.WithCurves(tData.curve))
+			assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(tData.curve))
 
 		}
 

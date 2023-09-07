@@ -109,7 +109,7 @@ func TestVerifierDynamic(t *testing.T) {
 
 	// check if the circuit is solved
 	var circuit verifierCircuit
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -140,7 +140,7 @@ func TestVerifier(t *testing.T) {
 
 	// cs values
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile(), test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 

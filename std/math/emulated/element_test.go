@@ -49,7 +49,7 @@ func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
 		val, _ := rand.Int(rand.Reader, fp.Modulus())
 		witness.A = ValueOf[T](val)
 		witness.B = ValueOf[T](val)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -83,7 +83,7 @@ func testAssertIsLessEqualThan[T FieldParams](t *testing.T) {
 		L, _ := rand.Int(rand.Reader, R)
 		witness.R = ValueOf[T](R)
 		witness.L = ValueOf[T](L)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -112,7 +112,7 @@ func testAssertIsLessEqualThanConstant[T FieldParams](t *testing.T) {
 		circuit.R = R
 		witness.R = R
 		witness.L = ValueOf[T](L)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 	assert.Run(func(assert *test.Assert) {
 		var circuit, witness AssertIsLessEqualThanConstantCiruit[T]
@@ -121,7 +121,7 @@ func testAssertIsLessEqualThanConstant[T FieldParams](t *testing.T) {
 		circuit.R = R
 		witness.R = R
 		witness.L = ValueOf[T](L)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, fmt.Sprintf("overflow/%s", testName[T]()))
 }
 
@@ -163,7 +163,7 @@ func testAddCircuitNoOverflow[T FieldParams](t *testing.T) {
 		witness.A = ValueOf[T](val1)
 		witness.B = ValueOf[T](val2)
 		witness.C = ValueOf[T](res)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -200,7 +200,7 @@ func testMulCircuitNoOverflow[T FieldParams](t *testing.T) {
 		witness.A = ValueOf[T](val1)
 		witness.B = ValueOf[T](val2)
 		witness.C = ValueOf[T](res)
-		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16))
+		assert.ProverSucceeded(&circuit, &witness, test.WithCurves(testCurve), test.NoSerializationChecks(), test.WithBackends(backend.GROTH16))
 	}, testName[T]())
 }
 
@@ -238,7 +238,7 @@ func testMulCircuitOverflow[T FieldParams](t *testing.T) {
 		witness.A = ValueOf[T](val1)
 		witness.B = ValueOf[T](val2)
 		witness.C = ValueOf[T](res)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -277,7 +277,7 @@ func testReduceAfterAdd[T FieldParams](t *testing.T) {
 		witness.A = ValueOf[T](val3)
 		witness.B = ValueOf[T](val2)
 		witness.C = ValueOf[T](val1)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -318,7 +318,7 @@ func testSubtractNoOverflow[T FieldParams](t *testing.T) {
 		witness.A = ValueOf[T](val1)
 		witness.B = ValueOf[T](val2)
 		witness.C = ValueOf[T](res)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -335,7 +335,7 @@ func testSubtractOverflow[T FieldParams](t *testing.T) {
 		witness.A = ValueOf[T](val1)
 		witness.B = ValueOf[T](val2)
 		witness.C = ValueOf[T](res)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -369,7 +369,7 @@ func testNegation[T FieldParams](t *testing.T) {
 		res := new(big.Int).Sub(fp.Modulus(), val1)
 		witness.A = ValueOf[T](val1)
 		witness.B = ValueOf[T](res)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -406,7 +406,7 @@ func testInverse[T FieldParams](t *testing.T) {
 		res := new(big.Int).ModInverse(val1, fp.Modulus())
 		witness.A = ValueOf[T](val1)
 		witness.B = ValueOf[T](res)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -449,7 +449,7 @@ func testDivision[T FieldParams](t *testing.T) {
 		witness.A = ValueOf[T](val1)
 		witness.B = ValueOf[T](val2)
 		witness.C = ValueOf[T](res)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -493,7 +493,7 @@ func testToBinary[T FieldParams](t *testing.T) {
 		}
 		witness.Value = ValueOf[T](val1)
 		witness.Bits = bits
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -534,7 +534,7 @@ func testFromBinary[T FieldParams](t *testing.T) {
 
 		witness.Res = ValueOf[T](val1)
 		witness.Bits = bits
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -567,7 +567,7 @@ func testConstantEqual[T FieldParams](t *testing.T) {
 		val, _ := rand.Int(rand.Reader, fp.Modulus())
 		witness.A = ValueOf[T](val)
 		witness.B = ValueOf[T](val)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -615,7 +615,7 @@ func testSelect[T FieldParams](t *testing.T) {
 		witness.D = ValueOf[T]([]*big.Int{l, val3}[1-b])
 		witness.Selector = b
 
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -665,7 +665,7 @@ func testLookup2[T FieldParams](t *testing.T) {
 		witness.Bit0 = randbit.Bit(0)
 		witness.Bit1 = randbit.Bit(1)
 
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -757,7 +757,7 @@ func testComputation[T FieldParams](t *testing.T) {
 		witness.X6 = ValueOf[T](val6)
 		witness.Res = ValueOf[T](res)
 
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -812,7 +812,7 @@ func testFourMuls[T FieldParams](t *testing.T) {
 
 		witness.A = ValueOf[T](val1)
 		witness.Res = ValueOf[T](res)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 	}, testName[T]())
 }
 
@@ -871,7 +871,7 @@ func testAssertIsInRange[T FieldParams](t *testing.T) {
 		X, _ := rand.Int(rand.Reader, fp.Modulus())
 		circuit := AssertInRangeCircuit[T]{}
 		witness := AssertInRangeCircuit[T]{X: ValueOf[T](X)}
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithDefaultProfile())
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
 		witness2 := AssertInRangeCircuit[T]{X: ValueOf[T](0)}
 		t := 0
 		for i := 0; i < int(fp.NbLimbs())-1; i++ {
@@ -884,7 +884,7 @@ func testAssertIsInRange[T FieldParams](t *testing.T) {
 		L := new(big.Int).Lsh(big.NewInt(1), uint(highlimb))
 		L.Sub(L, big.NewInt(1))
 		witness2.X.Limbs[fp.NbLimbs()-1] = L
-		assert.ProverFailed(&circuit, &witness2, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+		assert.ProverFailed(&circuit, &witness2, test.WithCurves(testCurve), test.NoSerializationChecks(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
 
@@ -916,8 +916,8 @@ func testIsZero[T FieldParams](t *testing.T) {
 		X, _ := rand.Int(rand.Reader, fp.Modulus())
 		Y := new(big.Int).Sub(fp.Modulus(), X)
 		circuit := IsZeroCircuit[T]{}
-		assert.ProverSucceeded(&circuit, &IsZeroCircuit[T]{X: ValueOf[T](X), Y: ValueOf[T](Y), Zero: 1}, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
-		assert.ProverSucceeded(&circuit, &IsZeroCircuit[T]{X: ValueOf[T](X), Y: ValueOf[T](0), Zero: 0}, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+		assert.ProverSucceeded(&circuit, &IsZeroCircuit[T]{X: ValueOf[T](X), Y: ValueOf[T](Y), Zero: 1}, test.WithCurves(testCurve), test.NoSerializationChecks(), test.WithBackends(backend.GROTH16, backend.PLONK))
+		assert.ProverSucceeded(&circuit, &IsZeroCircuit[T]{X: ValueOf[T](X), Y: ValueOf[T](0), Zero: 0}, test.WithCurves(testCurve), test.NoSerializationChecks(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }
 
@@ -953,6 +953,6 @@ func testSqrt[T FieldParams](t *testing.T) {
 				break
 			}
 		}
-		assert.ProverSucceeded(&SqrtCircuit[T]{}, &SqrtCircuit[T]{X: ValueOf[T](X), Expected: ValueOf[T](exp)}, test.WithCurves(testCurve), test.NoSerialization(), test.WithBackends(backend.GROTH16, backend.PLONK))
+		assert.ProverSucceeded(&SqrtCircuit[T]{}, &SqrtCircuit[T]{X: ValueOf[T](X), Expected: ValueOf[T](exp)}, test.WithCurves(testCurve), test.NoSerializationChecks(), test.WithBackends(backend.GROTH16, backend.PLONK))
 	}, testName[T]())
 }

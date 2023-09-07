@@ -69,9 +69,7 @@ func TestECAddCircuitShort(t *testing.T) {
 func TestECAddCircuitFull(t *testing.T) {
 	assert := test.NewAssert(t)
 	circuit, witness := testRoutineECAdd()
-	assert.CheckCircuit(circuit, test.WithValidAssignment(witness),
-		test.WithDefaultProfile(),
-	)
+	assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
 }
 
 type ecmulCircuit struct {
@@ -125,9 +123,7 @@ func TestECMulCircuitFull(t *testing.T) {
 	t.Skip("skipping very long test")
 	assert := test.NewAssert(t)
 	circuit, witness := testRoutineECMul(t)
-	assert.CheckCircuit(circuit, test.WithValidAssignment(witness),
-		test.WithDefaultProfile(),
-	)
+	assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
 }
 
 type ecPairBatchCircuit struct {

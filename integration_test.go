@@ -45,7 +45,6 @@ func TestIntegrationAPI(t *testing.T) {
 
 			opts := []test.TestingOption{
 				test.WithSolverOpts(solver.WithHints(tData.HintFunctions...)),
-				test.WithDefaultProfile(),
 			}
 			if tData.Curves != nil {
 				opts = append(opts, test.WithCurves(tData.Curves[0], tData.Curves[1:]...))

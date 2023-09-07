@@ -42,7 +42,7 @@ func TestSingleMap(t *testing.T) {
 		Values: make([]frontend.Variable, len(m)), // Okay to use the same object?
 	}
 
-	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithDefaultProfile())
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
 }
 
 type TestDoubleMapCircuit struct {
@@ -138,7 +138,7 @@ func TestDoubleMap(t *testing.T) {
 		Values: make([]frontend.Variable, len(m)), // Okay to use the same object?
 	}
 
-	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithDefaultProfile())
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment))
 }
 
 func TestDoubleMapManyTimes(t *testing.T) {
