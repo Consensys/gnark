@@ -33,6 +33,11 @@ func TestProofSerialization(t *testing.T) {
 			proof.Ar = ar
 			proof.Krs = krs
 			proof.Bs = bs
+			proof.Commitments = make([]curve.G1Affine, 10)
+			for i := range proof.Commitments {
+				proof.Commitments[i] = ar
+			}
+			proof.CommitmentPok = ar
 
 			var bufCompressed bytes.Buffer
 			written, err := proof.WriteTo(&bufCompressed)
