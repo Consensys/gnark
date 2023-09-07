@@ -15,9 +15,9 @@ import (
 // CheckCircuit performs a series of check on the provided circuit.
 //
 //	go test -short 					--> testEngineChecks
-//	go test 						--> constraintSolverChecks
-//	go test -tags=prover_checks 	--> proverChecks
-//	go test -tags=release_checks 	--> releaseChecks
+//	go test 						--> testEngineChecks  + constraintSolverChecks
+//	go test -tags=prover_checks 	--> ... + proverChecks
+//	go test -tags=release_checks 	--> ... + releaseChecks (solidity, serialization, ...)
 //
 // Depending on the above flags, the following checks are performed:
 // - the circuit compiles
