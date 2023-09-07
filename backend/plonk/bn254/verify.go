@@ -359,7 +359,7 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	funcMap := template.FuncMap{
 		// The name "inc" is what the function will be called in the template text.
 		"hex": func(i int) string {
-			return fmt.Sprintf("%x0x", i)
+			return fmt.Sprintf("0x%x", i)
 		},
 		"mul": func(a, b int) int {
 			return a * b
