@@ -32,6 +32,10 @@ type BackRefSettings struct {
 	AddressingMode AddressingMode
 }
 
+func (s BackRefSettings) NbBytes() int {
+	return int(1 + s.NbBytesAddress + s.NbBytesLength)
+}
+
 type LogHeads struct {
 	Compressed, Decompressed int
 }

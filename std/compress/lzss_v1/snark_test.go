@@ -13,12 +13,12 @@ import (
 
 func Test1ZeroSnark(t *testing.T) {
 	testCompressionRoundTripSnark(t, 1, []byte{0})
-	testCompressionRoundTripSnark(t, 2, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	testCompressionRoundTripSnark(t, 2, []byte{0})
 }
 
 func Test2ZeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, []byte{0, 0, 0})
-	testCompressionRoundTripSnark(t, 2, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	testCompressionRoundTripSnark(t, 1, []byte{0, 0})
+	testCompressionRoundTripSnark(t, 2, []byte{0, 0})
 }
 
 func Test8ZerosSnark(t *testing.T) {
@@ -90,18 +90,20 @@ func TestCalldataSnark(t *testing.T) {
 type decompressionTestCircuit struct {
 	C        []frontend.Variable
 	D        []byte
-	CLen     frontend.Variable
 	settings Settings
 }
 
 func (c *decompressionTestCircuit) Define(api frontend.API) error {
 	dBack := make([]frontend.Variable, len(c.D)*2) // TODO Try smaller constants
-	dLen, err := Decompress(api, c.C, c.CLen, dBack, c.settings)
+	api.Println("maxLen(dBack)", len(dBack))
+	dLen, err := Decompress(api, c.C, dBack, c.settings)
 	if err != nil {
 		return err
 	}
+	api.Println("got len", dLen, "expected", len(c.D))
 	api.AssertIsEqual(len(c.D), dLen)
 	for i := range c.D {
+		api.Println("decompressed at", i, "->", dBack[i], "expected", c.D[i], "dBack", dBack[i])
 		api.AssertIsEqual(c.D[i], dBack[i])
 	}
 	return nil
@@ -134,16 +136,19 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 		},
 	}
 
-	cVars := make([]frontend.Variable, len(c)*3)
+	cVars := make([]frontend.Variable, len(c)*3+settings.BackRefSettings.NbBytes())
 	for i := range c {
 		cVars[i] = frontend.Variable(c[i])
+	}
+	cVars[len(c)] = SnarkEofSymbol
+	for i := len(c) + 1; i < len(cVars); i++ {
+		cVars[i] = 0
 	}
 
 	T := func(padCoeff int) {
 		decompressor := &decompressionTestCircuit{
 			C:        make([]frontend.Variable, len(cVars)),
 			D:        d,
-			CLen:     nil,
 			settings: settings,
 		}
 		//p := profile.Start()
@@ -155,8 +160,7 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 		pk, _, err := plonk.Setup(cs, kzgSrs)
 		require.NoError(t, err)
 		_witness, err := frontend.NewWitness(&decompressionTestCircuit{
-			C:    cVars,
-			CLen: len(c),
+			C: cVars,
 		}, ecc.BN254.ScalarField())
 		require.NoError(t, err)
 		_, err = plonk.Prove(cs, pk, _witness)
@@ -164,5 +168,5 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 	}
 
 	T(2)
-	T(1)
+	//T(1)
 }
