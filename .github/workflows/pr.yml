@@ -35,6 +35,7 @@ jobs:
       uses: golangci/golangci-lint-action@v3
       with:
           args: -v --timeout=5m
+          skip-pkg-cache: true
   
   test:
     strategy:
