@@ -21,28 +21,22 @@ rl.on("line", (line) => {
   }
 });
 
-function totalTime(entries) {
-  return entries.reduce((total, l) => total + l.Elapsed, 0);
-}
 
 rl.on("close", () => {
   console.log("## Summary");
-  console.log("| | # of Tests | ⏳ Total Time |");
-  console.log("|--|--|--|");
+  console.log("| | # of Tests |");
+  console.log("|--|--|");
   console.log(
-    "| ✅ Passed | %d | %fs |",
-    summary.pass.length,
-    totalTime(summary.pass)
+    "| ✅ Passed | %d |",
+    summary.pass.length
   );
   console.log(
-    "| ❌ Failed | %d | %fs |",
-    summary.fail.length,
-    totalTime(summary.fail)
+    "| ❌ Failed | %d |",
+    summary.fail.length
   );
   console.log(
-    "| 🚧 Skipped | %d | %fs |",
-    summary.skip.length,
-    totalTime(summary.skip)
+    "| 🚧 Skipped | %d |",
+    summary.skip.length
   );
 
   if (summary.fail.length > 0) {
@@ -50,7 +44,7 @@ rl.on("close", () => {
   }
 
   summary.fail.forEach((test) => {
-    console.log("* %s (%s) %fs", test.Test, test.Package, test.Elapsed);
+    console.log("* `%s` (%s)", test.Test, test.Package);
   });
 
   // also display skipped tests.
@@ -59,7 +53,7 @@ rl.on("close", () => {
   }
 
   summary.skip.forEach((test) => {
-    console.log("* %s (%s) %fs", test.Test, test.Package, test.Elapsed);
+    console.log("* `%s` (%s)", test.Test, test.Package);
   });
 
 });
