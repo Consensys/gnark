@@ -52,14 +52,14 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
 
-    # - name: install deps
-    #   run: |
-    #     go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
-    #     go install github.com/consensys/gnark-solidity-checker@latest
-    #     go install github.com/ethereum/go-ethereum/cmd/abigen@v1.12.0
-    #     sudo add-apt-repository ppa:ethereum/ethereum
-    #     sudo apt-get update
-    #     sudo apt-get install solc
+    - name: install deps
+      run: |
+        go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
+        go install github.com/consensys/gnark-solidity-checker@latest
+        go install github.com/ethereum/go-ethereum/cmd/abigen@v1.12.0
+        sudo add-apt-repository ppa:ethereum/ethereum
+        sudo apt-get update
+        sudo apt-get install solc
     
     # Install gotestfmt on the VM running the action.
     - name: Set up gotestfmt
@@ -72,17 +72,17 @@ jobs:
     - name: Run tests
       run: |
         set -euo pipefail
-        go test -json -v -short -timeout=30m . 2>&1 | tee /tmp/gotest.log | gotestfmt
-      # go test -json -v -tags=release_checks,solccheck . 2>&1 | tee -a /tmp/gotest.log | gotestfmt
+        go test -json -v -short -timeout=30m ./... 2>&1 | tee /tmp/gotest.log | gotestfmt
+        go test -json -v -tags=release_checks,solccheck . 2>&1 | tee -a /tmp/gotest.log | gotestfmt
 
-    # Upload the original go test log as an artifact for later review.
-    - name: Upload test log
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: test-log
-        path: /tmp/gotest.log
-        if-no-files-found: error
+    # # Upload the original go test log as an artifact for later review.
+    # - name: Upload test log
+    #   uses: actions/upload-artifact@v3
+    #   if: always()
+    #   with:
+    #     name: test-log
+    #     path: /tmp/gotest.log
+    #     if-no-files-found: error
 
     - name: Generate job summary
       run: |
