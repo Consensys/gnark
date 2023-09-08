@@ -1,11 +1,14 @@
 package lzss_v1
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
@@ -90,6 +93,26 @@ func TestCalldataSnark(t *testing.T) {
 			testCompressionRoundTripSnark(t, 2, d)
 		})
 	}
+}
+
+func BenchmarkCompilation26KBSnark(b *testing.B) {
+	c := decompressionTestCircuit{
+		C: make([]frontend.Variable, 7000),
+		D: make([]byte, 30000),
+		settings: Settings{
+			BackRefSettings: BackRefSettings{
+				NbBytesAddress: 2,
+				NbBytesLength:  1,
+				Symbol:         0,
+			},
+		},
+	}
+
+	p := profile.Start()
+	_, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	assert.NoError(b, err)
+	p.Stop()
+	fmt.Println(p.NbConstraints(), "constraints")
 }
 
 type decompressionTestCircuit struct {

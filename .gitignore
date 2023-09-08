@@ -57,3 +57,4 @@ go.work.sum
 
 examples/gbotrel/**
 *.raw
+*.pdf
