@@ -27,30 +27,40 @@ function totalTime(entries) {
 
 rl.on("close", () => {
   console.log("## Summary");
-  console.log("| | # of Tests | Total Time |");
+  console.log("| | # of Tests | ⏳ Total Time |");
   console.log("|--|--|--|");
   console.log(
-    "| Passed | %d | %fs |",
+    "| ✅ Passed | %d | %fs |",
     summary.pass.length,
     totalTime(summary.pass)
   );
   console.log(
-    "| Failed | %d | %fs |",
+    "| ❌ Failed | %d | %fs |",
     summary.fail.length,
     totalTime(summary.fail)
   );
   console.log(
-    "| Skipped | %d | %fs |",
+    "| 🚧 Skipped | %d | %fs |",
     summary.skip.length,
     totalTime(summary.skip)
   );
 
   if (summary.fail.length > 0) {
-    console.log("\n## Failures\n");
+    console.log("\n## ❌ Failures\n");
   }
 
   summary.fail.forEach((test) => {
     console.log("* %s (%s) %fs", test.Test, test.Package, test.Elapsed);
   });
+
+  // also display skipped tests.
+  if (summary.skip.length > 0) {
+    console.log("\n## 🚧 Skipped\n");
+  }
+
+  summary.skip.forEach((test) => {
+    console.log("* %s (%s) %fs", test.Test, test.Package, test.Elapsed);
+  });
+
 });
 
