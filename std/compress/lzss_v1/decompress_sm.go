@@ -23,16 +23,6 @@ func decompressStateMachine(c []byte, cLength int, d []byte, settings Settings) 
 
 	inputExhausted := 0
 
-	readD := func(i int) byte { // reading from the decompressed stream as we write to it
-		if i < 0 {
-			if i >= -brLengthRange {
-				return settings.BackRefSettings.Symbol
-			}
-			panic("out of range")
-		}
-		return d[i]
-	}
-
 	// in the snark we'll never read more than one backref past the end of the input, so we can just append a trivial backref
 	readC := func(start, end int) []byte {
 		res := make([]byte, end-start)
@@ -55,6 +45,16 @@ func decompressStateMachine(c []byte, cLength int, d []byte, settings Settings) 
 	copying := 0
 
 	for outI := range d {
+
+		readD := func(i int) byte { // reading from the decompressed stream as we write to it
+			if i < 0 {
+				if i >= -brLengthRange && i < outI {
+					return settings.BackRefSettings.Symbol
+				}
+				panic("out of range")
+			}
+			return d[i]
+		}
 
 		curr := readC(inI, inI+1)[0]
 

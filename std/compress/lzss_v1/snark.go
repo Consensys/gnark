@@ -103,7 +103,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 		copying = api.Mul(copying, api.Sub(1, copyLen01)) // still copying from previous iterations TODO MulAcc
 		api.Println("prior copying", copying)
-		copyI = ite(api, copying, api.Sub(outI, brOffset), api.Add(copyI, 1))
+		copyI = ite(api, copying, api.Sub(outI, brOffset), api.Add(copyI, 1)) // TODO replace with copyI = outI + brOffset
 		if outI == 1 {
 			api.Println("currIsSymb*brLen", api.Mul(currIsSymb, brLen))
 		}
@@ -111,7 +111,9 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		api.Println("current copyLen", copyLen)
 		copyLen01 = isBit(copyLen)
 		copying = api.Add(api.Sub(1, copyLen01), api.Mul(copyLen01, copyLen)) // either from previous iterations or starting a new copy TODO MulAcc
-		copyI = api.Mul(copyI, copying)                                       // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
+		copyI = ite(api, copying, -1, copyI)                                  // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
+		// TODO See if copyI = (copyI+1)*copying - 1 is more efficient. It could possibly become a single Plonk constraint if written as Add(MulAcc(copying*1, copying, copyI),-1)
+
 		toCopy := readD(copyI)
 
 		// write to output

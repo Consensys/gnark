@@ -34,7 +34,12 @@ func Test300ZerosSnark(t *testing.T) { // probably won't happen in our calldata
 	testCompressionRoundTripSnark(t, 2, make([]byte, 300))
 }
 
-func TestNoCompressionSnark(t *testing.T) {
+func TestSingleNonzeroSnark(t *testing.T) {
+	testCompressionRoundTripSnark(t, 1, []byte{1})
+	testCompressionRoundTripSnark(t, 2, []byte{1})
+}
+
+func TestHiSnark(t *testing.T) {
 	testCompressionRoundTripSnark(t, 1, []byte{'h', 'i'})
 	testCompressionRoundTripSnark(t, 2, []byte{'h', 'i'})
 }
@@ -145,28 +150,23 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 		cVars[i] = 0
 	}
 
-	T := func(padCoeff int) {
-		decompressor := &decompressionTestCircuit{
-			C:        make([]frontend.Variable, len(cVars)),
-			D:        d,
-			settings: settings,
-		}
-		//p := profile.Start()
-		cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, decompressor)
-		//p.Stop()
-		require.NoError(t, err)
-		kzgSrs, err := test.NewKZGSRS(cs)
-		require.NoError(t, err)
-		pk, _, err := plonk.Setup(cs, kzgSrs)
-		require.NoError(t, err)
-		_witness, err := frontend.NewWitness(&decompressionTestCircuit{
-			C: cVars,
-		}, ecc.BN254.ScalarField())
-		require.NoError(t, err)
-		_, err = plonk.Prove(cs, pk, _witness)
-		require.NoError(t, err)
+	decompressor := &decompressionTestCircuit{
+		C:        make([]frontend.Variable, len(cVars)),
+		D:        d,
+		settings: settings,
 	}
-
-	T(2)
-	//T(1)
+	//p := profile.Start()
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, decompressor)
+	//p.Stop()
+	require.NoError(t, err)
+	kzgSrs, err := test.NewKZGSRS(cs)
+	require.NoError(t, err)
+	pk, _, err := plonk.Setup(cs, kzgSrs)
+	require.NoError(t, err)
+	_witness, err := frontend.NewWitness(&decompressionTestCircuit{
+		C: cVars,
+	}, ecc.BN254.ScalarField())
+	require.NoError(t, err)
+	_, err = plonk.Prove(cs, pk, _witness)
+	require.NoError(t, err)
 }
