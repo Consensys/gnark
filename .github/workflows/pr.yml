@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - name: install Go
@@ -37,20 +37,16 @@ jobs:
           skip-pkg-cache: true
   
   test:
-    strategy:
-      matrix:
-        go-version: [1.21.x]
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     needs:
       - staticcheck
     steps:
     - name: checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: install Go
       uses: actions/setup-go@v4
       with:
-        go-version: ${{ matrix.go-version }}
+        go-version: 1.21.x
 
     - name: install deps
       run: |
