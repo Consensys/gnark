@@ -4,14 +4,14 @@ jobs:
   staticcheck:
     runs-on: ubuntu-latest
     steps:
-    - name: install Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.21.x
     - name: checkout code
       uses: actions/checkout@v3
       with:
         fetch-depth: 0
+    - name: install Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.21.x
 
     - name: install deps
       run: go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
@@ -45,12 +45,12 @@ jobs:
     needs:
       - staticcheck
     steps:
+    - name: checkout code
+      uses: actions/checkout@v3
     - name: install Go
       uses: actions/setup-go@v4
       with:
         go-version: ${{ matrix.go-version }}
-    - name: checkout code
-      uses: actions/checkout@v3
 
     # - name: install deps
     #   run: |
@@ -72,17 +72,25 @@ jobs:
     - name: Run tests
       run: |
         set -euo pipefail
-        go test -json -v -short -timeout=30m ./... 2>&1 | tee /tmp/gotest.log | gotestfmt -hide empty-packages
+        go test -json -v -short -timeout=30m . 2>&1 | tee /tmp/gotest.log | gotestfmt -hide empty-packages
       # go test -json -v -tags=release_checks,solccheck . 2>&1 | tee -a /tmp/gotest.log | gotestfmt -hide empty-packages
 
     # Upload the original go test log as an artifact for later review.
     - name: Upload test log
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       if: always()
       with:
         name: test-log
         path: /tmp/gotest.log
         if-no-files-found: error
+
+    - name: Generate list using Markdown
+      run: |
+        echo "This is the lead in sentence for the list" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY # this is a blank line
+        echo "- Lets add a bullet point" >> $GITHUB_STEP_SUMMARY
+        echo "- Lets add a second bullet point" >> $GITHUB_STEP_SUMMARY
+        echo "- How about a third one?" >> $GITHUB_STEP_SUMMARY
 
   slack-workflow-status-failed:
     if: failure()
@@ -94,7 +102,7 @@ jobs:
     steps:
       - name: Notify slack -- workflow failed
         id: slack
-        uses: slackapi/slack-github-action@v1.23.0
+        uses: slackapi/slack-github-action@v1.24.0
         with:
           payload: |
             {
@@ -118,7 +126,7 @@ jobs:
     steps:
       - name: Notify slack -- workflow succeeded
         id: slack
-        uses: slackapi/slack-github-action@v1.23.0
+        uses: slackapi/slack-github-action@v1.24.0
         with:
           payload: |
             {
