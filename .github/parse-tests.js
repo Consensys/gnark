@@ -24,18 +24,19 @@ rl.on("line", (line) => {
 
 rl.on("close", () => {
   console.log("## Summary");
-  console.log("| | # of Tests |");
-  console.log("|--|--|");
+  console.log("\n");
+  // console.log("| | # of Tests |");
+  // console.log("|--|--|");
   console.log(
-    "| ✅ Passed | %d |",
+    "✅ Passed:  %d",
     summary.pass.length
   );
   console.log(
-    "| ❌ Failed | %d |",
+    "❌ Failed: %d",
     summary.fail.length
   );
   console.log(
-    "| 🚧 Skipped | %d |",
+    "🚧 Skipped: %d",
     summary.skip.length
   );
 
