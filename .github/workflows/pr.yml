@@ -81,7 +81,6 @@ jobs:
     - name: PR comment with file
       uses: thollander/actions-comment-pull-request@v2
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
         filePath: /tmp/gotest.md
 
   slack-workflow-status-failed:
