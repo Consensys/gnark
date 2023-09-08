@@ -226,7 +226,7 @@ func (assert *Assert) roundTripCheck(from any, builder func() any, descs ...stri
 		assert.Log("skipping serialization round trip check, from is nil")
 	}
 	assert.Run(func(assert *Assert) {
-		assert.t.Parallel()
+		// assert.t.Parallel()
 		assert.NoError(gnarkio.RoundTripCheck(from, builder))
 	}, descs...)
 }

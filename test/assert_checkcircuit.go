@@ -77,7 +77,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 						for _, w := range invalidWitnesses {
 							w := w
 							assert.Run(func(assert *Assert) {
-								assert.t.Parallel()
+								// assert.t.Parallel()
 								_, err = ccs.Solve(w.full, opt.solverOpts...)
 								assert.error(err, &w)
 							}, "invalid_witness")
@@ -86,7 +86,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 						for _, w := range validWitnesses {
 							w := w
 							assert.Run(func(assert *Assert) {
-								assert.t.Parallel()
+								// assert.t.Parallel()
 								_, err = ccs.Solve(w.full, opt.solverOpts...)
 								assert.noError(err, &w)
 							}, "valid_witness")
@@ -96,7 +96,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					}
 
 					// we need to run the setup, prove and verify and check serialization
-					assert.t.Parallel()
+					// assert.t.Parallel()
 
 					var concreteBackend tBackend
 
@@ -123,7 +123,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 							if !checkSolidity {
 								// TODO @gbotrel FIXME running with t.Parallel() makes the test fail
 								// when calling solidityVerification
-								assert.t.Parallel()
+								// assert.t.Parallel()
 							}
 							proof, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
 							assert.noError(err, &w)
@@ -150,7 +150,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					for _, w := range invalidWitnesses {
 						w := w
 						assert.Run(func(assert *Assert) {
-							assert.t.Parallel()
+							// assert.t.Parallel()
 							_, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
 							assert.error(err, &w)
 						}, "invalid_witness")
