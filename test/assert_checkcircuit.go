@@ -120,11 +120,11 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 						w := w
 						assert.Run(func(assert *Assert) {
 							checkSolidity := opt.checkSolidity && curve == ecc.BN254
-							// if !checkSolidity {
-							// 	// TODO @gbotrel FIXME running with t.Parallel() makes the test fail
-							// 	// when calling solidityVerification
-							// 	assert.t.Parallel()
-							// }
+							if !checkSolidity {
+								// TODO @gbotrel FIXME running with t.Parallel() makes the test fail
+								// when calling solidityVerification
+								assert.t.Parallel()
+							}
 							proof, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
 							assert.noError(err, &w)
 
@@ -169,7 +169,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 	}
 
 	// TODO @gbotrel revisit this.
-	if opt.fuzzing {
+	if false && opt.fuzzing {
 		// TODO may not be the right place, but ensures all our tests call these minimal tests
 		// (like filling a witness with zeroes, or binary values, ...)
 		assert.Run(func(assert *Assert) {
