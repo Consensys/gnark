@@ -73,6 +73,7 @@ jobs:
       run: |
         go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
         go install github.com/consensys/gnark-solidity-checker@latest
+        go install github.com/ethereum/go-ethereum/cmd/abigen@v1.12.0
         sudo add-apt-repository ppa:ethereum/ethereum
         sudo apt-get update
         sudo apt-get install solc

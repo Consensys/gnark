@@ -222,11 +222,7 @@ func (assert *Assert) marshalWitnessJSON(w witness.Witness, s *schema.Schema, cu
 }
 
 func (assert *Assert) roundTripCheck(from any, builder func() any, descs ...string) {
-	if from == nil {
-		assert.Log("skipping serialization round trip check, from is nil")
-	}
 	assert.Run(func(assert *Assert) {
-		// assert.t.Parallel()
 		assert.NoError(gnarkio.RoundTripCheck(from, builder))
 	}, descs...)
 }
