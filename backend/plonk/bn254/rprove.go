@@ -22,6 +22,7 @@ import (
 	"math/big"
 	"math/bits"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/consensys/gnark/backend/witness"
@@ -850,10 +851,11 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 
 	// scale everything back
 	toCanonicalRegular(x, &pk.Domain[0])
-	beta.Inverse(&beta)
-	scale(x[id_S1], beta)
-	scale(x[id_S2], beta)
-	scale(x[id_S3], beta)
+	// TODO @gbotrel uncomment me I'm an experiment.
+	// beta.Inverse(&beta)
+	// scale(x[id_S1], beta)
+	// scale(x[id_S2], beta)
+	// scale(x[id_S3], beta)
 	s.Set(&shifters[0])
 	for i := 1; i < len(shifters); i++ {
 		s.Mul(&s, &shifters[i])
@@ -869,9 +871,15 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 }
 
 func batchUnblind(p, b []*iop.Polynomial, w fr.Element) {
+	var wg sync.WaitGroup
+	wg.Add(len(p))
 	for i := 0; i < len(p); i++ {
-		unblind(p[i], b[i], w)
+		go func(i int) {
+			unblind(p[i], b[i], w)
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
 }
 
 // computes p - b on <\omega>
@@ -899,9 +907,15 @@ func unblind(p, b *iop.Polynomial, w fr.Element) {
 }
 
 func batchBlind(p, b []*iop.Polynomial, w fr.Element) {
+	var wg sync.WaitGroup
+	wg.Add(len(p))
 	for i := 0; i < len(p); i++ {
-		blind(p[i], b[i], w)
+		go func(i int) {
+			blind(p[i], b[i], w)
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
 }
 
 // computes p + b on <\omega>
@@ -929,23 +943,49 @@ func blind(p, b *iop.Polynomial, w fr.Element) {
 }
 
 func toLagrange(x []*iop.Polynomial, d *fft.Domain) {
+	var wg sync.WaitGroup
+	wg.Add(len(x) - 1)
 	for i := 0; i < len(x); i++ {
-		x[i].ToLagrange(d)
+		if i == id_ZS {
+			continue
+		}
+		go func(i int) {
+			x[i].ToLagrange(d)
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
 }
 
 func toCanonicalRegular(x []*iop.Polynomial, d *fft.Domain) {
+	var wg sync.WaitGroup
+	wg.Add(len(x) - 1)
 	for i := 0; i < len(x); i++ {
-		x[i].ToCanonical(d).ToRegular()
-	}
-}
-func batchScalePowers(p []*iop.Polynomial, w fr.Element) {
-	for i := 0; i < len(p); i++ {
-		if i == id_ZS { // the scaling has already been done on id_Z, which points to the same coeff array
+		if i == id_ZS {
 			continue
 		}
-		scalePowers(p[i], w)
+		go func(i int) {
+			x[i].ToCanonical(d).ToRegular()
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
+}
+func batchScalePowers(p []*iop.Polynomial, w fr.Element) {
+	var wg sync.WaitGroup
+	for i := 0; i < len(p); i++ {
+		if i == id_ZS { // the scaling has already been done on id_Z, which points to the same coeff array
+			// TODO @gbotrel this is risky;
+			// input to batchScalePowers is not always x.
+			continue
+		}
+		wg.Add(1)
+		go func(i int) {
+			scalePowers(p[i], w)
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
 }
 
 // p <- <p, (1, w, .., wⁿ) >
