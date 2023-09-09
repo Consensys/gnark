@@ -15,14 +15,17 @@
 package plonk
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
+	"hash"
 	"math/big"
 	"math/bits"
 	"runtime"
 	"time"
 
 	"github.com/consensys/gnark/backend/witness"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/consensys/gnark-crypto/ecc"
 
@@ -143,34 +146,99 @@ func bsb22ComputeCommitmentHint(spr *cs.SparseR1CS, pk *ProvingKey, proof *Proof
 
 // represents a Prover instance
 type instance struct {
+	ctx context.Context
+
 	pk    *ProvingKey
 	proof *Proof
 	spr   *cs.SparseR1CS
 	opt   *backend.ProverConfig
-	bp    []*iop.Polynomial // blinding polynomials
-	fs    *fiatshamir.Transcript
+
+	fs    fiatshamir.Transcript
+	hFunc hash.Hash
+
+	// polynomials
+	x        []*iop.Polynomial // x stores tracks the polynomial we need
+	bp       []*iop.Polynomial // blinding polynomials
+	h        *iop.Polynomial   // h is the quotient polynomial
+	blindedZ []fr.Element      // blindedZ is the blinded version of Z
+
+	foldedH       []fr.Element // foldedH is the folded version of H
+	foldedHDigest kzg.Digest   // foldedHDigest is the kzg commitment of foldedH
+
+	linearizedPolynomial       []fr.Element
+	linearizedPolynomialDigest kzg.Digest
+
+	fullWitness witness.Witness
+
+	// bsb22 commitment stuff
+	commitmentInfo constraint.PlonkCommitments
+	commitmentVal  []fr.Element
+	cCommitments   []*iop.Polynomial
+
+	// challenges
+	gamma, beta, alpha, zeta fr.Element
+
+	// channel to wait for the steps
+	chLRO,
+	chQk,
+	chbp,
+	chZ,
+	chH,
+	chZOpening,
+	chLinearizedPolynomial,
+	chFoldedH,
+	chGammaBeta chan struct{}
 }
 
-func (s *instance) initBlindingPolynomials() {
+func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts *backend.ProverConfig) instance {
+	hFunc := sha256.New()
+	s := instance{
+		ctx:                    ctx,
+		pk:                     pk,
+		proof:                  &Proof{},
+		spr:                    spr,
+		opt:                    opts,
+		fullWitness:            fullWitness,
+		bp:                     make([]*iop.Polynomial, nb_blinding_polynomials),
+		fs:                     fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta"),
+		hFunc:                  hFunc,
+		chLRO:                  make(chan struct{}, 1),
+		chQk:                   make(chan struct{}, 1),
+		chbp:                   make(chan struct{}, 1),
+		chGammaBeta:            make(chan struct{}, 1),
+		chZ:                    make(chan struct{}, 1),
+		chH:                    make(chan struct{}, 1),
+		chZOpening:             make(chan struct{}, 1),
+		chLinearizedPolynomial: make(chan struct{}, 1),
+		chFoldedH:              make(chan struct{}, 1),
+	}
+	s.initBSB22Commitments()
+	s.setupGKRHints()
+	s.x = make([]*iop.Polynomial, id_Qci+2*len(s.commitmentInfo))
+
+	return s
+}
+
+func (s *instance) initBlindingPolynomials() error {
 	s.bp[id_Bl] = getRandomPolynomial(order_blinding_L)
 	s.bp[id_Br] = getRandomPolynomial(order_blinding_R)
 	s.bp[id_Bo] = getRandomPolynomial(order_blinding_O)
 	s.bp[id_Bz] = getRandomPolynomial(order_blinding_Z)
+	close(s.chbp)
+	return nil
 }
 
-func (s *instance) initBSB22Commitments() (commitmentInfo constraint.PlonkCommitments, commitmentVal []fr.Element, cCommitments []*iop.Polynomial) {
-	commitmentInfo = s.spr.CommitmentInfo.(constraint.PlonkCommitments)
-	commitmentVal = make([]fr.Element, len(commitmentInfo)) // TODO @Tabaie get rid of this
-	cCommitments = make([]*iop.Polynomial, len(commitmentInfo))
-	s.proof.Bsb22Commitments = make([]kzg.Digest, len(commitmentInfo))
+func (s *instance) initBSB22Commitments() {
+	s.commitmentInfo = s.spr.CommitmentInfo.(constraint.PlonkCommitments)
+	s.commitmentVal = make([]fr.Element, len(s.commitmentInfo)) // TODO @Tabaie get rid of this
+	s.cCommitments = make([]*iop.Polynomial, len(s.commitmentInfo))
+	s.proof.Bsb22Commitments = make([]kzg.Digest, len(s.commitmentInfo))
 
 	// override the hint for the commitment constraints
-	for i := range commitmentInfo {
+	for i := range s.commitmentInfo {
 		s.opt.SolverOpts = append(s.opt.SolverOpts,
-			solver.OverrideHint(commitmentInfo[i].HintID, bsb22ComputeCommitmentHint(s.spr, s.pk, s.proof, cCommitments, &commitmentVal[i], i)))
+			solver.OverrideHint(s.commitmentInfo[i].HintID, bsb22ComputeCommitmentHint(s.spr, s.pk, s.proof, s.cCommitments, &s.commitmentVal[i], i)))
 	}
-
-	return
 }
 
 func (s *instance) setupGKRHints() {
@@ -182,89 +250,117 @@ func (s *instance) setupGKRHints() {
 	}
 }
 
-func (s *instance) solveConstraints(fullWitness witness.Witness) (l, r, o *iop.Polynomial, err error) {
-	_solution, err := s.spr.Solve(fullWitness, s.opt.SolverOpts...)
+func (s *instance) solveConstraints() error {
+	_solution, err := s.spr.Solve(s.fullWitness, s.opt.SolverOpts...)
 	if err != nil {
-		return
+		return err
 	}
 	solution := _solution.(*cs.SparseR1CSSolution)
 	evaluationLDomainSmall := []fr.Element(solution.L)
 	evaluationRDomainSmall := []fr.Element(solution.R)
 	evaluationODomainSmall := []fr.Element(solution.O)
-	l = iop.NewPolynomial(&evaluationLDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
+	s.x[id_L] = iop.NewPolynomial(&evaluationLDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
 		ToCanonical(&s.pk.Domain[0]).
 		ToRegular()
 
-	r = iop.NewPolynomial(&evaluationRDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
+	s.x[id_R] = iop.NewPolynomial(&evaluationRDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
 		ToCanonical(&s.pk.Domain[0]).
 		ToRegular()
 
-	o = iop.NewPolynomial(&evaluationODomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
+	s.x[id_O] = iop.NewPolynomial(&evaluationODomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
 		ToCanonical(&s.pk.Domain[0]).
 		ToRegular()
 
-	return
+	// commit to l, r, o and add blinding factors
+	if err := s.commitToLRO(); err != nil {
+		return err
+	}
+	close(s.chLRO)
+	return nil
 }
 
-func (s *instance) completeQk(vWitness []fr.Element, commitmentInfo constraint.PlonkCommitments, commitmentVal []fr.Element) (qk *iop.Polynomial) {
-	qk = s.pk.trace.Qk.Clone().ToLagrange(&s.pk.Domain[0]).ToRegular()
+func (s *instance) completeQk() error {
+	qk := s.pk.trace.Qk.Clone().ToLagrange(&s.pk.Domain[0]).ToRegular()
 	qkCoeffs := qk.Coefficients()
-	copy(qkCoeffs, vWitness[:len(s.spr.Public)])
 
-	for i := range commitmentInfo {
-		qkCoeffs[s.spr.GetNbPublicVariables()+commitmentInfo[i].CommitmentIndex] = commitmentVal[i]
+	wWitness, ok := s.fullWitness.Vector().(fr.Vector)
+	if !ok {
+		return witness.ErrInvalidWitness
 	}
-	return
+
+	copy(qkCoeffs, wWitness[:len(s.spr.Public)])
+
+	for i := range s.commitmentInfo {
+		qkCoeffs[s.spr.GetNbPublicVariables()+s.commitmentInfo[i].CommitmentIndex] = s.commitmentVal[i]
+	}
+
+	s.x[id_Qk] = qk
+	close(s.chQk)
+
+	return nil
 }
 
-func (s *instance) commitToLRO(l, r, o *iop.Polynomial) error {
-	var err0, err1, err2 error
-	chCommit0 := make(chan struct{}, 1)
-	chCommit1 := make(chan struct{}, 1)
-	go func() {
-		s.proof.LRO[0], err0 = s.commitToPolyAndBlinding(l, s.bp[id_Bl])
-		close(chCommit0)
-	}()
-	go func() {
-		s.proof.LRO[1], err1 = s.commitToPolyAndBlinding(r, s.bp[id_Br])
-		close(chCommit1)
-	}()
-	if s.proof.LRO[2], err2 = s.commitToPolyAndBlinding(o, s.bp[id_Bo]); err2 != nil {
-		return err2
-	}
-	<-chCommit0
-	<-chCommit1
-
-	if err0 != nil {
-		return err0
+func (s *instance) commitToLRO() error {
+	// wait for blinding polynomials to be initialized or context to be done
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chbp:
 	}
 
-	return err1
+	g := new(errgroup.Group)
+
+	g.Go(func() (err error) {
+		s.proof.LRO[0], err = s.commitToPolyAndBlinding(s.x[id_L], s.bp[id_Bl])
+		return
+	})
+
+	g.Go(func() (err error) {
+		s.proof.LRO[1], err = s.commitToPolyAndBlinding(s.x[id_R], s.bp[id_Br])
+		return
+	})
+
+	g.Go(func() (err error) {
+		s.proof.LRO[2], err = s.commitToPolyAndBlinding(s.x[id_O], s.bp[id_Bo])
+		return
+	})
+
+	return g.Wait()
 }
 
 // deriveGammaAndBeta (copy constraint)
-func (s *instance) deriveGammaAndBeta(wWitness []fr.Element) (gamma, beta fr.Element, err error) {
-	if err = bindPublicData(s.fs, "gamma", s.pk.Vk, wWitness[:len(s.spr.Public)]); err != nil {
-		return
+func (s *instance) deriveGammaAndBeta() error {
+	wWitness, ok := s.fullWitness.Vector().(fr.Vector)
+	if !ok {
+		return witness.ErrInvalidWitness
 	}
-	gamma, err = deriveRandomness(s.fs, "gamma", &s.proof.LRO[0], &s.proof.LRO[1], &s.proof.LRO[2])
+
+	if err := bindPublicData(&s.fs, "gamma", s.pk.Vk, wWitness[:len(s.spr.Public)]); err != nil {
+		return err
+	}
+
+	// wait for LRO to be committed
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chLRO:
+	}
+
+	gamma, err := deriveRandomness(&s.fs, "gamma", &s.proof.LRO[0], &s.proof.LRO[1], &s.proof.LRO[2])
 	if err != nil {
-		return
+		return err
 	}
 
 	bbeta, err := s.fs.ComputeChallenge("beta")
 	if err != nil {
-		return
+		return err
 	}
+	s.gamma = gamma
+	s.beta.SetBytes(bbeta)
 
-	beta.SetBytes(bbeta)
-	return
-}
+	close(s.chGammaBeta)
 
-// commitToZ commits to the blinded version of z
-func (s *instance) commitToZ(z *iop.Polynomial) (err error) {
-	s.proof.Z, err = s.commitToPolyAndBlinding(z, s.bp[id_Bz])
-	return
+	return nil
 }
 
 // commitToPolyAndBlinding computes the KZG commitment of a polynomial p (large degree)
@@ -284,96 +380,291 @@ func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G
 	return
 }
 
-func (s *instance) deriveAlpha(wWitness []fr.Element) (alpha fr.Element, err error) {
+func (s *instance) deriveAlpha() (err error) {
 	alphaDeps := make([]*curve.G1Affine, len(s.proof.Bsb22Commitments)+1)
 	for i := range s.proof.Bsb22Commitments {
 		alphaDeps[i] = &s.proof.Bsb22Commitments[i]
 	}
 	alphaDeps[len(alphaDeps)-1] = &s.proof.Z
-	alpha, err = deriveRandomness(s.fs, "alpha", alphaDeps...)
-	return
+	s.alpha, err = deriveRandomness(&s.fs, "alpha", alphaDeps...)
+	return err
 }
 
-func (s *instance) deriveZeta() (zeta fr.Element, err error) {
-	zeta, err = deriveRandomness(s.fs, "zeta", &s.proof.H[0], &s.proof.H[1], &s.proof.H[2])
+func (s *instance) deriveZeta() (err error) {
+	s.zeta, err = deriveRandomness(&s.fs, "zeta", &s.proof.H[0], &s.proof.H[1], &s.proof.H[2])
 	return
 }
 
 // evaluateConstraints computes H
-func (s *instance) evaluateConstraints(x []*iop.Polynomial, commitmentInfo constraint.PlonkCommitments, cCommitments []*iop.Polynomial, alpha, beta, gamma fr.Element) (h *iop.Polynomial, err error) {
+func (s *instance) evaluateConstraints() (err error) {
+	// wait for Z to be committed or context done
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chZ:
+	}
+
+	// derive alpha
+	if err = s.deriveAlpha(); err != nil {
+		return err
+	}
+
 	n := s.pk.Domain[0].Cardinality
 	// TODO complete waste of memory find another way to do that
 	identity := make([]fr.Element, n)
-	identity[1].Set(&beta)
+	identity[1].Set(&s.beta)
 
 	lone := make([]fr.Element, n)
 	lone[0].SetOne()
 
-	x[id_Ql] = s.pk.trace.Ql
-	x[id_Qr] = s.pk.trace.Qr
-	x[id_Qm] = s.pk.trace.Qm
-	x[id_Qo] = s.pk.trace.Qo
-	// x[id_Qk] = qkCompleted
-	x[id_ZS] = x[id_Z].ShallowClone().Shift(1)
-	x[id_S1] = s.pk.trace.S1
-	x[id_S2] = s.pk.trace.S2
-	x[id_S3] = s.pk.trace.S3
-	x[id_ID] = iop.NewPolynomial(&identity, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
-	x[id_LOne] = iop.NewPolynomial(&lone, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-	for i := 0; i < len(commitmentInfo); i++ {
-		x[id_Qci+2*i] = s.pk.trace.Qcp[i]
-		x[id_Qci+2*i+1] = cCommitments[i]
+	s.x[id_Ql] = s.pk.trace.Ql
+	s.x[id_Qr] = s.pk.trace.Qr
+	s.x[id_Qm] = s.pk.trace.Qm
+	s.x[id_Qo] = s.pk.trace.Qo
+	s.x[id_ZS] = s.x[id_Z].ShallowClone().Shift(1)
+	s.x[id_S1] = s.pk.trace.S1.Clone()
+	s.x[id_S2] = s.pk.trace.S2.Clone()
+	s.x[id_S3] = s.pk.trace.S3.Clone()
+	s.x[id_ID] = iop.NewPolynomial(&identity, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
+	s.x[id_LOne] = iop.NewPolynomial(&lone, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
+	for i := 0; i < len(s.commitmentInfo); i++ {
+		s.x[id_Qci+2*i] = s.pk.trace.Qcp[i]
+		s.x[id_Qci+2*i+1] = s.cCommitments[i]
 	}
 
-	numerator, err := computeNumerator(s.pk, x, s.bp, alpha, beta, gamma)
+	numerator, err := computeNumerator(s.pk, s.x, s.bp, s.alpha, s.beta, s.gamma)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	h, err = divideByXMinusOne(numerator, [2]*fft.Domain{&s.pk.Domain[0], &s.pk.Domain[1]})
+	s.h, err = divideByXMinusOne(numerator, [2]*fft.Domain{&s.pk.Domain[0], &s.pk.Domain[1]})
+	if err != nil {
+		return err
+	}
+
+	// commit to h
+	if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
+		return err
+	}
+
+	if err := s.deriveZeta(); err != nil {
+		return err
+	}
+
+	close(s.chH)
+
+	return nil
+}
+
+func (s *instance) buildRatioCopyConstraint() (err error) {
+	// wait for gamma and beta to be derived (or ctx.Done())
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chGammaBeta:
+	}
+
+	s.x[id_Z], err = iop.BuildRatioCopyConstraint(
+		[]*iop.Polynomial{
+			s.x[id_L],
+			s.x[id_R],
+			s.x[id_O],
+		},
+		s.pk.trace.S,
+		s.beta,
+		s.gamma,
+		iop.Form{Basis: iop.Canonical, Layout: iop.Regular},
+		&s.pk.Domain[0],
+	)
+	if err != nil {
+		return err
+	}
+
+	// commit to the blinded version of z
+	s.proof.Z, err = s.commitToPolyAndBlinding(s.x[id_Z], s.bp[id_Bz])
+
+	close(s.chZ)
+
 	return
 }
 
 // open Z (blinded) at ωζ
-func (s *instance) openZ(z *iop.Polynomial, zeta fr.Element) (blindedZ []fr.Element, err error) {
+func (s *instance) openZ() (err error) {
+	// wait for H to be committed and zeta to be derived (or ctx.Done())
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chH:
+	}
 	var zetaShifted fr.Element
-	zetaShifted.Mul(&zeta, &s.pk.Vk.Generator)
-	blindedZ = getBlindedCoefficients(z, s.bp[id_Bz])
+	zetaShifted.Mul(&s.zeta, &s.pk.Vk.Generator)
+	s.blindedZ = getBlindedCoefficients(s.x[id_Z], s.bp[id_Bz])
 	// open z at zeta
-	s.proof.ZShiftedOpening, err = kzg.Open(blindedZ, zetaShifted, s.pk.Kzg)
-	return
+	s.proof.ZShiftedOpening, err = kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg)
+	if err != nil {
+		return err
+	}
+	close(s.chZOpening)
+	return nil
 }
 
-func (s *instance) commitToH(h1, h2, h3 []fr.Element) error {
-	return commitToQuotient(h1, h2, h3, s.proof, s.pk.Kzg)
+func (s *instance) h1() []fr.Element {
+	h1 := s.h.Coefficients()[:s.pk.Domain[0].Cardinality+2]
+	return h1
+}
+
+func (s *instance) h2() []fr.Element {
+	h2 := s.h.Coefficients()[s.pk.Domain[0].Cardinality+2 : 2*(s.pk.Domain[0].Cardinality+2)]
+	return h2
+}
+
+func (s *instance) h3() []fr.Element {
+	h3 := s.h.Coefficients()[2*(s.pk.Domain[0].Cardinality+2) : 3*(s.pk.Domain[0].Cardinality+2)]
+	return h3
 }
 
 // fold the commitment to H ([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾[H₂])
-func (s *instance) foldH(h1, h2, h3 []fr.Element, zeta fr.Element) (foldedH []fr.Element, digest kzg.Digest) {
+func (s *instance) foldH() error {
+	// wait for H to be committed and zeta to be derived (or ctx.Done())
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chH:
+	}
 	var n big.Int
 	n.SetUint64(s.pk.Domain[0].Cardinality + 2)
 
 	var zetaPowerNplusTwo fr.Element
-	zetaPowerNplusTwo.Exp(zeta, &n)
+	zetaPowerNplusTwo.Exp(s.zeta, &n)
 	zetaPowerNplusTwo.BigInt(&n)
 
-	digest.ScalarMultiplication(&s.proof.H[2], &n)
-	digest.Add(&digest, &s.proof.H[1])       // ζᵐ⁺²*Comm(h3)
-	digest.ScalarMultiplication(&digest, &n) // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2)
-	digest.Add(&digest, &s.proof.H[0])
+	s.foldedHDigest.ScalarMultiplication(&s.proof.H[2], &n)
+	s.foldedHDigest.Add(&s.foldedHDigest, &s.proof.H[1])       // ζᵐ⁺²*Comm(h3)
+	s.foldedHDigest.ScalarMultiplication(&s.foldedHDigest, &n) // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2)
+	s.foldedHDigest.Add(&s.foldedHDigest, &s.proof.H[0])
 
 	// fold H (H₀ + ζᵐ⁺²*H₁ + ζ²⁽ᵐ⁺²⁾H₂))
-	foldedH = h3
+	h1 := s.h1()
+	h2 := s.h2()
+	s.foldedH = s.h3()
 
 	for i := 0; i < int(s.pk.Domain[0].Cardinality)+2; i++ {
-		foldedH[i].
-			Mul(&foldedH[i], &zetaPowerNplusTwo).
-			Add(&foldedH[i], &h2[i]).
-			Mul(&foldedH[i], &zetaPowerNplusTwo).
-			Add(&foldedH[i], &h1[i])
+		s.foldedH[i].
+			Mul(&s.foldedH[i], &zetaPowerNplusTwo).
+			Add(&s.foldedH[i], &h2[i]).
+			Mul(&s.foldedH[i], &zetaPowerNplusTwo).
+			Add(&s.foldedH[i], &h1[i])
 	}
 
-	return
+	close(s.chFoldedH)
+
+	return nil
+}
+
+func (s *instance) computeLinearizedPolynomial() error {
+	// wait for H to be committed and zeta to be derived (or ctx.Done())
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chH:
+	}
+
+	qcpzeta := make([]fr.Element, len(s.commitmentInfo))
+	blzeta := evaluateBlinded(s.x[id_L], s.bp[id_Bl], s.zeta) // x[id_L].ToRegular().Evaluate(zeta)
+	brzeta := evaluateBlinded(s.x[id_R], s.bp[id_Br], s.zeta) // x[id_R].ToRegular().Evaluate(zeta)
+	bozeta := evaluateBlinded(s.x[id_O], s.bp[id_Bo], s.zeta) // x[id_O].ToRegular().Evaluate(zeta)
+	for i := 0; i < len(s.commitmentInfo); i++ {
+		// TODO @gbotrel mutates pk.
+		qcpzeta[i] = s.pk.trace.Qcp[i].Clone().ToRegular().Evaluate(s.zeta)
+	}
+
+	// wait for Z to be opened at zeta (or ctx.Done())
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chZOpening:
+	}
+	bzuzeta := s.proof.ZShiftedOpening.ClaimedValue
+
+	s.linearizedPolynomial = computeLinearizedPolynomial(
+		blzeta,
+		brzeta,
+		bozeta,
+		s.alpha,
+		s.beta,
+		s.gamma,
+		s.zeta,
+		bzuzeta,
+		qcpzeta,
+		s.blindedZ,
+		coefficients(s.cCommitments),
+		s.pk,
+	)
+
+	var err error
+	s.linearizedPolynomialDigest, err = kzg.Commit(s.linearizedPolynomial, s.pk.Kzg, runtime.NumCPU()*2)
+	if err != nil {
+		return err
+	}
+	close(s.chLinearizedPolynomial)
+	return nil
+}
+
+func (s *instance) batchOpening() error {
+	polysQcp := coefficients(s.pk.trace.Qcp)
+	polysToOpen := make([][]fr.Element, 7+len(polysQcp))
+	copy(polysToOpen[7:], polysQcp)
+
+	// wait for LRO to be committed (or ctx.Done())
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chLRO:
+	}
+
+	// wait for foldedH to be computed (or ctx.Done())
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chFoldedH:
+	}
+
+	// wait for linearizedPolynomial to be computed (or ctx.Done())
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chLinearizedPolynomial:
+	}
+
+	polysToOpen[0] = s.foldedH
+	polysToOpen[1] = s.linearizedPolynomial
+	polysToOpen[2] = getBlindedCoefficients(s.x[id_L], s.bp[id_Bl])
+	polysToOpen[3] = getBlindedCoefficients(s.x[id_R], s.bp[id_Br])
+	polysToOpen[4] = getBlindedCoefficients(s.x[id_O], s.bp[id_Bo])
+	polysToOpen[5] = s.pk.trace.S1.Coefficients()
+	polysToOpen[6] = s.pk.trace.S2.Coefficients()
+
+	digestsToOpen := make([]curve.G1Affine, len(s.pk.Vk.Qcp)+7)
+	copy(digestsToOpen[7:], s.pk.Vk.Qcp)
+
+	digestsToOpen[0] = s.foldedHDigest
+	digestsToOpen[1] = s.linearizedPolynomialDigest
+	digestsToOpen[2] = s.proof.LRO[0]
+	digestsToOpen[3] = s.proof.LRO[1]
+	digestsToOpen[4] = s.proof.LRO[2]
+	digestsToOpen[5] = s.pk.Vk.S[0]
+	digestsToOpen[6] = s.pk.Vk.S[1]
+
+	var err error
+	s.proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
+		polysToOpen,
+		digestsToOpen,
+		s.zeta,
+		s.hFunc,
+		s.pk.Kzg,
+	)
+
+	return err
 }
 
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
@@ -389,194 +680,56 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		return nil, err
 	}
 
-	// get the []fr.Element representation of the witness
-	wWitness, ok := fullWitness.Vector().(fr.Vector)
-	if !ok {
-		return nil, witness.ErrInvalidWitness
-	}
-
 	start := time.Now()
 
-	// create a transcript manager to apply Fiat Shamir
-	hFunc := sha256.New()
-	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
-
-	// result
-	proof := &Proof{}
-
 	// init instance
-	instance := instance{
-		pk:    pk,
-		proof: proof,
-		spr:   spr,
-		opt:   &opt,
-		bp:    make([]*iop.Polynomial, nb_blinding_polynomials),
-		fs:    &fs,
-	}
-
-	// init BSB22 commitments
-	commitmentInfo, commitmentVal, cCommitments := instance.initBSB22Commitments()
-
-	// override the hint for GKR constraints
-	instance.setupGKRHints()
-
-	// x stores tracks the polynomial we need
-	x := make([]*iop.Polynomial, id_Qci+2*len(commitmentInfo))
+	g, ctx := errgroup.WithContext(context.Background())
+	instance := newInstance(ctx, spr, pk, fullWitness, &opt)
 
 	// solve constraints
-	// l, r, o are returned in canonical regular form, not blinded.
-	x[id_L], x[id_R], x[id_O], err = instance.solveConstraints(fullWitness)
-	if err != nil {
-		return nil, err
-	}
+	g.Go(instance.solveConstraints)
 
 	// complete qk
-	x[id_Qk] = instance.completeQk(wWitness, commitmentInfo, commitmentVal)
+	g.Go(instance.completeQk)
 
 	// init blinding polynomials
-	instance.initBlindingPolynomials()
-
-	// commit to l, r, o and add blinding factors
-	if err := instance.commitToLRO(x[id_L], x[id_R], x[id_O]); err != nil {
-		return nil, err
-	}
+	g.Go(instance.initBlindingPolynomials)
 
 	// derive gamma, beta (copy constraint)
-	gamma, beta, err := instance.deriveGammaAndBeta(wWitness)
-	if err != nil {
-		return nil, err
-	}
+	g.Go(instance.deriveGammaAndBeta)
 
 	// compute accumulating ratio for the copy constraint
-	x[id_Z], err = iop.BuildRatioCopyConstraint(
-		[]*iop.Polynomial{
-			x[id_L],
-			x[id_R],
-			x[id_O],
-		},
-		pk.trace.S,
-		beta,
-		gamma,
-		iop.Form{Basis: iop.Canonical, Layout: iop.Regular},
-		&pk.Domain[0],
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// commit to the blinded version of z
-	if err := instance.commitToZ(x[id_Z]); err != nil {
-		return nil, err
-	}
-
-	// derive alpha
-	alpha, err := instance.deriveAlpha(wWitness)
-	if err != nil {
-		return nil, err
-	}
+	g.Go(instance.buildRatioCopyConstraint)
 
 	// compute h
-	h, err := instance.evaluateConstraints(x, commitmentInfo, cCommitments, alpha, beta, gamma)
-	if err != nil {
-		return nil, err
-	}
-
-	// compute kzg commitments of h2, h2 and h3 (proof.H[0], proof.H[1], proof.H[2])
-	h1 := h.Coefficients()[:pk.Domain[0].Cardinality+2]
-	h2 := h.Coefficients()[pk.Domain[0].Cardinality+2 : 2*(pk.Domain[0].Cardinality+2)]
-	h3 := h.Coefficients()[2*(pk.Domain[0].Cardinality+2) : 3*(pk.Domain[0].Cardinality+2)]
-
-	if err := instance.commitToH(h1, h2, h3); err != nil {
-		return nil, err
-	}
-
-	// derive zeta
-	zeta, err := instance.deriveZeta()
-	if err != nil {
-		return nil, err
-	}
+	g.Go(instance.evaluateConstraints)
 
 	// open Z (blinded) at ωζ (proof.ZShiftedOpening)
-	blindedZ, err := instance.openZ(x[id_Z], zeta)
-	if err != nil {
-		return nil, err
-	}
+	g.Go(instance.openZ)
 
 	// fold the commitment to H ([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾[H₂])
-	foldedH, foldedHDigest := instance.foldH(h1, h2, h3, zeta)
+	g.Go(instance.foldH)
 
-	// linearised polynomial
-	qcpzeta := make([]fr.Element, len(commitmentInfo))
-	blzeta := evaluateBlinded(x[id_L], instance.bp[id_Bl], zeta) // x[id_L].ToRegular().Evaluate(zeta)
-	brzeta := evaluateBlinded(x[id_R], instance.bp[id_Br], zeta) // x[id_R].ToRegular().Evaluate(zeta)
-	bozeta := evaluateBlinded(x[id_O], instance.bp[id_Bo], zeta) // x[id_O].ToRegular().Evaluate(zeta)
-	for i := 0; i < len(commitmentInfo); i++ {
-		qcpzeta[i] = pk.trace.Qcp[i].ToRegular().Evaluate(zeta)
-	}
-	bzuzeta := proof.ZShiftedOpening.ClaimedValue
-
-	linearizedPolynomialCanonical := computeLinearizedPolynomial(
-		blzeta,
-		brzeta,
-		bozeta,
-		alpha,
-		beta,
-		gamma,
-		zeta,
-		bzuzeta,
-		qcpzeta,
-		blindedZ,
-		coefficients(cCommitments),
-		pk,
-	)
-
-	linearizedPolynomialDigest, err := kzg.Commit(linearizedPolynomialCanonical, pk.Kzg, runtime.NumCPU()*2)
-	if err != nil {
-		return nil, err
-	}
+	// linearized polynomial
+	g.Go(instance.computeLinearizedPolynomial)
 
 	// Batch opening
-	polysQcp := coefficients(pk.trace.Qcp)
-	polysToOpen := make([][]fr.Element, 7+len(polysQcp))
-	copy(polysToOpen[7:], polysQcp)
-	polysToOpen[0] = foldedH
-	polysToOpen[1] = linearizedPolynomialCanonical
-	polysToOpen[2] = getBlindedCoefficients(x[id_L], instance.bp[id_Bl])
-	polysToOpen[3] = getBlindedCoefficients(x[id_R], instance.bp[id_Br])
-	polysToOpen[4] = getBlindedCoefficients(x[id_O], instance.bp[id_Bo])
-	polysToOpen[5] = x[id_S1].Coefficients()
-	polysToOpen[6] = x[id_S2].Coefficients()
+	g.Go(instance.batchOpening)
 
-	digestsToOpen := make([]curve.G1Affine, len(pk.Vk.Qcp)+7)
-	copy(digestsToOpen[7:], pk.Vk.Qcp)
-	digestsToOpen[0] = foldedHDigest
-	digestsToOpen[1] = linearizedPolynomialDigest
-	digestsToOpen[2] = proof.LRO[0]
-	digestsToOpen[3] = proof.LRO[1]
-	digestsToOpen[4] = proof.LRO[2]
-	digestsToOpen[5] = pk.Vk.S[0]
-	digestsToOpen[6] = pk.Vk.S[1]
-
-	proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
-		polysToOpen,
-		digestsToOpen,
-		zeta,
-		hFunc,
-		pk.Kzg,
-	)
-	if err != nil {
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
-
-	return proof, nil
+	return instance.proof, nil
 }
 
 // evaluate the full set of constraints, all polynomials in x are back in
 // canonical regular form at the end
 func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial, alpha, beta, gamma fr.Element) (*iop.Polynomial, error) {
 
+	// TODO @gbotrel that mutates the proving key...
+	// TODO @gbotrel all the scale / batchScale in place are not safe
 	scale(x[id_S1], beta)
 	scale(x[id_S2], beta)
 	scale(x[id_S3], beta)
@@ -886,29 +1039,24 @@ func coefficients(p []*iop.Polynomial) [][]fr.Element {
 }
 
 func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKey) error {
-	n := runtime.NumCPU()
-	var err0, err1, err2 error
-	chCommit0 := make(chan struct{}, 1)
-	chCommit1 := make(chan struct{}, 1)
-	go func() {
-		proof.H[0], err0 = kzg.Commit(h1, kzgPk, n)
-		close(chCommit0)
-	}()
-	go func() {
-		proof.H[1], err1 = kzg.Commit(h2, kzgPk, n)
-		close(chCommit1)
-	}()
-	if proof.H[2], err2 = kzg.Commit(h3, kzgPk, n); err2 != nil {
-		return err2
-	}
-	<-chCommit0
-	<-chCommit1
+	g := new(errgroup.Group)
 
-	if err0 != nil {
-		return err0
-	}
+	g.Go(func() (err error) {
+		proof.H[0], err = kzg.Commit(h1, kzgPk)
+		return
+	})
 
-	return err1
+	g.Go(func() (err error) {
+		proof.H[1], err = kzg.Commit(h2, kzgPk)
+		return
+	})
+
+	g.Go(func() (err error) {
+		proof.H[2], err = kzg.Commit(h3, kzgPk)
+		return
+	})
+
+	return g.Wait()
 }
 
 // divideByXMinusOne
@@ -1077,3 +1225,5 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	})
 	return blindedZCanonical
 }
+
+var errContextDone = errors.New("context done")
