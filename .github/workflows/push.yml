@@ -77,16 +77,18 @@ jobs:
       # on macOS CI / Windows CI we avoid running the std/ tests (they are run on ubuntu CI)
       if: matrix.os != 'ubuntu-latest'
       run: |
-        go test -json -tags=release_checks -v -timeout=60m . 2>&1 | tee /tmp/gotest.log | gotestfmt
-        go test -json -tags=release_checks -v -timeout=60m ./frontend/... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
-        go test -json -tags=release_checks -v -timeout=60m ./backend/... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
-    - name: Test (race and solc)
+        go test -tags=release_checks -v -timeout=60m .
+        go test -tags=release_checks -v -timeout=60m ./frontend/...
+        go test -tags=release_checks -v -timeout=60m ./backend/...
+        go test -short -v -timeout=60m ./...
+    - name: Test (ubuntu - race and solc)
       if: matrix.os == 'ubuntu-latest'
       run: |
         go test -json -v -timeout=60m -tags=release_checks ./... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
         go test -json -v -tags=release_checks,solccheck . 2>&1 | tee -a /tmp/gotest.log | gotestfmt
         go test -json -v -timeout=60m -race -short ./... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
     - name: Generate job summary
+      if: matrix.os == 'ubuntu-latest'
       run: |
         cat /tmp/gotest.log | node .github/parse-tests.js > $GITHUB_STEP_SUMMARY
   
@@ -107,7 +109,7 @@ jobs:
               "actor": "${{ github.actor }}",
               "repo": "${{ github.repository }}",
               "status": "FAIL",
-              "title": "push to ${{ github.event.push.base_ref }}",
+              "title": "push to master ⚠",
               "pr": "",
               "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/"
             }
@@ -131,7 +133,7 @@ jobs:
               "actor": "${{ github.actor }}",
               "repo": "${{ github.repository }}",
               "status": "SUCCESS",
-              "title": "push to ${{ github.event.push.base_ref }}",
+              "title": "push to master ✅",
               "pr": ""
             }
         env:
