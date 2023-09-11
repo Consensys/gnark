@@ -112,16 +112,24 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 
 
 {{if eq .Curve "BN254"}}
-// ExportSolidity writes a solidity Verifier contract on provided writer
-// while this uses an audited template https://github.com/appliedzkp/semaphore/blob/master/contracts/sol/verifier.sol
-// audit report https://github.com/appliedzkp/semaphore/blob/master/audit/Audit%20Report%20Summary%20for%20Semaphore%20and%20MicroMix.pdf
-// this is an experimental feature and gnark solidity generator as not been thoroughly tested.
+// ExportSolidity writes a solidity Verifier contract on provided writer.
+// This is an experimental feature and gnark solidity generator as not been thoroughly tested.
 // 
 // See https://github.com/ConsenSys/gnark-tests for example usage.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	helpers := template.FuncMap{
 		"sub": func(a, b int) int {
 			return a - b
+		},
+		"mul": func(a, b int) int {
+			return a * b
+		},
+		"intRange": func(max int) []int {
+			out := make([]int, max)
+			for i := 0; i < max; i++ {
+				out[i] = i
+			}
+			return out
 		},
 	}
 
@@ -130,10 +138,24 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 		return err
 	}
 
-	// execute template
-	return tmpl.Execute(w, vk)
-}
+	// negate Beta, Gamma and Delta, to avoid negating proof elements in the verifier
+	var betaNeg curve.G2Affine
+	betaNeg.Neg(&vk.G2.Beta)
+	beta := vk.G2.Beta
+	vk.G2.Beta = betaNeg
+	vk.G2.Gamma, vk.G2.gammaNeg = vk.G2.gammaNeg, vk.G2.Gamma
+	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
 
+	// execute template
+	err = tmpl.Execute(w, vk)
+
+	// restore Beta, Gamma and Delta
+	vk.G2.Beta = beta
+	vk.G2.Gamma, vk.G2.gammaNeg = vk.G2.gammaNeg, vk.G2.Gamma
+	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
+
+	return err
+}
 
 {{else}}
 // ExportSolidity not implemented for {{.Curve}}

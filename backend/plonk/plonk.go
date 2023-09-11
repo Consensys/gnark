@@ -78,6 +78,8 @@ type Proof interface {
 type ProvingKey interface {
 	io.WriterTo
 	io.ReaderFrom
+	gnarkio.WriterRawTo
+	gnarkio.UnsafeReaderFrom
 	VerifyingKey() interface{}
 }
 
@@ -87,6 +89,8 @@ type ProvingKey interface {
 type VerifyingKey interface {
 	io.WriterTo
 	io.ReaderFrom
+	gnarkio.WriterRawTo
+	gnarkio.UnsafeReaderFrom
 	NbPublicWitness() int // number of elements expected in the public witness
 	ExportSolidity(w io.Writer) error
 }

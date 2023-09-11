@@ -204,7 +204,7 @@ func TestMulByFpFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -235,7 +235,7 @@ func TestConjugateFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 }
 
 type fp2Inverse struct {
@@ -266,6 +266,6 @@ func TestInverseFp2(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 
 }

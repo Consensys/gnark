@@ -58,8 +58,9 @@ type BaseConversionOption func(opt *baseConversionConfig) error
 
 // WithNbDigits sets the resulting number of digits (nbDigits) to be used in the base conversion.
 // nbDigits must be > 0. If nbDigits is lower than the length of full decomposition and
-// WithUnconstrainedOutputs option is not used, then this function generates an unsatisfiable
-// constraint. If WithNbDigits option is not set, then the full decomposition is returned.
+// WithUnconstrainedOutputs option is not used, then the conversion functions will generate an
+// unsatisfiable constraint. If WithNbDigits option is not set, then the full decomposition is
+// returned.
 func WithNbDigits(nbDigits int) BaseConversionOption {
 	return func(opt *baseConversionConfig) error {
 		if nbDigits <= 0 {

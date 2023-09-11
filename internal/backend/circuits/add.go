@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -39,5 +38,5 @@ func init() {
 	bad.D = 76
 	bad.Z = 1
 
-	addEntry("add", &circuit, &good, &bad, gnark.Curves())
+	addEntry("add", &circuit, &good, &bad, nil)
 }

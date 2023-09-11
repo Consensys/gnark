@@ -2,14 +2,15 @@ package test
 
 import (
 	"fmt"
+	"reflect"
+	"testing"
+
 	"github.com/consensys/gnark/backend"
 	groth16 "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/consensys/gnark/backend/witness"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/stretchr/testify/require"
-	"reflect"
-	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"

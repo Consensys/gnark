@@ -343,6 +343,12 @@ func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n
 	return enc.BytesWritten(), nil
 }
 
+// UnsafeReadFrom reads from binary representation in r into VerifyingKey.
+// Current implementation is a passthrough to ReadFrom
+func (vk *VerifyingKey) UnsafeReadFrom(r io.Reader) (int64, error) {
+	return vk.ReadFrom(r)
+}
+
 // ReadFrom reads from binary representation in r into VerifyingKey
 func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 	dec := curve.NewDecoder(r)

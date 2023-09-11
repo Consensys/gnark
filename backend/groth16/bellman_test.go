@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/witness"
 
@@ -95,6 +96,9 @@ func TestVerifyBellmanProof(t *testing.T) {
 		// decode proof
 		proofBytes, err := base64.StdEncoding.DecodeString(test.proof)
 		require.NoError(t, err)
+
+		// pad with 0 bytes to account for commitment stuff
+		proofBytes = append(proofBytes, make([]byte, bls12381.SizeOfG1AffineUncompressed+4)...)
 
 		proof := NewProof(ecc.BLS12_381)
 		_, err = proof.ReadFrom(bytes.NewReader(proofBytes))

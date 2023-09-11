@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,7 +111,6 @@ func TestPublic(t *testing.T) {
 }
 
 func roundTripMarshal(assert *require.Assertions, assignment circuit, publicOnly bool) {
-	// build the vector
 	var opts []frontend.WitnessOption
 	if publicOnly {
 		opts = append(opts, frontend.PublicOnly())
@@ -118,19 +118,13 @@ func roundTripMarshal(assert *require.Assertions, assignment circuit, publicOnly
 	w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), opts...)
 	assert.NoError(err)
 
-	// serialize the vector to binary
-	data, err := w.MarshalBinary()
-	assert.NoError(err)
-
-	// re-read
-	rw, err := witness.New(ecc.BN254.ScalarField())
-	assert.NoError(err)
-	err = rw.UnmarshalBinary(data)
-	assert.NoError(err)
-
-	assert.True(reflect.DeepEqual(rw, w), "witness binary round trip serialization")
-
+	assert.NoError(io.RoundTripCheck(w, func() interface{} {
+		rw, err := witness.New(ecc.BN254.ScalarField())
+		assert.NoError(err)
+		return rw
+	}))
 }
+
 func roundTripMarshalJSON(assert *require.Assertions, assignment circuit, publicOnly bool) {
 	// build the vector
 	var opts []frontend.WitnessOption
