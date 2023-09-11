@@ -1,4 +1,4 @@
-//go:build release_checks && !prover_checks
+//go:build (release_checks && !prover_checks) || (release_checks && prover_checks)
 
 package test
 
