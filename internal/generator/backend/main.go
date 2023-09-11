@@ -204,8 +204,6 @@ func main() {
 				panic(err)
 			}
 
-			os.Remove(filepath.Join(plonkDir, "plonk_test.go"))
-
 			// plonkfri
 			entries = []bavard.Entry{
 				{File: filepath.Join(plonkFriDir, "verify.go"), Templates: []string{"plonkfri/plonk.verify.go.tmpl", importCurve}},

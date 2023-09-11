@@ -135,3 +135,11 @@ type API interface {
 	// Deprecated: use api.Compiler().ConstantValue() instead
 	ConstantValue(v Variable) (*big.Int, bool)
 }
+
+// BatchInvert returns a slice of variables containing the inverse of each element in i1
+// This is a temporary API, do not use it in your circuit
+type BatchInverter interface {
+	// BatchInvert returns a slice of variables containing the inverse of each element in i1
+	// This is a temporary API, do not use it in your circuit
+	BatchInvert(i1 []Variable) []Variable
+}
