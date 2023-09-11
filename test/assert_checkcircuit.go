@@ -45,8 +45,10 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 				validWitnesses = append(validWitnesses, w)
 
 				// check that the assignment is valid with the test engine
-				err := IsSolved(circuit, w.assignment, curve.ScalarField())
-				assert.noError(err, &w)
+				if !opt.skipTestEngine {
+					err := IsSolved(circuit, w.assignment, curve.ScalarField())
+					assert.noError(err, &w)
+				}
 			}
 
 			for _, a := range opt.invalidAssignments {
@@ -54,8 +56,10 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 				invalidWitnesses = append(invalidWitnesses, w)
 
 				// check that the assignment is invalid with the test engine
-				err := IsSolved(circuit, w.assignment, curve.ScalarField())
-				assert.error(err, &w)
+				if !opt.skipTestEngine {
+					err := IsSolved(circuit, w.assignment, curve.ScalarField())
+					assert.error(err, &w)
+				}
 			}
 
 			// for each backend; compile, prove/verify or solve, check serialization if needed.

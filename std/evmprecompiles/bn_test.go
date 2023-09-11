@@ -120,7 +120,6 @@ func TestECMulCircuitShort(t *testing.T) {
 }
 
 func TestECMulCircuitFull(t *testing.T) {
-	t.Skip("skipping very long test")
 	assert := test.NewAssert(t)
 	circuit, witness := testRoutineECMul(t)
 	assert.CheckCircuit(circuit, test.WithValidAssignment(witness))

@@ -116,6 +116,14 @@ func NoProverChecks() TestingOption {
 	}
 }
 
+// NoTestEngine is a testing option which disables test engine checks
+func NoTestEngine() TestingOption {
+	return func(opt *testingConfig) error {
+		opt.skipTestEngine = true
+		return nil
+	}
+}
+
 // NoSolidityChecks is a testing option which disables solidity checks,
 // even when the build tags "solccheck" and "release_checks" are set.
 //

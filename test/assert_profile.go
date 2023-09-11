@@ -18,6 +18,7 @@ type profile struct {
 	checkSolidity      bool
 	checkProver        bool
 	fuzzing            bool
+	skipTestEngine     bool
 }
 
 var testEngineChecks = profile{

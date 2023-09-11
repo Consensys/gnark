@@ -130,7 +130,6 @@ func TestECRecoverCircuitShortMismatch(t *testing.T) {
 }
 
 func TestECRecoverCircuitFull(t *testing.T) {
-	t.Skip("skipping very long test")
 	assert := test.NewAssert(t)
 	circuit, witness, _ := testRoutineECRecover(t, false)
 
