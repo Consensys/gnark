@@ -20,13 +20,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
-	"golang.org/x/sync/errgroup"
 	"hash"
 	"math/big"
 	"math/bits"
 	"runtime"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/consensys/gnark/backend/witness"
 
@@ -57,16 +58,16 @@ import (
 // * modify GetCoeff -> if the poly is shifted and in canonical form the index is computed differently
 
 const (
-	id_Ql int = iota
-	id_Qr
-	id_Qm
-	id_Qo
-	id_Qk
-	id_L
+	id_L int = iota
 	id_R
 	id_O
 	id_Z
 	id_ZS
+	id_Ql 
+	id_Qr
+	id_Qm
+	id_Qo
+	id_Qk
 	id_S1
 	id_S2
 	id_S3
@@ -230,6 +231,7 @@ func (s *instance) initBlindingPolynomials() error {
 	close(s.chbp)
 	return nil
 }
+
 
 func (s *instance) initBSB22Commitments() {
 	s.commitmentInfo = s.spr.CommitmentInfo.(constraint.PlonkCommitments)
@@ -434,9 +436,9 @@ func (s *instance) evaluateConstraints() (err error) {
 	s.x[id_Qm] = s.pk.trace.Qm
 	s.x[id_Qo] = s.pk.trace.Qo
 	s.x[id_ZS] = s.x[id_Z].ShallowClone().Shift(1)
-	s.x[id_S1] = s.pk.trace.S1.Clone()
-	s.x[id_S2] = s.pk.trace.S2.Clone()
-	s.x[id_S3] = s.pk.trace.S3.Clone()
+	s.x[id_S1] = s.pk.trace.S1
+	s.x[id_S2] = s.pk.trace.S2
+	s.x[id_S3] = s.pk.trace.S3
 	s.x[id_ID] = iop.NewPolynomial(&identity, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 	s.x[id_LOne] = iop.NewPolynomial(&lone, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 	for i := 0; i < len(s.commitmentInfo); i++ {
@@ -740,11 +742,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 // canonical regular form at the end
 func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial, alpha, beta, gamma fr.Element) (*iop.Polynomial, error) {
 
-	// TODO @gbotrel that mutates the proving key...
-	// TODO @gbotrel all the scale / batchScale in place are not safe
-	scale(x[id_S1], beta)
-	scale(x[id_S2], beta)
-	scale(x[id_S3], beta)
+	
 
 	cres := make([]fr.Element, pk.Domain[1].Cardinality)
 
@@ -782,9 +780,12 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 		c.Mul(&u[id_ID], &ss).Add(&c, &u[id_O]).Add(&c, &gamma)
 		r.Mul(&a, &b).Mul(&r, &c).Mul(&r, &u[id_Z])
 
-		a.Add(&u[id_S1], &u[id_L]).Add(&a, &gamma)
-		b.Add(&u[id_S2], &u[id_R]).Add(&b, &gamma)
-		c.Add(&u[id_S3], &u[id_O]).Add(&c, &gamma)
+		a.Mul(&u[id_S1], &beta)
+		a.Add(&a, &u[id_L]).Add(&a, &gamma)
+		b.Mul(&u[id_S2], &beta)
+		b.Add(&b, &u[id_R]).Add(&b, &gamma)
+		c.Mul(&u[id_S3], &beta)
+		c.Add(&c, &u[id_O]).Add(&c, &gamma)
 		l.Mul(&a, &b).Mul(&l, &c).Mul(&l, &u[id_ZS])
 
 		l.Sub(&l, &r)
@@ -834,14 +835,24 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 		fat[i].Mul(&fat[i-1], &fat[1])
 	}
 
+	cosetTable := pk.Domain[0].CosetTable
+	cosetTableReversed := make([]fr.Element, len(pk.Domain[0].CosetTable))
+	copy(cosetTableReversed, cosetTable)
+	fft.BitReverse(cosetTableReversed)
+
+	twiddles :=  pk.Domain[1].Twiddles[0][:pk.Domain[0].Cardinality]
+	twiddlesReversed := make([]fr.Element, pk.Domain[0].Cardinality)
+	copy(twiddlesReversed, twiddles)
+	fft.BitReverse(twiddlesReversed)
+		
 	for i := 0; i < rho; i++ {
 
 		// shift polynomials to be in the correct coset
-		toCanonicalRegular(x, &pk.Domain[0]) // TODO no need to put in regular form
+		toCanonical(x, &pk.Domain[0]) // TODO no need to put in regular form
 		if i == 0 {
-			batchScalePowers2(x, pk.Domain[0].CosetTable)
+			batchScalePowers2(x, cosetTable, cosetTableReversed)
 		} else {
-			batchScalePowers2(x, pk.Domain[1].Twiddles[0])
+			batchScalePowers2(x, twiddles, twiddlesReversed)
 		}
 		// batchScalePowers(x, shifters[i]) // TODO take in account the layout in batchScalePowers
 
@@ -853,7 +864,7 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 		coset.Mul(&coset, &shifters[i])
 		tmp.Exp(coset, bn).Sub(&tmp, &one)
 		batchScale(bp, tmp) // bl <- bl *( (s*ωⁱ)ⁿ-1 )s
-		batchBlind(x[id_L:id_Z+1], bp, fat)
+		batchBlind(x[:id_ZS], bp, fat)
 
 		// TODO modify Evaluate so it takes a buffer to store the result insted of allocating a new polynomial
 		if _, err := iop.Evaluate(
@@ -869,18 +880,13 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 		}
 
 		// unblind l, r, o, z
-		batchUnblind(x[id_L:id_Z+1], bp, fat)
+		batchUnblind(x[:id_ZS], bp, fat)
 		tmp.Inverse(&tmp)
 		batchScale(bp, tmp) // bl <- bl *( (s*ωⁱ)ⁿ-1 )s
 	}
 
 	// scale everything back
 	toCanonicalRegular(x, &pk.Domain[0])
-	// TODO @gbotrel uncomment me I'm an experiment.
-	// beta.Inverse(&beta)
-	// scale(x[id_S1], beta)
-	// scale(x[id_S2], beta)
-	// scale(x[id_S3], beta)
 	s.Set(&shifters[0])
 	for i := 1; i < len(shifters); i++ {
 		s.Mul(&s, &shifters[i])
@@ -910,20 +916,22 @@ func batchUnblind(p, b []*iop.Polynomial, w []fr.Element) {
 // computes p - b on <\omega>
 func unblind(p, b *iop.Polynomial, w []fr.Element) {
 	cp := p.Coefficients()
-	var y fr.Element
+	
 	// x.SetOne()
 	n := p.Size()
 	// TODO add a method SetCoeff in gnark-crypto
 	if p.Layout == iop.Regular {
-		utils.Parallelize(p.Size(), func(start, end int) {
-			for i := start; i < end; i++ {
-				y = b.Evaluate(w[i])
-				cp[i].Sub(&cp[i], &y)
-				// x.Mul(&x, &w)
-			}
-		})
+		utils.Parallelize(len(cp), func(start, end int) {
+		var y fr.Element
+		for i := start; i < end; i++ {
+			y = b.Evaluate(w[i])
+			cp[i].Sub(&cp[i], &y)
+			// x.Mul(&x, &w)
+		}
+		}, runtime.NumCPU()/4)
 	} else {
 		nn := uint64(64 - bits.TrailingZeros(uint(n)))
+		var y fr.Element
 		for i := 0; i < p.Size(); i++ {
 			y = b.Evaluate(w[i])
 			iRev := bits.Reverse64(uint64(i)) >> nn
@@ -948,18 +956,21 @@ func batchBlind(p, b []*iop.Polynomial, w []fr.Element) {
 // computes p + b on <\omega>
 func blind(p, b *iop.Polynomial, w []fr.Element) {
 	cp := p.Coefficients()
-	var y fr.Element
+	
 	n := p.Size()
 	// TODO add a method SetCoeff in gnark-crypto
 	if p.Layout == iop.Regular {
-		utils.Parallelize(p.Size(), func(start, end int) {
+		
+		utils.Parallelize(len(cp), func(start, end int) {
+			var y fr.Element
 			for i := start; i < end; i++ {
-				y = b.Evaluate(w[i])
-				cp[i].Add(&cp[i], &y)
-			}
-		})
+			y = b.Evaluate(w[i])
+			cp[i].Add(&cp[i], &y)
+		}
+		}, runtime.NumCPU()/4)
 	} else {
 		nn := uint64(64 - bits.TrailingZeros(uint(n)))
+		var y fr.Element
 		for i := 0; i < p.Size(); i++ {
 			y = b.Evaluate(w[i])
 			iRev := bits.Reverse64(uint64(i)) >> nn
@@ -976,7 +987,7 @@ func toLagrange(x []*iop.Polynomial, d *fft.Domain) {
 			continue
 		}
 		go func(i int) {
-			x[i].ToLagrange(d) //.ToRegular()
+			x[i].ToLagrange(d).ToRegular()
 			wg.Done()
 		}(i)
 	}
@@ -998,7 +1009,24 @@ func toCanonicalRegular(x []*iop.Polynomial, d *fft.Domain) {
 	wg.Wait()
 }
 
-func batchScalePowers2(p []*iop.Polynomial, w []fr.Element) {
+
+func toCanonical(x []*iop.Polynomial, d *fft.Domain) {
+	var wg sync.WaitGroup
+	wg.Add(len(x) -1)
+	for i := 0; i < len(x); i++ {
+		if i == id_ZS {
+			continue
+		}
+		go func(i int) {
+			x[i].ToCanonical(d)//.ToBitReverse()
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+}
+
+
+func batchScalePowers2(p []*iop.Polynomial, w, wReversed []fr.Element) {
 	var wg sync.WaitGroup
 	for i := 0; i < len(p); i++ {
 		if i == id_ZS { // the scaling has already been done on id_Z, which points to the same coeff array
@@ -1009,9 +1037,17 @@ func batchScalePowers2(p []*iop.Polynomial, w []fr.Element) {
 		wg.Add(1)
 		go func(i int) {
 			cp := p[i].Coefficients()
-			for j := 0; j < len(cp); j++ {
+			// utils.Parallelize(len(cp), func(start, end int) {
+			if p[i].Layout == iop.Regular {
+				for j := 0; j < len(cp); j++ {
 				cp[j].Mul(&cp[j], &w[j])
 			}
+		} else {
+			for j := 0; j < len(cp); j++ {
+				cp[j].Mul(&cp[j], &wReversed[j])
+			}
+		}
+			// }, runtime.NumCPU()/len(p))
 			wg.Done()
 		}(i)
 	}
@@ -1058,6 +1094,15 @@ func scale(p *iop.Polynomial, w fr.Element) {
 	for i := 0; i < p.Size(); i++ {
 		cp[i].Mul(&cp[i], &w)
 	}
+}
+
+func scaleP(p *iop.Polynomial, w fr.Element) {
+	cp := p.Coefficients()
+	utils.Parallelize(p.Size(), func(start, end int) {
+		for i := start; i < end; i++ {
+		cp[i].Mul(&cp[i], &w)
+		}
+	}, runtime.NumCPU()/4)
 }
 
 func evaluateBlinded(p, bp *iop.Polynomial, zeta fr.Element) fr.Element {
