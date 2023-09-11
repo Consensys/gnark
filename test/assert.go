@@ -72,7 +72,7 @@ func (assert *Assert) Log(v ...interface{}) {
 	assert.t.Log(v...)
 }
 
-// ProverSucceeded is deprecated: use CheckCircuit instead
+// ProverSucceeded is deprecated: use [Assert.CheckCircuit] instead
 func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment frontend.Circuit, opts ...TestingOption) {
 	// copy the options
 	newOpts := make([]TestingOption, len(opts), len(opts)+2)
@@ -82,7 +82,7 @@ func (assert *Assert) ProverSucceeded(circuit frontend.Circuit, validAssignment 
 	assert.CheckCircuit(circuit, newOpts...)
 }
 
-// ProverSucceeded is Deprecated use CheckCircuit instead
+// ProverSucceeded is deprecated use [Assert.CheckCircuit] instead
 func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment frontend.Circuit, opts ...TestingOption) {
 	// copy the options
 	newOpts := make([]TestingOption, len(opts), len(opts)+2)
@@ -92,7 +92,7 @@ func (assert *Assert) ProverFailed(circuit frontend.Circuit, invalidAssignment f
 	assert.CheckCircuit(circuit, newOpts...)
 }
 
-// SolvingSucceeded is deprecated: use CheckCircuit instead
+// SolvingSucceeded is deprecated: use [Assert.CheckCircuit] instead
 func (assert *Assert) SolvingSucceeded(circuit frontend.Circuit, validWitness frontend.Circuit, opts ...TestingOption) {
 
 	// copy the options

@@ -14,19 +14,19 @@ import (
 
 // CheckCircuit performs a series of check on the provided circuit.
 //
-//	go test -short 					--> testEngineChecks
-//	go test 						--> testEngineChecks  + constraintSolverChecks
-//	go test -tags=prover_checks 	--> ... + proverChecks
-//	go test -tags=release_checks 	--> ... + releaseChecks (solidity, serialization, ...)
+//	go test -short                  --> testEngineChecks
+//	go test                         --> testEngineChecks  + constraintSolverChecks
+//	go test -tags=prover_checks     --> ... + proverChecks
+//	go test -tags=release_checks    --> ... + releaseChecks (solidity, serialization, ...)
 //
 // Depending on the above flags, the following checks are performed:
-// - the circuit compiles
-// - the circuit can be solved with the test engine
-// - the circuit can be solved with the constraint system solver
-// - the circuit can be solved with the prover
-// - the circuit can be verified with the verifier
-// - the circuit can be verified with gnark-solidity-checker
-// - the circuit, witness, proving and verifying keys can be serialized and deserialized
+//   - the circuit compiles
+//   - the circuit can be solved with the test engine
+//   - the circuit can be solved with the constraint system solver
+//   - the circuit can be solved with the prover
+//   - the circuit can be verified with the verifier
+//   - the circuit can be verified with gnark-solidity-checker
+//   - the circuit, witness, proving and verifying keys can be serialized and deserialized
 func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOption) {
 	// get the testing configuration
 	opt := assert.options(opts...)
