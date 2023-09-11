@@ -260,17 +260,26 @@ func (s *instance) solveConstraints() error {
 	evaluationLDomainSmall := []fr.Element(solution.L)
 	evaluationRDomainSmall := []fr.Element(solution.R)
 	evaluationODomainSmall := []fr.Element(solution.O)
-	s.x[id_L] = iop.NewPolynomial(&evaluationLDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-		ToCanonical(&s.pk.Domain[0]).
-		ToRegular()
-
-	s.x[id_R] = iop.NewPolynomial(&evaluationRDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-		ToCanonical(&s.pk.Domain[0]).
-		ToRegular()
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		s.x[id_L] = iop.NewPolynomial(&evaluationLDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
+			ToCanonical(&s.pk.Domain[0]).
+			ToRegular()
+		wg.Done()
+	}()
+	go func() {
+		s.x[id_R] = iop.NewPolynomial(&evaluationRDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
+			ToCanonical(&s.pk.Domain[0]).
+			ToRegular()
+		wg.Done()
+	}()
 
 	s.x[id_O] = iop.NewPolynomial(&evaluationODomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
 		ToCanonical(&s.pk.Domain[0]).
 		ToRegular()
+
+	wg.Wait()
 
 	// commit to l, r, o and add blinding factors
 	if err := s.commitToLRO(); err != nil {
@@ -812,11 +821,27 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 	var tmp, one fr.Element
 	one.SetOne()
 	bn := big.NewInt(int64(pk.Domain[0].Cardinality))
+
+	buf := make([]fr.Element, pk.Domain[0].Cardinality)
+
+	fat := make([]fr.Element, pk.Domain[0].Cardinality)
+	copy(fat, pk.Domain[0].Twiddles[0])
+	// fat[0].SetOne()
+	// fat[1].Set(&pk.Domain[0].Generator)
+	for i := len(pk.Domain[0].Twiddles[0]); i < len(fat); i++ {
+		fat[i].Mul(&fat[i-1], &fat[1])
+	}
+
 	for i := 0; i < rho; i++ {
 
 		// shift polynomials to be in the correct coset
 		toCanonicalRegular(x, &pk.Domain[0]) // TODO no need to put in regular form
-		batchScalePowers(x, shifters[i])     // TODO take in account the layout in batchScalePowers
+		if i == 0 {
+			batchScalePowers2(x, pk.Domain[0].CosetTable)
+		} else {
+			batchScalePowers2(x, pk.Domain[1].Twiddles[0])
+		}
+		// batchScalePowers(x, shifters[i]) // TODO take in account the layout in batchScalePowers
 
 		// fft in the correct coset
 		toLagrange(x, &pk.Domain[0])
@@ -826,27 +851,24 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 		coset.Mul(&coset, &shifters[i])
 		tmp.Exp(coset, bn).Sub(&tmp, &one)
 		batchScale(bp, tmp) // bl <- bl *( (s*ωⁱ)ⁿ-1 )s
-		batchBlind(x[id_L:id_Z+1], bp, pk.Domain[0].Generator)
+		batchBlind(x[id_L:id_Z+1], bp, fat)
 
 		// TODO modify Evaluate so it takes a buffer to store the result insted of allocating a new polynomial
-		buf, err := iop.Evaluate(
+		if err := iop.Evaluate(
 			allConstraints,
-			iop.Form{Basis: iop.Lagrange, Layout: iop.Regular},
+			buf,
 			x...,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, err
 		}
 		for j := 0; j < int(pk.Domain[0].Cardinality); j++ {
-			t := buf.GetCoeff(j)
-			cres[rho*j+i].Set(&t)
+			cres[rho*j+i] = buf[j] //.Set(&t)
 		}
 
 		// unblind l, r, o, z
-		batchUnblind(x[id_L:id_Z+1], bp, pk.Domain[0].Generator)
+		batchUnblind(x[id_L:id_Z+1], bp, fat)
 		tmp.Inverse(&tmp)
 		batchScale(bp, tmp) // bl <- bl *( (s*ωⁱ)ⁿ-1 )s
-
 	}
 
 	// scale everything back
@@ -870,7 +892,7 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 
 }
 
-func batchUnblind(p, b []*iop.Polynomial, w fr.Element) {
+func batchUnblind(p, b []*iop.Polynomial, w []fr.Element) {
 	var wg sync.WaitGroup
 	wg.Add(len(p))
 	for i := 0; i < len(p); i++ {
@@ -883,30 +905,32 @@ func batchUnblind(p, b []*iop.Polynomial, w fr.Element) {
 }
 
 // computes p - b on <\omega>
-func unblind(p, b *iop.Polynomial, w fr.Element) {
+func unblind(p, b *iop.Polynomial, w []fr.Element) {
 	cp := p.Coefficients()
-	var x, y fr.Element
-	x.SetOne()
+	var y fr.Element
+	// x.SetOne()
 	n := p.Size()
 	// TODO add a method SetCoeff in gnark-crypto
 	if p.Layout == iop.Regular {
-		for i := 0; i < p.Size(); i++ {
-			y = b.Evaluate(x)
-			cp[i].Sub(&cp[i], &y)
-			x.Mul(&x, &w)
-		}
+		utils.Parallelize(p.Size(), func(start, end int) {
+			for i := start; i < end; i++ {
+				y = b.Evaluate(w[i])
+				cp[i].Sub(&cp[i], &y)
+				// x.Mul(&x, &w)
+			}
+		})
 	} else {
 		nn := uint64(64 - bits.TrailingZeros(uint(n)))
 		for i := 0; i < p.Size(); i++ {
-			y = b.Evaluate(x)
+			y = b.Evaluate(w[i])
 			iRev := bits.Reverse64(uint64(i)) >> nn
 			cp[iRev].Sub(&cp[iRev], &y)
-			x.Mul(&x, &w)
+			// x.Mul(&x, &w)
 		}
 	}
 }
 
-func batchBlind(p, b []*iop.Polynomial, w fr.Element) {
+func batchBlind(p, b []*iop.Polynomial, w []fr.Element) {
 	var wg sync.WaitGroup
 	wg.Add(len(p))
 	for i := 0; i < len(p); i++ {
@@ -919,25 +943,24 @@ func batchBlind(p, b []*iop.Polynomial, w fr.Element) {
 }
 
 // computes p + b on <\omega>
-func blind(p, b *iop.Polynomial, w fr.Element) {
+func blind(p, b *iop.Polynomial, w []fr.Element) {
 	cp := p.Coefficients()
-	var x, y fr.Element
-	x.SetOne()
+	var y fr.Element
 	n := p.Size()
 	// TODO add a method SetCoeff in gnark-crypto
 	if p.Layout == iop.Regular {
-		for i := 0; i < p.Size(); i++ {
-			y = b.Evaluate(x)
-			cp[i].Add(&cp[i], &y)
-			x.Mul(&x, &w)
-		}
+		utils.Parallelize(p.Size(), func(start, end int) {
+			for i := start; i < end; i++ {
+				y = b.Evaluate(w[i])
+				cp[i].Add(&cp[i], &y)
+			}
+		})
 	} else {
 		nn := uint64(64 - bits.TrailingZeros(uint(n)))
 		for i := 0; i < p.Size(); i++ {
-			y = b.Evaluate(x)
+			y = b.Evaluate(w[i])
 			iRev := bits.Reverse64(uint64(i)) >> nn
 			cp[iRev].Add(&cp[iRev], &y)
-			x.Mul(&x, &w)
 		}
 	}
 }
@@ -950,7 +973,7 @@ func toLagrange(x []*iop.Polynomial, d *fft.Domain) {
 			continue
 		}
 		go func(i int) {
-			x[i].ToLagrange(d)
+			x[i].ToLagrange(d) //.ToRegular()
 			wg.Done()
 		}(i)
 	}
@@ -971,6 +994,27 @@ func toCanonicalRegular(x []*iop.Polynomial, d *fft.Domain) {
 	}
 	wg.Wait()
 }
+
+func batchScalePowers2(p []*iop.Polynomial, w []fr.Element) {
+	var wg sync.WaitGroup
+	for i := 0; i < len(p); i++ {
+		if i == id_ZS { // the scaling has already been done on id_Z, which points to the same coeff array
+			// TODO @gbotrel this is risky;
+			// input to batchScalePowers is not always x.
+			continue
+		}
+		wg.Add(1)
+		go func(i int) {
+			cp := p[i].Coefficients()
+			for j := 0; j < len(cp); j++ {
+				cp[j].Mul(&cp[j], &w[j])
+			}
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+}
+
 func batchScalePowers(p []*iop.Polynomial, w fr.Element) {
 	var wg sync.WaitGroup
 	for i := 0; i < len(p); i++ {
