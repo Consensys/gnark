@@ -81,13 +81,14 @@ jobs:
         go test -tags=release_checks -v -timeout=60m ./frontend/...
         go test -tags=release_checks -v -timeout=60m ./backend/...
         go test -short -v -timeout=60m ./...
-    - name: Test (race and solc)
+    - name: Test (ubuntu - race and solc)
       if: matrix.os == 'ubuntu-latest'
       run: |
         go test -json -v -timeout=60m -tags=release_checks ./... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
         go test -json -v -tags=release_checks,solccheck . 2>&1 | tee -a /tmp/gotest.log | gotestfmt
         go test -json -v -timeout=60m -race -short ./... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
     - name: Generate job summary
+      if: matrix.os == 'ubuntu-latest'
       run: |
         cat /tmp/gotest.log | node .github/parse-tests.js > $GITHUB_STEP_SUMMARY
   
