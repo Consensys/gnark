@@ -109,7 +109,7 @@ jobs:
               "actor": "${{ github.actor }}",
               "repo": "${{ github.repository }}",
               "status": "FAIL",
-              "title": "push to ${{ github.event.push.base_ref }}",
+              "title": "push to master ⚠",
               "pr": "",
               "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/"
             }
@@ -133,7 +133,7 @@ jobs:
               "actor": "${{ github.actor }}",
               "repo": "${{ github.repository }}",
               "status": "SUCCESS",
-              "title": "push to ${{ github.event.push.base_ref }}",
+              "title": "push to master ✅",
               "pr": ""
             }
         env:
