@@ -77,9 +77,10 @@ jobs:
       # on macOS CI / Windows CI we avoid running the std/ tests (they are run on ubuntu CI)
       if: matrix.os != 'ubuntu-latest'
       run: |
-        go test -json -tags=release_checks -v -timeout=60m . 2>&1 | tee /tmp/gotest.log | gotestfmt
-        go test -json -tags=release_checks -v -timeout=60m ./frontend/... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
-        go test -json -tags=release_checks -v -timeout=60m ./backend/... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
+        go test -tags=release_checks -v -timeout=60m .
+        go test -tags=release_checks -v -timeout=60m ./frontend/...
+        go test -tags=release_checks -v -timeout=60m ./backend/...
+        go test -short -v -timeout=60m ./...
     - name: Test (race and solc)
       if: matrix.os == 'ubuntu-latest'
       run: |
