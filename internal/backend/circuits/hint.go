@@ -67,7 +67,7 @@ func (circuit *recursiveHint) Define(api frontend.API) error {
 	// api.ToBinary calls another hint (bits.NBits) with linearExpression as input
 	// however, when the solver will resolve bits[...] it will need to detect w1 as a dependency
 	// in order to compute the correct linearExpression value
-	bits := api.ToBinary(linearExpression, 10)
+	bits := api.ToBinary(linearExpression, 6)
 
 	a := api.FromBinary(bits...)
 
