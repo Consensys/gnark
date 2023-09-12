@@ -99,10 +99,12 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 		}
 	}
 
+	nbBits := builder.cs.FieldBitLen()
+	vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
+
 	// bound is constant
 	if bConst {
-		vv := builder.toVariable(v)
-		builder.mustBeLessOrEqCst(vv, builder.cs.ToBigInt(cb))
+		builder.MustBeLessOrEqCst(vBits, builder.cs.ToBigInt(cb), v)
 		return
 	}
 
@@ -166,9 +168,15 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 
 }
 
-func (builder *builder) mustBeLessOrEqCst(a expr.LinearExpression, bound *big.Int) {
+// MustBeLessOrEqCst asserts that value represented using its bit decomposition
+// aBits is less or equal than constant bound. The method boolean constraints
+// the bits in aBits, so the caller can provide unconstrained bits.
+func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable) {
 
 	nbBits := builder.cs.FieldBitLen()
+	if len(aBits) != nbBits {
+		panic("input bits not modulus width length")
+	}
 
 	// ensure the bound is positive, it's bit-len doesn't matter
 	if bound.Sign() == -1 {
@@ -179,11 +187,7 @@ func (builder *builder) mustBeLessOrEqCst(a expr.LinearExpression, bound *big.In
 	}
 
 	// debug info
-	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", builder.toVariable(bound))
-
-	// note that at this stage, we didn't boolean-constraint these new variables yet
-	// (as opposed to ToBinary)
-	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
+	debug := builder.newDebugInfo("mustBeLessOrEq", aForDebug, " <= ", builder.toVariable(bound))
 
 	// t trailing bits in the bound
 	t := 0

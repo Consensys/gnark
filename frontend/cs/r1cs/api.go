@@ -19,11 +19,12 @@ package r1cs
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/internal/utils"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
+
+	"github.com/consensys/gnark/internal/utils"
 
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/cs"
