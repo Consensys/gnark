@@ -738,3 +738,11 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
 	return fmt.Errorf("not implemented")
 }
+
+// IsTestEngine allows testing if we are using test engine. This check allows to
+// shortcut some paths in the implementation where test engine differs from the
+// solver. For example, test engine does not allow overriding hints and the
+// variables are always of type [big.Int], but not constant.
+func (e *engine) IsTestEngine() bool {
+	return true
+}
