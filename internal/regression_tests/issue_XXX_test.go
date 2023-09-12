@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/test"
 )
 
@@ -28,6 +29,27 @@ type AssertIsLessOrEqCircuit struct {
 
 func (c *AssertIsLessOrEqCircuit) Define(api frontend.API) error {
 	api.AssertIsLessOrEqual(c.Smaller, c.Bigger)
+	return nil
+}
+
+type MathCmpAssertIsLessOrEqCircuitBounded struct {
+	Left  frontend.Variable
+	Right frontend.Variable
+}
+
+func (c *MathCmpAssertIsLessOrEqCircuitBounded) Define(api frontend.API) error {
+	cmper := cmp.NewBoundedComparator(api, big.NewInt(6), false)
+	cmper.AssertIsLessEq(c.Left, c.Right)
+	return nil
+}
+
+type MathCmpAssertIsLessOrEqCircuitFull struct {
+	Left  frontend.Variable
+	Right frontend.Variable
+}
+
+func (c *MathCmpAssertIsLessOrEqCircuitFull) Define(api frontend.API) error {
+	api.AssertIsEqual(1, cmp.IsLessOrEqual(api, c.Left, c.Right))
 	return nil
 }
 
@@ -85,6 +107,50 @@ func TestIssueXXXAssertIsLess(t *testing.T) {
 	}
 	assert.CheckCircuit(&AssertIsLessOrEqCircuit{}, test.WithValidAssignment(&assignmentNoHintGood), test.WithInvalidAssignment(&assignmentNoHintBad))
 	assert.CheckCircuit(&AssertIsLessOrEqCircuit{}, test.WithInvalidAssignment(&assignmentHintBad), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
+}
+
+func TestIssueXXXMathCmpAssertIsLessEqBounded(t *testing.T) {
+	assert := test.NewAssert(t)
+	assignmentNoHintGood := MathCmpAssertIsLessOrEqCircuitBounded{
+		Left:  5,
+		Right: 10,
+	}
+	assignmentNoHintBad := MathCmpAssertIsLessOrEqCircuitBounded{
+		Left:  11,
+		Right: 10,
+	}
+	assignmentHintBad := MathCmpAssertIsLessOrEqCircuitBounded{
+		Left:  10,
+		Right: 5,
+	}
+	toReplaceHint, err := getNBitsHint()
+	if err != nil {
+		t.Fatalf("couldn't find hint to replace: %v", err)
+	}
+	assert.CheckCircuit(&MathCmpAssertIsLessOrEqCircuitBounded{}, test.WithValidAssignment(&assignmentNoHintGood), test.WithInvalidAssignment(&assignmentNoHintBad))
+	assert.CheckCircuit(&MathCmpAssertIsLessOrEqCircuitBounded{}, test.WithInvalidAssignment(&assignmentHintBad), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
+}
+
+func TestIssueXXXMathCmpAssertIsLessEqFull(t *testing.T) {
+	assert := test.NewAssert(t)
+	assignmentNoHintGood := MathCmpAssertIsLessOrEqCircuitFull{
+		Left:  5,
+		Right: 10,
+	}
+	assignmentNoHintBad := MathCmpAssertIsLessOrEqCircuitFull{
+		Left:  11,
+		Right: 10,
+	}
+	assignmentHintBad := MathCmpAssertIsLessOrEqCircuitFull{
+		Left:  10,
+		Right: 5,
+	}
+	toReplaceHint, err := getNBitsHint()
+	if err != nil {
+		t.Fatalf("couldn't find hint to replace: %v", err)
+	}
+	assert.CheckCircuit(&MathCmpAssertIsLessOrEqCircuitFull{}, test.WithValidAssignment(&assignmentNoHintGood), test.WithInvalidAssignment(&assignmentNoHintBad))
+	assert.CheckCircuit(&MathCmpAssertIsLessOrEqCircuitFull{}, test.WithInvalidAssignment(&assignmentHintBad), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
 }
 
 func maliciousNbitsHint(mod *big.Int, inputs []*big.Int, results []*big.Int) error {
