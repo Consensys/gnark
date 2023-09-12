@@ -121,8 +121,8 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 
 	nbBits := builder.cs.FieldBitLen()
 
-	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
-	boundBits := builder.ToBinary(bound, nbBits)
+	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs(), bits.WithOmitModulusCheck())
+	boundBits := bits.ToBinary(builder, bound, bits.WithNbDigits(nbBits))
 
 	// constraint added
 	added := make([]int, 0, nbBits)
