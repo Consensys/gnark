@@ -163,7 +163,7 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 
 	nbBits := builder.cs.FieldBitLen()
 
-	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs(), bits.WithOmitModulusCheck())
+	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs(), bits.OmitModulusCheck())
 	boundBits := bits.ToBinary(builder, bound, bits.WithNbDigits(nbBits)) // enforces range check against modulus
 
 	p := make([]frontend.Variable, nbBits+1)

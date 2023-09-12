@@ -60,7 +60,7 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 	// modulus. However, we can omit the check when the number of bits we want
 	// to decompose to is less than the modulus or it was strictly requested.
 	_, isInTestEngine := api.(isTestEngine)
-	omitReducednessCheck := cfg.omitStrictReducedness || (cfg.NbDigits < api.Compiler().FieldBitLen()) || isInTestEngine
+	omitReducednessCheck := cfg.omitModulusCheck || (cfg.NbDigits < api.Compiler().FieldBitLen()) || isInTestEngine
 
 	// when cfg.NbDigits == 1, v itself has to be a binary digit. This if clause
 	// saves one constraint.
