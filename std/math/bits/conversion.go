@@ -51,6 +51,8 @@ type baseConversionConfig struct {
 	NbDigits             int
 	UnconstrainedOutputs bool
 	UnconstrainedInputs  bool
+
+	omitStrictReducedness bool
 }
 
 // BaseConversionOption configures the behaviour of scalar decomposition.
@@ -89,6 +91,24 @@ func WithUnconstrainedOutputs() BaseConversionOption {
 func WithUnconstrainedInputs() BaseConversionOption {
 	return func(opt *baseConversionConfig) error {
 		opt.UnconstrainedInputs = true
+		return nil
+	}
+}
+
+// WithOmitModulusCheck omits the comparison against native field modulus in
+// case the bitlength of the decomposed value (if [WithNbDigits] not set or set
+// to bitlength of the native modulus) eqals bitlength of the modulus.
+//
+// The check is otherwise required as there are possibly multiple correct binary
+// decompositions. For example, when decomposing small a the decomposition could
+// return the slices for both a or a+r, where r is the native modulus and the
+// enforced constraints are correct due to implicit modular reduction by r.
+//
+// This option can be used in case the decomposed output is manually checked to
+// be unique or if uniqueness is not required.
+func WithOmitModulusCheck() BaseConversionOption {
+	return func(opt *baseConversionConfig) error {
+		opt.omitStrictReducedness = true
 		return nil
 	}
 }
