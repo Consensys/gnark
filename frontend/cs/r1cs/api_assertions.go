@@ -174,8 +174,11 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable) {
 
 	nbBits := builder.cs.FieldBitLen()
-	if len(aBits) != nbBits {
-		panic("input bits not modulus width length")
+	if len(aBits) > nbBits {
+		panic("more input bits than field bit length")
+	}
+	for i := len(aBits); i < nbBits; i++ {
+		aBits = append(aBits, 0)
 	}
 
 	// ensure the bound is positive, it's bit-len doesn't matter
