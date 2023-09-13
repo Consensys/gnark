@@ -68,6 +68,11 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 		api.AssertIsBoolean(v)
 		return []frontend.Variable{v}
 	}
+	// if we decompose into more bits than fieldbitlen then the rest would be
+	// always zeros. Reduce the always-zeros to have fewer edge-cases elsewhere.
+	if cfg.NbDigits > api.Compiler().FieldBitLen() {
+		cfg.NbDigits = api.Compiler().FieldBitLen()
+	}
 
 	c := big.NewInt(1)
 
