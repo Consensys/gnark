@@ -1,18 +1,56 @@
 package dfa_search
 
-func createDfa(s []byte) [][256]int {
-	dfa := make([][256]int, len(s)+1)
+import "sort"
+
+type transition struct {
+	char byte
+	dst  int
+}
+
+type dfa [][]transition
+
+func findChar(ts []transition, char byte) int {
+	for i, t := range ts {
+		if char == t.char {
+			return i
+		}
+		if char < t.char {
+			return -1
+		}
+	}
+	return -1
+}
+
+func createDfa(s []byte) dfa {
+	dfa := make(dfa, len(s)+1)
 	if len(s) == 0 {
 		return dfa
 	}
 
 	backtrack := func(i int) {
 		l := prefixLength(s, i)
-		dfa[i] = dfa[l]
+		copy(dfa[i], dfa[l])
+		if len(dfa[i]) < len(dfa[l]) {
+			dfa[i] = append(dfa[i], dfa[l][len(dfa[i]):]...)
+		}
+		dfa[i] = dfa[i][:len(dfa[l])]
 	}
 
 	for i := range s {
-		dfa[i][s[i]] = i + 1
+		newTransition := transition{
+			dst:  i + 1,
+			char: s[i],
+		}
+
+		if j := findChar(dfa[i], s[i]); j == -1 {
+			dfa[i] = append(dfa[i], newTransition)
+		} else {
+			dfa[i][j] = newTransition
+		}
+
+		sort.Slice(dfa[i], func(j, k int) bool {
+			return dfa[i][j].char < dfa[i][k].char
+		})
 		backtrack(i + 1)
 	}
 	return dfa
@@ -23,7 +61,11 @@ func Search(s, d []byte) []int {
 	dfa := createDfa(s)
 	state := 0
 	for i := range d {
-		state = dfa[state][d[i]]
+		if j := findChar(dfa[state], d[i]); j == -1 {
+			state = 0
+		} else {
+			state = dfa[state][j].dst
+		}
 		if state == len(s) {
 			res = append(res, i-len(s)+1)
 		}

@@ -14,7 +14,7 @@ func test(t *testing.T, s, d []byte) []int {
 		foundAt[i] = true
 	}
 	for i := range d {
-		found := i+len(s) < len(d) && bytesEqual(d[i:i+len(s)], s)
+		found := i+len(s) <= len(d) && bytesEqual(d[i:i+len(s)], s)
 		assert.True(t, foundAt[i] == found, "i = %d, foundAt[i] = %v, found = %v", i, foundAt[i], found)
 	}
 	return indexes
@@ -23,35 +23,23 @@ func test(t *testing.T, s, d []byte) []int {
 func TestDfaAa(t *testing.T) {
 	text := []byte{0, 0}
 	dfa := createDfa(text)
-	var trans [256]int
 
-	trans[0] = 1
-	assert.Equal(t, trans, dfa[0])
-
-	trans[0] = 2
-	assert.Equal(t, trans, dfa[1])
-	assert.Equal(t, trans, dfa[2])
+	assert.Equal(t, []transition{{0, 1}}, dfa[0])
+	assert.Equal(t, []transition{{0, 2}}, dfa[1])
+	assert.Equal(t, []transition{{0, 2}}, dfa[2])
 }
 
 func TestDfaDo(t *testing.T) {
 	text := []byte{1, 0}
 	dfa := createDfa(text)
-	var trans [256]int
 
-	trans[1] = 1
-	assert.Equal(t, trans, dfa[0])
-
-	trans[0] = 2
-	trans[1] = 1
-	assert.Equal(t, trans, dfa[1])
-
-	trans[1] = 1
-	trans[0] = 0
-	assert.Equal(t, trans, dfa[2])
+	assert.Equal(t, []transition{{1, 1}}, dfa[0])
+	assert.Equal(t, []transition{{0, 2}, {1, 1}}, dfa[1])
+	assert.Equal(t, []transition{{1, 1}}, dfa[2])
 }
 
-func TestDo(t *testing.T) {
-
+func TestAb(t *testing.T) {
+	test(t, []byte{1, 0}, []byte{1, 0})
 }
 
 func TestLorem(t *testing.T) {
