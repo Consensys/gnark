@@ -1,4 +1,5 @@
 //go:build gpu
+// +build gpu
 
 // Copyright 2020 ConsenSys Software Inc.
 //
@@ -20,22 +21,22 @@ package groth16
 
 import (
 	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bn254"
-	"math/big"
+	icicle "github.com/ingonyama-zk/icicle/goicicle/curves/bn254"
+	iciclegnark "github.com/ingonyama-zk/iciclegnark/curves/bn254"
 	"math"
+	"math/big"
 	"math/bits"
 	"unsafe"
-	"fmt"
-	icicle "github.com/ingonyama-zk/icicle/goicicle/curves/bn254"
-	goicicle "github.com/ingonyama-zk/icicle/goicicle"
 )
 
 // ProvingKey is used by a Groth16 prover to encode a proof of a statement
@@ -53,12 +54,12 @@ type ProvingKey struct {
 	}
 
 	G1Device struct {
-		A, B, K, Z			unsafe.Pointer
+		A, B, K, Z unsafe.Pointer
 	}
 
 	DomainDevice struct {
-		Twiddles, TwiddlesInv		unsafe.Pointer
-		CosetTable, CosetTableInv	unsafe.Pointer
+		Twiddles, TwiddlesInv     unsafe.Pointer
+		CosetTable, CosetTableInv unsafe.Pointer
 	}
 
 	// [β]₂, [δ]₂, [B(t)]₂
@@ -68,14 +69,15 @@ type ProvingKey struct {
 	}
 
 	G2Device struct {
-		B			unsafe.Pointer
+		B unsafe.Pointer
 	}
 
-	DenDevice		unsafe.Pointer
+	DenDevice unsafe.Pointer
 
 	// if InfinityA[i] == true, the point G1.A[i] == infinity
 	InfinityA, InfinityB     []bool
 	NbInfinityA, NbInfinityB uint64
+	InfinityPointIndicesK    []int
 
 	CommitmentKeys []pedersen.ProvingKey
 }
@@ -363,23 +365,34 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 
 func (pk *ProvingKey) setupDevicePointers() {
 	n := int(pk.Domain.Cardinality)
-	sizeBytes := n*fr.Bytes
-	
+	sizeBytes := n * fr.Bytes
+
 	/*************************  Start Domain Device Setup  ***************************/
-	
+	copyCosetInvDone := make(chan unsafe.Pointer, 1)
+	copyCosetDone := make(chan unsafe.Pointer, 1)
+	copyDenDone := make(chan unsafe.Pointer, 1)
 	/*************************     CosetTableInv      ***************************/
-	cosetPowersInv_d, _ := goicicle.CudaMalloc(sizeBytes)
-	goicicle.CudaMemCpyHtoD[fr.Element](cosetPowersInv_d, pk.Domain.CosetTableInv, sizeBytes)
-	MontConvOnDevice(cosetPowersInv_d, len(pk.Domain.CosetTable), false)
+	go iciclegnark.CopyToDevice(pk.Domain.CosetTableInv, sizeBytes, copyCosetInvDone)
 
-	pk.DomainDevice.CosetTableInv = cosetPowersInv_d
-	
 	/*************************     CosetTable      ***************************/
-	cosetPowers_d, _ := goicicle.CudaMalloc(sizeBytes)
-	goicicle.CudaMemCpyHtoD[fr.Element](cosetPowers_d, pk.Domain.CosetTable, sizeBytes)
-	MontConvOnDevice(cosetPowers_d, len(pk.Domain.CosetTable), false)
+	go iciclegnark.CopyToDevice(pk.Domain.CosetTable, sizeBytes, copyCosetDone)
 
-	pk.DomainDevice.CosetTable = cosetPowers_d
+	/*************************     Den      ***************************/
+	var denI, oneI fr.Element
+	oneI.SetOne()
+	denI.Exp(pk.Domain.FrMultiplicativeGen, big.NewInt(int64(pk.Domain.Cardinality)))
+	denI.Sub(&denI, &oneI).Inverse(&denI)
+
+	log2Size := int(math.Floor(math.Log2(float64(n))))
+	denIcicleArr := []fr.Element{denI}
+	for i := 0; i < log2Size; i++ {
+		denIcicleArr = append(denIcicleArr, denIcicleArr...)
+	}
+	for i := 0; i < (n - int(math.Pow(2, float64(log2Size)))); i++ {
+		denIcicleArr = append(denIcicleArr, denI)
+	}
+
+	go iciclegnark.CopyToDevice(denIcicleArr, sizeBytes, copyDenDone)
 
 	/*************************     Twiddles and Twiddles Inv    ***************************/
 	om_selector := int(math.Log(float64(n)) / math.Log(2))
@@ -394,72 +407,56 @@ func (pk *ProvingKey) setupDevicePointers() {
 		fmt.Print(twiddles_d_gen)
 	}
 
+	/*************************  End Domain Device Setup  ***************************/
 	pk.DomainDevice.Twiddles = twiddles_d_gen
 	pk.DomainDevice.TwiddlesInv = twiddlesInv_d_gen
 
-	/*************************     Den      ***************************/
-	var denI, oneI fr.Element
-	oneI.SetOne()
-	denI.Exp(pk.Domain.FrMultiplicativeGen, big.NewInt(int64(pk.Domain.Cardinality)))
-	denI.Sub(&denI, &oneI).Inverse(&denI)
+	pk.DomainDevice.CosetTableInv = <-copyCosetInvDone
+	pk.DomainDevice.CosetTable = <-copyCosetDone
+	pk.DenDevice = <-copyDenDone
 
-	den_d, _ := goicicle.CudaMalloc(sizeBytes)
-	log2Size := int(math.Floor(math.Log2(float64(n))))
-	denIcicle := *icicle.NewFieldFromFrGnark[icicle.ScalarField](denI)
-	denIcicleArr := []icicle.ScalarField{denIcicle}
-	for i := 0; i < log2Size; i++ {
-		denIcicleArr = append(denIcicleArr, denIcicleArr...)
-	}
-	for i := 0; i < (n - int(math.Pow(2, float64(log2Size)))); i++ {
-		denIcicleArr = append(denIcicleArr, denIcicle)
-	}
-
-	goicicle.CudaMemCpyHtoD[icicle.ScalarField](den_d, denIcicleArr, sizeBytes)
-
-	pk.DenDevice = den_d
-
-	/*************************  End Domain Device Setup  ***************************/
-	
 	/*************************  Start G1 Device Setup  ***************************/
 	/*************************     A      ***************************/
 	pointsBytesA := len(pk.G1.A) * fp.Bytes * 2
-	a_d, _ := goicicle.CudaMalloc(pointsBytesA)
-	iciclePointsA := icicle.BatchConvertFromG1Affine(pk.G1.A)
-	goicicle.CudaMemCpyHtoD[icicle.PointAffineNoInfinityBN254](a_d, iciclePointsA, pointsBytesA)
-
-	pk.G1Device.A = a_d
+	copyADone := make(chan unsafe.Pointer, 1)
+	go iciclegnark.CopyPointsToDevice(pk.G1.A, pointsBytesA, copyADone) // Make a function for points
 
 	/*************************     B      ***************************/
 	pointsBytesB := len(pk.G1.B) * fp.Bytes * 2
-	b_d, _ := goicicle.CudaMalloc(pointsBytesB)
-	iciclePointsB := icicle.BatchConvertFromG1Affine(pk.G1.B)
-	goicicle.CudaMemCpyHtoD[icicle.PointAffineNoInfinityBN254](b_d, iciclePointsB, pointsBytesB)
+	copyBDone := make(chan unsafe.Pointer, 1)
+	go iciclegnark.CopyPointsToDevice(pk.G1.B, pointsBytesB, copyBDone) // Make a function for points
 
-	pk.G1Device.B = b_d
-	
 	/*************************     K      ***************************/
-	pointsBytesK := len(pk.G1.K) * fp.Bytes * 2
-	k_d, _ := goicicle.CudaMalloc(pointsBytesK)
-	iciclePointsK := icicle.BatchConvertFromG1Affine(pk.G1.K)
-	goicicle.CudaMemCpyHtoD[icicle.PointAffineNoInfinityBN254](k_d, iciclePointsK, pointsBytesK)
+	var pointsNoInfinity []curve.G1Affine
+	for i, gnarkPoint := range pk.G1.K {
+		if gnarkPoint.IsInfinity() {
+			pk.InfinityPointIndicesK = append(pk.InfinityPointIndicesK, i)
+		} else {
+			pointsNoInfinity = append(pointsNoInfinity, gnarkPoint)
+		}
+	}
 
-	pk.G1Device.K = k_d
+	pointsBytesK := len(pointsNoInfinity) * fp.Bytes * 2
+	copyKDone := make(chan unsafe.Pointer, 1)
+	go iciclegnark.CopyPointsToDevice(pointsNoInfinity, pointsBytesK, copyKDone) // Make a function for points
 
 	/*************************     Z      ***************************/
 	pointsBytesZ := len(pk.G1.Z) * fp.Bytes * 2
-	z_d, _ := goicicle.CudaMalloc(pointsBytesZ)
-	iciclePointsZ := icicle.BatchConvertFromG1Affine(pk.G1.Z)
-	goicicle.CudaMemCpyHtoD[icicle.PointAffineNoInfinityBN254](z_d, iciclePointsZ, pointsBytesZ)
+	copyZDone := make(chan unsafe.Pointer, 1)
+	go iciclegnark.CopyPointsToDevice(pk.G1.Z, pointsBytesZ, copyZDone) // Make a function for points
 
-	pk.G1Device.Z = z_d
 	/*************************  End G1 Device Setup  ***************************/
+	pk.G1Device.A = <-copyADone
+	pk.G1Device.B = <-copyBDone
+	pk.G1Device.K = <-copyKDone
+	pk.G1Device.Z = <-copyZDone
 
 	/*************************  Start G2 Device Setup  ***************************/
 	pointsBytesB2 := len(pk.G2.B) * fp.Bytes * 4
-	b2_d, _ := goicicle.CudaMalloc(pointsBytesB2)
-	iciclePointsB2 := icicle.BatchConvertFromG2Affine(pk.G2.B)
-	goicicle.CudaMemCpyHtoD[icicle.G2PointAffine](b2_d, iciclePointsB2, pointsBytesB2)
-	pk.G2Device.B = b2_d
+	copyG2BDone := make(chan unsafe.Pointer, 1)
+	go iciclegnark.CopyG2PointsToDevice(pk.G2.B, pointsBytesB2, copyG2BDone) // Make a function for points
+	pk.G2Device.B = <-copyG2BDone
+
 	/*************************  End G2 Device Setup  ***************************/
 }
 

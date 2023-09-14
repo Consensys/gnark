@@ -1,4 +1,5 @@
 //go:build gpu
+// +build gpu
 
 // Copyright 2020 ConsenSys Software Inc.
 //
@@ -19,6 +20,10 @@
 package groth16
 
 import (
+	"math/big"
+	"time"
+	"unsafe"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -31,11 +36,9 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
-	"math/big"
-	"time"
-	"unsafe"
 	goicicle "github.com/ingonyama-zk/icicle/goicicle"
 	icicle "github.com/ingonyama-zk/icicle/goicicle/curves/bn254"
+	iciclegnark "github.com/ingonyama-zk/iciclegnark/curves/bn254"
 )
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified
@@ -129,7 +132,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	// we need to copy and filter the wireValues for each multi exp
 	// as pk.G1.A, pk.G1.B and pk.G2.B may have (a significant) number of point at infinity
-	var wireValuesADevice, wireValuesBDevice OnDeviceData
+	var wireValuesADevice, wireValuesBDevice iciclegnark.OnDeviceData
 	chWireValuesA, chWireValuesB := make(chan struct{}, 1), make(chan struct{}, 1)
 
 	go func() {
@@ -142,12 +145,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			j++
 		}
 		wireValuesASize := len(wireValuesA)
-		scalarBytes := wireValuesASize*fr.Bytes
+		scalarBytes := wireValuesASize * fr.Bytes
 		wireValuesADevicePtr, _ := goicicle.CudaMalloc(scalarBytes)
 		goicicle.CudaMemCpyHtoD[fr.Element](wireValuesADevicePtr, wireValuesA, scalarBytes)
-		MontConvOnDevice(wireValuesADevicePtr, wireValuesASize, false)
-		wireValuesADevice = OnDeviceData{wireValuesADevicePtr, wireValuesASize}
-		
+		iciclegnark.MontConvOnDevice(wireValuesADevicePtr, wireValuesASize, false)
+		wireValuesADevice = iciclegnark.OnDeviceData{
+			P:    wireValuesADevicePtr,
+			Size: wireValuesASize,
+		}
+
 		close(chWireValuesA)
 	}()
 	go func() {
@@ -160,11 +166,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			j++
 		}
 		wireValuesBSize := len(wireValuesB)
-		scalarBytes := wireValuesBSize*fr.Bytes
+		scalarBytes := wireValuesBSize * fr.Bytes
 		wireValuesBDevicePtr, _ := goicicle.CudaMalloc(scalarBytes)
 		goicicle.CudaMemCpyHtoD[fr.Element](wireValuesBDevicePtr, wireValuesB, scalarBytes)
-		MontConvOnDevice(wireValuesBDevicePtr, wireValuesBSize, false)
-		wireValuesBDevice = OnDeviceData{wireValuesBDevicePtr, wireValuesBSize}
+		iciclegnark.MontConvOnDevice(wireValuesBDevicePtr, wireValuesBSize, false)
+		wireValuesBDevice = iciclegnark.OnDeviceData{
+			P:    wireValuesBDevicePtr,
+			Size: wireValuesBSize,
+		}
 
 		close(chWireValuesB)
 	}()
@@ -191,7 +200,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	computeBS1 := func() {
 		<-chWireValuesB
 
-		bs1, _, _ = MsmOnDevice(wireValuesBDevice.p, pk.G1Device.B, wireValuesBDevice.size, true)
+		bs1, _, _ = iciclegnark.MsmOnDevice(wireValuesBDevice.P, pk.G1Device.B, wireValuesBDevice.Size, true)
 
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
@@ -200,7 +209,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	computeAR1 := func() {
 		<-chWireValuesA
 
-		ar, _, _ = MsmOnDevice(wireValuesADevice.p, pk.G1Device.A, wireValuesADevice.size, true)
+		ar, _, _ = iciclegnark.MsmOnDevice(wireValuesADevice.P, pk.G1Device.A, wireValuesADevice.Size, true)
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
@@ -212,24 +221,26 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 		var krs, krs2, p1 curve.G1Jac
 		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
-		
-		krs, _, _ = MsmOnDevice(h, pk.G1Device.Z, sizeH, true)
+
+		if len(pk.G1.Z) > 0 {
+			krs2, _, _ = iciclegnark.MsmOnDevice(h, pk.G1Device.Z, sizeH, true)
+		}
 
 		// filter the wire values if needed
 		// TODO Perf @Tabaie worst memory allocation offender
 		toRemove := commitmentInfo.GetPrivateCommitted()
 		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
 		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
-		
-		scalarBytes := len(_wireValues)*fr.Bytes
+
+		scalarBytes := len(_wireValues) * fr.Bytes
 		scalars_d, _ := goicicle.CudaMalloc(scalarBytes)
 		goicicle.CudaMemCpyHtoD[fr.Element](scalars_d, _wireValues, scalarBytes)
-		MontConvOnDevice(scalars_d, len(_wireValues), false)
-
-		krs2, _, _ = MsmOnDevice(scalars_d, pk.G1Device.K, len(_wireValues), true)
+		iciclegnark.MontConvOnDevice(scalars_d, len(_wireValues), false)
+		krs, _, _ = iciclegnark.MsmOnDevice(scalars_d, pk.G1Device.K, len(_wireValues), true)
+		goicicle.CudaFree(scalars_d)
 
 		krs.AddMixed(&deltas[2])
-		
+
 		krs.AddAssign(&krs2)
 
 		p1.ScalarMultiplication(&ar, &s)
@@ -246,8 +257,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		var Bs, deltaS curve.G2Jac
 
 		<-chWireValuesB
-
-		Bs, _, _ = MsmG2OnDevice(wireValuesBDevice.p, pk.G2Device.B, wireValuesBDevice.size, true)
+		Bs, _, _ = iciclegnark.MsmG2OnDevice(wireValuesBDevice.P, pk.G2Device.B, wireValuesBDevice.Size, true)
 
 		deltaS.FromAffine(&pk.G2.Delta)
 		deltaS.ScalarMultiplication(&deltaS, &s)
@@ -270,6 +280,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
+
+	go func() {
+		goicicle.CudaFree(wireValuesADevice.P)
+		goicicle.CudaFree(wireValuesBDevice.P)
+		goicicle.CudaFree(h)
+	}()
 
 	return proof, nil
 }
@@ -322,35 +338,45 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey) unsafe.Pointer {
 	sizeBytes := n * fr.Bytes
 
 	/*********** Copy a,b,c to Device Start ************/
+	// Individual channels are necessary to know which device pointers
+	// point to which vector
 	copyADone := make(chan unsafe.Pointer, 1)
 	copyBDone := make(chan unsafe.Pointer, 1)
 	copyCDone := make(chan unsafe.Pointer, 1)
 
-	go CopyToDevice(a, sizeBytes, copyADone)
-	go CopyToDevice(b, sizeBytes, copyBDone)
-	go CopyToDevice(c, sizeBytes, copyCDone)
+	go iciclegnark.CopyToDevice(a, sizeBytes, copyADone)
+	go iciclegnark.CopyToDevice(b, sizeBytes, copyBDone)
+	go iciclegnark.CopyToDevice(c, sizeBytes, copyCDone)
 
-	a_device := <- copyADone
-	b_device := <- copyBDone
-	c_device := <- copyCDone
+	a_device := <-copyADone
+	b_device := <-copyBDone
+	c_device := <-copyCDone
 	/*********** Copy a,b,c to Device End ************/
-	
+
 	computeInttNttDone := make(chan error, 1)
-	computeInttNttOnDevice := func (devicePointer unsafe.Pointer) {
-		a_intt_d := INttOnDevice(devicePointer, pk.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)		
-		NttOnDevice(devicePointer, a_intt_d, pk.DomainDevice.Twiddles, pk.DomainDevice.CosetTable, n, n, sizeBytes, true)
+	computeInttNttOnDevice := func(devicePointer unsafe.Pointer) {
+		a_intt_d := iciclegnark.INttOnDevice(devicePointer, pk.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
+		iciclegnark.NttOnDevice(devicePointer, a_intt_d, pk.DomainDevice.Twiddles, pk.DomainDevice.CosetTable, n, n, sizeBytes, true)
 		computeInttNttDone <- nil
+		goicicle.CudaFree(a_intt_d)
 	}
 
 	go computeInttNttOnDevice(a_device)
 	go computeInttNttOnDevice(b_device)
 	go computeInttNttOnDevice(c_device)
-	_, _, _ = <- computeInttNttDone, <- computeInttNttDone, <- computeInttNttDone
+	_, _, _ = <-computeInttNttDone, <-computeInttNttDone, <-computeInttNttDone
 
-	PolyOps(a_device, b_device, c_device, pk.DenDevice, n)
+	iciclegnark.PolyOps(a_device, b_device, c_device, pk.DenDevice, n)
 
-	h := INttOnDevice(a_device, pk.DomainDevice.TwiddlesInv, pk.DomainDevice.CosetTableInv, n, sizeBytes, true)
+	h := iciclegnark.INttOnDevice(a_device, pk.DomainDevice.TwiddlesInv, pk.DomainDevice.CosetTableInv, n, sizeBytes, true)
+
+	go func() {
+		goicicle.CudaFree(a_device)
+		goicicle.CudaFree(b_device)
+		goicicle.CudaFree(c_device)
+	}()
+
 	icicle.ReverseScalars(h, n)
-	
+
 	return h
 }

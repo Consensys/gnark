@@ -18,8 +18,10 @@ github.com/google/go-cmp v0.5.9/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeN
 github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b h1:h9U78+dx9a4BKdQkBBos92HalKpaGKHrp+3Uo6yTodo=
 github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b/go.mod h1:czg5+yv1E0ZGTi6S6vVK1mke0fV+FaUhNGcd6VRS9Ik=
 github.com/google/subcommands v1.2.0/go.mod h1:ZjhPrFU+Olkh9WazFPsl27BQ4UPiG37m3yTrtFlrHVk=
-github.com/ingonyama-zk/icicle v0.0.0-20230719184412-d13143506ece h1:RHCWrXIoz6iadqKcStdn0k4mDhSgOYLmyPpRM6yMNMo=
-github.com/ingonyama-zk/icicle v0.0.0-20230719184412-d13143506ece/go.mod h1:kPvbQqCrBszFYe7cqctnvXVMHzGihiQsIAr/qP3TbNo=
+github.com/ingonyama-zk/icicle v0.0.0-20230907052343-04e5ff5d1af4 h1:3Va/VmQ+KZ0pI8eLRnS1j25eFzTQvjgfh6o85xbChcM=
+github.com/ingonyama-zk/icicle v0.0.0-20230907052343-04e5ff5d1af4/go.mod h1:kAK8/EoN7fUEmakzgZIYdWy1a2rBnpCaZLqSHwZWxEk=
+github.com/ingonyama-zk/iciclegnark v0.0.0-20230914093448-b18f425e7e74 h1:JuKkY/y6k1iYrudHTiekzQLKQGs12pp5danZa5eGLX0=
+github.com/ingonyama-zk/iciclegnark v0.0.0-20230914093448-b18f425e7e74/go.mod h1:bPTeffNOZJtNcDx7SOYN0KQyGo49HNrk8wcIRqs5l80=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
