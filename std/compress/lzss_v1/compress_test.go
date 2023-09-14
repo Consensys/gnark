@@ -3,6 +3,7 @@ package lzss_v1
 import (
 	"fmt"
 	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/compress/huffman"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
@@ -20,9 +21,12 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 		LogHeads: &heads,
 	}
 	c, err := Compress(d, settings)
+	cHuff := (huffman.EstimateHuffmanCodeSize(c) + 7) / 8
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
+	fmt.Println("Estimated Compression ratio (with Huffman):", float64(len(d))/float64(cHuff))
 	if len(c) > 1024 {
 		fmt.Printf("Compressed size: %dKB\n", int(float64(len(c)*100)/1024)/100)
+		fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(cHuff*100)/1024)/100)
 	}
 	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 	require.NoError(t, err)
@@ -110,6 +114,7 @@ func TestCalldataSymb1(t *testing.T) {
 	require.NoError(t, err)
 
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
+	fmt.Println("Estimated Compression ratio (with Huffman):", float64(len(d))/float64(huffman.EstimateHuffmanCodeSize(c)))
 	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
