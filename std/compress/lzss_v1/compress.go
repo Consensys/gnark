@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/compress/dfa_search"
 )
 
 // The backref logic can produce RLE as a special case, which is good for decompressor state machine complexity
@@ -151,14 +152,35 @@ func longestMostRecentBackRef(d []byte, i int, symb byte, minBackRefAddr, minVia
 	} else {
 		minViableBackRef := d[i : i+minViableBackRefLen]
 		// find backref candidates that satisfy the minimum length requirement
-		for j := i - 1; j >= 0 && j >= minBackRefAddr; j-- { // TODO If logging is enabled, go past minBackRefAddr to spot missed opportunities
+
+		/*for j := i - 1; j >= 0 && j >= minBackRefAddr; j-- { // TODO If logging is enabled, go past minBackRefAddr to spot missed opportunities
 			if j+minViableBackRefLen > len(d) {
 				continue
 			}
 			if bytesEqual(d[j:j+minViableBackRefLen], minViableBackRef) {
 				remainingOptions[j] = struct{}{}
 			}
+		}*/
+
+		//remainingOptions2 := make(map[int]struct{})
+		searchBase := utils.Max(minBackRefAddr, 0)
+		matches := dfa_search.Search(minViableBackRef, d[searchBase:i+minViableBackRefLen-1])
+		for i := range matches {
+			matches[i] += searchBase
+			remainingOptions[matches[i]] = struct{}{}
 		}
+		/*for _, match := range matches {
+			remainingOptions[match] = struct{}{}
+		}*/
+		/*remainingOptionsKeys := maps.Keys(remainingOptions)
+		sort.Ints(remainingOptionsKeys)
+		if !slices.Equal(matches, remainingOptionsKeys) {
+			found := make([][]byte, len(matches))
+			for i, match := range matches {
+				found[i] = d[match : match+minViableBackRefLen]
+			}
+			panic("mismatch")
+		}*/
 	}
 
 	var toDelete []int
