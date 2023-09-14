@@ -75,10 +75,11 @@ func TestRepeatedNonzero(t *testing.T) {
 	testCompressionRoundTrip(t, 2, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
 }
 
-func TestCalldata(t *testing.T) {
+func TestCalldataSymb0(t *testing.T) {
 	t.Parallel()
 	folders := []string{
-		"3c2943",
+		//"3c2943",
+		"large",
 	}
 	for _, folder := range folders {
 		d, err := os.ReadFile("../" + folder + "/data.bin")
@@ -107,10 +108,7 @@ func TestCalldataSymb1(t *testing.T) {
 
 	c, err := Compress(d, settings)
 	require.NoError(t, err)
-	//printHex(c)
-	//cp, err := DescribeCompressionActions(c, settings)
-	//assert.NoError(t, err)
-	//assert.NoError(t, os.WriteFile("compression-summary.txt", []byte(cp), 0644))
+
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
 	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 	dBack, err := DecompressPureGo(c, settings)
@@ -125,7 +123,6 @@ func TestCalldataSymb1(t *testing.T) {
 		}
 	}
 	require.Equal(t, d, dBack)
-
 }
 
 func printHex(d []byte) {
