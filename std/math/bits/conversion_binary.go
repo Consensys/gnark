@@ -70,7 +70,9 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 	}
 	// if we decompose into more bits than fieldbitlen then the rest would be
 	// always zeros. Reduce the always-zeros to have fewer edge-cases elsewhere.
+	var paddingBits int
 	if cfg.NbDigits > api.Compiler().FieldBitLen() {
+		paddingBits = cfg.NbDigits - api.Compiler().FieldBitLen()
 		cfg.NbDigits = api.Compiler().FieldBitLen()
 	}
 
@@ -100,6 +102,13 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 		} else {
 			panic("builder does not expose comparison to constant")
 		}
+	}
+
+	// restore the zero bits which exceed the field bit-length when requested by
+	// setting WithNbDigits larger than the field bitlength.
+	bits = append(bits, make([]frontend.Variable, paddingBits)...)
+	for i := cfg.NbDigits; i < len(bits); i++ {
+		bits[i] = 0 // frontend.Variable is interface{}, we get nil pointer err if trying to access it.
 	}
 
 	return bits

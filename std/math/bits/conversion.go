@@ -58,11 +58,17 @@ type baseConversionConfig struct {
 // BaseConversionOption configures the behaviour of scalar decomposition.
 type BaseConversionOption func(opt *baseConversionConfig) error
 
-// WithNbDigits sets the resulting number of digits (nbDigits) to be used in the base conversion.
-// nbDigits must be > 0. If nbDigits is lower than the length of full decomposition and
-// WithUnconstrainedOutputs option is not used, then the conversion functions will generate an
-// unsatisfiable constraint. If WithNbDigits option is not set, then the full decomposition is
-// returned.
+// WithNbDigits sets the resulting number of digits (nbDigits) to be used in the
+// base conversion.
+//
+// nbDigits must be > 0. If nbDigits is lower than the length of full
+// decomposition and [WithUnconstrainedOutputs] option is not used, then the
+// conversion functions will generate an unsatisfiable constraint.
+//
+// If nbDigits is larger than the bitlength of the modulus, then the returned
+// slice has length nbDigits with excess bits being 0.
+//
+// If WithNbDigits option is not set, then the full decomposition is returned.
 func WithNbDigits(nbDigits int) BaseConversionOption {
 	return func(opt *baseConversionConfig) error {
 		if nbDigits <= 0 {
