@@ -6,7 +6,7 @@ import (
 )
 
 func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
-	// d[i < 0] = settings.BackRefSettings.Symbol by convention
+	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
 	in := bytes.NewReader(c)
 	copyBuf := make([]byte, settings.NbBytesAddress+settings.NbBytesLength)

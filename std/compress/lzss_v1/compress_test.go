@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark/std/compress/huffman"
 	"github.com/stretchr/testify/require"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -30,7 +31,7 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 	}
 	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 	require.NoError(t, err)
-	//cp, err := DescribeCompressionActions(c, settings)
+	//cp, err := DescribeCompressionActions(c, Settings)
 	//assert.NoError(t, err)
 	//assert.NoError(t, os.WriteFile("compression-summary.txt", []byte(cp), 0644))
 	dBack, err := DecompressPureGo(c, settings)
@@ -92,6 +93,25 @@ func TestCalldataSymb0(t *testing.T) {
 			testCompressionRoundTrip(t, 2, d)
 		})
 	}
+}
+
+func TestCalldataSymb0Log(t *testing.T) {
+	const folder = "large"
+	d, err := os.ReadFile("../" + folder + "/data.bin")
+	require.NoError(t, err)
+	var heads []LogHeads
+	var writer strings.Builder
+	_, err = Compress(d, Settings{
+		BackRefSettings: BackRefSettings{
+			NbBytesAddress: 2,
+			NbBytesLength:  1,
+			Symbol:         0,
+		},
+		Logger:   &writer,
+		LogHeads: &heads,
+	})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile("../"+folder+"/analytics.csv", []byte(writer.String()), 0644))
 }
 
 func TestCalldataSymb1(t *testing.T) {

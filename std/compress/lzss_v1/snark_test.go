@@ -96,10 +96,10 @@ func TestCalldataSnark(t *testing.T) {
 }
 
 func BenchmarkCompilation26KBSnark(b *testing.B) {
-	c := decompressionTestCircuit{
+	c := DecompressionTestCircuit{
 		C: make([]frontend.Variable, 7000),
 		D: make([]byte, 30000),
-		settings: Settings{
+		Settings: Settings{
 			BackRefSettings: BackRefSettings{
 				NbBytesAddress: 2,
 				NbBytesLength:  1,
@@ -115,26 +115,25 @@ func BenchmarkCompilation26KBSnark(b *testing.B) {
 	fmt.Println(p.NbConstraints(), "constraints")
 }
 
-type decompressionTestCircuit struct {
-	C        []frontend.Variable
-	D        []byte
-	settings Settings
-}
+func BenchmarkCompilation600KBSnark(b *testing.B) {
+	c := DecompressionTestCircuit{
+		C: make([]frontend.Variable, 120000),
+		D: make([]byte, 612000),
+		Settings: Settings{
+			BackRefSettings: BackRefSettings{
+				NbBytesAddress: 2,
+				NbBytesLength:  1,
+				Symbol:         0,
+			},
+		},
+	}
 
-func (c *decompressionTestCircuit) Define(api frontend.API) error {
-	dBack := make([]frontend.Variable, len(c.D)*2) // TODO Try smaller constants
-	api.Println("maxLen(dBack)", len(dBack))
-	dLen, err := Decompress(api, c.C, dBack, c.settings)
-	if err != nil {
-		return err
-	}
-	api.Println("got len", dLen, "expected", len(c.D))
-	api.AssertIsEqual(len(c.D), dLen)
-	for i := range c.D {
-		api.Println("decompressed at", i, "->", dBack[i], "expected", c.D[i], "dBack", dBack[i])
-		api.AssertIsEqual(c.D[i], dBack[i])
-	}
-	return nil
+	p := profile.Start()
+	_, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	assert.NoError(b, err)
+	p.Stop()
+	fmt.Println(p.NbConstraints(), "constraints")
+	//assert.NoError(b, gzCompressCs("600kb.gz", cs))
 }
 
 func testCompressionRoundTripSnark(t *testing.T, nbBytesOffset uint, d []byte) {
@@ -173,10 +172,10 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 		cVars[i] = 0
 	}
 
-	decompressor := &decompressionTestCircuit{
+	decompressor := &DecompressionTestCircuit{
 		C:        make([]frontend.Variable, len(cVars)),
 		D:        d,
-		settings: settings,
+		Settings: settings,
 	}
 	//p := profile.Start()
 	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, decompressor)
@@ -186,7 +185,7 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 	require.NoError(t, err)
 	pk, _, err := plonk.Setup(cs, kzgSrs)
 	require.NoError(t, err)
-	_witness, err := frontend.NewWitness(&decompressionTestCircuit{
+	_witness, err := frontend.NewWitness(&DecompressionTestCircuit{
 		C: cVars,
 	}, ecc.BN254.ScalarField())
 	require.NoError(t, err)

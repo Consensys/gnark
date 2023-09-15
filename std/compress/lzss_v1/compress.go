@@ -21,7 +21,7 @@ import (
 // For more information, refer to Bill Bird's fantastic undergraduate course on Data Compression
 // In particular those on the LZ family: https://youtu.be/z1I1o7zySUI and DEFLATE: https://youtu.be/SJPvNi4HrWQ
 func Compress(d []byte, settings Settings) (c []byte, err error) {
-	// d[i < 0] = settings.BackRefSettings.Symbol by convention
+	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
 
 	if settings.ReferenceTo == Compressed {
@@ -39,6 +39,13 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	backRefAddressRange := 1 << (settings.NbBytesAddress * 8)
 	backRefLengthRange := 1 << (settings.NbBytesLength * 8)
 
+	if settings.Logger != nil {
+		if _, err = settings.Logger.WriteString("dst,src,length,offset,content\n"); err != nil {
+			return nil, err
+		}
+	}
+
+	nbLen3 := 0
 	i := 0
 	for i < len(d) {
 		*settings.LogHeads = append(*settings.LogHeads, LogHeads{
@@ -50,9 +57,12 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 			out.WriteByte(settings.Symbol)
 			emit(&out, offset-1, settings.NbBytesAddress)
 			emit(&out, length-1, settings.NbBytesLength)
+			if length == 3 && d[i] != settings.Symbol {
+				nbLen3++
+			}
 			if settings.Logger != nil {
 				_, err = settings.Logger.WriteString(
-					fmt.Sprintf("(%d:%d) %d->%d\t%s", offset, length, i, i-offset, hex.EncodeToString(d[i-offset:min(i-offset+length, len(d))])),
+					fmt.Sprintf("%d,%d,%d,%d,\"%s\"\n", i, i-offset, length, offset, hex.EncodeToString(d[utils.Max(i, 0):min(i+length, len(d))])),
 				)
 			}
 		}
@@ -115,6 +125,7 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 
 	}
 
+	fmt.Println("penalty from backrefs of len3:", nbLen3, "bytes")
 	return out.Bytes(), nil
 }
 
