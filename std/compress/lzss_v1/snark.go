@@ -26,13 +26,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		tableEntries = append(tableEntries, intPair{brLengthRange + 1, 1})
 	}
 	isBit := func(n frontend.Variable) frontend.Variable { // TODO Replace uses of this
-		return api.Add(api.IsZero(n), api.IsZero(api.Sub(n, 1)))
-	}
-	isSymb := func(n frontend.Variable) frontend.Variable {
-		return api.IsZero(api.Sub(n, int(settings.Symbol)))
-	}
-	isEof := func(n frontend.Variable, nIsSymb ...frontend.Variable) frontend.Variable {
-		return api.IsZero(api.Sub(n, SnarkEofSymbol))
+		return api.IsZero(api.MulAcc(api.Neg(n), n, n))
 	}
 
 	dTable := newOutputTable(api, settings)
@@ -69,13 +63,13 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		backRef := readC(inI, settings.BackRefSettings.NbBytes())
 
 		curr := backRef[0]
-		currIsSymb := isSymb(curr)
-		currIsEof := isEof(curr, currIsSymb)
+		isSymb := api.IsZero(api.Sub(curr, int(settings.Symbol)))
+		isEof := api.IsZero(api.Sub(curr, SnarkEofSymbol))
 		brOffset, brLen := readBackRef(backRef[1:])
 
 		copying = api.Mul(copying, api.Sub(1, copyLen01))                       // still copying from previous iterations TODO MulAcc
 		copyI = api.Select(copying, api.Add(copyI, 1), api.Sub(outI, brOffset)) // TODO replace with copyI = outI + brOffset
-		copyLen = api.Select(copying, api.Sub(copyLen, 1), api.Mul(currIsSymb, brLen))
+		copyLen = api.Select(copying, api.Sub(copyLen, 1), api.Mul(isSymb, brLen))
 		copyLen01 = isBit(copyLen)
 		copying = api.Add(api.Sub(1, copyLen01), api.Mul(copyLen01, copyLen)) // either from previous iterations or starting a new copy TODO MulAcc
 		copyI = api.Select(copying, copyI, -1)                                // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
@@ -89,13 +83,15 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		// WARNING: curr modified by MulAcc
 		dTable.Insert(d[outI])
 
-		inIDelta := api.Select(copying,
-			api.Select(copyLen01, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 0), // if copying is done, advance by the backref length. Else stay put.
-			1, // if not copying, advance by 1
-		)
-		inI = api.MulAcc(inI, inIDelta, api.Sub(1, currIsEof))             // if eof, stay put
-		dLength = api.Add(dLength, api.Mul(api.Sub(currIsEof, eof), outI)) // if eof, don't advance dLength
-		eof = currIsEof
+		func() { // EOF Logic
+			inIDelta := api.Select(copying,
+				api.Select(copyLen01, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 0), // if copying is done, advance by the backref length. Else stay put.
+				1, // if not copying, advance by 1
+			)
+			inI = api.MulAcc(inI, inIDelta, api.Sub(1, isEof))             // if eof, stay put
+			dLength = api.Add(dLength, api.Mul(api.Sub(isEof, eof), outI)) // if eof, don't advance dLength
+			eof = isEof
+		}()
 	}
 
 	return
