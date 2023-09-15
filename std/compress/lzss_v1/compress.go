@@ -103,7 +103,7 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		}
 
 		if minViableBackRefLength != -1 { // if a backref is deemed possible, try and find one
-			if addr, length := longestMostRecentBackRef(d, i, settings.Symbol, i-backRefAddressRange-1, minViableBackRefLength); length != -1 {
+			if addr, length := longestMostRecentBackRef(d, i, settings.Symbol, i-backRefAddressRange, minViableBackRefLength); length != -1 {
 
 				// if we're fortunate enough to have found a backref that is "too long", break it up
 				for remainingLen := length; remainingLen > 0; remainingLen -= backRefLengthRange {
@@ -158,6 +158,12 @@ func longestMostRecentBackRef(d []byte, i int, symb byte, minBackRefAddr, minVia
 			}
 			j -= currentRunLen
 		}
+		if negativeRun := utils.Min(utils.Max(0, -minBackRefAddr), runLen); longestLen < negativeRun {
+			longestLen = negativeRun
+			remainingOptions = map[int]struct{}{-negativeRun: {}}
+		}
+
+		minViableBackRefLen = longestLen
 
 	} else {
 		minViableBackRef := d[i : i+minViableBackRefLen]
