@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
-	"sort"
 )
 
 const SnarkEofSymbol = 256
@@ -26,31 +25,14 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 	if settings.Symbol == 0 || settings.Symbol == 1 {
 		tableEntries = append(tableEntries, intPair{brLengthRange + 1, 1})
 	}
-	isBitTable := newTable(api, brLengthRange+2, tableEntries)
-	isBit := func(n frontend.Variable) frontend.Variable {
-		return isBitTable.Lookup(n)[0]
+	isBit := func(n frontend.Variable) frontend.Variable { // TODO Replace uses of this
+		return api.Add(api.IsZero(n), api.IsZero(api.Sub(n, 1)))
 	}
-	isSymbTable := newTable(api, SnarkEofSymbol+1, []intPair{{int(settings.Symbol), 1}, {SnarkEofSymbol, 1}})
 	isSymb := func(n frontend.Variable) frontend.Variable {
-		return isSymbTable.Lookup(n)[0]
+		return api.IsZero(api.Sub(n, int(settings.Symbol)))
 	}
-	eofCoeff := api.Inverse(SnarkEofSymbol - int(settings.Symbol)) // cache for faster compilation
 	isEof := func(n frontend.Variable, nIsSymb ...frontend.Variable) frontend.Variable {
-		var symb frontend.Variable
-		switch len(nIsSymb) {
-		case 0:
-			symb = isSymb(n)
-		case 1:
-			symb = nIsSymb[0]
-		default:
-			panic("at most one isSymb allowed")
-		}
-
-		return api.Mul(eofCoeff,
-			api.MulAcc(
-				api.Mul(symb, -int(settings.Symbol)),
-				symb, n,
-			))
+		return api.IsZero(api.Sub(n, SnarkEofSymbol))
 	}
 
 	dTable := newOutputTable(api, settings)
@@ -91,12 +73,12 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		currIsEof := isEof(curr, currIsSymb)
 		brOffset, brLen := readBackRef(backRef[1:])
 
-		copying = api.Mul(copying, api.Sub(1, copyLen01))                     // still copying from previous iterations TODO MulAcc
-		copyI = ite(api, copying, api.Sub(outI, brOffset), api.Add(copyI, 1)) // TODO replace with copyI = outI + brOffset
-		copyLen = ite(api, copying, api.Mul(currIsSymb, brLen), api.Sub(copyLen, 1))
+		copying = api.Mul(copying, api.Sub(1, copyLen01))                       // still copying from previous iterations TODO MulAcc
+		copyI = api.Select(copying, api.Add(copyI, 1), api.Sub(outI, brOffset)) // TODO replace with copyI = outI + brOffset
+		copyLen = api.Select(copying, api.Sub(copyLen, 1), api.Mul(currIsSymb, brLen))
 		copyLen01 = isBit(copyLen)
 		copying = api.Add(api.Sub(1, copyLen01), api.Mul(copyLen01, copyLen)) // either from previous iterations or starting a new copy TODO MulAcc
-		copyI = ite(api, copying, -1, copyI)                                  // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
+		copyI = api.Select(copying, copyI, -1)                                // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
 		// TODO See if copyI = (copyI+1)*copying - 1 is more efficient. It could possibly become a single Plonk constraint if written as Add(MulAcc(copying*1, copying, copyI),-1)
 
 		toCopy := readD(copyI)
@@ -107,8 +89,9 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		// WARNING: curr modified by MulAcc
 		dTable.Insert(d[outI])
 
-		inIDelta := ite(api, copying, 1, // if not copying, advance by 1
-			ite(api, copyLen01, 0, 1+int(settings.NbBytesAddress+settings.NbBytesLength)), // if copying is done, advance by the backref length. Else stay put.
+		inIDelta := api.Select(copying,
+			api.Select(copyLen01, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 0), // if copying is done, advance by the backref length. Else stay put.
+			1, // if not copying, advance by 1
 		)
 		inI = api.MulAcc(inI, inIDelta, api.Sub(1, currIsEof))             // if eof, stay put
 		dLength = api.Add(dLength, api.Mul(api.Sub(currIsEof, eof), outI)) // if eof, don't advance dLength
@@ -116,13 +99,6 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 	}
 
 	return
-}
-
-func ite(api frontend.API, c, if0, if1 frontend.Variable) frontend.Variable {
-	res := api.Mul(if0, 1) // just a copy, refer to MulAcc docs
-	return api.MulAcc(res, c,
-		api.Sub(if1, if0),
-	)
 }
 
 // readLittleEndian may change bytes due to its use in MulAcc
@@ -151,18 +127,3 @@ func newOutputTable(api frontend.API, settings Settings) *logderivlookup.Table {
 }
 
 type intPair struct{ k, v int }
-
-// the default value is 0
-func newTable(api frontend.API, bound int, vals []intPair) *logderivlookup.Table {
-	sort.Slice(vals, func(i, j int) bool { return vals[i].k < vals[j].k })
-	res := logderivlookup.New(api)
-	for i := 0; i < bound; i++ {
-		if len(vals) > 0 && vals[0].k == i {
-			res.Insert(vals[0].v)
-			vals = vals[1:]
-		} else {
-			res.Insert(0)
-		}
-	}
-	return res
-}
