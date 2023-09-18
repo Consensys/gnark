@@ -76,6 +76,7 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 	}
 
 	if debug.Debug {
+		xb.Coeff = builder.cs.Neg(xb.Coeff)
 		debug := builder.newDebugInfo("assertIsEqual", xa, " == ", xb)
 		builder.addPlonkConstraint(toAdd, debug)
 	} else {

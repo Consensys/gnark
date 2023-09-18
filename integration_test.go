@@ -17,7 +17,6 @@ limitations under the License.
 package gnark_test
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 
@@ -42,37 +41,34 @@ func TestIntegrationAPI(t *testing.T) {
 		name := keys[i]
 		tData := circuits.Circuits[name]
 
-		// Plonk + FRI is tested only for Mul circuit (otherwise it slows everything down a lot...)
-		var backends []backend.ID
-
-		if name == "mul" {
-			backends = []backend.ID{backend.GROTH16, backend.PLONK, backend.PLONKFRI}
-		} else {
-			backends = []backend.ID{backend.GROTH16, backend.PLONK}
-		}
-
 		assert.Run(func(assert *test.Assert) {
+
+			opts := []test.TestingOption{
+				test.WithSolverOpts(solver.WithHints(tData.HintFunctions...)),
+			}
+			if tData.Curves != nil {
+				opts = append(opts, test.WithCurves(tData.Curves[0], tData.Curves[1:]...))
+			}
+			// add all valid assignments
 			for i := range tData.ValidAssignments {
-				assert.Run(func(assert *test.Assert) {
-					assert.ProverSucceeded(
-						tData.Circuit, tData.ValidAssignments[i],
-						test.WithSolverOpts(solver.WithHints(tData.HintFunctions...)),
-						test.WithCurves(tData.Curves[0], tData.Curves[1:]...),
-						test.WithBackends(backends[0], backends[1:]...),
-						test.WithSolidity())
-				}, fmt.Sprintf("valid-%d", i))
+				opts = append(opts, test.WithValidAssignment(tData.ValidAssignments[i]))
+			}
+			// add all invalid assignments
+			for i := range tData.InvalidAssignments {
+				opts = append(opts, test.WithInvalidAssignment(tData.InvalidAssignments[i]))
 			}
 
-			for i := range tData.InvalidAssignments {
-				assert.Run(func(assert *test.Assert) {
-					assert.ProverFailed(
-						tData.Circuit,
-						tData.InvalidAssignments[i],
-						test.WithSolverOpts(solver.WithHints(tData.HintFunctions...)),
-						test.WithCurves(tData.Curves[0], tData.Curves[1:]...),
-						test.WithBackends(backends[0], backends[1:]...))
-				}, fmt.Sprintf("invalid-%d", i))
+			// for "mul" only we test with PLONKFRI
+			if name == "mul" {
+				opts = append(opts, test.WithBackends(backend.PLONK, backend.GROTH16, backend.PLONKFRI))
 			}
+
+			if name == "multi-output-hint" {
+				// TODO @gbotrel FIXME
+				opts = append(opts, test.NoFuzzing())
+			}
+
+			assert.CheckCircuit(tData.Circuit, opts...)
 		}, name)
 	}
 

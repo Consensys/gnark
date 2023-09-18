@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -30,5 +29,5 @@ func init() {
 		bad = append(bad, &lookup2Circuit{v0, v1, v2, v3, tc.b0, tc.b1, tc.unexpected})
 	}
 
-	addNewEntry("lookup2", &lookup2Circuit{}, good, bad, gnark.Curves())
+	addNewEntry("lookup2", &lookup2Circuit{}, good, bad, nil)
 }

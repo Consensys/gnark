@@ -17,27 +17,27 @@
 package mpcsetup
 
 import (
-	"bytes"
+	"testing"
+
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 	cs "github.com/consensys/gnark/constraint/bw6-633"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	gnarkio "github.com/consensys/gnark/io"
 	"github.com/stretchr/testify/require"
-	"io"
-	"reflect"
-	"testing"
 )
 
 func TestContributionSerialization(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
 	assert := require.New(t)
 
 	// Phase 1
 	srs1 := InitPhase1(9)
 	srs1.Contribute()
-	{
-		var reconstructed Phase1
-		roundTripCheck(t, &srs1, &reconstructed)
-	}
+
+	assert.NoError(gnarkio.RoundTripCheck(&srs1, func() interface{} { return new(Phase1) }))
 
 	var myCircuit Circuit
 	ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &myCircuit)
@@ -49,31 +49,5 @@ func TestContributionSerialization(t *testing.T) {
 	srs2, _ := InitPhase2(r1cs, &srs1)
 	srs2.Contribute()
 
-	{
-		var reconstructed Phase2
-		roundTripCheck(t, &srs2, &reconstructed)
-	}
-}
-
-func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom) {
-	t.Helper()
-
-	var buf bytes.Buffer
-	written, err := from.WriteTo(&buf)
-	if err != nil {
-		t.Fatal("couldn't serialize", err)
-	}
-
-	read, err := reconstructed.ReadFrom(&buf)
-	if err != nil {
-		t.Fatal("couldn't deserialize", err)
-	}
-
-	if !reflect.DeepEqual(from, reconstructed) {
-		t.Fatal("reconstructed object don't match original")
-	}
-
-	if written != read {
-		t.Fatal("bytes written / read don't match")
-	}
+	assert.NoError(gnarkio.RoundTripCheck(&srs2, func() interface{} { return new(Phase2) }))
 }

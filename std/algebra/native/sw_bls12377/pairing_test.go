@@ -24,7 +24,6 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
 	"github.com/consensys/gnark/test"
 )
@@ -53,7 +52,7 @@ func TestFinalExp(t *testing.T) {
 	circuit.R = pairingRes
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
 type pairingBLS377 struct {
@@ -85,7 +84,7 @@ func TestPairingBLS377(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -122,7 +121,7 @@ func TestTriplePairingBLS377(t *testing.T) {
 	witness.Q3.Assign(&Q[2])
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -153,7 +152,7 @@ func TestPairingFixedBLS377(t *testing.T) {
 	witness.P.Assign(&P)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -196,23 +195,4 @@ func mustbeEq(api frontend.API, fp12 fields_bls12377.E12, e12 *bls12377.GT) {
 	api.AssertIsEqual(fp12.C1.B1.A1, e12.C1.B1.A1)
 	api.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
 	api.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
-}
-
-// bench
-func BenchmarkPairing(b *testing.B) {
-	var c pairingBLS377
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-	}
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkTriplePairing(b *testing.B) {
-	var c triplePairingBLS377
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-	}
-	b.Log("groth16", ccsBench.GetNbConstraints())
 }

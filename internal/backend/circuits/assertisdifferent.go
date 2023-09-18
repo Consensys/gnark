@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -31,5 +30,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("assert_different", &assertIsDifferentCircuit{}, good, bad, gnark.Curves())
+	addNewEntry("assert_different", &assertIsDifferentCircuit{}, good, bad, nil)
 }
