@@ -33,7 +33,7 @@ func TestReadBits(t *testing.T) {
 	}
 
 	fmt.Println("weights", weights)
-	sizes := createHuffmanTree(weights).getCodeSizes()
+	sizes := CreateTree(weights).GetCodeSizes()
 	fmt.Println("sizes", sizes)
 
 	// linear combination

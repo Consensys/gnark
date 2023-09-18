@@ -101,7 +101,7 @@ func TestCalldataSymb0Log(t *testing.T) {
 	require.NoError(t, err)
 	var heads []LogHeads
 	var writer strings.Builder
-	_, err = Compress(d, Settings{
+	c, err := Compress(d, Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: 2,
 			NbBytesLength:  1,
@@ -111,6 +111,7 @@ func TestCalldataSymb0Log(t *testing.T) {
 		LogHeads: &heads,
 	})
 	require.NoError(t, err)
+	require.NoError(t, os.WriteFile("../"+folder+"/data.lzssv1", c, 0644))
 	require.NoError(t, os.WriteFile("../"+folder+"/analytics.csv", []byte(writer.String()), 0644))
 }
 
@@ -162,4 +163,41 @@ func printHex(d []byte) {
 		fmt.Print(s)
 	}
 	fmt.Println()
+}
+
+func TestDifferentHuffmanTrees(t *testing.T) {
+	const folder = "large"
+	c, err := os.ReadFile("../" + folder + "/data.lzssv1")
+	require.NoError(t, err)
+	var freqs [4][256]int
+	i := 0
+	record := func(n int) {
+		for j := 0; j < n; j++ {
+			freqs[j][c[i+j]]++
+		}
+		i += n
+	}
+	for i < len(c) {
+		if c[i] == 0 {
+			record(4)
+		} else {
+			record(1)
+		}
+	}
+	total := 0
+	for j := 0; j < 4; j++ {
+		sizes := huffman.CreateTree(freqs[j][:]).GetCodeSizes()
+		for k := range sizes {
+			total += freqs[j][k] * sizes[k]
+		}
+	}
+
+	d, err := os.ReadFile("../" + folder + "/data.bin")
+	require.NoError(t, err)
+
+	fmt.Println("Total bits:", total)
+	fmt.Println("Total bytes:", (total+7)/8)
+	fmt.Println("Regular huffman compression up to:", float64(8*len(d))/float64(huffman.EstimateHuffmanCodeSize(c)-256))
+	fmt.Println("Further compression:", float64(len(c))/float64((total+7)/8))
+	fmt.Println("Total compression:", float64(len(d))/float64((total+7)/8))
 }

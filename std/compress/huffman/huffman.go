@@ -1,8 +1,11 @@
 package huffman
 
 import (
+	"fmt"
 	"github.com/consensys/gnark-crypto/utils"
+	"os"
 	"sort"
+	"strings"
 )
 
 var huffmanBitGranularity = 8
@@ -16,7 +19,7 @@ type huffmanNode struct {
 	nbDescendents int
 }
 
-func createHuffmanTree(weights []int) *huffmanNode {
+func CreateTree(weights []int) *huffmanNode {
 	// Create a list of nodes
 	nodes := make([]*huffmanNode, len(weights))
 	for i := 0; i < len(weights); i++ {
@@ -90,7 +93,7 @@ func (r *bitReader) readBits(n int) uint64 {
 	return res
 }
 
-func (node *huffmanNode) getCodeSizes() []int {
+func (node *huffmanNode) GetCodeSizes() []int {
 	// Create the code sizes
 	codeSizes := make([]int, 1<<huffmanBitGranularity)
 	stack := make([]stackElem, 0, 1<<huffmanBitGranularity)
@@ -122,9 +125,18 @@ func EstimateHuffmanCodeSize(data []byte) int {
 	}
 
 	//fmt.Println("frequencies", frequencies)
-	huffmanTree := createHuffmanTree(frequencies)
-	sizes := huffmanTree.getCodeSizes()
+	huffmanTree := CreateTree(frequencies)
+	sizes := huffmanTree.GetCodeSizes()
 	//fmt.Println("sizes", sizes)
+
+	var logWriter strings.Builder
+	logWriter.WriteString("Symbol,Frequency,Percentage,Code Length\n")
+	for i := range sizes {
+		logWriter.WriteString(fmt.Sprintf("%d,%d,%.2f,%d\n", i, frequencies[i], float64(frequencies[i]*100)/float64(len(data)), sizes[i]))
+	}
+	if err := os.WriteFile("huffman.csv", []byte(logWriter.String()), 0644); err != nil {
+		panic(err)
+	}
 
 	// linear combination
 	var sum int
@@ -143,6 +155,8 @@ func EstimateHuffmanCodeSize(data []byte) int {
 	//fmt.Println("\testimated listy tree size", (treeSizeListUsedSymbolsBits-1)/8+1)
 	treeSize := utils.Min(treeSizeLengthForEachSymbol, (treeSizeListUsedSymbolsBits-1)/8+1)
 	//fmt.Println("\testimated tree size", treeSize)
+
+	fmt.Println("estimated huffman tree size:", treeSize)
 
 	return sum + treeSize
 }
