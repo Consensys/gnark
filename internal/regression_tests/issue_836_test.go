@@ -62,7 +62,7 @@ func getNBitsHint() (solver.HintID, error) {
 	return 0, fmt.Errorf("nBits hint not found")
 }
 
-func TestIssueXXXCmp(t *testing.T) {
+func TestIssue836Cmp(t *testing.T) {
 	assert := test.NewAssert(t)
 	assignmentNoHintGood := CmpCircuit{
 		Left:      10,
@@ -87,7 +87,7 @@ func TestIssueXXXCmp(t *testing.T) {
 	assert.CheckCircuit(&CmpCircuit{}, test.WithInvalidAssignment(&assignmentHintBad), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
 }
 
-func TestIssueXXXAssertIsLess(t *testing.T) {
+func TestIssue836AssertIsLess(t *testing.T) {
 	assert := test.NewAssert(t)
 	assignmentNoHintGood := AssertIsLessOrEqCircuit{
 		Smaller: 5,
@@ -109,7 +109,7 @@ func TestIssueXXXAssertIsLess(t *testing.T) {
 	assert.CheckCircuit(&AssertIsLessOrEqCircuit{}, test.WithInvalidAssignment(&assignmentHintBad), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
 }
 
-func TestIssueXXXMathCmpAssertIsLessEqBounded(t *testing.T) {
+func TestIssue836MathCmpAssertIsLessEqBounded(t *testing.T) {
 	assert := test.NewAssert(t)
 	assignmentNoHintGood := MathCmpAssertIsLessOrEqCircuitBounded{
 		Left:  5,
