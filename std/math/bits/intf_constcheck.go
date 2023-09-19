@@ -12,8 +12,3 @@ import (
 type bitsComparatorConstant interface {
 	MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable)
 }
-
-// isTestEngine allows to avoid reducedeness check in the test engine.
-type isTestEngine interface {
-	IsTestEngine() bool
-}
