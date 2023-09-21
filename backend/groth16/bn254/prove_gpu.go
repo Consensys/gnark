@@ -20,6 +20,7 @@
 package groth16
 
 import (
+	"fmt"
 	"math/big"
 	"time"
 	"unsafe"
@@ -230,13 +231,17 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		// TODO Perf @Tabaie worst memory allocation offender
 		toRemove := commitmentInfo.GetPrivateCommitted()
 		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
-		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
+		scalars := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
 
-		scalarBytes := len(_wireValues) * fr.Bytes
+		for _, indexToRemove := range pk.InfinityPointIndicesK {
+			scalars = append(scalars[:indexToRemove], scalars[indexToRemove+1:]...)
+		}
+
+		scalarBytes := len(scalars) * fr.Bytes
 		scalars_d, _ := goicicle.CudaMalloc(scalarBytes)
-		goicicle.CudaMemCpyHtoD[fr.Element](scalars_d, _wireValues, scalarBytes)
-		iciclegnark.MontConvOnDevice(scalars_d, len(_wireValues), false)
-		krs, _, _ = iciclegnark.MsmOnDevice(scalars_d, pk.G1Device.K, len(_wireValues), true)
+		goicicle.CudaMemCpyHtoD[fr.Element](scalars_d, scalars, scalarBytes)
+		iciclegnark.MontConvOnDevice(scalars_d, len(scalars), false)
+		krs, _, _ = iciclegnark.MsmOnDevice(scalars_d, pk.G1Device.K, len(scalars), true)
 		goicicle.CudaFree(scalars_d)
 
 		krs.AddMixed(&deltas[2])

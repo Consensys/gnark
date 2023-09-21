@@ -1,4 +1,5 @@
 //go:build !gpu
+// +build !gpu
 
 // Copyright 2020 ConsenSys Software Inc.
 //
