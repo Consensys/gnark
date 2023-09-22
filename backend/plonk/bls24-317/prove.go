@@ -903,9 +903,11 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 			p.ToLagrange(&pk.Domain[0]).ToRegular()
 		})
 
-		batchBlind(x[:id_ZS], bp, twiddles0)
+		// blind l, r, o, z
+		batchApplyPair(x[:id_ZS], bp, func(p, q *iop.Polynomial) {
+			blind(p, q, twiddles0)
+		})
 
-		// TODO modify Evaluate so it takes a buffer to store the result insted of allocating a new polynomial
 		if _, err := iop.Evaluate(
 			allConstraints,
 			buf,
@@ -915,18 +917,18 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 			return nil, err
 		}
 		for j := 0; j < int(pk.Domain[0].Cardinality); j++ {
-			cres[rho*j+i] = buf[j] //.Set(&t)
+			cres[rho*j+i].Set(&buf[j])
 		}
 
 		// unblind l, r, o, z
-		batchUnblind(x[:id_ZS], bp, twiddles0)
 		tmp.Inverse(&tmp)
+		batchApplyPair(x[:id_ZS], bp, func(p, q *iop.Polynomial) {
+			unblind(p, q, twiddles0)
 
-		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
-		batchApply(bp, func(p *iop.Polynomial) {
-			cp := p.Coefficients()
-			for j := 0; j < len(cp); j++ {
-				cp[j].Mul(&cp[j], &tmp)
+			// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
+			cq := q.Coefficients()
+			for j := 0; j < len(cq); j++ {
+				cq[j].Mul(&cq[j], &tmp)
 			}
 		})
 	}
@@ -955,18 +957,6 @@ func computeNumerator(pk *ProvingKey, x []*iop.Polynomial, bp []*iop.Polynomial,
 
 }
 
-func batchUnblind(p, b []*iop.Polynomial, w []fr.Element) {
-	var wg sync.WaitGroup
-	wg.Add(len(p))
-	for i := 0; i < len(p); i++ {
-		go func(i int) {
-			unblind(p[i], b[i], w)
-			wg.Done()
-		}(i)
-	}
-	wg.Wait()
-}
-
 // computes p - b on <\omega>
 func unblind(p, b *iop.Polynomial, w []fr.Element) {
 	cp := p.Coefficients()
@@ -993,18 +983,6 @@ func unblind(p, b *iop.Polynomial, w []fr.Element) {
 			// x.Mul(&x, &w)
 		}
 	}
-}
-
-func batchBlind(p, b []*iop.Polynomial, w []fr.Element) {
-	var wg sync.WaitGroup
-	wg.Add(len(p))
-	for i := 0; i < len(p); i++ {
-		go func(i int) {
-			blind(p[i], b[i], w)
-			wg.Done()
-		}(i)
-	}
-	wg.Wait()
 }
 
 // computes p + b on <\omega>
@@ -1043,6 +1021,19 @@ func batchApply(x []*iop.Polynomial, fn func(*iop.Polynomial)) {
 		wg.Add(1)
 		go func(i int) {
 			fn(x[i])
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+}
+
+// batchApplyPair executes fn on all polynomials pairs x[i], y[i] in parallel.
+func batchApplyPair(x, y []*iop.Polynomial, fn func(p, q *iop.Polynomial)) {
+	var wg sync.WaitGroup
+	for i := 0; i < len(x); i++ {
+		wg.Add(1)
+		go func(i int) {
+			fn(x[i], y[i])
 			wg.Done()
 		}(i)
 	}
