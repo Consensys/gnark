@@ -82,9 +82,6 @@ type ProvingKey struct {
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
 
-	// qcp in LagrangeCoset form; not serialized
-	lcQcp                  []*iop.Polynomial
-
 
 	// LQk qk in Lagrange form -> to be completed by the prover. After being completed,
 	// lQk *iop.Polynomial
