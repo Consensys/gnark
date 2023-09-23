@@ -538,6 +538,8 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 	case <-s.chGammaBeta:
 	}
 
+	// TODO @gbotrel having iop.BuildRatioCopyConstraint return something
+	// with capacity = len() + 4 would avoid extra alloc / copy during openZ
 	s.x[id_Z], err = iop.BuildRatioCopyConstraint(
 		[]*iop.Polynomial{
 			s.x[id_L],
@@ -856,7 +858,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	buf := make([]fr.Element, n)
 
-	// TODO @gbotrel these can be precomputed earlier
 	twiddles0 := make([]fr.Element, n)
 	copy(twiddles0, s.pk.Domain[0].Twiddles[0])
 	for i := len(s.pk.Domain[0].Twiddles[0]); i < len(twiddles0); i++ {
