@@ -21,130 +21,38 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 
-	"bytes"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/iop"
-	gnarkio "github.com/consensys/gnark/io"
-	"io"
+	"github.com/consensys/gnark/io"
 	"math/big"
 	"math/rand"
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestProofSerialization(t *testing.T) {
 	// create a  proof
-	var proof, reconstructed Proof
+	var proof Proof
 	proof.randomize()
 
-	roundTripCheck(t, &proof, &reconstructed)
-}
-
-func TestProofSerializationRaw(t *testing.T) {
-	// create a  proof
-	var proof, reconstructed Proof
-	proof.randomize()
-
-	roundTripCheckRaw(t, &proof, &reconstructed)
+	assert.NoError(t, io.RoundTripCheck(&proof, func() interface{} { return new(Proof) }))
 }
 
 func TestProvingKeySerialization(t *testing.T) {
 	// random pk
-	var pk, reconstructed ProvingKey
+	var pk ProvingKey
 	pk.randomize()
 
-	roundTripCheck(t, &pk, &reconstructed)
-}
-
-func TestProvingKeySerializationRaw(t *testing.T) {
-	// random pk
-	var pk, reconstructed ProvingKey
-	pk.randomize()
-
-	roundTripCheckRaw(t, &pk, &reconstructed)
-}
-
-func TestProvingKeySerializationRawUnsafe(t *testing.T) {
-	// random pk
-	var pk, reconstructed ProvingKey
-	pk.randomize()
-
-	roundTripCheckRawUnsafe(t, &pk, &reconstructed)
+	assert.NoError(t, io.RoundTripCheck(&pk, func() interface{} { return new(ProvingKey) }))
 }
 
 func TestVerifyingKeySerialization(t *testing.T) {
 	// create a random vk
-	var vk, reconstructed VerifyingKey
+	var vk VerifyingKey
 	vk.randomize()
 
-	roundTripCheck(t, &vk, &reconstructed)
-}
-
-func roundTripCheck(t *testing.T, from io.WriterTo, reconstructed io.ReaderFrom) {
-	var buf bytes.Buffer
-	written, err := from.WriteTo(&buf)
-	if err != nil {
-		t.Fatal("couldn't serialize", err)
-	}
-
-	read, err := reconstructed.ReadFrom(&buf)
-	if err != nil {
-		t.Fatal("couldn't deserialize", err)
-	}
-
-	if !reflect.DeepEqual(from, reconstructed) {
-		t.Fatal("reconstructed object don't match original")
-	}
-
-	if written != read {
-		t.Fatal("bytes written / read don't match")
-	}
-}
-
-func roundTripCheckRaw(t *testing.T, from gnarkio.WriterRawTo, reconstructed io.ReaderFrom) {
-	var buf bytes.Buffer
-	written, err := from.WriteRawTo(&buf)
-	if err != nil {
-		t.Fatal("couldn't serialize", err)
-	}
-
-	read, err := reconstructed.ReadFrom(&buf)
-	if err != nil {
-		t.Fatal("couldn't deserialize", err)
-	}
-
-	if !reflect.DeepEqual(from, reconstructed) {
-		t.Fatal("reconstructed object don't match original")
-	}
-
-	if written != read {
-		t.Fatal("bytes written / read don't match")
-	}
-}
-
-type unsafeReaderFrom interface {
-	UnsafeReadFrom(io.Reader) (int64, error)
-}
-
-func roundTripCheckRawUnsafe(t *testing.T, from gnarkio.WriterRawTo, reconstructed unsafeReaderFrom) {
-	var buf bytes.Buffer
-	written, err := from.WriteRawTo(&buf)
-	if err != nil {
-		t.Fatal("couldn't serialize", err)
-	}
-
-	read, err := reconstructed.UnsafeReadFrom(&buf)
-	if err != nil {
-		t.Fatal("couldn't deserialize", err)
-	}
-
-	if !reflect.DeepEqual(from, reconstructed) {
-		t.Fatal("reconstructed object don't match original")
-	}
-
-	if written != read {
-		t.Fatal("bytes written / read don't match")
-	}
+	assert.NoError(t, io.RoundTripCheck(&vk, func() interface{} { return new(VerifyingKey) }))
 }
 
 func (pk *ProvingKey) randomize() {

@@ -50,6 +50,6 @@ func TestXor(t *testing.T) {
 		test.WithBackends(backend.GROTH16),
 		test.WithSolverOpts(solver.WithHints(xorHint)),
 		test.NoFuzzing(),
-		test.NoSerialization(),
+		test.NoSerializationChecks(),
 		test.WithCurves(ecc.BN254))
 }

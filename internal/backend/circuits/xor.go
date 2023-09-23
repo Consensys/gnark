@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -52,7 +51,7 @@ func init() {
 		},
 	}
 
-	addNewEntry("xorCstVar", &xorCircuitVarCst{}, good, bad, gnark.Curves())
+	addNewEntry("xorCstVar", &xorCircuitVarCst{}, good, bad, nil)
 
 }
 
@@ -126,5 +125,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("xor", &xorCircuit{}, good, bad, gnark.Curves())
+	addNewEntry("xor", &xorCircuit{}, good, bad, nil)
 }

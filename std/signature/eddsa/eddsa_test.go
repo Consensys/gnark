@@ -117,27 +117,22 @@ func TestEddsa(t *testing.T) {
 			var circuit eddsaCircuit
 			circuit.curveID = conf.curve
 
-			// verification with the correct Message
-			{
-				var witness eddsaCircuit
-				witness.Message = msg
-				witness.PublicKey.Assign(conf.curve, pubKey.Bytes())
-				witness.Signature.Assign(conf.curve, signature)
+			var validWitness eddsaCircuit
+			validWitness.Message = msg
+			validWitness.PublicKey.Assign(conf.curve, pubKey.Bytes())
+			validWitness.Signature.Assign(conf.curve, signature)
 
-				assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(snarkCurve))
-			}
+			var invalidWitness eddsaCircuit
+			invalidMsg := new(big.Int)
+			invalidMsg.Rand(randomness, snarkField)
+			invalidWitness.Message = invalidMsg
+			invalidWitness.PublicKey.Assign(conf.curve, pubKey.Bytes())
+			invalidWitness.Signature.Assign(conf.curve, signature)
 
-			// verification with incorrect Message
-			{
-				var witness eddsaCircuit
-
-				msg.Rand(randomness, snarkField)
-				witness.Message = msg
-				witness.PublicKey.Assign(conf.curve, pubKey.Bytes())
-				witness.Signature.Assign(conf.curve, signature)
-
-				assert.SolvingFailed(&circuit, &witness, test.WithCurves(snarkCurve))
-			}
+			assert.CheckCircuit(&circuit,
+				test.WithValidAssignment(&validWitness),
+				test.WithInvalidAssignment(&invalidWitness),
+				test.WithCurves(snarkCurve))
 
 		}
 	}

@@ -23,7 +23,6 @@ import (
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
-	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/math/bits"
 )
 
@@ -76,6 +75,7 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 	}
 
 	if debug.Debug {
+		xb.Coeff = builder.cs.Neg(xb.Coeff)
 		debug := builder.newDebugInfo("assertIsEqual", xa, " == ", xb)
 		builder.addPlonkConstraint(toAdd, debug)
 	} else {
@@ -130,11 +130,30 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 
 // AssertIsLessOrEqual fails if  v > bound
 func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
-	switch b := bound.(type) {
-	case expr.Term:
+	cv, vConst := builder.constantValue(v)
+	cb, bConst := builder.constantValue(bound)
+
+	// both inputs are constants
+	if vConst && bConst {
+		bv, bb := builder.cs.ToBigInt(cv), builder.cs.ToBigInt(cb)
+		if bv.Cmp(bb) == 1 {
+			panic(fmt.Sprintf("AssertIsLessOrEqual: %s > %s", bv.String(), bb.String()))
+		}
+	}
+
+	nbBits := builder.cs.FieldBitLen()
+	vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
+
+	// bound is constant
+	if bConst {
+		builder.MustBeLessOrEqCst(vBits, builder.cs.ToBigInt(cb), v)
+		return
+	}
+
+	if b, ok := bound.(expr.Term); ok {
 		builder.mustBeLessOrEqVar(v, b)
-	default:
-		builder.mustBeLessOrEqCst(v, utils.FromInterface(b))
+	} else {
+		panic(fmt.Sprintf("expected bound type expr.Term, got %T", bound))
 	}
 }
 
@@ -144,8 +163,8 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 
 	nbBits := builder.cs.FieldBitLen()
 
-	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
-	boundBits := builder.ToBinary(bound, nbBits)
+	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs(), bits.OmitModulusCheck())
+	boundBits := bits.ToBinary(builder, bound, bits.WithNbDigits(nbBits)) // enforces range check against modulus
 
 	p := make([]frontend.Variable, nbBits+1)
 	p[nbBits] = 1
@@ -190,9 +209,18 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 
 }
 
-func (builder *builder) mustBeLessOrEqCst(a frontend.Variable, bound big.Int) {
+// MustBeLessOrEqCst asserts that value represented using its bit decomposition
+// aBits is less or equal than constant bound. The method boolean constraints
+// the bits in aBits, so the caller can provide unconstrained bits.
+func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable) {
 
 	nbBits := builder.cs.FieldBitLen()
+	if len(aBits) > nbBits {
+		panic("more input bits than field bit length")
+	}
+	for i := len(aBits); i < nbBits; i++ {
+		aBits = append(aBits, 0)
+	}
 
 	// ensure the bound is positive, it's bit-len doesn't matter
 	if bound.Sign() == -1 {
@@ -202,20 +230,8 @@ func (builder *builder) mustBeLessOrEqCst(a frontend.Variable, bound big.Int) {
 		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
 	}
 
-	if ca, ok := builder.constantValue(a); ok {
-		// a is constant, compare the big int values
-		ba := builder.cs.ToBigInt(ca)
-		if ba.Cmp(&bound) == 1 {
-			panic(fmt.Sprintf("AssertIsLessOrEqual: %s > %s", ba.String(), bound.String()))
-		}
-	}
-
 	// debug info
-	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
-
-	// note that at this stage, we didn't boolean-constraint these new variables yet
-	// (as opposed to ToBinary)
-	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
+	debug := builder.newDebugInfo("mustBeLessOrEq", aForDebug, " <= ", bound)
 
 	// t trailing bits in the bound
 	t := 0

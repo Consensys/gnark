@@ -1,7 +1,6 @@
 package circuits
 
 import (
-	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -88,5 +87,5 @@ func init() {
 		},
 	}
 
-	addNewEntry("assert_boolean", &checkAssertIsBooleanCircuit{}, good, bad, gnark.Curves())
+	addNewEntry("assert_boolean", &checkAssertIsBooleanCircuit{}, good, bad, nil)
 }

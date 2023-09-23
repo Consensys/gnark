@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/consensys/gnark"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/bits"
 )
@@ -68,7 +67,7 @@ func (circuit *recursiveHint) Define(api frontend.API) error {
 	// api.ToBinary calls another hint (bits.NBits) with linearExpression as input
 	// however, when the solver will resolve bits[...] it will need to detect w1 as a dependency
 	// in order to compute the correct linearExpression value
-	bits := api.ToBinary(linearExpression, 10)
+	bits := api.ToBinary(linearExpression, 6)
 
 	a := api.FromBinary(bits...)
 
@@ -91,7 +90,7 @@ func init() {
 			},
 		}
 
-		addNewEntry("recursive_hint", &recursiveHint{}, good, bad, gnark.Curves(), make3, bits.GetHints()[1])
+		addNewEntry("recursive_hint", &recursiveHint{}, good, bad, nil, make3, bits.GetHints()[1])
 	}
 
 	{
@@ -109,7 +108,7 @@ func init() {
 			},
 		}
 
-		addNewEntry("hint", &hintCircuit{}, good, bad, gnark.Curves(), mulBy7, make3)
+		addNewEntry("hint", &hintCircuit{}, good, bad, nil, mulBy7, make3)
 	}
 
 	{
@@ -134,7 +133,7 @@ func init() {
 				},
 			},
 		}
-		addNewEntry("multi-output-hint", &vectorDoubleCircuit{A: make([]frontend.Variable, 8), B: make([]frontend.Variable, 8)}, good, bad, gnark.Curves(), dvHint)
+		addNewEntry("multi-output-hint", &vectorDoubleCircuit{A: make([]frontend.Variable, 8), B: make([]frontend.Variable, 8)}, good, bad, nil, dvHint)
 	}
 }
 
