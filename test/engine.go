@@ -738,3 +738,27 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
 	return fmt.Errorf("not implemented")
 }
+
+// MustBeLessOrEqCst implements method comparing value given by its bits aBits
+// to a bound.
+func (e *engine) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable) {
+	v := new(big.Int)
+	for i, b := range aBits {
+		bb, ok := b.(*big.Int)
+		if !ok {
+			panic("not big.Int bit")
+		}
+		if !bb.IsUint64() {
+			panic("given bit large")
+		}
+		bbu := uint(bb.Uint64())
+		if bbu > 1 {
+			fmt.Println(bbu)
+			panic("given bit is not a bit")
+		}
+		v.SetBit(v, i, bbu)
+	}
+	if v.Cmp(bound) > 0 {
+		panic(fmt.Sprintf("%d > %d", v, bound))
+	}
+}
