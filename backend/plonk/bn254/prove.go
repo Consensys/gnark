@@ -23,7 +23,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"hash"
 	"math/big"
-	"math/bits"
 	"runtime"
 	"sync"
 	"time"
@@ -469,6 +468,20 @@ func (s *instance) deriveZeta() (err error) {
 
 // evaluateConstraints computes H
 func (s *instance) evaluateConstraints() (err error) {
+	// clone polys from the proving key.
+	s.x[id_Ql] = s.pk.trace.Ql.Clone()
+	s.x[id_Qr] = s.pk.trace.Qr.Clone()
+	s.x[id_Qm] = s.pk.trace.Qm.Clone()
+	s.x[id_Qo] = s.pk.trace.Qo.Clone()
+	s.x[id_S1] = s.pk.trace.S1.Clone()
+	s.x[id_S2] = s.pk.trace.S2.Clone()
+	s.x[id_S3] = s.pk.trace.S3.Clone()
+
+	for i := 0; i < len(s.commitmentInfo); i++ {
+		s.x[id_Qci+2*i] = s.pk.trace.Qcp[i].Clone()
+		s.x[id_Qci+2*i+1] = s.cCommitments[i].Clone()
+	}
+
 	// wait for Z to be committed or context done
 	select {
 	case <-s.ctx.Done():
@@ -488,21 +501,10 @@ func (s *instance) evaluateConstraints() (err error) {
 
 	lone := make([]fr.Element, n)
 	lone[0].SetOne()
-	// TODO @gbotrel we mutate pk in computeNumerator, not safe.
-	s.x[id_Ql] = s.pk.trace.Ql.Clone()
-	s.x[id_Qr] = s.pk.trace.Qr.Clone()
-	s.x[id_Qm] = s.pk.trace.Qm.Clone()
-	s.x[id_Qo] = s.pk.trace.Qo.Clone()
-	s.x[id_ZS] = s.x[id_Z].ShallowClone().Shift(1)
-	s.x[id_S1] = s.pk.trace.S1.Clone()
-	s.x[id_S2] = s.pk.trace.S2.Clone()
-	s.x[id_S3] = s.pk.trace.S3.Clone()
+
 	s.x[id_ID] = iop.NewPolynomial(&identity, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 	s.x[id_LOne] = iop.NewPolynomial(&lone, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-	for i := 0; i < len(s.commitmentInfo); i++ {
-		s.x[id_Qci+2*i] = s.pk.trace.Qcp[i].Clone()
-		s.x[id_Qci+2*i+1] = s.cCommitments[i].Clone()
-	}
+	s.x[id_ZS] = s.x[id_Z].ShallowClone().Shift(1)
 
 	numerator, err := s.computeNumerator()
 	if err != nil {
@@ -634,6 +636,19 @@ func (s *instance) foldH() error {
 }
 
 func (s *instance) computeLinearizedPolynomial() error {
+
+	qcpzeta := make([]fr.Element, len(s.commitmentInfo))
+	var blzeta, brzeta, bozeta fr.Element
+	var wg sync.WaitGroup
+	wg.Add(3 + len(s.commitmentInfo))
+
+	for i := 0; i < len(s.commitmentInfo); i++ {
+		go func() {
+			qcpzeta[i] = s.pk.trace.Qcp[i].Evaluate(s.zeta)
+			wg.Done()
+		}()
+	}
+
 	// wait for H to be committed and zeta to be derived (or ctx.Done())
 	select {
 	case <-s.ctx.Done():
@@ -641,15 +656,20 @@ func (s *instance) computeLinearizedPolynomial() error {
 	case <-s.chH:
 	}
 
-	qcpzeta := make([]fr.Element, len(s.commitmentInfo))
-	// TODO @gbotrel parallelize?
-	blzeta := evaluateBlinded(s.x[id_L], s.bp[id_Bl], s.zeta) // x[id_L].ToRegular().Evaluate(zeta)
-	brzeta := evaluateBlinded(s.x[id_R], s.bp[id_Br], s.zeta) // x[id_R].ToRegular().Evaluate(zeta)
-	bozeta := evaluateBlinded(s.x[id_O], s.bp[id_Bo], s.zeta) // x[id_O].ToRegular().Evaluate(zeta)
-	for i := 0; i < len(s.commitmentInfo); i++ {
-		// TODO @gbotrel mutates pk.
-		qcpzeta[i] = s.pk.trace.Qcp[i].Clone().ToRegular().Evaluate(s.zeta)
-	}
+	go func() {
+		blzeta = evaluateBlinded(s.x[id_L], s.bp[id_Bl], s.zeta)
+		wg.Done()
+	}()
+
+	go func() {
+		brzeta = evaluateBlinded(s.x[id_R], s.bp[id_Br], s.zeta)
+		wg.Done()
+	}()
+
+	go func() {
+		bozeta = evaluateBlinded(s.x[id_O], s.bp[id_Bo], s.zeta)
+		wg.Done()
+	}()
 
 	// wait for Z to be opened at zeta (or ctx.Done())
 	select {
@@ -658,6 +678,8 @@ func (s *instance) computeLinearizedPolynomial() error {
 	case <-s.chZOpening:
 	}
 	bzuzeta := s.proof.ZShiftedOpening.ClaimedValue
+
+	wg.Wait()
 
 	s.linearizedPolynomial = computeLinearizedPolynomial(
 		blzeta,
@@ -743,15 +765,15 @@ func (s *instance) batchOpening() error {
 // evaluate the full set of constraints, all polynomials in x are back in
 // canonical regular form at the end
 func (s *instance) computeNumerator() (*iop.Polynomial, error) {
+	n := s.pk.Domain[0].Cardinality
 
-	// instead of scaling S1, S2 and S3 here we do it in
-	// orderingConstraint; may need to restore this;
-	// TODO @gbotrel original thought was; let's not mutate the proving key,
-	// and pay the cost of scaling rho times instead.
-	// but it seems wwe mutated S1, S2 and S3 anyway...
-	// scale(x[id_S1], beta)
-	// scale(x[id_S2], beta)
-	// scale(x[id_S3], beta)
+	// scaling S1, S2 and S3 by beta
+	batchApply(s.x[id_S1:id_S3+1], func(p *iop.Polynomial) {
+		cp := p.Coefficients()
+		for i := 0; i < len(cp); i++ {
+			cp[i].Mul(&cp[i], &s.beta)
+		}
+	})
 
 	cres := make([]fr.Element, s.pk.Domain[1].Cardinality)
 
@@ -782,7 +804,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	orderingConstraint := func(u ...fr.Element) fr.Element {
 		gamma := s.gamma
-		beta := s.beta
 
 		var a, b, c, r, l fr.Element
 
@@ -791,12 +812,9 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		c.Mul(&u[id_ID], &css).Add(&c, &u[id_O]).Add(&c, &gamma)
 		r.Mul(&a, &b).Mul(&r, &c).Mul(&r, &u[id_Z])
 
-		a.Mul(&u[id_S1], &beta)
-		a.Add(&a, &u[id_L]).Add(&a, &gamma)
-		b.Mul(&u[id_S2], &beta)
-		b.Add(&b, &u[id_R]).Add(&b, &gamma)
-		c.Mul(&u[id_S3], &beta)
-		c.Add(&c, &u[id_O]).Add(&c, &gamma)
+		a.Add(&u[id_S1], &u[id_L]).Add(&a, &gamma)
+		b.Add(&u[id_S2], &u[id_R]).Add(&b, &gamma)
+		c.Add(&u[id_S3], &u[id_O]).Add(&c, &gamma)
 		l.Mul(&a, &b).Mul(&l, &c).Mul(&l, &u[id_ZS])
 
 		l.Sub(&l, &r)
@@ -821,7 +839,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		return c
 	}
 
-	rho := int(s.pk.Domain[1].Cardinality / s.pk.Domain[0].Cardinality)
+	rho := int(s.pk.Domain[1].Cardinality / n)
 	shifters := make([]fr.Element, rho)
 	shifters[0].Set(&s.pk.Domain[1].FrMultiplicativeGen)
 	for i := 1; i < rho; i++ {
@@ -834,52 +852,27 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	var tmp, one fr.Element
 	one.SetOne()
-	bn := big.NewInt(int64(s.pk.Domain[0].Cardinality))
+	bn := big.NewInt(int64(n))
 
-	buf := make([]fr.Element, s.pk.Domain[0].Cardinality)
+	buf := make([]fr.Element, n)
 
 	// TODO @gbotrel these can be precomputed earlier
-	twiddles0 := make([]fr.Element, s.pk.Domain[0].Cardinality)
+	twiddles0 := make([]fr.Element, n)
 	copy(twiddles0, s.pk.Domain[0].Twiddles[0])
 	for i := len(s.pk.Domain[0].Twiddles[0]); i < len(twiddles0); i++ {
 		twiddles0[i].Mul(&twiddles0[i-1], &twiddles0[1])
 	}
 
 	cosetTable := s.pk.Domain[0].CosetTable
-	cosetTableReversed := make([]fr.Element, len(cosetTable))
-	copy(cosetTableReversed, cosetTable)
-	fft.BitReverse(cosetTableReversed)
-
-	twiddles := s.pk.Domain[1].Twiddles[0][:s.pk.Domain[0].Cardinality]
-	twiddlesReversed := make([]fr.Element, len(twiddles))
-	copy(twiddlesReversed, twiddles)
-	fft.BitReverse(twiddlesReversed)
+	twiddles := s.pk.Domain[1].Twiddles[0][:n]
 
 	for i := 0; i < rho; i++ {
-
-		scalingVector := func(p *iop.Polynomial) []fr.Element {
-			var w []fr.Element
-			if i == 0 {
-				if p.Layout == iop.Regular {
-					w = cosetTable
-				} else {
-					w = cosetTableReversed
-				}
-			} else {
-				if p.Layout == iop.Regular {
-					w = twiddles
-				} else {
-					w = twiddlesReversed
-				}
-			}
-			return w
-		}
 
 		coset.Mul(&coset, &shifters[i])
 		tmp.Exp(coset, bn).Sub(&tmp, &one)
 
+		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
 		batchApply(s.bp, func(p *iop.Polynomial) {
-			// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
 			cp := p.Coefficients()
 			acc := tmp
 			for j := 0; j < len(cp); j++ {
@@ -890,13 +883,16 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		batchApply(s.x, func(p *iop.Polynomial) {
 			// shift polynomials to be in the correct coset
-			p.ToCanonical(&s.pk.Domain[0])
+			p.ToCanonical(&s.pk.Domain[0]).ToRegular()
 
 			// scale by shifter[i]
-			w := scalingVector(p)
+			w := twiddles
+			if i == 0 {
+				w = cosetTable
+			}
 
-			cp := p.Coefficients()
 			// TODO @gbotrel check if parallelizing makes sense here
+			cp := p.Coefficients()
 			for j := 0; j < len(cp); j++ {
 				cp[j].Mul(&cp[j], &w[j])
 			}
@@ -918,7 +914,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		); err != nil {
 			return nil, err
 		}
-		for j := 0; j < int(s.pk.Domain[0].Cardinality); j++ {
+		for j := 0; j < int(n); j++ {
 			cres[rho*j+i].Set(&buf[j])
 		}
 
@@ -937,8 +933,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	// scale everything back
 	batchApply(s.x[:id_ZS], func(p *iop.Polynomial) {
-		// TODO @gbotrel if we clone the proving key polynomials
-		// we don't need to do this.
 		p.ToCanonical(&s.pk.Domain[0]).ToRegular()
 	})
 
@@ -948,8 +942,10 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	}
 	cs.Inverse(&cs)
 
-	batchScalePowers(s.x[:id_ZS], cs)
-	batchScalePowers(s.bp, cs)
+	batchApplyPair(s.x[:id_ZS], s.bp, func(p, q *iop.Polynomial) {
+		scalePowers(p, cs)
+		scalePowers(q, cs)
+	})
 
 	for i := id_ZS; i < len(s.x); i++ {
 		s.x[i] = nil
@@ -962,57 +958,31 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 }
 
 // computes p - b on <\omega>
+// p is in regular layout.
 func unblind(p, b *iop.Polynomial, w []fr.Element) {
 	cp := p.Coefficients()
 
-	// x.SetOne()
-	n := p.Size()
-	// TODO add a method SetCoeff in gnark-crypto
-	if p.Layout == iop.Regular {
-		utils.Parallelize(len(cp), func(start, end int) {
-			var y fr.Element
-			for i := start; i < end; i++ {
-				y = b.Evaluate(w[i])
-				cp[i].Sub(&cp[i], &y)
-				// x.Mul(&x, &w)
-			}
-		}, runtime.NumCPU()/4)
-	} else {
-		nn := uint64(64 - bits.TrailingZeros(uint(n)))
+	utils.Parallelize(len(cp), func(start, end int) {
 		var y fr.Element
-		for i := 0; i < p.Size(); i++ {
+		for i := start; i < end; i++ {
 			y = b.Evaluate(w[i])
-			iRev := bits.Reverse64(uint64(i)) >> nn
-			cp[iRev].Sub(&cp[iRev], &y)
-			// x.Mul(&x, &w)
+			cp[i].Sub(&cp[i], &y)
 		}
-	}
+	}, runtime.NumCPU()/4)
 }
 
 // computes p + b on <\omega>
+// p is in Regular layout.
 func blind(p, b *iop.Polynomial, w []fr.Element) {
 	cp := p.Coefficients()
 
-	n := p.Size()
-	// TODO add a method SetCoeff in gnark-crypto
-	if p.Layout == iop.Regular {
-
-		utils.Parallelize(len(cp), func(start, end int) {
-			var y fr.Element
-			for i := start; i < end; i++ {
-				y = b.Evaluate(w[i])
-				cp[i].Add(&cp[i], &y)
-			}
-		}, runtime.NumCPU()/4)
-	} else {
-		nn := uint64(64 - bits.TrailingZeros(uint(n)))
+	utils.Parallelize(len(cp), func(start, end int) {
 		var y fr.Element
-		for i := 0; i < p.Size(); i++ {
+		for i := start; i < end; i++ {
 			y = b.Evaluate(w[i])
-			iRev := bits.Reverse64(uint64(i)) >> nn
-			cp[iRev].Add(&cp[iRev], &y)
+			cp[i].Add(&cp[i], &y)
 		}
-	}
+	}, runtime.NumCPU()/4)
 }
 
 // batchApply executes fn on all polynomials in x except x[id_ZS] in parallel.
@@ -1044,23 +1014,6 @@ func batchApplyPair(x, y []*iop.Polynomial, fn func(p, q *iop.Polynomial)) {
 	wg.Wait()
 }
 
-func batchScalePowers(p []*iop.Polynomial, w fr.Element) {
-	var wg sync.WaitGroup
-	for i := 0; i < len(p); i++ {
-		if i == id_ZS { // the scaling has already been done on id_Z, which points to the same coeff array
-			// TODO @gbotrel this is risky;
-			// input to batchScalePowers is not always x.
-			continue
-		}
-		wg.Add(1)
-		go func(i int) {
-			scalePowers(p[i], w)
-			wg.Done()
-		}(i)
-	}
-	wg.Wait()
-}
-
 // p <- <p, (1, w, .., wⁿ) >
 // p is supposed to be in canonical form
 func scalePowers(p *iop.Polynomial, w fr.Element) {
@@ -1074,16 +1027,32 @@ func scalePowers(p *iop.Polynomial, w fr.Element) {
 }
 
 func evaluateBlinded(p, bp *iop.Polynomial, zeta fr.Element) fr.Element {
-	n := p.Size()
-	bn := big.NewInt(int64(n))
-	var tmp, one fr.Element
-	one.SetOne()
-	tmp.Exp(zeta, bn).Sub(&tmp, &one)
-	pz := p.Evaluate(zeta)
-	bpz := bp.Evaluate(zeta)
-	bpz.Mul(&bpz, &tmp)
-	pz.Add(&pz, &bpz)
-	return pz
+	// Get the size of the polynomial
+	n := big.NewInt(int64(p.Size()))
+
+	var pEvaluatedAtZeta fr.Element
+
+	// Evaluate the polynomial and blinded polynomial at zeta
+	chP := make(chan struct{}, 1)
+	go func() {
+		pEvaluatedAtZeta = p.Evaluate(zeta)
+		close(chP)
+	}()
+
+	bpEvaluatedAtZeta := bp.Evaluate(zeta)
+
+	// Multiply the evaluated blinded polynomial by tempElement
+	var t fr.Element
+	one := fr.One()
+	t.Exp(zeta, n).Sub(&t, &one)
+	bpEvaluatedAtZeta.Mul(&bpEvaluatedAtZeta, &t)
+
+	// Add the evaluated polynomial and the evaluated blinded polynomial
+	<-chP
+	pEvaluatedAtZeta.Add(&pEvaluatedAtZeta, &bpEvaluatedAtZeta)
+
+	// Return the result
+	return pEvaluatedAtZeta
 }
 
 // /!\ modifies p's underlying array of coefficients, in particular the size changes
