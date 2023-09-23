@@ -627,10 +627,10 @@ func (s *instance) computeLinearizedPolynomial() error {
 	wg.Add(3 + len(s.commitmentInfo))
 
 	for i := 0; i < len(s.commitmentInfo); i++ {
-		go func() {
+		go func(i int) {
 			qcpzeta[i] = s.pk.trace.Qcp[i].Evaluate(s.zeta)
 			wg.Done()
-		}()
+		}(i)
 	}
 
 	// wait for H to be committed and zeta to be derived (or ctx.Done())
