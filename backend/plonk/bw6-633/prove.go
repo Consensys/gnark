@@ -208,6 +208,7 @@ type instance struct {
 	chbp,
 	chZ,
 	chH,
+	chRestoreLRO,
 	chZOpening,
 	chLinearizedPolynomial,
 	chFoldedH,
@@ -235,6 +236,7 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		chZOpening:             make(chan struct{}, 1),
 		chLinearizedPolynomial: make(chan struct{}, 1),
 		chFoldedH:              make(chan struct{}, 1),
+		chRestoreLRO:           make(chan struct{}, 1),
 	}
 	s.initBSB22Commitments()
 	s.setupGKRHints()
@@ -525,6 +527,13 @@ func (s *instance) evaluateConstraints() (err error) {
 		return err
 	}
 
+	// wait for clean up tasks to be done
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chRestoreLRO:
+	}
+
 	close(s.chH)
 
 	return nil
@@ -769,16 +778,6 @@ func (s *instance) batchOpening() error {
 func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	n := s.pk.Domain[0].Cardinality
 
-	// scaling S1, S2 and S3 by beta
-	batchApply(s.x[id_S1:id_S3+1], func(p *iop.Polynomial) {
-		cp := p.Coefficients()
-		for i := 0; i < len(cp); i++ {
-			cp[i].Mul(&cp[i], &s.beta)
-		}
-	})
-
-	cres := make([]fr.Element, s.pk.Domain[1].Cardinality)
-
 	nbBsbGates := (len(s.x) - id_Qci + 1) >> 1
 
 	gateConstraint := func(u ...fr.Element) fr.Element {
@@ -833,14 +832,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		return res
 	}
 
-	allConstraints := func(u ...fr.Element) fr.Element {
-		a := gateConstraint(u...)
-		b := orderingConstraint(u...)
-		c := ratioLocalConstraint(u...)
-		c.Mul(&c, &s.alpha).Add(&c, &b).Mul(&c, &s.alpha).Add(&c, &a)
-		return c
-	}
-
 	rho := int(s.pk.Domain[1].Cardinality / n)
 	shifters := make([]fr.Element, rho)
 	shifters[0].Set(&s.pk.Domain[1].FrMultiplicativeGen)
@@ -856,6 +847,31 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	one.SetOne()
 	bn := big.NewInt(int64(n))
 
+	// prepare coset and twiddles reversed
+	var cosetTableRev, twiddlesRev []fr.Element
+	cosetTable := s.pk.Domain[0].CosetTable
+	twiddles := s.pk.Domain[1].Twiddles[0][:n]
+
+	initCosetTableRev := func() error {
+		cosetTableRev = make([]fr.Element, len(cosetTable))
+		copy(cosetTableRev, cosetTable)
+		fft.BitReverse(cosetTableRev)
+		return nil
+	}
+
+	initTwiddlesRev := func() error {
+		twiddlesRev = make([]fr.Element, len(twiddles))
+		copy(twiddlesRev, twiddles)
+		fft.BitReverse(twiddlesRev)
+		return nil
+	}
+
+	g := new(errgroup.Group)
+	g.Go(initCosetTableRev)
+	g.Go(initTwiddlesRev)
+
+	// init the result polynomial & buffer
+	cres := make([]fr.Element, s.pk.Domain[1].Cardinality)
 	buf := make([]fr.Element, n)
 
 	twiddles0 := make([]fr.Element, n)
@@ -864,8 +880,57 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		twiddles0[i].Mul(&twiddles0[i-1], &twiddles0[1])
 	}
 
-	cosetTable := s.pk.Domain[0].CosetTable
-	twiddles := s.pk.Domain[1].Twiddles[0][:n]
+	allConstraints := func(i int, u ...fr.Element) fr.Element {
+		// scale S1, S2, S3 by β
+		u[id_S1].Mul(&u[id_S1], &s.beta)
+		u[id_S2].Mul(&u[id_S2], &s.beta)
+		u[id_S3].Mul(&u[id_S3], &s.beta)
+
+		// blind L, R, O, Z, ZS
+		var y fr.Element
+		y = s.bp[id_Bl].Evaluate(twiddles0[i])
+		u[id_L].Add(&u[id_L], &y)
+		y = s.bp[id_Br].Evaluate(twiddles0[i])
+		u[id_R].Add(&u[id_R], &y)
+		y = s.bp[id_Bo].Evaluate(twiddles0[i])
+		u[id_O].Add(&u[id_O], &y)
+		y = s.bp[id_Bz].Evaluate(twiddles0[i])
+		u[id_Z].Add(&u[id_Z], &y)
+
+		// ZS is shifted by 1; need to get correct twiddle
+		y = s.bp[id_Bz].Evaluate(twiddles0[(i+1)%int(n)])
+		u[id_ZS].Add(&u[id_ZS], &y)
+
+		a := gateConstraint(u...)
+		b := orderingConstraint(u...)
+		c := ratioLocalConstraint(u...)
+		c.Mul(&c, &s.alpha).Add(&c, &b).Mul(&c, &s.alpha).Add(&c, &a)
+		return c
+	}
+
+	// wait for init stuff.
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	// select the correct scaling vector to scale by shifter[i]
+	selectScalingVector := func(i int, l iop.Layout) []fr.Element {
+		var w []fr.Element
+		if i == 0 {
+			if l == iop.Regular {
+				w = cosetTable
+			} else {
+				w = cosetTableRev
+			}
+		} else {
+			if l == iop.Regular {
+				w = twiddles
+			} else {
+				w = twiddlesRev
+			}
+		}
+		return w
+	}
 
 	for i := 0; i < rho; i++ {
 
@@ -873,38 +938,36 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		tmp.Exp(coset, bn).Sub(&tmp, &one)
 
 		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
-		batchApply(s.bp, func(p *iop.Polynomial) {
-			cp := p.Coefficients()
+		for _, q := range s.bp {
+			cq := q.Coefficients()
 			acc := tmp
-			for j := 0; j < len(cp); j++ {
-				cp[j].Mul(&cp[j], &acc)
+			for j := 0; j < len(cq); j++ {
+				cq[j].Mul(&cq[j], &acc)
 				acc.Mul(&acc, &shifters[i])
 			}
-		})
+		}
 
+		// we do **a lot** of FFT here, but on the small domain.
+		// note that for all the polynomials in the proving key
+		// (Ql, Qr, Qm, Qo, S1, S2, S3, Qcp, Qc) and ID, LOne
+		// we could pre-compute theses rho*2 FFTs and store them
+		// at the cost of a huge memory footprint.
 		batchApply(s.x, func(p *iop.Polynomial) {
 			// shift polynomials to be in the correct coset
-			p.ToCanonical(&s.pk.Domain[0]).ToRegular()
+			p.ToCanonical(&s.pk.Domain[0])
 
 			// scale by shifter[i]
-			w := twiddles
-			if i == 0 {
-				w = cosetTable
-			}
+			w := selectScalingVector(i, p.Layout)
 
-			// TODO @gbotrel check if parallelizing makes sense here
 			cp := p.Coefficients()
-			for j := 0; j < len(cp); j++ {
-				cp[j].Mul(&cp[j], &w[j])
-			}
+			utils.Parallelize(len(cp), func(start, end int) {
+				for j := start; j < end; j++ {
+					cp[j].Mul(&cp[j], &w[j])
+				}
+			}, calculateNbTasks(len(s.x)-1))
 
 			// fft in the correct coset
 			p.ToLagrange(&s.pk.Domain[0]).ToRegular()
-		})
-
-		// blind l, r, o, z
-		batchApplyPair(s.x[:id_ZS], s.bp, func(p, q *iop.Polynomial) {
-			blind(p, q, twiddles0)
 		})
 
 		if _, err := iop.Evaluate(
@@ -919,38 +982,39 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			cres[rho*j+i].Set(&buf[j])
 		}
 
-		// unblind l, r, o, z
 		tmp.Inverse(&tmp)
-		batchApplyPair(s.x[:id_ZS], s.bp, func(p, q *iop.Polynomial) {
-			unblind(p, q, twiddles0)
-
-			// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
+		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
+		for _, q := range s.bp {
 			cq := q.Coefficients()
 			for j := 0; j < len(cq); j++ {
 				cq[j].Mul(&cq[j], &tmp)
 			}
-		})
+		}
 	}
 
 	// scale everything back
-	batchApply(s.x[:id_ZS], func(p *iop.Polynomial) {
-		p.ToCanonical(&s.pk.Domain[0]).ToRegular()
-	})
+	go func() {
+		for i := id_ZS; i < len(s.x); i++ {
+			s.x[i] = nil
+		}
 
-	cs.Set(&shifters[0])
-	for i := 1; i < len(shifters); i++ {
-		cs.Mul(&cs, &shifters[i])
-	}
-	cs.Inverse(&cs)
+		cs.Set(&shifters[0])
+		for i := 1; i < len(shifters); i++ {
+			cs.Mul(&cs, &shifters[i])
+		}
+		cs.Inverse(&cs)
 
-	batchApplyPair(s.x[:id_ZS], s.bp, func(p, q *iop.Polynomial) {
-		scalePowers(p, cs)
-		scalePowers(q, cs)
-	})
+		batchApply(s.x[:id_ZS], func(p *iop.Polynomial) {
+			p.ToCanonical(&s.pk.Domain[0]).ToRegular()
+			scalePowers(p, cs)
+		})
 
-	for i := id_ZS; i < len(s.x); i++ {
-		s.x[i] = nil
-	}
+		for _, q := range s.bp {
+			scalePowers(q, cs)
+		}
+
+		close(s.chRestoreLRO)
+	}()
 
 	res := iop.NewPolynomial(&cres, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.Regular})
 
@@ -958,32 +1022,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 }
 
-// computes p - b on <\omega>
-// p is in regular layout.
-func unblind(p, b *iop.Polynomial, w []fr.Element) {
-	cp := p.Coefficients()
-
-	utils.Parallelize(len(cp), func(start, end int) {
-		var y fr.Element
-		for i := start; i < end; i++ {
-			y = b.Evaluate(w[i])
-			cp[i].Sub(&cp[i], &y)
-		}
-	}, runtime.NumCPU()/4)
-}
-
-// computes p + b on <\omega>
-// p is in Regular layout.
-func blind(p, b *iop.Polynomial, w []fr.Element) {
-	cp := p.Coefficients()
-
-	utils.Parallelize(len(cp), func(start, end int) {
-		var y fr.Element
-		for i := start; i < end; i++ {
-			y = b.Evaluate(w[i])
-			cp[i].Add(&cp[i], &y)
-		}
-	}, runtime.NumCPU()/4)
+func calculateNbTasks(n int) int {
+	nbAvailableCPU := runtime.NumCPU() - n
+	if nbAvailableCPU < 0 {
+		nbAvailableCPU = 1
+	}
+	nbTasks := 1 + (nbAvailableCPU / n)
+	return nbTasks
 }
 
 // batchApply executes fn on all polynomials in x except x[id_ZS] in parallel.
@@ -996,19 +1041,6 @@ func batchApply(x []*iop.Polynomial, fn func(*iop.Polynomial)) {
 		wg.Add(1)
 		go func(i int) {
 			fn(x[i])
-			wg.Done()
-		}(i)
-	}
-	wg.Wait()
-}
-
-// batchApplyPair executes fn on all polynomials pairs x[i], y[i] in parallel.
-func batchApplyPair(x, y []*iop.Polynomial, fn func(p, q *iop.Polynomial)) {
-	var wg sync.WaitGroup
-	for i := 0; i < len(x); i++ {
-		wg.Add(1)
-		go func(i int) {
-			fn(x[i], y[i])
 			wg.Done()
 		}(i)
 	}

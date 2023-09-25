@@ -6,11 +6,12 @@ require (
 	github.com/bits-and-blooms/bitset v1.8.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
-	github.com/consensys/gnark-crypto v0.11.3-0.20230911155634-a7cd4d315fe7
+	github.com/consensys/gnark-crypto v0.11.3-0.20230925204600-a38de1d2a775
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b
 	github.com/leanovate/gopter v0.2.9
+	github.com/pkg/profile v1.7.0
 	github.com/rs/zerolog v1.30.0
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/crypto v0.12.0
@@ -25,6 +26,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
