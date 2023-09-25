@@ -327,19 +327,19 @@ func (s *instance) solveConstraints() error {
 	wg.Add(2)
 	go func() {
 		s.x[id_L] = iop.NewPolynomial(&evaluationLDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-			ToCanonical(&s.pk.Domain[0]).
+			ToCanonical(&s.pk.Domain[0], runtime.NumCPU()/3).
 			ToRegular()
 		wg.Done()
 	}()
 	go func() {
 		s.x[id_R] = iop.NewPolynomial(&evaluationRDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-			ToCanonical(&s.pk.Domain[0]).
+			ToCanonical(&s.pk.Domain[0], runtime.NumCPU()/3).
 			ToRegular()
 		wg.Done()
 	}()
 
 	s.x[id_O] = iop.NewPolynomial(&evaluationODomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-		ToCanonical(&s.pk.Domain[0]).
+		ToCanonical(&s.pk.Domain[0], runtime.NumCPU()/3).
 		ToRegular()
 
 	wg.Wait()
@@ -484,6 +484,10 @@ func (s *instance) evaluateConstraints() (err error) {
 		s.x[id_Qci+2*i+1] = s.cCommitments[i].Clone()
 	}
 
+	n := s.pk.Domain[0].Cardinality
+	lone := make([]fr.Element, n)
+	lone[0].SetOne()
+
 	// wait for Z to be committed or context done
 	select {
 	case <-s.ctx.Done():
@@ -496,13 +500,9 @@ func (s *instance) evaluateConstraints() (err error) {
 		return err
 	}
 
-	n := s.pk.Domain[0].Cardinality
 	// TODO complete waste of memory find another way to do that
 	identity := make([]fr.Element, n)
 	identity[1].Set(&s.beta)
-
-	lone := make([]fr.Element, n)
-	lone[0].SetOne()
 
 	s.x[id_ID] = iop.NewPolynomial(&identity, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 	s.x[id_LOne] = iop.NewPolynomial(&lone, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
@@ -953,8 +953,9 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		// we could pre-compute theses rho*2 FFTs and store them
 		// at the cost of a huge memory footprint.
 		batchApply(s.x, func(p *iop.Polynomial) {
+			nbTasks := calculateNbTasks(len(s.x)-1) * 2
 			// shift polynomials to be in the correct coset
-			p.ToCanonical(&s.pk.Domain[0])
+			p.ToCanonical(&s.pk.Domain[0], nbTasks)
 
 			// scale by shifter[i]
 			w := selectScalingVector(i, p.Layout)
@@ -964,10 +965,10 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				for j := start; j < end; j++ {
 					cp[j].Mul(&cp[j], &w[j])
 				}
-			}, calculateNbTasks(len(s.x)-1))
+			}, nbTasks)
 
 			// fft in the correct coset
-			p.ToLagrange(&s.pk.Domain[0]).ToRegular()
+			p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
 		})
 
 		if _, err := iop.Evaluate(
@@ -1005,7 +1006,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		cs.Inverse(&cs)
 
 		batchApply(s.x[:id_ZS], func(p *iop.Polynomial) {
-			p.ToCanonical(&s.pk.Domain[0]).ToRegular()
+			p.ToCanonical(&s.pk.Domain[0], 4).ToRegular()
 			scalePowers(p, cs)
 		})
 
