@@ -277,9 +277,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	<-chHDone
 
 	// schedule our proof part computations
-	computeKRS()
 	computeAR1()
 	computeBS1()
+	computeKRS()
 	if err := computeBS2(); err != nil {
 		return nil, err
 	}
