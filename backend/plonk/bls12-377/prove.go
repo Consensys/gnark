@@ -1011,15 +1011,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 	}
 
-	// ensure all the goroutines are done
-	wgBuf.Wait()
-
 	// scale everything back
 	go func() {
 		for i := id_ZS; i < len(s.x); i++ {
 			s.x[i] = nil
 		}
 
+		var cs fr.Element
 		cs.Set(&shifters[0])
 		for i := 1; i < len(shifters); i++ {
 			cs.Mul(&cs, &shifters[i])
@@ -1027,7 +1025,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		cs.Inverse(&cs)
 
 		batchApply(s.x[:id_ZS], func(p *iop.Polynomial) {
-			p.ToCanonical(&s.pk.Domain[0], 4).ToRegular()
+			p.ToCanonical(&s.pk.Domain[0], 8).ToRegular()
 			scalePowers(p, cs)
 		})
 
@@ -1037,6 +1035,9 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		close(s.chRestoreLRO)
 	}()
+
+	// ensure all the goroutines are done
+	wgBuf.Wait()
 
 	res := iop.NewPolynomial(&cres, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse})
 
@@ -1195,17 +1196,18 @@ func divideByXMinusOne(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomi
 
 	// prepare the evaluations of x^n-1 on the big domain's coset
 	xnMinusOneInverseLagrangeCoset := evaluateXnMinusOneDomainBigCoset(domains)
-	nbElmts := len(a.Coefficients())
 	rho := int(domains[1].Cardinality / domains[0].Cardinality)
 
 	r := a.Coefficients()
 	n := uint64(len(r))
 	nn := uint64(64 - bits.TrailingZeros64(n))
 
-	for i := 0; i < nbElmts; i++ {
-		iRev := bits.Reverse64(uint64(i)) >> nn
-		r[i].Mul(&r[i], &xnMinusOneInverseLagrangeCoset[int(iRev)%rho])
-	}
+	utils.Parallelize(len(r), func(start, end int) {
+		for i := start; i < end; i++ {
+			iRev := bits.Reverse64(uint64(i)) >> nn
+			r[i].Mul(&r[i], &xnMinusOneInverseLagrangeCoset[int(iRev)%rho])
+		}
+	})
 
 	// since a is in bit reverse order, ToRegular shouldn't do anything
 	a.ToCanonical(domains[1]).ToRegular()
@@ -1217,9 +1219,9 @@ func divideByXMinusOne(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomi
 // evaluateXnMinusOneDomainBigCoset evaluates Xᵐ-1 on DomainBig coset
 func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 
-	ratio := domains[1].Cardinality / domains[0].Cardinality
+	rho := domains[1].Cardinality / domains[0].Cardinality
 
-	res := make([]fr.Element, ratio)
+	res := make([]fr.Element, rho)
 
 	expo := big.NewInt(int64(domains[0].Cardinality))
 	res[0].Exp(domains[1].FrMultiplicativeGen, expo)
@@ -1229,7 +1231,7 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 
 	one := fr.One()
 
-	for i := 1; i < int(ratio); i++ {
+	for i := 1; i < int(rho); i++ {
 		res[i].Mul(&res[i-1], &t)
 		res[i-1].Sub(&res[i-1], &one)
 	}
