@@ -890,6 +890,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	// init the result polynomial & buffer
 	cres := s.cres
 	buf := make([]fr.Element, n)
+	bufLock := sync.Mutex{}
 
 	allConstraints := func(i int, u ...fr.Element) fr.Element {
 		// scale S1, S2, S3 by β
@@ -982,18 +983,23 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
 		})
 
+		bufLock.Lock()
 		if _, err := iop.Evaluate(
 			allConstraints,
 			buf,
 			iop.Form{Basis: iop.Lagrange, Layout: iop.Regular},
 			s.x...,
 		); err != nil {
+			bufLock.Unlock()
 			return nil, err
 		}
-		for j := 0; j < int(n); j++ {
-			// we build the polynomial in bit reverse order
-			cres[bits.Reverse64(uint64(rho*j+i))>>mm] = buf[j]
-		}
+		go func(i int) {
+			for j := 0; j < int(n); j++ {
+				// we build the polynomial in bit reverse order
+				cres[bits.Reverse64(uint64(rho*j+i))>>mm] = buf[j]
+			}
+			bufLock.Unlock()
+		}(i)
 
 		tmp.Inverse(&tmp)
 		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
@@ -1004,6 +1010,10 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			}
 		}
 	}
+
+	// ensure all the goroutines are done
+	bufLock.Lock()
+	bufLock.Unlock()
 
 	// scale everything back
 	go func() {
