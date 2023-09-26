@@ -23,6 +23,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"hash"
 	"math/big"
+	"math/bits"
 	"runtime"
 	"sync"
 	"time"
@@ -133,6 +134,9 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// solve constraints
 	g.Go(instance.solveConstraints)
 
+	// compute numerator data
+	g.Go(instance.initComputeNumerator)
+
 	// complete qk
 	g.Go(instance.completeQk)
 
@@ -202,6 +206,9 @@ type instance struct {
 	// challenges
 	gamma, beta, alpha, zeta fr.Element
 
+	// compute numerator data
+	cres, twiddles0, cosetTableRev, twiddlesRev []fr.Element
+
 	// channel to wait for the steps
 	chLRO,
 	chQk,
@@ -212,6 +219,7 @@ type instance struct {
 	chZOpening,
 	chLinearizedPolynomial,
 	chFoldedH,
+	chNumeratorInit,
 	chGammaBeta chan struct{}
 }
 
@@ -237,12 +245,38 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		chLinearizedPolynomial: make(chan struct{}, 1),
 		chFoldedH:              make(chan struct{}, 1),
 		chRestoreLRO:           make(chan struct{}, 1),
+		chNumeratorInit:        make(chan struct{}, 1),
 	}
 	s.initBSB22Commitments()
 	s.setupGKRHints()
 	s.x = make([]*iop.Polynomial, id_Qci+2*len(s.commitmentInfo))
 
 	return s
+}
+
+func (s *instance) initComputeNumerator() error {
+	n := s.pk.Domain[0].Cardinality
+	s.cres = make([]fr.Element, s.pk.Domain[1].Cardinality)
+	s.twiddles0 = make([]fr.Element, n)
+	copy(s.twiddles0, s.pk.Domain[0].Twiddles[0])
+	for i := len(s.pk.Domain[0].Twiddles[0]); i < len(s.twiddles0); i++ {
+		s.twiddles0[i].Mul(&s.twiddles0[i-1], &s.twiddles0[1])
+	}
+
+	cosetTable := s.pk.Domain[0].CosetTable
+	twiddles := s.pk.Domain[1].Twiddles[0][:n]
+
+	s.cosetTableRev = make([]fr.Element, len(cosetTable))
+	copy(s.cosetTableRev, cosetTable)
+	fft.BitReverse(s.cosetTableRev)
+
+	s.twiddlesRev = make([]fr.Element, len(twiddles))
+	copy(s.twiddlesRev, twiddles)
+	fft.BitReverse(s.twiddlesRev)
+
+	close(s.chNumeratorInit)
+
+	return nil
 }
 
 func (s *instance) initBlindingPolynomials() error {
@@ -847,38 +881,15 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	one.SetOne()
 	bn := big.NewInt(int64(n))
 
-	// prepare coset and twiddles reversed
-	var cosetTableRev, twiddlesRev []fr.Element
+	// wait for init go routine
+	<-s.chNumeratorInit
+
 	cosetTable := s.pk.Domain[0].CosetTable
 	twiddles := s.pk.Domain[1].Twiddles[0][:n]
 
-	initCosetTableRev := func() error {
-		cosetTableRev = make([]fr.Element, len(cosetTable))
-		copy(cosetTableRev, cosetTable)
-		fft.BitReverse(cosetTableRev)
-		return nil
-	}
-
-	initTwiddlesRev := func() error {
-		twiddlesRev = make([]fr.Element, len(twiddles))
-		copy(twiddlesRev, twiddles)
-		fft.BitReverse(twiddlesRev)
-		return nil
-	}
-
-	g := new(errgroup.Group)
-	g.Go(initCosetTableRev)
-	g.Go(initTwiddlesRev)
-
 	// init the result polynomial & buffer
-	cres := make([]fr.Element, s.pk.Domain[1].Cardinality)
+	cres := s.cres
 	buf := make([]fr.Element, n)
-
-	twiddles0 := make([]fr.Element, n)
-	copy(twiddles0, s.pk.Domain[0].Twiddles[0])
-	for i := len(s.pk.Domain[0].Twiddles[0]); i < len(twiddles0); i++ {
-		twiddles0[i].Mul(&twiddles0[i-1], &twiddles0[1])
-	}
 
 	allConstraints := func(i int, u ...fr.Element) fr.Element {
 		// scale S1, S2, S3 by β
@@ -888,17 +899,17 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		// blind L, R, O, Z, ZS
 		var y fr.Element
-		y = s.bp[id_Bl].Evaluate(twiddles0[i])
+		y = s.bp[id_Bl].Evaluate(s.twiddles0[i])
 		u[id_L].Add(&u[id_L], &y)
-		y = s.bp[id_Br].Evaluate(twiddles0[i])
+		y = s.bp[id_Br].Evaluate(s.twiddles0[i])
 		u[id_R].Add(&u[id_R], &y)
-		y = s.bp[id_Bo].Evaluate(twiddles0[i])
+		y = s.bp[id_Bo].Evaluate(s.twiddles0[i])
 		u[id_O].Add(&u[id_O], &y)
-		y = s.bp[id_Bz].Evaluate(twiddles0[i])
+		y = s.bp[id_Bz].Evaluate(s.twiddles0[i])
 		u[id_Z].Add(&u[id_Z], &y)
 
 		// ZS is shifted by 1; need to get correct twiddle
-		y = s.bp[id_Bz].Evaluate(twiddles0[(i+1)%int(n)])
+		y = s.bp[id_Bz].Evaluate(s.twiddles0[(i+1)%int(n)])
 		u[id_ZS].Add(&u[id_ZS], &y)
 
 		a := gateConstraint(u...)
@@ -908,11 +919,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		return c
 	}
 
-	// wait for init stuff.
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-
 	// select the correct scaling vector to scale by shifter[i]
 	selectScalingVector := func(i int, l iop.Layout) []fr.Element {
 		var w []fr.Element
@@ -920,17 +926,22 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			if l == iop.Regular {
 				w = cosetTable
 			} else {
-				w = cosetTableRev
+				w = s.cosetTableRev
 			}
 		} else {
 			if l == iop.Regular {
 				w = twiddles
 			} else {
-				w = twiddlesRev
+				w = s.twiddlesRev
 			}
 		}
 		return w
 	}
+
+	// pre-computed to compute the bit reverse index
+	// of the result polynomial
+	m := uint64(s.pk.Domain[1].Cardinality)
+	mm := uint64(64 - bits.TrailingZeros64(m))
 
 	for i := 0; i < rho; i++ {
 
@@ -980,7 +991,8 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			return nil, err
 		}
 		for j := 0; j < int(n); j++ {
-			cres[rho*j+i].Set(&buf[j])
+			// we build the polynomial in bit reverse order
+			cres[bits.Reverse64(uint64(rho*j+i))>>mm] = buf[j]
 		}
 
 		tmp.Inverse(&tmp)
@@ -1017,7 +1029,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		close(s.chRestoreLRO)
 	}()
 
-	res := iop.NewPolynomial(&cres, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.Regular})
+	res := iop.NewPolynomial(&cres, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse})
 
 	return res, nil
 
@@ -1168,22 +1180,25 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKe
 func divideByXMinusOne(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, error) {
 
 	// check that the basis is LagrangeCoset
-	if a.Basis != iop.LagrangeCoset {
+	if a.Basis != iop.LagrangeCoset || a.Layout != iop.BitReverse {
 		return nil, errors.New("invalid form")
 	}
 
 	// prepare the evaluations of x^n-1 on the big domain's coset
 	xnMinusOneInverseLagrangeCoset := evaluateXnMinusOneDomainBigCoset(domains)
-
 	nbElmts := len(a.Coefficients())
 	rho := int(domains[1].Cardinality / domains[0].Cardinality)
 
-	// TODO @gbotrel this is the only place we do a FFT inverse (on coset) with domain[1]
 	r := a.Coefficients()
+	n := uint64(len(r))
+	nn := uint64(64 - bits.TrailingZeros64(n))
+
 	for i := 0; i < nbElmts; i++ {
-		r[i].Mul(&r[i], &xnMinusOneInverseLagrangeCoset[i%rho])
+		iRev := bits.Reverse64(uint64(i)) >> nn
+		r[i].Mul(&r[i], &xnMinusOneInverseLagrangeCoset[int(iRev)%rho])
 	}
 
+	// since a is in bit reverse order, ToRegular shouldn't do anything
 	a.ToCanonical(domains[1]).ToRegular()
 
 	return a, nil
