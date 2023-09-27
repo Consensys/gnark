@@ -58,6 +58,13 @@ func (proof *Proof) writeTo(w io.Writer, raw bool) (int64, error) {
 	if err := enc.Encode(&proof.Krs); err != nil {
 		return enc.BytesWritten(), err
 	}
+	if err := enc.Encode(proof.Commitments); err != nil {
+		return enc.BytesWritten(), err
+	}
+	if err := enc.Encode(&proof.CommitmentPok); err != nil {
+		return enc.BytesWritten(), err
+	}
+
 	return enc.BytesWritten(), nil
 }
 
@@ -74,6 +81,12 @@ func (proof *Proof) ReadFrom(r io.Reader) (n int64, err error) {
 		return dec.BytesRead(), err
 	}
 	if err := dec.Decode(&proof.Krs); err != nil {
+		return dec.BytesRead(), err
+	}
+	if err := dec.Decode(&proof.Commitments); err != nil {
+		return dec.BytesRead(), err
+	}
+	if err := dec.Decode(&proof.CommitmentPok); err != nil {
 		return dec.BytesRead(), err
 	}
 
