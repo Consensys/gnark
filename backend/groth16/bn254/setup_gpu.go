@@ -21,7 +21,6 @@ package groth16
 
 import (
 	"errors"
-	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
@@ -358,12 +357,12 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// set domain
 	pk.Domain = *domain
 
-	pk.setupDevicePointers()
+	err = pk.setupDevicePointers()
 
 	return nil
 }
 
-func (pk *ProvingKey) setupDevicePointers() {
+func (pk *ProvingKey) setupDevicePointers() error {
 	n := int(pk.Domain.Cardinality)
 	sizeBytes := n * fr.Bytes
 
@@ -399,12 +398,12 @@ func (pk *ProvingKey) setupDevicePointers() {
 	twiddlesInv_d_gen, twddles_err := icicle.GenerateTwiddles(n, om_selector, true)
 
 	if twddles_err != nil {
-		fmt.Print(twiddlesInv_d_gen)
+		return twddles_err
 	}
 
 	twiddles_d_gen, twddles_err := icicle.GenerateTwiddles(n, om_selector, false)
 	if twddles_err != nil {
-		fmt.Print(twiddles_d_gen)
+		return twddles_err
 	}
 
 	/*************************  End Domain Device Setup  ***************************/
@@ -458,6 +457,7 @@ func (pk *ProvingKey) setupDevicePointers() {
 	pk.G2Device.B = <-copyG2BDone
 
 	/*************************  End G2 Device Setup  ***************************/
+	return nil
 }
 
 // Precompute sets e, -[δ]₂, -[γ]₂

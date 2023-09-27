@@ -373,7 +373,9 @@ func (pk *ProvingKey) readFrom(r io.Reader, decOptions ...func(*curve.Decoder)) 
 		}
 	}
 
-	pk.setupDevicePointers()
+	if err := pk.setupDevicePointers(); err != nil {
+		return n + dec.BytesRead(), err
+	}
 
 	return n + dec.BytesRead(), nil
 }

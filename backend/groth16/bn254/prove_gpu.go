@@ -205,25 +205,34 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	var bs1, ar curve.G1Jac
 
-	computeBS1 := func() {
+	computeBS1 := func() error {
 		<-chWireValuesB
 
-		bs1, _, _ = iciclegnark.MsmOnDevice(wireValuesBDevice.P, pk.G1Device.B, wireValuesBDevice.Size, true)
+		if bs1, _, err = iciclegnark.MsmOnDevice(wireValuesBDevice.P, pk.G1Device.B, wireValuesBDevice.Size, true); err != nil {
+			return err
+		}
 
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
+
+		return nil
 	}
 
-	computeAR1 := func() {
+	computeAR1 := func() error {
 		<-chWireValuesA
 
-		ar, _, _ = iciclegnark.MsmOnDevice(wireValuesADevice.P, pk.G1Device.A, wireValuesADevice.Size, true)
+		if ar, _, err = iciclegnark.MsmOnDevice(wireValuesADevice.P, pk.G1Device.A, wireValuesADevice.Size, true); err != nil {
+			return err
+		}
+
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
 		proof.Ar.FromJacobian(&ar)
+
+		return nil
 	}
 
-	computeKRS := func() {
+	computeKRS := func() error {
 		// we could NOT split the Krs multiExp in 2, and just append pk.G1.K and pk.G1.Z
 		// however, having similar lengths for our tasks helps with parallelism
 
@@ -231,7 +240,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
 
 		if len(pk.G1.Z) > 0 {
-			krs2, _, _ = iciclegnark.MsmOnDevice(h, pk.G1Device.Z, sizeH, true)
+			if krs2, _, err = iciclegnark.MsmOnDevice(h, pk.G1Device.Z, sizeH, true); err != nil {
+				return err
+			}
 		}
 
 		// filter the wire values if needed
@@ -248,8 +259,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		scalars_d, _ := goicicle.CudaMalloc(scalarBytes)
 		goicicle.CudaMemCpyHtoD[fr.Element](scalars_d, scalars, scalarBytes)
 		iciclegnark.MontConvOnDevice(scalars_d, len(scalars), false)
-		krs, _, _ = iciclegnark.MsmOnDevice(scalars_d, pk.G1Device.K, len(scalars), true)
+		krs, _, err = iciclegnark.MsmOnDevice(scalars_d, pk.G1Device.K, len(scalars), true)
 		goicicle.CudaFree(scalars_d)
+		
+		if err != nil {
+			return err
+		}
 
 		krs.AddMixed(&deltas[2])
 
@@ -262,6 +277,8 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		krs.AddAssign(&p1)
 
 		proof.Krs.FromJacobian(&krs)
+
+		return nil
 	}
 
 	computeBS2 := func() error {
@@ -269,7 +286,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		var Bs, deltaS curve.G2Jac
 
 		<-chWireValuesB
-		Bs, _, _ = iciclegnark.MsmG2OnDevice(wireValuesBDevice.P, pk.G2Device.B, wireValuesBDevice.Size, true)
+		if Bs, _, err = iciclegnark.MsmG2OnDevice(wireValuesBDevice.P, pk.G2Device.B, wireValuesBDevice.Size, true); err != nil {
+			return err
+		}
 
 		deltaS.FromAffine(&pk.G2.Delta)
 		deltaS.ScalarMultiplication(&deltaS, &s)
@@ -280,13 +299,19 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		return nil
 	}
 
-	// wait for FFT to end, as it uses all our CPUs
+	// wait for FFT to end
 	<-chHDone
 
 	// schedule our proof part computations
-	computeAR1()
-	computeBS1()
-	computeKRS()
+	if err := computeAR1(); err != nil {
+		return nil, err
+	}
+	if err := computeBS1(); err != nil {
+		return nil, err
+	}
+	if err := computeKRS(); err != nil {
+		return nil, err
+	}
 	if err := computeBS2(); err != nil {
 		return nil, err
 	}
