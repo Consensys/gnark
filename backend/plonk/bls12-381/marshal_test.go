@@ -60,10 +60,10 @@ func (pk *ProvingKey) randomize() {
 	var vk VerifyingKey
 	vk.randomize()
 	pk.Vk = &vk
-	pk.Domain[0] = *fft.NewDomain(42)
-	pk.Domain[1] = *fft.NewDomain(4 * 42)
+	pk.Domain[0] = *fft.NewDomain(64)
+	pk.Domain[1] = *fft.NewDomain(4 * 64)
 
-	pk.Kzg.G1 = make([]curve.G1Affine, 7)
+	pk.Kzg.G1 = make([]curve.G1Affine, 32)
 	for i := range pk.Kzg.G1 {
 		pk.Kzg.G1[i] = randomG1Point()
 	}
