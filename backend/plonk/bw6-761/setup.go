@@ -94,7 +94,8 @@ type ProvingKey struct {
 	// The polynomials in trace are in canonical basis.
 	trace Trace
 
-	Kzg kzg.ProvingKey
+	Kzg         kzg.ProvingKey
+	KzgLagrange kzg.ProvingKeyLagrange
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
@@ -108,6 +109,7 @@ type ProvingKey struct {
 	Domain [2]fft.Domain
 }
 
+// TODO modify the signature to receive the SRS in Lagrange form (optional argument ?)
 func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
 
 	var pk ProvingKey
@@ -128,6 +130,7 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 		return nil, nil, errors.New("kzg srs is too small")
 	}
 	pk.Kzg = kzgSrs.Pk
+	pk.KzgLagrange = kzg.SrsToLagrangeG1(kzgSrs.Pk, int(vk.Size))
 	vk.Kzg = kzgSrs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
