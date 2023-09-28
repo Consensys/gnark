@@ -23,7 +23,7 @@ import (
 
 	"errors"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/iop"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	"io"
 )
 

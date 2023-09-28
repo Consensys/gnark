@@ -36,7 +36,7 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 
