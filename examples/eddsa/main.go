@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+	"bytes"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/signature/eddsa"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -46,13 +47,16 @@ func main() {
 
     // create a eddsa key pair
     privateKey, err := eddsaCrypto.New(tedwards.BN254, randomness)
+    fmt.Println("Here!")
     publicKey := privateKey.Public()
 
     // note that the message is on 4 bytes
-    msg := []byte{0xde, 0xad, 0xf0, 0x0d}
-
+    msg := []byte{4, 138, 238, 31, 227, 139, 149, 17, 139, 42, 141, 190, 58, 89, 207, 213, 43, 102, 126, 255, 120, 144, 82, 112, 31, 116, 76, 42, 1, 122, 145, 41}
+    //This message errors, not sure why: {0xde, 0xad, 0xf0, 0x0d}
+    fmt.Println(msg)
     // sign the message
     signature, err := privateKey.Sign(msg, hFunc)
+
 
     // verifies signature
     isValid, err := publicKey.Verify(signature, msg, hFunc)
@@ -63,13 +67,20 @@ func main() {
     }
 
     var circuit eddsaCircuit
-    r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+    _r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
     if err != nil {
 	    fmt.Println("error cannot be returned 1")
 	   // return err[0]
     }
 
-    pk, vk, err := groth16.Setup(r1cs)
+    var buf bytes.Buffer
+    _, _ = _r1cs.WriteTo(&buf)
+    fmt.Println("Here2!")
+
+    newR1CS := groth16.NewCS(ecc.BN254)
+    _, _ = newR1CS.ReadFrom(&buf)
+
+    pk, vk, err := groth16.Setup(_r1cs)
     if err != nil {
 	    fmt.Println("error cannot be returned 2")
 	    //return err
@@ -94,7 +105,7 @@ func main() {
     witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
     publicWitness, err := witness.Public()
     // generate the proof
-    proof, err := groth16.Prove(r1cs, pk, witness)
+    proof, err := groth16.Prove(_r1cs, pk, witness)
 
     // verify the proof
     err = groth16.Verify(proof, vk, publicWitness)
