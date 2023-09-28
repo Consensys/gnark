@@ -148,8 +148,8 @@ func longestMostRecentBackRef(d []byte, i int, symb byte, minBackRefAddr, minVia
 				continue
 			}
 
-			currentRunLen := utils.Min(getRunLengthRev(d, j), i-minBackRefAddr)
-			usableRunLen := utils.Min(currentRunLen, runLen)
+			currentRunLen := getRunLengthRev(d, j)
+			usableRunLen := min(currentRunLen, runLen, j-minBackRefAddr)
 			if usableRunLen == longestLen {
 				remainingOptions[j-usableRunLen+1] = struct{}{}
 			} else if usableRunLen > longestLen {

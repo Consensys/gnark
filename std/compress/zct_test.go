@@ -33,6 +33,16 @@ const TestCase = //"705b24/"
 
 //"3c2943/"
 
+func TestFlatHexToBinary(t *testing.T) {
+	in, err := os.ReadFile("bug/data.hex")
+	require.NoError(t, err)
+
+	out, err := hex.DecodeString(string(in))
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile("bug/data.bin", out, 0644))
+}
+
 // TODO Edge case where "compressed" is longer than original data
 
 func TestHexToBinary(t *testing.T) {

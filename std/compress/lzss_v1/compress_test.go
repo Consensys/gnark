@@ -95,8 +95,7 @@ func TestCalldataSymb0(t *testing.T) {
 	}
 }
 
-func TestCalldataSymb0Log(t *testing.T) {
-	const folder = "large"
+func testWithLog(t *testing.T, folder string) {
 	d, err := os.ReadFile("../" + folder + "/data.bin")
 	require.NoError(t, err)
 	var heads []LogHeads
@@ -113,6 +112,14 @@ func TestCalldataSymb0Log(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile("../"+folder+"/data.lzssv1", c, 0644))
 	require.NoError(t, os.WriteFile("../"+folder+"/analytics.csv", []byte(writer.String()), 0644))
+}
+
+func TestCalldataSymb0Log(t *testing.T) {
+	testWithLog(t, "large")
+}
+
+func TestLongBackrefBug(t *testing.T) {
+	testWithLog(t, "bug")
 }
 
 func TestCalldataSymb1(t *testing.T) {
