@@ -296,6 +296,8 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 	<-chDomain0
 	<-chDomain1
 
+	pk.KzgLagrange = kzg.SrsToLagrangeG1(pk.Kzg, int(pk.Domain[0].Cardinality))
+
 	return n + dec.BytesRead(), nil
 
 }

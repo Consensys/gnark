@@ -196,17 +196,17 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 
 	var ql, qr, qm, qo, qk, s1, s2, s3 []fr.Element
 	var qcp [][]fr.Element
-	
-	// TODO @gbotrel: this is a bit ugly, we should probably refactor this. 
+
+	// TODO @gbotrel: this is a bit ugly, we should probably refactor this.
 	// The order of the variables is important, as it matches the order in which they are
-	// encoded in the WriteTo(...) method. 
+	// encoded in the WriteTo(...) method.
 
 	// Note: instead of calling dec.Decode(...) for each of the above variables,
 	// we call AsyncReadFrom when possible which allows to consume bytes from the reader
 	// and perform the decoding in parallel
 
 	type v struct {
-		data *fr.Vector
+		data  *fr.Vector
 		chErr chan error
 	}
 
@@ -225,7 +225,7 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		n2, err, ch := vectors[i].data.AsyncReadFrom(r)
 		n += n2
 		if err != nil {
-			return n, err 
+			return n, err
 		}
 		vectors[i].chErr = ch
 	}
@@ -272,10 +272,11 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		pk.trace.Qcp[i] = iop.NewPolynomial(&qcp[i], canReg)
 	}
 
-
 	// wait for FFT to be precomputed
 	<-chDomain0
 	<-chDomain1
+
+	pk.KzgLagrange = kzg.SrsToLagrangeG1(pk.Kzg, int(pk.Domain[0].Cardinality))
 
 	return n + dec.BytesRead(), nil
 

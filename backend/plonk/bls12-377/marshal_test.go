@@ -23,6 +23,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/iop"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
 	"github.com/consensys/gnark/io"
 	"math/big"
 	"math/rand"
@@ -60,13 +61,14 @@ func (pk *ProvingKey) randomize() {
 	var vk VerifyingKey
 	vk.randomize()
 	pk.Vk = &vk
-	pk.Domain[0] = *fft.NewDomain(64)
-	pk.Domain[1] = *fft.NewDomain(4 * 64)
+	pk.Domain[0] = *fft.NewDomain(32)
+	pk.Domain[1] = *fft.NewDomain(4 * 32)
 
 	pk.Kzg.G1 = make([]curve.G1Affine, 32)
 	for i := range pk.Kzg.G1 {
 		pk.Kzg.G1[i] = randomG1Point()
 	}
+	pk.KzgLagrange = kzg.SrsToLagrangeG1(pk.Kzg, 32)
 
 	n := int(pk.Domain[0].Cardinality)
 	ql := randomScalars(n)
