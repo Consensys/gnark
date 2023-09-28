@@ -50,7 +50,6 @@ func (circuit *eddsaCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-
 	// verify the signature in the cs
 	return Verify(curve, circuit.Signature, circuit.Message, circuit.PublicKey, &mimc)
 }
