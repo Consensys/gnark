@@ -26,6 +26,11 @@ type Curve[S ScalarT, G1El G1ElementT] interface {
 	// ScalarMulBase returns the scalar multiplication of the curve base point
 	// by a scalar. It does not modify the scalar.
 	ScalarMulBase(*S) *G1El
+
+	// MultiScalarMul computes the sum ∑ s_i P_i for the input
+	// scalars s_i and points P_i. It returns an error if the input lengths
+	// mismatch.
+	MultiScalarMul([]*G1El, []*S) (*G1El, error)
 }
 
 // Pairing allows to compute the bi-linear pairing of G1 and G2 elements.
@@ -47,4 +52,7 @@ type Pairing[G1El any, G2El any, GtEl any] interface {
 	// PairingCheck asserts that the pairing result is 1. It returns an error
 	// when the inputs are of mismatching length. It does not modify the inputs.
 	PairingCheck([]*G1El, []*G2El) error
+
+	// AssertIsEqual asserts the equality of the inputs.
+	AssertIsEqual(*GtEl, *GtEl)
 }

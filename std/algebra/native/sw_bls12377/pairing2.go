@@ -1,6 +1,8 @@
 package sw_bls12377
 
 import (
+	"fmt"
+
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
@@ -53,6 +55,24 @@ func (c *Curve) ScalarMulBase(scalar *frontend.Variable) *G1Affine {
 	res := new(G1Affine)
 	res.ScalarMulBase(c.api, *scalar)
 	return res
+}
+
+func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*frontend.Variable) (*G1Affine, error) {
+	if len(P) != len(scalars) {
+		return nil, fmt.Errorf("mismatching points and scalars slice lengths")
+	}
+	if len(P) == 0 {
+		return &G1Affine{
+			X: 0,
+			Y: 0,
+		}, nil
+	}
+	res := c.ScalarMul(P[0], scalars[0])
+	for i := 1; i < len(P); i++ {
+		q := c.ScalarMul(P[i], scalars[i])
+		c.Add(res, q)
+	}
+	return res, nil
 }
 
 type Pairing struct {
@@ -113,6 +133,10 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	one.SetOne()
 	res.AssertIsEqual(p.api, one)
 	return nil
+}
+
+func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
+	e1.AssertIsEqual(p.api, *e2)
 }
 
 func NewG1Affine(v bls12377.G1Affine) G1Affine {
