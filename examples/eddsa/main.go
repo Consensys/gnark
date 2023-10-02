@@ -67,6 +67,8 @@ func main() {
     }
 
     var circuit eddsaCircuit
+    circuit.curveID = tedwards.BN254
+    fmt.Println("Here2!")
     _r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
     if err != nil {
 	    fmt.Println("error cannot be returned 1")
@@ -75,7 +77,6 @@ func main() {
 
     var buf bytes.Buffer
     _, _ = _r1cs.WriteTo(&buf)
-    fmt.Println("Here2!")
 
     newR1CS := groth16.NewCS(ecc.BN254)
     _, _ = newR1CS.ReadFrom(&buf)
