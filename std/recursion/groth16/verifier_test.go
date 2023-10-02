@@ -6,11 +6,16 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/backend/groth16"
+	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
+	groth16backend_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/hash/sha2"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -43,6 +48,21 @@ func (c *InnerCircuitSHA2) Define(api frontend.API) error {
 	return nil
 }
 
+type InnerCircuitEmulation struct {
+	P, Q emulated.Element[emparams.Goldilocks]
+	N    emulated.Element[emparams.Goldilocks] `gnark:",public"`
+}
+
+func (c *InnerCircuitEmulation) Define(api frontend.API) error {
+	f, err := emulated.NewField[emparams.Goldilocks](api)
+	if err != nil {
+		return err
+	}
+	res := f.Mul(&c.P, &c.Q)
+	f.AssertIsEqual(res, &c.N)
+	return nil
+}
+
 // BN254-in-BN254 using field emulation
 type OuterCircuitBN254 struct {
 	Proof        Proof[sw_bn254.G1Affine, sw_bn254.G2Affine]
@@ -60,35 +80,59 @@ func (c *OuterCircuitBN254) Define(api frontend.API) error {
 		return fmt.Errorf("new pairing: %w", err)
 	}
 	verifier := NewVerifier(curve, pairing)
-	verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
-	return nil
+	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
+	return err
 }
 
 func TestBN254BN254(t *testing.T) {
 	assert := test.NewAssert(t)
-	preimage, digest := getPreimageAndDigest()
-	// inner proof
-	innerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &InnerCircuitSHA2{})
+
+	innerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &InnerCircuitEmulation{})
 	assert.NoError(err)
 	innerPK, innerVK, err := groth16.Setup(innerCcs)
 	assert.NoError(err)
-	innerAssignment := &InnerCircuitSHA2{}
-	copy(innerAssignment.PreImage[:], uints.NewU8Array(preimage[:]))
-	copy(innerAssignment.Digest[:], uints.NewU8Array(digest[:]))
+
+	// inner proof
+	innerAssignment := &InnerCircuitEmulation{
+		P: emulated.ValueOf[emparams.Goldilocks](3),
+		Q: emulated.ValueOf[emparams.Goldilocks](5),
+		N: emulated.ValueOf[emparams.Goldilocks](15),
+	}
 	witness, err := frontend.NewWitness(innerAssignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
 	proof, err := groth16.Prove(innerCcs, innerPK, witness)
 	assert.NoError(err)
+	pubWitness, err := witness.Public()
+	assert.NoError(err)
+	err = groth16.Verify(proof, innerVK, pubWitness)
+	assert.NoError(err)
 
-	// innerVKTyped, ok := innerVK.(*groth16_bn254.VerifyingKey)
+	// outer proof
+	circuitVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVK)
+	assert.NoError(err)
 	circuitWitness, err := ValueOfWitness[emulated.Element[emparams.BN254Fr]](witness)
 	assert.NoError(err)
-	_ = circuitWitness
-	// outerAssignment := &OuterCircuitBN254{
-	// 	InnerWitness: ValueOfWitness[emulated.Element[emparams.BN254Fr]](),
-	// }
+	circuitProof, err := ValueOfProof[sw_bn254.G1Affine, sw_bn254.G2Affine](proof)
+	assert.NoError(err)
+	outerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &OuterCircuitBN254{InnerWitness: circuitWitness.ToPlaceholder(), VerifyingKey: circuitVk.ToPlaceholder()})
+	assert.NoError(err)
+	outerPK, outerVK, err := groth16.Setup(outerCcs)
+	assert.NoError(err)
 
-	_, _ = proof, innerVK
+	outerAssignment := &OuterCircuitBN254{
+		InnerWitness: circuitWitness,
+		Proof:        circuitProof,
+		VerifyingKey: circuitVk,
+	}
+
+	outerWitness, err := frontend.NewWitness(outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	outerProof, err := groth16.Prove(outerCcs, outerPK, outerWitness)
+	assert.NoError(err)
+	pubOuterWitness, err := outerWitness.Public()
+	assert.NoError(err)
+	err = groth16.Verify(outerProof, outerVK, pubOuterWitness)
+	assert.NoError(err)
 }
 
 // BLS12377-in-BW6 using 2-chain
@@ -97,4 +141,79 @@ func getPreimageAndDigest() (preimage [9]byte, digest [32]byte) {
 	copy(preimage[:], []byte("recursion"))
 	digest = sha256.Sum256(preimage[:])
 	return
+}
+
+type WitnessCircut struct {
+	A emulated.Element[emparams.Secp256k1Fr] `gnark:",public"`
+}
+
+func (c *WitnessCircut) Define(frontend.API) error { return nil }
+
+func TestValueOfWitness(t *testing.T) {
+	assignment := WitnessCircut{
+		A: emulated.ValueOf[emparams.Secp256k1Fr]("1234"),
+	}
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+		assert.NoError(err)
+		ww, err := ValueOfWitness[emulated.Element[emparams.BN254Fr]](w)
+		assert.NoError(err)
+		_ = ww
+	}, "bn")
+	assert.Run(func(assert *test.Assert) {
+		w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+		assert.NoError(err)
+		ww, err := ValueOfWitness[sw_bls12377.Scalar](w)
+		assert.NoError(err)
+		_ = ww
+	}, "bls12377")
+}
+
+func TestValueOfProof(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		_, _, G1, G2 := bn254.Generators()
+		proof := groth16backend_bn254.Proof{
+			Ar:  G1,
+			Krs: G1,
+			Bs:  G2,
+		}
+		assignment, err := ValueOfProof[sw_bn254.G1Affine, sw_bn254.G2Affine](&proof)
+		assert.NoError(err)
+		_ = assignment
+	}, "bn-in-bn")
+	assert.Run(func(assert *test.Assert) {
+		_, _, G1, G2 := bls12377.Generators()
+		proof := groth16backend_bls12377.Proof{
+			Ar:  G1,
+			Krs: G1,
+			Bs:  G2,
+		}
+		assignment, err := ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](&proof)
+		assert.NoError(err)
+		_ = assignment
+	}, "bls12-in-bw6")
+}
+
+func TestValueOfVerifyingKey(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
+		assert.NoError(err)
+		_, vk, err := groth16.Setup(ccs)
+		assert.NoError(err)
+		vvk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](vk)
+		assert.NoError(err)
+		_ = vvk
+	}, "bn")
+	assert.Run(func(assert *test.Assert) {
+		ccs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
+		assert.NoError(err)
+		_, vk, err := groth16.Setup(ccs)
+		assert.NoError(err)
+		vvk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](vk)
+		assert.NoError(err)
+		_ = vvk
+	}, "bls12377")
 }
