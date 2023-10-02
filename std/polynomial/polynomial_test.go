@@ -1,15 +1,16 @@
 package polynomial
 
 import (
+	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/test"
 	"testing"
-)
 
-var solvingSucceededOptions = []test.TestingOption{test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16)}
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/test"
+)
 
 type evalPolyCircuit struct {
 	P          []frontend.Variable `gnark:",public"`
@@ -33,7 +34,7 @@ func testEvalPoly(t *testing.T, p []int64, at int64, evaluation int64) {
 		Evaluation: evaluation,
 	}
 
-	assert.SolvingSucceeded(&evalPolyCircuit{P: make(Polynomial, len(p))}, &witness, solvingSucceededOptions...)
+	assert.CheckCircuit(&evalPolyCircuit{P: make(Polynomial, len(p))}, test.WithValidAssignment(&witness))
 }
 
 func TestEvalPoly(t *testing.T) {
@@ -48,17 +49,17 @@ type evalDeltasCircuit struct {
 func (c *evalDeltasCircuit) Define(api frontend.API) error {
 	observedDeltas := computeDeltaAtNaive(api, c.At, len(c.ExpectedDeltas))
 	for i := range c.ExpectedDeltas {
-		fmt.Println("assert for delta_", i)
 		api.AssertIsEqual(observedDeltas[i], c.ExpectedDeltas[i])
 	}
 	return nil
 }
 
 func testEvalDeltas(t *testing.T, at int64, expected []int64) {
-	test.NewAssert(t).SolvingSucceeded(
+
+	test.NewAssert(t).CheckCircuit(
 		&evalDeltasCircuit{ExpectedDeltas: make([]frontend.Variable, len(expected))},
-		&evalDeltasCircuit{ExpectedDeltas: int64SliceToVariableSlice(expected), At: at},
-		solvingSucceededOptions...,
+
+		test.WithValidAssignment(&evalDeltasCircuit{ExpectedDeltas: int64SliceToVariableSlice(expected), At: at}),
 	)
 }
 
@@ -68,6 +69,32 @@ func TestEvalDeltasLinear(t *testing.T) {
 
 func TestEvalDeltasQuadratic(t *testing.T) {
 	testEvalDeltas(t, 3, []int64{1, -3, 3})
+}
+
+type foldMultiLinCircuit struct {
+	M      []frontend.Variable
+	At     frontend.Variable
+	Result []frontend.Variable
+}
+
+func (c *foldMultiLinCircuit) Define(api frontend.API) error {
+	if len(c.M) != 2*len(c.Result) {
+		return errors.New("folding size mismatch")
+	}
+	m := MultiLin(c.M)
+	m.fold(api, c.At)
+	for i := range c.Result {
+		api.AssertIsEqual(m[i], c.Result[i])
+	}
+	return nil
+}
+
+func TestFoldSmall(t *testing.T) {
+	test.NewAssert(t).CheckCircuit(
+		&foldMultiLinCircuit{M: make([]frontend.Variable, 4), Result: make([]frontend.Variable, 2)},
+
+		test.WithValidAssignment(&foldMultiLinCircuit{M: []frontend.Variable{0, 1, 2, 3}, At: 2, Result: []frontend.Variable{4, 5}}),
+	)
 }
 
 type evalMultiLinCircuit struct {
@@ -93,7 +120,7 @@ func TestEvalMultiLin(t *testing.T) {
 		Evaluation: 17,
 	}
 
-	assert.SolvingSucceeded(&evalMultiLinCircuit{M: make(MultiLin, 4), At: make([]frontend.Variable, 2)}, &witness, test.WithCurves(ecc.BN254))
+	assert.CheckCircuit(&evalMultiLinCircuit{M: make(MultiLin, 4), At: make([]frontend.Variable, 2)}, test.WithValidAssignment(&witness))
 }
 
 type evalEqCircuit struct {
@@ -117,7 +144,7 @@ func TestEvalEq(t *testing.T) {
 		Eq: 148665,
 	}
 
-	assert.SolvingSucceeded(&evalEqCircuit{X: make([]frontend.Variable, 4), Y: make([]frontend.Variable, 4)}, &witness, test.WithCurves(ecc.BN254))
+	assert.CheckCircuit(&evalEqCircuit{X: make([]frontend.Variable, 4), Y: make([]frontend.Variable, 4)}, test.WithValidAssignment(&witness))
 }
 
 type interpolateLDECircuit struct {
@@ -133,10 +160,11 @@ func (c *interpolateLDECircuit) Define(api frontend.API) error {
 }
 
 func testInterpolateLDE(t *testing.T, at int64, values []int64, expectedInterpolation int64) {
-	test.NewAssert(t).ProverSucceeded(
+
+	test.NewAssert(t).CheckCircuit(
 		&interpolateLDECircuit{Values: make([]frontend.Variable, len(values))},
-		&interpolateLDECircuit{At: at, Values: int64SliceToVariableSlice(values), ExpectedInterpolation: expectedInterpolation},
-		solvingSucceededOptions...,
+
+		test.WithValidAssignment(&interpolateLDECircuit{At: at, Values: int64SliceToVariableSlice(values), ExpectedInterpolation: expectedInterpolation}),
 	)
 }
 
@@ -171,7 +199,6 @@ func TestInterpolateLinearExtension(t *testing.T) {
 }
 
 func TestInterpolateQuadraticExtension(t *testing.T) {
-	fmt.Println("boop boop")
 	// The polynomial is 1 + 2X + 3X²
 	testInterpolateLDE(
 		t,
@@ -203,4 +230,26 @@ func int64SliceToVariableSlice(slice []int64) []frontend.Variable {
 		res = append(res, v)
 	}
 	return res
+}
+
+func ExampleMultiLin_Evaluate() {
+	const logSize = 20
+	const size = 1 << logSize
+	m := MultiLin(make([]frontend.Variable, size))
+	e := MultiLin(make([]frontend.Variable, logSize))
+
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &evalMultiLinCircuit{M: m, At: e, Evaluation: 0})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("r1cs size:", cs.GetNbConstraints())
+
+	cs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &evalMultiLinCircuit{M: m, At: e, Evaluation: 0})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("scs size:", cs.GetNbConstraints())
+
+	// Output: r1cs size: 1048627
+	//scs size: 2097226
 }

@@ -2,6 +2,30 @@ package fields_bls24315
 
 import "github.com/consensys/gnark/frontend"
 
+// Square034 squares a sparse element in Fp24
+func (e *E24) Square034(api frontend.API, x E24) *E24 {
+	var c0, c2, c3 E12
+
+	c0.C0.Sub(api, x.D0.C0, x.D1.C0)
+	c0.C1.Neg(api, x.D1.C1)
+	c0.C2 = E4{E2{0, 0}, E2{0, 0}}
+
+	c3.C0 = x.D0.C0
+	c3.C1.Neg(api, x.D1.C0)
+	c3.C2.Neg(api, x.D1.C1)
+
+	c2.Mul0By01(api, x.D0.C0, x.D1.C0, x.D1.C1)
+	c3.MulBy01(api, c0.C0, c0.C1).Add(api, c3, c2)
+	e.D1.C0.Add(api, c2.C0, c2.C0)
+	e.D1.C1.Add(api, c2.C1, c2.C1)
+
+	e.D0.C0 = c3.C0
+	e.D0.C1.Add(api, c3.C1, c2.C0)
+	e.D0.C2.Add(api, c3.C2, c2.C1)
+
+	return e
+}
+
 // MulBy034 multiplication by sparse element
 func (e *E24) MulBy034(api frontend.API, c3, c4 E4) *E24 {
 

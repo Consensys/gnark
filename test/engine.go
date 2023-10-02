@@ -18,7 +18,6 @@ package test
 
 import (
 	"fmt"
-	"github.com/consensys/gnark/constraint"
 	"math/big"
 	"path/filepath"
 	"reflect"
@@ -26,6 +25,9 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+
+	"github.com/bits-and-blooms/bitset"
+	"github.com/consensys/gnark/constraint"
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
@@ -248,6 +250,60 @@ func (e *engine) Inverse(i1 frontend.Variable) frontend.Variable {
 	if res.ModInverse(e.toBigInt(i1), e.modulus()) == nil {
 		panic("no inverse")
 	}
+	return res
+}
+
+func (e *engine) BatchInvert(in []frontend.Variable) []frontend.Variable {
+	// having a batch invert saves a lot of ops in the test engine (ModInverse is terribly inefficient)
+	_in := make([]*big.Int, len(in))
+	for i := 0; i < len(_in); i++ {
+		_in[i] = e.toBigInt(in[i])
+	}
+
+	_out := e.batchInvert(_in)
+
+	res := make([]frontend.Variable, len(in))
+	for i := 0; i < len(in); i++ {
+		res[i] = _out[i]
+	}
+	return res
+}
+
+func (e *engine) batchInvert(a []*big.Int) []*big.Int {
+	res := make([]*big.Int, len(a))
+	for i := range res {
+		res[i] = new(big.Int)
+	}
+	if len(a) == 0 {
+		return res
+	}
+
+	zeroes := bitset.New(uint(len(a)))
+	accumulator := new(big.Int).SetUint64(1)
+
+	for i := 0; i < len(a); i++ {
+		if a[i].Sign() == 0 {
+			zeroes.Set(uint(i))
+			continue
+		}
+		res[i].Set(accumulator)
+
+		accumulator.Mul(accumulator, a[i])
+		accumulator.Mod(accumulator, e.modulus())
+	}
+
+	accumulator.ModInverse(accumulator, e.modulus())
+
+	for i := len(a) - 1; i >= 0; i-- {
+		if zeroes.Test(uint(i)) {
+			continue
+		}
+		res[i].Mul(res[i], accumulator)
+		res[i].Mod(res[i], e.modulus())
+		accumulator.Mul(accumulator, a[i])
+		accumulator.Mod(accumulator, e.modulus())
+	}
+
 	return res
 }
 
@@ -681,4 +737,28 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 
 func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
 	return fmt.Errorf("not implemented")
+}
+
+// MustBeLessOrEqCst implements method comparing value given by its bits aBits
+// to a bound.
+func (e *engine) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aForDebug frontend.Variable) {
+	v := new(big.Int)
+	for i, b := range aBits {
+		bb, ok := b.(*big.Int)
+		if !ok {
+			panic("not big.Int bit")
+		}
+		if !bb.IsUint64() {
+			panic("given bit large")
+		}
+		bbu := uint(bb.Uint64())
+		if bbu > 1 {
+			fmt.Println(bbu)
+			panic("given bit is not a bit")
+		}
+		v.SetBit(v, i, bbu)
+	}
+	if v.Cmp(bound) > 0 {
+		panic(fmt.Sprintf("%d > %d", v, bound))
+	}
 }

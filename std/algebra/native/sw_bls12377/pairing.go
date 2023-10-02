@@ -53,13 +53,14 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	var l1, l2 lineEvaluation
 	Qacc := make([]G2Affine, n)
 	yInv := make([]frontend.Variable, n)
-	xOverY := make([]frontend.Variable, n)
+	xNegOverY := make([]frontend.Variable, n)
 	for k := 0; k < n; k++ {
 		Qacc[k] = Q[k]
 		// x=0x1ae3a4617c510eac63b05c06ca1493b1a22d9f300f5138f1ef3622fba094800170b5d44300000008508c00000000000
 		// TODO: point P=(x,0) should be ruled out
 		yInv[k] = api.DivUnchecked(1, P[k].Y)
-		xOverY[k] = api.Mul(P[k].X, yInv[k])
+		xNegOverY[k] = api.Mul(P[k].X, yInv[k])
+		xNegOverY[k] = api.Neg(xNegOverY[k])
 	}
 
 	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
@@ -70,7 +71,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	// (assign line to res)
 	Qacc[0], l1 = doubleStep(api, &Qacc[0])
 	// line evaluation at P[0]
-	res.C1.B0.MulByFp(api, l1.R0, xOverY[0])
+	res.C1.B0.MulByFp(api, l1.R0, xNegOverY[0])
 	res.C1.B1.MulByFp(api, l1.R1, yInv[0])
 
 	if n >= 2 {
@@ -79,7 +80,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		Qacc[1], l1 = doubleStep(api, &Qacc[1])
 
 		// line evaluation at P[1]
-		l1.R0.MulByFp(api, l1.R0, xOverY[1])
+		l1.R0.MulByFp(api, l1.R0, xNegOverY[1])
 		l1.R1.MulByFp(api, l1.R1, yInv[1])
 
 		// ℓ × res
@@ -98,7 +99,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		Qacc[2], l1 = doubleStep(api, &Qacc[2])
 
 		// line evaluation at P[1]
-		l1.R0.MulByFp(api, l1.R0, xOverY[2])
+		l1.R0.MulByFp(api, l1.R0, xNegOverY[2])
 		l1.R1.MulByFp(api, l1.R1, yInv[2])
 
 		// ℓ × res
@@ -110,7 +111,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 			Qacc[k], l1 = doubleStep(api, &Qacc[k])
 
 			// line evaluation at P[k]
-			l1.R0.MulByFp(api, l1.R0, xOverY[k])
+			l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
 			l1.R1.MulByFp(api, l1.R1, yInv[k])
 
 			// ℓ × res
@@ -118,7 +119,44 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		}
 	}
 
-	for i := 61; i >= 1; i-- {
+	// i = 61, separately to use a special E12 Square
+	// k = 0
+	// Qacc[0] ← 2Qacc[0] and l1 the tangent ℓ passing 2Qacc[0]
+	Qacc[0], l1 = doubleStep(api, &Qacc[0])
+	// line evaluation at P[0]
+	l1.R0.MulByFp(api, l1.R0, xNegOverY[0])
+	l1.R1.MulByFp(api, l1.R1, yInv[0])
+
+	if n == 1 {
+		res.Square034(api, res)
+		prodLines[0] = res.C0.B0
+		prodLines[1] = res.C0.B1
+		prodLines[2] = res.C0.B2
+		prodLines[3] = res.C1.B0
+		prodLines[4] = res.C1.B1
+		// ℓ × res
+		res = *fields_bls12377.Mul01234By034(api, prodLines, l1.R0, l1.R1)
+
+	} else {
+		res.Square(api, res)
+		// ℓ × res
+		res.MulBy034(api, l1.R0, l1.R1)
+
+	}
+
+	for k := 1; k < n; k++ {
+		// Qacc[k] ← 2Qacc[k] and l1 the tangent ℓ passing 2Qacc[k]
+		Qacc[k], l1 = doubleStep(api, &Qacc[k])
+
+		// line evaluation at P[k]
+		l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
+		l1.R1.MulByFp(api, l1.R1, yInv[k])
+
+		// ℓ × res
+		res.MulBy034(api, l1.R0, l1.R1)
+	}
+
+	for i := 60; i >= 1; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
@@ -129,7 +167,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 				Qacc[k], l1 = doubleStep(api, &Qacc[k])
 
 				// line evaluation at P[k]
-				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
 				l1.R1.MulByFp(api, l1.R1, yInv[k])
 
 				// ℓ × res
@@ -145,9 +183,9 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 			Qacc[k], l1, l2 = doubleAndAddStep(api, &Qacc[k], &Q[k])
 
 			// lines evaluation at P[k]
-			l1.R0.MulByFp(api, l1.R0, xOverY[k])
+			l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
 			l1.R1.MulByFp(api, l1.R1, yInv[k])
-			l2.R0.MulByFp(api, l2.R0, xOverY[k])
+			l2.R0.MulByFp(api, l2.R0, xNegOverY[k])
 			l2.R1.MulByFp(api, l2.R1, yInv[k])
 
 			// ℓ × ℓ
@@ -164,9 +202,9 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		// l2 line through Qacc[k]+Q[k] and Qacc[k]
 		l1, l2 = linesCompute(api, &Qacc[k], &Q[k])
 
-		l1.R0.MulByFp(api, l1.R0, xOverY[k])
+		l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
 		l1.R1.MulByFp(api, l1.R1, yInv[k])
-		l2.R0.MulByFp(api, l2.R0, xOverY[k])
+		l2.R0.MulByFp(api, l2.R0, xNegOverY[k])
 		l2.R1.MulByFp(api, l2.R1, yInv[k])
 
 		// ℓ × ℓ
@@ -256,7 +294,7 @@ func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluat
 		// omit y3 computation
 
 		// compute line1
-	line1.R0.Neg(api, l1)
+	line1.R0 = l1
 	line1.R1.Mul(api, l1, p1.X).Sub(api, line1.R1, p1.Y)
 
 	// compute lambda2 = -lambda1-2*y1/(x3-x1)
@@ -279,7 +317,7 @@ func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluat
 	p.Y = y4
 
 	// compute line2
-	line2.R0.Neg(api, l2)
+	line2.R0 = l2
 	line2.R1.Mul(api, l2, p1.X).Sub(api, line2.R1, p1.Y)
 
 	return p, line1, line2
@@ -311,7 +349,7 @@ func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, lineEvaluation) {
 	p.X = xr
 	p.Y = yr
 
-	line.R0.Neg(api, l)
+	line.R0 = l
 	line.R1.Mul(api, l, p1.X).Sub(api, line.R1, p1.Y)
 
 	return p, line
@@ -334,10 +372,9 @@ func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvalu
 		Sub(api, x3, p1.X).
 		Sub(api, x3, p2.X)
 
-		// omit y3 computation
-
-		// compute line1
-	line1.R0.Neg(api, l1)
+	// omit y3 computation
+	// compute line1
+	line1.R0 = l1
 	line1.R1.Mul(api, l1, p1.X).Sub(api, line1.R1, p1.Y)
 
 	// compute lambda2 = -lambda1-2*y1/(x3-x1)
@@ -347,7 +384,7 @@ func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvalu
 	l2.Add(api, l2, l1).Neg(api, l2)
 
 	// compute line2
-	line2.R0.Neg(api, l2)
+	line2.R0 = l2
 	line2.R1.Mul(api, l2, p1.X).Sub(api, line2.R1, p1.Y)
 
 	return line1, line2
@@ -386,7 +423,20 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 	res.C1.B0.MulByFp(api, precomputedLines[0][62], xOverY)
 	res.C1.B1.MulByFp(api, precomputedLines[1][62], yInv)
 
-	for i := 61; i >= 0; i-- {
+	// i = 61, separately to use a special E12 Square
+	res.Square034(api, res)
+	prodLines[0] = res.C0.B0
+	prodLines[1] = res.C0.B1
+	prodLines[2] = res.C0.B2
+	prodLines[3] = res.C1.B0
+	prodLines[4] = res.C1.B1
+	// line evaluation at P
+	l1.R0.MulByFp(api, precomputedLines[0][61], xOverY)
+	l1.R1.MulByFp(api, precomputedLines[1][61], yInv)
+	// ℓ × res
+	res = *fields_bls12377.Mul01234By034(api, prodLines, l1.R0, l1.R1)
+
+	for i := 60; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)

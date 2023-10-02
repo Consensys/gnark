@@ -353,6 +353,21 @@ func (e *E12) MulBy01(api frontend.API, c0, c1 E4) *E12 {
 	return e
 }
 
+func (e *E12) Mul0By01(api frontend.API, a0, b0, b1 E4) *E12 {
+
+	var t0, c1 E4
+
+	t0.Mul(api, a0, b0)
+	c1.Add(api, b0, b1)
+	c1.Mul(api, c1, a0).Sub(api, c1, t0)
+
+	e.C0 = t0
+	e.C1 = c1
+	e.C2 = E4{E2{0, 0}, E2{0, 0}}
+
+	return e
+}
+
 // Assign a value to self (witness assignment)
 func (e *E12) Assign(a *bls24315.E12) {
 	e.C0.Assign(&a.C0)

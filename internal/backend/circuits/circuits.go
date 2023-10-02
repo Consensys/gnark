@@ -3,7 +3,6 @@ package circuits
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
-
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )

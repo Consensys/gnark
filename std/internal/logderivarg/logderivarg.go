@@ -45,7 +45,7 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash/mimc"
-	"github.com/consensys/gnark/std/internal/multicommit"
+	"github.com/consensys/gnark/std/multicommit"
 )
 
 func init() {
@@ -122,9 +122,23 @@ func Build(api frontend.API, table Table, queries Table) error {
 			lp = api.Add(lp, tmp)
 		}
 		var rp frontend.Variable = 0
+
+		toInvert := make([]frontend.Variable, len(queries))
 		for i := range queries {
-			tmp := api.Inverse(api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i])))
-			rp = api.Add(rp, tmp)
+			toInvert[i] = api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i]))
+		}
+
+		if bapi, ok := api.(frontend.BatchInverter); ok {
+			toInvert = bapi.BatchInvert(toInvert)
+		} else {
+			for i := range toInvert {
+				toInvert[i] = api.Inverse(toInvert[i])
+			}
+		}
+
+		for i := range queries {
+			// tmp := api.Inverse(api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i])))
+			rp = api.Add(rp, toInvert[i])
 		}
 		api.AssertIsEqual(lp, rp)
 		return nil

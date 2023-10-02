@@ -122,6 +122,21 @@ func (e *E6) Mul(api frontend.API, e1, e2 E6) *E6 {
 	return e
 }
 
+func (e *E6) Mul0By01(api frontend.API, a0, b0, b1 E2) *E6 {
+
+	var t0, c1 E2
+
+	t0.Mul(api, a0, b0)
+	c1.Add(api, b0, b1)
+	c1.Mul(api, c1, a0).Sub(api, c1, t0)
+
+	e.B0 = t0
+	e.B1 = c1
+	e.B2 = E2{0, 0}
+
+	return e
+}
+
 // MulByFp2 creates a fp6elmt from fp elmts
 // icube is the imaginary elmt to the cube
 func (e *E6) MulByFp2(api frontend.API, e1 E6, e2 E2) *E6 {

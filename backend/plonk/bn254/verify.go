@@ -25,6 +25,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
@@ -46,6 +47,10 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	log := logger.Logger().With().Str("curve", "bn254").Str("backend", "plonk").Logger()
 	start := time.Now()
 
+	if len(proof.Bsb22Commitments) != len(vk.Qcp) {
+		return errors.New("BSB22 Commitment number mismatch")
+	}
+
 	// pick a hash function to derive the challenge (the same as in the prover)
 	hFunc := sha256.New()
 
@@ -55,7 +60,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", *vk, publicWitness, proof.Bsb22Commitments); err != nil {
+	if err := bindPublicData(&fs, "gamma", vk, publicWitness); err != nil {
 		return err
 	}
 	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
@@ -69,8 +74,13 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		return err
 	}
 
-	// derive alpha from Comm(l), Comm(r), Comm(o), Com(Z)
-	alpha, err := deriveRandomness(&fs, "alpha", &proof.Z)
+	// derive alpha from Comm(l), Comm(r), Comm(o), Com(Z), Bsb22Commitments
+	alphaDeps := make([]*curve.G1Affine, len(proof.Bsb22Commitments)+1)
+	for i := range proof.Bsb22Commitments {
+		alphaDeps[i] = &proof.Bsb22Commitments[i]
+	}
+	alphaDeps[len(alphaDeps)-1] = &proof.Z
+	alpha, err := deriveRandomness(&fs, "alpha", alphaDeps...)
 	if err != nil {
 		return err
 	}
@@ -274,7 +284,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 	return err
 }
 
-func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey, publicInputs []fr.Element, pi2 []kzg.Digest) error {
+func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk *VerifyingKey, publicInputs []fr.Element) error {
 
 	// permutation
 	if err := fs.Bind(challenge, vk.S[0].Marshal()); err != nil {
@@ -303,17 +313,15 @@ func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey
 	if err := fs.Bind(challenge, vk.Qk.Marshal()); err != nil {
 		return err
 	}
-
-	// public inputs
-	for i := 0; i < len(publicInputs); i++ {
-		if err := fs.Bind(challenge, publicInputs[i].Marshal()); err != nil {
+	for i := range vk.Qcp {
+		if err := fs.Bind(challenge, vk.Qcp[i].Marshal()); err != nil {
 			return err
 		}
 	}
 
-	// bsb22 commitment
-	for i := range pi2 {
-		if err := fs.Bind(challenge, pi2[i].Marshal()); err != nil {
+	// public inputs
+	for i := 0; i < len(publicInputs); i++ {
+		if err := fs.Bind(challenge, publicInputs[i].Marshal()); err != nil {
 			return err
 		}
 	}
@@ -349,7 +357,12 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 // Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	funcMap := template.FuncMap{
-		// The name "inc" is what the function will be called in the template text.
+		"hex": func(i int) string {
+			return fmt.Sprintf("0x%x", i)
+		},
+		"mul": func(a, b int) int {
+			return a * b
+		},
 		"inc": func(i int) int {
 			return i + 1
 		},

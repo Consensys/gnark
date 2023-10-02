@@ -11,7 +11,6 @@
 package keccakf
 
 import (
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -50,24 +49,12 @@ var piln = [24]int{
 	15, 23, 19, 13, 12, 2, 20, 14, 22, 9, 6, 1,
 }
 
-// Permute applies Keccak-F permutation on the input a and returns the permuted
-// vector. The input array must consist of 64-bit (unsigned) integers. The
-// returned array also contains 64-bit unsigned integers.
-func Permute(api frontend.API, a [25]frontend.Variable) [25]frontend.Variable {
-	var in [25]uints.U64
-	uapi, err := uints.New[uints.U64](api)
-	if err != nil {
-		panic(err) // TODO: return error instead
-	}
-	for i := range a {
-		in[i] = uapi.ValueOf(a[i])
-	}
-	res := permute(uapi, in)
-	var out [25]frontend.Variable
-	for i := range out {
-		out[i] = uapi.ToValue(res[i])
-	}
-	return out
+// Permute applies Keccak-F permutation on the input and returns the permuted vector.
+// Original input is not modified.
+func Permute(uapi *uints.BinaryField[uints.U64], input [25]uints.U64) [25]uints.U64 {
+	var state [25]uints.U64
+	copy(state[:], input[:])
+	return permute(uapi, state)
 }
 
 func permute(uapi *uints.BinaryField[uints.U64], st [25]uints.U64) [25]uints.U64 {

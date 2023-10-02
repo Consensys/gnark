@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,4 +92,65 @@ func TestDuplicateMul(t *testing.T) {
 
 	_, err = ccs.Solve(w)
 	assert.NoError(err, "solving failed")
+}
+
+type IssueDiv0Circuit struct {
+	A1, B1 frontend.Variable
+	A2, B2 frontend.Variable
+	A3, B3 frontend.Variable
+	A4, B4 frontend.Variable
+
+	Res1, Res2, Res3, Res4, Res5, Res6, Res7, Res8 frontend.Variable
+}
+
+func (c *IssueDiv0Circuit) Define(api frontend.API) error {
+	// case 1
+	t1 := api.Add(api.Mul(0, c.A1), api.Mul(4, c.B1), 0)
+	t2 := api.Add(api.Mul(0, c.A1), api.Mul(5, c.B1), 0)
+
+	// case 2
+	t3 := api.Add(api.Mul(4, c.A2), api.Mul(0, c.B2), 0)
+	t4 := api.Add(api.Mul(5, c.A2), api.Mul(0, c.B2), 0)
+
+	// case 3
+	t5 := api.Add(api.Mul(0, c.A3), api.Mul(0, c.B3), 0)
+	t6 := api.Add(api.Mul(0, c.A3), api.Mul(5, c.B3), 0)
+
+	// case 4
+	t7 := api.Add(api.Mul(0, c.A4), api.Mul(0, c.B4), 0)
+	t8 := api.Add(api.Mul(5, c.A4), api.Mul(0, c.B4), 0)
+
+	// test solver
+	api.AssertIsEqual(t1, c.Res1)
+	api.AssertIsEqual(t2, c.Res2)
+	api.AssertIsEqual(t3, c.Res3)
+	api.AssertIsEqual(t4, c.Res4)
+	api.AssertIsEqual(t5, c.Res5)
+	api.AssertIsEqual(t6, c.Res6)
+	api.AssertIsEqual(t7, c.Res7)
+	api.AssertIsEqual(t8, c.Res8)
+	return nil
+}
+
+func TestExistDiv0(t *testing.T) {
+	assert := test.NewAssert(t)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &IssueDiv0Circuit{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.NoError(err)
+	w, err := frontend.NewWitness(&IssueDiv0Circuit{
+		A1: 11, B1: 21,
+		A2: 11, B2: 21,
+		A3: 11, B3: 21,
+		A4: 11, B4: 21,
+		Res1: 84, Res2: 105,
+		Res3: 44, Res4: 55,
+		Res5: 0, Res6: 105,
+		Res7: 0, Res8: 55,
+	}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	solution, err := ccs.Solve(w)
+	assert.NoError(err)
+	_ = solution
 }
