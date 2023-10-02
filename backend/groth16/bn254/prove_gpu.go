@@ -20,7 +20,6 @@
 package groth16
 
 import (
-	"fmt"
 	"math/big"
 	"time"
 	"unsafe"
@@ -37,8 +36,6 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
-	goicicle "github.com/ingonyama-zk/icicle/goicicle"
-	icicle "github.com/ingonyama-zk/icicle/goicicle/curves/bn254"
 	iciclegnark "github.com/ingonyama-zk/iciclegnark/curves/bn254"
 )
 
@@ -154,9 +151,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		}
 		wireValuesASize := len(wireValuesA)
 		scalarBytes := wireValuesASize * fr.Bytes
-		wireValuesADevicePtr, _ := goicicle.CudaMalloc(scalarBytes)
-		goicicle.CudaMemCpyHtoD[fr.Element](wireValuesADevicePtr, wireValuesA, scalarBytes)
-		iciclegnark.MontConvOnDevice(wireValuesADevicePtr, wireValuesASize, false)
+
+		copyDone := make(chan unsafe.Pointer, 1)
+		iciclegnark.CopyToDevice(wireValuesA, scalarBytes, copyDone)
+		wireValuesADevicePtr := <-copyDone
+
 		wireValuesADevice = iciclegnark.OnDeviceData{
 			P:    wireValuesADevicePtr,
 			Size: wireValuesASize,
@@ -175,9 +174,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		}
 		wireValuesBSize := len(wireValuesB)
 		scalarBytes := wireValuesBSize * fr.Bytes
-		wireValuesBDevicePtr, _ := goicicle.CudaMalloc(scalarBytes)
-		goicicle.CudaMemCpyHtoD[fr.Element](wireValuesBDevicePtr, wireValuesB, scalarBytes)
-		iciclegnark.MontConvOnDevice(wireValuesBDevicePtr, wireValuesBSize, false)
+
+		copyDone := make(chan unsafe.Pointer, 1)
+		iciclegnark.CopyToDevice(wireValuesB, scalarBytes, copyDone)
+		wireValuesBDevicePtr := <-copyDone
+
 		wireValuesBDevice = iciclegnark.OnDeviceData{
 			P:    wireValuesBDevicePtr,
 			Size: wireValuesBSize,
@@ -233,9 +234,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 
 	computeKRS := func() error {
-		// we could NOT split the Krs multiExp in 2, and just append pk.G1.K and pk.G1.Z
-		// however, having similar lengths for our tasks helps with parallelism
-
 		var krs, krs2, p1 curve.G1Jac
 		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
 
@@ -256,11 +254,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		}
 
 		scalarBytes := len(scalars) * fr.Bytes
-		scalars_d, _ := goicicle.CudaMalloc(scalarBytes)
-		goicicle.CudaMemCpyHtoD[fr.Element](scalars_d, scalars, scalarBytes)
-		iciclegnark.MontConvOnDevice(scalars_d, len(scalars), false)
+		
+		copyDone := make(chan unsafe.Pointer, 1)
+		iciclegnark.CopyToDevice(scalars, scalarBytes, copyDone)
+		scalars_d := <-copyDone
+
 		krs, _, err = iciclegnark.MsmOnDevice(scalars_d, pk.G1Device.K, len(scalars), true)
-		goicicle.CudaFree(scalars_d)
+		iciclegnark.FreeDevicePointer(scalars_d)
 		
 		if err != nil {
 			return err
@@ -319,9 +319,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 
 	go func() {
-		goicicle.CudaFree(wireValuesADevice.P)
-		goicicle.CudaFree(wireValuesBDevice.P)
-		goicicle.CudaFree(h)
+		iciclegnark.FreeDevicePointer(wireValuesADevice.P)
+		iciclegnark.FreeDevicePointer(wireValuesBDevice.P)
+		iciclegnark.FreeDevicePointer(h)
 	}()
 
 	return proof, nil
@@ -395,7 +395,7 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey) unsafe.Pointer {
 		a_intt_d := iciclegnark.INttOnDevice(devicePointer, pk.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
 		iciclegnark.NttOnDevice(devicePointer, a_intt_d, pk.DomainDevice.Twiddles, pk.DomainDevice.CosetTable, n, n, sizeBytes, true)
 		computeInttNttDone <- nil
-		goicicle.CudaFree(a_intt_d)
+		iciclegnark.FreeDevicePointer(a_intt_d)
 	}
 
 	go computeInttNttOnDevice(a_device)
@@ -408,12 +408,12 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey) unsafe.Pointer {
 	h := iciclegnark.INttOnDevice(a_device, pk.DomainDevice.TwiddlesInv, pk.DomainDevice.CosetTableInv, n, sizeBytes, true)
 
 	go func() {
-		goicicle.CudaFree(a_device)
-		goicicle.CudaFree(b_device)
-		goicicle.CudaFree(c_device)
+		iciclegnark.FreeDevicePointer(a_device)
+		iciclegnark.FreeDevicePointer(b_device)
+		iciclegnark.FreeDevicePointer(c_device)
 	}()
 
-	icicle.ReverseScalars(h, n)
+	iciclegnark.ReverseScalars(h, n)
 
 	return h
 }

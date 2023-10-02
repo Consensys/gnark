@@ -30,7 +30,6 @@ import (
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/bn254"
-	icicle "github.com/ingonyama-zk/icicle/goicicle/curves/bn254"
 	iciclegnark "github.com/ingonyama-zk/iciclegnark/curves/bn254"
 	"math"
 	"math/big"
@@ -394,14 +393,12 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	go iciclegnark.CopyToDevice(denIcicleArr, sizeBytes, copyDenDone)
 
 	/*************************     Twiddles and Twiddles Inv    ***************************/
-	om_selector := int(math.Log(float64(n)) / math.Log(2))
-	twiddlesInv_d_gen, twddles_err := icicle.GenerateTwiddles(n, om_selector, true)
-
+	twiddlesInv_d_gen, twddles_err := iciclegnark.GenerateTwiddleFactors(n, true)
 	if twddles_err != nil {
 		return twddles_err
 	}
 
-	twiddles_d_gen, twddles_err := icicle.GenerateTwiddles(n, om_selector, false)
+	twiddles_d_gen, twddles_err := iciclegnark.GenerateTwiddleFactors(n, false)
 	if twddles_err != nil {
 		return twddles_err
 	}
