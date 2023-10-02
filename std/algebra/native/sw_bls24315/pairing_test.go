@@ -24,7 +24,6 @@ import (
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
 	"github.com/consensys/gnark/test"
 )
@@ -54,7 +53,7 @@ func TestFinalExp(t *testing.T) {
 	circuit.R = pairingRes
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 }
 
 type pairingBLS24315 struct {
@@ -86,7 +85,7 @@ func TestPairingBLS24315(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -123,7 +122,7 @@ func TestTriplePairingBLS24315(t *testing.T) {
 	witness.Q3.Assign(&Q[2])
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -154,7 +153,7 @@ func TestPairingFixedBLS315(t *testing.T) {
 	witness.P.Assign(&P)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 
 }
 
@@ -209,17 +208,4 @@ func mustbeEq(api frontend.API, fp24 fields_bls24315.E24, e24 *bls24315.GT) {
 	api.AssertIsEqual(fp24.D1.C2.B0.A1, e24.D1.C2.B0.A1)
 	api.AssertIsEqual(fp24.D1.C2.B1.A0, e24.D1.C2.B1.A0)
 	api.AssertIsEqual(fp24.D1.C2.B1.A1, e24.D1.C2.B1.A1)
-}
-
-// bench
-func BenchmarkPairing(b *testing.B) {
-	var c pairingBLS24315
-	ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkTriplePairing(b *testing.B) {
-	var c triplePairingBLS24315
-	ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
 }

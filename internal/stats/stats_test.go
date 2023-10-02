@@ -1,15 +1,16 @@
 package stats
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCircuitStatistics(t *testing.T) {
 	const refPath = "latest.stats"
-	assert := test.NewAssert(t)
+	assert := require.New(t)
 
 	// load reference
 	reference := NewGlobalStats()
@@ -22,7 +23,7 @@ func TestCircuitStatistics(t *testing.T) {
 		// check that we have it.
 		ref, ok := reference.Stats[name]
 		if !ok {
-			assert.Log("warning: no stats for circuit", name)
+			t.Log("warning: no stats for circuit", name)
 			return
 		}
 		for _, curve := range c.Curves {
@@ -32,7 +33,8 @@ func TestCircuitStatistics(t *testing.T) {
 				name := name
 				// copy the circuit now in case assert calls t.Parallel()
 				circuit := c.Circuit
-				assert.Run(func(assert *test.Assert) {
+				t.Run(fmt.Sprintf("%s/%s/%s", name, curve.String(), backendID.String()), func(t *testing.T) {
+					assert := require.New(t)
 					rs := ref[backendID][CurveIdx(curve)]
 
 					s, err := NewSnippetStats(curve, backendID, circuit)
@@ -41,7 +43,7 @@ func TestCircuitStatistics(t *testing.T) {
 					if s != rs {
 						assert.Failf("unexpected stats count", "expected %s (reference), got %s. %s - %s - %s", rs, s, name, backendID.String(), curve.String())
 					}
-				}, name, curve.String(), backendID.String())
+				})
 			}
 		}
 

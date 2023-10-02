@@ -1,7 +1,6 @@
 # Description
 
-<!-- Please include a summary of the changes and the related issue. Please also include relevant motivation and context.
-Note that in most cases the PR should be against the `develop` branch. -->
+<!-- Please include a summary of the changes and the related issue. Please also include relevant motivation and context. -->
 
 Fixes # (issue)
 

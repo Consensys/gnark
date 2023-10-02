@@ -57,13 +57,14 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	Qacc := make([]G2Affine, n)
 	Qneg := make([]G2Affine, n)
 	yInv := make([]frontend.Variable, n)
-	xOverY := make([]frontend.Variable, n)
+	xNegOverY := make([]frontend.Variable, n)
 	for k := 0; k < n; k++ {
 		Qacc[k] = Q[k]
 		Qneg[k].Neg(api, Q[k])
 		// TODO: point P=(x,O) should be ruled out
 		yInv[k] = api.DivUnchecked(1, P[k].Y)
-		xOverY[k] = api.Mul(P[k].X, yInv[k])
+		xNegOverY[k] = api.Mul(P[k].X, yInv[k])
+		xNegOverY[k] = api.Neg(xNegOverY[k])
 	}
 
 	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
@@ -73,7 +74,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	// k = 0, separately to avoid MulBy034 (res × ℓ)
 	// (assign line to res)
 	Qacc[0], l1 = doubleStep(api, &Qacc[0])
-	res.D1.C0.MulByFp(api, l1.R0, xOverY[0])
+	res.D1.C0.MulByFp(api, l1.R0, xNegOverY[0])
 	res.D1.C1.MulByFp(api, l1.R1, yInv[0])
 
 	if n >= 2 {
@@ -82,7 +83,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		Qacc[1], l1 = doubleStep(api, &Qacc[1])
 
 		// line evaluation at P[1]
-		l1.R0.MulByFp(api, l1.R0, xOverY[1])
+		l1.R0.MulByFp(api, l1.R0, xNegOverY[1])
 		l1.R1.MulByFp(api, l1.R1, yInv[1])
 
 		// ℓ × res
@@ -102,7 +103,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 			Qacc[k], l1 = doubleStep(api, &Qacc[k])
 
 			// line evaluation at P[k]
-			l1.R0.MulByFp(api, l1.R0, xOverY[k])
+			l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
 			l1.R1.MulByFp(api, l1.R1, yInv[k])
 
 			// ℓ × res
@@ -124,7 +125,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		l2 = lineCompute(api, &Qacc[k], &Qneg[k])
 
 		// line evaluation at P[k]
-		l2.R0.MulByFp(api, l2.R0, xOverY[k])
+		l2.R0.MulByFp(api, l2.R0, xNegOverY[k])
 		l2.R1.MulByFp(api, l2.R1, yInv[k])
 
 		// Qacc[k] ← Qacc[k]+Q[k] and
@@ -132,7 +133,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		Qacc[k], l1 = addStep(api, &Qacc[k], &Q[k])
 
 		// line evaluation at P[k]
-		l1.R0.MulByFp(api, l1.R0, xOverY[k])
+		l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
 		l1.R1.MulByFp(api, l1.R1, yInv[k])
 
 		// ℓ × res
@@ -153,7 +154,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 				Qacc[k], l1 = doubleStep(api, &Qacc[k])
 
 				// line evaluation at P[k]
-				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
 				l1.R1.MulByFp(api, l1.R1, yInv[k])
 
 				// ℓ × res
@@ -167,14 +168,14 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 				Qacc[k], l1, l2 = doubleAndAddStep(api, &Qacc[k], &Q[k])
 
 				// line evaluation at P[k]
-				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
 				l1.R1.MulByFp(api, l1.R1, yInv[k])
 
 				// ℓ × res
 				res.MulBy034(api, l1.R0, l1.R1)
 
 				// line evaluation at P[k]
-				l2.R0.MulByFp(api, l2.R0, xOverY[k])
+				l2.R0.MulByFp(api, l2.R0, xNegOverY[k])
 				l2.R1.MulByFp(api, l2.R1, yInv[k])
 
 				// ℓ × res
@@ -188,14 +189,14 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 				Qacc[k], l1, l2 = doubleAndAddStep(api, &Qacc[k], &Qneg[k])
 
 				// line evaluation at P[k]
-				l1.R0.MulByFp(api, l1.R0, xOverY[k])
+				l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
 				l1.R1.MulByFp(api, l1.R1, yInv[k])
 
 				// ℓ × res
 				res.MulBy034(api, l1.R0, l1.R1)
 
 				// line evaluation at P[k]
-				l2.R0.MulByFp(api, l2.R0, xOverY[k])
+				l2.R0.MulByFp(api, l2.R0, xNegOverY[k])
 				l2.R1.MulByFp(api, l2.R1, yInv[k])
 
 				// ℓ × res
@@ -214,14 +215,14 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		l1, l2 = linesCompute(api, &Qacc[k], &Qneg[k])
 
 		// line evaluation at P[k]
-		l1.R0.MulByFp(api, l1.R0, xOverY[k])
+		l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
 		l1.R1.MulByFp(api, l1.R1, yInv[k])
 
 		// ℓ × res
 		res.MulBy034(api, l1.R0, l1.R1)
 
 		// line evaluation at P[k]
-		l2.R0.MulByFp(api, l2.R0, xOverY[k])
+		l2.R0.MulByFp(api, l2.R0, xNegOverY[k])
 		l2.R1.MulByFp(api, l2.R1, yInv[k])
 
 		// ℓ × res
@@ -317,7 +318,7 @@ func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluat
 		// omit y3 computation
 
 		// compute line1
-	line1.R0.Neg(api, l1)
+	line1.R0 = l1
 	line1.R1.Mul(api, l1, p1.X).Sub(api, line1.R1, p1.Y)
 
 	// compute lambda2 = -lambda1-2*y1/(x3-x1)
@@ -340,7 +341,7 @@ func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluat
 	p.Y = y4
 
 	// compute line2
-	line2.R0.Neg(api, l2)
+	line2.R0 = l2
 	line2.R1.Mul(api, l2, p1.X).Sub(api, line2.R1, p1.Y)
 
 	return p, line1, line2
@@ -372,7 +373,7 @@ func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, lineEvaluation) {
 	p.X = xr
 	p.Y = yr
 
-	line.R0.Neg(api, l)
+	line.R0 = l
 	line.R1.Mul(api, l, p1.X).Sub(api, line.R1, p1.Y)
 
 	return p, line
@@ -404,7 +405,7 @@ func addStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation) {
 	res.Y = yr
 
 	var line lineEvaluation
-	line.R0.Neg(api, λ)
+	line.R0 = λ
 	line.R1.Mul(api, λ, p1.X)
 	line.R1.Sub(api, line.R1, p1.Y)
 
@@ -428,10 +429,9 @@ func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvalu
 		Sub(api, x3, p1.X).
 		Sub(api, x3, p2.X)
 
-		// omit y3 computation
-
-		// compute line1
-	line1.R0.Neg(api, l1)
+	// omit y3 computation
+	// compute line1
+	line1.R0 = l1
 	line1.R1.Mul(api, l1, p1.X).Sub(api, line1.R1, p1.Y)
 
 	// compute lambda2 = -lambda1-2*y1/(x3-x1)
@@ -441,7 +441,7 @@ func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvalu
 	l2.Add(api, l2, l1).Neg(api, l2)
 
 	// compute line2
-	line2.R0.Neg(api, l2)
+	line2.R0 = l2
 	line2.R1.Mul(api, l2, p1.X).Sub(api, line2.R1, p1.Y)
 
 	return line1, line2
@@ -458,7 +458,7 @@ func lineCompute(api frontend.API, p1, p2 *G2Affine) lineEvaluation {
 	λ.DivUnchecked(api, qypy, qxpx)
 
 	var line lineEvaluation
-	line.R0.Neg(api, λ)
+	line.R0 = λ
 	line.R1.Mul(api, λ, p1.X)
 	line.R1.Sub(api, line.R1, p1.Y)
 
