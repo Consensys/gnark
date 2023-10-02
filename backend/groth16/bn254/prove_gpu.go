@@ -254,14 +254,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		}
 
 		scalarBytes := len(scalars) * fr.Bytes
-		
+
 		copyDone := make(chan unsafe.Pointer, 1)
 		iciclegnark.CopyToDevice(scalars, scalarBytes, copyDone)
 		scalars_d := <-copyDone
 
 		krs, _, err = iciclegnark.MsmOnDevice(scalars_d, pk.G1Device.K, len(scalars), true)
 		iciclegnark.FreeDevicePointer(scalars_d)
-		
+
 		if err != nil {
 			return err
 		}
