@@ -494,90 +494,44 @@ func TestExpc1Fp6(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e6MulBy034 struct {
-	A, B   E6
-	C3, C4 baseEl
+type e6MulBy014 struct {
+	A    E6 `gnark:",public"`
+	W    E6
+	B, C baseEl
 }
 
-func (circuit *e6MulBy034) Define(api frontend.API) error {
+func (circuit *e6MulBy014) Define(api frontend.API) error {
 	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
 	if err != nil {
 		panic(err)
 	}
 	e := NewExt6(nfield)
-	expected := e.MulBy034(&circuit.A, &circuit.C3, &circuit.C4)
-	e.AssertIsEqual(expected, &circuit.B)
+	res := e.MulBy014(&circuit.A, &circuit.B, &circuit.C)
+	e.AssertIsEqual(res, &circuit.W)
 	return nil
 }
 
-func TestMulBy034Fp6(t *testing.T) {
+func TestFp12MulBy014(t *testing.T) {
+
 	assert := test.NewAssert(t)
 	// witness values
-	var a, b bw6761.E6
+	var a, w bw6761.E6
 	_, _ = a.SetRandom()
-	b.Set(&a)
-	var c0, c3, c4 fp.Element
-	c0.SetOne()
-	c3.SetRandom()
-	c4.SetRandom()
-	b.MulBy034(&c0, &c3, &c4)
+	var one, b, c fp.Element
+	one.SetOne()
+	_, _ = b.SetRandom()
+	_, _ = c.SetRandom()
+	w.Set(&a)
+	w.MulBy014(&b, &c, &one)
 
-	witness := e6MulBy034{
-		A:  FromE6(&a),
-		C3: emulated.ValueOf[emulated.BW6761Fp](c3),
-		C4: emulated.ValueOf[emulated.BW6761Fp](c4),
-		B:  FromE6(&b),
+	witness := e6MulBy014{
+		A: FromE6(&a),
+		B: emulated.ValueOf[emulated.BW6761Fp](&b),
+		C: emulated.ValueOf[emulated.BW6761Fp](&c),
+		W: FromE6(&w),
 	}
 
-	err := test.IsSolved(&e6MulBy034{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&e6MulBy014{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
-}
 
-type e6Mul034By034 struct {
-	D3, D4 baseEl
-	C3, C4 baseEl
-	Res    E6
-}
-
-func (circuit *e6Mul034By034) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt6(nfield)
-	expected := e.Mul034By034(&circuit.D3, &circuit.D4, &circuit.C3, &circuit.C4)
-	e.AssertIsEqual(&E6{
-		B0: E3{A0: expected[0], A1: expected[1], A2: expected[2]},
-		B1: E3{A0: expected[3], A1: expected[4], A2: emulated.ValueOf[emulated.BW6761Fp](0)},
-	}, &circuit.Res)
-	return nil
-}
-
-func TestMul034By034Fp6(t *testing.T) {
-	assert := test.NewAssert(t)
-	// witness values
-	var d0, d3, d4, c0, c3, c4, zero fp.Element
-	zero.SetZero()
-	d0.SetOne()
-	d3.SetRandom()
-	d4.SetRandom()
-	c0.SetOne()
-	c3.SetRandom()
-	c4.SetRandom()
-	a := bw6761.E6{
-		B0: bw6761.E3{A0: d0, A1: zero, A2: zero},
-		B1: bw6761.E3{A0: d3, A1: d4, A2: zero},
-	}
-	a.MulBy034(&c0, &c3, &c4)
-
-	witness := e6Mul034By034{
-		D3:  emulated.ValueOf[emulated.BW6761Fp](d3),
-		D4:  emulated.ValueOf[emulated.BW6761Fp](d4),
-		C3:  emulated.ValueOf[emulated.BW6761Fp](c3),
-		C4:  emulated.ValueOf[emulated.BW6761Fp](c4),
-		Res: FromE6(&a),
-	}
-
-	err := test.IsSolved(&e6Mul034By034{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
 }

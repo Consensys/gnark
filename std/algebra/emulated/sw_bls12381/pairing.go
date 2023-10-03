@@ -346,7 +346,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	// i = 62, separately to avoid an E12 Square
 	// (Square(res) = 1² = 1)
 
-	// k = 0, separately to avoid MulBy034 (res × ℓ)
+	// k = 0, separately to avoid MulBy014 (res × ℓ)
 
 	// Qacc[k] ← 3Qacc[k],
 	// l1 the tangent ℓ to 2Q[k]
