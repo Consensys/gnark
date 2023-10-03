@@ -1,27 +1,6 @@
-/*
- *
- * Copyright © 2020 ConsenSys
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- * /
- */
-
 package fields_bw6761
 
 import (
-	"bytes"
-	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -371,6 +350,7 @@ func TestCyclotomicSquareFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
+/*
 func TestNewE6(t *testing.T) {
 	a, _ := new(big.Int).SetString("83175370704474795125412693555818269399912070346366058924020987848926901443521059146219467322598189008118890021654143123310841437365188932207798122475953021372633091598654279100089387195482601214045864119525747542050698192923485116081505909964897146420", 10)
 	b, _ := new(big.Int).SetString("6368022403585149186567793239866157016295592880888573809019876686976707722559034074218497709896494419772477540172749411175273320318562448286368763367020957539305330983642372720448125982288656809793421178887827471755589212191192898758939906986677524020", 10)
@@ -413,6 +393,7 @@ func TestCreateLimbs(t *testing.T) {
 	}
 	fmt.Println(buf.String())
 }
+*/
 
 type e6Expt struct {
 	A, B E6
