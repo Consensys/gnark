@@ -48,6 +48,17 @@ func (c *InnerCircuitSHA2) Define(api frontend.API) error {
 	return nil
 }
 
+type InnerCircuitNative struct {
+	P, Q frontend.Variable
+	N    frontend.Variable `gnark:",public"`
+}
+
+func (c *InnerCircuitNative) Define(api frontend.API) error {
+	res := api.Mul(c.P, c.Q)
+	api.AssertIsEqual(res, c.N)
+	return nil
+}
+
 type InnerCircuitEmulation struct {
 	P, Q emulated.Element[emparams.Goldilocks]
 	N    emulated.Element[emparams.Goldilocks] `gnark:",public"`
@@ -87,16 +98,16 @@ func (c *OuterCircuitBN254) Define(api frontend.API) error {
 func TestBN254BN254(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	innerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &InnerCircuitEmulation{})
+	innerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &InnerCircuitNative{})
 	assert.NoError(err)
 	innerPK, innerVK, err := groth16.Setup(innerCcs)
 	assert.NoError(err)
 
 	// inner proof
-	innerAssignment := &InnerCircuitEmulation{
-		P: emulated.ValueOf[emparams.Goldilocks](3),
-		Q: emulated.ValueOf[emparams.Goldilocks](5),
-		N: emulated.ValueOf[emparams.Goldilocks](15),
+	innerAssignment := &InnerCircuitNative{
+		P: 3,
+		Q: 5,
+		N: 15,
 	}
 	witness, err := frontend.NewWitness(innerAssignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -116,16 +127,15 @@ func TestBN254BN254(t *testing.T) {
 	assert.NoError(err)
 	outerCcs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &OuterCircuitBN254{InnerWitness: circuitWitness.ToPlaceholder(), VerifyingKey: circuitVk.ToPlaceholder()})
 	assert.NoError(err)
-	outerPK, outerVK, err := groth16.Setup(outerCcs)
-	assert.NoError(err)
 
 	outerAssignment := &OuterCircuitBN254{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
 	}
-
 	outerWitness, err := frontend.NewWitness(outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	outerPK, outerVK, err := groth16.Setup(outerCcs)
 	assert.NoError(err)
 	outerProof, err := groth16.Prove(outerCcs, outerPK, outerWitness)
 	assert.NoError(err)
