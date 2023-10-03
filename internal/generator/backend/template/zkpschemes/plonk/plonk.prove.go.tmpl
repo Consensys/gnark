@@ -39,7 +39,7 @@ const (
 	id_O
 	id_Z
 	id_ZS
-	id_Ql 
+	id_Ql
 	id_Qr
 	id_Qm
 	id_Qo
@@ -88,7 +88,6 @@ type Proof struct {
 	// Opening proof of Z at zeta*mu
 	ZShiftedOpening kzg.OpeningProof
 }
-
 
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 
@@ -150,7 +149,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	return instance.proof, nil
 }
 
-
 // represents a Prover instance
 type instance struct {
 	ctx context.Context
@@ -187,7 +185,6 @@ type instance struct {
 
 	// compute numerator data
 	cres, twiddles0, cosetTableRev, twiddlesRev []fr.Element
-	
 
 	// channel to wait for the steps
 	chLRO,
@@ -244,7 +241,7 @@ func (s *instance) initComputeNumerator() error {
 	}
 
 	cosetTable := s.pk.Domain[0].CosetTable
-	twiddles :=  s.pk.Domain[1].Twiddles[0][:n]
+	twiddles := s.pk.Domain[1].Twiddles[0][:n]
 
 	s.cosetTableRev = make([]fr.Element, len(cosetTable))
 	copy(s.cosetTableRev, cosetTable)
@@ -256,7 +253,7 @@ func (s *instance) initComputeNumerator() error {
 
 	close(s.chNumeratorInit)
 
-	return nil 
+	return nil
 }
 
 func (s *instance) initBlindingPolynomials() error {
@@ -267,7 +264,6 @@ func (s *instance) initBlindingPolynomials() error {
 	close(s.chbp)
 	return nil
 }
-
 
 func (s *instance) initBSB22Commitments() {
 	s.commitmentInfo = s.spr.CommitmentInfo.(constraint.PlonkCommitments)
@@ -281,7 +277,6 @@ func (s *instance) initBSB22Commitments() {
 			solver.OverrideHint(s.commitmentInfo[i].HintID, s.bsb22Hint(i)))
 	}
 }
-
 
 // Computing and verifying Bsb22 multi-commits explained in https://hackmd.io/x8KsadW3RRyX7YTCFJIkHg
 func (s *instance) bsb22Hint(commDepth int) solver.Hint {
@@ -342,21 +337,15 @@ func (s *instance) solveConstraints() error {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		s.x[id_L] = iop.NewPolynomial(&evaluationLDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-			ToCanonical(&s.pk.Domain[0], runtime.NumCPU() /3 ).
-			ToRegular()
+		s.x[id_L] = iop.NewPolynomial(&evaluationLDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 		wg.Done()
 	}()
 	go func() {
-		s.x[id_R] = iop.NewPolynomial(&evaluationRDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-			ToCanonical(&s.pk.Domain[0], runtime.NumCPU() /3 ).
-			ToRegular()
+		s.x[id_R] = iop.NewPolynomial(&evaluationRDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 		wg.Done()
 	}()
 
-	s.x[id_O] = iop.NewPolynomial(&evaluationODomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-		ToCanonical(&s.pk.Domain[0], runtime.NumCPU() /3 ).
-		ToRegular()
+	s.x[id_O] = iop.NewPolynomial(&evaluationODomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 
 	wg.Wait()
 
@@ -452,14 +441,13 @@ func (s *instance) deriveGammaAndBeta() error {
 	return nil
 }
 
-// commitToPolyAndBlinding computes the KZG commitment of a polynomial p (large degree)
+// commitToPolyAndBlinding computes the KZG commitment of a polynomial p
+// in Lagrange form (large degree)
 // and add the contribution of a blinding polynomial b (small degree)
+// /!\ The polynomial p is supposed to be in Lagrange form.
 func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G1Affine, err error) {
-	// first we compute the commit contribution of p
-	commit, err = kzg.Commit(p.Coefficients(), s.pk.Kzg)
-	if err != nil {
-		return
-	}
+
+	commit, err = kzg.CommitLagrange(p.Coefficients(), s.pk.KzgLagrange)
 
 	// we add in the blinding contribution
 	n := int(s.pk.Domain[0].Cardinality)
@@ -500,7 +488,6 @@ func (s *instance) evaluateConstraints() (err error) {
 		s.x[id_Qci+2*i+1] = s.cCommitments[i].Clone()
 	}
 
-
 	n := s.pk.Domain[0].Cardinality
 	lone := make([]fr.Element, n)
 	lone[0].SetOne()
@@ -518,10 +505,8 @@ func (s *instance) evaluateConstraints() (err error) {
 	}
 
 	// TODO complete waste of memory find another way to do that
-	identity := make([]fr.Element, n) 
+	identity := make([]fr.Element, n)
 	identity[1].Set(&s.beta)
-
-	
 
 	s.x[id_ID] = iop.NewPolynomial(&identity, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 	s.x[id_LOne] = iop.NewPolynomial(&lone, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
@@ -566,7 +551,7 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 	case <-s.chGammaBeta:
 	}
 
-	// TODO @gbotrel having iop.BuildRatioCopyConstraint return something 
+	// TODO @gbotrel having iop.BuildRatioCopyConstraint return something
 	// with capacity = len() + 4 would avoid extra alloc / copy during openZ
 	s.x[id_Z], err = iop.BuildRatioCopyConstraint(
 		[]*iop.Polynomial{
@@ -577,7 +562,7 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 		s.pk.trace.S,
 		s.beta,
 		s.gamma,
-		iop.Form{Basis: iop.Canonical, Layout: iop.Regular},
+		iop.Form{Basis: iop.Lagrange, Layout: iop.Regular},
 		&s.pk.Domain[0],
 	)
 	if err != nil {
@@ -686,22 +671,20 @@ func (s *instance) computeLinearizedPolynomial() error {
 	case <-s.chH:
 	}
 
-
 	go func() {
 		blzeta = evaluateBlinded(s.x[id_L], s.bp[id_Bl], s.zeta)
 		wg.Done()
 	}()
-	
+
 	go func() {
 		brzeta = evaluateBlinded(s.x[id_R], s.bp[id_Br], s.zeta)
 		wg.Done()
 	}()
-	
+
 	go func() {
 		bozeta = evaluateBlinded(s.x[id_O], s.bp[id_Bo], s.zeta)
 		wg.Done()
 	}()
-
 
 	// wait for Z to be opened at zeta (or ctx.Done())
 	select {
@@ -763,6 +746,10 @@ func (s *instance) batchOpening() error {
 	case <-s.chLinearizedPolynomial:
 	}
 
+	// PrintState(*s.x[id_L])
+	// PrintState(*s.x[id_R])
+	// PrintState(*s.x[id_O])
+
 	polysToOpen[0] = s.foldedH
 	polysToOpen[1] = s.linearizedPolynomial
 	polysToOpen[2] = getBlindedCoefficients(s.x[id_L], s.bp[id_Bl])
@@ -793,7 +780,6 @@ func (s *instance) batchOpening() error {
 
 	return err
 }
-
 
 // evaluate the full set of constraints, all polynomials in x are back in
 // canonical regular form at the end
@@ -854,7 +840,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		return res
 	}
 
-
 	rho := int(s.pk.Domain[1].Cardinality / n)
 	shifters := make([]fr.Element, rho)
 	shifters[0].Set(&s.pk.Domain[1].FrMultiplicativeGen)
@@ -873,15 +858,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	// wait for init go routine
 	<-s.chNumeratorInit
 
-
 	cosetTable := s.pk.Domain[0].CosetTable
-	twiddles :=  s.pk.Domain[1].Twiddles[0][:n]
+	twiddles := s.pk.Domain[1].Twiddles[0][:n]
 
 	// init the result polynomial & buffer
 	cres := s.cres
 	buf := make([]fr.Element, n)
 	var wgBuf sync.WaitGroup
-
 
 	allConstraints := func(i int, u ...fr.Element) fr.Element {
 		// scale S1, S2, S3 by β
@@ -904,7 +887,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		y = s.bp[id_Bz].Evaluate(s.twiddles0[(i+1)%int(n)])
 		u[id_ZS].Add(&u[id_ZS], &y)
 
-
 		a := gateConstraint(u...)
 		b := orderingConstraint(u...)
 		c := ratioLocalConstraint(u...)
@@ -912,13 +894,12 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		return c
 	}
 
-
 	// select the correct scaling vector to scale by shifter[i]
 	selectScalingVector := func(i int, l iop.Layout) []fr.Element {
 		var w []fr.Element
 		if i == 0 {
 			if l == iop.Regular {
-				w = cosetTable 
+				w = cosetTable
 			} else {
 				w = s.cosetTableRev
 			}
@@ -945,7 +926,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
 		for _, q := range s.bp {
 			cq := q.Coefficients()
-			acc := tmp 
+			acc := tmp
 			for j := 0; j < len(cq); j++ {
 				cq[j].Mul(&cq[j], &acc)
 				acc.Mul(&acc, &shifters[i])
@@ -958,13 +939,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		// we could pre-compute theses rho*2 FFTs and store them
 		// at the cost of a huge memory footprint.
 		batchApply(s.x, func(p *iop.Polynomial) {
-			nbTasks := calculateNbTasks(len(s.x) - 1) * 2
+			nbTasks := calculateNbTasks(len(s.x)-1) * 2
 			// shift polynomials to be in the correct coset
 			p.ToCanonical(&s.pk.Domain[0], nbTasks)
-			
+
 			// scale by shifter[i]
 			w := selectScalingVector(i, p.Layout)
-			
+
 			cp := p.Coefficients()
 			utils.Parallelize(len(cp), func(start, end int) {
 				for j := start; j < end; j++ {
@@ -989,15 +970,14 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		go func(i int) {
 			for j := 0; j < int(n); j++ {
 				// we build the polynomial in bit reverse order
-				cres[bits.Reverse64(uint64(rho*j+i)) >> mm] = buf[j]
+				cres[bits.Reverse64(uint64(rho*j+i))>>mm] = buf[j]
 			}
 			wgBuf.Done()
 		}(i)
-		
 
 		tmp.Inverse(&tmp)
 		// bl <- bl *( (s*ωⁱ)ⁿ-1 )s
-		for _, q:= range s.bp {
+		for _, q := range s.bp {
 			cq := q.Coefficients()
 			for j := 0; j < len(cq); j++ {
 				cq[j].Mul(&cq[j], &tmp)
@@ -1008,7 +988,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	// scale everything back
 	go func() {
 		for i := id_ZS; i < len(s.x); i++ {
-			s.x[i] = nil 
+			s.x[i] = nil
 		}
 
 		var cs fr.Element
@@ -1022,18 +1002,16 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			p.ToCanonical(&s.pk.Domain[0], 8).ToRegular()
 			scalePowers(p, cs)
 		})
-		
-		
+
 		for _, q := range s.bp {
 			scalePowers(q, cs)
 		}
-		
+
 		close(s.chRestoreLRO)
 	}()
 
 	// ensure all the goroutines are done
 	wgBuf.Wait()
-
 
 	res := iop.NewPolynomial(&cres, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse})
 
@@ -1041,14 +1019,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 }
 
-
 func calculateNbTasks(n int) int {
-    nbAvailableCPU := runtime.NumCPU() - n
-    if nbAvailableCPU < 0 {
-        nbAvailableCPU = 1
-    }
-    nbTasks := 1 + (nbAvailableCPU / n)
-    return nbTasks
+	nbAvailableCPU := runtime.NumCPU() - n
+	if nbAvailableCPU < 0 {
+		nbAvailableCPU = 1
+	}
+	nbTasks := 1 + (nbAvailableCPU / n)
+	return nbTasks
 }
 
 // batchApply executes fn on all polynomials in x except x[id_ZS] in parallel.
@@ -1079,20 +1056,19 @@ func scalePowers(p *iop.Polynomial, w fr.Element) {
 	}
 }
 
-
 func evaluateBlinded(p, bp *iop.Polynomial, zeta fr.Element) fr.Element {
 	// Get the size of the polynomial
 	n := big.NewInt(int64(p.Size()))
 
 	var pEvaluatedAtZeta fr.Element
-	
+
 	// Evaluate the polynomial and blinded polynomial at zeta
 	chP := make(chan struct{}, 1)
 	go func() {
 		pEvaluatedAtZeta = p.Evaluate(zeta)
 		close(chP)
 	}()
-	
+
 	bpEvaluatedAtZeta := bp.Evaluate(zeta)
 
 	// Multiply the evaluated blinded polynomial by tempElement
@@ -1196,11 +1172,10 @@ func divideByXMinusOne(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomi
 	xnMinusOneInverseLagrangeCoset := evaluateXnMinusOneDomainBigCoset(domains)
 	rho := int(domains[1].Cardinality / domains[0].Cardinality)
 
-
 	r := a.Coefficients()
 	n := uint64(len(r))
 	nn := uint64(64 - bits.TrailingZeros64(n))
-	
+
 	utils.Parallelize(len(r), func(start, end int) {
 		for i := start; i < end; i++ {
 			iRev := bits.Reverse64(uint64(i)) >> nn

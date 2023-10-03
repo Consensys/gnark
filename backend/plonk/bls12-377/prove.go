@@ -360,21 +360,15 @@ func (s *instance) solveConstraints() error {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		s.x[id_L] = iop.NewPolynomial(&evaluationLDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-			ToCanonical(&s.pk.Domain[0], runtime.NumCPU()/3).
-			ToRegular()
+		s.x[id_L] = iop.NewPolynomial(&evaluationLDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 		wg.Done()
 	}()
 	go func() {
-		s.x[id_R] = iop.NewPolynomial(&evaluationRDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-			ToCanonical(&s.pk.Domain[0], runtime.NumCPU()/3).
-			ToRegular()
+		s.x[id_R] = iop.NewPolynomial(&evaluationRDomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 		wg.Done()
 	}()
 
-	s.x[id_O] = iop.NewPolynomial(&evaluationODomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular}).
-		ToCanonical(&s.pk.Domain[0], runtime.NumCPU()/3).
-		ToRegular()
+	s.x[id_O] = iop.NewPolynomial(&evaluationODomainSmall, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 
 	wg.Wait()
 
@@ -470,14 +464,13 @@ func (s *instance) deriveGammaAndBeta() error {
 	return nil
 }
 
-// commitToPolyAndBlinding computes the KZG commitment of a polynomial p (large degree)
+// commitToPolyAndBlinding computes the KZG commitment of a polynomial p
+// in Lagrange form (large degree)
 // and add the contribution of a blinding polynomial b (small degree)
+// /!\ The polynomial p is supposed to be in Lagrange form.
 func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G1Affine, err error) {
-	// first we compute the commit contribution of p
-	commit, err = kzg.Commit(p.Coefficients(), s.pk.Kzg)
-	if err != nil {
-		return
-	}
+
+	commit, err = kzg.CommitLagrange(p.Coefficients(), s.pk.KzgLagrange)
 
 	// we add in the blinding contribution
 	n := int(s.pk.Domain[0].Cardinality)
@@ -592,7 +585,7 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 		s.pk.trace.S,
 		s.beta,
 		s.gamma,
-		iop.Form{Basis: iop.Canonical, Layout: iop.Regular},
+		iop.Form{Basis: iop.Lagrange, Layout: iop.Regular},
 		&s.pk.Domain[0],
 	)
 	if err != nil {
@@ -775,6 +768,10 @@ func (s *instance) batchOpening() error {
 		return errContextDone
 	case <-s.chLinearizedPolynomial:
 	}
+
+	// PrintState(*s.x[id_L])
+	// PrintState(*s.x[id_R])
+	// PrintState(*s.x[id_O])
 
 	polysToOpen[0] = s.foldedH
 	polysToOpen[1] = s.linearizedPolynomial
