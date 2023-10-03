@@ -15,7 +15,7 @@ type curveF emulated.Field[emulated.BW6761Fp]
 
 type Pairing struct {
 	*fields_bw6761.Ext6
-	curveF emulated.Field[emulated.BW6761Fp]
+	curveF *emulated.Field[emulated.BW6761Fp]
 }
 
 func NewPairing(api frontend.API) (*Pairing, error) {
@@ -24,7 +24,8 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
 	return &Pairing{
-		Ext6: fields_bw6761.NewExt6(ba),
+		Ext6:   fields_bw6761.NewExt6(ba),
+		curveF: ba,
 	}, nil
 }
 
@@ -158,10 +159,10 @@ type lineEvaluation struct {
 
 // seed x₀=9586122913090633729
 //
-// x₀+1 in 2-NAF
+// x₀+1 in binary
 var loopCounter1 = [64]int8{
 	0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
 	0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1,
 }
 
@@ -184,7 +185,6 @@ func (pr Pairing) firstLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 	var yInv, xOverY *emulated.Element[emulated.BW6761Fp]
 
 	Qacc := Q
-	QNeg := &G2Affine{X: Q.X, Y: *pr.curveF.Neg(&Q.Y)}
 	// P and Q are supposed to be on G1 and G2 respectively of prime order r.
 	// The point (x,0) is of order 2. But this function does not check
 	// subgroup membership.
@@ -196,9 +196,7 @@ func (pr Pairing) firstLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 		// (∏ᵢfᵢ)²
 		res = pr.Square(res)
 
-		switch loopCounter1[i] {
-
-		case 0:
+		if loopCounter1[i] == 0 {
 			// precompute lines
 			// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
 			Qacc, l1 = pr.doubleStep(Qacc)
@@ -208,7 +206,7 @@ func (pr Pairing) firstLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 			l1.R1 = *pr.curveF.Mul(&l1.R1, yInv)
 			res = pr.MulBy014(res, &l1.R1, &l1.R0)
 
-		case 1:
+		} else {
 			// Qacc ← 2Qacc+Q,
 			// l1 the line ℓ passing Qacc and Q
 			// l2 the line ℓ passing (Qacc+Q) and Qacc
@@ -224,24 +222,6 @@ func (pr Pairing) firstLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 			l2.R1 = *pr.curveF.Mul(&l2.R1, yInv)
 			res = pr.MulBy014(res, &l2.R1, &l2.R0)
 
-		case -1:
-			// Qacc ← 2Qacc-Q,
-			// l1 the line ℓ passing Qacc and -Q
-			// l2 the line ℓ passing (Qacc-Q) and Qacc
-			Qacc, l1, l2 = pr.doubleAndAddStep(Qacc, QNeg)
-
-			// line evaluation at P
-			l1.R0 = *pr.curveF.Mul(&l1.R0, xOverY)
-			l1.R1 = *pr.curveF.Mul(&l1.R1, yInv)
-			res = pr.MulBy014(res, &l1.R1, &l1.R0)
-
-			// line evaluation at P
-			l2.R0 = *pr.curveF.Mul(&l2.R0, xOverY)
-			l2.R1 = *pr.curveF.Mul(&l2.R1, yInv)
-			res = pr.MulBy014(res, &l2.R1, &l2.R0)
-
-		default:
-			return nil, errors.New("invalid loopCounter")
 		}
 	}
 
