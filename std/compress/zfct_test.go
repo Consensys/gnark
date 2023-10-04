@@ -56,7 +56,7 @@ func TestCompressZero255Counter(t *testing.T) {
 	compressed := out.Bytes()
 
 	require.NoError(t, os.WriteFile(TestCase+"data.zfct", compressed, 0644))
-	fmt.Printf("achieved %D%% compression", 100*len(compressed)/len(in))
+	fmt.Printf("achieved %d%% compression", 100*len(compressed)/len(in))
 
 	// decompress and check match
 	var decompressed bytes.Buffer

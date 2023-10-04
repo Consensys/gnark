@@ -22,7 +22,7 @@ func readHex(out *bytes.Buffer, b *[]byte, size int) error {
 
 func expectHexDigit(b *[]byte) (byte, error) {
 	res, err := expect(b, '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-		'a', 'b', 'c', 'D', 'e', 'f')
+		'a', 'b', 'c', 'd', 'e', 'f')
 	if err != nil {
 		return 255, err
 	}
