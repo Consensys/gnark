@@ -163,30 +163,30 @@ func NewGTEl(v bls12377.GT) GT {
 	return GT{
 		C0: fields_bls12377.E6{
 			B0: fields_bls12377.E2{
-				A0: v.C0.B0.A0,
-				A1: v.C0.B0.A1,
+				A0: (fr_bw6761.Element)(v.C0.B0.A0),
+				A1: (fr_bw6761.Element)(v.C0.B0.A1),
 			},
 			B1: fields_bls12377.E2{
-				A0: v.C0.B1.A0,
-				A1: v.C0.B1.A1,
+				A0: (fr_bw6761.Element)(v.C0.B1.A0),
+				A1: (fr_bw6761.Element)(v.C0.B1.A1),
 			},
 			B2: fields_bls12377.E2{
-				A0: v.C0.B2.A0,
-				A1: v.C0.B2.A1,
+				A0: (fr_bw6761.Element)(v.C0.B2.A0),
+				A1: (fr_bw6761.Element)(v.C0.B2.A1),
 			},
 		},
 		C1: fields_bls12377.E6{
 			B0: fields_bls12377.E2{
-				A0: v.C1.B0.A0,
-				A1: v.C1.B0.A1,
+				A0: (fr_bw6761.Element)(v.C1.B0.A0),
+				A1: (fr_bw6761.Element)(v.C1.B0.A1),
 			},
 			B1: fields_bls12377.E2{
-				A0: v.C1.B1.A0,
-				A1: v.C1.B1.A1,
+				A0: (fr_bw6761.Element)(v.C1.B1.A0),
+				A1: (fr_bw6761.Element)(v.C1.B1.A1),
 			},
 			B2: fields_bls12377.E2{
-				A0: v.C1.B2.A0,
-				A1: v.C1.B2.A1,
+				A0: (fr_bw6761.Element)(v.C1.B2.A0),
+				A1: (fr_bw6761.Element)(v.C1.B2.A1),
 			},
 		},
 	}
