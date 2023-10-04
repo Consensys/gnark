@@ -178,23 +178,37 @@ var loopCounter2 = [190]int8{
 	-1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
 }
 
-func (pr Pairing) firstLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
-	res := pr.Ext6.One()
+// MillerLoop computes the Miller loop
+// Naive BW6 Miller loop: Eq (1) in [bw6-post]
+// f_{u+1,Q}(P) * (f_{u^3-u^2-u,Q}(P))^q
+//
+// [https://hackmd.io/@gnark/BW6-761-changes]
+func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 
 	var l1, l2 *lineEvaluation
-	var yInv, xOverY *emulated.Element[emulated.BW6761Fp]
+	var yInv, xNegOverY *emulated.Element[emulated.BW6761Fp]
 
+	// f_{u+1,Q}(P)
+	res1 := pr.Ext6.One()
 	Qacc := Q
-	// P and Q are supposed to be on G1 and G2 respectively of prime order r.
-	// The point (x,0) is of order 2. But this function does not check
-	// subgroup membership.
 	yInv = pr.curveF.Inverse(&P.Y)
-	xOverY = pr.curveF.MulMod(&P.X, yInv)
+	xNegOverY = pr.curveF.MulMod(&P.X, yInv)
+	xNegOverY = pr.curveF.Neg(xNegOverY)
 
-	for i := 62; i >= 0; i-- {
+	// i = 62
+	// precompute lines
+	// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
+	Qacc, l1 = pr.doubleStep(Qacc)
+	// line evaluation at P
+	// and assign line to res1 (R1, R0, 0, 0, 1, 0)
+	res1.B0.A0 = *pr.curveF.Mul(&l1.R1, yInv)
+	res1.B0.A1 = *pr.curveF.Mul(&l1.R0, xNegOverY)
+	res1.B1.A1 = *pr.curveF.One()
+
+	for i := 61; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
-		res = pr.Square(res)
+		res1 = pr.Square(res1)
 
 		if loopCounter1[i] == 0 {
 			// precompute lines
@@ -202,9 +216,9 @@ func (pr Pairing) firstLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 			Qacc, l1 = pr.doubleStep(Qacc)
 
 			// line evaluation at P
-			l1.R0 = *pr.curveF.Mul(&l1.R0, xOverY)
+			l1.R0 = *pr.curveF.Mul(&l1.R0, xNegOverY)
 			l1.R1 = *pr.curveF.Mul(&l1.R1, yInv)
-			res = pr.MulBy014(res, &l1.R1, &l1.R0)
+			res1 = pr.MulBy014(res1, &l1.R1, &l1.R0)
 
 		} else {
 			// Qacc ← 2Qacc+Q,
@@ -213,40 +227,39 @@ func (pr Pairing) firstLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 			Qacc, l1, l2 = pr.doubleAndAddStep(Qacc, Q)
 
 			// line evaluation at P
-			l1.R0 = *pr.curveF.Mul(&l1.R0, xOverY)
+			l1.R0 = *pr.curveF.Mul(&l1.R0, xNegOverY)
 			l1.R1 = *pr.curveF.Mul(&l1.R1, yInv)
-			res = pr.MulBy014(res, &l1.R1, &l1.R0)
+			res1 = pr.MulBy014(res1, &l1.R1, &l1.R0)
 
 			// line evaluation at P
-			l2.R0 = *pr.curveF.Mul(&l2.R0, xOverY)
+			l2.R0 = *pr.curveF.Mul(&l2.R0, xNegOverY)
 			l2.R1 = *pr.curveF.Mul(&l2.R1, yInv)
-			res = pr.MulBy014(res, &l2.R1, &l2.R0)
+			res1 = pr.MulBy014(res1, &l2.R1, &l2.R0)
 
 		}
 	}
 
-	return res, nil
+	// f_{u^3-u^2-u,Q}(P)
+	res2 := pr.Ext6.One()
 
-}
-
-func (pr Pairing) secondLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
-	res := pr.Ext6.One()
-
-	var l1, l2 *lineEvaluation
-	var yInv, xOverY *emulated.Element[emulated.BW6761Fp]
-
-	Qacc := Q
+	Qacc = Q
 	QNeg := &G2Affine{X: Q.X, Y: *pr.curveF.Neg(&Q.Y)}
-	// P and Q are supposed to be on G1 and G2 respectively of prime order r.
-	// The point (x,0) is of order 2. But this function does not check
-	// subgroup membership.
-	yInv = pr.curveF.Inverse(&P.Y)
-	xOverY = pr.curveF.MulMod(&P.X, yInv)
 
-	for i := 188; i >= 0; i-- {
+	// i = 188
+	// precompute lines
+	// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
+	Qacc, l1 = pr.doubleStep(Qacc)
+
+	// line evaluation at P
+	// and assign line to res2 (R1, R0, 0, 0, 1, 0)
+	res2.B0.A0 = *pr.curveF.Mul(&l1.R1, yInv)
+	res2.B0.A1 = *pr.curveF.Mul(&l1.R0, xNegOverY)
+	res2.B1.A1 = *pr.curveF.One()
+
+	for i := 187; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
-		res = pr.Square(res)
+		res2 = pr.Square(res2)
 
 		switch loopCounter2[i] {
 
@@ -256,9 +269,9 @@ func (pr Pairing) secondLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 			Qacc, l1 = pr.doubleStep(Qacc)
 
 			// line evaluation at P
-			l1.R0 = *pr.curveF.Mul(&l1.R0, xOverY)
+			l1.R0 = *pr.curveF.Mul(&l1.R0, xNegOverY)
 			l1.R1 = *pr.curveF.Mul(&l1.R1, yInv)
-			res = pr.MulBy014(res, &l1.R1, &l1.R0)
+			res2 = pr.MulBy014(res2, &l1.R1, &l1.R0)
 
 		case 1:
 			// Qacc ← 2Qacc+Q,
@@ -267,14 +280,14 @@ func (pr Pairing) secondLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 			Qacc, l1, l2 = pr.doubleAndAddStep(Qacc, Q)
 
 			// line evaluation at P
-			l1.R0 = *pr.curveF.Mul(&l1.R0, xOverY)
+			l1.R0 = *pr.curveF.Mul(&l1.R0, xNegOverY)
 			l1.R1 = *pr.curveF.Mul(&l1.R1, yInv)
-			res = pr.MulBy014(res, &l1.R1, &l1.R0)
+			res2 = pr.MulBy014(res2, &l1.R1, &l1.R0)
 
 			// line evaluation at P
-			l2.R0 = *pr.curveF.Mul(&l2.R0, xOverY)
+			l2.R0 = *pr.curveF.Mul(&l2.R0, xNegOverY)
 			l2.R1 = *pr.curveF.Mul(&l2.R1, yInv)
-			res = pr.MulBy014(res, &l2.R1, &l2.R0)
+			res2 = pr.MulBy014(res2, &l2.R1, &l2.R0)
 
 		case -1:
 			// Qacc ← 2Qacc-Q,
@@ -283,37 +296,23 @@ func (pr Pairing) secondLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 			Qacc, l1, l2 = pr.doubleAndAddStep(Qacc, QNeg)
 
 			// line evaluation at P
-			l1.R0 = *pr.curveF.Mul(&l1.R0, xOverY)
+			l1.R0 = *pr.curveF.Mul(&l1.R0, xNegOverY)
 			l1.R1 = *pr.curveF.Mul(&l1.R1, yInv)
-			res = pr.MulBy014(res, &l1.R1, &l1.R0)
+			res2 = pr.MulBy014(res2, &l1.R1, &l1.R0)
 
 			// line evaluation at P
-			l2.R0 = *pr.curveF.Mul(&l2.R0, xOverY)
+			l2.R0 = *pr.curveF.Mul(&l2.R0, xNegOverY)
 			l2.R1 = *pr.curveF.Mul(&l2.R1, yInv)
-			res = pr.MulBy014(res, &l2.R1, &l2.R0)
+			res2 = pr.MulBy014(res2, &l2.R1, &l2.R0)
 
 		default:
 			return nil, errors.New("invalid loopCounter")
 		}
 	}
 
-	return res, nil
+	res2 = pr.Frobenius(res2)
 
-}
-
-// MillerLoop computes the Miller loop
-// Naive BW6 Miller loop: Eq (1) in [bw6-post]
-// f_{u+1,Q}(P) * (f_{u^3-u^2-u,Q}(P))^q
-//
-// [https://hackmd.io/@gnark/BW6-761-changes]
-func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
-	// f_{u+1,Q}(P)
-	ml1, _ := pr.firstLoop(P, Q)
-	// f_{u^3-u^2-u,Q}(P)
-	ml2, _ := pr.secondLoop(P, Q)
-	ml := pr.Frobenius(ml2)
-	ml = pr.Mul(ml, ml1)
-	return ml, nil
+	return pr.Mul(res1, res2), nil
 }
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
@@ -336,7 +335,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation
 	// omit y3 computation
 
 	// compute line1
-	line1.R0 = *pr.curveF.Neg(l1)
+	line1.R0 = *l1
 	line1.R1 = *pr.curveF.Mul(l1, &p1.X)
 	line1.R1 = *pr.curveF.Sub(&line1.R1, &p1.Y)
 
@@ -361,7 +360,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation
 	p.Y = *y4
 
 	// compute line2
-	line2.R0 = *pr.curveF.Neg(l2)
+	line2.R0 = *l2
 	line2.R1 = *pr.curveF.Mul(l2, &p1.X)
 	line2.R1 = *pr.curveF.Sub(&line2.R1, &p1.Y)
 
@@ -395,7 +394,7 @@ func (pr Pairing) doubleStep(p1 *G2Affine) (*G2Affine, *lineEvaluation) {
 	p.X = *xr
 	p.Y = *yr
 
-	line.R0 = *pr.curveF.Neg(λ)
+	line.R0 = *λ
 	line.R1 = *pr.curveF.Mul(λ, &p1.X)
 	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
 
@@ -427,7 +426,7 @@ func (pr Pairing) addStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation) {
 	res.Y = *yr
 
 	var line lineEvaluation
-	line.R0 = *pr.curveF.Neg(λ)
+	line.R0 = *λ
 	line.R1 = *pr.curveF.Mul(λ, &p1.X)
 	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
 
@@ -444,7 +443,7 @@ func (pr Pairing) lineCompute(p1, p2 *G2Affine) *lineEvaluation {
 	λ := pr.curveF.Div(qypy, qxpx)
 
 	var line lineEvaluation
-	line.R0 = *pr.curveF.Neg(λ)
+	line.R0 = *λ
 	line.R1 = *pr.curveF.Mul(λ, &p1.X)
 	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
 
