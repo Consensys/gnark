@@ -11,6 +11,7 @@ import (
 	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
 	groth16backend_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
@@ -56,10 +57,10 @@ type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra
 	G2 struct{ GammaNeg, DeltaNeg G2El }
 }
 
-func (vk *VerifyingKey[G1El, G2El, GtEl]) ToPlaceholder() VerifyingKey[G1El, G2El, GtEl] {
+func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](ccs constraint.ConstraintSystem) VerifyingKey[G1El, G2El, GtEl] {
 	return VerifyingKey[G1El, G2El, GtEl]{
 		G1: struct{ K []G1El }{
-			K: make([]G1El, len(vk.G1.K)),
+			K: make([]G1El, ccs.GetNbPublicVariables()),
 		},
 	}
 }
@@ -122,6 +123,12 @@ type Witness[S algebra.ScalarT] struct {
 func (w *Witness[S]) ToPlaceholder() Witness[S] {
 	return Witness[S]{
 		Public: make([]S, len(w.Public)),
+	}
+}
+
+func PlaceholderWitness[S algebra.ScalarT](ccs constraint.ConstraintSystem) Witness[S] {
+	return Witness[S]{
+		Public: make([]S, ccs.GetNbPublicVariables()-1),
 	}
 }
 
