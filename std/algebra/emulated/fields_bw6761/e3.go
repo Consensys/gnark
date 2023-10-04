@@ -121,9 +121,9 @@ func (e Ext3) Conjugate(x *E3) *E3 {
 
 // MulByElement multiplies an element in *E3 by an element in fp
 func (e Ext3) MulByElement(x *E3, y *baseEl) *E3 {
-	a0 := e.fp.MulMod(&x.A0, y)
-	a1 := e.fp.MulMod(&x.A1, y)
-	a2 := e.fp.MulMod(&x.A2, y)
+	a0 := e.fp.Mul(&x.A0, y)
+	a1 := e.fp.Mul(&x.A1, y)
+	a2 := e.fp.Mul(&x.A2, y)
 	z := &E3{
 		A0: *a0,
 		A1: *a1,
@@ -146,23 +146,23 @@ func (e Ext3) MulByConstElement(x *E3, y *big.Int) *E3 {
 // MulBy01 multiplication by sparse element (c0,c1,0)
 func (e Ext3) MulBy01(z *E3, c0, c1 *baseEl) *E3 {
 
-	a := e.fp.MulMod(&z.A0, c0)
-	b := e.fp.MulMod(&z.A1, c1)
+	a := e.fp.Mul(&z.A0, c0)
+	b := e.fp.Mul(&z.A1, c1)
 
 	tmp := e.fp.Add(&z.A1, &z.A2)
-	t0 := e.fp.MulMod(c1, tmp)
+	t0 := e.fp.Mul(c1, tmp)
 	t0 = e.fp.Sub(t0, b)
 	t0 = MulByNonResidue(e.fp, t0)
 	t0 = e.fp.Add(t0, a)
 
 	tmp = e.fp.Add(&z.A0, &z.A2)
-	t2 := e.fp.MulMod(c0, tmp)
+	t2 := e.fp.Mul(c0, tmp)
 	t2 = e.fp.Sub(t2, a)
 	t2 = e.fp.Add(t2, b)
 
 	t1 := e.fp.Add(c0, c1)
 	tmp = e.fp.Add(&z.A0, &z.A1)
-	t1 = e.fp.MulMod(t1, tmp)
+	t1 = e.fp.Mul(t1, tmp)
 	t1 = e.fp.Sub(t1, a)
 	t1 = e.fp.Sub(t1, b)
 
@@ -176,15 +176,15 @@ func (e Ext3) MulBy01(z *E3, c0, c1 *baseEl) *E3 {
 // MulBy1 multiplication of E6 by sparse element (0, c1, 0)
 func (e Ext3) MulBy1(z *E3, c1 baseEl) *E3 {
 
-	b := e.fp.MulMod(&z.A1, &c1)
+	b := e.fp.Mul(&z.A1, &c1)
 
 	tmp := e.fp.Add(&z.A1, &z.A2)
-	t0 := e.fp.MulMod(&c1, tmp)
+	t0 := e.fp.Mul(&c1, tmp)
 	t0 = e.fp.Sub(t0, b)
 	t0 = MulByNonResidue(e.fp, t0)
 
 	tmp = e.fp.Add(&z.A0, &z.A1)
-	t1 := e.fp.MulMod(&c1, tmp)
+	t1 := e.fp.Mul(&c1, tmp)
 	t1 = e.fp.Sub(t1, b)
 
 	return &E3{
@@ -236,18 +236,18 @@ func (e Ext3) MulBy12(x *E3, b1, b2 *baseEl) *E3 {
 //		A2: 0,
 //	}
 func (e Ext3) Mul01By01(c0, c1, d0, d1 *baseEl) *E3 {
-	a := e.fp.MulMod(d0, c0)
-	b := e.fp.MulMod(d1, c1)
-	t0 := e.fp.MulMod(c1, d1)
+	a := e.fp.Mul(d0, c0)
+	b := e.fp.Mul(d1, c1)
+	t0 := e.fp.Mul(c1, d1)
 	t0 = e.fp.Sub(t0, b)
 	t0 = MulByNonResidue(e.fp, t0)
 	t0 = e.fp.Add(t0, a)
-	t2 := e.fp.MulMod(c0, d0)
+	t2 := e.fp.Mul(c0, d0)
 	t2 = e.fp.Sub(t2, a)
 	t2 = e.fp.Add(t2, b)
 	t1 := e.fp.Add(c0, c1)
 	tmp := e.fp.Add(d0, d1)
-	t1 = e.fp.MulMod(t1, tmp)
+	t1 = e.fp.Mul(t1, tmp)
 	t1 = e.fp.Sub(t1, a)
 	t1 = e.fp.Sub(t1, b)
 	return &E3{
@@ -260,26 +260,26 @@ func (e Ext3) Mul01By01(c0, c1, d0, d1 *baseEl) *E3 {
 // Mul sets z to the *E3-product of x,y, returns z
 func (e Ext3) Mul(x, y *E3) *E3 {
 	// Algorithm 13 from https://eprint.iacr.org/2010/354.pdf
-	t0 := e.fp.MulMod(&x.A0, &y.A0)
-	t1 := e.fp.MulMod(&x.A1, &y.A1)
-	t2 := e.fp.MulMod(&x.A2, &y.A2)
+	t0 := e.fp.Mul(&x.A0, &y.A0)
+	t1 := e.fp.Mul(&x.A1, &y.A1)
+	t2 := e.fp.Mul(&x.A2, &y.A2)
 
 	c0 := e.fp.Add(&x.A1, &x.A2)
 	tmp := e.fp.Add(&y.A1, &y.A2)
-	c0 = e.fp.MulMod(c0, tmp)
+	c0 = e.fp.Mul(c0, tmp)
 	c0 = e.fp.Sub(c0, t1)
 	c0 = e.fp.Sub(c0, t2)
 	c0 = MulByNonResidue(e.fp, c0)
 
 	tmp = e.fp.Add(&x.A0, &x.A2)
 	c2 := e.fp.Add(&y.A0, &y.A2)
-	c2 = e.fp.MulMod(c2, tmp)
+	c2 = e.fp.Mul(c2, tmp)
 	c2 = e.fp.Sub(c2, t0)
 	c2 = e.fp.Sub(c2, t2)
 
 	c1 := e.fp.Add(&x.A0, &x.A1)
 	tmp = e.fp.Add(&y.A0, &y.A1)
-	c1 = e.fp.MulMod(c1, tmp)
+	c1 = e.fp.Mul(c1, tmp)
 	c1 = e.fp.Sub(c1, t0)
 	c1 = e.fp.Sub(c1, t1)
 	t2 = MulByNonResidue(e.fp, t2)
@@ -301,17 +301,17 @@ func (e Ext3) Square(x *E3) *E3 {
 	// Algorithm 16 from https://eprint.iacr.org/2010/354.pdf
 
 	c6 := e.fp.MulConst(&x.A1, big.NewInt(2))
-	c4 := e.fp.MulMod(&x.A0, c6) // x.A0 * xA1 * 2
-	c5 := e.fp.MulMod(&x.A2, &x.A2)
+	c4 := e.fp.Mul(&x.A0, c6) // x.A0 * xA1 * 2
+	c5 := e.fp.Mul(&x.A2, &x.A2)
 	c1 := MulByNonResidue(e.fp, c5)
 	c1 = e.fp.Add(c1, c4)
 	c2 := e.fp.Sub(c4, c5)
 
-	c3 := e.fp.MulMod(&x.A0, &x.A0)
+	c3 := e.fp.Mul(&x.A0, &x.A0)
 	c4 = e.fp.Sub(&x.A0, &x.A1)
 	c4 = e.fp.Add(c4, &x.A2)
-	c5 = e.fp.MulMod(c6, &x.A2) // x.A1 * xA2 * 2
-	c4 = e.fp.MulMod(c4, c4)
+	c5 = e.fp.Mul(c6, &x.A2) // x.A1 * xA2 * 2
+	c4 = e.fp.Mul(c4, c4)
 	c0 := MulByNonResidue(e.fp, c5)
 	c4 = e.fp.Add(c4, c5)
 	c4 = e.fp.Sub(c4, c3)

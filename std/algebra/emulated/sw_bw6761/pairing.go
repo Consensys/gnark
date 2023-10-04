@@ -434,56 +434,6 @@ func (pr Pairing) addStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation) {
 
 }
 
-// tangentCompute computes the line that goes through p1 and p2 but does not compute p1+p2
-func (pr Pairing) tangentCompute(p1 *G2Affine) *lineEvaluation {
-
-	// λ = 3x²/2y
-	n := pr.curveF.Mul(&p1.X, &p1.X)
-	three := big.NewInt(3)
-	n = pr.curveF.MulConst(n, three)
-	d := pr.curveF.Add(&p1.Y, &p1.Y)
-	λ := pr.curveF.Div(n, d)
-
-	var line lineEvaluation
-	line.R0 = *λ
-	line.R1 = *pr.curveF.Mul(λ, &p1.X)
-	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
-
-	return &line
-
-}
-
-func (pr Pairing) tangentAndLineCompute(p1, p2 *G2Affine) (*lineEvaluation, *lineEvaluation) {
-
-	// compute λ1 = (y2-y1)/(x2-x1)
-	n := pr.curveF.Sub(&p1.Y, &p2.Y)
-	d := pr.curveF.Sub(&p1.X, &p2.X)
-	l1 := pr.curveF.Div(n, d)
-
-	// compute x3 =λ1²-x1-x2
-	x3 := pr.curveF.Mul(l1, l1)
-	x3 = pr.curveF.Sub(x3, &p1.X)
-	x3 = pr.curveF.Sub(x3, &p2.X)
-
-	// compute λ2 = -λ1-2y1/(x3-x1)
-	n = pr.curveF.Add(&p1.Y, &p1.Y)
-	d = pr.curveF.Sub(x3, &p1.X)
-	l2 := pr.curveF.Div(n, d)
-	l2 = pr.curveF.Add(l2, l1)
-	l2 = pr.curveF.Neg(l2)
-
-	var line1, line2 lineEvaluation
-	line1.R0 = *l1
-	line1.R1 = *pr.curveF.Mul(l1, &p1.X)
-	line1.R1 = *pr.curveF.Sub(&line1.R1, &p1.Y)
-	line2.R0 = *l2
-	line2.R1 = *pr.curveF.Mul(l2, &p1.X)
-	line2.R1 = *pr.curveF.Sub(&line2.R1, &p1.Y)
-
-	return &line1, &line2
-
-}
-
 // lineCompute computes the line that goes through p1 and p2 but does not compute p1+p2
 func (pr Pairing) lineCompute(p1, p2 *G2Affine) *lineEvaluation {
 
