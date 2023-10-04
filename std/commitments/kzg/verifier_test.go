@@ -23,7 +23,7 @@ const (
 )
 
 type KZGVerificationCircuit[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {
-	SRS[G2El]
+	VerifyingKey[G2El]
 	Commitment[G1El]
 	OpeningProof[S, G1El]
 }
@@ -37,7 +37,7 @@ func (c *KZGVerificationCircuit[S, G1El, G2El, GTEl]) Define(api frontend.API) e
 	if err != nil {
 		return fmt.Errorf("get pairing: %w", err)
 	}
-	verifier := NewVerifier(c.SRS, curve, pairing)
+	verifier := NewVerifier(c.VerifyingKey, curve, pairing)
 	if err := verifier.AssertProof(c.Commitment, c.OpeningProof); err != nil {
 		return fmt.Errorf("assert proof: %w", err)
 	}
@@ -73,11 +73,11 @@ func TestKZGVerification(t *testing.T) {
 	assert.NoError(err)
 	wProof, err := ValueOfOpeningProof[sw_bn254.Scalar, sw_bn254.G1Affine](point, proof)
 	assert.NoError(err)
-	wSrs, err := ValueOfSRS[sw_bn254.G2Affine](srs)
+	wVk, err := ValueOfVerifyingKey[sw_bn254.G2Affine](srs.Vk)
 	assert.NoError(err)
 
 	assignment := KZGVerificationCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
-		SRS:          wSrs,
+		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
 	}
@@ -113,11 +113,11 @@ func TestKZGBLS12377(t *testing.T) {
 	assert.NoError(err)
 	wProof, err := ValueOfOpeningProof[sw_bls12377.Scalar, sw_bls12377.G1Affine](point, proof)
 	assert.NoError(err)
-	wSrs, err := ValueOfSRS[sw_bls12377.G2Affine](srs)
+	wVk, err := ValueOfVerifyingKey[sw_bls12377.G2Affine](srs.Vk)
 	assert.NoError(err)
 
 	assignment := KZGVerificationCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		SRS:          wSrs,
+		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
 	}
