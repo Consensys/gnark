@@ -11,28 +11,31 @@ import (
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
 
-type KZGVerificationCircuitBN254 struct {
-	SRS [2]sw_bn254.G2Affine
-	Commitment[sw_bn254.G1Affine]
-	OpeningProof[emulated.Element[emparams.BN254Fr], sw_bn254.G1Affine]
+const (
+	kzgSize        = 128
+	polynomialSize = 100
+)
+
+type KZGVerificationCircuit[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {
+	SRS[G2El]
+	Commitment[G1El]
+	OpeningProof[S, G1El]
 }
 
-func (c *KZGVerificationCircuitBN254) Define(api frontend.API) error {
-	curve, err := sw_emulated.New[emparams.BN254Fp, emparams.BN254Fr](api, sw_emulated.GetBN254Params())
+func (c *KZGVerificationCircuit[S, G1El, G2El, GTEl]) Define(api frontend.API) error {
+	curve, err := algebra.GetCurve[S, G1El](api)
 	if err != nil {
-		return fmt.Errorf("new curve: %w", err)
+		return fmt.Errorf("get curve: %w", err)
 	}
-	pairing, err := sw_bn254.NewPairing(api)
+	pairing, err := algebra.GetPairing[G1El, G2El, GTEl](api)
 	if err != nil {
-		return fmt.Errorf("new pairing: %w", err)
+		return fmt.Errorf("get pairing: %w", err)
 	}
 	verifier := NewVerifier(c.SRS, curve, pairing)
 	if err := verifier.AssertProof(c.Commitment, c.OpeningProof); err != nil {
@@ -41,10 +44,8 @@ func (c *KZGVerificationCircuitBN254) Define(api frontend.API) error {
 	return nil
 }
 
-func TestKZGBN254(t *testing.T) {
+func TestKZGVerification(t *testing.T) {
 	assert := test.NewAssert(t)
-	const kzgSize = 128
-	const polynomialSize = 100
 
 	alpha, err := rand.Int(rand.Reader, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -68,43 +69,23 @@ func TestKZGBN254(t *testing.T) {
 		t.Fatal("verify proof", err)
 	}
 
-	assignment := KZGVerificationCircuitBN254{
-		SRS: [2]sw_bn254.G2Affine{
-			sw_bn254.NewG2Affine(srs.Vk.G2[0]),
-			sw_bn254.NewG2Affine(srs.Vk.G2[1]),
-		},
-		Commitment: Commitment[sw_emulated.AffinePoint[emparams.BN254Fp]]{
-			G1El: sw_bn254.NewG1Affine(com),
-		},
-		OpeningProof: OpeningProof[emulated.Element[emparams.BN254Fr], sw_emulated.AffinePoint[emparams.BN254Fp]]{
-			QuotientPoly: sw_bn254.NewG1Affine(proof.H),
-			ClaimedValue: emulated.ValueOf[emparams.BN254Fr](proof.ClaimedValue),
-			Point:        emulated.ValueOf[emparams.BN254Fr](point),
-		},
-	}
-	assert.CheckCircuit(&KZGVerificationCircuitBN254{}, test.WithValidAssignment(&assignment))
-}
+	wCmt, err := ValueOfCommitment[sw_bn254.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bn254.Scalar, sw_bn254.G1Affine](point, proof)
+	assert.NoError(err)
+	wSrs, err := ValueOfSRS[sw_bn254.G2Affine](srs)
+	assert.NoError(err)
 
-type KZGVerificationCircuitBLS12377 struct {
-	SRS [2]sw_bls12377.G2Affine
-	Commitment[sw_bls12377.G1Affine]
-	OpeningProof[frontend.Variable, sw_bls12377.G1Affine]
-}
-
-func (c *KZGVerificationCircuitBLS12377) Define(api frontend.API) error {
-	curve := sw_bls12377.NewCurve(api)
-	pairing := sw_bls12377.NewPairing(api)
-	verifier := NewVerifier(c.SRS, curve, pairing)
-	if err := verifier.AssertProof(c.Commitment, c.OpeningProof); err != nil {
-		return fmt.Errorf("assert proof: %w", err)
+	assignment := KZGVerificationCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		SRS:          wSrs,
+		Commitment:   wCmt,
+		OpeningProof: wProof,
 	}
-	return nil
+	assert.CheckCircuit(&KZGVerificationCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}, test.WithValidAssignment(&assignment))
 }
 
 func TestKZGBLS12377(t *testing.T) {
 	assert := test.NewAssert(t)
-	const kzgSize = 128
-	const polynomialSize = 100
 
 	alpha, err := rand.Int(rand.Reader, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
@@ -128,22 +109,18 @@ func TestKZGBLS12377(t *testing.T) {
 		t.Fatal("verify proof", err)
 	}
 
-	assignment := KZGVerificationCircuitBLS12377{
-		SRS: [2]sw_bls12377.G2Affine{
-			sw_bls12377.NewG2Affine(srs.Vk.G2[0]),
-			sw_bls12377.NewG2Affine(srs.Vk.G2[1]),
-		},
-		Commitment: Commitment[sw_bls12377.G1Affine]{
-			G1El: sw_bls12377.NewG1Affine(com),
-		},
-		OpeningProof: OpeningProof[frontend.Variable, sw_bls12377.G1Affine]{
-			QuotientPoly: sw_bls12377.NewG1Affine(proof.H),
-			// the evaluation point and value are in Fr of BLS12377. However it
-			// is strictly smaller than Fr of BW6. In order to be assignable, we
-			// go to integer form first by taking a `String()`.
-			ClaimedValue: proof.ClaimedValue.String(),
-			Point:        point.String(),
-		},
+	wCmt, err := ValueOfCommitment[sw_bls12377.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bls12377.Scalar, sw_bls12377.G1Affine](point, proof)
+	assert.NoError(err)
+	wSrs, err := ValueOfSRS[sw_bls12377.G2Affine](srs)
+	assert.NoError(err)
+
+	assignment := KZGVerificationCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		SRS:          wSrs,
+		Commitment:   wCmt,
+		OpeningProof: wProof,
 	}
-	assert.CheckCircuit(&KZGVerificationCircuitBLS12377{}, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BW6_761))
+
+	assert.CheckCircuit(&KZGVerificationCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BW6_761))
 }
