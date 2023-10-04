@@ -44,7 +44,7 @@ func (c *KZGVerificationCircuit[S, G1El, G2El, GTEl]) Define(api frontend.API) e
 	return nil
 }
 
-func TestKZGVerification(t *testing.T) {
+func TestKZGVerificationEmulated(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	alpha, err := rand.Int(rand.Reader, ecc.BN254.ScalarField())
@@ -84,7 +84,7 @@ func TestKZGVerification(t *testing.T) {
 	assert.CheckCircuit(&KZGVerificationCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}, test.WithValidAssignment(&assignment))
 }
 
-func TestKZGBLS12377(t *testing.T) {
+func TestKZGVerificationTwoChain(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	alpha, err := rand.Int(rand.Reader, ecc.BLS12_377.ScalarField())
