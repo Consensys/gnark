@@ -120,6 +120,17 @@ func _range(end int) []int {
 	return out
 }
 
+func GetCodeLengths(in compress.Stream) []int {
+	// create frequency table
+	frequencies := make([]int, in.NbSymbs)
+	for _, c := range in.D {
+		frequencies[c]++
+	}
+
+	huffmanTree := CreateTree(frequencies)
+	return huffmanTree.GetCodeSizes(in.NbSymbs)
+}
+
 // Encode encodes the data using Huffman coding, EXTREMELY INEFFICIENTLY
 func Encode(in compress.Stream) compress.Stream {
 	// create frequency table

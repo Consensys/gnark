@@ -22,7 +22,8 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 		LogHeads: &heads,
 	}
 	c, err := Compress(d, settings)
-	cHuff := (huffman.EstimateHuffmanCodeSize(compress.NewStreamFromBytes(c)) + 7) / 8
+	cStream := compress.NewStreamFromBytes(c)
+	cHuff := (huffman.EstimateHuffmanCodeSize(cStream) + 7) / 8
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
 	fmt.Println("Estimated Compression ratio (with Huffman):", float64(len(d))/float64(cHuff))
 	if len(c) > 1024 {
@@ -48,6 +49,15 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 	}
 	printHex(c)
 	require.Equal(t, d, dBack)
+
+	// store huffman code lengths
+	lens := huffman.GetCodeLengths(cStream)
+	var sbb strings.Builder
+	sbb.WriteString("symbol,code-length\n")
+	for i := range lens {
+		sbb.WriteString(fmt.Sprintf("%d,%d\n", i, lens[i]))
+	}
+	require.NoError(t, os.WriteFile("huffman.csv", []byte(sbb.String()), 0644))
 }
 
 func Test8Zeros(t *testing.T) {

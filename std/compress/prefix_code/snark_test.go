@@ -1,10 +1,17 @@
 package prefix_code
 
 import (
+	"encoding/csv"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/require"
+	"os"
+	"strconv"
 	"testing"
 )
 
@@ -28,6 +35,26 @@ func TestDecodeTwoOnes(t *testing.T) {
 		SymbolsLen: 2,
 	}
 	test.NewAssert(t).SolvingSucceeded(assignment.hollow(), &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+}
+
+func BenchmarkDecodeBlob(b *testing.B) {
+	// from current data, expand 114KB into 125KB
+	csvfile, err := os.Open("sample-code.csv")
+	require.NoError(b, err)
+	csvRecs, err := csv.NewReader(csvfile).ReadAll()
+	require.NoError(b, err)
+
+	circuit := huffmanTestCircuit{
+		lengths: getIntColumn(csvRecs, 1),
+		Bits:    make([]frontend.Variable, 114*1024*8),
+		Symbols: make([]frontend.Variable, 125*1024),
+	}
+	_ = circuit
+	p := profile.Start()
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	p.Stop()
+	require.NoError(b, err)
+	fmt.Println(cs.GetNbConstraints(), "constraints")
 }
 
 func TestDecodeTwoSymbs(t *testing.T) {
@@ -68,4 +95,15 @@ func (c *huffmanTestCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(api.Mul(api.Sub(symbols[i], c.Symbols[i]), assert), 0)
 	}
 	return nil
+}
+
+func getIntColumn(csvRecs [][]string, i int) []int {
+	res := make([]int, len(csvRecs)-1)
+	var err error
+	for j := 1; j < len(csvRecs); j++ {
+		if res[j-1], err = strconv.Atoi(csvRecs[j][i]); err != nil {
+			panic(err)
+		}
+	}
+	return res
 }
