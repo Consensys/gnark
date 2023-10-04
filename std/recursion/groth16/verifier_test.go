@@ -193,7 +193,7 @@ func TestValueOfWitness(t *testing.T) {
 		ww, err := ValueOfWitness[sw_bn254.Scalar](w)
 		assert.NoError(err)
 		_ = ww
-	}, "bn")
+	}, "bn254")
 	assert.Run(func(assert *test.Assert) {
 		w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 		assert.NoError(err)
@@ -215,7 +215,7 @@ func TestValueOfProof(t *testing.T) {
 		assignment, err := ValueOfProof[sw_bn254.G1Affine, sw_bn254.G2Affine](&proof)
 		assert.NoError(err)
 		_ = assignment
-	}, "bn-in-bn")
+	}, "bn254")
 	assert.Run(func(assert *test.Assert) {
 		_, _, G1, G2 := bls12377.Generators()
 		proof := groth16backend_bls12377.Proof{
@@ -239,7 +239,7 @@ func TestValueOfVerifyingKey(t *testing.T) {
 		vvk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](vk)
 		assert.NoError(err)
 		_ = vvk
-	}, "bn")
+	}, "bn254")
 	assert.Run(func(assert *test.Assert) {
 		ccs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
 		assert.NoError(err)
