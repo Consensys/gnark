@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
 	"github.com/consensys/gnark/frontend"
@@ -123,4 +125,72 @@ func TestKZGVerificationTwoChain(t *testing.T) {
 	}
 
 	assert.CheckCircuit(&KZGVerificationCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BW6_761))
+}
+
+func TestValueOfCommitment(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		_, _, G1, _ := bn254.Generators()
+		assignment, err := ValueOfCommitment[sw_bn254.G1Affine](G1)
+		assert.NoError(err)
+		_ = assignment
+	}, "bn254")
+	assert.Run(func(assert *test.Assert) {
+		_, _, G1, _ := bls12377.Generators()
+		assignment, err := ValueOfCommitment[sw_bls12377.G1Affine](G1)
+		assert.NoError(err)
+		_ = assignment
+	}, "bls12377")
+}
+
+func TestValueOfOpeningProof(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		_, _, G1, _ := bn254.Generators()
+		var value, point fr_bn254.Element
+		value.SetRandom()
+		point.SetRandom()
+		proof := kzg_bn254.OpeningProof{
+			H:            G1,
+			ClaimedValue: value,
+		}
+		assignment, err := ValueOfOpeningProof[sw_bn254.Scalar, sw_bn254.G1Affine](point, proof)
+		assert.NoError(err)
+		_ = assignment
+	}, "bn254")
+	assert.Run(func(assert *test.Assert) {
+		_, _, G1, _ := bls12377.Generators()
+		var value, point fr_bls12377.Element
+		value.SetRandom()
+		point.SetRandom()
+		proof := kzg_bls12377.OpeningProof{
+			H:            G1,
+			ClaimedValue: value,
+		}
+		assignment, err := ValueOfOpeningProof[sw_bls12377.Scalar, sw_bls12377.G1Affine](point, proof)
+		assert.NoError(err)
+		_ = assignment
+	}, "bls12377")
+}
+
+func TestValueOfSRS(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		_, _, _, G2 := bn254.Generators()
+		vk := kzg_bn254.VerifyingKey{
+			G2: [2]bn254.G2Affine{G2, G2},
+		}
+		assignment, err := ValueOfVerifyingKey[sw_bn254.G2Affine](vk)
+		assert.NoError(err)
+		_ = assignment
+	}, "bn254")
+	assert.Run(func(assert *test.Assert) {
+		_, _, _, G2 := bls12377.Generators()
+		vk := kzg_bls12377.VerifyingKey{
+			G2: [2]bls12377.G2Affine{G2, G2},
+		}
+		assignment, err := ValueOfVerifyingKey[sw_bls12377.G2Affine](vk)
+		assert.NoError(err)
+		_ = assignment
+	}, "bls12377")
 }
