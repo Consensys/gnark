@@ -12,7 +12,7 @@ func Decode(api frontend.API, inBits []frontend.Variable, inLen frontend.Variabl
 	codeLens := logderivlookup.New(api)
 	codeSymbs := logderivlookup.New(api)
 	{
-		lens, symbs := LengthsToTables(symbolLengths)
+		symbs, lens := LengthsToTables(symbolLengths)
 		for i := range symbolLengths {
 			codeLens.Insert(lens[i])
 			codeSymbs.Insert(symbs[i])
@@ -24,6 +24,7 @@ func Decode(api frontend.API, inBits []frontend.Variable, inLen frontend.Variabl
 		in.Insert(inBits[i])
 	}
 
+	outLen = 0
 	toLookUp := make([]frontend.Variable, slices.Max(symbolLengths))
 	inI := frontend.Variable(0)
 	eof := api.IsZero(inLen)
@@ -35,7 +36,7 @@ func Decode(api frontend.API, inBits []frontend.Variable, inLen frontend.Variabl
 		{
 			bits := in.Lookup(toLookUp...)
 			for i := range bits {
-				symbRead = api.MulAcc(bits[len(bits)-i], symbRead, symbRead)
+				symbRead = api.MulAcc(bits[len(bits)-i-1], symbRead, symbRead)
 			}
 		}
 
@@ -54,13 +55,14 @@ func Decode(api frontend.API, inBits []frontend.Variable, inLen frontend.Variabl
 func LengthsToTables(symbolLengths []int) (symbsTable, lengthsTable []uint64) {
 	codes := LengthsToCodes(symbolLengths)
 	maxCodeSize := slices.Max(symbolLengths)
-	symbsTable = make([]uint64, 1<<maxCodeSize)
-	lengthsTable = make([]uint64, 1<<maxCodeSize)
+	symbsTable = make([]uint64, 1<<(maxCodeSize-1))
+	lengthsTable = make([]uint64, 1<<(maxCodeSize-1))
 	for i := range codes {
 		l := symbolLengths[i]
-		for j := 0; j < 1<<(maxCodeSize-l); j++ {
-			symbsTable[codes[i]<<(maxCodeSize-l)+j] = uint64(i)
-			lengthsTable[codes[i]<<(maxCodeSize-l)+j] = uint64(l)
+		base := codes[i] << uint64(maxCodeSize-l)
+		for j := uint64(0); j < 1<<uint64(maxCodeSize-l); j++ {
+			symbsTable[base+j] = uint64(i)
+			lengthsTable[base+j] = uint64(l)
 		}
 	}
 	return
