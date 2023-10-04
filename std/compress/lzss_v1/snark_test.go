@@ -95,6 +95,26 @@ func TestCalldataSnark(t *testing.T) {
 	}
 }
 
+func BenchmarkCompilation64KBSnark(b *testing.B) {
+	c := DecompressionTestCircuit{
+		C: make([]frontend.Variable, 21333),
+		D: make([]byte, 64000),
+		Settings: Settings{
+			BackRefSettings: BackRefSettings{
+				NbBytesAddress: 2,
+				NbBytesLength:  1,
+				Symbol:         0,
+			},
+		},
+	}
+
+	p := profile.Start()
+	_, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	assert.NoError(b, err)
+	p.Stop()
+	fmt.Println(p.NbConstraints(), "constraints")
+}
+
 func BenchmarkCompilation26KBSnark(b *testing.B) {
 	c := DecompressionTestCircuit{
 		C: make([]frontend.Variable, 7000),
