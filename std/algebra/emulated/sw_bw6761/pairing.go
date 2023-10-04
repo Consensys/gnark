@@ -159,18 +159,18 @@ type lineEvaluation struct {
 
 // seed x₀=9586122913090633729
 //
-// x₀ in binary
+// x₀+1 in binary
 var loopCounter1 = [64]int8{
-	1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
 	0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1,
 }
 
-// x₀^2-x₀-1 in 2-NAF
+// (x₀-1)^2 in 2-NAF
 var loopCounter2 = [127]int8{
-	-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1, 0,
-	0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0,
 	1, 0, -1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0,
 	0, 0, 1,
@@ -178,9 +178,9 @@ var loopCounter2 = [127]int8{
 
 // MillerLoop computes the Miller loop
 //
-//	BW6-761 Miller loop: Eq (2') in [bw6-post]
+//	BW6-761 Miller loop: Eq (4') in [bw6-post]
 //
-// f_{u,Q}(P) * l_{[u]Q,Q}(P) * (f_u)^q_{u^2-u-1,[u]Q}(P)
+// f_{u+1,Q}(P) * (f_{u+1})^q_{u^2-2u-1,[u+1]Q}(P) * l^q_{[(u+1)(u^2-2u+1)]Q,-Q}(P)
 //
 // [https://hackmd.io/@gnark/BW6-761-changes]
 func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
@@ -188,7 +188,7 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 	var l1, l2 *lineEvaluation
 	var yInv, xNegOverY *emulated.Element[emulated.BW6761Fp]
 
-	// f1 = f_{u,Q}(P)
+	// f1 = f_{u+1,Q}(P)
 	res1 := pr.Ext6.One()
 	Qacc := Q
 	yInv = pr.curveF.Inverse(&P.Y)
@@ -242,17 +242,11 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 	res1Inv := pr.Conjugate(res1)
 	uQ := Qacc
 
-	l1 = pr.lineCompute(Qacc, Q)
-	l1.R0 = *pr.curveF.Mul(&l1.R0, xNegOverY)
-	l1.R1 = *pr.curveF.Mul(&l1.R1, yInv)
-	// f1 = f1 * l_{uQ,Q}(P)
-	res1 = pr.MulBy014(res1, &l1.R1, &l1.R0)
-
-	// f2 = f_{u^2-u-1,uQ}(P)
+	// f2 = f_{u^2-2u+1,uQ}(P)
 	res2 := res1Old
 	uQNeg := &G2Affine{X: uQ.X, Y: *pr.curveF.Neg(&uQ.Y)}
 
-	for i := 125; i >= 1; i-- {
+	for i := 125; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res2 = pr.Square(res2)
@@ -307,18 +301,12 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 		}
 	}
 
-	// i = 0, separately to avoid a point doubling and an addition
-	res2 = pr.Square(res2)
-	l1, l2 = pr.tangentAndLineCompute(Qacc, uQNeg)
-	// line evaluation at P
+	// l_{(u+1)vQ,-Q}(P)
+	QNeg := &G2Affine{X: Q.X, Y: *pr.curveF.Neg(&Q.Y)}
+	l1 = pr.lineCompute(Qacc, QNeg)
 	l1.R0 = *pr.curveF.Mul(&l1.R0, xNegOverY)
 	l1.R1 = *pr.curveF.Mul(&l1.R1, yInv)
 	res2 = pr.MulBy014(res2, &l1.R1, &l1.R0)
-	// line evaluation at P
-	l2.R0 = *pr.curveF.Mul(&l2.R0, xNegOverY)
-	l2.R1 = *pr.curveF.Mul(&l2.R1, yInv)
-	res2 = pr.MulBy014(res2, &l2.R1, &l2.R0)
-	res2 = pr.Mul(res2, res1Inv)
 
 	// f1 * f2^q
 	res2 = pr.Frobenius(res2)
