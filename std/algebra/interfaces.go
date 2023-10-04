@@ -36,7 +36,7 @@ type Curve[S ScalarT, G1El G1ElementT] interface {
 // Pairing allows to compute the bi-linear pairing of G1 and G2 elements.
 // Additionally, the interface provides steps used in pairing computation and a
 // dedicated optimised pairing check.
-type Pairing[G1El any, G2El any, GtEl any] interface {
+type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 	// MillerLoop computes the Miller loop of the input pairs. It returns error
 	// when the inputs are of mismatching length. It does not modify the inputs.
 	MillerLoop([]*G1El, []*G2El) (*GtEl, error)
