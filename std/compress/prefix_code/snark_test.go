@@ -1,4 +1,4 @@
-package huffman
+package prefix_code
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
@@ -15,6 +15,28 @@ func TestDecodeOneOne(t *testing.T) {
 		Symbols:    []frontend.Variable{0},
 		BitsLen:    1,
 		SymbolsLen: 1,
+	}
+	test.NewAssert(t).SolvingSucceeded(assignment.hollow(), &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+}
+
+func TestDecodeTwoOnes(t *testing.T) {
+	assignment := huffmanTestCircuit{
+		lengths:    []int{1},
+		Bits:       []frontend.Variable{0, 0},
+		Symbols:    []frontend.Variable{0, 0},
+		BitsLen:    2,
+		SymbolsLen: 2,
+	}
+	test.NewAssert(t).SolvingSucceeded(assignment.hollow(), &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+}
+
+func TestDecodeTwoSymbs(t *testing.T) {
+	assignment := huffmanTestCircuit{
+		lengths:    []int{1, 2},
+		Bits:       []frontend.Variable{0, 1, 0},
+		Symbols:    []frontend.Variable{0, 1},
+		BitsLen:    3,
+		SymbolsLen: 2,
 	}
 	test.NewAssert(t).SolvingSucceeded(assignment.hollow(), &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }

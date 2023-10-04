@@ -1,4 +1,4 @@
-package huffman
+package prefix_code
 
 import (
 	"github.com/consensys/gnark/frontend"
@@ -13,30 +13,33 @@ func Decode(api frontend.API, inBits []frontend.Variable, inLen frontend.Variabl
 	codeSymbs := logderivlookup.New(api)
 	{
 		symbs, lens := LengthsToTables(symbolLengths)
-		for i := range symbolLengths {
+		for i := range symbs {
 			codeLens.Insert(lens[i])
 			codeSymbs.Insert(symbs[i])
 		}
 	}
 
+	inIs := make([]frontend.Variable, slices.Max(symbolLengths))
 	in := logderivlookup.New(api)
 	for i := range inBits {
 		in.Insert(inBits[i])
 	}
+	for i := 0; i < len(inIs)-1; i++ { // padding
+		in.Insert(0)
+	}
 
 	outLen = 0
-	toLookUp := make([]frontend.Variable, slices.Max(symbolLengths))
 	inI := frontend.Variable(0)
 	eof := api.IsZero(inLen)
 	for outI := range out {
-		for i := range toLookUp {
-			toLookUp[i] = api.Add(inI, i)
+		for i := range inIs {
+			inIs[i] = api.Add(inI, i)
 		}
 		symbRead := frontend.Variable(0)
 		{
-			bits := in.Lookup(toLookUp...)
+			bits := in.Lookup(inIs...)
 			for i := range bits {
-				symbRead = api.MulAcc(bits[len(bits)-i-1], symbRead, symbRead)
+				symbRead = api.Add(bits[i], symbRead, symbRead)
 			}
 		}
 
@@ -55,8 +58,8 @@ func Decode(api frontend.API, inBits []frontend.Variable, inLen frontend.Variabl
 func LengthsToTables(symbolLengths []int) (symbsTable, lengthsTable []uint64) {
 	codes := LengthsToCodes(symbolLengths)
 	maxCodeSize := slices.Max(symbolLengths)
-	symbsTable = make([]uint64, 1<<(maxCodeSize-1))
-	lengthsTable = make([]uint64, 1<<(maxCodeSize-1))
+	symbsTable = make([]uint64, 1<<maxCodeSize)
+	lengthsTable = make([]uint64, 1<<maxCodeSize)
 	for i := range codes {
 		l := symbolLengths[i]
 		base := codes[i] << uint64(maxCodeSize-l)
