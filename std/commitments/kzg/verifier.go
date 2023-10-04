@@ -14,10 +14,15 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 )
 
+// Commitment is an KZG commitment to a polynomial. Use [ValueOfCommitment] to
+// initialize a witness from the native commitment.
 type Commitment[G1El algebra.G1ElementT] struct {
 	G1El G1El
 }
 
+// ValueOfCommitment initializes a KZG commitment witness from a native
+// commitment. It returns an error if there is a conflict between the type
+// parameters and provided native commitment type.
 func ValueOfCommitment[G1El algebra.G1ElementT](cmt any) (Commitment[G1El], error) {
 	var ret Commitment[G1El]
 	switch s := any(&ret).(type) {
@@ -39,12 +44,18 @@ func ValueOfCommitment[G1El algebra.G1ElementT](cmt any) (Commitment[G1El], erro
 	return ret, nil
 }
 
+// OpeningProof embeds the opening proof that polynomial evaluated at Point is
+// equal to ClaimedValue. Use [ValueOfOpeningProof] to initialize a witness from
+// a native opening proof.
 type OpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT] struct {
 	QuotientPoly G1El
 	ClaimedValue S
 	Point        S
 }
 
+// ValueOfOpeningProof initializes an opening proof from the given proof and
+// point. It returns an error if there is a mismatch between the type parameters
+// and types of the provided point and proof.
 func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, proof any) (OpeningProof[S, G1El], error) {
 	var ret OpeningProof[S, G1El]
 	switch s := any(&ret).(type) {
@@ -78,10 +89,14 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 	return ret, nil
 }
 
+// SRS is the trusted setup for KZG polynomial commitment scheme. Use
+// [ValueOfSRS] to initialize a witness from the native SRS.
 type SRS[G2El algebra.G2ElementT] struct {
 	SRS [2]G2El
 }
 
+// ValueOfSRS initializes SRS witness from the native SRS. It returns an error
+// if there is a mismatch between the type parameters and the provided SRS type.
 func ValueOfSRS[G2El algebra.G2ElementT](srs any) (SRS[G2El], error) {
 	var ret SRS[G2El]
 	switch s := any(&ret).(type) {
@@ -105,6 +120,7 @@ func ValueOfSRS[G2El algebra.G2ElementT](srs any) (SRS[G2El], error) {
 	return ret, nil
 }
 
+// Verifier allows verifying KZG opening proofs.
 type Verifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT] struct {
 	SRS[G2El]
 
@@ -112,6 +128,7 @@ type Verifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2Element
 	pairing algebra.Pairing[G1El, G2El, GtEl]
 }
 
+// NewVerifier initializes a new Verifier instance.
 func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT](srs SRS[G2El], curve algebra.Curve[S, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[S, G1El, G2El, GtEl] {
 	return &Verifier[S, G1El, G2El, GtEl]{
 		SRS:     srs,
@@ -120,6 +137,8 @@ func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2Elem
 	}
 }
 
+// AssertProof asserts the validity of the opening proof for the given
+// commitment.
 func (vk *Verifier[S, G1El, G2El, GtEl]) AssertProof(commitment Commitment[G1El], proof OpeningProof[S, G1El]) error {
 	// [f(a)]G₁
 	claimedValueG1 := vk.curve.ScalarMulBase(&proof.ClaimedValue)

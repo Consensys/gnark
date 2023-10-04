@@ -19,14 +19,17 @@ import (
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
+// Proof is a typed Groth16 proof of SNARK. Use [ValueOfProof] to initialize the
+// witness from the native proof.
 type Proof[G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
 	Ar, Krs G1El
 	Bs      G2El
 }
 
+// ValueOfProof returns the typed witness of the native proof. It returns an
+// error if there is a mismatch between the type parameters and the provided
+// native proof.
 func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth16.Proof) (Proof[G1El, G2El], error) {
-	// even if we type switch we cannot returned the switched type. We have to
-	// modify through pointers directly.
 	var ret Proof[G1El, G2El]
 	switch ar := any(&ret).(type) {
 	case *Proof[sw_bn254.G1Affine, sw_bn254.G2Affine]:
@@ -51,12 +54,19 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 	return ret, nil
 }
 
+// VerifyingKey is a typed Groth16 verifying key for checking SNARK proofs. For
+// witness creation use the method [ValueOfVerifyingKey] and for stub
+// placeholder use [PlaceholderVerifyingKey].
 type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	E  GtEl
 	G1 struct{ K []G1El }
 	G2 struct{ GammaNeg, DeltaNeg G2El }
 }
 
+// PlaceholderVerifyingKey returns an empty verifying key for a given compiled
+// constraint system. The size of the verifying key depends on the number of
+// public inputs and commitments used, this method allocates sufficient space
+// regardless of the actual verifying key.
 func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](ccs constraint.ConstraintSystem) VerifyingKey[G1El, G2El, GtEl] {
 	return VerifyingKey[G1El, G2El, GtEl]{
 		G1: struct{ K []G1El }{
@@ -65,6 +75,9 @@ func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, G
 	}
 }
 
+// ValueOfVerifyingKey initializes witness from the given Groth16 verifying key.
+// It returns an error if there is a mismatch between the type parameters and
+// the provided native verifying key.
 func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](vk groth16.VerifyingKey) (VerifyingKey[G1El, G2El, GtEl], error) {
 	var ret VerifyingKey[G1El, G2El, GtEl]
 	switch s := any(&ret).(type) {
@@ -114,24 +127,28 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 	return ret, nil
 }
 
+// Witness is a public witness to verify the SNARK proof against. For assigning
+// witness use [ValueOfWitness] and to create stub witness for compiling use
+// [PlaceholderWitness].
 type Witness[S algebra.ScalarT] struct {
 	// Public is the public inputs. The first element does not need to be one
 	// wire and is added implicitly during verification.
 	Public []S
 }
 
-func (w *Witness[S]) ToPlaceholder() Witness[S] {
-	return Witness[S]{
-		Public: make([]S, len(w.Public)),
-	}
-}
-
+// PlaceholderWitness creates a stub witness which can be used to allocate the
+// variables in the circuit if the actual witness is not yet known. It takes
+// into account the number of public inputs and number of used commitments.
 func PlaceholderWitness[S algebra.ScalarT](ccs constraint.ConstraintSystem) Witness[S] {
 	return Witness[S]{
 		Public: make([]S, ccs.GetNbPublicVariables()-1),
 	}
 }
 
+// ValueOfWitness assigns a outer-circuit witness from the inner circuit
+// witness. If there is a field mismatch then this method represents the witness
+// inputs using field emulation. It returns an error if there is a mismatch
+// between the type parameters and provided witness.
 func ValueOfWitness[S algebra.ScalarT](w witness.Witness) (Witness[S], error) {
 	var ret Witness[S]
 	pubw, err := w.Public()
@@ -162,11 +179,15 @@ func ValueOfWitness[S algebra.ScalarT](w witness.Witness) (Witness[S], error) {
 	return ret, nil
 }
 
+// Verifier verifies Groth16 proofs.
 type Verifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	curve   algebra.Curve[S, G1El]
 	pairing algebra.Pairing[G1El, G2El, GtEl]
 }
 
+// NewVerifier returns a new [Verifier] instance using the curve and pairing
+// interfaces. Use methods [algebra.GetCurve] and [algebra.GetPairing] to
+// initialize the instances.
 func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](curve algebra.Curve[S, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[S, G1El, G2El, GtEl] {
 	return &Verifier[S, G1El, G2El, GtEl]{
 		curve:   curve,
@@ -174,6 +195,8 @@ func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2Elem
 	}
 }
 
+// AssertProof asserts that the SNARK proof holds for the given witness and
+// verifying key.
 func (v *Verifier[S, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[S]) error {
 	inP := make([]*G1El, len(vk.G1.K)-1) // first is for the one wire, we add it manually after MSM
 	for i := range inP {

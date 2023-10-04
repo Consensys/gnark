@@ -10,8 +10,15 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
+// G1Affine is the point in G1. It is an alias to the generic emulated affine
+// point.
 type G1Affine = sw_emulated.AffinePoint[emulated.BLS12381Fp]
+
+// Scalar is the scalar in the groups. It is an alias to the emulated element
+// defined over the scalar field of the groups.
 type Scalar = emulated.Element[emulated.BLS12381Fr]
+
+// NewG1Affine allocates a witness from the native G1 element and returns it.
 
 func NewG1Affine(v bls12381.G1Affine) G1Affine {
 	return G1Affine{
@@ -46,6 +53,7 @@ func (g1 *G1) phi(q *G1Affine) *G1Affine {
 	}
 }
 
+// NewScalar allocates a witness from the native scalar and returns it.
 func NewScalar(v fr_bls12381.Element) Scalar {
 	return emulated.ValueOf[emulated.BLS12381Fr](v)
 }

@@ -10,6 +10,10 @@ import (
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
+// GetCurve returns the [Curve] implementation corresponding to the scalar and
+// G1 type parameters. The method allows to have a fully generic implementation
+// without taking into consideration the initialization differences of different
+// curves.
 func GetCurve[S ScalarT, G1El G1ElementT](api frontend.API) (Curve[S, G1El], error) {
 	var ret Curve[S, G1El]
 	switch s := any(&ret).(type) {
@@ -28,6 +32,9 @@ func GetCurve[S ScalarT, G1El G1ElementT](api frontend.API) (Curve[S, G1El], err
 	return ret, nil
 }
 
+// GetPairing returns the [Pairing] implementation corresponding to the groups
+// type parameters. The method allows to have a fully generic implementation
+// without taking into consideration the initialization differences.
 func GetPairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT](api frontend.API) (Pairing[G1El, G2El, GtEl], error) {
 	var ret Pairing[G1El, G2El, GtEl]
 	switch s := any(&ret).(type) {
