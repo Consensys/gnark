@@ -128,7 +128,7 @@ func TestCompressZeroCounter(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(TestCase+"data.zct", compressed, 0644))
 	fmt.Println("original size", len(in))
-	fmt.Printf("achieved %d%% compression\n", 100*len(compressed)/len(in))
+	fmt.Printf("achieved %D%% compression\n", 100*len(compressed)/len(in))
 	fmt.Println("compression rate", float64(len(in))/float64(len(compressed)))
 	zerosGasCost := float64(len(in)-len(compressed)) * .25
 	fmt.Println("gas cost", float64(len(compressed))/(float64(len(compressed))+zerosGasCost))

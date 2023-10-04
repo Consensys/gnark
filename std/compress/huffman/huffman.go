@@ -3,16 +3,15 @@ package huffman
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/std/compress"
 	"os"
 	"sort"
 	"strings"
 )
 
-var huffmanBitGranularity = 8
-
 // copilot code
 type huffmanNode struct {
-	weight        int
+	weight        int // weight is normally the symbol's frequency
 	left          *huffmanNode
 	right         *huffmanNode
 	symbol        int
@@ -51,52 +50,10 @@ type stackElem struct {
 	depth int
 }
 
-type bitReader struct {
-	data   []byte
-	offset int
-}
-
-func (r *bitReader) eof() bool {
-	return r.offset >= 8*len(r.data)
-}
-
-func (r *bitReader) readAll(n int) []uint64 {
-	res := make([]uint64, 0, 1+(len(r.data)*8-r.offset)/n)
-	for !r.eof() {
-		res = append(res, r.readBits(n))
-	}
-	return res
-}
-
-func (r *bitReader) readBits(n int) uint64 {
-	if n >= 64 {
-		panic("too many bits")
-	}
-
-	res := uint64(0)
-	totalBitsRead := 0
-	for totalBitsRead < n && r.offset+totalBitsRead < 8*len(r.data) {
-		bitIndex := (r.offset + totalBitsRead) % 8
-		byteIndex := (r.offset + totalBitsRead) / 8
-		maxBit := utils.Min(8, n-totalBitsRead+bitIndex)
-		bitsRead := maxBit - bitIndex
-
-		b := r.data[byteIndex]
-		b >>= bitIndex
-		b &= (1 << uint64(bitsRead)) - 1
-		res |= uint64(b) << uint64(totalBitsRead)
-
-		totalBitsRead += bitsRead
-	}
-	r.offset += totalBitsRead
-
-	return res
-}
-
-func (node *huffmanNode) GetCodeSizes() []int {
+func (node *huffmanNode) GetCodeSizes(NbSymbs int) []int {
 	// Create the code sizes
-	codeSizes := make([]int, 1<<huffmanBitGranularity)
-	stack := make([]stackElem, 0, 1<<huffmanBitGranularity)
+	codeSizes := make([]int, NbSymbs)
+	stack := make([]stackElem, 0, NbSymbs)
 	stack = append(stack, stackElem{node, 0})
 	for len(stack) > 0 {
 		// pop stack
@@ -115,24 +72,20 @@ func (node *huffmanNode) GetCodeSizes() []int {
 	return codeSizes
 }
 
-func EstimateHuffmanCodeSize(data []byte) int {
+func EstimateHuffmanCodeSize(data compress.Stream) int {
 	// create frequency table
-	frequencies := make([]int, 1<<huffmanBitGranularity)
-	reader := bitReader{data: data}
-	dataRealigned := reader.readAll(huffmanBitGranularity)
-	for _, c := range dataRealigned {
+	frequencies := make([]int, data.NbSymbs)
+	for _, c := range data.D {
 		frequencies[c]++
 	}
 
-	//fmt.Println("frequencies", frequencies)
 	huffmanTree := CreateTree(frequencies)
-	sizes := huffmanTree.GetCodeSizes()
-	//fmt.Println("sizes", sizes)
+	sizes := huffmanTree.GetCodeSizes(data.NbSymbs)
 
 	var logWriter strings.Builder
 	logWriter.WriteString("Symbol,Frequency,Percentage,Code Length\n")
 	for i := range sizes {
-		logWriter.WriteString(fmt.Sprintf("%d,%d,%.2f,%d\n", i, frequencies[i], float64(frequencies[i]*100)/float64(len(data)), sizes[i]))
+		logWriter.WriteString(fmt.Sprintf("%d,%d,%.2f,%d\n", i, frequencies[i], float64(frequencies[i]*100)/float64(data.Len()), sizes[i]))
 	}
 	if err := os.WriteFile("huffman.csv", []byte(logWriter.String()), 0644); err != nil {
 		panic(err)
@@ -140,23 +93,63 @@ func EstimateHuffmanCodeSize(data []byte) int {
 
 	// linear combination
 	var sum int
-	for i := 0; i < 1<<huffmanBitGranularity; i++ {
+	for i := range frequencies {
 		sum += frequencies[i] * sizes[i] // in the code itself
 	}
 
 	// estimate the size of the tree
-	treeSizeLengthForEachSymbol := 1 << huffmanBitGranularity
+	treeSizeLengthForEachSymbol := data.NbSymbs
 	treeSizeListUsedSymbolsBits := huffmanTree.nbDescendents // to represent the tree topology
 	for i := range frequencies {
 		if frequencies[i] != 0 {
-			treeSizeListUsedSymbolsBits += 1 << huffmanBitGranularity // list the used symbols
+			treeSizeListUsedSymbolsBits += data.NbSymbs // list the used symbols
 		}
 	}
-	//fmt.Println("\testimated listy tree size", (treeSizeListUsedSymbolsBits-1)/8+1)
 	treeSize := utils.Min(treeSizeLengthForEachSymbol, (treeSizeListUsedSymbolsBits-1)/8+1)
-	//fmt.Println("\testimated tree size", treeSize)
 
 	fmt.Println("estimated huffman tree size:", treeSize)
 
 	return sum + treeSize
+}
+
+func _range(end int) []int {
+	out := make([]int, end)
+	for i := range out {
+		out[i] = i
+	}
+	return out
+}
+
+// Encode encodes the data using Huffman coding, EXTREMELY INEFFICIENTLY
+func Encode(in compress.Stream) compress.Stream {
+	// create frequency table
+	frequencies := make([]int, in.NbSymbs)
+	for _, c := range in.D {
+		frequencies[c]++
+	}
+
+	huffmanTree := CreateTree(frequencies)
+	codes := make([][]int, in.NbSymbs)
+	huffmanTree.traverse([]int{}, codes)
+
+	// encode
+	out := make([]int, 0)
+	for _, c := range in.D {
+		out = append(out, codes[c]...)
+	}
+	return compress.Stream{D: out, NbSymbs: 2}
+}
+
+func (node *huffmanNode) traverse(code []int, codes [][]int) {
+	if node.left == nil && node.right == nil {
+		codes[node.symbol] = make([]int, len(code))
+		copy(codes[node.symbol], code)
+		return
+	}
+	if node.left != nil {
+		node.left.traverse(append(code, 0), codes)
+	}
+	if node.right != nil {
+		node.right.traverse(append(code, 1), codes)
+	}
 }

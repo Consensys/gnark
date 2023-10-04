@@ -22,7 +22,7 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 		LogHeads: &heads,
 	}
 	c, err := Compress(d, settings)
-	cHuff := (huffman.EstimateHuffmanCodeSize(c) + 7) / 8
+	cHuff := (huffman.EstimateHuffmanCodeSize(compress.NewStreamFromBytes(c)) + 7) / 8
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
 	fmt.Println("Estimated Compression ratio (with Huffman):", float64(len(d))/float64(cHuff))
 	if len(c) > 1024 {
@@ -142,7 +142,7 @@ func TestCalldataSymb1(t *testing.T) {
 	require.NoError(t, err)
 
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
-	fmt.Println("Estimated Compression ratio (with Huffman):", float64(len(d))/float64(huffman.EstimateHuffmanCodeSize(c)))
+	fmt.Println("Estimated Compression ratio (with Huffman):", float64(len(d))/float64(huffman.EstimateHuffmanCodeSize(compress.NewStreamFromBytes(c))))
 	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
@@ -193,7 +193,7 @@ func TestDifferentHuffmanTrees(t *testing.T) {
 	}
 	total := 0
 	for j := 0; j < 4; j++ {
-		sizes := huffman.CreateTree(freqs[j][:]).GetCodeSizes()
+		sizes := huffman.CreateTree(freqs[j][:]).GetCodeSizes(256)
 		for k := range sizes {
 			total += freqs[j][k] * sizes[k]
 		}
@@ -204,7 +204,7 @@ func TestDifferentHuffmanTrees(t *testing.T) {
 
 	fmt.Println("Total bits:", total)
 	fmt.Println("Total bytes:", (total+7)/8)
-	fmt.Println("Regular huffman compression up to:", float64(8*len(d))/float64(huffman.EstimateHuffmanCodeSize(c)-256))
+	fmt.Println("Regular huffman compression up to:", float64(8*len(d))/float64(huffman.EstimateHuffmanCodeSize(compress.NewStreamFromBytes(c))-256))
 	fmt.Println("Further compression:", float64(len(c))/float64((total+7)/8))
 	fmt.Println("Total compression:", float64(len(d))/float64((total+7)/8))
 }
