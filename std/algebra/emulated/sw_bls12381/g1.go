@@ -4,12 +4,14 @@ import (
 	"fmt"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
 type G1Affine = sw_emulated.AffinePoint[emulated.BLS12381Fp]
+type Scalar = emulated.Element[emulated.BLS12381Fr]
 
 func NewG1Affine(v bls12381.G1Affine) G1Affine {
 	return G1Affine{
@@ -42,4 +44,8 @@ func (g1 *G1) phi(q *G1Affine) *G1Affine {
 		X: *x,
 		Y: q.Y,
 	}
+}
+
+func NewScalar(v fr_bls12381.Element) Scalar {
+	return emulated.ValueOf[emulated.BLS12381Fr](v)
 }

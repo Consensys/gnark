@@ -78,7 +78,7 @@ func (c *InnerCircuitEmulation) Define(api frontend.API) error {
 type OuterCircuitBN254 struct {
 	Proof        Proof[sw_bn254.G1Affine, sw_bn254.G2Affine]
 	VerifyingKey VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]
-	InnerWitness Witness[emulated.Element[emparams.BN254Fr]]
+	InnerWitness Witness[sw_bn254.Scalar]
 }
 
 func (c *OuterCircuitBN254) Define(api frontend.API) error {
@@ -121,7 +121,7 @@ func TestBN254BN254(t *testing.T) {
 	// outer proof
 	circuitVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVK)
 	assert.NoError(err)
-	circuitWitness, err := ValueOfWitness[emulated.Element[emparams.BN254Fr]](witness)
+	circuitWitness, err := ValueOfWitness[sw_bn254.Scalar](witness)
 	assert.NoError(err)
 	circuitProof, err := ValueOfProof[sw_bn254.G1Affine, sw_bn254.G2Affine](proof)
 	assert.NoError(err)
@@ -167,7 +167,7 @@ func TestValueOfWitness(t *testing.T) {
 	assert.Run(func(assert *test.Assert) {
 		w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 		assert.NoError(err)
-		ww, err := ValueOfWitness[emulated.Element[emparams.BN254Fr]](w)
+		ww, err := ValueOfWitness[sw_bn254.Scalar](w)
 		assert.NoError(err)
 		_ = ww
 	}, "bn")
