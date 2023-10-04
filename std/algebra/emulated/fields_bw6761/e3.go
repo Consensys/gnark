@@ -194,6 +194,32 @@ func (e Ext3) MulBy1(z *E3, c1 baseEl) *E3 {
 	}
 }
 
+// MulBy12 multiplication by sparse element (0,b1,b2)
+func (e Ext3) MulBy12(x *E3, b1, b2 *baseEl) *E3 {
+	t1 := e.fp.Mul(&x.A1, b1)
+	t2 := e.fp.Mul(&x.A2, b2)
+	c0 := e.fp.Add(&x.A1, &x.A2)
+	tmp := e.fp.Add(b1, b2)
+	c0 = e.fp.Mul(c0, tmp)
+	c0 = e.fp.Sub(c0, t1)
+	c0 = e.fp.Sub(c0, t2)
+	c0 = MulByNonResidue(e.fp, c0)
+	c1 := e.fp.Add(&x.A0, &x.A1)
+	c1 = e.fp.Mul(c1, b1)
+	c1 = e.fp.Sub(c1, t1)
+	tmp = MulByNonResidue(e.fp, t2)
+	c1 = e.fp.Add(c1, tmp)
+	tmp = e.fp.Add(&x.A0, &x.A2)
+	c2 := e.fp.Mul(b2, tmp)
+	c2 = e.fp.Sub(c2, t2)
+	c2 = e.fp.Add(c2, t1)
+	return &E3{
+		A0: *c0,
+		A1: *c1,
+		A2: *c2,
+	}
+}
+
 // Mul01By01 multiplies two E3 sparse element of the form:
 //
 //	E3{

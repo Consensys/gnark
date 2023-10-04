@@ -1,5 +1,7 @@
 package fields_bw6761
 
+import "math/big"
+
 type LineEvaluation struct {
 	R0 baseEl
 	R1 baseEl
@@ -119,7 +121,6 @@ func (e *Ext6) MulBy014(z *E6, c0, c1 *baseEl) *E6 {
 	}
 }
 
-/*
 //	multiplies two E6 sparse element of the form:
 //
 //	E6{
@@ -133,30 +134,33 @@ func (e *Ext6) MulBy014(z *E6, c0, c1 *baseEl) *E6 {
 //		C0: E6{B0: d0, B1: d1, B2: 0},
 //		C1: E6{B0: 0, B1: 1, B2: 0},
 //	}
-func (e Ext6) Mul014By014(d0, d1, c0, c1 *E2) *[5]E2 {
-	one := e.Ext2.One()
-	x0 := e.Ext2.Mul(c0, d0)
-	x1 := e.Ext2.Mul(c1, d1)
-	tmp := e.Ext2.Add(c0, one)
-	x04 := e.Ext2.Add(d0, one)
-	x04 = e.Ext2.Mul(x04, tmp)
-	x04 = e.Ext2.Sub(x04, x0)
-	x04 = e.Ext2.Sub(x04, one)
-	tmp = e.Ext2.Add(c0, c1)
-	x01 := e.Ext2.Add(d0, d1)
-	x01 = e.Ext2.Mul(x01, tmp)
-	x01 = e.Ext2.Sub(x01, x0)
-	x01 = e.Ext2.Sub(x01, x1)
-	tmp = e.Ext2.Add(c1, one)
-	x14 := e.Ext2.Add(d1, one)
-	x14 = e.Ext2.Mul(x14, tmp)
-	x14 = e.Ext2.Sub(x14, x1)
-	x14 = e.Ext2.Sub(x14, one)
+func (e Ext6) Mul014By014(d0, d1, c0, c1 *baseEl) *[5]baseEl {
+	one := e.fp.One()
+	x0 := e.fp.Mul(c0, d0)
+	x1 := e.fp.Mul(c1, d1)
+	tmp := e.fp.Add(c0, one)
+	x04 := e.fp.Add(d0, one)
+	x04 = e.fp.Mul(x04, tmp)
+	x04 = e.fp.Sub(x04, x0)
+	x04 = e.fp.Sub(x04, one)
+	tmp = e.fp.Add(c0, c1)
+	x01 := e.fp.Add(d0, d1)
+	x01 = e.fp.Mul(x01, tmp)
+	x01 = e.fp.Sub(x01, x0)
+	x01 = e.fp.Sub(x01, x1)
+	tmp = e.fp.Add(c1, one)
+	x14 := e.fp.Add(d1, one)
+	x14 = e.fp.Mul(x14, tmp)
+	x14 = e.fp.Sub(x14, x1)
+	x14 = e.fp.Sub(x14, one)
 
-	zC0B0 := e.Ext2.NonResidue()
-	zC0B0 = e.Ext2.Add(zC0B0, x0)
+	// NonResidue()
+	zC0B0 := e.fp.MulConst(e.fp.One(), big.NewInt(4))
+	zC0B0 = e.fp.Neg(zC0B0)
 
-	return &[5]E2{*zC0B0, *x01, *x1, *x04, *x14}
+	zC0B0 = e.fp.Add(zC0B0, x0)
+
+	return &[5]baseEl{*zC0B0, *x01, *x1, *x04, *x14}
 }
 
 // MulBy01245 multiplies z by an E6 sparse element of the form
@@ -165,21 +169,20 @@ func (e Ext6) Mul014By014(d0, d1, c0, c1 *E2) *[5]E2 {
 //		C0: E6{B0: c0, B1: c1, B2: c2},
 //		C1: E6{B0: 0, B1: c4, B2: c5},
 //	}
-func (e *Ext6) MulBy01245(z *E6, x *[5]E2) *E6 {
-	c0 := &E6{B0: x[0], B1: x[1], B2: x[2]}
-	c1 := &E6{B0: *e.Ext2.Zero(), B1: x[3], B2: x[4]}
-	a := e.Ext6.Add(&z.C0, &z.C1)
-	b := e.Ext6.Add(c0, c1)
-	a = e.Ext6.Mul(a, b)
-	b = e.Ext6.Mul(&z.C0, c0)
-	c := e.Ext6.MulBy12(&z.C1, &x[3], &x[4])
-	z1 := e.Ext6.Sub(a, b)
-	z1 = e.Ext6.Sub(z1, c)
-	z0 := e.Ext6.MulByNonResidue(c)
-	z0 = e.Ext6.Add(z0, b)
+func (e *Ext6) MulBy01245(z *E6, x *[5]baseEl) *E6 {
+	c0 := &E3{A0: x[0], A1: x[1], A2: x[2]}
+	c1 := &E3{A0: *e.fp.Zero(), A1: x[3], A2: x[4]}
+	a := e.Ext3.Add(&z.B0, &z.B1)
+	b := e.Ext3.Add(c0, c1)
+	a = e.Ext3.Mul(a, b)
+	b = e.Ext3.Mul(&z.B0, c0)
+	c := e.Ext3.MulBy12(&z.B1, &x[3], &x[4])
+	z1 := e.Ext3.Sub(a, b)
+	z1 = e.Ext3.Sub(z1, c)
+	z0 := e.Ext3.MulByNonResidue(c)
+	z0 = e.Ext3.Add(z0, b)
 	return &E6{
-		C0: *z0,
-		C1: *z1,
+		B0: *z0,
+		B1: *z1,
 	}
 }
-*/

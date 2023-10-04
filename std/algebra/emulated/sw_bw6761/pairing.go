@@ -196,7 +196,6 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 	xNegOverY = pr.curveF.Neg(xNegOverY)
 
 	// i = 62
-	// precompute lines
 	// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
 	Qacc, l1 = pr.doubleStep(Qacc)
 	// line evaluation at P
@@ -211,7 +210,6 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 		res1 = pr.Square(res1)
 
 		if loopCounter1[i] == 0 {
-			// precompute lines
 			// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
 			Qacc, l1 = pr.doubleStep(Qacc)
 
@@ -256,7 +254,6 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 	QNeg := &G2Affine{X: Q.X, Y: *pr.curveF.Neg(&Q.Y)}
 
 	// i = 188
-	// precompute lines
 	// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
 	Qacc, l1 = pr.doubleStep(Qacc)
 
@@ -274,7 +271,6 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 		switch loopCounter2[i] {
 
 		case 0:
-			// precompute lines
 			// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
 			Qacc, l1 = pr.doubleStep(Qacc)
 
