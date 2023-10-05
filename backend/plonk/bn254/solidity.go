@@ -245,6 +245,15 @@ contract PlonkVerifier {
         mstore(add(ptError, 0x44), "error verify")
         revert(ptError, 0x64)
       }
+
+      function error_random_generation() {
+        let ptError := mload(0x40)
+        mstore(ptError, error_string_id) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x14)
+        mstore(add(ptError, 0x44), "error random gen kzg")
+        revert(ptError, 0x64)
+      }
       // end errors -------------------------------------------------
 
       // Beginning checks -------------------------------------------------
@@ -715,9 +724,25 @@ contract PlonkVerifier {
         let state := mload(0x40)
         let mPtr := add(state, state_last_mem)
 
-        // here the random is not a challenge, hence no need to use Fiat Shamir, we just
-        // need an unpredictible result.
-        let random := mod(keccak256(state, 0x20), r_mod)
+        // derive a random number. As there is no random generator, we
+        // do an FS like challenge derivation, depending on both digests and
+        // ζ to ensure that the prover cannot control the random numger.
+        // Note: adding the other point ζω is not needed, as ω is known beforehand.
+        mstore(mPtr, calldataload(add(state, state_folded_digests_x)))
+        mstore(add(mPtr, 0x20), calldataload(add(state, state_folded_digests_y)))
+        mstore(add(mPtr, 0x40), calldataload(add(aproof, proof_batch_opening_at_zeta_x)))
+        mstore(add(mPtr, 0x60), calldataload(add(aproof, proof_batch_opening_at_zeta_y)))
+        mstore(add(mPtr, 0x80), calldataload(add(aproof, proof_grand_product_commitment_x)))
+        mstore(add(mPtr, 0xa0), calldataload(add(aproof, proof_grand_product_commitment_y)))
+        mstore(add(mPtr, 0xc0), calldataload(add(aproof, proof_opening_at_zeta_omega_x)))
+        mstore(add(mPtr, 0xe0), calldataload(add(aproof, proof_opening_at_zeta_omega_y)))
+        mstore(add(mPtr, 0x100), calldataload(add(state, state_zeta)))
+        mstore(add(mPtr, 0x120), mload(add(state, state_gamma_kzg)))
+        let random := staticcall(gas(), 0x2, mPtr, 0x140, mPtr, 0x20)
+        if iszero(random){
+          error_random_generation()
+        }
+        random := mod(mload(mPtr), r_mod) // use the same variable as we are one variable away from getting stack-too-deep error...
 
         let folded_quotients := mPtr
         mPtr := add(folded_quotients, 0x40)

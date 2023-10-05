@@ -569,6 +569,7 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 		zeta,
 		hFunc,
 		pk.Kzg,
+		bzuzeta.Marshal(),
 	)
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
