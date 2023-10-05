@@ -910,8 +910,10 @@ contract PlonkVerifier {
         }
         {{ end }}
 
+        mstore(_mPtr, calldataload(add(aproof, proof_grand_product_at_zeta_omega)))
+
         let start_input := 0x1b // 00.."gamma"
-        let size_input := add(0x16, mul(vk_nb_custom_gates,3)) // number of 32bytes elmts = 0x16 (zeta+2*7+7 for the digests+openings) + 2*vk_nb_custom_gates (for the commitments of the selectors) + vk_nb_custom_gates (for the openings of the selectors)
+        let size_input := add(0x17, mul(vk_nb_custom_gates,3)) // number of 32bytes elmts = 0x17 (zeta+2*7+7 for the digests+openings) + 2*vk_nb_custom_gates (for the commitments of the selectors) + vk_nb_custom_gates (for the openings of the selectors)
         size_input := add(0x5, mul(size_input, 0x20)) // size in bytes: 15*32 bytes + 5 bytes for gamma
         let check_staticcall := staticcall(gas(), 0x2, add(mPtr,start_input), size_input, add(state, state_gamma_kzg), 0x20)
         if eq(check_staticcall, 0) {
