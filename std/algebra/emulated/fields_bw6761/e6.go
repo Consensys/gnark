@@ -89,6 +89,7 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 // Square set z=x*x in *E6 and return z
 func (e Ext6) Square(x *E6) *E6 {
 
+	x = e.Reduce(x)
 	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
 	c0 := e.Ext3.Sub(&x.B0, &x.B1)
 	c3 := e.Ext3.MulByNonResidue(&x.B1)
@@ -111,9 +112,7 @@ func (e Ext6) Square(x *E6) *E6 {
 // https://eprint.iacr.org/2010/542.pdf
 // Th. 3.2 with minor modifications to fit our tower
 func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
-	x = e.Reduce(x)
-
-	z := e.Set(x)
+	z := e.Reduce(x)
 
 	var t [7]*baseEl
 
@@ -221,7 +220,7 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	t[1] = e.fp.Add(t[1], t[1])
 
 	// z4 = g4
-	z.B1.A1 = *e.fp.Div(t[0], t[1]) // costly
+	z.B1.A1 = *e.fp.Div(t[0], t[1])
 	a1 := z.B1.A1
 
 	// t1 = g2 * g1

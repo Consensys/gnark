@@ -2,19 +2,6 @@ package fields_bw6761
 
 import "math/big"
 
-type LineEvaluation struct {
-	R0 baseEl
-	R1 baseEl
-	R2 baseEl
-}
-
-func (e Ext6) nSquare(z *E6, n int) *E6 {
-	for i := 0; i < n; i++ {
-		z = e.CyclotomicSquare(z)
-	}
-	return z
-}
-
 func (e Ext6) nSquareCompressed(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
 		z = e.CyclotomicSquareCompressed(z)
@@ -33,12 +20,15 @@ func (e Ext6) Expt(x *E6) *E6 {
 
 	// a shortest addition chain for 136227
 	result := e.Set(x)
-	result = e.nSquare(result, 5)
+	result = e.nSquareCompressed(result, 5)
+	result = e.DecompressKarabina(result)
 	result = e.Mul(result, x)
 	x33 := e.Set(result)
-	result = e.nSquare(result, 7)
+	result = e.nSquareCompressed(result, 7)
+	result = e.DecompressKarabina(result)
 	result = e.Mul(result, x33)
-	result = e.nSquare(result, 4)
+	result = e.nSquareCompressed(result, 4)
+	result = e.DecompressKarabina(result)
 	result = e.Mul(result, x)
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, x)
@@ -95,6 +85,8 @@ func (e Ext6) Expc1(x *E6) *E6 {
 //		C1: E3{A0:  0, A1:  1, A2: 0},
 //	}
 func (e *Ext6) MulBy014(z *E6, c0, c1 *baseEl) *E6 {
+
+	z = e.Reduce(z)
 
 	a := z.B0
 	a = *e.MulBy01(&a, c0, c1)
