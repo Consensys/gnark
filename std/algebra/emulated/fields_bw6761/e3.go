@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -15,12 +16,18 @@ type E3 struct {
 }
 
 type Ext3 struct {
-	fp *curveF
+	api frontend.API
+	fp  *curveF
 }
 
-func NewExt3(baseEl *curveF) *Ext3 {
+func NewExt3(api frontend.API) *Ext3 {
+	fp, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
 	return &Ext3{
-		fp: baseEl,
+		api: api,
+		fp:  fp,
 	}
 }
 
@@ -32,7 +39,6 @@ func (e Ext3) Reduce(x *E3) *E3 {
 	return &z
 }
 
-// SetZero sets an *E3 elmt to zero
 func (e Ext3) Zero() *E3 {
 	zero := e.fp.Zero()
 	return &E3{
@@ -42,7 +48,6 @@ func (e Ext3) Zero() *E3 {
 	}
 }
 
-// One sets z to 1 in Montgomery form and returns z
 func (e Ext3) One() *E3 {
 	one := e.fp.One()
 	zero := e.fp.Zero()
@@ -53,7 +58,6 @@ func (e Ext3) One() *E3 {
 	}
 }
 
-// Neg negates the *E3 number
 func (e Ext3) Neg(x *E3) *E3 {
 	a0 := e.fp.Neg(&x.A0)
 	a1 := e.fp.Neg(&x.A1)
@@ -65,7 +69,6 @@ func (e Ext3) Neg(x *E3) *E3 {
 	}
 }
 
-// Add adds two elements of *E3
 func (e Ext3) Add(x, y *E3) *E3 {
 	a0 := e.fp.Add(&x.A0, &y.A0)
 	a1 := e.fp.Add(&x.A1, &y.A1)
@@ -77,7 +80,6 @@ func (e Ext3) Add(x, y *E3) *E3 {
 	}
 }
 
-// Sub two elements of *E3
 func (e Ext3) Sub(x, y *E3) *E3 {
 	a0 := e.fp.Sub(&x.A0, &y.A0)
 	a1 := e.fp.Sub(&x.A1, &y.A1)
@@ -89,7 +91,6 @@ func (e Ext3) Sub(x, y *E3) *E3 {
 	}
 }
 
-// Double doubles an element in *E3
 func (e Ext3) Double(x *E3) *E3 {
 	two := big.NewInt(2)
 	a0 := e.fp.MulConst(&x.A0, two)
@@ -102,14 +103,13 @@ func (e Ext3) Double(x *E3) *E3 {
 	}
 }
 
-func MulByNonResidue(fp *curveF, x *baseEl) *baseEl {
+func mulFpByNonResidue(fp *curveF, x *baseEl) *baseEl {
 
 	z := fp.Neg(x)
 	z = fp.MulConst(z, big.NewInt(4))
 	return z
 }
 
-// Conjugate conjugates an element in *E3
 func (e Ext3) Conjugate(x *E3) *E3 {
 	a1 := e.fp.Neg(&x.A1)
 	return &E3{
@@ -119,7 +119,6 @@ func (e Ext3) Conjugate(x *E3) *E3 {
 	}
 }
 
-// MulByElement multiplies an element in *E3 by an element in fp
 func (e Ext3) MulByElement(x *E3, y *baseEl) *E3 {
 	a0 := e.fp.Mul(&x.A0, y)
 	a1 := e.fp.Mul(&x.A1, y)
@@ -152,7 +151,7 @@ func (e Ext3) MulBy01(z *E3, c0, c1 *baseEl) *E3 {
 	tmp := e.fp.Add(&z.A1, &z.A2)
 	t0 := e.fp.Mul(c1, tmp)
 	t0 = e.fp.Sub(t0, b)
-	t0 = MulByNonResidue(e.fp, t0)
+	t0 = mulFpByNonResidue(e.fp, t0)
 	t0 = e.fp.Add(t0, a)
 
 	tmp = e.fp.Add(&z.A0, &z.A2)
@@ -181,7 +180,7 @@ func (e Ext3) MulBy1(z *E3, c1 baseEl) *E3 {
 	tmp := e.fp.Add(&z.A1, &z.A2)
 	t0 := e.fp.Mul(&c1, tmp)
 	t0 = e.fp.Sub(t0, b)
-	t0 = MulByNonResidue(e.fp, t0)
+	t0 = mulFpByNonResidue(e.fp, t0)
 
 	tmp = e.fp.Add(&z.A0, &z.A1)
 	t1 := e.fp.Mul(&c1, tmp)
@@ -203,11 +202,11 @@ func (e Ext3) MulBy12(x *E3, b1, b2 *baseEl) *E3 {
 	c0 = e.fp.Mul(c0, tmp)
 	c0 = e.fp.Sub(c0, t1)
 	c0 = e.fp.Sub(c0, t2)
-	c0 = MulByNonResidue(e.fp, c0)
+	c0 = mulFpByNonResidue(e.fp, c0)
 	c1 := e.fp.Add(&x.A0, &x.A1)
 	c1 = e.fp.Mul(c1, b1)
 	c1 = e.fp.Sub(c1, t1)
-	tmp = MulByNonResidue(e.fp, t2)
+	tmp = mulFpByNonResidue(e.fp, t2)
 	c1 = e.fp.Add(c1, tmp)
 	tmp = e.fp.Add(&x.A0, &x.A2)
 	c2 := e.fp.Mul(b2, tmp)
@@ -240,7 +239,7 @@ func (e Ext3) Mul01By01(c0, c1, d0, d1 *baseEl) *E3 {
 	b := e.fp.Mul(d1, c1)
 	t0 := e.fp.Mul(c1, d1)
 	t0 = e.fp.Sub(t0, b)
-	t0 = MulByNonResidue(e.fp, t0)
+	t0 = mulFpByNonResidue(e.fp, t0)
 	t0 = e.fp.Add(t0, a)
 	t2 := e.fp.Mul(c0, d0)
 	t2 = e.fp.Sub(t2, a)
@@ -257,7 +256,6 @@ func (e Ext3) Mul01By01(c0, c1, d0, d1 *baseEl) *E3 {
 	}
 }
 
-// Mul sets z to the *E3-product of x,y, returns z
 func (e Ext3) Mul(x, y *E3) *E3 {
 	// Algorithm 13 from https://eprint.iacr.org/2010/354.pdf
 	t0 := e.fp.Mul(&x.A0, &y.A0)
@@ -269,7 +267,7 @@ func (e Ext3) Mul(x, y *E3) *E3 {
 	c0 = e.fp.Mul(c0, tmp)
 	c0 = e.fp.Sub(c0, t1)
 	c0 = e.fp.Sub(c0, t2)
-	c0 = MulByNonResidue(e.fp, c0)
+	c0 = mulFpByNonResidue(e.fp, c0)
 
 	tmp = e.fp.Add(&x.A0, &x.A2)
 	c2 := e.fp.Add(&y.A0, &y.A2)
@@ -282,7 +280,7 @@ func (e Ext3) Mul(x, y *E3) *E3 {
 	c1 = e.fp.Mul(c1, tmp)
 	c1 = e.fp.Sub(c1, t0)
 	c1 = e.fp.Sub(c1, t1)
-	t2 = MulByNonResidue(e.fp, t2)
+	t2 = mulFpByNonResidue(e.fp, t2)
 
 	a0 := e.fp.Add(c0, t0)
 	a1 := e.fp.Add(c1, t2)
@@ -295,7 +293,6 @@ func (e Ext3) Mul(x, y *E3) *E3 {
 	}
 }
 
-// Square sets z to the *E3-product of x,x, returns z
 func (e Ext3) Square(x *E3) *E3 {
 
 	// Algorithm 16 from https://eprint.iacr.org/2010/354.pdf
@@ -303,7 +300,7 @@ func (e Ext3) Square(x *E3) *E3 {
 	c6 := e.fp.MulConst(&x.A1, big.NewInt(2))
 	c4 := e.fp.Mul(&x.A0, c6) // x.A0 * xA1 * 2
 	c5 := e.fp.Mul(&x.A2, &x.A2)
-	c1 := MulByNonResidue(e.fp, c5)
+	c1 := mulFpByNonResidue(e.fp, c5)
 	c1 = e.fp.Add(c1, c4)
 	c2 := e.fp.Sub(c4, c5)
 
@@ -312,7 +309,7 @@ func (e Ext3) Square(x *E3) *E3 {
 	c4 = e.fp.Add(c4, &x.A2)
 	c5 = e.fp.Mul(c6, &x.A2) // x.A1 * xA2 * 2
 	c4 = e.fp.Mul(c4, c4)
-	c0 := MulByNonResidue(e.fp, c5)
+	c0 := mulFpByNonResidue(e.fp, c5)
 	c4 = e.fp.Add(c4, c5)
 	c4 = e.fp.Sub(c4, c3)
 
@@ -377,11 +374,10 @@ func (e Ext3) MulByNonResidue(x *E3) *E3 {
 		A1: x.A0,
 		A2: x.A1,
 	}
-	z.A0 = *MulByNonResidue(e.fp, &z.A0)
+	z.A0 = *mulFpByNonResidue(e.fp, &z.A0)
 	return z
 }
 
-// AssertIsEqual constraint self to be equal to other into the given constraint system
 func (e Ext3) AssertIsEqual(a, b *E3) {
 	e.fp.AssertIsEqual(&a.A0, &b.A0)
 	e.fp.AssertIsEqual(&a.A1, &b.A1)

@@ -9,7 +9,7 @@ func (e Ext6) nSquareCompressed(z *E6, n int) *E6 {
 	return z
 }
 
-// Expt set z to x^t in *E6 and return z
+// Expt set x to x^t in E6 and return x
 func (e Ext6) Expt(x *E6) *E6 {
 	x = e.Reduce(x)
 
@@ -41,7 +41,7 @@ func (e Ext6) Expt(x *E6) *E6 {
 	return result
 }
 
-// Expc2 set z to x^c2 in *E6 and return z
+// Expc2 set x to x^c2 in E6 and return x
 // ht, hy = 13, 9
 // c1 = ht+hy = 22 (10110)
 func (e Ext6) Expc2(x *E6) *E6 {
@@ -57,7 +57,7 @@ func (e Ext6) Expc2(x *E6) *E6 {
 	return result
 }
 
-// Expc1 set z to x^c1 in *E6 and return z
+// Expc1 set x to x^c1 in E6 and return x
 // ht, hy = 13, 9
 // c1 = ht**2+3*hy**2 = 412 (110011100)
 func (e Ext6) Expc1(x *E6) *E6 {
@@ -92,7 +92,7 @@ func (e *Ext6) MulBy014(z *E6, c0, c1 *baseEl) *E6 {
 
 	var b E3
 	// Mul by E3{0, 1, 0}
-	b.A0 = *MulByNonResidue(e.fp, &z.B1.A2)
+	b.A0 = *mulFpByNonResidue(e.fp, &z.B1.A2)
 	b.A2 = z.B1.A1
 	b.A1 = z.B1.A0
 

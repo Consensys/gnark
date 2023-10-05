@@ -12,6 +12,7 @@ import (
 )
 
 type Pairing struct {
+	api frontend.API
 	*fields_bw6761.Ext6
 	curveF *emulated.Field[emulated.BW6761Fp]
 }
@@ -39,7 +40,8 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
 	return &Pairing{
-		Ext6:   fields_bw6761.NewExt6(ba),
+		api:    api,
+		Ext6:   fields_bw6761.NewExt6(api),
 		curveF: ba,
 	}, nil
 }

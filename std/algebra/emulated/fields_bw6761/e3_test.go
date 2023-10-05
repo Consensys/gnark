@@ -16,11 +16,7 @@ type e3Add struct {
 }
 
 func (circuit *e3Add) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.Add(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -49,11 +45,7 @@ type e3Sub struct {
 }
 
 func (circuit *e3Sub) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.Sub(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -82,11 +74,7 @@ type e3Neg struct {
 }
 
 func (circuit *e3Neg) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.Neg(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
@@ -113,11 +101,7 @@ type e3Double struct {
 }
 
 func (circuit *e3Double) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.Double(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
@@ -144,11 +128,7 @@ type e3Mul struct {
 }
 
 func (circuit *e3Mul) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.Mul(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -177,11 +157,7 @@ type e3MulByNonResidue struct {
 }
 
 func (circuit *e3MulByNonResidue) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.MulByNonResidue(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
@@ -211,11 +187,7 @@ type e3MulByElement struct {
 }
 
 func (circuit *e3MulByElement) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.MulByElement(&circuit.A, &circuit.Y)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
@@ -248,11 +220,7 @@ type e3MulBy01 struct {
 }
 
 func (circuit *e3MulBy01) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.MulBy01(&circuit.A, &circuit.C0, &circuit.C1)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
@@ -285,11 +253,7 @@ type e3Square struct {
 }
 
 func (circuit *e3Square) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.Square(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
@@ -316,11 +280,7 @@ type e3Inverse struct {
 }
 
 func (circuit *e3Inverse) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.Inverse(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
@@ -348,11 +308,7 @@ type e3Div struct {
 }
 
 func (circuit *e3Div) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.DivUnchecked(&circuit.A, &circuit.B)
 	e.AssertIsEqual(expected, &circuit.C)
 	return nil
@@ -384,11 +340,7 @@ type e3Conjugate struct {
 }
 
 func (circuit *e3Conjugate) Define(api frontend.API) error {
-	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		panic(err)
-	}
-	e := NewExt3(nfield)
+	e := NewExt3(api)
 	expected := e.Conjugate(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil

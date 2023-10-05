@@ -2,6 +2,7 @@ package fields_bw6761
 
 import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	"github.com/consensys/gnark/frontend"
 )
 
 type E6 struct {
@@ -19,11 +20,10 @@ func (e Ext6) Reduce(x *E6) *E6 {
 	return &z
 }
 
-func NewExt6(baseEl *curveF) *Ext6 {
-	return &Ext6{Ext3: NewExt3(baseEl)}
+func NewExt6(api frontend.API) *Ext6 {
+	return &Ext6{Ext3: NewExt3(api)}
 }
 
-// SetZero sets an *E3 elmt to zero
 func (e Ext6) Zero() *E6 {
 	b0 := e.Ext3.Zero()
 	b1 := e.Ext3.Zero()
@@ -33,7 +33,6 @@ func (e Ext6) Zero() *E6 {
 	}
 }
 
-// One sets z to 1 in Montgomery form and returns z
 func (e Ext6) One() *E6 {
 	return &E6{
 		B0: *e.Ext3.One(),
@@ -41,7 +40,6 @@ func (e Ext6) One() *E6 {
 	}
 }
 
-// Add set z=x+y in *E6 and return z
 func (e Ext6) Add(x, y *E6) *E6 {
 	return &E6{
 		B0: *e.Ext3.Add(&x.B0, &y.B0),
@@ -49,7 +47,6 @@ func (e Ext6) Add(x, y *E6) *E6 {
 	}
 }
 
-// Sub sets z to x sub y and return z
 func (e Ext6) Sub(x, y *E6) *E6 {
 	return &E6{
 		B0: *e.Ext3.Sub(&x.B0, &y.B0),
@@ -57,7 +54,6 @@ func (e Ext6) Sub(x, y *E6) *E6 {
 	}
 }
 
-// Double sets z=2*x and returns z
 func (e Ext6) Double(x *E6) *E6 {
 	return &E6{
 		B0: *e.Ext3.Double(&x.B0),
@@ -65,7 +61,6 @@ func (e Ext6) Double(x *E6) *E6 {
 	}
 }
 
-// Mul set z=x*y in *E6 and return z
 func (e Ext6) Mul(x, y *E6) *E6 {
 	x = e.Reduce(x)
 	y = e.Reduce(y)
@@ -86,7 +81,6 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 	}
 }
 
-// Square set z=x*x in *E6 and return z
 func (e Ext6) Square(x *E6) *E6 {
 
 	x = e.Reduce(x)
@@ -139,7 +133,7 @@ func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	t[2] = e.fp.Mul(&x.B1.A0, &x.B1.A0)
 
 	// t6 = 2 * nr * g1 * g5
-	t[6] = MulByNonResidue(e.fp, t[5])
+	t[6] = mulFpByNonResidue(e.fp, t[5])
 	// t5 = 4 * nr * g1 * g5 + 2 * g3
 	t[5] = e.fp.Add(t[6], &x.B1.A0)
 	t[5] = e.fp.Add(t[5], t[5])
@@ -147,7 +141,7 @@ func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	z.B1.A0 = *e.fp.Add(t[5], t[6])
 
 	// t4 = nr * g5²
-	t[4] = MulByNonResidue(e.fp, t[1])
+	t[4] = mulFpByNonResidue(e.fp, t[1])
 	// t5 = nr * g5² + g1²
 	t[5] = e.fp.Add(t[0], t[4])
 	// t6 = nr * g5² + g1² - g2
@@ -162,7 +156,7 @@ func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	z.B0.A2 = *e.fp.Add(t[6], t[5])
 
 	// t4 = nr * g2²
-	t[4] = MulByNonResidue(e.fp, t[1])
+	t[4] = mulFpByNonResidue(e.fp, t[1])
 	// t5 = g3² + nr * g2²
 	t[5] = e.fp.Add(t[2], t[4])
 	// t6 = g3² + nr * g2² - g1
@@ -214,7 +208,7 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	t[1] = e.fp.Add(t[1], t[0])
 	// t0 = E * g5^2 + t1
 	t[2] = e.fp.Mul(&x.B1.A2, &x.B1.A2)
-	t[0] = MulByNonResidue(e.fp, t[2])
+	t[0] = mulFpByNonResidue(e.fp, t[2])
 	t[0] = e.fp.Add(t[0], t[1])
 	// t1 = 1/(4 * g3)
 	t[1] = e.fp.Add(&x.B1.A0, &x.B1.A0)
@@ -236,7 +230,7 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	// c₀ = E * (2 * g4² + g3 * g5 - 3 * g2 * g1) + 1
 	t[2] = e.fp.Add(t[2], t[1])
 
-	z.B0.A0 = *MulByNonResidue(e.fp, t[2])
+	z.B0.A0 = *mulFpByNonResidue(e.fp, t[2])
 	z.B0.A0 = *e.fp.Add(&z.B0.A0, one)
 
 	z.B0.A1 = x.B0.A1
@@ -280,13 +274,13 @@ func (e Ext6) CyclotomicSquare(x *E6) *E6 {
 	t[8] = e.fp.Mul(t[8], t[8])
 	t[8] = e.fp.Sub(t[8], t[4])
 	t[8] = e.fp.Sub(t[8], t[5])
-	t[8] = MulByNonResidue(e.fp, t[8]) // 2*x5*x1*u
+	t[8] = mulFpByNonResidue(e.fp, t[8]) // 2*x5*x1*u
 
-	t[0] = MulByNonResidue(e.fp, t[0])
+	t[0] = mulFpByNonResidue(e.fp, t[0])
 	t[0] = e.fp.Add(t[0], t[1]) // x4²*u + x0²
-	t[2] = MulByNonResidue(e.fp, t[2])
+	t[2] = mulFpByNonResidue(e.fp, t[2])
 	t[2] = e.fp.Add(t[2], t[3]) // x2²*u + x3²
-	t[4] = MulByNonResidue(e.fp, t[4])
+	t[4] = mulFpByNonResidue(e.fp, t[4])
 	t[4] = e.fp.Add(t[4], t[5]) // x5²*u + x1²
 
 	var z E6
@@ -354,7 +348,6 @@ func (e Ext6) DivUnchecked(x, y *E6) *E6 {
 
 }
 
-// Conjugate set z to x conjugated and return z
 func (e Ext6) Conjugate(x *E6) *E6 {
 	return &E6{
 		B0: x.B0,
@@ -362,7 +355,6 @@ func (e Ext6) Conjugate(x *E6) *E6 {
 	}
 }
 
-// AssertIsEqual constraint self to be equal to other into the given constraint system
 func (e Ext6) AssertIsEqual(a, b *E6) {
 	e.Ext3.AssertIsEqual(&a.B0, &b.B0)
 	e.Ext3.AssertIsEqual(&a.B1, &b.B1)
