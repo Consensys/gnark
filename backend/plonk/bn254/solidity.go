@@ -839,13 +839,13 @@ contract PlonkVerifier {
         fr_acc_mul_calldata(add(state, state_folded_claimed_values), add(aproof, proof_s2_at_zeta), acc_gamma)
 
         {{- if (gt (len .CommitmentConstraintIndexes) 0 ) }}
-        let poscaz := add(aproof, proof_openings_selector_commit_api_at_zeta)
+        let poscaz := add(aproof, proof_openings_qci_at_zeta)
         {{ end -}}
 
         {{ range $index, $element := .CommitmentConstraintIndexes }}
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, r_mod)
-        mstore(mPtr, vk_selector_commitments_commit_api_{{ $index }}_x)
-        mstore(mPtr20, vk_selector_commitments_commit_api_{{ $index }}_y)
+        mstore(mPtr, vk_qc_{{ $index }}_x)
+        mstore(mPtr20, vk_qc_{{ $index }}_y)
         point_acc_mul(state_folded_digests, mPtr, acc_gamma, mPtr40)
         fr_acc_mul_calldata(add(state, state_folded_claimed_values), poscaz, acc_gamma)
         poscaz := add(poscaz, 0x20)
