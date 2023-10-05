@@ -113,7 +113,7 @@ func (e Ext6) Square(x *E6) *E6 {
 // Th. 3.2 with minor modifications to fit our tower
 func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	x = e.Reduce(x)
-	z := e.Set(x)
+	z := e.Copy(x)
 
 	var t [7]*baseEl
 
@@ -368,19 +368,13 @@ func (e Ext6) AssertIsEqual(a, b *E6) {
 	e.Ext3.AssertIsEqual(&a.B1, &b.B1)
 }
 
-func (e Ext6) Set(x *E6) *E6 {
-	b0 := e.Ext3.Set(&x.B0)
-	b1 := e.Ext3.Set(&x.B1)
+func (e Ext6) Copy(x *E6) *E6 {
+	b0 := e.Ext3.Copy(&x.B0)
+	b1 := e.Ext3.Copy(&x.B1)
 	return &E6{
 		B0: *b0,
 		B1: *b1,
 	}
-}
-
-// Equal returns true if z equals x, fasle otherwise
-func (e Ext6) Equal(a, b *E6) {
-	e.Ext3.Equal(&a.B0, &b.B0)
-	e.Ext3.Equal(&a.B1, &b.B1)
 }
 
 func FromE6(a *bw6761.E6) E6 {

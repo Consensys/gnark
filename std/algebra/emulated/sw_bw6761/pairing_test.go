@@ -49,7 +49,7 @@ func (circuit *finalExponentiationBW6761) Define(api frontend.API) error {
 		return err
 	}
 
-	pr.Equal(expected, &circuit.B)
+	pr.AssertIsEqual(expected, &circuit.B)
 
 	return nil
 }

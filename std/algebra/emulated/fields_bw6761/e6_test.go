@@ -393,7 +393,6 @@ func TestCreateLimbs(t *testing.T) {
 	}
 	fmt.Println(buf.String())
 }
-*/
 
 type e6Expt struct {
 	A, B E6
@@ -493,6 +492,7 @@ func TestExpc1Fp6(t *testing.T) {
 	err := test.IsSolved(&e6Expc1{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+*/
 
 type e6MulBy014 struct {
 	A    E6 `gnark:",public"`

@@ -388,19 +388,12 @@ func (e Ext3) AssertIsEqual(a, b *E3) {
 	e.fp.AssertIsEqual(&a.A2, &b.A2)
 }
 
-func (e Ext3) Set(x *E3) *E3 {
+func (e Ext3) Copy(x *E3) *E3 {
 	return &E3{
 		A0: x.A0,
 		A1: x.A1,
 		A2: x.A2,
 	}
-}
-
-// Equal returns true if z equals x, fasle otherwise
-func (e Ext3) Equal(a, b *E3) {
-	e.fp.AssertIsEqual(&a.A0, &b.A0)
-	e.fp.AssertIsEqual(&a.A1, &b.A1)
-	e.fp.AssertIsEqual(&a.A2, &b.A2)
 }
 
 func FromE3(a *bw6761.E3) E3 {

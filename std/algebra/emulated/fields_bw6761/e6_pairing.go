@@ -19,11 +19,11 @@ func (e Ext6) Expt(x *E6) *E6 {
 	// Shortest addition chains can be found at https://wwwhomes.uni-bielefeld.de/achim/addition_chain.html
 
 	// a shortest addition chain for 136227
-	result := e.Set(x)
+	result := e.Copy(x)
 	result = e.nSquareCompressed(result, 5)
 	result = e.DecompressKarabina(result)
 	result = e.Mul(result, x)
-	x33 := e.Set(result)
+	x33 := e.Copy(result)
 	result = e.nSquareCompressed(result, 7)
 	result = e.DecompressKarabina(result)
 	result = e.Mul(result, x33)
@@ -38,7 +38,7 @@ func (e Ext6) Expt(x *E6) *E6 {
 	result = e.DecompressKarabina(result)
 	result = e.Mul(result, x)
 
-	return e.Set(result)
+	return result
 }
 
 // Expc2 set z to x^c2 in *E6 and return z
@@ -54,7 +54,7 @@ func (e Ext6) Expc2(x *E6) *E6 {
 	result = e.Mul(result, x)
 	result = e.CyclotomicSquare(result)
 
-	return e.Set(result)
+	return result
 }
 
 // Expc1 set z to x^c1 in *E6 and return z
