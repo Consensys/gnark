@@ -362,8 +362,8 @@ func (e Ext3) DivUnchecked(x, y *E3) *E3 {
 		A2: *res[2],
 	}
 
-	// 1 == inv * x
-	_x := e.Mul(&div, x)
+	// x = div * y
+	_x := e.Mul(&div, y)
 	e.AssertIsEqual(x, _x)
 
 	return &div

@@ -343,6 +343,42 @@ func TestInverseFp3(t *testing.T) {
 	assert.NoError(err)
 }
 
+type e3Div struct {
+	A, B, C E3
+}
+
+func (circuit *e3Div) Define(api frontend.API) error {
+	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	e := NewExt3(nfield)
+	expected := e.DivUnchecked(&circuit.A, &circuit.B)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestDivFp3(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bw6761.E3
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Inverse(&b)
+	c.Mul(&a, &c)
+
+	witness := e3Div{
+		A: FromE3(&a),
+		B: FromE3(&b),
+		C: FromE3(&c),
+	}
+
+	err := test.IsSolved(&e3Div{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e3Conjugate struct {
 	A, B E3
 }

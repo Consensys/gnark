@@ -11,29 +11,15 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-type curveF emulated.Field[emulated.BW6761Fp]
-
 type Pairing struct {
 	*fields_bw6761.Ext6
 	curveF *emulated.Field[emulated.BW6761Fp]
 }
 
-func NewPairing(api frontend.API) (*Pairing, error) {
-	ba, err := emulated.NewField[emulated.BW6761Fp](api)
-	if err != nil {
-		return nil, fmt.Errorf("new base api: %w", err)
-	}
-	return &Pairing{
-		Ext6:   fields_bw6761.NewExt6(ba),
-		curveF: ba,
-	}, nil
-}
+type GTEl = fields_bw6761.E6
 
-// GT target group of the pairing
-type GT = fields_bw6761.E6
-
-func NewGT(v bw6761.GT) GT {
-	return GT{
+func NewGTEl(v bw6761.GT) GTEl {
+	return GTEl{
 		B0: fields_bw6761.E3{
 			A0: emulated.ValueOf[emulated.BW6761Fp](v.B0.A0),
 			A1: emulated.ValueOf[emulated.BW6761Fp](v.B0.A1),
@@ -47,34 +33,37 @@ func NewGT(v bw6761.GT) GT {
 	}
 }
 
-// Pair calculates the reduced pairing for a set of points e(P, Q).
-//
-// This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
-func (pr Pairing) Pair(P *G1Affine, Q *G2Affine) (*GT, error) {
-	f, err := pr.MillerLoop(P, Q)
+func NewPairing(api frontend.API) (*Pairing, error) {
+	ba, err := emulated.NewField[emulated.BW6761Fp](api)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new base api: %w", err)
 	}
-	return pr.FinalExponentiation(f), nil
+	return &Pairing{
+		Ext6:   fields_bw6761.NewExt6(ba),
+		curveF: ba,
+	}, nil
 }
 
-// FinalExponentiation computes the exponentiation (∏ᵢ zᵢ)ᵈ
-// where d = (p^6-1)/r = (p^6-1)/Φ_6(p) ⋅ Φ_6(p)/r = (p^3-1)(p+1)(p^2 - p +1)/r
-// we use instead d=s ⋅ (p^3-1)(p+1)(p^2 - p +1)/r
-// where s is the cofactor 12(x_0+1) (El Housni and Guillevic)
-func (pr Pairing) FinalExponentiation(z *GT) *GT {
+// FinalExponentiation computes the exponentiation zᵈ where
+//
+// d = (p⁶-1)/r = (p⁶-1)/Φ₆(p) ⋅ Φ₆(p)/r = (p³-1)(p+1)(p²-p+1)/r
+//
+// we use instead d = s⋅(p³-1)(p+1)(p²-p+1)/r
+// where s is the cofactor 12(x₀+1) (El Housni and Guillevic)
+// https://eprint.iacr.org/2020/351.pdf
+func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 
 	result := pr.Copy(z)
 
-	// Easy part
-	// (p^3-1)(p+1)
+	// 1. Easy part
+	// (p³-1)(p+1)
 	buf := pr.Conjugate(result)
-	result = pr.Inverse(result)
-	buf = pr.Mul(buf, result)
+	buf = pr.DivUnchecked(buf, result)
 	result = pr.Frobenius(buf)
 	result = pr.Mul(result, buf)
 
-	// Hard part (up to permutation)
+	// 2. Hard part (up to permutation)
+	// 12(x₀+1)(p²-p+1)/r
 	// El Housni and Guillevic
 	// https://eprint.iacr.org/2020/351.pdf
 	m1 := pr.Expt(result)
@@ -87,9 +76,10 @@ func (pr Pairing) FinalExponentiation(z *GT) *GT {
 	f0 = pr.Mul(f0, m2)
 	m2 = pr.CyclotomicSquare(_m1)
 	f0 = pr.Mul(f0, m2)
-	f0_36 := pr.CyclotomicSquare(f0)
-	f0_36 = pr.CyclotomicSquare(f0_36)
-	f0_36 = pr.CyclotomicSquare(f0_36)
+	f0_36 := pr.CyclotomicSquareCompressed(f0)
+	f0_36 = pr.CyclotomicSquareCompressed(f0_36)
+	f0_36 = pr.CyclotomicSquareCompressed(f0_36)
+	f0_36 = pr.DecompressKarabina(f0_36)
 	f0_36 = pr.Mul(f0_36, f0)
 	f0_36 = pr.CyclotomicSquare(f0_36)
 	f0_36 = pr.CyclotomicSquare(f0_36)
@@ -130,7 +120,7 @@ func (pr Pairing) FinalExponentiation(z *GT) *GT {
 	gC = pr.Mul(gC, g4)
 
 	// ht, hy = 13, 9
-	// c1 = ht**2+3*hy**2 = 412
+	// c1 = ht²+3hy² = 412
 	h1 := pr.Expc1(gA)
 	// c2 = ht+hy = 22
 	h2 := pr.Expc2(gB)
@@ -145,24 +135,55 @@ func (pr Pairing) FinalExponentiation(z *GT) *GT {
 	return result
 }
 
-// lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
+// lineEvaluation represents a sparse Fp6 Elmt (result of the line evaluation)
 // line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
-// makes the multiplication by lines (MulBy034) and between lines (Mul034By034)
-// circuit-efficient.
+// makes the multiplication by lines (MulBy014) circuit-efficient.
 type lineEvaluation struct {
 	R0, R1 emulated.Element[emulated.BW6761Fp]
 }
 
+// Pair calculates the reduced pairing for a set of points
+// ∏ᵢ e(Pᵢ, Qᵢ).
+//
+// This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
+func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
+	f, err := pr.MillerLoop(P, Q)
+	if err != nil {
+		return nil, err
+	}
+	return pr.FinalExponentiation(f), nil
+}
+
+// PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
+// ∏ᵢ e(Pᵢ, Qᵢ) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups.
+func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
+	f, err := pr.Pair(P, Q)
+	if err != nil {
+		return err
+
+	}
+	one := pr.One()
+	pr.AssertIsEqual(f, one)
+
+	return nil
+}
+
+func (pr Pairing) AssertIsEqual(x, y *GTEl) {
+	pr.Ext6.AssertIsEqual(x, y)
+}
+
 // seed x₀=9586122913090633729
 //
-// x₀+1 in binary
+// loopCounter1 = x₀+1 in binary
 var loopCounter1 = [64]int8{
 	0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
 	0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1,
 }
 
-// (x₀-1)^2 in 2-NAF
+// loopCounter2 = (x₀-1)² in 2-NAF
 var loopCounter2 = [127]int8{
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -172,26 +193,26 @@ var loopCounter2 = [127]int8{
 	0, 0, 1,
 }
 
-// MillerLoop computes the Miller loop
+// millerLoopSingle computes the Miller loop
 //
-//	BW6-761 Miller loop: Eq (4') in [bw6-post]
+// f_{u+1,Q}(P) * (f_{u+1})^q_{u²-2u-1,[u+1]Q}(P) * l^q_{[(u+1)(u²-2u+1)]Q,-Q}(P)
 //
-// f_{u+1,Q}(P) * (f_{u+1})^q_{u^2-2u-1,[u+1]Q}(P) * l^q_{[(u+1)(u^2-2u+1)]Q,-Q}(P)
-//
-// [https://hackmd.io/@gnark/BW6-761-changes]
-func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
+//	Eq (4') in https://hackmd.io/@gnark/BW6-761-changes
+func (pr Pairing) millerLoopSingle(P *G1Affine, Q *G2Affine) (*GTEl, error) {
 
 	var l1, l2 *lineEvaluation
 	var yInv, xNegOverY *emulated.Element[emulated.BW6761Fp]
 
-	// f1 = f_{u+1,Q}(P)
+	// 1. f1 = f_{u+1,Q}(P)
 	res1 := pr.Ext6.One()
 	Qacc := Q
 	yInv = pr.curveF.Inverse(&P.Y)
 	xNegOverY = pr.curveF.MulMod(&P.X, yInv)
 	xNegOverY = pr.curveF.Neg(xNegOverY)
 
-	// i = 62
+	// i = 62, separately to avoid an E6 Square
+	// (Square(res) = 1² = 1)
+
 	// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
 	Qacc, l1 = pr.doubleStep(Qacc)
 	// line evaluation at P
@@ -201,8 +222,7 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 	res1.B1.A1 = *pr.curveF.One()
 
 	for i := 61; i >= 0; i-- {
-		// mutualize the square among n Miller loops
-		// (∏ᵢfᵢ)²
+		// f²
 		res1 = pr.Square(res1)
 
 		if loopCounter1[i] == 0 {
@@ -233,18 +253,17 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 		}
 	}
 
-	// l = l_{uQ,Q}(P)
-	res1Old := res1
+	// Cache values for the second Miller loop
+	res1Cached := res1
 	res1Inv := pr.Conjugate(res1)
 	uQ := Qacc
 
-	// f2 = f_{u^2-2u+1,uQ}(P)
-	res2 := res1Old
+	// 2. f2 = f_{u²-2u+1,uQ}(P)
+	res2 := res1Cached
 	uQNeg := &G2Affine{X: uQ.X, Y: *pr.curveF.Neg(&uQ.Y)}
 
 	for i := 125; i >= 0; i-- {
-		// mutualize the square among n Miller loops
-		// (∏ᵢfᵢ)²
+		// f²
 		res2 = pr.Square(res2)
 
 		switch loopCounter2[i] {
@@ -273,7 +292,7 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 			l2.R0 = *pr.curveF.Mul(&l2.R0, xNegOverY)
 			l2.R1 = *pr.curveF.Mul(&l2.R1, yInv)
 			res2 = pr.MulBy014(res2, &l2.R1, &l2.R0)
-			res2 = pr.Mul(res2, res1Old)
+			res2 = pr.Mul(res2, res1Cached)
 
 		case -1:
 			// Qacc ← 2Qacc-uQ,
@@ -297,18 +316,49 @@ func (pr Pairing) MillerLoop(P *G1Affine, Q *G2Affine) (*GT, error) {
 		}
 	}
 
-	// l_{(u+1)vQ,-Q}(P)
+	// 3. l_{(u+1)vQ,-Q}(P)
 	QNeg := &G2Affine{X: Q.X, Y: *pr.curveF.Neg(&Q.Y)}
 	l1 = pr.lineCompute(Qacc, QNeg)
 	l1.R0 = *pr.curveF.Mul(&l1.R0, xNegOverY)
 	l1.R1 = *pr.curveF.Mul(&l1.R1, yInv)
+
+	// f2 = f2 * l_{(u+1)vQ,-Q}(P)
 	res2 = pr.MulBy014(res2, &l1.R1, &l1.R0)
 
-	// f1 * f2^q
+	// 4. f1 * f2^q
 	res2 = pr.Frobenius(res2)
 	res := pr.Mul(res1, res2)
 
 	return res, nil
+}
+
+// MillerLoop computes the multi-Miller loop
+func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
+
+	// check input size match
+	n := len(P)
+	if n == 0 || n != len(Q) {
+		return nil, errors.New("invalid inputs sizes")
+	}
+
+	res := pr.Ext6.One()
+
+	// k = 0
+	res, err := pr.millerLoopSingle(P[0], Q[0])
+	if err != nil {
+		return &GTEl{}, err
+	}
+
+	for k := 1; k < n; k++ {
+		m, err := pr.millerLoopSingle(P[k], Q[k])
+		if err != nil {
+			return &GTEl{}, err
+		}
+		res = pr.Mul(res, m)
+	}
+
+	return res, nil
+
 }
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
@@ -395,38 +445,6 @@ func (pr Pairing) doubleStep(p1 *G2Affine) (*G2Affine, *lineEvaluation) {
 	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
 
 	return &p, &line
-
-}
-
-// addStep adds two points in affine coordinates, and evaluates the line in Miller loop
-// https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) addStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation) {
-
-	// compute λ = (y2-y1)/(x2-x1)
-	p2ypy := pr.curveF.Sub(&p2.Y, &p1.Y)
-	p2xpx := pr.curveF.Sub(&p2.X, &p1.X)
-	λ := pr.curveF.Div(p2ypy, p2xpx)
-
-	// xr = λ²-x1-x2
-	λλ := pr.curveF.Mul(λ, λ)
-	p2xpx = pr.curveF.Add(&p1.X, &p2.X)
-	xr := pr.curveF.Sub(λλ, p2xpx)
-
-	// yr = λ(x1-xr) - y1
-	pxrx := pr.curveF.Sub(&p1.X, xr)
-	λpxrx := pr.curveF.Mul(λ, pxrx)
-	yr := pr.curveF.Sub(λpxrx, &p1.Y)
-
-	var res G2Affine
-	res.X = *xr
-	res.Y = *yr
-
-	var line lineEvaluation
-	line.R0 = *λ
-	line.R1 = *pr.curveF.Mul(λ, &p1.X)
-	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
-
-	return &res, &line
 
 }
 

@@ -215,6 +215,42 @@ func TestInverseFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
+type e6Div struct {
+	A, B, C E6
+}
+
+func (circuit *e6Div) Define(api frontend.API) error {
+	nfield, err := emulated.NewField[emulated.BW6761Fp](api)
+	if err != nil {
+		panic(err)
+	}
+	e := NewExt6(nfield)
+	expected := e.DivUnchecked(&circuit.A, &circuit.B)
+	e.AssertIsEqual(expected, &circuit.C)
+	return nil
+}
+
+func TestDivFp6(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bw6761.E6
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Inverse(&b)
+	c.Mul(&a, &c)
+
+	witness := e6Div{
+		A: FromE6(&a),
+		B: FromE6(&b),
+		C: FromE6(&c),
+	}
+
+	err := test.IsSolved(&e6Div{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e6Conjugate struct {
 	A, B E6
 }
