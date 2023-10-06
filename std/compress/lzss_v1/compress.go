@@ -135,7 +135,7 @@ func longestMostRecentBackRef(d []byte, i int, symb byte, minBackRefAddr, minVia
 	// greedily find the longest backref with smallest offset TODO better heuristic?
 	remainingOptions := make(map[int]struct{})
 	if d[i] == symb { // RLE; prune the options
-		runLen := getRunLength(d, i)
+		runLen := utils.Min(getRunLength(d, i), 256) // TODO remove hardcode
 		longestLen := 0
 		if i == 0 || d[i-1] == symb {
 			remainingOptions[i-1] = struct{}{}
