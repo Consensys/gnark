@@ -502,21 +502,26 @@ func (pr Pairing) MillerLoopAlt(P *G1Affine, Q *G2Affine) (*GTEl, error) {
 	p0neg := &G1Affine{X: p0.X, Y: *pr.curveF.Neg(&p0.Y)}
 	p1 := &G1Affine{
 		X: *pr.curveF.MulMod(&p0.X, &thirdRootOneG2),
-		Y: *pr.curveF.Neg(&p0.Y),
+		Y: p0neg.Y,
 	}
-	p1neg := &G1Affine{X: p1.X, Y: *pr.curveF.Neg(&p1.Y)}
+	p1neg := &G1Affine{X: p1.X, Y: p0.Y}
 
-	// l_{p0,p1}(q)
+	// p01 = p0+p1 and l01 = l_{p0,p1}(q)
 	p01, l01 := pr.addStep(p0, p1)
 	l01.R0 = *pr.curveF.MulMod(&l01.R0, xNegOverY)
 	l01.R1 = *pr.curveF.MulMod(&l01.R1, yInv)
 	p01neg := &G1Affine{X: p01.X, Y: *pr.curveF.Neg(&p01.Y)}
 
-	// l_{p0,-p1}(q)
-	p10, l10 := pr.addStep(p0, p1neg)
-	l10.R0 = *pr.curveF.MulMod(&l10.R0, xNegOverY)
-	l10.R1 = *pr.curveF.MulMod(&l10.R1, yInv)
-	p10neg := &G1Affine{X: p10.X, Y: *pr.curveF.Neg(&p10.Y)}
+	// p10 = p0-p1
+	p10 := &G1Affine{
+		X: *pr.curveF.Add(&p0.X, &p1.X),
+		Y: p1.Y,
+	}
+	p10.X = *pr.curveF.Neg(&p10.X)
+	p10neg := &G1Affine{
+		X: p10.X,
+		Y: p0.Y,
+	}
 
 	// f_{a0+\lambda*a1,P}(Q)
 	result := pr.Ext6.One()
@@ -525,68 +530,97 @@ func (pr Pairing) MillerLoopAlt(P *G1Affine, Q *G2Affine) (*GTEl, error) {
 
 	// i = 188
 	var l *lineEvaluation
+	var prodLines [5]emulated.Element[emulated.BW6761Fp]
 	pAcc, l0 := pr.doubleStep(p1)
+	result.B1.A0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+	result.B1.A1 = *pr.curveF.MulMod(&l0.R1, yInv)
+
+	// i = 187
+	result = pr.Square034(result)
+	pAcc, l0 = pr.doubleStep(pAcc)
 	l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
 	l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
 	result = pr.MulBy034(result, &l0.R0, &l0.R1)
 
-	for i := 187; i >= 1; i-- {
+	for i := 186; i >= 1; i-- {
 		// (∏ᵢfᵢ)²
 		result = pr.Square(result)
 
 		j = loopCounterAlt2[i]*3 + loopCounterAlt1[i]
 
-		pAcc, l0 = pr.doubleStep(pAcc)
-		l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
-		l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
-		result = pr.MulBy034(result, &l0.R0, &l0.R1)
-
 		switch j {
 		case -4:
-			pAcc, l = pr.addStep(pAcc, p01neg)
+			pAcc, l0, l = pr.doubleAndAddStep(pAcc, p01neg)
+			l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+			l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
 			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
 			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
-			result = pr.MulBy034(result, &l.R0, &l.R1)
+			prodLines = *pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
+			result = pr.MulBy01234(result, &prodLines)
 			result = pr.MulBy034(result, &l01.R0, &l01.R1)
 		case -3:
-			pAcc, l = pr.addStep(pAcc, p1neg)
+			pAcc, l0, l = pr.doubleAndAddStep(pAcc, p1neg)
+			l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+			l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
 			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
 			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
-			result = pr.MulBy034(result, &l.R0, &l.R1)
+			prodLines = *pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
+			result = pr.MulBy01234(result, &prodLines)
 		case -2:
-			pAcc, l = pr.addStep(pAcc, p10)
+			pAcc, l0, l = pr.doubleAndAddStep(pAcc, p10)
+			l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+			l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
 			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
 			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
-			result = pr.MulBy034(result, &l.R0, &l.R1)
+			prodLines = *pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
+			result = pr.MulBy01234(result, &prodLines)
 			result = pr.MulBy034(result, &l01.R0, &l01.R1)
 		case -1:
-			pAcc, l = pr.addStep(pAcc, p0neg)
+			pAcc, l0, l = pr.doubleAndAddStep(pAcc, p0neg)
+			l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+			l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
 			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
 			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
-			result = pr.MulBy034(result, &l.R0, &l.R1)
+			prodLines = *pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
+			result = pr.MulBy01234(result, &prodLines)
 		case 0:
-			continue
+			pAcc, l0 = pr.doubleStep(pAcc)
+			l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+			l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
+			result = pr.MulBy034(result, &l0.R0, &l0.R1)
 		case 1:
-			pAcc, l = pr.addStep(pAcc, p0)
+			pAcc, l0, l = pr.doubleAndAddStep(pAcc, p0)
+			l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+			l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
 			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
 			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
-			result = pr.MulBy034(result, &l.R0, &l.R1)
+			prodLines = *pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
+			result = pr.MulBy01234(result, &prodLines)
 		case 2:
-			pAcc, l = pr.addStep(pAcc, p10neg)
+			pAcc, l0, l = pr.doubleAndAddStep(pAcc, p10neg)
+			l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+			l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
 			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
 			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
-			result = pr.MulBy034(result, &l.R0, &l.R1)
+			prodLines = *pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
+			result = pr.MulBy01234(result, &prodLines)
 			result = pr.MulBy034(result, &l01.R0, &l01.R1)
 		case 3:
-			pAcc, l = pr.addStep(pAcc, p1)
+			pAcc, l0, l = pr.doubleAndAddStep(pAcc, p1)
+			l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+			l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
 			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
 			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
-			result = pr.MulBy034(result, &l.R0, &l.R1)
+			prodLines = *pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
+			result = pr.MulBy01234(result, &prodLines)
 		case 4:
-			pAcc, l = pr.addStep(pAcc, p01)
+			pAcc, l0, l = pr.doubleAndAddStep(pAcc, p01)
+			l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+			l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
 			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
 			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
-			result = pr.MulBy034(result, &l.R0, &l.R1)
+			prodLines = *pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
+			result = pr.MulBy01234(result, &prodLines)
 			result = pr.MulBy034(result, &l01.R0, &l01.R1)
 		default:
 			return nil, errors.New("invalid loopCounter")
@@ -595,7 +629,7 @@ func (pr Pairing) MillerLoopAlt(P *G1Affine, Q *G2Affine) (*GTEl, error) {
 
 	// i = 0, j = -3
 	result = pr.Square(result)
-	pAcc, l0 = pr.doubleStep(pAcc)
+	l0 = pr.tangentCompute(pAcc)
 	l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
 	l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
 	result = pr.MulBy034(result, &l0.R0, &l0.R1)
@@ -633,6 +667,25 @@ func (pr Pairing) addStep(p1, p2 *G1Affine) (*G1Affine, *lineEvaluation) {
 	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
 
 	return &res, &line
+
+}
+
+// tangentCompute computes the line that goes through p1 and p2 but does not compute p1+p2
+func (pr Pairing) tangentCompute(p1 *G1Affine) *lineEvaluation {
+
+	// λ = 3x²/2y
+	n := pr.curveF.Mul(&p1.X, &p1.X)
+	three := big.NewInt(3)
+	n = pr.curveF.MulConst(n, three)
+	d := pr.curveF.Add(&p1.Y, &p1.Y)
+	λ := pr.curveF.Div(n, d)
+
+	var line lineEvaluation
+	line.R0 = *λ
+	line.R1 = *pr.curveF.Mul(λ, &p1.X)
+	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
+
+	return &line
 
 }
 
