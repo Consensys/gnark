@@ -1,5 +1,8 @@
 package compress
 
+// Streams and pipilines are inefficient data structures used for easy experimentation with compression algorithms.
+// They make it easy to swap modules in and out.
+
 type Stream struct {
 	D       []int
 	NbSymbs int

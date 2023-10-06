@@ -18,7 +18,6 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 			NbBytesLength:  1,
 			Symbol:         0,
 		},
-		//Log:      false,
 		LogHeads: &heads,
 	}
 	c, err := Compress(d, settings)
@@ -32,9 +31,7 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 	}
 	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 	require.NoError(t, err)
-	//cp, err := DescribeCompressionActions(c, Settings)
-	//assert.NoError(t, err)
-	//assert.NoError(t, os.WriteFile("compression-summary.txt", []byte(cp), 0644))
+
 	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
 	for i := range d {
@@ -93,11 +90,10 @@ func TestRepeatedNonzero(t *testing.T) {
 func TestCalldataSymb0(t *testing.T) {
 	t.Parallel()
 	folders := []string{
-		//"3c2943",
 		"large",
 	}
 	for _, folder := range folders {
-		d, err := os.ReadFile("../" + folder + "/data.bin")
+		d, err := os.ReadFile("../test_cases/" + folder + "/data.bin")
 		require.NoError(t, err)
 		t.Run(folder, func(t *testing.T) {
 			testCompressionRoundTrip(t, 2, d)
@@ -106,7 +102,7 @@ func TestCalldataSymb0(t *testing.T) {
 }
 
 func testWithLog(t *testing.T, folder string) {
-	d, err := os.ReadFile("../" + folder + "/data.bin")
+	d, err := os.ReadFile("../test_cases/" + folder + "/data.bin")
 	require.NoError(t, err)
 	var heads []LogHeads
 	var writer strings.Builder
@@ -120,8 +116,8 @@ func testWithLog(t *testing.T, folder string) {
 		LogHeads: &heads,
 	})
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile("../"+folder+"/data.lzssv1", c, 0644))
-	require.NoError(t, os.WriteFile("../"+folder+"/analytics.csv", []byte(writer.String()), 0644))
+	require.NoError(t, os.WriteFile("../test_cases/"+folder+"/data.lzssv1", c, 0644))
+	require.NoError(t, os.WriteFile("../test_cases/"+folder+"/analytics.csv", []byte(writer.String()), 0644))
 }
 
 func TestCalldataSymb0Log(t *testing.T) {
@@ -146,7 +142,7 @@ func TestCalldataSymb1(t *testing.T) {
 		LogHeads: &heads,
 	}
 
-	d, err := os.ReadFile("../" + "3c2943" + "/data.bin")
+	d, err := os.ReadFile("../test_cases/" + "3c2943" + "/data.bin")
 
 	c, err := Compress(d, settings)
 	require.NoError(t, err)
@@ -184,7 +180,7 @@ func printHex(d []byte) {
 
 func TestDifferentHuffmanTrees(t *testing.T) {
 	const folder = "large"
-	c, err := os.ReadFile("../" + folder + "/data.lzssv1")
+	c, err := os.ReadFile("../test_cases/" + folder + "/data.lzssv1")
 	require.NoError(t, err)
 	var freqs [4][256]int
 	i := 0
@@ -209,7 +205,7 @@ func TestDifferentHuffmanTrees(t *testing.T) {
 		}
 	}
 
-	d, err := os.ReadFile("../" + folder + "/data.bin")
+	d, err := os.ReadFile("../test_cases/" + folder + "/data.bin")
 	require.NoError(t, err)
 
 	fmt.Println("Total bits:", total)

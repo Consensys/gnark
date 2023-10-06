@@ -1,5 +1,7 @@
 package compress
 
+// TODO: We no longer care about gas; remove these
+
 func ByteGasCost(b byte) uint64 {
 	if b == 0 {
 		return 1

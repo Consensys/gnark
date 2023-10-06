@@ -112,14 +112,6 @@ func EstimateHuffmanCodeSize(data compress.Stream) int {
 	return sum + treeSize
 }
 
-func _range(end int) []int {
-	out := make([]int, end)
-	for i := range out {
-		out[i] = i
-	}
-	return out
-}
-
 func GetCodeLengths(in compress.Stream) []int {
 	// create frequency table
 	frequencies := make([]int, in.NbSymbs)

@@ -49,7 +49,7 @@ func TestLorem(t *testing.T) {
 }
 
 func TestSample(t *testing.T) {
-	text, err := os.ReadFile("../large/data.bin")
+	text, err := os.ReadFile("../test_cases/large/data.bin")
 	assert.NoError(t, err)
 	text = text[:320]
 	indexes := Search(text[287:319], text)

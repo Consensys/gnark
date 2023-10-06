@@ -10,8 +10,10 @@ import (
 	"testing"
 )
 
+const TestCaseLarge = "../test_cases/large/"
+
 func TestBwtLarge(t *testing.T) {
-	d, err := os.ReadFile("../large/data.bin")
+	d, err := os.ReadFile(TestCaseLarge + "data.bin")
 	assert.NoError(t, err)
 	D := compress.NewStreamFromBytes(d)
 	D = bwt(D)
@@ -34,7 +36,7 @@ func testFileWithPipe(t *testing.T, filename string, pipe compress.Pipeline) {
 }
 
 func TestPipe0(t *testing.T) {
-	d, err := os.ReadFile("../large/data.bin")
+	d, err := os.ReadFile(TestCaseLarge + "data.bin")
 	assert.NoError(t, err)
 	D := compress.NewStreamFromBytes(d)
 
@@ -43,7 +45,7 @@ func TestPipe0(t *testing.T) {
 }
 
 func TestPipe1(t *testing.T) {
-	testFileWithPipe(t, "../large/data.bin", compress.Pipeline{bwt, moveToFront, rle0zct})
+	testFileWithPipe(t, TestCaseLarge+"data.bin", compress.Pipeline{bwt, moveToFront, rle0zct})
 }
 
 func TestPipe1Lorem(t *testing.T) {
@@ -57,9 +59,9 @@ func TestPipe1LoremWithHuffman(t *testing.T) {
 }
 
 func TestLargeZct(t *testing.T) {
-	testFileWithPipe(t, "../large/data.bin", compress.Pipeline{bwt, moveToFront, rle0zct, huffman.Encode})
+	testFileWithPipe(t, TestCaseLarge+"data.bin", compress.Pipeline{bwt, moveToFront, rle0zct, huffman.Encode})
 }
 
 func TestLargeRLE2(t *testing.T) {
-	testFileWithPipe(t, "../large/data.bin", compress.Pipeline{bwt, moveToFront, rle0bzip2, huffman.Encode})
+	testFileWithPipe(t, TestCaseLarge+"data.bin", compress.Pipeline{bwt, moveToFront, rle0bzip2, huffman.Encode})
 }

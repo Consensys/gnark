@@ -1,11 +1,7 @@
 package lzss_v1
 
 import (
-	"bytes"
-	"compress/gzip"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"os"
 )
 
 type DecompressionTestCircuit struct {
@@ -28,30 +24,4 @@ func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(c.D[i], dBack[i])
 	}
 	return nil
-}
-
-func GzCompressCs(outFileName string, cs constraint.ConstraintSystem) error {
-	var raw bytes.Buffer
-	_, err := cs.WriteTo(&raw)
-	if err != nil {
-		return err
-	}
-	compressed, err := gzCompress(raw.Bytes())
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(outFileName, compressed, 0644)
-}
-
-func gzCompress(in []byte) ([]byte, error) {
-	var out bytes.Buffer
-	w := gzip.NewWriter(&out)
-	_, err := w.Write(in)
-	if err != nil {
-		return nil, err
-	}
-	if err = w.Close(); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
 }

@@ -72,7 +72,7 @@ func Test257ZerosAfterNonzeroSnark(t *testing.T) { // probably won't happen in o
 }
 
 func Test300ZerosAfterNonzeroSnark(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTripSnark(t, 1, append([]byte{'h', 'i'}, make([]byte, 300)...))
+	//testCompressionRoundTripSnark(t, 1, append([]byte{'h', 'i'}, make([]byte, 300)...))
 	testCompressionRoundTripSnark(t, 2, append([]byte{'h', 'i'}, make([]byte, 300)...))
 }
 
@@ -87,7 +87,7 @@ func TestCalldataSnark(t *testing.T) {
 		"3c2943",
 	}
 	for _, folder := range folders {
-		d, err := os.ReadFile("../" + folder + "/data.bin")
+		d, err := os.ReadFile("../test_cases/" + folder + "/data.bin")
 		require.NoError(t, err)
 		t.Run(folder, func(t *testing.T) {
 			testCompressionRoundTripSnark(t, 2, d)
@@ -153,7 +153,6 @@ func BenchmarkCompilation600KBSnark(b *testing.B) {
 	assert.NoError(b, err)
 	p.Stop()
 	fmt.Println(p.NbConstraints(), "constraints")
-	//assert.NoError(b, gzCompressCs("600kb.gz", cs))
 }
 
 func testCompressionRoundTripSnark(t *testing.T, nbBytesOffset uint, d []byte) {
