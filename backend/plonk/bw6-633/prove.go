@@ -508,12 +508,22 @@ func (s *instance) evaluateConstraints() (err error) {
 
 	for i := 0; i < len(s.commitmentInfo); i++ {
 		s.x[id_Qci+2*i] = s.pk.trace.Qcp[i].Clone()
-		s.x[id_Qci+2*i+1] = s.cCommitments[i].Clone()
 	}
 
 	n := s.pk.Domain[0].Cardinality
 	lone := make([]fr.Element, n)
 	lone[0].SetOne()
+
+	// wait for solver to be done
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chLRO:
+	}
+
+	for i := 0; i < len(s.commitmentInfo); i++ {
+		s.x[id_Qci+2*i+1] = s.cCommitments[i].Clone()
+	}
 
 	// wait for Z to be committed or context done
 	select {
