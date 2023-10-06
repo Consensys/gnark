@@ -72,6 +72,40 @@ func (c *PairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
+	res, err := pairing.PairAlt(&c.InG1, &c.InG2)
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestPairTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+	res, err := bw6761.Pair([]bw6761.G1Affine{p}, []bw6761.G2Affine{q})
+	assert.NoError(err)
+	witness := PairCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2Affine(q),
+		Res:  NewGTEl(res),
+	}
+	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+/*
+type PairCircuit struct {
+	InG1 G1Affine
+	InG2 G2Affine
+	Res  GTEl
+}
+
+func (c *PairCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
 	res, err := pairing.Pair([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
@@ -94,6 +128,7 @@ func TestPairTestSolve(t *testing.T) {
 	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+*/
 
 // bench
 func BenchmarkPairing(b *testing.B) {

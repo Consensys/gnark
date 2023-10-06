@@ -466,3 +466,180 @@ func (pr Pairing) lineCompute(p1, p2 *G2Affine) *lineEvaluation {
 	return &line
 
 }
+
+// --- Alternative Miller loop ---
+var thirdRootOneG2 = emulated.ValueOf[emulated.BW6761Fp]("3876905175468200631077310367084681598448315841795389501393935922030716896759491089791062239139884430736136043081596370525752532152533918168748948422532524762769433379258873205270018176434449950195784127083892851850798970002242935133594411783692478449434154543435837344414891700653141782682622592665272535258486114040810216200011591719198498884598067930925845038459634787676665023756334020972459098834655430741989740290995313870292460737326506741396444022500")
+
+var loopCounterAlt1 = [190]int8{
+	0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1, 0,
+	0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+}
+var loopCounterAlt2 = [190]int8{
+	-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, -1,
+	0, 1, 0, -1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1,
+	0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, -1, 0, 0, 0, 0, -1, 0, 0,
+	1, 0, 0, 0, -1, 0, 0, -1, 0, 1, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, -1, 0, 1, 0,
+	1, 0, 0, 0, 1, 0, -1, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
+}
+
+func (pr Pairing) MillerLoopAlt(P *G1Affine, Q *G2Affine) (*GTEl, error) {
+
+	// precomputations
+	var yInv, xNegOverY *emulated.Element[emulated.BW6761Fp]
+	yInv = pr.curveF.Inverse(&Q.Y)
+	xNegOverY = pr.curveF.MulMod(&Q.X, yInv)
+	xNegOverY = pr.curveF.Neg(xNegOverY)
+	p0 := &G1Affine{X: P.X, Y: P.Y}
+	p0neg := &G1Affine{X: p0.X, Y: *pr.curveF.Neg(&p0.Y)}
+	p1 := &G1Affine{
+		X: *pr.curveF.MulMod(&p0.X, &thirdRootOneG2),
+		Y: *pr.curveF.Neg(&p0.Y),
+	}
+	p1neg := &G1Affine{X: p1.X, Y: *pr.curveF.Neg(&p1.Y)}
+
+	// l_{p0,p1}(q)
+	p01, l01 := pr.addStep(p0, p1)
+	l01.R0 = *pr.curveF.MulMod(&l01.R0, xNegOverY)
+	l01.R1 = *pr.curveF.MulMod(&l01.R1, yInv)
+	p01neg := &G1Affine{X: p01.X, Y: *pr.curveF.Neg(&p01.Y)}
+
+	// l_{p0,-p1}(q)
+	p10, l10 := pr.addStep(p0, p1neg)
+	l10.R0 = *pr.curveF.MulMod(&l10.R0, xNegOverY)
+	l10.R1 = *pr.curveF.MulMod(&l10.R1, yInv)
+	p10neg := &G1Affine{X: p10.X, Y: *pr.curveF.Neg(&p10.Y)}
+
+	// f_{a0+\lambda*a1,P}(Q)
+	result := pr.Ext6.One()
+
+	var j int8
+
+	// i = 188
+	var l *lineEvaluation
+	pAcc, l0 := pr.doubleStep(p1)
+	l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+	l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
+	result = pr.MulBy034(result, &l0.R0, &l0.R1)
+
+	for i := 187; i >= 1; i-- {
+		// (∏ᵢfᵢ)²
+		result = pr.Square(result)
+
+		j = loopCounterAlt2[i]*3 + loopCounterAlt1[i]
+
+		pAcc, l0 = pr.doubleStep(pAcc)
+		l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+		l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
+		result = pr.MulBy034(result, &l0.R0, &l0.R1)
+
+		switch j {
+		case -4:
+			pAcc, l = pr.addStep(pAcc, p01neg)
+			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
+			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
+			result = pr.MulBy034(result, &l.R0, &l.R1)
+			result = pr.MulBy034(result, &l01.R0, &l01.R1)
+		case -3:
+			pAcc, l = pr.addStep(pAcc, p1neg)
+			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
+			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
+			result = pr.MulBy034(result, &l.R0, &l.R1)
+		case -2:
+			pAcc, l = pr.addStep(pAcc, p10)
+			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
+			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
+			result = pr.MulBy034(result, &l.R0, &l.R1)
+			result = pr.MulBy034(result, &l01.R0, &l01.R1)
+		case -1:
+			pAcc, l = pr.addStep(pAcc, p0neg)
+			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
+			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
+			result = pr.MulBy034(result, &l.R0, &l.R1)
+		case 0:
+			continue
+		case 1:
+			pAcc, l = pr.addStep(pAcc, p0)
+			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
+			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
+			result = pr.MulBy034(result, &l.R0, &l.R1)
+		case 2:
+			pAcc, l = pr.addStep(pAcc, p10neg)
+			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
+			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
+			result = pr.MulBy034(result, &l.R0, &l.R1)
+			result = pr.MulBy034(result, &l01.R0, &l01.R1)
+		case 3:
+			pAcc, l = pr.addStep(pAcc, p1)
+			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
+			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
+			result = pr.MulBy034(result, &l.R0, &l.R1)
+		case 4:
+			pAcc, l = pr.addStep(pAcc, p01)
+			l.R0 = *pr.curveF.MulMod(&l.R0, xNegOverY)
+			l.R1 = *pr.curveF.MulMod(&l.R1, yInv)
+			result = pr.MulBy034(result, &l.R0, &l.R1)
+			result = pr.MulBy034(result, &l01.R0, &l01.R1)
+		default:
+			return nil, errors.New("invalid loopCounter")
+		}
+	}
+
+	// i = 0, j = -3
+	result = pr.Square(result)
+	pAcc, l0 = pr.doubleStep(pAcc)
+	l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY)
+	l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv)
+	result = pr.MulBy034(result, &l0.R0, &l0.R1)
+
+	return result, nil
+
+}
+
+// addStep adds two points in affine coordinates, and evaluates the line in Miller loop
+// https://eprint.iacr.org/2022/1162 (Section 6.1)
+func (pr Pairing) addStep(p1, p2 *G1Affine) (*G1Affine, *lineEvaluation) {
+
+	// compute λ = (y2-y1)/(x2-x1)
+	p2ypy := pr.curveF.Sub(&p2.Y, &p1.Y)
+	p2xpx := pr.curveF.Sub(&p2.X, &p1.X)
+	λ := pr.curveF.Div(p2ypy, p2xpx)
+
+	// xr = λ²-x1-x2
+	λλ := pr.curveF.Mul(λ, λ)
+	p2xpx = pr.curveF.Add(&p1.X, &p2.X)
+	xr := pr.curveF.Sub(λλ, p2xpx)
+
+	// yr = λ(x1-xr) - y1
+	pxrx := pr.curveF.Sub(&p1.X, xr)
+	λpxrx := pr.curveF.Mul(λ, pxrx)
+	yr := pr.curveF.Sub(λpxrx, &p1.Y)
+
+	var res G2Affine
+	res.X = *xr
+	res.Y = *yr
+
+	var line lineEvaluation
+	line.R0 = *λ
+	line.R1 = *pr.curveF.Mul(λ, &p1.X)
+	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
+
+	return &res, &line
+
+}
+
+func (pr Pairing) PairAlt(P *G1Affine, Q *G2Affine) (*GTEl, error) {
+	f, err := pr.MillerLoopAlt(P, Q)
+	if err != nil {
+		return nil, err
+	}
+	return pr.FinalExponentiation(f), nil
+}
