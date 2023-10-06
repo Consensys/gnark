@@ -118,7 +118,7 @@ func BenchmarkCompilation64KBSnark(b *testing.B) {
 }
 
 // TODO Change name to reflect that setup is also occurring
-func compile26KBSnark(b *testing.B) {
+func compile26KBSnark(t require.TestingT) {
 	c := DecompressionTestCircuit{
 		C: make([]frontend.Variable, 7000),
 		D: make([]byte, 30000),
@@ -131,30 +131,58 @@ func compile26KBSnark(b *testing.B) {
 		},
 	}
 
+	startTimer := func() {}
+	stopTimer := func() {}
+	if b, ok := t.(*testing.B); ok {
+		startTimer = func() {
+			b.StartTimer()
+		}
+
+		stopTimer = func() {
+			b.StopTimer()
+		}
+	}
+
 	// compilation
 	fmt.Println("compilation")
 	p := profile.Start()
-	b.StartTimer()
+	startTimer()
 	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	assert.NoError(b, err)
-	b.StopTimer()
+	assert.NoError(t, err)
+	stopTimer()
 	p.Stop()
 	fmt.Println(p.NbConstraints(), "constraints")
-	assert.NoError(b, compress.GzWrite("26kb_cs.gz", cs))
+	assert.NoError(t, compress.GzWrite("26kb_cs.gz", cs))
 
 	// setup
 	fmt.Println("setup")
-	b.StartTimer()
+	startTimer()
 	kzgSrs, err := test.NewKZGSRS(cs)
-	require.NoError(b, err)
+	require.NoError(t, err)
 	pk, _, err := plonk.Setup(cs, kzgSrs)
-	require.NoError(b, err)
-	b.StopTimer()
-	assert.NoError(b, compress.GzWrite("26kb_pk.gz", pk))
+	require.NoError(t, err)
+	stopTimer()
+	assert.NoError(t, compress.GzWrite("26kb_pk.gz", pk))
 }
 
 func BenchmarkCompilation26KBSnark(b *testing.B) {
 	compile26KBSnark(b)
+}
+
+func TestLoad26KBSnark(t *testing.T) {
+	cs := plonk.NewCS(ecc.BN254)
+	pk := plonk.NewProvingKey(ecc.BN254)
+
+	if err := compress.GzRead("26kb_cs.gz", cs); err != nil { // we don't have the constraints stored. compile and try again
+		fmt.Println("reading constraints failed. attempting to recreate...")
+		compile26KBSnark(t)
+		fmt.Println("created constraints and proving key")
+		cs = plonk.NewCS(ecc.BN254)
+		assert.NoError(t, compress.GzRead("26kb_cs.gz", cs))
+	}
+	fmt.Println("constraints loaded")
+	assert.NoError(t, compress.GzRead("26kb_pk.gz", pk))
+	fmt.Println("proving key loaded")
 }
 
 func BenchmarkProof26KBSnark(b *testing.B) {
