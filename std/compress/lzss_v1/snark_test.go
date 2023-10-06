@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/plonk"
+	plonknbn254 "github.com/consensys/gnark/backend/plonk/bn254"
+	"github.com/consensys/gnark/constraint"
+	csbn254 "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
+	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -115,7 +119,8 @@ func BenchmarkCompilation64KBSnark(b *testing.B) {
 	fmt.Println(p.NbConstraints(), "constraints")
 }
 
-func BenchmarkCompilation26KBSnark(b *testing.B) {
+// TODO Change name to reflect that setup is also occurring
+func compile26KBSnark(b *testing.B) {
 	c := DecompressionTestCircuit{
 		C: make([]frontend.Variable, 7000),
 		D: make([]byte, 30000),
@@ -128,11 +133,56 @@ func BenchmarkCompilation26KBSnark(b *testing.B) {
 		},
 	}
 
+	// compilation
+	fmt.Println("compilation")
 	p := profile.Start()
-	_, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	b.StartTimer()
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
 	assert.NoError(b, err)
+	b.StopTimer()
 	p.Stop()
 	fmt.Println(p.NbConstraints(), "constraints")
+	assert.NoError(b, compress.GzWrite("26kb_cs.gz", cs))
+
+	// setup
+	fmt.Println("setup")
+	b.StartTimer()
+	kzgSrs, err := test.NewKZGSRS(cs)
+	require.NoError(b, err)
+	pk, _, err := plonk.Setup(cs, kzgSrs)
+	require.NoError(b, err)
+	b.StopTimer()
+	assert.NoError(b, compress.GzWrite("26kb_pk.gz", pk))
+}
+
+func BenchmarkCompilation26KBSnark(b *testing.B) {
+	compile26KBSnark(b)
+}
+
+func BenchmarkProof26KBSnark(b *testing.B) {
+	var (
+		cs csbn254.SparseR1CS
+		pk plonknbn254.ProvingKey
+	)
+	if err := compress.GzRead("26kb_cs.gz", &cs); err != nil { // we don't have the constraints stored. compile and try again
+		fmt.Println("reading constraints failed. attempting to recreate...")
+		compile26KBSnark(b)
+		assert.NoError(b, compress.GzRead("26kb_cs.gz", &cs))
+	}
+	fmt.Println("constraints loaded")
+	assert.NoError(b, compress.GzRead("26kb_pk.gz", &pk))
+	fmt.Println("proving key loaded")
+	d, err := os.ReadFile("../test_cases/3c2943/data.bin")
+	assert.NoError(b, err)
+	c, err := Compress(d, Settings{
+		BackRefSettings: BackRefSettings{
+			NbBytesAddress: 2,
+			NbBytesLength:  1,
+			Symbol:         0,
+		},
+	})
+	assert.NoError(b, err)
+	assert.NoError(b, proveDecompressionSnark(&cs, &pk, c, 7000))
 }
 
 func BenchmarkCompilation600KBSnark(b *testing.B) {
@@ -182,7 +232,30 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 		},
 	}
 
-	cVars := make([]frontend.Variable, len(c)*3+settings.BackRefSettings.NbBytes())
+	cMax := len(c) * 3
+
+	decompressor := &DecompressionTestCircuit{
+		C:                make([]frontend.Variable, cMax),
+		D:                d,
+		Settings:         settings,
+		CheckCorrectness: true,
+	}
+	//p := profile.Start()
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, decompressor)
+	//p.Stop()
+	require.NoError(t, err)
+
+	kzgSrs, err := test.NewKZGSRS(cs)
+	require.NoError(t, err)
+	pk, _, err := plonk.Setup(cs, kzgSrs)
+	require.NoError(t, err)
+
+	assert.NoError(t, proveDecompressionSnark(cs, pk, c, cMax))
+}
+
+func proveDecompressionSnark(cs constraint.ConstraintSystem, pk plonk.ProvingKey, c []byte, cMax int) error {
+
+	cVars := make([]frontend.Variable, cMax)
 	for i := range c {
 		cVars[i] = frontend.Variable(c[i])
 	}
@@ -191,23 +264,12 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 		cVars[i] = 0
 	}
 
-	decompressor := &DecompressionTestCircuit{
-		C:        make([]frontend.Variable, len(cVars)),
-		D:        d,
-		Settings: settings,
-	}
-	//p := profile.Start()
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, decompressor)
-	//p.Stop()
-	require.NoError(t, err)
-	kzgSrs, err := test.NewKZGSRS(cs)
-	require.NoError(t, err)
-	pk, _, err := plonk.Setup(cs, kzgSrs)
-	require.NoError(t, err)
 	_witness, err := frontend.NewWitness(&DecompressionTestCircuit{
 		C: cVars,
 	}, ecc.BN254.ScalarField())
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	_, err = plonk.Prove(cs, pk, _witness)
-	require.NoError(t, err)
+	return err
 }

@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
-	"compress/gzip"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/compress/lzss_v1"
-	"os"
 )
 
 // executable to generate the constraints for the circuit and store it
@@ -37,31 +34,5 @@ func main() {
 	check(err)
 
 	fmt.Println(cs.GetNbConstraints(), "constraints")
-	check(gzCompressCs("600kb.gz", cs))
-}
-
-func gzCompressCs(outFileName string, cs constraint.ConstraintSystem) error {
-	var raw bytes.Buffer
-	_, err := cs.WriteTo(&raw)
-	if err != nil {
-		return err
-	}
-	compressed, err := gzCompress(raw.Bytes())
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(outFileName, compressed, 0644)
-}
-
-func gzCompress(in []byte) ([]byte, error) {
-	var out bytes.Buffer
-	w := gzip.NewWriter(&out)
-	_, err := w.Write(in)
-	if err != nil {
-		return nil, err
-	}
-	if err = w.Close(); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
+	check(compress.GzWrite("600kb.gz", cs))
 }

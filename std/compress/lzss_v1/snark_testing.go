@@ -5,9 +5,10 @@ import (
 )
 
 type DecompressionTestCircuit struct {
-	C        []frontend.Variable
-	D        []byte
-	Settings Settings
+	C                []frontend.Variable
+	D                []byte
+	Settings         Settings
+	CheckCorrectness bool
 }
 
 func (c *DecompressionTestCircuit) Define(api frontend.API) error {
@@ -17,11 +18,13 @@ func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	api.Println("got len", dLen, "expected", len(c.D))
-	api.AssertIsEqual(len(c.D), dLen)
-	for i := range c.D {
-		api.Println("decompressed at", i, "->", dBack[i], "expected", c.D[i], "dBack", dBack[i])
-		api.AssertIsEqual(c.D[i], dBack[i])
+	if c.CheckCorrectness {
+		api.Println("got len", dLen, "expected", len(c.D))
+		api.AssertIsEqual(len(c.D), dLen)
+		for i := range c.D {
+			api.Println("decompressed at", i, "->", dBack[i], "expected", c.D[i], "dBack", dBack[i])
+			api.AssertIsEqual(c.D[i], dBack[i])
+		}
 	}
 	return nil
 }

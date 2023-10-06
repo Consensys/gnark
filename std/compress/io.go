@@ -2,7 +2,10 @@ package compress
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
+	"io"
+	"os"
 )
 
 func readHex(out *bytes.Buffer, b *[]byte, size int) error {
@@ -83,4 +86,43 @@ func expect(b *[]byte, cs ...byte) (byte, error) {
 		}
 	}
 	return seen, fmt.Errorf("unexpected %c", seen)
+}
+
+func GzWrite(outFileName string, o io.WriterTo) error {
+	var raw bytes.Buffer
+	_, err := o.WriteTo(&raw)
+	if err != nil {
+		return err
+	}
+	compressed, err := gzCompress(raw.Bytes())
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(outFileName, compressed, 0644)
+}
+
+func GzRead(inFileName string, o io.ReaderFrom) error {
+	compressed, err := os.Open(inFileName)
+	if err != nil {
+		return err
+	}
+	reader, err := gzip.NewReader(compressed)
+	if err != nil {
+		return err
+	}
+	_, err = o.ReadFrom(reader)
+	return err
+}
+
+func gzCompress(in []byte) ([]byte, error) {
+	var out bytes.Buffer
+	w := gzip.NewWriter(&out)
+	_, err := w.Write(in)
+	if err != nil {
+		return nil, err
+	}
+	if err = w.Close(); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }
