@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/plonk"
-	plonknbn254 "github.com/consensys/gnark/backend/plonk/bn254"
 	"github.com/consensys/gnark/constraint"
-	csbn254 "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
@@ -160,17 +158,17 @@ func BenchmarkCompilation26KBSnark(b *testing.B) {
 }
 
 func BenchmarkProof26KBSnark(b *testing.B) {
-	var (
-		cs csbn254.SparseR1CS
-		pk plonknbn254.ProvingKey
-	)
-	if err := compress.GzRead("26kb_cs.gz", &cs); err != nil { // we don't have the constraints stored. compile and try again
+	cs := plonk.NewCS(ecc.BN254)
+	pk := plonk.NewProvingKey(ecc.BN254)
+
+	if err := compress.GzRead("26kb_cs.gz", cs); err != nil { // we don't have the constraints stored. compile and try again
 		fmt.Println("reading constraints failed. attempting to recreate...")
 		compile26KBSnark(b)
-		assert.NoError(b, compress.GzRead("26kb_cs.gz", &cs))
+		fmt.Println("created constraints and proving key")
+		assert.NoError(b, compress.GzRead("26kb_cs.gz", cs))
 	}
 	fmt.Println("constraints loaded")
-	assert.NoError(b, compress.GzRead("26kb_pk.gz", &pk))
+	assert.NoError(b, compress.GzRead("26kb_pk.gz", pk))
 	fmt.Println("proving key loaded")
 	d, err := os.ReadFile("../test_cases/3c2943/data.bin")
 	assert.NoError(b, err)
@@ -182,7 +180,7 @@ func BenchmarkProof26KBSnark(b *testing.B) {
 		},
 	})
 	assert.NoError(b, err)
-	assert.NoError(b, proveDecompressionSnark(&cs, &pk, c, 7000))
+	assert.NoError(b, proveDecompressionSnark(cs, pk, c, 7000))
 }
 
 func BenchmarkCompilation600KBSnark(b *testing.B) {
