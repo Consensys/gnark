@@ -191,6 +191,8 @@ func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 //
 // if g3=g2=0 then g4=g5=g1=0 and g0=1 (x=1)
 // Theorem 3.1 is well-defined for all x in Gϕₙ\{1}
+//
+// TODO: handle the edge cases
 func (e Ext6) DecompressKarabina(x *E6) *E6 {
 
 	x = e.Reduce(x)
