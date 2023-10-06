@@ -83,7 +83,8 @@ func (c *PairCircuit) Define(api frontend.API) error {
 func TestPairTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
 	p, q := randomG1G2Affines()
-	res, err := bw6761.Pair([]bw6761.G1Affine{p}, []bw6761.G2Affine{q})
+	res, err := bw6761.MillerLoopOptAte([]bw6761.G1Affine{p}, []bw6761.G2Affine{q})
+	res = bw6761.FinalExponentiation(&res)
 	assert.NoError(err)
 	witness := PairCircuit{
 		InG1: NewG1Affine(p),
