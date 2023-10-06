@@ -165,6 +165,7 @@ func BenchmarkProof26KBSnark(b *testing.B) {
 		fmt.Println("reading constraints failed. attempting to recreate...")
 		compile26KBSnark(b)
 		fmt.Println("created constraints and proving key")
+		cs = plonk.NewCS(ecc.BN254)
 		assert.NoError(b, compress.GzRead("26kb_cs.gz", cs))
 	}
 	fmt.Println("constraints loaded")
