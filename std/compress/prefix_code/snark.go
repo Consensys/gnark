@@ -1,6 +1,7 @@
 package prefix_code
 
 import (
+	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	"golang.org/x/exp/slices"
@@ -21,27 +22,19 @@ func Decode(api frontend.API, inBits []frontend.Variable, inLen frontend.Variabl
 
 	inIs := make([]frontend.Variable, slices.Max(symbolLengths))
 	in := logderivlookup.New(api)
-	for i := range inBits {
-		in.Insert(inBits[i])
-	}
-	for i := 0; i < len(inIs)-1; i++ { // padding
-		in.Insert(0)
+	for _, bundled := range bundle(api, inBits, len(inIs)) {
+		in.Insert(bundled)
 	}
 
 	outLen = 0
 	inI := frontend.Variable(0)
 	eof := api.IsZero(inLen)
 	for outI := range out {
-		for i := range inIs {
-			inIs[i] = api.Add(inI, i)
+		if outI%1024 == 0 {
+			fmt.Println("compiler at", outI/1024, "KB")
 		}
-		symbRead := frontend.Variable(0)
-		{
-			bits := in.Lookup(inIs...)
-			for i := range bits {
-				symbRead = api.Add(bits[i], symbRead, symbRead)
-			}
-		}
+
+		symbRead := in.Lookup(inI)[0]
 
 		out[outI] = codeSymbs.Lookup(symbRead)[0]
 		readSymbLen := codeLens.Lookup(symbRead)[0]
@@ -53,6 +46,27 @@ func Decode(api frontend.API, inBits []frontend.Variable, inLen frontend.Variabl
 	}
 
 	return outLen, nil
+}
+
+func bundle(api frontend.API, bits []frontend.Variable, width int) []frontend.Variable {
+
+	out := make([]frontend.Variable, len(bits))
+	out[0] = 0
+
+	for i := 0; i < width && i < len(bits); i++ {
+		out[0] = api.Add(out[0], api.Mul(bits[i], 1<<uint64(width-1-i)))
+	}
+
+	for i := 1; i < len(bits); i++ {
+		// out[i] = 2*out[i-1] - bits[i-1] * 2^width + bits[i+width-1]
+		lsb := frontend.Variable(0)
+		if i+width-1 < len(bits) {
+			lsb = bits[i+width-1]
+		}
+		out[i] = api.Add(api.Mul(out[i-1], 2), api.Mul(bits[i-1], -(1<<width)), lsb)
+	}
+
+	return out
 }
 
 func LengthsToTables(symbolLengths []int) (symbsTable, lengthsTable []uint64) {
