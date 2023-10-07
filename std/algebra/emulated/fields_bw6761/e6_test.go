@@ -434,20 +434,20 @@ func TestExpc1Fp6(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e6MulBy014 struct {
+type e6MulBy034 struct {
 	A    E6 `gnark:",public"`
 	W    E6
 	B, C baseEl
 }
 
-func (circuit *e6MulBy014) Define(api frontend.API) error {
+func (circuit *e6MulBy034) Define(api frontend.API) error {
 	e := NewExt6(api)
-	res := e.MulBy014(&circuit.A, &circuit.B, &circuit.C)
+	res := e.MulBy034(&circuit.A, &circuit.B, &circuit.C)
 	e.AssertIsEqual(res, &circuit.W)
 	return nil
 }
 
-func TestFp12MulBy014(t *testing.T) {
+func TestFp12MulBy034(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
@@ -458,16 +458,16 @@ func TestFp12MulBy014(t *testing.T) {
 	_, _ = b.SetRandom()
 	_, _ = c.SetRandom()
 	w.Set(&a)
-	w.MulBy014(&b, &c, &one)
+	w.MulBy034(&one, &b, &c)
 
-	witness := e6MulBy014{
+	witness := e6MulBy034{
 		A: FromE6(&a),
 		B: emulated.ValueOf[emulated.BW6761Fp](&b),
 		C: emulated.ValueOf[emulated.BW6761Fp](&c),
 		W: FromE6(&w),
 	}
 
-	err := test.IsSolved(&e6MulBy014{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&e6MulBy034{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 
 }

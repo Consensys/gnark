@@ -139,7 +139,7 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 
 // lineEvaluation represents a sparse Fp6 Elmt (result of the line evaluation)
 // line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
-// makes the multiplication by lines (MulBy014) circuit-efficient.
+// makes the multiplication by lines (MulBy034) and between lines (Mul034By034)
 type lineEvaluation struct {
 	R0, R1 emulated.Element[emulated.BW6761Fp]
 }
@@ -176,8 +176,9 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext6.AssertIsEqual(x, y)
 }
 
-var thirdRootOneG2 = emulated.ValueOf[emulated.BW6761Fp]("3876905175468200631077310367084681598448315841795389501393935922030716896759491089791062239139884430736136043081596370525752532152533918168748948422532524762769433379258873205270018176434449950195784127083892851850798970002242935133594411783692478449434154543435837344414891700653141782682622592665272535258486114040810216200011591719198498884598067930925845038459634787676665023756334020972459098834655430741989740290995313870292460737326506741396444022500")
-
+// seed x₀=9586122913090633729
+//
+// x₀+1 in binary (64 bits) padded with 0s
 var loopCounterAlt1 = [190]int8{
 	0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1, 0,
@@ -188,6 +189,8 @@ var loopCounterAlt1 = [190]int8{
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 }
+
+// x₀³-x₀²-x₀ in 2-NAF
 var loopCounterAlt2 = [190]int8{
 	-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -199,7 +202,16 @@ var loopCounterAlt2 = [190]int8{
 	1, 0, 0, 0, 1, 0, -1, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 1,
 }
 
-// MillerLoop computes the multi-Miller loop
+// thirdRootOne² + thirdRootOne + 1 = 0 in BW6761Fp
+var thirdRootOne = emulated.ValueOf[emulated.BW6761Fp]("4922464560225523242118178942575080391082002530232324381063048548642823052024664478336818169867474395270858391911405337707247735739826664939444490469542109391530482826728203582549674992333383150446779312029624171857054392282775648")
+
+// MillerLoop computes the optimal Tate multi-Miller loop
+// (or twisted ate or Eta revisited)
+//
+// ∏ᵢ { fᵢ_{x₀+1+λ(x₀³-x₀²-x₀),Pᵢ}(Qᵢ) }
+//
+// Alg.2 in https://eprint.iacr.org/2021/1359.pdf
+// Eq. (6) in https://hackmd.io/@gnark/BW6-761-changes
 func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	// check input size match
@@ -223,45 +235,54 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	l01 := make([]*lineEvaluation, n)
 
 	for k := 0; k < n; k++ {
+		// P and Q are supposed to be on G1 and G2 respectively of prime order r.
+		// The point (x,0) is of order 2. But this function does not check
+		// subgroup membership.
 		yInv[k] = pr.curveF.Inverse(&Q[k].Y)
 		xNegOverY[k] = pr.curveF.MulMod(&Q[k].X, yInv[k])
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
+		// p0 = P = (x, y)
 		p0[k] = &G1Affine{X: P[k].X, Y: P[k].Y}
-		p0[k].X = P[k].X
-		p0[k].Y = P[k].Y
+		// p0neg = -P = (x, -y)
 		p0neg[k] = &G1Affine{X: p0[k].X, Y: *pr.curveF.Neg(&p0[k].Y)}
-		p1[k] = &G1Affine{X: *pr.curveF.MulMod(&p0[k].X, &thirdRootOneG2), Y: p0neg[k].Y}
+		// p1 = (w*x, -y)
+		p1[k] = &G1Affine{X: *pr.curveF.MulMod(&p0[k].X, &thirdRootOne), Y: p0neg[k].Y}
+		// p1neg = (w*x, y)
 		p1neg[k] = &G1Affine{X: p1[k].X, Y: p0[k].Y}
-
-		// p01 = p0+p1 and l01 = l_{p0,p1}(q)
+		// p01 = p0+p1 and l01 line through p0 and p1
 		p01[k], l01[k] = pr.addStep(p0[k], p1[k])
 		l01[k].R0 = *pr.curveF.MulMod(&l01[k].R0, xNegOverY[k])
 		l01[k].R1 = *pr.curveF.MulMod(&l01[k].R1, yInv[k])
+		// p01neg = -p01
 		p01neg[k] = &G1Affine{X: p01[k].X, Y: *pr.curveF.Neg(&p01[k].Y)}
-
 		// p10 = p0-p1
 		p10[k] = &G1Affine{
 			X: *pr.curveF.Add(&p0[k].X, &p1[k].X),
 			Y: p1[k].Y,
 		}
 		p10[k].X = *pr.curveF.Neg(&p10[k].X)
+		// p10neg = -p10
 		p10neg[k] = &G1Affine{X: p10[k].X, Y: p0[k].Y}
-
+		// point accumulator initialized to p1
 		pAcc[k] = p1[k]
 	}
 
-	// f_{a0+\lambda*a1,P}(Q)
+	// f_{x₀+1+λ(x₀³-x₀²-x₀),P}(Q)
 	result := pr.Ext6.One()
 	var prodLines [5]emulated.Element[emulated.BW6761Fp]
 	var l, l0 *lineEvaluation
 
-	// i = 188
-	// k = 0
+	// i = 188, separately to avoid an E6 Square
+	// (Square(res) = 1² = 1)
+	// k = 0, separately to avoid MulBy034 (res × ℓ)
+	// (assign line to res)
 	pAcc[0], l0 = pr.doubleStep(p1[0])
 	result.B1.A0 = *pr.curveF.MulMod(&l0.R0, xNegOverY[0])
 	result.B1.A1 = *pr.curveF.MulMod(&l0.R1, yInv[0])
 
 	if n >= 2 {
+		// k = 1, separately to avoid MulBy034 (res × ℓ)
+		// (res is also a line at this point, so we use Mul034By034 ℓ × ℓ)
 		pAcc[1], l0 = pr.doubleStep(pAcc[1])
 		l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY[1])
 		l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv[1])
@@ -275,6 +296,8 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	}
 
 	if n >= 3 {
+		// k = 2, separately to avoid MulBy034 (res × ℓ)
+		// (res has a zero E2 element, so we use Mul01234By034)
 		pAcc[2], l0 = pr.doubleStep(pAcc[2])
 		l0.R0 = *pr.curveF.MulMod(&l0.R0, xNegOverY[2])
 		l0.R1 = *pr.curveF.MulMod(&l0.R1, yInv[2])
@@ -303,6 +326,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	}
 
 	for i := 186; i >= 1; i-- {
+		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		result = pr.Square(result)
 
@@ -390,6 +414,14 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	}
 
 	// i = 0, j = -3
+	// The resulting accumulator point is the infinity point because
+	// [(x₀+1) + λ(x₀³-x₀²-x₀)]P = [3(x₀-1)² ⋅ r]P = ∞
+	// since we're using affine coordinates, the addStep in the last iteration
+	// (j=-3) will fail as the slope of a vertical line in indefinite. But in
+	// projective coordinates, vertinal lines meet at (0:1:0) so the result
+	// should be unchanged if we ommit the addStep in this case. Moreover we
+	// just compute before the tangent line and not the full doubleStep as we
+	// only care about the Miller loop result in Fp6 and not the point itself.
 	result = pr.Square(result)
 	for k := 0; k < n; k++ {
 		l0 = pr.tangentCompute(pAcc[k])
