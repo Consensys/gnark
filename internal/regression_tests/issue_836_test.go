@@ -101,12 +101,17 @@ func TestIssue836AssertIsLess(t *testing.T) {
 		Smaller: 10,
 		Bigger:  5,
 	}
+	assignmentHintBad2 := AssertIsLessOrEqCircuit{
+		Smaller: 10,
+		Bigger:  0,
+	}
 	toReplaceHint, err := getNBitsHint()
 	if err != nil {
 		t.Fatalf("couldn't find hint to replace: %v", err)
 	}
 	assert.CheckCircuit(&AssertIsLessOrEqCircuit{}, test.WithValidAssignment(&assignmentNoHintGood), test.WithInvalidAssignment(&assignmentNoHintBad))
 	assert.CheckCircuit(&AssertIsLessOrEqCircuit{}, test.WithInvalidAssignment(&assignmentHintBad), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
+	assert.CheckCircuit(&AssertIsLessOrEqCircuit{}, test.WithInvalidAssignment(&assignmentHintBad2), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
 }
 
 func TestIssue836MathCmpAssertIsLessEqBounded(t *testing.T) {
