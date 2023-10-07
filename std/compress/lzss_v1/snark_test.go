@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+	"time"
 )
 
 func Test1ZeroSnark(t *testing.T) {
@@ -118,10 +119,10 @@ func BenchmarkCompilation64KBSnark(b *testing.B) {
 }
 
 // TODO Change name to reflect that setup is also occurring
-func compile26KBSnark(t require.TestingT) {
+func compile26KBSnark(t require.TestingT, testCaseName string) {
 	c := DecompressionTestCircuit{
-		C: make([]frontend.Variable, 7000),
-		D: make([]byte, 30000),
+		C: make([]frontend.Variable, 7300),
+		D: make([]byte, 26000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
 				NbBytesAddress: 2,
@@ -152,7 +153,7 @@ func compile26KBSnark(t require.TestingT) {
 	stopTimer()
 	p.Stop()
 	fmt.Println(p.NbConstraints(), "constraints")
-	assert.NoError(t, compress.GzWrite("26kb_cs.gz", cs))
+	assert.NoError(t, compress.GzWrite("../test_cases/"+testCaseName+"/cs.gz", cs))
 
 	// setup
 	fmt.Println("setup")
@@ -162,54 +163,30 @@ func compile26KBSnark(t require.TestingT) {
 	pk, _, err := plonk.Setup(cs, kzgSrs)
 	require.NoError(t, err)
 	stopTimer()
-	assert.NoError(t, compress.GzWrite("26kb_pk.gz", pk))
+	assert.NoError(t, compress.GzWrite("../test_cases/"+testCaseName+"/pk.gz", pk))
 }
 
 func BenchmarkCompilation26KBSnark(b *testing.B) {
-	compile26KBSnark(b)
-}
-
-func TestLoad26KBSnark(t *testing.T) {
-	cs := plonk.NewCS(ecc.BN254)
-	pk := plonk.NewProvingKey(ecc.BN254)
-
-	if err := compress.GzRead("26kb_cs.gz", cs); err != nil { // we don't have the constraints stored. compile and try again
-		fmt.Println("reading constraints failed. attempting to recreate...")
-		compile26KBSnark(t)
-		fmt.Println("created constraints and proving key")
-		cs = plonk.NewCS(ecc.BN254)
-		assert.NoError(t, compress.GzRead("26kb_cs.gz", cs))
-	}
-	fmt.Println("constraints loaded")
-	assert.NoError(t, compress.GzRead("26kb_pk.gz", pk))
-	fmt.Println("proving key loaded")
+	compile26KBSnark(b, "3c2943")
 }
 
 func BenchmarkProof26KBSnark(b *testing.B) {
 	cs := plonk.NewCS(ecc.BN254)
 	pk := plonk.NewProvingKey(ecc.BN254)
 
-	if err := compress.GzRead("26kb_cs.gz", cs); err != nil { // we don't have the constraints stored. compile and try again
+	if err := compress.GzRead("../test_cases/3c2943/cs.gz", cs); err != nil { // we don't have the constraints stored. compile and try again
 		fmt.Println("reading constraints failed. attempting to recreate...")
-		compile26KBSnark(b)
+		compile26KBSnark(b, "3c2943")
 		fmt.Println("created constraints and proving key")
 		cs = plonk.NewCS(ecc.BN254)
-		assert.NoError(b, compress.GzRead("26kb_cs.gz", cs))
+		assert.NoError(b, compress.GzRead("../test_cases/3c2943/cs.gz", cs))
 	}
 	fmt.Println("constraints loaded")
-	assert.NoError(b, compress.GzRead("26kb_pk.gz", pk))
+	assert.NoError(b, compress.GzRead("../test_cases/3c2943/pk.gz", pk))
 	fmt.Println("proving key loaded")
-	d, err := os.ReadFile("../test_cases/3c2943/data.bin")
+	c, err := os.ReadFile("../test_cases/3c2943/data.lzssv1")
 	assert.NoError(b, err)
-	c, err := Compress(d, Settings{
-		BackRefSettings: BackRefSettings{
-			NbBytesAddress: 2,
-			NbBytesLength:  1,
-			Symbol:         0,
-		},
-	})
-	assert.NoError(b, err)
-	assert.NoError(b, proveDecompressionSnark(cs, pk, c, 7000))
+	proveDecompressionSnark(b, cs, pk, c, 7300)
 }
 
 func BenchmarkCompilation600KBSnark(b *testing.B) {
@@ -277,10 +254,10 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 	pk, _, err := plonk.Setup(cs, kzgSrs)
 	require.NoError(t, err)
 
-	assert.NoError(t, proveDecompressionSnark(cs, pk, c, cMax))
+	proveDecompressionSnark(t, cs, pk, c, cMax)
 }
 
-func proveDecompressionSnark(cs constraint.ConstraintSystem, pk plonk.ProvingKey, c []byte, cMax int) error {
+func proveDecompressionSnark(t require.TestingT, cs constraint.ConstraintSystem, pk plonk.ProvingKey, c []byte, cMax int) {
 
 	cVars := make([]frontend.Variable, cMax)
 	for i := range c {
@@ -291,12 +268,22 @@ func proveDecompressionSnark(cs constraint.ConstraintSystem, pk plonk.ProvingKey
 		cVars[i] = 0
 	}
 
+	var start int64
+	restartTimer := func() {
+		if start != 0 {
+			fmt.Println("time taken:", time.Now().UnixMilli()-start, "ms")
+		}
+		start = time.Now().UnixMilli()
+	}
+
+	fmt.Println("constructing witness")
 	_witness, err := frontend.NewWitness(&DecompressionTestCircuit{
 		C: cVars,
 	}, ecc.BN254.ScalarField())
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
+	restartTimer()
+	fmt.Println("proving")
 	_, err = plonk.Prove(cs, pk, _witness)
-	return err
+	require.NoError(t, err)
+	restartTimer()
 }

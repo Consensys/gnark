@@ -4,13 +4,22 @@ import (
 	"fmt"
 	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/compress/huffman"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
 	"strings"
 	"testing"
 )
 
-func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
+func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testCaseName ...string) {
+	if len(testCaseName) > 1 {
+		t.Fatal("either 0 or 1 test case name")
+	}
+	if len(testCaseName) == 1 && d == nil {
+		var err error
+		d, err = os.ReadFile("../test_cases/" + testCaseName[0] + "/data.bin")
+		require.NoError(t, err)
+	}
 	var heads []LogHeads
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
@@ -21,6 +30,9 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte) {
 		LogHeads: &heads,
 	}
 	c, err := Compress(d, settings)
+	if len(testCaseName) == 1 {
+		assert.NoError(t, os.WriteFile("../test_cases/"+testCaseName[0]+"/data.lzssv1", c, 0644))
+	}
 	cStream := compress.NewStreamFromBytes(c)
 	cHuff := (huffman.EstimateHuffmanCodeSize(cStream) + 7) / 8
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
@@ -85,6 +97,10 @@ func Test300ZerosAfterNonzero(t *testing.T) { // probably won't happen in our ca
 func TestRepeatedNonzero(t *testing.T) {
 	testCompressionRoundTrip(t, 1, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
 	testCompressionRoundTrip(t, 2, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
+}
+
+func TestCompress26KB(t *testing.T) {
+	testCompressionRoundTrip(t, 2, nil, "3c2943")
 }
 
 func TestCalldataSymb0(t *testing.T) {

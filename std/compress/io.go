@@ -110,7 +110,27 @@ func GzRead(inFileName string, o io.ReaderFrom) error {
 	if err != nil {
 		return err
 	}
-	_, err = o.ReadFrom(reader)
+
+	var decompressed bytes.Buffer
+	buff := make([]byte, 1024)
+	n, err := reader.Read(buff)
+	decompressed.Write(buff[:n])
+	for err == nil {
+		n, err = reader.Read(buff)
+		decompressed.Write(buff[:n])
+	}
+	if err != io.EOF {
+		return err
+	}
+
+	if err = compressed.Close(); err != nil {
+		return err
+	}
+	if err = reader.Close(); err != nil {
+		return err
+	}
+
+	_, err = o.ReadFrom(bytes.NewReader(decompressed.Bytes()))
 	return err
 }
 
