@@ -184,6 +184,9 @@ func BenchmarkPairing(b *testing.B) {
 
 	p, q := randomG1G2Affines()
 	res, err := bw6761.Pair([]bw6761.G1Affine{p}, []bw6761.G2Affine{q})
+	if err != nil {
+		b.Fatal(err)
+	}
 	witness := PairCircuit{
 		InG1: NewG1Affine(p),
 		InG2: NewG2Affine(q),
