@@ -71,11 +71,11 @@ func TestTwoBackrefsAfterNonzeroSnark(t *testing.T) {
 
 func Test257ZerosAfterNonzeroSnark(t *testing.T) { // probably won't happen in our calldata
 	testCompressionRoundTripSnark(t, 1, append([]byte{1}, make([]byte, 257)...))
-	//testCompressionRoundTripSnark(t, 2, append([]byte{1}, make([]byte, 257)...))
+	testCompressionRoundTripSnark(t, 2, append([]byte{1}, make([]byte, 257)...))
 }
 
 func Test300ZerosAfterNonzeroSnark(t *testing.T) { // probably won't happen in our calldata
-	//testCompressionRoundTripSnark(t, 1, append([]byte{'h', 'i'}, make([]byte, 300)...))
+	testCompressionRoundTripSnark(t, 1, append([]byte{'h', 'i'}, make([]byte, 300)...))
 	testCompressionRoundTripSnark(t, 2, append([]byte{'h', 'i'}, make([]byte, 300)...))
 }
 
