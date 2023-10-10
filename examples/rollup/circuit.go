@@ -21,6 +21,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/accumulator/merkle"
 	"github.com/consensys/gnark/std/algebra/native/twistededwards"
+	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/signature/eddsa"
 )
@@ -154,10 +155,10 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		api.AssertIsEqual(circuit.SenderAccountsAfter[i].Index, circuit.LeafSender[i])
 
 		// verify the inclusion proofs
-		circuit.MerkleProofReceiverBefore[i].VerifyProof(api, &hFunc, circuit.LeafReceiver[i])
-		circuit.MerkleProofSenderBefore[i].VerifyProof(api, &hFunc, circuit.LeafSender[i])
-		circuit.MerkleProofReceiverAfter[i].VerifyProof(api, &hFunc, circuit.LeafReceiver[i])
-		circuit.MerkleProofSenderAfter[i].VerifyProof(api, &hFunc, circuit.LeafSender[i])
+		circuit.MerkleProofReceiverBefore[i].VerifyProof(api, hFunc, circuit.LeafReceiver[i])
+		circuit.MerkleProofSenderBefore[i].VerifyProof(api, hFunc, circuit.LeafSender[i])
+		circuit.MerkleProofReceiverAfter[i].VerifyProof(api, hFunc, circuit.LeafReceiver[i])
+		circuit.MerkleProofSenderAfter[i].VerifyProof(api, hFunc, circuit.LeafSender[i])
 
 		// verify the transaction transfer
 		err := verifyTransferSignature(api, circuit.Transfers[i], hFunc)
@@ -173,7 +174,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 }
 
 // verifySignatureTransfer ensures that the signature of the transfer is valid
-func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc.MiMC) error {
+func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc hash.FieldHasher) error {
 
 	// Reset the hash state!
 	hFunc.Reset()
@@ -188,7 +189,7 @@ func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc
 	}
 
 	hFunc.Reset()
-	err = eddsa.Verify(curve, t.Signature, htransfer, t.SenderPubKey, &hFunc)
+	err = eddsa.Verify(curve, t.Signature, htransfer, t.SenderPubKey, hFunc)
 	if err != nil {
 		return err
 	}

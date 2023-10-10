@@ -19,6 +19,7 @@ package hash
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 )
 
@@ -60,6 +61,20 @@ type BinaryHasher interface {
 // the length of the input is the total number of bytes written.
 type BinaryFixedLengthHasher interface {
 	BinaryHasher
+
 	// FixedLengthSum returns digest of the first length bytes.
 	FixedLengthSum(length frontend.Variable) []uints.U8
+}
+
+// FieldHasherNonNative is generic definition of the [FieldHasher] interface
+// which allows working on a non-native field.
+type FieldHasherNonNative[T emulated.FieldParams] interface {
+	// Sum computes the hash of the internal state of the hash function.
+	Sum() emulated.Element[T]
+
+	// Write populate the internal state of the hash function with data. The inputs are native field elements.
+	Write(data ...emulated.Element[T])
+
+	// Reset empty the internal state and put the intermediate state to zero.
+	Reset()
 }

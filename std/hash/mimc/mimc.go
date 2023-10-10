@@ -36,12 +36,13 @@ type MiMC struct {
 }
 
 // NewMiMC returns a MiMC instance, than can be used in a gnark circuit
-func NewMiMC(api frontend.API) (MiMC, error) {
+func NewMiMC(api frontend.API) (*MiMC, error) {
 	// TODO @gbotrel use field
 	if constructor, ok := newMimc[utils.FieldToCurve(api.Compiler().Field())]; ok {
-		return constructor(api), nil
+		constructed := constructor(api)
+		return &constructed, nil
 	}
-	return MiMC{}, errors.New("unknown curve id")
+	return &MiMC{}, errors.New("unknown curve id")
 }
 
 // Write adds more data to the running hash.

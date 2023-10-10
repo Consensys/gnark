@@ -97,10 +97,10 @@ func (t *circuitInclusionProof) Define(api frontend.API) error {
 		return err
 	}
 
-	t.MerkleProofReceiverBefore[0].VerifyProof(api, &hashFunc, t.LeafReceiver[0])
-	t.MerkleProofReceiverAfter[0].VerifyProof(api, &hashFunc, t.LeafReceiver[0])
-	t.MerkleProofSenderBefore[0].VerifyProof(api, &hashFunc, t.LeafSender[0])
-	t.MerkleProofSenderAfter[0].VerifyProof(api, &hashFunc, t.LeafSender[0])
+	t.MerkleProofReceiverBefore[0].VerifyProof(api, hashFunc, t.LeafReceiver[0])
+	t.MerkleProofReceiverAfter[0].VerifyProof(api, hashFunc, t.LeafReceiver[0])
+	t.MerkleProofSenderBefore[0].VerifyProof(api, hashFunc, t.LeafSender[0])
+	t.MerkleProofSenderAfter[0].VerifyProof(api, hashFunc, t.LeafSender[0])
 
 	return nil
 }
