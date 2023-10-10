@@ -94,14 +94,10 @@ type ProvingKey struct {
 	// The polynomials in trace are in canonical basis.
 	trace Trace
 
-	Kzg         kzg.ProvingKey
-	KzgLagrange kzg.ProvingKeyLagrange
+	Kzg, KzgLagrange kzg.ProvingKey
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
-
-	// LQk qk in Lagrange form -> to be completed by the prover. After being completed,
-	// lQk *iop.Polynomial
 
 	// Domains used for the FFTs.
 	// Domain[0] = small Domain
@@ -129,8 +125,12 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	if len(kzgSrs.Pk.G1) < int(vk.Size) {
 		return nil, nil, errors.New("kzg srs is too small")
 	}
-	pk.Kzg = kzgSrs.Pk
-	pk.KzgLagrange = kzg.SrsToLagrangeG1(kzgSrs.Pk, int(vk.Size))
+	pk.Kzg.G1 = kzgSrs.Pk.G1[:int(vk.Size)]
+	var err error
+	pk.KzgLagrange.G1, err = kzg.ToLagrangeG1(kzgSrs.Pk.G1[:int(vk.Size)])
+	if err != nil {
+		return nil, nil, err
+	}
 	vk.Kzg = kzgSrs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
@@ -149,8 +149,7 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	// All the above polynomials are expressed in canonical basis afterwards. This is why
 	// we save lqk before, because the prover needs to complete it in Lagrange form, and
 	// then express it on the Lagrange coset basis.
-	err := commitTrace(&pk.trace, &pk)
-	if err != nil {
+	if err = commitTrace(&pk.trace, &pk); err != nil {
 		return nil, nil, err
 	}
 

@@ -447,7 +447,7 @@ func (s *instance) deriveGammaAndBeta() error {
 // /!\ The polynomial p is supposed to be in Lagrange form.
 func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G1Affine, err error) {
 
-	commit, err = kzg.CommitLagrange(p.Coefficients(), s.pk.KzgLagrange)
+	commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange)
 
 	// we add in the blinding contribution
 	n := int(s.pk.Domain[0].Cardinality)

@@ -23,7 +23,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/iop"
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/kzg"
 	"github.com/consensys/gnark/io"
 	"math/big"
 	"math/rand"
@@ -67,8 +66,8 @@ func (pk *ProvingKey) randomize() {
 	pk.Kzg.G1 = make([]curve.G1Affine, 32)
 	for i := range pk.Kzg.G1 {
 		pk.Kzg.G1[i] = randomG1Point()
+		pk.KzgLagrange.G1[i] = randomG1Point()
 	}
-	pk.KzgLagrange = kzg.SrsToLagrangeG1(pk.Kzg, 32)
 
 	n := int(pk.Domain[0].Cardinality)
 	ql := randomScalars(n)
