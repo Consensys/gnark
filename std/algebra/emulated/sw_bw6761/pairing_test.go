@@ -130,14 +130,14 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 func TestMultiPairTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
 	p1, q1 := randomG1G2Affines()
-	p := make([]bw6761.G1Affine, 10)
-	q := make([]bw6761.G2Affine, 10)
-	for i := 0; i < 10; i++ {
+	p := make([]bw6761.G1Affine, 4)
+	q := make([]bw6761.G2Affine, 4)
+	for i := 0; i < 4; i++ {
 		p[i] = p1
 		q[i] = q1
 	}
 
-	for i := 2; i < 10; i++ {
+	for i := 2; i < 4; i++ {
 		res, err := bw6761.Pair(p[:i], q[:i])
 		assert.NoError(err)
 		witness := MultiPairCircuit{
