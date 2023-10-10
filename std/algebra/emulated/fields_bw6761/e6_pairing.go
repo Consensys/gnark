@@ -39,40 +39,72 @@ func (e Ext6) Expt(x *E6) *E6 {
 	return result
 }
 
-// Expc2 set x to x^c2 in E6 and return x
-// ht, hy = 13, 9
-// c1 = ht+hy = 22 (10110)
-func (e Ext6) Expc2(x *E6) *E6 {
+// ExptMinus1 set x to x^(t-1) in E6 and return x
+func (e Ext6) ExptMinus1(x *E6) *E6 {
+	result := e.Expt(x)
+	result = e.Mul(result, e.Conjugate(x))
+	return result
+}
 
-	result := x
-	result = e.nSquareCompressed(result, 2)
+// ExptPlus1 set x to x^(t+1) in E6 and return x
+func (e Ext6) ExptPlus1(x *E6) *E6 {
+	result := e.Expt(x)
+	result = e.Mul(result, x)
+	return result
+}
+
+// ExptMinus1Div3 set x to x^(t-1)/3 in E6 and return x
+func (e Ext6) ExptMinus1Div3(x *E6) *E6 {
+	x = e.Reduce(x)
+	result := e.Copy(x)
+	result = e.CyclotomicSquare(result)
+	result = e.Mul(result, x)
+	t0 := e.Mul(result, x)
+	t0 = e.CyclotomicSquare(t0)
+	result = e.Mul(result, t0)
+	t0 = e.CyclotomicSquare(result)
+	t0 = e.nSquareCompressed(t0, 6)
+	t0 = e.DecompressKarabina(t0)
+	result = e.Mul(result, t0)
+	result = e.nSquareCompressed(result, 5)
 	result = e.DecompressKarabina(result)
 	result = e.Mul(result, x)
-	result = e.CyclotomicSquare(result)
-	result = e.Mul(result, x)
-	result = e.CyclotomicSquare(result)
+	result = e.nSquareCompressed(result, 46)
+	result = e.DecompressKarabina(result)
 
 	return result
 }
 
-// Expc1 set x to x^c1 in E6 and return x
+// Expc1 set x to x^c2 in E6 and return x
 // ht, hy = 13, 9
-// c1 = ht**2+3*hy**2 = 412 (110011100)
+// c1 = (ht+hy)/2 = 11
 func (e Ext6) Expc1(x *E6) *E6 {
+	x = e.Reduce(x)
+	result := e.CyclotomicSquare(x)
+	result = e.Mul(result, x)
+	t0 := e.Mul(x, result)
+	t0 = e.CyclotomicSquare(t0)
+	result = e.Mul(result, t0)
+
+	return result
+}
+
+// Expc2 set x to x^c1 in E6 and return x
+// ht, hy = 13, 9
+// c1 = (ht**2+3*hy**2)/4 = 103
+func (e Ext6) Expc2(x *E6) *E6 {
 	x = e.Reduce(x)
 
 	result := e.CyclotomicSquare(x)
 	result = e.Mul(result, x)
-	result = e.nSquareCompressed(result, 3)
-	result = e.DecompressKarabina(result)
-	result = e.Mul(result, x)
+	t0 := e.CyclotomicSquare(result)
+	t0 = e.nSquareCompressed(t0, 3)
+	t0 = e.DecompressKarabina(t0)
+	result = e.Mul(result, t0)
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, x)
-	result = e.CyclotomicSquare(result)
-	result = e.Mul(result, x)
-	result = e.nSquareCompressed(result, 2)
 
-	return e.DecompressKarabina(result)
+	return result
 }
 
 // Square034 squares an E6 sparse element of the form
