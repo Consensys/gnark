@@ -44,9 +44,6 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		for i := 0; i < length; i++ {
 			indices[i] = api.Add(start, i)
 		}
-		toLog := []frontend.Variable{"reading from c indexes"}
-		toLog = append(toLog, indices...)
-		api.Println(toLog...)
 
 		return cTable.Lookup(indices...)
 	}
@@ -70,15 +67,9 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 	for outI := range d {
 
-		api.Println("inI", inI)
-
 		curr := readC(inI, 1)[0]
-		api.Println("curr", curr)
 		brLen := api.Add(readLittleEndian(api, readC(api.Add(inI, 1+settings.NbBytesAddress), int(settings.NbBytesLength))), 1)
-		api.Println("brLen", brLen)
 		brOffset := brOffsetTable.Lookup(inI)[0]
-
-		api.Println("brOffset", brOffset)
 
 		isSymb := api.IsZero(api.Sub(curr, int(settings.Symbol)))
 		isEof := api.IsZero(api.Sub(curr, SnarkEofSymbol))
