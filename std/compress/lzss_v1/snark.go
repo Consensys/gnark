@@ -44,10 +44,13 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		return cTable.Lookup(indices...)
 	}
 
-	readBackRef := func(c []frontend.Variable) (offset, length frontend.Variable) { // need some lookahead in case of a backref
-		offset = api.Add(readLittleEndian(api, c[:settings.NbBytesAddress]), 1)
-		length = api.Add(readLittleEndian(api, c[settings.NbBytesAddress:]), 1)
-		return
+	brOffsetTable := logderivlookup.New(api)
+	for i := range c {
+		if i+int(settings.NbBytesAddress) < len(c) {
+			brOffsetTable.Insert(readLittleEndian(api, c[i+1:i+1+int(settings.NbBytesAddress)]))
+		} else {
+			brOffsetTable.Insert(0)
+		}
 	}
 
 	inI := frontend.Variable(0)
@@ -60,12 +63,12 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 	for outI := range d {
 
-		backRef := readC(inI, settings.BackRefSettings.NbBytes())
+		curr := readC(inI, 1)[0]
+		brLen := readLittleEndian(api, readC(api.Add(inI, settings.NbBytesAddress), int(settings.NbBytesLength)))
+		brOffset := brOffsetTable.Lookup(inI)[0]
 
-		curr := backRef[0]
 		isSymb := api.IsZero(api.Sub(curr, int(settings.Symbol)))
 		isEof := api.IsZero(api.Sub(curr, SnarkEofSymbol))
-		brOffset, brLen := readBackRef(backRef[1:])
 
 		copying = api.Mul(copying, api.Sub(1, copyLen01))                       // still copying from previous iterations TODO MulAcc
 		copyI = api.Select(copying, api.Add(copyI, 1), api.Sub(outI, brOffset)) // TODO replace with copyI = outI + brOffset
