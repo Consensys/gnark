@@ -173,17 +173,17 @@ func (e Ext3) MulBy01(z *E3, c0, c1 *baseEl) *E3 {
 }
 
 // MulBy1 multiplication of E6 by sparse element (0, c1, 0)
-func (e Ext3) MulBy1(z *E3, c1 baseEl) *E3 {
+func (e Ext3) MulBy1(z *E3, c1 *baseEl) *E3 {
 
-	b := e.fp.Mul(&z.A1, &c1)
+	b := e.fp.Mul(&z.A1, c1)
 
 	tmp := e.fp.Add(&z.A1, &z.A2)
-	t0 := e.fp.Mul(&c1, tmp)
+	t0 := e.fp.Mul(c1, tmp)
 	t0 = e.fp.Sub(t0, b)
 	t0 = mulFpByNonResidue(e.fp, t0)
 
 	tmp = e.fp.Add(&z.A0, &z.A1)
-	t1 := e.fp.Mul(&c1, tmp)
+	t1 := e.fp.Mul(c1, tmp)
 	t1 = e.fp.Sub(t1, b)
 
 	return &E3{

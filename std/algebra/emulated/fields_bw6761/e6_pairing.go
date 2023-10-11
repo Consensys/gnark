@@ -7,102 +7,122 @@ func (e Ext6) nSquareCompressed(z *E6, n int) *E6 {
 	return z
 }
 
-// Expt set x to x^t in E6 and return x
-func (e Ext6) Expt(x *E6) *E6 {
-	x = e.Reduce(x)
-
-	// const tAbsVal uint64 = 9586122913090633729
-	// tAbsVal in binary: 1000010100001000110000000000000000000000000000000000000000000001
-	// drop the low 46 bits (all 0 except the least significant bit): 100001010000100011 = 136227
-	// Shortest addition chains can be found at https://wwwhomes.uni-bielefeld.de/achim/addition_chain.html
-
-	// a shortest addition chain for 136227
-	result := e.Copy(x)
+// ExpX0Minus1 set z to z^{x₀-1} in E6 and return z
+// x₀-1 = 91893752504881257682351033800651177983
+func (e Ext6) ExpX0Minus1(z *E6) *E6 {
+	z = e.Reduce(z)
+	result := e.Copy(z)
 	result = e.nSquareCompressed(result, 5)
 	result = e.DecompressKarabina(result)
-	result = e.Mul(result, x)
-	x33 := e.Copy(result)
+	result = e.Mul(result, z)
+	z33 := e.Copy(result)
 	result = e.nSquareCompressed(result, 7)
 	result = e.DecompressKarabina(result)
-	result = e.Mul(result, x33)
+	result = e.Mul(result, z33)
 	result = e.nSquareCompressed(result, 4)
 	result = e.DecompressKarabina(result)
-	result = e.Mul(result, x)
+	result = e.Mul(result, z)
 	result = e.CyclotomicSquare(result)
-	result = e.Mul(result, x)
-
-	// the remaining 46 bits
+	result = e.Mul(result, z)
 	result = e.nSquareCompressed(result, 46)
 	result = e.DecompressKarabina(result)
-	result = e.Mul(result, x)
 
 	return result
 }
 
-// ExptMinus1 set x to x^(t-1) in E6 and return x
-func (e Ext6) ExptMinus1(x *E6) *E6 {
-	result := e.Expt(x)
-	result = e.Mul(result, e.Conjugate(x))
-	return result
-}
-
-// ExptPlus1 set x to x^(t+1) in E6 and return x
-func (e Ext6) ExptPlus1(x *E6) *E6 {
-	result := e.Expt(x)
-	result = e.Mul(result, x)
-	return result
-}
-
-// ExptMinus1Div3 set x to x^(t-1)/3 in E6 and return x
-func (e Ext6) ExptMinus1Div3(x *E6) *E6 {
-	x = e.Reduce(x)
-	result := e.Copy(x)
+// ExpX0Minus1Square set z to z^{(x₀-1)²} in E6 and return z
+// (x₀-1)² = 91893752504881257682351033800651177984
+func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
+	z = e.Reduce(z)
+	result := e.Copy(z)
 	result = e.CyclotomicSquare(result)
-	result = e.Mul(result, x)
-	t0 := e.Mul(result, x)
+	t0 := e.Mul(z, result)
+	t1 := e.CyclotomicSquare(t0)
+	t0 = e.Mul(t0, t1)
+	result = e.Mul(result, t0)
+	t1 = e.Mul(t1, result)
+	t0 = e.Mul(t0, t1)
+	t2 := e.CyclotomicSquare(t0)
+	t2 = e.Mul(t1, t2)
+	t0 = e.Mul(t0, t2)
+	t2 = e.nSquareCompressed(t2, 7)
+	t2 = e.DecompressKarabina(t2)
+	t1 = e.Mul(t1, t2)
+	t1 = e.nSquareCompressed(t1, 11)
+	t1 = e.DecompressKarabina(t1)
+	t1 = e.Mul(t0, t1)
+	t1 = e.nSquareCompressed(t1, 9)
+	t1 = e.DecompressKarabina(t1)
+	t0 = e.Mul(t0, t1)
 	t0 = e.CyclotomicSquare(t0)
 	result = e.Mul(result, t0)
-	t0 = e.CyclotomicSquare(result)
-	t0 = e.nSquareCompressed(t0, 6)
+	result = e.nSquareCompressed(result, 92)
+	result = e.DecompressKarabina(result)
+
+	return result
+
+}
+
+// ExpX0Plus1 set z to z^(x₀+1) in E6 and return z
+// x₀+1 = 91893752504881257682351033800651177985
+func (e Ext6) ExpX0Plus1(z *E6) *E6 {
+	result := e.ExpX0Minus1(z)
+	t := e.CyclotomicSquare(z)
+	result = e.Mul(result, t)
+	return result
+}
+
+// ExpX0Minus1Div3 set z to z^(x₀-1)/3 in E6 and return z
+// (x₀-1)/3 = 3195374304363544576
+func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
+	z = e.Reduce(z)
+	result := e.Copy(z)
+	result = e.CyclotomicSquare(result)
+	result = e.Mul(result, z)
+	t0 := e.Mul(result, z)
+	t0 = e.CyclotomicSquare(t0)
+	result = e.Mul(result, t0)
+	t0 = result
+	t0 = e.nSquareCompressed(t0, 7)
 	t0 = e.DecompressKarabina(t0)
 	result = e.Mul(result, t0)
 	result = e.nSquareCompressed(result, 5)
 	result = e.DecompressKarabina(result)
-	result = e.Mul(result, x)
+	result = e.Mul(result, z)
 	result = e.nSquareCompressed(result, 46)
 	result = e.DecompressKarabina(result)
 
 	return result
 }
 
-// Expc1 set x to x^c2 in E6 and return x
+// ExpC1 set z to z^C1 in E6 and return z
 // ht, hy = 13, 9
-// c1 = (ht+hy)/2 = 11
-func (e Ext6) Expc1(x *E6) *E6 {
-	x = e.Reduce(x)
-	result := e.CyclotomicSquare(x)
-	result = e.Mul(result, x)
-	t0 := e.Mul(x, result)
+// C1 = (ht+hy)/2 = 11
+func (e Ext6) ExpC1(z *E6) *E6 {
+	z = e.Reduce(z)
+	result := e.CyclotomicSquare(z)
+	result = e.Mul(result, z)
+	t0 := e.Mul(z, result)
 	t0 = e.CyclotomicSquare(t0)
 	result = e.Mul(result, t0)
 
 	return result
 }
 
-// Expc2 set x to x^c1 in E6 and return x
+// ExpC2 set z to z^C2 in E6 and return z
 // ht, hy = 13, 9
-// c1 = (ht**2+3*hy**2)/4 = 103
-func (e Ext6) Expc2(x *E6) *E6 {
-	x = e.Reduce(x)
+// C2 = (ht**2+3*hy**2)/4 = 103
+func (e Ext6) ExpC2(z *E6) *E6 {
+	z = e.Reduce(z)
 
-	result := e.CyclotomicSquare(x)
-	result = e.Mul(result, x)
-	t0 := e.CyclotomicSquare(result)
-	t0 = e.nSquareCompressed(t0, 3)
+	result := e.CyclotomicSquare(z)
+	result = e.Mul(result, z)
+	t0 := result
+	t0 = e.nSquareCompressed(t0, 4)
 	t0 = e.DecompressKarabina(t0)
 	result = e.Mul(result, t0)
 	result = e.CyclotomicSquare(result)
-	result = e.Mul(result, x)
+	result = e.Mul(result, z)
 
 	return result
 }

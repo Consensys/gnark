@@ -45,7 +45,7 @@ func (c *FinalExponentiationCircuit) Define(api frontend.API) error {
 	}
 	res := pairing.FinalExponentiation(&c.InGt)
 	// gnark-crypto exponent is 12(x₀+1) and gnark is (x₀-1)
-	tmp := pairing.Expc1(res)
+	tmp := pairing.ExpC1(res)
 	res = pairing.Mul(res, tmp)
 	pairing.AssertIsEqual(res, &c.Res)
 	return nil
@@ -77,7 +77,7 @@ func (c *PairCircuit) Define(api frontend.API) error {
 	}
 	res, err := pairing.Pair([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
 	// gnark-crypto exponent is 12(x₀+1) and gnark is (x₀-1)
-	tmp := pairing.Expc1(res)
+	tmp := pairing.ExpC1(res)
 	res = pairing.Mul(res, tmp)
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
@@ -118,7 +118,7 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 		Q = append(Q, &c.InG2)
 	}
 	res, err := pairing.Pair(P, Q)
-	tmp := pairing.Expc1(res)
+	tmp := pairing.ExpC1(res)
 	res = pairing.Mul(res, tmp)
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
