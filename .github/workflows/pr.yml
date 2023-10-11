@@ -78,12 +78,12 @@ jobs:
       if: ${{ always() }}
       run: |
         if [ -s /tmp/gotest.log ]; then
-          echo "::set-output name=failures::$(cat /tmp/gotest.log)"
           cat /tmp/gotest.log > $GITHUB_STEP_SUMMARY
+          echo "failures=$(cat /tmp/gotest.log | node .github/parse-tests.js)" > $GITHUB_OUTPUT
         else
-          echo "::set-output name=failures::"
+          echo "## Success ✅" > $GITHUB_STEP_SUMMARY
+          echo "failures=" > $GITHUB_OUTPUT
         fi
-
     # if we failed a test, we want to comment on the PR with the log
     - name: PR comment with file
       if: ${{ always() }} && steps.generate-job-summary.outputs.failures != ''

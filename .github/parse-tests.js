@@ -1,61 +1,25 @@
-const readline = require("readline");
+const readline = require('readline');
 
+// Create readline interface
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
-  terminal: false,
+  terminal: false
 });
 
-const summary = { fail: [], pass: [], skip: [] };
+let content = '';
 
-rl.on("line", (line) => {
-  const output = JSON.parse(line);
-  if (
-    output.Action === "pass" ||
-    output.Action === "skip" ||
-    output.Action === "fail"
-  ) {
-    if (output.Test) {
-      summary[output.Action].push(output);
-    }
-  }
+// Read stdin content
+rl.on('line', (line) => {
+  content += line + '\n';
 });
 
+rl.on('close', () => {
+  // Escape special characters
+  const escapedContent = content.replace(/`/g, '\\`').replace(/"/g, '\\"').replace(/\n/g, '\\n');
 
-rl.on("close", () => {
-  console.log("## Summary");
-  console.log("\n");
-  // console.log("| | # of Tests |");
-  // console.log("|--|--|");
-  console.log(
-    "✅ Passed:  %d",
-    summary.pass.length
-  );
-  console.log(
-    "❌ Failed: %d",
-    summary.fail.length
-  );
-  console.log(
-    "🚧 Skipped: %d",
-    summary.skip.length
-  );
+  // Convert the JSON object to a string
+  const jsonStr = JSON.stringify(escapedContent);
 
-  if (summary.fail.length > 0) {
-    console.log("\n## ❌ Failures\n");
-  }
-
-  summary.fail.forEach((test) => {
-    console.log("* `%s` (%s)", test.Test, test.Package);
-  });
-
-  // also display skipped tests.
-  if (summary.skip.length > 0) {
-    console.log("\n## 🚧 Skipped\n");
-  }
-
-  summary.skip.forEach((test) => {
-    console.log("* `%s` (%s)", test.Test, test.Package);
-  });
-
+  console.log(jsonStr);
 });
-
