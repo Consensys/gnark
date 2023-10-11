@@ -1,13 +1,13 @@
 on: pull_request
 name: pull_request
 jobs:
-  test:
-    runs-on: ubuntu-22.04-16core
-    permissions: 
-      pull-requests: write
+  staticcheck:
+    runs-on: ubuntu-latest
     steps:
     - name: checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     - name: install Go
       uses: actions/setup-go@v4
       with:
@@ -35,9 +35,22 @@ jobs:
           version: v1.54
           args: -v --timeout=5m
           skip-pkg-cache: true
+  
+  test:
+    runs-on: ubuntu-22.04-16core
+    permissions: 
+      pull-requests: write
+    steps:
+    - name: checkout code
+      uses: actions/checkout@v4
+    - name: install Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.21.x
 
     - name: install deps
       run: |
+        go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
         go install github.com/consensys/gnark-solidity-checker@latest
         go install github.com/ethereum/go-ethereum/cmd/abigen@v1.12.0
         sudo add-apt-repository ppa:ethereum/ethereum
@@ -58,66 +71,61 @@ jobs:
         go test -json -v -short -timeout=30m ./... 2>&1 | tee /tmp/gotest.log | gotestfmt
         go test -json -v -tags=release_checks,solccheck . 2>&1 | tee -a /tmp/gotest.log | gotestfmt
 
+    - name: Generate job summary
+      if: ${{ always() }}
+      run: |
+        cat /tmp/gotest.log | node .github/parse-tests.js > /tmp/gotest.md
+        cat /tmp/gotest.md > $GITHUB_STEP_SUMMARY
+
+    - name: PR comment with file
+      if: ${{ always() }}
+      uses: thollander/actions-comment-pull-request@v2
+      with:
+        filePath: /tmp/gotest.md
 
   slack-workflow-status-failed:
     if: failure()
     name: post workflow status to slack
     needs:
+      - staticcheck
       - test
     runs-on: ubuntu-latest
     steps:
-    - name: Generate job summary
-      run: |
-        cat /tmp/gotest.log | node .github/parse-tests.js > /tmp/gotest.md
-        cat /tmp/gotest.md > $GITHUB_STEP_SUMMARY
-
-    - name: PR comment with file
-      uses: thollander/actions-comment-pull-request@v2
-      with:
-        filePath: /tmp/gotest.md
-    - name: Notify slack -- workflow failed
-      id: slack
-      uses: slackapi/slack-github-action@v1.24.0
-      with:
-        payload: |
-          {
-            "actor": "${{ github.actor }}",
-            "repo": "${{ github.repository }}",
-            "status": "FAIL",
-            "title": "${{ github.event.pull_request.title }}",
-            "pr": "${{ github.event.pull_request.head.ref }}",
-            "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/"
-          }
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Notify slack -- workflow failed
+        id: slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "actor": "${{ github.actor }}",
+              "repo": "${{ github.repository }}",
+              "status": "FAIL",
+              "title": "${{ github.event.pull_request.title }}",
+              "pr": "${{ github.event.pull_request.head.ref }}",
+              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
   slack-workflow-status-success:
     if: success()
     name: post workflow status to slack
     needs:
+      - staticcheck
       - test
     runs-on: ubuntu-latest
     steps:
-    - name: Generate job summary
-      run: |
-        cat /tmp/gotest.log | node .github/parse-tests.js > /tmp/gotest.md
-        cat /tmp/gotest.md > $GITHUB_STEP_SUMMARY
-
-    - name: PR comment with file
-      uses: thollander/actions-comment-pull-request@v2
-      with:
-        filePath: /tmp/gotest.md
-    - name: Notify slack -- workflow succeeded
-      id: slack
-      uses: slackapi/slack-github-action@v1.24.0
-      with:
-        payload: |
-          {
-            "actor": "${{ github.actor }}",
-            "repo": "${{ github.repository }}",
-            "status": "SUCCESS",
-            "title": "${{ github.event.pull_request.title }}",
-            "pr": "${{ github.event.pull_request.head.ref }}"
-          }
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_SUCCESS }}
+      - name: Notify slack -- workflow succeeded
+        id: slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "actor": "${{ github.actor }}",
+              "repo": "${{ github.repository }}",
+              "status": "SUCCESS",
+              "title": "${{ github.event.pull_request.title }}",
+              "pr": "${{ github.event.pull_request.head.ref }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_SUCCESS }}
