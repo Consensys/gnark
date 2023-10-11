@@ -761,10 +761,6 @@ func (s *instance) batchOpening() error {
 	case <-s.chLinearizedPolynomial:
 	}
 
-	// PrintState(*s.x[id_L])
-	// PrintState(*s.x[id_R])
-	// PrintState(*s.x[id_O])
-
 	polysToOpen[0] = s.foldedH
 	polysToOpen[1] = s.linearizedPolynomial
 	polysToOpen[2] = getBlindedCoefficients(s.x[id_L], s.bp[id_Bl])
