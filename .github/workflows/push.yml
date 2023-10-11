@@ -89,7 +89,6 @@ jobs:
         go test -json -v -timeout=60m -race -short ./... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
     - name: Generate job summary
       if: matrix.os == 'ubuntu-latest'
-      continue-on-error: true
       run: |
         cat /tmp/gotest.log | node .github/parse-tests.js > $GITHUB_STEP_SUMMARY
   
