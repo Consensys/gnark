@@ -19,7 +19,7 @@ rl.on('close', () => {
   const escapedContent = content.replace(/`/g, '\\`').replace(/"/g, '\\"').replace(/\n/g, '\\n');
 
   // Convert the JSON object to a string
-  const jsonStr = JSON.stringify(escapedContent);
+  // const jsonStr = JSON.stringify(escapedContent);
 
-  console.log(jsonStr);
+  console.log(escapedContent);
 });
