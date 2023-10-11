@@ -16,9 +16,9 @@ rl.on('line', (line) => {
 
 rl.on('close', () => {
   // Escape special characters
-  const escapedContent = content.replace(/`/g, '\\`').replace(/"/g, '\\"');
+  const escapedContent = content.replace(/"/g, '\\`').replace(/`/g, '\\`');
   // Convert the JSON object to a string
-  // const jsonStr = JSON.stringify(escapedContent);
+  const jsonStr = JSON.stringify(escapedContent);
 
-  console.log(escapedContent);
+  console.log(jsonStr);
 });
