@@ -258,9 +258,14 @@ func (s *instance) initComputeNumerator() error {
 	n := s.pk.Domain[0].Cardinality
 	s.cres = make([]fr.Element, s.pk.Domain[1].Cardinality)
 	s.twiddles0 = make([]fr.Element, n)
-	copy(s.twiddles0, s.pk.Domain[0].Twiddles[0])
-	for i := len(s.pk.Domain[0].Twiddles[0]); i < len(s.twiddles0); i++ {
-		s.twiddles0[i].Mul(&s.twiddles0[i-1], &s.twiddles0[1])
+	if n == 1 {
+		// edge case
+		s.twiddles0[0].SetOne()
+	} else {
+		copy(s.twiddles0, s.pk.Domain[0].Twiddles[0])
+		for i := len(s.pk.Domain[0].Twiddles[0]); i < len(s.twiddles0); i++ {
+			s.twiddles0[i].Mul(&s.twiddles0[i-1], &s.twiddles0[1])
+		}
 	}
 
 	cosetTable := s.pk.Domain[0].CosetTable

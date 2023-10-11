@@ -18,6 +18,7 @@ package plonk
 
 import (
 	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
@@ -115,6 +116,9 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 
 	// step 0: set the fft domains
 	pk.initDomains(spr)
+	if pk.Domain[0].Cardinality < 2 {
+		return nil, nil, fmt.Errorf("circuit has only %d constraints; unsupported by the current implementation", spr.GetNbConstraints())
+	}
 
 	// step 1: set the verifying key
 	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
@@ -122,10 +126,10 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(len(spr.Public))
-	if len(kzgSrs.Pk.G1) < int(vk.Size) {
+	if len(kzgSrs.Pk.G1) < int(vk.Size)+3 { // + 3 for the kzg.Open of blinded poly
 		return nil, nil, errors.New("kzg srs is too small")
 	}
-	pk.Kzg.G1 = kzgSrs.Pk.G1[:int(vk.Size)]
+	pk.Kzg.G1 = kzgSrs.Pk.G1[:int(vk.Size)+3]
 	var err error
 	pk.KzgLagrange.G1, err = kzg.ToLagrangeG1(kzgSrs.Pk.G1[:int(vk.Size)])
 	if err != nil {

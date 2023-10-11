@@ -64,6 +64,7 @@ func (pk *ProvingKey) randomize() {
 	pk.Domain[1] = *fft.NewDomain(4 * 32)
 
 	pk.Kzg.G1 = make([]curve.G1Affine, 32)
+	pk.KzgLagrange.G1 = make([]curve.G1Affine, 32)
 	for i := range pk.Kzg.G1 {
 		pk.Kzg.G1[i] = randomG1Point()
 		pk.KzgLagrange.G1[i] = randomG1Point()
