@@ -50,7 +50,6 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 	copyI := frontend.Variable(0)
 	copyLen := frontend.Variable(0) // remaining length of the current copy
 	copyLen01 := frontend.Variable(1)
-	copying := frontend.Variable(0)
 	eof := frontend.Variable(0)
 	dLength = 0
 
@@ -64,14 +63,14 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 		isSymb := api.IsZero(api.Sub(curr, int(settings.Symbol)))
 
-		copying = api.Mul(copying, api.Sub(1, copyLen01))                                               // still copying from previous iterations TODO MulAcc
-		copyI = api.Select(copying, api.Add(copyI, 1), api.Sub(outI+brLengthRange-1, brOffsetMinusOne)) // TODO replace with copyI = outI + brOffsetMinusOne
-		copyLen = api.Select(copying, api.Sub(copyLen, 1), api.Mul(isSymb, brLen))
+		// copyLen01 == 1 iff still copying from previous iterations
+		copyI = api.Sub(outI+brLengthRange-1, brOffsetMinusOne)
+		copyLen = api.Select(copyLen01, api.Mul(isSymb, brLen), api.Sub(copyLen, 1))
 		copyLen01 = isBit(copyLen)
-		copying = api.Add(api.Sub(1, copyLen01), api.Mul(copyLen01, copyLen)) // either from previous iterations or starting a new copy TODO MulAcc
-		// TODO Replace this with padding
-		copyI = api.Select(copying, copyI, 0) // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
-		// TODO See if copyI = (copyI+1)*copying - 1 is more efficient. It could possibly become a single Plonk constraint if written as Add(MulAcc(copying*1, copying, copyI),-1)
+		// copying = copyLen01 ? copyLen==1 : 1
+		copying := api.Add(api.Sub(1, copyLen01), api.Mul(copyLen01, copyLen)) // either from previous iterations or starting a new copy TODO MulAcc
+		// TODO Remove this if populating the entire negative address space
+		copyI = api.Select(copying, copyI, 0) // to keep it in range in case we read nonsensical backref data when not copying
 
 		api.Println("copyI", copyI)
 		toCopy := dTable.Lookup(copyI)[0]
@@ -84,14 +83,8 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		dTable.Insert(d[outI])
 
 		func() { // EOF Logic
-			/*inIDelta := api.Select(copying,
-				api.Select(copyLen01, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 0), // if copying is done, advance by the backref length. Else stay put.
-				1, // if not copying, advance by 1
-			)
-			inI = api.MulAcc(inI, inIDelta, api.Sub(1, eofNow))             // if eof, stay put*/
 
 			inIDelta := api.Select(copying,
-				// TODO Try replacing the select with a mul
 				api.Select(copyLen01, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 0), // if copying is done, advance by the backref length. Else stay put.
 				1, // if not copying, advance by 1
 			)

@@ -41,7 +41,7 @@ func Test300ZerosSnark(t *testing.T) { // probably won't happen in our calldata
 }
 
 func TestSingleNonzeroSnark(t *testing.T) {
-	//testCompressionRoundTripSnark(t, 1, []byte{1})
+	testCompressionRoundTripSnark(t, 1, []byte{1})
 	testCompressionRoundTripSnark(t, 2, []byte{1})
 }
 
@@ -152,7 +152,7 @@ func compile26KBSnark(t require.TestingT, testCaseName string) {
 	assert.NoError(t, err)
 	stopTimer()
 	p.Stop()
-	fmt.Println(p.NbConstraints(), "constraints")
+	fmt.Println("26KB:", p.NbConstraints(), "constraints, estimated", (p.NbConstraints()*600000)/26000, "constraints for 600KB at", float64(p.NbConstraints())/26000.0, "constraints per uncompressed byte")
 	assert.NoError(t, compress.GzWrite("../test_cases/"+testCaseName+"/cs.gz", cs))
 
 	// setup
