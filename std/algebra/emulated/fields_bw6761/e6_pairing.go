@@ -134,6 +134,7 @@ func (e Ext6) ExpC2(z *E6) *E6 {
 //		B1: E3{A0: c3, A1: c4, A2: 0},
 //	}
 func (e *Ext6) Square034(x *E6) *E6 {
+	x = e.Reduce(x)
 	c0 := E3{
 		A0: *e.fp.Sub(&x.B0.A0, &x.B1.A0),
 		A1: *e.fp.Neg(&x.B1.A1),
@@ -173,6 +174,7 @@ func (e *Ext6) Square034(x *E6) *E6 {
 //	}
 func (e *Ext6) MulBy034(z *E6, c3, c4 *baseEl) *E6 {
 
+	z = e.Reduce(z)
 	a := z.B0
 	b := z.B1
 	b = *e.MulBy01(&b, c3, c4)

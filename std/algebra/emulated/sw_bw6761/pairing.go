@@ -54,6 +54,7 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 // where s is the cofactor (x₀+1)
 func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 
+	z = pr.Reduce(z)
 	result := pr.Copy(z)
 
 	// 1. Easy part
