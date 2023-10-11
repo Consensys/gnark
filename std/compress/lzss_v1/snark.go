@@ -6,12 +6,9 @@ import (
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
-const SnarkEofSymbol = 256
-
 // Decompress implements the decompression logic implemented in both DecompressPureGo and decompressStateMachine, pretty much identical to the latter.
-// c must be marked with an EOF symbol and a few (NbBytesLength+NbBytesAddress) zeros at the end.
 // TODO Add input correctness checks
-func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, settings Settings) (dLength frontend.Variable, err error) {
+func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, cLength frontend.Variable, settings Settings) (dLength frontend.Variable, err error) {
 	if settings.BackRefSettings.NbBytesLength != 1 {
 		return -1, errors.New("currently only backrefs of length up to 256 supported")
 	}
@@ -19,24 +16,16 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		return -1, errors.New("currently only 0 is supported as the backreference signifier")
 	}
 
-	// add EOF to one of the tables parasitically
 	brLengthRange := 1 << (settings.NbBytesLength * 8)
-	tableEntries := []intPair{{0, 1}, {1, 1}}
-	if settings.Symbol == 0 || settings.Symbol == 1 {
-		tableEntries = append(tableEntries, intPair{brLengthRange + 1, 1})
-	}
+
 	isBit := func(n frontend.Variable) frontend.Variable { // TODO Replace uses of this
 		return api.IsZero(api.MulAcc(api.Neg(n), n, n))
 	}
 
 	dTable := newOutputTable(api, settings)
-	readD := func(i frontend.Variable) frontend.Variable { // reading from the decompressed stream as we write to it
-		_i := api.Add(i, brLengthRange)
-		return dTable.Lookup(_i)[0]
-	}
 
 	cTable := newInputTable(api, c)
-	for i := 0; i < int(settings.NbBytesAddress+settings.NbBytesLength); i++ { // pad it a little
+	for i := 0; i <= int(settings.NbBytesAddress+settings.NbBytesLength); i++ { // pad it a little
 		cTable.Insert(0)
 	}
 	readC := func(start frontend.Variable, length int) []frontend.Variable {
@@ -51,7 +40,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 	brOffsetTable := logderivlookup.New(api)
 	for i := range c {
 		if i+int(settings.NbBytesAddress) < len(c) {
-			brOffsetTable.Insert(api.Add(readLittleEndian(api, c[i+1:i+1+int(settings.NbBytesAddress)]), 1))
+			brOffsetTable.Insert(readLittleEndian(api, c[i+1:i+1+int(settings.NbBytesAddress)]))
 		} else {
 			brOffsetTable.Insert(0)
 		}
@@ -67,22 +56,26 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 	for outI := range d {
 
+		api.Println("outI", outI, "inI", inI)
 		curr := readC(inI, 1)[0]
 		brLen := api.Add(readLittleEndian(api, readC(api.Add(inI, 1+settings.NbBytesAddress), int(settings.NbBytesLength))), 1)
-		brOffset := brOffsetTable.Lookup(inI)[0]
+		brOffsetMinusOne := brOffsetTable.Lookup(inI)[0]
+		api.Println("curr", curr, "brLen", brLen, "brOffsetMinusOne", brOffsetMinusOne)
 
 		isSymb := api.IsZero(api.Sub(curr, int(settings.Symbol)))
-		isEof := api.IsZero(api.Sub(curr, SnarkEofSymbol))
 
-		copying = api.Mul(copying, api.Sub(1, copyLen01))                       // still copying from previous iterations TODO MulAcc
-		copyI = api.Select(copying, api.Add(copyI, 1), api.Sub(outI, brOffset)) // TODO replace with copyI = outI + brOffset
+		copying = api.Mul(copying, api.Sub(1, copyLen01))                                               // still copying from previous iterations TODO MulAcc
+		copyI = api.Select(copying, api.Add(copyI, 1), api.Sub(outI+brLengthRange-1, brOffsetMinusOne)) // TODO replace with copyI = outI + brOffsetMinusOne
 		copyLen = api.Select(copying, api.Sub(copyLen, 1), api.Mul(isSymb, brLen))
 		copyLen01 = isBit(copyLen)
 		copying = api.Add(api.Sub(1, copyLen01), api.Mul(copyLen01, copyLen)) // either from previous iterations or starting a new copy TODO MulAcc
-		copyI = api.Select(copying, copyI, -1)                                // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
+		// TODO Replace this with padding
+		copyI = api.Select(copying, copyI, 0) // to keep it in range in case we read nonsensical backref data when not copying TODO may need to also multiply by (1-inputExhausted) to avoid reading past the end of the input, or else keep inI = 0 when inputExhausted
 		// TODO See if copyI = (copyI+1)*copying - 1 is more efficient. It could possibly become a single Plonk constraint if written as Add(MulAcc(copying*1, copying, copyI),-1)
 
-		toCopy := readD(copyI)
+		api.Println("copyI", copyI)
+		toCopy := dTable.Lookup(copyI)[0]
+		api.Println("toCopy", toCopy)
 
 		// write to output
 
@@ -91,13 +84,27 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		dTable.Insert(d[outI])
 
 		func() { // EOF Logic
-			inIDelta := api.Select(copying,
+			/*inIDelta := api.Select(copying,
 				api.Select(copyLen01, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 0), // if copying is done, advance by the backref length. Else stay put.
 				1, // if not copying, advance by 1
 			)
-			inI = api.MulAcc(inI, inIDelta, api.Sub(1, isEof))             // if eof, stay put
-			dLength = api.Add(dLength, api.Mul(api.Sub(isEof, eof), outI)) // if eof, don't advance dLength
-			eof = isEof
+			inI = api.MulAcc(inI, inIDelta, api.Sub(1, eofNow))             // if eof, stay put*/
+
+			inIDelta := api.Select(copying,
+				// TODO Try replacing the select with a mul
+				api.Select(copyLen01, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 0), // if copying is done, advance by the backref length. Else stay put.
+				1, // if not copying, advance by 1
+			)
+
+			api.Println("copying", copying, "copyLen01", copyLen01, "intIDelta", inIDelta)
+
+			inI = api.Add(inI, api.Mul(inIDelta, api.Sub(1, eof))) // if eof, stay put
+			eofNow := api.IsZero(api.Sub(inI, cLength))
+			api.Println("eofNow", eofNow, "eof", eof)
+
+			dLength = api.Add(dLength, api.Mul(api.Sub(eofNow, eof), outI+1)) // if eof, don't advance dLength
+			api.Println("dLength", dLength)
+			eof = eofNow
 		}()
 	}
 

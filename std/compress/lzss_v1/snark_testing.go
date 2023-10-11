@@ -7,6 +7,7 @@ import (
 type DecompressionTestCircuit struct {
 	C                []frontend.Variable
 	D                []byte
+	CLength          frontend.Variable
 	Settings         Settings
 	CheckCorrectness bool
 }
@@ -14,7 +15,7 @@ type DecompressionTestCircuit struct {
 func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 	dBack := make([]frontend.Variable, len(c.D)*2) // TODO Try smaller constants
 	api.Println("maxLen(dBack)", len(dBack))
-	dLen, err := Decompress(api, c.C, dBack, c.Settings)
+	dLen, err := Decompress(api, c.C, dBack, c.CLength, c.Settings)
 	if err != nil {
 		return err
 	}

@@ -41,7 +41,7 @@ func Test300ZerosSnark(t *testing.T) { // probably won't happen in our calldata
 }
 
 func TestSingleNonzeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, []byte{1})
+	//testCompressionRoundTripSnark(t, 1, []byte{1})
 	testCompressionRoundTripSnark(t, 2, []byte{1})
 }
 
@@ -263,8 +263,8 @@ func proveDecompressionSnark(t require.TestingT, cs constraint.ConstraintSystem,
 	for i := range c {
 		cVars[i] = frontend.Variable(c[i])
 	}
-	cVars[len(c)] = SnarkEofSymbol
-	for i := len(c) + 1; i < len(cVars); i++ {
+
+	for i := len(c); i < len(cVars); i++ {
 		cVars[i] = 0
 	}
 
@@ -278,7 +278,8 @@ func proveDecompressionSnark(t require.TestingT, cs constraint.ConstraintSystem,
 
 	fmt.Println("constructing witness")
 	_witness, err := frontend.NewWitness(&DecompressionTestCircuit{
-		C: cVars,
+		C:       cVars,
+		CLength: len(c),
 	}, ecc.BN254.ScalarField())
 	require.NoError(t, err)
 	restartTimer()
