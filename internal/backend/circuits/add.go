@@ -16,7 +16,7 @@ func (circuit *addCircuit) Define(api frontend.API) error {
 	c := api.Add(2, circuit.A)
 	d := api.Add(circuit.B, circuit.A)
 	api.AssertIsEqual(a, circuit.Z)
-	api.AssertIsEqual(b, 7)
+	api.AssertIsEqual(b, 8)
 	api.AssertIsEqual(c, 8)
 	api.AssertIsEqual(d, 8)
 	return nil
