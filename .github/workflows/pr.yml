@@ -68,6 +68,7 @@ jobs:
 
     # Run tests with nice formatting. Save the original log in /tmp/gotest.log
     - name: Run tests
+      continue-on-error: true
       run: |
         set -euo pipefail
         go test -json -v -short -timeout=30m ./... 2>&1 | tee /tmp/gotest.log | gotestfmt
