@@ -335,7 +335,8 @@ type e6Expt struct {
 
 func (circuit *e6Expt) Define(api frontend.API) error {
 	e := NewExt6(api)
-	expected := e.Expt(&circuit.A)
+	expected := e.ExpX0Minus1(&circuit.A)
+	expected = e.Mul(expected, &circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }
