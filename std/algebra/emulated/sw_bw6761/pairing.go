@@ -139,7 +139,7 @@ func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 // seed x₀=9586122913090633729
 //
 // x₀+1 in binary (64 bits) padded with 0s
-var loopCounterAlt1 = [190]int8{
+var loopCounter1 = [190]int8{
 	0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1, 0,
 	0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -151,7 +151,7 @@ var loopCounterAlt1 = [190]int8{
 }
 
 // x₀³-x₀²-x₀ in 2-NAF
-var loopCounterAlt2 = [190]int8{
+var loopCounter2 = [190]int8{
 	-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -181,18 +181,12 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	}
 
 	// precomputations
-	p0 := make([]*G1Affine, n)
-	p1 := make([]*G1Affine, n)
-	p0neg := make([]*G1Affine, n)
-	p1neg := make([]*G1Affine, n)
-	p01 := make([]*G1Affine, n)
-	p10 := make([]*G1Affine, n)
-	p01neg := make([]*G1Affine, n)
-	p10neg := make([]*G1Affine, n)
-	pAcc := make([]*G1Affine, n)
+	negP := make([]*G1Affine, n)
+	imP := make([]*G1Affine, n)
+	imPneg := make([]*G1Affine, n)
+	accP := make([]*G1Affine, n)
 	yInv := make([]*emulated.Element[emulated.BW6761Fp], n)
 	xNegOverY := make([]*emulated.Element[emulated.BW6761Fp], n)
-	l01 := make([]*lineEvaluation, n)
 
 	for k := 0; k < n; k++ {
 		// P and Q are supposed to be on G1 and G2 respectively of prime order r.
@@ -201,33 +195,14 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		yInv[k] = pr.curveF.Inverse(&Q[k].Y)
 		xNegOverY[k] = pr.curveF.MulMod(&Q[k].X, yInv[k])
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
-		// p0 = P = (x, y)
-		p0[k] = &G1Affine{X: P[k].X, Y: P[k].Y}
-		// p0neg = -P = (x, -y)
-		p0neg[k] = &G1Affine{X: p0[k].X, Y: *pr.curveF.Neg(&p0[k].Y)}
-		// p1 = (w*x, -y)
-		p1[k] = &G1Affine{X: *pr.curveF.MulMod(&p0[k].X, &thirdRootOne), Y: p0neg[k].Y}
-		// p1neg = (w*x, y)
-		p1neg[k] = &G1Affine{X: p1[k].X, Y: p0[k].Y}
-		// p01 = p0+p1 and l01 line through p0 and p1
-		p01[k], l01[k] = pr.addStep(p0[k], p1[k])
-		l01[k] = &lineEvaluation{
-			R0: *pr.curveF.MulMod(&l01[k].R0, xNegOverY[k]),
-			R1: *pr.curveF.MulMod(&l01[k].R1, yInv[k]),
-		}
-		// p01neg = -p01
-		p01neg[k] = &G1Affine{X: p01[k].X, Y: *pr.curveF.Neg(&p01[k].Y)}
-		// p10 = p0-p1
-		p10kx := pr.curveF.Add(&p0[k].X, &p1[k].X)
-		p10kx = pr.curveF.Neg(p10kx)
-		p10[k] = &G1Affine{
-			X: *p10kx,
-			Y: p1[k].Y,
-		}
-		// p10neg = -p10
-		p10neg[k] = &G1Affine{X: p10[k].X, Y: p0[k].Y}
-		// point accumulator initialized to p1
-		pAcc[k] = p1[k]
+		// negP = -P = (x, -y)
+		negP[k] = &G1Affine{X: P[k].X, Y: *pr.curveF.Neg(&P[k].Y)}
+		// imP = (w*x, -y)
+		imP[k] = &G1Affine{X: *pr.curveF.MulMod(&P[k].X, &thirdRootOne), Y: negP[k].Y}
+		// imPneg = (w*x, y)
+		imPneg[k] = &G1Affine{X: imP[k].X, Y: P[k].Y}
+		// point accumulator initialized to imP
+		accP[k] = imP[k]
 	}
 
 	// f_{x₀+1+λ(x₀³-x₀²-x₀),P}(Q)
@@ -239,7 +214,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	// (Square(res) = 1² = 1)
 	// k = 0, separately to avoid MulBy034 (res × ℓ)
 	// (assign line to res)
-	pAcc[0], l0 = pr.doubleStep(p1[0])
+	accP[0], l0 = pr.doubleStep(imP[0])
 	result.B1 = fields_bw6761.E3{
 		A0: *pr.curveF.MulMod(&l0.R0, xNegOverY[0]),
 		A1: *pr.curveF.MulMod(&l0.R1, yInv[0]),
@@ -249,7 +224,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	if n >= 2 {
 		// k = 1, separately to avoid MulBy034 (res × ℓ)
 		// (res is also a line at this point, so we use Mul034By034 ℓ × ℓ)
-		pAcc[1], l0 = pr.doubleStep(pAcc[1])
+		accP[1], l0 = pr.doubleStep(accP[1])
 		l0 = &lineEvaluation{
 			R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[1]),
 			R1: *pr.curveF.MulMod(&l0.R1, yInv[1]),
@@ -272,7 +247,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	if n >= 3 {
 		// k = 2, separately to avoid MulBy034 (res × ℓ)
 		// (res has a zero E2 element, so we use Mul01234By034)
-		pAcc[2], l0 = pr.doubleStep(pAcc[2])
+		accP[2], l0 = pr.doubleStep(accP[2])
 		l0 = &lineEvaluation{
 			R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[2]),
 			R1: *pr.curveF.MulMod(&l0.R1, yInv[2]),
@@ -281,7 +256,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 		// k >= 3
 		for k := 3; k < n; k++ {
-			pAcc[k], l0 = pr.doubleStep(pAcc[k])
+			accP[k], l0 = pr.doubleStep(accP[k])
 			l0 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
 				R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
@@ -297,7 +272,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		result = pr.Square(result)
 	}
 	for k := 0; k < n; k++ {
-		pAcc[k], l0 = pr.doubleStep(pAcc[k])
+		accP[k], l0 = pr.doubleStep(accP[k])
 		l0 = &lineEvaluation{
 			R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
 			R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
@@ -310,12 +285,14 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		// (∏ᵢfᵢ)²
 		result = pr.Square(result)
 
-		j := loopCounterAlt2[i]*3 + loopCounterAlt1[i]
+		j := loopCounter2[i]*3 + loopCounter1[i]
 
-		for k := 0; k < n; k++ {
-			switch j {
-			case -4:
-				pAcc[k], l0, l = pr.doubleAndAddStep(pAcc[k], p01neg[k])
+		switch j {
+		// cases -4, -2, 2 and 4 are omitted as they do not occur given the
+		// static loop counters.
+		case -3:
+			for k := 0; k < n; k++ {
+				accP[k], l0, l = pr.doubleAndAddStep(accP[k], imPneg[k])
 				l0 = &lineEvaluation{
 					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
 					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
@@ -326,9 +303,10 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 				}
 				prodLines = pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
 				result = pr.MulBy01234(result, prodLines)
-				result = pr.MulBy034(result, &l01[k].R0, &l01[k].R1)
-			case -3:
-				pAcc[k], l0, l = pr.doubleAndAddStep(pAcc[k], p1neg[k])
+			}
+		case -1:
+			for k := 0; k < n; k++ {
+				accP[k], l0, l = pr.doubleAndAddStep(accP[k], negP[k])
 				l0 = &lineEvaluation{
 					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
 					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
@@ -339,91 +317,46 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 				}
 				prodLines = pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
 				result = pr.MulBy01234(result, prodLines)
-			case -2:
-				pAcc[k], l0, l = pr.doubleAndAddStep(pAcc[k], p10[k])
-				l0 = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
-				}
-				l = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l.R1, yInv[k]),
-				}
-				prodLines = pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
-				result = pr.MulBy01234(result, prodLines)
-				result = pr.MulBy034(result, &l01[k].R0, &l01[k].R1)
-			case -1:
-				pAcc[k], l0, l = pr.doubleAndAddStep(pAcc[k], p0neg[k])
-				l0 = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
-				}
-				l = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l.R1, yInv[k]),
-				}
-				prodLines = pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
-				result = pr.MulBy01234(result, prodLines)
-			case 0:
-				pAcc[k], l0 = pr.doubleStep(pAcc[k])
+			}
+		case 0:
+			for k := 0; k < n; k++ {
+				accP[k], l0 = pr.doubleStep(accP[k])
 				l0 = &lineEvaluation{
 					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
 					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
 				}
 				result = pr.MulBy034(result, &l0.R0, &l0.R1)
-			case 1:
-				pAcc[k], l0, l = pr.doubleAndAddStep(pAcc[k], p0[k])
-				l0 = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
-				}
-				l = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l.R1, yInv[k]),
-				}
-				prodLines = pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
-				result = pr.MulBy01234(result, prodLines)
-			case 2:
-				pAcc[k], l0, l = pr.doubleAndAddStep(pAcc[k], p10neg[k])
-				l0 = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
-				}
-				l = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l.R1, yInv[k]),
-				}
-				prodLines = pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
-				result = pr.MulBy01234(result, prodLines)
-				result = pr.MulBy034(result, &l01[k].R0, &l01[k].R1)
-			case 3:
-				pAcc[k], l0, l = pr.doubleAndAddStep(pAcc[k], p1[k])
-				l0 = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
-				}
-				l = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l.R1, yInv[k]),
-				}
-				prodLines = pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
-				result = pr.MulBy01234(result, prodLines)
-			case 4:
-				pAcc[k], l0, l = pr.doubleAndAddStep(pAcc[k], p01[k])
-				l0 = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
-				}
-				l = &lineEvaluation{
-					R0: *pr.curveF.MulMod(&l.R0, xNegOverY[k]),
-					R1: *pr.curveF.MulMod(&l.R1, yInv[k]),
-				}
-				prodLines = pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
-				result = pr.MulBy01234(result, prodLines)
-				result = pr.MulBy034(result, &l01[k].R0, &l01[k].R1)
-			default:
-				return nil, errors.New("invalid loopCounter")
 			}
+		case 1:
+			for k := 0; k < n; k++ {
+				accP[k], l0, l = pr.doubleAndAddStep(accP[k], P[k])
+				l0 = &lineEvaluation{
+					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
+					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
+				}
+				l = &lineEvaluation{
+					R0: *pr.curveF.MulMod(&l.R0, xNegOverY[k]),
+					R1: *pr.curveF.MulMod(&l.R1, yInv[k]),
+				}
+				prodLines = pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
+				result = pr.MulBy01234(result, prodLines)
+			}
+		case 3:
+			for k := 0; k < n; k++ {
+				accP[k], l0, l = pr.doubleAndAddStep(accP[k], imP[k])
+				l0 = &lineEvaluation{
+					R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
+					R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
+				}
+				l = &lineEvaluation{
+					R0: *pr.curveF.MulMod(&l.R0, xNegOverY[k]),
+					R1: *pr.curveF.MulMod(&l.R1, yInv[k]),
+				}
+				prodLines = pr.Mul034By034(&l0.R0, &l0.R1, &l.R0, &l.R1)
+				result = pr.MulBy01234(result, prodLines)
+			}
+		default:
+			return nil, errors.New("invalid loopCounter")
 		}
 	}
 
@@ -438,7 +371,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	// only care about the Miller loop result in Fp6 and not the point itself.
 	result = pr.Square(result)
 	for k := 0; k < n; k++ {
-		l0 = pr.tangentCompute(pAcc[k])
+		l0 = pr.tangentCompute(accP[k])
 		l0 = &lineEvaluation{
 			R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
 			R1: *pr.curveF.MulMod(&l0.R1, yInv[k]),
