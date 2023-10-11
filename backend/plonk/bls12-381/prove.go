@@ -328,8 +328,7 @@ func (s *instance) bsb22Hint(commDepth int) solver.Hint {
 			return err
 		}
 		s.cCommitments[commDepth] = iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-		s.cCommitments[commDepth].ToCanonical(&s.pk.Domain[0]).ToRegular()
-		if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.Kzg); err != nil {
+		if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
 			return err
 		}
 		if hashRes, err = fr.Hash(s.proof.Bsb22Commitments[commDepth].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
@@ -783,10 +782,6 @@ func (s *instance) batchOpening() error {
 		return errContextDone
 	case <-s.chLinearizedPolynomial:
 	}
-
-	// PrintState(*s.x[id_L])
-	// PrintState(*s.x[id_R])
-	// PrintState(*s.x[id_O])
 
 	polysToOpen[0] = s.foldedH
 	polysToOpen[1] = s.linearizedPolynomial
