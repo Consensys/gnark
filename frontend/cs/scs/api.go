@@ -54,6 +54,31 @@ func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) f
 }
 
 func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+
+	if a.(expr.Term).VID == b.(expr.Term).VID {
+		b, c = c, b
+	}
+
+	// special case for when a/c is constant
+	// let a = a' * α, b = b' * β, c = c' * α
+	// then a + b * c = a' * α + (b' * c') (β * α)
+	// thus qL = a', qR = 0, qM = b'c'
+	if a.(expr.Term).VID == c.(expr.Term).VID {
+		res := builder.newInternalVariable()
+		builder.addPlonkConstraint(sparseR1C{
+			xa:         a.(expr.Term).VID,
+			xb:         b.(expr.Term).VID,
+			xc:         res.VID,
+			qL:         a.(expr.Term).Coeff,
+			qR:         constraint.Element{},
+			qO:         builder.cs.Neg(builder.cs.One()),
+			qM:         builder.cs.Mul(b.(expr.Term).Coeff, c.(expr.Term).Coeff),
+			qC:         constraint.Element{},
+			commitment: 0,
+		})
+		return res
+	}
+
 	// TODO can we do better here to limit allocations?
 	return builder.Add(a, builder.Mul(b, c))
 }
