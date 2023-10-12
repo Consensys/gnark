@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"math/big"
 	"time"
 	"bytes"
 	"github.com/consensys/gnark/frontend"
@@ -15,6 +16,8 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/std/algebra/native/twistededwards"
 	eddsaCrypto "github.com/consensys/gnark-crypto/signature/eddsa"
+	"github.com/consensys/gnark-crypto/signature"
+	//eddsa2 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 )
 
 const N = 2
@@ -57,30 +60,59 @@ func main() {
 
     // create a eddsa key pair
     //for i := 0; i < N; i++ {
-	    privateKey, err := eddsaCrypto.New(tedwards.BN254, randomness)
-	    fmt.Println("%T\n", privateKey)
-	    publicKey := privateKey.Public()
-	    fmt.Println("%T\n", publicKey)
+    var privateKeys [N]signature.Signer
+    var publicKeys [N]signature.PublicKey
+    var msgs [N]big.Int
+    var signatures [N][]byte
+    var err error
+    snarkField, err := twistededwards.GetSnarkField(tedwards.BN254)
+    for i := 0; i<N; i++ {
+	    privateKeys[i], err = eddsaCrypto.New(tedwards.BN254, randomness)
+	    if err != nil {
+		return
+	    }
+	    publicKeys[i] = privateKeys[i].Public()
+	    msgs[i].Rand(randomness, snarkField)
+	    msgDataUnpadded := msgs[i].Bytes()
+	    msgData := make([]byte, len(snarkField.Bytes()))
+	    copy(msgData[len(msgData) - len(msgDataUnpadded):], msgDataUnpadded)
+	    //msgs[i] = []byte{4, 138, 238, 31, 227, 139, 149, 17, 139, 42, 141, 190, 58, 89, 207, 213, 43, 102, 126, 255, 120, 144, 82, 112, 31, 116, 76, 42, 1, 122, 145, 41}
+	    signatures[i], err = privateKeys[i].Sign(msgData, hFunc)
+	    if err != nil {
+		return
+	    }
+	    isValid, err := publicKeys[i].Verify(signatures[i], msgData, hFunc)
+	    if err != nil {
+		return
+	    }
+	    if !isValid {
+	        fmt.Println("1. invalid signature")
+	    } else {
+	        fmt.Println("1. valid signature")
+	    }
+    }
+
 
     // note that the message is on 4 bytes
-    msg := []byte{4, 138, 238, 31, 227, 139, 149, 17, 139, 42, 141, 190, 58, 89, 207, 213, 43, 102, 126, 255, 120, 144, 82, 112, 31, 116, 76, 42, 1, 122, 145, 41}
+    //msg := []byte{4, 138, 238, 31, 227, 139, 149, 17, 139, 42, 141, 190, 58, 89, 207, 213, 43, 102, 126, 255, 120, 144, 82, 112, 31, 116, 76, 42, 1, 122, 145, 41}
     //This message errors, not sure why: {0xde, 0xad, 0xf0, 0x0d}
-    fmt.Println(msg)
+    //fmt.Println(msg)
     // sign the message
-    signature, err := privateKey.Sign(msg, hFunc)
+    //signature, err := privateKey.Sign(msg, hFunc)
 
 
     // verifies signature
+    /*
     isValid, err := publicKey.Verify(signature, msg, hFunc)
     if !isValid {
         fmt.Println("1. invalid signature")
     } else {
         fmt.Println("1. valid signature")
     }
+    */
 
     var circuit eddsaCircuit
     circuit.curveID = tedwards.BN254
-    fmt.Println("Here2!")
     _r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
     if err != nil {
 	    fmt.Println("error cannot be returned 1")
@@ -103,20 +135,35 @@ func main() {
     var assignment eddsaCircuit
 
     // assign message value
-    assignment.Message = msg
+    msgs2 := make([]frontend.Variable, N)
+    //[N]frontend.Variable{msgs[0], msgs[1]}
+    //for _, x := range msgs {
+    for i := 0; i < N; i++ {
+	msgs2[i] = msgs[i]
+//	msgs2 = append(msgs2, msgs[i])
+    }
+    copy(assignment.Message[:], msgs2)
+    //assignment.Message = [N]frontend.Variable{msgs[0], msgs[1]}
 
     // public key bytes
-    _publicKey := publicKey.Bytes()
+    var _publicKeys [N][]byte
+    for i := 0; i < N; i++ {
+	    _publicKeys[i] = publicKeys[i].Bytes()
+	    _publicKeys[i] = _publicKeys[i][:32]
+	    assignment.PublicKey[i].Assign(tedwards.BN254, _publicKeys[i])
+	    assignment.Signature[i].Assign(tedwards.BN254, signatures[i])
+    }
 
     // assign public key values
-    assignment.PublicKey.Assign(tedwards.BN254, _publicKey[:32])
+    //assignment.PublicKey = assignment.PublicKey[0].Assign(tedwards.BN254, _publicKeys, N)
 
     // assign signature values
-    assignment.Signature.Assign(tedwards.BN254, signature)
+    //assignment.Signature.Assign(tedwards.BN254, signatures)
 
     // witness
     witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
     publicWitness, err := witness.Public()
+    fmt.Println("Here2!")
     // generate the proof
     proof, err := groth16.Prove(_r1cs, pk, witness)
 
