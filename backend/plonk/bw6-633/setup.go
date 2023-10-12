@@ -276,7 +276,7 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 	qk := make([]fr.Element, size)
 	qcp := make([][]fr.Element, len(commitmentInfo))
 
-	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistent
+	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error if size is inconsistent
 		ql[i].SetOne().Neg(&ql[i])
 		qr[i].SetZero()
 		qm[i].SetZero()

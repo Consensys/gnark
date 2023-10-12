@@ -461,7 +461,7 @@ contract PlonkVerifier {
 
       // BEGINNING compute_pi -------------------------------------------------
 
-      // public input (not comming from the commit api) contribution
+      // public input (not coming from the commit api) contribution
       // ins, n are the public inputs and number of public inputs respectively
       function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
         
@@ -716,7 +716,7 @@ contract PlonkVerifier {
         let mPtr := add(state, state_last_mem)
 
         // here the random is not a challenge, hence no need to use Fiat Shamir, we just
-        // need an unpredictible result.
+        // need an unpredictable result.
         let random := mod(keccak256(state, 0x20), r_mod)
 
         let folded_quotients := mPtr
