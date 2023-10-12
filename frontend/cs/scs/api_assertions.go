@@ -28,7 +28,7 @@ import (
 )
 
 // AssertIsEqual fails if i1 != i2
-func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
+func (builder *Builder) AssertIsEqual(i1, i2 frontend.Variable) {
 
 	c1, i1Constant := builder.constantValue(i1)
 	c2, i2Constant := builder.constantValue(i2)
@@ -85,7 +85,7 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (builder *Builder) AssertIsDifferent(i1, i2 frontend.Variable) {
 	s := builder.Sub(i1, i2)
 	if c, ok := builder.constantValue(s); ok && c.IsZero() {
 		panic("AssertIsDifferent(x,x) will never be satisfied")
@@ -96,7 +96,7 @@ func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
-func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
+func (builder *Builder) AssertIsBoolean(i1 frontend.Variable) {
 	if c, ok := builder.constantValue(i1); ok {
 		if !(c.IsZero() || builder.cs.IsOne(c)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", builder.cs.String(c)))
@@ -130,7 +130,7 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 }
 
 // AssertIsLessOrEqual fails if  v > bound
-func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+func (builder *Builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	switch b := bound.(type) {
 	case expr.Term:
 		builder.mustBeLessOrEqVar(v, b)
@@ -139,7 +139,7 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 	}
 }
 
-func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) {
+func (builder *Builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) {
 
 	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
@@ -191,7 +191,7 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 
 }
 
-func (builder *builder) mustBeLessOrEqCst(a frontend.Variable, bound big.Int) {
+func (builder *Builder) mustBeLessOrEqCst(a frontend.Variable, bound big.Int) {
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -244,7 +244,7 @@ func (builder *builder) mustBeLessOrEqCst(a frontend.Variable, bound big.Int) {
 		if bound.Bit(i) == 0 {
 			// (1 - p(i+1) - ai) * ai == 0
 			l := builder.Sub(1, p[i+1], aBits[i]).(expr.Term)
-			//l = builder.Sub(l, ).(term)
+			//l = Builder.Sub(l, ).(term)
 
 			builder.addPlonkConstraint(sparseR1C{
 				xa: l.VID,

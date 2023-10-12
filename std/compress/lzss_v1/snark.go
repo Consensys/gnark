@@ -3,6 +3,7 @@ package lzss_v1
 import (
 	"errors"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
@@ -68,7 +69,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		copyLen = api.Select(copyLen01, api.Mul(isSymb, brLen), api.Sub(copyLen, 1))
 		copyLen01 = isBit(copyLen)
 		// copying = copyLen01 ? copyLen==1 : 1
-		copying := api.Add(api.Sub(1, copyLen01), api.Mul(copyLen01, copyLen)) // either from previous iterations or starting a new copy TODO MulAcc
+		copying := api.Add(1, api.MulAcc(api.Neg(copyLen01), copyLen01, copyLen)) // either from previous iterations or starting a new copy
 		// TODO Remove this if populating the entire negative address space
 		copyI = api.Select(copying, copyI, 0) // to keep it in range in case we read nonsensical backref data when not copying
 
@@ -84,12 +85,11 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 		func() { // EOF Logic
 
-			inIDelta := api.Select(copying,
-				api.Select(copyLen01, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 0), // if copying is done, advance by the backref length. Else stay put.
-				1, // if not copying, advance by 1
-			)
+			// inIDelta = copying ? (copyLen01? backRefCodeLen: 0) : 1
+			// inIDelta = - copying + copying*copyLen01*(backrefCodeLen) + 1
+			inIDelta := api.(*scs.Builder).NewCombination(copying, copyLen01, -1, 0, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 1)
 
-			api.Println("copying", copying, "copyLen01", copyLen01, "intIDelta", inIDelta)
+			api.Println("copying", copying, "copyLen01", copyLen01, "inIDelta", inIDelta)
 
 			inI = api.Add(inI, api.Mul(inIDelta, api.Sub(1, eof))) // if eof, stay put
 			eofNow := api.IsZero(api.Sub(inI, cLength))
