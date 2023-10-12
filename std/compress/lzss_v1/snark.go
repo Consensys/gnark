@@ -69,7 +69,10 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		copyLen = api.Select(copyLen01, api.Mul(isSymb, brLen), api.Sub(copyLen, 1))
 		copyLen01 = isBit(copyLen)
 		// copying = copyLen01 ? copyLen==1 : 1
-		copying := api.Add(1, api.MulAcc(api.Neg(copyLen01), copyLen01, copyLen)) // either from previous iterations or starting a new copy
+		// copying = copyLen01 ? copyLen : 1
+		//copying := api.Add(1, api.MulAcc(api.Neg(copyLen01), copyLen01, copyLen)) // either from previous iterations or starting a new copy
+		copying := api.(*scs.Builder).NewCombination(copyLen01, copyLen, -1, 0, 1, 1)
+
 		// TODO Remove this if populating the entire negative address space
 		copyI = api.Select(copying, copyI, 0) // to keep it in range in case we read nonsensical backref data when not copying
 
