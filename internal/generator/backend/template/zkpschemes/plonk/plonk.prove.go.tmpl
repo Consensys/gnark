@@ -674,6 +674,13 @@ func (s *instance) foldH() error {
 
 func (s *instance) computeLinearizedPolynomial() error {
 
+	// wait for H to be committed and zeta to be derived (or ctx.Done())
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chH:
+	}
+
 	qcpzeta := make([]fr.Element, len(s.commitmentInfo))
 	var blzeta, brzeta, bozeta fr.Element
 	var wg sync.WaitGroup
@@ -684,13 +691,6 @@ func (s *instance) computeLinearizedPolynomial() error {
 			qcpzeta[i] = s.pk.trace.Qcp[i].Evaluate(s.zeta)
 			wg.Done()
 		}(i)
-	}
-
-	// wait for H to be committed and zeta to be derived (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chH:
 	}
 
 	go func() {
