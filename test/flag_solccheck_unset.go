@@ -2,4 +2,4 @@
 
 package test
 
-const solcCheck = false
+const SolcCheck = false
