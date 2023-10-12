@@ -97,7 +97,7 @@ func toBinary(api frontend.API, v frontend.Variable, opts ...BaseConversionOptio
 	if !omitReducednessCheck {
 		if cmper, ok := api.Compiler().(bitsComparatorConstant); ok {
 			bound := new(big.Int).Sub(api.Compiler().Field(), big.NewInt(1))
-			cmper.MustBeLessOrEqCst(bits, api.Compiler().Field(), bound)
+			cmper.MustBeLessOrEqCst(bits, bound, v)
 		} else {
 			panic("builder does not expose comparison to constant")
 		}

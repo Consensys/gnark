@@ -79,12 +79,17 @@ func TestIssue836Cmp(t *testing.T) {
 		Right:     5,
 		ExpCmpRes: -1,
 	}
+	assignmentHintBad2 := CmpCircuit{
+		Left:      10,
+		Right:     0,
+		ExpCmpRes: -1,
+	}
 	toReplaceHint, err := getNBitsHint()
 	if err != nil {
 		t.Fatalf("couldn't find hint to replace: %v", err)
 	}
 	assert.CheckCircuit(&CmpCircuit{}, test.WithValidAssignment(&assignmentNoHintGood), test.WithInvalidAssignment(&assignmentNoHintBad))
-	assert.CheckCircuit(&CmpCircuit{}, test.WithInvalidAssignment(&assignmentHintBad), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
+	assert.CheckCircuit(&CmpCircuit{}, test.WithInvalidAssignment(&assignmentHintBad), test.WithInvalidAssignment(&assignmentHintBad2), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
 }
 
 func TestIssue836AssertIsLess(t *testing.T) {
@@ -101,12 +106,16 @@ func TestIssue836AssertIsLess(t *testing.T) {
 		Smaller: 10,
 		Bigger:  5,
 	}
+	assignmentHintBad2 := AssertIsLessOrEqCircuit{
+		Smaller: 10,
+		Bigger:  0,
+	}
 	toReplaceHint, err := getNBitsHint()
 	if err != nil {
 		t.Fatalf("couldn't find hint to replace: %v", err)
 	}
 	assert.CheckCircuit(&AssertIsLessOrEqCircuit{}, test.WithValidAssignment(&assignmentNoHintGood), test.WithInvalidAssignment(&assignmentNoHintBad))
-	assert.CheckCircuit(&AssertIsLessOrEqCircuit{}, test.WithInvalidAssignment(&assignmentHintBad), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
+	assert.CheckCircuit(&AssertIsLessOrEqCircuit{}, test.WithInvalidAssignment(&assignmentHintBad), test.WithInvalidAssignment(&assignmentHintBad2), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
 }
 
 func TestIssue836MathCmpAssertIsLessEqBounded(t *testing.T) {
@@ -123,12 +132,17 @@ func TestIssue836MathCmpAssertIsLessEqBounded(t *testing.T) {
 		Left:  10,
 		Right: 5,
 	}
+	assignmentHintBad2 := MathCmpAssertIsLessOrEqCircuitBounded{
+		Left:  10,
+		Right: 0,
+	}
+
 	toReplaceHint, err := getNBitsHint()
 	if err != nil {
 		t.Fatalf("couldn't find hint to replace: %v", err)
 	}
 	assert.CheckCircuit(&MathCmpAssertIsLessOrEqCircuitBounded{}, test.WithValidAssignment(&assignmentNoHintGood), test.WithInvalidAssignment(&assignmentNoHintBad))
-	assert.CheckCircuit(&MathCmpAssertIsLessOrEqCircuitBounded{}, test.WithInvalidAssignment(&assignmentHintBad), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
+	assert.CheckCircuit(&MathCmpAssertIsLessOrEqCircuitBounded{}, test.WithInvalidAssignment(&assignmentHintBad), test.WithInvalidAssignment(&assignmentHintBad2), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
 }
 
 func TestIssueXXXMathCmpAssertIsLessEqFull(t *testing.T) {
@@ -145,12 +159,16 @@ func TestIssueXXXMathCmpAssertIsLessEqFull(t *testing.T) {
 		Left:  10,
 		Right: 5,
 	}
+	assignmentHintBad2 := MathCmpAssertIsLessOrEqCircuitBounded{
+		Left:  10,
+		Right: 0,
+	}
 	toReplaceHint, err := getNBitsHint()
 	if err != nil {
 		t.Fatalf("couldn't find hint to replace: %v", err)
 	}
 	assert.CheckCircuit(&MathCmpAssertIsLessOrEqCircuitFull{}, test.WithValidAssignment(&assignmentNoHintGood), test.WithInvalidAssignment(&assignmentNoHintBad))
-	assert.CheckCircuit(&MathCmpAssertIsLessOrEqCircuitFull{}, test.WithInvalidAssignment(&assignmentHintBad), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
+	assert.CheckCircuit(&MathCmpAssertIsLessOrEqCircuitFull{}, test.WithInvalidAssignment(&assignmentHintBad), test.WithInvalidAssignment(&assignmentHintBad2), test.NoTestEngine(), test.WithSolverOpts(solver.OverrideHint(toReplaceHint, maliciousNbitsHint)))
 }
 
 func maliciousNbitsHint(mod *big.Int, inputs []*big.Int, results []*big.Int) error {
