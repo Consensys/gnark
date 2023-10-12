@@ -87,10 +87,25 @@ jobs:
         go test -json -v -timeout=60m -tags=release_checks ./... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
         go test -json -v -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
         go test -json -v -timeout=60m -race -short ./... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+
     - name: Generate job summary
+      id: generate-job-summary
       if: matrix.os == 'ubuntu-latest' && ${{ always() }}
       run: |
-        cat /tmp/gotest.log > $GITHUB_STEP_SUMMARY
+        if [ -s /tmp/gotest.log ]; then
+          cat /tmp/gotest.log > $GITHUB_STEP_SUMMARY
+          echo "failures=$(cat /tmp/gotest.log | node .github/parse-tests.js)" > $GITHUB_OUTPUT
+        else
+          echo "## Success ✅" > $GITHUB_STEP_SUMMARY
+          echo "failures=" > $GITHUB_OUTPUT
+        fi
+    # if we failed a test, we want to comment on the PR with the log
+    - name: PR comment with file
+      if: matrix.os == 'ubuntu-latest' && ${{ failure() }}
+      uses: thollander/actions-comment-pull-request@v2
+      with:
+        filePath: /tmp/gotest.log
+
   
   slack-workflow-status-failed:
     if: failure()
