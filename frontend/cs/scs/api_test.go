@@ -155,12 +155,12 @@ func TestExistDiv0(t *testing.T) {
 	_ = solution
 }
 
-type mulAccCircuit struct {
+type mulAccFastTrackCircuit struct {
 	A, B frontend.Variable
 	Res  frontend.Variable
 }
 
-func (c *mulAccCircuit) Define(api frontend.API) error {
+func (c *mulAccFastTrackCircuit) Define(api frontend.API) error {
 	r := api.MulAcc(api.Mul(c.A, 1), c.B, c.A)
 	api.AssertIsEqual(r, c.Res)
 	return nil
@@ -168,10 +168,10 @@ func (c *mulAccCircuit) Define(api frontend.API) error {
 
 func TestMulAccFastTrack(t *testing.T) {
 	assert := test.NewAssert(t)
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &mulAccCircuit{})
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &mulAccFastTrackCircuit{})
 	assert.NoError(err)
 	assert.Equal(2, ccs.GetNbConstraints())
-	w, err := frontend.NewWitness(&mulAccCircuit{
+	w, err := frontend.NewWitness(&mulAccFastTrackCircuit{
 		A: 11, B: 21,
 		Res: 242,
 	}, ecc.BN254.ScalarField())
