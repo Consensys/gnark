@@ -47,6 +47,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs:
       - staticcheck
+    outputs:
+      failures: ${{ steps.generate-job-summary.outputs.failures }}
     steps:
     - name: checkout code
       uses: actions/checkout@v4
@@ -84,7 +86,7 @@ jobs:
     - name: Test (ubuntu - race and solc)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        go test -json -v -timeout=60m -tags=release_checks ./... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+        go test -json -v -timeout=60m -tags=release_checks ./... 2>&1 | gotestfmt -hide=all | tee /tmp/gotest.log
         go test -json -v -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
         go test -json -v -timeout=60m -race -short ./... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
 
