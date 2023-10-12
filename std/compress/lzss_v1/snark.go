@@ -91,7 +91,16 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 			api.Println("copying", copying, "copyLen01", copyLen01, "inIDelta", inIDelta)
 
-			inI = api.Add(inI, api.Mul(inIDelta, api.Sub(1, eof))) // if eof, stay put
+			// TODO Try removing this check and requiring the user to pad the input with nonzeros
+			// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged
+			// inI = api.Add(inI, api.Mul(inIDelta, api.Sub(1, eof)))
+			if eof == 0 {
+				inI = api.Add(inI, inIDelta)
+			} else {
+				inI = api.Add(inI, api.(*scs.Builder).NewCombination(inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
+			}
+
+			// TODO Try "isNonZero" for eofNow and eof
 			eofNow := api.IsZero(api.Sub(inI, cLength))
 			api.Println("eofNow", eofNow, "eof", eof)
 
