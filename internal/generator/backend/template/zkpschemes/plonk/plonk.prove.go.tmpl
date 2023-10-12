@@ -373,6 +373,13 @@ func (s *instance) completeQk() error {
 
 	copy(qkCoeffs, wWitness[:len(s.spr.Public)])
 
+	// wait for solver to be done
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chLRO:
+	}
+
 	for i := range s.commitmentInfo {
 		qkCoeffs[s.spr.GetNbPublicVariables()+s.commitmentInfo[i].CommitmentIndex] = s.commitmentVal[i]
 	}
