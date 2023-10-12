@@ -20,7 +20,7 @@ import "errors"
 
 var (
 	// ErrSizeByteSlice memory checking
-	ErrSizeByteSlice = errors.New("byte slice size is inconsistant with Account size")
+	ErrSizeByteSlice = errors.New("byte slice size is inconsistent with Account size")
 
 	// ErrNonExistingAccount account not in the database
 	ErrNonExistingAccount = errors.New("the account is not in the rollup database")
@@ -31,7 +31,7 @@ var (
 	// ErrAmountTooHigh the amount is bigger than the balance
 	ErrAmountTooHigh = errors.New("amount is bigger than balance")
 
-	// ErrNonce inconsistant nonce between transfer and account
+	// ErrNonce inconsistent nonce between transfer and account
 	ErrNonce = errors.New("incorrect nonce")
 
 	// ErrIndexConsistency the map publicKey(string) -> index(int) gives acces to the account position.
