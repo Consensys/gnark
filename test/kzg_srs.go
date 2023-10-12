@@ -18,6 +18,7 @@ package test
 
 import (
 	"crypto/rand"
+	"math/big"
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -42,15 +43,37 @@ const srsCachedSize = (1 << 14) + 3
 // /!\ warning /!\: this method is here for convenience only: in production, a SRS generated through MPC should be used.
 func NewKZGSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
 
-	nbConstraints := ccs.GetNbConstraints()
-	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
-	kzgSize := ecc.NextPowerOfTwo(uint64(sizeSystem)) + 3
+	kzgSize := getSizeSRS(ccs)
 
 	if kzgSize <= srsCachedSize {
 		return getCachedSRS(ccs)
 	}
 
-	return newKZGSRS(utils.FieldToCurve(ccs.Field()), kzgSize)
+	curveID := utils.FieldToCurve(ccs.Field())
+	alpha, err := rand.Int(rand.Reader, curveID.ScalarField())
+	if err != nil {
+		return nil, err
+	}
+	return newKZGSRS(utils.FieldToCurve(ccs.Field()), kzgSize, alpha)
+}
+
+// NewDummyKZGSRS generates an SRS with τ = 1 for fast generation
+//
+// /!\ method to call for benchmarking only
+func NewDummyKZGSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
+
+	kzgSize := getSizeSRS(ccs)
+
+	return newKZGSRS(utils.FieldToCurve(ccs.Field()), kzgSize, big.NewInt(1))
+}
+
+func getSizeSRS(ccs constraint.ConstraintSystem) uint64 {
+
+	nbConstraints := ccs.GetNbConstraints()
+	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
+	kzgSize := ecc.NextPowerOfTwo(uint64(sizeSystem)) + 3 // +3 due to the blinding
+	return kzgSize
+
 }
 
 var srsCache map[ecc.ID]kzg.SRS
@@ -69,7 +92,11 @@ func getCachedSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
 		return srs, nil
 	}
 
-	srs, err := newKZGSRS(curveID, srsCachedSize)
+	alpha, err := rand.Int(rand.Reader, curveID.ScalarField())
+	if err != nil {
+		return nil, err
+	}
+	srs, err := newKZGSRS(curveID, srsCachedSize, alpha)
 	if err != nil {
 		return nil, err
 	}
@@ -77,12 +104,7 @@ func getCachedSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
 	return srs, nil
 }
 
-func newKZGSRS(curve ecc.ID, kzgSize uint64) (kzg.SRS, error) {
-
-	alpha, err := rand.Int(rand.Reader, curve.ScalarField())
-	if err != nil {
-		return nil, err
-	}
+func newKZGSRS(curve ecc.ID, kzgSize uint64, alpha *big.Int) (kzg.SRS, error) {
 
 	switch curve {
 	case ecc.BN254:
