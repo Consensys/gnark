@@ -63,7 +63,7 @@ jobs:
         go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
         go install github.com/ethereum/go-ethereum/cmd/abigen@v1.12.0
     - name: install solc deps
-      if: ${{ runner.os }} == 'Linux'
+      if: (${{ matrix.os }} != 'windows-latest') && (${{ matrix.os }} != 'macos-latest')
       run: |
         go install github.com/consensys/gnark-solidity-checker@latest
         sudo add-apt-repository ppa:ethereum/ethereum
@@ -77,14 +77,14 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
     - name: Test (windows / mac)
       # on macOS CI / Windows CI we avoid running the std/ tests (they are run on ubuntu CI)
-      if: ${{ runner.os }} != 'Linux'
+      if: (${{ matrix.os }} == 'windows-latest') || (${{ matrix.os }} == 'macos-latest')
       run: |
         go test -tags=release_checks -v -timeout=60m .
         go test -tags=release_checks -v -timeout=60m ./frontend/...
         go test -tags=release_checks -v -timeout=60m ./backend/...
         go test -short -v -timeout=60m ./...
     - name: Test (ubuntu - race and solc)
-      if: ${{ runner.os }} == 'Linux'
+      if: (${{ matrix.os }} != 'windows-latest') && (${{ matrix.os }} != 'macos-latest')
       run: |
         go test -json -v -timeout=60m -tags=release_checks ./... 2>&1 | gotestfmt -hide=all | tee /tmp/gotest.log
         go test -json -v -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
@@ -92,7 +92,7 @@ jobs:
 
     - name: Generate job summary
       id: generate-job-summary
-      if: ${{ runner.os }} == 'Linux' && ${{ always() }}
+      if: (${{ matrix.os }} != 'windows-latest') && (${{ matrix.os }} != 'macos-latest') && ${{ always() }}
       run: |
         if [ -s /tmp/gotest.log ]; then
           cat /tmp/gotest.log > $GITHUB_STEP_SUMMARY
