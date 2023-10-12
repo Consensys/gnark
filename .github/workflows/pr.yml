@@ -70,7 +70,7 @@ jobs:
     - name: Run tests
       run: |
         set -euo pipefail
-        go test -json -v -short -timeout=30m . 2>&1 | gotestfmt -hide=all | tee /tmp/gotest.log
+        go test -json -v -short -timeout=30m ./... 2>&1 | gotestfmt -hide=all | tee /tmp/gotest.log
         go test -json -v -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
 
     - name: Generate job summary
@@ -86,7 +86,7 @@ jobs:
         fi
     # if we failed a test, we want to comment on the PR with the log
     - name: PR comment with file
-      if: ${{ always() }} && steps.generate-job-summary.outputs.failures != ''
+      if: ${{ failure() }}
       uses: thollander/actions-comment-pull-request@v2
       with:
         filePath: /tmp/gotest.log
@@ -111,9 +111,8 @@ jobs:
               "title": "${{ github.event.pull_request.title }}",
               "pr": "${{ github.event.pull_request.head.ref }}",
               "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/",
-              "message": "-"
+              "message": "${{ needs.test.outputs.failures }}"
             }
-        # "${{ needs.test.outputs.failures }}"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
