@@ -97,7 +97,7 @@ func (builder *builder) mulAccFastTrack(a, b, c frontend.Variable) frontend.Vari
 		xc:         res.VID,
 		qL:         aVar.Coeff,
 		qR:         constraint.Element{},
-		qO:         builder.cs.Neg(builder.cs.One()),
+		qO:         builder.tMinusOne,
 		qM:         builder.cs.Mul(bVar.Coeff, cVar.Coeff),
 		qC:         constraint.Element{},
 		commitment: 0,
