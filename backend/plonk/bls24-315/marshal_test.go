@@ -60,12 +60,14 @@ func (pk *ProvingKey) randomize() {
 	var vk VerifyingKey
 	vk.randomize()
 	pk.Vk = &vk
-	pk.Domain[0] = *fft.NewDomain(42)
-	pk.Domain[1] = *fft.NewDomain(4 * 42)
+	pk.Domain[0] = *fft.NewDomain(32)
+	pk.Domain[1] = *fft.NewDomain(4 * 32)
 
-	pk.Kzg.G1 = make([]curve.G1Affine, 7)
+	pk.Kzg.G1 = make([]curve.G1Affine, 32)
+	pk.KzgLagrange.G1 = make([]curve.G1Affine, 32)
 	for i := range pk.Kzg.G1 {
 		pk.Kzg.G1[i] = randomG1Point()
+		pk.KzgLagrange.G1[i] = randomG1Point()
 	}
 
 	n := int(pk.Domain[0].Cardinality)
@@ -98,7 +100,6 @@ func (pk *ProvingKey) randomize() {
 	pk.trace.S[0] = -12
 	pk.trace.S[len(pk.trace.S)-1] = 8888
 
-	pk.computeLagrangeCosetPolys()
 }
 
 func (vk *VerifyingKey) randomize() {

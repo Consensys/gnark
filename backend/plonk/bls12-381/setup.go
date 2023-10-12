@@ -18,18 +18,15 @@ package plonk
 
 import (
 	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/iop"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	"github.com/consensys/gnark/backend/plonk/internal"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bls12-381"
-	"github.com/consensys/gnark/logger"
-	"runtime"
-	"sync"
-	"time"
 )
 
 // VerifyingKey stores the data needed to verify a proof:
@@ -82,25 +79,6 @@ type Trace struct {
 	S []int64
 }
 
-// ExpandedTrace stores Ql, Qr, Qm, Qo, Qk, Qcp, S1, S2, S3 in LagrangeCoset form;
-// the expanded trace is stored in a memory layout that is optimized for the prover
-type ExpandedTrace struct {
-	Polynomials [][sizeExpandedTrace]fr.Element
-}
-
-// Enum for the expanded trace indexes.
-const (
-	idx_QL int = iota
-	idx_QR
-	idx_QM
-	idx_QO
-	idx_S1
-	idx_S2
-	idx_S3
-	idx_LONE
-	sizeExpandedTrace
-)
-
 // ProvingKey stores the data needed to generate a proof:
 // * the commitment scheme
 // * ql, prepended with as many ones as they are public inputs
@@ -117,19 +95,10 @@ type ProvingKey struct {
 	// The polynomials in trace are in canonical basis.
 	trace Trace
 
-	// perf: this is quite fat; so we don't serialize it by default.
-	expandedTrace *ExpandedTrace
-
-	Kzg kzg.ProvingKey
+	Kzg, KzgLagrange kzg.ProvingKey
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
-
-	// qcp in LagrangeCoset form; not serialized
-	lcQcp []*iop.Polynomial
-
-	// LQk qk in Lagrange form -> to be completed by the prover. After being completed,
-	// lQk *iop.Polynomial
 
 	// Domains used for the FFTs.
 	// Domain[0] = small Domain
@@ -137,6 +106,7 @@ type ProvingKey struct {
 	Domain [2]fft.Domain
 }
 
+// TODO modify the signature to receive the SRS in Lagrange form (optional argument ?)
 func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
 
 	var pk ProvingKey
@@ -146,6 +116,9 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 
 	// step 0: set the fft domains
 	pk.initDomains(spr)
+	if pk.Domain[0].Cardinality < 2 {
+		return nil, nil, fmt.Errorf("circuit has only %d constraints; unsupported by the current implementation", spr.GetNbConstraints())
+	}
 
 	// step 1: set the verifying key
 	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
@@ -153,10 +126,15 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(len(spr.Public))
-	if len(kzgSrs.Pk.G1) < int(vk.Size) {
+	if len(kzgSrs.Pk.G1) < int(vk.Size)+3 { // + 3 for the kzg.Open of blinded poly
 		return nil, nil, errors.New("kzg srs is too small")
 	}
-	pk.Kzg = kzgSrs.Pk
+	pk.Kzg.G1 = kzgSrs.Pk.G1[:int(vk.Size)+3]
+	var err error
+	pk.KzgLagrange.G1, err = kzg.ToLagrangeG1(kzgSrs.Pk.G1[:int(vk.Size)])
+	if err != nil {
+		return nil, nil, err
+	}
 	vk.Kzg = kzgSrs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
@@ -175,79 +153,11 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	// All the above polynomials are expressed in canonical basis afterwards. This is why
 	// we save lqk before, because the prover needs to complete it in Lagrange form, and
 	// then express it on the Lagrange coset basis.
-	err := commitTrace(&pk.trace, &pk)
-	if err != nil {
+	if err = commitTrace(&pk.trace, &pk); err != nil {
 		return nil, nil, err
 	}
 
-	// step 5: evaluate ql, qr, qm, qo, s1, s2, s3 on LagrangeCoset (NOT qk)
-	// we clone them, because the canonical versions are going to be used in
-	// the opening proof
-	pk.computeLagrangeCosetPolys()
-
 	return &pk, &vk, nil
-}
-
-// computeLagrangeCosetPolys computes each polynomial except qk in Lagrange coset
-// basis. Qk will be evaluated in Lagrange coset basis once it is completed by the prover.
-func (pk *ProvingKey) computeLagrangeCosetPolys() {
-	pk.expandedTrace = &ExpandedTrace{
-		Polynomials: make([][sizeExpandedTrace]fr.Element, pk.Domain[1].Cardinality),
-	}
-	log := logger.Logger().With().Str("backend", "plonk").Logger()
-	start := time.Now()
-
-	var wg sync.WaitGroup
-	wg.Add(8)
-
-	// fillFunc converts p to LagrangeCoset and fills the pk.expandedTrace.Polynomials structure.
-	fillFunc := func(p *iop.Polynomial, idx int) {
-		scratch := make([]fr.Element, len(p.Coefficients()), pk.Domain[1].Cardinality)
-		copy(scratch, p.Coefficients())
-		pp := iop.NewPolynomial(&scratch, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
-		pp.SetSize(p.Size())
-		pp.SetBlindedSize(p.BlindedSize())
-		pp.ToLagrangeCoset(&pk.Domain[1]).ToRegular()
-
-		for i := 0; i < int(pk.Domain[1].Cardinality); i++ {
-			pk.expandedTrace.Polynomials[i][idx] = pp.GetCoeff(i)
-		}
-
-		wg.Done()
-	}
-
-	go fillFunc(pk.trace.Ql, idx_QL)
-	go fillFunc(pk.trace.Qr, idx_QR)
-	go fillFunc(pk.trace.Qm, idx_QM)
-	go fillFunc(pk.trace.Qo, idx_QO)
-	go fillFunc(pk.trace.S1, idx_S1)
-	go fillFunc(pk.trace.S2, idx_S2)
-	go fillFunc(pk.trace.S3, idx_S3)
-
-	go func() {
-		n1 := int(pk.Domain[1].Cardinality)
-		pk.lcQcp = make([]*iop.Polynomial, len(pk.trace.Qcp))
-		for i, qcpI := range pk.trace.Qcp {
-			pk.lcQcp[i] = qcpI.Clone(n1).ToLagrangeCoset(&pk.Domain[1]).ToRegular()
-		}
-		wg.Done()
-	}()
-
-	// L_{g^{0}}
-	scratch := make([]fr.Element, pk.Domain[0].Cardinality, pk.Domain[1].Cardinality)
-	scratch[0].SetOne()
-
-	p := iop.NewPolynomial(&scratch, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-	p.ToCanonical(&pk.Domain[0]).ToRegular().ToLagrangeCoset(&pk.Domain[1]).ToRegular()
-
-	for i := 0; i < int(pk.Domain[1].Cardinality); i++ {
-		pk.expandedTrace.Polynomials[i][idx_LONE] = p.GetCoeff(i)
-	}
-
-	wg.Wait()
-	runtime.GC()
-
-	log.Debug().Dur("computeLagrangeCosetPolys", time.Since(start)).Msg("setup done")
 }
 
 // NbPublicWitness returns the expected public witness size (number of field elements)

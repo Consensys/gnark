@@ -26,7 +26,7 @@ type verifyingKey interface {
 func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
 	proof any,
 	validPublicWitness witness.Witness) {
-	if !solcCheck || vk.NbPublicWitness() == 0 {
+	if !SolcCheck || vk.NbPublicWitness() == 0 {
 		return // nothing to check, will make solc fail.
 	}
 	assert.t.Helper()

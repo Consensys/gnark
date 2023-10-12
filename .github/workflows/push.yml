@@ -5,7 +5,7 @@ on:
 name: push_master
 jobs:
   staticcheck:
-    runs-on: ubuntu-22.04-16core
+    runs-on: ubuntu-latest
     steps:
     - name: checkout code
       uses: actions/checkout@v4
@@ -84,13 +84,13 @@ jobs:
     - name: Test (ubuntu - race and solc)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        go test -json -v -timeout=60m -tags=release_checks ./... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
-        go test -json -v -tags=release_checks,solccheck . 2>&1 | tee -a /tmp/gotest.log | gotestfmt
-        go test -json -v -timeout=60m -race -short ./... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
+        go test -json -v -timeout=60m -tags=release_checks ./... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+        go test -json -v -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+        go test -json -v -timeout=60m -race -short ./... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
     - name: Generate job summary
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.os == 'ubuntu-latest' && ${{ always() }}
       run: |
-        cat /tmp/gotest.log | node .github/parse-tests.js > $GITHUB_STEP_SUMMARY
+        cat /tmp/gotest.log > $GITHUB_STEP_SUMMARY
   
   slack-workflow-status-failed:
     if: failure()
@@ -111,7 +111,8 @@ jobs:
               "status": "FAIL",
               "title": "push to master ⚠",
               "pr": "",
-              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/"
+              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/",
+              "message": "${{ needs.test.outputs.failures }}"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
