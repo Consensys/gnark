@@ -17,11 +17,13 @@ import (
 	eddsaCrypto "github.com/consensys/gnark-crypto/signature/eddsa"
 )
 
+const N = 2
+
 type eddsaCircuit struct {
 	curveID   tedwards.ID
-	PublicKey eddsa.PublicKey           `gnark:",public"`
-	Signature eddsa.Signature           `gnark:",public"`
-	Message   frontend.Variable         `gnark:",public"`
+	PublicKey [N]eddsa.PublicKey           `gnark:",public"`
+	Signature [N]eddsa.Signature           `gnark:",public"`
+	Message   [N]frontend.Variable         `gnark:",public"`
 }
 
 func (circuit *eddsaCircuit) Define(api frontend.API) error {
@@ -35,7 +37,15 @@ func (circuit *eddsaCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	return eddsa.Verify(curve, circuit.Signature, circuit.Message, circuit.PublicKey, &mimc)
+	for i := 0; i < N; i++ {
+		ver_err := eddsa.Verify(curve, circuit.Signature[i], circuit.Message[i], circuit.PublicKey[i], &mimc)
+		if ver_err != nil {
+			return ver_err
+		}
+	}
+
+	return nil
+	//return eddsa.Verify(curve, circuit.Signature, circuit.Message, circuit.PublicKey, &mimc)
 }
 
 func main() {
@@ -46,9 +56,11 @@ func main() {
     randomness := rand.New(rand.NewSource(seed))
 
     // create a eddsa key pair
-    privateKey, err := eddsaCrypto.New(tedwards.BN254, randomness)
-    fmt.Println("Here!")
-    publicKey := privateKey.Public()
+    //for i := 0; i < N; i++ {
+	    privateKey, err := eddsaCrypto.New(tedwards.BN254, randomness)
+	    fmt.Println("%T\n", privateKey)
+	    publicKey := privateKey.Public()
+	    fmt.Println("%T\n", publicKey)
 
     // note that the message is on 4 bytes
     msg := []byte{4, 138, 238, 31, 227, 139, 149, 17, 139, 42, 141, 190, 58, 89, 207, 213, 43, 102, 126, 255, 120, 144, 82, 112, 31, 116, 76, 42, 1, 122, 145, 41}
