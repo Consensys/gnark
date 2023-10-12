@@ -77,14 +77,14 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
     - name: Test (windows / mac)
       # on macOS CI / Windows CI we avoid running the std/ tests (they are run on ubuntu CI)
-      if: matrix.os != 'ubuntu-latest'
+      if: matrix.os != 'ubuntu-22.04-16core'
       run: |
         go test -tags=release_checks -v -timeout=60m .
         go test -tags=release_checks -v -timeout=60m ./frontend/...
         go test -tags=release_checks -v -timeout=60m ./backend/...
         go test -short -v -timeout=60m ./...
     - name: Test (ubuntu - race and solc)
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.os == 'ubuntu-22.04-16core'
       run: |
         go test -json -v -timeout=60m -tags=release_checks ./... 2>&1 | gotestfmt -hide=all | tee /tmp/gotest.log
         go test -json -v -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
@@ -92,7 +92,7 @@ jobs:
 
     - name: Generate job summary
       id: generate-job-summary
-      if: matrix.os == 'ubuntu-latest' && ${{ always() }}
+      if: matrix.os == 'ubuntu-22.04-16core' && ${{ always() }}
       run: |
         if [ -s /tmp/gotest.log ]; then
           cat /tmp/gotest.log > $GITHUB_STEP_SUMMARY
@@ -103,7 +103,7 @@ jobs:
         fi
     # if we failed a test, we want to comment on the PR with the log
     - name: PR comment with file
-      if: matrix.os == 'ubuntu-latest' && ${{ failure() }}
+      if: matrix.os == 'ubuntu-22.04-16core' && ${{ failure() }}
       uses: thollander/actions-comment-pull-request@v2
       with:
         filePath: /tmp/gotest.log
