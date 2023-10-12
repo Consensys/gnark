@@ -331,6 +331,8 @@ func (s *instance) bsb22Hint(commDepth int) solver.Hint {
 		if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
 			return err
 		}
+		s.cCommitments[commDepth].ToCanonical(&s.pk.Domain[0]).ToRegular()
+
 		if hashRes, err = fr.Hash(s.proof.Bsb22Commitments[commDepth].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
 			return err
 		}
