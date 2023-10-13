@@ -8,17 +8,23 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
+	groth16backend_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
+	groth16backend_bls24315 "github.com/consensys/gnark/backend/groth16/bls24-315"
 	groth16backend_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/hash/sha2"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -200,6 +206,20 @@ func TestValueOfWitness(t *testing.T) {
 		assert.NoError(err)
 		_ = ww
 	}, "bls12377")
+	assert.Run(func(assert *test.Assert) {
+		w, err := frontend.NewWitness(&assignment, ecc.BLS12_381.ScalarField())
+		assert.NoError(err)
+		ww, err := ValueOfWitness[sw_bls12381.Scalar, sw_bls12381.G1Affine](w)
+		assert.NoError(err)
+		_ = ww
+	}, "bls12381")
+	assert.Run(func(assert *test.Assert) {
+		w, err := frontend.NewWitness(&assignment, ecc.BLS24_315.ScalarField())
+		assert.NoError(err)
+		ww, err := ValueOfWitness[sw_bls24315.Scalar, sw_bls24315.G1Affine](w)
+		assert.NoError(err)
+		_ = ww
+	}, "bls24315")
 }
 
 func TestValueOfProof(t *testing.T) {
@@ -225,7 +245,29 @@ func TestValueOfProof(t *testing.T) {
 		assignment, err := ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](&proof)
 		assert.NoError(err)
 		_ = assignment
-	}, "bls12-in-bw6")
+	}, "bls12377")
+	assert.Run(func(assert *test.Assert) {
+		_, _, G1, G2 := bls12381.Generators()
+		proof := groth16backend_bls12381.Proof{
+			Ar:  G1,
+			Krs: G1,
+			Bs:  G2,
+		}
+		assignment, err := ValueOfProof[sw_bls12381.G1Affine, sw_bls12381.G2Affine](&proof)
+		assert.NoError(err)
+		_ = assignment
+	}, "bls12381")
+	assert.Run(func(assert *test.Assert) {
+		_, _, G1, G2 := bls24315.Generators()
+		proof := groth16backend_bls24315.Proof{
+			Ar:  G1,
+			Krs: G1,
+			Bs:  G2,
+		}
+		assignment, err := ValueOfProof[sw_bls24315.G1Affine, sw_bls24315.G2Affine](&proof)
+		assert.NoError(err)
+		_ = assignment
+	}, "bls24315")
 }
 
 func TestValueOfVerifyingKey(t *testing.T) {
@@ -248,4 +290,22 @@ func TestValueOfVerifyingKey(t *testing.T) {
 		assert.NoError(err)
 		_ = vvk
 	}, "bls12377")
+	assert.Run(func(assert *test.Assert) {
+		ccs, err := frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
+		assert.NoError(err)
+		_, vk, err := groth16.Setup(ccs)
+		assert.NoError(err)
+		vvk, err := ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl](vk)
+		assert.NoError(err)
+		_ = vvk
+	}, "bls12381")
+	assert.Run(func(assert *test.Assert) {
+		ccs, err := frontend.Compile(ecc.BLS24_315.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
+		assert.NoError(err)
+		_, vk, err := groth16.Setup(ccs)
+		assert.NoError(err)
+		vvk, err := ValueOfVerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT](vk)
+		assert.NoError(err)
+		_ = vvk
+	}, "bls24315")
 }

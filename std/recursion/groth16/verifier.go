@@ -5,16 +5,24 @@ import (
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
+	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
+	groth16backend_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
+	groth16backend_bls24315 "github.com/consensys/gnark/backend/groth16/bls24-315"
 	groth16backend_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
@@ -48,6 +56,22 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 		ar.Ar = sw_bls12377.NewG1Affine(tProof.Ar)
 		ar.Krs = sw_bls12377.NewG1Affine(tProof.Krs)
 		ar.Bs = sw_bls12377.NewG2Affine(tProof.Bs)
+	case *Proof[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+		tProof, ok := proof.(*groth16backend_bls12381.Proof)
+		if !ok {
+			return ret, fmt.Errorf("expected bls12381.Proof, got %T", proof)
+		}
+		ar.Ar = sw_bls12381.NewG1Affine(tProof.Ar)
+		ar.Krs = sw_bls12381.NewG1Affine(tProof.Krs)
+		ar.Bs = sw_bls12381.NewG2Affine(tProof.Bs)
+	case *Proof[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+		tProof, ok := proof.(*groth16backend_bls24315.Proof)
+		if !ok {
+			return ret, fmt.Errorf("expected bls24315.Proof, got %T", proof)
+		}
+		ar.Ar = sw_bls24315.NewG1Affine(tProof.Ar)
+		ar.Krs = sw_bls24315.NewG1Affine(tProof.Krs)
+		ar.Bs = sw_bls24315.NewG2Affine(tProof.Bs)
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
@@ -121,6 +145,46 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12377.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls12377.NewG2Affine(gammaNeg)
+	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
+		tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
+		}
+		// compute E
+		e, err := bls12381.Pair([]bls12381.G1Affine{tVk.G1.Alpha}, []bls12381.G2Affine{tVk.G2.Beta})
+		if err != nil {
+			return ret, fmt.Errorf("precompute pairing: %w", err)
+		}
+		s.E = sw_bls12381.NewGTEl(e)
+		s.G1.K = make([]sw_bls12381.G1Affine, len(tVk.G1.K))
+		for i := range s.G1.K {
+			s.G1.K[i] = sw_bls12381.NewG1Affine(tVk.G1.K[i])
+		}
+		var deltaNeg, gammaNeg bls12381.G2Affine
+		deltaNeg.Neg(&tVk.G2.Delta)
+		gammaNeg.Neg(&tVk.G2.Gamma)
+		s.G2.DeltaNeg = sw_bls12381.NewG2Affine(deltaNeg)
+		s.G2.GammaNeg = sw_bls12381.NewG2Affine(gammaNeg)
+	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
+		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
+		}
+		// compute E
+		e, err := bls24315.Pair([]bls24315.G1Affine{tVk.G1.Alpha}, []bls24315.G2Affine{tVk.G2.Beta})
+		if err != nil {
+			return ret, fmt.Errorf("precompute pairing: %w", err)
+		}
+		s.E = sw_bls24315.NewGTEl(e)
+		s.G1.K = make([]sw_bls24315.G1Affine, len(tVk.G1.K))
+		for i := range s.G1.K {
+			s.G1.K[i] = sw_bls24315.NewG1Affine(tVk.G1.K[i])
+		}
+		var deltaNeg, gammaNeg bls24315.G2Affine
+		deltaNeg.Neg(&tVk.G2.Delta)
+		gammaNeg.Neg(&tVk.G2.Gamma)
+		s.G2.DeltaNeg = sw_bls24315.NewG2Affine(deltaNeg)
+		s.G2.GammaNeg = sw_bls24315.NewG2Affine(gammaNeg)
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
