@@ -57,14 +57,14 @@ func NewKZGSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
 	return newKZGSRS(utils.FieldToCurve(ccs.Field()), kzgSize, alpha)
 }
 
-// NewDummyKZGSRS generates an SRS with τ = 1 for fast generation
+// NewDummyKZGSRS generates an SRS with τ = -1 for fast generation
 //
 // /!\ method to call for benchmarking only
 func NewDummyKZGSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
 
 	kzgSize := getSizeSRS(ccs)
 
-	return newKZGSRS(utils.FieldToCurve(ccs.Field()), kzgSize, big.NewInt(1))
+	return newKZGSRS(utils.FieldToCurve(ccs.Field()), kzgSize, big.NewInt(-1))
 }
 
 func getSizeSRS(ccs constraint.ConstraintSystem) uint64 {

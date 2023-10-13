@@ -16,10 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//--------------------//
-//     benches		  //
-//--------------------//
-
 func TestProver(t *testing.T) {
 
 	for _, curve := range getCurves() {
@@ -27,7 +23,9 @@ func TestProver(t *testing.T) {
 			var b1, b2 bytes.Buffer
 			assert := require.New(t)
 
-			ccs, _solution, srs := referenceCircuit(curve)
+			ccs, _solution := referenceCircuit(curve)
+			srs, err := test.NewKZGSRS(ccs)
+			assert.NoError(err)
 			fullWitness, err := frontend.NewWitness(_solution, curve.ScalarField())
 			assert.NoError(err)
 
@@ -58,10 +56,16 @@ func TestProver(t *testing.T) {
 	}
 }
 
+//--------------------//
+//     benches		  //
+//--------------------//
+
 func BenchmarkSetup(b *testing.B) {
 	for _, curve := range getCurves() {
 		b.Run(curve.String(), func(b *testing.B) {
-			ccs, _, srs := referenceCircuit(curve)
+			ccs, _, srs := referenceCircuitDummySRS(curve)
+			// ccs, _ := referenceCircuit(curve)
+			// srs, _ := test.NewKZGSRS(ccs)
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				_, _, _ = plonk.Setup(ccs, srs)
@@ -73,7 +77,9 @@ func BenchmarkSetup(b *testing.B) {
 func BenchmarkProver(b *testing.B) {
 	for _, curve := range getCurves() {
 		b.Run(curve.String(), func(b *testing.B) {
-			ccs, _solution, srs := referenceCircuit(curve)
+			ccs, _solution, srs := referenceCircuitDummySRS(curve)
+			// ccs, _solution := referenceCircuit(curve)
+			// srs, _ := test.NewKZGSRS(ccs)
 			fullWitness, err := frontend.NewWitness(_solution, curve.ScalarField())
 			if err != nil {
 				b.Fatal(err)
@@ -93,7 +99,7 @@ func BenchmarkProver(b *testing.B) {
 func BenchmarkVerifier(b *testing.B) {
 	for _, curve := range getCurves() {
 		b.Run(curve.String(), func(b *testing.B) {
-			ccs, _solution, srs := referenceCircuit(curve)
+			ccs, _solution, srs := referenceCircuitDummySRS(curve)
 			fullWitness, err := frontend.NewWitness(_solution, curve.ScalarField())
 			if err != nil {
 				b.Fatal(err)
@@ -134,7 +140,17 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circuit, kzg.SRS) {
+func referenceCircuitDummySRS(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circuit, kzg.SRS) {
+	ccs, _solution := referenceCircuit(curve)
+	srs, err := test.NewDummyKZGSRS(ccs)
+	if err != nil {
+		panic(err)
+	}
+	return ccs, _solution, srs
+
+}
+
+func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circuit) {
 	const nbConstraints = 40000
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
@@ -154,11 +170,7 @@ func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circu
 	expectedY.Exp(expectedY, exp, curve.ScalarField())
 
 	good.Y = expectedY
-	srs, err := test.NewKZGSRS(ccs)
-	if err != nil {
-		panic(err)
-	}
-	return ccs, &good, srs
+	return ccs, &good
 }
 
 func getCurves() []ecc.ID {
