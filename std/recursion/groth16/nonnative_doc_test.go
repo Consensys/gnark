@@ -104,7 +104,7 @@ func Example_emulated() {
 	if err != nil {
 		panic(err)
 	}
-	circuitWitness, err := stdgroth16.ValueOfWitness[sw_bn254.Scalar](innerWitness)
+	circuitWitness, err := stdgroth16.ValueOfWitness[sw_bn254.Scalar, sw_bn254.G1Affine](innerWitness)
 	if err != nil {
 		panic(err)
 	}

@@ -23,7 +23,7 @@ func Example_native() {
 	if err != nil {
 		panic(err)
 	}
-	circuitWitness, err := stdgroth16.ValueOfWitness[sw_bls12377.Scalar](innerWitness)
+	circuitWitness, err := stdgroth16.ValueOfWitness[sw_bls12377.Scalar, sw_bls12377.G1Affine](innerWitness)
 	if err != nil {
 		panic(err)
 	}

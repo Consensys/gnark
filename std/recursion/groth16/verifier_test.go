@@ -128,7 +128,7 @@ func TestBN254InBN254(t *testing.T) {
 	// outer proof
 	circuitVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVK)
 	assert.NoError(err)
-	circuitWitness, err := ValueOfWitness[sw_bn254.Scalar](innerWitness)
+	circuitWitness, err := ValueOfWitness[sw_bn254.Scalar, sw_bn254.G1Affine](innerWitness)
 	assert.NoError(err)
 	circuitProof, err := ValueOfProof[sw_bn254.G1Affine, sw_bn254.G2Affine](innerProof)
 	assert.NoError(err)
@@ -152,7 +152,7 @@ func TestBLS12InBW6(t *testing.T) {
 	// outer proof
 	circuitVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
 	assert.NoError(err)
-	circuitWitness, err := ValueOfWitness[sw_bls12377.Scalar](innerWitness)
+	circuitWitness, err := ValueOfWitness[sw_bls12377.Scalar, sw_bls12377.G1Affine](innerWitness)
 	assert.NoError(err)
 	circuitProof, err := ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
 	assert.NoError(err)
@@ -189,14 +189,14 @@ func TestValueOfWitness(t *testing.T) {
 	assert.Run(func(assert *test.Assert) {
 		w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 		assert.NoError(err)
-		ww, err := ValueOfWitness[sw_bn254.Scalar](w)
+		ww, err := ValueOfWitness[sw_bn254.Scalar, sw_bn254.G1Affine](w)
 		assert.NoError(err)
 		_ = ww
 	}, "bn254")
 	assert.Run(func(assert *test.Assert) {
 		w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 		assert.NoError(err)
-		ww, err := ValueOfWitness[sw_bls12377.Scalar](w)
+		ww, err := ValueOfWitness[sw_bls12377.Scalar, sw_bls12377.G1Affine](w)
 		assert.NoError(err)
 		_ = ww
 	}, "bls12377")

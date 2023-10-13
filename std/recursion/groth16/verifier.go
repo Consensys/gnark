@@ -149,34 +149,53 @@ func PlaceholderWitness[S algebra.ScalarT](ccs constraint.ConstraintSystem) Witn
 // witness. If there is a field mismatch then this method represents the witness
 // inputs using field emulation. It returns an error if there is a mismatch
 // between the type parameters and provided witness.
-func ValueOfWitness[S algebra.ScalarT](w witness.Witness) (Witness[S], error) {
-	var ret Witness[S]
+func ValueOfWitness[S algebra.ScalarT, G1 algebra.G1ElementT](w witness.Witness) (Witness[S], error) {
+	type dbwtiness[S algebra.ScalarT, G1 algebra.G1ElementT] struct {
+		W Witness[S]
+	}
+	var ret dbwtiness[S, G1]
 	pubw, err := w.Public()
 	if err != nil {
-		return ret, fmt.Errorf("get public witness: %w", err)
+		return ret.W, fmt.Errorf("get public witness: %w", err)
 	}
 	vec := pubw.Vector()
 	switch s := any(&ret).(type) {
-	case *Witness[emulated.Element[emparams.BN254Fr]]:
+	case *dbwtiness[emulated.Element[emparams.BN254Fr], sw_bn254.G1Affine]:
 		vect, ok := vec.(fr_bn254.Vector)
 		if !ok {
-			return ret, fmt.Errorf("expected fr_bn254.Vector, got %T", vec)
+			return ret.W, fmt.Errorf("expected fr_bn254.Vector, got %T", vec)
 		}
 		for i := range vect {
-			s.Public = append(s.Public, emulated.ValueOf[emparams.BN254Fr](vect[i]))
+			s.W.Public = append(s.W.Public, emulated.ValueOf[emparams.BN254Fr](vect[i]))
 		}
-	case *Witness[sw_bls12377.Scalar]:
+	case *dbwtiness[sw_bls12377.Scalar, sw_bls12377.G1Affine]:
 		vect, ok := vec.(fr_bls12377.Vector)
 		if !ok {
-			return ret, fmt.Errorf("expected fr_bls12377.Vector, got %T", vec)
+			return ret.W, fmt.Errorf("expected fr_bls12377.Vector, got %T", vec)
 		}
 		for i := range vect {
-			s.Public = append(s.Public, vect[i].String())
+			s.W.Public = append(s.W.Public, vect[i].String())
+		}
+	case *dbwtiness[emulated.Element[emparams.BLS12381Fr], sw_bls12381.G1Affine]:
+		vect, ok := vec.(fr_bls12381.Vector)
+		if !ok {
+			return ret.W, fmt.Errorf("expected fr_bls12381.Vector, got %T", vec)
+		}
+		for i := range vect {
+			s.W.Public = append(s.W.Public, emulated.ValueOf[emparams.BLS12381Fr](vect[i]))
+		}
+	case *dbwtiness[sw_bls24315.Scalar, sw_bls24315.G1Affine]:
+		vect, ok := vec.(fr_bls24315.Vector)
+		if !ok {
+			return ret.W, fmt.Errorf("expected fr_bls24315.Vector, got %T", vec)
+		}
+		for i := range vect {
+			s.W.Public = append(s.W.Public, vect[i].String())
 		}
 	default:
-		return ret, fmt.Errorf("unknown parametric type combination")
+		return ret.W, fmt.Errorf("unknown parametric type combination")
 	}
-	return ret, nil
+	return ret.W, nil
 }
 
 // Verifier verifies Groth16 proofs.
