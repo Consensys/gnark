@@ -119,6 +119,31 @@ func Setup(ccs constraint.ConstraintSystem, kzgSrs kzg.SRS) (ProvingKey, Verifyi
 
 }
 
+// Setup prepares the public data associated to a circuit + public inputs.
+// The SRS is
+func DummySetup(ccs constraint.ConstraintSystem, kzgSrs kzg.SRS) (ProvingKey, VerifyingKey, error) {
+
+	switch tccs := ccs.(type) {
+	case *cs_bn254.SparseR1CS:
+		return plonk_bn254.DummySetup(tccs, *kzgSrs.(*kzg_bn254.SRS))
+	case *cs_bls12381.SparseR1CS:
+		return plonk_bls12381.DummySetup(tccs, *kzgSrs.(*kzg_bls12381.SRS))
+	case *cs_bls12377.SparseR1CS:
+		return plonk_bls12377.DummySetup(tccs, *kzgSrs.(*kzg_bls12377.SRS))
+	case *cs_bw6761.SparseR1CS:
+		return plonk_bw6761.DummySetup(tccs, *kzgSrs.(*kzg_bw6761.SRS))
+	case *cs_bls24317.SparseR1CS:
+		return plonk_bls24317.DummySetup(tccs, *kzgSrs.(*kzg_bls24317.SRS))
+	case *cs_bls24315.SparseR1CS:
+		return plonk_bls24315.DummySetup(tccs, *kzgSrs.(*kzg_bls24315.SRS))
+	case *cs_bw6633.SparseR1CS:
+		return plonk_bw6633.DummySetup(tccs, *kzgSrs.(*kzg_bw6633.SRS))
+	default:
+		panic("unrecognized SparseR1CS curve type")
+	}
+
+}
+
 // Prove generates PLONK proof from a circuit, associated preprocessed public data, and the witness
 // if the force flag is set:
 //

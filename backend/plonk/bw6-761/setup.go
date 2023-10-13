@@ -27,6 +27,7 @@ import (
 	"github.com/consensys/gnark/backend/plonk/internal"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bw6-761"
+	"math/big"
 )
 
 // VerifyingKey stores the data needed to verify a proof:
@@ -106,8 +107,7 @@ type ProvingKey struct {
 	Domain [2]fft.Domain
 }
 
-// TODO modify the signature to receive the SRS in Lagrange form (optional argument ?)
-func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
+func setupCommon(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
 
 	var pk ProvingKey
 	var vk VerifyingKey
@@ -130,11 +130,6 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 		return nil, nil, errors.New("kzg srs is too small")
 	}
 	pk.Kzg.G1 = kzgSrs.Pk.G1[:int(vk.Size)+3]
-	var err error
-	pk.KzgLagrange.G1, err = kzg.ToLagrangeG1(kzgSrs.Pk.G1[:int(vk.Size)])
-	if err != nil {
-		return nil, nil, err
-	}
 	vk.Kzg = kzgSrs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
@@ -149,15 +144,45 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	pk.trace.S2 = s[1]
 	pk.trace.S3 = s[2]
 
+	return &pk, &vk, nil
+}
+
+// Sets the toxic waste to a 4-th root of one
+func DummySetup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
+
+	pk, vk, err := setupCommon(spr, kzgSrs)
+	if err != nil {
+		return pk, vk, err
+	}
+	pk.KzgLagrange.G1 = pk.Kzg.G1
+	if err = commitTraceDummySetup(&pk.trace, pk); err != nil {
+		return nil, nil, err
+	}
+
+	return pk, vk, nil
+}
+
+// TODO modify the signature to receive the SRS in Lagrange form (optional argument ?)
+func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
+
+	pk, vk, err := setupCommon(spr, kzgSrs)
+	if err != nil {
+		return pk, vk, err
+	}
 	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
 	// All the above polynomials are expressed in canonical basis afterwards. This is why
 	// we save lqk before, because the prover needs to complete it in Lagrange form, and
 	// then express it on the Lagrange coset basis.
-	if err = commitTrace(&pk.trace, &pk); err != nil {
+	pk.KzgLagrange.G1, err = kzg.ToLagrangeG1(kzgSrs.Pk.G1[:int(vk.Size)])
+	if err != nil {
+		return nil, nil, err
+	}
+	vk.Kzg = kzgSrs.Vk
+	if err = commitTrace(&pk.trace, pk); err != nil {
 		return nil, nil, err
 	}
 
-	return &pk, &vk, nil
+	return pk, vk, nil
 }
 
 // NbPublicWitness returns the expected public witness size (number of field elements)
@@ -222,6 +247,69 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 		}
 		pt.Qcp[i] = iop.NewPolynomial(&qcp[i], lagReg)
 	}
+}
+
+// commitTrace commits to every polynomial in the trace, and put
+// the commitments int the verifying key.
+func commitTraceDummySetup(trace *Trace, pk *ProvingKey) error {
+
+	trace.Ql.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.Qr.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.Qm.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.Qo.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.Qk.ToCanonical(&pk.Domain[0]).ToRegular() // -> qk is not complete
+	trace.S1.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.S2.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.S3.ToCanonical(&pk.Domain[0]).ToRegular()
+
+	var err error
+	tau, err := fr.Generator(4)
+	if err != nil {
+		return err
+	}
+
+	var eval fr.Element
+	var bEval big.Int
+	pk.Vk.Qcp = make([]kzg.Digest, len(trace.Qcp))
+	for i := range trace.Qcp {
+		trace.Qcp[i].ToCanonical(&pk.Domain[0]).ToRegular()
+		eval = trace.Qcp[i].Evaluate(tau)
+		eval.BigInt(&bEval)
+		pk.Vk.Qcp[i].ScalarMultiplication(&pk.Kzg.G1[0], &bEval)
+	}
+	eval = pk.trace.Ql.Evaluate(tau)
+	eval.BigInt(&bEval)
+	pk.Vk.Ql.ScalarMultiplication(&pk.Kzg.G1[0], &bEval)
+
+	eval = pk.trace.Qr.Evaluate(tau)
+	eval.BigInt(&bEval)
+	pk.Vk.Qr.ScalarMultiplication(&pk.Kzg.G1[0], &bEval)
+
+	eval = pk.trace.Qm.Evaluate(tau)
+	eval.BigInt(&bEval)
+	pk.Vk.Qm.ScalarMultiplication(&pk.Kzg.G1[0], &bEval)
+
+	eval = pk.trace.Qo.Evaluate(tau)
+	eval.BigInt(&bEval)
+	pk.Vk.Qo.ScalarMultiplication(&pk.Kzg.G1[0], &bEval)
+
+	eval = pk.trace.Qk.Evaluate(tau)
+	eval.BigInt(&bEval)
+	pk.Vk.Qk.ScalarMultiplication(&pk.Kzg.G1[0], &bEval)
+
+	eval = pk.trace.S1.Evaluate(tau)
+	eval.BigInt(&bEval)
+	pk.Vk.S[0].ScalarMultiplication(&pk.Kzg.G1[0], &bEval)
+
+	eval = pk.trace.S2.Evaluate(tau)
+	eval.BigInt(&bEval)
+	pk.Vk.S[1].ScalarMultiplication(&pk.Kzg.G1[0], &bEval)
+
+	eval = pk.trace.S3.Evaluate(tau)
+	eval.BigInt(&bEval)
+	pk.Vk.S[2].ScalarMultiplication(&pk.Kzg.G1[0], &bEval)
+
+	return nil
 }
 
 // commitTrace commits to every polynomial in the trace, and put

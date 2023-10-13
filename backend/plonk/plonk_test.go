@@ -61,39 +61,76 @@ func TestProver(t *testing.T) {
 //--------------------//
 
 func BenchmarkSetup(b *testing.B) {
-	for _, curve := range getCurves() {
-		b.Run(curve.String(), func(b *testing.B) {
-			ccs, _, srs := referenceCircuitDummySRS(curve)
-			// ccs, _ := referenceCircuit(curve)
-			// srs, _ := test.NewKZGSRS(ccs)
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				_, _, _ = plonk.Setup(ccs, srs)
-			}
-		})
-	}
+
+	// ccs, _ := referenceCircuit(curve)
+	// srs, _ := test.NewKZGSRS(ccs)
+	b.Run("dummy setup", func(b *testing.B) {
+		for _, curve := range getCurves() {
+			b.Run(curve.String(), func(b *testing.B) {
+				ccs, _, srs := referenceCircuitDummySRS(curve)
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_, _, _ = plonk.DummySetup(ccs, srs)
+				}
+			})
+		}
+	})
+	b.Run("real setup", func(b *testing.B) {
+		for _, curve := range getCurves() {
+			b.Run(curve.String(), func(b *testing.B) {
+				ccs, _ := referenceCircuit(curve)
+				srs, _ := test.NewKZGSRS(ccs)
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_, _, _ = plonk.Setup(ccs, srs)
+				}
+			})
+		}
+	})
 }
 
+// /!\ the benchmarks must be the same
 func BenchmarkProver(b *testing.B) {
-	for _, curve := range getCurves() {
-		b.Run(curve.String(), func(b *testing.B) {
-			ccs, _solution, srs := referenceCircuitDummySRS(curve)
-			// ccs, _solution := referenceCircuit(curve)
-			// srs, _ := test.NewKZGSRS(ccs)
-			fullWitness, err := frontend.NewWitness(_solution, curve.ScalarField())
-			if err != nil {
-				b.Fatal(err)
-			}
-			pk, _, err := plonk.Setup(ccs, srs)
-			if err != nil {
-				b.Fatal(err)
-			}
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				_, _ = plonk.Prove(ccs, pk, fullWitness)
-			}
-		})
-	}
+
+	b.Run("dummy setup", func(b *testing.B) {
+		for _, curve := range getCurves() {
+			b.Run(curve.String(), func(b *testing.B) {
+				ccs, _solution, srs := referenceCircuitDummySRS(curve)
+				fullWitness, err := frontend.NewWitness(_solution, curve.ScalarField())
+				if err != nil {
+					b.Fatal(err)
+				}
+				pk, _, err := plonk.DummySetup(ccs, srs)
+				if err != nil {
+					b.Fatal(err)
+				}
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_, _ = plonk.Prove(ccs, pk, fullWitness)
+				}
+			})
+		}
+	})
+	b.Run("real setup", func(b *testing.B) {
+		for _, curve := range getCurves() {
+			b.Run(curve.String(), func(b *testing.B) {
+				ccs, _solution := referenceCircuit(curve)
+				srs, _ := test.NewKZGSRS(ccs)
+				fullWitness, err := frontend.NewWitness(_solution, curve.ScalarField())
+				if err != nil {
+					b.Fatal(err)
+				}
+				pk, _, err := plonk.Setup(ccs, srs)
+				if err != nil {
+					b.Fatal(err)
+				}
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_, _ = plonk.Prove(ccs, pk, fullWitness)
+				}
+			})
+		}
+	})
 }
 
 func BenchmarkVerifier(b *testing.B) {
