@@ -1,3 +1,14 @@
+// Package kzg implements KZG polynomial commitment verification.
+//
+// KZG polynomial commitment allows for the prover to commit to a polynomial and
+// then selectively prove evaluations of the said polynomial. The size of the
+// commitment is a single G1 element and the size of the evaluation proof is
+// also a single G1 element. However, KZG polynomial commitment scheme requires
+// a trusted SRS.
+//
+// This package supersedes previous type-specific implementations and allows to
+// use any implemented pairing-friendly curve implementation, being defined over
+// a 2-chain (native implementation) or using field emulation.
 package kzg
 
 import (
