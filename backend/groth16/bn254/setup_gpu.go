@@ -356,6 +356,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 	// set domain
 	pk.Domain = *domain
 
+	// Move static values (points, domain, hpoly denom) to the device/GPU
 	err = pk.setupDevicePointers()
 
 	return nil
