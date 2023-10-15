@@ -20,7 +20,6 @@ func TestProofSerialization(t *testing.T) {
 	assert.NoError(t, io.RoundTripCheck(&proof, func() interface{} { return new(Proof) }))
 }
 
-
 func TestProvingKeySerialization(t *testing.T) {
 	// random pk
 	var pk ProvingKey
@@ -28,8 +27,6 @@ func TestProvingKeySerialization(t *testing.T) {
 
 	assert.NoError(t, io.RoundTripCheck(&pk, func() interface{} { return new(ProvingKey) }))
 }
-
-
 
 func TestVerifyingKeySerialization(t *testing.T) {
 	// create a random vk
@@ -39,18 +36,19 @@ func TestVerifyingKeySerialization(t *testing.T) {
 	assert.NoError(t, io.RoundTripCheck(&vk, func() interface{} { return new(VerifyingKey) }))
 }
 
-
 func (pk *ProvingKey) randomize() {
 
 	var vk VerifyingKey
 	vk.randomize()
 	pk.Vk = &vk
-	pk.Domain[0] = *fft.NewDomain(42)
-	pk.Domain[1] = *fft.NewDomain(4 * 42)
-	
-	pk.Kzg.G1 = make([]curve.G1Affine, 7)
+	pk.Domain[0] = *fft.NewDomain(32)
+	pk.Domain[1] = *fft.NewDomain(4 * 32)
+
+	pk.Kzg.G1 = make([]curve.G1Affine, 32)
+	pk.KzgLagrange.G1 = make([]curve.G1Affine, 32)
 	for i := range pk.Kzg.G1 {
 		pk.Kzg.G1[i] = randomG1Point()
+		pk.KzgLagrange.G1[i] = randomG1Point()
 	}
 
 	n := int(pk.Domain[0].Cardinality)
@@ -83,15 +81,13 @@ func (pk *ProvingKey) randomize() {
 	pk.trace.S[0] = -12
 	pk.trace.S[len(pk.trace.S)-1] = 8888
 
-
-	pk.computeLagrangeCosetPolys()
 }
 
 func (vk *VerifyingKey) randomize() {
-	vk.Size = rand.Uint64()  //#nosec G404 weak rng is fine here
+	vk.Size = rand.Uint64() //#nosec G404 weak rng is fine here
 	vk.SizeInv.SetRandom()
 	vk.Generator.SetRandom()
-	vk.NbPublicVariables = rand.Uint64() //#nosec G404 weak rng is fine here
+	vk.NbPublicVariables = rand.Uint64()                     //#nosec G404 weak rng is fine here
 	vk.CommitmentConstraintIndexes = []uint64{rand.Uint64()} //#nosec G404 weak rng is fine here
 	vk.CosetShift.SetRandom()
 
@@ -102,7 +98,7 @@ func (vk *VerifyingKey) randomize() {
 	vk.Kzg.G1 = randomG1Point()
 	vk.Kzg.G2[0] = randomG2Point()
 	vk.Kzg.G2[1] = randomG2Point()
-	
+
 	vk.Ql = randomG1Point()
 	vk.Qr = randomG1Point()
 	vk.Qm = randomG1Point()
@@ -126,8 +122,8 @@ func (proof *Proof) randomize() {
 	proof.Bsb22Commitments = randomG1Points(rand.Intn(4)) //#nosec G404 weak rng is fine here
 }
 
-func randomG2Point() curve.G2Affine{
-	_,_,_, r := curve.Generators()
+func randomG2Point() curve.G2Affine {
+	_, _, _, r := curve.Generators()
 	r.ScalarMultiplication(&r, big.NewInt(int64(rand.Uint64()))) //#nosec G404 weak rng is fine here
 	return r
 }

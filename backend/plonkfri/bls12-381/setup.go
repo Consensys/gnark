@@ -147,7 +147,7 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	pk.LQkIncompleteDomainSmall = make([]fr.Element, pk.Domain[0].Cardinality)
 	pk.CQkIncomplete = make([]fr.Element, pk.Domain[0].Cardinality)
 
-	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error is size is inconsistant
+	for i := 0; i < len(spr.Public); i++ { // placeholders (-PUB_INPUT_i + qk_i = 0) TODO should return error if size is inconsistent
 		pk.EvaluationQlDomainBigBitReversed[i].SetOne().Neg(&pk.EvaluationQlDomainBigBitReversed[i])
 		pk.EvaluationQrDomainBigBitReversed[i].SetZero()
 		pk.EvaluationQmDomainBigBitReversed[i].SetZero()

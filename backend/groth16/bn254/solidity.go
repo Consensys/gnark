@@ -422,7 +422,7 @@ contract Verifier {
     /// @notice Reverts with InvalidProof if the proof is invalid or
     /// with PublicInputNotInField the public input is not reduced.
     /// @notice There is no return value. If the function does not revert, the
-    /// proof was succesfully verified.
+    /// proof was successfully verified.
     /// @param compressedProof the points (A, B, C) in compressed format
     /// matching the output of compressProof.
     /// @param input the public input field elements in the scalar field Fr.
@@ -487,7 +487,7 @@ contract Verifier {
     /// @notice Reverts with InvalidProof if the proof is invalid or
     /// with PublicInputNotInField the public input is not reduced.
     /// @notice There is no return value. If the function does not revert, the
-    /// proof was succesfully verified.
+    /// proof was successfully verified.
     /// @param proof the points (A, B, C) in EIP-197 format matching the output
     /// of compressProof.
     /// @param input the public input field elements in the scalar field Fr.

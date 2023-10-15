@@ -25,7 +25,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/kzg"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 

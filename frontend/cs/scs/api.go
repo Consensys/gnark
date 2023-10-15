@@ -54,8 +54,55 @@ func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) f
 }
 
 func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+
+	if fastTrack := builder.mulAccFastTrack(a, b, c); fastTrack != nil {
+		return fastTrack
+	}
+
 	// TODO can we do better here to limit allocations?
 	return builder.Add(a, builder.Mul(b, c))
+}
+
+// special case for when a/c is constant
+// let a = a' * α, b = b' * β, c = c' * α
+// then a + b * c = a' * α + (b' * c') (β * α)
+// thus qL = a', qR = 0, qM = b'c'
+func (builder *builder) mulAccFastTrack(a, b, c frontend.Variable) frontend.Variable {
+	var (
+		aVar, bVar, cVar expr.Term
+		ok               bool
+	)
+	if aVar, ok = a.(expr.Term); !ok {
+		return nil
+	}
+	if bVar, ok = b.(expr.Term); !ok {
+		return nil
+	}
+	if cVar, ok = c.(expr.Term); !ok {
+		return nil
+	}
+
+	if aVar.VID == bVar.VID {
+		bVar, cVar = cVar, bVar
+	}
+
+	if aVar.VID != cVar.VID {
+		return nil
+	}
+
+	res := builder.newInternalVariable()
+	builder.addPlonkConstraint(sparseR1C{
+		xa:         aVar.VID,
+		xb:         bVar.VID,
+		xc:         res.VID,
+		qL:         aVar.Coeff,
+		qR:         constraint.Element{},
+		qO:         builder.tMinusOne,
+		qM:         builder.cs.Mul(bVar.Coeff, cVar.Coeff),
+		qC:         constraint.Element{},
+		commitment: 0,
+	})
+	return res
 }
 
 // neg returns -in

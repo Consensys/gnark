@@ -192,7 +192,7 @@ func (system *System) CheckSerializationHeader() error {
 
 	if binaryVersion.Compare(objectVersion) != 0 {
 		log := logger.Logger()
-		log.Warn().Str("binary", binaryVersion.String()).Str("object", objectVersion.String()).Msg("gnark version (binary) mismatch with constraint system. there are no guarantees on compatibilty")
+		log.Warn().Str("binary", binaryVersion.String()).Str("object", objectVersion.String()).Msg("gnark version (binary) mismatch with constraint system. there are no guarantees on compatibility")
 	}
 
 	// TODO @gbotrel maintain version changes and compare versions properly

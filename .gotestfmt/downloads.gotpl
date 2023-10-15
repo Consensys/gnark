@@ -5,26 +5,24 @@ This template contains the format for a package download.
 {{- $settings := .Settings -}}
 {{- if or .Packages .Reason -}}
     {{- if or (not .Settings.HideSuccessfulDownloads) .Failed -}}
-        ::group::
         {{- if .Failed -}}
-            {{ "\033" }}[0;31m❌
+            ❌
         {{- else -}}
-            {{ "\033" }}[0;34m📥
+            📥
         {{- end -}}
-        {{ " " }}Dependency downloads
-        {{- "\033" }}[0m{{ "\n" -}}
+        {{ " " }} Dependency downloads
+        {{ "\n" -}}
 
         {{- range .Packages -}}
             {{- if or (not $settings.HideSuccessfulDownloads) .Failed -}}
                 {{- "   " -}}
                 {{- if .Failed -}}
-                    {{ "\033" }}[0;31m❌
+                    ❌
                 {{- else -}}
                     📦
                 {{- end -}}
                 {{- " " -}}
                 {{- .Package }} {{ .Version -}}
-                {{- "\033" }}[0m
                 {{- "\n" -}}
                 {{ with .Reason -}}
                     {{- "     " -}}{{ . -}}{{ "\n" -}}
@@ -32,8 +30,7 @@ This template contains the format for a package download.
             {{- end -}}
         {{- end -}}
         {{- with .Reason -}}
-        {{- "   " -}}{{- "\033" }}[0;31m🛑 {{ . }}{{- "\033" }}[0m{{ "\n" -}}
+        {{- "   " -}}🛑 {{ . }}{{ "\n" -}}
         {{- end -}}
-        ::endgroup::
     {{- end -}}
 {{- end -}}
