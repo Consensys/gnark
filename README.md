@@ -116,6 +116,20 @@ func main() {
 
 ```
 
+### GPU Support
+
+The following schemes and curves support experimental use of Ingomyama's Icicle GPU library for low level zk-SNARK primitives such as MSM, NTT, and polynomial operations:
+
+- [x] [Groth16](https://eprint.iacr.org/2016/260)
+
+instantiated with the following curve(s)
+
+- [x] BN254
+
+To use GPUs, add the `gpu` buildtag to your build/run commands, e.g. `go run -tags=gpu main.go`.
+
+For more information about prerequisites see the [Icicle repo](https://github.com/ingonyama-zk/icicle).
+
 ## Citing
 
 If you use `gnark` in your research a citation would be appreciated.
