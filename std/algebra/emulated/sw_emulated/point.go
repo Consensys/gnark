@@ -201,6 +201,12 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	return &result
 }
 
+// Add calls [Curve.AddUnified]. It is defined for implementing the generic
+// curve interface.
+func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
+	return c.AddUnified(p, q)
+}
+
 // double doubles p and return it. It doesn't modify p.
 //
 // ⚠️  p.Y must be nonzero.
@@ -584,4 +590,28 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 	R0 = c.Select(s2Bits[0], R0, c.add(R0, c.Neg(p)))
 
 	return c.add(res1, R0)
+}
+
+// MultiScalarMul computes the multi scalar multiplication of the points P and
+// scalars s. It returns an error if the length of the slices mismatch. If the
+// input slices are empty, then returns point at infinity.
+//
+// For the points and scalars the same considerations apply as for
+// [Curve.AddUnified] and [Curve.SalarMul].
+func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[S]) (*AffinePoint[B], error) {
+	if len(p) != len(s) {
+		return nil, fmt.Errorf("mismatching points and scalars slice lengths")
+	}
+	if len(p) == 0 {
+		return &AffinePoint[B]{
+			X: *c.baseApi.Zero(),
+			Y: *c.baseApi.Zero(),
+		}, nil
+	}
+	res := c.ScalarMul(p[0], s[0])
+	for i := 1; i < len(p); i++ {
+		q := c.ScalarMul(p[i], s[i])
+		c.AddUnified(res, q)
+	}
+	return res, nil
 }
