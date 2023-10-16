@@ -6,6 +6,7 @@ import (
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -96,6 +97,20 @@ func GetP384Params() CurveParams {
 	}
 }
 
+// GetBW6761Params returns the curve parameters for the curve BW6-761.
+// When initialising new curve, use the base field [emulated.BW6761Fp] and scalar
+// field [emulated.BW6761Fr].
+func GetBW6761Params() CurveParams {
+	_, _, g1aff, _ := bw6761.Generators()
+	return CurveParams{
+		A:  big.NewInt(0),
+		B:  big.NewInt(-1),
+		Gx: g1aff.X.BigInt(new(big.Int)),
+		Gy: g1aff.Y.BigInt(new(big.Int)),
+		Gm: computeBW6761Table(),
+	}
+}
+
 // GetCurveParams returns suitable curve parameters given the parametric type
 // Base as base field. It caches the parameters and modifying the values in the
 // parameters struct leads to undefined behaviour.
@@ -112,6 +127,8 @@ func GetCurveParams[Base emulated.FieldParams]() CurveParams {
 		return p256Params
 	case emulated.P384Fp{}.Modulus().String():
 		return p384Params
+	case emulated.BW6761Fp{}.Modulus().String():
+		return bw6761Params
 	default:
 		panic("no stored parameters")
 	}
@@ -123,6 +140,7 @@ var (
 	bls12381Params  CurveParams
 	p256Params      CurveParams
 	p384Params      CurveParams
+	bw6761Params    CurveParams
 )
 
 func init() {
@@ -131,4 +149,5 @@ func init() {
 	bls12381Params = GetBLS12381Params()
 	p256Params = GetP256Params()
 	p384Params = GetP384Params()
+	bw6761Params = GetBW6761Params()
 }
