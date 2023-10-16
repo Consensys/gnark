@@ -34,14 +34,14 @@ var constraintSolverChecks = profile{
 var proverChecks = profile{
 	backends:      []backend.ID{backend.GROTH16, backend.PLONK},
 	curves:        []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BW6_761},
-	checkSolidity: true && solcCheck,
+	checkSolidity: true && SolcCheck,
 	checkProver:   true,
 }
 
 var releaseChecks = profile{
 	backends:           []backend.ID{backend.GROTH16, backend.PLONK},
 	curves:             []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BW6_761, ecc.BLS12_377},
-	checkSolidity:      true && solcCheck,
+	checkSolidity:      true && SolcCheck,
 	checkProver:        true,
 	checkSerialization: true,
 	fuzzing:            true,

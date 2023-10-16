@@ -23,7 +23,7 @@ import (
 
 	"errors"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/iop"
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	"io"
 )
 
@@ -139,6 +139,15 @@ func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err e
 		return
 	}
 	n += n2
+	if withCompression {
+		n2, err = pk.KzgLagrange.WriteTo(w)
+	} else {
+		n2, err = pk.KzgLagrange.WriteRawTo(w)
+	}
+	if err != nil {
+		return
+	}
+	n += n2
 
 	// sanity check len(Permutation) == 3*int(pk.Domain[0].Cardinality)
 	if len(pk.trace.S) != (3 * int(pk.Domain[0].Cardinality)) {
@@ -204,6 +213,15 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		n2, err = pk.Kzg.ReadFrom(r)
 	} else {
 		n2, err = pk.Kzg.UnsafeReadFrom(r)
+	}
+	n += n2
+	if err != nil {
+		return n, err
+	}
+	if withSubgroupChecks {
+		n2, err = pk.KzgLagrange.ReadFrom(r)
+	} else {
+		n2, err = pk.KzgLagrange.UnsafeReadFrom(r)
 	}
 	n += n2
 	if err != nil {
@@ -295,8 +313,6 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 	// wait for FFT to be precomputed
 	<-chDomain0
 	<-chDomain1
-
-	pk.computeLagrangeCosetPolys()
 
 	return n + dec.BytesRead(), nil
 

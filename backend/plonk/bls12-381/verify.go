@@ -25,7 +25,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 
@@ -251,6 +251,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 		&proof.BatchedProof,
 		zeta,
 		hFunc,
+		zu.Marshal(),
 	)
 	if err != nil {
 		return err

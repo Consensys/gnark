@@ -28,6 +28,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
+// TODO use gnark-crypto for this op
 func lagrangeCoeffsG1(powers []curve.G1Affine, size int) []curve.G1Affine {
 	coeffs := make([]curve.G1Affine, size)
 	copy(coeffs, powers[:size])
@@ -49,6 +50,7 @@ func lagrangeCoeffsG1(powers []curve.G1Affine, size int) []curve.G1Affine {
 	return coeffs
 }
 
+// TODO use gnark-crypto for this op
 func lagrangeCoeffsG2(powers []curve.G2Affine, size int) []curve.G2Affine {
 	coeffs := make([]curve.G2Affine, size)
 	copy(coeffs, powers[:size])
