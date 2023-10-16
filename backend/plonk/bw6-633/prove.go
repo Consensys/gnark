@@ -818,6 +818,7 @@ func (s *instance) batchOpening() error {
 		s.zeta,
 		s.hFunc,
 		s.pk.Kzg,
+		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
 	)
 
 	return err
