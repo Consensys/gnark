@@ -18,10 +18,14 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/test"
@@ -156,6 +160,12 @@ func TestValueOfCommitment(t *testing.T) {
 		_ = assignment
 	}, "bls12381")
 	assert.Run(func(assert *test.Assert) {
+		_, _, G1, _ := bw6761.Generators()
+		assignment, err := ValueOfCommitment[sw_bw6761.G1Affine](G1)
+		assert.NoError(err)
+		_ = assignment
+	}, "bw6761")
+	assert.Run(func(assert *test.Assert) {
 		_, _, G1, _ := bls24315.Generators()
 		assignment, err := ValueOfCommitment[sw_bls24315.G1Affine](G1)
 		assert.NoError(err)
@@ -205,6 +215,19 @@ func TestValueOfOpeningProof(t *testing.T) {
 		_ = assignment
 	}, "bls12381")
 	assert.Run(func(assert *test.Assert) {
+		_, _, G1, _ := bw6761.Generators()
+		var value, point fr_bw6761.Element
+		value.SetRandom()
+		point.SetRandom()
+		proof := kzg_bw6761.OpeningProof{
+			H:            G1,
+			ClaimedValue: value,
+		}
+		assignment, err := ValueOfOpeningProof[sw_bw6761.Scalar, sw_bw6761.G1Affine](point, proof)
+		assert.NoError(err)
+		_ = assignment
+	}, "bw6761")
+	assert.Run(func(assert *test.Assert) {
 		_, _, G1, _ := bls24315.Generators()
 		var value, point fr_bls24315.Element
 		value.SetRandom()
@@ -248,6 +271,15 @@ func TestValueOfSRS(t *testing.T) {
 		assert.NoError(err)
 		_ = assignment
 	}, "bls12381")
+	assert.Run(func(assert *test.Assert) {
+		_, _, _, G2 := bw6761.Generators()
+		vk := kzg_bw6761.VerifyingKey{
+			G2: [2]bw6761.G2Affine{G2, G2},
+		}
+		assignment, err := ValueOfVerifyingKey[sw_bw6761.G2Affine](vk)
+		assert.NoError(err)
+		_ = assignment
+	}, "bw6761")
 	assert.Run(func(assert *test.Assert) {
 		_, _, _, G2 := bls24315.Generators()
 		vk := kzg_bls24315.VerifyingKey{
