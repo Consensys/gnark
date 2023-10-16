@@ -182,13 +182,13 @@ func longestMostRecentBackRef(d []byte, i int, symb byte, minBackRefAddr, minVia
 	var toDelete []int
 	l := minViableBackRefLen
 	// now find the longest backref among the candidates
-	for ; i+l < len(d); l++ {
+	for ; i+l <= len(d); l++ {
 		for _, j := range toDelete {
 			delete(remainingOptions, j)
 		}
 		toDelete = toDelete[:0]
 		for j := range remainingOptions {
-			if j+l > len(d) || d[j+l] != d[i+l] {
+			if i+l >= len(d) || d[j+l] != d[i+l] {
 				toDelete = append(toDelete, j)
 			}
 		}

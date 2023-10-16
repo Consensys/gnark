@@ -84,6 +84,11 @@ func TestNoCompression(t *testing.T) {
 	testCompressionRoundTrip(t, 2, []byte{'h', 'i'})
 }
 
+func Test9E(t *testing.T) {
+	testCompressionRoundTrip(t, 1, []byte{1, 1, 1, 1, 2, 1, 1, 1, 1})
+	testCompressionRoundTrip(t, 2, []byte{1, 1, 1, 1, 2, 1, 1, 1, 1})
+}
+
 func Test8ZerosAfterNonzero(t *testing.T) { // probably won't happen in our calldata
 	testCompressionRoundTrip(t, 1, append([]byte{1}, make([]byte, 8)...))
 	testCompressionRoundTrip(t, 2, append([]byte{1}, make([]byte, 8)...))
