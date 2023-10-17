@@ -36,14 +36,17 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 	fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*len(d))/float64(len(cHuff.D)))
 	if len(c) > 1024 {
 		fmt.Printf("Compressed size: %dKB\n", int(float64(len(c)*100)/1024)/100)
-		fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/1024)/100)
+		fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/8192)/100)
 	}
 	require.NoError(t, err)
 
 	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
 
-	printHex(c)
+	if len(c) < 1024 {
+		printHex(c)
+	}
+
 	require.Equal(t, d, dBack)
 
 	// store huffman code lengths
@@ -91,13 +94,10 @@ func TestRepeatedNonzero(t *testing.T) {
 	testCompressionRoundTrip(t, 2, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
 }
 
-func TestCompress26KB(t *testing.T) {
-	testCompressionRoundTrip(t, 2, nil, "3c2943")
-}
-
-func TestCalldataSymb0(t *testing.T) {
+func TestCalldata(t *testing.T) {
 	t.Parallel()
 	folders := []string{
+		"3c2943",
 		"large",
 	}
 	for _, folder := range folders {
@@ -125,41 +125,4 @@ func printHex(d []byte) {
 		fmt.Print(s)
 	}
 	fmt.Println()
-}
-
-func TestDifferentHuffmanTrees(t *testing.T) {
-	const folder = "large"
-	c, err := os.ReadFile("../test_cases/" + folder + "/data.lzssv1")
-	require.NoError(t, err)
-	var freqs [4][256]int
-	i := 0
-	record := func(n int) {
-		for j := 0; j < n; j++ {
-			freqs[j][c[i+j]]++
-		}
-		i += n
-	}
-	for i < len(c) {
-		if c[i] == 0 {
-			record(4)
-		} else {
-			record(1)
-		}
-	}
-	total := 0
-	for j := 0; j < 4; j++ {
-		sizes := huffman.CreateTree(freqs[j][:]).GetCodeSizes(256)
-		for k := range sizes {
-			total += freqs[j][k] * sizes[k]
-		}
-	}
-
-	d, err := os.ReadFile("../test_cases/" + folder + "/data.bin")
-	require.NoError(t, err)
-
-	fmt.Println("Total bits:", total)
-	fmt.Println("Total bytes:", (total+7)/8)
-	fmt.Println("Regular huffman compression up to:", float64(8*len(d))/float64(len(huffman.Encode(compress.NewStreamFromBytes(c)).D)))
-	fmt.Println("Further compression:", float64(len(c))/float64((total+7)/8))
-	fmt.Println("Total compression:", float64(len(d))/float64((total+7)/8))
 }
