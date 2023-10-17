@@ -25,7 +25,6 @@ func main() {
 			BackRefSettings: lzss_v1.BackRefSettings{
 				NbBytesAddress: 2,
 				NbBytesLength:  1,
-				Symbol:         0,
 			},
 		},
 	}

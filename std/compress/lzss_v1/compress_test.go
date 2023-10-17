@@ -25,23 +25,20 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: nbBytesAddress,
 			NbBytesLength:  1,
-			Symbol:         0,
 		},
-		LogHeads: &heads,
 	}
 	c, err := Compress(d, settings)
 	if len(testCaseName) == 1 {
-		assert.NoError(t, os.WriteFile("../test_cases/"+testCaseName[0]+"/data.lzssv1", c, 0644))
+		assert.NoError(t, os.WriteFile("../test_cases/"+testCaseName[0]+"/data.lzssv1", c, 0600))
 	}
 	cStream := compress.NewStreamFromBytes(c)
-	cHuff := (huffman.EstimateHuffmanCodeSize(cStream) + 7) / 8
+	cHuff := huffman.Encode(cStream)
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
-	fmt.Println("Estimated Compression ratio (with Huffman):", float64(len(d))/float64(cHuff))
+	fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*len(d))/float64(len(cHuff.D)))
 	if len(c) > 1024 {
 		fmt.Printf("Compressed size: %dKB\n", int(float64(len(c)*100)/1024)/100)
-		fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(cHuff*100)/1024)/100)
+		fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/1024)/100)
 	}
-	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
 	require.NoError(t, err)
 
 	dBack, err := DecompressPureGo(c, settings)
@@ -66,7 +63,7 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 	for i := range lens {
 		sbb.WriteString(fmt.Sprintf("%d,%d\n", i, lens[i]))
 	}
-	require.NoError(t, os.WriteFile("huffman.csv", []byte(sbb.String()), 0644))
+	require.NoError(t, os.WriteFile("huffman.csv", []byte(sbb.String()), 0600))
 }
 
 func Test8Zeros(t *testing.T) {
@@ -125,20 +122,16 @@ func TestCalldataSymb0(t *testing.T) {
 func testWithLog(t *testing.T, folder string) {
 	d, err := os.ReadFile("../test_cases/" + folder + "/data.bin")
 	require.NoError(t, err)
-	var heads []LogHeads
 	var writer strings.Builder
 	c, err := Compress(d, Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: 2,
 			NbBytesLength:  1,
-			Symbol:         0,
 		},
-		Logger:   &writer,
-		LogHeads: &heads,
 	})
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile("../test_cases/"+folder+"/data.lzssv1", c, 0644))
-	require.NoError(t, os.WriteFile("../test_cases/"+folder+"/analytics.csv", []byte(writer.String()), 0644))
+	require.NoError(t, os.WriteFile("../test_cases/"+folder+"/data.lzssv1", c, 0600))
+	require.NoError(t, os.WriteFile("../test_cases/"+folder+"/analytics.csv", []byte(writer.String()), 0600))
 }
 
 func TestCalldataSymb0Log(t *testing.T) {
@@ -155,22 +148,17 @@ func TestCalldataSymb1(t *testing.T) {
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: 2,
 			NbBytesLength:  1,
-			Symbol:         1,
-			ReferenceTo:    false,
-			AddressingMode: false,
 		},
-		Logger:   nil,
-		LogHeads: &heads,
 	}
 
 	d, err := os.ReadFile("../test_cases/" + "3c2943" + "/data.bin")
+	require.NoError(t, err)
 
 	c, err := Compress(d, settings)
 	require.NoError(t, err)
 
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
-	fmt.Println("Estimated Compression ratio (with Huffman):", float64(len(d))/float64(huffman.EstimateHuffmanCodeSize(compress.NewStreamFromBytes(c))))
-	fmt.Println("Gas compression ratio:", float64(compress.BytesGasCost(d))/float64(compress.BytesGasCost(c)))
+	fmt.Println("Estimated Compression ratio (with Huffman):", float64(len(d))/float64(len(huffman.Encode(compress.NewStreamFromBytes(c)).D)))
 	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
 	for i := range d {
@@ -231,7 +219,7 @@ func TestDifferentHuffmanTrees(t *testing.T) {
 
 	fmt.Println("Total bits:", total)
 	fmt.Println("Total bytes:", (total+7)/8)
-	fmt.Println("Regular huffman compression up to:", float64(8*len(d))/float64(huffman.EstimateHuffmanCodeSize(compress.NewStreamFromBytes(c))-256))
+	fmt.Println("Regular huffman compression up to:", float64(8*len(d))/float64(len(huffman.Encode(compress.NewStreamFromBytes(c)).D)))
 	fmt.Println("Further compression:", float64(len(c))/float64((total+7)/8))
 	fmt.Println("Total compression:", float64(len(d))/float64((total+7)/8))
 }

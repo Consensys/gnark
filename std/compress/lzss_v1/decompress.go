@@ -2,7 +2,6 @@ package lzss_v1
 
 import (
 	"bytes"
-	"errors"
 )
 
 func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
@@ -11,19 +10,9 @@ func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 	in := bytes.NewReader(c)
 	copyBuf := make([]byte, settings.NbBytesAddress+settings.NbBytesLength)
 
-	if settings.ReferenceTo == Compressed {
-		return nil, errors.New("compressed ref not implemented")
-	}
-	if settings.AddressingMode == Absolute {
-		return nil, errors.New("absolute addressing not implemented")
-	}
-	if settings.Logger != nil {
-		return nil, errors.New("logging not implemented")
-	}
-
 	outAt := func(i int) byte {
 		if i < 0 {
-			return settings.Symbol
+			return 0
 		}
 		return out.Bytes()[i]
 	}
@@ -37,7 +26,7 @@ func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 
 	s, err := in.ReadByte()
 	for err == nil {
-		if s == settings.BackRefSettings.Symbol {
+		if s == 0 {
 			offset, length := readBackRef()
 			if err != nil {
 				return nil, err

@@ -106,7 +106,6 @@ func BenchmarkCompilation64KBSnark(b *testing.B) {
 			BackRefSettings: BackRefSettings{
 				NbBytesAddress: 2,
 				NbBytesLength:  1,
-				Symbol:         0,
 			},
 		},
 	}
@@ -127,7 +126,6 @@ func compile26KBSnark(t require.TestingT, testCaseName string) {
 			BackRefSettings: BackRefSettings{
 				NbBytesAddress: 2,
 				NbBytesLength:  1,
-				Symbol:         0,
 			},
 		},
 	}
@@ -197,7 +195,6 @@ func BenchmarkCompilation600KBSnark(b *testing.B) {
 			BackRefSettings: BackRefSettings{
 				NbBytesAddress: 2,
 				NbBytesLength:  1,
-				Symbol:         0,
 			},
 		},
 	}
@@ -214,12 +211,7 @@ func testCompressionRoundTripSnark(t *testing.T, nbBytesOffset uint, d []byte) {
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: nbBytesOffset,
 			NbBytesLength:  1,
-			Symbol:         0,
-			ReferenceTo:    false,
-			AddressingMode: false,
 		},
-		Logger:   nil,
-		LogHeads: new([]LogHeads),
 	}
 
 	c, err := Compress(d, settings)
@@ -232,7 +224,6 @@ func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: nbBytesOffset,
 			NbBytesLength:  1,
-			Symbol:         0,
 		},
 	}
 

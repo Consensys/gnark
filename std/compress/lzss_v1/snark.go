@@ -13,9 +13,6 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 	if settings.BackRefSettings.NbBytesLength != 1 {
 		return -1, errors.New("currently only backrefs of length up to 256 supported")
 	}
-	if settings.BackRefSettings.Symbol != 0 {
-		return -1, errors.New("currently only 0 is supported as the backreference signifier")
-	}
 
 	brLengthRange := 1 << (settings.NbBytesLength * 8)
 
@@ -48,7 +45,6 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 	}
 
 	inI := frontend.Variable(0)
-	copyI := frontend.Variable(0)
 	copyLen := frontend.Variable(0) // remaining length of the current copy
 	copyLen01 := frontend.Variable(1)
 	eof := frontend.Variable(0)
@@ -60,10 +56,10 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		brLen := api.Add(readLittleEndian(api, readC(api.Add(inI, 1+settings.NbBytesAddress), int(settings.NbBytesLength))), 1)
 		brOffsetMinusOne := brOffsetTable.Lookup(inI)[0]
 
-		isSymb := api.IsZero(api.Sub(curr, int(settings.Symbol)))
+		isSymb := api.IsZero(curr)
 
 		// copyLen01 == 1 iff still copying from previous iterations
-		copyI = api.Sub(outI+brLengthRange-1, brOffsetMinusOne)
+		copyI := api.Sub(outI+brLengthRange-1, brOffsetMinusOne)
 		copyLen = api.Select(copyLen01, api.Mul(isSymb, brLen), api.Sub(copyLen, 1))
 		copyLen01 = isBit(copyLen)
 		// copying = copyLen01 ? copyLen==1 : 1			either from previous iterations or starting a new copy
@@ -125,9 +121,7 @@ func newInputTable(api frontend.API, in []frontend.Variable) *logderivlookup.Tab
 func newOutputTable(api frontend.API, settings Settings) *logderivlookup.Table {
 	res := logderivlookup.New(api)
 	for i := 1 << (settings.NbBytesLength * 8); i > 0; i-- {
-		res.Insert(settings.Symbol)
+		res.Insert(0)
 	}
 	return res
 }
-
-type intPair struct{ k, v int }

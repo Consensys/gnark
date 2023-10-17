@@ -1,12 +1,8 @@
 package huffman
 
 import (
-	"fmt"
-	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/std/compress"
-	"os"
 	"sort"
-	"strings"
 )
 
 // copilot code
@@ -70,46 +66,6 @@ func (node *huffmanNode) GetCodeSizes(NbSymbs int) []int {
 		}
 	}
 	return codeSizes
-}
-
-func EstimateHuffmanCodeSize(data compress.Stream) int {
-	// create frequency table
-	frequencies := make([]int, data.NbSymbs)
-	for _, c := range data.D {
-		frequencies[c]++
-	}
-
-	huffmanTree := CreateTree(frequencies)
-	sizes := huffmanTree.GetCodeSizes(data.NbSymbs)
-
-	var logWriter strings.Builder
-	logWriter.WriteString("Symbol,Frequency,Percentage,Code Length\n")
-	for i := range sizes {
-		logWriter.WriteString(fmt.Sprintf("%d,%d,%.2f,%d\n", i, frequencies[i], float64(frequencies[i]*100)/float64(data.Len()), sizes[i]))
-	}
-	if err := os.WriteFile("huffman.csv", []byte(logWriter.String()), 0644); err != nil {
-		panic(err)
-	}
-
-	// linear combination
-	var sum int
-	for i := range frequencies {
-		sum += frequencies[i] * sizes[i] // in the code itself
-	}
-
-	// estimate the size of the tree
-	treeSizeLengthForEachSymbol := data.NbSymbs
-	treeSizeListUsedSymbolsBits := huffmanTree.nbDescendents // to represent the tree topology
-	for i := range frequencies {
-		if frequencies[i] != 0 {
-			treeSizeListUsedSymbolsBits += data.NbSymbs // list the used symbols
-		}
-	}
-	treeSize := utils.Min(treeSizeLengthForEachSymbol, (treeSizeListUsedSymbolsBits-1)/8+1)
-
-	fmt.Println("estimated huffman tree size:", treeSize)
-
-	return sum + treeSize
 }
 
 func GetCodeLengths(in compress.Stream) []int {

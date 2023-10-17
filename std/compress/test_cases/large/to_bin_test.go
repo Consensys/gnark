@@ -12,5 +12,5 @@ func TestToBin(t *testing.T) {
 	require.NoError(t, err)
 	b, err := hex.DecodeString(string(x))
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile("data.bin", b, 0644))
+	require.NoError(t, os.WriteFile("data.bin", b, 0600))
 }
