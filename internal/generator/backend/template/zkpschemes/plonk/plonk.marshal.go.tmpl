@@ -119,6 +119,15 @@ func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err e
 		return
 	}
 	n += n2
+	if withCompression {
+		n2, err = pk.KzgLagrange.WriteTo(w)
+	} else {
+		n2, err = pk.KzgLagrange.WriteRawTo(w)
+	}
+	if err != nil {
+		return
+	}
+	n += n2
 
 	// sanity check len(Permutation) == 3*int(pk.Domain[0].Cardinality)
 	if len(pk.trace.S) != (3 * int(pk.Domain[0].Cardinality)) {
@@ -189,6 +198,15 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 	if err != nil {
 		return n, err
 	}
+	if withSubgroupChecks {
+		n2, err = pk.KzgLagrange.ReadFrom(r)
+	} else {
+		n2, err = pk.KzgLagrange.UnsafeReadFrom(r)
+	}
+	n += n2
+	if err != nil {
+		return n, err
+	}
 
 	pk.trace.S = make([]int64, 3*pk.Domain[0].Cardinality)
 
@@ -196,17 +214,17 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 
 	var ql, qr, qm, qo, qk, s1, s2, s3 []fr.Element
 	var qcp [][]fr.Element
-	
-	// TODO @gbotrel: this is a bit ugly, we should probably refactor this. 
+
+	// TODO @gbotrel: this is a bit ugly, we should probably refactor this.
 	// The order of the variables is important, as it matches the order in which they are
-	// encoded in the WriteTo(...) method. 
+	// encoded in the WriteTo(...) method.
 
 	// Note: instead of calling dec.Decode(...) for each of the above variables,
 	// we call AsyncReadFrom when possible which allows to consume bytes from the reader
 	// and perform the decoding in parallel
 
 	type v struct {
-		data *fr.Vector
+		data  *fr.Vector
 		chErr chan error
 	}
 
@@ -225,7 +243,7 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		n2, err, ch := vectors[i].data.AsyncReadFrom(r)
 		n += n2
 		if err != nil {
-			return n, err 
+			return n, err
 		}
 		vectors[i].chErr = ch
 	}
@@ -272,12 +290,10 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		pk.trace.Qcp[i] = iop.NewPolynomial(&qcp[i], canReg)
 	}
 
-
 	// wait for FFT to be precomputed
 	<-chDomain0
 	<-chDomain1
 
-	pk.computeLagrangeCosetPolys()
 
 	return n + dec.BytesRead(), nil
 

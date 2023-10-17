@@ -10,5 +10,8 @@
 //   - using nonnative field via field emulation (`emulated/`). This allows to
 //     use any curve over any (SNARK) field (e.g. secp256k1 curve arithmetic over
 //     BN254 SNARK field or BN254 pairing over BN254 SNARK field).  The drawback
-//     of this approach is the extreme cost of the operations.
+//     of this approach is the additional cost (~15x) of the operations.
+//
+// This package also defines the generic interfaces [Curve] and [Pairing] for
+// downstream curve-agnostic usage.
 package algebra

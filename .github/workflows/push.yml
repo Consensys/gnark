@@ -5,7 +5,7 @@ on:
 name: push_master
 jobs:
   staticcheck:
-    runs-on: ubuntu-22.04-16core
+    runs-on: ubuntu-latest
     steps:
     - name: checkout code
       uses: actions/checkout@v4
@@ -54,43 +54,33 @@ jobs:
       uses: actions/setup-go@v4
       with:
         go-version: ${{ matrix.go-version }}
-
-
     - name: install deps
       run: |
         go install golang.org/x/tools/cmd/goimports@latest && go install github.com/klauspost/asmfmt/cmd/asmfmt@latest
         go install github.com/ethereum/go-ethereum/cmd/abigen@v1.12.0
     - name: install solc deps
-      if: matrix.os == 'ubuntu-latest'
+      if: startsWith(matrix.os, 'ubuntu') == true
       run: |
         go install github.com/consensys/gnark-solidity-checker@latest
         sudo add-apt-repository ppa:ethereum/ethereum
         sudo apt-get update
         sudo apt-get install solc
-    # Install gotestfmt on the VM running the action.
-    - name: Set up gotestfmt
-      uses: gotesttools/gotestfmt-action@v2
-      with:
-        # Optional: pass GITHUB_TOKEN to avoid rate limiting.
-        token: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Test (windows / mac)
       # on macOS CI / Windows CI we avoid running the std/ tests (they are run on ubuntu CI)
-      if: matrix.os != 'ubuntu-latest'
+      if: startsWith(matrix.os, 'ubuntu') == false
       run: |
         go test -tags=release_checks -v -timeout=60m .
-        go test -tags=release_checks -v -timeout=60m ./frontend/...
-        go test -tags=release_checks -v -timeout=60m ./backend/...
-        go test -short -v -timeout=60m ./...
+      # go test -tags=release_checks -v -timeout=60m ./frontend/...
+      # go test -tags=release_checks -v -timeout=60m ./backend/...
+      # go test -short -v -timeout=60m ./...
     - name: Test (ubuntu - race and solc)
-      if: matrix.os == 'ubuntu-latest'
+      if: startsWith(matrix.os, 'ubuntu') == true
       run: |
-        go test -json -v -timeout=60m -tags=release_checks ./... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
-        go test -json -v -tags=release_checks,solccheck . 2>&1 | tee -a /tmp/gotest.log | gotestfmt
-        go test -json -v -timeout=60m -race -short ./... 2>&1 | tee -a /tmp/gotest.log | gotestfmt
-    - name: Generate job summary
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        cat /tmp/gotest.log | node .github/parse-tests.js > $GITHUB_STEP_SUMMARY
+        go test -v -timeout=60m -tags=release_checks ./...
+        go test -v -tags=release_checks,solccheck .
+        go test -v -timeout=60m -race -short ./...
+
   
   slack-workflow-status-failed:
     if: failure()
@@ -111,7 +101,8 @@ jobs:
               "status": "FAIL",
               "title": "push to master ⚠",
               "pr": "",
-              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/"
+              "failed_step_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/",
+              "message": ""
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
