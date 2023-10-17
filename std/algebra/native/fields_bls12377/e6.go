@@ -365,3 +365,13 @@ func Mul01By01(api frontend.API, c0, c1, d0, d1 E2) *E6 {
 		B2: t2,
 	}
 }
+
+// Select sets e to r1 if b=1, r2 otherwise
+func (e *E6) Select(api frontend.API, b frontend.Variable, r1, r2 E6) *E6 {
+
+	e.B0.Select(api, b, r1.B0, r2.B0)
+	e.B1.Select(api, b, r1.B1, r2.B1)
+	e.B2.Select(api, b, r1.B2, r2.B2)
+
+	return e
+}

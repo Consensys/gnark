@@ -235,11 +235,10 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	z.B1.A1 = *e.fp.Div(t[0], t[1])
 
 	// Rest of the computation for all cases
-	a1 := z.B1.A1
 	// t1 = g2 * g1
 	t[1] = e.fp.Mul(&x.B0.A2, &x.B0.A1)
 	// t2 = 2 * g4² - 3 * g2 * g1
-	t[2] = e.fp.Mul(&a1, &a1)
+	t[2] = e.fp.Mul(&z.B1.A1, &z.B1.A1)
 	t[2] = e.fp.Sub(t[2], t[1])
 	t[2] = e.fp.Add(t[2], t[2])
 	t[2] = e.fp.Sub(t[2], t[1])

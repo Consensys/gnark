@@ -276,9 +276,6 @@ func (e *E12) Decompress(api frontend.API, x E12) *E12 {
 	_t[0].Double(api, _t[0])
 	_t[1] = x.C0.B2
 
-	// if g2 == g3 == 0
-	selector2 := _t[1].IsZero(api)
-
 	// if g3 != 0
 	// t0 = E * g5^2 + 3 * g1^2 - 2 * g2
 	// t1 = 4 * g3
@@ -295,8 +292,9 @@ func (e *E12) Decompress(api frontend.API, x E12) *E12 {
 	// g4 = (E * g5^2 + 3 * g1^2 - 2 * g2)/4g3 or (2 * g1 * g5)/g2
 	t[0].Select(api, selector1, _t[0], t[0])
 	t[1].Select(api, selector1, _t[1], t[1])
-	// g4 = dummy value, continue
-	t[1].Select(api, selector2, one, t[1])
+	// if g2 == g3 == 0 we do nothing as DivUnchecked sets g4 to 0
+	// and all gi to 0 returning, correctly in this case, at the end:
+	// e = E * (2 * g4² + g3 * g5 - 3 * g2 * g1) + 1 = 1
 
 	e.C1.B1.DivUnchecked(api, t[0], t[1])
 
@@ -319,8 +317,6 @@ func (e *E12) Decompress(api frontend.API, x E12) *E12 {
 	e.C0.B2 = x.C0.B2
 	e.C1.B0 = x.C1.B0
 	e.C1.B2 = x.C1.B2
-
-	e.Select(api, api.And(selector1, selector2), *e.SetOne(), *e)
 
 	return e
 }
@@ -540,18 +536,8 @@ func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
 // Select sets e to r1 if b=1, r2 otherwise
 func (e *E12) Select(api frontend.API, b frontend.Variable, r1, r2 E12) *E12 {
 
-	e.C0.B0.A0 = api.Select(b, r1.C0.B0.A0, r2.C0.B0.A0)
-	e.C0.B0.A1 = api.Select(b, r1.C0.B0.A1, r2.C0.B0.A1)
-	e.C0.B1.A0 = api.Select(b, r1.C0.B1.A0, r2.C0.B1.A0)
-	e.C0.B1.A1 = api.Select(b, r1.C0.B1.A1, r2.C0.B1.A1)
-	e.C0.B2.A0 = api.Select(b, r1.C0.B2.A0, r2.C0.B2.A0)
-	e.C0.B2.A1 = api.Select(b, r1.C0.B2.A1, r2.C0.B2.A1)
-	e.C1.B0.A0 = api.Select(b, r1.C1.B0.A0, r2.C1.B0.A0)
-	e.C1.B0.A1 = api.Select(b, r1.C1.B0.A1, r2.C1.B0.A1)
-	e.C1.B1.A0 = api.Select(b, r1.C1.B1.A0, r2.C1.B1.A0)
-	e.C1.B1.A1 = api.Select(b, r1.C1.B1.A1, r2.C1.B1.A1)
-	e.C1.B2.A0 = api.Select(b, r1.C1.B2.A0, r2.C1.B2.A0)
-	e.C1.B2.A1 = api.Select(b, r1.C1.B2.A1, r2.C1.B2.A1)
+	e.C0.Select(api, b, r1.C0, r2.C0)
+	e.C1.Select(api, b, r1.C1, r2.C1)
 
 	return e
 }
