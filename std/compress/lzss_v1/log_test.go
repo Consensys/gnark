@@ -80,7 +80,7 @@ func toHex(slice []byte) string {
 			sbb.WriteByte(toHexDigit(b & 0xf))
 		}
 	}
-	return sbb.String()[0 : len(sbb.String())-1]
+	return sbb.String()[0 : len(sbb.String())-2]
 }
 
 func toHexDigit(b byte) byte {
