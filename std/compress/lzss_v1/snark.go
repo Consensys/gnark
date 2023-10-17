@@ -3,7 +3,6 @@ package lzss_v1
 import (
 	"errors"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
@@ -64,7 +63,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		copyLen01 = isBit(copyLen)
 		// copying = copyLen01 ? copyLen==1 : 1			either from previous iterations or starting a new copy
 		// copying = copyLen01 ? copyLen : 1
-		copying := api.(*scs.Builder).NewCombination(copyLen01, copyLen, -1, 0, 1, 1)
+		copying := api.(_scs).NewCombination(copyLen01, copyLen, -1, 0, 1, 1)
 
 		// TODO Remove this if populating the entire negative address space
 		copyI = api.Select(copying, copyI, 0) // to keep it in range in case we read nonsensical backref data when not copying
@@ -80,7 +79,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 			// inIDelta = copying ? (copyLen01? backRefCodeLen: 0) : 1
 			// inIDelta = - copying + copying*copyLen01*(backrefCodeLen) + 1
-			inIDelta := api.(*scs.Builder).NewCombination(copying, copyLen01, -1, 0, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 1)
+			inIDelta := api.(_scs).NewCombination(copying, copyLen01, -1, 0, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 1)
 
 			// TODO Try removing this check and requiring the user to pad the input with nonzeros
 			// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged
@@ -88,7 +87,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 			if eof == 0 {
 				inI = api.Add(inI, inIDelta)
 			} else {
-				inI = api.Add(inI, api.(*scs.Builder).NewCombination(inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
+				inI = api.Add(inI, api.(_scs).NewCombination(inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
 			}
 
 			eofNow := api.IsZero(api.Sub(inI, cLength))
@@ -124,4 +123,8 @@ func newOutputTable(api frontend.API, settings Settings) *logderivlookup.Table {
 		res.Insert(0)
 	}
 	return res
+}
+
+type _scs interface {
+	NewCombination(a, b frontend.Variable, aCoeff, bCoeff, mCoeff, oCoeff int) frontend.Variable
 }

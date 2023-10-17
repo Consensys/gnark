@@ -21,12 +21,15 @@ func backRefsToCsv(t *testing.T, filename string) {
 	outI := 0
 	buff := []byte{0, 0, 0}
 	_, err = in.Read(buff[:1])
+	assert.NoError(t, err)
 	for err == nil {
 		if buff[0] == 0 {
 			_, err = in.Read(buff)
+			assert.NoError(t, err)
 			offs := (uint16(buff[0]) | (uint16(buff[1]) << 8)) + 1
 			length := uint16(buff[2]) + 1
 			_, err = out.WriteString(fmt.Sprintf("%d,%d,%d,%d\n", outI, outI-int(offs), length, offs))
+			assert.NoError(t, err)
 			outI += int(length)
 		} else {
 			outI++

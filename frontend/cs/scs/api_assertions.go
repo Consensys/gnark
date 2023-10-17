@@ -27,7 +27,7 @@ import (
 )
 
 // AssertIsEqual fails if i1 != i2
-func (builder *Builder) AssertIsEqual(i1, i2 frontend.Variable) {
+func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 
 	c1, i1Constant := builder.constantValue(i1)
 	c2, i2Constant := builder.constantValue(i2)
@@ -84,7 +84,7 @@ func (builder *Builder) AssertIsEqual(i1, i2 frontend.Variable) {
 }
 
 // AssertIsDifferent fails if i1 == i2
-func (builder *Builder) AssertIsDifferent(i1, i2 frontend.Variable) {
+func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
 	s := builder.Sub(i1, i2)
 	if c, ok := builder.constantValue(s); ok && c.IsZero() {
 		panic("AssertIsDifferent(x,x) will never be satisfied")
@@ -95,7 +95,7 @@ func (builder *Builder) AssertIsDifferent(i1, i2 frontend.Variable) {
 }
 
 // AssertIsBoolean fails if v != 0 ∥ v != 1
-func (builder *Builder) AssertIsBoolean(i1 frontend.Variable) {
+func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 	if c, ok := builder.constantValue(i1); ok {
 		if !(c.IsZero() || builder.cs.IsOne(c)) {
 			panic(fmt.Sprintf("assertIsBoolean failed: constant(%s)", builder.cs.String(c)))
@@ -157,7 +157,7 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 	}
 }
 
-func (builder *Builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) {
+func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) {
 
 	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
@@ -259,7 +259,7 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 		if bound.Bit(i) == 0 {
 			// (1 - p(i+1) - ai) * ai == 0
 			l := builder.Sub(1, p[i+1], aBits[i]).(expr.Term)
-			//l = Builder.Sub(l, ).(term)
+			//l = builder.Sub(l, ).(term)
 
 			builder.addPlonkConstraint(sparseR1C{
 				xa: l.VID,
