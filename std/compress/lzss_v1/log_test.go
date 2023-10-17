@@ -25,6 +25,7 @@ func backRefsToCsv(t *testing.T, filename string) {
 	for err == nil {
 		if buff[0] == 0 {
 			_, err = in.Read(buff)
+			assert.NoError(t, err)
 			offs := (uint16(buff[0]) | (uint16(buff[1]) << 8)) + 1
 			length := uint16(buff[2]) + 1
 
@@ -35,6 +36,7 @@ func backRefsToCsv(t *testing.T, filename string) {
 			_, err = out.WriteString(
 				fmt.Sprintf("%d,%d,%d,%d,%s\n", dst-256, src-256, length, offs, toHex(d[dst:])),
 			)
+			assert.NoError(t, err)
 		} else {
 			d = append(d, buff[0])
 		}
