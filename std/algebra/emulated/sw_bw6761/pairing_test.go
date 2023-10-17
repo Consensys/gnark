@@ -142,7 +142,6 @@ func TestMultiPairTestSolve(t *testing.T) {
 	}
 }
 
-/*
 type PairingCheckCircuit struct {
 	In1G1 G1Affine
 	In2G1 G1Affine
@@ -177,7 +176,6 @@ func TestPairingCheckTestSolve(t *testing.T) {
 	err := test.IsSolved(&PairingCheckCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
-*/
 
 // bench
 func BenchmarkPairing(b *testing.B) {

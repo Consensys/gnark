@@ -399,3 +399,10 @@ func FromE3(a *bw6761.E3) E3 {
 		A2: emulated.ValueOf[emulated.BW6761Fp](a.A2),
 	}
 }
+
+func (e Ext3) Select(selector frontend.Variable, z1, z0 *E3) *E3 {
+	a0 := e.fp.Select(selector, &z1.A0, &z0.A0)
+	a1 := e.fp.Select(selector, &z1.A1, &z0.A1)
+	a2 := e.fp.Select(selector, &z1.A2, &z0.A2)
+	return &E3{A0: *a0, A1: *a1, A2: *a2}
+}

@@ -192,8 +192,6 @@ func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 //
 // if g3=g2=0 then g4=g5=g1=0 and g0=1 (x=1)
 // Theorem 3.1 is well-defined for all x in Gϕₙ\{1}
-//
-// TODO: handle the edge cases
 func (e Ext6) DecompressKarabina(x *E6) *E6 {
 
 	x = e.Reduce(x)
@@ -201,26 +199,43 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	var z E6
 
 	var t [3]*baseEl
+	var _t [3]*baseEl
 	one := e.fp.One()
 
-	// t0 = g1^2
+	// if g3 == 0
+	// t0 = 2 * g1 * g5
+	// t1 = g2
+	selector1 := e.fp.IsZero(&x.B1.A0)
+	_t[0] = e.fp.Mul(&x.B0.A1, &x.B0.A1)
+	_t[0] = e.fp.Add(_t[0], _t[0])
+	_t[1] = &x.B0.A2
+
+	// if g2 == g3 == 0
+	selector2 := e.fp.IsZero(_t[1])
+
+	// if g3 != 0
+	// t0 = E * g5^2 + 3 * g1^2 - 2 * g2
+	// t1 = 4 * g3
 	t[0] = e.fp.Mul(&x.B0.A1, &x.B0.A1)
-	// t1 = 3 * g1^2 - 2 * g2
 	t[1] = e.fp.Sub(t[0], &x.B0.A2)
 	t[1] = e.fp.Add(t[1], t[1])
 	t[1] = e.fp.Add(t[1], t[0])
-	// t0 = E * g5^2 + t1
 	t[2] = e.fp.Mul(&x.B1.A2, &x.B1.A2)
 	t[0] = mulFpByNonResidue(e.fp, t[2])
 	t[0] = e.fp.Add(t[0], t[1])
-	// t1 = 1/(4 * g3)
 	t[1] = e.fp.Add(&x.B1.A0, &x.B1.A0)
 	t[1] = e.fp.Add(t[1], t[1])
 
-	// z4 = g4
-	z.B1.A1 = *e.fp.Div(t[0], t[1])
-	a1 := z.B1.A1
+	// g4 = (E * g5^2 + 3 * g1^2 - 2 * g2)/4g3 or (2 * g1 * g5)/g2
+	t[0] = e.fp.Select(selector1, _t[0], t[0])
+	t[1] = e.fp.Select(selector1, _t[1], t[1])
+	// g4 = dummy value, continue
+	t[1] = e.fp.Select(selector2, e.fp.One(), t[1])
 
+	z.B1.A1 = *e.fp.Div(t[0], t[1])
+
+	// Rest of the computation for all cases
+	a1 := z.B1.A1
 	// t1 = g2 * g1
 	t[1] = e.fp.Mul(&x.B0.A2, &x.B0.A1)
 	// t2 = 2 * g4² - 3 * g2 * g1
@@ -241,7 +256,7 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	z.B1.A0 = x.B1.A0
 	z.B1.A2 = x.B1.A2
 
-	return &z
+	return e.Select(e.api.And(selector1, selector2), e.One(), &z)
 }
 
 // Granger-Scott's cyclotomic square
@@ -396,4 +411,10 @@ func (e Ext6) Frobenius(x *E6) *E6 {
 	z.B1.A2 = *e.fp.Mul(&x.B1.A2, &_frobBC)
 
 	return &z
+}
+
+func (e Ext6) Select(selector frontend.Variable, z1, z0 *E6) *E6 {
+	b0 := e.Ext3.Select(selector, &z1.B0, &z0.B0)
+	b1 := e.Ext3.Select(selector, &z1.B1, &z0.B1)
+	return &E6{B0: *b0, B1: *b1}
 }
