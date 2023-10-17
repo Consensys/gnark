@@ -218,9 +218,9 @@ func evaluateLROSmallDomain(cs *system, solution []fr.Element) ([]fr.Element, []
 	s = int(ecc.NextPowerOfTwo(uint64(s)))
 
 	var l, r, o []fr.Element
-	l = make([]fr.Element, s)
-	r = make([]fr.Element, s)
-	o = make([]fr.Element, s)
+	l = make([]fr.Element, s, s+4) // +4 to leave room for the blinding in plonk
+	r = make([]fr.Element, s, s+4)
+	o = make([]fr.Element, s, s+4)
 	s0 := solution[0]
 
 	for i := 0; i < len(cs.Public); i++ { // placeholders
