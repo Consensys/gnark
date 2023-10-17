@@ -41,6 +41,18 @@ func (f *Field[T]) div(a, b *Element[T], _ uint) *Element[T] {
 
 // Inverse compute 1/a and returns it. It uses [InverseHint].
 func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
+	return f.reduceAndOp(f.inverse, f.inversePreCond, a, nil)
+}
+
+func (f *Field[T]) inversePreCond(a, _ *Element[T]) (nextOverflow uint, err error) {
+	mulOf, err := f.mulPreCond(a, &Element[T]{overflow: 0}) // order is important, we want that reduce left side
+	if err != nil {
+		return mulOf, err
+	}
+	return f.subPreCond(&Element[T]{overflow: 0}, &Element[T]{overflow: mulOf})
+}
+
+func (f *Field[T]) inverse(a, _ *Element[T], _ uint) *Element[T] {
 	// omit width assertion as is done in Mul below
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
