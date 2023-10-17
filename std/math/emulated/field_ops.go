@@ -70,6 +70,18 @@ func (f *Field[T]) inverse(a, _ *Element[T], _ uint) *Element[T] {
 
 // Sqrt computes square root of a and returns it. It uses [SqrtHint].
 func (f *Field[T]) Sqrt(a *Element[T]) *Element[T] {
+	return f.reduceAndOp(f.sqrt, f.sqrtPreCond, a, nil)
+}
+
+func (f *Field[T]) sqrtPreCond(a, _ *Element[T]) (nextOverflow uint, err error) {
+	mulOf, err := f.mulPreCond(a, a)
+	if err != nil {
+		return mulOf, err
+	}
+	return f.subPreCond(a, &Element[T]{overflow: mulOf})
+}
+
+func (f *Field[T]) sqrt(a, _ *Element[T], _ uint) *Element[T] {
 	// omit width assertion as is done in Mul below
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
