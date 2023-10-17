@@ -11,6 +11,18 @@ import (
 
 // Div computes a/b and returns it. It uses [DivHint] as a hint function.
 func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
+	return f.reduceAndOp(f.div, f.divPreCond, a, b)
+}
+
+func (f *Field[T]) divPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
+	mulOf, err := f.mulPreCond(&Element[T]{overflow: 0}, b)
+	if err != nil {
+		return mulOf, err
+	}
+	return f.subPreCond(a, &Element[T]{overflow: mulOf})
+}
+
+func (f *Field[T]) div(a, b *Element[T], _ uint) *Element[T] {
 	// omit width assertion as for a is done in AssertIsEqual and for b is done in Mul below
 	if !f.fParams.IsPrime() {
 		// TODO shouldn't we still try to do a classic int div in a hint, constraint the result, and let it fail?

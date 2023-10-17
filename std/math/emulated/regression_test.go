@@ -19,9 +19,7 @@ func (c *testIssue867Circuit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := f.Div(&c.A, &c.B)
-	_ = res
-	// f.AssertIsEqual(res, &c.Res)
+	f.Div(&c.A, &c.B)
 	return nil
 }
 
