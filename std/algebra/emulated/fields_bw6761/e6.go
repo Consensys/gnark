@@ -199,7 +199,7 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	var z E6
 
 	var t [3]*baseEl
-	var _t [3]*baseEl
+	var _t [2]*baseEl
 	one := e.fp.One()
 
 	// if g3 == 0
@@ -230,7 +230,7 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	t[0] = e.fp.Select(selector1, _t[0], t[0])
 	t[1] = e.fp.Select(selector1, _t[1], t[1])
 	// g4 = dummy value, continue
-	t[1] = e.fp.Select(selector2, e.fp.One(), t[1])
+	t[1] = e.fp.Select(selector2, one, t[1])
 
 	z.B1.A1 = *e.fp.Div(t[0], t[1])
 
