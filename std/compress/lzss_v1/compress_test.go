@@ -20,7 +20,6 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 		d, err = os.ReadFile("../test_cases/" + testCaseName[0] + "/data.bin")
 		require.NoError(t, err)
 	}
-	var heads []LogHeads
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: nbBytesAddress,
@@ -43,16 +42,7 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 
 	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
-	for i := range d {
-		if len(heads) > 1 && i == heads[1].Decompressed {
-			heads = heads[1:]
-		}
-		if d[i] != dBack[i] {
-			t.Errorf("d[%d] = 0x%x, dBack[%d] = 0x%x. Failure starts at data index %d and compressed index %d", i, d[i], i, dBack[i], heads[0].Decompressed, heads[0].Compressed)
-			printHex(c)
-			t.FailNow()
-		}
-	}
+
 	printHex(c)
 	require.Equal(t, d, dBack)
 
@@ -119,58 +109,8 @@ func TestCalldataSymb0(t *testing.T) {
 	}
 }
 
-func testWithLog(t *testing.T, folder string) {
-	d, err := os.ReadFile("../test_cases/" + folder + "/data.bin")
-	require.NoError(t, err)
-	var writer strings.Builder
-	c, err := Compress(d, Settings{
-		BackRefSettings: BackRefSettings{
-			NbBytesAddress: 2,
-			NbBytesLength:  1,
-		},
-	})
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile("../test_cases/"+folder+"/data.lzssv1", c, 0600))
-	require.NoError(t, os.WriteFile("../test_cases/"+folder+"/analytics.csv", []byte(writer.String()), 0600))
-}
-
-func TestCalldataSymb0Log(t *testing.T) {
-	testWithLog(t, "large")
-}
-
 func TestLongBackrefBug(t *testing.T) {
-	testWithLog(t, "bug")
-}
-
-func TestCalldataSymb1(t *testing.T) {
-	var heads []LogHeads
-	settings := Settings{
-		BackRefSettings: BackRefSettings{
-			NbBytesAddress: 2,
-			NbBytesLength:  1,
-		},
-	}
-
-	d, err := os.ReadFile("../test_cases/" + "3c2943" + "/data.bin")
-	require.NoError(t, err)
-
-	c, err := Compress(d, settings)
-	require.NoError(t, err)
-
-	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
-	fmt.Println("Estimated Compression ratio (with Huffman):", float64(len(d))/float64(len(huffman.Encode(compress.NewStreamFromBytes(c)).D)))
-	dBack, err := DecompressPureGo(c, settings)
-	require.NoError(t, err)
-	for i := range d {
-		if len(heads) > 1 && i == heads[1].Decompressed {
-			heads = heads[1:]
-		}
-		if d[i] != dBack[i] {
-			t.Errorf("d[%d] = 0x%x, dBack[%d] = 0x%x. Failure starts at data index %d and compressed index %d", i, d[i], i, dBack[i], heads[0].Decompressed, heads[0].Compressed)
-			t.FailNow()
-		}
-	}
-	require.Equal(t, d, dBack)
+	testCompressionRoundTrip(t, 2, nil, "bug")
 }
 
 func printHex(d []byte) {

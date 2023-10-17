@@ -99,6 +99,9 @@ func longestMostRecentBackRef(d []byte, i int, settings Settings) (addr, length 
 
 	} else {
 		backRefLen = 1 + int(settings.NbBytesAddress+settings.NbBytesLength)
+		if i+backRefLen > len(d) {
+			return -1, -1
+		}
 		minViableBackRef := d[i : i+backRefLen]
 		// find backref candidates that satisfy the minimum length requirement
 
