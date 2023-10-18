@@ -109,6 +109,50 @@ func TestCalldata(t *testing.T) {
 	}
 }
 
+// Using separate prefix codings for different parts of the data
+func TestCalldataMultiHuffman(t *testing.T) {
+
+	d, err := os.ReadFile("../test_cases/large/data.bin")
+	require.NoError(t, err)
+
+	settings := Settings{
+		BackRefSettings: BackRefSettings{
+			NbBytesAddress: 2,
+			NbBytesLength:  1,
+		},
+	}
+	c, err := Compress(d, settings)
+	var cText, cLength, cAddrMs, cAddrLs []byte
+
+	for i := 0; i < len(c); i++ {
+		cText = append(cText, c[i])
+		if c[i] == 0 {
+			cAddrLs = append(cAddrLs, c[i+1])
+			cAddrMs = append(cAddrMs, c[i+2])
+			cLength = append(cLength, c[i+3])
+			i += 3
+		}
+	}
+
+	cTextStream := compress.NewStreamFromBytes(cText)
+	cLengthStream := compress.NewStreamFromBytes(cLength)
+	cAddrMsStream := compress.NewStreamFromBytes(cAddrMs)
+	cAddrLsStream := compress.NewStreamFromBytes(cAddrLs)
+
+	huffLen := huffman.Encode(cTextStream).Len() + huffman.Encode(cLengthStream).Len() + huffman.Encode(cAddrMsStream).Len() + huffman.Encode(cAddrLsStream).Len()
+	cStream := compress.NewStreamFromBytes(c)
+	cHuff := huffman.Encode(cStream)
+
+	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
+	fmt.Println("Estimated Compression ratio (with vanilla Huffman):", float64(8*len(d))/float64(len(cHuff.D)))
+	fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*len(d))/float64(huffLen))
+
+	fmt.Printf("Compressed size: %dKB\n", int(float64(len(c)*100)/1024)/100)
+	fmt.Printf("Compressed size (with vanilla Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/8192)/100)
+	fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(huffLen*100)/8192)/100)
+	require.NoError(t, err)
+}
+
 func TestLongBackrefBug(t *testing.T) {
 	testCompressionRoundTrip(t, 2, nil, "bug")
 }
