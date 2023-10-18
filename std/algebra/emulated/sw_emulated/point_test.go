@@ -11,6 +11,8 @@ import (
 	fr_bls381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	fp_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
@@ -400,7 +402,7 @@ func TestScalarMulBase2(t *testing.T) {
 func TestScalarMulBase3(t *testing.T) {
 	assert := test.NewAssert(t)
 	_, _, g, _ := bls12381.Generators()
-	var r fr_bn.Element
+	var r fr_bls381.Element
 	_, _ = r.SetRandom()
 	s := new(big.Int)
 	r.BigInt(s)
@@ -413,6 +415,28 @@ func TestScalarMulBase3(t *testing.T) {
 		Q: AffinePoint[emulated.BLS12381Fp]{
 			X: emulated.ValueOf[emulated.BLS12381Fp](S.X),
 			Y: emulated.ValueOf[emulated.BLS12381Fp](S.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestScalarMulBase4(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, g, _ := bw6761.Generators()
+	var r fr_bw6761.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var S bw6761.G1Affine
+	S.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulBaseTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
+	witness := ScalarMulBaseTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S: emulated.ValueOf[emulated.BW6761Fr](s),
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](S.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](S.Y),
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
@@ -555,6 +579,32 @@ func TestScalarMul5(t *testing.T) {
 		},
 	}
 	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestScalarMul6(t *testing.T) {
+	assert := test.NewAssert(t)
+	var r fr_bw6761.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var res bw6761.G1Affine
+	_, _, gen, _ := bw6761.Generators()
+	res.ScalarMultiplication(&gen, s)
+
+	circuit := ScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
+	witness := ScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S: emulated.ValueOf[emulated.BW6761Fr](s),
+		P: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen.Y),
+		},
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](res.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](res.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
 

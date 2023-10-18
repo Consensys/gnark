@@ -26,9 +26,13 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 )
@@ -63,6 +67,12 @@ func ValueOfCommitment[G1El algebra.G1ElementT](cmt any) (Commitment[G1El], erro
 			return ret, fmt.Errorf("mismatching types %T %T", ret, cmt)
 		}
 		s.G1El = sw_bls12381.NewG1Affine(tCmt)
+	case *Commitment[sw_bw6761.G1Affine]:
+		tCmt, ok := cmt.(bw6761.G1Affine)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, cmt)
+		}
+		s.G1El = sw_bw6761.NewG1Affine(tCmt)
 	case *Commitment[sw_bls24315.G1Affine]:
 		tCmt, ok := cmt.(bls24315.G1Affine)
 		if !ok {
@@ -126,6 +136,18 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 		s.QuotientPoly = sw_bls12381.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bls12381.NewScalar(tProof.ClaimedValue)
 		s.Point = sw_bls12381.NewScalar(tPoint)
+	case *OpeningProof[sw_bw6761.Scalar, sw_bw6761.G1Affine]:
+		tProof, ok := proof.(kzg_bw6761.OpeningProof)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
+		}
+		tPoint, ok := point.(fr_bw6761.Element)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+		}
+		s.QuotientPoly = sw_bw6761.NewG1Affine(tProof.H)
+		s.ClaimedValue = sw_bw6761.NewScalar(tProof.ClaimedValue)
+		s.Point = sw_bw6761.NewScalar(tPoint)
 	case *OpeningProof[sw_bls24315.Scalar, sw_bls24315.G1Affine]:
 		tProof, ok := proof.(kzg_bls24315.OpeningProof)
 		if !ok {
@@ -177,6 +199,13 @@ func ValueOfVerifyingKey[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2El], e
 		}
 		s.SRS[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
 		s.SRS[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bw6761.G2Affine]:
+		tVk, ok := vk.(kzg_bw6761.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		s.SRS[0] = sw_bw6761.NewG2Affine(tVk.G2[0])
+		s.SRS[1] = sw_bw6761.NewG2Affine(tVk.G2[1])
 	case *VerifyingKey[sw_bls24315.G2Affine]:
 		tVk, ok := vk.(kzg_bls24315.VerifyingKey)
 		if !ok {
