@@ -29,7 +29,7 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		emit(&out, length-1, settings.NbBytesLength)
 	}
 
-	i := 0
+	i := int(settings.StartAt)
 	for i < len(d) {
 
 		if addr, length := longestMostRecentBackRef(d, i, settings); length != -1 {
@@ -93,6 +93,9 @@ func longestMostRecentBackRef(d []byte, i int, settings Settings) (addr, length 
 		if negativeRun := utils.Min(utils.Max(0, -minBackRefAddr), runLen); longestLen < negativeRun {
 			longestLen = negativeRun
 			remainingOptions = map[int]struct{}{-negativeRun: {}}
+			if settings.StartAt != 0 {
+				panic("negative run shouldn't happen")
+			}
 		}
 
 		backRefLen = longestLen

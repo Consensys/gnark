@@ -11,4 +11,5 @@ func (s BackRefSettings) NbBytes() int {
 
 type Settings struct {
 	BackRefSettings
+	StartAt uint
 }
