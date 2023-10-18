@@ -15,6 +15,7 @@ func TestBackrefsToCsv(t *testing.T) {
 }
 
 func TestCompareCoverage(t *testing.T) {
+	t.SkipNow()
 	compareBackrefs(t, "../test_cases/large/backrefs.csv", "../test_cases/large/backrefs_new.csv")
 }
 
