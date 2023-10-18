@@ -15,7 +15,11 @@
 // Package backend implements Zero Knowledge Proof systems: it consumes circuit compiled with gnark/frontend.
 package backend
 
-import "github.com/consensys/gnark/constraint/solver"
+import (
+	"hash"
+
+	"github.com/consensys/gnark/constraint/solver"
+)
 
 // ID represent a unique ID for a proving scheme
 type ID uint16
@@ -53,7 +57,8 @@ type ProverOption func(*ProverConfig) error
 
 // ProverConfig is the configuration for the prover with the options applied.
 type ProverConfig struct {
-	SolverOpts []solver.Option
+	SolverOpts  []solver.Option
+	BackendOpts []BackendOption
 }
 
 // NewProverConfig returns a default ProverConfig with given prover options opts
@@ -72,6 +77,36 @@ func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
 func WithSolverOptions(solverOpts ...solver.Option) ProverOption {
 	return func(opt *ProverConfig) error {
 		opt.SolverOpts = solverOpts
+		return nil
+	}
+}
+
+func WithBackendOption(backendOpts ...BackendOption) ProverOption {
+	return func(pc *ProverConfig) error {
+		pc.BackendOpts = append(pc.BackendOpts, backendOpts...)
+		return nil
+	}
+}
+
+type BackendOption func(*BackendConfig) error
+
+type BackendConfig struct {
+	HashToFieldFn hash.Hash
+}
+
+func NewBackendConfig(opts ...BackendOption) (BackendConfig, error) {
+	opt := BackendConfig{}
+	for _, option := range opts {
+		if err := option(&opt); err != nil {
+			return BackendConfig{}, err
+		}
+	}
+	return opt, nil
+}
+
+func WithHashToFieldFunction(hFunc hash.Hash) BackendOption {
+	return func(cfg *BackendConfig) error {
+		cfg.HashToFieldFn = hFunc
 		return nil
 	}
 }
