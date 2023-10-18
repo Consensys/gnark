@@ -19,18 +19,24 @@ package plonk
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
+	"hash"
 	"io"
 	"math/big"
+
 	"time"
 
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
-
-	"github.com/consensys/gnark-crypto/ecc/bls24-317/kzg"
+	"github.com/consensys/gnark-crypto/ecc"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls24-317"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
+
+	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr/hash_to_field"
+
+	"github.com/consensys/gnark-crypto/ecc/bls24-317/kzg"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/logger"
 )
 
@@ -38,9 +44,13 @@ var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
 )
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.BackendOption) error {
 	log := logger.Logger().With().Str("curve", "bls24-317").Str("backend", "plonk").Logger()
 	start := time.Now()
+	cfg, err := backend.NewBackendConfig(opts...)
+	if err != nil {
+		return fmt.Errorf("create backend config: %w", err)
+	}
 
 	if len(proof.Bsb22Commitments) != len(vk.Qcp) {
 		return errors.New("BSB22 Commitment number mismatch")
@@ -119,11 +129,20 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 			}
 		}
 
+		var htfFn hash.Hash
+		commitmentDomain := []byte("BSB22-Plonk")
+		if cfg.HashToFieldFn != nil {
+			htfFn = cfg.HashToFieldFn
+		} else {
+			htfFn = hash_to_field.New(commitmentDomain)
+		}
+		var hashBts []byte
 		for i := range vk.CommitmentConstraintIndexes {
-			var hashRes []fr.Element
-			if hashRes, err = fr.Hash(proof.Bsb22Commitments[i].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
-				return err
-			}
+			htfFn.Write(proof.Bsb22Commitments[i].Marshal())
+			hashBts = htfFn.Sum(hashBts[0:])
+			htfFn.Reset()
+			var hashedCmt fr.Element
+			hashedCmt.SetBytes(hashBts[:fr.Bytes])
 
 			// Computing L_{CommitmentIndex}
 
@@ -136,7 +155,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
 				Div(&lagrange, &den).        // wⁱ(ζ-1)/(ζ-wⁱ)
 				Mul(&lagrange, &lagrangeOne) // wⁱ/n (ζⁿ-1)/(ζ-wⁱ)
 
-			xiLi.Mul(&lagrange, &hashRes[0])
+			xiLi.Mul(&lagrange, &hashedCmt)
 			pi.Add(&pi, &xiLi)
 		}
 	}
