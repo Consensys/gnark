@@ -104,7 +104,7 @@ func TestCalldata(t *testing.T) {
 		d, err := os.ReadFile("../test_cases/" + folder + "/data.bin")
 		require.NoError(t, err)
 		t.Run(folder, func(t *testing.T) {
-			testCompressionRoundTrip(t, 2, d)
+			testCompressionRoundTrip(t, 2, d, folder)
 		})
 	}
 }
