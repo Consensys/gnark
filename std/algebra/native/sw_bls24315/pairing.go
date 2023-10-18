@@ -297,6 +297,22 @@ func Pair(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	return FinalExponentiation(api, f), nil
 }
 
+// PairingCheck calculates the reduced pairing for a set of points and asserts if the result is One
+// ∏ᵢ e(Pᵢ, Qᵢ) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
+	f, err := Pair(api, P, Q)
+	if err != nil {
+		return err
+	}
+	var one GT
+	one.SetOne()
+	f.AssertIsEqual(api, one)
+
+	return nil
+}
+
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
 func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation, lineEvaluation) {

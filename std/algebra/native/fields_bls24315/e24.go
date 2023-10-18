@@ -261,23 +261,38 @@ func (e *E24) CyclotomicSquareCompressed(api frontend.API, x E24) *E24 {
 func (e *E24) Decompress(api frontend.API, x E24) *E24 {
 
 	var t [3]E4
+	var _t [2]E4
 	var one E4
 	one.SetOne()
 
-	// t0 = g1²
+	// if g3 == 0
+	// t0 = 2 * g1 * g5
+	// t1 = g2
+	selector1 := x.D1.C0.IsZero(api)
+	_t[0].Square(api, x.D0.C1)
+	_t[0].Double(api, _t[0])
+	_t[1] = x.D0.C2
+
+	// if g3 != 0
+	// t0 = E * g5^2 + 3 * g1^2 - 2 * g2
+	// t1 = 4 * g3
 	t[0].Square(api, x.D0.C1)
-	// t1 = 3 * g1² - 2 * g2
 	t[1].Sub(api, t[0], x.D0.C2).
 		Double(api, t[1]).
 		Add(api, t[1], t[0])
-	// t0 = E * g5² + t1
 	t[2].Square(api, x.D1.C2)
 	t[0].MulByNonResidue(api, t[2]).
 		Add(api, t[0], t[1])
-	// t1 = 4 * g3
 	t[1].Double(api, x.D1.C0).
 		Double(api, t[1])
-	// z4 = g4 / t1
+
+	// g4 = (E * g5^2 + 3 * g1^2 - 2 * g2)/4g3 or (2 * g1 * g5)/g2
+	t[0].Select(api, selector1, _t[0], t[0])
+	t[1].Select(api, selector1, _t[1], t[1])
+	// if g2 == g3 == 0 we do nothing as DivUnchecked sets g4 to 0
+	// and all gi to 0 returning, correctly in this case, at the end:
+	// e = E * (2 * g4² + g3 * g5 - 3 * g2 * g1) + 1 = 1
+
 	e.D1.C1.DivUnchecked(api, t[0], t[1])
 
 	// t1 = g2 * g1
