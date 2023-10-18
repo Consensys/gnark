@@ -138,8 +138,8 @@ func TestCalldataMultiHuffman(t *testing.T) {
 	cLengthStream := compress.NewStreamFromBytes(cLength)
 	cAddrMsStream := compress.NewStreamFromBytes(cAddrMs)
 	cAddrLsStream := compress.NewStreamFromBytes(cAddrLs)
-
 	huffLen := huffman.Encode(cTextStream).Len() + huffman.Encode(cLengthStream).Len() + huffman.Encode(cAddrMsStream).Len() + huffman.Encode(cAddrLsStream).Len()
+
 	cStream := compress.NewStreamFromBytes(c)
 	cHuff := huffman.Encode(cStream)
 
@@ -150,6 +150,9 @@ func TestCalldataMultiHuffman(t *testing.T) {
 	fmt.Printf("Compressed size: %dKB\n", int(float64(len(c)*100)/1024)/100)
 	fmt.Printf("Compressed size (with vanilla Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/8192)/100)
 	fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(huffLen*100)/8192)/100)
+
+	fmt.Printf("Size of backrefs: %dKB\n", (huffLen-cTextStream.Len()*8+8191)/8192)
+	fmt.Printf("%d%% of total size is backrefs\n", (huffLen-cTextStream.Len()*8)*100/huffLen)
 	require.NoError(t, err)
 }
 
