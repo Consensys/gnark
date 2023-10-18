@@ -18,9 +18,7 @@ package sw_bls24315
 
 import (
 	"errors"
-	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
 )
@@ -28,7 +26,9 @@ import (
 // GT target group of the pairing
 type GT = fields_bls24315.E24
 
-const ateLoop = 3218079743
+var loopCounter = [33]int8{
+	-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1,
+}
 
 // lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
 // line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
@@ -45,9 +45,6 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	if n == 0 || n != len(Q) {
 		return GT{}, errors.New("invalid inputs sizes")
 	}
-
-	var ateLoop2NAF [33]int8
-	ecc.NafDecomposition(big.NewInt(ateLoop), ateLoop2NAF[:])
 
 	var res GT
 	res.SetOne()
@@ -68,7 +65,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	}
 
 	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
-	// i = 32, separately to avoid an E24 Square
+	// i = 31, separately to avoid an E24 Square
 	// (Square(res) = 1² = 1)
 
 	// k = 0, separately to avoid MulBy034 (res × ℓ)
@@ -147,9 +144,9 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
 
-		switch ateLoop2NAF[i] {
-		case 0:
-			for k := 0; k < n; k++ {
+		for k := 0; k < n; k++ {
+			switch loopCounter[i] {
+			case 0:
 				// Qacc[k] ← 2Qacc[k] and l1 the tangent ℓ passing 2Qacc[k]
 				Qacc[k], l1 = doubleStep(api, &Qacc[k])
 
@@ -159,9 +156,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 
 				// ℓ × res
 				res.MulBy034(api, l1.R0, l1.R1)
-			}
-		case 1:
-			for k := 0; k < n; k++ {
+			case 1:
 				// Qacc[k] ← 2Qacc[k]+Q[k],
 				// l1 the line ℓ passing Qacc[k] and Q[k]
 				// l2 the line ℓ passing (Qacc[k]+Q[k]) and Qacc[k]
@@ -180,9 +175,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 
 				// ℓ × res
 				res.MulBy034(api, l2.R0, l2.R1)
-			}
-		case -1:
-			for k := 0; k < n; k++ {
+			case -1:
 				// Qacc[k] ← 2Qacc[k]-Q[k],
 				// l1 the line ℓ passing Qacc[k] and Q[k]
 				// l2 the line ℓ passing (Qacc[k]-Q[k]) and Qacc[k]
@@ -201,9 +194,9 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 
 				// ℓ × res
 				res.MulBy034(api, l2.R0, l2.R1)
+			default:
+				return GT{}, errors.New("invalid loopCounter")
 			}
-		default:
-			return GT{}, errors.New("invalid loopCounter")
 		}
 	}
 
@@ -239,7 +232,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 // we use instead d=s ⋅ (p¹²-1)(p⁴+1)(p⁸ - p⁴ +1)/r
 // where s is the cofactor 3 (Hayashida et al.)
 func FinalExponentiation(api frontend.API, e1 GT) GT {
-	const genT = ateLoop
+	const genT = 3218079743
 	result := e1
 
 	// https://eprint.iacr.org/2012/232.pdf, section 7
@@ -501,9 +494,6 @@ func lineCompute(api frontend.API, p1, p2 *G2Affine) lineEvaluation {
 // fᵢ_{u,g2}(P), where g2 is fixed.
 func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 
-	var ateLoop2NAF [33]int8
-	ecc.NafDecomposition(big.NewInt(ateLoop), ateLoop2NAF[:])
-
 	var res GT
 	res.SetOne()
 
@@ -554,7 +544,7 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
 
-		if ateLoop2NAF[i] == 0 {
+		if loopCounter[i] == 0 {
 			// line evaluation at P
 			l1.R0.MulByFp(api,
 				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
@@ -595,12 +585,165 @@ func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
 	return res, nil
 }
 
+// DoubleMillerLoopFixedQ computes the double Miller loop composed of two Miller loops
+// one with P2 and Q, the other with P1 and g2 where g2 is fixed.
+func DoubleMillerLoopFixedQ(api frontend.API, P [2]G1Affine, Q G2Affine) (GT, error) {
+	var res GT
+	res.SetOne()
+
+	var l1, l2 lineEvaluation
+	yInv := make([]frontend.Variable, 2)
+	xNegOverY := make([]frontend.Variable, 2)
+	Qacc := Q
+	Qneg := Q
+	Qneg.Y.Neg(api, Qneg.Y)
+	yInv[0] = api.DivUnchecked(1, P[0].Y)
+	xNegOverY[0] = api.Mul(P[0].X, yInv[0])
+	// xNegOverY[0] = api.Neg(xNegOverY[0])
+	yInv[1] = api.DivUnchecked(1, P[1].Y)
+	xNegOverY[1] = api.Mul(P[1].X, yInv[1])
+	xNegOverY[1] = api.Neg(xNegOverY[1])
+
+	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
+	for i := 31; i >= 0; i-- {
+		// mutualize the square among n Miller loops
+		// (∏ᵢfᵢ)²
+		res.Square(api, res)
+
+		switch loopCounter[i] {
+		case 0:
+			// line evaluation at P
+			l1.R0.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
+				xNegOverY[0])
+			l1.R1.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[2][i], B1: precomputedLines[3][i]},
+				yInv[0])
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+
+			// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
+			Qacc, l1 = doubleStep(api, &Qacc)
+
+			// line evaluation at P[k]
+			l1.R0.MulByFp(api, l1.R0, xNegOverY[1])
+			l1.R1.MulByFp(api, l1.R1, yInv[1])
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+
+		case 1:
+			// line evaluation at P
+			l1.R0.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
+				xNegOverY[0])
+			l1.R1.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[2][i], B1: precomputedLines[3][i]},
+				yInv[0])
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+
+			// line evaluation at P
+			l2.R0.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[4][i], B1: precomputedLines[5][i]},
+				xNegOverY[0])
+			l2.R1.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[6][i], B1: precomputedLines[7][i]},
+				yInv[0])
+
+			// ℓ × res
+			res.MulBy034(api, l2.R0, l2.R1)
+
+			// Qacc ← 2Qacc+Q[k],
+			// l1 the line ℓ passing Qacc and Q[k]
+			// l2 the line ℓ passing (Qacc+Q[k]) and Qacc
+			Qacc, l1, l2 = doubleAndAddStep(api, &Qacc, &Q)
+
+			// line evaluation at P[k]
+			l1.R0.MulByFp(api, l1.R0, xNegOverY[1])
+			l1.R1.MulByFp(api, l1.R1, yInv[1])
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+
+			// line evaluation at P[k]
+			l2.R0.MulByFp(api, l2.R0, xNegOverY[1])
+			l2.R1.MulByFp(api, l2.R1, yInv[1])
+
+			// ℓ × res
+			res.MulBy034(api, l2.R0, l2.R1)
+
+		case -1:
+			// line evaluation at P
+			l1.R0.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[0][i], B1: precomputedLines[1][i]},
+				xNegOverY[0])
+			l1.R1.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[2][i], B1: precomputedLines[3][i]},
+				yInv[0])
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+
+			// line evaluation at P
+			l2.R0.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[4][i], B1: precomputedLines[5][i]},
+				xNegOverY[0])
+			l2.R1.MulByFp(api,
+				fields_bls24315.E4{B0: precomputedLines[6][i], B1: precomputedLines[7][i]},
+				yInv[0])
+
+			// ℓ × res
+			res.MulBy034(api, l2.R0, l2.R1)
+
+			// Qacc ← 2Qacc-Q[k],
+			// l1 the line ℓ passing Qacc and Q[k]
+			// l2 the line ℓ passing (Qacc-Q[k]) and Qacc
+			Qacc, l1, l2 = doubleAndAddStep(api, &Qacc, &Qneg)
+
+			// line evaluation at P[k]
+			l1.R0.MulByFp(api, l1.R0, xNegOverY[1])
+			l1.R1.MulByFp(api, l1.R1, yInv[1])
+
+			// ℓ × res
+			res.MulBy034(api, l1.R0, l1.R1)
+
+			// line evaluation at P[k]
+			l2.R0.MulByFp(api, l2.R0, xNegOverY[1])
+			l2.R1.MulByFp(api, l2.R1, yInv[1])
+
+			// ℓ × res
+			res.MulBy034(api, l2.R0, l2.R1)
+		default:
+			return GT{}, errors.New("invalid loopCounter")
+		}
+	}
+
+	res.Conjugate(api, res)
+
+	return res, nil
+}
+
 // PairFixedQ calculates the reduced pairing for a set of points
 // e(P, g2), where g2 is fixed.
 //
 // This function doesn't check that the inputs are in the correct subgroups.
 func PairFixedQ(api frontend.API, P G1Affine) (GT, error) {
 	f, err := MillerLoopFixedQ(api, P)
+	if err != nil {
+		return GT{}, err
+	}
+	return FinalExponentiation(api, f), nil
+}
+
+// DoublePairFixedQ calculates the reduced pairing for a set of points
+// e(P0, Q) * e(P1, g2), where g2 is fixed.
+//
+// This function doesn't check that the inputs are in the correct subgroups.
+func DoublePairFixedQ(api frontend.API, P [2]G1Affine, Q G2Affine) (GT, error) {
+	f, err := DoubleMillerLoopFixedQ(api, P, Q)
 	if err != nil {
 		return GT{}, err
 	}

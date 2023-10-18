@@ -158,6 +158,40 @@ func TestPairingFixedBLS315(t *testing.T) {
 
 }
 
+type doublePairingFixedBLS315 struct {
+	P          [2]G1Affine
+	Q          G2Affine
+	pairingRes bls24315.GT
+}
+
+func (circuit *doublePairingFixedBLS315) Define(api frontend.API) error {
+
+	pairingRes, _ := DoublePairFixedQ(api, circuit.P, circuit.Q)
+
+	mustbeEq(api, pairingRes, &circuit.pairingRes)
+
+	return nil
+}
+
+func TestDoublePairingFixedBLS315(t *testing.T) {
+
+	// pairing test data
+	P, Q, _, pairingRes := doubleFixedPairingData()
+
+	// create cs
+	var circuit, witness doublePairingFixedBLS315
+	circuit.pairingRes = pairingRes
+
+	// assign values to witness
+	witness.P[0].Assign(&P[0])
+	witness.P[1].Assign(&P[1])
+	witness.Q.Assign(&Q)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+
+}
+
 type pairingCheckBLS315 struct {
 	P1, P2 G1Affine `gnark:",public"`
 	Q1, Q2 G2Affine
@@ -198,6 +232,23 @@ func pairingData() (P bls24315.G1Affine, Q bls24315.G2Affine, milRes bls24315.E2
 	_, _, P, Q = bls24315.Generators()
 	milRes, _ = bls24315.MillerLoop([]bls24315.G1Affine{P}, []bls24315.G2Affine{Q})
 	pairingRes = bls24315.FinalExponentiation(&milRes)
+	return
+}
+
+func doubleFixedPairingData() (P [2]bls24315.G1Affine, Q bls24315.G2Affine, milRes, pairingRes bls24315.GT) {
+	_, _, P0, Q0 := bls24315.Generators()
+	P[0].Set(&P0)
+	var u, v fr.Element
+	var _u, _v big.Int
+	_, _ = u.SetRandom()
+	_, _ = v.SetRandom()
+	u.BigInt(&_u)
+	v.BigInt(&_v)
+	P[1].ScalarMultiplication(&P[0], &_u)
+	Q.ScalarMultiplication(&Q0, &_v)
+	milRes, _ = bls24315.MillerLoop([]bls24315.G1Affine{P[0], P[1]}, []bls24315.G2Affine{Q0, Q})
+	pairingRes = bls24315.FinalExponentiation(&milRes)
+
 	return
 }
 
