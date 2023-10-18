@@ -122,6 +122,7 @@ func TestCalldataMultiHuffman(t *testing.T) {
 		},
 	}
 	c, err := Compress(d, settings)
+	require.NoError(t, err)
 	var cText, cLength, cAddrMs, cAddrLs []byte
 
 	for i := 0; i < len(c); i++ {
@@ -135,25 +136,61 @@ func TestCalldataMultiHuffman(t *testing.T) {
 	}
 
 	cTextStream := compress.NewStreamFromBytes(cText)
-	cLengthStream := compress.NewStreamFromBytes(cLength)
-	cAddrMsStream := compress.NewStreamFromBytes(cAddrMs)
-	cAddrLsStream := compress.NewStreamFromBytes(cAddrLs)
+	zeroSize := huffman.GetCodeLengths(cTextStream)[0]
+	cTextStream = huffman.Encode(cTextStream)
+
+	cLengthStream := huffman.Encode(compress.NewStreamFromBytes(cLength))
+	cAddrMsStream := huffman.Encode(compress.NewStreamFromBytes(cAddrMs))
+	cAddrLsStream := huffman.Encode(compress.NewStreamFromBytes(cAddrLs))
 	huffLen := huffman.Encode(cTextStream).Len() + huffman.Encode(cLengthStream).Len() + huffman.Encode(cAddrMsStream).Len() + huffman.Encode(cAddrLsStream).Len()
+	nbBr := nbBackrefs(c)
+	brHuffLen := huffLen - cTextStream.Len() + nbBr*zeroSize
 
 	cStream := compress.NewStreamFromBytes(c)
 	cHuff := huffman.Encode(cStream)
 
 	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
+	fmt.Printf("%d%% of total size is backrefs\n", nbBr*400/len(c))
+
 	fmt.Println("Estimated Compression ratio (with vanilla Huffman):", float64(8*len(d))/float64(len(cHuff.D)))
+
 	fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*len(d))/float64(huffLen))
 
 	fmt.Printf("Compressed size: %dKB\n", int(float64(len(c)*100)/1024)/100)
+	fmt.Println("Size of backrefs pre Huffman:", nbBr/250, "KB")
 	fmt.Printf("Compressed size (with vanilla Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/8192)/100)
 	fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(huffLen*100)/8192)/100)
 
-	fmt.Printf("Size of backrefs: %dKB\n", (huffLen-cTextStream.Len()*8+8191)/8192)
-	fmt.Printf("%d%% of total size is backrefs\n", (huffLen-cTextStream.Len()*8)*100/huffLen)
-	require.NoError(t, err)
+	fmt.Printf("Size of backrefs with proper Huffman: %dKB\n", (brHuffLen+8191)/8192)
+	fmt.Printf("%d%% of total size is backrefs with proper Huffman\n", brHuffLen*100/huffLen)
+
+	// try huffman on entire br
+	cAddrStream := compress.Stream{
+		D:       make([]int, len(cAddrLs)),
+		NbSymbs: 65536,
+	}
+	for i := range cAddrLs {
+		cAddrStream.D[i] = int(cAddrLs[i]) | (int(cAddrMs[i]) << 8)
+	}
+	cAddrStream = huffman.Encode(cAddrStream)
+	huffLen = huffman.Encode(cTextStream).Len() + huffman.Encode(cLengthStream).Len() + huffman.Encode(cAddrStream).Len()
+	brHuffLen = huffLen - cTextStream.Len() + nbBr*zeroSize
+	fmt.Println("Estimated Compression ratio (with holistic Huffman):", float64(8*len(d))/float64(huffLen))
+	fmt.Printf("Compressed size (with holistic Huffman): %dKB\n", int(float64(huffLen*100)/8192)/100)
+	fmt.Printf("Size of backrefs with holistic Huffman: %dKB\n", (brHuffLen+8191)/8192)
+	fmt.Printf("%d%% of total size is backrefs with holistic Huffman\n", brHuffLen*100/huffLen)
+
+}
+
+func nbBackrefs(c []byte) int {
+	res := 0
+	for i := 0; i < len(c); i++ {
+		if c[i] == 0 {
+			res++
+			i += 3
+		}
+	}
+	return res
 }
 
 func TestLongBackrefBug(t *testing.T) {
