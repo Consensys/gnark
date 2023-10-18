@@ -560,7 +560,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	}
 
 	// Compute  ∏ᵢ { ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
-	Q1, Q2 := new(G2Affine), new(G2Affine)
+	var Q1, Q2 *G2Affine
 	for k := 0; k < n; k++ {
 		//Q1 = π(Q)
 		Q1X := pr.Ext2.Conjugate(&Q[k].X)
@@ -1028,7 +1028,7 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	}
 
 	// Compute  ∏ᵢ { ℓᵢ_{[6x₀+2]Q,π(Q)}(P) · ℓᵢ_{[6x₀+2]Q+π(Q),-π²(Q)}(P) }
-	Q1, Q2 := new(G2Affine), new(G2Affine)
+	var Q1, Q2 *G2Affine
 	//Q1 = π(Q)
 	Q1X := pr.Ext2.Conjugate(&Q.X)
 	Q1Y := pr.Ext2.Conjugate(&Q.Y)
