@@ -44,10 +44,10 @@ var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
 )
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.BackendOption) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.VerifierOption) error {
 	log := logger.Logger().With().Str("curve", "bls12-381").Str("backend", "plonk").Logger()
 	start := time.Now()
-	cfg, err := backend.NewBackendConfig(opts...)
+	cfg, err := backend.NewVerifierConfig(opts...)
 	if err != nil {
 		return fmt.Errorf("create backend config: %w", err)
 	}
