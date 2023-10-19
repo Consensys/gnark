@@ -78,6 +78,9 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 					// 2- if we are not running the full prover;
 					// we need to run the solver on the constraint system only
 					if !opt.checkProver {
+						if opt.skipTestEngine {
+							return
+						}
 						for _, w := range invalidWitnesses {
 							w := w
 							assert.Run(func(assert *Assert) {
