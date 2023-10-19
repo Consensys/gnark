@@ -22,6 +22,7 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/hash_to_field"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/pedersen"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16/internal"
@@ -60,7 +61,10 @@ func (proof *Proof) CurveID() ecc.ID {
 func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new prover config: %w", err)
+	}
+	if opt.HashToFieldFn == nil {
+		opt.HashToFieldFn = hash_to_field.New([]byte(constraint.CommitmentDst))
 	}
 
 	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
@@ -87,8 +91,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 					return err
 				}
 
+				opt.HashToFieldFn.Write(constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
+				hashBts := opt.HashToFieldFn.Sum(nil)
+				opt.HashToFieldFn.Reset()
+				nbBuf := fr.Bytes
+				if opt.HashToFieldFn.Size() < fr.Bytes {
+					nbBuf = opt.HashToFieldFn.Size()
+				}
 				var res fr.Element
-				res, err = solveCommitmentWire(&proof.Commitments[i], hashed)
+				res.SetBytes(hashBts[:nbBuf])
 				res.BigInt(out[0])
 				return err
 			}
