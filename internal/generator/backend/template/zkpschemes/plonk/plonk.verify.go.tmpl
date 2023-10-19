@@ -1,5 +1,4 @@
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
     "io"
@@ -38,8 +37,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		return errors.New("BSB22 Commitment number mismatch")
 	}
 
-	// pick a hash function for kzg folding
-	hFunc := sha256.New()
 
 	// transcript to derive the challenge
 	fs := fiatshamir.NewTranscript(cfg.ChallengeHash, "gamma", "beta", "alpha", "zeta")
@@ -251,7 +248,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		digestsToFold,
 		&proof.BatchedProof,
 		zeta,
-		hFunc,
+		cfg.KZGFoldingHash,
 		zu.Marshal(),
 	)
 	if err != nil {
