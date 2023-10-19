@@ -125,7 +125,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 							proof, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
 							assert.noError(err, &w)
 
-							err = concreteBackend.verify(proof, vk, w.public)
+							err = concreteBackend.verify(proof, vk, w.public, opt.verifierOpts...)
 							assert.noError(err, &w)
 
 							if checkSolidity {
@@ -225,7 +225,7 @@ type fnSetup func(ccs constraint.ConstraintSystem, curve ecc.ID) (
 	pkBuilder, vkBuilder, proofBuilder func() any,
 	err error)
 type fnProve func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error)
-type fnVerify func(proof, vk any, publicWitness witness.Witness) error
+type fnVerify func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error
 
 // tBackend abstracts the backend implementation in the test package.
 type tBackend struct {
@@ -246,8 +246,8 @@ var (
 		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
 			return groth16.Prove(ccs, pk.(groth16.ProvingKey), fullWitness, opts...)
 		},
-		verify: func(proof, vk any, publicWitness witness.Witness) error {
-			return groth16.Verify(proof.(groth16.Proof), vk.(groth16.VerifyingKey), publicWitness)
+		verify: func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
+			return groth16.Verify(proof.(groth16.Proof), vk.(groth16.VerifyingKey), publicWitness, opts...)
 		},
 	}
 
@@ -266,8 +266,8 @@ var (
 		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
 			return plonk.Prove(ccs, pk.(plonk.ProvingKey), fullWitness, opts...)
 		},
-		verify: func(proof, vk any, publicWitness witness.Witness) error {
-			return plonk.Verify(proof.(plonk.Proof), vk.(plonk.VerifyingKey), publicWitness)
+		verify: func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
+			return plonk.Verify(proof.(plonk.Proof), vk.(plonk.VerifyingKey), publicWitness, opts...)
 		},
 	}
 
@@ -282,8 +282,8 @@ var (
 		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
 			return plonkfri.Prove(ccs, pk.(plonkfri.ProvingKey), fullWitness, opts...)
 		},
-		verify: func(proof, vk any, publicWitness witness.Witness) error {
-			return plonkfri.Verify(proof, vk.(plonkfri.VerifyingKey), publicWitness)
+		verify: func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
+			return plonkfri.Verify(proof, vk.(plonkfri.VerifyingKey), publicWitness, opts...)
 		},
 	}
 )
