@@ -206,13 +206,9 @@ type instance struct {
 }
 
 func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts *backend.ProverConfig) (*instance, error) {
-	bOpt, err := backend.NewBackendConfig(opts.BackendOpts...)
-	if err != nil {
-			return nil, fmt.Errorf("get backend options: %w", err)
-	}
 	var htfFn hash.Hash
-	if bOpt.HashToFieldFn != nil {
-			htfFn = bOpt.HashToFieldFn
+	if opts.HashToFieldFn != nil {
+			htfFn = opts.HashToFieldFn
 	} else {
 			htfFn = hash_to_field.New([]byte("BSB22-Plonk"))
 	}
