@@ -81,6 +81,10 @@ func WithSolverOptions(solverOpts ...solver.Option) ProverOption {
 	}
 }
 
+// WithProverHashToFieldFunction changes the hash function used for hashing
+// bytes to field. If not set then the default hash function based on RFC 9380
+// is used. Used mainly for compatibility between different systems and
+// efficient recursion.
 func WithProverHashToFieldFunction(hFunc hash.Hash) ProverOption {
 	return func(cfg *ProverConfig) error {
 		cfg.HashToFieldFn = hFunc
@@ -88,12 +92,18 @@ func WithProverHashToFieldFunction(hFunc hash.Hash) ProverOption {
 	}
 }
 
+// VerifierOption defines option for altering the behavior of the verifier. See
+// the descriptions of functions returning instances of this type for
+// implemented options.
 type VerifierOption func(*VerifierConfig) error
 
+// VerifierConfig is the configuration for the verifier with the options applied.
 type VerifierConfig struct {
 	HashToFieldFn hash.Hash
 }
 
+// NewVerifierConfig returns a default [VerifierConfig] with given verifier
+// options applied.
 func NewVerifierConfig(opts ...VerifierOption) (VerifierConfig, error) {
 	opt := VerifierConfig{}
 	for _, option := range opts {
@@ -104,6 +114,10 @@ func NewVerifierConfig(opts ...VerifierOption) (VerifierConfig, error) {
 	return opt, nil
 }
 
+// WithVerifierHashToFieldFunction changes the hash function used for hashing
+// bytes to field. If not set then the default hash function based on RFC 9380
+// is used. Used mainly for compatibility between different systems and
+// efficient recursion.
 func WithVerifierHashToFieldFunction(hFunc hash.Hash) VerifierOption {
 	return func(cfg *VerifierConfig) error {
 		cfg.HashToFieldFn = hFunc
