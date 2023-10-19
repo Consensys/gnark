@@ -58,9 +58,10 @@ type ProverOption func(*ProverConfig) error
 
 // ProverConfig is the configuration for the prover with the options applied.
 type ProverConfig struct {
-	SolverOpts    []solver.Option
-	HashToFieldFn hash.Hash
-	ChallengeHash hash.Hash
+	SolverOpts     []solver.Option
+	HashToFieldFn  hash.Hash
+	ChallengeHash  hash.Hash
+	KZGFoldingHash hash.Hash
 }
 
 // NewProverConfig returns a default ProverConfig with given prover options opts
@@ -69,7 +70,8 @@ func NewProverConfig(opts ...ProverOption) (ProverConfig, error) {
 	opt := ProverConfig{
 		// we cannot initialize HashToFieldFn here as we use different domain
 		// separation tags for PLONK and Groth16
-		ChallengeHash: sha256.New(),
+		ChallengeHash:  sha256.New(),
+		KZGFoldingHash: sha256.New(),
 	}
 	for _, option := range opts {
 		if err := option(&opt); err != nil {
@@ -100,10 +102,22 @@ func WithProverHashToFieldFunction(hFunc hash.Hash) ProverOption {
 
 // WithProverChallengeHashFunction sets the hash function used for computing
 // non-interactive challenges in Fiat-Shamir heuristic. If not set then by
-// default SHA2-256 is used.
+// default SHA2-256 is used. Used mainly for compatibility between different
+// systems and efficient recursion.
 func WithProverChallengeHashFunction(hFunc hash.Hash) ProverOption {
 	return func(pc *ProverConfig) error {
 		pc.ChallengeHash = hFunc
+		return nil
+	}
+}
+
+// WithProverKZGFoldingHashFunction sets the hash function used for computing
+// the challenge when folding the KZG opening proofs. If not set then by default
+// SHA2-256 is used. Used mainly for compatibility between different systems and
+// efficient recursion.
+func WithProverKZGFoldingHashFunction(hFunc hash.Hash) ProverOption {
+	return func(pc *ProverConfig) error {
+		pc.KZGFoldingHash = hFunc
 		return nil
 	}
 }
@@ -115,8 +129,9 @@ type VerifierOption func(*VerifierConfig) error
 
 // VerifierConfig is the configuration for the verifier with the options applied.
 type VerifierConfig struct {
-	HashToFieldFn hash.Hash
-	ChallengeHash hash.Hash
+	HashToFieldFn  hash.Hash
+	ChallengeHash  hash.Hash
+	KZGFoldingHash hash.Hash
 }
 
 // NewVerifierConfig returns a default [VerifierConfig] with given verifier
@@ -125,7 +140,8 @@ func NewVerifierConfig(opts ...VerifierOption) (VerifierConfig, error) {
 	opt := VerifierConfig{
 		// we cannot initialize HashToFieldFn here as we use different domain
 		// separation tags for PLONK and Groth16
-		ChallengeHash: sha256.New(),
+		ChallengeHash:  sha256.New(),
+		KZGFoldingHash: sha256.New(),
 	}
 	for _, option := range opts {
 		if err := option(&opt); err != nil {
@@ -148,10 +164,22 @@ func WithVerifierHashToFieldFunction(hFunc hash.Hash) VerifierOption {
 
 // WithVerifierChallengeHashFunction sets the hash function used for computing
 // non-interactive challenges in Fiat-Shamir heuristic. If not set then by
-// default SHA2-256 is used.
+// default SHA2-256 is used. Used mainly for compatibility between different
+// systems and efficient recursion.
 func WithVerifierChallengeHashFunction(hFunc hash.Hash) VerifierOption {
 	return func(pc *VerifierConfig) error {
 		pc.ChallengeHash = hFunc
+		return nil
+	}
+}
+
+// WithVerifierKZGFoldingHashFunction sets the hash function used for computing
+// the challenge when folding the KZG opening proofs. If not set then by default
+// SHA2-256 is used. Used mainly for compatibility between different systems and
+// efficient recursion.
+func WithVerifierKZGFoldingHashFunction(hFunc hash.Hash) VerifierOption {
+	return func(pc *VerifierConfig) error {
+		pc.KZGFoldingHash = hFunc
 		return nil
 	}
 }
