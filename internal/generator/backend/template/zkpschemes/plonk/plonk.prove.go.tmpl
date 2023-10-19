@@ -206,11 +206,8 @@ type instance struct {
 }
 
 func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts *backend.ProverConfig) (*instance, error) {
-	var htfFn hash.Hash
-	if opts.HashToFieldFn != nil {
-			htfFn = opts.HashToFieldFn
-	} else {
-			htfFn = hash_to_field.New([]byte("BSB22-Plonk"))
+	if opts.HashToFieldFn == nil {
+		opts.HashToFieldFn = hash_to_field.New([]byte("BSB22-Plonk"))
 	}
 	hFunc := sha256.New()
 	s := instance{
@@ -223,7 +220,7 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		bp:                     make([]*iop.Polynomial, nb_blinding_polynomials),
 		fs:                     fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta"),
 		hFunc:                  hFunc,
-		htfFunc:                htfFn,
+		htfFunc:                opts.HashToFieldFn,
 		chLRO:                  make(chan struct{}, 1),
 		chQk:                   make(chan struct{}, 1),
 		chbp:                   make(chan struct{}, 1),

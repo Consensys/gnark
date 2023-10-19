@@ -20,7 +20,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"hash"
 	"io"
 	"math/big"
 	"text/template"
@@ -129,23 +128,19 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 			}
 		}
 
-		var htfFn hash.Hash
-		commitmentDomain := []byte("BSB22-Plonk")
-		if cfg.HashToFieldFn != nil {
-			htfFn = cfg.HashToFieldFn
-		} else {
-			htfFn = hash_to_field.New(commitmentDomain)
+		if cfg.HashToFieldFn == nil {
+			cfg.HashToFieldFn = hash_to_field.New([]byte("BSB22-Plonk"))
 		}
 		var hashBts []byte
 		var hashedCmt fr.Element
 		nbBuf := fr.Bytes
-		if htfFn.Size() < fr.Bytes {
-			nbBuf = htfFn.Size()
+		if cfg.HashToFieldFn.Size() < fr.Bytes {
+			nbBuf = cfg.HashToFieldFn.Size()
 		}
 		for i := range vk.CommitmentConstraintIndexes {
-			htfFn.Write(proof.Bsb22Commitments[i].Marshal())
-			hashBts = htfFn.Sum(hashBts[0:])
-			htfFn.Reset()
+			cfg.HashToFieldFn.Write(proof.Bsb22Commitments[i].Marshal())
+			hashBts = cfg.HashToFieldFn.Sum(hashBts[0:])
+			cfg.HashToFieldFn.Reset()
 			hashedCmt.SetBytes(hashBts[:nbBuf])
 
 			// Computing L_{CommitmentIndex}
