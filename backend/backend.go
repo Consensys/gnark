@@ -57,8 +57,8 @@ type ProverOption func(*ProverConfig) error
 
 // ProverConfig is the configuration for the prover with the options applied.
 type ProverConfig struct {
-	SolverOpts  []solver.Option
-	BackendOpts []BackendOption
+	SolverOpts    []solver.Option
+	HashToFieldFn hash.Hash
 }
 
 // NewProverConfig returns a default ProverConfig with given prover options opts
@@ -81,31 +81,31 @@ func WithSolverOptions(solverOpts ...solver.Option) ProverOption {
 	}
 }
 
-func WithBackendOption(backendOpts ...BackendOption) ProverOption {
-	return func(pc *ProverConfig) error {
-		pc.BackendOpts = append(pc.BackendOpts, backendOpts...)
+func WithProverHashToFieldFunction(hFunc hash.Hash) ProverOption {
+	return func(cfg *ProverConfig) error {
+		cfg.HashToFieldFn = hFunc
 		return nil
 	}
 }
 
-type BackendOption func(*BackendConfig) error
+type VerifierOption func(*VerifierConfig) error
 
-type BackendConfig struct {
+type VerifierConfig struct {
 	HashToFieldFn hash.Hash
 }
 
-func NewBackendConfig(opts ...BackendOption) (BackendConfig, error) {
-	opt := BackendConfig{}
+func NewVerifierConfig(opts ...VerifierOption) (VerifierConfig, error) {
+	opt := VerifierConfig{}
 	for _, option := range opts {
 		if err := option(&opt); err != nil {
-			return BackendConfig{}, err
+			return VerifierConfig{}, err
 		}
 	}
 	return opt, nil
 }
 
-func WithHashToFieldFunction(hFunc hash.Hash) BackendOption {
-	return func(cfg *BackendConfig) error {
+func WithVerifierHashToFieldFunction(hFunc hash.Hash) VerifierOption {
+	return func(cfg *VerifierConfig) error {
 		cfg.HashToFieldFn = hFunc
 		return nil
 	}
