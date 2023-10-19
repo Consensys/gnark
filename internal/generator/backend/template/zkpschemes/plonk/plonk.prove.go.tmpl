@@ -163,7 +163,7 @@ type instance struct {
 	opt   *backend.ProverConfig
 
 	fs      fiatshamir.Transcript
-	hFunc   hash.Hash  // for Fiat-Shamir and KZG folding
+	hFunc   hash.Hash  // for KZG folding
 	htfFunc hash.Hash  // hash to field function
 
 	// polynomials
@@ -218,7 +218,7 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		opt:                    opts,
 		fullWitness:            fullWitness,
 		bp:                     make([]*iop.Polynomial, nb_blinding_polynomials),
-		fs:                     fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta"),
+		fs:                     fiatshamir.NewTranscript(opts.ChallengeHash, "gamma", "beta", "alpha", "zeta"),
 		hFunc:                  hFunc,
 		htfFunc:                opts.HashToFieldFn,
 		chLRO:                  make(chan struct{}, 1),
