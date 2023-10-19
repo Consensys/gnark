@@ -53,6 +53,10 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 	// when the inputs are of mismatching length. It does not modify the inputs.
 	PairingCheck([]*G1El, []*G2El) error
 
+	// DoublePairingFixedQCheck is the same as PairingCheck but of size 2 and
+	// where one of the G2El argument is the fixed canonical generator of G2.
+	DoublePairingFixedQCheck([2]*G1El, *G2El) error
+
 	// AssertIsEqual asserts the equality of the inputs.
 	AssertIsEqual(*GtEl, *GtEl)
 }

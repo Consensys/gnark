@@ -254,9 +254,9 @@ func (vk *Verifier[S, G1El, G2El, GtEl]) AssertProof(commitment Commitment[G1El]
 	totalG1 = vk.curve.Add(totalG1, fminusfaG1)
 
 	// e([f(α)-f(a)+aH(α)]G₁], G₂).e([-H(α)]G₁, [α]G₂) == 1
-	if err := vk.pairing.PairingCheck(
-		[]*G1El{totalG1, negQuotientPoly},
-		[]*G2El{&vk.SRS[0], &vk.SRS[1]},
+	if err := vk.pairing.DoublePairingFixedQCheck(
+		[2]*G1El{totalG1, negQuotientPoly},
+		&vk.SRS[1],
 	); err != nil {
 		return fmt.Errorf("pairing check: %w", err)
 	}

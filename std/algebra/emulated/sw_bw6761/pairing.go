@@ -132,6 +132,25 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
+// DoublePairingFixedQCheck calculates the reduced pairing for a set of points
+// and asserts if the result is One e(P0, Q) * e(P1, g2) =? 1, where g2 is
+// fixed.
+//
+// This function doesn't check that the inputs are in the correct subgroups
+// TODO: implement a faster version of this function
+func (pr Pairing) DoublePairingFixedQCheck(P [2]*G1Affine, Q *G2Affine) error {
+	_, _, _, g2 := bw6761.Generators()
+	Q0 := NewG2Affine(g2)
+	f, err := pr.Pair([]*G1Affine{P[0], P[1]}, []*G2Affine{&Q0, Q})
+	if err != nil {
+		return err
+	}
+	one := pr.One()
+	pr.AssertIsEqual(f, one)
+
+	return nil
+}
+
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext6.AssertIsEqual(x, y)
 }
