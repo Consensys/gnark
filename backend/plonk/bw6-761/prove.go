@@ -18,7 +18,6 @@ package plonk
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"hash"
@@ -185,9 +184,9 @@ type instance struct {
 	spr   *cs.SparseR1CS
 	opt   *backend.ProverConfig
 
-	fs      fiatshamir.Transcript
-	hFunc   hash.Hash // for Fiat-Shamir and KZG folding
-	htfFunc hash.Hash // hash to field function
+	fs             fiatshamir.Transcript
+	kzgFoldingHash hash.Hash // for KZG folding
+	htfFunc        hash.Hash // hash to field function
 
 	// polynomials
 	x        []*iop.Polynomial // x stores tracks the polynomial we need
@@ -232,7 +231,6 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	if opts.HashToFieldFn == nil {
 		opts.HashToFieldFn = hash_to_field.New([]byte("BSB22-Plonk"))
 	}
-	hFunc := sha256.New()
 	s := instance{
 		ctx:                    ctx,
 		pk:                     pk,
@@ -241,8 +239,8 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		opt:                    opts,
 		fullWitness:            fullWitness,
 		bp:                     make([]*iop.Polynomial, nb_blinding_polynomials),
-		fs:                     fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta"),
-		hFunc:                  hFunc,
+		fs:                     fiatshamir.NewTranscript(opts.ChallengeHash, "gamma", "beta", "alpha", "zeta"),
+		kzgFoldingHash:         opts.KZGFoldingHash,
 		htfFunc:                opts.HashToFieldFn,
 		chLRO:                  make(chan struct{}, 1),
 		chQk:                   make(chan struct{}, 1),
@@ -827,7 +825,7 @@ func (s *instance) batchOpening() error {
 		polysToOpen,
 		digestsToOpen,
 		s.zeta,
-		s.hFunc,
+		s.kzgFoldingHash,
 		s.pk.Kzg,
 		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
 	)

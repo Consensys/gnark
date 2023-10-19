@@ -17,7 +17,6 @@
 package plonk
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -55,11 +54,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		return errors.New("BSB22 Commitment number mismatch")
 	}
 
-	// pick a hash function to derive the challenge (the same as in the prover)
-	hFunc := sha256.New()
-
 	// transcript to derive the challenge
-	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
+	fs := fiatshamir.NewTranscript(cfg.ChallengeHash, "gamma", "beta", "alpha", "zeta")
 
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
@@ -268,7 +264,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		digestsToFold,
 		&proof.BatchedProof,
 		zeta,
-		hFunc,
+		cfg.KZGFoldingHash,
 		zu.Marshal(),
 	)
 	if err != nil {
