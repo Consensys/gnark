@@ -61,3 +61,7 @@
 {{- define "import_gkr"}}
 	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/gkr"
 {{- end}}
+
+{{- define "import_hash_to_field" }}
+	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve}}/fr/hash_to_field"
+{{- end}}
