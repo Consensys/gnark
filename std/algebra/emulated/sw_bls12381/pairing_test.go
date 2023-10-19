@@ -292,7 +292,7 @@ func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.DoublePairFixedQ(&c.In1G1, &c.In2G1, &c.In1G2)
+	res, err := pairing.DoublePairFixedQ([2]*G1Affine{&c.In1G1, &c.In2G1}, &c.In1G2)
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
