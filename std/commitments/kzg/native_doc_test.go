@@ -2,7 +2,6 @@ package kzg_test
 
 import (
 	"crypto/rand"
-	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -126,6 +125,4 @@ func Example_native() {
 	if err != nil {
 		panic("circuit verification failed: " + err.Error())
 	}
-	fmt.Println("done")
-	// Output: done
 }

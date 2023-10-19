@@ -1,8 +1,6 @@
 package groth16_test
 
 import (
-	"fmt"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
@@ -84,6 +82,4 @@ func Example_native() {
 	if err != nil {
 		panic("circuit verification failed: " + err.Error())
 	}
-	fmt.Println("done")
-	// Output: done
 }
