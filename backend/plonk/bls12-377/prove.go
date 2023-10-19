@@ -20,7 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
-	"golang.org/x/sync/errgroup"
+	"fmt"
 	"hash"
 	"math/big"
 	"math/bits"
@@ -28,24 +28,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/consensys/gnark/backend/witness"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/consensys/gnark-crypto/ecc"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
-
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/hash_to_field"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/iop"
-	cs "github.com/consensys/gnark/constraint/bls12-377"
 
-	"github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
+	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/witness"
+
 	"github.com/consensys/gnark/constraint"
+	cs "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
@@ -122,14 +123,17 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// parse the options
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get prover options: %w", err)
 	}
 
 	start := time.Now()
 
 	// init instance
 	g, ctx := errgroup.WithContext(context.Background())
-	instance := newInstance(ctx, spr, pk, fullWitness, &opt)
+	instance, err := newInstance(ctx, spr, pk, fullWitness, &opt)
+	if err != nil {
+		return nil, fmt.Errorf("new instance: %w", err)
+	}
 
 	// solve constraints
 	g.Go(instance.solveConstraints)
@@ -181,8 +185,9 @@ type instance struct {
 	spr   *cs.SparseR1CS
 	opt   *backend.ProverConfig
 
-	fs    fiatshamir.Transcript
-	hFunc hash.Hash
+	fs      fiatshamir.Transcript
+	hFunc   hash.Hash // for Fiat-Shamir and KZG folding
+	htfFunc hash.Hash // hash to field function
 
 	// polynomials
 	x        []*iop.Polynomial // x stores tracks the polynomial we need
@@ -223,7 +228,17 @@ type instance struct {
 	chGammaBeta chan struct{}
 }
 
-func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts *backend.ProverConfig) instance {
+func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts *backend.ProverConfig) (*instance, error) {
+	bOpt, err := backend.NewBackendConfig(opts.BackendOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("get backend options: %w", err)
+	}
+	var htfFn hash.Hash
+	if bOpt.HashToFieldFn != nil {
+		htfFn = bOpt.HashToFieldFn
+	} else {
+		htfFn = hash_to_field.New([]byte("BSB22-Plonk"))
+	}
 	hFunc := sha256.New()
 	s := instance{
 		ctx:                    ctx,
@@ -235,6 +250,7 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		bp:                     make([]*iop.Polynomial, nb_blinding_polynomials),
 		fs:                     fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta"),
 		hFunc:                  hFunc,
+		htfFunc:                htfFn,
 		chLRO:                  make(chan struct{}, 1),
 		chQk:                   make(chan struct{}, 1),
 		chbp:                   make(chan struct{}, 1),
@@ -251,7 +267,7 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	s.setupGKRHints()
 	s.x = make([]*iop.Polynomial, id_Qci+2*len(s.commitmentInfo))
 
-	return s
+	return &s, nil
 }
 
 func (s *instance) initComputeNumerator() error {
@@ -309,6 +325,8 @@ func (s *instance) initBSB22Commitments() {
 // Computing and verifying Bsb22 multi-commits explained in https://hackmd.io/x8KsadW3RRyX7YTCFJIkHg
 func (s *instance) bsb22Hint(commDepth int) solver.Hint {
 	return func(_ *big.Int, ins, outs []*big.Int) error {
+		var err error
+
 		res := &s.commitmentVal[commDepth]
 
 		commitmentInfo := s.spr.CommitmentInfo.(constraint.PlonkCommitments)[commDepth]
@@ -317,10 +335,6 @@ func (s *instance) bsb22Hint(commDepth int) solver.Hint {
 		for i := range ins {
 			committedValues[offset+commitmentInfo.Committed[i]].SetBigInt(ins[i])
 		}
-		var (
-			err     error
-			hashRes []fr.Element
-		)
 		if _, err = committedValues[offset+commitmentInfo.CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
 			return err
 		}
@@ -333,10 +347,14 @@ func (s *instance) bsb22Hint(commDepth int) solver.Hint {
 		}
 		s.cCommitments[commDepth].ToCanonical(&s.pk.Domain[0]).ToRegular()
 
-		if hashRes, err = fr.Hash(s.proof.Bsb22Commitments[commDepth].Marshal(), []byte("BSB22-Plonk"), 1); err != nil {
-			return err
+		s.htfFunc.Write(s.proof.Bsb22Commitments[commDepth].Marshal())
+		hashBts := s.htfFunc.Sum(nil)
+		s.htfFunc.Reset()
+		nbBuf := fr.Bytes
+		if s.htfFunc.Size() < fr.Bytes {
+			nbBuf = s.htfFunc.Size()
 		}
-		res.Set(&hashRes[0]) // TODO @Tabaie use CommitmentIndex for this; create a new variable CommitmentConstraintIndex for other uses
+		res.SetBytes(hashBts[:nbBuf]) // TODO @Tabaie use CommitmentIndex for this; create a new variable CommitmentConstraintIndex for other uses
 		res.BigInt(outs[0])
 
 		return nil
