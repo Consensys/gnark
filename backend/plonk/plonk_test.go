@@ -61,7 +61,6 @@ func TestProver(t *testing.T) {
 }
 
 func TestCustomHashToField(t *testing.T) {
-	t.Skip()
 	assert := test.NewAssert(t)
 	assignment := &commitmentCircuit{X: 1}
 	for _, curve := range getCurves() {
@@ -75,15 +74,15 @@ func TestCustomHashToField(t *testing.T) {
 			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
 			assert.NoError(err)
 			assert.Run(func(assert *test.Assert) {
-				proof, err := plonk.Prove(ccs, pk, witness, backend.WithBackendOption(backend.WithHashToFieldFunction(constantHash{})))
+				proof, err := plonk.Prove(ccs, pk, witness, backend.WithProverHashToFieldFunction(constantHash{}))
 				assert.NoError(err)
 				pubWitness, err := witness.Public()
 				assert.NoError(err)
-				err = plonk.Verify(proof, vk, pubWitness, backend.WithHashToFieldFunction(constantHash{}))
+				err = plonk.Verify(proof, vk, pubWitness, backend.WithVerifierHashToFieldFunction(constantHash{}))
 				assert.NoError(err)
 			}, "custom success")
 			assert.Run(func(assert *test.Assert) {
-				proof, err := plonk.Prove(ccs, pk, witness, backend.WithBackendOption(backend.WithHashToFieldFunction(constantHash{})))
+				proof, err := plonk.Prove(ccs, pk, witness, backend.WithProverHashToFieldFunction(constantHash{}))
 				assert.NoError(err)
 				pubWitness, err := witness.Public()
 				assert.NoError(err)
