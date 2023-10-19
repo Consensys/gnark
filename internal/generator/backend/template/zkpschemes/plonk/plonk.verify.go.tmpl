@@ -15,7 +15,7 @@ import (
 	{{ if eq .Curve "BN254" -}}
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	{{- end }}
-	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/hash_to_field"
+	{{- template "import_hash_to_field" . }}
 	{{ template "import_kzg" . }}
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"

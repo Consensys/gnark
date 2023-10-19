@@ -16,7 +16,7 @@ import (
 	{{ template "import_curve" . }}
 	{{ template "import_fr" . }}
 	{{ template "import_fft" . }}
-	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/hash_to_field"
+	{{- template "import_hash_to_field" . }}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/iop"
 	{{ template "import_kzg" . }}
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
