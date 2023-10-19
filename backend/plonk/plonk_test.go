@@ -141,6 +141,48 @@ func TestCustomChallengeHash(t *testing.T) {
 	}
 }
 
+func TestCustomKZGFoldingHash(t *testing.T) {
+	assert := test.NewAssert(t)
+	assignment := &smallCircuit{X: 1}
+	for _, curve := range getCurves() {
+		curve := curve
+		assert.Run(func(assert *test.Assert) {
+			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &smallCircuit{})
+			assert.NoError(err)
+			srs, err := test.NewKZGSRS(ccs)
+			assert.NoError(err)
+			pk, vk, err := plonk.Setup(ccs, srs)
+			assert.NoError(err)
+			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
+			assert.NoError(err)
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness, backend.WithProverKZGFoldingHashFunction(constantHash{}))
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness, backend.WithVerifierKZGFoldingHashFunction(constantHash{}))
+				assert.NoError(err)
+			}, "prover_verifier")
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness, backend.WithProverKZGFoldingHashFunction(constantHash{}))
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness)
+				assert.Error(err)
+			}, "prover_only")
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness)
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness, backend.WithVerifierKZGFoldingHashFunction(constantHash{}))
+				assert.Error(err)
+			}, "verifier_only")
+		}, curve.String())
+	}
+}
+
 func BenchmarkSetup(b *testing.B) {
 	for _, curve := range getCurves() {
 		b.Run(curve.String(), func(b *testing.B) {
