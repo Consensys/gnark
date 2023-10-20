@@ -60,5 +60,5 @@ examples/gbotrel/**
 # compression related files
 *.raw
 *.pdf
-cs.gz
-pk.gz
+*cs.gz
+*pk.gz

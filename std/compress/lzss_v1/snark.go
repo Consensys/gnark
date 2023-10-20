@@ -2,6 +2,7 @@ package lzss_v1
 
 import (
 	"errors"
+	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
@@ -50,6 +51,10 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 	dLength = 0
 
 	for outI := range d {
+
+		if outI%2000 == 0 {
+			fmt.Println("compilation at", outI, "out of", len(d), ";", outI*100/len(d), "%")
+		}
 
 		curr := readC(inI, 1)[0]
 		brLen := api.Add(readLittleEndian(api, readC(api.Add(inI, 1+settings.NbBytesAddress), int(settings.NbBytesLength))), 1)
