@@ -2,12 +2,13 @@ package cmp_test
 
 import (
 	"fmt"
+	"math/big"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/cmp"
-	"math/big"
 )
 
 // sortCheckerCircuit is a circuit that uses BoundedComparator.IsLess method to
@@ -42,43 +43,27 @@ func ExampleBoundedComparator_IsLess() {
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("compiled")
 	}
 	pk, vk, err := groth16.Setup(ccs)
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("setup done")
 	}
 	secretWitness, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("secret witness")
 	}
 	publicWitness, err := secretWitness.Public()
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("public witness")
 	}
 	proof, err := groth16.Prove(ccs, pk, secretWitness)
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("proof")
 	}
 	err = groth16.Verify(proof, vk, publicWitness)
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("verify")
 	}
-	// Output: compiled
-	// setup done
-	// secret witness
-	// public witness
-	// proof
-	// verify
+	fmt.Println("done")
+	// Output: done
 }
