@@ -3,6 +3,7 @@ module github.com/consensys/gnark
 go 1.19
 
 require (
+	github.com/DataDog/zstd v1.5.5
 	github.com/bits-and-blooms/bitset v1.8.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
@@ -10,6 +11,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b
+	github.com/klauspost/compress v1.17.1
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.30.0
 	github.com/stretchr/testify v1.8.4
