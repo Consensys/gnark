@@ -158,6 +158,8 @@ func TestAverageBatch(t *testing.T) {
 	fmt.Println("zstd compression ratio:", zstdRes.ratio)
 	fmt.Println("lzss compression ratio:", lzssRes.ratio)
 
+	assert.Equal(lzssRes.ratio, 5.23342939481268, "regression check")
+
 	// test decompress round trip with s2, zstd and lzss
 	s2Decompressed, err := decompressWithS2(s2Res.compressed)
 	assert.NoError(err)
@@ -172,6 +174,50 @@ func TestAverageBatch(t *testing.T) {
 	assert.True(bytes.Equal(data, zstdDecompressed))
 	assert.True(bytes.Equal(data, lzssDecompressed))
 
+}
+
+func BenchmarkAverageBatch(b *testing.B) {
+	// read the file
+	d, err := os.ReadFile("./average_block.hex")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	// convert to bytes
+	data, err := hex.DecodeString(string(d))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	// benchmark s2
+	b.Run("s2", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := compressWithS2(data)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	// benchmark zstd
+	b.Run("zstd", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := compressWithZstd(data)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	// benchmark lzss
+	b.Run("lzss", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := compresslzss_v1(data)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
 }
 
 type compressResult struct {
