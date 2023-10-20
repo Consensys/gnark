@@ -17,7 +17,6 @@
 package plonkfri
 
 import (
-	"crypto/sha256"
 	"math/big"
 	"math/bits"
 	"runtime"
@@ -76,11 +75,8 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 
 	var proof Proof
 
-	// pick a hash function that will be used to derive the challenges
-	hFunc := sha256.New()
-
 	// 0 - Fiat Shamir
-	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
+	fs := fiatshamir.NewTranscript(opt.ChallengeHash, "gamma", "beta", "alpha", "zeta")
 
 	// 1 - solve the system
 	_solution, err := spr.Solve(fullWitness, opt.SolverOpts...)
