@@ -1,9 +1,8 @@
 package lzss_v1
 
 import (
-	"bytes"
 	"encoding/binary"
-	"fmt"
+	"github.com/consensys/gnark/std/compress"
 	"index/suffixarray"
 	"math/bits"
 
@@ -21,14 +20,14 @@ import (
 // In fact, DEFLATE is LZSS + Huffman coding. It is implemented in gzip which is the standard tool for compressing programmatic data.
 // For more information, refer to Bill Bird's fantastic undergraduate course on Data Compression
 // In particular those on the LZ family: https://youtu.be/z1I1o7zySUI and DEFLATE: https://youtu.be/SJPvNi4HrWQ
-func Compress(d []byte, settings Settings) (c []byte, err error) {
+func Compress(d []byte, settings Settings) (c compress.Stream, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
-	var out bytes.Buffer
+	c.NbSymbs = 257
 
 	emitBackRef := func(offset, length int) {
-		out.WriteByte(0)
-		emit(&out, offset-1, settings.NbBytesAddress)
-		emit(&out, length-1, settings.NbBytesLength)
+		c.D = append(c.D, 256)
+		emit(&c.D, offset-1, settings.NbBytesAddress)
+		emit(&c.D, length-1, settings.NbBytesLength)
 	}
 	compressor := newCompressor(d, settings)
 	i := int(settings.StartAt)
@@ -36,10 +35,7 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		addr, length := compressor.longestMostRecentBackRef(i)
 		if length == -1 {
 			// no backref found
-			if d[i] == 0 {
-				return nil, fmt.Errorf("could not find an RLE backref at index %d", i)
-			}
-			out.WriteByte(d[i])
+			c.D = append(c.D, int(d[i]))
 			i++
 			continue
 		}
@@ -47,7 +43,7 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		i += length
 	}
 
-	return out.Bytes(), nil
+	return
 }
 
 type compressor struct {
@@ -90,34 +86,6 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 
 	windowStart := utils.Max(0, minBackRefAddr)
 	endWindow := utils.Min(i+brAddressRange, len(d))
-
-	if d[i] == 0 { // RLE; prune the options
-		// we can't encode 0 as is, so we must find a backref.
-
-		// runLen := compressor.countZeroes(i, brLengthRange) // utils.Min(getRunLength(d, i), brLengthRange)
-		runLen := utils.Min(compressor.longestZeroPrefix[i], brLengthRange)
-
-		backrefAddr := -1
-		backrefLen := -1
-		for j := i - 1; j >= windowStart; j-- {
-			n := utils.Min(compressor.longestZeroPrefix[j], runLen)
-			if n == 0 {
-				continue
-			}
-			// check if we can make this backref longer
-			m := matchLen(d[i+n:endWindow], d[j+n:]) + n
-
-			if m > backrefLen {
-				if m >= brLengthRange {
-					// we can stop we won't find a longer backref
-					return j, brLengthRange
-				}
-				backrefLen = m
-				backrefAddr = j
-			}
-		}
-		return backrefAddr, backrefLen
-	}
 
 	// else -->
 	// d[i] != 0
@@ -175,10 +143,10 @@ func matchLen(a, b []byte) (n int) {
 
 }
 
-func emit(bb *bytes.Buffer, n int, nbBytes uint) {
+func emit(bb *[]int, n int, nbBytes uint) {
 	for i := uint(0); i < nbBytes; i++ {
-		bb.WriteByte(byte(n))
-		n >>= 8
+		*bb = append(*bb, n%257)
+		n /= 257
 	}
 	if n != 0 {
 		panic("n does not fit in nbBytes")
