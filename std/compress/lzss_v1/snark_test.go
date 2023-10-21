@@ -239,16 +239,19 @@ func BenchmarkCompilation600KBSnark(b *testing.B) {
 }
 
 func testCompressionRoundTripSnark(t *testing.T, nbBytesOffset uint, d []byte) {
+	const contextSize = 256
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: nbBytesOffset,
 			NbBytesLength:  1,
 		},
+		StartAt: contextSize,
 	}
 
+	d = append(make([]byte, contextSize), d...)
 	c, err := Compress(d, settings)
 	require.NoError(t, err)
-	testDecompressionSnark(t, nbBytesOffset, c, d)
+	testDecompressionSnark(t, nbBytesOffset, c, d[contextSize:])
 }
 
 func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte) {

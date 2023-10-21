@@ -26,11 +26,14 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 		d, err = os.ReadFile("../test_cases/" + testCaseName[0] + "/data.bin")
 		require.NoError(t, err)
 	}
+	const contextSize = 256
+	d = append(make([]byte, contextSize), d...)
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: nbBytesAddress,
 			NbBytesLength:  1,
 		},
+		StartAt: 256,
 	}
 	c, err := Compress(d, settings)
 	if len(testCaseName) == 1 {
@@ -38,8 +41,8 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 	}
 	cStream := compress.NewStreamFromBytes(c)
 	cHuff := huffman.Encode(cStream)
-	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
-	fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*len(d))/float64(len(cHuff.D)))
+	fmt.Println("Size Compression ratio:", float64(len(d)-contextSize)/float64(len(c)))
+	fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*(len(d)-contextSize))/float64(len(cHuff.D)))
 	if len(c) > 1024 {
 		fmt.Printf("Compressed size: %dKB\n", int(float64(len(c)*100)/1024)/100)
 		fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/8192)/100)
@@ -53,7 +56,7 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 		printHex(c)
 	}
 
-	require.Equal(t, d, dBack)
+	require.Equal(t, d[contextSize:], dBack)
 
 	// store huffman code lengths
 	lens := huffman.GetCodeLengths(cStream)
@@ -290,11 +293,14 @@ func decompresslzss_v1(data []byte) ([]byte, error) {
 }
 
 func compresslzss_v1(data []byte) (compressResult, error) {
+	const contextSize = 256
+	data = append(make([]byte, contextSize), data...)
 	c, err := Compress(data, Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: 2,
 			NbBytesLength:  1,
 		},
+		StartAt: 256,
 	})
 	if err != nil {
 		return compressResult{}, err
