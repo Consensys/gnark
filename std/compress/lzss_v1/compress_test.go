@@ -4,17 +4,18 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+
+	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/compress/huffman"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/consensys/gnark/std/compress"
-	"github.com/consensys/gnark/std/compress/huffman"
 	"github.com/klauspost/compress/s2"
 	"github.com/klauspost/compress/zstd"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testCaseName ...string) {
@@ -117,119 +118,6 @@ func TestCalldata(t *testing.T) {
 
 func TestLongBackrefBug(t *testing.T) {
 	testCompressionRoundTrip(t, 2, nil, "bug")
-}
-
-func TestCompressWithContext(t *testing.T) {
-
-	d, err := os.ReadFile("../test_cases/large/data.bin")
-	assert.NoError(t, err)
-	context, err := os.ReadFile("../test_cases/large/neg-table.bin")
-	assert.NoError(t, err)
-	settings := Settings{
-		BackRefSettings: BackRefSettings{
-			NbBytesAddress: 2,
-			NbBytesLength:  1,
-		},
-		StartAt: uint(len(context)),
-	}
-
-	D := make([]byte, len(d)+len(context))
-	copy(D, context)
-	copy(D[len(context):], d)
-
-	c, err := Compress(D, settings)
-	require.NoError(t, err)
-
-	cStream := compress.NewStreamFromBytes(c)
-	cHuff := huffman.Encode(cStream)
-	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(c)))
-	nbBr := nbBackrefs(c)
-	fmt.Printf("Backreferences comprise %d KB, %d%% of total siz\ne", nbBr/250, 400*nbBr/len(c))
-
-	fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*len(d))/float64(len(cHuff.D)))
-	if len(c) > 1024 {
-		fmt.Printf("Compressed size: %dKB\n", int(float64(len(c)*100)/1024)/100)
-		fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/8192)/100)
-	}
-
-	references, _ := usageStatistics(c)
-	var unused []int
-	for i := 0; i < len(context); i++ {
-		if references[i] == 0 {
-			unused = append(unused, i)
-		}
-	}
-	fmt.Println(len(unused), "unused bytes in context", unused)
-}
-
-func nbBackrefs(c []byte) int {
-	res := 0
-	for i := 0; i < len(c); i++ {
-		if c[i] == 0 {
-			res++
-			i += 3
-		}
-	}
-	return res
-}
-
-func usageStatistics(c []byte) (references []int, isReference []bool) {
-
-	dI := 0
-	for cI := 0; cI < len(c); cI++ {
-		if c[cI] == 0 {
-			offset := (int(c[cI+1]) | (int(c[cI+2]) << 8)) + 1
-			length := int(c[cI+3]) + 1
-
-			for end := dI + length; dI < end; dI++ {
-				isReference = append(isReference, true)
-				references = append(references, 0)
-				if dI-offset >= 0 {
-					references[dI-offset]++
-				}
-			}
-			cI += 3
-		} else {
-			references = append(references, 0)
-			isReference = append(isReference, false)
-			dI++
-		}
-	}
-	return
-}
-
-func TestFindUncoveredButReferredTo(t *testing.T) {
-	d, err := os.ReadFile("../test_cases/large/data.bin")
-	require.NoError(t, err)
-	settings := Settings{
-		BackRefSettings: BackRefSettings{
-			NbBytesAddress: 2,
-			NbBytesLength:  1,
-		},
-	}
-	c, err := Compress(d, settings)
-
-	out := make([]byte, 256)
-
-	references, isReference := usageStatistics(c)
-
-	totalLen := 0
-	start := 0
-	for i := range d {
-		if isReference[i] || references[i] == 0 {
-			// flush
-			if i-start >= 4 {
-				fmt.Println(hex.EncodeToString(d[start:i]))
-				fmt.Println("number of references", references[start:i])
-				out = append(out, d[start:i]...)
-				totalLen += i - start
-			}
-
-			start = i + 1
-		}
-	}
-	fmt.Println("totalLen", totalLen, "bytes")
-	assert.NoError(t, os.WriteFile("../test_cases/large/neg-table.bin", out, 0600))
 }
 
 func printHex(d []byte) {
