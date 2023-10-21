@@ -100,7 +100,7 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 
 		backrefAddr := -1
 		backrefLen := -1
-		for j := windowStart; j < i; j++ {
+		for j := i - 1; j >= windowStart; j-- {
 			n := utils.Min(compressor.longestZeroPrefix[j], runLen)
 			if n != 0 && n > backrefLen {
 				backrefLen = n
