@@ -1,9 +1,8 @@
 module github.com/consensys/gnark
 
-go 1.19
+go 1.20
 
 require (
-	github.com/DataDog/zstd v1.5.5
 	github.com/bits-and-blooms/bitset v1.8.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13

@@ -2,7 +2,11 @@ package lzss_v1
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
+	"index/suffixarray"
+	"math/bits"
+
 	"github.com/consensys/gnark-crypto/utils"
 )
 
@@ -21,133 +25,179 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
 
-	backRefLengthRange := 1 << (settings.NbBytesLength * 8)
-
 	emitBackRef := func(offset, length int) {
 		out.WriteByte(0)
 		emit(&out, offset-1, settings.NbBytesAddress)
 		emit(&out, length-1, settings.NbBytesLength)
 	}
 
+	compressor := newCompressor(d, settings)
 	i := 0
 	for i < len(d) {
-
-		if addr, length := longestMostRecentBackRef(d, i, settings); length != -1 {
-
-			// if we're fortunate enough to have found a backref that is "too long", break it up
-			for remainingLen := length; remainingLen > 0; remainingLen -= backRefLengthRange { // TODO Is this necessary? Does longestMostRecentBackRef ever give an overly lengthy result?
-				nbWriting := utils.Min(remainingLen, backRefLengthRange)
-				emitBackRef(i-addr, nbWriting)
+		addr, length := compressor.longestMostRecentBackRef(i)
+		if length == -1 {
+			// no backref found
+			if d[i] == 0 {
+				return nil, fmt.Errorf("could not find an RLE backref at index %d", i)
 			}
-			i += length
+			out.WriteByte(d[i])
+			i++
 			continue
 		}
 
-		// no backref found
-		if d[i] == 0 {
-			return nil, fmt.Errorf("could not find an RLE backref at index %d", i)
-		} else {
-			out.WriteByte(d[i])
-			i++
-		}
-
+		emitBackRef(i-addr, length)
+		i += length
 	}
 
 	return out.Bytes(), nil
 }
 
-// longestMostRecentBackRef attempts to find a backref that is 1) longest 2) most recent in that order of priority
-func longestMostRecentBackRef(d []byte, i int, settings Settings) (addr, length int) {
-	var backRefLen int
-	brAddressRange := 1 << (settings.NbBytesAddress * 8)
-	brLengthRange := 1 << (settings.NbBytesLength * 8)
-	minBackRefAddr := i - brAddressRange
-
-	// TODO: Implement an efficient string search algorithm
-	// greedily find the longest backref with smallest offset TODO better heuristic?
-	remainingOptions := make(map[int]struct{})
-	if d[i] == 0 { // RLE; prune the options
-		runLen := utils.Min(getRunLength(d, i), brLengthRange)
-		longestLen := 0
-		if i == 0 || d[i-1] == 0 {
-			remainingOptions[i-1] = struct{}{}
-			longestLen = runLen
-		}
-
-		for j := i - 1; j >= 0 && j >= minBackRefAddr; {
-			if d[j] != 0 {
-				j--
-				continue
-			}
-
-			currentRunLen := getRunLengthRev(d, j)
-			usableRunLen := min(currentRunLen, runLen, j-minBackRefAddr)
-			if usableRunLen == longestLen {
-				remainingOptions[j-usableRunLen+1] = struct{}{}
-			} else if usableRunLen > longestLen {
-				remainingOptions = map[int]struct{}{j - usableRunLen + 1: {}}
-				longestLen = usableRunLen
-			}
-			j -= currentRunLen
-		}
-		if negativeRun := utils.Min(utils.Max(0, -minBackRefAddr), runLen); longestLen < negativeRun {
-			longestLen = negativeRun
-			remainingOptions = map[int]struct{}{-negativeRun: {}}
-		}
-
-		backRefLen = longestLen
-
-	} else {
-		backRefLen = 1 + int(settings.NbBytesAddress+settings.NbBytesLength)
-		if i+backRefLen > len(d) {
-			return -1, -1
-		}
-		minViableBackRef := d[i : i+backRefLen]
-		// find backref candidates that satisfy the minimum length requirement
-
-		for j := i - 1; j >= 0 && j >= minBackRefAddr; j-- {
-			if j+backRefLen > len(d) {
-				continue
-			}
-			if bytesEqual(d[j:j+backRefLen], minViableBackRef) {
-				remainingOptions[j] = struct{}{}
-			}
-		}
-	}
-
-	var toDelete []int
-
-	// now find the longest backref among the candidates
-	for ; i+backRefLen <= len(d); backRefLen++ {
-		for _, j := range toDelete {
-			delete(remainingOptions, j)
-		}
-		toDelete = toDelete[:0]
-		for j := range remainingOptions {
-			if i+backRefLen >= len(d) || d[j+backRefLen] != d[i+backRefLen] {
-				toDelete = append(toDelete, j)
-			}
-		}
-		// no options left
-		if len(toDelete) == len(remainingOptions) {
-			break
-		}
-	}
-	// never had any candidates in the first place
-	if len(remainingOptions) == 0 {
-		return -1, -1
-	}
-	// we have candidates of the same length, so pick the most recent
-	mostRecent := minBackRefAddr - 1
-	for j := range remainingOptions {
-		if j > mostRecent {
-			mostRecent = j
-		}
-	}
-	return mostRecent, backRefLen
+type compressor struct {
+	// TODO @gbotrel we have to be a bit careful with the size
+	// and do some extra checks; here we assume that we never compress more than 1MB
+	longestZeroPrefix [1 << 20]int // longestZeroPrefix[i] = longest run of zeroes starting at i
+	d                 []byte
+	index             *suffixarray.Index
+	settings          Settings
 }
 
-// emit writes little endian
+func newCompressor(d []byte, settings Settings) *compressor {
+	compressor := &compressor{
+		d:        d,
+		index:    suffixarray.New(d),
+		settings: settings,
+	}
+	compressor.initZeroPrefix()
+	return compressor
+}
+
+func (compressor *compressor) initZeroPrefix() {
+	d := compressor.d
+	for j := len(d) - 1; j >= 0; j-- {
+		if d[j] != 0 {
+			compressor.longestZeroPrefix[j] = 0
+			continue
+		}
+		compressor.longestZeroPrefix[j] = 1 + compressor.longestZeroPrefix[j+1]
+	}
+}
+
+// longestMostRecentBackRef attempts to find a backref that is 1) longest 2) most recent in that order of priority
+func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int) {
+	d := compressor.d
+	// var backRefLen int
+	brAddressRange := 1 << (compressor.settings.NbBytesAddress * 8)
+	brLengthRange := 1 << (compressor.settings.NbBytesLength * 8)
+	minBackRefAddr := i - brAddressRange
+
+	if d[i] == 0 { // RLE; prune the options
+		// we can't encode 0 as is, so we must find a backref.
+
+		// runLen := compressor.countZeroes(i, brLengthRange) // utils.Min(getRunLength(d, i), brLengthRange)
+		runLen := utils.Min(compressor.longestZeroPrefix[i], brLengthRange)
+		k := utils.Max(0, minBackRefAddr)
+		maxJ := -1
+		maxN := -1
+		for j := i - 1; j >= k; j-- {
+			if d[j] != 0 {
+				continue
+			}
+			// n := countZeroes(d[j:], runLen)
+			n := utils.Min(compressor.longestZeroPrefix[j], runLen)
+			if n > maxN {
+				maxN = n
+				maxJ = j
+				if n == runLen {
+					return j, n
+				}
+			}
+		}
+		if minBackRefAddr < 0 {
+			k := utils.Min(runLen, -minBackRefAddr)
+			if maxJ == -1 {
+				// we have the zeroes in the negative space, no need to look for something better.
+				return minBackRefAddr, utils.Min(runLen, -minBackRefAddr)
+			} else if k > maxN {
+				maxJ = minBackRefAddr
+				maxN = k
+			}
+		}
+		return maxJ, maxN
+	}
+
+	// else -->
+	// d[i] != 0
+
+	// it's worth it to put a back ref, only if we find one
+	// that is longer than the minimum viable backref
+	viableBackrefLen := int(1 + compressor.settings.NbBytesAddress + compressor.settings.NbBytesLength)
+
+	if i+viableBackrefLen > len(d) {
+		return -1, -1
+	}
+
+	windowStart := utils.Max(0, minBackRefAddr)
+
+	offsetEndWindow := brAddressRange
+	if i+offsetEndWindow > len(d) {
+		offsetEndWindow = len(d) - i
+	}
+
+	matches := compressor.index.Lookup(d[i:i+viableBackrefLen], -1)
+
+	backrefLen := -1
+	backrefAddr := -1
+	for _, offset := range matches {
+		if offset < windowStart || offset >= i {
+			// out of the window bound
+			continue
+		}
+		n := matchLen(d[i+viableBackrefLen:i+offsetEndWindow], d[offset+viableBackrefLen:]) + viableBackrefLen
+		if n > backrefLen {
+			backrefLen = n
+			if backrefLen >= brLengthRange {
+				// we can stop we won't find a longer backref
+				return offset, brLengthRange
+			}
+			backrefAddr = offset
+		}
+
+	}
+	return backrefAddr, backrefLen
+
+}
+
+func countZeroes(a []byte, maxCount int) (count int) {
+	for i := 0; i < len(a) && count < maxCount; i++ {
+		if a[i] != 0 {
+			break
+		}
+		count++
+	}
+	return
+}
+
+// matchLen returns the maximum common prefix length of a and b.
+// a must be the shortest of the two.
+func matchLen(a, b []byte) (n int) {
+	for ; len(a) >= 8 && len(b) >= 8; a, b = a[8:], b[8:] {
+		diff := binary.LittleEndian.Uint64(a) ^ binary.LittleEndian.Uint64(b)
+		if diff != 0 {
+			return n + bits.TrailingZeros64(diff)>>3
+		}
+		n += 8
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			break
+		}
+		n++
+	}
+	return n
+
+}
+
 func emit(bb *bytes.Buffer, n int, nbBytes uint) {
 	for i := uint(0); i < nbBytes; i++ {
 		bb.WriteByte(byte(n))
@@ -156,43 +206,4 @@ func emit(bb *bytes.Buffer, n int, nbBytes uint) {
 	if n != 0 {
 		panic("n does not fit in nbBytes")
 	}
-}
-
-func min(a ...int) int {
-	res := a[0]
-	for _, v := range a[1:] {
-		if v < res {
-			res = v
-		}
-	}
-	return res
-}
-
-// bytes.Equal is acting erratically?
-func bytesEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func getRunLength(d []byte, i int) int {
-	j := i + 1
-	for j < len(d) && d[j] == d[i] {
-		j++
-	}
-	return j - i
-}
-
-func getRunLengthRev(d []byte, i int) int {
-	j := i - 1
-	for j >= 0 && d[j] == d[i] {
-		j--
-	}
-	return i - j
 }
