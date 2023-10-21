@@ -117,13 +117,6 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 				backrefAddr = j
 			}
 		}
-		if negativeRun := utils.Min(utils.Max(0, -minBackRefAddr), runLen); longestLen < negativeRun {
-			longestLen = negativeRun
-			remainingOptions = map[int]struct{}{-negativeRun: {}}
-			if settings.StartAt != 0 {  // TODO @Tabaie Remove all negative run mechanisms
-				panic("negative run shouldn't happen")
-			}
-		}
 		return backrefAddr, backrefLen
 	}
 
@@ -160,16 +153,6 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 
 	return bAddr, bLen
 
-}
-
-func countZeroes(a []byte, maxCount int) (count int) {
-	for i := 0; i < len(a) && count < maxCount; i++ {
-		if a[i] != 0 {
-			break
-		}
-		count++
-	}
-	return
 }
 
 // matchLen returns the maximum common prefix length of a and b.
