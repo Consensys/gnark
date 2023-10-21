@@ -5,17 +5,17 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/consensys/gnark/std/compress"
-	"github.com/consensys/gnark/std/compress/huffman"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/compress/huffman"
 	"github.com/klauspost/compress/s2"
 	"github.com/klauspost/compress/zstd"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testCaseName ...string) {
