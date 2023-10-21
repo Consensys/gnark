@@ -90,80 +90,66 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 	brLengthRange := 1 << (compressor.settings.NbBytesLength * 8)
 	minBackRefAddr := i - brAddressRange
 
+	windowStart := utils.Max(0, minBackRefAddr)
+
 	if d[i] == 0 { // RLE; prune the options
 		// we can't encode 0 as is, so we must find a backref.
 
 		// runLen := compressor.countZeroes(i, brLengthRange) // utils.Min(getRunLength(d, i), brLengthRange)
 		runLen := utils.Min(compressor.longestZeroPrefix[i], brLengthRange)
-		k := utils.Max(0, minBackRefAddr)
-		maxJ := -1
-		maxN := -1
-		for j := i - 1; j >= k; j-- {
-			if d[j] != 0 {
-				continue
-			}
-			// n := countZeroes(d[j:], runLen)
+
+		backrefAddr := -1
+		backrefLen := -1
+		for j := windowStart; j < i; j++ {
 			n := utils.Min(compressor.longestZeroPrefix[j], runLen)
-			if n > maxN {
-				maxN = n
-				maxJ = j
+			if n != 0 && n > backrefLen {
+				backrefLen = n
+				backrefAddr = j
 				if n == runLen {
 					return j, n
 				}
 			}
 		}
 		if minBackRefAddr < 0 {
-			k := utils.Min(runLen, -minBackRefAddr)
-			if maxJ == -1 {
-				// we have the zeroes in the negative space, no need to look for something better.
-				return minBackRefAddr, utils.Min(runLen, -minBackRefAddr)
-			} else if k > maxN {
-				maxJ = minBackRefAddr
-				maxN = k
-			}
+			backrefAddr = minBackRefAddr
+			backrefLen = utils.Min(runLen, -minBackRefAddr)
 		}
-		return maxJ, maxN
+		return backrefAddr, backrefLen
 	}
 
 	// else -->
 	// d[i] != 0
 
-	// it's worth it to put a back ref, only if we find one
-	// that is longer than the minimum viable backref
-	viableBackrefLen := int(1 + compressor.settings.NbBytesAddress + compressor.settings.NbBytesLength)
+	// under that threshold, it's more interesting to write the symbol directly.
+	t := int(1 + compressor.settings.NbBytesAddress + compressor.settings.NbBytesLength)
 
-	if i+viableBackrefLen > len(d) {
+	if i+t > len(d) {
 		return -1, -1
 	}
 
-	windowStart := utils.Max(0, minBackRefAddr)
+	endWindow := utils.Min(i+brAddressRange, len(d))
 
-	offsetEndWindow := brAddressRange
-	if i+offsetEndWindow > len(d) {
-		offsetEndWindow = len(d) - i
-	}
+	matches := compressor.index.Lookup(d[i:i+t], -1)
 
-	matches := compressor.index.Lookup(d[i:i+viableBackrefLen], -1)
-
-	backrefLen := -1
-	backrefAddr := -1
+	bLen := -1
+	bAddr := -1
 	for _, offset := range matches {
 		if offset < windowStart || offset >= i {
 			// out of the window bound
 			continue
 		}
-		n := matchLen(d[i+viableBackrefLen:i+offsetEndWindow], d[offset+viableBackrefLen:]) + viableBackrefLen
-		if n > backrefLen {
-			backrefLen = n
-			if backrefLen >= brLengthRange {
+		n := matchLen(d[i+t:endWindow], d[offset+t:]) + t
+		if n > bLen {
+			bLen = n
+			if bLen >= brLengthRange {
 				// we can stop we won't find a longer backref
 				return offset, brLengthRange
 			}
-			backrefAddr = offset
+			bAddr = offset
 		}
 
 	}
-	return backrefAddr, backrefLen
+	return bAddr, bLen
 
 }
 

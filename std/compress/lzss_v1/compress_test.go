@@ -190,24 +190,24 @@ func BenchmarkAverageBatch(b *testing.B) {
 	}
 
 	// benchmark s2
-	b.Run("s2", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, err := compressWithS2(data)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
+	// b.Run("s2", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		_, err := compressWithS2(data)
+	// 		if err != nil {
+	// 			b.Fatal(err)
+	// 		}
+	// 	}
+	// })
 
-	// benchmark zstd
-	b.Run("zstd", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, err := compressWithZstd(data)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
+	// // benchmark zstd
+	// b.Run("zstd", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		_, err := compressWithZstd(data)
+	// 		if err != nil {
+	// 			b.Fatal(err)
+	// 		}
+	// 	}
+	// })
 
 	// benchmark lzss
 	b.Run("lzss", func(b *testing.B) {
