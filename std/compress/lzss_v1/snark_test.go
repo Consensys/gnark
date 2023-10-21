@@ -117,6 +117,38 @@ func BenchmarkCompilation64KBSnark(b *testing.B) {
 	fmt.Println(p.NbConstraints(), "constraints")
 }
 
+func BenchmarkCompilation300KBSnark(b *testing.B) {
+	c := DecompressionTestCircuit{
+		C: make([]frontend.Variable, 70000),
+		D: make([]byte, 300000),
+		Settings: Settings{
+			BackRefSettings: BackRefSettings{
+				NbBytesAddress: 2,
+				NbBytesLength:  1,
+			},
+		},
+	}
+
+	testCaseName := "large"
+
+	// compilation
+	fmt.Println("compilation")
+	p := profile.Start()
+	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	assert.NoError(b, err)
+	p.Stop()
+	fmt.Println("26KB:", p.NbConstraints(), "constraints, estimated", (p.NbConstraints()*300000)/26000, "constraints for 600KB at", float64(p.NbConstraints())/26000.0, "constraints per uncompressed byte")
+	assert.NoError(b, compress.GzWrite("../test_cases/"+testCaseName+"/300KB.cs.gz", cs))
+
+	// setup
+	fmt.Println("setup")
+	kzgSrs, err := test.NewKZGSRS(cs)
+	require.NoError(b, err)
+	pk, _, err := plonk.Setup(cs, kzgSrs)
+	require.NoError(b, err)
+	assert.NoError(b, compress.GzWrite("../test_cases/"+testCaseName+"/300KB.pk.gz", pk))
+}
+
 // TODO Change name to reflect that setup is also occurring
 func compile26KBSnark(t require.TestingT, testCaseName string) {
 	c := DecompressionTestCircuit{

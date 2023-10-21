@@ -1,0 +1,11 @@
+s2 compression ratio: 5.075625622787332
+zstd compression ratio: 6.224862888482632
+lzss compression ratio: 5.23342939481268
+goos: darwin
+goarch: arm64
+pkg: github.com/consensys/gnark/std/compress/lzss_v1
+BenchmarkAverageBatch/s2-10         1788            617915 ns/op         2369553 B/op         16 allocs/op
+BenchmarkAverageBatch/zstd-10                583           2006664 ns/op        19508741 B/op         79 allocs/op
+BenchmarkAverageBatch/lzss-10                  1        6446473208 ns/op        185504616 B/op    214561 allocs/op
+PASS
+ok      github.com/consensys/gnark/std/compress/lzss_v1 15.903s

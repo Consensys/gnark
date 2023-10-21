@@ -1,15 +1,20 @@
 package lzss_v1
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
-	"github.com/consensys/gnark/std/compress"
-	"github.com/consensys/gnark/std/compress/huffman"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"io"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/compress/huffman"
+	"github.com/klauspost/compress/s2"
+	"github.com/klauspost/compress/zstd"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testCaseName ...string) {
@@ -239,4 +244,178 @@ func printHex(d []byte) {
 		fmt.Print(s)
 	}
 	fmt.Println()
+}
+
+func TestAverageBatch(t *testing.T) {
+	assert := require.New(t)
+
+	// read "average_block.hex" file
+	d, err := os.ReadFile("./average_block.hex")
+	assert.NoError(err)
+
+	// convert to bytes
+	data, err := hex.DecodeString(string(d))
+	assert.NoError(err)
+
+	// test compress round trip with s2, zstd and lzss
+	// s2Res, err := compressWithS2(data)
+	// assert.NoError(err)
+
+	// zstdRes, err := compressWithZstd(data)
+	// assert.NoError(err)
+
+	lzssRes, err := compresslzss_v1(data)
+	assert.NoError(err)
+
+	// fmt.Println("s2 compression ratio:", s2Res.ratio)
+	// fmt.Println("zstd compression ratio:", zstdRes.ratio)
+	fmt.Println("lzss compression ratio:", lzssRes.ratio)
+
+	// assert.Equal(5.241485472387916, lzssRes.ratio, "regression check")
+
+	// // test decompress round trip with s2, zstd and lzss
+	// s2Decompressed, err := decompressWithS2(s2Res.compressed)
+	// assert.NoError(err)
+
+	// zstdDecompressed, err := decompressWithZstd(zstdRes.compressed)
+	// assert.NoError(err)
+
+	lzssDecompressed, err := decompresslzss_v1(lzssRes.compressed)
+	assert.NoError(err)
+
+	// assert.True(bytes.Equal(data, s2Decompressed))
+	// assert.True(bytes.Equal(data, zstdDecompressed))
+	assert.True(bytes.Equal(data, lzssDecompressed))
+
+}
+
+func BenchmarkAverageBatch(b *testing.B) {
+	// read the file
+	d, err := os.ReadFile("./average_block.hex")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	// convert to bytes
+	data, err := hex.DecodeString(string(d))
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	// benchmark s2
+	// b.Run("s2", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		_, err := compressWithS2(data)
+	// 		if err != nil {
+	// 			b.Fatal(err)
+	// 		}
+	// 	}
+	// })
+
+	// // benchmark zstd
+	// b.Run("zstd", func(b *testing.B) {
+	// 	for i := 0; i < b.N; i++ {
+	// 		_, err := compressWithZstd(data)
+	// 		if err != nil {
+	// 			b.Fatal(err)
+	// 		}
+	// 	}
+	// })
+
+	// benchmark lzss
+	b.Run("lzss", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := compresslzss_v1(data)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+type compressResult struct {
+	compressed []byte
+	inputSize  int
+	outputSize int
+	ratio      float64
+}
+
+func decompressWithS2(data []byte) ([]byte, error) {
+	r := s2.NewReader(bytes.NewReader(data))
+	var dst bytes.Buffer
+	_, err := io.Copy(&dst, r)
+	return dst.Bytes(), err
+}
+
+func compressWithS2(data []byte) (compressResult, error) {
+	var buf bytes.Buffer
+	w := s2.NewWriter(&buf)
+	w.Write(data)
+	w.Close()
+
+	res := compressResult{
+		compressed: make([]byte, buf.Len()),
+		inputSize:  len(data),
+		outputSize: buf.Len(),
+		ratio:      float64(len(data)) / float64(buf.Len()),
+	}
+	copy(res.compressed, buf.Bytes())
+	return res, nil
+}
+
+func decompressWithZstd(data []byte) ([]byte, error) {
+	r, err := zstd.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	var dst bytes.Buffer
+	_, err = io.Copy(&dst, r)
+	return dst.Bytes(), err
+}
+
+func compressWithZstd(data []byte) (compressResult, error) {
+	var buf bytes.Buffer
+
+	w, err := zstd.NewWriter(&buf)
+	if err != nil {
+		return compressResult{}, err
+	}
+	w.Write(data)
+	w.Close()
+
+	res := compressResult{
+		compressed: make([]byte, buf.Len()),
+		inputSize:  len(data),
+		outputSize: buf.Len(),
+		ratio:      float64(len(data)) / float64(buf.Len()),
+	}
+	copy(res.compressed, buf.Bytes())
+	return res, nil
+}
+
+func decompresslzss_v1(data []byte) ([]byte, error) {
+	return DecompressPureGo(data, Settings{
+		BackRefSettings: BackRefSettings{
+			NbBytesAddress: 2,
+			NbBytesLength:  1,
+		},
+	})
+}
+
+func compresslzss_v1(data []byte) (compressResult, error) {
+	c, err := Compress(data, Settings{
+		BackRefSettings: BackRefSettings{
+			NbBytesAddress: 2,
+			NbBytesLength:  1,
+		},
+	})
+	if err != nil {
+		return compressResult{}, err
+	}
+	return compressResult{
+		compressed: c,
+		inputSize:  len(data),
+		outputSize: len(c),
+		ratio:      float64(len(data)) / float64(len(c)),
+	}, nil
 }
