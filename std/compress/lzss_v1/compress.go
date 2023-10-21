@@ -30,7 +30,6 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		emit(&out, offset-1, settings.NbBytesAddress)
 		emit(&out, length-1, settings.NbBytesLength)
 	}
-
 	compressor := newCompressor(d, settings)
 	i := 0
 	for i < len(d) {
@@ -44,7 +43,6 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 			i++
 			continue
 		}
-
 		emitBackRef(i-addr, length)
 		i += length
 	}
@@ -91,6 +89,7 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 	minBackRefAddr := i - brAddressRange
 
 	windowStart := utils.Max(0, minBackRefAddr)
+	endWindow := utils.Min(i+brAddressRange, len(d))
 
 	if d[i] == 0 { // RLE; prune the options
 		// we can't encode 0 as is, so we must find a backref.
@@ -102,15 +101,22 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 		backrefLen := -1
 		for j := i - 1; j >= windowStart; j-- {
 			n := utils.Min(compressor.longestZeroPrefix[j], runLen)
-			if n != 0 && n > backrefLen {
-				backrefLen = n
-				backrefAddr = j
-				if n == runLen {
-					return j, n
+			if n == 0 {
+				continue
+			}
+			// check if we can make this backref longer
+			m := matchLen(d[i+n:endWindow], d[j+n:]) + n
+
+			if m > backrefLen {
+				if m >= brLengthRange {
+					// we can stop we won't find a longer backref
+					return j, brLengthRange
 				}
+				backrefLen = m
+				backrefAddr = j
 			}
 		}
-		if minBackRefAddr < 0 {
+		if (backrefLen == -1 && minBackRefAddr < 0) || (backrefLen != -1 && minBackRefAddr < 0 && backrefLen < -minBackRefAddr) {
 			backrefAddr = minBackRefAddr
 			backrefLen = utils.Min(runLen, -minBackRefAddr)
 		}
@@ -126,8 +132,6 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 	if i+t > len(d) {
 		return -1, -1
 	}
-
-	endWindow := utils.Min(i+brAddressRange, len(d))
 
 	matches := compressor.index.Lookup(d[i:i+t], -1)
 
@@ -149,6 +153,7 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 		}
 
 	}
+
 	return bAddr, bLen
 
 }
