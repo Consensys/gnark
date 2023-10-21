@@ -30,7 +30,6 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		emit(&out, offset-1, settings.NbBytesAddress)
 		emit(&out, length-1, settings.NbBytesLength)
 	}
-
 	compressor := newCompressor(d, settings)
 	i := int(settings.StartAt)
 	for i < len(d) {
