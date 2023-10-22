@@ -2,6 +2,7 @@ package lzss_v1
 
 import (
 	"bytes"
+	"github.com/consensys/gnark/std/compress"
 )
 
 func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
@@ -19,8 +20,8 @@ func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 
 	readBackRef := func() (offset, length int) {
 		_, err = in.Read(copyBuf)
-		offset = readNum(copyBuf[:settings.NbBytesAddress]) + 1
-		length = readNum(copyBuf[settings.NbBytesAddress:settings.NbBytesAddress+settings.NbBytesLength]) + 1
+		offset = compress.ReadNum(copyBuf[:settings.NbBytesAddress]) + 1
+		length = compress.ReadNum(copyBuf[settings.NbBytesAddress:settings.NbBytesAddress+settings.NbBytesLength]) + 1
 		return
 	}
 
@@ -41,13 +42,4 @@ func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 	}
 
 	return out.Bytes(), nil
-}
-
-func readNum(bytes []byte) int { //little endian
-	var res int
-	for i := len(bytes) - 1; i >= 0; i-- {
-		res <<= 8
-		res |= int(bytes[i])
-	}
-	return res
 }
