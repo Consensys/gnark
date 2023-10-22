@@ -35,6 +35,12 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 		StartAt: 256,
 	}
 	c, err := Compress(d, settings)
+	require.NoError(t, err)
+
+	if len(testCaseName) == 1 {
+		assert.NoError(t, os.WriteFile("../test_cases/"+testCaseName[0]+"/data.lzssv1", c.Write(), 600))
+	}
+
 	cHuff := huffman.Encode(c)
 	fmt.Println("Size Compression ratio:", float64(len(d)-contextSize)/float64(c.Len()))
 	fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*(len(d)-contextSize))/float64(len(cHuff.D)))
@@ -42,7 +48,6 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 		fmt.Printf("Compressed size: %dKB\n", int(float64(c.Len()*100)/1024)/100)
 		fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/8192)/100)
 	}
-	require.NoError(t, err)
 
 	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)

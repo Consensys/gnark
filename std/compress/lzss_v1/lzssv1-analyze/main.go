@@ -89,7 +89,8 @@ func printFindings(d []byte, pos int, br0, br1 backref) {
 	if len(s1)%2 != 0 {
 		fmt.Print(" ")
 	}
-	fmt.Print(s1)
+	fmt.Println(s1)
+	fmt.Println(arrow)
 }
 
 type backref struct {
