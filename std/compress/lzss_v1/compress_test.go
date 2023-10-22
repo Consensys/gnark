@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
 	"strings"
@@ -46,7 +47,11 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
 
-	require.Equal(t, d[contextSize:], dBack)
+	assert.Equal(t, len(d)-contextSize, len(dBack))
+	for i := range dBack {
+		require.Equal(t, d[contextSize+i], dBack[i], i)
+	}
+	//require.Equal(t, d[contextSize:], dBack)
 
 	// store huffman code lengths
 	lens := huffman.GetCodeLengths(c)
