@@ -5,14 +5,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"io"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/compress/huffman"
-	"github.com/klauspost/compress/s2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -216,19 +214,13 @@ type compressResult struct {
 	ratio      float64
 }
 
-func decompressWithS2(data []byte) ([]byte, error) {
-	r := s2.NewReader(bytes.NewReader(data))
-	var dst bytes.Buffer
-	_, err := io.Copy(&dst, r)
-	return dst.Bytes(), err
-}
-
 func decompresslzss_v1(data compress.Stream) ([]byte, error) {
 	return DecompressPureGo(data, Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: 2,
 			NbBytesLength:  1,
 		},
+		StartAt: 256,
 	})
 }
 
