@@ -1,0 +1,2 @@
+go build
+mv lzssv1-analyze $GOPATH/bin/lzssv1-analyze

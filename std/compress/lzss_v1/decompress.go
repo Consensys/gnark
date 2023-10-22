@@ -17,8 +17,8 @@ func DecompressPureGo(c compress.Stream, settings Settings) (d []byte, err error
 	}
 
 	readBackRef := func() (offset, length int) {
-		offset = readNum(c.D[1:settings.NbBytesAddress+1]) + 1
-		length = readNum(c.D[1+settings.NbBytesAddress:settings.NbBytesAddress+settings.NbBytesLength+1]) + 1
+		offset = c.ReadNum(1, int(settings.NbBytesAddress)) + 1
+		length = c.ReadNum(1+int(settings.NbBytesAddress), int(settings.NbBytesLength)) + 1
 		return
 	}
 
@@ -39,13 +39,4 @@ func DecompressPureGo(c compress.Stream, settings Settings) (d []byte, err error
 	}
 
 	return out.Bytes(), nil
-}
-
-func readNum(words []int) int { //little endian
-	var res int
-	for i := len(words) - 1; i >= 0; i-- {
-		res *= 257
-		res |= words[i]
-	}
-	return res
 }
