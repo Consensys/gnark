@@ -61,9 +61,9 @@ func (s *Stream) Write() []byte {
 
 func (s *Stream) ReadNum(start, length int) int {
 	res := 0
-	for i := 0; i < length; i++ {
+	for i := start + length - 1; i >= start; i-- {
 		res *= s.NbSymbs
-		res += s.D[start+i]
+		res += s.D[i]
 	}
 	return res
 }

@@ -48,23 +48,21 @@ func main() {
 	var br0, br1 backref
 	startAt := len(d)
 	cI := 0
-	dI := startAt
 	for br1.dst <= pos {
 		if c.D[cI] == *symb { // backref
 			length := c.ReadNum(cI+1, nbBytesLen) + 1
 			offset := c.ReadNum(cI+1+nbBytesLen, nbBytesAddr) + 1
 
 			br0 = br1
-			br1 = backref{offset, length, dI - startAt}
+			br1 = backref{offset, length, len(d) - startAt}
 
-			for end := dI + length; dI < end; dI++ {
-				d[dI] = d[dI-offset]
+			for ; length > 0; length-- {
+				d = append(d, d[len(d)-offset])
 			}
 
 			cI += 1 + nbBytesLen + nbBytesAddr
 		} else {
-			d[dI] = byte(c.D[cI])
-			dI++
+			d = append(d, byte(c.D[cI]))
 			cI++
 		}
 	}
@@ -85,7 +83,7 @@ func printFindings(d []byte, pos int, br0, br1 backref) {
 	}
 	nbL := lenEachSide/2 - (len(s0)+1)/2
 	nbR := lenEachSide/2 - (len(s1)+1)/2
-	fmt.Print(hex.EncodeToString(d[pos-nbL : nbL+nbR]))
+	fmt.Print(hex.EncodeToString(d[pos-nbL : pos+nbL+nbR]))
 	if len(s1)%2 != 0 {
 		fmt.Print(" ")
 	}
