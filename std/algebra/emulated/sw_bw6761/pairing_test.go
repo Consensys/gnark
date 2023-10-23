@@ -240,13 +240,14 @@ func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
 
 func TestDoublePairFixedTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p, q := randomG1G2Affines()
+	p1, q := randomG1G2Affines()
+	p2, _ := randomG1G2Affines()
 	_, _, _, G2AffGen := bw6761.Generators()
-	res, err := bw6761.Pair([]bw6761.G1Affine{p, p}, []bw6761.G2Affine{q, G2AffGen})
+	res, err := bw6761.Pair([]bw6761.G1Affine{p1, p2}, []bw6761.G2Affine{G2AffGen, q})
 	assert.NoError(err)
 	witness := DoublePairFixedCircuit{
-		In1G1: NewG1Affine(p),
-		In2G1: NewG1Affine(p),
+		In1G1: NewG1Affine(p1),
+		In2G1: NewG1Affine(p2),
 		In1G2: NewG2Affine(q),
 		Res:   NewGTEl(res),
 	}
