@@ -17,22 +17,25 @@
 package plonkfri
 
 import (
-	"crypto/sha256"
 	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr/fri"
-	"math/big"
-
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/backend"
+	"math/big"
 )
 
 var ErrInvalidAlgebraicRelation = errors.New("algebraic relation does not hold")
 
-func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector) error {
+func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.VerifierOption) error {
+	cfg, err := backend.NewVerifierConfig(opts...)
+	if err != nil {
+		return fmt.Errorf("create backend config: %w", err)
+	}
 
 	// 0 - derive the challenges with Fiat Shamir
-	hFunc := sha256.New()
-	fs := fiatshamir.NewTranscript(hFunc, "gamma", "beta", "alpha", "zeta")
+	fs := fiatshamir.NewTranscript(cfg.ChallengeHash, "gamma", "beta", "alpha", "zeta")
 
 	dataFiatShamir := make([][fr.Bytes]byte, len(publicWitness)+3)
 	for i := 0; i < len(publicWitness); i++ {

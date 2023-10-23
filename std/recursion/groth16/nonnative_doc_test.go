@@ -163,6 +163,4 @@ func Example_emulated() {
 	if err != nil {
 		panic("circuit verification failed: " + err.Error())
 	}
-	fmt.Println("done")
-	// Output: done
 }

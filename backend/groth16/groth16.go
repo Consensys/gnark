@@ -109,7 +109,7 @@ type VerifyingKey interface {
 }
 
 // Verify runs the groth16.Verify algorithm on provided proof with given witness
-func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness) error {
+func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
 
 	switch _proof := proof.(type) {
 	case *groth16_bls12377.Proof:
@@ -117,43 +117,43 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness) error {
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return groth16_bls12377.Verify(_proof, vk.(*groth16_bls12377.VerifyingKey), w)
+		return groth16_bls12377.Verify(_proof, vk.(*groth16_bls12377.VerifyingKey), w, opts...)
 	case *groth16_bls12381.Proof:
 		w, ok := publicWitness.Vector().(fr_bls12381.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return groth16_bls12381.Verify(_proof, vk.(*groth16_bls12381.VerifyingKey), w)
+		return groth16_bls12381.Verify(_proof, vk.(*groth16_bls12381.VerifyingKey), w, opts...)
 	case *groth16_bn254.Proof:
 		w, ok := publicWitness.Vector().(fr_bn254.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return groth16_bn254.Verify(_proof, vk.(*groth16_bn254.VerifyingKey), w)
+		return groth16_bn254.Verify(_proof, vk.(*groth16_bn254.VerifyingKey), w, opts...)
 	case *groth16_bw6761.Proof:
 		w, ok := publicWitness.Vector().(fr_bw6761.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return groth16_bw6761.Verify(_proof, vk.(*groth16_bw6761.VerifyingKey), w)
+		return groth16_bw6761.Verify(_proof, vk.(*groth16_bw6761.VerifyingKey), w, opts...)
 	case *groth16_bls24317.Proof:
 		w, ok := publicWitness.Vector().(fr_bls24317.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return groth16_bls24317.Verify(_proof, vk.(*groth16_bls24317.VerifyingKey), w)
+		return groth16_bls24317.Verify(_proof, vk.(*groth16_bls24317.VerifyingKey), w, opts...)
 	case *groth16_bls24315.Proof:
 		w, ok := publicWitness.Vector().(fr_bls24315.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return groth16_bls24315.Verify(_proof, vk.(*groth16_bls24315.VerifyingKey), w)
+		return groth16_bls24315.Verify(_proof, vk.(*groth16_bls24315.VerifyingKey), w, opts...)
 	case *groth16_bw6633.Proof:
 		w, ok := publicWitness.Vector().(fr_bw6633.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return groth16_bw6633.Verify(_proof, vk.(*groth16_bw6633.VerifyingKey), w)
+		return groth16_bw6633.Verify(_proof, vk.(*groth16_bw6633.VerifyingKey), w, opts...)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
