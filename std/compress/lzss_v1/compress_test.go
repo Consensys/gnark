@@ -36,7 +36,7 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 	require.NoError(t, err)
 
 	if len(testCaseName) == 1 {
-		assert.NoError(t, os.WriteFile("../test_cases/"+testCaseName[0]+"/data.lzssv1", c.Write(), 600))
+		assert.NoError(t, os.WriteFile("../test_cases/"+testCaseName[0]+"/data.lzssv1", c.Write(), 0600))
 	}
 
 	cHuff := huffman.Encode(c)
