@@ -99,7 +99,7 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 
 // lineEvaluation represents a sparse Fp6 Elmt (result of the line evaluation)
 // line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
-// makes the multiplication by lines (MulBy034)
+// makes the multiplication by lines (MulBy014)
 type lineEvaluation struct {
 	R0, R1 emulated.Element[emulated.BW6761Fp]
 }
@@ -252,7 +252,17 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	}
 
 	if n >= 3 {
-		for k := 2; k < n; k++ {
+		// k = 2, separately to avoid MulBy014 (res × ℓ)
+		// (res has a zero E2 element, so we use Mul01234By034)
+		accQ[2], l0 = pr.doubleStep(accQ[2])
+		l0 = &lineEvaluation{
+			R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[2]),
+			R1: *pr.curveF.MulMod(&l0.R1, yInv[2]),
+		}
+		result = pr.Mul01245By014(prodLines, &l0.R1, &l0.R0)
+
+		// k >= 3
+		for k := 3; k < n; k++ {
 			accQ[k], l0 = pr.doubleStep(accQ[k])
 			l0 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[k]),
