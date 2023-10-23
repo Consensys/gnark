@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"index/suffixarray"
 	"math/bits"
+	"sync"
 
 	"github.com/consensys/gnark-crypto/utils"
 )
@@ -31,23 +32,59 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		emit(&out, length-1, settings.NbBytesLength)
 	}
 	compressor := newCompressor(d, settings)
+
+	var cachedBr backref
+	cachedBrI := -1
+
+	var nextBrWg sync.WaitGroup // TODO: better to use a channel here?
+
 	i := 0
 	for i < len(d) {
-		addr, length := compressor.longestMostRecentBackRef(i)
-		if length == -1 {
-			// no backref found
-			if d[i] == 0 {
-				return nil, fmt.Errorf("could not find an RLE backref at index %d", i)
-			}
-			out.WriteByte(d[i])
-			i++
-			continue
+
+		var br, nextBr backref
+
+		if d[i] != 0 {
+			nextBrWg.Add(1)
+			go func() {
+				defer nextBrWg.Done()
+				nextBr = compressor.longestMostRecentBackRef(i + 1)
+
+			}()
 		}
-		emitBackRef(i-addr, length)
-		i += length
+
+		if i == cachedBrI {
+			br = cachedBr
+		} else {
+			br = compressor.longestMostRecentBackRef(i)
+		}
+
+		nextBrWg.Wait()
+		cachedBr = nextBr
+		cachedBrI = i + 1
+
+		if br.length != -1 {
+			if nextBr.length > br.length && nextBr.length < br.length+int(1+settings.NbBytesAddress+settings.NbBytesLength) {
+				emitBackRef(i-br.addr, br.length)
+				i += br.length
+				continue
+			}
+		}
+
+		// no backref found
+		if d[i] == 0 {
+			return nil, fmt.Errorf("could not find an RLE backref at index %d", i)
+		}
+		out.WriteByte(d[i])
+		i++
+		continue
+
 	}
 
 	return out.Bytes(), nil
+}
+
+type backref struct {
+	addr, length int
 }
 
 type compressor struct {
@@ -81,9 +118,9 @@ func (compressor *compressor) initZeroPrefix() {
 }
 
 // longestMostRecentBackRef attempts to find a backref that is 1) longest 2) most recent in that order of priority
-func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int) {
+func (compressor *compressor) longestMostRecentBackRef(i int) backref {
 	d := compressor.d
-	// var backRefLen int
+
 	brAddressRange := 1 << (compressor.settings.NbBytesAddress * 8)
 	brLengthRange := 1 << (compressor.settings.NbBytesLength * 8)
 	minBackRefAddr := i - brAddressRange
@@ -110,7 +147,7 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 			if m > backrefLen {
 				if m >= brLengthRange {
 					// we can stop we won't find a longer backref
-					return j, brLengthRange
+					return backref{j, brLengthRange}
 				}
 				backrefLen = m
 				backrefAddr = j
@@ -120,7 +157,7 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 			backrefAddr = minBackRefAddr
 			backrefLen = utils.Min(runLen, -minBackRefAddr)
 		}
-		return backrefAddr, backrefLen
+		return backref{backrefAddr, backrefLen}
 	}
 
 	// else -->
@@ -130,7 +167,7 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 	t := int(1 + compressor.settings.NbBytesAddress + compressor.settings.NbBytesLength)
 
 	if i+t > len(d) {
-		return -1, -1
+		return backref{-1, -1}
 	}
 
 	matches := compressor.index.Lookup(d[i:i+t], -1)
@@ -147,14 +184,14 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 			bLen = n
 			if bLen >= brLengthRange {
 				// we can stop we won't find a longer backref
-				return offset, brLengthRange
+				return backref{offset, brLengthRange} // TODO @gbotrel is it correct to return offset instead of absolute address?
 			}
 			bAddr = offset
 		}
 
 	}
 
-	return bAddr, bLen
+	return backref{bAddr, bLen}
 
 }
 
