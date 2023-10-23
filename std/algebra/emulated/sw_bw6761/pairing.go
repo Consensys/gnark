@@ -139,11 +139,8 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 // fixed.
 //
 // This function doesn't check that the inputs are in the correct subgroups
-// TODO: implement a faster version of this function
 func (pr Pairing) DoublePairingFixedQCheck(P [2]*G1Affine, Q *G2Affine) error {
-	_, _, _, g2 := bw6761.Generators()
-	Q0 := NewG2Affine(g2)
-	f, err := pr.Pair([]*G1Affine{P[0], P[1]}, []*G2Affine{&Q0, Q})
+	f, err := pr.DoublePairFixedQ(P, Q)
 	if err != nil {
 		return err
 	}
