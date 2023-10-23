@@ -33,45 +33,42 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	}
 	compressor := newCompressor(d, settings)
 
-	var cachedBr backref
-	cachedBrI := -1
+	brCache := make(map[int]backref)
 
 	var nextBrWg sync.WaitGroup // TODO: better to use a channel here?
 
 	i := 0
 	for i < len(d) {
 
-		var br backref
-		nextBr := backref{-1, -2}
-
 		if d[i] != 0 && i+1 < len(d) { // if d[i] = 0 we're forced to emit to backref here
-			nextBrWg.Add(1)
-			go func() {
-				defer nextBrWg.Done()
-				nextBr = compressor.longestMostRecentBackRef(i + 1)
-
-			}()
+			if _, ok := brCache[i+1]; !ok {
+				nextBrWg.Add(1)
+				go func() {
+					defer nextBrWg.Done()
+					br := compressor.longestMostRecentBackRef(i + 1)
+					brCache[i+1] = br
+					if i+1+br.length < len(d) {
+						if _, ok = brCache[i+1+br.length]; !ok {
+							brCache[i+1+br.length] = compressor.longestMostRecentBackRef(i + 1 + br.length)
+						}
+					}
+				}()
+			}
 		}
 
-		if i == cachedBrI {
-			br = cachedBr
-		} else {
+		br, ok := brCache[i]
+		if !ok {
 			br = compressor.longestMostRecentBackRef(i)
 		}
-
 		nextBrWg.Wait()
-		if nextBr.length != -2 {
-			cachedBr = nextBr
-			cachedBrI = i + 1
-		}
+		delete(brCache, i)
 
 		if br.length != -1 {
-			if nextBr.length <= br.length || nextBr.length > br.length+int(1+settings.NbBytesAddress+settings.NbBytesLength) {
+			if nextBr := brCache[i+1]; d[i] == 0 || nextBr.length <= br.length || brCache[i+nextBr.length].length > 0 {
 				emitBackRef(i-br.addr, br.length)
 				i += br.length
 				continue
 			}
-			fmt.Println("forgoing backref at", i)
 		}
 
 		// no backref found
@@ -80,7 +77,6 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		}
 		out.WriteByte(d[i])
 		i++
-		continue
 
 	}
 
