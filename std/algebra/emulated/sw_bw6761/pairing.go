@@ -617,12 +617,12 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P [2]*G1Affine, Q *G2Affine) (*GTEl, er
 			accQ, l0, l1 = pr.doubleAndAddStep(accQ, imQneg)
 			l0 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[1]),
-				R1: *pr.curveF.MulMod(&l0.R1, yInv[0]),
+				R1: *pr.curveF.MulMod(&l0.R1, yInv[1]),
 			}
 			result = pr.MulBy014(result, &l0.R1, &l0.R0)
 			l1 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l1.R0, xNegOverY[1]),
-				R1: *pr.curveF.MulMod(&l1.R1, yInv[0]),
+				R1: *pr.curveF.MulMod(&l1.R1, yInv[1]),
 			}
 			result = pr.MulBy014(result, &l1.R1, &l1.R0)
 
@@ -639,12 +639,12 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P [2]*G1Affine, Q *G2Affine) (*GTEl, er
 			accQ, l0, l1 = pr.doubleAndAddStep(accQ, negQ)
 			l0 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[1]),
-				R1: *pr.curveF.MulMod(&l0.R1, yInv[0]),
+				R1: *pr.curveF.MulMod(&l0.R1, yInv[1]),
 			}
 			result = pr.MulBy014(result, &l0.R1, &l0.R0)
 			l1 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l1.R0, xNegOverY[1]),
-				R1: *pr.curveF.MulMod(&l1.R1, yInv[0]),
+				R1: *pr.curveF.MulMod(&l1.R1, yInv[1]),
 			}
 			result = pr.MulBy014(result, &l1.R1, &l1.R0)
 
@@ -661,7 +661,7 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P [2]*G1Affine, Q *G2Affine) (*GTEl, er
 			accQ, l0 = pr.doubleStep(accQ)
 			l0 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[1]),
-				R1: *pr.curveF.MulMod(&l0.R1, yInv[0]),
+				R1: *pr.curveF.MulMod(&l0.R1, yInv[1]),
 			}
 			result = pr.MulBy014(result, &l0.R1, &l0.R0)
 
@@ -674,12 +674,12 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P [2]*G1Affine, Q *G2Affine) (*GTEl, er
 			accQ, l0, l1 = pr.doubleAndAddStep(accQ, Q)
 			l0 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[1]),
-				R1: *pr.curveF.MulMod(&l0.R1, yInv[0]),
+				R1: *pr.curveF.MulMod(&l0.R1, yInv[1]),
 			}
 			result = pr.MulBy014(result, &l0.R1, &l0.R0)
 			l1 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l1.R0, xNegOverY[1]),
-				R1: *pr.curveF.MulMod(&l1.R1, yInv[0]),
+				R1: *pr.curveF.MulMod(&l1.R1, yInv[1]),
 			}
 			result = pr.MulBy014(result, &l1.R1, &l1.R0)
 
@@ -696,12 +696,12 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P [2]*G1Affine, Q *G2Affine) (*GTEl, er
 			accQ, l0, l1 = pr.doubleAndAddStep(accQ, imQ)
 			l0 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[1]),
-				R1: *pr.curveF.MulMod(&l0.R1, yInv[0]),
+				R1: *pr.curveF.MulMod(&l0.R1, yInv[1]),
 			}
 			result = pr.MulBy014(result, &l0.R1, &l0.R0)
 			l1 = &lineEvaluation{
 				R0: *pr.curveF.MulMod(&l1.R0, xNegOverY[1]),
-				R1: *pr.curveF.MulMod(&l1.R1, yInv[0]),
+				R1: *pr.curveF.MulMod(&l1.R1, yInv[1]),
 			}
 			result = pr.MulBy014(result, &l1.R1, &l1.R0)
 
@@ -732,7 +732,7 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P [2]*G1Affine, Q *G2Affine) (*GTEl, er
 	l0 = pr.tangentCompute(accQ)
 	l0 = &lineEvaluation{
 		R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[1]),
-		R1: *pr.curveF.MulMod(&l0.R1, yInv[0]),
+		R1: *pr.curveF.MulMod(&l0.R1, yInv[1]),
 	}
 	result = pr.MulBy014(result, &l0.R1, &l0.R0)
 	// fixed-argument
