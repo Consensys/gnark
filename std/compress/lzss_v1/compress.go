@@ -41,9 +41,10 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	i := 0
 	for i < len(d) {
 
-		var br, nextBr backref
+		var br backref
+		nextBr := backref{-1, -2}
 
-		if d[i] != 0 {
+		if d[i] != 0 && i+1 < len(d) { // if d[i] = 0 we're forced to emit to backref here
 			nextBrWg.Add(1)
 			go func() {
 				defer nextBrWg.Done()
@@ -59,15 +60,18 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		}
 
 		nextBrWg.Wait()
-		cachedBr = nextBr
-		cachedBrI = i + 1
+		if nextBr.length != -2 {
+			cachedBr = nextBr
+			cachedBrI = i + 1
+		}
 
 		if br.length != -1 {
-			if nextBr.length > br.length && nextBr.length < br.length+int(1+settings.NbBytesAddress+settings.NbBytesLength) {
+			if nextBr.length <= br.length || nextBr.length > br.length+int(1+settings.NbBytesAddress+settings.NbBytesLength) {
 				emitBackRef(i-br.addr, br.length)
 				i += br.length
 				continue
 			}
+			fmt.Println("forgoing backref at", i)
 		}
 
 		// no backref found
