@@ -22,12 +22,14 @@ import (
 // In particular those on the LZ family: https://youtu.be/z1I1o7zySUI and DEFLATE: https://youtu.be/SJPvNi4HrWQ
 func Compress(d []byte, settings Settings) (c compress.Stream, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
-	c.NbSymbs = 257
+	c.NbSymbs = 512
 
 	emitBackRef := func(offset, length int) {
-		c.D = append(c.D, 256)
+		if length > 256 {
+			panic("length > 256")
+		}
+		c.D = append(c.D, 255+length)
 		emit(&c.D, offset-1, settings.NbBytesAddress)
-		emit(&c.D, length-1, settings.NbBytesLength)
 	}
 	compressor := newCompressor(d, settings)
 	i := int(settings.StartAt)
@@ -81,7 +83,7 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 	d := compressor.d
 	// var backRefLen int
 	brAddressRange := 1 << (compressor.settings.NbBytesAddress * 8)
-	brLengthRange := 1 << (compressor.settings.NbBytesLength * 8)
+	const brLengthRange = 256
 	minBackRefAddr := i - brAddressRange
 
 	windowStart := utils.Max(0, minBackRefAddr)
@@ -91,7 +93,7 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 	// d[i] != 0
 
 	// under that threshold, it's more interesting to write the symbol directly.
-	t := int(1 + compressor.settings.NbBytesAddress + compressor.settings.NbBytesLength)
+	t := compressor.settings.BackRefSettings.NbWords() + 1
 
 	if i+t > len(d) {
 		return -1, -1
@@ -145,8 +147,8 @@ func matchLen(a, b []byte) (n int) {
 
 func emit(bb *[]int, n int, nbBytes uint) {
 	for i := uint(0); i < nbBytes; i++ {
-		*bb = append(*bb, n%257)
-		n /= 257
+		*bb = append(*bb, n%512)
+		n /= 512
 	}
 	if n != 0 {
 		panic("n does not fit in nbBytes")

@@ -28,7 +28,6 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: nbBytesAddress,
-			NbBytesLength:  1,
 		},
 		StartAt: 256,
 	}
@@ -40,10 +39,10 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 	}
 
 	cHuff := huffman.Encode(c)
-	fmt.Println("Size Compression ratio:", float64(len(d)-contextSize)/float64(c.Len()))
+	fmt.Println("Size Compression ratio:", (8.0/9.0)*float64(len(d)-contextSize)/float64(c.Len()))
 	fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*(len(d)-contextSize))/float64(len(cHuff.D)))
 	if c.Len() > 1024 {
-		fmt.Printf("Compressed size: %dKB\n", int(float64(c.Len()*100)/1024)/100)
+		fmt.Printf("Compressed size: %dKB\n", int(float64(c.Len()*100)*9.0/8.0/1024)/100)
 		fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/8192)/100)
 	}
 
@@ -218,7 +217,6 @@ func decompresslzss_v1(data compress.Stream) ([]byte, error) {
 	return DecompressPureGo(data, Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: 2,
-			NbBytesLength:  1,
 		},
 		StartAt: 256,
 	})
@@ -230,7 +228,6 @@ func compresslzss_v1(data []byte) (compressResult, error) {
 	c, err := Compress(data, Settings{
 		BackRefSettings: BackRefSettings{
 			NbBytesAddress: 2,
-			NbBytesLength:  1,
 		},
 		StartAt: 256,
 	})

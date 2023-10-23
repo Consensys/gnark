@@ -2,11 +2,10 @@ package lzss_v1
 
 type BackRefSettings struct {
 	NbBytesAddress uint
-	NbBytesLength  uint
 }
 
-func (s BackRefSettings) NbBytes() int {
-	return int(1 + s.NbBytesAddress + s.NbBytesLength)
+func (s BackRefSettings) NbWords() int {
+	return int(1 + s.NbBytesAddress)
 }
 
 type Settings struct {
