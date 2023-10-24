@@ -32,6 +32,52 @@ import (
 )
 
 // -------------------------------------------------------------------------------------------------
+// Marshalling
+
+type MarshalG1Test struct {
+	P G1Affine
+	R [768]frontend.Variable
+}
+
+func (c *MarshalG1Test) Define(api frontend.API) error {
+	nbBits := 384
+	ec := NewCurve(api)
+
+	// we want to get the same output as gnark-crypto's marshal.
+	// It's a point on bls12-377 so the number of bytes is 96, as the
+	// field of definition of bls12-377 is 48 bytes long.
+	r := ec.MarshalG1(c.P, nbBits)
+
+	for i := 0; i < nbBits; i++ {
+		ec.api.AssertIsEqual(r[i], c.R[nbBits-1-i])
+		ec.api.AssertIsEqual(r[nbBits+i], c.R[2*nbBits-1-i])
+	}
+	return nil
+}
+
+func TestMarshalG1(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// sample a random point
+	var r fr.Element
+	r.SetRandom()
+	var br big.Int
+	r.BigInt(&br)
+	_, _, g, _ := bls12377.Generators()
+	g.ScalarMultiplication(&g, &br)
+	gBytes := g.Marshal()
+	var witness MarshalG1Test
+	witness.P.Assign(&g)
+	for i := 0; i < 96; i++ {
+		for j := 0; j < 8; j++ {
+			witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+		}
+	}
+	var circuit MarshalG1Test
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+// -------------------------------------------------------------------------------------------------
 // Add jacobian
 
 type g1AddAssign struct {

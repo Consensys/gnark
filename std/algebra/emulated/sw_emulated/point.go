@@ -86,6 +86,16 @@ type AffinePoint[Base emulated.FieldParams] struct {
 	X, Y emulated.Element[Base]
 }
 
+// TODO
+func (c *Curve[B, S]) MarshalScalar(s emulated.Element[S], nbBits int) []frontend.Variable {
+	return nil
+}
+
+// TODO
+func (c *Curve[B, S]) MarshalG1(P AffinePoint[B], nbBitsPerCoordinate int) []frontend.Variable {
+	return nil
+}
+
 // Neg returns an inverse of p. It doesn't modify p.
 func (c *Curve[B, S]) Neg(p *AffinePoint[B]) *AffinePoint[B] {
 	return &AffinePoint[B]{

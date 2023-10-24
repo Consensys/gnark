@@ -21,6 +21,22 @@ func NewCurve(api frontend.API) *Curve {
 	}
 }
 
+// MarshalScalar returns
+func (c *Curve) MarshalScalar(s Scalar, nbBits int) []frontend.Variable {
+	return c.api.ToBinary(s, nbBits)
+}
+
+// MarshalG1 returns [P.X || P.Y] in binary. Both P.X and P.Y are
+// in little endian.
+func (c *Curve) MarshalG1(P G1Affine, nbBitsPerCoordinate int) []frontend.Variable {
+	res := make([]frontend.Variable, 2*nbBitsPerCoordinate)
+	x := c.api.ToBinary(P.X, nbBitsPerCoordinate)
+	y := c.api.ToBinary(P.Y, nbBitsPerCoordinate)
+	copy(res, x)
+	copy(res[nbBitsPerCoordinate:], y)
+	return res
+}
+
 // Add points P and Q and return the result. Does not modify the inputs.
 func (c *Curve) Add(P, Q *G1Affine) *G1Affine {
 	res := &G1Affine{
