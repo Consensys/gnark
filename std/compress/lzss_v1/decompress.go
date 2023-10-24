@@ -8,7 +8,7 @@ func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
 	in := bytes.NewReader(c)
-	copyBuf := make([]byte, settings.NbBytesAddress+settings.NbBytesLength)
+	copyBuf := make([]byte, settings.NbBitsAddress+settings.NbBitsLength)
 
 	outAt := func(i int) byte {
 		if i < 0 {
@@ -19,8 +19,8 @@ func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 
 	readBackRef := func() (offset, length int) {
 		_, err = in.Read(copyBuf)
-		offset = readNum(copyBuf[:settings.NbBytesAddress]) + 1
-		length = readNum(copyBuf[settings.NbBytesAddress:settings.NbBytesAddress+settings.NbBytesLength]) + 1
+		offset = readNum(copyBuf[:settings.NbBitsAddress]) + 1
+		length = readNum(copyBuf[settings.NbBitsAddress:settings.NbBitsAddress+settings.NbBitsLength]) + 1
 		return
 	}
 

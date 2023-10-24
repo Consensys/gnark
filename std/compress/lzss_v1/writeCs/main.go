@@ -23,8 +23,8 @@ func main() {
 		D: make([]byte, 612000),
 		Settings: lzss_v1.Settings{
 			BackRefSettings: lzss_v1.BackRefSettings{
-				NbBytesAddress: 2,
-				NbBytesLength:  1,
+				NbBitsAddress: 2,
+				NbBitsLength:  1,
 			},
 		},
 	}

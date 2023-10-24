@@ -1,9 +1,9 @@
 package lzss_v1
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/consensys/gnark/std/compress"
 	"index/suffixarray"
 	"math/bits"
 
@@ -21,14 +21,12 @@ import (
 // In fact, DEFLATE is LZSS + Huffman coding. It is implemented in gzip which is the standard tool for compressing programmatic data.
 // For more information, refer to Bill Bird's fantastic undergraduate course on Data Compression
 // In particular those on the LZ family: https://youtu.be/z1I1o7zySUI and DEFLATE: https://youtu.be/SJPvNi4HrWQ
-func Compress(d []byte, settings Settings) (c []byte, err error) {
+func Compress(d []byte, settings Settings) (c compress.Stream, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
-	var out bytes.Buffer
+	c.NbSymbs = max(256, 1<<settings.NbBitsLength, 1<<settings.NbBitsAddress)
 
 	emitBackRef := func(offset, length int) {
-		out.WriteByte(0)
-		emit(&out, offset-1, settings.NbBytesAddress)
-		emit(&out, length-1, settings.NbBytesLength)
+		c.D = append(c.D, 0, offset-1, length-1)
 	}
 	compressor := newCompressor(d, settings)
 	i := 0
@@ -37,9 +35,9 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		if length == -1 {
 			// no backref found
 			if d[i] == 0 {
-				return nil, fmt.Errorf("could not find an RLE backref at index %d", i)
+				return c, fmt.Errorf("could not find an RLE backref at index %d", i)
 			}
-			out.WriteByte(d[i])
+			c.D = append(c.D, int(d[i]))
 			i++
 			continue
 		}
@@ -47,7 +45,17 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 		i += length
 	}
 
-	return out.Bytes(), nil
+	return
+}
+
+func max(i ...int) int {
+	max := i[0]
+	for _, j := range i {
+		if j > max {
+			max = j
+		}
+	}
+	return max
 }
 
 type compressor struct {
@@ -84,8 +92,8 @@ func (compressor *compressor) initZeroPrefix() {
 func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int) {
 	d := compressor.d
 	// var backRefLen int
-	brAddressRange := 1 << (compressor.settings.NbBytesAddress * 8)
-	brLengthRange := 1 << (compressor.settings.NbBytesLength * 8)
+	brAddressRange := 1 << (compressor.settings.NbBitsAddress * 8)
+	brLengthRange := 1 << (compressor.settings.NbBitsLength * 8)
 	minBackRefAddr := i - brAddressRange
 
 	windowStart := utils.Max(0, minBackRefAddr)
@@ -127,7 +135,7 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 	// d[i] != 0
 
 	// under that threshold, it's more interesting to write the symbol directly.
-	t := int(1 + compressor.settings.NbBytesAddress + compressor.settings.NbBytesLength)
+	t := int(1 + compressor.settings.NbBitsAddress + compressor.settings.NbBitsLength)
 
 	if i+t > len(d) {
 		return -1, -1
@@ -158,16 +166,6 @@ func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int)
 
 }
 
-func countZeroes(a []byte, maxCount int) (count int) {
-	for i := 0; i < len(a) && count < maxCount; i++ {
-		if a[i] != 0 {
-			break
-		}
-		count++
-	}
-	return
-}
-
 // matchLen returns the maximum common prefix length of a and b.
 // a must be the shortest of the two.
 func matchLen(a, b []byte) (n int) {
@@ -187,14 +185,4 @@ func matchLen(a, b []byte) (n int) {
 	}
 	return n
 
-}
-
-func emit(bb *bytes.Buffer, n int, nbBytes uint) {
-	for i := uint(0); i < nbBytes; i++ {
-		bb.WriteByte(byte(n))
-		n >>= 8
-	}
-	if n != 0 {
-		panic("n does not fit in nbBytes")
-	}
 }

@@ -10,11 +10,11 @@ import (
 // Decompress implements the decompression logic implemented in both DecompressPureGo and decompressStateMachine, pretty much identical to the latter.
 // TODO Add input correctness checks
 func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, cLength frontend.Variable, settings Settings) (dLength frontend.Variable, err error) {
-	if settings.BackRefSettings.NbBytesLength != 1 {
+	if settings.BackRefSettings.NbBitsLength != 1 {
 		return -1, errors.New("currently only backrefs of length up to 256 supported")
 	}
 
-	brLengthRange := 1 << (settings.NbBytesLength * 8)
+	brLengthRange := 1 << (settings.NbBitsLength * 8)
 
 	isBit := func(n frontend.Variable) frontend.Variable { // TODO Replace uses of this
 		return api.IsZero(api.MulAcc(api.Neg(n), n, n))
@@ -23,7 +23,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 	dTable := newOutputTable(api, settings)
 
 	cTable := newInputTable(api, c)
-	for i := 0; i <= int(settings.NbBytesAddress+settings.NbBytesLength); i++ { // pad it a little
+	for i := 0; i <= int(settings.NbBitsAddress+settings.NbBitsLength); i++ { // pad it a little
 		cTable.Insert(0)
 	}
 	readC := func(start frontend.Variable, length int) []frontend.Variable {
@@ -37,8 +37,8 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 	brOffsetTable := logderivlookup.New(api)
 	for i := range c {
-		if i+int(settings.NbBytesAddress) < len(c) {
-			brOffsetTable.Insert(readLittleEndian(api, c[i+1:i+1+int(settings.NbBytesAddress)]))
+		if i+int(settings.NbBitsAddress) < len(c) {
+			brOffsetTable.Insert(readLittleEndian(api, c[i+1:i+1+int(settings.NbBitsAddress)]))
 		} else {
 			brOffsetTable.Insert(0)
 		}
@@ -57,7 +57,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		}
 
 		curr := readC(inI, 1)[0]
-		brLen := api.Add(readLittleEndian(api, readC(api.Add(inI, 1+settings.NbBytesAddress), int(settings.NbBytesLength))), 1)
+		brLen := api.Add(readLittleEndian(api, readC(api.Add(inI, 1+settings.NbBitsAddress), int(settings.NbBitsLength))), 1)
 		brOffsetMinusOne := brOffsetTable.Lookup(inI)[0]
 
 		isSymb := api.IsZero(curr)
@@ -84,7 +84,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 			// inIDelta = copying ? (copyLen01? backRefCodeLen: 0) : 1
 			// inIDelta = - copying + copying*copyLen01*(backrefCodeLen) + 1
-			inIDelta := api.(_scs).NewCombination(copying, copyLen01, -1, 0, 1+int(settings.NbBytesAddress+settings.NbBytesLength), 1)
+			inIDelta := api.(_scs).NewCombination(copying, copyLen01, -1, 0, 1+int(settings.NbBitsAddress+settings.NbBitsLength), 1)
 
 			// TODO Try removing this check and requiring the user to pad the input with nonzeros
 			// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged
@@ -124,7 +124,7 @@ func newInputTable(api frontend.API, in []frontend.Variable) *logderivlookup.Tab
 
 func newOutputTable(api frontend.API, settings Settings) *logderivlookup.Table {
 	res := logderivlookup.New(api)
-	for i := 1 << (settings.NbBytesLength * 8); i > 0; i-- {
+	for i := 1 << (settings.NbBitsLength * 8); i > 0; i-- {
 		res.Insert(0)
 	}
 	return res

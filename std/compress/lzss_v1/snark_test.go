@@ -104,8 +104,8 @@ func BenchmarkCompilation64KBSnark(b *testing.B) {
 		D: make([]byte, 64000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
-				NbBytesAddress: 2,
-				NbBytesLength:  1,
+				NbBitsAddress: 2,
+				NbBitsLength:  1,
 			},
 		},
 	}
@@ -123,8 +123,8 @@ func BenchmarkCompilation300KBSnark(b *testing.B) {
 		D: make([]byte, 300000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
-				NbBytesAddress: 2,
-				NbBytesLength:  1,
+				NbBitsAddress: 2,
+				NbBitsLength:  1,
 			},
 		},
 	}
@@ -156,8 +156,8 @@ func compile26KBSnark(t require.TestingT, testCaseName string) {
 		D: make([]byte, 26000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
-				NbBytesAddress: 2,
-				NbBytesLength:  1,
+				NbBitsAddress: 2,
+				NbBitsLength:  1,
 			},
 		},
 	}
@@ -225,8 +225,8 @@ func BenchmarkCompilation600KBSnark(b *testing.B) {
 		D: make([]byte, 612000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
-				NbBytesAddress: 2,
-				NbBytesLength:  1,
+				NbBitsAddress: 2,
+				NbBitsLength:  1,
 			},
 		},
 	}
@@ -241,8 +241,8 @@ func BenchmarkCompilation600KBSnark(b *testing.B) {
 func testCompressionRoundTripSnark(t *testing.T, nbBytesOffset uint, d []byte) {
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: nbBytesOffset,
-			NbBytesLength:  1,
+			NbBitsAddress: nbBytesOffset,
+			NbBitsLength:  1,
 		},
 	}
 
@@ -254,8 +254,8 @@ func testCompressionRoundTripSnark(t *testing.T, nbBytesOffset uint, d []byte) {
 func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte) {
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: nbBytesOffset,
-			NbBytesLength:  1,
+			NbBitsAddress: nbBytesOffset,
+			NbBitsLength:  1,
 		},
 	}
 

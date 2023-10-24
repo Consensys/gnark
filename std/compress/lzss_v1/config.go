@@ -1,12 +1,12 @@
 package lzss_v1
 
 type BackRefSettings struct {
-	NbBytesAddress uint
-	NbBytesLength  uint
+	NbBitsAddress uint
+	NbBitsLength  uint
 }
 
 func (s BackRefSettings) NbBytes() int {
-	return int(1 + s.NbBytesAddress + s.NbBytesLength)
+	return int(8 + s.NbBitsAddress + s.NbBitsLength)
 }
 
 type Settings struct {

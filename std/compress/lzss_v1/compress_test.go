@@ -28,8 +28,8 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 	}
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: nbBytesAddress,
-			NbBytesLength:  1,
+			NbBitsAddress: nbBytesAddress,
+			NbBitsLength:  1,
 		},
 	}
 	c, err := Compress(d, settings)
@@ -283,8 +283,8 @@ func compressWithZstd(data []byte) (compressResult, error) {
 func decompresslzss_v1(data []byte) ([]byte, error) {
 	return DecompressPureGo(data, Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: 2,
-			NbBytesLength:  1,
+			NbBitsAddress: 2,
+			NbBitsLength:  1,
 		},
 	})
 }
@@ -292,8 +292,8 @@ func decompresslzss_v1(data []byte) ([]byte, error) {
 func compresslzss_v1(data []byte) (compressResult, error) {
 	c, err := Compress(data, Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: 2,
-			NbBytesLength:  1,
+			NbBitsAddress: 2,
+			NbBitsLength:  1,
 		},
 	})
 	if err != nil {
