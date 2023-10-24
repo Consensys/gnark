@@ -23,7 +23,13 @@ func NewCurve(api frontend.API) *Curve {
 
 // MarshalScalar returns
 func (c *Curve) MarshalScalar(s Scalar, nbBits int) []frontend.Variable {
-	return c.api.ToBinary(s, nbBits)
+	x := c.api.ToBinary(s, nbBits)
+	for i, j := 0, nbBits-1; i < j; {
+		x[i], x[j] = x[j], x[i]
+		i++
+		j--
+	}
+	return x
 }
 
 // MarshalG1 returns [P.X || P.Y] in binary. Both P.X and P.Y are
@@ -32,8 +38,10 @@ func (c *Curve) MarshalG1(P G1Affine, nbBitsPerCoordinate int) []frontend.Variab
 	res := make([]frontend.Variable, 2*nbBitsPerCoordinate)
 	x := c.api.ToBinary(P.X, nbBitsPerCoordinate)
 	y := c.api.ToBinary(P.Y, nbBitsPerCoordinate)
-	copy(res, x)
-	copy(res[nbBitsPerCoordinate:], y)
+	for i := 0; i < nbBitsPerCoordinate; i++ {
+		res[i] = x[nbBitsPerCoordinate-1-i]
+		res[i+nbBitsPerCoordinate] = y[nbBitsPerCoordinate-1-i]
+	}
 	return res
 }
 

@@ -34,6 +34,39 @@ import (
 // -------------------------------------------------------------------------------------------------
 // Marshalling
 
+type MarshalScalarTest struct {
+	X frontend.Variable
+	R [256]frontend.Variable
+}
+
+func (c *MarshalScalarTest) Define(api frontend.API) error {
+
+	nbBits := 256
+	ec := NewCurve(api)
+	r := ec.MarshalScalar(c.X, nbBits)
+	for i := 0; i < nbBits; i++ {
+		ec.api.AssertIsEqual(r[i], c.R[i])
+	}
+	return nil
+}
+
+func TestMarshalScalar(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	var r fr.Element
+	r.SetRandom()
+	rBytes := r.Marshal()
+	var witness MarshalScalarTest
+	witness.X = r.String()
+	for i := 0; i < 32; i++ {
+		for j := 0; j < 8; j++ {
+			witness.R[i*8+j] = (rBytes[i] >> (7 - j)) & 1
+		}
+	}
+	var circuit MarshalScalarTest
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
 type MarshalG1Test struct {
 	P G1Affine
 	R [768]frontend.Variable
@@ -43,14 +76,11 @@ func (c *MarshalG1Test) Define(api frontend.API) error {
 	nbBits := 384
 	ec := NewCurve(api)
 
-	// we want to get the same output as gnark-crypto's marshal.
-	// It's a point on bls12-377 so the number of bytes is 96, as the
-	// field of definition of bls12-377 is 48 bytes long.
+	// the bits are layed out exactly as in gnark-crypto
 	r := ec.MarshalG1(c.P, nbBits)
 
-	for i := 0; i < nbBits; i++ {
-		ec.api.AssertIsEqual(r[i], c.R[nbBits-1-i])
-		ec.api.AssertIsEqual(r[nbBits+i], c.R[2*nbBits-1-i])
+	for i := 0; i < 2*nbBits; i++ {
+		ec.api.AssertIsEqual(r[i], c.R[i])
 	}
 	return nil
 }
