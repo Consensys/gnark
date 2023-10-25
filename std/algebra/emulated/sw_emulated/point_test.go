@@ -23,6 +23,84 @@ import (
 
 var testCurve = ecc.BN254
 
+type MarshalScalarTest[T, S emulated.FieldParams] struct {
+	X emulated.Element[S]
+	R []frontend.Variable
+}
+
+func (c *MarshalScalarTest[T, S]) Define(api frontend.API) error {
+
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	br := cr.MarshalScalar(c.X, len(c.R))
+	for i := 0; i < len(c.R); i++ {
+		cr.api.AssertIsEqual(c.R[i], br[i])
+	}
+	return nil
+}
+
+func TestMarshalScalar(t *testing.T) {
+	assert := test.NewAssert(t)
+	var r fr_bw6761.Element
+	r.SetRandom()
+	rBytes := r.Marshal()
+	nbBytes := fr_bw6761.Bytes
+	nbBits := nbBytes * 8
+	var witness MarshalScalarTest[emulated.BW6761Fp, emulated.BW6761Fr]
+	witness.R = make([]frontend.Variable, nbBits)
+	for i := 0; i < nbBytes; i++ {
+		for j := 0; j < 8; j++ {
+			witness.R[i*8+j] = (rBytes[i] >> (7 - j)) & 1
+		}
+	}
+	witness.X = emulated.ValueOf[emulated.BW6761Fr](r)
+	var circuit MarshalScalarTest[emulated.BW6761Fp, emulated.BW6761Fr]
+	circuit.R = make([]frontend.Variable, nbBits)
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type MarshalG1Test[T, S emulated.FieldParams] struct {
+	G AffinePoint[T]
+	R []frontend.Variable
+}
+
+func (c *MarshalG1Test[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	nbBitsPerCoordinate := len(c.R) / 2
+	br := cr.MarshalG1(c.G, nbBitsPerCoordinate)
+	for i := 0; i < len(c.R); i++ {
+		cr.api.AssertIsEqual(c.R[i], br[i])
+	}
+	return nil
+}
+
+func TestMarshalG1(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, g, _ := bw6761.Generators()
+	gBytes := g.Marshal()
+	nbBytes := 2 * len(bw6761.ID.BaseField().Bytes())
+	nbBits := nbBytes * 8
+	var witness MarshalG1Test[emulated.BW6761Fp, emulated.BW6761Fr]
+	witness.R = make([]frontend.Variable, nbBits)
+	for i := 0; i < nbBytes; i++ {
+		for j := 0; j < 8; j++ {
+			witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+		}
+	}
+	witness.G.X = emulated.ValueOf[emulated.BW6761Fp](g.X)
+	witness.G.Y = emulated.ValueOf[emulated.BW6761Fp](g.Y)
+	var circuit MarshalG1Test[emulated.BW6761Fp, emulated.BW6761Fr]
+	circuit.R = make([]frontend.Variable, nbBits)
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
 type NegTest[T, S emulated.FieldParams] struct {
 	P, Q AffinePoint[T]
 }

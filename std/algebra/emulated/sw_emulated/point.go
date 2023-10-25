@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
+	"golang.org/x/exp/slices"
 )
 
 // New returns a new [Curve] instance over the base field Base and scalar field
@@ -86,14 +87,31 @@ type AffinePoint[Base emulated.FieldParams] struct {
 	X, Y emulated.Element[Base]
 }
 
-// TODO
+// MarshalScalar
 func (c *Curve[B, S]) MarshalScalar(s emulated.Element[S], nbBits int) []frontend.Variable {
-	return nil
+	sReduced := c.scalarApi.Reduce(&s)
+	res := c.scalarApi.ToBits(sReduced)
+	res = res[:nbBits]
+	for i, j := 0, nbBits-1; i < j; {
+		res[i], res[j] = res[j], res[i]
+		i++
+		j--
+	}
+	return res
 }
 
 // TODO
-func (c *Curve[B, S]) MarshalG1(P AffinePoint[B], nbBitsPerCoordinate int) []frontend.Variable {
-	return nil
+func (c *Curve[B, S]) MarshalG1(p AffinePoint[B], nbBitsPerCoordinate int) []frontend.Variable {
+	x := c.baseApi.Reduce(&p.X)
+	y := c.baseApi.Reduce(&p.Y)
+	bx := c.baseApi.ToBits(x)
+	by := c.baseApi.ToBits(y)
+	slices.Reverse(bx)
+	slices.Reverse(by)
+	res := make([]frontend.Variable, 2*nbBitsPerCoordinate)
+	copy(res, bx)
+	copy(res[nbBitsPerCoordinate:], by)
+	return res
 }
 
 // Neg returns an inverse of p. It doesn't modify p.
