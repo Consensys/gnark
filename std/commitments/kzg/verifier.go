@@ -107,7 +107,7 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 		}
 		tPoint, ok := point.(fr_bn254.Element)
 		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
 		}
 		s.QuotientPoly = sw_bn254.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bn254.NewScalar(tProof.ClaimedValue)
@@ -119,7 +119,7 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 		}
 		tPoint, ok := point.(fr_bls12377.Element)
 		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
 		}
 		s.QuotientPoly = sw_bls12377.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bls12377.NewScalar(tProof.ClaimedValue)
@@ -131,7 +131,7 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 		}
 		tPoint, ok := point.(fr_bls12381.Element)
 		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
 		}
 		s.QuotientPoly = sw_bls12381.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bls12381.NewScalar(tProof.ClaimedValue)
@@ -143,7 +143,7 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 		}
 		tPoint, ok := point.(fr_bw6761.Element)
 		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
 		}
 		s.QuotientPoly = sw_bw6761.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bw6761.NewScalar(tProof.ClaimedValue)
@@ -155,7 +155,7 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 		}
 		tPoint, ok := point.(fr_bls24315.Element)
 		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
 		}
 		s.QuotientPoly = sw_bls24315.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bls24315.NewScalar(tProof.ClaimedValue)
