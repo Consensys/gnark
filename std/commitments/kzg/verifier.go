@@ -122,8 +122,8 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
 		}
 		s.QuotientPoly = sw_bls12377.NewG1Affine(tProof.H)
-		s.ClaimedValue = tProof.ClaimedValue.String()
-		s.Point = tPoint.String()
+		s.ClaimedValue = sw_bls12377.NewScalar(tProof.ClaimedValue)
+		s.Point = sw_bls12377.NewScalar(tPoint)
 	case *OpeningProof[sw_bls12381.Scalar, sw_bls12381.G1Affine]:
 		tProof, ok := proof.(kzg_bls12381.OpeningProof)
 		if !ok {
@@ -158,8 +158,8 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
 		}
 		s.QuotientPoly = sw_bls24315.NewG1Affine(tProof.H)
-		s.ClaimedValue = tProof.ClaimedValue.String()
-		s.Point = tPoint.String()
+		s.ClaimedValue = sw_bls24315.NewScalar(tProof.ClaimedValue)
+		s.Point = sw_bls24315.NewScalar(tPoint)
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}

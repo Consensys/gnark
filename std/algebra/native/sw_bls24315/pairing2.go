@@ -5,6 +5,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
@@ -301,3 +302,8 @@ func NewGTEl(v bls24315.GT) GT {
 // Scalar is a scalar in the groups. As the implementation is defined on a
 // 2-chain, then this type is an alias to [frontend.Variable].
 type Scalar = frontend.Variable
+
+// NewScalar allocates a witness from the native scalar and returns it.
+func NewScalar(v fr_bls24315.Element) Scalar {
+	return v.String()
+}
