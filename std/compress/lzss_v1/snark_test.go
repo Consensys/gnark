@@ -294,12 +294,7 @@ func testDecompressionSnark(t *testing.T, nbBitsOffset uint, c compress.Stream, 
 	proveDecompressionSnark(t, cs, pk, cPacked)
 }
 
-func proveDecompressionSnark(t require.TestingT, cs constraint.ConstraintSystem, pk plonk.ProvingKey, cPacked [][]byte) {
-
-	cVars := make([]frontend.Variable, len(cPacked))
-	for i := range cVars {
-		cVars[i] = cPacked[i]
-	}
+func proveDecompressionSnark(t require.TestingT, cs constraint.ConstraintSystem, pk plonk.ProvingKey, cPacked []frontend.Variable) {
 
 	/*for i := len(c); i < len(cVars); i++ {
 		cVars[i] = 0
@@ -315,8 +310,8 @@ func proveDecompressionSnark(t require.TestingT, cs constraint.ConstraintSystem,
 
 	fmt.Println("constructing witness")
 	_witness, err := frontend.NewWitness(&DecompressionTestCircuit{
-		CPacked: cVars,
-		CLength: len(cVars),
+		CPacked: cPacked,
+		CLength: len(cPacked),
 	}, ecc.BN254.ScalarField())
 	require.NoError(t, err)
 	restartTimer()

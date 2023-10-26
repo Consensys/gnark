@@ -2,8 +2,6 @@ package lzss_v1
 
 import (
 	"bytes"
-	"errors"
-	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
@@ -11,13 +9,34 @@ import (
 	"math/big"
 )
 
-func CompressedToBytes(c compress.Stream, settings Settings) (_bytes []byte, nbBits int) {
-	var bb bytes.Buffer
-	w := bitio.NewWriter(&bb)
-	write := func(i int, _nbBits uint) {
-		if err := w.WriteBits(uint64(i), uint8(_nbBits)); err != nil {
+func bitioWriteLittleE(w *bitio.Writer, r uint64, wordLen, nbBits uint8) {
+	for i := uint8(0); i < nbBits; i += wordLen {
+		if err := w.WriteBits(r, wordLen); err != nil {
 			panic(err)
 		}
+		r >>= wordLen
+	}
+}
+
+func bitioReadLittleE(r *bitio.Reader, wordLen, nbBits uint8) uint64 {
+	res := uint64(0)
+
+	for i := uint8(0); i < nbBits; i += wordLen {
+		n, err := r.ReadBits(wordLen)
+		if err != nil {
+			panic(err)
+		}
+		res |= n << i
+	}
+	return res
+}
+
+func CompressedToBytes(c compress.Stream, settings Settings) (_bytes []byte, nbBits int) {
+	var bb bytes.Buffer
+	wordLen := uint8(settings.WordNbBits())
+	w := bitio.NewWriter(&bb)
+	write := func(i int, _nbBits uint) {
+		bitioWriteLittleE(w, uint64(i), wordLen, uint8(_nbBits))
 		nbBits += int(_nbBits)
 	}
 	for i := 0; i < len(c.D); i++ {
@@ -34,32 +53,25 @@ func CompressedToBytes(c compress.Stream, settings Settings) (_bytes []byte, nbB
 	return bb.Bytes(), nbBits
 }
 
-func Pack(c compress.Stream, fieldLen int, settings Settings) [][]byte {
+func Pack(c compress.Stream, fieldLen int, settings Settings) []frontend.Variable {
 	wordLen := Gcd(8, int(settings.NbBitsAddress), int(settings.NbBitsLength))
 	wordPerElem := (fieldLen - 1) / wordLen
 	bitPerElem := wordPerElem * wordLen
 
 	_bytes, nbBits := CompressedToBytes(c, settings)
 
-	res := make([][]byte, nbBits/bitPerElem)
+	res := make([]frontend.Variable, (nbBits+bitPerElem-1)/bitPerElem)
 
 	r := bitio.NewReader(bytes.NewReader(_bytes))
-	elemI := 0
-	elemByteI := 0
-	for nbBits > 0 {
-		toRead := utils.Min(8, bitPerElem-elemByteI*8)
-		if b, err := r.ReadBits(uint8(toRead)); err != nil {
-			panic(err)
-		} else {
-			res[elemI][elemByteI] = byte(b)
+
+	for i := range res {
+		toRead := bitPerElem
+		if i == len(res)-1 {
+			toRead = nbBits % bitPerElem
 		}
-		if elemByteI*8+toRead == bitPerElem {
-			elemI++
-			elemByteI = 0
-		} else {
-			elemByteI++
-		}
+		res[i] = big.NewInt(int64(bitioReadLittleE(r, uint8(wordLen), uint8(toRead))))
 	}
+
 	return res
 }
 
@@ -82,18 +94,17 @@ func Gcd(a ...int) int {
 }
 
 func Decompose(mod *big.Int, ins, outs []*big.Int) error {
-	if len(ins) != 1 {
-		return errors.New("decompose only works on one variable")
-	}
 	outPerIn := len(outs) / len(ins)
 	bitsPerOut := (mod.BitLen() - 1) / outPerIn
 	for i := range ins {
 		for outInI := 0; outInI < outPerIn; outInI++ {
 			for j := 0; j < bitsPerOut; j++ {
-				if ins[i].Bit(j) == 1 {
-					outs[i*outPerIn+outInI].SetBit(outs[i*outPerIn+outInI], j, 1)
+				outAbsI := i*outPerIn + outInI
+				inJ := outInI*bitsPerOut + j
+				if ins[i].Bit(inJ) == 1 {
+					outs[outAbsI].SetBit(outs[outAbsI], j, 1)
 				} else {
-					outs[i*outPerIn+outInI].SetBit(outs[i*outPerIn+outInI], j, 0)
+					outs[outAbsI].SetBit(outs[outAbsI], j, 0)
 				}
 			}
 		}
