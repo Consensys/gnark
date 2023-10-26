@@ -34,7 +34,7 @@ func testCompressionRoundTrip(t *testing.T, nbBitsAddress uint, d []byte, testCa
 
 	//cStream := compress.NewStreamFromBytes(c)
 	//cHuff := huffman.Encode(cStream)	TODO Huffman
-	fmt.Println("Size Compression ratio:", float64(8*len(d))/float64(len(cBytes)-1))
+	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(cBytes)-1))
 	//fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*len(d))/float64(len(cHuff.D)))
 	if c.Len() > 1024*8 {
 		fmt.Printf("Compressed size: %dKB\n", int(float64(len(cBytes[1:])*100)/1024)/100)
