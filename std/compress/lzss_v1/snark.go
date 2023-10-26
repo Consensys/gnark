@@ -10,6 +10,10 @@ import (
 // TODO Add input correctness checks
 func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, cLength frontend.Variable, settings Settings) (dLength frontend.Variable, err error) {
 
+	wordLen := settings.WordNbBits()
+	brNbWords := int(8+settings.NbBitsLength+settings.NbBitsAddress) / wordLen
+	byteNbWords := 8 / wordLen
+
 	isBit := func(n frontend.Variable) frontend.Variable { // TODO Replace uses of this
 		return api.IsZero(api.MulAcc(api.Neg(n), n, n))
 	}
@@ -57,9 +61,9 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 
 		func() { // EOF Logic
 
-			// inIDelta = copying ? (copyLen01? backRefCodeLen: 0) : 1
-			// inIDelta = - copying + copying*copyLen01*(backrefCodeLen) + 1
-			inIDelta := api.(_scs).NewCombination(copying, copyLen01, -1, 0, 1+int(settings.NbBitsAddress+settings.NbBitsLength), 1)
+			// inIDelta = copying ? (copyLen01? backRefCodeLen: 0) : byteLen
+			// inIDelta = - byteLen * copying + copying*copyLen01*(backrefCodeLen) + byteLen
+			inIDelta := api.(_scs).NewCombination(copying, copyLen01, -byteNbWords, 0, brNbWords, byteNbWords)
 
 			// TODO Try removing this check and requiring the user to pad the input with nonzeros
 			// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged

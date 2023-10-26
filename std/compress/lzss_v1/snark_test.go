@@ -3,8 +3,9 @@ package lzss_v1
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
-	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
@@ -14,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
-	"time"
 )
 
 func Test1ZeroSnark(t *testing.T) {
@@ -270,53 +270,17 @@ func testDecompressionSnark(t *testing.T, nbBitsOffset uint, c compress.Stream, 
 	//cMax := c.Len() * 3
 
 	cPacked := Pack(c, ecc.BN254.ScalarField().BitLen(), settings)
-	decompressor := &DecompressionTestCircuit{
+	circuit := &DecompressionTestCircuit{
 		CPacked:          make([]frontend.Variable, len(cPacked)),
 		D:                d,
 		Settings:         settings,
 		CheckCorrectness: true,
 	}
-
-	for i := range cPacked {
-		decompressor.CPacked[i] = cPacked[i]
-	}
-
-	//p := profile.Start()
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, decompressor)
-	//p.Stop()
-	require.NoError(t, err)
-
-	kzgSrs, err := test.NewKZGSRS(cs)
-	require.NoError(t, err)
-	pk, _, err := plonk.Setup(cs, kzgSrs)
-	require.NoError(t, err)
-
-	proveDecompressionSnark(t, cs, pk, cPacked)
-}
-
-func proveDecompressionSnark(t require.TestingT, cs constraint.ConstraintSystem, pk plonk.ProvingKey, cPacked []frontend.Variable) {
-
-	/*for i := len(c); i < len(cVars); i++ {
-		cVars[i] = 0
-	}*/
-
-	var start int64
-	restartTimer := func() {
-		if start != 0 {
-			fmt.Println("time taken:", time.Now().UnixMilli()-start, "ms")
-		}
-		start = time.Now().UnixMilli()
-	}
-
-	fmt.Println("constructing witness")
-	_witness, err := frontend.NewWitness(&DecompressionTestCircuit{
+	assignment := &DecompressionTestCircuit{
 		CPacked: cPacked,
-		CLength: len(cPacked),
-	}, ecc.BN254.ScalarField())
-	require.NoError(t, err)
-	restartTimer()
-	fmt.Println("proving")
-	_, err = plonk.Prove(cs, pk, _witness)
-	require.NoError(t, err)
-	restartTimer()
+		CLength: len(cPacked) * 31,
+	}
+
+	solver.RegisterHint(Decompose)
+	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
