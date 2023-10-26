@@ -10,6 +10,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b
+	github.com/icza/bitio v1.1.0
 	github.com/klauspost/compress v1.17.1
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.30.0
@@ -34,5 +35,4 @@ require (
 	golang.org/x/sys v0.11.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
-	github.com/icza/bitio v1.1.0 // indirect
 )

@@ -2,13 +2,13 @@ package lzss_v1
 
 import (
 	"bytes"
+	"github.com/icza/bitio"
 )
 
 func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
-	in := bytes.NewReader(c)
-	copyBuf := make([]byte, settings.NbBitsAddress+settings.NbBitsLength)
+	in := bitio.NewReader(bytes.NewReader(c))
 
 	outAt := func(i int) byte {
 		if i < 0 {
@@ -17,22 +17,21 @@ func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 		return out.Bytes()[i]
 	}
 
-	readBackRef := func() (offset, length int) {
-		_, err = in.Read(copyBuf)
-		offset = readNum(copyBuf[:settings.NbBitsAddress]) + 1
-		length = readNum(copyBuf[settings.NbBitsAddress:settings.NbBitsAddress+settings.NbBitsLength]) + 1
-		return
-	}
-
+	var offset, length uint64
 	s, err := in.ReadByte()
+
 	for err == nil {
 		if s == 0 {
-			offset, length := readBackRef()
-			if err != nil {
+			if offset, err = in.ReadBits(uint8(settings.NbBitsAddress)); err != nil {
 				return nil, err
 			}
-			for i := 0; i < length; i++ {
-				out.WriteByte(outAt(out.Len() - offset))
+			if length, err = in.ReadBits(uint8(settings.NbBitsLength)); err != nil {
+				return nil, err
+			}
+
+			offset++
+			for i := 0; i <= int(length); i++ {
+				out.WriteByte(outAt(out.Len() - int(offset)))
 			}
 		} else {
 			out.WriteByte(s)
@@ -41,13 +40,4 @@ func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 	}
 
 	return out.Bytes(), nil
-}
-
-func readNum(bytes []byte) int { //little endian
-	var res int
-	for i := len(bytes) - 1; i >= 0; i-- {
-		res <<= 8
-		res |= int(bytes[i])
-	}
-	return res
 }

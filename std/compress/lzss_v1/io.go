@@ -121,7 +121,7 @@ func Unpack(api frontend.API, packed []frontend.Variable, settings Settings) ([]
 	for i := range packed {
 		repacked := frontend.Variable(0)
 		for j := 0; j < wordPerElem; j++ {
-			repacked = api.Add(repacked, api.Mul(1<<(j*wordLen), unpacked[i*wordPerElem+j]))
+			repacked = api.Add(repacked, api.Mul(1<<(j*wordLen), unpacked[i*wordPerElem+j])) // TODO Cache these?
 		}
 		api.AssertIsEqual(packed[i], repacked)
 	}

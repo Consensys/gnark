@@ -92,8 +92,8 @@ func (compressor *compressor) initZeroPrefix() {
 func (compressor *compressor) longestMostRecentBackRef(i int) (addr, length int) {
 	d := compressor.d
 	// var backRefLen int
-	brAddressRange := 1 << (compressor.settings.NbBitsAddress * 8)
-	brLengthRange := 1 << (compressor.settings.NbBitsLength * 8)
+	brAddressRange := 1 << compressor.settings.NbBitsAddress
+	brLengthRange := 1 << compressor.settings.NbBitsLength
 	minBackRefAddr := i - brAddressRange
 
 	windowStart := utils.Max(0, minBackRefAddr)
