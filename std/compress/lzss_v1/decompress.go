@@ -24,6 +24,14 @@ func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 		return
 	}
 
+	// read until startAt and write bytes as is
+	tmpBuf := make([]byte, settings.StartAt)
+	_, err = in.Read(tmpBuf)
+	if err != nil {
+		return nil, err
+	}
+	out.Write(tmpBuf)
+
 	s, err := in.ReadByte()
 	for err == nil {
 		if s == 0 {
@@ -40,7 +48,7 @@ func DecompressPureGo(c []byte, settings Settings) (d []byte, err error) {
 		s, err = in.ReadByte()
 	}
 
-	return out.Bytes(), nil
+	return out.Bytes()[settings.StartAt:], nil
 }
 
 func readNum(bytes []byte) int { //little endian

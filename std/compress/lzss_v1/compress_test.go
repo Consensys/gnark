@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -147,6 +148,7 @@ func TestAverageBatch(t *testing.T) {
 	data, err := hex.DecodeString(string(d))
 	assert.NoError(err)
 
+	dict := getDictionnary()
 	// test compress round trip with s2, zstd and lzss
 	// s2Res, err := compressWithS2(data)
 	// assert.NoError(err)
@@ -154,7 +156,7 @@ func TestAverageBatch(t *testing.T) {
 	// zstdRes, err := compressWithZstd(data)
 	// assert.NoError(err)
 
-	lzssRes, err := compresslzss_v1(data)
+	lzssRes, err := compresslzss_v1(data, dict)
 	assert.NoError(err)
 
 	// fmt.Println("s2 compression ratio:", s2Res.ratio)
@@ -170,7 +172,7 @@ func TestAverageBatch(t *testing.T) {
 	// zstdDecompressed, err := decompressWithZstd(zstdRes.compressed)
 	// assert.NoError(err)
 
-	lzssDecompressed, err := decompresslzss_v1(lzssRes.compressed)
+	lzssDecompressed, err := decompresslzss_v1(lzssRes.compressed, dict)
 	assert.NoError(err)
 
 	// assert.True(bytes.Equal(data, s2Decompressed))
@@ -191,6 +193,8 @@ func BenchmarkAverageBatch(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+
+	dict := getDictionnary()
 
 	// benchmark s2
 	// b.Run("s2", func(b *testing.B) {
@@ -215,7 +219,7 @@ func BenchmarkAverageBatch(b *testing.B) {
 	// benchmark lzss
 	b.Run("lzss", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, err := compresslzss_v1(data)
+			_, err := compresslzss_v1(data, dict)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -283,24 +287,30 @@ func compressWithZstd(data []byte) (compressResult, error) {
 	return res, nil
 }
 
-func decompresslzss_v1(data []byte) ([]byte, error) {
+func decompresslzss_v1(data, dict []byte) ([]byte, error) {
+	data = append(dict, data...)
 	return DecompressPureGo(data, Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: 2,
-			NbBytesLength:  1,
+			NbBytesAddress: nbBytesAddress,
+			NbBytesLength:  nbBytesLength,
 		},
+		StartAt: uint(len(dict)),
 	})
 }
 
-func compresslzss_v1(data []byte) (compressResult, error) {
-	const contextSize = 256
-	data = append(make([]byte, contextSize), data...)
+const (
+	nbBytesAddress = 3
+	nbBytesLength  = 1
+)
+
+func compresslzss_v1(data []byte, dict []byte) (compressResult, error) {
+	data = append(dict, data...)
 	c, err := Compress(data, Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: 2,
-			NbBytesLength:  1,
+			NbBytesAddress: nbBytesAddress,
+			NbBytesLength:  nbBytesLength,
 		},
-		StartAt: 256,
+		StartAt: uint(len(dict)),
 	})
 	if err != nil {
 		return compressResult{}, err
@@ -311,4 +321,14 @@ func compresslzss_v1(data []byte) (compressResult, error) {
 		outputSize: len(c),
 		ratio:      float64(len(data)) / float64(len(c)),
 	}, nil
+}
+
+func getDictionnary() []byte {
+	// read the dictionary from the file
+	d, err := ioutil.ReadFile("dict_naive")
+	if err != nil {
+		panic(err)
+	}
+	d = append(d, bytes.Repeat([]byte{0, 0}, 8)...)
+	return d
 }
