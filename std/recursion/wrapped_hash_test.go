@@ -2,10 +2,22 @@ package recursion_test
 
 import (
 	"crypto/rand"
+	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254"
+	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 )
@@ -17,7 +29,7 @@ type shortHashCircuit struct {
 }
 
 func (c *shortHashCircuit) Define(api frontend.API) error {
-	hasher, err := recursion.NewHash(api, c.inner.ScalarField())
+	hasher, err := recursion.NewHash(api, c.inner.ScalarField(), false)
 	if err != nil {
 		return err
 	}
