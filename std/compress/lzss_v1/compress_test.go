@@ -65,16 +65,19 @@ func testCompressionRoundTrip(t *testing.T, nbBitsAddress uint, d []byte, testCa
 
 func Test8Zeros(t *testing.T) {
 	testCompressionRoundTrip(t, 8, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	testCompressionRoundTrip(t, 10, []byte{0, 0, 0, 0, 0, 0, 0, 0})
 	testCompressionRoundTrip(t, 16, []byte{0, 0, 0, 0, 0, 0, 0, 0})
 }
 
 func Test300Zeros(t *testing.T) { // probably won't happen in our calldata
 	testCompressionRoundTrip(t, 8, make([]byte, 300))
+	testCompressionRoundTrip(t, 10, make([]byte, 300))
 	testCompressionRoundTrip(t, 16, make([]byte, 300))
 }
 
 func TestNoCompression(t *testing.T) {
 	testCompressionRoundTrip(t, 8, []byte{'h', 'i'})
+	testCompressionRoundTrip(t, 10, []byte{'h', 'i'})
 	testCompressionRoundTrip(t, 16, []byte{'h', 'i'})
 }
 
@@ -142,19 +145,30 @@ func TestAverageBatch(t *testing.T) {
 	data, err := hex.DecodeString(string(d))
 	assert.NoError(err)
 
+	testLzss := func(nbBitsAddress int) func(*testing.T) {
+		return func(t *testing.T) {
+			lzssRes, err := compresslzss_v1(data, nbBitsAddress)
+			assert.NoError(err)
+			fmt.Println("lzss compression ratio:", lzssRes.ratio)
+			lzssDecompressed, err := decompresslzss_v1(lzssRes.compressed, nbBitsAddress)
+			assert.NoError(err)
+			assert.True(bytes.Equal(data, lzssDecompressed))
+		}
+	}
+
 	// test compress round trip with s2, zstd and lzss
+
+	t.Run("16b offset", testLzss(16))
+	t.Run("18b offset", testLzss(18))
+
 	// s2Res, err := compressWithS2(data)
 	// assert.NoError(err)
 
 	// zstdRes, err := compressWithZstd(data)
 	// assert.NoError(err)
 
-	lzssRes, err := compresslzss_v1(data)
-	assert.NoError(err)
-
 	// fmt.Println("s2 compression ratio:", s2Res.ratio)
 	// fmt.Println("zstd compression ratio:", zstdRes.ratio)
-	fmt.Println("lzss compression ratio:", lzssRes.ratio)
 
 	// assert.Equal(5.241485472387916, lzssRes.ratio, "regression check")
 
@@ -165,12 +179,8 @@ func TestAverageBatch(t *testing.T) {
 	// zstdDecompressed, err := decompressWithZstd(zstdRes.compressed)
 	// assert.NoError(err)
 
-	lzssDecompressed, err := decompresslzss_v1(lzssRes.compressed)
-	assert.NoError(err)
-
 	// assert.True(bytes.Equal(data, s2Decompressed))
 	// assert.True(bytes.Equal(data, zstdDecompressed))
-	assert.True(bytes.Equal(data, lzssDecompressed))
 
 }
 
@@ -280,10 +290,10 @@ type compressResult struct {
 	ratio      float64
 }
 
-func decompresslzss_v1(data []byte) ([]byte, error) {
+func decompresslzss_v1(data []byte, nbBitsAddress int) ([]byte, error) {
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
-			NbBitsAddress: 16,
+			NbBitsAddress: uint(nbBitsAddress),
 			NbBitsLength:  8,
 		},
 	}
@@ -294,10 +304,10 @@ func decompresslzss_v1(data []byte) ([]byte, error) {
 	return DecompressPureGo(*s.Unmarshal(data), settings)
 }
 
-func compresslzss_v1(data []byte) (compressResult, error) {
+func compresslzss_v1(data []byte, nbBitsAddress int) (compressResult, error) {
 	c, err := Compress(data, Settings{
 		BackRefSettings: BackRefSettings{
-			NbBitsAddress: 16,
+			NbBitsAddress: uint(nbBitsAddress),
 			NbBitsLength:  8,
 		},
 	})

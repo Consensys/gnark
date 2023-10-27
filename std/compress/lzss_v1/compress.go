@@ -44,7 +44,7 @@ func Compress(d []byte, settings Settings) (c compress.Stream, err error) {
 			if d[i] == 0 {
 				return c, fmt.Errorf("could not find an RLE backref at index %d", i)
 			}
-			c.D = append(c.D, int(d[i]))
+			c.WriteNum(int(d[i]), wordsPerByte)
 			i++
 			continue
 		}
