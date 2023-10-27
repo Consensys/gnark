@@ -26,6 +26,7 @@ import (
 func Compress(d []byte, settings Settings) (c []byte, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
+	out.Grow(len(d))
 
 	emitBackRef := func(offset, length int) {
 		out.WriteByte(0)
@@ -40,20 +41,22 @@ func Compress(d []byte, settings Settings) (c []byte, err error) {
 	t := int(1 + compressor.settings.NbBytesAddress + compressor.settings.NbBytesLength)
 
 	for i < len(d) {
-		addr, length := compressor.longestMostRecentBackRef(i, t)
-		if length == -1 {
-			if d[i] != 0 {
-				out.WriteByte(d[i])
-				i++
-				continue
-			}
-			// no backref found
+		var addr, length int
+		if d[i] == 0 {
 			addr, length = compressor.longestMostRecentBackRef(i, 1)
 			if length == -1 {
 				// no backref found
 				return nil, fmt.Errorf("could not find an RLE backref at index %d", i)
 			}
+		} else {
+			addr, length = compressor.longestMostRecentBackRef(i, t)
+			if length == -1 {
+				out.WriteByte(d[i])
+				i++
+				continue
+			}
 		}
+
 		emitBackRef(i-addr, length)
 		i += length
 	}

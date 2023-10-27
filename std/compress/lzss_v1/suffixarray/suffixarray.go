@@ -21,7 +21,6 @@ import (
 	"errors"
 	"io"
 	"math"
-	"math/bits"
 	"regexp"
 	"sort"
 )
@@ -250,54 +249,51 @@ func (x *Index) lookupAll(s []byte) ints {
 	return x.sa.slice(i, j)
 }
 
+// LookupLongest returns an index and length of the longest
+// substring of s[:minEnd] / s[:maxEnd] that occurs in the indexed data.
 func (x *Index) LookupLongest(s []byte, minEnd, maxEnd, rangeStart, rangeEnd int) (index, length int) {
-	i := sort.Search(x.sa.len(), func(i int) bool { return bytes.Compare(x.at(i), s[:minEnd]) >= 0 })
-	j := i + sort.Search(x.sa.len()-i, func(k int) bool { return !bytes.HasPrefix(x.at(k+i), s[:minEnd]) })
+	index, length = -1, -1
+	// binary search between maxEnd - minEnd
+	low := minEnd
+	high := maxEnd
 
-	// we can focus our search in x.sa[i:j]
+	for low <= high {
+		mid := low + (high-low)/2
+
+		if offset := x.lookupLongest(s[:mid], rangeStart, rangeEnd); offset != -1 {
+			// we found a match of length mid
+			// try the next part of the binary search
+			index = offset
+			length = mid
+			low = mid + 1
+			continue
+		}
+		// we didn't find a match in this half; try the lower one.
+		high = mid - 1
+	}
+	return
+}
+
+// lookupLongest is similar to lookupAll but filters out indices that are not
+// in the range [rangeStart, rangeEnd).
+func (x *Index) lookupLongest(s []byte, rangeStart, rangeEnd int) (offset int) {
+	i := sort.Search(x.sa.len(), func(i int) bool { return bytes.Compare(x.at(i), s) >= 0 })
+	if i == x.sa.len() {
+		return -1
+	}
+	j := i + sort.Search(x.sa.len()-i, func(k int) bool { return !bytes.HasPrefix(x.at(k+i), s) })
+	if j == i {
+		return -1
+	}
 	res := x.sa.slice(i, j)
-
-	bLen := -1
-	bAddr := -1
-	// good := min(maxEnd, 64)
-	good := maxEnd
-	for k := 0; k < res.len(); k++ {
+	for k := res.len() - 1; k >= 0; k-- {
 		offset := int(res.get(k))
 		if offset >= rangeStart && offset < rangeEnd {
 			// valid index, we can use it.
-			n := matchLen(s[minEnd:maxEnd], x.data[offset+minEnd:]) + minEnd
-			if n > bLen {
-				bLen = n
-				if bLen >= good {
-					// we can stop we won't find a longer backref
-					return offset, bLen
-				}
-				bAddr = offset
-			}
+			return offset
 		}
 	}
-	return bAddr, bLen
-}
-
-// matchLen returns the maximum common prefix length of a and b.
-// a must be the shortest of the two.
-func matchLen(a, b []byte) (n int) {
-	for ; len(a) >= 8 && len(b) >= 8; a, b = a[8:], b[8:] {
-		diff := binary.LittleEndian.Uint64(a) ^ binary.LittleEndian.Uint64(b)
-		if diff != 0 {
-			return n + bits.TrailingZeros64(diff)>>3
-		}
-		n += 8
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			break
-		}
-		n++
-	}
-	return n
-
+	return -1
 }
 
 // Lookup returns an unsorted list of at most n indices where the byte string s
