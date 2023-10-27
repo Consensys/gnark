@@ -1,7 +1,10 @@
 package lzss_v1
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
+	"github.com/consensys/gnark/std/compress"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
@@ -128,7 +131,6 @@ func printHex(d []byte) {
 	fmt.Println()
 }
 
-/*
 func TestAverageBatch(t *testing.T) {
 	assert := require.New(t)
 
@@ -172,6 +174,7 @@ func TestAverageBatch(t *testing.T) {
 
 }
 
+/*
 func BenchmarkAverageBatch(b *testing.B) {
 	// read the file
 	d, err := os.ReadFile("./average_block.hex")
@@ -214,13 +217,6 @@ func BenchmarkAverageBatch(b *testing.B) {
 			}
 		}
 	})
-}
-
-type compressResult struct {
-	compressed []byte
-	inputSize  int
-	outputSize int
-	ratio      float64
 }
 
 func decompressWithS2(data []byte) ([]byte, error) {
@@ -275,31 +271,44 @@ func compressWithZstd(data []byte) (compressResult, error) {
 	copy(res.compressed, buf.Bytes())
 	return res, nil
 }
+*/
+
+type compressResult struct {
+	compressed []byte
+	inputSize  int
+	outputSize int
+	ratio      float64
+}
 
 func decompresslzss_v1(data []byte) ([]byte, error) {
-	return DecompressPureGo(data, Settings{
+	settings := Settings{
 		BackRefSettings: BackRefSettings{
-			NbBitsAddress: 2,
-			NbBitsLength:  1,
+			NbBitsAddress: 16,
+			NbBitsLength:  8,
 		},
-	})
+	}
+	s := compress.Stream{
+		NbSymbs: 1 << settings.WordNbBits(),
+	}
+
+	return DecompressPureGo(*s.Unmarshal(data), settings)
 }
 
 func compresslzss_v1(data []byte) (compressResult, error) {
 	c, err := Compress(data, Settings{
 		BackRefSettings: BackRefSettings{
-			NbBitsAddress: 2,
-			NbBitsLength:  1,
+			NbBitsAddress: 16,
+			NbBitsLength:  8,
 		},
 	})
 	if err != nil {
 		return compressResult{}, err
 	}
+	cD := c.Marshal()
 	return compressResult{
-		compressed: c,
+		compressed: cD,
 		inputSize:  len(data),
-		outputSize: len(c),
-		ratio:      float64(len(data)) / float64(len(c)),
+		outputSize: len(cD),
+		ratio:      float64(len(data)) / float64(len(cD)),
 	}, nil
 }
-*/
