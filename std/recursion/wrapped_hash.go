@@ -138,9 +138,10 @@ type shortCircuitHash struct {
 	wrapped stdhash.FieldHasher
 	buf     []frontend.Variable
 	tmp     []frontend.Variable
+	bitmode bool
 }
 
-func newHashFromParameter(api frontend.API, hf stdhash.FieldHasher, bitLength int) stdhash.FieldHasher {
+func newHashFromParameter(api frontend.API, hf stdhash.FieldHasher, bitLength int, bitmode bool) stdhash.FieldHasher {
 	tmp := make([]frontend.Variable, ((api.Compiler().FieldBitLen()+7)/8)*8-8)
 	for i := range tmp {
 		tmp[i] = 0
@@ -150,6 +151,7 @@ func newHashFromParameter(api frontend.API, hf stdhash.FieldHasher, bitLength in
 		outSize: bitLength,
 		wrapped: hf,
 		tmp:     tmp,
+		bitmode: bitmode,
 	}
 }
 
@@ -157,7 +159,7 @@ func newHashFromParameter(api frontend.API, hf stdhash.FieldHasher, bitLength in
 // native field and outputs element in the target field (usually the scalar
 // field of the circuit being recursed). The hash function is based on MiMC and
 // partitions the excess bits to not overflow the target field.
-func NewHash(api frontend.API, target *big.Int) (stdhash.FieldHasher, error) {
+func NewHash(api frontend.API, target *big.Int, bitmode bool) (stdhash.FieldHasher, error) {
 	h, err := mimc.NewMiMC(api)
 	if err != nil {
 		return nil, fmt.Errorf("get mimc: %w", err)
@@ -169,7 +171,7 @@ func NewHash(api frontend.API, target *big.Int) (stdhash.FieldHasher, error) {
 	if nbBits > api.Compiler().FieldBitLen() {
 		nbBits = api.Compiler().FieldBitLen()
 	}
-	return newHashFromParameter(api, &h, nbBits), nil
+	return newHashFromParameter(api, &h, nbBits, bitmode), nil
 }
 
 func (h *shortCircuitHash) Sum() frontend.Variable {
@@ -200,17 +202,21 @@ func (h *shortCircuitHash) Write(data ...frontend.Variable) {
 	// number of full bytes out so it would correspond to the native version.
 	//
 	// But this means that later we have to reverse again when we recompose.
-	for i := range data {
-		// h.tmp is maximum full number of bytes. This is one byte less than in
-		// the native version (the bits are on full number of bytes). Luckily,
-		// [bits.ToBinary] allows to decompose into arbitrary number of bits.
-		bts := bits.ToBinary(h.api, data[i], bits.WithNbDigits(len(h.tmp)+8))
-		// reverse to be in sync with native version when we later slice
-		// len(h.tmp) bits.
-		slices.Reverse(bts)
-		// store in the buffer. At every round we try to write to the wrapped
-		// hash as much as possible so the buffer isn't usually very big.
-		h.buf = append(h.buf, bts...)
+	if h.bitmode {
+		h.buf = append(h.buf, data...)
+	} else {
+		for i := range data {
+			// h.tmp is maximum full number of bytes. This is one byte less than in
+			// the native version (the bits are on full number of bytes). Luckily,
+			// [bits.ToBinary] allows to decompose into arbitrary number of bits.
+			bts := bits.ToBinary(h.api, data[i], bits.WithNbDigits(len(h.tmp)+8))
+			// reverse to be in sync with native version when we later slice
+			// len(h.tmp) bits.
+			slices.Reverse(bts)
+			// store in the buffer. At every round we try to write to the wrapped
+			// hash as much as possible so the buffer isn't usually very big.
+			h.buf = append(h.buf, bts...)
+		}
 	}
 	for len(h.buf) >= len(h.tmp) {
 		// OK, now there is sufficient number of bits we can write to hash
