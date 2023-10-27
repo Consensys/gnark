@@ -23,10 +23,13 @@ import (
 // In particular those on the LZ family: https://youtu.be/z1I1o7zySUI and DEFLATE: https://youtu.be/SJPvNi4HrWQ
 func Compress(d []byte, settings Settings) (c compress.Stream, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
-	c.NbSymbs = max(256, 1<<settings.NbBitsLength, 1<<settings.NbBitsAddress)
+	wordLen := settings.WordNbBits()
+	c.NbSymbs = 1 << wordLen
 
 	emitBackRef := func(offset, length int) {
-		c.D = append(c.D, 0, offset-1, length-1)
+		c.WriteNum(0, 8/wordLen)
+		c.WriteNum(offset-1, int(settings.NbBitsAddress)/wordLen)
+		c.WriteNum(length-1, int(settings.NbBitsLength)/wordLen)
 	}
 	compressor := newCompressor(d, settings)
 	i := 0
@@ -46,16 +49,6 @@ func Compress(d []byte, settings Settings) (c compress.Stream, err error) {
 	}
 
 	return
-}
-
-func max(i ...int) int {
-	max := i[0]
-	for _, j := range i {
-		if j > max {
-			max = j
-		}
-	}
-	return max
 }
 
 type compressor struct {

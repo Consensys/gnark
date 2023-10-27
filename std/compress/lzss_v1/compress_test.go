@@ -42,7 +42,7 @@ func testCompressionRoundTrip(t *testing.T, nbBitsAddress uint, d []byte, testCa
 	}
 	require.NoError(t, err)
 
-	dBack, err := DecompressPureGo(cBytes[1:], settings)
+	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
 
 	/*if len(c) < 1024 {
