@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls24-315/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -36,53 +37,47 @@ import (
 
 type MarshalScalarTest struct {
 	X frontend.Variable
-	R [256]frontend.Variable
+	R [fr.Bytes * 8]frontend.Variable
 }
 
 func (c *MarshalScalarTest) Define(api frontend.API) error {
-
-	nbBits := 256
 	ec := NewCurve(api)
-	r := ec.MarshalScalar(c.X, nbBits)
-	for i := 0; i < nbBits; i++ {
-		ec.api.AssertIsEqual(r[i], c.R[i])
+	r := ec.MarshalScalar(c.X)
+	for i := range c.R {
+		api.AssertIsEqual(r[i], c.R[i])
 	}
 	return nil
 }
 
 func TestMarshalScalar(t *testing.T) {
-
 	assert := test.NewAssert(t)
 	var r fr.Element
 	r.SetRandom()
 	rBytes := r.Marshal()
 	var witness MarshalScalarTest
 	witness.X = r.String()
-	for i := 0; i < 32; i++ {
+	for i := 0; i < fr.Bytes; i++ {
 		for j := 0; j < 8; j++ {
 			witness.R[i*8+j] = (rBytes[i] >> (7 - j)) & 1
 		}
 	}
 	var circuit MarshalScalarTest
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 }
 
 type MarshalG1Test struct {
 	P G1Affine
-	R [640]frontend.Variable
+	R [2 * 8 * fp.Bytes]frontend.Variable
 }
 
 func (c *MarshalG1Test) Define(api frontend.API) error {
-	nbBits := 320
 	ec := NewCurve(api)
-
 	// we want to get the same output as gnark-crypto's marshal.
 	// It's a point on bls12-377 so the number of bytes is 96, as the
 	// field of definition of bls12-377 is 48 bytes long.
-	r := ec.MarshalG1(c.P, nbBits)
-
-	for i := 0; i < 2*nbBits; i++ {
-		ec.api.AssertIsEqual(r[i], c.R[i])
+	r := ec.MarshalG1(c.P)
+	for i := range c.R {
+		api.AssertIsEqual(r[i], c.R[i])
 	}
 	return nil
 }

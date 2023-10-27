@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	fp_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fp"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	fp_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
@@ -29,12 +30,11 @@ type MarshalScalarTest[T, S emulated.FieldParams] struct {
 }
 
 func (c *MarshalScalarTest[T, S]) Define(api frontend.API) error {
-
 	cr, err := New[T, S](api, GetCurveParams[T]())
 	if err != nil {
 		return err
 	}
-	br := cr.MarshalScalar(c.X, len(c.R))
+	br := cr.MarshalScalar(c.X)
 	for i := 0; i < len(c.R); i++ {
 		cr.api.AssertIsEqual(c.R[i], br[i])
 	}
@@ -48,17 +48,19 @@ func TestMarshalScalar(t *testing.T) {
 	rBytes := r.Marshal()
 	nbBytes := fr_bw6761.Bytes
 	nbBits := nbBytes * 8
-	var witness MarshalScalarTest[emulated.BW6761Fp, emulated.BW6761Fr]
-	witness.R = make([]frontend.Variable, nbBits)
+	circuit := &MarshalScalarTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		R: make([]frontend.Variable, nbBits),
+	}
+	witness := &MarshalScalarTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		X: emulated.ValueOf[emulated.BW6761Fr](r),
+		R: make([]frontend.Variable, nbBits),
+	}
 	for i := 0; i < nbBytes; i++ {
 		for j := 0; j < 8; j++ {
 			witness.R[i*8+j] = (rBytes[i] >> (7 - j)) & 1
 		}
 	}
-	witness.X = emulated.ValueOf[emulated.BW6761Fr](r)
-	var circuit MarshalScalarTest[emulated.BW6761Fp, emulated.BW6761Fr]
-	circuit.R = make([]frontend.Variable, nbBits)
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	err := test.IsSolved(circuit, witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
@@ -72,8 +74,7 @@ func (c *MarshalG1Test[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	nbBitsPerCoordinate := len(c.R) / 2
-	br := cr.MarshalG1(c.G, nbBitsPerCoordinate)
+	br := cr.MarshalG1(c.G)
 	for i := 0; i < len(c.R); i++ {
 		cr.api.AssertIsEqual(c.R[i], br[i])
 	}
@@ -84,20 +85,24 @@ func TestMarshalG1(t *testing.T) {
 	assert := test.NewAssert(t)
 	_, _, g, _ := bw6761.Generators()
 	gBytes := g.Marshal()
-	nbBytes := 2 * len(bw6761.ID.BaseField().Bytes())
+	nbBytes := 2 * fp_bw6761.Bytes
 	nbBits := nbBytes * 8
-	var witness MarshalG1Test[emulated.BW6761Fp, emulated.BW6761Fr]
-	witness.R = make([]frontend.Variable, nbBits)
+	circuit := &MarshalG1Test[emulated.BW6761Fp, emulated.BW6761Fr]{
+		R: make([]frontend.Variable, nbBits),
+	}
+	witness := &MarshalG1Test[emulated.BW6761Fp, emulated.BW6761Fr]{
+		G: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](g.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](g.Y),
+		},
+		R: make([]frontend.Variable, nbBits),
+	}
 	for i := 0; i < nbBytes; i++ {
 		for j := 0; j < 8; j++ {
 			witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
 		}
 	}
-	witness.G.X = emulated.ValueOf[emulated.BW6761Fp](g.X)
-	witness.G.Y = emulated.ValueOf[emulated.BW6761Fp](g.Y)
-	var circuit MarshalG1Test[emulated.BW6761Fp, emulated.BW6761Fr]
-	circuit.R = make([]frontend.Variable, nbBits)
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	err := test.IsSolved(circuit, witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
 

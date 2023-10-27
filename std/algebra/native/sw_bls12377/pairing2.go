@@ -3,10 +3,12 @@ package sw_bls12377
 import (
 	"fmt"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // Curve allows G1 operations in BLS12-377.
@@ -22,8 +24,9 @@ func NewCurve(api frontend.API) *Curve {
 }
 
 // MarshalScalar returns
-func (c *Curve) MarshalScalar(s Scalar, nbBits int) []frontend.Variable {
-	x := c.api.ToBinary(s, nbBits)
+func (c *Curve) MarshalScalar(s Scalar) []frontend.Variable {
+	nbBits := 8 * ((ecc.BLS12_377.ScalarField().BitLen() + 7) / 8)
+	x := bits.ToBinary(c.api, s, bits.WithNbDigits(nbBits))
 	for i, j := 0, nbBits-1; i < j; {
 		x[i], x[j] = x[j], x[i]
 		i++
@@ -34,13 +37,14 @@ func (c *Curve) MarshalScalar(s Scalar, nbBits int) []frontend.Variable {
 
 // MarshalG1 returns [P.X || P.Y] in binary. Both P.X and P.Y are
 // in little endian.
-func (c *Curve) MarshalG1(P G1Affine, nbBitsPerCoordinate int) []frontend.Variable {
-	res := make([]frontend.Variable, 2*nbBitsPerCoordinate)
-	x := c.api.ToBinary(P.X, nbBitsPerCoordinate)
-	y := c.api.ToBinary(P.Y, nbBitsPerCoordinate)
-	for i := 0; i < nbBitsPerCoordinate; i++ {
-		res[i] = x[nbBitsPerCoordinate-1-i]
-		res[i+nbBitsPerCoordinate] = y[nbBitsPerCoordinate-1-i]
+func (c *Curve) MarshalG1(P G1Affine) []frontend.Variable {
+	nbBits := 8 * ((ecc.BLS12_377.BaseField().BitLen() + 7) / 8)
+	res := make([]frontend.Variable, 2*nbBits)
+	x := bits.ToBinary(c.api, P.X, bits.WithNbDigits(nbBits))
+	y := bits.ToBinary(c.api, P.Y, bits.WithNbDigits(nbBits))
+	for i := 0; i < nbBits; i++ {
+		res[i] = x[nbBits-1-i]
+		res[i+nbBits] = y[nbBits-1-i]
 	}
 	return res
 }

@@ -34,16 +34,12 @@ type Curve[S ScalarT, G1El G1ElementT] interface {
 	// mismatch.
 	MultiScalarMul([]*G1El, []*S) (*G1El, error)
 
-	// MarshalG1 Returns the binary decomposition G1.X || G1.Y. It matches the
-	// output of gnark-crypto's Marshal method on G1 points. The method is useful
-	// because the curve struct embeds the base field api.
-	// nbBitsPerCoordinate specifies the size of the output slice (one frontend.Variable=1 bit).
-	MarshalG1(G1El, int) []frontend.Variable
+	// MarshalG1 returns the binary decomposition G1.X || G1.Y. It matches the
+	// output of gnark-crypto's Marshal method on G1 points.
+	MarshalG1(G1El) []frontend.Variable
 
-	// MarshalScalar Returns the binary decomposition of the argument. This method
-	// is useful because the curve struct embeds the scalar field api.
-	// nbBits specifies the size of the output slice (one frontend.Variable=1 bit).
-	MarshalScalar(S, int) []frontend.Variable
+	// MarshalScalar returns the binary decomposition of the argument.
+	MarshalScalar(S) []frontend.Variable
 }
 
 // Pairing allows to compute the bi-linear pairing of G1 and G2 elements.

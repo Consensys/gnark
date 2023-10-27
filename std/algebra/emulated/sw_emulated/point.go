@@ -87,11 +87,13 @@ type AffinePoint[Base emulated.FieldParams] struct {
 	X, Y emulated.Element[Base]
 }
 
-// MarshalScalar
-func (c *Curve[B, S]) MarshalScalar(s emulated.Element[S], nbBits int) []frontend.Variable {
+// MarshalScalar marshals the scalar into bits. Compatible with scalar
+// marshalling in gnark-crypto.
+func (c *Curve[B, S]) MarshalScalar(s emulated.Element[S]) []frontend.Variable {
+	var fr S
+	nbBits := 8 * ((fr.Modulus().BitLen() + 7) / 8)
 	sReduced := c.scalarApi.Reduce(&s)
-	res := c.scalarApi.ToBits(sReduced)
-	res = res[:nbBits]
+	res := c.scalarApi.ToBits(sReduced)[:nbBits]
 	for i, j := 0, nbBits-1; i < j; {
 		res[i], res[j] = res[j], res[i]
 		i++
@@ -100,17 +102,20 @@ func (c *Curve[B, S]) MarshalScalar(s emulated.Element[S], nbBits int) []fronten
 	return res
 }
 
-// TODO
-func (c *Curve[B, S]) MarshalG1(p AffinePoint[B], nbBitsPerCoordinate int) []frontend.Variable {
+// MarshalG1 marshals the affine point into bits. The output is compatible with
+// the point marshalling in gnark-crypto.
+func (c *Curve[B, S]) MarshalG1(p AffinePoint[B]) []frontend.Variable {
+	var fp B
+	nbBits := 8 * ((fp.Modulus().BitLen() + 7) / 8)
 	x := c.baseApi.Reduce(&p.X)
 	y := c.baseApi.Reduce(&p.Y)
-	bx := c.baseApi.ToBits(x)
-	by := c.baseApi.ToBits(y)
+	bx := c.baseApi.ToBits(x)[:nbBits]
+	by := c.baseApi.ToBits(y)[:nbBits]
 	slices.Reverse(bx)
 	slices.Reverse(by)
-	res := make([]frontend.Variable, 2*nbBitsPerCoordinate)
+	res := make([]frontend.Variable, 2*nbBits)
 	copy(res, bx)
-	copy(res[nbBitsPerCoordinate:], by)
+	copy(res[len(bx):], by)
 	return res
 }
 
