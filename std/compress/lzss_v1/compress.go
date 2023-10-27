@@ -26,11 +26,15 @@ func Compress(d []byte, settings Settings) (c compress.Stream, err error) {
 	wordLen := settings.WordNbBits()
 	c.NbSymbs = 1 << wordLen
 
+	wordsPerByte := 8 / settings.WordNbBits()
+	wordsPerAddr := int(settings.NbBitsAddress) / settings.WordNbBits()
+	wordsPerLen := int(settings.NbBitsLength) / settings.WordNbBits()
 	emitBackRef := func(offset, length int) {
-		c.WriteNum(0, 8/wordLen)
-		c.WriteNum(offset-1, int(settings.NbBitsAddress)/wordLen)
-		c.WriteNum(length-1, int(settings.NbBitsLength)/wordLen)
+		c.WriteNum(0, wordsPerByte)
+		c.WriteNum(offset-1, wordsPerAddr)
+		c.WriteNum(length-1, wordsPerLen)
 	}
+
 	compressor := newCompressor(d, settings)
 	i := 0
 	for i < len(d) {

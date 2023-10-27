@@ -5,9 +5,9 @@ type BackRefSettings struct {
 	NbBitsLength  uint
 }
 
-func (s BackRefSettings) NbBytes() int {
+/*func (s BackRefSettings) NbBytes() int {
 	return int(8 + s.NbBitsAddress + s.NbBitsLength)
-}
+}*/
 
 type Settings struct {
 	BackRefSettings

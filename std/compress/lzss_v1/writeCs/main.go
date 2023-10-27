@@ -19,8 +19,8 @@ func check(e error) {
 
 func main() {
 	c := lzss_v1.DecompressionTestCircuit{
-		CPacked: make([]frontend.Variable, 120000),
-		D:       make([]byte, 612000),
+		C: make([]frontend.Variable, 120000),
+		D: make([]byte, 612000),
 		Settings: lzss_v1.Settings{
 			BackRefSettings: lzss_v1.BackRefSettings{
 				NbBitsAddress: 2,

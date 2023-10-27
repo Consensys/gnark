@@ -5,11 +5,11 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/compress"
+	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,8 +108,8 @@ func TestCalldataSnark(t *testing.T) {
 
 func BenchmarkCompilation64KBSnark(b *testing.B) {
 	c := DecompressionTestCircuit{
-		CPacked: make([]frontend.Variable, 21333),
-		D:       make([]byte, 64000),
+		C: make([]frontend.Variable, 21333),
+		D: make([]byte, 64000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
 				NbBitsAddress: 16,
@@ -127,8 +127,8 @@ func BenchmarkCompilation64KBSnark(b *testing.B) {
 
 func BenchmarkCompilation300KBSnark(b *testing.B) {
 	c := DecompressionTestCircuit{
-		CPacked: make([]frontend.Variable, 70000),
-		D:       make([]byte, 300000),
+		C: make([]frontend.Variable, 70000),
+		D: make([]byte, 300000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
 				NbBitsAddress: 16,
@@ -160,8 +160,8 @@ func BenchmarkCompilation300KBSnark(b *testing.B) {
 // TODO Change name to reflect that setup is also occurring
 func compile26KBSnark(t require.TestingT, testCaseName string) {
 	c := DecompressionTestCircuit{
-		CPacked: make([]frontend.Variable, 7300),
-		D:       make([]byte, 26000),
+		C: make([]frontend.Variable, 7300),
+		D: make([]byte, 26000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
 				NbBitsAddress: 2,
@@ -229,8 +229,8 @@ func BenchmarkProof26KBSnark(b *testing.B) {
 
 func BenchmarkCompilation600KBSnark(b *testing.B) {
 	c := DecompressionTestCircuit{
-		CPacked: make([]frontend.Variable, 120000),
-		D:       make([]byte, 612000),
+		C: make([]frontend.Variable, 120000),
+		D: make([]byte, 612000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
 				NbBitsAddress: 2,
@@ -269,18 +269,16 @@ func testDecompressionSnark(t *testing.T, nbBitsOffset uint, c compress.Stream, 
 
 	//cMax := c.Len() * 3
 
-	cPacked := Pack(c, ecc.BN254.ScalarField().BitLen(), settings)
 	circuit := &DecompressionTestCircuit{
-		CPacked:          make([]frontend.Variable, len(cPacked)),
+		C:                make([]frontend.Variable, len(c.D)),
 		D:                d,
 		Settings:         settings,
 		CheckCorrectness: true,
 	}
 	assignment := &DecompressionTestCircuit{
-		CPacked: cPacked,
-		CLength: len(cPacked) * 31,
+		C:       test_vector_utils.ToVariableSlice(c.D),
+		CLength: len(c.D),
 	}
 
-	solver.RegisterHint(Decompose)
 	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }

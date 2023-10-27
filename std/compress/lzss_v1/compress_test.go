@@ -25,8 +25,7 @@ func testCompressionRoundTrip(t *testing.T, nbBitsAddress uint, d []byte, testCa
 	}
 	c, err := Compress(d, settings)
 
-	cBytes, nbBits := CompressedToBytes(c, settings)
-	cBytes = append([]byte{byte(nbBits) % 8}, cBytes...)
+	cBytes := c.Marshal()
 
 	if len(testCaseName) == 1 {
 		assert.NoError(t, os.WriteFile("../test_cases/"+testCaseName[0]+"/data.lzssv1", cBytes, 0600))
