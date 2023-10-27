@@ -176,3 +176,84 @@ func TestHashMarshalG1(t *testing.T) {
 	})
 }
 
+type hashMarshalScalarCircuit[S algebra.ScalarT, G1El algebra.G1ElementT] struct {
+	Scalar   S
+	Expected frontend.Variable
+
+	target *big.Int
+}
+
+func (c *hashMarshalScalarCircuit[S, G1El]) Define(api frontend.API) error {
+	h, err := recursion.NewHash(api, c.target, true)
+	if err != nil {
+		return fmt.Errorf("new hash: %w", err)
+	}
+	curve, err := algebra.GetCurve[S, G1El](api)
+	if err != nil {
+		return fmt.Errorf("get curve: %w", err)
+	}
+	marshlled := curve.MarshalScalar(c.Scalar)
+	h.Write(marshlled...)
+	res := h.Sum()
+	api.AssertIsEqual(res, c.Expected)
+	return nil
+}
+
+func TestHashMarshalScalar(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	assert.Run(func(assert *test.Assert) {
+		var s fr_bn254.Element
+		s.SetRandom()
+		h, err := recursion.NewShort(ecc.BN254.ScalarField(), ecc.BW6_761.ScalarField())
+		assert.NoError(err)
+		marshalled := s.Marshal()
+		h.Write(marshalled)
+		hashed := h.Sum(nil)
+		circuit := &hashMarshalScalarCircuit[sw_bn254.Scalar, sw_bn254.G1Affine]{
+			target: ecc.BW6_761.ScalarField(),
+		}
+		assignment := &hashMarshalScalarCircuit[sw_bn254.Scalar, sw_bn254.G1Affine]{
+			Scalar:   sw_bn254.NewScalar(s),
+			Expected: hashed,
+			target:   ecc.BW6_761.ScalarField(),
+		}
+		assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+	})
+	assert.Run(func(assert *test.Assert) {
+		var s fr_bls12377.Element
+		s.SetRandom()
+		h, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
+		assert.NoError(err)
+		marshalled := s.Marshal()
+		h.Write(marshalled)
+		hashed := h.Sum(nil)
+		circuit := &hashMarshalScalarCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine]{
+			target: ecc.BLS12_377.ScalarField(),
+		}
+		assignment := &hashMarshalScalarCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine]{
+			Scalar:   s.String(),
+			Expected: hashed,
+			target:   ecc.BLS12_377.ScalarField(),
+		}
+		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_761), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+	})
+	assert.Run(func(assert *test.Assert) {
+		var s fr_bls24315.Element
+		s.SetRandom()
+		h, err := recursion.NewShort(ecc.BW6_633.ScalarField(), ecc.BLS24_315.ScalarField())
+		assert.NoError(err)
+		marshalled := s.Marshal()
+		h.Write(marshalled)
+		hashed := h.Sum(nil)
+		circuit := &hashMarshalScalarCircuit[sw_bls24315.Scalar, sw_bls24315.G1Affine]{
+			target: ecc.BLS12_377.ScalarField(),
+		}
+		assignment := &hashMarshalScalarCircuit[sw_bls24315.Scalar, sw_bls24315.G1Affine]{
+			Scalar:   s.String(),
+			Expected: hashed,
+			target:   ecc.BLS12_377.ScalarField(),
+		}
+		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_633), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+	})
+}
