@@ -36,7 +36,7 @@ func (c *MarshalScalarTest[T, S]) Define(api frontend.API) error {
 	}
 	br := cr.MarshalScalar(c.X)
 	for i := 0; i < len(c.R); i++ {
-		cr.api.AssertIsEqual(c.R[i], br[i])
+		api.AssertIsEqual(c.R[i], br[i])
 	}
 	return nil
 }
@@ -76,7 +76,7 @@ func (c *MarshalG1Test[T, S]) Define(api frontend.API) error {
 	}
 	br := cr.MarshalG1(c.G)
 	for i := 0; i < len(c.R); i++ {
-		cr.api.AssertIsEqual(c.R[i], br[i])
+		api.AssertIsEqual(c.R[i], br[i])
 	}
 	return nil
 }
