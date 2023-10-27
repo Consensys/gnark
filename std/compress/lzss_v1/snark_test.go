@@ -250,7 +250,7 @@ func testCompressionRoundTripSnark(t *testing.T, nbBytesOffset uint, d []byte) {
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
 			NbBitsAddress: nbBytesOffset,
-			NbBitsLength:  1,
+			NbBitsLength:  8,
 		},
 	}
 

@@ -18,7 +18,7 @@ func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, 
 		return api.IsZero(api.MulAcc(api.Neg(n), n, n))
 	}
 
-	negTableSize := 1 << settings.NbBitsLength
+	negTableSize := 1 << settings.NbBitsAddress
 
 	dTable := newOutputTable(api, settings)
 	currTable, brOffsetTable, brLenTable := createReadTables(api, c, settings)
@@ -121,7 +121,7 @@ func createReadTables(api frontend.API, c []frontend.Variable, settings Settings
 
 func newOutputTable(api frontend.API, settings Settings) *logderivlookup.Table {
 	res := logderivlookup.New(api)
-	for i := 1 << settings.NbBitsLength; i > 0; i-- {
+	for i := 1 << settings.NbBitsAddress; i > 0; i-- {
 		res.Insert(0)
 	}
 	return res
