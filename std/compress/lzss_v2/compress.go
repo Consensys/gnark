@@ -104,8 +104,6 @@ func (compressor *Compressor) emitBackRef(offset, length int) {
 		compressor.out.WriteByte(byte(length))
 		length >>= 8
 	}
-	// emit(&compressor.out, offset-1, nbBytesAddress)
-	// emit(&compressor.out, length-1, nbBytesLength)
 }
 
 // longestMostRecentBackRef attempts to find a backref that is 1) longest 2) most recent in that order of priority
@@ -132,14 +130,4 @@ func (compressor *Compressor) longestMostRecentBackRef(i, minRefLen int) (addr, 
 	}
 	return addr, len
 
-}
-
-func emit(bb *bytes.Buffer, n int, nbBytes uint) {
-	for i := uint(0); i < nbBytes; i++ {
-		bb.WriteByte(byte(n))
-		n >>= 8
-	}
-	// if n != 0 {
-	// 	panic("n does not fit in nbBytes")
-	// }
 }
