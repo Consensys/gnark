@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark/std/compress/lzss_v2/suffixarray"
-
-	"github.com/consensys/gnark-crypto/utils"
 )
 
 const (
@@ -63,9 +61,9 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 					addr, length = lazyAddr, lazyLength
 
 					// can we find an even better backref?
-					if compressor.data[i] != 0 && i+1 < compressor.end {
+					if length < 100 && compressor.data[i] != 0 && i+1 < compressor.end {
 						lazyAddr2, lazyLength2 := compressor.longestMostRecentBackRef(i+1, t)
-						if lazyLength2 > lazyLength {
+						if lazyLength2 > lazyLength+1 {
 							// we found an even better backref
 							// write the symbol at i
 							compressor.out.WriteByte(compressor.data[i])
@@ -73,7 +71,22 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 							addr, length = lazyAddr2, lazyLength2
 						}
 					}
+				} else {
+					// maybe at i+2 ? (we already tried i+1)
+					if compressor.data[i+1] != 0 && i+2 < compressor.end {
+						lazyAddr2, lazyLength2 := compressor.longestMostRecentBackRef(i+2, t)
+						if lazyLength2 > length+1 {
+							// we found a better backref
+							// write the symbol at i
+							compressor.out.WriteByte(compressor.data[i])
+							i++
+							compressor.out.WriteByte(compressor.data[i])
+							i++
 
+							// then emit the backref at i+2
+							addr, length = lazyAddr2, lazyLength2
+						}
+					}
 				}
 			}
 		}
@@ -128,7 +141,7 @@ func (compressor *Compressor) longestMostRecentBackRef(i, minRefLen int) (addr, 
 	const brLengthRange = 1 << (nbBytesLength * 8)
 	minBackRefAddr := i - brAddressRange
 
-	windowStart := utils.Max(0, minBackRefAddr)
+	windowStart := max(0, minBackRefAddr)
 	maxRefLen := brLengthRange // utils.Min(i+brLengthRange, len(d))
 	if i+maxRefLen > len(d) {
 		maxRefLen = len(d) - i
