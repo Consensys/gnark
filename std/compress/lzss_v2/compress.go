@@ -50,6 +50,18 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 				i++
 				continue
 			}
+			if length < 100 && i+1 < compressor.end {
+				// let's try to find a better backref
+				lazyAddr, lazyLength := compressor.longestMostRecentBackRef(i+1, t)
+				if lazyLength > length+t {
+					// we found a better backref
+					// first emit the symbol at i
+					compressor.out.WriteByte(compressor.data[i])
+					i++
+					// then emit the backref at i+1
+					addr, length = lazyAddr, lazyLength
+				}
+			}
 		}
 
 		compressor.emitBackRef(i-addr, length)
