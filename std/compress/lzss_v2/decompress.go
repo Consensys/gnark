@@ -1,4 +1,4 @@
-package lzss_v1
+package lzss_v2
 
 import (
 	"bytes"

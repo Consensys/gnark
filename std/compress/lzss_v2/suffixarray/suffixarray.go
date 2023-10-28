@@ -306,23 +306,6 @@ func (x *Index) lookupLongest(s []byte, rangeStart, rangeEnd int) (ret int) {
 		i++
 	}
 	return -1
-	// i := sort.Search(x.sa.len(), func(i int) bool { return bytes.Compare(x.at(i), s) >= 0 })
-	// if i == x.sa.len() {
-	// 	return -1
-	// }
-	// j := i + sort.Search(x.sa.len()-i, func(k int) bool { return !bytes.HasPrefix(x.at(k+i), s) })
-	// if j == i {
-	// 	return -1
-	// }
-	// res := x.sa.slice(i, j)
-	// for k := res.len() - 1; k >= 0; k-- {
-	// 	offset := int(res.get(k))
-	// 	if offset >= rangeStart && offset < rangeEnd {
-	// 		// valid index, we can use it.
-	// 		return offset
-	// 	}
-	// }
-	// return -1
 }
 
 // Lookup returns an unsorted list of at most n indices where the byte string s
