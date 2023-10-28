@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/consensys/gnark/std/compress/lzss_v1/suffixarray"
+	"github.com/consensys/gnark/std/compress/lzss_v2/suffixarray"
 
 	"math/bits"
 
@@ -102,29 +102,6 @@ func (compressor *compressor) longestMostRecentBackRef(i, minRefLen int) (addr, 
 		return -1, -1
 	}
 	return addr, len
-
-	// matches := compressor.index.Lookup(d[i:i+t], -1)
-
-	// bLen := -1
-	// bAddr := -1
-	// for _, offset := range matches {
-	// 	if offset < windowStart || offset >= i {
-	// 		// out of the window bound
-	// 		continue
-	// 	}
-	// 	n := matchLen(d[i+t:endWindow], d[offset+t:]) + t
-	// 	if n > bLen {
-	// 		bLen = n
-	// 		if bLen >= 64 {
-	// 			// we can stop we won't find a longer backref
-	// 			return offset, min(bLen, brLengthRange)
-	// 		}
-	// 		bAddr = offset
-	// 	}
-
-	// }
-
-	// return bAddr, bLen
 
 }
 
