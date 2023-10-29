@@ -1,10 +1,12 @@
-package main
+package test
 
 import (
 	"fmt"
 	"math/rand"
 	"math/big"
 	"time"
+	"testing"
+	"github.com/consensys/gnark/test"
 	"bytes"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/signature/eddsa"
@@ -20,7 +22,7 @@ import (
 	//eddsa2 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 )
 
-const N = 5
+const N = 2
 
 type eddsaCircuit struct {
 	curveID   tedwards.ID
@@ -35,17 +37,18 @@ func (circuit *eddsaCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	//mimc, err := mimc.NewMiMC(api)
-	//if err != nil {
-	//	return err
-	//}
+	mimc, err := mimc.NewMiMC(api)
+	if err != nil {
+		return err
+	}
 
 	for i := 0; i < N; i++ {
-		mimc, err := mimc.NewMiMC(api)
-		if err != nil {
-			return err
-		}
 		ver_err := eddsa.Verify(curve, circuit.Signature[i], circuit.Message[i], circuit.PublicKey[i], &mimc)
+		fmt.Println("Signature")
+		fmt.Println(circuit.Signature[i])
+		fmt.Println("Msg")
+		fmt.Println(circuit.Message[i])
+		//fmt.Println("%s", circuit.PublicKey[i])
 		if ver_err != nil {
 			return ver_err
 		}
@@ -55,7 +58,7 @@ func (circuit *eddsaCircuit) Define(api frontend.API) error {
 	//return eddsa.Verify(curve, circuit.Signature, circuit.Message, circuit.PublicKey, &mimc)
 }
 
-func main() {
+func TestCubicEquation(t *testing.T) {
     // instantiate hash function
     hFunc := hash.MIMC_BN254.New()
 
@@ -123,13 +126,14 @@ func main() {
 	   // return err[0]
     }
 
+    t.Log("Here!")
     var buf bytes.Buffer
     _, _ = _r1cs.WriteTo(&buf)
 
     newR1CS := groth16.NewCS(ecc.BN254)
     _, _ = newR1CS.ReadFrom(&buf)
 
-    pk, vk, err := groth16.Setup(_r1cs)
+    //pk, vk, err := groth16.Setup(_r1cs)
     if err != nil {
 	    fmt.Println("error cannot be returned 2")
 	    //return err
@@ -165,18 +169,21 @@ func main() {
     //assignment.Signature.Assign(tedwards.BN254, signatures)
 
     // witness
-    witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
-    publicWitness, err := witness.Public()
-    fmt.Println("Here2!")
+    //witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
+    //publicWitness, err := witness.Public()
+    t.Log("Here2!")
 
-    //err = test.IsSolved(circuit, witness)
-
+    err = test.IsSolved(&circuit, &assignment, ecc.BN254.ScalarField())
+    t.Log(err)
+    if err != nil {
+	t.Errorf("%s", err)
+    }
     // generate the proof
-    proof, err := groth16.Prove(_r1cs, pk, witness)
+    //proof, err := groth16.Prove(_r1cs, pk, witness)
 
     // verify the proof
-    err = groth16.Verify(proof, vk, publicWitness)
-    if err != nil {
-      //   invalid proof
-    }
+    //err = groth16.Verify(proof, vk, publicWitness)
+    //if err != nil {
+        // invalid proof
+    //}
 }
