@@ -34,7 +34,7 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 
 	s, err := in.ReadByte()
 	for err == nil {
-		if s == 0 {
+		if s == SYMBOL {
 			offset, length := readBackRef()
 			if err != nil {
 				return nil, err

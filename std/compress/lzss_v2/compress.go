@@ -142,8 +142,10 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 
 // canEncodeSymbol returns true if the symbol can be encoded directly
 func canEncodeSymbol(b byte) bool {
-	return b != 0
+	return b != SYMBOL
 }
+
+const SYMBOL = 0xFF
 
 func (compressor *Compressor) writeByte(b byte) {
 	if debugCompressor && canEncodeSymbol(b) {
@@ -153,7 +155,7 @@ func (compressor *Compressor) writeByte(b byte) {
 }
 
 func (compressor *Compressor) writeBackRef(offset, length int) {
-	compressor.bw.TryWriteByte(0)
+	compressor.bw.TryWriteByte(SYMBOL)
 	compressor.bw.TryWriteBits(uint64(offset-1), nbBitsAddress)
 	compressor.bw.TryWriteBits(uint64(length-1), nbBitsLength)
 }
