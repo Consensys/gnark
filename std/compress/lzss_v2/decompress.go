@@ -2,14 +2,15 @@ package lzss_v2
 
 import (
 	"bytes"
+
+	"github.com/icza/bitio"
 )
 
 func Decompress(data, dict []byte) (d []byte, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
 	out.Grow(len(data)*6 + len(dict))
-	in := bytes.NewReader(data)
-	var copyBuf [nbBitsAddress + nbBitsLength]byte
+	in := bitio.NewReader(bytes.NewReader(data))
 
 	outAt := func(i int) byte {
 		if i < 0 {
@@ -19,9 +20,12 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 	}
 
 	readBackRef := func() (offset, length int) {
-		_, err = in.Read(copyBuf[:])
-		offset = readNum(copyBuf[:nbBitsAddress]) + 1
-		length = readNum(copyBuf[nbBitsAddress:nbBitsAddress+nbBitsLength]) + 1
+		offset = int(in.TryReadBits(nbBitsAddress)) + 1
+		length = int(in.TryReadBits(nbBitsLength)) + 1
+		if in.TryError != nil {
+			err = in.TryError
+			return
+		}
 		return
 	}
 
@@ -45,13 +49,4 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 	}
 
 	return out.Bytes()[len(dict):], nil
-}
-
-func readNum(bytes []byte) int { //little endian
-	var res int
-	for i := len(bytes) - 1; i >= 0; i-- {
-		res <<= 8
-		res |= int(bytes[i])
-	}
-	return res
 }

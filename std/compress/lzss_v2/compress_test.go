@@ -270,6 +270,6 @@ func getDictionnary() []byte {
 	if err != nil {
 		panic(err)
 	}
-	d = append(d, bytes.Repeat([]byte{0, 0}, 8)...)
+	d = append(d, bytes.Repeat([]byte{0, 0, 0, 0, 0, 0, 0}, 32)...)
 	return d
 }
