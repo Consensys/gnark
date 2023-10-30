@@ -31,10 +31,13 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 
 	// read until startAt and write bytes as is
 	out.Write(dict)
+	for i := 0; i < repeatedSymbol; i++ {
+		out.WriteByte(symbol)
+	}
 
 	s, err := in.ReadByte()
 	for err == nil {
-		if s == SYMBOL {
+		if s == symbol {
 			offset, length := readBackRef()
 			if err != nil {
 				return nil, err
@@ -48,5 +51,5 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 		s, err = in.ReadByte()
 	}
 
-	return out.Bytes()[len(dict):], nil
+	return out.Bytes()[len(dict)+repeatedSymbol:], nil
 }

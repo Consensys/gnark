@@ -18,6 +18,9 @@ const (
 	maxAddress      = 1 << nbBitsAddress
 	maxLength       = 1 << nbBitsLength
 	debugCompressor = false
+
+	symbol         = 0xFF
+	repeatedSymbol = 16
 )
 
 type Compressor struct {
@@ -41,6 +44,9 @@ func NewCompressor(dict []byte) (*Compressor, error) {
 	}
 	c.buf.Grow(maxInputSize)
 	copy(c.data[:], dict)
+	for i := len(dict); i < len(dict)+repeatedSymbol; i++ {
+		c.data[i] = symbol
+	}
 	return c, nil
 }
 
@@ -50,20 +56,24 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 	if len(d) > maxInputSize {
 		return nil, fmt.Errorf("input size must be <= %d", maxInputSize)
 	}
+	if len(d)+repeatedSymbol > maxAddress {
+		// TODO @gbotrel to force SYMBOL to be reachable in all cases.
+		return nil, fmt.Errorf("input size must be <= %d", maxAddress-16)
+	}
 
 	// reset output buffer
 	compressor.buf.Reset()
 	compressor.bw = bitio.NewWriter(&compressor.buf)
 
 	// copy d into compressor.data
-	copy(compressor.data[len(compressor.dict):], d)
-	compressor.end = len(compressor.dict) + len(d)
+	copy(compressor.data[len(compressor.dict)+repeatedSymbol:], d)
+	compressor.end = len(compressor.dict) + repeatedSymbol + len(d)
 
 	// build the index
 	compressor.index = suffixarray.New(compressor.data[:compressor.end], compressor.sa[:compressor.end])
 
 	// start after dictionary
-	i := len(compressor.dict)
+	i := len(compressor.dict) + repeatedSymbol
 
 	// under that threshold, it's more interesting to write the symbol directly.
 	const minRefLen = nbBytesBackRef
@@ -142,10 +152,8 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 
 // canEncodeSymbol returns true if the symbol can be encoded directly
 func canEncodeSymbol(b byte) bool {
-	return b != SYMBOL
+	return b != symbol
 }
-
-const SYMBOL = 0xFF
 
 func (compressor *Compressor) writeByte(b byte) {
 	if debugCompressor && canEncodeSymbol(b) {
@@ -155,7 +163,7 @@ func (compressor *Compressor) writeByte(b byte) {
 }
 
 func (compressor *Compressor) writeBackRef(offset, length int) {
-	compressor.bw.TryWriteByte(SYMBOL)
+	compressor.bw.TryWriteByte(symbol)
 	compressor.bw.TryWriteBits(uint64(offset-1), nbBitsAddress)
 	compressor.bw.TryWriteBits(uint64(length-1), nbBitsLength)
 }
