@@ -25,6 +25,7 @@ type Compressor struct {
 	dict  []byte
 	end   int
 	index *suffixarray.Index
+	sa    [maxDictSize + maxInputSize]int32 // suffix array space.
 	buf   bytes.Buffer
 	bw    *bitio.Writer
 }
@@ -59,7 +60,7 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 	compressor.end = len(compressor.dict) + len(d)
 
 	// build the index
-	compressor.index = suffixarray.New(compressor.data[:compressor.end])
+	compressor.index = suffixarray.New(compressor.data[:compressor.end], compressor.sa[:compressor.end])
 
 	// start after dictionary
 	i := len(compressor.dict)
