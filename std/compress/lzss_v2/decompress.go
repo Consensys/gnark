@@ -9,7 +9,7 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 	var out bytes.Buffer
 	out.Grow(len(data)*6 + len(dict))
 	in := bytes.NewReader(data)
-	var copyBuf [nbBytesAddress + nbBytesLength]byte
+	var copyBuf [nbBitsAddress + nbBitsLength]byte
 
 	outAt := func(i int) byte {
 		if i < 0 {
@@ -20,8 +20,8 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 
 	readBackRef := func() (offset, length int) {
 		_, err = in.Read(copyBuf[:])
-		offset = readNum(copyBuf[:nbBytesAddress]) + 1
-		length = readNum(copyBuf[nbBytesAddress:nbBytesAddress+nbBytesLength]) + 1
+		offset = readNum(copyBuf[:nbBitsAddress]) + 1
+		length = readNum(copyBuf[nbBitsAddress:nbBitsAddress+nbBitsLength]) + 1
 		return
 	}
 

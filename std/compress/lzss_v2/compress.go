@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	nbBytesAddress = 3
-	nbBytesLength  = 1
-	maxInputSize   = 1 << 21 // 2Mb
-	maxDictSize    = 1 << 22 // 4Mb
+	nbBitsAddress = 3 * 8
+	nbBitsLength  = 1 * 8
+	maxInputSize  = 1 << 21 // 2Mb
+	maxDictSize   = 1 << 22 // 4Mb
 )
 
 func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
@@ -31,7 +31,7 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 	i := len(compressor.dict) // start after dict
 
 	// under that threshold, it's more interesting to write the symbol directly.
-	const t = int(1 + nbBytesAddress + nbBytesLength)
+	const t = int(1 + nbBitsAddress + nbBitsLength)
 
 	for i < compressor.end {
 		var addr, length int
@@ -123,11 +123,11 @@ func (compressor *Compressor) emitBackRef(offset, length int) {
 	compressor.out.WriteByte(0)
 	offset--
 	length--
-	for i := uint(0); i < nbBytesAddress; i++ {
+	for i := uint(0); i < nbBitsAddress; i++ {
 		compressor.out.WriteByte(byte(offset))
 		offset >>= 8
 	}
-	for i := uint(0); i < nbBytesLength; i++ {
+	for i := uint(0); i < nbBitsLength; i++ {
 		compressor.out.WriteByte(byte(length))
 		length >>= 8
 	}
@@ -137,8 +137,8 @@ func (compressor *Compressor) emitBackRef(offset, length int) {
 func (compressor *Compressor) longestMostRecentBackRef(i, minRefLen int) (addr, length int) {
 	d := compressor.data[:compressor.end]
 	// var backRefLen int
-	const brAddressRange = 1 << (nbBytesAddress * 8)
-	const brLengthRange = 1 << (nbBytesLength * 8)
+	const brAddressRange = 1 << (nbBitsAddress * 8)
+	const brLengthRange = 1 << (nbBitsLength * 8)
 	minBackRefAddr := i - brAddressRange
 
 	windowStart := max(0, minBackRefAddr)
