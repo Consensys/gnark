@@ -18,7 +18,6 @@ package suffixarray
 import (
 	"bytes"
 	"math"
-	"sort"
 )
 
 // Can change for testing
@@ -181,6 +180,17 @@ func (x *Index) lookupLongestInitial(s []byte) (rStart, rEnd int) {
 	}
 
 	// starting at i, find the first index at which s is not a prefix
-	j := i + sort.Search(len(x.sa)-i, func(k int) bool { return !bytes.HasPrefix(x.at(k+i), s) })
-	return i, j
+	low = i
+	high = len(x.sa) - 1
+	rEnd = high
+	for low <= high {
+		mid := low + (high-low)/2
+		if !bytes.HasPrefix(x.at(mid), s) {
+			rEnd = mid
+			high = mid - 1
+		} else {
+			low = mid + 1
+		}
+	}
+	return rStart, rEnd
 }
