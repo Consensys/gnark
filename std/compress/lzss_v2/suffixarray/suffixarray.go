@@ -253,6 +253,31 @@ func (x *Index) lookupAll(s []byte) ints {
 // substring of s[:minEnd] / s[:maxEnd] that occurs in the indexed data.
 func (x *Index) LookupLongest(s []byte, minEnd, maxEnd, rangeStart, rangeEnd int) (index, length int) {
 	index, length = -1, -1
+
+	// first search at min end to reduce the search space for next searches
+	sStart, sEnd := x.lookupLongestInitial(s[:minEnd])
+
+	if sStart == -1 {
+		// no match
+		return
+	}
+
+	// filter the results to be in the range [rangeStart, rangeEnd)
+	for i := sStart; i < sEnd; i++ {
+		offset := int(x.sa.get(i))
+		if offset >= rangeStart && offset < rangeEnd {
+			// valid index, we can use it.
+			index = offset
+			length = minEnd
+			break
+		}
+	}
+
+	if length == -1 {
+		// no match
+		return
+	}
+
 	// binary search between maxEnd - minEnd
 	low := minEnd
 	high := maxEnd
@@ -260,9 +285,10 @@ func (x *Index) LookupLongest(s []byte, minEnd, maxEnd, rangeStart, rangeEnd int
 	for low <= high {
 		mid := low + (high-low)/2
 
-		if offset := x.lookupLongest(s[:mid], rangeStart, rangeEnd); offset != -1 {
+		if newStart, offset := x.lookupLongest(s[:mid], rangeStart, rangeEnd, sStart, sEnd); offset != -1 {
 			// we found a match of length mid
 			// try the next part of the binary search
+			sStart = newStart
 			index = offset
 			length = mid
 			low = mid + 1
@@ -276,36 +302,66 @@ func (x *Index) LookupLongest(s []byte, minEnd, maxEnd, rangeStart, rangeEnd int
 
 // lookupLongest is similar to lookupAll but filters out indices that are not
 // in the range [rangeStart, rangeEnd).
-func (x *Index) lookupLongest(s []byte, rangeStart, rangeEnd int) (ret int) {
-	low := 0
-	high := x.sa.len()
-	ret = -1
+func (x *Index) lookupLongest(s []byte, rangeStart, rangeEnd, sStart, sEnd int) (rStart, offset int) {
+	low := sStart
+	high := sEnd
+	offset = -1
+	rStart = sStart
 	for low <= high {
 		mid := low + (high-low)/2
 		r := bytes.Compare(x.at(mid), s)
 		if r >= 0 {
-			ret = mid
+			offset = mid
 			high = mid - 1
-			continue
+			// continue
 		} else {
 			// r < 0
 			// x.at(mid) is less than s
 			low = mid + 1
 		}
 	}
-	i := ret
-	if i == -1 {
-		return -1
+
+	if offset == -1 {
+		return rStart, -1
 	}
-	for i < x.sa.len() && bytes.HasPrefix(x.at(i), s) {
+	rStart = offset // next search should start at offset
+	i := offset
+	for i < sEnd && bytes.HasPrefix(x.at(i), s) {
 		offset := int(x.sa.get(i))
 		if offset >= rangeStart && offset < rangeEnd {
 			// valid index, we can use it.
-			return offset
+			return rStart, offset
 		}
 		i++
 	}
-	return -1
+	return rStart, -1
+}
+
+func (x *Index) lookupLongestInitial(s []byte) (rStart, rEnd int) {
+	low := 0
+	high := x.sa.len()
+	rStart, rEnd = -1, -1
+	for low <= high {
+		mid := low + (high-low)/2
+		r := bytes.Compare(x.at(mid), s)
+		if r >= 0 {
+			rStart = mid
+			high = mid - 1
+			// continue
+		} else {
+			// r < 0
+			// x.at(mid) is less than s
+			low = mid + 1
+		}
+	}
+	i := rStart
+	if i == -1 {
+		return -1, -1
+	}
+
+	// starting at i, find the first index at which s is not a prefix
+	j := i + sort.Search(x.sa.len()-i, func(k int) bool { return !bytes.HasPrefix(x.at(k+i), s) })
+	return i, j
 }
 
 // Lookup returns an unsorted list of at most n indices where the byte string s

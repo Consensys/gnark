@@ -161,18 +161,16 @@ func (compressor *Compressor) writeBackRef(offset, length int) {
 // if no backref is found, it returns -1, -1
 // else returns the address and length of the backref
 func (compressor *Compressor) findBackRef(i, minRefLen int) (addr, length int) {
+	if i+minRefLen > compressor.end {
+		return -1, -1
+	}
 
 	windowStart := max(0, i-maxAddress)
 	maxRefLen := maxLength
 
-	d := compressor.data[:compressor.end]
-	if i+maxRefLen > len(d) {
-		maxRefLen = len(d) - i
+	if i+maxRefLen > compressor.end {
+		maxRefLen = compressor.end - i
 	}
 
-	if i+minRefLen > len(d) {
-		return -1, -1
-	}
-
-	return compressor.index.LookupLongest(d[i:i+maxRefLen], minRefLen, maxRefLen, windowStart, i)
+	return compressor.index.LookupLongest(compressor.data[i:i+maxRefLen], minRefLen, maxRefLen, windowStart, i)
 }
