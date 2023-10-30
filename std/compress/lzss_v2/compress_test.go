@@ -76,6 +76,8 @@ func FuzzCompress(f *testing.F) {
 		}
 
 		if !bytes.Equal(a, decompressedBytes) {
+			t.Log("original bytes:", a)
+			t.Log("decompressed bytes:", decompressedBytes)
 			t.Fatal("decompressed bytes are not equal to original bytes")
 		}
 

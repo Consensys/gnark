@@ -172,6 +172,9 @@ func (compressor *Compressor) findBackRef(i, minRefLen int) (addr, length int) {
 	if i+maxRefLen > compressor.end {
 		maxRefLen = compressor.end - i
 	}
+	if minRefLen > maxRefLen {
+		return -1, -1
+	}
 
 	return compressor.index.LookupLongest(compressor.data[i:i+maxRefLen], minRefLen, maxRefLen, windowStart, i)
 }
