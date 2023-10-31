@@ -27,7 +27,7 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 	}
 
 	// read until startAt and write bytes as is
-	out.Write(dict)
+	// out.Write(dict)
 
 	s := in.TryReadByte()
 	for in.TryError == nil {
@@ -57,5 +57,5 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 		s = in.TryReadByte()
 	}
 
-	return out.Bytes()[len(dict):], nil
+	return out.Bytes(), nil
 }

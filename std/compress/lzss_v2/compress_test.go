@@ -14,14 +14,13 @@ import (
 )
 
 func testCompressionRoundTrip(t *testing.T, d []byte) {
-	dict := []byte{0, 0, 0, 0}
-	compressor, err := NewCompressor(dict)
+	compressor, err := NewCompressor(getDictionnary())
 	require.NoError(t, err)
 
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	dBack, err := Decompress(c, dict)
+	dBack, err := Decompress(c, getDictionnary())
 	require.NoError(t, err)
 
 	if !bytes.Equal(d, dBack) {

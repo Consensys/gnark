@@ -18,6 +18,7 @@ package suffixarray
 import (
 	"bytes"
 	"math"
+	"sort"
 )
 
 // Can change for testing
@@ -82,6 +83,17 @@ func (x *Index) LookupLongest(s []byte, minEnd, maxEnd, rangeStart, rangeEnd int
 		return
 	}
 
+	if sStart == sEnd {
+		// only one match
+		offset := int(x.sa[sStart])
+		if offset >= rangeStart && offset < rangeEnd {
+			// valid index, we can use it.
+			index = offset
+			length = minEnd
+		}
+		return
+	}
+
 	// filter the results to be in the range [rangeStart, rangeEnd)
 	for i := sStart; i < sEnd; i++ {
 		offset := int(x.sa[i])
@@ -123,29 +135,18 @@ func (x *Index) LookupLongest(s []byte, minEnd, maxEnd, rangeStart, rangeEnd int
 // lookupLongest is similar to lookupAll but filters out indices that are not
 // in the range [rangeStart, rangeEnd).
 func (x *Index) lookupLongest(s []byte, rangeStart, rangeEnd, sStart, sEnd int) (rStart, offset int) {
-	low := sStart
-	high := sEnd
 	offset = -1
 	rStart = sStart
-	for low <= high {
-		mid := low + (high-low)/2
-		r := bytes.Compare(x.at(mid), s)
-		if r >= 0 {
-			offset = mid
-			high = mid - 1
-			// continue
-		} else {
-			// r < 0
-			// x.at(mid) is less than s
-			low = mid + 1
-		}
-	}
+	// use sort.Search
+	// find the first index where s would be the prefix
+	i := sort.Search(sEnd-sStart, func(i int) bool { return bytes.Compare(x.at(i+sStart), s) >= 0 }) + sStart
 
-	if offset == -1 {
+	if i == sEnd || !bytes.HasPrefix(x.at(i), s) {
 		return rStart, -1
 	}
-	rStart = offset // next search should start at offset
-	i := offset
+
+	rStart = i
+
 	for i < sEnd && bytes.HasPrefix(x.at(i), s) {
 		offset := int(x.sa[i])
 		if offset >= rangeStart && offset < rangeEnd {
@@ -158,39 +159,11 @@ func (x *Index) lookupLongest(s []byte, rangeStart, rangeEnd, sStart, sEnd int) 
 }
 
 func (x *Index) lookupLongestInitial(s []byte) (rStart, rEnd int) {
-	low := 0
-	high := len(x.sa)
-	rStart, rEnd = -1, -1
-	for low <= high {
-		mid := low + (high-low)/2
-		r := bytes.Compare(x.at(mid), s)
-		if r >= 0 {
-			rStart = mid
-			high = mid - 1
-			// continue
-		} else {
-			// r < 0
-			// x.at(mid) is less than s
-			low = mid + 1
-		}
-	}
-	i := rStart
-	if i == -1 {
+	i := sort.Search(len(x.sa), func(i int) bool { return bytes.Compare(x.at(i), s) >= 0 })
+	if i == len(x.sa) || !bytes.HasPrefix(x.at(i), s) {
 		return -1, -1
 	}
 
-	// starting at i, find the first index at which s is not a prefix
-	low = i
-	high = len(x.sa) - 1
-	rEnd = high
-	for low <= high {
-		mid := low + (high-low)/2
-		if !bytes.HasPrefix(x.at(mid), s) {
-			rEnd = mid
-			high = mid - 1
-		} else {
-			low = mid + 1
-		}
-	}
-	return rStart, rEnd
+	j := i + sort.Search(len(x.sa)-i, func(k int) bool { return !bytes.HasPrefix(x.at(k+i), s) })
+	return i, j
 }

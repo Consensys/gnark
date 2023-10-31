@@ -24,6 +24,7 @@ type Compressor struct {
 
 // NewCompressor returns a new compressor with the given dictionary
 func NewCompressor(dict []byte) (*Compressor, error) {
+	dict = augmentDict(dict)
 	if len(dict) > maxDictSize {
 		return nil, fmt.Errorf("dict size must be <= %d", maxDictSize)
 	}
@@ -31,7 +32,6 @@ func NewCompressor(dict []byte) (*Compressor, error) {
 		dictData: dict,
 	}
 	c.buf.Grow(maxInputSize)
-	c.dictData = augmentDict(dict)
 	c.dictIndex = suffixarray.New(c.dictData, c.dictSa[:len(c.dictData)])
 	return c, nil
 }
@@ -194,12 +194,13 @@ func (compressor *Compressor) findBackRef(data []byte, i int, bType backrefType,
 	if i+maxRefLen > len(data) {
 		maxRefLen = len(data) - i
 	}
+
 	if minLength > maxRefLen {
 		return -1, -1
 	}
 
 	if bType.dictOnly {
-		return compressor.dictIndex.LookupLongest(data[i:i+bType.maxLength], minLength, bType.maxLength, 0, len(compressor.dictData))
+		return compressor.dictIndex.LookupLongest(data[i:i+maxRefLen], minLength, maxRefLen, 0, len(compressor.dictData))
 	}
 
 	return compressor.inputIndex.LookupLongest(data[i:i+maxRefLen], minLength, maxRefLen, windowStart, i)
