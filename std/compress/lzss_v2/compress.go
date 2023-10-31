@@ -59,7 +59,6 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 	compressor.inputIndex = suffixarray.New(d, compressor.inputSa[:len(d)])
 
 	dictBackRefType := initDictBackref(compressor.dictData)
-	fmt.Println("dictRef len addr", dictBackRefType.nbBitsAddress, "len length", dictBackRefType.nbBitsLength)
 
 	bDict := backref{bType: dictBackRefType, length: -1, offset: -1}
 	bShort := backref{bType: shortBackRefType, length: -1, offset: -1}
@@ -71,26 +70,15 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 		bLong.offset, bLong.length = compressor.findBackRef(d, i, longBackRefType, minLen)
 		return !(bDict.length == -1 && bShort.length == -1 && bLong.length == -1)
 	}
-	bestBackref := func() backref {
+	bestBackref := func() (backref, int) {
 		if bDict.length != -1 && bDict.savings() > bShort.savings() && bDict.savings() > bLong.savings() {
-			return bDict
+			return bDict, bDict.savings()
 		}
 		if bShort.length != -1 && bShort.savings() > bLong.savings() {
-			return bShort
+			return bShort, bShort.savings()
 		}
-		return bLong
+		return bLong, bLong.savings()
 	}
-	// 	r := &bDict
-	// 	best := bDict.savings()
-	// 	if bShort.savings() > best {
-	// 		best = bShort.savings()
-	// 		r = &bShort
-	// 	}
-	// 	if bLong.savings() > best {
-	// 		r = &bLong
-	// 	}
-	// 	return r
-	// }
 
 	for i := 0; i < len(d); {
 		if !canEncodeSymbol(d[i]) {
@@ -99,7 +87,7 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 				// we didn't find a backref but can't write the symbol directly
 				return nil, fmt.Errorf("could not find a backref at index %d", i)
 			}
-			best := bestBackref()
+			best, _ := bestBackref()
 			best.writeTo(compressor.bw, i)
 			i += best.length
 			continue
@@ -110,84 +98,54 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 			i++
 			continue
 		}
-		bestAtI := bestBackref()
+		bestAtI, bestSavings := bestBackref()
 
 		if i+1 < len(d) {
 			if fillBackrefs(i+1, bestAtI.length+1) {
-				// we found a better back ref at i+1
-				// let's write the symbol at i
-				compressor.writeByte(d[i])
-				i++
+				if newBest, newSavings := bestBackref(); newSavings > bestSavings {
+					// we found an even better backref
+					compressor.writeByte(d[i])
+					i++
 
-				// then emit the backref at i+1
-				bestAtI = bestBackref()
+					// then emit the backref at i+1
+					bestSavings = newSavings
+					bestAtI = newBest
 
-				// can we find an even better backref?
-				if canEncodeSymbol(d[i]) && i+1 < len(d) {
-					if fillBackrefs(i+1, bestAtI.length+1) {
-						// we found an even better backref
-						// write the symbol at i
-						compressor.writeByte(d[i])
-						i++
-						bestAtI = bestBackref()
+					// can we find an even better backref?
+					if canEncodeSymbol(d[i]) && i+1 < len(d) {
+						if fillBackrefs(i+1, bestAtI.length+1) {
+							// we found an even better backref
+							if newBest, newSavings := bestBackref(); newSavings > bestSavings {
+								compressor.writeByte(d[i])
+								i++
+
+								// bestSavings = newSavings
+								bestAtI = newBest
+							}
+						}
 					}
 				}
 			} else if i+2 < len(d) && canEncodeSymbol(d[i+1]) {
 				// maybe at i+2 ? (we already tried i+1)
 				if fillBackrefs(i+2, bestAtI.length+2) {
-					// we found a better backref
-					// write the symbol at i
-					compressor.writeByte(d[i])
-					i++
-					compressor.writeByte(d[i])
-					i++
+					if newBest, newSavings := bestBackref(); newSavings > bestSavings {
+						// we found a better backref
+						// write the symbol at i
+						compressor.writeByte(d[i])
+						i++
+						compressor.writeByte(d[i])
+						i++
 
-					// then emit the backref at i+2
-					bestAtI = bestBackref()
+						// then emit the backref at i+2
+						bestAtI = newBest
+						// bestSavings = newSavings
+					}
 				}
 			}
-
-			// // let's try to find a better backref
-			// if lazyAddr, lazyLength := compressor.findBackRef(i+1, length+1); lazyLength != -1 {
-			// 	// we found a better backref
-			// 	// first emit the symbol at i
-			// 	compressor.writeByte(d[i])
-			// 	i++
-
-			// 	// then emit the backref at i+1
-			// 	addr, length = lazyAddr, lazyLength
-
-			// 	// can we find an even better backref?
-			// 	if canEncodeSymbol(d[i]) && i+1 < compressor.end {
-			// 		if lazyAddr, lazyLength := compressor.findBackRef(i+1, length+1); lazyLength != -1 {
-			// 			// we found an even better backref
-			// 			// write the symbol at i
-			// 			compressor.writeByte(d[i])
-			// 			i++
-			// 			addr, length = lazyAddr, lazyLength
-			// 		}
-			// 	}
-			// } else if i+2 < compressor.end && canEncodeSymbol(d[i+1]) {
-			// 	// maybe at i+2 ? (we already tried i+1)
-			// 	if lazyAddr, lazyLength := compressor.findBackRef(i+2, length+2); lazyLength != -1 {
-			// 		// we found a better backref
-			// 		// write the symbol at i
-			// 		compressor.writeByte(d[i])
-			// 		i++
-			// 		compressor.writeByte(d[i])
-			// 		i++
-
-			// 		// then emit the backref at i+2
-			// 		addr, length = lazyAddr, lazyLength
-			// 	}
-			// }
 		}
-		// compressor.writeBackRef(i-addr, length)
-		// i += length
 
 		bestAtI.writeTo(compressor.bw, i)
 		i += bestAtI.length
-
 	}
 
 	if compressor.bw.TryError != nil {
