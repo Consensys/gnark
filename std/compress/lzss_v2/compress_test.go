@@ -266,12 +266,9 @@ func compresslzss_v1(compressor *Compressor, data []byte) (compressResult, error
 }
 
 func getDictionnary() []byte {
-	// return bytes.Repeat([]byte{0, 0}, 32)
-	// read the dictionary from the file
 	d, err := os.ReadFile("dict_naive")
 	if err != nil {
 		panic(err)
 	}
-	d = append(d, bytes.Repeat([]byte{symbol}, 32)...)
 	return d
 }

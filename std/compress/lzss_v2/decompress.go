@@ -12,6 +12,13 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 	out.Grow(len(data)*6 + len(dict))
 	in := bitio.NewReader(bytes.NewReader(data))
 
+	dict = augmentDict(dict)
+	dictBackRefType := initDictBackref(dict)
+
+	bDict := backref{bType: dictBackRefType}
+	bShort := backref{bType: shortBackRefType}
+	bLong := backref{bType: longBackRefType}
+
 	outAt := func(i int) byte {
 		if i < 0 {
 			panic("shouldn't happen")
@@ -19,37 +26,36 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 		return out.Bytes()[i]
 	}
 
-	readBackRef := func() (offset, length int) {
-		offset = int(in.TryReadBits(nbBitsAddress)) + 1
-		length = int(in.TryReadBits(nbBitsLength)) + 1
-		if in.TryError != nil {
-			err = in.TryError
-			return
-		}
-		return
-	}
-
 	// read until startAt and write bytes as is
 	out.Write(dict)
-	for i := 0; i < repeatedSymbol; i++ {
-		out.WriteByte(symbol)
-	}
 
-	s, err := in.ReadByte()
-	for err == nil {
-		if s == symbol {
-			offset, length := readBackRef()
-			if err != nil {
-				return nil, err
+	s := in.TryReadByte()
+	for in.TryError == nil {
+		switch s {
+		case symbolShort:
+			// short back ref
+			bShort.readFrom(in)
+			for i := 0; i < bShort.length; i++ {
+				out.WriteByte(outAt(out.Len() - bShort.offset))
 			}
-			for i := 0; i < length; i++ {
-				out.WriteByte(outAt(out.Len() - offset))
+		case symbolLong:
+			// long back ref
+			bLong.readFrom(in)
+			for i := 0; i < bLong.length; i++ {
+				out.WriteByte(outAt(out.Len() - bLong.offset))
 			}
-		} else {
+		case symbolDict:
+			// dict back ref
+			bDict.readFrom(in)
+			out.Write(dict[bDict.offset : bDict.offset+bDict.length])
+			// for i := 0; i < bDict.length; i++ {
+			// 	out.WriteByte(outAt(out.Len() - bDict.offset))
+			// }
+		default:
 			out.WriteByte(s)
 		}
-		s, err = in.ReadByte()
+		s = in.TryReadByte()
 	}
 
-	return out.Bytes()[len(dict)+repeatedSymbol:], nil
+	return out.Bytes()[len(dict):], nil
 }
