@@ -80,7 +80,7 @@ func NewVerifier[S emulated.FieldParams, G1El, G2El, GtEl any](api frontend.API)
 // S here is emulated.FieldParams
 func (v *Verifier[S, G1El, G2El, GTEl]) CheckOpeningProof(digest Commitment[G1El], proof OpeningProof[S, G1El], point emulated.Element[S], vk VerifyingKey[G1El, G2El]) error {
 
-	claimedValueG1 := v.ec.ScalarMulBase(&point)
+	claimedValueG1 := v.ec.ScalarMulBase(&proof.ClaimedValue)
 
 	// [f(α) - f(a)]G₁
 	fminusfaG1 := v.ec.Neg(claimedValueG1)

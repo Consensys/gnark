@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -27,13 +28,13 @@ type KZGVerificationCircuit[S emulated.FieldParams, G1El, G2El, GTEl any] struct
 }
 
 func (c *KZGVerificationCircuit[S, G1El, G2El, GTEl]) Define(api frontend.API) error {
-	_, err := NewVerifier[S, G1El, G2El, GTEl](api)
+	verifier, err := NewVerifier[S, G1El, G2El, GTEl](api)
 	if err != nil {
 		return fmt.Errorf("get pairing: %w", err)
 	}
-	// if err := verifier.CheckOpeningProof(c.Digest, c.Proof, c.Point, c.Vk); err != nil {
-	// 	return fmt.Errorf("assert proof: %w", err)
-	// }
+	if err := verifier.CheckOpeningProof(c.Digest, c.Proof, c.Point, c.Vk); err != nil {
+		return fmt.Errorf("assert proof: %w", err)
+	}
 	return nil
 }
 
@@ -73,13 +74,13 @@ func TestKZGVerificationEmulated(t *testing.T) {
 	wPoint, err := ValueOfScalar[emulated.BN254Fr](point)
 	assert.NoError(err)
 
-	_ = KZGVerificationCircuit[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+	assignment := KZGVerificationCircuit[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
 		Vk:     wVk,
 		Digest: wCmt,
 		Proof:  wProof,
 		Point:  wPoint,
 	}
-	// assert.CheckCircuit(&KZGVerificationCircuit[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}, test.WithValidAssignment(&assignment))
+	assert.CheckCircuit(&KZGVerificationCircuit[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BLS12_381), test.WithBackends(backend.PLONK))
 }
 
 // func TestKZGVerificationEmulated2(t *testing.T) {
