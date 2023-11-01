@@ -2,7 +2,9 @@ package compress
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/icza/bitio"
+	"strconv"
 )
 
 // Streams and pipelines are inefficient data structures used for easy experimentation with compression algorithms.
@@ -35,6 +37,25 @@ func NewStreamFromBytes(in []byte) Stream {
 		d[i] = int(in[i])
 	}
 	return Stream{d, 256}
+}
+
+func NewStream[V any](slice []V, srcBitLen, streamBitLen int) Stream {
+	if srcBitLen%streamBitLen != 0 {
+		panic("not implemented")
+	}
+	dstPerSrc := srcBitLen / streamBitLen
+	d := make([]int, dstPerSrc*len(slice))
+
+	for i := range d {
+		if intVal, err := strconv.Atoi(fmt.Sprint(slice[i])); err != nil { // not intended to be fast
+			panic(err)
+		} else {
+			indexWithinWord := i % dstPerSrc
+			d[i] = (uint(intVal) >> (streamBitLen * indexWithinWord)) & ((1 << streamBitLen) - 1)
+		}
+	}
+
+	return Stream{d, 1 << streamBitLen}
 }
 
 type Pipeline []func(Stream) Stream
