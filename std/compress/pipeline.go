@@ -3,6 +3,7 @@ package compress
 import (
 	"bytes"
 	"github.com/icza/bitio"
+	"hash"
 	"math/big"
 )
 
@@ -99,6 +100,22 @@ func log(x, base int) int {
 		exp++
 	}
 	return exp
+}
+
+func (s *Stream) Checksum(hsh hash.Hash, fieldBits int) []byte {
+	packed := s.Pack(fieldBits)
+	fieldBytes := (fieldBits + 7) / 8
+	byts := make([]byte, fieldBytes)
+	for _, w := range packed {
+		w.FillBytes(byts)
+		hsh.Write(byts)
+	}
+
+	length := make([]byte, fieldBytes)
+	big.NewInt(int64(s.Len())).FillBytes(length)
+	hsh.Write(length)
+
+	return hsh.Sum(nil)
 }
 
 type Pipeline []func(Stream) Stream

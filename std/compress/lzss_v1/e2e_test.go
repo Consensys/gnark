@@ -32,7 +32,7 @@ func TestCompression1ZeroE2E(t *testing.T) {
 func BenchmarkCompression26KBE2E(b *testing.B) {
 	testCompressionE2E(b, nil, Settings{
 		BackRefSettings: BackRefSettings{
-			NbBitsAddress: 18,
+			NbBitsAddress: 20,
 			NbBitsLength:  8,
 		},
 	}, "3c2943")
@@ -95,11 +95,13 @@ func testCompressionE2E(t assert.TestingT, d []byte, settings Settings, name str
 	p.Stop()
 	fmt.Println(1+len(d)/1024, "KB:", p.NbConstraints(), "constraints, estimated", (p.NbConstraints()*600000)/len(d), "constraints for 600KB at", float64(p.NbConstraints())/float64(len(d)), "constraints per uncompressed byte")
 	assert.NoError(t, compress.GzWrite("../test_cases/"+name+"/e2e_cs.gz", cs))
+	resetTimer()
 
 	// setup
-	fmt.Println("setup")
-	resetTimer()
+	fmt.Println("kzg setup")
 	kzgSrs, err := test.NewKZGSRS(cs)
+	resetTimer()
+	fmt.Println("plonk setup")
 	assert.NoError(t, err)
 	_, _, err = plonk.Setup(cs, kzgSrs)
 	assert.NoError(t, err)
@@ -142,19 +144,7 @@ func check(s compress.Stream, padTo int) (checksum fr.Element, err error) {
 
 	s.D = append(s.D, make([]int, padTo-len(s.D))...)
 
-	packed := s.Pack(fr.Bits)
-	hsh := hash.MIMC_BN254.New()
-	bytes := make([]byte, fr.Bytes)
-	for _, w := range packed {
-		w.FillBytes(bytes)
-		hsh.Write(bytes)
-	}
-
-	var length fr.Element
-	length.SetUint64(uint64(s.Len()))
-	hsh.Write(length.Marshal())
-
-	csb := hsh.Sum(nil)
+	csb := s.Checksum(hash.MIMC_BN254.New(), fr.Bits)
 	checksum.SetBytes(csb)
 	return
 }
