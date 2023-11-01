@@ -1,5 +1,5 @@
-//go:build !gpu
-// +build !gpu
+//go:build !icicle
+// +build !icicle
 
 // Copyright 2020 ConsenSys Software Inc.
 //

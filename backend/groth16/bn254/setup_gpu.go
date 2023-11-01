@@ -1,5 +1,5 @@
-//go:build gpu
-// +build gpu
+//go:build icicle
+// +build icicle
 
 // Copyright 2020 ConsenSys Software Inc.
 //
@@ -387,8 +387,8 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	for i := 0; i < log2SizeFloor; i++ {
 		denIcicleArr = append(denIcicleArr, denIcicleArr...)
 	}
-	pow2Remainder := n - 1 << log2SizeFloor
-	for i := 0; i < pow2Remainder ; i++ {
+	pow2Remainder := n - 1<<log2SizeFloor
+	for i := 0; i < pow2Remainder; i++ {
 		denIcicleArr = append(denIcicleArr, denI)
 	}
 

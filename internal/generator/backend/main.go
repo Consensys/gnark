@@ -36,7 +36,7 @@ func main() {
 		CSPath:   "../../../constraint/bn254/",
 		Curve:    "BN254",
 		CurveID:  "BN254",
-		BuildTag: "!gpu",
+		BuildTag: "!icicle",
 	}
 	bw6_761 := templateData{
 		RootPath: "../../../backend/{?}/bw6-761/",
