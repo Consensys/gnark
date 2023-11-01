@@ -387,7 +387,8 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	for i := 0; i < log2Size; i++ {
 		denIcicleArr = append(denIcicleArr, denIcicleArr...)
 	}
-	for i := 0; i < (n - int(math.Pow(2, float64(log2Size)))); i++ {
+	pow2Remainder := n - 1 << log2Size
+	for i := 0; i < pow2Remainder ; i++ {
 		denIcicleArr = append(denIcicleArr, denI)
 	}
 
