@@ -167,7 +167,6 @@ func main() {
 				{File: filepath.Join(groth16Dir, "verify.go"), Templates: []string{"groth16/groth16.verify.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "prove.go"), Templates: []string{"groth16/groth16.prove.go.tmpl", importCurve}, BuildTag: buildTag},
 				{File: filepath.Join(groth16Dir, "setup.go"), Templates: []string{"groth16/groth16.setup.go.tmpl", importCurve}, BuildTag: buildTag},
-				{File: filepath.Join(groth16Dir, "commitment.go"), Templates: []string{"groth16/groth16.commitment.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "marshal.go"), Templates: []string{"groth16/groth16.marshal.go.tmpl", importCurve}, BuildTag: buildTag},
 				{File: filepath.Join(groth16Dir, "marshal_test.go"), Templates: []string{"groth16/tests/groth16.marshal.go.tmpl", importCurve}},
 			}

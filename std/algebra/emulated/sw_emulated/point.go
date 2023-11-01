@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
+	"golang.org/x/exp/slices"
 )
 
 // New returns a new [Curve] instance over the base field Base and scalar field
@@ -84,6 +85,38 @@ func (c *Curve[B, S]) GeneratorMultiples() []AffinePoint[B] {
 // compatible with the EVM representations of points at infinity.
 type AffinePoint[Base emulated.FieldParams] struct {
 	X, Y emulated.Element[Base]
+}
+
+// MarshalScalar marshals the scalar into bits. Compatible with scalar
+// marshalling in gnark-crypto.
+func (c *Curve[B, S]) MarshalScalar(s emulated.Element[S]) []frontend.Variable {
+	var fr S
+	nbBits := 8 * ((fr.Modulus().BitLen() + 7) / 8)
+	sReduced := c.scalarApi.Reduce(&s)
+	res := c.scalarApi.ToBits(sReduced)[:nbBits]
+	for i, j := 0, nbBits-1; i < j; {
+		res[i], res[j] = res[j], res[i]
+		i++
+		j--
+	}
+	return res
+}
+
+// MarshalG1 marshals the affine point into bits. The output is compatible with
+// the point marshalling in gnark-crypto.
+func (c *Curve[B, S]) MarshalG1(p AffinePoint[B]) []frontend.Variable {
+	var fp B
+	nbBits := 8 * ((fp.Modulus().BitLen() + 7) / 8)
+	x := c.baseApi.Reduce(&p.X)
+	y := c.baseApi.Reduce(&p.Y)
+	bx := c.baseApi.ToBits(x)[:nbBits]
+	by := c.baseApi.ToBits(y)[:nbBits]
+	slices.Reverse(bx)
+	slices.Reverse(by)
+	res := make([]frontend.Variable, 2*nbBits)
+	copy(res, bx)
+	copy(res[len(bx):], by)
+	return res
 }
 
 // Neg returns an inverse of p. It doesn't modify p.
@@ -199,6 +232,12 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	result = *c.Select(selector3, &infinity, &result)
 
 	return &result
+}
+
+// Add calls [Curve.AddUnified]. It is defined for implementing the generic
+// curve interface.
+func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
+	return c.AddUnified(p, q)
 }
 
 // double doubles p and return it. It doesn't modify p.
@@ -584,4 +623,28 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 	R0 = c.Select(s2Bits[0], R0, c.add(R0, c.Neg(p)))
 
 	return c.add(res1, R0)
+}
+
+// MultiScalarMul computes the multi scalar multiplication of the points P and
+// scalars s. It returns an error if the length of the slices mismatch. If the
+// input slices are empty, then returns point at infinity.
+//
+// For the points and scalars the same considerations apply as for
+// [Curve.AddUnified] and [Curve.SalarMul].
+func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[S]) (*AffinePoint[B], error) {
+	if len(p) != len(s) {
+		return nil, fmt.Errorf("mismatching points and scalars slice lengths")
+	}
+	if len(p) == 0 {
+		return &AffinePoint[B]{
+			X: *c.baseApi.Zero(),
+			Y: *c.baseApi.Zero(),
+		}, nil
+	}
+	res := c.ScalarMul(p[0], s[0])
+	for i := 1; i < len(p); i++ {
+		q := c.ScalarMul(p[i], s[i])
+		c.AddUnified(res, q)
+	}
+	return res, nil
 }
