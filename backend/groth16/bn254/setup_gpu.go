@@ -382,12 +382,12 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	denI.Exp(pk.Domain.FrMultiplicativeGen, big.NewInt(int64(pk.Domain.Cardinality)))
 	denI.Sub(&denI, &oneI).Inverse(&denI)
 
-	log2Size := int(math.Floor(math.Log2(float64(n))))
+	log2SizeFloor := bits.Len(uint(n)) - 1
 	denIcicleArr := []fr.Element{denI}
-	for i := 0; i < log2Size; i++ {
+	for i := 0; i < log2SizeFloor; i++ {
 		denIcicleArr = append(denIcicleArr, denIcicleArr...)
 	}
-	pow2Remainder := n - 1 << log2Size
+	pow2Remainder := n - 1 << log2SizeFloor
 	for i := 0; i < pow2Remainder ; i++ {
 		denIcicleArr = append(denIcicleArr, denI)
 	}
