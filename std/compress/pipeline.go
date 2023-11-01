@@ -2,9 +2,8 @@ package compress
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/icza/bitio"
-	"strconv"
+	"math/big"
 )
 
 // Streams and pipelines are inefficient data structures used for easy experimentation with compression algorithms.
@@ -39,7 +38,7 @@ func NewStreamFromBytes(in []byte) Stream {
 	return Stream{d, 256}
 }
 
-func NewStream[V any](slice []V, srcBitLen, streamBitLen int) Stream {
+/*func NewStream[V any](slice []V, srcBitLen, streamBitLen int) Stream {
 	if srcBitLen%streamBitLen != 0 {
 		panic("not implemented")
 	}
@@ -47,15 +46,59 @@ func NewStream[V any](slice []V, srcBitLen, streamBitLen int) Stream {
 	d := make([]int, dstPerSrc*len(slice))
 
 	for i := range d {
-		if intVal, err := strconv.Atoi(fmt.Sprint(slice[i])); err != nil { // not intended to be fast
+		if intVal, err := strconv.Atoi(fmt.Sprint(slice[i/dstPerSrc])); err != nil { // not intended to be fast
 			panic(err)
 		} else {
 			indexWithinWord := i % dstPerSrc
-			d[i] = (uint(intVal) >> (streamBitLen * indexWithinWord)) & ((1 << streamBitLen) - 1)
+			d[i] = int(uint(intVal)>>(streamBitLen*indexWithinWord)) & ((1 << streamBitLen) - 1)
 		}
 	}
 
 	return Stream{d, 1 << streamBitLen}
+}*/
+
+func (s *Stream) BreakUp(nbSymbs int) Stream {
+	newPerOld := log(s.NbSymbs, nbSymbs)
+	d := make([]int, len(s.D)*newPerOld)
+
+	for i := range s.D {
+		v := s.D[i]
+		for j := 0; j < newPerOld; j++ {
+			d[i*newPerOld+j] = v % nbSymbs
+			v /= nbSymbs
+		}
+	}
+
+	return Stream{d, nbSymbs}
+}
+
+func (s *Stream) Pack(nbBits int) []*big.Int {
+	wordLen := bitLen(s.NbSymbs)
+	wordsPerElem := (nbBits - 1) / wordLen
+
+	var radix big.Int
+	radix.Lsh(big.NewInt(1), uint(wordLen))
+
+	packed := make([]*big.Int, (len(s.D)+wordsPerElem-1)/wordsPerElem)
+	for i := range packed {
+		packed[i] = new(big.Int)
+		for j := wordsPerElem - 1; j >= 0; j-- {
+			absJ := i*wordsPerElem + j
+			if absJ >= len(s.D) {
+				continue
+			}
+			packed[i].Mul(packed[i], &radix).Add(packed[i], big.NewInt(int64(s.D[absJ])))
+		}
+	}
+	return packed
+}
+
+func log(x, base int) int {
+	exp := 0
+	for pow := 1; pow < x; pow *= base {
+		exp++
+	}
+	return exp
 }
 
 type Pipeline []func(Stream) Stream

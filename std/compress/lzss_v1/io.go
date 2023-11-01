@@ -20,11 +20,11 @@ func Gcd(a ...int) int {
 	return a[0]
 }
 
-func Pack(api frontend.API, words []frontend.Variable, settings Settings) []frontend.Variable {
-	wordLen := settings.WordNbBits()
+func Pack(api frontend.API, words []frontend.Variable, wordLen int) []frontend.Variable {
 	wordsPerElem := (api.Compiler().FieldBitLen() - 1) / wordLen
 	res := make([]frontend.Variable, 1+(len(words)-1)/wordsPerElem)
 	for elemI := range res {
+		res[elemI] = 0
 		for wordI := 0; wordI < wordsPerElem; wordI++ {
 			absWordI := elemI*wordsPerElem + wordI
 			if absWordI >= len(words) {
