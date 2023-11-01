@@ -65,6 +65,12 @@ type Compiler interface {
 	// ! Experimental: use in conjunction with constraint.CustomizableSystem
 	ToCanonicalVariable(Variable) CanonicalVariable
 
+	// VariableLevel returns the (max) level of the variable in the instruction dependency tree.
+	// If the Variable is a constant it returns -1
+	// If the Variable is not solved it panics.
+	// ! Experimental: use in conjunction with constraint.CustomizableSystem
+	VariableLevel(Variable) int
+
 	SetGkrInfo(constraint.GkrInfo) error
 }
 

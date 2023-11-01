@@ -11,6 +11,7 @@ import (
 // It is essentially a hint to the solver, but enables storing the table entries only once.
 type BlueprintLookupHint struct {
 	EntriesCalldata []uint32
+	maxLevel        int
 }
 
 // ensures BlueprintLookupHint implements the BlueprintSolvable interface
@@ -105,6 +106,23 @@ func (b *BlueprintLookupHint) WireWalker(inst Instruction) func(cb func(wire uin
 
 		// finally we have the outputs
 		for i := 0; i < nbInputs; i++ {
+			cb(uint32(i + int(inst.WireOffset)))
+		}
+	}
+}
+
+func (b *BlueprintLookupHint) SetMaxLevel(l int) {
+	b.maxLevel = l
+}
+
+func (b *BlueprintLookupHint) MaxLevel() int {
+	return b.maxLevel
+}
+
+func (b *BlueprintLookupHint) OutputWireWalker(inst Instruction) func(cb func(wire uint32)) {
+	return func(cb func(wire uint32)) {
+		nbOutputs := int(inst.Calldata[2])
+		for i := 0; i < nbOutputs; i++ {
 			cb(uint32(i + int(inst.WireOffset)))
 		}
 	}

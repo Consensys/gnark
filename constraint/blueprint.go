@@ -23,6 +23,13 @@ type Blueprint interface {
 	WireWalker(inst Instruction) func(cb func(wire uint32))
 }
 
+type BluePrintWithContext interface {
+	Blueprint
+
+	MaxLevel() int
+	OutputWireWalker(inst Instruction) func(cb func(wire uint32))
+}
+
 // Solver represents the state of a constraint system solver at runtime. Blueprint can interact
 // with this object to perform run time logic, solve constraints and assign values in the solution.
 type Solver interface {

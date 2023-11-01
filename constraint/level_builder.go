@@ -35,6 +35,30 @@ func (system *System) updateLevel(iID int, walkWires func(cb func(wire uint32)))
 	system.lbOutputs = system.lbOutputs[:0]
 }
 
+func (system *System) updateLevelWithContext(iID int, maxLevel int, walkOuptutWires func(cb func(wire uint32))) {
+	// level =  max(dependencies) + 1
+	level := maxLevel + 1
+
+	// mark output wire with level
+	walkOuptutWires(func(wire uint32) {
+		for int(wire) >= len(system.lbWireLevel) {
+			// we didn't encounter this wire yet, we need to grow b.wireLevels
+			system.lbWireLevel = append(system.lbWireLevel, -1)
+		}
+		system.lbWireLevel[wire] = level
+	})
+
+	for _, wireID := range system.lbOutputs {
+		system.lbWireLevel[wireID] = level
+	}
+	// we can't skip levels, so appending is fine.
+	if level >= len(system.Levels) {
+		system.Levels = append(system.Levels, []int{iID})
+	} else {
+		system.Levels[level] = append(system.Levels[level], iID)
+	}
+}
+
 func (system *System) processWire(wireID uint32, maxLevel *int) {
 	if wireID < uint32(system.GetNbPublicVariables()+system.GetNbSecretVariables()) {
 		return // ignore inputs

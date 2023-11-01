@@ -404,10 +404,29 @@ func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32) []uint32 {
 	// add the instruction
 	cs.Instructions = append(cs.Instructions, pi)
 
-	// update the instruction dependency tree
-	cs.updateLevel(len(cs.Instructions)-1, blueprint.WireWalker(inst))
+	// if blue print maintains a context use it
+	if b, ok := blueprint.(BluePrintWithContext); ok {
+		l := b.MaxLevel()
+		if debug.Debug && l < 0 || l >= len(cs.Levels) {
+			panic("invalid level")
+		}
+		cs.updateLevelWithContext(len(cs.Instructions)-1, l, b.OutputWireWalker(inst))
+	} else {
+		// update the instruction dependency tree
+		cs.updateLevel(len(cs.Instructions)-1, blueprint.WireWalker(inst))
+	}
 
 	return wires
+}
+
+func (cs *System) VariableLevel(wireID int) int {
+	if wireID < (cs.GetNbPublicVariables() + cs.GetNbSecretVariables()) {
+		return 0
+	}
+	if int(wireID) >= len(cs.lbWireLevel) {
+		return -1
+	}
+	return cs.lbWireLevel[wireID]
 }
 
 // GetNbConstraints returns the number of constraints
