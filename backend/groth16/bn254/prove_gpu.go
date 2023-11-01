@@ -90,8 +90,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 					return err
 				}
 
+				opt.HashToFieldFn.Write(constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
+				hashBts := opt.HashToFieldFn.Sum(nil)
+				opt.HashToFieldFn.Reset()
+				nbBuf := fr.Bytes
+				if opt.HashToFieldFn.Size() < fr.Bytes {
+					nbBuf = opt.HashToFieldFn.Size()
+				}
 				var res fr.Element
-				res, err = solveCommitmentWire(&proof.Commitments[i], hashed)
+				res.SetBytes(hashBts[:nbBuf])
 				res.BigInt(out[0])
 				return err
 			}
