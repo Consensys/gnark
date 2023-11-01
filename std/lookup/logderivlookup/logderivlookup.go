@@ -19,8 +19,6 @@
 package logderivlookup
 
 import (
-	"fmt"
-
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/internal/logderivarg"
@@ -69,12 +67,6 @@ func (t *Table) Insert(val frontend.Variable) (index int) {
 	v := t.api.Compiler().ToCanonicalVariable(val)
 	v.Compress(&t.blueprint.EntriesCalldata)
 
-	// update the maxLevel
-	vLevel := t.api.Compiler().VariableLevel(val)
-	if vLevel > t.blueprint.MaxLevel() {
-		t.blueprint.SetMaxLevel(vLevel)
-	}
-
 	return len(t.entries) - 1
 }
 
@@ -107,7 +99,6 @@ func (t *Table) performLookup(inds []frontend.Variable) []frontend.Variable {
 	calldata := make([]uint32, 3, 3+len(inds)*2+2)
 	calldata[1] = uint32(len(t.entries))
 	calldata[2] = uint32(len(inds))
-	fmt.Println("len(entries)", len(t.entries), "len(inds)", len(inds))
 
 	// encode inputs
 	for _, in := range inds {

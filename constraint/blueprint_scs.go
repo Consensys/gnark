@@ -28,12 +28,12 @@ func (b *BlueprintGenericSparseR1C) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintGenericSparseR1C) WireWalker(inst Instruction) func(cb func(wire uint32)) {
-	return func(cb func(wire uint32)) {
+func (b *BlueprintGenericSparseR1C) WireWalker(inst Instruction) (WireWalker, int) {
+	return func(cb func(wire uint32) int) {
 		cb(inst.Calldata[0]) // xa
 		cb(inst.Calldata[1]) // xb
 		cb(inst.Calldata[2]) // xc
-	}
+	}, 0
 }
 
 func (b *BlueprintGenericSparseR1C) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
@@ -172,12 +172,12 @@ func (b *BlueprintSparseR1CMul) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintSparseR1CMul) WireWalker(inst Instruction) func(cb func(wire uint32)) {
-	return func(cb func(wire uint32)) {
+func (b *BlueprintSparseR1CMul) WireWalker(inst Instruction) (WireWalker, int) {
+	return func(cb func(wire uint32) int) {
 		cb(inst.Calldata[0]) // xa
 		cb(inst.Calldata[1]) // xb
 		cb(inst.Calldata[2]) // xc
-	}
+	}, 0
 }
 
 func (b *BlueprintSparseR1CMul) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
@@ -220,12 +220,12 @@ func (b *BlueprintSparseR1CAdd) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintSparseR1CAdd) WireWalker(inst Instruction) func(cb func(wire uint32)) {
-	return func(cb func(wire uint32)) {
+func (b *BlueprintSparseR1CAdd) WireWalker(inst Instruction) (WireWalker, int) {
+	return func(cb func(wire uint32) int) {
 		cb(inst.Calldata[0]) // xa
 		cb(inst.Calldata[1]) // xb
 		cb(inst.Calldata[2]) // xc
-	}
+	}, 0
 }
 
 func (b *BlueprintSparseR1CAdd) CompressSparseR1C(c *SparseR1C, to *[]uint32) {
@@ -273,10 +273,10 @@ func (b *BlueprintSparseR1CBool) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintSparseR1CBool) WireWalker(inst Instruction) func(cb func(wire uint32)) {
-	return func(cb func(wire uint32)) {
+func (b *BlueprintSparseR1CBool) WireWalker(inst Instruction) (WireWalker, int) {
+	return func(cb func(wire uint32) int) {
 		cb(inst.Calldata[0]) // xa
-	}
+	}, 0
 }
 
 func (b *BlueprintSparseR1CBool) CompressSparseR1C(c *SparseR1C, to *[]uint32) {

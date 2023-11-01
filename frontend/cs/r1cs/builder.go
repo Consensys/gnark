@@ -494,32 +494,6 @@ func (builder *builder) InternalVariable(wireID uint32) frontend.Variable {
 	return expr.NewLinearExpression(int(wireID), builder.tOne)
 }
 
-func (builder *builder) VariableLevel(v frontend.Variable) int {
-	if _, ok := builder.constantValue(v); ok {
-		return -1
-	}
-	maxLevel := -1
-	t, ok := v.(expr.LinearExpression)
-	if !ok && debug.Debug {
-		panic("invalid input for VariableLevel") // sanity check
-	}
-	assertIsSet(t)
-	le := builder.getLinearExpression(t)
-	for _, term := range le {
-		if term.IsConstant() {
-			continue
-		}
-		l := builder.cs.VariableLevel(int(term.VID))
-		if l == -1 {
-			panic("variable not solved")
-		}
-		if l > maxLevel {
-			maxLevel = l
-		}
-	}
-	return maxLevel
-}
-
 // ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable
 // ! Experimental: use in conjunction with constraint.CustomizableSystem
 func (builder *builder) ToCanonicalVariable(in frontend.Variable) frontend.CanonicalVariable {

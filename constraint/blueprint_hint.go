@@ -71,8 +71,8 @@ func (b *BlueprintGenericHint) NbOutputs(inst Instruction) int {
 	return 0
 }
 
-func (b *BlueprintGenericHint) WireWalker(inst Instruction) func(cb func(wire uint32)) {
-	return func(cb func(wire uint32)) {
+func (b *BlueprintGenericHint) WireWalker(inst Instruction) (WireWalker, int) {
+	return func(cb func(wire uint32) int) {
 		lenInputs := int(inst.Calldata[2])
 		j := 3
 		for i := 0; i < lenInputs; i++ {
@@ -90,5 +90,5 @@ func (b *BlueprintGenericHint) WireWalker(inst Instruction) func(cb func(wire ui
 		for k := inst.Calldata[j]; k < inst.Calldata[j+1]; k++ {
 			cb(k)
 		}
-	}
+	}, 0
 }

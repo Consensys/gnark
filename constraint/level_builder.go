@@ -8,15 +8,19 @@ package constraint
 //
 // We build a graph of dependency; we say that a wire is solved at a level l
 // --> l = max(level_of_dependencies(wire)) + 1
-func (system *System) updateLevel(iID int, walkWires func(cb func(wire uint32))) {
-	level := -1
+func (system *System) updateLevel(iID int, walkWires WireWalker, level int) {
+	if level <= 0 {
+		// level 0 represents the inputs of the circuit (public and secret)
+		level = -1
+	}
+	// level = max(dependencies)
 
 	// process all wires of the instruction
-	walkWires(func(wire uint32) {
-		system.processWire(wire, &level)
+	walkWires(func(wire uint32) int {
+		return system.processWire(wire, &level)
 	})
 
-	// level =  max(dependencies) + 1
+	// (new) level =  max(dependencies) + 1
 	level++
 
 	// mark output wire with level
@@ -35,45 +39,22 @@ func (system *System) updateLevel(iID int, walkWires func(cb func(wire uint32)))
 	system.lbOutputs = system.lbOutputs[:0]
 }
 
-func (system *System) updateLevelWithContext(iID int, maxLevel int, walkOuptutWires func(cb func(wire uint32))) {
-	// level =  max(dependencies) + 1
-	level := maxLevel + 1
-
-	// mark output wire with level
-	walkOuptutWires(func(wire uint32) {
-		for int(wire) >= len(system.lbWireLevel) {
-			// we didn't encounter this wire yet, we need to grow b.wireLevels
-			system.lbWireLevel = append(system.lbWireLevel, -1)
-		}
-		system.lbWireLevel[wire] = level
-	})
-
-	for _, wireID := range system.lbOutputs {
-		system.lbWireLevel[wireID] = level
-	}
-	// we can't skip levels, so appending is fine.
-	if level >= len(system.Levels) {
-		system.Levels = append(system.Levels, []int{iID})
-	} else {
-		system.Levels[level] = append(system.Levels[level], iID)
-	}
-}
-
-func (system *System) processWire(wireID uint32, maxLevel *int) {
+func (system *System) processWire(wireID uint32, maxLevel *int) (level int) {
 	if wireID < uint32(system.GetNbPublicVariables()+system.GetNbSecretVariables()) {
-		return // ignore inputs
+		return -1 // ignore inputs
 	}
 	for int(wireID) >= len(system.lbWireLevel) {
 		// we didn't encounter this wire yet, we need to grow b.wireLevels
 		system.lbWireLevel = append(system.lbWireLevel, -1)
 	}
-	if system.lbWireLevel[wireID] != -1 {
+	if wLevel := system.lbWireLevel[wireID]; wLevel != -1 {
 		// we know how to solve this wire, it's a dependency
-		if system.lbWireLevel[wireID] > *maxLevel {
-			*maxLevel = system.lbWireLevel[wireID]
+		if wLevel > *maxLevel {
+			*maxLevel = wLevel
 		}
-		return
+		return wLevel
 	}
 	// this wire is an output to the instruction
 	system.lbOutputs = append(system.lbOutputs, wireID)
+	return -1
 }

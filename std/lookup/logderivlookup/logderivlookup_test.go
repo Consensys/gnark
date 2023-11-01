@@ -66,8 +66,8 @@ func TestLookup(t *testing.T) {
 }
 
 type LookupCircuitLarge struct {
-	Entries           [32000]frontend.Variable
-	Queries, Expected [32000]frontend.Variable
+	Entries           [32000 * 2]frontend.Variable
+	Queries, Expected [32000 * 2]frontend.Variable
 }
 
 func (c *LookupCircuitLarge) Define(api frontend.API) error {

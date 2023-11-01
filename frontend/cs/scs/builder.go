@@ -17,7 +17,6 @@ limitations under the License.
 package scs
 
 import (
-	"fmt"
 	"math/big"
 	"reflect"
 	"sort"
@@ -676,18 +675,6 @@ func (builder *builder) AddBlueprint(b constraint.Blueprint) constraint.Blueprin
 
 func (builder *builder) InternalVariable(wireID uint32) frontend.Variable {
 	return expr.NewTerm(int(wireID), builder.tOne)
-}
-
-func (builder *builder) VariableLevel(v frontend.Variable) int {
-	if _, ok := builder.constantValue(v); ok {
-		return -1
-	}
-	t := v.(expr.Term)
-	if r := builder.cs.VariableLevel(t.VID); r == -1 {
-		panic(fmt.Errorf("variable %d not solved", t.VID))
-	} else {
-		return r
-	}
 }
 
 // ToCanonicalVariable converts a frontend.Variable to a constraint system specific Variable

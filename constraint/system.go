@@ -78,8 +78,6 @@ type ConstraintSystem interface {
 	GetInstruction(int) Instruction
 
 	GetCoefficient(i int) Element
-
-	VariableLevel(int) int
 }
 
 type CustomizableSystem interface {
