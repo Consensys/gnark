@@ -50,6 +50,7 @@ import (
 	groth16_bls24315 "github.com/consensys/gnark/backend/groth16/bls24-315"
 	groth16_bls24317 "github.com/consensys/gnark/backend/groth16/bls24-317"
 	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
+	icicle_bn254 "github.com/consensys/gnark/backend/groth16/bn254/icicle"
 	groth16_bw6633 "github.com/consensys/gnark/backend/groth16/bw6-633"
 	groth16_bw6761 "github.com/consensys/gnark/backend/groth16/bw6-761"
 )
@@ -180,6 +181,9 @@ func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.
 		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), fullWitness, opt)
 
 	case *cs_bn254.R1CS:
+		if icicle_bn254.HasIcicle {
+			return icicle_bn254.Prove(_r1cs, pk.(*icicle_bn254.ProvingKey), fullWitness, opt)
+		}
 		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), fullWitness, opt)
 
 	case *cs_bw6761.R1CS:
@@ -225,8 +229,15 @@ func Setup(r1cs constraint.ConstraintSystem) (ProvingKey, VerifyingKey, error) {
 		}
 		return &pk, &vk, nil
 	case *cs_bn254.R1CS:
-		var pk groth16_bn254.ProvingKey
 		var vk groth16_bn254.VerifyingKey
+		if icicle_bn254.HasIcicle {
+			var pk icicle_bn254.ProvingKey
+			if err := icicle_bn254.Setup(_r1cs, &pk, &vk); err != nil {
+				return nil, nil, err
+			}
+			return &pk, &vk, nil
+		}
+		var pk groth16_bn254.ProvingKey
 		if err := groth16_bn254.Setup(_r1cs, &pk, &vk); err != nil {
 			return nil, nil, err
 		}
@@ -281,6 +292,13 @@ func DummySetup(r1cs constraint.ConstraintSystem) (ProvingKey, error) {
 		}
 		return &pk, nil
 	case *cs_bn254.R1CS:
+		if icicle_bn254.HasIcicle {
+			var pk icicle_bn254.ProvingKey
+			if err := icicle_bn254.DummySetup(_r1cs, &pk); err != nil {
+				return nil, err
+			}
+			return &pk, nil
+		}
 		var pk groth16_bn254.ProvingKey
 		if err := groth16_bn254.DummySetup(_r1cs, &pk); err != nil {
 			return nil, err
@@ -322,6 +340,9 @@ func NewProvingKey(curveID ecc.ID) ProvingKey {
 	switch curveID {
 	case ecc.BN254:
 		pk = &groth16_bn254.ProvingKey{}
+		if icicle_bn254.HasIcicle {
+			pk = &icicle_bn254.ProvingKey{}
+		}
 	case ecc.BLS12_377:
 		pk = &groth16_bls12377.ProvingKey{}
 	case ecc.BLS12_381:
