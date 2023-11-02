@@ -24,7 +24,6 @@ type deviceInfo struct {
 
 type ProvingKey struct {
 	groth16_bn254.ProvingKey
-
 	*deviceInfo
 }
 
