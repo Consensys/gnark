@@ -45,7 +45,7 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	}
 
 	// New transcript with 3 challenges to be derived
-	tsSnark := NewTranscript(api, &hSnark, "alpha", "beta", "gamma")
+	tsSnark := NewTranscript(api, &hSnark, []string{"alpha", "beta", "gamma"})
 
 	// Bind challenges
 	if err := tsSnark.Bind("alpha", circuit.Bindings[0][:]); err != nil {

@@ -2,10 +2,11 @@ package sumcheck
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
-	"strconv"
 )
 
 // LazyClaims is the Claims data structure on the verifier side. It is "lazy" in that it has to compute fewer things.
@@ -37,8 +38,7 @@ func setupTranscript(api frontend.API, claimsNum int, varsNum int, settings *fia
 		challengeNames[i+numChallenges-varsNum] = prefix + strconv.Itoa(i)
 	}
 	if settings.Transcript == nil {
-		transcript := fiatshamir.NewTranscript(api, settings.Hash, challengeNames...)
-		settings.Transcript = &transcript
+		settings.Transcript = fiatshamir.NewTranscript(api, settings.Hash, challengeNames)
 	}
 
 	return challengeNames, settings.Transcript.Bind(challengeNames[0], settings.BaseChallenges)

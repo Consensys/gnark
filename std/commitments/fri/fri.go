@@ -98,7 +98,7 @@ func (s RadixTwoFri) verifyProofOfProximitySingleRound(api frontend.API, salt fr
 		xis[i] = paddNaming(fmt.Sprintf("x%d", i), frSize)
 	}
 	xis[s.nbSteps] = paddNaming("s0", frSize)
-	fs := fiatshamir.NewTranscript(api, s.h, xis...)
+	fs := fiatshamir.NewTranscript(api, s.h, xis)
 	xi := make([]frontend.Variable, s.nbSteps)
 
 	// the salt is binded to the first challenge, to ensure the challenges

@@ -53,7 +53,7 @@ type challenge struct {
 // NewTranscript returns a new transcript.
 // h is the hash function that is used to compute the challenges.
 // challenges are the name of the challenges. The order is important.
-func NewTranscript(api frontend.API, h hash.FieldHasher, challengesID ...string) Transcript {
+func NewTranscript(api frontend.API, h hash.FieldHasher, challengesID []string) *Transcript {
 	n := len(challengesID)
 	t := Transcript{
 		challenges: make(map[string]challenge, n),
@@ -65,7 +65,7 @@ func NewTranscript(api frontend.API, h hash.FieldHasher, challengesID ...string)
 		t.challenges[challengesID[i]] = challenge{position: i}
 	}
 
-	return t
+	return &t
 }
 
 // Bind binds the challenge to value. A challenge can be binded to an
