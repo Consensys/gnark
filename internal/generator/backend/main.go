@@ -36,7 +36,6 @@ func main() {
 		CSPath:   "../../../constraint/bn254/",
 		Curve:    "BN254",
 		CurveID:  "BN254",
-		BuildTag: "!icicle",
 	}
 	bw6_761 := templateData{
 		RootPath: "../../../backend/{?}/bw6-761/",
@@ -158,16 +157,11 @@ func main() {
 				panic(err)
 			}
 
-			var buildTag string = ""
-			if d.BuildTag != "" {
-				buildTag = d.BuildTag
-			}
-
 			entries = []bavard.Entry{
 				{File: filepath.Join(groth16Dir, "verify.go"), Templates: []string{"groth16/groth16.verify.go.tmpl", importCurve}},
-				{File: filepath.Join(groth16Dir, "prove.go"), Templates: []string{"groth16/groth16.prove.go.tmpl", importCurve}, BuildTag: buildTag},
-				{File: filepath.Join(groth16Dir, "setup.go"), Templates: []string{"groth16/groth16.setup.go.tmpl", importCurve}, BuildTag: buildTag},
-				{File: filepath.Join(groth16Dir, "marshal.go"), Templates: []string{"groth16/groth16.marshal.go.tmpl", importCurve}, BuildTag: buildTag},
+				{File: filepath.Join(groth16Dir, "prove.go"), Templates: []string{"groth16/groth16.prove.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16Dir, "setup.go"), Templates: []string{"groth16/groth16.setup.go.tmpl", importCurve}},
+				{File: filepath.Join(groth16Dir, "marshal.go"), Templates: []string{"groth16/groth16.marshal.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "marshal_test.go"), Templates: []string{"groth16/tests/groth16.marshal.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "groth16", "./template/zkpschemes/", entries...); err != nil {
