@@ -13,6 +13,15 @@ import (
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
 	"golang.org/x/exp/slices"
+
+	bls12_377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	bls12_381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	bls24_315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	bls24_317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
+	bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	bw6_633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
+	bw6_756 "github.com/consensys/gnark-crypto/ecc/bw6-756/fr"
+	bw6_761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 )
 
 type shortNativeHash struct {
@@ -20,9 +29,9 @@ type shortNativeHash struct {
 
 	outSize      int
 	bitBlockSize int
-
-	ringBuf *bytes.Buffer
-	buf     []byte
+	ecID         ecc.ID
+	ringBuf      *bytes.Buffer
+	buf          []byte
 }
 
 // NewShort returns a native hash function which reads elements in the current native
@@ -32,34 +41,44 @@ type shortNativeHash struct {
 func NewShort(current, target *big.Int) (hash.Hash, error) {
 	var h cryptomimc.Hash
 	var bitBlockSize int
+	var ecid ecc.ID
 	switch current.String() {
 	case ecc.BN254.ScalarField().String():
 		h = cryptomimc.MIMC_BN254
 		bitBlockSize = ecc.BN254.ScalarField().BitLen()
+		ecid = ecc.BN254
 	case ecc.BLS12_381.ScalarField().String():
 		h = cryptomimc.MIMC_BLS12_381
 		bitBlockSize = ecc.BLS12_381.ScalarField().BitLen()
+		ecid = ecc.BLS12_381
 	case ecc.BLS12_377.ScalarField().String():
 		h = cryptomimc.MIMC_BLS12_377
 		bitBlockSize = ecc.BLS12_377.ScalarField().BitLen()
+		ecid = ecc.BLS12_377
 	case ecc.BLS12_378.ScalarField().String():
 		h = cryptomimc.MIMC_BLS12_378
 		bitBlockSize = ecc.BLS12_378.ScalarField().BitLen()
+		ecid = ecc.BLS12_378
 	case ecc.BW6_761.ScalarField().String():
 		h = cryptomimc.MIMC_BW6_761
 		bitBlockSize = ecc.BW6_761.ScalarField().BitLen()
+		ecid = ecc.BW6_761
 	case ecc.BLS24_315.ScalarField().String():
 		h = cryptomimc.MIMC_BLS24_315
 		bitBlockSize = ecc.BLS24_315.ScalarField().BitLen()
+		ecid = ecc.BLS24_315
 	case ecc.BLS24_317.ScalarField().String():
 		h = cryptomimc.MIMC_BLS24_317
 		bitBlockSize = ecc.BLS24_317.ScalarField().BitLen()
+		ecid = ecc.BLS24_317
 	case ecc.BW6_633.ScalarField().String():
 		h = cryptomimc.MIMC_BW6_633
 		bitBlockSize = ecc.BW6_633.ScalarField().BitLen()
+		ecid = ecc.BW6_633
 	case ecc.BW6_756.ScalarField().String():
 		h = cryptomimc.MIMC_BW6_756
 		bitBlockSize = ecc.BW6_756.ScalarField().BitLen()
+		ecid = ecc.BW6_756
 	default:
 		return nil, fmt.Errorf("no default mimc for scalar field: %s", current.String())
 	}
@@ -71,10 +90,10 @@ func NewShort(current, target *big.Int) (hash.Hash, error) {
 	if nbBits > current.BitLen() {
 		nbBits = current.BitLen()
 	}
-	return newShortFromParam(hh, bitBlockSize, nbBits), nil
+	return newShortFromParam(hh, ecid, bitBlockSize, nbBits), nil
 }
 
-func newShortFromParam(hf hash.Hash, bitBlockSize, outSize int) hash.Hash {
+func newShortFromParam(hf hash.Hash, ecid ecc.ID, bitBlockSize, outSize int) hash.Hash {
 
 	// TODO: right now assume bitLength is the modulus bit length. We subtract within
 	return &shortNativeHash{
@@ -82,6 +101,7 @@ func newShortFromParam(hf hash.Hash, bitBlockSize, outSize int) hash.Hash {
 		outSize:      outSize,
 		bitBlockSize: bitBlockSize,
 		buf:          make([]byte, (bitBlockSize+7)/8),
+		ecID:         ecid,
 		ringBuf:      new(bytes.Buffer),
 	}
 }
@@ -126,6 +146,68 @@ func (h *shortNativeHash) Reset() {
 
 func (h *shortNativeHash) Size() int {
 	return (int(h.outSize) + 6) / 8
+}
+
+func (h *shortNativeHash) WriteString(rawBytes []byte) {
+	dst := []byte("string:")
+	switch h.ecID {
+	case ecc.BN254:
+		if x, err := bn254.Hash(rawBytes, dst, 1); err == nil {
+			bx := x[0].Bytes()
+			h.Write(bx[:])
+		} else {
+			panic(err)
+		}
+	case ecc.BLS12_381:
+		if x, err := bls12_381.Hash(rawBytes, dst, 1); err == nil {
+			bx := x[0].Bytes()
+			h.Write(bx[:])
+		} else {
+			panic(err)
+		}
+	case ecc.BLS12_377:
+		if x, err := bls12_377.Hash(rawBytes, dst, 1); err == nil {
+			bx := x[0].Bytes()
+			h.Write(bx[:])
+		} else {
+			panic(err)
+		}
+	case ecc.BW6_761:
+		if x, err := bw6_761.Hash(rawBytes, dst, 1); err == nil {
+			bx := x[0].Bytes()
+			h.Write(bx[:])
+		} else {
+			panic(err)
+		}
+	case ecc.BLS24_315:
+		if x, err := bls24_315.Hash(rawBytes, dst, 1); err == nil {
+			bx := x[0].Bytes()
+			h.Write(bx[:])
+		} else {
+			panic(err)
+		}
+	case ecc.BLS24_317:
+		if x, err := bls24_317.Hash(rawBytes, dst, 1); err == nil {
+			bx := x[0].Bytes()
+			h.Write(bx[:])
+		} else {
+			panic(err)
+		}
+	case ecc.BW6_633:
+		if x, err := bw6_633.Hash(rawBytes, dst, 1); err == nil {
+			bx := x[0].Bytes()
+			h.Write(bx[:])
+		} else {
+			panic(err)
+		}
+	case ecc.BW6_756:
+		if x, err := bw6_756.Hash(rawBytes, dst, 1); err == nil {
+			bx := x[0].Bytes()
+			h.Write(bx[:])
+		} else {
+			panic(err)
+		}
+	}
 }
 
 func (h *shortNativeHash) BlockSize() int {
