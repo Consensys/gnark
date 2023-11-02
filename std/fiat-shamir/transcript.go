@@ -41,6 +41,8 @@ type Transcript struct {
 
 	// gnark API
 	api frontend.API
+
+	config transcriptConfig
 }
 
 type challenge struct {
@@ -53,12 +55,17 @@ type challenge struct {
 // NewTranscript returns a new transcript.
 // h is the hash function that is used to compute the challenges.
 // challenges are the name of the challenges. The order is important.
-func NewTranscript(api frontend.API, h hash.FieldHasher, challengesID []string) *Transcript {
+func NewTranscript(api frontend.API, h hash.FieldHasher, challengesID []string, opts ...TranscriptOption) *Transcript {
+	cfg := transcriptConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	n := len(challengesID)
 	t := Transcript{
 		challenges: make(map[string]challenge, n),
 		api:        api,
 		h:          h,
+		config:     cfg,
 	}
 
 	for i := 0; i < n; i++ {
@@ -139,4 +146,32 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 
 	return challenge.value, nil
 
+}
+
+type transcriptConfig struct {
+	tryBitmode           int
+	withDomainSeparation bool
+}
+
+// TranscriptOption allows modifying the [Transcript] operation.
+type TranscriptOption func(tc *transcriptConfig)
+
+// WithTryBitmode changes the [Transcript] to work on bits instead of field
+// elements when writing input to the hasher. Requires that the hasher is also
+// set to work in bitmode. This mode of operation is useful in cases where we
+// work in mismatching fields and want to avoid overflows.
+func WithTryBitmode(nbBits int) TranscriptOption {
+	return func(tc *transcriptConfig) {
+		tc.tryBitmode = nbBits
+	}
+}
+
+// WithDomainSeparation adds domain separation string `string:` as defined in
+// RCF 9380. This mode of operation is beneficial when seeking for compatibility
+// with native Transcript when initialized using gnark-crypto's MiMC
+// implementation.
+func WithDomainSeparation() TranscriptOption {
+	return func(tc *transcriptConfig) {
+		tc.withDomainSeparation = true
+	}
 }
