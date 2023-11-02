@@ -2,11 +2,12 @@ package gkr
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/std/sumcheck"
-	"strconv"
 )
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
@@ -291,7 +292,7 @@ func getFirstChallengeNames(logNbInstances int, prefix string) []string {
 func getChallenges(transcript *fiatshamir.Transcript, names []string) (challenges []frontend.Variable, err error) {
 	challenges = make([]frontend.Variable, len(names))
 	for i, name := range names {
-		if challenges[i], err = transcript.ComputeChallenge(name); err != nil {
+		if challenges[i], err = transcript.ComputeChallenge(name, false); err != nil {
 			return
 		}
 	}

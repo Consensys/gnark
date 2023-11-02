@@ -113,7 +113,7 @@ func (s RadixTwoFri) verifyProofOfProximitySingleRound(api frontend.API, salt fr
 		if err != nil {
 			return err
 		}
-		xi[i], err = fs.ComputeChallenge(xis[i])
+		xi[i], err = fs.ComputeChallenge(xis[i], false)
 		if err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func (s RadixTwoFri) verifyProofOfProximitySingleRound(api frontend.API, salt fr
 	if err != nil {
 		return err
 	}
-	binSeed, err := fs.ComputeChallenge(xis[s.nbSteps])
+	binSeed, err := fs.ComputeChallenge(xis[s.nbSteps], false)
 	if err != nil {
 		return err
 	}

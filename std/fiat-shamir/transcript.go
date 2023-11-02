@@ -133,7 +133,14 @@ func (t *Transcript) ComputeChallenge(challengeID string, bitMod bool) (frontend
 		if t.previous == nil || (t.previous.position != challenge.position-1) {
 			return nil, errPreviousChallengeNotComputed
 		}
-		t.h.Write(t.previous.value)
+		if bitMod {
+			nbBits := 8 * ((t.api.Compiler().Field().BitLen() + 7) / 8)
+			binPrevChallenge := t.api.ToBinary(t.previous.value, nbBits)
+			slices.Reverse(binPrevChallenge)
+			t.h.Write(binPrevChallenge[8:]...)
+		} else {
+			t.h.Write(t.previous.value)
+		}
 	}
 
 	// write the binded values in the order they were added

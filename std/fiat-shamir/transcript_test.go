@@ -17,6 +17,7 @@ limitations under the License.
 package fiatshamir
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
+	"golang.org/x/exp/slices"
 )
 
 //------------------------------------------------------
@@ -150,8 +152,8 @@ func TestFiatShamir(t *testing.T) {
 // bitMode==true
 
 type FiatShamirCircuitBitMode struct {
-	// Bindings   [3][4]frontend.Variable `gnark:",public"`
-	Challenges frontend.Variable
+	Bindings  [2][4]frontend.Variable
+	Challenge [2]frontend.Variable
 }
 
 func (circuit *FiatShamirCircuitBitMode) Define(api frontend.API) error {
@@ -170,14 +172,33 @@ func (circuit *FiatShamirCircuitBitMode) Define(api frontend.API) error {
 	}
 
 	// New transcript with 3 challenges to be derived
-	tsSnark := NewTranscript(api, whSnark, "alpha")
+	tsSnark := NewTranscript(api, whSnark, "alpha", "beta")
+	challengesNames := []string{"alpha", "beta"}
 
-	challenge, err := tsSnark.ComputeChallenge("alpha", true)
-	if err != nil {
-		return err
+	nbBitsFull := ((api.Compiler().Field().BitLen() + 7) / 8) * 8
+	for j := 0; j < 2; j++ {
+		for i := 0; i < 4; i++ {
+			binBindings := api.ToBinary(circuit.Bindings[j][i], nbBitsFull)
+			slices.Reverse(binBindings)
+			err = tsSnark.Bind(challengesNames[j], binBindings)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
-	api.AssertIsEqual(challenge, circuit.Challenges)
+	var challenges [2]frontend.Variable
+	for i := 0; i < 2; i++ {
+		challenges[i], err = tsSnark.ComputeChallenge(challengesNames[i], true)
+		if err != nil {
+			return err
+		}
+	}
+
+	api.Println(challenges[1])
+	for i := 0; i < 2; i++ {
+		api.AssertIsEqual(challenges[i], circuit.Challenge[i])
+	}
 
 	return nil
 }
@@ -206,15 +227,45 @@ func TestFiatShamirBitMode(t *testing.T) {
 		wh, err := recursion.NewShort(curveID.ScalarField(), target)
 		assert.NoError(err)
 
-		ts := fiatshamir.NewTranscript(wh, "alpha")
+		ts := fiatshamir.NewTranscript(wh, "alpha", "beta")
 
-		expectedChallenges, err := ts.ComputeChallenge("alpha")
-		assert.NoError(err)
+		var bindings [2][4]big.Int
+		for i := 0; i < 2; i++ {
+			for j := 0; j < 4; j++ {
+				bindings[i][j].SetUint64(uint64(i*i + j*j))
+			}
+		}
+
+		frSize := utils.ByteLen(curveID.ScalarField())
+		buf := make([]byte, frSize)
+		challengesNames := []string{"alpha", "beta"}
+		for j := 0; j < 2; j++ {
+			for i := 0; i < 4; i++ {
+				err := ts.Bind(challengesNames[j], bindings[j][i].FillBytes(buf))
+				assert.NoError(err)
+			}
+		}
+
+		var expectedChallenges [2][]byte
+		for i := 0; i < 2; i++ {
+			expectedChallenges[i], err = ts.ComputeChallenge(challengesNames[i])
+			assert.NoError(err)
+		}
+		var a big.Int
+		a.SetBytes(expectedChallenges[1])
+		fmt.Println(a.String())
 
 		// instantiate the circuit with provided inputs
 		var witness FiatShamirCircuitBitMode
-		witness.Challenges = expectedChallenges
 
+		for i := 0; i < 2; i++ {
+			witness.Challenge[i] = expectedChallenges[i]
+		}
+		for j := 0; j < 2; j++ {
+			for i := 0; i < 4; i++ {
+				witness.Bindings[j][i] = bindings[j][i]
+			}
+		}
 		assert.CheckCircuit(&FiatShamirCircuitBitMode{}, test.WithValidAssignment(&witness), test.WithCurves(curveID))
 	}
 
