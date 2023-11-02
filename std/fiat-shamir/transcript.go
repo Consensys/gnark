@@ -22,6 +22,7 @@ import (
 	"github.com/consensys/gnark/constant"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
+	"golang.org/x/exp/slices"
 )
 
 // errChallengeNotFound is returned when a wrong challenge name is provided.
@@ -94,7 +95,9 @@ func (t *Transcript) Bind(challengeID string, values []frontend.Variable) error 
 // The resulting variable is:
 // * H(name ∥ previous_challenge ∥ binded_values...) if the challenge is not the first one
 // * H(name ∥ binded_values... ) if it's is the first challenge
-func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, error) {
+// If bitMode == true, the data binded to a challenge is supposed to consist of bits, that
+// is when Bind(challengeID, values) is called, values is supposed to be a slice of bits.
+func (t *Transcript) ComputeChallenge(challengeID string, bitMod bool) (frontend.Variable, error) {
 
 	challenge, ok := t.challenges[challengeID]
 
@@ -112,7 +115,15 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 	// write the challenge name, the purpose is to have a domain separator
 	cChallenge := []byte(challengeID) // if we send a string, it is assumed to be a base10 number
 	if challengeName, err := constant.HashedBytes(t.api, cChallenge); err == nil {
-		t.h.Write(challengeName)
+		if bitMod {
+			nbBits := 8 * ((t.api.Compiler().Field().BitLen() + 7) / 8)
+			// TODO waste of constraints, should to the binary decomposition in bigInt directly
+			binChallengeName := t.api.ToBinary(challengeName, nbBits)
+			slices.Reverse(binChallengeName)
+			t.h.Write(binChallengeName...)
+		} else {
+			t.h.Write(challengeName)
+		}
 	} else {
 		return nil, err
 	}

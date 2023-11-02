@@ -104,8 +104,8 @@ func (c *hashMarshalG1Circuit[S, G1El]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("get curve: %w", err)
 	}
-	marshlled := curve.MarshalG1(c.Point)
-	h.Write(marshlled...)
+	marshalled := curve.MarshalG1(c.Point)
+	h.Write(marshalled...)
 	res := h.Sum()
 	api.AssertIsEqual(res, c.Expected)
 	return nil

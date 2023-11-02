@@ -28,8 +28,12 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 )
+
+//------------------------------------------------------
+// bitMode==false
 
 type FiatShamirCircuit struct {
 	Bindings   [3][4]frontend.Variable `gnark:",public"`
@@ -60,16 +64,16 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 
 	// derive challenges
 	var challenges [3]frontend.Variable
-	challenges[0], err = tsSnark.ComputeChallenge("alpha")
+	challenges[0], err = tsSnark.ComputeChallenge("alpha", false)
 	if err != nil {
 		return err
 	}
 
-	challenges[1], err = tsSnark.ComputeChallenge("beta")
+	challenges[1], err = tsSnark.ComputeChallenge("beta", false)
 	if err != nil {
 		return err
 	}
-	challenges[2], err = tsSnark.ComputeChallenge("gamma")
+	challenges[2], err = tsSnark.ComputeChallenge("gamma", false)
 	if err != nil {
 		return err
 	}
@@ -141,6 +145,83 @@ func TestFiatShamir(t *testing.T) {
 	}
 
 }
+
+//------------------------------------------------------
+// bitMode==true
+
+type FiatShamirCircuitBitMode struct {
+	// Bindings   [3][4]frontend.Variable `gnark:",public"`
+	Challenges frontend.Variable
+}
+
+func (circuit *FiatShamirCircuitBitMode) Define(api frontend.API) error {
+
+	// pick a number on byte shorter than the modulus size
+	var target big.Int
+	target.SetUint64(1)
+	nbBits := api.Compiler().Field().BitLen()
+	nn := ((nbBits+7)/8)*8 - 8
+	target.Lsh(&target, uint(nn))
+
+	// create the wrapped hash function
+	whSnark, err := recursion.NewHash(api, &target, true)
+	if err != nil {
+		return err
+	}
+
+	// New transcript with 3 challenges to be derived
+	tsSnark := NewTranscript(api, whSnark, "alpha")
+
+	challenge, err := tsSnark.ComputeChallenge("alpha", true)
+	if err != nil {
+		return err
+	}
+
+	api.AssertIsEqual(challenge, circuit.Challenges)
+
+	return nil
+}
+
+func TestFiatShamirBitMode(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	testData := map[ecc.ID]hash.Hash{
+		ecc.BN254: hash.MIMC_BN254,
+		// ecc.BLS12_377: hash.MIMC_BLS12_377,
+		// ecc.BLS12_381: hash.MIMC_BLS12_381,
+		// ecc.BLS24_315: hash.MIMC_BLS24_315,
+		// ecc.BLS24_317: hash.MIMC_BLS24_317,
+		// ecc.BW6_761:   hash.MIMC_BW6_761,
+		// ecc.BW6_633:   hash.MIMC_BW6_633,
+	}
+
+	// compute the witness for each curve
+	for curveID, _ := range testData {
+
+		// instantiate the hash and the transcript in plain go
+		nbBits := ((curveID.ScalarField().BitLen()+7)/8)*8 - 8
+		target := big.NewInt(1)
+		target.Lsh(target, uint(nbBits))
+		wh, err := recursion.NewShort(curveID.ScalarField(), target)
+		assert.NoError(err)
+
+		ts := fiatshamir.NewTranscript(wh, "alpha")
+
+		expectedChallenges, err := ts.ComputeChallenge("alpha")
+		assert.NoError(err)
+
+		// instantiate the circuit with provided inputs
+		var witness FiatShamirCircuitBitMode
+		witness.Challenges = expectedChallenges
+
+		assert.CheckCircuit(&FiatShamirCircuitBitMode{}, test.WithValidAssignment(&witness), test.WithCurves(curveID))
+	}
+
+}
+
+//------------------------------------------------------
+// benchmark
 
 func BenchmarkCompile(b *testing.B) {
 	// create an empty cs
