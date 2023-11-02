@@ -229,7 +229,9 @@ func TestCommitmentDummySetup(t *testing.T) {
 
 			w, err = frontend.NewWitness(assignment, ecc.BN254.ScalarField())
 			require.NoError(t, err)
-			_, err = groth16.Prove(_r1cs, &pk, w)
+			opt, err := backend.NewProverConfig()
+			require.NoError(t, err)
+			_, err = groth16.Prove(_r1cs, &pk, w, opt)
 			require.NoError(t, err)
 		}
 	}
