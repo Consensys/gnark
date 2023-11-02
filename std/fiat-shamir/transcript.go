@@ -101,8 +101,8 @@ func (t *Transcript) Bind(challengeID string, values []frontend.Variable) error 
 
 // ComputeChallenge computes the challenge corresponding to the given name.
 // The resulting variable is:
-// * H(name ∥ previous_challenge ∥ binded_values...) if the challenge is not the first one
-// * H(name ∥ binded_values... ) if it's is the first challenge
+//   - H(name ∥ previous_challenge ∥ binded_values...) if the challenge is not the first one
+//   - H(name ∥ binded_values... ) if it's is the first challenge
 func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, error) {
 	var err error
 	challenge, ok := t.challenges[challengeID]
