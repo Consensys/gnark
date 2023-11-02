@@ -18,10 +18,12 @@ package fiatshamir
 
 import (
 	"errors"
+	"slices"
 
 	"github.com/consensys/gnark/constant"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // errChallengeNotFound is returned when a wrong challenge name is provided.
@@ -102,7 +104,7 @@ func (t *Transcript) Bind(challengeID string, values []frontend.Variable) error 
 // * H(name ∥ previous_challenge ∥ binded_values...) if the challenge is not the first one
 // * H(name ∥ binded_values... ) if it's is the first challenge
 func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, error) {
-
+	var err error
 	challenge, ok := t.challenges[challengeID]
 
 	if !ok {
@@ -117,11 +119,20 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 	t.h.Reset()
 
 	// write the challenge name, the purpose is to have a domain separator
-	cChallenge := []byte(challengeID) // if we send a string, it is assumed to be a base10 number
-	if challengeName, err := constant.HashedBytes(t.api, cChallenge); err == nil {
-		t.h.Write(challengeName)
+	challengeInput := []byte(challengeID)
+	var challengeHashInput frontend.Variable = challengeInput
+	if t.config.withDomainSeparation {
+		challengeHashInput, err = constant.HashedBytes(t.api, []byte(challengeID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	if t.config.tryBitmode > 0 {
+		challengeBits := bits.ToBinary(t.api, challengeInput, bits.WithNbDigits(8*len(challengeInput)))
+		slices.Reverse(challengeBits)
+		t.h.Write(challengeBits...)
 	} else {
-		return nil, err
+		t.h.Write(challengeHashInput)
 	}
 
 	// write the previous challenge if it's not the first challenge
@@ -129,7 +140,13 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 		if t.previous == nil || (t.previous.position != challenge.position-1) {
 			return nil, errPreviousChallengeNotComputed
 		}
-		t.h.Write(t.previous.value)
+		if t.config.tryBitmode > 0 {
+			prevBits := bits.ToBinary(t.api, t.previous.value, bits.WithNbDigits(t.config.tryBitmode))
+			slices.Reverse(prevBits)
+			t.h.Write(prevBits...)
+		} else {
+			t.h.Write(t.previous.value)
+		}
 	}
 
 	// write the binded values in the order they were added
