@@ -243,6 +243,5 @@ type templateData struct {
 	CSPath    string
 	Curve     string
 	CurveID   string
-	BuildTag  string
 	noBackend bool
 }
