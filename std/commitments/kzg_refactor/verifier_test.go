@@ -156,7 +156,6 @@ func TestKZGVerificationEmulated(t *testing.T) {
 // Fold proof
 
 type FoldProofTest[S emulated.FieldParams, G1El, G2El, GTEl any] struct {
-	Vk                   VerifyingKey[G1El, G2El]
 	Point                emulated.Element[S]
 	Digests              [10]Commitment[G1El]
 	BatchOpeningProof    BatchOpeningProof[S, G1El]
@@ -235,8 +234,6 @@ func TestFoldProof(t *testing.T) {
 	assert.NoError(err)
 
 	// prepare witness
-	wVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine](srs.Vk)
-	assert.NoError(err)
 	wPoint, err := ValueOfScalar[emulated.BN254Fr](point)
 	assert.NoError(err)
 	var wDigests [10]Commitment[sw_bn254.G1Affine]
@@ -252,7 +249,6 @@ func TestFoldProof(t *testing.T) {
 	assert.NoError(err)
 
 	assignment := FoldProofTest[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
-		Vk:                   wVk,
 		Point:                wPoint,
 		Digests:              wDigests,
 		BatchOpeningProof:    wBatchOpeningProof,
@@ -261,6 +257,105 @@ func TestFoldProof(t *testing.T) {
 	}
 
 	var circuit FoldProofTest[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]
+	circuit.BatchOpeningProof.ClaimedValues = make([]emulated.Element[emulated.BN254Fr], 10)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BLS12_381), test.WithBackends(backend.PLONK))
+
+}
+
+//--------------------------------------------------------
+// Batch verify single point
+
+type BatchVerifySinglePointTest[S emulated.FieldParams, G1El, G2El, GTEl any] struct {
+	Vk                VerifyingKey[G1El, G2El]
+	Point             emulated.Element[S]
+	Digests           [10]Commitment[G1El]
+	BatchOpeningProof BatchOpeningProof[S, G1El]
+}
+
+func (c *BatchVerifySinglePointTest[S, G1El, G2El, GTEl]) Define(api frontend.API) error {
+
+	verifier, err := NewVerifier[S, G1El, G2El, GTEl](api)
+	if err != nil {
+		return fmt.Errorf("get pairing: %w", err)
+	}
+
+	// pick a number on byte shorter than the modulus size
+	var target big.Int
+	target.SetUint64(1)
+	nbBits := api.Compiler().Field().BitLen()
+	nn := ((nbBits+7)/8)*8 - 8
+	target.Lsh(&target, uint(nn))
+
+	// create the wrapped hash function
+	whSnark, err := recursion.NewHash(api, &target, true)
+	if err != nil {
+		return err
+	}
+
+	// op, com, err := verifier.FoldProof(c.Digests[:], c.BatchOpeningProof, c.Point, whSnark)
+	verifier.BatchVerifySinglePoint(c.Digests[:], c.BatchOpeningProof, c.Point, whSnark, c.Vk)
+
+	return nil
+}
+
+func TestBatchVerifySinglePoint(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	// prepare test data
+	alpha, err := rand.Int(rand.Reader, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bn254.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	var polynomials [10][]fr_bn254.Element
+	var coms [10]kzg_bn254.Digest
+	for i := 0; i < 10; i++ {
+		polynomials[i] = make([]fr_bn254.Element, polynomialSize)
+		for j := 0; j < polynomialSize; j++ {
+			polynomials[i][j].SetRandom()
+		}
+		coms[i], err = kzg_bn254.Commit(polynomials[i], srs.Pk)
+		assert.NoError(err)
+	}
+
+	var point fr_bn254.Element
+	point.SetRandom()
+	var target big.Int
+	target.SetUint64(1)
+	nbBits := ecc.BLS12_381.ScalarField().BitLen()
+	nn := ((nbBits+7)/8)*8 - 8
+	target.Lsh(&target, uint(nn))
+	h, err := recursion.NewShort(ecc.BLS12_381.ScalarField(), &target)
+	assert.NoError(err)
+
+	batchOpeningProof, err := kzg_bn254.BatchOpenSinglePoint(polynomials[:], coms[:], point, h, srs.Pk)
+	assert.NoError(err)
+
+	err = kzg_bn254.BatchVerifySinglePoint(coms[:], &batchOpeningProof, point, h, srs.Vk)
+	assert.NoError(err)
+
+	// prepare witness
+	wVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPoint, err := ValueOfScalar[emulated.BN254Fr](point)
+	assert.NoError(err)
+	var wDigests [10]Commitment[sw_bn254.G1Affine]
+	for i := 0; i < 10; i++ {
+		wDigests[i], err = ValueOfCommitment[sw_bn254.G1Affine](coms[i])
+		assert.NoError(err)
+	}
+	wBatchOpeningProof, err := ValueOfBatchOpeningProof[emulated.BN254Fr, sw_bn254.G1Affine](batchOpeningProof)
+	assert.NoError(err)
+
+	assignment := BatchVerifySinglePointTest[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		Vk:                wVk,
+		Point:             wPoint,
+		Digests:           wDigests,
+		BatchOpeningProof: wBatchOpeningProof,
+	}
+
+	var circuit BatchVerifySinglePointTest[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]
 	circuit.BatchOpeningProof.ClaimedValues = make([]emulated.Element[emulated.BN254Fr], 10)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BLS12_381), test.WithBackends(backend.PLONK))
 

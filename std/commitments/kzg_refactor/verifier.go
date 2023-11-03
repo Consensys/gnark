@@ -272,6 +272,7 @@ func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitm
 
 // deriveGamma derives a challenge using Fiat Shamir to fold proofs.
 // dataTranscript are supposed to be bits.
+// /!\ bitMode = true here /!\
 func (v *Verifier[S, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[S], digests []Commitment[G1El], claimedValues []emulated.Element[S], hf hash.FieldHasher, dataTranscript ...frontend.Variable) (emulated.Element[S], error) {
 
 	// derive the challenge gamma, binded to the point and the commitments
