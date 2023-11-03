@@ -29,7 +29,7 @@ func NewCurve(api frontend.API) *Curve {
 // MarshalScalar returns
 func (c *Curve) MarshalScalar(s Scalar) []frontend.Variable {
 	nbBits := 8 * ((ecc.BLS12_377.ScalarField().BitLen() + 7) / 8)
-	x := bits.ToBinary(c.api, s, bits.WithNbDigits(nbBits))
+	x := bits.ToBinary(c.api, s.Limbs[0], bits.WithNbDigits(nbBits))
 	for i, j := 0, nbBits-1; i < j; {
 		x[i], x[j] = x[j], x[i]
 		i++
