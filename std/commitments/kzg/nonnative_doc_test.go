@@ -13,16 +13,17 @@ import (
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/commitments/kzg"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
-type KZGVerificationCircuit[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {
+type KZGVerificationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {
 	kzg.VerifyingKey[G2El]
 	kzg.Commitment[G1El]
-	kzg.OpeningProof[S, G1El]
+	kzg.OpeningProof[FR, G1El]
 }
 
-func (c *KZGVerificationCircuit[S, G1El, G2El, GTEl]) Define(api frontend.API) error {
-	curve, err := algebra.GetCurve[S, G1El](api)
+func (c *KZGVerificationCircuit[FR, G1El, G2El, GTEl]) Define(api frontend.API) error {
+	curve, err := algebra.GetCurve[FR, G1El](api)
 	if err != nil {
 		return fmt.Errorf("get curve: %w", err)
 	}
@@ -94,7 +95,7 @@ func Example_emulated() {
 	}
 
 	// create a witness element of the opening proof and the evaluation point
-	wProof, err := kzg.ValueOfOpeningProof[sw_bn254.Scalar, sw_bn254.G1Affine](point, proof)
+	wProof, err := kzg.ValueOfOpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine](point, proof)
 	if err != nil {
 		panic("opening proof witness failed: " + err.Error())
 	}
@@ -104,12 +105,12 @@ func Example_emulated() {
 	if err != nil {
 		panic("verifying key witness failed: " + err.Error())
 	}
-	assignment := KZGVerificationCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+	assignment := KZGVerificationCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
 	}
-	circuit := KZGVerificationCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}
+	circuit := KZGVerificationCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}
 
 	// as we are currently using the emulated implementation of BN254
 	// in-circuit, then we can compile to any curve. For example purposes, here
