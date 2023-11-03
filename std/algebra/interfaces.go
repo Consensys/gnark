@@ -1,5 +1,7 @@
 package algebra
 
+import "github.com/consensys/gnark/frontend"
+
 type ScalarT any
 type GroupElementT any
 type G1ElementT GroupElementT
@@ -31,6 +33,13 @@ type Curve[S ScalarT, G1El G1ElementT] interface {
 	// scalars s_i and points P_i. It returns an error if the input lengths
 	// mismatch.
 	MultiScalarMul([]*G1El, []*S) (*G1El, error)
+
+	// MarshalG1 returns the binary decomposition G1.X || G1.Y. It matches the
+	// output of gnark-crypto's Marshal method on G1 points.
+	MarshalG1(G1El) []frontend.Variable
+
+	// MarshalScalar returns the binary decomposition of the argument.
+	MarshalScalar(S) []frontend.Variable
 }
 
 // Pairing allows to compute the bi-linear pairing of G1 and G2 elements.

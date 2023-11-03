@@ -17,6 +17,7 @@ limitations under the License.
 package sw_bls24315
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -157,11 +158,54 @@ func TestPairingFixedBLS315(t *testing.T) {
 
 }
 
+type pairingCheckBLS315 struct {
+	P1, P2 G1Affine `gnark:",public"`
+	Q1, Q2 G2Affine
+}
+
+func (circuit *pairingCheckBLS315) Define(api frontend.API) error {
+
+	err := PairingCheck(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
+
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+
+	return nil
+}
+
+func TestPairingCheckBLS315(t *testing.T) {
+
+	// pairing test data
+	P, Q := pairingCheckData()
+
+	// create cs
+	var circuit, witness pairingCheckBLS315
+
+	// assign values to witness
+	witness.P1.Assign(&P[0])
+	witness.P2.Assign(&P[1])
+	witness.Q1.Assign(&Q[0])
+	witness.Q2.Assign(&Q[1])
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+
+}
+
 // utils
 func pairingData() (P bls24315.G1Affine, Q bls24315.G2Affine, milRes bls24315.E24, pairingRes bls24315.GT) {
 	_, _, P, Q = bls24315.Generators()
 	milRes, _ = bls24315.MillerLoop([]bls24315.G1Affine{P}, []bls24315.G2Affine{Q})
 	pairingRes = bls24315.FinalExponentiation(&milRes)
+	return
+}
+
+func pairingCheckData() (P [2]bls24315.G1Affine, Q [2]bls24315.G2Affine) {
+	_, _, P[0], Q[0] = bls24315.Generators()
+	P[1].Neg(&P[0])
+	Q[1].Set(&Q[0])
+
 	return
 }
 
