@@ -20,7 +20,7 @@ import (
 	//eddsa2 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 )
 
-const N = 1 << 11
+const N = 1
 
 type eddsaCircuit struct {
 	curveID   tedwards.ID
