@@ -90,6 +90,69 @@ func TestKZGVerificationEmulated(t *testing.T) {
 }
 
 //--------------------------------------------------------
+// Slice proof
+
+// type SliceTest[S emulated.FieldParams, G1El any] struct {
+// 	Proof BatchOpeningProof[S, G1El]
+// }
+
+// func (circuit *SliceTest[S, G1El]) Define(api frontend.API) error {
+
+// 	fmt.Println(len(circuit.Proof.ClaimedValues))
+// 	return nil
+// }
+
+// func TestSlices(t *testing.T) {
+
+// 	assert := test.NewAssert(t)
+
+// 	// prepare test data
+// 	alpha, err := rand.Int(rand.Reader, ecc.BN254.ScalarField())
+// 	assert.NoError(err)
+// 	srs, err := kzg_bn254.NewSRS(kzgSize, alpha)
+// 	assert.NoError(err)
+
+// 	var polynomials [10][]fr_bn254.Element
+// 	var coms [10]kzg_bn254.Digest
+// 	for i := 0; i < 10; i++ {
+// 		polynomials[i] = make([]fr_bn254.Element, polynomialSize)
+// 		for j := 0; j < polynomialSize; j++ {
+// 			polynomials[i][j].SetRandom()
+// 		}
+// 		coms[i], err = kzg_bn254.Commit(polynomials[i], srs.Pk)
+// 		assert.NoError(err)
+// 	}
+
+// 	var point fr_bn254.Element
+// 	point.SetRandom()
+// 	var target big.Int
+// 	target.SetUint64(1)
+// 	nbBits := ecc.BLS12_381.ScalarField().BitLen()
+// 	nn := ((nbBits+7)/8)*8 - 8
+// 	target.Lsh(&target, uint(nn))
+// 	h, err := recursion.NewShort(ecc.BLS12_381.ScalarField(), &target)
+// 	assert.NoError(err)
+
+// 	batchOpeningProof, err := kzg_bn254.BatchOpenSinglePoint(polynomials[:], coms[:], point, h, srs.Pk)
+// 	assert.NoError(err)
+
+// 	_, _, err = kzg_bn254.FoldProof(coms[:], &batchOpeningProof, point, h)
+// 	assert.NoError(err)
+
+// 	// circuit
+// 	var circuit SliceTest[emulated.BN254Fr, sw_bn254.G1Affine]
+// 	circuit.Proof.ClaimedValues = make([]emulated.Element[emulated.BN254Fr], 10)
+
+// 	var assignment SliceTest[emulated.BN254Fr, sw_bn254.G1Affine]
+// 	// assignment.Proof.ClaimedValues = make([]emulated.Element[emulated.BN254Fr], 10)
+// 	assignment.Proof, err = ValueOfBatchOpeningProof[emulated.BN254Fr, sw_bn254.G1Affine](batchOpeningProof)
+// 	assert.NoError(err)
+
+// 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BLS12_381), test.WithBackends(backend.PLONK))
+
+// }
+
+//--------------------------------------------------------
 // Fold proof
 
 type FoldProofTest[S emulated.FieldParams, G1El, G2El, GTEl any] struct {
@@ -121,14 +184,15 @@ func (c *FoldProofTest[S, G1El, G2El, GTEl]) Define(api frontend.API) error {
 		return err
 	}
 
-	op, com, err := verifier.FoldProof(c.Digests[:], c.BatchOpeningProof, c.Point, whSnark)
+	// op, com, err := verifier.FoldProof(c.Digests[:], c.BatchOpeningProof, c.Point, whSnark)
+	foldedProof, foldedDigests, err := verifier.FoldProof(c.Digests[:], c.BatchOpeningProof, c.Point, whSnark)
 	if err != nil {
 		return err
 	}
 
-	verifier.ec.AssertIsEqual(&com.G1El, &c.ExpectedFoldedDigest.G1El)
-	verifier.ec.AssertIsEqual(&c.ExpectedFoldedProof.Quotient, &op.Quotient)
-	verifier.scalarApi.AssertIsEqual(&op.ClaimedValue, &c.ExpectedFoldedProof.ClaimedValue)
+	verifier.ec.AssertIsEqual(&foldedDigests.G1El, &c.ExpectedFoldedDigest.G1El)
+	verifier.ec.AssertIsEqual(&foldedProof.Quotient, &c.ExpectedFoldedProof.Quotient)
+	verifier.scalarApi.AssertIsEqual(&foldedProof.ClaimedValue, &c.ExpectedFoldedProof.ClaimedValue)
 
 	return nil
 }
@@ -158,10 +222,10 @@ func TestFoldProof(t *testing.T) {
 	point.SetRandom()
 	var target big.Int
 	target.SetUint64(1)
-	nbBits := ecc.BN254.ScalarField().BitLen()
+	nbBits := ecc.BLS12_381.ScalarField().BitLen()
 	nn := ((nbBits+7)/8)*8 - 8
 	target.Lsh(&target, uint(nn))
-	h, err := recursion.NewShort(ecc.BN254.ScalarField(), &target)
+	h, err := recursion.NewShort(ecc.BLS12_381.ScalarField(), &target)
 	assert.NoError(err)
 
 	batchOpeningProof, err := kzg_bn254.BatchOpenSinglePoint(polynomials[:], coms[:], point, h, srs.Pk)
@@ -196,6 +260,109 @@ func TestFoldProof(t *testing.T) {
 		ExpectedFoldedDigest: wExpectedFoldedDigest,
 	}
 
-	assert.CheckCircuit(&KZGVerificationCircuit[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BLS12_381), test.WithBackends(backend.PLONK))
+	var circuit FoldProofTest[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]
+	circuit.BatchOpeningProof.ClaimedValues = make([]emulated.Element[emulated.BN254Fr], 10)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BLS12_381), test.WithBackends(backend.PLONK))
 
+}
+
+//--------------------------------------------------------
+// derive gamma
+
+type DeriveGammaTest[S emulated.FieldParams, G1El, G2El, GTEl any] struct {
+	Point         emulated.Element[S]
+	Digests       [10]Commitment[G1El]
+	ClaimedValues [10]emulated.Element[S]
+	Gamma         emulated.Element[S]
+}
+
+func (circuit *DeriveGammaTest[S, G1El, G2El, GTEl]) Define(api frontend.API) error {
+
+	verifier, err := NewVerifier[S, G1El, G2El, GTEl](api)
+	if err != nil {
+		return fmt.Errorf("get pairing: %w", err)
+	}
+
+	// pick a number on byte shorter than the modulus size
+	var target big.Int
+	target.SetUint64(1)
+	nbBits := api.Compiler().Field().BitLen()
+	nn := ((nbBits+7)/8)*8 - 8
+	target.Lsh(&target, uint(nn))
+
+	// create the wrapped hash function
+	whSnark, err := recursion.NewHash(api, &target, true)
+	if err != nil {
+		return err
+	}
+
+	res, err := verifier.deriveGamma(circuit.Point, circuit.Digests[:], circuit.ClaimedValues[:], whSnark)
+	if err != nil {
+		return err
+	}
+	verifier.scalarApi.AssertIsEqual(&res, &circuit.Gamma)
+	return nil
+}
+
+func TestDeriveGamma(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	// prepare test data
+	alpha, err := rand.Int(rand.Reader, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bn254.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	var polynomials [10][]fr_bn254.Element
+	var digests [10]kzg_bn254.Digest
+	for i := 0; i < 10; i++ {
+		polynomials[i] = make([]fr_bn254.Element, polynomialSize)
+		for j := 0; j < polynomialSize; j++ {
+			polynomials[i][j].SetRandom()
+		}
+		digests[i], err = kzg_bn254.Commit(polynomials[i], srs.Pk)
+		assert.NoError(err)
+	}
+
+	var point fr_bn254.Element
+	point.SetRandom()
+	var target big.Int
+	target.SetUint64(1)
+	nbBits := ecc.BLS12_381.ScalarField().BitLen()
+	nn := ((nbBits+7)/8)*8 - 8
+	target.Lsh(&target, uint(nn))
+	h, err := recursion.NewShort(ecc.BLS12_381.ScalarField(), &target)
+	assert.NoError(err)
+
+	batchOpeningProof, err := kzg_bn254.BatchOpenSinglePoint(polynomials[:], digests[:], point, h, srs.Pk)
+	assert.NoError(err)
+
+	gamma, err := kzg_bn254.DeriveGamma(point, digests[:], batchOpeningProof.ClaimedValues, h)
+	assert.NoError(err)
+
+	// prepare witness
+	wPoint, err := ValueOfScalar[emulated.BN254Fr](point)
+	assert.NoError(err)
+	var wDigests [10]Commitment[sw_bn254.G1Affine]
+	for i := 0; i < 10; i++ {
+		wDigests[i], err = ValueOfCommitment[sw_bn254.G1Affine](digests[i])
+		assert.NoError(err)
+	}
+	var wClaimedValues [10]emulated.Element[emulated.BN254Fr]
+	for i := 0; i < 10; i++ {
+		wClaimedValues[i], err = ValueOfScalar[emulated.BN254Fr](batchOpeningProof.ClaimedValues[i])
+		assert.NoError(err)
+	}
+	wGmma, err := ValueOfScalar[emulated.BN254Fr](gamma)
+	assert.NoError(err)
+
+	assignment := DeriveGammaTest[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		Point:         wPoint,
+		Digests:       wDigests,
+		ClaimedValues: wClaimedValues,
+		Gamma:         wGmma,
+	}
+
+	assert.CheckCircuit(&DeriveGammaTest[emulated.BN254Fr, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BLS12_381), test.WithBackends(backend.PLONK))
 }

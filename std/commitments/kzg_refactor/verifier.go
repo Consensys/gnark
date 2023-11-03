@@ -128,17 +128,21 @@ func (v *Verifier[S, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], ba
 		gammai[1] = gamma
 	}
 	for i := 2; i < nbDigests; i++ {
-		v.scalarApi.Mul(&gammai[i-1], &gamma)
+		gammai[i] = *(v.scalarApi.Mul(&gammai[i-1], &gamma))
 	}
 
 	foldedDigests, foldedEvaluations := v.fold(digests, batchOpeningProof.ClaimedValues, gammai)
 
-	// create the folded opening proof
-	var res OpeningProof[S, G1El]
-	res.ClaimedValue = foldedEvaluations
-	res.Quotient = batchOpeningProof.Quotient
+	var foldedProof OpeningProof[S, G1El]
+	foldedProof.Quotient = batchOpeningProof.Quotient
+	foldedProof.ClaimedValue = foldedEvaluations
+	return foldedProof, foldedDigests, nil
 
-	return res, foldedDigests, nil
+	// create the folded opening proof
+	// var res OpeningProof[S, G1El]
+	// res.ClaimedValue = batchOpeningProof.ClaimedValues[0]
+	// res.Quotient = batchOpeningProof.Quotient
+	// return res, digests[0], nil
 
 }
 
@@ -297,7 +301,7 @@ func (v *Verifier[S, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[S], d
 		return emulated.Element[S]{}, err
 	}
 	bGamma := v.api.ToBinary(gamma)
-	gammaS := v.scalarApi.FromBits(bGamma)
+	gammaS := v.scalarApi.FromBits(bGamma...)
 
 	return *gammaS, nil
 }
