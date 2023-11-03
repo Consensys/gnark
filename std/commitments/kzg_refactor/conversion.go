@@ -99,6 +99,46 @@ func ValueOfCommitment[G1El any](cmt any) (Commitment[G1El], error) {
 	return ret, nil
 }
 
+func ValueOfBatchOpeningProof[S emulated.FieldParams, G1El any](proof any) (BatchOpeningProof[S, G1El], error) {
+
+	var ret BatchOpeningProof[S, G1El]
+	switch s := any(&ret).(type) {
+	case *BatchOpeningProof[emulated.BN254Fr, sw_bn254.G1Affine]:
+		tProof, ok := proof.(kzg_bn254.BatchOpeningProof)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
+		}
+		s.Quotient = sw_bn254.NewG1Affine(tProof.H)
+		s.ClaimedValues = make([]emulated.Element[emulated.BN254Fr], len(s.ClaimedValues))
+		for i := 0; i < len(s.ClaimedValues); i++ {
+			s.ClaimedValues[i] = sw_bn254.NewScalar(tProof.ClaimedValues[i])
+		}
+	case *BatchOpeningProof[emulated.BLS12381Fr, sw_bls12381.G1Affine]:
+		tProof, ok := proof.(kzg_bls12381.BatchOpeningProof)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
+		}
+		s.Quotient = sw_bls12381.NewG1Affine(tProof.H)
+		s.ClaimedValues = make([]emulated.Element[emulated.BLS12381Fr], len(s.ClaimedValues))
+		for i := 0; i < len(s.ClaimedValues); i++ {
+			s.ClaimedValues[i] = sw_bls12381.NewScalar(tProof.ClaimedValues[i])
+		}
+	case *BatchOpeningProof[emulated.BW6761Fr, sw_bw6761.G1Affine]:
+		tProof, ok := proof.(kzg_bw6761.BatchOpeningProof)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
+		}
+		s.Quotient = sw_bw6761.NewG1Affine(tProof.H)
+		s.ClaimedValues = make([]emulated.Element[emulated.BW6761Fr], len(s.ClaimedValues))
+		for i := 0; i < len(s.ClaimedValues); i++ {
+			s.ClaimedValues[i] = sw_bw6761.NewScalar(tProof.ClaimedValues[i])
+		}
+	default:
+		return ret, fmt.Errorf("unknown type parametrization")
+	}
+	return ret, nil
+}
+
 // ValueOfOpeningProof initializes an opening proof from the given proof and
 // point. It returns an error if there is a mismatch between the type parameters
 // and types of the provided point and proof.

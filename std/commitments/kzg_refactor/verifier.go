@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -114,7 +115,7 @@ func (v *Verifier[S, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], ba
 	}
 
 	// derive the challenge γ, binded to the point and the commitments
-	gamma, err := deriveGamma(point, digests, batchOpeningProof.ClaimedValues, hf, dataTranscript...)
+	gamma, err := v.deriveGamma(point, digests, batchOpeningProof.ClaimedValues, hf, dataTranscript...)
 	if err != nil {
 		return OpeningProof[S, G1El]{}, Commitment[G1El]{}, err
 	}
@@ -266,36 +267,37 @@ func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitm
 }
 
 // deriveGamma derives a challenge using Fiat Shamir to fold proofs.
-func deriveGamma[S emulated.FieldParams, G1El any](point emulated.Element[S], digests []Commitment[G1El], claimedValues []emulated.Element[S], hf hash.FieldHasher, dataTranscript ...frontend.Variable) (emulated.Element[S], error) {
+// dataTranscript are supposed to be bits.
+func (v *Verifier[S, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[S], digests []Commitment[G1El], claimedValues []emulated.Element[S], hf hash.FieldHasher, dataTranscript ...frontend.Variable) (emulated.Element[S], error) {
 
 	// derive the challenge gamma, binded to the point and the commitments
-	// fs := fiatshamir.NewTranscript(hf, "gamma")
-	// if err := fs.Bind("gamma", point.Marshal()); err != nil {
-	// 	return fr.Element{}, err
-	// }
-	// for i := range digests {
-	// 	if err := fs.Bind("gamma", digests[i].Marshal()); err != nil {
-	// 		return fr.Element{}, err
-	// 	}
-	// }
-	// for i := range claimedValues {
-	// 	if err := fs.Bind("gamma", claimedValues[i].Marshal()); err != nil {
-	// 		return fr.Element{}, err
-	// 	}
-	// }
+	fs := fiatshamir.NewTranscript(v.api, hf, "gamma")
 
-	// for i := 0; i < len(dataTranscript); i++ {
-	// 	if err := fs.Bind("gamma", dataTranscript[i]); err != nil {
-	// 		return fr.Element{}, err
-	// 	}
-	// }
+	marhsalledPoint := v.ec.MarshalScalar(point)
+	if err := fs.Bind("gamma", marhsalledPoint); err != nil {
+		return emulated.Element[S]{}, err
+	}
+	for i := range digests {
+		if err := fs.Bind("gamma", v.ec.MarshalG1(digests[i].G1El)); err != nil {
+			return emulated.Element[S]{}, err
+		}
+	}
+	for i := range claimedValues {
+		if err := fs.Bind("gamma", v.ec.MarshalScalar(claimedValues[i])); err != nil {
+			return emulated.Element[S]{}, err
+		}
+	}
 
-	// gammaByte, err := fs.ComputeChallenge("gamma")
-	// if err != nil {
-	// 	return fr.Element{}, err
-	// }
-	// var gamma fr.Element
-	// gamma.SetBytes(gammaByte)
+	if err := fs.Bind("gamma", dataTranscript); err != nil {
+		return emulated.Element[S]{}, err
+	}
 
-	return point, nil
+	gamma, err := fs.ComputeChallenge("gamma", true)
+	if err != nil {
+		return emulated.Element[S]{}, err
+	}
+	bGamma := v.api.ToBinary(gamma)
+	gammaS := v.scalarApi.FromBits(bGamma)
+
+	return *gammaS, nil
 }
