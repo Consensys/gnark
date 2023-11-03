@@ -18,15 +18,11 @@ type Blueprint interface {
 	// NbOutputs return the number of output wires this blueprint creates.
 	NbOutputs(inst Instruction) int
 
-	// WireWalker returns a function that walks the wires appearing in the blueprint
-	// and optionally the minimum level (minus one) at which the instruction can be solved;
-	// that is; maxLevel = max{level(wire) | wire in blueprint}.
-	// If maxLevel is unknown at compile time, implementation must return 0.
-	// This is used by the level builder to build a dependency graph between instructions.
-	WireWalker(inst Instruction) (w WireWalker, maxLevel int)
+	// UpdateInstructionTree updates the instruction tree;
+	// since the blue print knows which wires it references, it updates
+	// the instruction tree with the level of the (new) wires.
+	UpdateInstructionTree(inst Instruction, tree InstructionTree) Level
 }
-
-type WireWalker func(cb func(wire uint32) int)
 
 // Solver represents the state of a constraint system solver at runtime. Blueprint can interact
 // with this object to perform run time logic, solve constraints and assign values in the solution.

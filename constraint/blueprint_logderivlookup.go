@@ -13,7 +13,7 @@ type BlueprintLookupHint struct {
 	EntriesCalldata []uint32
 
 	// stores the maxLevel of the entries computed by WireWalker
-	maxLevel         int
+	maxLevel         Level
 	maxLevelPosition int
 	maxLevelOffset   int
 }
@@ -70,58 +70,59 @@ func (b *BlueprintLookupHint) NbOutputs(inst Instruction) int {
 	return int(inst.Calldata[2])
 }
 
-// Wires returns a function that walks the wires appearing in the blueprint.
-// This is used by the level builder to build a dependency graph between instructions.
-func (b *BlueprintLookupHint) WireWalker(inst Instruction) (WireWalker, int) {
-	return func(cb func(wire uint32) int) {
-		// depend on the table UP to the number of entries at time of instruction creation.
-		nbEntries := int(inst.Calldata[1])
+func (b *BlueprintLookupHint) UpdateInstructionTree(inst Instruction, tree InstructionTree) Level {
+	// depend on the table UP to the number of entries at time of instruction creation.
+	nbEntries := int(inst.Calldata[1])
 
-		// check if we already cached the max level
-		if b.maxLevelPosition-1 < nbEntries { // adjust for default value of b.maxLevelPosition (0)
+	// check if we already cached the max level
+	if b.maxLevelPosition-1 < nbEntries { // adjust for default value of b.maxLevelPosition (0)
 
-			j := b.maxLevelOffset // skip the entries we already processed
-			for i := b.maxLevelPosition; i < nbEntries; i++ {
-				// first we have the length of the linear expression
-				n := int(b.EntriesCalldata[j])
-				j++
-				for k := 0; k < n; k++ {
-					t := Term{CID: b.EntriesCalldata[j], VID: b.EntriesCalldata[j+1]}
-					if !t.IsConstant() {
-						if level := cb(t.VID); level > b.maxLevel {
-							b.maxLevel = level
-						}
-					}
-					j += 2
-				}
-			}
-			b.maxLevelOffset = j
-			b.maxLevelPosition = nbEntries
-		}
-
-		// invoke the callback on each wire appearing in the inputs
-		nbInputs := int(inst.Calldata[2])
-		j := 3
-		for i := 0; i < nbInputs; i++ {
+		j := b.maxLevelOffset // skip the entries we already processed
+		for i := b.maxLevelPosition; i < nbEntries; i++ {
 			// first we have the length of the linear expression
-			n := int(inst.Calldata[j])
+			n := int(b.EntriesCalldata[j])
 			j++
 			for k := 0; k < n; k++ {
-				t := Term{CID: inst.Calldata[j], VID: inst.Calldata[j+1]}
-				if !t.IsConstant() {
-					cb(t.VID)
-				}
+				wireID := b.EntriesCalldata[j+1]
 				j += 2
+				if !tree.HasWire(wireID) {
+					continue
+				}
+				if level := tree.GetWireLevel(wireID); (level + 1) > b.maxLevel {
+					b.maxLevel = level + 1
+				}
 			}
 		}
+		b.maxLevelOffset = j
+		b.maxLevelPosition = nbEntries
+	}
 
-		// finally we have the outputs
-		for i := 0; i < nbInputs; i++ {
-			cb(uint32(i + int(inst.WireOffset)))
+	maxLevel := b.maxLevel - 1 // offset for default value.
+
+	// update the max level with the lookup query inputs wires
+	nbInputs := int(inst.Calldata[2])
+	j := 3
+	for i := 0; i < nbInputs; i++ {
+		// first we have the length of the linear expression
+		n := int(inst.Calldata[j])
+		j++
+		for k := 0; k < n; k++ {
+			wireID := inst.Calldata[j+1]
+			j += 2
+			if !tree.HasWire(wireID) {
+				continue
+			}
+			if level := tree.GetWireLevel(wireID); level > maxLevel {
+				maxLevel = level
+			}
 		}
-	}, b.maxLevel
-	// note; returning b.maxLevel here might be suboptimal but with the current flow
-	// it doesn't matter much; we add an instruction then the WireWalker() is invoked;
-	// so the size of the entries nbEntries := int(inst.Calldata[1]) matches what b.maxLevel
-	// represents.
+	}
+
+	// finally we have the outputs
+	maxLevel++
+	for i := 0; i < nbInputs; i++ {
+		tree.InsertWire(uint32(i+int(inst.WireOffset)), maxLevel)
+	}
+
+	return maxLevel
 }
