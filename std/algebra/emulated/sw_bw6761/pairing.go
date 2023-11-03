@@ -14,8 +14,8 @@ import (
 type Pairing struct {
 	api frontend.API
 	*fields_bw6761.Ext6
-	curveF *emulated.Field[emulated.BW6761Fp]
-	lines  [4][189]emulated.Element[emulated.BW6761Fp]
+	curveF *emulated.Field[BaseField]
+	lines  [4][189]emulated.Element[BaseField]
 }
 
 type GTEl = fields_bw6761.E6
@@ -23,20 +23,20 @@ type GTEl = fields_bw6761.E6
 func NewGTEl(v bw6761.GT) GTEl {
 	return GTEl{
 		B0: fields_bw6761.E3{
-			A0: emulated.ValueOf[emulated.BW6761Fp](v.B0.A0),
-			A1: emulated.ValueOf[emulated.BW6761Fp](v.B0.A1),
-			A2: emulated.ValueOf[emulated.BW6761Fp](v.B0.A2),
+			A0: emulated.ValueOf[BaseField](v.B0.A0),
+			A1: emulated.ValueOf[BaseField](v.B0.A1),
+			A2: emulated.ValueOf[BaseField](v.B0.A2),
 		},
 		B1: fields_bw6761.E3{
-			A0: emulated.ValueOf[emulated.BW6761Fp](v.B1.A0),
-			A1: emulated.ValueOf[emulated.BW6761Fp](v.B1.A1),
-			A2: emulated.ValueOf[emulated.BW6761Fp](v.B1.A2),
+			A0: emulated.ValueOf[BaseField](v.B1.A0),
+			A1: emulated.ValueOf[BaseField](v.B1.A1),
+			A2: emulated.ValueOf[BaseField](v.B1.A2),
 		},
 	}
 }
 
 func NewPairing(api frontend.API) (*Pairing, error) {
-	ba, err := emulated.NewField[emulated.BW6761Fp](api)
+	ba, err := emulated.NewField[BaseField](api)
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
@@ -103,7 +103,7 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 // line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
 // makes the multiplication by lines (MulBy014)
 type lineEvaluation struct {
-	R0, R1 emulated.Element[emulated.BW6761Fp]
+	R0, R1 emulated.Element[BaseField]
 }
 
 // Pair calculates the reduced pairing for a set of points
@@ -165,7 +165,7 @@ var loopCounter2 = [190]int8{
 }
 
 // thirdRootOne² + thirdRootOne + 1 = 0 in BW6761Fp
-var thirdRootOne = emulated.ValueOf[emulated.BW6761Fp]("1968985824090209297278610739700577151397666382303825728450741611566800370218827257750865013421937292370006175842381275743914023380727582819905021229583192207421122272650305267822868639090213645505120388400344940985710520836292650")
+var thirdRootOne = emulated.ValueOf[BaseField]("1968985824090209297278610739700577151397666382303825728450741611566800370218827257750865013421937292370006175842381275743914023380727582819905021229583192207421122272650305267822868639090213645505120388400344940985710520836292650")
 
 // MillerLoop computes the optimal Tate multi-Miller loop
 // (or twisted ate or Eta revisited)
@@ -187,8 +187,8 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	imQ := make([]*G2Affine, n)
 	imQneg := make([]*G2Affine, n)
 	accQ := make([]*G2Affine, n)
-	yInv := make([]*emulated.Element[emulated.BW6761Fp], n)
-	xNegOverY := make([]*emulated.Element[emulated.BW6761Fp], n)
+	yInv := make([]*emulated.Element[BaseField], n)
+	xNegOverY := make([]*emulated.Element[BaseField], n)
 
 	for k := 0; k < n; k++ {
 		// P and Q are supposed to be on G1 and G2 respectively of prime order r.
@@ -211,7 +211,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	result := pr.Ext6.One()
 	var l0, l1 *lineEvaluation
 
-	var prodLines [5]*emulated.Element[emulated.BW6761Fp]
+	var prodLines [5]*emulated.Element[BaseField]
 	// i = 188, separately to avoid an E6 Square
 	// (Square(res) = 1² = 1)
 	// k = 0, separately to avoid MulBy014 (res × ℓ)
@@ -582,8 +582,8 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P [2]*G1Affine, Q *G2Affine) (*GTEl, er
 	// P and Q are supposed to be on G1 and G2 respectively of prime order r.
 	// The point (x,0) is of order 2. But this function does not check
 	// subgroup membership.
-	yInv := make([]*emulated.Element[emulated.BW6761Fp], 2)
-	xNegOverY := make([]*emulated.Element[emulated.BW6761Fp], 2)
+	yInv := make([]*emulated.Element[BaseField], 2)
+	xNegOverY := make([]*emulated.Element[BaseField], 2)
 	yInv[1] = pr.curveF.Inverse(&P[1].Y)
 	xNegOverY[1] = pr.curveF.MulMod(&P[1].X, yInv[1])
 	xNegOverY[1] = pr.curveF.Neg(xNegOverY[1])
