@@ -109,7 +109,7 @@ func ValueOfBatchOpeningProof[S emulated.FieldParams, G1El any](proof any) (Batc
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
 		s.Quotient = sw_bn254.NewG1Affine(tProof.H)
-		s.ClaimedValues = make([]emulated.Element[emulated.BN254Fr], len(s.ClaimedValues))
+		s.ClaimedValues = make([]emulated.Element[emulated.BN254Fr], len(tProof.ClaimedValues))
 		for i := 0; i < len(s.ClaimedValues); i++ {
 			s.ClaimedValues[i] = sw_bn254.NewScalar(tProof.ClaimedValues[i])
 		}
@@ -119,7 +119,7 @@ func ValueOfBatchOpeningProof[S emulated.FieldParams, G1El any](proof any) (Batc
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
 		s.Quotient = sw_bls12381.NewG1Affine(tProof.H)
-		s.ClaimedValues = make([]emulated.Element[emulated.BLS12381Fr], len(s.ClaimedValues))
+		s.ClaimedValues = make([]emulated.Element[emulated.BLS12381Fr], len(tProof.ClaimedValues))
 		for i := 0; i < len(s.ClaimedValues); i++ {
 			s.ClaimedValues[i] = sw_bls12381.NewScalar(tProof.ClaimedValues[i])
 		}
@@ -129,7 +129,7 @@ func ValueOfBatchOpeningProof[S emulated.FieldParams, G1El any](proof any) (Batc
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
 		s.Quotient = sw_bw6761.NewG1Affine(tProof.H)
-		s.ClaimedValues = make([]emulated.Element[emulated.BW6761Fr], len(s.ClaimedValues))
+		s.ClaimedValues = make([]emulated.Element[emulated.BW6761Fr], len(tProof.ClaimedValues))
 		for i := 0; i < len(s.ClaimedValues); i++ {
 			s.ClaimedValues[i] = sw_bw6761.NewScalar(tProof.ClaimedValues[i])
 		}
