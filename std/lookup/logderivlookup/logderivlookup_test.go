@@ -47,21 +47,7 @@ func TestLookup(t *testing.T) {
 		witness.Expected[i] = new(big.Int).Set(witness.Entries[q.Int64()].(*big.Int))
 	}
 
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &LookupCircuit{})
-	assert.NoError(err)
-
-	w, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-
-	_, err = ccs.Solve(w)
-	assert.NoError(err)
-
-	// err = test.IsSolved(&LookupCircuit{}, &witness, ecc.BN254.ScalarField())
-	// assert.NoError(err)
-
-	// assert.ProverSucceeded(&LookupCircuit{}, &witness,
-	// 	test.WithCurves(ecc.BN254),
-	// 	test.WithBackends(backend.GROTH16, backend.PLONK))
+	assert.CheckCircuit(&LookupCircuit{}, test.WithValidAssignment(&witness))
 }
 
 type LookupCircuitLarge struct {
