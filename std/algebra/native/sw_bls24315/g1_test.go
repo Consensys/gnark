@@ -36,7 +36,7 @@ import (
 // Marshalling
 
 type MarshalScalarTest struct {
-	X frontend.Variable
+	X Scalar
 	R [fr.Bytes * 8]frontend.Variable
 }
 
@@ -55,7 +55,7 @@ func TestMarshalScalar(t *testing.T) {
 	r.SetRandom()
 	rBytes := r.Marshal()
 	var witness MarshalScalarTest
-	witness.X = r.String()
+	witness.X = NewScalar(r)
 	for i := 0; i < fr.Bytes; i++ {
 		for j := 0; j < 8; j++ {
 			witness.R[i*8+j] = (rBytes[i] >> (7 - j)) & 1

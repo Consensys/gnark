@@ -2,6 +2,7 @@ package sw_bls12377
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
@@ -10,6 +11,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
 	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 // Curve allows G1 operations in BLS12-377.
@@ -81,20 +83,20 @@ func (c *Curve) Neg(P *G1Affine) *G1Affine {
 
 // ScalarMul computes scalar*P and returns the result. It doesn't modify the
 // inputs.
-func (c *Curve) ScalarMul(P *G1Affine, scalar *Scalar) *G1Affine {
+func (c *Curve) ScalarMul(P *G1Affine, s *Scalar) *G1Affine {
 	res := &G1Affine{
 		X: P.X,
 		Y: P.Y,
 	}
-	res.ScalarMul(c.api, *P, *scalar)
+	res.ScalarMul(c.api, *P, s.Limbs[0])
 	return res
 }
 
 // ScalarMulBase computes scalar*G where G is the standard base point of the
 // curve. It doesn't modify the scalar.
-func (c *Curve) ScalarMulBase(scalar *Scalar) *G1Affine {
+func (c *Curve) ScalarMulBase(s *Scalar) *G1Affine {
 	res := new(G1Affine)
-	res.ScalarMulBase(c.api, *scalar)
+	res.ScalarMulBase(c.api, s.Limbs[0])
 	return res
 }
 
@@ -253,9 +255,17 @@ func NewGTEl(v bls12377.GT) GT {
 
 // Scalar is a scalar in the groups. As the implementation is defined on a
 // 2-chain, then this type is an alias to [frontend.Variable].
-type Scalar = frontend.Variable
+type Scalar = emulated.Element[ScalarField]
 
 // NewScalar allocates a witness from the native scalar and returns it.
 func NewScalar(v fr_bls12377.Element) Scalar {
-	return v.String()
+	return emulated.ValueOf[ScalarField](v)
 }
+
+// ScalarField defines the [emulated.FieldParams] implementation on a one limb of the scalar field.
+type ScalarField struct{}
+
+func (ScalarField) NbLimbs() uint     { return 1 }
+func (ScalarField) BitsPerLimb() uint { return uint(ecc.BLS12_377.ScalarField().BitLen()) }
+func (ScalarField) IsPrime() bool     { return true }
+func (ScalarField) Modulus() *big.Int { return ecc.BLS12_377.ScalarField() }
