@@ -51,7 +51,7 @@ func (system *System) InsertWire(wireID uint32, level Level) {
 		}
 	}
 	wireID -= system.internalWireOffset()
-	if debug.Debug && system.lbWireLevel[wireID] != LevelUnset {
+	if system.lbWireLevel[wireID] != LevelUnset {
 		panic("wire already exist in instruction tree")
 	}
 
