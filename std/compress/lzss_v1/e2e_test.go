@@ -38,6 +38,15 @@ func BenchmarkCompression26KBE2E(b *testing.B) {
 	}, "3c2943")
 }
 
+func BenchmarkCompression600KBE2E(b *testing.B) {
+	testCompressionE2E(b, nil, Settings{
+		BackRefSettings: BackRefSettings{
+			NbBitsAddress: 20,
+			NbBitsLength:  8,
+		},
+	}, "large")
+}
+
 func testCompressionE2E(t assert.TestingT, d []byte, settings Settings, name string) {
 	if d == nil {
 		var err error
@@ -117,9 +126,12 @@ type compressionCircuit struct {
 }
 
 func (c *compressionCircuit) Define(api frontend.API) error {
+
+	fmt.Println("packing")
 	cPacked := Pack(api, c.C, c.Settings.WordNbBits())
 	dPacked := Pack(api, c.D, 8)
 
+	fmt.Println("computing checksum")
 	if err := checkSnark(api, cPacked, c.CLen, c.CChecksum); err != nil {
 		return err
 	}
@@ -127,6 +139,7 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 		return err
 	}
 
+	fmt.Println("decompressing")
 	dComputed := make([]frontend.Variable, len(c.D))
 	if dComputedLen, err := Decompress(api, c.C, dComputed, c.CLen, c.Settings); err != nil {
 		return err
