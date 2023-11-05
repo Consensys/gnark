@@ -130,6 +130,16 @@ instantiated with the following curve(s)
 
 To use GPUs, add the `icicle` buildtag to your build/run commands, e.g. `go run -tags=icicle main.go`.
 
+You can then toggle on or off icicle acceleration by providing the `WithIcicleAcceleration` backend ProverOption:
+
+```go
+    // toggle on
+    proofIci, err := groth16.Prove(ccs, pk, secretWitness, backend.WithIcicleAcceleration())
+    
+    // toggle off
+    proof, err := groth16.Prove(ccs, pk, secretWitness)
+```
+
 For more information about prerequisites see the [Icicle repo](https://github.com/ingonyama-zk/icicle).
 
 ## Citing
