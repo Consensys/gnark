@@ -62,6 +62,7 @@ type ProverConfig struct {
 	HashToFieldFn  hash.Hash
 	ChallengeHash  hash.Hash
 	KZGFoldingHash hash.Hash
+	Accelerator    string
 }
 
 // NewProverConfig returns a default ProverConfig with given prover options opts
@@ -118,6 +119,19 @@ func WithProverChallengeHashFunction(hFunc hash.Hash) ProverOption {
 func WithProverKZGFoldingHashFunction(hFunc hash.Hash) ProverOption {
 	return func(pc *ProverConfig) error {
 		pc.KZGFoldingHash = hFunc
+		return nil
+	}
+}
+
+// WithIcicleAcceleration requests to use [ICICLE] GPU proving backend for the
+// prover. This option requires that the program is compiled with `icicle` build
+// tag and the ICICLE dependencies are properly installed. See [ICICLE] for
+// installation description.
+//
+// [ICICLE]: https://github.com/ingonyama-zk/icicle
+func WithIcicleAcceleration() ProverOption {
+	return func(pc *ProverConfig) error {
+		pc.Accelerator = "icicle"
 		return nil
 	}
 }
