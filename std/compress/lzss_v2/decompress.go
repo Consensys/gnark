@@ -19,13 +19,6 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 	bShort := backref{bType: shortBackRefType}
 	bLong := backref{bType: longBackRefType}
 
-	outAt := func(i int) byte {
-		if i < 0 {
-			panic("shouldn't happen")
-		}
-		return out.Bytes()[i]
-	}
-
 	// read until startAt and write bytes as is
 	// out.Write(dict)
 
@@ -36,13 +29,13 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 			// short back ref
 			bShort.readFrom(in)
 			for i := 0; i < bShort.length; i++ {
-				out.WriteByte(outAt(out.Len() - bShort.offset))
+				out.WriteByte(out.Bytes()[out.Len()-bShort.offset])
 			}
 		case symbolLong:
 			// long back ref
 			bLong.readFrom(in)
 			for i := 0; i < bLong.length; i++ {
-				out.WriteByte(outAt(out.Len() - bLong.offset))
+				out.WriteByte(out.Bytes()[out.Len()-bLong.offset])
 			}
 		case symbolDict:
 			// dict back ref
