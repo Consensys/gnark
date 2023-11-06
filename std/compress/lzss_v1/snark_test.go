@@ -3,85 +3,93 @@ package lzss_v1
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/compress"
+	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
-	"time"
 )
 
 func Test1ZeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, []byte{0})
-	testCompressionRoundTripSnark(t, 2, []byte{0})
+	testCompressionRoundTripSnark(t, 8, []byte{0})
+	testCompressionRoundTripSnark(t, 16, []byte{0})
 }
 
 func Test2ZeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, []byte{0, 0})
-	testCompressionRoundTripSnark(t, 2, []byte{0, 0})
+	testCompressionRoundTripSnark(t, 8, []byte{0, 0})
+	testCompressionRoundTripSnark(t, 16, []byte{0, 0})
 }
 
 func Test8ZerosSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, []byte{0, 0, 0, 0, 0, 0, 0, 0})
-	testCompressionRoundTripSnark(t, 2, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	testCompressionRoundTripSnark(t, 8, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	testCompressionRoundTripSnark(t, 16, []byte{0, 0, 0, 0, 0, 0, 0, 0})
 }
 
 func TestTwoConsecutiveBackrefsSnark(t *testing.T) {
-	testDecompressionSnark(t, 1, make([]byte, 6), []byte{0, 0})
+	testDecompressionSnark(t, 8, compress.Stream{
+		D:       make([]int, 6),
+		NbSymbs: 256,
+	}, []byte{0, 0})
 }
+
 func Test300ZerosSnark(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTripSnark(t, 1, make([]byte, 300))
-	testCompressionRoundTripSnark(t, 2, make([]byte, 300))
+	testCompressionRoundTripSnark(t, 8, make([]byte, 300))
+	testCompressionRoundTripSnark(t, 16, make([]byte, 300))
 }
 
 func TestSingleNonzeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, []byte{1})
-	testCompressionRoundTripSnark(t, 2, []byte{1})
+	testCompressionRoundTripSnark(t, 8, []byte{1})
+	testCompressionRoundTripSnark(t, 16, []byte{1})
 }
 
 func TestHiSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, []byte{'h', 'i'})
-	testCompressionRoundTripSnark(t, 2, []byte{'h', 'i'})
+	testCompressionRoundTripSnark(t, 8, []byte{'h', 'i'})
+	testCompressionRoundTripSnark(t, 16, []byte{'h', 'i'})
 }
 
 func TestZeroAfterNonzeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, []byte{1, 0})
-	testCompressionRoundTripSnark(t, 2, []byte{1, 0})
+	testCompressionRoundTripSnark(t, 8, []byte{1, 0})
+	testCompressionRoundTripSnark(t, 16, []byte{1, 0})
 }
 
 func TestTwoZerosAfterNonzeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, []byte{1, 0, 0})
-	testCompressionRoundTripSnark(t, 2, []byte{1, 0, 0})
+	testCompressionRoundTripSnark(t, 8, []byte{1, 0, 0})
+	testCompressionRoundTripSnark(t, 16, []byte{1, 0, 0})
 }
 
 func Test8ZerosAfterNonzeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, append([]byte{1}, make([]byte, 8)...))
-	testCompressionRoundTripSnark(t, 2, append([]byte{1}, make([]byte, 8)...))
+	testCompressionRoundTripSnark(t, 8, append([]byte{1}, make([]byte, 8)...))
+	testCompressionRoundTripSnark(t, 16, append([]byte{1}, make([]byte, 8)...))
 }
 
 func TestTwoBackrefsAfterNonzeroSnark(t *testing.T) {
-	testDecompressionSnark(t, 1, []byte{1, 0, 1, 0, 0, 0, 0}, []byte{1, 0, 0})
+	testDecompressionSnark(t, 8,
+		compress.Stream{
+			D:       []int{1, 0, 1, 0, 0, 0, 0},
+			NbSymbs: 256,
+		}, []byte{1, 0, 0})
 }
 
 func Test257ZerosAfterNonzeroSnark(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTripSnark(t, 1, append([]byte{1}, make([]byte, 257)...))
-	testCompressionRoundTripSnark(t, 2, append([]byte{1}, make([]byte, 257)...))
+	testCompressionRoundTripSnark(t, 8, append([]byte{1}, make([]byte, 257)...))
+	testCompressionRoundTripSnark(t, 16, append([]byte{1}, make([]byte, 257)...))
 }
 
 func Test300ZerosAfterNonzeroSnark(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTripSnark(t, 1, append([]byte{'h', 'i'}, make([]byte, 300)...))
-	testCompressionRoundTripSnark(t, 2, append([]byte{'h', 'i'}, make([]byte, 300)...))
+	testCompressionRoundTripSnark(t, 8, append([]byte{'h', 'i'}, make([]byte, 300)...))
+	testCompressionRoundTripSnark(t, 16, append([]byte{'h', 'i'}, make([]byte, 300)...))
 }
 
 func TestRepeatedNonzeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, 1, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
-	testCompressionRoundTripSnark(t, 2, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
+	testCompressionRoundTripSnark(t, 8, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
+	testCompressionRoundTripSnark(t, 16, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
 }
 
 func TestCalldataSnark(t *testing.T) {
@@ -94,7 +102,7 @@ func TestCalldataSnark(t *testing.T) {
 		d, err := os.ReadFile("../test_cases/" + folder + "/data.bin")
 		require.NoError(t, err)
 		t.Run(folder, func(t *testing.T) {
-			testCompressionRoundTripSnark(t, 2, d)
+			testCompressionRoundTripSnark(t, 16, d)
 		})
 	}
 }
@@ -105,8 +113,8 @@ func BenchmarkCompilation64KBSnark(b *testing.B) {
 		D: make([]byte, 64000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
-				NbBytesAddress: 2,
-				NbBytesLength:  1,
+				NbBitsAddress: 16,
+				NbBitsLength:  8,
 			},
 		},
 	}
@@ -124,8 +132,8 @@ func BenchmarkCompilation300KBSnark(b *testing.B) {
 		D: make([]byte, 300000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
-				NbBytesAddress: 2,
-				NbBytesLength:  1,
+				NbBitsAddress: 16,
+				NbBitsLength:  8,
 			},
 		},
 	}
@@ -157,8 +165,8 @@ func compile26KBSnark(t require.TestingT, testCaseName string) {
 		D: make([]byte, 26000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
-				NbBytesAddress: 2,
-				NbBytesLength:  1,
+				NbBitsAddress: 2,
+				NbBitsLength:  1,
 			},
 		},
 	}
@@ -215,9 +223,9 @@ func BenchmarkProof26KBSnark(b *testing.B) {
 	fmt.Println("constraints loaded")
 	assert.NoError(b, compress.GzRead("../test_cases/3c2943/pk.gz", pk))
 	fmt.Println("proving key loaded")
-	c, err := os.ReadFile("../test_cases/3c2943/data.lzssv1")
-	assert.NoError(b, err)
-	proveDecompressionSnark(b, cs, pk, c, 7300)
+	//c, err := os.ReadFile("../test_cases/3c2943/data.lzssv1")
+	//assert.NoError(b, err)
+	//proveDecompressionSnark(b, cs, pk, c)
 }
 
 func BenchmarkCompilation600KBSnark(b *testing.B) {
@@ -226,8 +234,8 @@ func BenchmarkCompilation600KBSnark(b *testing.B) {
 		D: make([]byte, 612000),
 		Settings: Settings{
 			BackRefSettings: BackRefSettings{
-				NbBytesAddress: 2,
-				NbBytesLength:  1,
+				NbBitsAddress: 2,
+				NbBitsLength:  1,
 			},
 		},
 	}
@@ -243,8 +251,8 @@ func testCompressionRoundTripSnark(t *testing.T, nbBytesOffset uint, d []byte) {
 	const contextSize = 256
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: nbBytesOffset,
-			NbBytesLength:  1,
+			NbBitsAddress: nbBytesOffset,
+			NbBitsLength:  8,
 		},
 		StartAt: contextSize,
 	}
@@ -255,63 +263,26 @@ func testCompressionRoundTripSnark(t *testing.T, nbBytesOffset uint, d []byte) {
 	testDecompressionSnark(t, nbBytesOffset, c, d[contextSize:])
 }
 
-func testDecompressionSnark(t *testing.T, nbBytesOffset uint, c []byte, d []byte) {
+func testDecompressionSnark(t *testing.T, nbBitsOffset uint, c compress.Stream, d []byte) {
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: nbBytesOffset,
-			NbBytesLength:  1,
+			NbBitsAddress: nbBitsOffset,
+			NbBitsLength:  8,
 		},
 	}
 
-	cMax := len(c) * 3
+	//cMax := c.Len() * 3
 
-	decompressor := &DecompressionTestCircuit{
-		C:                make([]frontend.Variable, cMax),
+	circuit := &DecompressionTestCircuit{
+		C:                make([]frontend.Variable, len(c.D)),
 		D:                d,
 		Settings:         settings,
 		CheckCorrectness: true,
 	}
-	//p := profile.Start()
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, decompressor)
-	//p.Stop()
-	require.NoError(t, err)
-
-	kzgSrs, err := test.NewKZGSRS(cs)
-	require.NoError(t, err)
-	pk, _, err := plonk.Setup(cs, kzgSrs)
-	require.NoError(t, err)
-
-	proveDecompressionSnark(t, cs, pk, c, cMax)
-}
-
-func proveDecompressionSnark(t require.TestingT, cs constraint.ConstraintSystem, pk plonk.ProvingKey, c []byte, cMax int) {
-
-	cVars := make([]frontend.Variable, cMax)
-	for i := range c {
-		cVars[i] = frontend.Variable(c[i])
+	assignment := &DecompressionTestCircuit{
+		C:       test_vector_utils.ToVariableSlice(c.D),
+		CLength: len(c.D),
 	}
 
-	for i := len(c); i < len(cVars); i++ {
-		cVars[i] = 0
-	}
-
-	var start int64
-	restartTimer := func() {
-		if start != 0 {
-			fmt.Println("time taken:", time.Now().UnixMilli()-start, "ms")
-		}
-		start = time.Now().UnixMilli()
-	}
-
-	fmt.Println("constructing witness")
-	_witness, err := frontend.NewWitness(&DecompressionTestCircuit{
-		C:       cVars,
-		CLength: len(c),
-	}, ecc.BN254.ScalarField())
-	require.NoError(t, err)
-	restartTimer()
-	fmt.Println("proving")
-	_, err = plonk.Prove(cs, pk, _witness)
-	require.NoError(t, err)
-	restartTimer()
+	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }

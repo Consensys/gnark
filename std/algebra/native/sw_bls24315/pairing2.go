@@ -3,10 +3,12 @@ package sw_bls24315
 import (
 	"fmt"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // Curve allows G1 operations in BLS24-315.
@@ -19,6 +21,32 @@ func NewCurve(api frontend.API) *Curve {
 	return &Curve{
 		api: api,
 	}
+}
+
+// MarshalScalar returns
+func (c *Curve) MarshalScalar(s Scalar) []frontend.Variable {
+	nbBits := 8 * ((ecc.BLS24_315.ScalarField().BitLen() + 7) / 8)
+	x := bits.ToBinary(c.api, s, bits.WithNbDigits(nbBits))
+	for i, j := 0, nbBits-1; i < j; {
+		x[i], x[j] = x[j], x[i]
+		i++
+		j--
+	}
+	return x
+}
+
+// MarshalG1 returns [P.X || P.Y] in binary. Both P.X and P.Y are
+// in little endian.
+func (c *Curve) MarshalG1(P G1Affine) []frontend.Variable {
+	nbBits := 8 * ((ecc.BLS24_315.BaseField().BitLen() + 7) / 8)
+	res := make([]frontend.Variable, 2*nbBits)
+	x := bits.ToBinary(c.api, P.X, bits.WithNbDigits(nbBits))
+	y := bits.ToBinary(c.api, P.Y, bits.WithNbDigits(nbBits))
+	for i := 0; i < nbBits; i++ {
+		res[i] = x[nbBits-1-i]
+		res[i+nbBits] = y[nbBits-1-i]
+	}
+	return res
 }
 
 // Add points P and Q and return the result. Does not modify the inputs.

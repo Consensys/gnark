@@ -263,28 +263,42 @@ func (e *E12) CyclotomicSquareCompressed(api frontend.API, x E12) *E12 {
 // Decompress Karabina's cyclotomic square result
 func (e *E12) Decompress(api frontend.API, x E12) *E12 {
 
-	// TODO: hadle the g3==0 case with MUX
-
 	var t [3]E2
+	var _t [2]E2
 	var one E2
 	one.SetOne()
 
-	// t0 = g1²
+	// if g3 == 0
+	// t0 = 2 * g1 * g5
+	// t1 = g2
+	selector1 := x.C1.B0.IsZero(api)
+	_t[0].Square(api, x.C0.B1)
+	_t[0].Double(api, _t[0])
+	_t[1] = x.C0.B2
+
+	// if g3 != 0
+	// t0 = E * g5^2 + 3 * g1^2 - 2 * g2
+	// t1 = 4 * g3
 	t[0].Square(api, x.C0.B1)
-	// t1 = 3 * g1² - 2 * g2
 	t[1].Sub(api, t[0], x.C0.B2).
 		Double(api, t[1]).
 		Add(api, t[1], t[0])
-	// t0 = E * g5² + t1
 	t[2].Square(api, x.C1.B2)
 	t[0].MulByNonResidue(api, t[2]).
 		Add(api, t[0], t[1])
-	// t1 = 4 * g3
 	t[1].Double(api, x.C1.B0).
 		Double(api, t[1])
-	// z4 = g4 / t1
+
+	// g4 = (E * g5^2 + 3 * g1^2 - 2 * g2)/4g3 or (2 * g1 * g5)/g2
+	t[0].Select(api, selector1, _t[0], t[0])
+	t[1].Select(api, selector1, _t[1], t[1])
+	// if g2 == g3 == 0 we do nothing as DivUnchecked sets g4 to 0
+	// and all gi to 0 returning, correctly in this case, at the end:
+	// e = E * (2 * g4² + g3 * g5 - 3 * g2 * g1) + 1 = 1
+
 	e.C1.B1.DivUnchecked(api, t[0], t[1])
 
+	// Rest of the computation for all cases
 	// t1 = g2 * g1
 	t[1].Mul(api, x.C0.B2, x.C0.B1)
 	// t2 = 2 * g4² - 3 * g2 * g1
@@ -522,18 +536,8 @@ func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
 // Select sets e to r1 if b=1, r2 otherwise
 func (e *E12) Select(api frontend.API, b frontend.Variable, r1, r2 E12) *E12 {
 
-	e.C0.B0.A0 = api.Select(b, r1.C0.B0.A0, r2.C0.B0.A0)
-	e.C0.B0.A1 = api.Select(b, r1.C0.B0.A1, r2.C0.B0.A1)
-	e.C0.B1.A0 = api.Select(b, r1.C0.B1.A0, r2.C0.B1.A0)
-	e.C0.B1.A1 = api.Select(b, r1.C0.B1.A1, r2.C0.B1.A1)
-	e.C0.B2.A0 = api.Select(b, r1.C0.B2.A0, r2.C0.B2.A0)
-	e.C0.B2.A1 = api.Select(b, r1.C0.B2.A1, r2.C0.B2.A1)
-	e.C1.B0.A0 = api.Select(b, r1.C1.B0.A0, r2.C1.B0.A0)
-	e.C1.B0.A1 = api.Select(b, r1.C1.B0.A1, r2.C1.B0.A1)
-	e.C1.B1.A0 = api.Select(b, r1.C1.B1.A0, r2.C1.B1.A0)
-	e.C1.B1.A1 = api.Select(b, r1.C1.B1.A1, r2.C1.B1.A1)
-	e.C1.B2.A0 = api.Select(b, r1.C1.B2.A0, r2.C1.B2.A0)
-	e.C1.B2.A1 = api.Select(b, r1.C1.B2.A1, r2.C1.B2.A1)
+	e.C0.Select(api, b, r1.C0, r2.C0)
+	e.C1.Select(api, b, r1.C1, r2.C1)
 
 	return e
 }

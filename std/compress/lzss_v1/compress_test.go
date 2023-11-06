@@ -4,21 +4,16 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/consensys/gnark/std/compress"
-	"github.com/consensys/gnark/std/compress/huffman"
-	"github.com/klauspost/compress/s2"
-	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testCaseName ...string) {
+func testCompressionRoundTrip(t *testing.T, nbBitsAddress uint, d []byte, testCaseName ...string) {
 	if len(testCaseName) > 1 {
 		t.Fatal("either 0 or 1 test case name")
 	}
@@ -31,77 +26,84 @@ func testCompressionRoundTrip(t *testing.T, nbBytesAddress uint, d []byte, testC
 	d = append(make([]byte, contextSize), d...)
 	settings := Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: nbBytesAddress,
-			NbBytesLength:  1,
+			NbBitsAddress: nbBitsAddress,
+			NbBitsLength:  8,
 		},
 		StartAt: 256,
 	}
 	c, err := Compress(d, settings)
+
+	cBytes := c.Marshal()
+
 	if len(testCaseName) == 1 {
-		assert.NoError(t, os.WriteFile("../test_cases/"+testCaseName[0]+"/data.lzssv1", c, 0600))
+		assert.NoError(t, os.WriteFile("../test_cases/"+testCaseName[0]+"/data.lzssv1", cBytes, 0600))
 	}
-	cStream := compress.NewStreamFromBytes(c)
-	cHuff := huffman.Encode(cStream)
-	fmt.Println("Size Compression ratio:", float64(len(d)-contextSize)/float64(len(c)))
-	fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*(len(d)-contextSize))/float64(len(cHuff.D)))
-	if len(c) > 1024 {
-		fmt.Printf("Compressed size: %dKB\n", int(float64(len(c)*100)/1024)/100)
-		fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/8192)/100)
+
+	//cStream := compress.NewStreamFromBytes(c)
+	//cHuff := huffman.Encode(cStream)	TODO Huffman
+	fmt.Println("Size Compression ratio:", float64(len(d))/float64(len(cBytes)-1))
+	//fmt.Println("Estimated Compression ratio (with Huffman):", float64(8*len(d))/float64(len(cHuff.D)))
+	if c.Len() > 1024*8 {
+		fmt.Printf("Compressed size: %dKB\n", int(float64(len(cBytes[1:])*100)/1024)/100)
+		//fmt.Printf("Compressed size (with Huffman): %dKB\n", int(float64(len(cHuff.D)*100)/8192)/100)
 	}
 	require.NoError(t, err)
 
 	dBack, err := DecompressPureGo(c, settings)
 	require.NoError(t, err)
 
-	if len(c) < 1024 {
+	/*if len(c) < 1024 {
 		printHex(c)
-	}
+	}*/
 
 	require.Equal(t, d[contextSize:], dBack)
 
 	// store huffman code lengths
-	lens := huffman.GetCodeLengths(cStream)
+	/*lens := huffman.GetCodeLengths(cStream)
 	var sbb strings.Builder
 	sbb.WriteString("symbol,code-length\n")
 	for i := range lens {
 		sbb.WriteString(fmt.Sprintf("%d,%d\n", i, lens[i]))
 	}
-	require.NoError(t, os.WriteFile("huffman.csv", []byte(sbb.String()), 0600))
+	require.NoError(t, os.WriteFile("huffman.csv", []byte(sbb.String()), 0600))*/
 }
 
 func Test8Zeros(t *testing.T) {
-	testCompressionRoundTrip(t, 1, []byte{0, 0, 0, 0, 0, 0, 0, 0})
-	testCompressionRoundTrip(t, 2, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	testCompressionRoundTrip(t, 8, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	testCompressionRoundTrip(t, 10, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	testCompressionRoundTrip(t, 16, []byte{0, 0, 0, 0, 0, 0, 0, 0})
 }
 
 func Test300Zeros(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTrip(t, 1, make([]byte, 300))
-	testCompressionRoundTrip(t, 2, make([]byte, 300))
+	testCompressionRoundTrip(t, 8, make([]byte, 300))
+	testCompressionRoundTrip(t, 10, make([]byte, 300))
+	testCompressionRoundTrip(t, 16, make([]byte, 300))
 }
 
 func TestNoCompression(t *testing.T) {
-	testCompressionRoundTrip(t, 1, []byte{'h', 'i'})
-	testCompressionRoundTrip(t, 2, []byte{'h', 'i'})
+	testCompressionRoundTrip(t, 8, []byte{'h', 'i'})
+	testCompressionRoundTrip(t, 10, []byte{'h', 'i'})
+	testCompressionRoundTrip(t, 16, []byte{'h', 'i'})
 }
 
 func Test9E(t *testing.T) {
-	testCompressionRoundTrip(t, 1, []byte{1, 1, 1, 1, 2, 1, 1, 1, 1})
-	testCompressionRoundTrip(t, 2, []byte{1, 1, 1, 1, 2, 1, 1, 1, 1})
+	testCompressionRoundTrip(t, 8, []byte{1, 1, 1, 1, 2, 1, 1, 1, 1})
+	testCompressionRoundTrip(t, 16, []byte{1, 1, 1, 1, 2, 1, 1, 1, 1})
 }
 
 func Test8ZerosAfterNonzero(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTrip(t, 1, append([]byte{1}, make([]byte, 8)...))
-	testCompressionRoundTrip(t, 2, append([]byte{1}, make([]byte, 8)...))
+	testCompressionRoundTrip(t, 8, append([]byte{1}, make([]byte, 8)...))
+	testCompressionRoundTrip(t, 16, append([]byte{1}, make([]byte, 8)...))
 }
 
 func Test300ZerosAfterNonzero(t *testing.T) { // probably won't happen in our calldata
-	testCompressionRoundTrip(t, 1, append([]byte{'h', 'i'}, make([]byte, 300)...))
-	testCompressionRoundTrip(t, 2, append([]byte{'h', 'i'}, make([]byte, 300)...))
+	testCompressionRoundTrip(t, 8, append([]byte{'h', 'i'}, make([]byte, 300)...))
+	testCompressionRoundTrip(t, 16, append([]byte{'h', 'i'}, make([]byte, 300)...))
 }
 
 func TestRepeatedNonzero(t *testing.T) {
-	testCompressionRoundTrip(t, 1, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
-	testCompressionRoundTrip(t, 2, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
+	testCompressionRoundTrip(t, 8, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
+	testCompressionRoundTrip(t, 16, []byte{'h', 'i', 'h', 'i', 'h', 'i'})
 }
 
 func TestCalldata(t *testing.T) {
@@ -114,13 +116,13 @@ func TestCalldata(t *testing.T) {
 		d, err := os.ReadFile("../test_cases/" + folder + "/data.bin")
 		require.NoError(t, err)
 		t.Run(folder, func(t *testing.T) {
-			testCompressionRoundTrip(t, 2, d, folder)
+			testCompressionRoundTrip(t, 16, d, folder)
 		})
 	}
 }
 
 func TestLongBackrefBug(t *testing.T) {
-	testCompressionRoundTrip(t, 2, nil, "bug")
+	testCompressionRoundTrip(t, 16, nil, "bug")
 }
 
 func printHex(d []byte) {
@@ -148,20 +150,30 @@ func TestAverageBatch(t *testing.T) {
 	data, err := hex.DecodeString(string(d))
 	assert.NoError(err)
 
-	dict := getDictionnary()
+	testLzss := func(nbBitsAddress int) func(*testing.T) {
+		return func(t *testing.T) {
+			lzssRes, err := compresslzss_v1(data, nbBitsAddress)
+			assert.NoError(err)
+			fmt.Println("lzss compression ratio:", lzssRes.ratio)
+			lzssDecompressed, err := decompresslzss_v1(lzssRes.compressed, nbBitsAddress)
+			assert.NoError(err)
+			assert.True(bytes.Equal(data, lzssDecompressed))
+		}
+	}
+
 	// test compress round trip with s2, zstd and lzss
+
+	t.Run("16b offset", testLzss(16))
+	t.Run("18b offset", testLzss(18))
+
 	// s2Res, err := compressWithS2(data)
 	// assert.NoError(err)
 
 	// zstdRes, err := compressWithZstd(data)
 	// assert.NoError(err)
 
-	lzssRes, err := compresslzss_v1(data, dict)
-	assert.NoError(err)
-
 	// fmt.Println("s2 compression ratio:", s2Res.ratio)
 	// fmt.Println("zstd compression ratio:", zstdRes.ratio)
-	fmt.Println("lzss compression ratio:", lzssRes.ratio)
 
 	// assert.Equal(5.241485472387916, lzssRes.ratio, "regression check")
 
@@ -172,15 +184,12 @@ func TestAverageBatch(t *testing.T) {
 	// zstdDecompressed, err := decompressWithZstd(zstdRes.compressed)
 	// assert.NoError(err)
 
-	lzssDecompressed, err := decompresslzss_v1(lzssRes.compressed, dict)
-	assert.NoError(err)
-
 	// assert.True(bytes.Equal(data, s2Decompressed))
 	// assert.True(bytes.Equal(data, zstdDecompressed))
-	assert.True(bytes.Equal(data, lzssDecompressed))
 
 }
 
+/*
 func BenchmarkAverageBatch(b *testing.B) {
 	// read the file
 	d, err := os.ReadFile("./average_block.hex")
@@ -225,13 +234,6 @@ func BenchmarkAverageBatch(b *testing.B) {
 			}
 		}
 	})
-}
-
-type compressResult struct {
-	compressed []byte
-	inputSize  int
-	outputSize int
-	ratio      float64
 }
 
 func decompressWithS2(data []byte) ([]byte, error) {
@@ -286,40 +288,46 @@ func compressWithZstd(data []byte) (compressResult, error) {
 	copy(res.compressed, buf.Bytes())
 	return res, nil
 }
+*/
 
-func decompresslzss_v1(data, dict []byte) ([]byte, error) {
-	data = append(dict, data...)
-	return DecompressPureGo(data, Settings{
-		BackRefSettings: BackRefSettings{
-			NbBytesAddress: nbBytesAddress,
-			NbBytesLength:  nbBytesLength,
-		},
-		StartAt: uint(len(dict)),
-	})
+type compressResult struct {
+	compressed []byte
+	inputSize  int
+	outputSize int
+	ratio      float64
 }
 
-const (
-	nbBytesAddress = 3
-	nbBytesLength  = 1
-)
+func decompresslzss_v1(data []byte, nbBitsAddress int) ([]byte, error) {
+	settings := Settings{
+		BackRefSettings: BackRefSettings{
+			NbBitsAddress: uint(nbBitsAddress),
+			NbBitsLength:  8,
+		},
+	}
+	s := compress.Stream{
+		NbSymbs: 1 << settings.WordNbBits(),
+	}
 
-func compresslzss_v1(data []byte, dict []byte) (compressResult, error) {
-	data = append(dict, data...)
+	return DecompressPureGo(*s.Unmarshal(data), settings)
+}
+
+func compresslzss_v1(data []byte, nbBitsAddress int) (compressResult, error) {
 	c, err := Compress(data, Settings{
 		BackRefSettings: BackRefSettings{
-			NbBytesAddress: nbBytesAddress,
-			NbBytesLength:  nbBytesLength,
+			NbBitsAddress: uint(nbBitsAddress),
+			NbBitsLength:  8,
 		},
 		StartAt: uint(len(dict)),
 	})
 	if err != nil {
 		return compressResult{}, err
 	}
+	cD := c.Marshal()
 	return compressResult{
-		compressed: c,
+		compressed: cD,
 		inputSize:  len(data),
-		outputSize: len(c),
-		ratio:      float64(len(data)) / float64(len(c)),
+		outputSize: len(cD),
+		ratio:      float64(len(data)) / float64(len(cD)),
 	}, nil
 }
 
