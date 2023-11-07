@@ -6,7 +6,7 @@ import (
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
-// Decompress implements the decompression logic implemented in both DecompressPureGo and decompressStateMachine, pretty much identical to the latter.
+// DecompressGo implements the decompression logic implemented in both DecompressPureGo and decompressStateMachine, pretty much identical to the latter.
 // TODO Add input correctness checks
 func Decompress(api frontend.API, c []frontend.Variable, d []frontend.Variable, cLength frontend.Variable, settings Settings) (dLength frontend.Variable, err error) {
 

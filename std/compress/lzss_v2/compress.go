@@ -205,3 +205,10 @@ func (compressor *Compressor) findBackRef(data []byte, i int, bType backrefType,
 
 	return compressor.inputIndex.LookupLongest(data[i:i+maxRefLen], minLength, maxRefLen, windowStart, i)
 }
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}

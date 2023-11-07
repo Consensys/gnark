@@ -2,11 +2,11 @@ package lzss_v2
 
 import (
 	"bytes"
-
+	"github.com/consensys/gnark/std/compress"
 	"github.com/icza/bitio"
 )
 
-func Decompress(data, dict []byte) (d []byte, err error) {
+func DecompressGo(data, dict []byte) (d []byte, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
 	out.Grow(len(data)*6 + len(dict))
@@ -51,4 +51,49 @@ func Decompress(data, dict []byte) (d []byte, err error) {
 	}
 
 	return out.Bytes(), nil
+}
+
+func ReadIntoStream(data, dict []byte) compress.Stream {
+	in := bitio.NewReader(bytes.NewReader(data))
+
+	dict = augmentDict(dict)
+	dictBackRefType := initDictBackref(dict)
+
+	wordLen := compress.Gcd(8,
+		longBackRefType.nbBitsAddress, longBackRefType.nbBitsLength,
+		shortBackRefType.nbBitsAddress, shortBackRefType.nbBitsLength,
+		dictBackRefType.nbBitsAddress, dictBackRefType.nbBitsLength)
+
+	out := compress.Stream{
+		NbSymbs: 1 << wordLen,
+	}
+
+	bDict := backref{bType: dictBackRefType}
+	bShort := backref{bType: shortBackRefType}
+	bLong := backref{bType: longBackRefType}
+
+	s := in.TryReadByte()
+
+	for in.TryError == nil {
+		out.WriteNum(int(s), 8)
+
+		var b *backref
+		switch s {
+		case symbolShort:
+			// short back ref
+			b = &bShort
+		case symbolLong:
+			// long back ref
+			b = &bLong
+		case symbolDict:
+			// dict back ref
+			b = &bDict
+		}
+		b.readFrom(in)
+		out.WriteNum(b.length, int(b.bType.nbBitsLength))
+		out.WriteNum(b.offset, int(b.bType.nbBitsAddress))
+
+		s = in.TryReadByte()
+	}
+	return out
 }

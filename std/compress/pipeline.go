@@ -39,25 +39,6 @@ func NewStreamFromBytes(in []byte) Stream {
 	return Stream{d, 256}
 }
 
-/*func NewStream[V any](slice []V, srcBitLen, streamBitLen int) Stream {
-	if srcBitLen%streamBitLen != 0 {
-		panic("not implemented")
-	}
-	dstPerSrc := srcBitLen / streamBitLen
-	d := make([]int, dstPerSrc*len(slice))
-
-	for i := range d {
-		if intVal, err := strconv.Atoi(fmt.Sprint(slice[i/dstPerSrc])); err != nil { // not intended to be fast
-			panic(err)
-		} else {
-			indexWithinWord := i % dstPerSrc
-			d[i] = int(uint(intVal)>>(streamBitLen*indexWithinWord)) & ((1 << streamBitLen) - 1)
-		}
-	}
-
-	return Stream{d, 1 << streamBitLen}
-}*/
-
 func (s *Stream) BreakUp(nbSymbs int) Stream {
 	newPerOld := log(s.NbSymbs, nbSymbs)
 	d := make([]int, len(s.D)*newPerOld)

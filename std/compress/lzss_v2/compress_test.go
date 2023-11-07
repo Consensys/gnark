@@ -20,7 +20,7 @@ func testCompressionRoundTrip(t *testing.T, d []byte) {
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	dBack, err := Decompress(c, getDictionnary())
+	dBack, err := DecompressGo(c, getDictionnary())
 	require.NoError(t, err)
 
 	if !bytes.Equal(d, dBack) {
@@ -68,7 +68,7 @@ func FuzzCompress(f *testing.F) {
 			t.Fatal(err)
 		}
 
-		decompressedBytes, err := Decompress(compressedBytes, dict)
+		decompressedBytes, err := DecompressGo(compressedBytes, dict)
 
 		if err != nil {
 			t.Fatal(err)
@@ -248,7 +248,7 @@ func compressWithZstd(data []byte) (compressResult, error) {
 }
 
 func decompresslzss_v1(data, dict []byte) ([]byte, error) {
-	return Decompress(data, dict)
+	return DecompressGo(data, dict)
 }
 
 func compresslzss_v1(compressor *Compressor, data []byte) (compressResult, error) {

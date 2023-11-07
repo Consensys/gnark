@@ -1,5 +1,7 @@
 package lzss_v1
 
+import "github.com/consensys/gnark/std/compress"
+
 type BackRefSettings struct {
 	NbBitsAddress uint
 	NbBitsLength  uint
@@ -11,5 +13,5 @@ type Settings struct {
 }
 
 func (s BackRefSettings) WordNbBits() int {
-	return Gcd(8, int(s.NbBitsAddress), int(s.NbBitsLength))
+	return compress.Gcd(8, int(s.NbBitsAddress), int(s.NbBitsLength))
 }

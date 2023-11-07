@@ -141,7 +141,7 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 
 	fmt.Println("decompressing")
 	dComputed := make([]frontend.Variable, len(c.D))
-	if dComputedLen, err := Decompress(api, c.C, dComputed, c.CLen, c.Settings); err != nil {
+	if dComputedLen, err := DecompressGo(api, c.C, dComputed, c.CLen, c.Settings); err != nil {
 		return err
 	} else {
 		api.AssertIsEqual(dComputedLen, c.DLen)

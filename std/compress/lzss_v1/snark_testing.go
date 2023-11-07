@@ -15,7 +15,7 @@ type DecompressionTestCircuit struct {
 func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 	dBack := make([]frontend.Variable, len(c.D)) // TODO Try smaller constants
 	api.Println("maxLen(dBack)", len(dBack))
-	dLen, err := Decompress(api, c.C, dBack, c.CLength, c.Settings)
+	dLen, err := DecompressGo(api, c.C, dBack, c.CLength, c.Settings)
 	if err != nil {
 		return err
 	}
