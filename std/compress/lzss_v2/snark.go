@@ -149,8 +149,14 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits in
 		}
 	}
 	readers := make([]*numReader, len(backrefs))
+	delimAndLenNbWords := int(8+backrefs[0].nbBitsLength) / wordNbBits
 	for i := range backrefs {
-		readers[i] = newNumReader(api, c[int(8+backrefs[0].nbBitsLength)/wordNbBits:], int(backrefs[i].nbBitsAddress), wordNbBits)
+		var readerC []frontend.Variable
+		if len(c) >= delimAndLenNbWords {
+			readerC = c[delimAndLenNbWords:]
+		}
+
+		readers[i] = newNumReader(api, readerC, int(backrefs[i].nbBitsAddress), wordNbBits)
 	}
 
 	res := logderivlookup.New(api)
@@ -167,7 +173,6 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits in
 	return res
 }
 
-// WARNING undefined EOF behavior
 type numReader struct {
 	api       frontend.API
 	c         []frontend.Variable
@@ -181,9 +186,11 @@ func newNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits
 	stepCoeff := 1 << wordNbBits
 	nxt := frontend.Variable(0)
 	coeff := frontend.Variable(1)
-	for i := 0; i < nbWords; i++ {
-		nxt = api.MulAcc(nxt, coeff, c[i])
-		coeff = api.Mul(coeff, stepCoeff)
+	if len(c) >= nbWords {
+		for i := 0; i < nbWords; i++ {
+			nxt = api.MulAcc(nxt, coeff, c[i])
+			coeff = api.Mul(coeff, stepCoeff)
+		}
 	}
 	return &numReader{
 		api:       api,
@@ -194,17 +201,21 @@ func newNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits
 	}
 }
 
+// next returns the next number in the sequence. returns 0 upon EOF
 func (nr *numReader) next() frontend.Variable {
-
+	res := nr.nxt
+	if len(nr.c) <= nr.nbWords {
+		nr.nxt = 0
+		return res
+	}
 	lastSummand := frontend.Variable(0)
 	if nr.nbWords > 0 {
 		lastSummand = nr.c[nr.nbWords]
 	}
-	for i := 0; i < nr.nbWords; i++ { // TODO Cache stepCoeff^nbWords
+	for i := 1; i < nr.nbWords; i++ { // TODO Cache stepCoeff^nbWords
 		lastSummand = nr.api.Mul(lastSummand, nr.stepCoeff)
 	}
 
-	res := nr.nxt
 	nr.nxt = nr.api.Add(nr.api.DivUnchecked(nr.api.Sub(res, nr.c[0]), nr.stepCoeff), lastSummand)
 
 	nr.c = nr.c[1:]
