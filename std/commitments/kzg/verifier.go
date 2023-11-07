@@ -3,12 +3,14 @@ package kzg
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/recursion"
 )
 
 var (
@@ -180,9 +182,37 @@ func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitm
 	// sample random numbers λᵢ for sampling
 	randomNumbers := make([]emulated.Element[S], len(digests))
 	randomNumbers[0] = emulated.ValueOf[S](1)
-	for i := 1; i < len(randomNumbers); i++ {
-		// TODO use real random numbers, follow the solidity smart contract to know which variables are used as seed
-		randomNumbers[i] = emulated.ValueOf[S](42)
+	if len(digests) > 1 {
+
+		// pick a hash function to derive the random challenge
+		var target big.Int
+		target.SetUint64(1)
+		nbBits := v.api.Compiler().Field().BitLen()
+		nn := ((nbBits+7)/8)*8 - 8
+		target.Lsh(&target, uint(nn))
+		whSnark, err := recursion.NewHash(v.api, &target, true)
+		if err != nil {
+			return err
+		}
+		for i := 0; i < len(digests); i++ {
+			marshalledG1 := v.ec.MarshalG1(digests[i].G1El)
+			whSnark.Write(marshalledG1...)
+			marshalledG1 = v.ec.MarshalG1(proofs[i].Quotient)
+			whSnark.Write(marshalledG1...)
+			marshalledScalar := v.ec.MarshalScalar(proofs[i].ClaimedValue)
+			whSnark.Write(marshalledScalar...)
+			marshalledScalar = v.ec.MarshalScalar(points[i])
+			whSnark.Write(marshalledScalar...)
+		}
+
+		seed := whSnark.Sum()
+		binSeed := v.api.ToBinary(seed)
+		randomNumbers[1] = *v.scalarApi.FromBits(binSeed...)
+
+		for i := 2; i < len(randomNumbers); i++ {
+			// TODO use real random numbers, follow the solidity smart contract to know which variables are used as seed
+			randomNumbers[i] = *v.scalarApi.Mul(&randomNumbers[1], &randomNumbers[i-1])
+		}
 	}
 
 	// fold the committed quotients compute ∑ᵢλᵢ[Hᵢ(α)]G₁
@@ -219,24 +249,8 @@ func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitm
 	}
 	foldedDigests, foldedEvals := v.fold(digests, evals, randomNumbers)
 
-	// bb := v.scalarApi.ToBits(&foldedEvals)
-	// bbb := v.api.FromBinary(bb...)
-	// v.api.Println(bbb)
-
-	// aa := v.ec.MarshalG1(foldedDigests.G1El)
-	// slices.Reverse(aa[:256])
-	// slices.Reverse(aa[256:])
-	// xx := v.api.FromBinary(aa[:256]...)
-	// yy := v.api.FromBinary(aa[256:]...)
-	// v.api.Println(xx)
-	// v.api.Println(yy)
-
 	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	foldedEvalsCommit := v.ec.ScalarMul(&vk.G1, &foldedEvals)
-
-	// bb := v.scalarApi.ToBits(&foldedEvals)
-	// bbb := v.api.FromBinary(bb...)
-	// v.api.Println(bbb)
 
 	// compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	// foldedDigests.Sub(&foldedDigests, &foldedEvalsCommit)
