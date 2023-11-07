@@ -1,6 +1,7 @@
 package lzss_v2
 
 import (
+	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
@@ -30,12 +31,80 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		outTable.Insert(dict[i])
 	}
 
+	// formatted input
 	bytes := combineIntoBytes(api, c, int(wordLen))
 	bytesTable := sliceToTable(api, bytes)
 	lenTable := createLengthTables(api, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
 	addrTable := initAddrTable(api, bytes, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
 
+	// state variables
+	inI := frontend.Variable(0)
+	copyLen := frontend.Variable(0) // remaining length of the current copy
+	copyLen01 := frontend.Variable(1)
+	eof := frontend.Variable(0)
+	dLength = 0
+
 	for outI := range d {
+
+		if outI%2000 == 0 {
+			fmt.Println("compilation at", outI, "out of", len(d), ";", outI*100/len(d), "%")
+		}
+
+		curr := bytesTable.Lookup(inI)[0]
+
+		// (x-a)(x-b) = ab \times ( -a^2b (x/ab) - bx + 1(x/ab)x + 1)
+		// TODO Check that the following is one constraint only
+		currIndicatesBr := api.DivUnchecked(curr, int(longBackRefType.delimiter)*int(shortBackRefType.delimiter))
+		{
+			a, b := int(longBackRefType.delimiter), int(shortBackRefType.delimiter)
+			currIndicatesBr = api.(_scs).NewCombination(currIndicatesBr, curr, -a*a*b, -b, 1, 1)
+			currIndicatesBr = api.Mul(currIndicatesBr, a*b)
+		}
+
+		currIndicatesBr = api.IsZero(currIndicatesBr) // TODO Consider replacing this with a lookup
+		currIndicatesDr := api.IsZero(api.Sub(curr, dictBackRefType.delimiter))
+		currIndicatesCp := api.Add(currIndicatesBr, currIndicatesDr)
+
+		currIndicatedCpLen := api.Add(1, lenTable.Lookup(inI)[0]) // TODO Get rid of the +1
+		currIndicatedCpAddr := addrTable.Lookup(inI)[0]
+
+		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedCpAddr), currIndicatesBr)
+		copyAddr = api.MulAcc(copyAddr, currIndicatesDr, currIndicatedCpAddr)
+
+		copyLen = api.Select(copyLen01, api.Mul(currIndicatesCp, currIndicatedCpLen), api.Sub(copyLen, 1))
+		copyLen01 = api.IsZero(api.MulAcc(api.Neg(copyLen), copyLen, copyLen))
+
+		// copying = copyLen01 ? copyLen==1 : 1			either from previous iterations or starting a new copy
+		// copying = copyLen01 ? copyLen : 1
+		copying := api.(_scs).NewCombination(copyLen01, copyLen, -1, 0, 1, 1)
+
+		toCopy := outTable.Lookup(copyAddr)[0]
+
+		// write to output
+		d[outI] = api.MulAcc(curr, copying, toCopy)
+		// WARNING: curr modified by MulAcc
+		outTable.Insert(d[outI])
+
+		func() { // EOF Logic
+
+			// inIDelta = copying ? (copyLen01? backRefCodeLen: 0) : byteLen
+			// inIDelta = - byteLen * copying + copying*copyLen01*(backrefCodeLen) + byteLen
+			inIDelta := api.(_scs).NewCombination(copying, copyLen01, -byteNbWords, 0, brNbWords, byteNbWords)
+
+			// TODO Try removing this check and requiring the user to pad the input with nonzeros
+			// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged
+			// inI = inI + inIDelta * (1 - eof)
+			if eof == 0 {
+				inI = api.Add(inI, inIDelta)
+			} else {
+				inI = api.Add(inI, api.(_scs).NewCombination(inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
+			}
+
+			eofNow := api.IsZero(api.Sub(inI, cLength))
+
+			dLength = api.Add(dLength, api.Mul(api.Sub(eofNow, eof), outI+1)) // if eof, don't advance dLength
+			eof = eofNow
+		}()
 
 	}
 
@@ -142,4 +211,8 @@ func (nr *numReader) next() frontend.Variable {
 
 	nr.c = nr.c[1:]
 	return res
+}
+
+type _scs interface {
+	NewCombination(a, b frontend.Variable, aCoeff, bCoeff, mCoeff, oCoeff int) frontend.Variable
 }
