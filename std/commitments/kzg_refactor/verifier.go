@@ -146,32 +146,6 @@ func (v *Verifier[S, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], ba
 
 }
 
-func (v *Verifier[S, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai, ci []emulated.Element[S]) (Commitment[G1El], emulated.Element[S]) {
-
-	// length inconsistency between digests and evaluations should have been done before calling this function
-	nbDigests := len(digests)
-
-	// fold the claimed values ∑ᵢcᵢf(aᵢ)
-	var foldedEvaluations, tmp emulated.Element[S]
-	foldedEvaluations = emulated.ValueOf[S](0)
-	for i := 0; i < nbDigests; i++ {
-		tmp = *v.scalarApi.Mul(&fai[i], &ci[i])
-		foldedEvaluations = *v.scalarApi.Add(&foldedEvaluations, &tmp)
-	}
-
-	// fold the digests ∑ᵢ[cᵢ]([fᵢ(α)]G₁)
-	var foldedDigests Commitment[G1El]
-	foldedDigests.G1El = *v.ec.ScalarMul(&digests[0].G1El, &ci[0])
-	for i := 1; i < nbDigests; i++ {
-		tmp := *v.ec.ScalarMul(&digests[i].G1El, &ci[i])
-		foldedDigests.G1El = *v.ec.Add(&tmp, &foldedDigests.G1El)
-	}
-
-	// folding done
-	return foldedDigests, foldedEvaluations
-
-}
-
 func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[S, G1El], point emulated.Element[S], hf hash.FieldHasher, vk VerifyingKey[G1El, G2El], dataTranscript ...frontend.Variable) error {
 
 	// fold the proof
@@ -222,19 +196,47 @@ func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitm
 		tmp := *v.ec.ScalarMul(&quotients[i], &randomNumbers[i])
 		foldedQuotients = *v.ec.Add(&tmp, &foldedQuotients)
 	}
+	// aa := v.ec.MarshalG1(foldedQuotients)
+	// slices.Reverse(aa[:256])
+	// slices.Reverse(aa[256:])
+	// xx := v.api.FromBinary(aa[:256]...)
+	// yy := v.api.FromBinary(aa[256:]...)
+	// v.api.Println(xx)
+	// v.api.Println(yy)
 
 	// fold digests and evals
 	evals := make([]emulated.Element[S], len(digests))
-	for i := 0; i < len(randomNumbers); i++ {
-		evals[i] = proofs[i].ClaimedValue
-	}
 
 	// fold the digests: ∑ᵢλᵢ[f_i(α)]G₁
 	// fold the evals  : ∑ᵢλᵢfᵢ(aᵢ)
+	for i := 0; i < len(digests); i++ {
+
+		evals[i] = proofs[i].ClaimedValue
+
+		// aa := v.scalarApi.ToBits(&proofs[i].ClaimedValue)
+		// bb := v.api.FromBinary(aa...)
+		// v.api.Println(bb)
+	}
 	foldedDigests, foldedEvals := v.fold(digests, evals, randomNumbers)
+
+	// bb := v.scalarApi.ToBits(&foldedEvals)
+	// bbb := v.api.FromBinary(bb...)
+	// v.api.Println(bbb)
+
+	// aa := v.ec.MarshalG1(foldedDigests.G1El)
+	// slices.Reverse(aa[:256])
+	// slices.Reverse(aa[256:])
+	// xx := v.api.FromBinary(aa[:256]...)
+	// yy := v.api.FromBinary(aa[256:]...)
+	// v.api.Println(xx)
+	// v.api.Println(yy)
 
 	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	foldedEvalsCommit := v.ec.ScalarMul(&vk.G1, &foldedEvals)
+
+	// bb := v.scalarApi.ToBits(&foldedEvals)
+	// bbb := v.api.FromBinary(bb...)
+	// v.api.Println(bbb)
 
 	// compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	// foldedDigests.Sub(&foldedDigests, &foldedEvalsCommit)
@@ -246,10 +248,11 @@ func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitm
 	var foldedPointsQuotients G1El
 	for i := 0; i < len(randomNumbers); i++ {
 		randomNumbers[i] = *v.scalarApi.Mul(&randomNumbers[i], &points[i])
+		// randomNumbers[i] = *v.scalarApi.Reduce(&randomNumbers[i])
 	}
-	foldedPointsQuotients = *v.ec.ScalarMul(&quotients[0], &points[0])
+	foldedPointsQuotients = *v.ec.ScalarMul(&quotients[0], &randomNumbers[0])
 	for i := 1; i < len(digests); i++ {
-		tmp = v.ec.ScalarMul(&quotients[i], &points[i])
+		tmp = v.ec.ScalarMul(&quotients[i], &randomNumbers[i])
 		foldedPointsQuotients = *v.ec.Add(&foldedPointsQuotients, tmp)
 	}
 
@@ -268,6 +271,32 @@ func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitm
 	)
 
 	return err
+}
+
+func (v *Verifier[S, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai, ci []emulated.Element[S]) (Commitment[G1El], emulated.Element[S]) {
+
+	// length inconsistency between digests and evaluations should have been done before calling this function
+	nbDigests := len(digests)
+
+	// fold the claimed values ∑ᵢcᵢf(aᵢ)
+	var foldedEvaluations, tmp emulated.Element[S]
+	foldedEvaluations = emulated.ValueOf[S](0)
+	for i := 0; i < nbDigests; i++ {
+		tmp = *v.scalarApi.Mul(&fai[i], &ci[i])
+		foldedEvaluations = *v.scalarApi.Add(&foldedEvaluations, &tmp)
+	}
+
+	// fold the digests ∑ᵢ[cᵢ]([fᵢ(α)]G₁)
+	var foldedDigests Commitment[G1El]
+	foldedDigests.G1El = *v.ec.ScalarMul(&digests[0].G1El, &ci[0])
+	for i := 1; i < nbDigests; i++ {
+		tmp := *v.ec.ScalarMul(&digests[i].G1El, &ci[i])
+		foldedDigests.G1El = *v.ec.Add(&tmp, &foldedDigests.G1El)
+	}
+
+	// folding done
+	return foldedDigests, foldedEvaluations
+
 }
 
 // deriveGamma derives a challenge using Fiat Shamir to fold proofs.
