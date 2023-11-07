@@ -41,7 +41,10 @@ type MarshalScalarTest struct {
 }
 
 func (c *MarshalScalarTest) Define(api frontend.API) error {
-	ec := NewCurve(api)
+	ec, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
 	r := ec.MarshalScalar(c.X)
 	for i := range c.R {
 		api.AssertIsEqual(r[i], c.R[i])
@@ -71,7 +74,10 @@ type MarshalG1Test struct {
 }
 
 func (c *MarshalG1Test) Define(api frontend.API) error {
-	ec := NewCurve(api)
+	ec, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
 	// we want to get the same output as gnark-crypto's marshal.
 	// It's a point on bls12-377 so the number of bytes is 96, as the
 	// field of definition of bls12-377 is 48 bytes long.

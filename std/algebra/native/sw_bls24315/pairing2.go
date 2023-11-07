@@ -17,19 +17,26 @@ import (
 // Curve allows G1 operations in BLS24-315.
 type Curve struct {
 	api frontend.API
+	fr  *emulated.Field[ScalarField]
 }
 
 // NewCurve initializes a new [Curve] instance.
-func NewCurve(api frontend.API) *Curve {
+func NewCurve(api frontend.API) (*Curve, error) {
+	f, err := emulated.NewField[ScalarField](api)
+	if err != nil {
+		return nil, fmt.Errorf("scalar field")
+	}
 	return &Curve{
 		api: api,
-	}
+		fr:  f,
+	}, nil
 }
 
 // MarshalScalar returns
 func (c *Curve) MarshalScalar(s Scalar) []frontend.Variable {
-	nbBits := 8 * ((ecc.BLS24_315.ScalarField().BitLen() + 7) / 8)
-	x := bits.ToBinary(c.api, s.Limbs[0], bits.WithNbDigits(nbBits))
+	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
+	ss := c.fr.Reduce(&s)
+	x := c.fr.ToBits(ss)
 	for i, j := 0, nbBits-1; i < j; {
 		x[i], x[j] = x[j], x[i]
 		i++

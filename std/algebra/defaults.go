@@ -40,10 +40,16 @@ func GetCurve[FR emulated.FieldParams, G1El G1ElementT](api frontend.API) (Curve
 		}
 		*s = c
 	case *Curve[sw_bls12377.ScalarField, sw_bls12377.G1Affine]:
-		c := sw_bls12377.NewCurve(api)
+		c, err := sw_bls12377.NewCurve(api)
+		if err != nil {
+			return ret, fmt.Errorf("new curve: %w", err)
+		}
 		*s = c
 	case *Curve[sw_bls24315.ScalarField, sw_bls24315.G1Affine]:
-		c := sw_bls24315.NewCurve(api)
+		c, err := sw_bls24315.NewCurve(api)
+		if err != nil {
+			return ret, fmt.Errorf("new curve: %w", err)
+		}
 		*s = c
 	default:
 		return ret, fmt.Errorf("unknown type parametrisation")
