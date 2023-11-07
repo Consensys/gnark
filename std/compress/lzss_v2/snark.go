@@ -19,6 +19,11 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		shortBackRefType.nbBitsAddress, shortBackRefType.nbBitsLength,
 		dictBackRefType.nbBitsAddress, dictBackRefType.nbBitsLength)
 
+	longBrNbWords := longBackRefType.nbBitsBackRef / wordLen
+	shortBrNbWords := shortBackRefType.nbBitsBackRef / wordLen
+	dictBrNbWords := dictBackRefType.nbBitsBackRef / wordLen
+	byteNbWords := 8 / wordLen
+
 	// assert that c are within range
 	cRangeTable := logderivlookup.New(api)
 	for i := 0; i < 1<<wordLen; i++ {
@@ -52,17 +57,10 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		curr := bytesTable.Lookup(inI)[0]
 
-		// (x-a)(x-b) = ab \times ( -a^2b (x/ab) - bx + 1(x/ab)x + 1)
-		// TODO Check that the following is one constraint only
-		currIndicatesBr := api.DivUnchecked(curr, int(longBackRefType.delimiter)*int(shortBackRefType.delimiter))
-		{
-			a, b := int(longBackRefType.delimiter), int(shortBackRefType.delimiter)
-			currIndicatesBr = api.(_scs).NewCombination(currIndicatesBr, curr, -a*a*b, -b, 1, 1)
-			currIndicatesBr = api.Mul(currIndicatesBr, a*b)
-		}
-
-		currIndicatesBr = api.IsZero(currIndicatesBr) // TODO Consider replacing this with a lookup
+		currIndicatesLongBr := api.IsZero(api.Sub(curr, longBackRefType.delimiter))
+		currIndicatesShortBr := api.IsZero(api.Sub(curr, shortBackRefType.delimiter))
 		currIndicatesDr := api.IsZero(api.Sub(curr, dictBackRefType.delimiter))
+		currIndicatesBr := api.Add(currIndicatesLongBr, currIndicatesShortBr)
 		currIndicatesCp := api.Add(currIndicatesBr, currIndicatesDr)
 
 		currIndicatedCpLen := api.Add(1, lenTable.Lookup(inI)[0]) // TODO Get rid of the +1
@@ -87,9 +85,9 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		func() { // EOF Logic
 
-			// inIDelta = copying ? (copyLen01? backRefCodeLen: 0) : byteLen
-			// inIDelta = - byteLen * copying + copying*copyLen01*(backrefCodeLen) + byteLen
-			inIDelta := api.(_scs).NewCombination(copying, copyLen01, -byteNbWords, 0, brNbWords, byteNbWords)
+			inIDelta := api.Add(api.Mul(currIndicatesLongBr, longBrNbWords), api.Mul(currIndicatesShortBr, shortBrNbWords))
+			inIDelta = api.MulAcc(inIDelta, currIndicatesDr, dictBrNbWords)
+			inIDelta = api.Select(copying, api.Mul(inIDelta, copyLen01), byteNbWords)
 
 			// TODO Try removing this check and requiring the user to pad the input with nonzeros
 			// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged
@@ -107,7 +105,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		}()
 
 	}
-
+	return dLength, nil
 }
 
 func createLengthTables(api frontend.API, c []frontend.Variable, wordNbBits int, backrefs []backrefType) *logderivlookup.Table {
