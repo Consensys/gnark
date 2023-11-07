@@ -140,12 +140,6 @@ func (v *Verifier[S, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], ba
 	foldedProof.ClaimedValue = foldedEvaluations
 	return foldedProof, foldedDigests, nil
 
-	// create the folded opening proof
-	// var res OpeningProof[S, G1El]
-	// res.ClaimedValue = batchOpeningProof.ClaimedValues[0]
-	// res.Quotient = batchOpeningProof.Quotient
-	// return res, digests[0], nil
-
 }
 
 func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[S, G1El], point emulated.Element[S], hf hash.FieldHasher, vk VerifyingKey[G1El, G2El], dataTranscript ...frontend.Variable) error {
