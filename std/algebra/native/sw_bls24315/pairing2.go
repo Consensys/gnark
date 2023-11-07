@@ -2,7 +2,6 @@ package sw_bls24315
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
@@ -12,6 +11,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 // Curve allows G1 operations in BLS24-315.
@@ -311,9 +311,4 @@ func NewScalar(v fr_bls24315.Element) Scalar {
 }
 
 // ScalarField defines the [emulated.FieldParams] implementation on a one limb of the scalar field.
-type ScalarField struct{}
-
-func (ScalarField) NbLimbs() uint     { return 1 }
-func (ScalarField) BitsPerLimb() uint { return uint(ecc.BLS24_315.ScalarField().BitLen()) }
-func (ScalarField) IsPrime() bool     { return true }
-func (ScalarField) Modulus() *big.Int { return ecc.BLS24_315.ScalarField() }
+type ScalarField = emparams.BLS12315Fr
