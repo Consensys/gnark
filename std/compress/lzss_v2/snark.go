@@ -32,8 +32,8 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 	bytes := combineIntoBytes(api, c, int(wordLen))
 	bytesTable := sliceToTable(api, bytes)
-
 	lenTable := createLengthTables(api, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
+	addrTable := initAddrTable(api, bytes, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
 
 	for outI := range d {
 
@@ -48,16 +48,11 @@ func createLengthTables(api frontend.API, c []frontend.Variable, wordNbBits int,
 		}
 	}
 
-	nbWordsPerEntry := int(backrefs[0].nbBitsLength) / wordNbBits
-	stepCoeff := 1 << wordNbBits
 	res := logderivlookup.New(api)
-	prev := readNum(api, c, int(backrefs[0].nbBitsLength), wordNbBits)
-	res.Insert(prev)
+	reader := newNumReader(api, c, int(backrefs[0].nbBitsLength), wordNbBits)
 
-	for i := 1; i < len(c); i++ {
-		entry := api.Add(api.Mul(api.Sub(prev, c[i-1]), stepCoeff), c[i+nbWordsPerEntry-1])
-		res.Insert(entry)
-		prev = entry
+	for i := 0; i < len(c); i++ {
+		res.Insert(reader.next())
 	}
 
 	return res
@@ -72,40 +67,32 @@ func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.T
 }
 
 func combineIntoBytes(api frontend.API, c []frontend.Variable, wordNbBits int) []frontend.Variable {
-	wordPerByte := 8 / wordNbBits
-	slice := make([]frontend.Variable, len(c))
-	stepCoeff := 1 << wordNbBits
-	for i := range c {
-		slice[i] = c[i]
-		coeff := frontend.Variable(stepCoeff)
-		for j := 1; j < wordPerByte && i+j < len(c); j++ {
-			slice[i] = api.Add(slice[i], api.Mul(coeff, c[i+j]))
-			coeff = api.Mul(coeff, stepCoeff)
-		}
+	reader := newNumReader(api, c, 8, wordNbBits)
+	res := make([]frontend.Variable, len(c))
+	for i := range res {
+		res[i] = reader.next()
 	}
-	return slice
+	return res
 }
 
-func initOffsTable(api frontend.API, bytes []frontend.Variable, wordNbBits int, backrefs []backrefType) *logderivlookup.Table {
+func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits int, backrefs []backrefType) *logderivlookup.Table {
 	for i := range backrefs {
 		if backrefs[i].nbBitsLength != backrefs[0].nbBitsLength {
 			panic("all backref types must have the same length size")
 		}
 	}
-	lenNbWords := int(backrefs[0].nbBitsLength) / wordNbBits
-	entryNbWords := make([]int, len(backrefs))
+	readers := make([]*numReader, len(backrefs))
 	for i := range backrefs {
-		entryNbWords[i] = int(backrefs[i].nbBitsAddress) / wordNbBits
+		readers[i] = newNumReader(api, c[int(8+backrefs[0].nbBitsLength)/wordNbBits:], int(backrefs[i].nbBitsAddress), wordNbBits)
 	}
-	stepCoeff := 1 << wordNbBits
+
 	res := logderivlookup.New(api)
 
-	for i := range bytes {
+	for i := range c {
 		entry := frontend.Variable(0)
-		coeff := frontend.Variable(1)
-		for j := 0; j < entryNbWords && i+j < len(bytes); j++ {
-			entry = api.Add(entry, api.Mul(coeff, bytes[i+j]))
-			coeff = api.Mul(coeff, stepCoeff)
+		for j := range backrefs {
+			isSymb := api.IsZero(api.Sub(bytes[i], backrefs[j].delimiter))
+			entry = api.MulAcc(entry, isSymb, readers[j].next())
 		}
 		res.Insert(entry)
 	}
@@ -113,43 +100,46 @@ func initOffsTable(api frontend.API, bytes []frontend.Variable, wordNbBits int, 
 	return res
 }
 
-func initOffsTables(api frontend.API, c []frontend.Variable, wordNbBits int, backrefs []backrefType) []*logderivlookup.Table {
-
-	entryNbWords := make([]int, len(backrefs))
-	for i := range backrefs {
-		entryNbWords[i] = int(backrefs[i].nbBitsAddress) / wordNbBits
-	}
-
-	stepCoeff := 1 << wordNbBits
-	res := make([]*logderivlookup.Table, len(backrefs))
-
-	// TODO Some kind of dynamic programming to reduce the number of constraints; there is much overlapping computation here
-	for br := range backrefs {
-		res[br] = logderivlookup.New(api)
-		for i := range c {
-			entry := frontend.Variable(0)
-
-			if i+entryNbWords[br] <= len(c) {
-				coeff := frontend.Variable(1)
-				for j := 0; j < entryNbWords[br] && i+j+lenNbWords < len(c); j++ {
-					entry = api.Add(entry, api.Mul(coeff, c[i+j+lenNbWords]))
-					coeff = api.Mul(coeff, stepCoeff)
-				}
-			}
-
-			res[br].Insert(entry)
-		}
-	}
-
-	return res
+// WARNING undefined EOF behavior
+type numReader struct {
+	api       frontend.API
+	c         []frontend.Variable
+	stepCoeff int
+	nbWords   int
+	nxt       frontend.Variable
 }
 
-func readNum(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits int) frontend.Variable {
-	res := frontend.Variable(0)
+func newNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits int) *numReader {
+	nbWords := numNbBits / wordNbBits
+	stepCoeff := 1 << wordNbBits
+	nxt := frontend.Variable(0)
 	coeff := frontend.Variable(1)
-	for i := 0; i < numNbBits/wordNbBits; i++ {
-		res = api.Add(res, api.Mul(coeff, c[i]))
-		coeff = api.Mul(coeff, 1<<wordNbBits)
+	for i := 0; i < nbWords; i++ {
+		nxt = api.MulAcc(nxt, coeff, c[i])
+		coeff = api.Mul(coeff, stepCoeff)
 	}
+	return &numReader{
+		api:       api,
+		c:         c,
+		stepCoeff: stepCoeff,
+		nxt:       nxt,
+		nbWords:   nbWords,
+	}
+}
+
+func (nr *numReader) next() frontend.Variable {
+
+	lastSummand := frontend.Variable(0)
+	if nr.nbWords > 0 {
+		lastSummand = nr.c[nr.nbWords]
+	}
+	for i := 0; i < nr.nbWords; i++ { // TODO Cache stepCoeff^nbWords
+		lastSummand = nr.api.Mul(lastSummand, nr.stepCoeff)
+	}
+
+	res := nr.nxt
+	nr.nxt = nr.api.Add(nr.api.DivUnchecked(nr.api.Sub(res, nr.c[0]), nr.stepCoeff), lastSummand)
+
+	nr.c = nr.c[1:]
 	return res
 }
