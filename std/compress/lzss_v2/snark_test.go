@@ -5,6 +5,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/compress"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/icza/bitio"
@@ -19,6 +20,18 @@ func Test1ZeroSnark(t *testing.T) {
 
 func Test0To10Explicit(t *testing.T) {
 	testCompressionRoundTripSnark(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, nil)
+}
+
+func Test3ZerosBackref(t *testing.T) {
+	testDecompressionSnark(t, nil, 0, backref{
+		offset: 0,
+		length: 1,
+		bType:  shortBackRefType,
+	}, /* backref{
+		offset: 1,
+		length: 1,
+		bType:  longBackRefType,
+	}*/)
 }
 
 func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
@@ -41,7 +54,6 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
 	}
 
 	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
-
 }
 
 func testDecompressionSnark(t *testing.T, dict []byte, compressedStream ...interface{}) {
@@ -52,6 +64,10 @@ func testDecompressionSnark(t *testing.T, dict []byte, compressedStream ...inter
 		switch v := c.(type) {
 		case byte:
 			assert.NoError(t, w.WriteByte(v))
+			i++
+		case int:
+			assert.True(t, v >= 0 && v <= 255)
+			assert.NoError(t, w.WriteByte(byte(v)))
 			i++
 		case []byte:
 			for _, b := range v {
@@ -83,4 +99,33 @@ func testDecompressionSnark(t *testing.T, dict []byte, compressedStream ...inter
 	}
 
 	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+}
+
+func TestReadBytes(t *testing.T) {
+	expected := []byte{0, 254, 0, 0}
+	circuit := &readBytesCircuit{
+		Words:      make([]frontend.Variable, 8*len(expected)),
+		WordNbBits: 1,
+		Expected:   expected,
+	}
+	words := compress.NewStreamFromBytes(expected)
+	words = words.BreakUp(2)
+	assignment := &readBytesCircuit{
+		Words: test_vector_utils.ToVariableSlice(words.D),
+	}
+	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+}
+
+type readBytesCircuit struct {
+	Words      []frontend.Variable
+	WordNbBits int
+	Expected   []byte
+}
+
+func (c *readBytesCircuit) Define(api frontend.API) error {
+	byts := combineIntoBytes(api, c.Words, c.WordNbBits)
+	for i := range c.Expected {
+		api.AssertIsEqual(c.Expected[i], byts[i*8])
+	}
+	return nil
 }

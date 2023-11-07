@@ -56,7 +56,7 @@ const (
 )
 
 type backref struct {
-	offset int
+	offset int // TODO rename this to address
 	length int
 	bType  backrefType
 }
@@ -72,7 +72,6 @@ func (b *backref) writeTo(w *bitio.Writer, i int) {
 }
 
 func (b *backref) readFrom(r *bitio.Reader) {
-	// r.TryReadByte()
 	if b.bType.dictOnly {
 		b.offset = int(r.TryReadBits(b.bType.nbBitsAddress))
 	} else {

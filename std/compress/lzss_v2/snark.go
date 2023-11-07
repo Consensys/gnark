@@ -39,7 +39,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	// formatted input
 	bytes := combineIntoBytes(api, c, int(wordLen))
 	bytesTable := sliceToTable(api, bytes)
-	lenTable := createLengthTables(api, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
+	//lenTable := createLengthTables(api, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
 	addrTable := initAddrTable(api, bytes, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
 
 	// state variables
@@ -63,7 +63,8 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		currIndicatesBr := api.Add(currIndicatesLongBr, currIndicatesShortBr)
 		currIndicatesCp := api.Add(currIndicatesBr, currIndicatesDr)
 
-		currIndicatedCpLen := api.Add(1, lenTable.Lookup(inI)[0]) // TODO Get rid of the +1
+		//currIndicatedCpLen := api.Add(1, lenTable.Lookup(inI)[0]) // TODO Get rid of the +1
+		currIndicatedCpLen := api.Add(1, bytesTable.Lookup(api.Add(inI, byteNbWords))[0]) // TODO Get rid of the +1
 		currIndicatedCpAddr := addrTable.Lookup(inI)[0]
 
 		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedCpAddr), currIndicatesBr)
@@ -116,7 +117,7 @@ func createLengthTables(api frontend.API, c []frontend.Variable, wordNbBits int,
 	}
 
 	res := logderivlookup.New(api)
-	reader := newNumReader(api, c, int(backrefs[0].nbBitsLength), wordNbBits)
+	reader := newNumReader(api, c[8/wordNbBits:], int(backrefs[0].nbBitsLength), wordNbBits)
 
 	for i := 0; i < len(c); i++ {
 		res.Insert(reader.next())
