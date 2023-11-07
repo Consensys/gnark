@@ -1,264 +1,337 @@
-// Package kzg implements KZG polynomial commitment verification.
-//
-// KZG polynomial commitment allows for the prover to commit to a polynomial and
-// then selectively prove evaluations of the said polynomial. The size of the
-// commitment is a single G1 element and the size of the evaluation proof is
-// also a single G1 element. However, KZG polynomial commitment scheme requires
-// a trusted SRS.
-//
-// This package supersedes previous type-specific implementations and allows to
-// use any implemented pairing-friendly curve implementation, being defined over
-// a 2-chain (native implementation) or using field emulation.
 package kzg
 
 import (
+	"errors"
 	"fmt"
 
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
-	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
-	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/kzg"
-	"github.com/consensys/gnark-crypto/ecc/bn254"
-	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
-	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
-	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/math/emulated"
+)
+
+var (
+	ErrInvalidNbDigests = errors.New("number of digests is not the same as the number of polynomials")
+	ErrZeroNbDigests    = errors.New("number of digests is zero")
 )
 
 // Commitment is an KZG commitment to a polynomial. Use [ValueOfCommitment] to
 // initialize a witness from the native commitment.
-type Commitment[G1El algebra.G1ElementT] struct {
+type Commitment[G1El any] struct {
 	G1El G1El
-}
-
-// ValueOfCommitment initializes a KZG commitment witness from a native
-// commitment. It returns an error if there is a conflict between the type
-// parameters and provided native commitment type.
-func ValueOfCommitment[G1El algebra.G1ElementT](cmt any) (Commitment[G1El], error) {
-	var ret Commitment[G1El]
-	switch s := any(&ret).(type) {
-	case *Commitment[sw_bn254.G1Affine]:
-		tCmt, ok := cmt.(bn254.G1Affine)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, cmt)
-		}
-		s.G1El = sw_bn254.NewG1Affine(tCmt)
-	case *Commitment[sw_bls12377.G1Affine]:
-		tCmt, ok := cmt.(bls12377.G1Affine)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, cmt)
-		}
-		s.G1El = sw_bls12377.NewG1Affine(tCmt)
-	case *Commitment[sw_bls12381.G1Affine]:
-		tCmt, ok := cmt.(bls12381.G1Affine)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, cmt)
-		}
-		s.G1El = sw_bls12381.NewG1Affine(tCmt)
-	case *Commitment[sw_bw6761.G1Affine]:
-		tCmt, ok := cmt.(bw6761.G1Affine)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, cmt)
-		}
-		s.G1El = sw_bw6761.NewG1Affine(tCmt)
-	case *Commitment[sw_bls24315.G1Affine]:
-		tCmt, ok := cmt.(bls24315.G1Affine)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, cmt)
-		}
-		s.G1El = sw_bls24315.NewG1Affine(tCmt)
-	default:
-		return ret, fmt.Errorf("unknown type parametrization")
-	}
-	return ret, nil
 }
 
 // OpeningProof embeds the opening proof that polynomial evaluated at Point is
 // equal to ClaimedValue. Use [ValueOfOpeningProof] to initialize a witness from
 // a native opening proof.
-type OpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT] struct {
-	QuotientPoly G1El
-	ClaimedValue S
-	Point        S
-}
-
-// ValueOfOpeningProof initializes an opening proof from the given proof and
-// point. It returns an error if there is a mismatch between the type parameters
-// and types of the provided point and proof.
-func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, proof any) (OpeningProof[S, G1El], error) {
-	var ret OpeningProof[S, G1El]
-	switch s := any(&ret).(type) {
-	case *OpeningProof[sw_bn254.Scalar, sw_bn254.G1Affine]:
-		tProof, ok := proof.(kzg_bn254.OpeningProof)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
-		}
-		tPoint, ok := point.(fr_bn254.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
-		}
-		s.QuotientPoly = sw_bn254.NewG1Affine(tProof.H)
-		s.ClaimedValue = sw_bn254.NewScalar(tProof.ClaimedValue)
-		s.Point = sw_bn254.NewScalar(tPoint)
-	case *OpeningProof[sw_bls12377.Scalar, sw_bls12377.G1Affine]:
-		tProof, ok := proof.(kzg_bls12377.OpeningProof)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
-		}
-		tPoint, ok := point.(fr_bls12377.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
-		}
-		s.QuotientPoly = sw_bls12377.NewG1Affine(tProof.H)
-		s.ClaimedValue = tProof.ClaimedValue.String()
-		s.Point = tPoint.String()
-	case *OpeningProof[sw_bls12381.Scalar, sw_bls12381.G1Affine]:
-		tProof, ok := proof.(kzg_bls12381.OpeningProof)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
-		}
-		tPoint, ok := point.(fr_bls12381.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
-		}
-		s.QuotientPoly = sw_bls12381.NewG1Affine(tProof.H)
-		s.ClaimedValue = sw_bls12381.NewScalar(tProof.ClaimedValue)
-		s.Point = sw_bls12381.NewScalar(tPoint)
-	case *OpeningProof[sw_bw6761.Scalar, sw_bw6761.G1Affine]:
-		tProof, ok := proof.(kzg_bw6761.OpeningProof)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
-		}
-		tPoint, ok := point.(fr_bw6761.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
-		}
-		s.QuotientPoly = sw_bw6761.NewG1Affine(tProof.H)
-		s.ClaimedValue = sw_bw6761.NewScalar(tProof.ClaimedValue)
-		s.Point = sw_bw6761.NewScalar(tPoint)
-	case *OpeningProof[sw_bls24315.Scalar, sw_bls24315.G1Affine]:
-		tProof, ok := proof.(kzg_bls24315.OpeningProof)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
-		}
-		tPoint, ok := point.(fr_bls24315.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
-		}
-		s.QuotientPoly = sw_bls24315.NewG1Affine(tProof.H)
-		s.ClaimedValue = tProof.ClaimedValue.String()
-		s.Point = tPoint.String()
-	default:
-		return ret, fmt.Errorf("unknown type parametrization")
-	}
-	return ret, nil
+type OpeningProof[S emulated.FieldParams, G1El any] struct {
+	Quotient     G1El
+	ClaimedValue emulated.Element[S]
 }
 
 // VerifyingKey is the trusted setup for KZG polynomial commitment scheme. Use
 // [ValueOfVerifyingKey] to initialize a witness from the native VerifyingKey.
-type VerifyingKey[G2El algebra.G2ElementT] struct {
-	SRS [2]G2El
+type VerifyingKey[G1El, G2El any] struct {
+	G2 [2]G2El
+	G1 G1El
 }
 
-// ValueOfVerifyingKey initializes verifying key witness from the native
-// verifying key. It returns an error if there is a mismatch between the type
-// parameters and the provided verifying key type.
-func ValueOfVerifyingKey[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2El], error) {
-	var ret VerifyingKey[G2El]
-	switch s := any(&ret).(type) {
-	case *VerifyingKey[sw_bn254.G2Affine]:
-		tVk, ok := vk.(kzg_bn254.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-		}
-		s.SRS[0] = sw_bn254.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bn254.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bls12377.G2Affine]:
-		tVk, ok := vk.(kzg_bls12377.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-		}
-		s.SRS[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bls12381.G2Affine]:
-		tVk, ok := vk.(kzg_bls12381.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-		}
-		s.SRS[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bw6761.G2Affine]:
-		tVk, ok := vk.(kzg_bw6761.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-		}
-		s.SRS[0] = sw_bw6761.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bw6761.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bls24315.G2Affine]:
-		tVk, ok := vk.(kzg_bls24315.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-		}
-		s.SRS[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
-	default:
-		return ret, fmt.Errorf("unknown type parametrization")
+type BatchOpeningProof[S emulated.FieldParams, G1El any] struct {
+	Quotient      G1El
+	ClaimedValues []emulated.Element[S]
+}
+
+// B base field, S scalar
+// S here is emulated.Element[S]
+type IVerifier[S emulated.FieldParams, G1El, G2El any] interface {
+	CheckOpeningProof(Commitment[G1El], OpeningProof[S, G1El], emulated.Element[S], VerifyingKey[G1El, G2El]) error
+	FoldProof([]Commitment[G1El], BatchOpeningProof[S, G1El], emulated.Element[S], hash.FieldHasher, ...frontend.Variable) (OpeningProof[S, G1El], Commitment[G1El], error)
+	BatchVerifySinglePoint([]Commitment[G1El], BatchOpeningProof[S, G1El], emulated.Element[S], VerifyingKey[G1El, G2El], hash.FieldHasher, ...frontend.Variable) error
+	BatchVerifyMultiPoints([]Commitment[G1El], []OpeningProof[S, G1El], []emulated.Element[S], VerifyingKey[G1El, G2El]) error
+}
+
+type Verifier[S emulated.FieldParams, G1El, G2El, GtEl any] struct {
+	api       frontend.API
+	scalarApi *emulated.Field[S]
+	ec        algebra.Curve[emulated.Element[S], G1El]
+	pairing   algebra.Pairing[G1El, G2El, GtEl]
+}
+
+func NewVerifier[S emulated.FieldParams, G1El, G2El, GtEl any](api frontend.API) (Verifier[S, G1El, G2El, GtEl], error) {
+	var res Verifier[S, G1El, G2El, GtEl]
+	var err error
+	res.api = api
+	res.ec, err = algebra.GetCurve[emulated.Element[S], G1El](api)
+	if err != nil {
+		return res, err
 	}
-	return ret, nil
-}
-
-// Verifier allows verifying KZG opening proofs.
-type Verifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT] struct {
-	VerifyingKey[G2El]
-
-	curve   algebra.Curve[S, G1El]
-	pairing algebra.Pairing[G1El, G2El, GtEl]
-}
-
-// NewVerifier initializes a new Verifier instance.
-func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT](vk VerifyingKey[G2El], curve algebra.Curve[S, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[S, G1El, G2El, GtEl] {
-	return &Verifier[S, G1El, G2El, GtEl]{
-		VerifyingKey: vk,
-		curve:        curve,
-		pairing:      pairing,
+	res.scalarApi, err = emulated.NewField[S](api)
+	if err != nil {
+		return res, err
 	}
+	res.pairing, err = algebra.GetPairing[G1El, G2El, GtEl](api)
+	if err != nil {
+		return res, err
+	}
+
+	return res, nil
 }
 
-// AssertProof asserts the validity of the opening proof for the given
-// commitment.
-func (vk *Verifier[S, G1El, G2El, GtEl]) AssertProof(commitment Commitment[G1El], proof OpeningProof[S, G1El]) error {
-	// [f(a)]G₁
-	claimedValueG1 := vk.curve.ScalarMulBase(&proof.ClaimedValue)
+// S here is emulated.FieldParams
+func (v *Verifier[S, G1El, G2El, GTEl]) CheckOpeningProof(digest Commitment[G1El], proof OpeningProof[S, G1El], point emulated.Element[S], vk VerifyingKey[G1El, G2El]) error {
+
+	claimedValueG1 := v.ec.ScalarMulBase(&proof.ClaimedValue)
 
 	// [f(α) - f(a)]G₁
-	fminusfaG1 := vk.curve.Neg(claimedValueG1)
-	fminusfaG1 = vk.curve.Add(fminusfaG1, &commitment.G1El)
+	fminusfaG1 := v.ec.Neg(claimedValueG1)
+	fminusfaG1 = v.ec.Add(fminusfaG1, &digest.G1El)
 
 	// [-H(α)]G₁
-	negQuotientPoly := vk.curve.Neg(&proof.QuotientPoly)
+	negQuotientPoly := v.ec.Neg(&proof.Quotient)
 
 	// [f(α) - f(a) + a*H(α)]G₁
-	totalG1 := vk.curve.ScalarMul(&proof.QuotientPoly, &proof.Point)
-	totalG1 = vk.curve.Add(totalG1, fminusfaG1)
+	totalG1 := v.ec.ScalarMul(&proof.Quotient, &point)
+	totalG1 = v.ec.Add(totalG1, fminusfaG1)
 
 	// e([f(α)-f(a)+aH(α)]G₁], G₂).e([-H(α)]G₁, [α]G₂) == 1
-	if err := vk.pairing.PairingCheck(
+	if err := v.pairing.PairingCheck(
 		[]*G1El{totalG1, negQuotientPoly},
-		[]*G2El{&vk.SRS[0], &vk.SRS[1]},
+		[]*G2El{&vk.G2[0], &vk.G2[1]},
 	); err != nil {
 		return fmt.Errorf("pairing check: %w", err)
 	}
 	return nil
+
+}
+
+func (v *Verifier[S, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[S, G1El], point emulated.Element[S], hf hash.FieldHasher, dataTranscript ...frontend.Variable) (OpeningProof[S, G1El], Commitment[G1El], error) {
+
+	nbDigests := len(digests)
+
+	// check consistency between numbers of claims vs number of digests
+	if nbDigests != len(batchOpeningProof.ClaimedValues) {
+		return OpeningProof[S, G1El]{}, Commitment[G1El]{}, ErrInvalidNbDigests
+	}
+
+	// derive the challenge γ, binded to the point and the commitments
+	gamma, err := v.deriveGamma(point, digests, batchOpeningProof.ClaimedValues, hf, dataTranscript...)
+	if err != nil {
+		return OpeningProof[S, G1El]{}, Commitment[G1El]{}, err
+	}
+
+	// fold the claimed values and digests
+	// gammai = [1,γ,γ²,..,γⁿ⁻¹]
+	gammai := make([]emulated.Element[S], nbDigests)
+	gammai[0] = emulated.ValueOf[S](1)
+	if nbDigests > 1 {
+		gammai[1] = gamma
+	}
+	for i := 2; i < nbDigests; i++ {
+		gammai[i] = *(v.scalarApi.Mul(&gammai[i-1], &gamma))
+	}
+
+	foldedDigests, foldedEvaluations := v.fold(digests, batchOpeningProof.ClaimedValues, gammai)
+
+	var foldedProof OpeningProof[S, G1El]
+	foldedProof.Quotient = batchOpeningProof.Quotient
+	foldedProof.ClaimedValue = foldedEvaluations
+	return foldedProof, foldedDigests, nil
+
+	// create the folded opening proof
+	// var res OpeningProof[S, G1El]
+	// res.ClaimedValue = batchOpeningProof.ClaimedValues[0]
+	// res.Quotient = batchOpeningProof.Quotient
+	// return res, digests[0], nil
+
+}
+
+func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[S, G1El], point emulated.Element[S], hf hash.FieldHasher, vk VerifyingKey[G1El, G2El], dataTranscript ...frontend.Variable) error {
+
+	// fold the proof
+	foldedProof, foldedDigest, err := v.FoldProof(digests, batchOpeningProof, point, hf, dataTranscript...)
+	if err != nil {
+		return err
+	}
+
+	// verify the foldedProof against the foldedDigest
+	err = v.CheckOpeningProof(foldedDigest, foldedProof, point, vk)
+
+	return err
+}
+
+func (v *Verifier[S, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitment[G1El], proofs []OpeningProof[S, G1El], points []emulated.Element[S], vk VerifyingKey[G1El, G2El]) error {
+
+	// check consistency nb proogs vs nb digests
+	if len(digests) != len(proofs) || len(digests) != len(points) {
+		return ErrInvalidNbDigests
+	}
+
+	// len(digests) should be nonzero because of randomNumbers
+	if len(digests) == 0 {
+		return ErrZeroNbDigests
+	}
+
+	// if only one digest, call Verify
+	if len(digests) == 1 {
+		return v.CheckOpeningProof(digests[0], proofs[0], points[0], vk)
+	}
+
+	// sample random numbers λᵢ for sampling
+	randomNumbers := make([]emulated.Element[S], len(digests))
+	randomNumbers[0] = emulated.ValueOf[S](1)
+	for i := 1; i < len(randomNumbers); i++ {
+		// TODO use real random numbers, follow the solidity smart contract to know which variables are used as seed
+		randomNumbers[i] = emulated.ValueOf[S](42)
+	}
+
+	// fold the committed quotients compute ∑ᵢλᵢ[Hᵢ(α)]G₁
+	var foldedQuotients G1El
+	quotients := make([]G1El, len(proofs))
+	for i := 0; i < len(randomNumbers); i++ {
+		quotients[i] = proofs[i].Quotient
+	}
+	foldedQuotients = *v.ec.ScalarMul(&quotients[0], &randomNumbers[0])
+	for i := 1; i < len(digests); i++ {
+		tmp := *v.ec.ScalarMul(&quotients[i], &randomNumbers[i])
+		foldedQuotients = *v.ec.Add(&tmp, &foldedQuotients)
+	}
+	// aa := v.ec.MarshalG1(foldedQuotients)
+	// slices.Reverse(aa[:256])
+	// slices.Reverse(aa[256:])
+	// xx := v.api.FromBinary(aa[:256]...)
+	// yy := v.api.FromBinary(aa[256:]...)
+	// v.api.Println(xx)
+	// v.api.Println(yy)
+
+	// fold digests and evals
+	evals := make([]emulated.Element[S], len(digests))
+
+	// fold the digests: ∑ᵢλᵢ[f_i(α)]G₁
+	// fold the evals  : ∑ᵢλᵢfᵢ(aᵢ)
+	for i := 0; i < len(digests); i++ {
+
+		evals[i] = proofs[i].ClaimedValue
+
+		// aa := v.scalarApi.ToBits(&proofs[i].ClaimedValue)
+		// bb := v.api.FromBinary(aa...)
+		// v.api.Println(bb)
+	}
+	foldedDigests, foldedEvals := v.fold(digests, evals, randomNumbers)
+
+	// bb := v.scalarApi.ToBits(&foldedEvals)
+	// bbb := v.api.FromBinary(bb...)
+	// v.api.Println(bbb)
+
+	// aa := v.ec.MarshalG1(foldedDigests.G1El)
+	// slices.Reverse(aa[:256])
+	// slices.Reverse(aa[256:])
+	// xx := v.api.FromBinary(aa[:256]...)
+	// yy := v.api.FromBinary(aa[256:]...)
+	// v.api.Println(xx)
+	// v.api.Println(yy)
+
+	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
+	foldedEvalsCommit := v.ec.ScalarMul(&vk.G1, &foldedEvals)
+
+	// bb := v.scalarApi.ToBits(&foldedEvals)
+	// bbb := v.api.FromBinary(bb...)
+	// v.api.Println(bbb)
+
+	// compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
+	// foldedDigests.Sub(&foldedDigests, &foldedEvalsCommit)
+	tmp := v.ec.Neg(foldedEvalsCommit)
+	foldedDigests.G1El = *v.ec.Add(&foldedDigests.G1El, tmp)
+
+	// combien the points and the quotients using γᵢ
+	// ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
+	var foldedPointsQuotients G1El
+	for i := 0; i < len(randomNumbers); i++ {
+		randomNumbers[i] = *v.scalarApi.Mul(&randomNumbers[i], &points[i])
+		// randomNumbers[i] = *v.scalarApi.Reduce(&randomNumbers[i])
+	}
+	foldedPointsQuotients = *v.ec.ScalarMul(&quotients[0], &randomNumbers[0])
+	for i := 1; i < len(digests); i++ {
+		tmp = v.ec.ScalarMul(&quotients[i], &randomNumbers[i])
+		foldedPointsQuotients = *v.ec.Add(&foldedPointsQuotients, tmp)
+	}
+
+	// ∑ᵢλᵢ[f_i(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁ + ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
+	// = [∑ᵢλᵢf_i(α) - ∑ᵢλᵢfᵢ(aᵢ) + ∑ᵢλᵢpᵢHᵢ(α)]G₁
+	foldedDigests.G1El = *v.ec.Add(&foldedDigests.G1El, &foldedPointsQuotients)
+
+	// -∑ᵢλᵢ[Qᵢ(α)]G₁
+	// foldedQuotients.Neg(&foldedQuotients)
+	foldedQuotients = *v.ec.Neg(&foldedQuotients)
+
+	// pairing check
+	err := v.pairing.PairingCheck(
+		[]*G1El{&foldedDigests.G1El, &foldedQuotients},
+		[]*G2El{&vk.G2[0], &vk.G2[1]},
+	)
+
+	return err
+}
+
+func (v *Verifier[S, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai, ci []emulated.Element[S]) (Commitment[G1El], emulated.Element[S]) {
+
+	// length inconsistency between digests and evaluations should have been done before calling this function
+	nbDigests := len(digests)
+
+	// fold the claimed values ∑ᵢcᵢf(aᵢ)
+	var foldedEvaluations, tmp emulated.Element[S]
+	foldedEvaluations = emulated.ValueOf[S](0)
+	for i := 0; i < nbDigests; i++ {
+		tmp = *v.scalarApi.Mul(&fai[i], &ci[i])
+		foldedEvaluations = *v.scalarApi.Add(&foldedEvaluations, &tmp)
+	}
+
+	// fold the digests ∑ᵢ[cᵢ]([fᵢ(α)]G₁)
+	var foldedDigests Commitment[G1El]
+	foldedDigests.G1El = *v.ec.ScalarMul(&digests[0].G1El, &ci[0])
+	for i := 1; i < nbDigests; i++ {
+		tmp := *v.ec.ScalarMul(&digests[i].G1El, &ci[i])
+		foldedDigests.G1El = *v.ec.Add(&tmp, &foldedDigests.G1El)
+	}
+
+	// folding done
+	return foldedDigests, foldedEvaluations
+
+}
+
+// deriveGamma derives a challenge using Fiat Shamir to fold proofs.
+// dataTranscript are supposed to be bits.
+// /!\ bitMode = true here /!\
+func (v *Verifier[S, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[S], digests []Commitment[G1El], claimedValues []emulated.Element[S], hf hash.FieldHasher, dataTranscript ...frontend.Variable) (emulated.Element[S], error) {
+
+	// derive the challenge gamma, binded to the point and the commitments
+	fs := fiatshamir.NewTranscript(v.api, hf, "gamma")
+
+	marhsalledPoint := v.ec.MarshalScalar(point)
+	if err := fs.Bind("gamma", marhsalledPoint); err != nil {
+		return emulated.Element[S]{}, err
+	}
+	for i := range digests {
+		if err := fs.Bind("gamma", v.ec.MarshalG1(digests[i].G1El)); err != nil {
+			return emulated.Element[S]{}, err
+		}
+	}
+	for i := range claimedValues {
+		if err := fs.Bind("gamma", v.ec.MarshalScalar(claimedValues[i])); err != nil {
+			return emulated.Element[S]{}, err
+		}
+	}
+
+	if err := fs.Bind("gamma", dataTranscript); err != nil {
+		return emulated.Element[S]{}, err
+	}
+
+	gamma, err := fs.ComputeChallenge("gamma", true)
+	if err != nil {
+		return emulated.Element[S]{}, err
+	}
+	bGamma := v.api.ToBinary(gamma)
+	gammaS := v.scalarApi.FromBits(bGamma...)
+
+	return *gammaS, nil
 }

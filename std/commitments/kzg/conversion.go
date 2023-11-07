@@ -1,4 +1,4 @@
-package kzg_refactor
+package kzg
 
 import (
 	"fmt"
