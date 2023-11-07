@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/consensys/gnark/std/compress"
 	"github.com/icza/bitio"
+	"io"
 )
 
 func DecompressGo(data, dict []byte) (d []byte, err error) {
@@ -89,11 +90,16 @@ func ReadIntoStream(data, dict []byte) compress.Stream {
 			// dict back ref
 			b = &bDict
 		}
-		b.readFrom(in)
-		out.WriteNum(b.length, int(b.bType.nbBitsLength))
-		out.WriteNum(b.offset, int(b.bType.nbBitsAddress))
+		if b != nil {
+			b.readFrom(in)
+			out.WriteNum(b.length, int(b.bType.nbBitsLength))
+			out.WriteNum(b.offset, int(b.bType.nbBitsAddress))
+		}
 
 		s = in.TryReadByte()
+	}
+	if in.TryError != io.EOF {
+		panic(in.TryError)
 	}
 	return out
 }
