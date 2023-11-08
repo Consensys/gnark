@@ -41,7 +41,8 @@ func augmentDict(dict []byte) []byte {
 }
 
 func initDictBackref(dict []byte) backrefType {
-	return newBackRefType(symbolDict, uint8(bits.Len(uint(len(dict)))), 8, true)
+	addrNbBits := uint8(bits.Len(uint(len(dict))))
+	return newBackRefType(symbolDict, (addrNbBits+3)/4*4, 8, true)
 }
 
 // Compress compresses the given data

@@ -45,8 +45,8 @@ func newBackRefType(symbol byte, nbBitsAddress, nbBitsLength uint8, dictOnly boo
 }
 
 var (
-	shortBackRefType = newBackRefType(symbolShort, 14, 8, false)
-	longBackRefType  = newBackRefType(symbolLong, 19, 8, false)
+	shortBackRefType = newBackRefType(symbolShort, 16, 8, false)
+	longBackRefType  = newBackRefType(symbolLong, 20, 8, false)
 )
 
 const (
