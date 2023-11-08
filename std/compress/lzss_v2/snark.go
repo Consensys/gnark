@@ -67,9 +67,6 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		currIndicatedCpLen := api.Add(1, bytesTable.Lookup(api.Add(inI, byteNbWords))[0]) // TODO Get rid of the +1
 		currIndicatedCpAddr := addrTable.Lookup(inI)[0]
 
-		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedCpAddr), currIndicatesBr)
-		copyAddr = api.MulAcc(copyAddr, currIndicatesDr, currIndicatedCpAddr)
-
 		copyLen = api.Select(copyLen01, api.Mul(currIndicatesCp, currIndicatedCpLen), api.Sub(copyLen, 1))
 		copyLen01 = api.IsZero(api.MulAcc(api.Neg(copyLen), copyLen, copyLen))
 
@@ -77,6 +74,9 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		// copying = copyLen01 ? copyLen : 1
 		copying := api.(_scs).NewCombination(copyLen01, copyLen, -1, 0, 1, 1)
 
+		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedCpAddr), currIndicatesBr)
+		dictCopyAddr := api.Add(currIndicatedCpAddr, api.Sub(currIndicatedCpLen, copyLen))
+		copyAddr = api.MulAcc(copyAddr, currIndicatesDr, dictCopyAddr)
 		toCopy := outTable.Lookup(copyAddr)[0]
 
 		// write to output

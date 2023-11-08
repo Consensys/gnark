@@ -35,8 +35,8 @@ func Test3ZerosBackref(t *testing.T) {
 	)
 }
 
-func Test253_254_255(t *testing.T) {
-	testCompressionRoundTripSnark(t, []byte{253, 254, 255}, nil)
+func Test255_254_253(t *testing.T) {
+	testCompressionRoundTripSnark(t, []byte{255, 254, 253}, nil)
 }
 
 func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
