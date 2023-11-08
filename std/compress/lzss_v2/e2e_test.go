@@ -62,7 +62,6 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 		DLen:      len(d),
 	}
 	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
-	return
 }
 
 func TestChecksum0(t *testing.T) {
