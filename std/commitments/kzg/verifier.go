@@ -202,6 +202,16 @@ func ValueOfBatchOpeningProof[FR emulated.FieldParams, G1El any](proof any) (Bat
 		for i := 0; i < len(s.ClaimedValues); i++ {
 			s.ClaimedValues[i] = sw_bn254.NewScalar(tProof.ClaimedValues[i])
 		}
+	case *BatchOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine]:
+		tProof, ok := proof.(kzg_bls12377.BatchOpeningProof)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
+		}
+		s.Quotient = sw_bls12377.NewG1Affine(tProof.H)
+		s.ClaimedValues = make([]emulated.Element[sw_bls12377.ScalarField], len(tProof.ClaimedValues))
+		for i := 0; i < len(s.ClaimedValues); i++ {
+			s.ClaimedValues[i] = sw_bls12377.NewScalar(tProof.ClaimedValues[i])
+		}
 	case *BatchOpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine]:
 		tProof, ok := proof.(kzg_bls12381.BatchOpeningProof)
 		if !ok {
@@ -221,6 +231,16 @@ func ValueOfBatchOpeningProof[FR emulated.FieldParams, G1El any](proof any) (Bat
 		s.ClaimedValues = make([]emulated.Element[sw_bw6761.ScalarField], len(tProof.ClaimedValues))
 		for i := 0; i < len(s.ClaimedValues); i++ {
 			s.ClaimedValues[i] = sw_bw6761.NewScalar(tProof.ClaimedValues[i])
+		}
+	case *BatchOpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine]:
+		tProof, ok := proof.(kzg_bls24315.BatchOpeningProof)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
+		}
+		s.Quotient = sw_bls24315.NewG1Affine(tProof.H)
+		s.ClaimedValues = make([]emulated.Element[sw_bls24315.ScalarField], len(tProof.ClaimedValues))
+		for i := 0; i < len(s.ClaimedValues); i++ {
+			s.ClaimedValues[i] = sw_bls24315.NewScalar(tProof.ClaimedValues[i])
 		}
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
