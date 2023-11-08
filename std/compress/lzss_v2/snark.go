@@ -39,6 +39,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	// formatted input
 	bytes := combineIntoBytes(api, c, int(wordLen))
 	bytesTable := sliceToTable(api, bytes)
+	bytesTable.Insert(0) // just because we use this table for looking up backref lengths as well
 	//lenTable := createLengthTables(api, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
 	addrTable := initAddrTable(api, bytes, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
 
@@ -50,7 +51,9 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	dLength = 0
 
 	for outI := range d {
-
+		if outI == 25599 {
+			fmt.Println("oop")
+		}
 		if outI%2000 == 0 {
 			fmt.Println("compilation at", outI, "out of", len(d), ";", outI*100/len(d), "%")
 		}

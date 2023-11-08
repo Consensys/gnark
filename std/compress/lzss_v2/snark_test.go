@@ -11,6 +11,7 @@ import (
 	"github.com/icza/bitio"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"os"
 	"testing"
 )
 
@@ -37,6 +38,16 @@ func Test3ZerosBackref(t *testing.T) {
 
 func Test255_254_253(t *testing.T) {
 	testCompressionRoundTripSnark(t, []byte{255, 254, 253}, nil)
+}
+
+func Test3c2943Snark(t *testing.T) {
+	// read "average_block.hex" file
+	d, err := os.ReadFile("../test_cases/3c2943/data.bin")
+	assert.NoError(t, err)
+
+	dict := getDictionnary()
+
+	testCompressionRoundTripSnark(t, d, dict)
 }
 
 func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
