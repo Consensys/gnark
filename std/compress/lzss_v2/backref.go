@@ -44,9 +44,11 @@ func newBackRefType(symbol byte, nbBitsAddress, nbBitsLength uint8, dictOnly boo
 	}
 }
 
+const forceDivisibleBy = 4
+
 var (
-	shortBackRefType = newBackRefType(symbolShort, 16, 8, false)
-	longBackRefType  = newBackRefType(symbolLong, 20, 8, false)
+	shortBackRefType = newBackRefType(symbolShort, (14+forceDivisibleBy-1)/forceDivisibleBy*forceDivisibleBy, 8, false)
+	longBackRefType  = newBackRefType(symbolLong, (19+forceDivisibleBy-1)/forceDivisibleBy*forceDivisibleBy, 8, false)
 )
 
 const (
