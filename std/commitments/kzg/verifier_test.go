@@ -3,6 +3,7 @@ package kzg
 import (
 	"crypto/rand"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -21,6 +22,7 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
@@ -29,6 +31,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 )
 
@@ -38,22 +41,18 @@ const (
 )
 
 type KZGVerificationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {
-	VerifyingKey[G2El]
+	VerifyingKey[G1El, G2El]
 	Commitment[G1El]
 	OpeningProof[FR, G1El]
+	Point emulated.Element[FR]
 }
 
 func (c *KZGVerificationCircuit[FR, G1El, G2El, GTEl]) Define(api frontend.API) error {
-	curve, err := algebra.GetCurve[FR, G1El](api)
+	verifier, err := NewVerifier[FR, G1El, G2El, GTEl](api)
 	if err != nil {
-		return fmt.Errorf("get curve: %w", err)
+		return fmt.Errorf("new verifier: %w", err)
 	}
-	pairing, err := algebra.GetPairing[G1El, G2El, GTEl](api)
-	if err != nil {
-		return fmt.Errorf("get pairing: %w", err)
-	}
-	verifier := NewVerifier(c.VerifyingKey, curve, pairing)
-	if err := verifier.AssertProof(c.Commitment, c.OpeningProof); err != nil {
+	if err := verifier.CheckOpeningProof(c.Commitment, c.OpeningProof, c.Point, c.VerifyingKey); err != nil {
 		return fmt.Errorf("assert proof: %w", err)
 	}
 	return nil
@@ -86,15 +85,18 @@ func TestKZGVerificationEmulated(t *testing.T) {
 
 	wCmt, err := ValueOfCommitment[sw_bn254.G1Affine](com)
 	assert.NoError(err)
-	wProof, err := ValueOfOpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine](point, proof)
+	wProof, err := ValueOfOpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine](proof)
 	assert.NoError(err)
-	wVk, err := ValueOfVerifyingKey[sw_bn254.G2Affine](srs.Vk)
+	wVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bn254.ScalarField](point)
 	assert.NoError(err)
 
 	assignment := KZGVerificationCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
+		Point:        wPt,
 	}
 	assert.CheckCircuit(&KZGVerificationCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}, test.WithValidAssignment(&assignment))
 }
@@ -126,15 +128,18 @@ func TestKZGVerificationEmulated2(t *testing.T) {
 
 	wCmt, err := ValueOfCommitment[sw_bls12381.G1Affine](com)
 	assert.NoError(err)
-	wProof, err := ValueOfOpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine](point, proof)
+	wProof, err := ValueOfOpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine](proof)
 	assert.NoError(err)
-	wVk, err := ValueOfVerifyingKey[sw_bls12381.G2Affine](srs.Vk)
+	wVk, err := ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bls12381.ScalarField](point)
 	assert.NoError(err)
 
 	assignment := KZGVerificationCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
+		Point:        wPt,
 	}
 	assert.CheckCircuit(&KZGVerificationCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{}, test.WithValidAssignment(&assignment))
 }
@@ -166,15 +171,18 @@ func TestKZGVerificationEmulated3(t *testing.T) {
 
 	wCmt, err := ValueOfCommitment[sw_bw6761.G1Affine](com)
 	assert.NoError(err)
-	wProof, err := ValueOfOpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine](point, proof)
+	wProof, err := ValueOfOpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine](proof)
 	assert.NoError(err)
-	wVk, err := ValueOfVerifyingKey[sw_bw6761.G2Affine](srs.Vk)
+	wVk, err := ValueOfVerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bw6761.ScalarField](point)
 	assert.NoError(err)
 
 	assignment := KZGVerificationCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
+		Point:        wPt,
 	}
 	assert.CheckCircuit(&KZGVerificationCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{}, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
 }
@@ -206,15 +214,18 @@ func TestKZGVerificationTwoChain(t *testing.T) {
 
 	wCmt, err := ValueOfCommitment[sw_bls12377.G1Affine](com)
 	assert.NoError(err)
-	wProof, err := ValueOfOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine](point, proof)
+	wProof, err := ValueOfOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine](proof)
 	assert.NoError(err)
-	wVk, err := ValueOfVerifyingKey[sw_bls12377.G2Affine](srs.Vk)
+	wVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bls12377.ScalarField](point)
 	assert.NoError(err)
 
 	assignment := KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
+		Point:        wPt,
 	}
 
 	assert.CheckCircuit(&KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BW6_761))
@@ -247,15 +258,18 @@ func TestKZGVerificationTwoChain2(t *testing.T) {
 
 	wCmt, err := ValueOfCommitment[sw_bls24315.G1Affine](com)
 	assert.NoError(err)
-	wProof, err := ValueOfOpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine](point, proof)
+	wProof, err := ValueOfOpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine](proof)
 	assert.NoError(err)
-	wVk, err := ValueOfVerifyingKey[sw_bls24315.G2Affine](srs.Vk)
+	wVk, err := ValueOfVerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bls24315.ScalarField](point)
 	assert.NoError(err)
 
 	assignment := KZGVerificationCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
+		Point:        wPt,
 	}
 
 	assert.CheckCircuit(&KZGVerificationCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]{}, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BW6_633))
@@ -306,7 +320,7 @@ func TestValueOfOpeningProof(t *testing.T) {
 			H:            G1,
 			ClaimedValue: value,
 		}
-		assignment, err := ValueOfOpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine](point, proof)
+		assignment, err := ValueOfOpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine](proof)
 		assert.NoError(err)
 		_ = assignment
 	}, "bn254")
@@ -319,7 +333,7 @@ func TestValueOfOpeningProof(t *testing.T) {
 			H:            G1,
 			ClaimedValue: value,
 		}
-		assignment, err := ValueOfOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine](point, proof)
+		assignment, err := ValueOfOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine](proof)
 		assert.NoError(err)
 		_ = assignment
 	}, "bls12377")
@@ -332,7 +346,7 @@ func TestValueOfOpeningProof(t *testing.T) {
 			H:            G1,
 			ClaimedValue: value,
 		}
-		assignment, err := ValueOfOpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine](point, proof)
+		assignment, err := ValueOfOpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine](proof)
 		assert.NoError(err)
 		_ = assignment
 	}, "bls12381")
@@ -345,7 +359,7 @@ func TestValueOfOpeningProof(t *testing.T) {
 			H:            G1,
 			ClaimedValue: value,
 		}
-		assignment, err := ValueOfOpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine](point, proof)
+		assignment, err := ValueOfOpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine](proof)
 		assert.NoError(err)
 		_ = assignment
 	}, "bw6761")
@@ -358,7 +372,7 @@ func TestValueOfOpeningProof(t *testing.T) {
 			H:            G1,
 			ClaimedValue: value,
 		}
-		assignment, err := ValueOfOpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine](point, proof)
+		assignment, err := ValueOfOpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine](proof)
 		assert.NoError(err)
 		_ = assignment
 	}, "bls24315")
@@ -371,7 +385,7 @@ func TestValueOfSRS(t *testing.T) {
 		vk := kzg_bn254.VerifyingKey{
 			G2: [2]bn254.G2Affine{G2, G2},
 		}
-		assignment, err := ValueOfVerifyingKey[sw_bn254.G2Affine](vk)
+		assignment, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine](vk)
 		assert.NoError(err)
 		_ = assignment
 	}, "bn254")
@@ -380,7 +394,7 @@ func TestValueOfSRS(t *testing.T) {
 		vk := kzg_bls12377.VerifyingKey{
 			G2: [2]bls12377.G2Affine{G2, G2},
 		}
-		assignment, err := ValueOfVerifyingKey[sw_bls12377.G2Affine](vk)
+		assignment, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine](vk)
 		assert.NoError(err)
 		_ = assignment
 	}, "bls12377")
@@ -389,7 +403,7 @@ func TestValueOfSRS(t *testing.T) {
 		vk := kzg_bls12381.VerifyingKey{
 			G2: [2]bls12381.G2Affine{G2, G2},
 		}
-		assignment, err := ValueOfVerifyingKey[sw_bls12381.G2Affine](vk)
+		assignment, err := ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine](vk)
 		assert.NoError(err)
 		_ = assignment
 	}, "bls12381")
@@ -398,7 +412,7 @@ func TestValueOfSRS(t *testing.T) {
 		vk := kzg_bw6761.VerifyingKey{
 			G2: [2]bw6761.G2Affine{G2, G2},
 		}
-		assignment, err := ValueOfVerifyingKey[sw_bw6761.G2Affine](vk)
+		assignment, err := ValueOfVerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine](vk)
 		assert.NoError(err)
 		_ = assignment
 	}, "bw6761")
@@ -407,7 +421,7 @@ func TestValueOfSRS(t *testing.T) {
 		vk := kzg_bls24315.VerifyingKey{
 			G2: [2]bls24315.G2Affine{G2, G2},
 		}
-		assignment, err := ValueOfVerifyingKey[sw_bls24315.G2Affine](vk)
+		assignment, err := ValueOfVerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine](vk)
 		assert.NoError(err)
 		_ = assignment
 	}, "bls24315")
