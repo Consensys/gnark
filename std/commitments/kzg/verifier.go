@@ -15,11 +15,13 @@ import (
 	"fmt"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/kzg"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -43,24 +45,36 @@ import (
 func ValueOfScalar[FR emulated.FieldParams](scalar any) (emulated.Element[FR], error) {
 	var ret emulated.Element[FR]
 	switch s := any(&ret).(type) {
-	case *emulated.Element[emulated.BN254Fr]:
+	case *emulated.Element[sw_bn254.ScalarField]:
 		tScalar, ok := scalar.(fr_bn254.Element)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, tScalar)
 		}
 		*s = sw_bn254.NewScalar(tScalar)
-	case *emulated.Element[emulated.BW6761Fr]:
-		tScalar, ok := scalar.(fr_bw6761.Element)
+	case *emulated.Element[sw_bls12377.ScalarField]:
+		tScalar, ok := scalar.(fr_bls12377.Element)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, tScalar)
 		}
-		*s = sw_bw6761.NewScalar(tScalar)
-	case *emulated.Element[emulated.BLS12381Fr]:
+		*s = sw_bls12377.NewScalar(tScalar)
+	case *emulated.Element[sw_bls12381.ScalarField]:
 		tScalar, ok := scalar.(fr_bls12381.Element)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, tScalar)
 		}
 		*s = sw_bls12381.NewScalar(tScalar)
+	case *emulated.Element[sw_bw6761.ScalarField]:
+		tScalar, ok := scalar.(fr_bw6761.Element)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, tScalar)
+		}
+		*s = sw_bw6761.NewScalar(tScalar)
+	case *emulated.Element[sw_bls24315.ScalarField]:
+		tScalar, ok := scalar.(fr_bls24315.Element)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, tScalar)
+		}
+		*s = sw_bls24315.NewScalar(tScalar)
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
