@@ -76,7 +76,7 @@ func ReadIntoStream(data, dict []byte) compress.Stream {
 	s := in.TryReadByte()
 
 	for in.TryError == nil {
-		out.WriteNum(int(s), 8)
+		out.WriteNum(int(s), int(8/wordLen))
 
 		var b *backref
 		switch s {
@@ -96,8 +96,8 @@ func ReadIntoStream(data, dict []byte) compress.Stream {
 			if b != &bDict {
 				address--
 			}
-			out.WriteNum(b.length-1, int(b.bType.nbBitsLength))
-			out.WriteNum(address, int(b.bType.nbBitsAddress))
+			out.WriteNum(b.length-1, int(b.bType.nbBitsLength/wordLen))
+			out.WriteNum(address, int(b.bType.nbBitsAddress/wordLen))
 		}
 
 		s = in.TryReadByte()
