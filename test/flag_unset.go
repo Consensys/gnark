@@ -4,5 +4,5 @@ package test
 
 const (
 	proverTestFlag  = false
-	releaseTestFlag = false
+	releaseTestFlag = true
 )

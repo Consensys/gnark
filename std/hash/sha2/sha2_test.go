@@ -3,6 +3,7 @@ package sha2
 import (
 	"crypto/sha256"
 	"fmt"
+	"github.com/consensys/gnark/backend"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -43,8 +44,13 @@ func TestSHA2(t *testing.T) {
 		In: uints.NewU8Array(bts),
 	}
 	copy(witness.Expected[:], uints.NewU8Array(dgst[:]))
-	err := test.IsSolved(&sha2Circuit{In: make([]uints.U8, len(bts))}, &witness, ecc.BN254.ScalarField())
-	if err != nil {
-		t.Fatal(err)
-	}
+	//err := test.IsSolved(&sha2Circuit{In: make([]uints.U8, len(bts))}, &witness, ecc.BN254.ScalarField())
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	garkAssert := test.NewAssert(t)
+	garkAssert.ProverSucceeded(&sha2Circuit{In: make([]uints.U8, len(bts))}, &witness,
+		test.WithCurves(ecc.BN254),
+		test.WithBackends(backend.PLONK))
 }
