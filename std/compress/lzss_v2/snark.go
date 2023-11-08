@@ -80,7 +80,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		toCopy := outTable.Lookup(copyAddr)[0]
 
 		// write to output
-		d[outI] = api.MulAcc(curr, copying, toCopy)
+		d[outI] = api.Select(copying, toCopy, curr)
 		// WARNING: curr modified by MulAcc
 		outTable.Insert(d[outI])
 

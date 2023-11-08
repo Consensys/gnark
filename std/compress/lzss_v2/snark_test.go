@@ -27,11 +27,11 @@ func Test3ZerosBackref(t *testing.T) {
 		offset: 0,
 		length: 1,
 		bType:  shortBackRefType,
-	}, /* backref{
+	}, backref{
 		offset: 1,
 		length: 1,
 		bType:  longBackRefType,
-	}*/)
+	})
 }
 
 func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {

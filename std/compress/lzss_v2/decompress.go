@@ -92,8 +92,8 @@ func ReadIntoStream(data, dict []byte) compress.Stream {
 		}
 		if b != nil {
 			b.readFrom(in)
-			out.WriteNum(b.length, int(b.bType.nbBitsLength))
-			out.WriteNum(b.offset, int(b.bType.nbBitsAddress))
+			out.WriteNum(b.length-1, int(b.bType.nbBitsLength))
+			out.WriteNum(b.offset-1, int(b.bType.nbBitsAddress))
 		}
 
 		s = in.TryReadByte()
