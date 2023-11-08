@@ -116,6 +116,9 @@ func (c *Curve[B, S]) MarshalG1(p AffinePoint[B]) []frontend.Variable {
 	res := make([]frontend.Variable, 2*nbBits)
 	copy(res, bx)
 	copy(res[len(bx):], by)
+	xZ := c.baseApi.IsZero(x)
+	yZ := c.baseApi.IsZero(y)
+	res[1] = c.api.Mul(xZ, yZ)
 	return res
 }
 

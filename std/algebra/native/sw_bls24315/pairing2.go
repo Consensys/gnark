@@ -46,6 +46,9 @@ func (c *Curve) MarshalG1(P G1Affine) []frontend.Variable {
 		res[i] = x[nbBits-1-i]
 		res[i+nbBits] = y[nbBits-1-i]
 	}
+	xZ := c.api.IsZero(P.X)
+	yZ := c.api.IsZero(P.Y)
+	res[1] = c.api.Mul(xZ, yZ)
 	return res
 }
 

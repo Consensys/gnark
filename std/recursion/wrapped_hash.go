@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	cryptomimc "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/frontend"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	stdhash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
@@ -172,6 +173,22 @@ func NewHash(api frontend.API, target *big.Int, bitmode bool) (stdhash.FieldHash
 		nbBits = api.Compiler().FieldBitLen()
 	}
 	return newHashFromParameter(api, &h, nbBits, bitmode), nil
+}
+
+// NewTranscript returns a new Fiat-Shamir transcript for computing bound
+// challenges. It uses hasher returned by [NewHash] internally and configures
+// the transcript to be compatible with gnark-crypto Fiat-Shamir transcript.
+func NewTranscript(api frontend.API, target *big.Int, challenges []string) (*fiatshamir.Transcript, error) {
+	h, err := NewHash(api, target, true)
+	if err != nil {
+		return nil, fmt.Errorf("new hash: %w", err)
+	}
+	nbBits := target.BitLen()
+	if nbBits > api.Compiler().FieldBitLen() {
+		nbBits = api.Compiler().FieldBitLen()
+	}
+	fs := fiatshamir.NewTranscript(api, h, challenges, fiatshamir.WithTryBitmode(((nbBits+7)/8)*8-8))
+	return fs, nil
 }
 
 func (h *shortCircuitHash) Sum() frontend.Variable {

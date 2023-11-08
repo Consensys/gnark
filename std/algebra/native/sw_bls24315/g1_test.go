@@ -85,23 +85,33 @@ func (c *MarshalG1Test) Define(api frontend.API) error {
 func TestMarshalG1(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	// sample a random point
-	var r fr.Element
-	r.SetRandom()
-	var br big.Int
-	r.BigInt(&br)
-	_, _, g, _ := bls24315.Generators()
-	g.ScalarMultiplication(&g, &br)
-	gBytes := g.Marshal()
-	var witness MarshalG1Test
-	witness.P.Assign(&g)
-	for i := 0; i < 80; i++ {
-		for j := 0; j < 8; j++ {
-			witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+	testfn := func(r fr.Element) {
+		var br big.Int
+		r.BigInt(&br)
+		_, _, g, _ := bls24315.Generators()
+		g.ScalarMultiplication(&g, &br)
+		gBytes := g.Marshal()
+		var witness MarshalG1Test
+		witness.P.Assign(&g)
+		for i := 0; i < 80; i++ {
+			for j := 0; j < 8; j++ {
+				witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+			}
 		}
+		var circuit MarshalG1Test
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 	}
-	var circuit MarshalG1Test
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+	assert.Run(func(assert *test.Assert) {
+		// sample a random point
+		var r fr.Element
+		r.SetRandom()
+		testfn(r)
+	})
+	assert.Run(func(assert *test.Assert) {
+		var r fr.Element
+		r.SetZero()
+		testfn(r)
+	})
 }
 
 // -------------------------------------------------------------------------------------------------
