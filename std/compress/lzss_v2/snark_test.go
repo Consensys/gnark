@@ -25,13 +25,18 @@ func Test0To10Explicit(t *testing.T) {
 func Test3ZerosBackref(t *testing.T) {
 	testDecompressionSnark(t, nil, 0, backref{
 		offset: 0,
-		length: 1,
+		length: 2,
 		bType:  shortBackRefType,
 	}, backref{
 		offset: 1,
 		length: 1,
 		bType:  longBackRefType,
-	})
+	},
+	)
+}
+
+func Test253_254_255(t *testing.T) {
+	testCompressionRoundTripSnark(t, []byte{253, 254, 255}, nil)
 }
 
 func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
