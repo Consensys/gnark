@@ -2,6 +2,7 @@ package sw_bls24315
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
@@ -95,7 +96,8 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar) *G1Affine {
 		X: P.X,
 		Y: P.Y,
 	}
-	res.ScalarMul(c.api, *P, s.Limbs[0])
+	varScalar := c.packScalarToVar(s)
+	res.ScalarMul(c.api, *P, varScalar)
 	return res
 }
 
@@ -103,7 +105,8 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar) *G1Affine {
 // curve. It doesn't modify the scalar.
 func (c *Curve) ScalarMulBase(s *Scalar) *G1Affine {
 	res := new(G1Affine)
-	res.ScalarMulBase(c.api, s.Limbs[0])
+	varScalar := c.packScalarToVar(s)
+	res.ScalarMulBase(c.api, varScalar)
 	return res
 }
 
@@ -315,6 +318,23 @@ type Scalar = emulated.Element[ScalarField]
 // NewScalar allocates a witness from the native scalar and returns it.
 func NewScalar(v fr_bls24315.Element) Scalar {
 	return emulated.ValueOf[ScalarField](v)
+}
+
+// packScalarToVar packs the limbs of emulated scalar to a frontend.Variable.
+//
+// The method is for compatibility for existing scalar multiplication
+// implementation which assumes as an input frontend.Variable.
+func (c *Curve) packScalarToVar(s *Scalar) frontend.Variable {
+	var fr ScalarField
+	reduced := c.fr.Reduce(s)
+	var res frontend.Variable = 0
+	nbBits := fr.BitsPerLimb()
+	coef := new(big.Int)
+	one := big.NewInt(1)
+	for i := range reduced.Limbs {
+		res = c.api.Add(res, c.api.Mul(reduced.Limbs[i], coef.Lsh(one, nbBits*uint(i))))
+	}
+	return res
 }
 
 // ScalarField defines the [emulated.FieldParams] implementation on a one limb of the scalar field.
