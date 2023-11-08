@@ -50,6 +50,21 @@ func Test3c2943Snark(t *testing.T) {
 	testCompressionRoundTripSnark(t, d, dict)
 }
 
+// Fuzz test the decompression
+func FuzzSnark(f *testing.F) {
+	f.Add([]byte("hi"))
+	f.Add([]byte{0, 0, 0, 0, 0, 0, 0, 0})
+
+	dict := []byte{0, 0, 0, 0}
+
+	f.Fuzz(func(t *testing.T, a []byte) {
+		if len(a) > maxInputSize {
+			t.Skip("input too large")
+		}
+		testCompressionRoundTripSnark(t, a, dict)
+	})
+}
+
 func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
 	compressor, err := NewCompressor(dict)
 	require.NoError(t, err)

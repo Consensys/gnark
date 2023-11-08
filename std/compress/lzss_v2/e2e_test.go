@@ -1,4 +1,4 @@
-package lzss_v1
+package lzss_v2
 
 import (
 	"fmt"
@@ -21,33 +21,18 @@ import (
 )
 
 func TestCompression1ZeroE2E(t *testing.T) {
-	testCompressionE2E(t, []byte{0}, Settings{
-		BackRefSettings: BackRefSettings{
-			NbBitsAddress: 18,
-			NbBitsLength:  8,
-		},
-	}, "1_zero")
+	testCompressionE2E(t, []byte{0}, nil, "1_zero")
 }
 
 func BenchmarkCompression26KBE2E(b *testing.B) {
-	testCompressionE2E(b, nil, Settings{
-		BackRefSettings: BackRefSettings{
-			NbBitsAddress: 20,
-			NbBitsLength:  8,
-		},
-	}, "3c2943")
+	testCompressionE2E(b, nil, nil, "3c2943")
 }
 
 func BenchmarkCompression600KBE2E(b *testing.B) {
-	testCompressionE2E(b, nil, Settings{
-		BackRefSettings: BackRefSettings{
-			NbBitsAddress: 20,
-			NbBitsLength:  8,
-		},
-	}, "large")
+	testCompressionE2E(b, nil, getDictionnary(), "large")
 }
 
-func testCompressionE2E(t assert.TestingT, d []byte, settings Settings, name string) {
+func testCompressionE2E(t assert.TestingT, d, dict []byte, name string) {
 	if d == nil {
 		var err error
 		d, err = os.ReadFile("../test_cases/" + name + "/data.bin")
@@ -56,19 +41,24 @@ func testCompressionE2E(t assert.TestingT, d []byte, settings Settings, name str
 
 	// compress
 
-	c, err := Compress(d, settings)
+	compressor, err := NewCompressor(dict)
 	assert.NoError(t, err)
 
-	cSum, err := check(c, len(c.D))
+	c, err := compressor.Compress(d)
+	assert.NoError(t, err)
+
+	cStream := ReadIntoStream(c, dict)
+
+	cSum, err := check(cStream, cStream.Len())
 	assert.NoError(t, err)
 
 	dSum, err := check(compress.NewStreamFromBytes(d), len(d))
 	assert.NoError(t, err)
 
 	circuit := compressionCircuit{
-		C:        make([]frontend.Variable, c.Len()),
-		D:        make([]frontend.Variable, len(d)),
-		Settings: settings,
+		C:    make([]frontend.Variable, cStream.Len()),
+		D:    make([]frontend.Variable, len(d)),
+		Dict: make([]byte, len(dict)),
 	}
 
 	// solve the circuit or only compile it
@@ -77,9 +67,10 @@ func testCompressionE2E(t assert.TestingT, d []byte, settings Settings, name str
 		assignment := compressionCircuit{
 			CChecksum: cSum,
 			DChecksum: dSum,
-			C:         test_vector_utils.ToVariableSlice(c.D),
+			C:         test_vector_utils.ToVariableSlice(cStream.D),
 			D:         test_vector_utils.ToVariableSlice(d),
-			CLen:      c.Len(),
+			Dict:      dict,
+			CLen:      cStream.Len(),
 			DLen:      len(d),
 		}
 		test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
@@ -121,14 +112,15 @@ type compressionCircuit struct {
 	CChecksum, DChecksum frontend.Variable `gnark:",public"`
 	C                    []frontend.Variable
 	D                    []frontend.Variable
+	Dict                 []byte
 	CLen, DLen           frontend.Variable
 }
 
 func (c *compressionCircuit) Define(api frontend.API) error {
-	
+
 	fmt.Println("packing")
-	cPacked := Pack(api, c.C, c.Settings.WordNbBits())
-	dPacked := Pack(api, c.D, 8)
+	cPacked := compress.Pack(api, c.C, int(compress.Gcd(8, longBackRefType.nbBitsAddress, longBackRefType.nbBitsLength, shortBackRefType.nbBitsAddress, shortBackRefType.nbBitsLength)))
+	dPacked := compress.Pack(api, c.D, 8)
 
 	fmt.Println("computing checksum")
 	if err := checkSnark(api, cPacked, c.CLen, c.CChecksum); err != nil {
@@ -140,7 +132,7 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 
 	fmt.Println("decompressing")
 	dComputed := make([]frontend.Variable, len(c.D))
-	if dComputedLen, err := DecompressGo(api, c.C, dComputed, c.CLen, c.Settings); err != nil {
+	if dComputedLen, err := Decompress(api, c.C, c.CLen, dComputed, c.Dict); err != nil {
 		return err
 	} else {
 		api.AssertIsEqual(dComputedLen, c.DLen)

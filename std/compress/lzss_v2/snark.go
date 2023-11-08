@@ -37,10 +37,13 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	}
 
 	// formatted input
+	fmt.Println("creating bytes slice")
 	bytes := combineIntoBytes(api, c, int(wordLen))
+	fmt.Println("turning bytes slice into table")
 	bytesTable := sliceToTable(api, bytes)
 	bytesTable.Insert(0) // just because we use this table for looking up backref lengths as well
 	//lenTable := createLengthTables(api, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
+	fmt.Println("creating address table")
 	addrTable := initAddrTable(api, bytes, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
 
 	// state variables
@@ -50,12 +53,14 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	eof := frontend.Variable(0)
 	dLength = 0
 
+	prevPct := -1
 	for outI := range d {
-		if outI == 25599 {
-			fmt.Println("oop")
-		}
 		if outI%2000 == 0 {
-			fmt.Println("compilation at", outI, "out of", len(d), ";", outI*100/len(d), "%")
+			pct := outI * 100 / len(d)
+			if pct != prevPct {
+				fmt.Println("compilation at", outI, "out of", len(d), ";", pct, "%")
+				prevPct = pct
+			}
 		}
 
 		curr := bytesTable.Lookup(inI)[0]
@@ -140,7 +145,13 @@ func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.T
 func combineIntoBytes(api frontend.API, c []frontend.Variable, wordNbBits int) []frontend.Variable {
 	reader := newNumReader(api, c, 8, wordNbBits)
 	res := make([]frontend.Variable, len(c))
+	prevPct := -1
 	for i := range res {
+		pct := i * 100 / len(res)
+		if pct != prevPct {
+			prevPct = pct
+			fmt.Println("bytes compilation at", pct, "%")
+		}
 		res[i] = reader.next()
 	}
 	return res
@@ -165,7 +176,14 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits in
 
 	res := logderivlookup.New(api)
 
+	prevPct := -1
 	for i := range c {
+		pct := i * 100 / len(c)
+		if pct != prevPct {
+			prevPct = pct
+			fmt.Println("addr table compilation at", pct, "%")
+		}
+
 		entry := frontend.Variable(0)
 		for j := range backrefs {
 			isSymb := api.IsZero(api.Sub(bytes[i], backrefs[j].delimiter))
