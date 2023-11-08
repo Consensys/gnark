@@ -15,13 +15,11 @@ import (
 	"fmt"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
-	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/kzg"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -29,6 +27,7 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
@@ -36,7 +35,37 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/recursion"
 )
+
+// ValueOfScalar initializes a scalar in a witness from a native scalar (Fr) point.
+// The scalars are always emulated.
+func ValueOfScalar[FR emulated.FieldParams](scalar any) (emulated.Element[FR], error) {
+	var ret emulated.Element[FR]
+	switch s := any(&ret).(type) {
+	case *emulated.Element[emulated.BN254Fr]:
+		tScalar, ok := scalar.(fr_bn254.Element)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, tScalar)
+		}
+		*s = sw_bn254.NewScalar(tScalar)
+	case *emulated.Element[emulated.BW6761Fr]:
+		tScalar, ok := scalar.(fr_bw6761.Element)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, tScalar)
+		}
+		*s = sw_bw6761.NewScalar(tScalar)
+	case *emulated.Element[emulated.BLS12381Fr]:
+		tScalar, ok := scalar.(fr_bls12381.Element)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, tScalar)
+		}
+		*s = sw_bls12381.NewScalar(tScalar)
+	default:
+		return ret, fmt.Errorf("unknown type parametrization")
+	}
+	return ret, nil
+}
 
 // Commitment is an KZG commitment to a polynomial. Use [ValueOfCommitment] to
 // initialize a witness from the native commitment.
@@ -90,15 +119,14 @@ func ValueOfCommitment[G1El algebra.G1ElementT](cmt any) (Commitment[G1El], erro
 // equal to ClaimedValue. Use [ValueOfOpeningProof] to initialize a witness from
 // a native opening proof.
 type OpeningProof[FR emulated.FieldParams, G1El algebra.G1ElementT] struct {
-	QuotientPoly G1El
+	Quotient     G1El
 	ClaimedValue emulated.Element[FR]
-	Point        emulated.Element[FR]
 }
 
 // ValueOfOpeningProof initializes an opening proof from the given proof and
 // point. It returns an error if there is a mismatch between the type parameters
 // and types of the provided point and proof.
-func ValueOfOpeningProof[FR emulated.FieldParams, G1El algebra.G1ElementT](point any, proof any) (OpeningProof[FR, G1El], error) {
+func ValueOfOpeningProof[FR emulated.FieldParams, G1El algebra.G1ElementT](proof any) (OpeningProof[FR, G1El], error) {
 	var ret OpeningProof[FR, G1El]
 	switch s := any(&ret).(type) {
 	case *OpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine]:
@@ -106,61 +134,80 @@ func ValueOfOpeningProof[FR emulated.FieldParams, G1El algebra.G1ElementT](point
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
-		tPoint, ok := point.(fr_bn254.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
-		}
-		s.QuotientPoly = sw_bn254.NewG1Affine(tProof.H)
+		s.Quotient = sw_bn254.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bn254.NewScalar(tProof.ClaimedValue)
-		s.Point = sw_bn254.NewScalar(tPoint)
 	case *OpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine]:
 		tProof, ok := proof.(kzg_bls12377.OpeningProof)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
-		tPoint, ok := point.(fr_bls12377.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
-		}
-		s.QuotientPoly = sw_bls12377.NewG1Affine(tProof.H)
+		s.Quotient = sw_bls12377.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bls12377.NewScalar(tProof.ClaimedValue)
-		s.Point = sw_bls12377.NewScalar(tPoint)
 	case *OpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine]:
 		tProof, ok := proof.(kzg_bls12381.OpeningProof)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
-		tPoint, ok := point.(fr_bls12381.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
-		}
-		s.QuotientPoly = sw_bls12381.NewG1Affine(tProof.H)
+		s.Quotient = sw_bls12381.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bls12381.NewScalar(tProof.ClaimedValue)
-		s.Point = sw_bls12381.NewScalar(tPoint)
 	case *OpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine]:
 		tProof, ok := proof.(kzg_bw6761.OpeningProof)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
-		tPoint, ok := point.(fr_bw6761.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
-		}
-		s.QuotientPoly = sw_bw6761.NewG1Affine(tProof.H)
+		s.Quotient = sw_bw6761.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bw6761.NewScalar(tProof.ClaimedValue)
-		s.Point = sw_bw6761.NewScalar(tPoint)
 	case *OpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine]:
 		tProof, ok := proof.(kzg_bls24315.OpeningProof)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
-		tPoint, ok := point.(fr_bls24315.Element)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
-		}
-		s.QuotientPoly = sw_bls24315.NewG1Affine(tProof.H)
+		s.Quotient = sw_bls24315.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bls24315.NewScalar(tProof.ClaimedValue)
-		s.Point = sw_bls24315.NewScalar(tPoint)
+	default:
+		return ret, fmt.Errorf("unknown type parametrization")
+	}
+	return ret, nil
+}
+
+type BatchOpeningProof[FR emulated.FieldParams, G1El algebra.G1ElementT] struct {
+	Quotient      G1El
+	ClaimedValues []emulated.Element[FR]
+}
+
+func ValueOfBatchOpeningProof[FR emulated.FieldParams, G1El any](proof any) (BatchOpeningProof[FR, G1El], error) {
+	var ret BatchOpeningProof[FR, G1El]
+	switch s := any(&ret).(type) {
+	case *BatchOpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine]:
+		tProof, ok := proof.(kzg_bn254.BatchOpeningProof)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
+		}
+		s.Quotient = sw_bn254.NewG1Affine(tProof.H)
+		s.ClaimedValues = make([]emulated.Element[sw_bn254.ScalarField], len(tProof.ClaimedValues))
+		for i := 0; i < len(s.ClaimedValues); i++ {
+			s.ClaimedValues[i] = sw_bn254.NewScalar(tProof.ClaimedValues[i])
+		}
+	case *BatchOpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine]:
+		tProof, ok := proof.(kzg_bls12381.BatchOpeningProof)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
+		}
+		s.Quotient = sw_bls12381.NewG1Affine(tProof.H)
+		s.ClaimedValues = make([]emulated.Element[sw_bls12381.ScalarField], len(tProof.ClaimedValues))
+		for i := 0; i < len(s.ClaimedValues); i++ {
+			s.ClaimedValues[i] = sw_bls12381.NewScalar(tProof.ClaimedValues[i])
+		}
+	case *BatchOpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine]:
+		tProof, ok := proof.(kzg_bw6761.BatchOpeningProof)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
+		}
+		s.Quotient = sw_bw6761.NewG1Affine(tProof.H)
+		s.ClaimedValues = make([]emulated.Element[sw_bw6761.ScalarField], len(tProof.ClaimedValues))
+		for i := 0; i < len(s.ClaimedValues); i++ {
+			s.ClaimedValues[i] = sw_bw6761.NewScalar(tProof.ClaimedValues[i])
+		}
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -169,51 +216,57 @@ func ValueOfOpeningProof[FR emulated.FieldParams, G1El algebra.G1ElementT](point
 
 // VerifyingKey is the trusted setup for KZG polynomial commitment scheme. Use
 // [ValueOfVerifyingKey] to initialize a witness from the native VerifyingKey.
-type VerifyingKey[G2El algebra.G2ElementT] struct {
-	SRS [2]G2El
+type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
+	G2 [2]G2El
+	G1 G1El
 }
 
 // ValueOfVerifyingKey initializes verifying key witness from the native
 // verifying key. It returns an error if there is a mismatch between the type
 // parameters and the provided verifying key type.
-func ValueOfVerifyingKey[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2El], error) {
-	var ret VerifyingKey[G2El]
+func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk any) (VerifyingKey[G1El, G2El], error) {
+	var ret VerifyingKey[G1El, G2El]
 	switch s := any(&ret).(type) {
-	case *VerifyingKey[sw_bn254.G2Affine]:
+	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
 		tVk, ok := vk.(kzg_bn254.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		s.SRS[0] = sw_bn254.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bn254.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bls12377.G2Affine]:
+		s.G1 = sw_bn254.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bn254.NewG2Affine(tVk.G2[0])
+		s.G2[1] = sw_bn254.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
 		tVk, ok := vk.(kzg_bls12377.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		s.SRS[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bls12381.G2Affine]:
+		s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
+		s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
 		tVk, ok := vk.(kzg_bls12381.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		s.SRS[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bw6761.G2Affine]:
+		s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
+		s.G2[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		tVk, ok := vk.(kzg_bw6761.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		s.SRS[0] = sw_bw6761.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bw6761.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bls24315.G2Affine]:
+		s.G1 = sw_bw6761.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bw6761.NewG2Affine(tVk.G2[0])
+		s.G2[1] = sw_bw6761.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
 		tVk, ok := vk.(kzg_bls24315.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		s.SRS[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+		s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
+		s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -222,44 +275,279 @@ func ValueOfVerifyingKey[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2El], e
 
 // Verifier allows verifying KZG opening proofs.
 type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT] struct {
-	VerifyingKey[G2El]
-
-	curve   algebra.Curve[FR, G1El]
-	pairing algebra.Pairing[G1El, G2El, GtEl]
+	api       frontend.API
+	scalarApi *emulated.Field[FR]
+	curve     algebra.Curve[FR, G1El]
+	pairing   algebra.Pairing[G1El, G2El, GtEl]
 }
 
 // NewVerifier initializes a new Verifier instance.
-func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT](vk VerifyingKey[G2El], curve algebra.Curve[FR, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[FR, G1El, G2El, GtEl] {
-	return &Verifier[FR, G1El, G2El, GtEl]{
-		VerifyingKey: vk,
-		curve:        curve,
-		pairing:      pairing,
+func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT](api frontend.API) (*Verifier[FR, G1El, G2El, GtEl], error) {
+	curve, err := algebra.GetCurve[FR, G1El](api)
+	if err != nil {
+		return nil, err
 	}
+	scalarApi, err := emulated.NewField[FR](api)
+	if err != nil {
+		return nil, err
+	}
+	pairing, err := algebra.GetPairing[G1El, G2El, GtEl](api)
+	if err != nil {
+		return nil, err
+	}
+	return &Verifier[FR, G1El, G2El, GtEl]{
+		api:       api,
+		scalarApi: scalarApi,
+		curve:     curve,
+		pairing:   pairing,
+	}, nil
 }
 
-// AssertProof asserts the validity of the opening proof for the given
-// commitment.
-func (vk *Verifier[FR, G1El, G2El, GtEl]) AssertProof(commitment Commitment[G1El], proof OpeningProof[FR, G1El]) error {
-	// [f(a)]G₁
-	claimedValueG1 := vk.curve.ScalarMulBase(&proof.ClaimedValue)
+// CheckOpeningProof asserts the validity of the opening proof for the given
+// commitment at point.
+func (v *Verifier[FR, G1El, G2El, GTEl]) CheckOpeningProof(commitment Commitment[G1El], proof OpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
+
+	claimedValueG1 := v.curve.ScalarMulBase(&proof.ClaimedValue)
 
 	// [f(α) - f(a)]G₁
-	fminusfaG1 := vk.curve.Neg(claimedValueG1)
-	fminusfaG1 = vk.curve.Add(fminusfaG1, &commitment.G1El)
+	fminusfaG1 := v.curve.Neg(claimedValueG1)
+	fminusfaG1 = v.curve.Add(fminusfaG1, &commitment.G1El)
 
 	// [-H(α)]G₁
-	negQuotientPoly := vk.curve.Neg(&proof.QuotientPoly)
+	negQuotientPoly := v.curve.Neg(&proof.Quotient)
 
 	// [f(α) - f(a) + a*H(α)]G₁
-	totalG1 := vk.curve.ScalarMul(&proof.QuotientPoly, &proof.Point)
-	totalG1 = vk.curve.Add(totalG1, fminusfaG1)
+	totalG1 := v.curve.ScalarMul(&proof.Quotient, &point)
+	totalG1 = v.curve.Add(totalG1, fminusfaG1)
 
 	// e([f(α)-f(a)+aH(α)]G₁], G₂).e([-H(α)]G₁, [α]G₂) == 1
-	if err := vk.pairing.PairingCheck(
+	if err := v.pairing.PairingCheck(
 		[]*G1El{totalG1, negQuotientPoly},
-		[]*G2El{&vk.SRS[0], &vk.SRS[1]},
+		[]*G2El{&vk.G2[0], &vk.G2[1]},
 	); err != nil {
 		return fmt.Errorf("pairing check: %w", err)
 	}
 	return nil
+}
+
+func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El], dataTranscript ...frontend.Variable) error {
+	// fold the proof
+	foldedProof, foldedDigest, err := v.FoldProof(digests, batchOpeningProof, point, dataTranscript...)
+	if err != nil {
+		return fmt.Errorf("fold proofs: %w", err)
+	}
+	// verify the foldedProof against the foldedDigest
+	err = v.CheckOpeningProof(foldedDigest, foldedProof, point, vk)
+	if err != nil {
+		return fmt.Errorf("check opening proof: %w", err)
+	}
+	return nil
+}
+
+func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
+	var fr FR
+
+	// check consistency nb proogs vs nb digests
+	if len(digests) != len(proofs) {
+		return fmt.Errorf("number of commitments doesn't match number of proofs")
+	}
+	if len(digests) != len(points) {
+		return fmt.Errorf("number of commitments doesn't match number of points ")
+	}
+
+	// len(digests) should be nonzero because of randomNumbers
+	if len(digests) == 0 {
+		return fmt.Errorf("number of digests should be nonzero")
+	}
+
+	// if only one digest, call Verify
+	if len(digests) == 1 {
+		return v.CheckOpeningProof(digests[0], proofs[0], points[0], vk)
+	}
+
+	// sample random numbers λᵢ for sampling
+	randomNumbers := make([]*emulated.Element[FR], len(digests))
+	randomNumbers[0] = v.scalarApi.One()
+	whSnark, err := recursion.NewHash(v.api, fr.Modulus(), true)
+	if err != nil {
+		return err
+	}
+	for i := 0; i < len(digests); i++ {
+		marshalledG1 := v.curve.MarshalG1(digests[i].G1El)
+		whSnark.Write(marshalledG1...)
+		marshalledG1 = v.curve.MarshalG1(proofs[i].Quotient)
+		whSnark.Write(marshalledG1...)
+		marshalledScalar := v.curve.MarshalScalar(proofs[i].ClaimedValue)
+		whSnark.Write(marshalledScalar...)
+		marshalledScalar = v.curve.MarshalScalar(points[i])
+		whSnark.Write(marshalledScalar...)
+	}
+
+	seed := whSnark.Sum()
+	binSeed := v.api.ToBinary(seed)
+	randomNumbers[1] = v.scalarApi.FromBits(binSeed...)
+
+	for i := 2; i < len(randomNumbers); i++ {
+		// TODO use real random numbers, follow the solidity smart contract to know which variables are used as seed
+		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[1], randomNumbers[i-1])
+	}
+
+	// fold the committed quotients compute ∑ᵢλᵢ[Hᵢ(α)]G₁
+	var foldedQuotients *G1El
+	quotients := make([]G1El, len(proofs))
+	for i := 0; i < len(randomNumbers); i++ {
+		quotients[i] = proofs[i].Quotient
+	}
+	foldedQuotients = v.curve.ScalarMul(&quotients[0], randomNumbers[0])
+	for i := 1; i < len(digests); i++ {
+		tmp := v.curve.ScalarMul(&quotients[i], randomNumbers[i])
+		foldedQuotients = v.curve.Add(tmp, foldedQuotients)
+	}
+
+	// fold digests and evals
+	evals := make([]emulated.Element[FR], len(digests))
+
+	// fold the digests: ∑ᵢλᵢ[f_i(α)]G₁
+	// fold the evals  : ∑ᵢλᵢfᵢ(aᵢ)
+	for i := 0; i < len(digests); i++ {
+		evals[i] = proofs[i].ClaimedValue
+	}
+
+	foldedDigests, foldedEvals := v.fold(digests, evals, randomNumbers)
+
+	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
+	foldedEvalsCommit := v.curve.ScalarMul(&vk.G1, foldedEvals)
+
+	// compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
+	tmp := v.curve.Neg(foldedEvalsCommit)
+	var foldedDigest *G1El
+	foldedDigest = v.curve.Add(&foldedDigests.G1El, tmp)
+
+	// combien the points and the quotients using γᵢ
+	// ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
+	var foldedPointsQuotients *G1El
+	for i := 0; i < len(randomNumbers); i++ {
+		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[i], &points[i])
+	}
+	foldedPointsQuotients = v.curve.ScalarMul(&quotients[0], randomNumbers[0])
+	for i := 1; i < len(digests); i++ {
+		tmp = v.curve.ScalarMul(&quotients[i], randomNumbers[i])
+		foldedPointsQuotients = v.curve.Add(foldedPointsQuotients, tmp)
+	}
+
+	// ∑ᵢλᵢ[f_i(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁ + ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
+	// = [∑ᵢλᵢf_i(α) - ∑ᵢλᵢfᵢ(aᵢ) + ∑ᵢλᵢpᵢHᵢ(α)]G₁
+	foldedDigest = v.curve.Add(foldedDigest, foldedPointsQuotients)
+
+	// -∑ᵢλᵢ[Qᵢ(α)]G₁
+	// foldedQuotients.Neg(&foldedQuotients)
+	foldedQuotients = v.curve.Neg(foldedQuotients)
+
+	// pairing check
+	err = v.pairing.PairingCheck(
+		[]*G1El{foldedDigest, foldedQuotients},
+		[]*G2El{&vk.G2[0], &vk.G2[1]},
+	)
+	if err != nil {
+		return fmt.Errorf("pairingcheck: %w", err)
+	}
+
+	return err
+}
+
+func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], dataTranscript ...frontend.Variable) (OpeningProof[FR, G1El], Commitment[G1El], error) {
+	var retP OpeningProof[FR, G1El]
+	var retC Commitment[G1El]
+	nbDigests := len(digests)
+
+	// check consistency between numbers of claims vs number of digests
+	if nbDigests != len(batchOpeningProof.ClaimedValues) {
+		return retP, retC, fmt.Errorf("length mismatch for digests and claimed values")
+	}
+
+	// derive the challenge γ, binded to the point and the commitments
+	gamma, err := v.deriveGamma(point, digests, batchOpeningProof.ClaimedValues, dataTranscript...)
+	if err != nil {
+		return retP, retC, err
+	}
+
+	// fold the claimed values and digests
+	// gammai = [1,γ,γ²,..,γⁿ⁻¹]
+	gammai := make([]*emulated.Element[FR], nbDigests)
+	gammai[0] = v.scalarApi.One()
+	if nbDigests > 1 {
+		gammai[1] = gamma
+	}
+	for i := 2; i < nbDigests; i++ {
+		gammai[i] = v.scalarApi.Mul(gammai[i-1], gamma)
+	}
+	foldedDigests, foldedEvaluations := v.fold(digests, batchOpeningProof.ClaimedValues, gammai)
+	return OpeningProof[FR, G1El]{
+		Quotient:     batchOpeningProof.Quotient,
+		ClaimedValue: *foldedEvaluations,
+	}, foldedDigests, nil
+
+}
+
+// deriveGamma derives a challenge using Fiat Shamir to fold proofs.
+// dataTranscript are supposed to be bits.
+func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR], digests []Commitment[G1El], claimedValues []emulated.Element[FR], dataTranscript ...frontend.Variable) (*emulated.Element[FR], error) {
+	var fr FR
+	fs, err := recursion.NewTranscript(v.api, fr.Modulus(), []string{"gamma"})
+	if err != nil {
+		return nil, fmt.Errorf("new transcript: %w", err)
+	}
+	if err := fs.Bind("gamma", v.curve.MarshalScalar(point)); err != nil {
+		return nil, fmt.Errorf("bind point: %w", err)
+	}
+
+	for i := range digests {
+		if err := fs.Bind("gamma", v.curve.MarshalG1(digests[i].G1El)); err != nil {
+			return nil, fmt.Errorf("bind %d-th commitment: %w", i, err)
+		}
+	}
+	for i := range claimedValues {
+		if err := fs.Bind("gamma", v.curve.MarshalScalar(claimedValues[i])); err != nil {
+			return nil, fmt.Errorf("bing %d-th claimed value: %w", i, err)
+		}
+	}
+
+	if err := fs.Bind("gamma", dataTranscript); err != nil {
+		return nil, fmt.Errorf("bind data transcript: %w", err)
+	}
+
+	gamma, err := fs.ComputeChallenge("gamma")
+	if err != nil {
+		return nil, fmt.Errorf("compute challenge: %w", err)
+	}
+	bGamma := v.api.ToBinary(gamma)
+	gammaS := v.scalarApi.FromBits(bGamma...)
+
+	return gammaS, nil
+}
+
+func (v *Verifier[FR, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai []emulated.Element[FR], ci []*emulated.Element[FR]) (Commitment[G1El], *emulated.Element[FR]) {
+	// length inconsistency between digests and evaluations should have been done before calling this function
+	nbDigests := len(digests)
+
+	// fold the claimed values ∑ᵢcᵢf(aᵢ)
+	var tmp *emulated.Element[FR]
+	foldedEvaluations := v.scalarApi.Zero()
+	for i := 0; i < nbDigests; i++ {
+		tmp = v.scalarApi.Mul(&fai[i], ci[i])
+		foldedEvaluations = v.scalarApi.Add(foldedEvaluations, tmp)
+	}
+
+	// fold the digests ∑ᵢ[cᵢ]([fᵢ(α)]G₁)
+	foldedDigest := v.curve.ScalarMul(&digests[0].G1El, ci[0])
+	for i := 1; i < nbDigests; i++ {
+		tmp := v.curve.ScalarMul(&digests[i].G1El, ci[i])
+		foldedDigest = v.curve.Add(tmp, foldedDigest)
+	}
+
+	// folding done
+	return Commitment[G1El]{
+		G1El: *foldedDigest,
+	}, foldedEvaluations
+
 }
