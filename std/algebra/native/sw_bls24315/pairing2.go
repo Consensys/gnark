@@ -158,17 +158,15 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
-// DoublePairingFixedQCheck computes the multi-pairing of size 2 where one of
-// the inputs is the fixed canonical generatortor of G2Affine and asserts that
-// the result is an identity element in the target group. It returns an error
-// if there is a mismatch between the lengths of the inputs.
-func (p *Pairing) DoublePairingFixedQCheck(P [2]*G1Affine, Q *G2Affine) error {
-	var inP [2]G1Affine
+// PairingFixedQCheck computes the multi-pairing of the input pairs and asserts that
+// the result is an identity element in the target group. It returns an error if
+// there is a mismatch between the lengths of the inputs.
+func (p *Pairing) PairingFixedQCheck(P []*G1Affine, lines [][8][32]fields_bls24315.E2) error {
+	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
-		inP[i] = *P[i]
 	}
-	res, err := DoublePairFixedQ(p.api, inP, *Q)
+	res, err := PairFixedQ(p.api, inP, lines)
 	if err != nil {
 		return err
 	}

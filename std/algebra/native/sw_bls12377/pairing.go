@@ -409,97 +409,29 @@ func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvalu
 // ----------------------------
 //	  Fixed-argument pairing
 // ----------------------------
-//
-// The second argument Q is the fixed canonical generator of G2.
-//
-// Q.X.A0 = 0x18480be71c785fec89630a2a3841d01c565f071203e50317ea501f557db6b9b71889f52bb53540274e3e48f7c005196
-// Q.X.A1 = 0xea6040e700403170dc5a51b1b140d5532777ee6651cecbe7223ece0799c9de5cf89984bff76fe6b26bfefa6ea16afe
-// Q.Y.A0 = 0x690d665d446f7bd960736bcbb2efb4de03ed7274b49a58e458c282f832d204f2cf88886d8c7c2ef094094409fd4ddf
-// Q.Y.A1 = 0xf8169fd28355189e549da3151a70aa61ef11ac3d591bf12463b01acee304c24279b83f5e52270bd9a1cdd185eb8f93
 
-// MillerLoopFixed computes the single Miller loop
-// fᵢ_{u,g2}(P), where g2 is fixed.
-func MillerLoopFixedQ(api frontend.API, P G1Affine) (GT, error) {
+// MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
+// but Qᵢ are fixed points in G2 known in advance.
+func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][4][63]fields_bls12377.E2) (GT, error) {
 
-	var res GT
-	res.SetOne()
-	var prodLines [5]fields_bls12377.E2
-
-	var l1, l2 lineEvaluation
-	var yInv, xOverY frontend.Variable
-	yInv = api.DivUnchecked(1, P.Y)
-	xOverY = api.Mul(P.X, yInv)
-
-	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
-	// i = 62, separately to avoid an E12 Square
-	// (Square(res) = 1² = 1)
-
-	// k = 0, separately to avoid MulBy034 (res × ℓ)
-	// (assign line(P) to res)
-	res.C1.B0.MulByFp(api, precomputedLines[0][62], xOverY)
-	res.C1.B1.MulByFp(api, precomputedLines[1][62], yInv)
-
-	// i = 61, separately to use a special E12 Square
-	res.Square034(api, res)
-	prodLines[0] = res.C0.B0
-	prodLines[1] = res.C0.B1
-	prodLines[2] = res.C0.B2
-	prodLines[3] = res.C1.B0
-	prodLines[4] = res.C1.B1
-	// line evaluation at P
-	l1.R0.MulByFp(api, precomputedLines[0][61], xOverY)
-	l1.R1.MulByFp(api, precomputedLines[1][61], yInv)
-	// ℓ × res
-	res = *fields_bls12377.Mul01234By034(api, prodLines, l1.R0, l1.R1)
-
-	for i := 60; i >= 0; i-- {
-		// mutualize the square among n Miller loops
-		// (∏ᵢfᵢ)²
-		res.Square(api, res)
-
-		if loopCounter[i] == 0 {
-			// line evaluation at P
-			l1.R0.MulByFp(api, precomputedLines[0][i], xOverY)
-			l1.R1.MulByFp(api, precomputedLines[1][i], yInv)
-
-			// ℓ × res
-			res.MulBy034(api, l1.R0, l1.R1)
-			continue
-
-		}
-
-		// lines evaluation at P
-		l1.R0.MulByFp(api, precomputedLines[0][i], xOverY)
-		l1.R1.MulByFp(api, precomputedLines[1][i], yInv)
-		l2.R0.MulByFp(api, precomputedLines[2][i], xOverY)
-		l2.R1.MulByFp(api, precomputedLines[3][i], yInv)
-
-		// ℓ × ℓ
-		prodLines = *fields_bls12377.Mul034By034(api, l1.R0, l1.R1, l2.R0, l2.R1)
-		// (ℓ × ℓ) × res
-		res.MulBy01234(api, prodLines)
+	// check input size match
+	n := len(P)
+	if n == 0 || n != len(lines) {
+		return GT{}, errors.New("invalid inputs sizes")
 	}
 
-	return res, nil
-}
-
-// DoubleMillerLoopFixedQ computes the double Miller loop composed of two Miller loops
-// one with P2 and Q, the other with P1 and g2 where g2 is fixed.
-func DoubleMillerLoopFixedQ(api frontend.API, P [2]G1Affine, Q G2Affine) (GT, error) {
 	var res GT
 	res.SetOne()
 	var prodLines [5]fields_bls12377.E2
 
-	var l1, l2 lineEvaluation
-	yInv := make([]frontend.Variable, 2)
-	xNegOverY := make([]frontend.Variable, 2)
-	Qacc := Q
-	yInv[0] = api.DivUnchecked(1, P[0].Y)
-	xNegOverY[0] = api.Mul(P[0].X, yInv[0])
-	// xNegOverY[0] = api.Neg(xNegOverY[0])
-	yInv[1] = api.DivUnchecked(1, P[1].Y)
-	xNegOverY[1] = api.Mul(P[1].X, yInv[1])
-	xNegOverY[1] = api.Neg(xNegOverY[1])
+	// precomputations
+	yInv := make([]frontend.Variable, n)
+	xNegOverY := make([]frontend.Variable, n)
+	for k := 0; k < n; k++ {
+		yInv[k] = api.DivUnchecked(1, P[k].Y)
+		xNegOverY[k] = api.Mul(P[k].X, yInv[k])
+		xNegOverY[k] = api.Neg(xNegOverY[k])
+	}
 
 	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
 	// i = 62, separately to avoid an E12 Square
@@ -507,137 +439,144 @@ func DoubleMillerLoopFixedQ(api frontend.API, P [2]G1Affine, Q G2Affine) (GT, er
 
 	// k = 0, separately to avoid MulBy034 (res × ℓ)
 	// (assign line to res)
-	Qacc, l1 = doubleStep(api, &Qacc)
 	// line evaluation at P[0]
-	res.C1.B0.MulByFp(api, l1.R0, xNegOverY[1])
-	res.C1.B1.MulByFp(api, l1.R1, yInv[1])
+	res.C1.B0.MulByFp(api, lines[0][0][62], xNegOverY[0])
+	res.C1.B1.MulByFp(api, lines[0][1][62], yInv[0])
 
-	// line evaluation at P
-	l1.R0.MulByFp(api, precomputedLines[0][62], xNegOverY[0])
-	l1.R1.MulByFp(api, precomputedLines[1][62], yInv[0])
+	if n >= 2 {
+		// k = 1, separately to avoid MulBy034 (res × ℓ)
+		// (res is also a line at this point, so we use Mul034By034 ℓ × ℓ)
+		// line evaluation at P[1]
 
-	// ℓ × res
-	prodLines = *fields_bls12377.Mul034By034(api, l1.R0, l1.R1, res.C1.B0, res.C1.B1)
-	res.C0.B0 = prodLines[0]
-	res.C0.B1 = prodLines[1]
-	res.C0.B2 = prodLines[2]
-	res.C1.B0 = prodLines[3]
-	res.C1.B1 = prodLines[4]
+		// ℓ × res
+		prodLines = *fields_bls12377.Mul034By034(api,
+			*lines[1][0][62].MulByFp(api, lines[1][0][62], xNegOverY[1]),
+			*lines[1][1][62].MulByFp(api, lines[1][1][62], yInv[1]),
+			res.C1.B0,
+			res.C1.B1,
+		)
+		res.C0.B0 = prodLines[0]
+		res.C0.B1 = prodLines[1]
+		res.C0.B2 = prodLines[2]
+		res.C1.B0 = prodLines[3]
+		res.C1.B1 = prodLines[4]
 
-	for i := 61; i >= 1; i-- {
-		// mutualize the square among 2 Miller loops
+	}
+
+	if n >= 3 {
+		// k = 2, separately to avoid MulBy034 (res × ℓ)
+		// (res has a zero E2 element, so we use Mul01234By034)
+		// line evaluation at P[1]
+
+		// ℓ × res
+		res = *fields_bls12377.Mul01234By034(api,
+			prodLines,
+			*lines[2][0][62].MulByFp(api, lines[2][0][62], xNegOverY[2]),
+			*lines[2][1][62].MulByFp(api, lines[2][1][62], yInv[2]),
+		)
+
+		// k >= 3
+		for k := 3; k < n; k++ {
+			// line evaluation at P[k]
+
+			// ℓ × res
+			res.MulBy034(api,
+				*lines[k][0][62].MulByFp(api, lines[k][0][62], xNegOverY[k]),
+				*lines[k][1][62].MulByFp(api, lines[k][1][62], yInv[k]),
+			)
+		}
+	}
+
+	// i = 61, separately to use a special E12 Square
+	// k = 0
+	// line evaluation at P[0]
+
+	if n == 1 {
+		res.Square034(api, res)
+		prodLines[0] = res.C0.B0
+		prodLines[1] = res.C0.B1
+		prodLines[2] = res.C0.B2
+		prodLines[3] = res.C1.B0
+		prodLines[4] = res.C1.B1
+		// ℓ × res
+		res = *fields_bls12377.Mul01234By034(api,
+			prodLines,
+			*lines[0][0][61].MulByFp(api, lines[0][0][61], xNegOverY[0]),
+			*lines[0][1][61].MulByFp(api, lines[0][1][61], yInv[0]),
+		)
+
+	} else {
+		res.Square(api, res)
+		// ℓ × res
+		res.MulBy034(api,
+			*lines[0][0][61].MulByFp(api, lines[0][0][61], xNegOverY[0]),
+			*lines[0][1][61].MulByFp(api, lines[0][1][61], yInv[0]),
+		)
+
+	}
+
+	for k := 1; k < n; k++ {
+		// line evaluation at P[k]
+		// ℓ × res
+		res.MulBy034(api,
+			*lines[k][0][61].MulByFp(api, lines[k][0][61], xNegOverY[k]),
+			*lines[k][1][61].MulByFp(api, lines[k][1][61], yInv[k]),
+		)
+	}
+
+	for i := 60; i >= 0; i-- {
+		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
 
-		if loopCounter[i] == 0 {
-			// line evaluation at P
-			l1.R0.MulByFp(api, precomputedLines[0][i], xNegOverY[0])
-			l1.R1.MulByFp(api, precomputedLines[1][i], yInv[0])
+		for k := 0; k < n; k++ {
+			if loopCounter[i] == 0 {
+				// line evaluation at P
 
-			// ℓ × res
-			res.MulBy034(api, l1.R0, l1.R1)
+				// ℓ × res
+				res.MulBy034(api,
+					*lines[k][0][i].MulByFp(api, lines[k][0][i], xNegOverY[k]),
+					*lines[k][1][i].MulByFp(api, lines[k][1][i], yInv[k]),
+				)
+				continue
 
-			// Qacc ← 2Qacc and l1 the tangent ℓ passing 2Qacc
-			Qacc, l1 = doubleStep(api, &Qacc)
+			}
 
-			// line evaluation at P[1]
-			l1.R0.MulByFp(api, l1.R0, xNegOverY[1])
-			l1.R1.MulByFp(api, l1.R1, yInv[1])
+			// lines evaluation at P
 
-			// ℓ × res
-			res.MulBy034(api, l1.R0, l1.R1)
-			continue
+			// ℓ × ℓ
+			prodLines = *fields_bls12377.Mul034By034(api,
+				*lines[k][0][i].MulByFp(api, lines[k][0][i], xNegOverY[k]),
+				*lines[k][1][i].MulByFp(api, lines[k][1][i], yInv[k]),
+				*lines[k][2][i].MulByFp(api, lines[k][2][i], xNegOverY[k]),
+				*lines[k][3][i].MulByFp(api, lines[k][3][i], yInv[k]),
+			)
+			// (ℓ × ℓ) × res
+			res.MulBy01234(api, prodLines)
 		}
-
-		// lines evaluation at P
-		l1.R0.MulByFp(api, precomputedLines[0][i], xNegOverY[0])
-		l1.R1.MulByFp(api, precomputedLines[1][i], yInv[0])
-		l2.R0.MulByFp(api, precomputedLines[2][i], xNegOverY[0])
-		l2.R1.MulByFp(api, precomputedLines[3][i], yInv[0])
-
-		// ℓ × ℓ
-		prodLines = *fields_bls12377.Mul034By034(api, l1.R0, l1.R1, l2.R0, l2.R1)
-		// (ℓ × ℓ) × res
-		res.MulBy01234(api, prodLines)
-
-		// Qacc ← 2Qacc+Q[1],
-		// l1 the line ℓ passing Qacc and Q[1]
-		// l2 the line ℓ passing (Qacc+Q[1]) and Qacc
-		Qacc, l1, l2 = doubleAndAddStep(api, &Qacc, &Q)
-
-		// lines evaluation at P[1]
-		l1.R0.MulByFp(api, l1.R0, xNegOverY[1])
-		l1.R1.MulByFp(api, l1.R1, yInv[1])
-		l2.R0.MulByFp(api, l2.R0, xNegOverY[1])
-		l2.R1.MulByFp(api, l2.R1, yInv[1])
-
-		// ℓ × ℓ
-		prodLines = *fields_bls12377.Mul034By034(api, l1.R0, l1.R1, l2.R0, l2.R1)
-		// (ℓ × ℓ) × res
-		res.MulBy01234(api, prodLines)
 	}
 
-	// i = 0
-	res.Square(api, res)
-	// l1 line through Qacc and Q[1]
-	// l2 line through Qacc+Q[1] and Qacc
-	l1, l2 = linesCompute(api, &Qacc, &Q)
-
-	l1.R0.MulByFp(api, l1.R0, xNegOverY[1])
-	l1.R1.MulByFp(api, l1.R1, yInv[1])
-	l2.R0.MulByFp(api, l2.R0, xNegOverY[1])
-	l2.R1.MulByFp(api, l2.R1, yInv[1])
-
-	// ℓ × ℓ
-	prodLines = *fields_bls12377.Mul034By034(api, l1.R0, l1.R1, l2.R0, l2.R1)
-	// (ℓ × ℓ) × res
-	res.MulBy01234(api, prodLines)
-
-	// lines evaluation at P
-	l1.R0.MulByFp(api, precomputedLines[0][0], xNegOverY[0])
-	l1.R1.MulByFp(api, precomputedLines[1][0], yInv[0])
-	l2.R0.MulByFp(api, precomputedLines[2][0], xNegOverY[0])
-	l2.R1.MulByFp(api, precomputedLines[3][0], yInv[0])
-
-	// ℓ × ℓ
-	prodLines = *fields_bls12377.Mul034By034(api, l1.R0, l1.R1, l2.R0, l2.R1)
-	// (ℓ × ℓ) × res
-	res.MulBy01234(api, prodLines)
-
 	return res, nil
-
 }
 
 // PairFixedQ calculates the reduced pairing for a set of points
 // e(P, g2), where g2 is fixed.
 //
 // This function doesn't check that the inputs are in the correct subgroups.
-func PairFixedQ(api frontend.API, P G1Affine) (GT, error) {
-	f, err := MillerLoopFixedQ(api, P)
+func PairFixedQ(api frontend.API, P []G1Affine, lines [][4][63]fields_bls12377.E2) (GT, error) {
+	f, err := MillerLoopFixedQ(api, P, lines)
 	if err != nil {
 		return GT{}, err
 	}
 	return FinalExponentiation(api, f), nil
 }
 
-// DoublePairFixedQ calculates the reduced pairing for a set of points
-// e(P0, Q) * e(P1, g2), where g2 is fixed.
-//
-// This function doesn't check that the inputs are in the correct subgroups.
-func DoublePairFixedQ(api frontend.API, P [2]G1Affine, Q G2Affine) (GT, error) {
-	f, err := DoubleMillerLoopFixedQ(api, P, Q)
-	if err != nil {
-		return GT{}, err
-	}
-	return FinalExponentiation(api, f), nil
-}
-
-// DoublePairingFixedQCheck calculates the reduced pairing for a set of points and asserts if the result is One
-// e(P0, Q) * e(P1, g2) =? 1, where g2 is fixed.
+// PairingFixedQCheck calculates the reduced pairing for a set of points and asserts if the result is One
+// ∏ᵢ e(Pᵢ, Qᵢ) =? 1 where Qᵢ are fixed.
 //
 // This function doesn't check that the inputs are in the correct subgroups
-func DoublePairingFixedQCheck(api frontend.API, P [2]G1Affine, Q G2Affine) error {
-	f, err := DoublePairFixedQ(api, P, Q)
+func PairingFixedQCheck(api frontend.API, P []G1Affine, lines [][4][63]fields_bls12377.E2) error {
+	f, err := PairFixedQ(api, P, lines)
 	if err != nil {
 		return err
 	}

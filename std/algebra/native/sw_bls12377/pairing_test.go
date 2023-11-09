@@ -128,12 +128,13 @@ func TestTriplePairingBLS377(t *testing.T) {
 
 type pairingFixedBLS377 struct {
 	P          G1Affine
+	Lines      [4][63]fields_bls12377.E2
 	pairingRes bls12377.GT
 }
 
 func (circuit *pairingFixedBLS377) Define(api frontend.API) error {
 
-	pairingRes, _ := PairFixedQ(api, circuit.P)
+	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P}, [][4][63]fields_bls12377.E2{circuit.Lines})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -151,6 +152,7 @@ func TestPairingFixedBLS377(t *testing.T) {
 
 	// assign values to witness
 	witness.P.Assign(&P)
+	witness.Lines = getPrecomputedLines()
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
@@ -159,13 +161,13 @@ func TestPairingFixedBLS377(t *testing.T) {
 
 type doublePairingFixedBLS377 struct {
 	P          [2]G1Affine
-	Q          G2Affine
+	Lines      [2][4][63]fields_bls12377.E2
 	pairingRes bls12377.GT
 }
 
 func (circuit *doublePairingFixedBLS377) Define(api frontend.API) error {
 
-	pairingRes, _ := DoublePairFixedQ(api, circuit.P, circuit.Q)
+	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P[0], circuit.P[1]}, [][4][63]fields_bls12377.E2{circuit.Lines[0], circuit.Lines[1]})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -175,7 +177,7 @@ func (circuit *doublePairingFixedBLS377) Define(api frontend.API) error {
 func TestDoublePairingFixedBLS377(t *testing.T) {
 
 	// pairing test data
-	P, Q, _, pairingRes := doubleFixedPairingData()
+	P, _, _, pairingRes := doublePairingFixedQData()
 
 	// create cs
 	var circuit, witness doublePairingFixedBLS377
@@ -184,7 +186,8 @@ func TestDoublePairingFixedBLS377(t *testing.T) {
 	// assign values to witness
 	witness.P[0].Assign(&P[0])
 	witness.P[1].Assign(&P[1])
-	witness.Q.Assign(&Q)
+	witness.Lines[0] = getPrecomputedLines()
+	witness.Lines[1] = getPrecomputedLines()
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
@@ -242,23 +245,6 @@ func pairingCheckData() (P [2]bls12377.G1Affine, Q [2]bls12377.G2Affine) {
 	return
 }
 
-func doubleFixedPairingData() (P [2]bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
-	_, _, P0, Q0 := bls12377.Generators()
-	P[0].Set(&P0)
-	var u, v fr.Element
-	var _u, _v big.Int
-	_, _ = u.SetRandom()
-	_, _ = v.SetRandom()
-	u.BigInt(&_u)
-	v.BigInt(&_v)
-	P[1].ScalarMultiplication(&P[0], &_u)
-	Q.ScalarMultiplication(&Q0, &_v)
-	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1]}, []bls12377.G2Affine{Q0, Q})
-	pairingRes = bls12377.FinalExponentiation(&milRes)
-
-	return
-}
-
 func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairingRes bls12377.GT) {
 	_, _, P[0], Q[0] = bls12377.Generators()
 	var u, v fr.Element
@@ -274,6 +260,18 @@ func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairin
 	milRes, _ := bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1], P[2]}, []bls12377.G2Affine{Q[0], Q[1], Q[2]})
 	pairingRes = bls12377.FinalExponentiation(&milRes)
 
+	return
+}
+
+func doublePairingFixedQData() (P [2]bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
+	_, _, P[0], Q = bls12377.Generators()
+	var u fr.Element
+	var _u big.Int
+	_, _ = u.SetRandom()
+	u.BigInt(&_u)
+	P[1].ScalarMultiplication(&P[0], &_u)
+	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1]}, []bls12377.G2Affine{Q, Q})
+	pairingRes = bls12377.FinalExponentiation(&milRes)
 	return
 }
 
