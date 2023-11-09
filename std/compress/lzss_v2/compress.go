@@ -171,12 +171,6 @@ func (compressor *Compressor) writeByte(b byte) {
 	compressor.bw.TryWriteByte(b)
 }
 
-// func (compressor *Compressor) writeBackRef(offset, length int) {
-// 	compressor.bw.TryWriteByte(symbol)
-// 	compressor.bw.TryWriteBits(uint64(offset-1), nbBitsAddress)
-// 	compressor.bw.TryWriteBits(uint64(length-1), nbBitsLength)
-// }
-
 // findBackRef attempts to find a backref in the window [i-brAddressRange, i+brLengthRange]
 // if no backref is found, it returns -1, -1
 // else returns the address and length of the backref

@@ -65,21 +65,21 @@ type backref struct {
 
 func (b *backref) writeTo(w *bitio.Writer, i int) {
 	w.TryWriteByte(b.bType.delimiter)
+	w.TryWriteBits(uint64(b.length-1), b.bType.nbBitsLength)
 	if b.bType.dictOnly {
 		w.TryWriteBits(uint64(b.offset), b.bType.nbBitsAddress)
 	} else {
 		w.TryWriteBits(uint64(i-b.offset-1), b.bType.nbBitsAddress)
 	}
-	w.TryWriteBits(uint64(b.length-1), b.bType.nbBitsLength)
 }
 
 func (b *backref) readFrom(r *bitio.Reader) {
+	b.length = int(r.TryReadBits(b.bType.nbBitsLength)) + 1
 	if b.bType.dictOnly {
 		b.offset = int(r.TryReadBits(b.bType.nbBitsAddress))
 	} else {
 		b.offset = int(r.TryReadBits(b.bType.nbBitsAddress)) + 1
 	}
-	b.length = int(r.TryReadBits(b.bType.nbBitsLength)) + 1
 }
 
 func (b *backref) savings() int {

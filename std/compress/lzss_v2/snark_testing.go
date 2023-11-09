@@ -61,16 +61,6 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 
 	cStream := ReadIntoStream(c, dict)
 
-	/*cSum, err := check(cStream, cStream.Len())
-	if err != nil {
-		return nil, nerr
-	}
-
-	_, err = check(compress.NewStreamFromBytes(d), len(d))
-	if err != nil {
-		return nil, err
-	}*/
-
 	circuit := compressionCircuit{
 		C:    make([]frontend.Variable, cStream.Len()),
 		D:    make([]frontend.Variable, len(d)),
@@ -90,7 +80,7 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 	fmt.Println("compilation")
 	p := profile.Start()
 	resetTimer()
-	cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &circuit)
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit, frontend.WithCapacity(70620000*2))
 	if err != nil {
 		return nil, err
 	}
@@ -99,16 +89,6 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 	resetTimer()
 	err = compress.GzWrite("../test_cases/"+name+"/e2e_cs.gz", cs)
 	return cs, err
-
-	// setup
-	/*fmt.Println("kzg setup")
-	kzgSrs, err := test.NewKZGSRS(cs)
-	resetTimer()
-	fmt.Println("plonk setup")
-	assert.NoError(t, err)
-	_, _, err = plonk.Setup(cs, kzgSrs)
-	assert.NoError(t, err)
-	resetTimer()*/
 }
 
 type compressionCircuit struct {
