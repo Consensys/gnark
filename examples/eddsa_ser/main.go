@@ -7,6 +7,7 @@ import (
 	"time"
 	"bytes"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/std/signature/eddsa"
 	"github.com/consensys/gnark/std/hash/mimc"
 	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
@@ -20,13 +21,13 @@ import (
 	//eddsa2 "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 )
 
-const N = 1 << 12
+const N = 1
 
 type eddsaCircuit struct {
 	curveID   tedwards.ID
-	PublicKey [N]eddsa.PublicKey           `gnark:",public"`
-	Signature [N]eddsa.Signature           `gnark:",public"`
-	Message   [N]frontend.Variable         `gnark:",public"`
+	PublicKey eddsa.PublicKey           `gnark:",public"`
+	Signature eddsa.Signature           `gnark:",public"`
+	Message   frontend.Variable         `gnark:",public"`
 }
 
 func (circuit *eddsaCircuit) Define(api frontend.API) error {
@@ -35,24 +36,24 @@ func (circuit *eddsaCircuit) Define(api frontend.API) error {
 		return err
 	}
 
-	//mimc, err := mimc.NewMiMC(api)
-	//if err != nil {
-	//	return err
-	//}
-
-	for i := 0; i < N; i++ {
-		mimc, err := mimc.NewMiMC(api)
-		if err != nil {
-			return err
-		}
-		ver_err := eddsa.Verify(curve, circuit.Signature[i], circuit.Message[i], circuit.PublicKey[i], &mimc)
-		if ver_err != nil {
-			return ver_err
-		}
+	mimc, err := mimc.NewMiMC(api)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	//for i := 0; i < N; i++ {
+	//	mimc, err := mimc.NewMiMC(api)
+	//	if err != nil {
+	//		return err
+	//	}
 	//return eddsa.Verify(curve, circuit.Signature, circuit.Message, circuit.PublicKey, &mimc)
+		//if ver_err != nil {
+		//	return ver_err
+		//}
+	//}
+
+	//return nil
+	return eddsa.Verify(curve, circuit.Signature, circuit.Message, circuit.PublicKey, &mimc)
 }
 
 func main() {
@@ -134,29 +135,35 @@ func main() {
 	    fmt.Println("error cannot be returned 2")
 	    //return err
     }
-
-    // declare the witness
-    var assignment eddsaCircuit
-
-    // assign message value
-    msgs2 := make([]frontend.Variable, N)
-    //[N]frontend.Variable{msgs[0], msgs[1]}
-    //for _, x := range msgs {
-    for i := 0; i < N; i++ {
-	msgs2[i] = msgs[i]
-//	msgs2 = append(msgs2, msgs[i])
-    }
-    copy(assignment.Message[:], msgs2)
-    //assignment.Message = [N]frontend.Variable{msgs[0], msgs[1]}
-
     // public key bytes
     var _publicKeys [N][]byte
     for i := 0; i < N; i++ {
 	    _publicKeys[i] = publicKeys[i].Bytes()
 	    _publicKeys[i] = _publicKeys[i][:32]
-	    assignment.PublicKey[i].Assign(tedwards.BN254, _publicKeys[i])
-	    assignment.Signature[i].Assign(tedwards.BN254, signatures[i])
     }
+
+    // declare the witness
+    var assignment [N]eddsaCircuit
+    var witness_arr [N]witness.Witness
+    var pubWitness_arr [N]witness.Witness
+    for n := 0; n < N; n++ {
+	assignment[n].Message = msgs[n]
+
+
+
+    // assign message value
+    //msgs2 := make([]frontend.Variable, N)
+    //[N]frontend.Variable{msgs[0], msgs[1]}
+    //for _, x := range msgs {
+   // for i := 0; i < N; i++ {
+//	msgs2[i] = msgs[i]
+//	msgs2 = append(msgs2, msgs[i])
+  //  }
+    //copy(assignment.Message[:], msgs2)
+    //assignment.Message = [N]frontend.Variable{msgs[0], msgs[1]}
+
+    assignment[n].PublicKey.Assign(tedwards.BN254, _publicKeys[n])
+    assignment[n].Signature.Assign(tedwards.BN254, signatures[n])
 
     // assign public key values
     //assignment.PublicKey = assignment.PublicKey[0].Assign(tedwards.BN254, _publicKeys, N)
@@ -165,24 +172,36 @@ func main() {
     //assignment.Signature.Assign(tedwards.BN254, signatures)
 
     // witness
-    witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
-    publicWitness, err := witness.Public()
+    witness_arr[n], err = frontend.NewWitness(&assignment[n], ecc.BN254.ScalarField(), frontend.PublicOnly())
+    if err != nil {
+	    return
+    }
+    pubWitness_arr[n], err = witness_arr[n].Public()
+    if err != nil {
+	    return
+    }
     fmt.Println("Here2!")
 
     //err = test.IsSolved(circuit, witness)
-
+}
     // generate the proof
-    startTime := time.Now()
-    proof, err := groth16.Prove(_r1cs, pk, witness)
+    sum := time.Duration(0)
+    for i := 0; i < N; i++ {
+	fmt.Printf("for loop: %s\n", sum)
+        startTime := time.Now()
+    	proof, err := groth16.Prove(_r1cs, pk, witness_arr[i])
+        proveTime := time.Since(startTime)
+	sum += proveTime
+        err = groth16.Verify(proof, vk, pubWitness_arr[i])
+        if err != nil {
+            //   invalid proof
+        }
+}
+
     //endTime := time.Now()
 
-    proveTime := time.Since(startTime)
 
-    fmt.Printf("Prove time: %v\n", proveTime)
+    fmt.Printf("Total Prove time: %v\n", sum)
 
     // verify the proof
-    err = groth16.Verify(proof, vk, publicWitness)
-    if err != nil {
-      //   invalid proof
-    }
 }
