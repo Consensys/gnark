@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
 	"github.com/consensys/gnark/test"
 )
 
@@ -248,17 +249,11 @@ func TestGroupMembershipSolve(t *testing.T) {
 // ----------------------------
 //	  Fixed-argument pairing
 // ----------------------------
-//
-// The second argument Q is the fixed canonical generator of G2.
-//
-// Q.X.A0 = 0x1800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed
-// Q.X.A1 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2
-// Q.Y.A0 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
-// Q.Y.A1 = 0x90689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b
 
 type PairFixedCircuit struct {
-	InG1 G1Affine
-	Res  GTEl
+	InG1  G1Affine
+	Lines [4][67]fields_bn254.E2
+	Res   GTEl
 }
 
 func (c *PairFixedCircuit) Define(api frontend.API) error {
@@ -266,7 +261,7 @@ func (c *PairFixedCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.PairFixedQ(&c.InG1)
+	res, err := pairing.PairFixedQ([]*G1Affine{&c.InG1}, [][4][67]fields_bn254.E2{c.Lines})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -281,18 +276,20 @@ func TestPairFixedTestSolve(t *testing.T) {
 	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{G2AffGen})
 	assert.NoError(err)
 	witness := PairFixedCircuit{
-		InG1: NewG1Affine(p),
-		Res:  NewGTEl(res),
+		InG1:  NewG1Affine(p),
+		Lines: getPrecomputedLines(),
+		Res:   NewGTEl(res),
 	}
 	err = test.IsSolved(&PairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
 type DoublePairFixedCircuit struct {
-	In1G1 G1Affine
-	In2G1 G1Affine
-	In1G2 G2Affine
-	Res   GTEl
+	In1G1  G1Affine
+	In2G1  G1Affine
+	Lines1 [4][67]fields_bn254.E2
+	Lines2 [4][67]fields_bn254.E2
+	Res    GTEl
 }
 
 func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
@@ -300,7 +297,7 @@ func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.DoublePairFixedQ([2]*G1Affine{&c.In1G1, &c.In2G1}, &c.In1G2)
+	res, err := pairing.PairFixedQ([]*G1Affine{&c.In1G1, &c.In2G1}, [][4][67]fields_bn254.E2{c.Lines1, c.Lines2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -310,15 +307,17 @@ func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
 
 func TestDoublePairFixedTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p, q := randomG1G2Affines()
+	p1, _ := randomG1G2Affines()
+	p2, _ := randomG1G2Affines()
 	_, _, _, G2AffGen := bn254.Generators()
-	res, err := bn254.Pair([]bn254.G1Affine{p, p}, []bn254.G2Affine{q, G2AffGen})
+	res, err := bn254.Pair([]bn254.G1Affine{p1, p2}, []bn254.G2Affine{G2AffGen, G2AffGen})
 	assert.NoError(err)
 	witness := DoublePairFixedCircuit{
-		In1G1: NewG1Affine(p),
-		In2G1: NewG1Affine(p),
-		In1G2: NewG2Affine(q),
-		Res:   NewGTEl(res),
+		In1G1:  NewG1Affine(p1),
+		In2G1:  NewG1Affine(p2),
+		Lines1: getPrecomputedLines(),
+		Lines2: getPrecomputedLines(),
+		Res:    NewGTEl(res),
 	}
 	err = test.IsSolved(&DoublePairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)

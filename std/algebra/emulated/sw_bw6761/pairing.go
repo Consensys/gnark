@@ -15,7 +15,6 @@ type Pairing struct {
 	api frontend.API
 	*fields_bw6761.Ext6
 	curveF *emulated.Field[emulated.BW6761Fp]
-	lines  [4][189]emulated.Element[emulated.BW6761Fp]
 }
 
 type GTEl = fields_bw6761.E6
@@ -44,7 +43,6 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 		api:    api,
 		Ext6:   fields_bw6761.NewExt6(api),
 		curveF: ba,
-		lines:  getPrecomputedLines(),
 	}, nil
 }
 
