@@ -42,6 +42,7 @@ func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 }
 
 func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.ConstraintSystem, error) {
+	fmt.Println("word size", forceDivisibleBy, "bits")
 	d, err := os.ReadFile(name + "/data.bin")
 	if err != nil {
 		return nil, err
