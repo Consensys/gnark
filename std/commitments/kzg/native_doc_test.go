@@ -71,21 +71,29 @@ func Example_native() {
 		panic("commitment witness failed: " + err.Error())
 	}
 
-	// create a witness element of the opening proof and the evaluation point
-	wProof, err := kzg.ValueOfOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine](point, proof)
+	// create a witness element of the opening proof
+	wProof, err := kzg.ValueOfOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine](proof)
 	if err != nil {
 		panic("opening proof witness failed: " + err.Error())
 	}
 
 	// create a witness element of the SRS
-	wVk, err := kzg.ValueOfVerifyingKey[sw_bls12377.G2Affine](srs.Vk)
+	wVk, err := kzg.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine](srs.Vk)
 	if err != nil {
 		panic("verifying key witness failed: " + err.Error())
 	}
+
+	// create a witness element of the evaluation point
+	wPt, err := kzg.ValueOfScalar[sw_bls12377.ScalarField](point)
+	if err != nil {
+		panic("point witness failed: " + err.Error())
+	}
+
 	assignment := KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
+		Point:        wPt,
 	}
 	circuit := KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}
 

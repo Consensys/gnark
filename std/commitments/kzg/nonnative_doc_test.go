@@ -17,22 +17,18 @@ import (
 )
 
 type KZGVerificationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {
-	kzg.VerifyingKey[G2El]
+	kzg.VerifyingKey[G1El, G2El]
 	kzg.Commitment[G1El]
 	kzg.OpeningProof[FR, G1El]
+	Point emulated.Element[FR]
 }
 
 func (c *KZGVerificationCircuit[FR, G1El, G2El, GTEl]) Define(api frontend.API) error {
-	curve, err := algebra.GetCurve[FR, G1El](api)
+	verifier, err := kzg.NewVerifier[FR, G1El, G2El, GTEl](api)
 	if err != nil {
-		return fmt.Errorf("get curve: %w", err)
+		return fmt.Errorf("new verifier: %w", err)
 	}
-	pairing, err := algebra.GetPairing[G1El, G2El, GTEl](api)
-	if err != nil {
-		return fmt.Errorf("get pairing: %w", err)
-	}
-	verifier := kzg.NewVerifier(c.VerifyingKey, curve, pairing)
-	if err := verifier.AssertProof(c.Commitment, c.OpeningProof); err != nil {
+	if err := verifier.CheckOpeningProof(c.Commitment, c.OpeningProof, c.Point, c.VerifyingKey); err != nil {
 		return fmt.Errorf("assert proof: %w", err)
 	}
 	return nil
@@ -94,21 +90,29 @@ func Example_emulated() {
 		panic("commitment witness failed: " + err.Error())
 	}
 
-	// create a witness element of the opening proof and the evaluation point
-	wProof, err := kzg.ValueOfOpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine](point, proof)
+	// create a witness element of the opening proof
+	wProof, err := kzg.ValueOfOpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine](proof)
 	if err != nil {
 		panic("opening proof witness failed: " + err.Error())
 	}
 
 	// create a witness element of the SRS
-	wVk, err := kzg.ValueOfVerifyingKey[sw_bn254.G2Affine](srs.Vk)
+	wVk, err := kzg.ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine](srs.Vk)
 	if err != nil {
 		panic("verifying key witness failed: " + err.Error())
 	}
+
+	// create a witness element of the evaluation point
+	wPt, err := kzg.ValueOfScalar[sw_bn254.ScalarField](point)
+	if err != nil {
+		panic("point witness failed: " + err.Error())
+	}
+
 	assignment := KZGVerificationCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
+		Point:        wPt,
 	}
 	circuit := KZGVerificationCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}
 
