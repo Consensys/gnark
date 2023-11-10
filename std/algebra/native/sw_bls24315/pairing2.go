@@ -126,7 +126,12 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar) (*G1Affine, err
 	res := c.ScalarMul(P[0], scalars[0])
 	for i := 1; i < len(P); i++ {
 		q := c.ScalarMul(P[i], scalars[i])
-		res = c.Add(res, q)
+
+		// check for infinity...
+		isInfinity := c.api.And(c.api.IsZero(P[i].X), c.api.IsZero(P[i].Y))
+		tmp := c.Add(res, q)
+		res.X = c.api.Select(isInfinity, res.X, tmp.X)
+		res.Y = c.api.Select(isInfinity, res.Y, tmp.Y)
 	}
 	return res, nil
 }
