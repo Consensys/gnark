@@ -35,6 +35,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 // Commitment is an KZG commitment to a polynomial. Use [ValueOfCommitment] to
@@ -88,78 +89,78 @@ func ValueOfCommitment[G1El algebra.G1ElementT](cmt any) (Commitment[G1El], erro
 // OpeningProof embeds the opening proof that polynomial evaluated at Point is
 // equal to ClaimedValue. Use [ValueOfOpeningProof] to initialize a witness from
 // a native opening proof.
-type OpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT] struct {
+type OpeningProof[FR emulated.FieldParams, G1El algebra.G1ElementT] struct {
 	QuotientPoly G1El
-	ClaimedValue S
-	Point        S
+	ClaimedValue emulated.Element[FR]
+	Point        emulated.Element[FR]
 }
 
 // ValueOfOpeningProof initializes an opening proof from the given proof and
 // point. It returns an error if there is a mismatch between the type parameters
 // and types of the provided point and proof.
-func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, proof any) (OpeningProof[S, G1El], error) {
-	var ret OpeningProof[S, G1El]
+func ValueOfOpeningProof[FR emulated.FieldParams, G1El algebra.G1ElementT](point any, proof any) (OpeningProof[FR, G1El], error) {
+	var ret OpeningProof[FR, G1El]
 	switch s := any(&ret).(type) {
-	case *OpeningProof[sw_bn254.Scalar, sw_bn254.G1Affine]:
+	case *OpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine]:
 		tProof, ok := proof.(kzg_bn254.OpeningProof)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
 		tPoint, ok := point.(fr_bn254.Element)
 		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
 		}
 		s.QuotientPoly = sw_bn254.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bn254.NewScalar(tProof.ClaimedValue)
 		s.Point = sw_bn254.NewScalar(tPoint)
-	case *OpeningProof[sw_bls12377.Scalar, sw_bls12377.G1Affine]:
+	case *OpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine]:
 		tProof, ok := proof.(kzg_bls12377.OpeningProof)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
 		tPoint, ok := point.(fr_bls12377.Element)
 		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
 		}
 		s.QuotientPoly = sw_bls12377.NewG1Affine(tProof.H)
-		s.ClaimedValue = tProof.ClaimedValue.String()
-		s.Point = tPoint.String()
-	case *OpeningProof[sw_bls12381.Scalar, sw_bls12381.G1Affine]:
+		s.ClaimedValue = sw_bls12377.NewScalar(tProof.ClaimedValue)
+		s.Point = sw_bls12377.NewScalar(tPoint)
+	case *OpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine]:
 		tProof, ok := proof.(kzg_bls12381.OpeningProof)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
 		tPoint, ok := point.(fr_bls12381.Element)
 		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
 		}
 		s.QuotientPoly = sw_bls12381.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bls12381.NewScalar(tProof.ClaimedValue)
 		s.Point = sw_bls12381.NewScalar(tPoint)
-	case *OpeningProof[sw_bw6761.Scalar, sw_bw6761.G1Affine]:
+	case *OpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine]:
 		tProof, ok := proof.(kzg_bw6761.OpeningProof)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
 		tPoint, ok := point.(fr_bw6761.Element)
 		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
 		}
 		s.QuotientPoly = sw_bw6761.NewG1Affine(tProof.H)
 		s.ClaimedValue = sw_bw6761.NewScalar(tProof.ClaimedValue)
 		s.Point = sw_bw6761.NewScalar(tPoint)
-	case *OpeningProof[sw_bls24315.Scalar, sw_bls24315.G1Affine]:
+	case *OpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine]:
 		tProof, ok := proof.(kzg_bls24315.OpeningProof)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, proof)
 		}
 		tPoint, ok := point.(fr_bls24315.Element)
 		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, point)
+			return ret, fmt.Errorf("mismatching types %T %T", s.Point, point)
 		}
 		s.QuotientPoly = sw_bls24315.NewG1Affine(tProof.H)
-		s.ClaimedValue = tProof.ClaimedValue.String()
-		s.Point = tPoint.String()
+		s.ClaimedValue = sw_bls24315.NewScalar(tProof.ClaimedValue)
+		s.Point = sw_bls24315.NewScalar(tPoint)
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -220,16 +221,16 @@ func ValueOfVerifyingKey[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2El], e
 }
 
 // Verifier allows verifying KZG opening proofs.
-type Verifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT] struct {
+type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT] struct {
 	VerifyingKey[G2El]
 
-	curve   algebra.Curve[S, G1El]
+	curve   algebra.Curve[FR, G1El]
 	pairing algebra.Pairing[G1El, G2El, GtEl]
 }
 
 // NewVerifier initializes a new Verifier instance.
-func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT](vk VerifyingKey[G2El], curve algebra.Curve[S, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[S, G1El, G2El, GtEl] {
-	return &Verifier[S, G1El, G2El, GtEl]{
+func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT](vk VerifyingKey[G2El], curve algebra.Curve[FR, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[FR, G1El, G2El, GtEl] {
+	return &Verifier[FR, G1El, G2El, GtEl]{
 		VerifyingKey: vk,
 		curve:        curve,
 		pairing:      pairing,
@@ -238,7 +239,7 @@ func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2Elem
 
 // AssertProof asserts the validity of the opening proof for the given
 // commitment.
-func (vk *Verifier[S, G1El, G2El, GtEl]) AssertProof(commitment Commitment[G1El], proof OpeningProof[S, G1El]) error {
+func (vk *Verifier[FR, G1El, G2El, GtEl]) AssertProof(commitment Commitment[G1El], proof OpeningProof[FR, G1El]) error {
 	// [f(a)]G₁
 	claimedValueG1 := vk.curve.ScalarMulBase(&proof.ClaimedValue)
 

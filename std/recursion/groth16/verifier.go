@@ -194,18 +194,18 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 // Witness is a public witness to verify the SNARK proof against. For assigning
 // witness use [ValueOfWitness] and to create stub witness for compiling use
 // [PlaceholderWitness].
-type Witness[S algebra.ScalarT] struct {
+type Witness[FR emulated.FieldParams] struct {
 	// Public is the public inputs. The first element does not need to be one
 	// wire and is added implicitly during verification.
-	Public []S
+	Public []emulated.Element[FR]
 }
 
 // PlaceholderWitness creates a stub witness which can be used to allocate the
 // variables in the circuit if the actual witness is not yet known. It takes
 // into account the number of public inputs and number of used commitments.
-func PlaceholderWitness[S algebra.ScalarT](ccs constraint.ConstraintSystem) Witness[S] {
-	return Witness[S]{
-		Public: make([]S, ccs.GetNbPublicVariables()-1),
+func PlaceholderWitness[FR emulated.FieldParams](ccs constraint.ConstraintSystem) Witness[FR] {
+	return Witness[FR]{
+		Public: make([]emulated.Element[FR], ccs.GetNbPublicVariables()-1),
 	}
 }
 
@@ -213,66 +213,63 @@ func PlaceholderWitness[S algebra.ScalarT](ccs constraint.ConstraintSystem) Witn
 // witness. If there is a field mismatch then this method represents the witness
 // inputs using field emulation. It returns an error if there is a mismatch
 // between the type parameters and provided witness.
-func ValueOfWitness[S algebra.ScalarT, G1 algebra.G1ElementT](w witness.Witness) (Witness[S], error) {
-	type dbwtiness[S algebra.ScalarT, G1 algebra.G1ElementT] struct {
-		W Witness[S]
-	}
-	var ret dbwtiness[S, G1]
+func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], error) {
+	var ret Witness[FR]
 	pubw, err := w.Public()
 	if err != nil {
-		return ret.W, fmt.Errorf("get public witness: %w", err)
+		return ret, fmt.Errorf("get public witness: %w", err)
 	}
 	vec := pubw.Vector()
 	switch s := any(&ret).(type) {
-	case *dbwtiness[emulated.Element[emparams.BN254Fr], sw_bn254.G1Affine]:
+	case *Witness[sw_bn254.ScalarField]:
 		vect, ok := vec.(fr_bn254.Vector)
 		if !ok {
-			return ret.W, fmt.Errorf("expected fr_bn254.Vector, got %T", vec)
+			return ret, fmt.Errorf("expected fr_bn254.Vector, got %T", vec)
 		}
 		for i := range vect {
-			s.W.Public = append(s.W.Public, emulated.ValueOf[emparams.BN254Fr](vect[i]))
+			s.Public = append(s.Public, emulated.ValueOf[emparams.BN254Fr](vect[i]))
 		}
-	case *dbwtiness[sw_bls12377.Scalar, sw_bls12377.G1Affine]:
+	case *Witness[sw_bls12377.ScalarField]:
 		vect, ok := vec.(fr_bls12377.Vector)
 		if !ok {
-			return ret.W, fmt.Errorf("expected fr_bls12377.Vector, got %T", vec)
+			return ret, fmt.Errorf("expected fr_bls12377.Vector, got %T", vec)
 		}
 		for i := range vect {
-			s.W.Public = append(s.W.Public, vect[i].String())
+			s.Public = append(s.Public, sw_bls12377.NewScalar(vect[i]))
 		}
-	case *dbwtiness[emulated.Element[emparams.BLS12381Fr], sw_bls12381.G1Affine]:
+	case *Witness[sw_bls12381.ScalarField]:
 		vect, ok := vec.(fr_bls12381.Vector)
 		if !ok {
-			return ret.W, fmt.Errorf("expected fr_bls12381.Vector, got %T", vec)
+			return ret, fmt.Errorf("expected fr_bls12381.Vector, got %T", vec)
 		}
 		for i := range vect {
-			s.W.Public = append(s.W.Public, emulated.ValueOf[emparams.BLS12381Fr](vect[i]))
+			s.Public = append(s.Public, emulated.ValueOf[emparams.BLS12381Fr](vect[i]))
 		}
-	case *dbwtiness[sw_bls24315.Scalar, sw_bls24315.G1Affine]:
+	case *Witness[sw_bls24315.ScalarField]:
 		vect, ok := vec.(fr_bls24315.Vector)
 		if !ok {
-			return ret.W, fmt.Errorf("expected fr_bls24315.Vector, got %T", vec)
+			return ret, fmt.Errorf("expected fr_bls24315.Vector, got %T", vec)
 		}
 		for i := range vect {
-			s.W.Public = append(s.W.Public, vect[i].String())
+			s.Public = append(s.Public, sw_bls24315.NewScalar(vect[i]))
 		}
 	default:
-		return ret.W, fmt.Errorf("unknown parametric type combination")
+		return ret, fmt.Errorf("unknown parametric type combination")
 	}
-	return ret.W, nil
+	return ret, nil
 }
 
 // Verifier verifies Groth16 proofs.
-type Verifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	curve   algebra.Curve[S, G1El]
+type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	curve   algebra.Curve[FR, G1El]
 	pairing algebra.Pairing[G1El, G2El, GtEl]
 }
 
 // NewVerifier returns a new [Verifier] instance using the curve and pairing
 // interfaces. Use methods [algebra.GetCurve] and [algebra.GetPairing] to
 // initialize the instances.
-func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](curve algebra.Curve[S, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[S, G1El, G2El, GtEl] {
-	return &Verifier[S, G1El, G2El, GtEl]{
+func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](curve algebra.Curve[FR, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[FR, G1El, G2El, GtEl] {
+	return &Verifier[FR, G1El, G2El, GtEl]{
 		curve:   curve,
 		pairing: pairing,
 	}
@@ -280,12 +277,12 @@ func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2Elem
 
 // AssertProof asserts that the SNARK proof holds for the given witness and
 // verifying key.
-func (v *Verifier[S, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[S]) error {
+func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR]) error {
 	inP := make([]*G1El, len(vk.G1.K)-1) // first is for the one wire, we add it manually after MSM
 	for i := range inP {
 		inP[i] = &vk.G1.K[i+1]
 	}
-	inS := make([]*S, len(witness.Public))
+	inS := make([]*emulated.Element[FR], len(witness.Public))
 	for i := range inS {
 		inS[i] = &witness.Public[i]
 	}

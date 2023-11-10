@@ -11,16 +11,15 @@ import (
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	"github.com/consensys/gnark-crypto/ecc/bn254"
-	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	cryptofs "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
+	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 )
@@ -91,19 +90,18 @@ func TestShortHash(t *testing.T) {
 	}
 }
 
-type hashMarshalG1Circuit[S algebra.ScalarT, G1El algebra.G1ElementT] struct {
+type hashMarshalG1Circuit[FR emulated.FieldParams, G1El algebra.G1ElementT] struct {
 	Point    G1El
 	Expected frontend.Variable
-
-	target *big.Int
 }
 
-func (c *hashMarshalG1Circuit[S, G1El]) Define(api frontend.API) error {
-	h, err := recursion.NewHash(api, c.target, true)
+func (c *hashMarshalG1Circuit[FR, G1El]) Define(api frontend.API) error {
+	var fr FR
+	h, err := recursion.NewHash(api, fr.Modulus(), true)
 	if err != nil {
 		return fmt.Errorf("new hash: %w", err)
 	}
-	curve, err := algebra.GetCurve[S, G1El](api)
+	curve, err := algebra.GetCurve[FR, G1El](api)
 	if err != nil {
 		return fmt.Errorf("get curve: %w", err)
 	}
@@ -118,8 +116,8 @@ func TestHashMarshalG1(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	assert.Run(func(assert *test.Assert) {
-		var g bn254.G1Affine
-		var s fr_bn254.Element
+		var g bw6761.G1Affine
+		var s fr_bw6761.Element
 		s.SetRandom()
 		g.ScalarMultiplicationBase(s.BigInt(new(big.Int)))
 		h, err := recursion.NewShort(ecc.BN254.ScalarField(), ecc.BW6_761.ScalarField())
@@ -127,13 +125,10 @@ func TestHashMarshalG1(t *testing.T) {
 		marshalled := g.Marshal()
 		h.Write(marshalled)
 		hashed := h.Sum(nil)
-		circuit := &hashMarshalG1Circuit[sw_bn254.Scalar, sw_bn254.G1Affine]{
-			target: ecc.BW6_761.ScalarField(),
-		}
-		assignment := &hashMarshalG1Circuit[sw_bn254.Scalar, sw_bn254.G1Affine]{
-			Point:    sw_bn254.NewG1Affine(g),
+		circuit := &hashMarshalG1Circuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine]{}
+		assignment := &hashMarshalG1Circuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine]{
+			Point:    sw_bw6761.NewG1Affine(g),
 			Expected: hashed,
-			target:   ecc.BW6_761.ScalarField(),
 		}
 		assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
 	})
@@ -147,13 +142,10 @@ func TestHashMarshalG1(t *testing.T) {
 		marshalled := g.Marshal()
 		h.Write(marshalled)
 		hashed := h.Sum(nil)
-		circuit := &hashMarshalG1Circuit[sw_bls12377.Scalar, sw_bls12377.G1Affine]{
-			target: ecc.BLS12_377.ScalarField(),
-		}
-		assignment := &hashMarshalG1Circuit[sw_bls12377.Scalar, sw_bls12377.G1Affine]{
+		circuit := &hashMarshalG1Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine]{}
+		assignment := &hashMarshalG1Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine]{
 			Point:    sw_bls12377.NewG1Affine(g),
 			Expected: hashed,
-			target:   ecc.BLS12_377.ScalarField(),
 		}
 		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_761), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
 	})
@@ -167,31 +159,27 @@ func TestHashMarshalG1(t *testing.T) {
 		marshalled := g.Marshal()
 		h.Write(marshalled)
 		hashed := h.Sum(nil)
-		circuit := &hashMarshalG1Circuit[sw_bls24315.Scalar, sw_bls24315.G1Affine]{
-			target: ecc.BLS12_377.ScalarField(),
-		}
-		assignment := &hashMarshalG1Circuit[sw_bls24315.Scalar, sw_bls24315.G1Affine]{
+		circuit := &hashMarshalG1Circuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{}
+		assignment := &hashMarshalG1Circuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{
 			Point:    sw_bls24315.NewG1Affine(g),
 			Expected: hashed,
-			target:   ecc.BLS12_377.ScalarField(),
 		}
 		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_633), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
 	})
 }
 
-type hashMarshalScalarCircuit[S algebra.ScalarT, G1El algebra.G1ElementT] struct {
-	Scalar   S
+type hashMarshalScalarCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT] struct {
+	Scalar   emulated.Element[FR]
 	Expected frontend.Variable
-
-	target *big.Int
 }
 
-func (c *hashMarshalScalarCircuit[S, G1El]) Define(api frontend.API) error {
-	h, err := recursion.NewHash(api, c.target, true)
+func (c *hashMarshalScalarCircuit[FR, G1El]) Define(api frontend.API) error {
+	var fr FR
+	h, err := recursion.NewHash(api, fr.Modulus(), true)
 	if err != nil {
 		return fmt.Errorf("new hash: %w", err)
 	}
-	curve, err := algebra.GetCurve[S, G1El](api)
+	curve, err := algebra.GetCurve[FR, G1El](api)
 	if err != nil {
 		return fmt.Errorf("get curve: %w", err)
 	}
@@ -206,20 +194,17 @@ func TestHashMarshalScalar(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	assert.Run(func(assert *test.Assert) {
-		var s fr_bn254.Element
+		var s fr_bw6761.Element
 		s.SetRandom()
 		h, err := recursion.NewShort(ecc.BN254.ScalarField(), ecc.BW6_761.ScalarField())
 		assert.NoError(err)
 		marshalled := s.Marshal()
 		h.Write(marshalled)
 		hashed := h.Sum(nil)
-		circuit := &hashMarshalScalarCircuit[sw_bn254.Scalar, sw_bn254.G1Affine]{
-			target: ecc.BW6_761.ScalarField(),
-		}
-		assignment := &hashMarshalScalarCircuit[sw_bn254.Scalar, sw_bn254.G1Affine]{
-			Scalar:   sw_bn254.NewScalar(s),
+		circuit := &hashMarshalScalarCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine]{}
+		assignment := &hashMarshalScalarCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine]{
+			Scalar:   sw_bw6761.NewScalar(s),
 			Expected: hashed,
-			target:   ecc.BW6_761.ScalarField(),
 		}
 		assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
 	})
@@ -231,13 +216,10 @@ func TestHashMarshalScalar(t *testing.T) {
 		marshalled := s.Marshal()
 		h.Write(marshalled)
 		hashed := h.Sum(nil)
-		circuit := &hashMarshalScalarCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine]{
-			target: ecc.BLS12_377.ScalarField(),
-		}
-		assignment := &hashMarshalScalarCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine]{
-			Scalar:   s.String(),
+		circuit := &hashMarshalScalarCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine]{}
+		assignment := &hashMarshalScalarCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine]{
+			Scalar:   sw_bls12377.NewScalar(s),
 			Expected: hashed,
-			target:   ecc.BLS12_377.ScalarField(),
 		}
 		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_761), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
 	})
@@ -249,32 +231,28 @@ func TestHashMarshalScalar(t *testing.T) {
 		marshalled := s.Marshal()
 		h.Write(marshalled)
 		hashed := h.Sum(nil)
-		circuit := &hashMarshalScalarCircuit[sw_bls24315.Scalar, sw_bls24315.G1Affine]{
-			target: ecc.BLS12_377.ScalarField(),
-		}
-		assignment := &hashMarshalScalarCircuit[sw_bls24315.Scalar, sw_bls24315.G1Affine]{
-			Scalar:   s.String(),
+		circuit := &hashMarshalScalarCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{}
+		assignment := &hashMarshalScalarCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{
+			Scalar:   sw_bls24315.NewScalar(s),
 			Expected: hashed,
-			target:   ecc.BLS12_377.ScalarField(),
 		}
 		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_633), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
 	})
 }
 
-type transcriptCircuit[S algebra.ScalarT, G1El algebra.G1ElementT] struct {
+type transcriptCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT] struct {
 	Challenges [3]string
 	Points     [3][3]G1El
 	Expected   [3]frontend.Variable
-
-	target *big.Int
 }
 
-func (c *transcriptCircuit[S, G1El]) Define(api frontend.API) error {
-	fs, err := recursion.NewTranscript(api, c.target, c.Challenges[:])
+func (c *transcriptCircuit[FR, G1El]) Define(api frontend.API) error {
+	var fr FR
+	fs, err := recursion.NewTranscript(api, fr.Modulus(), c.Challenges[:])
 	if err != nil {
 		return fmt.Errorf("new transcript: %w", err)
 	}
-	curve, err := algebra.GetCurve[S, G1El](api)
+	curve, err := algebra.GetCurve[FR, G1El](api)
 	if err != nil {
 		return fmt.Errorf("get curve: %w", err)
 	}
@@ -321,15 +299,13 @@ func TestTranscriptMarsha(t *testing.T) {
 			assert.NoError(err)
 			expected[i] = res
 		}
-		circuit := &transcriptCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine]{
+		circuit := &transcriptCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine]{
 			Challenges: challenges,
-			target:     ecc.BLS12_377.ScalarField(),
 		}
-		assignment := &transcriptCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine]{
+		assignment := &transcriptCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine]{
 			Challenges: challenges,
 			Points:     points,
 			Expected:   expected,
-			target:     ecc.BLS12_377.ScalarField(),
 		}
 		assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BW6_761), test.NoFuzzing(), test.NoSerializationChecks())
 	}, "bw6_761")
@@ -357,15 +333,13 @@ func TestTranscriptMarsha(t *testing.T) {
 			assert.NoError(err)
 			expected[i] = res
 		}
-		circuit := &transcriptCircuit[sw_bw6761.Scalar, sw_bw6761.G1Affine]{
+		circuit := &transcriptCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine]{
 			Challenges: challenges,
-			target:     ecc.BW6_761.ScalarField(),
 		}
-		assignment := &transcriptCircuit[sw_bw6761.Scalar, sw_bw6761.G1Affine]{
+		assignment := &transcriptCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine]{
 			Challenges: challenges,
 			Points:     points,
 			Expected:   expected,
-			target:     ecc.BW6_761.ScalarField(),
 		}
 		assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254), test.NoFuzzing(), test.NoSerializationChecks())
 	}, "bn254")
