@@ -20,7 +20,6 @@ import (
 	"sync"
 
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
 )
 
 // precomputed lines going through Q and multiples of Q
@@ -35,25 +34,25 @@ import (
 // Q.Y.B1.A0 = 0x1b38dd0c5ec49a0883a950c631c688eb3b01f45b7c0d2990cd99052005ebf2fa9e7043bbd605ef5
 // Q.Y.B1.A1 = 0x495d6de2e4fed6be3e1d24dd724163e01d88643f7e83d31528ab0a80ced619175a1a104574ac83
 
-var precomputedLines [4][32]fields_bls24315.E4
+var precomputedLines [2][32]lineEvaluation
 var precomputedLinesOnce sync.Once
 
-func getPrecomputedLines() [4][32]fields_bls24315.E4 {
+func getPrecomputedLines() [2][32]lineEvaluation {
 	precomputedLinesOnce.Do(func() {
 		precomputedLines = computePrecomputedLines()
 	})
 	return precomputedLines
 }
 
-func computePrecomputedLines() [4][32]fields_bls24315.E4 {
-	var PrecomputedLines [4][32]fields_bls24315.E4
+func computePrecomputedLines() [2][32]lineEvaluation {
+	var PrecomputedLines [2][32]lineEvaluation
 	_, _, _, G2AffGen := bls24315.Generators()
 	lines := bls24315.PrecomputeLines(G2AffGen)
 	for j := 0; j < 32; j++ {
-		PrecomputedLines[0][j].Assign(&lines[0][j].R0)
-		PrecomputedLines[1][j].Assign(&lines[0][j].R1)
-		PrecomputedLines[2][j].Assign(&lines[1][j].R0)
-		PrecomputedLines[3][j].Assign(&lines[1][j].R1)
+		PrecomputedLines[0][j].R0.Assign(&lines[0][j].R0)
+		PrecomputedLines[0][j].R1.Assign(&lines[0][j].R1)
+		PrecomputedLines[1][j].R0.Assign(&lines[1][j].R0)
+		PrecomputedLines[1][j].R1.Assign(&lines[1][j].R1)
 
 	}
 

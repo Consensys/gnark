@@ -161,7 +161,7 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 // PairingFixedQCheck computes the multi-pairing of the input pairs and asserts that
 // the result is an identity element in the target group. It returns an error if
 // there is a mismatch between the lengths of the inputs.
-func (p *Pairing) PairingFixedQCheck(P []*G1Affine, lines [][4][32]fields_bls24315.E4) error {
+func (p *Pairing) PairingFixedQCheck(P []*G1Affine, lines [][2][32]lineEvaluation) error {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]

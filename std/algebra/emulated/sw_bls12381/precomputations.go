@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
-	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -16,29 +15,29 @@ import (
 // Q.Y.A0 = 0xce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801
 // Q.Y.A1 = 0x606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be
 
-var precomputedLines [4][63]fields_bls12381.E2
+var precomputedLines [2][63]lineEvaluation
 var precomputedLinesOnce sync.Once
 
-func getPrecomputedLines() [4][63]fields_bls12381.E2 {
+func getPrecomputedLines() [2][63]lineEvaluation {
 	precomputedLinesOnce.Do(func() {
 		precomputedLines = computePrecomputedLines()
 	})
 	return precomputedLines
 }
 
-func computePrecomputedLines() [4][63]fields_bls12381.E2 {
-	var PrecomputedLines [4][63]fields_bls12381.E2
+func computePrecomputedLines() [2][63]lineEvaluation {
+	var PrecomputedLines [2][63]lineEvaluation
 	_, _, _, G2AffGen := bls12381.Generators()
 	lines := bls12381.PrecomputeLines(G2AffGen)
 	for j := 0; j < 63; j++ {
-		PrecomputedLines[0][j].A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R0.A0)
-		PrecomputedLines[0][j].A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R0.A1)
-		PrecomputedLines[1][j].A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R1.A0)
-		PrecomputedLines[1][j].A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R1.A1)
-		PrecomputedLines[2][j].A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R0.A0)
-		PrecomputedLines[2][j].A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R0.A1)
-		PrecomputedLines[3][j].A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R1.A0)
-		PrecomputedLines[3][j].A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R1.A1)
+		PrecomputedLines[0][j].R0.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R0.A0)
+		PrecomputedLines[0][j].R0.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R0.A1)
+		PrecomputedLines[0][j].R1.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R1.A0)
+		PrecomputedLines[0][j].R1.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R1.A1)
+		PrecomputedLines[1][j].R0.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R0.A0)
+		PrecomputedLines[1][j].R0.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R0.A1)
+		PrecomputedLines[1][j].R1.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R1.A0)
+		PrecomputedLines[1][j].R1.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R1.A1)
 	}
 
 	return PrecomputedLines

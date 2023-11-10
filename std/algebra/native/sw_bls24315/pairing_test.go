@@ -129,13 +129,13 @@ func TestTriplePairingBLS24315(t *testing.T) {
 
 type pairingFixedBLS315 struct {
 	P          G1Affine
-	Lines      [4][32]fields_bls24315.E4
+	Lines      [2][32]lineEvaluation
 	pairingRes bls24315.GT
 }
 
 func (circuit *pairingFixedBLS315) Define(api frontend.API) error {
 
-	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P}, [][4][32]fields_bls24315.E4{circuit.Lines})
+	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P}, [][2][32]lineEvaluation{circuit.Lines})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -161,14 +161,16 @@ func TestPairingFixedBLS315(t *testing.T) {
 }
 
 type doublePairingFixedBLS315 struct {
-	P          [2]G1Affine
-	Lines      [2][4][32]fields_bls24315.E4
+	P0         G1Affine
+	P1         G1Affine
+	Line0      [2][32]lineEvaluation
+	Line1      [2][32]lineEvaluation
 	pairingRes bls24315.GT
 }
 
 func (circuit *doublePairingFixedBLS315) Define(api frontend.API) error {
 
-	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P[0], circuit.P[1]}, [][4][32]fields_bls24315.E4{circuit.Lines[0], circuit.Lines[1]})
+	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P0, circuit.P1}, [][2][32]lineEvaluation{circuit.Line0, circuit.Line1})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -185,10 +187,10 @@ func TestDoublePairingFixedBLS315(t *testing.T) {
 	circuit.pairingRes = pairingRes
 
 	// assign values to witness
-	witness.P[0].Assign(&P[0])
-	witness.P[1].Assign(&P[1])
-	witness.Lines[0] = getPrecomputedLines()
-	witness.Lines[1] = getPrecomputedLines()
+	witness.P0.Assign(&P[0])
+	witness.P1.Assign(&P[1])
+	witness.Line0 = getPrecomputedLines()
+	witness.Line1 = getPrecomputedLines()
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))

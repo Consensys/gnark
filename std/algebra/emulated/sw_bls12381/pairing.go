@@ -656,7 +656,7 @@ func (pr Pairing) tangentCompute(p1 *G2Affine) *lineEvaluation {
 
 // MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
 // but Qᵢ are fixed points in G2 known in advance.
-func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][4][63]fields_bls12381.E2) (*GTEl, error) {
+func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][63]lineEvaluation) (*GTEl, error) {
 
 	// check input size match
 	n := len(P)
@@ -684,13 +684,13 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][4][63]fields_bls12381
 	// i = 62, separately to avoid an E12 Square
 	// (Square(res) = 1² = 1)
 	// k = 0, separately to avoid MulBy014 (res × ℓ)
-	res.C0.B0 = *pr.MulByElement(&lines[0][1][62], yInv[0])
-	res.C0.B1 = *pr.MulByElement(&lines[0][0][62], xNegOverY[0])
+	res.C0.B0 = *pr.MulByElement(&lines[0][0][62].R1, yInv[0])
+	res.C0.B1 = *pr.MulByElement(&lines[0][0][62].R0, xNegOverY[0])
 	res.C1.B1 = *pr.Ext2.One()
 
 	prodLines := pr.Mul014By014(
-		pr.MulByElement(&lines[0][3][62], yInv[0]),
-		pr.MulByElement(&lines[0][2][62], xNegOverY[0]),
+		pr.MulByElement(&lines[0][1][62].R1, yInv[0]),
+		pr.MulByElement(&lines[0][1][62].R0, xNegOverY[0]),
 		&res.C0.B0,
 		&res.C0.B1,
 	)
@@ -709,12 +709,12 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][4][63]fields_bls12381
 
 	for k := 1; k < n; k++ {
 		res = pr.MulBy014(res,
-			pr.MulByElement(&lines[k][1][62], yInv[k]),
-			pr.MulByElement(&lines[k][0][62], xNegOverY[k]),
+			pr.MulByElement(&lines[k][0][62].R1, yInv[k]),
+			pr.MulByElement(&lines[k][0][62].R0, xNegOverY[k]),
 		)
 		res = pr.MulBy014(res,
-			pr.MulByElement(&lines[k][3][62], yInv[k]),
-			pr.MulByElement(&lines[k][2][62], xNegOverY[k]),
+			pr.MulByElement(&lines[k][1][62].R1, yInv[k]),
+			pr.MulByElement(&lines[k][1][62].R0, xNegOverY[k]),
 		)
 	}
 
@@ -726,17 +726,17 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][4][63]fields_bls12381
 		for k := 0; k < n; k++ {
 			if loopCounter[i] == 0 {
 				res = pr.MulBy014(res,
-					pr.MulByElement(&lines[k][1][i], yInv[k]),
-					pr.MulByElement(&lines[k][0][i], xNegOverY[k]),
+					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
 				)
 			} else {
 				res = pr.MulBy014(res,
-					pr.MulByElement(&lines[k][1][i], yInv[k]),
-					pr.MulByElement(&lines[k][0][i], xNegOverY[k]),
+					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
 				)
 				res = pr.MulBy014(res,
-					pr.MulByElement(&lines[k][3][i], yInv[k]),
-					pr.MulByElement(&lines[k][2][i], xNegOverY[k]),
+					pr.MulByElement(&lines[k][1][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
 				)
 			}
 		}
@@ -752,7 +752,7 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][4][63]fields_bls12381
 // ∏ᵢ e(Pᵢ, Qᵢ) where Qᵢ are fixed points known in advance.
 //
 // This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
-func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][4][63]fields_bls12381.E2) (*GTEl, error) {
+func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][2][63]lineEvaluation) (*GTEl, error) {
 	f, err := pr.MillerLoopFixedQ(P, lines)
 	if err != nil {
 		return nil, err
@@ -764,7 +764,7 @@ func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][4][63]fields_bls12381.E2) (
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1 where Qᵢ are fixed points known in advance.
 //
 // This function doesn't check that the inputs are in the correct subgroups.
-func (pr Pairing) PairingFixedQCheck(P []*G1Affine, lines [][4][63]fields_bls12381.E2) error {
+func (pr Pairing) PairingFixedQCheck(P []*G1Affine, lines [][2][63]lineEvaluation) error {
 	f, err := pr.PairFixedQ(P, lines)
 	if err != nil {
 		return err

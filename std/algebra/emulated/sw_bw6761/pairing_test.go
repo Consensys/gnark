@@ -12,7 +12,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
 
@@ -184,7 +183,7 @@ func TestPairingCheckTestSolve(t *testing.T) {
 
 type PairFixedCircuit struct {
 	InG1  G1Affine
-	Lines [4][189]emulated.Element[emulated.BW6761Fp]
+	Lines [2][189]lineEvaluation
 	Res   GTEl
 }
 
@@ -193,7 +192,7 @@ func (c *PairFixedCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.PairFixedQ([]*G1Affine{&c.InG1}, [][4][189]emulated.Element[emulated.BW6761Fp]{c.Lines})
+	res, err := pairing.PairFixedQ([]*G1Affine{&c.InG1}, [][2][189]lineEvaluation{c.Lines})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -219,8 +218,8 @@ func TestPairFixedTestSolve(t *testing.T) {
 type DoublePairFixedCircuit struct {
 	In1G1  G1Affine
 	In2G1  G1Affine
-	Lines1 [4][189]emulated.Element[emulated.BW6761Fp]
-	Lines2 [4][189]emulated.Element[emulated.BW6761Fp]
+	Lines1 [2][189]lineEvaluation
+	Lines2 [2][189]lineEvaluation
 	Res    GTEl
 }
 
@@ -229,7 +228,7 @@ func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.PairFixedQ([]*G1Affine{&c.In1G1, &c.In2G1}, [][4][189]emulated.Element[emulated.BW6761Fp]{c.Lines1, c.Lines2})
+	res, err := pairing.PairFixedQ([]*G1Affine{&c.In1G1, &c.In2G1}, [][2][189]lineEvaluation{c.Lines1, c.Lines2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
