@@ -312,11 +312,11 @@ var loopCounter = [66]int8{
 	-1, 0, -1, 0, 0, 0, 1, 0, -1, 0, 1,
 }
 
-// lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
+// LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
 // line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
 // makes the multiplication by lines (MulBy034) and between lines (Mul034By034)
 // circuit-efficient.
-type lineEvaluation struct {
+type LineEvaluation struct {
 	R0, R1 fields_bn254.E2
 }
 
@@ -332,7 +332,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	res := pr.Ext12.One()
 	var prodLines [5]*fields_bn254.E2
 
-	var l1, l2 *lineEvaluation
+	var l1, l2 *LineEvaluation
 	Qacc := make([]*G2Affine, n)
 	QNeg := make([]*G2Affine, n)
 	yInv := make([]*emulated.Element[emulated.BN254Fp], n)
@@ -374,7 +374,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		Qacc[1], l1 = pr.doubleStep(Qacc[1])
 
 		// line evaluation at P[1]
-		l1 = &lineEvaluation{
+		l1 = &LineEvaluation{
 			R0: *pr.MulByElement(&l1.R0, xNegOverY[1]),
 			R1: *pr.MulByElement(&l1.R1, yInv[1]),
 		}
@@ -401,7 +401,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		Qacc[2], l1 = pr.doubleStep(Qacc[2])
 
 		// line evaluation at P[1]
-		l1 = &lineEvaluation{
+		l1 = &LineEvaluation{
 			R0: *pr.MulByElement(&l1.R0, xNegOverY[2]),
 			R1: *pr.MulByElement(&l1.R1, yInv[2]),
 		}
@@ -415,7 +415,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 			Qacc[k], l1 = pr.doubleStep(Qacc[k])
 
 			// line evaluation at P[k]
-			l1 = &lineEvaluation{
+			l1 = &LineEvaluation{
 				R0: *pr.MulByElement(&l1.R0, xNegOverY[k]),
 				R1: *pr.MulByElement(&l1.R1, yInv[k]),
 			}
@@ -440,7 +440,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		l2 = pr.lineCompute(Qacc[k], QNeg[k])
 
 		// line evaluation at P[k]
-		l2 = &lineEvaluation{
+		l2 = &LineEvaluation{
 			R0: *pr.MulByElement(&l2.R0, xNegOverY[k]),
 			R1: *pr.MulByElement(&l2.R1, yInv[k]),
 		}
@@ -450,7 +450,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		Qacc[k], l1 = pr.addStep(Qacc[k], Q[k])
 
 		// line evaluation at P[k]
-		l1 = &lineEvaluation{
+		l1 = &LineEvaluation{
 			R0: *pr.MulByElement(&l1.R0, xNegOverY[k]),
 			R1: *pr.MulByElement(&l1.R1, yInv[k]),
 		}
@@ -461,7 +461,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		res = pr.MulBy01234(res, prodLines)
 	}
 
-	l1s := make([]*lineEvaluation, n)
+	l1s := make([]*LineEvaluation, n)
 	for i := 62; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
@@ -476,7 +476,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 				Qacc[k], l1s[k] = pr.doubleStep(Qacc[k])
 
 				// line evaluation at P[k]
-				l1s[k] = &lineEvaluation{
+				l1s[k] = &LineEvaluation{
 					R0: *pr.MulByElement(&l1s[k].R0, xNegOverY[k]),
 					R1: *pr.MulByElement(&l1s[k].R1, yInv[k]),
 				}
@@ -508,13 +508,13 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 				Qacc[k], l1, l2 = pr.doubleAndAddStep(Qacc[k], Q[k])
 
 				// line evaluation at P[k]
-				l1 = &lineEvaluation{
+				l1 = &LineEvaluation{
 					R0: *pr.MulByElement(&l1.R0, xNegOverY[k]),
 					R1: *pr.MulByElement(&l1.R1, yInv[k]),
 				}
 
 				// line evaluation at P[k]
-				l2 = &lineEvaluation{
+				l2 = &LineEvaluation{
 					R0: *pr.MulByElement(&l2.R0, xNegOverY[k]),
 					R1: *pr.MulByElement(&l2.R1, yInv[k]),
 				}
@@ -534,13 +534,13 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 				Qacc[k], l1, l2 = pr.doubleAndAddStep(Qacc[k], QNeg[k])
 
 				// line evaluation at P[k]
-				l1 = &lineEvaluation{
+				l1 = &LineEvaluation{
 					R0: *pr.MulByElement(&l1.R0, xNegOverY[k]),
 					R1: *pr.MulByElement(&l1.R1, yInv[k]),
 				}
 
 				// line evaluation at P[k]
-				l2 = &lineEvaluation{
+				l2 = &LineEvaluation{
 					R0: *pr.MulByElement(&l2.R0, xNegOverY[k]),
 					R1: *pr.MulByElement(&l2.R1, yInv[k]),
 				}
@@ -584,7 +584,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		Qacc[k], l1 = pr.addStep(Qacc[k], Q1)
 
 		// line evaluation at P[k]
-		l1 = &lineEvaluation{
+		l1 = &LineEvaluation{
 			R0: *pr.Ext2.MulByElement(&l1.R0, xNegOverY[k]),
 			R1: *pr.Ext2.MulByElement(&l1.R1, yInv[k]),
 		}
@@ -592,7 +592,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 		// l2 the line passing Qacc[k] and -π²(Q)
 		l2 = pr.lineCompute(Qacc[k], Q2)
 		// line evaluation at P[k]
-		l2 = &lineEvaluation{
+		l2 = &LineEvaluation{
 			R0: *pr.MulByElement(&l2.R0, xNegOverY[k]),
 			R1: *pr.MulByElement(&l2.R1, yInv[k]),
 		}
@@ -609,9 +609,9 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) doubleAndAddStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation, *lineEvaluation) {
+func (pr Pairing) doubleAndAddStep(p1, p2 *G2Affine) (*G2Affine, *LineEvaluation, *LineEvaluation) {
 
-	var line1, line2 lineEvaluation
+	var line1, line2 LineEvaluation
 	var p G2Affine
 
 	// compute λ1 = (y2-y1)/(x2-x1)
@@ -661,10 +661,10 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation
 
 // doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) doubleStep(p1 *G2Affine) (*G2Affine, *lineEvaluation) {
+func (pr Pairing) doubleStep(p1 *G2Affine) (*G2Affine, *LineEvaluation) {
 
 	var p G2Affine
-	var line lineEvaluation
+	var line LineEvaluation
 
 	// λ = 3x²/2y
 	n := pr.Ext2.Square(&p1.X)
@@ -696,7 +696,7 @@ func (pr Pairing) doubleStep(p1 *G2Affine) (*G2Affine, *lineEvaluation) {
 
 // addStep adds two points in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) addStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation) {
+func (pr Pairing) addStep(p1, p2 *G2Affine) (*G2Affine, *LineEvaluation) {
 
 	// compute λ = (y2-y1)/(x2-x1)
 	p2ypy := pr.Ext2.Sub(&p2.Y, &p1.Y)
@@ -717,7 +717,7 @@ func (pr Pairing) addStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation) {
 	res.X = *xr
 	res.Y = *yr
 
-	var line lineEvaluation
+	var line LineEvaluation
 	line.R0 = *λ
 	line.R1 = *pr.Ext2.Mul(λ, &p1.X)
 	line.R1 = *pr.Ext2.Sub(&line.R1, &p1.Y)
@@ -727,14 +727,14 @@ func (pr Pairing) addStep(p1, p2 *G2Affine) (*G2Affine, *lineEvaluation) {
 }
 
 // lineCompute computes the line that goes through p1 and p2 but does not compute p1+p2
-func (pr Pairing) lineCompute(p1, p2 *G2Affine) *lineEvaluation {
+func (pr Pairing) lineCompute(p1, p2 *G2Affine) *LineEvaluation {
 
 	// compute λ = (y2-y1)/(x2-x1)
 	qypy := pr.Ext2.Sub(&p2.Y, &p1.Y)
 	qxpx := pr.Ext2.Sub(&p2.X, &p1.X)
 	λ := pr.Ext2.DivUnchecked(qypy, qxpx)
 
-	var line lineEvaluation
+	var line LineEvaluation
 	line.R0 = *λ
 	line.R1 = *pr.Ext2.Mul(λ, &p1.X)
 	line.R1 = *pr.Ext2.Sub(&line.R1, &p1.Y)
@@ -772,7 +772,7 @@ func (pr Pairing) FinalExponentiationIsOne(e *GTEl) {
 
 // MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
 // but Qᵢ are fixed points in G2 known in advance.
-func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][66]lineEvaluation) (*GTEl, error) {
+func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][66]LineEvaluation) (*GTEl, error) {
 
 	// check input size match
 	n := len(P)
@@ -910,7 +910,7 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][66]lineEvaluation)
 // ∏ᵢ e(Pᵢ, Qᵢ) where Qᵢ are fixed points known in advance.
 //
 // This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
-func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][2][66]lineEvaluation) (*GTEl, error) {
+func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][2][66]LineEvaluation) (*GTEl, error) {
 	f, err := pr.MillerLoopFixedQ(P, lines)
 	if err != nil {
 		return nil, err
@@ -922,7 +922,7 @@ func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][2][66]lineEvaluation) (*GTE
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1 where Qᵢ are fixed points known in advance.
 //
 // This function doesn't check that the inputs are in the correct subgroups.
-func (pr Pairing) PairingFixedQCheck(P []*G1Affine, lines [][2][66]lineEvaluation) error {
+func (pr Pairing) PairingFixedQCheck(P []*G1Affine, lines [][2][66]LineEvaluation) error {
 	f, err := pr.PairFixedQ(P, lines)
 	if err != nil {
 		return err

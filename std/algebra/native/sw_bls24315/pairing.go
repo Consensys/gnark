@@ -30,10 +30,10 @@ var loopCounter = [33]int8{
 	-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1,
 }
 
-// lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
+// LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
 // line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
 // makes the multiplication by lines (MulBy034) and between lines (Mul034By034)
-type lineEvaluation struct {
+type LineEvaluation struct {
 	R0, R1 fields_bls24315.E4
 }
 
@@ -50,7 +50,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	res.SetOne()
 	var prodLines [5]fields_bls24315.E4
 
-	var l1, l2 lineEvaluation
+	var l1, l2 LineEvaluation
 	Qacc := make([]G2Affine, n)
 	Qneg := make([]G2Affine, n)
 	yInv := make([]frontend.Variable, n)
@@ -308,10 +308,10 @@ func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation, lineEvaluation) {
+func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, LineEvaluation, LineEvaluation) {
 
 	var n, d, l1, l2, x3, x4, y4 fields_bls24315.E4
-	var line1, line2 lineEvaluation
+	var line1, line2 LineEvaluation
 	var p G2Affine
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
@@ -358,11 +358,11 @@ func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluat
 
 // doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, lineEvaluation) {
+func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
 
 	var n, d, l, xr, yr fields_bls24315.E4
 	var p G2Affine
-	var line lineEvaluation
+	var line LineEvaluation
 
 	// lambda = 3*p1.x**2/2*p.y
 	n.Square(api, p1.X).MulByFp(api, n, 3)
@@ -391,7 +391,7 @@ func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, lineEvaluation) {
 
 // addStep adds two points in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func addStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation) {
+func addStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, LineEvaluation) {
 
 	var p2ypy, p2xpx, λ, λλ, pxrx, λpxrx, xr, yr fields_bls24315.E4
 	// compute λ = (y2-y1)/(x2-x1)
@@ -413,7 +413,7 @@ func addStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation) {
 	res.X = xr
 	res.Y = yr
 
-	var line lineEvaluation
+	var line LineEvaluation
 	line.R0 = λ
 	line.R1.Mul(api, λ, p1.X)
 	line.R1.Sub(api, line.R1, p1.Y)
@@ -423,10 +423,10 @@ func addStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation) {
 }
 
 // linesCompute computes the lines that goes through p1 and p2, and (p1+p2) and p1 but does not compute 2p1+p2
-func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvaluation) {
+func linesCompute(api frontend.API, p1, p2 *G2Affine) (LineEvaluation, LineEvaluation) {
 
 	var n, d, l1, l2, x3 fields_bls24315.E4
-	var line1, line2 lineEvaluation
+	var line1, line2 LineEvaluation
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
 	n.Sub(api, p1.Y, p2.Y)
@@ -457,7 +457,7 @@ func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvalu
 }
 
 // lineCompute computes the line that goes through p1 and p2 but does not compute p1+p2
-func lineCompute(api frontend.API, p1, p2 *G2Affine) lineEvaluation {
+func lineCompute(api frontend.API, p1, p2 *G2Affine) LineEvaluation {
 
 	var qypy, qxpx, λ fields_bls24315.E4
 
@@ -466,7 +466,7 @@ func lineCompute(api frontend.API, p1, p2 *G2Affine) lineEvaluation {
 	qxpx.Sub(api, p2.X, p1.X)
 	λ.DivUnchecked(api, qypy, qxpx)
 
-	var line lineEvaluation
+	var line LineEvaluation
 	line.R0 = λ
 	line.R1.Mul(api, λ, p1.X)
 	line.R1.Sub(api, line.R1, p1.Y)
@@ -481,7 +481,7 @@ func lineCompute(api frontend.API, p1, p2 *G2Affine) lineEvaluation {
 
 // MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
 // but Qᵢ are fixed points in G2 known in advance.
-func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2][32]lineEvaluation) (GT, error) {
+func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluation) (GT, error) {
 
 	// check input size match
 	n := len(P)
@@ -491,7 +491,7 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2][32]lineEvaluat
 
 	var res GT
 	res.SetOne()
-	var l1, l2 lineEvaluation
+	var l1, l2 LineEvaluation
 
 	// precomputations
 	yInv := make([]frontend.Variable, n)
@@ -555,7 +555,7 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2][32]lineEvaluat
 // e(P, g2), where g2 is fixed.
 //
 // This function doesn't check that the inputs are in the correct subgroups.
-func PairFixedQ(api frontend.API, P []G1Affine, lines [][2][32]lineEvaluation) (GT, error) {
+func PairFixedQ(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluation) (GT, error) {
 	f, err := MillerLoopFixedQ(api, P, lines)
 	if err != nil {
 		return GT{}, err
@@ -567,7 +567,7 @@ func PairFixedQ(api frontend.API, P []G1Affine, lines [][2][32]lineEvaluation) (
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1 where Qᵢ are fixed.
 //
 // This function doesn't check that the inputs are in the correct subgroups
-func PairingFixedQCheck(api frontend.API, P []G1Affine, lines [][2][32]lineEvaluation) error {
+func PairingFixedQCheck(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluation) error {
 	f, err := PairFixedQ(api, P, lines)
 	if err != nil {
 		return err

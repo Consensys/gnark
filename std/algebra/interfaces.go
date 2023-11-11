@@ -1,5 +1,6 @@
 package algebra
 
+type LinesT any
 type ScalarT any
 type GroupElementT any
 type G1ElementT GroupElementT
@@ -36,7 +37,7 @@ type Curve[S ScalarT, G1El G1ElementT] interface {
 // Pairing allows to compute the bi-linear pairing of G1 and G2 elements.
 // Additionally, the interface provides steps used in pairing computation and a
 // dedicated optimised pairing check.
-type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
+type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT, L LinesT] interface {
 	// MillerLoop computes the Miller loop of the input pairs. It returns error
 	// when the inputs are of mismatching length. It does not modify the inputs.
 	MillerLoop([]*G1El, []*G2El) (*GtEl, error)
@@ -55,7 +56,7 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 
 	// PairingFixedQCheck is the same as PairingCheck but of size 2 and
 	// where one of the G2El argument is the fixed canonical generator of G2.
-	PairingFixedQCheck([]*G1El, []*G2El) error
+	PairingFixedQCheck([]*G1El, [][2][189]L) error
 
 	// AssertIsEqual asserts the equality of the inputs.
 	AssertIsEqual(*GtEl, *GtEl)

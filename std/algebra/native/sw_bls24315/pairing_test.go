@@ -129,13 +129,13 @@ func TestTriplePairingBLS24315(t *testing.T) {
 
 type pairingFixedBLS315 struct {
 	P          G1Affine
-	Lines      [2][32]lineEvaluation
+	Lines      [2][32]LineEvaluation
 	pairingRes bls24315.GT
 }
 
 func (circuit *pairingFixedBLS315) Define(api frontend.API) error {
 
-	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P}, [][2][32]lineEvaluation{circuit.Lines})
+	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P}, [][2][32]LineEvaluation{circuit.Lines})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -163,14 +163,14 @@ func TestPairingFixedBLS315(t *testing.T) {
 type doublePairingFixedBLS315 struct {
 	P0         G1Affine
 	P1         G1Affine
-	Line0      [2][32]lineEvaluation
-	Line1      [2][32]lineEvaluation
+	Line0      [2][32]LineEvaluation
+	Line1      [2][32]LineEvaluation
 	pairingRes bls24315.GT
 }
 
 func (circuit *doublePairingFixedBLS315) Define(api frontend.API) error {
 
-	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P0, circuit.P1}, [][2][32]lineEvaluation{circuit.Line0, circuit.Line1})
+	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P0, circuit.P1}, [][2][32]LineEvaluation{circuit.Line0, circuit.Line1})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 

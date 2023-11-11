@@ -30,18 +30,18 @@ import (
 // Q.Y.A0 = 0x690d665d446f7bd960736bcbb2efb4de03ed7274b49a58e458c282f832d204f2cf88886d8c7c2ef094094409fd4ddf
 // Q.Y.A1 = 0xf8169fd28355189e549da3151a70aa61ef11ac3d591bf12463b01acee304c24279b83f5e52270bd9a1cdd185eb8f93
 
-var precomputedLines [2][63]lineEvaluation
+var precomputedLines [2][63]LineEvaluation
 var precomputedLinesOnce sync.Once
 
-func getPrecomputedLines() [2][63]lineEvaluation {
+func getPrecomputedLines() [2][63]LineEvaluation {
 	precomputedLinesOnce.Do(func() {
 		precomputedLines = computePrecomputedLines()
 	})
 	return precomputedLines
 }
 
-func computePrecomputedLines() [2][63]lineEvaluation {
-	var PrecomputedLines [2][63]lineEvaluation
+func computePrecomputedLines() [2][63]LineEvaluation {
+	var PrecomputedLines [2][63]LineEvaluation
 	_, _, _, G2AffGen := bls12377.Generators()
 	lines := bls12377.PrecomputeLines(G2AffGen)
 	for j := 0; j < 63; j++ {

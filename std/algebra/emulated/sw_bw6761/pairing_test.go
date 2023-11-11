@@ -183,7 +183,7 @@ func TestPairingCheckTestSolve(t *testing.T) {
 
 type PairFixedCircuit struct {
 	InG1  G1Affine
-	Lines [2][189]lineEvaluation
+	Lines [2][189]LineEvaluation
 	Res   GTEl
 }
 
@@ -192,7 +192,7 @@ func (c *PairFixedCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.PairFixedQ([]*G1Affine{&c.InG1}, [][2][189]lineEvaluation{c.Lines})
+	res, err := pairing.PairFixedQ([]*G1Affine{&c.InG1}, [][2][189]LineEvaluation{c.Lines})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -218,8 +218,8 @@ func TestPairFixedTestSolve(t *testing.T) {
 type DoublePairFixedCircuit struct {
 	In1G1  G1Affine
 	In2G1  G1Affine
-	Lines1 [2][189]lineEvaluation
-	Lines2 [2][189]lineEvaluation
+	Lines1 [2][189]LineEvaluation
+	Lines2 [2][189]LineEvaluation
 	Res    GTEl
 }
 
@@ -228,7 +228,7 @@ func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.PairFixedQ([]*G1Affine{&c.In1G1, &c.In2G1}, [][2][189]lineEvaluation{c.Lines1, c.Lines2})
+	res, err := pairing.PairFixedQ([]*G1Affine{&c.In1G1, &c.In2G1}, [][2][189]LineEvaluation{c.Lines1, c.Lines2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}

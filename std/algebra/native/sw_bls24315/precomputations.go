@@ -34,18 +34,18 @@ import (
 // Q.Y.B1.A0 = 0x1b38dd0c5ec49a0883a950c631c688eb3b01f45b7c0d2990cd99052005ebf2fa9e7043bbd605ef5
 // Q.Y.B1.A1 = 0x495d6de2e4fed6be3e1d24dd724163e01d88643f7e83d31528ab0a80ced619175a1a104574ac83
 
-var precomputedLines [2][32]lineEvaluation
+var precomputedLines [2][32]LineEvaluation
 var precomputedLinesOnce sync.Once
 
-func getPrecomputedLines() [2][32]lineEvaluation {
+func getPrecomputedLines() [2][32]LineEvaluation {
 	precomputedLinesOnce.Do(func() {
 		precomputedLines = computePrecomputedLines()
 	})
 	return precomputedLines
 }
 
-func computePrecomputedLines() [2][32]lineEvaluation {
-	var PrecomputedLines [2][32]lineEvaluation
+func computePrecomputedLines() [2][32]LineEvaluation {
+	var PrecomputedLines [2][32]LineEvaluation
 	_, _, _, G2AffGen := bls24315.Generators()
 	lines := bls24315.PrecomputeLines(G2AffGen)
 	for j := 0; j < 32; j++ {

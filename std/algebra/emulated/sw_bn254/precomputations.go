@@ -14,18 +14,18 @@ import (
 // Q.X.A1 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2
 // Q.Y.A0 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
 // Q.Y.A1 = 0x90689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b
-var precomputedLines [2][66]lineEvaluation
+var precomputedLines [2][66]LineEvaluation
 var precomputedLinesOnce sync.Once
 
-func getPrecomputedLines() [2][66]lineEvaluation {
+func getPrecomputedLines() [2][66]LineEvaluation {
 	precomputedLinesOnce.Do(func() {
 		precomputedLines = computePrecomputeLines()
 	})
 	return precomputedLines
 }
 
-func computePrecomputeLines() [2][66]lineEvaluation {
-	var PrecomputedLines [2][66]lineEvaluation
+func computePrecomputeLines() [2][66]LineEvaluation {
+	var PrecomputedLines [2][66]LineEvaluation
 	_, _, _, G2AffGen := bn254.Generators()
 	lines := bn254.PrecomputeLines(G2AffGen)
 	for j := 0; j < 65; j++ {
