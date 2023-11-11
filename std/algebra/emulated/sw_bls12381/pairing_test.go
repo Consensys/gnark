@@ -262,13 +262,12 @@ func (c *PairFixedCircuit) Define(api frontend.API) error {
 
 func TestPairFixedTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p, _ := randomG1G2Affines()
-	_, _, _, G2AffGen := bls12381.Generators()
-	res, err := bls12381.Pair([]bls12381.G1Affine{p}, []bls12381.G2Affine{G2AffGen})
+	p, q := randomG1G2Affines()
+	res, err := bls12381.Pair([]bls12381.G1Affine{p}, []bls12381.G2Affine{q})
 	assert.NoError(err)
 	witness := PairFixedCircuit{
 		InG1:  NewG1Affine(p),
-		Lines: getPrecomputedLines(),
+		Lines: precomputeLines(q),
 		Res:   NewGTEl(res),
 	}
 	err = test.IsSolved(&PairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
@@ -298,16 +297,15 @@ func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
 
 func TestDoublePairFixedTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	p1, _ := randomG1G2Affines()
-	p2, _ := randomG1G2Affines()
-	_, _, _, G2AffGen := bls12381.Generators()
-	res, err := bls12381.Pair([]bls12381.G1Affine{p1, p2}, []bls12381.G2Affine{G2AffGen, G2AffGen})
+	p1, q1 := randomG1G2Affines()
+	p2, q2 := randomG1G2Affines()
+	res, err := bls12381.Pair([]bls12381.G1Affine{p1, p2}, []bls12381.G2Affine{q1, q2})
 	assert.NoError(err)
 	witness := DoublePairFixedCircuit{
 		In1G1:  NewG1Affine(p1),
 		In2G1:  NewG1Affine(p2),
-		Lines1: getPrecomputedLines(),
-		Lines2: getPrecomputedLines(),
+		Lines1: precomputeLines(q1),
+		Lines2: precomputeLines(q2),
 		Res:    NewGTEl(res),
 	}
 	err = test.IsSolved(&DoublePairFixedCircuit{}, &witness, ecc.BN254.ScalarField())

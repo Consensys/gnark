@@ -22,28 +22,20 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 )
 
-// precomputed lines going through Q and multiples of Q
-// where Q is the fixed canonical generator of G2
-//
-// Q.X.A0 = 0x18480be71c785fec89630a2a3841d01c565f071203e50317ea501f557db6b9b71889f52bb53540274e3e48f7c005196
-// Q.X.A1 = 0xea6040e700403170dc5a51b1b140d5532777ee6651cecbe7223ece0799c9de5cf89984bff76fe6b26bfefa6ea16afe
-// Q.Y.A0 = 0x690d665d446f7bd960736bcbb2efb4de03ed7274b49a58e458c282f832d204f2cf88886d8c7c2ef094094409fd4ddf
-// Q.Y.A1 = 0xf8169fd28355189e549da3151a70aa61ef11ac3d591bf12463b01acee304c24279b83f5e52270bd9a1cdd185eb8f93
-
+// precomputed lines going through Q where Q is a fixed point in G2
 var precomputedLines [2]LineEvaluations
 var precomputedLinesOnce sync.Once
 
-func getPrecomputedLines() [2]LineEvaluations {
+func getPrecomputedLines(Q bls12377.G2Affine) [2]LineEvaluations {
 	precomputedLinesOnce.Do(func() {
-		precomputedLines = computePrecomputedLines()
+		precomputedLines = precomputeLines(Q)
 	})
 	return precomputedLines
 }
 
-func computePrecomputedLines() [2]LineEvaluations {
+func precomputeLines(Q bls12377.G2Affine) [2]LineEvaluations {
 	var PrecomputedLines [2]LineEvaluations
-	_, _, _, G2AffGen := bls12377.Generators()
-	lines := bls12377.PrecomputeLines(G2AffGen)
+	lines := bls12377.PrecomputeLines(Q)
 	for j := 0; j < 63; j++ {
 		PrecomputedLines[0].Eval[j].R0.Assign(&lines[0][j].R0)
 		PrecomputedLines[0].Eval[j].R1.Assign(&lines[0][j].R1)

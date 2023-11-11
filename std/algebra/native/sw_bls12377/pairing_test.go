@@ -144,7 +144,7 @@ func (circuit *pairingFixedBLS377) Define(api frontend.API) error {
 func TestPairingFixedBLS377(t *testing.T) {
 
 	// pairing test data
-	P, _, _, pairingRes := pairingData()
+	P, Q, _, pairingRes := pairingData()
 
 	// create cs
 	var circuit, witness pairingFixedBLS377
@@ -152,7 +152,7 @@ func TestPairingFixedBLS377(t *testing.T) {
 
 	// assign values to witness
 	witness.P.Assign(&P)
-	witness.Lines = getPrecomputedLines()
+	witness.Lines = precomputeLines(Q)
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
@@ -179,7 +179,7 @@ func (circuit *doublePairingFixedBLS377) Define(api frontend.API) error {
 func TestDoublePairingFixedBLS377(t *testing.T) {
 
 	// pairing test data
-	P, _, _, pairingRes := doublePairingFixedQData()
+	P, Q, _, pairingRes := doublePairingFixedQData()
 
 	// create cs
 	var circuit, witness doublePairingFixedBLS377
@@ -188,8 +188,8 @@ func TestDoublePairingFixedBLS377(t *testing.T) {
 	// assign values to witness
 	witness.P0.Assign(&P[0])
 	witness.P1.Assign(&P[1])
-	witness.Line0 = getPrecomputedLines()
-	witness.Line1 = getPrecomputedLines()
+	witness.Line0 = precomputeLines(Q[0])
+	witness.Line1 = precomputeLines(Q[1])
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
@@ -265,14 +265,17 @@ func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairin
 	return
 }
 
-func doublePairingFixedQData() (P [2]bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
-	_, _, P[0], Q = bls12377.Generators()
-	var u fr.Element
-	var _u big.Int
+func doublePairingFixedQData() (P [2]bls12377.G1Affine, Q [2]bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
+	_, _, P[0], Q[0] = bls12377.Generators()
+	var u, v fr.Element
+	var _u, _v big.Int
 	_, _ = u.SetRandom()
+	_, _ = v.SetRandom()
 	u.BigInt(&_u)
+	v.BigInt(&_v)
 	P[1].ScalarMultiplication(&P[0], &_u)
-	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1]}, []bls12377.G2Affine{Q, Q})
+	Q[1].ScalarMultiplication(&Q[0], &_v)
+	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1]}, []bls12377.G2Affine{Q[0], Q[1]})
 	pairingRes = bls12377.FinalExponentiation(&milRes)
 	return
 }
