@@ -30,7 +30,7 @@ func Example_native() {
 		panic(err)
 	}
 
-	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
@@ -40,7 +40,7 @@ func Example_native() {
 	// compiled inner circuit to deduce the required size for the outer witness
 	// using functions [stdgroth16.PlaceholderWitness] and
 	// [stdgroth16.PlaceholderVerifyingKey]
-	outerCircuit := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	outerCircuit := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]{
 		InnerWitness: stdgroth16.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
 		VerifyingKey: stdgroth16.PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerCcs),
 	}
