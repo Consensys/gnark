@@ -5,28 +5,28 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/commitments/kzg"
 )
 
-type KZGVerificationCircuit[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {
-	kzg.VerifyingKey[G2El]
+type KZGVerificationCircuit[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT, L algebra.LinesT] struct {
+	kzg.VerifyingKey[L]
 	kzg.Commitment[G1El]
 	kzg.OpeningProof[S, G1El]
 }
 
-func (c *KZGVerificationCircuit[S, G1El, G2El, GTEl]) Define(api frontend.API) error {
+func (c *KZGVerificationCircuit[S, G1El, G2El, GTEl, L]) Define(api frontend.API) error {
 	curve, err := algebra.GetCurve[S, G1El](api)
 	if err != nil {
 		return fmt.Errorf("get curve: %w", err)
 	}
-	pairing, err := algebra.GetPairing[G1El, G2El, GTEl](api)
+	pairing, err := algebra.GetPairing[G1El, G2El, GTEl, L](api)
 	if err != nil {
 		return fmt.Errorf("get pairing: %w", err)
 	}
@@ -55,61 +55,61 @@ func Example_emulated() {
 	if err != nil {
 		panic("sampling alpha failed: " + err.Error())
 	}
-	srs, err := kzg_bn254.NewSRS(kzgSize, alpha) // UNSAFE!
+	srs, err := kzg_bw6761.NewSRS(kzgSize, alpha) // UNSAFE!
 	if err != nil {
 		panic("new SRS failed: " + err.Error())
 	}
 
 	// sample the random polynomial by sampling the coefficients.
-	f := make([]fr_bn254.Element, polynomialSize)
+	f := make([]fr_bw6761.Element, polynomialSize)
 	for i := range f {
 		f[i].SetRandom()
 	}
 
 	// natively commit to the polynomial using SRS
-	com, err := kzg_bn254.Commit(f, srs.Pk)
+	com, err := kzg_bw6761.Commit(f, srs.Pk)
 	if err != nil {
 		panic("commitment failed: " + err.Error())
 	}
 
 	// sample random evaluation point
-	var point fr_bn254.Element
+	var point fr_bw6761.Element
 	point.SetRandom()
 
 	// construct a proof of correct opening. The evaluation value is proof.ClaimedValue
-	proof, err := kzg_bn254.Open(f, point, srs.Pk)
+	proof, err := kzg_bw6761.Open(f, point, srs.Pk)
 	if err != nil {
 		panic("test opening failed: " + err.Error())
 	}
 
 	// test opening proof natively
-	if err = kzg_bn254.Verify(&com, &proof, point, srs.Vk); err != nil {
+	if err = kzg_bw6761.Verify(&com, &proof, point, srs.Vk); err != nil {
 		panic("test verify failed: " + err.Error())
 	}
 
 	// create a witness element of the commitment
-	wCmt, err := kzg.ValueOfCommitment[sw_bn254.G1Affine](com)
+	wCmt, err := kzg.ValueOfCommitment[sw_bw6761.G1Affine](com)
 	if err != nil {
 		panic("commitment witness failed: " + err.Error())
 	}
 
 	// create a witness element of the opening proof and the evaluation point
-	wProof, err := kzg.ValueOfOpeningProof[sw_bn254.Scalar, sw_bn254.G1Affine](point, proof)
+	wProof, err := kzg.ValueOfOpeningProof[sw_bw6761.Scalar, sw_bw6761.G1Affine](point, proof)
 	if err != nil {
 		panic("opening proof witness failed: " + err.Error())
 	}
 
 	// create a witness element of the SRS
-	wVk, err := kzg.ValueOfVerifyingKey[sw_bn254.G2Affine](srs.Vk)
+	wVk, err := kzg.ValueOfVerifyingKey[sw_bw6761.LineEvaluation](srs.Vk)
 	if err != nil {
 		panic("verifying key witness failed: " + err.Error())
 	}
-	assignment := KZGVerificationCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+	assignment := KZGVerificationCircuit[sw_bw6761.Scalar, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl, sw_bw6761.LineEvaluation]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
 	}
-	circuit := KZGVerificationCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{}
+	circuit := KZGVerificationCircuit[sw_bw6761.Scalar, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl, sw_bw6761.LineEvaluation]{}
 
 	// as we are currently using the emulated implementation of BN254
 	// in-circuit, then we can compile to any curve. For example purposes, here

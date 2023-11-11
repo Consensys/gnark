@@ -104,6 +104,14 @@ type LineEvaluation struct {
 	R0, R1 emulated.Element[emulated.BW6761Fp]
 }
 
+// NewLineEvaluation allocates a witness from the native LineEvaluationAff and returns it.
+func NewLineEvaluation(v bw6761.LineEvaluationAff) LineEvaluation {
+	return LineEvaluation{
+		R0: emulated.ValueOf[emulated.BW6761Fp](v.R0),
+		R1: emulated.ValueOf[emulated.BW6761Fp](v.R1),
+	}
+}
+
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //

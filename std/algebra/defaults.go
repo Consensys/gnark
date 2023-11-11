@@ -53,33 +53,37 @@ func GetCurve[S ScalarT, G1El G1ElementT](api frontend.API) (Curve[S, G1El], err
 // GetPairing returns the [Pairing] implementation corresponding to the groups
 // type parameters. The method allows to have a fully generic implementation
 // without taking into consideration the initialization differences.
-func GetPairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT, L LinesT](api frontend.API) (Pairing[G1El, G2El, GtEl, LinesT], error) {
-	var ret Pairing[G1El, G2El, GtEl, LinesT]
+func GetPairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT, L LinesT](api frontend.API) (Pairing[G1El, G2El, GtEl, L], error) {
+	var ret Pairing[G1El, G2El, GtEl, L]
 	switch s := any(&ret).(type) {
-	case *Pairing[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl, sw_bn254.LineEvaluation]:
-		p, err := sw_bn254.NewPairing(api)
-		if err != nil {
-			return ret, fmt.Errorf("new pairing: %w", err)
-		}
-		*s = p
+	/*
+		case *Pairing[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl, sw_bn254.LineEvaluation]:
+			p, err := sw_bn254.NewPairing(api)
+			if err != nil {
+				return ret, fmt.Errorf("new pairing: %w", err)
+			}
+			*s = p
+	*/
 	case *Pairing[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl, sw_bw6761.LineEvaluation]:
 		p, err := sw_bw6761.NewPairing(api)
 		if err != nil {
 			return ret, fmt.Errorf("new pairing: %w", err)
 		}
 		*s = p
-	case *Pairing[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl, sw_bls12381.LineEvaluation]:
-		p, err := sw_bls12381.NewPairing(api)
-		if err != nil {
-			return ret, fmt.Errorf("new pairing: %w", err)
-		}
-		*s = p
-	case *Pairing[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluation]:
-		p := sw_bls12377.NewPairing(api)
-		*s = p
-	case *Pairing[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT, sw_bls24315.LineEvaluation]:
-		p := sw_bls24315.NewPairing(api)
-		*s = p
+		/*
+			case *Pairing[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl, sw_bls12381.LineEvaluation]:
+				p, err := sw_bls12381.NewPairing(api)
+				if err != nil {
+					return ret, fmt.Errorf("new pairing: %w", err)
+				}
+				*s = p
+			case *Pairing[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluation]:
+				p := sw_bls12377.NewPairing(api)
+				*s = p
+			case *Pairing[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT, sw_bls24315.LineEvaluation]:
+				p := sw_bls24315.NewPairing(api)
+				*s = p
+		*/
 	default:
 		return ret, fmt.Errorf("unknown type parametrisation")
 	}

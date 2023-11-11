@@ -168,51 +168,59 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 
 // VerifyingKey is the trusted setup for KZG polynomial commitment scheme. Use
 // [ValueOfVerifyingKey] to initialize a witness from the native VerifyingKey.
-type VerifyingKey[G2El algebra.G2ElementT] struct {
-	SRS [2]G2El
+type VerifyingKey[L algebra.LinesT] struct {
+	SRS [2][2][189]L
 }
 
 // ValueOfVerifyingKey initializes verifying key witness from the native
 // verifying key. It returns an error if there is a mismatch between the type
 // parameters and the provided verifying key type.
-func ValueOfVerifyingKey[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2El], error) {
-	var ret VerifyingKey[G2El]
+func ValueOfVerifyingKey[L algebra.LinesT](vk any) (VerifyingKey[L], error) {
+	var ret VerifyingKey[L]
 	switch s := any(&ret).(type) {
-	case *VerifyingKey[sw_bn254.G2Affine]:
-		tVk, ok := vk.(kzg_bn254.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-		}
-		s.SRS[0] = sw_bn254.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bn254.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bls12377.G2Affine]:
-		tVk, ok := vk.(kzg_bls12377.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-		}
-		s.SRS[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bls12381.G2Affine]:
-		tVk, ok := vk.(kzg_bls12381.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-		}
-		s.SRS[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bw6761.G2Affine]:
+	/*
+		case *VerifyingKey[sw_bn254.G2Affine]:
+			tVk, ok := vk.(kzg_bn254.VerifyingKey)
+			if !ok {
+				return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+			}
+			s.SRS[0] = sw_bn254.NewG2Affine(tVk.G2[0])
+			s.SRS[1] = sw_bn254.NewG2Affine(tVk.G2[1])
+		case *VerifyingKey[sw_bls12377.G2Affine]:
+			tVk, ok := vk.(kzg_bls12377.VerifyingKey)
+			if !ok {
+				return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+			}
+			s.SRS[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
+			s.SRS[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
+		case *VerifyingKey[sw_bls12381.G2Affine]:
+			tVk, ok := vk.(kzg_bls12381.VerifyingKey)
+			if !ok {
+				return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+			}
+			s.SRS[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
+			s.SRS[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	*/
+	case *VerifyingKey[sw_bw6761.LineEvaluation]:
 		tVk, ok := vk.(kzg_bw6761.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		s.SRS[0] = sw_bw6761.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bw6761.NewG2Affine(tVk.G2[1])
-	case *VerifyingKey[sw_bls24315.G2Affine]:
-		tVk, ok := vk.(kzg_bls24315.VerifyingKey)
-		if !ok {
-			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		for i := 0; i < 189; i++ {
+			s.SRS[0][0][i] = sw_bw6761.NewLineEvaluation(tVk.Lines[0][0][i])
+			s.SRS[0][1][i] = sw_bw6761.NewLineEvaluation(tVk.Lines[0][1][i])
+			s.SRS[1][0][i] = sw_bw6761.NewLineEvaluation(tVk.Lines[1][0][i])
+			s.SRS[1][1][i] = sw_bw6761.NewLineEvaluation(tVk.Lines[1][1][i])
 		}
-		s.SRS[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
-		s.SRS[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+	/*
+		case *VerifyingKey[sw_bls24315.G2Affine]:
+			tVk, ok := vk.(kzg_bls24315.VerifyingKey)
+			if !ok {
+				return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+			}
+			s.SRS[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
+			s.SRS[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+	*/
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -220,16 +228,16 @@ func ValueOfVerifyingKey[G2El algebra.G2ElementT](vk any) (VerifyingKey[G2El], e
 }
 
 // Verifier allows verifying KZG opening proofs.
-type Verifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT] struct {
-	VerifyingKey[G2El]
+type Verifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT, L algebra.LinesT] struct {
+	VerifyingKey[L]
 
 	curve   algebra.Curve[S, G1El]
-	pairing algebra.Pairing[G1El, G2El, GtEl]
+	pairing algebra.Pairing[G1El, G2El, GtEl, L]
 }
 
 // NewVerifier initializes a new Verifier instance.
-func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT](vk VerifyingKey[G2El], curve algebra.Curve[S, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[S, G1El, G2El, GtEl] {
-	return &Verifier[S, G1El, G2El, GtEl]{
+func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT, L algebra.LinesT](vk VerifyingKey[L], curve algebra.Curve[S, G1El], pairing algebra.Pairing[G1El, G2El, GtEl, L]) *Verifier[S, G1El, G2El, GtEl, L] {
+	return &Verifier[S, G1El, G2El, GtEl, L]{
 		VerifyingKey: vk,
 		curve:        curve,
 		pairing:      pairing,
@@ -238,7 +246,7 @@ func NewVerifier[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2Elem
 
 // AssertProof asserts the validity of the opening proof for the given
 // commitment.
-func (vk *Verifier[S, G1El, G2El, GtEl]) AssertProof(commitment Commitment[G1El], proof OpeningProof[S, G1El]) error {
+func (vk *Verifier[S, G1El, G2El, GtEl, L]) AssertProof(commitment Commitment[G1El], proof OpeningProof[S, G1El]) error {
 	// [f(a)]G₁
 	claimedValueG1 := vk.curve.ScalarMulBase(&proof.ClaimedValue)
 
@@ -254,9 +262,9 @@ func (vk *Verifier[S, G1El, G2El, GtEl]) AssertProof(commitment Commitment[G1El]
 	totalG1 = vk.curve.Add(totalG1, fminusfaG1)
 
 	// e([f(α)-f(a)+aH(α)]G₁], G₂).e([-H(α)]G₁, [α]G₂) == 1
-	if err := vk.pairing.DoublePairingFixedQCheck(
-		[2]*G1El{totalG1, negQuotientPoly},
-		&vk.SRS[1],
+	if err := vk.pairing.PairingFixedQCheck(
+		[]*G1El{totalG1, negQuotientPoly},
+		[][2][189]L{vk.SRS[0], vk.SRS[1]},
 	); err != nil {
 		return fmt.Errorf("pairing check: %w", err)
 	}

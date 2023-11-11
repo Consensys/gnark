@@ -1,5 +1,6 @@
 package kzg_test
 
+/*
 import (
 	"crypto/rand"
 
@@ -126,3 +127,4 @@ func Example_native() {
 		panic("circuit verification failed: " + err.Error())
 	}
 }
+*/
