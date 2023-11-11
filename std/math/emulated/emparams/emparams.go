@@ -25,6 +25,12 @@ func (fourLimbPrimeField) NbLimbs() uint     { return 4 }
 func (fourLimbPrimeField) BitsPerLimb() uint { return 64 }
 func (fourLimbPrimeField) IsPrime() bool     { return true }
 
+type fiveLimbPrimeField struct{}
+
+func (fiveLimbPrimeField) NbLimbs() uint     { return 5 }
+func (fiveLimbPrimeField) BitsPerLimb() uint { return 64 }
+func (fiveLimbPrimeField) IsPrime() bool     { return true }
+
 type sixLimbPrimeField struct{}
 
 func (sixLimbPrimeField) NbLimbs() uint     { return 6 }
@@ -121,6 +127,20 @@ func (fp BN254Fr) Modulus() *big.Int { return ecc.BN254.ScalarField() }
 type BLS12377Fp struct{ sixLimbPrimeField }
 
 func (fp BLS12377Fp) Modulus() *big.Int { return ecc.BLS12_377.BaseField() }
+
+// BLS12377Fr provides type parametrization for field emulation:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001 (base 16)
+//	8444461749428370424248824938781546531375899335154063827935233455917409239041 (base 10)
+//
+// This is the scalar field of the BLS12-377 curve.
+type BLS12377Fr struct{ fourLimbPrimeField }
+
+func (fr BLS12377Fr) Modulus() *big.Int { return ecc.BLS12_377.ScalarField() }
 
 // BLS12381Fp provides type parametrization for field emulation:
 //   - limbs: 6
@@ -233,3 +253,31 @@ func (fp BW6761Fp) Modulus() *big.Int { return ecc.BW6_761.BaseField() }
 type BW6761Fr struct{ sixLimbPrimeField }
 
 func (fp BW6761Fr) Modulus() *big.Int { return ecc.BW6_761.ScalarField() }
+
+// BLS12315Fp provides type parametrization for field emulation:
+//   - limbs: 5
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	0x4c23a02b586d650d3f7498be97c5eafdec1d01aa27a1ae0421ee5da52bde5026fe802ff40300001 (base 16)
+//	39705142709513438335025689890408969744933502416914749335064285505637884093126342347073617133569 (base 10)
+//
+// This is the base field of the BLS24-315 curve.
+type BLS12315Fp struct{ fiveLimbPrimeField }
+
+func (fp BLS12315Fp) Modulus() *big.Int { return ecc.BLS24_315.BaseField() }
+
+// BLS12315Fr provides type parametrization for field emulation:
+//   - limbs: 4
+//   - limb width: 64 bits
+//
+// The prime modulus for type parametrisation is:
+//
+//	11502027791375260645628074404575422495959608200132055716665986169834464870401 (base 16)
+//	0x196deac24a9da12b25fc7ec9cf927a98c8c480ece644e36419d0c5fd00c00001 (base 10)
+//
+// This is the scalar field of the BLS24-315 curve.
+type BLS12315Fr struct{ fourLimbPrimeField }
+
+func (fr BLS12315Fr) Modulus() *big.Int { return ecc.BLS24_315.ScalarField() }

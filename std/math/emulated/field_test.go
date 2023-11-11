@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/test"
 )
 
@@ -26,32 +24,6 @@ func (c *WrapperCircuit) Define(api frontend.API) error {
 	free := api.Div(nom, denom)
 	res := api.Add(x13, fx2, free)
 	api.AssertIsEqual(res, c.Res)
-	return nil
-}
-
-type pairingBLS377 struct {
-	P          sw_bls12377.G1Affine `gnark:",public"`
-	Q          sw_bls12377.G2Affine
-	pairingRes bls12377.GT
-}
-
-//lint:ignore U1000 skipped test
-func (circuit *pairingBLS377) Define(api frontend.API) error {
-	pairingRes, _ := sw_bls12377.Pair(api,
-		[]sw_bls12377.G1Affine{circuit.P},
-		[]sw_bls12377.G2Affine{circuit.Q})
-	api.AssertIsEqual(pairingRes.C0.B0.A0, &circuit.pairingRes.C0.B0.A0)
-	api.AssertIsEqual(pairingRes.C0.B0.A1, &circuit.pairingRes.C0.B0.A1)
-	api.AssertIsEqual(pairingRes.C0.B1.A0, &circuit.pairingRes.C0.B1.A0)
-	api.AssertIsEqual(pairingRes.C0.B1.A1, &circuit.pairingRes.C0.B1.A1)
-	api.AssertIsEqual(pairingRes.C0.B2.A0, &circuit.pairingRes.C0.B2.A0)
-	api.AssertIsEqual(pairingRes.C0.B2.A1, &circuit.pairingRes.C0.B2.A1)
-	api.AssertIsEqual(pairingRes.C1.B0.A0, &circuit.pairingRes.C1.B0.A0)
-	api.AssertIsEqual(pairingRes.C1.B0.A1, &circuit.pairingRes.C1.B0.A1)
-	api.AssertIsEqual(pairingRes.C1.B1.A0, &circuit.pairingRes.C1.B1.A0)
-	api.AssertIsEqual(pairingRes.C1.B1.A1, &circuit.pairingRes.C1.B1.A1)
-	api.AssertIsEqual(pairingRes.C1.B2.A0, &circuit.pairingRes.C1.B2.A0)
-	api.AssertIsEqual(pairingRes.C1.B2.A1, &circuit.pairingRes.C1.B2.A1)
 	return nil
 }
 

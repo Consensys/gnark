@@ -2,11 +2,12 @@ package gkr
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/std/sumcheck"
-	"strconv"
 )
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
@@ -198,9 +199,7 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 
 	if transcriptSettings.Transcript == nil {
 		challengeNames := ChallengeNames(o.sorted, o.nbVars, transcriptSettings.Prefix)
-		transcript := fiatshamir.NewTranscript(
-			api, transcriptSettings.Hash, challengeNames...)
-		o.transcript = &transcript
+		o.transcript = fiatshamir.NewTranscript(api, transcriptSettings.Hash, challengeNames)
 		if err = o.transcript.Bind(challengeNames[0], transcriptSettings.BaseChallenges); err != nil {
 			return o, err
 		}

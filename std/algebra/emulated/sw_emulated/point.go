@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
+	"golang.org/x/exp/slices"
 )
 
 // New returns a new [Curve] instance over the base field Base and scalar field
@@ -84,6 +85,41 @@ func (c *Curve[B, S]) GeneratorMultiples() []AffinePoint[B] {
 // compatible with the EVM representations of points at infinity.
 type AffinePoint[Base emulated.FieldParams] struct {
 	X, Y emulated.Element[Base]
+}
+
+// MarshalScalar marshals the scalar into bits. Compatible with scalar
+// marshalling in gnark-crypto.
+func (c *Curve[B, S]) MarshalScalar(s emulated.Element[S]) []frontend.Variable {
+	var fr S
+	nbBits := 8 * ((fr.Modulus().BitLen() + 7) / 8)
+	sReduced := c.scalarApi.Reduce(&s)
+	res := c.scalarApi.ToBits(sReduced)[:nbBits]
+	for i, j := 0, nbBits-1; i < j; {
+		res[i], res[j] = res[j], res[i]
+		i++
+		j--
+	}
+	return res
+}
+
+// MarshalG1 marshals the affine point into bits. The output is compatible with
+// the point marshalling in gnark-crypto.
+func (c *Curve[B, S]) MarshalG1(p AffinePoint[B]) []frontend.Variable {
+	var fp B
+	nbBits := 8 * ((fp.Modulus().BitLen() + 7) / 8)
+	x := c.baseApi.Reduce(&p.X)
+	y := c.baseApi.Reduce(&p.Y)
+	bx := c.baseApi.ToBits(x)[:nbBits]
+	by := c.baseApi.ToBits(y)[:nbBits]
+	slices.Reverse(bx)
+	slices.Reverse(by)
+	res := make([]frontend.Variable, 2*nbBits)
+	copy(res, bx)
+	copy(res[len(bx):], by)
+	xZ := c.baseApi.IsZero(x)
+	yZ := c.baseApi.IsZero(y)
+	res[1] = c.api.Mul(xZ, yZ)
+	return res
 }
 
 // Neg returns an inverse of p. It doesn't modify p.
