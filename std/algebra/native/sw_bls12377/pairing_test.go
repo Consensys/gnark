@@ -134,7 +134,7 @@ type pairingFixedBLS377 struct {
 
 func (circuit *pairingFixedBLS377) Define(api frontend.API) error {
 
-	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P}, [][2]LineEvaluations{circuit.Lines})
+	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P}, []*[2]LineEvaluations{&circuit.Lines})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 
@@ -169,7 +169,7 @@ type doublePairingFixedBLS377 struct {
 
 func (circuit *doublePairingFixedBLS377) Define(api frontend.API) error {
 
-	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P0, circuit.P1}, [][2]LineEvaluations{circuit.Line0, circuit.Line1})
+	pairingRes, _ := PairFixedQ(api, []G1Affine{circuit.P0, circuit.P1}, []*[2]LineEvaluations{&circuit.Line0, &circuit.Line1})
 
 	mustbeEq(api, pairingRes, &circuit.pairingRes)
 

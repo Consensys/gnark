@@ -29,16 +29,16 @@ type GT = fields_bls12377.E12
 // binary decomposition of x₀=9586122913090633729 little endian
 var loopCounter = [64]int8{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1}
 
-// LineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
+// lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
 // line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
 // makes the multiplication by lines (MulBy034) and between lines (Mul034By034)
 // circuit-efficient.
-type LineEvaluation struct {
+type lineEvaluation struct {
 	R0, R1 fields_bls12377.E2
 }
 
 type LineEvaluations struct {
-	Ls [63]LineEvaluation
+	Eval [63]lineEvaluation
 }
 
 // MillerLoop computes the product of n miller loops (n can be 1)
@@ -54,7 +54,7 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	res.SetOne()
 	var prodLines [5]fields_bls12377.E2
 
-	var l1, l2 LineEvaluation
+	var l1, l2 lineEvaluation
 	Qacc := make([]G2Affine, n)
 	yInv := make([]frontend.Variable, n)
 	xNegOverY := make([]frontend.Variable, n)
@@ -295,10 +295,10 @@ func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, LineEvaluation, LineEvaluation) {
+func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation, lineEvaluation) {
 
 	var n, d, l1, l2, x3, x4, y4 fields_bls12377.E2
-	var line1, line2 LineEvaluation
+	var line1, line2 lineEvaluation
 	var p G2Affine
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
@@ -345,11 +345,11 @@ func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, LineEvaluat
 
 // doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
+func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, lineEvaluation) {
 
 	var n, d, l, xr, yr fields_bls12377.E2
 	var p G2Affine
-	var line LineEvaluation
+	var line lineEvaluation
 
 	// lambda = 3*p1.x**2/2*p.y
 	n.Square(api, p1.X).MulByFp(api, n, 3)
@@ -377,10 +377,10 @@ func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, LineEvaluation) {
 }
 
 // linesCompute computes the lines that goes through p1 and p2, and (p1+p2) and p1 but does not compute 2p1+p2
-func linesCompute(api frontend.API, p1, p2 *G2Affine) (LineEvaluation, LineEvaluation) {
+func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvaluation) {
 
 	var n, d, l1, l2, x3 fields_bls12377.E2
-	var line1, line2 LineEvaluation
+	var line1, line2 lineEvaluation
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
 	n.Sub(api, p1.Y, p2.Y)
@@ -416,7 +416,7 @@ func linesCompute(api frontend.API, p1, p2 *G2Affine) (LineEvaluation, LineEvalu
 
 // MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
 // but Qᵢ are fixed points in G2 known in advance.
-func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations) (GT, error) {
+func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines []*[2]LineEvaluations) (GT, error) {
 
 	// check input size match
 	n := len(P)
@@ -427,7 +427,7 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations
 	var res GT
 	res.SetOne()
 	var prodLines [5]fields_bls12377.E2
-	var l0, l1 LineEvaluation
+	var l0, l1 lineEvaluation
 
 	// precomputations
 	yInv := make([]frontend.Variable, n)
@@ -445,8 +445,8 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations
 	// k = 0, separately to avoid MulBy034 (res × ℓ)
 	// (assign line to res)
 	// line evaluation at P[0]
-	res.C1.B0.MulByFp(api, lines[0][0].Ls[62].R0, xNegOverY[0])
-	res.C1.B1.MulByFp(api, lines[0][0].Ls[62].R1, yInv[0])
+	res.C1.B0.MulByFp(api, lines[0][0].Eval[62].R0, xNegOverY[0])
+	res.C1.B1.MulByFp(api, lines[0][0].Eval[62].R1, yInv[0])
 
 	if n >= 2 {
 		// k = 1, separately to avoid MulBy034 (res × ℓ)
@@ -455,8 +455,8 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations
 
 		// ℓ × res
 		prodLines = *fields_bls12377.Mul034By034(api,
-			*l0.R0.MulByFp(api, lines[1][0].Ls[62].R0, xNegOverY[1]),
-			*l0.R1.MulByFp(api, lines[1][0].Ls[62].R1, yInv[1]),
+			*l0.R0.MulByFp(api, lines[1][0].Eval[62].R0, xNegOverY[1]),
+			*l0.R1.MulByFp(api, lines[1][0].Eval[62].R1, yInv[1]),
 			res.C1.B0,
 			res.C1.B1,
 		)
@@ -476,8 +476,8 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations
 		// ℓ × res
 		res = *fields_bls12377.Mul01234By034(api,
 			prodLines,
-			*l0.R0.MulByFp(api, lines[2][0].Ls[62].R0, xNegOverY[2]),
-			*l0.R1.MulByFp(api, lines[2][0].Ls[62].R1, yInv[2]),
+			*l0.R0.MulByFp(api, lines[2][0].Eval[62].R0, xNegOverY[2]),
+			*l0.R1.MulByFp(api, lines[2][0].Eval[62].R1, yInv[2]),
 		)
 
 		// k >= 3
@@ -486,8 +486,8 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations
 
 			// ℓ × res
 			res.MulBy034(api,
-				*l0.R0.MulByFp(api, lines[k][0].Ls[62].R0, xNegOverY[k]),
-				*l0.R1.MulByFp(api, lines[k][0].Ls[62].R1, yInv[k]),
+				*l0.R0.MulByFp(api, lines[k][0].Eval[62].R0, xNegOverY[k]),
+				*l0.R1.MulByFp(api, lines[k][0].Eval[62].R1, yInv[k]),
 			)
 		}
 	}
@@ -506,16 +506,16 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations
 		// ℓ × res
 		res = *fields_bls12377.Mul01234By034(api,
 			prodLines,
-			*l0.R0.MulByFp(api, lines[0][0].Ls[61].R0, xNegOverY[0]),
-			*l0.R1.MulByFp(api, lines[0][0].Ls[61].R1, yInv[0]),
+			*l0.R0.MulByFp(api, lines[0][0].Eval[61].R0, xNegOverY[0]),
+			*l0.R1.MulByFp(api, lines[0][0].Eval[61].R1, yInv[0]),
 		)
 
 	} else {
 		res.Square(api, res)
 		// ℓ × res
 		res.MulBy034(api,
-			*l0.R0.MulByFp(api, lines[0][0].Ls[61].R0, xNegOverY[0]),
-			*l0.R1.MulByFp(api, lines[0][0].Ls[61].R1, yInv[0]),
+			*l0.R0.MulByFp(api, lines[0][0].Eval[61].R0, xNegOverY[0]),
+			*l0.R1.MulByFp(api, lines[0][0].Eval[61].R1, yInv[0]),
 		)
 
 	}
@@ -524,8 +524,8 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations
 		// line evaluation at P[k]
 		// ℓ × res
 		res.MulBy034(api,
-			*l0.R0.MulByFp(api, lines[k][0].Ls[61].R0, xNegOverY[k]),
-			*l0.R1.MulByFp(api, lines[k][0].Ls[61].R1, yInv[k]),
+			*l0.R0.MulByFp(api, lines[k][0].Eval[61].R0, xNegOverY[k]),
+			*l0.R1.MulByFp(api, lines[k][0].Eval[61].R1, yInv[k]),
 		)
 	}
 
@@ -540,8 +540,8 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations
 
 				// ℓ × res
 				res.MulBy034(api,
-					*l0.R0.MulByFp(api, lines[k][0].Ls[i].R0, xNegOverY[k]),
-					*l0.R1.MulByFp(api, lines[k][0].Ls[i].R1, yInv[k]),
+					*l0.R0.MulByFp(api, lines[k][0].Eval[i].R0, xNegOverY[k]),
+					*l0.R1.MulByFp(api, lines[k][0].Eval[i].R1, yInv[k]),
 				)
 				continue
 
@@ -551,10 +551,10 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations
 
 			// ℓ × ℓ
 			prodLines = *fields_bls12377.Mul034By034(api,
-				*l0.R0.MulByFp(api, lines[k][0].Ls[i].R0, xNegOverY[k]),
-				*l0.R1.MulByFp(api, lines[k][0].Ls[i].R1, yInv[k]),
-				*l1.R0.MulByFp(api, lines[k][1].Ls[i].R0, xNegOverY[k]),
-				*l1.R1.MulByFp(api, lines[k][1].Ls[i].R1, yInv[k]),
+				*l0.R0.MulByFp(api, lines[k][0].Eval[i].R0, xNegOverY[k]),
+				*l0.R1.MulByFp(api, lines[k][0].Eval[i].R1, yInv[k]),
+				*l1.R0.MulByFp(api, lines[k][1].Eval[i].R0, xNegOverY[k]),
+				*l1.R1.MulByFp(api, lines[k][1].Eval[i].R1, yInv[k]),
 			)
 			// (ℓ × ℓ) × res
 			res.MulBy01234(api, prodLines)
@@ -568,7 +568,7 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations
 // e(P, g2), where g2 is fixed.
 //
 // This function doesn't check that the inputs are in the correct subgroups.
-func PairFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations) (GT, error) {
+func PairFixedQ(api frontend.API, P []G1Affine, lines []*[2]LineEvaluations) (GT, error) {
 	f, err := MillerLoopFixedQ(api, P, lines)
 	if err != nil {
 		return GT{}, err
@@ -580,7 +580,7 @@ func PairFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations) (GT,
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1 where Qᵢ are fixed.
 //
 // This function doesn't check that the inputs are in the correct subgroups
-func PairingFixedQCheck(api frontend.API, P []G1Affine, lines [][2]LineEvaluations) error {
+func PairingFixedQCheck(api frontend.API, P []G1Affine, lines []*[2]LineEvaluations) error {
 	f, err := PairFixedQ(api, P, lines)
 	if err != nil {
 		return err

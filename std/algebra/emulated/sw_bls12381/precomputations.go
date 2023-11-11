@@ -30,14 +30,14 @@ func computePrecomputedLines() [2]LineEvaluations {
 	_, _, _, G2AffGen := bls12381.Generators()
 	lines := bls12381.PrecomputeLines(G2AffGen)
 	for j := 0; j < 63; j++ {
-		PrecomputedLines[0].Ls[j].R0.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R0.A0)
-		PrecomputedLines[0].Ls[j].R0.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R0.A1)
-		PrecomputedLines[0].Ls[j].R1.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R1.A0)
-		PrecomputedLines[0].Ls[j].R1.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R1.A1)
-		PrecomputedLines[1].Ls[j].R0.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R0.A0)
-		PrecomputedLines[1].Ls[j].R0.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R0.A1)
-		PrecomputedLines[1].Ls[j].R1.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R1.A0)
-		PrecomputedLines[1].Ls[j].R1.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R1.A1)
+		PrecomputedLines[0].Eval[j].R0.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R0.A0)
+		PrecomputedLines[0].Eval[j].R0.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R0.A1)
+		PrecomputedLines[0].Eval[j].R1.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R1.A0)
+		PrecomputedLines[0].Eval[j].R1.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R1.A1)
+		PrecomputedLines[1].Eval[j].R0.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R0.A0)
+		PrecomputedLines[1].Eval[j].R0.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R0.A1)
+		PrecomputedLines[1].Eval[j].R1.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R1.A0)
+		PrecomputedLines[1].Eval[j].R1.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R1.A1)
 	}
 
 	return PrecomputedLines

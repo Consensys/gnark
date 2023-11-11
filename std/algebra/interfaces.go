@@ -56,7 +56,7 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT, L LinesT] interf
 
 	// PairingFixedQCheck is the same as PairingCheck but of size 2 and
 	// where one of the G2El argument is the fixed canonical generator of G2.
-	PairingFixedQCheck([]*G1El, [][2]L) error
+	PairingFixedQCheck([]*G1El, []*[2]L) error
 
 	// AssertIsEqual asserts the equality of the inputs.
 	AssertIsEqual(*GtEl, *GtEl)

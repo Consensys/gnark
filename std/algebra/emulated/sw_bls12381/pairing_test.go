@@ -252,7 +252,7 @@ func (c *PairFixedCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.PairFixedQ([]*G1Affine{&c.InG1}, [][2]LineEvaluations{c.Lines})
+	res, err := pairing.PairFixedQ([]*G1Affine{&c.InG1}, []*[2]LineEvaluations{&c.Lines})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -288,7 +288,7 @@ func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res, err := pairing.PairFixedQ([]*G1Affine{&c.In1G1, &c.In2G1}, [][2]LineEvaluations{c.Lines1, c.Lines2})
+	res, err := pairing.PairFixedQ([]*G1Affine{&c.In1G1, &c.In2G1}, []*[2]LineEvaluations{&c.Lines1, &c.Lines2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}

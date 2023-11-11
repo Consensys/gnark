@@ -28,10 +28,10 @@ func computePrecomputedLines() [2]LineEvaluations {
 	_, _, _, G2AffGen := bw6761.Generators()
 	lines := bw6761.PrecomputeLines(G2AffGen)
 	for j := 0; j < 189; j++ {
-		PrecomputedLines[0].Ls[j].R0 = emulated.ValueOf[emulated.BW6761Fp](lines[0][j].R0)
-		PrecomputedLines[0].Ls[j].R1 = emulated.ValueOf[emulated.BW6761Fp](lines[0][j].R1)
-		PrecomputedLines[1].Ls[j].R0 = emulated.ValueOf[emulated.BW6761Fp](lines[1][j].R0)
-		PrecomputedLines[1].Ls[j].R1 = emulated.ValueOf[emulated.BW6761Fp](lines[1][j].R1)
+		PrecomputedLines[0].Eval[j].R0 = emulated.ValueOf[emulated.BW6761Fp](lines[0][j].R0)
+		PrecomputedLines[0].Eval[j].R1 = emulated.ValueOf[emulated.BW6761Fp](lines[0][j].R1)
+		PrecomputedLines[1].Eval[j].R0 = emulated.ValueOf[emulated.BW6761Fp](lines[1][j].R0)
+		PrecomputedLines[1].Eval[j].R1 = emulated.ValueOf[emulated.BW6761Fp](lines[1][j].R1)
 	}
 
 	return PrecomputedLines

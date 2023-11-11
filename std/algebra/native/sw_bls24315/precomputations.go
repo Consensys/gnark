@@ -49,10 +49,10 @@ func computePrecomputedLines() [2]LineEvaluations {
 	_, _, _, G2AffGen := bls24315.Generators()
 	lines := bls24315.PrecomputeLines(G2AffGen)
 	for j := 0; j < 32; j++ {
-		PrecomputedLines[0].Ls[j].R0.Assign(&lines[0][j].R0)
-		PrecomputedLines[0].Ls[j].R1.Assign(&lines[0][j].R1)
-		PrecomputedLines[1].Ls[j].R0.Assign(&lines[1][j].R0)
-		PrecomputedLines[1].Ls[j].R1.Assign(&lines[1][j].R1)
+		PrecomputedLines[0].Eval[j].R0.Assign(&lines[0][j].R0)
+		PrecomputedLines[0].Eval[j].R1.Assign(&lines[0][j].R1)
+		PrecomputedLines[1].Eval[j].R0.Assign(&lines[1][j].R0)
+		PrecomputedLines[1].Eval[j].R1.Assign(&lines[1][j].R1)
 
 	}
 
