@@ -161,7 +161,7 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 // PairingFixedQCheck computes the multi-pairing of the input pairs and asserts that
 // the result is an identity element in the target group. It returns an error if
 // there is a mismatch between the lengths of the inputs.
-func (p *Pairing) PairingFixedQCheck(P []*G1Affine, lines [][2][63]LineEvaluation) error {
+func (p *Pairing) PairingFixedQCheck(P []*G1Affine, lines [][2]LineEvaluations) error {
 	inP := make([]G1Affine, len(P))
 	for i := range P {
 		inP[i] = *P[i]
@@ -233,6 +233,20 @@ func NewGTEl(v bls12377.GT) GT {
 				A0: (fr_bw6761.Element)(v.C1.B2.A0),
 				A1: (fr_bw6761.Element)(v.C1.B2.A1),
 			},
+		},
+	}
+}
+
+// NewLineEvaluation allocates a witness from the native LineEvaluationAff and returns it.
+func NewLineEvaluation(v bls12377.LineEvaluationAff) LineEvaluation {
+	return LineEvaluation{
+		R0: fields_bls12377.E2{
+			A0: (fr_bw6761.Element)(v.R0.A0),
+			A1: (fr_bw6761.Element)(v.R0.A1),
+		},
+		R1: fields_bls12377.E2{
+			A0: (fr_bw6761.Element)(v.R1.A0),
+			A1: (fr_bw6761.Element)(v.R1.A1),
 		},
 	}
 }

@@ -104,6 +104,10 @@ type LineEvaluation struct {
 	R0, R1 emulated.Element[emulated.BW6761Fp]
 }
 
+type LineEvaluations struct {
+	Ls [189]LineEvaluation
+}
+
 // NewLineEvaluation allocates a witness from the native LineEvaluationAff and returns it.
 func NewLineEvaluation(v bw6761.LineEvaluationAff) LineEvaluation {
 	return LineEvaluation{
@@ -519,7 +523,7 @@ func (pr Pairing) tangentCompute(p1 *G2Affine) *LineEvaluation {
 
 // MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
 // but Qᵢ are fixed points in G2 known in advance.
-func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][189]LineEvaluation) (*GTEl, error) {
+func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2]LineEvaluations) (*GTEl, error) {
 
 	// check input size match
 	n := len(P)
@@ -548,8 +552,8 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][189]LineEvaluation
 	// k = 0
 	result = &fields_bw6761.E6{
 		B0: fields_bw6761.E3{
-			A0: *pr.curveF.MulMod(&lines[0][0][188].R1, yInv[0]),
-			A1: *pr.curveF.MulMod(&lines[0][0][188].R0, xNegOverY[0]),
+			A0: *pr.curveF.MulMod(&lines[0][0].Ls[188].R1, yInv[0]),
+			A1: *pr.curveF.MulMod(&lines[0][0].Ls[188].R0, xNegOverY[0]),
 			A2: result.B0.A2,
 		},
 		B1: fields_bw6761.E3{
@@ -563,8 +567,8 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][189]LineEvaluation
 		// k = 1, separately to avoid MulBy014 (res × ℓ)
 		// (res is also a line at this point, so we use Mul014By014 ℓ × ℓ)
 		prodLines = pr.Mul014By014(
-			pr.curveF.MulMod(&lines[1][0][188].R1, yInv[1]),
-			pr.curveF.MulMod(&lines[1][0][188].R0, xNegOverY[1]),
+			pr.curveF.MulMod(&lines[1][0].Ls[188].R1, yInv[1]),
+			pr.curveF.MulMod(&lines[1][0].Ls[188].R0, xNegOverY[1]),
 			&result.B0.A0,
 			&result.B0.A1,
 		)
@@ -587,15 +591,15 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][189]LineEvaluation
 		// (res has a zero E2 element, so we use Mul01234By034)
 		result = pr.Mul01245By014(
 			prodLines,
-			pr.curveF.MulMod(&lines[2][0][188].R1, yInv[2]),
-			pr.curveF.MulMod(&lines[2][0][188].R0, xNegOverY[2]),
+			pr.curveF.MulMod(&lines[2][0].Ls[188].R1, yInv[2]),
+			pr.curveF.MulMod(&lines[2][0].Ls[188].R0, xNegOverY[2]),
 		)
 
 		// k >= 3
 		for k := 3; k < n; k++ {
 			result = pr.MulBy014(result,
-				pr.curveF.MulMod(&lines[k][0][188].R1, yInv[k]),
-				pr.curveF.MulMod(&lines[k][0][188].R0, xNegOverY[k]),
+				pr.curveF.MulMod(&lines[k][0].Ls[188].R1, yInv[k]),
+				pr.curveF.MulMod(&lines[k][0].Ls[188].R0, xNegOverY[k]),
 			)
 		}
 	}
@@ -607,16 +611,16 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][189]LineEvaluation
 
 		for k := 0; k < n; k++ {
 			result = pr.MulBy014(result,
-				pr.curveF.MulMod(&lines[k][0][i].R1, yInv[k]),
-				pr.curveF.MulMod(&lines[k][0][i].R0, xNegOverY[k]),
+				pr.curveF.MulMod(&lines[k][0].Ls[i].R1, yInv[k]),
+				pr.curveF.MulMod(&lines[k][0].Ls[i].R0, xNegOverY[k]),
 			)
 		}
 
 		if loopCounter2[i]*3+loopCounter1[i] != 0 {
 			for k := 0; k < n; k++ {
 				result = pr.MulBy014(result,
-					pr.curveF.MulMod(&lines[k][1][i].R1, yInv[k]),
-					pr.curveF.MulMod(&lines[k][1][i].R0, xNegOverY[k]),
+					pr.curveF.MulMod(&lines[k][1].Ls[i].R1, yInv[k]),
+					pr.curveF.MulMod(&lines[k][1].Ls[i].R0, xNegOverY[k]),
 				)
 			}
 		}
@@ -630,7 +634,7 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][189]LineEvaluation
 // ∏ᵢ e(Pᵢ, Qᵢ) where Qᵢ are fixed points known in advance.
 //
 // This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
-func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][2][189]LineEvaluation) (*GTEl, error) {
+func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][2]LineEvaluations) (*GTEl, error) {
 	f, err := pr.MillerLoopFixedQ(P, lines)
 	if err != nil {
 		return nil, err
@@ -642,7 +646,7 @@ func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][2][189]LineEvaluation) (*GT
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1 where Qᵢ are fixed points known in advance.
 //
 // This function doesn't check that the inputs are in the correct subgroups.
-func (pr Pairing) PairingFixedQCheck(P []*G1Affine, lines [][2][189]LineEvaluation) error {
+func (pr Pairing) PairingFixedQCheck(P []*G1Affine, lines [][2]LineEvaluations) error {
 	f, err := pr.PairFixedQ(P, lines)
 	if err != nil {
 		return err

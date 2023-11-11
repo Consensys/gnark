@@ -37,6 +37,10 @@ type LineEvaluation struct {
 	R0, R1 fields_bls24315.E4
 }
 
+type LineEvaluations struct {
+	Ls [32]LineEvaluation
+}
+
 // MillerLoop computes the product of n miller loops (n can be 1)
 // ∏ᵢ { fᵢ_{x₀,Q}(P) }
 func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
@@ -481,7 +485,7 @@ func lineCompute(api frontend.API, p1, p2 *G2Affine) LineEvaluation {
 
 // MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
 // but Qᵢ are fixed points in G2 known in advance.
-func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluation) (GT, error) {
+func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations) (GT, error) {
 
 	// check input size match
 	n := len(P)
@@ -512,10 +516,10 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluat
 			if loopCounter[i] == 0 {
 				// line evaluation at P
 				l1.R0.MulByFp(api,
-					lines[k][0][i].R0,
+					lines[k][0].Ls[i].R0,
 					xNegOverY[k])
 				l1.R1.MulByFp(api,
-					lines[k][0][i].R1,
+					lines[k][0].Ls[i].R1,
 					yInv[k])
 
 				// ℓ × res
@@ -523,10 +527,10 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluat
 			} else {
 				// line evaluation at P
 				l1.R0.MulByFp(api,
-					lines[k][0][i].R0,
+					lines[k][0].Ls[i].R0,
 					xNegOverY[k])
 				l1.R1.MulByFp(api,
-					lines[k][0][i].R1,
+					lines[k][0].Ls[i].R1,
 					yInv[k])
 
 				// ℓ × res
@@ -534,10 +538,10 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluat
 
 				// line evaluation at P
 				l2.R0.MulByFp(api,
-					lines[k][1][i].R0,
+					lines[k][1].Ls[i].R0,
 					xNegOverY[k])
 				l2.R1.MulByFp(api,
-					lines[k][1][i].R1,
+					lines[k][1].Ls[i].R1,
 					yInv[k])
 
 				// ℓ × res
@@ -555,7 +559,7 @@ func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluat
 // e(P, g2), where g2 is fixed.
 //
 // This function doesn't check that the inputs are in the correct subgroups.
-func PairFixedQ(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluation) (GT, error) {
+func PairFixedQ(api frontend.API, P []G1Affine, lines [][2]LineEvaluations) (GT, error) {
 	f, err := MillerLoopFixedQ(api, P, lines)
 	if err != nil {
 		return GT{}, err
@@ -567,7 +571,7 @@ func PairFixedQ(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluation) (
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1 where Qᵢ are fixed.
 //
 // This function doesn't check that the inputs are in the correct subgroups
-func PairingFixedQCheck(api frontend.API, P []G1Affine, lines [][2][32]LineEvaluation) error {
+func PairingFixedQCheck(api frontend.API, P []G1Affine, lines [][2]LineEvaluations) error {
 	f, err := PairFixedQ(api, P, lines)
 	if err != nil {
 		return err

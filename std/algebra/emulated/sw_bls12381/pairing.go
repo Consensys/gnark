@@ -218,6 +218,24 @@ type LineEvaluation struct {
 	R0, R1 fields_bls12381.E2
 }
 
+type LineEvaluations struct {
+	Ls [63]LineEvaluation
+}
+
+// NewLineEvaluation allocates a witness from the native LineEvaluationAff and returns it.
+func NewLineEvaluation(v bls12381.LineEvaluationAff) LineEvaluation {
+	return LineEvaluation{
+		R0: fields_bls12381.E2{
+			A0: emulated.ValueOf[emulated.BLS12381Fp](v.R0.A0),
+			A1: emulated.ValueOf[emulated.BLS12381Fp](v.R0.A1),
+		},
+		R1: fields_bls12381.E2{
+			A0: emulated.ValueOf[emulated.BLS12381Fp](v.R1.A0),
+			A1: emulated.ValueOf[emulated.BLS12381Fp](v.R1.A1),
+		},
+	}
+}
+
 // Pair calculates the reduced pairing for a set of points
 // ∏ᵢ e(Pᵢ, Qᵢ).
 //
@@ -656,7 +674,7 @@ func (pr Pairing) tangentCompute(p1 *G2Affine) *LineEvaluation {
 
 // MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
 // but Qᵢ are fixed points in G2 known in advance.
-func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][63]LineEvaluation) (*GTEl, error) {
+func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2]LineEvaluations) (*GTEl, error) {
 
 	// check input size match
 	n := len(P)
@@ -684,13 +702,13 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][63]LineEvaluation)
 	// i = 62, separately to avoid an E12 Square
 	// (Square(res) = 1² = 1)
 	// k = 0, separately to avoid MulBy014 (res × ℓ)
-	res.C0.B0 = *pr.MulByElement(&lines[0][0][62].R1, yInv[0])
-	res.C0.B1 = *pr.MulByElement(&lines[0][0][62].R0, xNegOverY[0])
+	res.C0.B0 = *pr.MulByElement(&lines[0][0].Ls[62].R1, yInv[0])
+	res.C0.B1 = *pr.MulByElement(&lines[0][0].Ls[62].R0, xNegOverY[0])
 	res.C1.B1 = *pr.Ext2.One()
 
 	prodLines := pr.Mul014By014(
-		pr.MulByElement(&lines[0][1][62].R1, yInv[0]),
-		pr.MulByElement(&lines[0][1][62].R0, xNegOverY[0]),
+		pr.MulByElement(&lines[0][1].Ls[62].R1, yInv[0]),
+		pr.MulByElement(&lines[0][1].Ls[62].R0, xNegOverY[0]),
 		&res.C0.B0,
 		&res.C0.B1,
 	)
@@ -709,12 +727,12 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][63]LineEvaluation)
 
 	for k := 1; k < n; k++ {
 		res = pr.MulBy014(res,
-			pr.MulByElement(&lines[k][0][62].R1, yInv[k]),
-			pr.MulByElement(&lines[k][0][62].R0, xNegOverY[k]),
+			pr.MulByElement(&lines[k][0].Ls[62].R1, yInv[k]),
+			pr.MulByElement(&lines[k][0].Ls[62].R0, xNegOverY[k]),
 		)
 		res = pr.MulBy014(res,
-			pr.MulByElement(&lines[k][1][62].R1, yInv[k]),
-			pr.MulByElement(&lines[k][1][62].R0, xNegOverY[k]),
+			pr.MulByElement(&lines[k][1].Ls[62].R1, yInv[k]),
+			pr.MulByElement(&lines[k][1].Ls[62].R0, xNegOverY[k]),
 		)
 	}
 
@@ -726,17 +744,17 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][63]LineEvaluation)
 		for k := 0; k < n; k++ {
 			if loopCounter[i] == 0 {
 				res = pr.MulBy014(res,
-					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
-					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.MulByElement(&lines[k][0].Ls[i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0].Ls[i].R0, xNegOverY[k]),
 				)
 			} else {
 				res = pr.MulBy014(res,
-					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
-					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.MulByElement(&lines[k][0].Ls[i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0].Ls[i].R0, xNegOverY[k]),
 				)
 				res = pr.MulBy014(res,
-					pr.MulByElement(&lines[k][1][i].R1, yInv[k]),
-					pr.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
+					pr.MulByElement(&lines[k][1].Ls[i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][1].Ls[i].R0, xNegOverY[k]),
 				)
 			}
 		}
@@ -752,7 +770,7 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines [][2][63]LineEvaluation)
 // ∏ᵢ e(Pᵢ, Qᵢ) where Qᵢ are fixed points known in advance.
 //
 // This function doesn't check that the inputs are in the correct subgroup. See IsInSubGroup.
-func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][2][63]LineEvaluation) (*GTEl, error) {
+func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][2]LineEvaluations) (*GTEl, error) {
 	f, err := pr.MillerLoopFixedQ(P, lines)
 	if err != nil {
 		return nil, err
@@ -764,7 +782,7 @@ func (pr Pairing) PairFixedQ(P []*G1Affine, lines [][2][63]LineEvaluation) (*GTE
 // ∏ᵢ e(Pᵢ, Qᵢ) =? 1 where Qᵢ are fixed points known in advance.
 //
 // This function doesn't check that the inputs are in the correct subgroups.
-func (pr Pairing) PairingFixedQCheck(P []*G1Affine, lines [][2][63]LineEvaluation) error {
+func (pr Pairing) PairingFixedQCheck(P []*G1Affine, lines [][2]LineEvaluations) error {
 	f, err := pr.PairFixedQ(P, lines)
 	if err != nil {
 		return err

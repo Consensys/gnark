@@ -169,7 +169,7 @@ func ValueOfOpeningProof[S algebra.ScalarT, G1El algebra.G1ElementT](point any, 
 // VerifyingKey is the trusted setup for KZG polynomial commitment scheme. Use
 // [ValueOfVerifyingKey] to initialize a witness from the native VerifyingKey.
 type VerifyingKey[L algebra.LinesT] struct {
-	SRS [2][2][189]L
+	SRS [2][2]L
 }
 
 // ValueOfVerifyingKey initializes verifying key witness from the native
@@ -178,49 +178,61 @@ type VerifyingKey[L algebra.LinesT] struct {
 func ValueOfVerifyingKey[L algebra.LinesT](vk any) (VerifyingKey[L], error) {
 	var ret VerifyingKey[L]
 	switch s := any(&ret).(type) {
-	/*
-		case *VerifyingKey[sw_bn254.G2Affine]:
-			tVk, ok := vk.(kzg_bn254.VerifyingKey)
-			if !ok {
-				return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-			}
-			s.SRS[0] = sw_bn254.NewG2Affine(tVk.G2[0])
-			s.SRS[1] = sw_bn254.NewG2Affine(tVk.G2[1])
-		case *VerifyingKey[sw_bls12377.G2Affine]:
-			tVk, ok := vk.(kzg_bls12377.VerifyingKey)
-			if !ok {
-				return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-			}
-			s.SRS[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
-			s.SRS[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
-		case *VerifyingKey[sw_bls12381.G2Affine]:
-			tVk, ok := vk.(kzg_bls12381.VerifyingKey)
-			if !ok {
-				return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-			}
-			s.SRS[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
-			s.SRS[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
-	*/
-	case *VerifyingKey[sw_bw6761.LineEvaluation]:
+	case *VerifyingKey[sw_bn254.LineEvaluations]:
+		tVk, ok := vk.(kzg_bn254.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		for i := 0; i < 66; i++ {
+			s.SRS[0][0].Ls[i] = sw_bn254.NewLineEvaluation(tVk.Lines[0][0][i])
+			s.SRS[0][1].Ls[i] = sw_bn254.NewLineEvaluation(tVk.Lines[0][1][i])
+			s.SRS[1][0].Ls[i] = sw_bn254.NewLineEvaluation(tVk.Lines[1][0][i])
+			s.SRS[1][1].Ls[i] = sw_bn254.NewLineEvaluation(tVk.Lines[1][1][i])
+		}
+	case *VerifyingKey[sw_bls12377.LineEvaluations]:
+		tVk, ok := vk.(kzg_bls12377.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		for i := 0; i < 63; i++ {
+			s.SRS[0][0].Ls[i] = sw_bls12377.NewLineEvaluation(tVk.Lines[0][0][i])
+			s.SRS[0][1].Ls[i] = sw_bls12377.NewLineEvaluation(tVk.Lines[0][1][i])
+			s.SRS[1][0].Ls[i] = sw_bls12377.NewLineEvaluation(tVk.Lines[1][0][i])
+			s.SRS[1][1].Ls[i] = sw_bls12377.NewLineEvaluation(tVk.Lines[1][1][i])
+		}
+	case *VerifyingKey[sw_bls12381.LineEvaluations]:
+		tVk, ok := vk.(kzg_bls12381.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		for i := 0; i < 63; i++ {
+			s.SRS[0][0].Ls[i] = sw_bls12381.NewLineEvaluation(tVk.Lines[0][0][i])
+			s.SRS[0][1].Ls[i] = sw_bls12381.NewLineEvaluation(tVk.Lines[0][1][i])
+			s.SRS[1][0].Ls[i] = sw_bls12381.NewLineEvaluation(tVk.Lines[1][0][i])
+			s.SRS[1][1].Ls[i] = sw_bls12381.NewLineEvaluation(tVk.Lines[1][1][i])
+		}
+	case *VerifyingKey[sw_bw6761.LineEvaluations]:
 		tVk, ok := vk.(kzg_bw6761.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
 		for i := 0; i < 189; i++ {
-			s.SRS[0][0][i] = sw_bw6761.NewLineEvaluation(tVk.Lines[0][0][i])
-			s.SRS[0][1][i] = sw_bw6761.NewLineEvaluation(tVk.Lines[0][1][i])
-			s.SRS[1][0][i] = sw_bw6761.NewLineEvaluation(tVk.Lines[1][0][i])
-			s.SRS[1][1][i] = sw_bw6761.NewLineEvaluation(tVk.Lines[1][1][i])
+			s.SRS[0][0].Ls[i] = sw_bw6761.NewLineEvaluation(tVk.Lines[0][0][i])
+			s.SRS[0][1].Ls[i] = sw_bw6761.NewLineEvaluation(tVk.Lines[0][1][i])
+			s.SRS[1][0].Ls[i] = sw_bw6761.NewLineEvaluation(tVk.Lines[1][0][i])
+			s.SRS[1][1].Ls[i] = sw_bw6761.NewLineEvaluation(tVk.Lines[1][1][i])
 		}
-	/*
-		case *VerifyingKey[sw_bls24315.G2Affine]:
-			tVk, ok := vk.(kzg_bls24315.VerifyingKey)
-			if !ok {
-				return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-			}
-			s.SRS[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
-			s.SRS[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
-	*/
+	case *VerifyingKey[sw_bls24315.LineEvaluations]:
+		tVk, ok := vk.(kzg_bls24315.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		for i := 0; i < 32; i++ {
+			s.SRS[0][0].Ls[i] = sw_bls24315.NewLineEvaluation(tVk.Lines[0][0][i])
+			s.SRS[0][1].Ls[i] = sw_bls24315.NewLineEvaluation(tVk.Lines[0][1][i])
+			s.SRS[1][0].Ls[i] = sw_bls24315.NewLineEvaluation(tVk.Lines[1][0][i])
+			s.SRS[1][1].Ls[i] = sw_bls24315.NewLineEvaluation(tVk.Lines[1][1][i])
+		}
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -264,7 +276,7 @@ func (vk *Verifier[S, G1El, G2El, GtEl, L]) AssertProof(commitment Commitment[G1
 	// e([f(α)-f(a)+aH(α)]G₁], G₂).e([-H(α)]G₁, [α]G₂) == 1
 	if err := vk.pairing.PairingFixedQCheck(
 		[]*G1El{totalG1, negQuotientPoly},
-		[][2][189]L{vk.SRS[0], vk.SRS[1]},
+		[][2]L{vk.SRS[0], vk.SRS[1]},
 	); err != nil {
 		return fmt.Errorf("pairing check: %w", err)
 	}

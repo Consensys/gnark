@@ -1,6 +1,5 @@
 package kzg_test
 
-/*
 import (
 	"crypto/rand"
 
@@ -79,16 +78,16 @@ func Example_native() {
 	}
 
 	// create a witness element of the SRS
-	wVk, err := kzg.ValueOfVerifyingKey[sw_bls12377.G2Affine](srs.Vk)
+	wVk, err := kzg.ValueOfVerifyingKey[sw_bls12377.LineEvaluations](srs.Vk)
 	if err != nil {
 		panic("verifying key witness failed: " + err.Error())
 	}
-	assignment := KZGVerificationCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	assignment := KZGVerificationCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
 	}
-	circuit := KZGVerificationCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}
+	circuit := KZGVerificationCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]{}
 
 	// because we are using 2-chains then the outer curve must correspond to the
 	// inner curve. For inner BLS12-377 the outer curve is BW6-761.
@@ -127,4 +126,3 @@ func Example_native() {
 		panic("circuit verification failed: " + err.Error())
 	}
 }
-*/
