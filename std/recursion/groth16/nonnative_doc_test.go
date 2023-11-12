@@ -77,7 +77,7 @@ func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.Ver
 // using field emulation or 2-chains of curves.
 type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT, L algebra.LinesT] struct {
 	Proof        stdgroth16.Proof[G1El, G2El]
-	VerifyingKey stdgroth16.VerifyingKey[G1El, G2El, GtEl]
+	VerifyingKey stdgroth16.VerifyingKey[G1El, G2El, GtEl, L]
 	InnerWitness stdgroth16.Witness[FR]
 }
 
@@ -101,7 +101,7 @@ func Example_emulated() {
 	innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BN254.ScalarField())
 
 	// initialize the witness elements
-	circuitVk, err := stdgroth16.ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVK)
+	circuitVk, err := stdgroth16.ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl, sw_bn254.LineEvaluations](innerVK)
 	if err != nil {
 		panic(err)
 	}
@@ -126,7 +126,7 @@ func Example_emulated() {
 	// [stdgroth16.PlaceholderVerifyingKey]
 	outerCircuit := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl, sw_bn254.LineEvaluations]{
 		InnerWitness: stdgroth16.PlaceholderWitness[sw_bn254.ScalarField](innerCcs),
-		VerifyingKey: stdgroth16.PlaceholderVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerCcs),
+		VerifyingKey: stdgroth16.PlaceholderVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl, sw_bn254.LineEvaluations](innerCcs),
 	}
 
 	// compile the outer circuit

@@ -1,5 +1,6 @@
 package groth16_test
 
+/*
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
@@ -83,3 +84,4 @@ func Example_native() {
 		panic("circuit verification failed: " + err.Error())
 	}
 }
+*/

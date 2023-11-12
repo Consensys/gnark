@@ -96,8 +96,8 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 // considerable amount of constraints. When called with the result of
 // [MillerLoop], then current method is applicable when length of the inputs to
 // Miller loop is 1.
-func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
-	return pr.finalExponentiation(e, false)
+func (pr Pairing) FinalExponentiation(e *GTEl, _e ...*GTEl) *GTEl {
+	return pr.finalExponentiation(false, e, _e...)
 }
 
 // FinalExponentiationUnsafe computes the exponentiation eᵈ where
@@ -116,8 +116,8 @@ func (pr Pairing) FinalExponentiation(e *GTEl) *GTEl {
 // {-1, 1}, then there exists no valid solution to the circuit. This method is
 // applicable when called with the result of [MillerLoop] method when the length
 // of the inputs to Miller loop is 1.
-func (pr Pairing) FinalExponentiationUnsafe(e *GTEl) *GTEl {
-	return pr.finalExponentiation(e, true)
+func (pr Pairing) FinalExponentiationUnsafe(e *GTEl, _e ...*GTEl) *GTEl {
+	return pr.finalExponentiation(true, e, _e...)
 }
 
 // finalExponentiation computes the exponentiation eᵈ where
@@ -131,7 +131,11 @@ func (pr Pairing) FinalExponentiationUnsafe(e *GTEl) *GTEl {
 // and r does NOT divide d'
 //
 // finalExponentiation returns a decompressed element in E12
-func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
+func (pr Pairing) finalExponentiation(unsafe bool, e *GTEl, _e ...*GTEl) *GTEl {
+
+	for _, z := range _e {
+		e = pr.Mul(e, z)
+	}
 
 	// 1. Easy part
 	// (p⁶-1)(p²+1)
@@ -226,7 +230,7 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	if err != nil {
 		return nil, fmt.Errorf("miller loop: %w", err)
 	}
-	res = pr.finalExponentiation(res, len(P) == 1)
+	res = pr.finalExponentiation(len(P) == 1, res)
 	return res, nil
 }
 
@@ -779,7 +783,7 @@ func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*G
 //
 // This method is needed for evmprecompiles/ecpair.
 func (pr Pairing) FinalExponentiationIsOne(e *GTEl) {
-	res := pr.finalExponentiation(e, false)
+	res := pr.finalExponentiation(false, e)
 	one := pr.One()
 	pr.AssertIsEqual(res, one)
 }

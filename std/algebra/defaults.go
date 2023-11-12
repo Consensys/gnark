@@ -69,24 +69,26 @@ func GetPairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT, L LinesT](api
 			return ret, fmt.Errorf("new pairing: %w", err)
 		}
 		*s = p
-	case *Pairing[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl, sw_bw6761.LineEvaluations]:
-		p, err := sw_bw6761.NewPairing(api)
-		if err != nil {
-			return ret, fmt.Errorf("new pairing: %w", err)
-		}
-		*s = p
-	case *Pairing[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl, sw_bls12381.LineEvaluations]:
-		p, err := sw_bls12381.NewPairing(api)
-		if err != nil {
-			return ret, fmt.Errorf("new pairing: %w", err)
-		}
-		*s = p
-	case *Pairing[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]:
-		p := sw_bls12377.NewPairing(api)
-		*s = p
-	case *Pairing[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT, sw_bls24315.LineEvaluations]:
-		p := sw_bls24315.NewPairing(api)
-		*s = p
+		/*
+			case *Pairing[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl, sw_bw6761.LineEvaluations]:
+				p, err := sw_bw6761.NewPairing(api)
+				if err != nil {
+					return ret, fmt.Errorf("new pairing: %w", err)
+				}
+				*s = p
+			case *Pairing[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl, sw_bls12381.LineEvaluations]:
+				p, err := sw_bls12381.NewPairing(api)
+				if err != nil {
+					return ret, fmt.Errorf("new pairing: %w", err)
+				}
+				*s = p
+			case *Pairing[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]:
+				p := sw_bls12377.NewPairing(api)
+				*s = p
+			case *Pairing[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT, sw_bls24315.LineEvaluations]:
+				p := sw_bls24315.NewPairing(api)
+				*s = p
+		*/
 	default:
 		return ret, fmt.Errorf("unknown type parametrisation")
 	}

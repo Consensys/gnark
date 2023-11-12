@@ -53,20 +53,25 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT, L LinesT] interf
 	// when the inputs are of mismatching length. It does not modify the inputs.
 	MillerLoop([]*G1El, []*G2El) (*GtEl, error)
 
+	// MillerLoopFixedQ is the same as MillerLoop but with fixed G2 arguments.
+	MillerLoopFixedQ([]*G1El, []*[2]L) (*GtEl, error)
+
 	// FinalExponentiation computes the final step in the pairing. It does not
 	// modify the inputs.
-	FinalExponentiation(*GtEl) *GtEl
+	FinalExponentiation(*GtEl, ...*GtEl) *GtEl
 
 	// Pair computes the full pairing of the input pairs. It returns error when
 	// the inputs are of mismatching length. It does not modify the inputs.
 	Pair([]*G1El, []*G2El) (*GtEl, error)
 
+	// PairFixedQ is the same as Pair but with fixed G2 arguments.
+	PairFixedQ([]*G1El, []*[2]L) (*GtEl, error)
+
 	// PairingCheck asserts that the pairing result is 1. It returns an error
 	// when the inputs are of mismatching length. It does not modify the inputs.
 	PairingCheck([]*G1El, []*G2El) error
 
-	// PairingFixedQCheck is the same as PairingCheck but of size 2 and
-	// where one of the G2El argument is the fixed canonical generator of G2.
+	// PairingFixedQCheck is the same as PairingCheck but with fixed G2 arguments.
 	PairingFixedQCheck([]*G1El, []*[2]L) error
 
 	// AssertIsEqual asserts the equality of the inputs.

@@ -81,18 +81,18 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 // VerifyingKey is a typed Groth16 verifying key for checking SNARK proofs. For
 // witness creation use the method [ValueOfVerifyingKey] and for stub
 // placeholder use [PlaceholderVerifyingKey].
-type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	E  GtEl
-	G1 struct{ K []G1El }
-	G2 struct{ GammaNeg, DeltaNeg G2El }
+type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT, L algebra.LinesT] struct {
+	E   GtEl
+	G1  struct{ K []G1El }
+	LG2 struct{ GammaNegLines, DeltaNegLines [2]L }
 }
 
 // PlaceholderVerifyingKey returns an empty verifying key for a given compiled
 // constraint system. The size of the verifying key depends on the number of
 // public inputs and commitments used, this method allocates sufficient space
 // regardless of the actual verifying key.
-func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](ccs constraint.ConstraintSystem) VerifyingKey[G1El, G2El, GtEl] {
-	return VerifyingKey[G1El, G2El, GtEl]{
+func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT, L algebra.LinesT](ccs constraint.ConstraintSystem) VerifyingKey[G1El, G2El, GtEl, L] {
+	return VerifyingKey[G1El, G2El, GtEl, L]{
 		G1: struct{ K []G1El }{
 			K: make([]G1El, ccs.GetNbPublicVariables()),
 		},
@@ -102,10 +102,10 @@ func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, G
 // ValueOfVerifyingKey initializes witness from the given Groth16 verifying key.
 // It returns an error if there is a mismatch between the type parameters and
 // the provided native verifying key.
-func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](vk groth16.VerifyingKey) (VerifyingKey[G1El, G2El, GtEl], error) {
-	var ret VerifyingKey[G1El, G2El, GtEl]
+func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT, L algebra.LinesT](vk groth16.VerifyingKey) (VerifyingKey[G1El, G2El, GtEl, L], error) {
+	var ret VerifyingKey[G1El, G2El, GtEl, L]
 	switch s := any(&ret).(type) {
-	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]:
+	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl, sw_bn254.LineEvaluations]:
 		tVk, ok := vk.(*groth16backend_bn254.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
@@ -123,9 +123,15 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		var deltaNeg, gammaNeg bn254.G2Affine
 		deltaNeg.Neg(&tVk.G2.Delta)
 		gammaNeg.Neg(&tVk.G2.Gamma)
-		s.G2.DeltaNeg = sw_bn254.NewG2Affine(deltaNeg)
-		s.G2.GammaNeg = sw_bn254.NewG2Affine(gammaNeg)
-	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
+		deltaNegLines := bn254.PrecomputeLines(deltaNeg)
+		gammaNegLines := bn254.PrecomputeLines(gammaNeg)
+		for i := 0; i < 66; i++ {
+			s.LG2.DeltaNegLines[0].Eval[i] = sw_bn254.NewLineEvaluation(deltaNegLines[0][i])
+			s.LG2.DeltaNegLines[1].Eval[i] = sw_bn254.NewLineEvaluation(deltaNegLines[1][i])
+			s.LG2.GammaNegLines[0].Eval[i] = sw_bn254.NewLineEvaluation(gammaNegLines[0][i])
+			s.LG2.GammaNegLines[1].Eval[i] = sw_bn254.NewLineEvaluation(gammaNegLines[1][i])
+		}
+	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
@@ -143,9 +149,15 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		var deltaNeg, gammaNeg bls12377.G2Affine
 		deltaNeg.Neg(&tVk.G2.Delta)
 		gammaNeg.Neg(&tVk.G2.Gamma)
-		s.G2.DeltaNeg = sw_bls12377.NewG2Affine(deltaNeg)
-		s.G2.GammaNeg = sw_bls12377.NewG2Affine(gammaNeg)
-	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
+		deltaNegLines := bls12377.PrecomputeLines(deltaNeg)
+		gammaNegLines := bls12377.PrecomputeLines(gammaNeg)
+		for i := 0; i < 63; i++ {
+			s.LG2.DeltaNegLines[0].Eval[i] = sw_bls12377.NewLineEvaluation(deltaNegLines[0][i])
+			s.LG2.DeltaNegLines[1].Eval[i] = sw_bls12377.NewLineEvaluation(deltaNegLines[1][i])
+			s.LG2.GammaNegLines[0].Eval[i] = sw_bls12377.NewLineEvaluation(gammaNegLines[0][i])
+			s.LG2.GammaNegLines[1].Eval[i] = sw_bls12377.NewLineEvaluation(gammaNegLines[1][i])
+		}
+	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl, sw_bls12381.LineEvaluations]:
 		tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
@@ -163,9 +175,15 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		var deltaNeg, gammaNeg bls12381.G2Affine
 		deltaNeg.Neg(&tVk.G2.Delta)
 		gammaNeg.Neg(&tVk.G2.Gamma)
-		s.G2.DeltaNeg = sw_bls12381.NewG2Affine(deltaNeg)
-		s.G2.GammaNeg = sw_bls12381.NewG2Affine(gammaNeg)
-	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
+		deltaNegLines := bls12381.PrecomputeLines(deltaNeg)
+		gammaNegLines := bls12381.PrecomputeLines(gammaNeg)
+		for i := 0; i < 63; i++ {
+			s.LG2.DeltaNegLines[0].Eval[i] = sw_bls12381.NewLineEvaluation(deltaNegLines[0][i])
+			s.LG2.DeltaNegLines[1].Eval[i] = sw_bls12381.NewLineEvaluation(deltaNegLines[1][i])
+			s.LG2.GammaNegLines[0].Eval[i] = sw_bls12381.NewLineEvaluation(gammaNegLines[0][i])
+			s.LG2.GammaNegLines[1].Eval[i] = sw_bls12381.NewLineEvaluation(gammaNegLines[1][i])
+		}
+	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT, sw_bls24315.LineEvaluations]:
 		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
@@ -183,8 +201,14 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		var deltaNeg, gammaNeg bls24315.G2Affine
 		deltaNeg.Neg(&tVk.G2.Delta)
 		gammaNeg.Neg(&tVk.G2.Gamma)
-		s.G2.DeltaNeg = sw_bls24315.NewG2Affine(deltaNeg)
-		s.G2.GammaNeg = sw_bls24315.NewG2Affine(gammaNeg)
+		deltaNegLines := bls24315.PrecomputeLines(deltaNeg)
+		gammaNegLines := bls24315.PrecomputeLines(gammaNeg)
+		for i := 0; i < 32; i++ {
+			s.LG2.DeltaNegLines[0].Eval[i] = sw_bls24315.NewLineEvaluation(deltaNegLines[0][i])
+			s.LG2.DeltaNegLines[1].Eval[i] = sw_bls24315.NewLineEvaluation(deltaNegLines[1][i])
+			s.LG2.GammaNegLines[0].Eval[i] = sw_bls24315.NewLineEvaluation(gammaNegLines[0][i])
+			s.LG2.GammaNegLines[1].Eval[i] = sw_bls24315.NewLineEvaluation(gammaNegLines[1][i])
+		}
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
@@ -277,7 +301,7 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 
 // AssertProof asserts that the SNARK proof holds for the given witness and
 // verifying key.
-func (v *Verifier[FR, G1El, G2El, GtEl, L]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR]) error {
+func (v *Verifier[FR, G1El, G2El, GtEl, L]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl, L], proof Proof[G1El, G2El], witness Witness[FR]) error {
 	inP := make([]*G1El, len(vk.G1.K)-1) // first is for the one wire, we add it manually after MSM
 	for i := range inP {
 		inP[i] = &vk.G1.K[i+1]
@@ -291,10 +315,15 @@ func (v *Verifier[FR, G1El, G2El, GtEl, L]) AssertProof(vk VerifyingKey[G1El, G2
 		return fmt.Errorf("multi scalar mul: %w", err)
 	}
 	kSum = v.curve.Add(kSum, &vk.G1.K[0])
-	pairing, err := v.pairing.Pair([]*G1El{kSum, &proof.Krs, &proof.Ar}, []*G2El{&vk.G2.GammaNeg, &vk.G2.DeltaNeg, &proof.Bs})
+	ml1, err := v.pairing.MillerLoopFixedQ([]*G1El{kSum, &proof.Krs}, []*[2]L{&vk.LG2.GammaNegLines, &vk.LG2.DeltaNegLines})
 	if err != nil {
-		return fmt.Errorf("pairing: %w", err)
+		return fmt.Errorf("Miller loop: %w", err)
 	}
+	ml2, err := v.pairing.MillerLoop([]*G1El{&proof.Ar}, []*G2El{&proof.Bs})
+	if err != nil {
+		return fmt.Errorf("Miller loop: %w", err)
+	}
+	pairing := v.pairing.FinalExponentiation(ml1, ml2)
 	v.pairing.AssertIsEqual(pairing, &vk.E)
 	return nil
 }
