@@ -1,11 +1,11 @@
-package lzss_v2
+package lzss
 
 import (
 	"bytes"
 	"fmt"
 	"math/bits"
 
-	"github.com/consensys/gnark/std/compress/lzss_v2/suffixarray"
+	"github.com/consensys/gnark/std/compress/lzss/suffixarray"
 	"github.com/icza/bitio"
 )
 
@@ -22,8 +22,17 @@ type Compressor struct {
 	dictSa    [maxDictSize]int32 // suffix array space.
 }
 
+type CompressionMode uint8
+
+const (
+	BestCompression        CompressionMode = 1
+	GoodCompression        CompressionMode = 2
+	GoodSnarkDecompression CompressionMode = 4
+	BestSnarkDecompression CompressionMode = 8
+)
+
 // NewCompressor returns a new compressor with the given dictionary
-func NewCompressor(dict []byte) (*Compressor, error) {
+func NewCompressor(dict []byte, compressionMode CompressionMode) (*Compressor, error) {
 	dict = augmentDict(dict)
 	if len(dict) > maxDictSize {
 		return nil, fmt.Errorf("dict size must be <= %d", maxDictSize)
@@ -40,8 +49,8 @@ func augmentDict(dict []byte) []byte {
 	return append(dict, symbolDict, symbolShort, symbolLong)
 }
 
-func initDictBackref(dict []byte) backrefType {
-	addrNbBits := uint8(bits.Len(uint(len(dict))))
+func (compressor *Compressor) initDictBackref() backrefType {
+	addrNbBits := uint8(bits.Len(uint(len(compressor.dictData))))
 	return newBackRefType(symbolDict, (addrNbBits+forceDivisibleBy-1)/forceDivisibleBy*forceDivisibleBy, 8, true)
 }
 
@@ -59,7 +68,7 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 	// build the index
 	compressor.inputIndex = suffixarray.New(d, compressor.inputSa[:len(d)])
 
-	dictBackRefType := initDictBackref(compressor.dictData)
+	dictBackRefType := compressor.initDictBackref()
 
 	bDict := backref{bType: dictBackRefType, length: -1, offset: -1}
 	bShort := backref{bType: shortBackRefType, length: -1, offset: -1}

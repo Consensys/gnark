@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/consensys/gnark/std/compress"
-	"github.com/consensys/gnark/std/compress/lzss_v2"
+	"github.com/consensys/gnark/std/compress/lzss"
 )
 
 // executable to generate the constraints for the circuit and store it
@@ -14,7 +14,7 @@ func check(e error) {
 }
 
 func main() {
-	cs, err := lzss_v2.BenchCompressionE2ECompilation(nil, "../../test_cases/large")
+	cs, err := lzss.BenchCompressionE2ECompilation(nil, "../../test_cases/large")
 	check(err)
 
 	fmt.Println(cs.GetNbConstraints(), "constraints")

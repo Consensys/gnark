@@ -1,4 +1,4 @@
-package lzss_v2
+package lzss
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
