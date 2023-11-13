@@ -14,13 +14,13 @@ import (
 )
 
 func testCompressionRoundTrip(t *testing.T, d []byte) {
-	compressor, err := NewCompressor(getDictionnary())
+	compressor, err := NewCompressor(getDictionary(), BestCompression)
 	require.NoError(t, err)
 
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	dBack, err := DecompressGo(c, getDictionnary())
+	dBack, err := DecompressGo(c, getDictionary(), BestCompression)
 	require.NoError(t, err)
 
 	if !bytes.Equal(d, dBack) {
@@ -54,7 +54,7 @@ func FuzzCompress(f *testing.F) {
 	f.Add([]byte{0, 0, 0, 0, 0, 0, 0, 0})
 
 	dict := []byte{0, 0, 0, 0}
-	compressor, err := NewCompressor(dict)
+	compressor, err := NewCompressor(dict, BestCompression)
 	if err != nil {
 		panic(err)
 	}
@@ -68,7 +68,7 @@ func FuzzCompress(f *testing.F) {
 			t.Fatal(err)
 		}
 
-		decompressedBytes, err := DecompressGo(compressedBytes, dict)
+		decompressedBytes, err := DecompressGo(compressedBytes, dict, BestCompression)
 
 		if err != nil {
 			t.Fatal(err)
@@ -102,8 +102,8 @@ func TestAverageBatch(t *testing.T) {
 	data, err := hex.DecodeString(string(d))
 	assert.NoError(err)
 
-	dict := getDictionnary()
-	compressor, err := NewCompressor(dict)
+	dict := getDictionary()
+	compressor, err := NewCompressor(dict, BestCompression)
 	assert.NoError(err)
 	// test compress round trip with s2, zstd and lzss
 	s2Res, err := compressWithS2(data)
@@ -150,7 +150,7 @@ func BenchmarkAverageBatch(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	dict := getDictionnary()
+	dict := getDictionary()
 
 	// benchmark s2
 	b.Run("s2", func(b *testing.B) {
@@ -171,7 +171,7 @@ func BenchmarkAverageBatch(b *testing.B) {
 			}
 		}
 	})
-	compressor, err := NewCompressor(dict)
+	compressor, err := NewCompressor(dict, BestCompression)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func compressWithZstd(data []byte) (compressResult, error) {
 }
 
 func decompresslzss_v1(data, dict []byte) ([]byte, error) {
-	return DecompressGo(data, dict)
+	return DecompressGo(data, dict, BestCompression)
 }
 
 func compresslzss_v1(compressor *Compressor, data []byte) (compressResult, error) {
@@ -264,7 +264,7 @@ func compresslzss_v1(compressor *Compressor, data []byte) (compressResult, error
 	}, nil
 }
 
-func getDictionnary() []byte {
+func getDictionary() []byte {
 	d, err := os.ReadFile("dict_naive")
 	if err != nil {
 		panic(err)

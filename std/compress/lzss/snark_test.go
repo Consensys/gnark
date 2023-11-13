@@ -24,6 +24,9 @@ func Test0To10Explicit(t *testing.T) {
 }
 
 func Test3ZerosBackref(t *testing.T) {
+
+	shortBackRefType, longBackRefType, _ := initBackRefTypes(0, BestCompression)
+
 	testDecompressionSnark(t, nil, 0, backref{
 		offset: 0,
 		length: 2,
@@ -45,7 +48,7 @@ func Test3c2943Snark(t *testing.T) {
 	d, err := os.ReadFile("../test_cases/3c2943/data.bin")
 	assert.NoError(t, err)
 
-	dict := getDictionnary()
+	dict := getDictionary()
 
 	testCompressionRoundTripSnark(t, d, dict)
 }
@@ -66,12 +69,12 @@ func FuzzSnark(f *testing.F) {
 }
 
 func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
-	compressor, err := NewCompressor(dict)
+	compressor, err := NewCompressor(dict, BestCompression)
 	require.NoError(t, err)
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	cStream := ReadIntoStream(c, dict)
+	cStream := ReadIntoStream(c, dict, BestCompression)
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),
@@ -114,9 +117,9 @@ func testDecompressionSnark(t *testing.T, dict []byte, compressedStream ...inter
 	}
 	assert.NoError(t, w.Close())
 	c := bb.Bytes()
-	d, err := DecompressGo(c, dict)
+	d, err := DecompressGo(c, dict, BestCompression)
 	require.NoError(t, err)
-	cStream := ReadIntoStream(c, dict)
+	cStream := ReadIntoStream(c, dict, BestCompression)
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),

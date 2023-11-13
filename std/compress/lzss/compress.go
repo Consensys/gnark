@@ -20,6 +20,8 @@ type Compressor struct {
 	dictData  []byte
 	dictIndex *suffixarray.Index
 	dictSa    [maxDictSize]int32 // suffix array space.
+
+	compressionMode CompressionMode
 }
 
 type CompressionMode uint8
@@ -42,6 +44,7 @@ func NewCompressor(dict []byte, compressionMode CompressionMode) (*Compressor, e
 	}
 	c.buf.Grow(maxInputSize)
 	c.dictIndex = suffixarray.New(c.dictData, c.dictSa[:len(c.dictData)])
+	c.compressionMode = compressionMode
 	return c, nil
 }
 
@@ -49,9 +52,14 @@ func augmentDict(dict []byte) []byte {
 	return append(dict, symbolDict, symbolShort, symbolLong)
 }
 
-func (compressor *Compressor) initDictBackref() backrefType {
-	addrNbBits := uint8(bits.Len(uint(len(compressor.dictData))))
-	return newBackRefType(symbolDict, (addrNbBits+forceDivisibleBy-1)/forceDivisibleBy*forceDivisibleBy, 8, true)
+func initBackRefTypes(dictLen int, compressionMode CompressionMode) (short, long, dict backrefType) {
+	wordAlign := func(a int) uint8 {
+		return (uint8(a) + uint8(compressionMode) - 1) / uint8(compressionMode) * uint8(compressionMode)
+	}
+	short = newBackRefType(symbolShort, wordAlign(14), 8, false)
+	long = newBackRefType(symbolLong, wordAlign(19), 8, false)
+	dict = newBackRefType(symbolDict, wordAlign(bits.Len(uint(dictLen))), 8, true)
+	return
 }
 
 // Compress compresses the given data
@@ -68,7 +76,7 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 	// build the index
 	compressor.inputIndex = suffixarray.New(d, compressor.inputSa[:len(d)])
 
-	dictBackRefType := compressor.initDictBackref()
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(compressor.dictData), compressor.compressionMode)
 
 	bDict := backref{bType: dictBackRefType, length: -1, offset: -1}
 	bShort := backref{bType: shortBackRefType, length: -1, offset: -1}

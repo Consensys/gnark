@@ -7,14 +7,14 @@ import (
 	"io"
 )
 
-func DecompressGo(data, dict []byte) (d []byte, err error) {
+func DecompressGo(data, dict []byte, compressionMode CompressionMode) (d []byte, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
 	out.Grow(len(data)*6 + len(dict))
 	in := bitio.NewReader(bytes.NewReader(data))
 
 	dict = augmentDict(dict)
-	dictBackRefType := initDictBackref(dict)
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), compressionMode)
 
 	bDict := backref{bType: dictBackRefType}
 	bShort := backref{bType: shortBackRefType}
@@ -50,16 +50,13 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 	return out.Bytes(), nil
 }
 
-func ReadIntoStream(data, dict []byte) compress.Stream {
+func ReadIntoStream(data, dict []byte, compressionMode CompressionMode) compress.Stream {
 	in := bitio.NewReader(bytes.NewReader(data))
 
 	dict = augmentDict(dict)
-	dictBackRefType := initDictBackref(dict)
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), compressionMode)
 
-	wordLen := compress.Gcd(8,
-		longBackRefType.nbBitsAddress, longBackRefType.nbBitsLength,
-		shortBackRefType.nbBitsAddress, shortBackRefType.nbBitsLength,
-		dictBackRefType.nbBitsAddress, dictBackRefType.nbBitsLength)
+	wordLen := int(compressionMode)
 
 	out := compress.Stream{
 		NbSymbs: 1 << wordLen,
@@ -72,7 +69,7 @@ func ReadIntoStream(data, dict []byte) compress.Stream {
 	s := in.TryReadByte()
 
 	for in.TryError == nil {
-		out.WriteNum(int(s), int(8/wordLen))
+		out.WriteNum(int(s), 8/wordLen)
 
 		var b *backref
 		switch s {
@@ -92,8 +89,8 @@ func ReadIntoStream(data, dict []byte) compress.Stream {
 			if b != &bDict {
 				address--
 			}
-			out.WriteNum(b.length-1, int(b.bType.nbBitsLength/wordLen))
-			out.WriteNum(address, int(b.bType.nbBitsAddress/wordLen))
+			out.WriteNum(b.length-1, int(b.bType.nbBitsLength)/wordLen)
+			out.WriteNum(address, int(b.bType.nbBitsAddress)/wordLen)
 		}
 
 		s = in.TryReadByte()

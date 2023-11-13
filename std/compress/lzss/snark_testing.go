@@ -21,12 +21,13 @@ type DecompressionTestCircuit struct {
 	Dict             []byte
 	CLength          frontend.Variable
 	CheckCorrectness bool
+	CompressionMode  CompressionMode
 }
 
 func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 	dBack := make([]frontend.Variable, len(c.D)) // TODO Try smaller constants
 	api.Println("maxLen(dBack)", len(dBack))
-	dLen, err := Decompress(api, c.C, c.CLength, dBack, c.Dict)
+	dLen, err := Decompress(api, c.C, c.CLength, dBack, c.Dict, c.CompressionMode)
 	if err != nil {
 		return err
 	}
@@ -42,7 +43,6 @@ func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 }
 
 func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.ConstraintSystem, error) {
-	fmt.Println("word size", forceDivisibleBy, "bits")
 	d, err := os.ReadFile(name + "/data.bin")
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 
 	// compress
 
-	compressor, err := NewCompressor(dict)
+	compressor, err := NewCompressor(dict, GoodCompression)
 	if err != nil {
 		return nil, err
 	}
@@ -60,12 +60,13 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 		return nil, err
 	}
 
-	cStream := ReadIntoStream(c, dict)
+	cStream := ReadIntoStream(c, dict, GoodCompression)
 
 	circuit := compressionCircuit{
-		C:    make([]frontend.Variable, cStream.Len()),
-		D:    make([]frontend.Variable, len(d)),
-		Dict: make([]byte, len(dict)),
+		C:               make([]frontend.Variable, cStream.Len()),
+		D:               make([]frontend.Variable, len(d)),
+		Dict:            make([]byte, len(dict)),
+		CompressionMode: GoodCompression,
 	}
 
 	var start int64
@@ -98,12 +99,13 @@ type compressionCircuit struct {
 	D                    []frontend.Variable
 	Dict                 []byte
 	CLen, DLen           frontend.Variable
+	CompressionMode      CompressionMode
 }
 
 func (c *compressionCircuit) Define(api frontend.API) error {
 
 	fmt.Println("packing")
-	cPacked := compress.Pack(api, c.C, int(compress.Gcd(8, longBackRefType.nbBitsAddress, longBackRefType.nbBitsLength, shortBackRefType.nbBitsAddress, shortBackRefType.nbBitsLength)))
+	cPacked := compress.Pack(api, c.C, int(c.CompressionMode))
 	dPacked := compress.Pack(api, c.D, 8)
 
 	fmt.Println("computing checksum")
@@ -116,7 +118,7 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 
 	fmt.Println("decompressing")
 	dComputed := make([]frontend.Variable, len(c.D))
-	if dComputedLen, err := Decompress(api, c.C, c.CLen, dComputed, c.Dict); err != nil {
+	if dComputedLen, err := Decompress(api, c.C, c.CLen, dComputed, c.Dict, c.CompressionMode); err != nil {
 		return err
 	} else {
 		api.AssertIsEqual(dComputedLen, c.DLen)

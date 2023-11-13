@@ -3,25 +3,21 @@ package lzss
 import (
 	"fmt"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
 // bite size of c needs to be the greatest common denominator of all backref types and 8
 // d consists of bytes
-func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d []frontend.Variable, dict []byte) (dLength frontend.Variable, err error) {
+func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d []frontend.Variable, dict []byte, compressionMode CompressionMode) (dLength frontend.Variable, err error) {
+
+	wordLen := int(compressionMode)
 
 	dict = augmentDict(dict)
-	dictBackRefType := initDictBackref(dict) // only using the bit len
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), compressionMode)
 
-	wordLen := compress.Gcd(8,
-		longBackRefType.nbBitsAddress, longBackRefType.nbBitsLength,
-		shortBackRefType.nbBitsAddress, shortBackRefType.nbBitsLength,
-		dictBackRefType.nbBitsAddress, dictBackRefType.nbBitsLength)
-
-	longBrNbWords := longBackRefType.nbBitsBackRef / wordLen
-	shortBrNbWords := shortBackRefType.nbBitsBackRef / wordLen
-	dictBrNbWords := dictBackRefType.nbBitsBackRef / wordLen
+	shortBrNbWords := int(shortBackRefType.nbBitsBackRef) / wordLen
+	longBrNbWords := int(longBackRefType.nbBitsBackRef) / wordLen
+	dictBrNbWords := int(dictBackRefType.nbBitsBackRef) / wordLen
 	byteNbWords := 8 / wordLen
 
 	// assert that c are within range
@@ -37,11 +33,10 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	}
 
 	// formatted input
-	bytes := combineIntoBytes(api, c, int(wordLen))
+	bytes := combineIntoBytes(api, c, wordLen)
 	bytesTable := sliceToTable(api, bytes)
 	bytesTable.Insert(0) // just because we use this table for looking up backref lengths as well
-	//lenTable := createLengthTables(api, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
-	addrTable := initAddrTable(api, bytes, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
+	addrTable := initAddrTable(api, bytes, c, wordLen, []backrefType{shortBackRefType, longBackRefType, dictBackRefType})
 
 	// state variables
 	inI := frontend.Variable(0)
@@ -54,9 +49,9 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		curr := bytesTable.Lookup(inI)[0]
 
-		currIndicatesLongBr := api.IsZero(api.Sub(curr, longBackRefType.delimiter))
-		currIndicatesShortBr := api.IsZero(api.Sub(curr, shortBackRefType.delimiter))
-		currIndicatesDr := api.IsZero(api.Sub(curr, dictBackRefType.delimiter))
+		currIndicatesLongBr := api.IsZero(api.Sub(curr, symbolLong))
+		currIndicatesShortBr := api.IsZero(api.Sub(curr, symbolShort))
+		currIndicatesDr := api.IsZero(api.Sub(curr, symbolDict))
 		currIndicatesBr := api.Add(currIndicatesLongBr, currIndicatesShortBr)
 		currIndicatesCp := api.Add(currIndicatesBr, currIndicatesDr)
 

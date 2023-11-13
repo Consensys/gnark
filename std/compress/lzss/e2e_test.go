@@ -30,13 +30,13 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 
 	// compress
 
-	compressor, err := NewCompressor(dict)
+	compressor, err := NewCompressor(dict, BestCompression)
 	assert.NoError(t, err)
 
 	c, err := compressor.Compress(d)
 	assert.NoError(t, err)
 
-	cStream := ReadIntoStream(c, dict)
+	cStream := ReadIntoStream(c, dict, BestCompression)
 
 	cSum, err := check(cStream, cStream.Len())
 	assert.NoError(t, err)
