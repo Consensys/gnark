@@ -45,9 +45,10 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	assert.NoError(t, err)
 
 	circuit := compressionCircuit{
-		C:    make([]frontend.Variable, cStream.Len()),
-		D:    make([]frontend.Variable, len(d)),
-		Dict: make([]byte, len(dict)),
+		C:               make([]frontend.Variable, cStream.Len()),
+		D:               make([]frontend.Variable, len(d)),
+		Dict:            make([]byte, len(dict)),
+		CompressionMode: BestCompression,
 	}
 
 	// solve the circuit or only compile it

@@ -1,7 +1,6 @@
 package lzss
 
 import (
-	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
@@ -112,13 +111,7 @@ func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.T
 func combineIntoBytes(api frontend.API, c []frontend.Variable, wordNbBits int) []frontend.Variable {
 	reader := newNumReader(api, c, 8, wordNbBits)
 	res := make([]frontend.Variable, len(c))
-	prevPct := -1
 	for i := range res {
-		pct := i * 100 / len(res)
-		if pct != prevPct {
-			prevPct = pct
-			fmt.Println("bytes compilation at", pct, "%")
-		}
 		res[i] = reader.next()
 	}
 	return res
@@ -143,14 +136,7 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits in
 
 	res := logderivlookup.New(api)
 
-	prevPct := -1
 	for i := range c {
-		pct := i * 100 / len(c)
-		if pct != prevPct {
-			prevPct = pct
-			fmt.Println("addr table compilation at", pct, "%")
-		}
-
 		entry := frontend.Variable(0)
 		for j := range backrefs {
 			isSymb := api.IsZero(api.Sub(bytes[i], backrefs[j].delimiter))

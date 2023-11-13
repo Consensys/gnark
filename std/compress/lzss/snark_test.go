@@ -69,18 +69,25 @@ func FuzzSnark(f *testing.F) {
 }
 
 func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
-	compressor, err := NewCompressor(dict, BestCompression)
+
+	compressionMode := BestCompression
+	if len(d) > 1000 {
+		compressionMode = GoodCompression
+	}
+
+	compressor, err := NewCompressor(dict, compressionMode)
 	require.NoError(t, err)
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	cStream := ReadIntoStream(c, dict, BestCompression)
+	cStream := ReadIntoStream(c, dict, compressionMode)
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
+		CompressionMode:  compressionMode,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(cStream.D),
@@ -126,6 +133,7 @@ func testDecompressionSnark(t *testing.T, dict []byte, compressedStream ...inter
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
+		CompressionMode:  BestCompression,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(cStream.D),
