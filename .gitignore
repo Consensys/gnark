@@ -56,9 +56,3 @@ go.work
 go.work.sum
 
 examples/gbotrel/**
-
-# compression related files
-*.raw
-*.pdf
-*cs.gz
-*pk.gz
