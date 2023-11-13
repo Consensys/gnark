@@ -52,10 +52,14 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 //
 // we use instead d = s⋅(p³-1)(p+1)(p²-p+1)/r
 // where s is the cofactor (x₀+1)
-func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
+func (pr Pairing) FinalExponentiation(e1 *GTEl, _e ...*GTEl) *GTEl {
 
-	z = pr.Reduce(z)
-	result := pr.Copy(z)
+	for _, z := range _e {
+		e1 = pr.Mul(e1, z)
+	}
+
+	e1 = pr.Reduce(e1)
+	result := pr.Copy(e1)
 
 	// 1. Easy part
 	// (p³-1)(p+1)

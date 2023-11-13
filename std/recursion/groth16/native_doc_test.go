@@ -1,6 +1,5 @@
 package groth16_test
 
-/*
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
@@ -18,7 +17,7 @@ func Example_native() {
 	innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField())
 
 	// initialize the witness elements
-	circuitVk, err := stdgroth16.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
+	circuitVk, err := stdgroth16.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations](innerVK)
 	if err != nil {
 		panic(err)
 	}
@@ -43,7 +42,7 @@ func Example_native() {
 	// [stdgroth16.PlaceholderVerifyingKey]
 	outerCircuit := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]{
 		InnerWitness: stdgroth16.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
-		VerifyingKey: stdgroth16.PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerCcs),
+		VerifyingKey: stdgroth16.PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations](innerCcs),
 	}
 
 	// compile the outer circuit. because we are using 2-chains then the outer
@@ -84,4 +83,3 @@ func Example_native() {
 		panic("circuit verification failed: " + err.Error())
 	}
 }
-*/

@@ -161,8 +161,8 @@ func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 
 // FinalExponentiation performs the final exponentiation on the target group
 // element. It doesn't modify the input.
-func (p *Pairing) FinalExponentiation(e *GT) *GT {
-	res := FinalExponentiation(p.api, *e)
+func (p *Pairing) FinalExponentiation(e *GT, _e ...*GT) *GT {
+	res := FinalExponentiation(p.api, *e, _e...)
 	return &res
 }
 
@@ -200,6 +200,26 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	one.SetOne()
 	res.AssertIsEqual(p.api, one)
 	return nil
+}
+
+// MillerLoopFixedQ is similar to MillerLoop but with fixed Q points in G2.
+func (p *Pairing) MillerLoopFixedQ(P []*G1Affine, lines []*[2]LineEvaluations) (*GT, error) {
+	inP := make([]G1Affine, len(P))
+	for i := range P {
+		inP[i] = *P[i]
+	}
+	res, err := MillerLoopFixedQ(p.api, inP, lines)
+	return &res, err
+}
+
+// PairFixedQ is similar to Pair but with fixed Q points in G2.
+func (p *Pairing) PairFixedQ(P []*G1Affine, lines []*[2]LineEvaluations) (*GT, error) {
+	inP := make([]G1Affine, len(P))
+	for i := range P {
+		inP[i] = *P[i]
+	}
+	res, err := PairFixedQ(p.api, inP, lines)
+	return &res, err
 }
 
 // PairingFixedQCheck computes the multi-pairing of the input pairs and asserts that

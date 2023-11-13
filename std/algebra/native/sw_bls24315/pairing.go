@@ -235,8 +235,13 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 // where d = (p²⁴-1)/r = (p²⁴-1)/Φ₂₄(p) ⋅ Φ₂₄(p)/r = (p¹²-1)(p⁴+1)(p⁸ - p⁴ +1)/r
 // we use instead d=s ⋅ (p¹²-1)(p⁴+1)(p⁸ - p⁴ +1)/r
 // where s is the cofactor 3 (Hayashida et al.)
-func FinalExponentiation(api frontend.API, e1 GT) GT {
+func FinalExponentiation(api frontend.API, e1 GT, _e ...*GT) GT {
 	const genT = 3218079743
+
+	for _, z := range _e {
+		e1.Mul(api, e1, *z)
+	}
+
 	result := e1
 
 	// https://eprint.iacr.org/2012/232.pdf, section 7

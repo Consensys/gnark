@@ -151,13 +151,12 @@ func TestBN254InBN254(t *testing.T) {
 	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment))
 }
 
-/*
 func TestBLS12InBW6(t *testing.T) {
 	assert := test.NewAssert(t)
 	innerCcs, innerVK, innerWitness, innerProof := getInner(assert, ecc.BLS12_377.ScalarField())
 
 	// outer proof
-	circuitVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
+	circuitVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations](innerVK)
 	assert.NoError(err)
 	circuitWitness, err := ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
 	assert.NoError(err)
@@ -166,7 +165,7 @@ func TestBLS12InBW6(t *testing.T) {
 
 	outerCircuit := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]{
 		InnerWitness: PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
-		VerifyingKey: PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerCcs),
+		VerifyingKey: PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations](innerCcs),
 	}
 	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]{
 		InnerWitness: circuitWitness,
@@ -175,7 +174,6 @@ func TestBLS12InBW6(t *testing.T) {
 	}
 	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BW6_761))
 }
-*/
 
 func getPreimageAndDigest() (preimage [9]byte, digest [32]byte) {
 	copy(preimage[:], []byte("recursion"))
@@ -283,33 +281,31 @@ func TestValueOfVerifyingKey(t *testing.T) {
 		assert.NoError(err)
 		_ = vvk
 	}, "bn254")
-	/*
-		assert.Run(func(assert *test.Assert) {
-			ccs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
-			assert.NoError(err)
-			_, vk, err := groth16.Setup(ccs)
-			assert.NoError(err)
-			vvk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](vk)
-			assert.NoError(err)
-			_ = vvk
-		}, "bls12377")
-		assert.Run(func(assert *test.Assert) {
-			ccs, err := frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
-			assert.NoError(err)
-			_, vk, err := groth16.Setup(ccs)
-			assert.NoError(err)
-			vvk, err := ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl](vk)
-			assert.NoError(err)
-			_ = vvk
-		}, "bls12381")
-		assert.Run(func(assert *test.Assert) {
-			ccs, err := frontend.Compile(ecc.BLS24_315.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
-			assert.NoError(err)
-			_, vk, err := groth16.Setup(ccs)
-			assert.NoError(err)
-			vvk, err := ValueOfVerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT](vk)
-			assert.NoError(err)
-			_ = vvk
-		}, "bls24315")
-	*/
+	assert.Run(func(assert *test.Assert) {
+		ccs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
+		assert.NoError(err)
+		_, vk, err := groth16.Setup(ccs)
+		assert.NoError(err)
+		vvk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations](vk)
+		assert.NoError(err)
+		_ = vvk
+	}, "bls12377")
+	assert.Run(func(assert *test.Assert) {
+		ccs, err := frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
+		assert.NoError(err)
+		_, vk, err := groth16.Setup(ccs)
+		assert.NoError(err)
+		vvk, err := ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl, sw_bls12381.LineEvaluations](vk)
+		assert.NoError(err)
+		_ = vvk
+	}, "bls12381")
+	assert.Run(func(assert *test.Assert) {
+		ccs, err := frontend.Compile(ecc.BLS24_315.ScalarField(), r1cs.NewBuilder, &WitnessCircut{})
+		assert.NoError(err)
+		_, vk, err := groth16.Setup(ccs)
+		assert.NoError(err)
+		vvk, err := ValueOfVerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT, sw_bls24315.LineEvaluations](vk)
+		assert.NoError(err)
+		_ = vvk
+	}, "bls24315")
 }
