@@ -99,15 +99,6 @@ func (s *Stream) Checksum(hsh hash.Hash, fieldBits int) []byte {
 	return hsh.Sum(nil)
 }
 
-type Pipeline []func(Stream) Stream
-
-func (pipeline Pipeline) Run(in Stream) Stream {
-	for _, f := range pipeline {
-		in = f(in)
-	}
-	return in
-}
-
 func (s *Stream) WriteNum(r int, nbWords int) *Stream {
 	for i := 0; i < nbWords; i++ {
 		s.D = append(s.D, r%s.NbSymbs)
