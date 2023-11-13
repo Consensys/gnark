@@ -15,8 +15,8 @@ import (
 // @Tabaie TODO Replace with proper lookup tables
 
 type Map struct {
-	Keys   []frontend.Variable
-	Values []frontend.Variable
+	keys   []frontend.Variable
+	values []frontend.Variable
 }
 
 func getDelta(api frontend.API, x frontend.Variable, deltaIndex int, keys []frontend.Variable) frontend.Variable {
@@ -37,15 +37,15 @@ func getDelta(api frontend.API, x frontend.Variable, deltaIndex int, keys []fron
 func (m Map) Get(api frontend.API, key frontend.Variable) frontend.Variable {
 	res := frontend.Variable(0)
 
-	for i := range m.Keys {
-		deltaI := getDelta(api, key, i, m.Keys)
-		res = api.MulAcc(res, deltaI, m.Values[i])
+	for i := range m.keys {
+		deltaI := getDelta(api, key, i, m.keys)
+		res = api.MulAcc(res, deltaI, m.values[i])
 	}
 
 	return res
 }
 
-// The Keys in a DoubleMap must be constant. i.e. known at setup time
+// The keys in a DoubleMap must be constant. i.e. known at setup time
 type DoubleMap struct {
 	keys1  []frontend.Variable
 	keys2  []frontend.Variable
@@ -100,8 +100,8 @@ type ElementMap struct {
 
 func ReadMap(in map[string]interface{}) ElementMap {
 	single := Map{
-		Keys:   make([]frontend.Variable, 0),
-		Values: make([]frontend.Variable, 0),
+		keys:   make([]frontend.Variable, 0),
+		values: make([]frontend.Variable, 0),
 	}
 
 	keys1 := make(map[string]int)
@@ -112,15 +112,15 @@ func ReadMap(in map[string]interface{}) ElementMap {
 		kSep := strings.Split(k, ",")
 		switch len(kSep) {
 		case 1:
-			single.Keys = append(single.Keys, k)
-			single.Values = append(single.Values, ToVariable(v))
+			single.keys = append(single.keys, k)
+			single.values = append(single.values, ToVariable(v))
 		case 2:
 
 			register(keys1, kSep[0])
 			register(keys2, kSep[1])
 
 		default:
-			panic("too many Keys")
+			panic("too many keys")
 		}
 	}
 
