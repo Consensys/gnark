@@ -1,15 +1,17 @@
 package algebra
 
-import "github.com/consensys/gnark/frontend"
+import (
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated"
+)
 
-type ScalarT any
 type GroupElementT any
 type G1ElementT GroupElementT
 type G2ElementT GroupElementT
 type GtElementT GroupElementT
 
 // Curve defines group operations on an elliptic curve.
-type Curve[S ScalarT, G1El G1ElementT] interface {
+type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	// Add adds two points and returns the sum. It does not modify the input
 	// points.
 	Add(*G1El, *G1El) *G1El
@@ -23,23 +25,23 @@ type Curve[S ScalarT, G1El G1ElementT] interface {
 
 	// ScalarMul returns the scalar multiplication of the point by a scalar. It
 	// does not modify the inputs.
-	ScalarMul(*G1El, *S) *G1El
+	ScalarMul(*G1El, *emulated.Element[FR]) *G1El
 
 	// ScalarMulBase returns the scalar multiplication of the curve base point
 	// by a scalar. It does not modify the scalar.
-	ScalarMulBase(*S) *G1El
+	ScalarMulBase(*emulated.Element[FR]) *G1El
 
 	// MultiScalarMul computes the sum ∑ s_i P_i for the input
 	// scalars s_i and points P_i. It returns an error if the input lengths
 	// mismatch.
-	MultiScalarMul([]*G1El, []*S) (*G1El, error)
+	MultiScalarMul([]*G1El, []*emulated.Element[FR]) (*G1El, error)
 
 	// MarshalG1 returns the binary decomposition G1.X || G1.Y. It matches the
 	// output of gnark-crypto's Marshal method on G1 points.
 	MarshalG1(G1El) []frontend.Variable
 
 	// MarshalScalar returns the binary decomposition of the argument.
-	MarshalScalar(S) []frontend.Variable
+	MarshalScalar(emulated.Element[FR]) []frontend.Variable
 }
 
 // Pairing allows to compute the bi-linear pairing of G1 and G2 elements.

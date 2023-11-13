@@ -107,14 +107,14 @@ func getInner(assert *test.Assert, field *big.Int) (constraint.ConstraintSystem,
 	return innerCcs, innerVK, innerPubWitness, innerProof
 }
 
-type OuterCircuit[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	Proof        Proof[G1El, G2El]
 	VerifyingKey VerifyingKey[G1El, G2El, GtEl]
-	InnerWitness Witness[S]
+	InnerWitness Witness[FR]
 }
 
-func (c *OuterCircuit[S, G1El, G2El, GtEl]) Define(api frontend.API) error {
-	curve, err := algebra.GetCurve[S, G1El](api)
+func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	curve, err := algebra.GetCurve[FR, G1El](api)
 	if err != nil {
 		return fmt.Errorf("new curve: %w", err)
 	}
@@ -134,16 +134,16 @@ func TestBN254InBN254(t *testing.T) {
 	// outer proof
 	circuitVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVK)
 	assert.NoError(err)
-	circuitWitness, err := ValueOfWitness[sw_bn254.Scalar, sw_bn254.G1Affine](innerWitness)
+	circuitWitness, err := ValueOfWitness[sw_bn254.ScalarField](innerWitness)
 	assert.NoError(err)
 	circuitProof, err := ValueOfProof[sw_bn254.G1Affine, sw_bn254.G2Affine](innerProof)
 	assert.NoError(err)
 
-	outerCircuit := &OuterCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
-		InnerWitness: PlaceholderWitness[sw_bn254.Scalar](innerCcs),
+	outerCircuit := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		InnerWitness: PlaceholderWitness[sw_bn254.ScalarField](innerCcs),
 		VerifyingKey: PlaceholderVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerCcs),
 	}
-	outerAssignment := &OuterCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+	outerAssignment := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
@@ -158,16 +158,16 @@ func TestBLS12InBW6(t *testing.T) {
 	// outer proof
 	circuitVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
 	assert.NoError(err)
-	circuitWitness, err := ValueOfWitness[sw_bls12377.Scalar, sw_bls12377.G1Affine](innerWitness)
+	circuitWitness, err := ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
 	assert.NoError(err)
 	circuitProof, err := ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
 	assert.NoError(err)
 
-	outerCircuit := &OuterCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		InnerWitness: PlaceholderWitness[sw_bls12377.Scalar](innerCcs),
+	outerCircuit := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		InnerWitness: PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
 		VerifyingKey: PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerCcs),
 	}
-	outerAssignment := &OuterCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
@@ -195,28 +195,28 @@ func TestValueOfWitness(t *testing.T) {
 	assert.Run(func(assert *test.Assert) {
 		w, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 		assert.NoError(err)
-		ww, err := ValueOfWitness[sw_bn254.Scalar, sw_bn254.G1Affine](w)
+		ww, err := ValueOfWitness[sw_bn254.ScalarField](w)
 		assert.NoError(err)
 		_ = ww
 	}, "bn254")
 	assert.Run(func(assert *test.Assert) {
 		w, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 		assert.NoError(err)
-		ww, err := ValueOfWitness[sw_bls12377.Scalar, sw_bls12377.G1Affine](w)
+		ww, err := ValueOfWitness[sw_bls12377.ScalarField](w)
 		assert.NoError(err)
 		_ = ww
 	}, "bls12377")
 	assert.Run(func(assert *test.Assert) {
 		w, err := frontend.NewWitness(&assignment, ecc.BLS12_381.ScalarField())
 		assert.NoError(err)
-		ww, err := ValueOfWitness[sw_bls12381.Scalar, sw_bls12381.G1Affine](w)
+		ww, err := ValueOfWitness[sw_bls12381.ScalarField](w)
 		assert.NoError(err)
 		_ = ww
 	}, "bls12381")
 	assert.Run(func(assert *test.Assert) {
 		w, err := frontend.NewWitness(&assignment, ecc.BLS24_315.ScalarField())
 		assert.NoError(err)
-		ww, err := ValueOfWitness[sw_bls24315.Scalar, sw_bls24315.G1Affine](w)
+		ww, err := ValueOfWitness[sw_bls24315.ScalarField](w)
 		assert.NoError(err)
 		_ = ww
 	}, "bls24315")

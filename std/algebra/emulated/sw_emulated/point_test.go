@@ -83,27 +83,40 @@ func (c *MarshalG1Test[T, S]) Define(api frontend.API) error {
 
 func TestMarshalG1(t *testing.T) {
 	assert := test.NewAssert(t)
-	_, _, g, _ := bw6761.Generators()
-	gBytes := g.Marshal()
-	nbBytes := 2 * fp_bw6761.Bytes
-	nbBits := nbBytes * 8
-	circuit := &MarshalG1Test[emulated.BW6761Fp, emulated.BW6761Fr]{
-		R: make([]frontend.Variable, nbBits),
-	}
-	witness := &MarshalG1Test[emulated.BW6761Fp, emulated.BW6761Fr]{
-		G: AffinePoint[emulated.BW6761Fp]{
-			X: emulated.ValueOf[emulated.BW6761Fp](g.X),
-			Y: emulated.ValueOf[emulated.BW6761Fp](g.Y),
-		},
-		R: make([]frontend.Variable, nbBits),
-	}
-	for i := 0; i < nbBytes; i++ {
-		for j := 0; j < 8; j++ {
-			witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+	testFn := func(r fr_bw6761.Element) {
+		var P bw6761.G1Affine
+		P.ScalarMultiplicationBase(r.BigInt(new(big.Int)))
+		gBytes := P.Marshal()
+		nbBytes := 2 * fp_bw6761.Bytes
+		nbBits := nbBytes * 8
+		circuit := &MarshalG1Test[emulated.BW6761Fp, emulated.BW6761Fr]{
+			R: make([]frontend.Variable, nbBits),
 		}
+		witness := &MarshalG1Test[emulated.BW6761Fp, emulated.BW6761Fr]{
+			G: AffinePoint[emulated.BW6761Fp]{
+				X: emulated.ValueOf[emulated.BW6761Fp](P.X),
+				Y: emulated.ValueOf[emulated.BW6761Fp](P.Y),
+			},
+			R: make([]frontend.Variable, nbBits),
+		}
+		for i := 0; i < nbBytes; i++ {
+			for j := 0; j < 8; j++ {
+				witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+			}
+		}
+		err := test.IsSolved(circuit, witness, testCurve.ScalarField())
+		assert.NoError(err)
 	}
-	err := test.IsSolved(circuit, witness, testCurve.ScalarField())
-	assert.NoError(err)
+	assert.Run(func(assert *test.Assert) {
+		var r fr_bw6761.Element
+		r.SetRandom()
+		testFn(r)
+	})
+	assert.Run(func(assert *test.Assert) {
+		var r fr_bw6761.Element
+		r.SetZero()
+		testFn(r)
+	})
 }
 
 type NegTest[T, S emulated.FieldParams] struct {

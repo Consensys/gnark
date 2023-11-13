@@ -15,8 +15,8 @@ import (
 type Pairing struct {
 	api frontend.API
 	*fields_bn254.Ext12
-	curveF *emulated.Field[emulated.BN254Fp]
-	curve  *sw_emulated.Curve[emulated.BN254Fp, emulated.BN254Fr]
+	curveF *emulated.Field[BaseField]
+	curve  *sw_emulated.Curve[BaseField, ScalarField]
 	g2     *G2
 	bTwist *fields_bn254.E2
 	lines  [4][67]fields_bn254.E2
@@ -28,47 +28,47 @@ func NewGTEl(v bn254.GT) GTEl {
 	return GTEl{
 		C0: fields_bn254.E6{
 			B0: fields_bn254.E2{
-				A0: emulated.ValueOf[emulated.BN254Fp](v.C0.B0.A0),
-				A1: emulated.ValueOf[emulated.BN254Fp](v.C0.B0.A1),
+				A0: emulated.ValueOf[BaseField](v.C0.B0.A0),
+				A1: emulated.ValueOf[BaseField](v.C0.B0.A1),
 			},
 			B1: fields_bn254.E2{
-				A0: emulated.ValueOf[emulated.BN254Fp](v.C0.B1.A0),
-				A1: emulated.ValueOf[emulated.BN254Fp](v.C0.B1.A1),
+				A0: emulated.ValueOf[BaseField](v.C0.B1.A0),
+				A1: emulated.ValueOf[BaseField](v.C0.B1.A1),
 			},
 			B2: fields_bn254.E2{
-				A0: emulated.ValueOf[emulated.BN254Fp](v.C0.B2.A0),
-				A1: emulated.ValueOf[emulated.BN254Fp](v.C0.B2.A1),
+				A0: emulated.ValueOf[BaseField](v.C0.B2.A0),
+				A1: emulated.ValueOf[BaseField](v.C0.B2.A1),
 			},
 		},
 		C1: fields_bn254.E6{
 			B0: fields_bn254.E2{
-				A0: emulated.ValueOf[emulated.BN254Fp](v.C1.B0.A0),
-				A1: emulated.ValueOf[emulated.BN254Fp](v.C1.B0.A1),
+				A0: emulated.ValueOf[BaseField](v.C1.B0.A0),
+				A1: emulated.ValueOf[BaseField](v.C1.B0.A1),
 			},
 			B1: fields_bn254.E2{
-				A0: emulated.ValueOf[emulated.BN254Fp](v.C1.B1.A0),
-				A1: emulated.ValueOf[emulated.BN254Fp](v.C1.B1.A1),
+				A0: emulated.ValueOf[BaseField](v.C1.B1.A0),
+				A1: emulated.ValueOf[BaseField](v.C1.B1.A1),
 			},
 			B2: fields_bn254.E2{
-				A0: emulated.ValueOf[emulated.BN254Fp](v.C1.B2.A0),
-				A1: emulated.ValueOf[emulated.BN254Fp](v.C1.B2.A1),
+				A0: emulated.ValueOf[BaseField](v.C1.B2.A0),
+				A1: emulated.ValueOf[BaseField](v.C1.B2.A1),
 			},
 		},
 	}
 }
 
 func NewPairing(api frontend.API) (*Pairing, error) {
-	ba, err := emulated.NewField[emulated.BN254Fp](api)
+	ba, err := emulated.NewField[BaseField](api)
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
-	curve, err := sw_emulated.New[emulated.BN254Fp, emulated.BN254Fr](api, sw_emulated.GetBN254Params())
+	curve, err := sw_emulated.New[BaseField, ScalarField](api, sw_emulated.GetBN254Params())
 	if err != nil {
 		return nil, fmt.Errorf("new curve: %w", err)
 	}
 	bTwist := fields_bn254.E2{
-		A0: emulated.ValueOf[emulated.BN254Fp]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
-		A1: emulated.ValueOf[emulated.BN254Fp]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
+		A0: emulated.ValueOf[BaseField]("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
+		A1: emulated.ValueOf[BaseField]("266929791119991161246907387137283842545076965332900288569378510910307636690"),
 	}
 	return &Pairing{
 		api:    api,
@@ -337,8 +337,8 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	var l1, l2 *lineEvaluation
 	Qacc := make([]*G2Affine, n)
 	QNeg := make([]*G2Affine, n)
-	yInv := make([]*emulated.Element[emulated.BN254Fp], n)
-	xNegOverY := make([]*emulated.Element[emulated.BN254Fp], n)
+	yInv := make([]*emulated.Element[BaseField], n)
+	xNegOverY := make([]*emulated.Element[BaseField], n)
 
 	for k := 0; k < n; k++ {
 		Qacc[k] = Q[k]
@@ -860,7 +860,7 @@ func (pr Pairing) DoubleMillerLoopFixedQ(P, T *G1Affine, Q *G2Affine) (*GTEl, er
 	var Qacc, QNeg *G2Affine
 	Qacc = Q
 	QNeg = &G2Affine{X: Q.X, Y: *pr.Ext2.Neg(&Q.Y)}
-	var yInv, xNegOverY, y2Inv, x2OverY2 *emulated.Element[emulated.BN254Fp]
+	var yInv, xNegOverY, y2Inv, x2OverY2 *emulated.Element[BaseField]
 	yInv = pr.curveF.Inverse(&P.Y)
 	xNegOverY = pr.curveF.MulMod(&P.X, yInv)
 	xNegOverY = pr.curveF.Neg(xNegOverY)

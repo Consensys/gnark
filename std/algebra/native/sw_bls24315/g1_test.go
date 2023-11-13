@@ -36,12 +36,15 @@ import (
 // Marshalling
 
 type MarshalScalarTest struct {
-	X frontend.Variable
+	X Scalar
 	R [fr.Bytes * 8]frontend.Variable
 }
 
 func (c *MarshalScalarTest) Define(api frontend.API) error {
-	ec := NewCurve(api)
+	ec, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
 	r := ec.MarshalScalar(c.X)
 	for i := range c.R {
 		api.AssertIsEqual(r[i], c.R[i])
@@ -55,7 +58,7 @@ func TestMarshalScalar(t *testing.T) {
 	r.SetRandom()
 	rBytes := r.Marshal()
 	var witness MarshalScalarTest
-	witness.X = r.String()
+	witness.X = NewScalar(r)
 	for i := 0; i < fr.Bytes; i++ {
 		for j := 0; j < 8; j++ {
 			witness.R[i*8+j] = (rBytes[i] >> (7 - j)) & 1
@@ -71,7 +74,10 @@ type MarshalG1Test struct {
 }
 
 func (c *MarshalG1Test) Define(api frontend.API) error {
-	ec := NewCurve(api)
+	ec, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
 	// we want to get the same output as gnark-crypto's marshal.
 	// It's a point on bls12-377 so the number of bytes is 96, as the
 	// field of definition of bls12-377 is 48 bytes long.
@@ -85,23 +91,33 @@ func (c *MarshalG1Test) Define(api frontend.API) error {
 func TestMarshalG1(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	// sample a random point
-	var r fr.Element
-	r.SetRandom()
-	var br big.Int
-	r.BigInt(&br)
-	_, _, g, _ := bls24315.Generators()
-	g.ScalarMultiplication(&g, &br)
-	gBytes := g.Marshal()
-	var witness MarshalG1Test
-	witness.P.Assign(&g)
-	for i := 0; i < 80; i++ {
-		for j := 0; j < 8; j++ {
-			witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+	testfn := func(r fr.Element) {
+		var br big.Int
+		r.BigInt(&br)
+		_, _, g, _ := bls24315.Generators()
+		g.ScalarMultiplication(&g, &br)
+		gBytes := g.Marshal()
+		var witness MarshalG1Test
+		witness.P.Assign(&g)
+		for i := 0; i < 80; i++ {
+			for j := 0; j < 8; j++ {
+				witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+			}
 		}
+		var circuit MarshalG1Test
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 	}
-	var circuit MarshalG1Test
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+	assert.Run(func(assert *test.Assert) {
+		// sample a random point
+		var r fr.Element
+		r.SetRandom()
+		testfn(r)
+	})
+	assert.Run(func(assert *test.Assert) {
+		var r fr.Element
+		r.SetZero()
+		testfn(r)
+	})
 }
 
 // -------------------------------------------------------------------------------------------------

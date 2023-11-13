@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/math/emulated"
 	stdgroth16 "github.com/consensys/gnark/std/recursion/groth16"
 )
 
@@ -74,14 +75,14 @@ func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.Ver
 
 // OuterCircuit is the generic outer circuit which can verify Groth16 proofs
 // using field emulation or 2-chains of curves.
-type OuterCircuit[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	Proof        stdgroth16.Proof[G1El, G2El]
 	VerifyingKey stdgroth16.VerifyingKey[G1El, G2El, GtEl]
-	InnerWitness stdgroth16.Witness[S]
+	InnerWitness stdgroth16.Witness[FR]
 }
 
-func (c *OuterCircuit[S, G1El, G2El, GtEl]) Define(api frontend.API) error {
-	curve, err := algebra.GetCurve[S, G1El](api)
+func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	curve, err := algebra.GetCurve[FR, G1El](api)
 	if err != nil {
 		return fmt.Errorf("new curve: %w", err)
 	}
@@ -104,7 +105,7 @@ func Example_emulated() {
 	if err != nil {
 		panic(err)
 	}
-	circuitWitness, err := stdgroth16.ValueOfWitness[sw_bn254.Scalar, sw_bn254.G1Affine](innerWitness)
+	circuitWitness, err := stdgroth16.ValueOfWitness[sw_bn254.ScalarField](innerWitness)
 	if err != nil {
 		panic(err)
 	}
@@ -113,7 +114,7 @@ func Example_emulated() {
 		panic(err)
 	}
 
-	outerAssignment := &OuterCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+	outerAssignment := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
@@ -123,8 +124,8 @@ func Example_emulated() {
 	// compiled inner circuit to deduce the required size for the outer witness
 	// using functions [stdgroth16.PlaceholderWitness] and
 	// [stdgroth16.PlaceholderVerifyingKey]
-	outerCircuit := &OuterCircuit[sw_bn254.Scalar, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
-		InnerWitness: stdgroth16.PlaceholderWitness[sw_bn254.Scalar](innerCcs),
+	outerCircuit := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		InnerWitness: stdgroth16.PlaceholderWitness[sw_bn254.ScalarField](innerCcs),
 		VerifyingKey: stdgroth16.PlaceholderVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerCcs),
 	}
 

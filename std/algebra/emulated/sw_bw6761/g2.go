@@ -6,11 +6,11 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-type G2Affine = sw_emulated.AffinePoint[emulated.BW6761Fp]
+type G2Affine = sw_emulated.AffinePoint[BaseField]
 
 func NewG2Affine(v bw6761.G2Affine) G2Affine {
 	return G2Affine{
-		X: emulated.ValueOf[emulated.BW6761Fp](v.X),
-		Y: emulated.ValueOf[emulated.BW6761Fp](v.Y),
+		X: emulated.ValueOf[BaseField](v.X),
+		Y: emulated.ValueOf[BaseField](v.Y),
 	}
 }
