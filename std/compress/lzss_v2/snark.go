@@ -37,13 +37,10 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	}
 
 	// formatted input
-	fmt.Println("creating bytes slice")
 	bytes := combineIntoBytes(api, c, int(wordLen))
-	fmt.Println("turning bytes slice into table")
 	bytesTable := sliceToTable(api, bytes)
 	bytesTable.Insert(0) // just because we use this table for looking up backref lengths as well
 	//lenTable := createLengthTables(api, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
-	fmt.Println("creating address table")
 	addrTable := initAddrTable(api, bytes, c, int(wordLen), []backrefType{longBackRefType, shortBackRefType, dictBackRefType})
 
 	// state variables
@@ -53,15 +50,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	eof := frontend.Variable(0)
 	dLength = 0
 
-	prevPct := -1
 	for outI := range d {
-		if outI%2000 == 0 {
-			pct := outI * 100 / len(d)
-			if pct != prevPct {
-				fmt.Println("compilation at", outI, "out of", len(d), ";", pct, "%")
-				prevPct = pct
-			}
-		}
 
 		curr := bytesTable.Lookup(inI)[0]
 
@@ -115,23 +104,6 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 	}
 	return dLength, nil
-}
-
-func createLengthTables(api frontend.API, c []frontend.Variable, wordNbBits int, backrefs []backrefType) *logderivlookup.Table {
-	for i := range backrefs {
-		if backrefs[i].nbBitsLength != backrefs[0].nbBitsLength {
-			panic("all backref types must have the same length")
-		}
-	}
-
-	res := logderivlookup.New(api)
-	reader := newNumReader(api, c[8/wordNbBits:], int(backrefs[0].nbBitsLength), wordNbBits)
-
-	for i := 0; i < len(c); i++ {
-		res.Insert(reader.next())
-	}
-
-	return res
 }
 
 func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.Table {

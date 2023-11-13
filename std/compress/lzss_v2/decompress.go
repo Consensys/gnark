@@ -21,7 +21,6 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 	bLong := backref{bType: longBackRefType}
 
 	// read until startAt and write bytes as is
-	// out.Write(dict)
 
 	s := in.TryReadByte()
 	for in.TryError == nil {
@@ -42,9 +41,6 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 			// dict back ref
 			bDict.readFrom(in)
 			out.Write(dict[bDict.offset : bDict.offset+bDict.length])
-			// for i := 0; i < bDict.length; i++ {
-			// 	out.WriteByte(outAt(out.Len() - bDict.offset))
-			// }
 		default:
 			out.WriteByte(s)
 		}
