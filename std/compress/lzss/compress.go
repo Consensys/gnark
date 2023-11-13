@@ -27,10 +27,10 @@ type Compressor struct {
 type CompressionMode uint8
 
 const (
-	BestCompression        CompressionMode = 1
+	BestCompression        CompressionMode = 1 // BestCompression allows the compressor to produce a stream of bit-level granularity, Giving the compressor this freedom helps it achieve better compression ratios but will impose a high number of constraints on the SNARK decompressor
 	GoodCompression        CompressionMode = 2
 	GoodSnarkDecompression CompressionMode = 4
-	BestSnarkDecompression CompressionMode = 8
+	BestSnarkDecompression CompressionMode = 8 // BestSnarkDecomposition forces the compressor to produce byte-aligned output. It is convenient and efficient for the SNARK decompressor but can hurt the compression ratio significantly =
 )
 
 // NewCompressor returns a new compressor with the given dictionary
