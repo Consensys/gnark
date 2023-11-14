@@ -118,8 +118,9 @@
 //
 // That line runs for 0.23s on the Go text and 2.02s on random text.
 
-//go:generate go run gen.go
-
+/*
+//go:generate go run gen.go      TODO @gbotrel is this necessary?
+*/
 package suffixarray
 
 // text_32 returns the suffix array for the input text.
