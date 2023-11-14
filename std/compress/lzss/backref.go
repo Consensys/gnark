@@ -7,17 +7,8 @@ import (
 )
 
 const (
-	// nbBitsAddress  = 20
-	// nbBitsLength   = 9
-	// nbBitsBackRef  = 8 + nbBitsAddress + nbBitsLength
-	// nbBytesBackRef = (nbBitsBackRef + 7) / 8
 	maxInputSize = 1 << 21 // 2Mb
 	maxDictSize  = 1 << 22 // 4Mb
-	// maxAddress     = 1 << nbBitsAddress
-	// maxLength      = 1 << nbBitsLength
-
-	// symbol              = 0xFF
-	// repeatedSymbolCount = 16
 )
 
 type backrefType struct {
@@ -51,27 +42,27 @@ const (
 )
 
 type backref struct {
-	offset int // TODO rename this to address
-	length int
-	bType  backrefType
+	address int
+	length  int
+	bType   backrefType
 }
 
 func (b *backref) writeTo(w *bitio.Writer, i int) {
 	w.TryWriteByte(b.bType.delimiter)
 	w.TryWriteBits(uint64(b.length-1), b.bType.nbBitsLength)
 	if b.bType.dictOnly {
-		w.TryWriteBits(uint64(b.offset), b.bType.nbBitsAddress)
+		w.TryWriteBits(uint64(b.address), b.bType.nbBitsAddress)
 	} else {
-		w.TryWriteBits(uint64(i-b.offset-1), b.bType.nbBitsAddress)
+		w.TryWriteBits(uint64(i-b.address-1), b.bType.nbBitsAddress)
 	}
 }
 
 func (b *backref) readFrom(r *bitio.Reader) {
 	b.length = int(r.TryReadBits(b.bType.nbBitsLength)) + 1
 	if b.bType.dictOnly {
-		b.offset = int(r.TryReadBits(b.bType.nbBitsAddress))
+		b.address = int(r.TryReadBits(b.bType.nbBitsAddress))
 	} else {
-		b.offset = int(r.TryReadBits(b.bType.nbBitsAddress)) + 1
+		b.address = int(r.TryReadBits(b.bType.nbBitsAddress)) + 1
 	}
 }
 

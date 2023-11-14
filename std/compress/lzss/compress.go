@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"math/bits"
 
-	"github.com/consensys/gnark/std/compress/lzss/suffixarray"
+	"github.com/consensys/gnark/std/compress/lzss/internal/suffixarray"
 	"github.com/icza/bitio"
 )
 
 type Compressor struct {
-	// end int
 	buf bytes.Buffer
 	bw  *bitio.Writer
 
@@ -78,14 +77,14 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 
 	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(compressor.dictData), compressor.compressionMode)
 
-	bDict := backref{bType: dictBackRefType, length: -1, offset: -1}
-	bShort := backref{bType: shortBackRefType, length: -1, offset: -1}
-	bLong := backref{bType: longBackRefType, length: -1, offset: -1}
+	bDict := backref{bType: dictBackRefType, length: -1, address: -1}
+	bShort := backref{bType: shortBackRefType, length: -1, address: -1}
+	bLong := backref{bType: longBackRefType, length: -1, address: -1}
 
 	fillBackrefs := func(i int, minLen int) bool {
-		bDict.offset, bDict.length = compressor.findBackRef(d, i, dictBackRefType, minLen)
-		bShort.offset, bShort.length = compressor.findBackRef(d, i, shortBackRefType, minLen)
-		bLong.offset, bLong.length = compressor.findBackRef(d, i, longBackRefType, minLen)
+		bDict.address, bDict.length = compressor.findBackRef(d, i, dictBackRefType, minLen)
+		bShort.address, bShort.length = compressor.findBackRef(d, i, shortBackRefType, minLen)
+		bLong.address, bLong.length = compressor.findBackRef(d, i, longBackRefType, minLen)
 		return !(bDict.length == -1 && bShort.length == -1 && bLong.length == -1)
 	}
 	bestBackref := func() (backref, int) {

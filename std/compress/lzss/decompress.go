@@ -2,9 +2,10 @@ package lzss
 
 import (
 	"bytes"
+	"io"
+
 	"github.com/consensys/gnark/std/compress"
 	"github.com/icza/bitio"
-	"io"
 )
 
 func DecompressGo(data, dict []byte, compressionMode CompressionMode) (d []byte, err error) {
@@ -29,18 +30,18 @@ func DecompressGo(data, dict []byte, compressionMode CompressionMode) (d []byte,
 			// short back ref
 			bShort.readFrom(in)
 			for i := 0; i < bShort.length; i++ {
-				out.WriteByte(out.Bytes()[out.Len()-bShort.offset])
+				out.WriteByte(out.Bytes()[out.Len()-bShort.address])
 			}
 		case symbolLong:
 			// long back ref
 			bLong.readFrom(in)
 			for i := 0; i < bLong.length; i++ {
-				out.WriteByte(out.Bytes()[out.Len()-bLong.offset])
+				out.WriteByte(out.Bytes()[out.Len()-bLong.address])
 			}
 		case symbolDict:
 			// dict back ref
 			bDict.readFrom(in)
-			out.Write(dict[bDict.offset : bDict.offset+bDict.length])
+			out.Write(dict[bDict.address : bDict.address+bDict.length])
 		default:
 			out.WriteByte(s)
 		}
@@ -85,7 +86,7 @@ func ReadIntoStream(data, dict []byte, compressionMode CompressionMode) compress
 		}
 		if b != nil {
 			b.readFrom(in)
-			address := b.offset
+			address := b.address
 			if b != &bDict {
 				address--
 			}

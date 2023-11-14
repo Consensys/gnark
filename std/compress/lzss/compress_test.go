@@ -119,9 +119,7 @@ func TestAverageBatch(t *testing.T) {
 	fmt.Println("zstd compression ratio:", zstdRes.ratio)
 	fmt.Println("lzss compression ratio:", lzssRes.ratio)
 
-	// assert.Equal(5.241485472387916, lzssRes.ratio, "regression check")
-
-	// // test decompress round trip with s2, zstd and lzss
+	// test decompress round trip with s2, zstd and lzss
 	s2Decompressed, err := decompressWithS2(s2Res.compressed)
 	assert.NoError(err)
 

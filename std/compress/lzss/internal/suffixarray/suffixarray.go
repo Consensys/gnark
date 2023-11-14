@@ -5,14 +5,9 @@
 // Package suffixarray implements substring search in logarithmic time using
 // an in-memory suffix array.
 //
-// Example use:
-//
-//	// create index for some data
-//	index := suffixarray.New(data)
-//
-//	// lookup byte slice s
-//	offsets1 := index.Lookup(s, -1) // the list of all indices where s occurs in data
-//	offsets2 := index.Lookup(s, 3)  // the list of at most 3 indices where s occurs in data
+// It is derived from index/suffixarray in go std; the only difference is that
+// it forces use of int32 for the index and exposes a single method LookupLongest
+// that returns the longest match in a given range.
 package suffixarray
 
 import (
@@ -58,17 +53,6 @@ func (x *Index) Bytes() []byte {
 func (x *Index) at(i int) []byte {
 	return x.data[x.sa[i]:]
 }
-
-// // lookupAll returns a slice into the matching region of the index.
-// // The runtime is O(log(N)*len(s)).
-// func (x *Index) lookupAll(s []byte) ints {
-// 	// find matching suffix index range [i:j]
-// 	// find the first index where s would be the prefix
-// 	i := sort.Search(len(x.sa), func(i int) bool { return bytes.Compare(x.at(i), s) >= 0 })
-// 	// starting at i, find the first index at which s is not a prefix
-// 	j := i + sort.Search(len(x.sa)-i, func(k int) bool { return !bytes.HasPrefix(x.at(k+i), s) })
-// 	return x.sa[i:j]
-// }
 
 // LookupLongest returns an index and length of the longest
 // substring of s[:minEnd] / s[:maxEnd] that occurs in the indexed data.
