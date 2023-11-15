@@ -2,6 +2,9 @@ package lzss
 
 import (
 	"bytes"
+	"os"
+	"testing"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
@@ -11,8 +14,6 @@ import (
 	"github.com/icza/bitio"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
-	"testing"
 )
 
 func Test1ZeroSnark(t *testing.T) {
@@ -28,13 +29,13 @@ func Test3ZerosBackref(t *testing.T) {
 	shortBackRefType, longBackRefType, _ := initBackRefTypes(0, BestCompression)
 
 	testDecompressionSnark(t, nil, 0, backref{
-		offset: 0,
-		length: 2,
-		bType:  shortBackRefType,
+		address: 0,
+		length:  2,
+		bType:   shortBackRefType,
 	}, backref{
-		offset: 1,
-		length: 1,
-		bType:  longBackRefType,
+		address: 1,
+		length:  1,
+		bType:   longBackRefType,
 	},
 	)
 }

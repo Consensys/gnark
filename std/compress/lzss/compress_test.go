@@ -50,36 +50,46 @@ func Test8ZerosAfterNonzero(t *testing.T) { // probably won't happen in our call
 
 // Fuzz test the compression / decompression
 func FuzzCompress(f *testing.F) {
-	f.Add([]byte("hi"))
-	f.Add([]byte{0, 0, 0, 0, 0, 0, 0, 0})
 
-	dict := []byte{0, 0, 0, 0}
-	compressor, err := NewCompressor(dict, BestCompression)
-	if err != nil {
-		panic(err)
-	}
-	f.Fuzz(func(t *testing.T, a []byte) {
-		if len(a) > maxInputSize {
+	f.Fuzz(func(t *testing.T, input, dict []byte, cMode uint8) {
+		if len(input) > maxInputSize {
 			t.Skip("input too large")
 		}
-		compressedBytes, err := compressor.Compress(a)
+		if len(dict) > maxDictSize {
+			t.Skip("dict too large")
+		}
+		var compressionMode CompressionMode
+		if cMode&2 == 2 {
+			compressionMode = 2
+		} else if cMode&4 == 4 {
+			compressionMode = 4
+		} else if cMode&8 == 8 {
+			compressionMode = 8
+		} else {
+			compressionMode = BestCompression
+		}
 
+		compressor, err := NewCompressor(dict, compressionMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compressedBytes, err := compressor.Compress(input)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		decompressedBytes, err := DecompressGo(compressedBytes, dict, BestCompression)
-
+		decompressedBytes, err := DecompressGo(compressedBytes, dict, compressionMode)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(a, decompressedBytes) {
-			t.Log("original bytes:", a)
-			t.Log("decompressed bytes:", decompressedBytes)
+		if !bytes.Equal(input, decompressedBytes) {
+			t.Log("compression Mode:", compressionMode)
+			t.Log("original bytes:", hex.EncodeToString(input))
+			t.Log("decompressed bytes:", hex.EncodeToString(decompressedBytes))
+			t.Log("dict", hex.EncodeToString(dict))
 			t.Fatal("decompressed bytes are not equal to original bytes")
 		}
-
 	})
 }
 
@@ -119,9 +129,7 @@ func TestAverageBatch(t *testing.T) {
 	fmt.Println("zstd compression ratio:", zstdRes.ratio)
 	fmt.Println("lzss compression ratio:", lzssRes.ratio)
 
-	// assert.Equal(5.241485472387916, lzssRes.ratio, "regression check")
-
-	// // test decompress round trip with s2, zstd and lzss
+	// test decompress round trip with s2, zstd and lzss
 	s2Decompressed, err := decompressWithS2(s2Res.compressed)
 	assert.NoError(err)
 
