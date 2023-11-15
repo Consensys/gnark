@@ -135,7 +135,6 @@ func (x *Index) LookupLongest(s []byte, minEnd, maxEnd, rangeStart, rangeEnd int
 // lookupLongest is similar to lookupAll but filters out indices that are not
 // in the range [rangeStart, rangeEnd).
 func (x *Index) lookupLongest(s []byte, rangeStart, rangeEnd, sStart, sEnd int) (rStart, offset int) {
-	offset = -1
 	rStart = sStart
 	// use sort.Search
 	// find the first index where s would be the prefix
