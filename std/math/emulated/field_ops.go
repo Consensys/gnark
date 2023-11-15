@@ -15,7 +15,7 @@ func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 }
 
 func (f *Field[T]) divPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
-	mulOf, err := f.mulPreCond(&Element[T]{overflow: 0}, b)
+	mulOf, err := f.mulPreCond(&Element[T]{Limbs: make([]frontend.Variable, f.fParams.NbLimbs()), overflow: 0}, b)
 	if err != nil {
 		return mulOf, err
 	}
@@ -45,7 +45,7 @@ func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 }
 
 func (f *Field[T]) inversePreCond(a, _ *Element[T]) (nextOverflow uint, err error) {
-	mulOf, err := f.mulPreCond(a, &Element[T]{overflow: 0}) // order is important, we want that reduce left side
+	mulOf, err := f.mulPreCond(a, &Element[T]{Limbs: make([]frontend.Variable, f.fParams.NbLimbs()), overflow: 0}) // order is important, we want that reduce left side
 	if err != nil {
 		return mulOf, err
 	}
