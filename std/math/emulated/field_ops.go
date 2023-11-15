@@ -3,8 +3,8 @@ package emulated
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
+	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -199,7 +199,11 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
-	nextOverflow = f.fParams.BitsPerLimb() + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
+	nbLimbsOverflow := uint(1)
+	if nbResLimbs > 0 {
+		nbLimbsOverflow = uint(bits.Len(uint(2*nbResLimbs - 1)))
+	}
+	nextOverflow = f.fParams.BitsPerLimb() + nbLimbsOverflow + a.overflow + b.overflow
 	if nextOverflow > f.maxOverflow() {
 		err = overflowError{op: "mul", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}
