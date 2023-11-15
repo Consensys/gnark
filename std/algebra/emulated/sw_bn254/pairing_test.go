@@ -320,6 +320,49 @@ func TestDoublePairFixedTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+type TriplePairFixedCircuit struct {
+	In1G1  G1Affine
+	In2G1  G1Affine
+	In3G1  G1Affine
+	Lines1 [2]LineEvaluations
+	Lines2 [2]LineEvaluations
+	Lines3 [2]LineEvaluations
+	Res    GTEl
+}
+
+func (c *TriplePairFixedCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res, err := pairing.PairFixedQ([]*G1Affine{&c.In1G1, &c.In2G1, &c.In3G1}, []*[2]LineEvaluations{&c.Lines1, &c.Lines2, &c.Lines3})
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestTriplePairFixedTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p1, q1 := randomG1G2Affines()
+	p2, q2 := randomG1G2Affines()
+	p3, q3 := randomG1G2Affines()
+	res, err := bn254.Pair([]bn254.G1Affine{p1, p2, p3}, []bn254.G2Affine{q1, q2, q3})
+	assert.NoError(err)
+	witness := TriplePairFixedCircuit{
+		In1G1:  NewG1Affine(p1),
+		In2G1:  NewG1Affine(p2),
+		In3G1:  NewG1Affine(p3),
+		Lines1: precomputeLines(q1),
+		Lines2: precomputeLines(q2),
+		Lines3: precomputeLines(q3),
+		Res:    NewGTEl(res),
+	}
+	err = test.IsSolved(&TriplePairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 // bench
 func BenchmarkPairing(b *testing.B) {
 

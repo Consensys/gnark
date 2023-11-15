@@ -882,16 +882,33 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines []*[2]LineEvaluations) (
 	for i := 63; i >= 0; i-- {
 		res = pr.Square(res)
 
-		for k := 0; k < n; k++ {
-			if loopCounter[i] == 0 {
+		if loopCounter[i] == 0 {
+			// if number of lines is odd, mul last line by res
+			// works for n=1 as well
+			if n%2 != 0 {
+				// ℓ × res
+				res = pr.MulBy034(
+					res,
+					pr.MulByElement(&lines[n-1][0].Eval[i].R0, xNegOverY[n-1]),
+					pr.MulByElement(&lines[n-1][0].Eval[i].R1, yInv[n-1]),
+				)
+			}
 
-				// line evaluation at P and ℓ × res
-				res = pr.MulBy034(res,
+			// mul lines 2-by-2
+			for k := 1; k < n; k += 2 {
+				// ℓ × ℓ
+				prodLines = pr.Mul034By034(
 					pr.MulByElement(&lines[k][0].Eval[i].R0, xNegOverY[k]),
 					pr.MulByElement(&lines[k][0].Eval[i].R1, yInv[k]),
+					pr.MulByElement(&lines[k-1][0].Eval[i].R0, xNegOverY[k-1]),
+					pr.MulByElement(&lines[k-1][0].Eval[i].R1, yInv[k-1]),
 				)
+				// (ℓ × ℓ) × res
+				res = pr.MulBy01234(res, prodLines)
+			}
 
-			} else {
+		} else {
+			for k := 0; k < n; k++ {
 				// lines evaluations at P
 				// and ℓ × ℓ
 				prodLines := pr.Mul034By034(

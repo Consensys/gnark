@@ -265,7 +265,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 	if n >= 3 {
 		// k = 2, separately to avoid MulBy014 (res × ℓ)
-		// (res has a zero E2 element, so we use Mul01234By034)
+		// (res has a zero E2 element, so we use Mul01245By014)
 		accQ[2], l0 = pr.doubleStep(accQ[2])
 		l0 = &lineEvaluation{
 			R0: *pr.curveF.MulMod(&l0.R0, xNegOverY[2]),
@@ -588,7 +588,7 @@ func (pr Pairing) MillerLoopFixedQ(P []*G1Affine, lines []*[2]LineEvaluations) (
 
 	if n >= 3 {
 		// k = 2, separately to avoid MulBy014 (res × ℓ)
-		// (res has a zero E2 element, so we use Mul01234By034)
+		// (res has a zero E2 element, so we use Mul01245By014)
 		result = pr.Mul01245By014(
 			prodLines,
 			pr.curveF.MulMod(&lines[2][0].Eval[188].R1, yInv[2]),
