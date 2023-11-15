@@ -128,6 +128,14 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	log := logger.Logger()
 	log.Debug().Msg("running circuit in test engine")
 	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
+
+	// first we reset the stateful blueprints
+	for i := range e.blueprints {
+		if b, ok := e.blueprints[i].(constraint.BlueprintStateful); ok {
+			b.Reset()
+		}
+	}
+
 	if err = c.Define(e); err != nil {
 		return fmt.Errorf("define: %w", err)
 	}
