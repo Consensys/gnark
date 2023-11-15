@@ -43,7 +43,11 @@ func (f *Field[T]) computeMultiplicationHint(leftLimbs, rightLimbs []frontend.Va
 // nbMultiplicationResLimbs returns the number of limbs which fit the
 // multiplication result.
 func nbMultiplicationResLimbs(lenLeft, lenRight int) int {
-	return lenLeft + lenRight - 1
+	res := lenLeft + lenRight - 1
+	if res < 0 {
+		res = 0
+	}
+	return res
 }
 
 // MultiplicationHint unpacks the factors and parameters from inputs, computes
