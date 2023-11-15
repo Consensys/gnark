@@ -26,6 +26,7 @@ type Compressor struct {
 type CompressionMode uint8
 
 const (
+	NoCompression          CompressionMode = 0
 	BestCompression        CompressionMode = 1 // BestCompression allows the compressor to produce a stream of bit-level granularity, Giving the compressor this freedom helps it achieve better compression ratios but will impose a high number of constraints on the SNARK decompressor
 	GoodCompression        CompressionMode = 2
 	GoodSnarkDecompression CompressionMode = 4
@@ -55,6 +56,11 @@ func initBackRefTypes(dictLen int, compressionMode CompressionMode) (short, long
 	wordAlign := func(a int) uint8 {
 		return (uint8(a) + uint8(compressionMode) - 1) / uint8(compressionMode) * uint8(compressionMode)
 	}
+	if compressionMode == NoCompression {
+		wordAlign = func(a int) uint8 {
+			return uint8(a)
+		}
+	}
 	short = newBackRefType(symbolShort, wordAlign(14), 8, false)
 	long = newBackRefType(symbolLong, wordAlign(19), 8, false)
 	dict = newBackRefType(symbolDict, wordAlign(bits.Len(uint(dictLen))), 8, true)
@@ -70,6 +76,11 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 
 	// reset output buffer
 	compressor.buf.Reset()
+	compressor.buf.WriteByte(byte(compressor.compressionMode))
+	if compressor.compressionMode == NoCompression {
+		compressor.buf.Write(d)
+		return compressor.buf.Bytes(), nil
+	}
 	compressor.bw = bitio.NewWriter(&compressor.buf)
 
 	// build the index

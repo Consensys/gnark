@@ -20,7 +20,7 @@ func testCompressionRoundTrip(t *testing.T, d []byte) {
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	dBack, err := DecompressGo(c, getDictionary(), BestCompression)
+	dBack, err := DecompressGo(c, getDictionary())
 	require.NoError(t, err)
 
 	if !bytes.Equal(d, dBack) {
@@ -38,6 +38,24 @@ func Test300Zeros(t *testing.T) { // probably won't happen in our calldata
 
 func TestNoCompression(t *testing.T) {
 	testCompressionRoundTrip(t, []byte{'h', 'i'})
+}
+
+func TestNoCompressionAttempt(t *testing.T) {
+
+	d := []byte{253, 254, 255}
+
+	compressor, err := NewCompressor(getDictionary(), NoCompression)
+	require.NoError(t, err)
+
+	c, err := compressor.Compress(d)
+	require.NoError(t, err)
+
+	dBack, err := DecompressGo(c, getDictionary())
+	require.NoError(t, err)
+
+	if !bytes.Equal(d, dBack) {
+		t.Fatal("round trip failed")
+	}
 }
 
 func Test9E(t *testing.T) {
@@ -78,7 +96,7 @@ func FuzzCompress(f *testing.F) {
 			t.Fatal(err)
 		}
 
-		decompressedBytes, err := DecompressGo(compressedBytes, dict, compressionMode)
+		decompressedBytes, err := DecompressGo(compressedBytes, dict)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -256,7 +274,7 @@ func compressWithZstd(data []byte) (compressResult, error) {
 }
 
 func decompresslzss_v1(data, dict []byte) ([]byte, error) {
-	return DecompressGo(data, dict, BestCompression)
+	return DecompressGo(data, dict)
 }
 
 func compresslzss_v1(compressor *Compressor, data []byte) (compressResult, error) {

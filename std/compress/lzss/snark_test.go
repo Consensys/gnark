@@ -24,11 +24,40 @@ func Test0To10Explicit(t *testing.T) {
 	testCompressionRoundTripSnark(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, nil)
 }
 
+func TestNoCompressionSnark(t *testing.T) {
+
+	d, err := os.ReadFile("../test_cases/3c2943/data.bin")
+	assert.NoError(t, err)
+
+	dict := getDictionary()
+
+	compressor, err := NewCompressor(dict, NoCompression)
+	require.NoError(t, err)
+	c, err := compressor.Compress(d)
+	require.NoError(t, err)
+
+	cStream := ReadIntoStream(c, dict, BestCompression)
+
+	circuit := &DecompressionTestCircuit{
+		C:                make([]frontend.Variable, cStream.Len()),
+		D:                d,
+		Dict:             dict,
+		CheckCorrectness: true,
+		CompressionMode:  BestCompression,
+	}
+	assignment := &DecompressionTestCircuit{
+		C:       test_vector_utils.ToVariableSlice(cStream.D),
+		CLength: cStream.Len(),
+	}
+
+	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+}
+
 func Test3ZerosBackref(t *testing.T) {
 
 	shortBackRefType, longBackRefType, _ := initBackRefTypes(0, BestCompression)
 
-	testDecompressionSnark(t, nil, 0, backref{
+	testDecompressionSnark(t, nil, 1, 0, backref{
 		address: 0,
 		length:  2,
 		bType:   shortBackRefType,
@@ -45,7 +74,6 @@ func Test255_254_253(t *testing.T) {
 }
 
 func Test3c2943Snark(t *testing.T) {
-	// read "average_block.hex" file
 	d, err := os.ReadFile("../test_cases/3c2943/data.bin")
 	assert.NoError(t, err)
 
@@ -125,7 +153,7 @@ func testDecompressionSnark(t *testing.T, dict []byte, compressedStream ...inter
 	}
 	assert.NoError(t, w.Close())
 	c := bb.Bytes()
-	d, err := DecompressGo(c, dict, BestCompression)
+	d, err := DecompressGo(c, dict)
 	require.NoError(t, err)
 	cStream := ReadIntoStream(c, dict, BestCompression)
 

@@ -19,6 +19,12 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	dictBrNbWords := int(dictBackRefType.nbBitsBackRef) / wordLen
 	byteNbWords := 8 / wordLen
 
+	fileCompressionMode := readNum(api, c, byteNbWords, wordLen)
+	c = c[byteNbWords:]
+	cLength = api.Sub(cLength, byteNbWords)
+	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordLen)) // if fcm!=0, then fcm=wordLen
+	decompressionNotBypassed := api.Sub(1, api.IsZero(fileCompressionMode))
+
 	// assert that c are within range
 	cRangeTable := logderivlookup.New(api)
 	for i := 0; i < 1<<wordLen; i++ {
@@ -48,9 +54,10 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		curr := bytesTable.Lookup(inI)[0]
 
-		currIndicatesLongBr := api.IsZero(api.Sub(curr, symbolLong))
-		currIndicatesShortBr := api.IsZero(api.Sub(curr, symbolShort))
-		currIndicatesDr := api.IsZero(api.Sub(curr, symbolDict))
+		currMinusLong := api.Sub(api.Mul(curr, decompressionNotBypassed), symbolLong) // if bypassing decompression, currIndicatesXX = 0
+		currIndicatesLongBr := api.IsZero(currMinusLong)
+		currIndicatesShortBr := api.IsZero(api.Sub(currMinusLong, symbolShort-symbolLong))
+		currIndicatesDr := api.IsZero(api.Sub(currMinusLong, symbolDict-symbolLong))
 		currIndicatesBr := api.Add(currIndicatesLongBr, currIndicatesShortBr)
 		currIndicatesCp := api.Add(currIndicatesBr, currIndicatesDr)
 
@@ -159,14 +166,7 @@ type numReader struct {
 func newNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits int) *numReader {
 	nbWords := numNbBits / wordNbBits
 	stepCoeff := 1 << wordNbBits
-	nxt := frontend.Variable(0)
-	coeff := frontend.Variable(1)
-	if len(c) >= nbWords {
-		for i := 0; i < nbWords; i++ {
-			nxt = api.MulAcc(nxt, coeff, c[i])
-			coeff = api.Mul(coeff, stepCoeff)
-		}
-	}
+	nxt := readNum(api, c, nbWords, stepCoeff)
 	return &numReader{
 		api:       api,
 		c:         c,
@@ -174,6 +174,16 @@ func newNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits
 		nxt:       nxt,
 		nbWords:   nbWords,
 	}
+}
+
+func readNum(api frontend.API, c []frontend.Variable, nbWords, stepCoeff int) frontend.Variable {
+	res := frontend.Variable(0)
+	coeff := frontend.Variable(1)
+	for i := 0; i < nbWords && i < len(c); i++ {
+		res = api.MulAcc(res, coeff, c[i])
+		coeff = api.Mul(coeff, stepCoeff)
+	}
+	return res
 }
 
 // next returns the next number in the sequence. returns 0 upon EOF

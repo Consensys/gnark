@@ -8,11 +8,16 @@ import (
 	"github.com/icza/bitio"
 )
 
-func DecompressGo(data, dict []byte, compressionMode CompressionMode) (d []byte, err error) {
+func DecompressGo(data, dict []byte) (d []byte, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
 	out.Grow(len(data)*6 + len(dict))
 	in := bitio.NewReader(bytes.NewReader(data))
+
+	compressionMode := CompressionMode(in.TryReadByte())
+	if compressionMode == NoCompression {
+		return data[1:], nil
+	}
 
 	dict = augmentDict(dict)
 	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), compressionMode)
@@ -54,18 +59,25 @@ func DecompressGo(data, dict []byte, compressionMode CompressionMode) (d []byte,
 func ReadIntoStream(data, dict []byte, compressionMode CompressionMode) compress.Stream {
 	in := bitio.NewReader(bytes.NewReader(data))
 
+	wordLen := int(compressionMode)
+
 	dict = augmentDict(dict)
 	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), compressionMode)
 
-	wordLen := int(compressionMode)
+	bDict := backref{bType: dictBackRefType}
+	bShort := backref{bType: shortBackRefType}
+	bLong := backref{bType: longBackRefType}
+
+	compressionModeFromData := CompressionMode(in.TryReadByte())
+	if compressionModeFromData != NoCompression && compressionModeFromData != compressionMode {
+		panic("compression mode mismatch")
+	}
 
 	out := compress.Stream{
 		NbSymbs: 1 << wordLen,
 	}
 
-	bDict := backref{bType: dictBackRefType}
-	bShort := backref{bType: shortBackRefType}
-	bLong := backref{bType: longBackRefType}
+	out.WriteNum(int(compressionModeFromData), 8/wordLen)
 
 	s := in.TryReadByte()
 
@@ -84,7 +96,7 @@ func ReadIntoStream(data, dict []byte, compressionMode CompressionMode) compress
 			// dict back ref
 			b = &bDict
 		}
-		if b != nil {
+		if b != nil && compressionModeFromData != NoCompression {
 			b.readFrom(in)
 			address := b.address
 			if b != &bDict {
