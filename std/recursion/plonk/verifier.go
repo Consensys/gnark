@@ -8,8 +8,15 @@ import (
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark/backend/plonk"
 	backend_plonk "github.com/consensys/gnark/backend/plonk"
 	plonkbackend_bls12377 "github.com/consensys/gnark/backend/plonk/bls12-377"
+	plonkbackend_bls12381 "github.com/consensys/gnark/backend/plonk/bls12-381"
+	plonkbackend_bls24315 "github.com/consensys/gnark/backend/plonk/bls24-315"
+	plonkbackend_bls24317 "github.com/consensys/gnark/backend/plonk/bls24-317"
+	plonkbackend_bn254 "github.com/consensys/gnark/backend/plonk/bn254"
+	plonkbackend_bw6633 "github.com/consensys/gnark/backend/plonk/bw6-633"
+	plonkbackend_bw6761 "github.com/consensys/gnark/backend/plonk/bw6-761"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -26,10 +33,13 @@ import (
 )
 
 type Proof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
+
 	// Commitments to the solution vectors
 	LRO [3]kzg.Commitment[G1El]
+
 	// Commitment to Z, the permutation polynomial
 	Z kzg.Commitment[G1El]
+
 	// Commitments to h1, h2, h3 such that h = h1 + Xh2 + X**2h3 is the quotient polynomial
 	H [3]kzg.Commitment[G1El]
 
@@ -98,6 +108,7 @@ func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 }
 
 type VerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
+
 	// Size circuit
 	Size              uint64
 	SizeInv           emulated.Element[FR]
@@ -181,14 +192,53 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 	return ret, nil
 }
 
-func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) VerifyingKey[FR, G1El, G2El] {
-	// TODO: we're not considering the commitments right now
-	nbPublic := ccs.GetNbPublicVariables()
-	nbConstraints := ccs.GetNbConstraints()
-	sizeSystem := nbPublic + nbConstraints
-	nextPowerTwo := 1 << stdbits.Len(uint(sizeSystem))
-	return VerifyingKey[FR, G1El, G2El]{
-		Size: uint64(nextPowerTwo),
+func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk plonk.VerifyingKey) VerifyingKey[FR, G1El, G2El] {
+
+	switch tvk := vk.(type) {
+	case *plonkbackend_bls12377.VerifyingKey:
+		return VerifyingKey[FR, G1El, G2El]{
+			Size:                        tvk.Size,
+			NbPublicVariables:           tvk.NbPublicVariables,
+			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+		}
+	case *plonkbackend_bn254.VerifyingKey:
+		return VerifyingKey[FR, G1El, G2El]{
+			Size:                        tvk.Size,
+			NbPublicVariables:           tvk.NbPublicVariables,
+			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+		}
+	case *plonkbackend_bls12381.VerifyingKey:
+		return VerifyingKey[FR, G1El, G2El]{
+			Size:                        tvk.Size,
+			NbPublicVariables:           tvk.NbPublicVariables,
+			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+		}
+	case *plonkbackend_bw6761.VerifyingKey:
+		return VerifyingKey[FR, G1El, G2El]{
+			Size:                        tvk.Size,
+			NbPublicVariables:           tvk.NbPublicVariables,
+			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+		}
+	case *plonkbackend_bls24317.VerifyingKey:
+		return VerifyingKey[FR, G1El, G2El]{
+			Size:                        tvk.Size,
+			NbPublicVariables:           tvk.NbPublicVariables,
+			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+		}
+	case *plonkbackend_bls24315.VerifyingKey:
+		return VerifyingKey[FR, G1El, G2El]{
+			Size:                        tvk.Size,
+			NbPublicVariables:           tvk.NbPublicVariables,
+			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+		}
+	case *plonkbackend_bw6633.VerifyingKey:
+		return VerifyingKey[FR, G1El, G2El]{
+			Size:                        tvk.Size,
+			NbPublicVariables:           tvk.NbPublicVariables,
+			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+		}
+	default:
+		panic("Unrecognised vk")
 	}
 }
 
@@ -286,10 +336,12 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 }
 
 func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR]) error {
+
 	var fr FR
 	if len(proof.Bsb22Commitments) != len(vk.Qcp) {
 		return fmt.Errorf("BSB22 commitment number mismatch")
 	}
+
 	fs, err := recursion.NewTranscript(v.api, fr.Modulus(), []string{"gamma", "beta", "alpha", "zeta"})
 	if err != nil {
 		return fmt.Errorf("init new transcript: %w", err)
@@ -354,6 +406,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 			lagrange = v.f.Div(lagrange, denom)
 		}
 	}
+
 	// TODO: omitted hashing the commitment constraint indexes
 
 	// 	var hashBts []byte
@@ -626,4 +679,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) fixedExpN(n uint64, s *emulated.Element
 		res = v.f.Mul(res, res)
 	}
 	return res
+}
+
+// computeIthLagrangeAtZeta computes L_{i}(\omega) = \omega^{i}/n (\zeta^{n}-1)/(\zeta-\omega^{i})
+func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, vf VerifyingKey[FR, G1El, G2El]) {
+
 }

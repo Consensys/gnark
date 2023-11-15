@@ -19,19 +19,22 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-type InnerCircuitNative struct {
+//-----------------------------------------------------------------
+// Without api.Commit
+
+type InnerCircuitNativeWoCommit struct {
 	P, Q frontend.Variable
 	N    frontend.Variable `gnark:",public"`
 }
 
-func (c *InnerCircuitNative) Define(api frontend.API) error {
+func (c *InnerCircuitNativeWoCommit) Define(api frontend.API) error {
 	res := api.Mul(c.P, c.Q)
 	api.AssertIsEqual(res, c.N)
 	return nil
 }
 
-func getInner(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, plonk.VerifyingKey, witness.Witness, plonk.Proof) {
-	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitNative{})
+func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, plonk.VerifyingKey, witness.Witness, plonk.Proof) {
+	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitNativeWoCommit{})
 	assert.NoError(err)
 	srs, err := test.NewKZGSRS(innerCcs)
 	assert.NoError(err)
@@ -39,7 +42,7 @@ func getInner(assert *test.Assert, field, outer *big.Int) (constraint.Constraint
 	assert.NoError(err)
 
 	// inner proof
-	innerAssignment := &InnerCircuitNative{
+	innerAssignment := &InnerCircuitNativeWoCommit{
 		P: 3,
 		Q: 5,
 		N: 15,
@@ -92,9 +95,10 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	return err
 }
 
-func TestBLS12InBW6(t *testing.T) {
+func TestBLS12InBW6WoCommit(t *testing.T) {
+
 	assert := test.NewAssert(t)
-	innerCcs, innerVK, innerWitness, innerProof := getInner(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
+	innerCcs, innerVK, innerWitness, innerProof := getInnerWoCommit(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
 
 	// outer proof
 	circuitVk, err := ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerVK)
@@ -107,7 +111,7 @@ func TestBLS12InBW6(t *testing.T) {
 	outerCircuit := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
 		Proof:        PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
-		VerifyingKey: PlaceholderVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
+		VerifyingKey: PlaceholderVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerVK),
 	}
 	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: circuitWitness,
@@ -118,4 +122,88 @@ func TestBLS12InBW6(t *testing.T) {
 	assert.NoError(err)
 	// assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BW6_761),
 	// 	test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+}
+
+//-----------------------------------------------------------------
+// With api.Commit
+
+type InnerCircuitCommit struct {
+	P, Q frontend.Variable
+	N    frontend.Variable `gnark:",public"`
+}
+
+func (c *InnerCircuitCommit) Define(api frontend.API) error {
+	x := api.Mul(c.P, c.P)
+	y := api.Mul(c.Q, c.Q)
+	z := api.Add(x, y)
+
+	committer, ok := api.(frontend.Committer)
+	if !ok {
+		panic("builder does not implement Commit")
+	}
+	u, err := committer.Commit(x, z)
+	if err != nil {
+		return err
+	}
+	v, err := committer.Commit(c.N)
+	if err != nil {
+		return err
+	}
+
+	api.AssertIsDifferent(u, z)
+	api.AssertIsDifferent(v, z)
+
+	return nil
+}
+
+func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, plonk.VerifyingKey, witness.Witness, plonk.Proof) {
+
+	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitNativeWoCommit{})
+	assert.NoError(err)
+
+	srs, err := test.NewKZGSRS(innerCcs)
+	assert.NoError(err)
+
+	innerPK, innerVK, err := plonk.Setup(innerCcs, srs)
+	assert.NoError(err)
+
+	// inner proof
+	innerAssignment := &InnerCircuitNativeWoCommit{
+		P: 3,
+		Q: 5,
+		N: 15,
+	}
+	innerWitness, err := frontend.NewWitness(innerAssignment, field)
+	assert.NoError(err)
+	fsProverHasher, err := recursion.NewShort(outer, field)
+	assert.NoError(err)
+	kzgProverHasher, err := recursion.NewShort(outer, field)
+	assert.NoError(err)
+	hashToFieldHasher, err := recursion.NewShort(outer, field)
+	assert.NoError(err)
+	innerProof, err := plonk.Prove(innerCcs, innerPK, innerWitness,
+		backend.WithProverChallengeHashFunction(fsProverHasher),
+		backend.WithProverKZGFoldingHashFunction(kzgProverHasher),
+		backend.WithProverHashToFieldFunction(hashToFieldHasher),
+	)
+	assert.NoError(err)
+	innerPubWitness, err := innerWitness.Public()
+	assert.NoError(err)
+	fsVerifierHasher, err := recursion.NewShort(outer, field)
+	assert.NoError(err)
+	kzgVerifierHash, err := recursion.NewShort(outer, field)
+	assert.NoError(err)
+	err = plonk.Verify(innerProof, innerVK, innerPubWitness,
+		backend.WithVerifierChallengeHashFunction(fsVerifierHasher),
+		backend.WithVerifierKZGFoldingHashFunction(kzgVerifierHash),
+	)
+	assert.NoError(err)
+	return innerCcs, innerVK, innerPubWitness, innerProof
+}
+
+func TestBLS12InBW6Commit(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	getInnerWoCommit(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
+
 }
