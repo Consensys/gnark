@@ -682,8 +682,26 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) fixedExpN(n uint64, s *emulated.Element
 }
 
 // computeIthLagrangeAtZeta computes L_{i}(\omega) = \omega^{i}/n (\zeta^{n}-1)/(\zeta-\omega^{i})
-// func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, zetaPowerM emulated.Element[FR], vf VerifyingKey[FR, G1El, G2El]) {
+func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, zeta, zetaPowerM emulated.Element[FR], vk VerifyingKey[FR, G1El, G2El]) *emulated.Element[FR] {
 
-// 	num := v.scalarApi.
+	one := v.scalarApi.One()
+	num := v.scalarApi.Sub(&zetaPowerM, one)
 
-// }
+	// \omega^{i}
+	omegai := one
+	irev := stdbits.Reverse(uint(i))
+	for irev != 0 {
+		omegai = v.scalarApi.Mul(omegai, omegai)
+		if irev%2 == 1 {
+			omegai = v.scalarApi.Mul(omegai, &vk.Generator)
+		}
+		irev = irev >> 1
+	}
+
+	den := v.scalarApi.Sub(&zeta, omegai)
+
+	li := v.scalarApi.Div(num, den)
+	li = v.scalarApi.Mul(li, &vk.SizeInv)
+
+	return li
+}
