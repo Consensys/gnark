@@ -133,6 +133,7 @@ type InnerCircuitCommit struct {
 }
 
 func (c *InnerCircuitCommit) Define(api frontend.API) error {
+
 	x := api.Mul(c.P, c.P)
 	y := api.Mul(c.Q, c.Q)
 	z := api.Add(x, y)
@@ -145,20 +146,22 @@ func (c *InnerCircuitCommit) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	v, err := committer.Commit(c.N)
-	if err != nil {
-		return err
-	}
+	// v, err := committer.Commit(c.N)
+	// if err != nil {
+	// 	return err
+	// }
 
-	api.AssertIsDifferent(u, z)
-	api.AssertIsDifferent(v, z)
+	// api.AssertIsDifferent(v, z)
+	api.AssertIsDifferent(u, c.N)
+
+	// api.AssertIsDifferent(z, c.N)
 
 	return nil
 }
 
 func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, plonk.VerifyingKey, witness.Witness, plonk.Proof) {
 
-	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitNativeWoCommit{})
+	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitCommit{})
 	assert.NoError(err)
 
 	srs, err := test.NewKZGSRS(innerCcs)
@@ -168,7 +171,7 @@ func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.Cons
 	assert.NoError(err)
 
 	// inner proof
-	innerAssignment := &InnerCircuitNativeWoCommit{
+	innerAssignment := &InnerCircuitCommit{
 		P: 3,
 		Q: 5,
 		N: 15,
@@ -179,13 +182,14 @@ func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.Cons
 	assert.NoError(err)
 	kzgProverHasher, err := recursion.NewShort(outer, field)
 	assert.NoError(err)
-	hashToFieldHasher, err := recursion.NewShort(outer, field)
+	htfProverdHasher, err := recursion.NewShort(outer, field)
 	assert.NoError(err)
 	innerProof, err := plonk.Prove(innerCcs, innerPK, innerWitness,
 		backend.WithProverChallengeHashFunction(fsProverHasher),
 		backend.WithProverKZGFoldingHashFunction(kzgProverHasher),
-		backend.WithProverHashToFieldFunction(hashToFieldHasher),
+		backend.WithProverHashToFieldFunction(htfProverdHasher),
 	)
+
 	assert.NoError(err)
 	innerPubWitness, err := innerWitness.Public()
 	assert.NoError(err)
@@ -193,10 +197,15 @@ func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.Cons
 	assert.NoError(err)
 	kzgVerifierHash, err := recursion.NewShort(outer, field)
 	assert.NoError(err)
+	htfVerifierHasher, err := recursion.NewShort(outer, field)
+	assert.NoError(err)
 	err = plonk.Verify(innerProof, innerVK, innerPubWitness,
 		backend.WithVerifierChallengeHashFunction(fsVerifierHasher),
 		backend.WithVerifierKZGFoldingHashFunction(kzgVerifierHash),
+		backend.WithVerifierHashToFieldFunction(htfVerifierHasher),
 	)
+	// backend.WithVerifierChallengeHashFunction(fsProverHasher),
+
 	assert.NoError(err)
 	return innerCcs, innerVK, innerPubWitness, innerProof
 }
@@ -204,6 +213,6 @@ func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.Cons
 func TestBLS12InBW6Commit(t *testing.T) {
 
 	assert := test.NewAssert(t)
-	getInnerWoCommit(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
+	getInnerCommit(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
 
 }

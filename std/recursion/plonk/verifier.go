@@ -407,38 +407,25 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 		}
 	}
 
-	// TODO: omitted hashing the commitment constraint indexes
-
-	// 	var hashBts []byte
-	// 	var hashedCmt fr.Element
-	// 	nbBuf := fr.Bytes
-	// 	if cfg.HashToFieldFn.Size() < fr.Bytes {
-	// 		nbBuf = cfg.HashToFieldFn.Size()
-	// 	}
-	// 	for i := range vk.CommitmentConstraintIndexes {
-	// 		cfg.HashToFieldFn.Write(proof.Bsb22Commitments[i].Marshal())
-	// 		hashBts = cfg.HashToFieldFn.Sum(hashBts[0:])
-	// 		cfg.HashToFieldFn.Reset()
-	// 		hashedCmt.SetBytes(hashBts[:nbBuf])
-
-	// 		// Computing L_{CommitmentIndex}
-
-	// 		wPowI.Exp(vk.Generator, big.NewInt(int64(vk.NbPublicVariables)+int64(vk.CommitmentConstraintIndexes[i])))
-	// 		den.Sub(&zeta, &wPowI) // ζ-wⁱ
-
-	// 		lagrange.SetOne().
-	// 			Sub(&zeta, &lagrange).       // ζ-1
-	// 			Mul(&lagrange, &wPowI).      // wⁱ(ζ-1)
-	// 			Div(&lagrange, &den).        // wⁱ(ζ-1)/(ζ-wⁱ)
-	// 			Mul(&lagrange, &lagrangeOne) // wⁱ/n (ζⁿ-1)/(ζ-wⁱ)
-
-	// 		xiLi.Mul(&lagrange, &hashedCmt)
-	// 		pi.Add(&pi, &xiLi)
-	// 	}
-	// }
+	if len(vk.CommitmentConstraintIndexes) > 0 {
+		hashToField, err := recursion.NewHash(v.api, fr.Modulus(), true)
+		if err != nil {
+			return err
+		}
+		for i := range vk.CommitmentConstraintIndexes {
+			li := v.computeIthLagrangeAtZeta(vk.CommitmentConstraintIndexes[i], zeta, zetaPowerM, vk)
+			marshalledCommitment := v.curve.MarshalG1(proof.Bsb22Commitments[i].G1El)
+			hashToField.Write(marshalledCommitment...)
+			hashedCmt := hashToField.Sum()
+			hashedCmtBits := bits.ToBinary(v.api, hashedCmt, bits.WithNbDigits(fr.Modulus().BitLen()))
+			emulatedHashedCmt := v.scalarApi.FromBits(hashedCmtBits...)
+			xiLi := v.scalarApi.Mul(emulatedHashedCmt, li)
+			hashToField.Reset()
+			pi = v.scalarApi.Add(pi, xiLi)
+		}
+	}
 
 	// linearizedpolynomial + pi(ζ) + α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ) - α²*L₁(ζ)
-
 	zu := proof.ZShiftedOpening.ClaimedValue
 	claimedQuotient := &proof.BatchedProof.ClaimedValues[0]
 	linearizedPolynomialZeta := &proof.BatchedProof.ClaimedValues[1]
@@ -682,14 +669,20 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) fixedExpN(n uint64, s *emulated.Element
 }
 
 // computeIthLagrangeAtZeta computes L_{i}(\omega) = \omega^{i}/n (\zeta^{n}-1)/(\zeta-\omega^{i})
-func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, zeta, zetaPowerM emulated.Element[FR], vk VerifyingKey[FR, G1El, G2El]) *emulated.Element[FR] {
+func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, zeta, zetaPowerM *emulated.Element[FR], vk VerifyingKey[FR, G1El, G2El]) *emulated.Element[FR] {
 
 	one := v.scalarApi.One()
-	num := v.scalarApi.Sub(&zetaPowerM, one)
+	num := v.scalarApi.Sub(zetaPowerM, one)
 
 	// \omega^{i}
 	omegai := one
 	irev := stdbits.Reverse(uint(i))
+	// skip first zeroes
+	s := irev % 2
+	for s == 0 {
+		irev = irev >> 1
+		s = irev % 2
+	}
 	for irev != 0 {
 		omegai = v.scalarApi.Mul(omegai, omegai)
 		if irev%2 == 1 {
@@ -698,7 +691,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, zeta
 		irev = irev >> 1
 	}
 
-	den := v.scalarApi.Sub(&zeta, omegai)
+	den := v.scalarApi.Sub(zeta, omegai)
 
 	li := v.scalarApi.Div(num, den)
 	li = v.scalarApi.Mul(li, &vk.SizeInv)
