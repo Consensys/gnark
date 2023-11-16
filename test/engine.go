@@ -678,6 +678,11 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	hasher.Read(buf)
 	res := new(big.Int).SetBytes(buf)
 	res.Mod(res, e.modulus())
+	if res.Sign() == 0 {
+		// a commit == 0 is unlikely; happens quite often in tests
+		// with tinyfield
+		res.SetUint64(1)
+	}
 	return res, nil
 }
 
