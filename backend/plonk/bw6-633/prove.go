@@ -47,6 +47,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bw6-633"
 	"github.com/consensys/gnark/constraint/solver"
+	fcs "github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 )
@@ -307,49 +308,47 @@ func (s *instance) initBSB22Commitments() {
 	s.proof.Bsb22Commitments = make([]kzg.Digest, len(s.commitmentInfo))
 
 	// override the hint for the commitment constraints
-	for i := range s.commitmentInfo {
-		s.opt.SolverOpts = append(s.opt.SolverOpts,
-			solver.OverrideHint(s.commitmentInfo[i].HintID, s.bsb22Hint(i)))
-	}
+	bsb22ID := solver.GetHintID(fcs.Bsb22CommitmentComputePlaceholder)
+	s.opt.SolverOpts = append(s.opt.SolverOpts, solver.OverrideHint(bsb22ID, s.bsb22Hint))
 }
 
 // Computing and verifying Bsb22 multi-commits explained in https://hackmd.io/x8KsadW3RRyX7YTCFJIkHg
-func (s *instance) bsb22Hint(commDepth int) solver.Hint {
-	return func(_ *big.Int, ins, outs []*big.Int) error {
-		var err error
+func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
+	var err error
+	commDepth := int(ins[0].Int64())
+	ins = ins[1:]
 
-		res := &s.commitmentVal[commDepth]
+	res := &s.commitmentVal[commDepth]
 
-		commitmentInfo := s.spr.CommitmentInfo.(constraint.PlonkCommitments)[commDepth]
-		committedValues := make([]fr.Element, s.pk.Domain[0].Cardinality)
-		offset := s.spr.GetNbPublicVariables()
-		for i := range ins {
-			committedValues[offset+commitmentInfo.Committed[i]].SetBigInt(ins[i])
-		}
-		if _, err = committedValues[offset+commitmentInfo.CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
-			return err
-		}
-		if _, err = committedValues[offset+s.spr.GetNbConstraints()-1].SetRandom(); err != nil { // Last constraint has qcp = 0. Safe to use for blinding
-			return err
-		}
-		s.cCommitments[commDepth] = iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-		if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
-			return err
-		}
-		s.cCommitments[commDepth].ToCanonical(&s.pk.Domain[0]).ToRegular()
-
-		s.htfFunc.Write(s.proof.Bsb22Commitments[commDepth].Marshal())
-		hashBts := s.htfFunc.Sum(nil)
-		s.htfFunc.Reset()
-		nbBuf := fr.Bytes
-		if s.htfFunc.Size() < fr.Bytes {
-			nbBuf = s.htfFunc.Size()
-		}
-		res.SetBytes(hashBts[:nbBuf]) // TODO @Tabaie use CommitmentIndex for this; create a new variable CommitmentConstraintIndex for other uses
-		res.BigInt(outs[0])
-
-		return nil
+	commitmentInfo := s.spr.CommitmentInfo.(constraint.PlonkCommitments)[commDepth]
+	committedValues := make([]fr.Element, s.pk.Domain[0].Cardinality)
+	offset := s.spr.GetNbPublicVariables()
+	for i := range ins {
+		committedValues[offset+commitmentInfo.Committed[i]].SetBigInt(ins[i])
 	}
+	if _, err = committedValues[offset+commitmentInfo.CommitmentIndex].SetRandom(); err != nil { // Commitment injection constraint has qcp = 0. Safe to use for blinding.
+		return err
+	}
+	if _, err = committedValues[offset+s.spr.GetNbConstraints()-1].SetRandom(); err != nil { // Last constraint has qcp = 0. Safe to use for blinding
+		return err
+	}
+	s.cCommitments[commDepth] = iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
+	if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
+		return err
+	}
+	s.cCommitments[commDepth].ToCanonical(&s.pk.Domain[0]).ToRegular()
+
+	s.htfFunc.Write(s.proof.Bsb22Commitments[commDepth].Marshal())
+	hashBts := s.htfFunc.Sum(nil)
+	s.htfFunc.Reset()
+	nbBuf := fr.Bytes
+	if s.htfFunc.Size() < fr.Bytes {
+		nbBuf = s.htfFunc.Size()
+	}
+	res.SetBytes(hashBts[:nbBuf]) // TODO @Tabaie use CommitmentIndex for this; create a new variable CommitmentConstraintIndex for other uses
+	res.BigInt(outs[0])
+
+	return nil
 }
 
 func (s *instance) setupGKRHints() {
