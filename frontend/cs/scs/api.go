@@ -702,8 +702,8 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	})
 }
 
-// NewCombination in the form of res = qL.a + qR.b + qM.ab + qC
-func (builder *builder) NewCombination(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
+// EvaluatePlonkExpression in the form of res = qL.a + qR.b + qM.ab + qC
+func (builder *builder) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
 	if _, ok := builder.constantValue(a); ok {
 		a, qL, b, qR = b, qR, a, qL
 	}
