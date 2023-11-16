@@ -84,12 +84,6 @@ jobs:
           echo "## Success ✅" > $GITHUB_STEP_SUMMARY
           echo "failures=" > $GITHUB_OUTPUT
         fi
-    # if we failed a test, we want to comment on the PR with the log
-    - name: PR comment with file
-      if: ${{ failure() }}
-      uses: thollander/actions-comment-pull-request@v2
-      with:
-        filePath: /tmp/gotest.log
 
   slack-workflow-status-failed:
     if: failure()
