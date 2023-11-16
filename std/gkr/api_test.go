@@ -2,16 +2,17 @@ package gkr
 
 import (
 	"fmt"
-	"github.com/consensys/gnark-crypto/kzg"
-	"github.com/consensys/gnark/backend/plonk"
-	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
-	"github.com/consensys/gnark/test"
-	"github.com/stretchr/testify/require"
 	"hash"
 	"math/rand"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/consensys/gnark-crypto/kzg"
+	"github.com/consensys/gnark/backend/plonk"
+	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/test"
+	"github.com/stretchr/testify/require"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -426,21 +427,21 @@ func testPlonk(t *testing.T, circuit, assignment frontend.Circuit) {
 }
 
 func registerMiMC() {
-	bn254r1cs.HashBuilderRegistry["mimc"] = bn254MiMC.NewMiMC
-	stdHash.BuilderRegistry["mimc"] = func(api frontend.API) (stdHash.FieldHasher, error) {
+	bn254r1cs.RegisterHashBuilder("mimc", bn254MiMC.NewMiMC)
+	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err
-	}
+	})
 }
 
 func registerConstant(c int) {
 	name := strconv.Itoa(c)
-	bn254r1cs.HashBuilderRegistry[name] = func() hash.Hash {
+	bn254r1cs.RegisterHashBuilder(name, func() hash.Hash {
 		return constHashBn254(c)
-	}
-	stdHash.BuilderRegistry[name] = func(frontend.API) (stdHash.FieldHasher, error) {
+	})
+	stdHash.Register(name, func(frontend.API) (stdHash.FieldHasher, error) {
 		return constHash(c), nil
-	}
+	})
 }
 
 func init() {
