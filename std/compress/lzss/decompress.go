@@ -8,14 +8,14 @@ import (
 	"github.com/icza/bitio"
 )
 
-func DecompressGo(data, dict []byte, compressionMode CompressionMode) (d []byte, err error) {
+func DecompressGo(data, dict []byte, level Level) (d []byte, err error) {
 	// d[i < 0] = Settings.BackRefSettings.Symbol by convention
 	var out bytes.Buffer
 	out.Grow(len(data)*6 + len(dict))
 	in := bitio.NewReader(bytes.NewReader(data))
 
 	dict = augmentDict(dict)
-	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), compressionMode)
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
 
 	bDict := backref{bType: dictBackRefType}
 	bShort := backref{bType: shortBackRefType}
@@ -51,13 +51,13 @@ func DecompressGo(data, dict []byte, compressionMode CompressionMode) (d []byte,
 	return out.Bytes(), nil
 }
 
-func ReadIntoStream(data, dict []byte, compressionMode CompressionMode) compress.Stream {
+func ReadIntoStream(data, dict []byte, level Level) compress.Stream {
 	in := bitio.NewReader(bytes.NewReader(data))
 
 	dict = augmentDict(dict)
-	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), compressionMode)
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
 
-	wordLen := int(compressionMode)
+	wordLen := int(level)
 
 	out := compress.Stream{
 		NbSymbs: 1 << wordLen,

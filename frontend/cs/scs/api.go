@@ -656,10 +656,9 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 // EvaluatePlonkExpression in the form of res = qL.a + qR.b + qM.ab + qC
 func (builder *builder) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
-	if _, ok := builder.constantValue(a); ok {
-		a, qL, b, qR = b, qR, a, qL
-	}
-	if _, ok := builder.constantValue(b); ok {
+	_, aConstant := builder.constantValue(a)
+	_, bConstant := builder.constantValue(b)
+	if aConstant || bConstant {
 		return builder.Add(
 			builder.Mul(a, qL),
 			builder.Mul(b, qR),
@@ -675,7 +674,7 @@ func (builder *builder) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, 
 		xc: res.VID,
 		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term).Coeff),
 		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term).Coeff),
-		qO: builder.cs.FromInterface(-1),
+		qO: builder.tMinusOne,
 		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term).Coeff, b.(expr.Term).Coeff)),
 		qC: builder.cs.FromInterface(qC),
 	})

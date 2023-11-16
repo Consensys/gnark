@@ -1,6 +1,9 @@
 package lzss
 
 import (
+	"os"
+	"testing"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
@@ -8,8 +11,6 @@ import (
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
-	"os"
-	"testing"
 )
 
 func TestCompression1ZeroE2E(t *testing.T) {
@@ -17,14 +18,14 @@ func TestCompression1ZeroE2E(t *testing.T) {
 }
 
 func BenchmarkCompression26KBE2E(b *testing.B) {
-	_, err := BenchCompressionE2ECompilation(nil, "../test_cases/3c2943")
+	_, err := BenchCompressionE2ECompilation(nil, "./testdata/test_cases/3c2943")
 	assert.NoError(b, err)
 }
 
 func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	if d == nil {
 		var err error
-		d, err = os.ReadFile("../test_cases/" + name + "/data.bin")
+		d, err = os.ReadFile("./testdata/test_cases/" + name + "/data.bin")
 		assert.NoError(t, err)
 	}
 
@@ -45,10 +46,10 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	assert.NoError(t, err)
 
 	circuit := compressionCircuit{
-		C:               make([]frontend.Variable, cStream.Len()),
-		D:               make([]frontend.Variable, len(d)),
-		Dict:            make([]byte, len(dict)),
-		CompressionMode: BestCompression,
+		C:     make([]frontend.Variable, cStream.Len()),
+		D:     make([]frontend.Variable, len(d)),
+		Dict:  make([]byte, len(dict)),
+		Level: BestCompression,
 	}
 
 	// solve the circuit or only compile it

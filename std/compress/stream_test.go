@@ -1,18 +1,11 @@
 package compress
 
 import (
-	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
-
-// TODO Gopter tests?
-
-func fillRandom(s Stream) {
-	for i := range s.D {
-		s.D[i] = rand.Intn(s.NbSymbs) //#nosec G404 weak rng is fine here
-	}
-}
 
 func TestMarshalRoundTrip(t *testing.T) {
 	d := make([]int, 1000)
@@ -31,4 +24,10 @@ func testMarshal(t *testing.T, s Stream) {
 	sBack := Stream{NbSymbs: s.NbSymbs}
 	sBack.Unmarshal(marshalled)
 	assert.Equal(t, s, sBack, "marshalling round trip failed for nbSymbs %d and size %d", s.NbSymbs, len(s.D))
+}
+
+func fillRandom(s Stream) {
+	for i := range s.D {
+		s.D[i] = rand.Intn(s.NbSymbs) //#nosec G404 weak rng is fine here
+	}
 }

@@ -4,12 +4,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"testing"
 
-	"github.com/klauspost/compress/s2"
-	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,18 +55,18 @@ func FuzzCompress(f *testing.F) {
 		if len(dict) > maxDictSize {
 			t.Skip("dict too large")
 		}
-		var compressionMode CompressionMode
+		var level Level
 		if cMode&2 == 2 {
-			compressionMode = 2
+			level = 2
 		} else if cMode&4 == 4 {
-			compressionMode = 4
+			level = 4
 		} else if cMode&8 == 8 {
-			compressionMode = 8
+			level = 8
 		} else {
-			compressionMode = BestCompression
+			level = BestCompression
 		}
 
-		compressor, err := NewCompressor(dict, compressionMode)
+		compressor, err := NewCompressor(dict, level)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,13 +75,13 @@ func FuzzCompress(f *testing.F) {
 			t.Fatal(err)
 		}
 
-		decompressedBytes, err := DecompressGo(compressedBytes, dict, compressionMode)
+		decompressedBytes, err := DecompressGo(compressedBytes, dict, level)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		if !bytes.Equal(input, decompressedBytes) {
-			t.Log("compression Mode:", compressionMode)
+			t.Log("compression Mode:", level)
 			t.Log("original bytes:", hex.EncodeToString(input))
 			t.Log("decompressed bytes:", hex.EncodeToString(decompressedBytes))
 			t.Log("dict", hex.EncodeToString(dict))
@@ -105,7 +102,7 @@ func TestAverageBatch(t *testing.T) {
 	assert := require.New(t)
 
 	// read "average_block.hex" file
-	d, err := os.ReadFile("./average_block.hex")
+	d, err := os.ReadFile("./testdata/average_block.hex")
 	assert.NoError(err)
 
 	// convert to bytes
@@ -115,39 +112,21 @@ func TestAverageBatch(t *testing.T) {
 	dict := getDictionary()
 	compressor, err := NewCompressor(dict, BestCompression)
 	assert.NoError(err)
-	// test compress round trip with s2, zstd and lzss
-	s2Res, err := compressWithS2(data)
-	assert.NoError(err)
-
-	zstdRes, err := compressWithZstd(data)
-	assert.NoError(err)
 
 	lzssRes, err := compresslzss_v1(compressor, data)
 	assert.NoError(err)
 
-	fmt.Println("s2 compression ratio:", s2Res.ratio)
-	fmt.Println("zstd compression ratio:", zstdRes.ratio)
 	fmt.Println("lzss compression ratio:", lzssRes.ratio)
-
-	// test decompress round trip with s2, zstd and lzss
-	s2Decompressed, err := decompressWithS2(s2Res.compressed)
-	assert.NoError(err)
-
-	zstdDecompressed, err := decompressWithZstd(zstdRes.compressed)
-	assert.NoError(err)
 
 	lzssDecompressed, err := decompresslzss_v1(lzssRes.compressed, dict)
 	assert.NoError(err)
-
-	assert.True(bytes.Equal(data, s2Decompressed))
-	assert.True(bytes.Equal(data, zstdDecompressed))
 	assert.True(bytes.Equal(data, lzssDecompressed))
 
 }
 
 func BenchmarkAverageBatch(b *testing.B) {
 	// read the file
-	d, err := os.ReadFile("./average_block.hex")
+	d, err := os.ReadFile("./testdata/average_block.hex")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -160,25 +139,6 @@ func BenchmarkAverageBatch(b *testing.B) {
 
 	dict := getDictionary()
 
-	// benchmark s2
-	b.Run("s2", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, err := compressWithS2(data)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-
-	// benchmark zstd
-	b.Run("zstd", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			_, err := compressWithZstd(data)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
 	compressor, err := NewCompressor(dict, BestCompression)
 	if err != nil {
 		b.Fatal(err)
@@ -202,59 +162,6 @@ type compressResult struct {
 	ratio      float64
 }
 
-func decompressWithS2(data []byte) ([]byte, error) {
-	r := s2.NewReader(bytes.NewReader(data))
-	var dst bytes.Buffer
-	_, err := io.Copy(&dst, r)
-	return dst.Bytes(), err
-}
-
-func compressWithS2(data []byte) (compressResult, error) {
-	var buf bytes.Buffer
-	w := s2.NewWriter(&buf)
-	w.Write(data)
-	w.Close()
-
-	res := compressResult{
-		compressed: make([]byte, buf.Len()),
-		inputSize:  len(data),
-		outputSize: buf.Len(),
-		ratio:      float64(len(data)) / float64(buf.Len()),
-	}
-	copy(res.compressed, buf.Bytes())
-	return res, nil
-}
-
-func decompressWithZstd(data []byte) ([]byte, error) {
-	r, err := zstd.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	var dst bytes.Buffer
-	_, err = io.Copy(&dst, r)
-	return dst.Bytes(), err
-}
-
-func compressWithZstd(data []byte) (compressResult, error) {
-	var buf bytes.Buffer
-
-	w, err := zstd.NewWriter(&buf)
-	if err != nil {
-		return compressResult{}, err
-	}
-	w.Write(data)
-	w.Close()
-
-	res := compressResult{
-		compressed: make([]byte, buf.Len()),
-		inputSize:  len(data),
-		outputSize: buf.Len(),
-		ratio:      float64(len(data)) / float64(buf.Len()),
-	}
-	copy(res.compressed, buf.Bytes())
-	return res, nil
-}
-
 func decompresslzss_v1(data, dict []byte) ([]byte, error) {
 	return DecompressGo(data, dict, BestCompression)
 }
@@ -273,7 +180,7 @@ func compresslzss_v1(compressor *Compressor, data []byte) (compressResult, error
 }
 
 func getDictionary() []byte {
-	d, err := os.ReadFile("dict_naive")
+	d, err := os.ReadFile("./testdata/dict_naive")
 	if err != nil {
 		panic(err)
 	}

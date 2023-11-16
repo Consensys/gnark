@@ -20,20 +20,27 @@ type Compressor struct {
 	dictIndex *suffixarray.Index
 	dictSa    [maxDictSize]int32 // suffix array space.
 
-	compressionMode CompressionMode
+	level Level
 }
 
-type CompressionMode uint8
+type Level uint8
 
 const (
-	BestCompression        CompressionMode = 1 // BestCompression allows the compressor to produce a stream of bit-level granularity, Giving the compressor this freedom helps it achieve better compression ratios but will impose a high number of constraints on the SNARK decompressor
-	GoodCompression        CompressionMode = 2
-	GoodSnarkDecompression CompressionMode = 4
-	BestSnarkDecompression CompressionMode = 8 // BestSnarkDecomposition forces the compressor to produce byte-aligned output. It is convenient and efficient for the SNARK decompressor but can hurt the compression ratio significantly =
+	// BestCompression allows the compressor to produce a stream of bit-level granularity,
+	// giving the compressor this freedom helps it achieve better compression ratios but
+	// will impose a high number of constraints on the SNARK decompressor
+	BestCompression Level = 1
+
+	GoodCompression        = 2
+	GoodSnarkDecompression = 4
+
+	// BestSnarkDecomposition forces the compressor to produce byte-aligned output.
+	// It is convenient and efficient for the SNARK decompressor but can hurt the compression ratio significantly
+	BestSnarkDecompression = 8
 )
 
 // NewCompressor returns a new compressor with the given dictionary
-func NewCompressor(dict []byte, compressionMode CompressionMode) (*Compressor, error) {
+func NewCompressor(dict []byte, level Level) (*Compressor, error) {
 	dict = augmentDict(dict)
 	if len(dict) > maxDictSize {
 		return nil, fmt.Errorf("dict size must be <= %d", maxDictSize)
@@ -43,17 +50,34 @@ func NewCompressor(dict []byte, compressionMode CompressionMode) (*Compressor, e
 	}
 	c.buf.Grow(maxInputSize)
 	c.dictIndex = suffixarray.New(c.dictData, c.dictSa[:len(c.dictData)])
-	c.compressionMode = compressionMode
+	c.level = level
 	return c, nil
 }
 
 func augmentDict(dict []byte) []byte {
+	found := uint8(0)
+	const mask uint8 = 0b111
+	for _, b := range dict {
+		if b == symbolDict {
+			found |= 0b001
+		} else if b == symbolShort {
+			found |= 0b010
+		} else if b == symbolLong {
+			found |= 0b100
+		} else {
+			continue
+		}
+		if found == mask {
+			return dict
+		}
+	}
+
 	return append(dict, symbolDict, symbolShort, symbolLong)
 }
 
-func initBackRefTypes(dictLen int, compressionMode CompressionMode) (short, long, dict backrefType) {
+func initBackRefTypes(dictLen int, level Level) (short, long, dict backrefType) {
 	wordAlign := func(a int) uint8 {
-		return (uint8(a) + uint8(compressionMode) - 1) / uint8(compressionMode) * uint8(compressionMode)
+		return (uint8(a) + uint8(level) - 1) / uint8(level) * uint8(level)
 	}
 	short = newBackRefType(symbolShort, wordAlign(14), 8, false)
 	long = newBackRefType(symbolLong, wordAlign(19), 8, false)
@@ -75,7 +99,7 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 	// build the index
 	compressor.inputIndex = suffixarray.New(d, compressor.inputSa[:len(d)])
 
-	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(compressor.dictData), compressor.compressionMode)
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(compressor.dictData), compressor.level)
 
 	bDict := backref{bType: dictBackRefType, length: -1, address: -1}
 	bShort := backref{bType: shortBackRefType, length: -1, address: -1}
