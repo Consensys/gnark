@@ -704,6 +704,18 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 // NewCombination in the form of res = qL.a + qR.b + qM.ab + qC
 func (builder *builder) NewCombination(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
+	if _, ok := builder.constantValue(a); ok {
+		a, qL, b, qR = b, qR, a, qL
+	}
+	if _, ok := builder.constantValue(b); ok {
+		return builder.Add(
+			builder.Mul(a, qL),
+			builder.Mul(b, qR),
+			builder.Mul(a, b, qM),
+			qC,
+		)
+	}
+
 	res := builder.newInternalVariable()
 	builder.addPlonkConstraint(sparseR1C{
 		xa: a.(expr.Term).VID,
