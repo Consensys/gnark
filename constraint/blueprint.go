@@ -67,6 +67,14 @@ type BlueprintHint interface {
 	DecompressHint(h *HintMapping, instruction Instruction)
 }
 
+// BlueprintStateful indicates that the blueprint can be reset to its initial state.
+type BlueprintStateful interface {
+	BlueprintSolvable
+
+	// Reset is called by the solver between invocation of Solve.
+	Reset()
+}
+
 // Compressible represent an object that knows how to encode itself as a []uint32.
 type Compressible interface {
 	// Compress interprets the objects as a LinearExpression and encodes it as a []uint32.
