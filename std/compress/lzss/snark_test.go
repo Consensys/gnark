@@ -277,9 +277,11 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 	}
 	defer closeZip()
 
-	_, err = cs.WriteTo(gz)
+	if _, err = cs.WriteTo(gz); err != nil {
+		return nil, err
+	}
 
-	return cs, err
+	return cs, gz.Close()
 }
 
 type compressionCircuit struct {
