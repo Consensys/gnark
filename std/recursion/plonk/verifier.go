@@ -467,7 +467,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 			return err
 		}
 		for i := range vk.CommitmentConstraintIndexes {
-			li := v.computeIthLagrangeAtZeta(vk.CommitmentConstraintIndexes[i], zeta, zetaPowerM, vk)
+			li := v.computeIthLagrangeAtZeta(vk.CommitmentConstraintIndexes[i]+vk.NbPublicVariables, zeta, zetaPowerM, vk)
 			marshalledCommitment := v.curve.MarshalG1(proof.Bsb22Commitments[i].G1El)
 			hashToField.Write(marshalledCommitment...)
 			hashedCmt := hashToField.Sum()
@@ -733,15 +733,18 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, zeta
 	irev := stdbits.Reverse(uint(i))
 	// skip first zeroes
 	s := irev % 2
+	nbBitsUint := 64
 	for s == 0 {
 		irev = irev >> 1
 		s = irev % 2
+		nbBitsUint--
 	}
-	for irev != 0 {
+	for nbBitsUint != 0 {
 		omegai = v.scalarApi.Mul(omegai, omegai)
 		if irev%2 == 1 {
 			omegai = v.scalarApi.Mul(omegai, &vk.Generator)
 		}
+		nbBitsUint--
 		irev = irev >> 1
 	}
 
@@ -749,6 +752,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, zeta
 
 	li := v.scalarApi.Div(num, den)
 	li = v.scalarApi.Mul(li, &vk.SizeInv)
+	li = v.scalarApi.Mul(li, omegai)
 
 	return li
 }
