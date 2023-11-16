@@ -1,7 +1,6 @@
 package groth16
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"math/big"
 	"testing"
@@ -173,12 +172,6 @@ func TestBLS12InBW6(t *testing.T) {
 		VerifyingKey: circuitVk,
 	}
 	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BW6_761))
-}
-
-func getPreimageAndDigest() (preimage [9]byte, digest [32]byte) {
-	copy(preimage[:], []byte("recursion"))
-	digest = sha256.Sum256(preimage[:])
-	return
 }
 
 type WitnessCircut struct {
