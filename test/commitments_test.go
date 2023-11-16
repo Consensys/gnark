@@ -203,8 +203,10 @@ func init() {
 func TestCommitment(t *testing.T) {
 	t.Parallel()
 
-	for _, assignment := range commitmentTestCircuits {
-		NewAssert(t).ProverSucceeded(hollow(assignment), assignment, WithBackends(backend.GROTH16, backend.PLONK))
+	assert := NewAssert(t)
+	for i, assignment := range commitmentTestCircuits {
+		t.Log("circuit", i, removePackageName(reflect.TypeOf(assignment).String()))
+		assert.CheckCircuit(hollow(assignment), WithValidAssignment(assignment), WithBackends(backend.GROTH16, backend.PLONK))
 	}
 }
 
