@@ -8,7 +8,6 @@ import (
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/backend/plonk"
 	backend_plonk "github.com/consensys/gnark/backend/plonk"
 	plonkbackend_bls12377 "github.com/consensys/gnark/backend/plonk/bls12-377"
 	plonkbackend_bls12381 "github.com/consensys/gnark/backend/plonk/bls12-381"
@@ -99,11 +98,59 @@ func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 	return ret, nil
 }
 
-func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) Proof[FR, G1El, G2El] {
-	return Proof[FR, G1El, G2El]{
-		BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
-			ClaimedValues: make([]emulated.Element[FR], 7),
-		},
+func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof backend_plonk.Proof) Proof[FR, G1El, G2El] {
+	switch tproof := proof.(type) {
+	case *plonkbackend_bls12377.Proof:
+		return Proof[FR, G1El, G2El]{
+			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
+				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
+			},
+			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
+		}
+	case *plonkbackend_bn254.Proof:
+		return Proof[FR, G1El, G2El]{
+			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
+				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
+			},
+			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
+		}
+	case *plonkbackend_bls12381.Proof:
+		return Proof[FR, G1El, G2El]{
+			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
+				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
+			},
+			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
+		}
+	case *plonkbackend_bw6761.Proof:
+		return Proof[FR, G1El, G2El]{
+			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
+				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
+			},
+			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
+		}
+	case *plonkbackend_bls24317.Proof:
+		return Proof[FR, G1El, G2El]{
+			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
+				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
+			},
+			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
+		}
+	case *plonkbackend_bls24315.Proof:
+		return Proof[FR, G1El, G2El]{
+			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
+				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
+			},
+			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
+		}
+	case *plonkbackend_bw6633.Proof:
+		return Proof[FR, G1El, G2El]{
+			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
+				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
+			},
+			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
+		}
+	default:
+		panic("Unrecognised vk")
 	}
 }
 
@@ -192,7 +239,7 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 	return ret, nil
 }
 
-func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk plonk.VerifyingKey) VerifyingKey[FR, G1El, G2El] {
+func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk backend_plonk.VerifyingKey) VerifyingKey[FR, G1El, G2El] {
 
 	switch tvk := vk.(type) {
 	case *plonkbackend_bls12377.VerifyingKey:
@@ -200,42 +247,49 @@ func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 			Size:                        tvk.Size,
 			NbPublicVariables:           tvk.NbPublicVariables,
 			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
 		}
 	case *plonkbackend_bn254.VerifyingKey:
 		return VerifyingKey[FR, G1El, G2El]{
 			Size:                        tvk.Size,
 			NbPublicVariables:           tvk.NbPublicVariables,
 			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
 		}
 	case *plonkbackend_bls12381.VerifyingKey:
 		return VerifyingKey[FR, G1El, G2El]{
 			Size:                        tvk.Size,
 			NbPublicVariables:           tvk.NbPublicVariables,
 			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
 		}
 	case *plonkbackend_bw6761.VerifyingKey:
 		return VerifyingKey[FR, G1El, G2El]{
 			Size:                        tvk.Size,
 			NbPublicVariables:           tvk.NbPublicVariables,
 			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
 		}
 	case *plonkbackend_bls24317.VerifyingKey:
 		return VerifyingKey[FR, G1El, G2El]{
 			Size:                        tvk.Size,
 			NbPublicVariables:           tvk.NbPublicVariables,
 			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
 		}
 	case *plonkbackend_bls24315.VerifyingKey:
 		return VerifyingKey[FR, G1El, G2El]{
 			Size:                        tvk.Size,
 			NbPublicVariables:           tvk.NbPublicVariables,
 			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
 		}
 	case *plonkbackend_bw6633.VerifyingKey:
 		return VerifyingKey[FR, G1El, G2El]{
 			Size:                        tvk.Size,
 			NbPublicVariables:           tvk.NbPublicVariables,
 			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
+			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
 		}
 	default:
 		panic("Unrecognised vk")
@@ -558,16 +612,15 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	}
 
 	// Fold the first proof
-	digestsToFold := []kzg.Commitment[G1El]{
-		{G1El: *foldedH},
-		{G1El: *linearizedPolynomialDigest},
-		proof.LRO[0],
-		proof.LRO[1],
-		proof.LRO[2],
-		vk.S[0],
-		vk.S[1],
-	}
-	digestsToFold = append(digestsToFold, vk.Qcp...)
+	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+7)
+	copy(digestsToFold[7:], vk.Qcp)
+	digestsToFold[0] = kzg.Commitment[G1El]{G1El: *foldedH}
+	digestsToFold[1] = kzg.Commitment[G1El]{G1El: *linearizedPolynomialDigest}
+	digestsToFold[2] = proof.LRO[0]
+	digestsToFold[3] = proof.LRO[1]
+	digestsToFold[4] = proof.LRO[2]
+	digestsToFold[5] = vk.S[0]
+	digestsToFold[6] = vk.S[1]
 	foldedProof, foldedDigest, err := v.kzg.FoldProof(
 		digestsToFold,
 		proof.BatchedProof,
@@ -600,6 +653,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 }
 
 func (v *Verifier[FR, G1El, G2El, GtEl]) bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey[FR, G1El, G2El], witness Witness[FR]) error {
+
 	// permutation
 	if err := fs.Bind(challenge, v.curve.MarshalG1(vk.S[0].G1El)); err != nil {
 		return err
