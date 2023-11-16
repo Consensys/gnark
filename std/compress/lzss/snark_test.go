@@ -2,6 +2,7 @@ package lzss
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"os"
 	"testing"
@@ -256,7 +257,28 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 	p.Stop()
 	fmt.Println(1+len(d)/1024, "KB:", p.NbConstraints(), "constraints, estimated", (p.NbConstraints()*600000)/len(d), "constraints for 600KB at", float64(p.NbConstraints())/float64(len(d)), "constraints per uncompressed byte")
 	resetTimer()
-	err = compress.GzWrite("../test_cases/"+name+"/e2e_cs.gz", cs)
+
+	outFile, err := os.OpenFile("../test_cases/"+name+"/e2e_cs.gz", os.O_CREATE, 0600)
+	closeFile := func() {
+		if err := outFile.Close(); err != nil {
+			panic(err)
+		}
+	}
+	defer closeFile()
+
+	if err != nil {
+		return nil, err
+	}
+	gz := gzip.NewWriter(outFile)
+	closeZip := func() {
+		if err := gz.Close(); err != nil {
+			panic(err)
+		}
+	}
+	defer closeZip()
+
+	_, err = cs.WriteTo(gz)
+
 	return cs, err
 }
 
