@@ -518,51 +518,6 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 	return m
 }
 
-// IsNonZero returns 0 if a is zero, 1 otherwise
-func (builder *builder) IsNonZero(i1 frontend.Variable) frontend.Variable {
-	if a, ok := builder.constantValue(i1); ok {
-		if a.IsZero() {
-			return 0
-		}
-		return 1
-	}
-
-	// x = 1/a 				// in a hint (x == 0 if a == 0)
-	// m = a*x              // constrain m to be 0 if a == 0
-	// a * m = a            // constrain m to be 1 if a != 0
-	a := i1.(expr.Term)
-	m := builder.newInternalVariable()
-
-	// x = 1/a 				// in a hint (x == 0 if a == 0)
-	x, err := builder.NewHint(solver.InvZeroHint, 1, a)
-	if err != nil {
-		// the function errs only if the number of inputs is invalid.
-		panic(err)
-	}
-
-	// m = a*x              // constrain m to be 0 if a == 0
-	// a*x - m = 0
-	X := x[0].(expr.Term)
-	builder.addPlonkConstraint(sparseR1C{
-		xa: a.VID,
-		xb: X.VID,
-		xc: m.VID,
-		qM: a.Coeff,
-		qO: builder.tMinusOne,
-	})
-
-	// a * m = a            // constrain m to be 1 if a != 0
-	// a*m - a = 0
-	builder.addPlonkConstraint(sparseR1C{
-		xa: a.VID,
-		xb: m.VID,
-		qL: builder.tMinusOne,
-		qM: a.Coeff,
-	})
-
-	return m
-}
-
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
 func (builder *builder) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
