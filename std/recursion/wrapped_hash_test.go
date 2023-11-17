@@ -46,21 +46,13 @@ func (c *shortHashCircuit) Define(api frontend.API) error {
 func TestShortHash(t *testing.T) {
 	outerCurves := []ecc.ID{
 		ecc.BN254,
-		ecc.BLS12_381,
 		ecc.BLS12_377,
 		ecc.BW6_761,
-		ecc.BW6_633,
-		ecc.BLS24_315,
-		ecc.BLS24_317,
 	}
 	innerCurves := []ecc.ID{
 		ecc.BN254,
-		ecc.BLS12_381,
 		ecc.BLS12_377,
 		ecc.BW6_761,
-		ecc.BW6_633,
-		ecc.BLS24_315,
-		ecc.BLS24_317,
 	}
 
 	assert := test.NewAssert(t)

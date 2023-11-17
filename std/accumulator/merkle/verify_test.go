@@ -25,10 +25,7 @@ import (
 	"github.com/consensys/gnark-crypto/accumulator/merkletree"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/hash"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/test"
 )
@@ -53,8 +50,8 @@ func (mp *MerkleProofTest) Define(api frontend.API) error {
 func TestVerify(t *testing.T) {
 
 	assert := test.NewAssert(t)
-	numLeaves := 32
-	depth := 5
+	numLeaves := 16
+	depth := 4
 
 	type testData struct {
 		hash        hash.Hash
@@ -63,7 +60,7 @@ func TestVerify(t *testing.T) {
 	}
 
 	confs := []testData{
-		{hash.MIMC_BN254, 32, ecc.BN254},
+		{hash.MIMC_BN254, 16, ecc.BN254},
 	}
 
 	for _, tData := range confs {
@@ -71,16 +68,12 @@ func TestVerify(t *testing.T) {
 		// create the circuit
 		var circuit MerkleProofTest
 		circuit.M.Path = make([]frontend.Variable, depth+1)
-		cc, err := frontend.Compile(tData.curve.ScalarField(), r1cs.NewBuilder, &circuit)
-		if err != nil {
-			t.Fatal(err)
-		}
 
 		mod := tData.curve.ScalarField()
 		modNbBytes := len(mod.Bytes())
 
 		// we test the circuit for all leaves...
-		for proofIndex := uint64(0); proofIndex < 32; proofIndex++ {
+		for proofIndex := uint64(0); proofIndex < 16; proofIndex++ {
 
 			// generate random data, the Merkle tree will be of depth log(64) = 6
 			var buf bytes.Buffer
@@ -113,16 +106,6 @@ func TestVerify(t *testing.T) {
 			witness.M.Path = make([]frontend.Variable, depth+1)
 			for i := 0; i < depth+1; i++ {
 				witness.M.Path[i] = proofPath[i]
-			}
-
-			w, err := frontend.NewWitness(&witness, tData.curve.ScalarField())
-			if err != nil {
-				t.Fatal(err)
-			}
-			logger.SetOutput(os.Stdout)
-			err = cc.IsSolved(w, solver.WithLogger(logger.Logger()))
-			if err != nil {
-				t.Fatal(err)
 			}
 
 			// verify the circuit

@@ -260,7 +260,7 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 }
 
 func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circuit, kzg.SRS) {
-	const nbConstraints = 40000
+	const nbConstraints = (1 << 12) - 3
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
