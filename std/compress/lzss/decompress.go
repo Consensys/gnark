@@ -14,13 +14,13 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 	out.Grow(len(data)*6 + len(dict))
 	in := bitio.NewReader(bytes.NewReader(data))
 
-	compressionMode := CompressionMode(in.TryReadByte())
-	if compressionMode == NoCompression {
+	level := Level(in.TryReadByte())
+	if level == NoCompression {
 		return data[1:], nil
 	}
 
 	dict = augmentDict(dict)
-	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), compressionMode)
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
 
 	bDict := backref{bType: dictBackRefType}
 	bShort := backref{bType: shortBackRefType}
@@ -56,20 +56,20 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 	return out.Bytes(), nil
 }
 
-func ReadIntoStream(data, dict []byte, compressionMode CompressionMode) compress.Stream {
+func ReadIntoStream(data, dict []byte, level Level) compress.Stream {
 	in := bitio.NewReader(bytes.NewReader(data))
 
-	wordLen := int(compressionMode)
+	wordLen := int(level)
 
 	dict = augmentDict(dict)
-	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), compressionMode)
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
 
 	bDict := backref{bType: dictBackRefType}
 	bShort := backref{bType: shortBackRefType}
 	bLong := backref{bType: longBackRefType}
 
-	compressionModeFromData := CompressionMode(in.TryReadByte())
-	if compressionModeFromData != NoCompression && compressionModeFromData != compressionMode {
+	levelFromData := Level(in.TryReadByte())
+	if levelFromData != NoCompression && levelFromData != level {
 		panic("compression mode mismatch")
 	}
 
@@ -77,7 +77,7 @@ func ReadIntoStream(data, dict []byte, compressionMode CompressionMode) compress
 		NbSymbs: 1 << wordLen,
 	}
 
-	out.WriteNum(int(compressionModeFromData), 8/wordLen)
+	out.WriteNum(int(levelFromData), 8/wordLen)
 
 	s := in.TryReadByte()
 
@@ -96,7 +96,7 @@ func ReadIntoStream(data, dict []byte, compressionMode CompressionMode) compress
 			// dict back ref
 			b = &bDict
 		}
-		if b != nil && compressionModeFromData != NoCompression {
+		if b != nil && levelFromData != NoCompression {
 			b.readFrom(in)
 			address := b.address
 			if b != &bDict {

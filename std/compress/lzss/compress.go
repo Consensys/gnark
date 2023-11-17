@@ -80,7 +80,7 @@ func initBackRefTypes(dictLen int, level Level) (short, long, dict backrefType) 
 	wordAlign := func(a int) uint8 {
 		return (uint8(a) + uint8(level) - 1) / uint8(level) * uint8(level)
 	}
-	if compressionMode == NoCompression {
+	if level == NoCompression {
 		wordAlign = func(a int) uint8 {
 			return uint8(a)
 		}

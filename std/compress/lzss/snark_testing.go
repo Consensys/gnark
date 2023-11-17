@@ -1,6 +1,7 @@
 package lzss
 
 import (
+	"compress/gzip"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -21,13 +22,13 @@ type DecompressionTestCircuit struct {
 	Dict             []byte
 	CLength          frontend.Variable
 	CheckCorrectness bool
-	CompressionMode  CompressionMode
+	Level            Level
 }
 
 func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 	dBack := make([]frontend.Variable, len(c.D)) // TODO Try smaller constants
 	api.Println("maxLen(dBack)", len(dBack))
-	dLen, err := Decompress(api, c.C, c.CLength, dBack, c.Dict, c.CompressionMode)
+	dLen, err := Decompress(api, c.C, c.CLength, dBack, c.Dict, c.Level)
 	if err != nil {
 		return err
 	}
@@ -63,10 +64,10 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 	cStream := ReadIntoStream(c, dict, GoodCompression)
 
 	circuit := compressionCircuit{
-		C:               make([]frontend.Variable, cStream.Len()),
-		D:               make([]frontend.Variable, len(d)),
-		Dict:            make([]byte, len(dict)),
-		CompressionMode: GoodCompression,
+		C:     make([]frontend.Variable, cStream.Len()),
+		D:     make([]frontend.Variable, len(d)),
+		Dict:  make([]byte, len(dict)),
+		Level: GoodCompression,
 	}
 
 	var start int64
@@ -89,8 +90,28 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 	p.Stop()
 	fmt.Println(1+len(d)/1024, "KB:", p.NbConstraints(), "constraints, estimated", (p.NbConstraints()*600000)/len(d), "constraints for 600KB at", float64(p.NbConstraints())/float64(len(d)), "constraints per uncompressed byte")
 	resetTimer()
-	err = compress.GzWrite("../test_cases/"+name+"/e2e_cs.gz", cs)
-	return cs, err
+
+	outFile, err := os.OpenFile("./testdata/test_cases/"+name+"/e2e_cs.gz", os.O_CREATE, 0600)
+	closeFile := func() {
+		if err := outFile.Close(); err != nil {
+			panic(err)
+		}
+	}
+	defer closeFile()
+	if err != nil {
+		return nil, err
+	}
+	gz := gzip.NewWriter(outFile)
+	closeZip := func() {
+		if err := gz.Close(); err != nil {
+			panic(err)
+		}
+	}
+	defer closeZip()
+	if _, err = cs.WriteTo(gz); err != nil {
+		return nil, err
+	}
+	return cs, gz.Close()
 }
 
 type compressionCircuit struct {
@@ -99,13 +120,13 @@ type compressionCircuit struct {
 	D                    []frontend.Variable
 	Dict                 []byte
 	CLen, DLen           frontend.Variable
-	CompressionMode      CompressionMode
+	Level                Level
 }
 
 func (c *compressionCircuit) Define(api frontend.API) error {
 
 	fmt.Println("packing")
-	cPacked := compress.Pack(api, c.C, int(c.CompressionMode))
+	cPacked := compress.Pack(api, c.C, int(c.Level))
 	dPacked := compress.Pack(api, c.D, 8)
 
 	fmt.Println("computing checksum")
@@ -118,7 +139,7 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 
 	fmt.Println("decompressing")
 	dComputed := make([]frontend.Variable, len(c.D))
-	if dComputedLen, err := Decompress(api, c.C, c.CLen, dComputed, c.Dict, c.CompressionMode); err != nil {
+	if dComputedLen, err := Decompress(api, c.C, c.CLen, dComputed, c.Dict, c.Level); err != nil {
 		return err
 	} else {
 		api.AssertIsEqual(dComputedLen, c.DLen)
