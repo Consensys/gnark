@@ -18,7 +18,7 @@ package fiatshamir
 
 import (
 	"errors"
-	"slices"
+	"golang.org/x/exp/slices"
 
 	"github.com/consensys/gnark/constant"
 	"github.com/consensys/gnark/frontend"

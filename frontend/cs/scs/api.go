@@ -654,6 +654,33 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	})
 }
 
+// EvaluatePlonkExpression in the form of res = qL.a + qR.b + qM.ab + qC
+func (builder *builder) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
+	_, aConstant := builder.constantValue(a)
+	_, bConstant := builder.constantValue(b)
+	if aConstant || bConstant {
+		return builder.Add(
+			builder.Mul(a, qL),
+			builder.Mul(b, qR),
+			builder.Mul(a, b, qM),
+			qC,
+		)
+	}
+
+	res := builder.newInternalVariable()
+	builder.addPlonkConstraint(sparseR1C{
+		xa: a.(expr.Term).VID,
+		xb: b.(expr.Term).VID,
+		xc: res.VID,
+		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term).Coeff),
+		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term).Coeff),
+		qO: builder.tMinusOne,
+		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term).Coeff, b.(expr.Term).Coeff)),
+		qC: builder.cs.FromInterface(qC),
+	})
+	return res
+}
+
 func filterConstants(v []frontend.Variable) []frontend.Variable {
 	res := make([]frontend.Variable, 0, len(v))
 	for _, vI := range v {
