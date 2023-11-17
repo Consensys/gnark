@@ -17,6 +17,7 @@ limitations under the License.
 package fiatshamir
 
 import (
+	"crypto/rand"
 	"math/big"
 	"testing"
 
@@ -45,7 +46,7 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 	}
 
 	// New transcript with 3 challenges to be derived
-	tsSnark := NewTranscript(api, &hSnark, "alpha", "beta", "gamma")
+	tsSnark := NewTranscript(api, &hSnark, []string{"alpha", "beta", "gamma"}, WithDomainSeparation())
 
 	// Bind challenges
 	if err := tsSnark.Bind("alpha", circuit.Bindings[0][:]); err != nil {
@@ -83,6 +84,7 @@ func (circuit *FiatShamirCircuit) Define(api frontend.API) error {
 }
 
 func TestFiatShamir(t *testing.T) {
+	var err error
 	assert := test.NewAssert(t)
 
 	testData := map[ecc.ID]hash.Hash{
@@ -101,10 +103,11 @@ func TestFiatShamir(t *testing.T) {
 		// instantiate the hash and the transcript in plain go
 		ts := fiatshamir.NewTranscript(h.New(), "alpha", "beta", "gamma")
 
-		var bindings [3][4]big.Int
+		var bindings [3][4]*big.Int
 		for i := 0; i < 3; i++ {
 			for j := 0; j < 4; j++ {
-				bindings[i][j].SetUint64(uint64(i * j))
+				bindings[i][j], err = rand.Int(rand.Reader, curveID.ScalarField())
+				assert.NoError(err)
 			}
 		}
 		frSize := utils.ByteLen(curveID.ScalarField())

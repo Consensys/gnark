@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
@@ -54,7 +55,8 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 	return func(t *testing.T) {
 
 		testCase, err := getTestCase(path)
-		assert.NoError(t, err)
+		assert := test.NewAssert(t)
+		assert.NoError(err)
 
 		assignment := &GkrVerifierCircuit{
 			Input:           testCase.Input,
@@ -64,7 +66,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			TestCaseName:    path,
 		}
 
-		circuit := &GkrVerifierCircuit{
+		validCircuit := &GkrVerifierCircuit{
 			Input:           make([][]frontend.Variable, len(testCase.Input)),
 			Output:          make([][]frontend.Variable, len(testCase.Output)),
 			SerializedProof: make([]frontend.Variable, len(assignment.SerializedProof)),
@@ -72,17 +74,25 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			TestCaseName:    path,
 		}
 
-		fillWithBlanks(circuit.Input, len(testCase.Input[0]))
-		fillWithBlanks(circuit.Output, len(testCase.Input[0]))
+		invalidCircuit := &GkrVerifierCircuit{
+			Input:           make([][]frontend.Variable, len(testCase.Input)),
+			Output:          make([][]frontend.Variable, len(testCase.Output)),
+			SerializedProof: make([]frontend.Variable, len(assignment.SerializedProof)),
+			ToFail:          true,
+			TestCaseName:    path,
+		}
+
+		fillWithBlanks(validCircuit.Input, len(testCase.Input[0]))
+		fillWithBlanks(validCircuit.Output, len(testCase.Input[0]))
+		fillWithBlanks(invalidCircuit.Input, len(testCase.Input[0]))
+		fillWithBlanks(invalidCircuit.Output, len(testCase.Input[0]))
 
 		if !opts.noSuccess {
-			test.NewAssert(t).SolvingSucceeded(circuit, assignment)
+			assert.CheckCircuit(validCircuit, test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
 		}
 
 		if !opts.noFail {
-			assignment.ToFail = true // TODO: This one doesn't matter right?
-			circuit.ToFail = true
-			test.NewAssert(t).SolvingFailed(circuit, assignment)
+			assert.CheckCircuit(invalidCircuit, test.WithBackends(backend.GROTH16), test.WithInvalidAssignment(assignment))
 		}
 	}
 }
@@ -475,12 +485,18 @@ func (c *constHashCircuit) Define(api frontend.API) error {
 	hsh := NewMessageCounter(api, 0, 0)
 	hsh.Reset()
 	hsh.Write(c.X)
-	api.AssertIsEqual(hsh.Sum(), 0)
+	sum := hsh.Sum()
+	api.AssertIsEqual(sum, 0)
+	api.AssertIsEqual(api.Mul(c.X, c.X), 1) // ensure we have at least 2 constraints
 	return nil
 }
 
 func TestConstHash(t *testing.T) {
-	test.NewAssert(t).SolvingSucceeded(&constHashCircuit{}, &constHashCircuit{X: 1})
+	test.NewAssert(t).CheckCircuit(
+		&constHashCircuit{},
+
+		test.WithValidAssignment(&constHashCircuit{X: 1}),
+	)
 }
 
 var mimcSnarkTotalCalls = 0

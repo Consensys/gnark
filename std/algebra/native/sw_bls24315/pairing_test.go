@@ -17,6 +17,7 @@ limitations under the License.
 package sw_bls24315
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -24,7 +25,6 @@ import (
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
 	"github.com/consensys/gnark/test"
 )
@@ -54,7 +54,7 @@ func TestFinalExp(t *testing.T) {
 	circuit.R = pairingRes
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 }
 
 type pairingBLS24315 struct {
@@ -86,7 +86,7 @@ func TestPairingBLS24315(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
 }
 
@@ -123,7 +123,7 @@ func TestTriplePairingBLS24315(t *testing.T) {
 	witness.Q3.Assign(&Q[2])
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
 }
 
@@ -154,7 +154,42 @@ func TestPairingFixedBLS315(t *testing.T) {
 	witness.P.Assign(&P)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
+
+}
+
+type pairingCheckBLS315 struct {
+	P1, P2 G1Affine `gnark:",public"`
+	Q1, Q2 G2Affine
+}
+
+func (circuit *pairingCheckBLS315) Define(api frontend.API) error {
+
+	err := PairingCheck(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
+
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+
+	return nil
+}
+
+func TestPairingCheckBLS315(t *testing.T) {
+
+	// pairing test data
+	P, Q := pairingCheckData()
+
+	// create cs
+	var circuit, witness pairingCheckBLS315
+
+	// assign values to witness
+	witness.P1.Assign(&P[0])
+	witness.P2.Assign(&P[1])
+	witness.Q1.Assign(&Q[0])
+	witness.Q2.Assign(&Q[1])
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
 }
 
@@ -163,6 +198,14 @@ func pairingData() (P bls24315.G1Affine, Q bls24315.G2Affine, milRes bls24315.E2
 	_, _, P, Q = bls24315.Generators()
 	milRes, _ = bls24315.MillerLoop([]bls24315.G1Affine{P}, []bls24315.G2Affine{Q})
 	pairingRes = bls24315.FinalExponentiation(&milRes)
+	return
+}
+
+func pairingCheckData() (P [2]bls24315.G1Affine, Q [2]bls24315.G2Affine) {
+	_, _, P[0], Q[0] = bls24315.Generators()
+	P[1].Neg(&P[0])
+	Q[1].Set(&Q[0])
+
 	return
 }
 
@@ -209,17 +252,4 @@ func mustbeEq(api frontend.API, fp24 fields_bls24315.E24, e24 *bls24315.GT) {
 	api.AssertIsEqual(fp24.D1.C2.B0.A1, e24.D1.C2.B0.A1)
 	api.AssertIsEqual(fp24.D1.C2.B1.A0, e24.D1.C2.B1.A0)
 	api.AssertIsEqual(fp24.D1.C2.B1.A1, e24.D1.C2.B1.A1)
-}
-
-// bench
-func BenchmarkPairing(b *testing.B) {
-	var c pairingBLS24315
-	ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkTriplePairing(b *testing.B) {
-	var c triplePairingBLS24315
-	ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
-	b.Log("groth16", ccsBench.GetNbConstraints())
 }

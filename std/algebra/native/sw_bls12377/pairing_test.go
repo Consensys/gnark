@@ -17,6 +17,7 @@ limitations under the License.
 package sw_bls12377
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -24,7 +25,6 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
 	"github.com/consensys/gnark/test"
 )
@@ -53,7 +53,7 @@ func TestFinalExp(t *testing.T) {
 	circuit.R = pairingRes
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
 type pairingBLS377 struct {
@@ -85,7 +85,7 @@ func TestPairingBLS377(t *testing.T) {
 	witness.Q.Assign(&Q)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
@@ -122,7 +122,7 @@ func TestTriplePairingBLS377(t *testing.T) {
 	witness.Q3.Assign(&Q[2])
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
 
 }
 
@@ -153,7 +153,42 @@ func TestPairingFixedBLS377(t *testing.T) {
 	witness.P.Assign(&P)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+
+}
+
+type pairingCheckBLS377 struct {
+	P1, P2 G1Affine `gnark:",public"`
+	Q1, Q2 G2Affine
+}
+
+func (circuit *pairingCheckBLS377) Define(api frontend.API) error {
+
+	err := PairingCheck(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
+
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+
+	return nil
+}
+
+func TestPairingCheckBLS377(t *testing.T) {
+
+	// pairing test data
+	P, Q := pairingCheckData()
+
+	// create cs
+	var circuit, witness pairingCheckBLS377
+
+	// assign values to witness
+	witness.P1.Assign(&P[0])
+	witness.P2.Assign(&P[1])
+	witness.Q1.Assign(&Q[0])
+	witness.Q2.Assign(&Q[1])
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
 
 }
 
@@ -162,6 +197,14 @@ func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes
 	_, _, P, Q = bls12377.Generators()
 	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
 	pairingRes = bls12377.FinalExponentiation(&milRes)
+	return
+}
+
+func pairingCheckData() (P [2]bls12377.G1Affine, Q [2]bls12377.G2Affine) {
+	_, _, P[0], Q[0] = bls12377.Generators()
+	P[1].Neg(&P[0])
+	Q[1].Set(&Q[0])
+
 	return
 }
 
@@ -196,23 +239,4 @@ func mustbeEq(api frontend.API, fp12 fields_bls12377.E12, e12 *bls12377.GT) {
 	api.AssertIsEqual(fp12.C1.B1.A1, e12.C1.B1.A1)
 	api.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
 	api.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
-}
-
-// bench
-func BenchmarkPairing(b *testing.B) {
-	var c pairingBLS377
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-	}
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkTriplePairing(b *testing.B) {
-	var c triplePairingBLS377
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-	}
-	b.Log("groth16", ccsBench.GetNbConstraints())
 }

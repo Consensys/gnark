@@ -43,6 +43,11 @@ func (e *E4) SetOne() *E4 {
 	return e
 }
 
+// IsZero returns 1 if the element is equal to 0 and 0 otherwise
+func (e *E4) IsZero(api frontend.API) frontend.Variable {
+	return api.And(e.B0.IsZero(api), e.B1.IsZero(api))
+}
+
 func (e *E4) assign(e1 []frontend.Variable) {
 	e.B0.A0 = e1[0]
 	e.B0.A1 = e1[1]

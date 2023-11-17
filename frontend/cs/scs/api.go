@@ -54,8 +54,55 @@ func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) f
 }
 
 func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+
+	if fastTrack := builder.mulAccFastTrack(a, b, c); fastTrack != nil {
+		return fastTrack
+	}
+
 	// TODO can we do better here to limit allocations?
 	return builder.Add(a, builder.Mul(b, c))
+}
+
+// special case for when a/c is constant
+// let a = a' * α, b = b' * β, c = c' * α
+// then a + b * c = a' * α + (b' * c') (β * α)
+// thus qL = a', qR = 0, qM = b'c'
+func (builder *builder) mulAccFastTrack(a, b, c frontend.Variable) frontend.Variable {
+	var (
+		aVar, bVar, cVar expr.Term
+		ok               bool
+	)
+	if aVar, ok = a.(expr.Term); !ok {
+		return nil
+	}
+	if bVar, ok = b.(expr.Term); !ok {
+		return nil
+	}
+	if cVar, ok = c.(expr.Term); !ok {
+		return nil
+	}
+
+	if aVar.VID == bVar.VID {
+		bVar, cVar = cVar, bVar
+	}
+
+	if aVar.VID != cVar.VID {
+		return nil
+	}
+
+	res := builder.newInternalVariable()
+	builder.addPlonkConstraint(sparseR1C{
+		xa:         aVar.VID,
+		xb:         bVar.VID,
+		xc:         res.VID,
+		qL:         aVar.Coeff,
+		qR:         constraint.Element{},
+		qO:         builder.tMinusOne,
+		qM:         builder.cs.Mul(bVar.Coeff, cVar.Coeff),
+		qC:         constraint.Element{},
+		commitment: 0,
+	})
+	return res
 }
 
 // neg returns -in
@@ -474,8 +521,12 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
 func (builder *builder) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
-	bi1 := builder.ToBinary(i1, builder.cs.FieldBitLen())
-	bi2 := builder.ToBinary(i2, builder.cs.FieldBitLen())
+	nbBits := builder.cs.FieldBitLen()
+	// in AssertIsLessOrEq we omitted comparison against modulus for the left
+	// side as if `a+r<b` implies `a<b`, then here we compute the inequality
+	// directly.
+	bi1 := bits.ToBinary(builder, i1, bits.WithNbDigits(nbBits))
+	bi2 := bits.ToBinary(builder, i2, bits.WithNbDigits(nbBits))
 
 	var res frontend.Variable
 	res = 0
@@ -584,13 +635,11 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
 
-	hintId, err := cs.RegisterBsb22CommitmentComputePlaceholder(len(commitments))
+	inputs := make([]frontend.Variable, len(v)+1)
+	inputs[0] = len(commitments) // commitment depth
+	copy(inputs[1:], v)
+	outs, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, inputs...)
 	if err != nil {
-		return nil, err
-	}
-
-	var outs []frontend.Variable
-	if outs, err = builder.NewHintForId(hintId, 1, v...); err != nil {
 		return nil, err
 	}
 
@@ -600,10 +649,36 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.PlonkCommitment{
-		HintID:          hintId,
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,
 	})
+}
+
+// EvaluatePlonkExpression in the form of res = qL.a + qR.b + qM.ab + qC
+func (builder *builder) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
+	_, aConstant := builder.constantValue(a)
+	_, bConstant := builder.constantValue(b)
+	if aConstant || bConstant {
+		return builder.Add(
+			builder.Mul(a, qL),
+			builder.Mul(b, qR),
+			builder.Mul(a, b, qM),
+			qC,
+		)
+	}
+
+	res := builder.newInternalVariable()
+	builder.addPlonkConstraint(sparseR1C{
+		xa: a.(expr.Term).VID,
+		xb: b.(expr.Term).VID,
+		xc: res.VID,
+		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term).Coeff),
+		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term).Coeff),
+		qO: builder.tMinusOne,
+		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term).Coeff, b.(expr.Term).Coeff)),
+		qC: builder.cs.FromInterface(qC),
+	})
+	return res
 }
 
 func filterConstants(v []frontend.Variable) []frontend.Variable {

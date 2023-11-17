@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls24-315/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -30,6 +31,94 @@ import (
 
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 )
+
+// -------------------------------------------------------------------------------------------------
+// Marshalling
+
+type MarshalScalarTest struct {
+	X Scalar
+	R [fr.Bytes * 8]frontend.Variable
+}
+
+func (c *MarshalScalarTest) Define(api frontend.API) error {
+	ec, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
+	r := ec.MarshalScalar(c.X)
+	for i := range c.R {
+		api.AssertIsEqual(r[i], c.R[i])
+	}
+	return nil
+}
+
+func TestMarshalScalar(t *testing.T) {
+	assert := test.NewAssert(t)
+	var r fr.Element
+	r.SetRandom()
+	rBytes := r.Marshal()
+	var witness MarshalScalarTest
+	witness.X = NewScalar(r)
+	for i := 0; i < fr.Bytes; i++ {
+		for j := 0; j < 8; j++ {
+			witness.R[i*8+j] = (rBytes[i] >> (7 - j)) & 1
+		}
+	}
+	var circuit MarshalScalarTest
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+}
+
+type MarshalG1Test struct {
+	P G1Affine
+	R [2 * 8 * fp.Bytes]frontend.Variable
+}
+
+func (c *MarshalG1Test) Define(api frontend.API) error {
+	ec, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
+	// we want to get the same output as gnark-crypto's marshal.
+	// It's a point on bls12-377 so the number of bytes is 96, as the
+	// field of definition of bls12-377 is 48 bytes long.
+	r := ec.MarshalG1(c.P)
+	for i := range c.R {
+		api.AssertIsEqual(r[i], c.R[i])
+	}
+	return nil
+}
+
+func TestMarshalG1(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	testfn := func(r fr.Element) {
+		var br big.Int
+		r.BigInt(&br)
+		_, _, g, _ := bls24315.Generators()
+		g.ScalarMultiplication(&g, &br)
+		gBytes := g.Marshal()
+		var witness MarshalG1Test
+		witness.P.Assign(&g)
+		for i := 0; i < 80; i++ {
+			for j := 0; j < 8; j++ {
+				witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+			}
+		}
+		var circuit MarshalG1Test
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
+	}
+	assert.Run(func(assert *test.Assert) {
+		// sample a random point
+		var r fr.Element
+		r.SetRandom()
+		testfn(r)
+	})
+	assert.Run(func(assert *test.Assert) {
+		var r fr.Element
+		r.SetZero()
+		testfn(r)
+	})
+}
 
 // -------------------------------------------------------------------------------------------------
 // Add jacobian
@@ -64,7 +153,7 @@ func TestAddAssignG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
 }
 
@@ -105,7 +194,7 @@ func TestAddAssignAffineG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
 }
 
@@ -140,7 +229,7 @@ func TestDoubleAssignG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
 }
 
@@ -175,7 +264,7 @@ func TestDoubleAffineG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
 }
 
@@ -216,7 +305,7 @@ func TestDoubleAndAddAffineG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
 }
 
@@ -247,7 +336,7 @@ func TestNegG1(t *testing.T) {
 	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&g1Neg{}, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&g1Neg{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
 }
 
@@ -289,7 +378,7 @@ func TestConstantScalarMulG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
 }
 
@@ -326,7 +415,7 @@ func TestVarScalarMulG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 }
 
 type g1ScalarMul struct {
@@ -366,7 +455,7 @@ func TestScalarMulG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 }
 
 type g1varScalarMulBase struct {
@@ -397,7 +486,7 @@ func TestVarScalarMulBaseG1(t *testing.T) {
 	witness.C.Assign(&c)
 
 	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&circuit, &witness, test.WithCurves(ecc.BW6_633))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 }
 
 func randomPointG1() bls24315.G1Jac {

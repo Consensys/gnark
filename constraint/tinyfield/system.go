@@ -74,6 +74,13 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 		return nil, err
 	}
 
+	// reset the stateful blueprints
+	for i := range cs.Blueprints {
+		if b, ok := cs.Blueprints[i].(constraint.BlueprintStateful); ok {
+			b.Reset()
+		}
+	}
+
 	// defer log printing once all solver.values are computed
 	// (or sooner, if a constraint is not satisfied)
 	defer solver.printLogs(cs.Logs)
@@ -123,8 +130,6 @@ func (cs *system) GetR1Cs() []constraint.R1C {
 			var r1c constraint.R1C
 			bc.DecompressR1C(&r1c, inst.Unpack(&cs.System))
 			toReturn = append(toReturn, r1c)
-		} else {
-			panic("not implemented")
 		}
 	}
 	return toReturn
@@ -205,8 +210,6 @@ func (cs *system) GetSparseR1Cs() []constraint.SparseR1C {
 			var sparseR1C constraint.SparseR1C
 			bc.DecompressSparseR1C(&sparseR1C, inst.Unpack(&cs.System))
 			toReturn = append(toReturn, sparseR1C)
-		} else {
-			panic("not implemented")
 		}
 	}
 	return toReturn
@@ -222,9 +225,9 @@ func evaluateLROSmallDomain(cs *system, solution []fr.Element) ([]fr.Element, []
 	s = int(ecc.NextPowerOfTwo(uint64(s)))
 
 	var l, r, o []fr.Element
-	l = make([]fr.Element, s)
-	r = make([]fr.Element, s)
-	o = make([]fr.Element, s)
+	l = make([]fr.Element, s, s+4) // +4 to leave room for the blinding in plonk
+	r = make([]fr.Element, s, s+4)
+	o = make([]fr.Element, s, s+4)
 	s0 := solution[0]
 
 	for i := 0; i < len(cs.Public); i++ { // placeholders

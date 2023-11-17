@@ -161,7 +161,6 @@ func main() {
 				{File: filepath.Join(groth16Dir, "verify.go"), Templates: []string{"groth16/groth16.verify.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "prove.go"), Templates: []string{"groth16/groth16.prove.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "setup.go"), Templates: []string{"groth16/groth16.setup.go.tmpl", importCurve}},
-				{File: filepath.Join(groth16Dir, "commitment.go"), Templates: []string{"groth16/groth16.commitment.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "marshal.go"), Templates: []string{"groth16/groth16.marshal.go.tmpl", importCurve}},
 				{File: filepath.Join(groth16Dir, "marshal_test.go"), Templates: []string{"groth16/tests/groth16.marshal.go.tmpl", importCurve}},
 			}
@@ -203,8 +202,6 @@ func main() {
 			if err := bgen.Generate(d, "plonk", "./template/zkpschemes/", entries...); err != nil {
 				panic(err)
 			}
-
-			os.Remove(filepath.Join(plonkDir, "plonk_test.go"))
 
 			// plonkfri
 			entries = []bavard.Entry{

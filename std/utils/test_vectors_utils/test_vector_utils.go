@@ -39,7 +39,7 @@ func (m Map) Get(api frontend.API, key frontend.Variable) frontend.Variable {
 
 	for i := range m.keys {
 		deltaI := getDelta(api, key, i, m.keys)
-		res = api.Add(res, api.Mul(deltaI, m.values[i]))
+		res = api.MulAcc(res, deltaI, m.values[i])
 	}
 
 	return res

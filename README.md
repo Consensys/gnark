@@ -116,23 +116,49 @@ func main() {
 
 ```
 
+### GPU Support
+
+#### Icicle Library
+
+The following schemes and curves support experimental use of Ingomyama's Icicle GPU library for low level zk-SNARK primitives such as MSM, NTT, and polynomial operations:
+
+- [x] [Groth16](https://eprint.iacr.org/2016/260)
+
+instantiated with the following curve(s)
+
+- [x] BN254
+
+To use GPUs, add the `icicle` buildtag to your build/run commands, e.g. `go run -tags=icicle main.go`.
+
+You can then toggle on or off icicle acceleration by providing the `WithIcicleAcceleration` backend ProverOption:
+
+```go
+    // toggle on
+    proofIci, err := groth16.Prove(ccs, pk, secretWitness, backend.WithIcicleAcceleration())
+    
+    // toggle off
+    proof, err := groth16.Prove(ccs, pk, secretWitness)
+```
+
+For more information about prerequisites see the [Icicle repo](https://github.com/ingonyama-zk/icicle).
+
 ## Citing
 
 If you use `gnark` in your research a citation would be appreciated.
 Please use the following BibTeX to cite the most recent release.
 
 ```bib
-@software{gnark-v0.8.0,
+@software{gnark-v0.9.0,
   author       = {Gautam Botrel and
                   Thomas Piellard and
                   Youssef El Housni and
                   Ivo Kubjas and
                   Arya Tabaie},
-  title        = {ConsenSys/gnark: v0.8.0},
+  title        = {ConsenSys/gnark: v0.9.0},
   month        = feb,
   year         = 2023,
   publisher    = {Zenodo},
-  version      = {v0.8.0},
+  version      = {v0.9.0},
   doi          = {10.5281/zenodo.5819104},
   url          = {https://doi.org/10.5281/zenodo.5819104}
 }

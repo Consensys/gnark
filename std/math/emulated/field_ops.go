@@ -3,14 +3,26 @@ package emulated
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
+	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
 )
 
 // Div computes a/b and returns it. It uses [DivHint] as a hint function.
 func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
+	return f.reduceAndOp(f.div, f.divPreCond, a, b)
+}
+
+func (f *Field[T]) divPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
+	mulOf, err := f.mulPreCond(&Element[T]{Limbs: make([]frontend.Variable, f.fParams.NbLimbs()), overflow: 0}, b)
+	if err != nil {
+		return mulOf, err
+	}
+	return f.subPreCond(a, &Element[T]{overflow: mulOf})
+}
+
+func (f *Field[T]) div(a, b *Element[T], _ uint) *Element[T] {
 	// omit width assertion as for a is done in AssertIsEqual and for b is done in Mul below
 	if !f.fParams.IsPrime() {
 		// TODO shouldn't we still try to do a classic int div in a hint, constraint the result, and let it fail?
@@ -29,6 +41,18 @@ func (f *Field[T]) Div(a, b *Element[T]) *Element[T] {
 
 // Inverse compute 1/a and returns it. It uses [InverseHint].
 func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
+	return f.reduceAndOp(f.inverse, f.inversePreCond, a, nil)
+}
+
+func (f *Field[T]) inversePreCond(a, _ *Element[T]) (nextOverflow uint, err error) {
+	mulOf, err := f.mulPreCond(a, &Element[T]{Limbs: make([]frontend.Variable, f.fParams.NbLimbs()), overflow: 0}) // order is important, we want that reduce left side
+	if err != nil {
+		return mulOf, err
+	}
+	return f.subPreCond(&Element[T]{overflow: 0}, &Element[T]{overflow: mulOf})
+}
+
+func (f *Field[T]) inverse(a, _ *Element[T], _ uint) *Element[T] {
 	// omit width assertion as is done in Mul below
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
@@ -46,6 +70,18 @@ func (f *Field[T]) Inverse(a *Element[T]) *Element[T] {
 
 // Sqrt computes square root of a and returns it. It uses [SqrtHint].
 func (f *Field[T]) Sqrt(a *Element[T]) *Element[T] {
+	return f.reduceAndOp(f.sqrt, f.sqrtPreCond, a, nil)
+}
+
+func (f *Field[T]) sqrtPreCond(a, _ *Element[T]) (nextOverflow uint, err error) {
+	mulOf, err := f.mulPreCond(a, a)
+	if err != nil {
+		return mulOf, err
+	}
+	return f.subPreCond(a, &Element[T]{overflow: mulOf})
+}
+
+func (f *Field[T]) sqrt(a, _ *Element[T], _ uint) *Element[T] {
 	// omit width assertion as is done in Mul below
 	if !f.fParams.IsPrime() {
 		panic("modulus not a prime")
@@ -163,7 +199,11 @@ func (f *Field[T]) MulConst(a *Element[T], c *big.Int) *Element[T] {
 func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	reduceRight := a.overflow < b.overflow
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
-	nextOverflow = f.fParams.BitsPerLimb() + uint(math.Log2(float64(2*nbResLimbs-1))) + 1 + a.overflow + b.overflow
+	nbLimbsOverflow := uint(1)
+	if nbResLimbs > 0 {
+		nbLimbsOverflow = uint(bits.Len(uint(2*nbResLimbs - 1)))
+	}
+	nextOverflow = f.fParams.BitsPerLimb() + nbLimbsOverflow + a.overflow + b.overflow
 	if nextOverflow > f.maxOverflow() {
 		err = overflowError{op: "mul", nextOverflow: nextOverflow, maxOverflow: f.maxOverflow(), reduceRight: reduceRight}
 	}

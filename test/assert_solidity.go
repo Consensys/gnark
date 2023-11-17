@@ -15,16 +15,18 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 )
 
+type verifyingKey interface {
+	NbPublicWitness() int
+	ExportSolidity(io.Writer) error
+}
+
 // solidityVerification checks that the exported solidity contract can verify the proof
 // and that the proof is valid.
 // It uses gnark-solidity-checker see test.WithSolidity option.
-func (assert *Assert) solidityVerification(b backend.ID, vk interface {
-	NbPublicWitness() int
-	ExportSolidity(io.Writer) error
-},
+func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
 	proof any,
 	validPublicWitness witness.Witness) {
-	if !solcCheck {
+	if !SolcCheck || vk.NbPublicWitness() == 0 {
 		return // nothing to check, will make solc fail.
 	}
 	assert.t.Helper()
@@ -61,7 +63,10 @@ func (assert *Assert) solidityVerification(b backend.ID, vk interface {
 		_proof := proof.(*groth16_bn254.Proof)
 		_, err = _proof.WriteRawTo(&buf)
 		assert.NoError(err)
-		proofStr = hex.EncodeToString(buf.Bytes())
+		proofBytes := buf.Bytes()
+		// keep only fpSize * 8 bytes; for now solidity contract doesn't handle the commitment part.
+		proofBytes = proofBytes[:32*8]
+		proofStr = hex.EncodeToString(proofBytes)
 	} else if b == backend.PLONK {
 		optBackend = "--plonk"
 		_proof := proof.(*plonk_bn254.Proof)

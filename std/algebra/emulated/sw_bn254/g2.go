@@ -11,7 +11,7 @@ import (
 
 type G2 struct {
 	*fields_bn254.Ext2
-	w    *emulated.Element[emulated.BN254Fp]
+	w    *emulated.Element[BaseField]
 	u, v *fields_bn254.E2
 }
 
@@ -20,14 +20,14 @@ type G2Affine struct {
 }
 
 func NewG2(api frontend.API) *G2 {
-	w := emulated.ValueOf[emulated.BN254Fp]("21888242871839275220042445260109153167277707414472061641714758635765020556616")
+	w := emulated.ValueOf[BaseField]("21888242871839275220042445260109153167277707414472061641714758635765020556616")
 	u := fields_bn254.E2{
-		A0: emulated.ValueOf[emulated.BN254Fp]("21575463638280843010398324269430826099269044274347216827212613867836435027261"),
-		A1: emulated.ValueOf[emulated.BN254Fp]("10307601595873709700152284273816112264069230130616436755625194854815875713954"),
+		A0: emulated.ValueOf[BaseField]("21575463638280843010398324269430826099269044274347216827212613867836435027261"),
+		A1: emulated.ValueOf[BaseField]("10307601595873709700152284273816112264069230130616436755625194854815875713954"),
 	}
 	v := fields_bn254.E2{
-		A0: emulated.ValueOf[emulated.BN254Fp]("2821565182194536844548159561693502659359617185244120367078079554186484126554"),
-		A1: emulated.ValueOf[emulated.BN254Fp]("3505843767911556378687030309984248845540243509899259641013678093033130930403"),
+		A0: emulated.ValueOf[BaseField]("2821565182194536844548159561693502659359617185244120367078079554186484126554"),
+		A1: emulated.ValueOf[BaseField]("3505843767911556378687030309984248845540243509899259641013678093033130930403"),
 	}
 	return &G2{
 		Ext2: fields_bn254.NewExt2(api),
@@ -40,12 +40,12 @@ func NewG2(api frontend.API) *G2 {
 func NewG2Affine(v bn254.G2Affine) G2Affine {
 	return G2Affine{
 		X: fields_bn254.E2{
-			A0: emulated.ValueOf[emulated.BN254Fp](v.X.A0),
-			A1: emulated.ValueOf[emulated.BN254Fp](v.X.A1),
+			A0: emulated.ValueOf[BaseField](v.X.A0),
+			A1: emulated.ValueOf[BaseField](v.X.A1),
 		},
 		Y: fields_bn254.E2{
-			A0: emulated.ValueOf[emulated.BN254Fp](v.Y.A0),
-			A1: emulated.ValueOf[emulated.BN254Fp](v.Y.A1),
+			A0: emulated.ValueOf[BaseField](v.Y.A0),
+			A1: emulated.ValueOf[BaseField](v.Y.A1),
 		},
 	}
 }

@@ -52,13 +52,13 @@ import (
 	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
-	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr/kzg"
-	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr/kzg"
-	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr/kzg"
-	kzg_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr/kzg"
-	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/kzg"
-	kzg_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr/kzg"
-	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/kzg"
+	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
+	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
+	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/kzg"
+	kzg_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/kzg"
+	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
+	kzg_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/kzg"
+	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
 
 	gnarkio "github.com/consensys/gnark/io"
 )
@@ -78,6 +78,8 @@ type Proof interface {
 type ProvingKey interface {
 	io.WriterTo
 	io.ReaderFrom
+	gnarkio.WriterRawTo
+	gnarkio.UnsafeReaderFrom
 	VerifyingKey() interface{}
 }
 
@@ -87,6 +89,8 @@ type ProvingKey interface {
 type VerifyingKey interface {
 	io.WriterTo
 	io.ReaderFrom
+	gnarkio.WriterRawTo
+	gnarkio.UnsafeReaderFrom
 	NbPublicWitness() int // number of elements expected in the public witness
 	ExportSolidity(w io.Writer) error
 }
@@ -151,7 +155,7 @@ func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.W
 }
 
 // Verify verifies a PLONK proof, from the proof, preprocessed public data, and public witness.
-func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness) error {
+func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
 
 	switch _proof := proof.(type) {
 
@@ -160,49 +164,49 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness) error {
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), w)
+		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), w, opts...)
 
 	case *plonk_bls12381.Proof:
 		w, ok := publicWitness.Vector().(fr_bls12381.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), w)
+		return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), w, opts...)
 
 	case *plonk_bls12377.Proof:
 		w, ok := publicWitness.Vector().(fr_bls12377.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), w)
+		return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), w, opts...)
 
 	case *plonk_bw6761.Proof:
 		w, ok := publicWitness.Vector().(fr_bw6761.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), w)
+		return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), w, opts...)
 
 	case *plonk_bw6633.Proof:
 		w, ok := publicWitness.Vector().(fr_bw6633.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), w)
+		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), w, opts...)
 
 	case *plonk_bls24317.Proof:
 		w, ok := publicWitness.Vector().(fr_bls24317.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bls24317.Verify(_proof, vk.(*plonk_bls24317.VerifyingKey), w)
+		return plonk_bls24317.Verify(_proof, vk.(*plonk_bls24317.VerifyingKey), w, opts...)
 
 	case *plonk_bls24315.Proof:
 		w, ok := publicWitness.Vector().(fr_bls24315.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), w)
+		return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), w, opts...)
 
 	default:
 		panic("unrecognized proof type")

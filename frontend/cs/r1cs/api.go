@@ -19,11 +19,12 @@ package r1cs
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/internal/utils"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
+
+	"github.com/consensys/gnark/internal/utils"
 
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend/cs"
@@ -570,9 +571,12 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 // Cmp returns 1 if i1>i2, 0 if i1=i2, -1 if i1<i2
 func (builder *builder) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 
-	vars, _ := builder.toVariables(i1, i2)
-	bi1 := builder.ToBinary(vars[0], builder.cs.FieldBitLen())
-	bi2 := builder.ToBinary(vars[1], builder.cs.FieldBitLen())
+	nbBits := builder.cs.FieldBitLen()
+	// in AssertIsLessOrEq we omitted comparison against modulus for the left
+	// side as if `a+r<b` implies `a<b`, then here we compute the inequality
+	// directly.
+	bi1 := bits.ToBinary(builder, i1, bits.WithNbDigits(nbBits))
+	bi2 := bits.ToBinary(builder, i2, bits.WithNbDigits(nbBits))
 
 	res := builder.cstZero()
 
@@ -771,33 +775,27 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 	// hint is used at solving time to compute the actual value of the commitment
 	// it is going to be dynamically replaced at solving time.
-
-	var (
-		hintOut []frontend.Variable
-		err     error
+	commitmentDepth := len(commitments)
+	inputs := builder.wireIDsToVars(
+		commitment.PublicAndCommitmentCommitted,
+		commitment.PrivateCommitted,
 	)
+	inputs = append([]frontend.Variable{commitmentDepth}, inputs...)
 
-	commitment.HintID, err = cs.RegisterBsb22CommitmentComputePlaceholder(len(commitments))
+	hintOut, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, inputs...)
 	if err != nil {
 		return nil, err
 	}
 
-	if hintOut, err = builder.NewHintForId(commitment.HintID, 1, builder.wireIDsToVars(
-		commitment.PublicAndCommitmentCommitted,
-		commitment.PrivateCommitted,
-	)...); err != nil {
-		return nil, err
-	}
+	res := hintOut[0]
 
-	cVar := hintOut[0]
-
-	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
+	commitment.CommitmentIndex = (res.(expr.LinearExpression))[0].WireID()
 
 	if err := builder.cs.AddCommitment(commitment); err != nil {
 		return nil, err
 	}
 
-	return cVar, nil
+	return res, nil
 }
 
 func (builder *builder) wireIDsToVars(wireIDs ...[]int) []frontend.Variable {

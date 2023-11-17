@@ -2,12 +2,14 @@ package plonk_test
 
 import (
 	"bytes"
+	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -55,6 +57,129 @@ func TestProver(t *testing.T) {
 
 		})
 
+	}
+}
+
+func TestCustomHashToField(t *testing.T) {
+	assert := test.NewAssert(t)
+	assignment := &commitmentCircuit{X: 1}
+	for _, curve := range getCurves() {
+		curve := curve
+		assert.Run(func(assert *test.Assert) {
+			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &commitmentCircuit{})
+			assert.NoError(err)
+			srs, err := test.NewKZGSRS(ccs)
+			assert.NoError(err)
+			pk, vk, err := plonk.Setup(ccs, srs)
+			assert.NoError(err)
+			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
+			assert.NoError(err)
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness, backend.WithProverHashToFieldFunction(constantHash{}))
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness, backend.WithVerifierHashToFieldFunction(constantHash{}))
+				assert.NoError(err)
+			}, "prover_verifier")
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness, backend.WithProverHashToFieldFunction(constantHash{}))
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness)
+				assert.Error(err)
+			}, "prover_only")
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness)
+				assert.Error(err)
+				_ = proof
+			}, "verifier_only")
+		}, curve.String())
+	}
+}
+
+func TestCustomChallengeHash(t *testing.T) {
+	assert := test.NewAssert(t)
+	assignment := &smallCircuit{X: 1}
+	for _, curve := range getCurves() {
+		curve := curve
+		assert.Run(func(assert *test.Assert) {
+			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &smallCircuit{})
+			assert.NoError(err)
+			srs, err := test.NewKZGSRS(ccs)
+			assert.NoError(err)
+			pk, vk, err := plonk.Setup(ccs, srs)
+			assert.NoError(err)
+			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
+			assert.NoError(err)
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness, backend.WithProverChallengeHashFunction(constantHash{}))
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness, backend.WithVerifierChallengeHashFunction(constantHash{}))
+				assert.NoError(err)
+			}, "prover_verifier")
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness, backend.WithProverChallengeHashFunction(constantHash{}))
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness)
+				assert.Error(err)
+			}, "prover_only")
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness)
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness, backend.WithVerifierChallengeHashFunction(constantHash{}))
+				assert.Error(err)
+			}, "verifier_only")
+		}, curve.String())
+	}
+}
+
+func TestCustomKZGFoldingHash(t *testing.T) {
+	assert := test.NewAssert(t)
+	assignment := &smallCircuit{X: 1}
+	for _, curve := range getCurves() {
+		curve := curve
+		assert.Run(func(assert *test.Assert) {
+			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &smallCircuit{})
+			assert.NoError(err)
+			srs, err := test.NewKZGSRS(ccs)
+			assert.NoError(err)
+			pk, vk, err := plonk.Setup(ccs, srs)
+			assert.NoError(err)
+			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
+			assert.NoError(err)
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness, backend.WithProverKZGFoldingHashFunction(constantHash{}))
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness, backend.WithVerifierKZGFoldingHashFunction(constantHash{}))
+				assert.NoError(err)
+			}, "prover_verifier")
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness, backend.WithProverKZGFoldingHashFunction(constantHash{}))
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness)
+				assert.Error(err)
+			}, "prover_only")
+			assert.Run(func(assert *test.Assert) {
+				proof, err := plonk.Prove(ccs, pk, witness)
+				assert.NoError(err)
+				pubWitness, err := witness.Public()
+				assert.NoError(err)
+				err = plonk.Verify(proof, vk, pubWitness, backend.WithVerifierKZGFoldingHashFunction(constantHash{}))
+				assert.Error(err)
+			}, "verifier_only")
+		}, curve.String())
 	}
 }
 
@@ -135,7 +260,7 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 }
 
 func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circuit, kzg.SRS) {
-	const nbConstraints = 40000
+	const nbConstraints = (1 << 12) - 3
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
@@ -160,6 +285,37 @@ func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circu
 	}
 	return ccs, &good, srs
 }
+
+type commitmentCircuit struct {
+	X frontend.Variable
+}
+
+func (c *commitmentCircuit) Define(api frontend.API) error {
+	cmt, err := api.(frontend.Committer).Commit(c.X)
+	if err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	api.AssertIsEqual(cmt, "0xaabbcc")
+	return nil
+}
+
+type smallCircuit struct {
+	X frontend.Variable
+}
+
+func (c *smallCircuit) Define(api frontend.API) error {
+	res := api.Mul(c.X, c.X)
+	api.AssertIsEqual(c.X, res)
+	return nil
+}
+
+type constantHash struct{}
+
+func (h constantHash) Write(p []byte) (n int, err error) { return len(p), nil }
+func (h constantHash) Sum(b []byte) []byte               { return []byte{0xaa, 0xbb, 0xcc} }
+func (h constantHash) Reset()                            {}
+func (h constantHash) Size() int                         { return 3 }
+func (h constantHash) BlockSize() int                    { return 32 }
 
 func getCurves() []ecc.ID {
 	if testing.Short() {

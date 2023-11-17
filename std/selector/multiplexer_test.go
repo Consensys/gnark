@@ -1,9 +1,10 @@
 package selector_test
 
 import (
+	"testing"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"testing"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/selector"
@@ -66,58 +67,49 @@ func (c *mux4to1Circuit) Define(api frontend.API) error {
 func TestMux(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	assert.ProverSucceeded(&muxCircuit{}, &muxCircuit{SEL: 2, I0: 10, I1: 11, I2: 12, I3: 13, I4: 14, OUT: 12})
+	assert.CheckCircuit(&muxCircuit{},
+		test.WithValidAssignment(&muxCircuit{SEL: 2, I0: 10, I1: 11, I2: 12, I3: 13, I4: 14, OUT: 12}),
+		test.WithValidAssignment(&muxCircuit{SEL: 0, I0: 10, I1: 11, I2: 12, I3: 13, I4: 14, OUT: 10}),
+		test.WithValidAssignment(&muxCircuit{SEL: 4, I0: 20, I1: 21, I2: 22, I3: 23, I4: 24, OUT: 24}),
+		test.WithInvalidAssignment(&muxCircuit{SEL: 5, I0: 20, I1: 21, I2: 22, I3: 23, I4: 24, OUT: 24}),
+		test.WithInvalidAssignment(&muxCircuit{SEL: 0, I0: 20, I1: 21, I2: 22, I3: 23, I4: 24, OUT: 21}),
+	)
 
-	assert.ProverSucceeded(&muxCircuit{}, &muxCircuit{SEL: 0, I0: 10, I1: 11, I2: 12, I3: 13, I4: 14, OUT: 10})
+	assert.CheckCircuit(&ignoredOutputMuxCircuit{},
+		test.WithValidAssignment(&ignoredOutputMuxCircuit{SEL: 0, I0: 0, I1: 1, I2: 2}),
+		test.WithValidAssignment(&ignoredOutputMuxCircuit{SEL: 2, I0: 0, I1: 1, I2: 2}),
+		test.WithInvalidAssignment(&ignoredOutputMuxCircuit{SEL: 3, I0: 0, I1: 1, I2: 2}),
+		test.WithInvalidAssignment(&ignoredOutputMuxCircuit{SEL: -1, I0: 0, I1: 1, I2: 2}),
+	)
 
-	assert.ProverSucceeded(&muxCircuit{}, &muxCircuit{SEL: 4, I0: 20, I1: 21, I2: 22, I3: 23, I4: 24, OUT: 24})
+	assert.CheckCircuit(&mux2to1Circuit{},
+		test.WithValidAssignment(&mux2to1Circuit{SEL: 1, I0: 10, I1: 20, OUT: 20}),
+		test.WithValidAssignment(&mux2to1Circuit{SEL: 0, I0: 10, I1: 20, OUT: 10}),
+		test.WithInvalidAssignment(&mux2to1Circuit{SEL: 2, I0: 10, I1: 20, OUT: 20}),
+	)
 
-	// Failures
-	assert.ProverFailed(&muxCircuit{}, &muxCircuit{SEL: 5, I0: 20, I1: 21, I2: 22, I3: 23, I4: 24, OUT: 24})
-
-	assert.ProverFailed(&muxCircuit{}, &muxCircuit{SEL: 0, I0: 20, I1: 21, I2: 22, I3: 23, I4: 24, OUT: 21})
-
-	// Ignoring the circuit's output:
-	assert.ProverSucceeded(&ignoredOutputMuxCircuit{}, &ignoredOutputMuxCircuit{SEL: 0, I0: 0, I1: 1, I2: 2})
-
-	assert.ProverSucceeded(&ignoredOutputMuxCircuit{}, &ignoredOutputMuxCircuit{SEL: 2, I0: 0, I1: 1, I2: 2})
-
-	// Failures
-	assert.ProverFailed(&ignoredOutputMuxCircuit{}, &ignoredOutputMuxCircuit{SEL: 3, I0: 0, I1: 1, I2: 2})
-
-	assert.ProverFailed(&ignoredOutputMuxCircuit{}, &ignoredOutputMuxCircuit{SEL: -1, I0: 0, I1: 1, I2: 2})
-
-	// 2 to 1 mux
-	assert.ProverSucceeded(&mux2to1Circuit{}, &mux2to1Circuit{SEL: 1, I0: 10, I1: 20, OUT: 20})
-
-	assert.ProverSucceeded(&mux2to1Circuit{}, &mux2to1Circuit{SEL: 0, I0: 10, I1: 20, OUT: 10})
-
-	assert.ProverFailed(&mux2to1Circuit{}, &mux2to1Circuit{SEL: 2, I0: 10, I1: 20, OUT: 20})
-
-	// 4 to 1 mux
-	assert.ProverSucceeded(&mux4to1Circuit{}, &mux4to1Circuit{
-		SEL: 3,
-		In:  [4]frontend.Variable{11, 22, 33, 44},
-		OUT: 44,
-	})
-
-	assert.ProverSucceeded(&mux4to1Circuit{}, &mux4to1Circuit{
-		SEL: 1,
-		In:  [4]frontend.Variable{11, 22, 33, 44},
-		OUT: 22,
-	})
-
-	assert.ProverSucceeded(&mux4to1Circuit{}, &mux4to1Circuit{
-		SEL: 0,
-		In:  [4]frontend.Variable{11, 22, 33, 44},
-		OUT: 11,
-	})
-
-	assert.ProverFailed(&mux4to1Circuit{}, &mux4to1Circuit{
-		SEL: 4,
-		In:  [4]frontend.Variable{11, 22, 33, 44},
-		OUT: 44,
-	})
+	assert.CheckCircuit(&mux4to1Circuit{},
+		test.WithValidAssignment(&mux4to1Circuit{
+			SEL: 3,
+			In:  [4]frontend.Variable{11, 22, 33, 44},
+			OUT: 44,
+		}),
+		test.WithValidAssignment(&mux4to1Circuit{
+			SEL: 1,
+			In:  [4]frontend.Variable{11, 22, 33, 44},
+			OUT: 22,
+		}),
+		test.WithValidAssignment(&mux4to1Circuit{
+			SEL: 0,
+			In:  [4]frontend.Variable{11, 22, 33, 44},
+			OUT: 11,
+		}),
+		test.WithInvalidAssignment(&mux4to1Circuit{
+			SEL: 4,
+			In:  [4]frontend.Variable{11, 22, 33, 44},
+			OUT: 44,
+		}),
+	)
 
 	cs, _ := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &mux4to1Circuit{})
 	// (4 - 1) + (2 + 1) + 1 == 7
