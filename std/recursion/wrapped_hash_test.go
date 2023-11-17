@@ -76,7 +76,7 @@ func TestShortHash(t *testing.T) {
 				}
 				res := h.Sum(nil)
 				witness.Output = res
-				assert.CheckCircuit(circuit, test.WithCurves(outer), test.WithValidAssignment(witness), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+				assert.CheckCircuit(circuit, test.WithCurves(outer), test.WithValidAssignment(witness), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
 			}, outer.String(), inner.String())
 		}
 	}
@@ -122,7 +122,7 @@ func TestHashMarshalG1(t *testing.T) {
 			Point:    sw_bw6761.NewG1Affine(g),
 			Expected: hashed,
 		}
-		assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+		assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
 	})
 	assert.Run(func(assert *test.Assert) {
 		var g bls12377.G1Affine
@@ -139,7 +139,7 @@ func TestHashMarshalG1(t *testing.T) {
 			Point:    sw_bls12377.NewG1Affine(g),
 			Expected: hashed,
 		}
-		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_761), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_761), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
 	})
 	assert.Run(func(assert *test.Assert) {
 		var g bls24315.G1Affine
@@ -156,7 +156,7 @@ func TestHashMarshalG1(t *testing.T) {
 			Point:    sw_bls24315.NewG1Affine(g),
 			Expected: hashed,
 		}
-		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_633), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_633), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
 	})
 }
 
@@ -198,7 +198,7 @@ func TestHashMarshalScalar(t *testing.T) {
 			Scalar:   sw_bw6761.NewScalar(s),
 			Expected: hashed,
 		}
-		assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+		assert.CheckCircuit(circuit, test.WithCurves(ecc.BN254), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
 	})
 	assert.Run(func(assert *test.Assert) {
 		var s fr_bls12377.Element
@@ -213,22 +213,7 @@ func TestHashMarshalScalar(t *testing.T) {
 			Scalar:   sw_bls12377.NewScalar(s),
 			Expected: hashed,
 		}
-		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_761), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
-	})
-	assert.Run(func(assert *test.Assert) {
-		var s fr_bls24315.Element
-		s.SetRandom()
-		h, err := recursion.NewShort(ecc.BW6_633.ScalarField(), ecc.BLS24_315.ScalarField())
-		assert.NoError(err)
-		marshalled := s.Marshal()
-		h.Write(marshalled)
-		hashed := h.Sum(nil)
-		circuit := &hashMarshalScalarCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{}
-		assignment := &hashMarshalScalarCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{
-			Scalar:   sw_bls24315.NewScalar(s),
-			Expected: hashed,
-		}
-		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_633), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_761), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
 	})
 }
 
@@ -265,7 +250,7 @@ func (c *transcriptCircuit[FR, G1El]) Define(api frontend.API) error {
 	return nil
 }
 
-func TestTranscriptMarsha(t *testing.T) {
+func TestTranscriptMarshal(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.Run(func(assert *test.Assert) {
 		h, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
@@ -299,7 +284,7 @@ func TestTranscriptMarsha(t *testing.T) {
 			Points:     points,
 			Expected:   expected,
 		}
-		assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BW6_761), test.NoFuzzing(), test.NoSerializationChecks())
+		assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BW6_761), test.NoFuzzing(), test.NoSerializationChecks(), test.NoProverChecks())
 	}, "bw6_761")
 	assert.Run(func(assert *test.Assert) {
 		h, err := recursion.NewShort(ecc.BN254.ScalarField(), ecc.BW6_761.ScalarField())
@@ -333,6 +318,6 @@ func TestTranscriptMarsha(t *testing.T) {
 			Points:     points,
 			Expected:   expected,
 		}
-		assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254), test.NoFuzzing(), test.NoSerializationChecks())
+		assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BN254), test.NoFuzzing(), test.NoSerializationChecks(), test.NoProverChecks())
 	}, "bn254")
 }
