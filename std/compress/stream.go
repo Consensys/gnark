@@ -2,14 +2,14 @@ package compress
 
 import (
 	"bytes"
-	"github.com/icza/bitio"
 	"hash"
 	"math/big"
+
+	"github.com/icza/bitio"
 )
 
 // Streams and pipelines are inefficient data structures used for easy experimentation with compression algorithms.
 // They make it easy to swap modules in and out.
-
 type Stream struct {
 	D       []int
 	NbSymbs int

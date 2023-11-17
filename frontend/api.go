@@ -154,3 +154,8 @@ type BatchInverter interface {
 	// This is a temporary API, do not use it in your circuit
 	BatchInvert(i1 []Variable) []Variable
 }
+
+type PlonkAPI interface {
+	// EvaluatePlonkExpression returns res = qL.a + qR.b + qM.ab + qC
+	EvaluatePlonkExpression(a, b Variable, qL, qR, qM, qC int) Variable
+}

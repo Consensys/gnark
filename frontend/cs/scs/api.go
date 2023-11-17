@@ -680,13 +680,11 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
 
-	hintId, err := cs.RegisterBsb22CommitmentComputePlaceholder(len(commitments))
+	inputs := make([]frontend.Variable, len(v)+1)
+	inputs[0] = len(commitments) // commitment depth
+	copy(inputs[1:], v)
+	outs, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, inputs...)
 	if err != nil {
-		return nil, err
-	}
-
-	var outs []frontend.Variable
-	if outs, err = builder.NewHintForId(hintId, 1, v...); err != nil {
 		return nil, err
 	}
 
@@ -696,14 +694,24 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.PlonkCommitment{
-		HintID:          hintId,
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,
 	})
 }
 
-// NewCombination in the form of res = qL.a + qR.b + qM.ab + qC
-func (builder *builder) NewCombination(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
+// EvaluatePlonkExpression in the form of res = qL.a + qR.b + qM.ab + qC
+func (builder *builder) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
+	_, aConstant := builder.constantValue(a)
+	_, bConstant := builder.constantValue(b)
+	if aConstant || bConstant {
+		return builder.Add(
+			builder.Mul(a, qL),
+			builder.Mul(b, qR),
+			builder.Mul(a, b, qM),
+			qC,
+		)
+	}
+
 	res := builder.newInternalVariable()
 	builder.addPlonkConstraint(sparseR1C{
 		xa: a.(expr.Term).VID,
@@ -711,7 +719,7 @@ func (builder *builder) NewCombination(a, b frontend.Variable, qL, qR, qM, qC in
 		xc: res.VID,
 		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term).Coeff),
 		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term).Coeff),
-		qO: builder.cs.FromInterface(-1),
+		qO: builder.tMinusOne,
 		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term).Coeff, b.(expr.Term).Coeff)),
 		qC: builder.cs.FromInterface(qC),
 	})

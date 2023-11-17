@@ -7,12 +7,12 @@ import (
 
 // bite size of c needs to be the greatest common denominator of all backref types and 8
 // d consists of bytes
-func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d []frontend.Variable, dict []byte, compressionMode CompressionMode) (dLength frontend.Variable, err error) {
+func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d []frontend.Variable, dict []byte, level Level) (dLength frontend.Variable, err error) {
 
-	wordLen := int(compressionMode)
+	wordLen := int(level)
 
 	dict = augmentDict(dict)
-	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), compressionMode)
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
 
 	shortBrNbWords := int(shortBackRefType.nbBitsBackRef) / wordLen
 	longBrNbWords := int(longBackRefType.nbBitsBackRef) / wordLen
@@ -70,7 +70,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		// copying = copyLen01 ? copyLen==1 : 1			either from previous iterations or starting a new copy
 		// copying = copyLen01 ? copyLen : 1
-		copying := api.(_scs).NewCombination(copyLen01, copyLen, -1, 0, 1, 1)
+		copying := evaluatePlonkExpression(api, copyLen01, copyLen, -1, 0, 1, 1)
 
 		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedCpAddr), currIndicatesBr)
 		dictCopyAddr := api.Add(currIndicatedCpAddr, api.Sub(currIndicatedCpLen, copyLen))
@@ -94,7 +94,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 			if eof == 0 {
 				inI = api.Add(inI, inIDelta)
 			} else {
-				inI = api.Add(inI, api.(_scs).NewCombination(inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
+				inI = api.Add(inI, evaluatePlonkExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
 			}
 
 			eofNow := api.IsZero(api.Sub(inI, cLength))
@@ -207,6 +207,9 @@ func (nr *numReader) next() frontend.Variable {
 	return res
 }
 
-type _scs interface {
-	NewCombination(a, b frontend.Variable, aCoeff, bCoeff, mCoeff, oCoeff int) frontend.Variable
+func evaluatePlonkExpression(api frontend.API, a, b frontend.Variable, aCoeff, bCoeff, mCoeff, constant int) frontend.Variable {
+	if plonkAPI, ok := api.(frontend.PlonkAPI); ok {
+		return plonkAPI.EvaluatePlonkExpression(a, b, aCoeff, bCoeff, mCoeff, constant)
+	}
+	return api.Add(api.Mul(a, aCoeff), api.Mul(b, bCoeff), api.Mul(mCoeff, a, b), constant)
 }

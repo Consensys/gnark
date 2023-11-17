@@ -74,6 +74,13 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 		return nil, err
 	}
 
+	// reset the stateful blueprints
+	for i := range cs.Blueprints {
+		if b, ok := cs.Blueprints[i].(constraint.BlueprintStateful); ok {
+			b.Reset()
+		}
+	}
+
 	// defer log printing once all solver.values are computed
 	// (or sooner, if a constraint is not satisfied)
 	defer solver.printLogs(cs.Logs)

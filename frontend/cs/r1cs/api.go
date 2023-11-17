@@ -775,33 +775,27 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 
 	// hint is used at solving time to compute the actual value of the commitment
 	// it is going to be dynamically replaced at solving time.
-
-	var (
-		hintOut []frontend.Variable
-		err     error
+	commitmentDepth := len(commitments)
+	inputs := builder.wireIDsToVars(
+		commitment.PublicAndCommitmentCommitted,
+		commitment.PrivateCommitted,
 	)
+	inputs = append([]frontend.Variable{commitmentDepth}, inputs...)
 
-	commitment.HintID, err = cs.RegisterBsb22CommitmentComputePlaceholder(len(commitments))
+	hintOut, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, inputs...)
 	if err != nil {
 		return nil, err
 	}
 
-	if hintOut, err = builder.NewHintForId(commitment.HintID, 1, builder.wireIDsToVars(
-		commitment.PublicAndCommitmentCommitted,
-		commitment.PrivateCommitted,
-	)...); err != nil {
-		return nil, err
-	}
+	res := hintOut[0]
 
-	cVar := hintOut[0]
-
-	commitment.CommitmentIndex = (cVar.(expr.LinearExpression))[0].WireID()
+	commitment.CommitmentIndex = (res.(expr.LinearExpression))[0].WireID()
 
 	if err := builder.cs.AddCommitment(commitment); err != nil {
 		return nil, err
 	}
 
-	return cVar, nil
+	return res, nil
 }
 
 func (builder *builder) wireIDsToVars(wireIDs ...[]int) []frontend.Variable {

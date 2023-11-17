@@ -2,14 +2,15 @@ package gkr
 
 import (
 	"fmt"
+	"math/big"
+	"math/bits"
+
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/utils/algo_utils"
-	"math/big"
-	"math/bits"
 )
 
 type circuitDataForSnark struct {
@@ -188,7 +189,7 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	}
 
 	var hsh hash.FieldHasher
-	if hsh, err = hash.BuilderRegistry[hashName](s.parentApi); err != nil {
+	if hsh, err = hash.GetFieldHasher(hashName, s.parentApi); err != nil {
 		return err
 	}
 	s.toStore.HashName = hashName

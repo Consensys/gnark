@@ -128,6 +128,14 @@ func IsSolved(circuit, witness frontend.Circuit, field *big.Int, opts ...TestEng
 	log := logger.Logger()
 	log.Debug().Msg("running circuit in test engine")
 	cptAdd, cptMul, cptSub, cptToBinary, cptFromBinary, cptAssertIsEqual = 0, 0, 0, 0, 0, 0
+
+	// first we reset the stateful blueprints
+	for i := range e.blueprints {
+		if b, ok := e.blueprints[i].(constraint.BlueprintStateful); ok {
+			b.Reset()
+		}
+	}
+
 	if err = c.Define(e); err != nil {
 		return fmt.Errorf("define: %w", err)
 	}
@@ -670,6 +678,11 @@ func (e *engine) Commit(v ...frontend.Variable) (frontend.Variable, error) {
 	hasher.Read(buf)
 	res := new(big.Int).SetBytes(buf)
 	res.Mod(res, e.modulus())
+	if res.Sign() == 0 {
+		// a commit == 0 is unlikely; happens quite often in tests
+		// with tinyfield
+		res.SetUint64(1)
+	}
 	return res, nil
 }
 
