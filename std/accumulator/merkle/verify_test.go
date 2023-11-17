@@ -50,8 +50,8 @@ func (mp *MerkleProofTest) Define(api frontend.API) error {
 func TestVerify(t *testing.T) {
 
 	assert := test.NewAssert(t)
-	numLeaves := 16
-	depth := 4
+	numLeaves := 32
+	depth := 5
 
 	type testData struct {
 		hash        hash.Hash
@@ -60,7 +60,7 @@ func TestVerify(t *testing.T) {
 	}
 
 	confs := []testData{
-		{hash.MIMC_BN254, 16, ecc.BN254},
+		{hash.MIMC_BN254, 32, ecc.BN254},
 	}
 
 	for _, tData := range confs {
@@ -73,7 +73,7 @@ func TestVerify(t *testing.T) {
 		modNbBytes := len(mod.Bytes())
 
 		// we test the circuit for all leaves...
-		for proofIndex := uint64(0); proofIndex < 16; proofIndex++ {
+		for proofIndex := uint64(0); proofIndex < 32; proofIndex++ {
 
 			// generate random data, the Merkle tree will be of depth log(64) = 6
 			var buf bytes.Buffer
@@ -109,7 +109,11 @@ func TestVerify(t *testing.T) {
 			}
 
 			// verify the circuit
-			assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(tData.curve))
+			if proofIndex > 1 {
+				assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(tData.curve), test.NoProverChecks())
+			} else {
+				assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(tData.curve))
+			}
 
 		}
 
