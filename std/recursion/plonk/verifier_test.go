@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
@@ -122,6 +123,33 @@ func TestBLS12InBW6WoCommit(t *testing.T) {
 	assert.NoError(err)
 	// assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BW6_761),
 	// 	test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
+}
+
+func TestBW6InBN254WoCommit(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	innerCcs, innerVK, innerWitness, innerProof := getInnerWoCommit(assert, ecc.BW6_761.ScalarField(), ecc.BN254.ScalarField())
+
+	// outer proof
+	circuitVk, err := ValueOfVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerVK)
+	assert.NoError(err)
+	circuitWitness, err := ValueOfWitness[sw_bw6761.ScalarField](innerWitness)
+	assert.NoError(err)
+	circuitProof, err := ValueOfProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerProof)
+	assert.NoError(err)
+
+	outerCircuit := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		InnerWitness: PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
+		Proof:        PlaceholderProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerProof),
+		VerifyingKey: PlaceholderVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerVK),
+	}
+	outerAssignment := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		InnerWitness: circuitWitness,
+		Proof:        circuitProof,
+		VerifyingKey: circuitVk,
+	}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }
 
 //-----------------------------------------------------------------
@@ -236,4 +264,31 @@ func TestBLS12InBW6Commit(t *testing.T) {
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 
+}
+
+func TestBW6InBN254Commit(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	innerCcs, innerVK, innerWitness, innerProof := getInnerCommit(assert, ecc.BW6_761.ScalarField(), ecc.BN254.ScalarField())
+
+	// outer proof
+	circuitVk, err := ValueOfVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerVK)
+	assert.NoError(err)
+	circuitWitness, err := ValueOfWitness[sw_bw6761.ScalarField](innerWitness)
+	assert.NoError(err)
+	circuitProof, err := ValueOfProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerProof)
+	assert.NoError(err)
+
+	outerCircuit := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		InnerWitness: PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
+		Proof:        PlaceholderProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerProof),
+		VerifyingKey: PlaceholderVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerVK),
+	}
+	outerAssignment := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		InnerWitness: circuitWitness,
+		Proof:        circuitProof,
+		VerifyingKey: circuitVk,
+	}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }

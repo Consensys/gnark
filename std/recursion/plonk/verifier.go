@@ -8,6 +8,7 @@ import (
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	backend_plonk "github.com/consensys/gnark/backend/plonk"
 	plonkbackend_bls12377 "github.com/consensys/gnark/backend/plonk/bls12-377"
 	plonkbackend_bls12381 "github.com/consensys/gnark/backend/plonk/bls12-381"
@@ -22,6 +23,7 @@ import (
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/commitments/kzg"
@@ -89,6 +91,43 @@ func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 			return ret, fmt.Errorf("batch opening proof value assignment: %w", err)
 		}
 		r.ZShiftedOpening, err = kzg.ValueOfOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine](tProof.ZShiftedOpening)
+		if err != nil {
+			return ret, fmt.Errorf("z shifted opening proof value assignment: %w", err)
+		}
+	case *Proof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
+		tProof, ok := proof.(*plonkbackend_bw6761.Proof)
+		if !ok {
+			return ret, fmt.Errorf("expected sw_bls12377.Proof, got %T", proof)
+		}
+		for i := range r.LRO {
+			r.LRO[i], err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tProof.LRO[i])
+			if err != nil {
+				return ret, fmt.Errorf("commitment LRO[%d] value assignment: %w", i, err)
+			}
+		}
+		r.Z, err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tProof.Z)
+		if err != nil {
+			return ret, fmt.Errorf("commitment Z value assignment: %w", err)
+		}
+		for i := range r.H {
+			r.H[i], err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tProof.H[i])
+			if err != nil {
+				return ret, fmt.Errorf("commitment H[%d] value assignment: %w", i, err)
+			}
+		}
+		r.Bsb22Commitments = make([]kzg.Commitment[sw_bw6761.G1Affine], len(tProof.Bsb22Commitments))
+		for i := range r.Bsb22Commitments {
+			r.Bsb22Commitments[i], err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tProof.Bsb22Commitments[i])
+			if err != nil {
+				return ret, fmt.Errorf("bsb22 commitment %d value assignment: %w", i, err)
+			}
+		}
+		// TODO: actually we compute the opening point later. Maybe we can precompute it here and later assert its correctness?
+		r.BatchedProof, err = kzg.ValueOfBatchOpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine](tProof.BatchedProof)
+		if err != nil {
+			return ret, fmt.Errorf("batch opening proof value assignment: %w", err)
+		}
+		r.ZShiftedOpening, err = kzg.ValueOfOpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine](tProof.ZShiftedOpening)
 		if err != nil {
 			return ret, fmt.Errorf("z shifted opening proof value assignment: %w", err)
 		}
@@ -233,6 +272,55 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		}
 		r.CommitmentConstraintIndexes = make([]uint64, len(tVk.CommitmentConstraintIndexes))
 		copy(r.CommitmentConstraintIndexes, tVk.CommitmentConstraintIndexes)
+	case *VerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
+		tVk, ok := vk.(*plonkbackend_bw6761.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
+		}
+		r.Size = tVk.Size
+		r.SizeInv = sw_bw6761.NewScalar(tVk.SizeInv)
+		r.Generator = sw_bw6761.NewScalar(tVk.Generator)
+		r.NbPublicVariables = tVk.NbPublicVariables
+		r.Kzg, err = kzg.ValueOfVerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine](tVk.Kzg)
+		if err != nil {
+			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
+		}
+		r.CosetShift = sw_bw6761.NewScalar(tVk.CosetShift)
+		for i := range r.S {
+			r.S[i], err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tVk.S[i])
+			if err != nil {
+				return ret, fmt.Errorf("commitment S[%d] witness assignment: %w", i, err)
+			}
+		}
+		r.Ql, err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tVk.Ql)
+		if err != nil {
+			return ret, fmt.Errorf("commitment Ql witness assignment: %w", err)
+		}
+		r.Qr, err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tVk.Qr)
+		if err != nil {
+			return ret, fmt.Errorf("commitment Qr witness assignment: %w", err)
+		}
+		r.Qm, err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tVk.Qm)
+		if err != nil {
+			return ret, fmt.Errorf("commitment Qm witness assignment: %w", err)
+		}
+		r.Qo, err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tVk.Qo)
+		if err != nil {
+			return ret, fmt.Errorf("commitment Qo witness assignment: %w", err)
+		}
+		r.Qk, err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tVk.Qk)
+		if err != nil {
+			return ret, fmt.Errorf("commitment Qk witness assignment: %w", err)
+		}
+		r.Qcp = make([]kzg.Commitment[sw_bw6761.G1Affine], len(tVk.Qcp))
+		for i := range r.Qcp {
+			r.Qcp[i], err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tVk.Qcp[i])
+			if err != nil {
+				return ret, fmt.Errorf("commitment Qcp[%d] witness assignment: %w", i, err)
+			}
+		}
+		r.CommitmentConstraintIndexes = make([]uint64, len(tVk.CommitmentConstraintIndexes))
+		copy(r.CommitmentConstraintIndexes, tVk.CommitmentConstraintIndexes)
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
@@ -344,6 +432,14 @@ func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], er
 		}
 		for i := range vect {
 			s.Public = append(s.Public, sw_bls24315.NewScalar(vect[i]))
+		}
+	case *Witness[sw_bw6761.ScalarField]:
+		vect, ok := vec.(fr_bw6761.Vector)
+		if !ok {
+			return ret, fmt.Errorf("expected fr_bw6761.Vector, got %T", vec)
+		}
+		for i := range vect {
+			s.Public = append(s.Public, sw_bw6761.NewScalar(vect[i]))
 		}
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
