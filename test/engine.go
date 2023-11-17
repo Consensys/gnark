@@ -775,7 +775,3 @@ func (e *engine) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aF
 		panic(fmt.Sprintf("%d > %d", v, bound))
 	}
 }
-
-func (e *engine) NewCombination(a, b frontend.Variable, aCoeff, bCoeff, mCoeff, constant int) frontend.Variable {
-	return e.Add(e.Mul(a, aCoeff), e.Mul(b, bCoeff), e.Mul(mCoeff, a, b), constant)
-}
