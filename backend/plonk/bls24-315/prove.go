@@ -835,6 +835,14 @@ func (s *instance) batchOpening() error {
 // evaluate the full set of constraints, all polynomials in x are back in
 // canonical regular form at the end
 func (s *instance) computeNumerator() (*iop.Polynomial, error) {
+
+	// wait for chQk to be closed (or ctx.Done())
+	select {
+	case <-s.ctx.Done():
+		return nil, errContextDone
+	case <-s.chQk:
+	}
+
 	n := s.pk.Domain[0].Cardinality
 
 	nbBsbGates := (len(s.x) - id_Qci + 1) >> 1
