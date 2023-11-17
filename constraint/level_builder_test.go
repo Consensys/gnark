@@ -25,11 +25,11 @@ type idHintCircuit struct {
 }
 
 func (c *idHintCircuit) Define(api frontend.API) error {
-	x, err := api.Compiler().NewHint(idHint, 1, c.X)
+	x, err := api.Compiler().NewHint(idHint, 1, api.Mul(c.X, c.X))
 	if err != nil {
 		return err
 	}
-	api.AssertIsEqual(x[0], c.X)
+	api.AssertIsEqual(x[0], api.Mul(c.X, c.X))
 	return nil
 }
 

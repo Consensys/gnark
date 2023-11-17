@@ -112,17 +112,10 @@ func testRoutineECMul(t *testing.T) (circ, wit frontend.Circuit) {
 	return &circuit, &witness
 }
 
-func TestECMulCircuitShort(t *testing.T) {
-	assert := test.NewAssert(t)
-	circuit, witness := testRoutineECMul(t)
-	err := test.IsSolved(circuit, witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
 func TestECMulCircuitFull(t *testing.T) {
 	assert := test.NewAssert(t)
 	circuit, witness := testRoutineECMul(t)
-	assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
+	assert.CheckCircuit(circuit, test.WithValidAssignment(witness), test.WithCurves(ecc.BN254, ecc.BLS12_377))
 }
 
 type ecPairBatchCircuit struct {

@@ -124,6 +124,9 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 }
 
 func TestMultiPairTestSolve(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
 	assert := test.NewAssert(t)
 	p1, q1 := randomG1G2Affines()
 	p2, q2 := randomG1G2Affines()

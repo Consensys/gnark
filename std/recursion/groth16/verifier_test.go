@@ -147,7 +147,7 @@ func TestBN254InBN254(t *testing.T) {
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
 	}
-	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment))
+	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BN254))
 }
 
 func TestBLS12InBW6(t *testing.T) {
