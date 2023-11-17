@@ -25,7 +25,7 @@ func Test0To10Explicit(t *testing.T) {
 
 func TestNoCompressionSnark(t *testing.T) {
 
-	d, err := os.ReadFile("../test_cases/3c2943/data.bin")
+	d, err := os.ReadFile("./testdata/test_cases/3c2943/data.bin")
 	assert.NoError(t, err)
 
 	dict := getDictionary()
@@ -52,11 +52,11 @@ func TestNoCompressionSnark(t *testing.T) {
 	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
 
-func Test3ZerosBackref(t *testing.T) {
+func Test4ZerosBackref(t *testing.T) {
 
 	shortBackRefType, longBackRefType, _ := initBackRefTypes(0, BestCompression)
 
-	testDecompressionSnark(t, nil, 1, 0, backref{
+	testDecompressionSnark(t, nil, BestCompression, 0, backref{
 		address: 0,
 		length:  2,
 		bType:   shortBackRefType,
@@ -126,9 +126,10 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
 	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
 
-func testDecompressionSnark(t *testing.T, dict []byte, compressedStream ...interface{}) {
+func testDecompressionSnark(t *testing.T, dict []byte, level Level, compressedStream ...interface{}) {
 	var bb bytes.Buffer
 	w := bitio.NewWriter(&bb)
+	bb.WriteByte(byte(level))
 	i := 0
 	for _, c := range compressedStream {
 		switch v := c.(type) {
