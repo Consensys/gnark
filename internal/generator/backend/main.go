@@ -12,7 +12,7 @@ import (
 	"github.com/consensys/gnark-crypto/field/generator/config"
 )
 
-const copyrightHolder = "ConsenSys Software Inc."
+const copyrightHolder = "Consensys Software Inc."
 
 var bgen = bavard.NewBatchGenerator(copyrightHolder, 2020, "gnark")
 
