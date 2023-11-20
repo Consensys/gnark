@@ -364,7 +364,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) CheckOpeningProof(commitment Commitment
 	return nil
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El], dataTranscript ...frontend.Variable) error {
+func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El], dataTranscript ...emulated.Element[FR]) error {
 	// fold the proof
 	foldedProof, foldedDigest, err := v.FoldProof(digests, batchOpeningProof, point, dataTranscript...)
 	if err != nil {
@@ -489,7 +489,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	return err
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], dataTranscript ...frontend.Variable) (OpeningProof[FR, G1El], Commitment[G1El], error) {
+func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], dataTranscript ...emulated.Element[FR]) (OpeningProof[FR, G1El], Commitment[G1El], error) {
 	var retP OpeningProof[FR, G1El]
 	var retC Commitment[G1El]
 	nbDigests := len(digests)
@@ -525,7 +525,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 
 // deriveGamma derives a challenge using Fiat Shamir to fold proofs.
 // dataTranscript are supposed to be bits.
-func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR], digests []Commitment[G1El], claimedValues []emulated.Element[FR], dataTranscript ...frontend.Variable) (*emulated.Element[FR], error) {
+func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR], digests []Commitment[G1El], claimedValues []emulated.Element[FR], dataTranscript ...emulated.Element[FR]) (*emulated.Element[FR], error) {
 	var fr FR
 	fs, err := recursion.NewTranscript(v.api, fr.Modulus(), []string{"gamma"})
 	if err != nil {
@@ -546,8 +546,10 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR],
 		}
 	}
 
-	if err := fs.Bind("gamma", dataTranscript); err != nil {
-		return nil, fmt.Errorf("bind data transcript: %w", err)
+	for i := range dataTranscript {
+		if err := fs.Bind("gamma", v.curve.MarshalScalar(dataTranscript[i])); err != nil {
+			return nil, fmt.Errorf("bind %d-ith data transcript: %w", i, err)
+		}
 	}
 
 	gamma, err := fs.ComputeChallenge("gamma")
