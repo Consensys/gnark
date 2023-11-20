@@ -299,14 +299,12 @@ contract PlonkVerifier {
       /// @param s number of public inputs
       /// @param p pointer to the public inputs array
       function check_inputs_size(s, p) {
-        let input_checks := 1
         for {let i} lt(i, s) {i:=add(i,1)}
         {
-          input_checks := and(input_checks,lt(calldataload(p), R_MOD))
+          if iszero(lt(calldataload(p), R_MOD)) {
+            error_inputs_size()
+          }
           p := add(p, 0x20)
-        }
-        if iszero(input_checks) {
-          error_inputs_size()
         }
       }
 
@@ -324,51 +322,64 @@ contract PlonkVerifier {
       /// @dev the 'a' prepending proof is to have a local name
       function check_proof_openings_size(aproof) {
   
-        let openings_check := 1
       
         // linearised polynomial at zeta
         let p := add(aproof, PROOF_LINEARISED_POLYNOMIAL_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if iszero(lt(calldataload(p), R_MOD)) {
+          error_proof_openings_size()
+        }
 
         // quotient polynomial at zeta
         p := add(aproof, PROOF_QUOTIENT_POLYNOMIAL_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if iszero(lt(calldataload(p), R_MOD)) {
+          error_proof_openings_size()
+        }
         
         // PROOF_L_AT_ZETA
         p := add(aproof, PROOF_L_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if iszero(lt(calldataload(p), R_MOD)) {
+          error_proof_openings_size()
+        }
 
         // PROOF_R_AT_ZETA
         p := add(aproof, PROOF_R_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if iszero(lt(calldataload(p), R_MOD)) {
+          error_proof_openings_size()
+        }
 
         // PROOF_O_AT_ZETA
         p := add(aproof, PROOF_O_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if iszero(lt(calldataload(p), R_MOD)) {
+          error_proof_openings_size()
+        }
 
         // PROOF_S1_AT_ZETA
         p := add(aproof, PROOF_S1_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if iszero(lt(calldataload(p), R_MOD)) {
+          error_proof_openings_size()
+        }
         
         // PROOF_S2_AT_ZETA
         p := add(aproof, PROOF_S2_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if iszero(lt(calldataload(p), R_MOD)) {
+          error_proof_openings_size()
+        }
 
         // PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA
         p := add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if iszero(lt(calldataload(p), R_MOD)) {
+          error_proof_openings_size()
+        }
 
         // PROOF_OPENING_QCP_AT_ZETA
         
         p := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
         for {let i:=0} lt(i, VK_NB_CUSTOM_GATES) {i:=add(i,1)}
         {
-          openings_check := and(openings_check, lt(calldataload(p), R_MOD))
-          p := add(p, 0x20)
-        }
-      
-        if iszero(openings_check) {
+          if iszero(lt(calldataload(p), R_MOD)) {
           error_proof_openings_size()
+        }
+          p := add(p, 0x20)
         }
 
       }
