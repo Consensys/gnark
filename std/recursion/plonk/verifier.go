@@ -198,7 +198,7 @@ func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
 		}
 	default:
-		panic("Unrecognised vk")
+		panic(fmt.Sprintf("unrecognized type parametrization %T", proof))
 	}
 }
 
@@ -396,7 +396,8 @@ func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
 		}
 	default:
-		panic("Unrecognised vk")
+		panic(fmt.Sprintf("unrecognized type parametrization %T", vk))
+
 	}
 }
 
