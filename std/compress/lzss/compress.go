@@ -50,7 +50,10 @@ func NewCompressor(dict []byte, level Level) (*Compressor, error) {
 		dictData: dict,
 	}
 	c.buf.Grow(maxInputSize)
-	c.dictIndex = suffixarray.New(c.dictData, c.dictSa[:len(c.dictData)])
+	if level != NoCompression {
+		// if we don't compress we don't need the dict.
+		c.dictIndex = suffixarray.New(c.dictData, c.dictSa[:len(c.dictData)])
+	}
 	c.level = level
 	return c, nil
 }
