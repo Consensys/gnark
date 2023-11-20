@@ -485,10 +485,15 @@ type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2E
 }
 
 // NewVerifier returns a new [Verifier] instance.
-func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
-	api frontend.API, curve algebra.Curve[FR, G1El], pairing algebra.Pairing[G1El, G2El, GtEl],
-) (*Verifier[FR, G1El, G2El, GtEl], error) {
-	// var fr FR
+func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](api frontend.API) (*Verifier[FR, G1El, G2El, GtEl], error) {
+	curve, err := algebra.GetCurve[FR, G1El](api)
+	if err != nil {
+		return nil, fmt.Errorf("new curve: %w", err)
+	}
+	pairing, err := algebra.GetPairing[G1El, G2El, GtEl](api)
+	if err != nil {
+		return nil, fmt.Errorf("new pairing: %w", err)
+	}
 	f, err := emulated.NewField[FR](api)
 	if err != nil {
 		return nil, fmt.Errorf("new scalars: %w", err)
