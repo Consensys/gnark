@@ -647,7 +647,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 	res := c.ScalarMul(p[0], s[0])
 	for i := 1; i < len(p); i++ {
 		q := c.ScalarMul(p[i], s[i])
-		c.AddUnified(res, q)
+		res = c.AddUnified(res, q)
 	}
 	return res, nil
 }

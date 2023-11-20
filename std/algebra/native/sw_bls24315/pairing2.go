@@ -126,7 +126,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar) (*G1Affine, err
 	res := c.ScalarMul(P[0], scalars[0])
 	for i := 1; i < len(P); i++ {
 		q := c.ScalarMul(P[i], scalars[i])
-		c.Add(res, q)
+		res = c.Add(res, q)
 	}
 	return res, nil
 }
