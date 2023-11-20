@@ -160,22 +160,13 @@ func (c *InnerCircuitCommit) Define(api frontend.API) error {
 
 	committer, ok := api.(frontend.Committer)
 	if !ok {
-		panic("builder does not implement Commit")
+		return fmt.Errorf("builder does not implement frontend.Committer")
 	}
 	u, err := committer.Commit(x, z)
 	if err != nil {
 		return err
 	}
-	// v, err := committer.Commit(c.N)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// api.AssertIsDifferent(v, z)
 	api.AssertIsDifferent(u, c.N)
-
-	// api.AssertIsDifferent(z, c.N)
-
 	return nil
 }
 
