@@ -33,6 +33,9 @@ import (
 	"github.com/consensys/gnark/std/recursion"
 )
 
+// Proof is a typed PLONK proof of SNARK. Use [ValueProof] to initialize the
+// witness from the native proof. Use [PlaceholderProof] to initialize the
+// placeholder witness for compiling the circuit.
 type Proof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
 
 	// Commitments to the solution vectors
@@ -53,6 +56,9 @@ type Proof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2Elem
 	ZShiftedOpening kzg.OpeningProof[FR, G1El]
 }
 
+// ValueOfProof returns the typed witness of the native proof. It returns an
+// error if there is a mismatch between the type parameters and the provided
+// native proof.
 func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof backend_plonk.Proof) (Proof[FR, G1El, G2El], error) {
 	var ret Proof[FR, G1El, G2El]
 	var err error
@@ -137,6 +143,9 @@ func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 	return ret, nil
 }
 
+// PlaceholderProof returns a placeholder proof witness to be use for compiling
+// the outer circuit for witness alignment. For actual witness assignment use
+// [ValueOfProof].
 func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof backend_plonk.Proof) Proof[FR, G1El, G2El] {
 	switch tproof := proof.(type) {
 	case *plonkbackend_bls12377.Proof:
@@ -193,6 +202,8 @@ func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 	}
 }
 
+// VerifyingKey is a typed PLONK verification key. Use [ValueOfVerifyingKey] or
+// [PlaceholderVerifyingKey] for initializing.
 type VerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
 
 	// Size circuit
@@ -219,6 +230,9 @@ type VerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 	CommitmentConstraintIndexes []uint64
 }
 
+// ValueOfVerifyingKey initializes witness from the given PLONK verifying key.
+// It returns an error if there is a mismatch between the type parameters and
+// the provided native verifying key.
 func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk backend_plonk.VerifyingKey) (VerifyingKey[FR, G1El, G2El], error) {
 	var ret VerifyingKey[FR, G1El, G2El]
 	var err error
@@ -327,6 +341,8 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 	return ret, nil
 }
 
+// PlaceholderVerifyingKey returns placeholder of the verification key for
+// compiling the outer circuit.
 func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk backend_plonk.VerifyingKey) VerifyingKey[FR, G1El, G2El] {
 
 	switch tvk := vk.(type) {
@@ -388,11 +404,13 @@ func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 // witness use [ValueOfWitness] and to create stub witness for compiling use
 // [PlaceholderWitness].
 type Witness[FR emulated.FieldParams] struct {
-	// Public is the public inputs. The first element does not need to be one
-	// wire and is added implicitly during verification.
 	Public []emulated.Element[FR]
 }
 
+// ValueOfWitness assigns a outer-circuit witness from the inner circuit
+// witness. If there is a field mismatch then this method represents the witness
+// inputs using field emulation. It returns an error if there is a mismatch
+// between the type parameters and provided witness.
 func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], error) {
 	var ret Witness[FR]
 	pubw, err := w.Public()
@@ -456,6 +474,7 @@ func PlaceholderWitness[FR emulated.FieldParams](ccs constraint.ConstraintSystem
 	}
 }
 
+// Verifier verifies PLONK proofs.
 type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	api       frontend.API
 	scalarApi *emulated.Field[FR]
@@ -464,6 +483,7 @@ type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2E
 	kzg       *kzg.Verifier[FR, G1El, G2El, GtEl]
 }
 
+// NewVerifier returns a new [Verifier] instance.
 func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
 	api frontend.API, curve algebra.Curve[FR, G1El], pairing algebra.Pairing[G1El, G2El, GtEl],
 ) (*Verifier[FR, G1El, G2El, GtEl], error) {
@@ -485,6 +505,8 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 	}, nil
 }
 
+// AssertProof asserts that the SNARK proof holds for the given witness and
+// verifying key.
 func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR]) error {
 
 	var fr FR
