@@ -36,6 +36,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
 )
@@ -418,7 +419,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	}
 
 	seed := whSnark.Sum()
-	binSeed := v.api.ToBinary(seed)
+	binSeed := bits.ToBinary(v.api, seed, bits.WithNbDigits(fr.Modulus().BitLen()))
 	randomNumbers[1] = v.scalarApi.FromBits(binSeed...)
 
 	for i := 2; i < len(randomNumbers); i++ {
@@ -556,7 +557,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR],
 	if err != nil {
 		return nil, fmt.Errorf("compute challenge: %w", err)
 	}
-	bGamma := v.api.ToBinary(gamma)
+	bGamma := bits.ToBinary(v.api, gamma, bits.WithNbDigits(fr.Modulus().BitLen()))
 	gammaS := v.scalarApi.FromBits(bGamma...)
 
 	return gammaS, nil
