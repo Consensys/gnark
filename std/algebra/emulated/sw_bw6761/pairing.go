@@ -469,7 +469,7 @@ func (pr Pairing) MillerLoopFixedQ(P *G1Affine) (*GTEl, error) {
 // fᵢ_{u,g2}(T) * fᵢ_{u,Q}(P), where g2 is fixed.
 func (pr Pairing) DoubleMillerLoopFixedQ(P [2]*G1Affine, Q *G2Affine) (*GTEl, error) {
 	G2 := pr.generators()
-	return pr.MillerLoop(P[:], []*G2Affine{Q, G2})
+	return pr.MillerLoop(P[:], []*G2Affine{G2, Q})
 }
 
 // PairFixedQ calculates the reduced pairing for a set of points
