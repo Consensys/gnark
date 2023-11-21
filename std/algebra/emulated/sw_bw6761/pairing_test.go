@@ -94,6 +94,20 @@ func TestPairTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestPairFixedTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+	res, err := bw6761.Pair([]bw6761.G1Affine{p}, []bw6761.G2Affine{q})
+	assert.NoError(err)
+	witness := PairCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2AffineFixed(q),
+		Res:  NewGTEl(res),
+	}
+	err = test.IsSolved(&PairCircuit{InG2: NewG2AffineFixedPlaceholder()}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type MultiPairCircuit struct {
 	InG1 G1Affine
 	InG2 G2Affine
@@ -207,7 +221,7 @@ func (c *PairFixedCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestPairFixedTestSolve(t *testing.T) {
+func TestPairFixedG2TestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
 	p, _ := randomG1G2Affines()
 	_, _, _, G2AffGen := bw6761.Generators()
