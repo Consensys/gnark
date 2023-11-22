@@ -24,6 +24,7 @@ import (
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
@@ -742,7 +743,7 @@ func TestKZGVerificationEmulated3ConstantVk(t *testing.T) {
 	assert.NoError(err)
 	wProof, err := ValueOfOpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine](proof)
 	assert.NoError(err)
-	wVk, err := ValueOfVerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine](srs.Vk)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bw6761.G1Affine, sw_bw6761.G2Affine](srs.Vk)
 	assert.NoError(err)
 	wPt, err := ValueOfScalar[sw_bw6761.ScalarField](point)
 	assert.NoError(err)
