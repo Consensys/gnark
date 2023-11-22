@@ -11,16 +11,20 @@ import (
 	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
 	groth16backend_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
 	groth16backend_bls24315 "github.com/consensys/gnark/backend/groth16/bls24-315"
 	groth16backend_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
+	groth16backend_bw6761 "github.com/consensys/gnark/backend/groth16/bw6-761"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -72,6 +76,14 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 		ar.Ar = sw_bls24315.NewG1Affine(tProof.Ar)
 		ar.Krs = sw_bls24315.NewG1Affine(tProof.Krs)
 		ar.Bs = sw_bls24315.NewG2Affine(tProof.Bs)
+	case *Proof[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
+		tProof, ok := proof.(*groth16backend_bw6761.Proof)
+		if !ok {
+			return ret, fmt.Errorf("expected bls24315.Proof, got %T", proof)
+		}
+		ar.Ar = sw_bw6761.NewG1Affine(tProof.Ar)
+		ar.Krs = sw_bw6761.NewG1Affine(tProof.Krs)
+		ar.Bs = sw_bw6761.NewG2Affine(tProof.Bs)
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
@@ -97,6 +109,27 @@ func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, G
 			K: make([]G1El, ccs.GetNbPublicVariables()),
 		},
 	}
+}
+
+func PlaceholderVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](ccs constraint.ConstraintSystem) VerifyingKey[G1El, G2El, GtEl] {
+	vk := VerifyingKey[G1El, G2El, GtEl]{
+		G1: struct{ K []G1El }{
+			K: make([]G1El, ccs.GetNbPublicVariables()),
+		},
+	}
+	switch s := any(&vk).(type) {
+	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
+		s.G2 = struct {
+			GammaNeg sw_bw6761.G2Affine
+			DeltaNeg sw_bw6761.G2Affine
+		}{
+			GammaNeg: sw_bw6761.NewG2AffineFixedPlaceholder(),
+			DeltaNeg: sw_bw6761.NewG2AffineFixedPlaceholder(),
+		}
+	default:
+		panic("precomputation not supported")
+	}
+	return vk
 }
 
 // ValueOfVerifyingKey initializes witness from the given Groth16 verifying key.
@@ -185,6 +218,138 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls24315.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls24315.NewG2Affine(gammaNeg)
+	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
+		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bw6761.VerifyingKey, got %T", vk)
+		}
+		// compute E
+		e, err := bw6761.Pair([]bw6761.G1Affine{tVk.G1.Alpha}, []bw6761.G2Affine{tVk.G2.Beta})
+		if err != nil {
+			return ret, fmt.Errorf("precompute pairing: %w", err)
+		}
+		s.E = sw_bw6761.NewGTEl(e)
+		s.G1.K = make([]sw_bw6761.G1Affine, len(tVk.G1.K))
+		for i := range s.G1.K {
+			s.G1.K[i] = sw_bw6761.NewG1Affine(tVk.G1.K[i])
+		}
+		var deltaNeg, gammaNeg bw6761.G2Affine
+		deltaNeg.Neg(&tVk.G2.Delta)
+		gammaNeg.Neg(&tVk.G2.Gamma)
+		s.G2.DeltaNeg = sw_bw6761.NewG2Affine(deltaNeg)
+		s.G2.GammaNeg = sw_bw6761.NewG2Affine(gammaNeg)
+	default:
+		return ret, fmt.Errorf("unknown parametric type combination")
+	}
+	return ret, nil
+}
+
+// ValueOfVerifyingKey initializes witness from the given Groth16 verifying key.
+// It returns an error if there is a mismatch between the type parameters and
+// the provided native verifying key.
+func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](vk groth16.VerifyingKey) (VerifyingKey[G1El, G2El, GtEl], error) {
+	var ret VerifyingKey[G1El, G2El, GtEl]
+	switch s := any(&ret).(type) {
+	// case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]:
+	// 	tVk, ok := vk.(*groth16backend_bn254.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
+	// 	}
+	// 	// compute E
+	// 	e, err := bn254.Pair([]bn254.G1Affine{tVk.G1.Alpha}, []bn254.G2Affine{tVk.G2.Beta})
+	// 	if err != nil {
+	// 		return ret, fmt.Errorf("precompute pairing: %w", err)
+	// 	}
+	// 	s.E = sw_bn254.NewGTEl(e)
+	// 	s.G1.K = make([]sw_bn254.G1Affine, len(tVk.G1.K))
+	// 	for i := range s.G1.K {
+	// 		s.G1.K[i] = sw_bn254.NewG1Affine(tVk.G1.K[i])
+	// 	}
+	// 	var deltaNeg, gammaNeg bn254.G2Affine
+	// 	deltaNeg.Neg(&tVk.G2.Delta)
+	// 	gammaNeg.Neg(&tVk.G2.Gamma)
+	// 	s.G2.DeltaNeg = sw_bn254.NewG2Affine(deltaNeg)
+	// 	s.G2.GammaNeg = sw_bn254.NewG2Affine(gammaNeg)
+	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
+	// 	tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
+	// 	}
+	// 	// compute E
+	// 	e, err := bls12377.Pair([]bls12377.G1Affine{tVk.G1.Alpha}, []bls12377.G2Affine{tVk.G2.Beta})
+	// 	if err != nil {
+	// 		return ret, fmt.Errorf("precompute pairing: %w", err)
+	// 	}
+	// 	s.E = sw_bls12377.NewGTEl(e)
+	// 	s.G1.K = make([]sw_bls12377.G1Affine, len(tVk.G1.K))
+	// 	for i := range s.G1.K {
+	// 		s.G1.K[i] = sw_bls12377.NewG1Affine(tVk.G1.K[i])
+	// 	}
+	// 	var deltaNeg, gammaNeg bls12377.G2Affine
+	// 	deltaNeg.Neg(&tVk.G2.Delta)
+	// 	gammaNeg.Neg(&tVk.G2.Gamma)
+	// 	s.G2.DeltaNeg = sw_bls12377.NewG2Affine(deltaNeg)
+	// 	s.G2.GammaNeg = sw_bls12377.NewG2Affine(gammaNeg)
+	// case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
+	// 	tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
+	// 	}
+	// 	// compute E
+	// 	e, err := bls12381.Pair([]bls12381.G1Affine{tVk.G1.Alpha}, []bls12381.G2Affine{tVk.G2.Beta})
+	// 	if err != nil {
+	// 		return ret, fmt.Errorf("precompute pairing: %w", err)
+	// 	}
+	// 	s.E = sw_bls12381.NewGTEl(e)
+	// 	s.G1.K = make([]sw_bls12381.G1Affine, len(tVk.G1.K))
+	// 	for i := range s.G1.K {
+	// 		s.G1.K[i] = sw_bls12381.NewG1Affine(tVk.G1.K[i])
+	// 	}
+	// 	var deltaNeg, gammaNeg bls12381.G2Affine
+	// 	deltaNeg.Neg(&tVk.G2.Delta)
+	// 	gammaNeg.Neg(&tVk.G2.Gamma)
+	// 	s.G2.DeltaNeg = sw_bls12381.NewG2Affine(deltaNeg)
+	// 	s.G2.GammaNeg = sw_bls12381.NewG2Affine(gammaNeg)
+	// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
+	// 	tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
+	// 	}
+	// 	// compute E
+	// 	e, err := bls24315.Pair([]bls24315.G1Affine{tVk.G1.Alpha}, []bls24315.G2Affine{tVk.G2.Beta})
+	// 	if err != nil {
+	// 		return ret, fmt.Errorf("precompute pairing: %w", err)
+	// 	}
+	// 	s.E = sw_bls24315.NewGTEl(e)
+	// 	s.G1.K = make([]sw_bls24315.G1Affine, len(tVk.G1.K))
+	// 	for i := range s.G1.K {
+	// 		s.G1.K[i] = sw_bls24315.NewG1Affine(tVk.G1.K[i])
+	// 	}
+	// 	var deltaNeg, gammaNeg bls24315.G2Affine
+	// 	deltaNeg.Neg(&tVk.G2.Delta)
+	// 	gammaNeg.Neg(&tVk.G2.Gamma)
+	// 	s.G2.DeltaNeg = sw_bls24315.NewG2Affine(deltaNeg)
+	// 	s.G2.GammaNeg = sw_bls24315.NewG2Affine(gammaNeg)
+	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
+		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bw6761.VerifyingKey, got %T", vk)
+		}
+		// compute E
+		e, err := bw6761.Pair([]bw6761.G1Affine{tVk.G1.Alpha}, []bw6761.G2Affine{tVk.G2.Beta})
+		if err != nil {
+			return ret, fmt.Errorf("precompute pairing: %w", err)
+		}
+		s.E = sw_bw6761.NewGTEl(e)
+		s.G1.K = make([]sw_bw6761.G1Affine, len(tVk.G1.K))
+		for i := range s.G1.K {
+			s.G1.K[i] = sw_bw6761.NewG1Affine(tVk.G1.K[i])
+		}
+		var deltaNeg, gammaNeg bw6761.G2Affine
+		deltaNeg.Neg(&tVk.G2.Delta)
+		gammaNeg.Neg(&tVk.G2.Gamma)
+		s.G2.DeltaNeg = sw_bw6761.NewG2AffineFixed(deltaNeg)
+		s.G2.GammaNeg = sw_bw6761.NewG2AffineFixed(gammaNeg)
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
@@ -252,6 +417,14 @@ func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], er
 		}
 		for i := range vect {
 			s.Public = append(s.Public, sw_bls24315.NewScalar(vect[i]))
+		}
+	case *Witness[sw_bw6761.ScalarField]:
+		vect, ok := vec.(fr_bw6761.Vector)
+		if !ok {
+			return ret, fmt.Errorf("expected fr_bls24315.Vector, got %T", vec)
+		}
+		for i := range vect {
+			s.Public = append(s.Public, sw_bw6761.NewScalar(vect[i]))
 		}
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
