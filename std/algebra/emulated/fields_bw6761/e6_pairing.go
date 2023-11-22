@@ -68,7 +68,7 @@ func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	t := e.CyclotomicSquare(z)
+	t := e.CyclotomicSquare(result)
 	result = e.nSquareCompressed(t, 4)
 	result = e.DecompressKarabina(result)
 	result = e.Mul(result, z)
