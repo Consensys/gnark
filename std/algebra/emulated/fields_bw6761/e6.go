@@ -1,6 +1,8 @@
 package fields_bw6761
 
 import (
+	"math/big"
+
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -137,7 +139,7 @@ func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	t[6] = mulFpByNonResidue(e.fp, t[5])
 	// t5 = 4 * nr * g1 * g5 + 2 * g3
 	t[5] = e.fp.Add(t[6], &x.B1.A0)
-	t[5] = e.fp.Add(t[5], t[5])
+	t[5] = e.fp.MulConst(t[5], big.NewInt(2))
 	// z3 = 6 * nr * g1 * g5 + 2 * g3
 	z.B1.A0 = *e.fp.Add(t[5], t[6])
 
@@ -152,7 +154,7 @@ func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	t[1] = e.fp.Mul(&x.B0.A2, &x.B0.A2)
 
 	// t6 = 2 * nr * g5² + 2 * g1² - 2*g2
-	t[6] = e.fp.Add(t[6], t[6])
+	t[6] = e.fp.MulConst(t[6], big.NewInt(2))
 	// z2 = 3 * nr * g5² + 3 * g1² - 2*g2
 	z.B0.A2 = *e.fp.Add(t[6], t[5])
 
@@ -163,7 +165,7 @@ func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	// t6 = g3² + nr * g2² - g1
 	t[6] = e.fp.Sub(t[5], &x.B0.A1)
 	// t6 = 2 * g3² + 2 * nr * g2² - 2 * g1
-	t[6] = e.fp.Add(t[6], t[6])
+	t[6] = e.fp.MulConst(t[6], big.NewInt(2))
 	// z1 = 3 * g3² + 3 * nr * g2² - 2 * g1
 	z.B0.A1 = *e.fp.Add(t[6], t[5])
 
@@ -174,7 +176,7 @@ func (e Ext6) CyclotomicSquareCompressed(x *E6) *E6 {
 	// t6 = 2 * g3 * g2 + g5
 	t[6] = e.fp.Add(t[5], &x.B1.A2)
 	// t6 = 4 * g3 * g2 + 2 * g5
-	t[6] = e.fp.Add(t[6], t[6])
+	t[6] = e.fp.MulConst(t[6], big.NewInt(2))
 	// z5 = 6 * g3 * g2 + 2 * g5
 	z.B1.A2 = *e.fp.Add(t[5], t[6])
 
@@ -207,7 +209,7 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	// t1 = g2
 	selector1 := e.fp.IsZero(&x.B1.A0)
 	_t[0] = e.fp.Mul(&x.B0.A1, &x.B0.A1)
-	_t[0] = e.fp.Add(_t[0], _t[0])
+	_t[0] = e.fp.MulConst(_t[0], big.NewInt(2))
 	_t[1] = &x.B0.A2
 
 	// if g2 == g3 == 0
@@ -218,13 +220,13 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	// t1 = 4 * g3
 	t[0] = e.fp.Mul(&x.B0.A1, &x.B0.A1)
 	t[1] = e.fp.Sub(t[0], &x.B0.A2)
-	t[1] = e.fp.Add(t[1], t[1])
+	t[1] = e.fp.MulConst(t[1], big.NewInt(2))
 	t[1] = e.fp.Add(t[1], t[0])
 	t[2] = e.fp.Mul(&x.B1.A2, &x.B1.A2)
 	t[0] = mulFpByNonResidue(e.fp, t[2])
 	t[0] = e.fp.Add(t[0], t[1])
 	t[1] = e.fp.Add(&x.B1.A0, &x.B1.A0)
-	t[1] = e.fp.Add(t[1], t[1])
+	t[1] = e.fp.MulConst(t[1], big.NewInt(2))
 
 	// g4 = (E * g5^2 + 3 * g1^2 - 2 * g2)/4g3 or (2 * g1 * g5)/g2
 	t[0] = e.fp.Select(selector1, _t[0], t[0])
@@ -240,7 +242,7 @@ func (e Ext6) DecompressKarabina(x *E6) *E6 {
 	// t2 = 2 * g4² - 3 * g2 * g1
 	t[2] = e.fp.Mul(&z.B1.A1, &z.B1.A1)
 	t[2] = e.fp.Sub(t[2], t[1])
-	t[2] = e.fp.Add(t[2], t[2])
+	t[2] = e.fp.MulConst(t[2], big.NewInt(2))
 	t[2] = e.fp.Sub(t[2], t[1])
 	// t1 = g3 * g5 (g3 can be 0)
 	t[1] = e.fp.Mul(&x.B1.A0, &x.B1.A2)
@@ -302,20 +304,20 @@ func (e Ext6) CyclotomicSquare(x *E6) *E6 {
 
 	var z E6
 	z.B0.A0 = *e.fp.Sub(t[0], &x.B0.A0)
-	z.B0.A0 = *e.fp.Add(&z.B0.A0, &z.B0.A0)
+	z.B0.A0 = *e.fp.MulConst(&z.B0.A0, big.NewInt(2))
 	z.B0.A0 = *e.fp.Add(&z.B0.A0, t[0])
 	z.B0.A1 = *e.fp.Sub(t[2], &x.B0.A1)
-	z.B0.A1 = *e.fp.Add(&z.B0.A1, &z.B0.A1)
+	z.B0.A1 = *e.fp.MulConst(&z.B0.A1, big.NewInt(2))
 	z.B0.A1 = *e.fp.Add(&z.B0.A1, t[2])
 	z.B0.A2 = *e.fp.Sub(t[4], &x.B0.A2)
-	z.B0.A2 = *e.fp.Add(&z.B0.A2, &z.B0.A2)
+	z.B0.A2 = *e.fp.MulConst(&z.B0.A2, big.NewInt(2))
 	z.B0.A2 = *e.fp.Add(&z.B0.A2, t[4])
 
 	z.B1.A0 = *e.fp.Add(t[8], &x.B1.A0)
-	z.B1.A0 = *e.fp.Add(&z.B1.A0, &z.B1.A0)
+	z.B1.A0 = *e.fp.MulConst(&z.B1.A0, big.NewInt(2))
 	z.B1.A0 = *e.fp.Add(&z.B1.A0, t[8])
 	z.B1.A1 = *e.fp.Add(t[6], &x.B1.A1)
-	z.B1.A1 = *e.fp.Add(&z.B1.A1, &z.B1.A1)
+	z.B1.A1 = *e.fp.MulConst(&z.B1.A1, big.NewInt(2))
 	z.B1.A1 = *e.fp.Add(&z.B1.A1, t[6])
 	z.B1.A2 = *e.fp.Add(t[7], &x.B1.A2)
 	z.B1.A2 = *e.fp.Add(&z.B1.A2, &z.B1.A2)
