@@ -1,5 +1,11 @@
 package fields_bw6761
 
+import (
+	"math/big"
+
+	"github.com/consensys/gnark/std/math/emulated"
+)
+
 func (e Ext6) nSquareCompressed(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
 		z = e.CyclotomicSquareCompressed(z)
@@ -207,11 +213,8 @@ func (e Ext6) Mul014By014(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	x14 = e.fp.Sub(x14, x1)
 	x14 = e.fp.Sub(x14, one)
 
-	zC0B0 := e.fp.Add(one, one)
-	zC0B0 = e.fp.Add(zC0B0, zC0B0)
-	zC0B0 = e.fp.Neg(zC0B0)
-
-	zC0B0 = e.fp.Add(zC0B0, x0)
+	four := emulated.ValueOf[emulated.BW6761Fp](big.NewInt(4))
+	zC0B0 := e.fp.Sub(x0, &four)
 
 	return [5]*baseEl{zC0B0, x01, x1, x04, x14}
 }
