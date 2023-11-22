@@ -8,7 +8,7 @@ func (e Ext6) nSquareCompressed(z *E6, n int) *E6 {
 }
 
 // ExpX0Minus1 set z to z^{x₀-1} in E6 and return z
-// x₀-1 = 91893752504881257682351033800651177983
+// x₀-1 = 9586122913090633728
 func (e Ext6) ExpX0Minus1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
@@ -35,27 +35,27 @@ func (e Ext6) ExpX0Minus1(z *E6) *E6 {
 func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	result = e.CyclotomicSquare(result)
-	t0 := e.Mul(z, result)
+	result = e.nSquareCompressed(result, 3)
+	result = e.DecompressKarabina(result)
+	t0 := e.CyclotomicSquare(result)
+	t2 := e.Mul(z, t0)
+	result = e.Mul(result, t2)
+	t0 = e.Mul(z, result)
 	t1 := e.CyclotomicSquare(t0)
-	t0 = e.Mul(t0, t1)
-	result = e.Mul(result, t0)
-	t1 = e.Mul(t1, result)
-	t0 = e.Mul(t0, t1)
-	t2 := e.CyclotomicSquare(t0)
-	t2 = e.Mul(t1, t2)
-	t0 = e.Mul(t0, t2)
-	t2 = e.nSquareCompressed(t2, 7)
+	t1 = e.Mul(t2, t1)
+	t3 := e.nSquareCompressed(t1, 7)
+	t3 = e.DecompressKarabina(t3)
+	t2 = e.Mul(t2, t3)
+	t2 = e.nSquareCompressed(t2, 11)
 	t2 = e.DecompressKarabina(t2)
 	t1 = e.Mul(t1, t2)
-	t1 = e.nSquareCompressed(t1, 11)
-	t1 = e.DecompressKarabina(t1)
-	t1 = e.Mul(t0, t1)
-	t1 = e.nSquareCompressed(t1, 9)
-	t1 = e.DecompressKarabina(t1)
 	t0 = e.Mul(t0, t1)
-	t0 = e.CyclotomicSquare(t0)
+	t0 = e.nSquareCompressed(t0, 7)
+	t0 = e.DecompressKarabina(t0)
 	result = e.Mul(result, t0)
+	result = e.nSquareCompressed(result, 3)
+	result = e.DecompressKarabina(result)
+	result = e.Mul(z, result)
 	result = e.nSquareCompressed(result, 92)
 	result = e.DecompressKarabina(result)
 
@@ -64,11 +64,27 @@ func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 }
 
 // ExpX0Plus1 set z to z^(x₀+1) in E6 and return z
-// x₀+1 = 91893752504881257682351033800651177985
+// x₀+1 = 9586122913090633730
 func (e Ext6) ExpX0Plus1(z *E6) *E6 {
-	result := e.ExpX0Minus1(z)
+	z = e.Reduce(z)
+	result := e.Copy(z)
 	t := e.CyclotomicSquare(z)
+	result = e.nSquareCompressed(t, 4)
+	result = e.DecompressKarabina(result)
+	result = e.Mul(result, z)
+	z33 := e.Copy(result)
+	result = e.nSquareCompressed(result, 7)
+	result = e.DecompressKarabina(result)
+	result = e.Mul(result, z33)
+	result = e.nSquareCompressed(result, 4)
+	result = e.DecompressKarabina(result)
+	result = e.Mul(result, z)
+	result = e.CyclotomicSquare(result)
+	result = e.Mul(result, z)
+	result = e.nSquareCompressed(result, 46)
+	result = e.DecompressKarabina(result)
 	result = e.Mul(result, t)
+
 	return result
 }
 
@@ -78,12 +94,11 @@ func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
 	result = e.CyclotomicSquare(result)
+	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, z)
-	t0 := e.Mul(result, z)
-	t0 = e.CyclotomicSquare(t0)
-	result = e.Mul(result, t0)
-	t0 = result
-	t0 = e.nSquareCompressed(t0, 7)
+	result = e.CyclotomicSquare(result)
+	result = e.Mul(result, z)
+	t0 := e.nSquareCompressed(result, 7)
 	t0 = e.DecompressKarabina(t0)
 	result = e.Mul(result, t0)
 	result = e.nSquareCompressed(result, 5)
@@ -100,11 +115,12 @@ func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 // C1 = (ht+hy)/2 = 11
 func (e Ext6) ExpC1(z *E6) *E6 {
 	z = e.Reduce(z)
-	result := e.CyclotomicSquare(z)
+	result := e.Copy(z)
+	result = e.CyclotomicSquare(result)
+	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, z)
-	t0 := e.Mul(z, result)
-	t0 = e.CyclotomicSquare(t0)
-	result = e.Mul(result, t0)
+	result = e.CyclotomicSquare(result)
+	result = e.Mul(result, z)
 
 	return result
 }
@@ -114,11 +130,9 @@ func (e Ext6) ExpC1(z *E6) *E6 {
 // C2 = (ht**2+3*hy**2)/4 = 103
 func (e Ext6) ExpC2(z *E6) *E6 {
 	z = e.Reduce(z)
-
 	result := e.CyclotomicSquare(z)
 	result = e.Mul(result, z)
-	t0 := result
-	t0 = e.nSquareCompressed(t0, 4)
+	t0 := e.nSquareCompressed(result, 4)
 	t0 = e.DecompressKarabina(t0)
 	result = e.Mul(result, t0)
 	result = e.CyclotomicSquare(result)
