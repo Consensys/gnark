@@ -531,15 +531,13 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	}
 
 	// fold the committed quotients compute ∑ᵢλᵢ[Hᵢ(α)]G₁
-	var foldedQuotients *G1El
-	quotients := make([]G1El, len(proofs))
+	quotients := make([]*G1El, len(proofs))
 	for i := 0; i < len(randomNumbers); i++ {
-		quotients[i] = proofs[i].Quotient
+		quotients[i] = &proofs[i].Quotient
 	}
-	foldedQuotients = v.curve.ScalarMul(&quotients[0], randomNumbers[0])
-	for i := 1; i < len(digests); i++ {
-		tmp := v.curve.ScalarMul(&quotients[i], randomNumbers[i])
-		foldedQuotients = v.curve.Add(tmp, foldedQuotients)
+	foldedQuotients, err := v.curve.MultiScalarMul(quotients, randomNumbers)
+	if err != nil {
+		return fmt.Errorf("fold quotients: %w", err)
 	}
 
 	// fold digests and evals
@@ -551,7 +549,10 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 		evals[i] = proofs[i].ClaimedValue
 	}
 
-	foldedDigests, foldedEvals := v.fold(digests, evals, randomNumbers)
+	foldedDigests, foldedEvals, err := v.fold(digests, evals, randomNumbers)
+	if err != nil {
+		return fmt.Errorf("fold: %w", err)
+	}
 
 	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	foldedEvalsCommit := v.curve.ScalarMul(&vk.G1, foldedEvals)
@@ -563,14 +564,12 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 
 	// combien the points and the quotients using γᵢ
 	// ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
-	var foldedPointsQuotients *G1El
 	for i := 0; i < len(randomNumbers); i++ {
 		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[i], &points[i])
 	}
-	foldedPointsQuotients = v.curve.ScalarMul(&quotients[0], randomNumbers[0])
-	for i := 1; i < len(digests); i++ {
-		tmp = v.curve.ScalarMul(&quotients[i], randomNumbers[i])
-		foldedPointsQuotients = v.curve.Add(foldedPointsQuotients, tmp)
+	foldedPointsQuotients, err := v.curve.MultiScalarMul(quotients, randomNumbers)
+	if err != nil {
+		return fmt.Errorf("fold point quotients: %w", err)
 	}
 
 	// ∑ᵢλᵢ[f_i(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁ + ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
@@ -620,7 +619,10 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 	for i := 2; i < nbDigests; i++ {
 		gammai[i] = v.scalarApi.Mul(gammai[i-1], gamma)
 	}
-	foldedDigests, foldedEvaluations := v.fold(digests, batchOpeningProof.ClaimedValues, gammai)
+	foldedDigests, foldedEvaluations, err := v.fold(digests, batchOpeningProof.ClaimedValues, gammai)
+	if err != nil {
+		return OpeningProof[FR, G1El]{}, Commitment[G1El]{}, fmt.Errorf("fold: %w", err)
+	}
 	return OpeningProof[FR, G1El]{
 		Quotient:     batchOpeningProof.Quotient,
 		ClaimedValue: *foldedEvaluations,
@@ -667,7 +669,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR],
 	return gammaS, nil
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai []emulated.Element[FR], ci []*emulated.Element[FR]) (Commitment[G1El], *emulated.Element[FR]) {
+func (v *Verifier[FR, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai []emulated.Element[FR], ci []*emulated.Element[FR]) (Commitment[G1El], *emulated.Element[FR], error) {
 	// length inconsistency between digests and evaluations should have been done before calling this function
 	nbDigests := len(digests)
 
@@ -680,15 +682,18 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai []
 	}
 
 	// fold the digests ∑ᵢ[cᵢ]([fᵢ(α)]G₁)
-	foldedDigest := v.curve.ScalarMul(&digests[0].G1El, ci[0])
-	for i := 1; i < nbDigests; i++ {
-		tmp := v.curve.ScalarMul(&digests[i].G1El, ci[i])
-		foldedDigest = v.curve.Add(tmp, foldedDigest)
+	digestPoints := make([]*G1El, len(digests))
+	for i := range digestPoints {
+		digestPoints[i] = &digests[i].G1El
+	}
+	foldedDigest, err := v.curve.MultiScalarMul(digestPoints, ci)
+	if err != nil {
+		return Commitment[G1El]{}, nil, fmt.Errorf("fold digests: %w", err)
 	}
 
 	// folding done
 	return Commitment[G1El]{
 		G1El: *foldedDigest,
-	}, foldedEvaluations
+	}, foldedEvaluations, nil
 
 }
