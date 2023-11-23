@@ -76,7 +76,6 @@ func (c *Curve) Add(P, Q *G1Affine) *G1Affine {
 // AssertIsEqual asserts the equality of P and Q.
 func (c *Curve) AssertIsEqual(P, Q *G1Affine) {
 	P.AssertIsEqual(c.api, *Q)
-	panic("todo")
 }
 
 // Neg negates P and returns the result. Does not modify P.
