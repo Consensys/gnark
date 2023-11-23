@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	native_plonk "github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -14,7 +13,6 @@ import (
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/plonk"
 	"github.com/consensys/gnark/test"
 )
@@ -65,18 +63,7 @@ func computeInnerProof(field, outer *big.Int) (constraint.ConstraintSystem, nati
 	if err != nil {
 		panic(err)
 	}
-	fsProverHasher, err := recursion.NewShort(outer, field)
-	if err != nil {
-		panic(err)
-	}
-	kzgProverHasher, err := recursion.NewShort(outer, field)
-	if err != nil {
-		panic(err)
-	}
-	innerProof, err := native_plonk.Prove(innerCcs, innerPK, innerWitness,
-		backend.WithProverChallengeHashFunction(fsProverHasher),
-		backend.WithProverKZGFoldingHashFunction(kzgProverHasher),
-	)
+	innerProof, err := native_plonk.Prove(innerCcs, innerPK, innerWitness, plonk.GetNativeProverOptions(outer, field))
 	if err != nil {
 		panic(err)
 	}
@@ -84,18 +71,7 @@ func computeInnerProof(field, outer *big.Int) (constraint.ConstraintSystem, nati
 	if err != nil {
 		panic(err)
 	}
-	fsVerifierHasher, err := recursion.NewShort(outer, field)
-	if err != nil {
-		panic(err)
-	}
-	kzgVerifierHash, err := recursion.NewShort(outer, field)
-	if err != nil {
-		panic(err)
-	}
-	err = native_plonk.Verify(innerProof, innerVK, innerPubWitness,
-		backend.WithVerifierChallengeHashFunction(fsVerifierHasher),
-		backend.WithVerifierKZGFoldingHashFunction(kzgVerifierHash),
-	)
+	err = native_plonk.Verify(innerProof, innerVK, innerPubWitness, plonk.GetNativeVerifierOptions(outer, field))
 	if err != nil {
 		panic(err)
 	}

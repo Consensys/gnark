@@ -50,25 +50,11 @@ func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.Co
 	}
 	innerWitness, err := frontend.NewWitness(innerAssignment, field)
 	assert.NoError(err)
-	fsProverHasher, err := recursion.NewShort(outer, field)
-	assert.NoError(err)
-	kzgProverHasher, err := recursion.NewShort(outer, field)
-	assert.NoError(err)
-	innerProof, err := plonk.Prove(innerCcs, innerPK, innerWitness,
-		backend.WithProverChallengeHashFunction(fsProverHasher),
-		backend.WithProverKZGFoldingHashFunction(kzgProverHasher),
-	)
+	innerProof, err := plonk.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
 	assert.NoError(err)
 	innerPubWitness, err := innerWitness.Public()
 	assert.NoError(err)
-	fsVerifierHasher, err := recursion.NewShort(outer, field)
-	assert.NoError(err)
-	kzgVerifierHash, err := recursion.NewShort(outer, field)
-	assert.NoError(err)
-	err = plonk.Verify(innerProof, innerVK, innerPubWitness,
-		backend.WithVerifierChallengeHashFunction(fsVerifierHasher),
-		backend.WithVerifierKZGFoldingHashFunction(kzgVerifierHash),
-	)
+	err = plonk.Verify(innerProof, innerVK, innerPubWitness, GetNativeVerifierOptions(outer, field))
 	assert.NoError(err)
 	return innerCcs, innerVK, innerPubWitness, innerProof
 }
