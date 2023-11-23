@@ -31,6 +31,7 @@ import (
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
@@ -606,10 +607,18 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 	// derive the challenge γ, binded to the point and the commitments
 	gamma, err := v.deriveGamma(point, digests, batchOpeningProof.ClaimedValues, dataTranscript...)
 	if err != nil {
-		return retP, retC, err
+		return retP, retC, fmt.Errorf("derive gamma: %w", err)
 	}
 
 	// fold the claimed values and digests
+	// compute ∑ᵢ γ^i C_i = C_0 + γ(C_1 + γ(C2 ...)), allowing to bound the scalar multiplication iterations
+	foldedDigests := v.curve.ScalarMul(&digests[len(digests)-1].G1El, gamma, algopts.WithNbBits(v.api.Compiler().FieldBitLen()))
+	for i := len(digests) - 2; i > 0; i-- {
+		foldedDigests = v.curve.Add(&digests[i].G1El, foldedDigests)
+		foldedDigests = v.curve.ScalarMul(foldedDigests, gamma, algopts.WithNbBits(v.api.Compiler().FieldBitLen()))
+	}
+	foldedDigests = v.curve.Add(&digests[0].G1El, foldedDigests)
+
 	// gammai = [1,γ,γ²,..,γⁿ⁻¹]
 	gammai := make([]*emulated.Element[FR], nbDigests)
 	gammai[0] = v.scalarApi.One()
@@ -619,14 +628,17 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 	for i := 2; i < nbDigests; i++ {
 		gammai[i] = v.scalarApi.Mul(gammai[i-1], gamma)
 	}
-	foldedDigests, foldedEvaluations, err := v.fold(digests, batchOpeningProof.ClaimedValues, gammai)
-	if err != nil {
-		return OpeningProof[FR, G1El]{}, Commitment[G1El]{}, fmt.Errorf("fold: %w", err)
+	foldedEvaluations := v.scalarApi.Zero()
+	for i := 0; i < nbDigests; i++ {
+		tmp := v.scalarApi.Mul(&batchOpeningProof.ClaimedValues[i], gammai[i])
+		foldedEvaluations = v.scalarApi.Add(foldedEvaluations, tmp)
 	}
 	return OpeningProof[FR, G1El]{
-		Quotient:     batchOpeningProof.Quotient,
-		ClaimedValue: *foldedEvaluations,
-	}, foldedDigests, nil
+			Quotient:     batchOpeningProof.Quotient,
+			ClaimedValue: *foldedEvaluations,
+		}, Commitment[G1El]{
+			G1El: *foldedDigests,
+		}, nil
 
 }
 
@@ -669,7 +681,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR],
 	return gammaS, nil
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai []emulated.Element[FR], ci []*emulated.Element[FR]) (Commitment[G1El], *emulated.Element[FR], error) {
+func (v *Verifier[FR, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai []emulated.Element[FR], ci []*emulated.Element[FR], algopts ...algopts.AlgebraOption) (Commitment[G1El], *emulated.Element[FR], error) {
 	// length inconsistency between digests and evaluations should have been done before calling this function
 	nbDigests := len(digests)
 
