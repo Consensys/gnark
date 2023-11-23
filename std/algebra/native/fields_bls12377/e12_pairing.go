@@ -2,6 +2,20 @@ package fields_bls12377
 
 import "github.com/consensys/gnark/frontend"
 
+// nSquareKarabina2345 repeated compressed cyclotmic square
+func (e *E12) nSquareKarabina2345(api frontend.API, n int) {
+	for i := 0; i < n; i++ {
+		e.CyclotomicSquareKarabina2345(api, *e)
+	}
+}
+
+// nSquareKarabina12345 repeated compressed cyclotmic square
+func (e *E12) nSquareKarabina12345(api frontend.API, n int) {
+	for i := 0; i < n; i++ {
+		e.CyclotomicSquareKarabina12345(api, *e)
+	}
+}
+
 // Square034 squares a sparse element in Fp12
 func (e *E12) Square034(api frontend.API, x E12) *E12 {
 	var c0, c2, c3 E6
@@ -116,20 +130,20 @@ func (e *E12) Expt(api frontend.API, e1 E12, exponent uint64) *E12 {
 
 	res := e1
 
-	res.nSquareCompressed(api, 5)
-	res.Decompress(api, res)
+	res.nSquareKarabina2345(api, 5)
+	res.DecompressKarabina2345(api, res)
 	res.Mul(api, res, e1)
 	x33 := res
-	res.nSquareCompressed(api, 7)
-	res.Decompress(api, res)
+	res.nSquareKarabina2345(api, 7)
+	res.DecompressKarabina2345(api, res)
 	res.Mul(api, res, x33)
-	res.nSquareCompressed(api, 4)
-	res.Decompress(api, res)
+	res.nSquareKarabina2345(api, 4)
+	res.DecompressKarabina2345(api, res)
 	res.Mul(api, res, e1)
 	res.CyclotomicSquare(api, res)
 	res.Mul(api, res, e1)
-	res.nSquareCompressed(api, 46)
-	res.Decompress(api, res)
+	res.nSquareKarabina2345(api, 46)
+	res.DecompressKarabina2345(api, res)
 	res.Mul(api, res, e1)
 
 	*e = res

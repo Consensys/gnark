@@ -78,13 +78,13 @@ func (e *E24) Expt(api frontend.API, x E24, exponent uint64) *E24 {
 
 	res.nSquare(api, 2)
 	res.Mul(api, res, xInv)
-	res.nSquareCompressed(api, 8)
-	res.Decompress(api, res)
+	res.nSquareKarabina2345(api, 8)
+	res.DecompressKarabina2345(api, res)
 	res.Mul(api, res, xInv)
 	res.nSquare(api, 2)
 	res.Mul(api, res, x)
-	res.nSquareCompressed(api, 20)
-	res.Decompress(api, res)
+	res.nSquareKarabina2345(api, 20)
+	res.DecompressKarabina2345(api, res)
 	res.Mul(api, res, xInv)
 	res.Conjugate(api, res)
 
