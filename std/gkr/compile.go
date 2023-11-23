@@ -1,8 +1,8 @@
 package gkr
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/big"
 	"math/bits"
 
 	"github.com/consensys/gnark/constraint"
@@ -91,6 +91,14 @@ func appendNonNil(dst *[]frontend.Variable, src []frontend.Variable) {
 	}
 }
 
+func randHintID() solver.HintID {
+	bytes := make([]byte, 4)
+	if _, err := rand.Read(bytes); err != nil {
+		panic("could not generate random hint ID")
+	}
+	return solver.HintID(bytes[0]) | solver.HintID(bytes[1])<<8 | solver.HintID(bytes[2])<<16 | solver.HintID(bytes[3])<<24
+}
+
 // Solve finalizes the GKR circuit and returns the output variables in the order created
 func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 
@@ -124,8 +132,9 @@ func (api *API) Solve(parentApi frontend.API) (Solution, error) {
 		}
 	}
 
-	outsSerialized, err := parentApi.Compiler().NewHint(SolveHintPlaceholder, solveHintNOut, ins...)
-	api.toStore.SolveHintID = solver.GetHintID(SolveHintPlaceholder)
+	api.toStore.SolveHintID = randHintID() // Possible danger of confusing with other hints?
+	solver.RegisterNamedHint(SolveHintPlaceholderGenerator(api.toStore.SolveHintID, api.toStore), api.toStore.SolveHintID)
+	outsSerialized, err := parentApi.Compiler().NewHintForId(api.toStore.SolveHintID, solveHintNOut, ins...)
 	if err != nil {
 		return Solution{}, err
 	}
@@ -157,6 +166,9 @@ func (s Solution) Export(v frontend.Variable) []frontend.Variable {
 }
 
 // Verify encodes the verification circuitry for the GKR circuit
+// hashName denotes the random oracle used to make GKR non-interactive (Fiat-Shamir)
+// initialChallenges are initially fed to the Fiat-Shamir hash. If there is many of them, use api.(Committer).Commit to
+// consolidate them into a few values
 func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable) error {
 	var (
 		err             error
@@ -176,11 +188,12 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	}
 	copy(hintIns[1:], initialChallenges)
 
-	if proofSerialized, err = s.parentApi.Compiler().NewHint(
-		ProveHintPlaceholder, ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
+	s.toStore.ProveHintID = randHintID() // Possible danger of confusing with other hints?
+	solver.RegisterNamedHint(ProveHintPlaceholderGenerator(hashName, s.toStore.SolveHintID, s.toStore.ProveHintID), s.toStore.ProveHintID)
+	if proofSerialized, err = s.parentApi.Compiler().NewHintForId(
+		s.toStore.ProveHintID, ProofSize(forSnark.circuit, logNbInstances), hintIns...); err != nil {
 		return err
 	}
-	s.toStore.ProveHintID = solver.GetHintID(ProveHintPlaceholder)
 
 	forSnarkSorted := algo_utils.MapRange(0, len(s.toStore.Circuit), slicePtrAt(forSnark.circuit))
 
@@ -200,14 +213,6 @@ func (s Solution) Verify(hashName string, initialChallenges ...frontend.Variable
 	}
 
 	return s.parentApi.Compiler().SetGkrInfo(s.toStore)
-}
-
-func SolveHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error { // TODO @Tabaie Add implementation for testing
-	return fmt.Errorf("placeholder - not meant to be called")
-}
-
-func ProveHintPlaceholder(*big.Int, []*big.Int, []*big.Int) error { // TODO @Tabaie Add implementation for testing
-	return fmt.Errorf("placeholder - not meant to be called")
 }
 
 func slicePtrAt[T any](slice []T) func(int) *T {

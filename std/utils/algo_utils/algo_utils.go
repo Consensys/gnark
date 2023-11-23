@@ -58,6 +58,16 @@ func MapAt[K comparable, V any](mp map[K]V) func(K) V {
 	}
 }
 
+func MapKeys[K comparable, V any](mp map[K]V) []K { // copyright note: written by GitHub Copilot
+	keys := make([]K, len(mp))
+	i := 0
+	for k := range mp {
+		keys[i] = k
+		i++
+	}
+	return keys
+}
+
 // InvertPermutation input permutation must contain exactly 0, ..., len(permutation)-1
 func InvertPermutation(permutation []int) []int {
 	res := make([]int, len(permutation))

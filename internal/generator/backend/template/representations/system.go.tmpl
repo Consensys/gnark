@@ -48,9 +48,17 @@ func newSystem(capacity int, t constraint.SystemType) *system {
 func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, error) {
 	log := logger.Logger().With().Int("nbConstraints", cs.GetNbConstraints()).Logger()
 	start := time.Now()
-
 	
 	v := witness.Vector().(fr.Vector)
+
+	{{if ne .CurveID "UNKNOWN"}}	{{/* TODO @Tabaie add tinyfield GKR support */}}
+	if cs.GkrInfo.Is() {
+		var gkrData GkrSolvingData
+		opts = append(opts,
+			csolver.OverrideHint(cs.GkrInfo.SolveHintID, GkrSolveHint(cs.GkrInfo, &gkrData)),
+			csolver.OverrideHint(cs.GkrInfo.ProveHintID, GkrProveHint(cs.GkrInfo.HashName, &gkrData)))
+	}
+	{{- end}}
 
 	// init the solver
 	solver, err := newSolver(cs, v, opts...)
@@ -104,7 +112,6 @@ func (cs *system) IsSolved(witness witness.Witness, opts ...csolver.Option) erro
 	_, err := cs.Solve(witness, opts...)
 	return err 
 }
-
 
 // GetR1Cs return the list of R1C
 func (cs *system) GetR1Cs() []constraint.R1C {
@@ -371,9 +378,20 @@ func getTagSet() cbor.TagSet {
 	addType(reflect.TypeOf(constraint.Groth16Commitments{}))
 	addType(reflect.TypeOf(constraint.PlonkCommitments{}))
 
-	return ts 
+	return ts
 }
 
 func (s *system) AddGkr(gkr constraint.GkrInfo) error {
 	return s.System.AddGkr(gkr)
+}
+
+func (s *system) Equal(other constraint.ConstraintSystem) bool {
+	if o, ok := other.(*system); !ok {
+		return false
+	} else {
+		systemDiff := constraint.SystemDiff(s.System, o.System)
+		return reflect.DeepEqual(s.field, o.field) &&
+			reflect.DeepEqual(s.CoeffTable.Coefficients, o.CoeffTable.Coefficients) &&
+			systemDiff == ""
+	}
 }

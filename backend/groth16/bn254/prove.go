@@ -1,4 +1,4 @@
-// Copyright 2020 ConsenSys Software Inc.
+// Copyright 2020 Consensys Software Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -108,13 +108,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		res.BigInt(out[0])
 		return nil
 	}))
-
-	if r1cs.GkrInfo.Is() {
-		var gkrData cs.GkrSolvingData
-		solverOpts = append(solverOpts,
-			solver.OverrideHint(r1cs.GkrInfo.SolveHintID, cs.GkrSolveHint(r1cs.GkrInfo, &gkrData)),
-			solver.OverrideHint(r1cs.GkrInfo.ProveHintID, cs.GkrProveHint(r1cs.GkrInfo.HashName, &gkrData)))
-	}
 
 	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
 	if err != nil {

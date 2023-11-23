@@ -1,4 +1,4 @@
-// Copyright 2020 ConsenSys Software Inc.
+// Copyright 2020 Consensys Software Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -379,4 +379,15 @@ func getTagSet() cbor.TagSet {
 
 func (s *system) AddGkr(gkr constraint.GkrInfo) error {
 	return s.System.AddGkr(gkr)
+}
+
+func (s *system) Equal(other constraint.ConstraintSystem) bool {
+	if o, ok := other.(*system); !ok {
+		return false
+	} else {
+		systemDiff := constraint.SystemDiff(s.System, o.System)
+		return reflect.DeepEqual(s.field, o.field) &&
+			reflect.DeepEqual(s.CoeffTable.Coefficients, o.CoeffTable.Coefficients) &&
+			systemDiff == ""
+	}
 }

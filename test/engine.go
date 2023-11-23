@@ -334,7 +334,7 @@ func (e *engine) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	r := make([]frontend.Variable, nbBits)
 	ri := make([]frontend.Variable, nbBits)
 	for i := 0; i < len(r); i++ {
-		r[i] = (b1.Bit(i))
+		r[i] = b1.Bit(i)
 		ri[i] = r[i]
 	}
 
@@ -749,7 +749,7 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 }
 
 func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
-	return fmt.Errorf("not implemented")
+	return nil // TODO @Tabaie make sure this is legit. Maybe some deferred computations might need GkrInfo
 }
 
 // MustBeLessOrEqCst implements method comparing value given by its bits aBits

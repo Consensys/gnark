@@ -5,6 +5,8 @@ import (
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/utils/algo_utils"
+	"golang.org/x/exp/slices"
+	"reflect"
 	"sort"
 )
 
@@ -155,4 +157,97 @@ func (c GkrCircuit) Chunks(nbInstances int) []int {
 		res = append(res, end)
 	}
 	return res
+}
+
+func SystemDiff(a, b System) string {
+
+	hintsNames := [2][2]solver.HintID{{
+		a.GkrInfo.SolveHintID, b.GkrInfo.SolveHintID,
+	}, {
+		a.GkrInfo.ProveHintID, b.GkrInfo.ProveHintID,
+	}}
+
+	b.GkrInfo.SolveHintID = a.GkrInfo.SolveHintID
+	b.GkrInfo.ProveHintID = a.GkrInfo.ProveHintID
+
+	b.CallData = slices.Clone(b.CallData) // so as not to corrupt the original data
+
+	for i := range b.CallData {
+		for j := range hintsNames {
+			if b.CallData[i] == uint32(hintsNames[j][1]) {
+				b.CallData[i] = uint32(hintsNames[j][0])
+			}
+		}
+	}
+
+	for k := range b.MHintsDependencies {
+		for j := range hintsNames {
+			if k == hintsNames[j][1] {
+				delete(b.MHintsDependencies, k)
+				b.MHintsDependencies[hintsNames[j][0]] = a.MHintsDependencies[hintsNames[j][0]]
+			}
+		}
+	}
+
+	if a.GnarkVersion != b.GnarkVersion {
+		return "GnarkVersion"
+	}
+	if a.ScalarField != b.ScalarField {
+		return "ScalarField"
+	}
+	if a.Type != b.Type {
+		return "Type"
+	}
+	if !reflect.DeepEqual(a.Instructions, b.Instructions) {
+		return "Instructions"
+	}
+	if !reflect.DeepEqual(a.Blueprints, b.Blueprints) {
+		return "Blueprints"
+	}
+	if !reflect.DeepEqual(a.CallData, b.CallData) {
+		return "CallData"
+	}
+	if a.NbConstraints != b.NbConstraints {
+		return "NbConstraints"
+	}
+	if a.NbInternalVariables != b.NbInternalVariables {
+		return "NbInternalVariables"
+	}
+	if !reflect.DeepEqual(a.Public, b.Public) {
+		return "Public"
+	}
+	if !reflect.DeepEqual(a.Secret, b.Secret) {
+		return "Secret"
+	}
+	if !reflect.DeepEqual(a.Logs, b.Logs) {
+		return "Logs"
+	}
+	if !reflect.DeepEqual(a.DebugInfo, b.DebugInfo) {
+		return "DebugInfo"
+	}
+	if !reflect.DeepEqual(a.MDebug, b.MDebug) {
+		return "MDebug"
+	}
+	if !reflect.DeepEqual(a.MHintsDependencies, b.MHintsDependencies) {
+		return "MHintsDependencies"
+	}
+	if !reflect.DeepEqual(a.Levels, b.Levels) {
+		return "Levels"
+	}
+	if !reflect.DeepEqual(a.q, b.q) {
+		return "q"
+	}
+	if a.bitLen != b.bitLen {
+		return "bitLen"
+	}
+	if !reflect.DeepEqual(a.CommitmentInfo, b.CommitmentInfo) {
+		return "CommitmentInfo"
+	}
+	if !reflect.DeepEqual(a.GkrInfo, b.GkrInfo) {
+		return "GkrInfo"
+	}
+	if !reflect.DeepEqual(a.genericHint, b.genericHint) {
+		return "genericHint"
+	}
+	return ""
 }

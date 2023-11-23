@@ -1,4 +1,4 @@
-// Copyright 2020 ConsenSys Software Inc.
+// Copyright 2020 Consensys Software Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -127,6 +127,18 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	}
 
 	start := time.Now()
+
+	// result
+	proof := &Proof{}
+
+	commitmentInfo := spr.CommitmentInfo.(constraint.PlonkCommitments)
+	commitmentVal := make([]fr.Element, len(commitmentInfo)) // TODO @Tabaie get rid of this
+	cCommitments := make([]*iop.Polynomial, len(commitmentInfo))
+	proof.Bsb22Commitments = make([]kzg.Digest, len(commitmentInfo))
+	for i := range commitmentInfo {
+		opt.SolverOpts = append(opt.SolverOpts, solver.OverrideHint(commitmentInfo[i].HintID,
+			bsb22ComputeCommitmentHint(spr, pk, proof, cCommitments, &commitmentVal[i], i)))
+	}
 
 	// init instance
 	g, ctx := errgroup.WithContext(context.Background())
