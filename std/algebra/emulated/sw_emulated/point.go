@@ -527,18 +527,26 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	g := c.Generator()
-	gm := c.GeneratorMultiples()
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
 
 	var st S
 	sr := c.scalarApi.Reduce(s)
 	sBits := c.scalarApi.ToBits(sr)
+	n := st.Modulus().BitLen()
+	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
+		n = cfg.NbScalarBits
+	}
+	g := c.Generator()
+	gm := c.GeneratorMultiples()
 
 	// i = 1, 2
 	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
 	res := c.Lookup2(sBits[1], sBits[2], g, &gm[0], &gm[1], &gm[2])
 
-	for i := 3; i < st.Modulus().BitLen(); i++ {
+	for i := 3; i < n; i++ {
 		// gm[i] = [2^i]g
 		tmp := c.add(res, &gm[i])
 		res = c.Select(sBits[i], tmp, res)
