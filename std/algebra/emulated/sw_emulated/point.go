@@ -667,3 +667,64 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 	}
 	return res, nil
 }
+
+func (c *Curve[B, S]) WideScalarMul(p *AffinePoint[B], s []*emulated.Element[S], opts ...algopts.AlgebraOption) []*AffinePoint[B] {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
+	sbits := make([][]frontend.Variable, len(s))
+	Q := make([]*AffinePoint[B], len(s))
+	for i := range s {
+		sr := c.scalarApi.Reduce(s[i])
+		sbits[i] = c.scalarApi.ToBits(sr)
+		// assume first bit is zero for now. Subtract later if not the case
+		Q[i] = p
+	}
+	var st S
+	n := st.Modulus().BitLen()
+	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
+		n = cfg.NbScalarBits
+	}
+	PP := make([]*AffinePoint[B], n)
+	PP[0] = p
+	for i := 1; i < n; i++ {
+		PP[i] = c.double(PP[i-1])
+	}
+	negP := c.Neg(p)
+	for j := range sbits {
+		for i := 1; i < n; i++ {
+			tmp := c.add(Q[j], PP[i])
+			Q[j] = c.Select(sbits[j][i], tmp, Q[j])
+		}
+		Q[j] = c.Select(sbits[j][0], Q[j], c.AddUnified(Q[j], negP))
+	}
+	return Q
+}
+
+func (c *Curve[B, S]) WideMultiScalarMul(p []*AffinePoint[B], s [][]*emulated.Element[S], opts ...algopts.AlgebraOption) ([]*AffinePoint[B], error) {
+	if len(p) == 0 {
+		return nil, fmt.Errorf("no inputs")
+	}
+	width := len(s)
+	for i := 0; i < width; i++ {
+		if len(p) != len(s[i]) {
+			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
+		}
+	}
+	scs := make([]*emulated.Element[S], width)
+	for i := 0; i < width; i++ {
+		scs[i] = s[i][0]
+	}
+	res := c.WideScalarMul(p[0], scs)
+	for i := 1; i < len(p); i++ {
+		for j := 0; j < width; j++ {
+			scs[j] = s[j][i]
+		}
+		q := c.WideScalarMul(p[i], scs, opts...)
+		for j := range q {
+			res[j] = c.AddUnified(res[j], q[j])
+		}
+	}
+	return res, nil
+}
