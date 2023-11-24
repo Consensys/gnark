@@ -6,9 +6,16 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-func (e Ext6) nSquareCompressed(z *E6, n int) *E6 {
+func (e Ext6) nSquareKarabina2345(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
-		z = e.CyclotomicSquareCompressed(z)
+		z = e.CyclotomicSquareKarabina2345(z)
+	}
+	return z
+}
+
+func (e Ext6) nSquareKarabina12345(z *E6, n int) *E6 {
+	for i := 0; i < n; i++ {
+		z = e.CyclotomicSquareKarabina12345(z)
 	}
 	return z
 }
@@ -18,20 +25,20 @@ func (e Ext6) nSquareCompressed(z *E6, n int) *E6 {
 func (e Ext6) ExpX0Minus1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	result = e.nSquareCompressed(result, 5)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina12345(result, 5)
+	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z)
 	z33 := e.Copy(result)
-	result = e.nSquareCompressed(result, 7)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina12345(result, 7)
+	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z33)
-	result = e.nSquareCompressed(result, 4)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina12345(result, 4)
+	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z)
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, z)
-	result = e.nSquareCompressed(result, 46)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina2345(result, 46)
+	result = e.DecompressKarabina2345(result)
 
 	return result
 }
@@ -41,29 +48,29 @@ func (e Ext6) ExpX0Minus1(z *E6) *E6 {
 func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	result = e.nSquareCompressed(result, 3)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina12345(result, 3)
+	result = e.DecompressKarabina12345(result)
 	t0 := e.CyclotomicSquare(result)
 	t2 := e.Mul(z, t0)
 	result = e.Mul(result, t2)
 	t0 = e.Mul(z, result)
 	t1 := e.CyclotomicSquare(t0)
 	t1 = e.Mul(t2, t1)
-	t3 := e.nSquareCompressed(t1, 7)
-	t3 = e.DecompressKarabina(t3)
+	t3 := e.nSquareKarabina12345(t1, 7)
+	t3 = e.DecompressKarabina12345(t3)
 	t2 = e.Mul(t2, t3)
-	t2 = e.nSquareCompressed(t2, 11)
-	t2 = e.DecompressKarabina(t2)
+	t2 = e.nSquareKarabina12345(t2, 11)
+	t2 = e.DecompressKarabina12345(t2)
 	t1 = e.Mul(t1, t2)
 	t0 = e.Mul(t0, t1)
-	t0 = e.nSquareCompressed(t0, 7)
-	t0 = e.DecompressKarabina(t0)
+	t0 = e.nSquareKarabina12345(t0, 7)
+	t0 = e.DecompressKarabina12345(t0)
 	result = e.Mul(result, t0)
-	result = e.nSquareCompressed(result, 3)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina12345(result, 3)
+	result = e.DecompressKarabina12345(result)
 	result = e.Mul(z, result)
-	result = e.nSquareCompressed(result, 92)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina2345(result, 92)
+	result = e.DecompressKarabina2345(result)
 
 	return result
 
@@ -75,20 +82,20 @@ func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
 	t := e.CyclotomicSquare(result)
-	result = e.nSquareCompressed(t, 4)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina12345(t, 4)
+	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z)
 	z33 := e.Copy(result)
-	result = e.nSquareCompressed(result, 7)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina12345(result, 7)
+	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z33)
-	result = e.nSquareCompressed(result, 4)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina12345(result, 4)
+	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z)
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, z)
-	result = e.nSquareCompressed(result, 46)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina2345(result, 46)
+	result = e.DecompressKarabina2345(result)
 	result = e.Mul(result, t)
 
 	return result
@@ -104,14 +111,14 @@ func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 	result = e.Mul(result, z)
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, z)
-	t0 := e.nSquareCompressed(result, 7)
-	t0 = e.DecompressKarabina(t0)
+	t0 := e.nSquareKarabina12345(result, 7)
+	t0 = e.DecompressKarabina2345(t0)
 	result = e.Mul(result, t0)
-	result = e.nSquareCompressed(result, 5)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina12345(result, 5)
+	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z)
-	result = e.nSquareCompressed(result, 46)
-	result = e.DecompressKarabina(result)
+	result = e.nSquareKarabina2345(result, 46)
+	result = e.DecompressKarabina2345(result)
 
 	return result
 }
@@ -138,8 +145,8 @@ func (e Ext6) ExpC2(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.CyclotomicSquare(z)
 	result = e.Mul(result, z)
-	t0 := e.nSquareCompressed(result, 4)
-	t0 = e.DecompressKarabina(t0)
+	t0 := e.nSquareKarabina12345(result, 4)
+	t0 = e.DecompressKarabina12345(t0)
 	result = e.Mul(result, t0)
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, z)

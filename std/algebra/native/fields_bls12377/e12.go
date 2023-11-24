@@ -184,10 +184,65 @@ func (e *E12) Square(api frontend.API, x E12) *E12 {
 	return e
 }
 
+func (e *E12) CyclotomicSquareKarabina12345(api frontend.API, x E12) *E12 {
+
+	var h1, h2, h3, h4, h5, g1g5, g3g2, t E2
+
+	// h4 = -g4 + 3((g3+g5)(g1+c*g2)-g1g5-c*g3g2)
+	g1g5.Mul(api, x.C0.B1, x.C1.B2)
+	g3g2.Mul(api, x.C1.B0, x.C0.B2)
+	h4.MulByNonResidue(api, x.C0.B2)
+	h4.Add(api, h4, x.C0.B1)
+	t.Add(api, x.C1.B0, x.C1.B2)
+	h4.Mul(api, h4, t)
+	h4.Sub(api, h4, g1g5)
+	t.MulByNonResidue(api, g3g2)
+	h4.Sub(api, h4, t)
+	h4.MulByFp(api, h4, newInt("3"))
+	e.C1.B1.Sub(api, h4, x.C1.B1)
+
+	// h3 = 2(g3+3c*g1g5)
+	h3.MulByNonResidue(api, g1g5)
+	h3.MulByFp(api, h3, newInt("3"))
+	h3.Add(api, h3, x.C1.B0)
+	e.C1.B0.MulByFp(api, h3, newInt("2"))
+
+	// h2 = 3((g1+g5)(g1+c*g5)-c*g1g5-g1g5)-2g2
+	t.MulByNonResidue(api, x.C1.B2)
+	t.Add(api, t, x.C0.B1)
+	h2.Add(api, x.C1.B2, x.C0.B1)
+	h2.Mul(api, h2, t)
+	h2.Sub(api, h2, g1g5)
+	t.MulByNonResidue(api, g1g5)
+	h2.Sub(api, h2, t)
+	h2.MulByFp(api, h2, newInt("3"))
+	t.MulByFp(api, x.C0.B2, newInt("2"))
+	e.C0.B2.Sub(api, h2, t)
+
+	// h1 = 3((g3+g2)(g3+c*g2)-c*g3g2-g3g2)-2g1
+	t.MulByNonResidue(api, x.C0.B2)
+	t.Add(api, t, x.C1.B0)
+	h1.Add(api, x.C0.B2, x.C1.B0)
+	h1.Mul(api, h1, t)
+	h1.Sub(api, h1, g3g2)
+	t.MulByNonResidue(api, g3g2)
+	h1.Sub(api, h1, t)
+	h1.MulByFp(api, h1, newInt("3"))
+	t.MulByFp(api, x.C0.B1, newInt("2"))
+	e.C0.B1.Sub(api, h1, t)
+
+	// h5 = 2(g5+3g3g2)
+	h5.MulByFp(api, g3g2, newInt("3"))
+	h5.Add(api, h5, x.C1.B2)
+	e.C1.B2.MulByFp(api, h5, newInt("2"))
+
+	return e
+}
+
 // Karabina's compressed cyclotomic square
 // https://eprint.iacr.org/2010/542.pdf
 // Th. 3.2 with minor modifications to fit our tower
-func (e *E12) CyclotomicSquareCompressed(api frontend.API, x E12) *E12 {
+func (e *E12) CyclotomicSquareKarabina2345(api frontend.API, x E12) *E12 {
 
 	var t [7]E2
 
@@ -260,8 +315,34 @@ func (e *E12) CyclotomicSquareCompressed(api frontend.API, x E12) *E12 {
 	return e
 }
 
-// Decompress Karabina's cyclotomic square result
-func (e *E12) Decompress(api frontend.API, x E12) *E12 {
+// DecompressKarabina12345 Karabina's cyclotomic square result SQR12345
+func (e *E12) DecompressKarabina12345(api frontend.API, x E12) *E12 {
+
+	var h0, t0, t1 E2
+
+	// h0 = (2g4^2 + g3g5 - 3g2g1)*c + 1
+	t0.Mul(api, x.C0.B1, x.C0.B2)
+	t0.MulByFp(api, t0, newInt("3"))
+	t1.Mul(api, x.C1.B0, x.C1.B2)
+	h0.Square(api, x.C1.B1)
+	h0.MulByFp(api, h0, newInt("2"))
+	h0.Add(api, h0, t1)
+	h0.Sub(api, h0, t0)
+	h0.MulByNonResidue(api, h0)
+	var one E2
+	one.SetOne()
+	e.C0.B0.Add(api, h0, one)
+	e.C0.B1 = x.C0.B1
+	e.C0.B2 = x.C0.B2
+	e.C1.B0 = x.C1.B0
+	e.C1.B1 = x.C1.B1
+	e.C1.B2 = x.C1.B2
+
+	return e
+}
+
+// DecompressKarabina2345 Karabina's cyclotomic square result SQR2345
+func (e *E12) DecompressKarabina2345(api frontend.API, x E12) *E12 {
 
 	var t [3]E2
 	var _t [2]E2
@@ -540,13 +621,6 @@ func (e *E12) Select(api frontend.API, b frontend.Variable, r1, r2 E12) *E12 {
 	e.C1.Select(api, b, r1.C1, r2.C1)
 
 	return e
-}
-
-// nSquareCompressed repeated compressed cyclotmic square
-func (e *E12) nSquareCompressed(api frontend.API, n int) {
-	for i := 0; i < n; i++ {
-		e.CyclotomicSquareCompressed(api, *e)
-	}
 }
 
 // Assign a value to self (witness assignment)

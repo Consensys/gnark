@@ -198,25 +198,25 @@ func TestFp12CyclotomicSquare(t *testing.T) {
 
 }
 
-type fp12CycloSquareCompressed struct {
+type fp12CycloSquareKarabina2345 struct {
 	A E12
 	B E12 `gnark:",public"`
 }
 
-func (circuit *fp12CycloSquareCompressed) Define(api frontend.API) error {
+func (circuit *fp12CycloSquareKarabina2345) Define(api frontend.API) error {
 
 	var u, v E12
 	u.Square(api, circuit.A)
-	v.CyclotomicSquareCompressed(api, circuit.A)
-	v.Decompress(api, v)
+	v.CyclotomicSquareKarabina2345(api, circuit.A)
+	v.DecompressKarabina2345(api, v)
 	u.AssertIsEqual(api, v)
 	u.AssertIsEqual(api, circuit.B)
 	return nil
 }
 
-func TestFp12CyclotomicSquareCompressed(t *testing.T) {
+func TestFp12CyclotomicSquareKarabina2345(t *testing.T) {
 
-	var circuit, witness fp12CycloSquareCompressed
+	var circuit, witness fp12CycloSquareKarabina2345
 
 	// witness values
 	var a, b bls12377.E12

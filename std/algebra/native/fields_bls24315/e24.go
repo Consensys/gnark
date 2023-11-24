@@ -185,7 +185,7 @@ func (e *E24) Square(api frontend.API, x E24) *E24 {
 
 // Karabina's compressed cyclotomic square
 // https://eprint.iacr.org/2010/542.pdf
-func (e *E24) CyclotomicSquareCompressed(api frontend.API, x E24) *E24 {
+func (e *E24) CyclotomicSquareKarabina2345(api frontend.API, x E24) *E24 {
 	var t [7]E4
 
 	// t0 = g1²
@@ -257,8 +257,8 @@ func (e *E24) CyclotomicSquareCompressed(api frontend.API, x E24) *E24 {
 	return e
 }
 
-// Decompress Karabina's cyclotomic square result
-func (e *E24) Decompress(api frontend.API, x E24) *E24 {
+// DecompressKarabina2345 Karabina's cyclotomic square result
+func (e *E24) DecompressKarabina2345(api frontend.API, x E24) *E24 {
 
 	var t [3]E4
 	var _t [2]E4
@@ -549,10 +549,10 @@ func (e *E24) DivUnchecked(api frontend.API, e1, e2 E24) *E24 {
 	return e
 }
 
-// nSquareCompressed repeated compressed cyclotmic square
-func (e *E24) nSquareCompressed(api frontend.API, n int) {
+// nSquareKarabina2345 repeated compressed cyclotmic square
+func (e *E24) nSquareKarabina2345(api frontend.API, n int) {
 	for i := 0; i < n; i++ {
-		e.CyclotomicSquareCompressed(api, *e)
+		e.CyclotomicSquareKarabina2345(api, *e)
 	}
 }
 
