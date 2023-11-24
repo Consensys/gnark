@@ -614,10 +614,10 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 
 	// fold the claimed values and digests
 	// compute ∑ᵢ γ^i C_i = C_0 + γ(C_1 + γ(C2 ...)), allowing to bound the scalar multiplication iterations
-	foldedDigests := v.curve.ScalarMul(&digests[len(digests)-1].G1El, gamma, algopts.WithNbBits(nbScalarBits))
+	foldedDigests := v.curve.ScalarMul(&digests[len(digests)-1].G1El, gamma, algopts.WithNbScalarBits(nbScalarBits))
 	for i := len(digests) - 2; i > 0; i-- {
 		foldedDigests = v.curve.Add(&digests[i].G1El, foldedDigests)
-		foldedDigests = v.curve.ScalarMul(foldedDigests, gamma, algopts.WithNbBits(nbScalarBits))
+		foldedDigests = v.curve.ScalarMul(foldedDigests, gamma, algopts.WithNbScalarBits(nbScalarBits))
 	}
 	foldedDigests = v.curve.Add(&digests[0].G1El, foldedDigests)
 

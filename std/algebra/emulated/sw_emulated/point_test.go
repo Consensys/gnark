@@ -1000,7 +1000,7 @@ func (c *ScalarMulTestBounded[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMul(&c.P, &c.S, algopts.WithNbBits(c.bits))
+	res := cr.ScalarMul(&c.P, &c.S, algopts.WithNbScalarBits(c.bits))
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
