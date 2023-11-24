@@ -597,6 +597,8 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], dataTranscript ...emulated.Element[FR]) (OpeningProof[FR, G1El], Commitment[G1El], error) {
 	var retP OpeningProof[FR, G1El]
 	var retC Commitment[G1El]
+	// we assume the short hash output size is full byte fitting into the modulus length.
+	nbScalarBits := ((v.api.Compiler().FieldBitLen()+7)/8 - 1) * 8
 	nbDigests := len(digests)
 
 	// check consistency between numbers of claims vs number of digests
@@ -612,10 +614,10 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 
 	// fold the claimed values and digests
 	// compute ∑ᵢ γ^i C_i = C_0 + γ(C_1 + γ(C2 ...)), allowing to bound the scalar multiplication iterations
-	foldedDigests := v.curve.ScalarMul(&digests[len(digests)-1].G1El, gamma, algopts.WithNbBits(v.api.Compiler().FieldBitLen()))
+	foldedDigests := v.curve.ScalarMul(&digests[len(digests)-1].G1El, gamma, algopts.WithNbBits(nbScalarBits))
 	for i := len(digests) - 2; i > 0; i-- {
 		foldedDigests = v.curve.Add(&digests[i].G1El, foldedDigests)
-		foldedDigests = v.curve.ScalarMul(foldedDigests, gamma, algopts.WithNbBits(v.api.Compiler().FieldBitLen()))
+		foldedDigests = v.curve.ScalarMul(foldedDigests, gamma, algopts.WithNbBits(nbScalarBits))
 	}
 	foldedDigests = v.curve.Add(&digests[0].G1El, foldedDigests)
 
