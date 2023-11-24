@@ -525,6 +525,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	seed := whSnark.Sum()
 	binSeed := bits.ToBinary(v.api, seed, bits.WithNbDigits(fr.Modulus().BitLen()))
 	randomNumbers[1] = v.scalarApi.FromBits(binSeed...)
+	nbScalarBits := ((v.api.Compiler().FieldBitLen()+7)/8 - 1) * 8
 
 	for i := 2; i < len(randomNumbers); i++ {
 		// TODO use real random numbers, follow the solidity smart contract to know which variables are used as seed
@@ -541,11 +542,14 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	for i := 0; i < len(randomNumbers); i++ {
 		quotients[i] = &proofs[i].Quotient
 	}
-	foldedQs, err := v.curve.WideMultiScalarMul(quotients, [][]*emulated.Element[FR]{randomNumbers, randomPointNumbers})
+	foldedQuotients, err := v.curve.MultiScalarMul(quotients, []*emulated.Element[FR]{randomNumbers[1]}, algopts.WithFoldingScalarMul(), algopts.WithNbScalarBits(nbScalarBits))
 	if err != nil {
 		return fmt.Errorf("fold quotients: %w", err)
 	}
-	foldedQuotients, foldedPointsQuotients := foldedQs[0], foldedQs[1]
+	foldedPointsQuotients, err := v.curve.MultiScalarMul(quotients, randomPointNumbers)
+	if err != nil {
+		return fmt.Errorf("fold point quotients: %w", err)
+	}
 
 	// fold digests and evals
 	evals := make([]emulated.Element[FR], len(digests))
@@ -610,12 +614,14 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 
 	// fold the claimed values and digests
 	// compute ∑ᵢ γ^i C_i = C_0 + γ(C_1 + γ(C2 ...)), allowing to bound the scalar multiplication iterations
-	foldedDigests := v.curve.ScalarMul(&digests[len(digests)-1].G1El, gamma, algopts.WithNbScalarBits(nbScalarBits))
-	for i := len(digests) - 2; i > 0; i-- {
-		foldedDigests = v.curve.Add(&digests[i].G1El, foldedDigests)
-		foldedDigests = v.curve.ScalarMul(foldedDigests, gamma, algopts.WithNbScalarBits(nbScalarBits))
+	digestsP := make([]*G1El, len(digests))
+	for i := range digestsP {
+		digestsP[i] = &digests[i].G1El
 	}
-	foldedDigests = v.curve.Add(&digests[0].G1El, foldedDigests)
+	foldedDigests, err := v.curve.MultiScalarMul(digestsP, []*emulated.Element[FR]{gamma}, algopts.WithNbScalarBits(nbScalarBits), algopts.WithFoldingScalarMul())
+	if err != nil {
+		return retP, retC, fmt.Errorf("multi scalar mul: %w", err)
+	}
 
 	// gammai = [1,γ,γ²,..,γⁿ⁻¹]
 	gammai := make([]*emulated.Element[FR], nbDigests)
