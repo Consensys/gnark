@@ -530,16 +530,22 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 		// TODO use real random numbers, follow the solidity smart contract to know which variables are used as seed
 		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[1], randomNumbers[i-1])
 	}
+	randomPointNumbers := make([]*emulated.Element[FR], len(randomNumbers))
+	for i := range randomPointNumbers {
+		randomPointNumbers[i] = v.scalarApi.Mul(randomNumbers[i], &points[i])
+	}
 
-	// fold the committed quotients compute ∑ᵢλᵢ[Hᵢ(α)]G₁
+	// fold the committed quotients compute ∑ᵢλᵢ[Hᵢ(α)]G₁ and
+	// ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
 	quotients := make([]*G1El, len(proofs))
 	for i := 0; i < len(randomNumbers); i++ {
 		quotients[i] = &proofs[i].Quotient
 	}
-	foldedQuotients, err := v.curve.MultiScalarMul(quotients, randomNumbers)
+	foldedQs, err := v.curve.WideMultiScalarMul(quotients, [][]*emulated.Element[FR]{randomNumbers, randomPointNumbers})
 	if err != nil {
 		return fmt.Errorf("fold quotients: %w", err)
 	}
+	foldedQuotients, foldedPointsQuotients := foldedQs[0], foldedQs[1]
 
 	// fold digests and evals
 	evals := make([]emulated.Element[FR], len(digests))
@@ -562,16 +568,6 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	tmp := v.curve.Neg(foldedEvalsCommit)
 	var foldedDigest *G1El
 	foldedDigest = v.curve.Add(&foldedDigests.G1El, tmp)
-
-	// combien the points and the quotients using γᵢ
-	// ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
-	for i := 0; i < len(randomNumbers); i++ {
-		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[i], &points[i])
-	}
-	foldedPointsQuotients, err := v.curve.MultiScalarMul(quotients, randomNumbers)
-	if err != nil {
-		return fmt.Errorf("fold point quotients: %w", err)
-	}
 
 	// ∑ᵢλᵢ[f_i(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁ + ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
 	// = [∑ᵢλᵢf_i(α) - ∑ᵢλᵢfᵢ(aᵢ) + ∑ᵢλᵢpᵢHᵢ(α)]G₁
