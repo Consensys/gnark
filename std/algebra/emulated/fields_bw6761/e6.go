@@ -130,26 +130,24 @@ func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
 	h3 = e.fp.Add(h3, &x.B1.A0)
 	h3 = e.fp.MulConst(h3, big.NewInt(2))
 
-	// h2 = 3((g1+g5)(g1+c*g5)-c*g1g5-g1g5)-2g2
+	// h2 = 3((g1+g5)(g1+c*g5)-(c+1)*g1g5)-2g2
 	t = mulFpByNonResidue(e.fp, &x.B1.A2)
 	t = e.fp.Add(t, &x.B0.A1)
 	h2 := e.fp.Add(&x.B1.A2, &x.B0.A1)
 	h2 = e.fp.Mul(h2, t)
-	h2 = e.fp.Sub(h2, g1g5)
-	t = mulFpByNonResidue(e.fp, g1g5)
-	h2 = e.fp.Sub(h2, t)
+	t = e.fp.MulConst(g1g5, big.NewInt(3))
+	h2 = e.fp.Add(h2, t)
 	h2 = e.fp.MulConst(h2, big.NewInt(3))
 	t = e.fp.MulConst(&x.B0.A2, big.NewInt(2))
 	h2 = e.fp.Sub(h2, t)
 
-	// h1 = 3((g3+g2)(g3+c*g2)-c*g3g2-g3g2)-2g1
+	// h1 = 3((g3+g2)(g3+c*g2)-(c+1)*g3g2)-2g1
 	t = mulFpByNonResidue(e.fp, &x.B0.A2)
 	t = e.fp.Add(t, &x.B1.A0)
 	h1 := e.fp.Add(&x.B0.A2, &x.B1.A0)
 	h1 = e.fp.Mul(h1, t)
-	h1 = e.fp.Sub(h1, g3g2)
-	t = mulFpByNonResidue(e.fp, g3g2)
-	h1 = e.fp.Sub(h1, t)
+	t = e.fp.MulConst(g3g2, big.NewInt(3))
+	h1 = e.fp.Add(h1, t)
 	h1 = e.fp.MulConst(h1, big.NewInt(3))
 	t = e.fp.MulConst(&x.B0.A1, big.NewInt(2))
 	h1 = e.fp.Sub(h1, t)
