@@ -215,6 +215,21 @@ func TestHashMarshalScalar(t *testing.T) {
 		}
 		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_761), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
 	})
+	assert.Run(func(assert *test.Assert) {
+		var s fr_bls24315.Element
+		s.SetRandom()
+		h, err := recursion.NewShort(ecc.BW6_633.ScalarField(), ecc.BLS24_315.ScalarField())
+		assert.NoError(err)
+		marshalled := s.Marshal()
+		h.Write(marshalled)
+		hashed := h.Sum(nil)
+		circuit := &hashMarshalScalarCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{}
+		assignment := &hashMarshalScalarCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine]{
+			Scalar:   sw_bls24315.NewScalar(s),
+			Expected: hashed,
+		}
+		assert.CheckCircuit(circuit, test.WithCurves(ecc.BW6_633), test.WithValidAssignment(assignment), test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks(), test.NoProverChecks())
+	})
 }
 
 type transcriptCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT] struct {

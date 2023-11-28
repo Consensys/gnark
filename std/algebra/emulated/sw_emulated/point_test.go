@@ -19,6 +19,7 @@ import (
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
 
@@ -918,5 +919,71 @@ func TestJointScalarMulBase(t *testing.T) {
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type MultiScalarMulTest[T, S emulated.FieldParams] struct {
+	Points  []AffinePoint[T]
+	Scalars []emulated.Element[S]
+	Res     AffinePoint[T]
+}
+
+func (c *MultiScalarMulTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	ps := make([]*AffinePoint[T], len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[S], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss)
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarMul(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 4
+	P := make([]secp256k1.G1Affine, nbLen)
+	S := make([]fr_secp.Element, nbLen)
+	for i := 0; i < nbLen; i++ {
+		S[i].SetRandom()
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res secp256k1.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]AffinePoint[emulated.Secp256k1Fp], len(P))
+	for i := range cP {
+		cP[i] = AffinePoint[emparams.Secp256k1Fp]{
+			X: emulated.ValueOf[emparams.Secp256k1Fp](P[i].X),
+			Y: emulated.ValueOf[emparams.Secp256k1Fp](P[i].Y),
+		}
+	}
+	cS := make([]emulated.Element[emparams.Secp256k1Fr], len(S))
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.Secp256k1Fr](S[i])
+	}
+	assignment := MultiScalarMulTest[emparams.Secp256k1Fp, emparams.Secp256k1Fr]{
+		Points:  cP,
+		Scalars: cS,
+		Res: AffinePoint[emparams.Secp256k1Fp]{
+			X: emulated.ValueOf[emparams.Secp256k1Fp](res.X),
+			Y: emulated.ValueOf[emparams.Secp256k1Fp](res.Y),
+		},
+	}
+	err = test.IsSolved(&MultiScalarMulTest[emparams.Secp256k1Fp, emparams.P256Fr]{
+		Points:  make([]AffinePoint[emparams.Secp256k1Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.P256Fr], nbLen),
+	}, &assignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }

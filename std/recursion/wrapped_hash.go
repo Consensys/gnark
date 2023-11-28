@@ -126,7 +126,7 @@ func (h *shortNativeHash) Reset() {
 }
 
 func (h *shortNativeHash) Size() int {
-	return (int(h.outSize) + 6) / 8
+	return (int(h.outSize)+7)/8 - 1
 }
 
 func (h *shortNativeHash) BlockSize() int {

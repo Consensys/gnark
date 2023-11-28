@@ -36,6 +36,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
 )
@@ -364,7 +365,8 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) CheckOpeningProof(commitment Commitment
 	return nil
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El], dataTranscript ...frontend.Variable) error {
+// BatchVerifySinglePoint verifies multiple opening proofs at a single point.
+func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El], dataTranscript ...emulated.Element[FR]) error {
 	// fold the proof
 	foldedProof, foldedDigest, err := v.FoldProof(digests, batchOpeningProof, point, dataTranscript...)
 	if err != nil {
@@ -378,6 +380,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commit
 	return nil
 }
 
+// BatchVerifyMultiPoints verifies multiple opening proofs at different points.
 func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
 	var fr FR
 
@@ -418,7 +421,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	}
 
 	seed := whSnark.Sum()
-	binSeed := v.api.ToBinary(seed)
+	binSeed := bits.ToBinary(v.api, seed, bits.WithNbDigits(fr.Modulus().BitLen()))
 	randomNumbers[1] = v.scalarApi.FromBits(binSeed...)
 
 	for i := 2; i < len(randomNumbers); i++ {
@@ -489,7 +492,8 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	return err
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], dataTranscript ...frontend.Variable) (OpeningProof[FR, G1El], Commitment[G1El], error) {
+// FoldProof folds multiple commitments and a batch opening proof for a single opening check.
+func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], dataTranscript ...emulated.Element[FR]) (OpeningProof[FR, G1El], Commitment[G1El], error) {
 	var retP OpeningProof[FR, G1El]
 	var retC Commitment[G1El]
 	nbDigests := len(digests)
@@ -525,7 +529,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 
 // deriveGamma derives a challenge using Fiat Shamir to fold proofs.
 // dataTranscript are supposed to be bits.
-func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR], digests []Commitment[G1El], claimedValues []emulated.Element[FR], dataTranscript ...frontend.Variable) (*emulated.Element[FR], error) {
+func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR], digests []Commitment[G1El], claimedValues []emulated.Element[FR], dataTranscript ...emulated.Element[FR]) (*emulated.Element[FR], error) {
 	var fr FR
 	fs, err := recursion.NewTranscript(v.api, fr.Modulus(), []string{"gamma"})
 	if err != nil {
@@ -546,15 +550,17 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR],
 		}
 	}
 
-	if err := fs.Bind("gamma", dataTranscript); err != nil {
-		return nil, fmt.Errorf("bind data transcript: %w", err)
+	for i := range dataTranscript {
+		if err := fs.Bind("gamma", v.curve.MarshalScalar(dataTranscript[i])); err != nil {
+			return nil, fmt.Errorf("bind %d-ith data transcript: %w", i, err)
+		}
 	}
 
 	gamma, err := fs.ComputeChallenge("gamma")
 	if err != nil {
 		return nil, fmt.Errorf("compute challenge: %w", err)
 	}
-	bGamma := v.api.ToBinary(gamma)
+	bGamma := bits.ToBinary(v.api, gamma, bits.WithNbDigits(fr.Modulus().BitLen()))
 	gammaS := v.scalarApi.FromBits(bGamma...)
 
 	return gammaS, nil
