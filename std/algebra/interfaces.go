@@ -28,11 +28,6 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	// does not modify the inputs.
 	ScalarMul(*G1El, *emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
-	// WideScalarMul returns the scalar multiplications of the point by scalars.
-	// This method shares accumulator doubling and is more efficient than
-	// calling [ScalarMul] multiple times with same point.
-	WideScalarMul(*G1El, []*emulated.Element[FR], ...algopts.AlgebraOption) []*G1El
-
 	// ScalarMulBase returns the scalar multiplication of the curve base point
 	// by a scalar. It does not modify the scalar.
 	ScalarMulBase(*emulated.Element[FR], ...algopts.AlgebraOption) *G1El
@@ -41,11 +36,6 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	// scalars s_i and points P_i. It returns an error if the input lengths
 	// mismatch.
 	MultiScalarMul([]*G1El, []*emulated.Element[FR], ...algopts.AlgebraOption) (*G1El, error)
-
-	// WideScalarMul computes the sums S_j = ∑ s_{i,j} P_i. It uses wide scalar
-	// multiplication to share the accumulator doubling. It returns an error if
-	// the input lengths mismatch.
-	WideMultiScalarMul([]*G1El, [][]*emulated.Element[FR], ...algopts.AlgebraOption) ([]*G1El, error)
 
 	// MarshalG1 returns the binary decomposition G1.X || G1.Y. It matches the
 	// output of gnark-crypto's Marshal method on G1 points.

@@ -158,29 +158,6 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 	}
 }
 
-func (c *Curve) WideScalarMul(P *G1Affine, scalars []*Scalar, opts ...algopts.AlgebraOption) []*G1Affine {
-	res := make([]*G1Affine, len(scalars))
-	for i := range res {
-		res[i] = c.ScalarMul(P, scalars[i], opts...)
-	}
-	return res
-}
-
-func (c *Curve) WideMultiScalarMul(P []*G1Affine, scalars [][]*Scalar, opts ...algopts.AlgebraOption) ([]*G1Affine, error) {
-	if len(P) == 0 {
-		return nil, fmt.Errorf("no inputs")
-	}
-	var err error
-	res := make([]*G1Affine, len(scalars))
-	for i := range res {
-		res[i], err = c.MultiScalarMul(P, scalars[i], opts...)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
-}
-
 // Pairing allows computing pairing-related operations in BLS12-377.
 type Pairing struct {
 	api frontend.API
