@@ -256,6 +256,52 @@ type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
 	G1 G1El
 }
 
+// PlaceholderVerifyingKey returns a placeholder value for the verifying key for
+// compiling if the witness is going to be in precomputed form using [ValueOfVerifyingKeyFixed].
+func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT]() VerifyingKey[G1El, G2El] {
+	var ret VerifyingKey[G1El, G2El]
+	switch s := any(&ret).(type) {
+	// case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bn254.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bn254.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bn254.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bn254.NewG2Affine(tVk.G2[1])
+	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls12377.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
+	// case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls12381.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
+		s.G2[0] = sw_bw6761.NewG2AffineFixedPlaceholder()
+		s.G2[1] = sw_bw6761.NewG2AffineFixedPlaceholder()
+	// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls24315.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+	default:
+		panic("not supported")
+	}
+	return ret
+}
+
 // ValueOfVerifyingKey initializes verifying key witness from the native
 // verifying key. It returns an error if there is a mismatch between the type
 // parameters and the provided verifying key type.
@@ -304,6 +350,61 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk an
 		s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
+	}
+	return ret, nil
+}
+
+// ValueOfVerifyingKeyFixed initializes verifying key witness from the native
+// verifying key and perform pre-computations for G2 elements. It returns an
+// error if there is a mismatch between the type parameters and the provided
+// verifying key type. Such witness is significantly larger than without
+// precomputations. If witness size is important, then use [ValueOfVerifyingKey]
+// instead.
+func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk any) (VerifyingKey[G1El, G2El], error) {
+	var ret VerifyingKey[G1El, G2El]
+	switch s := any(&ret).(type) {
+	// case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bn254.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bn254.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bn254.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bn254.NewG2Affine(tVk.G2[1])
+	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls12377.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
+	// case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls12381.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
+		tVk, ok := vk.(kzg_bw6761.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		s.G1 = sw_bw6761.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bw6761.NewG2AffineFixed(tVk.G2[0])
+		s.G2[1] = sw_bw6761.NewG2AffineFixed(tVk.G2[1])
+	// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls24315.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+	default:
+		return ret, fmt.Errorf("precomputation not supported")
 	}
 	return ret, nil
 }
