@@ -257,46 +257,15 @@ func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 // PlaceholderProof returns a placeholder proof witness to be use for compiling
 // the outer circuit for witness alignment. For actual witness assignment use
 // [ValueOfProof].
-func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof backend_plonk.Proof) Proof[FR, G1El, G2El] {
-	switch tproof := proof.(type) {
-	case *plonkbackend_bls12377.Proof:
-		return Proof[FR, G1El, G2El]{
-			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
-				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
-			},
-			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
-		}
-	case *plonkbackend_bls12381.Proof:
-		return Proof[FR, G1El, G2El]{
-			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
-				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
-			},
-			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
-		}
-	case *plonkbackend_bls24315.Proof:
-		return Proof[FR, G1El, G2El]{
-			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
-				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
-			},
-			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
-		}
-	case *plonkbackend_bw6761.Proof:
-		return Proof[FR, G1El, G2El]{
-			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
-				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
-			},
-			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
-		}
-	case *plonkbackend_bn254.Proof:
-		return Proof[FR, G1El, G2El]{
-			BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
-				ClaimedValues: make([]emulated.Element[FR], len(tproof.BatchedProof.ClaimedValues)),
-			},
-			Bsb22Commitments: make([]kzg.Commitment[G1El], len(tproof.Bsb22Commitments)),
-		}
-	default:
-		panic(fmt.Sprintf("unrecognized type parametrization %T", proof))
+func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) Proof[FR, G1El, G2El] {
+	nbCommitments := len(ccs.GetCommitments().CommitmentIndexes())
+	ret := Proof[FR, G1El, G2El]{
+		BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
+			ClaimedValues: make([]emulated.Element[FR], 7+nbCommitments),
+		},
+		Bsb22Commitments: make([]kzg.Commitment[G1El], nbCommitments),
 	}
+	return ret
 }
 
 // VerifyingKey is a typed PLONK verification key. Use [ValueOfVerifyingKey] or
@@ -587,47 +556,21 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 
 // PlaceholderVerifyingKey returns placeholder of the verification key for
 // compiling the outer circuit.
-func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk backend_plonk.VerifyingKey) VerifyingKey[FR, G1El, G2El] {
-
-	switch tvk := vk.(type) {
-	case *plonkbackend_bls12377.VerifyingKey:
-		return VerifyingKey[FR, G1El, G2El]{
-			Size:                        tvk.Size,
-			NbPublicVariables:           tvk.NbPublicVariables,
-			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
-			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
-		}
-	case *plonkbackend_bls12381.VerifyingKey:
-		return VerifyingKey[FR, G1El, G2El]{
-			Size:                        tvk.Size,
-			NbPublicVariables:           tvk.NbPublicVariables,
-			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
-			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
-		}
-	case *plonkbackend_bls24315.VerifyingKey:
-		return VerifyingKey[FR, G1El, G2El]{
-			Size:                        tvk.Size,
-			NbPublicVariables:           tvk.NbPublicVariables,
-			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
-			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
-		}
-	case *plonkbackend_bw6761.VerifyingKey:
-		return VerifyingKey[FR, G1El, G2El]{
-			Size:                        tvk.Size,
-			NbPublicVariables:           tvk.NbPublicVariables,
-			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
-			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
-		}
-	case *plonkbackend_bn254.VerifyingKey:
-		return VerifyingKey[FR, G1El, G2El]{
-			Size:                        tvk.Size,
-			NbPublicVariables:           tvk.NbPublicVariables,
-			CommitmentConstraintIndexes: tvk.CommitmentConstraintIndexes,
-			Qcp:                         make([]kzg.Commitment[G1El], len(tvk.Qcp)),
-		}
-	default:
-		panic(fmt.Sprintf("unrecognized type parametrization %T", vk))
-
+func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) VerifyingKey[FR, G1El, G2El] {
+	nbPublic := ccs.GetNbPublicVariables()
+	nbConstraints := ccs.GetNbConstraints()
+	sizeSystem := nbPublic + nbConstraints
+	nextPowerTwo := 1 << stdbits.Len(uint(sizeSystem))
+	commitmentIndexes := ccs.GetCommitments().CommitmentIndexes()
+	cCommitmentIndexes := make([]uint64, len(commitmentIndexes))
+	for i := range cCommitmentIndexes {
+		cCommitmentIndexes[i] = uint64(commitmentIndexes[i])
+	}
+	return VerifyingKey[FR, G1El, G2El]{
+		Size:                        uint64(nextPowerTwo),
+		NbPublicVariables:           uint64(nbPublic),
+		CommitmentConstraintIndexes: cCommitmentIndexes,
+		Qcp:                         make([]kzg.Commitment[G1El], len(commitmentIndexes)),
 	}
 }
 
