@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -16,7 +15,6 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 )
 
@@ -175,33 +173,12 @@ func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.Cons
 	}
 	innerWitness, err := frontend.NewWitness(innerAssignment, field)
 	assert.NoError(err)
-	fsProverHasher, err := recursion.NewShort(outer, field)
-	assert.NoError(err)
-	kzgProverHasher, err := recursion.NewShort(outer, field)
-	assert.NoError(err)
-	htfProverdHasher, err := recursion.NewShort(outer, field)
-	assert.NoError(err)
-	innerProof, err := plonk.Prove(innerCcs, innerPK, innerWitness,
-		backend.WithProverChallengeHashFunction(fsProverHasher),
-		backend.WithProverKZGFoldingHashFunction(kzgProverHasher),
-		backend.WithProverHashToFieldFunction(htfProverdHasher),
-	)
+	innerProof, err := plonk.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
 
 	assert.NoError(err)
 	innerPubWitness, err := innerWitness.Public()
 	assert.NoError(err)
-	fsVerifierHasher, err := recursion.NewShort(outer, field)
-	assert.NoError(err)
-	kzgVerifierHash, err := recursion.NewShort(outer, field)
-	assert.NoError(err)
-	htfVerifierHasher, err := recursion.NewShort(outer, field)
-	assert.NoError(err)
-	err = plonk.Verify(innerProof, innerVK, innerPubWitness,
-		backend.WithVerifierChallengeHashFunction(fsVerifierHasher),
-		backend.WithVerifierKZGFoldingHashFunction(kzgVerifierHash),
-		backend.WithVerifierHashToFieldFunction(htfVerifierHasher),
-	)
-	// backend.WithVerifierChallengeHashFunction(fsProverHasher),
+	err = plonk.Verify(innerProof, innerVK, innerPubWitness, GetNativeVerifierOptions(outer, field))
 
 	assert.NoError(err)
 	return innerCcs, innerVK, innerPubWitness, innerProof
