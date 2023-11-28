@@ -365,6 +365,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) CheckOpeningProof(commitment Commitment
 	return nil
 }
 
+// BatchVerifySinglePoint verifies multiple opening proofs at a single point.
 func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El], dataTranscript ...emulated.Element[FR]) error {
 	// fold the proof
 	foldedProof, foldedDigest, err := v.FoldProof(digests, batchOpeningProof, point, dataTranscript...)
@@ -379,6 +380,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commit
 	return nil
 }
 
+// BatchVerifyMultiPoints verifies multiple opening proofs at different points.
 func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
 	var fr FR
 
@@ -490,6 +492,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	return err
 }
 
+// FoldProof folds multiple commitments and a batch opening proof for a single opening check.
 func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], dataTranscript ...emulated.Element[FR]) (OpeningProof[FR, G1El], Commitment[G1El], error) {
 	var retP OpeningProof[FR, G1El]
 	var retC Commitment[G1El]
