@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"golang.org/x/exp/slices"
 )
@@ -465,7 +466,11 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 // [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
-func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
+func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
 
 	// if p=(0,0) we assign a dummy (0,1) to p and continue
 	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
@@ -476,6 +481,9 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 	sr := c.scalarApi.Reduce(s)
 	sBits := c.scalarApi.ToBits(sr)
 	n := st.Modulus().BitLen()
+	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
+		n = cfg.NbScalarBits
+	}
 
 	// i = 1
 	Rb := c.triple(p)
@@ -518,19 +526,27 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S]) *Affi
 //
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S]) *AffinePoint[B] {
-	g := c.Generator()
-	gm := c.GeneratorMultiples()
+func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
 
 	var st S
 	sr := c.scalarApi.Reduce(s)
 	sBits := c.scalarApi.ToBits(sr)
+	n := st.Modulus().BitLen()
+	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
+		n = cfg.NbScalarBits
+	}
+	g := c.Generator()
+	gm := c.GeneratorMultiples()
 
 	// i = 1, 2
 	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
 	res := c.Lookup2(sBits[1], sBits[2], g, &gm[0], &gm[1], &gm[2])
 
-	for i := 3; i < st.Modulus().BitLen(); i++ {
+	for i := 3; i < n; i++ {
 		// gm[i] = [2^i]g
 		tmp := c.add(res, &gm[i])
 		res = c.Select(sBits[i], tmp, res)
@@ -634,20 +650,41 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 //
 // For the points and scalars the same considerations apply as for
 // [Curve.AddUnified] and [Curve.SalarMul].
-func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[S]) (*AffinePoint[B], error) {
-	if len(p) != len(s) {
-		return nil, fmt.Errorf("mismatching points and scalars slice lengths")
-	}
+func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[S], opts ...algopts.AlgebraOption) (*AffinePoint[B], error) {
+
 	if len(p) == 0 {
 		return &AffinePoint[B]{
 			X: *c.baseApi.Zero(),
 			Y: *c.baseApi.Zero(),
 		}, nil
 	}
-	res := c.ScalarMul(p[0], s[0])
-	for i := 1; i < len(p); i++ {
-		q := c.ScalarMul(p[i], s[i])
-		res = c.AddUnified(res, q)
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("new config: %w", err)
 	}
-	return res, nil
+	if !cfg.FoldMulti {
+		// the scalars are unique
+		if len(p) != len(s) {
+			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
+		}
+		res := c.ScalarMul(p[0], s[0])
+		for i := 1; i < len(p); i++ {
+			q := c.ScalarMul(p[i], s[i], opts...)
+			res = c.AddUnified(res, q)
+		}
+		return res, nil
+	} else {
+		// scalars are powers
+		if len(s) == 0 {
+			return nil, fmt.Errorf("need scalar for folding")
+		}
+		gamma := s[0]
+		res := c.ScalarMul(p[len(p)-1], gamma, opts...)
+		for i := len(p) - 2; i > 0; i-- {
+			res = c.Add(p[i], res)
+			res = c.ScalarMul(res, gamma, opts...)
+		}
+		res = c.Add(p[0], res)
+		return res, nil
+	}
 }

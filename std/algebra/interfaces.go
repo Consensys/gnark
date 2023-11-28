@@ -2,6 +2,7 @@ package algebra
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -25,16 +26,16 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 
 	// ScalarMul returns the scalar multiplication of the point by a scalar. It
 	// does not modify the inputs.
-	ScalarMul(*G1El, *emulated.Element[FR]) *G1El
+	ScalarMul(*G1El, *emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
 	// ScalarMulBase returns the scalar multiplication of the curve base point
 	// by a scalar. It does not modify the scalar.
-	ScalarMulBase(*emulated.Element[FR]) *G1El
+	ScalarMulBase(*emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
 	// MultiScalarMul computes the sum ∑ s_i P_i for the input
 	// scalars s_i and points P_i. It returns an error if the input lengths
 	// mismatch.
-	MultiScalarMul([]*G1El, []*emulated.Element[FR]) (*G1El, error)
+	MultiScalarMul([]*G1El, []*emulated.Element[FR], ...algopts.AlgebraOption) (*G1El, error)
 
 	// MarshalG1 returns the binary decomposition G1.X || G1.Y. It matches the
 	// output of gnark-crypto's Marshal method on G1 points.

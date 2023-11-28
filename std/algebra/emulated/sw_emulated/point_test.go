@@ -18,6 +18,7 @@ import (
 	fp_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
@@ -985,5 +986,54 @@ func TestMultiScalarMul(t *testing.T) {
 		Points:  make([]AffinePoint[emparams.Secp256k1Fp], nbLen),
 		Scalars: make([]emulated.Element[emparams.P256Fr], nbLen),
 	}, &assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type ScalarMulTestBounded[T, S emulated.FieldParams] struct {
+	P, Q AffinePoint[T]
+	S    emulated.Element[S]
+	bits int
+}
+
+func (c *ScalarMulTestBounded[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.ScalarMul(&c.P, &c.S, algopts.WithNbScalarBits(c.bits))
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+func TestScalarMulBounded(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := secp256k1.Generators()
+	var r fr_secp.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	nbBits := 13
+	mask := big.NewInt(1)
+	mask.Lsh(mask, uint(nbBits))
+	mask.Sub(mask, big.NewInt(1))
+	s.And(s, mask)
+	var S secp256k1.G1Affine
+	S.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulTestBounded[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		bits: nbBits,
+	}
+	witness := ScalarMulTestBounded[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
+		S: emulated.ValueOf[emulated.Secp256k1Fr](s),
+		P: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+		},
+		Q: AffinePoint[emulated.Secp256k1Fp]{
+			X: emulated.ValueOf[emulated.Secp256k1Fp](S.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](S.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }

@@ -9,6 +9,7 @@ import (
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -90,7 +91,7 @@ func (c *Curve) Neg(P *G1Affine) *G1Affine {
 
 // ScalarMul computes scalar*P and returns the result. It doesn't modify the
 // inputs.
-func (c *Curve) ScalarMul(P *G1Affine, s *Scalar) *G1Affine {
+func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
 	res := &G1Affine{
 		X: P.X,
 		Y: P.Y,
@@ -102,7 +103,7 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar) *G1Affine {
 
 // ScalarMulBase computes scalar*G where G is the standard base point of the
 // curve. It doesn't modify the scalar.
-func (c *Curve) ScalarMulBase(s *Scalar) *G1Affine {
+func (c *Curve) ScalarMulBase(s *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
 	res := new(G1Affine)
 	varScalar := c.packScalarToVar(s)
 	res.ScalarMulBase(c.api, varScalar)
@@ -112,27 +113,49 @@ func (c *Curve) ScalarMulBase(s *Scalar) *G1Affine {
 // MultiScalarMul computes ∑scalars_i * P_i and returns it. It doesn't modify
 // the inputs. It returns an error if there is a mismatch in the lengths of the
 // inputs.
-func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar) (*G1Affine, error) {
-	if len(P) != len(scalars) {
-		return nil, fmt.Errorf("mismatching points and scalars slice lengths")
-	}
+func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts.AlgebraOption) (*G1Affine, error) {
 	if len(P) == 0 {
 		return &G1Affine{
 			X: 0,
 			Y: 0,
 		}, nil
 	}
-	res := c.ScalarMul(P[0], scalars[0])
-	for i := 1; i < len(P); i++ {
-		q := c.ScalarMul(P[i], scalars[i])
-
-		// check for infinity
-		isInfinity := c.api.And(c.api.IsZero(P[i].X), c.api.IsZero(P[i].Y))
-		tmp := c.Add(res, q)
-		res.X = c.api.Select(isInfinity, res.X, tmp.X)
-		res.Y = c.api.Select(isInfinity, res.Y, tmp.Y)
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("new config: %w", err)
 	}
-	return res, nil
+	if !cfg.FoldMulti {
+		if len(P) != len(scalars) {
+			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
+		}
+		res := c.ScalarMul(P[0], scalars[0])
+		for i := 1; i < len(P); i++ {
+			q := c.ScalarMul(P[i], scalars[i], opts...)
+
+			// check for infinity...
+			isInfinity := c.api.And(c.api.IsZero(P[i].X), c.api.IsZero(P[i].Y))
+			tmp := c.Add(res, q)
+			res.X = c.api.Select(isInfinity, res.X, tmp.X)
+			res.Y = c.api.Select(isInfinity, res.Y, tmp.Y)
+		}
+		return res, nil
+	} else {
+		// scalars are powers
+		if len(scalars) == 0 {
+			return nil, fmt.Errorf("need scalar for folding")
+		}
+		gamma := scalars[0]
+		res := c.ScalarMul(P[len(P)-1], gamma, opts...)
+		for i := len(P) - 2; i > 0; i-- {
+			isInfinity := c.api.And(c.api.IsZero(P[i].X), c.api.IsZero(P[i].Y))
+			tmp := c.Add(P[i], res)
+			res.X = c.api.Select(isInfinity, res.X, tmp.X)
+			res.Y = c.api.Select(isInfinity, res.Y, tmp.Y)
+			res = c.ScalarMul(res, gamma, opts...)
+		}
+		res = c.Add(P[0], res)
+		return res, nil
+	}
 }
 
 // Pairing allows computing pairing-related operations in BLS12-377.
