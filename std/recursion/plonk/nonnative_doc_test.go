@@ -159,7 +159,7 @@ func Example_emulated() {
 		panic("proving failed: " + err.Error())
 	}
 
-	// verify the Groth16 proof
+	// verify the PLONK proof
 	err = native_plonk.Verify(outerProof, vk, publicWitness)
 	if err != nil {
 		panic("circuit verification failed: " + err.Error())

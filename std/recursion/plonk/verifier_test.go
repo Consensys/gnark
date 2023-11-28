@@ -97,8 +97,6 @@ func TestBLS12InBW6WoCommit(t *testing.T) {
 	}
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
-	// assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BW6_761),
-	// 	test.NoFuzzing(), test.NoSerializationChecks(), test.NoSolidityChecks())
 }
 
 func TestBW6InBN254WoCommit(t *testing.T) {

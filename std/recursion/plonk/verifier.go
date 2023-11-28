@@ -31,7 +31,7 @@ import (
 	"github.com/consensys/gnark/std/recursion"
 )
 
-// Proof is a typed PLONK proof of SNARK. Use [ValueProof] to initialize the
+// Proof is a typed PLONK proof of SNARK. Use [ValueOfProof] to initialize the
 // witness from the native proof. Use [PlaceholderProof] to initialize the
 // placeholder witness for compiling the circuit.
 type Proof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
