@@ -277,7 +277,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		}
 	}
 
-	for i := 187; i > 0; i-- {
+	for i := 187; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		result = pr.Square(result)
@@ -289,7 +289,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 			)
 		}
 
-		if loopCounter2[i]*3+loopCounter1[i] != 0 {
+		if i > 0 && loopCounter2[i]*3+loopCounter1[i] != 0 {
 			for k := 0; k < n; k++ {
 				result = pr.MulBy014(result,
 					pr.curveF.MulMod(&lines[k][1][i].R1, yInv[k]),
@@ -297,14 +297,6 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 				)
 			}
 		}
-	}
-
-	result = pr.Square(result)
-	for k := 0; k < n; k++ {
-		result = pr.MulBy014(result,
-			pr.curveF.MulMod(&lines[k][0][0].R1, yInv[k]),
-			pr.curveF.MulMod(&lines[k][0][0].R0, xNegOverY[k]),
-		)
 	}
 
 	return result, nil
