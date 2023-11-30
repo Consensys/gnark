@@ -552,6 +552,7 @@ func (P *G1Affine) JointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 	cc.phi1(api, &tablePhiS[2], &tableS[2])
 	cc.phi1(api, &tablePhiS[3], &tableS[3])
 
+	// suppose first bit is 1 and set:
 	// Acc = Q + R + Φ(Q) + Φ(R)
 	var Acc G1Affine
 	Acc = tableS[1]
@@ -568,18 +569,16 @@ func (P *G1Affine) JointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 		Acc.AddAssign(api, B)
 	}
 
-	// if s1bits[0] == 1 subtract Q from the accumulator
+	// i = 0
+	// subtract the initial point from the accumulator when first bit was 0
 	tableQ[0].AddAssign(api, Acc)
 	Acc.Select(api, s1bits[0], Acc, tableQ[0])
-	// if s2bits[0] == 1 subtract Φ(Q) from the accumulator
 	tablePhiQ[0].AddAssign(api, Acc)
 	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
-	// if t1bits[0] == 1 subtract R from the accumulator
 	tableR[0].AddAssign(api, Acc)
 	Acc.Select(api, t1bits[0], Acc, tableR[0])
-	// if t2bits[0] == 1 subtract Φ(R) from the accumulator
 	tablePhiR[0].AddAssign(api, Acc)
-	Acc.Select(api, t2bits[0], Acc, tablePhiR[1])
+	Acc.Select(api, t2bits[0], Acc, tablePhiR[0])
 
 	P.X = Acc.X
 	P.Y = Acc.Y
