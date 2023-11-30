@@ -482,3 +482,90 @@ func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affin
 
 	return P
 }
+
+// P = [s]Q + [t]R using Shamir's trick
+func (P *G1Affine) JointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
+	cc := getInnerCurveConfig(api.Compiler().Field())
+
+	sd, err := api.Compiler().NewHint(DecomposeScalarG1, 3, s)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	s1, s2 := sd[0], sd[1]
+
+	td, err := api.Compiler().NewHint(DecomposeScalarG1, 3, t)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	t1, t2 := td[0], td[1]
+
+	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), api.Add(s, api.Mul(cc.fr, sd[2])))
+	api.AssertIsEqual(api.Add(t1, api.Mul(t2, cc.lambda)), api.Add(t, api.Mul(cc.fr, td[2])))
+
+	nbits := cc.lambda.BitLen() + 1
+
+	s1bits := api.ToBinary(s1, nbits)
+	s2bits := api.ToBinary(s2, nbits)
+	t1bits := api.ToBinary(t1, nbits)
+	t2bits := api.ToBinary(t2, nbits)
+
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]G1Affine
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	cc.phi1(api, &tablePhiQ[1], &Q)
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+	// precompute -R, -Φ(R), Φ(R)
+	var tableR, tablePhiR [2]G1Affine
+	tableR[1] = R
+	tableR[0].Neg(api, R)
+	cc.phi1(api, &tablePhiR[1], &R)
+	tablePhiR[0].Neg(api, tablePhiR[1])
+	// precompute Q+R, -Q-R, Q-R, -Q+R, Φ(Q)+Φ(R), -Φ(Q)-Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R)
+	var tableS, tablePhiS [4]G1Affine
+	tableS[0] = tableQ[0]
+	tableS[0].AddAssign(api, tableR[0])
+	tableS[1].Neg(api, tableS[0])
+	tableS[2] = Q
+	tableS[2].AddAssign(api, tableR[0])
+	tableS[3].Neg(api, tableS[2])
+	cc.phi1(api, &tablePhiS[0], &tableS[0])
+	cc.phi1(api, &tablePhiS[1], &tableS[1])
+	cc.phi1(api, &tablePhiS[2], &tableS[2])
+	cc.phi1(api, &tablePhiS[3], &tableS[3])
+
+	// suppose first bit is 1 and set:
+	// Acc = Q + R + Φ(Q) + Φ(R)
+	var Acc G1Affine
+	Acc = tableS[1]
+	Acc.AddAssign(api, tablePhiS[1])
+
+	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
+	var B G1Affine
+	for i := nbits - 1; i > 0; i-- {
+		B.X = api.Select(api.Xor(s1bits[i], t1bits[i]), tableS[2].X, tableS[0].X)
+		B.Y = api.Lookup2(s1bits[i], t1bits[i], tableS[0].Y, tableS[2].Y, tableS[3].Y, tableS[1].Y)
+		Acc.DoubleAndAdd(api, &Acc, &B)
+		B.X = api.Select(api.Xor(s2bits[i], t2bits[i]), tablePhiS[2].X, tablePhiS[0].X)
+		B.Y = api.Lookup2(s2bits[i], t2bits[i], tablePhiS[0].Y, tablePhiS[2].Y, tablePhiS[3].Y, tablePhiS[1].Y)
+		Acc.AddAssign(api, B)
+	}
+
+	// i = 0
+	// subtract the initial point from the accumulator when first bit was 0
+	tableQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	tableR[0].AddAssign(api, Acc)
+	Acc.Select(api, t1bits[0], Acc, tableR[0])
+	tablePhiR[0].AddAssign(api, Acc)
+	Acc.Select(api, t2bits[0], Acc, tablePhiR[0])
+
+	P.X = Acc.X
+	P.Y = Acc.Y
+
+	return P
+}

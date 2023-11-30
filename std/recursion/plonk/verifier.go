@@ -824,10 +824,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	// compute the folded commitment to H: Comm(h₁) + ζᵐ⁺²*Comm(h₂) + ζ²⁽ᵐ⁺²⁾*Comm(h₃)
 	zetaMPlusTwo := v.scalarApi.Mul(zetaPowerM, zeta)
 	zetaMPlusTwo = v.scalarApi.Mul(zetaMPlusTwo, zeta)
+	zetaMPlusTwoSquare := v.scalarApi.Mul(zetaMPlusTwo, zetaMPlusTwo)
 
-	foldedH := v.curve.ScalarMul(&proof.H[2].G1El, zetaMPlusTwo)
-	foldedH = v.curve.Add(foldedH, &proof.H[1].G1El)
-	foldedH = v.curve.ScalarMul(foldedH, zetaMPlusTwo)
+	foldedH := v.curve.JointScalarMul(&proof.H[2].G1El, &proof.H[1].G1El, zetaMPlusTwoSquare, zetaMPlusTwo)
 	foldedH = v.curve.Add(foldedH, &proof.H[0].G1El)
 
 	// Compute the commitment to the linearized polynomial

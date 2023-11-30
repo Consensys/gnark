@@ -550,6 +550,95 @@ func TestMultiScalarMul(t *testing.T) {
 	assert.NoError(err)
 }
 
+type g1JointScalarMul struct {
+	A, B G1Affine
+	C    G1Affine `gnark:",public"`
+	R, S frontend.Variable
+}
+
+func (circuit *g1JointScalarMul) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.JointScalarMul(api, circuit.A, circuit.B, circuit.R, circuit.S)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestJointScalarMulG1(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	_b := randomPointG1()
+	var a, b, c bls24315.G1Affine
+	a.FromJacobian(&_a)
+	b.FromJacobian(&_b)
+
+	// create the cs
+	var circuit, witness g1JointScalarMul
+	var r, s fr.Element
+	_, _ = r.SetRandom()
+	_, _ = s.SetRandom()
+	witness.R = r.String()
+	witness.S = s.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	// compute the result
+	var br, bs big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	_b.ScalarMultiplication(&_b, s.BigInt(&bs))
+	_a.AddAssign(&_b)
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+}
+
+type g1JointScalarMulNaive struct {
+	A, B G1Affine
+	C    G1Affine `gnark:",public"`
+	R, S frontend.Variable
+}
+
+func (circuit *g1JointScalarMulNaive) Define(api frontend.API) error {
+	expected := G1Affine{}
+	tmp := G1Affine{}
+	tmp.varScalarMul(api, circuit.A, circuit.R)
+	expected.varScalarMul(api, circuit.B, circuit.S)
+	expected.AddAssign(api, tmp)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestJointScalarMulG1Naive(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	_b := randomPointG1()
+	var a, b, c bls24315.G1Affine
+	a.FromJacobian(&_a)
+	b.FromJacobian(&_b)
+
+	// create the cs
+	var circuit, witness g1JointScalarMulNaive
+	var r, s fr.Element
+	_, _ = r.SetRandom()
+	_, _ = s.SetRandom()
+	witness.R = r.String()
+	witness.S = s.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	// compute the result
+	var br, bs big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	_b.ScalarMultiplication(&_b, s.BigInt(&bs))
+	_a.AddAssign(&_b)
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+}
+
 func randomPointG1() bls24315.G1Jac {
 
 	p1, _, _, _ := bls24315.Generators()
