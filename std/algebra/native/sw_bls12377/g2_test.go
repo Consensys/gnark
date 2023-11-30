@@ -23,8 +23,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
@@ -414,96 +412,4 @@ func randomPointG2() bls12377.G2Jac {
 	_, _ = r1.SetRandom()
 	p2.ScalarMultiplication(&p2, r1.BigInt(&b))
 	return p2
-}
-
-// benches
-func BenchmarkDoubleAffineG2(b *testing.B) {
-	var c g2DoubleAffine
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-		}
-
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkAddAssignAffineG2(b *testing.B) {
-	var c g2AddAssignAffine
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-		}
-
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkDoubleAndAddAffineG2(b *testing.B) {
-	var c g2DoubleAndAddAffine
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-		}
-
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
-}
-
-func BenchmarkConstScalarMulG2(b *testing.B) {
-	var c g2constantScalarMul
-	// this is q - 1
-	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
-	if !ok {
-		b.Fatal("invalid integer")
-	}
-	c.R = r
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-		}
-
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
-	b.Run("plonk", func(b *testing.B) {
-		var err error
-		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-
-	})
-	b.Log("plonk", ccsBench.GetNbConstraints())
-
-}
-
-func BenchmarkVarScalarMulG2(b *testing.B) {
-	var c g2varScalarMul
-	// this is q - 1
-	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
-	if !ok {
-		b.Fatal("invalid integer")
-	}
-	c.R = r
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-		}
-
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
-	b.Run("plonk", func(b *testing.B) {
-		var err error
-		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-
-	})
-	b.Log("plonk", ccsBench.GetNbConstraints())
-
 }
