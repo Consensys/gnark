@@ -9,29 +9,24 @@ import (
 // d consists of bytes
 func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d []frontend.Variable, dict []byte, level Level) (dLength frontend.Variable, err error) {
 
-	wordLen := int(level)
+	wordNbBits := int(level)
+
+	checkInputRange(api, c, wordNbBits)
 
 	dict = augmentDict(dict)
 	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
 
-	shortBrNbWords := int(shortBackRefType.nbBitsBackRef) / wordLen
-	longBrNbWords := int(longBackRefType.nbBitsBackRef) / wordLen
-	dictBrNbWords := int(dictBackRefType.nbBitsBackRef) / wordLen
-	byteNbWords := 8 / wordLen
+	shortBrNbWords := int(shortBackRefType.nbBitsBackRef) / wordNbBits
+	longBrNbWords := int(longBackRefType.nbBitsBackRef) / wordNbBits
+	dictBrNbWords := int(dictBackRefType.nbBitsBackRef) / wordNbBits
+	byteNbWords := 8 / wordNbBits
 
-	api.AssertIsEqual(readNum(api, c, byteNbWords, wordLen), 0) // compressor version TODO @tabaie @gbotrel Handle this outside the circuit instead?
-	fileCompressionMode := readNum(api, c[byteNbWords:], byteNbWords, wordLen)
+	api.AssertIsEqual(readNum(api, c, byteNbWords, wordNbBits), 0) // compressor version TODO @tabaie @gbotrel Handle this outside the circuit instead?
+	fileCompressionMode := readNum(api, c[byteNbWords:], byteNbWords, wordNbBits)
 	c = c[2*byteNbWords:]
 	cLength = api.Sub(cLength, 2*byteNbWords)
-	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordLen)) // if fcm!=0, then fcm=wordLen
+	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordNbBits)) // if fcm!=0, then fcm=wordNbBits
 	decompressionNotBypassed := api.Sub(1, api.IsZero(fileCompressionMode))
-
-	// assert that c are within range
-	cRangeTable := logderivlookup.New(api)
-	for i := 0; i < 1<<wordLen; i++ {
-		cRangeTable.Insert(0)
-	}
-	_ = cRangeTable.Lookup(c...)
 
 	outTable := logderivlookup.New(api)
 	for i := range dict {
@@ -39,10 +34,10 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	}
 
 	// formatted input
-	bytes := combineIntoBytes(api, c, wordLen)
+	bytes := combineIntoBytes(api, c, wordNbBits)
 	bytesTable := sliceToTable(api, bytes)
 	bytesTable.Insert(0) // just because we use this table for looking up backref lengths as well
-	addrTable := initAddrTable(api, bytes, c, wordLen, []backrefType{shortBackRefType, longBackRefType, dictBackRefType})
+	addrTable := initAddrTable(api, bytes, c, wordNbBits, []backrefType{shortBackRefType, longBackRefType, dictBackRefType})
 
 	// state variables
 	inI := frontend.Variable(0)
@@ -106,6 +101,29 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 	}
 	return dLength, nil
+}
+
+func checkInputRange(api frontend.API, c []frontend.Variable, wordNbBits int) {
+	if wordNbBits > 2 {
+		cRangeTable := logderivlookup.New(api)
+		for i := 0; i < 1<<wordNbBits; i++ {
+			cRangeTable.Insert(0)
+		}
+		_ = cRangeTable.Lookup(c...)
+		return
+	}
+	var check func(frontend.Variable)
+	switch wordNbBits {
+	case 1:
+		check = api.AssertIsBoolean
+	case 2:
+		check = api.AssertIsCrumb
+	default:
+		panic("wordNbBits must be positive")
+	}
+	for i := range c {
+		check(c[i])
+	}
 }
 
 func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.Table {

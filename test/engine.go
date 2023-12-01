@@ -464,6 +464,12 @@ func (e *engine) AssertIsBoolean(i1 frontend.Variable) {
 	e.mustBeBoolean(b1)
 }
 
+func (e *engine) AssertIsCrumb(i1 frontend.Variable) {
+	i1 = e.MulAcc(e.Mul(-3, i1), i1, i1)
+	i1 = e.MulAcc(e.Mul(2, i1), i1, i1)
+	e.AssertIsEqual(i1, 0)
+}
+
 func (e *engine) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 
 	bValue := e.toBigInt(bound)

@@ -2,16 +2,21 @@ package lzss
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/icza/bitio"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
+	"sync"
 	"testing"
 )
 
@@ -129,7 +134,7 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
 func testDecompressionSnark(t *testing.T, dict []byte, level Level, compressedStream ...interface{}) {
 	var bb bytes.Buffer
 	w := bitio.NewWriter(&bb)
-	bb.WriteByte(byte(level))
+	bb.Write([]byte{0, byte(level)})
 	i := 0
 	for _, c := range compressedStream {
 		switch v := c.(type) {
@@ -200,4 +205,77 @@ func (c *readBytesCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(c.Expected[i], byts[i*8])
 	}
 	return nil
+}
+
+type assertWithTableCircuit struct {
+	C []frontend.Variable
+	N int
+}
+
+func (c *assertWithTableCircuit) Define(api frontend.API) error {
+	table := logderivlookup.New(api)
+
+	for i := 0; i < c.N; i++ {
+		table.Insert(0)
+	}
+
+	_ = table.Lookup(c.C...)
+
+	return nil
+}
+
+type assertWithConstraintCircuit struct {
+	C []frontend.Variable
+	N int
+}
+
+func (c *assertWithConstraintCircuit) Define(api frontend.API) error {
+
+	var check func(frontend.Variable)
+
+	switch c.N {
+	case 2:
+		check = api.AssertIsBoolean
+	case 4:
+		check = api.AssertIsCrumb
+	default:
+		return errors.New("not implemented")
+	}
+
+	for _, x := range c.C {
+		check(x)
+	}
+	return nil
+}
+
+func TestCompareAssertions(t *testing.T) {
+
+	nums := bytes.Repeat([]byte{0}, 2400000)
+
+	var wg sync.WaitGroup
+	tst := func(name string, circuit frontend.Circuit) {
+		cs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit)
+		assert.NoError(t, err)
+		fmt.Println(name, cs.GetNbConstraints())
+		wg.Done()
+	}
+
+	wg.Add(4)
+	go tst("table_2", &assertWithTableCircuit{
+		C: test_vector_utils.ToVariableSlice(nums),
+		N: 2,
+	})
+	go tst("table_4", &assertWithTableCircuit{
+		C: test_vector_utils.ToVariableSlice(nums),
+		N: 4,
+	})
+	go tst("constraint_2", &assertWithConstraintCircuit{
+		C: test_vector_utils.ToVariableSlice(nums),
+		N: 2,
+	})
+	tst("constraint_4", &assertWithConstraintCircuit{
+		C: test_vector_utils.ToVariableSlice(nums),
+		N: 4,
+	})
+	wg.Wait()
 }

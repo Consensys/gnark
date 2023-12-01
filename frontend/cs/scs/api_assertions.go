@@ -128,6 +128,33 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 
 }
 
+func (builder *builder) AssertIsCrumb(i1 frontend.Variable) {
+	const errorMsg = "AssertIsCrumb: input is not a crumb"
+	if c, ok := builder.constantValue(i1); ok {
+		bytes := c.Bytes()
+		for i := 1; i < len(bytes); i++ {
+			if bytes[i] != 0 {
+				panic(errorMsg)
+			}
+		}
+		for i := 0; i < 4; i++ {
+			if bytes[0] == byte(i) {
+				return
+			}
+		}
+		panic(errorMsg)
+	}
+
+	x := builder.MulAcc(builder.Mul(-3, i1), i1, i1).(expr.Term)
+
+	builder.addPlonkConstraint(sparseR1C{
+		xa: x.VID,
+		xb: x.VID,
+		qL: builder.cs.FromInterface(2),
+		qM: builder.tOne,
+	})
+}
+
 // AssertIsLessOrEqual fails if  v > bound
 func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
 	cv, vConst := builder.constantValue(v)
