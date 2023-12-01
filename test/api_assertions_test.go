@@ -11,7 +11,7 @@ func TestIsCrumb(t *testing.T) {
 	assert := NewAssert(t)
 	assert.SolvingSucceeded(&isCrumbCircuit{C: make([]frontend.Variable, len(c))}, &isCrumbCircuit{C: c})
 	for n := 0; n < 20; n++ {
-		x := rand.Intn(65531) + 4
+		x := rand.Intn(65531) + 4 //#nosec G404 weak rng OK for test
 		assert.SolvingFailed(&isCrumbCircuit{C: []frontend.Variable{nil}}, &isCrumbCircuit{C: []frontend.Variable{x}})
 	}
 }
