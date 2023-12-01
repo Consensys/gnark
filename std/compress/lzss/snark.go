@@ -19,9 +19,10 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	dictBrNbWords := int(dictBackRefType.nbBitsBackRef) / wordLen
 	byteNbWords := 8 / wordLen
 
-	fileCompressionMode := readNum(api, c, byteNbWords, wordLen)
-	c = c[byteNbWords:]
-	cLength = api.Sub(cLength, byteNbWords)
+	api.AssertIsEqual(readNum(api, c, byteNbWords, wordLen), 0) // compressor version TODO @tabaie @gbotrel Handle this outside the circuit instead?
+	fileCompressionMode := readNum(api, c[byteNbWords:], byteNbWords, wordLen)
+	c = c[2*byteNbWords:]
+	cLength = api.Sub(cLength, 2*byteNbWords)
 	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordLen)) // if fcm!=0, then fcm=wordLen
 	decompressionNotBypassed := api.Sub(1, api.IsZero(fileCompressionMode))
 
