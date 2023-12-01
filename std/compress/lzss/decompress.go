@@ -25,7 +25,7 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 
 	level := Level(_b[1])
 	if level == NoCompression {
-		return data[1:], nil
+		return data[2:], nil
 	}
 
 	dict = augmentDict(dict)
