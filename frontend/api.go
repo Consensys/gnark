@@ -119,8 +119,10 @@ type API interface {
 	// AssertIsDifferent fails if i1 == i2
 	AssertIsDifferent(i1, i2 Variable)
 
-	// AssertIsBoolean fails if v != 0 ∥ v != 1
+	// AssertIsBoolean fails if v != 0 and v != 1
 	AssertIsBoolean(i1 Variable)
+	// AssertIsCrumb fails if v ∉ {0,1,2,3} (crumb is a 2-bit variable; see https://en.wikipedia.org/wiki/Units_of_information)
+	AssertIsCrumb(i1 Variable)
 
 	// AssertIsLessOrEqual fails if v > bound.
 	//

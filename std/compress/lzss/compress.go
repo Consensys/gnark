@@ -3,6 +3,7 @@ package lzss
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math/bits"
 
 	"github.com/consensys/gnark/std/compress/lzss/internal/suffixarray"
@@ -103,7 +104,10 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 
 	// reset output buffer
 	compressor.buf.Reset()
-	compressor.buf.WriteByte(byte(compressor.level))
+	settings := settings{version: 0, level: compressor.level}
+	if err = settings.writeTo(&compressor.buf); err != nil {
+		return
+	}
 	if compressor.level == NoCompression {
 		compressor.buf.Write(d)
 		return compressor.buf.Bytes(), nil
@@ -206,11 +210,21 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 	if compressor.bw.TryError != nil {
 		return nil, compressor.bw.TryError
 	}
-	if err := compressor.bw.Close(); err != nil {
+	if err = compressor.bw.Close(); err != nil {
 		return nil, err
 	}
 
-	return compressor.buf.Bytes(), nil
+	if compressor.buf.Len() >= len(d)+settings.bitLen()/8 {
+		// compression was not worth it
+		compressor.buf.Reset()
+		settings.level = NoCompression
+		if err = settings.writeTo(&compressor.buf); err != nil {
+			return
+		}
+		_, err = compressor.buf.Write(d)
+	}
+
+	return compressor.buf.Bytes(), err
 }
 
 // canEncodeSymbol returns true if the symbol can be encoded directly
@@ -260,4 +274,30 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+type settings struct {
+	version byte
+	level   Level
+}
+
+func (s *settings) writeTo(w io.Writer) error {
+	_, err := w.Write([]byte{s.version, byte(s.level)}) // 0 -> compressor release version
+	return err
+}
+
+func (s *settings) readFrom(r io.ByteReader) (err error) {
+	if s.version, err = r.ReadByte(); err != nil {
+		return
+	}
+	if level, err := r.ReadByte(); err != nil {
+		return err
+	} else {
+		s.level = Level(level)
+	}
+	return
+}
+
+func (s *settings) bitLen() int {
+	return 16
 }

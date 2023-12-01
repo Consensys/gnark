@@ -2,10 +2,10 @@ package lzss
 
 import (
 	"bytes"
-	"io"
-
+	"errors"
 	"github.com/consensys/gnark/std/compress"
 	"github.com/icza/bitio"
+	"io"
 )
 
 func DecompressGo(data, dict []byte) (d []byte, err error) {
@@ -14,13 +14,19 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 	out.Grow(len(data)*6 + len(dict))
 	in := bitio.NewReader(bytes.NewReader(data))
 
-	level := Level(in.TryReadByte())
-	if level == NoCompression {
-		return data[1:], nil
+	var settings settings
+	if err = settings.readFrom(in); err != nil {
+		return
+	}
+	if settings.version != 0 {
+		return nil, errors.New("unsupported compressor version")
+	}
+	if settings.level == NoCompression {
+		return data[2:], nil
 	}
 
 	dict = augmentDict(dict)
-	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), settings.level)
 
 	bDict := backref{bType: dictBackRefType}
 	bShort := backref{bType: shortBackRefType}
@@ -56,60 +62,60 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 	return out.Bytes(), nil
 }
 
-func ReadIntoStream(data, dict []byte, level Level) compress.Stream {
-	in := bitio.NewReader(bytes.NewReader(data))
+// ReadIntoStream reads the compressed data into a stream
+// the stream is not padded with zeros as one obtained by a naive call to compress.NewStream may be
+func ReadIntoStream(data, dict []byte, level Level) (compress.Stream, error) {
 
-	wordLen := int(level)
+	out, err := compress.NewStream(data, uint8(level))
+	if err != nil {
+		return out, err
+	}
 
+	// now find out how much of the stream is padded zeros and remove them
+	byteReader := bytes.NewReader(data)
+	in := bitio.NewReader(byteReader)
 	dict = augmentDict(dict)
+	var settings settings
+	if err := settings.readFrom(byteReader); err != nil {
+		return out, err
+	}
 	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
 
-	bDict := backref{bType: dictBackRefType}
-	bShort := backref{bType: shortBackRefType}
-	bLong := backref{bType: longBackRefType}
-
-	levelFromData := Level(in.TryReadByte())
-	if levelFromData != NoCompression && levelFromData != level {
-		panic("compression mode mismatch")
+	// the main job of this function is to compute the right value for outLenBits
+	// so we can remove the extra zeros at the end of out
+	outLenBits := settings.bitLen()
+	if settings.level == NoCompression {
+		return out, nil
 	}
-
-	out := compress.Stream{
-		NbSymbs: 1 << wordLen,
+	if settings.level != level {
+		return out, errors.New("compression mode mismatch")
 	}
-
-	out.WriteNum(int(levelFromData), 8/wordLen)
 
 	s := in.TryReadByte()
-
 	for in.TryError == nil {
-		out.WriteNum(int(s), 8/wordLen)
-
-		var b *backref
+		var b *backrefType
 		switch s {
 		case symbolShort:
-			// short back ref
-			b = &bShort
+			b = &shortBackRefType
 		case symbolLong:
-			// long back ref
-			b = &bLong
+			b = &longBackRefType
 		case symbolDict:
-			// dict back ref
-			b = &bDict
+			b = &dictBackRefType
 		}
-		if b != nil && levelFromData != NoCompression {
-			b.readFrom(in)
-			address := b.address
-			if b != &bDict {
-				address--
-			}
-			out.WriteNum(b.length-1, int(b.bType.nbBitsLength)/wordLen)
-			out.WriteNum(address, int(b.bType.nbBitsAddress)/wordLen)
+		if b == nil {
+			outLenBits += 8
+		} else {
+			in.TryReadBits(b.nbBitsBackRef - 8)
+			outLenBits += int(b.nbBitsBackRef)
 		}
-
 		s = in.TryReadByte()
 	}
 	if in.TryError != io.EOF {
-		panic(in.TryError)
+		return out, in.TryError
 	}
-	return out
+
+	return compress.Stream{
+		D:       out.D[:outLenBits/int(level)],
+		NbSymbs: out.NbSymbs,
+	}, nil
 }

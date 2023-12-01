@@ -27,16 +27,13 @@ type DecompressionTestCircuit struct {
 
 func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 	dBack := make([]frontend.Variable, len(c.D)) // TODO Try smaller constants
-	api.Println("maxLen(dBack)", len(dBack))
 	dLen, err := Decompress(api, c.C, c.CLength, dBack, c.Dict, c.Level)
 	if err != nil {
 		return err
 	}
 	if c.CheckCorrectness {
-		api.Println("got len", dLen, "expected", len(c.D))
 		api.AssertIsEqual(len(c.D), dLen)
 		for i := range c.D {
-			api.Println("decompressed at", i, "->", dBack[i], "expected", c.D[i], "dBack", dBack[i])
 			api.AssertIsEqual(c.D[i], dBack[i])
 		}
 	}
@@ -61,13 +58,16 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 		return nil, err
 	}
 
-	cStream := ReadIntoStream(c, dict, GoodCompression)
+	cStream, err := compress.NewStream(c, uint8(compressor.level))
+	if err != nil {
+		return nil, err
+	}
 
 	circuit := compressionCircuit{
 		C:     make([]frontend.Variable, cStream.Len()),
 		D:     make([]frontend.Variable, len(d)),
 		Dict:  make([]byte, len(dict)),
-		Level: GoodCompression,
+		Level: compressor.level,
 	}
 
 	var start int64
