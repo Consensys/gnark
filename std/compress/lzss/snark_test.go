@@ -19,7 +19,11 @@ func Test1ZeroSnark(t *testing.T) {
 	testCompressionRoundTripSnark(t, []byte{0}, nil)
 }
 
-func Test0To10Explicit(t *testing.T) {
+func TestGoodCompressionSnark(t *testing.T) {
+	testCompressionRoundTripSnark(t, []byte{1, 2}, nil, withLevel(GoodCompression))
+}
+
+func Test0To10ExplicitSnark(t *testing.T) {
 	testCompressionRoundTripSnark(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, nil)
 }
 
@@ -54,7 +58,7 @@ func TestNoCompressionSnark(t *testing.T) {
 	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
 
-func Test4ZerosBackref(t *testing.T) {
+func Test4ZerosBackrefSnark(t *testing.T) {
 
 	shortBackRefType, longBackRefType, _ := initBackRefTypes(0, BestCompression)
 
@@ -70,7 +74,7 @@ func Test4ZerosBackref(t *testing.T) {
 	)
 }
 
-func Test255_254_253(t *testing.T) {
+func Test255_254_253Snark(t *testing.T) {
 	testCompressionRoundTripSnark(t, []byte{255, 254, 253}, nil)
 }
 
@@ -99,9 +103,21 @@ func FuzzSnark(f *testing.F) { // TODO This is always skipped
 	})
 }
 
-func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
+type testCompressionRoundTripOption func(*Level)
+
+func withLevel(level Level) testCompressionRoundTripOption {
+	return func(l *Level) {
+		*l = level
+	}
+}
+
+func testCompressionRoundTripSnark(t *testing.T, d, dict []byte, options ...testCompressionRoundTripOption) {
 
 	level := BestCompression
+
+	for _, option := range options {
+		option(&level)
+	}
 
 	compressor, err := NewCompressor(dict, level)
 	require.NoError(t, err)

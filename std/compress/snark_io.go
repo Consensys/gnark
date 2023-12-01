@@ -56,7 +56,7 @@ func (nr *NumReader) Next() frontend.Variable {
 	res := nr.nxt
 
 	if len(nr.c) != 0 {
-		nr.nxt = nr.api.Sub(nr.api.Mul(nr.nxt, 2), nr.api.Mul(nr.c[0], nr.maxCoeff))
+		nr.nxt = nr.api.Sub(nr.api.Mul(nr.nxt, nr.stepCoeff), nr.api.Mul(nr.c[0], nr.maxCoeff))
 
 		if nr.nbWords < len(nr.c) {
 			nr.nxt = nr.api.Add(nr.nxt, nr.c[nr.nbWords])
