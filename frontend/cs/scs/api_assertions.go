@@ -131,16 +131,8 @@ func (builder *builder) AssertIsBoolean(i1 frontend.Variable) {
 func (builder *builder) AssertIsCrumb(i1 frontend.Variable) {
 	const errorMsg = "AssertIsCrumb: input is not a crumb"
 	if c, ok := builder.constantValue(i1); ok {
-		bytes := c.Bytes()
-		for i := 1; i < len(bytes); i++ {
-			if bytes[i] != 0 {
-				panic(errorMsg)
-			}
-		}
-		for i := 0; i < 4; i++ {
-			if bytes[0] == byte(i) {
-				return
-			}
+		if i, ok := builder.cs.Uint64(c); ok && i < 4 {
+			return
 		}
 		panic(errorMsg)
 	}
