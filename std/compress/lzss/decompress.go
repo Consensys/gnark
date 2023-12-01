@@ -2,6 +2,7 @@ package lzss
 
 import (
 	"bytes"
+	"errors"
 	"io"
 
 	"github.com/consensys/gnark/std/compress"
@@ -14,7 +15,15 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 	out.Grow(len(data)*6 + len(dict))
 	in := bitio.NewReader(bytes.NewReader(data))
 
-	level := Level(in.TryReadByte())
+	var _b [2]byte
+	if _, err = in.Read(_b[:]); err != nil {
+		return
+	}
+	if version := _b[0]; version != 0 {
+		return nil, errors.New("unsupported compressor version")
+	}
+
+	level := Level(_b[1])
 	if level == NoCompression {
 		return data[1:], nil
 	}
