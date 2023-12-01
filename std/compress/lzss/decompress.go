@@ -105,9 +105,7 @@ func ReadIntoStream(data, dict []byte, level Level) (compress.Stream, error) {
 		if b == nil {
 			outLenBits += 8
 		} else {
-			if _, err := in.ReadBits(b.nbBitsBackRef - 8); err != nil {
-				return out, err
-			}
+			in.TryReadBits(b.nbBitsBackRef - 8)
 			outLenBits += int(b.nbBitsBackRef)
 		}
 		s = in.TryReadByte()

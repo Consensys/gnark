@@ -47,29 +47,21 @@ type backref struct {
 	bType   backrefType
 }
 
-func panicIfErr(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
 func (b *backref) writeTo(w *bitio.Writer, i int) {
-	panicIfErr(w.WriteByte(b.bType.delimiter))
-	panicIfErr(w.WriteBits(uint64(b.length-1), b.bType.nbBitsLength))
+	w.TryWriteByte(b.bType.delimiter)
+	w.TryWriteBits(uint64(b.length-1), b.bType.nbBitsLength)
 	addrToWrite := b.address
 	if !b.bType.dictOnly {
 		addrToWrite = i - b.address - 1
 	}
-	panicIfErr(w.WriteBits(uint64(addrToWrite), b.bType.nbBitsAddress))
+	w.TryWriteBits(uint64(addrToWrite), b.bType.nbBitsAddress)
 }
 
 func (b *backref) readFrom(r *bitio.Reader) {
-	n, err := r.ReadBits(b.bType.nbBitsLength)
-	panicIfErr(err)
+	n := r.TryReadBits(b.bType.nbBitsLength)
 	b.length = int(n) + 1
 
-	n, err = r.ReadBits(b.bType.nbBitsAddress)
-	panicIfErr(err)
+	n = r.TryReadBits(b.bType.nbBitsAddress)
 	b.address = int(n)
 	if !b.bType.dictOnly {
 		b.address++

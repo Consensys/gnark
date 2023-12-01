@@ -104,11 +104,8 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 
 	// reset output buffer
 	compressor.buf.Reset()
-	{
-		settings := settings{version: 0, level: compressor.level}
-		err = settings.writeTo(&compressor.buf)
-	}
-	if err != nil {
+	settings := settings{version: 0, level: compressor.level}
+	if err = settings.writeTo(&compressor.buf); err != nil {
 		return
 	}
 	if compressor.level == NoCompression {
@@ -213,19 +210,20 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 	if compressor.bw.TryError != nil {
 		return nil, compressor.bw.TryError
 	}
-	if err := compressor.bw.Close(); err != nil {
+	if err = compressor.bw.Close(); err != nil {
 		return nil, err
 	}
 
 	if compressor.buf.Len() >= len(d)+2 {
 		// compression was not worth it
-		out := compressor.buf.Bytes()
-		out[1] = byte(NoCompression)
-		copy(out[2:], d)
-		return out[:len(d)+2], nil
+		compressor.buf.Reset()
+		settings.level = NoCompression
+		if err = settings.writeTo(&compressor.buf); err != nil {
+			return
+		}
 	}
 
-	return compressor.buf.Bytes(), nil
+	return compressor.buf.Bytes(), err
 }
 
 // canEncodeSymbol returns true if the symbol can be encoded directly
