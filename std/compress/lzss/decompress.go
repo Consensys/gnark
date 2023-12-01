@@ -62,6 +62,8 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 	return out.Bytes(), nil
 }
 
+// ReadIntoStream reads the compressed data into a stream
+// the stream is not padded with zeros as one obtained by a naive call to compress.NewStream may be
 func ReadIntoStream(data, dict []byte, level Level) (compress.Stream, error) {
 
 	out := compress.NewStream(data, uint8(level))
@@ -75,6 +77,9 @@ func ReadIntoStream(data, dict []byte, level Level) (compress.Stream, error) {
 		return out, err
 	}
 	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
+
+	// the main job of this function is to compute the right value for outLenBits
+	// so we can remove the extra zeros at the end of out
 	outLenBits := settings.bitLen()
 	if settings.level == NoCompression {
 		return out, nil
@@ -97,8 +102,9 @@ func ReadIntoStream(data, dict []byte, level Level) (compress.Stream, error) {
 		if b == nil {
 			outLenBits += 8
 		} else {
-			_, err := in.ReadBits(b.nbBitsBackRef - 8)
-			panicIfErr(err)
+			if _, err := in.ReadBits(b.nbBitsBackRef - 8); err != nil {
+				return out, err
+			}
 			outLenBits += int(b.nbBitsBackRef)
 		}
 		s = in.TryReadByte()
