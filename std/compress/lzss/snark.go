@@ -1,6 +1,7 @@
 package lzss
 
 import (
+	"github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
@@ -8,26 +9,27 @@ import (
 
 // bite size of c needs to be the greatest common denominator of all backref types and 8
 // d consists of bytes
-func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d []frontend.Variable, dict []byte, level Level) (dLength frontend.Variable, err error) {
+func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d []frontend.Variable, dict []byte, level lzss.Level) (dLength frontend.Variable, err error) {
 
 	wordNbBits := int(level)
 
 	checkInputRange(api, c, wordNbBits)
 
-	dict = augmentDict(dict)
-	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
+	dict = lzss.AugmentDict(dict)
+	shortBackRefType, longBackRefType, dictBackRefType := lzss.InitBackRefTypes(len(dict), level)
 
-	shortBrNbWords := int(shortBackRefType.nbBitsBackRef) / wordNbBits
-	longBrNbWords := int(longBackRefType.nbBitsBackRef) / wordNbBits
-	dictBrNbWords := int(dictBackRefType.nbBitsBackRef) / wordNbBits
+	shortBrNbWords := int(shortBackRefType.NbBitsBackRef) / wordNbBits
+	longBrNbWords := int(longBackRefType.NbBitsBackRef) / wordNbBits
+	dictBrNbWords := int(dictBackRefType.NbBitsBackRef) / wordNbBits
 	byteNbWords := 8 / wordNbBits
 
 	api.AssertIsEqual(compress.ReadNum(api, c, byteNbWords, wordNbBits), 0) // compressor version TODO @tabaie @gbotrel Handle this outside the circuit instead?
 	fileCompressionMode := compress.ReadNum(api, c[byteNbWords:], byteNbWords, wordNbBits)
-	c = c[2*byteNbWords:]
-	cLength = api.Sub(cLength, 2*byteNbWords)
 	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordNbBits)) // if fcm!=0, then fcm=wordNbBits
 	decompressionNotBypassed := api.Sub(1, api.IsZero(fileCompressionMode))
+
+	c = c[2*byteNbWords:]
+	cLength = api.Sub(cLength, 2*byteNbWords)
 
 	outTable := logderivlookup.New(api)
 	for i := range dict {
@@ -38,7 +40,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	bytes := combineIntoBytes(api, c, wordNbBits)
 	bytesTable := sliceToTable(api, bytes)
 	bytesTable.Insert(0) // just because we use this table for looking up backref lengths as well
-	addrTable := initAddrTable(api, bytes, c, wordNbBits, []backrefType{shortBackRefType, longBackRefType, dictBackRefType})
+	addrTable := initAddrTable(api, bytes, c, wordNbBits, []lzss.BackrefType{shortBackRefType, longBackRefType, dictBackRefType})
 
 	// state variables
 	inI := frontend.Variable(0)
@@ -51,10 +53,10 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		curr := bytesTable.Lookup(inI)[0]
 
-		currMinusLong := api.Sub(api.Mul(curr, decompressionNotBypassed), symbolLong) // if bypassing decompression, currIndicatesXX = 0
+		currMinusLong := api.Sub(api.Mul(curr, decompressionNotBypassed), lzss.SymbolLong) // if bypassing decompression, currIndicatesXX = 0
 		currIndicatesLongBr := api.IsZero(currMinusLong)
-		currIndicatesShortBr := api.IsZero(api.Sub(currMinusLong, symbolShort-symbolLong))
-		currIndicatesDr := api.IsZero(api.Sub(currMinusLong, symbolDict-symbolLong))
+		currIndicatesShortBr := api.IsZero(api.Sub(currMinusLong, lzss.SymbolShort-lzss.SymbolLong))
+		currIndicatesDr := api.IsZero(api.Sub(currMinusLong, lzss.SymbolDict-lzss.SymbolLong))
 		currIndicatesBr := api.Add(currIndicatesLongBr, currIndicatesShortBr)
 		currIndicatesCp := api.Add(currIndicatesBr, currIndicatesDr)
 
@@ -142,21 +144,21 @@ func combineIntoBytes(api frontend.API, c []frontend.Variable, wordNbBits int) [
 	return res
 }
 
-func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits int, backrefs []backrefType) *logderivlookup.Table {
+func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits int, backrefs []lzss.BackrefType) *logderivlookup.Table {
 	for i := range backrefs {
-		if backrefs[i].nbBitsLength != backrefs[0].nbBitsLength {
+		if backrefs[i].NbBitsLength != backrefs[0].NbBitsLength {
 			panic("all backref types must have the same length size")
 		}
 	}
 	readers := make([]*compress.NumReader, len(backrefs))
-	delimAndLenNbWords := int(8+backrefs[0].nbBitsLength) / wordNbBits
+	delimAndLenNbWords := int(8+backrefs[0].NbBitsLength) / wordNbBits
 	for i := range backrefs {
 		var readerC []frontend.Variable
 		if len(c) >= delimAndLenNbWords {
 			readerC = c[delimAndLenNbWords:]
 		}
 
-		readers[i] = compress.NewNumReader(api, readerC, int(backrefs[i].nbBitsAddress), wordNbBits)
+		readers[i] = compress.NewNumReader(api, readerC, int(backrefs[i].NbBitsAddress), wordNbBits)
 	}
 
 	res := logderivlookup.New(api)
@@ -164,7 +166,7 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits in
 	for i := range c {
 		entry := frontend.Variable(0)
 		for j := range backrefs {
-			isSymb := api.IsZero(api.Sub(bytes[i], backrefs[j].delimiter))
+			isSymb := api.IsZero(api.Sub(bytes[i], backrefs[j].Delimiter))
 			entry = api.MulAcc(entry, isSymb, readers[j].Next())
 		}
 		res.Insert(entry)
