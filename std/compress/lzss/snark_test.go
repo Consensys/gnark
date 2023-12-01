@@ -35,14 +35,16 @@ func TestNoCompressionSnark(t *testing.T) {
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	cStream := ReadIntoStream(c, dict, BestCompression)
+	decompressorLevel := BestCompression
+
+	cStream := compress.NewStream(c, uint8(decompressorLevel))
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
-		Level:            BestCompression,
+		Level:            decompressorLevel,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(cStream.D),
@@ -109,7 +111,7 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	cStream := ReadIntoStream(c, dict, level)
+	cStream := compress.NewStream(c, uint8(level))
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),
@@ -156,14 +158,15 @@ func testDecompressionSnark(t *testing.T, dict []byte, level Level, compressedSt
 	c := bb.Bytes()
 	d, err := DecompressGo(c, dict)
 	require.NoError(t, err)
-	cStream := ReadIntoStream(c, dict, BestCompression)
+
+	cStream := compress.NewStream(c, uint8(level))
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
-		Level:            BestCompression,
+		Level:            level,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(cStream.D),
@@ -180,7 +183,7 @@ func TestReadBytes(t *testing.T) {
 		WordNbBits: 1,
 		Expected:   expected,
 	}
-	words := compress.NewStreamFromBytes(expected)
+	words := compress.NewStream(expected, 8)
 	words = words.BreakUp(2)
 	assignment := &readBytesCircuit{
 		Words: test_vector_utils.ToVariableSlice(words.D),

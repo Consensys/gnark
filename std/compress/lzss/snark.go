@@ -2,6 +2,7 @@ package lzss
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
@@ -21,8 +22,8 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	dictBrNbWords := int(dictBackRefType.nbBitsBackRef) / wordNbBits
 	byteNbWords := 8 / wordNbBits
 
-	api.AssertIsEqual(readNum(api, c, byteNbWords, wordNbBits), 0) // compressor version TODO @tabaie @gbotrel Handle this outside the circuit instead?
-	fileCompressionMode := readNum(api, c[byteNbWords:], byteNbWords, wordNbBits)
+	api.AssertIsEqual(compress.ReadNum(api, c, byteNbWords, wordNbBits), 0) // compressor version TODO @tabaie @gbotrel Handle this outside the circuit instead?
+	fileCompressionMode := compress.ReadNum(api, c[byteNbWords:], byteNbWords, wordNbBits)
 	c = c[2*byteNbWords:]
 	cLength = api.Sub(cLength, 2*byteNbWords)
 	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordNbBits)) // if fcm!=0, then fcm=wordNbBits
@@ -135,10 +136,10 @@ func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.T
 }
 
 func combineIntoBytes(api frontend.API, c []frontend.Variable, wordNbBits int) []frontend.Variable {
-	reader := newNumReader(api, c, 8, wordNbBits)
+	reader := compress.NewNumReader(api, c, 8, wordNbBits)
 	res := make([]frontend.Variable, len(c))
 	for i := range res {
-		res[i] = reader.next()
+		res[i] = reader.Next()
 	}
 	return res
 }
@@ -149,7 +150,7 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits in
 			panic("all backref types must have the same length size")
 		}
 	}
-	readers := make([]*numReader, len(backrefs))
+	readers := make([]*compress.NumReader, len(backrefs))
 	delimAndLenNbWords := int(8+backrefs[0].nbBitsLength) / wordNbBits
 	for i := range backrefs {
 		var readerC []frontend.Variable
@@ -157,7 +158,7 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits in
 			readerC = c[delimAndLenNbWords:]
 		}
 
-		readers[i] = newNumReader(api, readerC, int(backrefs[i].nbBitsAddress), wordNbBits)
+		readers[i] = compress.NewNumReader(api, readerC, int(backrefs[i].nbBitsAddress), wordNbBits)
 	}
 
 	res := logderivlookup.New(api)
@@ -166,63 +167,11 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits in
 		entry := frontend.Variable(0)
 		for j := range backrefs {
 			isSymb := api.IsZero(api.Sub(bytes[i], backrefs[j].delimiter))
-			entry = api.MulAcc(entry, isSymb, readers[j].next())
+			entry = api.MulAcc(entry, isSymb, readers[j].Next())
 		}
 		res.Insert(entry)
 	}
 
-	return res
-}
-
-type numReader struct {
-	api       frontend.API
-	c         []frontend.Variable
-	stepCoeff int
-	nbWords   int
-	nxt       frontend.Variable
-}
-
-func newNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits int) *numReader {
-	nbWords := numNbBits / wordNbBits
-	stepCoeff := 1 << wordNbBits
-	nxt := readNum(api, c, nbWords, stepCoeff)
-	return &numReader{
-		api:       api,
-		c:         c,
-		stepCoeff: stepCoeff,
-		nxt:       nxt,
-		nbWords:   nbWords,
-	}
-}
-
-func readNum(api frontend.API, c []frontend.Variable, nbWords, stepCoeff int) frontend.Variable {
-	res := frontend.Variable(0)
-	coeff := frontend.Variable(1)
-	for i := 0; i < nbWords && i < len(c); i++ {
-		res = api.MulAcc(res, coeff, c[i])
-		coeff = api.Mul(coeff, stepCoeff)
-	}
-	return res
-}
-
-// next returns the next number in the sequence. returns 0 upon EOF
-func (nr *numReader) next() frontend.Variable {
-	res := nr.nxt
-	if len(nr.c) <= nr.nbWords {
-		nr.nxt = 0
-		return res
-	}
-	lastSummand := frontend.Variable(0)
-	if nr.nbWords > 0 {
-		lastSummand = nr.c[nr.nbWords]
-	}
-	for i := 1; i < nr.nbWords; i++ { // TODO Cache stepCoeff^nbWords
-		lastSummand = nr.api.Mul(lastSummand, nr.stepCoeff)
-	}
-
-	nr.nxt = nr.api.Add(nr.api.DivUnchecked(nr.api.Sub(res, nr.c[0]), nr.stepCoeff), lastSummand)
-
-	nr.c = nr.c[1:]
 	return res
 }
 

@@ -58,13 +58,13 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 		return nil, err
 	}
 
-	cStream := ReadIntoStream(c, dict, GoodCompression)
+	cStream := compress.NewStream(c, uint8(compressor.level))
 
 	circuit := compressionCircuit{
 		C:     make([]frontend.Variable, cStream.Len()),
 		D:     make([]frontend.Variable, len(d)),
 		Dict:  make([]byte, len(dict)),
-		Level: GoodCompression,
+		Level: compressor.level,
 	}
 
 	var start int64
