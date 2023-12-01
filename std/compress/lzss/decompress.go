@@ -84,15 +84,21 @@ func ReadIntoStream(data, dict []byte, level Level) compress.Stream {
 
 	s := in.TryReadByte()
 	for in.TryError == nil {
+		var b *backrefType
 		switch s {
 		case symbolShort:
-			outLenBits += int(shortBackRefType.nbBitsBackRef)
+			b = &shortBackRefType
 		case symbolLong:
-			outLenBits += int(longBackRefType.nbBitsBackRef)
+			b = &longBackRefType
 		case symbolDict:
-			outLenBits += int(dictBackRefType.nbBitsBackRef)
-		default:
+			b = &dictBackRefType
+		}
+		if b == nil {
 			outLenBits += 8
+		} else {
+			_, err := in.ReadBits(b.nbBitsBackRef - 8)
+			panicIfErr(err)
+			outLenBits += int(b.nbBitsBackRef)
 		}
 		s = in.TryReadByte()
 	}
@@ -101,7 +107,7 @@ func ReadIntoStream(data, dict []byte, level Level) compress.Stream {
 	}
 
 	return compress.Stream{
-		D:       out.D[:outLenBits/(1<<uint8(level))],
+		D:       out.D[:outLenBits/int(level)],
 		NbSymbs: out.NbSymbs,
 	}
 }

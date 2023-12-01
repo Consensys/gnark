@@ -51,7 +51,7 @@ func TestNoCompressionSnark(t *testing.T) {
 		CLength: cStream.Len(),
 	}
 
-	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
 
 func Test4ZerosBackref(t *testing.T) {
@@ -84,7 +84,7 @@ func Test3c2943Snark(t *testing.T) {
 }
 
 // Fuzz test the decompression
-func FuzzSnark(f *testing.F) {
+func FuzzSnark(f *testing.F) { // TODO This is always skipped
 	f.Fuzz(func(t *testing.T, input, dict []byte) {
 		if len(input) > maxInputSize {
 			t.Skip("input too large")
@@ -111,7 +111,7 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	cStream := compress.NewStream(c, uint8(level))
+	cStream := ReadIntoStream(c, dict, level)
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),
@@ -173,7 +173,7 @@ func testDecompressionSnark(t *testing.T, dict []byte, level Level, compressedSt
 		CLength: cStream.Len(),
 	}
 
-	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
 
 func TestReadBytes(t *testing.T) {
@@ -188,7 +188,7 @@ func TestReadBytes(t *testing.T) {
 	assignment := &readBytesCircuit{
 		Words: test_vector_utils.ToVariableSlice(words.D),
 	}
-	test.NewAssert(t).SolvingSucceeded(circuit, assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
 
 type readBytesCircuit struct {
