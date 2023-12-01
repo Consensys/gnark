@@ -24,6 +24,7 @@ type NumReader struct {
 	api       frontend.API
 	c         []frontend.Variable
 	stepCoeff int
+	maxCoeff  int
 	nbWords   int
 	nxt       frontend.Variable
 }
@@ -36,6 +37,7 @@ func NewNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits
 		api:       api,
 		c:         c,
 		stepCoeff: stepCoeff,
+		maxCoeff:  1 << numNbBits,
 		nxt:       nxt,
 		nbWords:   nbWords,
 	}
@@ -43,31 +45,25 @@ func NewNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits
 
 func ReadNum(api frontend.API, c []frontend.Variable, nbWords, stepCoeff int) frontend.Variable {
 	res := frontend.Variable(0)
-	coeff := frontend.Variable(1)
 	for i := 0; i < nbWords && i < len(c); i++ {
-		res = api.MulAcc(res, coeff, c[i])
-		coeff = api.Mul(coeff, stepCoeff)
+		res = api.Add(c[i], api.Mul(res, stepCoeff))
 	}
 	return res
 }
 
-// Next returns the next number in the sequence. returns 0 upon EOF
+// Next returns the next number in the sequence. assumes bits past the end of the slice are 0
 func (nr *NumReader) Next() frontend.Variable {
 	res := nr.nxt
-	if len(nr.c) <= nr.nbWords {
-		nr.nxt = 0
-		return res
-	}
-	lastSummand := frontend.Variable(0)
-	if nr.nbWords > 0 {
-		lastSummand = nr.c[nr.nbWords]
-	}
-	for i := 1; i < nr.nbWords; i++ { // TODO Cache stepCoeff^nbWords
-		lastSummand = nr.api.Mul(lastSummand, nr.stepCoeff)
+
+	if len(nr.c) != 0 {
+		nr.nxt = nr.api.Sub(nr.api.Mul(nr.nxt, 2), nr.api.Mul(nr.c[0], nr.maxCoeff))
+
+		if nr.nbWords < len(nr.c) {
+			nr.nxt = nr.api.Add(nr.nxt, nr.c[nr.nbWords])
+		}
+
+		nr.c = nr.c[1:]
 	}
 
-	nr.nxt = nr.api.Add(nr.api.DivUnchecked(nr.api.Sub(res, nr.c[0]), nr.stepCoeff), lastSummand)
-
-	nr.c = nr.c[1:]
 	return res
 }

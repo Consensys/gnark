@@ -3,7 +3,9 @@ package lzss
 import (
 	"bytes"
 	"errors"
+	"github.com/consensys/gnark/std/compress"
 	"github.com/icza/bitio"
+	"io"
 )
 
 func DecompressGo(data, dict []byte) (d []byte, err error) {
@@ -60,4 +62,46 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 	}
 
 	return out.Bytes(), nil
+}
+
+func ReadIntoStream(data, dict []byte, level Level) compress.Stream {
+
+	out := compress.NewStream(data, uint8(level))
+
+	// now find out how much of the stream is padded zeros and remove them
+	in := bitio.NewReader(bytes.NewReader(data))
+	dict = augmentDict(dict)
+	shortBackRefType, longBackRefType, dictBackRefType := initBackRefTypes(len(dict), level)
+	_ = in.TryReadByte()
+	levelFromData := Level(in.TryReadByte())
+	outLenBits := 16
+	if levelFromData == NoCompression {
+		return out
+	}
+	if levelFromData != level {
+		panic("compression mode mismatch")
+	}
+
+	s := in.TryReadByte()
+	for in.TryError == nil {
+		switch s {
+		case symbolShort:
+			outLenBits += int(shortBackRefType.nbBitsBackRef)
+		case symbolLong:
+			outLenBits += int(longBackRefType.nbBitsBackRef)
+		case symbolDict:
+			outLenBits += int(dictBackRefType.nbBitsBackRef)
+		default:
+			outLenBits += 8
+		}
+		s = in.TryReadByte()
+	}
+	if in.TryError != io.EOF {
+		panic(in.TryError)
+	}
+
+	return compress.Stream{
+		D:       out.D[:outLenBits/(1<<uint8(level))],
+		NbSymbs: out.NbSymbs,
+	}
 }

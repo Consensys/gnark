@@ -159,7 +159,7 @@ func testDecompressionSnark(t *testing.T, dict []byte, level Level, compressedSt
 	d, err := DecompressGo(c, dict)
 	require.NoError(t, err)
 
-	cStream := compress.NewStream(c, uint8(level))
+	cStream := ReadIntoStream(c, dict, level)
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),
@@ -177,7 +177,7 @@ func testDecompressionSnark(t *testing.T, dict []byte, level Level, compressedSt
 }
 
 func TestReadBytes(t *testing.T) {
-	expected := []byte{0, 254, 0, 0}
+	expected := []byte{254, 0, 0, 0}
 	circuit := &readBytesCircuit{
 		Words:      make([]frontend.Variable, 8*len(expected)),
 		WordNbBits: 1,

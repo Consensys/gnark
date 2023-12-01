@@ -40,10 +40,10 @@ func panicIfErr(err error) {
 func NewStream(in []byte, bitsPerSymbol uint8) Stream {
 	d := make([]int, len(in)*8/int(bitsPerSymbol))
 	r := bitio.NewReader(bytes.NewReader(in))
-	for i := range in {
-		_, err := r.ReadBits(bitsPerSymbol)
+	for i := range d {
+		n, err := r.ReadBits(bitsPerSymbol)
 		panicIfErr(err)
-		d[i] = int(in[i])
+		d[i] = int(n)
 	}
 	return Stream{d, 1 << int(bitsPerSymbol)}
 }
@@ -55,7 +55,7 @@ func (s *Stream) BreakUp(nbSymbs int) Stream {
 	for i := range s.D {
 		v := s.D[i]
 		for j := 0; j < newPerOld; j++ {
-			d[i*newPerOld+j] = v % nbSymbs
+			d[(i+1)*newPerOld-j-1] = v % nbSymbs
 			v /= nbSymbs
 		}
 	}
