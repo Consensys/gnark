@@ -47,22 +47,32 @@ type backref struct {
 	bType   backrefType
 }
 
-func (b *backref) writeTo(w *bitio.Writer, i int) {
-	w.TryWriteByte(b.bType.delimiter)
-	w.TryWriteBits(uint64(b.length-1), b.bType.nbBitsLength)
-	if b.bType.dictOnly {
-		w.TryWriteBits(uint64(b.address), b.bType.nbBitsAddress)
-	} else {
-		w.TryWriteBits(uint64(i-b.address-1), b.bType.nbBitsAddress)
+func panicIfErr(err error) {
+	if err != nil {
+		panic(err)
 	}
 }
 
+func (b *backref) writeTo(w *bitio.Writer, i int) {
+	panicIfErr(w.WriteByte(b.bType.delimiter))
+	panicIfErr(w.WriteBits(uint64(b.length-1), b.bType.nbBitsLength))
+	addrToWrite := b.address
+	if !b.bType.dictOnly {
+		addrToWrite = i - b.address - 1
+	}
+	panicIfErr(w.WriteBits(uint64(addrToWrite), b.bType.nbBitsAddress))
+}
+
 func (b *backref) readFrom(r *bitio.Reader) {
-	b.length = int(r.TryReadBits(b.bType.nbBitsLength)) + 1
-	if b.bType.dictOnly {
-		b.address = int(r.TryReadBits(b.bType.nbBitsAddress))
-	} else {
-		b.address = int(r.TryReadBits(b.bType.nbBitsAddress)) + 1
+	n, err := r.ReadBits(b.bType.nbBitsLength)
+	panicIfErr(err)
+	b.length = int(n) + 1
+
+	n, err = r.ReadBits(b.bType.nbBitsAddress)
+	panicIfErr(err)
+	b.address = int(n)
+	if !b.bType.dictOnly {
+		b.address++
 	}
 }
 

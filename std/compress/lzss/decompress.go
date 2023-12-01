@@ -77,6 +77,8 @@ func ReadIntoStream(data, dict []byte, level Level) compress.Stream {
 	bShort := backref{bType: shortBackRefType}
 	bLong := backref{bType: longBackRefType}
 
+	compressionVersion := in.TryReadByte()
+
 	levelFromData := Level(in.TryReadByte())
 	if levelFromData != NoCompression && levelFromData != level {
 		panic("compression mode mismatch")
@@ -86,6 +88,7 @@ func ReadIntoStream(data, dict []byte, level Level) compress.Stream {
 		NbSymbs: 1 << wordLen,
 	}
 
+	out.WriteNum(int(compressionVersion), 8/wordLen)
 	out.WriteNum(int(levelFromData), 8/wordLen)
 
 	s := in.TryReadByte()
