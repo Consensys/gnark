@@ -533,6 +533,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	}
 	randomPointNumbers := make([]*emulated.Element[FR], len(randomNumbers))
 	for i := range randomPointNumbers {
+		points[i] = *v.scalarApi.Reduce(&points[i])
 		randomPointNumbers[i] = v.scalarApi.Mul(randomNumbers[i], &points[i])
 	}
 
@@ -630,10 +631,12 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 		gammai[1] = gamma
 	}
 	for i := 2; i < nbDigests; i++ {
+		gammai[i-1] = v.scalarApi.Reduce(gammai[i-1])
 		gammai[i] = v.scalarApi.Mul(gammai[i-1], gamma)
 	}
 	foldedEvaluations := v.scalarApi.Zero()
 	for i := 0; i < nbDigests; i++ {
+		gammai[i] = v.scalarApi.Reduce(gammai[i])
 		tmp := v.scalarApi.Mul(&batchOpeningProof.ClaimedValues[i], gammai[i])
 		foldedEvaluations = v.scalarApi.Add(foldedEvaluations, tmp)
 	}
@@ -693,6 +696,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai []
 	var tmp *emulated.Element[FR]
 	foldedEvaluations := v.scalarApi.Zero()
 	for i := 0; i < nbDigests; i++ {
+		fai[i] = *v.scalarApi.Reduce(&fai[i])
 		tmp = v.scalarApi.Mul(&fai[i], ci[i])
 		foldedEvaluations = v.scalarApi.Add(foldedEvaluations, tmp)
 	}
