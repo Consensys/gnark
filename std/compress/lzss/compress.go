@@ -3,6 +3,7 @@ package lzss
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math/bits"
 
 	"github.com/consensys/gnark/std/compress/lzss/internal/suffixarray"
@@ -103,7 +104,13 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 
 	// reset output buffer
 	compressor.buf.Reset()
-	compressor.buf.Write([]byte{0, byte(compressor.level)}) // 0 -> compressor release version
+	{
+		settings := settings{version: 0, level: compressor.level}
+		err = settings.writeTo(&compressor.buf)
+	}
+	if err != nil {
+		return
+	}
 	if compressor.level == NoCompression {
 		compressor.buf.Write(d)
 		return compressor.buf.Bytes(), nil
@@ -268,4 +275,30 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+type settings struct {
+	version byte
+	level   Level
+}
+
+func (s *settings) writeTo(w io.Writer) error {
+	_, err := w.Write([]byte{s.version, byte(s.level)}) // 0 -> compressor release version
+	return err
+}
+
+func (s *settings) readFrom(r io.ByteReader) (err error) {
+	if s.version, err = r.ReadByte(); err != nil {
+		return
+	}
+	if level, err := r.ReadByte(); err != nil {
+		return err
+	} else {
+		s.level = Level(level)
+	}
+	return
+}
+
+func (s *settings) bitLen() int {
+	return 16
 }

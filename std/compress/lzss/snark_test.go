@@ -124,7 +124,8 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte, options ...test
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	cStream := ReadIntoStream(c, dict, level)
+	cStream, err := ReadIntoStream(c, dict, level)
+	require.NoError(t, err)
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),
@@ -172,7 +173,8 @@ func testDecompressionSnark(t *testing.T, dict []byte, level Level, compressedSt
 	d, err := DecompressGo(c, dict)
 	require.NoError(t, err)
 
-	cStream := ReadIntoStream(c, dict, level)
+	cStream, err := ReadIntoStream(c, dict, level)
+	require.NoError(t, err)
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),
