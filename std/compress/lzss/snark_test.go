@@ -102,9 +102,6 @@ func FuzzSnark(f *testing.F) { // TODO This is always skipped
 func testCompressionRoundTripSnark(t *testing.T, d, dict []byte) {
 
 	level := BestCompression
-	if len(d) > 1000 {
-		level = GoodCompression
-	}
 
 	compressor, err := NewCompressor(dict, level)
 	require.NoError(t, err)
