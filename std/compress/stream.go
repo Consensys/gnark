@@ -31,21 +31,17 @@ func (s *Stream) At(i int) int {
 	return s.D[i]
 }
 
-func panicIfErr(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-func NewStream(in []byte, bitsPerSymbol uint8) Stream {
+func NewStream(in []byte, bitsPerSymbol uint8) (Stream, error) {
 	d := make([]int, len(in)*8/int(bitsPerSymbol))
 	r := bitio.NewReader(bytes.NewReader(in))
 	for i := range d {
-		n, err := r.ReadBits(bitsPerSymbol)
-		panicIfErr(err)
-		d[i] = int(n)
+		if n, err := r.ReadBits(bitsPerSymbol); err != nil {
+			return Stream{}, err
+		} else {
+			d[i] = int(n)
+		}
 	}
-	return Stream{d, 1 << int(bitsPerSymbol)}
+	return Stream{d, 1 << int(bitsPerSymbol)}, nil
 }
 
 func (s *Stream) BreakUp(nbSymbs int) Stream {

@@ -37,12 +37,16 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	c, err := compressor.Compress(d)
 	assert.NoError(t, err)
 
-	cStream := compress.NewStream(c, uint8(compressor.level))
+	cStream, err := compress.NewStream(c, uint8(compressor.level))
+	assert.NoError(t, err)
 
 	cSum, err := check(cStream, cStream.Len())
 	assert.NoError(t, err)
 
-	dSum, err := check(compress.NewStream(d, 8), len(d))
+	dStream, err := compress.NewStream(d, 8)
+	assert.NoError(t, err)
+
+	dSum, err := check(dStream, len(d))
 	assert.NoError(t, err)
 
 	circuit := compressionCircuit{

@@ -66,7 +66,10 @@ func DecompressGo(data, dict []byte) (d []byte, err error) {
 // the stream is not padded with zeros as one obtained by a naive call to compress.NewStream may be
 func ReadIntoStream(data, dict []byte, level Level) (compress.Stream, error) {
 
-	out := compress.NewStream(data, uint8(level))
+	out, err := compress.NewStream(data, uint8(level))
+	if err != nil {
+		return out, err
+	}
 
 	// now find out how much of the stream is padded zeros and remove them
 	byteReader := bytes.NewReader(data)

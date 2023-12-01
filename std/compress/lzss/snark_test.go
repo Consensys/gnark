@@ -41,7 +41,8 @@ func TestNoCompressionSnark(t *testing.T) {
 
 	decompressorLevel := BestCompression
 
-	cStream := compress.NewStream(c, uint8(decompressorLevel))
+	cStream, err := compress.NewStream(c, uint8(decompressorLevel))
+	require.NoError(t, err)
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, cStream.Len()),
@@ -198,7 +199,8 @@ func TestReadBytes(t *testing.T) {
 		WordNbBits: 1,
 		Expected:   expected,
 	}
-	words := compress.NewStream(expected, 8)
+	words, err := compress.NewStream(expected, 8)
+	assert.NoError(t, err)
 	words = words.BreakUp(2)
 	assignment := &readBytesCircuit{
 		Words: test_vector_utils.ToVariableSlice(words.D),
