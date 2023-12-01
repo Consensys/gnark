@@ -214,13 +214,14 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 		return nil, err
 	}
 
-	if compressor.buf.Len() >= len(d)+2 {
+	if compressor.buf.Len() >= len(d)+settings.bitLen()/8 {
 		// compression was not worth it
 		compressor.buf.Reset()
 		settings.level = NoCompression
 		if err = settings.writeTo(&compressor.buf); err != nil {
 			return
 		}
+		_, err = compressor.buf.Write(d)
 	}
 
 	return compressor.buf.Bytes(), err
