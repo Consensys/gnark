@@ -103,7 +103,7 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 
 	// reset output buffer
 	compressor.buf.Reset()
-	compressor.buf.WriteByte(byte(compressor.level))
+	compressor.buf.Write([]byte{0, byte(compressor.level)}) // 0 -> compressor release version
 	if compressor.level == NoCompression {
 		compressor.buf.Write(d)
 		return compressor.buf.Bytes(), nil
@@ -208,6 +208,14 @@ func (compressor *Compressor) Compress(d []byte) (c []byte, err error) {
 	}
 	if err := compressor.bw.Close(); err != nil {
 		return nil, err
+	}
+
+	if compressor.buf.Len() >= len(d)+2 {
+		// compression was not worth it
+		out := compressor.buf.Bytes()
+		out[1] = byte(NoCompression)
+		copy(out[2:], d)
+		return out[:len(d)+2], nil
 	}
 
 	return compressor.buf.Bytes(), nil
