@@ -56,7 +56,7 @@ type builder struct {
 	// map for recording boolean constrained variables (to not constrain them twice)
 	mtBooleans map[expr.Term]struct{}
 
-	// records multiplications constraint to avoid duplicate.
+	// records multiplications constraint to avoid duplicates.
 	// see mulConstraintExist(...)
 	mMulInstructions map[uint64]int
 
