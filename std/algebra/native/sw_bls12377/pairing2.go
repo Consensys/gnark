@@ -154,17 +154,30 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		if len(scalars) == 0 {
 			return nil, fmt.Errorf("need scalar for folding")
 		}
-		gamma := scalars[0]
-		res := c.ScalarMul(P[len(P)-1], gamma, opts...)
+		gamma := c.packScalarToVar(scalars[0])
+		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
+		cc := getInnerCurveConfig(c.api.Compiler().Field())
+		sd, err := c.api.Compiler().NewHint(DecomposeScalarG1, 3, gamma)
+		if err != nil {
+			panic(err)
+		}
+		gamma1, gamma2 := sd[0], sd[1]
+		c.api.AssertIsEqual(c.api.Add(gamma1, c.api.Mul(gamma2, cc.lambda)), c.api.Add(gamma, c.api.Mul(cc.fr, sd[2])))
+		nbits := cc.lambda.BitLen() + 1
+		gamma1Bits := c.api.ToBinary(gamma1, nbits)
+		gamma2Bits := c.api.ToBinary(gamma2, nbits)
+
+		var res G1Affine
+		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits, opts...)
 		for i := len(P) - 2; i > 0; i-- {
 			isInfinity := c.api.And(c.api.IsZero(P[i].X), c.api.IsZero(P[i].Y))
-			tmp := c.Add(P[i], res)
+			tmp := c.Add(P[i], &res)
 			res.X = c.api.Select(isInfinity, res.X, tmp.X)
 			res.Y = c.api.Select(isInfinity, res.Y, tmp.Y)
-			res = c.ScalarMul(res, gamma, opts...)
+			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits, opts...)
 		}
-		res = c.Add(P[0], res)
-		return res, nil
+		res = *c.Add(P[0], &res)
+		return &res, nil
 	}
 }
 

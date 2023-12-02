@@ -526,6 +526,51 @@ func (c *Curve[B, S]) SameScalarMul(p1, p2 *AffinePoint[B], s *emulated.Element[
 	return res1, res2
 }
 
+// scalarBitsMul computes s * p and returns it where sBits is the bit decomposition of s. It doesn't modify p nor sBits.
+func (c *Curve[B, S]) scalarBitsMul(p *AffinePoint[B], sBits []frontend.Variable, opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
+
+	// if p=(0,0) we assign a dummy (0,1) to p and continue
+	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+	one := c.baseApi.One()
+	p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
+
+	var st S
+	n := st.Modulus().BitLen()
+	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
+		n = cfg.NbScalarBits
+	}
+
+	// i = 1
+	Rb := c.triple(p)
+	R0 := c.Select(sBits[1], Rb, p)
+	R1 := c.Select(sBits[1], p, Rb)
+
+	for i := 2; i < n-1; i++ {
+		Rb = c.doubleAndAddSelect(sBits[i], R0, R1)
+		R0 = c.Select(sBits[i], Rb, R0)
+		R1 = c.Select(sBits[i], R1, Rb)
+	}
+
+	// i = n-1
+	Rb = c.doubleAndAddSelect(sBits[n-1], R0, R1)
+	R0 = c.Select(sBits[n-1], Rb, R0)
+
+	// i = 0
+	// we use AddUnified here instead of add so that when s=0, res=(0,0)
+	// because AddUnified(p, -p) = (0,0)
+	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
+
+	// if p=(0,0), return (0,0)
+	zero := c.baseApi.Zero()
+	R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
+
+	return R0
+}
+
 // ScalarMulBase computes s * g and returns it, where g is the fixed generator.
 // It doesn't modify s.
 //
@@ -693,10 +738,12 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 			return nil, fmt.Errorf("need scalar for folding")
 		}
 		gamma := s[0]
-		res := c.ScalarMul(p[len(p)-1], gamma, opts...)
+		gamma = c.scalarApi.Reduce(gamma)
+		gammaBits := c.scalarApi.ToBits(gamma)
+		res := c.scalarBitsMul(p[len(p)-1], gammaBits, opts...)
 		for i := len(p) - 2; i > 0; i-- {
 			res = c.Add(p[i], res)
-			res = c.ScalarMul(res, gamma, opts...)
+			res = c.scalarBitsMul(res, gammaBits, opts...)
 		}
 		res = c.Add(p[0], res)
 		return res, nil
