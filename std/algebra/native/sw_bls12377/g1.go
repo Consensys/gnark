@@ -468,35 +468,12 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 
 // ScalarMulBase computes s * g1 and returns it, where g1 is the fixed generator. It doesn't modify s.
 func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affine {
-
-	points := getCurvePoints()
-
-	sBits := api.ToBinary(s, 253)
-
-	var res, tmp G1Affine
-
-	// i = 1, 2
-	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
-	res.X = api.Lookup2(sBits[1], sBits[2], points.G1x, points.G1m[0][0], points.G1m[1][0], points.G1m[2][0])
-	res.Y = api.Lookup2(sBits[1], sBits[2], points.G1y, points.G1m[0][1], points.G1m[1][1], points.G1m[2][1])
-
-	for i := 3; i < 253; i++ {
-		// gm[i] = [2^i]g
-		tmp.X = res.X
-		tmp.Y = res.Y
-		tmp.AddAssign(api, G1Affine{points.G1m[i][0], points.G1m[i][1]})
-		res.Select(api, sBits[i], tmp, res)
+	_, _, g1aff, _ := bls12377.Generators()
+	generator := G1Affine{
+		X: g1aff.X.BigInt(new(big.Int)),
+		Y: g1aff.Y.BigInt(new(big.Int)),
 	}
-
-	// i = 0
-	tmp.Neg(api, G1Affine{points.G1x, points.G1y})
-	tmp.AddAssign(api, res)
-	res.Select(api, sBits[0], res, tmp)
-
-	P.X = res.X
-	P.Y = res.Y
-
-	return P
+	return P.ScalarMul(api, generator, s)
 }
 
 // P = [s]Q + [t]R using Shamir's trick
@@ -584,4 +561,96 @@ func (P *G1Affine) JointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 	P.Y = Acc.Y
 
 	return P
+}
+
+func SameScalarMul(api frontend.API, Q1, Q2 G1Affine, s frontend.Variable) (*G1Affine, *G1Affine) {
+	cc := getInnerCurveConfig(api.Compiler().Field())
+	sd, err := api.Compiler().NewHint(DecomposeScalarG1, 3, s)
+	if err != nil {
+		panic(err)
+	}
+	s1, s2 := sd[0], sd[1]
+	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), api.Add(s, api.Mul(cc.fr, sd[2])))
+	nbits := cc.lambda.BitLen() + 1
+	s1bits := api.ToBinary(s1, nbits)
+	s2bits := api.ToBinary(s2, nbits)
+
+	var Acc1, Acc2, B, B1, B2 G1Affine
+	// precompute -Q1, -Φ(Q1), Φ(Q1)
+	var tableQ1, tablePhiQ1 [2]G1Affine
+	tableQ1[1] = Q1
+	tableQ1[0].Neg(api, Q1)
+	cc.phi1(api, &tablePhiQ1[1], &Q1)
+	tablePhiQ1[0].Neg(api, tablePhiQ1[1])
+	// precompute -Q2, -Φ(Q2), Φ(Q2)
+	var tableQ2, tablePhiQ2 [2]G1Affine
+	tableQ2[1] = Q2
+	tableQ2[0].Neg(api, Q2)
+	cc.phi1(api, &tablePhiQ2[1], &Q2)
+	tablePhiQ2[0].Neg(api, tablePhiQ2[1])
+
+	//     Acc1 = Q1 + Φ(Q1)
+	Acc1 = tableQ1[1]
+	Acc1.AddAssign(api, tablePhiQ1[1])
+	//     Acc2 = Q2 + Φ(Q2)
+	Acc2 = tableQ2[1]
+	Acc2.AddAssign(api, tablePhiQ2[1])
+
+	//  first bit
+	B.X = tableQ1[0].X
+	B.Y = api.Select(s1bits[nbits-1], tableQ1[1].Y, tableQ1[0].Y)
+	Acc1.DoubleAndAdd(api, &Acc1, &B)
+	B.X = tablePhiQ1[0].X
+	B.Y = api.Select(s2bits[nbits-1], tablePhiQ1[1].Y, tablePhiQ1[0].Y)
+	Acc1.AddAssign(api, B)
+
+	B.X = tableQ2[0].X
+	B.Y = api.Select(s1bits[nbits-1], tableQ2[1].Y, tableQ2[0].Y)
+	Acc2.DoubleAndAdd(api, &Acc2, &B)
+	B.X = tablePhiQ2[0].X
+	B.Y = api.Select(s2bits[nbits-1], tablePhiQ2[1].Y, tablePhiQ2[0].Y)
+	Acc2.AddAssign(api, B)
+
+	// second bit
+	B.X = tableQ1[0].X
+	B.Y = api.Select(s1bits[nbits-2], tableQ1[1].Y, tableQ1[0].Y)
+	Acc1.DoubleAndAdd(api, &Acc1, &B)
+	B.X = tablePhiQ1[0].X
+	B.Y = api.Select(s2bits[nbits-2], tablePhiQ1[1].Y, tablePhiQ1[0].Y)
+	Acc1.AddAssign(api, B)
+
+	B.X = tableQ2[0].X
+	B.Y = api.Select(s1bits[nbits-2], tableQ2[1].Y, tableQ2[0].Y)
+	Acc2.DoubleAndAdd(api, &Acc2, &B)
+	B.X = tablePhiQ2[0].X
+	B.Y = api.Select(s2bits[nbits-2], tablePhiQ2[1].Y, tablePhiQ2[0].Y)
+	Acc2.AddAssign(api, B)
+
+	B1.X = tablePhiQ1[0].X
+	B2.X = tablePhiQ2[0].X
+	for i := nbits - 3; i > 0; i-- {
+		B.X = Q1.X
+		B.Y = api.Select(s1bits[i], tableQ1[1].Y, tableQ1[0].Y)
+		B1.Y = api.Select(s2bits[i], tablePhiQ1[1].Y, tablePhiQ1[0].Y)
+		B.AddAssign(api, B1)
+		Acc1.DoubleAndAdd(api, &Acc1, &B)
+
+		B.X = Q2.X
+		B.Y = api.Select(s1bits[i], tableQ2[1].Y, tableQ2[0].Y)
+		B2.Y = api.Select(s2bits[i], tablePhiQ2[1].Y, tablePhiQ2[0].Y)
+		B.AddAssign(api, B2)
+		Acc2.DoubleAndAdd(api, &Acc2, &B)
+	}
+
+	tableQ1[0].AddAssign(api, Acc1)
+	Acc1.Select(api, s1bits[0], Acc1, tableQ1[0])
+	tablePhiQ1[0].AddAssign(api, Acc1)
+	Acc1.Select(api, s2bits[0], Acc1, tablePhiQ1[0])
+
+	tableQ2[0].AddAssign(api, Acc2)
+	Acc2.Select(api, s1bits[0], Acc2, tableQ2[0])
+	tablePhiQ2[0].AddAssign(api, Acc2)
+	Acc2.Select(api, s2bits[0], Acc2, tablePhiQ2[0])
+
+	return &Acc1, &Acc2
 }

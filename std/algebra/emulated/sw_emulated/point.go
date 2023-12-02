@@ -520,6 +520,12 @@ func (c *Curve[B, S]) JointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.El
 	return res
 }
 
+func (c *Curve[B, S]) SameScalarMul(p1, p2 *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) (*AffinePoint[B], *AffinePoint[B]) {
+	res1 := c.ScalarMul(p1, s)
+	res2 := c.ScalarMul(p2, s)
+	return res1, res2
+}
+
 // ScalarMulBase computes s * g and returns it, where g is the fixed generator.
 // It doesn't modify s.
 //

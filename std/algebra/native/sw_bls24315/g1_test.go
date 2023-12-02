@@ -23,10 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 
@@ -649,64 +646,4 @@ func randomPointG1() bls24315.G1Jac {
 	p1.ScalarMultiplication(&p1, r1.BigInt(&b))
 
 	return p1
-}
-
-var ccsBench constraint.ConstraintSystem
-
-func BenchmarkConstScalarMulG1(b *testing.B) {
-	var c g1constantScalarMul
-	// this is q - 1
-	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
-	if !ok {
-		b.Fatal("invalid integer")
-	}
-	c.R = r
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
-		}
-
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
-	b.Run("plonk", func(b *testing.B) {
-		var err error
-		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_633.ScalarField(), scs.NewBuilder, &c)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-
-	})
-	b.Log("plonk", ccsBench.GetNbConstraints())
-
-}
-
-func BenchmarkVarScalarMulG1(b *testing.B) {
-	var c g1varScalarMul
-	// this is q - 1
-	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
-	if !ok {
-		b.Fatal("invalid integer")
-	}
-	c.R = r
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_633.ScalarField(), r1cs.NewBuilder, &c)
-		}
-
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
-	b.Run("plonk", func(b *testing.B) {
-		var err error
-		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_633.ScalarField(), scs.NewBuilder, &c)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-
-	})
-	b.Log("plonk", ccsBench.GetNbConstraints())
-
 }

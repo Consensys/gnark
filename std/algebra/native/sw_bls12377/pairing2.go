@@ -168,6 +168,23 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 	}
 }
 
+// SameScalarMul computes scalar*P1 and scalar*P2 and returns the results. It doesn't modify the
+// inputs.
+func (c *Curve) SameScalarMul(P1, P2 *G1Affine, s *Scalar, opts ...algopts.AlgebraOption) (*G1Affine, *G1Affine) {
+	res1 := &G1Affine{
+		X: P1.X,
+		Y: P1.Y,
+	}
+	res2 := &G1Affine{
+		X: P2.X,
+		Y: P2.Y,
+	}
+	varScalar := c.packScalarToVar(s)
+	res1.ScalarMul(c.api, *P1, varScalar)
+	res2.ScalarMul(c.api, *P2, varScalar)
+	return res1, res2
+}
+
 // Pairing allows computing pairing-related operations in BLS12-377.
 type Pairing struct {
 	api frontend.API

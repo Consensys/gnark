@@ -841,9 +841,6 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	// 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
 	// 		α²*L₁(ζ)*Z
 
-	// first part: individual constraints
-	rl := v.scalarApi.Mul(&r, &l)
-
 	// second part: α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
 
 	uu := v.scalarApi.Mul(&zu, beta)
@@ -899,7 +896,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 		points[i] = &proof.Bsb22Commitments[i].G1El
 	}
 	points = append(points,
-		&vk.Ql.G1El, &vk.Qr.G1El, &vk.Qm.G1El, &vk.Qo.G1El, &vk.Qk.G1El, // first part
+		&vk.Qo.G1El,                  // first part
 		&vk.S[2].G1El, &proof.Z.G1El, // second & third part
 	)
 
@@ -908,7 +905,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 		qC[i] = &proof.BatchedProof.ClaimedValues[7+i]
 	}
 	scalars := append(qC,
-		&l, &r, rl, &o, one, // first part
+		&o,       // first part
 		_s1, _s2, // second & third part
 	)
 
@@ -916,6 +913,14 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	if err != nil {
 		return fmt.Errorf("linearized polynomial digest MSM: %w", err)
 	}
+
+	// special MSM of the form: [l](Ql + [r]Qm) + Qk + [r]Qr
+	p1, p2 := v.curve.SameScalarMul(&vk.Qr.G1El, &vk.Qm.G1El, &r)
+	p1 = v.curve.Add(p1, &vk.Qk.G1El)
+	p2 = v.curve.Add(p2, &vk.Ql.G1El)
+	p2 = v.curve.ScalarMul(p2, &l)
+	p2 = v.curve.Add(p2, p1)
+	linearizedPolynomialDigest = v.curve.Add(linearizedPolynomialDigest, p2)
 
 	// Fold the first proof
 	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+7)

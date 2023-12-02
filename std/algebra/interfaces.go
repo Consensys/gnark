@@ -32,7 +32,11 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	// by a scalar. It does not modify the scalar.
 	ScalarMulBase(*emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
-	// JointScalarMul returns the addition of two scalar multiplications of two
+	// JointScalarMul returns the multiplication of two points by the same
+	// scalar.  It does not modify the inputs.
+	SameScalarMul(*G1El, *G1El, *emulated.Element[FR], ...algopts.AlgebraOption) (*G1El, *G1El)
+
+	// SameScalarMul returns the addition of two scalar multiplications of two
 	// points by two scalars. It does not modify the inputs.
 	JointScalarMul(*G1El, *G1El, *emulated.Element[FR], *emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
