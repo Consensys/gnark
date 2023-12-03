@@ -238,10 +238,10 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	return &result
 }
 
-// Add calls [Curve.AddUnified]. It is defined for implementing the generic
+// Add calls [Curve.Add]. It is defined for implementing the generic
 // curve interface.
 func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
-	return c.AddUnified(p, q)
+	return c.add(p, q)
 }
 
 // double doubles p and return it. It doesn't modify p.

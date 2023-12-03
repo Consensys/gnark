@@ -64,6 +64,16 @@ func (c *Curve) MarshalG1(P G1Affine) []frontend.Variable {
 	return res
 }
 
+// AddUnified...
+func (c *Curve) AddUnified(P, Q *G1Affine) *G1Affine {
+	res := &G1Affine{
+		X: P.X,
+		Y: P.Y,
+	}
+	res.AddUnified(c.api, *Q)
+	return res
+}
+
 // Add points P and Q and return the result. Does not modify the inputs.
 func (c *Curve) Add(P, Q *G1Affine) *G1Affine {
 	res := &G1Affine{

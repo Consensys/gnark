@@ -74,6 +74,16 @@ func (c *Curve) Add(P, Q *G1Affine) *G1Affine {
 	return res
 }
 
+// AddUnified...
+func (c *Curve) AddUnified(P, Q *G1Affine) *G1Affine {
+	res := &G1Affine{
+		X: P.X,
+		Y: P.Y,
+	}
+	res.AddUnified(c.api, *Q)
+	return res
+}
+
 // AssertIsEqual asserts the equality of P and Q.
 func (c *Curve) AssertIsEqual(P, Q *G1Affine) {
 	P.AssertIsEqual(c.api, *Q)
@@ -138,15 +148,17 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		if len(P) != len(scalars) {
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
 		}
-		res := c.ScalarMul(P[0], scalars[0])
-		for i := 1; i < len(P); i++ {
-			q := c.ScalarMul(P[i], scalars[i], opts...)
-
-			// check for infinity...
-			isInfinity := c.api.And(c.api.IsZero(P[i].X), c.api.IsZero(P[i].Y))
-			tmp := c.Add(res, q)
-			res.X = c.api.Select(isInfinity, res.X, tmp.X)
-			res.Y = c.api.Select(isInfinity, res.Y, tmp.Y)
+		// points and scalars must be non-zero
+		n := len(P)
+		res := &G1Affine{}
+		if n%2 == 1 {
+			res = c.ScalarMul(P[n-1], scalars[n-1], opts...)
+		} else {
+			res = c.JointScalarMul(P[n-2], P[n-1], scalars[n-2], scalars[n-1], opts...)
+		}
+		for i := 1; i < len(P)-1; i += 2 {
+			q := c.JointScalarMul(P[i-1], P[i], scalars[i-1], scalars[i], opts...)
+			res = c.Add(res, q)
 		}
 		return res, nil
 	} else {
@@ -168,13 +180,13 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		gamma2Bits := c.api.ToBinary(gamma2, nbits)
 
 		var res G1Affine
-		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits, opts...)
+		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits)
 		for i := len(P) - 2; i > 0; i-- {
 			isInfinity := c.api.And(c.api.IsZero(P[i].X), c.api.IsZero(P[i].Y))
 			tmp := c.Add(P[i], &res)
 			res.X = c.api.Select(isInfinity, res.X, tmp.X)
 			res.Y = c.api.Select(isInfinity, res.Y, tmp.Y)
-			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits, opts...)
+			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits)
 		}
 		res = *c.Add(P[0], &res)
 		return &res, nil

@@ -70,6 +70,49 @@ func (p *G1Affine) AddAssign(api frontend.API, p1 G1Affine) *G1Affine {
 	return p
 }
 
+func (p *G1Affine) AddUnified(api frontend.API, q G1Affine) *G1Affine {
+	// selector1 = 1 when p is (0,0) and 0 otherwise
+	selector1 := api.And(api.IsZero(p.X), api.IsZero(p.Y))
+	// selector2 = 1 when q is (0,0) and 0 otherwise
+	selector2 := api.And(api.IsZero(q.X), api.IsZero(q.Y))
+
+	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
+	pxqx := api.Mul(p.X, q.X)
+	pxplusqx := api.Add(p.X, q.X)
+	num := api.Mul(pxplusqx, pxplusqx)
+	num = api.Sub(num, pxqx)
+	denum := api.Add(p.Y, q.Y)
+	// if p.y + q.y = 0, assign dummy 1 to denum and continue
+	selector3 := api.IsZero(denum)
+	denum = api.Select(selector3, 1, denum)
+	λ := api.Div(num, denum)
+
+	// x = λ^2 - p.x - q.x
+	xr := api.Mul(λ, λ)
+	xr = api.Sub(xr, pxplusqx)
+
+	// y = λ(p.x - xr) - p.y
+	yr := api.Sub(p.X, xr)
+	yr = api.Mul(yr, λ)
+	yr = api.Sub(yr, p.Y)
+	result := G1Affine{
+		X: xr,
+		Y: yr,
+	}
+
+	// if p=(0,0) return q
+	result.Select(api, selector1, q, result)
+	// if q=(0,0) return p
+	result.Select(api, selector2, *p, result)
+	// if p.y + q.y = 0, return (0, 0)
+	result.Select(api, selector3, G1Affine{0, 0}, result)
+
+	p.X = result.X
+	p.Y = result.Y
+
+	return p
+}
+
 // AddAssign adds 2 point in Jacobian coordinates
 // p=p, a=p1
 func (p *G1Jac) AddAssign(api frontend.API, p1 G1Jac) *G1Jac {

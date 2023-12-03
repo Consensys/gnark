@@ -13,6 +13,10 @@ type GtElementT GroupElementT
 
 // Curve defines group operations on an elliptic curve.
 type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
+	// AddUnified adds _any_ two points and returns the sum. It does not modify the input
+	// points.
+	AddUnified(*G1El, *G1El) *G1El
+
 	// Add adds two points and returns the sum. It does not modify the input
 	// points.
 	Add(*G1El, *G1El) *G1El
