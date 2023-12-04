@@ -108,7 +108,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		// public data consists the polynomials describing the constants involved
+		// public data consists of the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
 		pk, vk, err := plonk.Setup(ccs, srs)
@@ -149,7 +149,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		// public data consists the polynomials describing the constants involved
+		// public data consists of the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
 		pk, vk, err := plonk.Setup(ccs, srs)
