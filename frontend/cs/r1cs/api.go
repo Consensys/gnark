@@ -91,7 +91,7 @@ func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
 		// it fits, no mem alloc
 		_a = append(_a, builder.mbuf2...)
 	} else {
-		// allocate a expression linear with extended capacity
+		// allocate an expression linear with extended capacity
 		_a = make(expr.LinearExpression, len(builder.mbuf2), len(builder.mbuf2)*3)
 		copy(_a, builder.mbuf2)
 	}
@@ -350,7 +350,7 @@ func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 // n is the number of bits to select (starting from lsb)
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
-// The result in in little endian (first bit= lsb)
+// The result is in little endian (first bit= lsb)
 func (builder *builder) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
 	nbBits := builder.cs.FieldBitLen()

@@ -200,7 +200,7 @@ func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.
 
 // Setup runs groth16.Setup with provided R1CS and outputs a key pair associated with the circuit.
 //
-// Note that careful consideration must be given to this step in production environment.
+// Note that careful consideration must be given to this step in a production environment.
 // groth16.Setup uses some randomness to precompute the Proving and Verifying keys. If the process
 // or machine leaks this randomness, an attacker could break the ZKP protocol.
 //
