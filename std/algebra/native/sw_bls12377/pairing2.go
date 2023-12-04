@@ -179,13 +179,11 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		gamma1Bits := c.api.ToBinary(gamma1, nbits)
 		gamma2Bits := c.api.ToBinary(gamma2, nbits)
 
+		// points and scalars must be non-zero
 		var res G1Affine
 		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits)
 		for i := len(P) - 2; i > 0; i-- {
-			isInfinity := c.api.And(c.api.IsZero(P[i].X), c.api.IsZero(P[i].Y))
-			tmp := c.Add(P[i], &res)
-			res.X = c.api.Select(isInfinity, res.X, tmp.X)
-			res.Y = c.api.Select(isInfinity, res.Y, tmp.Y)
+			res = *c.Add(P[i], &res)
 			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits)
 		}
 		res = *c.Add(P[0], &res)

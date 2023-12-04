@@ -221,43 +221,36 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 // we use instead d=s ⋅ (p⁶-1)(p²+1)(p⁴ - p² +1)/r
 // where s is the cofactor 3 (Hayashida et al.)
 func FinalExponentiation(api frontend.API, e1 GT) GT {
-	const genT = 9586122913090633729
-
 	result := e1
 
 	// https://eprint.iacr.org/2016/130.pdf
-	var t [3]GT
+	var t0, t1, t2 GT
 
 	// easy part
 	// (p⁶-1)(p²+1)
-	t[0].Conjugate(api, result)
-	t[0].DivUnchecked(api, t[0], result)
-	result.FrobeniusSquare(api, t[0]).
-		Mul(api, result, t[0])
+	t0.Conjugate(api, result)
+	t0.DivUnchecked(api, t0, result)
+	result.FrobeniusSquare(api, t0).
+		Mul(api, result, t0)
+	t3 := result
 
 	// hard part (up to permutation)
 	// Daiki Hayashida and Kenichiro Hayasaka
 	// and Tadanori Teruya
 	// https://eprint.iacr.org/2020/875.pdf
-	t[0].CyclotomicSquare(api, result)
-	t[1].Expt(api, result, genT)
-	t[2].Conjugate(api, result)
-	t[1].Mul(api, t[1], t[2])
-	t[2].Expt(api, t[1], genT)
-	t[1].Conjugate(api, t[1])
-	t[1].Mul(api, t[1], t[2])
-	t[2].Expt(api, t[1], genT)
-	t[1].Frobenius(api, t[1])
-	t[1].Mul(api, t[1], t[2])
-	result.Mul(api, result, t[0])
-	t[0].Expt(api, t[1], genT)
-	t[2].Expt(api, t[0], genT)
-	t[0].FrobeniusSquare(api, t[1])
-	t[1].Conjugate(api, t[1])
-	t[1].Mul(api, t[1], t[2])
-	t[1].Mul(api, t[1], t[0])
-	result.Mul(api, result, t[1])
-
+	t0.ExpX0Minus1Square(api, result)
+	t1.ExpX0(api, t0)
+	t2.Frobenius(api, t0)
+	result.Mul(api, t1, t2)
+	t0.Conjugate(api, result)
+	t1.ExpX0(api, result)
+	t1.ExpX0(api, t1)
+	t2.FrobeniusSquare(api, result)
+	result.Mul(api, t1, t2)
+	result.Mul(api, result, t0)
+	t0.CyclotomicSquare(api, t3)
+	t0.Mul(api, t0, t3)
+	result.Mul(api, result, t0)
 	return result
 }
 
