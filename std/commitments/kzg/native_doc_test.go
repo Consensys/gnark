@@ -78,7 +78,7 @@ func Example_native() {
 	}
 
 	// create a witness element of the SRS
-	wVk, err := kzg.ValueOfVerifyingKey[sw_bls12377.LineEvaluations](srs.Vk)
+	wVk, err := kzg.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine](srs.Vk)
 	if err != nil {
 		panic("verifying key witness failed: " + err.Error())
 	}
@@ -89,13 +89,13 @@ func Example_native() {
 		panic("point witness failed: " + err.Error())
 	}
 
-	assignment := KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]{
+	assignment := KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		VerifyingKey: wVk,
 		Commitment:   wCmt,
 		OpeningProof: wProof,
 		Point:        wPt,
 	}
-	circuit := KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT, sw_bls12377.LineEvaluations]{}
+	circuit := KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}
 
 	// because we are using 2-chains then the outer curve must correspond to the
 	// inner curve. For inner BLS12-377 the outer curve is BW6-761.

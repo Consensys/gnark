@@ -194,8 +194,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 }
 
-// MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
-// but Qᵢ are fixed points in G2 known in advance.
+// millerLoopLines computes the multi-Miller loop from points in G1 and precomputed lines in G2
 func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl, error) {
 
 	// check input size match

@@ -252,8 +252,9 @@ func ValueOfBatchOpeningProof[FR emulated.FieldParams, G1El any](proof any) (Bat
 
 // VerifyingKey is the trusted setup for KZG polynomial commitment scheme. Use
 // [ValueOfVerifyingKey] to initialize a witness from the native VerifyingKey.
-type VerifyingKey[L algebra.LinesT] struct {
-	SRS [2][2]L
+type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
+	G2 [2]G2El
+	G1 G1El
 }
 
 // PlaceholderVerifyingKey returns a placeholder value for the verifying key for
@@ -305,64 +306,49 @@ func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT]()
 // ValueOfVerifyingKey initializes verifying key witness from the native
 // verifying key. It returns an error if there is a mismatch between the type
 // parameters and the provided verifying key type.
-func ValueOfVerifyingKey[L algebra.LinesT](vk any) (VerifyingKey[L], error) {
-	var ret VerifyingKey[L]
+func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk any) (VerifyingKey[G1El, G2El], error) {
+	var ret VerifyingKey[G1El, G2El]
 	switch s := any(&ret).(type) {
-	case *VerifyingKey[sw_bn254.LineEvaluations]:
+	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
 		tVk, ok := vk.(kzg_bn254.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		for i := 0; i < 66; i++ {
-			s.SRS[0][0].Eval[i] = sw_bn254.NewLineEvaluation(tVk.Lines[0][0][i])
-			s.SRS[0][1].Eval[i] = sw_bn254.NewLineEvaluation(tVk.Lines[0][1][i])
-			s.SRS[1][0].Eval[i] = sw_bn254.NewLineEvaluation(tVk.Lines[1][0][i])
-			s.SRS[1][1].Eval[i] = sw_bn254.NewLineEvaluation(tVk.Lines[1][1][i])
-		}
-	case *VerifyingKey[sw_bls12377.LineEvaluations]:
+		s.G1 = sw_bn254.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bn254.NewG2Affine(tVk.G2[0])
+		s.G2[1] = sw_bn254.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
 		tVk, ok := vk.(kzg_bls12377.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		for i := 0; i < 63; i++ {
-			s.SRS[0][0].Eval[i] = sw_bls12377.NewLineEvaluation(tVk.Lines[0][0][i])
-			s.SRS[0][1].Eval[i] = sw_bls12377.NewLineEvaluation(tVk.Lines[0][1][i])
-			s.SRS[1][0].Eval[i] = sw_bls12377.NewLineEvaluation(tVk.Lines[1][0][i])
-			s.SRS[1][1].Eval[i] = sw_bls12377.NewLineEvaluation(tVk.Lines[1][1][i])
-		}
-	case *VerifyingKey[sw_bls12381.LineEvaluations]:
+		s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
+		s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
 		tVk, ok := vk.(kzg_bls12381.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		for i := 0; i < 63; i++ {
-			s.SRS[0][0].Eval[i] = sw_bls12381.NewLineEvaluation(tVk.Lines[0][0][i])
-			s.SRS[0][1].Eval[i] = sw_bls12381.NewLineEvaluation(tVk.Lines[0][1][i])
-			s.SRS[1][0].Eval[i] = sw_bls12381.NewLineEvaluation(tVk.Lines[1][0][i])
-			s.SRS[1][1].Eval[i] = sw_bls12381.NewLineEvaluation(tVk.Lines[1][1][i])
-		}
-	case *VerifyingKey[sw_bw6761.LineEvaluations]:
+		s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
+		s.G2[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		tVk, ok := vk.(kzg_bw6761.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		for i := 0; i < 189; i++ {
-			s.SRS[0][0].Eval[i] = sw_bw6761.NewLineEvaluation(tVk.Lines[0][0][i])
-			s.SRS[0][1].Eval[i] = sw_bw6761.NewLineEvaluation(tVk.Lines[0][1][i])
-			s.SRS[1][0].Eval[i] = sw_bw6761.NewLineEvaluation(tVk.Lines[1][0][i])
-			s.SRS[1][1].Eval[i] = sw_bw6761.NewLineEvaluation(tVk.Lines[1][1][i])
-		}
-	case *VerifyingKey[sw_bls24315.LineEvaluations]:
+		s.G1 = sw_bw6761.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bw6761.NewG2Affine(tVk.G2[0])
+		s.G2[1] = sw_bw6761.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
 		tVk, ok := vk.(kzg_bls24315.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
-		for i := 0; i < 32; i++ {
-			s.SRS[0][0].Eval[i] = sw_bls24315.NewLineEvaluation(tVk.Lines[0][0][i])
-			s.SRS[0][1].Eval[i] = sw_bls24315.NewLineEvaluation(tVk.Lines[0][1][i])
-			s.SRS[1][0].Eval[i] = sw_bls24315.NewLineEvaluation(tVk.Lines[1][0][i])
-			s.SRS[1][1].Eval[i] = sw_bls24315.NewLineEvaluation(tVk.Lines[1][1][i])
-		}
+		s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
+		s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
 	default:
 		return ret, fmt.Errorf("unknown type parametrization")
 	}
@@ -425,15 +411,15 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT](
 }
 
 // Verifier allows verifying KZG opening proofs.
-type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT, L algebra.LinesT] struct {
+type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT] struct {
 	api       frontend.API
 	scalarApi *emulated.Field[FR]
 	curve     algebra.Curve[FR, G1El]
-	pairing   algebra.Pairing[G1El, G2El, GtEl, L]
+	pairing   algebra.Pairing[G1El, G2El, GtEl]
 }
 
 // NewVerifier initializes a new Verifier instance.
-func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT, L algebra.LinesT](api frontend.API) (*Verifier[FR, G1El, G2El, GtEl, L], error) {
+func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT](api frontend.API) (*Verifier[FR, G1El, G2El, GtEl], error) {
 	curve, err := algebra.GetCurve[FR, G1El](api)
 	if err != nil {
 		return nil, err
@@ -442,11 +428,11 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 	if err != nil {
 		return nil, err
 	}
-	pairing, err := algebra.GetPairing[G1El, G2El, GtEl, L](api)
+	pairing, err := algebra.GetPairing[G1El, G2El, GtEl](api)
 	if err != nil {
 		return nil, err
 	}
-	return &Verifier[FR, G1El, G2El, GtEl, L]{
+	return &Verifier[FR, G1El, G2El, GtEl]{
 		api:       api,
 		scalarApi: scalarApi,
 		curve:     curve,
@@ -456,7 +442,7 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 
 // CheckOpeningProof asserts the validity of the opening proof for the given
 // commitment at point.
-func (v *Verifier[FR, G1El, G2El, GTEl, L]) CheckOpeningProof(commitment Commitment[G1El], proof OpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[L]) error {
+func (v *Verifier[FR, G1El, G2El, GTEl]) CheckOpeningProof(commitment Commitment[G1El], proof OpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
 
 	claimedValueG1 := v.curve.ScalarMulBase(&proof.ClaimedValue)
 
@@ -472,9 +458,9 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) CheckOpeningProof(commitment Commitm
 	totalG1 = v.curve.Add(totalG1, fminusfaG1)
 
 	// e([f(α)-f(a)+aH(α)]G₁], G₂).e([-H(α)]G₁, [α]G₂) == 1
-	if err := v.pairing.PairingFixedQCheck(
+	if err := v.pairing.PairingCheck(
 		[]*G1El{totalG1, negQuotientPoly},
-		[]*[2]L{&vk.SRS[0], &vk.SRS[1]},
+		[]*G2El{&vk.G2[0], &vk.G2[1]},
 	); err != nil {
 		return fmt.Errorf("pairing check: %w", err)
 	}
@@ -580,7 +566,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	}
 
 	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
-	foldedEvalsCommit := v.curve.ScalarMulBase(foldedEvals)
+	foldedEvalsCommit := v.curve.ScalarMul(&vk.G1, foldedEvals)
 
 	// compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	tmp := v.curve.Neg(foldedEvalsCommit)
@@ -596,9 +582,9 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	foldedQuotients = v.curve.Neg(foldedQuotients)
 
 	// pairing check
-	err = v.pairing.PairingFixedQCheck(
+	err = v.pairing.PairingCheck(
 		[]*G1El{foldedDigest, foldedQuotients},
-		[]*[2]L{&vk.SRS[0], &vk.SRS[1]},
+		[]*G2El{&vk.G2[0], &vk.G2[1]},
 	)
 	if err != nil {
 		return fmt.Errorf("pairingcheck: %w", err)

@@ -6,7 +6,6 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-type LinesT any
 type GroupElementT any
 type G1ElementT GroupElementT
 type G2ElementT GroupElementT
@@ -49,7 +48,7 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 // Pairing allows to compute the bi-linear pairing of G1 and G2 elements.
 // Additionally, the interface provides steps used in pairing computation and a
 // dedicated optimised pairing check.
-type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT, L LinesT] interface {
+type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 	// MillerLoop computes the Miller loop of the input pairs. It returns error
 	// when the inputs are of mismatching length. It does not modify the inputs.
 	MillerLoop([]*G1El, []*G2El) (*GtEl, error)
@@ -65,10 +64,6 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT, L LinesT] interf
 	// PairingCheck asserts that the pairing result is 1. It returns an error
 	// when the inputs are of mismatching length. It does not modify the inputs.
 	PairingCheck([]*G1El, []*G2El) error
-
-	// PairingFixedQCheck is the same as PairingCheck but of size 2 and
-	// where one of the G2El argument is the fixed canonical generator of G2.
-	PairingFixedQCheck([]*G1El, []*[2]L) error
 
 	// AssertIsEqual asserts the equality of the inputs.
 	AssertIsEqual(*GtEl, *GtEl)
