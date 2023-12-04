@@ -770,7 +770,6 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 			hashedCmt := hashToField.Sum()
 			hashedCmtBits := bits.ToBinary(v.api, hashedCmt, bits.WithNbDigits(fr.Modulus().BitLen()))
 			emulatedHashedCmt := v.scalarApi.FromBits(hashedCmtBits...)
-			li = v.scalarApi.Reduce(li)
 			xiLi := v.scalarApi.Mul(emulatedHashedCmt, li)
 			hashToField.Reset()
 			pi = v.scalarApi.Add(pi, xiLi)
@@ -802,14 +801,12 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 
 	// _s1 = α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
 	_s1 = v.scalarApi.Mul(_s1, _s2)
-	_s1 = v.scalarApi.Reduce(_s1)
 	_s1 = v.scalarApi.Mul(_s1, _o)
 	_s1 = v.scalarApi.Mul(_s1, alpha)
 	_s1 = v.scalarApi.Mul(_s1, &zu)
 
 	// alphaSquareLagrange = α²*L₁(ζ)
 	alphaSquareLagrange := v.scalarApi.Mul(lagrangeOne, alpha)
-	alphaSquareLagrange = v.scalarApi.Reduce(alphaSquareLagrange)
 	alphaSquareLagrange = v.scalarApi.Mul(alphaSquareLagrange, alpha)
 
 	// linearizedPolynomialZeta = linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
@@ -825,11 +822,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	v.scalarApi.AssertIsEqual(claimedQuotient, linearizedPolynomialZeta)
 
 	// compute the folded commitment to H: Comm(h₁) + ζᵐ⁺²*Comm(h₂) + ζ²⁽ᵐ⁺²⁾*Comm(h₃)
-	zetaPowerM = v.scalarApi.Reduce(zetaPowerM)
 	zetaMPlusTwo := v.scalarApi.Mul(zetaPowerM, zeta)
-	zetaMPlusTwo = v.scalarApi.Reduce(zetaMPlusTwo)
 	zetaMPlusTwo = v.scalarApi.Mul(zetaMPlusTwo, zeta)
-	zetaMPlusTwo = v.scalarApi.Reduce(zetaMPlusTwo)
 	zetaMPlusTwoSquare := v.scalarApi.Mul(zetaMPlusTwo, zetaMPlusTwo)
 
 	foldedH := v.curve.JointScalarMul(&proof.H[2].G1El, &proof.H[1].G1El, zetaMPlusTwoSquare, zetaMPlusTwo)
@@ -856,7 +850,6 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	// α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
 	_s1 = v.scalarApi.Mul(uu, vv)
 	_s1 = v.scalarApi.Mul(_s1, ww)
-	_s1 = v.scalarApi.Reduce(_s1)
 	_s1 = v.scalarApi.Mul(_s1, alpha)
 
 	cosetsquare := v.scalarApi.Mul(&vk.CosetShift, &vk.CosetShift)
@@ -868,7 +861,6 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 
 	// (r(ζ)+β*μ*ζ+γ)
 	vv = v.scalarApi.Mul(beta, zeta)
-	vv = v.scalarApi.Reduce(vv)
 	vv = v.scalarApi.Mul(vv, &vk.CosetShift)
 	vv = v.scalarApi.Add(vv, &r)
 	vv = v.scalarApi.Add(vv, gamma)
@@ -881,13 +873,11 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 
 	// -(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 	_s2 = v.scalarApi.Mul(uu, vv)
-	ww = v.scalarApi.Reduce(ww)
 	_s2 = v.scalarApi.Mul(_s2, ww)
 	_s2 = v.scalarApi.Neg(_s2)
 
 	// note since third part =  α²*L₁(ζ)*Z
 	// -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
-	alpha = v.scalarApi.Reduce(alpha)
 	_s2 = v.scalarApi.Mul(_s2, alpha)
 	_s2 = v.scalarApi.Add(_s2, alphaSquareLagrange)
 
@@ -1028,7 +1018,6 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) fixedExpN(n uint64, s *emulated.Element
 	nlen := stdbits.Len64(n)
 	res := s
 	for i := 1; i < nlen; i++ {
-		res = v.scalarApi.Reduce(res)
 		res = v.scalarApi.Mul(res, res)
 	}
 	return res
@@ -1052,10 +1041,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, zeta
 		nbBitsUint--
 	}
 	for nbBitsUint != 0 {
-		omegai = v.scalarApi.Reduce(omegai)
 		omegai = v.scalarApi.Mul(omegai, omegai)
 		if irev%2 == 1 {
-			omegai = v.scalarApi.Reduce(omegai)
 			omegai = v.scalarApi.Mul(omegai, &vk.Generator)
 		}
 		nbBitsUint--
@@ -1064,10 +1051,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, zeta
 
 	den := v.scalarApi.Sub(zeta, omegai)
 
-	den = v.scalarApi.Reduce(den)
 	li := v.scalarApi.Div(num, den)
 	li = v.scalarApi.Mul(li, &vk.SizeInv)
-	li = v.scalarApi.Reduce(li)
 	li = v.scalarApi.Mul(li, omegai)
 
 	return li
