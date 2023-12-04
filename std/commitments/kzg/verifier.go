@@ -31,11 +31,13 @@ import (
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
 )
@@ -254,6 +256,52 @@ type VerifyingKey[L algebra.LinesT] struct {
 	SRS [2][2]L
 }
 
+// PlaceholderVerifyingKey returns a placeholder value for the verifying key for
+// compiling if the witness is going to be in precomputed form using [ValueOfVerifyingKeyFixed].
+func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT]() VerifyingKey[G1El, G2El] {
+	var ret VerifyingKey[G1El, G2El]
+	switch s := any(&ret).(type) {
+	// case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bn254.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bn254.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bn254.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bn254.NewG2Affine(tVk.G2[1])
+	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls12377.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
+	// case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls12381.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
+		s.G2[0] = sw_bw6761.NewG2AffineFixedPlaceholder()
+		s.G2[1] = sw_bw6761.NewG2AffineFixedPlaceholder()
+	// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls24315.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+	default:
+		panic("not supported")
+	}
+	return ret
+}
+
 // ValueOfVerifyingKey initializes verifying key witness from the native
 // verifying key. It returns an error if there is a mismatch between the type
 // parameters and the provided verifying key type.
@@ -321,6 +369,61 @@ func ValueOfVerifyingKey[L algebra.LinesT](vk any) (VerifyingKey[L], error) {
 	return ret, nil
 }
 
+// ValueOfVerifyingKeyFixed initializes verifying key witness from the native
+// verifying key and perform pre-computations for G2 elements. It returns an
+// error if there is a mismatch between the type parameters and the provided
+// verifying key type. Such witness is significantly larger than without
+// precomputations. If witness size is important, then use [ValueOfVerifyingKey]
+// instead.
+func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk any) (VerifyingKey[G1El, G2El], error) {
+	var ret VerifyingKey[G1El, G2El]
+	switch s := any(&ret).(type) {
+	// case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bn254.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bn254.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bn254.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bn254.NewG2Affine(tVk.G2[1])
+	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls12377.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
+	// case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls12381.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
+		tVk, ok := vk.(kzg_bw6761.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		s.G1 = sw_bw6761.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bw6761.NewG2AffineFixed(tVk.G2[0])
+		s.G2[1] = sw_bw6761.NewG2AffineFixed(tVk.G2[1])
+	// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+	// 	tVk, ok := vk.(kzg_bls24315.VerifyingKey)
+	// 	if !ok {
+	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+	// 	}
+	// 	s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
+	// 	s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
+	// 	s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+	default:
+		return ret, fmt.Errorf("precomputation not supported")
+	}
+	return ret, nil
+}
+
 // Verifier allows verifying KZG opening proofs.
 type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.G2ElementT, L algebra.LinesT] struct {
 	api       frontend.API
@@ -378,7 +481,8 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) CheckOpeningProof(commitment Commitm
 	return nil
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl, L]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[L], dataTranscript ...frontend.Variable) error {
+// BatchVerifySinglePoint verifies multiple opening proofs at a single point.
+func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El], dataTranscript ...emulated.Element[FR]) error {
 	// fold the proof
 	foldedProof, foldedDigest, err := v.FoldProof(digests, batchOpeningProof, point, dataTranscript...)
 	if err != nil {
@@ -392,7 +496,8 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) BatchVerifySinglePoint(digests []Com
 	return nil
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl, L]) BatchVerifyMultiPoints(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[L]) error {
+// BatchVerifyMultiPoints verifies multiple opening proofs at different points.
+func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
 	var fr FR
 
 	// check consistency nb proogs vs nb digests
@@ -432,24 +537,32 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) BatchVerifyMultiPoints(digests []Com
 	}
 
 	seed := whSnark.Sum()
-	binSeed := v.api.ToBinary(seed)
+	binSeed := bits.ToBinary(v.api, seed, bits.WithNbDigits(fr.Modulus().BitLen()))
 	randomNumbers[1] = v.scalarApi.FromBits(binSeed...)
+	nbScalarBits := ((v.api.Compiler().FieldBitLen()+7)/8 - 1) * 8
 
 	for i := 2; i < len(randomNumbers); i++ {
 		// TODO use real random numbers, follow the solidity smart contract to know which variables are used as seed
 		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[1], randomNumbers[i-1])
 	}
-
-	// fold the committed quotients compute ∑ᵢλᵢ[Hᵢ(α)]G₁
-	var foldedQuotients *G1El
-	quotients := make([]G1El, len(proofs))
-	for i := 0; i < len(randomNumbers); i++ {
-		quotients[i] = proofs[i].Quotient
+	randomPointNumbers := make([]*emulated.Element[FR], len(randomNumbers))
+	for i := range randomPointNumbers {
+		randomPointNumbers[i] = v.scalarApi.Mul(randomNumbers[i], &points[i])
 	}
-	foldedQuotients = v.curve.ScalarMul(&quotients[0], randomNumbers[0])
-	for i := 1; i < len(digests); i++ {
-		tmp := v.curve.ScalarMul(&quotients[i], randomNumbers[i])
-		foldedQuotients = v.curve.Add(tmp, foldedQuotients)
+
+	// fold the committed quotients compute ∑ᵢλᵢ[Hᵢ(α)]G₁ and
+	// ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
+	quotients := make([]*G1El, len(proofs))
+	for i := 0; i < len(randomNumbers); i++ {
+		quotients[i] = &proofs[i].Quotient
+	}
+	foldedQuotients, err := v.curve.MultiScalarMul(quotients, []*emulated.Element[FR]{randomNumbers[1]}, algopts.WithFoldingScalarMul(), algopts.WithNbScalarBits(nbScalarBits))
+	if err != nil {
+		return fmt.Errorf("fold quotients: %w", err)
+	}
+	foldedPointsQuotients, err := v.curve.MultiScalarMul(quotients, randomPointNumbers)
+	if err != nil {
+		return fmt.Errorf("fold point quotients: %w", err)
 	}
 
 	// fold digests and evals
@@ -461,7 +574,10 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) BatchVerifyMultiPoints(digests []Com
 		evals[i] = proofs[i].ClaimedValue
 	}
 
-	foldedDigests, foldedEvals := v.fold(digests, evals, randomNumbers)
+	foldedDigests, foldedEvals, err := v.fold(digests, evals, randomNumbers)
+	if err != nil {
+		return fmt.Errorf("fold: %w", err)
+	}
 
 	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	foldedEvalsCommit := v.curve.ScalarMulBase(foldedEvals)
@@ -470,18 +586,6 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) BatchVerifyMultiPoints(digests []Com
 	tmp := v.curve.Neg(foldedEvalsCommit)
 	var foldedDigest *G1El
 	foldedDigest = v.curve.Add(&foldedDigests.G1El, tmp)
-
-	// combien the points and the quotients using γᵢ
-	// ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
-	var foldedPointsQuotients *G1El
-	for i := 0; i < len(randomNumbers); i++ {
-		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[i], &points[i])
-	}
-	foldedPointsQuotients = v.curve.ScalarMul(&quotients[0], randomNumbers[0])
-	for i := 1; i < len(digests); i++ {
-		tmp = v.curve.ScalarMul(&quotients[i], randomNumbers[i])
-		foldedPointsQuotients = v.curve.Add(foldedPointsQuotients, tmp)
-	}
 
 	// ∑ᵢλᵢ[f_i(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁ + ∑ᵢλᵢ[p_i]([Hᵢ(α)]G₁)
 	// = [∑ᵢλᵢf_i(α) - ∑ᵢλᵢfᵢ(aᵢ) + ∑ᵢλᵢpᵢHᵢ(α)]G₁
@@ -503,9 +607,12 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) BatchVerifyMultiPoints(digests []Com
 	return err
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl, L]) FoldProof(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], dataTranscript ...frontend.Variable) (OpeningProof[FR, G1El], Commitment[G1El], error) {
+// FoldProof folds multiple commitments and a batch opening proof for a single opening check.
+func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], batchOpeningProof BatchOpeningProof[FR, G1El], point emulated.Element[FR], dataTranscript ...emulated.Element[FR]) (OpeningProof[FR, G1El], Commitment[G1El], error) {
 	var retP OpeningProof[FR, G1El]
 	var retC Commitment[G1El]
+	// we assume the short hash output size is full byte fitting into the modulus length.
+	nbScalarBits := ((v.api.Compiler().FieldBitLen()+7)/8 - 1) * 8
 	nbDigests := len(digests)
 
 	// check consistency between numbers of claims vs number of digests
@@ -516,10 +623,20 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) FoldProof(digests []Commitment[G1El]
 	// derive the challenge γ, binded to the point and the commitments
 	gamma, err := v.deriveGamma(point, digests, batchOpeningProof.ClaimedValues, dataTranscript...)
 	if err != nil {
-		return retP, retC, err
+		return retP, retC, fmt.Errorf("derive gamma: %w", err)
 	}
 
 	// fold the claimed values and digests
+	// compute ∑ᵢ γ^i C_i = C_0 + γ(C_1 + γ(C2 ...)), allowing to bound the scalar multiplication iterations
+	digestsP := make([]*G1El, len(digests))
+	for i := range digestsP {
+		digestsP[i] = &digests[i].G1El
+	}
+	foldedDigests, err := v.curve.MultiScalarMul(digestsP, []*emulated.Element[FR]{gamma}, algopts.WithNbScalarBits(nbScalarBits), algopts.WithFoldingScalarMul())
+	if err != nil {
+		return retP, retC, fmt.Errorf("multi scalar mul: %w", err)
+	}
+
 	// gammai = [1,γ,γ²,..,γⁿ⁻¹]
 	gammai := make([]*emulated.Element[FR], nbDigests)
 	gammai[0] = v.scalarApi.One()
@@ -529,17 +646,23 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) FoldProof(digests []Commitment[G1El]
 	for i := 2; i < nbDigests; i++ {
 		gammai[i] = v.scalarApi.Mul(gammai[i-1], gamma)
 	}
-	foldedDigests, foldedEvaluations := v.fold(digests, batchOpeningProof.ClaimedValues, gammai)
+	foldedEvaluations := v.scalarApi.Zero()
+	for i := 0; i < nbDigests; i++ {
+		tmp := v.scalarApi.Mul(&batchOpeningProof.ClaimedValues[i], gammai[i])
+		foldedEvaluations = v.scalarApi.Add(foldedEvaluations, tmp)
+	}
 	return OpeningProof[FR, G1El]{
-		Quotient:     batchOpeningProof.Quotient,
-		ClaimedValue: *foldedEvaluations,
-	}, foldedDigests, nil
+			Quotient:     batchOpeningProof.Quotient,
+			ClaimedValue: *foldedEvaluations,
+		}, Commitment[G1El]{
+			G1El: *foldedDigests,
+		}, nil
 
 }
 
 // deriveGamma derives a challenge using Fiat Shamir to fold proofs.
 // dataTranscript are supposed to be bits.
-func (v *Verifier[FR, G1El, G2El, GTEl, L]) deriveGamma(point emulated.Element[FR], digests []Commitment[G1El], claimedValues []emulated.Element[FR], dataTranscript ...frontend.Variable) (*emulated.Element[FR], error) {
+func (v *Verifier[FR, G1El, G2El, GTEl]) deriveGamma(point emulated.Element[FR], digests []Commitment[G1El], claimedValues []emulated.Element[FR], dataTranscript ...emulated.Element[FR]) (*emulated.Element[FR], error) {
 	var fr FR
 	fs, err := recursion.NewTranscript(v.api, fr.Modulus(), []string{"gamma"})
 	if err != nil {
@@ -560,21 +683,23 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) deriveGamma(point emulated.Element[F
 		}
 	}
 
-	if err := fs.Bind("gamma", dataTranscript); err != nil {
-		return nil, fmt.Errorf("bind data transcript: %w", err)
+	for i := range dataTranscript {
+		if err := fs.Bind("gamma", v.curve.MarshalScalar(dataTranscript[i])); err != nil {
+			return nil, fmt.Errorf("bind %d-ith data transcript: %w", i, err)
+		}
 	}
 
 	gamma, err := fs.ComputeChallenge("gamma")
 	if err != nil {
 		return nil, fmt.Errorf("compute challenge: %w", err)
 	}
-	bGamma := v.api.ToBinary(gamma)
+	bGamma := bits.ToBinary(v.api, gamma, bits.WithNbDigits(fr.Modulus().BitLen()))
 	gammaS := v.scalarApi.FromBits(bGamma...)
 
 	return gammaS, nil
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl, L]) fold(digests []Commitment[G1El], fai []emulated.Element[FR], ci []*emulated.Element[FR]) (Commitment[G1El], *emulated.Element[FR]) {
+func (v *Verifier[FR, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai []emulated.Element[FR], ci []*emulated.Element[FR], algopts ...algopts.AlgebraOption) (Commitment[G1El], *emulated.Element[FR], error) {
 	// length inconsistency between digests and evaluations should have been done before calling this function
 	nbDigests := len(digests)
 
@@ -587,15 +712,18 @@ func (v *Verifier[FR, G1El, G2El, GTEl, L]) fold(digests []Commitment[G1El], fai
 	}
 
 	// fold the digests ∑ᵢ[cᵢ]([fᵢ(α)]G₁)
-	foldedDigest := v.curve.ScalarMul(&digests[0].G1El, ci[0])
-	for i := 1; i < nbDigests; i++ {
-		tmp := v.curve.ScalarMul(&digests[i].G1El, ci[i])
-		foldedDigest = v.curve.Add(tmp, foldedDigest)
+	digestPoints := make([]*G1El, len(digests))
+	for i := range digestPoints {
+		digestPoints[i] = &digests[i].G1El
+	}
+	foldedDigest, err := v.curve.MultiScalarMul(digestPoints, ci)
+	if err != nil {
+		return Commitment[G1El]{}, nil, fmt.Errorf("fold digests: %w", err)
 	}
 
 	// folding done
 	return Commitment[G1El]{
 		G1El: *foldedDigest,
-	}, foldedEvaluations
+	}, foldedEvaluations, nil
 
 }

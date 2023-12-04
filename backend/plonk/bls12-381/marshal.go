@@ -349,8 +349,7 @@ func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n
 		&vk.Kzg.G1,
 		&vk.Kzg.G2[0],
 		&vk.Kzg.G2[1],
-		&vk.Kzg.Lines[0],
-		&vk.Kzg.Lines[1],
+		&vk.Kzg.Lines,
 		vk.CommitmentConstraintIndexes,
 	}
 
@@ -390,8 +389,7 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		&vk.Kzg.G1,
 		&vk.Kzg.G2[0],
 		&vk.Kzg.G2[1],
-		&vk.Kzg.Lines[0],
-		&vk.Kzg.Lines[1],
+		&vk.Kzg.Lines,
 		&vk.CommitmentConstraintIndexes,
 	}
 

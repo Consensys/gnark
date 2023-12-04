@@ -699,3 +699,112 @@ func TestBatchVerifyMultiPoints(t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BLS12_381), test.WithBackends(backend.PLONK))
 
 }
+
+type KZGVerificationConstantVkCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {
+	vk VerifyingKey[G1El, G2El] `gnark:"-"` // override visibility for sub-definitions
+	Commitment[G1El]
+	OpeningProof[FR, G1El]
+	Point emulated.Element[FR]
+}
+
+func (c *KZGVerificationConstantVkCircuit[FR, G1El, G2El, GTEl]) Define(api frontend.API) error {
+	verifier, err := NewVerifier[FR, G1El, G2El, GTEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	if err := verifier.CheckOpeningProof(c.Commitment, c.OpeningProof, c.Point, c.vk); err != nil {
+		return fmt.Errorf("assert proof: %w", err)
+	}
+	return nil
+}
+
+func TestKZGVerificationEmulated3ConstantVk(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bw6761.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	f := make([]fr_bw6761.Element, polynomialSize)
+	for i := range f {
+		f[i].SetRandom()
+	}
+
+	com, err := kzg_bw6761.Commit(f, srs.Pk)
+	assert.NoError(err)
+
+	var point fr_bw6761.Element
+	point.SetRandom()
+	proof, err := kzg_bw6761.Open(f, point, srs.Pk)
+	assert.NoError(err)
+
+	if err = kzg_bw6761.Verify(&com, &proof, point, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	wCmt, err := ValueOfCommitment[sw_bw6761.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine](proof)
+	assert.NoError(err)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bw6761.G1Affine, sw_bw6761.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bw6761.ScalarField](point)
+	assert.NoError(err)
+
+	assignment := KZGVerificationConstantVkCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		Commitment:   wCmt,
+		OpeningProof: wProof,
+		Point:        wPt,
+	}
+	circuit := KZGVerificationConstantVkCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		vk: wVk,
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
+}
+
+func TestKZGVerificationEmulated3Precomputed(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bw6761.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	f := make([]fr_bw6761.Element, polynomialSize)
+	for i := range f {
+		f[i].SetRandom()
+	}
+
+	com, err := kzg_bw6761.Commit(f, srs.Pk)
+	assert.NoError(err)
+
+	var point fr_bw6761.Element
+	point.SetRandom()
+	proof, err := kzg_bw6761.Open(f, point, srs.Pk)
+	assert.NoError(err)
+
+	if err = kzg_bw6761.Verify(&com, &proof, point, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	wCmt, err := ValueOfCommitment[sw_bw6761.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine](proof)
+	assert.NoError(err)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bw6761.G1Affine, sw_bw6761.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bw6761.ScalarField](point)
+	assert.NoError(err)
+
+	assignment := KZGVerificationCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		VerifyingKey: wVk,
+		Commitment:   wCmt,
+		OpeningProof: wProof,
+		Point:        wPt,
+	}
+	circuit := KZGVerificationCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		VerifyingKey: PlaceholderVerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine](),
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
+}

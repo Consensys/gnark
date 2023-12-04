@@ -245,18 +245,18 @@ func TestConjugateFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e6CyclotomicSquareCompressed struct {
+type e6CyclotomicSquareKarabina2345 struct {
 	A, B E6
 }
 
-func (circuit *e6CyclotomicSquareCompressed) Define(api frontend.API) error {
+func (circuit *e6CyclotomicSquareKarabina2345) Define(api frontend.API) error {
 	e := NewExt6(api)
-	expected := e.CyclotomicSquareCompressed(&circuit.A)
+	expected := e.CyclotomicSquareKarabina2345(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }
 
-func TestCyclotomicSquareCompressedFp6(t *testing.T) {
+func TestCyclotomicSquareKarabina2345Fp6(t *testing.T) {
 	assert := test.NewAssert(t)
 	// witness values
 	var a, b bw6761.E6
@@ -264,27 +264,27 @@ func TestCyclotomicSquareCompressedFp6(t *testing.T) {
 	b.Set(&a)
 	b.CyclotomicSquareCompressed(&a)
 
-	witness := e6CyclotomicSquareCompressed{
+	witness := e6CyclotomicSquareKarabina2345{
 		A: FromE6(&a),
 		B: FromE6(&b),
 	}
 
-	err := test.IsSolved(&e6CyclotomicSquareCompressed{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&e6CyclotomicSquareKarabina2345{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
-type e6DecompressKarabina struct {
+type e6DecompressKarabina2345 struct {
 	A, B E6
 }
 
-func (circuit *e6DecompressKarabina) Define(api frontend.API) error {
+func (circuit *e6DecompressKarabina2345) Define(api frontend.API) error {
 	e := NewExt6(api)
-	expected := e.DecompressKarabina(&circuit.A)
+	expected := e.DecompressKarabina2345(&circuit.A)
 	e.AssertIsEqual(expected, &circuit.B)
 	return nil
 }
 
-func TestDecompressKarabinaFp6(t *testing.T) {
+func TestDecompressKarabina2345Fp6(t *testing.T) {
 	assert := test.NewAssert(t)
 	// witness values
 	var a, b bw6761.E6
@@ -292,12 +292,12 @@ func TestDecompressKarabinaFp6(t *testing.T) {
 	b.Set(&a)
 	a.DecompressKarabina(&a)
 
-	witness := e6DecompressKarabina{
+	witness := e6DecompressKarabina2345{
 		A: FromE6(&b),
 		B: FromE6(&a),
 	}
 
-	err := test.IsSolved(&e6DecompressKarabina{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&e6DecompressKarabina2345{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 

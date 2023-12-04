@@ -127,7 +127,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		if cfg.HashToFieldFn == nil {
 			cfg.HashToFieldFn = hash_to_field.New([]byte("BSB22-Plonk"))
 		}
-		var hashBts []byte
 		var hashedCmt fr.Element
 		nbBuf := fr.Bytes
 		if cfg.HashToFieldFn.Size() < fr.Bytes {
@@ -135,7 +134,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		}
 		for i := range vk.CommitmentConstraintIndexes {
 			cfg.HashToFieldFn.Write(proof.Bsb22Commitments[i].Marshal())
-			hashBts = cfg.HashToFieldFn.Sum(hashBts[0:])
+			hashBts := cfg.HashToFieldFn.Sum(nil)
 			cfg.HashToFieldFn.Reset()
 			hashedCmt.SetBytes(hashBts[:nbBuf])
 
