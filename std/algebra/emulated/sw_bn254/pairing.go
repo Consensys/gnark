@@ -264,17 +264,17 @@ func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
 
-func (pr Pairing) AssertIsOnTwist(Q *g2AffP) {
+func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=3/(9+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
 
 	// if Q=(0,0) we assign b=0 otherwise 3/(9+u), and continue
-	selector := pr.api.And(pr.Ext2.IsZero(&Q.X), pr.Ext2.IsZero(&Q.Y))
+	selector := pr.api.And(pr.Ext2.IsZero(&Q.P.X), pr.Ext2.IsZero(&Q.P.Y))
 	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
 
-	left := pr.Ext2.Square(&Q.Y)
-	right := pr.Ext2.Square(&Q.X)
-	right = pr.Ext2.Mul(right, &Q.X)
+	left := pr.Ext2.Square(&Q.P.Y)
+	right := pr.Ext2.Square(&Q.P.X)
+	right = pr.Ext2.Mul(right, &Q.P.X)
 	right = pr.Ext2.Add(right, b)
 	pr.Ext2.AssertIsEqual(left, right)
 }
@@ -287,7 +287,7 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 
 func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	// 1- Check Q is on the curve
-	pr.AssertIsOnTwist(&Q.P)
+	pr.AssertIsOnTwist(Q)
 
 	// 2- Check Q has the right subgroup order
 

@@ -37,7 +37,11 @@ func (p *Pairing) precomputeLines(Q *g2AffP) lineEvaluations {
 		X: Q.X,
 		Y: *p.Ext2.Neg(&Q.Y),
 	}
-	for i := 64; i >= 0; i-- {
+	n := len(bn254.LoopCounter)
+	Qacc, cLines[0][n-2] = p.doubleStep(Qacc)
+	cLines[1][n-3] = p.lineCompute(Qacc, QNeg)
+	Qacc, cLines[0][n-3] = p.addStep(Qacc, Q)
+	for i := n - 4; i >= 0; i-- {
 		switch loopCounter[i] {
 		case 0:
 			Qacc, cLines[0][i] = p.doubleStep(Qacc)
@@ -66,8 +70,8 @@ func (p *Pairing) precomputeLines(Q *g2AffP) lineEvaluations {
 		Y: *Q2Y,
 	}
 
-	Qacc, cLines[0][65] = p.addStep(Qacc, Q1)
-	cLines[1][65] = p.lineCompute(Qacc, Q2)
+	Qacc, cLines[0][n-1] = p.addStep(Qacc, Q1)
+	cLines[1][n-1] = p.lineCompute(Qacc, Q2)
 
 	return cLines
 }

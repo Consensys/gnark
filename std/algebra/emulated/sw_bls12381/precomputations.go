@@ -1,36 +1,47 @@
 package sw_bls12381
 
 import (
-	"sync"
-
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
-	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 )
 
-// precomputed lines going through Q where Q is a fixed point in G2
-var precomputedLines [2]LineEvaluations
-var precomputedLinesOnce sync.Once
+// lineEvaluation represents a sparse Fp6 Elmt (result of the line evaluation)
+// line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
+// makes the multiplication by lines (MulBy014)
+type lineEvaluation struct {
+	R0, R1 fields_bls12381.E2
+}
+type lineEvaluations [2][len(bls12381.LoopCounter) - 1]*lineEvaluation
 
-func getPrecomputedLines(Q bls12381.G2Affine) [2]LineEvaluations {
-	precomputedLinesOnce.Do(func() {
-		precomputedLines = precomputeLines(Q)
-	})
-	return precomputedLines
+func precomputeLines(Q bls12381.G2Affine) lineEvaluations {
+	var cLines lineEvaluations
+	nLines := bls12381.PrecomputeLines(Q)
+	for j := range cLines[0] {
+		cLines[0][j] = &lineEvaluation{
+			R0: fields_bls12381.FromE2(&nLines[0][j].R0),
+			R1: fields_bls12381.FromE2(&nLines[0][j].R1),
+		}
+		cLines[1][j] = &lineEvaluation{
+			R0: fields_bls12381.FromE2(&nLines[1][j].R0),
+			R1: fields_bls12381.FromE2(&nLines[1][j].R1),
+		}
+	}
+	return cLines
 }
 
-func precomputeLines(Q bls12381.G2Affine) [2]LineEvaluations {
-	var PrecomputedLines [2]LineEvaluations
-	lines := bls12381.PrecomputeLines(Q)
-	for j := 0; j < 63; j++ {
-		PrecomputedLines[0].Eval[j].R0.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R0.A0)
-		PrecomputedLines[0].Eval[j].R0.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R0.A1)
-		PrecomputedLines[0].Eval[j].R1.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R1.A0)
-		PrecomputedLines[0].Eval[j].R1.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[0][j].R1.A1)
-		PrecomputedLines[1].Eval[j].R0.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R0.A0)
-		PrecomputedLines[1].Eval[j].R0.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R0.A1)
-		PrecomputedLines[1].Eval[j].R1.A0 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R1.A0)
-		PrecomputedLines[1].Eval[j].R1.A1 = emulated.ValueOf[emulated.BLS12381Fp](lines[1][j].R1.A1)
-	}
+func (p *Pairing) precomputeLines(Q *g2AffP) lineEvaluations {
 
-	return PrecomputedLines
+	var cLines lineEvaluations
+	Qacc := Q
+	n := len(loopCounter)
+	Qacc, cLines[0][n-2], cLines[1][n-2] = p.tripleStep(Qacc)
+	for i := n - 3; i >= 1; i-- {
+		if loopCounter[i] == 0 {
+			Qacc, cLines[0][i] = p.doubleStep(Qacc)
+		} else {
+			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, Q)
+		}
+	}
+	cLines[0][0] = p.tangentCompute(Qacc)
+	return cLines
 }
