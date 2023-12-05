@@ -273,27 +273,22 @@ func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT]()
 	// 	s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
 	// 	s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
 	// 	s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
-	// case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bls12381.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+		s.G2[0] = sw_bls12381.NewG2AffineFixedPlaceholder()
+		s.G2[1] = sw_bls12381.NewG2AffineFixedPlaceholder()
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		s.G2[0] = sw_bw6761.NewG2AffineFixedPlaceholder()
 		s.G2[1] = sw_bw6761.NewG2AffineFixedPlaceholder()
-	// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bls24315.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
-	default:
-		panic("not supported")
+		// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+		// 	tVk, ok := vk.(kzg_bls24315.VerifyingKey)
+		// 	if !ok {
+		// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		// 	}
+		// 	s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
+		// 	s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
+		// 	s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+		// default:
+		// 	panic("not supported")
 	}
 	return ret
 }
@@ -367,22 +362,22 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT](
 		s.G1 = sw_bn254.NewG1Affine(tVk.G1)
 		s.G2[0] = sw_bn254.NewG2AffineFixed(tVk.G2[0])
 		s.G2[1] = sw_bn254.NewG2AffineFixed(tVk.G2[1])
-	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bls12377.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
-	// case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bls12381.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+		// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
+		// 	tVk, ok := vk.(kzg_bls12377.VerifyingKey)
+		// 	if !ok {
+		// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		// 	}
+		// 	s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
+		// 	s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
+		// 	s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+		tVk, ok := vk.(kzg_bls12381.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bls12381.NewG2AffineFixed(tVk.G2[0])
+		s.G2[1] = sw_bls12381.NewG2AffineFixed(tVk.G2[1])
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		tVk, ok := vk.(kzg_bw6761.VerifyingKey)
 		if !ok {
