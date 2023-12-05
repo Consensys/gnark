@@ -380,8 +380,7 @@ type fp12FixedExpo struct {
 func (circuit *fp12FixedExpo) Define(api frontend.API) error {
 	expected := E12{}
 
-	expo := uint64(9586122913090633729)
-	expected.Expt(api, circuit.A, expo)
+	expected.ExpX0(api, circuit.A)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }

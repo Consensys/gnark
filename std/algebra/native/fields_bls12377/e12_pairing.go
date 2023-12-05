@@ -74,8 +74,8 @@ func Mul034By034(api frontend.API, d3, d4, c3, c4 E2) *[5]E2 {
 		Sub(api, x34, x3).
 		Sub(api, x34, x4)
 
-	x00.MulByNonResidue(api, x4).
-		Add(api, x00, one)
+	x00.MulByNonResidue(api, x4)
+	x00.A0 = api.Add(x00.A0, 1)
 
 	return &[5]E2{x00, x3, x34, x03, x04}
 }
