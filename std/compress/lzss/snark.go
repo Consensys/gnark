@@ -7,14 +7,16 @@ import (
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
-// bite size of c needs to be the greatest common denominator of all backref types and 8
-// d consists of bytes
+// Decompress decompresses c into d using dict as the dictionary
+// It returns the length of d as a frontend.Variable
 func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d []frontend.Variable, dict []byte, level lzss.Level) (dLength frontend.Variable, err error) {
 
 	wordNbBits := int(level)
 
+	// ensure input is in range
 	checkInputRange(api, c, wordNbBits)
 
+	// init the dictionary and backref types
 	dict = lzss.AugmentDict(dict)
 	shortBackRefType, longBackRefType, dictBackRefType := lzss.InitBackRefTypes(len(dict), level)
 
