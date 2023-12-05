@@ -75,20 +75,18 @@ func GetPairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT](api frontend.
 			return ret, fmt.Errorf("new pairing: %w", err)
 		}
 		*s = p
-		/*
-			case *Pairing[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
-				p, err := sw_bls12381.NewPairing(api)
-				if err != nil {
-					return ret, fmt.Errorf("new pairing: %w", err)
-				}
-				*s = p
-			case *Pairing[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
-				p := sw_bls12377.NewPairing(api)
-				*s = p
-			case *Pairing[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
-				p := sw_bls24315.NewPairing(api)
-				*s = p
-		*/
+	case *Pairing[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
+		p, err := sw_bls12381.NewPairing(api)
+		if err != nil {
+			return ret, fmt.Errorf("new pairing: %w", err)
+		}
+		*s = p
+	case *Pairing[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
+		p := sw_bls12377.NewPairing(api)
+		*s = p
+	case *Pairing[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
+		p := sw_bls24315.NewPairing(api)
+		*s = p
 	default:
 		return ret, fmt.Errorf("unknown type parametrisation")
 	}

@@ -262,14 +262,9 @@ type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
 func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT]() VerifyingKey[G1El, G2El] {
 	var ret VerifyingKey[G1El, G2El]
 	switch s := any(&ret).(type) {
-	// case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bn254.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bn254.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bn254.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bn254.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
+		s.G2[0] = sw_bn254.NewG2AffineFixedPlaceholder()
+		s.G2[1] = sw_bn254.NewG2AffineFixedPlaceholder()
 	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
 	// 	tVk, ok := vk.(kzg_bls12377.VerifyingKey)
 	// 	if !ok {
@@ -364,14 +359,14 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk an
 func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk any) (VerifyingKey[G1El, G2El], error) {
 	var ret VerifyingKey[G1El, G2El]
 	switch s := any(&ret).(type) {
-	// case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bn254.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bn254.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bn254.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bn254.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
+		tVk, ok := vk.(kzg_bn254.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		s.G1 = sw_bn254.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bn254.NewG2AffineFixed(tVk.G2[0])
+		s.G2[1] = sw_bn254.NewG2AffineFixed(tVk.G2[1])
 	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
 	// 	tVk, ok := vk.(kzg_bls12377.VerifyingKey)
 	// 	if !ok {
