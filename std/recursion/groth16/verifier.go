@@ -433,16 +433,16 @@ func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], er
 }
 
 // Verifier verifies Groth16 proofs.
-type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT, L algebra.LinesT] struct {
+type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	curve   algebra.Curve[FR, G1El]
-	pairing algebra.Pairing[G1El, G2El, GtEl, L]
+	pairing algebra.Pairing[G1El, G2El, GtEl]
 }
 
 // NewVerifier returns a new [Verifier] instance using the curve and pairing
 // interfaces. Use methods [algebra.GetCurve] and [algebra.GetPairing] to
 // initialize the instances.
-func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT, L algebra.LinesT](curve algebra.Curve[FR, G1El], pairing algebra.Pairing[G1El, G2El, GtEl, L]) *Verifier[FR, G1El, G2El, GtEl, L] {
-	return &Verifier[FR, G1El, G2El, GtEl, L]{
+func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](curve algebra.Curve[FR, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[FR, G1El, G2El, GtEl] {
+	return &Verifier[FR, G1El, G2El, GtEl]{
 		curve:   curve,
 		pairing: pairing,
 	}
@@ -450,7 +450,7 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 
 // AssertProof asserts that the SNARK proof holds for the given witness and
 // verifying key.
-func (v *Verifier[FR, G1El, G2El, GtEl, L]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR]) error {
+func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR]) error {
 	inP := make([]*G1El, len(vk.G1.K)-1) // first is for the one wire, we add it manually after MSM
 	for i := range inP {
 		inP[i] = &vk.G1.K[i+1]

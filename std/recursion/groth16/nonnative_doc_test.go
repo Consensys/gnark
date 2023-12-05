@@ -75,18 +75,18 @@ func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.Ver
 
 // OuterCircuit is the generic outer circuit which can verify Groth16 proofs
 // using field emulation or 2-chains of curves.
-type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT, L algebra.LinesT] struct {
+type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	Proof        stdgroth16.Proof[G1El, G2El]
 	VerifyingKey stdgroth16.VerifyingKey[G1El, G2El, GtEl]
 	InnerWitness stdgroth16.Witness[FR]
 }
 
-func (c *OuterCircuit[FR, G1El, G2El, GtEl, L]) Define(api frontend.API) error {
+func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	curve, err := algebra.GetCurve[FR, G1El](api)
 	if err != nil {
 		return fmt.Errorf("new curve: %w", err)
 	}
-	pairing, err := algebra.GetPairing[G1El, G2El, GtEl, L](api)
+	pairing, err := algebra.GetPairing[G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("get pairing: %w", err)
 	}
@@ -114,7 +114,7 @@ func Example_emulated() {
 		panic(err)
 	}
 
-	outerAssignment := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl, sw_bn254.LineEvaluations]{
+	outerAssignment := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
@@ -124,7 +124,7 @@ func Example_emulated() {
 	// compiled inner circuit to deduce the required size for the outer witness
 	// using functions [stdgroth16.PlaceholderWitness] and
 	// [stdgroth16.PlaceholderVerifyingKey]
-	outerCircuit := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl, sw_bn254.LineEvaluations]{
+	outerCircuit := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
 		InnerWitness: stdgroth16.PlaceholderWitness[sw_bn254.ScalarField](innerCcs),
 		VerifyingKey: stdgroth16.PlaceholderVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerCcs),
 	}
