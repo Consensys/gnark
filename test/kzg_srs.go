@@ -18,8 +18,10 @@ package test
 
 import (
 	"crypto/rand"
+	"math/big"
 	"sync"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/constraint"
@@ -34,10 +36,7 @@ import (
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
 )
 
-const srsCachedSize = (1 << 14) + 3
-
 // NewKZGSRS uses ccs nb variables and nb constraints to initialize a kzg srs
-// for sizes < 2¹⁵, returns a pre-computed cached SRS
 //
 // /!\ warning /!\: this method is here for convenience only: in production, a SRS generated through MPC should be used.
 func NewKZGSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
@@ -46,59 +45,162 @@ func NewKZGSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
 	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
 	kzgSize := ecc.NextPowerOfTwo(uint64(sizeSystem)) + 3
 
-	if kzgSize <= srsCachedSize {
-		return getCachedSRS(ccs)
-	}
-
-	return newKZGSRS(utils.FieldToCurve(ccs.Field()), kzgSize)
+	return getCachedSRS(ccs, kzgSize)
 }
 
-var srsCache map[ecc.ID]kzg.SRS
-var lock sync.Mutex
+func NewKZGSRSLagrange(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
+
+	nbConstraints := ccs.GetNbConstraints()
+	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
+	kzgSize := ecc.NextPowerOfTwo(uint64(sizeSystem))
+
+	return getCachedSRSLagrange(ccs, kzgSize)
+}
+
+var (
+	lock1, lock2     sync.Mutex
+	srsCache         map[ecc.ID]srsCacheEntry
+	srsLagrangeCache map[ecc.ID][]srsCacheEntry
+)
+
+type srsCacheEntry struct {
+	srs  kzg.SRS
+	size uint64
+}
 
 func init() {
-	srsCache = make(map[ecc.ID]kzg.SRS)
+	srsCache = make(map[ecc.ID]srsCacheEntry)
+	srsLagrangeCache = make(map[ecc.ID][]srsCacheEntry)
+	for _, curve := range gnark.Curves() {
+		srsLagrangeCache[curve] = make([]srsCacheEntry, 0)
+	}
 }
-func getCachedSRS(ccs constraint.ConstraintSystem) (kzg.SRS, error) {
-	lock.Lock()
-	defer lock.Unlock()
+func getCachedSRS(ccs constraint.ConstraintSystem, size uint64) (kzg.SRS, error) {
+	lock1.Lock()
+	defer lock1.Unlock()
 
 	curveID := utils.FieldToCurve(ccs.Field())
 
-	if srs, ok := srsCache[curveID]; ok {
-		return srs, nil
+	if entry, ok := srsCache[curveID]; ok && entry.size >= size {
+		return entry.srs, nil
 	}
 
-	srs, err := newKZGSRS(curveID, srsCachedSize)
+	srs, err := newKZGSRS(curveID, size)
 	if err != nil {
 		return nil, err
 	}
-	srsCache[curveID] = srs
+	srsCache[curveID] = srsCacheEntry{srs: srs, size: size}
 	return srs, nil
+}
+
+func getCachedSRSLagrange(ccs constraint.ConstraintSystem, size uint64) (kzg.SRS, error) {
+	lock2.Lock()
+	defer lock2.Unlock()
+
+	curveID := utils.FieldToCurve(ccs.Field())
+
+	entries := srsLagrangeCache[curveID]
+	for _, entry := range entries {
+		if entry.size == size {
+			return entry.srs, nil
+		}
+	}
+
+	canonicalSRS, err := getCachedSRS(ccs, size+3)
+	if err != nil {
+		return nil, err
+	}
+
+	var lagrangeSRS kzg.SRS
+
+	switch curveID {
+	case ecc.BN254:
+		// cast to bn254
+		srs := canonicalSRS.(*kzg_bn254.SRS)
+		newSRS := &kzg_bn254.SRS{Vk: srs.Vk}
+		newSRS.Pk.G1, err = kzg_bn254.ToLagrangeG1(srs.Pk.G1[:size])
+		lagrangeSRS = newSRS
+	case ecc.BLS12_381:
+		// cast to bls12-381
+		srs := canonicalSRS.(*kzg_bls12381.SRS)
+		newSRS := &kzg_bls12381.SRS{Vk: srs.Vk}
+		newSRS.Pk.G1, err = kzg_bls12381.ToLagrangeG1(srs.Pk.G1[:size])
+		lagrangeSRS = newSRS
+	case ecc.BLS12_377:
+		// cast to bls12-377
+		srs := canonicalSRS.(*kzg_bls12377.SRS)
+		newSRS := &kzg_bls12377.SRS{Vk: srs.Vk}
+		newSRS.Pk.G1, err = kzg_bls12377.ToLagrangeG1(srs.Pk.G1[:size])
+		lagrangeSRS = newSRS
+	case ecc.BW6_761:
+		// cast to bw6-761
+		srs := canonicalSRS.(*kzg_bw6761.SRS)
+		newSRS := &kzg_bw6761.SRS{Vk: srs.Vk}
+		newSRS.Pk.G1, err = kzg_bw6761.ToLagrangeG1(srs.Pk.G1[:size])
+		lagrangeSRS = newSRS
+	case ecc.BLS24_317:
+		// cast to bls24-317
+		srs := canonicalSRS.(*kzg_bls24317.SRS)
+		newSRS := &kzg_bls24317.SRS{Vk: srs.Vk}
+		newSRS.Pk.G1, err = kzg_bls24317.ToLagrangeG1(srs.Pk.G1[:size])
+		lagrangeSRS = newSRS
+	case ecc.BLS24_315:
+		// cast to bls24-315
+		srs := canonicalSRS.(*kzg_bls24315.SRS)
+		newSRS := &kzg_bls24315.SRS{Vk: srs.Vk}
+		newSRS.Pk.G1, err = kzg_bls24315.ToLagrangeG1(srs.Pk.G1[:size])
+		lagrangeSRS = newSRS
+	case ecc.BW6_633:
+		// cast to bw6-633
+		srs := canonicalSRS.(*kzg_bw6633.SRS)
+		newSRS := &kzg_bw6633.SRS{Vk: srs.Vk}
+		newSRS.Pk.G1, err = kzg_bw6633.ToLagrangeG1(srs.Pk.G1[:size])
+		lagrangeSRS = newSRS
+	default:
+		panic("unrecognized curve")
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	entries = append(entries, srsCacheEntry{srs: lagrangeSRS, size: size})
+	srsLagrangeCache[curveID] = entries
+
+	return lagrangeSRS, nil
+}
+
+var alpha *big.Int
+
+func init() {
+	// for test purposes, we use the same alpha for all SRS we generate.
+	var err error
+	alpha, err = rand.Int(rand.Reader, ecc.BW6_761.ScalarField())
+	if err != nil {
+		panic(err)
+	}
 }
 
 func newKZGSRS(curve ecc.ID, kzgSize uint64) (kzg.SRS, error) {
 
-	alpha, err := rand.Int(rand.Reader, curve.ScalarField())
-	if err != nil {
-		return nil, err
-	}
+	beta := new(big.Int).Set(alpha)
+	beta.Mod(beta, curve.ScalarField())
 
 	switch curve {
 	case ecc.BN254:
-		return kzg_bn254.NewSRS(kzgSize, alpha)
+		return kzg_bn254.NewSRS(kzgSize, beta)
 	case ecc.BLS12_381:
-		return kzg_bls12381.NewSRS(kzgSize, alpha)
+		return kzg_bls12381.NewSRS(kzgSize, beta)
 	case ecc.BLS12_377:
-		return kzg_bls12377.NewSRS(kzgSize, alpha)
+		return kzg_bls12377.NewSRS(kzgSize, beta)
 	case ecc.BW6_761:
-		return kzg_bw6761.NewSRS(kzgSize, alpha)
+		return kzg_bw6761.NewSRS(kzgSize, beta)
 	case ecc.BLS24_317:
-		return kzg_bls24317.NewSRS(kzgSize, alpha)
+		return kzg_bls24317.NewSRS(kzgSize, beta)
 	case ecc.BLS24_315:
-		return kzg_bls24315.NewSRS(kzgSize, alpha)
+		return kzg_bls24315.NewSRS(kzgSize, beta)
 	case ecc.BW6_633:
-		return kzg_bw6633.NewSRS(kzgSize, alpha)
+		return kzg_bw6633.NewSRS(kzgSize, beta)
 	default:
 		panic("unrecognized R1CS curve type")
 	}

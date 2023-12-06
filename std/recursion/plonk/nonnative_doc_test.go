@@ -48,7 +48,12 @@ func computeInnerProof(field, outer *big.Int) (constraint.ConstraintSystem, nati
 	if err != nil {
 		panic(err)
 	}
-	innerPK, innerVK, err := native_plonk.Setup(innerCcs, srs)
+	srsLagrange, err := test.NewKZGSRSLagrange(innerCcs)
+	if err != nil {
+		panic(err)
+	}
+
+	innerPK, innerVK, err := native_plonk.Setup(innerCcs, srs, srsLagrange)
 	if err != nil {
 		panic(err)
 	}
@@ -135,8 +140,13 @@ func Example_emulated() {
 	if err != nil {
 		panic(err)
 	}
+	srsLagrange, err := test.NewKZGSRSLagrange(innerCcs)
+	if err != nil {
+		panic(err)
+	}
+
 	// create PLONK setup. NB! UNSAFE
-	pk, vk, err := native_plonk.Setup(ccs, srs) // UNSAFE! Use MPC
+	pk, vk, err := native_plonk.Setup(ccs, srs, srsLagrange) // UNSAFE! Use MPC
 	if err != nil {
 		panic("setup failed: " + err.Error())
 	}

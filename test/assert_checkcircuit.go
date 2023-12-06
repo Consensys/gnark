@@ -260,7 +260,11 @@ var (
 			if err != nil {
 				return nil, nil, nil, nil, nil, err
 			}
-			pk, vk, err = plonk.Setup(ccs, srs)
+			srsLagrange, err := NewKZGSRSLagrange(ccs)
+			if err != nil {
+				return nil, nil, nil, nil, nil, err
+			}
+			pk, vk, err = plonk.Setup(ccs, srs, srsLagrange)
 			return pk, vk, func() any { return plonk.NewProvingKey(curve) }, func() any { return plonk.NewVerifyingKey(curve) }, func() any { return plonk.NewProof(curve) }, err
 		},
 		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {

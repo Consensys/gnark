@@ -50,8 +50,13 @@ func Example_native() {
 	if err != nil {
 		panic(err)
 	}
+	srsLagrange, err := test.NewKZGSRSLagrange(innerCcs)
+	if err != nil {
+		panic(err)
+	}
+
 	// create PLONK setup. NB! UNSAFE
-	pk, vk, err := native_plonk.Setup(ccs, srs) // UNSAFE! Use MPC
+	pk, vk, err := native_plonk.Setup(ccs, srs, srsLagrange) // UNSAFE! Use MPC
 	if err != nil {
 		panic("setup failed: " + err.Error())
 	}

@@ -37,7 +37,11 @@ func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.Co
 	assert.NoError(err)
 	srs, err := test.NewKZGSRS(innerCcs)
 	assert.NoError(err)
-	innerPK, innerVK, err := plonk.Setup(innerCcs, srs)
+
+	srsLagrange, err := test.NewKZGSRSLagrange(innerCcs)
+	assert.NoError(err)
+
+	innerPK, innerVK, err := plonk.Setup(innerCcs, srs, srsLagrange)
 	assert.NoError(err)
 
 	// inner proof
@@ -160,7 +164,10 @@ func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.Cons
 	srs, err := test.NewKZGSRS(innerCcs)
 	assert.NoError(err)
 
-	innerPK, innerVK, err := plonk.Setup(innerCcs, srs)
+	srsLagrange, err := test.NewKZGSRSLagrange(innerCcs)
+	assert.NoError(err)
+
+	innerPK, innerVK, err := plonk.Setup(innerCcs, srs, srsLagrange)
 	assert.NoError(err)
 
 	// inner proof

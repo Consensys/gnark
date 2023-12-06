@@ -83,8 +83,12 @@ func main() {
 	// has been run before.
 	// The size of the data in KZG should be the closest power of 2 bounding //
 	// above max(nbConstraints, nbVariables).
-	_r1cs := ccs.(*cs.SparseR1CS)
-	srs, err := test.NewKZGSRS(_r1cs)
+	scs := ccs.(*cs.SparseR1CS)
+	srs, err := test.NewKZGSRS(scs)
+	if err != nil {
+		panic(err)
+	}
+	srsLagrange, err := test.NewKZGSRSLagrange(scs)
 	if err != nil {
 		panic(err)
 	}
@@ -111,7 +115,7 @@ func main() {
 		// public data consists of the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
-		pk, vk, err := plonk.Setup(ccs, srs)
+		pk, vk, err := plonk.Setup(ccs, srs, srsLagrange)
 		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 		if err != nil {
 			log.Fatal(err)
@@ -152,7 +156,7 @@ func main() {
 		// public data consists of the polynomials describing the constants involved
 		// in the constraints, the polynomial describing the permutation ("grand
 		// product argument"), and the FFT domains.
-		pk, vk, err := plonk.Setup(ccs, srs)
+		pk, vk, err := plonk.Setup(ccs, srs, srsLagrange)
 		//_, err := plonk.Setup(r1cs, kate, &publicWitness)
 		if err != nil {
 			log.Fatal(err)

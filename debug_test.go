@@ -163,7 +163,13 @@ func getPlonkTrace(circuit, w frontend.Circuit) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	pk, _, err := plonk.Setup(ccs, srs)
+
+	srsLagrange, err := test.NewKZGSRSLagrange(ccs)
+	if err != nil {
+		return "", err
+	}
+
+	pk, _, err := plonk.Setup(ccs, srs, srsLagrange)
 	if err != nil {
 		return "", err
 	}
