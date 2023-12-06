@@ -17,32 +17,54 @@ limitations under the License.
 package sw_bls24315
 
 import (
-	"sync"
-
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
 )
 
-// precomputed lines going through Q where Q is a fixed point in G2
-var precomputedLines [2]LineEvaluations
-var precomputedLinesOnce sync.Once
+// lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
+// line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
+// makes the multiplication by lines (MulBy014)
+type lineEvaluation struct {
+	R0, R1 fields_bls24315.E4
+}
+type lineEvaluations [2][len(loopCounter) - 1]lineEvaluation
 
-func getPrecomputedLines(Q bls24315.G2Affine) [2]LineEvaluations {
-	precomputedLinesOnce.Do(func() {
-		precomputedLines = precomputeLines(Q)
-	})
-	return precomputedLines
+func precomputeLines(Q bls24315.G2Affine) lineEvaluations {
+	var cLines lineEvaluations
+	nLines := bls24315.PrecomputeLines(Q)
+	for j := range cLines[0] {
+		cLines[0][j].R0.Assign(&nLines[0][j].R0)
+		cLines[0][j].R1.Assign(&nLines[0][j].R1)
+		cLines[1][j].R0.Assign(&nLines[1][j].R0)
+		cLines[1][j].R1.Assign(&nLines[1][j].R1)
+	}
+	return cLines
 }
 
-func precomputeLines(Q bls24315.G2Affine) [2]LineEvaluations {
-	var PrecomputedLines [2]LineEvaluations
-	lines := bls24315.PrecomputeLines(Q)
-	for j := 0; j < 32; j++ {
-		PrecomputedLines[0].Eval[j].R0.Assign(&lines[0][j].R0)
-		PrecomputedLines[0].Eval[j].R1.Assign(&lines[0][j].R1)
-		PrecomputedLines[1].Eval[j].R0.Assign(&lines[1][j].R0)
-		PrecomputedLines[1].Eval[j].R1.Assign(&lines[1][j].R1)
+func computeLines(api frontend.API, Q g2AffP) *lineEvaluations {
 
+	var cLines lineEvaluations
+	Qacc := Q
+	QNeg := &g2AffP{}
+	QNeg.Neg(api, Q)
+	n := len(loopCounter)
+	Qacc, cLines[0][n-2] = doubleStep(api, &Qacc)
+	cLines[1][n-3] = lineCompute(api, &Qacc, QNeg)
+	Qacc, cLines[0][n-3] = addStep(api, &Qacc, &Q)
+
+	for i := n - 4; i >= 1; i-- {
+		switch loopCounter[i] {
+		case 0:
+			Qacc, cLines[0][i] = doubleStep(api, &Qacc)
+		case 1:
+			Qacc, cLines[0][i], cLines[1][i] = doubleAndAddStep(api, &Qacc, &Q)
+		case -1:
+			Qacc, cLines[0][i], cLines[1][i] = doubleAndAddStep(api, &Qacc, QNeg)
+		default:
+			return &lineEvaluations{}
+		}
 	}
-
-	return PrecomputedLines
+	cLines[0][0], cLines[1][0] = linesCompute(api, &Qacc, QNeg)
+	return &cLines
 }

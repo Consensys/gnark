@@ -274,9 +274,9 @@ func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT]()
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		s.G2[0] = sw_bw6761.NewG2AffineFixedPlaceholder()
 		s.G2[1] = sw_bw6761.NewG2AffineFixedPlaceholder()
-	// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
-	// 	s.G2[0] = sw_bls24315.NewG2AffineFixedPlaceholder()
-	// 	s.G2[1] = sw_bls24315.NewG2AffineFixedPlaceholder()
+	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+		s.G2[0] = sw_bls24315.NewG2AffineFixedPlaceholder()
+		s.G2[1] = sw_bls24315.NewG2AffineFixedPlaceholder()
 	default:
 		panic("not supported")
 	}
@@ -382,8 +382,8 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT](
 			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
 		}
 		s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
-		s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
-		s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+		s.G2[0] = sw_bls24315.NewG2AffineFixed(tVk.G2[0])
+		s.G2[1] = sw_bls24315.NewG2AffineFixed(tVk.G2[1])
 	default:
 		return ret, fmt.Errorf("precomputation not supported")
 	}

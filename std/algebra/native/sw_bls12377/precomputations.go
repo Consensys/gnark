@@ -22,7 +22,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
 )
 
-// lineEvaluation represents a sparse Fp6 Elmt (result of the line evaluation)
+// lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
 // line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
 // makes the multiplication by lines (MulBy014)
 type lineEvaluation struct {

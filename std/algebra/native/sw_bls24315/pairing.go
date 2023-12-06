@@ -30,17 +30,6 @@ var loopCounter = [33]int8{
 	-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0, 0, 0, 0, -1, 0, 1,
 }
 
-// lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)
-// line: 1 + R0(x/y) + R1(1/y) = 0 instead of R0'*y + R1'*x + R2' = 0 This
-// makes the multiplication by lines (MulBy034) and between lines (Mul034By034)
-type lineEvaluation struct {
-	R0, R1 fields_bls24315.E4
-}
-
-type LineEvaluations struct {
-	Eval [32]lineEvaluation
-}
-
 // MillerLoop computes the product of n miller loops (n can be 1)
 // ∏ᵢ { fᵢ_{x₀,Q}(P) }
 func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
@@ -49,181 +38,82 @@ func MillerLoop(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 	if n == 0 || n != len(Q) {
 		return GT{}, errors.New("invalid inputs sizes")
 	}
+	lines := make([]lineEvaluations, len(Q))
+	for i := range Q {
+		if Q[i].Lines == nil {
+			Qlines := computeLines(api, Q[i].P)
+			Q[i].Lines = Qlines
+		}
+		lines[i] = *Q[i].Lines
+	}
+	return millerLoopLines(api, P, lines)
+
+}
+
+// millerLoopLines computes the multi-Miller loop from points in G1 and precomputed lines in G2
+func millerLoopLines(api frontend.API, P []G1Affine, lines []lineEvaluations) (GT, error) {
+
+	// check input size match
+	n := len(P)
+	if n == 0 || n != len(lines) {
+		return GT{}, errors.New("invalid inputs sizes")
+	}
 
 	var res GT
 	res.SetOne()
-	var prodLines [5]fields_bls24315.E4
-
 	var l1, l2 lineEvaluation
-	Qacc := make([]G2Affine, n)
-	Qneg := make([]G2Affine, n)
+
+	// precomputations
 	yInv := make([]frontend.Variable, n)
 	xNegOverY := make([]frontend.Variable, n)
 	for k := 0; k < n; k++ {
-		Qacc[k] = Q[k]
-		Qneg[k].Neg(api, Q[k])
-		// TODO: point P=(x,O) should be ruled out
 		yInv[k] = api.DivUnchecked(1, P[k].Y)
 		xNegOverY[k] = api.Mul(P[k].X, yInv[k])
 		xNegOverY[k] = api.Neg(xNegOverY[k])
 	}
 
 	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
-	// i = 31, separately to avoid an E24 Square
-	// (Square(res) = 1² = 1)
-
-	// k = 0, separately to avoid MulBy034 (res × ℓ)
-	// (assign line to res)
-	Qacc[0], l1 = doubleStep(api, &Qacc[0])
-	res.D1.C0.MulByFp(api, l1.R0, xNegOverY[0])
-	res.D1.C1.MulByFp(api, l1.R1, yInv[0])
-
-	if n >= 2 {
-		// k = 1, separately to avoid MulBy034 (res × ℓ)
-		// (res is also a line at this point, so we use Mul034By034 ℓ × ℓ)
-		Qacc[1], l1 = doubleStep(api, &Qacc[1])
-
-		// line evaluation at P[1]
-		l1.R0.MulByFp(api, l1.R0, xNegOverY[1])
-		l1.R1.MulByFp(api, l1.R1, yInv[1])
-
-		// ℓ × res
-		prodLines = *fields_bls24315.Mul034By034(api, l1.R0, l1.R1, res.D1.C0, res.D1.C1)
-		res.D0.C0 = prodLines[0]
-		res.D0.C1 = prodLines[1]
-		res.D0.C2 = prodLines[2]
-		res.D1.C0 = prodLines[3]
-		res.D1.C1 = prodLines[4]
-
-	}
-
-	if n >= 3 {
-		// k >= 2
-		for k := 2; k < n; k++ {
-			// Qacc[k] ← 2Qacc[k] and l1 the tangent ℓ passing 2Qacc[k]
-			Qacc[k], l1 = doubleStep(api, &Qacc[k])
-
-			// line evaluation at P[k]
-			l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
-			l1.R1.MulByFp(api, l1.R1, yInv[k])
-
-			// ℓ × res
-			res.MulBy034(api, l1.R0, l1.R1)
-		}
-	}
-
-	// i = 30, separately to avoid a doubleStep
-	// (at this point Qacc = 2Q, so 2Qacc-Q=3Q is equivalent to Qacc+Q=3Q
-	// this means doubleAndAddStep is equivalent to addStep here)
-	if n == 1 {
-		res.Square034(api, res)
-	} else {
-		res.Square(api, res)
-
-	}
-	for k := 0; k < n; k++ {
-		// l2 the line passing Qacc[k] and -Q
-		l2 = lineCompute(api, &Qacc[k], &Qneg[k])
-
-		// line evaluation at P[k]
-		l2.R0.MulByFp(api, l2.R0, xNegOverY[k])
-		l2.R1.MulByFp(api, l2.R1, yInv[k])
-
-		// Qacc[k] ← Qacc[k]+Q[k] and
-		// l1 the line ℓ passing Qacc[k] and Q[k]
-		Qacc[k], l1 = addStep(api, &Qacc[k], &Q[k])
-
-		// line evaluation at P[k]
-		l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
-		l1.R1.MulByFp(api, l1.R1, yInv[k])
-
-		// ℓ × res
-		res.MulBy034(api, l1.R0, l1.R1)
-		// ℓ × res
-		res.MulBy034(api, l2.R0, l2.R1)
-	}
-
-	for i := 29; i >= 1; i-- {
+	for i := 31; i >= 0; i-- {
 		// mutualize the square among n Miller loops
 		// (∏ᵢfᵢ)²
 		res.Square(api, res)
 
 		for k := 0; k < n; k++ {
-			switch loopCounter[i] {
-			case 0:
-				// Qacc[k] ← 2Qacc[k] and l1 the tangent ℓ passing 2Qacc[k]
-				Qacc[k], l1 = doubleStep(api, &Qacc[k])
-
-				// line evaluation at P[k]
-				l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
-				l1.R1.MulByFp(api, l1.R1, yInv[k])
-
-				// ℓ × res
-				res.MulBy034(api, l1.R0, l1.R1)
-			case 1:
-				// Qacc[k] ← 2Qacc[k]+Q[k],
-				// l1 the line ℓ passing Qacc[k] and Q[k]
-				// l2 the line ℓ passing (Qacc[k]+Q[k]) and Qacc[k]
-				Qacc[k], l1, l2 = doubleAndAddStep(api, &Qacc[k], &Q[k])
-
-				// line evaluation at P[k]
-				l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
-				l1.R1.MulByFp(api, l1.R1, yInv[k])
+			if loopCounter[i] == 0 {
+				// line evaluation at P
+				l1.R0.MulByFp(api,
+					lines[k][0][i].R0,
+					xNegOverY[k])
+				l1.R1.MulByFp(api,
+					lines[k][0][i].R1,
+					yInv[k])
 
 				// ℓ × res
 				res.MulBy034(api, l1.R0, l1.R1)
+			} else {
+				// line evaluation at P
+				l1.R0.MulByFp(api,
+					lines[k][0][i].R0,
+					xNegOverY[k])
+				l1.R1.MulByFp(api,
+					lines[k][0][i].R1,
+					yInv[k])
 
-				// line evaluation at P[k]
-				l2.R0.MulByFp(api, l2.R0, xNegOverY[k])
-				l2.R1.MulByFp(api, l2.R1, yInv[k])
+				// ℓ × res
+				res.MulBy034(api, l1.R0, l1.R1)
+
+				// line evaluation at P
+				l2.R0.MulByFp(api,
+					lines[k][1][i].R0,
+					xNegOverY[k])
+				l2.R1.MulByFp(api,
+					lines[k][1][i].R1,
+					yInv[k])
 
 				// ℓ × res
 				res.MulBy034(api, l2.R0, l2.R1)
-			case -1:
-				// Qacc[k] ← 2Qacc[k]-Q[k],
-				// l1 the line ℓ passing Qacc[k] and Q[k]
-				// l2 the line ℓ passing (Qacc[k]-Q[k]) and Qacc[k]
-				Qacc[k], l1, l2 = doubleAndAddStep(api, &Qacc[k], &Qneg[k])
-
-				// line evaluation at P[k]
-				l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
-				l1.R1.MulByFp(api, l1.R1, yInv[k])
-
-				// ℓ × res
-				res.MulBy034(api, l1.R0, l1.R1)
-
-				// line evaluation at P[k]
-				l2.R0.MulByFp(api, l2.R0, xNegOverY[k])
-				l2.R1.MulByFp(api, l2.R1, yInv[k])
-
-				// ℓ × res
-				res.MulBy034(api, l2.R0, l2.R1)
-			default:
-				return GT{}, errors.New("invalid loopCounter")
 			}
 		}
-	}
-
-	// i = 0
-	res.Square(api, res)
-	for k := 0; k < n; k++ {
-		// l1 the line ℓ passing Qacc[k] and -Q[k]
-		// l2 the line ℓ passing (Qacc[k]-Q[k]) and Qacc[k]
-		l1, l2 = linesCompute(api, &Qacc[k], &Qneg[k])
-
-		// line evaluation at P[k]
-		l1.R0.MulByFp(api, l1.R0, xNegOverY[k])
-		l1.R1.MulByFp(api, l1.R1, yInv[k])
-
-		// ℓ × res
-		res.MulBy034(api, l1.R0, l1.R1)
-
-		// line evaluation at P[k]
-		l2.R0.MulByFp(api, l2.R0, xNegOverY[k])
-		l2.R1.MulByFp(api, l2.R1, yInv[k])
-
-		// ℓ × res
-		res.MulBy034(api, l2.R0, l2.R1)
 	}
 
 	res.Conjugate(api, res)
@@ -312,11 +202,11 @@ func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation, lineEvaluation) {
+func doubleAndAddStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, lineEvaluation, lineEvaluation) {
 
 	var n, d, l1, l2, x3, x4, y4 fields_bls24315.E4
 	var line1, line2 lineEvaluation
-	var p G2Affine
+	var p g2AffP
 
 	// compute lambda1 = (y2-y1)/(x2-x1)
 	n.Sub(api, p1.Y, p2.Y)
@@ -362,10 +252,10 @@ func doubleAndAddStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluat
 
 // doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, lineEvaluation) {
+func doubleStep(api frontend.API, p1 *g2AffP) (g2AffP, lineEvaluation) {
 
 	var n, d, l, xr, yr fields_bls24315.E4
-	var p G2Affine
+	var p g2AffP
 	var line lineEvaluation
 
 	// lambda = 3*p1.x**2/2*p.y
@@ -395,7 +285,7 @@ func doubleStep(api frontend.API, p1 *G2Affine) (G2Affine, lineEvaluation) {
 
 // addStep adds two points in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func addStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation) {
+func addStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, lineEvaluation) {
 
 	var p2ypy, p2xpx, λ, λλ, pxrx, λpxrx, xr, yr fields_bls24315.E4
 	// compute λ = (y2-y1)/(x2-x1)
@@ -413,7 +303,7 @@ func addStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation) {
 	λpxrx.Mul(api, λ, pxrx)
 	yr.Sub(api, λpxrx, p1.Y)
 
-	var res G2Affine
+	var res g2AffP
 	res.X = xr
 	res.Y = yr
 
@@ -427,7 +317,7 @@ func addStep(api frontend.API, p1, p2 *G2Affine) (G2Affine, lineEvaluation) {
 }
 
 // linesCompute computes the lines that goes through p1 and p2, and (p1+p2) and p1 but does not compute 2p1+p2
-func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvaluation) {
+func linesCompute(api frontend.API, p1, p2 *g2AffP) (lineEvaluation, lineEvaluation) {
 
 	var n, d, l1, l2, x3 fields_bls24315.E4
 	var line1, line2 lineEvaluation
@@ -461,7 +351,7 @@ func linesCompute(api frontend.API, p1, p2 *G2Affine) (lineEvaluation, lineEvalu
 }
 
 // lineCompute computes the line that goes through p1 and p2 but does not compute p1+p2
-func lineCompute(api frontend.API, p1, p2 *G2Affine) lineEvaluation {
+func lineCompute(api frontend.API, p1, p2 *g2AffP) lineEvaluation {
 
 	var qypy, qxpx, λ fields_bls24315.E4
 
@@ -477,108 +367,4 @@ func lineCompute(api frontend.API, p1, p2 *G2Affine) lineEvaluation {
 
 	return line
 
-}
-
-// ----------------------------
-//	  Fixed-argument pairing
-// ----------------------------
-
-// MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
-// but Qᵢ are fixed points in G2 known in advance.
-func MillerLoopFixedQ(api frontend.API, P []G1Affine, lines []*[2]LineEvaluations) (GT, error) {
-
-	// check input size match
-	n := len(P)
-	if n == 0 || n != len(lines) {
-		return GT{}, errors.New("invalid inputs sizes")
-	}
-
-	var res GT
-	res.SetOne()
-	var l1, l2 lineEvaluation
-
-	// precomputations
-	yInv := make([]frontend.Variable, n)
-	xNegOverY := make([]frontend.Variable, n)
-	for k := 0; k < n; k++ {
-		yInv[k] = api.DivUnchecked(1, P[k].Y)
-		xNegOverY[k] = api.Mul(P[k].X, yInv[k])
-		xNegOverY[k] = api.Neg(xNegOverY[k])
-	}
-
-	// Compute ∏ᵢ { fᵢ_{x₀,Q}(P) }
-	for i := 31; i >= 0; i-- {
-		// mutualize the square among n Miller loops
-		// (∏ᵢfᵢ)²
-		res.Square(api, res)
-
-		for k := 0; k < n; k++ {
-			if loopCounter[i] == 0 {
-				// line evaluation at P
-				l1.R0.MulByFp(api,
-					lines[k][0].Eval[i].R0,
-					xNegOverY[k])
-				l1.R1.MulByFp(api,
-					lines[k][0].Eval[i].R1,
-					yInv[k])
-
-				// ℓ × res
-				res.MulBy034(api, l1.R0, l1.R1)
-			} else {
-				// line evaluation at P
-				l1.R0.MulByFp(api,
-					lines[k][0].Eval[i].R0,
-					xNegOverY[k])
-				l1.R1.MulByFp(api,
-					lines[k][0].Eval[i].R1,
-					yInv[k])
-
-				// ℓ × res
-				res.MulBy034(api, l1.R0, l1.R1)
-
-				// line evaluation at P
-				l2.R0.MulByFp(api,
-					lines[k][1].Eval[i].R0,
-					xNegOverY[k])
-				l2.R1.MulByFp(api,
-					lines[k][1].Eval[i].R1,
-					yInv[k])
-
-				// ℓ × res
-				res.MulBy034(api, l2.R0, l2.R1)
-			}
-		}
-	}
-
-	res.Conjugate(api, res)
-
-	return res, nil
-}
-
-// PairFixedQ calculates the reduced pairing for a set of points
-// e(P, g2), where g2 is fixed.
-//
-// This function doesn't check that the inputs are in the correct subgroups.
-func PairFixedQ(api frontend.API, P []G1Affine, lines []*[2]LineEvaluations) (GT, error) {
-	f, err := MillerLoopFixedQ(api, P, lines)
-	if err != nil {
-		return GT{}, err
-	}
-	return FinalExponentiation(api, f), nil
-}
-
-// PairingFixedQCheck calculates the reduced pairing for a set of points and asserts if the result is One
-// ∏ᵢ e(Pᵢ, Qᵢ) =? 1 where Qᵢ are fixed.
-//
-// This function doesn't check that the inputs are in the correct subgroups
-func PairingFixedQCheck(api frontend.API, P []G1Affine, lines []*[2]LineEvaluations) error {
-	f, err := PairFixedQ(api, P, lines)
-	if err != nil {
-		return err
-	}
-	var one GT
-	one.SetOne()
-	f.AssertIsEqual(api, one)
-
-	return nil
 }

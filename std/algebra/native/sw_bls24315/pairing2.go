@@ -230,24 +230,6 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
-// PairingFixedQCheck computes the multi-pairing of the input pairs and asserts that
-// the result is an identity element in the target group. It returns an error if
-// there is a mismatch between the lengths of the inputs.
-func (p *Pairing) PairingFixedQCheck(P []*G1Affine, lines []*[2]LineEvaluations) error {
-	inP := make([]G1Affine, len(P))
-	for i := range P {
-		inP[i] = *P[i]
-	}
-	res, err := PairFixedQ(p.api, inP, lines)
-	if err != nil {
-		return err
-	}
-	var one fields_bls24315.E24
-	one.SetOne()
-	res.AssertIsEqual(p.api, one)
-	return nil
-}
-
 // AssertIsEqual asserts the equality of the target group elements.
 func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
@@ -262,8 +244,8 @@ func NewG1Affine(v bls24315.G1Affine) G1Affine {
 }
 
 // NewG2Affine allocates a witness from the native G2 element and returns it.
-func NewG2Affine(v bls24315.G2Affine) G2Affine {
-	return G2Affine{
+func NewG2AffP(v bls24315.G2Affine) g2AffP {
+	return g2AffP{
 		X: fields_bls24315.E4{
 			B0: fields_bls24315.E2{
 				A0: (fr_bw6633.Element)(v.X.B0.A0),
@@ -284,6 +266,36 @@ func NewG2Affine(v bls24315.G2Affine) G2Affine {
 				A1: (fr_bw6633.Element)(v.Y.B1.A1),
 			},
 		},
+	}
+}
+
+func NewG2Affine(v bls24315.G2Affine) G2Affine {
+	return G2Affine{
+		P: NewG2AffP(v),
+	}
+}
+
+// NewG2AffineFixed returns witness of v with precomputations for efficient
+// pairing computation.
+func NewG2AffineFixed(v bls24315.G2Affine) G2Affine {
+	lines := precomputeLines(v)
+	return G2Affine{
+		P:     NewG2AffP(v),
+		Lines: &lines,
+	}
+}
+
+// NewG2AffineFixedPlaceholder returns a placeholder for the circuit compilation
+// when witness will be given with line precomputations using
+// [NewG2AffineFixed].
+func NewG2AffineFixedPlaceholder() G2Affine {
+	var lines lineEvaluations
+	for i := 0; i < len(bls24315.LoopCounter)-1; i++ {
+		lines[0][i] = lineEvaluation{}
+		lines[1][i] = lineEvaluation{}
+	}
+	return G2Affine{
+		Lines: &lines,
 	}
 }
 

@@ -410,7 +410,7 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		r.SizeInv = sw_bls24315.NewScalar(tVk.SizeInv)
 		r.Generator = sw_bls24315.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
-		r.Kzg, err = kzg.ValueOfVerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine](tVk.Kzg)
+		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls24315.G1Affine, sw_bls24315.G2Affine](tVk.Kzg)
 		if err != nil {
 			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
 		}
