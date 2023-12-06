@@ -119,8 +119,8 @@ func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
 	t := e.fp.Add(&x.B1.A0, &x.B1.A2)
 	h4 = e.fp.Mul(h4, t)
 	h4 = e.fp.Sub(h4, g1g5)
-	t = mulFpByNonResidue(e.fp, g3g2)
-	h4 = e.fp.Sub(h4, t)
+	t = e.fp.MulConst(g3g2, big.NewInt(4))
+	h4 = e.fp.Add(h4, t)
 	h4 = e.fp.MulConst(h4, big.NewInt(3))
 	h4 = e.fp.Sub(h4, &x.B1.A1)
 
@@ -182,8 +182,8 @@ func (e Ext6) DecompressKarabina12345(x *E6) *E6 {
 	h0 := e.fp.Mul(&x.B1.A1, &x.B1.A1)
 	h0 = e.fp.MulConst(h0, big.NewInt(2))
 	h0 = e.fp.Add(h0, t1)
-	h0 = e.fp.Sub(h0, t0)
-	h0 = mulFpByNonResidue(e.fp, h0)
+	h0 = e.fp.Sub(t0, h0)
+	h0 = e.fp.MulConst(h0, big.NewInt(4))
 	h0 = e.fp.Add(h0, e.fp.One())
 
 	return &E6{
@@ -217,7 +217,7 @@ func (e Ext6) CyclotomicSquareKarabina2345(x *E6) *E6 {
 	// t3 = g1² + g5²
 	t[3] = e.fp.Add(t[0], t[1])
 	// t5 = 2 * g1 * g5
-	t[5] = e.fp.Sub(t[2], t[3])
+	t[5] = e.fp.Sub(t[3], t[2])
 
 	// t6 = g3 + g2
 	t[6] = e.fp.Add(&x.B1.A0, &x.B0.A2)
@@ -227,7 +227,7 @@ func (e Ext6) CyclotomicSquareKarabina2345(x *E6) *E6 {
 	t[2] = e.fp.Mul(&x.B1.A0, &x.B1.A0)
 
 	// t6 = 2 * nr * g1 * g5
-	t[6] = mulFpByNonResidue(e.fp, t[5])
+	t[6] = e.fp.MulConst(t[5], big.NewInt(4))
 	// t5 = 4 * nr * g1 * g5 + 2 * g3
 	t[5] = e.fp.Add(t[6], &x.B1.A0)
 	t[5] = e.fp.MulConst(t[5], big.NewInt(2))
@@ -383,8 +383,8 @@ func (e Ext6) CyclotomicSquare(x *E6) *E6 {
 	t[8] = e.fp.Add(&x.B1.A2, &x.B0.A1)
 	t[8] = e.fp.Mul(t[8], t[8])
 	t[8] = e.fp.Sub(t[8], t[4])
-	t[8] = e.fp.Sub(t[8], t[5])
-	t[8] = mulFpByNonResidue(e.fp, t[8]) // 2*x5*x1*u
+	t[8] = e.fp.Sub(t[5], t[8])
+	t[8] = e.fp.MulConst(t[8], big.NewInt(4)) // 2*x5*x1*u
 
 	t[0] = mulFpByNonResidue(e.fp, t[0])
 	t[0] = e.fp.Add(t[0], t[1]) // x4²*u + x0²
