@@ -114,8 +114,9 @@ func (vk *VerifyingKey) randomize() {
 	vk.S[1] = randomG1Point()
 	vk.S[2] = randomG1Point()
 
-	vk.Kzg.Lines[0] = curve.PrecomputeLines(randomG2Point())
-	vk.Kzg.Lines[1] = curve.PrecomputeLines(randomG2Point())
+	vk.Kzg.G1 = randomG1Point()
+	vk.Kzg.G2[0] = randomG2Point()
+	vk.Kzg.G2[1] = randomG2Point()
 
 	vk.Ql = randomG1Point()
 	vk.Qr = randomG1Point()
