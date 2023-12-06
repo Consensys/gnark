@@ -153,29 +153,31 @@ func (e *E12) ExpX0(api frontend.API, e1 E12) *E12 {
 // ExpX0Minus1Square computes e1^((X0-1)^2), where X0=9586122913090633729
 func (e *E12) ExpX0Minus1Square(api frontend.API, e1 E12) *E12 {
 
-	var t0, t1, t2, res E12
+	var t0, t1, t2, t3, res E12
 
-	res.CyclotomicSquare(api, e1)
+	res = e1
+	res.nSquareKarabina12345(api, 3)
+	res.DecompressKarabina12345(api, res)
+	t0.CyclotomicSquare(api, res)
+	t2.Mul(api, e1, t0)
+	res.Mul(api, res, t2)
 	t0.Mul(api, e1, res)
 	t1.CyclotomicSquare(api, t0)
-	t0.Mul(api, t0, t1)
-	res.Mul(api, res, t0)
-	t1.Mul(api, t1, res)
-	t0.Mul(api, t0, t1)
-	t2.CyclotomicSquare(api, t0)
-	t2.Mul(api, t1, t2)
-	t0.Mul(api, t0, t2)
-	t2.nSquareKarabina2345(api, 7)
+	t1.Mul(api, t2, t1)
+	t3 = t1
+	t3.nSquareKarabina2345(api, 7)
+	t3.DecompressKarabina2345(api, t3)
+	t2.Mul(api, t2, t3)
+	t2.nSquareKarabina2345(api, 11)
 	t2.DecompressKarabina2345(api, t2)
 	t1.Mul(api, t1, t2)
-	t1.nSquareKarabina2345(api, 11)
-	t1.DecompressKarabina2345(api, t1)
-	t1.Mul(api, t0, t1)
-	t1.nSquareKarabina2345(api, 9)
-	t1.DecompressKarabina2345(api, t1)
 	t0.Mul(api, t0, t1)
-	t0.CyclotomicSquare(api, t0)
+	t0.nSquareKarabina2345(api, 7)
+	t0.DecompressKarabina2345(api, t0)
 	res.Mul(api, res, t0)
+	res.nSquareKarabina12345(api, 3)
+	res.DecompressKarabina12345(api, res)
+	res.Mul(api, e1, res)
 	res.nSquareKarabina2345(api, 92)
 	e.DecompressKarabina2345(api, res)
 
