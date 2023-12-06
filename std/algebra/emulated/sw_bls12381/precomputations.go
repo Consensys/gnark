@@ -29,7 +29,7 @@ func precomputeLines(Q bls12381.G2Affine) lineEvaluations {
 	return cLines
 }
 
-func (p *Pairing) precomputeLines(Q *g2AffP) lineEvaluations {
+func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 
 	var cLines lineEvaluations
 	Qacc := Q

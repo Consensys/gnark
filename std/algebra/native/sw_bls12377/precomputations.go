@@ -47,12 +47,13 @@ func computeLines(api frontend.API, Q g2AffP) *lineEvaluations {
 	var cLines lineEvaluations
 	Qacc := Q
 	n := len(loopCounter)
-	for i := n - 2; i >= 0; i-- {
+	for i := n - 2; i >= 1; i-- {
 		if loopCounter[i] == 0 {
 			Qacc, cLines[0][i] = doubleStep(api, &Qacc)
 		} else {
 			Qacc, cLines[0][i], cLines[1][i] = doubleAndAddStep(api, &Qacc, &Q)
 		}
 	}
+	cLines[0][0], cLines[1][0] = linesCompute(api, &Qacc, &Q)
 	return &cLines
 }

@@ -185,7 +185,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	lines := make([]lineEvaluations, len(Q))
 	for i := range Q {
 		if Q[i].Lines == nil {
-			Qlines := pr.precomputeLines(&Q[i].P)
+			Qlines := pr.computeLines(&Q[i].P)
 			Q[i].Lines = &Qlines
 		}
 		lines[i] = *Q[i].Lines
