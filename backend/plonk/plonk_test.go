@@ -55,6 +55,13 @@ func TestProver(t *testing.T) {
 			err = plonk.Verify(proof, vk, publicWitness)
 			assert.NoError(err)
 
+			// testing with full witness should output a clear error.
+			err = plonk.Verify(proof, vk, fullWitness)
+			assert.Error(err)
+
+			// check that error contains "witness length is invalid"
+			assert.Contains(err.Error(), "witness length is invalid")
+
 		})
 
 	}
