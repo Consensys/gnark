@@ -14,6 +14,7 @@ import (
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
@@ -72,7 +73,6 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	return err
 }
 
-/*
 func TestBLS12InBW6WoCommit(t *testing.T) {
 
 	assert := test.NewAssert(t)
@@ -99,7 +99,6 @@ func TestBLS12InBW6WoCommit(t *testing.T) {
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 }
-*/
 
 func TestBW6InBN254WoCommit(t *testing.T) {
 
@@ -211,7 +210,6 @@ func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.Cons
 	return innerCcs, innerVK, innerPubWitness, innerProof
 }
 
-/*
 func TestBLS12InBW6Commit(t *testing.T) {
 
 	assert := test.NewAssert(t)
@@ -239,7 +237,6 @@ func TestBLS12InBW6Commit(t *testing.T) {
 	assert.NoError(err)
 
 }
-*/
 
 func TestBW6InBN254Commit(t *testing.T) {
 
