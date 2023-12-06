@@ -3,6 +3,7 @@ package sw_emulated
 import (
 	"crypto/elliptic"
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -18,6 +19,8 @@ import (
 	fp_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -1036,4 +1039,66 @@ func TestScalarMulBounded(t *testing.T) {
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
+}
+
+//
+
+type JointScalarMulTest[T, S emulated.FieldParams] struct {
+	P1, P2, Q AffinePoint[T]
+	S1, S2    emulated.Element[S]
+}
+
+func (c *JointScalarMulTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.JointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2)
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+func TestJointScalarMul6(t *testing.T) {
+	assert := test.NewAssert(t)
+	var r1, r2 fr_bw6761.Element
+	_, _ = r1.SetRandom()
+	_, _ = r2.SetRandom()
+	s1 := new(big.Int)
+	s2 := new(big.Int)
+	r1.BigInt(s1)
+	r2.BigInt(s2)
+	var res, tmp bw6761.G1Affine
+	_, _, gen, _ := bw6761.Generators()
+	tmp.ScalarMultiplication(&gen, s1)
+	res.ScalarMultiplication(&gen, s2)
+	res.Add(&res, &tmp)
+
+	circuit := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
+	witness := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S1: emulated.ValueOf[emulated.BW6761Fr](s1),
+		S2: emulated.ValueOf[emulated.BW6761Fr](s2),
+		P1: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen.Y),
+		},
+		P2: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen.Y),
+		},
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](res.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](res.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+// bench
+func BenchmarkJointScalarMul(b *testing.B) {
+	c := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println(p.NbConstraints())
 }

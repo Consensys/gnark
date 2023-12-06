@@ -514,29 +514,34 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 
 // JointScalarMul computes s1 * p1 + s2 * p2 and returns it. It doesn't modify the inputs.
 func (c *Curve[B, S]) JointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	res := c.ScalarMul(p1, s1)
-	tmp := c.ScalarMul(p2, s2)
+	s1r := c.scalarApi.Reduce(s1)
+	s1Bits := c.scalarApi.ToBits(s1r)
+	s2r := c.scalarApi.Reduce(s2)
+	s2Bits := c.scalarApi.ToBits(s2r)
+
+	res := c.scalarBitsMul(p1, s1Bits, opts...)
+	tmp := c.scalarBitsMul(p2, s2Bits, opts...)
+
 	res = c.Add(res, tmp)
 	return res
 }
 
 func (c *Curve[B, S]) SameScalarMul(p1, p2 *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) (*AffinePoint[B], *AffinePoint[B]) {
-	res1 := c.ScalarMul(p1, s)
-	res2 := c.ScalarMul(p2, s)
+	sr := c.scalarApi.Reduce(s)
+	sBits := c.scalarApi.ToBits(sr)
+
+	res1 := c.scalarBitsMul(p1, sBits, opts...)
+	res2 := c.scalarBitsMul(p2, sBits, opts...)
 	return res1, res2
 }
 
 // scalarBitsMul computes s * p and returns it where sBits is the bit decomposition of s. It doesn't modify p nor sBits.
+// ⚠️  Point and scalar must be nonzero.
 func (c *Curve[B, S]) scalarBitsMul(p *AffinePoint[B], sBits []frontend.Variable, opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
-
-	// if p=(0,0) we assign a dummy (0,1) to p and continue
-	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
-	one := c.baseApi.One()
-	p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
 
 	var st S
 	n := st.Modulus().BitLen()
@@ -560,13 +565,7 @@ func (c *Curve[B, S]) scalarBitsMul(p *AffinePoint[B], sBits []frontend.Variable
 	R0 = c.Select(sBits[n-1], Rb, R0)
 
 	// i = 0
-	// we use AddUnified here instead of add so that when s=0, res=(0,0)
-	// because AddUnified(p, -p) = (0,0)
 	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
-
-	// if p=(0,0), return (0,0)
-	zero := c.baseApi.Zero()
-	R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
 
 	return R0
 }
@@ -707,8 +706,7 @@ func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Ele
 // scalars s. It returns an error if the length of the slices mismatch. If the
 // input slices are empty, then returns point at infinity.
 //
-// For the points and scalars the same considerations apply as for
-// [Curve.AddUnified] and [Curve.SalarMul].
+// ⚠️  Points and scalars must be nonzero.
 func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[S], opts ...algopts.AlgebraOption) (*AffinePoint[B], error) {
 
 	if len(p) == 0 {
@@ -726,10 +724,16 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 		if len(p) != len(s) {
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
 		}
-		res := c.ScalarMul(p[0], s[0])
-		for i := 1; i < len(p); i++ {
-			q := c.ScalarMul(p[i], s[i], opts...)
-			res = c.AddUnified(res, q)
+		n := len(p)
+		res := &AffinePoint[B]{}
+		if n%2 == 1 {
+			res = c.ScalarMul(p[n-1], s[n-1], opts...)
+		} else {
+			res = c.JointScalarMul(p[n-2], p[n-1], s[n-2], s[n-1], opts...)
+		}
+		for i := 1; i < n-1; i += 2 {
+			q := c.JointScalarMul(p[i-1], p[i], s[i-1], s[i], opts...)
+			res = c.Add(res, q)
 		}
 		return res, nil
 	} else {

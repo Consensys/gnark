@@ -156,7 +156,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		} else {
 			res = c.JointScalarMul(P[n-2], P[n-1], scalars[n-2], scalars[n-1], opts...)
 		}
-		for i := 1; i < len(P)-1; i += 2 {
+		for i := 1; i < n-1; i += 2 {
 			q := c.JointScalarMul(P[i-1], P[i], scalars[i-1], scalars[i], opts...)
 			res = c.Add(res, q)
 		}
