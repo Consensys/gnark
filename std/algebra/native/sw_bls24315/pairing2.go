@@ -281,8 +281,8 @@ func NewG1Affine(v bls24315.G1Affine) G1Affine {
 }
 
 // NewG2Affine allocates a witness from the native G2 element and returns it.
-func NewG2Affine(v bls24315.G2Affine) G2Affine {
-	return G2Affine{
+func NewG2AffP(v bls24315.G2Affine) g2AffP {
+	return g2AffP{
 		X: fields_bls24315.E4{
 			B0: fields_bls24315.E2{
 				A0: (fr_bw6633.Element)(v.X.B0.A0),
@@ -303,6 +303,36 @@ func NewG2Affine(v bls24315.G2Affine) G2Affine {
 				A1: (fr_bw6633.Element)(v.Y.B1.A1),
 			},
 		},
+	}
+}
+
+func NewG2Affine(v bls24315.G2Affine) G2Affine {
+	return G2Affine{
+		P: NewG2AffP(v),
+	}
+}
+
+// NewG2AffineFixed returns witness of v with precomputations for efficient
+// pairing computation.
+func NewG2AffineFixed(v bls24315.G2Affine) G2Affine {
+	lines := precomputeLines(v)
+	return G2Affine{
+		P:     NewG2AffP(v),
+		Lines: &lines,
+	}
+}
+
+// NewG2AffineFixedPlaceholder returns a placeholder for the circuit compilation
+// when witness will be given with line precomputations using
+// [NewG2AffineFixed].
+func NewG2AffineFixedPlaceholder() G2Affine {
+	var lines lineEvaluations
+	for i := 0; i < len(bls24315.LoopCounter)-1; i++ {
+		lines[0][i] = lineEvaluation{}
+		lines[1][i] = lineEvaluation{}
+	}
+	return G2Affine{
+		Lines: &lines,
 	}
 }
 
@@ -372,6 +402,20 @@ func NewGTEl(v bls24315.GT) GT {
 					A1: (fr_bw6633.Element)(v.D1.C2.B1.A1),
 				},
 			},
+		},
+	}
+}
+
+// NewLineEvaluation allocates a witness from the native LineEvaluationAff and returns it.
+func NewLineEvaluation(v bls24315.LineEvaluationAff) lineEvaluation {
+	return lineEvaluation{
+		R0: fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: (fr_bw6633.Element)(v.R0.B0.A0), A1: (fr_bw6633.Element)(v.R0.B0.A1)},
+			B1: fields_bls24315.E2{A0: (fr_bw6633.Element)(v.R0.B1.A0), A1: (fr_bw6633.Element)(v.R0.B1.A1)},
+		},
+		R1: fields_bls24315.E4{
+			B0: fields_bls24315.E2{A0: (fr_bw6633.Element)(v.R1.B0.A0), A1: (fr_bw6633.Element)(v.R1.B0.A1)},
+			B1: fields_bls24315.E2{A0: (fr_bw6633.Element)(v.R1.B1.A0), A1: (fr_bw6633.Element)(v.R1.B1.A1)},
 		},
 	}
 }

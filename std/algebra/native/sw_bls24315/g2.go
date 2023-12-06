@@ -21,6 +21,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
+
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
@@ -31,9 +32,14 @@ type G2Jac struct {
 	X, Y, Z fields_bls24315.E4
 }
 
+type g2AffP struct {
+	X, Y fields_bls24315.E4
+}
+
 // G2Affine point in affine coords
 type G2Affine struct {
-	X, Y fields_bls24315.E4
+	P     g2AffP
+	Lines *lineEvaluations
 }
 
 // Neg outputs -p
@@ -45,14 +51,14 @@ func (p *G2Jac) Neg(api frontend.API, p1 G2Jac) *G2Jac {
 }
 
 // Neg outputs -p
-func (p *G2Affine) Neg(api frontend.API, p1 G2Affine) *G2Affine {
+func (p *g2AffP) Neg(api frontend.API, p1 g2AffP) *g2AffP {
 	p.Y.Neg(api, p1.Y)
 	p.X = p1.X
 	return p
 }
 
 // AddAssign add p1 to p and return p
-func (p *G2Affine) AddAssign(api frontend.API, p1 G2Affine) *G2Affine {
+func (p *g2AffP) AddAssign(api frontend.API, p1 g2AffP) *g2AffP {
 
 	var n, d, l, xr, yr fields_bls24315.E4
 
@@ -162,7 +168,7 @@ func (p *G2Jac) Double(api frontend.API, p1 G2Jac) *G2Jac {
 }
 
 // Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
-func (p *G2Affine) Select(api frontend.API, b frontend.Variable, p1, p2 G2Affine) *G2Affine {
+func (p *g2AffP) Select(api frontend.API, b frontend.Variable, p1, p2 g2AffP) *g2AffP {
 
 	p.X.Select(api, b, p1.X, p2.X)
 	p.Y.Select(api, b, p1.Y, p2.Y)
@@ -171,7 +177,7 @@ func (p *G2Affine) Select(api frontend.API, b frontend.Variable, p1, p2 G2Affine
 }
 
 // FromJac sets p to p1 in affine and returns it
-func (p *G2Affine) FromJac(api frontend.API, p1 G2Jac) *G2Affine {
+func (p *g2AffP) FromJac(api frontend.API, p1 G2Jac) *g2AffP {
 	var s fields_bls24315.E4
 	s.Mul(api, p1.Z, p1.Z)
 	p.X.DivUnchecked(api, p1.X, s)
@@ -182,7 +188,7 @@ func (p *G2Affine) FromJac(api frontend.API, p1 G2Jac) *G2Affine {
 
 // Double compute 2*p1, assign the result to p and return it
 // Only for curve with j invariant 0 (a=0).
-func (p *G2Affine) Double(api frontend.API, p1 G2Affine) *G2Affine {
+func (p *g2AffP) Double(api frontend.API, p1 g2AffP) *g2AffP {
 
 	var n, d, l, xr, yr fields_bls24315.E4
 
@@ -213,7 +219,7 @@ func (p *G2Affine) Double(api frontend.API, p1 G2Affine) *G2Affine {
 // The method chooses an implementation based on scalar s. If it is constant,
 // then the compiled circuit depends on s. If it is variable type, then
 // the circuit is independent of the inputs.
-func (P *G2Affine) ScalarMul(api frontend.API, Q G2Affine, s interface{}) *G2Affine {
+func (P *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}) *g2AffP {
 	if n, ok := api.Compiler().ConstantValue(s); ok {
 		return P.constScalarMul(api, Q, n)
 	} else {
@@ -247,7 +253,7 @@ func init() {
 }
 
 // varScalarMul sets P = [s] Q and returns P.
-func (P *G2Affine) varScalarMul(api frontend.API, Q G2Affine, s frontend.Variable) *G2Affine {
+func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable) *g2AffP {
 	// This method computes [s] Q. We use several methods to reduce the number
 	// of added constraints - first, instead of classical double-and-add, we use
 	// the optimized version from https://github.com/zcash/zcash/issues/3924
@@ -293,9 +299,9 @@ func (P *G2Affine) varScalarMul(api frontend.API, Q G2Affine, s frontend.Variabl
 	s1bits := api.ToBinary(s1, nbits)
 	s2bits := api.ToBinary(s2, nbits)
 
-	var Acc /*accumulator*/, B, B2 /*tmp vars*/ G2Affine
+	var Acc /*accumulator*/, B, B2 /*tmp vars*/ g2AffP
 	// precompute -Q, -Φ(Q), Φ(Q)
-	var tableQ, tablePhiQ [2]G2Affine
+	var tableQ, tablePhiQ [2]g2AffP
 	tableQ[1] = Q
 	tableQ[0].Neg(api, Q)
 	cc.phi2(api, &tablePhiQ[1], &Q)
@@ -351,11 +357,11 @@ func (P *G2Affine) varScalarMul(api frontend.API, Q G2Affine, s frontend.Variabl
 }
 
 // constScalarMul sets P = [s] Q and returns P.
-func (P *G2Affine) constScalarMul(api frontend.API, Q G2Affine, s *big.Int) *G2Affine {
+func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int) *g2AffP {
 	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.
-	var Acc, negQ, negPhiQ, phiQ G2Affine
+	var Acc, negQ, negPhiQ, phiQ g2AffP
 	cc := getInnerCurveConfig(api.Compiler().Field())
 	s.Mod(s, cc.fr)
 	cc.phi2(api, &phiQ, &Q)
@@ -375,7 +381,7 @@ func (P *G2Affine) constScalarMul(api frontend.API, Q G2Affine, s *big.Int) *G2A
 	}
 	negQ.Neg(api, Q)
 	negPhiQ.Neg(api, phiQ)
-	var table [4]G2Affine
+	var table [4]g2AffP
 	table[0] = negQ
 	table[0].AddAssign(api, negPhiQ)
 	table[1] = Q
@@ -421,19 +427,19 @@ func (p *G2Jac) AssertIsEqual(api frontend.API, other G2Jac) {
 }
 
 // Assign a value to self (witness assignment)
-func (p *G2Affine) Assign(p1 *bls24315.G2Affine) {
+func (p *g2AffP) Assign(p1 *bls24315.G2Affine) {
 	p.X.Assign(&p1.X)
 	p.Y.Assign(&p1.Y)
 }
 
 // AssertIsEqual constraint self to be equal to other into the given constraint system
-func (p *G2Affine) AssertIsEqual(api frontend.API, other G2Affine) {
+func (p *g2AffP) AssertIsEqual(api frontend.API, other g2AffP) {
 	p.X.AssertIsEqual(api, other.X)
 	p.Y.AssertIsEqual(api, other.Y)
 }
 
 // DoubleAndAdd computes 2*p1+p2 in affine coords
-func (p *G2Affine) DoubleAndAdd(api frontend.API, p1, p2 *G2Affine) *G2Affine {
+func (p *g2AffP) DoubleAndAdd(api frontend.API, p1, p2 *g2AffP) *g2AffP {
 
 	var n, d, l1, l2, x3, x4, y4 fields_bls24315.E4
 
@@ -471,13 +477,13 @@ func (p *G2Affine) DoubleAndAdd(api frontend.API, p1, p2 *G2Affine) *G2Affine {
 }
 
 // ScalarMulBase computes s * g2 and returns it, where g2 is the fixed generator. It doesn't modify s.
-func (P *G2Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G2Affine {
+func (P *g2AffP) ScalarMulBase(api frontend.API, s frontend.Variable) *g2AffP {
 
 	points := getTwistPoints()
 
 	sBits := api.ToBinary(s, 253)
 
-	var res, tmp G2Affine
+	var res, tmp g2AffP
 
 	// i = 1, 2
 	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
@@ -513,7 +519,7 @@ func (P *G2Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G2Affin
 		// gm[i] = [2^i]g
 		tmp.X = res.X
 		tmp.Y = res.Y
-		tmp.AddAssign(api, G2Affine{
+		tmp.AddAssign(api, g2AffP{
 			X: fields_bls24315.E4{
 				B0: fields_bls24315.E2{A0: points.G2m[i][0], A1: points.G2m[i][1]},
 				B1: fields_bls24315.E2{A0: points.G2m[i][2], A1: points.G2m[i][3]}},
@@ -524,7 +530,7 @@ func (P *G2Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G2Affin
 	}
 
 	// i = 0
-	tmp.Neg(api, G2Affine{
+	tmp.Neg(api, g2AffP{
 		X: fields_bls24315.E4{
 			B0: fields_bls24315.E2{A0: points.G2x[0], A1: points.G2x[1]},
 			B1: fields_bls24315.E2{A0: points.G2x[2], A1: points.G2x[3]}},

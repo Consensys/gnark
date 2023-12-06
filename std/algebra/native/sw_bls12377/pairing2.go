@@ -292,9 +292,9 @@ func NewG1Affine(v bls12377.G1Affine) G1Affine {
 	}
 }
 
-// NewG2Affine allocates a witness from the native G2 element and returns it.
-func NewG2Affine(v bls12377.G2Affine) G2Affine {
-	return G2Affine{
+// NewG2AffP allocates a witness from the native G2 element and returns it.
+func NewG2AffP(v bls12377.G2Affine) g2AffP {
+	return g2AffP{
 		X: fields_bls12377.E2{
 			A0: (fr_bw6761.Element)(v.X.A0),
 			A1: (fr_bw6761.Element)(v.X.A1),
@@ -303,6 +303,36 @@ func NewG2Affine(v bls12377.G2Affine) G2Affine {
 			A0: (fr_bw6761.Element)(v.Y.A0),
 			A1: (fr_bw6761.Element)(v.Y.A1),
 		},
+	}
+}
+
+func NewG2Affine(v bls12377.G2Affine) G2Affine {
+	return G2Affine{
+		P: NewG2AffP(v),
+	}
+}
+
+// NewG2AffineFixed returns witness of v with precomputations for efficient
+// pairing computation.
+func NewG2AffineFixed(v bls12377.G2Affine) G2Affine {
+	lines := precomputeLines(v)
+	return G2Affine{
+		P:     NewG2AffP(v),
+		Lines: &lines,
+	}
+}
+
+// NewG2AffineFixedPlaceholder returns a placeholder for the circuit compilation
+// when witness will be given with line precomputations using
+// [NewG2AffineFixed].
+func NewG2AffineFixedPlaceholder() G2Affine {
+	var lines lineEvaluations
+	for i := 0; i < len(bls12377.LoopCounter)-1; i++ {
+		lines[0][i] = lineEvaluation{}
+		lines[1][i] = lineEvaluation{}
+	}
+	return G2Affine{
+		Lines: &lines,
 	}
 }
 
@@ -336,6 +366,20 @@ func NewGTEl(v bls12377.GT) GT {
 				A0: (fr_bw6761.Element)(v.C1.B2.A0),
 				A1: (fr_bw6761.Element)(v.C1.B2.A1),
 			},
+		},
+	}
+}
+
+// NewLineEvaluation allocates a witness from the native LineEvaluationAff and returns it.
+func NewLineEvaluation(v bls12377.LineEvaluationAff) lineEvaluation {
+	return lineEvaluation{
+		R0: fields_bls12377.E2{
+			A0: (fr_bw6761.Element)(v.R0.A0),
+			A1: (fr_bw6761.Element)(v.R0.A1),
+		},
+		R1: fields_bls12377.E2{
+			A0: (fr_bw6761.Element)(v.R1.A0),
+			A1: (fr_bw6761.Element)(v.R1.A1),
 		},
 	}
 }

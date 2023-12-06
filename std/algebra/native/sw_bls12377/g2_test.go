@@ -69,8 +69,8 @@ func TestAddAssignG2(t *testing.T) {
 // Add affine
 
 type g2AddAssignAffine struct {
-	A, B G2Affine
-	C    G2Affine `gnark:",public"`
+	A, B g2AffP
+	C    g2AffP `gnark:",public"`
 }
 
 func (circuit *g2AddAssignAffine) Define(api frontend.API) error {
@@ -145,8 +145,8 @@ func TestDoubleAssignG2(t *testing.T) {
 // DoubleAndAdd affine
 
 type g2DoubleAndAddAffine struct {
-	A, B G2Affine
-	C    G2Affine `gnark:",public"`
+	A, B g2AffP
+	C    g2AffP `gnark:",public"`
 }
 
 func (circuit *g2DoubleAndAddAffine) Define(api frontend.API) error {
@@ -186,8 +186,8 @@ func TestDoubleAndAddAffineG2(t *testing.T) {
 // Double affine
 
 type g2DoubleAffine struct {
-	A G2Affine
-	C G2Affine `gnark:",public"`
+	A g2AffP
+	C g2AffP `gnark:",public"`
 }
 
 func (circuit *g2DoubleAffine) Define(api frontend.API) error {
@@ -259,13 +259,13 @@ func TestNegG2(t *testing.T) {
 // Scalar multiplication
 
 type g2constantScalarMul struct {
-	A G2Affine
-	C G2Affine `gnark:",public"`
+	A g2AffP
+	C g2AffP `gnark:",public"`
 	R *big.Int
 }
 
 func (circuit *g2constantScalarMul) Define(api frontend.API) error {
-	expected := G2Affine{}
+	expected := g2AffP{}
 	expected.constScalarMul(api, circuit.A, circuit.R)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
@@ -298,13 +298,13 @@ func TestConstantScalarMulG2(t *testing.T) {
 }
 
 type g2varScalarMul struct {
-	A G2Affine
-	C G2Affine `gnark:",public"`
+	A g2AffP
+	C g2AffP `gnark:",public"`
 	R frontend.Variable
 }
 
 func (circuit *g2varScalarMul) Define(api frontend.API) error {
-	expected := G2Affine{}
+	expected := g2AffP{}
 	expected.varScalarMul(api, circuit.A, circuit.R)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
@@ -334,14 +334,14 @@ func TestVarScalarMulG2(t *testing.T) {
 }
 
 type g2ScalarMul struct {
-	A    G2Affine
-	C    G2Affine `gnark:",public"`
+	A    g2AffP
+	C    g2AffP `gnark:",public"`
 	Rvar frontend.Variable
 	Rcon fr.Element
 }
 
 func (circuit *g2ScalarMul) Define(api frontend.API) error {
-	var expected, expected2 G2Affine
+	var expected, expected2 g2AffP
 	expected.ScalarMul(api, circuit.A, circuit.Rvar)
 	expected.AssertIsEqual(api, circuit.C)
 	expected2.ScalarMul(api, circuit.A, circuit.Rcon)
@@ -374,12 +374,12 @@ func TestScalarMulG2(t *testing.T) {
 }
 
 type g2varScalarMulBase struct {
-	C G2Affine `gnark:",public"`
+	C g2AffP `gnark:",public"`
 	R frontend.Variable
 }
 
 func (circuit *g2varScalarMulBase) Define(api frontend.API) error {
-	expected := G2Affine{}
+	expected := g2AffP{}
 	expected.ScalarMulBase(api, circuit.R)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil

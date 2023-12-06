@@ -61,7 +61,7 @@ func (cc *innerConfig) phi1(api frontend.API, res, P *G1Affine) *G1Affine {
 	return res
 }
 
-func (cc *innerConfig) phi2(api frontend.API, res, P *G2Affine) *G2Affine {
+func (cc *innerConfig) phi2(api frontend.API, res, P *g2AffP) *g2AffP {
 	res.X.MulByFp(api, P.X, cc.thirdRootOne2)
 	res.Y = P.Y
 	return res

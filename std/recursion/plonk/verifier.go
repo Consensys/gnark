@@ -312,7 +312,7 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		r.SizeInv = sw_bls12377.NewScalar(tVk.SizeInv)
 		r.Generator = sw_bls12377.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
-		r.Kzg, err = kzg.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine](tVk.Kzg)
+		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls12377.G1Affine, sw_bls12377.G2Affine](tVk.Kzg)
 		if err != nil {
 			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
 		}
@@ -361,7 +361,7 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		r.SizeInv = sw_bls12381.NewScalar(tVk.SizeInv)
 		r.Generator = sw_bls12381.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
-		r.Kzg, err = kzg.ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine](tVk.Kzg)
+		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](tVk.Kzg)
 		if err != nil {
 			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
 		}
@@ -410,7 +410,7 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		r.SizeInv = sw_bls24315.NewScalar(tVk.SizeInv)
 		r.Generator = sw_bls24315.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
-		r.Kzg, err = kzg.ValueOfVerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine](tVk.Kzg)
+		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls24315.G1Affine, sw_bls24315.G2Affine](tVk.Kzg)
 		if err != nil {
 			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
 		}
@@ -459,7 +459,7 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		r.SizeInv = sw_bw6761.NewScalar(tVk.SizeInv)
 		r.Generator = sw_bw6761.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
-		r.Kzg, err = kzg.ValueOfVerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine](tVk.Kzg)
+		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bw6761.G1Affine, sw_bw6761.G2Affine](tVk.Kzg)
 		if err != nil {
 			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
 		}
@@ -508,7 +508,7 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		r.SizeInv = sw_bn254.NewScalar(tVk.SizeInv)
 		r.Generator = sw_bn254.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
-		r.Kzg, err = kzg.ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine](tVk.Kzg)
+		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bn254.G1Affine, sw_bn254.G2Affine](tVk.Kzg)
 		if err != nil {
 			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
 		}
@@ -571,6 +571,7 @@ func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 		NbPublicVariables:           uint64(nbPublic),
 		CommitmentConstraintIndexes: cCommitmentIndexes,
 		Qcp:                         make([]kzg.Commitment[G1El], len(commitmentIndexes)),
+		Kzg:                         kzg.PlaceholderVerifyingKey[G1El, G2El](),
 	}
 }
 
