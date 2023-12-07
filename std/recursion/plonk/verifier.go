@@ -745,9 +745,19 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	lagrangeOne = v.scalarApi.Mul(lagrangeOne, &vk.SizeInv)
 	lagrange := lagrangeOne
 	// compute PI = ∑_{i<n} Lᵢ*wᵢ
-	pi := v.scalarApi.Zero()
-	wPowI := v.scalarApi.One()
-	for i := 0; i < len(witness.Public); i++ {
+	wPowI := one
+
+	// i = 0
+	xiLi := v.scalarApi.Mul(lagrange, &witness.Public[0])
+	pi := xiLi
+	if 1 != len(witness.Public) {
+		lagrange = v.scalarApi.Mul(lagrange, &vk.Generator)
+		lagrange = v.scalarApi.Mul(lagrange, denom)
+		wPowI = &vk.Generator
+		denom = v.scalarApi.Sub(zeta, wPowI)
+		lagrange = v.scalarApi.Div(lagrange, denom)
+	}
+	for i := 1; i < len(witness.Public); i++ {
 		xiLi := v.scalarApi.Mul(lagrange, &witness.Public[i])
 		pi = v.scalarApi.Add(pi, xiLi)
 		if i+1 != len(witness.Public) {
