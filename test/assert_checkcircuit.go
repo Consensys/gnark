@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // CheckCircuit performs a series of check on the provided circuit.
@@ -256,11 +257,7 @@ var (
 			pk, vk any,
 			pkBuilder, vkBuilder, proofBuilder func() any,
 			err error) {
-			srs, err := NewKZGSRS(ccs)
-			if err != nil {
-				return nil, nil, nil, nil, nil, err
-			}
-			srsLagrange, err := NewKZGSRSLagrange(ccs)
+			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			if err != nil {
 				return nil, nil, nil, nil, nil, err
 			}

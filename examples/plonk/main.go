@@ -22,9 +22,9 @@ import (
 	"github.com/consensys/gnark/backend/plonk"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/test"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // In this example we show how to use PLONK with KZG commitments. The circuit that is
@@ -84,11 +84,7 @@ func main() {
 	// The size of the data in KZG should be the closest power of 2 bounding //
 	// above max(nbConstraints, nbVariables).
 	scs := ccs.(*cs.SparseR1CS)
-	srs, err := test.NewKZGSRS(scs)
-	if err != nil {
-		panic(err)
-	}
-	srsLagrange, err := test.NewKZGSRSLagrange(scs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(scs)
 	if err != nil {
 		panic(err)
 	}

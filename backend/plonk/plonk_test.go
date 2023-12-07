@@ -15,6 +15,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
+	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,10 +76,9 @@ func TestCustomHashToField(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &commitmentCircuit{})
 			assert.NoError(err)
-			srs, err := test.NewKZGSRS(ccs)
+			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			assert.NoError(err)
-			srsLagrange, err := test.NewKZGSRSLagrange(ccs)
-			assert.NoError(err)
+
 			pk, vk, err := plonk.Setup(ccs, srs, srsLagrange)
 			assert.NoError(err)
 			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
@@ -116,10 +116,9 @@ func TestCustomChallengeHash(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &smallCircuit{})
 			assert.NoError(err)
-			srs, err := test.NewKZGSRS(ccs)
+			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			assert.NoError(err)
-			srsLagrange, err := test.NewKZGSRSLagrange(ccs)
-			assert.NoError(err)
+
 			pk, vk, err := plonk.Setup(ccs, srs, srsLagrange)
 			assert.NoError(err)
 			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
@@ -160,10 +159,9 @@ func TestCustomKZGFoldingHash(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &smallCircuit{})
 			assert.NoError(err)
-			srs, err := test.NewKZGSRS(ccs)
+			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			assert.NoError(err)
-			srsLagrange, err := test.NewKZGSRSLagrange(ccs)
-			assert.NoError(err)
+
 			pk, vk, err := plonk.Setup(ccs, srs, srsLagrange)
 			assert.NoError(err)
 			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
@@ -292,11 +290,7 @@ func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circu
 	expectedY.Exp(expectedY, exp, curve.ScalarField())
 
 	good.Y = expectedY
-	srs, err := test.NewKZGSRS(ccs)
-	if err != nil {
-		panic(err)
-	}
-	srsLagrange, err := test.NewKZGSRSLagrange(ccs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 	if err != nil {
 		panic(err)
 	}

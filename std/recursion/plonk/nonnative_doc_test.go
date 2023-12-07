@@ -14,7 +14,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion/plonk"
-	"github.com/consensys/gnark/test"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // InnerCircuitNative is the definition of the inner circuit we want to
@@ -44,11 +44,7 @@ func computeInnerProof(field, outer *big.Int) (constraint.ConstraintSystem, nati
 		panic(err)
 	}
 	// NB! UNSAFE! Use MPC.
-	srs, err := test.NewKZGSRS(innerCcs)
-	if err != nil {
-		panic(err)
-	}
-	srsLagrange, err := test.NewKZGSRSLagrange(innerCcs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
 	if err != nil {
 		panic(err)
 	}
@@ -136,11 +132,7 @@ func Example_emulated() {
 	}
 
 	// NB! UNSAFE! Use MPC.
-	srs, err := test.NewKZGSRS(innerCcs)
-	if err != nil {
-		panic(err)
-	}
-	srsLagrange, err := test.NewKZGSRSLagrange(innerCcs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
 	if err != nil {
 		panic(err)
 	}
