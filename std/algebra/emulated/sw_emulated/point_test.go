@@ -3,7 +3,6 @@ package sw_emulated
 import (
 	"crypto/elliptic"
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -19,8 +18,6 @@ import (
 	fp_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -1092,13 +1089,4 @@ func TestJointScalarMul6(t *testing.T) {
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
-}
-
-// bench
-func BenchmarkJointScalarMul(b *testing.B) {
-	c := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println(p.NbConstraints())
 }

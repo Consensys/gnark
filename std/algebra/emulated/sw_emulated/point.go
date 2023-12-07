@@ -356,10 +356,9 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	λ2 = c.baseApi.Add(λ1, λ2)
 	λ2 = c.baseApi.Neg(λ2)
 
-	// compute x3 =λ2²-p.x-x3
+	// compute x3 =λ2²-p.x-x2
 	λ2λ2 := c.baseApi.MulMod(λ2, λ2)
-	x3 := c.baseApi.Sub(λ2λ2, &p.X)
-	x3 = c.baseApi.Sub(x3, x2)
+	x3 := c.baseApi.Sub(λ2λ2, c.baseApi.Add(&p.X, x2))
 
 	// compute y3 = λ2*(p.x - x3)-p.y
 	y3 := c.baseApi.Sub(&p.X, x3)
@@ -404,10 +403,9 @@ func (c *Curve[B, S]) doubleAndAddSelect(b frontend.Variable, p, q *AffinePoint[
 	λ2 = c.baseApi.Add(λ1, λ2)
 	λ2 = c.baseApi.Neg(λ2)
 
-	// compute x3 =λ2²-t.x-x3
+	// compute x3 =λ2²-t.x-x2
 	λ2λ2 := c.baseApi.MulMod(λ2, λ2)
-	x3 := c.baseApi.Sub(λ2λ2, &t.X)
-	x3 = c.baseApi.Sub(x3, x2)
+	x3 := c.baseApi.Sub(λ2λ2, c.baseApi.Add(&t.X, x2))
 
 	// compute y3 = λ2*(t.x - x3)-t.y
 	y3 := c.baseApi.Sub(&t.X, x3)
