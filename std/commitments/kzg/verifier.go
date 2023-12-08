@@ -486,7 +486,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commit
 func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
 	var fr FR
 
-	// check consistency nb proogs vs nb digests
+	// check consistency nb proofs vs nb digests
 	if len(digests) != len(proofs) {
 		return fmt.Errorf("number of commitments doesn't match number of proofs")
 	}
