@@ -1,4 +1,4 @@
-// Package logger provides a configurable logger accross gnark components
+// Package logger provides a configurable logger across gnark components
 //
 // The root logger defined by default uses github.com/rs/zerolog with a console writer
 package logger
@@ -29,7 +29,7 @@ func SetOutput(w io.Writer) {
 	logger = logger.Output(w)
 }
 
-// Set allow a gnark user to overhide the global logger
+// Set allow a gnark user to override the global logger
 func Set(l zerolog.Logger) {
 	logger = l
 }
