@@ -71,7 +71,7 @@ type ConstraintSystem interface {
 	// debug information only once.
 	AttachDebugInfo(debugInfo DebugInfo, constraintID []int)
 
-	// CheckUnconstrainedWires returns and error if the constraint system has wires that are not uniquely constrained.
+	// CheckUnconstrainedWires returns an error if the constraint system has wires that are not uniquely constrained.
 	// This is experimental.
 	CheckUnconstrainedWires() error
 
