@@ -686,20 +686,20 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 
 // AssertProof asserts that the SNARK proof holds for the given witness and
 // verifying key.
-func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR]) error {
+func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR]) ([]kzg.Commitment[G1El], []kzg.OpeningProof[FR, G1El], []emulated.Element[FR], error) {
 
 	var fr FR
 	if len(proof.Bsb22Commitments) != len(vk.Qcp) {
-		return fmt.Errorf("BSB22 commitment number mismatch")
+		return nil, nil, nil, fmt.Errorf("BSB22 commitment number mismatch")
 	}
 
 	fs, err := recursion.NewTranscript(v.api, fr.Modulus(), []string{"gamma", "beta", "alpha", "zeta"})
 	if err != nil {
-		return fmt.Errorf("init new transcript: %w", err)
+		return nil, nil, nil, fmt.Errorf("init new transcript: %w", err)
 	}
 
 	if err := v.bindPublicData(fs, "gamma", vk, witness); err != nil {
-		return fmt.Errorf("bind public data: %w", err)
+		return nil, nil, nil, fmt.Errorf("bind public data: %w", err)
 	}
 
 	// The first challenge is derived using the public data: the commitments to the permutation,
@@ -707,13 +707,13 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
 	gamma, err := v.deriveRandomness(fs, "gamma", proof.LRO[0].G1El, proof.LRO[1].G1El, proof.LRO[2].G1El)
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
 	// derive beta from Comm(l), Comm(r), Comm(o)
 	beta, err := v.deriveRandomness(fs, "beta")
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
 	// derive alpha from Comm(l), Comm(r), Comm(o), Com(Z), Bsb22Commitments
@@ -724,13 +724,13 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	alphaDeps[len(alphaDeps)-1] = proof.Z.G1El
 	alpha, err := v.deriveRandomness(fs, "alpha", alphaDeps...)
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
 	// derive zeta, the point of evaluation
 	zeta, err := v.deriveRandomness(fs, "zeta", proof.H[0].G1El, proof.H[1].G1El, proof.H[2].G1El)
 	if err != nil {
-		return err
+		return nil, nil, nil, err
 	}
 
 	// evaluation of Z=Xⁿ-1 at ζ
@@ -761,7 +761,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	if len(vk.CommitmentConstraintIndexes) > 0 {
 		hashToField, err := recursion.NewHash(v.api, fr.Modulus(), true)
 		if err != nil {
-			return err
+			return nil, nil, nil, err
 		}
 		for i := range vk.CommitmentConstraintIndexes {
 			li := v.computeIthLagrangeAtZeta(vk.CommitmentConstraintIndexes[i]+vk.NbPublicVariables, zeta, zetaPowerM, vk)
@@ -905,7 +905,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 
 	linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars)
 	if err != nil {
-		return fmt.Errorf("linearized polynomial digest MSM: %w", err)
+		return nil, nil, nil, fmt.Errorf("linearized polynomial digest MSM: %w", err)
 	}
 
 	// Fold the first proof
@@ -925,24 +925,27 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 		zu,
 	)
 	if err != nil {
-		return fmt.Errorf("fold kzg proof: %w", err)
+		return nil, nil, nil, fmt.Errorf("fold kzg proof: %w", err)
 	}
 	shiftedZeta := v.scalarApi.Mul(zeta, &vk.Generator)
-	err = v.kzg.BatchVerifyMultiPoints(
-		[]kzg.Commitment[G1El]{
-			foldedDigest,
-			proof.Z,
-		},
-		[]kzg.OpeningProof[FR, G1El]{
-			foldedProof,
-			proof.ZShiftedOpening,
-		},
-		[]emulated.Element[FR]{
-			*zeta,
-			*shiftedZeta,
-		},
-		vk.Kzg,
-	)
+
+	resCommitments := []kzg.Commitment[G1El]{foldedDigest, proof.Z}
+	resProofs := []kzg.OpeningProof[FR, G1El]{foldedProof, proof.ZShiftedOpening}
+	resPoints := []emulated.Element[FR]{*zeta, *shiftedZeta}
+
+	return resCommitments, resProofs, resPoints, nil
+}
+
+// AssertProof asserts that the SNARK proof holds for the given witness and
+// verifying key.
+func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR]) error {
+
+	commitments, proofs, points, err := v.PrepareVerification(vk, proof, witness)
+	if err != nil {
+		return err
+	}
+
+	err = v.kzg.BatchVerifyMultiPoints(commitments, proofs, points, vk.Kzg)
 	if err != nil {
 		return fmt.Errorf("batch verify kzg: %w", err)
 	}
