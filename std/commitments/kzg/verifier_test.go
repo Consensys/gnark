@@ -38,6 +38,7 @@ import (
 const (
 	kzgSize        = 128
 	polynomialSize = 100
+	nbPolynomials  = 5
 )
 
 type KZGVerificationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {
@@ -229,6 +230,88 @@ func TestKZGVerificationTwoChain(t *testing.T) {
 	}
 
 	assert.CheckCircuit(&KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BW6_761))
+}
+
+type KZGBatcheVerificationMultiPointCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {
+	Vk          VerifyingKey[G1El, G2El]
+	Commitments []Commitment[G1El]
+	Proofs      []OpeningProof[FR, G1El]
+	Points      []emulated.Element[FR]
+}
+
+func (c *KZGBatcheVerificationMultiPointCircuit[FR, G1El, G2El, GTEl]) Define(api frontend.API) error {
+	verifier, err := NewVerifier[FR, G1El, G2El, GTEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	if err := verifier.BatchVerifyMultiPoints(c.Commitments, c.Proofs, c.Points, c.Vk); err != nil {
+		return fmt.Errorf("assert proof: %w", err)
+	}
+	return nil
+}
+
+func TestKZGBatchVerificationMultiPointsTwoChain(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bls12377.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	// sample random polynomials, random points
+
+	f := make([][]fr_bls12377.Element, nbPolynomials)
+	points := make([]fr_bls12377.Element, nbPolynomials)
+	proofs := make([]kzg_bls12377.OpeningProof, nbPolynomials)
+	commitments := make([]kzg_bls12377.Digest, nbPolynomials)
+	for i := 0; i < nbPolynomials; i++ {
+		f[i] = make([]fr_bls12377.Element, polynomialSize)
+		for j := 0; j < polynomialSize; j++ {
+			f[i][j].SetRandom()
+		}
+
+		commitments[i], err = kzg_bls12377.Commit(f[i], srs.Pk)
+		assert.NoError(err)
+
+		points[i].SetRandom()
+		proofs[i], err = kzg_bls12377.Open(f[i], points[i], srs.Pk)
+		assert.NoError(err)
+	}
+
+	if err = kzg_bls12377.BatchVerifyMultiPoints(commitments, proofs, points, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	var assignment KZGBatcheVerificationMultiPointCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]
+	assignment.Commitments = make([]Commitment[sw_bls12377.G1Affine], nbPolynomials)
+	assignment.Proofs = make([]OpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine], nbPolynomials)
+	assignment.Points = make([]emulated.Element[sw_bls12377.ScalarField], nbPolynomials)
+	for i := 0; i < nbPolynomials; i++ {
+		wCmt, err := ValueOfCommitment[sw_bls12377.G1Affine](commitments[i])
+		assert.NoError(err)
+		wProof, err := ValueOfOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine](proofs[i])
+		assert.NoError(err)
+		wPt, err := ValueOfScalar[sw_bls12377.ScalarField](points[i])
+		assert.NoError(err)
+		assignment.Commitments[i] = wCmt
+		assignment.Proofs[i] = wProof
+		assignment.Points[i] = wPt
+	}
+	wVk, err := ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine](srs.Vk)
+	assert.NoError(err)
+	assignment.Vk = wVk
+
+	var circuit KZGBatcheVerificationMultiPointCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]
+	circuit.Commitments = make([]Commitment[sw_bls12377.G1Affine], nbPolynomials)
+	circuit.Proofs = make([]OpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine], nbPolynomials)
+	circuit.Points = make([]emulated.Element[sw_bls12377.ScalarField], nbPolynomials)
+
+	assert.CheckCircuit(
+		&circuit,
+		test.WithValidAssignment(&assignment),
+		test.WithCurves(ecc.BW6_761),
+	)
 }
 
 func TestKZGVerificationTwoChain2(t *testing.T) {
