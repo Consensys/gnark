@@ -135,7 +135,7 @@ func (it *R1CIterator) Next() *R1C {
 // 	if cptHints != 0 {
 // 		// TODO @gbotrel @ivokub investigate --> emulated hints seems to go in this path a lot.
 // 		sbb.WriteString(strconv.Itoa(cptHints))
-// 		sbb.WriteString(" unconstrained hints; i.e. wire created through NewHint() but doesn't not appear in the constraint system")
+// 		sbb.WriteString(" unconstrained hints; i.e. wire created through NewHint() but does not appear in the constraint system")
 // 		sbb.WriteByte('\n')
 // 		log := logger.Logger()
 // 		log.Warn().Err(errors.New(sbb.String())).Send()
