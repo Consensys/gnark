@@ -736,12 +736,12 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 
 	// evaluation of Z=Xⁿ-1 at ζ
 	one := v.scalarApi.One()
-	zetaPowerM := v.fixedExpN(vk.Size, zeta)  // ζⁿ
-	zzeta := v.scalarApi.Sub(zetaPowerM, one) // ζⁿ-1
+	zetaPowerM := v.fixedExpN(vk.Size, zeta)               // ζⁿ
+	zetaPowerMMinusOne := v.scalarApi.Sub(zetaPowerM, one) // ζⁿ-1
 
 	// L1 = (1/n)(ζⁿ-1)/(ζ-1)
 	denom := v.scalarApi.Sub(zeta, one)
-	lagrangeOne := v.scalarApi.Div(zzeta, denom)
+	lagrangeOne := v.scalarApi.Div(zetaPowerMMinusOne, denom)
 	lagrangeOne = v.scalarApi.Mul(lagrangeOne, &vk.SizeInv)
 	lagrange := lagrangeOne
 	// compute PI = ∑_{i<n} Lᵢ*wᵢ
@@ -826,7 +826,6 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	linearizedPolynomialZeta = v.scalarApi.Sub(linearizedPolynomialZeta, alphaSquareLagrange)
 
 	// Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)
-	zetaPowerMMinusOne := v.scalarApi.Sub(zetaPowerM, one)
 	linearizedPolynomialZeta = v.scalarApi.Div(linearizedPolynomialZeta, zetaPowerMMinusOne)
 
 	// check that H(ζ) is as claimed
@@ -867,17 +866,17 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 
 	// (l(ζ)+β*ζ+γ)
 	uu = v.scalarApi.Mul(beta, zeta)
+	vv = uu
+	ww = uu
 	uu = v.scalarApi.Add(uu, &l)
 	uu = v.scalarApi.Add(uu, gamma)
 
 	// (r(ζ)+β*μ*ζ+γ)
-	vv = v.scalarApi.Mul(beta, zeta)
 	vv = v.scalarApi.Mul(vv, &vk.CosetShift)
 	vv = v.scalarApi.Add(vv, &r)
 	vv = v.scalarApi.Add(vv, gamma)
 
 	// (o(ζ)+β*μ²*ζ+γ)
-	ww = v.scalarApi.Mul(beta, zeta)
 	ww = v.scalarApi.Mul(ww, cosetsquare)
 	ww = v.scalarApi.Add(ww, &o)
 	ww = v.scalarApi.Add(ww, gamma)
