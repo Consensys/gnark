@@ -5,6 +5,7 @@
 package unsafekzg
 
 import (
+	"bufio"
 	"crypto/rand"
 	"math/big"
 	"os"
@@ -345,16 +346,18 @@ func fsRead(key uint64, cacheDir string) (cacheEntry, bool) {
 	}
 	defer f.Close()
 
+	r := bufio.NewReaderSize(f, 1<<20)
+
 	curveID := ecc.ID(key >> 59)
 	cacheEntry := cacheEntry{
 		canonical: kzg.NewSRS(curveID),
 		lagrange:  kzg.NewSRS(curveID),
 	}
-	_, err = cacheEntry.canonical.ReadFrom(f)
+	_, err = cacheEntry.canonical.UnsafeReadFrom(r)
 	if err != nil {
 		return cacheEntry, false
 	}
-	_, err = cacheEntry.lagrange.ReadFrom(f)
+	_, err = cacheEntry.lagrange.UnsafeReadFrom(r)
 	if err != nil {
 		return cacheEntry, false
 	}
@@ -376,11 +379,15 @@ func fsWrite(key uint64, cacheDir string, canonical kzg.SRS, lagrange kzg.SRS) {
 	}
 	defer f.Close()
 
-	if _, err = canonical.WriteRawTo(f); err != nil {
+	w := bufio.NewWriterSize(f, 1<<20)
+
+	if _, err = canonical.WriteRawTo(w); err != nil {
 		return
 	}
 
-	if _, err = lagrange.WriteRawTo(f); err != nil {
+	if _, err = lagrange.WriteRawTo(w); err != nil {
 		return
 	}
+
+	w.Flush()
 }
