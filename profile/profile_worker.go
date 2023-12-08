@@ -11,7 +11,7 @@ import (
 )
 
 // since we are assuming usage of this package from a single go routine, this channel only has
-// one "producer", and one "consumer". it's purpose is to guarantee the order of execution of
+// one "producer", and one "consumer". its purpose is to guarantee the order of execution of
 // adding / removing a profiling session and sampling events, while enabling the caller
 // (frontend.Compile) to sample the events asynchronously.
 var chCommands = make(chan command, 100)
