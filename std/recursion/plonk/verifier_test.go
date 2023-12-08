@@ -205,6 +205,7 @@ func TestBLS12InBW6Commit(t *testing.T) {
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
 	}
+
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 

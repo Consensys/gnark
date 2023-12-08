@@ -684,8 +684,8 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 	}, nil
 }
 
-// AssertProof asserts that the SNARK proof holds for the given witness and
-// verifying key.
+// PrepareVerification returns a list of (openingProof, commitment, point), which are to be
+// verified using kzg's BatchVerifyMultiPoints.
 func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR]) ([]kzg.Commitment[G1El], []kzg.OpeningProof[FR, G1El], []emulated.Element[FR], error) {
 
 	var fr FR

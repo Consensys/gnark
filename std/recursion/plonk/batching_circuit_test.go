@@ -17,6 +17,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	gnark_kzg "github.com/consensys/gnark/std/commitments/kzg"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
@@ -196,11 +197,27 @@ func (circuit *BatchVerifyCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
+	commitments := make([]gnark_kzg.Commitment[G1El], 2*circuit.batchSizeProofs)
+	proofs := make([]gnark_kzg.OpeningProof[FR, G1El], 2*circuit.batchSizeProofs)
+	points := make([]emulated.Element[FR], 2*circuit.batchSizeProofs)
 	for i := 0; i < circuit.batchSizeProofs; i++ {
-		err = verifier.AssertProof(circuit.VerifyfingKey, circuit.Proofs[i], circuit.PublicInners[i])
+		//err = verifier.AssertProof(circuit.VerifyfingKey, circuit.Proofs[i], circuit.PublicInners[i])
+		commitmentPair, proofPair, pointPair, err := verifier.PrepareVerification(circuit.VerifyfingKey, circuit.Proofs[i], circuit.PublicInners[i])
+		if err != nil {
+			return err
+		}
+		copy(commitments[2*i:], commitmentPair)
+		copy(proofs[2*i:], proofPair)
+		copy(points[2*i:], pointPair)
 	}
 
-	return nil
+	kzgVerifier, err := gnark_kzg.NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return err
+	}
+	err = kzgVerifier.BatchVerifyMultiPoints(commitments, proofs, points, circuit.VerifyfingKey.Kzg)
+
+	return err
 }
 
 func instantiateOuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
@@ -269,7 +286,7 @@ func TestBatchVerify(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	// get ccs, vk, pk, srs
-	batchSizeProofs := 1
+	batchSizeProofs := 10
 	innerCcs, vk, pk, _ := GetInnerCircuitData()
 
 	// get tuples (proof, public_witness)
@@ -321,37 +338,37 @@ func TestBatchVerify(t *testing.T) {
 	)
 
 	// proving + verifying on bw6-761
+	// ccs, err := frontend.Compile(
+	// 	ecc.BW6_761.ScalarField(),
+	// 	scs.NewBuilder,
+	// 	&outerCircuit)
+	// assert.NoError(err)
+
+	// srs, err := test.NewKZGSRS(ccs)
+	// assert.NoError(err)
+
+	// fullWitness, err := frontend.NewWitness(&outerAssignment, ecc.BW6_761.ScalarField())
+	// assert.NoError(err)
+
+	// bw6pk, bw6vk, err := native_plonk.Setup(ccs, srs)
+	// assert.NoError(err)
+
+	// proof, err := native_plonk.Prove(ccs, bw6pk, fullWitness)
+	// assert.NoError(err)
+
+	// publicWitness, err := fullWitness.Public()
+	// assert.NoError(err)
+
+	// err = native_plonk.Verify(proof, bw6vk, publicWitness)
+	// assert.NoError(err)
+
 	ccs, err := frontend.Compile(
 		ecc.BW6_761.ScalarField(),
 		scs.NewBuilder,
 		&outerCircuit)
 	assert.NoError(err)
+	fmt.Printf("nb constraints: %d\n", ccs.GetNbConstraints())
 
-	srs, err := test.NewKZGSRS(ccs)
+	err = test.IsSolved(&outerCircuit, &outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
-
-	fullWitness, err := frontend.NewWitness(&outerAssignment, ecc.BW6_761.ScalarField())
-	assert.NoError(err)
-
-	bw6pk, bw6vk, err := native_plonk.Setup(ccs, srs)
-	assert.NoError(err)
-
-	proof, err := native_plonk.Prove(ccs, bw6pk, fullWitness)
-	assert.NoError(err)
-
-	publicWitness, err := fullWitness.Public()
-	assert.NoError(err)
-
-	err = native_plonk.Verify(proof, bw6vk, publicWitness)
-	assert.NoError(err)
-
-	// ccs, err := frontend.Compile(
-	// 	ecc.BW6_761.ScalarField(),
-	// 	scs.NewBuilder,
-	// 	outerCircuit)
-	// assert.NoError(err)
-	// fmt.Printf("nb constraints: %d\n", ccs.GetNbConstraints())
-
-	// err = test.IsSolved(&outerCircuit, &outerAssignment, ecc.BW6_761.ScalarField())
-	// assert.NoError(err)
 }
