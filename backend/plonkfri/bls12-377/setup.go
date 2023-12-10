@@ -139,7 +139,7 @@ func Setup(spr *cs.SparseR1CS) (*ProvingKey, *VerifyingKey, error) {
 	tmpDomain := fft.NewDomain(2 * rho * pk.Domain[0].Cardinality)
 	vk.GenOpening.Set(&tmpDomain.Generator)
 
-	// public polynomials corresponding to constraints: [ placholders | constraints | assertions ]
+	// public polynomials corresponding to constraints: [ placeholders | constraints | assertions ]
 	pk.EvaluationQlDomainBigBitReversed = make([]fr.Element, pk.Domain[1].Cardinality)
 	pk.EvaluationQrDomainBigBitReversed = make([]fr.Element, pk.Domain[1].Cardinality)
 	pk.EvaluationQmDomainBigBitReversed = make([]fr.Element, pk.Domain[1].Cardinality)
