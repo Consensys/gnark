@@ -437,7 +437,7 @@ func fftBigCosetWOBitReverse(poly []fr.Element, domainBig *fft.Domain) []fr.Elem
 	return res
 }
 
-// evaluateXnMinusOneDomainBigCoset evalutes Xᵐ-1 on DomainBig coset
+// evaluateXnMinusOneDomainBigCoset evaluates Xᵐ-1 on DomainBig coset
 func evaluateXnMinusOneDomainBigCoset(domainBig, domainSmall *fft.Domain) []fr.Element {
 
 	ratio := domainBig.Cardinality / domainSmall.Cardinality
