@@ -725,10 +725,10 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 		if n%2 == 1 {
 			res = c.ScalarMul(p[n-1], s[n-1], opts...)
 		} else {
-			res = c.JointScalarMul(p[n-2], p[n-1], s[n-2], s[n-1], opts...)
+			res = c.JointScalarMulGLV(p[n-2], p[n-1], s[n-2], s[n-1], opts...)
 		}
 		for i := 1; i < n-1; i += 2 {
-			q := c.JointScalarMul(p[i-1], p[i], s[i-1], s[i], opts...)
+			q := c.JointScalarMulGLV(p[i-1], p[i], s[i-1], s[i], opts...)
 			res = c.Add(res, q)
 		}
 		return res, nil
