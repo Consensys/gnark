@@ -46,13 +46,13 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	cStream, err := goCompress.NewStream(c, uint8(level))
 	assert.NoError(t, err)
 
-	cWords, cSum, err := compress.ToSnarkData(cStream, wordNbBits*cStream.Len(), curveId)
+	cWords, cSum, err := compress.ToSnarkData(cStream, level, wordNbBits*cStream.Len(), curveId)
 	assert.NoError(t, err)
 
 	dStream, err := goCompress.NewStream(d, 8)
 	assert.NoError(t, err)
 
-	dWords, dSum, err := compress.ToSnarkData(dStream, 8*len(d), curveId)
+	dWords, dSum, err := compress.ToSnarkData(dStream, level, 8*len(d), curveId)
 	assert.NoError(t, err)
 
 	circuit := compressionCircuit{
@@ -83,8 +83,9 @@ func TestChecksum0(t *testing.T) {
 
 func testChecksumUnpaddedBytes(t *testing.T, d goCompress.Stream) {
 	const curveId = ecc.BLS12_377
+	const level = lzss.BestSnarkDecompression
 
-	words, checksum, err := compress.ToSnarkData(d, 8*d.Len(), curveId)
+	words, checksum, err := compress.ToSnarkData(d, level, 8*d.Len(), curveId)
 	assert.NoError(t, err)
 
 	circuit := checksumTestCircuit{
@@ -107,7 +108,7 @@ type checksumTestCircuit struct {
 }
 
 func (c *checksumTestCircuit) Define(api frontend.API) error {
-	sum := compress.Checksum(api, c.Inputs, len(c.Inputs), 8)
+	sum := compress.Checksum(api, c.Inputs, c.InputLen, 8)
 	api.AssertIsEqual(c.Sum, sum)
 	return nil
 }
