@@ -140,7 +140,7 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 	// All the above polynomials are expressed in canonical basis afterwards. This is why
 	// we save lqk before, because the prover needs to complete it in Lagrange form, and
 	// then express it on the Lagrange coset basis.
-	if err := vk.commitTrace(&trace, domain, pk.Kzg); err != nil {
+	if err := vk.commitTrace(&trace, domain, pk.KzgLagrange); err != nil {
 		return nil, nil, err
 	}
 
@@ -215,19 +215,10 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 // the commitments int the verifying key.
 func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.ProvingKey) error {
 
-	trace.Ql.ToCanonical(domain).ToRegular()
-	trace.Qr.ToCanonical(domain).ToRegular()
-	trace.Qm.ToCanonical(domain).ToRegular()
-	trace.Qo.ToCanonical(domain).ToRegular()
-	trace.Qk.ToCanonical(domain).ToRegular() // -> qk is not complete
-	trace.S1.ToCanonical(domain).ToRegular()
-	trace.S2.ToCanonical(domain).ToRegular()
-	trace.S3.ToCanonical(domain).ToRegular()
 
 	var err error
 	vk.Qcp = make([]kzg.Digest, len(trace.Qcp))
 	for i := range trace.Qcp {
-		trace.Qcp[i].ToCanonical(domain).ToRegular()
 		if vk.Qcp[i], err = kzg.Commit(trace.Qcp[i].Coefficients(), srsPk); err != nil {
 			return err
 		}
