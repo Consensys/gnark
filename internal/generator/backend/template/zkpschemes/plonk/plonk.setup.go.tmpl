@@ -237,20 +237,9 @@ func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.
 }
 
 func initFFTDomain(spr *cs.SparseR1CS) *fft.Domain {
-
 	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	return fft.NewDomain(sizeSystem)
-
-	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
-	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
-	// except when n<6.
-	// if sizeSystem < 6 {
-	// 	pk.Domain[1] = *fft.NewDomain(8 * sizeSystem)
-	// } else {
-	// 	pk.Domain[1] = *fft.NewDomain(4 * sizeSystem)
-	// }
-
 }
 
 // buildPermutation builds the Permutation associated with a circuit.
