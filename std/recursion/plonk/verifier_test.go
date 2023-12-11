@@ -19,9 +19,25 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
+type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	Proof        Proof[FR, G1El, G2El]
+	VerifyingKey VerifyingKey[FR, G1El, G2El]
+	InnerWitness Witness[FR]
+}
+
+func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
+	return err
+}
+
 //-----------------------------------------------------------------
 // Without api.Commit
 
+/*
 type InnerCircuitNativeWoCommit struct {
 	P, Q frontend.Variable
 	N    frontend.Variable `gnark:",public"`
@@ -56,21 +72,6 @@ func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.Co
 	err = plonk.Verify(innerProof, innerVK, innerPubWitness, GetNativeVerifierOptions(outer, field))
 	assert.NoError(err)
 	return innerCcs, innerVK, innerPubWitness, innerProof
-}
-
-type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	Proof        Proof[FR, G1El, G2El]
-	VerifyingKey VerifyingKey[FR, G1El, G2El]
-	InnerWitness Witness[FR]
-}
-
-func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
-	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
-	if err != nil {
-		return fmt.Errorf("new verifier: %w", err)
-	}
-	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
-	return err
 }
 
 func TestBLS12InBW6WoCommit(t *testing.T) {
@@ -127,7 +128,6 @@ func TestBW6InBN254WoCommit(t *testing.T) {
 	assert.NoError(err)
 }
 
-/*
 func TestBLS12381InBN254WoCommit(t *testing.T) {
 
 	assert := test.NewAssert(t)
