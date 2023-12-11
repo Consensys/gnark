@@ -100,9 +100,12 @@ func testChecksum(t *testing.T, d goCompress.Stream, paddedNbBits int, level lzs
 		WordLen: int(level),
 	}
 
+	dWordLen := 63 - bits.LeadingZeros64(uint64(d.NbSymbs))
+	assert.Equal(t, 1<<dWordLen, d.NbSymbs)
+
 	assignment := checksumTestCircuit{
 		Inputs:   words,
-		InputLen: len(words),
+		InputLen: d.Len() * dWordLen / int(level),
 		Sum:      checksum,
 	}
 
