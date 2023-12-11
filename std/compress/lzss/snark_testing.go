@@ -67,7 +67,7 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 		return nil, err
 	}
 
-	circuit := compressionCircuit{
+	circuit := CompressionCircuit{
 		C:     make([]frontend.Variable, cStream.Len()),
 		D:     make([]frontend.Variable, len(d)),
 		Dict:  make([]byte, len(dict)),
@@ -118,7 +118,7 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 	return cs, gz.Close()
 }
 
-type compressionCircuit struct {
+type CompressionCircuit struct {
 	CChecksum, DChecksum frontend.Variable `gnark:",public"`
 	C                    []frontend.Variable
 	D                    []frontend.Variable
@@ -127,7 +127,7 @@ type compressionCircuit struct {
 	Level                lzss.Level
 }
 
-func (c *compressionCircuit) Define(api frontend.API) error {
+func (c *CompressionCircuit) Define(api frontend.API) error {
 
 	fmt.Println("packing")
 	cPacked := compress.Pack(api, c.C, int(c.Level))
@@ -155,7 +155,7 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func check(s goCompress.Stream, padTo int) (checksum fr.Element, err error) {
+func StreamChecksum(s goCompress.Stream, padTo int) (checksum fr.Element, err error) {
 
 	s.D = append(s.D, make([]int, padTo-len(s.D))...)
 

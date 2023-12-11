@@ -42,16 +42,16 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	cStream, err := goCompress.NewStream(c, uint8(level))
 	assert.NoError(t, err)
 
-	cSum, err := check(cStream, cStream.Len())
+	cSum, err := StreamChecksum(cStream, cStream.Len())
 	assert.NoError(t, err)
 
 	dStream, err := goCompress.NewStream(d, 8)
 	assert.NoError(t, err)
 
-	dSum, err := check(dStream, len(d))
+	dSum, err := StreamChecksum(dStream, len(d))
 	assert.NoError(t, err)
 
-	circuit := compressionCircuit{
+	circuit := CompressionCircuit{
 		C:     make([]frontend.Variable, cStream.Len()),
 		D:     make([]frontend.Variable, len(d)),
 		Dict:  make([]byte, len(dict)),
@@ -60,7 +60,7 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 
 	// solve the circuit or only compile it
 
-	assignment := compressionCircuit{
+	assignment := CompressionCircuit{
 		CChecksum: cSum,
 		DChecksum: dSum,
 		C:         test_vector_utils.ToVariableSlice(cStream.D),
@@ -82,7 +82,7 @@ func testChecksum(t *testing.T, d goCompress.Stream) {
 		InputLen: d.Len(),
 	}
 
-	sum, err := check(d, d.Len())
+	sum, err := StreamChecksum(d, d.Len())
 	assert.NoError(t, err)
 
 	assignment := checksumTestCircuit{
