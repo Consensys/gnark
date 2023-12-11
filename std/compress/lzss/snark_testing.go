@@ -134,10 +134,10 @@ func (c *CompressionCircuit) Define(api frontend.API) error {
 	dPacked := compress.Pack(api, c.D, 8)
 
 	fmt.Println("computing checksum")
-	if err := checkSnark(api, cPacked, c.CLen, c.CChecksum); err != nil {
+	if err := checksumSnark(api, cPacked, c.CLen, c.CChecksum); err != nil {
 		return err
 	}
-	if err := checkSnark(api, dPacked, c.DLen, c.DChecksum); err != nil {
+	if err := checksumSnark(api, dPacked, c.DLen, c.DChecksum); err != nil {
 		return err
 	}
 
@@ -155,7 +155,7 @@ func (c *CompressionCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func StreamChecksum(s goCompress.Stream, padTo int) (checksum fr.Element, err error) {
+func checksumStream(s goCompress.Stream, padTo int) (checksum fr.Element, err error) {
 
 	s.D = append(s.D, make([]int, padTo-len(s.D))...)
 
@@ -164,7 +164,8 @@ func StreamChecksum(s goCompress.Stream, padTo int) (checksum fr.Element, err er
 	return
 }
 
-func checkSnark(api frontend.API, e []frontend.Variable, eLen, checksum frontend.Variable) error {
+func checksumSnark(api frontend.API, e []frontend.Variable, eLen, checksum frontend.Variable) error {
+	api.Println(e...)
 	hsh, err := mimc.NewMiMC(api)
 	if err != nil {
 		return err

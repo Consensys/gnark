@@ -5,6 +5,8 @@ import (
 	goCompress "github.com/consensys/compress"
 	goLzss "github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -24,32 +26,72 @@ func checkError(err error) {
 	}
 }
 
-func main() {
-	d, err := os.ReadFile(name + "/data.bin")
-	checkError(err)
+func getCircuits() (circuit, assignment lzss.CompressionCircuit, err error) {
+	//d, err := os.ReadFile(name + "/data.bin")
+	//if err != nil { return }
+	d := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
 
 	dict, err := os.ReadFile("../testdata/dict_naive")
-	checkError(err)
+	if err != nil {
+		return
+	}
 
 	// compress
 
 	level := goLzss.GoodCompression
 
 	compressor, err := goLzss.NewCompressor(dict, level)
-	checkError(err)
+	if err != nil {
+		return
+	}
 
 	c, err := compressor.Compress(d)
-	checkError(err)
+	if err != nil {
+		return
+	}
 
 	cStream, err := goCompress.NewStream(c, uint8(level))
-	checkError(err)
+	if err != nil {
+		return
+	}
 
-	circuit := lzss.CompressionCircuit{
+	circuit = lzss.CompressionCircuit{
 		C:     make([]frontend.Variable, cStream.Len()),
 		D:     make([]frontend.Variable, len(d)),
 		Dict:  dict,
 		Level: level,
 	}
+
+	cSum, err := checksumStream(cStream, cStream.Len())
+	if err != nil {
+		return
+	}
+
+	dStream, err := goCompress.NewStream(d, 8)
+	if err != nil {
+		return
+	}
+	dSum, err := checksumStream(dStream, len(d))
+	if err != nil {
+		return
+	}
+
+	assignment = lzss.CompressionCircuit{
+		CChecksum: cSum,
+		DChecksum: dSum,
+		C:         test_vector_utils.ToVariableSlice(cStream.D),
+		D:         test_vector_utils.ToVariableSlice(d),
+		CLen:      cStream.Len(),
+		DLen:      len(d),
+	}
+
+	return
+}
+
+func main() {
+
+	circuit, assignment, err := getCircuits()
+	checkError(err)
 
 	var start int64
 	resetTimer := func() {
@@ -68,7 +110,7 @@ func main() {
 	checkError(err)
 
 	p.Stop()
-	fmt.Println(1+len(d)/1024, "KB:", p.NbConstraints(), "constraints, estimated", (p.NbConstraints()*600000)/len(d), "constraints for 600KB at", float64(p.NbConstraints())/float64(len(d)), "constraints per uncompressed byte")
+	fmt.Println(1+len(circuit.D)/1024, "KB:", p.NbConstraints(), "constraints")
 	resetTimer()
 
 	// setup
@@ -83,27 +125,19 @@ func main() {
 	// proof
 	fmt.Println("proof")
 
-	cSum, err := lzss.StreamChecksum(cStream, cStream.Len())
-	checkError(err)
-
-	dStream, err := goCompress.NewStream(d, 8)
-	checkError(err)
-	dSum, err := lzss.StreamChecksum(dStream, len(d))
-	checkError(err)
-
-	assignment := lzss.CompressionCircuit{
-		CChecksum: cSum,
-		DChecksum: dSum,
-		C:         test_vector_utils.ToVariableSlice(cStream.D),
-		D:         test_vector_utils.ToVariableSlice(d),
-		CLen:      cStream.Len(),
-		DLen:      len(d),
-	}
-
 	wt, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 	checkError(err)
 
 	_, err = plonk.Prove(cs, pk, wt)
 	checkError(err)
 	resetTimer()
+}
+
+func checksumStream(s goCompress.Stream, padTo int) (checksum fr.Element, err error) {
+
+	s.D = append(s.D, make([]int, padTo-len(s.D))...)
+
+	csb := s.Checksum(hash.MIMC_BN254.New(), fr.Bits)
+	checksum.SetBytes(csb)
+	return
 }

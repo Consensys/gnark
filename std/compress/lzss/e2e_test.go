@@ -42,13 +42,13 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	cStream, err := goCompress.NewStream(c, uint8(level))
 	assert.NoError(t, err)
 
-	cSum, err := StreamChecksum(cStream, cStream.Len())
+	cSum, err := checksumStream(cStream, cStream.Len())
 	assert.NoError(t, err)
 
 	dStream, err := goCompress.NewStream(d, 8)
 	assert.NoError(t, err)
 
-	dSum, err := StreamChecksum(dStream, len(d))
+	dSum, err := checksumStream(dStream, len(d))
 	assert.NoError(t, err)
 
 	circuit := CompressionCircuit{
@@ -69,7 +69,7 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 		CLen:      cStream.Len(),
 		DLen:      len(d),
 	}
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
 func TestChecksum0(t *testing.T) {
@@ -82,7 +82,7 @@ func testChecksum(t *testing.T, d goCompress.Stream) {
 		InputLen: d.Len(),
 	}
 
-	sum, err := StreamChecksum(d, d.Len())
+	sum, err := checksumStream(d, d.Len())
 	assert.NoError(t, err)
 
 	assignment := checksumTestCircuit{
@@ -100,7 +100,7 @@ type checksumTestCircuit struct {
 }
 
 func (c *checksumTestCircuit) Define(api frontend.API) error {
-	if err := checkSnark(api, c.Inputs, len(c.Inputs), c.Sum); err != nil {
+	if err := checksumSnark(api, c.Inputs, len(c.Inputs), c.Sum); err != nil {
 		return err
 	}
 	return nil
