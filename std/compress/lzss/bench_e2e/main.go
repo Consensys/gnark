@@ -19,7 +19,6 @@ import (
 const name = "../testdata/large"
 
 func checkError(err error) {
-	checkError(err)
 	if err != nil {
 		panic(err)
 	}
