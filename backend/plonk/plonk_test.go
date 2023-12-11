@@ -271,7 +271,7 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 }
 
 func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circuit, kzg.SRS, kzg.SRS) {
-	const nbConstraints = (1 << 16) - 3
+	const nbConstraints = (1 << 12) - 3
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
 	}
@@ -329,7 +329,6 @@ func (h constantHash) Size() int                         { return 3 }
 func (h constantHash) BlockSize() int                    { return 32 }
 
 func getCurves() []ecc.ID {
-	return []ecc.ID{ecc.BN254, ecc.BLS12_377, ecc.BW6_761}
 	if testing.Short() {
 		return []ecc.ID{ecc.BN254}
 	}

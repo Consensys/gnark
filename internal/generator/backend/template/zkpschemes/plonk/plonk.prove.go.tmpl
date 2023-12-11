@@ -206,7 +206,7 @@ type instance struct {
 
 	domain0, domain1 *fft.Domain
 
-	trace Trace
+	trace *Trace
 }
 
 func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts *backend.ProverConfig) (*instance, error) {
@@ -253,18 +253,11 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	} else {
 		s.domain1 = fft.NewDomain(4 * sizeSystem)
 	}
+	// TODO @gbotrel domain1 is used for only 1 FFT --> precomputing the twiddles
+	// and storing them in memory is costly given its size. --> do a FFT on the fly
 
 	// build trace
-	BuildTrace(spr, &s.trace)
-
-	// step 3: build the permutation and build the polynomials S1, S2, S3 to encode the permutation.
-	// Note: at this stage, the permutation takes in account the placeholders
-	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
-	buildPermutation(spr, &s.trace, nbVariables)
-	ps := computePermutationPolynomials(&s.trace, s.domain0)
-	s.trace.S1 = ps[0]
-	s.trace.S2 = ps[1]
-	s.trace.S3 = ps[2]
+	s.trace = NewTrace(spr, s.domain0)
 
 	return &s, nil
 }
@@ -344,7 +337,6 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
 		return err
 	}
-	s.cCommitments[commDepth].ToCanonical(s.domain0).ToRegular()
 	
 	s.htfFunc.Write(s.proof.Bsb22Commitments[commDepth].Marshal())
 	hashBts := s.htfFunc.Sum(nil)
@@ -403,7 +395,7 @@ func (s *instance) solveConstraints() error {
 }
 
 func (s *instance) completeQk() error {
-	qk := s.trace.Qk.Clone()//.ToLagrange(s.domain0).ToRegular()
+	qk := s.trace.Qk.Clone()
 	qkCoeffs := qk.Coefficients()
 
 	wWitness, ok := s.fullWitness.Vector().(fr.Vector)
@@ -526,17 +518,16 @@ func (s *instance) deriveZeta() (err error) {
 
 // evaluateConstraints computes H
 func (s *instance) evaluateConstraints() (err error) {
-	// clone polys from the proving key.
-	s.x[id_Ql] = s.trace.Ql//.Clone()
-	s.x[id_Qr] = s.trace.Qr//.Clone()
-	s.x[id_Qm] = s.trace.Qm//.Clone()
-	s.x[id_Qo] = s.trace.Qo//.Clone()
-	s.x[id_S1] = s.trace.S1//.Clone()
-	s.x[id_S2] = s.trace.S2//.Clone()
-	s.x[id_S3] = s.trace.S3//.Clone()
+	s.x[id_Ql] = s.trace.Ql
+	s.x[id_Qr] = s.trace.Qr
+	s.x[id_Qm] = s.trace.Qm
+	s.x[id_Qo] = s.trace.Qo
+	s.x[id_S1] = s.trace.S1
+	s.x[id_S2] = s.trace.S2
+	s.x[id_S3] = s.trace.S3
 
 	for i := 0; i < len(s.commitmentInfo); i++ {
-		s.x[id_Qci+2*i] = s.trace.Qcp[i]//.Clone()
+		s.x[id_Qci+2*i] = s.trace.Qcp[i]
 	}
 
 	n := s.domain0.Cardinality
@@ -551,7 +542,7 @@ func (s *instance) evaluateConstraints() (err error) {
 	}
 
 	for i := 0; i < len(s.commitmentInfo); i++ {
-		s.x[id_Qci+2*i+1] = s.cCommitments[i]//.Clone()
+		s.x[id_Qci+2*i+1] = s.cCommitments[i]
 	}
 
 	// wait for Z to be committed or context done
@@ -758,7 +749,7 @@ func (s *instance) computeLinearizedPolynomial() error {
 
 	wg.Wait()
 
-	s.linearizedPolynomial = s.computeLinearizedPolynomial2(
+	s.linearizedPolynomial = s.innerComputeLinearizedPoly(
 		blzeta,
 		brzeta,
 		bozeta,
@@ -1289,7 +1280,7 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 	return res
 }
 
-// computeLinearizedPolynomial computes the linearized polynomial in canonical basis.
+// innerComputeLinearizedPoly computes the linearized polynomial in canonical basis.
 // The purpose is to commit and open all in one ql, qr, qm, qo, qk.
 // * lZeta, rZeta, oZeta are the evaluation of l, r, o at zeta
 // * z is the permutation polynomial, zu is Z(μX), the shifted version of Z
@@ -1300,7 +1291,7 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 // α²*L₁(ζ)*Z(X)
 // + α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*s3(X) - Z(X)*(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ))
 // + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X)
-func (s *instance) computeLinearizedPolynomial2(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta, blindedZCanonical []fr.Element, pi2Canonical [][]fr.Element, pk *ProvingKey) []fr.Element {
+func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta, blindedZCanonical []fr.Element, pi2Canonical [][]fr.Element, pk *ProvingKey) []fr.Element {
 	// TODO @gbotrel rename
 	// first part: individual constraints
 	var rl fr.Element
