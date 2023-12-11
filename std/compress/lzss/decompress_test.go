@@ -14,19 +14,19 @@ import (
 	"testing"
 )
 
-func Test1ZeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, []byte{0}, nil)
+func Test1Zero(t *testing.T) {
+	testCompressionRoundTrip(t, []byte{0}, nil)
 }
 
-func TestGoodCompressionSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, []byte{1, 2}, nil, withLevel(lzss.GoodCompression))
+func TestGoodCompression(t *testing.T) {
+	testCompressionRoundTrip(t, []byte{1, 2}, nil, withLevel(lzss.GoodCompression))
 }
 
-func Test0To10ExplicitSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, nil)
+func Test0To10Explicit(t *testing.T) {
+	testCompressionRoundTrip(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, nil)
 }
 
-func TestNoCompressionSnark(t *testing.T) {
+func TestNoCompression(t *testing.T) {
 
 	d, err := os.ReadFile("./testdata/3c2943/data.bin")
 	assert.NoError(t, err)
@@ -58,21 +58,21 @@ func TestNoCompressionSnark(t *testing.T) {
 	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
 }
 
-func Test255_254_253Snark(t *testing.T) {
-	testCompressionRoundTripSnark(t, []byte{255, 254, 253}, nil)
+func Test255_254_253(t *testing.T) {
+	testCompressionRoundTrip(t, []byte{255, 254, 253}, nil)
 }
 
-func Test3c2943Snark(t *testing.T) {
+func Test3c2943(t *testing.T) {
 	d, err := os.ReadFile("./testdata/3c2943/data.bin")
 	assert.NoError(t, err)
 
 	dict := getDictionary()
 
-	testCompressionRoundTripSnark(t, d, dict)
+	testCompressionRoundTrip(t, d, dict)
 }
 
 // Fuzz test the decompression
-func FuzzSnark(f *testing.F) { // TODO This is always skipped
+func Fuzz(f *testing.F) { // TODO This is always skipped
 	f.Fuzz(func(t *testing.T, input, dict []byte) {
 		if len(input) > lzss.MaxInputSize {
 			t.Skip("input too large")
@@ -83,7 +83,7 @@ func FuzzSnark(f *testing.F) { // TODO This is always skipped
 		if len(input) == 0 {
 			t.Skip("input too small")
 		}
-		testCompressionRoundTripSnark(t, input, dict)
+		testCompressionRoundTrip(t, input, dict)
 	})
 }
 
@@ -95,7 +95,7 @@ func withLevel(level lzss.Level) testCompressionRoundTripOption {
 	}
 }
 
-func testCompressionRoundTripSnark(t *testing.T, d, dict []byte, options ...testCompressionRoundTripOption) {
+func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompressionRoundTripOption) {
 
 	level := lzss.BestCompression
 

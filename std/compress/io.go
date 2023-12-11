@@ -3,6 +3,7 @@ package compress
 import (
 	"errors"
 	"math/big"
+	"math/bits"
 
 	realHash "hash"
 
@@ -90,8 +91,21 @@ func (nr *NumReader) Next() frontend.Variable {
 	return res
 }
 
+func log2(x uint64) int {
+	res := 63 - bits.LeadingZeros64(x)
+	if x != 1<<uint(res) {
+		return -1
+	}
+	return res
+}
+
 // ToSnarkData breaks a stream up into words of the right size for snark consumption, and computes the checksum of that data in a way congruent with Checksum
-func ToSnarkData(s compress.Stream, wordNbBits, paddedNbBits int, curveId ecc.ID) (words []frontend.Variable, checksum []byte, err error) {
+func ToSnarkData(s compress.Stream, paddedNbBits int, curveId ecc.ID) (words []frontend.Variable, checksum []byte, err error) {
+
+	wordNbBits := log2(uint64(s.NbSymbs))
+	if wordNbBits <= 0 {
+		return nil, nil, errors.New("the number of symbols must be a positive power of 2")
+	}
 
 	paddedNbWords := paddedNbBits / wordNbBits
 

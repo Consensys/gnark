@@ -6,8 +6,6 @@ import (
 	goCompress "github.com/consensys/compress"
 	"github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -148,13 +146,4 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 	}
 
 	return nil
-}
-
-func check(s goCompress.Stream, padTo int) (checksum fr.Element, err error) {
-
-	s.D = append(s.D, make([]int, padTo-len(s.D))...)
-
-	csb := s.Checksum(hash.MIMC_BN254.New(), fr.Bits)
-	checksum.SetBytes(csb)
-	return
 }

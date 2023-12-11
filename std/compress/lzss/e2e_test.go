@@ -4,13 +4,13 @@ import (
 	goCompress "github.com/consensys/compress"
 	"github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark/std/compress"
+	"math/bits"
 	"os"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,6 +34,9 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	// compress
 
 	level := lzss.GoodCompression
+	wordNbBits := 63 - bits.LeadingZeros64(uint64(level))
+	const curveId = ecc.BLS12_377
+
 	compressor, err := lzss.NewCompressor(dict, level)
 	assert.NoError(t, err)
 
@@ -43,18 +46,18 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	cStream, err := goCompress.NewStream(c, uint8(level))
 	assert.NoError(t, err)
 
-	cSum, err := check(cStream, cStream.Len())
+	cWords, cSum, err := compress.ToSnarkData(cStream, wordNbBits*cStream.Len(), curveId)
 	assert.NoError(t, err)
 
 	dStream, err := goCompress.NewStream(d, 8)
 	assert.NoError(t, err)
 
-	dSum, err := check(dStream, len(d))
+	dWords, dSum, err := compress.ToSnarkData(dStream, 8*len(d), curveId)
 	assert.NoError(t, err)
 
 	circuit := compressionCircuit{
-		C:     make([]frontend.Variable, cStream.Len()),
-		D:     make([]frontend.Variable, len(d)),
+		C:     make([]frontend.Variable, len(cWords)),
+		D:     make([]frontend.Variable, len(dWords)),
 		Dict:  make([]byte, len(dict)),
 		Level: level,
 	}
@@ -64,34 +67,37 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	assignment := compressionCircuit{
 		CChecksum: cSum,
 		DChecksum: dSum,
-		C:         test_vector_utils.ToVariableSlice(cStream.D),
-		D:         test_vector_utils.ToVariableSlice(d),
+		C:         cWords,
+		D:         dWords,
 		Dict:      dict,
 		CLen:      cStream.Len(),
 		DLen:      len(d),
 	}
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(curveId))
 }
 
 func TestChecksum0(t *testing.T) {
-	testChecksum(t, goCompress.Stream{D: []int{}, NbSymbs: 256})
+	testChecksumUnpaddedBytes(t, goCompress.Stream{D: []int{}, NbSymbs: 256})
 }
 
-func testChecksum(t *testing.T, d goCompress.Stream) {
-	circuit := checksumTestCircuit{
-		Inputs:   make([]frontend.Variable, d.Len()),
-		InputLen: d.Len(),
-	}
+func testChecksumUnpaddedBytes(t *testing.T, d goCompress.Stream) {
+	const curveId = ecc.BLS12_377
 
-	sum, err := check(d, d.Len())
+	words, checksum, err := compress.ToSnarkData(d, 8*d.Len(), curveId)
 	assert.NoError(t, err)
 
-	assignment := checksumTestCircuit{
-		Inputs:   test_vector_utils.ToVariableSlice(d.D),
-		InputLen: d.Len(),
-		Sum:      sum,
+	circuit := checksumTestCircuit{
+		Inputs: make([]frontend.Variable, len(words)),
 	}
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+
+	assignment := checksumTestCircuit{
+		Inputs:   words,
+		InputLen: len(words),
+		Sum:      checksum,
+	}
+
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(curveId))
 }
 
 type checksumTestCircuit struct {
