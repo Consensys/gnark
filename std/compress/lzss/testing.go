@@ -13,7 +13,6 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/compress"
-	"github.com/consensys/gnark/std/hash/mimc"
 	"os"
 	"time"
 )
@@ -129,17 +128,13 @@ type compressionCircuit struct {
 
 func (c *compressionCircuit) Define(api frontend.API) error {
 
-	fmt.Println("packing")
-	cPacked := compress.Pack(api, c.C, int(c.Level))
-	dPacked := compress.Pack(api, c.D, 8)
-
 	fmt.Println("computing checksum")
-	if err := checkSnark(api, cPacked, c.CLen, c.CChecksum); err != nil {
-		return err
-	}
-	if err := checkSnark(api, dPacked, c.DLen, c.DChecksum); err != nil {
-		return err
-	}
+
+	sum := compress.Checksum(api, c.C, c.CLen, int(c.Level))
+	api.AssertIsEqual(c.CChecksum, sum)
+
+	sum = compress.Checksum(api, c.D, c.DLen, int(c.Level))
+	api.AssertIsEqual(c.DChecksum, sum)
 
 	fmt.Println("decompressing")
 	dComputed := make([]frontend.Variable, len(c.D))
@@ -162,15 +157,4 @@ func check(s goCompress.Stream, padTo int) (checksum fr.Element, err error) {
 	csb := s.Checksum(hash.MIMC_BN254.New(), fr.Bits)
 	checksum.SetBytes(csb)
 	return
-}
-
-func checkSnark(api frontend.API, e []frontend.Variable, eLen, checksum frontend.Variable) error {
-	hsh, err := mimc.NewMiMC(api)
-	if err != nil {
-		return err
-	}
-	hsh.Write(e...)
-	hsh.Write(eLen)
-	api.AssertIsEqual(hsh.Sum(), checksum)
-	return nil
 }

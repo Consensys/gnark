@@ -3,6 +3,7 @@ package lzss
 import (
 	goCompress "github.com/consensys/compress"
 	"github.com/consensys/compress/lzss"
+	"github.com/consensys/gnark/std/compress"
 	"os"
 	"testing"
 
@@ -100,8 +101,7 @@ type checksumTestCircuit struct {
 }
 
 func (c *checksumTestCircuit) Define(api frontend.API) error {
-	if err := checkSnark(api, c.Inputs, len(c.Inputs), c.Sum); err != nil {
-		return err
-	}
+	sum := compress.Checksum(api, c.Inputs, len(c.Inputs), 8)
+	api.AssertIsEqual(c.Sum, sum)
 	return nil
 }
