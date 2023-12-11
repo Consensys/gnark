@@ -836,7 +836,10 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	zetaMPlusTwo = v.scalarApi.Mul(zetaMPlusTwo, zeta)
 	zetaMPlusTwoSquare := v.scalarApi.Mul(zetaMPlusTwo, zetaMPlusTwo)
 
-	foldedH := v.curve.JointScalarMul(&proof.H[2].G1El, &proof.H[1].G1El, zetaMPlusTwoSquare, zetaMPlusTwo)
+	foldedH, err := v.curve.MultiScalarMul([]*G1El{&proof.H[2].G1El, &proof.H[1].G1El}, []*emulated.Element[FR]{zetaMPlusTwoSquare, zetaMPlusTwo})
+	if err != nil {
+		return fmt.Errorf("folded proof MSM: %w", err)
+	}
 	foldedH = v.curve.Add(foldedH, &proof.H[0].G1El)
 
 	// Compute the commitment to the linearized polynomial
@@ -896,7 +899,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 		points[i] = &proof.Bsb22Commitments[i].G1El
 	}
 	points = append(points,
-		&vk.Qo.G1El,                  // first part
+		&vk.Ql.G1El, &vk.Qr.G1El, &vk.Qm.G1El, &vk.Qo.G1El, // first part
 		&vk.S[2].G1El, &proof.Z.G1El, // second & third part
 	)
 
@@ -904,8 +907,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	for i := range proof.BatchedProof.ClaimedValues[7:] {
 		qC[i] = &proof.BatchedProof.ClaimedValues[7+i]
 	}
+	rl := v.scalarApi.Mul(&r, &l)
 	scalars := append(qC,
-		&o,       // first part
+		&l, &r, rl, &o, // first part
 		_s1, _s2, // second & third part
 	)
 
@@ -914,13 +918,16 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 		return fmt.Errorf("linearized polynomial digest MSM: %w", err)
 	}
 
-	// special MSM of the form: [l](Ql + [r]Qm) + Qk + [r]Qr
-	p1, p2 := v.curve.SameScalarMul(&vk.Qr.G1El, &vk.Qm.G1El, &r)
-	p1 = v.curve.AddUnified(p1, &vk.Qk.G1El) // Qk=0 in PLONK W\ Commit?
-	p2 = v.curve.Add(p2, &vk.Ql.G1El)
-	p2 = v.curve.ScalarMul(p2, &l)
-	p2 = v.curve.Add(p2, p1)
-	linearizedPolynomialDigest = v.curve.Add(linearizedPolynomialDigest, p2)
+	linearizedPolynomialDigest = v.curve.AddUnified(linearizedPolynomialDigest, &vk.Qk.G1El)
+	/*
+		// special MSM of the form: [l](Ql + [r]Qm) + Qk + [r]Qr
+		p1, p2 := v.curve.SameScalarMul(&vk.Qr.G1El, &vk.Qm.G1El, &r)
+		p1 = v.curve.AddUnified(p1, &vk.Qk.G1El) // Qk=0 in PLONK W\ Commit?
+		p2 = v.curve.Add(p2, &vk.Ql.G1El)
+		p2 = v.curve.ScalarMul(p2, &l)
+		p2 = v.curve.Add(p2, p1)
+		linearizedPolynomialDigest = v.curve.Add(linearizedPolynomialDigest, p2)
+	*/
 
 	// Fold the first proof
 	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+7)

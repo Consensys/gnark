@@ -99,13 +99,13 @@ func (c *Curve) Neg(P *G1Affine) *G1Affine {
 	return res
 }
 
-// JointScalarMul computes s1*P+s2*P2 and returns the result. It doesn't modify the
+// jointScalarMul computes s1*P+s2*P2 and returns the result. It doesn't modify the
 // inputs.
-func (c *Curve) JointScalarMul(P1, P2 *G1Affine, s1, s2 *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
+func (c *Curve) jointScalarMul(P1, P2 *G1Affine, s1, s2 *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
 	res := &G1Affine{}
 	varScalar1 := c.packScalarToVar(s1)
 	varScalar2 := c.packScalarToVar(s2)
-	res.JointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2)
+	res.jointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2)
 	return res
 }
 
@@ -154,10 +154,10 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		if n%2 == 1 {
 			res = c.ScalarMul(P[n-1], scalars[n-1], opts...)
 		} else {
-			res = c.JointScalarMul(P[n-2], P[n-1], scalars[n-2], scalars[n-1], opts...)
+			res = c.jointScalarMul(P[n-2], P[n-1], scalars[n-2], scalars[n-1], opts...)
 		}
 		for i := 1; i < n-1; i += 2 {
-			q := c.JointScalarMul(P[i-1], P[i], scalars[i-1], scalars[i], opts...)
+			q := c.jointScalarMul(P[i-1], P[i], scalars[i-1], scalars[i], opts...)
 			res = c.Add(res, q)
 		}
 		return res, nil

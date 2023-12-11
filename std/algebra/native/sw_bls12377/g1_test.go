@@ -553,7 +553,7 @@ type g1JointScalarMul struct {
 
 func (circuit *g1JointScalarMul) Define(api frontend.API) error {
 	expected := G1Affine{}
-	expected.JointScalarMul(api, circuit.A, circuit.B, circuit.R, circuit.S)
+	expected.jointScalarMul(api, circuit.A, circuit.B, circuit.R, circuit.S)
 	expected.AssertIsEqual(api, circuit.C)
 	return nil
 }

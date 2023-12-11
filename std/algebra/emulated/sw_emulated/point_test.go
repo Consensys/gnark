@@ -956,38 +956,38 @@ func (c *MultiScalarMulTest[T, S]) Define(api frontend.API) error {
 func TestMultiScalarMul(t *testing.T) {
 	assert := test.NewAssert(t)
 	nbLen := 4
-	P := make([]secp256k1.G1Affine, nbLen)
-	S := make([]fr_secp.Element, nbLen)
+	P := make([]bw6761.G1Affine, nbLen)
+	S := make([]fr_bw6761.Element, nbLen)
 	for i := 0; i < nbLen; i++ {
 		S[i].SetRandom()
 		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
 	}
-	var res secp256k1.G1Affine
+	var res bw6761.G1Affine
 	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
 
 	assert.NoError(err)
-	cP := make([]AffinePoint[emulated.Secp256k1Fp], len(P))
+	cP := make([]AffinePoint[emulated.BW6761Fp], len(P))
 	for i := range cP {
-		cP[i] = AffinePoint[emparams.Secp256k1Fp]{
-			X: emulated.ValueOf[emparams.Secp256k1Fp](P[i].X),
-			Y: emulated.ValueOf[emparams.Secp256k1Fp](P[i].Y),
+		cP[i] = AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](P[i].X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](P[i].Y),
 		}
 	}
-	cS := make([]emulated.Element[emparams.Secp256k1Fr], len(S))
+	cS := make([]emulated.Element[emparams.BW6761Fr], len(S))
 	for i := range cS {
-		cS[i] = emulated.ValueOf[emparams.Secp256k1Fr](S[i])
+		cS[i] = emulated.ValueOf[emparams.BW6761Fr](S[i])
 	}
-	assignment := MultiScalarMulTest[emparams.Secp256k1Fp, emparams.Secp256k1Fr]{
+	assignment := MultiScalarMulTest[emparams.BW6761Fp, emparams.BW6761Fr]{
 		Points:  cP,
 		Scalars: cS,
-		Res: AffinePoint[emparams.Secp256k1Fp]{
-			X: emulated.ValueOf[emparams.Secp256k1Fp](res.X),
-			Y: emulated.ValueOf[emparams.Secp256k1Fp](res.Y),
+		Res: AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](res.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](res.Y),
 		},
 	}
-	err = test.IsSolved(&MultiScalarMulTest[emparams.Secp256k1Fp, emparams.P256Fr]{
-		Points:  make([]AffinePoint[emparams.Secp256k1Fp], nbLen),
-		Scalars: make([]emulated.Element[emparams.P256Fr], nbLen),
+	err = test.IsSolved(&MultiScalarMulTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  make([]AffinePoint[emparams.BW6761Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.BW6761Fr], nbLen),
 	}, &assignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
@@ -1053,7 +1053,7 @@ func (c *JointScalarMulTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.JointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2)
+	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2)
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -1146,7 +1146,7 @@ func (c *JointScalarMulGLVTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.JointScalarMulGLV(&c.P1, &c.P2, &c.S1, &c.S2)
+	res := cr.jointScalarMulGLV(&c.P1, &c.P2, &c.S1, &c.S2)
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }

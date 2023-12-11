@@ -520,7 +520,7 @@ func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affin
 }
 
 // P = [s]Q + [t]R using Shamir's trick
-func (P *G1Affine) JointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
+func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
 	sd, err := api.Compiler().NewHint(DecomposeScalarG1, 3, s)

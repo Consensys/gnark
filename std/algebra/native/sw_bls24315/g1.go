@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 )
 
 // G1Jac point in Jacobian coords
@@ -527,7 +528,7 @@ func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affin
 }
 
 // P = [s]Q + [t]R using Shamir's trick
-func (P *G1Affine) JointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
+func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
 	sd, err := api.Compiler().NewHint(DecomposeScalarG1, 3, s)
@@ -703,4 +704,65 @@ func SameScalarMul(api frontend.API, Q1, Q2 G1Affine, s frontend.Variable) (*G1A
 	Acc2.Select(api, s2bits[0], Acc2, tablePhiQ2[0])
 
 	return &Acc1, &Acc2
+}
+
+// scalarBitsMul...
+func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+	cc := getInnerCurveConfig(api.Compiler().Field())
+	nbits := cc.lambda.BitLen() + 1
+	var Acc /*accumulator*/, B, B2 /*tmp vars*/ G1Affine
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]G1Affine
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	cc.phi1(api, &tablePhiQ[1], &Q)
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+
+	// We now initialize the accumulator. Due to the way the scalar is
+	// decomposed, either the high bits of s1 or s2 are set and we can use the
+	// incomplete addition laws.
+
+	//     Acc = Q + Φ(Q)
+	Acc = tableQ[1]
+	Acc.AddAssign(api, tablePhiQ[1])
+
+	// However, we can not directly add step value conditionally as we may get
+	// to incomplete path of the addition formula. We either add or subtract
+	// step value from [2] Acc (instead of conditionally adding step value to
+	// Acc):
+	//     Acc = [2] (Q + Φ(Q)) ± Q ± Φ(Q)
+	// only y coordinate differs for negation, select on that instead.
+	B.X = tableQ[0].X
+	B.Y = api.Select(s1bits[nbits-1], tableQ[1].Y, tableQ[0].Y)
+	Acc.DoubleAndAdd(api, &Acc, &B)
+	B.X = tablePhiQ[0].X
+	B.Y = api.Select(s2bits[nbits-1], tablePhiQ[1].Y, tablePhiQ[0].Y)
+	Acc.AddAssign(api, B)
+
+	// second bit
+	B.X = tableQ[0].X
+	B.Y = api.Select(s1bits[nbits-2], tableQ[1].Y, tableQ[0].Y)
+	Acc.DoubleAndAdd(api, &Acc, &B)
+	B.X = tablePhiQ[0].X
+	B.Y = api.Select(s2bits[nbits-2], tablePhiQ[1].Y, tablePhiQ[0].Y)
+	Acc.AddAssign(api, B)
+
+	B2.X = tablePhiQ[0].X
+	for i := nbits - 3; i > 0; i-- {
+		B.X = Q.X
+		B.Y = api.Select(s1bits[i], tableQ[1].Y, tableQ[0].Y)
+		B2.Y = api.Select(s2bits[i], tablePhiQ[1].Y, tablePhiQ[0].Y)
+		B.AddAssign(api, B2)
+		Acc.DoubleAndAdd(api, &Acc, &B)
+	}
+
+	tableQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+
+	P.X = Acc.X
+	P.Y = Acc.Y
+
+	return P
 }

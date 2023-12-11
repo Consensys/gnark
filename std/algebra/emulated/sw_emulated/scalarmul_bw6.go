@@ -113,7 +113,7 @@ func (c *Curve[B, S]) ScalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 }
 
 // P = [s]Q + [t]R using Shamir's trick
-func (c *Curve[B, S]) JointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 
 	lambda := emulated.ValueOf[S]("80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945")
 	frModulus := emulated.ValueOf[S]("258664426012969094010652733694893533536393512754914660539884262666720468348340822774968888139573360124440321458177")

@@ -508,8 +508,8 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 	return R0
 }
 
-// JointScalarMul computes s1 * p1 + s2 * p2 and returns it. It doesn't modify the inputs.
-func (c *Curve[B, S]) JointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+// jointScalarMul computes s1 * p1 + s2 * p2 and returns it. It doesn't modify the inputs.
+func (c *Curve[B, S]) jointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	s1r := c.scalarApi.Reduce(s1)
 	s1Bits := c.scalarApi.ToBits(s1r)
 	s2r := c.scalarApi.Reduce(s2)
@@ -725,10 +725,10 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 		if n%2 == 1 {
 			res = c.ScalarMul(p[n-1], s[n-1], opts...)
 		} else {
-			res = c.JointScalarMulGLV(p[n-2], p[n-1], s[n-2], s[n-1], opts...)
+			res = c.jointScalarMulGLV(p[n-2], p[n-1], s[n-2], s[n-1], opts...)
 		}
 		for i := 1; i < n-1; i += 2 {
-			q := c.JointScalarMulGLV(p[i-1], p[i], s[i-1], s[i], opts...)
+			q := c.jointScalarMulGLV(p[i-1], p[i], s[i-1], s[i], opts...)
 			res = c.Add(res, q)
 		}
 		return res, nil

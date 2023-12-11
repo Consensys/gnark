@@ -99,13 +99,13 @@ func (c *Curve) Neg(P *G1Affine) *G1Affine {
 	return res
 }
 
-// JointScalarMul computes s1*P+s2*P2 and returns the result. It doesn't modify the
+// jointScalarMul computes s1*P+s2*P2 and returns the result. It doesn't modify the
 // inputs.
-func (c *Curve) JointScalarMul(P1, P2 *G1Affine, s1, s2 *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
+func (c *Curve) jointScalarMul(P1, P2 *G1Affine, s1, s2 *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
 	res := &G1Affine{}
 	varScalar1 := c.packScalarToVar(s1)
 	varScalar2 := c.packScalarToVar(s2)
-	res.JointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2)
+	res.jointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2)
 	return res
 }
 
@@ -134,7 +134,6 @@ func (c *Curve) ScalarMulBase(s *Scalar, opts ...algopts.AlgebraOption) *G1Affin
 // the inputs. It returns an error if there is a mismatch in the lengths of the
 // inputs.
 func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts.AlgebraOption) (*G1Affine, error) {
-
 	if len(P) == 0 {
 		return &G1Affine{
 			X: 0,
@@ -149,15 +148,17 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		if len(P) != len(scalars) {
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
 		}
-		res := c.ScalarMul(P[0], scalars[0])
-		for i := 1; i < len(P); i++ {
-			q := c.ScalarMul(P[i], scalars[i], opts...)
-
-			// check for infinity...
-			isInfinity := c.api.And(c.api.IsZero(P[i].X), c.api.IsZero(P[i].Y))
-			tmp := c.Add(res, q)
-			res.X = c.api.Select(isInfinity, res.X, tmp.X)
-			res.Y = c.api.Select(isInfinity, res.Y, tmp.Y)
+		// points and scalars must be non-zero
+		n := len(P)
+		res := &G1Affine{}
+		if n%2 == 1 {
+			res = c.ScalarMul(P[n-1], scalars[n-1], opts...)
+		} else {
+			res = c.jointScalarMul(P[n-2], P[n-1], scalars[n-2], scalars[n-1], opts...)
+		}
+		for i := 1; i < n-1; i += 2 {
+			q := c.jointScalarMul(P[i-1], P[i], scalars[i-1], scalars[i], opts...)
+			res = c.Add(res, q)
 		}
 		return res, nil
 	} else {
@@ -165,17 +166,28 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		if len(scalars) == 0 {
 			return nil, fmt.Errorf("need scalar for folding")
 		}
-		gamma := scalars[0]
-		res := c.ScalarMul(P[len(P)-1], gamma, opts...)
-		for i := len(P) - 2; i > 0; i-- {
-			isInfinity := c.api.And(c.api.IsZero(P[i].X), c.api.IsZero(P[i].Y))
-			tmp := c.Add(P[i], res)
-			res.X = c.api.Select(isInfinity, res.X, tmp.X)
-			res.Y = c.api.Select(isInfinity, res.Y, tmp.Y)
-			res = c.ScalarMul(res, gamma, opts...)
+		gamma := c.packScalarToVar(scalars[0])
+		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
+		cc := getInnerCurveConfig(c.api.Compiler().Field())
+		sd, err := c.api.Compiler().NewHint(DecomposeScalarG1, 3, gamma)
+		if err != nil {
+			panic(err)
 		}
-		res = c.Add(P[0], res)
-		return res, nil
+		gamma1, gamma2 := sd[0], sd[1]
+		c.api.AssertIsEqual(c.api.Add(gamma1, c.api.Mul(gamma2, cc.lambda)), c.api.Add(gamma, c.api.Mul(cc.fr, sd[2])))
+		nbits := cc.lambda.BitLen() + 1
+		gamma1Bits := c.api.ToBinary(gamma1, nbits)
+		gamma2Bits := c.api.ToBinary(gamma2, nbits)
+
+		// points and scalars must be non-zero
+		var res G1Affine
+		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits)
+		for i := len(P) - 2; i > 0; i-- {
+			res = *c.Add(P[i], &res)
+			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits)
+		}
+		res = *c.Add(P[0], &res)
+		return &res, nil
 	}
 }
 
