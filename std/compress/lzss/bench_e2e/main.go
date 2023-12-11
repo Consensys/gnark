@@ -73,16 +73,15 @@ func main() {
 
 	// setup
 	fmt.Println("setup")
-	resetTimer()
 	ckzg, lkzg, err := unsafekzg.NewSRS(cs)
 	checkError(err)
 
 	pk, _, err := plonk.Setup(cs, ckzg, lkzg)
 	checkError(err)
+	resetTimer()
 
 	// proof
 	fmt.Println("proof")
-	resetTimer()
 
 	cSum, err := lzss.StreamChecksum(cStream, cStream.Len())
 	checkError(err)
@@ -106,4 +105,5 @@ func main() {
 
 	_, err = plonk.Prove(cs, pk, wt)
 	checkError(err)
+	resetTimer()
 }
