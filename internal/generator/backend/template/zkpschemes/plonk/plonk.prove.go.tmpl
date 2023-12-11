@@ -203,6 +203,10 @@ type instance struct {
 	chFoldedH,
 	chNumeratorInit,
 	chGammaBeta chan struct{}
+
+	domain0, domain1 *fft.Domain
+
+	trace Trace
 }
 
 func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts *backend.ProverConfig) (*instance, error) {
@@ -236,26 +240,66 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	s.setupGKRHints()
 	s.x = make([]*iop.Polynomial, id_Qci+2*len(s.commitmentInfo))
 
+	// init fft domains
+	nbConstraints := spr.GetNbConstraints()
+	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
+	s.domain0 =  fft.NewDomain(sizeSystem)
+
+	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
+	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
+	// except when n<6.
+	if sizeSystem < 6 {
+		s.domain1 = fft.NewDomain(8 * sizeSystem)
+	} else {
+		s.domain1 = fft.NewDomain(4 * sizeSystem)
+	}
+
+	// build trace
+	BuildTrace(spr, &s.trace)
+
+	// step 3: build the permutation and build the polynomials S1, S2, S3 to encode the permutation.
+	// Note: at this stage, the permutation takes in account the placeholders
+	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
+	buildPermutation(spr, &s.trace, nbVariables)
+	ps := computePermutationPolynomials(&s.trace, s.domain0)
+	s.trace.S1 = ps[0]
+	s.trace.S2 = ps[1]
+	s.trace.S3 = ps[2]
+
+
+	s.trace.Ql.ToCanonical(s.domain0).ToRegular()
+	s.trace.Qr.ToCanonical(s.domain0).ToRegular()
+	s.trace.Qm.ToCanonical(s.domain0).ToRegular()
+	s.trace.Qo.ToCanonical(s.domain0).ToRegular()
+	s.trace.Qk.ToCanonical(s.domain0).ToRegular() // -> qk is not complete
+	s.trace.S1.ToCanonical(s.domain0).ToRegular()
+	s.trace.S2.ToCanonical(s.domain0).ToRegular()
+	s.trace.S3.ToCanonical(s.domain0).ToRegular()
+
+	for i := range s.trace.Qcp {
+		s.trace.Qcp[i].ToCanonical(s.domain0).ToRegular()
+	}
+
 	return &s, nil
 }
 
 func (s *instance) initComputeNumerator() error {
-	n := s.pk.Domain[0].Cardinality
-	s.cres = make([]fr.Element, s.pk.Domain[1].Cardinality)
+	n := s.domain0.Cardinality
+	s.cres = make([]fr.Element, s.domain1.Cardinality)
 	s.twiddles0 = make([]fr.Element, n)
 	if n == 1 {
 		// edge case
 		s.twiddles0[0].SetOne()
 	} else {
-		copy(s.twiddles0, s.pk.Domain[0].Twiddles[0])
-		for i := len(s.pk.Domain[0].Twiddles[0]); i < len(s.twiddles0); i++ {
+		copy(s.twiddles0, s.domain0.Twiddles[0])
+		for i := len(s.domain0.Twiddles[0]); i < len(s.twiddles0); i++ {
 			s.twiddles0[i].Mul(&s.twiddles0[i-1], &s.twiddles0[1])
 		}
 	}
 	
 
-	cosetTable := s.pk.Domain[0].CosetTable
-	twiddles := s.pk.Domain[1].Twiddles[0][:n]
+	cosetTable := s.domain0.CosetTable
+	twiddles := s.domain1.Twiddles[0][:n]
 
 	s.cosetTableRev = make([]fr.Element, len(cosetTable))
 	copy(s.cosetTableRev, cosetTable)
@@ -299,7 +343,7 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	res := &s.commitmentVal[commDepth]
 
 	commitmentInfo := s.spr.CommitmentInfo.(constraint.PlonkCommitments)[commDepth]
-	committedValues := make([]fr.Element, s.pk.Domain[0].Cardinality)
+	committedValues := make([]fr.Element, s.domain0.Cardinality)
 	offset := s.spr.GetNbPublicVariables()
 	for i := range ins {
 		committedValues[offset+commitmentInfo.Committed[i]].SetBigInt(ins[i])
@@ -314,7 +358,7 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
 		return err
 	}
-	s.cCommitments[commDepth].ToCanonical(&s.pk.Domain[0]).ToRegular()
+	s.cCommitments[commDepth].ToCanonical(s.domain0).ToRegular()
 	
 	s.htfFunc.Write(s.proof.Bsb22Commitments[commDepth].Marshal())
 	hashBts := s.htfFunc.Sum(nil)
@@ -373,7 +417,7 @@ func (s *instance) solveConstraints() error {
 }
 
 func (s *instance) completeQk() error {
-	qk := s.pk.trace.Qk.Clone().ToLagrange(&s.pk.Domain[0]).ToRegular()
+	qk := s.trace.Qk.Clone().ToLagrange(s.domain0).ToRegular()
 	qkCoeffs := qk.Coefficients()
 
 	wWitness, ok := s.fullWitness.Vector().(fr.Vector)
@@ -472,7 +516,7 @@ func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G
 	commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange)
 
 	// we add in the blinding contribution
-	n := int(s.pk.Domain[0].Cardinality)
+	n := int(s.domain0.Cardinality)
 	cb := commitBlindingFactor(n, b, s.pk.Kzg)
 	commit.Add(&commit, &cb)
 
@@ -497,19 +541,19 @@ func (s *instance) deriveZeta() (err error) {
 // evaluateConstraints computes H
 func (s *instance) evaluateConstraints() (err error) {
 	// clone polys from the proving key.
-	s.x[id_Ql] = s.pk.trace.Ql.Clone()
-	s.x[id_Qr] = s.pk.trace.Qr.Clone()
-	s.x[id_Qm] = s.pk.trace.Qm.Clone()
-	s.x[id_Qo] = s.pk.trace.Qo.Clone()
-	s.x[id_S1] = s.pk.trace.S1.Clone()
-	s.x[id_S2] = s.pk.trace.S2.Clone()
-	s.x[id_S3] = s.pk.trace.S3.Clone()
+	s.x[id_Ql] = s.trace.Ql.Clone()
+	s.x[id_Qr] = s.trace.Qr.Clone()
+	s.x[id_Qm] = s.trace.Qm.Clone()
+	s.x[id_Qo] = s.trace.Qo.Clone()
+	s.x[id_S1] = s.trace.S1.Clone()
+	s.x[id_S2] = s.trace.S2.Clone()
+	s.x[id_S3] = s.trace.S3.Clone()
 
 	for i := 0; i < len(s.commitmentInfo); i++ {
-		s.x[id_Qci+2*i] = s.pk.trace.Qcp[i].Clone()
+		s.x[id_Qci+2*i] = s.trace.Qcp[i].Clone()
 	}
 
-	n := s.pk.Domain[0].Cardinality
+	n := s.domain0.Cardinality
 	lone := make([]fr.Element, n)
 	lone[0].SetOne()
 
@@ -549,7 +593,7 @@ func (s *instance) evaluateConstraints() (err error) {
 		return err
 	}
 
-	s.h, err = divideByXMinusOne(numerator, [2]*fft.Domain{&s.pk.Domain[0], &s.pk.Domain[1]})
+	s.h, err = divideByXMinusOne(numerator, [2]*fft.Domain{s.domain0, s.domain1})
 	if err != nil {
 		return err
 	}
@@ -591,11 +635,11 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 			s.x[id_R],
 			s.x[id_O],
 		},
-		s.pk.trace.S,
+		s.trace.S,
 		s.beta,
 		s.gamma,
 		iop.Form{Basis: iop.Lagrange, Layout: iop.Regular},
-		&s.pk.Domain[0],
+		s.domain0,
 	)
 	if err != nil {
 		return err
@@ -630,17 +674,17 @@ func (s *instance) openZ() (err error) {
 }
 
 func (s *instance) h1() []fr.Element {
-	h1 := s.h.Coefficients()[:s.pk.Domain[0].Cardinality+2]
+	h1 := s.h.Coefficients()[:s.domain0.Cardinality+2]
 	return h1
 }
 
 func (s *instance) h2() []fr.Element {
-	h2 := s.h.Coefficients()[s.pk.Domain[0].Cardinality+2 : 2*(s.pk.Domain[0].Cardinality+2)]
+	h2 := s.h.Coefficients()[s.domain0.Cardinality+2 : 2*(s.domain0.Cardinality+2)]
 	return h2
 }
 
 func (s *instance) h3() []fr.Element {
-	h3 := s.h.Coefficients()[2*(s.pk.Domain[0].Cardinality+2) : 3*(s.pk.Domain[0].Cardinality+2)]
+	h3 := s.h.Coefficients()[2*(s.domain0.Cardinality+2) : 3*(s.domain0.Cardinality+2)]
 	return h3
 }
 
@@ -653,7 +697,7 @@ func (s *instance) foldH() error {
 	case <-s.chH:
 	}
 	var n big.Int
-	n.SetUint64(s.pk.Domain[0].Cardinality + 2)
+	n.SetUint64(s.domain0.Cardinality + 2)
 
 	var zetaPowerNplusTwo fr.Element
 	zetaPowerNplusTwo.Exp(s.zeta, &n)
@@ -669,7 +713,7 @@ func (s *instance) foldH() error {
 	h2 := s.h2()
 	s.foldedH = s.h3()
 
-	for i := 0; i < int(s.pk.Domain[0].Cardinality)+2; i++ {
+	for i := 0; i < int(s.domain0.Cardinality)+2; i++ {
 		s.foldedH[i].
 			Mul(&s.foldedH[i], &zetaPowerNplusTwo).
 			Add(&s.foldedH[i], &h2[i]).
@@ -698,7 +742,7 @@ func (s *instance) computeLinearizedPolynomial() error {
 
 	for i := 0; i < len(s.commitmentInfo); i++ {
 		go func(i int) {
-			qcpzeta[i] = s.pk.trace.Qcp[i].Evaluate(s.zeta)
+			qcpzeta[i] = s.trace.Qcp[i].Evaluate(s.zeta)
 			wg.Done()
 		}(i)
 	}
@@ -728,7 +772,7 @@ func (s *instance) computeLinearizedPolynomial() error {
 
 	wg.Wait()
 
-	s.linearizedPolynomial = computeLinearizedPolynomial(
+	s.linearizedPolynomial = s.computeLinearizedPolynomial2(
 		blzeta,
 		brzeta,
 		bozeta,
@@ -753,7 +797,7 @@ func (s *instance) computeLinearizedPolynomial() error {
 }
 
 func (s *instance) batchOpening() error {
-	polysQcp := coefficients(s.pk.trace.Qcp)
+	polysQcp := coefficients(s.trace.Qcp)
 	polysToOpen := make([][]fr.Element, 7+len(polysQcp))
 	copy(polysToOpen[7:], polysQcp)
 
@@ -783,8 +827,8 @@ func (s *instance) batchOpening() error {
 	polysToOpen[2] = getBlindedCoefficients(s.x[id_L], s.bp[id_Bl])
 	polysToOpen[3] = getBlindedCoefficients(s.x[id_R], s.bp[id_Br])
 	polysToOpen[4] = getBlindedCoefficients(s.x[id_O], s.bp[id_Bo])
-	polysToOpen[5] = s.pk.trace.S1.Coefficients()
-	polysToOpen[6] = s.pk.trace.S2.Coefficients()
+	polysToOpen[5] = s.trace.S1.Coefficients()
+	polysToOpen[6] = s.trace.S2.Coefficients()
 
 	digestsToOpen := make([]curve.G1Affine, len(s.pk.Vk.Qcp)+7)
 	copy(digestsToOpen[7:], s.pk.Vk.Qcp)
@@ -821,7 +865,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	case <-s.chQk:
 	}
 
-	n := s.pk.Domain[0].Cardinality
+	n := s.domain0.Cardinality
 
 	nbBsbGates := (len(s.x) - id_Qci + 1) >> 1
 
@@ -846,7 +890,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 
 	var cs, css fr.Element
-	cs.Set(&s.pk.Domain[1].FrMultiplicativeGen)
+	cs.Set(&s.domain1.FrMultiplicativeGen)
 	css.Square(&cs)
 
 	orderingConstraint := func(u ...fr.Element) fr.Element {
@@ -878,11 +922,11 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		return res
 	}
 
-	rho := int(s.pk.Domain[1].Cardinality / n)
+	rho := int(s.domain1.Cardinality / n)
 	shifters := make([]fr.Element, rho)
-	shifters[0].Set(&s.pk.Domain[1].FrMultiplicativeGen)
+	shifters[0].Set(&s.domain1.FrMultiplicativeGen)
 	for i := 1; i < rho; i++ {
-		shifters[i].Set(&s.pk.Domain[1].Generator)
+		shifters[i].Set(&s.domain1.Generator)
 	}
 
 	// stores the current coset shifter
@@ -896,8 +940,8 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	// wait for init go routine
 	<-s.chNumeratorInit
 
-	cosetTable := s.pk.Domain[0].CosetTable
-	twiddles := s.pk.Domain[1].Twiddles[0][:n]
+	cosetTable := s.domain0.CosetTable
+	twiddles := s.domain1.Twiddles[0][:n]
 
 	// init the result polynomial & buffer
 	cres := s.cres
@@ -953,7 +997,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	// pre-computed to compute the bit reverse index
 	// of the result polynomial
-	m := uint64(s.pk.Domain[1].Cardinality)
+	m := uint64(s.domain1.Cardinality)
 	mm := uint64(64 - bits.TrailingZeros64(m))
 
 	for i := 0; i < rho; i++ {
@@ -979,7 +1023,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		batchApply(s.x, func(p *iop.Polynomial) {
 			nbTasks := calculateNbTasks(len(s.x)-1) * 2
 			// shift polynomials to be in the correct coset
-			p.ToCanonical(&s.pk.Domain[0], nbTasks)
+			p.ToCanonical(s.domain0, nbTasks)
 
 			// scale by shifter[i]
 			w := selectScalingVector(i, p.Layout)
@@ -992,7 +1036,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			}, nbTasks)
 
 			// fft in the correct coset
-			p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
+			p.ToLagrange(s.domain0, nbTasks).ToRegular()
 		})
 
 		wgBuf.Wait()
@@ -1037,7 +1081,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		cs.Inverse(&cs)
 
 		batchApply(s.x[:id_ZS], func(p *iop.Polynomial) {
-			p.ToCanonical(&s.pk.Domain[0], 8).ToRegular()
+			p.ToCanonical(s.domain0, 8).ToRegular()
 			scalePowers(p, cs)
 		})
 
@@ -1265,8 +1309,8 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 // α²*L₁(ζ)*Z(X)
 // + α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*Z(μζ)*s3(X) - Z(X)*(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ))
 // + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X)
-func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta, blindedZCanonical []fr.Element, pi2Canonical [][]fr.Element, pk *ProvingKey) []fr.Element {
-
+func (s *instance) computeLinearizedPolynomial2(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta, blindedZCanonical []fr.Element, pi2Canonical [][]fr.Element, pk *ProvingKey) []fr.Element {
+	// TODO @gbotrel rename
 	// first part: individual constraints
 	var rl fr.Element
 	rl.Mul(&rZeta, &lZeta)
@@ -1276,12 +1320,12 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	var s1, s2 fr.Element
 	chS1 := make(chan struct{}, 1)
 	go func() {
-		s1 = pk.trace.S1.Evaluate(zeta)                      // s1(ζ)
+		s1 = s.trace.S1.Evaluate(zeta)                      // s1(ζ)
 		s1.Mul(&s1, &beta).Add(&s1, &lZeta).Add(&s1, &gamma) // (l(ζ)+β*s1(ζ)+γ)
 		close(chS1)
 	}()
 	// ps2 := iop.NewPolynomial(&pk.S2Canonical, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
-	tmp := pk.trace.S2.Evaluate(zeta)                        // s2(ζ)
+	tmp := s.trace.S2.Evaluate(zeta)                        // s2(ζ)
 	tmp.Mul(&tmp, &beta).Add(&tmp, &rZeta).Add(&tmp, &gamma) // (r(ζ)+β*s2(ζ)+γ)
 	<-chS1
 	s1.Mul(&s1, &tmp).Mul(&s1, &zu).Mul(&s1, &beta) // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*β*Z(μζ)
@@ -1300,7 +1344,7 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	// third part L₁(ζ)*α²*Z
 	var lagrangeZeta, one, den, frNbElmt fr.Element
 	one.SetOne()
-	nbElmt := int64(pk.Domain[0].Cardinality)
+	nbElmt := int64(s.domain0.Cardinality)
 	lagrangeZeta.Set(&zeta).
 		Exp(lagrangeZeta, big.NewInt(nbElmt)).
 		Sub(&lagrangeZeta, &one)
@@ -1310,17 +1354,17 @@ func computeLinearizedPolynomial(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, 
 	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ⁻¹)/(ζ-1)
 						Mul(&lagrangeZeta, &alpha).
 						Mul(&lagrangeZeta, &alpha).
-						Mul(&lagrangeZeta, &pk.Domain[0].CardinalityInv) // (1/n)*α²*L₁(ζ)
+						Mul(&lagrangeZeta, &s.domain0.CardinalityInv) // (1/n)*α²*L₁(ζ)
 
-	s3canonical := pk.trace.S3.Coefficients()
+	s3canonical := s.trace.S3.Coefficients()
 
 	utils.Parallelize(len(blindedZCanonical), func(start, end int) {
 
-		cql := pk.trace.Ql.Coefficients()
-		cqr := pk.trace.Qr.Coefficients()
-		cqm := pk.trace.Qm.Coefficients()
-		cqo := pk.trace.Qo.Coefficients()
-		cqk := pk.trace.Qk.Coefficients()
+		cql := s.trace.Ql.Coefficients()
+		cqr := s.trace.Qr.Coefficients()
+		cqm := s.trace.Qm.Coefficients()
+		cqo := s.trace.Qo.Coefficients()
+		cqk := s.trace.Qk.Coefficients()
 
 		var t, t0, t1 fr.Element
 

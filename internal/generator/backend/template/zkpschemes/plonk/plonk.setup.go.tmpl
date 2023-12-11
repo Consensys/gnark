@@ -74,7 +74,7 @@ type ProvingKey struct {
 	// for computing the opening proofs (hence the canonical form). The canonical version
 	// of qk incomplete is used in the linearisation polynomial.
 	// The polynomials in trace are in canonical basis.
-	trace Trace
+	// trace Trace
 
 	Kzg, KzgLagrange kzg.ProvingKey
 
@@ -84,7 +84,7 @@ type ProvingKey struct {
 	// Domains used for the FFTs.
 	// Domain[0] = small Domain
 	// Domain[1] = big Domain
-	Domain [2]fft.Domain
+	// Domain [2]fft.Domain
 }
 
 // TODO modify the signature to receive the SRS in Lagrange form (optional argument ?)
@@ -96,26 +96,26 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 	vk.CommitmentConstraintIndexes = internal.IntSliceToUint64Slice(spr.CommitmentInfo.CommitmentIndexes())
 
 	// step 0: set the fft domains
-	pk.initDomains(spr)
-	if pk.Domain[0].Cardinality < 2 {
+	domain := initFFTDomain(spr)
+	if domain.Cardinality < 2 {
 		return nil, nil, fmt.Errorf("circuit has only %d constraints; unsupported by the current implementation", spr.GetNbConstraints())
 	}
 
 	// check the size of the kzg srs.
-	if len(srs.Pk.G1) < (int(pk.Domain[0].Cardinality) + 3) { // + 3 for the kzg.Open of blinded poly
-		return nil, nil, fmt.Errorf("kzg srs is too small: got %d, need %d", len(srs.Pk.G1), pk.Domain[0].Cardinality+3)
+	if len(srs.Pk.G1) < (int(domain.Cardinality) + 3) { // + 3 for the kzg.Open of blinded poly
+		return nil, nil, fmt.Errorf("kzg srs is too small: got %d, need %d", len(srs.Pk.G1), domain.Cardinality+3)
 	}
 
 	// same for the lagrange form
-	if len(srsLagrange.Pk.G1) != int(pk.Domain[0].Cardinality) {
-		return nil, nil, fmt.Errorf("kzg srs lagrange is too small: got %d, need %d", len(srsLagrange.Pk.G1), pk.Domain[0].Cardinality)
+	if len(srsLagrange.Pk.G1) != int(domain.Cardinality) {
+		return nil, nil, fmt.Errorf("kzg srs lagrange is too small: got %d, need %d", len(srsLagrange.Pk.G1), domain.Cardinality)
 	}
 
 	// step 1: set the verifying key
-	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
-	vk.Size = pk.Domain[0].Cardinality
+	vk.CosetShift.Set(&domain.FrMultiplicativeGen)
+	vk.Size = domain.Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
-	vk.Generator.Set(&pk.Domain[0].Generator)
+	vk.Generator.Set(&domain.Generator)
 	vk.NbPublicVariables = uint64(len(spr.Public))
 
 	pk.Kzg.G1 = srs.Pk.G1[:int(vk.Size)+3]
@@ -123,22 +123,24 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 	vk.Kzg = srs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
-	BuildTrace(spr, &pk.trace)
+	var trace Trace
+	// TODO @gbotrel make into NewTrace
+	BuildTrace(spr, &trace)
 
 	// step 3: build the permutation and build the polynomials S1, S2, S3 to encode the permutation.
 	// Note: at this stage, the permutation takes in account the placeholders
 	nbVariables := spr.NbInternalVariables + len(spr.Public) + len(spr.Secret)
-	buildPermutation(spr, &pk.trace, nbVariables)
-	s := computePermutationPolynomials(&pk.trace, &pk.Domain[0])
-	pk.trace.S1 = s[0]
-	pk.trace.S2 = s[1]
-	pk.trace.S3 = s[2]
+	buildPermutation(spr, &trace, nbVariables)
+	s := computePermutationPolynomials(&trace, domain)
+	trace.S1 = s[0]
+	trace.S2 = s[1]
+	trace.S3 = s[2]
 
 	// step 4: commit to s1, s2, s3, ql, qr, qm, qo, and (the incomplete version of) qk.
 	// All the above polynomials are expressed in canonical basis afterwards. This is why
 	// we save lqk before, because the prover needs to complete it in Lagrange form, and
 	// then express it on the Lagrange coset basis.
-	if err := commitTrace(&pk.trace, &pk); err != nil {
+	if err := vk.commitTrace(&trace, domain, pk.Kzg); err != nil {
 		return nil, nil, err
 	}
 
@@ -211,66 +213,66 @@ func BuildTrace(spr *cs.SparseR1CS, pt *Trace) {
 
 // commitTrace commits to every polynomial in the trace, and put
 // the commitments int the verifying key.
-func commitTrace(trace *Trace, pk *ProvingKey) error {
+func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.ProvingKey) error {
 
-	trace.Ql.ToCanonical(&pk.Domain[0]).ToRegular()
-	trace.Qr.ToCanonical(&pk.Domain[0]).ToRegular()
-	trace.Qm.ToCanonical(&pk.Domain[0]).ToRegular()
-	trace.Qo.ToCanonical(&pk.Domain[0]).ToRegular()
-	trace.Qk.ToCanonical(&pk.Domain[0]).ToRegular() // -> qk is not complete
-	trace.S1.ToCanonical(&pk.Domain[0]).ToRegular()
-	trace.S2.ToCanonical(&pk.Domain[0]).ToRegular()
-	trace.S3.ToCanonical(&pk.Domain[0]).ToRegular()
+	trace.Ql.ToCanonical(domain).ToRegular()
+	trace.Qr.ToCanonical(domain).ToRegular()
+	trace.Qm.ToCanonical(domain).ToRegular()
+	trace.Qo.ToCanonical(domain).ToRegular()
+	trace.Qk.ToCanonical(domain).ToRegular() // -> qk is not complete
+	trace.S1.ToCanonical(domain).ToRegular()
+	trace.S2.ToCanonical(domain).ToRegular()
+	trace.S3.ToCanonical(domain).ToRegular()
 
 	var err error
-	pk.Vk.Qcp = make([]kzg.Digest, len(trace.Qcp))
+	vk.Qcp = make([]kzg.Digest, len(trace.Qcp))
 	for i := range trace.Qcp {
-		trace.Qcp[i].ToCanonical(&pk.Domain[0]).ToRegular()
-		if pk.Vk.Qcp[i], err = kzg.Commit(pk.trace.Qcp[i].Coefficients(), pk.Kzg); err != nil {
+		trace.Qcp[i].ToCanonical(domain).ToRegular()
+		if vk.Qcp[i], err = kzg.Commit(trace.Qcp[i].Coefficients(), srsPk); err != nil {
 			return err
 		}
 	}
-	if pk.Vk.Ql, err = kzg.Commit(pk.trace.Ql.Coefficients(), pk.Kzg); err != nil {
+	if vk.Ql, err = kzg.Commit(trace.Ql.Coefficients(), srsPk); err != nil {
 		return err
 	}
-	if pk.Vk.Qr, err = kzg.Commit(pk.trace.Qr.Coefficients(), pk.Kzg); err != nil {
+	if vk.Qr, err = kzg.Commit(trace.Qr.Coefficients(), srsPk); err != nil {
 		return err
 	}
-	if pk.Vk.Qm, err = kzg.Commit(pk.trace.Qm.Coefficients(), pk.Kzg); err != nil {
+	if vk.Qm, err = kzg.Commit(trace.Qm.Coefficients(), srsPk); err != nil {
 		return err
 	}
-	if pk.Vk.Qo, err = kzg.Commit(pk.trace.Qo.Coefficients(), pk.Kzg); err != nil {
+	if vk.Qo, err = kzg.Commit(trace.Qo.Coefficients(), srsPk); err != nil {
 		return err
 	}
-	if pk.Vk.Qk, err = kzg.Commit(pk.trace.Qk.Coefficients(), pk.Kzg); err != nil {
+	if vk.Qk, err = kzg.Commit(trace.Qk.Coefficients(), srsPk); err != nil {
 		return err
 	}
-	if pk.Vk.S[0], err = kzg.Commit(pk.trace.S1.Coefficients(), pk.Kzg); err != nil {
+	if vk.S[0], err = kzg.Commit(trace.S1.Coefficients(), srsPk); err != nil {
 		return err
 	}
-	if pk.Vk.S[1], err = kzg.Commit(pk.trace.S2.Coefficients(), pk.Kzg); err != nil {
+	if vk.S[1], err = kzg.Commit(trace.S2.Coefficients(), srsPk); err != nil {
 		return err
 	}
-	if pk.Vk.S[2], err = kzg.Commit(pk.trace.S3.Coefficients(), pk.Kzg); err != nil {
+	if vk.S[2], err = kzg.Commit(trace.S3.Coefficients(), srsPk); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (pk *ProvingKey) initDomains(spr *cs.SparseR1CS) {
+func initFFTDomain(spr *cs.SparseR1CS) *fft.Domain {
 
 	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
-	pk.Domain[0] = *fft.NewDomain(sizeSystem)
+	return fft.NewDomain(sizeSystem)
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
 	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
 	// except when n<6.
-	if sizeSystem < 6 {
-		pk.Domain[1] = *fft.NewDomain(8 * sizeSystem)
-	} else {
-		pk.Domain[1] = *fft.NewDomain(4 * sizeSystem)
-	}
+	// if sizeSystem < 6 {
+	// 	pk.Domain[1] = *fft.NewDomain(8 * sizeSystem)
+	// } else {
+	// 	pk.Domain[1] = *fft.NewDomain(4 * sizeSystem)
+	// }
 
 }
 
