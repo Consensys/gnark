@@ -103,7 +103,6 @@ func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS,
 			return
 		} else {
 			log.Debug().Str("key", key).Err(err).Msg("SRS not found in fs cache")
-			panic(err)
 		}
 	}
 
