@@ -16,6 +16,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 //-----------------------------------------------------------------
@@ -35,9 +36,10 @@ func (c *InnerCircuitNativeWoCommit) Define(api frontend.API) error {
 func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, plonk.VerifyingKey, witness.Witness, plonk.Proof) {
 	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitNativeWoCommit{})
 	assert.NoError(err)
-	srs, err := test.NewKZGSRS(innerCcs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
 	assert.NoError(err)
-	innerPK, innerVK, err := plonk.Setup(innerCcs, srs)
+
+	innerPK, innerVK, err := plonk.Setup(innerCcs, srs, srsLagrange)
 	assert.NoError(err)
 
 	// inner proof
@@ -157,10 +159,10 @@ func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.Cons
 	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitCommit{})
 	assert.NoError(err)
 
-	srs, err := test.NewKZGSRS(innerCcs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
 	assert.NoError(err)
 
-	innerPK, innerVK, err := plonk.Setup(innerCcs, srs)
+	innerPK, innerVK, err := plonk.Setup(innerCcs, srs, srsLagrange)
 	assert.NoError(err)
 
 	// inner proof

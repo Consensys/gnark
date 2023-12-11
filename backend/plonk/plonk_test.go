@@ -15,6 +15,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/test"
+	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,14 +30,14 @@ func TestProver(t *testing.T) {
 			var b1, b2 bytes.Buffer
 			assert := require.New(t)
 
-			ccs, _solution, srs := referenceCircuit(curve)
+			ccs, _solution, srs, srsLagrange := referenceCircuit(curve)
 			fullWitness, err := frontend.NewWitness(_solution, curve.ScalarField())
 			assert.NoError(err)
 
 			publicWitness, err := fullWitness.Public()
 			assert.NoError(err)
 
-			pk, vk, err := plonk.Setup(ccs, srs)
+			pk, vk, err := plonk.Setup(ccs, srs, srsLagrange)
 			assert.NoError(err)
 
 			// write the PK to ensure it is not mutated
@@ -75,9 +76,10 @@ func TestCustomHashToField(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &commitmentCircuit{})
 			assert.NoError(err)
-			srs, err := test.NewKZGSRS(ccs)
+			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			assert.NoError(err)
-			pk, vk, err := plonk.Setup(ccs, srs)
+
+			pk, vk, err := plonk.Setup(ccs, srs, srsLagrange)
 			assert.NoError(err)
 			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
 			assert.NoError(err)
@@ -114,9 +116,10 @@ func TestCustomChallengeHash(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &smallCircuit{})
 			assert.NoError(err)
-			srs, err := test.NewKZGSRS(ccs)
+			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			assert.NoError(err)
-			pk, vk, err := plonk.Setup(ccs, srs)
+
+			pk, vk, err := plonk.Setup(ccs, srs, srsLagrange)
 			assert.NoError(err)
 			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
 			assert.NoError(err)
@@ -156,9 +159,10 @@ func TestCustomKZGFoldingHash(t *testing.T) {
 		assert.Run(func(assert *test.Assert) {
 			ccs, err := frontend.Compile(curve.ScalarField(), scs.NewBuilder, &smallCircuit{})
 			assert.NoError(err)
-			srs, err := test.NewKZGSRS(ccs)
+			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			assert.NoError(err)
-			pk, vk, err := plonk.Setup(ccs, srs)
+
+			pk, vk, err := plonk.Setup(ccs, srs, srsLagrange)
 			assert.NoError(err)
 			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
 			assert.NoError(err)
@@ -193,10 +197,10 @@ func TestCustomKZGFoldingHash(t *testing.T) {
 func BenchmarkSetup(b *testing.B) {
 	for _, curve := range getCurves() {
 		b.Run(curve.String(), func(b *testing.B) {
-			ccs, _, srs := referenceCircuit(curve)
+			ccs, _, srs, srsLagrange := referenceCircuit(curve)
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, _, _ = plonk.Setup(ccs, srs)
+				_, _, _ = plonk.Setup(ccs, srs, srsLagrange)
 			}
 		})
 	}
@@ -205,12 +209,12 @@ func BenchmarkSetup(b *testing.B) {
 func BenchmarkProver(b *testing.B) {
 	for _, curve := range getCurves() {
 		b.Run(curve.String(), func(b *testing.B) {
-			ccs, _solution, srs := referenceCircuit(curve)
+			ccs, _solution, srs, srsLagrange := referenceCircuit(curve)
 			fullWitness, err := frontend.NewWitness(_solution, curve.ScalarField())
 			if err != nil {
 				b.Fatal(err)
 			}
-			pk, _, err := plonk.Setup(ccs, srs)
+			pk, _, err := plonk.Setup(ccs, srs, srsLagrange)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -225,7 +229,7 @@ func BenchmarkProver(b *testing.B) {
 func BenchmarkVerifier(b *testing.B) {
 	for _, curve := range getCurves() {
 		b.Run(curve.String(), func(b *testing.B) {
-			ccs, _solution, srs := referenceCircuit(curve)
+			ccs, _solution, srs, srsLagrange := referenceCircuit(curve)
 			fullWitness, err := frontend.NewWitness(_solution, curve.ScalarField())
 			if err != nil {
 				b.Fatal(err)
@@ -235,7 +239,7 @@ func BenchmarkVerifier(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			pk, vk, err := plonk.Setup(ccs, srs)
+			pk, vk, err := plonk.Setup(ccs, srs, srsLagrange)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -266,7 +270,7 @@ func (circuit *refCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circuit, kzg.SRS) {
+func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circuit, kzg.SRS, kzg.SRS) {
 	const nbConstraints = (1 << 12) - 3
 	circuit := refCircuit{
 		nbConstraints: nbConstraints,
@@ -286,11 +290,11 @@ func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circu
 	expectedY.Exp(expectedY, exp, curve.ScalarField())
 
 	good.Y = expectedY
-	srs, err := test.NewKZGSRS(ccs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 	if err != nil {
 		panic(err)
 	}
-	return ccs, &good, srs
+	return ccs, &good, srs, srsLagrange
 }
 
 type commitmentCircuit struct {
