@@ -289,19 +289,6 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	s.trace.S2 = ps[1]
 	s.trace.S3 = ps[2]
 
-	s.trace.Ql.ToCanonical(s.domain0).ToRegular()
-	s.trace.Qr.ToCanonical(s.domain0).ToRegular()
-	s.trace.Qm.ToCanonical(s.domain0).ToRegular()
-	s.trace.Qo.ToCanonical(s.domain0).ToRegular()
-	s.trace.Qk.ToCanonical(s.domain0).ToRegular() // -> qk is not complete
-	s.trace.S1.ToCanonical(s.domain0).ToRegular()
-	s.trace.S2.ToCanonical(s.domain0).ToRegular()
-	s.trace.S3.ToCanonical(s.domain0).ToRegular()
-
-	for i := range s.trace.Qcp {
-		s.trace.Qcp[i].ToCanonical(s.domain0).ToRegular()
-	}
-
 	return &s, nil
 }
 
@@ -438,7 +425,7 @@ func (s *instance) solveConstraints() error {
 }
 
 func (s *instance) completeQk() error {
-	qk := s.trace.Qk.Clone().ToLagrange(s.domain0).ToRegular()
+	qk := s.trace.Qk.Clone() //.ToLagrange(s.domain0).ToRegular()
 	qkCoeffs := qk.Coefficients()
 
 	wWitness, ok := s.fullWitness.Vector().(fr.Vector)
@@ -562,16 +549,16 @@ func (s *instance) deriveZeta() (err error) {
 // evaluateConstraints computes H
 func (s *instance) evaluateConstraints() (err error) {
 	// clone polys from the proving key.
-	s.x[id_Ql] = s.trace.Ql.Clone()
-	s.x[id_Qr] = s.trace.Qr.Clone()
-	s.x[id_Qm] = s.trace.Qm.Clone()
-	s.x[id_Qo] = s.trace.Qo.Clone()
-	s.x[id_S1] = s.trace.S1.Clone()
-	s.x[id_S2] = s.trace.S2.Clone()
-	s.x[id_S3] = s.trace.S3.Clone()
+	s.x[id_Ql] = s.trace.Ql //.Clone()
+	s.x[id_Qr] = s.trace.Qr //.Clone()
+	s.x[id_Qm] = s.trace.Qm //.Clone()
+	s.x[id_Qo] = s.trace.Qo //.Clone()
+	s.x[id_S1] = s.trace.S1 //.Clone()
+	s.x[id_S2] = s.trace.S2 //.Clone()
+	s.x[id_S3] = s.trace.S3 //.Clone()
 
 	for i := 0; i < len(s.commitmentInfo); i++ {
-		s.x[id_Qci+2*i] = s.trace.Qcp[i].Clone()
+		s.x[id_Qci+2*i] = s.trace.Qcp[i] //.Clone()
 	}
 
 	n := s.domain0.Cardinality
@@ -586,7 +573,7 @@ func (s *instance) evaluateConstraints() (err error) {
 	}
 
 	for i := 0; i < len(s.commitmentInfo); i++ {
-		s.x[id_Qci+2*i+1] = s.cCommitments[i].Clone()
+		s.x[id_Qci+2*i+1] = s.cCommitments[i] //.Clone()
 	}
 
 	// wait for Z to be committed or context done
@@ -818,9 +805,6 @@ func (s *instance) computeLinearizedPolynomial() error {
 }
 
 func (s *instance) batchOpening() error {
-	polysQcp := coefficients(s.trace.Qcp)
-	polysToOpen := make([][]fr.Element, 7+len(polysQcp))
-	copy(polysToOpen[7:], polysQcp)
 
 	// wait for LRO to be committed (or ctx.Done())
 	select {
@@ -842,6 +826,10 @@ func (s *instance) batchOpening() error {
 		return errContextDone
 	case <-s.chLinearizedPolynomial:
 	}
+
+	polysQcp := coefficients(s.trace.Qcp)
+	polysToOpen := make([][]fr.Element, 7+len(polysQcp))
+	copy(polysToOpen[7:], polysQcp)
 
 	polysToOpen[0] = s.foldedH
 	polysToOpen[1] = s.linearizedPolynomial
@@ -1089,9 +1077,10 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	// scale everything back
 	go func() {
-		for i := id_ZS; i < len(s.x); i++ {
-			s.x[i] = nil
-		}
+		s.x[id_ID] = nil
+		s.x[id_LOne] = nil
+		s.x[id_ZS] = nil
+		s.x[id_Qk] = nil
 
 		var cs fr.Element
 		cs.Set(&shifters[0])
@@ -1100,7 +1089,10 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 		cs.Inverse(&cs)
 
-		batchApply(s.x[:id_ZS], func(p *iop.Polynomial) {
+		batchApply(s.x, func(p *iop.Polynomial) {
+			if p == nil {
+				return
+			}
 			p.ToCanonical(s.domain0, 8).ToRegular()
 			scalePowers(p, cs)
 		})
@@ -1377,6 +1369,8 @@ func (s *instance) computeLinearizedPolynomial2(lZeta, rZeta, oZeta, alpha, beta
 						Mul(&lagrangeZeta, &s.domain0.CardinalityInv) // (1/n)*α²*L₁(ζ)
 
 	s3canonical := s.trace.S3.Coefficients()
+
+	s.trace.Qk.ToCanonical(s.domain0).ToRegular()
 
 	utils.Parallelize(len(blindedZCanonical), func(start, end int) {
 
