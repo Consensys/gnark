@@ -46,13 +46,13 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	cStream, err := goCompress.NewStream(c, uint8(level))
 	assert.NoError(t, err)
 
-	cWords, cSum, err := compress.ToSnarkData(cStream, level, wordNbBits*cStream.Len(), curveId)
+	cWords, cSum, err := compress.ToSnarkData(curveId, cStream, wordNbBits*cStream.Len(), level)
 	assert.NoError(t, err)
 
 	dStream, err := goCompress.NewStream(d, 8)
 	assert.NoError(t, err)
 
-	dWords, dSum, err := compress.ToSnarkData(dStream, level, 8*len(d), curveId)
+	dWords, dSum, err := compress.ToSnarkData(curveId, dStream, 8*len(d), level)
 	assert.NoError(t, err)
 
 	circuit := compressionCircuit{
@@ -77,19 +77,27 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(curveId))
 }
 
-func TestChecksum0(t *testing.T) {
-	testChecksumUnpaddedBytes(t, goCompress.Stream{D: []int{}, NbSymbs: 256})
+func TestChecksumNothing(t *testing.T) {
+	testChecksum(t, goCompress.Stream{D: []int{}, NbSymbs: 256}, 0, lzss.BestSnarkDecompression)
 }
 
-func testChecksumUnpaddedBytes(t *testing.T, d goCompress.Stream) {
-	const curveId = ecc.BLS12_377
-	const level = lzss.BestSnarkDecompression
+func TestChecksumOne(t *testing.T) {
+	testChecksum(t, goCompress.Stream{D: []int{1}, NbSymbs: 256}, 8, lzss.BestSnarkDecompression)
+}
 
-	words, checksum, err := compress.ToSnarkData(d, level, 8*d.Len(), curveId)
+func TestChecksumOneWithBits(t *testing.T) {
+	testChecksum(t, goCompress.Stream{D: []int{1}, NbSymbs: 256}, 9, lzss.BestCompression)
+}
+
+func testChecksum(t *testing.T, d goCompress.Stream, paddedNbBits int, level lzss.Level) {
+	const curveId = ecc.BLS12_377
+
+	words, checksum, err := compress.ToSnarkData(curveId, d, paddedNbBits, level)
 	assert.NoError(t, err)
 
 	circuit := checksumTestCircuit{
-		Inputs: make([]frontend.Variable, len(words)),
+		Inputs:  make([]frontend.Variable, len(words)),
+		WordLen: int(level),
 	}
 
 	assignment := checksumTestCircuit{
@@ -105,10 +113,11 @@ type checksumTestCircuit struct {
 	Inputs   []frontend.Variable
 	InputLen frontend.Variable
 	Sum      frontend.Variable
+	WordLen  int
 }
 
 func (c *checksumTestCircuit) Define(api frontend.API) error {
-	sum := compress.Checksum(api, c.Inputs, c.InputLen, 8)
+	sum := compress.Checksum(api, c.Inputs, c.InputLen, c.WordLen)
 	api.AssertIsEqual(c.Sum, sum)
 	return nil
 }

@@ -28,18 +28,19 @@ func Checksum(api frontend.API, words []frontend.Variable, nbWords frontend.Vari
 
 func pack(api frontend.API, words []frontend.Variable, wordLen int) []frontend.Variable {
 	wordsPerElem := (api.Compiler().FieldBitLen() - 1) / wordLen
-	res := make([]frontend.Variable, (len(words)+wordsPerElem-1)/wordsPerElem)
-	for elemI := range res {
-		res[elemI] = 0
-		for wordI := 0; wordI < wordsPerElem; wordI++ {
-			absWordI := elemI*wordsPerElem + wordI
-			if absWordI >= len(words) {
-				break
+	packed := make([]frontend.Variable, (len(words)+wordsPerElem-1)/wordsPerElem)
+	radix := 1 << wordLen
+	for i := range packed {
+		packed[i] = 0
+		for j := wordsPerElem - 1; j >= 0; j-- {
+			absJ := i*wordsPerElem + j
+			if absJ >= len(words) {
+				continue
 			}
-			res[elemI] = api.Add(res[elemI], api.Mul(words[absWordI], 1<<uint(wordLen*wordI)))
+			packed[i] = api.Add(words[absJ], api.Mul(packed[i], radix))
 		}
 	}
-	return res
+	return packed
 }
 
 type NumReader struct {
@@ -91,7 +92,7 @@ func (nr *NumReader) Next() frontend.Variable {
 }
 
 // ToSnarkData breaks a stream up into words of the right size for snark consumption, and computes the checksum of that data in a way congruent with Checksum
-func ToSnarkData(s compress.Stream, level lzss.Level, paddedNbBits int, curveId ecc.ID) (words []frontend.Variable, checksum []byte, err error) {
+func ToSnarkData(curveId ecc.ID, s compress.Stream, paddedNbBits int, level lzss.Level) (words []frontend.Variable, checksum []byte, err error) {
 
 	wordNbBits := int(level)
 
