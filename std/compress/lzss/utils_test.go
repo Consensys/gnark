@@ -40,20 +40,3 @@ func (c *readBytesCircuit) Define(api frontend.API) error {
 	}
 	return nil
 }
-
-func TestChecksumBls12_377(t *testing.T) {
-
-}
-
-/*
-type checksumCircuit struct {
-	C        []frontend.Variable
-	Checksum frontend.Variable
-	WordLen  int
-}
-
-func (c *checksumCircuit) Define(api frontend.API) error {
-	cPacked := compress.Pack(api, c.C, c.WordLen)
-
-}
-*/
