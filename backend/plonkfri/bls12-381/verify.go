@@ -385,7 +385,7 @@ func completeQk(publicWitness []fr.Element, vk *VerifyingKey, zeta fr.Element) f
 		acc.Mul(&acc, &vk.Generator)
 		tmp.Sub(&zeta, &acc)
 		// if tmp==0, then zeta=vk.Generator**i, so l_i(zeta)=1. We need
-		// to manually set the value to 1, exacty as in the case l_0 before
+		// to manually set the value to 1, exactly as in the case l_0 before
 		// the loop, otherwise the generic formula leads to a division by zero.
 		if tmp.IsZero() {
 			l.SetOne()
