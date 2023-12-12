@@ -68,7 +68,13 @@ func getInnerCircuitData(circuit frontend.Circuit) (constraint.ConstraintSystem,
 }
 
 // get proofs
-func getProofsWitnesses(assert *test.Assert, ccs constraint.ConstraintSystem, nbInstances int, pk native_plonk.ProvingKey, vk native_plonk.VerifyingKey, logExpo int) ([]native_plonk.Proof, []witness.Witness) {
+func getProofsWitnesses(
+	assert *test.Assert,
+	ccs constraint.ConstraintSystem,
+	nbInstances int,
+	pk native_plonk.ProvingKey,
+	vk native_plonk.VerifyingKey,
+	logExpo int) ([]native_plonk.Proof, []witness.Witness) {
 
 	proofs := make([]native_plonk.Proof, nbInstances)
 	witnesses := make([]witness.Witness, nbInstances)
@@ -185,7 +191,7 @@ func TestBatchVerify(t *testing.T) {
 		sw_bls12377.GT](
 		assert,
 		batchSizeProofs,
-		frHashPub.String(),
+		// frHashPub.String(),
 		witnesses,
 		vk,
 		proofs,
@@ -228,5 +234,93 @@ func TestBatchVerify(t *testing.T) {
 }
 
 func TestBatchVerifyBis(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	numberOfCircuits := 5
+	curLogExp := 4
+	curBatchSize := 5
+
+	// assignment
+	var fullAssignment BatchVerifyCircuits[
+		sw_bls12377.ScalarField,
+		sw_bls12377.G1Affine,
+		sw_bls12377.G2Affine,
+		sw_bls12377.GT]
+	fullAssignment.Circuits = make(
+		[]BatchVerifyCircuit[sw_bls12377.ScalarField,
+			sw_bls12377.G1Affine,
+			sw_bls12377.G2Affine,
+			sw_bls12377.GT],
+		curBatchSize,
+	)
+
+	// circuit
+	var fullCircuit BatchVerifyCircuits[
+		sw_bls12377.ScalarField,
+		sw_bls12377.G1Affine,
+		sw_bls12377.G2Affine,
+		sw_bls12377.GT]
+	fullCircuit.Circuits = make(
+		[]BatchVerifyCircuit[sw_bls12377.ScalarField,
+			sw_bls12377.G1Affine,
+			sw_bls12377.G2Affine,
+			sw_bls12377.GT],
+		curBatchSize,
+	)
+	for curCircuit := 0; curCircuit < numberOfCircuits; curCircuit++ {
+
+		// get ccs, vk, pk, srs
+		var ic1 InnerCircuit
+		ic1.LogExpo = curLogExp
+		innerCcs, vk, pk, _ := getInnerCircuitData(&ic1)
+
+		// get tuples (proof, public_witness)
+		proofs, witnesses := getProofsWitnesses(assert, innerCcs, curBatchSize, pk, vk, ic1.LogExpo)
+
+		// hash public inputs of the inner proofs
+		// h, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
+		// assert.NoError(err)
+		// for i := 0; i < batchSizeProofs; i++ {
+		// 	vec := witnesses[i].Vector()
+		// 	tvec := vec.(fr_bls12377.Vector)
+		// 	for j := 0; j < len(tvec); j++ {
+		// 		h.Write(tvec[j].Marshal())
+		// 	}
+		// }
+		// hashPub := h.Sum(nil)
+		// var frHashPub fr_bw6761.Element
+		// frHashPub.SetBytes(hashPub)
+
+		// outer circuit
+		fullCircuit.Circuits[curCircuit] = InstantiateOuterCircuit[
+			sw_bls12377.ScalarField,
+			sw_bls12377.G1Affine,
+			sw_bls12377.G2Affine,
+			sw_bls12377.GT](
+			assert,
+			curBatchSize,
+			witnesses,
+			innerCcs,
+		)
+
+		// witness assignment
+		fullAssignment.Circuits[curCircuit] = AssignWitness[sw_bls12377.ScalarField,
+			sw_bls12377.G1Affine,
+			sw_bls12377.G2Affine,
+			sw_bls12377.GT](
+			assert,
+			curBatchSize,
+			// frHashPub.String(),
+			witnesses,
+			vk,
+			proofs,
+			// selectors,
+		)
+
+		// change the circuit and the batch size
+		curLogExp++
+		curBatchSize++
+	}
 
 }
