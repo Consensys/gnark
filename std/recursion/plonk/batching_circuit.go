@@ -146,3 +146,41 @@ func AssignWitness[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 
 	return outerAssignment
 }
+
+//------------------------------------------------------
+// Batching different circuits
+
+type BatchVerifyCircuits[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	Circuits   []BatchVerifyCircuit[FR, G1El, G2El, GtEl]
+	HashPublic frontend.Variable `gnark:",public"`
+}
+
+func (circuit *BatchVerifyCircuits[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+
+	// get Plonk verifier
+	curve, err := algebra.GetCurve[FR, G1El](api)
+	if err != nil {
+		return err
+	}
+
+	// check that hash(PublicInnters)==HashPub
+	var fr FR
+	h, err := recursion.NewHash(api, fr.Modulus(), true)
+	if err != nil {
+		return err
+	}
+
+	for k := 0; k < len(circuit.Circuits); k++ {
+		for i := 0; i < len(circuit.Circuits[k].PublicInners); i++ {
+			for j := 0; j < len(circuit.Circuits[k].PublicInners[i].Public); j++ {
+				toHash := curve.MarshalScalar(circuit.Circuits[k].PublicInners[i].Public[j])
+				h.Write(toHash...)
+			}
+		}
+	}
+
+	s := h.Sum()
+	api.AssertIsEqual(s, circuit.HashPublic)
+
+	return nil
+}
