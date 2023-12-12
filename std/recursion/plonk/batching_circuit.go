@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/std/algebra"
 	gnark_kzg "github.com/consensys/gnark/std/commitments/kzg"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 )
 
@@ -150,29 +151,29 @@ type BatchVerifyCircuits[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 func (circuit *BatchVerifyCircuits[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
 	// get Plonk verifier
-	// curve, err := algebra.GetCurve[FR, G1El](api)
-	// if err != nil {
-	// 	return err
-	// }
+	curve, err := algebra.GetCurve[FR, G1El](api)
+	if err != nil {
+		return err
+	}
 
 	// check that hash(PublicInnters)==HashPub
-	// var fr FR
-	// h, err := recursion.NewHash(api, fr.Modulus(), true)
-	// if err != nil {
-	// 	return err
-	// }
+	var fr FR
+	h, err := recursion.NewHash(api, fr.Modulus(), true)
+	if err != nil {
+		return err
+	}
 
-	// for k := 0; k < len(circuit.Circuits); k++ {
-	// 	for i := 0; i < len(circuit.Circuits[k].PublicInners); i++ {
-	// 		for j := 0; j < len(circuit.Circuits[k].PublicInners[i].Public); j++ {
-	// 			toHash := curve.MarshalScalar(circuit.Circuits[k].PublicInners[i].Public[j])
-	// 			h.Write(toHash...)
-	// 		}
-	// 	}
-	// }
+	for curCircuit := 0; curCircuit < len(circuit.Circuits); curCircuit++ {
+		for i := 0; i < len(circuit.Circuits[curCircuit].PublicInners); i++ {
+			for j := 0; j < len(circuit.Circuits[curCircuit].PublicInners[i].Public); j++ {
+				toHash := curve.MarshalScalar(circuit.Circuits[curCircuit].PublicInners[i].Public[j])
+				h.Write(toHash...)
+			}
+		}
+	}
 
-	// s := h.Sum()
-	// api.AssertIsEqual(s, circuit.HashPublic)
+	s := h.Sum()
+	api.AssertIsEqual(s, circuit.HashPublic)
 
 	// run the verifiers
 	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
