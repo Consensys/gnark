@@ -459,13 +459,13 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 // ScalarMul computes s * p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
-// ScalarMul calls scalarMulGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
+// ScalarMul calls ScalarMulGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	if c.params.Lambda != nil && c.params.ThirdRootOneG1 != nil {
 		return c.scalarMulGLV(p, s, opts...)
 
 	} else {
-		return c.scalarMulGeneric(p, s, opts...)
+		return c.ScalarMulGeneric(p, s, opts...)
 
 	}
 }
@@ -525,7 +525,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	return &Acc
 }
 
-// scalarMulgeneric computes s * p and returns it. It doesn't modify p nor s.
+// ScalarMulGeneric computes s * p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
 // ✅ p can can be (0,0) and s can be 0.
@@ -544,7 +544,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 // [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
-func (c *Curve[B, S]) scalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+func (c *Curve[B, S]) ScalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
