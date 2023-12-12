@@ -11,7 +11,6 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
@@ -295,82 +294,4 @@ func TestBLS12381InBN254Commit(t *testing.T) {
 	}
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
-}
-
-// bench
-func BenchmarkPlonkVerifierChain(b *testing.B) {
-
-	field := ecc.BLS12_377.ScalarField()
-	outer := ecc.BW6_761.ScalarField()
-	innerCcs, _ := frontend.Compile(field, scs.NewBuilder, &InnerCircuitCommit{})
-
-	srs, _ := test.NewKZGSRS(innerCcs)
-
-	innerPK, innerVK, _ := plonk.Setup(innerCcs, srs)
-
-	// inner proof
-	innerAssignment := &InnerCircuitCommit{
-		P: 3,
-		Q: 5,
-		N: 15,
-	}
-	innerWitness, _ := frontend.NewWitness(innerAssignment, field)
-	innerProof, _ := plonk.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
-
-	innerPubWitness, _ := innerWitness.Public()
-	_ = plonk.Verify(innerProof, innerVK, innerPubWitness, GetNativeVerifierOptions(outer, field))
-
-	// outer proof
-	circuitVk, _ := ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerVK)
-	circuitWitness, _ := ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
-	circuitProof, _ := ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
-
-	c := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		InnerWitness: circuitWitness,
-		Proof:        circuitProof,
-		VerifyingKey: circuitVk,
-	}
-
-	p := profile.Start()
-	_, _ = frontend.Compile(outer, scs.NewBuilder, c)
-	p.Stop()
-	fmt.Println(p.NbConstraints())
-
-}
-
-func BenchmarkPlonkVerifierEmulated(b *testing.B) {
-
-	field := ecc.BW6_761.ScalarField()
-	outer := ecc.BN254.ScalarField()
-	innerCcs, _ := frontend.Compile(field, scs.NewBuilder, &InnerCircuitCommit{})
-
-	srs, _ := test.NewKZGSRS(innerCcs)
-
-	innerPK, innerVK, _ := plonk.Setup(innerCcs, srs)
-
-	// inner proof
-	innerAssignment := &InnerCircuitCommit{
-		P: 3,
-		Q: 5,
-		N: 15,
-	}
-	innerWitness, _ := frontend.NewWitness(innerAssignment, field)
-	innerProof, _ := plonk.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
-
-	// outer proof
-	circuitVk, _ := ValueOfVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerVK)
-	circuitWitness, _ := ValueOfWitness[sw_bw6761.ScalarField](innerWitness)
-	circuitProof, _ := ValueOfProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerProof)
-
-	c := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
-		InnerWitness: circuitWitness,
-		Proof:        circuitProof,
-		VerifyingKey: circuitVk,
-	}
-
-	p := profile.Start()
-	_, _ = frontend.Compile(outer, scs.NewBuilder, c)
-	p.Stop()
-	fmt.Println(p.NbConstraints())
-
 }
