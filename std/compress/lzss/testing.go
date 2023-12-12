@@ -131,7 +131,7 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 	sum := compress.Checksum(api, c.C, c.CLen, int(c.Level))
 	api.AssertIsEqual(c.CChecksum, sum)
 
-	sum = compress.Checksum(api, c.D, c.DLen, int(c.Level))
+	sum = compress.Checksum(api, c.D, c.DLen, 8)
 	api.AssertIsEqual(c.DChecksum, sum)
 
 	fmt.Println("decompressing")

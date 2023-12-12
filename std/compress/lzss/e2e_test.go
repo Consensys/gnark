@@ -34,7 +34,7 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	// compress
 
 	level := lzss.GoodCompression
-	wordNbBits := 63 - bits.LeadingZeros64(uint64(level))
+	wordNbBits := int(level)
 	const curveId = ecc.BLS12_377
 
 	compressor, err := lzss.NewCompressor(dict, level)
@@ -43,7 +43,7 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	c, err := compressor.Compress(d)
 	assert.NoError(t, err)
 
-	cStream, err := goCompress.NewStream(c, uint8(level))
+	cStream, err := goCompress.NewStream(c, uint8(wordNbBits))
 	assert.NoError(t, err)
 
 	cWords, cSum, err := compress.ToSnarkData(curveId, cStream, wordNbBits*cStream.Len(), level)
@@ -52,7 +52,7 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	dStream, err := goCompress.NewStream(d, 8)
 	assert.NoError(t, err)
 
-	dWords, dSum, err := compress.ToSnarkData(curveId, dStream, 8*len(d), level)
+	dWords, dSum, err := compress.ToSnarkData(curveId, dStream, len(d)*8, 8)
 	assert.NoError(t, err)
 
 	circuit := compressionCircuit{
