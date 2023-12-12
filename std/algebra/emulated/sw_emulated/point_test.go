@@ -3,7 +3,6 @@ package sw_emulated
 import (
 	"crypto/elliptic"
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -19,8 +18,6 @@ import (
 	fp_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -719,7 +716,7 @@ func (c *ScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMul(&c.P, &c.S)
+	res := cr.scalarMulGeneric(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -1003,7 +1000,7 @@ func (c *ScalarMulTestBounded[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMul(&c.P, &c.S, algopts.WithNbScalarBits(c.bits))
+	res := cr.scalarMulGeneric(&c.P, &c.S, algopts.WithNbScalarBits(c.bits))
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }
@@ -1067,10 +1064,11 @@ func TestJointScalarMul6(t *testing.T) {
 	s2 := new(big.Int)
 	r1.BigInt(s1)
 	r2.BigInt(s2)
-	var res, tmp bw6761.G1Affine
-	_, _, gen, _ := bw6761.Generators()
-	tmp.ScalarMultiplication(&gen, s1)
-	res.ScalarMultiplication(&gen, s2)
+	var res, tmp, gen2 bw6761.G1Affine
+	_, _, gen1, _ := bw6761.Generators()
+	gen2.Double(&gen1)
+	tmp.ScalarMultiplication(&gen1, s1)
+	res.ScalarMultiplication(&gen2, s2)
 	res.Add(&res, &tmp)
 
 	circuit := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
@@ -1078,12 +1076,12 @@ func TestJointScalarMul6(t *testing.T) {
 		S1: emulated.ValueOf[emulated.BW6761Fr](s1),
 		S2: emulated.ValueOf[emulated.BW6761Fr](s2),
 		P1: AffinePoint[emulated.BW6761Fp]{
-			X: emulated.ValueOf[emulated.BW6761Fp](gen.X),
-			Y: emulated.ValueOf[emulated.BW6761Fp](gen.Y),
+			X: emulated.ValueOf[emulated.BW6761Fp](gen1.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen1.Y),
 		},
 		P2: AffinePoint[emulated.BW6761Fp]{
-			X: emulated.ValueOf[emulated.BW6761Fp](gen.X),
-			Y: emulated.ValueOf[emulated.BW6761Fp](gen.Y),
+			X: emulated.ValueOf[emulated.BW6761Fp](gen2.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen2.Y),
 		},
 		Q: AffinePoint[emulated.BW6761Fp]{
 			X: emulated.ValueOf[emulated.BW6761Fp](res.X),
@@ -1092,132 +1090,4 @@ func TestJointScalarMul6(t *testing.T) {
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
-}
-
-// BW6 GLV
-type ScalarMulGLVTest[T, S emulated.FieldParams] struct {
-	P, Q AffinePoint[T]
-	S    emulated.Element[S]
-}
-
-func (c *ScalarMulGLVTest[T, S]) Define(api frontend.API) error {
-	cr, err := New[T, S](api, GetCurveParams[T]())
-	if err != nil {
-		return err
-	}
-	res := cr.ScalarMulGLV(&c.P, &c.S)
-	cr.AssertIsEqual(res, &c.Q)
-	return nil
-}
-
-func TestScalarMulGLV(t *testing.T) {
-	assert := test.NewAssert(t)
-	var r fr_bw6761.Element
-	_, _ = r.SetRandom()
-	s := new(big.Int)
-	r.BigInt(s)
-	var res bw6761.G1Affine
-	_, _, gen, _ := bw6761.Generators()
-	res.ScalarMultiplication(&gen, s)
-
-	circuit := ScalarMulGLVTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
-	witness := ScalarMulGLVTest[emulated.BW6761Fp, emulated.BW6761Fr]{
-		S: emulated.ValueOf[emulated.BW6761Fr](s),
-		P: AffinePoint[emulated.BW6761Fp]{
-			X: emulated.ValueOf[emulated.BW6761Fp](gen.X),
-			Y: emulated.ValueOf[emulated.BW6761Fp](gen.Y),
-		},
-		Q: AffinePoint[emulated.BW6761Fp]{
-			X: emulated.ValueOf[emulated.BW6761Fp](res.X),
-			Y: emulated.ValueOf[emulated.BW6761Fp](res.Y),
-		},
-	}
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
-	assert.NoError(err)
-}
-
-type JointScalarMulGLVTest[T, S emulated.FieldParams] struct {
-	P1, P2, Q AffinePoint[T]
-	S1, S2    emulated.Element[S]
-}
-
-func (c *JointScalarMulGLVTest[T, S]) Define(api frontend.API) error {
-	cr, err := New[T, S](api, GetCurveParams[T]())
-	if err != nil {
-		return err
-	}
-	res := cr.jointScalarMulGLV(&c.P1, &c.P2, &c.S1, &c.S2)
-	cr.AssertIsEqual(res, &c.Q)
-	return nil
-}
-
-func TestJointScalarMulGLV6(t *testing.T) {
-	assert := test.NewAssert(t)
-	var r1, r2 fr_bw6761.Element
-	_, _ = r1.SetRandom()
-	_, _ = r2.SetRandom()
-	s1 := new(big.Int)
-	s2 := new(big.Int)
-	r1.BigInt(s1)
-	r2.BigInt(s2)
-	var res, tmp, Q, R bw6761.G1Affine
-	_, _, gen, _ := bw6761.Generators()
-	Q.Set(&gen)
-	R.Double(&gen)
-	tmp.ScalarMultiplication(&Q, s1)
-	res.ScalarMultiplication(&R, s2)
-	res.Add(&res, &tmp)
-
-	circuit := JointScalarMulGLVTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
-	witness := JointScalarMulGLVTest[emulated.BW6761Fp, emulated.BW6761Fr]{
-		S1: emulated.ValueOf[emulated.BW6761Fr](s1),
-		S2: emulated.ValueOf[emulated.BW6761Fr](s2),
-		P1: AffinePoint[emulated.BW6761Fp]{
-			X: emulated.ValueOf[emulated.BW6761Fp](Q.X),
-			Y: emulated.ValueOf[emulated.BW6761Fp](Q.Y),
-		},
-		P2: AffinePoint[emulated.BW6761Fp]{
-			X: emulated.ValueOf[emulated.BW6761Fp](R.X),
-			Y: emulated.ValueOf[emulated.BW6761Fp](R.Y),
-		},
-		Q: AffinePoint[emulated.BW6761Fp]{
-			X: emulated.ValueOf[emulated.BW6761Fp](res.X),
-			Y: emulated.ValueOf[emulated.BW6761Fp](res.Y),
-		},
-	}
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
-	assert.NoError(err)
-}
-
-// bench
-func BenchmarkScalarMulBW6(b *testing.B) {
-	c := ScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("BW6 scalar mul (scs): ", p.NbConstraints())
-}
-
-func BenchmarkScalarMulGLVBW6(b *testing.B) {
-	c := ScalarMulGLVTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("BW6 scalar mul GLV (scs): ", p.NbConstraints())
-}
-
-func BenchmarkJointScalarMulBW6(b *testing.B) {
-	c := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("BW6 joint scalar mul (scs): ", p.NbConstraints())
-}
-
-func BenchmarkJointScalarMulGLVBW6(b *testing.B) {
-	c := JointScalarMulGLVTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("BW6 joint scalar mul GLV (scs): ", p.NbConstraints())
 }

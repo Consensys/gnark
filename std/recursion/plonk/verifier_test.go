@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -34,10 +35,12 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	return err
 }
 
+/*
+TODO: Tests without api.Commit fail because the current optimized MultiScalarMul (JointScalarMul in particular) requires input points to be distinct.
+
 //-----------------------------------------------------------------
 // Without api.Commit
 
-/*
 type InnerCircuitNativeWoCommit struct {
 	P, Q frontend.Variable
 	N    frontend.Variable `gnark:",public"`
@@ -267,7 +270,6 @@ func TestBW6InBN254Commit(t *testing.T) {
 	assert.NoError(err)
 }
 
-/*
 func TestBLS12381InBN254Commit(t *testing.T) {
 
 	assert := test.NewAssert(t)
@@ -294,7 +296,6 @@ func TestBLS12381InBN254Commit(t *testing.T) {
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
-*/
 
 // bench
 func BenchmarkPlonkVerifierChain(b *testing.B) {

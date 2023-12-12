@@ -917,17 +917,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	if err != nil {
 		return fmt.Errorf("linearized polynomial digest MSM: %w", err)
 	}
-
-	linearizedPolynomialDigest = v.curve.AddUnified(linearizedPolynomialDigest, &vk.Qk.G1El)
-	/*
-		// special MSM of the form: [l](Ql + [r]Qm) + Qk + [r]Qr
-		p1, p2 := v.curve.SameScalarMul(&vk.Qr.G1El, &vk.Qm.G1El, &r)
-		p1 = v.curve.AddUnified(p1, &vk.Qk.G1El) // Qk=0 in PLONK W\ Commit?
-		p2 = v.curve.Add(p2, &vk.Ql.G1El)
-		p2 = v.curve.ScalarMul(p2, &l)
-		p2 = v.curve.Add(p2, p1)
-		linearizedPolynomialDigest = v.curve.Add(linearizedPolynomialDigest, p2)
-	*/
+	linearizedPolynomialDigest = v.curve.Add(linearizedPolynomialDigest, &vk.Qk.G1El) // Qk=0 in PLONK W\ Commit ==> use AddUnified
 
 	// Fold the first proof
 	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+7)
