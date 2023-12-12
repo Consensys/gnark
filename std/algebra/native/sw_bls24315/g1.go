@@ -582,8 +582,7 @@ func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 
 	// suppose first bit is 1 and set:
 	// Acc = Q + R + Φ(Q) + Φ(R)
-	var Acc G1Affine
-	Acc = tableS[1]
+	Acc := tableS[1]
 	Acc.AddAssign(api, tablePhiS[1])
 
 	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)

@@ -150,7 +150,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		}
 		// points and scalars must be non-zero
 		n := len(P)
-		res := &G1Affine{}
+		var res *G1Affine
 		if n%2 == 1 {
 			res = c.ScalarMul(P[n-1], scalars[n-1], opts...)
 		} else {

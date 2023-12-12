@@ -496,7 +496,6 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	tablePhiQ[0] = *c.Neg(&tablePhiQ[1])
 
 	// Acc = Q + Φ(Q)
-	Acc = tableQ[1]
 	Acc = *c.Add(&tableQ[1], &tablePhiQ[1])
 
 	s1 = c.scalarApi.Select(c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1)), s1, sd[3])
@@ -923,7 +922,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
 		}
 		n := len(p)
-		res := &AffinePoint[B]{}
+		var res *AffinePoint[B]
 		if n%2 == 1 {
 			res = c.ScalarMul(p[n-1], s[n-1], opts...)
 		} else {
