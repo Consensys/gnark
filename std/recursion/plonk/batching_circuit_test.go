@@ -240,7 +240,8 @@ func TestBatchVerify(t *testing.T) {
 		curBatchSize++
 	}
 
-	// finally we compute the
+	// finally we compute the public hash, which is the hash of every public inputs
+	// of the inner circuits
 	hashPub := h.Sum(nil)
 	var frHashPub fr_bw6761.Element
 	frHashPub.SetBytes(hashPub)
