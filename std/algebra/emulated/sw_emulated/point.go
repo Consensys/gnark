@@ -463,49 +463,52 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 // [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(fmt.Sprintf("parse opts: %v", err))
-	}
+	/*
+		cfg, err := algopts.NewConfig(opts...)
+		if err != nil {
+			panic(fmt.Sprintf("parse opts: %v", err))
+		}
 
-	// if p=(0,0) we assign a dummy (0,1) to p and continue
-	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
-	one := c.baseApi.One()
-	p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
+		// if p=(0,0) we assign a dummy (0,1) to p and continue
+		selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+		one := c.baseApi.One()
+		p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
 
-	var st S
-	sr := c.scalarApi.Reduce(s)
-	sBits := c.scalarApi.ToBits(sr)
-	n := st.Modulus().BitLen()
-	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
-		n = cfg.NbScalarBits
-	}
+		var st S
+		sr := c.scalarApi.Reduce(s)
+		sBits := c.scalarApi.ToBits(sr)
+		n := st.Modulus().BitLen()
+		if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
+			n = cfg.NbScalarBits
+		}
 
-	// i = 1
-	Rb := c.triple(p)
-	R0 := c.Select(sBits[1], Rb, p)
-	R1 := c.Select(sBits[1], p, Rb)
+		// i = 1
+		Rb := c.triple(p)
+		R0 := c.Select(sBits[1], Rb, p)
+		R1 := c.Select(sBits[1], p, Rb)
 
-	for i := 2; i < n-1; i++ {
-		Rb = c.doubleAndAddSelect(sBits[i], R0, R1)
-		R0 = c.Select(sBits[i], Rb, R0)
-		R1 = c.Select(sBits[i], R1, Rb)
-	}
+		for i := 2; i < n-1; i++ {
+			Rb = c.doubleAndAddSelect(sBits[i], R0, R1)
+			R0 = c.Select(sBits[i], Rb, R0)
+			R1 = c.Select(sBits[i], R1, Rb)
+		}
 
-	// i = n-1
-	Rb = c.doubleAndAddSelect(sBits[n-1], R0, R1)
-	R0 = c.Select(sBits[n-1], Rb, R0)
+		// i = n-1
+		Rb = c.doubleAndAddSelect(sBits[n-1], R0, R1)
+		R0 = c.Select(sBits[n-1], Rb, R0)
 
-	// i = 0
-	// we use AddUnified here instead of add so that when s=0, res=(0,0)
-	// because AddUnified(p, -p) = (0,0)
-	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
+		// i = 0
+		// we use AddUnified here instead of add so that when s=0, res=(0,0)
+		// because AddUnified(p, -p) = (0,0)
+		R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
 
-	// if p=(0,0), return (0,0)
-	zero := c.baseApi.Zero()
-	R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
+		// if p=(0,0), return (0,0)
+		zero := c.baseApi.Zero()
+		R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
 
-	return R0
+		return R0
+	*/
+	return c.ScalarMulGLV(p, s, opts...)
 }
 
 // jointScalarMul computes s1 * p1 + s2 * p2 and returns it. It doesn't modify the inputs.
@@ -520,15 +523,6 @@ func (c *Curve[B, S]) jointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.El
 
 	res = c.Add(res, tmp)
 	return res
-}
-
-func (c *Curve[B, S]) SameScalarMul(p1, p2 *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) (*AffinePoint[B], *AffinePoint[B]) {
-	sr := c.scalarApi.Reduce(s)
-	sBits := c.scalarApi.ToBits(sr)
-
-	res1 := c.scalarBitsMul(p1, sBits, opts...)
-	res2 := c.scalarBitsMul(p2, sBits, opts...)
-	return res1, res2
 }
 
 // scalarBitsMul computes s * p and returns it where sBits is the bit decomposition of s. It doesn't modify p nor sBits.
