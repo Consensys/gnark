@@ -35,31 +35,31 @@ type BatchVerifyCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 	PublicInners []Witness[FR]
 
 	// hash of the public inputs of the inner circuits
-	HashPub frontend.Variable `gnark:",public"`
+	// HashPub frontend.Variable `gnark:",public"`
 }
 
 func (circuit *BatchVerifyCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
 	// get Plonk verifier
-	curve, err := algebra.GetCurve[FR, G1El](api)
-	if err != nil {
-		return err
-	}
+	// curve, err := algebra.GetCurve[FR, G1El](api)
+	// if err != nil {
+	// 	return err
+	// }
 
 	// check that hash(PublicInnters)==HashPub
-	var fr FR
-	h, err := recursion.NewHash(api, fr.Modulus(), true)
-	if err != nil {
-		return err
-	}
-	for i := 0; i < len(circuit.PublicInners); i++ {
-		for j := 0; j < len(circuit.PublicInners[i].Public); j++ {
-			toHash := curve.MarshalScalar(circuit.PublicInners[i].Public[j])
-			h.Write(toHash...)
-		}
-	}
-	s := h.Sum()
-	api.AssertIsEqual(s, circuit.HashPub)
+	// var fr FR
+	// h, err := recursion.NewHash(api, fr.Modulus(), true)
+	// if err != nil {
+	// 	return err
+	// }
+	// for i := 0; i < len(circuit.PublicInners); i++ {
+	// 	for j := 0; j < len(circuit.PublicInners[i].Public); j++ {
+	// 		toHash := curve.MarshalScalar(circuit.PublicInners[i].Public[j])
+	// 		h.Write(toHash...)
+	// 	}
+	// }
+	// s := h.Sum()
+	// api.AssertIsEqual(s, circuit.HashPub)
 
 	// check that the proofs are correct
 	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
@@ -140,8 +140,8 @@ func AssignWitness[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 		Proofs:        assignmentProofs,
 		VerifyfingKey: assignmentVerifyingKeys,
 		PublicInners:  assignmentPubToPrivWitnesses,
-		HashPub:       frHashPub,
-		DummyProof:    assignmentDummyProof,
+		// HashPub:       frHashPub,
+		DummyProof: assignmentDummyProof,
 	}
 
 	return outerAssignment

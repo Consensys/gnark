@@ -20,18 +20,18 @@ import (
 )
 
 //------------------------------------------------------
-// inner circuits
-
 // inner circuit
-type InnerCircuit1 struct {
-	X frontend.Variable
-	Y frontend.Variable `gnark:",public"`
+
+type InnerCircuit struct {
+	X       frontend.Variable
+	Y       frontend.Variable `gnark:",public"`
+	LogExpo int
 }
 
-func (c *InnerCircuit1) Define(api frontend.API) error {
+func (c *InnerCircuit) Define(api frontend.API) error {
 	var res frontend.Variable
 	res = c.X
-	for i := 0; i < 5; i++ {
+	for i := 0; i < c.LogExpo; i++ {
 		res = api.Mul(res, res)
 	}
 	api.AssertIsEqual(res, c.Y)
@@ -46,11 +46,10 @@ func (c *InnerCircuit1) Define(api frontend.API) error {
 	return nil
 }
 
-// get VK, PK base circuit
-func getInnerCircuitData() (constraint.ConstraintSystem, native_plonk.VerifyingKey, native_plonk.ProvingKey, kzg.SRS) {
+// get pk, vk, ccs of a circuit
+func getInnerCircuitData(circuit frontend.Circuit) (constraint.ConstraintSystem, native_plonk.VerifyingKey, native_plonk.ProvingKey, kzg.SRS) {
 
-	var ic InnerCircuit1
-	ccs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &ic)
+	ccs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
 	if err != nil {
 		panic("compilation failed: " + err.Error())
 	}
@@ -69,17 +68,18 @@ func getInnerCircuitData() (constraint.ConstraintSystem, native_plonk.VerifyingK
 }
 
 // get proofs
-func getProofsWitnesses(assert *test.Assert, ccs constraint.ConstraintSystem, nbInstances int, pk native_plonk.ProvingKey, vk native_plonk.VerifyingKey) ([]native_plonk.Proof, []witness.Witness) {
+func getProofsWitnesses(assert *test.Assert, ccs constraint.ConstraintSystem, nbInstances int, pk native_plonk.ProvingKey, vk native_plonk.VerifyingKey, logExpo int) ([]native_plonk.Proof, []witness.Witness) {
 
 	proofs := make([]native_plonk.Proof, nbInstances)
 	witnesses := make([]witness.Witness, nbInstances)
 
 	for i := 0; i < nbInstances; i++ {
-		var assignment InnerCircuit1
+
+		var assignment InnerCircuit
 
 		var x, y fr_bls12377.Element
 		x.SetRandom()
-		y.Exp(x, big.NewInt(32))
+		y.Exp(x, big.NewInt(1<<logExpo))
 		assignment.X = x.String()
 		assignment.Y = y.String()
 
@@ -145,10 +145,12 @@ func TestBatchVerify(t *testing.T) {
 
 	// get ccs, vk, pk, srs
 	batchSizeProofs := 10
-	innerCcs, vk, pk, _ := getInnerCircuitData()
+	var ic1 InnerCircuit
+	ic1.LogExpo = 5
+	innerCcs, vk, pk, _ := getInnerCircuitData(&ic1)
 
 	// get tuples (proof, public_witness)
-	proofs, witnesses := getProofsWitnesses(assert, innerCcs, batchSizeProofs, pk, vk)
+	proofs, witnesses := getProofsWitnesses(assert, innerCcs, batchSizeProofs, pk, vk, ic1.LogExpo)
 
 	// hash public inputs of the inner proofs
 	h, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
@@ -223,4 +225,8 @@ func TestBatchVerify(t *testing.T) {
 
 	err = test.IsSolved(&outerCircuit, &outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
+}
+
+func TestBatchVerifyBis(t *testing.T) {
+
 }
