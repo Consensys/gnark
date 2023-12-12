@@ -233,13 +233,12 @@ func TestBatchVerify(t *testing.T) {
 	assert.NoError(err)
 }
 
-func TestBatchVerifyBis(t *testing.T) {
+func TestBisBatchVerify(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
-	numberOfCircuits := 5
-	curLogExp := 4
-	curBatchSize := 5
+	// number of types of circuits that we batch
+	numberOfCircuits := 3
 
 	// assignment
 	var fullAssignment BatchVerifyCircuits[
@@ -252,7 +251,7 @@ func TestBatchVerifyBis(t *testing.T) {
 			sw_bls12377.G1Affine,
 			sw_bls12377.G2Affine,
 			sw_bls12377.GT],
-		curBatchSize,
+		numberOfCircuits,
 	)
 
 	// circuit
@@ -266,8 +265,20 @@ func TestBatchVerifyBis(t *testing.T) {
 			sw_bls12377.G1Affine,
 			sw_bls12377.G2Affine,
 			sw_bls12377.GT],
-		curBatchSize,
+		numberOfCircuits,
 	)
+
+	// hash to compute the public hash, which is the hash of all the public inputs
+	// of all the inner circuits
+	h, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+	// hashPub := h.Sum(nil)
+	// var frHashPub fr_bw6761.Element
+	// frHashPub.SetBytes(hashPub)
+
+	curLogExp := 4    // parameter for the current type of circuit
+	curBatchSize := 5 // number of copies of the currentn circuit
+
 	for curCircuit := 0; curCircuit < numberOfCircuits; curCircuit++ {
 
 		// get ccs, vk, pk, srs
@@ -278,19 +289,14 @@ func TestBatchVerifyBis(t *testing.T) {
 		// get tuples (proof, public_witness)
 		proofs, witnesses := getProofsWitnesses(assert, innerCcs, curBatchSize, pk, vk, ic1.LogExpo)
 
-		// hash public inputs of the inner proofs
-		// h, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
-		// assert.NoError(err)
-		// for i := 0; i < batchSizeProofs; i++ {
-		// 	vec := witnesses[i].Vector()
-		// 	tvec := vec.(fr_bls12377.Vector)
-		// 	for j := 0; j < len(tvec); j++ {
-		// 		h.Write(tvec[j].Marshal())
-		// 	}
-		// }
-		// hashPub := h.Sum(nil)
-		// var frHashPub fr_bw6761.Element
-		// frHashPub.SetBytes(hashPub)
+		// append the current public witnesses to the hash buffer
+		for i := 0; i < curBatchSize; i++ {
+			vec := witnesses[i].Vector()
+			tvec := vec.(fr_bls12377.Vector)
+			for j := 0; j < len(tvec); j++ {
+				h.Write(tvec[j].Marshal())
+			}
+		}
 
 		// outer circuit
 		fullCircuit.Circuits[curCircuit] = InstantiateOuterCircuit[
@@ -305,7 +311,8 @@ func TestBatchVerifyBis(t *testing.T) {
 		)
 
 		// witness assignment
-		fullAssignment.Circuits[curCircuit] = AssignWitness[sw_bls12377.ScalarField,
+		fullAssignment.Circuits[curCircuit] = AssignWitness[
+			sw_bls12377.ScalarField,
 			sw_bls12377.G1Affine,
 			sw_bls12377.G2Affine,
 			sw_bls12377.GT](
@@ -315,12 +322,20 @@ func TestBatchVerifyBis(t *testing.T) {
 			witnesses,
 			vk,
 			proofs,
-			// selectors,
 		)
 
 		// change the circuit and the batch size
 		curLogExp++
 		curBatchSize++
 	}
+
+	// finally we compute the
+	hashPub := h.Sum(nil)
+	var frHashPub fr_bw6761.Element
+	frHashPub.SetBytes(hashPub)
+	fullAssignment.HashPublic = frHashPub.String()
+
+	err = test.IsSolved(&fullCircuit, &fullAssignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
 
 }

@@ -21,11 +21,6 @@ type BatchVerifyCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 	// Number of proofs to batch
 	batchSizeProofs int
 
-	// dummy proofs, which are selected instead of the real proof, if the
-	// corresponding selector is 0. The dummy proofs always pass.
-	// TODO this should be a constant
-	DummyProof Proof[FR, G1El, G2El]
-
 	// proofs, verifying keys of the inner circuit
 	Proofs        []Proof[FR, G1El, G2El]
 	VerifyfingKey VerifyingKey[FR, G1El, G2El] // TODO this should be a constant
@@ -104,7 +99,6 @@ func InstantiateOuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 	for i := 0; i < batchSizeProofs; i++ {
 		outerCircuit.Proofs[i] = PlaceholderProof[FR, G1El, G2El](innerCcs)
 	}
-	outerCircuit.DummyProof = PlaceholderProof[FR, G1El, G2El](innerCcs)
 	outerCircuit.VerifyfingKey = PlaceholderVerifyingKey[FR, G1El, G2El](innerCcs)
 	outerCircuit.batchSizeProofs = batchSizeProofs
 
@@ -118,7 +112,6 @@ func AssignWitness[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 	witnesses []witness.Witness,
 	vk native_plonk.VerifyingKey,
 	proofs []native_plonk.Proof,
-	// selectors []int,
 ) BatchVerifyCircuit[FR, G1El, G2El, GtEl] {
 
 	assignmentPubToPrivWitnesses := make([]Witness[FR], batchSizeProofs)
@@ -134,13 +127,11 @@ func AssignWitness[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 		assignmentProofs[i], err = ValueOfProof[FR, G1El, G2El](proofs[i])
 		assert.NoError(err)
 	}
-	assignmentDummyProof, err := ValueOfProof[FR, G1El, G2El](proofs[0])
 	outerAssignment := BatchVerifyCircuit[FR, G1El, G2El, GtEl]{
 		Proofs:        assignmentProofs,
 		VerifyfingKey: assignmentVerifyingKeys,
 		PublicInners:  assignmentPubToPrivWitnesses,
 		// HashPub:       frHashPub,
-		DummyProof: assignmentDummyProof,
 	}
 
 	return outerAssignment
@@ -209,7 +200,7 @@ func (circuit *BatchVerifyCircuits[FR, G1El, G2El, GtEl]) Define(api frontend.AP
 			copy(proofs[offset+2*j:], proofPair)
 			copy(points[offset+2*j:], pointPair)
 		}
-		offset += circuit.Circuits[i].batchSizeProofs
+		offset += 2 * circuit.Circuits[i].batchSizeProofs
 	}
 
 	kzgVerifier, err := gnark_kzg.NewVerifier[FR, G1El, G2El, GtEl](api)
