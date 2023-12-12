@@ -29,14 +29,14 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 	}
 	Gx := emulated.ValueOf[Base](params.Gx)
 	Gy := emulated.ValueOf[Base](params.Gy)
-	var Lambda emulated.Element[Scalars]
-	var ThirdRootOneG1 emulated.Element[Base]
-	if params.Lambda == nil && params.ThirdRootOneG1 == nil {
-		Lambda = emulated.ValueOf[Scalars](big.NewInt(0))
-		ThirdRootOneG1 = emulated.ValueOf[Base](big.NewInt(0))
+	var Eigenvalue emulated.Element[Scalars]
+	var ThirdRootOne emulated.Element[Base]
+	if params.Eigenvalue == nil && params.ThirdRootOne == nil {
+		Eigenvalue = emulated.ValueOf[Scalars](big.NewInt(0))
+		ThirdRootOne = emulated.ValueOf[Base](big.NewInt(0))
 	} else {
-		Lambda = emulated.ValueOf[Scalars](params.Lambda)
-		ThirdRootOneG1 = emulated.ValueOf[Base](params.ThirdRootOneG1)
+		Eigenvalue = emulated.ValueOf[Scalars](params.Eigenvalue)
+		ThirdRootOne = emulated.ValueOf[Base](params.ThirdRootOne)
 	}
 	return &Curve[Base, Scalars]{
 		params:    params,
@@ -47,12 +47,12 @@ func New[Base, Scalars emulated.FieldParams](api frontend.API, params CurveParam
 			X: Gx,
 			Y: Gy,
 		},
-		gm:             emuGm,
-		a:              emulated.ValueOf[Base](params.A),
-		b:              emulated.ValueOf[Base](params.B),
-		addA:           params.A.Cmp(big.NewInt(0)) != 0,
-		Lambda:         Lambda,
-		ThirdRootOneG1: ThirdRootOneG1,
+		gm:           emuGm,
+		a:            emulated.ValueOf[Base](params.A),
+		b:            emulated.ValueOf[Base](params.B),
+		addA:         params.A.Cmp(big.NewInt(0)) != 0,
+		Eigenvalue:   Eigenvalue,
+		ThirdRootOne: ThirdRootOne,
 	}, nil
 }
 
@@ -73,11 +73,11 @@ type Curve[Base, Scalars emulated.FieldParams] struct {
 	// gm are the pre-computed multiples the generator (base point) of the curve.
 	gm []AffinePoint[Base]
 
-	a              emulated.Element[Base]
-	b              emulated.Element[Base]
-	addA           bool
-	Lambda         emulated.Element[Scalars]
-	ThirdRootOneG1 emulated.Element[Base]
+	a            emulated.Element[Base]
+	b            emulated.Element[Base]
+	addA         bool
+	Eigenvalue   emulated.Element[Scalars]
+	ThirdRootOne emulated.Element[Base]
 }
 
 // Generator returns the base point of the curve. The method does not copy and
@@ -461,7 +461,7 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 //
 // ScalarMul calls ScalarMulGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	if c.params.Lambda != nil && c.params.ThirdRootOneG1 != nil {
+	if c.params.Eigenvalue != nil && c.params.ThirdRootOne != nil {
 		return c.scalarMulGLV(p, s, opts...)
 
 	} else {
@@ -476,13 +476,13 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	var st S
 	frModulus := emulated.ValueOf[S](st.Modulus())
-	sd, err := c.scalarApi.NewHint(DecomposeScalarG1, 5, s, &c.Lambda, &frModulus)
+	sd, err := c.scalarApi.NewHint(DecomposeScalarG1, 5, s, &c.Eigenvalue, &frModulus)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, &c.Lambda)),
+		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, &c.Eigenvalue)),
 		c.scalarApi.Add(s, c.scalarApi.Mul(&frModulus, sd[2])),
 	)
 	var Acc, B1 AffinePoint[B]
@@ -491,7 +491,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	tableQ[1].X = Q.X
 	tableQ[1].Y = *c.baseApi.Select(c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1)), &Q.Y, c.baseApi.Neg(&Q.Y))
 	tableQ[0] = *c.Neg(&tableQ[1])
-	tablePhiQ[1].X = *c.baseApi.Mul(&Q.X, &c.ThirdRootOneG1)
+	tablePhiQ[1].X = *c.baseApi.Mul(&Q.X, &c.ThirdRootOne)
 	tablePhiQ[1].Y = *c.baseApi.Select(c.scalarApi.IsZero(c.scalarApi.Sub(sd[4], s2)), &Q.Y, c.baseApi.Neg(&Q.Y))
 	tablePhiQ[0] = *c.Neg(&tablePhiQ[1])
 
@@ -595,7 +595,7 @@ func (c *Curve[B, S]) ScalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S]
 //
 // jointScalarMul calls jointScalarMulGeneric or jointScalarMulGLV depending on whether an efficient endomorphism is available.
 func (c *Curve[B, S]) jointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	if c.params.Lambda != nil && c.params.ThirdRootOneG1 != nil {
+	if c.params.Eigenvalue != nil && c.params.ThirdRootOne != nil {
 		return c.jointScalarMulGLV(p1, p2, s1, s2, opts...)
 
 	} else {
@@ -626,14 +626,14 @@ func (c *Curve[B, S]) jointScalarMulGeneric(p1, p2 *AffinePoint[B], s1, s2 *emul
 func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	var st S
 	frModulus := emulated.ValueOf[S](st.Modulus())
-	sd, err := c.scalarApi.NewHint(DecomposeScalarG1, 5, s, &c.Lambda, &frModulus)
+	sd, err := c.scalarApi.NewHint(DecomposeScalarG1, 5, s, &c.Eigenvalue, &frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	s1, s2 := sd[0], sd[1]
 
-	td, err := c.scalarApi.NewHint(DecomposeScalarG1, 5, t, &c.Lambda, &frModulus)
+	td, err := c.scalarApi.NewHint(DecomposeScalarG1, 5, t, &c.Eigenvalue, &frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -641,11 +641,11 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	t1, t2 := td[0], td[1]
 
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, &c.Lambda)),
+		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, &c.Eigenvalue)),
 		c.scalarApi.Add(s, c.scalarApi.Mul(&frModulus, sd[2])),
 	)
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(t1, c.scalarApi.Mul(t2, &c.Lambda)),
+		c.scalarApi.Add(t1, c.scalarApi.Mul(t2, &c.Eigenvalue)),
 		c.scalarApi.Add(t, c.scalarApi.Mul(&frModulus, td[2])),
 	)
 
@@ -654,7 +654,7 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	tableQ[1].X = Q.X
 	tableQ[1].Y = *c.baseApi.Select(c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1)), &Q.Y, c.baseApi.Neg(&Q.Y))
 	tableQ[0] = *c.Neg(&tableQ[1])
-	tablePhiQ[1].X = *c.baseApi.Mul(&Q.X, &c.ThirdRootOneG1)
+	tablePhiQ[1].X = *c.baseApi.Mul(&Q.X, &c.ThirdRootOne)
 	tablePhiQ[1].Y = *c.baseApi.Select(c.scalarApi.IsZero(c.scalarApi.Sub(sd[4], s2)), &Q.Y, c.baseApi.Neg(&Q.Y))
 	tablePhiQ[0] = *c.Neg(&tablePhiQ[1])
 	// precompute -R, -Φ(R), Φ(R)
@@ -662,7 +662,7 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	tableR[1].X = R.X
 	tableR[1].Y = *c.baseApi.Select(c.scalarApi.IsZero(c.scalarApi.Sub(td[3], t1)), &R.Y, c.baseApi.Neg(&R.Y))
 	tableR[0] = *c.Neg(&tableR[1])
-	tablePhiR[1].X = *c.baseApi.Mul(&R.X, &c.ThirdRootOneG1)
+	tablePhiR[1].X = *c.baseApi.Mul(&R.X, &c.ThirdRootOne)
 	tablePhiR[1].Y = *c.baseApi.Select(c.scalarApi.IsZero(c.scalarApi.Sub(td[4], t2)), &R.Y, c.baseApi.Neg(&R.Y))
 	tablePhiR[0] = *c.Neg(&tablePhiR[1])
 	// precompute Q+R, -Q-R, Q-R, -Q+R, Φ(Q)+Φ(R), -Φ(Q)-Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R)

@@ -716,7 +716,7 @@ func (c *ScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulGeneric(&c.P, &c.S)
+	res := cr.ScalarMulGeneric(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -1000,7 +1000,7 @@ func (c *ScalarMulTestBounded[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.scalarMulGeneric(&c.P, &c.S, algopts.WithNbScalarBits(c.bits))
+	res := cr.ScalarMulGeneric(&c.P, &c.S, algopts.WithNbScalarBits(c.bits))
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }

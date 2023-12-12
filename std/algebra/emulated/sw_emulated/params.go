@@ -18,13 +18,13 @@ import (
 //
 // The base point is defined by (Gx, Gy).
 type CurveParams struct {
-	A              *big.Int      // a in curve equation
-	B              *big.Int      // b in curve equation
-	Gx             *big.Int      // base point x
-	Gy             *big.Int      // base point y
-	Gm             [][2]*big.Int // m*base point coords
-	Lambda         *big.Int      // endomorphism eigenvalue
-	ThirdRootOneG1 *big.Int      // endomorphism image scaler
+	A            *big.Int      // a in curve equation
+	B            *big.Int      // b in curve equation
+	Gx           *big.Int      // base point x
+	Gy           *big.Int      // base point y
+	Gm           [][2]*big.Int // m*base point coords
+	Eigenvalue   *big.Int      // endomorphism eigenvalue
+	ThirdRootOne *big.Int      // endomorphism image scaler
 }
 
 // GetSecp256k1Params returns curve parameters for the curve secp256k1. When
@@ -32,16 +32,16 @@ type CurveParams struct {
 // field [emulated.Secp256k1Fr].
 func GetSecp256k1Params() CurveParams {
 	_, g1aff := secp256k1.Generators()
-	Lambda, _ := new(big.Int).SetString("37718080363155996902926221483475020450927657555482586988616620542887997980018", 10)
-	ThirdRootOneG1, _ := new(big.Int).SetString("55594575648329892869085402983802832744385952214688224221778511981742606582254", 10)
+	lambda, _ := new(big.Int).SetString("37718080363155996902926221483475020450927657555482586988616620542887997980018", 10)
+	omega, _ := new(big.Int).SetString("55594575648329892869085402983802832744385952214688224221778511981742606582254", 10)
 	return CurveParams{
-		A:              big.NewInt(0),
-		B:              big.NewInt(7),
-		Gx:             g1aff.X.BigInt(new(big.Int)),
-		Gy:             g1aff.Y.BigInt(new(big.Int)),
-		Gm:             computeSecp256k1Table(),
-		Lambda:         Lambda,
-		ThirdRootOneG1: ThirdRootOneG1,
+		A:            big.NewInt(0),
+		B:            big.NewInt(7),
+		Gx:           g1aff.X.BigInt(new(big.Int)),
+		Gy:           g1aff.Y.BigInt(new(big.Int)),
+		Gm:           computeSecp256k1Table(),
+		Eigenvalue:   lambda,
+		ThirdRootOne: omega,
 	}
 }
 
@@ -50,14 +50,16 @@ func GetSecp256k1Params() CurveParams {
 // field [emulated.BN254Fr].
 func GetBN254Params() CurveParams {
 	_, _, g1aff, _ := bn254.Generators()
+	lambda, _ := new(big.Int).SetString("4407920970296243842393367215006156084916469457145843978461", 10)
+	omega, _ := new(big.Int).SetString("2203960485148121921418603742825762020974279258880205651966", 10)
 	return CurveParams{
-		A:              big.NewInt(0),
-		B:              big.NewInt(3),
-		Gx:             g1aff.X.BigInt(new(big.Int)),
-		Gy:             g1aff.Y.BigInt(new(big.Int)),
-		Gm:             computeBN254Table(),
-		Lambda:         &bn254.LambdaGLV,
-		ThirdRootOneG1: bn254.ThirdRootOneG1.ToBigIntRegular(new(big.Int)),
+		A:            big.NewInt(0),
+		B:            big.NewInt(3),
+		Gx:           g1aff.X.BigInt(new(big.Int)),
+		Gy:           g1aff.Y.BigInt(new(big.Int)),
+		Gm:           computeBN254Table(),
+		Eigenvalue:   lambda,
+		ThirdRootOne: omega,
 	}
 }
 
@@ -66,14 +68,16 @@ func GetBN254Params() CurveParams {
 // field [emulated.BLS12381Fr].
 func GetBLS12381Params() CurveParams {
 	_, _, g1aff, _ := bls12381.Generators()
+	lambda, _ := new(big.Int).SetString("228988810152649578064853576960394133503", 10)
+	omega, _ := new(big.Int).SetString("4002409555221667392624310435006688643935503118305586438271171395842971157480381377015405980053539358417135540939436", 10)
 	return CurveParams{
-		A:              big.NewInt(0),
-		B:              big.NewInt(4),
-		Gx:             g1aff.X.BigInt(new(big.Int)),
-		Gy:             g1aff.Y.BigInt(new(big.Int)),
-		Gm:             computeBLS12381Table(),
-		Lambda:         &bls12381.LambdaGLV,
-		ThirdRootOneG1: bls12381.ThirdRootOneG1.ToBigIntRegular(new(big.Int)),
+		A:            big.NewInt(0),
+		B:            big.NewInt(4),
+		Gx:           g1aff.X.BigInt(new(big.Int)),
+		Gy:           g1aff.Y.BigInt(new(big.Int)),
+		Gm:           computeBLS12381Table(),
+		Eigenvalue:   lambda,
+		ThirdRootOne: omega,
 	}
 }
 
@@ -84,13 +88,13 @@ func GetP256Params() CurveParams {
 	pr := elliptic.P256().Params()
 	a := new(big.Int).Sub(pr.P, big.NewInt(3))
 	return CurveParams{
-		A:              a,
-		B:              pr.B,
-		Gx:             pr.Gx,
-		Gy:             pr.Gy,
-		Gm:             computeP256Table(),
-		Lambda:         nil,
-		ThirdRootOneG1: nil,
+		A:            a,
+		B:            pr.B,
+		Gx:           pr.Gx,
+		Gy:           pr.Gy,
+		Gm:           computeP256Table(),
+		Eigenvalue:   nil,
+		ThirdRootOne: nil,
 	}
 }
 
@@ -101,13 +105,13 @@ func GetP384Params() CurveParams {
 	pr := elliptic.P384().Params()
 	a := new(big.Int).Sub(pr.P, big.NewInt(3))
 	return CurveParams{
-		A:              a,
-		B:              pr.B,
-		Gx:             pr.Gx,
-		Gy:             pr.Gy,
-		Gm:             computeP384Table(),
-		Lambda:         nil,
-		ThirdRootOneG1: nil,
+		A:            a,
+		B:            pr.B,
+		Gx:           pr.Gx,
+		Gy:           pr.Gy,
+		Gm:           computeP384Table(),
+		Eigenvalue:   nil,
+		ThirdRootOne: nil,
 	}
 }
 
@@ -116,14 +120,16 @@ func GetP384Params() CurveParams {
 // field [emulated.BW6761Fr].
 func GetBW6761Params() CurveParams {
 	_, _, g1aff, _ := bw6761.Generators()
+	lambda, _ := new(big.Int).SetString("80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945", 10)
+	omega, _ := new(big.Int).SetString("1968985824090209297278610739700577151397666382303825728450741611566800370218827257750865013421937292370006175842381275743914023380727582819905021229583192207421122272650305267822868639090213645505120388400344940985710520836292650", 10)
 	return CurveParams{
-		A:              big.NewInt(0),
-		B:              big.NewInt(-1),
-		Gx:             g1aff.X.BigInt(new(big.Int)),
-		Gy:             g1aff.Y.BigInt(new(big.Int)),
-		Gm:             computeBW6761Table(),
-		Lambda:         &bw6761.LambdaGLV,
-		ThirdRootOneG1: bw6761.ThirdRootOneG1.ToBigIntRegular(new(big.Int)),
+		A:            big.NewInt(0),
+		B:            big.NewInt(-1),
+		Gx:           g1aff.X.BigInt(new(big.Int)),
+		Gy:           g1aff.Y.BigInt(new(big.Int)),
+		Gm:           computeBW6761Table(),
+		Eigenvalue:   lambda,
+		ThirdRootOne: omega,
 	}
 }
 
