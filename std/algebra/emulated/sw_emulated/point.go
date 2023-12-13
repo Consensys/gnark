@@ -473,13 +473,13 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	var st S
 	frModulus := emulated.ValueOf[S](st.Modulus())
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, &c.eigenvalue, &frModulus)
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, c.eigenvalue, &frModulus)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, &c.eigenvalue)),
+		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
 		c.scalarApi.Add(s, c.scalarApi.Mul(&frModulus, sd[2])),
 	)
 	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1))
@@ -491,7 +491,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	tableQ[1].X = Q.X
 	tableQ[1].Y = *c.baseApi.Select(selector1, &Q.Y, c.baseApi.Neg(&Q.Y))
 	tableQ[0] = *c.Neg(&tableQ[1])
-	tablePhiQ[1].X = *c.baseApi.Mul(&Q.X, &c.thirdRootOne)
+	tablePhiQ[1].X = *c.baseApi.Mul(&Q.X, c.thirdRootOne)
 	tablePhiQ[1].Y = *c.baseApi.Select(selector2, &Q.Y, c.baseApi.Neg(&Q.Y))
 	tablePhiQ[0] = *c.Neg(&tablePhiQ[1])
 
@@ -625,14 +625,14 @@ func (c *Curve[B, S]) jointScalarMulGeneric(p1, p2 *AffinePoint[B], s1, s2 *emul
 func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	var st S
 	frModulus := emulated.ValueOf[S](st.Modulus())
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, &c.eigenvalue, &frModulus)
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, c.eigenvalue, &frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	s1, s2 := sd[0], sd[1]
 
-	td, err := c.scalarApi.NewHint(decomposeScalarG1, 5, t, &c.eigenvalue, &frModulus)
+	td, err := c.scalarApi.NewHint(decomposeScalarG1, 5, t, c.eigenvalue, &frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -640,11 +640,11 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	t1, t2 := td[0], td[1]
 
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, &c.eigenvalue)),
+		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
 		c.scalarApi.Add(s, c.scalarApi.Mul(&frModulus, sd[2])),
 	)
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(t1, c.scalarApi.Mul(t2, &c.eigenvalue)),
+		c.scalarApi.Add(t1, c.scalarApi.Mul(t2, c.eigenvalue)),
 		c.scalarApi.Add(t, c.scalarApi.Mul(&frModulus, td[2])),
 	)
 	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1))
@@ -657,7 +657,7 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	tableQ[1].X = Q.X
 	tableQ[1].Y = *c.baseApi.Select(selector1, &Q.Y, c.baseApi.Neg(&Q.Y))
 	tableQ[0] = *c.Neg(&tableQ[1])
-	tablePhiQ[1].X = *c.baseApi.Mul(&Q.X, &c.thirdRootOne)
+	tablePhiQ[1].X = *c.baseApi.Mul(&Q.X, c.thirdRootOne)
 	tablePhiQ[1].Y = *c.baseApi.Select(selector2, &Q.Y, c.baseApi.Neg(&Q.Y))
 	tablePhiQ[0] = *c.Neg(&tablePhiQ[1])
 	// precompute -R, -Φ(R), Φ(R)
@@ -665,7 +665,7 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	tableR[1].X = R.X
 	tableR[1].Y = *c.baseApi.Select(selector3, &R.Y, c.baseApi.Neg(&R.Y))
 	tableR[0] = *c.Neg(&tableR[1])
-	tablePhiR[1].X = *c.baseApi.Mul(&R.X, &c.thirdRootOne)
+	tablePhiR[1].X = *c.baseApi.Mul(&R.X, c.thirdRootOne)
 	tablePhiR[1].Y = *c.baseApi.Select(selector4, &R.Y, c.baseApi.Neg(&R.Y))
 	tablePhiR[0] = *c.Neg(&tablePhiR[1])
 	// precompute Q+R, -Q-R, Q-R, -Q+R, Φ(Q)+Φ(R), -Φ(Q)-Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R)
@@ -676,10 +676,10 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	tableS[2] = tableQ[1]
 	tableS[2] = *c.Add(&tableS[2], &tableR[0])
 	tableS[3] = *c.Neg(&tableS[2])
-	f0 := c.baseApi.Mul(&tableS[0].X, &c.thirdRootOne)
-	f1 := c.baseApi.Mul(&tableS[1].X, &c.thirdRootOne)
-	f2 := c.baseApi.Mul(&tableS[2].X, &c.thirdRootOne)
-	f3 := c.baseApi.Mul(&tableS[3].X, &c.thirdRootOne)
+	f0 := c.baseApi.Mul(&tableS[0].X, c.thirdRootOne)
+	f1 := c.baseApi.Mul(&tableS[1].X, c.thirdRootOne)
+	f2 := c.baseApi.Mul(&tableS[2].X, c.thirdRootOne)
+	f3 := c.baseApi.Mul(&tableS[3].X, c.thirdRootOne)
 	tablePhiS[0].X = *c.baseApi.Lookup2(
 		selector2, selector4,
 		f1, f3, f2, f0,
