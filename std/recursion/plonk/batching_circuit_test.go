@@ -171,7 +171,7 @@ func TestBatchVerify(t *testing.T) {
 		// get ccs, vk, pk, srs
 		var ic1 InnerCircuit
 		ic1.LogExpo = curLogExp
-		innerCcs, vk, pk, _ := getInnerCircuitData(&ic1)
+		innerCcs, vk, pk := getInnerCircuitData(&ic1)
 
 		// get tuples (proof, public_witness)
 		proofs, witnesses := getProofsWitnesses(assert, innerCcs, curBatchSize, pk, vk, ic1.LogExpo)
