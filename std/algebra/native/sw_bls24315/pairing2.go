@@ -277,7 +277,7 @@ func NewG1Affine(v bls24315.G1Affine) G1Affine {
 }
 
 // NewG2Affine allocates a witness from the native G2 element and returns it.
-func NewG2AffP(v bls24315.G2Affine) g2AffP {
+func newG2AffP(v bls24315.G2Affine) g2AffP {
 	return g2AffP{
 		X: fields_bls24315.E4{
 			B0: fields_bls24315.E2{
@@ -304,7 +304,7 @@ func NewG2AffP(v bls24315.G2Affine) g2AffP {
 
 func NewG2Affine(v bls24315.G2Affine) G2Affine {
 	return G2Affine{
-		P: NewG2AffP(v),
+		P: newG2AffP(v),
 	}
 }
 
@@ -313,7 +313,7 @@ func NewG2Affine(v bls24315.G2Affine) G2Affine {
 func NewG2AffineFixed(v bls24315.G2Affine) G2Affine {
 	lines := precomputeLines(v)
 	return G2Affine{
-		P:     NewG2AffP(v),
+		P:     newG2AffP(v),
 		Lines: &lines,
 	}
 }
