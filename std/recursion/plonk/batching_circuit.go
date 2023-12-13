@@ -22,8 +22,8 @@ type BatchVerifyCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 	batchSizeProofs int
 
 	// proofs, verifying keys of the inner circuit
-	Proofs        []Proof[FR, G1El, G2El]
-	VerifyfingKey VerifyingKey[FR, G1El, G2El] // TODO this should be a constant
+	Proofs       []Proof[FR, G1El, G2El]
+	VerifyingKey VerifyingKey[FR, G1El, G2El] // TODO this should be a constant
 
 	// Corresponds to the public inputs of the inner circuit
 	PublicInners []Witness[FR]
@@ -46,7 +46,7 @@ func InstantiateOuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 	for i := 0; i < batchSizeProofs; i++ {
 		outerCircuit.Proofs[i] = PlaceholderProof[FR, G1El, G2El](innerCcs)
 	}
-	outerCircuit.VerifyfingKey = PlaceholderVerifyingKey[FR, G1El, G2El](innerCcs)
+	outerCircuit.VerifyingKey = PlaceholderVerifyingKey[FR, G1El, G2El](innerCcs)
 	outerCircuit.batchSizeProofs = batchSizeProofs
 
 	return outerCircuit
@@ -75,9 +75,9 @@ func AssignWitness[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 		assert.NoError(err)
 	}
 	outerAssignment := BatchVerifyCircuit[FR, G1El, G2El, GtEl]{
-		Proofs:        assignmentProofs,
-		VerifyfingKey: assignmentVerifyingKeys,
-		PublicInners:  assignmentPubToPrivWitnesses,
+		Proofs:       assignmentProofs,
+		VerifyingKey: assignmentVerifyingKeys,
+		PublicInners: assignmentPubToPrivWitnesses,
 		// HashPub:       frHashPub,
 	}
 
@@ -139,7 +139,7 @@ func (circuit *BatchVerifyCircuits[FR, G1El, G2El, GtEl]) Define(api frontend.AP
 	offset := 0
 	for i := 0; i < len(circuit.Circuits); i++ {
 		for j := 0; j < circuit.Circuits[i].batchSizeProofs; j++ {
-			commitmentPair, proofPair, pointPair, err := verifier.PrepareVerification(circuit.Circuits[i].VerifyfingKey, circuit.Circuits[i].Proofs[j], circuit.Circuits[i].PublicInners[j])
+			commitmentPair, proofPair, pointPair, err := verifier.PrepareVerification(circuit.Circuits[i].VerifyingKey, circuit.Circuits[i].Proofs[j], circuit.Circuits[i].PublicInners[j])
 			if err != nil {
 				return err
 			}
@@ -155,7 +155,7 @@ func (circuit *BatchVerifyCircuits[FR, G1El, G2El, GtEl]) Define(api frontend.AP
 		return err
 	}
 
-	vkKZG := circuit.Circuits[0].VerifyfingKey.Kzg
+	vkKZG := circuit.Circuits[0].VerifyingKey.Kzg
 	err = kzgVerifier.BatchVerifyMultiPoints(commitments, proofs, points, vkKZG)
 
 	return err
