@@ -322,20 +322,6 @@ var loopCounter = [64]int8{
 	0, 0, 1, 0, 0, 1, 0, 1, 1,
 }
 
-// NewLineEvaluation allocates a witness from the native LineEvaluationAff and returns it.
-func NewLineEvaluation(v bls12381.LineEvaluationAff) lineEvaluation {
-	return lineEvaluation{
-		R0: fields_bls12381.E2{
-			A0: emulated.ValueOf[BaseField](v.R0.A0),
-			A1: emulated.ValueOf[BaseField](v.R0.A1),
-		},
-		R1: fields_bls12381.E2{
-			A0: emulated.ValueOf[BaseField](v.R1.A0),
-			A1: emulated.ValueOf[BaseField](v.R1.A1),
-		},
-	}
-}
-
 // MillerLoop computes the multi-Miller loop
 // ∏ᵢ { fᵢ_{u,Q}(P) }
 func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
