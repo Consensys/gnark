@@ -98,20 +98,8 @@ func getProofsWitnesses(
 			panic("public witness failed: " + err.Error())
 		}
 
-		fsProverHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
-		assert.NoError(err)
-		kzgProverHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
-		assert.NoError(err)
-		htfProverHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
-		assert.NoError(err)
-
-		proof, err := native_plonk.Prove(
-			ccs,
-			pk,
-			fullWitness,
-			backend.WithProverChallengeHashFunction(fsProverHasher),
-			backend.WithProverKZGFoldingHashFunction(kzgProverHasher),
-			backend.WithProverHashToFieldFunction(htfProverHasher),
+		proof, err := native_plonk.Prove(ccs, pk, fullWitness,
+			GetNativeProverOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField()),
 		)
 		if err != nil {
 			panic("error proving: " + err.Error())
@@ -121,20 +109,9 @@ func getProofsWitnesses(
 		witnesses[i] = publicWitness
 
 		// sanity check
-		fsVerifierHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
-		assert.NoError(err)
-		kzgVerifierHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
-		assert.NoError(err)
-		htfVerifierHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
-		assert.NoError(err)
 
-		err = native_plonk.Verify(
-			proof,
-			vk,
-			publicWitness,
-			backend.WithVerifierChallengeHashFunction(fsVerifierHasher),
-			backend.WithVerifierKZGFoldingHashFunction(kzgVerifierHasher),
-			backend.WithVerifierHashToFieldFunction(htfVerifierHasher),
+		err = native_plonk.Verify(proof, vk, publicWitness,
+			GetNativeVerifierOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField()),
 		)
 		if err != nil {
 			panic("error verifying: " + err.Error())
