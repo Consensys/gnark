@@ -485,18 +485,22 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1))
 	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[4], s2))
 
-	var Acc, B1 AffinePoint[B]
+	var Acc, B1 *AffinePoint[B]
 	// precompute -Q, -Φ(Q), Φ(Q)
-	var tableQ, tablePhiQ [2]AffinePoint[B]
-	tableQ[1].X = Q.X
-	tableQ[1].Y = *c.baseApi.Select(selector1, &Q.Y, c.baseApi.Neg(&Q.Y))
-	tableQ[0] = *c.Neg(&tableQ[1])
-	tablePhiQ[1].X = *c.baseApi.Mul(&Q.X, c.thirdRootOne)
-	tablePhiQ[1].Y = *c.baseApi.Select(selector2, &Q.Y, c.baseApi.Neg(&Q.Y))
-	tablePhiQ[0] = *c.Neg(&tablePhiQ[1])
+	var tableQ, tablePhiQ [2]*AffinePoint[B]
+	tableQ[1] = &AffinePoint[B]{
+		X: Q.X,
+		Y: *c.baseApi.Select(selector1, &Q.Y, c.baseApi.Neg(&Q.Y)),
+	}
+	tableQ[0] = c.Neg(tableQ[1])
+	tablePhiQ[1] = &AffinePoint[B]{
+		X: *c.baseApi.Mul(&Q.X, c.thirdRootOne),
+		Y: *c.baseApi.Select(selector2, &Q.Y, c.baseApi.Neg(&Q.Y)),
+	}
+	tablePhiQ[0] = c.Neg(tablePhiQ[1])
 
 	// Acc = Q + Φ(Q)
-	Acc = *c.Add(&tableQ[1], &tablePhiQ[1])
+	Acc = c.Add(tableQ[1], tablePhiQ[1])
 
 	s1 = c.scalarApi.Select(selector1, s1, sd[3])
 	s2 = c.scalarApi.Select(selector2, s2, sd[4])
@@ -507,21 +511,25 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	nbits := st.Modulus().BitLen()>>1 + 2
 
 	for i := nbits - 1; i > 0; i-- {
-		B1.X = tableQ[0].X
-		B1.Y = *c.baseApi.Select(s1bits[i], &tableQ[1].Y, &tableQ[0].Y)
-		Acc = *c.doubleAndAdd(&Acc, &B1)
-		B1.X = tablePhiQ[0].X
-		B1.Y = *c.baseApi.Select(s2bits[i], &tablePhiQ[1].Y, &tablePhiQ[0].Y)
-		Acc = *c.Add(&Acc, &B1)
+		B1 = &AffinePoint[B]{
+			X: tableQ[0].X,
+			Y: *c.baseApi.Select(s1bits[i], &tableQ[1].Y, &tableQ[0].Y),
+		}
+		Acc = c.doubleAndAdd(Acc, B1)
+		B1 = &AffinePoint[B]{
+			X: tablePhiQ[0].X,
+			Y: *c.baseApi.Select(s2bits[i], &tablePhiQ[1].Y, &tablePhiQ[0].Y),
+		}
+		Acc = c.Add(Acc, B1)
 
 	}
 
-	tableQ[0] = *c.Add(&tableQ[0], &Acc)
-	Acc = *c.Select(s1bits[0], &Acc, &tableQ[0])
-	tablePhiQ[0] = *c.Add(&tablePhiQ[0], &Acc)
-	Acc = *c.Select(s2bits[0], &Acc, &tablePhiQ[0])
+	tableQ[0] = c.Add(tableQ[0], Acc)
+	Acc = c.Select(s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0] = c.Add(tablePhiQ[0], Acc)
+	Acc = c.Select(s2bits[0], Acc, tablePhiQ[0])
 
-	return &Acc
+	return Acc
 }
 
 // ScalarMulGeneric computes s * p and returns it. It doesn't modify p nor s.
@@ -653,63 +661,55 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	selector4 := c.scalarApi.IsZero(c.scalarApi.Sub(td[4], t2))
 
 	// precompute -Q, -Φ(Q), Φ(Q)
-	var tableQ, tablePhiQ [2]AffinePoint[B]
-	tableQ[1].X = Q.X
-	tableQ[1].Y = *c.baseApi.Select(selector1, &Q.Y, c.baseApi.Neg(&Q.Y))
-	tableQ[0] = *c.Neg(&tableQ[1])
-	tablePhiQ[1].X = *c.baseApi.Mul(&Q.X, c.thirdRootOne)
-	tablePhiQ[1].Y = *c.baseApi.Select(selector2, &Q.Y, c.baseApi.Neg(&Q.Y))
-	tablePhiQ[0] = *c.Neg(&tablePhiQ[1])
+	var tableQ, tablePhiQ [2]*AffinePoint[B]
+	tableQ[1] = &AffinePoint[B]{
+		X: Q.X,
+		Y: *c.baseApi.Select(selector1, &Q.Y, c.baseApi.Neg(&Q.Y)),
+	}
+	tableQ[0] = c.Neg(tableQ[1])
+	tablePhiQ[1] = &AffinePoint[B]{
+		X: *c.baseApi.Mul(&Q.X, c.thirdRootOne),
+		Y: *c.baseApi.Select(selector2, &Q.Y, c.baseApi.Neg(&Q.Y)),
+	}
+	tablePhiQ[0] = c.Neg(tablePhiQ[1])
 	// precompute -R, -Φ(R), Φ(R)
-	var tableR, tablePhiR [2]AffinePoint[B]
-	tableR[1].X = R.X
-	tableR[1].Y = *c.baseApi.Select(selector3, &R.Y, c.baseApi.Neg(&R.Y))
-	tableR[0] = *c.Neg(&tableR[1])
-	tablePhiR[1].X = *c.baseApi.Mul(&R.X, c.thirdRootOne)
-	tablePhiR[1].Y = *c.baseApi.Select(selector4, &R.Y, c.baseApi.Neg(&R.Y))
-	tablePhiR[0] = *c.Neg(&tablePhiR[1])
+	var tableR, tablePhiR [2]*AffinePoint[B]
+	tableR[1] = &AffinePoint[B]{
+		X: R.X,
+		Y: *c.baseApi.Select(selector3, &R.Y, c.baseApi.Neg(&R.Y)),
+	}
+	tableR[0] = c.Neg(tableR[1])
+	tablePhiR[1] = &AffinePoint[B]{
+		X: *c.baseApi.Mul(&R.X, c.thirdRootOne),
+		Y: *c.baseApi.Select(selector4, &R.Y, c.baseApi.Neg(&R.Y)),
+	}
+	tablePhiR[0] = c.Neg(tablePhiR[1])
 	// precompute Q+R, -Q-R, Q-R, -Q+R, Φ(Q)+Φ(R), -Φ(Q)-Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R)
-	var tableS, tablePhiS [4]AffinePoint[B]
+	var tableS, tablePhiS [4]*AffinePoint[B]
 	tableS[0] = tableQ[0]
-	tableS[0] = *c.Add(&tableS[0], &tableR[0])
-	tableS[1] = *c.Neg(&tableS[0])
+	tableS[0] = c.Add(tableS[0], tableR[0])
+	tableS[1] = c.Neg(tableS[0])
 	tableS[2] = tableQ[1]
-	tableS[2] = *c.Add(&tableS[2], &tableR[0])
-	tableS[3] = *c.Neg(&tableS[2])
+	tableS[2] = c.Add(tableS[2], tableR[0])
+	tableS[3] = c.Neg(tableS[2])
 	f0 := c.baseApi.Mul(&tableS[0].X, c.thirdRootOne)
 	f1 := c.baseApi.Mul(&tableS[1].X, c.thirdRootOne)
 	f2 := c.baseApi.Mul(&tableS[2].X, c.thirdRootOne)
 	f3 := c.baseApi.Mul(&tableS[3].X, c.thirdRootOne)
-	tablePhiS[0].X = *c.baseApi.Lookup2(
-		selector2, selector4,
-		f1, f3, f2, f0,
-	)
-	tablePhiS[0].Y = *c.baseApi.Lookup2(
-		selector2, selector4,
-		&tableS[1].Y,
-		&tableS[3].Y,
-		&tableS[2].Y,
-		&tableS[0].Y,
-	)
-	tablePhiS[1] = *c.Neg(&tablePhiS[0])
-	tablePhiS[2].X = *c.baseApi.Lookup2(
-		selector2, selector4,
-		f3, f1, f0, f2,
-	)
-	tablePhiS[2].Y = *c.baseApi.Lookup2(
-		selector2, selector4,
-		&tableS[3].Y,
-		&tableS[1].Y,
-		&tableS[0].Y,
-		&tableS[2].Y,
-	)
-	tablePhiS[3] = *c.Neg(&tablePhiS[2])
+	tablePhiS[0] = &AffinePoint[B]{
+		X: *c.baseApi.Lookup2(selector2, selector4, f1, f3, f2, f0),
+		Y: *c.baseApi.Lookup2(selector2, selector4, &tableS[1].Y, &tableS[3].Y, &tableS[2].Y, &tableS[0].Y),
+	}
+	tablePhiS[1] = c.Neg(tablePhiS[0])
+	tablePhiS[2] = &AffinePoint[B]{
+		X: *c.baseApi.Lookup2(selector2, selector4, f3, f1, f0, f2),
+		Y: *c.baseApi.Lookup2(selector2, selector4, &tableS[3].Y, &tableS[1].Y, &tableS[0].Y, &tableS[2].Y),
+	}
+	tablePhiS[3] = c.Neg(tablePhiS[2])
 
 	// suppose first bit is 1 and set:
 	// Acc = Q + R + Φ(Q) + Φ(R)
-	var Acc AffinePoint[B]
-	Acc = tableS[1]
-	Acc = *c.Add(&Acc, &tablePhiS[1])
+	Acc := c.Add(tableS[1], tablePhiS[1])
 
 	s1 = c.scalarApi.Select(selector1, s1, sd[3])
 	s2 = c.scalarApi.Select(selector2, s2, sd[4])
@@ -720,44 +720,34 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	s2bits := c.scalarApi.ToBits(s2)
 	t1bits := c.scalarApi.ToBits(t1)
 	t2bits := c.scalarApi.ToBits(t2)
-
 	nbits := st.Modulus().BitLen()>>1 + 2
 
 	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
-	var B1 AffinePoint[B]
 	for i := nbits - 1; i > 0; i-- {
-		B1.X = *c.baseApi.Select(
-			c.api.Xor(s1bits[i], t1bits[i]),
-			&tableS[2].X, &tableS[0].X,
-		)
-		B1.Y = *c.baseApi.Lookup2(
-			s1bits[i], t1bits[i],
-			&tableS[0].Y, &tableS[2].Y, &tableS[3].Y, &tableS[1].Y,
-		)
-		Acc = *c.doubleAndAdd(&Acc, &B1)
-		B1.X = *c.baseApi.Select(
-			c.api.Xor(s2bits[i], t2bits[i]),
-			&tablePhiS[2].X, &tablePhiS[0].X,
-		)
-		B1.Y = *c.baseApi.Lookup2(
-			s2bits[i], t2bits[i],
-			&tablePhiS[0].Y, &tablePhiS[2].Y, &tablePhiS[3].Y, &tablePhiS[1].Y,
-		)
-		Acc = *c.Add(&Acc, &B1)
+		B1 := &AffinePoint[B]{
+			X: *c.baseApi.Select(c.api.Xor(s1bits[i], t1bits[i]), &tableS[2].X, &tableS[0].X),
+			Y: *c.baseApi.Lookup2(s1bits[i], t1bits[i], &tableS[0].Y, &tableS[2].Y, &tableS[3].Y, &tableS[1].Y),
+		}
+		Acc = c.doubleAndAdd(Acc, B1)
+		B1 = &AffinePoint[B]{
+			X: *c.baseApi.Select(c.api.Xor(s2bits[i], t2bits[i]), &tablePhiS[2].X, &tablePhiS[0].X),
+			Y: *c.baseApi.Lookup2(s2bits[i], t2bits[i], &tablePhiS[0].Y, &tablePhiS[2].Y, &tablePhiS[3].Y, &tablePhiS[1].Y),
+		}
+		Acc = c.Add(Acc, B1)
 	}
 
 	// i = 0
 	// subtract the initial point from the accumulator when first bit was 0
-	tableQ[0] = *c.Add(&tableQ[0], &Acc)
-	Acc = *c.Select(s1bits[0], &Acc, &tableQ[0])
-	tablePhiQ[0] = *c.Add(&tablePhiQ[0], &Acc)
-	Acc = *c.Select(s2bits[0], &Acc, &tablePhiQ[0])
-	tableR[0] = *c.Add(&tableR[0], &Acc)
-	Acc = *c.Select(t1bits[0], &Acc, &tableR[0])
-	tablePhiR[0] = *c.Add(&tablePhiR[0], &Acc)
-	Acc = *c.Select(t2bits[0], &Acc, &tablePhiR[0])
+	tableQ[0] = c.Add(tableQ[0], Acc)
+	Acc = c.Select(s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0] = c.Add(tablePhiQ[0], Acc)
+	Acc = c.Select(s2bits[0], Acc, tablePhiQ[0])
+	tableR[0] = c.Add(tableR[0], Acc)
+	Acc = c.Select(t1bits[0], Acc, tableR[0])
+	tablePhiR[0] = c.Add(tablePhiR[0], Acc)
+	Acc = c.Select(t2bits[0], Acc, tablePhiR[0])
 
-	return &Acc
+	return Acc
 }
 
 // scalarBitsMul computes s * p and returns it where sBits is the bit decomposition of s. It doesn't modify p nor sBits.
