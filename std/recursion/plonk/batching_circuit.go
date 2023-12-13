@@ -11,7 +11,6 @@ import (
 	gnark_kzg "github.com/consensys/gnark/std/commitments/kzg"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
-	"github.com/consensys/gnark/test"
 )
 
 // ------------------------------------------------------
@@ -30,7 +29,6 @@ type BatchVerifyCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 }
 
 func InstantiateOuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
-	assert *test.Assert,
 	batchSizeProofs int,
 	witnesses []witness.Witness,
 	innerCcs constraint.ConstraintSystem) BatchVerifyCircuit[FR, G1El, G2El, GtEl] {
@@ -53,32 +51,36 @@ func InstantiateOuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 }
 
 func AssignWitness[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
-	assert *test.Assert,
 	batchSizeProofs int,
-	// frHashPub string,
 	witnesses []witness.Witness,
 	vk native_plonk.VerifyingKey,
 	proofs []native_plonk.Proof,
-) BatchVerifyCircuit[FR, G1El, G2El, GtEl] {
+) (BatchVerifyCircuit[FR, G1El, G2El, GtEl], error) {
+	var ret BatchVerifyCircuit[FR, G1El, G2El, GtEl]
 
 	assignmentPubToPrivWitnesses := make([]Witness[FR], batchSizeProofs)
 	for i := 0; i < batchSizeProofs; i++ {
 		curWitness, err := ValueOfWitness[FR](witnesses[i])
-		assert.NoError(err)
+		if err != nil {
+			return ret, fmt.Errorf("assign witness: %w", err)
+		}
 		assignmentPubToPrivWitnesses[i] = curWitness
 	}
 	assignmentVerifyingKeys, err := ValueOfVerifyingKey[FR, G1El, G2El](vk)
-	assert.NoError(err)
+	if err != nil {
+		return ret, fmt.Errorf("assign verification key: %w", err)
+	}
 	assignmentProofs := make([]Proof[FR, G1El, G2El], batchSizeProofs)
 	for i := 0; i < batchSizeProofs; i++ {
 		assignmentProofs[i], err = ValueOfProof[FR, G1El, G2El](proofs[i])
-		assert.NoError(err)
+		if err != nil {
+			return ret, fmt.Errorf("assign proof: %w", err)
+		}
 	}
 	outerAssignment := BatchVerifyCircuit[FR, G1El, G2El, GtEl]{
 		Proofs:       assignmentProofs,
 		VerifyingKey: assignmentVerifyingKeys,
 		PublicInners: assignmentPubToPrivWitnesses,
-		// HashPub:       frHashPub,
 	}
 
 	return outerAssignment
