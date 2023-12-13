@@ -476,7 +476,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	var st S
 	frModulus := emulated.ValueOf[S](st.Modulus())
-	sd, err := c.scalarApi.NewHint(DecomposeScalarG1, 5, s, &c.Eigenvalue, &frModulus)
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, &c.Eigenvalue, &frModulus)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
@@ -628,14 +628,14 @@ func (c *Curve[B, S]) jointScalarMulGeneric(p1, p2 *AffinePoint[B], s1, s2 *emul
 func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	var st S
 	frModulus := emulated.ValueOf[S](st.Modulus())
-	sd, err := c.scalarApi.NewHint(DecomposeScalarG1, 5, s, &c.Eigenvalue, &frModulus)
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, &c.Eigenvalue, &frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	s1, s2 := sd[0], sd[1]
 
-	td, err := c.scalarApi.NewHint(DecomposeScalarG1, 5, t, &c.Eigenvalue, &frModulus)
+	td, err := c.scalarApi.NewHint(decomposeScalarG1, 5, t, &c.Eigenvalue, &frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

@@ -10,10 +10,14 @@ import (
 )
 
 func init() {
-	solver.RegisterHint(DecomposeScalarG1)
+	solver.RegisterHint(GetHints()...)
 }
 
-func DecomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+func GetHints() []solver.Hint {
+	return []solver.Hint{decomposeScalarG1}
+}
+
+func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 3 {
 			return fmt.Errorf("expecting three inputs")
