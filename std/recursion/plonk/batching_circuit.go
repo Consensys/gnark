@@ -23,7 +23,7 @@ type BatchVerifyCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 
 	// proofs, verifying keys of the inner circuit
 	Proofs       []Proof[FR, G1El, G2El]
-	VerifyingKey VerifyingKey[FR, G1El, G2El] // TODO this should be a constant
+	VerifyingKey VerifyingKey[FR, G1El, G2El] `gnark:"-"`
 
 	// Corresponds to the public inputs of the inner circuit
 	PublicInners []Witness[FR]
