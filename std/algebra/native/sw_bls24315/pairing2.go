@@ -402,20 +402,6 @@ func NewGTEl(v bls24315.GT) GT {
 	}
 }
 
-// NewLineEvaluation allocates a witness from the native LineEvaluationAff and returns it.
-func NewLineEvaluation(v bls24315.LineEvaluationAff) lineEvaluation {
-	return lineEvaluation{
-		R0: fields_bls24315.E4{
-			B0: fields_bls24315.E2{A0: (fr_bw6633.Element)(v.R0.B0.A0), A1: (fr_bw6633.Element)(v.R0.B0.A1)},
-			B1: fields_bls24315.E2{A0: (fr_bw6633.Element)(v.R0.B1.A0), A1: (fr_bw6633.Element)(v.R0.B1.A1)},
-		},
-		R1: fields_bls24315.E4{
-			B0: fields_bls24315.E2{A0: (fr_bw6633.Element)(v.R1.B0.A0), A1: (fr_bw6633.Element)(v.R1.B0.A1)},
-			B1: fields_bls24315.E2{A0: (fr_bw6633.Element)(v.R1.B1.A0), A1: (fr_bw6633.Element)(v.R1.B1.A1)},
-		},
-	}
-}
-
 // Scalar is a scalar in the groups. As the implementation is defined on a
 // 2-chain, then this type is an alias to [frontend.Variable].
 type Scalar = emulated.Element[ScalarField]
