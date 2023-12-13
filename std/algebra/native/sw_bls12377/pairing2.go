@@ -74,7 +74,8 @@ func (c *Curve) Add(P, Q *G1Affine) *G1Affine {
 	return res
 }
 
-// AddUnified...
+// AddUnified adds any two points and returns the sum. It does not modify the input
+// points.
 func (c *Curve) AddUnified(P, Q *G1Affine) *G1Affine {
 	res := &G1Affine{
 		X: P.X,
