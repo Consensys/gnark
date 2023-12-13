@@ -17,7 +17,6 @@
 package plonk
 
 import (
-	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
@@ -107,7 +106,7 @@ type ProvingKey struct {
 }
 
 // TODO modify the signature to receive the SRS in Lagrange form (optional argument ?)
-func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
+func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
 
 	var pk ProvingKey
 	var vk VerifyingKey
@@ -120,22 +119,26 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 		return nil, nil, fmt.Errorf("circuit has only %d constraints; unsupported by the current implementation", spr.GetNbConstraints())
 	}
 
+	// check the size of the kzg srs.
+	if len(srs.Pk.G1) < (int(pk.Domain[0].Cardinality) + 3) { // + 3 for the kzg.Open of blinded poly
+		return nil, nil, fmt.Errorf("kzg srs is too small: got %d, need %d", len(srs.Pk.G1), pk.Domain[0].Cardinality+3)
+	}
+
+	// same for the lagrange form
+	if len(srsLagrange.Pk.G1) != int(pk.Domain[0].Cardinality) {
+		return nil, nil, fmt.Errorf("kzg srs lagrange is too small: got %d, need %d", len(srsLagrange.Pk.G1), pk.Domain[0].Cardinality)
+	}
+
 	// step 1: set the verifying key
 	pk.Vk.CosetShift.Set(&pk.Domain[0].FrMultiplicativeGen)
 	vk.Size = pk.Domain[0].Cardinality
 	vk.SizeInv.SetUint64(vk.Size).Inverse(&vk.SizeInv)
 	vk.Generator.Set(&pk.Domain[0].Generator)
 	vk.NbPublicVariables = uint64(len(spr.Public))
-	if len(kzgSrs.Pk.G1) < int(vk.Size)+3 { // + 3 for the kzg.Open of blinded poly
-		return nil, nil, errors.New("kzg srs is too small")
-	}
-	pk.Kzg.G1 = kzgSrs.Pk.G1[:int(vk.Size)+3]
-	var err error
-	pk.KzgLagrange.G1, err = kzg.ToLagrangeG1(kzgSrs.Pk.G1[:int(vk.Size)])
-	if err != nil {
-		return nil, nil, err
-	}
-	vk.Kzg = kzgSrs.Vk
+
+	pk.Kzg.G1 = srs.Pk.G1[:int(vk.Size)+3]
+	pk.KzgLagrange.G1 = srsLagrange.Pk.G1
+	vk.Kzg = srs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
 	BuildTrace(spr, &pk.trace)
@@ -153,7 +156,7 @@ func Setup(spr *cs.SparseR1CS, kzgSrs kzg.SRS) (*ProvingKey, *VerifyingKey, erro
 	// All the above polynomials are expressed in canonical basis afterwards. This is why
 	// we save lqk before, because the prover needs to complete it in Lagrange form, and
 	// then express it on the Lagrange coset basis.
-	if err = commitTrace(&pk.trace, &pk); err != nil {
+	if err := commitTrace(&pk.trace, &pk); err != nil {
 		return nil, nil, err
 	}
 

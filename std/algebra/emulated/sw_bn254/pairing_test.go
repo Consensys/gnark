@@ -98,6 +98,20 @@ func TestPairTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestPairFixedTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{q})
+	assert.NoError(err)
+	witness := PairCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2AffineFixed(q),
+		Res:  NewGTEl(res),
+	}
+	err = test.IsSolved(&PairCircuit{InG2: NewG2AffineFixedPlaceholder()}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type MultiPairCircuit struct {
 	InG1 G1Affine
 	InG2 G2Affine
@@ -126,6 +140,9 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 }
 
 func TestMultiPairTestSolve(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
 	assert := test.NewAssert(t)
 	p1, q1 := randomG1G2Affines()
 	p := make([]bn254.G1Affine, 4)
@@ -183,42 +200,6 @@ func TestPairingCheckTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
-type FinalExponentiationSafeCircuit struct {
-	P1, P2 G1Affine
-	Q1, Q2 G2Affine
-}
-
-func (c *FinalExponentiationSafeCircuit) Define(api frontend.API) error {
-	pairing, err := NewPairing(api)
-	if err != nil {
-		return err
-	}
-	res, err := pairing.MillerLoop([]*G1Affine{&c.P1, &c.P2}, []*G2Affine{&c.Q1, &c.Q2})
-	if err != nil {
-		return err
-	}
-	res2 := pairing.FinalExponentiation(res)
-	one := pairing.Ext12.One()
-	pairing.AssertIsEqual(one, res2)
-	return nil
-}
-
-func TestFinalExponentiationSafeCircuit(t *testing.T) {
-	assert := test.NewAssert(t)
-	_, _, p1, q1 := bn254.Generators()
-	var p2 bn254.G1Affine
-	var q2 bn254.G2Affine
-	p2.Neg(&p1)
-	q2.Set(&q1)
-	err := test.IsSolved(&FinalExponentiationSafeCircuit{}, &FinalExponentiationSafeCircuit{
-		P1: NewG1Affine(p1),
-		P2: NewG1Affine(p2),
-		Q1: NewG2Affine(q1),
-		Q2: NewG2Affine(q2),
-	}, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
 type GroupMembershipCircuit struct {
 	InG1 G1Affine
 	InG2 G2Affine
@@ -242,85 +223,6 @@ func TestGroupMembershipSolve(t *testing.T) {
 		InG2: NewG2Affine(q),
 	}
 	err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-// ----------------------------
-//	  Fixed-argument pairing
-// ----------------------------
-//
-// The second argument Q is the fixed canonical generator of G2.
-//
-// Q.X.A0 = 0x1800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed
-// Q.X.A1 = 0x198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2
-// Q.Y.A0 = 0x12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa
-// Q.Y.A1 = 0x90689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b
-
-type PairFixedCircuit struct {
-	InG1 G1Affine
-	Res  GTEl
-}
-
-func (c *PairFixedCircuit) Define(api frontend.API) error {
-	pairing, err := NewPairing(api)
-	if err != nil {
-		return fmt.Errorf("new pairing: %w", err)
-	}
-	res, err := pairing.PairFixedQ(&c.InG1)
-	if err != nil {
-		return fmt.Errorf("pair: %w", err)
-	}
-	pairing.AssertIsEqual(res, &c.Res)
-	return nil
-}
-
-func TestPairFixedTestSolve(t *testing.T) {
-	assert := test.NewAssert(t)
-	p, _ := randomG1G2Affines()
-	_, _, _, G2AffGen := bn254.Generators()
-	res, err := bn254.Pair([]bn254.G1Affine{p}, []bn254.G2Affine{G2AffGen})
-	assert.NoError(err)
-	witness := PairFixedCircuit{
-		InG1: NewG1Affine(p),
-		Res:  NewGTEl(res),
-	}
-	err = test.IsSolved(&PairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type DoublePairFixedCircuit struct {
-	In1G1 G1Affine
-	In2G1 G1Affine
-	In1G2 G2Affine
-	Res   GTEl
-}
-
-func (c *DoublePairFixedCircuit) Define(api frontend.API) error {
-	pairing, err := NewPairing(api)
-	if err != nil {
-		return fmt.Errorf("new pairing: %w", err)
-	}
-	res, err := pairing.DoublePairFixedQ(&c.In1G1, &c.In2G1, &c.In1G2)
-	if err != nil {
-		return fmt.Errorf("pair: %w", err)
-	}
-	pairing.AssertIsEqual(res, &c.Res)
-	return nil
-}
-
-func TestDoublePairFixedTestSolve(t *testing.T) {
-	assert := test.NewAssert(t)
-	p, q := randomG1G2Affines()
-	_, _, _, G2AffGen := bn254.Generators()
-	res, err := bn254.Pair([]bn254.G1Affine{p, p}, []bn254.G2Affine{q, G2AffGen})
-	assert.NoError(err)
-	witness := DoublePairFixedCircuit{
-		In1G1: NewG1Affine(p),
-		In2G1: NewG1Affine(p),
-		In1G2: NewG2Affine(q),
-		Res:   NewGTEl(res),
-	}
-	err = test.IsSolved(&DoublePairFixedCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 

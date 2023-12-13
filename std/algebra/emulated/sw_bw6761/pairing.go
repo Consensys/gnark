@@ -185,7 +185,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 	lines := make([]lineEvaluations, len(Q))
 	for i := range Q {
 		if Q[i].Lines == nil {
-			Qlines := pr.precomputeLines(&Q[i].P)
+			Qlines := pr.computeLines(&Q[i].P)
 			Q[i].Lines = &Qlines
 		}
 		lines[i] = *Q[i].Lines
@@ -194,8 +194,7 @@ func (pr Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 
 }
 
-// MillerLoopFixedQ computes the multi-Miller loop as in MillerLoop
-// but Qᵢ are fixed points in G2 known in advance.
+// millerLoopLines computes the multi-Miller loop from points in G1 and precomputed lines in G2
 func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl, error) {
 
 	// check input size match
@@ -205,8 +204,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	}
 
 	// precomputations
-	yInv := make([]*emulated.Element[emulated.BW6761Fp], n)
-	xNegOverY := make([]*emulated.Element[emulated.BW6761Fp], n)
+	yInv := make([]*emulated.Element[BaseField], n)
+	xNegOverY := make([]*emulated.Element[BaseField], n)
 
 	for k := 0; k < n; k++ {
 		// P are supposed to be on G1 respectively of prime order r.
@@ -218,7 +217,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	}
 
 	// f_{x₀+1+λ(x₀³-x₀²-x₀),Q}(P), Q is known in advance
-	var prodLines [5]*emulated.Element[emulated.BW6761Fp]
+	var prodLines [5]*emulated.Element[BaseField]
 	result := pr.Ext6.One()
 
 	// i = 188
@@ -349,8 +348,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 
 	// compute x3 =λ1²-x1-x2
 	x3 := pr.curveF.Mul(l1, l1)
-	x3 = pr.curveF.Sub(x3, &p1.X)
-	x3 = pr.curveF.Sub(x3, &p2.X)
+	x3 = pr.curveF.Sub(x3, pr.curveF.Add(&p1.X, &p2.X))
 
 	// omit y3 computation
 
@@ -360,16 +358,14 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 	line1.R1 = *pr.curveF.Sub(&line1.R1, &p1.Y)
 
 	// compute λ2 = -λ1-2y1/(x3-x1)
-	n = pr.curveF.Add(&p1.Y, &p1.Y)
-	d = pr.curveF.Sub(x3, &p1.X)
+	n = pr.curveF.MulConst(&p1.Y, big.NewInt(2))
+	d = pr.curveF.Sub(&p1.X, x3)
 	l2 := pr.curveF.Div(n, d)
-	l2 = pr.curveF.Add(l2, l1)
-	l2 = pr.curveF.Neg(l2)
+	l2 = pr.curveF.Sub(l2, l1)
 
 	// compute x4 = λ2²-x1-x3
 	x4 := pr.curveF.Mul(l2, l2)
-	x4 = pr.curveF.Sub(x4, &p1.X)
-	x4 = pr.curveF.Sub(x4, x3)
+	x4 = pr.curveF.Sub(x4, pr.curveF.Add(&p1.X, x3))
 
 	// compute y4 = λ2(x1 - x4)-y1
 	y4 := pr.curveF.Sub(&p1.X, x4)
@@ -396,15 +392,13 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 	// λ = 3x²/2y
 	n := pr.curveF.Mul(&p1.X, &p1.X)
-	three := big.NewInt(3)
-	n = pr.curveF.MulConst(n, three)
-	d := pr.curveF.Add(&p1.Y, &p1.Y)
+	n = pr.curveF.MulConst(n, big.NewInt(3))
+	d := pr.curveF.MulConst(&p1.Y, big.NewInt(2))
 	λ := pr.curveF.Div(n, d)
 
 	// xr = λ²-2x
 	xr := pr.curveF.Mul(λ, λ)
-	xr = pr.curveF.Sub(xr, &p1.X)
-	xr = pr.curveF.Sub(xr, &p1.X)
+	xr = pr.curveF.Sub(xr, pr.curveF.MulConst(&p1.X, big.NewInt(2)))
 
 	// yr = λ(x-xr)-y
 	yr := pr.curveF.Sub(&p1.X, xr)
@@ -427,9 +421,8 @@ func (pr Pairing) tangentCompute(p1 *g2AffP) *lineEvaluation {
 
 	// λ = 3x²/2y
 	n := pr.curveF.Mul(&p1.X, &p1.X)
-	three := big.NewInt(3)
-	n = pr.curveF.MulConst(n, three)
-	d := pr.curveF.Add(&p1.Y, &p1.Y)
+	n = pr.curveF.MulConst(n, big.NewInt(3))
+	d := pr.curveF.MulConst(&p1.Y, big.NewInt(2))
 	λ := pr.curveF.Div(n, d)
 
 	var line lineEvaluation

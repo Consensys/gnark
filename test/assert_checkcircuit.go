@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // CheckCircuit performs a series of check on the provided circuit.
@@ -256,11 +257,11 @@ var (
 			pk, vk any,
 			pkBuilder, vkBuilder, proofBuilder func() any,
 			err error) {
-			srs, err := NewKZGSRS(ccs)
+			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			if err != nil {
 				return nil, nil, nil, nil, nil, err
 			}
-			pk, vk, err = plonk.Setup(ccs, srs)
+			pk, vk, err = plonk.Setup(ccs, srs, srsLagrange)
 			return pk, vk, func() any { return plonk.NewProvingKey(curve) }, func() any { return plonk.NewVerifyingKey(curve) }, func() any { return plonk.NewProof(curve) }, err
 		},
 		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {

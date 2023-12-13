@@ -40,6 +40,7 @@ import (
 
 var (
 	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
+	errInvalidWitness       = errors.New("witness length is invalid")
 )
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.VerifierOption) error {
@@ -52,6 +53,10 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 
 	if len(proof.Bsb22Commitments) != len(vk.Qcp) {
 		return errors.New("BSB22 Commitment number mismatch")
+	}
+
+	if len(publicWitness) != int(vk.NbPublicVariables) {
+		return errInvalidWitness
 	}
 
 	// transcript to derive the challenge
