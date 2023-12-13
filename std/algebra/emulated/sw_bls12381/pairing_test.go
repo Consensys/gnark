@@ -59,7 +59,7 @@ func TestFinalExponentiationTestSolve(t *testing.T) {
 		InGt: NewGTEl(gt),
 		Res:  NewGTEl(res),
 	}
-	err := test.IsSolved(&FinalExponentiationCircuit{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&FinalExponentiationCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -94,7 +94,7 @@ func TestPairTestSolve(t *testing.T) {
 		InG2: NewG2Affine(q),
 		Res:  NewGTEl(res),
 	}
-	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BLS12_381.ScalarField())
+	err = test.IsSolved(&PairCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -108,7 +108,7 @@ func TestPairFixedTestSolve(t *testing.T) {
 		InG2: NewG2AffineFixed(q),
 		Res:  NewGTEl(res),
 	}
-	err = test.IsSolved(&PairCircuit{InG2: NewG2AffineFixedPlaceholder()}, &witness, ecc.BLS12_381.ScalarField())
+	err = test.IsSolved(&PairCircuit{InG2: NewG2AffineFixedPlaceholder()}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -160,7 +160,7 @@ func TestMultiPairTestSolve(t *testing.T) {
 			InG2: NewG2Affine(q1),
 			Res:  NewGTEl(res),
 		}
-		err = test.IsSolved(&MultiPairCircuit{n: i}, &witness, ecc.BLS12_381.ScalarField())
+		err = test.IsSolved(&MultiPairCircuit{n: i}, &witness, ecc.BN254.ScalarField())
 		assert.NoError(err)
 	}
 }
@@ -196,7 +196,7 @@ func TestPairingCheckTestSolve(t *testing.T) {
 		In2G1: NewG1Affine(p2),
 		In2G2: NewG2Affine(q2),
 	}
-	err := test.IsSolved(&PairingCheckCircuit{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&PairingCheckCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -222,7 +222,7 @@ func TestGroupMembershipSolve(t *testing.T) {
 		InG1: NewG1Affine(p),
 		InG2: NewG2Affine(q),
 	}
-	err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BLS12_381.ScalarField())
+	err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 
@@ -239,7 +239,7 @@ func BenchmarkPairing(b *testing.B) {
 		In2G1: NewG1Affine(p2),
 		In2G2: NewG2Affine(q2),
 	}
-	w, err := frontend.NewWitness(&witness, ecc.BLS12_381.ScalarField())
+	w, err := frontend.NewWitness(&witness, ecc.BN254.ScalarField())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func BenchmarkPairing(b *testing.B) {
 	b.Run("compile scs", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			if ccs, err = frontend.Compile(ecc.BLS12_381.ScalarField(), scs.NewBuilder, &PairingCheckCircuit{}); err != nil {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &PairingCheckCircuit{}); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -269,7 +269,7 @@ func BenchmarkPairing(b *testing.B) {
 	b.Run("compile r1cs", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			if ccs, err = frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &PairingCheckCircuit{}); err != nil {
+			if ccs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &PairingCheckCircuit{}); err != nil {
 				b.Fatal(err)
 			}
 		}
