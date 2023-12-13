@@ -23,7 +23,7 @@ import (
 type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	Proof        Proof[FR, G1El, G2El]
 	VerifyingKey VerifyingKey[FR, G1El, G2El] `gnark:"-"`
-	InnerWitness Witness[FR]
+	InnerWitness Witness[FR]                  `gnark:",public"`
 }
 
 func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
