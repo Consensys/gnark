@@ -472,15 +472,15 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0).
 func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	var st S
-	frModulus := emulated.ValueOf[S](st.Modulus())
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, c.eigenvalue, &frModulus)
+	frModulus := c.scalarApi.Modulus()
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, c.eigenvalue, frModulus)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
-		c.scalarApi.Add(s, c.scalarApi.Mul(&frModulus, sd[2])),
+		c.scalarApi.Add(s, c.scalarApi.Mul(frModulus, sd[2])),
 	)
 	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1))
 	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[4], s2))
@@ -624,15 +624,15 @@ func (c *Curve[B, S]) jointScalarMulGeneric(p1, p2 *AffinePoint[B], s1, s2 *emul
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0).
 func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	var st S
-	frModulus := emulated.ValueOf[S](st.Modulus())
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, c.eigenvalue, &frModulus)
+	frModulus := c.scalarApi.Modulus()
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, c.eigenvalue, frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	s1, s2 := sd[0], sd[1]
 
-	td, err := c.scalarApi.NewHint(decomposeScalarG1, 5, t, c.eigenvalue, &frModulus)
+	td, err := c.scalarApi.NewHint(decomposeScalarG1, 5, t, c.eigenvalue, frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -641,11 +641,11 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
-		c.scalarApi.Add(s, c.scalarApi.Mul(&frModulus, sd[2])),
+		c.scalarApi.Add(s, c.scalarApi.Mul(frModulus, sd[2])),
 	)
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(t1, c.scalarApi.Mul(t2, c.eigenvalue)),
-		c.scalarApi.Add(t, c.scalarApi.Mul(&frModulus, td[2])),
+		c.scalarApi.Add(t, c.scalarApi.Mul(frModulus, td[2])),
 	)
 	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1))
 	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[4], s2))
