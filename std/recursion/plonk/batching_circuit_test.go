@@ -7,8 +7,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	"github.com/consensys/gnark-crypto/kzg"
-	"github.com/consensys/gnark/backend"
 	native_plonk "github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -17,6 +15,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 //------------------------------------------------------
@@ -47,24 +46,24 @@ func (c *InnerCircuit) Define(api frontend.API) error {
 }
 
 // get pk, vk, ccs of a circuit
-func getInnerCircuitData(circuit frontend.Circuit) (constraint.ConstraintSystem, native_plonk.VerifyingKey, native_plonk.ProvingKey, kzg.SRS) {
+func getInnerCircuitData(circuit frontend.Circuit) (constraint.ConstraintSystem, native_plonk.VerifyingKey, native_plonk.ProvingKey) {
 
 	ccs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, circuit)
 	if err != nil {
 		panic("compilation failed: " + err.Error())
 	}
 
-	srs, err := test.NewKZGSRS(ccs)
+	srsCanonical, srsLagrange, err := unsafekzg.NewSRS(ccs)
 	if err != nil {
 		panic(err)
 	}
 
-	pk, vk, err := native_plonk.Setup(ccs, srs)
+	pk, vk, err := native_plonk.Setup(ccs, srsCanonical, srsLagrange)
 	if err != nil {
 		panic("setup failed: " + err.Error())
 	}
 
-	return ccs, vk, pk, srs
+	return ccs, vk, pk
 }
 
 // get proofs
