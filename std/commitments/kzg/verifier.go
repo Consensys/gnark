@@ -482,6 +482,9 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commit
 	return nil
 }
 
+// FoldProofsMultiPoint folds multiple proofs with openings at multiple points.
+// Used for batch verification of different opening proofs. See also
+// [Verifier.BatchVerifyMultiPoints].
 func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) (*G1El, *G1El, error) {
 
 	var fr FR
