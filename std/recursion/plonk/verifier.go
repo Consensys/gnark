@@ -963,6 +963,32 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 	return nil
 }
 
+// AssertSameProofs asserts that multiple proofs for the same circuit are valid.
+func (v *Verifier[FR, G1El, G2El, GtEl]) AssertSameProofs(vk VerifyingKey[FR, G1El, G2El], proofs []Proof[FR, G1El, G2El], witnesses []Witness[FR]) error {
+	if len(proofs) != len(witnesses) {
+		return fmt.Errorf("proofs and witness length mismatch")
+	}
+	if len(proofs) == 1 {
+		return v.AssertProof(vk, proofs[0], witnesses[0])
+	}
+	var foldedDigests []kzg.Commitment[G1El]
+	var foldedProofs []kzg.OpeningProof[FR, G1El]
+	var foldedPoints []emulated.Element[FR]
+	for i := range proofs {
+		dg, pr, pts, err := v.PrepareVerification(vk, proofs[i], witnesses[i])
+		if err != nil {
+			return fmt.Errorf("prepare proof %d: %w", i, err)
+		}
+		foldedDigests = append(foldedDigests, dg...)
+		foldedProofs = append(foldedProofs, pr...)
+		foldedPoints = append(foldedPoints, pts...)
+	}
+	if err := v.kzg.BatchVerifyMultiPoints(foldedDigests, foldedProofs, foldedPoints, vk.Kzg); err != nil {
+		return fmt.Errorf("batch verify kzg: %w", err)
+	}
+	return nil
+}
+
 func (v *Verifier[FR, G1El, G2El, GtEl]) bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey[FR, G1El, G2El], witness Witness[FR]) error {
 
 	// permutation
