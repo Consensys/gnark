@@ -34,6 +34,8 @@ func precomputeLines(Q bls12377.G2Affine) lineEvaluations {
 	var cLines lineEvaluations
 	nLines := bls12377.PrecomputeLines(Q)
 	for j := range cLines[0] {
+		cLines[0][j] = new(lineEvaluation)
+		cLines[1][j] = new(lineEvaluation)
 		cLines[0][j].R0.Assign(&nLines[0][j].R0)
 		cLines[0][j].R1.Assign(&nLines[0][j].R1)
 		cLines[1][j].R0.Assign(&nLines[1][j].R0)
