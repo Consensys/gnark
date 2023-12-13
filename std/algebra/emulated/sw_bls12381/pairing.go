@@ -15,8 +15,8 @@ import (
 type Pairing struct {
 	api frontend.API
 	*fields_bls12381.Ext12
-	curveF *emulated.Field[emulated.BLS12381Fp]
-	curve  *sw_emulated.Curve[emulated.BLS12381Fp, emulated.BLS12381Fr]
+	curveF *emulated.Field[BaseField]
+	curve  *sw_emulated.Curve[BaseField, ScalarField]
 	g2     *G2
 	g1     *G1
 	bTwist *fields_bls12381.E2
@@ -29,47 +29,47 @@ func NewGTEl(v bls12381.GT) GTEl {
 	return GTEl{
 		C0: fields_bls12381.E6{
 			B0: fields_bls12381.E2{
-				A0: emulated.ValueOf[emulated.BLS12381Fp](v.C0.B0.A0),
-				A1: emulated.ValueOf[emulated.BLS12381Fp](v.C0.B0.A1),
+				A0: emulated.ValueOf[BaseField](v.C0.B0.A0),
+				A1: emulated.ValueOf[BaseField](v.C0.B0.A1),
 			},
 			B1: fields_bls12381.E2{
-				A0: emulated.ValueOf[emulated.BLS12381Fp](v.C0.B1.A0),
-				A1: emulated.ValueOf[emulated.BLS12381Fp](v.C0.B1.A1),
+				A0: emulated.ValueOf[BaseField](v.C0.B1.A0),
+				A1: emulated.ValueOf[BaseField](v.C0.B1.A1),
 			},
 			B2: fields_bls12381.E2{
-				A0: emulated.ValueOf[emulated.BLS12381Fp](v.C0.B2.A0),
-				A1: emulated.ValueOf[emulated.BLS12381Fp](v.C0.B2.A1),
+				A0: emulated.ValueOf[BaseField](v.C0.B2.A0),
+				A1: emulated.ValueOf[BaseField](v.C0.B2.A1),
 			},
 		},
 		C1: fields_bls12381.E6{
 			B0: fields_bls12381.E2{
-				A0: emulated.ValueOf[emulated.BLS12381Fp](v.C1.B0.A0),
-				A1: emulated.ValueOf[emulated.BLS12381Fp](v.C1.B0.A1),
+				A0: emulated.ValueOf[BaseField](v.C1.B0.A0),
+				A1: emulated.ValueOf[BaseField](v.C1.B0.A1),
 			},
 			B1: fields_bls12381.E2{
-				A0: emulated.ValueOf[emulated.BLS12381Fp](v.C1.B1.A0),
-				A1: emulated.ValueOf[emulated.BLS12381Fp](v.C1.B1.A1),
+				A0: emulated.ValueOf[BaseField](v.C1.B1.A0),
+				A1: emulated.ValueOf[BaseField](v.C1.B1.A1),
 			},
 			B2: fields_bls12381.E2{
-				A0: emulated.ValueOf[emulated.BLS12381Fp](v.C1.B2.A0),
-				A1: emulated.ValueOf[emulated.BLS12381Fp](v.C1.B2.A1),
+				A0: emulated.ValueOf[BaseField](v.C1.B2.A0),
+				A1: emulated.ValueOf[BaseField](v.C1.B2.A1),
 			},
 		},
 	}
 }
 
 func NewPairing(api frontend.API) (*Pairing, error) {
-	ba, err := emulated.NewField[emulated.BLS12381Fp](api)
+	ba, err := emulated.NewField[BaseField](api)
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
-	curve, err := sw_emulated.New[emulated.BLS12381Fp, emulated.BLS12381Fr](api, sw_emulated.GetBLS12381Params())
+	curve, err := sw_emulated.New[BaseField, ScalarField](api, sw_emulated.GetBLS12381Params())
 	if err != nil {
 		return nil, fmt.Errorf("new curve: %w", err)
 	}
 	bTwist := fields_bls12381.E2{
-		A0: emulated.ValueOf[emulated.BLS12381Fp]("4"),
-		A1: emulated.ValueOf[emulated.BLS12381Fp]("4"),
+		A0: emulated.ValueOf[BaseField]("4"),
+		A1: emulated.ValueOf[BaseField]("4"),
 	}
 	g1, err := NewG1(api)
 	if err != nil {
@@ -287,7 +287,7 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 	// TODO: add phi and scalarMulBySeedSquare to g1.go
 	// [x²]ϕ(P)
 	phiP := pr.g1.phi(P)
-	seedSquare := emulated.ValueOf[emulated.BLS12381Fr]("228988810152649578064853576960394133504")
+	seedSquare := emulated.ValueOf[ScalarField]("228988810152649578064853576960394133504")
 	// TODO: use addchain to construct a fixed-scalar ScalarMul
 	_P := pr.curve.ScalarMul(phiP, &seedSquare)
 	_P = pr.curve.Neg(_P)
@@ -326,12 +326,12 @@ var loopCounter = [64]int8{
 func NewLineEvaluation(v bls12381.LineEvaluationAff) lineEvaluation {
 	return lineEvaluation{
 		R0: fields_bls12381.E2{
-			A0: emulated.ValueOf[emulated.BLS12381Fp](v.R0.A0),
-			A1: emulated.ValueOf[emulated.BLS12381Fp](v.R0.A1),
+			A0: emulated.ValueOf[BaseField](v.R0.A0),
+			A1: emulated.ValueOf[BaseField](v.R0.A1),
 		},
 		R1: fields_bls12381.E2{
-			A0: emulated.ValueOf[emulated.BLS12381Fp](v.R1.A0),
-			A1: emulated.ValueOf[emulated.BLS12381Fp](v.R1.A1),
+			A0: emulated.ValueOf[BaseField](v.R1.A0),
+			A1: emulated.ValueOf[BaseField](v.R1.A1),
 		},
 	}
 }
@@ -367,8 +367,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	}
 
 	// precomputations
-	yInv := make([]*emulated.Element[emulated.BLS12381Fp], n)
-	xNegOverY := make([]*emulated.Element[emulated.BLS12381Fp], n)
+	yInv := make([]*emulated.Element[BaseField], n)
+	xNegOverY := make([]*emulated.Element[BaseField], n)
 
 	for k := 0; k < n; k++ {
 		// P are supposed to be on G1 respectively of prime order r.

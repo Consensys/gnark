@@ -204,8 +204,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	}
 
 	// precomputations
-	yInv := make([]*emulated.Element[emulated.BW6761Fp], n)
-	xNegOverY := make([]*emulated.Element[emulated.BW6761Fp], n)
+	yInv := make([]*emulated.Element[BaseField], n)
+	xNegOverY := make([]*emulated.Element[BaseField], n)
 
 	for k := 0; k < n; k++ {
 		// P are supposed to be on G1 respectively of prime order r.
@@ -217,7 +217,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	}
 
 	// f_{x₀+1+λ(x₀³-x₀²-x₀),Q}(P), Q is known in advance
-	var prodLines [5]*emulated.Element[emulated.BW6761Fp]
+	var prodLines [5]*emulated.Element[BaseField]
 	result := pr.Ext6.One()
 
 	// i = 188
