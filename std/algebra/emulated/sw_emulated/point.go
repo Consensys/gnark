@@ -248,8 +248,8 @@ func (c *Curve[B, S]) AddUnified(p, q *AffinePoint[B]) *AffinePoint[B] {
 	return &result
 }
 
-// Add calls [Curve.Add]. It is defined for implementing the generic
-// curve interface.
+// Add performs unsafe addition of points p and q. For safe addition use
+// [Curve.AddUnified].
 func (c *Curve[B, S]) Add(p, q *AffinePoint[B]) *AffinePoint[B] {
 	return c.add(p, q)
 }
