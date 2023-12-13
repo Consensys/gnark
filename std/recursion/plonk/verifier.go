@@ -838,7 +838,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 
 	foldedH, err := v.curve.MultiScalarMul([]*G1El{&proof.H[2].G1El, &proof.H[1].G1El}, []*emulated.Element[FR]{zetaMPlusTwoSquare, zetaMPlusTwo})
 	if err != nil {
-		return fmt.Errorf("folded proof MSM: %w", err)
+		return nil, nil, nil, fmt.Errorf("folded proof MSM: %w", err)
 	}
 	foldedH = v.curve.Add(foldedH, &proof.H[0].G1El)
 
