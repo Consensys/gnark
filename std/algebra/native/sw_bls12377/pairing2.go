@@ -311,8 +311,8 @@ func NewG2AffineFixed(v bls12377.G2Affine) G2Affine {
 func NewG2AffineFixedPlaceholder() G2Affine {
 	var lines lineEvaluations
 	for i := 0; i < len(bls12377.LoopCounter)-1; i++ {
-		lines[0][i] = lineEvaluation{}
-		lines[1][i] = lineEvaluation{}
+		lines[0][i] = &lineEvaluation{}
+		lines[1][i] = &lineEvaluation{}
 	}
 	return G2Affine{
 		Lines: &lines,

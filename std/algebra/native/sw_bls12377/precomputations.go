@@ -28,7 +28,7 @@ import (
 type lineEvaluation struct {
 	R0, R1 fields_bls12377.E2
 }
-type lineEvaluations [2][len(loopCounter) - 1]lineEvaluation
+type lineEvaluations [2][len(loopCounter) - 1]*lineEvaluation
 
 func precomputeLines(Q bls12377.G2Affine) lineEvaluations {
 	var cLines lineEvaluations

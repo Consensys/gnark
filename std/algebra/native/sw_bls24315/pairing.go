@@ -201,7 +201,7 @@ func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func doubleAndAddStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, lineEvaluation, lineEvaluation) {
+func doubleAndAddStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, *lineEvaluation, *lineEvaluation) {
 
 	var n, d, l1, l2, x3, x4, y4 fields_bls24315.E4
 	var line1, line2 lineEvaluation
@@ -246,12 +246,12 @@ func doubleAndAddStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, lineEvaluation,
 	line2.R0 = l2
 	line2.R1.Mul(api, l2, p1.X).Sub(api, line2.R1, p1.Y)
 
-	return p, line1, line2
+	return p, &line1, &line2
 }
 
 // doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func doubleStep(api frontend.API, p1 *g2AffP) (g2AffP, lineEvaluation) {
+func doubleStep(api frontend.API, p1 *g2AffP) (g2AffP, *lineEvaluation) {
 
 	var n, d, l, xr, yr fields_bls24315.E4
 	var p g2AffP
@@ -278,13 +278,13 @@ func doubleStep(api frontend.API, p1 *g2AffP) (g2AffP, lineEvaluation) {
 	line.R0 = l
 	line.R1.Mul(api, l, p1.X).Sub(api, line.R1, p1.Y)
 
-	return p, line
+	return p, &line
 
 }
 
 // addStep adds two points in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func addStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, lineEvaluation) {
+func addStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, *lineEvaluation) {
 
 	var p2ypy, p2xpx, λ, λλ, pxrx, λpxrx, xr, yr fields_bls24315.E4
 	// compute λ = (y2-y1)/(x2-x1)
@@ -311,12 +311,12 @@ func addStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, lineEvaluation) {
 	line.R1.Mul(api, λ, p1.X)
 	line.R1.Sub(api, line.R1, p1.Y)
 
-	return res, line
+	return res, &line
 
 }
 
 // linesCompute computes the lines that goes through p1 and p2, and (p1+p2) and p1 but does not compute 2p1+p2
-func linesCompute(api frontend.API, p1, p2 *g2AffP) (lineEvaluation, lineEvaluation) {
+func linesCompute(api frontend.API, p1, p2 *g2AffP) (*lineEvaluation, *lineEvaluation) {
 
 	var n, d, l1, l2, x3 fields_bls24315.E4
 	var line1, line2 lineEvaluation
@@ -346,11 +346,11 @@ func linesCompute(api frontend.API, p1, p2 *g2AffP) (lineEvaluation, lineEvaluat
 	line2.R0 = l2
 	line2.R1.Mul(api, l2, p1.X).Sub(api, line2.R1, p1.Y)
 
-	return line1, line2
+	return &line1, &line2
 }
 
 // lineCompute computes the line that goes through p1 and p2 but does not compute p1+p2
-func lineCompute(api frontend.API, p1, p2 *g2AffP) lineEvaluation {
+func lineCompute(api frontend.API, p1, p2 *g2AffP) *lineEvaluation {
 
 	var qypy, qxpx, λ fields_bls24315.E4
 
@@ -364,6 +364,6 @@ func lineCompute(api frontend.API, p1, p2 *g2AffP) lineEvaluation {
 	line.R1.Mul(api, λ, p1.X)
 	line.R1.Sub(api, line.R1, p1.Y)
 
-	return line
+	return &line
 
 }
