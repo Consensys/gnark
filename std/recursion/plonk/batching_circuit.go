@@ -13,77 +13,54 @@ import (
 	"github.com/consensys/gnark/std/recursion"
 )
 
-// ------------------------------------------------------
-// Batching same circuit
-type BatchVerifyCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-
-	// Number of proofs to batch
-	batchSizeProofs int
-
-	// proofs, verifying keys of the inner circuit
-	Proofs       []Proof[FR, G1El, G2El]
+// BatchProofs collects proof and witness pairs for efficient batched
+// verification.
+type BatchProofs[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	// VerifyingKey is the PLONK verification key check the proofs against
 	VerifyingKey VerifyingKey[FR, G1El, G2El] `gnark:"-"`
-
-	// Corresponds to the public inputs of the inner circuit
-	PublicInners []Witness[FR]
+	// proofs and witness pairs to check
+	Proofs    []Proof[FR, G1El, G2El]
+	Witnesses []Witness[FR]
 }
 
-func InstantiateOuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
-	batchSizeProofs int,
-	witnesses []witness.Witness,
-	innerCcs constraint.ConstraintSystem) BatchVerifyCircuit[FR, G1El, G2El, GtEl] {
-
-	// outer ciruit instantation
-	outerCircuit := BatchVerifyCircuit[FR, G1El, G2El, GtEl]{
-		PublicInners: make([]Witness[FR], batchSizeProofs),
+// PlaceholderBatchProofs creates a placeholder for circuit compilation with constant verification key vk.
+func PlaceholderBatchProofs[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](size int, ccs constraint.ConstraintSystem, vk VerifyingKey[FR, G1El, G2El]) BatchProofs[FR, G1El, G2El, GtEl] {
+	pWits := make([]Witness[FR], size)
+	pProofs := make([]Proof[FR, G1El, G2El], size)
+	for i := range pWits {
+		pWits[i] = PlaceholderWitness[FR](ccs)
+		pProofs[i] = PlaceholderProof[FR, G1El, G2El](ccs)
 	}
-	for i := 0; i < len(witnesses); i++ {
-		outerCircuit.PublicInners[i] = PlaceholderWitness[FR](innerCcs)
+	return BatchProofs[FR, G1El, G2El, GtEl]{
+		VerifyingKey: vk,
+		Proofs:       pProofs,
+		Witnesses:    pWits,
 	}
-	outerCircuit.Proofs = make([]Proof[FR, G1El, G2El], batchSizeProofs)
-	for i := 0; i < batchSizeProofs; i++ {
-		outerCircuit.Proofs[i] = PlaceholderProof[FR, G1El, G2El](innerCcs)
-	}
-	outerCircuit.VerifyingKey = PlaceholderVerifyingKey[FR, G1El, G2El](innerCcs)
-	outerCircuit.batchSizeProofs = batchSizeProofs
-
-	return outerCircuit
 }
 
-func AssignWitness[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
-	batchSizeProofs int,
-	witnesses []witness.Witness,
-	vk native_plonk.VerifyingKey,
-	proofs []native_plonk.Proof,
-) (BatchVerifyCircuit[FR, G1El, G2El, GtEl], error) {
-	var ret BatchVerifyCircuit[FR, G1El, G2El, GtEl]
-
-	assignmentPubToPrivWitnesses := make([]Witness[FR], batchSizeProofs)
-	for i := 0; i < batchSizeProofs; i++ {
-		curWitness, err := ValueOfWitness[FR](witnesses[i])
+func ValueOfBatchProofs[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](proofs []native_plonk.Proof, witnesses []witness.Witness) (BatchProofs[FR, G1El, G2El, GtEl], error) {
+	var ret BatchProofs[FR, G1El, G2El, GtEl]
+	var err error
+	if len(proofs) != len(witnesses) {
+		return ret, fmt.Errorf("proof and witness length mismatch")
+	}
+	wWits := make([]Witness[FR], len(witnesses))
+	wProofs := make([]Proof[FR, G1El, G2El], len(proofs))
+	for i := range wWits {
+		wWits[i], err = ValueOfWitness[FR](witnesses[i])
 		if err != nil {
-			return ret, fmt.Errorf("assign witness: %w", err)
+			return ret, fmt.Errorf("assign witness %d: %w", err)
 		}
-		assignmentPubToPrivWitnesses[i] = curWitness
-	}
-	assignmentVerifyingKeys, err := ValueOfVerifyingKey[FR, G1El, G2El](vk)
-	if err != nil {
-		return ret, fmt.Errorf("assign verification key: %w", err)
-	}
-	assignmentProofs := make([]Proof[FR, G1El, G2El], batchSizeProofs)
-	for i := 0; i < batchSizeProofs; i++ {
-		assignmentProofs[i], err = ValueOfProof[FR, G1El, G2El](proofs[i])
+		wProofs[i], err = ValueOfProof[FR, G1El, G2El](proofs[i])
 		if err != nil {
-			return ret, fmt.Errorf("assign proof: %w", err)
+			return ret, fmt.Errorf("assign proof %d: %w", err)
 		}
 	}
-	outerAssignment := BatchVerifyCircuit[FR, G1El, G2El, GtEl]{
-		Proofs:       assignmentProofs,
-		VerifyingKey: assignmentVerifyingKeys,
-		PublicInners: assignmentPubToPrivWitnesses,
-	}
-
-	return outerAssignment
+	return BatchProofs[FR, G1El, G2El, GtEl]{
+		// we omit verification key as it is constant and defined in placeholder
+		Proofs:    wProofs,
+		Witnesses: wWits,
+	}, nil
 }
 
 //------------------------------------------------------
@@ -92,7 +69,7 @@ func AssignWitness[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 // BatchVerifyCircuits embeds BatchVerifyCircuit which stores the data for copies of the same circuit
 // /!\ In BatchVerifyCircuits the SRS is common to each of the circuits in Circuits
 type BatchVerifyCircuits[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	Circuits   []BatchVerifyCircuit[FR, G1El, G2El, GtEl]
+	Circuits   []BatchProofs[FR, G1El, G2El, GtEl]
 	HashPublic frontend.Variable `gnark:",public"`
 }
 
@@ -112,9 +89,9 @@ func (circuit *BatchVerifyCircuits[FR, G1El, G2El, GtEl]) Define(api frontend.AP
 	}
 
 	for curCircuit := 0; curCircuit < len(circuit.Circuits); curCircuit++ {
-		for i := 0; i < len(circuit.Circuits[curCircuit].PublicInners); i++ {
-			for j := 0; j < len(circuit.Circuits[curCircuit].PublicInners[i].Public); j++ {
-				toHash := curve.MarshalScalar(circuit.Circuits[curCircuit].PublicInners[i].Public[j])
+		for i := 0; i < len(circuit.Circuits[curCircuit].Witnesses); i++ {
+			for j := 0; j < len(circuit.Circuits[curCircuit].Witnesses[i].Public); j++ {
+				toHash := curve.MarshalScalar(circuit.Circuits[curCircuit].Witnesses[i].Public[j])
 				h.Write(toHash...)
 			}
 		}
@@ -141,7 +118,7 @@ func (circuit *BatchVerifyCircuits[FR, G1El, G2El, GtEl]) Define(api frontend.AP
 	offset := 0
 	for i := 0; i < len(circuit.Circuits); i++ {
 		for j := 0; j < circuit.Circuits[i].batchSizeProofs; j++ {
-			commitmentPair, proofPair, pointPair, err := verifier.PrepareVerification(circuit.Circuits[i].VerifyingKey, circuit.Circuits[i].Proofs[j], circuit.Circuits[i].PublicInners[j])
+			commitmentPair, proofPair, pointPair, err := verifier.PrepareVerification(circuit.Circuits[i].VerifyingKey, circuit.Circuits[i].Proofs[j], circuit.Circuits[i].Witnesses[j])
 			if err != nil {
 				return err
 			}

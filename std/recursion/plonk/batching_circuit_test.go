@@ -134,7 +134,7 @@ func TestBatchVerify(t *testing.T) {
 		sw_bls12377.G2Affine,
 		sw_bls12377.GT]
 	fullAssignment.Circuits = make(
-		[]BatchVerifyCircuit[sw_bls12377.ScalarField,
+		[]BatchProofs[sw_bls12377.ScalarField,
 			sw_bls12377.G1Affine,
 			sw_bls12377.G2Affine,
 			sw_bls12377.GT],
@@ -148,7 +148,7 @@ func TestBatchVerify(t *testing.T) {
 		sw_bls12377.G2Affine,
 		sw_bls12377.GT]
 	fullCircuit.Circuits = make(
-		[]BatchVerifyCircuit[sw_bls12377.ScalarField,
+		[]BatchProofs[sw_bls12377.ScalarField,
 			sw_bls12377.G1Affine,
 			sw_bls12377.G2Affine,
 			sw_bls12377.GT],
@@ -186,7 +186,7 @@ func TestBatchVerify(t *testing.T) {
 		}
 
 		// outer circuit
-		fullCircuit.Circuits[curCircuit] = InstantiateOuterCircuit[
+		fullCircuit.Circuits[curCircuit] = PlaceholderBatchProofs[
 			sw_bls12377.ScalarField,
 			sw_bls12377.G1Affine,
 			sw_bls12377.G2Affine,
