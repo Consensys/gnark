@@ -1085,6 +1085,11 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertSameProofs(vk VerifyingKey[FR, G1
 	return nil
 }
 
+// AssertDifferentProofs asserts the validity of different proofs for different
+// circuits. We define the base verification key bvk and per-circuit part in
+// cvks. The selector which verification key to use ise given in slice switches.
+// The proofs and witnesses are given in the argumens and must correspond to
+// each other.
 func (v *Verifier[FR, G1El, G2El, GtEl]) AssertDifferentProofs(bvk BaseVerifyingKey[FR, G1El, G2El], cvks []CircuitVerifyingKey[G1El],
 	switches []frontend.Variable, proofs []Proof[FR, G1El, G2El], witnesses []Witness[FR]) error {
 	if len(proofs) != len(witnesses) || len(proofs) != len(switches) {
