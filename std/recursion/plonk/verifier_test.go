@@ -327,12 +327,12 @@ func getParametricSetups(assert *test.Assert, field *big.Int, nbParams int) ([]c
 	vks := make([]native_plonk.VerifyingKey, nbParams)
 	pks := make([]native_plonk.ProvingKey, nbParams)
 	for i := range ccss {
-		ccss[i], err = frontend.Compile(field, scs.NewBuilder, &InnerCircuitParametric{parameter: i + 1})
+		ccss[i], err = frontend.Compile(field, scs.NewBuilder, &InnerCircuitParametric{parameter: i + 64})
 		assert.NoError(err)
 	}
+
 	srs, srsLagrange, err := unsafekzg.NewSRS(ccss[nbParams-1])
 	assert.NoError(err)
-
 	for i := range vks {
 		pks[i], vks[i], err = native_plonk.Setup(ccss[i], srs, srsLagrange)
 		assert.NoError(err)
@@ -347,7 +347,7 @@ func getRandomParametricProof(assert *test.Assert, field, outer *big.Int, ccss [
 	x, err := rand.Int(rand.Reader, field)
 	assert.NoError(err)
 	y := new(big.Int).Set(x)
-	for i := 0; i < idx+1; i++ {
+	for i := 0; i < idx+64; i++ {
 		y.Mul(y, y)
 		y.Mod(y, field)
 	}
