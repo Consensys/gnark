@@ -886,3 +886,369 @@ func TestKZGVerificationEmulated3Precomputed(t *testing.T) {
 	}
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
 }
+
+func TestKZGVerificationEmulatedConstantVk(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bn254.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	f := make([]fr_bn254.Element, polynomialSize)
+	for i := range f {
+		f[i].SetRandom()
+	}
+
+	com, err := kzg_bn254.Commit(f, srs.Pk)
+	assert.NoError(err)
+
+	var point fr_bn254.Element
+	point.SetRandom()
+	proof, err := kzg_bn254.Open(f, point, srs.Pk)
+	assert.NoError(err)
+
+	if err = kzg_bn254.Verify(&com, &proof, point, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	wCmt, err := ValueOfCommitment[sw_bn254.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine](proof)
+	assert.NoError(err)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bn254.G1Affine, sw_bn254.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bn254.ScalarField](point)
+	assert.NoError(err)
+
+	assignment := KZGVerificationConstantVkCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		Commitment:   wCmt,
+		OpeningProof: wProof,
+		Point:        wPt,
+	}
+	circuit := KZGVerificationConstantVkCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		vk: wVk,
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
+}
+
+func TestKZGVerificationEmulatedPrecomputed(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bn254.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	f := make([]fr_bn254.Element, polynomialSize)
+	for i := range f {
+		f[i].SetRandom()
+	}
+
+	com, err := kzg_bn254.Commit(f, srs.Pk)
+	assert.NoError(err)
+
+	var point fr_bn254.Element
+	point.SetRandom()
+	proof, err := kzg_bn254.Open(f, point, srs.Pk)
+	assert.NoError(err)
+
+	if err = kzg_bn254.Verify(&com, &proof, point, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	wCmt, err := ValueOfCommitment[sw_bn254.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bn254.ScalarField, sw_bn254.G1Affine](proof)
+	assert.NoError(err)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bn254.G1Affine, sw_bn254.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bn254.ScalarField](point)
+	assert.NoError(err)
+
+	assignment := KZGVerificationCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		VerifyingKey: wVk,
+		Commitment:   wCmt,
+		OpeningProof: wProof,
+		Point:        wPt,
+	}
+	circuit := KZGVerificationCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		VerifyingKey: PlaceholderVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine](),
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
+}
+
+func TestKZGVerificationEmulated2ConstantVk(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BLS12_381.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bls12381.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	f := make([]fr_bls12381.Element, polynomialSize)
+	for i := range f {
+		f[i].SetRandom()
+	}
+
+	com, err := kzg_bls12381.Commit(f, srs.Pk)
+	assert.NoError(err)
+
+	var point fr_bls12381.Element
+	point.SetRandom()
+	proof, err := kzg_bls12381.Open(f, point, srs.Pk)
+	assert.NoError(err)
+
+	if err = kzg_bls12381.Verify(&com, &proof, point, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	wCmt, err := ValueOfCommitment[sw_bls12381.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine](proof)
+	assert.NoError(err)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bls12381.ScalarField](point)
+	assert.NoError(err)
+
+	assignment := KZGVerificationConstantVkCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{
+		Commitment:   wCmt,
+		OpeningProof: wProof,
+		Point:        wPt,
+	}
+	circuit := KZGVerificationConstantVkCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{
+		vk: wVk,
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
+}
+
+func TestKZGVerificationEmulated2Precomputed(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BLS12_381.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bls12381.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	f := make([]fr_bls12381.Element, polynomialSize)
+	for i := range f {
+		f[i].SetRandom()
+	}
+
+	com, err := kzg_bls12381.Commit(f, srs.Pk)
+	assert.NoError(err)
+
+	var point fr_bls12381.Element
+	point.SetRandom()
+	proof, err := kzg_bls12381.Open(f, point, srs.Pk)
+	assert.NoError(err)
+
+	if err = kzg_bls12381.Verify(&com, &proof, point, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	wCmt, err := ValueOfCommitment[sw_bls12381.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bls12381.ScalarField, sw_bls12381.G1Affine](proof)
+	assert.NoError(err)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bls12381.ScalarField](point)
+	assert.NoError(err)
+
+	assignment := KZGVerificationCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{
+		VerifyingKey: wVk,
+		Commitment:   wCmt,
+		OpeningProof: wProof,
+		Point:        wPt,
+	}
+	circuit := KZGVerificationCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{
+		VerifyingKey: PlaceholderVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine](),
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BN254))
+}
+
+func TestKZGVerificationTwoChainPrecomputed(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bls12377.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	f := make([]fr_bls12377.Element, polynomialSize)
+	for i := range f {
+		f[i].SetRandom()
+	}
+
+	com, err := kzg_bls12377.Commit(f, srs.Pk)
+	assert.NoError(err)
+
+	var point fr_bls12377.Element
+	point.SetRandom()
+	proof, err := kzg_bls12377.Open(f, point, srs.Pk)
+	assert.NoError(err)
+
+	if err = kzg_bls12377.Verify(&com, &proof, point, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	wCmt, err := ValueOfCommitment[sw_bls12377.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine](proof)
+	assert.NoError(err)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bls12377.G1Affine, sw_bls12377.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bls12377.ScalarField](point)
+	assert.NoError(err)
+
+	assignment := KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		VerifyingKey: wVk,
+		Commitment:   wCmt,
+		OpeningProof: wProof,
+		Point:        wPt,
+	}
+	circuit := KZGVerificationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		VerifyingKey: PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine](),
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BW6_761))
+
+}
+
+func TestKZGVerificationTwoChainConstantVk(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bls12377.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	f := make([]fr_bls12377.Element, polynomialSize)
+	for i := range f {
+		f[i].SetRandom()
+	}
+
+	com, err := kzg_bls12377.Commit(f, srs.Pk)
+	assert.NoError(err)
+
+	var point fr_bls12377.Element
+	point.SetRandom()
+	proof, err := kzg_bls12377.Open(f, point, srs.Pk)
+	assert.NoError(err)
+
+	if err = kzg_bls12377.Verify(&com, &proof, point, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	wCmt, err := ValueOfCommitment[sw_bls12377.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine](proof)
+	assert.NoError(err)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bls12377.G1Affine, sw_bls12377.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bls12377.ScalarField](point)
+	assert.NoError(err)
+
+	assignment := KZGVerificationConstantVkCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		Commitment:   wCmt,
+		OpeningProof: wProof,
+		Point:        wPt,
+	}
+	circuit := KZGVerificationConstantVkCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		vk: wVk,
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BW6_761))
+}
+
+func TestKZGVerificationTwoChain2Precomputed(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BLS24_315.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bls24315.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	f := make([]fr_bls24315.Element, polynomialSize)
+	for i := range f {
+		f[i].SetRandom()
+	}
+
+	com, err := kzg_bls24315.Commit(f, srs.Pk)
+	assert.NoError(err)
+
+	var point fr_bls24315.Element
+	point.SetRandom()
+	proof, err := kzg_bls24315.Open(f, point, srs.Pk)
+	assert.NoError(err)
+
+	if err = kzg_bls24315.Verify(&com, &proof, point, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	wCmt, err := ValueOfCommitment[sw_bls24315.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine](proof)
+	assert.NoError(err)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bls24315.G1Affine, sw_bls24315.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bls24315.ScalarField](point)
+	assert.NoError(err)
+
+	assignment := KZGVerificationCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]{
+		VerifyingKey: wVk,
+		Commitment:   wCmt,
+		OpeningProof: wProof,
+		Point:        wPt,
+	}
+	circuit := KZGVerificationCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]{
+		VerifyingKey: PlaceholderVerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine](),
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BW6_633))
+
+}
+
+func TestKZGVerificationTwoChain2ConstantVk(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	alpha, err := rand.Int(rand.Reader, ecc.BLS24_315.ScalarField())
+	assert.NoError(err)
+	srs, err := kzg_bls24315.NewSRS(kzgSize, alpha)
+	assert.NoError(err)
+
+	f := make([]fr_bls24315.Element, polynomialSize)
+	for i := range f {
+		f[i].SetRandom()
+	}
+
+	com, err := kzg_bls24315.Commit(f, srs.Pk)
+	assert.NoError(err)
+
+	var point fr_bls24315.Element
+	point.SetRandom()
+	proof, err := kzg_bls24315.Open(f, point, srs.Pk)
+	assert.NoError(err)
+
+	if err = kzg_bls24315.Verify(&com, &proof, point, srs.Vk); err != nil {
+		t.Fatal("verify proof", err)
+	}
+
+	wCmt, err := ValueOfCommitment[sw_bls24315.G1Affine](com)
+	assert.NoError(err)
+	wProof, err := ValueOfOpeningProof[sw_bls24315.ScalarField, sw_bls24315.G1Affine](proof)
+	assert.NoError(err)
+	wVk, err := ValueOfVerifyingKeyFixed[sw_bls24315.G1Affine, sw_bls24315.G2Affine](srs.Vk)
+	assert.NoError(err)
+	wPt, err := ValueOfScalar[sw_bls24315.ScalarField](point)
+	assert.NoError(err)
+
+	assignment := KZGVerificationConstantVkCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]{
+		Commitment:   wCmt,
+		OpeningProof: wProof,
+		Point:        wPt,
+	}
+	circuit := KZGVerificationConstantVkCircuit[sw_bls24315.ScalarField, sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]{
+		vk: wVk,
+	}
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BW6_633))
+}

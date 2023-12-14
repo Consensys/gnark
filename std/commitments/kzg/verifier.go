@@ -262,41 +262,21 @@ type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
 func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT]() VerifyingKey[G1El, G2El] {
 	var ret VerifyingKey[G1El, G2El]
 	switch s := any(&ret).(type) {
-	// case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bn254.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bn254.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bn254.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bn254.NewG2Affine(tVk.G2[1])
-	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bls12377.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
-	// case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bls12381.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
+		s.G2[0] = sw_bn254.NewG2AffineFixedPlaceholder()
+		s.G2[1] = sw_bn254.NewG2AffineFixedPlaceholder()
+	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
+		s.G2[0] = sw_bls12377.NewG2AffineFixedPlaceholder()
+		s.G2[1] = sw_bls12377.NewG2AffineFixedPlaceholder()
+	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+		s.G2[0] = sw_bls12381.NewG2AffineFixedPlaceholder()
+		s.G2[1] = sw_bls12381.NewG2AffineFixedPlaceholder()
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		s.G2[0] = sw_bw6761.NewG2AffineFixedPlaceholder()
 		s.G2[1] = sw_bw6761.NewG2AffineFixedPlaceholder()
-	// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bls24315.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+		s.G2[0] = sw_bls24315.NewG2AffineFixedPlaceholder()
+		s.G2[1] = sw_bls24315.NewG2AffineFixedPlaceholder()
 	default:
 		panic("not supported")
 	}
@@ -364,30 +344,30 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk an
 func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk any) (VerifyingKey[G1El, G2El], error) {
 	var ret VerifyingKey[G1El, G2El]
 	switch s := any(&ret).(type) {
-	// case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bn254.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bn254.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bn254.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bn254.NewG2Affine(tVk.G2[1])
-	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bls12377.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bls12377.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bls12377.NewG2Affine(tVk.G2[1])
-	// case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bls12381.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bls12381.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bls12381.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine]:
+		tVk, ok := vk.(kzg_bn254.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		s.G1 = sw_bn254.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bn254.NewG2AffineFixed(tVk.G2[0])
+		s.G2[1] = sw_bn254.NewG2AffineFixed(tVk.G2[1])
+	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
+		tVk, ok := vk.(kzg_bls12377.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		s.G1 = sw_bls12377.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bls12377.NewG2AffineFixed(tVk.G2[0])
+		s.G2[1] = sw_bls12377.NewG2AffineFixed(tVk.G2[1])
+	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+		tVk, ok := vk.(kzg_bls12381.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		s.G1 = sw_bls12381.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bls12381.NewG2AffineFixed(tVk.G2[0])
+		s.G2[1] = sw_bls12381.NewG2AffineFixed(tVk.G2[1])
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		tVk, ok := vk.(kzg_bw6761.VerifyingKey)
 		if !ok {
@@ -396,14 +376,14 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT](
 		s.G1 = sw_bw6761.NewG1Affine(tVk.G1)
 		s.G2[0] = sw_bw6761.NewG2AffineFixed(tVk.G2[0])
 		s.G2[1] = sw_bw6761.NewG2AffineFixed(tVk.G2[1])
-	// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
-	// 	tVk, ok := vk.(kzg_bls24315.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
-	// 	}
-	// 	s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
-	// 	s.G2[0] = sw_bls24315.NewG2Affine(tVk.G2[0])
-	// 	s.G2[1] = sw_bls24315.NewG2Affine(tVk.G2[1])
+	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+		tVk, ok := vk.(kzg_bls24315.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("mismatching types %T %T", ret, vk)
+		}
+		s.G1 = sw_bls24315.NewG1Affine(tVk.G1)
+		s.G2[0] = sw_bls24315.NewG2AffineFixed(tVk.G2[0])
+		s.G2[1] = sw_bls24315.NewG2AffineFixed(tVk.G2[1])
 	default:
 		return ret, fmt.Errorf("precomputation not supported")
 	}
@@ -482,22 +462,24 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commit
 	return nil
 }
 
-func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) (G1El, G1El, error) {
+// FoldProofsMultiPoint folds multiple proofs with openings at multiple points.
+// Used for batch verification of different opening proofs. See also
+// [Verifier.BatchVerifyMultiPoints].
+func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) (*G1El, *G1El, error) {
 
 	var fr FR
-	var a G1El
 
 	// check consistency nb proogs vs nb digests
 	if len(digests) != len(proofs) {
-		return a, a, fmt.Errorf("number of commitments doesn't match number of proofs")
+		return nil, nil, fmt.Errorf("number of commitments doesn't match number of proofs")
 	}
 	if len(digests) != len(points) {
-		return a, a, fmt.Errorf("number of commitments doesn't match number of points ")
+		return nil, nil, fmt.Errorf("number of commitments doesn't match number of points ")
 	}
 
 	// len(digests) should be nonzero because of randomNumbers
 	if len(digests) == 0 {
-		return a, a, fmt.Errorf("number of digests should be nonzero")
+		return nil, nil, fmt.Errorf("number of digests should be nonzero")
 	}
 
 	// sample random numbers λᵢ for sampling
@@ -505,7 +487,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 	randomNumbers[0] = v.scalarApi.One()
 	whSnark, err := recursion.NewHash(v.api, fr.Modulus(), true)
 	if err != nil {
-		return a, a, err
+		return nil, nil, err
 	}
 	for i := 0; i < len(digests); i++ {
 		marshalledG1 := v.curve.MarshalG1(digests[i].G1El)
@@ -528,7 +510,8 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[1], randomNumbers[i-1])
 	}
 	randomPointNumbers := make([]*emulated.Element[FR], len(randomNumbers))
-	for i := range randomPointNumbers {
+	randomPointNumbers[0] = &points[0]
+	for i := 1; i < len(randomPointNumbers); i++ {
 		randomPointNumbers[i] = v.scalarApi.Mul(randomNumbers[i], &points[i])
 	}
 
@@ -540,11 +523,11 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 	}
 	foldedQuotients, err := v.curve.MultiScalarMul(quotients, []*emulated.Element[FR]{randomNumbers[1]}, algopts.WithFoldingScalarMul(), algopts.WithNbScalarBits(nbScalarBits))
 	if err != nil {
-		return a, a, fmt.Errorf("fold quotients: %w", err)
+		return nil, nil, fmt.Errorf("fold quotients: %w", err)
 	}
 	foldedPointsQuotients, err := v.curve.MultiScalarMul(quotients, randomPointNumbers)
 	if err != nil {
-		return a, a, fmt.Errorf("fold point quotients: %w", err)
+		return nil, nil, fmt.Errorf("fold point quotients: %w", err)
 	}
 
 	// fold digests and evals
@@ -558,11 +541,11 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 
 	foldedDigests, foldedEvals, err := v.fold(digests, evals, randomNumbers)
 	if err != nil {
-		return a, a, fmt.Errorf("fold: %w", err)
+		return nil, nil, fmt.Errorf("fold: %w", err)
 	}
 
 	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
-	foldedEvalsCommit := v.curve.ScalarMul(&vk.G1, foldedEvals)
+	foldedEvalsCommit := v.curve.ScalarMulBase(foldedEvals)
 
 	// compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	tmp := v.curve.Neg(foldedEvalsCommit)
@@ -577,7 +560,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 	// foldedQuotients.Neg(&foldedQuotients)
 	foldedQuotients = v.curve.Neg(foldedQuotients)
 
-	return *foldedDigest, *foldedQuotients, nil
+	return foldedDigest, foldedQuotients, nil
 }
 
 // BatchVerifyMultiPoints verifies multiple opening proofs at different points.
@@ -596,7 +579,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 
 	// pairing check
 	err = v.pairing.PairingCheck(
-		[]*G1El{&foldedDigest, &foldedQuotients},
+		[]*G1El{foldedDigest, foldedQuotients},
 		[]*G2El{&vk.G2[0], &vk.G2[1]},
 	)
 	if err != nil {
@@ -645,8 +628,8 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 	for i := 2; i < nbDigests; i++ {
 		gammai[i] = v.scalarApi.Mul(gammai[i-1], gamma)
 	}
-	foldedEvaluations := v.scalarApi.Zero()
-	for i := 0; i < nbDigests; i++ {
+	foldedEvaluations := &batchOpeningProof.ClaimedValues[0]
+	for i := 1; i < nbDigests; i++ {
 		tmp := v.scalarApi.Mul(&batchOpeningProof.ClaimedValues[i], gammai[i])
 		foldedEvaluations = v.scalarApi.Add(foldedEvaluations, tmp)
 	}
@@ -704,8 +687,8 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai []
 
 	// fold the claimed values ∑ᵢcᵢf(aᵢ)
 	var tmp *emulated.Element[FR]
-	foldedEvaluations := v.scalarApi.Zero()
-	for i := 0; i < nbDigests; i++ {
+	foldedEvaluations := &fai[0]
+	for i := 1; i < nbDigests; i++ {
 		tmp = v.scalarApi.Mul(&fai[i], ci[i])
 		foldedEvaluations = v.scalarApi.Add(foldedEvaluations, tmp)
 	}
@@ -715,10 +698,11 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) fold(digests []Commitment[G1El], fai []
 	for i := range digestPoints {
 		digestPoints[i] = &digests[i].G1El
 	}
-	foldedDigest, err := v.curve.MultiScalarMul(digestPoints, ci)
+	foldedDigest, err := v.curve.MultiScalarMul(digestPoints[1:], ci[1:])
 	if err != nil {
 		return Commitment[G1El]{}, nil, fmt.Errorf("fold digests: %w", err)
 	}
+	foldedDigest = v.curve.Add(foldedDigest, digestPoints[0])
 
 	// folding done
 	return Commitment[G1El]{

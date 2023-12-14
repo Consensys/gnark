@@ -6,17 +6,11 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-func (e Ext6) nSquareKarabina2345(z *E6, n int) *E6 {
-	for i := 0; i < n; i++ {
-		z = e.CyclotomicSquareKarabina2345(z)
-	}
-	return z
-}
-
 func (e Ext6) nSquareKarabina12345(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
 		z = e.CyclotomicSquareKarabina12345(z)
 	}
+	z = e.DecompressKarabina12345(z)
 	return z
 }
 
@@ -26,19 +20,15 @@ func (e Ext6) ExpX0Minus1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
 	result = e.nSquareKarabina12345(result, 5)
-	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z)
 	z33 := e.Copy(result)
 	result = e.nSquareKarabina12345(result, 7)
-	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z33)
 	result = e.nSquareKarabina12345(result, 4)
-	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z)
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina2345(result, 46)
-	result = e.DecompressKarabina2345(result)
+	result = e.nSquareKarabina12345(result, 46)
 
 	return result
 }
@@ -49,7 +39,6 @@ func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
 	result = e.nSquareKarabina12345(result, 3)
-	result = e.DecompressKarabina12345(result)
 	t0 := e.CyclotomicSquare(result)
 	t2 := e.Mul(z, t0)
 	result = e.Mul(result, t2)
@@ -57,20 +46,15 @@ func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 	t1 := e.CyclotomicSquare(t0)
 	t1 = e.Mul(t2, t1)
 	t3 := e.nSquareKarabina12345(t1, 7)
-	t3 = e.DecompressKarabina12345(t3)
 	t2 = e.Mul(t2, t3)
 	t2 = e.nSquareKarabina12345(t2, 11)
-	t2 = e.DecompressKarabina12345(t2)
 	t1 = e.Mul(t1, t2)
 	t0 = e.Mul(t0, t1)
 	t0 = e.nSquareKarabina12345(t0, 7)
-	t0 = e.DecompressKarabina12345(t0)
 	result = e.Mul(result, t0)
 	result = e.nSquareKarabina12345(result, 3)
-	result = e.DecompressKarabina12345(result)
 	result = e.Mul(z, result)
-	result = e.nSquareKarabina2345(result, 92)
-	result = e.DecompressKarabina2345(result)
+	result = e.nSquareKarabina12345(result, 92)
 
 	return result
 
@@ -83,19 +67,15 @@ func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	result := e.Copy(z)
 	t := e.CyclotomicSquare(result)
 	result = e.nSquareKarabina12345(t, 4)
-	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z)
 	z33 := e.Copy(result)
 	result = e.nSquareKarabina12345(result, 7)
-	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z33)
 	result = e.nSquareKarabina12345(result, 4)
-	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z)
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina2345(result, 46)
-	result = e.DecompressKarabina2345(result)
+	result = e.nSquareKarabina12345(result, 46)
 	result = e.Mul(result, t)
 
 	return result
@@ -112,13 +92,10 @@ func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, z)
 	t0 := e.nSquareKarabina12345(result, 7)
-	t0 = e.DecompressKarabina2345(t0)
 	result = e.Mul(result, t0)
 	result = e.nSquareKarabina12345(result, 5)
-	result = e.DecompressKarabina12345(result)
 	result = e.Mul(result, z)
-	result = e.nSquareKarabina2345(result, 46)
-	result = e.DecompressKarabina2345(result)
+	result = e.nSquareKarabina12345(result, 46)
 
 	return result
 }
@@ -146,7 +123,6 @@ func (e Ext6) ExpC2(z *E6) *E6 {
 	result := e.CyclotomicSquare(z)
 	result = e.Mul(result, z)
 	t0 := e.nSquareKarabina12345(result, 4)
-	t0 = e.DecompressKarabina12345(t0)
 	result = e.Mul(result, t0)
 	result = e.CyclotomicSquare(result)
 	result = e.Mul(result, z)
@@ -167,9 +143,9 @@ func (e *Ext6) MulBy014(z *E6, c0, c1 *baseEl) *E6 {
 
 	var b E3
 	// Mul by E3{0, 1, 0}
-	b.A0 = *mulFpByNonResidue(e.fp, &z.B1.A2)
-	b.A2 = z.B1.A1
-	b.A1 = z.B1.A0
+	b.A0 = *e.fp.MulConst(&z.B1.A2, big.NewInt(4))
+	b.A2 = *e.fp.Neg(&z.B1.A1)
+	b.A1 = *e.fp.Neg(&z.B1.A0)
 
 	one := e.fp.One()
 	d := e.fp.Add(c1, one)
@@ -177,8 +153,13 @@ func (e *Ext6) MulBy014(z *E6, c0, c1 *baseEl) *E6 {
 	zC1 := e.Ext3.Add(&z.B1, &z.B0)
 	zC1 = e.Ext3.MulBy01(zC1, c0, d)
 	zC1 = e.Ext3.Sub(zC1, a)
-	zC1 = e.Ext3.Sub(zC1, &b)
-	zC0 := e.Ext3.MulByNonResidue(&b)
+	zC1 = e.Ext3.Add(zC1, &b)
+	zC0 := &E3{
+		A0: *e.fp.MulConst(&b.A2, big.NewInt(4)),
+		A1: *e.fp.Neg(&b.A0),
+		A2: *e.fp.Neg(&b.A1),
+	}
+
 	zC0 = e.Ext3.Add(zC0, a)
 
 	return &E6{
@@ -250,13 +231,18 @@ func (e *Ext6) Mul01245By014(x [5]*baseEl, d0, d1 *baseEl) *E6 {
 	a := e.Ext3.MulBy01(b, d0, e.fp.Add(d1, e.fp.One()))
 	b = e.Ext3.MulBy01(c0, d0, d1)
 	c := &E3{
-		A0: *mulFpByNonResidue(e.fp, x[4]),
-		A1: *zero,
-		A2: *x[3],
+		A0: *e.fp.MulConst(x[4], big.NewInt(4)),
+		A1: *e.fp.Neg(zero),
+		A2: *e.fp.Neg(x[3]),
 	}
 	z1 := e.Ext3.Sub(a, b)
-	z1 = e.Ext3.Sub(z1, c)
-	z0 := e.Ext3.MulByNonResidue(c)
+	z1 = e.Ext3.Add(z1, c)
+	z0 := &E3{
+		A0: *e.fp.MulConst(&c.A2, big.NewInt(4)),
+		A1: *e.fp.Neg(&c.A0),
+		A2: *e.fp.Neg(&c.A1),
+	}
+
 	z0 = e.Ext3.Add(z0, b)
 	return &E6{
 		B0: *z0,

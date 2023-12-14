@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/recursion/plonk"
-	"github.com/consensys/gnark/test"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // Example of verifying recursively BLS12-371 PLONK proof in BW6-761 PLONK circuit using field emulation
@@ -32,12 +32,11 @@ func Example_native() {
 	outerCircuit := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
 		Proof:        plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
-		VerifyingKey: plonk.PlaceholderVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
+		VerifyingKey: circuitVk,
 	}
 	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
-		VerifyingKey: circuitVk,
 	}
 	// compile the outer circuit
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, outerCircuit)
@@ -46,12 +45,13 @@ func Example_native() {
 	}
 
 	// NB! UNSAFE! Use MPC.
-	srs, err := test.NewKZGSRS(innerCcs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
 	if err != nil {
 		panic(err)
 	}
+
 	// create PLONK setup. NB! UNSAFE
-	pk, vk, err := native_plonk.Setup(ccs, srs) // UNSAFE! Use MPC
+	pk, vk, err := native_plonk.Setup(ccs, srs, srsLagrange) // UNSAFE! Use MPC
 	if err != nil {
 		panic("setup failed: " + err.Error())
 	}

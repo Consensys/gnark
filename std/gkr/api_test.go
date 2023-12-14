@@ -11,7 +11,6 @@ import (
 	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/backend/plonk"
 	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
-	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/require"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -27,6 +26,7 @@ import (
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // compressThreshold --> if linear expressions are larger than this, the frontend will introduce
@@ -416,9 +416,9 @@ func testPlonk(t *testing.T, circuit, assignment frontend.Circuit) {
 	require.NoError(t, err)
 	publicWitness, err = fullWitness.Public()
 	require.NoError(t, err)
-	kzgSrs, err = test.NewKZGSRS(cs)
+	kzgSrs, srsLagrange, err := unsafekzg.NewSRS(cs)
 	require.NoError(t, err)
-	pk, vk, err = plonk.Setup(cs, kzgSrs)
+	pk, vk, err = plonk.Setup(cs, kzgSrs, srsLagrange)
 	require.NoError(t, err)
 	proof, err = plonk.Prove(cs, pk, fullWitness)
 	require.NoError(t, err)
