@@ -653,9 +653,8 @@ func PlaceholderBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1Element
 // the verification key with same [BaseVerifyingKey].
 func PlaceholderCircuitVerifyingKey[G1El algebra.G1ElementT](ccs constraint.ConstraintSystem) CircuitVerifyingKey[G1El] {
 	commitmentIndexes := ccs.GetCommitments().CommitmentIndexes()
-	cCommitmentIndexes := make([]frontend.Variable, len(commitmentIndexes))
 	return CircuitVerifyingKey[G1El]{
-		CommitmentConstraintIndexes: cCommitmentIndexes,
+		CommitmentConstraintIndexes: make([]frontend.Variable, len(commitmentIndexes)),
 		Qcp:                         make([]kzg.Commitment[G1El], len(commitmentIndexes)),
 	}
 }
