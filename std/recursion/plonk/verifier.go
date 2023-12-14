@@ -268,10 +268,7 @@ func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 	return ret
 }
 
-// VerifyingKey is a typed PLONK verification key. Use [ValueOfVerifyingKey] or
-// [PlaceholderVerifyingKey] for initializing.
-type VerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
-
+type BaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
 	// Size circuit
 	Size              uint64
 	SizeInv           emulated.Element[FR]
@@ -283,7 +280,9 @@ type VerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 
 	// cosetShift generator of the coset on the small domain
 	CosetShift emulated.Element[FR]
+}
 
+type CircuitVerifyingKey[G1El algebra.G1ElementT] struct {
 	// S commitments to S1, S2, S3
 	S [3]kzg.Commitment[G1El]
 
@@ -294,6 +293,13 @@ type VerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 	Qcp []kzg.Commitment[G1El]
 
 	CommitmentConstraintIndexes []uint64
+}
+
+// VerifyingKey is a typed PLONK verification key. Use [ValueOfVerifyingKey] or
+// [PlaceholderVerifyingKey] for initializing.
+type VerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
+	BaseVerifyingKey[FR, G1El, G2El]
+	CircuitVerifyingKey[G1El]
 }
 
 // ValueOfVerifyingKey initializes witness from the given PLONK verifying key.
@@ -567,11 +573,15 @@ func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 		cCommitmentIndexes[i] = uint64(commitmentIndexes[i])
 	}
 	return VerifyingKey[FR, G1El, G2El]{
-		Size:                        uint64(nextPowerTwo),
-		NbPublicVariables:           uint64(nbPublic),
-		CommitmentConstraintIndexes: cCommitmentIndexes,
-		Qcp:                         make([]kzg.Commitment[G1El], len(commitmentIndexes)),
-		Kzg:                         kzg.PlaceholderVerifyingKey[G1El, G2El](),
+		BaseVerifyingKey: BaseVerifyingKey[FR, G1El, G2El]{
+			Size:              uint64(nextPowerTwo),
+			NbPublicVariables: uint64(nbPublic),
+			Kzg:               kzg.PlaceholderVerifyingKey[G1El, G2El](),
+		},
+		CircuitVerifyingKey: CircuitVerifyingKey[G1El]{
+			CommitmentConstraintIndexes: cCommitmentIndexes,
+			Qcp:                         make([]kzg.Commitment[G1El], len(commitmentIndexes)),
+		},
 	}
 }
 
