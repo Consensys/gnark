@@ -1,12 +1,13 @@
 package plonk
 
 import (
+	"crypto/rand"
 	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/plonk"
+	native_plonk "github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -186,7 +187,7 @@ func (c *InnerCircuitCommit) Define(api frontend.API) error {
 	return nil
 }
 
-func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, plonk.VerifyingKey, witness.Witness, plonk.Proof) {
+func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
 
 	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitCommit{})
 	assert.NoError(err)
@@ -194,7 +195,7 @@ func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.Cons
 	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
 	assert.NoError(err)
 
-	innerPK, innerVK, err := plonk.Setup(innerCcs, srs, srsLagrange)
+	innerPK, innerVK, err := native_plonk.Setup(innerCcs, srs, srsLagrange)
 	assert.NoError(err)
 
 	// inner proof
@@ -205,12 +206,12 @@ func getInnerCommit(assert *test.Assert, field, outer *big.Int) (constraint.Cons
 	}
 	innerWitness, err := frontend.NewWitness(innerAssignment, field)
 	assert.NoError(err)
-	innerProof, err := plonk.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
+	innerProof, err := native_plonk.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
 
 	assert.NoError(err)
 	innerPubWitness, err := innerWitness.Public()
 	assert.NoError(err)
-	err = plonk.Verify(innerProof, innerVK, innerPubWitness, GetNativeVerifierOptions(outer, field))
+	err = native_plonk.Verify(innerProof, innerVK, innerPubWitness, GetNativeVerifierOptions(outer, field))
 
 	assert.NoError(err)
 	return innerCcs, innerVK, innerPubWitness, innerProof
@@ -293,5 +294,147 @@ func TestBLS12381InBN254Commit(t *testing.T) {
 		Proof:        circuitProof,
 	}
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type InnerCircuitParametric struct {
+	X         frontend.Variable
+	Y         frontend.Variable `gnark:",public"`
+	parameter int
+}
+
+func (c *InnerCircuitParametric) Define(api frontend.API) error {
+	res := c.X
+	for i := 0; i < c.parameter; i++ {
+		res = api.Mul(res, res)
+	}
+	api.AssertIsEqual(res, c.Y)
+
+	commitment, err := api.(frontend.Committer).Commit(c.X, res)
+	if err != nil {
+		return err
+	}
+
+	api.AssertIsDifferent(commitment, res)
+
+	return nil
+}
+
+func getParametricSetups(assert *test.Assert, field *big.Int, nbParams int) ([]constraint.ConstraintSystem, []native_plonk.VerifyingKey, []native_plonk.ProvingKey) {
+	var err error
+
+	ccss := make([]constraint.ConstraintSystem, nbParams)
+	vks := make([]native_plonk.VerifyingKey, nbParams)
+	pks := make([]native_plonk.ProvingKey, nbParams)
+	for i := range ccss {
+		ccss[i], err = frontend.Compile(field, scs.NewBuilder, &InnerCircuitParametric{parameter: i + 1})
+		assert.NoError(err)
+	}
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccss[nbParams-1])
+	assert.NoError(err)
+
+	for i := range vks {
+		pks[i], vks[i], err = native_plonk.Setup(ccss[i], srs, srsLagrange)
+		assert.NoError(err)
+	}
+	return ccss, vks, pks
+}
+
+func getRandomParametricProof(assert *test.Assert, field, outer *big.Int, ccss []constraint.ConstraintSystem, vks []native_plonk.VerifyingKey, pks []native_plonk.ProvingKey) (int, witness.Witness, native_plonk.Proof) {
+	rndIdx, err := rand.Int(rand.Reader, big.NewInt(int64(len(ccss))))
+	assert.NoError(err)
+	idx := int(rndIdx.Int64())
+	x, err := rand.Int(rand.Reader, field)
+	assert.NoError(err)
+	y := new(big.Int).Set(x)
+	for i := 0; i < idx+1; i++ {
+		y.Mul(y, y)
+		y.Mod(y, field)
+	}
+	// inner proof
+	innerAssignment := &InnerCircuitParametric{
+		X: x,
+		Y: y,
+	}
+	innerWitness, err := frontend.NewWitness(innerAssignment, field)
+	assert.NoError(err)
+	innerProof, err := native_plonk.Prove(ccss[idx], pks[idx], innerWitness, GetNativeProverOptions(outer, field))
+
+	assert.NoError(err)
+	innerPubWitness, err := innerWitness.Public()
+	assert.NoError(err)
+	err = native_plonk.Verify(innerProof, vks[idx], innerPubWitness, GetNativeVerifierOptions(outer, field))
+	assert.NoError(err)
+	return idx, innerWitness, innerProof
+}
+
+type AggregagationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	BaseKey     BaseVerifyingKey[FR, G1El, G2El] `gnark:"-"`
+	CircuitKeys []CircuitVerifyingKey[G1El]
+	Selectors   []frontend.Variable
+	Proofs      []Proof[FR, G1El, G2El]
+	Witnesses   []Witness[FR]
+}
+
+func (c *AggregagationCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	v, err := NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	if err = v.AssertDifferentProofs(c.BaseKey, c.CircuitKeys, c.Selectors, c.Proofs, c.Witnesses); err != nil {
+		return fmt.Errorf("assert proofs: %w", err)
+	}
+	return nil
+}
+
+func TestBLS12InBW6Multi(t *testing.T) {
+	innerField := ecc.BLS12_377.ScalarField()
+	outerField := ecc.BW6_761.ScalarField()
+	nbCircuits := 4
+	nbProofs := 5
+	assert := test.NewAssert(t)
+	ccss, vks, pks := getParametricSetups(assert, innerField, nbCircuits)
+	innerProofs := make([]native_plonk.Proof, nbProofs)
+	innerWitnesses := make([]witness.Witness, nbProofs)
+	innerSelectors := make([]int, nbProofs)
+	for i := 0; i < nbProofs; i++ {
+		innerSelectors[i], innerWitnesses[i], innerProofs[i] = getRandomParametricProof(assert, innerField, outerField, ccss, vks, pks)
+	}
+
+	circuitBvk, err := ValueOfBaseVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](vks[0])
+	assert.NoError(err)
+	circuitVks := make([]CircuitVerifyingKey[sw_bls12377.G1Affine], nbProofs)
+	for i := range circuitVks {
+		circuitVks[i], err = ValueOfCircuitVerifyingKey[sw_bls12377.G1Affine](vks[i])
+		assert.NoError(err)
+	}
+	circuitSelector := make([]frontend.Variable, nbProofs)
+	for i := range circuitSelector {
+		circuitSelector[i] = innerSelectors[i]
+	}
+	circuitProofs := make([]Proof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine], nbProofs)
+	for i := range circuitProofs {
+		circuitProofs[i], err = ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProofs[i])
+		assert.NoError(err)
+	}
+	circuitWitnesses := make([]Witness[sw_bls12377.ScalarField], nbProofs)
+	for i := range circuitWitnesses {
+		circuitWitnesses[i], err = ValueOfWitness[sw_bls12377.ScalarField](innerWitnesses[i])
+		assert.NoError(err)
+	}
+	aggCircuit := &AggregagationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		BaseKey:     circuitBvk,
+		CircuitKeys: make([]CircuitVerifyingKey[sw_bls12377.G1Affine], nbProofs),
+		Selectors:   make([]frontend.Variable, nbProofs),
+		Proofs:      make([]Proof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine], nbProofs),
+		Witnesses:   make([]Witness[sw_bls12377.ScalarField], nbProofs),
+	}
+	aggAssignment := &AggregagationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		CircuitKeys: circuitVks,
+		Selectors:   circuitSelector,
+		Proofs:      circuitProofs,
+		Witnesses:   circuitWitnesses,
+	}
+	err = test.IsSolved(aggCircuit, aggAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 }
