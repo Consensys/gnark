@@ -1181,3 +1181,56 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(exp frontend.V
 
 	return li
 }
+
+// SwitchVerificationKey returns a verification key by the index idx using the base verification key bvk and circuit specific verification key cvks[idx].
+func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifyingKey[FR, G1El, G2El], idx frontend.Variable, cvks []CircuitVerifyingKey[G1El]) (VerifyingKey[FR, G1El, G2El], error) {
+	var ret VerifyingKey[FR, G1El, G2El]
+	if len(cvks) == 0 {
+		return ret, fmt.Errorf("no circuit verification keys given")
+	}
+	if len(cvks) == 1 {
+		return VerifyingKey[FR, G1El, G2El]{
+			BaseVerifyingKey:    bvk,
+			CircuitVerifyingKey: cvks[0],
+		}, nil
+	}
+	if len(cvks) > 4 {
+		return ret, fmt.Errorf("large verification key switching not implemented yet")
+
+	}
+	nbCmts := len(cvks[0].CommitmentConstraintIndexes)
+	for i := range cvks {
+		if len(cvks[i].CommitmentConstraintIndexes) != nbCmts {
+			return ret, fmt.Errorf("mismatching number of commitments")
+		}
+		if len(cvks[i].Qcp) != nbCmts {
+			return ret, fmt.Errorf("inconsistent circuit verification key")
+		}
+	}
+	for i := len(cvks); i < 4; i++ {
+		cvks = append(cvks, ret.CircuitVerifyingKey)
+	}
+	cvk := CircuitVerifyingKey[G1El]{
+		Qcp:                         make([]kzg.Commitment[G1El], nbCmts),
+		CommitmentConstraintIndexes: make([]frontend.Variable, nbCmts),
+	}
+	bIdx := bits.ToBinary(v.api, idx, bits.WithNbDigits(2))
+	for i := range cvk.S {
+		cvk.S[i].G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].S[i].G1El, &cvks[1].S[i].G1El, &cvks[2].S[i].G1El, &cvks[3].S[i].G1El)
+	}
+	cvk.Ql.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Ql.G1El, &cvks[1].Ql.G1El, &cvks[2].Ql.G1El, &cvks[3].Ql.G1El)
+	cvk.Qr.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qr.G1El, &cvks[1].Qr.G1El, &cvks[2].Qr.G1El, &cvks[3].Qr.G1El)
+	cvk.Qm.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qm.G1El, &cvks[1].Qm.G1El, &cvks[2].Qm.G1El, &cvks[3].Qm.G1El)
+	cvk.Qo.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qo.G1El, &cvks[1].Qo.G1El, &cvks[2].Qo.G1El, &cvks[3].Qo.G1El)
+	cvk.Qk.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qk.G1El, &cvks[1].Qk.G1El, &cvks[2].Qk.G1El, &cvks[3].Qk.G1El)
+	for i := range cvk.Qcp {
+		cvk.Qcp[i].G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qcp[i].G1El, &cvks[1].Qcp[i].G1El, &cvks[2].Qcp[i].G1El, &cvks[3].Qcp[i].G1El)
+	}
+	for i := range cvk.CommitmentConstraintIndexes {
+		cvk.CommitmentConstraintIndexes[i] = v.api.Lookup2(bIdx[0], bIdx[1], cvks[0].CommitmentConstraintIndexes[i], cvks[1].CommitmentConstraintIndexes[i], cvks[2].CommitmentConstraintIndexes[i], cvks[3].CommitmentConstraintIndexes[i])
+	}
+	return VerifyingKey[FR, G1El, G2El]{
+		BaseVerifyingKey:    bvk,
+		CircuitVerifyingKey: cvk,
+	}, nil
+}
