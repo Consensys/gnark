@@ -292,7 +292,7 @@ type CircuitVerifyingKey[G1El algebra.G1ElementT] struct {
 
 	Qcp []kzg.Commitment[G1El]
 
-	CommitmentConstraintIndexes []uint64
+	CommitmentConstraintIndexes []frontend.Variable
 }
 
 // VerifyingKey is a typed PLONK verification key. Use [ValueOfVerifyingKey] or
@@ -356,8 +356,10 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 				return ret, fmt.Errorf("commitment Qcp[%d] witness assignment: %w", i, err)
 			}
 		}
-		r.CommitmentConstraintIndexes = make([]uint64, len(tVk.CommitmentConstraintIndexes))
-		copy(r.CommitmentConstraintIndexes, tVk.CommitmentConstraintIndexes)
+		r.CommitmentConstraintIndexes = make([]frontend.Variable, len(tVk.CommitmentConstraintIndexes))
+		for i := range r.CommitmentConstraintIndexes {
+			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
+		}
 	case *VerifyingKey[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
 		tVk, ok := vk.(*plonkbackend_bls12381.VerifyingKey)
 		if !ok {
@@ -405,8 +407,10 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 				return ret, fmt.Errorf("commitment Qcp[%d] witness assignment: %w", i, err)
 			}
 		}
-		r.CommitmentConstraintIndexes = make([]uint64, len(tVk.CommitmentConstraintIndexes))
-		copy(r.CommitmentConstraintIndexes, tVk.CommitmentConstraintIndexes)
+		r.CommitmentConstraintIndexes = make([]frontend.Variable, len(tVk.CommitmentConstraintIndexes))
+		for i := range r.CommitmentConstraintIndexes {
+			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
+		}
 	case *VerifyingKey[sw_bls24315.ScalarField, sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
 		tVk, ok := vk.(*plonkbackend_bls24315.VerifyingKey)
 		if !ok {
@@ -454,8 +458,10 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 				return ret, fmt.Errorf("commitment Qcp[%d] witness assignment: %w", i, err)
 			}
 		}
-		r.CommitmentConstraintIndexes = make([]uint64, len(tVk.CommitmentConstraintIndexes))
-		copy(r.CommitmentConstraintIndexes, tVk.CommitmentConstraintIndexes)
+		r.CommitmentConstraintIndexes = make([]frontend.Variable, len(tVk.CommitmentConstraintIndexes))
+		for i := range r.CommitmentConstraintIndexes {
+			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
+		}
 	case *VerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		tVk, ok := vk.(*plonkbackend_bw6761.VerifyingKey)
 		if !ok {
@@ -503,8 +509,10 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 				return ret, fmt.Errorf("commitment Qcp[%d] witness assignment: %w", i, err)
 			}
 		}
-		r.CommitmentConstraintIndexes = make([]uint64, len(tVk.CommitmentConstraintIndexes))
-		copy(r.CommitmentConstraintIndexes, tVk.CommitmentConstraintIndexes)
+		r.CommitmentConstraintIndexes = make([]frontend.Variable, len(tVk.CommitmentConstraintIndexes))
+		for i := range r.CommitmentConstraintIndexes {
+			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
+		}
 	case *VerifyingKey[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine]:
 		tVk, ok := vk.(*plonkbackend_bn254.VerifyingKey)
 		if !ok {
@@ -552,8 +560,10 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 				return ret, fmt.Errorf("commitment Qcp[%d] witness assignment: %w", i, err)
 			}
 		}
-		r.CommitmentConstraintIndexes = make([]uint64, len(tVk.CommitmentConstraintIndexes))
-		copy(r.CommitmentConstraintIndexes, tVk.CommitmentConstraintIndexes)
+		r.CommitmentConstraintIndexes = make([]frontend.Variable, len(tVk.CommitmentConstraintIndexes))
+		for i := range r.CommitmentConstraintIndexes {
+			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
+		}
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
@@ -568,9 +578,9 @@ func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 	sizeSystem := nbPublic + nbConstraints
 	nextPowerTwo := 1 << stdbits.Len(uint(sizeSystem))
 	commitmentIndexes := ccs.GetCommitments().CommitmentIndexes()
-	cCommitmentIndexes := make([]uint64, len(commitmentIndexes))
+	cCommitmentIndexes := make([]frontend.Variable, len(commitmentIndexes))
 	for i := range cCommitmentIndexes {
-		cCommitmentIndexes[i] = uint64(commitmentIndexes[i])
+		cCommitmentIndexes[i] = commitmentIndexes[i]
 	}
 	return VerifyingKey[FR, G1El, G2El]{
 		BaseVerifyingKey: BaseVerifyingKey[FR, G1El, G2El]{
@@ -785,7 +795,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 			return nil, nil, nil, err
 		}
 		for i := range vk.CommitmentConstraintIndexes {
-			li := v.computeIthLagrangeAtZeta(vk.CommitmentConstraintIndexes[i]+vk.NbPublicVariables, zeta, zetaPowerM, vk)
+			li := v.computeIthLagrangeAtZeta(v.api.Add(vk.CommitmentConstraintIndexes[i], vk.NbPublicVariables), zeta, zetaPowerM, vk)
 			marshalledCommitment := v.curve.MarshalG1(proof.Bsb22Commitments[i].G1El)
 			hashToField.Write(marshalledCommitment...)
 			hashedCmt := hashToField.Sum()
@@ -1070,29 +1080,20 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) fixedExpN(n uint64, s *emulated.Element
 }
 
 // computeIthLagrangeAtZeta computes L_{i}(\omega) = \omega^{i}/n (\zeta^{n}-1)/(\zeta-\omega^{i})
-func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(i uint64, zeta, zetaPowerM *emulated.Element[FR], vk VerifyingKey[FR, G1El, G2El]) *emulated.Element[FR] {
+func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(exp frontend.Variable, zeta, zetaPowerM *emulated.Element[FR], vk VerifyingKey[FR, G1El, G2El]) *emulated.Element[FR] {
 
 	one := v.scalarApi.One()
 	num := v.scalarApi.Sub(zetaPowerM, one)
 
 	// \omega^{i}
+	nbBits := stdbits.Len(uint(vk.Size))
+	iBits := bits.ToBinary(v.api, exp, bits.WithNbDigits(nbBits))
+
 	omegai := one
-	irev := stdbits.Reverse(uint(i))
-	// skip first zeroes
-	s := irev % 2
-	nbBitsUint := 64
-	for s == 0 {
-		irev = irev >> 1
-		s = irev % 2
-		nbBitsUint--
-	}
-	for nbBitsUint != 0 {
+	for i := nbBits - 1; i >= 0; i-- {
 		omegai = v.scalarApi.Mul(omegai, omegai)
-		if irev%2 == 1 {
-			omegai = v.scalarApi.Mul(omegai, &vk.Generator)
-		}
-		nbBitsUint--
-		irev = irev >> 1
+		tmp := v.scalarApi.Mul(omegai, &vk.Generator)
+		omegai = v.scalarApi.Select(iBits[i], tmp, omegai)
 	}
 
 	den := v.scalarApi.Sub(zeta, omegai)
