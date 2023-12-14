@@ -367,7 +367,7 @@ func getRandomParametricProof(assert *test.Assert, field, outer *big.Int, ccss [
 	assert.NoError(err)
 	err = native_plonk.Verify(innerProof, vks[idx], innerPubWitness, GetNativeVerifierOptions(outer, field))
 	assert.NoError(err)
-	return idx, innerWitness, innerProof
+	return idx, innerPubWitness, innerProof
 }
 
 type AggregagationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
