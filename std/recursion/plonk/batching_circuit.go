@@ -8,9 +8,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
-	gnark_kzg "github.com/consensys/gnark/std/commitments/kzg"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/recursion"
 )
 
 // BatchProofs collects proof and witness pairs for efficient batched
@@ -73,70 +71,70 @@ type BatchVerifyCircuits[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 	HashPublic frontend.Variable `gnark:",public"`
 }
 
-func (circuit *BatchVerifyCircuits[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+// func (circuit *BatchVerifyCircuits[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
-	// get Plonk verifier
-	curve, err := algebra.GetCurve[FR, G1El](api)
-	if err != nil {
-		return err
-	}
+// 	// get Plonk verifier
+// 	curve, err := algebra.GetCurve[FR, G1El](api)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	// check that hash(PublicInnters)==HashPub
-	var fr FR
-	h, err := recursion.NewHash(api, fr.Modulus(), true)
-	if err != nil {
-		return err
-	}
+// 	// check that hash(PublicInnters)==HashPub
+// 	var fr FR
+// 	h, err := recursion.NewHash(api, fr.Modulus(), true)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	for curCircuit := 0; curCircuit < len(circuit.Circuits); curCircuit++ {
-		for i := 0; i < len(circuit.Circuits[curCircuit].Witnesses); i++ {
-			for j := 0; j < len(circuit.Circuits[curCircuit].Witnesses[i].Public); j++ {
-				toHash := curve.MarshalScalar(circuit.Circuits[curCircuit].Witnesses[i].Public[j])
-				h.Write(toHash...)
-			}
-		}
-	}
+// 	for curCircuit := 0; curCircuit < len(circuit.Circuits); curCircuit++ {
+// 		for i := 0; i < len(circuit.Circuits[curCircuit].Witnesses); i++ {
+// 			for j := 0; j < len(circuit.Circuits[curCircuit].Witnesses[i].Public); j++ {
+// 				toHash := curve.MarshalScalar(circuit.Circuits[curCircuit].Witnesses[i].Public[j])
+// 				h.Write(toHash...)
+// 			}
+// 		}
+// 	}
 
-	s := h.Sum()
-	api.AssertIsEqual(s, circuit.HashPublic)
+// 	s := h.Sum()
+// 	api.AssertIsEqual(s, circuit.HashPublic)
 
-	// run the verifiers
-	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
-	if err != nil {
-		return fmt.Errorf("new verifier: %w", err)
-	}
+// 	// run the verifiers
+// 	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
+// 	if err != nil {
+// 		return fmt.Errorf("new verifier: %w", err)
+// 	}
 
-	var totalNumberOfCircuits int
-	for i := 0; i < len(circuit.Circuits); i++ {
-		totalNumberOfCircuits += circuit.Circuits[i].batchSizeProofs
-	}
+// 	var totalNumberOfCircuits int
+// 	// for i := 0; i < len(circuit.Circuits); i++ {
+// 	// 	totalNumberOfCircuits += circuit.Circuits[i].batchSizeProofs
+// 	// }
 
-	// at the end of each plonk verifiers, there are 2 KZG openings, at z and \nu z
-	commitments := make([]gnark_kzg.Commitment[G1El], 2*totalNumberOfCircuits)
-	proofs := make([]gnark_kzg.OpeningProof[FR, G1El], 2*totalNumberOfCircuits)
-	points := make([]emulated.Element[FR], 2*totalNumberOfCircuits)
-	offset := 0
-	for i := 0; i < len(circuit.Circuits); i++ {
-		for j := 0; j < circuit.Circuits[i].batchSizeProofs; j++ {
-			commitmentPair, proofPair, pointPair, err := verifier.PrepareVerification(circuit.Circuits[i].VerifyingKey, circuit.Circuits[i].Proofs[j], circuit.Circuits[i].Witnesses[j])
-			if err != nil {
-				return err
-			}
-			copy(commitments[offset+2*j:], commitmentPair)
-			copy(proofs[offset+2*j:], proofPair)
-			copy(points[offset+2*j:], pointPair)
-		}
-		offset += 2 * circuit.Circuits[i].batchSizeProofs
-	}
+// 	// at the end of each plonk verifiers, there are 2 KZG openings, at z and \nu z
+// 	commitments := make([]gnark_kzg.Commitment[G1El], 2*totalNumberOfCircuits)
+// 	proofs := make([]gnark_kzg.OpeningProof[FR, G1El], 2*totalNumberOfCircuits)
+// 	points := make([]emulated.Element[FR], 2*totalNumberOfCircuits)
+// 	offset := 0
+// 	for i := 0; i < len(circuit.Circuits); i++ {
+// 		for j := 0; j < circuit.Circuits[i].batchSizeProofs; j++ {
+// 			commitmentPair, proofPair, pointPair, err := verifier.PrepareVerification(circuit.Circuits[i].VerifyingKey, circuit.Circuits[i].Proofs[j], circuit.Circuits[i].Witnesses[j])
+// 			if err != nil {
+// 				return err
+// 			}
+// 			copy(commitments[offset+2*j:], commitmentPair)
+// 			copy(proofs[offset+2*j:], proofPair)
+// 			copy(points[offset+2*j:], pointPair)
+// 		}
+// 		offset += 2 * circuit.Circuits[i].batchSizeProofs
+// 	}
 
-	kzgVerifier, err := gnark_kzg.NewVerifier[FR, G1El, G2El, GtEl](api)
-	if err != nil {
-		return err
-	}
+// 	kzgVerifier, err := gnark_kzg.NewVerifier[FR, G1El, G2El, GtEl](api)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	vkKZG := circuit.Circuits[0].VerifyingKey.Kzg
-	err = kzgVerifier.BatchVerifyMultiPoints(commitments, proofs, points, vkKZG)
+// 	vkKZG := circuit.Circuits[0].VerifyingKey.Kzg
+// 	err = kzgVerifier.BatchVerifyMultiPoints(commitments, proofs, points, vkKZG)
 
-	return err
+// 	return err
 
-}
+// }
