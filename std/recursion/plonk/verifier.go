@@ -1113,9 +1113,10 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertDifferentProofs(bvk BaseVerifying
 		foldedProofs = append(foldedProofs, pr...)
 		foldedPoints = append(foldedPoints, pts...)
 	}
-	if err := v.kzg.BatchVerifyMultiPoints(foldedDigests, foldedProofs, foldedPoints, vk.Kzg); err != nil {
+	if err := v.kzg.BatchVerifyMultiPoints(foldedDigests, foldedProofs, foldedPoints, bvk.Kzg); err != nil {
 		return fmt.Errorf("batch verify kzg: %w", err)
 	}
+	return nil
 }
 
 func (v *Verifier[FR, G1El, G2El, GtEl]) bindPublicData(fs *fiatshamir.Transcript, challenge string, vk VerifyingKey[FR, G1El, G2El], witness Witness[FR]) error {
