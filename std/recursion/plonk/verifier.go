@@ -268,6 +268,10 @@ func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 	return ret
 }
 
+// BaseVerifyingKey is the common part of the verification key for the circuits
+// with same size, same number of public inputs and same number of commitments.
+// Use [PlaceholderBaseVerifyingKey] for creating a placeholder for compiling
+// and [ValueOfBaseVerifyingKey] for witness assignment.
 type BaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
 	// Size circuit
 	Size              uint64
@@ -282,6 +286,10 @@ type BaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 	CosetShift emulated.Element[FR]
 }
 
+// CircuitVerifyingKey is the unique part of the verification key for the
+// circuits with same [BaseVerifyingKey]. Use [PlaceholderCircuitVerifyingKey]
+// for creating a placeholder for compiling the circuit or
+// [ValueOfCircuitVerifyingKey] for witness assignment.
 type CircuitVerifyingKey[G1El algebra.G1ElementT] struct {
 	// S commitments to S1, S2, S3
 	S [3]kzg.Commitment[G1El]
@@ -302,14 +310,13 @@ type VerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 	CircuitVerifyingKey[G1El]
 }
 
-// ValueOfVerifyingKey initializes witness from the given PLONK verifying key.
-// It returns an error if there is a mismatch between the type parameters and
-// the provided native verifying key.
-func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk backend_plonk.VerifyingKey) (VerifyingKey[FR, G1El, G2El], error) {
-	var ret VerifyingKey[FR, G1El, G2El]
+// ValueOfBaseVerifyingKey assigns the base verification key from the witness.
+// Use one of the verifiaction keys for the same-sized circuits.
+func ValueOfBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk backend_plonk.VerifyingKey) (BaseVerifyingKey[FR, G1El, G2El], error) {
+	var ret BaseVerifyingKey[FR, G1El, G2El]
 	var err error
 	switch r := any(&ret).(type) {
-	case *VerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
+	case *BaseVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
 		tVk, ok := vk.(*plonkbackend_bls12377.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
@@ -323,6 +330,80 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
 		}
 		r.CosetShift = sw_bls12377.NewScalar(tVk.CosetShift)
+	case *BaseVerifyingKey[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+		tVk, ok := vk.(*plonkbackend_bls12381.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
+		}
+		r.Size = tVk.Size
+		r.SizeInv = sw_bls12381.NewScalar(tVk.SizeInv)
+		r.Generator = sw_bls12381.NewScalar(tVk.Generator)
+		r.NbPublicVariables = tVk.NbPublicVariables
+		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](tVk.Kzg)
+		if err != nil {
+			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
+		}
+		r.CosetShift = sw_bls12381.NewScalar(tVk.CosetShift)
+	case *BaseVerifyingKey[sw_bls24315.ScalarField, sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+		tVk, ok := vk.(*plonkbackend_bls24315.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bls24315.VerifyingKey, got %T", vk)
+		}
+		r.Size = tVk.Size
+		r.SizeInv = sw_bls24315.NewScalar(tVk.SizeInv)
+		r.Generator = sw_bls24315.NewScalar(tVk.Generator)
+		r.NbPublicVariables = tVk.NbPublicVariables
+		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls24315.G1Affine, sw_bls24315.G2Affine](tVk.Kzg)
+		if err != nil {
+			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
+		}
+		r.CosetShift = sw_bls24315.NewScalar(tVk.CosetShift)
+	case *BaseVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
+		tVk, ok := vk.(*plonkbackend_bw6761.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
+		}
+		r.Size = tVk.Size
+		r.SizeInv = sw_bw6761.NewScalar(tVk.SizeInv)
+		r.Generator = sw_bw6761.NewScalar(tVk.Generator)
+		r.NbPublicVariables = tVk.NbPublicVariables
+		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bw6761.G1Affine, sw_bw6761.G2Affine](tVk.Kzg)
+		if err != nil {
+			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
+		}
+		r.CosetShift = sw_bw6761.NewScalar(tVk.CosetShift)
+	case *BaseVerifyingKey[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine]:
+		tVk, ok := vk.(*plonkbackend_bn254.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
+		}
+		r.Size = tVk.Size
+		r.SizeInv = sw_bn254.NewScalar(tVk.SizeInv)
+		r.Generator = sw_bn254.NewScalar(tVk.Generator)
+		r.NbPublicVariables = tVk.NbPublicVariables
+		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bn254.G1Affine, sw_bn254.G2Affine](tVk.Kzg)
+		if err != nil {
+			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
+		}
+		r.CosetShift = sw_bn254.NewScalar(tVk.CosetShift)
+	default:
+		return ret, fmt.Errorf("unknown parametric type combination")
+	}
+	return ret, nil
+}
+
+// ValueOfCircuitVerifyingKey returns the witness for the unique part of the
+// verification key. Returns an error if there is a mismatch between type
+// arguments and given witness.
+func ValueOfCircuitVerifyingKey[G1El algebra.G1ElementT](vk backend_plonk.VerifyingKey) (CircuitVerifyingKey[G1El], error) {
+	var ret CircuitVerifyingKey[G1El]
+	var err error
+	switch r := any(&ret).(type) {
+	case *CircuitVerifyingKey[sw_bls12377.G1Affine]:
+		tVk, ok := vk.(*plonkbackend_bls12377.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
+		}
 		for i := range r.S {
 			r.S[i], err = kzg.ValueOfCommitment[sw_bls12377.G1Affine](tVk.S[i])
 			if err != nil {
@@ -360,20 +441,11 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		for i := range r.CommitmentConstraintIndexes {
 			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
 		}
-	case *VerifyingKey[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
+	case *CircuitVerifyingKey[sw_bls12381.G1Affine]:
 		tVk, ok := vk.(*plonkbackend_bls12381.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
 		}
-		r.Size = tVk.Size
-		r.SizeInv = sw_bls12381.NewScalar(tVk.SizeInv)
-		r.Generator = sw_bls12381.NewScalar(tVk.Generator)
-		r.NbPublicVariables = tVk.NbPublicVariables
-		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](tVk.Kzg)
-		if err != nil {
-			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
-		}
-		r.CosetShift = sw_bls12381.NewScalar(tVk.CosetShift)
 		for i := range r.S {
 			r.S[i], err = kzg.ValueOfCommitment[sw_bls12381.G1Affine](tVk.S[i])
 			if err != nil {
@@ -411,20 +483,11 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		for i := range r.CommitmentConstraintIndexes {
 			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
 		}
-	case *VerifyingKey[sw_bls24315.ScalarField, sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
+	case *CircuitVerifyingKey[sw_bls24315.G1Affine]:
 		tVk, ok := vk.(*plonkbackend_bls24315.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bls24315.VerifyingKey, got %T", vk)
 		}
-		r.Size = tVk.Size
-		r.SizeInv = sw_bls24315.NewScalar(tVk.SizeInv)
-		r.Generator = sw_bls24315.NewScalar(tVk.Generator)
-		r.NbPublicVariables = tVk.NbPublicVariables
-		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls24315.G1Affine, sw_bls24315.G2Affine](tVk.Kzg)
-		if err != nil {
-			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
-		}
-		r.CosetShift = sw_bls24315.NewScalar(tVk.CosetShift)
 		for i := range r.S {
 			r.S[i], err = kzg.ValueOfCommitment[sw_bls24315.G1Affine](tVk.S[i])
 			if err != nil {
@@ -462,20 +525,11 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		for i := range r.CommitmentConstraintIndexes {
 			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
 		}
-	case *VerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
+	case *CircuitVerifyingKey[sw_bw6761.G1Affine]:
 		tVk, ok := vk.(*plonkbackend_bw6761.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
 		}
-		r.Size = tVk.Size
-		r.SizeInv = sw_bw6761.NewScalar(tVk.SizeInv)
-		r.Generator = sw_bw6761.NewScalar(tVk.Generator)
-		r.NbPublicVariables = tVk.NbPublicVariables
-		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bw6761.G1Affine, sw_bw6761.G2Affine](tVk.Kzg)
-		if err != nil {
-			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
-		}
-		r.CosetShift = sw_bw6761.NewScalar(tVk.CosetShift)
 		for i := range r.S {
 			r.S[i], err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tVk.S[i])
 			if err != nil {
@@ -513,20 +567,11 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 		for i := range r.CommitmentConstraintIndexes {
 			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
 		}
-	case *VerifyingKey[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine]:
+	case *CircuitVerifyingKey[sw_bn254.G1Affine]:
 		tVk, ok := vk.(*plonkbackend_bn254.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
 		}
-		r.Size = tVk.Size
-		r.SizeInv = sw_bn254.NewScalar(tVk.SizeInv)
-		r.Generator = sw_bn254.NewScalar(tVk.Generator)
-		r.NbPublicVariables = tVk.NbPublicVariables
-		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bn254.G1Affine, sw_bn254.G2Affine](tVk.Kzg)
-		if err != nil {
-			return ret, fmt.Errorf("verifying key witness assignment: %w", err)
-		}
-		r.CosetShift = sw_bn254.NewScalar(tVk.CosetShift)
 		for i := range r.S {
 			r.S[i], err = kzg.ValueOfCommitment[sw_bn254.G1Affine](tVk.S[i])
 			if err != nil {
@@ -570,28 +615,60 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 	return ret, nil
 }
 
-// PlaceholderVerifyingKey returns placeholder of the verification key for
-// compiling the outer circuit.
-func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) VerifyingKey[FR, G1El, G2El] {
+// ValueOfVerifyingKey initializes witness from the given PLONK verifying key.
+// It returns an error if there is a mismatch between the type parameters and
+// the provided native verifying key.
+func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](vk backend_plonk.VerifyingKey) (VerifyingKey[FR, G1El, G2El], error) {
+	var ret VerifyingKey[FR, G1El, G2El]
+	bvk, err := ValueOfBaseVerifyingKey[FR, G1El, G2El](vk)
+	if err != nil {
+		return ret, fmt.Errorf("value of base verifying key: %w", err)
+	}
+	cvk, err := ValueOfCircuitVerifyingKey[G1El](vk)
+	if err != nil {
+		return ret, fmt.Errorf("value of circuit verifying key: %w", err)
+	}
+	return VerifyingKey[FR, G1El, G2El]{
+		BaseVerifyingKey:    bvk,
+		CircuitVerifyingKey: cvk,
+	}, nil
+}
+
+// PlaceholderBaseVerifyingKey returns placeholder of the base verification key
+// common to circuits with same size, same number of public inputs and same
+// number of commitments.
+func PlaceholderBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) BaseVerifyingKey[FR, G1El, G2El] {
 	nbPublic := ccs.GetNbPublicVariables()
 	nbConstraints := ccs.GetNbConstraints()
 	sizeSystem := nbPublic + nbConstraints
 	nextPowerTwo := 1 << stdbits.Len(uint(sizeSystem))
+	return BaseVerifyingKey[FR, G1El, G2El]{
+		Size:              uint64(nextPowerTwo),
+		NbPublicVariables: uint64(nbPublic),
+		Kzg:               kzg.PlaceholderVerifyingKey[G1El, G2El](),
+	}
+}
+
+// PlaceholderCircuitVerifyingKey returns the placeholder for the unique part of
+// the verification key with same [BaseVerifyingKey].
+func PlaceholderCircuitVerifyingKey[G1El algebra.G1ElementT](ccs constraint.ConstraintSystem) CircuitVerifyingKey[G1El] {
 	commitmentIndexes := ccs.GetCommitments().CommitmentIndexes()
 	cCommitmentIndexes := make([]frontend.Variable, len(commitmentIndexes))
 	for i := range cCommitmentIndexes {
 		cCommitmentIndexes[i] = commitmentIndexes[i]
 	}
+	return CircuitVerifyingKey[G1El]{
+		CommitmentConstraintIndexes: cCommitmentIndexes,
+		Qcp:                         make([]kzg.Commitment[G1El], len(commitmentIndexes)),
+	}
+}
+
+// PlaceholderVerifyingKey returns placeholder of the verification key for
+// compiling the outer circuit.
+func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) VerifyingKey[FR, G1El, G2El] {
 	return VerifyingKey[FR, G1El, G2El]{
-		BaseVerifyingKey: BaseVerifyingKey[FR, G1El, G2El]{
-			Size:              uint64(nextPowerTwo),
-			NbPublicVariables: uint64(nbPublic),
-			Kzg:               kzg.PlaceholderVerifyingKey[G1El, G2El](),
-		},
-		CircuitVerifyingKey: CircuitVerifyingKey[G1El]{
-			CommitmentConstraintIndexes: cCommitmentIndexes,
-			Qcp:                         make([]kzg.Commitment[G1El], len(commitmentIndexes)),
-		},
+		BaseVerifyingKey:    PlaceholderBaseVerifyingKey[FR, G1El, G2El](ccs),
+		CircuitVerifyingKey: PlaceholderCircuitVerifyingKey[G1El](ccs),
 	}
 }
 
