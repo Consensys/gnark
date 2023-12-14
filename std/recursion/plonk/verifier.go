@@ -1065,6 +1065,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertSameProofs(vk VerifyingKey[FR, G1
 	if len(proofs) != len(witnesses) {
 		return fmt.Errorf("proofs and witness length mismatch")
 	}
+	if len(proofs) == 0 {
+		return fmt.Errorf("no proofs to check")
+	}
 	if len(proofs) == 1 {
 		return v.AssertProof(vk, proofs[0], witnesses[0])
 	}
@@ -1081,6 +1084,36 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertSameProofs(vk VerifyingKey[FR, G1
 		foldedPoints = append(foldedPoints, pts...)
 	}
 	if err := v.kzg.BatchVerifyMultiPoints(foldedDigests, foldedProofs, foldedPoints, vk.Kzg); err != nil {
+		return fmt.Errorf("batch verify kzg: %w", err)
+	}
+	return nil
+}
+
+func (v *Verifier[FR, G1El, G2El, GtEl]) AssertDifferentProofs(bvk BaseVerifyingKey[FR, G1El, G2El], cvks []CircuitVerifyingKey[G1El],
+	switches []frontend.Variable, proofs []Proof[FR, G1El, G2El], witnesses []Witness[FR]) error {
+	if len(proofs) != len(witnesses) || len(proofs) != len(switches) {
+		return fmt.Errorf("input lengths mismatch")
+	}
+	if len(proofs) == 0 {
+		return fmt.Errorf("no proofs to check")
+	}
+	var foldedDigests []kzg.Commitment[G1El]
+	var foldedProofs []kzg.OpeningProof[FR, G1El]
+	var foldedPoints []emulated.Element[FR]
+	for i := range proofs {
+		vk, err := v.SwitchVerificationKey(bvk, switches[i], cvks)
+		if err != nil {
+			return fmt.Errorf("switch verification key: %w", err)
+		}
+		dg, pr, pts, err := v.PrepareVerification(vk, proofs[i], witnesses[i])
+		if err != nil {
+			return fmt.Errorf("prepare proof %d: %w", i, err)
+		}
+		foldedDigests = append(foldedDigests, dg...)
+		foldedProofs = append(foldedProofs, pr...)
+		foldedPoints = append(foldedPoints, pts...)
+	}
+	if err := v.kzg.BatchVerifyMultiPoints(foldedDigests, foldedProofs, foldedPoints, bvk.Kzg); err != nil {
 		return fmt.Errorf("batch verify kzg: %w", err)
 	}
 	return nil
