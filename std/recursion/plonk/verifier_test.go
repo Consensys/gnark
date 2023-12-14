@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	native_plonk "github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -17,6 +18,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 	"github.com/consensys/gnark/test/unsafekzg"
 )
@@ -441,6 +443,125 @@ func TestBLS12InBW6Multi(t *testing.T) {
 		Selectors:   circuitSelector,
 		Proofs:      circuitProofs,
 		Witnesses:   circuitWitnesses,
+	}
+	err = test.IsSolved(aggCircuit, aggAssignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+}
+
+type AggregagationCircuitWithHash[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	BaseKey     BaseVerifyingKey[FR, G1El, G2El] `gnark:"-"`
+	CircuitKeys []CircuitVerifyingKey[G1El]
+	Selectors   []frontend.Variable
+	Proofs      []Proof[FR, G1El, G2El]
+	Witnesses   []Witness[FR]
+	WitnessHash frontend.Variable
+}
+
+func (c *AggregagationCircuitWithHash[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	v, err := NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	var fr FR
+	h, err := recursion.NewHash(api, fr.Modulus(), true)
+	if err != nil {
+		return fmt.Errorf("new hash: %w", err)
+	}
+	crv, err := algebra.GetCurve[FR, G1El](api)
+	if err != nil {
+		return fmt.Errorf("get curve: %w", err)
+	}
+	for i := range c.Witnesses {
+		for j := range c.Witnesses[i].Public {
+			h.Write(crv.MarshalScalar(c.Witnesses[i].Public[j])...)
+		}
+	}
+	s := h.Sum()
+	api.AssertIsEqual(s, c.WitnessHash)
+	if err = v.AssertDifferentProofs(c.BaseKey, c.CircuitKeys, c.Selectors, c.Proofs, c.Witnesses); err != nil {
+		return fmt.Errorf("assert proofs: %w", err)
+	}
+	return nil
+}
+
+func TestBLS12InBW6MultiHashed(t *testing.T) {
+	// in previous test we provided all the public inputs of the inner circuits
+	// as public witness of the aggregation circuit. This is not efficient
+	// though - public witness has to be public and increases calldata cost when
+	// done in Solidity (also increases verifier cost). Instead, we can only
+	// provide hash of the public input of the inne circuits as public input to
+	// the aggregation circuit and verify inside the aggregation circuit that
+	// the private input corresponds.
+	//
+	// In practice this is even more involved - we're storing the merkle root of
+	// the whole state and would be providing this as an input.
+	innerField := ecc.BLS12_377.ScalarField()
+	outerField := ecc.BW6_761.ScalarField()
+	nbCircuits := 4
+	nbProofs := 20
+	assert := test.NewAssert(t)
+	ccss, vks, pks := getParametricSetups(assert, innerField, nbCircuits)
+	innerProofs := make([]native_plonk.Proof, nbProofs)
+	innerWitnesses := make([]witness.Witness, nbProofs)
+	innerSelectors := make([]int, nbProofs)
+	for i := 0; i < nbProofs; i++ {
+		innerSelectors[i], innerWitnesses[i], innerProofs[i] = getRandomParametricProof(assert, innerField, outerField, ccss, vks, pks)
+	}
+
+	circuitBvk, err := ValueOfBaseVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](vks[0])
+	assert.NoError(err)
+	circuitVks := make([]CircuitVerifyingKey[sw_bls12377.G1Affine], nbCircuits)
+	for i := range circuitVks {
+		circuitVks[i], err = ValueOfCircuitVerifyingKey[sw_bls12377.G1Affine](vks[i])
+		assert.NoError(err)
+	}
+	circuitSelector := make([]frontend.Variable, nbProofs)
+	for i := range circuitSelector {
+		circuitSelector[i] = innerSelectors[i]
+	}
+	circuitProofs := make([]Proof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine], nbProofs)
+	for i := range circuitProofs {
+		circuitProofs[i], err = ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProofs[i])
+		assert.NoError(err)
+	}
+	circuitWitnesses := make([]Witness[sw_bls12377.ScalarField], nbProofs)
+	for i := range circuitWitnesses {
+		circuitWitnesses[i], err = ValueOfWitness[sw_bls12377.ScalarField](innerWitnesses[i])
+		assert.NoError(err)
+	}
+	// hash to compute the public hash, which is the hash of all the public inputs
+	// of all the inner circuits
+	h, err := recursion.NewShort(outerField, innerField)
+	assert.NoError(err)
+	for i := 0; i < nbProofs; i++ {
+		tvec := innerWitnesses[i].Vector().(fr_bls12377.Vector)
+		for j := range tvec {
+			h.Write(tvec[j].Marshal())
+		}
+	}
+	digest := h.Sum(nil)
+
+	aggAssignment := &AggregagationCircuitWithHash[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		CircuitKeys: circuitVks,
+		Selectors:   circuitSelector,
+		Proofs:      circuitProofs,
+		Witnesses:   circuitWitnesses,
+		WitnessHash: digest,
+	}
+
+	aggCircuit := &AggregagationCircuitWithHash[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		BaseKey:     circuitBvk,
+		CircuitKeys: make([]CircuitVerifyingKey[sw_bls12377.G1Affine], nbCircuits),
+		Selectors:   make([]frontend.Variable, nbProofs),
+		Proofs:      make([]Proof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine], nbProofs),
+		Witnesses:   make([]Witness[sw_bls12377.ScalarField], nbProofs),
+	}
+	for i := 0; i < nbCircuits; i++ {
+		aggCircuit.CircuitKeys[i] = PlaceholderCircuitVerifyingKey[sw_bls12377.G1Affine](ccss[i])
+	}
+	for i := 0; i < nbProofs; i++ {
+		aggCircuit.Proofs[i] = PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](ccss[0])
+		aggCircuit.Witnesses[i] = PlaceholderWitness[sw_bls12377.ScalarField](ccss[0])
 	}
 	err = test.IsSolved(aggCircuit, aggAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
