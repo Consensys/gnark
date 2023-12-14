@@ -373,7 +373,7 @@ type AggregagationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El
 	CircuitKeys []CircuitVerifyingKey[G1El]
 	Selectors   []frontend.Variable
 	Proofs      []Proof[FR, G1El, G2El]
-	Witnesses   []Witness[FR]
+	Witnesses   []Witness[FR] `gnark:",public"`
 }
 
 func (c *AggregagationCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
@@ -403,7 +403,7 @@ func TestBLS12InBW6Multi(t *testing.T) {
 
 	circuitBvk, err := ValueOfBaseVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](vks[0])
 	assert.NoError(err)
-	circuitVks := make([]CircuitVerifyingKey[sw_bls12377.G1Affine], nbProofs)
+	circuitVks := make([]CircuitVerifyingKey[sw_bls12377.G1Affine], nbCircuits)
 	for i := range circuitVks {
 		circuitVks[i], err = ValueOfCircuitVerifyingKey[sw_bls12377.G1Affine](vks[i])
 		assert.NoError(err)
@@ -424,10 +424,17 @@ func TestBLS12InBW6Multi(t *testing.T) {
 	}
 	aggCircuit := &AggregagationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		BaseKey:     circuitBvk,
-		CircuitKeys: make([]CircuitVerifyingKey[sw_bls12377.G1Affine], nbProofs),
+		CircuitKeys: make([]CircuitVerifyingKey[sw_bls12377.G1Affine], nbCircuits),
 		Selectors:   make([]frontend.Variable, nbProofs),
 		Proofs:      make([]Proof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine], nbProofs),
 		Witnesses:   make([]Witness[sw_bls12377.ScalarField], nbProofs),
+	}
+	for i := 0; i < nbCircuits; i++ {
+		aggCircuit.CircuitKeys[i] = PlaceholderCircuitVerifyingKey[sw_bls12377.G1Affine](ccss[i])
+	}
+	for i := 0; i < nbProofs; i++ {
+		aggCircuit.Proofs[i] = PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](ccss[0])
+		aggCircuit.Witnesses[i] = PlaceholderWitness[sw_bls12377.ScalarField](ccss[0])
 	}
 	aggAssignment := &AggregagationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		CircuitKeys: circuitVks,
