@@ -33,7 +33,7 @@ type BatchVerifyBisCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2E
 	Tuple []SnarkWitnessProof[FR, G1El, G2El]
 
 	// Vk (number should be fixed)
-	VerifyfingKey []VerifyingKey[FR, G1El, G2El]
+	VerifyingKey []VerifyingKey[FR, G1El, G2El]
 
 	// hash of the public inputs of the inner circuit
 	HashPublic frontend.Variable `gnark:",public"`
@@ -73,14 +73,14 @@ func InstantiateBatchVerifyBisCircuit[FR emulated.FieldParams, G1El algebra.G1El
 	totalCcs []constraint.ConstraintSystem) BatchVerifyBisCircuit[FR, G1El, G2El, GtEl] {
 
 	outerCircuit := BatchVerifyBisCircuit[FR, G1El, G2El, GtEl]{
-		Tuple:         make([]SnarkWitnessProof[FR, G1El, G2El], len(totalCcs)),
-		VerifyfingKey: make([]VerifyingKey[FR, G1El, G2El], len(ccs)),
+		Tuple:        make([]SnarkWitnessProof[FR, G1El, G2El], len(totalCcs)),
+		VerifyingKey: make([]VerifyingKey[FR, G1El, G2El], len(ccs)),
 	}
 	for i := 0; i < len(totalCcs); i++ {
 		outerCircuit.Tuple[i].Witness = PlaceholderWitness[FR](totalCcs[i])
 	}
 	for i := 0; i < len(ccs); i++ {
-		outerCircuit.VerifyfingKey[i] = PlaceholderVerifyingKey[FR, G1El, G2El](ccs[i])
+		outerCircuit.VerifyingKey[i] = PlaceholderVerifyingKey[FR, G1El, G2El](ccs[i])
 	}
 	return outerCircuit
 }
@@ -94,9 +94,9 @@ func AssignWitnessBis[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 	var outerAssignment BatchVerifyBisCircuit[FR, G1El, G2El, GtEl]
 	var err error
 
-	outerAssignment.VerifyfingKey = make([]VerifyingKey[FR, G1El, G2El], len(vks))
+	outerAssignment.VerifyingKey = make([]VerifyingKey[FR, G1El, G2El], len(vks))
 	for i := 0; i < len(vks); i++ {
-		outerAssignment.VerifyfingKey[i], err = ValueOfVerifyingKey[FR, G1El, G2El](vks[i])
+		outerAssignment.VerifyingKey[i], err = ValueOfVerifyingKey[FR, G1El, G2El](vks[i])
 		assert.NoError(err)
 	}
 
@@ -123,8 +123,8 @@ type BatchVerifyCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 	batchSizeProofs int
 
 	// proofs, verifying keys of the inner circuit
-	Proofs        []Proof[FR, G1El, G2El]
-	VerifyfingKey VerifyingKey[FR, G1El, G2El] // TODO this should be a constant
+	Proofs       []Proof[FR, G1El, G2El]
+	VerifyingKey VerifyingKey[FR, G1El, G2El] // TODO this should be a constant
 
 	// Corresponds to the public inputs of the inner circuit
 	PublicInners []Witness[FR]
@@ -147,7 +147,7 @@ func InstantiateOuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 	for i := 0; i < batchSizeProofs; i++ {
 		outerCircuit.Proofs[i] = PlaceholderProof[FR, G1El, G2El](innerCcs)
 	}
-	outerCircuit.VerifyfingKey = PlaceholderVerifyingKey[FR, G1El, G2El](innerCcs)
+	outerCircuit.VerifyingKey = PlaceholderVerifyingKey[FR, G1El, G2El](innerCcs)
 	outerCircuit.batchSizeProofs = batchSizeProofs
 
 	return outerCircuit
@@ -176,9 +176,9 @@ func AssignWitness[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 		assert.NoError(err)
 	}
 	outerAssignment := BatchVerifyCircuit[FR, G1El, G2El, GtEl]{
-		Proofs:        assignmentProofs,
-		VerifyfingKey: assignmentVerifyingKeys,
-		PublicInners:  assignmentPubToPrivWitnesses,
+		Proofs:       assignmentProofs,
+		VerifyingKey: assignmentVerifyingKeys,
+		PublicInners: assignmentPubToPrivWitnesses,
 		// HashPub:       frHashPub,
 	}
 
@@ -234,43 +234,34 @@ func (circuit *BatchVerifyCircuits[FR, G1El, G2El, GtEl]) Define(api frontend.AP
 	}
 
 	// at the end of each plonk verifiers, there are 2 KZG openings, at z and \nu z
-	// commitments := make([]gnark_kzg.Commitment[G1El], 2*totalNumberOfCircuits)
-	// proofs := make([]gnark_kzg.OpeningProof[FR, G1El], 2*totalNumberOfCircuits)
-	// points := make([]emulated.Element[FR], 2*totalNumberOfCircuits)
+	commitments := make([]gnark_kzg.Commitment[G1El], 2*totalNumberOfCircuits)
+	proofs := make([]gnark_kzg.OpeningProof[FR, G1El], 2*totalNumberOfCircuits)
+	points := make([]emulated.Element[FR], 2*totalNumberOfCircuits)
+
+	offset := 0
+	for i := 0; i < len(circuit.Circuits); i++ {
+		for j := 0; j < circuit.Circuits[i].batchSizeProofs; j++ {
+			commitmentPair, proofPair, pointPair, err := verifier.PrepareVerification(circuit.Circuits[i].VerifyingKey, circuit.Circuits[i].Proofs[j], circuit.Circuits[i].PublicInners[j])
+			if err != nil {
+				return err
+			}
+			copy(commitments[offset+2*j:], commitmentPair)
+			copy(proofs[offset+2*j:], proofPair)
+			copy(points[offset+2*j:], pointPair)
+		}
+		offset += 2 * circuit.Circuits[i].batchSizeProofs
+	}
+	if err != nil {
+		return err
+	}
 
 	kzgVerifier, err := gnark_kzg.NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return err
 	}
-	resPlonkPoints := make([]*G1El, 2*totalNumberOfCircuits)
-	expandedKzgVk := make([]*G2El, 2*totalNumberOfCircuits)
-	offset := 0
-	for i := 0; i < len(circuit.Circuits); i++ {
-		for j := 0; j < circuit.Circuits[i].batchSizeProofs; j++ {
-			commitmentPair, proofPair, pointPair, err := verifier.PrepareVerification(circuit.Circuits[i].VerifyfingKey, circuit.Circuits[i].Proofs[j], circuit.Circuits[i].PublicInners[j])
-			if err != nil {
-				return err
-			}
 
-			curFoldedProof, curFoldedDigest, err := kzgVerifier.FoldProofsMultiPoint(commitmentPair, proofPair, pointPair, circuit.Circuits[i].VerifyfingKey.Kzg)
-			if err != nil {
-				return err
-			}
-			resPlonkPoints[offset+2*j] = &curFoldedProof
-			resPlonkPoints[offset+2*j+1] = &curFoldedDigest
-
-			expandedKzgVk[offset+2*j] = &circuit.Circuits[i].VerifyfingKey.Kzg.G2[0]
-			expandedKzgVk[offset+2*j+1] = &circuit.Circuits[i].VerifyfingKey.Kzg.G2[1]
-
-			// copy(commitments[offset+2*j:], commitmentPair)
-			// copy(proofs[offset+2*j:], proofPair)
-			// copy(points[offset+2*j:], pointPair)
-		}
-		offset += 2 * circuit.Circuits[i].batchSizeProofs
-	}
-
-	// vkKZG := circuit.Circuits[0].VerifyfingKey.Kzg
-	err = kzgVerifier.Pairing.PairingCheck(resPlonkPoints, expandedKzgVk)
+	vkKZG := circuit.Circuits[0].VerifyingKey.Kzg
+	err = kzgVerifier.BatchVerifyMultiPoints(commitments, proofs, points, vkKZG)
 
 	return err
 
