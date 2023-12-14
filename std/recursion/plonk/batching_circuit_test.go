@@ -1,6 +1,7 @@
 package plonk
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -18,6 +19,113 @@ import (
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 )
+
+// Test BatchVerifyBisCircuit
+func TestBatchVerifyBisCircuit(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	// number of types of circuit
+	numberTypesCircuits := 4
+	vks := make([]native_plonk.VerifyingKey, numberTypesCircuits)
+	pks := make([]native_plonk.ProvingKey, numberTypesCircuits)
+	ccss := make([]constraint.ConstraintSystem, numberTypesCircuits)
+	logExp := make([]int, numberTypesCircuits)
+	for i := 0; i < numberTypesCircuits; i++ {
+		logExp[i] = (i + 3)
+	}
+	for i := 0; i < numberTypesCircuits; i++ {
+		var ic1 InnerCircuit
+		ic1.LogExpo = logExp[i%numberTypesCircuits]
+		ccss[i], vks[i], pks[i], _ = getInnerCircuitData(&ic1)
+	}
+
+	totalNumberOfCircuits := 20
+	proofs := make([]native_plonk.Proof, totalNumberOfCircuits)
+	witnesses := make([]witness.Witness, totalNumberOfCircuits)
+	selectors := make([]int, totalNumberOfCircuits)
+	for i := 0; i < totalNumberOfCircuits; i++ {
+
+		// get tuples (proof, public_witness)
+		proofs[i], witnesses[i] = getProofsWitnessesBis(
+			assert,
+			ccss[i%numberTypesCircuits],
+			pks[i%numberTypesCircuits],
+			vks[i%numberTypesCircuits],
+			logExp[i%numberTypesCircuits],
+		)
+		selectors[i] = i % numberTypesCircuits
+
+	}
+
+}
+
+func getProofsWitnessesBis(
+	assert *test.Assert,
+	ccs constraint.ConstraintSystem,
+	pk native_plonk.ProvingKey,
+	vk native_plonk.VerifyingKey,
+	logExpo int) (native_plonk.Proof, witness.Witness) {
+
+	var assignment InnerCircuit
+
+	var x, y fr_bls12377.Element
+	x.SetRandom()
+	y.Exp(x, big.NewInt(1<<logExpo))
+	assignment.X = x.String()
+	assignment.Y = y.String()
+
+	fullWitness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+	if err != nil {
+		panic("secret witness failed: " + err.Error())
+	}
+
+	publicWitness, err := fullWitness.Public()
+	if err != nil {
+		panic("public witness failed: " + err.Error())
+	}
+
+	fsProverHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+	kzgProverHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+	htfProverHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+
+	proof, err := native_plonk.Prove(
+		ccs,
+		pk,
+		fullWitness,
+		backend.WithProverChallengeHashFunction(fsProverHasher),
+		backend.WithProverKZGFoldingHashFunction(kzgProverHasher),
+		backend.WithProverHashToFieldFunction(htfProverHasher),
+	)
+	if err != nil {
+		panic("error proving: " + err.Error())
+	}
+
+	// sanity check
+	fsVerifierHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+	kzgVerifierHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+	htfVerifierHasher, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+
+	err = native_plonk.Verify(
+		proof,
+		vk,
+		publicWitness,
+		backend.WithVerifierChallengeHashFunction(fsVerifierHasher),
+		backend.WithVerifierKZGFoldingHashFunction(kzgVerifierHasher),
+		backend.WithVerifierHashToFieldFunction(htfVerifierHasher),
+	)
+	if err != nil {
+		panic("error verifying: " + err.Error())
+	}
+
+	return proof, publicWitness
+}
 
 //------------------------------------------------------
 // inner circuit
@@ -149,7 +257,7 @@ func TestBatchVerify(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	// number of types of circuits that we batch
-	numberOfCircuits := 3
+	numberOfCircuits := 1
 
 	// assignment
 	var fullAssignment BatchVerifyCircuits[
@@ -187,8 +295,8 @@ func TestBatchVerify(t *testing.T) {
 	// var frHashPub fr_bw6761.Element
 	// frHashPub.SetBytes(hashPub)
 
-	curLogExp := 4    // parameter for the current type of circuit
-	curBatchSize := 5 // number of copies of the currentn circuit
+	curLogExp := 4     // parameter for the current type of circuit
+	curBatchSize := 10 // number of copies of the currentn circuit
 
 	for curCircuit := 0; curCircuit < numberOfCircuits; curCircuit++ {
 
@@ -246,6 +354,9 @@ func TestBatchVerify(t *testing.T) {
 	var frHashPub fr_bw6761.Element
 	frHashPub.SetBytes(hashPub)
 	fullAssignment.HashPublic = frHashPub.String()
+
+	ccs, _ := frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &fullCircuit)
+	fmt.Printf("nb constraints: %d\n", ccs.GetNbConstraints())
 
 	err = test.IsSolved(&fullCircuit, &fullAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
