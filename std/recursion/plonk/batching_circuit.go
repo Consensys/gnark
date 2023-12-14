@@ -47,11 +47,11 @@ func ValueOfBatchProofs[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 	for i := range wWits {
 		wWits[i], err = ValueOfWitness[FR](witnesses[i])
 		if err != nil {
-			return ret, fmt.Errorf("assign witness %d: %w", err)
+			return ret, fmt.Errorf("assign witness %d: %w", i, err)
 		}
 		wProofs[i], err = ValueOfProof[FR, G1El, G2El](proofs[i])
 		if err != nil {
-			return ret, fmt.Errorf("assign proof %d: %w", err)
+			return ret, fmt.Errorf("assign proof %d: %w", i, err)
 		}
 	}
 	return BatchProofs[FR, G1El, G2El, GtEl]{
