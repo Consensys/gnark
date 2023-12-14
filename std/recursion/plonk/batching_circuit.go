@@ -14,15 +14,17 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-type WitnessCcs struct {
-	Circuit constraint.ConstraintSystem
-	Witness witness.Witness
-}
-
 // Tuple correct couple (proof, witness)
 type SnarkWitnessProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
-	Proofs  Proof[FR, G1El, G2El]
-	Witness Witness[FR]
+	Proof    Proof[FR, G1El, G2El]
+	Witness  Witness[FR]
+	Selector frontend.Variable
+}
+
+type WitnessProofSelector struct {
+	Proof    native_plonk.Proof
+	Witness  witness.Witness
+	Selector int
 }
 
 type BatchVerifyBisCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
@@ -32,9 +34,6 @@ type BatchVerifyBisCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2E
 
 	// Vk (number should be fixed)
 	VerifyfingKey []VerifyingKey[FR, G1El, G2El]
-
-	// selectors (lookup for which key is selected)
-	Selectors []frontend.Variable
 
 	// hash of the public inputs of the inner circuit
 	HashPublic frontend.Variable `gnark:",public"`
@@ -67,25 +66,53 @@ func (circuit *BatchVerifyBisCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.
 }
 
 // InstantiateBatchVerifyBisCircuit
-// We must have |witnesses| = |innerCcs|
-// nbProofs Total number of proofs
-// nbTypesCircuits Number of different ccs
-// witnesses All the witnesses concatenated
+// ccs All the types of ccs
+// totalCcs All ccs
 func InstantiateBatchVerifyBisCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
-	nbProofs int,
-	nbTypesCircuits int,
-	tuple []WitnessCcs) BatchVerifyBisCircuit[FR, G1El, G2El, GtEl] {
+	ccs []constraint.ConstraintSystem,
+	totalCcs []constraint.ConstraintSystem) BatchVerifyBisCircuit[FR, G1El, G2El, GtEl] {
 
-	// outer ciruit instantation
 	outerCircuit := BatchVerifyBisCircuit[FR, G1El, G2El, GtEl]{
-		Tuple: make([]SnarkWitnessProof[FR, G1El, G2El], nbProofs),
+		Tuple:         make([]SnarkWitnessProof[FR, G1El, G2El], len(totalCcs)),
+		VerifyfingKey: make([]VerifyingKey[FR, G1El, G2El], len(ccs)),
 	}
-	for i := 0; i < len(tuple); i++ {
-		outerCircuit.Tuple[i].Witness = PlaceholderWitness[FR](tuple[i].Circuit)
+	for i := 0; i < len(totalCcs); i++ {
+		outerCircuit.Tuple[i].Witness = PlaceholderWitness[FR](totalCcs[i])
 	}
-	outerCircuit.Selectors = make([]frontend.Variable, nbProofs)
-
+	for i := 0; i < len(ccs); i++ {
+		outerCircuit.VerifyfingKey[i] = PlaceholderVerifyingKey[FR, G1El, G2El](ccs[i])
+	}
 	return outerCircuit
+}
+
+func AssignWitnessBis[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
+	assert *test.Assert,
+	vks []native_plonk.VerifyingKey,
+	wps []WitnessProofSelector,
+) BatchVerifyBisCircuit[FR, G1El, G2El, GtEl] {
+
+	var outerAssignment BatchVerifyBisCircuit[FR, G1El, G2El, GtEl]
+	var err error
+
+	outerAssignment.VerifyfingKey = make([]VerifyingKey[FR, G1El, G2El], len(vks))
+	for i := 0; i < len(vks); i++ {
+		outerAssignment.VerifyfingKey[i], err = ValueOfVerifyingKey[FR, G1El, G2El](vks[i])
+		assert.NoError(err)
+	}
+
+	outerAssignment.Tuple = make([]SnarkWitnessProof[FR, G1El, G2El], len(wps))
+	for i := 0; i < len(wps); i++ {
+
+		outerAssignment.Tuple[i].Proof, err = ValueOfProof[FR, G1El, G2El](wps[i].Proof)
+		assert.NoError(err)
+
+		outerAssignment.Tuple[i].Witness, err = ValueOfWitness[FR](wps[i].Witness)
+		assert.NoError(err)
+
+		outerAssignment.Tuple[i].Selector = wps[i].Selector
+	}
+
+	return outerAssignment
 }
 
 // ------------------------------------------------------

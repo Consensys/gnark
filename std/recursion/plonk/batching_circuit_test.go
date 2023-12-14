@@ -25,7 +25,12 @@ func TestBatchVerifyBisCircuit(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
-	// number of types of circuit
+	// hash to compute the public hash, which is the hash of all the public inputs
+	// of all the inner circuits
+	h, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+
+	// get data for outer circuit
 	numberTypesCircuits := 4
 	vks := make([]native_plonk.VerifyingKey, numberTypesCircuits)
 	pks := make([]native_plonk.ProvingKey, numberTypesCircuits)
@@ -41,23 +46,45 @@ func TestBatchVerifyBisCircuit(t *testing.T) {
 	}
 
 	totalNumberOfCircuits := 20
-	proofs := make([]native_plonk.Proof, totalNumberOfCircuits)
-	witnesses := make([]witness.Witness, totalNumberOfCircuits)
-	selectors := make([]int, totalNumberOfCircuits)
+	proofWitnessSelector := make([]WitnessProofSelector, totalNumberOfCircuits)
+	allCcss := make([]constraint.ConstraintSystem, totalNumberOfCircuits)
 	for i := 0; i < totalNumberOfCircuits; i++ {
 
 		// get tuples (proof, public_witness)
-		proofs[i], witnesses[i] = getProofsWitnessesBis(
+		proofWitnessSelector[i].Proof, proofWitnessSelector[i].Witness = getProofsWitnessesBis(
 			assert,
 			ccss[i%numberTypesCircuits],
 			pks[i%numberTypesCircuits],
 			vks[i%numberTypesCircuits],
 			logExp[i%numberTypesCircuits],
 		)
-		selectors[i] = i % numberTypesCircuits
+		proofWitnessSelector[i].Selector = i % numberTypesCircuits
+		allCcss[i] = ccss[i%numberTypesCircuits]
 
+		// write the current witness to the hash
+		vec := proofWitnessSelector[i].Witness.Vector()
+		tvec := vec.(fr_bls12377.Vector)
+		for j := 0; j < len(tvec); j++ {
+			h.Write(tvec[j].Marshal())
+		}
 	}
 
+	// instantiating outer circuit
+	// fullCircuit := InstantiateBatchVerifyBisCircuit[sw_bls12377.ScalarField,
+	// 	sw_bls12377.G1Affine,
+	// 	sw_bls12377.G2Affine,
+	// 	sw_bls12377.GT](ccss, allCcss)
+
+	//  assign witness
+	fullAssignment := AssignWitnessBis[sw_bls12377.ScalarField,
+		sw_bls12377.G1Affine,
+		sw_bls12377.G2Affine,
+		sw_bls12377.GT](assert, vks, proofWitnessSelector)
+
+	var frHashPub fr_bw6761.Element
+	hashPub := h.Sum(nil)
+	frHashPub.SetBytes(hashPub)
+	fullAssignment.HashPublic = frHashPub.String()
 }
 
 func getProofsWitnessesBis(
