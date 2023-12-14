@@ -13,9 +13,9 @@ import (
 
 // Tuple correct couple (proof, witness)
 type SnarkWitnessProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
-	Proof    Proof[FR, G1El, G2El]
-	Witness  Witness[FR]
-	Selector frontend.Variable
+	Proof   Proof[FR, G1El, G2El]
+	Witness Witness[FR]
+	// Selector frontend.Variable
 }
 
 type WitnessProofSelector struct {
@@ -75,6 +75,7 @@ func InstantiateBatchVerifyBisCircuit[FR emulated.FieldParams, G1El algebra.G1El
 	}
 	for i := 0; i < len(totalCcs); i++ {
 		outerCircuit.Tuple[i].Witness = PlaceholderWitness[FR](totalCcs[i])
+		outerCircuit.Tuple[i].Proof = PlaceholderProof[FR, G1El, G2El](totalCcs[i])
 	}
 	for i := 0; i < len(ccs); i++ {
 		outerCircuit.VerifyingKey[i] = PlaceholderVerifyingKey[FR, G1El, G2El](ccs[i])
@@ -106,7 +107,7 @@ func AssignWitnessBis[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 		outerAssignment.Tuple[i].Witness, err = ValueOfWitness[FR](wps[i].Witness)
 		assert.NoError(err)
 
-		outerAssignment.Tuple[i].Selector = wps[i].Selector
+		// outerAssignment.Tuple[i].Selector = wps[i].Selector
 	}
 
 	return outerAssignment

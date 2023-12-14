@@ -57,7 +57,7 @@ func TestBatchVerifyBisCircuit(t *testing.T) {
 			vks[i%numberTypesCircuits],
 			logExp[i%numberTypesCircuits],
 		)
-		proofWitnessSelector[i].Selector = i % numberTypesCircuits
+		// proofWitnessSelector[i].Selector = i % numberTypesCircuits
 		allCcss[i] = ccss[i%numberTypesCircuits]
 
 		// write the current witness to the hash
@@ -69,10 +69,10 @@ func TestBatchVerifyBisCircuit(t *testing.T) {
 	}
 
 	// instantiating outer circuit
-	// fullCircuit := InstantiateBatchVerifyBisCircuit[sw_bls12377.ScalarField,
-	// 	sw_bls12377.G1Affine,
-	// 	sw_bls12377.G2Affine,
-	// 	sw_bls12377.GT](ccss, allCcss)
+	fullCircuit := InstantiateBatchVerifyBisCircuit[sw_bls12377.ScalarField,
+		sw_bls12377.G1Affine,
+		sw_bls12377.G2Affine,
+		sw_bls12377.GT](ccss, allCcss)
 
 	//  assign witness
 	fullAssignment := AssignWitnessBis[sw_bls12377.ScalarField,
@@ -84,6 +84,10 @@ func TestBatchVerifyBisCircuit(t *testing.T) {
 	hashPub := h.Sum(nil)
 	frHashPub.SetBytes(hashPub)
 	fullAssignment.HashPublic = frHashPub.String()
+
+	// check that solving is done
+	err = test.IsSolved(&fullCircuit, &fullAssignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
 }
 
 // get pk, vk, ccs of a circuit
