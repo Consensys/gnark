@@ -264,9 +264,9 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
 	// except when n<6.
 	if sizeSystem < 6 {
-		s.domain1 = fft.NewDomain(8 * sizeSystem)
+		s.domain1 = fft.NewDomain(8*sizeSystem, fft.WithoutPrecompute())
 	} else {
-		s.domain1 = fft.NewDomain(4 * sizeSystem)
+		s.domain1 = fft.NewDomain(4*sizeSystem, fft.WithoutPrecompute())
 	}
 	// TODO @gbotrel domain1 is used for only 1 FFT --> precomputing the twiddles
 	// and storing them in memory is costly given its size. --> do a FFT on the fly
