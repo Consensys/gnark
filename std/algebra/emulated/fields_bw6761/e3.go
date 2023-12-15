@@ -150,8 +150,8 @@ func (e Ext3) MulBy01(z *E3, c0, c1 *baseEl) *E3 {
 
 	tmp := e.fp.Add(&z.A1, &z.A2)
 	t0 := e.fp.Mul(c1, tmp)
-	t0 = e.fp.Sub(t0, b)
-	t0 = mulFpByNonResidue(e.fp, t0)
+	t0 = e.fp.Sub(b, t0)
+	t0 = e.fp.MulConst(t0, big.NewInt(4))
 	t0 = e.fp.Add(t0, a)
 
 	tmp = e.fp.Add(&z.A0, &z.A2)
@@ -176,12 +176,10 @@ func (e Ext3) MulBy01(z *E3, c0, c1 *baseEl) *E3 {
 func (e Ext3) MulBy1(z *E3, c1 *baseEl) *E3 {
 
 	b := e.fp.Mul(&z.A1, c1)
-
 	tmp := e.fp.Add(&z.A1, &z.A2)
 	t0 := e.fp.Mul(c1, tmp)
-	t0 = e.fp.Sub(t0, b)
-	t0 = mulFpByNonResidue(e.fp, t0)
-
+	t0 = e.fp.Sub(b, t0)
+	t0 = e.fp.MulConst(t0, big.NewInt(4))
 	tmp = e.fp.Add(&z.A0, &z.A1)
 	t1 := e.fp.Mul(c1, tmp)
 	t1 = e.fp.Sub(t1, b)
@@ -201,8 +199,8 @@ func (e Ext3) MulBy12(x *E3, b1, b2 *baseEl) *E3 {
 	tmp := e.fp.Add(b1, b2)
 	c0 = e.fp.Mul(c0, tmp)
 	c0 = e.fp.Sub(c0, t1)
-	c0 = e.fp.Sub(c0, t2)
-	c0 = mulFpByNonResidue(e.fp, c0)
+	c0 = e.fp.Sub(t2, c0)
+	c0 = e.fp.MulConst(c0, big.NewInt(4))
 	c1 := e.fp.Add(&x.A0, &x.A1)
 	c1 = e.fp.Mul(c1, b1)
 	c1 = e.fp.Sub(c1, t1)
@@ -238,8 +236,8 @@ func (e Ext3) Mul01By01(c0, c1, d0, d1 *baseEl) *E3 {
 	a := e.fp.Mul(d0, c0)
 	b := e.fp.Mul(d1, c1)
 	t0 := e.fp.Mul(c1, d1)
-	t0 = e.fp.Sub(t0, b)
-	t0 = mulFpByNonResidue(e.fp, t0)
+	t0 = e.fp.Sub(b, t0)
+	t0 = e.fp.MulConst(t0, big.NewInt(4))
 	t0 = e.fp.Add(t0, a)
 	t2 := e.fp.Mul(c0, d0)
 	t2 = e.fp.Sub(t2, a)
@@ -266,8 +264,8 @@ func (e Ext3) Mul(x, y *E3) *E3 {
 	tmp := e.fp.Add(&y.A1, &y.A2)
 	c0 = e.fp.Mul(c0, tmp)
 	c0 = e.fp.Sub(c0, t1)
-	c0 = e.fp.Sub(c0, t2)
-	c0 = mulFpByNonResidue(e.fp, c0)
+	c0 = e.fp.Sub(t2, c0)
+	c0 = e.fp.MulConst(c0, big.NewInt(4))
 
 	tmp = e.fp.Add(&x.A0, &x.A2)
 	c2 := e.fp.Add(&y.A0, &y.A2)

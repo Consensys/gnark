@@ -2,7 +2,8 @@
 import (
     {{ template "import_curve" . }}
     {{ template "import_fr" . }}
-	"testing" 
+    {{ template "import_fft" . }}
+	"testing"
 	"math/big"
 	"math/rand"
 	"github.com/consensys/gnark/io"
