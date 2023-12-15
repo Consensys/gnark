@@ -462,26 +462,24 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifySinglePoint(digests []Commit
 	return nil
 }
 
-// BatchVerifyMultiPoints verifies multiple opening proofs at different points.
-func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
+// FoldProofsMultiPoint folds multiple proofs with openings at multiple points.
+// Used for batch verification of different opening proofs. See also
+// [Verifier.BatchVerifyMultiPoints].
+func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) (*G1El, *G1El, error) {
+
 	var fr FR
 
 	// check consistency nb proogs vs nb digests
 	if len(digests) != len(proofs) {
-		return fmt.Errorf("number of commitments doesn't match number of proofs")
+		return nil, nil, fmt.Errorf("number of commitments doesn't match number of proofs")
 	}
 	if len(digests) != len(points) {
-		return fmt.Errorf("number of commitments doesn't match number of points ")
+		return nil, nil, fmt.Errorf("number of commitments doesn't match number of points ")
 	}
 
 	// len(digests) should be nonzero because of randomNumbers
 	if len(digests) == 0 {
-		return fmt.Errorf("number of digests should be nonzero")
-	}
-
-	// if only one digest, call Verify
-	if len(digests) == 1 {
-		return v.CheckOpeningProof(digests[0], proofs[0], points[0], vk)
+		return nil, nil, fmt.Errorf("number of digests should be nonzero")
 	}
 
 	// sample random numbers λᵢ for sampling
@@ -489,7 +487,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	randomNumbers[0] = v.scalarApi.One()
 	whSnark, err := recursion.NewHash(v.api, fr.Modulus(), true)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	for i := 0; i < len(digests); i++ {
 		marshalledG1 := v.curve.MarshalG1(digests[i].G1El)
@@ -525,11 +523,11 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	}
 	foldedQuotients, err := v.curve.MultiScalarMul(quotients, []*emulated.Element[FR]{randomNumbers[1]}, algopts.WithFoldingScalarMul(), algopts.WithNbScalarBits(nbScalarBits))
 	if err != nil {
-		return fmt.Errorf("fold quotients: %w", err)
+		return nil, nil, fmt.Errorf("fold quotients: %w", err)
 	}
 	foldedPointsQuotients, err := v.curve.MultiScalarMul(quotients, randomPointNumbers)
 	if err != nil {
-		return fmt.Errorf("fold point quotients: %w", err)
+		return nil, nil, fmt.Errorf("fold point quotients: %w", err)
 	}
 
 	// fold digests and evals
@@ -543,7 +541,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 
 	foldedDigests, foldedEvals, err := v.fold(digests, evals, randomNumbers)
 	if err != nil {
-		return fmt.Errorf("fold: %w", err)
+		return nil, nil, fmt.Errorf("fold: %w", err)
 	}
 
 	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
@@ -561,6 +559,23 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	// -∑ᵢλᵢ[Qᵢ(α)]G₁
 	// foldedQuotients.Neg(&foldedQuotients)
 	foldedQuotients = v.curve.Neg(foldedQuotients)
+
+	return foldedDigest, foldedQuotients, nil
+}
+
+// BatchVerifyMultiPoints verifies multiple opening proofs at different points.
+func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commitment[G1El], proofs []OpeningProof[FR, G1El], points []emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
+
+	// if only one proof go to base case
+	if len(digests) == 1 {
+		return v.CheckOpeningProof(digests[0], proofs[0], points[0], vk)
+	}
+
+	// fold the proofs
+	foldedDigest, foldedQuotients, err := v.FoldProofsMultiPoint(digests, proofs, points, vk)
+	if err != nil {
+		return err
+	}
 
 	// pairing check
 	err = v.pairing.PairingCheck(

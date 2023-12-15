@@ -192,6 +192,27 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 	}
 }
 
+// Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
+func (c *Curve) Select(b frontend.Variable, p1, p2 *G1Affine) *G1Affine {
+	return &G1Affine{
+		X: c.api.Select(b, p1.X, p2.X),
+		Y: c.api.Select(b, p1.Y, p2.Y),
+	}
+}
+
+// Lookup2 performs a 2-bit lookup between p1, p2, p3, p4 based on bits b0  and b1.
+// Returns:
+//   - p1 if b0=0 and b1=0,
+//   - p2 if b0=1 and b1=0,
+//   - p3 if b0=0 and b1=1,
+//   - p4 if b0=1 and b1=1.
+func (c *Curve) Lookup2(b1, b2 frontend.Variable, p1, p2, p3, p4 *G1Affine) *G1Affine {
+	return &G1Affine{
+		X: c.api.Lookup2(b1, b2, p1.X, p2.X, p3.X, p4.X),
+		Y: c.api.Lookup2(b1, b2, p1.Y, p2.Y, p3.Y, p4.Y),
+	}
+}
+
 // Pairing allows computing pairing-related operations in BLS24-315.
 type Pairing struct {
 	api frontend.API

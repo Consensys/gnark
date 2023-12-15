@@ -83,8 +83,8 @@ func computeInnerProof(field, outer *big.Int) (constraint.ConstraintSystem, nati
 // using field emulation or 2-chains of curves.
 type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	Proof        plonk.Proof[FR, G1El, G2El]
-	VerifyingKey plonk.VerifyingKey[FR, G1El, G2El]
-	InnerWitness plonk.Witness[FR]
+	VerifyingKey plonk.VerifyingKey[FR, G1El, G2El] `gnark:"-"` // constant verification key
+	InnerWitness plonk.Witness[FR]                  `gnark:",public"`
 }
 
 func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
@@ -118,12 +118,11 @@ func Example_emulated() {
 	outerCircuit := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
 		InnerWitness: plonk.PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
 		Proof:        plonk.PlaceholderProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerCcs),
-		VerifyingKey: plonk.PlaceholderVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerCcs),
+		VerifyingKey: circuitVk,
 	}
 	outerAssignment := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
-		VerifyingKey: circuitVk,
 	}
 	// compile the outer circuit
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, outerCircuit)
