@@ -18,6 +18,7 @@ package fiatshamir
 
 import (
 	"errors"
+
 	"golang.org/x/exp/slices"
 
 	"github.com/consensys/gnark/constant"
@@ -126,9 +127,13 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		tmp := make([]byte, (t.api.Compiler().FieldBitLen()+7)/8-1)
+		copy(tmp[len(tmp)-len(challengeInput):], challengeInput)
+		challengeHashInput = tmp
 	}
 	if t.config.tryBitmode > 0 {
-		challengeBits := bits.ToBinary(t.api, challengeInput, bits.WithNbDigits(8*len(challengeInput)))
+		challengeBits := bits.ToBinary(t.api, challengeHashInput, bits.WithNbDigits(8*((t.api.Compiler().FieldBitLen()+7)/8-1)))
 		slices.Reverse(challengeBits)
 		t.h.Write(challengeBits...)
 	} else {
