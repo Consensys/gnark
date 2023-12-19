@@ -271,7 +271,7 @@ func TestTranscriptMarshal(t *testing.T) {
 		h, err := recursion.NewShort(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
 		assert.NoError(err)
 		challenges := [3]string{"alfa", "beta", "gamma"}
-		fs := cryptofs.NewTranscript(h, cryptofs.WithStaticChallenges(challenges[:]...))
+		fs := cryptofs.NewTranscript(h, challenges[:]...)
 		var points [3][3]sw_bls12377.G1Affine
 		for i := range points {
 			for j := range points[i] {
@@ -305,7 +305,7 @@ func TestTranscriptMarshal(t *testing.T) {
 		h, err := recursion.NewShort(ecc.BN254.ScalarField(), ecc.BW6_761.ScalarField())
 		assert.NoError(err)
 		challenges := [3]string{"alfa", "beta", "gamma"}
-		fs := cryptofs.NewTranscript(h, cryptofs.WithStaticChallenges(challenges[:]...))
+		fs := cryptofs.NewTranscript(h, challenges[:]...)
 		var points [3][3]sw_bw6761.G1Affine
 		for i := range points {
 			for j := range points[i] {

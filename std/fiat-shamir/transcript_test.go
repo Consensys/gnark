@@ -101,7 +101,7 @@ func TestFiatShamir(t *testing.T) {
 	for curveID, h := range testData {
 
 		// instantiate the hash and the transcript in plain go
-		ts := fiatshamir.NewTranscript(h.New(), fiatshamir.WithStaticChallenges("alpha", "beta", "gamma"))
+		ts := fiatshamir.NewTranscript(h.New(), "alpha", "beta", "gamma")
 
 		var bindings [3][4]*big.Int
 		for i := 0; i < 3; i++ {

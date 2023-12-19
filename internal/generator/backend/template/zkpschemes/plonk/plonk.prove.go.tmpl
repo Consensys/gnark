@@ -217,7 +217,7 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		opt:                    opts,
 		fullWitness:            fullWitness,
 		bp:                     make([]*iop.Polynomial, nb_blinding_polynomials),
-		fs:                     fiatshamir.NewTranscript(opts.ChallengeHash, fiatshamir.WithStaticChallenges("gamma", "beta", "alpha", "zeta")),
+		fs:                     fiatshamir.NewTranscript(opts.ChallengeHash, "gamma", "beta", "alpha", "zeta"),
 		kzgFoldingHash:         opts.KZGFoldingHash,
 		htfFunc:                opts.HashToFieldFn,
 		chLRO:                  make(chan struct{}, 1),
