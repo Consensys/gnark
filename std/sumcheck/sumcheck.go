@@ -38,7 +38,7 @@ func setupTranscript(api frontend.API, claimsNum int, varsNum int, settings *fia
 		challengeNames[i+numChallenges-varsNum] = prefix + strconv.Itoa(i)
 	}
 	if settings.Transcript == nil {
-		settings.Transcript = fiatshamir.NewTranscript(api, settings.Hash, challengeNames, fiatshamir.WithDomainSeparation())
+		settings.Transcript = fiatshamir.NewTranscript(api, settings.Hash, challengeNames)
 	}
 
 	return challengeNames, settings.Transcript.Bind(challengeNames[0], settings.BaseChallenges)

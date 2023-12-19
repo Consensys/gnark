@@ -21,7 +21,6 @@ import (
 
 	"golang.org/x/exp/slices"
 
-	"github.com/consensys/gnark/constant"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/math/bits"
@@ -105,7 +104,6 @@ func (t *Transcript) Bind(challengeID string, values []frontend.Variable) error 
 //   - H(name ∥ previous_challenge ∥ binded_values...) if the challenge is not the first one
 //   - H(name ∥ binded_values... ) if it's is the first challenge
 func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, error) {
-	var err error
 	challenge, ok := t.challenges[challengeID]
 
 	if !ok {
@@ -121,23 +119,13 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 
 	// write the challenge name, the purpose is to have a domain separator
 	challengeInput := []byte(challengeID)
-	var challengeHashInput frontend.Variable = challengeInput
-	if t.config.withDomainSeparation {
-		challengeHashInput, err = constant.HashedBytes(t.api, []byte(challengeID))
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		tmp := make([]byte, (t.api.Compiler().FieldBitLen()+7)/8-1)
-		copy(tmp[len(tmp)-len(challengeInput):], challengeInput)
-		challengeHashInput = tmp
-	}
+
 	if t.config.tryBitmode > 0 {
-		challengeBits := bits.ToBinary(t.api, challengeHashInput, bits.WithNbDigits(8*((t.api.Compiler().FieldBitLen()+7)/8-1)))
+		challengeBits := bits.ToBinary(t.api, challengeInput, bits.WithNbDigits(8*len(challengeInput)))
 		slices.Reverse(challengeBits)
 		t.h.Write(challengeBits...)
 	} else {
-		t.h.Write(challengeHashInput)
+		t.h.Write(challengeInput)
 	}
 
 	// write the previous challenge if it's not the first challenge
@@ -171,8 +159,7 @@ func (t *Transcript) ComputeChallenge(challengeID string) (frontend.Variable, er
 }
 
 type transcriptConfig struct {
-	tryBitmode           int
-	withDomainSeparation bool
+	tryBitmode int
 }
 
 // TranscriptOption allows modifying the [Transcript] operation.
@@ -185,15 +172,5 @@ type TranscriptOption func(tc *transcriptConfig)
 func WithTryBitmode(nbBits int) TranscriptOption {
 	return func(tc *transcriptConfig) {
 		tc.tryBitmode = nbBits
-	}
-}
-
-// WithDomainSeparation adds domain separation string `string:` as defined in
-// RCF 9380. This mode of operation is beneficial when seeking for compatibility
-// with native Transcript when initialized using gnark-crypto's MiMC
-// implementation.
-func WithDomainSeparation() TranscriptOption {
-	return func(tc *transcriptConfig) {
-		tc.withDomainSeparation = true
 	}
 }
