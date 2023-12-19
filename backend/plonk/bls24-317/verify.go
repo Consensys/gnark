@@ -60,7 +60,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	}
 
 	// transcript to derive the challenge
-	fs := fiatshamir.NewTranscript(cfg.ChallengeHash, fiatshamir.WithStaticChallenges("gamma", "beta", "alpha", "zeta"))
+	fs := fiatshamir.NewTranscript(cfg.ChallengeHash, "gamma", "beta", "alpha", "zeta")
 
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.

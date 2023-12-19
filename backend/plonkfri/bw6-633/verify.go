@@ -35,7 +35,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	}
 
 	// 0 - derive the challenges with Fiat Shamir
-	fs := fiatshamir.NewTranscript(cfg.ChallengeHash, fiatshamir.WithStaticChallenges("gamma", "beta", "alpha", "zeta"))
+	fs := fiatshamir.NewTranscript(cfg.ChallengeHash, "gamma", "beta", "alpha", "zeta")
 
 	dataFiatShamir := make([][fr.Bytes]byte, len(publicWitness)+3)
 	for i := 0; i < len(publicWitness); i++ {
