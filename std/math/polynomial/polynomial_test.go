@@ -76,25 +76,29 @@ func (c *evalMultiLinCircuit[FR]) Define(api frontend.API) error {
 }
 
 func TestEvalMultiLin(t *testing.T) {
+	testEvalMultiLin[emparams.BN254Fr](t)
+}
+
+func testEvalMultiLin[FR emulated.FieldParams](t *testing.T) {
 	assert := test.NewAssert(t)
 
-	M := make([]emulated.Element[emparams.BN254Fr], 4)
+	M := make([]emulated.Element[FR], 4)
 	for i := range M {
-		M[i] = emulated.ValueOf[emparams.BN254Fr](1 + i)
+		M[i] = emulated.ValueOf[FR](1 + i)
 	}
-	X := make([]emulated.Element[emparams.BN254Fr], 2)
+	X := make([]emulated.Element[FR], 2)
 	for i := range X {
-		X[i] = emulated.ValueOf[emparams.BN254Fr](5 + i)
+		X[i] = emulated.ValueOf[FR](5 + i)
 	}
 
 	// M = 2 X₀ + X₁ + 1
-	witness := evalMultiLinCircuit[emparams.BN254Fr]{
+	witness := evalMultiLinCircuit[FR]{
 		M:          M,
 		At:         X,
-		Evaluation: emulated.ValueOf[emparams.BN254Fr](17),
+		Evaluation: emulated.ValueOf[FR](17),
 	}
 
-	assert.CheckCircuit(&evalMultiLinCircuit[emparams.BN254Fr]{M: make([]emulated.Element[emparams.BN254Fr], 4), At: make([]emulated.Element[emparams.BN254Fr], 2)}, test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&evalMultiLinCircuit[FR]{M: make([]emulated.Element[FR], 4), At: make([]emulated.Element[FR], 2)}, test.WithValidAssignment(&witness))
 }
 
 type evalEqCircuit[FR emulated.FieldParams] struct {
@@ -120,23 +124,27 @@ func (c *evalEqCircuit[FR]) Define(api frontend.API) error {
 }
 
 func TestEvalEq(t *testing.T) {
+	testEvalEq[emparams.BN254Fr](t)
+}
+
+func testEvalEq[FR emulated.FieldParams](t *testing.T) {
 	assert := test.NewAssert(t)
 	x := []int{1, 2, 3, 4}
 	y := []int{5, 6, 7, 8}
-	X := make([]emulated.Element[emparams.BN254Fr], len(x))
-	Y := make([]emulated.Element[emparams.BN254Fr], len(y))
+	X := make([]emulated.Element[FR], len(x))
+	Y := make([]emulated.Element[FR], len(y))
 	for i := range x {
-		X[i] = emulated.ValueOf[emparams.BN254Fr](x[i])
-		Y[i] = emulated.ValueOf[emparams.BN254Fr](y[i])
+		X[i] = emulated.ValueOf[FR](x[i])
+		Y[i] = emulated.ValueOf[FR](y[i])
 	}
 
-	witness := evalEqCircuit[emparams.BN254Fr]{
+	witness := evalEqCircuit[FR]{
 		X:  X,
 		Y:  Y,
-		Eq: emulated.ValueOf[emparams.BN254Fr](148665),
+		Eq: emulated.ValueOf[FR](148665),
 	}
 
-	assert.CheckCircuit(&evalEqCircuit[emparams.BN254Fr]{X: make([]emulated.Element[emparams.BN254Fr], 4), Y: make([]emulated.Element[emparams.BN254Fr], 4)}, test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&evalEqCircuit[FR]{X: make([]emulated.Element[FR], 4), Y: make([]emulated.Element[FR], 4)}, test.WithValidAssignment(&witness))
 }
 
 type interpolateLDECircuit[FR emulated.FieldParams] struct {
