@@ -854,67 +854,7 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.Alge
 // This saves the Select logic related to (0,0) and the use of AddUnified to
 // handle the 0-scalar edge case.
 func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Element[S]) *AffinePoint[B] {
-	g := c.Generator()
-	gm := c.GeneratorMultiples()
-
-	var st S
-	s1r := c.scalarApi.Reduce(s1)
-	s1Bits := c.scalarApi.ToBits(s1r)
-	s2r := c.scalarApi.Reduce(s2)
-	s2Bits := c.scalarApi.ToBits(s2r)
-	n := st.Modulus().BitLen()
-
-	// fixed-base
-	// i = 1, 2
-	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
-	res1 := c.Lookup2(s1Bits[1], s1Bits[2], g, &gm[0], &gm[1], &gm[2])
-	// var-base
-	// i = 1
-	Rb := c.triple(p)
-	R0 := c.Select(s2Bits[1], Rb, p)
-	R1 := c.Select(s2Bits[1], p, Rb)
-	// i = 2
-	Rb = c.doubleAndAddSelect(s2Bits[2], R0, R1)
-	R0 = c.Select(s2Bits[2], Rb, R0)
-	R1 = c.Select(s2Bits[2], R1, Rb)
-
-	for i := 3; i <= n-3; i++ {
-		// fixed-base
-		// gm[i] = [2^i]g
-		tmp1 := c.add(res1, &gm[i])
-		res1 = c.Select(s1Bits[i], tmp1, res1)
-		// var-base
-		Rb = c.doubleAndAddSelect(s2Bits[i], R0, R1)
-		R0 = c.Select(s2Bits[i], Rb, R0)
-		R1 = c.Select(s2Bits[i], R1, Rb)
-
-	}
-
-	// i = n-2
-	// fixed-base
-	tmp1 := c.add(res1, &gm[n-2])
-	res1 = c.Select(s1Bits[n-2], tmp1, res1)
-	// var-base
-	Rb = c.doubleAndAddSelect(s2Bits[n-2], R0, R1)
-	R0 = c.Select(s2Bits[n-2], Rb, R0)
-	R1 = c.Select(s2Bits[n-2], R1, Rb)
-
-	// i = n-1
-	// fixed-base
-	tmp1 = c.add(res1, &gm[n-1])
-	res1 = c.Select(s1Bits[n-1], tmp1, res1)
-	// var-base
-	Rb = c.doubleAndAddSelect(s2Bits[n-1], R0, R1)
-	R0 = c.Select(s2Bits[n-1], Rb, R0)
-
-	// i = 0
-	// fixed-base
-	tmp1 = c.add(res1, c.Neg(g))
-	res1 = c.Select(s1Bits[0], res1, tmp1)
-	// var-base
-	R0 = c.Select(s2Bits[0], R0, c.add(R0, c.Neg(p)))
-
-	return c.add(res1, R0)
+	return c.jointScalarMul(c.Generator(), p, s1, s2)
 }
 
 // MultiScalarMul computes the multi scalar multiplication of the points P and
