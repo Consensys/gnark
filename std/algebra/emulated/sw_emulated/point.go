@@ -854,7 +854,7 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.Alge
 // This saves the Select logic related to (0,0) and the use of AddUnified to
 // handle the 0-scalar edge case.
 func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Element[S]) *AffinePoint[B] {
-	return c.jointScalarMul(p, c.Generator(), s1, s2)
+	return c.jointScalarMul(c.Generator(), p, s1, s2)
 }
 
 // MultiScalarMul computes the multi scalar multiplication of the points P and
