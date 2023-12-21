@@ -239,7 +239,7 @@ func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.
 func initFFTDomain(spr *cs.SparseR1CS) *fft.Domain {
 	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
-	return fft.NewDomain(sizeSystem)
+	return fft.NewDomain(sizeSystem, fft.WithoutPrecompute())
 }
 
 // buildPermutation builds the Permutation associated with a circuit.
