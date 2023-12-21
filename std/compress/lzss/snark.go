@@ -30,8 +30,9 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordNbBits)) // if fcm!=0, then fcm=wordNbBits
 	decompressionNotBypassed := api.Sub(1, api.IsZero(fileCompressionMode))
 
-	c = c[2*byteNbWords:]
-	cLength = api.Sub(cLength, 2*byteNbWords)
+	const sizeHeader = 4 // TODO @tabaie @gbotrel Handle this outside the circuit instead
+	c = c[sizeHeader*byteNbWords:]
+	cLength = api.Sub(cLength, sizeHeader*byteNbWords)
 
 	outTable := logderivlookup.New(api)
 	for i := range dict {

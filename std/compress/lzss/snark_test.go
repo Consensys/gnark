@@ -1,6 +1,9 @@
 package lzss
 
 import (
+	"os"
+	"testing"
+
 	goCompress "github.com/consensys/compress"
 	"github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -10,8 +13,6 @@ import (
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
-	"testing"
 )
 
 func Test1ZeroSnark(t *testing.T) {
@@ -63,6 +64,7 @@ func Test255_254_253Snark(t *testing.T) {
 }
 
 func Test3c2943Snark(t *testing.T) {
+	// TODO @Tabaie this is failing with a header of size 4
 	d, err := os.ReadFile("./testdata/3c2943/data.bin")
 	assert.NoError(t, err)
 
