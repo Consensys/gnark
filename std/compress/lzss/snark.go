@@ -30,7 +30,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordNbBits)) // if fcm!=0, then fcm=wordNbBits
 	decompressionNotBypassed := api.Sub(1, api.IsZero(fileCompressionMode))
 
-	const sizeHeader = 4 // TODO @tabaie @gbotrel Handle this outside the circuit instead
+	const sizeHeader = 3 // TODO @tabaie @gbotrel Handle this outside the circuit instead
 	c = c[sizeHeader*byteNbWords:]
 	cLength = api.Sub(cLength, sizeHeader*byteNbWords)
 
