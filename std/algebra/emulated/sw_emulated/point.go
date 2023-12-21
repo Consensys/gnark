@@ -459,7 +459,7 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 // ScalarMul calls scalarMulGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	if c.eigenvalue != nil && c.thirdRootOne != nil {
-		return c.scalarMulGLV(p, s, opts...)
+		return c.scalarMulGLV(p, s)
 
 	} else {
 		return c.scalarMulGeneric(p, s, opts...)
@@ -473,7 +473,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0).
 //
 // [Halo]: https://eprint.iacr.org/2019/1021.pdf
-func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
 	var st S
 	frModulus := c.scalarApi.Modulus()
 	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, c.eigenvalue, frModulus)
@@ -535,7 +535,62 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	return Acc
 }
 
-// ScalarMulGLVSafe computes s * p and returns it. It doesn't modify p nor s.
+// scalarMulGeneric computes s * p and returns it. It doesn't modify p nor s.
+// This function doesn't check that the p is on the curve. See AssertIsOnCurve.
+//
+// ⚠️  p must not be (0,0) and s must not be 0.
+//
+// It computes the right-to-left variable-base double-and-add algorithm ([Joye07], Alg.1).
+func (c *Curve[B, S]) scalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
+
+	var st S
+	sr := c.scalarApi.Reduce(s)
+	sBits := c.scalarApi.ToBits(sr)
+	n := st.Modulus().BitLen()
+	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
+		n = cfg.NbScalarBits
+	}
+
+	// i = 1
+	Rb := c.triple(p)
+	R0 := c.Select(sBits[1], Rb, p)
+	R1 := c.Select(sBits[1], p, Rb)
+
+	for i := 2; i < n-1; i++ {
+		Rb = c.doubleAndAddSelect(sBits[i], R0, R1)
+		R0 = c.Select(sBits[i], Rb, R0)
+		R1 = c.Select(sBits[i], R1, Rb)
+	}
+
+	// i = n-1
+	Rb = c.doubleAndAddSelect(sBits[n-1], R0, R1)
+	R0 = c.Select(sBits[n-1], Rb, R0)
+
+	// i = 0
+	R0 = c.Select(sBits[0], R0, c.Add(R0, c.Neg(p)))
+
+	return R0
+}
+
+// ScalarMulSafe computes s * p and returns it. It doesn't modify p nor s.
+// This function doesn't check that the p is on the curve. See AssertIsOnCurve.
+//
+// ScalarMulSafe calls scalarMulGenericSafe or scalarMulGLVSafe depending on whether an efficient endomorphism is available.
+func (c *Curve[B, S]) ScalarMulSafe(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	if c.eigenvalue != nil && c.thirdRootOne != nil {
+		return c.scalarMulGLVSafe(p, s)
+
+	} else {
+		return c.scalarMulGenericSafe(p, s, opts...)
+
+	}
+}
+
+// scalarMulGLVSafe computes s * p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 // This function assumes the existence of the GLV endomorphism. It is supposed
 // to be used only for EVM ECMUL on BN254.
@@ -545,7 +600,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 // neutral/infinity point as per the [EVM].
 //
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-func (c *Curve[B, S]) ScalarMulGLVSafe(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
+func (c *Curve[B, S]) scalarMulGLVSafe(p *AffinePoint[B], s *emulated.Element[S]) *AffinePoint[B] {
 
 	// if p=(0,0) we assign a dummy (0,1) to p and continue
 	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
@@ -620,10 +675,10 @@ func (c *Curve[B, S]) ScalarMulGLVSafe(p *AffinePoint[B], s *emulated.Element[S]
 	return Acc
 }
 
-// scalarMulGeneric computes s * p and returns it. It doesn't modify p nor s.
+// scalarMulGenericSafe computes s * p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
-// ✅ p can can be (0,0) and s can be 0.
+// ✅ p can be (0,0) and s can be 0.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -639,7 +694,7 @@ func (c *Curve[B, S]) ScalarMulGLVSafe(p *AffinePoint[B], s *emulated.Element[S]
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 // [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
-func (c *Curve[B, S]) scalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+func (c *Curve[B, S]) scalarMulGenericSafe(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
