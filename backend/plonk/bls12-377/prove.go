@@ -185,7 +185,7 @@ type instance struct {
 	spr   *cs.SparseR1CS
 	opt   *backend.ProverConfig
 
-	fs             fiatshamir.Transcript
+	fs             *fiatshamir.Transcript
 	kzgFoldingHash hash.Hash // for KZG folding
 	htfFunc        hash.Hash // hash to field function
 
@@ -457,7 +457,7 @@ func (s *instance) deriveGammaAndBeta() error {
 		return witness.ErrInvalidWitness
 	}
 
-	if err := bindPublicData(&s.fs, "gamma", s.pk.Vk, wWitness[:len(s.spr.Public)]); err != nil {
+	if err := bindPublicData(s.fs, "gamma", s.pk.Vk, wWitness[:len(s.spr.Public)]); err != nil {
 		return err
 	}
 
@@ -468,7 +468,7 @@ func (s *instance) deriveGammaAndBeta() error {
 	case <-s.chLRO:
 	}
 
-	gamma, err := deriveRandomness(&s.fs, "gamma", &s.proof.LRO[0], &s.proof.LRO[1], &s.proof.LRO[2])
+	gamma, err := deriveRandomness(s.fs, "gamma", &s.proof.LRO[0], &s.proof.LRO[1], &s.proof.LRO[2])
 	if err != nil {
 		return err
 	}
@@ -507,12 +507,12 @@ func (s *instance) deriveAlpha() (err error) {
 		alphaDeps[i] = &s.proof.Bsb22Commitments[i]
 	}
 	alphaDeps[len(alphaDeps)-1] = &s.proof.Z
-	s.alpha, err = deriveRandomness(&s.fs, "alpha", alphaDeps...)
+	s.alpha, err = deriveRandomness(s.fs, "alpha", alphaDeps...)
 	return err
 }
 
 func (s *instance) deriveZeta() (err error) {
-	s.zeta, err = deriveRandomness(&s.fs, "zeta", &s.proof.H[0], &s.proof.H[1], &s.proof.H[2])
+	s.zeta, err = deriveRandomness(s.fs, "zeta", &s.proof.H[0], &s.proof.H[1], &s.proof.H[2])
 	return
 }
 

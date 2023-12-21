@@ -130,7 +130,7 @@ func (h *shortNativeHash) Size() int {
 }
 
 func (h *shortNativeHash) BlockSize() int {
-	return h.wrapped.BlockSize()
+	return h.wrapped.BlockSize() - 1
 }
 
 type shortCircuitHash struct {

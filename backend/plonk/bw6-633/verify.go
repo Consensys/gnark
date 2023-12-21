@@ -65,16 +65,16 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	// The first challenge is derived using the public data: the commitments to the permutation,
 	// the coefficients of the circuit, and the public inputs.
 	// derive gamma from the Comm(blinded cl), Comm(blinded cr), Comm(blinded co)
-	if err := bindPublicData(&fs, "gamma", vk, publicWitness); err != nil {
+	if err := bindPublicData(fs, "gamma", vk, publicWitness); err != nil {
 		return err
 	}
-	gamma, err := deriveRandomness(&fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
+	gamma, err := deriveRandomness(fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
 	if err != nil {
 		return err
 	}
 
 	// derive beta from Comm(l), Comm(r), Comm(o)
-	beta, err := deriveRandomness(&fs, "beta")
+	beta, err := deriveRandomness(fs, "beta")
 	if err != nil {
 		return err
 	}
@@ -85,13 +85,13 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		alphaDeps[i] = &proof.Bsb22Commitments[i]
 	}
 	alphaDeps[len(alphaDeps)-1] = &proof.Z
-	alpha, err := deriveRandomness(&fs, "alpha", alphaDeps...)
+	alpha, err := deriveRandomness(fs, "alpha", alphaDeps...)
 	if err != nil {
 		return err
 	}
 
 	// derive zeta, the point of evaluation
-	zeta, err := deriveRandomness(&fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
+	zeta, err := deriveRandomness(fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
 	if err != nil {
 		return err
 	}
