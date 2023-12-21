@@ -290,7 +290,7 @@ func referenceCircuit(curve ecc.ID) (constraint.ConstraintSystem, frontend.Circu
 	expectedY.Exp(expectedY, exp, curve.ScalarField())
 
 	good.Y = expectedY
-	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccs, unsafekzg.WithFSCache())
 	if err != nil {
 		panic(err)
 	}

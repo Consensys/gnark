@@ -20,9 +20,6 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
-
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
-	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/iop"
 	"github.com/consensys/gnark/io"
 	"math/big"
 	"math/rand"
@@ -60,8 +57,6 @@ func (pk *ProvingKey) randomize() {
 	var vk VerifyingKey
 	vk.randomize()
 	pk.Vk = &vk
-	pk.Domain[0] = *fft.NewDomain(32)
-	pk.Domain[1] = *fft.NewDomain(4 * 32)
 
 	pk.Kzg.G1 = make([]curve.G1Affine, 32)
 	pk.KzgLagrange.G1 = make([]curve.G1Affine, 32)
@@ -69,36 +64,6 @@ func (pk *ProvingKey) randomize() {
 		pk.Kzg.G1[i] = randomG1Point()
 		pk.KzgLagrange.G1[i] = randomG1Point()
 	}
-
-	n := int(pk.Domain[0].Cardinality)
-	ql := randomScalars(n)
-	qr := randomScalars(n)
-	qm := randomScalars(n)
-	qo := randomScalars(n)
-	qk := randomScalars(n)
-	s1 := randomScalars(n)
-	s2 := randomScalars(n)
-	s3 := randomScalars(n)
-
-	canReg := iop.Form{Basis: iop.Canonical, Layout: iop.Regular}
-	pk.trace.Ql = iop.NewPolynomial(&ql, canReg)
-	pk.trace.Qr = iop.NewPolynomial(&qr, canReg)
-	pk.trace.Qm = iop.NewPolynomial(&qm, canReg)
-	pk.trace.Qo = iop.NewPolynomial(&qo, canReg)
-	pk.trace.Qk = iop.NewPolynomial(&qk, canReg)
-	pk.trace.S1 = iop.NewPolynomial(&s1, canReg)
-	pk.trace.S2 = iop.NewPolynomial(&s2, canReg)
-	pk.trace.S3 = iop.NewPolynomial(&s3, canReg)
-
-	pk.trace.Qcp = make([]*iop.Polynomial, rand.Intn(4)) //#nosec G404 weak rng is fine here
-	for i := range pk.trace.Qcp {
-		qcp := randomScalars(rand.Intn(n / 4)) //#nosec G404 weak rng is fine here
-		pk.trace.Qcp[i] = iop.NewPolynomial(&qcp, canReg)
-	}
-
-	pk.trace.S = make([]int64, 3*pk.Domain[0].Cardinality)
-	pk.trace.S[0] = -12
-	pk.trace.S[len(pk.trace.S)-1] = 8888
 
 }
 

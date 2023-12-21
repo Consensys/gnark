@@ -407,9 +407,13 @@ func fftBigCosetWOBitReverse(poly []fr.Element, domainBig *fft.Domain) []fr.Elem
 
 	// we copy poly in res and scale by coset here
 	// to avoid FFT scaling on domainBig.Cardinality (res is very sparse)
+	cosetTable, err := domainBig.CosetTable()
+	if err != nil {
+		panic(err)
+	}
 	utils.Parallelize(len(poly), func(start, end int) {
 		for i := start; i < end; i++ {
-			res[i].Mul(&poly[i], &domainBig.CosetTable[i])
+			res[i].Mul(&poly[i], &cosetTable[i])
 		}
 	}, runtime.NumCPU()/2)
 	domainBig.FFT(res, fft.DIF)
