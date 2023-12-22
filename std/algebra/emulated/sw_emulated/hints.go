@@ -36,6 +36,11 @@ func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		outputs[2].Sub(outputs[2], inputs[0])
 		outputs[2].Div(outputs[2], inputs[2])
 
+		// return:
+		// 		output0 = s0 mod r
+		// 		output1 = s1 mod r
+		// 		output3 = |s0| mod r
+		// 		output4 = |s1| mod r
 		outputs[3].Set(outputs[0])
 		if outputs[0].Sign() == -1 {
 			outputs[3].Neg(outputs[0])

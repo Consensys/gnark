@@ -480,13 +480,18 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S]) *A
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
-	s1, s2 := sd[0], sd[1]
+	s1, s2, s3, s4 := sd[0], sd[1], sd[3], sd[4]
+
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
 		c.scalarApi.Add(s, c.scalarApi.Mul(frModulus, sd[2])),
 	)
-	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1))
-	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[4], s2))
+	// s1, s2 can be negative (bigints) in the hint, but are reduced mod r in
+	// the circuit. So we return in the hint both s1, s2 and s3=|s1|, s4=|s2|.
+	// In-circuit we compare s1 and s3, s2 and s4 and negate the point when a
+	// corresponding scalar is naegative.
+	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(s3, s1))
+	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(s4, s2))
 
 	var Acc, B1 *AffinePoint[B]
 	// precompute -Q, -Φ(Q), Φ(Q)
@@ -505,8 +510,8 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S]) *A
 	// Acc = Q + Φ(Q)
 	Acc = c.Add(tableQ[1], tablePhiQ[1])
 
-	s1 = c.scalarApi.Select(selector1, s1, sd[3])
-	s2 = c.scalarApi.Select(selector2, s2, sd[4])
+	s1 = c.scalarApi.Select(selector1, s1, s3)
+	s2 = c.scalarApi.Select(selector2, s2, s4)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
@@ -613,13 +618,17 @@ func (c *Curve[B, S]) scalarMulGLVSafe(p *AffinePoint[B], s *emulated.Element[S]
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
-	s1, s2 := sd[0], sd[1]
+	s1, s2, s3, s4 := sd[0], sd[1], sd[3], sd[4]
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
 		c.scalarApi.Add(s, c.scalarApi.Mul(frModulus, sd[2])),
 	)
-	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1))
-	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[4], s2))
+	// s1, s2 can be negative (bigints) in the hint, but are reduced mod r in
+	// the circuit. So we return in the hint both s1, s2 and s3=|s1|, s4=|s2|.
+	// In-circuit we compare s1 and s3, s2 and s4 and negate the point when a
+	// corresponding scalar is naegative.
+	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(s3, s1))
+	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(s4, s2))
 
 	var Acc, B1 *AffinePoint[B]
 	// precompute -Q, -Φ(Q), Φ(Q)
@@ -638,8 +647,8 @@ func (c *Curve[B, S]) scalarMulGLVSafe(p *AffinePoint[B], s *emulated.Element[S]
 	// Acc = Q + Φ(Q)
 	Acc = c.Add(tableQ[1], tablePhiQ[1])
 
-	s1 = c.scalarApi.Select(selector1, s1, sd[3])
-	s2 = c.scalarApi.Select(selector2, s2, sd[4])
+	s1 = c.scalarApi.Select(selector1, s1, s3)
+	s2 = c.scalarApi.Select(selector2, s2, s4)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
@@ -781,14 +790,14 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	s1, s2 := sd[0], sd[1]
+	s1, s2, s3, s4 := sd[0], sd[1], sd[3], sd[4]
 
 	td, err := c.scalarApi.NewHint(decomposeScalarG1, 5, t, c.eigenvalue, frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	t1, t2 := td[0], td[1]
+	t1, t2, t3, t4 := td[0], td[1], td[3], td[4]
 
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
@@ -798,10 +807,14 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 		c.scalarApi.Add(t1, c.scalarApi.Mul(t2, c.eigenvalue)),
 		c.scalarApi.Add(t, c.scalarApi.Mul(frModulus, td[2])),
 	)
-	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1))
-	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[4], s2))
-	selector3 := c.scalarApi.IsZero(c.scalarApi.Sub(td[3], t1))
-	selector4 := c.scalarApi.IsZero(c.scalarApi.Sub(td[4], t2))
+	// s1, s2 can be negative (bigints) in the hint, but are reduced mod r in
+	// the circuit. So we return in the hint both s1, s2 and s3=|s1|, s4=|s2|.
+	// In-circuit we compare s1 and s3, s2 and s4 and negate the point when a
+	// corresponding scalar is naegative. Respectively for t1, t2, t3, t4.
+	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(s3, s1))
+	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(s4, s2))
+	selector3 := c.scalarApi.IsZero(c.scalarApi.Sub(t3, t1))
+	selector4 := c.scalarApi.IsZero(c.scalarApi.Sub(t4, t2))
 
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]*AffinePoint[B]
@@ -854,10 +867,10 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	// Acc = Q + R + Φ(Q) + Φ(R)
 	Acc := c.Add(tableS[1], tablePhiS[1])
 
-	s1 = c.scalarApi.Select(selector1, s1, sd[3])
-	s2 = c.scalarApi.Select(selector2, s2, sd[4])
-	t1 = c.scalarApi.Select(selector3, t1, td[3])
-	t2 = c.scalarApi.Select(selector4, t2, td[4])
+	s1 = c.scalarApi.Select(selector1, s1, s3)
+	s2 = c.scalarApi.Select(selector2, s2, s4)
+	t1 = c.scalarApi.Select(selector3, t1, t3)
+	t2 = c.scalarApi.Select(selector4, t2, t4)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
