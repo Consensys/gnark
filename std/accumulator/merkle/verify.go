@@ -50,7 +50,7 @@ import (
 	"github.com/consensys/gnark/std/hash"
 )
 
-// MerkleProof stores the path, the root hash and an helper for the Merkle proof.
+// MerkleProof stores the path, the root hash and a helper for the Merkle proof.
 type MerkleProof struct {
 
 	// RootHash root of the Merkle tree
