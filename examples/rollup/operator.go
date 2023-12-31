@@ -186,7 +186,7 @@ func (o *Operator) updateState(t Transfer, numTransfer int) error {
 	o.witnesses.Transfers[numTransfer].Signature.S = t.signature.S[:]
 
 	// verifying the signature. The msg is the hash (o.h) of the transfer
-	// nonce ∥ amount ∥ senderpubKey(x&y) ∥ receiverPubkey(x&y)
+	// nonce ∥ amount ∥ senderPubKey(x&y) ∥ receiverPubKey(x&y)
 	resSig, err := t.Verify(o.h)
 	if err != nil {
 		return err

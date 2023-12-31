@@ -52,7 +52,7 @@ func (t *Transfer) Sign(priv eddsa.PrivateKey, h hash.Hash) (eddsa.Signature, er
 	//var frNonce, msg fr.Element
 	var frNonce fr.Element
 
-	// serializing transfer. The signature is on h(nonce ∥ amount ∥ senderpubKey (x&y) ∥ receiverPubkey(x&y))
+	// serializing transfer. The signature is on h(nonce ∥ amount ∥ senderPubKey(x&y) ∥ receiverPubKey(x&y))
 	// (each pubkey consist of 2 chunks of 256bits)
 	frNonce.SetUint64(t.nonce)
 	b := frNonce.Bytes()
@@ -91,7 +91,7 @@ func (t *Transfer) Verify(h hash.Hash) (bool, error) {
 	var frNonce fr.Element
 
 	// serializing transfer. The msg to sign is
-	// nonce ∥ amount ∥ senderpubKey(x&y) ∥ receiverPubkey(x&y)
+	// nonce ∥ amount ∥ senderPubKey(x&y) ∥ receiverPubKey(x&y)
 	// (each pubkey consist of 2 chunks of 256bits)
 	frNonce.SetUint64(t.nonce)
 	b := frNonce.Bytes()

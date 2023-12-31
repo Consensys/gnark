@@ -178,7 +178,7 @@ func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc
 	// Reset the hash state!
 	hFunc.Reset()
 
-	// the signature is on h(nonce ∥ amount ∥ senderpubKey (x&y) ∥ receiverPubkey(x&y))
+	// the signature is on h(nonce ∥ amount ∥ senderPubKey(x&y) ∥ receiverPubKey(x&y))
 	hFunc.Write(t.Nonce, t.Amount, t.SenderPubKey.A.X, t.SenderPubKey.A.Y, t.ReceiverPubKey.A.X, t.ReceiverPubKey.A.Y)
 	htransfer := hFunc.Sum()
 
