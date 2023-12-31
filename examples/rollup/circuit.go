@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	nbAccounts       = 16 // 16 accounts so we know that the proof length is 5
-	depth            = 5  // size fo the inclusion proofs
+	nbAccounts       = 16 // 16 accounts, so we know that the proof length is 5
+	depth            = 5  // size of the inclusion proofs
 	BatchSizeCircuit = 1  // nbTranfers to batch in a proof
 )
 
