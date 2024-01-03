@@ -64,7 +64,6 @@ func Test255_254_253Snark(t *testing.T) {
 }
 
 func Test3c2943Snark(t *testing.T) {
-	// TODO @Tabaie this is failing with a header of size 4
 	d, err := os.ReadFile("./testdata/3c2943/data.bin")
 	assert.NoError(t, err)
 
