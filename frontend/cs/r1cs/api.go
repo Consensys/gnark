@@ -565,6 +565,8 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 
 	builder.cs.AttachDebugInfo(debug, []int{c1, c2})
 
+	builder.MarkBoolean(m)
+
 	return m
 }
 
