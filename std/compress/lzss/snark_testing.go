@@ -162,7 +162,7 @@ func check(s goCompress.Stream, padTo int) (checksum fr.Element, err error) {
 
 	s.D = append(s.D, make([]int, padTo-len(s.D))...)
 
-	csb := s.Checksum(hash.MIMC_BN254.New(), fr.Bits)
+	csb := s.Checksum(hash.MIMC_BLS12_377.New(), fr.Bits)
 	checksum.SetBytes(csb)
 	return
 }

@@ -69,7 +69,7 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 		CLen:      cStream.Len(),
 		DLen:      len(d),
 	}
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
 func TestChecksum0(t *testing.T) {
@@ -90,7 +90,7 @@ func testChecksum(t *testing.T, d goCompress.Stream) {
 		InputLen: d.Len(),
 		Sum:      sum,
 	}
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
 type checksumTestCircuit struct {

@@ -56,7 +56,7 @@ func TestNoCompressionSnark(t *testing.T) {
 		CLength: cStream.Len(),
 	}
 
-	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
 func Test255_254_253Snark(t *testing.T) {
@@ -124,7 +124,7 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte, options ...test
 		CLength: cStream.Len(),
 	}
 
-	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
 func TestReadBytes(t *testing.T) {
@@ -140,7 +140,7 @@ func TestReadBytes(t *testing.T) {
 	assignment := &readBytesCircuit{
 		Words: test_vector_utils.ToVariableSlice(words.D),
 	}
-	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
 type readBytesCircuit struct {
