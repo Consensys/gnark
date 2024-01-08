@@ -59,7 +59,7 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	dictSum, err := check(dictStream, len(dict))
 	assert.NoError(t, err)
 
-	circuit := compressionCircuit{
+	circuit := TestCompressionCircuit{
 		C:     make([]frontend.Variable, cStream.Len()),
 		D:     make([]frontend.Variable, len(d)),
 		Dict:  make([]frontend.Variable, len(dict)),
@@ -68,7 +68,7 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 
 	// solve the circuit or only compile it
 
-	assignment := compressionCircuit{
+	assignment := TestCompressionCircuit{
 		CChecksum:    cSum,
 		DChecksum:    dSum,
 		DictChecksum: dictSum,
