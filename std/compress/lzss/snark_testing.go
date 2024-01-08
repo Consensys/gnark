@@ -72,7 +72,7 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 	circuit := compressionCircuit{
 		C:     make([]frontend.Variable, cStream.Len()),
 		D:     make([]frontend.Variable, len(d)),
-		Dict:  make([]byte, len(dict)),
+		Dict:  make([]frontend.Variable, len(lzss.AugmentDict(dict))),
 		Level: level,
 	}
 
@@ -121,12 +121,12 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 }
 
 type compressionCircuit struct {
-	CChecksum, DChecksum frontend.Variable `gnark:",public"`
-	C                    []frontend.Variable
-	D                    []frontend.Variable
-	Dict                 []byte
-	CLen, DLen           frontend.Variable
-	Level                lzss.Level
+	CChecksum, DChecksum, DictChecksum frontend.Variable `gnark:",public"`
+	C                                  []frontend.Variable
+	D                                  []frontend.Variable
+	Dict                               []frontend.Variable
+	CLen, DLen                         frontend.Variable
+	Level                              lzss.Level
 }
 
 func (c *compressionCircuit) Define(api frontend.API) error {
@@ -134,6 +134,7 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 	fmt.Println("packing")
 	cPacked := compress.Pack(api, c.C, int(c.Level))
 	dPacked := compress.Pack(api, c.D, 8)
+	dictPacked := compress.Pack(api, c.Dict, 8)
 
 	fmt.Println("computing checksum")
 	if err := checkSnark(api, cPacked, c.CLen, c.CChecksum); err != nil {
@@ -142,11 +143,13 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 	if err := checkSnark(api, dPacked, c.DLen, c.DChecksum); err != nil {
 		return err
 	}
+	if err := checkSnark(api, dictPacked, len(c.Dict), c.DictChecksum); err != nil {
+		return err
+	}
 
 	fmt.Println("decompressing")
 	dComputed := make([]frontend.Variable, len(c.D))
-	dict := test_vector_utils.ToVariableSlice(lzss.AugmentDict(c.Dict))
-	if dComputedLen, err := Decompress(api, c.C, c.CLen, dComputed, dict, c.Level); err != nil {
+	if dComputedLen, err := Decompress(api, c.C, c.CLen, dComputed, c.Dict, c.Level); err != nil {
 		return err
 	} else {
 		api.AssertIsEqual(dComputedLen, c.DLen)
