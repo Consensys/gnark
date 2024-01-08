@@ -257,7 +257,7 @@ var (
 			pk, vk any,
 			pkBuilder, vkBuilder, proofBuilder func() any,
 			err error) {
-			srs, srsLagrange, err := unsafekzg.NewSRS(ccs, unsafekzg.WithFSCache())
+			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			if err != nil {
 				return nil, nil, nil, nil, nil, err
 			}

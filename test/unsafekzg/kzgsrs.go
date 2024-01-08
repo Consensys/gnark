@@ -7,16 +7,18 @@ package unsafekzg
 import (
 	"bufio"
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
-	"strconv"
+	"regexp"
 	"sync"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/logger"
 
 	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
@@ -52,17 +54,15 @@ import (
 )
 
 var (
-	cache           map[uint64]cacheEntry
+	cache           = make(map[string]cacheEntry)
+	reCacheKey      = regexp.MustCompile(`kzgsrs-(.*?)-\d+`)
 	memLock, fsLock sync.RWMutex
 )
-
-func init() {
-	cache = make(map[uint64]cacheEntry)
-}
 
 // NewSRS returns a pair of kzg.SRS; one in canonical form, the other in lagrange form.
 // Default options use a memory cache, see Option for more details & options.
 func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS, lagrange kzg.SRS, err error) {
+
 	nbConstraints := ccs.GetNbConstraints()
 	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
 
@@ -71,31 +71,42 @@ func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS,
 
 	curveID := utils.FieldToCurve(ccs.Field())
 
+	log := logger.Logger().With().Str("package", "kzgsrs").Int("size", int(sizeCanonical)).Str("curve", curveID.String()).Logger()
+
 	cfg, err := options(opts...)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	memLock.RLock()
 	key := cacheKey(curveID, sizeCanonical)
+	log.Debug().Str("key", key).Msg("fetching SRS from mem cache")
+	memLock.RLock()
 	entry, ok := cache[key]
 	memLock.RUnlock()
 	if ok {
+		log.Debug().Msg("SRS found in mem cache")
 		return entry.canonical, entry.lagrange, nil
 	}
+	log.Debug().Msg("SRS not found in mem cache")
 
 	if cfg.fsCache {
+		log.Debug().Str("key", key).Str("cacheDir", cfg.cacheDir).Msg("fetching SRS from fs cache")
 		fsLock.RLock()
-		entry, ok := fsRead(key, cfg.cacheDir)
+		entry, err = fsRead(key, cfg.cacheDir)
 		fsLock.RUnlock()
-		if ok {
+		if err == nil {
+			log.Debug().Str("key", key).Msg("SRS found in fs cache")
 			canonical, lagrange = entry.canonical, entry.lagrange
 			memLock.Lock()
 			cache[key] = cacheEntry{canonical, lagrange}
 			memLock.Unlock()
 			return
+		} else {
+			log.Debug().Str("key", key).Err(err).Msg("SRS not found in fs cache")
 		}
 	}
+
+	log.Debug().Msg("SRS not found in cache, generating")
 
 	// not in cache, generate
 	canonical, lagrange, err = newSRS(curveID, sizeCanonical)
@@ -109,6 +120,7 @@ func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS,
 	memLock.Unlock()
 
 	if cfg.fsCache {
+		log.Debug().Str("key", key).Str("cacheDir", cfg.cacheDir).Msg("writing SRS to fs cache")
 		fsLock.Lock()
 		fsWrite(key, cfg.cacheDir, canonical, lagrange)
 		fsLock.Unlock()
@@ -122,8 +134,17 @@ type cacheEntry struct {
 	lagrange  kzg.SRS
 }
 
-func cacheKey(curveID ecc.ID, size uint64) uint64 {
-	return uint64(curveID)<<59 | size
+func cacheKey(curveID ecc.ID, size uint64) string {
+	return fmt.Sprintf("kzgsrs-%s-%d", curveID.String(), size)
+}
+
+func extractCurveID(key string) (ecc.ID, error) {
+	matches := reCacheKey.FindStringSubmatch(key)
+
+	if len(matches) < 2 {
+		return ecc.UNKNOWN, fmt.Errorf("no curveID found in key")
+	}
+	return ecc.IDFromString(matches[1])
 }
 
 func newSRS(curveID ecc.ID, size uint64) (kzg.SRS, kzg.SRS, error) {
@@ -331,43 +352,46 @@ func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
 	return lagrangeSRS
 }
 
-func fsRead(key uint64, cacheDir string) (cacheEntry, bool) {
-	filePath := filepath.Join(cacheDir, strconv.FormatUint(key, 10))
+func fsRead(key string, cacheDir string) (cacheEntry, error) {
+	filePath := filepath.Join(cacheDir, key)
 
 	// if file does not exist, return false
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return cacheEntry{}, false
+		return cacheEntry{}, fmt.Errorf("file %s does not exist", filePath)
 	}
 
 	// else open file and read the srs.
 	f, err := os.Open(filePath)
 	if err != nil {
-		return cacheEntry{}, false
+		return cacheEntry{}, err
 	}
 	defer f.Close()
 
 	r := bufio.NewReaderSize(f, 1<<20)
 
-	curveID := ecc.ID(key >> 59)
+	curveID, err := extractCurveID(key)
+	if err != nil {
+		return cacheEntry{}, err
+	}
 	cacheEntry := cacheEntry{
 		canonical: kzg.NewSRS(curveID),
 		lagrange:  kzg.NewSRS(curveID),
 	}
 	_, err = cacheEntry.canonical.UnsafeReadFrom(r)
 	if err != nil {
-		return cacheEntry, false
+		return cacheEntry, err
 	}
 	_, err = cacheEntry.lagrange.UnsafeReadFrom(r)
 	if err != nil {
-		return cacheEntry, false
+		return cacheEntry, err
 	}
 
-	return cacheEntry, true
+	return cacheEntry, nil
 }
 
-func fsWrite(key uint64, cacheDir string, canonical kzg.SRS, lagrange kzg.SRS) {
+func fsWrite(key string, cacheDir string, canonical kzg.SRS, lagrange kzg.SRS) {
 	// if file exist, return.
-	filePath := filepath.Join(cacheDir, strconv.FormatUint(key, 10))
+	filePath := filepath.Join(cacheDir, key)
 	if _, err := os.Stat(filePath); err == nil {
 		return
 	}

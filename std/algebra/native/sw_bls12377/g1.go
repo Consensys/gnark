@@ -25,6 +25,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 )
 
 // G1Jac point in Jacobian coords
@@ -66,6 +67,49 @@ func (p *G1Affine) AddAssign(api frontend.API, p1 G1Affine) *G1Affine {
 
 	//p.x = xr
 	p.X = xr
+	return p
+}
+
+func (p *G1Affine) AddUnified(api frontend.API, q G1Affine) *G1Affine {
+	// selector1 = 1 when p is (0,0) and 0 otherwise
+	selector1 := api.And(api.IsZero(p.X), api.IsZero(p.Y))
+	// selector2 = 1 when q is (0,0) and 0 otherwise
+	selector2 := api.And(api.IsZero(q.X), api.IsZero(q.Y))
+
+	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
+	pxqx := api.Mul(p.X, q.X)
+	pxplusqx := api.Add(p.X, q.X)
+	num := api.Mul(pxplusqx, pxplusqx)
+	num = api.Sub(num, pxqx)
+	denum := api.Add(p.Y, q.Y)
+	// if p.y + q.y = 0, assign dummy 1 to denum and continue
+	selector3 := api.IsZero(denum)
+	denum = api.Select(selector3, 1, denum)
+	λ := api.Div(num, denum)
+
+	// x = λ^2 - p.x - q.x
+	xr := api.Mul(λ, λ)
+	xr = api.Sub(xr, pxplusqx)
+
+	// y = λ(p.x - xr) - p.y
+	yr := api.Sub(p.X, xr)
+	yr = api.Mul(yr, λ)
+	yr = api.Sub(yr, p.Y)
+	result := G1Affine{
+		X: xr,
+		Y: yr,
+	}
+
+	// if p=(0,0) return q
+	result.Select(api, selector1, q, result)
+	// if q=(0,0) return p
+	result.Select(api, selector2, *p, result)
+	// if p.y + q.y = 0, return (0, 0)
+	result.Select(api, selector3, G1Affine{0, 0}, result)
+
+	p.X = result.X
+	p.Y = result.Y
+
 	return p
 }
 
@@ -159,6 +203,21 @@ func (p *G1Affine) Select(api frontend.API, b frontend.Variable, p1, p2 G1Affine
 
 	p.X = api.Select(b, p1.X, p2.X)
 	p.Y = api.Select(b, p1.Y, p2.Y)
+
+	return p
+
+}
+
+// Lookup2 performs a 2-bit lookup between p1, p2, p3, p4 based on bits b0  and b1.
+// Returns:
+//   - p1 if b0=0 and b1=0,
+//   - p2 if b0=1 and b1=0,
+//   - p3 if b0=0 and b1=1,
+//   - p4 if b0=1 and b1=1.
+func (p *G1Affine) Lookup2(api frontend.API, b1, b2 frontend.Variable, p1, p2, p3, p4 G1Affine) *G1Affine {
+
+	p.X = api.Lookup2(b1, b2, p1.X, p2.X, p3.X, p4.X)
+	p.Y = api.Lookup2(b1, b2, p1.Y, p2.Y, p3.Y, p4.Y)
 
 	return p
 
@@ -430,10 +489,9 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 	x3 = api.Sub(x3, p2.X)
 
 	// omit y3 computation
-	// compute lambda2 = -lambda1-2*y1/(x3-x1)
+	// compute lambda2 = lambda1+2*y1/(x3-x1)
 	l2 := api.DivUnchecked(api.Add(p1.Y, p1.Y), api.Sub(x3, p1.X))
 	l2 = api.Add(l2, l1)
-	l2 = api.Neg(l2)
 
 	// compute x4 =lambda2**2-x1-x3
 	x4 := api.Mul(l2, l2)
@@ -441,7 +499,7 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 	x4 = api.Sub(x4, x3)
 
 	// compute y4 = lambda2*(x1 - x4)-y1
-	y4 := api.Sub(p1.X, x4)
+	y4 := api.Sub(x4, p1.X)
 	y4 = api.Mul(l2, y4)
 	y4 = api.Sub(y4, p1.Y)
 
@@ -453,33 +511,157 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 
 // ScalarMulBase computes s * g1 and returns it, where g1 is the fixed generator. It doesn't modify s.
 func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affine {
+	_, _, g1aff, _ := bls12377.Generators()
+	generator := G1Affine{
+		X: g1aff.X.BigInt(new(big.Int)),
+		Y: g1aff.Y.BigInt(new(big.Int)),
+	}
+	return P.ScalarMul(api, generator, s)
+}
 
-	points := getCurvePoints()
+// P = [s]Q + [t]R using Shamir's trick
+func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
+	cc := getInnerCurveConfig(api.Compiler().Field())
 
-	sBits := api.ToBinary(s, 253)
+	sd, err := api.Compiler().NewHint(DecomposeScalarG1, 3, s)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	s1, s2 := sd[0], sd[1]
 
-	var res, tmp G1Affine
+	td, err := api.Compiler().NewHint(DecomposeScalarG1, 3, t)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	t1, t2 := td[0], td[1]
 
-	// i = 1, 2
-	// gm[0] = 3g, gm[1] = 5g, gm[2] = 7g
-	res.X = api.Lookup2(sBits[1], sBits[2], points.G1x, points.G1m[0][0], points.G1m[1][0], points.G1m[2][0])
-	res.Y = api.Lookup2(sBits[1], sBits[2], points.G1y, points.G1m[0][1], points.G1m[1][1], points.G1m[2][1])
+	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), api.Add(s, api.Mul(cc.fr, sd[2])))
+	api.AssertIsEqual(api.Add(t1, api.Mul(t2, cc.lambda)), api.Add(t, api.Mul(cc.fr, td[2])))
 
-	for i := 3; i < 253; i++ {
-		// gm[i] = [2^i]g
-		tmp.X = res.X
-		tmp.Y = res.Y
-		tmp.AddAssign(api, G1Affine{points.G1m[i][0], points.G1m[i][1]})
-		res.Select(api, sBits[i], tmp, res)
+	nbits := cc.lambda.BitLen() + 1
+
+	s1bits := api.ToBinary(s1, nbits)
+	s2bits := api.ToBinary(s2, nbits)
+	t1bits := api.ToBinary(t1, nbits)
+	t2bits := api.ToBinary(t2, nbits)
+
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]G1Affine
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	cc.phi1(api, &tablePhiQ[1], &Q)
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+	// precompute -R, -Φ(R), Φ(R)
+	var tableR, tablePhiR [2]G1Affine
+	tableR[1] = R
+	tableR[0].Neg(api, R)
+	cc.phi1(api, &tablePhiR[1], &R)
+	tablePhiR[0].Neg(api, tablePhiR[1])
+	// precompute Q+R, -Q-R, Q-R, -Q+R, Φ(Q)+Φ(R), -Φ(Q)-Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R)
+	var tableS, tablePhiS [4]G1Affine
+	tableS[0] = tableQ[0]
+	tableS[0].AddAssign(api, tableR[0])
+	tableS[1].Neg(api, tableS[0])
+	tableS[2] = Q
+	tableS[2].AddAssign(api, tableR[0])
+	tableS[3].Neg(api, tableS[2])
+	cc.phi1(api, &tablePhiS[0], &tableS[0])
+	cc.phi1(api, &tablePhiS[1], &tableS[1])
+	cc.phi1(api, &tablePhiS[2], &tableS[2])
+	cc.phi1(api, &tablePhiS[3], &tableS[3])
+
+	// suppose first bit is 1 and set:
+	// Acc = Q + R + Φ(Q) + Φ(R)
+	Acc := tableS[1]
+	Acc.AddAssign(api, tablePhiS[1])
+
+	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
+	var B G1Affine
+	for i := nbits - 1; i > 0; i-- {
+		B.X = api.Select(api.Xor(s1bits[i], t1bits[i]), tableS[2].X, tableS[0].X)
+		B.Y = api.Lookup2(s1bits[i], t1bits[i], tableS[0].Y, tableS[2].Y, tableS[3].Y, tableS[1].Y)
+		Acc.DoubleAndAdd(api, &Acc, &B)
+		B.X = api.Select(api.Xor(s2bits[i], t2bits[i]), tablePhiS[2].X, tablePhiS[0].X)
+		B.Y = api.Lookup2(s2bits[i], t2bits[i], tablePhiS[0].Y, tablePhiS[2].Y, tablePhiS[3].Y, tablePhiS[1].Y)
+		Acc.AddAssign(api, B)
 	}
 
 	// i = 0
-	tmp.Neg(api, G1Affine{points.G1x, points.G1y})
-	tmp.AddAssign(api, res)
-	res.Select(api, sBits[0], res, tmp)
+	// subtract the initial point from the accumulator when first bit was 0
+	tableQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	tableR[0].AddAssign(api, Acc)
+	Acc.Select(api, t1bits[0], Acc, tableR[0])
+	tablePhiR[0].AddAssign(api, Acc)
+	Acc.Select(api, t2bits[0], Acc, tablePhiR[0])
 
-	P.X = res.X
-	P.Y = res.Y
+	P.X = Acc.X
+	P.Y = Acc.Y
+
+	return P
+}
+
+// scalarBitsMul...
+func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+	cc := getInnerCurveConfig(api.Compiler().Field())
+	nbits := cc.lambda.BitLen() + 1
+	var Acc /*accumulator*/, B, B2 /*tmp vars*/ G1Affine
+	// precompute -Q, -Φ(Q), Φ(Q)
+	var tableQ, tablePhiQ [2]G1Affine
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	cc.phi1(api, &tablePhiQ[1], &Q)
+	tablePhiQ[0].Neg(api, tablePhiQ[1])
+
+	// We now initialize the accumulator. Due to the way the scalar is
+	// decomposed, either the high bits of s1 or s2 are set and we can use the
+	// incomplete addition laws.
+
+	//     Acc = Q + Φ(Q)
+	Acc = tableQ[1]
+	Acc.AddAssign(api, tablePhiQ[1])
+
+	// However, we can not directly add step value conditionally as we may get
+	// to incomplete path of the addition formula. We either add or subtract
+	// step value from [2] Acc (instead of conditionally adding step value to
+	// Acc):
+	//     Acc = [2] (Q + Φ(Q)) ± Q ± Φ(Q)
+	// only y coordinate differs for negation, select on that instead.
+	B.X = tableQ[0].X
+	B.Y = api.Select(s1bits[nbits-1], tableQ[1].Y, tableQ[0].Y)
+	Acc.DoubleAndAdd(api, &Acc, &B)
+	B.X = tablePhiQ[0].X
+	B.Y = api.Select(s2bits[nbits-1], tablePhiQ[1].Y, tablePhiQ[0].Y)
+	Acc.AddAssign(api, B)
+
+	// second bit
+	B.X = tableQ[0].X
+	B.Y = api.Select(s1bits[nbits-2], tableQ[1].Y, tableQ[0].Y)
+	Acc.DoubleAndAdd(api, &Acc, &B)
+	B.X = tablePhiQ[0].X
+	B.Y = api.Select(s2bits[nbits-2], tablePhiQ[1].Y, tablePhiQ[0].Y)
+	Acc.AddAssign(api, B)
+
+	B2.X = tablePhiQ[0].X
+	for i := nbits - 3; i > 0; i-- {
+		B.X = Q.X
+		B.Y = api.Select(s1bits[i], tableQ[1].Y, tableQ[0].Y)
+		B2.Y = api.Select(s2bits[i], tablePhiQ[1].Y, tablePhiQ[0].Y)
+		B.AddAssign(api, B2)
+		Acc.DoubleAndAdd(api, &Acc, &B)
+	}
+
+	tableQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s1bits[0], Acc, tableQ[0])
+	tablePhiQ[0].AddAssign(api, Acc)
+	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+
+	P.X = Acc.X
+	P.Y = Acc.Y
 
 	return P
 }

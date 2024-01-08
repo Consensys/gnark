@@ -1,6 +1,9 @@
 package lzss
 
 import (
+	"os"
+	"testing"
+
 	goCompress "github.com/consensys/compress"
 	"github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -10,8 +13,6 @@ import (
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
-	"testing"
 )
 
 func Test1ZeroSnark(t *testing.T) {

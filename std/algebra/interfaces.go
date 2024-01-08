@@ -13,6 +13,10 @@ type GtElementT GroupElementT
 
 // Curve defines group operations on an elliptic curve.
 type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
+	// AddUnified adds _any_ two points and returns the sum. It does not modify the input
+	// points.
+	AddUnified(*G1El, *G1El) *G1El
+
 	// Add adds two points and returns the sum. It does not modify the input
 	// points.
 	Add(*G1El, *G1El) *G1El
@@ -43,6 +47,17 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 
 	// MarshalScalar returns the binary decomposition of the argument.
 	MarshalScalar(emulated.Element[FR]) []frontend.Variable
+
+	// Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
+	Select(b frontend.Variable, p1 *G1El, p2 *G1El) *G1El
+
+	// Lookup2 performs a 2-bit lookup between p1, p2, p3, p4 based on bits b0  and b1.
+	// Returns:
+	//   - p1 if b0=0 and b1=0,
+	//   - p2 if b0=1 and b1=0,
+	//   - p3 if b0=0 and b1=1,
+	//   - p4 if b0=1 and b1=1.
+	Lookup2(b1 frontend.Variable, b2 frontend.Variable, p1 *G1El, p2 *G1El, p3 *G1El, p4 *G1El) *G1El
 }
 
 // Pairing allows to compute the bi-linear pairing of G1 and G2 elements.

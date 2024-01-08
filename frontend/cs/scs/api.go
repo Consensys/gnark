@@ -515,6 +515,8 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 		qM: a.Coeff,
 	})
 
+	builder.MarkBoolean(m)
+
 	return m
 }
 

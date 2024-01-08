@@ -96,6 +96,9 @@ type VerifyingKey interface {
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.
+// The kzg SRS must be provided in canonical and lagrange form.
+// For test purposes, see test/unsafekzg package. With an existing SRS generated through MPC in canonical form,
+// gnark-crypto offers the ToLagrangeG1 method to convert it to lagrange form.
 func Setup(ccs constraint.ConstraintSystem, srs, srsLagrange kzg.SRS) (ProvingKey, VerifyingKey, error) {
 
 	switch tccs := ccs.(type) {

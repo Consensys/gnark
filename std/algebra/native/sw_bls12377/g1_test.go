@@ -23,10 +23,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 
@@ -548,6 +545,95 @@ func TestMultiScalarMul(t *testing.T) {
 	assert.NoError(err)
 }
 
+type g1JointScalarMul struct {
+	A, B G1Affine
+	C    G1Affine `gnark:",public"`
+	R, S frontend.Variable
+}
+
+func (circuit *g1JointScalarMul) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.jointScalarMul(api, circuit.A, circuit.B, circuit.R, circuit.S)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestJointScalarMulG1(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	_b := randomPointG1()
+	var a, b, c bls12377.G1Affine
+	a.FromJacobian(&_a)
+	b.FromJacobian(&_b)
+
+	// create the cs
+	var circuit, witness g1JointScalarMul
+	var r, s fr.Element
+	_, _ = r.SetRandom()
+	_, _ = s.SetRandom()
+	witness.R = r.String()
+	witness.S = s.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	// compute the result
+	var br, bs big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	_b.ScalarMultiplication(&_b, s.BigInt(&bs))
+	_a.AddAssign(&_b)
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type g1JointScalarMulNaive struct {
+	A, B G1Affine
+	C    G1Affine `gnark:",public"`
+	R, S frontend.Variable
+}
+
+func (circuit *g1JointScalarMulNaive) Define(api frontend.API) error {
+	expected := G1Affine{}
+	tmp := G1Affine{}
+	tmp.varScalarMul(api, circuit.A, circuit.R)
+	expected.varScalarMul(api, circuit.B, circuit.S)
+	expected.AddAssign(api, tmp)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestJointScalarMulG1Naive(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	_b := randomPointG1()
+	var a, b, c bls12377.G1Affine
+	a.FromJacobian(&_a)
+	b.FromJacobian(&_b)
+
+	// create the cs
+	var circuit, witness g1JointScalarMulNaive
+	var r, s fr.Element
+	_, _ = r.SetRandom()
+	_, _ = s.SetRandom()
+	witness.R = r.String()
+	witness.S = s.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	// compute the result
+	var br, bs big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	_b.ScalarMultiplication(&_b, s.BigInt(&bs))
+	_a.AddAssign(&_b)
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
 func randomPointG1() bls12377.G1Jac {
 
 	p1, _, _, _ := bls12377.Generators()
@@ -558,64 +644,4 @@ func randomPointG1() bls12377.G1Jac {
 	p1.ScalarMultiplication(&p1, r1.BigInt(&b))
 
 	return p1
-}
-
-var ccsBench constraint.ConstraintSystem
-
-func BenchmarkConstScalarMulG1(b *testing.B) {
-	var c g1constantScalarMul
-	// this is q - 1
-	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
-	if !ok {
-		b.Fatal("invalid integer")
-	}
-	c.R = r
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-		}
-
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
-	b.Run("plonk", func(b *testing.B) {
-		var err error
-		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-
-	})
-	b.Log("plonk", ccsBench.GetNbConstraints())
-
-}
-
-func BenchmarkVarScalarMulG1(b *testing.B) {
-	var c g1varScalarMul
-	// this is q - 1
-	r, ok := new(big.Int).SetString("660539884262666720468348340822774968888139573360124440321458176", 10)
-	if !ok {
-		b.Fatal("invalid integer")
-	}
-	c.R = r
-	b.Run("groth16", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			ccsBench, _ = frontend.Compile(ecc.BW6_761.ScalarField(), r1cs.NewBuilder, &c)
-		}
-
-	})
-	b.Log("groth16", ccsBench.GetNbConstraints())
-	b.Run("plonk", func(b *testing.B) {
-		var err error
-		for i := 0; i < b.N; i++ {
-			ccsBench, err = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-
-	})
-	b.Log("plonk", ccsBench.GetNbConstraints())
-
 }
