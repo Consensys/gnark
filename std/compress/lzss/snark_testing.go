@@ -14,6 +14,7 @@ import (
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/hash/mimc"
+	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"os"
 	"time"
 )
@@ -28,8 +29,9 @@ type DecompressionTestCircuit struct {
 }
 
 func (c *DecompressionTestCircuit) Define(api frontend.API) error {
+	dict := test_vector_utils.ToVariableSlice(lzss.AugmentDict(c.Dict))
 	dBack := make([]frontend.Variable, len(c.D)) // TODO Try smaller constants
-	dLen, err := Decompress(api, c.C, c.CLength, dBack, c.Dict, c.Level)
+	dLen, err := Decompress(api, c.C, c.CLength, dBack, dict, c.Level)
 	if err != nil {
 		return err
 	}
@@ -143,7 +145,8 @@ func (c *compressionCircuit) Define(api frontend.API) error {
 
 	fmt.Println("decompressing")
 	dComputed := make([]frontend.Variable, len(c.D))
-	if dComputedLen, err := Decompress(api, c.C, c.CLen, dComputed, c.Dict, c.Level); err != nil {
+	dict := test_vector_utils.ToVariableSlice(lzss.AugmentDict(c.Dict))
+	if dComputedLen, err := Decompress(api, c.C, c.CLen, dComputed, dict, c.Level); err != nil {
 		return err
 	} else {
 		api.AssertIsEqual(dComputedLen, c.DLen)
