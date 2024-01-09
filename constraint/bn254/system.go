@@ -43,10 +43,14 @@ type system struct {
 	field
 }
 
+// NewR1CS is a constructor for R1CS. It is meant to be use by gnark frontend only,
+// and should not be used by gnark users. See groth16.NewCS(...) instead.
 func NewR1CS(capacity int) *R1CS {
 	return newSystem(capacity, constraint.SystemR1CS)
 }
 
+// NewSparseR1CS is a constructor for SparseR1CS. It is meant to be use by gnark frontend only,
+// and should not be used by gnark users. See plonk.NewCS(...) instead.
 func NewSparseR1CS(capacity int) *SparseR1CS {
 	return newSystem(capacity, constraint.SystemSparseR1CS)
 }
