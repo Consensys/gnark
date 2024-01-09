@@ -50,7 +50,7 @@ func NewGlobalStats() *globalStats {
 }
 
 func (s *globalStats) Save(path string) error {
-	fStats, err := os.Create(path) //#nosec G304 -- ignoring internal pacakge s
+	fStats, err := os.Create(path) //#nosec G304 -- ignoring internal package s
 	if err != nil {
 		return err
 	}
