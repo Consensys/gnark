@@ -163,7 +163,7 @@ func TestCircuitInclusionProof(t *testing.T) {
 
 type circuitUpdateAccount Circuit
 
-// Circuit implements part of the rollup circuit only by delcaring a subset of the constraints
+// Circuit implements part of the rollup circuit only by declaring a subset of the constraints
 func (t *circuitUpdateAccount) Define(api frontend.API) error {
 
 	if err := (*Circuit)(t).postInit(api); err != nil {
