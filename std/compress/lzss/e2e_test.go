@@ -51,25 +51,34 @@ func testCompressionE2E(t *testing.T, d, dict []byte, name string) {
 	dSum, err := check(dStream, len(d))
 	assert.NoError(t, err)
 
-	circuit := compressionCircuit{
+	dict = lzss.AugmentDict(dict)
+
+	dictStream, err := goCompress.NewStream(dict, 8)
+	assert.NoError(t, err)
+
+	dictSum, err := check(dictStream, len(dict))
+	assert.NoError(t, err)
+
+	circuit := TestCompressionCircuit{
 		C:     make([]frontend.Variable, cStream.Len()),
 		D:     make([]frontend.Variable, len(d)),
-		Dict:  make([]byte, len(dict)),
+		Dict:  make([]frontend.Variable, len(dict)),
 		Level: level,
 	}
 
 	// solve the circuit or only compile it
 
-	assignment := compressionCircuit{
-		CChecksum: cSum,
-		DChecksum: dSum,
-		C:         test_vector_utils.ToVariableSlice(cStream.D),
-		D:         test_vector_utils.ToVariableSlice(d),
-		Dict:      dict,
-		CLen:      cStream.Len(),
-		DLen:      len(d),
+	assignment := TestCompressionCircuit{
+		CChecksum:    cSum,
+		DChecksum:    dSum,
+		DictChecksum: dictSum,
+		C:            test_vector_utils.ToVariableSlice(cStream.D),
+		D:            test_vector_utils.ToVariableSlice(d),
+		Dict:         test_vector_utils.ToVariableSlice(dict),
+		CLen:         cStream.Len(),
+		DLen:         len(d),
 	}
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
 func TestChecksum0(t *testing.T) {
@@ -90,7 +99,7 @@ func testChecksum(t *testing.T, d goCompress.Stream) {
 		InputLen: d.Len(),
 		Sum:      sum,
 	}
-	test.NewAssert(t).SolvingSucceeded(&circuit, &assignment, test.WithBackends(backend.PLONK), test.WithCurves(ecc.BN254))
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
 type checksumTestCircuit struct {

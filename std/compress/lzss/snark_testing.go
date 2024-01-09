@@ -6,7 +6,7 @@ import (
 	goCompress "github.com/consensys/compress"
 	"github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -14,6 +14,7 @@ import (
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/hash/mimc"
+	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"os"
 	"time"
 )
@@ -28,8 +29,9 @@ type DecompressionTestCircuit struct {
 }
 
 func (c *DecompressionTestCircuit) Define(api frontend.API) error {
+	dict := test_vector_utils.ToVariableSlice(lzss.AugmentDict(c.Dict))
 	dBack := make([]frontend.Variable, len(c.D)) // TODO Try smaller constants
-	dLen, err := Decompress(api, c.C, c.CLength, dBack, c.Dict, c.Level)
+	dLen, err := Decompress(api, c.C, c.CLength, dBack, dict, c.Level)
 	if err != nil {
 		return err
 	}
@@ -67,10 +69,10 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 		return nil, err
 	}
 
-	circuit := compressionCircuit{
+	circuit := TestCompressionCircuit{
 		C:     make([]frontend.Variable, cStream.Len()),
 		D:     make([]frontend.Variable, len(d)),
-		Dict:  make([]byte, len(dict)),
+		Dict:  make([]frontend.Variable, len(lzss.AugmentDict(dict))),
 		Level: level,
 	}
 
@@ -118,26 +120,30 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 	return cs, gz.Close()
 }
 
-type compressionCircuit struct {
-	CChecksum, DChecksum frontend.Variable `gnark:",public"`
-	C                    []frontend.Variable
-	D                    []frontend.Variable
-	Dict                 []byte
-	CLen, DLen           frontend.Variable
-	Level                lzss.Level
+type TestCompressionCircuit struct {
+	CChecksum, DChecksum, DictChecksum frontend.Variable `gnark:",public"`
+	C                                  []frontend.Variable
+	D                                  []frontend.Variable
+	Dict                               []frontend.Variable
+	CLen, DLen                         frontend.Variable
+	Level                              lzss.Level
 }
 
-func (c *compressionCircuit) Define(api frontend.API) error {
+func (c *TestCompressionCircuit) Define(api frontend.API) error {
 
 	fmt.Println("packing")
 	cPacked := compress.Pack(api, c.C, int(c.Level))
 	dPacked := compress.Pack(api, c.D, 8)
+	dictPacked := compress.Pack(api, c.Dict, 8)
 
 	fmt.Println("computing checksum")
 	if err := checkSnark(api, cPacked, c.CLen, c.CChecksum); err != nil {
 		return err
 	}
 	if err := checkSnark(api, dPacked, c.DLen, c.DChecksum); err != nil {
+		return err
+	}
+	if err := checkSnark(api, dictPacked, len(c.Dict), c.DictChecksum); err != nil {
 		return err
 	}
 
@@ -159,7 +165,7 @@ func check(s goCompress.Stream, padTo int) (checksum fr.Element, err error) {
 
 	s.D = append(s.D, make([]int, padTo-len(s.D))...)
 
-	csb := s.Checksum(hash.MIMC_BN254.New(), fr.Bits)
+	csb := s.Checksum(hash.MIMC_BLS12_377.New(), fr.Bits)
 	checksum.SetBytes(csb)
 	return
 }

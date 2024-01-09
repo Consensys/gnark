@@ -8,8 +8,9 @@ import (
 )
 
 // Decompress decompresses c into d using dict as the dictionary
+// which must come pre "augmented"
 // It returns the length of d as a frontend.Variable
-func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d []frontend.Variable, dict []byte, level lzss.Level) (dLength frontend.Variable, err error) {
+func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d, dict []frontend.Variable, level lzss.Level) (dLength frontend.Variable, err error) {
 
 	wordNbBits := int(level)
 
@@ -17,7 +18,6 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	checkInputRange(api, c, wordNbBits)
 
 	// init the dictionary and backref types
-	dict = lzss.AugmentDict(dict)
 	shortBackRefType, longBackRefType, dictBackRefType := lzss.InitBackRefTypes(len(dict), level)
 
 	shortBrNbWords := int(shortBackRefType.NbBitsBackRef) / wordNbBits
