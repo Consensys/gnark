@@ -241,35 +241,3 @@ func TestInverseFp2(t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
-
-func TestMulByNonResidueFp2(t *testing.T) {
-	// TODO fixme
-	t.Skip("missing e2.MulByNonSquare")
-	// ext := Extension{uSquare: 5}
-
-	// var circuit, witness XXXX
-	// r1cs, err := compiler.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// // witness values
-	// var a, c bls12377.E2
-	// a.SetRandom()
-
-	// // TODO c.MulByNonSquare(&a)
-
-	// fp2a := NewFp2Elmt(&cs, api.SECRET_INPUT("a0"), api.SECRET_INPUT("a1"))
-
-	// fp2c := NewFp2Elmt(&cs, nil, nil)
-	// fp2c.MulByNonResidue(&cs, &fp2a)
-
-	//
-	// witness.A.A0 = (a.A0)
-	// witness.A.A1 = (a.A1)
-
-	//
-	// witness.C.A0 = (c.A0)
-	// witness.C.A1 = (c.A1)
-
-}
