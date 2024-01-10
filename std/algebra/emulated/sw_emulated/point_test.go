@@ -716,7 +716,7 @@ func (c *ScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMulSafe(&c.P, &c.S)
+	res := cr.ScalarMul(&c.P, &c.S, algopts.WithUseSafe())
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
