@@ -10,10 +10,12 @@ import (
 	"github.com/consensys/gnark/test/unsafekzg"
 )
 
-// Example of verifying recursively BLS12-371 PLONK proof in BW6-761 PLONK circuit using field emulation
+// Example of verifying recursively BLS12-377 PLONK proof in BW6-761 PLONK circuit using field emulation
 func Example_native() {
 	// compute the proof which we want to verify recursively
-	innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BW6_761.ScalarField(), ecc.BN254.ScalarField())
+	innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(
+		ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField(),
+	)
 
 	// initialize the witness elements
 	circuitVk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerVK)
@@ -39,13 +41,13 @@ func Example_native() {
 		Proof:        circuitProof,
 	}
 	// compile the outer circuit
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, outerCircuit)
+	ccs, err := frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, outerCircuit)
 	if err != nil {
 		panic("compile failed: " + err.Error())
 	}
 
 	// NB! UNSAFE! Use MPC.
-	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 	if err != nil {
 		panic(err)
 	}
@@ -57,7 +59,7 @@ func Example_native() {
 	}
 
 	// create prover witness from the assignment
-	secretWitness, err := frontend.NewWitness(outerAssignment, ecc.BN254.ScalarField())
+	secretWitness, err := frontend.NewWitness(outerAssignment, ecc.BW6_761.ScalarField())
 	if err != nil {
 		panic("secret witness failed: " + err.Error())
 	}
@@ -74,7 +76,7 @@ func Example_native() {
 		panic("proving failed: " + err.Error())
 	}
 
-	// verify the Groth16 proof
+	// verify the PLONK proof
 	err = native_plonk.Verify(outerProof, vk, publicWitness)
 	if err != nil {
 		panic("circuit verification failed: " + err.Error())
