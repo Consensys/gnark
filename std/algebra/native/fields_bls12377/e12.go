@@ -469,19 +469,6 @@ func (e *E12) FrobeniusSquare(api frontend.API, e1 E12) *E12 {
 	return e
 }
 
-// FrobeniusCube applies frob**2 to an fp12 elmt
-func (e *E12) FrobeniusCube(api frontend.API, e1 E12) *E12 {
-
-	e.C0.B0.Conjugate(api, e1.C0.B0)
-	e.C0.B1.Conjugate(api, e1.C0.B1).MulByFp(api, e.C0.B1, ext.frob3v)
-	e.C0.B2.Conjugate(api, e1.C0.B2).MulByFp(api, e.C0.B2, ext.frob3v2)
-	e.C1.B0.Conjugate(api, e1.C1.B0).MulByFp(api, e.C1.B0, ext.frob3w)
-	e.C1.B1.Conjugate(api, e1.C1.B1).MulByFp(api, e.C1.B1, ext.frob3vw)
-	e.C1.B2.Conjugate(api, e1.C1.B2).MulByFp(api, e.C1.B2, ext.frob3v2w)
-
-	return e
-}
-
 var InverseE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls12377.E12
 

@@ -212,7 +212,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		// The point (x,0) is of order 2. But this function does not check
 		// subgroup membership.
 		yInv[k] = pr.curveF.Inverse(&P[k].Y)
-		xNegOverY[k] = pr.curveF.MulMod(&P[k].X, yInv[k])
+		xNegOverY[k] = pr.curveF.Mul(&P[k].X, yInv[k])
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
 
@@ -224,8 +224,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	// k = 0
 	result = &fields_bw6761.E6{
 		B0: fields_bw6761.E3{
-			A0: *pr.curveF.MulMod(&lines[0][0][188].R1, yInv[0]),
-			A1: *pr.curveF.MulMod(&lines[0][0][188].R0, xNegOverY[0]),
+			A0: *pr.curveF.Mul(&lines[0][0][188].R1, yInv[0]),
+			A1: *pr.curveF.Mul(&lines[0][0][188].R0, xNegOverY[0]),
 			A2: result.B0.A2,
 		},
 		B1: fields_bw6761.E3{
@@ -239,8 +239,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		// k = 1, separately to avoid MulBy014 (res × ℓ)
 		// (res is also a line at this point, so we use Mul014By014 ℓ × ℓ)
 		prodLines = pr.Mul014By014(
-			pr.curveF.MulMod(&lines[1][0][188].R1, yInv[1]),
-			pr.curveF.MulMod(&lines[1][0][188].R0, xNegOverY[1]),
+			pr.curveF.Mul(&lines[1][0][188].R1, yInv[1]),
+			pr.curveF.Mul(&lines[1][0][188].R0, xNegOverY[1]),
 			&result.B0.A0,
 			&result.B0.A1,
 		)
@@ -263,15 +263,15 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		// (res has a zero E2 element, so we use Mul01245By014)
 		result = pr.Mul01245By014(
 			prodLines,
-			pr.curveF.MulMod(&lines[2][0][188].R1, yInv[2]),
-			pr.curveF.MulMod(&lines[2][0][188].R0, xNegOverY[2]),
+			pr.curveF.Mul(&lines[2][0][188].R1, yInv[2]),
+			pr.curveF.Mul(&lines[2][0][188].R0, xNegOverY[2]),
 		)
 
 		// k >= 3
 		for k := 3; k < n; k++ {
 			result = pr.MulBy014(result,
-				pr.curveF.MulMod(&lines[k][0][188].R1, yInv[k]),
-				pr.curveF.MulMod(&lines[k][0][188].R0, xNegOverY[k]),
+				pr.curveF.Mul(&lines[k][0][188].R1, yInv[k]),
+				pr.curveF.Mul(&lines[k][0][188].R0, xNegOverY[k]),
 			)
 		}
 	}
@@ -283,54 +283,22 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 
 		for k := 0; k < n; k++ {
 			result = pr.MulBy014(result,
-				pr.curveF.MulMod(&lines[k][0][i].R1, yInv[k]),
-				pr.curveF.MulMod(&lines[k][0][i].R0, xNegOverY[k]),
+				pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+				pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
 			)
 		}
 
 		if i > 0 && loopCounter2[i]*3+loopCounter1[i] != 0 {
 			for k := 0; k < n; k++ {
 				result = pr.MulBy014(result,
-					pr.curveF.MulMod(&lines[k][1][i].R1, yInv[k]),
-					pr.curveF.MulMod(&lines[k][1][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
 				)
 			}
 		}
 	}
 
 	return result, nil
-
-}
-
-// addStep adds two points in affine coordinates, and evaluates the line in Miller loop
-// https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) addStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation) {
-
-	// compute λ = (y2-y1)/(x2-x1)
-	p2ypy := pr.curveF.Sub(&p2.Y, &p1.Y)
-	p2xpx := pr.curveF.Sub(&p2.X, &p1.X)
-	λ := pr.curveF.Div(p2ypy, p2xpx)
-
-	// xr = λ²-x1-x2
-	λλ := pr.curveF.Mul(λ, λ)
-	p2xpx = pr.curveF.Add(&p1.X, &p2.X)
-	xr := pr.curveF.Sub(λλ, p2xpx)
-
-	// yr = λ(x1-xr) - y1
-	pxrx := pr.curveF.Sub(&p1.X, xr)
-	λpxrx := pr.curveF.Mul(λ, pxrx)
-	yr := pr.curveF.Sub(λpxrx, &p1.Y)
-
-	var res g2AffP
-	res.X = *xr
-	res.Y = *yr
-
-	var line lineEvaluation
-	line.R0 = *λ
-	line.R1 = *pr.curveF.Mul(λ, &p1.X)
-	line.R1 = *pr.curveF.Sub(&line.R1, &p1.Y)
-
-	return &res, &line
 
 }
 

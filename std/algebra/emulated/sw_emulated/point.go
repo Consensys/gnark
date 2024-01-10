@@ -383,8 +383,8 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 // doubleAndAddSelect is the same as doubleAndAdd but computes either:
 //
-//	2p+q is b=1 or
-//	2q+p is b=0
+//	2p+q if b=1 or
+//	2q+p if b=0
 //
 // It first computes the x-coordinate of p+q via the slope(p,q)
 // and then based on a Select adds either p or q.

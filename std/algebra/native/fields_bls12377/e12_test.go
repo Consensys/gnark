@@ -284,9 +284,6 @@ func (circuit *fp12Frobenius) Define(api frontend.API) error {
 	fbSquare.FrobeniusSquare(api, circuit.A)
 	fbSquare.AssertIsEqual(api, circuit.D)
 
-	fbCube := E12{}
-	fbCube.FrobeniusCube(api, circuit.A)
-	fbCube.AssertIsEqual(api, circuit.E)
 	return nil
 }
 
@@ -299,9 +296,6 @@ func TestFrobeniusFp12(t *testing.T) {
 	_, _ = a.SetRandom()
 	c.Frobenius(&a)
 	d.FrobeniusSquare(&a)
-	// TODO @yelhousni restore
-	t.Skip("@yelhousni restore")
-	// e.FrobeniusCube(&a)
 
 	witness.A.Assign(&a)
 	witness.C.Assign(&c)
