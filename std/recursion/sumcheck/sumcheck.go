@@ -121,13 +121,6 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	}
 	r := make([]*emulated.Element[FR], claims.NbVars())
 
-	var maxDegree int
-	for i := 0; i < claims.NbVars(); i++ {
-		if d := claims.Degree(i); d > maxDegree {
-			maxDegree = d
-		}
-	}
-
 	gJR := claims.CombinedSum(combinationCoef)
 
 	for j := 0; j < claims.NbVars(); j++ {
