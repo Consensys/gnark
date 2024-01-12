@@ -40,7 +40,6 @@ type verifyCfg[FR emulated.FieldParams] struct {
 
 type VerifyOption[FR emulated.FieldParams] func(c *verifyCfg[FR]) error
 
-// TODO: make parametric and then use emulated.Element as input?
 func WithBaseChallenges[FR emulated.FieldParams](baseChallenges []*emulated.Element[FR]) VerifyOption[FR] {
 	return func(c *verifyCfg[FR]) error {
 		c.baseChallenges = append(c.baseChallenges, baseChallenges...)
@@ -87,6 +86,7 @@ func NewVerifier[FR emulated.FieldParams](api frontend.API, opts ...Option) (*Ve
 }
 
 func (v *Verifier[FR]) getChallengeNames(nbClaims int, nbVars int) []string {
+	// todo: use map?
 	var challengeNames []string
 	if nbClaims > 1 {
 		challengeNames = []string{v.prefix + "comb"}
@@ -121,22 +121,56 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	}
 	r := make([]*emulated.Element[FR], claims.NbVars())
 
+	// gJR is the claimed value. In case of multiple claims it is combined
+	// claimed value we're going to check against.
 	gJR := claims.CombinedSum(combinationCoef)
 
+	// sumcheck rounds
 	for j := 0; j < claims.NbVars(); j++ {
-		partialSumPoly := proof.PartialSumPolys[j]
+		// instead of sending the polynomials themselves, the provers sends n evaluations of the round polynomial:
+		//
+		//   g_j(X_j) = \sum_{x_{j+1},...\x_k \in {0,1}} g(r_1, ..., r_{j-1}, X_j, x_{j+1}, ...)
+		//
+		// We already know g_{j-1}(r_{j-1}) from the previous rounds and use the assertion
+		//
+		//   g_j(0) + g_j(1) = g_{j-1}(r)
+		//
+		// to get another valid evaluation.
+		evals := proof.RoundPolyEvaluations[j]
 		degree := claims.Degree(j)
-		if len(partialSumPoly) != degree {
-			return fmt.Errorf("expected len %d, got %d", degree, len(partialSumPoly))
+		if len(evals) != degree {
+			return fmt.Errorf("expected len %d, got %d", degree, len(evals))
 		}
-		gj0 := v.f.Sub(gJR, partialSumPoly[0])
-		gJ := polynomial.Univariate[FR]{gj0}
-		gJ = append(gJ, partialSumPoly...)
-		if r[j], challengeNames, err = v.deriveChallenge(fs, challengeNames, partialSumPoly); err != nil {
+		// computes g_{j-1}(r) - g_j(1) as missing evaluation
+		gj0 := v.f.Sub(gJR, evals[0])
+		// construct the n+1 evaluations for interpolation
+		gJ := []*emulated.Element[FR]{gj0}
+		gJ = append(gJ, evals...)
+
+		// we derive the challenge from prover message.
+		if r[j], challengeNames, err = v.deriveChallenge(fs, challengeNames, evals); err != nil {
 			return fmt.Errorf("round %d derive challenge: %w", j, err)
 		}
+		// now, we need to evaluate the polynomial defined by evaluation values
+		// `eval` at r[j] (the computed challenge for this round). Instead of
+		// interpolating and then evaluating we are computing the value
+		// directly.
 		gJR = v.p.InterpolateLDE(r[j], gJ)
+
+		// we do not directly need to check gJR now - as in the next round we
+		// compute new evaluation point from gJR then the check is performed
+		// implicitly.
 	}
+
+	// we have run all the sumcheck rounds. Now the last thing for the verifier
+	// is to check that g(r_1, ..., r_k) is correct. However, depending on the
+	// implementation, the verifier either:
+	//   * checks directly (we have the function at it is simple)
+	//   * returns the gJR to the caller which then checks it later separately (in GKR)
+	//   * something else -- for example we use polynomial commitment opening.
+	//
+	// To cover all the cases, we call the AssertEvaluation method of the claim
+	// which implements the exact logic.
 	if err := claims.AssertEvaluation(r, combinationCoef, gJR, proof.FinalEvalProof); err != nil {
 		return fmt.Errorf("assert final evaluation: %w", err)
 	}

@@ -9,10 +9,8 @@ import (
 	"github.com/consensys/gnark/std/math/polynomial"
 )
 
-// TODO: make more specific
 type EvaluationProof interface{}
 
-// TODO: also make a method to create a claim-manager for a single function. Then can use sumcheck only without GKR.
 type LazyClaims[FR emulated.FieldParams] interface {
 	NbClaims() int
 	NbVars() int
@@ -23,9 +21,9 @@ type LazyClaims[FR emulated.FieldParams] interface {
 }
 
 type Proof[FR emulated.FieldParams] struct {
-	PartialSumPolys []polynomial.Univariate[FR]
-	// TODO: do we need to have the FinalEvalProof here? it would be good if we can move it to the claim manager.
-	FinalEvalProof EvaluationProof
+	// PartialSumPolys is polynomial representation in evaluation form
+	RoundPolyEvaluations [][]*emulated.Element[FR]
+	FinalEvalProof       EvaluationProof
 }
 
 type Function[FR emulated.FieldParams] struct {
