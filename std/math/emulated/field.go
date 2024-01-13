@@ -56,7 +56,7 @@ type ctxKey[T FieldParams] struct{}
 // API for existing circuits.
 //
 // This is an experimental feature and performing emulated arithmetic in-circuit
-// is extremly costly. See package doc for more info.
+// is extremely costly. See package doc for more info.
 func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	if storer, ok := native.(kvstore.Store); ok {
 		ff := storer.GetKeyValue(ctxKey[T]{})

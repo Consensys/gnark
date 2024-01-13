@@ -17,8 +17,8 @@ import (
 //
 // With this approach this is important that we do not change the [Element]
 // values after they are returned from [mulMod] as mulCheck keeps pointers and
-// the check will fail if the values refered to by the pointers change. By
-// following the [Field] public methods this shouldn't happend as we always take
+// the check will fail if the values referred to by the pointers change. By
+// following the [Field] public methods this shouldn't happen as we always take
 // and return pointers, and to change the values the user has to explicitly
 // dereference.
 //
@@ -154,7 +154,7 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 	}
 
 	// we construct a list of elements we want to commit to. Even though we have
-	// commited when doing range checks, do it again here explicitly for safety.
+	// committed when doing range checks, do it again here explicitly for safety.
 	// TODO: committing is actually expensive in PLONK. We create a constraint
 	// for every variable we commit to (to set the selector polynomial). So, it
 	// is actually better not to commit again. However, if we would be to use
