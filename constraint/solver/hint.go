@@ -15,6 +15,17 @@ type HintID uint32
 // It defines an annotated hint function; the number of inputs and outputs injected at solving
 // time is defined in the circuit (compile time).
 //
+// The slices inputs and outputs are already initialized and the also the
+// elements within. The elements come from the pool, so leaking the values leads
+// to undefined behaviour. As elements in output slice are already initialized,
+// then use [math/big.Int.Set] method to assign value.
+//
+// The value field defines the current field of definition. Usually the circuits
+// are typed to particular fields, but this allows to use a single hint function
+// for all different curves.
+//
+// When the hint function returns an error, then this leads to solver error during the proving stage.
+//
 // For example:
 //
 //	b := api.NewHint(hint, 2, a)
@@ -64,7 +75,7 @@ type HintID uint32
 // proof. To allow the particular hint functions to be used during proof
 // construction, the user needs to supply a solver.Option indicating the
 // enabled hints. Such options can be obtained by a call to
-// solver.WithHints(hintFns...), where hintFns are the corresponding hint
+// [solver.WithHints], where hintFns are the corresponding hint
 // functions.
 //
 // # Using hint functions in gadgets
@@ -79,7 +90,7 @@ type HintID uint32
 // proof computation and the prover does not need to provide a corresponding
 // proving option.
 //
-// In the init() method of the gadget, call the method RegisterHint(hintFn) function on
+// In the init() method of the gadget, call the method [RegisterHint] function on
 // the hint function hintFn to register a hint function in the package registry.
 type Hint func(field *big.Int, inputs []*big.Int, outputs []*big.Int) error
 
