@@ -149,6 +149,10 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		if len(P) != len(scalars) {
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
 		}
+		G := c.Generator()
+		for k := range cfg.UseSafeFor {
+			P[k] = c.AddUnified(P[k], G)
+		}
 		// points and scalars must be non-zero
 		n := len(P)
 		var res *G1Affine
@@ -160,6 +164,10 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		for i := 1; i < n-1; i += 2 {
 			q := c.jointScalarMul(P[i-1], P[i], scalars[i-1], scalars[i], opts...)
 			res = c.Add(res, q)
+		}
+		for k := range cfg.UseSafeFor {
+			kG := c.ScalarMulBase(scalars[k])
+			res = c.Add(res, c.Neg(kG))
 		}
 		return res, nil
 	} else {
@@ -211,6 +219,12 @@ func (c *Curve) Lookup2(b1, b2 frontend.Variable, p1, p2, p3, p4 *G1Affine) *G1A
 		X: c.api.Lookup2(b1, b2, p1.X, p2.X, p3.X, p4.X),
 		Y: c.api.Lookup2(b1, b2, p1.Y, p2.Y, p3.Y, p4.Y),
 	}
+}
+
+func (c *Curve) Generator() *G1Affine {
+	_, _, g1aff, _ := bls12377.Generators()
+	G := NewG1Affine(g1aff)
+	return &G
 }
 
 // Pairing allows computing pairing-related operations in BLS12-377.
