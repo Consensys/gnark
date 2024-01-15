@@ -19,6 +19,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
@@ -988,8 +989,10 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	_s2 = v.scalarApi.Add(_s2, alphaSquareLagrange)
 
 	points := make([]*G1El, len(proof.Bsb22Commitments))
+	msmOpts := make([]algopts.AlgebraOption, 0, len(proof.Bsb22Commitments))
 	for i := range proof.Bsb22Commitments {
 		points[i] = &proof.Bsb22Commitments[i].G1El
+		msmOpts = append(msmOpts, algopts.WithUseSafeFor(i))
 	}
 	points = append(points,
 		&vk.Ql.G1El, &vk.Qr.G1El, &vk.Qm.G1El, &vk.Qo.G1El, // first part
@@ -1005,8 +1008,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 		&l, &r, rl, &o, // first part
 		_s1, _s2, // second & third part
 	)
-
-	linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars)
+	linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars, msmOpts...)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("linearized polynomial digest MSM: %w", err)
 	}
