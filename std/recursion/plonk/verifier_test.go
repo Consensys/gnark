@@ -38,9 +38,6 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	return err
 }
 
-/*
-TODO: Tests without api.Commit fail because the current optimized MultiScalarMul (JointScalarMul in particular) requires input points to be distinct.
-
 //-----------------------------------------------------------------
 // Without api.Commit
 
@@ -55,13 +52,13 @@ func (c *InnerCircuitNativeWoCommit) Define(api frontend.API) error {
 	return nil
 }
 
-func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, plonk.VerifyingKey, witness.Witness, plonk.Proof) {
+func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
 	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &InnerCircuitNativeWoCommit{})
 	assert.NoError(err)
 	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
 	assert.NoError(err)
 
-	innerPK, innerVK, err := plonk.Setup(innerCcs, srs, srsLagrange)
+	innerPK, innerVK, err := native_plonk.Setup(innerCcs, srs, srsLagrange)
 	assert.NoError(err)
 
 	// inner proof
@@ -72,11 +69,11 @@ func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.Co
 	}
 	innerWitness, err := frontend.NewWitness(innerAssignment, field)
 	assert.NoError(err)
-	innerProof, err := plonk.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
+	innerProof, err := native_plonk.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
 	assert.NoError(err)
 	innerPubWitness, err := innerWitness.Public()
 	assert.NoError(err)
-	err = plonk.Verify(innerProof, innerVK, innerPubWitness, GetNativeVerifierOptions(outer, field))
+	err = native_plonk.Verify(innerProof, innerVK, innerPubWitness, GetNativeVerifierOptions(outer, field))
 	assert.NoError(err)
 	return innerCcs, innerVK, innerPubWitness, innerProof
 }
@@ -97,12 +94,11 @@ func TestBLS12InBW6WoCommit(t *testing.T) {
 	outerCircuit := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
 		Proof:        PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
-		VerifyingKey: PlaceholderVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
+		VerifyingKey: circuitVk,
 	}
 	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
-		VerifyingKey: circuitVk,
 	}
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
@@ -124,12 +120,11 @@ func TestBW6InBN254WoCommit(t *testing.T) {
 	outerCircuit := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
 		InnerWitness: PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
 		Proof:        PlaceholderProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerCcs),
-		VerifyingKey: PlaceholderVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerCcs),
+		VerifyingKey: circuitVk,
 	}
 	outerAssignment := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
-		VerifyingKey: circuitVk,
 	}
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
@@ -161,7 +156,6 @@ func TestBLS12381InBN254WoCommit(t *testing.T) {
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
-*/
 
 //-----------------------------------------------------------------
 // With api.Commit
