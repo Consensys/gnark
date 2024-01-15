@@ -487,7 +487,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	var selector frontend.Variable
 	if cfg.UseSafe {
 		addFn = c.AddUnified
-		// if p=(0,0) we assign a dummy (0,1) to p and continue
+		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
 		one := c.baseApi.One()
 		Q = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, Q)
@@ -548,6 +548,9 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 
 	}
 
+	// i = 0
+	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
 	tableQ[0] = addFn(tableQ[0], Acc)
 	Acc = c.Select(s1bits[0], Acc, tableQ[0])
 	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
@@ -619,6 +622,8 @@ func (c *Curve[B, S]) scalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S]
 	R0 = c.Select(sBits[n-1], Rb, R0)
 
 	// i = 0
+	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
 	R0 = c.Select(sBits[0], R0, addFn(R0, c.Neg(p)))
 
 	if cfg.UseSafe {
