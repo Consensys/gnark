@@ -11,6 +11,7 @@ type algebraCfg struct {
 	NbScalarBits int
 	FoldMulti    bool
 	UseSafe      bool
+	UseSafeFor   map[int]struct{}
 }
 
 // AlgebraOption allows modifying algebraic operation behaviour.
@@ -57,9 +58,21 @@ func WithUseSafe() AlgebraOption {
 	}
 }
 
+func WithUseSafeFor(idx int) AlgebraOption {
+	return func(ac *algebraCfg) error {
+		if _, ok := ac.UseSafeFor[idx]; ok {
+			return fmt.Errorf("WithUseSafeFor already set for index %d", idx)
+		}
+		ac.UseSafeFor[idx] = struct{}{}
+		return nil
+	}
+}
+
 // NewConfig applies all given options and returns a configuration to be used.
 func NewConfig(opts ...AlgebraOption) (*algebraCfg, error) {
-	ret := new(algebraCfg)
+	ret := &algebraCfg{
+		UseSafeFor: make(map[int]struct{}),
+	}
 	for i := range opts {
 		if err := opts[i](ret); err != nil {
 			return nil, err
