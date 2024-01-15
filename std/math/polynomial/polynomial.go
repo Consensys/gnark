@@ -10,6 +10,8 @@ import (
 
 var minFoldScaledLogSize = 16
 
+// TODO: add also a type for the evaluation form of univariate polynomial.
+
 // Univariate defines a univariate polynomial by its coefficients.
 type Univariate[FR emulated.FieldParams] []*emulated.Element[FR]
 

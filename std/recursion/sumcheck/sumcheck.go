@@ -86,7 +86,6 @@ func NewVerifier[FR emulated.FieldParams](api frontend.API, opts ...Option) (*Ve
 }
 
 func (v *Verifier[FR]) getChallengeNames(nbClaims int, nbVars int) []string {
-	// todo: use map?
 	var challengeNames []string
 	if nbClaims > 1 {
 		challengeNames = []string{v.prefix + "comb"}
