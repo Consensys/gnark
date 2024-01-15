@@ -1012,7 +1012,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("linearized polynomial digest MSM: %w", err)
 	}
-	linearizedPolynomialDigest = v.curve.Add(linearizedPolynomialDigest, &vk.Qk.G1El) // Qk=0 in PLONK W\ Commit ==> use AddUnified
+	linearizedPolynomialDigest = v.curve.AddUnified(linearizedPolynomialDigest, &vk.Qk.G1El) // Qk=0 in PLONK W\ Commit ==> use AddUnified
 
 	// Fold the first proof
 	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+7)
