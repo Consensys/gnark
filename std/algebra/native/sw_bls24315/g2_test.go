@@ -29,43 +29,6 @@ import (
 )
 
 // -------------------------------------------------------------------------------------------------
-// Add jacobian
-
-type g2AddAssign struct {
-	A, B G2Jac
-	C    G2Jac `gnark:",public"`
-}
-
-func (circuit *g2AddAssign) Define(api frontend.API) error {
-	expected := circuit.A
-	expected.AddAssign(api, &circuit.B)
-	expected.AssertIsEqual(api, circuit.C)
-	return nil
-}
-
-func TestAddAssignG2(t *testing.T) {
-
-	// sample 2 random points
-	a := randomPointG2()
-	b := randomPointG2()
-
-	// create the cs
-	var circuit, witness g2AddAssign
-
-	// assign the inputs
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-
-	// compute the result
-	a.AddAssign(&b)
-	witness.C.Assign(&a)
-
-	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
-
-}
-
-// -------------------------------------------------------------------------------------------------
 // Add affine
 
 type g2AddAssignAffine struct {
@@ -100,41 +63,6 @@ func TestAddAssignAffineG2(t *testing.T) {
 	_a.AddAssign(&_b)
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
-
-	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
-
-}
-
-// -------------------------------------------------------------------------------------------------
-// Double Jacobian
-
-type g2DoubleAssign struct {
-	A G2Jac
-	C G2Jac `gnark:",public"`
-}
-
-func (circuit *g2DoubleAssign) Define(api frontend.API) error {
-	expected := circuit.A
-	expected.Double(api, circuit.A)
-	expected.AssertIsEqual(api, circuit.C)
-	return nil
-}
-
-func TestDoubleAssignG2(t *testing.T) {
-
-	// sample 2 random points
-	a := randomPointG2()
-
-	// create the cs
-	var circuit, witness g2DoubleAssign
-
-	// assign the inputs
-	witness.A.Assign(&a)
-
-	// compute the result
-	a.DoubleAssign()
-	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
@@ -214,41 +142,6 @@ func TestDoubleAffineG2(t *testing.T) {
 	_a.DoubleAssign()
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
-
-	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
-
-}
-
-// -------------------------------------------------------------------------------------------------
-// Neg
-
-type g2Neg struct {
-	A G2Jac
-	C G2Jac `gnark:",public"`
-}
-
-func (circuit *g2Neg) Define(api frontend.API) error {
-	expected := G2Jac{}
-	expected.Neg(api, circuit.A)
-	expected.AssertIsEqual(api, circuit.C)
-	return nil
-}
-
-func TestNegG2(t *testing.T) {
-
-	// sample 2 random points
-	a := randomPointG2()
-
-	// create the cs
-	var circuit, witness g2Neg
-
-	// assign the inputs
-	witness.A.Assign(&a)
-
-	// compute the result
-	a.Neg(&a)
-	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())

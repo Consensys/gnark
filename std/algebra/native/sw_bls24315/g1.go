@@ -27,22 +27,9 @@ import (
 	"github.com/consensys/gnark/std/algebra/algopts"
 )
 
-// G1Jac point in Jacobian coords
-type G1Jac struct {
-	X, Y, Z frontend.Variable
-}
-
 // G1Affine point in affine coords
 type G1Affine struct {
 	X, Y frontend.Variable
-}
-
-// Neg outputs -p
-func (p *G1Jac) Neg(api frontend.API, p1 G1Jac) *G1Jac {
-	p.X = p1.X
-	p.Y = api.Sub(0, p1.Y)
-	p.Z = p1.Z
-	return p
 }
 
 // Neg outputs -p
@@ -112,91 +99,6 @@ func (p *G1Affine) AddAssign(api frontend.API, p1 G1Affine) *G1Affine {
 	return p
 }
 
-// AddAssign adds 2 point in Jacobian coordinates
-// p=p, a=p1
-func (p *G1Jac) AddAssign(api frontend.API, p1 G1Jac) *G1Jac {
-
-	// get some Element from our pool
-	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V frontend.Variable
-
-	Z1Z1 = api.Mul(p1.Z, p1.Z)
-
-	Z2Z2 = api.Mul(p.Z, p.Z)
-
-	U1 = api.Mul(p1.X, Z2Z2)
-
-	U2 = api.Mul(p.X, Z1Z1)
-
-	S1 = api.Mul(p1.Y, p.Z)
-	S1 = api.Mul(S1, Z2Z2)
-
-	S2 = api.Mul(p.Y, p1.Z)
-	S2 = api.Mul(S2, Z1Z1)
-
-	H = api.Sub(U2, U1)
-
-	I = api.Add(H, H)
-	I = api.Mul(I, I)
-
-	J = api.Mul(H, I)
-
-	r = api.Sub(S2, S1)
-	r = api.Add(r, r)
-
-	V = api.Mul(U1, I)
-
-	p.X = api.Mul(r, r)
-	p.X = api.Sub(p.X, J)
-	p.X = api.Sub(p.X, V)
-	p.X = api.Sub(p.X, V)
-
-	p.Y = api.Sub(V, p.X)
-	p.Y = api.Mul(p.Y, r)
-
-	S1 = api.Mul(J, S1)
-	S1 = api.Add(S1, S1)
-
-	p.Y = api.Sub(p.Y, S1)
-
-	p.Z = api.Add(p.Z, p1.Z)
-	p.Z = api.Mul(p.Z, p.Z)
-	p.Z = api.Sub(p.Z, Z1Z1)
-	p.Z = api.Sub(p.Z, Z2Z2)
-	p.Z = api.Mul(p.Z, H)
-
-	return p
-}
-
-// DoubleAssign doubles the receiver point in jacobian coords and returns it
-func (p *G1Jac) DoubleAssign(api frontend.API) *G1Jac {
-	// get some Element from our pool
-	var XX, YY, YYYY, ZZ, S, M, T frontend.Variable
-
-	XX = api.Mul(p.X, p.X)
-	YY = api.Mul(p.Y, p.Y)
-	YYYY = api.Mul(YY, YY)
-	ZZ = api.Mul(p.Z, p.Z)
-	S = api.Add(p.X, YY)
-	S = api.Mul(S, S)
-	S = api.Sub(S, XX)
-	S = api.Sub(S, YYYY)
-	S = api.Add(S, S)
-	M = api.Mul(XX, 3) // M = 3*XX+a*ZZ², here a=0 (we suppose sw has j invariant 0)
-	p.Z = api.Add(p.Z, p.Y)
-	p.Z = api.Mul(p.Z, p.Z)
-	p.Z = api.Sub(p.Z, YY)
-	p.Z = api.Sub(p.Z, ZZ)
-	p.X = api.Mul(M, M)
-	T = api.Add(S, S)
-	p.X = api.Sub(p.X, T)
-	p.Y = api.Sub(S, p.X)
-	p.Y = api.Mul(p.Y, M)
-	YYYY = api.Mul(YYYY, 8)
-	p.Y = api.Sub(p.Y, YYYY)
-
-	return p
-}
-
 // Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
 func (p *G1Affine) Select(api frontend.API, b frontend.Variable, p1, p2 G1Affine) *G1Affine {
 
@@ -205,14 +107,6 @@ func (p *G1Affine) Select(api frontend.API, b frontend.Variable, p1, p2 G1Affine
 
 	return p
 
-}
-
-// FromJac sets p to p1 in affine and returns it
-func (p *G1Affine) FromJac(api frontend.API, p1 G1Jac) *G1Affine {
-	s := api.Mul(p1.Z, p1.Z)
-	p.X = api.DivUnchecked(p1.X, s)
-	p.Y = api.DivUnchecked(p1.Y, api.Mul(s, p1.Z))
-	return p
 }
 
 // Double double a point in affine coords
@@ -433,20 +327,6 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int) *G1A
 	P.X, P.Y = Acc.X, Acc.Y
 
 	return P
-}
-
-// Assign a value to self (witness assignment)
-func (p *G1Jac) Assign(p1 *bls24315.G1Jac) {
-	p.X = (fr.Element)(p1.X)
-	p.Y = (fr.Element)(p1.Y)
-	p.Z = (fr.Element)(p1.Z)
-}
-
-// AssertIsEqual constraint self to be equal to other into the given constraint system
-func (p *G1Jac) AssertIsEqual(api frontend.API, other G1Jac) {
-	api.AssertIsEqual(p.X, other.X)
-	api.AssertIsEqual(p.Y, other.Y)
-	api.AssertIsEqual(p.Z, other.Z)
 }
 
 // Assign a value to self (witness assignment)

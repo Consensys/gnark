@@ -27,11 +27,6 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
 )
 
-// G2Jac point in Jacobian coords
-type G2Jac struct {
-	X, Y, Z fields_bls12377.E2
-}
-
 type g2AffP struct {
 	X, Y fields_bls12377.E2
 }
@@ -40,14 +35,6 @@ type g2AffP struct {
 type G2Affine struct {
 	P     g2AffP
 	Lines *lineEvaluations
-}
-
-// Neg outputs -p
-func (p *G2Jac) Neg(api frontend.API, p1 G2Jac) *G2Jac {
-	p.Y.Neg(api, p1.Y)
-	p.X = p1.X
-	p.Z = p1.Z
-	return p
 }
 
 // Neg outputs -p
@@ -83,106 +70,12 @@ func (p *g2AffP) AddAssign(api frontend.API, p1 g2AffP) *g2AffP {
 	return p
 }
 
-// AddAssign adds 2 point in Jacobian coordinates
-// p=p, a=p1
-func (p *G2Jac) AddAssign(api frontend.API, p1 *G2Jac) *G2Jac {
-
-	var Z1Z1, Z2Z2, U1, U2, S1, S2, H, I, J, r, V fields_bls12377.E2
-
-	Z1Z1.Square(api, p1.Z)
-
-	Z2Z2.Square(api, p.Z)
-
-	U1.Mul(api, p1.X, Z2Z2)
-
-	U2.Mul(api, p.X, Z1Z1)
-
-	S1.Mul(api, p1.Y, p.Z)
-	S1.Mul(api, S1, Z2Z2)
-
-	S2.Mul(api, p.Y, p1.Z)
-	S2.Mul(api, S2, Z1Z1)
-
-	H.Sub(api, U2, U1)
-
-	I.Add(api, H, H)
-	I.Square(api, I)
-
-	J.Mul(api, H, I)
-
-	r.Sub(api, S2, S1)
-	r.Add(api, r, r)
-
-	V.Mul(api, U1, I)
-
-	p.X.Square(api, r)
-	p.X.Sub(api, p.X, J)
-	p.X.Sub(api, p.X, V)
-	p.X.Sub(api, p.X, V)
-
-	p.Y.Sub(api, V, p.X)
-	p.Y.Mul(api, p.Y, r)
-
-	S1.Mul(api, J, S1)
-	S1.Add(api, S1, S1)
-
-	p.Y.Sub(api, p.Y, S1)
-
-	p.Z.Add(api, p.Z, p1.Z)
-	p.Z.Square(api, p.Z)
-	p.Z.Sub(api, p.Z, Z1Z1)
-	p.Z.Sub(api, p.Z, Z2Z2)
-	p.Z.Mul(api, p.Z, H)
-
-	return p
-}
-
-// Double doubles a point in jacobian coords
-func (p *G2Jac) Double(api frontend.API, p1 G2Jac) *G2Jac {
-
-	var XX, YY, YYYY, ZZ, S, M, T fields_bls12377.E2
-
-	XX.Square(api, p.X)
-	YY.Square(api, p.Y)
-	YYYY.Square(api, YY)
-	ZZ.Square(api, p.Z)
-	S.Add(api, p.X, YY)
-	S.Square(api, S)
-	S.Sub(api, S, XX)
-	S.Sub(api, S, YYYY)
-	S.Add(api, S, S)
-	M.MulByFp(api, XX, 3) // M = 3*XX+a*ZZ², here a=0 (we suppose sw has j invariant 0)
-	p.Z.Add(api, p.Z, p.Y)
-	p.Z.Square(api, p.Z)
-	p.Z.Sub(api, p.Z, YY)
-	p.Z.Sub(api, p.Z, ZZ)
-	p.X.Square(api, M)
-	T.Add(api, S, S)
-	p.X.Sub(api, p.X, T)
-	p.Y.Sub(api, S, p.X)
-	p.Y.Mul(api, p.Y, M)
-	YYYY.MulByFp(api, YYYY, 8)
-	p.Y.Sub(api, p.Y, YYYY)
-
-	return p
-}
-
 // Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
 func (p *g2AffP) Select(api frontend.API, b frontend.Variable, p1, p2 g2AffP) *g2AffP {
 
 	p.X.Select(api, b, p1.X, p2.X)
 	p.Y.Select(api, b, p1.Y, p2.Y)
 
-	return p
-}
-
-// FromJac sets p to p1 in affine and returns it
-func (p *g2AffP) FromJac(api frontend.API, p1 G2Jac) *g2AffP {
-	var s fields_bls12377.E2
-	s.Mul(api, p1.Z, p1.Z)
-	p.X.DivUnchecked(api, p1.X, s)
-	s.Mul(api, s, p1.Z)
-	p.Y.DivUnchecked(api, p1.Y, s)
 	return p
 }
 
@@ -410,20 +303,6 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int) *g2AffP 
 	P.X, P.Y = Acc.X, Acc.Y
 
 	return P
-}
-
-// Assign a value to self (witness assignment)
-func (p *G2Jac) Assign(p1 *bls12377.G2Jac) {
-	p.X.Assign(&p1.X)
-	p.Y.Assign(&p1.Y)
-	p.Z.Assign(&p1.Z)
-}
-
-// AssertIsEqual constraint self to be equal to other into the given constraint system
-func (p *G2Jac) AssertIsEqual(api frontend.API, other G2Jac) {
-	p.X.AssertIsEqual(api, other.X)
-	p.Y.AssertIsEqual(api, other.Y)
-	p.Z.AssertIsEqual(api, other.Z)
 }
 
 // Assign a value to self (witness assignment)
