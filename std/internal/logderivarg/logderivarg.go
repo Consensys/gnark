@@ -6,7 +6,7 @@
 //
 //	∏_{f∈F} (x-f)^count(f, S) == ∏_{s∈S} x-s,
 //
-// where function `count` counts the number of occurences of f in S. The problem
+// where function `count` counts the number of occurrences of f in S. The problem
 // with this approach is the high cost for exponentiating the left-hand side of
 // the equation. However, in [Haböck22] it was shown that when avoiding the
 // poles, we can perform the same check for the log-derivative variant of the
