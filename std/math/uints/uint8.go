@@ -56,7 +56,7 @@ import (
 // TODO: should something for byte-only ops. Implement a type and then embed it in BinaryField
 
 // TODO: add helper method to call hints which allows to pass in uint8s (bytes)
-// and returns bytes. Then can to byte array manipluation nicely. It is useful
+// and returns bytes. Then can to byte array manipulation nicely. It is useful
 // for X509. For the implementation we want to pack as much bytes into a field
 // element as possible.
 
