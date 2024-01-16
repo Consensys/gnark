@@ -1,12 +1,17 @@
 package compress
 
 import (
+	"errors"
+	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/compress/internal"
+	"github.com/consensys/gnark/std/lookup/logderivlookup"
+	"math/big"
 )
 
 func Pack(api frontend.API, words []frontend.Variable, wordLen int) []frontend.Variable {
 	wordsPerElem := (api.Compiler().FieldBitLen() - 1) / wordLen
-	res := make([]frontend.Variable, 1+(len(words)-1)/wordsPerElem)
+	res := make([]frontend.Variable, (len(words)+wordsPerElem-1)/wordsPerElem)
 	for elemI := range res {
 		res[elemI] = 0
 		for wordI := 0; wordI < wordsPerElem; wordI++ {
@@ -21,34 +26,67 @@ func Pack(api frontend.API, words []frontend.Variable, wordLen int) []frontend.V
 }
 
 type NumReader struct {
-	api       frontend.API
-	c         []frontend.Variable
-	stepCoeff int
-	maxCoeff  int
-	nbWords   int
-	nxt       frontend.Variable
+	api         frontend.API
+	c           []frontend.Variable
+	stepCoeff   int
+	maxCoeff    int
+	wordsPerNum int
+	nxt         frontend.Variable
 }
 
 func NewNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits int) *NumReader {
-	nbWords := numNbBits / wordNbBits
+	wordsPerNum := numNbBits / wordNbBits
+
+	if wordsPerNum*wordNbBits != numNbBits {
+		panic("wordNbBits must be a divisor of 8")
+	}
+
 	stepCoeff := 1 << wordNbBits
-	nxt := ReadNum(api, c, nbWords, stepCoeff)
+	nxt := ReadNum(api, c, wordsPerNum, stepCoeff)
 	return &NumReader{
-		api:       api,
-		c:         c,
-		stepCoeff: stepCoeff,
-		maxCoeff:  1 << numNbBits,
-		nxt:       nxt,
-		nbWords:   nbWords,
+		api:         api,
+		c:           c,
+		stepCoeff:   stepCoeff,
+		maxCoeff:    1 << numNbBits,
+		nxt:         nxt,
+		wordsPerNum: wordsPerNum,
 	}
 }
 
 func ReadNum(api frontend.API, c []frontend.Variable, nbWords, stepCoeff int) frontend.Variable {
-	res := frontend.Variable(0)
-	for i := 0; i < nbWords && i < len(c); i++ {
+	if nbWords < 0 {
+		panic("nbWords cannot be negative")
+	} else if nbWords == 0 {
+		return 0
+	}
+
+	// nbWords \geq 1
+
+	res := c[0]
+	for i := 1; i < nbWords && i < len(c); i++ {
 		res = api.Add(c[i], api.Mul(res, stepCoeff))
 	}
+
 	return res
+}
+
+func AssertNumEquals(api frontend.API, c []frontend.Variable, stepCoeff int, num frontend.Variable) {
+
+	if len(c) == 0 {
+		api.AssertIsEqual(num, 0)
+		return
+	} else if len(c) == 1 {
+		api.AssertIsEqual(num, c[0])
+		return
+	}
+
+	// nbWords \geq 2
+
+	res := c[0]
+	for i := 1; i < len(c)-1 && i < len(c); i++ {
+		res = api.Add(c[i], api.Mul(res, stepCoeff))
+	}
+	addPlonkConstraint(api, c[len(c)-1], res, num, 1, stepCoeff, -1, 0, 0)
 }
 
 // Next returns the next number in the sequence. assumes bits past the end of the slice are 0
@@ -58,12 +96,142 @@ func (nr *NumReader) Next() frontend.Variable {
 	if len(nr.c) != 0 {
 		nr.nxt = nr.api.Sub(nr.api.Mul(nr.nxt, nr.stepCoeff), nr.api.Mul(nr.c[0], nr.maxCoeff))
 
-		if nr.nbWords < len(nr.c) {
-			nr.nxt = nr.api.Add(nr.nxt, nr.c[nr.nbWords])
+		if nr.wordsPerNum < len(nr.c) {
+			nr.nxt = nr.api.Add(nr.nxt, nr.c[nr.wordsPerNum])
 		}
 
 		nr.c = nr.c[1:]
 	}
 
 	return res
+}
+
+// TODO Migrate to std/rangecheck
+type RangeChecker struct {
+	api    frontend.API
+	tables map[uint]*logderivlookup.Table
+}
+
+func NewRangeChecker(api frontend.API) *RangeChecker {
+	return &RangeChecker{api: api, tables: make(map[uint]*logderivlookup.Table)}
+}
+
+func (r *RangeChecker) AssertLessThan(bound uint, c ...frontend.Variable) {
+
+	var check func(frontend.Variable)
+	switch bound {
+	case 1:
+		check = func(v frontend.Variable) { r.api.AssertIsEqual(v, 0) }
+	case 2:
+		check = r.api.AssertIsBoolean
+	case 4:
+		check = r.api.AssertIsCrumb
+	default:
+		cRangeTable, ok := r.tables[bound]
+		if !ok {
+			cRangeTable := logderivlookup.New(r.api)
+			for i := uint(0); i < bound; i++ {
+				cRangeTable.Insert(0)
+			}
+		}
+		_ = cRangeTable.Lookup(c...)
+		return
+	}
+	for i := range c {
+		check(c[i])
+	}
+}
+
+// todo test this
+func (r *RangeChecker) LessThan(bound uint, c frontend.Variable) frontend.Variable {
+	switch bound {
+	case 1:
+		return r.api.IsZero(c)
+	case 2:
+		//return r.api.IsZero(p)
+	}
+
+	if bound%2 != 0 {
+		panic("odd bounds not yet supported")
+	}
+	v := internal.EvaluatePlonkExpression(r.api, c, c, -3, 0, 1, -int(bound-1)) // c^2 - (bound-1)*c
+	res := v
+	for i := uint(1); i < bound/2; i++ {
+		res = internal.EvaluatePlonkExpression(r.api, res, v, int(i*(bound-i-1)), 0, 1, 0)
+	}
+	return res
+}
+
+// BreakUpBytesIntoWords breaks up bytes into words of size wordNbBits
+// It has the side effect of checking that the "bytes" are in fact, bytes
+func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.Variable) []frontend.Variable {
+
+	wordsPerByte := 8 / wordNbBits
+	if wordsPerByte*wordNbBits != 8 {
+		panic("wordNbBits must be a divisor of 8")
+	}
+
+	// solving: break up bytes into words
+	words := bytes
+	if wordsPerByte != 1 {
+		var err error
+		if words, err = r.api.Compiler().NewHint(BreakUpBytesIntoWordsHint(wordNbBits), wordsPerByte*len(bytes), bytes...); err != nil {
+			panic(err)
+		}
+	}
+
+	// proving: check that words are in range
+	r.AssertLessThan(1<<wordNbBits, words...)
+
+	for i := range bytes {
+		AssertNumEquals(r.api, words[i*wordsPerByte:i*wordsPerByte+wordsPerByte], 1<<uint(wordNbBits), bytes[i])
+	}
+
+	return words
+}
+
+func BreakUpBytesIntoWordsHint(wordNbBits int) hint.Hint {
+	return func(mod *big.Int, ins, outs []*big.Int) error { // todo @tabaie find a way for different instances of this hint to have HintIDs
+
+		if 8%wordNbBits != 0 {
+			return errors.New("wordNbBits must be a divisor of 8")
+		}
+
+		if len(outs) != 8/wordNbBits*len(ins) {
+			return errors.New("incongruent number of ins/outs")
+		}
+
+		_256 := big.NewInt(256)
+		wordMod := big.NewInt(1 << uint(wordNbBits))
+
+		var v big.Int
+		for i := range ins {
+			v.Set(ins[i])
+			if v.Cmp(_256) >= 0 {
+				return errors.New("not a byte")
+			}
+			for j := 8/wordNbBits - 1; j >= 0; j-- {
+				outs[i*8/wordNbBits+j].Mod(&v, wordMod) // todo @tabaie more efficiently
+				v.Rsh(&v, uint(wordNbBits))
+			}
+		}
+
+		return nil
+	}
+}
+
+func addPlonkConstraint(api frontend.API, a, b, o frontend.Variable, qL, qR, qO, qM, qC int) {
+	if papi, ok := api.(frontend.PlonkAPI); ok {
+		papi.AddPlonkConstraint(a, b, o, qL, qR, qO, qM, qC)
+	} else {
+		api.AssertIsEqual(
+			api.Add(
+				api.Mul(a, qL),
+				api.Mul(b, qR),
+				api.Mul(a, b, qM),
+				qC,
+			),
+			api.Mul(o, qO),
+		)
+	}
 }
