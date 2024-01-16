@@ -85,24 +85,13 @@ func NewVerifier[FR emulated.FieldParams](api frontend.API, opts ...Option) (*Ve
 	}, nil
 }
 
-func (v *Verifier[FR]) getChallengeNames(nbClaims int, nbVars int) []string {
-	var challengeNames []string
-	if nbClaims > 1 {
-		challengeNames = []string{v.prefix + "comb"}
-	}
-	for i := 0; i < nbVars; i++ {
-		challengeNames = append(challengeNames, fmt.Sprintf("%spSP.%d", v.prefix, i))
-	}
-	return challengeNames
-}
-
 func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...VerifyOption[FR]) error {
 	var fr FR
 	cfg, err := newVerificationConfig(opts...)
 	if err != nil {
 		return fmt.Errorf("verification opts: %w", err)
 	}
-	challengeNames := v.getChallengeNames(claims.NbClaims(), claims.NbVars())
+	challengeNames := getChallengeNames(v.prefix, claims.NbClaims(), claims.NbVars())
 	fs, err := recursion.NewTranscript(v.api, fr.Modulus(), challengeNames)
 	if err != nil {
 		return fmt.Errorf("new transcript: %w", err)
