@@ -25,6 +25,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 )
 
 // G1Affine point in affine coords
@@ -151,11 +152,11 @@ func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 // The method chooses an implementation based on scalar s. If it is constant,
 // then the compiled circuit depends on s. If it is variable type, then
 // the circuit is independent of the inputs.
-func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}) *G1Affine {
+func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}, opts ...algopts.AlgebraOption) *G1Affine {
 	if n, ok := api.Compiler().ConstantValue(s); ok {
-		return P.constScalarMul(api, Q, n)
+		return P.constScalarMul(api, Q, n, opts...)
 	} else {
-		return P.varScalarMul(api, Q, s)
+		return P.varScalarMul(api, Q, s, opts...)
 	}
 }
 
@@ -185,7 +186,11 @@ func init() {
 }
 
 // varScalarMul sets P = [s] Q and returns P.
-func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variable) *G1Affine {
+func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
 	// This method computes [s] Q. We use several methods to reduce the number
 	// of added constraints - first, instead of classical double-and-add, we use
 	// the optimized version from https://github.com/zcash/zcash/issues/3924
@@ -197,7 +202,12 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// from a precomputed table. However, precomputing the table adds 12
 	// additional constraints and thus table-version is more expensive than
 	// addition-version.
-
+	var selector frontend.Variable
+	if cfg.UseSafe {
+		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
+		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
+	}
 	// The context we are working is based on the `outer` curve. However, the
 	// points and the operations on the points are performed on the `inner`
 	// curve of the outer curve. We require some parameters from the inner
@@ -277,10 +287,21 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 		Acc.DoubleAndAdd(api, &Acc, &B)
 	}
 
-	tableQ[0].AddAssign(api, Acc)
-	Acc.Select(api, s1bits[0], Acc, tableQ[0])
-	tablePhiQ[0].AddAssign(api, Acc)
-	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	// i = 0
+	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	if cfg.UseSafe {
+		tableQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableQ[0])
+		tablePhiQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+	} else {
+		tableQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableQ[0])
+		tablePhiQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	}
 
 	P.X = Acc.X
 	P.Y = Acc.Y
@@ -289,7 +310,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 }
 
 // constScalarMul sets P = [s] Q and returns P.
-func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int) *G1Affine {
+func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts ...algopts.AlgebraOption) *G1Affine {
 	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.

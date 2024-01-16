@@ -24,6 +24,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 
@@ -306,6 +307,40 @@ func TestVarScalarMulG1(t *testing.T) {
 	_a.ScalarMultiplication(&_a, r.BigInt(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type g1varScalarMulEdgeCases struct {
+	A G1Affine
+	R frontend.Variable
+}
+
+func (circuit *g1varScalarMulEdgeCases) Define(api frontend.API) error {
+	expected1 := G1Affine{}
+	expected2 := G1Affine{}
+	infinity := G1Affine{X: 0, Y: 0}
+	expected1.varScalarMul(api, circuit.A, 0, algopts.WithUseSafe())
+	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithUseSafe())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	return nil
+}
+
+func TestVarScalarMulG1EdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g1varScalarMulEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
