@@ -10,6 +10,7 @@ import "fmt"
 type algebraCfg struct {
 	NbScalarBits int
 	FoldMulti    bool
+	UseSafe      bool
 }
 
 // AlgebraOption allows modifying algebraic operation behaviour.
@@ -40,6 +41,18 @@ func WithFoldingScalarMul() AlgebraOption {
 			return fmt.Errorf("withFoldingScalarMul already set")
 		}
 		ac.FoldMulti = true
+		return nil
+	}
+}
+
+// WithUseSafe forces the use of safe addition formulas for scalar
+// multiplication.
+func WithUseSafe() AlgebraOption {
+	return func(ac *algebraCfg) error {
+		if ac.UseSafe {
+			return fmt.Errorf("WithUseSafe already set")
+		}
+		ac.UseSafe = true
 		return nil
 	}
 }

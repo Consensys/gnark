@@ -456,34 +456,58 @@ func (c *Curve[B, S]) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 *AffinePo
 // ScalarMul computes s * p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
-// ScalarMul calls ScalarMulGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
+// ScalarMul calls scalarMulGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
 func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	if c.eigenvalue != nil && c.thirdRootOne != nil {
 		return c.scalarMulGLV(p, s, opts...)
 
 	} else {
-		return c.ScalarMulGeneric(p, s, opts...)
+		return c.scalarMulGeneric(p, s, opts...)
 
 	}
 }
 
 // scalarMulGLV computes s * Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
+// It implements algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0).
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithUseSafe] is set.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// [Halo]: https://eprint.iacr.org/2019/1021.pdf
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
 	var st S
 	frModulus := c.scalarApi.Modulus()
+	addFn := c.Add
+	var selector frontend.Variable
+	if cfg.UseSafe {
+		addFn = c.AddUnified
+		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+		selector = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
+		one := c.baseApi.One()
+		Q = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, Q)
+	}
 	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, c.eigenvalue, frModulus)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
-	s1, s2 := sd[0], sd[1]
+	s1, s2, s3, s4 := sd[0], sd[1], sd[3], sd[4]
+
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
 		c.scalarApi.Add(s, c.scalarApi.Mul(frModulus, sd[2])),
 	)
-	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1))
-	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[4], s2))
+	// s1, s2 can be negative (bigints) in the hint, but are reduced mod r in
+	// the circuit. So we return in the hint both s1, s2 and s3=|s1|, s4=|s2|.
+	// In-circuit we compare s1 and s3, s2 and s4 and negate the point when a
+	// corresponding scalar is naegative.
+	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(s3, s1))
+	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(s4, s2))
 
 	var Acc, B1 *AffinePoint[B]
 	// precompute -Q, -Φ(Q), Φ(Q)
@@ -502,8 +526,8 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// Acc = Q + Φ(Q)
 	Acc = c.Add(tableQ[1], tablePhiQ[1])
 
-	s1 = c.scalarApi.Select(selector1, s1, sd[3])
-	s2 = c.scalarApi.Select(selector2, s2, sd[4])
+	s1 = c.scalarApi.Select(selector1, s1, s3)
+	s2 = c.scalarApi.Select(selector2, s2, s4)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
@@ -524,18 +548,26 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 
 	}
 
-	tableQ[0] = c.Add(tableQ[0], Acc)
+	// i = 0
+	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	tableQ[0] = addFn(tableQ[0], Acc)
 	Acc = c.Select(s1bits[0], Acc, tableQ[0])
-	tablePhiQ[0] = c.Add(tablePhiQ[0], Acc)
+	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
 	Acc = c.Select(s2bits[0], Acc, tablePhiQ[0])
+
+	if cfg.UseSafe {
+		zero := c.baseApi.Zero()
+		Acc = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, Acc)
+	}
 
 	return Acc
 }
 
-// ScalarMulGeneric computes s * p and returns it. It doesn't modify p nor s.
+// scalarMulGeneric computes s * p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
-// ✅ p can can be (0,0) and s can be 0.
+// ⚠️  p must not be (0,0) and s must not be 0, unless [algopts.WithUseSafe] option is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -551,16 +583,20 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 // [ELM03]: https://arxiv.org/pdf/math/0208038.pdf
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 // [Joye07]: https://www.iacr.org/archive/ches2007/47270135/47270135.pdf
-func (c *Curve[B, S]) ScalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+func (c *Curve[B, S]) scalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
-
-	// if p=(0,0) we assign a dummy (0,1) to p and continue
-	selector := c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
-	one := c.baseApi.One()
-	p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
+	addFn := c.Add
+	var selector frontend.Variable
+	if cfg.UseSafe {
+		// if p=(0,0) we assign a dummy (0,1) to p and continue
+		selector = c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
+		one := c.baseApi.One()
+		p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
+		addFn = c.AddUnified
+	}
 
 	var st S
 	sr := c.scalarApi.Reduce(s)
@@ -586,13 +622,15 @@ func (c *Curve[B, S]) ScalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S]
 	R0 = c.Select(sBits[n-1], Rb, R0)
 
 	// i = 0
-	// we use AddUnified here instead of add so that when s=0, res=(0,0)
-	// because AddUnified(p, -p) = (0,0)
-	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
+	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	R0 = c.Select(sBits[0], R0, addFn(R0, c.Neg(p)))
 
-	// if p=(0,0), return (0,0)
-	zero := c.baseApi.Zero()
-	R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
+	if cfg.UseSafe {
+		// if p=(0,0), return (0,0)
+		zero := c.baseApi.Zero()
+		R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
+	}
 
 	return R0
 }
@@ -638,14 +676,14 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	s1, s2 := sd[0], sd[1]
+	s1, s2, s3, s4 := sd[0], sd[1], sd[3], sd[4]
 
 	td, err := c.scalarApi.NewHint(decomposeScalarG1, 5, t, c.eigenvalue, frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	t1, t2 := td[0], td[1]
+	t1, t2, t3, t4 := td[0], td[1], td[3], td[4]
 
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
@@ -655,10 +693,14 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 		c.scalarApi.Add(t1, c.scalarApi.Mul(t2, c.eigenvalue)),
 		c.scalarApi.Add(t, c.scalarApi.Mul(frModulus, td[2])),
 	)
-	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[3], s1))
-	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(sd[4], s2))
-	selector3 := c.scalarApi.IsZero(c.scalarApi.Sub(td[3], t1))
-	selector4 := c.scalarApi.IsZero(c.scalarApi.Sub(td[4], t2))
+	// s1, s2 can be negative (bigints) in the hint, but are reduced mod r in
+	// the circuit. So we return in the hint both s1, s2 and s3=|s1|, s4=|s2|.
+	// In-circuit we compare s1 and s3, s2 and s4 and negate the point when a
+	// corresponding scalar is naegative. Respectively for t1, t2, t3, t4.
+	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(s3, s1))
+	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(s4, s2))
+	selector3 := c.scalarApi.IsZero(c.scalarApi.Sub(t3, t1))
+	selector4 := c.scalarApi.IsZero(c.scalarApi.Sub(t4, t2))
 
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]*AffinePoint[B]
@@ -711,10 +753,10 @@ func (c *Curve[B, S]) jointScalarMulGLV(Q, R *AffinePoint[B], s, t *emulated.Ele
 	// Acc = Q + R + Φ(Q) + Φ(R)
 	Acc := c.Add(tableS[1], tablePhiS[1])
 
-	s1 = c.scalarApi.Select(selector1, s1, sd[3])
-	s2 = c.scalarApi.Select(selector2, s2, sd[4])
-	t1 = c.scalarApi.Select(selector3, t1, td[3])
-	t2 = c.scalarApi.Select(selector4, t2, td[4])
+	s1 = c.scalarApi.Select(selector1, s1, s3)
+	s2 = c.scalarApi.Select(selector2, s2, s4)
+	t1 = c.scalarApi.Select(selector3, t1, t3)
+	t2 = c.scalarApi.Select(selector4, t2, t4)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
