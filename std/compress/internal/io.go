@@ -162,7 +162,8 @@ func (r *RangeChecker) AssertLessThan(bound uint, c ...frontend.Variable) {
 	}
 }
 
-// todo test this
+// LessThan returns a variable that is 1 if 0 \leq c < bound, 0 otherwise
+// TODO perf @Tabaie see if we can get away with a weaker contract, where the return value is 0 iff 0 \leq c < bound
 func (r *RangeChecker) LessThan(bound uint, c frontend.Variable) frontend.Variable {
 	switch bound {
 	case 1:
@@ -172,12 +173,13 @@ func (r *RangeChecker) LessThan(bound uint, c frontend.Variable) frontend.Variab
 	if bound%2 != 0 {
 		panic("odd bounds not yet supported")
 	}
-	v := EvaluatePlonkExpression(r.api, c, c, -3, 0, 1, -int(bound-1)) // c^2 - (bound-1)*c
+	v := EvaluatePlonkExpression(r.api, c, c, -int(bound-1), 0, 1, 0) // c^2 - (bound-1)*c
 	res := v
 	for i := uint(1); i < bound/2; i++ {
 		res = EvaluatePlonkExpression(r.api, res, v, int(i*(bound-i-1)), 0, 1, 0)
 	}
-	return res
+
+	return r.api.IsZero(res)
 }
 
 var wordNbBitsToHint = map[int]hint.Hint{1: BreakUpBytesIntoBitsHint, 2: BreakUpBytesIntoCrumbsHint, 4: BreakUpBytesIntoHalfHint}

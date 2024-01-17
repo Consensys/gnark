@@ -77,33 +77,36 @@ func (c *recombineBytesCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-/*
-func TestReadBytes(t *testing.T) {
-	expected := []byte{254, 0, 0, 0}
-	circuit := &readBytesCircuit{
-		Words:      make([]frontend.Variable, 8*len(expected)),
-		WordNbBits: 1,
-		Expected:   expected,
+func TestRangeChecker_LessThan(t *testing.T) {
+	ins := []frontend.Variable{-3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	outs := []frontend.Variable{0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0}
+	circuit := rangeCheckerCircuit{
+		Ins:   make([]frontend.Variable, len(ins)),
+		Outs:  make([]frontend.Variable, len(outs)),
+		Range: 8,
 	}
-	words, err := compress.NewStream(expected, 8)
-	assert.NoError(t, err)
-	words = words.BreakUp(2)
-	assignment := &readBytesCircuit{
-		Words: test_vector_utils.ToVariableSlice(words.D),
+	assignment := rangeCheckerCircuit{
+		Ins:  ins,
+		Outs: outs,
 	}
-	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.GROTH16, backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
-type readBytesCircuit struct {
-	Words      []frontend.Variable
-	WordNbBits int
-	Expected   []byte
+type rangeCheckerCircuit struct {
+	Ins, Outs []frontend.Variable
+	Range     uint
 }
 
-func (c *readBytesCircuit) Define(api frontend.API) error {
-	byts := internal.CombineIntoBytes(api, c.Words, c.WordNbBits)
-	for i := range c.Expected {
-		api.AssertIsEqual(c.Expected[i], byts[i*8])
+func (c *rangeCheckerCircuit) Define(api frontend.API) error {
+	if len(c.Ins) != len(c.Outs) {
+		panic("witness length mismatch")
 	}
+	r := internal.NewRangeChecker(api)
+
+	for i := range c.Ins {
+		lt := r.LessThan(c.Range, c.Ins[i])
+		api.AssertIsEqual(c.Outs[i], lt)
+	}
+
 	return nil
-}*/
+}
