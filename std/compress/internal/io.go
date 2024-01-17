@@ -90,21 +90,39 @@ func AssertNumEquals(api frontend.API, c []frontend.Variable, stepCoeff int, num
 
 // Next returns the next number in the sequence. assumes bits past the end of the slice are 0
 func (nr *NumReader) Next() frontend.Variable {
-	if nr.last == nil {
+	return nr.next(nil)
+}
+
+func (nr *NumReader) AssertNextEquals(v frontend.Variable) {
+	nr.next(v)
+}
+
+func (nr *NumReader) next(v frontend.Variable) frontend.Variable {
+	if len(nr.c) == 0 {
+		return 0
+	}
+
+	if nr.last == nil { // the very first call
 		nr.last = ReadNum(nr.api, nr.c, nr.wordsPerNum, nr.stepCoeff)
+		if v != nil {
+			nr.api.AssertIsEqual(nr.last, v)
+		}
 		return nr.last
 	}
 
-	if len(nr.c) != 0 {
-		nr.last = nr.api.Sub(nr.api.Mul(nr.last, nr.stepCoeff), nr.api.Mul(nr.c[0], nr.maxCoeff))
-
-		if nr.wordsPerNum < len(nr.c) {
+	nr.last = nr.api.Sub(nr.api.Mul(nr.last, nr.stepCoeff), nr.api.Mul(nr.c[0], nr.maxCoeff))
+	if nr.wordsPerNum < len(nr.c) {
+		if v == nil {
 			nr.last = nr.api.Add(nr.last, nr.c[nr.wordsPerNum])
+		} else {
+			addPlonkConstraint(nr.api, nr.last, nr.c[nr.wordsPerNum], v, 1, 1, -1, 0, 0)
+			nr.last = v
 		}
-
-		nr.c = nr.c[1:]
+	} else if v != nil {
+		panic("todo refactoring required")
 	}
 
+	nr.c = nr.c[1:]
 	return nr.last
 }
 
@@ -149,8 +167,6 @@ func (r *RangeChecker) LessThan(bound uint, c frontend.Variable) frontend.Variab
 	switch bound {
 	case 1:
 		return r.api.IsZero(c)
-	case 2:
-		//return r.api.IsZero(p)
 	}
 
 	if bound%2 != 0 {
@@ -191,12 +207,12 @@ func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.V
 
 	reader := NewNumReader(r.api, words, 8, wordNbBits)
 	recombined = make([]frontend.Variable, len(words))
-	// todo perf @Tabaie combine the two loops using AssertNextEquals
-	for i := range recombined {
-		recombined[i] = reader.Next()
-	}
 	for i := range bytes {
-		r.api.AssertIsEqual(bytes[i], recombined[i*wordsPerByte])
+		reader.AssertNextEquals(bytes[i])
+		recombined[i*wordsPerByte] = bytes[i]
+		for j := 1; j < wordsPerByte; j++ {
+			recombined[i*wordsPerByte+j] = reader.Next()
+		}
 	}
 
 	return words, recombined
@@ -251,36 +267,10 @@ func addPlonkConstraint(api frontend.API, a, b, o frontend.Variable, qL, qR, qO,
 				api.Mul(a, qL),
 				api.Mul(b, qR),
 				api.Mul(a, b, qM),
+				api.Mul(o, qO),
 				qC,
 			),
-			api.Mul(o, qO),
+			0,
 		)
 	}
-}
-
-// CombineIntoBytes takes a slice of words and returns a slice of bytes; bytesSubSlice is assumed to be a sub-slice of the result, at every 8/wordNbBits-th byte
-func CombineIntoBytes(api frontend.API, words, bytesSubSlice []frontend.Variable, wordNbBits int) []frontend.Variable {
-	wordsPerByte := 8 / wordNbBits
-	if len(bytesSubSlice)*wordsPerByte != len(words) {
-		panic("incongruent slice sizes")
-	}
-	const coeffRemove = 256
-	coeffStep := 1 << wordNbBits
-	res := make([]frontend.Variable, len(words))
-	for i := range bytesSubSlice {
-		res[i*wordsPerByte] = bytesSubSlice[i]
-		for j := 0; j < wordsPerByte-1; j++ {
-			removeI := i*wordsPerByte + j
-			add := frontend.Variable(0)
-			if addI := removeI + wordsPerByte; addI < len(words) {
-				add = words[addI]
-			}
-			res[removeI+1] = api.Add(
-				api.Mul(res[removeI], coeffStep),
-				api.Mul(words[removeI], -coeffRemove),
-				add,
-			)
-		}
-	}
-	return res
 }
