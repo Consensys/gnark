@@ -109,21 +109,19 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte, options ...test
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	cStream, err := lzss.ReadIntoStream(c, dict, level)
-	require.NoError(t, err)
-
 	circuit := &DecompressionTestCircuit{
-		C:                make([]frontend.Variable, cStream.Len()),
+		C:                make([]frontend.Variable, len(c)+5),
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
 		Level:            level,
 	}
 	assignment := &DecompressionTestCircuit{
-		C:       test_vector_utils.ToVariableSlice(cStream.D),
-		CLength: cStream.Len(),
+		C:       test_vector_utils.ToVariableSlice(c),
+		CLength: len(c),
 	}
 
+	RegisterHints()
 	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
