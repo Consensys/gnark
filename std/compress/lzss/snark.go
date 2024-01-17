@@ -105,7 +105,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 			inI = api.Add(inI, internal.EvaluatePlonkExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
 		}
 
-		eofNow := rangeChecker.LessThan(byteNbWords, api.Sub(inI, cLength)) // less than a byte left; meaning we are at the end of the input
+		eofNow := rangeChecker.LessThan(byteNbWords, api.Sub(cLength, inI)) // less than a byte left; meaning we are at the end of the input
 
 		dLength = api.Add(dLength, api.Mul(api.Sub(eofNow, eof), outI+1)) // if eof, don't advance dLength
 		eof = eofNow

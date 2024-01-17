@@ -68,7 +68,7 @@ func Test3c2943Snark(t *testing.T) {
 
 	dict := getDictionary()
 
-	testCompressionRoundTripSnark(t, d[191:387], dict)
+	testCompressionRoundTripSnark(t, d, dict)
 }
 
 // Fuzz test the decompression
@@ -107,6 +107,8 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte, options ...test
 	require.NoError(t, err)
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
+
+	//assert.NoError(t, os.WriteFile("compress.csv", lzss.CompressedStreamInfo(c, dict).ToCsv(), 0644))
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
