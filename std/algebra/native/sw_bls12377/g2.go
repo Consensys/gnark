@@ -24,6 +24,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
 )
 
@@ -70,6 +71,53 @@ func (p *g2AffP) AddAssign(api frontend.API, p1 g2AffP) *g2AffP {
 	return p
 }
 
+func (p *g2AffP) AddUnified(api frontend.API, q g2AffP) *g2AffP {
+	// selector1 = 1 when p is (0,0) and 0 otherwise
+	selector1 := api.And(p.X.IsZero(api), p.Y.IsZero(api))
+	// selector2 = 1 when q is (0,0) and 0 otherwise
+	selector2 := api.And(q.X.IsZero(api), q.Y.IsZero(api))
+
+	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
+	var pxqx, pxplusqx, num, denum, λ fields_bls12377.E2
+	pxqx.Mul(api, p.X, q.X)
+	pxplusqx.Add(api, p.X, q.X)
+	num.Mul(api, pxplusqx, pxplusqx)
+	num.Sub(api, num, pxqx)
+	denum.Add(api, p.Y, q.Y)
+	// if p.y + q.y = 0, assign dummy 1 to denum and continue
+	selector3 := denum.IsZero(api)
+	one := fields_bls12377.E2{A0: 1, A1: 0}
+	denum.Select(api, selector3, one, denum)
+	λ.DivUnchecked(api, num, denum)
+
+	// x = λ^2 - p.x - q.x
+	var xr, yr fields_bls12377.E2
+	xr.Square(api, λ)
+	xr.Sub(api, xr, pxplusqx)
+
+	// y = λ(p.x - xr) - p.y
+	yr.Sub(api, p.X, xr)
+	yr.Mul(api, yr, λ)
+	yr.Sub(api, yr, p.Y)
+	result := g2AffP{
+		X: xr,
+		Y: yr,
+	}
+
+	// if p=(0,0) return q
+	result.Select(api, selector1, q, result)
+	// if q=(0,0) return p
+	result.Select(api, selector2, *p, result)
+	// if p.y + q.y = 0, return (0, 0)
+	zero := fields_bls12377.E2{A0: 0, A1: 0}
+	result.Select(api, selector3, g2AffP{X: zero, Y: zero}, result)
+
+	p.X = result.X
+	p.Y = result.Y
+
+	return p
+}
+
 // Select sets p1 if b=1, p2 if b=0, and returns it. b must be boolean constrained
 func (p *g2AffP) Select(api frontend.API, b frontend.Variable, p1, p2 g2AffP) *g2AffP {
 
@@ -112,11 +160,11 @@ func (p *g2AffP) Double(api frontend.API, p1 g2AffP) *g2AffP {
 // The method chooses an implementation based on scalar s. If it is constant,
 // then the compiled circuit depends on s. If it is variable type, then
 // the circuit is independent of the inputs.
-func (P *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}) *g2AffP {
+func (P *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}, opts ...algopts.AlgebraOption) *g2AffP {
 	if n, ok := api.Compiler().ConstantValue(s); ok {
-		return P.constScalarMul(api, Q, n)
+		return P.constScalarMul(api, Q, n, opts...)
 	} else {
-		return P.varScalarMul(api, Q, s)
+		return P.varScalarMul(api, Q, s, opts...)
 	}
 }
 
@@ -146,7 +194,11 @@ func init() {
 }
 
 // varScalarMul sets P = [s] Q and returns P.
-func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable) *g2AffP {
+func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, opts ...algopts.AlgebraOption) *g2AffP {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
 	// This method computes [s] Q. We use several methods to reduce the number
 	// of added constraints - first, instead of classical double-and-add, we use
 	// the optimized version from https://github.com/zcash/zcash/issues/3924
@@ -158,7 +210,13 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable) *
 	// from a precomputed table. However, precomputing the table adds 12
 	// additional constraints and thus table-version is more expensive than
 	// addition-version.
-
+	var selector frontend.Variable
+	if cfg.UseSafe {
+		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+		selector = api.And(Q.X.IsZero(api), Q.Y.IsZero(api))
+		one := fields_bls12377.E2{A0: 1, A1: 0}
+		Q.Select(api, selector, g2AffP{X: one, Y: one}, Q)
+	}
 	// The context we are working is based on the `outer` curve. However, the
 	// points and the operations on the points are performed on the `inner`
 	// curve of the outer curve. We require some parameters from the inner
@@ -238,10 +296,22 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable) *
 		Acc.DoubleAndAdd(api, &Acc, &B)
 	}
 
-	tableQ[0].AddAssign(api, Acc)
-	Acc.Select(api, s1bits[0], Acc, tableQ[0])
-	tablePhiQ[0].AddAssign(api, Acc)
-	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	// i = 0
+	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	if cfg.UseSafe {
+		tableQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableQ[0])
+		tablePhiQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+		zero := fields_bls12377.E2{A0: 0, A1: 0}
+		Acc.Select(api, selector, g2AffP{X: zero, Y: zero}, Acc)
+	} else {
+		tableQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableQ[0])
+		tablePhiQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	}
 
 	P.X = Acc.X
 	P.Y = Acc.Y
@@ -250,7 +320,11 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable) *
 }
 
 // constScalarMul sets P = [s] Q and returns P.
-func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int) *g2AffP {
+func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...algopts.AlgebraOption) *g2AffP {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
 	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.
@@ -259,7 +333,15 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int) *g2AffP 
 	s.Mod(s, cc.fr)
 	cc.phi2(api, &phiQ, &Q)
 
-	k := ecc.SplitScalar(s, cc.glvBasis)
+	var k [2]big.Int
+	// if s=0, assign dummy 1s to k[0] and k[1]
+	if s.BitLen() == 0 {
+		k[0].SetInt64(1)
+		k[1].SetInt64(1)
+	} else {
+		k = ecc.SplitScalar(s, cc.glvBasis)
+	}
+
 	if k[0].Sign() == -1 {
 		k[0].Neg(&k[0])
 		Q.Neg(api, Q)
@@ -276,31 +358,63 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int) *g2AffP 
 	negPhiQ.Neg(api, phiQ)
 	var table [4]g2AffP
 	table[0] = negQ
-	table[0].AddAssign(api, negPhiQ)
 	table[1] = Q
-	table[1].AddAssign(api, negPhiQ)
 	table[2] = negQ
-	table[2].AddAssign(api, phiQ)
 	table[3] = Q
-	table[3].AddAssign(api, phiQ)
+
+	if cfg.UseSafe {
+		table[0].AddUnified(api, negPhiQ)
+		table[1].AddUnified(api, negPhiQ)
+		table[2].AddUnified(api, phiQ)
+		table[3].AddUnified(api, phiQ)
+	} else {
+		table[0].AddAssign(api, negPhiQ)
+		table[1].AddAssign(api, negPhiQ)
+		table[2].AddAssign(api, phiQ)
+		table[3].AddAssign(api, phiQ)
+	}
 
 	Acc = table[3]
 	// if both high bits are set, then we would get to the incomplete part,
 	// handle it separately.
 	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
-		Acc.Double(api, Acc)
-		Acc.AddAssign(api, table[3])
+		if cfg.UseSafe {
+			Acc.AddUnified(api, Acc)
+			Acc.AddUnified(api, table[3])
+		} else {
+			Acc.Double(api, Acc)
+			Acc.AddAssign(api, table[3])
+		}
 		nbits = nbits - 1
 	}
 	for i := nbits - 1; i > 0; i-- {
-		Acc.DoubleAndAdd(api, &Acc, &table[k[0].Bit(i)+2*k[1].Bit(i)])
+		if cfg.UseSafe {
+			Acc.AddUnified(api, Acc)
+			Acc.AddUnified(api, table[k[0].Bit(i)+2*k[1].Bit(i)])
+		} else {
+			Acc.DoubleAndAdd(api, &Acc, &table[k[0].Bit(i)+2*k[1].Bit(i)])
+		}
 	}
 
-	negQ.AddAssign(api, Acc)
-	Acc.Select(api, k[0].Bit(0), Acc, negQ)
-	negPhiQ.AddAssign(api, Acc)
+	// i = 0
+	if cfg.UseSafe {
+		negQ.AddUnified(api, Acc)
+		Acc.Select(api, k[0].Bit(0), Acc, negQ)
+		negPhiQ.AddUnified(api, Acc)
+	} else {
+		negQ.AddAssign(api, Acc)
+		Acc.Select(api, k[0].Bit(0), Acc, negQ)
+		negPhiQ.AddAssign(api, Acc)
+	}
 	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
 	P.X, P.Y = Acc.X, Acc.Y
+
+	// if s=0, return P=(0,0)
+	zero := fields_bls12377.E2{A0: 0, A1: 0}
+	if s.BitLen() == 0 {
+		P.X = zero
+		P.Y = zero
+	}
 
 	return P
 }

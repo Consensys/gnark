@@ -453,13 +453,13 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 }
 
 // ScalarMulBase computes s * g1 and returns it, where g1 is the fixed generator. It doesn't modify s.
-func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable) *G1Affine {
+func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	_, _, g1aff, _ := bls12377.Generators()
 	generator := G1Affine{
 		X: g1aff.X.BigInt(new(big.Int)),
 		Y: g1aff.Y.BigInt(new(big.Int)),
 	}
-	return P.ScalarMul(api, generator, s)
+	return P.ScalarMul(api, generator, s, opts...)
 }
 
 // P = [s]Q + [t]R using Shamir's trick
