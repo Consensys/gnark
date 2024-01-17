@@ -35,14 +35,16 @@ func newConfig(opts ...Option) (*config, error) {
 }
 
 type verifyCfg[FR emulated.FieldParams] struct {
-	baseChallenges []*emulated.Element[FR]
+	baseChallenges []emulated.Element[FR]
 }
 
 type VerifyOption[FR emulated.FieldParams] func(c *verifyCfg[FR]) error
 
 func WithBaseChallenges[FR emulated.FieldParams](baseChallenges []*emulated.Element[FR]) VerifyOption[FR] {
 	return func(c *verifyCfg[FR]) error {
-		c.baseChallenges = append(c.baseChallenges, baseChallenges...)
+		for i := range baseChallenges {
+			c.baseChallenges = append(c.baseChallenges, *baseChallenges[i])
+		}
 		return nil
 	}
 }
@@ -130,10 +132,12 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 			return fmt.Errorf("expected len %d, got %d", degree, len(evals))
 		}
 		// computes g_{j-1}(r) - g_j(1) as missing evaluation
-		gj0 := v.f.Sub(gJR, evals[0])
+		gj0 := v.f.Sub(gJR, &evals[0])
 		// construct the n+1 evaluations for interpolation
 		gJ := []*emulated.Element[FR]{gj0}
-		gJ = append(gJ, evals...)
+		for i := range evals {
+			gJ = append(gJ, &evals[i])
+		}
 
 		// we derive the challenge from prover message.
 		if r[j], challengeNames, err = v.deriveChallenge(fs, challengeNames, evals); err != nil {
@@ -166,9 +170,9 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	return nil
 }
 
-func (v *Verifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName string, values []*emulated.Element[FR]) error {
+func (v *Verifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName string, values []emulated.Element[FR]) error {
 	for i := range values {
-		bts := v.f.ToBits(values[i])
+		bts := v.f.ToBits(&values[i])
 		if err := fs.Bind(challengeName, bts); err != nil {
 			return fmt.Errorf("bind challenge %s %d: %w", challengeName, i, err)
 		}
@@ -176,7 +180,7 @@ func (v *Verifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName st
 	return nil
 }
 
-func (v *Verifier[FR]) deriveChallenge(fs *fiatshamir.Transcript, challengeNames []string, values []*emulated.Element[FR]) (challenge *emulated.Element[FR], restChallengeNames []string, err error) {
+func (v *Verifier[FR]) deriveChallenge(fs *fiatshamir.Transcript, challengeNames []string, values []emulated.Element[FR]) (challenge *emulated.Element[FR], restChallengeNames []string, err error) {
 	var fr FR
 	if err = v.bindChallenge(fs, challengeNames[0], values); err != nil {
 		return nil, nil, fmt.Errorf("bind: %w", err)

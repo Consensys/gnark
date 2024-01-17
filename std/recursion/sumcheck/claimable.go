@@ -21,11 +21,24 @@ type LazyClaims[FR emulated.FieldParams] interface {
 	AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof EvaluationProof) error
 }
 
+type NativePolynomial []*big.Int
+
+// Claims is the interface for the claimable function for proving.
 type Claims interface {
-	Combine(*big.Int) []*big.Int
-	Next(*big.Int) []*big.Int
-	NbVars() int
 	NbClaims() int
+	NbVars() int
+	// Combine combines separate claims into a single sumcheckable claim using
+	// the coefficient coeff. It returns an error if the claim is already
+	// combined.
+	//
+	// TODO: should we return a new [Claim] instead to make it stateless?
+	Combine(coeff *big.Int) NativePolynomial
+
+	// ToUnivariate fixes the first len(r) variables to r, keeps the next
+	// variable free and sums over a hypercube for the last variables. Instead
+	// of returning the polynomial in coefficient form, it returns the
+	// evaluations at degree different points.
+	ToUnivariate(r *big.Int) NativePolynomial
 	ProverFinalEval(r []*big.Int) NativeEvaluationProof
 }
 
@@ -78,6 +91,65 @@ func (fn *MultilinearClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], comb
 	}
 	fn.f.AssertIsEqual(val, fn.claim)
 	return nil
+}
+
+type NativeMultilinearClaim struct {
+	*bigIntEngine
+
+	ml []*big.Int
+}
+
+func NewNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim *NativeMultilinearClaim, hypersum *big.Int, err error) {
+	if bits.OnesCount(uint(len(ml))) != 1 {
+		return nil, nil, fmt.Errorf("expecting power of two coeffs")
+	}
+	be := &bigIntEngine{mod: new(big.Int).Set(target)}
+	hypersum = new(big.Int)
+	for i := range ml {
+		hypersum = be.Add(hypersum, hypersum, ml[i])
+	}
+	return &NativeMultilinearClaim{bigIntEngine: be, ml: ml}, hypersum, nil
+}
+
+func (fn *NativeMultilinearClaim) NbClaims() int {
+	return 1
+}
+
+func (fn *NativeMultilinearClaim) NbVars() int {
+	return bits.Len(uint(len(fn.ml))) - 1
+}
+
+func (fn *NativeMultilinearClaim) Combine(coeff *big.Int) NativePolynomial {
+	return []*big.Int{fn.hypesumX1One()}
+}
+
+func (fn *NativeMultilinearClaim) ToUnivariate(r *big.Int) NativePolynomial {
+	fn.ml = fn.fold(r)
+	return []*big.Int{fn.hypesumX1One()}
+}
+
+func (fn *NativeMultilinearClaim) ProverFinalEval(r []*big.Int) NativeEvaluationProof {
+	return nil
+}
+
+func (fn *NativeMultilinearClaim) fold(r *big.Int) []*big.Int {
+	mid := len(fn.ml) / 2
+	bottom, top := fn.ml[:mid], fn.ml[mid:]
+	t := new(big.Int)
+	for i := 0; i < mid; i++ {
+		fn.Sub(t, top[i], bottom[i])
+		fn.Mul(t, t, r)
+		fn.Add(bottom[i], bottom[i], t)
+	}
+	return fn.ml[:mid]
+}
+
+func (fn *NativeMultilinearClaim) hypesumX1One() *big.Int {
+	sum := fn.ml[len(fn.ml)/2]
+	for i := len(fn.ml)/2 + 1; i < len(fn.ml); i++ {
+		fn.Add(sum, sum, fn.ml[i])
+	}
+	return sum
 }
 
 func getChallengeNames(prefix string, nbClaims int, nbVars int) []string {
