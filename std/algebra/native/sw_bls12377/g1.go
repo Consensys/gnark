@@ -311,6 +311,10 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 
 // constScalarMul sets P = [s] Q and returns P.
 func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts ...algopts.AlgebraOption) *G1Affine {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
 	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.
@@ -319,7 +323,15 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	s.Mod(s, cc.fr)
 	cc.phi1(api, &phiQ, &Q)
 
-	k := ecc.SplitScalar(s, cc.glvBasis)
+	var k [2]big.Int
+	// if s=0, assign dummy 1s to k[0] and k[1]
+	if s.BitLen() == 0 {
+		k[0].SetInt64(1)
+		k[1].SetInt64(1)
+	} else {
+		k = ecc.SplitScalar(s, cc.glvBasis)
+	}
+
 	if k[0].Sign() == -1 {
 		k[0].Neg(&k[0])
 		Q.Neg(api, Q)
@@ -336,31 +348,62 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	negPhiQ.Neg(api, phiQ)
 	var table [4]G1Affine
 	table[0] = negQ
-	table[0].AddAssign(api, negPhiQ)
 	table[1] = Q
-	table[1].AddAssign(api, negPhiQ)
 	table[2] = negQ
-	table[2].AddAssign(api, phiQ)
 	table[3] = Q
-	table[3].AddAssign(api, phiQ)
+
+	if cfg.UseSafe {
+		table[0].AddUnified(api, negPhiQ)
+		table[1].AddUnified(api, negPhiQ)
+		table[2].AddUnified(api, phiQ)
+		table[3].AddUnified(api, phiQ)
+	} else {
+		table[0].AddAssign(api, negPhiQ)
+		table[1].AddAssign(api, negPhiQ)
+		table[2].AddAssign(api, phiQ)
+		table[3].AddAssign(api, phiQ)
+	}
 
 	Acc = table[3]
 	// if both high bits are set, then we would get to the incomplete part,
 	// handle it separately.
 	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
-		Acc.Double(api, Acc)
-		Acc.AddAssign(api, table[3])
+		if cfg.UseSafe {
+			Acc.AddUnified(api, Acc)
+			Acc.AddUnified(api, table[3])
+		} else {
+			Acc.Double(api, Acc)
+			Acc.AddAssign(api, table[3])
+		}
 		nbits = nbits - 1
 	}
 	for i := nbits - 1; i > 0; i-- {
-		Acc.DoubleAndAdd(api, &Acc, &table[k[0].Bit(i)+2*k[1].Bit(i)])
+		if cfg.UseSafe {
+			Acc.AddUnified(api, Acc)
+			Acc.AddUnified(api, table[k[0].Bit(i)+2*k[1].Bit(i)])
+		} else {
+			Acc.DoubleAndAdd(api, &Acc, &table[k[0].Bit(i)+2*k[1].Bit(i)])
+		}
 	}
 
-	negQ.AddAssign(api, Acc)
-	Acc.Select(api, k[0].Bit(0), Acc, negQ)
-	negPhiQ.AddAssign(api, Acc)
+	// i = 0
+	if cfg.UseSafe {
+		negQ.AddUnified(api, Acc)
+		Acc.Select(api, k[0].Bit(0), Acc, negQ)
+		negPhiQ.AddUnified(api, Acc)
+	} else {
+		negQ.AddAssign(api, Acc)
+		Acc.Select(api, k[0].Bit(0), Acc, negQ)
+		negPhiQ.AddAssign(api, Acc)
+	}
 	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
 	P.X, P.Y = Acc.X, Acc.Y
+
+	// if s=0, return P=(0,0)
+	if s.BitLen() == 0 {
+		P.X = 0
+		P.Y = 0
+	}
 
 	return P
 }

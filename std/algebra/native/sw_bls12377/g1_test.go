@@ -276,6 +276,45 @@ func TestConstantScalarMulG1(t *testing.T) {
 
 }
 
+type g1constantScalarMulEdgeCases struct {
+	A G1Affine
+	R *big.Int
+}
+
+func (circuit *g1constantScalarMulEdgeCases) Define(api frontend.API) error {
+	expected1 := G1Affine{}
+	expected2 := G1Affine{}
+	infinity := G1Affine{X: 0, Y: 0}
+	expected1.constScalarMul(api, circuit.A, big.NewInt(0))
+	expected2.constScalarMul(api, infinity, circuit.R, algopts.WithUseSafe())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	return nil
+}
+
+func TestConstantScalarMulG1EdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g1constantScalarMulEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	br := new(big.Int)
+	r.BigInt(br)
+	// br is a circuit parameter
+	circuit.R = br
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+
+}
+
 type g1varScalarMul struct {
 	A G1Affine
 	C G1Affine `gnark:",public"`
