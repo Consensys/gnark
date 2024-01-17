@@ -1,4 +1,4 @@
-package internal
+package internal_test
 
 import (
 	"bytes"
@@ -6,6 +6,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/compress/internal"
+	"github.com/consensys/gnark/std/compress/lzss"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"github.com/consensys/gnark/test"
 	"github.com/icza/bitio"
@@ -15,7 +17,7 @@ import (
 
 func TestRecombineBytes(t *testing.T) {
 	// get some random bytes
-	_bytes := make([]byte, 1) // todo increase size
+	_bytes := make([]byte, 50000)
 	_, err := rand.Read(_bytes)
 	assert.NoError(t, err)
 
@@ -49,6 +51,7 @@ func TestRecombineBytes(t *testing.T) {
 		Recombined: test_vector_utils.ToVariableSlice(recombined),
 	}
 
+	lzss.RegisterHints()
 	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
@@ -57,15 +60,14 @@ type recombineBytesCircuit struct {
 }
 
 func (c *recombineBytesCircuit) Define(api frontend.API) error {
-	r := NewRangeChecker(api)
-	bits := r.BreakUpBytesIntoWords(1, c.Bytes...)
+	r := internal.NewRangeChecker(api)
+	bits, recombined := r.BreakUpBytesIntoWords(1, c.Bytes...)
 	if len(bits) != len(c.Bits) {
 		panic("wrong number of bits")
 	}
 	for i := range bits {
 		api.AssertIsEqual(c.Bits[i], bits[i])
 	}
-	recombined := CombineIntoBytes(api, bits, c.Bytes, 1)
 	if len(recombined) != len(c.Recombined) {
 		panic("wrong number of bytes")
 	}

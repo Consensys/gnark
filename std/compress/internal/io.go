@@ -88,6 +88,8 @@ func AssertNumEquals(api frontend.API, c []frontend.Variable, stepCoeff int, num
 	addPlonkConstraint(api, c[len(c)-1], res, num, 1, stepCoeff, -1, 0, 0)
 }
 
+// TODO perf @tabaie AssertNextEquals
+
 // Next returns the next number in the sequence. assumes bits past the end of the slice are 0
 func (nr *NumReader) Next() frontend.Variable {
 	res := nr.nxt
@@ -161,9 +163,12 @@ func (r *RangeChecker) LessThan(bound uint, c frontend.Variable) frontend.Variab
 	return res
 }
 
+var wordNbBitsToHint = map[int]hint.Hint{1: BreakUpBytesIntoBitsHint, 2: BreakUpBytesIntoCrumbsHint, 4: BreakUpBytesIntoHalfHint}
+
 // BreakUpBytesIntoWords breaks up bytes into words of size wordNbBits
-// It has the side effect of checking that the "bytes" are in fact, bytes
-func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.Variable) []frontend.Variable {
+// It also returns a slice of bytes which are a reading of the input byte slice starting from each of the words, thus a super-slice of the input
+// It has the side effect of checking that the input does in fact consist of bytes
+func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.Variable) (words, recombined []frontend.Variable) {
 
 	wordsPerByte := 8 / wordNbBits
 	if wordsPerByte*wordNbBits != 8 {
@@ -171,10 +176,11 @@ func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.V
 	}
 
 	// solving: break up bytes into words
-	words := bytes
+	words = bytes
 	if wordsPerByte != 1 {
 		var err error
-		if words, err = r.api.Compiler().NewHint(BreakUpBytesIntoWordsHint(wordNbBits), wordsPerByte*len(bytes), bytes...); err != nil {
+		// todo @tabaie use named hints so different wordNbBits can be used in the same circuit
+		if words, err = r.api.Compiler().NewHint(wordNbBitsToHint[wordNbBits], wordsPerByte*len(bytes), bytes...); err != nil {
 			panic(err)
 		}
 	}
@@ -182,41 +188,57 @@ func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.V
 	// proving: check that words are in range
 	r.AssertLessThan(1<<wordNbBits, words...)
 
+	reader := NewNumReader(r.api, words, 8, wordNbBits)
+	recombined = make([]frontend.Variable, len(words))
+	// todo perf @Tabaie combine the two loops using AssertNextEquals
+	for i := range recombined {
+		recombined[i] = reader.Next()
+	}
 	for i := range bytes {
-		AssertNumEquals(r.api, words[i*wordsPerByte:i*wordsPerByte+wordsPerByte], 1<<uint(wordNbBits), bytes[i])
+		r.api.AssertIsEqual(bytes[i], recombined[i*wordsPerByte])
 	}
 
-	return words
+	return words, recombined
 }
 
-func BreakUpBytesIntoWordsHint(wordNbBits int) hint.Hint {
-	return func(mod *big.Int, ins, outs []*big.Int) error { // todo @tabaie find a way for different instances of this hint to have HintIDs
+func breakUpBytesIntoWords(wordNbBits int, ins, outs []*big.Int) error {
 
-		if 8%wordNbBits != 0 {
-			return errors.New("wordNbBits must be a divisor of 8")
-		}
-
-		if len(outs) != 8/wordNbBits*len(ins) {
-			return errors.New("incongruent number of ins/outs")
-		}
-
-		_256 := big.NewInt(256)
-		wordMod := big.NewInt(1 << uint(wordNbBits))
-
-		var v big.Int
-		for i := range ins {
-			v.Set(ins[i])
-			if v.Cmp(_256) >= 0 {
-				return errors.New("not a byte")
-			}
-			for j := 8/wordNbBits - 1; j >= 0; j-- {
-				outs[i*8/wordNbBits+j].Mod(&v, wordMod) // todo @tabaie more efficiently
-				v.Rsh(&v, uint(wordNbBits))
-			}
-		}
-
-		return nil
+	if 8%wordNbBits != 0 {
+		return errors.New("wordNbBits must be a divisor of 8")
 	}
+
+	if len(outs) != 8/wordNbBits*len(ins) {
+		return errors.New("incongruent number of ins/outs")
+	}
+
+	_256 := big.NewInt(256)
+	wordMod := big.NewInt(1 << uint(wordNbBits))
+
+	var v big.Int
+	for i := range ins {
+		v.Set(ins[i])
+		if v.Cmp(_256) >= 0 {
+			return errors.New("not a byte")
+		}
+		for j := 8/wordNbBits - 1; j >= 0; j-- {
+			outs[i*8/wordNbBits+j].Mod(&v, wordMod) // todo @tabaie more efficiently
+			v.Rsh(&v, uint(wordNbBits))
+		}
+	}
+
+	return nil
+}
+
+func BreakUpBytesIntoBitsHint(_ *big.Int, ins, outs []*big.Int) error {
+	return breakUpBytesIntoWords(1, ins, outs)
+}
+
+func BreakUpBytesIntoCrumbsHint(_ *big.Int, ins, outs []*big.Int) error {
+	return breakUpBytesIntoWords(2, ins, outs)
+}
+
+func BreakUpBytesIntoHalfHint(_ *big.Int, ins, outs []*big.Int) error { // todo find catchy name for 4 bits
+	return breakUpBytesIntoWords(4, ins, outs)
 }
 
 func addPlonkConstraint(api frontend.API, a, b, o frontend.Variable, qL, qR, qO, qM, qC int) {
@@ -249,10 +271,10 @@ func CombineIntoBytes(api frontend.API, words, bytesSubSlice []frontend.Variable
 		for j := 0; j < wordsPerByte-1; j++ {
 			removeI := i*wordsPerByte + j
 			add := frontend.Variable(0)
-			if addI := removeI + wordsPerByte - 1; addI < len(words) {
+			if addI := removeI + wordsPerByte; addI < len(words) {
 				add = words[addI]
 			}
-			words[removeI+1] = api.Add(
+			res[removeI+1] = api.Add(
 				api.Mul(res[removeI], coeffStep),
 				api.Mul(words[removeI], -coeffRemove),
 				add,
