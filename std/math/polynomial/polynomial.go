@@ -13,13 +13,38 @@ var minFoldScaledLogSize = 16
 // TODO: add also a type for the evaluation form of univariate polynomial.
 
 // Univariate defines a univariate polynomial by its coefficients.
-type Univariate[FR emulated.FieldParams] []*emulated.Element[FR]
+type Univariate[FR emulated.FieldParams] []emulated.Element[FR]
 
 // TODO: give better package doc to Multilinear
 
 // Multilinear defines a multivariate multilinear polynomial by its term
 // coefficients.
-type Multilinear[FR emulated.FieldParams] []*emulated.Element[FR]
+type Multilinear[FR emulated.FieldParams] []emulated.Element[FR]
+
+func valueOf[FR emulated.FieldParams](univ []*big.Int) []emulated.Element[FR] {
+	ret := make([]emulated.Element[FR], len(univ))
+	for i := range univ {
+		r := emulated.ValueOf[FR](univ[i])
+		ret[i] = r
+	}
+	return ret
+}
+
+func ValueOfUnivariate[FR emulated.FieldParams](univ []*big.Int) Univariate[FR] {
+	return valueOf[FR](univ)
+}
+
+func ValueOfMultilinear[FR emulated.FieldParams](ml []*big.Int) Multilinear[FR] {
+	return valueOf[FR](ml)
+}
+
+func PlaceholderMultilinear[FR emulated.FieldParams](nbVars int) Multilinear[FR] {
+	return make(Multilinear[FR], 1<<nbVars)
+}
+
+func PlaceholderUnivariate[FR emulated.FieldParams](length int) Univariate[FR] {
+	return make(Univariate[FR], length)
+}
 
 type Polynomial[FR emulated.FieldParams] struct {
 	api frontend.API
@@ -48,10 +73,10 @@ func New[FR emulated.FieldParams](api frontend.API) (*Polynomial[FR], error) {
 func (p *Polynomial[FR]) EvalUnivariate(P Univariate[FR], at *emulated.Element[FR]) *emulated.Element[FR] {
 	res := p.f.Zero()
 	for i := len(P) - 1; i > 0; i-- {
-		res = p.f.Add(res, P[i])
+		res = p.f.Add(res, &P[i])
 		res = p.f.Mul(res, at)
 	}
-	res = p.f.Add(res, P[0])
+	res = p.f.Add(res, &P[0])
 	return res
 }
 
@@ -70,16 +95,16 @@ func (p *Polynomial[FR]) EvalMultilinear(M Multilinear[FR], at []*emulated.Eleme
 	if len(at) != 0 {
 		return nil, fmt.Errorf("incompatible evaluation vector size")
 	}
-	return p.f.Mul(M[0], scaleCorrectionFactor), nil
+	return p.f.Mul(&M[0], scaleCorrectionFactor), nil
 }
 
 func (p *Polynomial[FR]) fold(M Multilinear[FR], at *emulated.Element[FR]) Multilinear[FR] {
 	mid := len(M) / 2
-	R := make([]*emulated.Element[FR], mid)
+	R := make([]emulated.Element[FR], mid)
 	for j := range R {
-		diff := p.f.Sub(M[mid+j], M[j])
+		diff := p.f.Sub(&M[mid+j], &M[j])
 		diffAt := p.f.Mul(diff, at)
-		R[j] = p.f.Add(M[j], diffAt)
+		R[j] = *p.f.Add(&M[j], diffAt)
 	}
 	return R
 }
@@ -88,10 +113,10 @@ func (p *Polynomial[FR]) foldScaled(M Multilinear[FR], at *emulated.Element[FR])
 	denom := p.f.Sub(p.f.One(), at)
 	coeff := p.f.Div(at, denom)
 	mid := len(M) / 2
-	R := make([]*emulated.Element[FR], mid)
+	R := make([]emulated.Element[FR], mid)
 	for j := range R {
-		tmp := p.f.Mul(M[j], coeff)
-		R[j] = p.f.Add(M[j], tmp)
+		tmp := p.f.Mul(&M[j], coeff)
+		R[j] = *p.f.Add(&M[j], tmp)
 	}
 	return R, denom
 }

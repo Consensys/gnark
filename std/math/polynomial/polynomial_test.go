@@ -21,8 +21,8 @@ func (c *evalPolyCircuit[FR]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	P := polynomial.FromSlice(c.P)
-	res := p.EvalUnivariate(P, &c.At)
+	// P := polynomial.FromSlice(c.P)
+	res := p.EvalUnivariate(c.P, &c.At)
 	f, err := emulated.NewField[FR](api)
 	if err != nil {
 		return err
@@ -61,9 +61,9 @@ func (c *evalMultiLinCircuit[FR]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	M := polynomial.FromSlice(c.M)
+	// M := polynomial.FromSlice(c.M)
 	X := polynomial.FromSlice(c.At)
-	res, err := p.EvalMultilinear(M, X)
+	res, err := p.EvalMultilinear(c.M, X)
 	if err != nil {
 		return err
 	}
