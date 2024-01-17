@@ -105,7 +105,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 			inI = api.Add(inI, internal.EvaluatePlonkExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
 		}
 
-		eofNow := api.Sub(1, rangeChecker.LessThan(byteNbWords, api.Sub(inI, cLength))) // less than a byte left; meaning we are at the end of the input
+		eofNow := rangeChecker.LessThan(byteNbWords, api.Sub(inI, cLength)) // less than a byte left; meaning we are at the end of the input
 
 		dLength = api.Add(dLength, api.Mul(api.Sub(eofNow, eof), outI+1)) // if eof, don't advance dLength
 		eof = eofNow
@@ -113,29 +113,6 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	}
 	return dLength, nil
 }
-
-/* func checkInputRange(api frontend.API, c []frontend.Variable, wordNbBits int) {
-	if wordNbBits > 2 {
-		cRangeTable := logderivlookup.New(api)
-		for i := 0; i < 1<<wordNbBits; i++ {
-			cRangeTable.Insert(0)
-		}
-		_ = cRangeTable.Lookup(c...)
-		return
-	}
-	var check func(frontend.Variable)
-	switch wordNbBits {
-	case 1:
-		check = api.AssertIsBoolean
-	case 2:
-		check = api.AssertIsCrumb
-	default:
-		panic("wordNbBits must be positive")
-	}
-	for i := range c {
-		check(c[i])
-	}
-}*/
 
 func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.Table {
 	table := logderivlookup.New(api)

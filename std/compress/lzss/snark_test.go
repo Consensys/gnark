@@ -109,24 +109,22 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte, options ...test
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
+	const extraBytes = 5
+
 	circuit := &DecompressionTestCircuit{
-		C:                make([]frontend.Variable, len(c)+5),
+		C:                make([]frontend.Variable, len(c)+extraBytes),
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
 		Level:            level,
 	}
 	assignment := &DecompressionTestCircuit{
-		C:       test_vector_utils.ToVariableSlice(c),
+		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, extraBytes)...)),
 		CLength: len(c),
 	}
 
 	RegisterHints()
 	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
-}
-
-func TestRecombineBytes(t *testing.T) {
-	t.Error("not implemented")
 }
 
 func getDictionary() []byte {
