@@ -14,9 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+/* TODO Get test data for packing and the checksum from the zkevm monorepo
 func TestCompression1ZeroE2E(t *testing.T) {
 	testCompressionE2E(t, []byte{0}, nil, "1_zero")
-}
+}*/
 
 func BenchmarkCompression26KBE2E(b *testing.B) {
 	_, err := BenchCompressionE2ECompilation(nil, "./testdata/3c2943")

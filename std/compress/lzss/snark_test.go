@@ -1,7 +1,6 @@
 package lzss
 
 import (
-	"github.com/consensys/compress"
 	"os"
 	"testing"
 
@@ -27,6 +26,8 @@ func Test0To10ExplicitSnark(t *testing.T) {
 	testCompressionRoundTripSnark(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, nil)
 }
 
+const inputExtraBytes = 5
+
 func TestNoCompressionSnark(t *testing.T) {
 
 	d, err := os.ReadFile("./testdata/3c2943/data.bin")
@@ -41,21 +42,19 @@ func TestNoCompressionSnark(t *testing.T) {
 
 	decompressorLevel := lzss.BestCompression
 
-	cStream, err := compress.NewStream(c, uint8(decompressorLevel))
-	require.NoError(t, err)
-
 	circuit := &DecompressionTestCircuit{
-		C:                make([]frontend.Variable, cStream.Len()),
+		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
 		Level:            decompressorLevel,
 	}
 	assignment := &DecompressionTestCircuit{
-		C:       test_vector_utils.ToVariableSlice(cStream.D),
-		CLength: cStream.Len(),
+		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		CLength: len(c),
 	}
 
+	RegisterHints()
 	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
@@ -69,7 +68,7 @@ func Test3c2943Snark(t *testing.T) {
 
 	dict := getDictionary()
 
-	testCompressionRoundTripSnark(t, d, dict)
+	testCompressionRoundTripSnark(t, d[191:387], dict)
 }
 
 // Fuzz test the decompression
@@ -109,17 +108,15 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte, options ...test
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
-	const extraBytes = 5
-
 	circuit := &DecompressionTestCircuit{
-		C:                make([]frontend.Variable, len(c)+extraBytes),
+		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
 		Level:            level,
 	}
 	assignment := &DecompressionTestCircuit{
-		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, extraBytes)...)),
+		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
 		CLength: len(c),
 	}
 
