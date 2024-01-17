@@ -30,7 +30,7 @@ type NumReader struct {
 	stepCoeff   int
 	maxCoeff    int
 	wordsPerNum int
-	nxt         frontend.Variable
+	last        frontend.Variable
 }
 
 func NewNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits int) *NumReader {
@@ -41,13 +41,11 @@ func NewNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits
 	}
 
 	stepCoeff := 1 << wordNbBits
-	nxt := ReadNum(api, c, wordsPerNum, stepCoeff)
 	return &NumReader{
 		api:         api,
 		c:           c,
 		stepCoeff:   stepCoeff,
 		maxCoeff:    1 << numNbBits,
-		nxt:         nxt,
 		wordsPerNum: wordsPerNum,
 	}
 }
@@ -92,19 +90,22 @@ func AssertNumEquals(api frontend.API, c []frontend.Variable, stepCoeff int, num
 
 // Next returns the next number in the sequence. assumes bits past the end of the slice are 0
 func (nr *NumReader) Next() frontend.Variable {
-	res := nr.nxt
+	if nr.last == nil {
+		nr.last = ReadNum(nr.api, nr.c, nr.wordsPerNum, nr.stepCoeff)
+		return nr.last
+	}
 
 	if len(nr.c) != 0 {
-		nr.nxt = nr.api.Sub(nr.api.Mul(nr.nxt, nr.stepCoeff), nr.api.Mul(nr.c[0], nr.maxCoeff))
+		nr.last = nr.api.Sub(nr.api.Mul(nr.last, nr.stepCoeff), nr.api.Mul(nr.c[0], nr.maxCoeff))
 
 		if nr.wordsPerNum < len(nr.c) {
-			nr.nxt = nr.api.Add(nr.nxt, nr.c[nr.wordsPerNum])
+			nr.last = nr.api.Add(nr.last, nr.c[nr.wordsPerNum])
 		}
 
 		nr.c = nr.c[1:]
 	}
 
-	return res
+	return nr.last
 }
 
 // TODO Migrate to std/rangecheck
