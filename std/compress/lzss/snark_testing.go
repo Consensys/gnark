@@ -3,7 +3,7 @@ package lzss
 import (
 	"compress/gzip"
 	"fmt"
-	goCompress "github.com/consensys/compress"
+	"github.com/consensys/compress"
 	"github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -12,7 +12,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
-	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/compress/internal"
 	"github.com/consensys/gnark/std/hash/mimc"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
 	"os"
@@ -64,7 +64,7 @@ func BenchCompressionE2ECompilation(dict []byte, name string) (constraint.Constr
 		return nil, err
 	}
 
-	cStream, err := goCompress.NewStream(c, uint8(level))
+	cStream, err := compress.NewStream(c, uint8(level))
 	if err != nil {
 		return nil, err
 	}
@@ -132,9 +132,9 @@ type TestCompressionCircuit struct {
 func (c *TestCompressionCircuit) Define(api frontend.API) error {
 
 	fmt.Println("packing")
-	cPacked := compress.Pack(api, c.C, int(c.Level))
-	dPacked := compress.Pack(api, c.D, 8)
-	dictPacked := compress.Pack(api, c.Dict, 8)
+	cPacked := internal.Pack(api, c.C, int(c.Level))
+	dPacked := internal.Pack(api, c.D, 8)
+	dictPacked := internal.Pack(api, c.Dict, 8)
 
 	fmt.Println("computing checksum")
 	if err := checkSnark(api, cPacked, c.CLen, c.CChecksum); err != nil {
@@ -161,7 +161,7 @@ func (c *TestCompressionCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func check(s goCompress.Stream, padTo int) (checksum fr.Element, err error) {
+func check(s compress.Stream, padTo int) (checksum fr.Element, err error) {
 
 	s.D = append(s.D, make([]int, padTo-len(s.D))...)
 

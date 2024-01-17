@@ -1,10 +1,9 @@
-package compress
+package internal
 
 import (
 	"errors"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/compress/internal"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	"math/big"
 )
@@ -154,10 +153,10 @@ func (r *RangeChecker) LessThan(bound uint, c frontend.Variable) frontend.Variab
 	if bound%2 != 0 {
 		panic("odd bounds not yet supported")
 	}
-	v := internal.EvaluatePlonkExpression(r.api, c, c, -3, 0, 1, -int(bound-1)) // c^2 - (bound-1)*c
+	v := EvaluatePlonkExpression(r.api, c, c, -3, 0, 1, -int(bound-1)) // c^2 - (bound-1)*c
 	res := v
 	for i := uint(1); i < bound/2; i++ {
-		res = internal.EvaluatePlonkExpression(r.api, res, v, int(i*(bound-i-1)), 0, 1, 0)
+		res = EvaluatePlonkExpression(r.api, res, v, int(i*(bound-i-1)), 0, 1, 0)
 	}
 	return res
 }
@@ -234,4 +233,31 @@ func addPlonkConstraint(api frontend.API, a, b, o frontend.Variable, qL, qR, qO,
 			api.Mul(o, qO),
 		)
 	}
+}
+
+// CombineIntoBytes takes a slice of words and returns a slice of bytes; bytesSubSlice is assumed to be a sub-slice of the result, at every 8/wordNbBits-th byte
+func CombineIntoBytes(api frontend.API, words, bytesSubSlice []frontend.Variable, wordNbBits int) []frontend.Variable {
+	wordsPerByte := 8 / wordNbBits
+	if len(bytesSubSlice)*wordsPerByte != len(words) {
+		panic("incongruent slice sizes")
+	}
+	const coeffRemove = 256
+	coeffStep := 1 << wordNbBits
+	res := make([]frontend.Variable, len(words))
+	for i := range bytesSubSlice {
+		res[i*wordsPerByte] = bytesSubSlice[i]
+		for j := 0; j < wordsPerByte-1; j++ {
+			removeI := i*wordsPerByte + j
+			add := frontend.Variable(0)
+			if addI := removeI + wordsPerByte - 1; addI < len(words) {
+				add = words[addI]
+			}
+			words[removeI+1] = api.Add(
+				api.Mul(res[removeI], coeffStep),
+				api.Mul(words[removeI], -coeffRemove),
+				add,
+			)
+		}
+	}
+	return res
 }
