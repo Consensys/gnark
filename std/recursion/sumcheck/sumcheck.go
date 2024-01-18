@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/std/recursion"
+	"golang.org/x/exp/slices"
 )
 
 type config struct {
@@ -173,6 +174,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 func (v *Verifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName string, values []emulated.Element[FR]) error {
 	for i := range values {
 		bts := v.f.ToBits(&values[i])
+		slices.Reverse(bts)
 		if err := fs.Bind(challengeName, bts); err != nil {
 			return fmt.Errorf("bind challenge %s %d: %w", challengeName, i, err)
 		}

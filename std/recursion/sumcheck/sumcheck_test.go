@@ -63,5 +63,7 @@ func testMultilinearSumcheckInstance[FR emulated.FieldParams](t *testing.T, curr
 }
 
 func TestMultilinearSumcheck(t *testing.T) {
+	testMultilinearSumcheckInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), []int{1, 2})
+	testMultilinearSumcheckInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), []int{1, 2, 3, 4})
 	testMultilinearSumcheckInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), []int{1, 2, 3, 4, 5, 6, 7, 8})
 }

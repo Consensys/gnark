@@ -150,8 +150,8 @@ func Prove(current *big.Int, target *big.Int, claims Claims, opts ...ProverOptio
 }
 
 func bindChallenge(fs *fiatshamir.Transcript, challengeName string, values []*big.Int) error {
-	var buf = make([]byte, 32)
 	for i := range values {
+		buf := make([]byte, 32)
 		values[i].FillBytes(buf)
 		if err := fs.Bind(challengeName, buf); err != nil {
 			return fmt.Errorf("bind challenge %s %d: %w", challengeName, i, err)
