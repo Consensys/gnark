@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test1ZeroSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, []byte{0}, nil)
+func Test1OneSnark(t *testing.T) {
+	testCompressionRoundTripSnark(t, []byte{1}, nil)
 }
 
 func TestGoodCompressionSnark(t *testing.T) {

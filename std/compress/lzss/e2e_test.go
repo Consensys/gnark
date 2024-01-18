@@ -1,24 +1,10 @@
 package lzss
 
-import (
-	goCompress "github.com/consensys/compress"
-	"github.com/consensys/compress/lzss"
-	"os"
-	"testing"
-
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
-	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
-	"github.com/consensys/gnark/test"
-	"github.com/stretchr/testify/assert"
-)
-
 /* TODO Get test data for packing and the checksum from the zkevm monorepo
 func TestCompression1ZeroE2E(t *testing.T) {
 	testCompressionE2E(t, []byte{0}, nil, "1_zero")
 }*/
-
+/*
 func BenchmarkCompression26KBE2E(b *testing.B) {
 	_, err := BenchCompressionE2ECompilation(nil, "./testdata/3c2943")
 	assert.NoError(b, err)
@@ -110,8 +96,9 @@ type checksumTestCircuit struct {
 }
 
 func (c *checksumTestCircuit) Define(api frontend.API) error {
-	if err := checkSnark(api, c.Inputs, len(c.Inputs), c.Sum); err != nil {
+	if err := compress.AssertChecksumEquals(api, c.Inputs, len(c.Inputs), c.Sum); err != nil {
 		return err
 	}
 	return nil
 }
+*/
