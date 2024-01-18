@@ -90,6 +90,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		// write to output
 		outVal := api.Select(copying, toCopy, curr)
+		// TODO previously the last byte of the output kept getting repeated. That can be worked with. If there was a reason to save some 600K constraints in the zkEVM decompressor, take this out again
 		d[outI] = plonk_helpers.EvaluatePlonkExpression(api, outVal, eof, 1, 0, -1, 0) // write zeros past eof
 		// WARNING: curr modified by MulAcc
 		outTable.Insert(d[outI])

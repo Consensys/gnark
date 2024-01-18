@@ -47,7 +47,10 @@ func AssertChecksumEquals(api frontend.API, e []frontend.Variable, checksum fron
 	return nil
 }
 
-func ChecksumBytes(b []byte, hsh hash.Hash, fieldNbBits int) []byte {
+func ChecksumBytes(b []byte, validLength int, hsh hash.Hash, fieldNbBits int) []byte {
+	if validLength < 0 || validLength > len(b) {
+		panic("invalid length")
+	}
 	usableBytesPerElem := (fieldNbBits+7)/8 - 1
 	buf := make([]byte, usableBytesPerElem+1)
 	for i := 0; i < len(b); i += usableBytesPerElem {
@@ -57,7 +60,7 @@ func ChecksumBytes(b []byte, hsh hash.Hash, fieldNbBits int) []byte {
 		}
 		hsh.Write(buf)
 	}
-	big.NewInt(int64(len(b))).FillBytes(buf)
+	big.NewInt(int64(validLength)).FillBytes(buf)
 	hsh.Write(buf)
 
 	return hsh.Sum(nil)
