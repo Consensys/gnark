@@ -50,7 +50,7 @@ func UnpackIntoBytes(api frontend.API, bytePerElem int, packed []frontend.Variab
 
 		z := api.IsZero(unpacked[i])
 
-		lastNonZero := plonk_helpers.EvaluatePlonkExpression(api, z, found, -1, -1, 0, 1) // nz - found
+		lastNonZero := plonk_helpers.EvaluatePlonkExpression(api, z, found, -1, -1, 1, 1) // nz - found
 		nbBytes = api.Add(nbBytes, api.Mul(lastNonZero, frontend.Variable(i)))            // the last nonzero byte itself is useless
 
 		//api.AssertIsEqual(api.Mul(api.Sub(bytePerElem-i%bytePerElem, unpacked[i]), lastNonZero), 0) // sanity check, technically unnecessary TODO @Tabaie make sure it's one constraint only or better yet, remove
