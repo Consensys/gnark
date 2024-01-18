@@ -10,38 +10,6 @@ import (
 	"github.com/consensys/gnark/std/math/polynomial"
 )
 
-type LazyClaims[FR emulated.FieldParams] interface {
-	NbClaims() int
-	NbVars() int
-	// CombinedSum returns the folded claim. This is used when reducing the claim.
-	CombinedSum(coeff *emulated.Element[FR]) *emulated.Element[FR]
-	// Degree returns the maximum degree of the variable i-th variable.
-	Degree(i int) int
-	// AssertEvaluation lazily asserts the correctness of the evaluation value expectedValue of the claim at r.
-	AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof EvaluationProof) error
-}
-
-type NativePolynomial []*big.Int
-
-// Claims is the interface for the claimable function for proving.
-type Claims interface {
-	NbClaims() int
-	NbVars() int
-	// Combine combines separate claims into a single sumcheckable claim using
-	// the coefficient coeff. It returns an error if the claim is already
-	// combined.
-	//
-	// TODO: should we return a new [Claim] instead to make it stateless?
-	Combine(coeff *big.Int) NativePolynomial
-
-	// ToUnivariate fixes the first len(r) variables to r, keeps the next
-	// variable free and sums over a hypercube for the last variables. Instead
-	// of returning the polynomial in coefficient form, it returns the
-	// evaluations at degree different points.
-	ToUnivariate(r *big.Int) NativePolynomial
-	ProverFinalEval(r []*big.Int) NativeEvaluationProof
-}
-
 type MultilinearClaim[FR emulated.FieldParams] struct {
 	ml    polynomial.Multilinear[FR]
 	claim *emulated.Element[FR]
@@ -154,15 +122,4 @@ func (fn *NativeMultilinearClaim) hypesumX1One() *big.Int {
 		fn.Add(sum, sum, fn.ml[i])
 	}
 	return sum
-}
-
-func getChallengeNames(prefix string, nbClaims int, nbVars int) []string {
-	var challengeNames []string
-	if nbClaims > 1 {
-		challengeNames = []string{prefix + "comb"}
-	}
-	for i := 0; i < nbVars; i++ {
-		challengeNames = append(challengeNames, fmt.Sprintf("%spSP.%d", prefix, i))
-	}
-	return challengeNames
 }

@@ -4,12 +4,9 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark/frontend"
-	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/std/recursion"
-	"golang.org/x/exp/slices"
 )
 
 type config struct {
@@ -100,13 +97,13 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		return fmt.Errorf("new transcript: %w", err)
 	}
 	// bind challenge from previous round if it is a continuation
-	if err = v.bindChallenge(fs, challengeNames[0], cfg.baseChallenges); err != nil {
+	if err = v.bindChallengeVerifier(fs, challengeNames[0], cfg.baseChallenges); err != nil {
 		return fmt.Errorf("base: %w", err)
 	}
 
 	var combinationCoef *emulated.Element[FR]
 	if claims.NbClaims() >= 2 {
-		if combinationCoef, challengeNames, err = v.deriveChallenge(fs, challengeNames, nil); err != nil {
+		if combinationCoef, challengeNames, err = v.deriveChallengeVerifier(fs, challengeNames, nil); err != nil {
 			return fmt.Errorf("derive combination coef: %w", err)
 		}
 	}
@@ -141,7 +138,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		}
 
 		// we derive the challenge from prover message.
-		if challenges[j], challengeNames, err = v.deriveChallenge(fs, challengeNames, evals); err != nil {
+		if challenges[j], challengeNames, err = v.deriveChallengeVerifier(fs, challengeNames, evals); err != nil {
 			return fmt.Errorf("round %d derive challenge: %w", j, err)
 		}
 		// now, we need to evaluate the polynomial defined by evaluation values
@@ -169,30 +166,4 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	}
 
 	return nil
-}
-
-func (v *Verifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName string, values []emulated.Element[FR]) error {
-	for i := range values {
-		bts := v.f.ToBits(&values[i])
-		slices.Reverse(bts)
-		if err := fs.Bind(challengeName, bts); err != nil {
-			return fmt.Errorf("bind challenge %s %d: %w", challengeName, i, err)
-		}
-	}
-	return nil
-}
-
-func (v *Verifier[FR]) deriveChallenge(fs *fiatshamir.Transcript, challengeNames []string, values []emulated.Element[FR]) (challenge *emulated.Element[FR], restChallengeNames []string, err error) {
-	var fr FR
-	if err = v.bindChallenge(fs, challengeNames[0], values); err != nil {
-		return nil, nil, fmt.Errorf("bind: %w", err)
-	}
-	nativeChallenge, err := fs.ComputeChallenge(challengeNames[0])
-	if err != nil {
-		return nil, nil, fmt.Errorf("compute challenge %s: %w", challengeNames[0], err)
-	}
-	// TODO: when implementing better way (construct from limbs instead of bits) then change
-	chBts := bits.ToBinary(v.api, nativeChallenge, bits.WithNbDigits(fr.Modulus().BitLen()))
-	challenge = v.f.FromBits(chBts...)
-	return challenge, challengeNames[1:], nil
 }
