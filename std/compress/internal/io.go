@@ -51,28 +51,7 @@ func ReadNum(api frontend.API, c []frontend.Variable, nbWords, stepCoeff int) fr
 	return res
 }
 
-func AssertNumEquals(api frontend.API, c []frontend.Variable, stepCoeff int, num frontend.Variable) {
-
-	if len(c) == 0 {
-		api.AssertIsEqual(num, 0)
-		return
-	} else if len(c) == 1 {
-		api.AssertIsEqual(num, c[0])
-		return
-	}
-
-	// nbWords \geq 2
-
-	res := c[0]
-	for i := 1; i < len(c)-1 && i < len(c); i++ {
-		res = api.Add(c[i], api.Mul(res, stepCoeff))
-	}
-	addPlonkConstraint(api, c[len(c)-1], res, num, 1, stepCoeff, -1, 0, 0)
-}
-
-// TODO perf @tabaie AssertNextEquals
-
-// Next returns the next number in the sequence. assumes bits past the end of the slice are 0
+// Next returns the next number in the sequence. assumes bits past the end of the Slice are 0
 func (nr *NumReader) Next() frontend.Variable {
 	return nr.next(nil)
 }
@@ -110,7 +89,7 @@ func (nr *NumReader) next(v frontend.Variable) frontend.Variable {
 	return nr.last
 }
 
-// TODO Migrate to std/rangecheck
+// TODO Use std/rangecheck instead
 type RangeChecker struct {
 	api    frontend.API
 	tables map[uint]*logderivlookup.Table
@@ -169,7 +148,7 @@ func (r *RangeChecker) LessThan(bound uint, c frontend.Variable) frontend.Variab
 var wordNbBitsToHint = map[int]hint.Hint{1: BreakUpBytesIntoBitsHint, 2: BreakUpBytesIntoCrumbsHint, 4: BreakUpBytesIntoHalfHint}
 
 // BreakUpBytesIntoWords breaks up bytes into words of size wordNbBits
-// It also returns a slice of bytes which are a reading of the input byte slice starting from each of the words, thus a super-slice of the input
+// It also returns a Slice of bytes which are a reading of the input byte Slice starting from each of the words, thus a super-Slice of the input
 // It has the side effect of checking that the input does in fact consist of bytes
 func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.Variable) (words, recombined []frontend.Variable) {
 
@@ -259,4 +238,21 @@ func addPlonkConstraint(api frontend.API, a, b, o frontend.Variable, qL, qR, qO,
 			0,
 		)
 	}
+}
+
+// ShiftLeft erases shiftAmount many elements from the left of Slice and replaces them in the right with zeros
+// it is the caller's responsibility to make sure that 0 \le shift < len(c)
+func ShiftLeft(api frontend.API, slice []frontend.Variable, shiftAmount frontend.Variable) []frontend.Variable {
+	res := make([]frontend.Variable, len(slice))
+	l := logderivlookup.New(api)
+	for i := range slice {
+		l.Insert(slice[i])
+	}
+	for range slice {
+		l.Insert(0)
+	}
+	for i := range slice {
+		res[i] = l.Lookup(api.Add(i, shiftAmount))[0]
+	}
+	return res
 }

@@ -1,6 +1,8 @@
 package internal
 
-import "github.com/consensys/gnark/frontend"
+import (
+	"github.com/consensys/gnark/frontend"
+)
 
 func EvaluatePlonkExpression(api frontend.API, a, b frontend.Variable, aCoeff, bCoeff, mCoeff, constant int) frontend.Variable {
 	if plonkAPI, ok := api.(frontend.PlonkAPI); ok {

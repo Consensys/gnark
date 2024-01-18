@@ -25,8 +25,7 @@ func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 		return err
 	}
 	if c.CheckCorrectness {
-		_ = dLen
-		//api.AssertIsEqual(len(c.D), dLen)
+		api.AssertIsEqual(len(c.D), dLen)
 		for i := range c.D {
 			api.AssertIsEqual(c.D[i], dBack[i])
 		}
