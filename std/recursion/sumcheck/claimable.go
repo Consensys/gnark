@@ -89,7 +89,7 @@ func (fn *MultilinearClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], comb
 	if err != nil {
 		return fmt.Errorf("eval: %w", err)
 	}
-	fn.f.AssertIsEqual(val, fn.claim)
+	fn.f.AssertIsEqual(val, expectedValue)
 	return nil
 }
 
@@ -108,7 +108,11 @@ func NewNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim *NativeMul
 	for i := range ml {
 		hypersum = be.Add(hypersum, hypersum, ml[i])
 	}
-	return &NativeMultilinearClaim{bigIntEngine: be, ml: ml}, hypersum, nil
+	cml := make([]*big.Int, len(ml))
+	for i := range ml {
+		cml[i] = new(big.Int).Set(ml[i])
+	}
+	return &NativeMultilinearClaim{bigIntEngine: be, ml: cml}, hypersum, nil
 }
 
 func (fn *NativeMultilinearClaim) NbClaims() int {
