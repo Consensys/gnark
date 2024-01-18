@@ -52,6 +52,9 @@ func ChecksumBytes(b []byte, hsh hash.Hash, fieldNbBits int) []byte {
 	buf := make([]byte, usableBytesPerElem+1)
 	for i := 0; i < len(b); i += usableBytesPerElem {
 		copy(buf[1:], b[i:])
+		for j := usableBytesPerElem; j+i > len(b) && j > 0; j-- {
+			buf[j] = 0
+		}
 		hsh.Write(buf)
 	}
 	big.NewInt(int64(len(b))).FillBytes(buf)

@@ -68,19 +68,26 @@ func (c *shiftLeftCircuit) Define(api frontend.API) error {
 }
 
 func TestChecksumBytes(t *testing.T) {
-	b := []byte{1}
-	checksum := ChecksumBytes(b, hash.MIMC_BLS12_377.New(), fr.Bits)
 
-	circuit := checksumTestCircuit{
-		Bytes: make([]frontend.Variable, len(b)),
+	for n := 1; n < 100; n++ {
+		b := make([]byte, n)
+		_, err := rand.Read(b)
+		assert.NoError(t, err)
+
+		checksum := ChecksumBytes(b, hash.MIMC_BLS12_377.New(), fr.Bits)
+
+		circuit := checksumTestCircuit{
+			Bytes: make([]frontend.Variable, len(b)),
+		}
+
+		assignment := checksumTestCircuit{
+			Bytes: test_vector_utils.ToVariableSlice(b),
+			Sum:   checksum,
+		}
+
+		test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
+
 	}
-
-	assignment := checksumTestCircuit{
-		Bytes: test_vector_utils.ToVariableSlice(b),
-		Sum:   checksum,
-	}
-
-	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
 type checksumTestCircuit struct {
