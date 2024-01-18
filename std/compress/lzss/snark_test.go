@@ -14,21 +14,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test1OneSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, []byte{1}, nil)
+func Test1One(t *testing.T) {
+	testCompressionRoundTrip(t, []byte{1}, nil)
 }
 
-func TestGoodCompressionSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, []byte{1, 2}, nil, withLevel(lzss.GoodCompression))
+func TestGoodCompression(t *testing.T) {
+	testCompressionRoundTrip(t, []byte{1, 2}, nil, withLevel(lzss.GoodCompression))
 }
 
-func Test0To10ExplicitSnark(t *testing.T) {
-	testCompressionRoundTripSnark(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, nil)
+func Test0To10Explicit(t *testing.T) {
+	testCompressionRoundTrip(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, nil)
 }
 
 const inputExtraBytes = 5
 
-func TestNoCompressionSnark(t *testing.T) {
+func TestNoCompression(t *testing.T) {
 
 	d, err := os.ReadFile("./testdata/3c2943/data.bin")
 	assert.NoError(t, err)
@@ -51,6 +51,7 @@ func TestNoCompressionSnark(t *testing.T) {
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		CBegin:  0,
 		CLength: len(c),
 	}
 
@@ -58,21 +59,30 @@ func TestNoCompressionSnark(t *testing.T) {
 	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
-func Test255_254_253Snark(t *testing.T) {
-	testCompressionRoundTripSnark(t, []byte{255, 254, 253}, nil)
+func Test255_254_253(t *testing.T) {
+	testCompressionRoundTrip(t, []byte{255, 254, 253}, nil)
 }
 
-func Test3c2943Snark(t *testing.T) {
+func Test3c2943(t *testing.T) {
 	d, err := os.ReadFile("./testdata/3c2943/data.bin")
 	assert.NoError(t, err)
 
 	dict := getDictionary()
 
-	testCompressionRoundTripSnark(t, d, dict)
+	testCompressionRoundTrip(t, d, dict)
+}
+
+func Test3c2943withHeader(t *testing.T) {
+	d, err := os.ReadFile("./testdata/3c2943/data.bin")
+	assert.NoError(t, err)
+
+	dict := getDictionary()
+
+	testCompressionRoundTrip(t, d, dict)
 }
 
 // Fuzz test the decompression
-func FuzzSnark(f *testing.F) { // TODO This is always skipped
+func Fuzz(f *testing.F) { // TODO This is always skipped
 	f.Fuzz(func(t *testing.T, input, dict []byte) {
 		if len(input) > lzss.MaxInputSize {
 			t.Skip("input too large")
@@ -83,27 +93,40 @@ func FuzzSnark(f *testing.F) { // TODO This is always skipped
 		if len(input) == 0 {
 			t.Skip("input too small")
 		}
-		testCompressionRoundTripSnark(t, input, dict)
+		testCompressionRoundTrip(t, input, dict)
 	})
 }
 
-type testCompressionRoundTripOption func(*lzss.Level)
+type testCompressionRoundTripSettings struct {
+	level  lzss.Level
+	cBegin int
+}
+
+type testCompressionRoundTripOption func(settings *testCompressionRoundTripSettings)
 
 func withLevel(level lzss.Level) testCompressionRoundTripOption {
-	return func(l *lzss.Level) {
-		*l = level
+	return func(s *testCompressionRoundTripSettings) {
+		s.level = level
 	}
 }
 
-func testCompressionRoundTripSnark(t *testing.T, d, dict []byte, options ...testCompressionRoundTripOption) {
+func withCBegin(cBegin int) testCompressionRoundTripOption {
+	return func(s *testCompressionRoundTripSettings) {
+		s.cBegin = cBegin
+	}
+}
 
-	level := lzss.BestCompression
+func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompressionRoundTripOption) {
 
-	for _, option := range options {
-		option(&level)
+	settings := testCompressionRoundTripSettings{
+		level: lzss.BestCompression,
 	}
 
-	compressor, err := lzss.NewCompressor(dict, level)
+	for _, option := range options {
+		option(&settings)
+	}
+
+	compressor, err := lzss.NewCompressor(dict, settings.level)
 	require.NoError(t, err)
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
@@ -115,10 +138,11 @@ func testCompressionRoundTripSnark(t *testing.T, d, dict []byte, options ...test
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
-		Level:            level,
+		Level:            settings.level,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		CBegin:  settings.cBegin,
 		CLength: len(c),
 	}
 

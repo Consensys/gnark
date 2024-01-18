@@ -14,7 +14,7 @@ import (
 // it is recommended to pack the dictionary using compress.Pack and take a MiMC checksum of it.
 // d will consist of bytes
 // It returns the length of d as a frontend.Variable
-func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d, dict []frontend.Variable, level lzss.Level) (dLength frontend.Variable, err error) {
+func Decompress(api frontend.API, c []frontend.Variable, cBegin, cLength frontend.Variable, d, dict []frontend.Variable, level lzss.Level) (dLength frontend.Variable, err error) {
 
 	// size-related "constants"
 	wordNbBits := int(level)
@@ -26,8 +26,9 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 	// check header: version and compression level
 	const sizeHeader = 3
-	api.AssertIsEqual(c[0], 0) // compressor version
-	api.AssertIsEqual(c[1], 0) // still compressor version
+	c = internal.ShiftLeft(api, c, cBegin) // TODO fast-path for when cBegin is a constant?
+	api.AssertIsEqual(c[0], 0)             // compressor version
+	api.AssertIsEqual(c[1], 0)             // still compressor version
 	fileCompressionMode := c[2]
 	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordNbBits)) // if fcm!=0, then fcm=wordNbBits
 	decompressionNotBypassed := api.Sub(1, api.IsZero(fileCompressionMode))

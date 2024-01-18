@@ -12,6 +12,7 @@ type DecompressionTestCircuit struct {
 	C                []frontend.Variable
 	D                []byte
 	Dict             []byte
+	CBegin           frontend.Variable
 	CLength          frontend.Variable
 	CheckCorrectness bool
 	Level            lzss.Level
@@ -20,7 +21,7 @@ type DecompressionTestCircuit struct {
 func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 	dict := test_vector_utils.ToVariableSlice(lzss.AugmentDict(c.Dict))
 	dBack := make([]frontend.Variable, len(c.D)) // TODO Try smaller constants
-	dLen, err := Decompress(api, c.C, c.CLength, dBack, dict, c.Level)
+	dLen, err := Decompress(api, c.C, c.CBegin, c.CLength, dBack, dict, c.Level)
 	if err != nil {
 		return err
 	}
