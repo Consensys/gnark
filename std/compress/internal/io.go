@@ -4,6 +4,8 @@ import (
 	"errors"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/compress/internal/plonk_helpers"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	"math/big"
 )
@@ -34,23 +36,6 @@ func NewNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits
 	}
 }
 
-func ReadNum(api frontend.API, c []frontend.Variable, nbWords, stepCoeff int) frontend.Variable {
-	if nbWords < 0 {
-		panic("nbWords cannot be negative")
-	} else if nbWords == 0 {
-		return 0
-	}
-
-	// nbWords \geq 1
-
-	res := c[0]
-	for i := 1; i < nbWords && i < len(c); i++ {
-		res = api.Add(c[i], api.Mul(res, stepCoeff))
-	}
-
-	return res
-}
-
 // Next returns the next number in the sequence. assumes bits past the end of the Slice are 0
 func (nr *NumReader) Next() frontend.Variable {
 	return nr.next(nil)
@@ -66,7 +51,7 @@ func (nr *NumReader) next(v frontend.Variable) frontend.Variable {
 	}
 
 	if nr.last == nil { // the very first call
-		nr.last = ReadNum(nr.api, nr.c, nr.wordsPerNum, nr.stepCoeff)
+		nr.last = compress.ReadNum(nr.api, nr.c, nr.wordsPerNum, nr.stepCoeff)
 		if v != nil {
 			nr.api.AssertIsEqual(nr.last, v)
 		}
@@ -136,10 +121,10 @@ func (r *RangeChecker) LessThan(bound uint, c frontend.Variable) frontend.Variab
 	if bound%2 != 0 {
 		panic("odd bounds not yet supported")
 	}
-	v := EvaluatePlonkExpression(r.api, c, c, -int(bound-1), 0, 1, 0) // c^2 - (bound-1)*c
+	v := plonk_helpers.EvaluatePlonkExpression(r.api, c, c, -int(bound-1), 0, 1, 0) // c^2 - (bound-1)*c
 	res := v
 	for i := uint(1); i < bound/2; i++ {
-		res = EvaluatePlonkExpression(r.api, res, v, int(i*(bound-i-1)), 0, 1, 0)
+		res = plonk_helpers.EvaluatePlonkExpression(r.api, res, v, int(i*(bound-i-1)), 0, 1, 0)
 	}
 
 	return r.api.IsZero(res)
@@ -238,21 +223,4 @@ func addPlonkConstraint(api frontend.API, a, b, o frontend.Variable, qL, qR, qO,
 			0,
 		)
 	}
-}
-
-// ShiftLeft erases shiftAmount many elements from the left of Slice and replaces them in the right with zeros
-// it is the caller's responsibility to make sure that 0 \le shift < len(c)
-func ShiftLeft(api frontend.API, slice []frontend.Variable, shiftAmount frontend.Variable) []frontend.Variable {
-	res := make([]frontend.Variable, len(slice))
-	l := logderivlookup.New(api)
-	for i := range slice {
-		l.Insert(slice[i])
-	}
-	for range slice {
-		l.Insert(0)
-	}
-	for i := range slice {
-		res[i] = l.Lookup(api.Add(i, shiftAmount))[0]
-	}
-	return res
 }

@@ -5,6 +5,7 @@ import (
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress/internal"
+	"github.com/consensys/gnark/std/compress/internal/plonk_helpers"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
@@ -14,7 +15,7 @@ import (
 // it is recommended to pack the dictionary using compress.Pack and take a MiMC checksum of it.
 // d will consist of bytes
 // It returns the length of d as a frontend.Variable
-func Decompress(api frontend.API, c []frontend.Variable, cBegin, cLength frontend.Variable, d, dict []frontend.Variable, level lzss.Level) (dLength frontend.Variable, err error) {
+func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d, dict []frontend.Variable, level lzss.Level) (dLength frontend.Variable, err error) {
 
 	// size-related "constants"
 	wordNbBits := int(level)
@@ -26,9 +27,8 @@ func Decompress(api frontend.API, c []frontend.Variable, cBegin, cLength fronten
 
 	// check header: version and compression level
 	const sizeHeader = 3
-	c = internal.ShiftLeft(api, c, cBegin) // TODO fast-path for when cBegin is a constant?
-	api.AssertIsEqual(c[0], 0)             // compressor version
-	api.AssertIsEqual(c[1], 0)             // still compressor version
+	api.AssertIsEqual(c[0], 0) // compressor version
+	api.AssertIsEqual(c[1], 0) // still compressor version
 	fileCompressionMode := c[2]
 	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordNbBits)) // if fcm!=0, then fcm=wordNbBits
 	decompressionNotBypassed := api.Sub(1, api.IsZero(fileCompressionMode))
@@ -80,7 +80,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cBegin, cLength fronten
 
 		// copying = copyLen01 ? copyLen==1 : 1			either from previous iterations or starting a new copy
 		// copying = copyLen01 ? copyLen : 1
-		copying := internal.EvaluatePlonkExpression(api, copyLen01, copyLen, -1, 0, 1, 1)
+		copying := plonk_helpers.EvaluatePlonkExpression(api, copyLen01, copyLen, -1, 0, 1, 1)
 
 		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedCpAddr), currIndicatesBr)
 		dictCopyAddr := api.Add(currIndicatedCpAddr, api.Sub(currIndicatedCpLen, copyLen))
@@ -103,7 +103,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cBegin, cLength fronten
 		if eof == 0 {
 			inI = api.Add(inI, inIDelta)
 		} else {
-			inI = api.Add(inI, internal.EvaluatePlonkExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
+			inI = api.Add(inI, plonk_helpers.EvaluatePlonkExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
 		}
 
 		eofNow := rangeChecker.LessThan(byteNbWords, api.Sub(cLength, inI)) // less than a byte left; meaning we are at the end of the input

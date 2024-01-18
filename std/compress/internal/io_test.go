@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/compress/internal"
 	"github.com/consensys/gnark/std/compress/lzss"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
@@ -155,7 +156,7 @@ func (c *shiftLeftCircuit) Define(api frontend.API) error {
 	if len(c.Slice) != len(c.Shifted) {
 		panic("witness length mismatch")
 	}
-	shifted := internal.ShiftLeft(api, c.Slice, c.ShiftAmount)
+	shifted := compress.ShiftLeft(api, c.Slice, c.ShiftAmount)
 	if len(shifted) != len(c.Shifted) {
 		panic("wrong length")
 	}

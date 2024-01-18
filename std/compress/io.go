@@ -3,8 +3,9 @@ package compress
 import (
 	"errors"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/compress/internal"
+	"github.com/consensys/gnark/std/compress/internal/plonk_helpers"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	"math/big"
 )
 
@@ -46,12 +47,12 @@ func UnpackIntoBytes(api frontend.API, bytePerElem int, packed []frontend.Variab
 
 		z := api.IsZero(unpacked[i])
 
-		lastNonZero := internal.EvaluatePlonkExpression(api, z, found, -1, -1, 0, 1) // nz - found
-		nbBytes = api.Add(nbBytes, api.Mul(lastNonZero, frontend.Variable(i)))       // the last nonzero byte itself is useless
+		lastNonZero := plonk_helpers.EvaluatePlonkExpression(api, z, found, -1, -1, 0, 1) // nz - found
+		nbBytes = api.Add(nbBytes, api.Mul(lastNonZero, frontend.Variable(i)))            // the last nonzero byte itself is useless
 
 		//api.AssertIsEqual(api.Mul(api.Sub(bytePerElem-i%bytePerElem, unpacked[i]), lastNonZero), 0) // sanity check, technically unnecessary TODO @Tabaie make sure it's one constraint only or better yet, remove
 
-		found = internal.EvaluatePlonkExpression(api, z, found, -1, 0, 1, 1) // found ? 1 : nz = nz + found (1 - nz) = 1 - z + found z
+		found = plonk_helpers.EvaluatePlonkExpression(api, z, found, -1, 0, 1, 1) // found ? 1 : nz = nz + found (1 - nz) = 1 - z + found z
 	}
 	return
 }
@@ -70,4 +71,38 @@ func UnpackIntoBytesHint(_ *big.Int, ins, outs []*big.Int) error {
 		}
 	}
 	return nil
+}
+
+func ReadNum(api frontend.API, c []frontend.Variable, nbWords, stepCoeff int) frontend.Variable {
+	if nbWords < 0 {
+		panic("nbWords cannot be negative")
+	} else if nbWords == 0 {
+		return 0
+	}
+
+	// nbWords \geq 1
+
+	res := c[0]
+	for i := 1; i < nbWords && i < len(c); i++ {
+		res = api.Add(c[i], api.Mul(res, stepCoeff))
+	}
+
+	return res
+}
+
+// ShiftLeft erases shiftAmount many elements from the left of Slice and replaces them in the right with zeros
+// it is the caller's responsibility to make sure that 0 \le shift < len(c)
+func ShiftLeft(api frontend.API, slice []frontend.Variable, shiftAmount frontend.Variable) []frontend.Variable {
+	res := make([]frontend.Variable, len(slice))
+	l := logderivlookup.New(api)
+	for i := range slice {
+		l.Insert(slice[i])
+	}
+	for range slice {
+		l.Insert(0)
+	}
+	for i := range slice {
+		res[i] = l.Lookup(api.Add(i, shiftAmount))[0]
+	}
+	return res
 }
