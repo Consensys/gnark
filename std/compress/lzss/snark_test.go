@@ -78,7 +78,29 @@ func Test3c2943withHeader(t *testing.T) {
 
 	dict := getDictionary()
 
-	testCompressionRoundTrip(t, d, dict)
+	compressor, err := lzss.NewCompressor(dict, lzss.BestCompression)
+	require.NoError(t, err)
+	c, err := compressor.Compress(d)
+	require.NoError(t, err)
+	c = append([]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, c...)
+
+	decompressorLevel := lzss.BestCompression
+
+	circuit := &DecompressionTestCircuit{
+		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
+		D:                d,
+		Dict:             dict,
+		CheckCorrectness: true,
+		Level:            decompressorLevel,
+	}
+	assignment := &DecompressionTestCircuit{
+		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		CBegin:  10,
+		CLength: len(c) - 10,
+	}
+
+	RegisterHints()
+	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
 // Fuzz test the decompression
