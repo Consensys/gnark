@@ -3,6 +3,8 @@ package compress
 import (
 	"crypto/rand"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	"github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
@@ -63,4 +65,30 @@ func (c *shiftLeftCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(c.Shifted[i], shifted[i])
 	}
 	return nil
+}
+
+func TestChecksumBytes(t *testing.T) {
+	b := []byte{1}
+	checksum := ChecksumBytes(b, hash.MIMC_BLS12_377.New(), fr.Bits)
+
+	circuit := checksumTestCircuit{
+		Bytes: make([]frontend.Variable, len(b)),
+	}
+
+	assignment := checksumTestCircuit{
+		Bytes: test_vector_utils.ToVariableSlice(b),
+		Sum:   checksum,
+	}
+
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
+}
+
+type checksumTestCircuit struct {
+	Bytes []frontend.Variable
+	Sum   frontend.Variable
+}
+
+func (c *checksumTestCircuit) Define(api frontend.API) error {
+	Packed := append(Pack(api, c.Bytes, 8), len(c.Bytes))
+	return AssertChecksumEquals(api, Packed, c.Sum)
 }

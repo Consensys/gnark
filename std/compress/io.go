@@ -6,6 +6,7 @@ import (
 	"github.com/consensys/gnark/std/compress/internal/plonk_helpers"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
+	"hash"
 	"math/big"
 )
 
@@ -16,14 +17,21 @@ func Pack(api frontend.API, words []frontend.Variable, bitsPerWord int) []fronte
 
 func PackN(api frontend.API, words []frontend.Variable, bitsPerWord, wordsPerElem int) []frontend.Variable {
 	res := make([]frontend.Variable, (len(words)+wordsPerElem-1)/wordsPerElem)
+
+	r := make([]big.Int, wordsPerElem)
+	r[wordsPerElem-1].SetInt64(1)
+	for i := wordsPerElem - 2; i >= 0; i-- {
+		r[i].Lsh(&r[i+1], uint(bitsPerWord))
+	}
+
 	for elemI := range res {
 		res[elemI] = 0
 		for wordI := 0; wordI < wordsPerElem; wordI++ {
-			absWordI := (elemI+1)*wordsPerElem - wordI - 1
+			absWordI := elemI*wordsPerElem + wordI
 			if absWordI >= len(words) {
 				break
 			}
-			res[elemI] = api.Add(res[elemI], api.Mul(words[absWordI], 1<<uint(bitsPerWord*wordI)))
+			res[elemI] = api.Add(res[elemI], api.Mul(words[absWordI], r[wordI]))
 		}
 	}
 	return res
@@ -37,6 +45,19 @@ func AssertChecksumEquals(api frontend.API, e []frontend.Variable, checksum fron
 	hsh.Write(e...)
 	api.AssertIsEqual(hsh.Sum(), checksum)
 	return nil
+}
+
+func ChecksumBytes(b []byte, hsh hash.Hash, fieldNbBits int) []byte {
+	usableBytesPerElem := (fieldNbBits+7)/8 - 1
+	buf := make([]byte, usableBytesPerElem+1)
+	for i := 0; i < len(b); i += usableBytesPerElem {
+		copy(buf[1:], b[i:])
+		hsh.Write(buf)
+	}
+	big.NewInt(int64(len(b))).FillBytes(buf)
+	hsh.Write(buf)
+
+	return hsh.Sum(nil)
 }
 
 // UnpackIntoBytes does not prove that the data in unpacked are actually bytes
