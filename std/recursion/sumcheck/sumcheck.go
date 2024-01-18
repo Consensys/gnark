@@ -109,7 +109,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 			return fmt.Errorf("derive combination coef: %w", err)
 		}
 	}
-	r := make([]*emulated.Element[FR], claims.NbVars())
+	challenges := make([]*emulated.Element[FR], claims.NbVars())
 
 	// gJR is the claimed value. In case of multiple claims it is combined
 	// claimed value we're going to check against.
@@ -140,14 +140,14 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		}
 
 		// we derive the challenge from prover message.
-		if r[j], challengeNames, err = v.deriveChallenge(fs, challengeNames, evals); err != nil {
+		if challenges[j], challengeNames, err = v.deriveChallenge(fs, challengeNames, evals); err != nil {
 			return fmt.Errorf("round %d derive challenge: %w", j, err)
 		}
 		// now, we need to evaluate the polynomial defined by evaluation values
 		// `eval` at r[j] (the computed challenge for this round). Instead of
 		// interpolating and then evaluating we are computing the value
 		// directly.
-		gJR = v.p.InterpolateLDE(r[j], gJ)
+		gJR = v.p.InterpolateLDE(challenges[j], gJ)
 
 		// we do not directly need to check gJR now - as in the next round we
 		// compute new evaluation point from gJR then the check is performed
@@ -163,7 +163,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	//
 	// To cover all the cases, we call the AssertEvaluation method of the claim
 	// which implements the exact logic.
-	if err := claims.AssertEvaluation(r, combinationCoef, gJR, proof.FinalEvalProof); err != nil {
+	if err := claims.AssertEvaluation(challenges, combinationCoef, gJR, proof.FinalEvalProof); err != nil {
 		return fmt.Errorf("assert final evaluation: %w", err)
 	}
 
