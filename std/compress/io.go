@@ -9,9 +9,12 @@ import (
 	"math/big"
 )
 
-// Pack works Big Endian: i.e. the first word is the most significant in the packed elem
-func Pack(api frontend.API, words []frontend.Variable, wordLen int) []frontend.Variable {
-	wordsPerElem := (api.Compiler().FieldBitLen() - 1) / wordLen
+// Pack packs the words as tightly as possible, and works Big Endian: i.e. the first word is the most significant in the packed elem
+func Pack(api frontend.API, words []frontend.Variable, bitsPerWord int) []frontend.Variable {
+	return PackN(api, words, bitsPerWord, (api.Compiler().FieldBitLen()-1)/bitsPerWord)
+}
+
+func PackN(api frontend.API, words []frontend.Variable, bitsPerWord, wordsPerElem int) []frontend.Variable {
 	res := make([]frontend.Variable, (len(words)+wordsPerElem-1)/wordsPerElem)
 	for elemI := range res {
 		res[elemI] = 0
@@ -20,7 +23,7 @@ func Pack(api frontend.API, words []frontend.Variable, wordLen int) []frontend.V
 			if absWordI >= len(words) {
 				break
 			}
-			res[elemI] = api.Add(res[elemI], api.Mul(words[absWordI], 1<<uint(wordLen*wordI)))
+			res[elemI] = api.Add(res[elemI], api.Mul(words[absWordI], 1<<uint(bitsPerWord*wordI)))
 		}
 	}
 	return res
