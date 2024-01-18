@@ -89,7 +89,8 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		toCopy := outTable.Lookup(copyAddr)[0]
 
 		// write to output
-		d[outI] = api.Select(copying, toCopy, curr)
+		outVal := api.Select(copying, toCopy, curr)
+		d[outI] = plonk_helpers.EvaluatePlonkExpression(api, outVal, eof, 1, 0, -1, 0) // write zeros past eof
 		// WARNING: curr modified by MulAcc
 		outTable.Insert(d[outI])
 
