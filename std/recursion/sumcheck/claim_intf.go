@@ -22,16 +22,15 @@ type Claims interface {
 	NbClaims() int
 	NbVars() int
 	// Combine combines separate claims into a single sumcheckable claim using
-	// the coefficient coeff. It returns an error if the claim is already
-	// combined.
+	// the coefficient coeff. It returns the combined claim.
 	//
 	// TODO: should we return a new [Claim] instead to make it stateless?
 	Combine(coeff *big.Int) NativePolynomial
 
-	// ToUnivariate fixes the first len(r) variables to r, keeps the next
+	// Next fixes the first len(r) variables to r, keeps the next
 	// variable free and sums over a hypercube for the last variables. Instead
 	// of returning the polynomial in coefficient form, it returns the
 	// evaluations at degree different points.
-	ToUnivariate(r *big.Int) NativePolynomial
+	Next(r *big.Int) NativePolynomial
 	ProverFinalEval(r []*big.Int) NativeEvaluationProof
 }

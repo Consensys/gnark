@@ -10,7 +10,7 @@ import (
 	"github.com/consensys/gnark/std/math/polynomial"
 )
 
-type MultilinearClaim[FR emulated.FieldParams] struct {
+type multilinearClaim[FR emulated.FieldParams] struct {
 	ml    polynomial.Multilinear[FR]
 	claim *emulated.Element[FR]
 
@@ -18,7 +18,7 @@ type MultilinearClaim[FR emulated.FieldParams] struct {
 	p *polynomial.Polynomial[FR]
 }
 
-func NewMultilinearClaim[FR emulated.FieldParams](api frontend.API, ml polynomial.Multilinear[FR], claim *emulated.Element[FR]) (*MultilinearClaim[FR], error) {
+func NewMultilinearClaim[FR emulated.FieldParams](api frontend.API, ml polynomial.Multilinear[FR], claim *emulated.Element[FR]) (LazyClaims[FR], error) {
 	f, err := emulated.NewField[FR](api)
 	if err != nil {
 		return nil, fmt.Errorf("new field: %w", err)
@@ -27,7 +27,7 @@ func NewMultilinearClaim[FR emulated.FieldParams](api frontend.API, ml polynomia
 	if err != nil {
 		return nil, fmt.Errorf("new polynomial: %w", err)
 	}
-	return &MultilinearClaim[FR]{
+	return &multilinearClaim[FR]{
 		ml:    ml,
 		claim: claim,
 		f:     f,
@@ -35,24 +35,24 @@ func NewMultilinearClaim[FR emulated.FieldParams](api frontend.API, ml polynomia
 	}, nil
 }
 
-func (fn *MultilinearClaim[FR]) NbClaims() int {
+func (fn *multilinearClaim[FR]) NbClaims() int {
 	return 1
 }
 
-func (fn *MultilinearClaim[FR]) NbVars() int {
+func (fn *multilinearClaim[FR]) NbVars() int {
 	return bits.Len(uint(len(fn.ml))) - 1
 }
 
-func (fn *MultilinearClaim[FR]) CombinedSum(coeff *emulated.Element[FR]) *emulated.Element[FR] {
+func (fn *multilinearClaim[FR]) CombinedSum(coeff *emulated.Element[FR]) *emulated.Element[FR] {
 	return fn.claim
 }
 
-func (fn *MultilinearClaim[FR]) Degree(i int) int {
+func (fn *multilinearClaim[FR]) Degree(i int) int {
 	// this is multlinear function - up to degree 1 in every variable
 	return 1
 }
 
-func (fn *MultilinearClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff *emulated.Element[FR], expectedValue *emulated.Element[FR], proof EvaluationProof) error {
+func (fn *multilinearClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff *emulated.Element[FR], expectedValue *emulated.Element[FR], proof EvaluationProof) error {
 	val, err := fn.p.EvalMultilinear(fn.ml, r)
 	if err != nil {
 		return fmt.Errorf("eval: %w", err)
@@ -61,13 +61,13 @@ func (fn *MultilinearClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], comb
 	return nil
 }
 
-type NativeMultilinearClaim struct {
-	*bigIntEngine
+type nativeMultilinearClaim struct {
+	ArithEngine[*big.Int]
 
 	ml []*big.Int
 }
 
-func NewNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim *NativeMultilinearClaim, hypersum *big.Int, err error) {
+func NewNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim Claims, hypersum *big.Int, err error) {
 	if bits.OnesCount(uint(len(ml))) != 1 {
 		return nil, nil, fmt.Errorf("expecting power of two coeffs")
 	}
@@ -80,31 +80,31 @@ func NewNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim *NativeMul
 	for i := range ml {
 		cml[i] = new(big.Int).Set(ml[i])
 	}
-	return &NativeMultilinearClaim{bigIntEngine: be, ml: cml}, hypersum, nil
+	return &nativeMultilinearClaim{ArithEngine: newBigIntEngine(target), ml: cml}, hypersum, nil
 }
 
-func (fn *NativeMultilinearClaim) NbClaims() int {
+func (fn *nativeMultilinearClaim) NbClaims() int {
 	return 1
 }
 
-func (fn *NativeMultilinearClaim) NbVars() int {
+func (fn *nativeMultilinearClaim) NbVars() int {
 	return bits.Len(uint(len(fn.ml))) - 1
 }
 
-func (fn *NativeMultilinearClaim) Combine(coeff *big.Int) NativePolynomial {
+func (fn *nativeMultilinearClaim) Combine(coeff *big.Int) NativePolynomial {
 	return []*big.Int{fn.hypesumX1One()}
 }
 
-func (fn *NativeMultilinearClaim) ToUnivariate(r *big.Int) NativePolynomial {
+func (fn *nativeMultilinearClaim) Next(r *big.Int) NativePolynomial {
 	fn.ml = fn.fold(r)
 	return []*big.Int{fn.hypesumX1One()}
 }
 
-func (fn *NativeMultilinearClaim) ProverFinalEval(r []*big.Int) NativeEvaluationProof {
+func (fn *nativeMultilinearClaim) ProverFinalEval(r []*big.Int) NativeEvaluationProof {
 	return nil
 }
 
-func (fn *NativeMultilinearClaim) fold(r *big.Int) []*big.Int {
+func (fn *nativeMultilinearClaim) fold(r *big.Int) []*big.Int {
 	mid := len(fn.ml) / 2
 	bottom, top := fn.ml[:mid], fn.ml[mid:]
 	t := new(big.Int)
@@ -116,7 +116,7 @@ func (fn *NativeMultilinearClaim) fold(r *big.Int) []*big.Int {
 	return fn.ml[:mid]
 }
 
-func (fn *NativeMultilinearClaim) hypesumX1One() *big.Int {
+func (fn *nativeMultilinearClaim) hypesumX1One() *big.Int {
 	sum := fn.ml[len(fn.ml)/2]
 	for i := len(fn.ml)/2 + 1; i < len(fn.ml); i++ {
 		fn.Add(sum, sum, fn.ml[i])
