@@ -45,7 +45,7 @@ func deriveChallengeProver(fs *cryptofiatshamir.Transcript, challengeNames []str
 	return challenge, challengeNames[1:], nil
 }
 
-func (v *Verifier[FR]) bindChallengeVerifier(fs *fiatshamir.Transcript, challengeName string, values []emulated.Element[FR]) error {
+func (v *Verifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName string, values []emulated.Element[FR]) error {
 	for i := range values {
 		bts := v.f.ToBits(&values[i])
 		slices.Reverse(bts)
@@ -56,9 +56,9 @@ func (v *Verifier[FR]) bindChallengeVerifier(fs *fiatshamir.Transcript, challeng
 	return nil
 }
 
-func (v *Verifier[FR]) deriveChallengeVerifier(fs *fiatshamir.Transcript, challengeNames []string, values []emulated.Element[FR]) (challenge *emulated.Element[FR], restChallengeNames []string, err error) {
+func (v *Verifier[FR]) deriveChallenge(fs *fiatshamir.Transcript, challengeNames []string, values []emulated.Element[FR]) (challenge *emulated.Element[FR], restChallengeNames []string, err error) {
 	var fr FR
-	if err = v.bindChallengeVerifier(fs, challengeNames[0], values); err != nil {
+	if err = v.bindChallenge(fs, challengeNames[0], values); err != nil {
 		return nil, nil, fmt.Errorf("bind: %w", err)
 	}
 	nativeChallenge, err := fs.ComputeChallenge(challengeNames[0])

@@ -97,13 +97,13 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		return fmt.Errorf("new transcript: %w", err)
 	}
 	// bind challenge from previous round if it is a continuation
-	if err = v.bindChallengeVerifier(fs, challengeNames[0], cfg.baseChallenges); err != nil {
+	if err = v.bindChallenge(fs, challengeNames[0], cfg.baseChallenges); err != nil {
 		return fmt.Errorf("base: %w", err)
 	}
 
 	var combinationCoef *emulated.Element[FR]
 	if claims.NbClaims() >= 2 {
-		if combinationCoef, challengeNames, err = v.deriveChallengeVerifier(fs, challengeNames, nil); err != nil {
+		if combinationCoef, challengeNames, err = v.deriveChallenge(fs, challengeNames, nil); err != nil {
 			return fmt.Errorf("derive combination coef: %w", err)
 		}
 	}
@@ -138,7 +138,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		}
 
 		// we derive the challenge from prover message.
-		if challenges[j], challengeNames, err = v.deriveChallengeVerifier(fs, challengeNames, evals); err != nil {
+		if challenges[j], challengeNames, err = v.deriveChallenge(fs, challengeNames, evals); err != nil {
 			return fmt.Errorf("round %d derive challenge: %w", j, err)
 		}
 		// now, we need to evaluate the polynomial defined by evaluation values
