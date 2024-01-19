@@ -65,9 +65,6 @@ func NewShort(current, target *big.Int) (hash.Hash, error) {
 		return nil, fmt.Errorf("no default mimc for scalar field: %s", current.String())
 	}
 	hh := h.New()
-	if target.Cmp(current) == 0 {
-		return hh, nil
-	}
 	nbBits := target.BitLen()
 	if nbBits > current.BitLen() {
 		nbBits = current.BitLen()
@@ -164,9 +161,6 @@ func NewHash(api frontend.API, target *big.Int, bitmode bool) (stdhash.FieldHash
 	h, err := mimc.NewMiMC(api)
 	if err != nil {
 		return nil, fmt.Errorf("get mimc: %w", err)
-	}
-	if api.Compiler().Field().Cmp(target) == 0 {
-		return &h, nil
 	}
 	nbBits := target.BitLen()
 	if nbBits > api.Compiler().FieldBitLen() {
