@@ -11,10 +11,13 @@ import (
 )
 
 // Pack packs the words as tightly as possible, and works Big Endian: i.e. the first word is the most significant in the packed elem
+// it is on the caller to make sure the words are within range
 func Pack(api frontend.API, words []frontend.Variable, bitsPerWord int) []frontend.Variable {
 	return PackN(api, words, bitsPerWord, (api.Compiler().FieldBitLen()-1)/bitsPerWord)
 }
 
+// PackN packs the words wordsPerElem at a time into field elements, and works Big Endian: i.e. the first word is the most significant in the packed elem
+// it is on the caller to make sure the words are within range
 func PackN(api frontend.API, words []frontend.Variable, bitsPerWord, wordsPerElem int) []frontend.Variable {
 	res := make([]frontend.Variable, (len(words)+wordsPerElem-1)/wordsPerElem)
 
@@ -37,6 +40,7 @@ func PackN(api frontend.API, words []frontend.Variable, bitsPerWord, wordsPerEle
 	return res
 }
 
+// AssertChecksumEquals takes a MiMC hash of e and asserts it is equal to checksum
 func AssertChecksumEquals(api frontend.API, e []frontend.Variable, checksum frontend.Variable) error {
 	hsh, err := mimc.NewMiMC(api)
 	if err != nil {
@@ -47,7 +51,8 @@ func AssertChecksumEquals(api frontend.API, e []frontend.Variable, checksum fron
 	return nil
 }
 
-func ChecksumBytes(b []byte, validLength int, hsh hash.Hash, fieldNbBits int) []byte {
+// ChecksumPaddedBytes packs b into field elements, then hashes the field elements along with validLength (encoded into a field element of its own)
+func ChecksumPaddedBytes(b []byte, validLength int, hsh hash.Hash, fieldNbBits int) []byte {
 	if validLength < 0 || validLength > len(b) {
 		panic("invalid length")
 	}
@@ -66,9 +71,14 @@ func ChecksumBytes(b []byte, validLength int, hsh hash.Hash, fieldNbBits int) []
 	return hsh.Sum(nil)
 }
 
-// UnpackIntoBytes does not prove that the data in unpacked are actually bytes
-func UnpackIntoBytes(api frontend.API, bytePerElem int, packed []frontend.Variable) (unpacked []frontend.Variable, nbBytes frontend.Variable, err error) {
-	if unpacked, err = api.Compiler().NewHint(UnpackIntoBytesHint, bytePerElem*len(packed), packed...); err != nil {
+// UnpackIntoBytes construes every element in packed as consisting of bytesPerElem bytes, returning those bytes
+// it DOES NOT prove that the elements in unpacked are actually bytes
+// nbBytes is the number of "valid" bytes according to the padding scheme in https://github.com/Consensys/zkevm-monorepo/blob/main/prover/lib/compressor/blob/blob_maker.go#L299
+// TODO @tabaie @gbotrel move the padding/packing code to gnark or compress
+// the very last non-zero byte in the unpacked stream is meant to encode the number of unused bytes in the last field element used.
+// though UnpackIntoBytes includes that last byte in unpacked, it is not counted in nbBytes
+func UnpackIntoBytes(api frontend.API, bytesPerElem int, packed []frontend.Variable) (unpacked []frontend.Variable, nbBytes frontend.Variable, err error) {
+	if unpacked, err = api.Compiler().NewHint(UnpackIntoBytesHint, bytesPerElem*len(packed), packed...); err != nil {
 		return
 	}
 	found := frontend.Variable(0)
@@ -80,7 +90,7 @@ func UnpackIntoBytes(api frontend.API, bytePerElem int, packed []frontend.Variab
 		lastNonZero := plonk_helpers.EvaluatePlonkExpression(api, z, found, -1, -1, 1, 1) // nz - found
 		nbBytes = api.Add(nbBytes, api.Mul(lastNonZero, frontend.Variable(i)))            // the last nonzero byte itself is useless
 
-		//api.AssertIsEqual(api.Mul(api.Sub(bytePerElem-i%bytePerElem, unpacked[i]), lastNonZero), 0) // sanity check, technically unnecessary TODO @Tabaie make sure it's one constraint only or better yet, remove
+		//api.AssertIsEqual(api.Mul(api.Sub(bytesPerElem-i%bytesPerElem, unpacked[i]), lastNonZero), 0) // sanity check, technically unnecessary TODO @Tabaie make sure it's one constraint only or better yet, remove
 
 		found = plonk_helpers.EvaluatePlonkExpression(api, z, found, -1, 0, 1, 1) // found ? 1 : nz = nz + found (1 - nz) = 1 - z + found z
 	}
@@ -103,18 +113,15 @@ func UnpackIntoBytesHint(_ *big.Int, ins, outs []*big.Int) error {
 	return nil
 }
 
-func ReadNum(api frontend.API, c []frontend.Variable, nbWords, stepCoeff int) frontend.Variable {
-	if nbWords < 0 {
-		panic("nbWords cannot be negative")
-	} else if nbWords == 0 {
+// ReadNum reads the slice c as a big endian number in base radix
+func ReadNum(api frontend.API, c []frontend.Variable, radix int) frontend.Variable {
+	if len(c) == 0 {
 		return 0
 	}
 
-	// nbWords \geq 1
-
 	res := c[0]
-	for i := 1; i < nbWords && i < len(c); i++ {
-		res = api.Add(c[i], api.Mul(res, stepCoeff))
+	for i := 1; i < len(c); i++ {
+		res = api.Add(c[i], api.Mul(res, radix))
 	}
 
 	return res

@@ -92,7 +92,7 @@ func TestChecksumBytes(t *testing.T) {
 		_, err := rand.Read(b)
 		assert.NoError(t, err)
 
-		checksum := ChecksumBytes(b, len(b), hash.MIMC_BLS12_377.New(), fr.Bits)
+		checksum := ChecksumPaddedBytes(b, len(b), hash.MIMC_BLS12_377.New(), fr.Bits)
 
 		circuit := checksumTestCircuit{
 			Bytes: make([]frontend.Variable, len(b)),
