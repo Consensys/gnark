@@ -694,9 +694,10 @@ func (builder *builder) AddPlonkConstraint(a, b, o frontend.Variable, qL, qR, qO
 				builder.Mul(a, qL),
 				builder.Mul(b, qR),
 				builder.Mul(a, b, qM),
+				builder.Mul(o, qO),
 				qC,
 			),
-			builder.Mul(o, qO),
+			0,
 		)
 		return
 	}
