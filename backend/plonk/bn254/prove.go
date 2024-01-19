@@ -154,9 +154,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	// open Z (blinded) at ωζ (proof.ZShiftedOpening)
 	g.Go(instance.openZ)
 
-	// fold the commitment to H ([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾[H₂])
-	g.Go(instance.foldH)
-
 	// linearized polynomial
 	g.Go(instance.computeLinearizedPolynomial)
 
@@ -189,9 +186,6 @@ type instance struct {
 	bp       []*iop.Polynomial // blinding polynomials
 	h        *iop.Polynomial   // h is the quotient polynomial
 	blindedZ []fr.Element      // blindedZ is the blinded version of Z
-
-	foldedH       []fr.Element // foldedH is the folded version of H
-	foldedHDigest kzg.Digest   // foldedHDigest is the kzg commitment of foldedH
 
 	linearizedPolynomial       []fr.Element
 	linearizedPolynomialDigest kzg.Digest
@@ -647,44 +641,6 @@ func (s *instance) h3() []fr.Element {
 	return h3
 }
 
-// fold the commitment to H ([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾[H₂])
-func (s *instance) foldH() error {
-	// wait for H to be committed and zeta to be derived (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chH:
-	}
-	var n big.Int
-	n.SetUint64(s.domain0.Cardinality + 2)
-
-	var zetaPowerNplusTwo fr.Element
-	zetaPowerNplusTwo.Exp(s.zeta, &n)
-	zetaPowerNplusTwo.BigInt(&n)
-
-	s.foldedHDigest.ScalarMultiplication(&s.proof.H[2], &n)
-	s.foldedHDigest.Add(&s.foldedHDigest, &s.proof.H[1])       // ζᵐ⁺²*Comm(h3)
-	s.foldedHDigest.ScalarMultiplication(&s.foldedHDigest, &n) // ζ²⁽ᵐ⁺²⁾*Comm(h3) + ζᵐ⁺²*Comm(h2)
-	s.foldedHDigest.Add(&s.foldedHDigest, &s.proof.H[0])
-
-	// fold H (H₀ + ζᵐ⁺²*H₁ + ζ²⁽ᵐ⁺²⁾H₂))
-	h1 := s.h1()
-	h2 := s.h2()
-	s.foldedH = s.h3()
-
-	for i := 0; i < int(s.domain0.Cardinality)+2; i++ {
-		s.foldedH[i].
-			Mul(&s.foldedH[i], &zetaPowerNplusTwo).
-			Add(&s.foldedH[i], &h2[i]).
-			Mul(&s.foldedH[i], &zetaPowerNplusTwo).
-			Add(&s.foldedH[i], &h1[i])
-	}
-
-	close(s.chFoldedH)
-
-	return nil
-}
-
 func (s *instance) computeLinearizedPolynomial() error {
 
 	// wait for H to be committed and zeta to be derived (or ctx.Done())
@@ -779,27 +735,25 @@ func (s *instance) batchOpening() error {
 	}
 
 	polysQcp := coefficients(s.trace.Qcp)
-	polysToOpen := make([][]fr.Element, 7+len(polysQcp))
-	copy(polysToOpen[7:], polysQcp)
+	polysToOpen := make([][]fr.Element, 6+len(polysQcp))
+	copy(polysToOpen[6:], polysQcp)
 
-	polysToOpen[0] = s.foldedH
-	polysToOpen[1] = s.linearizedPolynomial
-	polysToOpen[2] = getBlindedCoefficients(s.x[id_L], s.bp[id_Bl])
-	polysToOpen[3] = getBlindedCoefficients(s.x[id_R], s.bp[id_Br])
-	polysToOpen[4] = getBlindedCoefficients(s.x[id_O], s.bp[id_Bo])
-	polysToOpen[5] = s.trace.S1.Coefficients()
-	polysToOpen[6] = s.trace.S2.Coefficients()
+	polysToOpen[0] = s.linearizedPolynomial
+	polysToOpen[1] = getBlindedCoefficients(s.x[id_L], s.bp[id_Bl])
+	polysToOpen[2] = getBlindedCoefficients(s.x[id_R], s.bp[id_Br])
+	polysToOpen[3] = getBlindedCoefficients(s.x[id_O], s.bp[id_Bo])
+	polysToOpen[4] = s.trace.S1.Coefficients()
+	polysToOpen[5] = s.trace.S2.Coefficients()
 
-	digestsToOpen := make([]curve.G1Affine, len(s.pk.Vk.Qcp)+7)
-	copy(digestsToOpen[7:], s.pk.Vk.Qcp)
+	digestsToOpen := make([]curve.G1Affine, len(s.pk.Vk.Qcp)+6)
+	copy(digestsToOpen[6:], s.pk.Vk.Qcp)
 
-	digestsToOpen[0] = s.foldedHDigest
-	digestsToOpen[1] = s.linearizedPolynomialDigest
-	digestsToOpen[2] = s.proof.LRO[0]
-	digestsToOpen[3] = s.proof.LRO[1]
-	digestsToOpen[4] = s.proof.LRO[2]
-	digestsToOpen[5] = s.pk.Vk.S[0]
-	digestsToOpen[6] = s.pk.Vk.S[1]
+	digestsToOpen[0] = s.linearizedPolynomialDigest
+	digestsToOpen[1] = s.proof.LRO[0]
+	digestsToOpen[2] = s.proof.LRO[1]
+	digestsToOpen[3] = s.proof.LRO[2]
+	digestsToOpen[4] = s.pk.Vk.S[0]
+	digestsToOpen[5] = s.pk.Vk.S[1]
 
 	var err error
 	s.proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
