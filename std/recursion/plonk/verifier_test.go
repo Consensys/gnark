@@ -4,10 +4,12 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	stdbits "math/bits"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
 	native_plonk "github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -362,8 +364,17 @@ func getParametricSetups(assert *test.Assert, field *big.Int, nbParams int) ([]c
 
 	srs, srsLagrange, err := unsafekzg.NewSRS(ccss[nbParams-1])
 	assert.NoError(err)
+	srsT, ok := srs.(*kzg_bls12377.SRS)
+	assert.True(ok)
+	srsLagrangeT, ok := srsLagrange.(*kzg_bls12377.SRS)
+	assert.True(ok)
+
 	for i := range vks {
-		pks[i], vks[i], err = native_plonk.Setup(ccss[i], srs, srsLagrange)
+		sizeSystem := ccss[i].GetNbPublicVariables() + ccss[i].GetNbConstraints()
+		nextPowerTwo := 1 << stdbits.Len(uint(sizeSystem))
+		srsLagrangeT.Pk.G1, err = kzg_bls12377.ToLagrangeG1(srsT.Pk.G1[:nextPowerTwo])
+		assert.NoError(err)
+		pks[i], vks[i], err = native_plonk.Setup(ccss[i], srsT, srsLagrangeT)
 		assert.NoError(err)
 	}
 	return ccss, vks, pks
