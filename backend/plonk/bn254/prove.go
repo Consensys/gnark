@@ -104,7 +104,7 @@ type Proof struct {
 
 	Bsb22Commitments []kzg.Digest
 
-	// Batch opening proof of h1 + zetaⁿ⁺²*h2 + zeta²⁽ⁿ⁺²⁾*h3, linearizedPolynomial, l, r, o, s1, s2, qCPrime
+	// Batch opening proof of linearizedPolynomial, l, r, o, s1, s2, qCPrime
 	BatchedProof kzg.BatchOpeningProof
 
 	// Opening proof of Z at zeta*mu
@@ -1298,6 +1298,13 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 	var rl fr.Element
 	rl.Mul(&rZeta, &lZeta)
 
+	// s1 =  α*(l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*β*Z(μζ*
+	// s2 = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
+	// the linearised polynomial is
+	// α²*L₁(ζ)*Z(X) +
+	// s1*s3(X)+s1*Z(X) + l(ζ)*Ql(X) +
+	// l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X) + ∑ᵢQcp_(ζ)Pi_(X) -
+	// Z_{H}(ζ)*((H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
 	var s1, s2 fr.Element
 	chS1 := make(chan struct{}, 1)
 	go func() {
@@ -1322,20 +1329,22 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 	s2.Mul(&s2, &tmp)                                           // (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 	s2.Neg(&s2).Mul(&s2, &alpha)                                // -(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)*α
 
-	// third part L₁(ζ)*α²*Z
-	var lagrangeZeta, one, den, frNbElmt fr.Element
+	// Z_h(ζ), ζⁿ⁺², L₁(ζ)*α²*Z
+	var zhZeta, zetaNPlusTwo, lagrangeZeta, one, den, frNbElmt fr.Element
 	one.SetOne()
 	nbElmt := int64(s.domain0.Cardinality)
 	lagrangeZeta.Set(&zeta).
-		Exp(lagrangeZeta, big.NewInt(nbElmt)).
-		Sub(&lagrangeZeta, &one)
+		Exp(lagrangeZeta, big.NewInt(nbElmt))
+	zetaNPlusTwo.Mul(&lagrangeZeta, &zeta).Mul(&zetaNPlusTwo, &zeta) // ζⁿ⁺²
+	lagrangeZeta.Sub(&lagrangeZeta, &one)                            // ζⁿ - 1
+	zhZeta.Set(&lagrangeZeta)                                        // Z_h(ζ) = ζⁿ - 1
 	frNbElmt.SetUint64(uint64(nbElmt))
 	den.Sub(&zeta, &one).
 		Inverse(&den)
-	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ⁻¹)/(ζ-1)
+	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ - 1)/(ζ-1)
 						Mul(&lagrangeZeta, &alpha).
 						Mul(&lagrangeZeta, &alpha).
-						Mul(&lagrangeZeta, &s.domain0.CardinalityInv) // (1/n)*α²*L₁(ζ)
+						Mul(&lagrangeZeta, &s.domain0.CardinalityInv) // α²*L₁(ζ)
 
 	s3canonical := s.trace.S3.Coefficients()
 
@@ -1361,23 +1370,38 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 				t.Add(&t, &t0)
 			}
 			if i < len(cqm) {
-				t1.Mul(&cqm[i], &rl) // linPol = linPol + l(ζ)r(ζ)*Qm(X)
-				t0.Mul(&cql[i], &lZeta)
-				t0.Add(&t0, &t1)
-				t.Add(&t, &t0) // linPol = linPol + l(ζ)*Ql(X)
-				t0.Mul(&cqr[i], &rZeta)
-				t.Add(&t, &t0) // linPol = linPol + r(ζ)*Qr(X)
-				t0.Mul(&cqo[i], &oZeta)
-				t0.Add(&t0, &cqk[i])
-				t.Add(&t, &t0) // linPol = linPol + o(ζ)*Qo(X) + Qk(X)
-				for j := range qcpZeta {
+				t1.Mul(&cqm[i], &rl)     // l(ζ)r(ζ)*Qm(X)
+				t.Add(&t, &t1)           // linPol += l(ζ)r(ζ)*Qm(X)
+				t0.Mul(&cql[i], &lZeta)  // l(ζ)Q_l(X)
+				t.Add(&t, &t0)           // linPol += l(ζ)*Ql(X)
+				t0.Mul(&cqr[i], &rZeta)  //r(ζ)*Qr(X)
+				t.Add(&t, &t0)           // linPol += r(ζ)*Qr(X)
+				t0.Mul(&cqo[i], &oZeta)  // o(ζ)*Qo(X)
+				t.Add(&t, &t0)           // linPol += o(ζ)*Qo(X)
+				t.Add(&t, &cqk[i])       // linPol += Qk(X)
+				for j := range qcpZeta { // linPol += ∑ᵢQcp_(ζ)Pi_(X)
 					t0.Mul(&pi2Canonical[j][i], &qcpZeta[j])
 					t.Add(&t, &t0)
 				}
 			}
 
-			t0.Mul(&blindedZCanonical[i], &lagrangeZeta)
-			blindedZCanonical[i].Add(&t, &t0) // finish the computation
+			t0.Mul(&blindedZCanonical[i], &lagrangeZeta) // α²L₁(ζ)Z(X)
+			blindedZCanonical[i].Add(&t, &t0)            // linPol += α²L₁(ζ)Z(X)
+
+			// the hi are all of the same length
+			h1 := s.h1()
+			h2 := s.h2()
+			h3 := s.h3()
+			if i < len(h1) {
+				t.Mul(&h3[i], &zetaNPlusTwo).
+					Add(&t, &h2[i]).
+					Mul(&t, &zetaNPlusTwo).
+					Add(&t, &h1[i]).
+					Mul(&t, &zhZeta) // Z_h(ζ)*(H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
+			}
+
+			blindedZCanonical[i].Sub(&blindedZCanonical[i], &t) // linPol -= Z_h(ζ)*(H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
+
 		}
 	})
 	return blindedZCanonical
