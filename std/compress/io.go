@@ -3,7 +3,7 @@ package compress
 import (
 	"errors"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/compress/internal/plonk_helpers"
+	"github.com/consensys/gnark/std/compress/internal/plonk"
 	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	"hash"
@@ -87,12 +87,12 @@ func UnpackIntoBytes(api frontend.API, bytesPerElem int, packed []frontend.Varia
 
 		z := api.IsZero(unpacked[i])
 
-		lastNonZero := plonk_helpers.EvaluatePlonkExpression(api, z, found, -1, -1, 1, 1) // nz - found
-		nbBytes = api.Add(nbBytes, api.Mul(lastNonZero, frontend.Variable(i)))            // the last nonzero byte itself is useless
+		lastNonZero := plonk.EvaluateExpression(api, z, found, -1, -1, 1, 1)   // nz - found
+		nbBytes = api.Add(nbBytes, api.Mul(lastNonZero, frontend.Variable(i))) // the last nonzero byte itself is useless
 
 		//api.AssertIsEqual(api.Mul(api.Sub(bytesPerElem-i%bytesPerElem, unpacked[i]), lastNonZero), 0) // sanity check, technically unnecessary TODO @Tabaie make sure it's one constraint only or better yet, remove
 
-		found = plonk_helpers.EvaluatePlonkExpression(api, z, found, -1, 0, 1, 1) // found ? 1 : nz = nz + found (1 - nz) = 1 - z + found z
+		found = plonk.EvaluateExpression(api, z, found, -1, 0, 1, 1) // found ? 1 : nz = nz + found (1 - nz) = 1 - z + found z
 	}
 	return
 }

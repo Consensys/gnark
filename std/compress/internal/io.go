@@ -5,72 +5,89 @@ import (
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress"
-	"github.com/consensys/gnark/std/compress/internal/plonk_helpers"
+	"github.com/consensys/gnark/std/compress/internal/plonk"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 	"math/big"
 )
 
+// NumReader takes a sequence of words [ b₀ b₁ ... ], along with a base r and length n
+// and returns the numbers (b₀ b₁ ... bₙ₋₁)ᵣ, (b₁ b₂ ... bₙ)ᵣ, ... upon successive calls to Next()
 type NumReader struct {
 	api         frontend.API
-	c           []frontend.Variable
-	stepCoeff   int
+	toRead      []frontend.Variable
+	radix       int
 	maxCoeff    int
 	wordsPerNum int
 	last        frontend.Variable
 }
 
-func NewNumReader(api frontend.API, c []frontend.Variable, numNbBits, wordNbBits int) *NumReader {
+// NewNumReader returns a new NumReader
+// toRead is the slice of words to read from
+// numNbBits defines the radix as r = 2ⁿᵘᵐᴺᵇᴮⁱᵗˢ (or rather numNbBits = log₂(r) )
+// wordNbBits defines the number of bits in each word such that n = numNbBits/wordNbBits
+// it is the caller's responsibility to check 0 ≤ bᵢ < r ∀ i
+func NewNumReader(api frontend.API, toRead []frontend.Variable, numNbBits, wordNbBits int) *NumReader {
 	wordsPerNum := numNbBits / wordNbBits
 
 	if wordsPerNum*wordNbBits != numNbBits {
 		panic("wordNbBits must be a divisor of 8")
 	}
 
-	stepCoeff := 1 << wordNbBits
+	radix := 1 << wordNbBits
 	return &NumReader{
 		api:         api,
-		c:           c,
-		stepCoeff:   stepCoeff,
+		toRead:      toRead,
+		radix:       radix,
 		maxCoeff:    1 << numNbBits,
 		wordsPerNum: wordsPerNum,
 	}
 }
 
-// Next returns the next number in the sequence. assumes bits past the end of the Slice are 0
+// Next returns the next number in the sequence and advances the reader head by one word. assumes bits past the end of the Slice are 0
 func (nr *NumReader) Next() frontend.Variable {
 	return nr.next(nil)
 }
 
+// AssertNextEquals is functionally equivalent to
+//
+//	z := nr.Next()
+//	api.AssertIsEqual(v, z)
+//
+// while saving exactly one constraint
 func (nr *NumReader) AssertNextEquals(v frontend.Variable) {
 	nr.next(v)
 }
 
+// next returns the next number in the sequence.
+// if v != nil, it returns v and asserts it is equal to the next number in the sequence (making a petty saving of one constraint by not creating a new variable)
 func (nr *NumReader) next(v frontend.Variable) frontend.Variable {
-	if len(nr.c) == 0 {
+	if len(nr.toRead) == 0 {
 		return 0
 	}
 
 	if nr.last == nil { // the very first call
-		nr.last = compress.ReadNum(nr.api, nr.c, nr.wordsPerNum, nr.stepCoeff)
+		nr.last = compress.ReadNum(nr.api, nr.toRead[:min(len(nr.toRead), nr.wordsPerNum)], nr.radix)
 		if v != nil {
 			nr.api.AssertIsEqual(nr.last, v)
 		}
 		return nr.last
 	}
 
-	nr.last = nr.api.Sub(nr.api.Mul(nr.last, nr.stepCoeff), nr.api.Mul(nr.c[0], nr.maxCoeff))
-	if nr.wordsPerNum < len(nr.c) {
-		if v == nil {
-			nr.last = nr.api.Add(nr.last, nr.c[nr.wordsPerNum])
-		} else {
-			addPlonkConstraint(nr.api, nr.last, nr.c[nr.wordsPerNum], v, 1, 1, -1, 0, 0)
+	// let r := nr.radix, n := log(nr.maxCoeff)ᵣ
+	// then (b₁ b₂ ... bₙ)ᵣ = r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
+	nr.last = nr.api.Sub(nr.api.Mul(nr.last, nr.radix), nr.api.Mul(nr.toRead[0], nr.maxCoeff)) // r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀
+	if nr.wordsPerNum < len(nr.toRead) {
+		if v == nil { // return r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
+			nr.last = nr.api.Add(nr.last, nr.toRead[nr.wordsPerNum])
+		} else { // assert v = r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
+			plonk.AddConstraint(nr.api, nr.last, nr.toRead[nr.wordsPerNum], v, 1, 1, -1, 0, 0)
 			nr.last = v
 		}
 	} else if v != nil {
 		panic("todo refactoring required")
 	}
 
-	nr.c = nr.c[1:]
+	nr.toRead = nr.toRead[1:]
 	return nr.last
 }
 
@@ -110,9 +127,9 @@ func (r *RangeChecker) AssertLessThan(bound uint, c ...frontend.Variable) {
 	}
 }
 
-// LessThan returns a variable that is 1 if 0 \leq c < bound, 0 otherwise
-// TODO perf @Tabaie see if we can get away with a weaker contract, where the return value is 0 iff 0 \leq c < bound
-func (r *RangeChecker) LessThan(bound uint, c frontend.Variable) frontend.Variable {
+// IsLessThan returns a variable that is 1 if 0 ≤ c < bound, 0 otherwise
+// TODO perf @Tabaie see if we can get away with a weaker contract, where the return value is 0 iff 0 ≤ c < bound
+func (r *RangeChecker) IsLessThan(bound uint, c frontend.Variable) frontend.Variable {
 	switch bound {
 	case 1:
 		return r.api.IsZero(c)
@@ -121,10 +138,10 @@ func (r *RangeChecker) LessThan(bound uint, c frontend.Variable) frontend.Variab
 	if bound%2 != 0 {
 		panic("odd bounds not yet supported")
 	}
-	v := plonk_helpers.EvaluatePlonkExpression(r.api, c, c, -int(bound-1), 0, 1, 0) // c^2 - (bound-1)*c
+	v := plonk.EvaluateExpression(r.api, c, c, -int(bound-1), 0, 1, 0) // toRead² - (bound-1)× toRead
 	res := v
 	for i := uint(1); i < bound/2; i++ {
-		res = plonk_helpers.EvaluatePlonkExpression(r.api, res, v, int(i*(bound-i-1)), 0, 1, 0)
+		res = plonk.EvaluateExpression(r.api, res, v, int(i*(bound-i-1)), 0, 1, 0)
 	}
 
 	return r.api.IsZero(res)
@@ -208,19 +225,9 @@ func BreakUpBytesIntoHalfHint(_ *big.Int, ins, outs []*big.Int) error { // todo 
 	return breakUpBytesIntoWords(4, ins, outs)
 }
 
-func addPlonkConstraint(api frontend.API, a, b, o frontend.Variable, qL, qR, qO, qM, qC int) {
-	if papi, ok := api.(frontend.PlonkAPI); ok {
-		papi.AddPlonkConstraint(a, b, o, qL, qR, qO, qM, qC)
-	} else {
-		api.AssertIsEqual(
-			api.Add(
-				api.Mul(a, qL),
-				api.Mul(b, qR),
-				api.Mul(a, b, qM),
-				api.Mul(o, qO),
-				qC,
-			),
-			0,
-		)
+func min(a, b int) int {
+	if a < b {
+		return a
 	}
+	return b
 }

@@ -77,7 +77,7 @@ func (c *recombineBytesCircuit) Define(api frontend.API) error {
 	return nil
 }
 
-func TestRangeChecker_LessThan(t *testing.T) {
+func TestRangeChecker_IsLessThan(t *testing.T) {
 	ins := []frontend.Variable{-3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	outs := []frontend.Variable{0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0}
 	circuit := rangeCheckerCircuit{
@@ -104,7 +104,7 @@ func (c *rangeCheckerCircuit) Define(api frontend.API) error {
 	r := internal.NewRangeChecker(api)
 
 	for i := range c.Ins {
-		lt := r.LessThan(c.Range, c.Ins[i])
+		lt := r.IsLessThan(c.Range, c.Ins[i])
 		api.AssertIsEqual(c.Outs[i], lt)
 	}
 

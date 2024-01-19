@@ -6,7 +6,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/compress/internal"
-	"github.com/consensys/gnark/std/compress/internal/plonk_helpers"
+	"github.com/consensys/gnark/std/compress/internal/plonk"
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
@@ -84,7 +84,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		// copying = copyLen01 ? copyLen==1 : 1			either from previous iterations or starting a new copy
 		// copying = copyLen01 ? copyLen : 1
-		copying := plonk_helpers.EvaluatePlonkExpression(api, copyLen01, copyLen, -1, 0, 1, 1)
+		copying := plonk.EvaluateExpression(api, copyLen01, copyLen, -1, 0, 1, 1)
 
 		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedCpAddr), currIndicatesBr)
 		dictCopyAddr := api.Add(currIndicatedCpAddr, api.Sub(currIndicatedCpLen, copyLen))
@@ -94,7 +94,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		// write to output
 		outVal := api.Select(copying, toCopy, curr)
 		// TODO previously the last byte of the output kept getting repeated. That can be worked with. If there was a reason to save some 600K constraints in the zkEVM decompressor, take this out again
-		d[outI] = plonk_helpers.EvaluatePlonkExpression(api, outVal, eof, 1, 0, -1, 0) // write zeros past eof
+		d[outI] = plonk.EvaluateExpression(api, outVal, eof, 1, 0, -1, 0) // write zeros past eof
 		// WARNING: curr modified by MulAcc
 		outTable.Insert(d[outI])
 
@@ -109,10 +109,10 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		if eof == 0 {
 			inI = api.Add(inI, inIDelta)
 		} else {
-			inI = api.Add(inI, plonk_helpers.EvaluatePlonkExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
+			inI = api.Add(inI, plonk.EvaluateExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
 		}
 
-		eofNow := rangeChecker.LessThan(byteNbWords, api.Sub(cLength, inI)) // less than a byte left; meaning we are at the end of the input
+		eofNow := rangeChecker.IsLessThan(byteNbWords, api.Sub(cLength, inI)) // less than a byte left; meaning we are at the end of the input
 
 		dLength = api.Add(dLength, api.Mul(api.Sub(eofNow, eof), outI+1)) // if eof, don't advance dLength
 		eof = eofNow
