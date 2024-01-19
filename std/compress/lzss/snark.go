@@ -27,9 +27,12 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	byteNbWords := uint(8 / wordNbBits)
 
 	// check header: version and compression level
-	const sizeHeader = 3
-	api.AssertIsEqual(c[0], 0) // compressor version
-	api.AssertIsEqual(c[1], 0) // still compressor version
+	const (
+		sizeHeader = 3
+		version    = 0
+	)
+	api.AssertIsEqual(c[0], version/256)
+	api.AssertIsEqual(c[1], version%256)
 	fileCompressionMode := c[2]
 	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordNbBits)) // if fcm!=0, then fcm=wordNbBits
 	decompressionNotBypassed := api.Sub(1, api.IsZero(fileCompressionMode))
