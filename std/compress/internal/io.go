@@ -152,6 +152,10 @@ var wordNbBitsToHint = map[int]hint.Hint{1: BreakUpBytesIntoBitsHint, 2: BreakUp
 // BreakUpBytesIntoWords breaks up bytes into words of size wordNbBits
 // It also returns a Slice of bytes which are a reading of the input byte Slice starting from each of the words, thus a super-Slice of the input
 // It has the side effect of checking that the input does in fact consist of bytes
+// As an example, let the words be bits and the input be the bytes [b₀ b₁ b₂ b₃ b₄ b₅ b₆ b₇], [b₈ b₉ b₁₀ b₁₁ b₁₂ b₁₃ b₁₄ b₁₅]
+// Then the output words are b₀, b₁, b₂, b₃, b₄, b₅, b₆, b₇, b₈, b₉, b₁₀, b₁₁, b₁₂, b₁₃, b₁₄, b₁₅
+// The "recombined" output is the slice {[b₀ b₁ b₂ b₃ b₄ b₅ b₆ b₇], [b₁ b₂ b₃ b₄ b₅ b₆ b₇ b₈], ...}
+// Note that for any i in range we get recombined[8*i] = bytes[i]
 func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.Variable) (words, recombined []frontend.Variable) {
 
 	wordsPerByte := 8 / wordNbBits
@@ -163,7 +167,6 @@ func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.V
 	words = bytes
 	if wordsPerByte != 1 {
 		var err error
-		// todo @tabaie use named hints so different wordNbBits can be used in the same circuit
 		if words, err = r.api.Compiler().NewHint(wordNbBitsToHint[wordNbBits], wordsPerByte*len(bytes), bytes...); err != nil {
 			panic(err)
 		}
@@ -172,13 +175,13 @@ func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.V
 	// proving: check that words are in range
 	r.AssertLessThan(1<<wordNbBits, words...)
 
-	reader := NewNumReader(r.api, words, 8, wordNbBits)
+	reader := NewNumReader(r.api, words, 8, wordNbBits) // "fill in" the spaces in between the given bytes
 	recombined = make([]frontend.Variable, len(words))
 	for i := range bytes {
-		reader.AssertNextEquals(bytes[i])
+		reader.AssertNextEquals(bytes[i]) // see that the words do recombine to the original bytes; the only real difference between this and the inner loop is a single constraint saved
 		recombined[i*wordsPerByte] = bytes[i]
 		for j := 1; j < wordsPerByte; j++ {
-			recombined[i*wordsPerByte+j] = reader.Next()
+			recombined[i*wordsPerByte+j] = reader.Next() //
 		}
 	}
 
