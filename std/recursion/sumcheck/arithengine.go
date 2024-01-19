@@ -1,6 +1,12 @@
 package sumcheck
 
-import "math/big"
+import (
+	"fmt"
+	"math/big"
+
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated"
+)
 
 type Element interface{}
 type ArithEngine[E Element] interface {
@@ -30,6 +36,30 @@ func (be *bigIntEngine) Sub(dst, a, b *big.Int) *big.Int {
 	return dst
 }
 
-func newBigIntEngine(mod *big.Int) ArithEngine[*big.Int] {
+func newBigIntEngine(mod *big.Int) *bigIntEngine {
 	return &bigIntEngine{mod: new(big.Int).Set(mod)}
+}
+
+type emuEngine[FR emulated.FieldParams] struct {
+	f *emulated.Field[FR]
+}
+
+func (ee *emuEngine[FR]) Add(_, a, b *emulated.Element[FR]) *emulated.Element[FR] {
+	return ee.f.Add(a, b)
+}
+
+func (ee *emuEngine[FR]) Mul(_, a, b *emulated.Element[FR]) *emulated.Element[FR] {
+	return ee.f.Mul(a, b)
+}
+
+func (ee *emuEngine[FR]) Sub(_, a, b *emulated.Element[FR]) *emulated.Element[FR] {
+	return ee.f.Sub(a, b)
+}
+
+func newEmulatedEngine[FR emulated.FieldParams](api frontend.API) (*emuEngine[FR], error) {
+	f, err := emulated.NewField[FR](api)
+	if err != nil {
+		return nil, fmt.Errorf("new field: %w", err)
+	}
+	return &emuEngine[FR]{f: f}, nil
 }

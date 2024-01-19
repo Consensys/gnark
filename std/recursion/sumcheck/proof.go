@@ -1,8 +1,6 @@
 package sumcheck
 
 import (
-	"math/big"
-
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
 )
@@ -42,5 +40,3 @@ func PlaceholderMultilinearProof[FR emulated.FieldParams](nbVars int) Proof[FR] 
 		RoundPolyEvaluations: rps,
 	}
 }
-
-type NativePolynomial []*big.Int

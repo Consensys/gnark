@@ -62,7 +62,7 @@ func (fn *multilinearClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], comb
 }
 
 type nativeMultilinearClaim struct {
-	ArithEngine[*big.Int]
+	be *bigIntEngine
 
 	ml []*big.Int
 }
@@ -80,7 +80,7 @@ func NewNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim Claims, hy
 	for i := range ml {
 		cml[i] = new(big.Int).Set(ml[i])
 	}
-	return &nativeMultilinearClaim{ArithEngine: newBigIntEngine(target), ml: cml}, hypersum, nil
+	return &nativeMultilinearClaim{be: newBigIntEngine(target), ml: cml}, hypersum, nil
 }
 
 func (fn *nativeMultilinearClaim) NbClaims() int {
@@ -92,34 +92,14 @@ func (fn *nativeMultilinearClaim) NbVars() int {
 }
 
 func (fn *nativeMultilinearClaim) Combine(coeff *big.Int) NativePolynomial {
-	return []*big.Int{fn.hypesumX1One()}
+	return []*big.Int{hypesumX1One(fn.be, fn.ml)}
 }
 
 func (fn *nativeMultilinearClaim) Next(r *big.Int) NativePolynomial {
-	fn.ml = fn.fold(r)
-	return []*big.Int{fn.hypesumX1One()}
+	fn.ml = fold(fn.be, fn.ml, r)
+	return []*big.Int{hypesumX1One(fn.be, fn.ml)}
 }
 
 func (fn *nativeMultilinearClaim) ProverFinalEval(r []*big.Int) NativeEvaluationProof {
 	return nil
-}
-
-func (fn *nativeMultilinearClaim) fold(r *big.Int) []*big.Int {
-	mid := len(fn.ml) / 2
-	bottom, top := fn.ml[:mid], fn.ml[mid:]
-	t := new(big.Int)
-	for i := 0; i < mid; i++ {
-		fn.Sub(t, top[i], bottom[i])
-		fn.Mul(t, t, r)
-		fn.Add(bottom[i], bottom[i], t)
-	}
-	return fn.ml[:mid]
-}
-
-func (fn *nativeMultilinearClaim) hypesumX1One() *big.Int {
-	sum := fn.ml[len(fn.ml)/2]
-	for i := len(fn.ml)/2 + 1; i < len(fn.ml); i++ {
-		fn.Add(sum, sum, fn.ml[i])
-	}
-	return sum
 }
