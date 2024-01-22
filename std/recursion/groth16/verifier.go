@@ -250,86 +250,86 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](vk groth16.VerifyingKey) (VerifyingKey[G1El, G2El, GtEl], error) {
 	var ret VerifyingKey[G1El, G2El, GtEl]
 	switch s := any(&ret).(type) {
-	// case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]:
-	// 	tVk, ok := vk.(*groth16backend_bn254.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
-	// 	}
-	// 	// compute E
-	// 	e, err := bn254.Pair([]bn254.G1Affine{tVk.G1.Alpha}, []bn254.G2Affine{tVk.G2.Beta})
-	// 	if err != nil {
-	// 		return ret, fmt.Errorf("precompute pairing: %w", err)
-	// 	}
-	// 	s.E = sw_bn254.NewGTEl(e)
-	// 	s.G1.K = make([]sw_bn254.G1Affine, len(tVk.G1.K))
-	// 	for i := range s.G1.K {
-	// 		s.G1.K[i] = sw_bn254.NewG1Affine(tVk.G1.K[i])
-	// 	}
-	// 	var deltaNeg, gammaNeg bn254.G2Affine
-	// 	deltaNeg.Neg(&tVk.G2.Delta)
-	// 	gammaNeg.Neg(&tVk.G2.Gamma)
-	// 	s.G2.DeltaNeg = sw_bn254.NewG2Affine(deltaNeg)
-	// 	s.G2.GammaNeg = sw_bn254.NewG2Affine(gammaNeg)
-	// case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
-	// 	tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
-	// 	}
-	// 	// compute E
-	// 	e, err := bls12377.Pair([]bls12377.G1Affine{tVk.G1.Alpha}, []bls12377.G2Affine{tVk.G2.Beta})
-	// 	if err != nil {
-	// 		return ret, fmt.Errorf("precompute pairing: %w", err)
-	// 	}
-	// 	s.E = sw_bls12377.NewGTEl(e)
-	// 	s.G1.K = make([]sw_bls12377.G1Affine, len(tVk.G1.K))
-	// 	for i := range s.G1.K {
-	// 		s.G1.K[i] = sw_bls12377.NewG1Affine(tVk.G1.K[i])
-	// 	}
-	// 	var deltaNeg, gammaNeg bls12377.G2Affine
-	// 	deltaNeg.Neg(&tVk.G2.Delta)
-	// 	gammaNeg.Neg(&tVk.G2.Gamma)
-	// 	s.G2.DeltaNeg = sw_bls12377.NewG2Affine(deltaNeg)
-	// 	s.G2.GammaNeg = sw_bls12377.NewG2Affine(gammaNeg)
-	// case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
-	// 	tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
-	// 	}
-	// 	// compute E
-	// 	e, err := bls12381.Pair([]bls12381.G1Affine{tVk.G1.Alpha}, []bls12381.G2Affine{tVk.G2.Beta})
-	// 	if err != nil {
-	// 		return ret, fmt.Errorf("precompute pairing: %w", err)
-	// 	}
-	// 	s.E = sw_bls12381.NewGTEl(e)
-	// 	s.G1.K = make([]sw_bls12381.G1Affine, len(tVk.G1.K))
-	// 	for i := range s.G1.K {
-	// 		s.G1.K[i] = sw_bls12381.NewG1Affine(tVk.G1.K[i])
-	// 	}
-	// 	var deltaNeg, gammaNeg bls12381.G2Affine
-	// 	deltaNeg.Neg(&tVk.G2.Delta)
-	// 	gammaNeg.Neg(&tVk.G2.Gamma)
-	// 	s.G2.DeltaNeg = sw_bls12381.NewG2Affine(deltaNeg)
-	// 	s.G2.GammaNeg = sw_bls12381.NewG2Affine(gammaNeg)
-	// case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
-	// 	tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
-	// 	if !ok {
-	// 		return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
-	// 	}
-	// 	// compute E
-	// 	e, err := bls24315.Pair([]bls24315.G1Affine{tVk.G1.Alpha}, []bls24315.G2Affine{tVk.G2.Beta})
-	// 	if err != nil {
-	// 		return ret, fmt.Errorf("precompute pairing: %w", err)
-	// 	}
-	// 	s.E = sw_bls24315.NewGTEl(e)
-	// 	s.G1.K = make([]sw_bls24315.G1Affine, len(tVk.G1.K))
-	// 	for i := range s.G1.K {
-	// 		s.G1.K[i] = sw_bls24315.NewG1Affine(tVk.G1.K[i])
-	// 	}
-	// 	var deltaNeg, gammaNeg bls24315.G2Affine
-	// 	deltaNeg.Neg(&tVk.G2.Delta)
-	// 	gammaNeg.Neg(&tVk.G2.Gamma)
-	// 	s.G2.DeltaNeg = sw_bls24315.NewG2Affine(deltaNeg)
-	// 	s.G2.GammaNeg = sw_bls24315.NewG2Affine(gammaNeg)
+	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]:
+		tVk, ok := vk.(*groth16backend_bn254.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
+		}
+		// compute E
+		e, err := bn254.Pair([]bn254.G1Affine{tVk.G1.Alpha}, []bn254.G2Affine{tVk.G2.Beta})
+		if err != nil {
+			return ret, fmt.Errorf("precompute pairing: %w", err)
+		}
+		s.E = sw_bn254.NewGTEl(e)
+		s.G1.K = make([]sw_bn254.G1Affine, len(tVk.G1.K))
+		for i := range s.G1.K {
+			s.G1.K[i] = sw_bn254.NewG1Affine(tVk.G1.K[i])
+		}
+		var deltaNeg, gammaNeg bn254.G2Affine
+		deltaNeg.Neg(&tVk.G2.Delta)
+		gammaNeg.Neg(&tVk.G2.Gamma)
+		s.G2.DeltaNeg = sw_bn254.NewG2AffineFixed(deltaNeg)
+		s.G2.GammaNeg = sw_bn254.NewG2AffineFixed(gammaNeg)
+	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
+		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
+		}
+		// compute E
+		e, err := bls12377.Pair([]bls12377.G1Affine{tVk.G1.Alpha}, []bls12377.G2Affine{tVk.G2.Beta})
+		if err != nil {
+			return ret, fmt.Errorf("precompute pairing: %w", err)
+		}
+		s.E = sw_bls12377.NewGTEl(e)
+		s.G1.K = make([]sw_bls12377.G1Affine, len(tVk.G1.K))
+		for i := range s.G1.K {
+			s.G1.K[i] = sw_bls12377.NewG1Affine(tVk.G1.K[i])
+		}
+		var deltaNeg, gammaNeg bls12377.G2Affine
+		deltaNeg.Neg(&tVk.G2.Delta)
+		gammaNeg.Neg(&tVk.G2.Gamma)
+		s.G2.DeltaNeg = sw_bls12377.NewG2AffineFixed(deltaNeg)
+		s.G2.GammaNeg = sw_bls12377.NewG2AffineFixed(gammaNeg)
+	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
+		tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
+		}
+		// compute E
+		e, err := bls12381.Pair([]bls12381.G1Affine{tVk.G1.Alpha}, []bls12381.G2Affine{tVk.G2.Beta})
+		if err != nil {
+			return ret, fmt.Errorf("precompute pairing: %w", err)
+		}
+		s.E = sw_bls12381.NewGTEl(e)
+		s.G1.K = make([]sw_bls12381.G1Affine, len(tVk.G1.K))
+		for i := range s.G1.K {
+			s.G1.K[i] = sw_bls12381.NewG1Affine(tVk.G1.K[i])
+		}
+		var deltaNeg, gammaNeg bls12381.G2Affine
+		deltaNeg.Neg(&tVk.G2.Delta)
+		gammaNeg.Neg(&tVk.G2.Gamma)
+		s.G2.DeltaNeg = sw_bls12381.NewG2AffineFixed(deltaNeg)
+		s.G2.GammaNeg = sw_bls12381.NewG2AffineFixed(gammaNeg)
+	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
+		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
+		if !ok {
+			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
+		}
+		// compute E
+		e, err := bls24315.Pair([]bls24315.G1Affine{tVk.G1.Alpha}, []bls24315.G2Affine{tVk.G2.Beta})
+		if err != nil {
+			return ret, fmt.Errorf("precompute pairing: %w", err)
+		}
+		s.E = sw_bls24315.NewGTEl(e)
+		s.G1.K = make([]sw_bls24315.G1Affine, len(tVk.G1.K))
+		for i := range s.G1.K {
+			s.G1.K[i] = sw_bls24315.NewG1Affine(tVk.G1.K[i])
+		}
+		var deltaNeg, gammaNeg bls24315.G2Affine
+		deltaNeg.Neg(&tVk.G2.Delta)
+		gammaNeg.Neg(&tVk.G2.Gamma)
+		s.G2.DeltaNeg = sw_bls24315.NewG2AffineFixed(deltaNeg)
+		s.G2.GammaNeg = sw_bls24315.NewG2AffineFixed(gammaNeg)
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
 		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
 		if !ok {
