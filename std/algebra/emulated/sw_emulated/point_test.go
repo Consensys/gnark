@@ -1091,3 +1091,51 @@ func TestJointScalarMul6(t *testing.T) {
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
+
+type MuxCircuitTest[T, S emulated.FieldParams] struct {
+	Selector frontend.Variable
+	Inputs   [8]AffinePoint[T]
+	Expected AffinePoint[T]
+}
+
+func (c *MuxCircuitTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	els := make([]*AffinePoint[T], len(c.Inputs))
+	for i := range c.Inputs {
+		els[i] = &c.Inputs[i]
+	}
+	res := cr.Mux(c.Selector, els...)
+	cr.AssertIsEqual(res, &c.Expected)
+	return nil
+}
+
+func TestMux(t *testing.T) {
+	assert := test.NewAssert(t)
+	circuit := MuxCircuitTest[emulated.BN254Fp, emulated.BN254Fr]{}
+	r := make([]fr_bn.Element, len(circuit.Inputs))
+	for i := range r {
+		r[i].SetRandom()
+	}
+	selector, _ := rand.Int(rand.Reader, big.NewInt(int64(len(r))))
+	expectedR := r[selector.Int64()]
+	expected := new(bn254.G1Affine).ScalarMultiplicationBase(expectedR.BigInt(new(big.Int)))
+	witness := MuxCircuitTest[emulated.BN254Fp, emulated.BLS12381Fr]{
+		Selector: selector,
+		Expected: AffinePoint[emparams.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](expected.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](expected.Y),
+		},
+	}
+	for i := range r {
+		eli := new(bn254.G1Affine).ScalarMultiplicationBase(r[i].BigInt(new(big.Int)))
+		witness.Inputs[i] = AffinePoint[emparams.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](eli.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](eli.Y),
+		}
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
