@@ -214,6 +214,9 @@ func (c *Curve) Lookup2(b1, b2 frontend.Variable, p1, p2, p3, p4 *G1Affine) *G1A
 	}
 }
 
+// Mux performs a lookup from the inputs and returns inputs[sel]. It is most
+// efficient for power of two lengths of the inputs, but works for any number of
+// inputs.
 func (c *Curve) Mux(sel frontend.Variable, inputs ...*G1Affine) *G1Affine {
 	xs := make([]frontend.Variable, len(inputs))
 	ys := make([]frontend.Variable, len(inputs))

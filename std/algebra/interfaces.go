@@ -71,6 +71,9 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	//   - p4 if b0=1 and b1=1.
 	Lookup2(b1 frontend.Variable, b2 frontend.Variable, p1 *G1El, p2 *G1El, p3 *G1El, p4 *G1El) *G1El
 
+	// Mux performs a lookup from the inputs and returns inputs[sel]. It is most
+	// efficient for power of two lengths of the inputs, but works for any
+	// number of inputs.
 	Mux(sel frontend.Variable, inputs ...*G1El) *G1El
 }
 

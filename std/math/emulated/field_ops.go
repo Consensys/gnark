@@ -267,6 +267,11 @@ func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *El
 	return e
 }
 
+// Mux selects element inputs[sel] and returns it. The number of the limbs and
+// overflow in the result is the maximum of the inputs'. If the inputs are very
+// unbalanced, then reduce the inputs before calling the method. It is most
+// efficient for power of two lengths of the inputs, but works for any
+// number of inputs.
 func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T] {
 	if len(inputs) == 0 {
 		return nil
