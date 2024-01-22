@@ -338,10 +338,11 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 			}
 		} else if err = sumcheck.Verify(
 			api, claim, proof[i], fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
-		); err != nil {
+		); err == nil {
+			baseChallenge = finalEvalProof
+		} else {
 			return err
 		}
-		baseChallenge = finalEvalProof
 		claims.deleteClaim(wire)
 	}
 	return nil
