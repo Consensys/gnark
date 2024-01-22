@@ -1241,6 +1241,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifying
 			return ret, fmt.Errorf("inconsistent circuit verification key")
 		}
 	}
+	// initialize the destination with correctly allocating space for the
+	// commitment selectors and commitment indices. Then in the muxing method
+	// can already assume that all inputs and outputs match in size.
 	cvk := CircuitVerifyingKey[FR, G1El]{
 		Qcp:                         make([]kzg.Commitment[G1El], nbCmts),
 		CommitmentConstraintIndexes: make([]frontend.Variable, nbCmts),
@@ -1253,54 +1256,122 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifying
 }
 
 func (v *Verifier[FR, G1El, G2El, GtEl]) muxCircuitVerifyingKey(idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El], ret *CircuitVerifyingKey[FR, G1El]) {
+	// this method switches between the fields of the circuit verifying key. The
+	// circuit verifying key is the structure:
+	//
+	//    type CircuitVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT] struct {
+	//       Size      frontend.Variable
+	//       SizeInv   emulated.Element[FR]
+	//       Generator emulated.Element[FR]
+	//       S [3]kzg.Commitment[G1El]
+	//       Ql, Qr, Qm, Qo, Qk kzg.Commitment[G1El]
+	//       Qcp []kzg.Commitment[G1El]
+	//       CommitmentConstraintIndexes []frontend.Variable
+	//    }
+	//
+	// We already have the methods for muxing native elements, non-native
+	// elements and G1 points, but cannot directly call them as the variables we
+	// want to select between are fields in CircuitVerifying struct. So we first
+	// have to map from the strct fields to slices which can be passed to
+	// corresponding mux methods.
+	//
+	// Now - there is some repetition, we cannot collect the elements from the
+	// structures directly, but have to use reflection to obtain the pointer to
+	// the field.
+	//
+	// Finally - in non-native field implementation we only width constrain the
+	// limbs first time the witness element is used. This means that instead of
+	// passing values we have to pass the exact pointers of the fields so that
+	// we wouldn't width constraint more than have to.
+
+	// initialize the values we use to gather information about the field types.
+	//   * circuit verification key (we will iterate over fields of this)
 	var cvkT CircuitVerifyingKey[FR, G1El]
+	//   * emulated element (generator, size inverse)
 	var scalarT emulated.Element[FR]
+	//   * KZG commitment (selector polys)
 	var kzgT kzg.Commitment[G1El]
+	//   * array of 3 KZG commitment separately to avoid implementing recursive methods.
 	var ST [3]kzg.Commitment[G1El]
+	//   * slice of KZG commitment separately to avoid implementing recursive methods.
 	var QcpT []kzg.Commitment[G1El]
+	//   * commitment indices in the circuit. Used to compute the commitment.
 	var CommitmentIndexT []frontend.Variable
-	retV := reflect.ValueOf(ret).Elem()
+	//   * we have omitted Size, but it is not well checkable before we have it
+	//   initialized. But there may be separate cases when Size is a constant,
+	//   so we instead handle it in the default clause.
+
+	// initializing all reflect.Type for type switching below.
 	cvkv := reflect.TypeOf(cvkT)
 	scalarv := reflect.TypeOf(scalarT)
 	kzgv := reflect.TypeOf(kzgT)
 	STv := reflect.TypeOf(ST)
 	Qcpv := reflect.TypeOf(QcpT)
 	civ := reflect.TypeOf(CommitmentIndexT)
+
+	// additionally, we already initialize reflect.Value of the destination
+	// where we are going to store all the mux results. Similarly have to use
+	// reflection to be able to write to arbitrary field.
+	//
+	// NB! we received pointer to allow modifying inline as the slices are
+	// already initialized to correct sizes.
+	retV := reflect.ValueOf(ret).Elem()
+
+	// we iterate over all fields of the CircuitVerifyingKey and decide which mux to use.
 	for i := 0; i < cvkv.NumField(); i++ {
 		field := cvkv.Field(i)
 		switch field.Type {
 		case scalarv:
+			// it is non-native element. Pass the field id to the specialized map+mux method.
 			sRet := v.muxScalar(i, idx, cvks)
+			// retrieve the pointer of the destination field where we're going
+			// to write the mux result.
 			retFieldS, ok := retV.Field(i).Addr().Interface().(*emulated.Element[FR])
 			if !ok {
 				panic("can not cast to element")
 			}
+			// finally, overwrite the empty field in the destination circuit verification key.
 			*retFieldS = sRet
 		case kzgv:
+			// it is KZG commitment. Pass the field id to the specialized
+			// map+mux method. Indicate with -1 that the field value is
+			// commitment directly (not in a slice).
 			kzgRet := v.muxKzg(i, -1, idx, cvks)
+			// retrieve the pointer of the destination field where we're going
+			// to write the mux result.
 			retFieldKzg, ok := retV.Field(i).FieldByName("G1El").Addr().Interface().(*G1El)
 			if !ok {
 				panic("can not cast point")
 			}
+			// finally, overwrite the empty field in the destination circuit verification key.
 			*retFieldKzg = *kzgRet
 		case STv, Qcpv:
+			// special case of the previous where we have the commitments in a
+			// slice or array. We also pass the index of commitment so the
+			// specialized map+mux can locate correctly.
 			nbElem := retV.Field(i).Len()
 			for j := 0; j < nbElem; j++ {
 				kzgRet := v.muxKzg(i, j, idx, cvks)
+				// retrieve the pointer of the destination field where we're going
+				// to write the mux result.
 				retFieldKzg, ok := retV.Field(i).Index(j).FieldByName("G1El").Addr().Interface().(*G1El)
 				if !ok {
 					panic("can not cast point")
 				}
+				// finally, overwrite the empty field in the destination circuit verification key.
 				*retFieldKzg = *kzgRet
 			}
 		case civ:
 			nbElem := retV.Field(i).Len()
 			for j := 0; j < nbElem; j++ {
 				vRet := v.muxVariable(i, j, idx, cvks)
+				// retrieve the pointer of the destination field where we're going
+				// to write the mux result.
 				retFieldVar, ok := retV.Field(i).Index(j).Addr().Interface().(*frontend.Variable)
 				if !ok {
 					panic("can not cast to variable")
 				}
+				// finally, overwrite the empty field in the destination circuit verification key.
 				*retFieldVar = vRet
 			}
 		default:
@@ -1318,25 +1389,34 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) muxCircuitVerifyingKey(idx frontend.Var
 }
 
 func (v *Verifier[FR, G1El, G2El, GtEl]) muxScalar(fieldIdx int, idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El]) emulated.Element[FR] {
+	// collect the non-native elements from the CircuitVerificationKey indexed by field index.
 	els := make([]*emulated.Element[FR], len(cvks))
 	for i := range cvks {
+		// we work with pointer here to have addressable fields.
 		vv := reflect.ValueOf(&cvks[i]).Elem()
+		// there is only one more trick here -- we need to directly work on
+		// pointers for the automatic limb constrainment to work. So call Addr().
 		s, ok := vv.Field(fieldIdx).Addr().Interface().(*emulated.Element[FR])
 		if !ok {
 			panic("can not cast to scalar")
 		}
 		els[i] = s
 	}
+	// now it is easy to mux 👍
 	el := v.scalarApi.Mux(idx, els...)
 	return *el
 }
 
 func (v *Verifier[FR, G1El, G2El, GtEl]) muxKzg(fieldIdx int, sliceIdx int, idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El]) *G1El {
+	// collects the G1 elements from the CircuitVerificationKey indexed by field index
 	els := make([]*G1El, len(cvks))
 	for i := range cvks {
 		var cmt *G1El
 		var ok bool
 		vv := reflect.ValueOf(&cvks[i]).Elem()
+		// there are two cases - for S and Qcp the KZG commitments are inside
+		// array and var-length array. We handle both direct and enumeratable
+		// case.
 		if sliceIdx < 0 {
 			cmt, ok = vv.Field(fieldIdx).FieldByName("G1El").Addr().Interface().(*G1El)
 		} else {
@@ -1347,15 +1427,18 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) muxKzg(fieldIdx int, sliceIdx int, idx 
 		}
 		els[i] = cmt
 	}
+	// now it is easy to mux 👍
 	el := v.curve.Mux(idx, els...)
 	return el
 }
 
 func (v *Verifier[FR, G1El, G2El, GtEl]) muxVariable(fieldIdx int, sliceIdx int, idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El]) frontend.Variable {
+	// collects the native elements for muxing.
 	vals := make([]frontend.Variable, len(cvks))
 	for i := range cvks {
 		var variable frontend.Variable
 		vv := reflect.ValueOf(cvks[i])
+		// here we can work with values as we do not do any more magic.
 		if sliceIdx < 0 {
 			variable = vv.Field(fieldIdx).Interface()
 		} else {
@@ -1363,6 +1446,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) muxVariable(fieldIdx int, sliceIdx int,
 		}
 		vals[i] = variable
 	}
+	// mux
 	val := selector.Mux(v.api, idx, vals...)
 	return val
 }
