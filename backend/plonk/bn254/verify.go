@@ -94,17 +94,17 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		return err
 	}
 
-	// evaluation of Z=Xⁿ-1 at ζ
-	var zetaPowerM, zetaPowerNMinusOne, lagrangeOne fr.Element
+	// evaluation of zhZeta=ζⁿ-1
+	var zetaPowerM, zhZeta, lagrangeOne fr.Element
 	var bExpo big.Int
 	one := fr.One()
 	bExpo.SetUint64(vk.Size)
 	zetaPowerM.Exp(zeta, &bExpo)
-	zetaPowerNMinusOne.Sub(&zetaPowerM, &one) // ζⁿ-1
-	lagrangeOne.Sub(&zeta, &one).             // ζ-1
-							Inverse(&lagrangeOne).                  // 1/(ζ-1)
-							Mul(&lagrangeOne, &zetaPowerNMinusOne). // (ζ^n-1)/(ζ-1)
-							Mul(&lagrangeOne, &vk.SizeInv)          // 1/n * (ζ^n-1)/(ζ-1)
+	zhZeta.Sub(&zetaPowerM, &one) // ζⁿ-1
+	lagrangeOne.Sub(&zeta, &one). // ζ-1
+					Inverse(&lagrangeOne).         // 1/(ζ-1)
+					Mul(&lagrangeOne, &zhZeta).    // (ζ^n-1)/(ζ-1)
+					Mul(&lagrangeOne, &vk.SizeInv) // 1/n * (ζ^n-1)/(ζ-1)
 
 	// compute PI = ∑_{i<n} Lᵢ*wᵢ
 	var pi fr.Element
@@ -124,7 +124,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		accw.SetOne()
 		var xiLi fr.Element
 		for i := 0; i < len(publicWitness); i++ {
-			xiLi.Mul(&zetaPowerNMinusOne, &invDens[i]).
+			xiLi.Mul(&zhZeta, &invDens[i]).
 				Mul(&xiLi, &vk.SizeInv).
 				Mul(&xiLi, &accw).
 				Mul(&xiLi, &publicWitness[i]) // Pi[i]*(ωⁱ/n)(ζ^n-1)/(ζ-ω^i)
@@ -206,10 +206,10 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	nPlusTwo := big.NewInt(int64(vk.Size) + 2)
 	var zetaNPlusTwoZh, zetaNPlusTwoSquareZh, zh fr.Element
 	zetaNPlusTwoZh.Exp(zeta, nPlusTwo)
-	zetaNPlusTwoSquareZh.Mul(&zetaNPlusTwoZh, &zetaNPlusTwoZh)                                      // ζ²⁽ⁿ⁺²⁾
-	zetaNPlusTwoZh.Mul(&zetaNPlusTwoZh, &zetaPowerNMinusOne).Neg(&zetaNPlusTwoZh)                   // -ζⁿ⁺²*(ζⁿ-1)
-	zetaNPlusTwoSquareZh.Mul(&zetaNPlusTwoSquareZh, &zetaPowerNMinusOne).Neg(&zetaNPlusTwoSquareZh) // -ζ²⁽ⁿ⁺²⁾*(ζⁿ-1)
-	zh.Neg(&zetaPowerNMinusOne)
+	zetaNPlusTwoSquareZh.Mul(&zetaNPlusTwoZh, &zetaNPlusTwoZh)                          // ζ²⁽ⁿ⁺²⁾
+	zetaNPlusTwoZh.Mul(&zetaNPlusTwoZh, &zhZeta).Neg(&zetaNPlusTwoZh)                   // -ζⁿ⁺²*(ζⁿ-1)
+	zetaNPlusTwoSquareZh.Mul(&zetaNPlusTwoSquareZh, &zhZeta).Neg(&zetaNPlusTwoSquareZh) // -ζ²⁽ⁿ⁺²⁾*(ζⁿ-1)
+	zh.Neg(&zhZeta)
 
 	var linearizedPolynomialDigest curve.G1Affine
 	points := append(proof.Bsb22Commitments,
