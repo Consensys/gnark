@@ -70,6 +70,8 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	//   - p3 if b0=0 and b1=1,
 	//   - p4 if b0=1 and b1=1.
 	Lookup2(b1 frontend.Variable, b2 frontend.Variable, p1 *G1El, p2 *G1El, p3 *G1El, p4 *G1El) *G1El
+
+	Mux(sel frontend.Variable, inputs ...*G1El) *G1El
 }
 
 // Pairing allows to compute the bi-linear pairing of G1 and G2 elements.

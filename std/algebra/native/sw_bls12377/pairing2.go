@@ -14,6 +14,7 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/selector"
 )
 
 // Curve allows G1 operations in BLS12-377.
@@ -210,6 +211,19 @@ func (c *Curve) Lookup2(b1, b2 frontend.Variable, p1, p2, p3, p4 *G1Affine) *G1A
 	return &G1Affine{
 		X: c.api.Lookup2(b1, b2, p1.X, p2.X, p3.X, p4.X),
 		Y: c.api.Lookup2(b1, b2, p1.Y, p2.Y, p3.Y, p4.Y),
+	}
+}
+
+func (c *Curve) Mux(sel frontend.Variable, inputs ...*G1Affine) *G1Affine {
+	xs := make([]frontend.Variable, len(inputs))
+	ys := make([]frontend.Variable, len(inputs))
+	for i := range inputs {
+		xs[i] = inputs[i].X
+		ys[i] = inputs[i].Y
+	}
+	return &G1Affine{
+		X: selector.Mux(c.api, sel, xs...),
+		Y: selector.Mux(c.api, sel, ys...),
 	}
 }
 
