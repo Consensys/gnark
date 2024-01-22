@@ -118,6 +118,38 @@ func PlaceholderVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2Elemen
 		},
 	}
 	switch s := any(&vk).(type) {
+	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]:
+		s.G2 = struct {
+			GammaNeg sw_bn254.G2Affine
+			DeltaNeg sw_bn254.G2Affine
+		}{
+			GammaNeg: sw_bn254.NewG2AffineFixedPlaceholder(),
+			DeltaNeg: sw_bn254.NewG2AffineFixedPlaceholder(),
+		}
+	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
+		s.G2 = struct {
+			GammaNeg sw_bls12377.G2Affine
+			DeltaNeg sw_bls12377.G2Affine
+		}{
+			GammaNeg: sw_bls12377.NewG2AffineFixedPlaceholder(),
+			DeltaNeg: sw_bls12377.NewG2AffineFixedPlaceholder(),
+		}
+	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
+		s.G2 = struct {
+			GammaNeg sw_bls12381.G2Affine
+			DeltaNeg sw_bls12381.G2Affine
+		}{
+			GammaNeg: sw_bls12381.NewG2AffineFixedPlaceholder(),
+			DeltaNeg: sw_bls12381.NewG2AffineFixedPlaceholder(),
+		}
+	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
+		s.G2 = struct {
+			GammaNeg sw_bls24315.G2Affine
+			DeltaNeg sw_bls24315.G2Affine
+		}{
+			GammaNeg: sw_bls24315.NewG2AffineFixedPlaceholder(),
+			DeltaNeg: sw_bls24315.NewG2AffineFixedPlaceholder(),
+		}
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
 		s.G2 = struct {
 			GammaNeg sw_bw6761.G2Affine
@@ -127,7 +159,7 @@ func PlaceholderVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2Elemen
 			DeltaNeg: sw_bw6761.NewG2AffineFixedPlaceholder(),
 		}
 	default:
-		panic("precomputation not supported")
+		panic("not supported")
 	}
 	return vk
 }
