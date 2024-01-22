@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/selector"
 )
 
 // Div computes a/b and returns it. It uses [DivHint] as a hint function.
@@ -262,6 +263,50 @@ func (f *Field[T]) Lookup2(b0, b1 frontend.Variable, a, b, c, d *Element[T]) *El
 	dNormLimbs := normalize(d.Limbs)
 	for i := range a.Limbs {
 		e.Limbs[i] = f.api.Lookup2(b0, b1, aNormLimbs[i], bNormLimbs[i], cNormLimbs[i], dNormLimbs[i])
+	}
+	return e
+}
+
+func (f *Field[T]) Mux(sel frontend.Variable, inputs ...*Element[T]) *Element[T] {
+	if len(inputs) == 0 {
+		return nil
+	}
+	nbInputs := len(inputs)
+	overflow := uint(0)
+	nbLimbs := 0
+	for i := range inputs {
+		f.enforceWidthConditional(inputs[i])
+		if inputs[i].overflow > overflow {
+			overflow = inputs[i].overflow
+		}
+		if len(inputs[i].Limbs) > nbLimbs {
+			nbLimbs = len(inputs[i].Limbs)
+		}
+	}
+	normalize := func(limbs []frontend.Variable) []frontend.Variable {
+		if len(limbs) < nbLimbs {
+			tail := make([]frontend.Variable, nbLimbs-len(limbs))
+			for i := range tail {
+				tail[i] = 0
+			}
+			return append(limbs, tail...)
+		}
+		return limbs
+	}
+	normLimbs := make([][]frontend.Variable, nbInputs)
+	for i := range inputs {
+		normLimbs[i] = normalize(inputs[i].Limbs)
+	}
+	normLimbsTransposed := make([][]frontend.Variable, nbLimbs)
+	for i := range normLimbsTransposed {
+		normLimbsTransposed[i] = make([]frontend.Variable, nbInputs)
+		for j := range normLimbsTransposed[i] {
+			normLimbsTransposed[i][j] = normLimbs[j][i]
+		}
+	}
+	e := f.newInternalElement(make([]frontend.Variable, nbLimbs), overflow)
+	for i := range inputs[0].Limbs {
+		e.Limbs[i] = selector.Mux(f.api, sel, normLimbsTransposed[i]...)
 	}
 	return e
 }
