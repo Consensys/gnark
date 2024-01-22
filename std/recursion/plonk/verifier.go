@@ -2,6 +2,7 @@ package plonk
 
 import (
 	"fmt"
+	"reflect"
 
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
@@ -28,6 +29,7 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
+	"github.com/consensys/gnark/std/selector"
 )
 
 // Proof is a typed PLONK proof of SNARK. Use [ValueOfProof] to initialize the
@@ -1217,7 +1219,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(exp frontend.V
 	return li
 }
 
-// SwitchVerificationKey returns a verification key by the index idx using the base verification key bvk and circuit specific verification key cvks[idx].
+// SwitchVerificationKey returns a verification key by the index idx using the
+// base verification key bvk and circuit specific verification key cvks[idx].
 func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifyingKey[FR, G1El, G2El], idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El]) (VerifyingKey[FR, G1El, G2El], error) {
 	var ret VerifyingKey[FR, G1El, G2El]
 	if len(cvks) == 0 {
@@ -1229,10 +1232,6 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifying
 			CircuitVerifyingKey: cvks[0],
 		}, nil
 	}
-	if len(cvks) > 4 {
-		return ret, fmt.Errorf("large verification key switching not implemented yet")
-
-	}
 	nbCmts := len(cvks[0].CommitmentConstraintIndexes)
 	for i := range cvks {
 		if len(cvks[i].CommitmentConstraintIndexes) != nbCmts {
@@ -1242,33 +1241,128 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifying
 			return ret, fmt.Errorf("inconsistent circuit verification key")
 		}
 	}
-	for i := len(cvks); i < 4; i++ {
-		cvks = append(cvks, ret.CircuitVerifyingKey)
-	}
 	cvk := CircuitVerifyingKey[FR, G1El]{
 		Qcp:                         make([]kzg.Commitment[G1El], nbCmts),
 		CommitmentConstraintIndexes: make([]frontend.Variable, nbCmts),
 	}
-	bIdx := bits.ToBinary(v.api, idx, bits.WithNbDigits(2))
-	cvk.Size = v.api.Lookup2(bIdx[0], bIdx[1], cvks[0].Size, cvks[1].Size, cvks[2].Size, cvks[3].Size)
-	cvk.SizeInv = *v.scalarApi.Lookup2(bIdx[0], bIdx[1], &cvks[0].SizeInv, &cvks[1].SizeInv, &cvks[2].SizeInv, &cvks[3].SizeInv)
-	cvk.Generator = *v.scalarApi.Lookup2(bIdx[0], bIdx[1], &cvks[0].Generator, &cvks[1].Generator, &cvks[2].Generator, &cvks[3].Generator)
-	for i := range cvk.S {
-		cvk.S[i].G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].S[i].G1El, &cvks[1].S[i].G1El, &cvks[2].S[i].G1El, &cvks[3].S[i].G1El)
-	}
-	cvk.Ql.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Ql.G1El, &cvks[1].Ql.G1El, &cvks[2].Ql.G1El, &cvks[3].Ql.G1El)
-	cvk.Qr.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qr.G1El, &cvks[1].Qr.G1El, &cvks[2].Qr.G1El, &cvks[3].Qr.G1El)
-	cvk.Qm.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qm.G1El, &cvks[1].Qm.G1El, &cvks[2].Qm.G1El, &cvks[3].Qm.G1El)
-	cvk.Qo.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qo.G1El, &cvks[1].Qo.G1El, &cvks[2].Qo.G1El, &cvks[3].Qo.G1El)
-	cvk.Qk.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qk.G1El, &cvks[1].Qk.G1El, &cvks[2].Qk.G1El, &cvks[3].Qk.G1El)
-	for i := range cvk.Qcp {
-		cvk.Qcp[i].G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qcp[i].G1El, &cvks[1].Qcp[i].G1El, &cvks[2].Qcp[i].G1El, &cvks[3].Qcp[i].G1El)
-	}
-	for i := range cvk.CommitmentConstraintIndexes {
-		cvk.CommitmentConstraintIndexes[i] = v.api.Lookup2(bIdx[0], bIdx[1], cvks[0].CommitmentConstraintIndexes[i], cvks[1].CommitmentConstraintIndexes[i], cvks[2].CommitmentConstraintIndexes[i], cvks[3].CommitmentConstraintIndexes[i])
-	}
+	v.muxCircuitVerifyingKey(idx, cvks, &cvk)
 	return VerifyingKey[FR, G1El, G2El]{
 		BaseVerifyingKey:    bvk,
 		CircuitVerifyingKey: cvk,
 	}, nil
+}
+
+func (v *Verifier[FR, G1El, G2El, GtEl]) muxCircuitVerifyingKey(idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El], ret *CircuitVerifyingKey[FR, G1El]) {
+	var cvkT CircuitVerifyingKey[FR, G1El]
+	var scalarT emulated.Element[FR]
+	var kzgT kzg.Commitment[G1El]
+	var ST [3]kzg.Commitment[G1El]
+	var QcpT []kzg.Commitment[G1El]
+	var CommitmentIndexT []frontend.Variable
+	retV := reflect.ValueOf(ret).Elem()
+	cvkv := reflect.TypeOf(cvkT)
+	scalarv := reflect.TypeOf(scalarT)
+	kzgv := reflect.TypeOf(kzgT)
+	STv := reflect.TypeOf(ST)
+	Qcpv := reflect.TypeOf(QcpT)
+	civ := reflect.TypeOf(CommitmentIndexT)
+	for i := 0; i < cvkv.NumField(); i++ {
+		field := cvkv.Field(i)
+		switch field.Type {
+		case scalarv:
+			sRet := v.muxScalar(i, idx, cvks)
+			retFieldS, ok := retV.Field(i).Addr().Interface().(*emulated.Element[FR])
+			if !ok {
+				panic("can not cast to element")
+			}
+			*retFieldS = sRet
+		case kzgv:
+			kzgRet := v.muxKzg(i, -1, idx, cvks)
+			retFieldKzg, ok := retV.Field(i).FieldByName("G1El").Addr().Interface().(*G1El)
+			if !ok {
+				panic("can not cast point")
+			}
+			*retFieldKzg = *kzgRet
+		case STv, Qcpv:
+			nbElem := retV.Field(i).Len()
+			for j := 0; j < nbElem; j++ {
+				kzgRet := v.muxKzg(i, j, idx, cvks)
+				retFieldKzg, ok := retV.Field(i).Index(j).FieldByName("G1El").Addr().Interface().(*G1El)
+				if !ok {
+					panic("can not cast point")
+				}
+				*retFieldKzg = *kzgRet
+			}
+		case civ:
+			nbElem := retV.Field(i).Len()
+			for j := 0; j < nbElem; j++ {
+				vRet := v.muxVariable(i, j, idx, cvks)
+				retFieldVar, ok := retV.Field(i).Index(j).Addr().Interface().(*frontend.Variable)
+				if !ok {
+					panic("can not cast to variable")
+				}
+				*retFieldVar = vRet
+			}
+		default:
+			// handle frontend.Variable in default case. It doesn't have a good
+			// static type to test against.
+			vRet := v.muxVariable(i, -1, idx, cvks)
+			retFieldVar, ok := retV.Field(i).Addr().Interface().(*frontend.Variable)
+			if !ok {
+				panic("can not cast to variable")
+			}
+			*retFieldVar = vRet
+		}
+	}
+
+}
+
+func (v *Verifier[FR, G1El, G2El, GtEl]) muxScalar(fieldIdx int, idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El]) emulated.Element[FR] {
+	els := make([]*emulated.Element[FR], len(cvks))
+	for i := range cvks {
+		vv := reflect.ValueOf(&cvks[i]).Elem()
+		s, ok := vv.Field(fieldIdx).Addr().Interface().(*emulated.Element[FR])
+		if !ok {
+			panic("can not cast to scalar")
+		}
+		els[i] = s
+	}
+	el := v.scalarApi.Mux(idx, els...)
+	return *el
+}
+
+func (v *Verifier[FR, G1El, G2El, GtEl]) muxKzg(fieldIdx int, sliceIdx int, idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El]) *G1El {
+	els := make([]*G1El, len(cvks))
+	for i := range cvks {
+		var cmt *G1El
+		var ok bool
+		vv := reflect.ValueOf(&cvks[i]).Elem()
+		if sliceIdx < 0 {
+			cmt, ok = vv.Field(fieldIdx).FieldByName("G1El").Addr().Interface().(*G1El)
+		} else {
+			cmt, ok = vv.Field(fieldIdx).Index(sliceIdx).FieldByName("G1El").Addr().Interface().(*G1El)
+		}
+		if !ok {
+			panic("can not cast any to G1El")
+		}
+		els[i] = cmt
+	}
+	el := v.curve.Mux(idx, els...)
+	return el
+}
+
+func (v *Verifier[FR, G1El, G2El, GtEl]) muxVariable(fieldIdx int, sliceIdx int, idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El]) frontend.Variable {
+	vals := make([]frontend.Variable, len(cvks))
+	for i := range cvks {
+		var variable frontend.Variable
+		vv := reflect.ValueOf(cvks[i])
+		if sliceIdx < 0 {
+			variable = vv.Field(fieldIdx).Interface()
+		} else {
+			variable = vv.Field(fieldIdx).Index(sliceIdx).Interface()
+		}
+		vals[i] = variable
+	}
+	val := selector.Mux(v.api, idx, vals...)
+	return val
 }
