@@ -209,7 +209,6 @@ type instance struct {
 	chRestoreLRO,
 	chZOpening,
 	chLinearizedPolynomial,
-	chFoldedH,
 	chGammaBeta chan struct{}
 
 	domain0, domain1 *fft.Domain
@@ -240,7 +239,6 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		chH:                    make(chan struct{}, 1),
 		chZOpening:             make(chan struct{}, 1),
 		chLinearizedPolynomial: make(chan struct{}, 1),
-		chFoldedH:              make(chan struct{}, 1),
 		chRestoreLRO:           make(chan struct{}, 1),
 	}
 	s.initBSB22Commitments()
@@ -718,13 +716,6 @@ func (s *instance) batchOpening() error {
 	case <-s.ctx.Done():
 		return errContextDone
 	case <-s.chLRO:
-	}
-
-	// wait for foldedH to be computed (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chFoldedH:
 	}
 
 	// wait for linearizedPolynomial to be computed (or ctx.Done())
@@ -1241,8 +1232,8 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 // The Linearized polynomial is:
 //
 // α²*L₁(ζ)*Z(X)
-// + α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)**(β*s3(X))*Z(μζ) - Z(X)*(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ))
-// + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X)
+// + α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(β*s3(X))*Z(μζ) - Z(X)*(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ))
+// + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X) + ∑ᵢQcp_(ζ)Pi_(X)
 // - Z_{H}(ζ)*((H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
 func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta, blindedZCanonical []fr.Element, pi2Canonical [][]fr.Element, pk *ProvingKey) []fr.Element {
 
@@ -1252,11 +1243,11 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 	var rl fr.Element
 	rl.Mul(&rZeta, &lZeta)
 
-	// s1 =  α*(l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*β*Z(μζ*
+	// s1 =  α*(l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*β*Z(μζ)
 	// s2 = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 	// the linearised polynomial is
 	// α²*L₁(ζ)*Z(X) +
-	// s1*s3(X)+s1*Z(X) + l(ζ)*Ql(X) +
+	// s1*s3(X)+s2*Z(X) + l(ζ)*Ql(X) +
 	// l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X) + ∑ᵢQcp_(ζ)Pi_(X) -
 	// Z_{H}(ζ)*((H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
 	var s1, s2 fr.Element
@@ -1270,7 +1261,7 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 	tmp := s.trace.S2.Evaluate(zeta)                         // s2(ζ)
 	tmp.Mul(&tmp, &beta).Add(&tmp, &rZeta).Add(&tmp, &gamma) // (r(ζ)+β*s2(ζ)+γ)
 	<-chS1
-	s1.Mul(&s1, &tmp).Mul(&s1, &zu).Mul(&s1, &beta).Mul(&s1, &alpha) // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*β*Z(μζ)*α
+	s1.Mul(&s1, &tmp).Mul(&s1, &zu).Mul(&s1, &beta).Mul(&s1, &alpha) // (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ)*α
 
 	var uzeta, uuzeta fr.Element
 	uzeta.Mul(&zeta, &pk.Vk.CosetShift)
@@ -1281,28 +1272,31 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 	s2.Mul(&s2, &tmp)                                           // (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)
 	tmp.Mul(&beta, &uuzeta).Add(&tmp, &oZeta).Add(&tmp, &gamma) // (o(ζ)+β*u²*ζ+γ)
 	s2.Mul(&s2, &tmp)                                           // (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
-	s2.Neg(&s2).Mul(&s2, &alpha)                                // -(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)*α
+	s2.Neg(&s2).Mul(&s2, &alpha)
 
 	// Z_h(ζ), ζⁿ⁺², L₁(ζ)*α²*Z
-	var zhZeta, zetaNPlusTwo, lagrangeZeta, one, den, frNbElmt fr.Element
+	var zhZeta, zetaNPlusTwo, alphaSquareLagrangeOne, one, den, frNbElmt fr.Element
 	one.SetOne()
 	nbElmt := int64(s.domain0.Cardinality)
-	lagrangeZeta.Set(&zeta).
-		Exp(lagrangeZeta, big.NewInt(nbElmt))
-	zetaNPlusTwo.Mul(&lagrangeZeta, &zeta).Mul(&zetaNPlusTwo, &zeta) // ζⁿ⁺²
-	lagrangeZeta.Sub(&lagrangeZeta, &one)                            // ζⁿ - 1
-	zhZeta.Set(&lagrangeZeta)                                        // Z_h(ζ) = ζⁿ - 1
+	alphaSquareLagrangeOne.Set(&zeta).Exp(alphaSquareLagrangeOne, big.NewInt(nbElmt)) // ζⁿ
+	zetaNPlusTwo.Mul(&alphaSquareLagrangeOne, &zeta).Mul(&zetaNPlusTwo, &zeta)        // ζⁿ⁺²
+	alphaSquareLagrangeOne.Sub(&alphaSquareLagrangeOne, &one)                         // ζⁿ - 1
+	zhZeta.Set(&alphaSquareLagrangeOne)                                               // Z_h(ζ) = ζⁿ - 1
 	frNbElmt.SetUint64(uint64(nbElmt))
-	den.Sub(&zeta, &one).
-		Inverse(&den)
-	lagrangeZeta.Mul(&lagrangeZeta, &den). // L₁ = (ζⁿ - 1)/(ζ-1)
-						Mul(&lagrangeZeta, &alpha).
-						Mul(&lagrangeZeta, &alpha).
-						Mul(&lagrangeZeta, &s.domain0.CardinalityInv) // α²*L₁(ζ)
+	den.Sub(&zeta, &one).Inverse(&den)                         // 1/(ζ-1)
+	alphaSquareLagrangeOne.Mul(&alphaSquareLagrangeOne, &den). // L₁ = (ζⁿ - 1)/(ζ-1)
+									Mul(&alphaSquareLagrangeOne, &alpha).
+									Mul(&alphaSquareLagrangeOne, &alpha).
+									Mul(&alphaSquareLagrangeOne, &s.domain0.CardinalityInv) // α²*L₁(ζ)
 
 	s3canonical := s.trace.S3.Coefficients()
 
 	s.trace.Qk.ToCanonical(s.domain0).ToRegular()
+
+	// the hi are all of the same length
+	h1 := s.h1()
+	h2 := s.h2()
+	h3 := s.h3()
 
 	// at this stage we have
 	// s1 =  α*(l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*β*Z(μζ)
@@ -1339,22 +1333,17 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 				}
 			}
 
-			t0.Mul(&blindedZCanonical[i], &lagrangeZeta) // α²L₁(ζ)Z(X)
-			blindedZCanonical[i].Add(&t, &t0)            // linPol += α²L₁(ζ)Z(X)
+			t0.Mul(&blindedZCanonical[i], &alphaSquareLagrangeOne) // α²L₁(ζ)Z(X)
+			blindedZCanonical[i].Add(&t, &t0)                      // linPol += α²L₁(ζ)Z(X)
 
-			// the hi are all of the same length
-			h1 := s.h1()
-			h2 := s.h2()
-			h3 := s.h3()
 			if i < len(h1) {
 				t.Mul(&h3[i], &zetaNPlusTwo).
 					Add(&t, &h2[i]).
 					Mul(&t, &zetaNPlusTwo).
-					Add(&t, &h1[i]).
-					Mul(&t, &zhZeta) // Z_h(ζ)*(H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
+					Add(&t, &h1[i])
+				t.Mul(&t, &zhZeta)
+				blindedZCanonical[i].Sub(&blindedZCanonical[i], &t) // linPol -= Z_h(ζ)*(H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
 			}
-
-			blindedZCanonical[i].Sub(&blindedZCanonical[i], &t) // linPol -= Z_h(ζ)*(H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
 
 		}
 	})
