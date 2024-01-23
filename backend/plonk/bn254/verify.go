@@ -36,8 +36,8 @@ import (
 )
 
 var (
-	errWrongClaimedQuotient = errors.New("claimed quotient is not as expected")
-	errInvalidWitness       = errors.New("witness length is invalid")
+	errAlgebraicRelation = errors.New("algebraic relation does not hold")
+	errInvalidWitness    = errors.New("witness length is invalid")
 )
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.VerifierOption) error {
@@ -161,21 +161,48 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		}
 	}
 
+	var _s1, _s2, tmp fr.Element
+	l := proof.BatchedProof.ClaimedValues[1]
+	r := proof.BatchedProof.ClaimedValues[2]
+	o := proof.BatchedProof.ClaimedValues[3]
+	s1 := proof.BatchedProof.ClaimedValues[4]
+	s2 := proof.BatchedProof.ClaimedValues[5]
+
+	// Z(ωζ)
+	zu := proof.ZShiftedOpening.ClaimedValue
+
+	// α²*L₁(ζ)
+	var alphaSquareLagrangeOne fr.Element
+	alphaSquareLagrangeOne.Mul(&lagrangeOne, &alpha).
+		Mul(&alphaSquareLagrangeOne, &alpha) // α²*L₁(ζ)
+
+	// computing the constant coefficient of the full algebraic relation
+	// , corresponding to the value of the linearisation polynomiat at ζ
+	// PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
+	var constLin fr.Element
+	constLin.Mul(&beta, &s1).Add(&constLin, &gamma).Add(&constLin, &l)       // (l(ζ)+β*s1(ζ)+γ)
+	tmp.Mul(&s2, &beta).Add(&tmp, &gamma).Add(&tmp, &r)                      // (r(ζ)+β*s2(ζ)+γ)
+	constLin.Mul(&constLin, &tmp)                                            // (l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)
+	tmp.Add(&o, &gamma)                                                      // (o(ζ)+γ)
+	constLin.Mul(&tmp, &constLin).Mul(&constLin, &alpha).Mul(&constLin, &zu) // α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
+
+	constLin.Sub(&constLin, &alphaSquareLagrangeOne).Add(&constLin, &pi) // PI(ζ) - α²*L₁(ζ) - α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
+	constLin.Neg(&constLin)                                              // -[PI(ζ) - α²*L₁(ζ) - α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)]
+
+	// check that the opening of the linearised polynomial is equal to -constLin
+	openingLinPol := proof.BatchedProof.ClaimedValues[0]
+	if !constLin.Equal(&openingLinPol) {
+		return errAlgebraicRelation
+	}
+
 	// computing the linearised polynomial digest
 	// α²*L₁(ζ)*[Z] +
 	// _s1*[s3]+_s2*[Z] + l(ζ)*[Ql] +
 	// l(ζ)r(ζ)*[Qm] + r(ζ)*[Qr] + o(ζ)*[Qo] + [Qk] + ∑ᵢQcp_(ζ)[Pi_i] -
 	// Z_{H}(ζ)*(([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾*[H₂])
 	// where
-	// _s1 =  α*(l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*β*Z(μζ)
+	// _s1 =  α*(l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ)
 	// _s2 = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
-	var _s1, _s2, tmp, zu fr.Element
-	l := proof.BatchedProof.ClaimedValues[1]
-	r := proof.BatchedProof.ClaimedValues[2]
-	o := proof.BatchedProof.ClaimedValues[3]
-	s1 := proof.BatchedProof.ClaimedValues[4]
-	s2 := proof.BatchedProof.ClaimedValues[5]
-	zu = proof.ZShiftedOpening.ClaimedValue
 
 	// _s1 = α*(l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(β)+γ)*β*Z(μζ)
 	_s1.Mul(&beta, &s1).Add(&_s1, &l).Add(&_s1, &gamma)                   // (l(ζ)+β*s1(β)+γ)
@@ -187,12 +214,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	tmp.Mul(&beta, &vk.CosetShift).Mul(&tmp, &zeta).Add(&tmp, &gamma).Add(&tmp, &r)                           // (r(ζ)+β*u*ζ+γ)
 	_s2.Mul(&_s2, &tmp)                                                                                       // (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)
 	tmp.Mul(&beta, &vk.CosetShift).Mul(&tmp, &vk.CosetShift).Mul(&tmp, &zeta).Add(&tmp, &o).Add(&tmp, &gamma) // (o(ζ)+β*u²*ζ+γ)
-	_s2.Mul(&_s2, &tmp).Mul(&_s2, &alpha).Neg(&_s2)                                                           // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)                                                                    // -(ζⁿ-1)
-
-	// α²*L₁(ζ)
-	var alphaSquareLagrangeOne fr.Element
-	alphaSquareLagrangeOne.Mul(&lagrangeOne, &alpha).
-		Mul(&alphaSquareLagrangeOne, &alpha) // α²*L₁(ζ)
+	_s2.Mul(&_s2, &tmp).Mul(&_s2, &alpha).Neg(&_s2)                                                           // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 
 	// α²*L₁(ζ) - α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 	var coeffZ fr.Element
