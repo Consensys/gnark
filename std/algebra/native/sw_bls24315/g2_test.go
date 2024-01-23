@@ -23,6 +23,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
+	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
 	"github.com/consensys/gnark/test"
 
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
@@ -188,6 +190,81 @@ func TestConstantScalarMulG2(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 
+}
+
+type g2constantScalarMulEdgeCases struct {
+	A g2AffP
+	R *big.Int
+}
+
+func (circuit *g2constantScalarMulEdgeCases) Define(api frontend.API) error {
+	expected1 := g2AffP{}
+	expected2 := g2AffP{}
+	zero := fields_bls24315.E4{B0: fields_bls24315.E2{A0: 0, A1: 0}, B1: fields_bls24315.E2{A0: 0, A1: 0}}
+	infinity := g2AffP{X: zero, Y: zero}
+	expected1.constScalarMul(api, circuit.A, big.NewInt(0))
+	expected2.constScalarMul(api, infinity, circuit.R, algopts.WithUseSafe())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	return nil
+}
+
+func TestConstantScalarMulG2EdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG2()
+	var a bls24315.G2Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g2constantScalarMulEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	br := new(big.Int)
+	r.BigInt(br)
+	// br is a circuit parameter
+	circuit.R = br
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
+
+}
+
+type g2varScalarMulEdgeCases struct {
+	A g2AffP
+	R frontend.Variable
+}
+
+func (circuit *g2varScalarMulEdgeCases) Define(api frontend.API) error {
+	expected1 := g2AffP{}
+	expected2 := g2AffP{}
+	zero := fields_bls24315.E4{B0: fields_bls24315.E2{A0: 0, A1: 0}, B1: fields_bls24315.E2{A0: 0, A1: 0}}
+	infinity := g2AffP{X: zero, Y: zero}
+	expected1.varScalarMul(api, circuit.A, 0, algopts.WithUseSafe())
+	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithUseSafe())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	return nil
+}
+
+func TestVarScalarMulG2EdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG2()
+	var a bls24315.G2Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g2varScalarMulEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633))
 }
 
 type g2varScalarMul struct {
