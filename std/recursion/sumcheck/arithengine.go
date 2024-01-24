@@ -13,6 +13,8 @@ type ArithEngine[E Element] interface {
 	Add(dst, a, b E) E
 	Mul(dst, a, b E) E
 	Sub(dst, a, b E) E
+
+	One() E
 }
 type bigIntEngine struct {
 	mod *big.Int
@@ -36,6 +38,10 @@ func (be *bigIntEngine) Sub(dst, a, b *big.Int) *big.Int {
 	return dst
 }
 
+func (be *bigIntEngine) One() *big.Int {
+	return big.NewInt(1)
+}
+
 func newBigIntEngine(mod *big.Int) *bigIntEngine {
 	return &bigIntEngine{mod: new(big.Int).Set(mod)}
 }
@@ -54,6 +60,10 @@ func (ee *emuEngine[FR]) Mul(_, a, b *emulated.Element[FR]) *emulated.Element[FR
 
 func (ee *emuEngine[FR]) Sub(_, a, b *emulated.Element[FR]) *emulated.Element[FR] {
 	return ee.f.Sub(a, b)
+}
+
+func (ee *emuEngine[FR]) One() *emulated.Element[FR] {
+	return ee.f.One()
 }
 
 func newEmulatedEngine[FR emulated.FieldParams](api frontend.API) (*emuEngine[FR], error) {
