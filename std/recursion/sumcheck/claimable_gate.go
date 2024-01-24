@@ -8,6 +8,7 @@ import (
 )
 
 type Gate[AE ArithEngine[E], E Element] interface {
+	NbInputs() int
 	Evaluate(api AE, dst E, vars ...E) E
 	Degree() int // TODO: return degree of variable for optimized verification
 }
@@ -44,32 +45,67 @@ func (g *gateClaimMulti[FR]) AssertEvaluation(r []*emulated.Element[FR], combina
 }
 
 type nativeGateClaim struct {
-	ee *bigIntEngine
+	engine *bigIntEngine
 
 	gate Gate[*bigIntEngine, *big.Int]
 
 	evaluationPoints   [][]*big.Int
 	claimedEvaluations []*big.Int
 
-	inputMultilin NativeMultilinear
+	// inputPreprocessor is a slice of multilinear functions which map
+	// multi-instance input id to the instance value. This allows running
+	// sumcheck over the hypercube. Every element in the slice represents the
+	// input.
+	inputPreprocessor []NativeMultilinear
+
+	eq NativeMultilinear
 }
 
 func (g *nativeGateClaim) NbClaims() int {
-	panic("not implemented") // TODO: Implement
+	return len(g.claimedEvaluations)
 }
 
 func (g *nativeGateClaim) NbVars() int {
-	panic("not implemented") // TODO: Implement
+	return g.gate.NbInputs()
 }
 
 func (g *nativeGateClaim) Combine(coeff *big.Int) NativePolynomial {
-	panic("not implemented") // TODO: Implement
+	nbVars := g.gate.NbInputs()
+	eqLength := 1 << nbVars
+	nbClaims := g.NbClaims()
+
+	g.eq = make(NativeMultilinear, eqLength)
+	g.eq[0] = g.engine.One()
+	g.eq = eq(g.engine, g.eq, g.evaluationPoints[0])
+
+	newEq := make(NativeMultilinear, eqLength)
+	aI := new(big.Int).Set(coeff)
+
+	for k := 1; k < nbClaims; k++ {
+		newEq[0] = g.engine.One()
+		g.eq = eqAcc(g.engine, g.eq, newEq, g.evaluationPoints[k])
+		if k+1 < nbClaims {
+			g.engine.Mul(aI, aI, coeff)
+		}
+
+	}
+	return g.computeGJ()
 }
 
 func (g *nativeGateClaim) Next(r *big.Int) NativePolynomial {
-	panic("not implemented") // TODO: Implement
+	for i := range g.inputPreprocessor {
+		g.inputPreprocessor[i] = fold(g.engine, g.inputPreprocessor[i], r)
+	}
+	g.eq = fold(g.engine, g.eq, r)
+	return g.computeGJ()
 }
 
 func (g *nativeGateClaim) ProverFinalEval(r []*big.Int) NativeEvaluationProof {
-	panic("not implemented") // TODO: Implement
+	// verifier computes the value of the gate (times the eq) itself
+	return nil
+}
+
+func (g *nativeGateClaim) computeGJ() NativePolynomial {
+	// returns the polynomial GJ through its evaluations
+	panic("todo")
 }

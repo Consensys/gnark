@@ -101,5 +101,6 @@ func (fn *nativeMultilinearClaim) Next(r *big.Int) NativePolynomial {
 }
 
 func (fn *nativeMultilinearClaim) ProverFinalEval(r []*big.Int) NativeEvaluationProof {
+	// verifier computes the value of the multilinear function itself
 	return nil
 }
