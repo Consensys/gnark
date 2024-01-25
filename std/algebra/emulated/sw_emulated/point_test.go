@@ -1120,6 +1120,177 @@ func TestMultiScalarMul(t *testing.T) {
 	assert.NoError(err)
 }
 
+type MultiScalarMulFoldedEdgeCasesTest[T, S emulated.FieldParams] struct {
+	Points  []AffinePoint[T]
+	Scalars []emulated.Element[S]
+	Res     AffinePoint[T]
+}
+
+func (c *MultiScalarMulFoldedEdgeCasesTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	ps := make([]*AffinePoint[T], len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[S], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithUseSafe())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarFoldedEdgeCasesMul(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 5
+	P := make([]bw6761.G1Affine, nbLen)
+	S := make([]fr_bw6761.Element, nbLen)
+	S[0].SetOne()
+	S[1].SetRandom()
+	S[2].Square(&S[1])
+	S[3].Mul(&S[1], &S[2])
+	S[4].Mul(&S[1], &S[3])
+	for i := 0; i < nbLen; i++ {
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res bw6761.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]AffinePoint[emulated.BW6761Fp], len(P))
+	cS := make([]emulated.Element[emparams.BW6761Fr], len(S))
+	var infinity bw6761.G1Affine
+
+	// s^0 * (0,0) + s^1 * (0,0) + s^2 * (0,0) + s^3 * (0,0)  + s^4 * (0,0) == (0,0)
+	for i := range cP {
+		cP[i] = AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+		}
+	}
+	// s0 = s
+	S[0].Set(&S[1])
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BW6761Fr](S[i])
+	}
+	assignment1 := MultiScalarMulFoldedEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  cP,
+		Scalars: cS,
+		Res: AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+		},
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  make([]AffinePoint[emparams.BW6761Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.BW6761Fr], nbLen),
+	}, &assignment1, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	// 0^0 * P1 + 0 * P2 + 0 * P3 + 0 * P4 + 0 * P5 == P1
+	for i := range cP {
+		cP[i] = AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](P[i].X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](P[i].Y),
+		}
+	}
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BW6761Fr](0)
+	}
+	assignment2 := MultiScalarMulFoldedEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  cP,
+		Scalars: cS,
+		Res: AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+		},
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  make([]AffinePoint[emparams.BW6761Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.BW6761Fr], nbLen),
+	}, &assignment2, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type MultiScalarMulFoldedTest[T, S emulated.FieldParams] struct {
+	Points  []AffinePoint[T]
+	Scalars []emulated.Element[S]
+	Res     AffinePoint[T]
+}
+
+func (c *MultiScalarMulFoldedTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	ps := make([]*AffinePoint[T], len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[S], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarFoldedMul(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 4
+	P := make([]bw6761.G1Affine, nbLen)
+	S := make([]fr_bw6761.Element, nbLen)
+	// [s^0]P0 + [s^1]P1 + [s^2]P2 + [s^3]P3 = P0 + [s]P1 + [s^2]P2 + [s^3]P3
+	S[0].SetOne()
+	S[1].SetRandom()
+	S[2].Square(&S[1])
+	S[3].Mul(&S[1], &S[2])
+	for i := 0; i < nbLen; i++ {
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res bw6761.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]AffinePoint[emulated.BW6761Fp], len(P))
+	for i := range cP {
+		cP[i] = AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](P[i].X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](P[i].Y),
+		}
+	}
+	cS := make([]emulated.Element[emparams.BW6761Fr], len(S))
+	// s0 = s
+	S[0].Set(&S[1])
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BW6761Fr](S[i])
+	}
+	assignment := MultiScalarMulFoldedTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  cP,
+		Scalars: cS,
+		Res: AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](res.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](res.Y),
+		},
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  make([]AffinePoint[emparams.BW6761Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.BW6761Fr], nbLen),
+	}, &assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type ScalarMulTestBounded[T, S emulated.FieldParams] struct {
 	P, Q AffinePoint[T]
 	S    emulated.Element[S]
