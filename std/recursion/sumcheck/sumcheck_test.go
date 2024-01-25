@@ -71,7 +71,7 @@ func TestMultilinearSumcheck(t *testing.T) {
 type mulGate1 struct{}
 
 func (m mulGate1) NbInputs() int { return 2 }
-func (m mulGate1) Degree() int   { return 1 }
+func (m mulGate1) Degree() int   { return 2 }
 func (m mulGate1) Evaluate(api *bigIntEngine, dst *big.Int, vars ...*big.Int) *big.Int {
 	if len(vars) != m.NbInputs() {
 		panic("incorrect nb of inputs")

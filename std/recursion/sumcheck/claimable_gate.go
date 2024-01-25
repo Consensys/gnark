@@ -63,18 +63,25 @@ type nativeGateClaim struct {
 
 func NewNativeGate(target *big.Int, gate Gate[*bigIntEngine, *big.Int], inputs [][]*big.Int) (claim Claims, evaluations []*big.Int, err error) {
 	be := newBigIntEngine(target)
-	inputPreprocessors := make([]NativeMultilinear, gate.NbInputs())
+	evalInput := make([][]*big.Int, gate.NbInputs())
 	// TODO: pad input to power of two
 	for i := range inputs {
-		inputPreprocessors[i] = make(NativeMultilinear, len(inputs))
+		evalInput[i] = make(NativeMultilinear, len(inputs))
 		for j := range inputs[i] {
-			inputPreprocessors[i][j] = new(big.Int).Set(inputs[j][i])
+			evalInput[i][j] = new(big.Int).Set(inputs[j][i])
 		}
 	}
 	evaluations = make([]*big.Int, len(inputs))
 	for i := range evaluations {
 		evaluations[i] = new(big.Int)
-		evaluations[i] = gate.Evaluate(be, evaluations[i], inputPreprocessors[i]...)
+		evaluations[i] = gate.Evaluate(be, evaluations[i], evalInput[i]...)
+	}
+	inputPreprocessors := make([]NativeMultilinear, gate.NbInputs())
+	for i := range inputs {
+		inputPreprocessors[i] = make(NativeMultilinear, len(inputs))
+		for j := range inputs[i] {
+			inputPreprocessors[i][j] = new(big.Int).Set(inputs[i][j])
+		}
 	}
 	claimedEvaluations := make([]*big.Int, 1)
 	challenge := big.NewInt(123) // TODO: compute correct challenge. Or isn't needed?
@@ -171,7 +178,7 @@ func (g *nativeGateClaim) computeGJ() NativePolynomial {
 		block := nbOuter + i
 		for j := 0; j < nbInner; j++ {
 			// TODO: instead of set can assign?
-			step.Set(s[j][block])
+			step.Set(s[j][i])
 			operands[j].Set(s[j][block])
 			g.engine.Sub(step, operands[j], step)
 			for d := 1; d < degGJ; d++ {
