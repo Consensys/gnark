@@ -430,7 +430,7 @@ func (c *AggregagationCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) er
 func TestBLS12InBW6Multi(t *testing.T) {
 	innerField := ecc.BLS12_377.ScalarField()
 	outerField := ecc.BW6_761.ScalarField()
-	nbCircuits := 4
+	nbCircuits := 5
 	nbProofs := 5
 	assert := test.NewAssert(t)
 	ccss, vks, pks := getParametricSetups(assert, innerField, nbCircuits)
