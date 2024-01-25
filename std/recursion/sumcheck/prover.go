@@ -52,7 +52,7 @@ func Prove(current *big.Int, target *big.Int, claims Claims, opts ...ProverOptio
 		return proof, fmt.Errorf("base: %w", err)
 	}
 
-	var combinationCoef *big.Int
+	combinationCoef := big.NewInt(0)
 	if claims.NbClaims() >= 2 {
 		if combinationCoef, challengeNames, err = deriveChallengeProver(fs, challengeNames, nil); err != nil {
 			return proof, fmt.Errorf("derive combination coef: %w", err)

@@ -43,6 +43,19 @@ func eq(api *bigIntEngine, ml NativeMultilinear, q []*big.Int) NativeMultilinear
 	return ml
 }
 
+func eval(api *bigIntEngine, ml NativeMultilinear, r []*big.Int) *big.Int {
+	mlCopy := make(NativeMultilinear, len(ml))
+	for i := range mlCopy {
+		mlCopy[i] = new(big.Int).Set(ml[i])
+	}
+
+	for _, ri := range r {
+		fold(api, mlCopy, ri)
+	}
+
+	return mlCopy[0]
+}
+
 func eqAcc(api *bigIntEngine, e NativeMultilinear, m NativeMultilinear, q []*big.Int) NativeMultilinear {
 	if len(e) != len(m) {
 		panic("length mismatch")

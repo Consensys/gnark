@@ -67,3 +67,39 @@ func TestMultilinearSumcheck(t *testing.T) {
 	testMultilinearSumcheckInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), []int{1, 2, 3, 4})
 	testMultilinearSumcheckInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), []int{1, 2, 3, 4, 5, 6, 7, 8})
 }
+
+type mulGate1 struct{}
+
+func (m mulGate1) NbInputs() int { return 2 }
+func (m mulGate1) Degree() int   { return 1 }
+func (m mulGate1) Evaluate(api *bigIntEngine, dst *big.Int, vars ...*big.Int) *big.Int {
+	if len(vars) != m.NbInputs() {
+		panic("incorrect nb of inputs")
+	}
+	api.Mul(dst, vars[0], vars[1])
+	return dst
+}
+
+func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, inputs [][]int) {
+	var fr FR
+	assert := test.NewAssert(t)
+	inputB := make([][]*big.Int, len(inputs))
+	for i := range inputB {
+		inputB[i] = make([]*big.Int, mulGate1{}.NbInputs())
+		for j := range inputs[i] {
+			inputB[i][j] = big.NewInt(int64(inputs[i][j]))
+		}
+	}
+	claim, evals, err := NewNativeGate(fr.Modulus(), mulGate1{}, inputB)
+	assert.NoError(err)
+	for i := range evals {
+		t.Log(evals[i].String())
+	}
+	proof, err := Prove(current, fr.Modulus(), claim)
+	assert.NoError(err)
+	_ = proof
+}
+
+func TestMulGate1Sumcheck(t *testing.T) {
+	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{4, 3}, {2, 3}})
+}

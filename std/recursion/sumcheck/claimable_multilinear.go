@@ -71,7 +71,7 @@ func NewNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim Claims, hy
 	if bits.OnesCount(uint(len(ml))) != 1 {
 		return nil, nil, fmt.Errorf("expecting power of two coeffs")
 	}
-	be := &bigIntEngine{mod: new(big.Int).Set(target)}
+	be := newBigIntEngine(target)
 	hypersum = new(big.Int)
 	for i := range ml {
 		hypersum = be.Add(hypersum, hypersum, ml[i])
@@ -80,7 +80,7 @@ func NewNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim Claims, hy
 	for i := range ml {
 		cml[i] = new(big.Int).Set(ml[i])
 	}
-	return &nativeMultilinearClaim{be: newBigIntEngine(target), ml: cml}, hypersum, nil
+	return &nativeMultilinearClaim{be: be, ml: cml}, hypersum, nil
 }
 
 func (fn *nativeMultilinearClaim) NbClaims() int {
