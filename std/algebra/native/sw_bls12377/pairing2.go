@@ -106,7 +106,7 @@ func (c *Curve) jointScalarMul(P1, P2 *G1Affine, s1, s2 *Scalar, opts ...algopts
 	res := &G1Affine{}
 	varScalar1 := c.packScalarToVar(s1)
 	varScalar2 := c.packScalarToVar(s2)
-	res.jointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2)
+	res.jointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2, opts...)
 	return res
 }
 
@@ -118,7 +118,7 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption)
 		Y: P.Y,
 	}
 	varScalar := c.packScalarToVar(s)
-	res.ScalarMul(c.api, *P, varScalar)
+	res.ScalarMul(c.api, *P, varScalar, opts...)
 	return res
 }
 
@@ -127,7 +127,7 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption)
 func (c *Curve) ScalarMulBase(s *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
 	res := new(G1Affine)
 	varScalar := c.packScalarToVar(s)
-	res.ScalarMulBase(c.api, varScalar)
+	res.ScalarMulBase(c.api, varScalar, opts...)
 	return res
 }
 
@@ -145,6 +145,10 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 	if err != nil {
 		return nil, fmt.Errorf("new config: %w", err)
 	}
+	addFn := c.Add
+	if cfg.UseSafe {
+		addFn = c.AddUnified
+	}
 	if !cfg.FoldMulti {
 		if len(P) != len(scalars) {
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
@@ -159,7 +163,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		}
 		for i := 1; i < n-1; i += 2 {
 			q := c.jointScalarMul(P[i-1], P[i], scalars[i-1], scalars[i], opts...)
-			res = c.Add(res, q)
+			res = addFn(res, q)
 		}
 		return res, nil
 	} else {
@@ -184,10 +188,10 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		var res G1Affine
 		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits)
 		for i := len(P) - 2; i > 0; i-- {
-			res = *c.Add(P[i], &res)
+			res = *addFn(P[i], &res)
 			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits)
 		}
-		res = *c.Add(P[0], &res)
+		res = *addFn(P[0], &res)
 		return &res, nil
 	}
 }

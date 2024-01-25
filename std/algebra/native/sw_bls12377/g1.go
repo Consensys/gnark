@@ -462,8 +462,25 @@ func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable, opts ...
 	return P.ScalarMul(api, generator, s, opts...)
 }
 
+func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
+	if cfg.UseSafe {
+		// TODO @yelhousni: optimize
+		var tmp G1Affine
+		P.ScalarMul(api, Q, s, opts...)
+		tmp.ScalarMul(api, R, t, opts...)
+		P.AddUnified(api, tmp)
+	} else {
+		P.jointScalarMulUnsafe(api, Q, R, s, t)
+	}
+	return P
+}
+
 // P = [s]Q + [t]R using Shamir's trick
-func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
+func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
 	sd, err := api.Compiler().NewHint(DecomposeScalarG1, 3, s)
