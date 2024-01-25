@@ -588,14 +588,12 @@ func (c *Curve[B, S]) scalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S]
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
-	addFn := c.Add
 	var selector frontend.Variable
 	if cfg.UseSafe {
 		// if p=(0,0) we assign a dummy (0,1) to p and continue
 		selector = c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
 		one := c.baseApi.One()
 		p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
-		addFn = c.AddUnified
 	}
 
 	var st S
@@ -622,9 +620,10 @@ func (c *Curve[B, S]) scalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S]
 	R0 = c.Select(sBits[n-1], Rb, R0)
 
 	// i = 0
-	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
-	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	R0 = c.Select(sBits[0], R0, addFn(R0, c.Neg(p)))
+	// we use AddUnified instead of Add. This is because:
+	// 		- when s=0 then R0=P and AddUnified(P, -P) = (0,0). We return (0,0).
+	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
+	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
 
 	if cfg.UseSafe {
 		// if p=(0,0), return (0,0)
@@ -810,14 +809,12 @@ func (c *Curve[B, S]) scalarBitsMulGeneric(p *AffinePoint[B], sBits []frontend.V
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
-	addFn := c.Add
 	var selector frontend.Variable
 	if cfg.UseSafe {
 		// if p=(0,0) we assign a dummy (0,1) to p and continue
 		selector = c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
 		one := c.baseApi.One()
 		p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
-		addFn = c.AddUnified
 	}
 
 	var st S
@@ -842,9 +839,10 @@ func (c *Curve[B, S]) scalarBitsMulGeneric(p *AffinePoint[B], sBits []frontend.V
 	R0 = c.Select(sBits[n-1], Rb, R0)
 
 	// i = 0
-	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
-	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	R0 = c.Select(sBits[0], R0, addFn(R0, c.Neg(p)))
+	// we use AddUnified instead of Add. This is because:
+	// 		- when s=0 then R0=P and AddUnified(P, -P) = (0,0). We return (0,0).
+	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
+	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
 
 	if cfg.UseSafe {
 		// if p=(0,0), return (0,0)
