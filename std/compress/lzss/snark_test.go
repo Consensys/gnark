@@ -103,6 +103,30 @@ func Test3c2943withHeader(t *testing.T) {
 	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
 }
 
+func TestOutBufTooShort(t *testing.T) {
+	const truncationAmount = 3
+	d := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	compressor, err := lzss.NewCompressor(nil, lzss.BestCompression)
+	c, err := compressor.Compress(d)
+	require.NoError(t, err)
+
+	circuit := decompressionLengthTestCircuit{
+		C: make([]frontend.Variable, len(c)+inputExtraBytes),
+		D: make([]frontend.Variable, len(d)-truncationAmount), // not enough room
+
+	}
+
+	assignment := decompressionLengthTestCircuit{
+		C:               test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		CLength:         len(c),
+		D:               test_vector_utils.ToVariableSlice(d[:len(d)-truncationAmount]),
+		ExpectedDLength: -1,
+	}
+
+	RegisterHints()
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithCurves(ecc.BLS12_377))
+}
+
 // Fuzz test the decompression
 func Fuzz(f *testing.F) { // TODO This is always skipped
 	f.Fuzz(func(t *testing.T, input, dict []byte) {
@@ -178,4 +202,20 @@ func getDictionary() []byte {
 		panic(err)
 	}
 	return d
+}
+
+type decompressionLengthTestCircuit struct {
+	C, D            []frontend.Variable
+	CLength         frontend.Variable
+	ExpectedDLength frontend.Variable
+}
+
+func (c *decompressionLengthTestCircuit) Define(api frontend.API) error {
+	dict := test_vector_utils.ToVariableSlice(lzss.AugmentDict(nil))
+	if dLength, err := Decompress(api, c.C, c.CLength, c.D, dict, lzss.BestCompression); err != nil {
+		return err
+	} else {
+		api.AssertIsEqual(dLength, c.ExpectedDLength)
+		return nil
+	}
 }
