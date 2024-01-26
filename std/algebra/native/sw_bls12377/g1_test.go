@@ -780,3 +780,156 @@ func randomPointG1() bls12377.G1Jac {
 
 	return p1
 }
+
+type MultiScalarMulFoldedEdgeCasesTest struct {
+	Points  []G1Affine
+	Scalars []emulated.Element[ScalarField]
+	Res     G1Affine
+}
+
+func (c *MultiScalarMulFoldedEdgeCasesTest) Define(api frontend.API) error {
+	cr, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
+	ps := make([]*G1Affine, len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[ScalarField], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithUseSafe())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarMulFoldedEdgeCases(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 5
+	P := make([]bls12377.G1Affine, nbLen)
+	S := make([]fr.Element, nbLen)
+	S[0].SetOne()
+	S[1].SetRandom()
+	S[2].Square(&S[1])
+	S[3].Mul(&S[1], &S[2])
+	S[4].Mul(&S[1], &S[3])
+	for i := 0; i < nbLen; i++ {
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res, infinity bls12377.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]G1Affine, len(P))
+	cS := make([]emulated.Element[ScalarField], len(S))
+
+	// s^0 * (0,0) + s^1 * (0,0) + s^2 * (0,0) + s^3 * (0,0)  + s^4 * (0,0) == (0,0)
+	for i := range cP {
+		cP[i] = NewG1Affine(infinity)
+	}
+	// s0 = s
+	S[0].Set(&S[1])
+	for i := range cS {
+		cS[i] = NewScalar(S[i])
+	}
+	assignment1 := MultiScalarMulFoldedEdgeCasesTest{
+		Points:  cP,
+		Scalars: cS,
+		Res:     NewG1Affine(infinity),
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedEdgeCasesTest{
+		Points:  make([]G1Affine, nbLen),
+		Scalars: make([]emulated.Element[ScalarField], nbLen),
+	}, &assignment1, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+
+	// 0^0 * P1 + 0 * P2 + 0 * P3 + 0 * P4 + 0 * P5 == P1
+	for i := range cP {
+		cP[i] = NewG1Affine(P[i])
+	}
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BLS12377Fr](0)
+	}
+
+	assignment3 := MultiScalarMulFoldedEdgeCasesTest{
+		Points:  cP,
+		Scalars: cS,
+		Res:     NewG1Affine(P[0]),
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedEdgeCasesTest{
+		Points:  make([]G1Affine, nbLen),
+		Scalars: make([]emulated.Element[ScalarField], nbLen),
+	}, &assignment3, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+}
+
+type MultiScalarMulFoldedTest struct {
+	Points  []G1Affine
+	Scalars []emulated.Element[ScalarField]
+	Res     G1Affine
+}
+
+func (c *MultiScalarMulFoldedTest) Define(api frontend.API) error {
+	cr, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
+	ps := make([]*G1Affine, len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[ScalarField], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarMulFolded(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 4
+	P := make([]bls12377.G1Affine, nbLen)
+	S := make([]fr.Element, nbLen)
+	// [s^0]P0 + [s^1]P1 + [s^2]P2 + [s^3]P3 = P0 + [s]P1 + [s^2]P2 + [s^3]P3
+	S[0].SetOne()
+	S[1].SetRandom()
+	S[2].Square(&S[1])
+	S[3].Mul(&S[1], &S[2])
+	for i := 0; i < nbLen; i++ {
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res bls12377.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]G1Affine, len(P))
+	for i := range cP {
+		cP[i] = NewG1Affine(P[i])
+	}
+	cS := make([]emulated.Element[ScalarField], len(S))
+	// s0 = s
+	S[0].Set(&S[1])
+	for i := range cS {
+		cS[i] = NewScalar(S[i])
+	}
+	assignment := MultiScalarMulFoldedTest{
+		Points:  cP,
+		Scalars: cS,
+		Res:     NewG1Affine(res),
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedTest{
+		Points:  make([]G1Affine, nbLen),
+		Scalars: make([]emulated.Element[ScalarField], nbLen),
+	}, &assignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+}

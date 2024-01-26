@@ -1160,13 +1160,12 @@ func TestMultiScalarFoldedEdgeCasesMul(t *testing.T) {
 	for i := 0; i < nbLen; i++ {
 		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
 	}
-	var res bw6761.G1Affine
+	var res, infinity bw6761.G1Affine
 	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
 
 	assert.NoError(err)
 	cP := make([]AffinePoint[emulated.BW6761Fp], len(P))
 	cS := make([]emulated.Element[emparams.BW6761Fr], len(S))
-	var infinity bw6761.G1Affine
 
 	// s^0 * (0,0) + s^1 * (0,0) + s^2 * (0,0) + s^3 * (0,0)  + s^4 * (0,0) == (0,0)
 	for i := range cP {
@@ -1208,8 +1207,8 @@ func TestMultiScalarFoldedEdgeCasesMul(t *testing.T) {
 		Points:  cP,
 		Scalars: cS,
 		Res: AffinePoint[emparams.BW6761Fp]{
-			X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
-			Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+			X: emulated.ValueOf[emparams.BW6761Fp](P[0].X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](P[0].Y),
 		},
 	}
 	err = test.IsSolved(&MultiScalarMulFoldedEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{

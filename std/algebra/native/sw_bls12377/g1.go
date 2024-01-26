@@ -567,7 +567,17 @@ func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t fr
 
 // scalarBitsMul computes s * p and returns it where sBits is the bit decomposition of s. It doesn't modify p nor sBits.
 // The method is similar to varScalarMul.
-func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []frontend.Variable) *G1Affine {
+func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
+	var selector frontend.Variable
+	if cfg.UseSafe {
+		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
+		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
+	}
 	cc := getInnerCurveConfig(api.Compiler().Field())
 	nbits := cc.lambda.BitLen() + 1
 	var Acc /*accumulator*/, B, B2 /*tmp vars*/ G1Affine
@@ -616,10 +626,21 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 		Acc.DoubleAndAdd(api, &Acc, &B)
 	}
 
-	tableQ[0].AddAssign(api, Acc)
-	Acc.Select(api, s1bits[0], Acc, tableQ[0])
-	tablePhiQ[0].AddAssign(api, Acc)
-	Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	// i = 0
+	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	if cfg.UseSafe {
+		tableQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableQ[0])
+		tablePhiQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+	} else {
+		tableQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableQ[0])
+		tablePhiQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	}
 
 	P.X = Acc.X
 	P.Y = Acc.Y

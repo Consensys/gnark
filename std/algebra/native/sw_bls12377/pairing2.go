@@ -186,10 +186,10 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 
 		// points and scalars must be non-zero
 		var res G1Affine
-		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits)
+		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits, opts...)
 		for i := len(P) - 2; i > 0; i-- {
 			res = *addFn(P[i], &res)
-			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits)
+			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits, opts...)
 		}
 		res = *addFn(P[0], &res)
 		return &res, nil
