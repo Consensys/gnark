@@ -52,7 +52,7 @@ func eval(api *bigIntEngine, ml NativeMultilinear, r []*big.Int) *big.Int {
 	}
 
 	for _, ri := range r {
-		fold(api, mlCopy, ri)
+		mlCopy = fold(api, mlCopy, ri)
 	}
 
 	return mlCopy[0]
