@@ -15,7 +15,7 @@ import (
 // it is on the caller to ensure that the dictionary is correct; in particular it must consist of bytes. Decompress does not check this.
 // it is recommended to pack the dictionary using compress.Pack and take a MiMC checksum of it.
 // d will consist of bytes
-// It returns the length of d as a frontend.Variable
+// It returns the length of d as a frontend.Variable; if the decompressed stream doesn't fit in d, dLength will be "-1"
 func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d, dict []frontend.Variable, level lzss.Level) (dLength frontend.Variable, err error) {
 
 	// size-related "constants"
@@ -62,7 +62,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	copyLen := frontend.Variable(0) // remaining length of the current copy
 	copyLen01 := frontend.Variable(1)
 	eof := frontend.Variable(0)
-	dLength = 0
+	dLength = -1 // if the following loop ends before hitting eof, we will get the "error" value -1 for dLength
 
 	for outI := range d {
 
@@ -114,7 +114,9 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		eofNow := rangeChecker.IsLessThan(byteNbWords, api.Sub(cLength, inI)) // less than a byte left; meaning we are at the end of the input
 
-		dLength = api.Add(dLength, api.Mul(api.Sub(eofNow, eof), outI+1)) // if eof, don't advance dLength
+		// if eof, don't advance dLength
+		// if eof was JUST hit, dLength += outI + 2; so dLength = -1 + outI + 2 = outI + 1 which is the current output length
+		dLength = api.Add(dLength, api.Mul(api.Sub(eofNow, eof), outI+2))
 		eof = eofNow
 
 	}
