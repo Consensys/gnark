@@ -1340,7 +1340,7 @@ contract PlonkVerifier {
 }
 `
 
-// MarshalSolidity converts a proof to a byte array that can be used in a
+// MarshalSolidity convert  s a proof to a byte array that can be used in a
 // Solidity contract.
 func (proof *Proof) MarshalSolidity() []byte {
 
