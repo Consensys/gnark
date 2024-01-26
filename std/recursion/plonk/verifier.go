@@ -28,6 +28,7 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
+	"github.com/consensys/gnark/std/selector"
 )
 
 // Proof is a typed PLONK proof of SNARK. Use [ValueOfProof] to initialize the
@@ -1217,7 +1218,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(exp frontend.V
 	return li
 }
 
-// SwitchVerificationKey returns a verification key by the index idx using the base verification key bvk and circuit specific verification key cvks[idx].
+// SwitchVerificationKey returns a verification key by the index idx using the
+// base verification key bvk and circuit specific verification key cvks[idx].
 func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifyingKey[FR, G1El, G2El], idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El]) (VerifyingKey[FR, G1El, G2El], error) {
 	var ret VerifyingKey[FR, G1El, G2El]
 	if len(cvks) == 0 {
@@ -1229,10 +1231,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifying
 			CircuitVerifyingKey: cvks[0],
 		}, nil
 	}
-	if len(cvks) > 4 {
-		return ret, fmt.Errorf("large verification key switching not implemented yet")
-
-	}
+	nbIns := len(cvks)
 	nbCmts := len(cvks[0].CommitmentConstraintIndexes)
 	for i := range cvks {
 		if len(cvks[i].CommitmentConstraintIndexes) != nbCmts {
@@ -1242,30 +1241,61 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifying
 			return ret, fmt.Errorf("inconsistent circuit verification key")
 		}
 	}
-	for i := len(cvks); i < 4; i++ {
-		cvks = append(cvks, ret.CircuitVerifyingKey)
+	sizeEls := make([]frontend.Variable, nbIns)
+	sizeInvEls := make([]*emulated.Element[FR], nbIns)
+	genEls := make([]*emulated.Element[FR], nbIns)
+	QlEls := make([]*G1El, nbIns)
+	QrEls := make([]*G1El, nbIns)
+	QmEls := make([]*G1El, nbIns)
+	QoEls := make([]*G1El, nbIns)
+	QkEls := make([]*G1El, nbIns)
+	var SEls [3][]*G1El
+	QcpEls := make([][]*G1El, nbCmts)
+	cmtIndicesEls := make([][]frontend.Variable, nbCmts)
+	for i := range SEls {
+		SEls[i] = make([]*G1El, nbIns)
+	}
+	for i := range QcpEls {
+		QcpEls[i] = make([]*G1El, nbIns)
+		cmtIndicesEls[i] = make([]frontend.Variable, nbIns)
+	}
+	for i := range cvks {
+		sizeEls[i] = cvks[i].Size
+		sizeInvEls[i] = &cvks[i].SizeInv
+		genEls[i] = &cvks[i].Generator
+		QlEls[i] = &cvks[i].Ql.G1El
+		QrEls[i] = &cvks[i].Qr.G1El
+		QmEls[i] = &cvks[i].Qm.G1El
+		QoEls[i] = &cvks[i].Qo.G1El
+		QkEls[i] = &cvks[i].Qk.G1El
+		for j := range SEls {
+			SEls[j][i] = &cvks[i].S[j].G1El
+		}
+		for j := range QcpEls {
+			QcpEls[j][i] = &cvks[i].Qcp[j].G1El
+			cmtIndicesEls[j][i] = cvks[i].CommitmentConstraintIndexes[j]
+		}
 	}
 	cvk := CircuitVerifyingKey[FR, G1El]{
+		Size:      selector.Mux(v.api, idx, sizeEls...),
+		SizeInv:   *v.scalarApi.Mux(idx, sizeInvEls...),
+		Generator: *v.scalarApi.Mux(idx, genEls...),
+		S: [3]kzg.Commitment[G1El]{
+			{G1El: *v.curve.Mux(idx, SEls[0]...)},
+			{G1El: *v.curve.Mux(idx, SEls[1]...)},
+			{G1El: *v.curve.Mux(idx, SEls[2]...)},
+		},
+		Ql:                          kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QlEls...)},
+		Qr:                          kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QrEls...)},
+		Qm:                          kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QmEls...)},
+		Qo:                          kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QoEls...)},
+		Qk:                          kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QkEls...)},
 		Qcp:                         make([]kzg.Commitment[G1El], nbCmts),
 		CommitmentConstraintIndexes: make([]frontend.Variable, nbCmts),
 	}
-	bIdx := bits.ToBinary(v.api, idx, bits.WithNbDigits(2))
-	cvk.Size = v.api.Lookup2(bIdx[0], bIdx[1], cvks[0].Size, cvks[1].Size, cvks[2].Size, cvks[3].Size)
-	cvk.SizeInv = *v.scalarApi.Lookup2(bIdx[0], bIdx[1], &cvks[0].SizeInv, &cvks[1].SizeInv, &cvks[2].SizeInv, &cvks[3].SizeInv)
-	cvk.Generator = *v.scalarApi.Lookup2(bIdx[0], bIdx[1], &cvks[0].Generator, &cvks[1].Generator, &cvks[2].Generator, &cvks[3].Generator)
-	for i := range cvk.S {
-		cvk.S[i].G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].S[i].G1El, &cvks[1].S[i].G1El, &cvks[2].S[i].G1El, &cvks[3].S[i].G1El)
-	}
-	cvk.Ql.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Ql.G1El, &cvks[1].Ql.G1El, &cvks[2].Ql.G1El, &cvks[3].Ql.G1El)
-	cvk.Qr.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qr.G1El, &cvks[1].Qr.G1El, &cvks[2].Qr.G1El, &cvks[3].Qr.G1El)
-	cvk.Qm.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qm.G1El, &cvks[1].Qm.G1El, &cvks[2].Qm.G1El, &cvks[3].Qm.G1El)
-	cvk.Qo.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qo.G1El, &cvks[1].Qo.G1El, &cvks[2].Qo.G1El, &cvks[3].Qo.G1El)
-	cvk.Qk.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qk.G1El, &cvks[1].Qk.G1El, &cvks[2].Qk.G1El, &cvks[3].Qk.G1El)
-	for i := range cvk.Qcp {
-		cvk.Qcp[i].G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qcp[i].G1El, &cvks[1].Qcp[i].G1El, &cvks[2].Qcp[i].G1El, &cvks[3].Qcp[i].G1El)
-	}
-	for i := range cvk.CommitmentConstraintIndexes {
-		cvk.CommitmentConstraintIndexes[i] = v.api.Lookup2(bIdx[0], bIdx[1], cvks[0].CommitmentConstraintIndexes[i], cvks[1].CommitmentConstraintIndexes[i], cvks[2].CommitmentConstraintIndexes[i], cvks[3].CommitmentConstraintIndexes[i])
+	for i := range QcpEls {
+		cvk.Qcp[i] = kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QcpEls[i]...)}
+		cvk.CommitmentConstraintIndexes[i] = selector.Mux(v.api, idx, cmtIndicesEls[i]...)
 	}
 	return VerifyingKey[FR, G1El, G2El]{
 		BaseVerifyingKey:    bvk,

@@ -11,6 +11,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b
+	github.com/icza/bitio v1.1.0
 	github.com/ingonyama-zk/iciclegnark v0.1.0
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.30.0
@@ -22,7 +23,6 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/icza/bitio v1.1.0 // indirect
 	github.com/ingonyama-zk/icicle v0.0.0-20230928131117-97f0079e5c71 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
