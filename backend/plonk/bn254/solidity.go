@@ -274,6 +274,15 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
+      function error_pairing() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0xd)
+        mstore(add(ptError, 0x44), "error pairing")
+        revert(ptError, 0x64)
+      }
+
       function error_verify() {
         let ptError := mload(0x40)
         mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
@@ -892,9 +901,10 @@ contract PlonkVerifier {
 
         // TODO test the staticcall using the method from audit_4-5
         let l_success := staticcall(gas(), 8, mPtr, 0x180, 0x00, 0x20)
+        if iszero(l_succes) {
+          error_pairing()
+        }
         let res_pairing := mload(0x00)
-        let s_success := mload(add(state, STATE_SUCCESS))
-        res_pairing := and(and(res_pairing, l_success), s_success)
         mstore(add(state, STATE_SUCCESS), res_pairing)
       }
 
