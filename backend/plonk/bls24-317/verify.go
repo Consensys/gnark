@@ -80,7 +80,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		return err
 	}
 
-	// derive alpha from Comm(l), Comm(r), Comm(o), Com(Z), Bsb22Commitments
+	// derive alpha from Com(Z), Bsb22Commitments
 	alphaDeps := make([]*curve.G1Affine, len(proof.Bsb22Commitments)+1)
 	for i := range proof.Bsb22Commitments {
 		alphaDeps[i] = &proof.Bsb22Commitments[i]
