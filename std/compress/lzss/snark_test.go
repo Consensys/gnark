@@ -107,6 +107,7 @@ func TestOutBufTooShort(t *testing.T) {
 	const truncationAmount = 3
 	d := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	compressor, err := lzss.NewCompressor(nil, lzss.BestCompression)
+	require.NoError(t, err)
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 
