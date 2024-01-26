@@ -40,3 +40,13 @@ func PlaceholderMultilinearProof[FR emulated.FieldParams](nbVars int) Proof[FR] 
 		RoundPolyEvaluations: rps,
 	}
 }
+
+func PlaceholderGateProof[FR emulated.FieldParams](nbVars int, gateDegree int) Proof[FR] {
+	rps := make([]polynomial.Univariate[FR], nbVars)
+	for i := range rps {
+		rps[i] = polynomial.PlaceholderUnivariate[FR](gateDegree + 1)
+	}
+	return Proof[FR]{
+		RoundPolyEvaluations: rps,
+	}
+}

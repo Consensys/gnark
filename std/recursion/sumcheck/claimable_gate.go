@@ -1,8 +1,10 @@
 package sumcheck
 
 import (
+	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
 )
@@ -14,34 +16,83 @@ type Gate[AE ArithEngine[E], E Element] interface {
 }
 
 type gateClaimMulti[FR emulated.FieldParams] struct {
-	f  *emulated.Field[FR]
-	p  *polynomial.Polynomial[FR]
-	ee *emuEngine[FR]
+	f      *emulated.Field[FR]
+	p      *polynomial.Polynomial[FR]
+	engine *emuEngine[FR]
 
 	gate Gate[*emuEngine[FR], *emulated.Element[FR]]
 
 	evaluationPoints   [][]*emulated.Element[FR]
 	claimedEvaluations []*emulated.Element[FR]
+
+	inputPreprocessors []polynomial.Multilinear[FR]
+}
+
+func NewGate[FR emulated.FieldParams](api frontend.API, gate Gate[*emuEngine[FR], *emulated.Element[FR]], inputs [][]*emulated.Element[FR], claimedEvals []*emulated.Element[FR]) (*gateClaimMulti[FR], error) {
+	f, err := emulated.NewField[FR](api)
+	if err != nil {
+		return nil, fmt.Errorf("new field: %w", err)
+	}
+	p, err := polynomial.New[FR](api)
+	if err != nil {
+		return nil, fmt.Errorf("new polynomial: %w", err)
+	}
+	engine, err := newEmulatedEngine[FR](api)
+	if err != nil {
+		return nil, fmt.Errorf("new emulated engine: %w", err)
+	}
+	inputPreprocessors := make([]polynomial.Multilinear[FR], gate.NbInputs())
+	for i := range inputs {
+		inputPreprocessors[i] = polynomial.FromSliceReferences(inputs[i])
+	}
+	challenge := f.NewElement(123)
+	return &gateClaimMulti[FR]{
+		f:                  f,
+		p:                  p,
+		engine:             engine,
+		gate:               gate,
+		inputPreprocessors: inputPreprocessors,
+		evaluationPoints:   [][]*emulated.Element[FR]{{challenge}},
+		claimedEvaluations: claimedEvals,
+	}, nil
 }
 
 func (g *gateClaimMulti[FR]) NbClaims() int {
-	panic("not implemented") // TODO: Implement
+	// return 1
+	// TODO: fix
+	return len(g.evaluationPoints)
 }
 
 func (g *gateClaimMulti[FR]) NbVars() int {
-	panic("not implemented") // TODO: Implement
+	// return 1
+	// TODO: fix
+	return len(g.evaluationPoints[0])
 }
 
 func (g *gateClaimMulti[FR]) CombinedSum(coeff *emulated.Element[FR]) *emulated.Element[FR] {
-	panic("not implemented") // TODO: Implement
+	evalAsPoly := polynomial.FromSliceReferences[FR](g.claimedEvaluations)
+	ret := g.p.EvalUnivariate(evalAsPoly, coeff)
+	return ret
 }
 
 func (g *gateClaimMulti[FR]) Degree(i int) int {
-	panic("not implemented") // TODO: Implement
+	return 1 + g.gate.Degree()
 }
 
 func (g *gateClaimMulti[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff *emulated.Element[FR], expectedValue *emulated.Element[FR], proof EvaluationProof) error {
-	panic("not implemented") // TODO: Implement
+	var err error
+	eqEval := g.p.EvalEqual(g.evaluationPoints[0], r)
+	inputEvals := make([]*emulated.Element[FR], len(g.inputPreprocessors))
+	for i := range inputEvals {
+		inputEvals[i], err = g.p.EvalMultilinear(g.inputPreprocessors[i], r)
+		if err != nil {
+			return fmt.Errorf("eval multilin: %w", err)
+		}
+	}
+	gateEval := g.gate.Evaluate(g.engine, nil, inputEvals...)
+	res := g.f.Mul(eqEval, gateEval)
+	g.f.AssertIsEqual(res, expectedValue)
+	return nil
 }
 
 type nativeGateClaim struct {

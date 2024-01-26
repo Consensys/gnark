@@ -101,7 +101,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		return fmt.Errorf("base: %w", err)
 	}
 
-	var combinationCoef *emulated.Element[FR]
+	combinationCoef := v.f.Zero()
 	if claims.NbClaims() >= 2 {
 		if combinationCoef, challengeNames, err = v.deriveChallenge(fs, challengeNames, nil); err != nil {
 			return fmt.Errorf("derive combination coef: %w", err)

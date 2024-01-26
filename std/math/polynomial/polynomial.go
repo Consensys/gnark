@@ -51,10 +51,20 @@ type Polynomial[FR emulated.FieldParams] struct {
 	f   *emulated.Field[FR]
 }
 
+// TODO: do we need the methods? And try to figure out which is better for
+// polynomial - []*emulated.Element or []emulated.Element
 func FromSlice[FR emulated.FieldParams](in []emulated.Element[FR]) []*emulated.Element[FR] {
 	r := make([]*emulated.Element[FR], len(in))
 	for i := range in {
 		r[i] = &in[i]
+	}
+	return r
+}
+
+func FromSliceReferences[FR emulated.FieldParams](in []*emulated.Element[FR]) []emulated.Element[FR] {
+	r := make([]emulated.Element[FR], len(in))
+	for i := range in {
+		r[i] = *in[i]
 	}
 	return r
 }

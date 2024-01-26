@@ -1,6 +1,8 @@
 package sumcheck
 
-import "math/big"
+import (
+	"math/big"
+)
 
 type NativePolynomial []*big.Int
 type NativeMultilinear []*big.Int

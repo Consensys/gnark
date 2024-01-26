@@ -8,6 +8,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/math/polynomial"
@@ -68,38 +69,85 @@ func TestMultilinearSumcheck(t *testing.T) {
 	testMultilinearSumcheckInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), []int{1, 2, 3, 4, 5, 6, 7, 8})
 }
 
-type mulGate1 struct{}
+type mulGate1[AE ArithEngine[E], E Element] struct{}
 
-func (m mulGate1) NbInputs() int { return 2 }
-func (m mulGate1) Degree() int   { return 2 }
-func (m mulGate1) Evaluate(api *bigIntEngine, dst *big.Int, vars ...*big.Int) *big.Int {
+func (m mulGate1[AE, E]) NbInputs() int { return 2 }
+func (m mulGate1[AE, E]) Degree() int   { return 2 }
+func (m mulGate1[AE, E]) Evaluate(api AE, dst E, vars ...E) E {
 	if len(vars) != m.NbInputs() {
 		panic("incorrect nb of inputs")
 	}
-	api.Mul(dst, vars[0], vars[1])
-	return dst
+	return api.Mul(dst, vars[0], vars[1])
+}
+
+type MulGateSumcheck[FR emulated.FieldParams] struct {
+	Claimed emulated.Element[FR]
+	Inputs  [][]emulated.Element[FR]
+
+	Proof Proof[FR]
+}
+
+func (c *MulGateSumcheck[FR]) Define(api frontend.API) error {
+	v, err := NewVerifier[FR](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	inputs := make([][]*emulated.Element[FR], len(c.Inputs))
+	for i := range inputs {
+		inputs[i] = make([]*emulated.Element[FR], len(c.Inputs[i]))
+		for j := range inputs[i] {
+			inputs[i][j] = &c.Inputs[i][j]
+		}
+	}
+	claimedEvals := []*emulated.Element[FR]{&c.Claimed}
+	claim, err := NewGate[FR](api, mulGate1[*emuEngine[FR], *emulated.Element[FR]]{}, inputs, claimedEvals)
+	if err != nil {
+		return fmt.Errorf("new gate claim: %w", err)
+	}
+	if err = v.Verify(claim, c.Proof); err != nil {
+		return fmt.Errorf("verify sumcheck: %w", err)
+	}
+	return nil
 }
 
 func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, inputs [][]int) {
 	var fr FR
+	t.Log("fr", fr.Modulus().String())
 	assert := test.NewAssert(t)
 	inputB := make([][]*big.Int, len(inputs))
 	for i := range inputB {
-		inputB[i] = make([]*big.Int, mulGate1{}.NbInputs())
+		inputB[i] = make([]*big.Int, len(inputs[i]))
 		for j := range inputs[i] {
 			inputB[i][j] = big.NewInt(int64(inputs[i][j]))
 		}
 	}
-	claim, evals, err := NewNativeGate(fr.Modulus(), mulGate1{}, inputB)
+	claim, evals, err := NewNativeGate(fr.Modulus(), mulGate1[*bigIntEngine, *big.Int]{}, inputB)
 	assert.NoError(err)
-	for i := range evals {
-		t.Log(evals[i].String())
-	}
 	proof, err := Prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
-	_ = proof
+	nbVars := bits.Len(uint(len(inputs[0]))) - 1
+	circuit := &MulGateSumcheck[FR]{
+		Proof:  PlaceholderGateProof[FR](nbVars, 2),
+		Inputs: make([][]emulated.Element[FR], len(inputs)),
+	}
+	assignment := &MulGateSumcheck[FR]{
+		Claimed: emulated.ValueOf[FR](evals[0]),
+		Proof:   ValueOfProof[FR](proof),
+		Inputs:  make([][]emulated.Element[FR], len(inputs)),
+	}
+	for i := range inputs {
+		circuit.Inputs[i] = make([]emulated.Element[FR], len(inputs[i]))
+		assignment.Inputs[i] = make([]emulated.Element[FR], len(inputs[i]))
+		for j := range inputs[i] {
+			assignment.Inputs[i][j] = emulated.ValueOf[FR](inputs[i][j])
+		}
+	}
+	err = test.IsSolved(circuit, assignment, current)
+	assert.NoError(err)
+	frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit)
 }
 
 func TestMulGate1Sumcheck(t *testing.T) {
 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{4, 3}, {2, 3}})
+	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{13, 54, 4, 3}, {901, 28, 2, 3}})
 }
