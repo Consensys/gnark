@@ -8,7 +8,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/math/polynomial"
@@ -112,7 +111,7 @@ func (c *MulGateSumcheck[FR]) Define(api frontend.API) error {
 
 func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, inputs [][]int) {
 	var fr FR
-	t.Log("fr", fr.Modulus().String())
+	var nativeGate mulGate1[*bigIntEngine, *big.Int]
 	assert := test.NewAssert(t)
 	inputB := make([][]*big.Int, len(inputs))
 	for i := range inputB {
@@ -121,13 +120,13 @@ func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current
 			inputB[i][j] = big.NewInt(int64(inputs[i][j]))
 		}
 	}
-	claim, evals, err := NewNativeGate(fr.Modulus(), mulGate1[*bigIntEngine, *big.Int]{}, inputB)
+	claim, evals, err := NewNativeGate(fr.Modulus(), nativeGate, inputB)
 	assert.NoError(err)
 	proof, err := Prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(inputs[0]))) - 1
 	circuit := &MulGateSumcheck[FR]{
-		Proof:  PlaceholderGateProof[FR](nbVars, 2),
+		Proof:  PlaceholderGateProof[FR](nbVars, nativeGate.Degree()),
 		Inputs: make([][]emulated.Element[FR], len(inputs)),
 	}
 	assignment := &MulGateSumcheck[FR]{
@@ -144,7 +143,6 @@ func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current
 	}
 	err = test.IsSolved(circuit, assignment, current)
 	assert.NoError(err)
-	frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, circuit)
 }
 
 func TestMulGate1Sumcheck(t *testing.T) {
