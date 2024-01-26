@@ -1205,9 +1205,10 @@ contract PlonkVerifier {
         s2 := mload(add(state, STATE_ALPHA_SQUARE_LAGRANGE_0))
         s2 := sub(R_MOD, s2)
         s1 := addmod(s1, s2, R_MOD)
+        s1 := sub(R_MOD, s1)
 
-        let opening_linearised_polynomial := mload(add(aproof, PROOF_LINEARISED_POLYNOMIAL_AT_ZETA))
-        if eq(eq(opening_linearised_polynomial, s1), 0) {
+        let opening_linearised_polynomial := calldataload(add(aproof, PROOF_LINEARISED_POLYNOMIAL_AT_ZETA))
+        if iszero(eq(opening_linearised_polynomial, s1)) {
           error_verify()
         }
       }
