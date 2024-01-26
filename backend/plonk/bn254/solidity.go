@@ -103,7 +103,7 @@ contract PlonkVerifier {
   uint256 private constant PROOF_BATCH_OPENING_AT_ZETA_X = 0x2a0;
   uint256 private constant PROOF_BATCH_OPENING_AT_ZETA_Y = 0x2c0;
 
-  uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_X = 0x3e0;
+  uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_X = 0x2e0;
   uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_Y = 0x300;
 
   uint256 private constant PROOF_OPENING_QCP_AT_ZETA = 0x320;
