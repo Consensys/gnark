@@ -202,10 +202,10 @@ contract PlonkVerifier {
       mstore(add(mem, STATE_ZETA_POWER_N_MINUS_ONE), zeta_power_n_minus_one)
 
       // public inputs contribution
-      let l_wocommit := sum_pi_wo_api_commit(public_inputs.offset, public_inputs.length, freeMem)
+      let l_pi := sum_pi_wo_api_commit(public_inputs.offset, public_inputs.length, freeMem)
       {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
-      let l_pi := sum_pi_commit(proof.offset, public_inputs.length, freeMem)
-      l_pi := addmod(l_wocommit, l_pi, R_MOD)
+      let l_pi_commit := sum_pi_commit(proof.offset, public_inputs.length, freeMem)
+      l_pi := addmod(l_pi_commit, l_pi, R_MOD)
       {{ end -}}
       mstore(add(mem, STATE_PI), l_pi)
 
@@ -995,9 +995,11 @@ contract PlonkVerifier {
         
         let offset := 0x1c0
         
-        mstore(add(mPtr,offset), VK_QCP_0_X)
-        mstore(add(mPtr,add(offset, 0x20)), VK_QCP_0_Y)
+        {{ range $index, $element := .CommitmentConstraintIndexes }}
+        mstore(add(mPtr,offset), VK_QCP_{{ $index }}_X)
+        mstore(add(mPtr,add(offset, 0x20)), VK_QCP_{{ $index }}_Y)
         offset := add(offset, 0x40)
+        {{ end }}
         
         mstore(add(mPtr, offset), calldataload(add(aproof, PROOF_LINEARISED_POLYNOMIAL_AT_ZETA)))
         mstore(add(mPtr, add(offset, 0x20)), calldataload(add(aproof, PROOF_L_AT_ZETA)))
