@@ -45,7 +45,7 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 	}
 	imQneg := &g2AffP{
 		X: imQ.X,
-		Y: *p.curveF.Neg(&imQ.Y),
+		Y: Q.Y,
 	}
 	for i := len(loopCounter2) - 2; i > 0; i-- {
 		switch loopCounter2[i]*3 + loopCounter1[i] {

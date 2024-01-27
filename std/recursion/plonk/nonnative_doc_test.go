@@ -131,7 +131,7 @@ func Example_emulated() {
 	}
 
 	// NB! UNSAFE! Use MPC.
-	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 	if err != nil {
 		panic(err)
 	}

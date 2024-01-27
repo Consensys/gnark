@@ -270,7 +270,7 @@ func init() {
 	tVariable = reflect.ValueOf(struct{ A frontend.Variable }{}).FieldByName("A").Type()
 }
 
-// Compile constructs a rank-1 constraint sytem
+// Compile constructs a rank-1 constraint system
 func (builder *builder) Compile() (constraint.ConstraintSystem, error) {
 	// TODO if already compiled, return builder.cs object
 	log := logger.Logger()

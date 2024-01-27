@@ -30,15 +30,27 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 
 	// ScalarMul returns the scalar multiplication of the point by a scalar. It
 	// does not modify the inputs.
+	//
+	// Depending on the implementation the scalar multiplication may be
+	// incomplete for zero scalar or point at infinity. To allow the exceptional
+	// case use the [algopts.WithUseSafe] option.
 	ScalarMul(*G1El, *emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
 	// ScalarMulBase returns the scalar multiplication of the curve base point
 	// by a scalar. It does not modify the scalar.
+	//
+	// Depending on the implementation the scalar multiplication may be
+	// incomplete for zero scalar. To allow the exceptional case use the
+	// [algopts.WithUseSafe] option.
 	ScalarMulBase(*emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
 	// MultiScalarMul computes the sum ∑ s_i P_i for the input
 	// scalars s_i and points P_i. It returns an error if the input lengths
 	// mismatch.
+	//
+	// Depending on the implementation the scalar multiplication may be
+	// incomplete for zero scalar or point at infinity. To allow the exceptional
+	// case use the [algopts.WithUseSafe] option.
 	MultiScalarMul([]*G1El, []*emulated.Element[FR], ...algopts.AlgebraOption) (*G1El, error)
 
 	// MarshalG1 returns the binary decomposition G1.X || G1.Y. It matches the
@@ -58,6 +70,11 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	//   - p3 if b0=0 and b1=1,
 	//   - p4 if b0=1 and b1=1.
 	Lookup2(b1 frontend.Variable, b2 frontend.Variable, p1 *G1El, p2 *G1El, p3 *G1El, p4 *G1El) *G1El
+
+	// Mux performs a lookup from the inputs and returns inputs[sel]. It is most
+	// efficient for power of two lengths of the inputs, but works for any
+	// number of inputs.
+	Mux(sel frontend.Variable, inputs ...*G1El) *G1El
 }
 
 // Pairing allows to compute the bi-linear pairing of G1 and G2 elements.
