@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
@@ -42,4 +43,5 @@ func registerHints() {
 	solver.RegisterHint(logderivarg.GetHints()...)
 	solver.RegisterHint(bitslice.GetHints()...)
 	solver.RegisterHint(sw_emulated.GetHints()...)
+	solver.RegisterHint(sw_bls12381.GetHints()...)
 }

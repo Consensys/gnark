@@ -37,6 +37,77 @@ func TestAddG2TestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestAddG2FailureCaseTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, in1 := randomG1G2Affines()
+	var res bls12381.G2Affine
+	res.Double(&in1)
+	witness := addG2Circuit{
+		In1: NewG2Affine(in1),
+		In2: NewG2Affine(in1),
+		Res: NewG2Affine(res),
+	}
+	err := test.IsSolved(&addG2Circuit{}, &witness, ecc.BN254.ScalarField())
+	// the add() function cannot handle identical inputs
+	assert.Error(err)
+}
+
+type addG2UnifiedCircuit struct {
+	In1, In2 G2Affine
+	Res      G2Affine
+}
+
+func (c *addG2UnifiedCircuit) Define(api frontend.API) error {
+	g2 := NewG2(api)
+	res := g2.addUnified(&c.In1, &c.In2)
+	g2.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestAddG2UnifiedTestSolveAdd(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, in1 := randomG1G2Affines()
+	_, in2 := randomG1G2Affines()
+	var res bls12381.G2Affine
+	res.Add(&in1, &in2)
+	witness := addG2UnifiedCircuit{
+		In1: NewG2Affine(in1),
+		In2: NewG2Affine(in2),
+		Res: NewG2Affine(res),
+	}
+	err := test.IsSolved(&addG2UnifiedCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+func TestAddG2UnifiedTestSolveDbl(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, in1 := randomG1G2Affines()
+	var res bls12381.G2Affine
+	res.Double(&in1)
+	witness := addG2UnifiedCircuit{
+		In1: NewG2Affine(in1),
+		In2: NewG2Affine(in1),
+		Res: NewG2Affine(res),
+	}
+	err := test.IsSolved(&addG2UnifiedCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+func TestAddG2UnifiedTestSolveNeg(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, in1 := randomG1G2Affines()
+	var in2, res bls12381.G2Affine
+	in2.Neg(&in1)
+	res.Add(&in1, &in2)
+	witness := addG2UnifiedCircuit{
+		In1: NewG2Affine(in1),
+		In2: NewG2Affine(in2),
+		Res: NewG2Affine(res),
+	}
+	err := test.IsSolved(&addG2UnifiedCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type doubleG2Circuit struct {
 	In1 G2Affine
 	Res G2Affine
