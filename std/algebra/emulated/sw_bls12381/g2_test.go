@@ -93,19 +93,58 @@ func TestAddG2UnifiedTestSolveDbl(t *testing.T) {
 	assert.NoError(err)
 }
 
-func TestAddG2UnifiedTestSolveNeg(t *testing.T) {
+func TestAddG2UnifiedTestSolveEdgeCases(t *testing.T) {
 	assert := test.NewAssert(t)
-	_, in1 := randomG1G2Affines()
-	var in2, res bls12381.G2Affine
-	in2.Neg(&in1)
-	res.Add(&in1, &in2)
+	_, p := randomG1G2Affines()
+	var np, zero bls12381.G2Affine
+	np.Neg(&p)
+	zero.Sub(&p, &p)
+
+	// p + (-p) == (0, 0)
 	witness := addG2UnifiedCircuit{
-		In1: NewG2Affine(in1),
-		In2: NewG2Affine(in2),
-		Res: NewG2Affine(res),
+		In1: NewG2Affine(p),
+		In2: NewG2Affine(np),
+		Res: NewG2Affine(zero),
 	}
 	err := test.IsSolved(&addG2UnifiedCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+
+	// (-p) + p == (0, 0)
+	witness2 := addG2UnifiedCircuit{
+		In1: NewG2Affine(np),
+		In2: NewG2Affine(p),
+		Res: NewG2Affine(zero),
+	}
+	err2 := test.IsSolved(&addG2UnifiedCircuit{}, &witness2, ecc.BN254.ScalarField())
+	assert.NoError(err2)
+
+	// p + (0, 0) == p
+	witness3 := addG2UnifiedCircuit{
+		In1: NewG2Affine(p),
+		In2: NewG2Affine(zero),
+		Res: NewG2Affine(p),
+	}
+	err3 := test.IsSolved(&addG2UnifiedCircuit{}, &witness3, ecc.BN254.ScalarField())
+	assert.NoError(err3)
+
+	// (0, 0) + p == p
+	witness4 := addG2UnifiedCircuit{
+		In1: NewG2Affine(zero),
+		In2: NewG2Affine(p),
+		Res: NewG2Affine(p),
+	}
+	err4 := test.IsSolved(&addG2UnifiedCircuit{}, &witness4, ecc.BN254.ScalarField())
+	assert.NoError(err4)
+
+	// (0, 0) + (0, 0) == (0, 0)
+	witness5 := addG2UnifiedCircuit{
+		In1: NewG2Affine(zero),
+		In2: NewG2Affine(zero),
+		Res: NewG2Affine(zero),
+	}
+	err5 := test.IsSolved(&addG2UnifiedCircuit{}, &witness5, ecc.BN254.ScalarField())
+	assert.NoError(err5)
+
 }
 
 type doubleG2Circuit struct {
