@@ -150,46 +150,56 @@ func (g2 G2) add(p, q *G2Affine) *G2Affine {
 	}
 }
 
-// The add() function is not complete. If p == q, then λ is 0, while it should be (3p.x²)/2*p.y according to double()
-// Moreover, the AssertIsEqual() check will fail within the DivUnchecked() call as the div hint will return 0.
-//
-// Provide addUnified to handle this situation at the cost of additional constraints. Useful when not certain if p != q.
-// Note, ClearCofactor (covered in TestClearCofactorTestSolve of hash_to_g2_test.go) might fail without this function.
+// Follow sw_emulated.Curve.AddUnified to implement the Brier and Joye algorithm
+// to handle edge cases, i.e., p == q, p == 0 or/and q == 0
 func (g2 G2) addUnified(p, q *G2Affine) *G2Affine {
-	// if p != q, compute λ = (q.y-p.y)/(q.x-p.x)
-	qypy := g2.Ext2.Sub(&q.P.Y, &p.P.Y)
-	qxpx := g2.Ext2.Sub(&q.P.X, &p.P.X)
 
-	// else if p == q, compute λ = (3p.x²)/2*p.y
-	xx3a := g2.Square(&p.P.X)
-	xx3a = g2.MulByConstElement(xx3a, big.NewInt(3))
-	y2 := g2.Double(&p.P.Y)
+	// selector1 = 1 when p is (0,0) and 0 otherwise
+	selector1 := g2.api.And(g2.Ext2.IsZero(&p.P.X), g2.Ext2.IsZero(&p.P.Y))
+	// selector2 = 1 when q is (0,0) and 0 otherwise
+	selector2 := g2.api.And(g2.Ext2.IsZero(&q.P.X), g2.Ext2.IsZero(&q.P.Y))
 
-	z := g2.Ext2.IsZero(qxpx)
-	deltaX := g2.Select(z, y2, qxpx)
-	deltaY := g2.Select(z, xx3a, qypy)
-	λ := g2.Ext2.DivUnchecked(deltaY, deltaX)
+	// λ = ((p.x+q.x)² - p.x*q.x + a)/(p.y + q.y)
+	pxqx := g2.Ext2.Mul(&p.P.X, &q.P.X)
+	pxplusqx := g2.Ext2.Add(&p.P.X, &q.P.X)
+	num := g2.Ext2.Mul(pxplusqx, pxplusqx)
+	num = g2.Ext2.Sub(num, pxqx)
+	denum := g2.Ext2.Add(&p.P.Y, &q.P.Y)
+	// if p.y + q.y = 0, assign dummy 1 to denum and continue
+	selector3 := g2.Ext2.IsZero(denum)
+	denum = g2.Ext2.Select(selector3, g2.Ext2.One(), denum)
+	λ := g2.Ext2.DivUnchecked(num, denum) // we already know that denum won't be zero
 
-	// if p == -q, result should zero
-	zeroConst := g2.Zero()
-	z1 := g2.Ext2.Add(&q.P.Y, &p.P.Y)
-	z2 := g2.Ext2.IsZero(z1)
-	z3 := g2.api.And(z, z2)
+	// x = λ^2 - p.x - q.x
+	xr := g2.Ext2.Mul(λ, λ)
+	xr = g2.Ext2.Sub(xr, pxplusqx)
 
-	// xr = λ²-p.x-q.x
-	λλ := g2.Ext2.Square(λ)
-	qxpx = g2.Ext2.Add(&p.P.X, &q.P.X)
-	xr := g2.Ext2.Sub(λλ, qxpx)
+	// y = λ(p.x - xr) - p.y
+	yr := g2.Ext2.Sub(&p.P.X, xr)
+	yr = g2.Ext2.Mul(yr, λ)
+	yr = g2.Ext2.Sub(yr, &p.P.Y)
+	result := &G2Affine{
+		P: g2AffP{
+			X: *xr,
+			Y: *yr,
+		},
+	}
 
-	// yr = λ(p.x-r.x) - p.y
-	pxrx := g2.Ext2.Sub(&p.P.X, xr)
-	λpxrx := g2.Ext2.Mul(λ, pxrx)
-	yr := g2.Ext2.Sub(λpxrx, &p.P.Y)
+	zero := g2.Ext2.Zero()
+	// if p=(0,0) return q
+	resultX := *g2.Select(selector1, &q.P.X, &result.P.X)
+	resultY := *g2.Select(selector1, &q.P.Y, &result.P.Y)
+	// if q=(0,0) return p
+	resultX = *g2.Select(selector2, &p.P.X, &resultX)
+	resultY = *g2.Select(selector2, &p.P.Y, &resultY)
+	// if p.y + q.y = 0, return (0, 0)
+	resultX = *g2.Select(selector3, zero, &resultX)
+	resultY = *g2.Select(selector3, zero, &resultY)
 
 	return &G2Affine{
 		P: g2AffP{
-			X: *g2.Select(z3, zeroConst, xr),
-			Y: *g2.Select(z3, zeroConst, yr),
+			X: resultX,
+			Y: resultY,
 		},
 	}
 }
