@@ -314,6 +314,11 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	if err != nil {
 		panic(err)
 	}
+	if s.BitLen() == 0 {
+		P.X = 0
+		P.Y = 0
+		return P
+	}
 	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.
@@ -322,15 +327,7 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	s.Mod(s, cc.fr)
 	cc.phi1(api, &phiQ, &Q)
 
-	var k [2]big.Int
-	// if s=0, assign dummy 1s to k[0] and k[1]
-	if s.BitLen() == 0 {
-		k[0].SetInt64(1)
-		k[1].SetInt64(1)
-	} else {
-		k = ecc.SplitScalar(s, cc.glvBasis)
-	}
-
+	k := ecc.SplitScalar(s, cc.glvBasis)
 	if k[0].Sign() == -1 {
 		k[0].Neg(&k[0])
 		Q.Neg(api, Q)
@@ -397,12 +394,6 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	}
 	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
 	P.X, P.Y = Acc.X, Acc.Y
-
-	// if s=0, return P=(0,0)
-	if s.BitLen() == 0 {
-		P.X = 0
-		P.Y = 0
-	}
 
 	return P
 }

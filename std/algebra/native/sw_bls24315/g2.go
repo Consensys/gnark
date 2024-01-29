@@ -325,6 +325,12 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	if err != nil {
 		panic(err)
 	}
+	if s.BitLen() == 0 {
+		zero := fields_bls24315.E4{B0: fields_bls24315.E2{A0: 0, A1: 0}, B1: fields_bls24315.E2{A0: 0, A1: 0}}
+		P.X = zero
+		P.Y = zero
+		return P
+	}
 	// see the comments in varScalarMul. However, two-bit lookup is cheaper if
 	// bits are constant and here it makes sense to use the table in the main
 	// loop.
@@ -408,13 +414,6 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	}
 	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
 	P.X, P.Y = Acc.X, Acc.Y
-
-	// if s=0, return P=(0,0)
-	zero := fields_bls24315.E4{B0: fields_bls24315.E2{A0: 0, A1: 0}, B1: fields_bls24315.E2{A0: 0, A1: 0}}
-	if s.BitLen() == 0 {
-		P.X = zero
-		P.Y = zero
-	}
 
 	return P
 }
