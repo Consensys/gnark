@@ -16,7 +16,7 @@ import (
 )
 
 func getMsgs() []string {
-	return []string{"", "a", "ab", "abc", "abcd", "abcde", "abcdef", "abcdefg", "1", "2", "3", "4", "5"}
+	return []string{"", "a", "ab", "abc", "abcd", "abcde", "abcdef", "abcdefg", "1", "2", "3", "4", "5", "5656565656565656565656565656565656565656565656565656565656565656"}
 }
 
 func getDst() []byte {
@@ -27,76 +27,91 @@ func getDst() []byte {
 }
 
 type hashToFieldCircuit struct {
-	msg []byte
-	dst []byte
+	Msg []byte
+	Dst []byte
+	Res bls12381fp.Element
 }
 
 func (c *hashToFieldCircuit) Define(api frontend.API) error {
-	msg := uints.NewU8Array(c.msg)
-	uniformBytes, _ := tofield.ExpandMsgXmd(api, msg, c.dst, 64)
+	msg := uints.NewU8Array(c.Msg)
+	uniformBytes, _ := tofield.ExpandMsgXmd(api, msg, c.Dst, 64)
 	fp, _ := emulated.NewField[emulated.BLS12381Fp](api)
 
 	ele := bytesToElement(api, fp, uniformBytes)
 
-	rawEles, _ := bls12381fp.Hash(c.msg, c.dst, 1)
-	wrappedEle := fp.NewElement(rawEles[0])
-
-	fp.AssertIsEqual(ele, wrappedEle)
+	fp.AssertIsEqual(ele, fp.NewElement(c.Res))
 
 	return nil
 }
 
 func TestHashToFieldTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
+	dst := getDst()
 
 	for _, msg := range getMsgs() {
 
-		witness := hashToFieldCircuit{
-			msg: []byte(msg),
-			dst: getDst(),
+		rawEles, _ := bls12381fp.Hash([]byte(msg), dst, 1)
+
+		circuit := hashToFieldCircuit{
+			Msg: []byte(msg),
+			Dst: dst,
+			Res: rawEles[0],
 		}
-		err := test.IsSolved(&hashToFieldCircuit{}, &witness, ecc.BN254.ScalarField())
+		witness := hashToFieldCircuit{
+			Msg: []byte(msg),
+			Dst: dst,
+			Res: rawEles[0],
+		}
+		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 		assert.NoError(err)
 	}
 }
 
 type mapToCurveCircuit struct {
-	msg []byte
-	dst []byte
+	Msg []byte
+	Dst []byte
+	Res G2Affine
 }
 
 func (c *mapToCurveCircuit) Define(api frontend.API) error {
-	msg := uints.NewU8Array(c.msg)
-	uniformBytes, _ := tofield.ExpandMsgXmd(api, msg, c.dst, 128)
+	msg := uints.NewU8Array(c.Msg)
 	fp, _ := emulated.NewField[emulated.BLS12381Fp](api)
 	ext2 := fields_bls12381.NewExt2(api)
 	mapper := newMapper(api, ext2, fp)
 
+	uniformBytes, _ := tofield.ExpandMsgXmd(api, msg, c.Dst, 128)
 	ele1 := bytesToElement(api, fp, uniformBytes[:64])
 	ele2 := bytesToElement(api, fp, uniformBytes[64:])
 	e := fields_bls12381.E2{A0: *ele1, A1: *ele2}
 	affine := mapper.mapToCurve(e)
 
-	rawEles, _ := bls12381fp.Hash(c.msg, c.dst, 2)
-	rawAffine := bls12381.MapToCurve2(&bls12381.E2{A0: rawEles[0], A1: rawEles[1]})
-	wrappedRawAffine := NewG2Affine(rawAffine)
-
 	g2 := NewG2(api)
-	g2.AssertIsEqual(affine, &wrappedRawAffine)
+	g2.AssertIsEqual(affine, &c.Res)
 
 	return nil
 }
 
 func TestMapToCurveTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
+	dst := getDst()
 
 	for _, msg := range getMsgs() {
 
-		witness := hashToFieldCircuit{
-			msg: []byte(msg),
-			dst: getDst(),
+		rawEles, _ := bls12381fp.Hash([]byte(msg), dst, 2)
+		rawAffine := bls12381.MapToCurve2(&bls12381.E2{A0: rawEles[0], A1: rawEles[1]})
+		wrappedRawAffine := NewG2Affine(rawAffine)
+
+		circuit := mapToCurveCircuit{
+			Msg: []byte(msg),
+			Dst: dst,
+			Res: wrappedRawAffine,
 		}
-		err := test.IsSolved(&mapToCurveCircuit{}, &witness, ecc.BN254.ScalarField())
+		witness := mapToCurveCircuit{
+			Msg: []byte(msg),
+			Dst: dst,
+			Res: wrappedRawAffine,
+		}
+		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 		assert.NoError(err)
 	}
 }
@@ -134,34 +149,42 @@ func TestClearCofactorTestSolve(t *testing.T) {
 }
 
 type hashToG2Circuit struct {
-	msg []byte
-	dst []byte
+	Msg []byte
+	Dst []byte
+	Res G2Affine
 }
 
 func (c *hashToG2Circuit) Define(api frontend.API) error {
-	res, e := HashToG2(api, uints.NewU8Array(c.msg), c.dst)
+	res, e := HashToG2(api, uints.NewU8Array(c.Msg), c.Dst)
 	if e != nil {
 		return e
 	}
 
-	expected, _ := bls12381.HashToG2(c.msg, c.dst)
-	wrappedRes := NewG2Affine(expected)
-
 	g2 := NewG2(api)
-	g2.AssertIsEqual(res, &wrappedRes)
+	g2.AssertIsEqual(res, &c.Res)
 	return nil
 }
 
 func TestHashToG2TestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
+	dst := getDst()
 
 	for _, msg := range getMsgs() {
 
-		witness := hashToG2Circuit{
-			msg: []uint8(msg),
-			dst: getDst(),
+		expected, _ := bls12381.HashToG2([]uint8(msg), dst)
+		wrappedRes := NewG2Affine(expected)
+
+		circuit := hashToG2Circuit{
+			Msg: []uint8(msg),
+			Dst: dst,
+			Res: wrappedRes,
 		}
-		err := test.IsSolved(&hashToG2Circuit{}, &witness, ecc.BN254.ScalarField())
+		witness := hashToG2Circuit{
+			Msg: []uint8(msg),
+			Dst: dst,
+			Res: wrappedRes,
+		}
+		err := test.IsSolved(&circuit, &witness, ecc.BN254.ScalarField())
 		assert.NoError(err)
 	}
 }

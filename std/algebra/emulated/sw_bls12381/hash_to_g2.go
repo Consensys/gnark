@@ -184,12 +184,14 @@ func (m sswuMapper) mapToCurve(u fields_bls12381.E2) *G2Affine {
 func (m sswuMapper) sgn0(x *fields_bls12381.E2) frontend.Variable {
 	// Steps for sgn0_m_eq_2
 	// 1. sign_0 = x_0 mod 2
-	x0 := m.fp.ToBits(&x.A0)
+	A0 := m.fp.Reduce(&x.A0)
+	x0 := m.fp.ToBits(A0)
 	sign0 := x0[0]
 	// 2. zero_0 = x_0 == 0
 	zero0 := m.fp.IsZero(&x.A0)
 	// 3. sign_1 = x_1 mod 2
-	x1 := m.fp.ToBits(&x.A1)
+	A1 := m.fp.Reduce(&x.A1)
+	x1 := m.fp.ToBits(A1)
 	sign1 := x1[0]
 	// 4. s = sign_0 OR (zero_0 AND sign_1) # Avoid short-circuit logic ops
 	tv := m.api.And(zero0, sign1)
