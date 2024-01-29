@@ -1002,11 +1002,11 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 		_s1, _s2, // second & third part
 	)
 
-	linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars)
+	linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars /*, algopts.WithUseSafe()*/) // in PLONK Wo Commit ==> use algopts.WithUseSafe()
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("linearized polynomial digest MSM: %w", err)
 	}
-	linearizedPolynomialDigest = v.curve.Add(linearizedPolynomialDigest, &vk.Qk.G1El) // Qk=0 in PLONK W\ Commit ==> use AddUnified
+	linearizedPolynomialDigest = v.curve. /*AddUnified*/ Add(linearizedPolynomialDigest, &vk.Qk.G1El) // in PLONK Wo Commit ==> use AddUnified
 
 	// Fold the first proof
 	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+7)
