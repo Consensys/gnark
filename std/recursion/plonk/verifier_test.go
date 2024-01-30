@@ -43,10 +43,6 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
 ///-----------------------------------------------------------------
 // Without api.Commit
-//
-// For this, in verifier.go, use:
-// - linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars, algopts.WithUseSafe())
-// - linearizedPolynomialDigest = v.curve.AddUnified(linearizedPolynomialDigest, &vk.Qk.G1El)
 
 type InnerCircuitNativeWoCommit struct {
 	P, Q frontend.Variable
