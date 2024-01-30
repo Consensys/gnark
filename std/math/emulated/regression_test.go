@@ -94,3 +94,27 @@ func TestIssue867Division(t *testing.T) {
 	}
 	test.IsSolved(&testIssue867Circuit{A: ac, B: bc}, &testIssue867Circuit{A: a, B: b}, ecc.BLS12_381.ScalarField())
 }
+
+type testIssue1021Circuit struct {
+	A Element[BN254Fp]
+}
+
+func (c *testIssue1021Circuit) Define(api frontend.API) error {
+	f, err := NewField[BN254Fp](api)
+	if err != nil {
+		return err
+	}
+	b := f.NewElement(c.A)
+	p := f.Modulus()
+	for i := 0; i < 188; i++ {
+		b = f.Add(b, p)
+	}
+	f.AssertIsEqual(b, &c.A)
+	return nil
+}
+
+func TestIssue1021(t *testing.T) {
+	assert := test.NewAssert(t)
+	err := test.IsSolved(&testIssue1021Circuit{}, &testIssue1021Circuit{A: ValueOf[BN254Fp](10)}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
