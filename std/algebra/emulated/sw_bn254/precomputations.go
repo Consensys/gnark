@@ -30,7 +30,11 @@ func precomputeLines(Q bn254.G2Affine) lineEvaluations {
 }
 
 func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
-
+	// manually reduce Q before computing lines
+	Q = &g2AffP{
+		X: *p.Ext2.Reduce(&Q.X),
+		Y: *p.Ext2.Reduce(&Q.Y),
+	}
 	var cLines lineEvaluations
 	Qacc := Q
 	QNeg := &g2AffP{

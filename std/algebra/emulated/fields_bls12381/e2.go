@@ -76,6 +76,13 @@ func (e Ext2) MulByConstElement(x *E2, y *big.Int) *E2 {
 	}
 }
 
+func (e Ext2) Reduce(x *E2) *E2 {
+	var z E2
+	z.A0 = *e.fp.Reduce(&x.A0)
+	z.A1 = *e.fp.Reduce(&x.A1)
+	return &z
+}
+
 func (e Ext2) Conjugate(x *E2) *E2 {
 	z0 := x.A0
 	z1 := e.fp.Neg(&x.A1)
