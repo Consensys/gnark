@@ -80,14 +80,14 @@ type verifierCfg struct {
 // VerifierOption allows to modify the behaviour of PLONK verifier.
 type VerifierOption func(cfg *verifierCfg) error
 
-// WithUseSafe forces the usage of safe formulas for point addition and
-// multi-scalar multiplication. The option is necessary when recursing simple
-// inner circuits whose selector polynomials may have exceptional cases (zeros,
-// equal to each other, inverses of each other).
+// WithCompleteArithmetic forces the usage of complete formulas for point
+// addition and multi-scalar multiplication. The option is necessary when
+// recursing simple inner circuits whose selector polynomials may have
+// exceptional cases (zeros, equal to each other, inverses of each other).
 //
 // Safe formulas are less efficient to use, so using this option has performance
 // impact on the outer circuit size.
-func WithUseSafe() VerifierOption {
+func WithCompleteArithmetic() VerifierOption {
 	return func(cfg *verifierCfg) error {
 		cfg.withUseSafe = true
 		return nil
