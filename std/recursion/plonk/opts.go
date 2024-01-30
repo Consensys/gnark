@@ -74,7 +74,7 @@ func GetNativeVerifierOptions(outer, field *big.Int) backend.VerifierOption {
 }
 
 type verifierCfg struct {
-	withUseSafe bool
+	withCompleteArithmetic bool
 }
 
 // VerifierOption allows to modify the behaviour of PLONK verifier.
@@ -89,7 +89,7 @@ type VerifierOption func(cfg *verifierCfg) error
 // impact on the outer circuit size.
 func WithCompleteArithmetic() VerifierOption {
 	return func(cfg *verifierCfg) error {
-		cfg.withUseSafe = true
+		cfg.withCompleteArithmetic = true
 		return nil
 	}
 }

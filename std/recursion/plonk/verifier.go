@@ -1008,14 +1008,14 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	)
 
 	var msmOpts []algopts.AlgebraOption
-	if cfg.withUseSafe {
-		msmOpts = append(msmOpts, algopts.WithUseSafe())
+	if cfg.withCompleteArithmetic {
+		msmOpts = append(msmOpts, algopts.WithCompleteArithmetic())
 	}
 	linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars, msmOpts...)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("linearized polynomial digest MSM: %w", err)
 	}
-	if cfg.withUseSafe {
+	if cfg.withCompleteArithmetic {
 		// in PLONK Wo Commit ==> use AddUnified
 		linearizedPolynomialDigest = v.curve.AddUnified(linearizedPolynomialDigest, &vk.Qk.G1El)
 	} else {
