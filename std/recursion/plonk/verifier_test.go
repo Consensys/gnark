@@ -37,11 +37,10 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
-	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
+	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness, WithUseSafe())
 	return err
 }
 
-/*
 ///-----------------------------------------------------------------
 // Without api.Commit
 //
@@ -163,7 +162,6 @@ func TestBLS12381InBN254WoCommit(t *testing.T) {
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
-*/
 
 //-----------------------------------------------------------------
 // With api.Commit
