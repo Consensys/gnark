@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/std/compress"
 	"github.com/consensys/gnark/std/compress/internal"
 	"github.com/consensys/gnark/std/compress/lzss"
 	"github.com/consensys/gnark/std/math/bits"
@@ -146,7 +147,7 @@ func (c *breakUpBytesIntoWordsStdCircuit) Define(api frontend.API) error {
 	}
 
 	_bytes := make([]frontend.Variable, len(words))
-	r := internal.NewNumReader(api, words, 8, 1)
+	r := compress.NewNumReader(api, words, 8, 1)
 	for i := range words {
 		_bytes[i] = r.Next()
 	}

@@ -137,7 +137,7 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits in
 			panic("all backref types must have the same length size")
 		}
 	}
-	readers := make([]*internal.NumReader, len(backrefs))
+	readers := make([]*compress.NumReader, len(backrefs))
 	delimAndLenNbWords := int(8+backrefs[0].NbBitsLength) / wordNbBits
 	for i := range backrefs {
 		var readerC []frontend.Variable
@@ -145,7 +145,7 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits in
 			readerC = c[delimAndLenNbWords:]
 		}
 
-		readers[i] = internal.NewNumReader(api, readerC, int(backrefs[i].NbBitsAddress), wordNbBits)
+		readers[i] = compress.NewNumReader(api, readerC, int(backrefs[i].NbBitsAddress), wordNbBits)
 	}
 
 	res := logderivlookup.New(api)
