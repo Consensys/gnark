@@ -716,7 +716,7 @@ func (c *ScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMul(&c.P, &c.S, algopts.WithUseSafe())
+	res := cr.ScalarMul(&c.P, &c.S, algopts.WithCompleteArithmetic())
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -942,7 +942,7 @@ func (c *MultiScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss, algopts.WithUseSafe())
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithCompleteArithmetic())
 	if err != nil {
 		return err
 	}
@@ -1139,7 +1139,7 @@ func (c *MultiScalarMulFoldedEdgeCasesTest[T, S]) Define(api frontend.API) error
 	for i := range c.Scalars {
 		ss[i] = &c.Scalars[i]
 	}
-	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithUseSafe())
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithCompleteArithmetic())
 	if err != nil {
 		return err
 	}
@@ -1401,7 +1401,7 @@ func (c *JointScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2, algopts.WithUseSafe())
+	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2, algopts.WithCompleteArithmetic())
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
 }

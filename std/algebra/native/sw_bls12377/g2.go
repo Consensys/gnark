@@ -211,7 +211,7 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	// additional constraints and thus table-version is more expensive than
 	// addition-version.
 	var selector frontend.Variable
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = api.And(Q.X.IsZero(api), Q.Y.IsZero(api))
 		one := fields_bls12377.E2{A0: 1, A1: 0}
@@ -297,9 +297,9 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	}
 
 	// i = 0
-	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		tableQ[0].AddUnified(api, Acc)
 		Acc.Select(api, s1bits[0], Acc, tableQ[0])
 		tablePhiQ[0].AddUnified(api, Acc)
@@ -360,7 +360,7 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	table[2] = negQ
 	table[3] = Q
 
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		table[0].AddUnified(api, negPhiQ)
 		table[1].AddUnified(api, negPhiQ)
 		table[2].AddUnified(api, phiQ)
@@ -376,7 +376,7 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	// if both high bits are set, then we would get to the incomplete part,
 	// handle it separately.
 	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
-		if cfg.UseSafe {
+		if cfg.CompleteArithmetic {
 			Acc.AddUnified(api, Acc)
 			Acc.AddUnified(api, table[3])
 		} else {
@@ -386,7 +386,7 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 		nbits = nbits - 1
 	}
 	for i := nbits - 1; i > 0; i-- {
-		if cfg.UseSafe {
+		if cfg.CompleteArithmetic {
 			Acc.AddUnified(api, Acc)
 			Acc.AddUnified(api, table[k[0].Bit(i)+2*k[1].Bit(i)])
 		} else {
@@ -395,7 +395,7 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	}
 
 	// i = 0
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		negQ.AddUnified(api, Acc)
 		Acc.Select(api, k[0].Bit(0), Acc, negQ)
 		negPhiQ.AddUnified(api, Acc)

@@ -486,7 +486,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 // scalarMulGLV computes s * Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithUseSafe] is set.
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -501,7 +501,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	frModulus := c.scalarApi.Modulus()
 	addFn := c.Add
 	var selector frontend.Variable
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		addFn = c.AddUnified
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
@@ -565,14 +565,14 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	}
 
 	// i = 0
-	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
 	tableQ[0] = addFn(tableQ[0], Acc)
 	Acc = c.Select(s1bits[0], Acc, tableQ[0])
 	tablePhiQ[0] = addFn(tablePhiQ[0], Acc)
 	Acc = c.Select(s2bits[0], Acc, tablePhiQ[0])
 
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		zero := c.baseApi.Zero()
 		Acc = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, Acc)
 	}
@@ -583,7 +583,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 // scalarMulGeneric computes s * p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
-// ⚠️  p must not be (0,0) and s must not be 0, unless [algopts.WithUseSafe] option is set.
+// ⚠️  p must not be (0,0) and s must not be 0, unless [algopts.WithCompleteArithmetic] option is set.
 // (0,0) is not on the curve but we conventionally take it as the
 // neutral/infinity point as per the [EVM].
 //
@@ -605,7 +605,7 @@ func (c *Curve[B, S]) scalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S]
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
 	var selector frontend.Variable
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		// if p=(0,0) we assign a dummy (0,1) to p and continue
 		selector = c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
 		one := c.baseApi.One()
@@ -641,7 +641,7 @@ func (c *Curve[B, S]) scalarMulGeneric(p *AffinePoint[B], s *emulated.Element[S]
 	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
 	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
 
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		// if p=(0,0), return (0,0)
 		zero := c.baseApi.Zero()
 		R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
@@ -666,7 +666,7 @@ func (c *Curve[B, S]) jointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.El
 
 // jointScalarMulGeneric computes [s1]p1 + [s2]p2. It doesn't modify the inputs.
 //
-// ⚠️  p1, p2 must not be (0,0) and s1, s2 must not be 0, unless [algopts.WithUseSafe] option is set.
+// ⚠️  p1, p2 must not be (0,0) and s1, s2 must not be 0, unless [algopts.WithCompleteArithmetic] option is set.
 func (c *Curve[B, S]) jointScalarMulGeneric(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	res1 := c.scalarMulGeneric(p1, s1, opts...)
 	res2 := c.scalarMulGeneric(p2, s2, opts...)
@@ -675,13 +675,13 @@ func (c *Curve[B, S]) jointScalarMulGeneric(p1, p2 *AffinePoint[B], s1, s2 *emul
 
 // jointScalarMulGLV computes [s1]p1 + [s2]p2 using an endomorphism. It doesn't modify P, Q nor s.
 //
-// ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), unless [algopts.WithUseSafe] option is set.
+// ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), unless [algopts.WithCompleteArithmetic] option is set.
 func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		// TODO @yelhousni: optimize
 		res1 := c.scalarMulGLV(p1, s1, opts...)
 		res2 := c.scalarMulGLV(p2, s2, opts...)
@@ -692,7 +692,7 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 }
 
 // jointScalarMulGLVUnsafe computes [s]Q + [t]R using Shamir's trick with an efficient endomorphism and returns it. It doesn't modify P, Q nor s.
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0), unless [algopts.WithUseSafe] option is set.
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0), unless [algopts.WithCompleteArithmetic] option is set.
 func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulated.Element[S]) *AffinePoint[B] {
 	var st S
 	frModulus := c.scalarApi.Modulus()
@@ -819,14 +819,14 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 }
 
 // scalarBitsMulGeneric computes s * p and returns it where sBits is the bit decomposition of s. It doesn't modify p nor sBits.
-// ⚠️  p must not be (0,0) and sBits not [0,...,0], unless [algopts.WithUseSafe] option is set.
+// ⚠️  p must not be (0,0) and sBits not [0,...,0], unless [algopts.WithCompleteArithmetic] option is set.
 func (c *Curve[B, S]) scalarBitsMulGeneric(p *AffinePoint[B], sBits []frontend.Variable, opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
 	var selector frontend.Variable
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		// if p=(0,0) we assign a dummy (0,1) to p and continue
 		selector = c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
 		one := c.baseApi.One()
@@ -860,7 +860,7 @@ func (c *Curve[B, S]) scalarBitsMulGeneric(p *AffinePoint[B], sBits []frontend.V
 	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
 	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
 
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		// if p=(0,0), return (0,0)
 		zero := c.baseApi.Zero()
 		R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
@@ -910,10 +910,10 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.Alge
 	}
 
 	// i = 0
-	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
 	addFn := c.Add
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		addFn = c.AddUnified
 	}
 	tmp := addFn(res, c.Neg(g))
@@ -965,7 +965,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 		return nil, fmt.Errorf("new config: %w", err)
 	}
 	addFn := c.Add
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		addFn = c.AddUnified
 	}
 	if !cfg.FoldMulti {
