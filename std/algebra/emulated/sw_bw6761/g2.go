@@ -86,6 +86,7 @@ func (g2 *G2) phi(q *G2Affine) *G2Affine {
 	}
 }
 
+// scalarMulBySeed computes the [x₀]q where x₀=9586122913090633729 is the seed of the curve.
 func (g2 *G2) scalarMulBySeed(q *G2Affine) *G2Affine {
 	z := g2.triple(q)
 	z = g2.doubleAndAdd(z, q)

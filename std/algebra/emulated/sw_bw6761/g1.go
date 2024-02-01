@@ -202,6 +202,7 @@ func (g1 G1) triple(p *G1Affine) *G1Affine {
 	}
 }
 
+// scalarMulBySeed computes the [x₀]q where x₀=9586122913090633729 is the seed of the curve.
 func (g1 *G1) scalarMulBySeed(q *G1Affine) *G1Affine {
 	z := g1.triple(q)
 	z = g1.doubleAndAdd(z, q)

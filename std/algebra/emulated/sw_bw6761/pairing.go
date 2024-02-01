@@ -184,15 +184,14 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 
 	// 2- Check P has the right subgroup order
 	// we check that [x₀+1]P == [-x₀³+x₀²-1]ϕ(P)
-	phiP := pr.g1.phi(P)
-	xPhiP := pr.g1.scalarMulBySeed(phiP)
-	x2PhiP := pr.g1.scalarMulBySeed(xPhiP)
-	x3PhiP := pr.g1.scalarMulBySeed(x2PhiP)
+	xP := pr.g1.scalarMulBySeed(P)
+	x2P := pr.g1.scalarMulBySeed(xP)
+	x3P := pr.g1.scalarMulBySeed(x2P)
 
-	left := pr.g1.scalarMulBySeed(P)
-	left = pr.g1.add(left, P)
-	right := pr.g1.sub(x2PhiP, x3PhiP)
-	right = pr.g1.sub(right, phiP)
+	left := pr.g1.add(xP, P)
+	right := pr.g1.sub(x2P, x3P)
+	right = pr.g1.sub(right, P)
+	right = pr.g1.phi(right)
 
 	// [r]P == 0 <==> [x₀+1]P == [-x₀³+x₀²-1]ϕ(P)
 	pr.curve.AssertIsEqual(left, right)
@@ -204,15 +203,14 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 
 	// 2- Check Q has the right subgroup order
 	// we check that [x₀+1]Q == [-x₀³+x₀²-1]ϕ(Q)
-	phiQ := pr.g2.phi(Q)
-	xPhiQ := pr.g2.scalarMulBySeed(phiQ)
-	x2PhiQ := pr.g2.scalarMulBySeed(xPhiQ)
-	x3PhiQ := pr.g2.scalarMulBySeed(x2PhiQ)
+	xQ := pr.g2.scalarMulBySeed(Q)
+	x2Q := pr.g2.scalarMulBySeed(xQ)
+	x3Q := pr.g2.scalarMulBySeed(x2Q)
 
-	left := pr.g2.scalarMulBySeed(Q)
-	left = pr.g2.add(left, Q)
-	right := pr.g2.sub(x2PhiQ, x3PhiQ)
-	right = pr.g2.sub(right, phiQ)
+	left := pr.g2.add(xQ, Q)
+	right := pr.g2.sub(x2Q, x3Q)
+	right = pr.g2.sub(right, Q)
+	right = pr.g2.phi(right)
 
 	// [r]Q == 0 <==> [x₀+1]Q == [-x₀³+x₀²-1]ϕ(Q)
 	pr.g2.AssertIsEqual(left, right)
