@@ -18,6 +18,8 @@ import (
 // It returns the length of d as a frontend.Variable; if the decompressed stream doesn't fit in d, dLength will be "-1"
 func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d, dict []frontend.Variable, level lzss.Level) (dLength frontend.Variable, err error) {
 
+	api.AssertIsLessOrEqual(cLength, len(c)) // sanity check
+
 	// size-related "constants"
 	wordNbBits := int(level)
 	shortBackRefType, longBackRefType, dictBackRefType := lzss.InitBackRefTypes(len(dict), level) // init the dictionary and backref types; only needed for the constants below
