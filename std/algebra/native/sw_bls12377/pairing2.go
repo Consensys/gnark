@@ -105,13 +105,21 @@ func (c *Curve) AssertIsOnCurve(p *G1Affine) {
 	c.api.AssertIsEqual(left, right)
 }
 
-func newInt(in string) *big.Int {
-	r := new(big.Int)
-	_, ok := r.SetString(in, 10)
-	if !ok {
-		panic("invalid base10 big.Int: " + in)
-	}
-	return r
+func (c *Curve) AssertIsOnG1(P *G1Affine) {
+	// 1- Check P is on the curve
+	c.AssertIsOnCurve(P)
+
+	// 2- Check P has the right subgroup order
+	// [x²]ϕ(P)
+	var phiP, _P G1Affine
+	cc := getInnerCurveConfig(c.api.Compiler().Field())
+	cc.phi1(c.api, &phiP, P)
+	_P.scalarMulBySeed(c.api, &phiP)
+	_P.scalarMulBySeed(c.api, &_P)
+	_P.Neg(c.api, _P)
+
+	// [r]Q == 0 <==>  P = -[x²]ϕ(P)
+	P.AssertIsEqual(c.api, _P)
 }
 
 // AssertIsOnTwist asserts if p belongs to the curve. It doesn't modify p.

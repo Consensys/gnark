@@ -68,7 +68,7 @@ func (circuit *pairingBLS377) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	cr.AssertIsOnCurve(&circuit.P)
+	cr.AssertIsOnG1(&circuit.P)
 	cr.AssertIsOnTwist(&circuit.Q)
 	pairingRes, _ := Pair(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
 	pairingRes.AssertIsEqual(api, circuit.Res)

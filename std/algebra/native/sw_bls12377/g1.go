@@ -147,6 +147,33 @@ func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 	return p
 }
 
+func (P *G1Affine) doubleN(api frontend.API, Q *G1Affine, n int) *G1Affine {
+	pn := Q
+	for s := 0; s < n; s++ {
+		pn.Double(api, *pn)
+	}
+	return pn
+}
+
+func (P *G1Affine) scalarMulBySeed(api frontend.API, Q *G1Affine) *G1Affine {
+	var z, t0, t1 G1Affine
+	z.Double(api, *Q)
+	z.AddAssign(api, *Q)
+	z.DoubleAndAdd(api, &z, Q)
+	t0.Double(api, z)
+	t0.Double(api, t0)
+	z.AddAssign(api, t0)
+	t1.Double(api, z)
+	t1.AddAssign(api, z)
+	t0.AddAssign(api, t1)
+	t0.doubleN(api, &t0, 9)
+	z.DoubleAndAdd(api, &t0, &z)
+	z.doubleN(api, &z, 45)
+	P.DoubleAndAdd(api, &z, Q)
+
+	return P
+}
+
 // ScalarMul sets P = [s] Q and returns P.
 //
 // The method chooses an implementation based on scalar s. If it is constant,
