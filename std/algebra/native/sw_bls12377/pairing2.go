@@ -144,6 +144,21 @@ func (c *Curve) AssertIsOnTwist(p *G2Affine) {
 	left.AssertIsEqual(c.api, right)
 }
 
+func (c *Curve) AssertIsOnG2(P *G2Affine) {
+	// 1- Check P is on the curve
+	c.AssertIsOnTwist(P)
+
+	// 2- Check P has the right subgroup order
+	// [x₀]Q
+	var xP, psiP g2AffP
+	xP.scalarMulBySeed(c.api, &P.P)
+	// ψ(Q)
+	psiP.psi(c.api, &P.P)
+
+	// [r]Q == 0 <==>  ψ(Q) == [x₀]Q
+	xP.AssertIsEqual(c.api, psiP)
+}
+
 // Neg negates P and returns the result. Does not modify P.
 func (c *Curve) Neg(P *G1Affine) *G1Affine {
 	res := &G1Affine{
