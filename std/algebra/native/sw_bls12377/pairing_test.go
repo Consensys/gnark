@@ -64,7 +64,12 @@ type pairingBLS377 struct {
 }
 
 func (circuit *pairingBLS377) Define(api frontend.API) error {
-
+	cr, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
+	cr.AssertIsOnCurve(&circuit.P)
+	cr.AssertIsOnTwist(&circuit.Q)
 	pairingRes, _ := Pair(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
 	pairingRes.AssertIsEqual(api, circuit.Res)
 

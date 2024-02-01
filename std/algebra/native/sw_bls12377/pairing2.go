@@ -91,6 +91,51 @@ func (c *Curve) AssertIsEqual(P, Q *G1Affine) {
 	P.AssertIsEqual(c.api, *Q)
 }
 
+// AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.
+func (c *Curve) AssertIsOnCurve(p *G1Affine) {
+	// (X,Y) ∈ {Y² == X³ + 1} U (0,0)
+
+	// if p=(0,0) we assign b=0 and continue
+	selector := c.api.And(c.api.IsZero(p.X), c.api.IsZero(p.Y))
+	b := c.api.Select(selector, 0, 1)
+
+	left := c.api.Mul(p.Y, p.Y)
+	right := c.api.Mul(p.X, c.api.Mul(p.X, p.X))
+	right = c.api.Add(right, b)
+	c.api.AssertIsEqual(left, right)
+}
+
+func newInt(in string) *big.Int {
+	r := new(big.Int)
+	_, ok := r.SetString(in, 10)
+	if !ok {
+		panic("invalid base10 big.Int: " + in)
+	}
+	return r
+}
+
+// AssertIsOnTwist asserts if p belongs to the curve. It doesn't modify p.
+func (c *Curve) AssertIsOnTwist(p *G2Affine) {
+	// (X,Y) ∈ {Y² == X³ + 1/u} U (0,0)
+
+	// if p=(0,0) we assign b=0 and continue
+	selector := c.api.And(p.P.X.IsZero(c.api), p.P.Y.IsZero(c.api))
+	var zero fields_bls12377.E2
+	zero.SetZero()
+	b := fields_bls12377.E2{
+		A0: 0,
+		A1: "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906",
+	}
+	b.Select(c.api, selector, zero, b)
+
+	var left, right fields_bls12377.E2
+	left.Square(c.api, p.P.Y)
+	right.Square(c.api, p.P.X)
+	right.Mul(c.api, right, p.P.X)
+	right.Add(c.api, right, b)
+	left.AssertIsEqual(c.api, right)
+}
+
 // Neg negates P and returns the result. Does not modify P.
 func (c *Curve) Neg(P *G1Affine) *G1Affine {
 	res := &G1Affine{
