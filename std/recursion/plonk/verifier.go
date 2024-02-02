@@ -262,7 +262,7 @@ func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 	nbCommitments := len(ccs.GetCommitments().CommitmentIndexes())
 	ret := Proof[FR, G1El, G2El]{
 		BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
-			ClaimedValues: make([]emulated.Element[FR], 7+nbCommitments),
+			ClaimedValues: make([]emulated.Element[FR], 6+nbCommitments),
 		},
 		Bsb22Commitments: make([]kzg.Commitment[G1El], nbCommitments),
 	}
@@ -828,20 +828,19 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 		return nil, nil, nil, err
 	}
 
-	// evaluation of Z=Xⁿ-1 at ζ
+	// evaluation of zhZetaZ=ζⁿ-1
 	one := v.scalarApi.One()
-	zetaPowerM := v.fixedExpN(vk.Size, zeta)               // ζⁿ
-	zetaPowerMMinusOne := v.scalarApi.Sub(zetaPowerM, one) // ζⁿ-1
+	zetaPowerM := v.fixedExpN(vk.Size, zeta)   // ζⁿ
+	zhZeta := v.scalarApi.Sub(zetaPowerM, one) // ζⁿ-1
 
 	// L1 = (1/n)(ζⁿ-1)/(ζ-1)
 	denom := v.scalarApi.Sub(zeta, one)
-	lagrangeOne := v.scalarApi.Div(zetaPowerMMinusOne, denom)
+	lagrangeOne := v.scalarApi.Div(zhZeta, denom)
 	lagrangeOne = v.scalarApi.Mul(lagrangeOne, &vk.SizeInv)
 	lagrange := lagrangeOne
+
 	// compute PI = ∑_{i<n} Lᵢ*wᵢ
 	wPowI := one
-
-	// i = 0
 	xiLi := v.scalarApi.Mul(lagrange, &witness.Public[0])
 	pi := xiLi
 	if len(witness.Public) != 1 {
@@ -881,15 +880,22 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 		}
 	}
 
-	// linearizedpolynomial + pi(ζ) + α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ) - α²*L₁(ζ)
+	l := proof.BatchedProof.ClaimedValues[1]
+	r := proof.BatchedProof.ClaimedValues[2]
+	o := proof.BatchedProof.ClaimedValues[3]
+	s1 := proof.BatchedProof.ClaimedValues[4]
+	s2 := proof.BatchedProof.ClaimedValues[5]
+
+	// Z(ωζ)
 	zu := proof.ZShiftedOpening.ClaimedValue
-	claimedQuotient := &proof.BatchedProof.ClaimedValues[0]
-	linearizedPolynomialZeta := &proof.BatchedProof.ClaimedValues[1]
-	l := proof.BatchedProof.ClaimedValues[2]
-	r := proof.BatchedProof.ClaimedValues[3]
-	o := proof.BatchedProof.ClaimedValues[4]
-	s1 := proof.BatchedProof.ClaimedValues[5]
-	s2 := proof.BatchedProof.ClaimedValues[6]
+
+	// α²*L₁(ζ)
+	alphaSquareLagrangeOne := v.scalarApi.Mul(alpha, lagrangeOne)
+	alphaSquareLagrangeOne = v.scalarApi.Mul(alphaSquareLagrangeOne, alpha)
+
+	// computing the constant coefficient of the full algebraic relation
+	// , corresponding to the value of the linearisation polynomiat at ζ
+	// PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
 
 	// _s1 = (l(ζ)+β*s1(ζ)+γ)
 	_s1 := v.scalarApi.Mul(&s1, beta)
@@ -910,20 +916,13 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	_s1 = v.scalarApi.Mul(_s1, alpha)
 	_s1 = v.scalarApi.Mul(_s1, &zu)
 
-	// alphaSquareLagrange = α²*L₁(ζ)
-	alphaSquareLagrange := v.scalarApi.Mul(lagrangeOne, alpha)
-	alphaSquareLagrange = v.scalarApi.Mul(alphaSquareLagrange, alpha)
+	constLin := v.scalarApi.Sub(pi, alphaSquareLagrangeOne)
+	constLin = v.scalarApi.Add(constLin, _s1)
+	constLin = v.scalarApi.Neg(constLin)
 
-	// linearizedPolynomialZeta = linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
-	linearizedPolynomialZeta = v.scalarApi.Add(linearizedPolynomialZeta, pi)
-	linearizedPolynomialZeta = v.scalarApi.Add(linearizedPolynomialZeta, _s1)
-	linearizedPolynomialZeta = v.scalarApi.Sub(linearizedPolynomialZeta, alphaSquareLagrange)
-
-	// Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)
-	linearizedPolynomialZeta = v.scalarApi.Div(linearizedPolynomialZeta, zetaPowerMMinusOne)
-
-	// check that H(ζ) is as claimed
-	v.scalarApi.AssertIsEqual(claimedQuotient, linearizedPolynomialZeta)
+	// check that the opening of the linearised polynomial is equal to -constLin
+	openingLinPol := proof.BatchedProof.ClaimedValues[0]
+	v.scalarApi.AssertIsEqual(&openingLinPol, constLin)
 
 	// compute the folded commitment to H: Comm(h₁) + ζᵐ⁺²*Comm(h₂) + ζ²⁽ᵐ⁺²⁾*Comm(h₃)
 	zetaMPlusTwo := v.scalarApi.Mul(zetaPowerM, zeta)
