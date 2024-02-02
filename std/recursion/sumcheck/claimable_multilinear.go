@@ -74,7 +74,7 @@ func NewNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim Claims, hy
 	be := newBigIntEngine(target)
 	hypersum = new(big.Int)
 	for i := range ml {
-		hypersum = be.Add(hypersum, hypersum, ml[i])
+		hypersum = be.Add(hypersum, ml[i])
 	}
 	cml := make([]*big.Int, len(ml))
 	for i := range ml {

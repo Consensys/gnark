@@ -10,29 +10,35 @@ import (
 
 type Element interface{}
 type ArithEngine[E Element] interface {
-	Add(dst, a, b E) E
-	Mul(dst, a, b E) E
-	Sub(dst, a, b E) E
+	Add(a, b E) E
+	Mul(a, b E) E
+	Sub(a, b E) E
 
 	One() E
+	Const(i *big.Int) E
 }
 type bigIntEngine struct {
 	mod *big.Int
 }
 
-func (be *bigIntEngine) Add(dst, a, b *big.Int) *big.Int {
+// TODO: use pool
+
+func (be *bigIntEngine) Add(a, b *big.Int) *big.Int {
+	dst := new(big.Int)
 	dst.Add(a, b)
 	dst.Mod(dst, be.mod)
 	return dst
 }
 
-func (be *bigIntEngine) Mul(dst, a, b *big.Int) *big.Int {
+func (be *bigIntEngine) Mul(a, b *big.Int) *big.Int {
+	dst := new(big.Int)
 	dst.Mul(a, b)
 	dst.Mod(dst, be.mod)
 	return dst
 }
 
-func (be *bigIntEngine) Sub(dst, a, b *big.Int) *big.Int {
+func (be *bigIntEngine) Sub(a, b *big.Int) *big.Int {
+	dst := new(big.Int)
 	dst.Sub(a, b)
 	dst.Mod(dst, be.mod)
 	return dst
@@ -40,6 +46,10 @@ func (be *bigIntEngine) Sub(dst, a, b *big.Int) *big.Int {
 
 func (be *bigIntEngine) One() *big.Int {
 	return big.NewInt(1)
+}
+
+func (be *bigIntEngine) Const(i *big.Int) *big.Int {
+	return new(big.Int).Set(i)
 }
 
 func newBigIntEngine(mod *big.Int) *bigIntEngine {
@@ -50,20 +60,24 @@ type emuEngine[FR emulated.FieldParams] struct {
 	f *emulated.Field[FR]
 }
 
-func (ee *emuEngine[FR]) Add(_, a, b *emulated.Element[FR]) *emulated.Element[FR] {
+func (ee *emuEngine[FR]) Add(a, b *emulated.Element[FR]) *emulated.Element[FR] {
 	return ee.f.Add(a, b)
 }
 
-func (ee *emuEngine[FR]) Mul(_, a, b *emulated.Element[FR]) *emulated.Element[FR] {
+func (ee *emuEngine[FR]) Mul(a, b *emulated.Element[FR]) *emulated.Element[FR] {
 	return ee.f.Mul(a, b)
 }
 
-func (ee *emuEngine[FR]) Sub(_, a, b *emulated.Element[FR]) *emulated.Element[FR] {
+func (ee *emuEngine[FR]) Sub(a, b *emulated.Element[FR]) *emulated.Element[FR] {
 	return ee.f.Sub(a, b)
 }
 
 func (ee *emuEngine[FR]) One() *emulated.Element[FR] {
 	return ee.f.One()
+}
+
+func (ee *emuEngine[FR]) Const(i *big.Int) *emulated.Element[FR] {
+	return ee.f.NewElement(i)
 }
 
 func newEmulatedEngine[FR emulated.FieldParams](api frontend.API) (*emuEngine[FR], error) {

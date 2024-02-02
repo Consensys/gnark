@@ -12,7 +12,7 @@ import (
 
 type Gate[AE ArithEngine[E], E Element] interface {
 	NbInputs() int
-	Evaluate(api AE, dst E, vars ...E) E
+	Evaluate(api AE, vars ...E) E
 	Degree() int // TODO: return degree of variable for optimized verification
 }
 
@@ -111,7 +111,7 @@ func (g *gateClaimMulti[FR]) AssertEvaluation(r []*emulated.Element[FR], combina
 			return fmt.Errorf("eval multilin: %w", err)
 		}
 	}
-	gateEval := g.gate.Evaluate(g.engine, nil, inputEvals...)
+	gateEval := g.gate.Evaluate(g.engine, inputEvals...)
 	res := g.f.Mul(eqEval, gateEval)
 	g.f.AssertIsEqual(res, expectedValue)
 	return nil
@@ -158,7 +158,7 @@ func NewNativeGate(target *big.Int, gate Gate[*bigIntEngine, *big.Int], inputs [
 	evaluations = make([]*big.Int, nbInstances)
 	for i := range evaluations {
 		evaluations[i] = new(big.Int)
-		evaluations[i] = gate.Evaluate(be, evaluations[i], evalInput[i]...)
+		evaluations[i] = gate.Evaluate(be, evalInput[i]...)
 	}
 	inputPreprocessors := make([]NativeMultilinear, nbInputs)
 	for i := range inputs {
@@ -216,7 +216,7 @@ func (g *nativeGateClaim) Combine(coeff *big.Int) NativePolynomial {
 		newEq[0] = g.engine.One()
 		g.eq = eqAcc(g.engine, g.eq, newEq, g.evaluationPoints[k])
 		if k+1 < nbClaims {
-			g.engine.Mul(aI, aI, coeff)
+			aI = g.engine.Mul(aI, coeff)
 		}
 
 	}
@@ -269,23 +269,23 @@ func (g *nativeGateClaim) computeGJ() NativePolynomial {
 			// TODO: instead of set can assign?
 			step.Set(s[j][i])
 			operands[j].Set(s[j][block])
-			g.engine.Sub(step, operands[j], step)
+			step = g.engine.Sub(operands[j], step)
 			for d := 1; d < degGJ; d++ {
-				g.engine.Add(operands[d*nbInner+j], operands[(d-1)*nbInner+j], step)
+				operands[d*nbInner+j] = g.engine.Add(operands[(d-1)*nbInner+j], step)
 			}
 		}
 		_s := 0
 		_e := nbInner
 		for d := 0; d < degGJ; d++ {
 			summand := new(big.Int)
-			g.gate.Evaluate(g.engine, summand, operands[_s+1:_e]...)
-			g.engine.Mul(summand, summand, operands[_s])
-			g.engine.Add(res[d], res[d], summand)
+			summand = g.gate.Evaluate(g.engine, operands[_s+1:_e]...)
+			summand = g.engine.Mul(summand, operands[_s])
+			res[d] = g.engine.Add(res[d], summand)
 			_s, _e = _e, _e+nbInner
 		}
 	}
 	for i := 0; i < degGJ; i++ {
-		g.engine.Add(gJ[i], gJ[i], res[i])
+		gJ[i] = g.engine.Add(gJ[i], res[i])
 	}
 	return gJ
 }

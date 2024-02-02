@@ -72,11 +72,11 @@ type mulGate1[AE ArithEngine[E], E Element] struct{}
 
 func (m mulGate1[AE, E]) NbInputs() int { return 2 }
 func (m mulGate1[AE, E]) Degree() int   { return 2 }
-func (m mulGate1[AE, E]) Evaluate(api AE, dst E, vars ...E) E {
+func (m mulGate1[AE, E]) Evaluate(api AE, vars ...E) E {
 	if len(vars) != m.NbInputs() {
 		panic("incorrect nb of inputs")
 	}
-	return api.Mul(dst, vars[0], vars[1])
+	return api.Mul(vars[0], vars[1])
 }
 
 type MulGateSumcheck[FR emulated.FieldParams] struct {
