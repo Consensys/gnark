@@ -128,7 +128,7 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 		return
 	}
 
-	diff := f.subNoReduce(b, a)
+	diff := f.Sub(b, a)
 
 	// we compute k such that diff / p == k
 	// so essentially, we say "I know an element k such that k*p == diff"
@@ -198,7 +198,7 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	f.AssertIsInRange(ca)
 	res := f.api.IsZero(ca.Limbs[0])
 	for i := 1; i < len(ca.Limbs); i++ {
-		f.api.Mul(res, f.api.IsZero(ca.Limbs[i]))
+		res = f.api.Mul(res, f.api.IsZero(ca.Limbs[i]))
 	}
 	return res
 }

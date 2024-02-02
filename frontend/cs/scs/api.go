@@ -683,6 +683,37 @@ func (builder *builder) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, 
 	return res
 }
 
+// AddPlonkConstraint asserts qL.a + qR.b + qO.o + qM.ab + qC = 0
+func (builder *builder) AddPlonkConstraint(a, b, o frontend.Variable, qL, qR, qO, qM, qC int) {
+	_, aConstant := builder.constantValue(a)
+	_, bConstant := builder.constantValue(b)
+	_, oConstant := builder.constantValue(o)
+	if aConstant || bConstant || oConstant {
+		builder.AssertIsEqual(
+			builder.Add(
+				builder.Mul(a, qL),
+				builder.Mul(b, qR),
+				builder.Mul(a, b, qM),
+				builder.Mul(o, qO),
+				qC,
+			),
+			0,
+		)
+		return
+	}
+
+	builder.addPlonkConstraint(sparseR1C{
+		xa: a.(expr.Term).VID,
+		xb: b.(expr.Term).VID,
+		xc: o.(expr.Term).VID,
+		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term).Coeff),
+		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term).Coeff),
+		qO: builder.cs.Mul(builder.cs.FromInterface(qO), o.(expr.Term).Coeff),
+		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term).Coeff, b.(expr.Term).Coeff)),
+		qC: builder.cs.FromInterface(qC),
+	})
+}
+
 func filterConstants(v []frontend.Variable) []frontend.Variable {
 	res := make([]frontend.Variable, 0, len(v))
 	for _, vI := range v {

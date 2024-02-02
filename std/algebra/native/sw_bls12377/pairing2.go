@@ -14,6 +14,7 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/selector"
 )
 
 // Curve allows G1 operations in BLS12-377.
@@ -106,7 +107,7 @@ func (c *Curve) jointScalarMul(P1, P2 *G1Affine, s1, s2 *Scalar, opts ...algopts
 	res := &G1Affine{}
 	varScalar1 := c.packScalarToVar(s1)
 	varScalar2 := c.packScalarToVar(s2)
-	res.jointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2)
+	res.jointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2, opts...)
 	return res
 }
 
@@ -118,7 +119,7 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption)
 		Y: P.Y,
 	}
 	varScalar := c.packScalarToVar(s)
-	res.ScalarMul(c.api, *P, varScalar)
+	res.ScalarMul(c.api, *P, varScalar, opts...)
 	return res
 }
 
@@ -127,7 +128,7 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption)
 func (c *Curve) ScalarMulBase(s *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
 	res := new(G1Affine)
 	varScalar := c.packScalarToVar(s)
-	res.ScalarMulBase(c.api, varScalar)
+	res.ScalarMulBase(c.api, varScalar, opts...)
 	return res
 }
 
@@ -145,6 +146,10 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 	if err != nil {
 		return nil, fmt.Errorf("new config: %w", err)
 	}
+	addFn := c.Add
+	if cfg.CompleteArithmetic {
+		addFn = c.AddUnified
+	}
 	if !cfg.FoldMulti {
 		if len(P) != len(scalars) {
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
@@ -159,7 +164,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		}
 		for i := 1; i < n-1; i += 2 {
 			q := c.jointScalarMul(P[i-1], P[i], scalars[i-1], scalars[i], opts...)
-			res = c.Add(res, q)
+			res = addFn(res, q)
 		}
 		return res, nil
 	} else {
@@ -182,12 +187,12 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 
 		// points and scalars must be non-zero
 		var res G1Affine
-		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits)
+		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits, opts...)
 		for i := len(P) - 2; i > 0; i-- {
-			res = *c.Add(P[i], &res)
-			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits)
+			res = *addFn(P[i], &res)
+			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits, opts...)
 		}
-		res = *c.Add(P[0], &res)
+		res = *addFn(P[0], &res)
 		return &res, nil
 	}
 }
@@ -210,6 +215,22 @@ func (c *Curve) Lookup2(b1, b2 frontend.Variable, p1, p2, p3, p4 *G1Affine) *G1A
 	return &G1Affine{
 		X: c.api.Lookup2(b1, b2, p1.X, p2.X, p3.X, p4.X),
 		Y: c.api.Lookup2(b1, b2, p1.Y, p2.Y, p3.Y, p4.Y),
+	}
+}
+
+// Mux performs a lookup from the inputs and returns inputs[sel]. It is most
+// efficient for power of two lengths of the inputs, but works for any number of
+// inputs.
+func (c *Curve) Mux(sel frontend.Variable, inputs ...*G1Affine) *G1Affine {
+	xs := make([]frontend.Variable, len(inputs))
+	ys := make([]frontend.Variable, len(inputs))
+	for i := range inputs {
+		xs[i] = inputs[i].X
+		ys[i] = inputs[i].Y
+	}
+	return &G1Affine{
+		X: selector.Mux(c.api, sel, xs...),
+		Y: selector.Mux(c.api, sel, ys...),
 	}
 }
 

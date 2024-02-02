@@ -669,6 +669,51 @@ func testLookup2[T FieldParams](t *testing.T) {
 	}, testName[T]())
 }
 
+type MuxCircuit[T FieldParams] struct {
+	Selector frontend.Variable
+	Inputs   [8]Element[T]
+	Expected Element[T]
+}
+
+func (c *MuxCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	inputs := make([]*Element[T], len(c.Inputs))
+	for i := range inputs {
+		inputs[i] = &c.Inputs[i]
+	}
+	res := f.Mux(c.Selector, inputs...)
+	f.AssertIsEqual(res, &c.Expected)
+	return nil
+}
+
+func TestMux(t *testing.T) {
+	testMux[Goldilocks](t)
+	testMux[Secp256k1Fp](t)
+	testMux[BN254Fp](t)
+}
+
+func testMux[T FieldParams](t *testing.T) {
+	var fp T
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		var circuit, witness MuxCircuit[T]
+		vals := make([]*big.Int, len(witness.Inputs))
+		for i := range witness.Inputs {
+			vals[i], _ = rand.Int(rand.Reader, fp.Modulus())
+			witness.Inputs[i] = ValueOf[T](vals[i])
+		}
+		selector, _ := rand.Int(rand.Reader, big.NewInt(int64(len(witness.Inputs))))
+		expected := vals[selector.Int64()]
+		witness.Expected = ValueOf[T](expected)
+		witness.Selector = selector
+
+		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
+	})
+}
+
 type ComputationCircuit[T FieldParams] struct {
 	noReduce bool
 

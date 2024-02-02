@@ -24,7 +24,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
@@ -117,43 +119,6 @@ func TestMarshalG1(t *testing.T) {
 }
 
 // -------------------------------------------------------------------------------------------------
-// Add jacobian
-
-type g1AddAssign struct {
-	A, B G1Jac
-	C    G1Jac `gnark:",public"`
-}
-
-func (circuit *g1AddAssign) Define(api frontend.API) error {
-	expected := circuit.A
-	expected.AddAssign(api, circuit.B)
-	expected.AssertIsEqual(api, circuit.C)
-	return nil
-}
-
-func TestAddAssignG1(t *testing.T) {
-
-	// sample 2 random points
-	a := randomPointG1()
-	b := randomPointG1()
-
-	// create the cs
-	var circuit, witness g1AddAssign
-
-	// assign the inputs
-	witness.A.Assign(&a)
-	witness.B.Assign(&b)
-
-	// compute the result
-	a.AddAssign(&b)
-	witness.C.Assign(&a)
-
-	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
-
-}
-
-// -------------------------------------------------------------------------------------------------
 // Add affine
 
 type g1AddAssignAffine struct {
@@ -188,41 +153,6 @@ func TestAddAssignAffineG1(t *testing.T) {
 	_a.AddAssign(&_b)
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
-
-	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
-
-}
-
-// -------------------------------------------------------------------------------------------------
-// Double Jacobian
-
-type g1DoubleAssign struct {
-	A G1Jac
-	C G1Jac `gnark:",public"`
-}
-
-func (circuit *g1DoubleAssign) Define(api frontend.API) error {
-	expected := circuit.A
-	expected.DoubleAssign(api)
-	expected.AssertIsEqual(api, circuit.C)
-	return nil
-}
-
-func TestDoubleAssignG1(t *testing.T) {
-
-	// sample 2 random points
-	a := randomPointG1()
-
-	// create the cs
-	var circuit, witness g1DoubleAssign
-
-	// assign the inputs
-	witness.A.Assign(&a)
-
-	// compute the result
-	a.DoubleAssign()
-	witness.C.Assign(&a)
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
@@ -306,37 +236,6 @@ func TestDoubleAndAddAffineG1(t *testing.T) {
 }
 
 // -------------------------------------------------------------------------------------------------
-// Neg
-
-type g1Neg struct {
-	A G1Jac
-	C G1Jac `gnark:",public"`
-}
-
-func (circuit *g1Neg) Define(api frontend.API) error {
-	expected := G1Jac{}
-	expected.Neg(api, circuit.A)
-	expected.AssertIsEqual(api, circuit.C)
-	return nil
-}
-
-func TestNegG1(t *testing.T) {
-
-	// sample 2 random points
-	a := randomPointG1()
-
-	// assign the inputs
-	var witness g1Neg
-	witness.A.Assign(&a)
-	a.Neg(&a)
-	witness.C.Assign(&a)
-
-	assert := test.NewAssert(t)
-	assert.SolvingSucceeded(&g1Neg{}, &witness, test.WithCurves(ecc.BW6_761))
-
-}
-
-// -------------------------------------------------------------------------------------------------
 // Scalar multiplication
 
 type g1constantScalarMul struct {
@@ -378,6 +277,45 @@ func TestConstantScalarMulG1(t *testing.T) {
 
 }
 
+type g1constantScalarMulEdgeCases struct {
+	A G1Affine
+	R *big.Int
+}
+
+func (circuit *g1constantScalarMulEdgeCases) Define(api frontend.API) error {
+	expected1 := G1Affine{}
+	expected2 := G1Affine{}
+	infinity := G1Affine{X: 0, Y: 0}
+	expected1.constScalarMul(api, circuit.A, big.NewInt(0))
+	expected2.constScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	return nil
+}
+
+func TestConstantScalarMulG1EdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g1constantScalarMulEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	br := new(big.Int)
+	r.BigInt(br)
+	// br is a circuit parameter
+	circuit.R = br
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+
+}
+
 type g1varScalarMul struct {
 	A G1Affine
 	C G1Affine `gnark:",public"`
@@ -409,6 +347,40 @@ func TestVarScalarMulG1(t *testing.T) {
 	_a.ScalarMultiplication(&_a, r.BigInt(&br))
 	c.FromJacobian(&_a)
 	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type g1varScalarMulEdgeCases struct {
+	A G1Affine
+	R frontend.Variable
+}
+
+func (circuit *g1varScalarMulEdgeCases) Define(api frontend.API) error {
+	expected1 := G1Affine{}
+	expected2 := G1Affine{}
+	infinity := G1Affine{X: 0, Y: 0}
+	expected1.varScalarMul(api, circuit.A, 0, algopts.WithCompleteArithmetic())
+	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	return nil
+}
+
+func TestVarScalarMulG1EdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g1varScalarMulEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
@@ -485,6 +457,114 @@ func TestVarScalarMulBaseG1(t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
+type MultiScalarMulEdgeCasesTest struct {
+	Points  []G1Affine
+	Scalars []emulated.Element[ScalarField]
+	Res     G1Affine
+}
+
+func (c *MultiScalarMulEdgeCasesTest) Define(api frontend.API) error {
+	cr, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
+	ps := make([]*G1Affine, len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[ScalarField], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithCompleteArithmetic())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarMulEdgeCases(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 5
+	P := make([]bls12377.G1Affine, nbLen)
+	S := make([]fr.Element, nbLen)
+	for i := 0; i < nbLen; i++ {
+		S[i].SetRandom()
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res, infinity bls12377.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]G1Affine, len(P))
+	cS := make([]emulated.Element[ScalarField], len(S))
+
+	// s1 * (0,0) + s2 * (0,0) + s3 * (0,0) + s4 * (0,0)  + s5 * (0,0) == (0,0)
+	for i := range cP {
+		cP[i] = NewG1Affine(infinity)
+	}
+	for i := range cS {
+		cS[i] = NewScalar(S[i])
+	}
+	assignment1 := MultiScalarMulEdgeCasesTest{
+		Points:  cP,
+		Scalars: cS,
+		Res:     NewG1Affine(infinity),
+	}
+	err = test.IsSolved(&MultiScalarMulEdgeCasesTest{
+		Points:  make([]G1Affine, nbLen),
+		Scalars: make([]emulated.Element[ScalarField], nbLen),
+	}, &assignment1, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+
+	// 0 * P1 + 0 * P2 + 0 * P3 + 0 * P4 + 0 * P5 == (0,0)
+	for i := range cP {
+		cP[i] = NewG1Affine(P[i])
+	}
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BLS12377Fr](0)
+	}
+	assignment2 := MultiScalarMulEdgeCasesTest{
+		Points:  cP,
+		Scalars: cS,
+		Res:     NewG1Affine(infinity),
+	}
+	err = test.IsSolved(&MultiScalarMulEdgeCasesTest{
+		Points:  make([]G1Affine, nbLen),
+		Scalars: make([]emulated.Element[ScalarField], nbLen),
+	}, &assignment2, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+
+	// s1 * (0,0) + s2 * P2 + s3 * (0,0) + s4 * P4 + 0 * P5 == s2 * P + s4 * P4
+	var res3 bls12377.G1Affine
+	res3.ScalarMultiplication(&P[1], S[1].BigInt(new(big.Int)))
+	res.ScalarMultiplication(&P[3], S[3].BigInt(new(big.Int)))
+	res3.Add(&res3, &res)
+	for i := range cP {
+		cP[i] = NewG1Affine(P[i])
+	}
+	cP[0].X = infinity.X
+	cP[0].Y = infinity.Y
+	cP[2].X = infinity.X
+	cP[2].Y = infinity.Y
+	for i := range cS {
+		cS[i] = NewScalar(S[i])
+	}
+	cS[4] = emulated.ValueOf[emparams.BLS12377Fr](0)
+
+	assignment3 := MultiScalarMulEdgeCasesTest{
+		Points:  cP,
+		Scalars: cS,
+		Res:     NewG1Affine(res3),
+	}
+	err = test.IsSolved(&MultiScalarMulEdgeCasesTest{
+		Points:  make([]G1Affine, nbLen),
+		Scalars: make([]emulated.Element[ScalarField], nbLen),
+	}, &assignment3, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+}
+
 type MultiScalarMulTest struct {
 	Points  []G1Affine
 	Scalars []emulated.Element[ScalarField]
@@ -543,6 +623,61 @@ func TestMultiScalarMul(t *testing.T) {
 		Scalars: make([]emulated.Element[ScalarField], nbLen),
 	}, &assignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
+}
+
+type g1JointScalarMulEdgeCases struct {
+	A, B G1Affine
+	C    G1Affine `gnark:",public"`
+	R, S frontend.Variable
+}
+
+func (circuit *g1JointScalarMulEdgeCases) Define(api frontend.API) error {
+	expected1 := G1Affine{}
+	expected2 := G1Affine{}
+	expected3 := G1Affine{}
+	expected4 := G1Affine{}
+	infinity := G1Affine{X: 0, Y: 0}
+	expected1.jointScalarMul(api, infinity, infinity, circuit.R, circuit.S, algopts.WithCompleteArithmetic())
+	expected2.jointScalarMul(api, circuit.A, circuit.B, big.NewInt(0), big.NewInt(0), algopts.WithCompleteArithmetic())
+	expected3.jointScalarMul(api, circuit.A, infinity, circuit.R, circuit.S, algopts.WithCompleteArithmetic())
+	expected4.jointScalarMul(api, circuit.A, circuit.B, circuit.R, big.NewInt(0), algopts.WithCompleteArithmetic())
+	_expected := G1Affine{}
+	_expected.ScalarMul(api, circuit.A, circuit.R, algopts.WithCompleteArithmetic())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	expected3.AssertIsEqual(api, _expected)
+	expected4.AssertIsEqual(api, _expected)
+	return nil
+}
+
+func TestJointScalarMulG1EdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	_b := randomPointG1()
+	var a, b, c bls12377.G1Affine
+	a.FromJacobian(&_a)
+	b.FromJacobian(&_b)
+
+	// create the cs
+	var circuit, witness g1JointScalarMulEdgeCases
+	var r, s fr.Element
+	_, _ = r.SetRandom()
+	_, _ = s.SetRandom()
+	witness.R = r.String()
+	witness.S = s.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	witness.B.Assign(&b)
+	// compute the result
+	var br, bs big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	_b.ScalarMultiplication(&_b, s.BigInt(&bs))
+	_a.AddAssign(&_b)
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
 type g1JointScalarMul struct {
@@ -644,4 +779,157 @@ func randomPointG1() bls12377.G1Jac {
 	p1.ScalarMultiplication(&p1, r1.BigInt(&b))
 
 	return p1
+}
+
+type MultiScalarMulFoldedEdgeCasesTest struct {
+	Points  []G1Affine
+	Scalars []emulated.Element[ScalarField]
+	Res     G1Affine
+}
+
+func (c *MultiScalarMulFoldedEdgeCasesTest) Define(api frontend.API) error {
+	cr, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
+	ps := make([]*G1Affine, len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[ScalarField], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithCompleteArithmetic())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarMulFoldedEdgeCases(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 5
+	P := make([]bls12377.G1Affine, nbLen)
+	S := make([]fr.Element, nbLen)
+	S[0].SetOne()
+	S[1].SetRandom()
+	S[2].Square(&S[1])
+	S[3].Mul(&S[1], &S[2])
+	S[4].Mul(&S[1], &S[3])
+	for i := 0; i < nbLen; i++ {
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res, infinity bls12377.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]G1Affine, len(P))
+	cS := make([]emulated.Element[ScalarField], len(S))
+
+	// s^0 * (0,0) + s^1 * (0,0) + s^2 * (0,0) + s^3 * (0,0)  + s^4 * (0,0) == (0,0)
+	for i := range cP {
+		cP[i] = NewG1Affine(infinity)
+	}
+	// s0 = s
+	S[0].Set(&S[1])
+	for i := range cS {
+		cS[i] = NewScalar(S[i])
+	}
+	assignment1 := MultiScalarMulFoldedEdgeCasesTest{
+		Points:  cP,
+		Scalars: cS,
+		Res:     NewG1Affine(infinity),
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedEdgeCasesTest{
+		Points:  make([]G1Affine, nbLen),
+		Scalars: make([]emulated.Element[ScalarField], nbLen),
+	}, &assignment1, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+
+	// 0^0 * P1 + 0 * P2 + 0 * P3 + 0 * P4 + 0 * P5 == P1
+	for i := range cP {
+		cP[i] = NewG1Affine(P[i])
+	}
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BLS12377Fr](0)
+	}
+
+	assignment3 := MultiScalarMulFoldedEdgeCasesTest{
+		Points:  cP,
+		Scalars: cS,
+		Res:     NewG1Affine(P[0]),
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedEdgeCasesTest{
+		Points:  make([]G1Affine, nbLen),
+		Scalars: make([]emulated.Element[ScalarField], nbLen),
+	}, &assignment3, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+}
+
+type MultiScalarMulFoldedTest struct {
+	Points  []G1Affine
+	Scalars []emulated.Element[ScalarField]
+	Res     G1Affine
+}
+
+func (c *MultiScalarMulFoldedTest) Define(api frontend.API) error {
+	cr, err := NewCurve(api)
+	if err != nil {
+		return err
+	}
+	ps := make([]*G1Affine, len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[ScalarField], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarMulFolded(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 4
+	P := make([]bls12377.G1Affine, nbLen)
+	S := make([]fr.Element, nbLen)
+	// [s^0]P0 + [s^1]P1 + [s^2]P2 + [s^3]P3 = P0 + [s]P1 + [s^2]P2 + [s^3]P3
+	S[0].SetOne()
+	S[1].SetRandom()
+	S[2].Square(&S[1])
+	S[3].Mul(&S[1], &S[2])
+	for i := 0; i < nbLen; i++ {
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res bls12377.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]G1Affine, len(P))
+	for i := range cP {
+		cP[i] = NewG1Affine(P[i])
+	}
+	cS := make([]emulated.Element[ScalarField], len(S))
+	// s0 = s
+	S[0].Set(&S[1])
+	for i := range cS {
+		cS[i] = NewScalar(S[i])
+	}
+	assignment := MultiScalarMulFoldedTest{
+		Points:  cP,
+		Scalars: cS,
+		Res:     NewG1Affine(res),
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedTest{
+		Points:  make([]G1Affine, nbLen),
+		Scalars: make([]emulated.Element[ScalarField], nbLen),
+	}, &assignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
 }
