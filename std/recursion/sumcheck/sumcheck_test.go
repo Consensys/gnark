@@ -80,10 +80,16 @@ func (m mulGate1[AE, E]) Evaluate(api AE, dst E, vars ...E) E {
 }
 
 type MulGateSumcheck[FR emulated.FieldParams] struct {
-	Claimed emulated.Element[FR]
-	Inputs  [][]emulated.Element[FR]
+	Inputs [][]emulated.Element[FR]
 
 	Proof Proof[FR]
+
+	// This is for generic case where nbClaims may be bigger than 1. But for
+	// single claim checking the sizes of slices is 1. Additionally, in practice
+	// we would compute claimed values in-circuit from the off-circuit gate
+	// evaluations and evaluation points using commitment API.
+	EvaluationPoints [][]emulated.Element[FR]
+	Claimed          []emulated.Element[FR]
 }
 
 func (c *MulGateSumcheck[FR]) Define(api frontend.API) error {
@@ -98,8 +104,12 @@ func (c *MulGateSumcheck[FR]) Define(api frontend.API) error {
 			inputs[i][j] = &c.Inputs[i][j]
 		}
 	}
-	claimedEvals := []*emulated.Element[FR]{&c.Claimed}
-	claim, err := NewGate[FR](api, mulGate1[*emuEngine[FR], *emulated.Element[FR]]{}, inputs, claimedEvals)
+	claimedEvals := polynomial.FromSlice[FR](c.Claimed)
+	evalPoints := make([][]*emulated.Element[FR], len(c.EvaluationPoints))
+	for i := range c.EvaluationPoints {
+		evalPoints[i] = polynomial.FromSlice[FR](c.EvaluationPoints[i])
+	}
+	claim, err := NewGate[FR](api, mulGate1[*emuEngine[FR], *emulated.Element[FR]]{}, inputs, evalPoints, claimedEvals)
 	if err != nil {
 		return fmt.Errorf("new gate claim: %w", err)
 	}
@@ -120,19 +130,23 @@ func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current
 			inputB[i][j] = big.NewInt(int64(inputs[i][j]))
 		}
 	}
-	claim, evals, err := NewNativeGate(fr.Modulus(), nativeGate, inputB)
+	evalPointsB, evalPointsPH, evalPointsC := getChallengeEvaluationPoints[FR](inputB)
+	claim, evals, err := NewNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
 	assert.NoError(err)
 	proof, err := Prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(inputs[0]))) - 1
 	circuit := &MulGateSumcheck[FR]{
-		Proof:  PlaceholderGateProof[FR](nbVars, nativeGate.Degree()),
-		Inputs: make([][]emulated.Element[FR], len(inputs)),
+		Inputs:           make([][]emulated.Element[FR], len(inputs)),
+		Proof:            PlaceholderGateProof[FR](nbVars, nativeGate.Degree()),
+		EvaluationPoints: evalPointsPH,
+		Claimed:          make([]emulated.Element[FR], 1),
 	}
 	assignment := &MulGateSumcheck[FR]{
-		Claimed: emulated.ValueOf[FR](evals[0]),
-		Proof:   ValueOfProof[FR](proof),
-		Inputs:  make([][]emulated.Element[FR], len(inputs)),
+		Inputs:           make([][]emulated.Element[FR], len(inputs)),
+		Proof:            ValueOfProof[FR](proof),
+		EvaluationPoints: evalPointsC,
+		Claimed:          []emulated.Element[FR]{emulated.ValueOf[FR](evals[0])},
 	}
 	for i := range inputs {
 		circuit.Inputs[i] = make([]emulated.Element[FR], len(inputs[i]))
@@ -143,6 +157,30 @@ func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current
 	}
 	err = test.IsSolved(circuit, assignment, current)
 	assert.NoError(err)
+}
+
+func getChallengeEvaluationPoints[FR emulated.FieldParams](inputs [][]*big.Int) (bigints [][]*big.Int, placeholders [][]emulated.Element[FR], values [][]emulated.Element[FR]) {
+	// this is for testing purposes. In practice we should obtain them randomly.
+	// We can use commitment API given the inputs and the expected value
+	// (computed out-circuit).
+	nbClaims := 1
+	nbInstances := len(inputs[0])
+	nbVars := bits.Len(uint(nbInstances)) - 1
+
+	bigints = make([][]*big.Int, nbClaims)
+	placeholders = make([][]emulated.Element[FR], nbClaims)
+	values = make([][]emulated.Element[FR], nbClaims)
+
+	bigints[0] = make([]*big.Int, nbVars)
+	placeholders[0] = make([]emulated.Element[FR], nbVars)
+	values[0] = make([]emulated.Element[FR], nbVars)
+
+	for i := 0; i < nbVars; i++ {
+		bigints[0][i] = big.NewInt(int64(i + 123))
+		values[0][i] = emulated.ValueOf[FR](bigints[0][i])
+	}
+
+	return
 }
 
 func TestMulGate1Sumcheck(t *testing.T) {

@@ -29,7 +29,21 @@ type gateClaimMulti[FR emulated.FieldParams] struct {
 	inputPreprocessors []polynomial.Multilinear[FR]
 }
 
-func NewGate[FR emulated.FieldParams](api frontend.API, gate Gate[*emuEngine[FR], *emulated.Element[FR]], inputs [][]*emulated.Element[FR], claimedEvals []*emulated.Element[FR]) (*gateClaimMulti[FR], error) {
+func NewGate[FR emulated.FieldParams](api frontend.API, gate Gate[*emuEngine[FR], *emulated.Element[FR]],
+	inputs [][]*emulated.Element[FR], evaluationPoints [][]*emulated.Element[FR],
+	claimedEvals []*emulated.Element[FR]) (*gateClaimMulti[FR], error) {
+	nbInputs := gate.NbInputs()
+	if len(inputs) != nbInputs {
+		return nil, fmt.Errorf("expected %d inputs got %d", nbInputs, len(inputs))
+	}
+	if len(evaluationPoints) != len(claimedEvals) {
+		return nil, fmt.Errorf("number of evaluation points %d do not match claimed evaluations %d", len(evaluationPoints), len(claimedEvals))
+	}
+	if len(inputs[0]) == 0 {
+		return nil, fmt.Errorf("at least one input expected")
+	}
+	nbInstances := len(inputs[0])
+	nbVars := bits.Len(uint(nbInstances)) - 1
 	f, err := emulated.NewField[FR](api)
 	if err != nil {
 		return nil, fmt.Errorf("new field: %w", err)
@@ -44,12 +58,15 @@ func NewGate[FR emulated.FieldParams](api frontend.API, gate Gate[*emuEngine[FR]
 	}
 	inputPreprocessors := make([]polynomial.Multilinear[FR], gate.NbInputs())
 	for i := range inputs {
+		if len(inputs[i]) != nbInstances {
+			return nil, fmt.Errorf("nb of instances %d for input %d not %d", len(inputs[i]), i, nbInstances)
+		}
 		inputPreprocessors[i] = polynomial.FromSliceReferences(inputs[i])
 	}
-	nbVars := bits.Len(uint(len(inputPreprocessors[0]))) - 1
-	challenges := make([]*emulated.Element[FR], nbVars)
-	for i := range challenges {
-		challenges[i] = f.NewElement(123 + i)
+	for i := range evaluationPoints {
+		if len(evaluationPoints[i]) != nbVars {
+			return nil, fmt.Errorf("nb evaluation points %d mismatch for claim %d", len(evaluationPoints), i)
+		}
 	}
 	return &gateClaimMulti[FR]{
 		f:                  f,
@@ -57,20 +74,16 @@ func NewGate[FR emulated.FieldParams](api frontend.API, gate Gate[*emuEngine[FR]
 		engine:             engine,
 		gate:               gate,
 		inputPreprocessors: inputPreprocessors,
-		evaluationPoints:   [][]*emulated.Element[FR]{challenges},
+		evaluationPoints:   evaluationPoints,
 		claimedEvaluations: claimedEvals,
 	}, nil
 }
 
 func (g *gateClaimMulti[FR]) NbClaims() int {
-	// return 1
-	// TODO: fix
 	return len(g.evaluationPoints)
 }
 
 func (g *gateClaimMulti[FR]) NbVars() int {
-	// return 1
-	// TODO: fix
 	return len(g.evaluationPoints[0])
 }
 
@@ -86,6 +99,10 @@ func (g *gateClaimMulti[FR]) Degree(i int) int {
 
 func (g *gateClaimMulti[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff *emulated.Element[FR], expectedValue *emulated.Element[FR], proof EvaluationProof) error {
 	var err error
+	// TODO: handle case when have multiple claims
+	if g.NbClaims() > 1 {
+		panic("NbClaims > 1 not implemented")
+	}
 	eqEval := g.p.EvalEqual(g.evaluationPoints[0], r)
 	inputEvals := make([]*emulated.Element[FR], len(g.inputPreprocessors))
 	for i := range inputEvals {
@@ -117,13 +134,14 @@ type nativeGateClaim struct {
 	eq NativeMultilinear
 }
 
-func NewNativeGate(target *big.Int, gate Gate[*bigIntEngine, *big.Int], inputs [][]*big.Int) (claim Claims, evaluations []*big.Int, err error) {
+func NewNativeGate(target *big.Int, gate Gate[*bigIntEngine, *big.Int], inputs [][]*big.Int, evaluationPoints [][]*big.Int) (claim Claims, evaluations []*big.Int, err error) {
 	be := newBigIntEngine(target)
 	nbInputs := gate.NbInputs()
 	if len(inputs) != nbInputs {
 		return nil, nil, fmt.Errorf("expected %d inputs got %d", nbInputs, len(inputs))
 	}
 	nbInstances := len(inputs[0])
+	nbVars := bits.Len(uint(nbInstances)) - 1
 	for i := range inputs {
 		if len(inputs[i]) != nbInstances {
 			return nil, nil, fmt.Errorf("input %d nb instances expected %d got %d", i, nbInstances, len(inputs[i]))
@@ -149,19 +167,19 @@ func NewNativeGate(target *big.Int, gate Gate[*bigIntEngine, *big.Int], inputs [
 			inputPreprocessors[i][j] = new(big.Int).Set(inputs[i][j])
 		}
 	}
-	nbVars := bits.Len(uint(nbInstances)) - 1
-	claimedEvaluations := make([]*big.Int, 1)
-	challenges := make([]*big.Int, nbVars)
-	for i := range challenges {
-		challenges[i] = big.NewInt(int64(123 + i))
+	for i := range evaluationPoints {
+		if len(evaluationPoints[i]) != nbVars {
+			return nil, nil, fmt.Errorf("nb evaluation points %d mismatch for claim %d", len(evaluationPoints), i)
+		}
 	}
-	// TODO: compute correct challenge. Or isn't needed?
-	claimedEvaluations[0] = eval(be, evaluations, challenges)
-
+	claimedEvaluations := make([]*big.Int, len(evaluationPoints))
+	for i := range claimedEvaluations {
+		claimedEvaluations[i] = eval(be, evaluations, evaluationPoints[i])
+	}
 	return &nativeGateClaim{
 		engine:             be,
 		gate:               gate,
-		evaluationPoints:   [][]*big.Int{challenges},
+		evaluationPoints:   evaluationPoints,
 		claimedEvaluations: claimedEvaluations,
 		inputPreprocessors: inputPreprocessors,
 		eq:                 nil,
