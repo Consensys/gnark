@@ -125,7 +125,7 @@ func (p *Polynomial[FR]) foldScaled(M Multilinear[FR], at *emulated.Element[FR])
 	mid := len(M) / 2
 	R := make([]emulated.Element[FR], mid)
 	for j := range R {
-		tmp := p.f.Mul(&M[j], coeff)
+		tmp := p.f.Mul(&M[mid+j], coeff)
 		R[j] = *p.f.Add(&M[j], tmp)
 	}
 	return R, denom
