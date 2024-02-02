@@ -111,9 +111,11 @@ func (c *Curve) AssertIsOnG1(P *G1Affine) {
 
 	// 2- Check P has the right subgroup order
 	// [x²]ϕ(P)
-	var phiP, _P G1Affine
-	cc := getInnerCurveConfig(c.api.Compiler().Field())
-	cc.phi1(c.api, &phiP, P)
+	phiP := G1Affine{
+		X: c.api.Mul(P.X, "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945"),
+		Y: P.Y,
+	}
+	var _P G1Affine
 	_P.scalarMulBySeed(c.api, &phiP)
 	_P.scalarMulBySeed(c.api, &_P)
 	_P.Neg(c.api, _P)
