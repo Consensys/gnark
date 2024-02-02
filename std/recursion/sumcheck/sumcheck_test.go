@@ -187,4 +187,10 @@ func TestMulGate1Sumcheck(t *testing.T) {
 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{4, 3}, {2, 3}})
 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{1, 2, 3, 4}, {5, 6, 7, 8}})
 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{1, 2, 3, 4, 5, 6, 7, 8}, {11, 12, 13, 14, 15, 16, 17, 18}})
+	inputs := [][]int{{1}, {2}}
+	for i := 1; i < (1 << 10); i++ {
+		inputs[0] = append(inputs[0], inputs[0][i-1]+1)
+		inputs[1] = append(inputs[1], inputs[1][i-1]+2)
+	}
+	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), inputs)
 }
