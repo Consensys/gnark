@@ -41,6 +41,7 @@ import (
 	plonk_bls24315 "github.com/consensys/gnark/backend/plonk/bls24-315"
 	plonk_bls24317 "github.com/consensys/gnark/backend/plonk/bls24-317"
 	plonk_bn254 "github.com/consensys/gnark/backend/plonk/bn254"
+	icicle_bn254 "github.com/consensys/gnark/backend/plonk/bn254/icicle"
 	plonk_bw6633 "github.com/consensys/gnark/backend/plonk/bw6-633"
 	plonk_bw6761 "github.com/consensys/gnark/backend/plonk/bw6-761"
 
@@ -100,6 +101,9 @@ func Setup(ccs constraint.ConstraintSystem, kzgSrs kzg.SRS) (ProvingKey, Verifyi
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
+		if icicle_bn254.HasIcicle {
+			return icicle_bn254.Setup(tccs, *kzgSrs.(*kzg_bn254.SRS))
+		}
 		return plonk_bn254.Setup(tccs, *kzgSrs.(*kzg_bn254.SRS))
 	case *cs_bls12381.SparseR1CS:
 		return plonk_bls12381.Setup(tccs, *kzgSrs.(*kzg_bls12381.SRS))
@@ -129,6 +133,9 @@ func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.W
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
+		if icicle_bn254.HasIcicle {
+			return icicle_bn254.Prove(tccs, pk.(*icicle_bn254.ProvingKey), fullWitness, opts...)
+		}
 		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), fullWitness, opts...)
 
 	case *cs_bls12381.SparseR1CS:
@@ -159,12 +166,13 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ..
 
 	switch _proof := proof.(type) {
 
-	case *plonk_bn254.Proof:
+	case *icicle_bn254.Proof:
 		w, ok := publicWitness.Vector().(fr_bn254.Vector)
 		if !ok {
 			return witness.ErrInvalidWitness
 		}
-		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), w, opts...)
+		return icicle_bn254.Verify(_proof, vk.(*icicle_bn254.VerifyingKey), w, opts...)
+		// TODO add plonk_bn254.Verify
 
 	case *plonk_bls12381.Proof:
 		w, ok := publicWitness.Vector().(fr_bls12381.Vector)
