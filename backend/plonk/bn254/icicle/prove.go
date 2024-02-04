@@ -488,6 +488,9 @@ func (s *instance) solveConstraints() error {
 }
 
 func (s *instance) completeQk() error {
+	log := logger.Logger()
+	start := time.Now()
+
 	qk := s.pk.trace.Qk.Clone().ToLagrange(&s.pk.Domain[0]).ToRegular()
 	qkCoeffs := qk.Coefficients()
 
@@ -512,6 +515,7 @@ func (s *instance) completeQk() error {
 	s.x[id_Qk] = qk
 	close(s.chQk)
 
+	log.Debug().Dur("took", time.Since(start)).Msg("Complete Qk:")
 	return nil
 }
 
@@ -583,6 +587,8 @@ func (s *instance) deriveGammaAndBeta() error {
 // and add the contribution of a blinding polynomial b (small degree)
 // /!\ The polynomial p is supposed to be in Lagrange form.
 func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G1Affine, err error) {
+	log := logger.Logger()
+	start := time.Now()
 
 	commit, err = kzgDeviceCommit(p.Coefficients(), s.pk.deviceInfo.G1Device.G1Lagrange)
 
@@ -592,6 +598,7 @@ func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G
 
 	commit.Add(&commit, &cb)
 
+	log.Debug().Dur("took", time.Since(start)).Int("size", p.Size()).Msg("MSM (commitToPolyAndBlinding):")
 	return
 }
 
@@ -612,6 +619,9 @@ func (s *instance) deriveZeta() (err error) {
 
 // evaluateConstraints computes H
 func (s *instance) evaluateConstraints() (err error) {
+	log := logger.Logger()
+	start := time.Now()
+
 	// clone polys from the proving key.
 	s.x[id_Ql] = s.pk.trace.Ql.Clone()
 	s.x[id_Qr] = s.pk.trace.Qr.Clone()
@@ -688,10 +698,12 @@ func (s *instance) evaluateConstraints() (err error) {
 
 	close(s.chH)
 
+	log.Debug().Dur("took", time.Since(start)).Msg("evaluateConstraints:")
 	return nil
 }
 
 func (s *instance) buildRatioCopyConstraint() (err error) {
+	log := logger.Logger()
 	// wait for gamma and beta to be derived (or ctx.Done())
 	select {
 	case <-s.ctx.Done():
@@ -701,6 +713,7 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 
 	// TODO @gbotrel having iop.BuildRatioCopyConstraint return something
 	// with capacity = len() + 4 would avoid extra alloc / copy during openZ
+	start := time.Now()
 	s.x[id_Z], err = iop.BuildRatioCopyConstraint(
 		[]*iop.Polynomial{
 			s.x[id_L],
@@ -716,9 +729,11 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 	if err != nil {
 		return err
 	}
+	log.Debug().Dur("took", time.Since(start)).Msg("FFT (BuildRatioCopyConstraint):")
 
 	// commit to the blinded version of z
 	s.proof.Z, err = s.commitToPolyAndBlinding(s.x[id_Z], s.bp[id_Bz])
+	log.Debug().Dur("took", time.Since(start)).Msg("BuildRatioCopyConstraints:")
 
 	close(s.chZ)
 
@@ -727,6 +742,8 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 
 // open Z (blinded) at ωζ
 func (s *instance) openZ() (err error) {
+	log := logger.Logger()
+
 	// wait for H to be committed and zeta to be derived (or ctx.Done())
 	select {
 	case <-s.ctx.Done():
@@ -737,10 +754,12 @@ func (s *instance) openZ() (err error) {
 	zetaShifted.Mul(&s.zeta, &s.pk.Vk.Generator)
 	s.blindedZ = getBlindedCoefficients(s.x[id_Z], s.bp[id_Bz])
 	// open z at zeta
+	start := time.Now()
 	s.proof.ZShiftedOpening, err = kzgDeviceOpen(s.blindedZ, zetaShifted, s.pk)
 	if err != nil {
 		return err
 	}
+	log.Debug().Dur("took", time.Since(start)).Msg("MSM (Open Z)")
 	close(s.chZOpening)
 	return nil
 }
@@ -799,6 +818,7 @@ func (s *instance) foldH() error {
 }
 
 func (s *instance) computeLinearizedPolynomial() error {
+	log := logger.Logger()
 
 	// wait for H to be committed and zeta to be derived (or ctx.Done())
 	select {
@@ -860,15 +880,18 @@ func (s *instance) computeLinearizedPolynomial() error {
 	)
 
 	var err error
+	timeCommit := time.Now()
 	s.linearizedPolynomialDigest, err = kzg.Commit(s.linearizedPolynomial, s.pk.Kzg, runtime.NumCPU()*2)
 	if err != nil {
 		return err
 	}
+	log.Debug().Dur("took", time.Since(timeCommit)).Int("size", len(s.linearizedPolynomial)).Msg("MSM (linearizedPolynomial):")
 	close(s.chLinearizedPolynomial)
 	return nil
 }
 
 func (s *instance) batchOpening() error {
+	log := logger.Logger()
 	polysQcp := coefficients(s.pk.trace.Qcp)
 	polysToOpen := make([][]fr.Element, 7+len(polysQcp))
 	copy(polysToOpen[7:], polysQcp)
@@ -914,6 +937,7 @@ func (s *instance) batchOpening() error {
 	digestsToOpen[6] = s.pk.Vk.S[1]
 
 	var err error
+	start := time.Now()
 	s.proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
 		polysToOpen,
 		digestsToOpen,
@@ -922,6 +946,7 @@ func (s *instance) batchOpening() error {
 		s.pk.Kzg,
 		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
 	)
+	log.Debug().Dur("took", time.Since(start)).Msg("MSM (batchOpeningSinglePoint):")
 
 	return err
 }
@@ -929,6 +954,9 @@ func (s *instance) batchOpening() error {
 // evaluate the full set of constraints, all polynomials in x are back in
 // canonical regular form at the end
 func (s *instance) computeNumerator() (*iop.Polynomial, error) {
+	log := logger.Logger()
+	start := time.Now()
+
 	n := s.pk.Domain[0].Cardinality
 
 	nbBsbGates := (len(s.x) - id_Qci + 1) >> 1
@@ -1077,7 +1105,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				acc.Mul(&acc, &shifters[i])
 			}
 		}
-
+		batchTime := time.Now()
 		//batchApply(s.x, func(p *iop.Polynomial) {
 		//	// ON Device
 		//	n := p.Size()
@@ -1144,6 +1172,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			// fft in the correct coset
 			p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
 		})
+		log.Debug().Dur("took", time.Since(batchTime)).Msg("FFT (batchApply)")
 		 
 		wgBuf.Wait()
 		if _, err := iop.Evaluate(
@@ -1175,6 +1204,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	// scale everything back
 	go func() {
+		batchTime := time.Now()
 		for i := id_ZS; i < len(s.x); i++ {
 			s.x[i] = nil
 		}
@@ -1195,6 +1225,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			scalePowers(q, cs)
 		}
 
+		log.Debug().Dur("took", time.Since(batchTime)).Msg("FFT (Scale back batchApply):")
 		close(s.chRestoreLRO)
 	}()
 
@@ -1202,7 +1233,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	wgBuf.Wait()
 	
 	res := iop.NewPolynomial(&cres, iop.Form{Basis: iop.LagrangeCoset, Layout: iop.BitReverse})
-
+	log.Debug().Dur("took", time.Since(start)).Msg("computeNumerator")
 	return res, nil
 
 }
@@ -1399,23 +1430,33 @@ func coefficients(p []*iop.Polynomial) [][]fr.Element {
 }
 
 func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, pk *ProvingKey) error {
+	log := logger.Logger()
+	start := time.Now()
+
 	g := new(errgroup.Group)
 
 	g.Go(func() (err error) {
+		start := time.Now()
 		proof.H[0], err = kzgDeviceCommit(h1, pk.deviceInfo.G1Device.G1)
+		log.Debug().Dur("took", time.Since(start)).Int("size", len(h3)).Msg("MSM (commitToQuotient):")
 		return
 	})
 
 	g.Go(func() (err error) {
+		start := time.Now()
 		proof.H[1], err = kzgDeviceCommit(h2, pk.deviceInfo.G1Device.G1)
+		log.Debug().Dur("took", time.Since(start)).Int("size", len(h3)).Msg("MSM (commitToQuotient):")
 		return
 	})
 
 	g.Go(func() (err error) {
+		start := time.Now()
 		proof.H[2], err = kzgDeviceCommit(h3, pk.deviceInfo.G1Device.G1)
+		log.Debug().Dur("took", time.Since(start)).Int("size", len(h3)).Msg("MSM (commitToQuotient):")
 		return
 	})
 
+	log.Debug().Dur("took", time.Since(start)).Msg("commitToQuotient")
 	return g.Wait()
 }
 
@@ -1423,7 +1464,8 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, pk *ProvingKey) err
 // The input must be in LagrangeCoset.
 // The result is in Canonical Regular. (in place using a)
 func divideByXMinusOne(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, error) {
-
+	log := logger.Logger()
+	start := time.Now()
 	// check that the basis is LagrangeCoset
 	if a.Basis != iop.LagrangeCoset || a.Layout != iop.BitReverse {
 		return nil, errors.New("invalid form")
@@ -1447,6 +1489,7 @@ func divideByXMinusOne(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomi
 	// since a is in bit reverse order, ToRegular shouldn't do anything
 	a.ToCanonical(domains[1]).ToRegular()
 
+	log.Debug().Dur("took", time.Since(start)).Msg("FFT (divideByXMinusOne):")
 	return a, nil
 
 }
