@@ -2,6 +2,8 @@ package test
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/std/rangecheck"
 	"math/big"
 	"testing"
 
@@ -100,4 +102,29 @@ func TestPreCompileHook(t *testing.T) {
 	if !isDeferCalled {
 		t.Error("callback not called")
 	}
+}
+
+// TODO @ivokob is this test necessary, considering that the rangechecker is already tested against the test engine?
+
+func TestRangeCheck(t *testing.T) {
+	NewAssert(t).CheckCircuit(&rangeCheckTestCircuit{bits: 4}, WithCurves(ecc.BN254), WithBackends(backend.PLONK),
+		WithValidAssignment(&rangeCheckTestCircuit{X: 0}),
+		WithValidAssignment(&rangeCheckTestCircuit{X: 15}),
+		WithInvalidAssignment(&rangeCheckTestCircuit{X: 16}),
+		WithInvalidAssignment(&rangeCheckTestCircuit{X: -1}),
+	)
+
+	NewAssert(t).CheckCircuit(&rangeCheckTestCircuit{bits: 254}, WithCurves(ecc.BN254), WithBackends(backend.PLONK),
+		WithValidAssignment(&rangeCheckTestCircuit{X: -1}),
+	)
+}
+
+type rangeCheckTestCircuit struct {
+	X    frontend.Variable
+	bits int
+}
+
+func (c *rangeCheckTestCircuit) Define(api frontend.API) error {
+	rangecheck.New(api).Check(c.X, c.bits)
+	return nil
 }

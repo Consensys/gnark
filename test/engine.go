@@ -781,3 +781,40 @@ func (e *engine) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.Int, aF
 		panic(fmt.Sprintf("%d > %d", v, bound))
 	}
 }
+
+// Check asserts that the value given by v is less than 2^bits.
+func (e *engine) Check(v frontend.Variable, bits int) {
+
+	var i big.Int
+
+	switch vv := v.(type) {
+	case *big.Int:
+		i.Set(vv)
+	case int:
+		i.SetInt64(int64(vv))
+	case int8:
+		i.SetInt64(int64(vv))
+	case int16:
+		i.SetInt64(int64(vv))
+	case int32:
+		i.SetInt64(int64(vv))
+	case int64:
+		i.SetInt64(vv)
+	case uint8:
+		i.SetUint64(uint64(vv))
+	case uint16:
+		i.SetUint64(uint64(vv))
+	case uint32:
+		i.SetUint64(uint64(vv))
+	case uint64:
+		i.SetUint64(vv)
+	default:
+		panic(fmt.Errorf("unsupported type %T", vv))
+	}
+
+	i.Mod(&i, e.modulus())
+
+	if i.BitLen() > bits {
+		panic(fmt.Sprintf("%s > 2^%d", i.Text(10), bits))
+	}
+}
