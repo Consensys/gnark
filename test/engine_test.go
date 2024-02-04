@@ -125,6 +125,15 @@ type rangeCheckTestCircuit struct {
 }
 
 func (c *rangeCheckTestCircuit) Define(api frontend.API) error {
-	rangecheck.New(api).Check(c.X, c.bits)
+	r := rangecheck.New(api)
+
+	r.Check(c.X, c.bits)
+
+	// 0 ≤ X ≤ 2ᵇⁱᵗˢ - 1 ⇔ - 2ᵇⁱᵗˢ + 1 ≤ -X ≤ 0 ⇔ 0 ≤ (2ᵇⁱᵗˢ - 1) - X ≤ 2ᵇⁱᵗˢ - 1
+	// i.e. X is in range iff (2ᵇⁱᵗˢ - 1) - X is
+	bound := big.NewInt(1)
+	bound.Lsh(bound, uint(c.bits)).Sub(bound, big.NewInt(1))
+	r.Check(api.Sub(bound, c.X), c.bits)
+
 	return nil
 }
