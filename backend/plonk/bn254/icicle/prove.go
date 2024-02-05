@@ -1109,6 +1109,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 		batchTime := time.Now()
 		batchApply(s.x, func(p *iop.Polynomial, pn int) {
+			nbTasks := calculateNbTasks(len(s.x)-1) * 2
 			// ON Device
 			n := p.Size()
 			sizeBytes := p.Size() * fr.Bytes
@@ -1127,14 +1128,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			// Initialize channels
 			computeInttNttDone := make(chan error, 1)
 			computeInttNttOnDevice := func(scaleVecPtr, devicePointer unsafe.Pointer) {
-
 				a_intt_d := iciclegnark.INttOnDevice(devicePointer, s.pk.deviceInfo.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
 
 				iciclegnark.VecMulOnDevice(a_intt_d, scaleVecPtr, n)
-				iciclegnark.MontConvOnDevice(a_intt_d, n, true)
-				iciclegnark.NttOnDevice(devicePointer, a_intt_d, s.pk.deviceInfo.DomainDevice.Twiddles, s.pk.deviceInfo.DomainDevice.CosetTable, n, n, sizeBytes, true)
+				iciclegnark.NttOnDevice(devicePointer, a_intt_d, s.pk.deviceInfo.DomainDevice.Twiddles, nil, n, n, sizeBytes, false)
+				iciclegnark.MontConvOnDevice(devicePointer, n, true)
 
-				res := iciclegnark.CopyScalarsToHost(a_intt_d, n, sizeBytes)
+				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
 
 				nbTasks := calculateNbTasks(len(s.x)-1) * 2
 				p.ToCanonical(&s.pk.Domain[0], nbTasks).ToRegular()
@@ -1146,6 +1146,9 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 					}
 				}, nbTasks)
 
+				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
+
+				cp = p.Coefficients()
 				isEqual := 0
 				notEqual := 0
 				for j := 0; j < len(res); j++ {
@@ -1155,51 +1158,34 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 						isEqual++
 					}
 				}
-				//fmt.Print("GPU == CPU for poly:", pn, " isEqual: ", isEqual, " notEqual: ", notEqual, "\n")
+				fmt.Print("GPU == CPU for poly:", pn, " isEqual: ", isEqual, " notEqual: ", notEqual, "\n")
 
-				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
+				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 
 				computeInttNttDone <- nil
 				iciclegnark.FreeDevicePointer(a_intt_d)
 			}
 			// Run computeInttNttOnDevice on device
-			go computeInttNttOnDevice(w_device, a_device)
-			_ = <-computeInttNttDone
+			if p.Basis == iop.Lagrange {
+				go computeInttNttOnDevice(w_device, a_device)
+				_ = <-computeInttNttDone
 
-			//p = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-			//fmt.Print("GPU", p.Coefficients()[0], "\n")
+			} else {
+				cp := p.Coefficients()
+				utils.Parallelize(len(cp), func(start, end int) {
+					for j := start; j < end; j++ {
+						cp[j].Mul(&cp[j], &w[j])
+					}
+				}, nbTasks)
+
+				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
+			}
 
 			go func() {
 				iciclegnark.FreeDevicePointer(a_device)
 				iciclegnark.FreeDevicePointer(w_device)
 			}()
 		})
-
-		// we do **a lot** of FFT here, but on the small domain.
-		// note that for all the polynomials in the proving key
-		// (Ql, Qr, Qm, Qo, S1, S2, S3, Qcp, Qc) and ID, LOne
-		// we could pre-compute theses rho*2 FFTs and store them
-		// at the cost of a huge memory footprint.
-		//batchApply(s.x, func(p *iop.Polynomial, pn int) {
-		//	nbTasks := calculateNbTasks(len(s.x)-1) * 2
-		//	// shift polynomials to be in the correct coset
-		//	p.ToCanonical(&s.pk.Domain[0], nbTasks)
-
-		//	// scale by shifter[i]
-		//	w := selectScalingVector(i, p.Layout)
-
-		//	cp := p.Coefficients()
-		//	utils.Parallelize(len(cp), func(start, end int) {
-		//		for j := start; j < end; j++ {
-		//			cp[j].Mul(&cp[j], &w[j])
-		//		}
-		//	}, nbTasks)
-		//	//fmt.Print("CPU", pn, cp[0], "\n")
-
-		//	// fft in the correct coset
-		//	p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
-		//})
-		//os.Exit(0)
 		log.Debug().Dur("took", time.Since(batchTime)).Msg("FFT (batchApply)")
 		 
 		wgBuf.Wait()
@@ -1253,7 +1239,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			go iciclegnark.CopyToDevice(p.Coefficients(), sizeBytes, copyADone)
 			a_device := <-copyADone
 
-			// HACK do a better way
 			var acc fr.Element
 			acc.SetOne()
 			accList := make([]fr.Element, p.Size())
@@ -1269,7 +1254,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			// Initialize channels
 			computeInttNttDone := make(chan error, 1)
 			computeInttNttOnDevice := func(scaleVecPtr, devicePointer unsafe.Pointer) {
-
 				a_intt_d := iciclegnark.INttOnDevice(devicePointer, s.pk.deviceInfo.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
 
 				iciclegnark.VecMulOnDevice(a_intt_d, scaleVecPtr, n)
