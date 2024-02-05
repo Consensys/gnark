@@ -753,6 +753,7 @@ func (s *instance) openZ() (err error) {
 	var zetaShifted fr.Element
 	zetaShifted.Mul(&s.zeta, &s.pk.Vk.Generator)
 	s.blindedZ = getBlindedCoefficients(s.x[id_Z], s.bp[id_Bz])
+
 	// open z at zeta
 	start := time.Now()
 	s.proof.ZShiftedOpening, err = kzgDeviceOpen(s.blindedZ, zetaShifted, s.pk)
@@ -760,6 +761,7 @@ func (s *instance) openZ() (err error) {
 		return err
 	}
 	log.Debug().Dur("took", time.Since(start)).Msg("MSM (Open Z)")
+
 	close(s.chZOpening)
 	return nil
 }
@@ -881,7 +883,7 @@ func (s *instance) computeLinearizedPolynomial() error {
 
 	var err error
 	timeCommit := time.Now()
-	s.linearizedPolynomialDigest, err = kzg.Commit(s.linearizedPolynomial, s.pk.Kzg, runtime.NumCPU()*2)
+	s.linearizedPolynomialDigest, err = kzgDeviceCommit(s.linearizedPolynomial, s.pk.deviceInfo.G1Device.G1, runtime.NumCPU()*2)
 	if err != nil {
 		return err
 	}
@@ -1068,7 +1070,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	}
 
 	// select the correct scaling vector to scale by shifter[i]
-	selectScalingVector := func(i int, l iop.Layout) []fr.Element {
+	selectScalingVector := func(i int, l iop.Layout, np int) []fr.Element {
 		var w []fr.Element
 		if i == 0 {
 			if l == iop.Regular {
@@ -1106,72 +1108,98 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			}
 		}
 		batchTime := time.Now()
-		//batchApply(s.x, func(p *iop.Polynomial) {
-		//	// ON Device
-		//	n := p.Size()
-		//	sizeBytes := p.Size() * fr.Bytes
+		batchApply(s.x, func(p *iop.Polynomial, pn int) {
+			// ON Device
+			n := p.Size()
+			sizeBytes := p.Size() * fr.Bytes
 
-		//	copyADone := make(chan unsafe.Pointer, 1)
-		//	go iciclegnark.CopyToDevice(p.Coefficients(), sizeBytes, copyADone)
-		//	a_device := <-copyADone
+			copyADone := make(chan unsafe.Pointer, 1)
+			go iciclegnark.CopyToDevice(p.Coefficients(), sizeBytes, copyADone)
+			a_device := <-copyADone
 
-		//	// scale by shifter[i]
-		//	w := selectScalingVector(i, p.Layout)
-		//	
-		//	copyWDone := make(chan unsafe.Pointer, 1)
-		//	go iciclegnark.CopyToDevice(w, sizeBytes, copyWDone)
-		//	w_device := <-copyWDone
+			// scale by shifter[i]
+			w := selectScalingVector(i, p.Layout, pn)
 
-		//	// Initialize channels
-		//	computeInttNttDone := make(chan error, 1)
-		//	computeInttNttOnDevice := func(scaleVecPtr, devicePointer unsafe.Pointer) {
-		//		a_intt_d := iciclegnark.INttOnDevice(devicePointer, s.pk.deviceInfo.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
+			copyWDone := make(chan unsafe.Pointer, 1)
+			go iciclegnark.CopyToDevice(w, sizeBytes, copyWDone)
+			w_device := <-copyWDone
 
-		//		iciclegnark.VecMulOnDevice(a_intt_d, scaleVecPtr, n)
-		//		iciclegnark.MontConvOnDevice(a_intt_d, n, true)
-		//		iciclegnark.NttOnDevice(devicePointer, a_intt_d, s.pk.deviceInfo.DomainDevice.Twiddles, s.pk.deviceInfo.DomainDevice.CosetTable, n, n, sizeBytes, true)
-		//		
-		//		computeInttNttDone <- nil
-		//		iciclegnark.FreeDevicePointer(a_intt_d)
-		//	}
-		//	// Run computeInttNttOnDevice on device
-		//	go computeInttNttOnDevice(w_device, a_device)
-		//	_ = <-computeInttNttDone
+			// Initialize channels
+			computeInttNttDone := make(chan error, 1)
+			computeInttNttOnDevice := func(scaleVecPtr, devicePointer unsafe.Pointer) {
 
-		//	res := iciclegnark.CopyScalarsToHost(a_device, n, sizeBytes)
-		//	p = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-		//	fmt.Print("GPU", p.Coefficients()[0], "\n")
+				a_intt_d := iciclegnark.INttOnDevice(devicePointer, s.pk.deviceInfo.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
 
-		//	go func() {
-		//		iciclegnark.FreeDevicePointer(a_device)
-		//		iciclegnark.FreeDevicePointer(w_device)
-		//	}()
-		//})
+				iciclegnark.VecMulOnDevice(a_intt_d, scaleVecPtr, n)
+				iciclegnark.MontConvOnDevice(a_intt_d, n, true)
+				iciclegnark.NttOnDevice(devicePointer, a_intt_d, s.pk.deviceInfo.DomainDevice.Twiddles, s.pk.deviceInfo.DomainDevice.CosetTable, n, n, sizeBytes, true)
+
+				res := iciclegnark.CopyScalarsToHost(a_intt_d, n, sizeBytes)
+
+				nbTasks := calculateNbTasks(len(s.x)-1) * 2
+				p.ToCanonical(&s.pk.Domain[0], nbTasks).ToRegular()
+
+				cp := p.Coefficients()
+				utils.Parallelize(len(cp), func(start, end int) {
+					for j := start; j < end; j++ {
+						cp[j].Mul(&cp[j], &w[j])
+					}
+				}, nbTasks)
+
+				isEqual := 0
+				notEqual := 0
+				for j := 0; j < len(res); j++ {
+					if res[j] != cp[j] {
+						notEqual++
+					} else {
+						isEqual++
+					}
+				}
+				//fmt.Print("GPU == CPU for poly:", pn, " isEqual: ", isEqual, " notEqual: ", notEqual, "\n")
+
+				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
+
+				computeInttNttDone <- nil
+				iciclegnark.FreeDevicePointer(a_intt_d)
+			}
+			// Run computeInttNttOnDevice on device
+			go computeInttNttOnDevice(w_device, a_device)
+			_ = <-computeInttNttDone
+
+			//p = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
+			//fmt.Print("GPU", p.Coefficients()[0], "\n")
+
+			go func() {
+				iciclegnark.FreeDevicePointer(a_device)
+				iciclegnark.FreeDevicePointer(w_device)
+			}()
+		})
 
 		// we do **a lot** of FFT here, but on the small domain.
 		// note that for all the polynomials in the proving key
 		// (Ql, Qr, Qm, Qo, S1, S2, S3, Qcp, Qc) and ID, LOne
 		// we could pre-compute theses rho*2 FFTs and store them
 		// at the cost of a huge memory footprint.
-		batchApply(s.x, func(p *iop.Polynomial) {
-			nbTasks := calculateNbTasks(len(s.x)-1) * 2
-			// shift polynomials to be in the correct coset
-			p.ToCanonical(&s.pk.Domain[0], nbTasks)
-			//fmt.Print("CPU",p.Coefficients()[0], "\n")
+		//batchApply(s.x, func(p *iop.Polynomial, pn int) {
+		//	nbTasks := calculateNbTasks(len(s.x)-1) * 2
+		//	// shift polynomials to be in the correct coset
+		//	p.ToCanonical(&s.pk.Domain[0], nbTasks)
 
-			// scale by shifter[i]
-			w := selectScalingVector(i, p.Layout)
+		//	// scale by shifter[i]
+		//	w := selectScalingVector(i, p.Layout)
 
-			cp := p.Coefficients()
-			utils.Parallelize(len(cp), func(start, end int) {
-				for j := start; j < end; j++ {
-					cp[j].Mul(&cp[j], &w[j])
-				}
-			}, nbTasks)
+		//	cp := p.Coefficients()
+		//	utils.Parallelize(len(cp), func(start, end int) {
+		//		for j := start; j < end; j++ {
+		//			cp[j].Mul(&cp[j], &w[j])
+		//		}
+		//	}, nbTasks)
+		//	//fmt.Print("CPU", pn, cp[0], "\n")
 
-			// fft in the correct coset
-			p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
-		})
+		//	// fft in the correct coset
+		//	p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
+		//})
+		//os.Exit(0)
 		log.Debug().Dur("took", time.Since(batchTime)).Msg("FFT (batchApply)")
 		 
 		wgBuf.Wait()
@@ -1216,9 +1244,48 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 		cs.Inverse(&cs)
 
-		batchApply(s.x[:id_ZS], func(p *iop.Polynomial) {
-			p.ToCanonical(&s.pk.Domain[0], 8).ToRegular()
-			scalePowers(p, cs)
+		batchApply(s.x[:id_ZS], func(p *iop.Polynomial, pn int) {
+			// ON Device
+			n := p.Size()
+			sizeBytes := p.Size() * fr.Bytes
+
+			copyADone := make(chan unsafe.Pointer, 1)
+			go iciclegnark.CopyToDevice(p.Coefficients(), sizeBytes, copyADone)
+			a_device := <-copyADone
+
+			// HACK do a better way
+			var acc fr.Element
+			acc.SetOne()
+			accList := make([]fr.Element, p.Size())
+			for j := 0; j < p.Size(); j++ {
+				accList[j].Set(&acc)
+				acc.Mul(&acc, &cs)
+			}
+
+			copyWDone := make(chan unsafe.Pointer, 1)
+			go iciclegnark.CopyToDevice(accList, sizeBytes, copyWDone)
+			w_device := <-copyWDone
+
+			// Initialize channels
+			computeInttNttDone := make(chan error, 1)
+			computeInttNttOnDevice := func(scaleVecPtr, devicePointer unsafe.Pointer) {
+
+				a_intt_d := iciclegnark.INttOnDevice(devicePointer, s.pk.deviceInfo.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
+
+				iciclegnark.VecMulOnDevice(a_intt_d, scaleVecPtr, n)
+				iciclegnark.MontConvOnDevice(a_intt_d, n, true)
+
+				res := iciclegnark.CopyScalarsToHost(a_intt_d, n, sizeBytes)
+
+				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
+
+				computeInttNttDone <- nil
+				iciclegnark.FreeDevicePointer(a_intt_d)
+			}
+			// Run computeInttNttOnDevice on device
+			go computeInttNttOnDevice(w_device, a_device)
+			_ = <-computeInttNttDone
+
 		})
 
 		for _, q := range s.bp {
@@ -1248,19 +1315,19 @@ func calculateNbTasks(n int) int {
 }
 
 // batchApply executes fn on all polynomials in x except x[id_ZS] in parallel.
-func batchApply(x []*iop.Polynomial, fn func(*iop.Polynomial)) {
-	var wg sync.WaitGroup
+func batchApply(x []*iop.Polynomial, fn func(*iop.Polynomial, int)) {
+	//var wg sync.WaitGroup
 	for i := 0; i < len(x); i++ {
 		if i == id_ZS {
 			continue
 		}
-		wg.Add(1)
-		go func(i int) {
-		fn(x[i])
-			wg.Done()
-			}(i)
+		//wg.Add(1)
+		//go func(i int) {
+		fn(x[i], i)
+		//		wg.Done()
+		//	}(i)
 	}
-	wg.Wait()
+	// wg.Wait()
 }
 
 // p <- <p, (1, w, .., wⁿ) >
@@ -1441,6 +1508,7 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, pk *ProvingKey) err
 		log.Debug().Dur("took", time.Since(start)).Int("size", len(h3)).Msg("MSM (commitToQuotient):")
 		return
 	})
+	g.Wait()
 
 	g.Go(func() (err error) {
 		start := time.Now()
@@ -1448,6 +1516,7 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, pk *ProvingKey) err
 		log.Debug().Dur("took", time.Since(start)).Int("size", len(h3)).Msg("MSM (commitToQuotient):")
 		return
 	})
+	g.Wait()
 
 	g.Go(func() (err error) {
 		start := time.Now()
@@ -1455,6 +1524,7 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, pk *ProvingKey) err
 		log.Debug().Dur("took", time.Since(start)).Int("size", len(h3)).Msg("MSM (commitToQuotient):")
 		return
 	})
+	g.Wait()
 
 	log.Debug().Dur("took", time.Since(start)).Msg("commitToQuotient")
 	return g.Wait()
