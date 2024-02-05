@@ -935,6 +935,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 
 	_s1 = v.scalarApi.Mul(lPlusBetaS1PlusGammaTimesRPlusBetaS2PlusGamma, beta) // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(ζ)+γ)*β
 	_s1 = v.scalarApi.Mul(_s1, &zu)                                            // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ)
+	_s1 = v.scalarApi.Mul(_s1, alpha)                                          // α*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ)
 
 	betaZeta := v.scalarApi.Mul(beta, zeta)                                  // β*ζ
 	_s2 := v.scalarApi.Add(&l, betaZeta)                                     // l(ζ)+β*ζ
@@ -947,9 +948,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	tmp = v.scalarApi.Add(betaZetaCosetShift, gamma)                         // β*u²*ζ+γ
 	tmp = v.scalarApi.Add(tmp, &o)                                           // β*u²*ζ+γ+o
 	_s2 = v.scalarApi.Mul(_s2, tmp)                                          // (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)(o+β*u²*ζ+γ)
-
-	_s2 = v.scalarApi.Sub(_s1, _s2)
-	_s2 = v.scalarApi.Mul(_s1, alpha) // _s1 =  α*[(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ) - (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)]
+	_s2 = v.scalarApi.Mul(_s2, alpha)                                        // α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)(o+β*u²*ζ+γ)
+	_s2 = v.scalarApi.Neg(_s2)                                               // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)(o+β*u²*ζ+γ)
 
 	// α²*L₁(ζ) - α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 	coeffZ := v.scalarApi.Add(alphaSquareLagrangeOne, _s2)
@@ -979,7 +979,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	}
 	scalars := append(qC,
 		&l, &r, rl, &o, // first part
-		_s1, coeffZ, zhZeta, zetaNPlusTwoSquareZh, zetaNPlusTwoSquareZh, // second & third part
+		_s1, coeffZ, zhZeta, zetaNPlusTwoZh, zetaNPlusTwoSquareZh, // second & third part
 	)
 
 	var msmOpts []algopts.AlgebraOption
