@@ -545,7 +545,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 	}
 
 	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
-	foldedEvalsCommit := v.curve.ScalarMulBase(foldedEvals)
+	foldedEvalsCommit := v.curve.ScalarMul(&vk.G1, foldedEvals)
 
 	// compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	tmp := v.curve.Neg(foldedEvalsCommit)
