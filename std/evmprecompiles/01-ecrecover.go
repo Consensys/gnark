@@ -79,8 +79,30 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	u1 = frField.Neg(u1)
 	// compute u2 = s * rinv
 	u2 := frField.MulMod(&s, rinv)
-	// check u1 * G + u2 R == P
-	C := curve.JointScalarMulBase(&R, u2, u1)
-	curve.AssertIsEqual(C, &P)
+
+	// 💡 Optimization idea:
+	// we need to check that [u1]G + [u2]R == P which is equivalent to:
+	// [v]P == [v*u2]R + [v*u1]G if we multiply by some integer v.
+	// Now if we find u s.t. u2 = u/v mod n and u,v are half-size of n,
+	// then we need to check that [v]P - [u]R == [w]G
+
+	// 1. first find subScalars[0]=-u and subScalars[1]=v
+	subScalars, err := frField.NewHint(halfEuclideanDivision, 2, frField.Modulus(), u2)
+	if err != nil {
+		panic(fmt.Sprintf("sub-scalars hint: %v", err))
+	}
+	// 2. assert that u2 = u/v mod n
+	frField.AssertIsEqual(frField.Div(frField.Neg(subScalars[0]), subScalars[1]), u2)
+	// 3. get w = u1 * u
+	w := frField.Mul(subScalars[1], u1)
+	// 4. compute [w]G
+	_C := curve.ScalarMulBase(w)
+	// 5. compute [v]P - [u]R using Shamir's trick
+	C, _ := curve.MultiScalarMul(
+		[]*sw_emulated.AffinePoint[emulated.Secp256k1Fp]{&P, &R},
+		[]*emulated.Element[emulated.Secp256k1Fr]{subScalars[1], subScalars[0]},
+	)
+	// 6. check that [v]P - [u]R == [w]G
+	curve.AssertIsEqual(_C, C)
 	return &P
 }

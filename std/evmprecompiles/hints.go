@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
@@ -16,7 +17,7 @@ func init() {
 
 // GetHints returns all the hints used in this package.
 func GetHints() []solver.Hint {
-	return []solver.Hint{recoverPointHint, recoverPublicKeyHint}
+	return []solver.Hint{recoverPointHint, recoverPublicKeyHint, halfEuclideanDivision}
 }
 
 func recoverPointHintArgs(v frontend.Variable, r emulated.Element[emulated.Secp256k1Fr]) []frontend.Variable {
@@ -94,4 +95,21 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 		return fmt.Errorf("decompose y: %w", err)
 	}
 	return nil
+}
+
+func halfEuclideanDivision(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
+		if len(inputs) != 2 {
+			return fmt.Errorf("expecting two inputs")
+		}
+		if len(outputs) != 2 {
+			return fmt.Errorf("expecting two outputs")
+		}
+		glvBasis := new(ecc.Lattice)
+		ecc.PrecomputeLattice(inputs[0], inputs[1], glvBasis)
+		outputs[0].Set(&(glvBasis.V1[0]))
+		outputs[1].Set(&(glvBasis.V1[1]))
+
+		return nil
+	})
 }
