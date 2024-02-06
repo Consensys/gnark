@@ -1,6 +1,11 @@
 package circuits
 
-import "github.com/consensys/gnark/frontend"
+import (
+	"crypto/sha256"
+
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
+)
 
 type commitCircuit struct {
 	Public frontend.Variable `gnark:",public"`
@@ -24,7 +29,7 @@ func (circuit *commitCircuit) Define(api frontend.API) error {
 }
 
 func init() {
-
+	h := sha256.New()
 	var circuit, good, bad commitCircuit
 
 	good.X = 3
@@ -33,5 +38,7 @@ func init() {
 	bad.X = 4
 	bad.Public = 0
 
-	addEntry("commit", &circuit, &good, &bad, nil)
+	addEntry("commit_Groth16", &circuit, &good, &bad, nil,
+		WithProverOpts(backend.WithProverHashToFieldFunction(h)), WithVerifierOpts(backend.WithVerifierHashToFieldFunction(h)))
+	addEntry("commit_Plonk", &circuit, &good, &bad, nil)
 }
