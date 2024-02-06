@@ -2,6 +2,7 @@ package groth16
 
 import (
 	"fmt"
+	"hash"
 	"math/big"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
 	groth16backend_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
@@ -29,6 +31,7 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/math/uints"
+	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 )
 
@@ -55,6 +58,25 @@ func (c *InnerCircuitSHA2) Define(api frontend.API) error {
 	for i := range dgst {
 		uapi.ByteAssertEq(dgst[i], c.Digest[i])
 	}
+	return nil
+}
+
+type InnerCircuitCommitment struct {
+	P, Q frontend.Variable
+	N    frontend.Variable `gnark:",public"`
+}
+
+func (c *InnerCircuitCommitment) Define(api frontend.API) error {
+	res := api.Mul(c.P, c.Q)
+	api.AssertIsEqual(res, c.N)
+
+	commitment, err := api.Compiler().(frontend.Committer).Commit(c.P, c.Q, c.N)
+	if err != nil {
+		return err
+	}
+
+	api.AssertIsDifferent(commitment, 0)
+
 	return nil
 }
 
@@ -107,6 +129,31 @@ func getInner(assert *test.Assert, field *big.Int) (constraint.ConstraintSystem,
 	return innerCcs, innerVK, innerPubWitness, innerProof
 }
 
+func getInnerCommitment(assert *test.Assert, field *big.Int, h hash.Hash) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
+	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &InnerCircuitCommitment{})
+	assert.NoError(err)
+	innerPK, innerVK, err := groth16.Setup(innerCcs)
+	assert.NoError(err)
+
+	// inner proof
+	innerAssignment := &InnerCircuitCommitment{
+		P: 3,
+		Q: 5,
+		N: 15,
+	}
+	innerWitness, err := frontend.NewWitness(innerAssignment, field)
+	assert.NoError(err)
+	h.Reset()
+	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness, backend.WithProverHashToFieldFunction(h))
+	assert.NoError(err)
+	innerPubWitness, err := innerWitness.Public()
+	assert.NoError(err)
+	h.Reset()
+	err = groth16.Verify(innerProof, innerVK, innerPubWitness, backend.WithVerifierHashToFieldFunction(h))
+	assert.NoError(err)
+	return innerCcs, innerVK, innerPubWitness, innerProof
+}
+
 type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	Proof        Proof[G1El, G2El]
 	VerifyingKey VerifyingKey[G1El, G2El, GtEl]
@@ -114,6 +161,11 @@ type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 }
 
 func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	mimc, err := recursion.NewHash(api, api.Compiler().Field(), true)
+	if err != nil {
+		return err
+	}
+
 	curve, err := algebra.GetCurve[FR, G1El](api)
 	if err != nil {
 		return fmt.Errorf("new curve: %w", err)
@@ -122,9 +174,11 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("get pairing: %w", err)
 	}
-	verifier := NewVerifier(curve, pairing)
-	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
-	return err
+	verifier, err := NewVerifier(api, curve, pairing)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	return verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness, WithVerifierHashToFieldFn(mimc))
 }
 
 func TestBN254InBN254(t *testing.T) {
@@ -140,6 +194,7 @@ func TestBN254InBN254(t *testing.T) {
 	assert.NoError(err)
 
 	outerCircuit := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		Proof:        PlaceholderProof[sw_bn254.G1Affine, sw_bn254.G2Affine](innerCcs),
 		InnerWitness: PlaceholderWitness[sw_bn254.ScalarField](innerCcs),
 		VerifyingKey: PlaceholderVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerCcs),
 	}
@@ -149,6 +204,41 @@ func TestBN254InBN254(t *testing.T) {
 		VerifyingKey: circuitVk,
 	}
 	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BN254))
+}
+
+func TestBN254InBN254Commitment(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	h, err := recursion.NewShort(ecc.BN254.ScalarField(), ecc.BN254.ScalarField())
+	if err != nil {
+		panic("hash function failed: " + err.Error())
+	}
+
+	innerCcs, innerVK, innerWitness, innerProof := getInnerCommitment(assert, ecc.BN254.ScalarField(), h)
+
+	// outer proof
+	circuitVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVK)
+	assert.NoError(err)
+	circuitWitness, err := ValueOfWitness[sw_bn254.ScalarField](innerWitness)
+	assert.NoError(err)
+	circuitProof, err := ValueOfProof[sw_bn254.G1Affine, sw_bn254.G2Affine](innerProof)
+	assert.NoError(err)
+
+	outerCircuit := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		Proof:        PlaceholderProof[sw_bn254.G1Affine, sw_bn254.G2Affine](innerCcs),
+		InnerWitness: PlaceholderWitness[sw_bn254.ScalarField](innerCcs),
+		VerifyingKey: PlaceholderVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerCcs),
+	}
+	outerAssignment := &OuterCircuit[sw_bn254.ScalarField, sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]{
+		InnerWitness: circuitWitness,
+		Proof:        circuitProof,
+		VerifyingKey: circuitVk,
+	}
+	assert.CheckCircuit(
+		outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BN254), test.NoTestEngine(), test.WithBackends(backend.GROTH16),
+		test.WithProverOpts(backend.WithProverHashToFieldFunction(h)), test.WithVerifierOpts(backend.WithVerifierHashToFieldFunction(h)),
+		test.WithProverChecks(),
+	)
 }
 
 func TestBLS12InBW6(t *testing.T) {
@@ -367,9 +457,11 @@ func (c *OuterCircuitConstant[FR, G1El, G2El, GtEl]) Define(api frontend.API) er
 	if err != nil {
 		return fmt.Errorf("get pairing: %w", err)
 	}
-	verifier := NewVerifier(curve, pairing)
-	err = verifier.AssertProof(c.vk, c.Proof, c.InnerWitness)
-	return err
+	verifier, err := NewVerifier(api, curve, pairing)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	return verifier.AssertProof(c.vk, c.Proof, c.InnerWitness)
 }
 
 func TestBW6InBN254Constant(t *testing.T) {

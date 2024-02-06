@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -129,8 +130,19 @@ func (c *Curve[B, S]) MarshalG1(p AffinePoint[B]) []frontend.Variable {
 	copy(res[len(bx):], by)
 	xZ := c.baseApi.IsZero(x)
 	yZ := c.baseApi.IsZero(y)
-	res[1] = c.api.Mul(xZ, yZ)
+	isZero := c.api.Mul(xZ, yZ)
+	res[1] = c.api.Select(isZero, c.marshalZeroG1(), res[1])
 	return res
+}
+
+// different curves have different marshalling for zero point
+func (c *Curve[B, S]) marshalZeroG1() frontend.Variable {
+	var fp B
+	if fp.Modulus().Cmp(ecc.BN254.BaseField()) == 0 {
+		return 0
+	}
+
+	return 1
 }
 
 // Neg returns an inverse of p. It doesn't modify p.

@@ -90,9 +90,11 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("get pairing: %w", err)
 	}
-	verifier := stdgroth16.NewVerifier(curve, pairing)
-	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
-	return err
+	verifier, err := stdgroth16.NewVerifier(api, curve, pairing)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	return verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
 }
 
 // Example of verifying recursively BN254 Groth16 proof in BN254 Groth16 circuit using field emulation

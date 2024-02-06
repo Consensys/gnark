@@ -13,6 +13,7 @@ import (
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
+	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
 	groth16backend_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
@@ -21,7 +22,9 @@ import (
 	groth16backend_bw6761 "github.com/consensys/gnark/backend/groth16/bw6-761"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
@@ -34,13 +37,16 @@ import (
 // Proof is a typed Groth16 proof of SNARK. Use [ValueOfProof] to initialize the
 // witness from the native proof.
 type Proof[G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
-	Ar, Krs G1El
-	Bs      G2El
+	Ar, Krs       G1El
+	Bs            G2El
+	Commitments   []G1El
+	CommitmentPok G1El
 }
 
 // ValueOfProof returns the typed witness of the native proof. It returns an
 // error if there is a mismatch between the type parameters and the provided
-// native proof.
+// native proof. For witness creation use the method [ValueOfProof] and for
+// stub placeholder use [PlaceholderProof].
 func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth16.Proof) (Proof[G1El, G2El], error) {
 	var ret Proof[G1El, G2El]
 	switch ar := any(&ret).(type) {
@@ -52,6 +58,12 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 		ar.Ar = sw_bn254.NewG1Affine(tProof.Ar)
 		ar.Krs = sw_bn254.NewG1Affine(tProof.Krs)
 		ar.Bs = sw_bn254.NewG2Affine(tProof.Bs)
+		ar.Commitments = make([]sw_bn254.G1Affine, 0, len(tProof.Commitments))
+		for _, c := range tProof.Commitments {
+			point := sw_bn254.NewG1Affine(c)
+			ar.Commitments = append(ar.Commitments, point)
+		}
+		ar.CommitmentPok = sw_bn254.NewG1Affine(tProof.CommitmentPok)
 	case *Proof[sw_bls12377.G1Affine, sw_bls12377.G2Affine]:
 		tProof, ok := proof.(*groth16backend_bls12377.Proof)
 		if !ok {
@@ -60,6 +72,12 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 		ar.Ar = sw_bls12377.NewG1Affine(tProof.Ar)
 		ar.Krs = sw_bls12377.NewG1Affine(tProof.Krs)
 		ar.Bs = sw_bls12377.NewG2Affine(tProof.Bs)
+		ar.Commitments = make([]sw_bls12377.G1Affine, 0, len(tProof.Commitments))
+		for _, c := range tProof.Commitments {
+			point := sw_bls12377.NewG1Affine(c)
+			ar.Commitments = append(ar.Commitments, point)
+		}
+		ar.CommitmentPok = sw_bls12377.NewG1Affine(tProof.CommitmentPok)
 	case *Proof[sw_bls12381.G1Affine, sw_bls12381.G2Affine]:
 		tProof, ok := proof.(*groth16backend_bls12381.Proof)
 		if !ok {
@@ -68,6 +86,12 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 		ar.Ar = sw_bls12381.NewG1Affine(tProof.Ar)
 		ar.Krs = sw_bls12381.NewG1Affine(tProof.Krs)
 		ar.Bs = sw_bls12381.NewG2Affine(tProof.Bs)
+		ar.Commitments = make([]sw_bls12381.G1Affine, 0, len(tProof.Commitments))
+		for _, c := range tProof.Commitments {
+			point := sw_bls12381.NewG1Affine(c)
+			ar.Commitments = append(ar.Commitments, point)
+		}
+		ar.CommitmentPok = sw_bls12381.NewG1Affine(tProof.CommitmentPok)
 	case *Proof[sw_bls24315.G1Affine, sw_bls24315.G2Affine]:
 		tProof, ok := proof.(*groth16backend_bls24315.Proof)
 		if !ok {
@@ -76,6 +100,12 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 		ar.Ar = sw_bls24315.NewG1Affine(tProof.Ar)
 		ar.Krs = sw_bls24315.NewG1Affine(tProof.Krs)
 		ar.Bs = sw_bls24315.NewG2Affine(tProof.Bs)
+		ar.Commitments = make([]sw_bls24315.G1Affine, 0, len(tProof.Commitments))
+		for _, c := range tProof.Commitments {
+			point := sw_bls24315.NewG1Affine(c)
+			ar.Commitments = append(ar.Commitments, point)
+		}
+		ar.CommitmentPok = sw_bls24315.NewG1Affine(tProof.CommitmentPok)
 	case *Proof[sw_bw6761.G1Affine, sw_bw6761.G2Affine]:
 		tProof, ok := proof.(*groth16backend_bw6761.Proof)
 		if !ok {
@@ -84,19 +114,33 @@ func ValueOfProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](proof groth1
 		ar.Ar = sw_bw6761.NewG1Affine(tProof.Ar)
 		ar.Krs = sw_bw6761.NewG1Affine(tProof.Krs)
 		ar.Bs = sw_bw6761.NewG2Affine(tProof.Bs)
+		ar.Commitments = make([]sw_bw6761.G1Affine, 0, len(tProof.Commitments))
+		for _, c := range tProof.Commitments {
+			point := sw_bw6761.NewG1Affine(c)
+			ar.Commitments = append(ar.Commitments, point)
+		}
+		ar.CommitmentPok = sw_bw6761.NewG1Affine(tProof.CommitmentPok)
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
 	return ret, nil
 }
 
+func PlaceholderProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) Proof[G1El, G2El] {
+	return Proof[G1El, G2El]{
+		Commitments: make([]G1El, len(ccs.GetCommitments().(constraint.Groth16Commitments))),
+	}
+}
+
 // VerifyingKey is a typed Groth16 verifying key for checking SNARK proofs. For
 // witness creation use the method [ValueOfVerifyingKey] and for stub
 // placeholder use [PlaceholderVerifyingKey].
 type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	E  GtEl
-	G1 struct{ K []G1El }
-	G2 struct{ GammaNeg, DeltaNeg G2El }
+	E                            GtEl
+	G1                           struct{ K []G1El }
+	G2                           struct{ GammaNeg, DeltaNeg G2El }
+	CommitmentKey                PedersenCommitmentKey[G2El]
+	PublicAndCommitmentCommitted [][]int
 }
 
 // PlaceholderVerifyingKey returns an empty verifying key for a given compiled
@@ -104,18 +148,26 @@ type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra
 // public inputs and commitments used, this method allocates sufficient space
 // regardless of the actual verifying key.
 func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](ccs constraint.ConstraintSystem) VerifyingKey[G1El, G2El, GtEl] {
+	commitments := ccs.GetCommitments().(constraint.Groth16Commitments)
+	commitmentWires := commitments.CommitmentIndexes()
+
 	return VerifyingKey[G1El, G2El, GtEl]{
 		G1: struct{ K []G1El }{
-			K: make([]G1El, ccs.GetNbPublicVariables()),
+			K: make([]G1El, ccs.GetNbPublicVariables()+len(ccs.GetCommitments().(constraint.Groth16Commitments))),
 		},
+		PublicAndCommitmentCommitted: commitments.GetPublicAndCommitmentCommitted(commitmentWires, ccs.GetNbPublicVariables()),
 	}
 }
 
 func PlaceholderVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](ccs constraint.ConstraintSystem) VerifyingKey[G1El, G2El, GtEl] {
+	commitments := ccs.GetCommitments().(constraint.Groth16Commitments)
+	commitmentWires := commitments.CommitmentIndexes()
+
 	vk := VerifyingKey[G1El, G2El, GtEl]{
 		G1: struct{ K []G1El }{
-			K: make([]G1El, ccs.GetNbPublicVariables()),
+			K: make([]G1El, ccs.GetNbPublicVariables()+len(ccs.GetCommitments().(constraint.Groth16Commitments))),
 		},
+		PublicAndCommitmentCommitted: commitments.GetPublicAndCommitmentCommitted(commitmentWires, ccs.GetNbPublicVariables()),
 	}
 	switch s := any(&vk).(type) {
 	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]:
@@ -190,6 +242,9 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bn254.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bn254.NewG2Affine(gammaNeg)
+
+		s.CommitmentKey.G = sw_bn254.NewG2Affine(tVk.CommitmentKey.G)
+		s.CommitmentKey.GRootSigmaNeg = sw_bn254.NewG2Affine(tVk.CommitmentKey.GRootSigmaNeg)
 	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
@@ -210,6 +265,9 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12377.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls12377.NewG2Affine(gammaNeg)
+
+		s.CommitmentKey.G = sw_bls12377.NewG2Affine(tVk.CommitmentKey.G)
+		s.CommitmentKey.GRootSigmaNeg = sw_bls12377.NewG2Affine(tVk.CommitmentKey.GRootSigmaNeg)
 	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
 		tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
 		if !ok {
@@ -230,6 +288,9 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12381.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls12381.NewG2Affine(gammaNeg)
+
+		s.CommitmentKey.G = sw_bls12381.NewG2Affine(tVk.CommitmentKey.G)
+		s.CommitmentKey.GRootSigmaNeg = sw_bls12381.NewG2Affine(tVk.CommitmentKey.GRootSigmaNeg)
 	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
 		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
 		if !ok {
@@ -250,6 +311,9 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls24315.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls24315.NewG2Affine(gammaNeg)
+
+		s.CommitmentKey.G = sw_bls24315.NewG2Affine(tVk.CommitmentKey.G)
+		s.CommitmentKey.GRootSigmaNeg = sw_bls24315.NewG2Affine(tVk.CommitmentKey.GRootSigmaNeg)
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
 		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
 		if !ok {
@@ -270,6 +334,9 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bw6761.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bw6761.NewG2Affine(gammaNeg)
+
+		s.CommitmentKey.G = sw_bw6761.NewG2Affine(tVk.CommitmentKey.G)
+		s.CommitmentKey.GRootSigmaNeg = sw_bw6761.NewG2Affine(tVk.CommitmentKey.GRootSigmaNeg)
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
@@ -466,36 +533,103 @@ func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], er
 
 // Verifier verifies Groth16 proofs.
 type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	curve   algebra.Curve[FR, G1El]
-	pairing algebra.Pairing[G1El, G2El, GtEl]
+	curve     algebra.Curve[FR, G1El]
+	pairing   algebra.Pairing[G1El, G2El, GtEl]
+	api       frontend.API
+	scalarApi *emulated.Field[FR]
 }
 
 // NewVerifier returns a new [Verifier] instance using the curve and pairing
 // interfaces. Use methods [algebra.GetCurve] and [algebra.GetPairing] to
 // initialize the instances.
-func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](curve algebra.Curve[FR, G1El], pairing algebra.Pairing[G1El, G2El, GtEl]) *Verifier[FR, G1El, G2El, GtEl] {
-	return &Verifier[FR, G1El, G2El, GtEl]{
-		curve:   curve,
-		pairing: pairing,
+func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
+	api frontend.API, curve algebra.Curve[FR, G1El], pairing algebra.Pairing[G1El, G2El, GtEl],
+) (*Verifier[FR, G1El, G2El, GtEl], error) {
+	f, err := emulated.NewField[FR](api)
+	if err != nil {
+		return nil, err
 	}
+
+	return &Verifier[FR, G1El, G2El, GtEl]{
+		curve:     curve,
+		pairing:   pairing,
+		api:       api,
+		scalarApi: f,
+	}, nil
 }
 
 // AssertProof asserts that the SNARK proof holds for the given witness and
 // verifying key.
-func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR]) error {
+func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR], opts ...VerifierOption) error {
+	nbPublicVars := len(vk.G1.K) - len(vk.PublicAndCommitmentCommitted)
+	if len(witness.Public) != nbPublicVars-1 {
+		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(witness.Public), len(vk.G1.K)-1)
+	}
+
 	inP := make([]*G1El, len(vk.G1.K)-1) // first is for the one wire, we add it manually after MSM
 	for i := range inP {
 		inP[i] = &vk.G1.K[i+1]
 	}
-	inS := make([]*emulated.Element[FR], len(witness.Public))
-	for i := range inS {
-		inS[i] = &witness.Public[i]
+	inS := make([]*emulated.Element[FR], 0, len(witness.Public)+len(vk.PublicAndCommitmentCommitted))
+	for i := range witness.Public {
+		inS = append(inS, &witness.Public[i])
 	}
-	kSum, err := v.curve.MultiScalarMul(inP, inS)
+
+	opt, err := newCfg(opts...)
+	if err != nil {
+		return err
+	}
+
+	if opt.HashToFieldFn == nil && len(vk.PublicAndCommitmentCommitted) > 0 {
+		return fmt.Errorf("HashToFieldFn is required when there are commitments")
+	}
+
+	maxNbPublicCommitted := 0
+	for _, s := range vk.PublicAndCommitmentCommitted { // iterate over commitments
+		maxNbPublicCommitted = utils.Max(maxNbPublicCommitted, len(s))
+	}
+
+	var fp FR
+	nbBits := 8 * ((fp.Modulus().BitLen() + 7) / 8)
+
+	commitmentsSerialized := make([]frontend.Variable, len(vk.PublicAndCommitmentCommitted)*nbBits)
+	commitmentPrehashSerialized := make([]frontend.Variable, 2*nbBits+maxNbPublicCommitted*nbBits)
+	for i := range vk.PublicAndCommitmentCommitted { // solveCommitmentWire
+		copy(commitmentPrehashSerialized, v.curve.MarshalG1(proof.Commitments[i]))
+		offset := 2 * nbBits
+		for j := range vk.PublicAndCommitmentCommitted[i] {
+			copy(commitmentPrehashSerialized[offset:], v.curve.MarshalScalar(*inS[vk.PublicAndCommitmentCommitted[i][j]-1]))
+			offset += nbBits
+		}
+
+		opt.HashToFieldFn.Write(commitmentPrehashSerialized[:offset]...)
+		h := opt.HashToFieldFn.Sum()
+		opt.HashToFieldFn.Reset()
+
+		res := v.scalarApi.FromBits(v.api.ToBinary(h)...)
+
+		inS = append(inS, res)
+		copy(commitmentsSerialized[i*nbBits:], v.curve.MarshalScalar(*res))
+	}
+
+	if len(vk.PublicAndCommitmentCommitted) > 0 {
+		if folded, err := FoldCommitments[FR, G1El](v.api, v.scalarApi, v.curve, proof.Commitments, commitmentsSerialized); err != nil {
+			return err
+		} else {
+			v.AssertCommitment(vk, folded, proof.CommitmentPok)
+		}
+	}
+
+	kSum, err := v.curve.MultiScalarMul(inP, inS, algopts.WithCompleteArithmetic())
 	if err != nil {
 		return fmt.Errorf("multi scalar mul: %w", err)
 	}
 	kSum = v.curve.Add(kSum, &vk.G1.K[0])
+
+	for i := range proof.Commitments {
+		kSum = v.curve.Add(kSum, &proof.Commitments[i])
+	}
+
 	pairing, err := v.pairing.Pair([]*G1El{kSum, &proof.Krs, &proof.Ar}, []*G2El{&vk.G2.GammaNeg, &vk.G2.DeltaNeg, &proof.Bs})
 	if err != nil {
 		return fmt.Errorf("pairing: %w", err)
