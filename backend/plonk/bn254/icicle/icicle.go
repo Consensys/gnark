@@ -1136,49 +1136,36 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
 
-				nbTasks := calculateNbTasks(len(s.x)-1) * 2
-				p.ToCanonical(&s.pk.Domain[0], nbTasks).ToRegular()
-
 				cp := p.Coefficients()
 				utils.Parallelize(len(cp), func(start, end int) {
 					for j := start; j < end; j++ {
-						cp[j].Mul(&cp[j], &w[j])
+						cp[j].Set(&res[j])
 					}
 				}, nbTasks)
-
-				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
-
-				cp = p.Coefficients()
-				isEqual := 0
-				notEqual := 0
-				for j := 0; j < len(res); j++ {
-					if res[j] != cp[j] {
-						notEqual++
-					} else {
-						isEqual++
-					}
-				}
-				fmt.Print("GPU == CPU for poly:", pn, " isEqual: ", isEqual, " notEqual: ", notEqual, "\n")
-
-				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 
 				computeInttNttDone <- nil
 				iciclegnark.FreeDevicePointer(a_intt_d)
 			}
+
+			computeNttDone := make(chan error, 1)
+			computeNttOnDevice := func(scaleVecPtr, devicePointer unsafe.Pointer) {
+				iciclegnark.VecMulOnDevice(devicePointer, scaleVecPtr, n)
+				iciclegnark.NttOnDevice(devicePointer, devicePointer, s.pk.deviceInfo.DomainDevice.Twiddles, nil, n, n, sizeBytes, false)
+				iciclegnark.MontConvOnDevice(devicePointer, n, true)
+
+				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
+				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
+
+				computeNttDone <- nil
+			}
+
 			// Run computeInttNttOnDevice on device
 			if p.Basis == iop.Lagrange {
 				go computeInttNttOnDevice(w_device, a_device)
 				_ = <-computeInttNttDone
-
 			} else {
-				cp := p.Coefficients()
-				utils.Parallelize(len(cp), func(start, end int) {
-					for j := start; j < end; j++ {
-						cp[j].Mul(&cp[j], &w[j])
-					}
-				}, nbTasks)
-
-				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
+				go computeNttOnDevice(w_device, a_device)
+				_ = <- computeNttDone
 			}
 
 			go func() {

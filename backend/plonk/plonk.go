@@ -172,7 +172,13 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ..
 			return witness.ErrInvalidWitness
 		}
 		return icicle_bn254.Verify(_proof, vk.(*icicle_bn254.VerifyingKey), w, opts...)
-		// TODO add plonk_bn254.Verify
+
+	case *plonk_bn254.Proof:
+		w, ok := publicWitness.Vector().(fr_bn254.Vector)
+		if !ok {
+			return witness.ErrInvalidWitness
+		}
+		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), w, opts...)
 
 	case *plonk_bls12381.Proof:
 		w, ok := publicWitness.Vector().(fr_bls12381.Vector)
