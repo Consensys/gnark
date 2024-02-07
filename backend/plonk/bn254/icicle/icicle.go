@@ -1094,17 +1094,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	m := uint64(s.pk.Domain[1].Cardinality)
 	mm := uint64(64 - bits.TrailingZeros64(m))
 
-	var devicePointers []unsafe.Pointer
-	for i := 0; i < len(s.x); i++ {
-		sizeBytes := s.x[i].Size() * fr.Bytes
-
-		copyADone := make(chan unsafe.Pointer, 1)
-		go iciclegnark.CopyToDevice(s.x[i].Coefficients(), sizeBytes, copyADone)
-		a_device := <-copyADone
-
-		devicePointers = append(devicePointers, a_device)
-	}
-
 	for i := 0; i < rho; i++ {
 
 		coset.Mul(&coset, &shifters[i])
@@ -1126,10 +1115,9 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			n := p.Size()
 			sizeBytes := p.Size() * fr.Bytes
 
-			//copyADone := make(chan unsafe.Pointer, 1)
-			//go iciclegnark.CopyToDevice(p.Coefficients(), sizeBytes, copyADone)
-			//a_device := <-copyADone
-			a_device := devicePointers[pn]
+			copyADone := make(chan unsafe.Pointer, 1)
+			go iciclegnark.CopyToDevice(p.Coefficients(), sizeBytes, copyADone)
+			a_device := <-copyADone
 
 			// scale by shifter[i]
 			w := selectScalingVector(i, p.Layout, pn)
