@@ -11,16 +11,16 @@ type Proof[FR emulated.FieldParams] struct {
 	FinalEvalProof       EvaluationProof
 }
 
-type NativeProof struct {
-	RoundPolyEvaluations []NativePolynomial
-	FinalEvalProof       NativeEvaluationProof
+type nativeProof struct {
+	RoundPolyEvaluations []nativePolynomial
+	FinalEvalProof       nativeEvaluationProof
 }
 
 type EvaluationProof interface{}
 
-type NativeEvaluationProof interface{}
+type nativeEvaluationProof interface{}
 
-func ValueOfProof[FR emulated.FieldParams](nproof NativeProof) Proof[FR] {
+func ValueOfProof[FR emulated.FieldParams](nproof nativeProof) Proof[FR] {
 	rps := make([]polynomial.Univariate[FR], len(nproof.RoundPolyEvaluations))
 	for i := range nproof.RoundPolyEvaluations {
 		rps[i] = polynomial.ValueOfUnivariate[FR](nproof.RoundPolyEvaluations[i])
@@ -31,7 +31,7 @@ func ValueOfProof[FR emulated.FieldParams](nproof NativeProof) Proof[FR] {
 	}
 }
 
-func PlaceholderMultilinearProof[FR emulated.FieldParams](nbVars int) Proof[FR] {
+func placeholderMultilinearProof[FR emulated.FieldParams](nbVars int) Proof[FR] {
 	rps := make([]polynomial.Univariate[FR], nbVars)
 	for i := range rps {
 		rps[i] = polynomial.PlaceholderUnivariate[FR](1)
@@ -41,7 +41,7 @@ func PlaceholderMultilinearProof[FR emulated.FieldParams](nbVars int) Proof[FR] 
 	}
 }
 
-func PlaceholderGateProof[FR emulated.FieldParams](nbVars int, gateDegree int) Proof[FR] {
+func placeholderGateProof[FR emulated.FieldParams](nbVars int, gateDegree int) Proof[FR] {
 	rps := make([]polynomial.Univariate[FR], nbVars)
 	for i := range rps {
 		rps[i] = polynomial.PlaceholderUnivariate[FR](gateDegree + 1)

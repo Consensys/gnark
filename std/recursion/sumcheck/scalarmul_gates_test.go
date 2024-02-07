@@ -14,7 +14,7 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-type projAddGate[AE ArithEngine[E], E Element] struct {
+type projAddGate[AE arithEngine[E], E element] struct {
 	folding E
 }
 
@@ -102,7 +102,7 @@ func (c *ProjAddSumcheckCircuit[FR]) Define(api frontend.API) error {
 	for i := range c.EvaluationPoints {
 		evalPoints[i] = polynomial.FromSlice[FR](c.EvaluationPoints[i])
 	}
-	claim, err := NewGate[FR](api, projAddGate[*emuEngine[FR], *emulated.Element[FR]]{f.NewElement(123)}, inputs, evalPoints, claimedEvals)
+	claim, err := newGate[FR](api, projAddGate[*emuEngine[FR], *emulated.Element[FR]]{f.NewElement(123)}, inputs, evalPoints, claimedEvals)
 	if err != nil {
 		return fmt.Errorf("new gate claim: %w", err)
 	}
@@ -124,14 +124,14 @@ func testProjAddSumCheckInstance[FR emulated.FieldParams](t *testing.T, current 
 		}
 	}
 	evalPointsB, evalPointsPH, evalPointsC := getChallengeEvaluationPoints[FR](inputB)
-	claim, evals, err := NewNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
+	claim, evals, err := newNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
 	assert.NoError(err)
-	proof, err := Prove(current, fr.Modulus(), claim)
+	proof, err := prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(inputs[0]))) - 1
 	circuit := &ProjAddSumcheckCircuit[FR]{
 		Inputs:           make([][]emulated.Element[FR], len(inputs)),
-		Proof:            PlaceholderGateProof[FR](nbVars, nativeGate.Degree()),
+		Proof:            placeholderGateProof[FR](nbVars, nativeGate.Degree()),
 		EvaluationPoints: evalPointsPH,
 		Claimed:          make([]emulated.Element[FR], 1),
 	}
@@ -168,11 +168,11 @@ func TestProjAddSumCheckSumcheck(t *testing.T) {
 	testProjAddSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), inputs)
 }
 
-type dblAddSelectGate[AE ArithEngine[E], E Element] struct {
+type dblAddSelectGate[AE arithEngine[E], E element] struct {
 	folding []E
 }
 
-func projAdd[AE ArithEngine[E], E Element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
+func projAdd[AE arithEngine[E], E element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
 	b3 := api.Const(big.NewInt(21))
 	t0 := api.Mul(X1, X2)
 	t1 := api.Mul(Y1, Y2)
@@ -210,7 +210,7 @@ func projAdd[AE ArithEngine[E], E Element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3
 	return
 }
 
-func projSelect[AE ArithEngine[E], E Element](api AE, selector, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
+func projSelect[AE arithEngine[E], E element](api AE, selector, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
 	X3 = api.Sub(X1, X2)
 	X3 = api.Mul(selector, X3)
 	X3 = api.Add(X3, X2)
@@ -225,7 +225,7 @@ func projSelect[AE ArithEngine[E], E Element](api AE, selector, X1, Y1, Z1, X2, 
 	return
 }
 
-func projDbl[AE ArithEngine[E], E Element](api AE, X, Y, Z E) (X3, Y3, Z3 E) {
+func projDbl[AE arithEngine[E], E element](api AE, X, Y, Z E) (X3, Y3, Z3 E) {
 	b3 := api.Const(big.NewInt(21))
 	t0 := api.Mul(Y, Y)
 	Z3 = api.Add(t0, t0)
@@ -339,7 +339,7 @@ func (c *ProjDblAddSelectSumcheckCircuit[FR]) Define(api frontend.API) error {
 	for i := range c.EvaluationPoints {
 		evalPoints[i] = polynomial.FromSlice[FR](c.EvaluationPoints[i])
 	}
-	claim, err := NewGate[FR](api, dblAddSelectGate[*emuEngine[FR],
+	claim, err := newGate[FR](api, dblAddSelectGate[*emuEngine[FR],
 		*emulated.Element[FR]]{
 		folding: []*emulated.Element[FR]{
 			f.NewElement(1),
@@ -378,14 +378,14 @@ func testProjDblAddSelectSumCheckInstance[FR emulated.FieldParams](t *testing.T,
 		}
 	}
 	evalPointsB, evalPointsPH, evalPointsC := getChallengeEvaluationPoints[FR](inputB)
-	claim, evals, err := NewNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
+	claim, evals, err := newNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
 	assert.NoError(err)
-	proof, err := Prove(current, fr.Modulus(), claim)
+	proof, err := prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(inputs[0]))) - 1
 	circuit := &ProjDblAddSelectSumcheckCircuit[FR]{
 		Inputs:           make([][]emulated.Element[FR], len(inputs)),
-		Proof:            PlaceholderGateProof[FR](nbVars, nativeGate.Degree()),
+		Proof:            placeholderGateProof[FR](nbVars, nativeGate.Degree()),
 		EvaluationPoints: evalPointsPH,
 		Claimed:          make([]emulated.Element[FR], 1),
 	}

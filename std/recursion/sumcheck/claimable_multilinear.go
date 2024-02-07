@@ -18,7 +18,7 @@ type multilinearClaim[FR emulated.FieldParams] struct {
 	p *polynomial.Polynomial[FR]
 }
 
-func NewMultilinearClaim[FR emulated.FieldParams](api frontend.API, ml polynomial.Multilinear[FR], claim *emulated.Element[FR]) (LazyClaims[FR], error) {
+func newMultilinearClaim[FR emulated.FieldParams](api frontend.API, ml polynomial.Multilinear[FR], claim *emulated.Element[FR]) (LazyClaims[FR], error) {
 	f, err := emulated.NewField[FR](api)
 	if err != nil {
 		return nil, fmt.Errorf("new field: %w", err)
@@ -67,7 +67,7 @@ type nativeMultilinearClaim struct {
 	ml []*big.Int
 }
 
-func NewNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim Claims, hypersum *big.Int, err error) {
+func newNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim claims, hypersum *big.Int, err error) {
 	if bits.OnesCount(uint(len(ml))) != 1 {
 		return nil, nil, fmt.Errorf("expecting power of two coeffs")
 	}
@@ -91,16 +91,16 @@ func (fn *nativeMultilinearClaim) NbVars() int {
 	return bits.Len(uint(len(fn.ml))) - 1
 }
 
-func (fn *nativeMultilinearClaim) Combine(coeff *big.Int) NativePolynomial {
+func (fn *nativeMultilinearClaim) Combine(coeff *big.Int) nativePolynomial {
 	return []*big.Int{hypesumX1One(fn.be, fn.ml)}
 }
 
-func (fn *nativeMultilinearClaim) Next(r *big.Int) NativePolynomial {
+func (fn *nativeMultilinearClaim) Next(r *big.Int) nativePolynomial {
 	fn.ml = fold(fn.be, fn.ml, r)
 	return []*big.Int{hypesumX1One(fn.be, fn.ml)}
 }
 
-func (fn *nativeMultilinearClaim) ProverFinalEval(r []*big.Int) NativeEvaluationProof {
+func (fn *nativeMultilinearClaim) ProverFinalEval(r []*big.Int) nativeEvaluationProof {
 	// verifier computes the value of the multilinear function itself
 	return nil
 }

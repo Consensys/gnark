@@ -18,19 +18,19 @@ type LazyClaims[FR emulated.FieldParams] interface {
 }
 
 // Claims is the interface for the claimable function for proving.
-type Claims interface {
+type claims interface {
 	NbClaims() int
 	NbVars() int
 	// Combine combines separate claims into a single sumcheckable claim using
 	// the coefficient coeff. It returns the combined claim.
 	//
 	// TODO: should we return a new [Claim] instead to make it stateless?
-	Combine(coeff *big.Int) NativePolynomial
+	Combine(coeff *big.Int) nativePolynomial
 
 	// Next fixes the first len(r) variables to r, keeps the next
 	// variable free and sums over a hypercube for the last variables. Instead
 	// of returning the polynomial in coefficient form, it returns the
 	// evaluations at degree different points.
-	Next(r *big.Int) NativePolynomial
-	ProverFinalEval(r []*big.Int) NativeEvaluationProof
+	Next(r *big.Int) nativePolynomial
+	ProverFinalEval(r []*big.Int) nativeEvaluationProof
 }

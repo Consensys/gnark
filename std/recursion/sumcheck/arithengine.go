@@ -8,8 +8,8 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-type Element interface{}
-type ArithEngine[E Element] interface {
+type element interface{}
+type arithEngine[E element] interface {
 	Add(a, b E) E
 	Mul(a, b E) E
 	Sub(a, b E) E
