@@ -211,13 +211,15 @@ func projAdd[AE ArithEngine[E], E Element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3
 }
 
 func projSelect[AE ArithEngine[E], E Element](api AE, selector, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
-	X3 = api.Sub(X2, X1)
+	X3 = api.Sub(X1, X2)
 	X3 = api.Mul(selector, X3)
 	X3 = api.Add(X3, X2)
-	Y3 = api.Sub(Y2, Y1)
+
+	Y3 = api.Sub(Y1, Y2)
 	Y3 = api.Mul(selector, Y3)
 	Y3 = api.Add(Y3, Y2)
-	Z3 = api.Sub(Z2, Z1)
+
+	Z3 = api.Sub(Z1, Z2)
 	Z3 = api.Mul(selector, Z3)
 	Z3 = api.Add(Z3, Z2)
 	return
@@ -266,17 +268,17 @@ func (m dblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	AccX, AccY, AccZ := projDbl(api, X1, Y1, Z1)
 
 	// folding part
-	f1 := api.Mul(m.folding[0], ResX)
-	f2 := api.Mul(m.folding[1], ResY)
-	f3 := api.Mul(m.folding[2], ResZ)
-	f4 := api.Mul(m.folding[3], AccX)
-	f5 := api.Mul(m.folding[4], AccY)
-	f6 := api.Mul(m.folding[5], AccZ)
-	res := api.Add(f1, f2)
+	f0 := api.Mul(m.folding[0], AccX)
+	f1 := api.Mul(m.folding[1], AccY)
+	f2 := api.Mul(m.folding[2], AccZ)
+	f3 := api.Mul(m.folding[3], ResX)
+	f4 := api.Mul(m.folding[4], ResY)
+	f5 := api.Mul(m.folding[5], ResZ)
+	res := api.Add(f0, f1)
+	res = api.Add(res, f2)
 	res = api.Add(res, f3)
 	res = api.Add(res, f4)
 	res = api.Add(res, f5)
-	res = api.Add(res, f6)
 	return res
 }
 
