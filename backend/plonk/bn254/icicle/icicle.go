@@ -1094,6 +1094,17 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	m := uint64(s.pk.Domain[1].Cardinality)
 	mm := uint64(64 - bits.TrailingZeros64(m))
 
+	var devicePointers []unsafe.Pointer
+	for i := 0; i < len(s.x); i++ {
+		sizeBytes := s.x[i].Size() * fr.Bytes
+
+		copyADone := make(chan unsafe.Pointer, 1)
+		go iciclegnark.CopyToDevice(s.x[i].Coefficients(), sizeBytes, copyADone)
+		a_device := <-copyADone
+
+		devicePointers = append(devicePointers, a_device)
+	}
+
 	for i := 0; i < rho; i++ {
 
 		coset.Mul(&coset, &shifters[i])
@@ -1111,13 +1122,14 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		batchTime := time.Now()
 		batchApply(s.x, func(p *iop.Polynomial, pn int) {
 			nbTasks := calculateNbTasks(len(s.x)-1) * 2
-			// ON Device
+
 			n := p.Size()
 			sizeBytes := p.Size() * fr.Bytes
 
-			copyADone := make(chan unsafe.Pointer, 1)
-			go iciclegnark.CopyToDevice(p.Coefficients(), sizeBytes, copyADone)
-			a_device := <-copyADone
+			//copyADone := make(chan unsafe.Pointer, 1)
+			//go iciclegnark.CopyToDevice(p.Coefficients(), sizeBytes, copyADone)
+			//a_device := <-copyADone
+			a_device := devicePointers[pn]
 
 			// scale by shifter[i]
 			w := selectScalingVector(i, p.Layout, pn)
@@ -1128,15 +1140,19 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 			// Initialize channels
 			computeInttNttDone := make(chan error, 1)
+
+			// INTT and NTT on device
 			computeInttNttOnDevice := func(scaleVecPtr, devicePointer unsafe.Pointer) {
 				a_intt_d := iciclegnark.INttOnDevice(devicePointer, s.pk.deviceInfo.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
 
+				// Multiply by shifter[i]
 				iciclegnark.VecMulOnDevice(a_intt_d, scaleVecPtr, n)
 				iciclegnark.NttOnDevice(devicePointer, a_intt_d, s.pk.deviceInfo.DomainDevice.Twiddles, nil, n, n, sizeBytes, false)
 				iciclegnark.MontConvOnDevice(devicePointer, n, true)
 
 				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
 
+				// Copy back to host
 				cp := p.Coefficients()
 				utils.Parallelize(len(cp), func(start, end int) {
 					for j := start; j < end; j++ {
@@ -1148,19 +1164,22 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				iciclegnark.FreeDevicePointer(a_intt_d)
 			}
 
+			// NTT on device
 			computeNttDone := make(chan error, 1)
 			computeNttOnDevice := func(scaleVecPtr, devicePointer unsafe.Pointer) {
+				// Multiply by shifter[i]
 				iciclegnark.VecMulOnDevice(devicePointer, scaleVecPtr, n)
 				iciclegnark.NttOnDevice(devicePointer, devicePointer, s.pk.deviceInfo.DomainDevice.Twiddles, nil, n, n, sizeBytes, false)
 				iciclegnark.MontConvOnDevice(devicePointer, n, true)
 
+				// Copy back to host
 				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
 				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 
 				computeNttDone <- nil
 			}
 
-			// Run computeInttNttOnDevice on device
+			// Run INTT and NTT on device
 			if p.Basis == iop.Lagrange {
 				go computeInttNttOnDevice(w_device, a_device)
 				_ = <-computeInttNttDone
