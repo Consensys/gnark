@@ -1238,10 +1238,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			n := p.Size()
 			sizeBytes := p.Size() * fr.Bytes
 
-			copyADone := make(chan unsafe.Pointer, 1)
-			go iciclegnark.CopyToDevice(p.Coefficients(), sizeBytes, copyADone)
-			a_device := <-copyADone
-
 			var acc fr.Element
 			acc.SetOne()
 			accList := make([]fr.Element, p.Size())
@@ -1266,11 +1262,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 
+				iciclegnark.MontConvOnDevice(a_intt_d, n, false)
+
 				computeInttNttDone <- nil
 				iciclegnark.FreeDevicePointer(a_intt_d)
 			}
 			// Run computeInttNttOnDevice on device
-			go computeInttNttOnDevice(w_device, a_device)
+			go computeInttNttOnDevice(w_device, devicePointers[pn])
 			_ = <-computeInttNttDone
 
 		})
