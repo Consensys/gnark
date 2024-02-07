@@ -1094,6 +1094,17 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	m := uint64(s.pk.Domain[1].Cardinality)
 	mm := uint64(64 - bits.TrailingZeros64(m))
 
+	var devicePointers []unsafe.Pointer
+	for i := 0; i < len(s.x); i++ {
+		sizeBytes := s.x[i].Size() * fr.Bytes
+
+		copyADone := make(chan unsafe.Pointer, 1)
+		go iciclegnark.CopyToDevice(s.x[i].Coefficients(), sizeBytes, copyADone)
+		a_device := <-copyADone
+
+		devicePointers = append(devicePointers, a_device)
+	}
+
 	for i := 0; i < rho; i++ {
 
 		coset.Mul(&coset, &shifters[i])
@@ -1114,10 +1125,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 			n := p.Size()
 			sizeBytes := p.Size() * fr.Bytes
-
-			copyADone := make(chan unsafe.Pointer, 1)
-			go iciclegnark.CopyToDevice(p.Coefficients(), sizeBytes, copyADone)
-			a_device := <-copyADone
 
 			// scale by shifter[i]
 			w := selectScalingVector(i, p.Layout, pn)
@@ -1148,6 +1155,8 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 					}
 				}, nbTasks)
 
+				iciclegnark.MontConvOnDevice(devicePointer, n, false)
+
 				computeInttNttDone <- nil
 				iciclegnark.FreeDevicePointer(a_intt_d)
 			}
@@ -1164,22 +1173,21 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
 				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 
+				iciclegnark.MontConvOnDevice(devicePointer, n, false)
+
 				computeNttDone <- nil
 			}
 
 			// Run INTT and NTT on device
 			if p.Basis == iop.Lagrange {
-				go computeInttNttOnDevice(w_device, a_device)
+				go computeInttNttOnDevice(w_device, devicePointers[pn])
 				_ = <-computeInttNttDone
 			} else {
-				go computeNttOnDevice(w_device, a_device)
+				go computeNttOnDevice(w_device, devicePointers[pn])
 				_ = <- computeNttDone
 			}
 
-			go func() {
-				iciclegnark.FreeDevicePointer(a_device)
-				iciclegnark.FreeDevicePointer(w_device)
-			}()
+			go iciclegnark.FreeDevicePointer(w_device)
 		})
 		log.Debug().Dur("took", time.Since(batchTime)).Msg("FFT (batchApply)")
 		 
