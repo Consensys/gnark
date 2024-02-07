@@ -41,7 +41,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/hash_to_field"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254/kzg"
+	kzg "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/witness"
@@ -590,7 +590,7 @@ func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G
 	log := logger.Logger()
 	start := time.Now()
 
-	commit, err = kzgDeviceCommit(p.Coefficients(), s.pk.deviceInfo.G1Device.G1Lagrange)
+	commit, err = kzg.OnDeviceCommit(p.Coefficients(), s.pk.deviceInfo.G1Device.G1Lagrange)
 
 	// we add in the blinding contribution
 	n := int(s.pk.Domain[0].Cardinality)
@@ -756,7 +756,7 @@ func (s *instance) openZ() (err error) {
 
 	// open z at zeta
 	start := time.Now()
-	s.proof.ZShiftedOpening, err = kzgDeviceOpen(s.blindedZ, zetaShifted, s.pk)
+	s.proof.ZShiftedOpening, err = kzg.OnDeviceOpen(s.blindedZ, zetaShifted, s.pk.deviceInfo.G1Device.G1)
 	if err != nil {
 		return err
 	}
@@ -883,7 +883,7 @@ func (s *instance) computeLinearizedPolynomial() error {
 
 	var err error
 	timeCommit := time.Now()
-	s.linearizedPolynomialDigest, err = kzgDeviceCommit(s.linearizedPolynomial, s.pk.deviceInfo.G1Device.G1, runtime.NumCPU()*2)
+	s.linearizedPolynomialDigest, err = kzg.OnDeviceCommit(s.linearizedPolynomial, s.pk.deviceInfo.G1Device.G1, runtime.NumCPU()*2)
 	if err != nil {
 		return err
 	}
@@ -940,12 +940,13 @@ func (s *instance) batchOpening() error {
 
 	var err error
 	start := time.Now()
-	s.proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
+	s.proof.BatchedProof, err = kzg.OnDeviceBatchOpenSinglePoint(
 		polysToOpen,
 		digestsToOpen,
 		s.zeta,
 		s.kzgFoldingHash,
 		s.pk.Kzg,
+		s.pk.deviceInfo.G1Device.G1,
 		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
 	)
 	log.Debug().Dur("took", time.Since(start)).Msg("MSM (batchOpeningSinglePoint):")
@@ -1040,7 +1041,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	cres := s.cres
 	buf := make([]fr.Element, n)
 	var wgBuf sync.WaitGroup
-
+	
 	allConstraints := func(i int, u ...fr.Element) fr.Element {
 		// scale S1, S2, S3 by β
 		u[id_S1].Mul(&u[id_S1], &s.beta)
@@ -1475,7 +1476,7 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, pk *ProvingKey) err
 
 	g.Go(func() (err error) {
 		start := time.Now()
-		proof.H[0], err = kzgDeviceCommit(h1, pk.deviceInfo.G1Device.G1)
+		proof.H[0], err = kzg.OnDeviceCommit(h1, pk.deviceInfo.G1Device.G1)
 		log.Debug().Dur("took", time.Since(start)).Int("size", len(h3)).Msg("MSM (commitToQuotient):")
 		return
 	})
@@ -1483,7 +1484,7 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, pk *ProvingKey) err
 
 	g.Go(func() (err error) {
 		start := time.Now()
-		proof.H[1], err = kzgDeviceCommit(h2, pk.deviceInfo.G1Device.G1)
+		proof.H[1], err = kzg.OnDeviceCommit(h2, pk.deviceInfo.G1Device.G1)
 		log.Debug().Dur("took", time.Since(start)).Int("size", len(h3)).Msg("MSM (commitToQuotient):")
 		return
 	})
@@ -1491,7 +1492,7 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, pk *ProvingKey) err
 
 	g.Go(func() (err error) {
 		start := time.Now()
-		proof.H[2], err = kzgDeviceCommit(h3, pk.deviceInfo.G1Device.G1)
+		proof.H[2], err = kzg.OnDeviceCommit(h3, pk.deviceInfo.G1Device.G1)
 		log.Debug().Dur("took", time.Since(start)).Int("size", len(h3)).Msg("MSM (commitToQuotient):")
 		return
 	})
