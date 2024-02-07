@@ -13,8 +13,12 @@ type config struct {
 	prefix string
 }
 
+// Option allows to alter the sumcheck verifier behaviour.
 type Option func(c *config) error
 
+// WithClaimPrefix prepends the given string to the challenge names when
+// computing the challenges inside the sumcheck verifier. The option is used in
+// a higher level protocols to ensure that sumcheck claims are not interchanged.
 func WithClaimPrefix(prefix string) Option {
 	return func(c *config) error {
 		c.prefix = prefix
@@ -36,8 +40,11 @@ type verifyCfg[FR emulated.FieldParams] struct {
 	baseChallenges []emulated.Element[FR]
 }
 
+// VerifyOption allows to alter the behaviour of the single sumcheck proof verification.
 type VerifyOption[FR emulated.FieldParams] func(c *verifyCfg[FR]) error
 
+// WithBaseChallenges allows to bind to additional baseChallenges (in addition
+// to the current sumcheck protocol transcript) when computing the challenges.
 func WithBaseChallenges[FR emulated.FieldParams](baseChallenges []*emulated.Element[FR]) VerifyOption[FR] {
 	return func(c *verifyCfg[FR]) error {
 		for i := range baseChallenges {
@@ -57,6 +64,7 @@ func newVerificationConfig[FR emulated.FieldParams](opts ...VerifyOption[FR]) (*
 	return cfg, nil
 }
 
+// Verifier allows to check sumcheck proofs. See [NewVerifier] for initializing the instance.
 type Verifier[FR emulated.FieldParams] struct {
 	api frontend.API
 	f   *emulated.Field[FR]
@@ -64,6 +72,9 @@ type Verifier[FR emulated.FieldParams] struct {
 	*config
 }
 
+// NewVerifier initializes a new sumcheck verifier for the parametric emulated
+// field FR. It returns an error if the given options are invalid or when
+// initializing emulated arithmetic fails.
 func NewVerifier[FR emulated.FieldParams](api frontend.API, opts ...Option) (*Verifier[FR], error) {
 	cfg, err := newConfig(opts...)
 	if err != nil {
@@ -85,6 +96,7 @@ func NewVerifier[FR emulated.FieldParams](api frontend.API, opts ...Option) (*Ve
 	}, nil
 }
 
+// Verify verifies the sumcheck proof for the given (lazy) claims.
 func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...VerifyOption[FR]) error {
 	var fr FR
 	cfg, err := newVerificationConfig(opts...)
