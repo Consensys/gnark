@@ -5,10 +5,13 @@ import (
 	"github.com/consensys/gnark/std/math/polynomial"
 )
 
+// Proof contains the prover messages in the sumcheck protocol.
 type Proof[FR emulated.FieldParams] struct {
-	// PartialSumPolys is polynomial representation in evaluation form
+	// RoundPolyEvaluations is polynomial representation in evaluation form
 	RoundPolyEvaluations []polynomial.Univariate[FR]
-	FinalEvalProof       EvaluationProof
+	// FinalEvalProof is the witness for helping the verifier to compute the
+	// final round of the sumcheck protocol.
+	FinalEvalProof EvaluationProof
 }
 
 type nativeProof struct {
@@ -16,11 +19,17 @@ type nativeProof struct {
 	FinalEvalProof       nativeEvaluationProof
 }
 
-type EvaluationProof interface{}
+// EvaluationProof is proof for allowing the sumcheck verifier to perform the
+// final evaluation needed to complete the check. It is untyped as it depends
+// how the final evaluation is implemented:
+//   - if sumcheck verifier directly evaluates the function, then it is nil,
+//   - if it is multivariate polynomial opening proof, then it is the opening value,
+//   - if it is deferred, then it is a slice.
+type EvaluationProof any
 
-type nativeEvaluationProof interface{}
+type nativeEvaluationProof any
 
-func ValueOfProof[FR emulated.FieldParams](nproof nativeProof) Proof[FR] {
+func valueOfProof[FR emulated.FieldParams](nproof nativeProof) Proof[FR] {
 	rps := make([]polynomial.Univariate[FR], len(nproof.RoundPolyEvaluations))
 	for i := range nproof.RoundPolyEvaluations {
 		rps[i] = polynomial.ValueOfUnivariate[FR](nproof.RoundPolyEvaluations[i])

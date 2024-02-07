@@ -8,7 +8,13 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-type element interface{}
+// element is a field element to be used with [arithEngine].
+type element any
+
+// arithEngine defines a minimal arithmetic interface for defining the gate. In
+// case of prover, it is initialized with a finite field arithmetic engine
+// defined over [*big.Int] or field arithmetic packages. In case of verifier, is
+// initialized with non-native arithmetic.
 type arithEngine[E element] interface {
 	Add(a, b E) E
 	Mul(a, b E) E
@@ -17,11 +23,12 @@ type arithEngine[E element] interface {
 	One() E
 	Const(i *big.Int) E
 }
+
+// bigIntEngine performs computation reducing with given modulus.
 type bigIntEngine struct {
 	mod *big.Int
+	// TODO: we should also add pools for more efficient memory management.
 }
-
-// TODO: use pool
 
 func (be *bigIntEngine) Add(a, b *big.Int) *big.Int {
 	dst := new(big.Int)
@@ -56,6 +63,7 @@ func newBigIntEngine(mod *big.Int) *bigIntEngine {
 	return &bigIntEngine{mod: new(big.Int).Set(mod)}
 }
 
+// emuEngine uses non-native arithmetic for operations.
 type emuEngine[FR emulated.FieldParams] struct {
 	f *emulated.Field[FR]
 }

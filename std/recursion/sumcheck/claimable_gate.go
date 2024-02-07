@@ -10,13 +10,21 @@ import (
 	"github.com/consensys/gnark/std/math/polynomial"
 )
 
+// gate defines a multivariate polynomial which can be sumchecked.
 type gate[AE arithEngine[E], E element] interface {
+	// NbInputs is the number of inputs the gate takes.
 	NbInputs() int
+	// Evaluate evaluates the gate at inputs vars.
 	Evaluate(api AE, vars ...E) E
+	// Degree returns the maximum degree of the variables.
 	Degree() int // TODO: return degree of variable for optimized verification
 }
 
-type gateClaimMulti[FR emulated.FieldParams] struct {
+// gateClaim allows to prove the evaluation of gate at multiple instances of
+// inputs. Internally, maps indices 0...2^n to the inputs, allowing to verify
+// gate evaluation at arbitrary inputs (not only on the hypercybe). Implements
+// [LazyClaims]. Inst
+type gateClaim[FR emulated.FieldParams] struct {
 	f      *emulated.Field[FR]
 	p      *polynomial.Polynomial[FR]
 	engine *emuEngine[FR]
@@ -29,9 +37,20 @@ type gateClaimMulti[FR emulated.FieldParams] struct {
 	inputPreprocessors []polynomial.Multilinear[FR]
 }
 
+// newGate returns a claim for verifying in a sumcheck protocol with a given
+// initialized gate, which should be stateless.
+//
+// The slice inputs defines a mapping (inputIdx, instanceIdx) -> inputVal,
+// allowing to check gate evaluation at arbitrary inputs over many instances.
+// The length of inputs should match the number of inputs and length of every
+// subslice should match the number of instances.
+//
+// evaluationPoints is the random coefficients for ensuring the consistency of
+// the inputs during the final round and claimedEvals is the claimed evaluation
+// values with the inputs combined at the evaluationPoints.
 func newGate[FR emulated.FieldParams](api frontend.API, gate gate[*emuEngine[FR], *emulated.Element[FR]],
 	inputs [][]*emulated.Element[FR], evaluationPoints [][]*emulated.Element[FR],
-	claimedEvals []*emulated.Element[FR]) (*gateClaimMulti[FR], error) {
+	claimedEvals []*emulated.Element[FR]) (LazyClaims[FR], error) {
 	nbInputs := gate.NbInputs()
 	if len(inputs) != nbInputs {
 		return nil, fmt.Errorf("expected %d inputs got %d", nbInputs, len(inputs))
@@ -56,6 +75,7 @@ func newGate[FR emulated.FieldParams](api frontend.API, gate gate[*emuEngine[FR]
 	if err != nil {
 		return nil, fmt.Errorf("new emulated engine: %w", err)
 	}
+	// construct the mapping from instance idx to value for every input.
 	inputPreprocessors := make([]polynomial.Multilinear[FR], gate.NbInputs())
 	for i := range inputs {
 		if len(inputs[i]) != nbInstances {
@@ -68,7 +88,7 @@ func newGate[FR emulated.FieldParams](api frontend.API, gate gate[*emuEngine[FR]
 			return nil, fmt.Errorf("nb evaluation points %d mismatch for claim %d", len(evaluationPoints), i)
 		}
 	}
-	return &gateClaimMulti[FR]{
+	return &gateClaim[FR]{
 		f:                  f,
 		p:                  p,
 		engine:             engine,
@@ -79,31 +99,46 @@ func newGate[FR emulated.FieldParams](api frontend.API, gate gate[*emuEngine[FR]
 	}, nil
 }
 
-func (g *gateClaimMulti[FR]) NbClaims() int {
+func (g *gateClaim[FR]) NbClaims() int {
 	return len(g.evaluationPoints)
 }
 
-func (g *gateClaimMulti[FR]) NbVars() int {
+func (g *gateClaim[FR]) NbVars() int {
 	return len(g.evaluationPoints[0])
 }
 
-func (g *gateClaimMulti[FR]) CombinedSum(coeff *emulated.Element[FR]) *emulated.Element[FR] {
+func (g *gateClaim[FR]) CombinedSum(coeff *emulated.Element[FR]) *emulated.Element[FR] {
 	evalAsPoly := polynomial.FromSliceReferences[FR](g.claimedEvaluations)
 	ret := g.p.EvalUnivariate(evalAsPoly, coeff)
 	return ret
 }
 
-func (g *gateClaimMulti[FR]) Degree(i int) int {
+func (g *gateClaim[FR]) Degree(i int) int {
+	// gate degree plus one for evaluating mapping of idx -> value
 	return 1 + g.gate.Degree()
 }
 
-func (g *gateClaimMulti[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff *emulated.Element[FR], expectedValue *emulated.Element[FR], proof EvaluationProof) error {
+func (g *gateClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff *emulated.Element[FR], expectedValue *emulated.Element[FR], proof EvaluationProof) error {
 	var err error
 	// TODO: handle case when have multiple claims
 	if g.NbClaims() > 1 {
 		panic("NbClaims > 1 not implemented")
 	}
+	// instead of evaluating g(x1, .., xn) directly, we are instead evaluating
+	// f_{y1, .. yn}(x1, ..., xn) = eq(y1, .., yn; x1, ..., xn) g(y1, ...,
+	// yn).
+	//
+	// For evaluating this, we first have to evaluate eq part and then g part
+	// separately.
+
+	// First we do eq part.
 	eqEval := g.p.EvalEqual(g.evaluationPoints[0], r)
+
+	// now, we do the g part.
+	//
+	// For that, we first have to map the random challenges to a random input to
+	// the gate. As the inputs mapping is given by multilinear extension, then
+	// this means evaluating the MLE at the random point.
 	inputEvals := make([]*emulated.Element[FR], len(g.inputPreprocessors))
 	for i := range inputEvals {
 		inputEvals[i], err = g.p.EvalMultilinear(g.inputPreprocessors[i], r)
@@ -111,7 +146,9 @@ func (g *gateClaimMulti[FR]) AssertEvaluation(r []*emulated.Element[FR], combina
 			return fmt.Errorf("eval multilin: %w", err)
 		}
 	}
+	// now, we can evaluate the gate at the random input.
 	gateEval := g.gate.Evaluate(g.engine, inputEvals...)
+
 	res := g.f.Mul(eqEval, gateEval)
 	g.f.AssertIsEqual(res, expectedValue)
 	return nil
@@ -155,11 +192,13 @@ func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [
 			evalInput[i][j] = new(big.Int).Set(inputs[j][i])
 		}
 	}
+	// evaluate the gates at all of the given inputs
 	evaluations = make([]*big.Int, nbInstances)
 	for i := range evaluations {
 		evaluations[i] = new(big.Int)
 		evaluations[i] = gate.Evaluate(be, evalInput[i]...)
 	}
+	// construct the mapping (inputIdx, instanceIdx) -> inputVal
 	inputPreprocessors := make([]nativeMultilinear, nbInputs)
 	for i := range inputs {
 		inputPreprocessors[i] = make(nativeMultilinear, nbInstances)
@@ -172,6 +211,7 @@ func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [
 			return nil, nil, fmt.Errorf("nb evaluation points %d mismatch for claim %d", len(evaluationPoints), i)
 		}
 	}
+	// compute the random linear combinations of the evaluation values of the gate
 	claimedEvaluations := make([]*big.Int, len(evaluationPoints))
 	for i := range claimedEvaluations {
 		claimedEvaluations[i] = eval(be, evaluations, evaluationPoints[i])

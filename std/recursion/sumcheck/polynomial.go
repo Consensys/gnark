@@ -7,7 +7,8 @@ import (
 type nativePolynomial []*big.Int
 type nativeMultilinear []*big.Int
 
-// TODO: make parametric on the engine
+// helper functions for multilinear polynomial evaluations
+
 func fold(api *bigIntEngine, ml nativeMultilinear, r *big.Int) nativeMultilinear {
 	// NB! it modifies ml in-place and also returns
 	mid := len(ml) / 2
