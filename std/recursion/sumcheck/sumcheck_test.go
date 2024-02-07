@@ -26,7 +26,7 @@ func (c *MultilinearSumcheckCircuit[FR]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
-	claim, err := NewMultilinearClaim[FR](api, c.Function, &c.Claim)
+	claim, err := newMultilinearClaim[FR](api, c.Function, &c.Claim)
 	if err != nil {
 		return fmt.Errorf("new ml claim: %w", err)
 	}
@@ -44,14 +44,14 @@ func testMultilinearSumcheckInstance[FR emulated.FieldParams](t *testing.T, curr
 		mleB[i] = big.NewInt(int64(mle[i]))
 	}
 
-	claim, value, err := NewNativeMultilinearClaim(fr.Modulus(), mleB)
+	claim, value, err := newNativeMultilinearClaim(fr.Modulus(), mleB)
 	assert.NoError(err)
-	proof, err := Prove(current, fr.Modulus(), claim)
+	proof, err := prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(mle))) - 1
 	circuit := &MultilinearSumcheckCircuit[FR]{
 		Function: polynomial.PlaceholderMultilinear[FR](nbVars),
-		Proof:    PlaceholderMultilinearProof[FR](nbVars),
+		Proof:    placeholderMultilinearProof[FR](nbVars),
 	}
 	assignment := &MultilinearSumcheckCircuit[FR]{
 		Function: polynomial.ValueOfMultilinear[FR](mleB),
@@ -92,7 +92,7 @@ func getChallengeEvaluationPoints[FR emulated.FieldParams](inputs [][]*big.Int) 
 	return
 }
 
-type mulGate1[AE ArithEngine[E], E Element] struct{}
+type mulGate1[AE arithEngine[E], E element] struct{}
 
 func (m mulGate1[AE, E]) NbInputs() int { return 2 }
 func (m mulGate1[AE, E]) Degree() int   { return 2 }
@@ -133,7 +133,7 @@ func (c *MulGateSumcheck[FR]) Define(api frontend.API) error {
 	for i := range c.EvaluationPoints {
 		evalPoints[i] = polynomial.FromSlice[FR](c.EvaluationPoints[i])
 	}
-	claim, err := NewGate[FR](api, mulGate1[*emuEngine[FR], *emulated.Element[FR]]{}, inputs, evalPoints, claimedEvals)
+	claim, err := newGate[FR](api, mulGate1[*emuEngine[FR], *emulated.Element[FR]]{}, inputs, evalPoints, claimedEvals)
 	if err != nil {
 		return fmt.Errorf("new gate claim: %w", err)
 	}
@@ -155,14 +155,14 @@ func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current
 		}
 	}
 	evalPointsB, evalPointsPH, evalPointsC := getChallengeEvaluationPoints[FR](inputB)
-	claim, evals, err := NewNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
+	claim, evals, err := newNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
 	assert.NoError(err)
-	proof, err := Prove(current, fr.Modulus(), claim)
+	proof, err := prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(inputs[0]))) - 1
 	circuit := &MulGateSumcheck[FR]{
 		Inputs:           make([][]emulated.Element[FR], len(inputs)),
-		Proof:            PlaceholderGateProof[FR](nbVars, nativeGate.Degree()),
+		Proof:            placeholderGateProof[FR](nbVars, nativeGate.Degree()),
 		EvaluationPoints: evalPointsPH,
 		Claimed:          make([]emulated.Element[FR], 1),
 	}

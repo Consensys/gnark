@@ -4,11 +4,11 @@ import (
 	"math/big"
 )
 
-type NativePolynomial []*big.Int
-type NativeMultilinear []*big.Int
+type nativePolynomial []*big.Int
+type nativeMultilinear []*big.Int
 
 // TODO: make parametric on the engine
-func fold(api *bigIntEngine, ml NativeMultilinear, r *big.Int) NativeMultilinear {
+func fold(api *bigIntEngine, ml nativeMultilinear, r *big.Int) nativeMultilinear {
 	// NB! it modifies ml in-place and also returns
 	mid := len(ml) / 2
 	bottom, top := ml[:mid], ml[mid:]
@@ -21,7 +21,7 @@ func fold(api *bigIntEngine, ml NativeMultilinear, r *big.Int) NativeMultilinear
 	return ml[:mid]
 }
 
-func hypesumX1One(api *bigIntEngine, ml NativeMultilinear) *big.Int {
+func hypesumX1One(api *bigIntEngine, ml nativeMultilinear) *big.Int {
 	sum := ml[len(ml)/2]
 	for i := len(ml)/2 + 1; i < len(ml); i++ {
 		sum = api.Add(sum, ml[i])
@@ -29,7 +29,7 @@ func hypesumX1One(api *bigIntEngine, ml NativeMultilinear) *big.Int {
 	return sum
 }
 
-func eq(api *bigIntEngine, ml NativeMultilinear, q []*big.Int) NativeMultilinear {
+func eq(api *bigIntEngine, ml nativeMultilinear, q []*big.Int) nativeMultilinear {
 	if (1 << len(q)) != len(ml) {
 		panic("scalar length mismatch")
 	}
@@ -45,8 +45,8 @@ func eq(api *bigIntEngine, ml NativeMultilinear, q []*big.Int) NativeMultilinear
 	return ml
 }
 
-func eval(api *bigIntEngine, ml NativeMultilinear, r []*big.Int) *big.Int {
-	mlCopy := make(NativeMultilinear, len(ml))
+func eval(api *bigIntEngine, ml nativeMultilinear, r []*big.Int) *big.Int {
+	mlCopy := make(nativeMultilinear, len(ml))
 	for i := range mlCopy {
 		mlCopy[i] = new(big.Int).Set(ml[i])
 	}
@@ -58,7 +58,7 @@ func eval(api *bigIntEngine, ml NativeMultilinear, r []*big.Int) *big.Int {
 	return mlCopy[0]
 }
 
-func eqAcc(api *bigIntEngine, e NativeMultilinear, m NativeMultilinear, q []*big.Int) NativeMultilinear {
+func eqAcc(api *bigIntEngine, e nativeMultilinear, m nativeMultilinear, q []*big.Int) nativeMultilinear {
 	if len(e) != len(m) {
 		panic("length mismatch")
 	}

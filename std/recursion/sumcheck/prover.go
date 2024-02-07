@@ -13,16 +13,16 @@ type proverConfig struct {
 	baseChallenges []*big.Int
 }
 
-type ProverOption func(*proverConfig) error
+type proverOption func(*proverConfig) error
 
-func WithProverPrefix(prefix string) ProverOption {
+func withProverPrefix(prefix string) proverOption {
 	return func(pc *proverConfig) error {
 		pc.prefix = prefix
 		return nil
 	}
 }
 
-func newProverConfig(opts ...ProverOption) (*proverConfig, error) {
+func newProverConfig(opts ...proverOption) (*proverConfig, error) {
 	ret := new(proverConfig)
 	for i := range opts {
 		if err := opts[i](ret); err != nil {
@@ -32,8 +32,8 @@ func newProverConfig(opts ...ProverOption) (*proverConfig, error) {
 	return ret, nil
 }
 
-func Prove(current *big.Int, target *big.Int, claims Claims, opts ...ProverOption) (NativeProof, error) {
-	var proof NativeProof
+func prove(current *big.Int, target *big.Int, claims claims, opts ...proverOption) (nativeProof, error) {
+	var proof nativeProof
 	cfg, err := newProverConfig(opts...)
 	if err != nil {
 		return proof, fmt.Errorf("parse options: %w", err)
@@ -61,7 +61,7 @@ func Prove(current *big.Int, target *big.Int, claims Claims, opts ...ProverOptio
 	// in sumcheck we run a round for every variable. So the number of variables
 	// defines the number of rounds.
 	nbVars := claims.NbVars()
-	proof.RoundPolyEvaluations = make([]NativePolynomial, nbVars)
+	proof.RoundPolyEvaluations = make([]nativePolynomial, nbVars)
 	// the first round in the sumcheck is without verifier challenge. Combine challenges and provers sends the first polynomial
 	proof.RoundPolyEvaluations[0] = claims.Combine(combinationCoef)
 
