@@ -282,6 +282,29 @@ func (m dblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	return res
 }
 
+func TestDblAndAddGate(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	nativeGate := dblAddSelectGate[*bigIntEngine, *big.Int]{folding: []*big.Int{
+		big.NewInt(1),
+		big.NewInt(2),
+		big.NewInt(3),
+		big.NewInt(4),
+		big.NewInt(5),
+		big.NewInt(6),
+	}}
+	px, ok := new(big.Int).SetString("55066263022277343669578718895168534326250603453777594175500187360389116729240", 10)
+	assert.True(ok)
+	py, ok := new(big.Int).SetString("32670510020758816978083085130507043184471273380659243275938904335757337482424", 10)
+	assert.True(ok)
+	secpfp, ok := new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
+	assert.True(ok)
+	eng := newBigIntEngine(secpfp)
+	res := nativeGate.Evaluate(eng, px, py, big.NewInt(1), big.NewInt(0), big.NewInt(1), big.NewInt(0), big.NewInt(1))
+	t.Log(res)
+	_ = res
+}
+
 type ProjDblAddSelectSumcheckCircuit[FR emulated.FieldParams] struct {
 	Inputs [][]emulated.Element[FR]
 
