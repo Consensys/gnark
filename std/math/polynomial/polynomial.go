@@ -30,29 +30,35 @@ func valueOf[FR emulated.FieldParams](univ []*big.Int) []emulated.Element[FR] {
 	return ret
 }
 
+// ValueOfUnivariate assigns [Univariate] variable.
 func ValueOfUnivariate[FR emulated.FieldParams](univ []*big.Int) Univariate[FR] {
 	return valueOf[FR](univ)
 }
 
+// ValueOfMultilinear assigns [Multilinear] variable.
 func ValueOfMultilinear[FR emulated.FieldParams](ml []*big.Int) Multilinear[FR] {
 	return valueOf[FR](ml)
 }
 
+// PlaceholderMultilinear returns empty variable for allocating variables during
+// circuit compilation.
 func PlaceholderMultilinear[FR emulated.FieldParams](nbVars int) Multilinear[FR] {
 	return make(Multilinear[FR], 1<<nbVars)
 }
 
+// PlaceholderUnivariate returns empty variable for allocating variables during
+// circuit compilation.
 func PlaceholderUnivariate[FR emulated.FieldParams](length int) Univariate[FR] {
 	return make(Univariate[FR], length)
 }
 
+// Polynomial is a non-native polynomial evaluator.
 type Polynomial[FR emulated.FieldParams] struct {
 	api frontend.API
 	f   *emulated.Field[FR]
 }
 
-// TODO: do we need the methods? And try to figure out which is better for
-// polynomial - []*emulated.Element or []emulated.Element
+// FromSlice maps slice of emulated element values to their references.
 func FromSlice[FR emulated.FieldParams](in []emulated.Element[FR]) []*emulated.Element[FR] {
 	r := make([]*emulated.Element[FR], len(in))
 	for i := range in {
@@ -61,6 +67,7 @@ func FromSlice[FR emulated.FieldParams](in []emulated.Element[FR]) []*emulated.E
 	return r
 }
 
+// FromSliceReferences maps slice of emulated element references to their values.
 func FromSliceReferences[FR emulated.FieldParams](in []*emulated.Element[FR]) []emulated.Element[FR] {
 	r := make([]emulated.Element[FR], len(in))
 	for i := range in {
@@ -69,6 +76,7 @@ func FromSliceReferences[FR emulated.FieldParams](in []*emulated.Element[FR]) []
 	return r
 }
 
+// New returns new polynomial evaluator.
 func New[FR emulated.FieldParams](api frontend.API) (*Polynomial[FR], error) {
 	f, err := emulated.NewField[FR](api)
 	if err != nil {
@@ -80,6 +88,8 @@ func New[FR emulated.FieldParams](api frontend.API) (*Polynomial[FR], error) {
 	}, nil
 }
 
+// EvalUnivariate evaluates univariate polynomial at a point at. It returns the
+// evaluation. The method does not mutate the inputs.
 func (p *Polynomial[FR]) EvalUnivariate(P Univariate[FR], at *emulated.Element[FR]) *emulated.Element[FR] {
 	res := p.f.Zero()
 	for i := len(P) - 1; i > 0; i-- {
@@ -90,6 +100,8 @@ func (p *Polynomial[FR]) EvalUnivariate(P Univariate[FR], at *emulated.Element[F
 	return res
 }
 
+// EvalMultilinear evaluates multilinear polynomial at variable values at. It
+// returns the evaluation. The method does not mutate the inputs.
 func (p *Polynomial[FR]) EvalMultilinear(M Multilinear[FR], at []*emulated.Element[FR]) (*emulated.Element[FR], error) {
 	var s *emulated.Element[FR]
 	scaleCorrectionFactor := p.f.One()
@@ -155,6 +167,8 @@ func (p *Polynomial[FR]) computeDeltaAtNaive(at *emulated.Element[FR], vLen int)
 	return deltaAt
 }
 
+// InterpolateLDE returns the polynomial obtained by interpolating values at
+// evaluation point at.
 func (p *Polynomial[FR]) InterpolateLDE(at *emulated.Element[FR], values []*emulated.Element[FR]) *emulated.Element[FR] {
 	deltaAt := p.computeDeltaAtNaive(at, len(values))
 	res := p.f.Zero()
@@ -165,6 +179,11 @@ func (p *Polynomial[FR]) InterpolateLDE(at *emulated.Element[FR], values []*emul
 	return res
 }
 
+// EvalEquals returns the evaluation
+//
+//	eq(x, y) = \prod (1-x)*(1-y) + x*y,
+//
+// which for binary inputs x and y equals 1 only if x = y and 0 otherwise.
 func (p *Polynomial[FR]) EvalEqual(x, y []*emulated.Element[FR]) *emulated.Element[FR] {
 	eq := p.f.One()
 	one := p.f.One()

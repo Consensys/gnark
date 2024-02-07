@@ -1,2 +1,2 @@
-// Package polynomial provides field-agnostic polyomials.
+// Package polynomial provides field-agnostic polynomials.
 package polynomial
