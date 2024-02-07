@@ -12,7 +12,7 @@ func fold(api *bigIntEngine, ml NativeMultilinear, r *big.Int) NativeMultilinear
 	// NB! it modifies ml in-place and also returns
 	mid := len(ml) / 2
 	bottom, top := ml[:mid], ml[mid:]
-	t := new(big.Int)
+	var t *big.Int
 	for i := 0; i < mid; i++ {
 		t = api.Sub(top[i], bottom[i])
 		t = api.Mul(t, r)

@@ -277,8 +277,7 @@ func (g *nativeGateClaim) computeGJ() NativePolynomial {
 		_s := 0
 		_e := nbInner
 		for d := 0; d < degGJ; d++ {
-			summand := new(big.Int)
-			summand = g.gate.Evaluate(g.engine, operands[_s+1:_e]...)
+			summand := g.gate.Evaluate(g.engine, operands[_s+1:_e]...)
 			summand = g.engine.Mul(summand, operands[_s])
 			res[d] = g.engine.Add(res[d], summand)
 			_s, _e = _e, _e+nbInner
