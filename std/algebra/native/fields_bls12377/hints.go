@@ -16,7 +16,6 @@ func GetHints() []solver.Hint {
 		InverseE6Hint,
 		InverseE12Hint,
 	}
-	return nil
 }
 
 func init() {
