@@ -111,6 +111,13 @@ func (c *Curve) jointScalarMul(P1, P2 *G1Affine, s1, s2 *Scalar, opts ...algopts
 	return res
 }
 
+// JointScalarMulHalfSize computes s1*P+s2*P2 where s1 and s2 are half-size of
+// the modulus and returns the result. It doesn't modify the inputs.
+func (c *Curve) JointScalarMulHalfSize(P1, P2 *G1Affine, s1, s2 *Scalar) *G1Affine {
+	nbScalarBits := c.api.Compiler().FieldBitLen() >> 1
+	return c.jointScalarMul(P1, P2, s1, s2, algopts.WithNbScalarBits(nbScalarBits))
+}
+
 // ScalarMul computes scalar*P and returns the result. It doesn't modify the
 // inputs.
 func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
