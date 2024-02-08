@@ -9,14 +9,14 @@ import (
 
 func GetHints() []solver.Hint {
 	return []solver.Hint{
-		DivE2Hint,
-		DivE4Hint,
-		DivE12Hint,
-		DivE24Hint,
-		InverseE2Hint,
-		InverseE4Hint,
-		InverseE12Hint,
-		InverseE24Hint,
+		divE2Hint,
+		divE4Hint,
+		divE12Hint,
+		divE24Hint,
+		inverseE2Hint,
+		inverseE4Hint,
+		inverseE12Hint,
+		inverseE24Hint,
 	}
 }
 
@@ -24,7 +24,7 @@ func init() {
 	solver.RegisterHint(GetHints()...)
 }
 
-var InverseE2Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+var inverseE2Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls24315.E2
 
 	a.A0.SetBigInt(inputs[0])
@@ -38,7 +38,7 @@ var InverseE2Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func DivE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func divE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls24315.E2
 
 	a.A0.SetBigInt(inputs[0])
@@ -54,7 +54,7 @@ func DivE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func DivE4Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func divE4Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls24315.E4
 
 	a.B0.A0.SetBigInt(inputs[0])
@@ -76,7 +76,7 @@ func DivE4Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func InverseE4Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func inverseE4Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls24315.E4
 
 	a.B0.A0.SetBigInt(inputs[0])
@@ -94,7 +94,7 @@ func InverseE4Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func DivE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func divE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls24315.E12
 
 	a.C0.B0.A0.SetBigInt(inputs[0])
@@ -141,7 +141,7 @@ func DivE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func InverseE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func inverseE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls24315.E12
 
 	a.C0.B0.A0.SetBigInt(inputs[0])
@@ -175,7 +175,7 @@ func InverseE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func DivE24Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func divE24Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls24315.E24
 
 	a.D0.C0.B0.A0.SetBigInt(inputs[0])
@@ -258,7 +258,7 @@ func DivE24Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func InverseE24Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func inverseE24Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls24315.E24
 
 	a.D0.C0.B0.A0.SetBigInt(inputs[0])

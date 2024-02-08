@@ -9,8 +9,8 @@ import (
 
 func GetHints() []solver.Hint {
 	return []solver.Hint{
-		DecomposeScalarG1,
-		DecomposeScalarG2,
+		decomposeScalarG1,
+		decomposeScalarG2,
 	}
 }
 
@@ -18,7 +18,7 @@ func init() {
 	solver.RegisterHint(GetHints()...)
 }
 
-func DecomposeScalarG1(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
+func decomposeScalarG1(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
 	cc := getInnerCurveConfig(scalarField)
 	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
 	res[0].Set(&(sp[0]))
@@ -39,7 +39,7 @@ func DecomposeScalarG1(scalarField *big.Int, inputs []*big.Int, res []*big.Int) 
 	return nil
 }
 
-func DecomposeScalarG2(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
+func decomposeScalarG2(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
 	cc := getInnerCurveConfig(scalarField)
 	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
 	res[0].Set(&(sp[0]))

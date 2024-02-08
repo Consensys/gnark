@@ -9,12 +9,12 @@ import (
 
 func GetHints() []solver.Hint {
 	return []solver.Hint{
-		DivE2Hint,
-		DivE6Hint,
-		DivE12Hint,
-		InverseE2Hint,
-		InverseE6Hint,
-		InverseE12Hint,
+		divE2Hint,
+		divE6Hint,
+		divE12Hint,
+		inverseE2Hint,
+		inverseE6Hint,
+		inverseE12Hint,
 	}
 }
 
@@ -22,7 +22,7 @@ func init() {
 	solver.RegisterHint(GetHints()...)
 }
 
-func InverseE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func inverseE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls12377.E2
 
 	a.A0.SetBigInt(inputs[0])
@@ -36,7 +36,7 @@ func InverseE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func DivE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func divE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls12377.E2
 
 	a.A0.SetBigInt(inputs[0])
@@ -52,7 +52,7 @@ func DivE2Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func DivE6Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func divE6Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls12377.E6
 
 	a.B0.A0.SetBigInt(inputs[0])
@@ -81,7 +81,7 @@ func DivE6Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func InverseE6Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func inverseE6Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls12377.E6
 
 	a.B0.A0.SetBigInt(inputs[0])
@@ -103,7 +103,7 @@ func InverseE6Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func DivE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func divE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, b, c bls12377.E12
 
 	a.C0.B0.A0.SetBigInt(inputs[0])
@@ -150,7 +150,7 @@ func DivE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	return nil
 }
 
-func InverseE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
+func inverseE12Hint(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
 	var a, c bls12377.E12
 
 	a.C0.B0.A0.SetBigInt(inputs[0])

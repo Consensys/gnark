@@ -174,7 +174,7 @@ func (e *E12) Square(api frontend.API, x E12) *E12 {
 // Inverse e12 elmts
 func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 
-	res, err := api.NewHint(InverseE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C2.B0.A0, e1.C2.B0.A1, e1.C2.B1.A0, e1.C2.B1.A1)
+	res, err := api.NewHint(inverseE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C2.B0.A0, e1.C2.B0.A1, e1.C2.B1.A0, e1.C2.B1.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -196,7 +196,7 @@ func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 // DivUnchecked e12 elmts
 func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
 
-	res, err := api.NewHint(DivE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C2.B0.A0, e1.C2.B0.A1, e1.C2.B1.A0, e1.C2.B1.A1, e2.C0.B0.A0, e2.C0.B0.A1, e2.C0.B1.A0, e2.C0.B1.A1, e2.C1.B0.A0, e2.C1.B0.A1, e2.C1.B1.A0, e2.C1.B1.A1, e2.C2.B0.A0, e2.C2.B0.A1, e2.C2.B1.A0, e2.C2.B1.A1)
+	res, err := api.NewHint(divE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C2.B0.A0, e1.C2.B0.A1, e1.C2.B1.A0, e1.C2.B1.A1, e2.C0.B0.A0, e2.C0.B0.A1, e2.C0.B1.A0, e2.C0.B1.A1, e2.C1.B0.A0, e2.C1.B0.A1, e2.C1.B1.A0, e2.C1.B1.A1, e2.C2.B0.A0, e2.C2.B0.A1, e2.C2.B1.A0, e2.C2.B1.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

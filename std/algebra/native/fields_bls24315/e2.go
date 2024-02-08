@@ -148,7 +148,7 @@ func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 // DivUnchecked e2 elmts
 func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
 
-	res, err := api.NewHint(DivE2Hint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
+	res, err := api.NewHint(divE2Hint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -169,7 +169,7 @@ func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
 // Inverse e2 elmts
 func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 
-	res, err := api.NewHint(InverseE2Hint, 2, e1.A0, e1.A1)
+	res, err := api.NewHint(inverseE2Hint, 2, e1.A0, e1.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
