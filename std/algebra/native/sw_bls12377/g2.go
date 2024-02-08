@@ -22,7 +22,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
@@ -166,31 +165,6 @@ func (P *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}, opts ...al
 	} else {
 		return P.varScalarMul(api, Q, s, opts...)
 	}
-}
-
-var DecomposeScalarG2 = func(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
-	cc := getInnerCurveConfig(scalarField)
-	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
-	res[0].Set(&(sp[0]))
-	res[1].Set(&(sp[1]))
-	one := big.NewInt(1)
-	// add (lambda+1, lambda) until scalar compostion is over Fr to ensure that
-	// the high bits are set in decomposition.
-	for res[0].Cmp(cc.lambda) < 1 && res[1].Cmp(cc.lambda) < 1 {
-		res[0].Add(res[0], cc.lambda)
-		res[0].Add(res[0], one)
-		res[1].Add(res[1], cc.lambda)
-	}
-	// figure out how many times we have overflowed
-	res[2].Mul(res[1], cc.lambda).Add(res[2], res[0])
-	res[2].Sub(res[2], inputs[0])
-	res[2].Div(res[2], cc.fr)
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DecomposeScalarG2)
 }
 
 // varScalarMul sets P = [s] Q and returns P.
