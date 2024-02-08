@@ -53,6 +53,12 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	// case use the [algopts.WithCompleteArithmetic] option.
 	MultiScalarMul([]*G1El, []*emulated.Element[FR], ...algopts.AlgebraOption) (*G1El, error)
 
+	// JointScalarMulHalfSize is a MultiScalarMul of size 2 where the scalars
+	// are half-size the modulus bit-length. It does not modify the inputs.
+	//
+	// The implementation is incomplete for zero scalar or point at infinity.
+	JointScalarMulHalfSize(*G1El, *G1El, *emulated.Element[FR], *emulated.Element[FR]) *G1El
+
 	// MarshalG1 returns the binary decomposition G1.X || G1.Y. It matches the
 	// output of gnark-crypto's Marshal method on G1 points.
 	MarshalG1(G1El) []frontend.Variable

@@ -684,7 +684,7 @@ func (c *Curve[B, S]) jointScalarMulGeneric(p1, p2 *AffinePoint[B], s1, s2 *emul
 
 // jointScalarMulGenericUnsafe computes [s1]p1 + [s2]p2 using Shamir's trick and returns it. It doesn't modify p1, p2 nor s1, s2.
 // ⚠️  The scalars must be nonzero and the points different from (0,0).
-func (c *Curve[B, S]) jointScalarMulGenericUnsafe(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+func (c *Curve[B, S]) jointScalarMulGenericUnsafe(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S]) *AffinePoint[B] {
 	var Acc, B1, p1Neg, p2Neg *AffinePoint[B]
 	p1Neg = c.Neg(p1)
 	p2Neg = c.Neg(p2)
@@ -1049,4 +1049,45 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 		res = addFn(p[0], res)
 		return res, nil
 	}
+}
+
+//
+
+// JointScalarMulHalfSize computes [s1]p1 + [s2]p2 where s1 and s2 are half-size the modulus.
+// ⚠️  The scalars must be nonzero and the points different from (0,0).
+func (c *Curve[B, S]) JointScalarMulHalfSize(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S]) *AffinePoint[B] {
+	var Acc, B1, p1Neg, p2Neg *AffinePoint[B]
+	p1Neg = c.Neg(p1)
+	p2Neg = c.Neg(p2)
+
+	// Acc = P1 + P2
+	Acc = c.Add(p1, p2)
+
+	s1bits := c.scalarApi.ToBits(s1)
+	s2bits := c.scalarApi.ToBits(s2)
+
+	var st S
+	nbits := st.Modulus().BitLen() >> 1
+
+	for i := nbits - 1; i > 0; i-- {
+		B1 = &AffinePoint[B]{
+			X: p1Neg.X,
+			Y: *c.baseApi.Select(s1bits[i], &p1.Y, &p1Neg.Y),
+		}
+		Acc = c.doubleAndAdd(Acc, B1)
+		B1 = &AffinePoint[B]{
+			X: p2Neg.X,
+			Y: *c.baseApi.Select(s2bits[i], &p2.Y, &p2Neg.Y),
+		}
+		Acc = c.Add(Acc, B1)
+
+	}
+
+	// i = 0
+	p1Neg = c.Add(p1Neg, Acc)
+	Acc = c.Select(s1bits[0], Acc, p1Neg)
+	p2Neg = c.Add(p2Neg, Acc)
+	Acc = c.Select(s2bits[0], Acc, p2Neg)
+
+	return Acc
 }
