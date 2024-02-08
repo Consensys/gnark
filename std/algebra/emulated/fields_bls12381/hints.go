@@ -25,7 +25,6 @@ func GetHints() []solver.Hint {
 		// E12
 		divE12Hint,
 		inverseE12Hint,
-		squareTorusHint,
 	}
 }
 
