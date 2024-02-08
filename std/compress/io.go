@@ -114,7 +114,7 @@ func UnpackIntoBytesHint(_ *big.Int, ins, outs []*big.Int) error {
 }
 
 // ReadNum reads the slice c as a big endian number in base radix
-func ReadNum(api frontend.API, c []frontend.Variable, radix int) frontend.Variable {
+func ReadNum(api frontend.API, c []frontend.Variable, radix frontend.Variable) frontend.Variable {
 	if len(c) == 0 {
 		return 0
 	}
@@ -149,8 +149,8 @@ func ShiftLeft(api frontend.API, slice []frontend.Variable, shiftAmount frontend
 type NumReader struct {
 	api         frontend.API
 	toRead      []frontend.Variable
-	radix       int
-	maxCoeff    int
+	radix       frontend.Variable
+	numBound    frontend.Variable
 	wordsPerNum int
 	last        frontend.Variable
 }
@@ -167,14 +167,22 @@ func NewNumReader(api frontend.API, toRead []frontend.Variable, numNbBits, wordN
 		panic("wordNbBits must be a divisor of 8")
 	}
 
-	radix := 1 << wordNbBits
 	return &NumReader{
 		api:         api,
 		toRead:      toRead,
-		radix:       radix,
-		maxCoeff:    1 << numNbBits,
+		radix:       twoPow(api, wordNbBits),
+		numBound:    twoPow(api, numNbBits),
 		wordsPerNum: wordsPerNum,
 	}
+}
+
+func twoPow(api frontend.API, n int) frontend.Variable {
+	res := frontend.Variable(1)
+	for n > 0 {
+		res = api.Mul(res, 2)
+		n--
+	}
+	return res
 }
 
 // Next returns the next number in the sequence and advances the reader head by one word. assumes bits past the end of the Slice are 0
@@ -209,7 +217,7 @@ func (nr *NumReader) next(v frontend.Variable) frontend.Variable {
 
 	// let r := nr.radix, n := log(nr.maxCoeff)ᵣ
 	// then (b₁ b₂ ... bₙ)ᵣ = r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
-	nr.last = nr.api.Sub(nr.api.Mul(nr.last, nr.radix), nr.api.Mul(nr.toRead[0], nr.maxCoeff)) // r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀
+	nr.last = nr.api.Sub(nr.api.Mul(nr.last, nr.radix), nr.api.Mul(nr.toRead[0], nr.numBound)) // r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀
 	if nr.wordsPerNum < len(nr.toRead) {
 		if v == nil { // return r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
 			nr.last = nr.api.Add(nr.last, nr.toRead[nr.wordsPerNum])
