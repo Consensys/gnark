@@ -55,3 +55,7 @@ func registerHints() {
 	solver.RegisterHint(sw_bls12377.GetHints()...)
 	solver.RegisterHint(sw_bls24315.GetHints()...)
 }
+
+func init() {
+	RegisterHints()
+}
