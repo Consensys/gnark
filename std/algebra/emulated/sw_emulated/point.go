@@ -664,16 +664,64 @@ func (c *Curve[B, S]) jointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.El
 	}
 }
 
-// jointScalarMulGeneric computes [s1]p1 + [s2]p2. It doesn't modify the inputs.
+// jointScalarMulGeneric computes [s1]p1 + [s2]p2. It doesn't modify p1, p2 nor s1, s2.
 //
-// ⚠️  p1, p2 must not be (0,0) and s1, s2 must not be 0, unless [algopts.WithCompleteArithmetic] option is set.
+// ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), unless [algopts.WithCompleteArithmetic] option is set.
 func (c *Curve[B, S]) jointScalarMulGeneric(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	res1 := c.scalarMulGeneric(p1, s1, opts...)
-	res2 := c.scalarMulGeneric(p2, s2, opts...)
-	return c.Add(res1, res2)
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
+	if cfg.CompleteArithmetic {
+		// TODO @yelhousni: optimize
+		res1 := c.scalarMulGeneric(p1, s1, opts...)
+		res2 := c.scalarMulGeneric(p2, s2, opts...)
+		return c.AddUnified(res1, res2)
+	} else {
+		return c.jointScalarMulGenericUnsafe(p1, p2, s1, s2)
+	}
 }
 
-// jointScalarMulGLV computes [s1]p1 + [s2]p2 using an endomorphism. It doesn't modify P, Q nor s.
+// jointScalarMulGenericUnsafe computes [s1]p1 + [s2]p2 using Shamir's trick and returns it. It doesn't modify p1, p2 nor s1, s2.
+// ⚠️  The scalars must be nonzero and the points different from (0,0).
+func (c *Curve[B, S]) jointScalarMulGenericUnsafe(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	var Acc, B1, p1Neg, p2Neg *AffinePoint[B]
+	p1Neg = c.Neg(p1)
+	p2Neg = c.Neg(p2)
+
+	// Acc = P1 + P2
+	Acc = c.Add(p1, p2)
+
+	s1bits := c.scalarApi.ToBits(s1)
+	s2bits := c.scalarApi.ToBits(s2)
+
+	var st S
+	nbits := st.Modulus().BitLen()
+
+	for i := nbits - 1; i > 0; i-- {
+		B1 = &AffinePoint[B]{
+			X: p1Neg.X,
+			Y: *c.baseApi.Select(s1bits[i], &p1.Y, &p1Neg.Y),
+		}
+		Acc = c.doubleAndAdd(Acc, B1)
+		B1 = &AffinePoint[B]{
+			X: p2Neg.X,
+			Y: *c.baseApi.Select(s2bits[i], &p2.Y, &p2Neg.Y),
+		}
+		Acc = c.Add(Acc, B1)
+
+	}
+
+	// i = 0
+	p1Neg = c.Add(p1Neg, Acc)
+	Acc = c.Select(s1bits[0], Acc, p1Neg)
+	p2Neg = c.Add(p2Neg, Acc)
+	Acc = c.Select(s2bits[0], Acc, p2Neg)
+
+	return Acc
+}
+
+// jointScalarMulGLV computes [s1]p1 + [s2]p2 using an endomorphism. It doesn't modify p1, p2 nor s1, s2.
 //
 // ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), unless [algopts.WithCompleteArithmetic] option is set.
 func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
@@ -691,8 +739,8 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 	}
 }
 
-// jointScalarMulGLVUnsafe computes [s]Q + [t]R using Shamir's trick with an efficient endomorphism and returns it. It doesn't modify P, Q nor s.
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0), unless [algopts.WithCompleteArithmetic] option is set.
+// jointScalarMulGLVUnsafe computes [s]Q + [t]R using Shamir's trick with an efficient endomorphism and returns it. It doesn't modify Q, R nor s, t.
+// ⚠️  The scalars must be nonzero and the points different from (0,0).
 func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulated.Element[S]) *AffinePoint[B] {
 	var st S
 	frModulus := c.scalarApi.Modulus()
