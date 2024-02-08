@@ -1094,6 +1094,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	m := uint64(s.pk.Domain[1].Cardinality)
 	mm := uint64(64 - bits.TrailingZeros64(m))
 
+	// Set up device pointers to polynomial coefficients
 	var devicePointers []unsafe.Pointer
 	for i := 0; i < len(s.x); i++ {
 		sizeBytes := s.x[i].Size() * fr.Bytes
@@ -1119,6 +1120,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				acc.Mul(&acc, &shifters[i])
 			}
 		}
+
 		batchTime := time.Now()
 		batchApply(s.x, func(p *iop.Polynomial, pn int) {
 			nbTasks := calculateNbTasks(len(s.x)-1) * 2
@@ -1272,7 +1274,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			_ = <-computeInttNttDone
 
 		})
-
 		for _, q := range s.bp {
 			scalePowers(q, cs)
 		}
@@ -1301,18 +1302,18 @@ func calculateNbTasks(n int) int {
 
 // batchApply executes fn on all polynomials in x except x[id_ZS] in parallel.
 func batchApply(x []*iop.Polynomial, fn func(*iop.Polynomial, int)) {
-	//var wg sync.WaitGroup
+	var wg sync.WaitGroup
 	for i := 0; i < len(x); i++ {
 		if i == id_ZS {
 			continue
 		}
-		//wg.Add(1)
-		//go func(i int) {
-		fn(x[i], i)
-		//		wg.Done()
-		//	}(i)
+		wg.Add(1)
+		go func(i int) {
+			fn(x[i], i)
+		wg.Done()
+		}(i)
 	}
-	// wg.Wait()
+	wg.Wait()
 }
 
 // p <- <p, (1, w, .., wⁿ) >
