@@ -102,8 +102,8 @@ func halfEuclideanDivision(mod *big.Int, inputs []*big.Int, outputs []*big.Int) 
 		if len(inputs) != 2 {
 			return fmt.Errorf("expecting two inputs")
 		}
-		if len(outputs) != 4 {
-			return fmt.Errorf("expecting four outputs")
+		if len(outputs) != 3 {
+			return fmt.Errorf("expecting three outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(inputs[0], inputs[1], glvBasis)
@@ -113,14 +113,9 @@ func halfEuclideanDivision(mod *big.Int, inputs []*big.Int, outputs []*big.Int) 
 		// 		output0 = v0 mod r
 		// 		output1 = v1 mod r
 		// 		output2 = |v0| mod r
-		// 		output3 = |v1| mod r
-		outputs[2].Set(outputs[0])
-		if outputs[0].Sign() == -1 {
-			outputs[2].Neg(outputs[0])
-		}
-		outputs[3].Set(outputs[1])
+		outputs[2].Set(outputs[1])
 		if outputs[1].Sign() == -1 {
-			outputs[3].Neg(outputs[1])
+			outputs[2].Neg(outputs[1])
 		}
 
 		return nil

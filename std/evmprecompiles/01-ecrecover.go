@@ -87,19 +87,19 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	// then we need to check that [v]P - [u]R == [w]G
 
 	// 1. first find subScalars[0]=-u and subScalars[1]=v
-	subScalars, err := frField.NewHint(halfEuclideanDivision, 4, frField.Modulus(), u2)
+	subScalars, err := frField.NewHint(halfEuclideanDivision, 3, frField.Modulus(), u2)
 	if err != nil {
 		panic(fmt.Sprintf("sub-scalars hint: %v", err))
 	}
 	// 2. assert that u2 = u/v mod n
 	frField.AssertIsEqual(frField.Div(frField.Neg(subScalars[0]), subScalars[1]), u2)
 	// 2.1 negate P if v is negative
-	selector := frField.IsZero(frField.Sub(subScalars[3], subScalars[1]))
+	selector := frField.IsZero(frField.Sub(subScalars[2], subScalars[1]))
 	_P := sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
 		X: P.X,
 		Y: *fpField.Select(selector, &P.Y, fpField.Neg(&P.Y)),
 	}
-	s1 := frField.Select(selector, subScalars[1], subScalars[3])
+	s1 := frField.Select(selector, subScalars[1], subScalars[2])
 	s0 := subScalars[0]
 	// 3. get w = u1 * u
 	w := frField.Mul(subScalars[1], u1)
