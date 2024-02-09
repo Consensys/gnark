@@ -114,7 +114,7 @@ func UnpackIntoBytesHint(_ *big.Int, ins, outs []*big.Int) error {
 }
 
 // ReadNum reads the slice c as a big endian number in base radix
-func ReadNum(api frontend.API, c []frontend.Variable, radix frontend.Variable) frontend.Variable {
+func ReadNum(api frontend.API, c []frontend.Variable, radix *big.Int) frontend.Variable {
 	if len(c) == 0 {
 		return 0
 	}
@@ -149,8 +149,8 @@ func ShiftLeft(api frontend.API, slice []frontend.Variable, shiftAmount frontend
 type NumReader struct {
 	api         frontend.API
 	toRead      []frontend.Variable
-	radix       frontend.Variable
-	numBound    frontend.Variable
+	radix       *big.Int
+	numBound    *big.Int
 	wordsPerNum int
 	last        frontend.Variable
 }
@@ -170,18 +170,16 @@ func NewNumReader(api frontend.API, toRead []frontend.Variable, numNbBits, wordN
 	return &NumReader{
 		api:         api,
 		toRead:      toRead,
-		radix:       twoPow(api, wordNbBits),
-		numBound:    twoPow(api, numNbBits),
+		radix:       twoPow(wordNbBits),
+		numBound:    twoPow(numNbBits),
 		wordsPerNum: wordsPerNum,
 	}
 }
 
-func twoPow(api frontend.API, n int) frontend.Variable {
-	res := frontend.Variable(1)
-	for n > 0 {
-		res = api.Mul(res, 2)
-		n--
-	}
+func twoPow(n int) *big.Int {
+	_n := min(n, 62)
+	res := big.NewInt(1 << _n)
+	res.Lsh(res, uint(n-_n))
 	return res
 }
 
