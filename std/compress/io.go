@@ -177,10 +177,8 @@ func NewNumReader(api frontend.API, toRead []frontend.Variable, numNbBits, wordN
 }
 
 func twoPow(n int) *big.Int {
-	_n := min(n, 62)
-	res := big.NewInt(1 << _n)
-	res.Lsh(res, uint(n-_n))
-	return res
+	res := big.NewInt(1)
+	return res.Lsh(res, uint(n))
 }
 
 // Next returns the next number in the sequence and advances the reader head by one word. assumes bits past the end of the Slice are 0
