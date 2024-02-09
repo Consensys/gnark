@@ -22,7 +22,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 )
@@ -159,31 +158,6 @@ func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}, opts .
 	}
 }
 
-var DecomposeScalarG1 = func(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
-	cc := getInnerCurveConfig(scalarField)
-	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
-	res[0].Set(&(sp[0]))
-	res[1].Set(&(sp[1]))
-	one := big.NewInt(1)
-	// add (lambda+1, lambda) until scalar compostion is over Fr to ensure that
-	// the high bits are set in decomposition.
-	for res[0].Cmp(cc.lambda) < 1 && res[1].Cmp(cc.lambda) < 1 {
-		res[0].Add(res[0], cc.lambda)
-		res[0].Add(res[0], one)
-		res[1].Add(res[1], cc.lambda)
-	}
-	// figure out how many times we have overflowed
-	res[2].Mul(res[1], cc.lambda).Add(res[2], res[0])
-	res[2].Sub(res[2], inputs[0])
-	res[2].Div(res[2], cc.fr)
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DecomposeScalarG1)
-}
-
 // varScalarMul sets P = [s] Q and returns P.
 func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
@@ -202,7 +176,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// additional constraints and thus table-version is more expensive than
 	// addition-version.
 	var selector frontend.Variable
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
 		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
@@ -216,7 +190,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
 	// where λ is third root of one in 𝔽_r.
-	sd, err := api.Compiler().NewHint(DecomposeScalarG1, 3, s)
+	sd, err := api.Compiler().NewHint(decomposeScalarG1, 3, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -287,9 +261,9 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	}
 
 	// i = 0
-	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		tableQ[0].AddUnified(api, Acc)
 		Acc.Select(api, s1bits[0], Acc, tableQ[0])
 		tablePhiQ[0].AddUnified(api, Acc)
@@ -348,7 +322,7 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	table[2] = negQ
 	table[3] = Q
 
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		table[0].AddUnified(api, negPhiQ)
 		table[1].AddUnified(api, negPhiQ)
 		table[2].AddUnified(api, phiQ)
@@ -364,7 +338,7 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	// if both high bits are set, then we would get to the incomplete part,
 	// handle it separately.
 	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
-		if cfg.UseSafe {
+		if cfg.CompleteArithmetic {
 			Acc.AddUnified(api, Acc)
 			Acc.AddUnified(api, table[3])
 		} else {
@@ -374,7 +348,7 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 		nbits = nbits - 1
 	}
 	for i := nbits - 1; i > 0; i-- {
-		if cfg.UseSafe {
+		if cfg.CompleteArithmetic {
 			Acc.AddUnified(api, Acc)
 			Acc.AddUnified(api, table[k[0].Bit(i)+2*k[1].Bit(i)])
 		} else {
@@ -383,7 +357,7 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	}
 
 	// i = 0
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		negQ.AddUnified(api, Acc)
 		Acc.Select(api, k[0].Bit(0), Acc, negQ)
 		negPhiQ.AddUnified(api, Acc)
@@ -456,14 +430,14 @@ func (P *G1Affine) ScalarMulBase(api frontend.API, s frontend.Variable, opts ...
 func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
-	sd, err := api.Compiler().NewHint(DecomposeScalarG1, 3, s)
+	sd, err := api.Compiler().NewHint(decomposeScalarG1, 3, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	s1, s2 := sd[0], sd[1]
 
-	td, err := api.Compiler().NewHint(DecomposeScalarG1, 3, t)
+	td, err := api.Compiler().NewHint(decomposeScalarG1, 3, t)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

@@ -72,3 +72,34 @@ func GetNativeVerifierOptions(outer, field *big.Int) backend.VerifierOption {
 		return nil
 	}
 }
+
+type verifierCfg struct {
+	withCompleteArithmetic bool
+}
+
+// VerifierOption allows to modify the behaviour of PLONK verifier.
+type VerifierOption func(cfg *verifierCfg) error
+
+// WithCompleteArithmetic forces the usage of complete formulas for point
+// addition and multi-scalar multiplication. The option is necessary when
+// recursing simple inner circuits whose selector polynomials may have
+// exceptional cases (zeros, equal to each other, inverses of each other).
+//
+// Safe formulas are less efficient to use, so using this option has performance
+// impact on the outer circuit size.
+func WithCompleteArithmetic() VerifierOption {
+	return func(cfg *verifierCfg) error {
+		cfg.withCompleteArithmetic = true
+		return nil
+	}
+}
+
+func newCfg(opts ...VerifierOption) (*verifierCfg, error) {
+	cfg := new(verifierCfg)
+	for i := range opts {
+		if err := opts[i](cfg); err != nil {
+			return nil, fmt.Errorf("option %d: %w", i, err)
+		}
+	}
+	return cfg, nil
+}

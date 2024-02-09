@@ -286,7 +286,7 @@ func (circuit *g1constantScalarMulEdgeCases) Define(api frontend.API) error {
 	expected2 := G1Affine{}
 	infinity := G1Affine{X: 0, Y: 0}
 	expected1.constScalarMul(api, circuit.A, big.NewInt(0))
-	expected2.constScalarMul(api, infinity, circuit.R, algopts.WithUseSafe())
+	expected2.constScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
 	expected1.AssertIsEqual(api, infinity)
 	expected2.AssertIsEqual(api, infinity)
 	return nil
@@ -400,8 +400,8 @@ func (circuit *g1varScalarMulEdgeCases) Define(api frontend.API) error {
 	expected1 := G1Affine{}
 	expected2 := G1Affine{}
 	infinity := G1Affine{X: 0, Y: 0}
-	expected1.varScalarMul(api, circuit.A, 0, algopts.WithUseSafe())
-	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithUseSafe())
+	expected1.varScalarMul(api, circuit.A, 0, algopts.WithCompleteArithmetic())
+	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
 	expected1.AssertIsEqual(api, infinity)
 	expected2.AssertIsEqual(api, infinity)
 	return nil

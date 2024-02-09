@@ -147,7 +147,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		return nil, fmt.Errorf("new config: %w", err)
 	}
 	addFn := c.Add
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		addFn = c.AddUnified
 	}
 	if !cfg.FoldMulti {
@@ -175,7 +175,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		gamma := c.packScalarToVar(scalars[0])
 		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
 		cc := getInnerCurveConfig(c.api.Compiler().Field())
-		sd, err := c.api.Compiler().NewHint(DecomposeScalarG1, 3, gamma)
+		sd, err := c.api.Compiler().NewHint(decomposeScalarG1, 3, gamma)
 		if err != nil {
 			panic(err)
 		}

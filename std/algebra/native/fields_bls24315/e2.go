@@ -17,11 +17,8 @@ limitations under the License.
 package fields_bls24315
 
 import (
-	"math/big"
-
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
 )
@@ -148,30 +145,10 @@ func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 	return e
 }
 
-var DivE2Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, b, c bls24315.E2
-
-	a.A0.SetBigInt(inputs[0])
-	a.A1.SetBigInt(inputs[1])
-	b.A0.SetBigInt(inputs[2])
-	b.A1.SetBigInt(inputs[3])
-
-	c.Inverse(&b).Mul(&c, &a)
-
-	c.A0.BigInt(res[0])
-	c.A1.BigInt(res[1])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DivE2Hint)
-}
-
 // DivUnchecked e2 elmts
 func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
 
-	res, err := api.NewHint(DivE2Hint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
+	res, err := api.NewHint(divE2Hint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -189,28 +166,10 @@ func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
 	return e
 }
 
-var InverseE2Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, c bls24315.E2
-
-	a.A0.SetBigInt(inputs[0])
-	a.A1.SetBigInt(inputs[1])
-
-	c.Inverse(&a)
-
-	c.A0.BigInt(res[0])
-	c.A1.BigInt(res[1])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(InverseE2Hint)
-}
-
 // Inverse e2 elmts
 func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 
-	res, err := api.NewHint(InverseE2Hint, 2, e1.A0, e1.A1)
+	res, err := api.NewHint(inverseE2Hint, 2, e1.A0, e1.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

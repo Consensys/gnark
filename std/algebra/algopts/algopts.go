@@ -8,9 +8,9 @@ package algopts
 import "fmt"
 
 type algebraCfg struct {
-	NbScalarBits int
-	FoldMulti    bool
-	UseSafe      bool
+	NbScalarBits       int
+	FoldMulti          bool
+	CompleteArithmetic bool
 }
 
 // AlgebraOption allows modifying algebraic operation behaviour.
@@ -45,14 +45,14 @@ func WithFoldingScalarMul() AlgebraOption {
 	}
 }
 
-// WithUseSafe forces the use of safe addition formulas for scalar
+// WithCompleteArithmetic forces the use of safe addition formulas for scalar
 // multiplication.
-func WithUseSafe() AlgebraOption {
+func WithCompleteArithmetic() AlgebraOption {
 	return func(ac *algebraCfg) error {
-		if ac.UseSafe {
-			return fmt.Errorf("WithUseSafe already set")
+		if ac.CompleteArithmetic {
+			return fmt.Errorf("WithCompleteArithmetic already set")
 		}
-		ac.UseSafe = true
+		ac.CompleteArithmetic = true
 		return nil
 	}
 }

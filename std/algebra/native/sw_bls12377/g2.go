@@ -22,7 +22,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
@@ -168,31 +167,6 @@ func (P *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}, opts ...al
 	}
 }
 
-var DecomposeScalarG2 = func(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
-	cc := getInnerCurveConfig(scalarField)
-	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
-	res[0].Set(&(sp[0]))
-	res[1].Set(&(sp[1]))
-	one := big.NewInt(1)
-	// add (lambda+1, lambda) until scalar compostion is over Fr to ensure that
-	// the high bits are set in decomposition.
-	for res[0].Cmp(cc.lambda) < 1 && res[1].Cmp(cc.lambda) < 1 {
-		res[0].Add(res[0], cc.lambda)
-		res[0].Add(res[0], one)
-		res[1].Add(res[1], cc.lambda)
-	}
-	// figure out how many times we have overflowed
-	res[2].Mul(res[1], cc.lambda).Add(res[2], res[0])
-	res[2].Sub(res[2], inputs[0])
-	res[2].Div(res[2], cc.fr)
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DecomposeScalarG2)
-}
-
 // varScalarMul sets P = [s] Q and returns P.
 func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, opts ...algopts.AlgebraOption) *g2AffP {
 	cfg, err := algopts.NewConfig(opts...)
@@ -211,7 +185,7 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	// additional constraints and thus table-version is more expensive than
 	// addition-version.
 	var selector frontend.Variable
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = api.And(Q.X.IsZero(api), Q.Y.IsZero(api))
 		one := fields_bls12377.E2{A0: 1, A1: 0}
@@ -226,7 +200,7 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
 	// where λ is third root of one in 𝔽_r.
-	sd, err := api.Compiler().NewHint(DecomposeScalarG2, 3, s)
+	sd, err := api.Compiler().NewHint(decomposeScalarG2, 3, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -297,9 +271,9 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	}
 
 	// i = 0
-	// When cfg.UseSafe is set, we use AddUnified instead of Add. This means
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		tableQ[0].AddUnified(api, Acc)
 		Acc.Select(api, s1bits[0], Acc, tableQ[0])
 		tablePhiQ[0].AddUnified(api, Acc)
@@ -360,7 +334,7 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	table[2] = negQ
 	table[3] = Q
 
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		table[0].AddUnified(api, negPhiQ)
 		table[1].AddUnified(api, negPhiQ)
 		table[2].AddUnified(api, phiQ)
@@ -376,7 +350,7 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	// if both high bits are set, then we would get to the incomplete part,
 	// handle it separately.
 	if k[0].Bit(nbits-1) == 1 && k[1].Bit(nbits-1) == 1 {
-		if cfg.UseSafe {
+		if cfg.CompleteArithmetic {
 			Acc.AddUnified(api, Acc)
 			Acc.AddUnified(api, table[3])
 		} else {
@@ -386,7 +360,7 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 		nbits = nbits - 1
 	}
 	for i := nbits - 1; i > 0; i-- {
-		if cfg.UseSafe {
+		if cfg.CompleteArithmetic {
 			Acc.AddUnified(api, Acc)
 			Acc.AddUnified(api, table[k[0].Bit(i)+2*k[1].Bit(i)])
 		} else {
@@ -395,7 +369,7 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	}
 
 	// i = 0
-	if cfg.UseSafe {
+	if cfg.CompleteArithmetic {
 		negQ.AddUnified(api, Acc)
 		Acc.Select(api, k[0].Bit(0), Acc, negQ)
 		negPhiQ.AddUnified(api, Acc)

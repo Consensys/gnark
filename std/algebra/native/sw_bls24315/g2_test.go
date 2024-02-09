@@ -203,7 +203,7 @@ func (circuit *g2constantScalarMulEdgeCases) Define(api frontend.API) error {
 	zero := fields_bls24315.E4{B0: fields_bls24315.E2{A0: 0, A1: 0}, B1: fields_bls24315.E2{A0: 0, A1: 0}}
 	infinity := g2AffP{X: zero, Y: zero}
 	expected1.constScalarMul(api, circuit.A, big.NewInt(0))
-	expected2.constScalarMul(api, infinity, circuit.R, algopts.WithUseSafe())
+	expected2.constScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
 	expected1.AssertIsEqual(api, infinity)
 	expected2.AssertIsEqual(api, infinity)
 	return nil
@@ -242,8 +242,8 @@ func (circuit *g2varScalarMulEdgeCases) Define(api frontend.API) error {
 	expected2 := g2AffP{}
 	zero := fields_bls24315.E4{B0: fields_bls24315.E2{A0: 0, A1: 0}, B1: fields_bls24315.E2{A0: 0, A1: 0}}
 	infinity := g2AffP{X: zero, Y: zero}
-	expected1.varScalarMul(api, circuit.A, 0, algopts.WithUseSafe())
-	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithUseSafe())
+	expected1.varScalarMul(api, circuit.A, 0, algopts.WithCompleteArithmetic())
+	expected2.varScalarMul(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
 	expected1.AssertIsEqual(api, infinity)
 	expected2.AssertIsEqual(api, infinity)
 	return nil
