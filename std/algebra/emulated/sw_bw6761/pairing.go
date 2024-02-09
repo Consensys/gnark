@@ -8,6 +8,7 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bw6761"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -15,6 +16,9 @@ type Pairing struct {
 	api frontend.API
 	*fields_bw6761.Ext6
 	curveF *emulated.Field[BaseField]
+	curve  *sw_emulated.Curve[BaseField, ScalarField]
+	g1     *G1
+	g2     *G2
 	g2gen  *G2Affine
 }
 
@@ -40,10 +44,25 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
+	curve, err := sw_emulated.New[BaseField, ScalarField](api, sw_emulated.GetBW6761Params())
+	if err != nil {
+		return nil, fmt.Errorf("new curve: %w", err)
+	}
+	g1, err := NewG1(api)
+	if err != nil {
+		return nil, fmt.Errorf("new G1 struct: %w", err)
+	}
+	g2, err := NewG2(api)
+	if err != nil {
+		return nil, fmt.Errorf("new G2 struct: %w", err)
+	}
 	return &Pairing{
 		api:    api,
 		Ext6:   fields_bw6761.NewExt6(api),
 		curveF: ba,
+		curve:  curve,
+		g1:     g1,
+		g2:     g2,
 	}, nil
 }
 
@@ -137,6 +156,64 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext6.AssertIsEqual(x, y)
+}
+
+func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
+	pr.curve.AssertIsOnCurve(P)
+}
+
+func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+	// Twist: Y² == X³ + aX + b, where a=0 and b=4
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if Q=(0,0) we assign b=0 otherwise 4, and continue
+	selector := pr.api.And(pr.curveF.IsZero(&Q.P.X), pr.curveF.IsZero(&Q.P.Y))
+	bTwist := emulated.ValueOf[BaseField](4)
+	b := pr.curveF.Select(selector, pr.curveF.Zero(), &bTwist)
+
+	left := pr.curveF.Mul(&Q.P.Y, &Q.P.Y)
+	right := pr.curveF.Mul(&Q.P.X, &Q.P.X)
+	right = pr.curveF.Mul(right, &Q.P.X)
+	right = pr.curveF.Add(right, b)
+	pr.curveF.AssertIsEqual(left, right)
+}
+
+func (pr Pairing) AssertIsOnG1(P *G1Affine) {
+	// 1- Check P is on the curve
+	pr.AssertIsOnCurve(P)
+
+	// 2- Check P has the right subgroup order
+	// we check that [x₀+1]P == [-x₀³+x₀²-1]ϕ(P)
+	xP := pr.g1.scalarMulBySeed(P)
+	x2P := pr.g1.scalarMulBySeed(xP)
+	x3P := pr.g1.scalarMulBySeed(x2P)
+
+	left := pr.g1.add(xP, P)
+	right := pr.g1.sub(x2P, x3P)
+	right = pr.g1.sub(right, P)
+	right = pr.g1.phi(right)
+
+	// [r]P == 0 <==> [x₀+1]P == [-x₀³+x₀²-1]ϕ(P)
+	pr.curve.AssertIsEqual(left, right)
+}
+
+func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
+	// 1- Check Q is on the curve
+	pr.AssertIsOnTwist(Q)
+
+	// 2- Check Q has the right subgroup order
+	// we check that [x₀+1]Q == [-x₀³+x₀²-1]ϕ(Q)
+	xQ := pr.g2.scalarMulBySeed(Q)
+	x2Q := pr.g2.scalarMulBySeed(xQ)
+	x3Q := pr.g2.scalarMulBySeed(x2Q)
+
+	left := pr.g2.add(xQ, Q)
+	right := pr.g2.sub(x2Q, x3Q)
+	right = pr.g2.sub(right, Q)
+	right = pr.g2.phi(right)
+
+	// [r]Q == 0 <==> [x₀+1]Q == [-x₀³+x₀²-1]ϕ(Q)
+	pr.g2.AssertIsEqual(left, right)
 }
 
 // seed x₀=9586122913090633729
