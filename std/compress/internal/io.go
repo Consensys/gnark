@@ -10,87 +10,6 @@ import (
 	"math/big"
 )
 
-// NumReader takes a sequence of words [ b₀ b₁ ... ], along with a base r and length n
-// and returns the numbers (b₀ b₁ ... bₙ₋₁)ᵣ, (b₁ b₂ ... bₙ)ᵣ, ... upon successive calls to Next()
-type NumReader struct {
-	api         frontend.API
-	toRead      []frontend.Variable
-	radix       int
-	maxCoeff    int
-	wordsPerNum int
-	last        frontend.Variable
-}
-
-// NewNumReader returns a new NumReader
-// toRead is the slice of words to read from
-// numNbBits defines the radix as r = 2ⁿᵘᵐᴺᵇᴮⁱᵗˢ (or rather numNbBits = log₂(r) )
-// wordNbBits defines the number of bits in each word such that n = numNbBits/wordNbBits
-// it is the caller's responsibility to check 0 ≤ bᵢ < r ∀ i
-func NewNumReader(api frontend.API, toRead []frontend.Variable, numNbBits, wordNbBits int) *NumReader {
-	wordsPerNum := numNbBits / wordNbBits
-
-	if wordsPerNum*wordNbBits != numNbBits {
-		panic("wordNbBits must be a divisor of 8")
-	}
-
-	radix := 1 << wordNbBits
-	return &NumReader{
-		api:         api,
-		toRead:      toRead,
-		radix:       radix,
-		maxCoeff:    1 << numNbBits,
-		wordsPerNum: wordsPerNum,
-	}
-}
-
-// Next returns the next number in the sequence and advances the reader head by one word. assumes bits past the end of the Slice are 0
-func (nr *NumReader) Next() frontend.Variable {
-	return nr.next(nil)
-}
-
-// AssertNextEquals is functionally equivalent to
-//
-//	z := nr.Next()
-//	api.AssertIsEqual(v, z)
-//
-// while saving exactly one constraint
-func (nr *NumReader) AssertNextEquals(v frontend.Variable) {
-	nr.next(v)
-}
-
-// next returns the next number in the sequence.
-// if v != nil, it returns v and asserts it is equal to the next number in the sequence (making a petty saving of one constraint by not creating a new variable)
-func (nr *NumReader) next(v frontend.Variable) frontend.Variable {
-	if len(nr.toRead) == 0 {
-		return 0
-	}
-
-	if nr.last == nil { // the very first call
-		nr.last = compress.ReadNum(nr.api, nr.toRead[:min(len(nr.toRead), nr.wordsPerNum)], nr.radix)
-		if v != nil {
-			nr.api.AssertIsEqual(nr.last, v)
-		}
-		return nr.last
-	}
-
-	// let r := nr.radix, n := log(nr.maxCoeff)ᵣ
-	// then (b₁ b₂ ... bₙ)ᵣ = r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
-	nr.last = nr.api.Sub(nr.api.Mul(nr.last, nr.radix), nr.api.Mul(nr.toRead[0], nr.maxCoeff)) // r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀
-	if nr.wordsPerNum < len(nr.toRead) {
-		if v == nil { // return r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
-			nr.last = nr.api.Add(nr.last, nr.toRead[nr.wordsPerNum])
-		} else { // assert v = r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
-			plonk.AddConstraint(nr.api, nr.last, nr.toRead[nr.wordsPerNum], v, 1, 1, -1, 0, 0)
-			nr.last = v
-		}
-	} else if v != nil {
-		panic("todo refactoring required")
-	}
-
-	nr.toRead = nr.toRead[1:]
-	return nr.last
-}
-
 // TODO Use std/rangecheck instead
 type RangeChecker struct {
 	api    frontend.API
@@ -175,7 +94,7 @@ func (r *RangeChecker) BreakUpBytesIntoWords(wordNbBits int, bytes ...frontend.V
 	// proving: check that words are in range
 	r.AssertLessThan(1<<wordNbBits, words...)
 
-	reader := NewNumReader(r.api, words, 8, wordNbBits) // "fill in" the spaces in between the given bytes
+	reader := compress.NewNumReader(r.api, words, 8, wordNbBits) // "fill in" the spaces in between the given bytes
 	recombined = make([]frontend.Variable, len(words))
 	for i := range bytes {
 		reader.AssertNextEquals(bytes[i]) // see that the words do recombine to the original bytes; the only real difference between this and the inner loop is a single constraint saved
@@ -226,11 +145,4 @@ func BreakUpBytesIntoCrumbsHint(_ *big.Int, ins, outs []*big.Int) error {
 
 func BreakUpBytesIntoHalfHint(_ *big.Int, ins, outs []*big.Int) error { // todo find catchy name for 4 bits
 	return breakUpBytesIntoWords(4, ins, outs)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

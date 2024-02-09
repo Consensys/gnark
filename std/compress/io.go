@@ -114,7 +114,7 @@ func UnpackIntoBytesHint(_ *big.Int, ins, outs []*big.Int) error {
 }
 
 // ReadNum reads the slice c as a big endian number in base radix
-func ReadNum(api frontend.API, c []frontend.Variable, radix int) frontend.Variable {
+func ReadNum(api frontend.API, c []frontend.Variable, radix *big.Int) frontend.Variable {
 	if len(c) == 0 {
 		return 0
 	}
@@ -142,4 +142,96 @@ func ShiftLeft(api frontend.API, slice []frontend.Variable, shiftAmount frontend
 		res[i] = l.Lookup(api.Add(i, shiftAmount))[0]
 	}
 	return res
+}
+
+// NumReader takes a sequence of words [ b₀ b₁ ... ], along with a base r and length n
+// and returns the numbers (b₀ b₁ ... bₙ₋₁)ᵣ, (b₁ b₂ ... bₙ)ᵣ, ... upon successive calls to Next()
+type NumReader struct {
+	api         frontend.API
+	toRead      []frontend.Variable
+	radix       *big.Int
+	numBound    *big.Int
+	wordsPerNum int
+	last        frontend.Variable
+}
+
+// NewNumReader returns a new NumReader
+// toRead is the slice of words to read from
+// numNbBits defines the radix as r = 2ⁿᵘᵐᴺᵇᴮⁱᵗˢ (or rather numNbBits = log₂(r) )
+// wordNbBits defines the number of bits in each word such that n = numNbBits/wordNbBits
+// it is the caller's responsibility to check 0 ≤ bᵢ < r ∀ i
+func NewNumReader(api frontend.API, toRead []frontend.Variable, numNbBits, wordNbBits int) *NumReader {
+	wordsPerNum := numNbBits / wordNbBits
+
+	if wordsPerNum*wordNbBits != numNbBits {
+		panic("wordNbBits must be a divisor of 8")
+	}
+
+	return &NumReader{
+		api:         api,
+		toRead:      toRead,
+		radix:       twoPow(wordNbBits),
+		numBound:    twoPow(numNbBits),
+		wordsPerNum: wordsPerNum,
+	}
+}
+
+func twoPow(n int) *big.Int {
+	res := big.NewInt(1)
+	return res.Lsh(res, uint(n))
+}
+
+// Next returns the next number in the sequence and advances the reader head by one word. assumes bits past the end of the Slice are 0
+func (nr *NumReader) Next() frontend.Variable {
+	return nr.next(nil)
+}
+
+// AssertNextEquals is functionally equivalent to
+//
+//	z := nr.Next()
+//	api.AssertIsEqual(v, z)
+//
+// while saving exactly one constraint
+func (nr *NumReader) AssertNextEquals(v frontend.Variable) {
+	nr.next(v)
+}
+
+// next returns the next number in the sequence.
+// if v != nil, it returns v and asserts it is equal to the next number in the sequence (making a petty saving of one constraint by not creating a new variable)
+func (nr *NumReader) next(v frontend.Variable) frontend.Variable {
+	if len(nr.toRead) == 0 {
+		return 0
+	}
+
+	if nr.last == nil { // the very first call
+		nr.last = ReadNum(nr.api, nr.toRead[:min(len(nr.toRead), nr.wordsPerNum)], nr.radix)
+		if v != nil {
+			nr.api.AssertIsEqual(nr.last, v)
+		}
+		return nr.last
+	}
+
+	// let r := nr.radix, n := log(nr.maxCoeff)ᵣ
+	// then (b₁ b₂ ... bₙ)ᵣ = r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
+	nr.last = nr.api.Sub(nr.api.Mul(nr.last, nr.radix), nr.api.Mul(nr.toRead[0], nr.numBound)) // r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀
+	if nr.wordsPerNum < len(nr.toRead) {
+		if v == nil { // return r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
+			nr.last = nr.api.Add(nr.last, nr.toRead[nr.wordsPerNum])
+		} else { // assert v = r × (b₀ b₁ ... bₙ₋₁)ᵣ - rⁿ × b₀ + bₙ
+			plonk.AddConstraint(nr.api, nr.last, nr.toRead[nr.wordsPerNum], v, 1, 1, -1, 0, 0)
+			nr.last = v
+		}
+	} else if v != nil {
+		panic("todo refactoring required")
+	}
+
+	nr.toRead = nr.toRead[1:]
+	return nr.last
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
