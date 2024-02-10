@@ -4,10 +4,10 @@ import (
 	"sync"
 
 	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bw6761"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
