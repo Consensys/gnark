@@ -716,7 +716,7 @@ func (c *ScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
 	if err != nil {
 		return err
 	}
-	res := cr.ScalarMul(&c.P, &c.S, algopts.WithUseSafe())
+	res := cr.ScalarMul(&c.P, &c.S, algopts.WithCompleteArithmetic())
 	cr.AssertIsEqual(res, &c.R)
 	return nil
 }
@@ -923,6 +923,137 @@ func TestJointScalarMulBase(t *testing.T) {
 	assert.NoError(err)
 }
 
+type MultiScalarMulEdgeCasesTest[T, S emulated.FieldParams] struct {
+	Points  []AffinePoint[T]
+	Scalars []emulated.Element[S]
+	Res     AffinePoint[T]
+}
+
+func (c *MultiScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	ps := make([]*AffinePoint[T], len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[S], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithCompleteArithmetic())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarMulEdgeCases(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 5
+	P := make([]bw6761.G1Affine, nbLen)
+	S := make([]fr_bw6761.Element, nbLen)
+	for i := 0; i < nbLen; i++ {
+		S[i].SetRandom()
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res bw6761.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]AffinePoint[emulated.BW6761Fp], len(P))
+	cS := make([]emulated.Element[emparams.BW6761Fr], len(S))
+	var infinity bw6761.G1Affine
+
+	// s1 * (0,0) + s2 * (0,0) + s3 * (0,0) + s4 * (0,0)  + s5 * (0,0) == (0,0)
+	for i := range cP {
+		cP[i] = AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+		}
+	}
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BW6761Fr](S[i])
+	}
+	assignment1 := MultiScalarMulEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  cP,
+		Scalars: cS,
+		Res: AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+		},
+	}
+	err = test.IsSolved(&MultiScalarMulEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  make([]AffinePoint[emparams.BW6761Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.BW6761Fr], nbLen),
+	}, &assignment1, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	// 0 * P1 + 0 * P2 + 0 * P3 + 0 * P4 + 0 * P5 == (0,0)
+	for i := range cP {
+		cP[i] = AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](P[i].X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](P[i].Y),
+		}
+	}
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BW6761Fr](0)
+	}
+	assignment2 := MultiScalarMulEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  cP,
+		Scalars: cS,
+		Res: AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+		},
+	}
+	err = test.IsSolved(&MultiScalarMulEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  make([]AffinePoint[emparams.BW6761Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.BW6761Fr], nbLen),
+	}, &assignment2, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	// s1 * (0,0) + s2 * P2 + s3 * (0,0) + s4 * P4 + 0 * P5 == s2 * P + s4 * P4
+	var res3 bw6761.G1Affine
+	res3.ScalarMultiplication(&P[1], S[1].BigInt(new(big.Int)))
+	res.ScalarMultiplication(&P[3], S[3].BigInt(new(big.Int)))
+	res3.Add(&res3, &res)
+	for i := range cP {
+		cP[i] = AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](P[i].X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](P[i].Y),
+		}
+	}
+	cP[0] = AffinePoint[emparams.BW6761Fp]{
+		X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
+		Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+	}
+	cP[2] = AffinePoint[emparams.BW6761Fp]{
+		X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
+		Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+	}
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BW6761Fr](S[i])
+	}
+	cS[4] = emulated.ValueOf[emparams.BW6761Fr](0)
+	assignment3 := MultiScalarMulEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  cP,
+		Scalars: cS,
+		Res: AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](res3.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](res3.Y),
+		},
+	}
+	err = test.IsSolved(&MultiScalarMulEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  make([]AffinePoint[emparams.BW6761Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.BW6761Fr], nbLen),
+	}, &assignment3, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type MultiScalarMulTest[T, S emulated.FieldParams] struct {
 	Points  []AffinePoint[T]
 	Scalars []emulated.Element[S]
@@ -989,6 +1120,176 @@ func TestMultiScalarMul(t *testing.T) {
 	assert.NoError(err)
 }
 
+type MultiScalarMulFoldedEdgeCasesTest[T, S emulated.FieldParams] struct {
+	Points  []AffinePoint[T]
+	Scalars []emulated.Element[S]
+	Res     AffinePoint[T]
+}
+
+func (c *MultiScalarMulFoldedEdgeCasesTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	ps := make([]*AffinePoint[T], len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[S], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul(), algopts.WithCompleteArithmetic())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarFoldedEdgeCasesMul(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 5
+	P := make([]bw6761.G1Affine, nbLen)
+	S := make([]fr_bw6761.Element, nbLen)
+	S[0].SetOne()
+	S[1].SetRandom()
+	S[2].Square(&S[1])
+	S[3].Mul(&S[1], &S[2])
+	S[4].Mul(&S[1], &S[3])
+	for i := 0; i < nbLen; i++ {
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res, infinity bw6761.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]AffinePoint[emulated.BW6761Fp], len(P))
+	cS := make([]emulated.Element[emparams.BW6761Fr], len(S))
+
+	// s^0 * (0,0) + s^1 * (0,0) + s^2 * (0,0) + s^3 * (0,0)  + s^4 * (0,0) == (0,0)
+	for i := range cP {
+		cP[i] = AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+		}
+	}
+	// s0 = s
+	S[0].Set(&S[1])
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BW6761Fr](S[i])
+	}
+	assignment1 := MultiScalarMulFoldedEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  cP,
+		Scalars: cS,
+		Res: AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](infinity.Y),
+		},
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  make([]AffinePoint[emparams.BW6761Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.BW6761Fr], nbLen),
+	}, &assignment1, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	// 0^0 * P1 + 0 * P2 + 0 * P3 + 0 * P4 + 0 * P5 == P1
+	for i := range cP {
+		cP[i] = AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](P[i].X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](P[i].Y),
+		}
+	}
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BW6761Fr](0)
+	}
+	assignment2 := MultiScalarMulFoldedEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  cP,
+		Scalars: cS,
+		Res: AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](P[0].X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](P[0].Y),
+		},
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedEdgeCasesTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  make([]AffinePoint[emparams.BW6761Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.BW6761Fr], nbLen),
+	}, &assignment2, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type MultiScalarMulFoldedTest[T, S emulated.FieldParams] struct {
+	Points  []AffinePoint[T]
+	Scalars []emulated.Element[S]
+	Res     AffinePoint[T]
+}
+
+func (c *MultiScalarMulFoldedTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	ps := make([]*AffinePoint[T], len(c.Points))
+	for i := range c.Points {
+		ps[i] = &c.Points[i]
+	}
+	ss := make([]*emulated.Element[S], len(c.Scalars))
+	for i := range c.Scalars {
+		ss[i] = &c.Scalars[i]
+	}
+	res, err := cr.MultiScalarMul(ps, ss, algopts.WithFoldingScalarMul())
+	if err != nil {
+		return err
+	}
+	cr.AssertIsEqual(res, &c.Res)
+	return nil
+}
+
+func TestMultiScalarFoldedMul(t *testing.T) {
+	assert := test.NewAssert(t)
+	nbLen := 4
+	P := make([]bw6761.G1Affine, nbLen)
+	S := make([]fr_bw6761.Element, nbLen)
+	// [s^0]P0 + [s^1]P1 + [s^2]P2 + [s^3]P3 = P0 + [s]P1 + [s^2]P2 + [s^3]P3
+	S[0].SetOne()
+	S[1].SetRandom()
+	S[2].Square(&S[1])
+	S[3].Mul(&S[1], &S[2])
+	for i := 0; i < nbLen; i++ {
+		P[i].ScalarMultiplicationBase(S[i].BigInt(new(big.Int)))
+	}
+	var res bw6761.G1Affine
+	_, err := res.MultiExp(P, S, ecc.MultiExpConfig{})
+
+	assert.NoError(err)
+	cP := make([]AffinePoint[emulated.BW6761Fp], len(P))
+	for i := range cP {
+		cP[i] = AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](P[i].X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](P[i].Y),
+		}
+	}
+	cS := make([]emulated.Element[emparams.BW6761Fr], len(S))
+	// s0 = s
+	S[0].Set(&S[1])
+	for i := range cS {
+		cS[i] = emulated.ValueOf[emparams.BW6761Fr](S[i])
+	}
+	assignment := MultiScalarMulFoldedTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  cP,
+		Scalars: cS,
+		Res: AffinePoint[emparams.BW6761Fp]{
+			X: emulated.ValueOf[emparams.BW6761Fp](res.X),
+			Y: emulated.ValueOf[emparams.BW6761Fp](res.Y),
+		},
+	}
+	err = test.IsSolved(&MultiScalarMulFoldedTest[emparams.BW6761Fp, emparams.BW6761Fr]{
+		Points:  make([]AffinePoint[emparams.BW6761Fp], nbLen),
+		Scalars: make([]emulated.Element[emparams.BW6761Fr], nbLen),
+	}, &assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type ScalarMulTestBounded[T, S emulated.FieldParams] struct {
 	P, Q AffinePoint[T]
 	S    emulated.Element[S]
@@ -1037,8 +1338,6 @@ func TestScalarMulBounded(t *testing.T) {
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
-
-//
 
 type JointScalarMulTest[T, S emulated.FieldParams] struct {
 	P1, P2, Q AffinePoint[T]
@@ -1089,6 +1388,326 @@ func TestJointScalarMul6(t *testing.T) {
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestJointScalarMul4(t *testing.T) {
+	assert := test.NewAssert(t)
+	p256 := elliptic.P256()
+	s1, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	s2, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	p1x, p1y := p256.ScalarBaseMult(s1.Bytes())
+	p2x, p2y := p256.ScalarBaseMult(s2.Bytes())
+	resx, resy := p256.ScalarMult(p1x, p1y, s1.Bytes())
+	tmpx, tmpy := p256.ScalarMult(p2x, p2y, s2.Bytes())
+	resx, resy = p256.Add(resx, resy, tmpx, tmpy)
+
+	circuit := JointScalarMulTest[emulated.P256Fp, emulated.P256Fr]{}
+	witness := JointScalarMulTest[emulated.P256Fp, emulated.P256Fr]{
+		S1: emulated.ValueOf[emulated.P256Fr](s1),
+		S2: emulated.ValueOf[emulated.P256Fr](s2),
+		P1: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p1x),
+			Y: emulated.ValueOf[emulated.P256Fp](p1y),
+		},
+		P2: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p2x),
+			Y: emulated.ValueOf[emulated.P256Fp](p2y),
+		},
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](resx),
+			Y: emulated.ValueOf[emulated.P256Fp](resy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type JointScalarMulEdgeCasesTest[T, S emulated.FieldParams] struct {
+	P1, P2, Q AffinePoint[T]
+	S1, S2    emulated.Element[S]
+}
+
+func (c *JointScalarMulEdgeCasesTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.jointScalarMul(&c.P1, &c.P2, &c.S1, &c.S2, algopts.WithCompleteArithmetic())
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+func TestJointScalarMulEdgeCases6(t *testing.T) {
+	assert := test.NewAssert(t)
+	var r1, r2 fr_bw6761.Element
+	_, _ = r1.SetRandom()
+	_, _ = r2.SetRandom()
+	s1 := new(big.Int)
+	s2 := new(big.Int)
+	r1.BigInt(s1)
+	r2.BigInt(s2)
+	var res1, res2, gen2, infinity bw6761.G1Affine
+	_, _, gen1, _ := bw6761.Generators()
+	gen2.Double(&gen1)
+	res1.ScalarMultiplication(&gen1, s1)
+	res2.ScalarMultiplication(&gen2, s2)
+
+	circuit := JointScalarMulEdgeCasesTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
+	// s1*(0,0) + s2*(0,0) == (0,0)
+	witness1 := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S1: emulated.ValueOf[emulated.BW6761Fr](s1),
+		S2: emulated.ValueOf[emulated.BW6761Fr](s2),
+		P1: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](infinity.Y),
+		},
+		P2: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](infinity.Y),
+		},
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](infinity.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// s1*P + s2*(0,0) == s1*P
+	witness2 := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S1: emulated.ValueOf[emulated.BW6761Fr](s1),
+		S2: emulated.ValueOf[emulated.BW6761Fr](s2),
+		P1: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen1.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen1.Y),
+		},
+		P2: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](infinity.Y),
+		},
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](res1.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](res1.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// s1*(0,0) + s2*Q == s2*Q
+	witness3 := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S1: emulated.ValueOf[emulated.BW6761Fr](s1),
+		S2: emulated.ValueOf[emulated.BW6761Fr](s2),
+		P1: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](infinity.Y),
+		},
+		P2: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen2.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen2.Y),
+		},
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](res2.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](res2.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 0*P + 0*Q == (0,0)
+	witness4 := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S1: emulated.ValueOf[emulated.BW6761Fr](0),
+		S2: emulated.ValueOf[emulated.BW6761Fr](0),
+		P1: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen1.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen1.Y),
+		},
+		P2: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen2.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen2.Y),
+		},
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](infinity.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](infinity.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness4, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 0*P + s2*Q == s2*Q
+	witness5 := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S1: emulated.ValueOf[emulated.BW6761Fr](0),
+		S2: emulated.ValueOf[emulated.BW6761Fr](s2),
+		P1: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen1.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen1.Y),
+		},
+		P2: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen2.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen2.Y),
+		},
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](res2.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](res2.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness5, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// s1*P + 0*Q == s1*P
+	witness6 := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S1: emulated.ValueOf[emulated.BW6761Fr](s1),
+		S2: emulated.ValueOf[emulated.BW6761Fr](0),
+		P1: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen1.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen1.Y),
+		},
+		P2: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](gen2.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](gen2.Y),
+		},
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](res1.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](res1.Y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness6, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestJointScalarMulEdgeCases4(t *testing.T) {
+	assert := test.NewAssert(t)
+	p256 := elliptic.P256()
+	s1, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	s2, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	p1x, p1y := p256.ScalarBaseMult(s1.Bytes())
+	p2x, p2y := p256.ScalarBaseMult(s2.Bytes())
+	res1x, res1y := p256.ScalarMult(p1x, p1y, s1.Bytes())
+	res2x, res2y := p256.ScalarMult(p2x, p2y, s2.Bytes())
+
+	circuit := JointScalarMulEdgeCasesTest[emulated.P256Fp, emulated.P256Fr]{}
+	// s1*(0,0) + s2*(0,0) == (0,0)
+	witness1 := JointScalarMulTest[emulated.P256Fp, emulated.P256Fr]{
+		S1: emulated.ValueOf[emulated.P256Fr](s1),
+		S2: emulated.ValueOf[emulated.P256Fr](s2),
+		P1: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](0),
+			Y: emulated.ValueOf[emulated.P256Fp](0),
+		},
+		P2: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](0),
+			Y: emulated.ValueOf[emulated.P256Fp](0),
+		},
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](0),
+			Y: emulated.ValueOf[emulated.P256Fp](0),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// s1*P + s2*(0,0) == s1*P
+	witness2 := JointScalarMulTest[emulated.P256Fp, emulated.P256Fr]{
+		S1: emulated.ValueOf[emulated.P256Fr](s1),
+		S2: emulated.ValueOf[emulated.P256Fr](s2),
+		P1: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p1x),
+			Y: emulated.ValueOf[emulated.P256Fp](p1y),
+		},
+		P2: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](0),
+			Y: emulated.ValueOf[emulated.P256Fp](0),
+		},
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](res1x),
+			Y: emulated.ValueOf[emulated.P256Fp](res1y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// s1*(0,0) + s2*Q == s2*Q
+	witness3 := JointScalarMulTest[emulated.P256Fp, emulated.P256Fr]{
+		S1: emulated.ValueOf[emulated.P256Fr](s1),
+		S2: emulated.ValueOf[emulated.P256Fr](s2),
+		P1: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](0),
+			Y: emulated.ValueOf[emulated.P256Fp](0),
+		},
+		P2: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p2x),
+			Y: emulated.ValueOf[emulated.P256Fp](p2y),
+		},
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](res2x),
+			Y: emulated.ValueOf[emulated.P256Fp](res2y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness3, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 0*P + 0*Q == (0,0)
+	witness4 := JointScalarMulTest[emulated.P256Fp, emulated.P256Fr]{
+		S1: emulated.ValueOf[emulated.P256Fr](0),
+		S2: emulated.ValueOf[emulated.P256Fr](0),
+		P1: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p1x),
+			Y: emulated.ValueOf[emulated.P256Fp](p1y),
+		},
+		P2: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p2x),
+			Y: emulated.ValueOf[emulated.P256Fp](p2y),
+		},
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](0),
+			Y: emulated.ValueOf[emulated.P256Fp](0),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness4, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 0*P + s2*Q == s2*Q
+	witness5 := JointScalarMulTest[emulated.P256Fp, emulated.P256Fr]{
+		S1: emulated.ValueOf[emulated.P256Fr](0),
+		S2: emulated.ValueOf[emulated.P256Fr](s2),
+		P1: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p1x),
+			Y: emulated.ValueOf[emulated.P256Fp](p1y),
+		},
+		P2: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p2x),
+			Y: emulated.ValueOf[emulated.P256Fp](p2y),
+		},
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](res2x),
+			Y: emulated.ValueOf[emulated.P256Fp](res2y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness5, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// s1*P + 0*Q == s1*P
+	witness6 := JointScalarMulTest[emulated.P256Fp, emulated.P256Fr]{
+		S1: emulated.ValueOf[emulated.P256Fr](s1),
+		S2: emulated.ValueOf[emulated.P256Fr](0),
+		P1: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p1x),
+			Y: emulated.ValueOf[emulated.P256Fp](p1y),
+		},
+		P2: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p2x),
+			Y: emulated.ValueOf[emulated.P256Fp](p2y),
+		},
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](res1x),
+			Y: emulated.ValueOf[emulated.P256Fp](res1y),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness6, testCurve.ScalarField())
 	assert.NoError(err)
 }
 

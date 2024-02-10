@@ -268,7 +268,7 @@ func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
 
-	// if Q=(0,0) we assign b=0 otherwise 3/(9+u), and continue
+	// if Q=(0,0) we assign b=0 otherwise 4(1+u), and continue
 	selector := pr.api.And(pr.Ext2.IsZero(&Q.P.X), pr.Ext2.IsZero(&Q.P.Y))
 	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
 

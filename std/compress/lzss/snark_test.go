@@ -1,6 +1,8 @@
 package lzss
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"testing"
 
@@ -145,8 +147,11 @@ func Fuzz(f *testing.F) { // TODO This is always skipped
 }
 
 type testCompressionRoundTripSettings struct {
-	level  lzss.Level
-	cBegin int
+	level                lzss.Level
+	cBegin               int
+	compressedPaddingLen int
+	compressedPaddedLen  int
+	compressed           []byte
 }
 
 type testCompressionRoundTripOption func(settings *testCompressionRoundTripSettings)
@@ -163,34 +168,81 @@ func withCBegin(cBegin int) testCompressionRoundTripOption {
 	}
 }
 
+func withCompressedPaddingLen(compressedPaddingLen int) testCompressionRoundTripOption {
+	return func(s *testCompressionRoundTripSettings) {
+		s.compressedPaddingLen = compressedPaddingLen
+	}
+}
+
+// withCompressedPaddedLen overrides withCompressedPaddingLen
+func withCompressedPaddedLen(compressedPaddedLen int) testCompressionRoundTripOption {
+	return func(s *testCompressionRoundTripSettings) {
+		s.compressedPaddedLen = compressedPaddedLen
+	}
+}
+
+func withCompressed(compressed []byte) testCompressionRoundTripOption {
+	return func(s *testCompressionRoundTripSettings) {
+		s.compressed = compressed
+	}
+}
+
+func checksum(b []byte) string {
+	hsh := sha256.New()
+	hsh.Write(b)
+	sum := hsh.Sum(nil)
+	return hex.EncodeToString(sum[:128/8])
+}
+
 func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompressionRoundTripOption) {
 
-	settings := testCompressionRoundTripSettings{
-		level: lzss.BestCompression,
+	t.Log("using dict", checksum(dict))
+
+	s := testCompressionRoundTripSettings{
+		level:               lzss.BestCompression,
+		compressedPaddedLen: -1,
 	}
 
 	for _, option := range options {
-		option(&settings)
+		option(&s)
 	}
 
-	compressor, err := lzss.NewCompressor(dict, settings.level)
+	if s.compressed == nil {
+		compressor, err := lzss.NewCompressor(dict, s.level)
+		require.NoError(t, err)
+		s.compressed, err = compressor.Compress(d)
+		require.NoError(t, err)
+	}
+
+	t.Log("compressed checksum:", checksum(s.compressed))
+
+	// duplicating tests from the compress repo, for sanity checking
+	dBack, err := lzss.Decompress(s.compressed, dict)
 	require.NoError(t, err)
-	c, err := compressor.Compress(d)
-	require.NoError(t, err)
+	assert.Equal(t, d, dBack)
 
 	//assert.NoError(t, os.WriteFile("compress.csv", lzss.CompressedStreamInfo(c, dict).ToCsv(), 0644))
 
+	// from the blob maker it seems like the compressed stream is 129091 bytes long
+
+	if s.compressedPaddedLen != -1 {
+		s.compressedPaddingLen = s.compressedPaddedLen - len(s.compressed)
+		require.LessOrEqual(t, len(s.compressed), s.compressedPaddedLen, "length must not be greater than padded length")
+	} else {
+		require.GreaterOrEqual(t, s.compressedPaddingLen, 0, "padding length must be non-negative")
+	}
+
 	circuit := &DecompressionTestCircuit{
-		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
+		C:                make([]frontend.Variable, len(s.compressed)+s.compressedPaddingLen),
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
-		Level:            settings.level,
+		Level:            s.level,
 	}
 	assignment := &DecompressionTestCircuit{
-		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
-		CBegin:  settings.cBegin,
-		CLength: len(c),
+		C:       test_vector_utils.ToVariableSlice(append(s.compressed, make([]byte, s.compressedPaddingLen)...)),
+		CBegin:  s.cBegin,
+		CLength: len(s.compressed),
 	}
 
 	RegisterHints()
