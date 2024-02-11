@@ -1034,8 +1034,13 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	// wait for init go routine
 	<-s.chNumeratorInit
 
-	cosetTable := s.pk.Domain[0].CosetTable
-	twiddles := s.pk.Domain[1].Twiddles[0][:n]
+
+	// Copy the twiddles slice to the device
+	sizeBytes := len(s.x[0].Coefficients()) * fr.Bytes
+
+	copyTDone := make(chan unsafe.Pointer, 1)
+	go iciclegnark.CopyToDevice(s.pk.Domain[1].Twiddles[0][:n], sizeBytes, copyTDone)
+	twiddles := <-copyTDone
 
 	// init the result polynomial & buffer
 	cres := s.cres
@@ -1071,19 +1076,19 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	}
 
 	// select the correct scaling vector to scale by shifter[i]
-	selectScalingVector := func(i int, l iop.Layout, np int) []fr.Element {
-		var w []fr.Element
+	selectScalingVector := func(i int, l iop.Layout, np int) unsafe.Pointer {
+		var w unsafe.Pointer
 		if i == 0 {
 			if l == iop.Regular {
-				w = cosetTable
+				w = s.pk.deviceInfo.DomainDevice.CosetTable
 			} else {
-				w = s.cosetTableRev
+				w = s.pk.deviceInfo.DomainDevice.CosetTableInv
 			}
 		} else {
 			if l == iop.Regular {
 				w = twiddles
 			} else {
-				w = s.twiddlesRev
+				w = s.pk.deviceInfo.DomainDevice.TwiddlesInv
 			}
 		}
 		return w
@@ -1129,11 +1134,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			sizeBytes := p.Size() * fr.Bytes
 
 			// scale by shifter[i]
-			w := selectScalingVector(i, p.Layout, pn)
-
-			copyWDone := make(chan unsafe.Pointer, 1)
-			go iciclegnark.CopyToDevice(w, sizeBytes, copyWDone)
-			w_device := <-copyWDone
+			w_device := selectScalingVector(i, p.Layout, pn)
 
 			// Initialize channels
 			computeInttNttDone := make(chan error, 1)
@@ -1189,7 +1190,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				_ = <- computeNttDone
 			}
 
-			go iciclegnark.FreeDevicePointer(w_device)
 		})
 		log.Debug().Dur("took", time.Since(batchTime)).Msg("FFT (batchApply)")
 		 
@@ -1235,22 +1235,24 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 		cs.Inverse(&cs)
 
+		// send the scale back factor to the GPU
+		var acc fr.Element
+		acc.SetOne()
+		accList := make([]fr.Element, s.x[0].Size())
+		for j := 0; j < s.x[0].Size(); j++ {
+			accList[j].Set(&acc)
+			acc.Mul(&acc, &cs)
+		}
+
+		sizeBytes := s.x[0].Size() * fr.Bytes
+		copyWDone := make(chan unsafe.Pointer, 1)
+		go iciclegnark.CopyToDevice(accList, sizeBytes, copyWDone)
+		w_device := <-copyWDone
+
 		batchApply(s.x[:id_ZS], func(p *iop.Polynomial, pn int) {
 			// ON Device
 			n := p.Size()
 			sizeBytes := p.Size() * fr.Bytes
-
-			var acc fr.Element
-			acc.SetOne()
-			accList := make([]fr.Element, p.Size())
-			for j := 0; j < p.Size(); j++ {
-				accList[j].Set(&acc)
-				acc.Mul(&acc, &cs)
-			}
-
-			copyWDone := make(chan unsafe.Pointer, 1)
-			go iciclegnark.CopyToDevice(accList, sizeBytes, copyWDone)
-			w_device := <-copyWDone
 
 			// Initialize channels
 			computeInttNttDone := make(chan error, 1)
