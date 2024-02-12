@@ -1192,7 +1192,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				// fft in the correct coset
 				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
 
-
 				isEqual := 0
 				notEqual := 0
 				for j := 0; j < int(n); j++ {
@@ -1230,6 +1229,33 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				// Copy back to host
 				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
 				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
+
+				// Debug CPU
+				p.ToCanonical(&s.pk.Domain[0], nbTasks)
+
+				// scale by shifter[i]
+				w := selectScalingVectorCpu(i, p.Layout)
+
+				cd := p.Coefficients()
+				utils.Parallelize(len(cd), func(start, end int) {
+					for j := start; j < end; j++ {
+						cd[j].Mul(&cd[j], &w[j])
+					}
+				}, nbTasks)
+
+				// fft in the correct coset
+				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
+
+				isEqual := 0
+				notEqual := 0
+				for j := 0; j < int(n); j++ {
+					if res[j] != cd[j] {
+						notEqual++
+					} else {
+						isEqual++
+					}
+				}
+				fmt.Println("n", pn,"isEqual", isEqual, "notEqual", notEqual)
 
 				iciclegnark.MontConvOnDevice(devicePointer, n, false)
 
