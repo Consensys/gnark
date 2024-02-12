@@ -1231,9 +1231,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	}
 
 	// scale everything back
-	// not sure if this waitgroup is necessary
-	g := new(errgroup.Group)
-	g.Go(func() (err error) {
+	go func() {
 		batchTime := time.Now()
 		for i := id_ZS; i < len(s.x); i++ {
 			s.x[i] = nil
@@ -1262,27 +1260,25 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		batchApply(s.x[:id_ZS], func(p *iop.Polynomial, pn int) {
 			// ON Device
-			//n := p.Size()
-			//sizeBytes := p.Size() * fr.Bytes
+			n := p.Size()
+			sizeBytes := p.Size() * fr.Bytes
 
 			// Initialize channels
 			computeInttNttDone := make(chan error, 1)
 			computeInttNttOnDevice := func(scaleVecPtr, devicePointer unsafe.Pointer) {
-				//a_intt_d := iciclegnark.INttOnDevice(devicePointer, s.pk.deviceInfo.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
+				a_intt_d := iciclegnark.INttOnDevice(devicePointer, s.pk.deviceInfo.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
 
-				//iciclegnark.VecMulOnDevice(a_intt_d, scaleVecPtr, n)
-				//iciclegnark.MontConvOnDevice(a_intt_d, n, true)
+				iciclegnark.VecMulOnDevice(a_intt_d, scaleVecPtr, n)
+				iciclegnark.MontConvOnDevice(a_intt_d, n, true)
 
-				//res := iciclegnark.CopyScalarsToHost(a_intt_d, n, sizeBytes)
-				//s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
+				res := iciclegnark.CopyScalarsToHost(a_intt_d, n, sizeBytes)
+				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 
-				//// Convert back to Monticarlo form
-				//iciclegnark.MontConvOnDevice(a_intt_d, n, false)
-				p.ToCanonical(&s.pk.Domain[0], 8).ToRegular()
-				scalePowers(p, cs)
+				// Convert back to Monticarlo form
+				iciclegnark.MontConvOnDevice(a_intt_d, n, false)
 
 				computeInttNttDone <- nil
-				//iciclegnark.FreeDevicePointer(a_intt_d)
+				iciclegnark.FreeDevicePointer(a_intt_d)
 			}
 			// Run computeInttNttOnDevice on device
 			go computeInttNttOnDevice(w_device, devicePointers[pn])
@@ -1294,12 +1290,8 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 
 		log.Debug().Dur("took", time.Since(batchTime)).Msg("FFT (Scale back batchApply):")
-		return
-	})
-	g.Wait()
-
-	// move outside of function to ensure everything is copied back
-	close(s.chRestoreLRO)
+		close(s.chRestoreLRO)
+	}()
 
 	// ensure all the goroutines are done
 	wgBuf.Wait()
@@ -1328,7 +1320,7 @@ func batchApply(x []*iop.Polynomial, fn func(*iop.Polynomial, int)) {
 		}
 		wg.Add(1)
 		go func(i int) {
-			// lock thread to prevent weird cuda errors, not sure if works correctly
+			// lock thread to prevent weird cuda errors
 			runtime.LockOSThread()
 			defer runtime.UnlockOSThread()
 

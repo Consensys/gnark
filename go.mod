@@ -11,7 +11,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b
 	//github.com/ingonyama-zk/iciclegnark v0.1.0.
-	github.com/ingonyama-zk/iciclegnark v0.1.2-0.20240131141109-5f8923e3fbd5
+	github.com/ingonyama-zk/iciclegnark v0.1.2-0.20240207160517-9558f9ad3baf
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.30.0
 	github.com/stretchr/testify v1.8.4

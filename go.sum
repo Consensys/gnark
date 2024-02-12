@@ -21,6 +21,8 @@ github.com/ingonyama-zk/icicle v0.1.0 h1:9zbHaYv8/4g3HWRabBCpeH+64U8GJ99K1qeqE2j
 github.com/ingonyama-zk/icicle v0.1.0/go.mod h1:kAK8/EoN7fUEmakzgZIYdWy1a2rBnpCaZLqSHwZWxEk=
 github.com/ingonyama-zk/iciclegnark v0.1.2-0.20240131141109-5f8923e3fbd5 h1:LZeh9IVCrZ8RiHZy1JuC+kKlTESUENxRrdBHwVBDFZ4=
 github.com/ingonyama-zk/iciclegnark v0.1.2-0.20240131141109-5f8923e3fbd5/go.mod h1:g17CDuMfNBiN4hhZ4aA0rGF24Abv5GBFHJqE7aLxaZQ=
+github.com/ingonyama-zk/iciclegnark v0.1.2-0.20240207160517-9558f9ad3baf h1:Z08V0nMJMwHoa6c4ASysBEZc1UU6GzRxG7XulNUGqHw=
+github.com/ingonyama-zk/iciclegnark v0.1.2-0.20240207160517-9558f9ad3baf/go.mod h1:g17CDuMfNBiN4hhZ4aA0rGF24Abv5GBFHJqE7aLxaZQ=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/leanovate/gopter v0.2.9 h1:fQjYxZaynp97ozCzfOyOuAGOU4aU/z37zf/tOujFk7c=
