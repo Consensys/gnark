@@ -1082,7 +1082,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	}
 
 	// select the correct scaling vector to scale by shifter[i]
-	selectScalingVector := func(i int, l iop.Layout, np int) unsafe.Pointer {
+	selectScalingVector := func(i int, l iop.Layout) unsafe.Pointer {
 		var w unsafe.Pointer
 		if i == 0 {
 			if l == iop.Regular {
@@ -1140,7 +1140,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			sizeBytes := p.Size() * fr.Bytes
 
 			// scale by shifter[i]
-			w_device := selectScalingVector(i, p.Layout, pn)
+			w_device := selectScalingVector(i, p.Layout)
 
 			// Initialize channels
 			computeInttNttDone := make(chan error, 1)
@@ -1154,9 +1154,10 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				iciclegnark.NttOnDevice(devicePointer, a_intt_d, s.pk.deviceInfo.DomainDevice.Twiddles, nil, n, n, sizeBytes, false)
 				iciclegnark.MontConvOnDevice(devicePointer, n, true)
 
+				// Copy results back to host
 				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
 
-				// Copy back to host
+				// Set the coefficients of the polynomial
 				cp := p.Coefficients()
 				utils.Parallelize(len(cp), func(start, end int) {
 					for j := start; j < end; j++ {
@@ -1164,6 +1165,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 					}
 				}, nbTasks)
 
+				// Convert back to Monticarlo form
 				iciclegnark.MontConvOnDevice(devicePointer, n, false)
 
 				computeInttNttDone <- nil
@@ -1182,6 +1184,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
 				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 
+				// Convert back to Monticarlo form
 				iciclegnark.MontConvOnDevice(devicePointer, n, false)
 
 				computeNttDone <- nil
@@ -1269,9 +1272,9 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				iciclegnark.MontConvOnDevice(a_intt_d, n, true)
 
 				res := iciclegnark.CopyScalarsToHost(a_intt_d, n, sizeBytes)
-
 				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 
+				// Convert back to Monticarlo form
 				iciclegnark.MontConvOnDevice(a_intt_d, n, false)
 
 				computeInttNttDone <- nil
@@ -1310,18 +1313,18 @@ func calculateNbTasks(n int) int {
 
 // batchApply executes fn on all polynomials in x except x[id_ZS] in parallel.
 func batchApply(x []*iop.Polynomial, fn func(*iop.Polynomial, int)) {
-	//	var wg sync.WaitGroup
+	var wg sync.WaitGroup
 	for i := 0; i < len(x); i++ {
 		if i == id_ZS {
 			continue
 		}
-		//wg.Add(1)
-		//go func(i int) {
+		wg.Add(1)
+		go func(i int) {
 			fn(x[i], i)
-			//wg.Done()
-			//}(i)
+			wg.Done()
+			}(i)
 			}
-		//wg.Wait()
+		wg.Wait()
 }
 
 // p <- <p, (1, w, .., wⁿ) >
