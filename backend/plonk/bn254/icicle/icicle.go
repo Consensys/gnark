@@ -756,7 +756,8 @@ func (s *instance) openZ() (err error) {
 
 	// open z at zeta
 	start := time.Now()
-	s.proof.ZShiftedOpening, err = kzg.OnDeviceOpen(s.blindedZ, zetaShifted, s.pk.deviceInfo.G1Device.G1)
+	//s.proof.ZShiftedOpening, err = kzg.OnDeviceOpen(s.blindedZ, zetaShifted, s.pk.deviceInfo.G1Device.G1)
+	s.proof.ZShiftedOpening, err = kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg)
 	if err != nil {
 		return err
 	}
@@ -1348,7 +1349,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 
 				iciclegnark.MontConvOnDevice(a_intt_d, n, false)
-
 
 				p.ToCanonical(&s.pk.Domain[0], 8).ToRegular()
 				scalePowers(p, cs)
