@@ -1320,6 +1320,10 @@ func batchApply(x []*iop.Polynomial, fn func(*iop.Polynomial, int)) {
 		}
 		wg.Add(1)
 		go func(i int) {
+			// lock thread to prevent weird cuda errors
+			runtime.LockOSThread()
+			defer runtime.UnlockOSThread()
+
 			fn(x[i], i)
 			wg.Done()
 			}(i)
