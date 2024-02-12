@@ -1349,6 +1349,21 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 				iciclegnark.MontConvOnDevice(a_intt_d, n, false)
 
+
+				p.ToCanonical(&s.pk.Domain[0], 8).ToRegular()
+				scalePowers(p, cs)
+				cd := p.Coefficients()
+				isEqual := 0
+				notEqual := 0
+				for j := 0; j < int(n); j++ {
+					if res[j] != cd[j] {
+						notEqual++
+					} else {
+						isEqual++
+					}
+				}
+				fmt.Println("n", pn,"isEqual", isEqual, "notEqual", notEqual)
+
 				computeInttNttDone <- nil
 				iciclegnark.FreeDevicePointer(a_intt_d)
 			}
