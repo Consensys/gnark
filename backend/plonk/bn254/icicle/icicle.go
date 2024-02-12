@@ -533,16 +533,19 @@ func (s *instance) commitToLRO() error {
 		s.proof.LRO[0], err = s.commitToPolyAndBlinding(s.x[id_L], s.bp[id_Bl])
 		return
 	})
+	g.Wait()
 
 	g.Go(func() (err error) {
 		s.proof.LRO[1], err = s.commitToPolyAndBlinding(s.x[id_R], s.bp[id_Br])
 		return
 	})
+	g.Wait()
 
 	g.Go(func() (err error) {
 		s.proof.LRO[2], err = s.commitToPolyAndBlinding(s.x[id_O], s.bp[id_Bo])
 		return
 	})
+	g.Wait()
 
 	return g.Wait()
 }
