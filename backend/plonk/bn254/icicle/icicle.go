@@ -1318,17 +1318,8 @@ func batchApply(x []*iop.Polynomial, fn func(*iop.Polynomial, int)) {
 		if i == id_ZS {
 			continue
 		}
-		//wg.Add(1)
-		//go func(i int) {
-			// lock thread to prevent weird cuda errors
-			//runtime.LockOSThread()
-			//defer runtime.UnlockOSThread()
-
 			fn(x[i], i)
-			//wg.Done()
-			//	}(i)
 		}
-	//wg.Wait()
 }
 
 // p <- <p, (1, w, .., wⁿ) >
