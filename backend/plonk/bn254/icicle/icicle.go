@@ -1231,7 +1231,8 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	}
 
 	// scale everything back
-	go func() {
+	g := new(errgroup.Group)
+	g.Go(func() (err error) {
 		batchTime := time.Now()
 		for i := id_ZS; i < len(s.x); i++ {
 			s.x[i] = nil
@@ -1291,7 +1292,9 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 		log.Debug().Dur("took", time.Since(batchTime)).Msg("FFT (Scale back batchApply):")
 		close(s.chRestoreLRO)
-	}()
+		return
+	})
+	g.Wait()
 
 	// ensure all the goroutines are done
 	wgBuf.Wait()
@@ -1327,7 +1330,7 @@ func batchApply(x []*iop.Polynomial, fn func(*iop.Polynomial, int)) {
 			fn(x[i], i)
 			wg.Done()
 			}(i)
-			}
+		}
 		wg.Wait()
 }
 
