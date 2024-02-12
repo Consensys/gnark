@@ -761,13 +761,6 @@ func (s *instance) openZ() (err error) {
 	start := time.Now()
 
 	s.proof.ZShiftedOpening, err = kzg.OnDeviceOpen(s.blindedZ, zetaShifted, s.pk.deviceInfo.G1Device.G1)
-	res, err := kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg)
-
-	if res != s.proof.ZShiftedOpening {
-		fmt.Println("res != s.proof.ZShiftedOpening")
-	} else {
-		fmt.Println("res == s.proof.ZShiftedOpening")
-	}
 
 	if err != nil {
 		return err
@@ -962,21 +955,6 @@ func (s *instance) batchOpening() error {
 		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
 	)
 
-	res, err := kzg.BatchOpenSinglePoint(
-		polysToOpen,
-		digestsToOpen,
-		s.zeta,
-		s.kzgFoldingHash,
-		s.pk.Kzg,
-		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
-	)
-
-	if res.H != s.proof.BatchedProof.H {
-		fmt.Println("res != s.proof.BatchedProof")
-	} else {
-		fmt.Println("res == s.proof.BatchedProof")
-	}
-
 	log.Debug().Dur("took", time.Since(start)).Msg("MSM (batchOpeningSinglePoint):")
 
 	return err
@@ -1122,30 +1100,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		return w
 	}
 
-
-	// CPU Debug
-	cosetTable := s.pk.Domain[0].CosetTable
-	twiddles := s.pk.Domain[1].Twiddles[0][:n]
-
-	// select the correct scaling vector to scale by shifter[i]
-	selectScalingVectorCpu := func(i int, l iop.Layout) []fr.Element {
-		var w []fr.Element
-		if i == 0 {
-			if l == iop.Regular {
-				w = cosetTable
-			} else {
-				w = s.cosetTableRev
-			}
-		} else {
-			if l == iop.Regular {
-				w = twiddles
-			} else {
-				w = s.twiddlesRev
-			}
-		}
-		return w
-	}
-
 	// pre-computed to compute the bit reverse index
 	// of the result polynomial
 	m := uint64(s.pk.Domain[1].Cardinality)
@@ -1202,34 +1156,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
 
-				// Debug CPU
-				p.ToCanonical(&s.pk.Domain[0], nbTasks)
-
-				// scale by shifter[i]
-				w := selectScalingVectorCpu(i, p.Layout)
-
-				cd := p.Coefficients()
-				utils.Parallelize(len(cd), func(start, end int) {
-					for j := start; j < end; j++ {
-						cd[j].Mul(&cd[j], &w[j])
-					}
-				}, nbTasks)
-
-				// fft in the correct coset
-				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
-
-				isEqual := 0
-				notEqual := 0
-				for j := 0; j < int(n); j++ {
-					if res[j] != cd[j] {
-						notEqual++
-					} else {
-						isEqual++
-					}
-				}
-				fmt.Println("n", pn,"isEqual", isEqual, "notEqual", notEqual)
-
-
 				// Copy back to host
 				cp := p.Coefficients()
 				utils.Parallelize(len(cp), func(start, end int) {
@@ -1255,33 +1181,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				// Copy back to host
 				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
 				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-
-				// Debug CPU
-				p.ToCanonical(&s.pk.Domain[0], nbTasks)
-
-				// scale by shifter[i]
-				w := selectScalingVectorCpu(i, p.Layout)
-
-				cd := p.Coefficients()
-				utils.Parallelize(len(cd), func(start, end int) {
-					for j := start; j < end; j++ {
-						cd[j].Mul(&cd[j], &w[j])
-					}
-				}, nbTasks)
-
-				// fft in the correct coset
-				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
-
-				isEqual := 0
-				notEqual := 0
-				for j := 0; j < int(n); j++ {
-					if res[j] != cd[j] {
-						notEqual++
-					} else {
-						isEqual++
-					}
-				}
-				fmt.Println("n", pn,"isEqual", isEqual, "notEqual", notEqual)
 
 				iciclegnark.MontConvOnDevice(devicePointer, n, false)
 
@@ -1374,20 +1273,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				s.x[pn] = iop.NewPolynomial(&res, iop.Form{Basis: iop.Canonical, Layout: iop.Regular})
 
 				iciclegnark.MontConvOnDevice(a_intt_d, n, false)
-
-				p.ToCanonical(&s.pk.Domain[0], 8).ToRegular()
-				scalePowers(p, cs)
-				cd := p.Coefficients()
-				isEqual := 0
-				notEqual := 0
-				for j := 0; j < int(n); j++ {
-					if res[j] != cd[j] {
-						notEqual++
-					} else {
-						isEqual++
-					}
-				}
-				fmt.Println("n", pn,"isEqual", isEqual, "notEqual", notEqual)
 
 				computeInttNttDone <- nil
 				iciclegnark.FreeDevicePointer(a_intt_d)
