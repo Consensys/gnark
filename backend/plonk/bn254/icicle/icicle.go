@@ -1291,10 +1291,12 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 
 		log.Debug().Dur("took", time.Since(batchTime)).Msg("FFT (Scale back batchApply):")
-		close(s.chRestoreLRO)
 		return
 	})
 	g.Wait()
+
+	// move outside of function to ensure everything is copied back
+	close(s.chRestoreLRO)
 
 	// ensure all the goroutines are done
 	wgBuf.Wait()
