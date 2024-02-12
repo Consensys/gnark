@@ -1040,7 +1040,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 
 	copyTDone := make(chan unsafe.Pointer, 1)
 	go iciclegnark.CopyToDevice(s.pk.Domain[1].Twiddles[0][:n], sizeBytes, copyTDone)
-	twiddles := <-copyTDone
+	twiddlesPtr := <-copyTDone
 
 	// init the result polynomial & buffer
 	cres := s.cres
@@ -1086,13 +1086,39 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 			}
 		} else {
 			if l == iop.Regular {
-				w = twiddles
+				w = twiddlesPtr
 			} else {
 				w = s.pk.deviceInfo.DomainDevice.TwiddlesInv
 			}
 		}
 		return w
 	}
+
+
+	// CPU Debug
+	cosetTable := s.pk.Domain[0].CosetTable
+	twiddles := s.pk.Domain[1].Twiddles[0][:n]
+
+	// select the correct scaling vector to scale by shifter[i]
+	selectScalingVectorCpu := func(i int, l iop.Layout) []fr.Element {
+		var w []fr.Element
+		if i == 0 {
+			if l == iop.Regular {
+				w = cosetTable
+			} else {
+				w = s.cosetTableRev
+			}
+		} else {
+			if l == iop.Regular {
+				w = twiddles
+			} else {
+				w = s.twiddlesRev
+			}
+		}
+		return w
+	}
+
+
 
 	// pre-computed to compute the bit reverse index
 	// of the result polynomial
@@ -1149,6 +1175,35 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 				iciclegnark.MontConvOnDevice(devicePointer, n, true)
 
 				res := iciclegnark.CopyScalarsToHost(devicePointer, n, sizeBytes)
+
+				// Debug CPU
+				p.ToCanonical(&s.pk.Domain[0], nbTasks)
+
+				// scale by shifter[i]
+				w := selectScalingVectorCpu(i, p.Layout)
+
+				cd := p.Coefficients()
+				utils.Parallelize(len(cd), func(start, end int) {
+					for j := start; j < end; j++ {
+						cd[j].Mul(&cd[j], &w[j])
+					}
+				}, nbTasks)
+
+				// fft in the correct coset
+				p.ToLagrange(&s.pk.Domain[0], nbTasks).ToRegular()
+
+
+				isEqual := 0
+				notEqual := 0
+				for j := 0; j < int(n); j++ {
+					if res[j] != cd[j] {
+						notEqual++
+					} else {
+						isEqual++
+					}
+				}
+				fmt.Println("n", pn,"isEqual", isEqual, "notEqual", notEqual)
+
 
 				// Copy back to host
 				cp := p.Coefficients()
