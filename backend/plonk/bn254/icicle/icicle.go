@@ -958,6 +958,22 @@ func (s *instance) batchOpening() error {
 		s.pk.deviceInfo.G1Device.G1,
 		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
 	)
+
+	res, err := kzg.BatchOpenSinglePoint(
+		polysToOpen,
+		digestsToOpen,
+		s.zeta,
+		s.kzgFoldingHash,
+		s.pk.Kzg,
+		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
+	)
+
+	if res.H != s.proof.BatchedProof.H {
+		fmt.Println("res != s.proof.BatchedProof")
+	} else {
+		fmt.Println("res == s.proof.BatchedProof")
+	}
+
 	log.Debug().Dur("took", time.Since(start)).Msg("MSM (batchOpeningSinglePoint):")
 
 	return err
