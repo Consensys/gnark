@@ -756,8 +756,16 @@ func (s *instance) openZ() (err error) {
 
 	// open z at zeta
 	start := time.Now()
-	//s.proof.ZShiftedOpening, err = kzg.OnDeviceOpen(s.blindedZ, zetaShifted, s.pk.deviceInfo.G1Device.G1)
-	s.proof.ZShiftedOpening, err = kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg)
+
+	s.proof.ZShiftedOpening, err = kzg.OnDeviceOpen(s.blindedZ, zetaShifted, s.pk.deviceInfo.G1Device.G1)
+	res, err := kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg)
+
+	if res != s.proof.ZShiftedOpening {
+		fmt.Println("res != s.proof.ZShiftedOpening")
+	} else {
+		fmt.Println("res == s.proof.ZShiftedOpening")
+	}
+
 	if err != nil {
 		return err
 	}
@@ -1118,8 +1126,6 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 		}
 		return w
 	}
-
-
 
 	// pre-computed to compute the bit reverse index
 	// of the result polynomial
