@@ -109,7 +109,8 @@ func GetHintID(fn Hint) HintID {
 
 func GetHintName(fn Hint) string {
 	fnptr := reflect.ValueOf(fn).Pointer()
-	return runtime.FuncForPC(fnptr).Name()
+	name := runtime.FuncForPC(fnptr).Name()
+	return newToOldStyle(name)
 }
 
 func newToOldStyle(name string) string {
