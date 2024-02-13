@@ -371,7 +371,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	}
 	Z := solution.Export(z)
 
-	challenge, err := api.Compiler().(frontend.Committer).Commit(Z...)
+	challenge, err := api.(frontend.Committer).Commit(Z...)
 	if err != nil {
 		return err
 	}

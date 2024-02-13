@@ -424,7 +424,7 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 // commitment at point.
 func (v *Verifier[FR, G1El, G2El, GTEl]) CheckOpeningProof(commitment Commitment[G1El], proof OpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
 
-	claimedValueG1 := v.curve.ScalarMulBase(&proof.ClaimedValue)
+	claimedValueG1 := v.curve.ScalarMul(&vk.G1, &proof.ClaimedValue)
 
 	// [f(α) - f(a)]G₁
 	fminusfaG1 := v.curve.Neg(claimedValueG1)
@@ -545,7 +545,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 	}
 
 	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
-	foldedEvalsCommit := v.curve.ScalarMulBase(foldedEvals)
+	foldedEvalsCommit := v.curve.ScalarMul(&vk.G1, foldedEvals)
 
 	// compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	tmp := v.curve.Neg(foldedEvalsCommit)

@@ -17,11 +17,8 @@ limitations under the License.
 package fields_bls12377
 
 import (
-	"math/big"
-
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -184,43 +181,10 @@ func (e *E6) Square(api frontend.API, x E6) *E6 {
 	return e
 }
 
-var DivE6Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, b, c bls12377.E6
-
-	a.B0.A0.SetBigInt(inputs[0])
-	a.B0.A1.SetBigInt(inputs[1])
-	a.B1.A0.SetBigInt(inputs[2])
-	a.B1.A1.SetBigInt(inputs[3])
-	a.B2.A0.SetBigInt(inputs[4])
-	a.B2.A1.SetBigInt(inputs[5])
-
-	b.B0.A0.SetBigInt(inputs[6])
-	b.B0.A1.SetBigInt(inputs[7])
-	b.B1.A0.SetBigInt(inputs[8])
-	b.B1.A1.SetBigInt(inputs[9])
-	b.B2.A0.SetBigInt(inputs[10])
-	b.B2.A1.SetBigInt(inputs[11])
-
-	c.Inverse(&b).Mul(&c, &a)
-
-	c.B0.A0.BigInt(res[0])
-	c.B0.A1.BigInt(res[1])
-	c.B1.A0.BigInt(res[2])
-	c.B1.A1.BigInt(res[3])
-	c.B2.A0.BigInt(res[4])
-	c.B2.A1.BigInt(res[5])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DivE6Hint)
-}
-
 // DivUnchecked e6 elmts
 func (e *E6) DivUnchecked(api frontend.API, e1, e2 E6) *E6 {
 
-	res, err := api.NewHint(DivE6Hint, 6, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e1.B2.A0, e1.B2.A1, e2.B0.A0, e2.B0.A1, e2.B1.A0, e2.B1.A1, e2.B2.A0, e2.B2.A1)
+	res, err := api.NewHint(divE6Hint, 6, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e1.B2.A0, e1.B2.A1, e2.B0.A0, e2.B0.A1, e2.B1.A0, e2.B1.A1, e2.B2.A0, e2.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -239,36 +203,10 @@ func (e *E6) DivUnchecked(api frontend.API, e1, e2 E6) *E6 {
 	return e
 }
 
-var InverseE6Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, c bls12377.E6
-
-	a.B0.A0.SetBigInt(inputs[0])
-	a.B0.A1.SetBigInt(inputs[1])
-	a.B1.A0.SetBigInt(inputs[2])
-	a.B1.A1.SetBigInt(inputs[3])
-	a.B2.A0.SetBigInt(inputs[4])
-	a.B2.A1.SetBigInt(inputs[5])
-
-	c.Inverse(&a)
-
-	c.B0.A0.BigInt(res[0])
-	c.B0.A1.BigInt(res[1])
-	c.B1.A0.BigInt(res[2])
-	c.B1.A1.BigInt(res[3])
-	c.B2.A0.BigInt(res[4])
-	c.B2.A1.BigInt(res[5])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(InverseE6Hint)
-}
-
 // Inverse e6 elmts
 func (e *E6) Inverse(api frontend.API, e1 E6) *E6 {
 
-	res, err := api.NewHint(InverseE6Hint, 6, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e1.B2.A0, e1.B2.A1)
+	res, err := api.NewHint(inverseE6Hint, 6, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e1.B2.A0, e1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

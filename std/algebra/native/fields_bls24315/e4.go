@@ -17,10 +17,7 @@ limitations under the License.
 package fields_bls24315
 
 import (
-	"math/big"
-
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -147,36 +144,10 @@ func (e *E4) Conjugate(api frontend.API, e1 E4) *E4 {
 	return e
 }
 
-var DivE4Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, b, c bls24315.E4
-
-	a.B0.A0.SetBigInt(inputs[0])
-	a.B0.A1.SetBigInt(inputs[1])
-	a.B1.A0.SetBigInt(inputs[2])
-	a.B1.A1.SetBigInt(inputs[3])
-	b.B0.A0.SetBigInt(inputs[4])
-	b.B0.A1.SetBigInt(inputs[5])
-	b.B1.A0.SetBigInt(inputs[6])
-	b.B1.A1.SetBigInt(inputs[7])
-
-	c.Inverse(&b).Mul(&c, &a)
-
-	c.B0.A0.BigInt(res[0])
-	c.B0.A1.BigInt(res[1])
-	c.B1.A0.BigInt(res[2])
-	c.B1.A1.BigInt(res[3])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DivE4Hint)
-}
-
 // DivUnchecked e4 elmts
 func (e *E4) DivUnchecked(api frontend.API, e1, e2 E4) *E4 {
 
-	res, err := api.NewHint(DivE4Hint, 4, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e2.B0.A0, e2.B0.A1, e2.B1.A0, e2.B1.A1)
+	res, err := api.NewHint(divE4Hint, 4, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e2.B0.A0, e2.B0.A1, e2.B1.A0, e2.B1.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -194,32 +165,10 @@ func (e *E4) DivUnchecked(api frontend.API, e1, e2 E4) *E4 {
 	return e
 }
 
-var InverseE4Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, c bls24315.E4
-
-	a.B0.A0.SetBigInt(inputs[0])
-	a.B0.A1.SetBigInt(inputs[1])
-	a.B1.A0.SetBigInt(inputs[2])
-	a.B1.A1.SetBigInt(inputs[3])
-
-	c.Inverse(&a)
-
-	c.B0.A0.BigInt(res[0])
-	c.B0.A1.BigInt(res[1])
-	c.B1.A0.BigInt(res[2])
-	c.B1.A1.BigInt(res[3])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(InverseE4Hint)
-}
-
 // Inverse e4 elmts
 func (e *E4) Inverse(api frontend.API, e1 E4) *E4 {
 
-	res, err := api.NewHint(InverseE4Hint, 4, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1)
+	res, err := api.NewHint(inverseE4Hint, 4, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

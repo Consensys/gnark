@@ -23,6 +23,9 @@ func (c *PairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
+	// Check if the points are in the proper groups (up to the user choice)
+	pairing.AssertIsOnG1(&c.InG1)
+	pairing.AssertIsOnG2(&c.InG2)
 	// Pair method does not check that the points are in the proper groups.
 	// Compute the pairing
 	res, err := pairing.Pair([]*sw_bw6761.G1Affine{&c.InG1}, []*sw_bw6761.G2Affine{&c.InG2})
