@@ -19,11 +19,11 @@ var (
 )
 
 func HintControllable1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	time.Sleep(100 * time.Millisecond)
 	for range h1Unlocker {
 	}
 	// add some sleep to this test to ensure that if there is parallelism, this
 	// hint returns second.
-	time.Sleep(100 * time.Millisecond)
 	return fmt.Errorf("hint controllable 1")
 }
 
