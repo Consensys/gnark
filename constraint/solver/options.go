@@ -69,6 +69,11 @@ func WithNbTasks(nbTasks int) Option {
 		if nbTasks <= 0 {
 			return fmt.Errorf("invalid number of threads: %d", nbTasks)
 		}
+		if nbTasks > 512 {
+			// limit the number of tasks to 512. This is to avoid possible
+			// saturation of the runtime scheduler.
+			nbTasks = 512
+		}
 		opt.NbTasks = nbTasks
 		return nil
 	}
