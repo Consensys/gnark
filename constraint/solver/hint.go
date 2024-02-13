@@ -4,6 +4,7 @@ import (
 	"hash/fnv"
 	"math/big"
 	"reflect"
+	"regexp"
 	"runtime"
 )
 
@@ -110,3 +111,9 @@ func GetHintName(fn Hint) string {
 	fnptr := reflect.ValueOf(fn).Pointer()
 	return runtime.FuncForPC(fnptr).Name()
 }
+
+func newToOldStyle(name string) string {
+	return string(newStyleAnonRe.ReplaceAll([]byte(name), []byte("${pkgname}glob.${funcname}")))
+}
+
+var newStyleAnonRe = regexp.MustCompile(`^(?P<pkgname>.*\.)init(?P<funcname>\.func\d+)$`)
