@@ -1,6 +1,9 @@
 package solver
 
 import (
+	"fmt"
+	"runtime"
+
 	"github.com/consensys/gnark/logger"
 	"github.com/rs/zerolog"
 )
@@ -14,6 +17,7 @@ type Option func(*Config) error
 type Config struct {
 	HintFunctions map[HintID]Hint // defaults to all built-in hint functions
 	Logger        zerolog.Logger  // defaults to gnark.Logger
+	NbThreads     int             // defaults to runtime.NumCPU()
 }
 
 // WithHints is a solver option that specifies additional hint functions to be used
@@ -53,11 +57,29 @@ func WithLogger(l zerolog.Logger) Option {
 	}
 }
 
+// WithNbThreads sets the number of gorutines to use for the solver. If not set,
+// then the number of goroutines is set to runtime.NumCPU().
+//
+// The option may be useful for debugging the solver behaviour and restricting
+// the CPU usage. Note that this is not hard limit - in case the solver calls a
+// hint function which may create more goroutines, the number of goroutines may
+// exceed the limit.
+func WithNbThreads(nbThreads int) Option {
+	return func(opt *Config) error {
+		if nbThreads <= 0 {
+			return fmt.Errorf("invalid number of threads: %d", nbThreads)
+		}
+		opt.NbThreads = nbThreads
+		return nil
+	}
+}
+
 // NewConfig returns a default SolverConfig with given prover options opts applied.
 func NewConfig(opts ...Option) (Config, error) {
 	log := logger.Logger()
 	opt := Config{Logger: log}
 	opt.HintFunctions = cloneHintRegistry()
+	opt.NbThreads = runtime.NumCPU()
 	for _, option := range opts {
 		if err := option(&opt); err != nil {
 			return Config{}, err
