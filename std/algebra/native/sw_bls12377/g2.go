@@ -224,7 +224,7 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	s1bits := api.ToBinary(s1, nbits)
 	s2bits := api.ToBinary(s2, nbits)
 
-	var Acc /*accumulator*/, B, B2 /*tmp vars*/ g2AffP
+	var Acc, B, B1, B2, B3, B4 g2AffP
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]g2AffP
 	tableQ[1] = Q
@@ -236,9 +236,9 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	// decomposed, either the high bits of s1 or s2 are set and we can use the
 	// incomplete addition laws.
 
-	//     Acc = Q + Φ(Q)
-	Acc = tableQ[1]
-	Acc.AddAssign(api, tablePhiQ[1])
+	// Acc = Q + Φ(Q) = B1
+	cc.phi1Neg(api, &Acc, &Q)
+	B1 = Acc
 
 	// However, we can not directly add step value conditionally as we may get
 	// to incomplete path of the addition formula. We either add or subtract
@@ -261,12 +261,16 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	B.Y.Select(api, s2bits[nbits-2], tablePhiQ[1].Y, tablePhiQ[0].Y)
 	Acc.AddAssign(api, B)
 
-	B2.X = tablePhiQ[0].X
+	// B2 = -Q-Φ(Q)
+	B2.Neg(api, B1)
+	// B3 = Q-Φ(Q)
+	B3 = tablePhiQ[0]
+	B3.AddAssign(api, tableQ[1])
+	// B4 = -Q+Φ(Q)
+	B4.Neg(api, B3)
 	for i := nbits - 3; i > 0; i-- {
-		B.X = Q.X
-		B.Y.Select(api, s1bits[i], tableQ[1].Y, tableQ[0].Y)
-		B2.Y.Select(api, s2bits[i], tablePhiQ[1].Y, tablePhiQ[0].Y)
-		B.AddAssign(api, B2)
+		B.X.Select(api, api.Xor(s1bits[i], s2bits[i]), B3.X, B2.X)
+		B.Y.Lookup2(api, s1bits[i], s2bits[i], B2.Y, B3.Y, B4.Y, B1.Y)
 		Acc.DoubleAndAdd(api, &Acc, &B)
 	}
 
