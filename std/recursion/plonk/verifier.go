@@ -25,6 +25,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/commitments/kzg"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/hash/mimc"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
@@ -308,6 +309,58 @@ type CircuitVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT] struc
 type VerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
 	BaseVerifyingKey[FR, G1El, G2El]
 	CircuitVerifyingKey[FR, G1El]
+}
+
+// FingerPrint() returns the MiMc hash of the VerifyingKey. It could be used to identify a VerifyingKey
+// during recursive verification.
+func (vk *VerifyingKey[FR, G1El, G2El]) FingerPrint(api frontend.API) (frontend.Variable, error) {
+	var ret frontend.Variable
+	mimc, err := mimc.NewMiMC(api)
+	if err != nil {
+		return ret, err
+	}
+
+	mimc.Write(vk.BaseVerifyingKey.NbPublicVariables)
+	mimc.Write(vk.CircuitVerifyingKey.Size)
+	mimc.Write(vk.CircuitVerifyingKey.Generator.Limbs[:]...)
+
+	comms := make([]kzg.Commitment[G1El], 0)
+	comms = append(comms, vk.CircuitVerifyingKey.S[:]...)
+	comms = append(comms, vk.CircuitVerifyingKey.Ql)
+	comms = append(comms, vk.CircuitVerifyingKey.Qr)
+	comms = append(comms, vk.CircuitVerifyingKey.Qm)
+	comms = append(comms, vk.CircuitVerifyingKey.Qo)
+	comms = append(comms, vk.CircuitVerifyingKey.Qk)
+	comms = append(comms, vk.CircuitVerifyingKey.Qcp[:]...)
+
+	for _, comm := range comms {
+		el := comm.G1El
+		switch r := any(&el).(type) {
+		case *sw_bls12377.G1Affine:
+			mimc.Write(r.X)
+			mimc.Write(r.Y)
+		case *sw_bls12381.G1Affine:
+			mimc.Write(r.X.Limbs[:]...)
+			mimc.Write(r.Y.Limbs[:]...)
+		case *sw_bls24315.G1Affine:
+			mimc.Write(r.X)
+			mimc.Write(r.Y)
+		case *sw_bw6761.G1Affine:
+			mimc.Write(r.X.Limbs[:]...)
+			mimc.Write(r.Y.Limbs[:]...)
+		case *sw_bn254.G1Affine:
+			mimc.Write(r.X.Limbs[:]...)
+			mimc.Write(r.Y.Limbs[:]...)
+		default:
+			return ret, fmt.Errorf("unknown parametric type")
+		}
+	}
+
+	mimc.Write(vk.CircuitVerifyingKey.CommitmentConstraintIndexes[:]...)
+
+	result := mimc.Sum()
+
+	return result, nil
 }
 
 // ValueOfBaseVerifyingKey assigns the base verification key from the witness.
