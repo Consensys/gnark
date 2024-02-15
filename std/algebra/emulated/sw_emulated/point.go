@@ -360,7 +360,7 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 
 	// ommit y2 computation
 	// compute λ2 = λ1+2*p.y/(x2-p.x)
-	ypyp := c.baseApi.Add(&p.Y, &p.Y)
+	ypyp := c.baseApi.MulConst(&p.Y, big.NewInt(2))
 	x2xp := c.baseApi.Sub(x2, &p.X)
 	λ2 := c.baseApi.Div(ypyp, x2xp)
 	λ2 = c.baseApi.Add(λ1, λ2)
@@ -406,7 +406,7 @@ func (c *Curve[B, S]) doubleAndAddSelect(b frontend.Variable, p, q *AffinePoint[
 	t := c.Select(b, p, q)
 
 	// compute λ2 = λ1+2*t.y/(x2-t.x)
-	ypyp := c.baseApi.Add(&t.Y, &t.Y)
+	ypyp := c.baseApi.MulConst(&t.Y, big.NewInt(2))
 	x2xp := c.baseApi.Sub(x2, &t.X)
 	λ2 := c.baseApi.Div(ypyp, x2xp)
 	λ2 = c.baseApi.Add(λ1, λ2)
@@ -522,28 +522,28 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// the circuit. So we return in the hint both s1, s2 and s3=|s1|, s4=|s2|.
 	// In-circuit we compare s1 and s3, s2 and s4 and negate the point when a
 	// corresponding scalar is naegative.
-	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(s3, s1))
-	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(s4, s2))
+	selector1 := c.scalarApi.IsZero(c.scalarApi.Add(s3, s1))
+	selector2 := c.scalarApi.IsZero(c.scalarApi.Add(s4, s2))
 
 	var Acc, B1 *AffinePoint[B]
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]*AffinePoint[B]
 	tableQ[1] = &AffinePoint[B]{
 		X: Q.X,
-		Y: *c.baseApi.Select(selector1, &Q.Y, c.baseApi.Neg(&Q.Y)),
+		Y: *c.baseApi.Select(selector1, c.baseApi.Neg(&Q.Y), &Q.Y),
 	}
 	tableQ[0] = c.Neg(tableQ[1])
 	tablePhiQ[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&Q.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector2, &Q.Y, c.baseApi.Neg(&Q.Y)),
+		Y: *c.baseApi.Select(selector2, c.baseApi.Neg(&Q.Y), &Q.Y),
 	}
 	tablePhiQ[0] = c.Neg(tablePhiQ[1])
 
 	// Acc = Q + Φ(Q)
 	Acc = c.Add(tableQ[1], tablePhiQ[1])
 
-	s1 = c.scalarApi.Select(selector1, s1, s3)
-	s2 = c.scalarApi.Select(selector2, s2, s4)
+	s1 = c.scalarApi.Select(selector1, s3, s1)
+	s2 = c.scalarApi.Select(selector2, s4, s2)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
@@ -770,33 +770,33 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// the circuit. So we return in the hint both s1, s2 and s3=|s1|, s4=|s2|.
 	// In-circuit we compare s1 and s3, s2 and s4 and negate the point when a
 	// corresponding scalar is naegative. Respectively for t1, t2, t3, t4.
-	selector1 := c.scalarApi.IsZero(c.scalarApi.Sub(s3, s1))
-	selector2 := c.scalarApi.IsZero(c.scalarApi.Sub(s4, s2))
-	selector3 := c.scalarApi.IsZero(c.scalarApi.Sub(t3, t1))
-	selector4 := c.scalarApi.IsZero(c.scalarApi.Sub(t4, t2))
+	selector1 := c.scalarApi.IsZero(c.scalarApi.Add(s3, s1))
+	selector2 := c.scalarApi.IsZero(c.scalarApi.Add(s4, s2))
+	selector3 := c.scalarApi.IsZero(c.scalarApi.Add(t3, t1))
+	selector4 := c.scalarApi.IsZero(c.scalarApi.Add(t4, t2))
 
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]*AffinePoint[B]
 	tableQ[1] = &AffinePoint[B]{
 		X: Q.X,
-		Y: *c.baseApi.Select(selector1, &Q.Y, c.baseApi.Neg(&Q.Y)),
+		Y: *c.baseApi.Select(selector1, c.baseApi.Neg(&Q.Y), &Q.Y),
 	}
 	tableQ[0] = c.Neg(tableQ[1])
 	tablePhiQ[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&Q.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector2, &Q.Y, c.baseApi.Neg(&Q.Y)),
+		Y: *c.baseApi.Select(selector2, c.baseApi.Neg(&Q.Y), &Q.Y),
 	}
 	tablePhiQ[0] = c.Neg(tablePhiQ[1])
 	// precompute -R, -Φ(R), Φ(R)
 	var tableR, tablePhiR [2]*AffinePoint[B]
 	tableR[1] = &AffinePoint[B]{
 		X: R.X,
-		Y: *c.baseApi.Select(selector3, &R.Y, c.baseApi.Neg(&R.Y)),
+		Y: *c.baseApi.Select(selector3, c.baseApi.Neg(&R.Y), &R.Y),
 	}
 	tableR[0] = c.Neg(tableR[1])
 	tablePhiR[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&R.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector4, &R.Y, c.baseApi.Neg(&R.Y)),
+		Y: *c.baseApi.Select(selector4, c.baseApi.Neg(&R.Y), &R.Y),
 	}
 	tablePhiR[0] = c.Neg(tablePhiR[1])
 	// precompute Q+R, -Q-R, Q-R, -Q+R, Φ(Q)+Φ(R), -Φ(Q)-Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R)
@@ -812,13 +812,13 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	f2 := c.baseApi.Mul(&tableS[2].X, c.thirdRootOne)
 	f3 := c.baseApi.Mul(&tableS[3].X, c.thirdRootOne)
 	tablePhiS[0] = &AffinePoint[B]{
-		X: *c.baseApi.Lookup2(selector2, selector4, f1, f3, f2, f0),
-		Y: *c.baseApi.Lookup2(selector2, selector4, &tableS[1].Y, &tableS[3].Y, &tableS[2].Y, &tableS[0].Y),
+		X: *c.baseApi.Lookup2(selector2, selector4, f0, f2, f3, f1),
+		Y: *c.baseApi.Lookup2(selector2, selector4, &tableS[0].Y, &tableS[2].Y, &tableS[3].Y, &tableS[1].Y),
 	}
 	tablePhiS[1] = c.Neg(tablePhiS[0])
 	tablePhiS[2] = &AffinePoint[B]{
-		X: *c.baseApi.Lookup2(selector2, selector4, f3, f1, f0, f2),
-		Y: *c.baseApi.Lookup2(selector2, selector4, &tableS[3].Y, &tableS[1].Y, &tableS[0].Y, &tableS[2].Y),
+		X: *c.baseApi.Lookup2(selector2, selector4, f2, f0, f1, f3),
+		Y: *c.baseApi.Lookup2(selector2, selector4, &tableS[2].Y, &tableS[0].Y, &tableS[1].Y, &tableS[3].Y),
 	}
 	tablePhiS[3] = c.Neg(tablePhiS[2])
 
@@ -826,10 +826,10 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// Acc = Q + R + Φ(Q) + Φ(R)
 	Acc := c.Add(tableS[1], tablePhiS[1])
 
-	s1 = c.scalarApi.Select(selector1, s1, s3)
-	s2 = c.scalarApi.Select(selector2, s2, s4)
-	t1 = c.scalarApi.Select(selector3, t1, t3)
-	t2 = c.scalarApi.Select(selector4, t2, t4)
+	s1 = c.scalarApi.Select(selector1, s3, s1)
+	s2 = c.scalarApi.Select(selector2, s4, s2)
+	t1 = c.scalarApi.Select(selector3, t3, t1)
+	t2 = c.scalarApi.Select(selector4, t4, t2)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
