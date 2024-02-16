@@ -508,22 +508,24 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 		one := c.baseApi.One()
 		Q = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, Q)
 	}
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, c.eigenvalue, frModulus)
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 7, s, c.eigenvalue, frModulus)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
-	s1, s2, s3, s4 := sd[0], sd[1], sd[3], sd[4]
+	s1, s2, s3, s4, s5, s6 := sd[0], sd[1], sd[3], sd[4], sd[5], sd[6]
 
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
+		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
 		c.scalarApi.Add(s, c.scalarApi.Mul(frModulus, sd[2])),
 	)
-	// s1, s2 can be negative (bigints) in the hint, but are reduced mod r in
-	// the circuit. So we return in the hint both s1, s2 and s3=|s1|, s4=|s2|.
-	// In-circuit we compare s1 and s3, s2 and s4 and negate the point when a
-	// corresponding scalar is naegative.
-	selector1 := c.scalarApi.IsZero(c.scalarApi.Add(s3, s1))
-	selector2 := c.scalarApi.IsZero(c.scalarApi.Add(s4, s2))
+
+	// s1, s2 can be negative (bigints) in the hint, but will be reduced
+	// in-circuit modulo the SNARK scalar field and not the emulated field. So
+	// we return in the hint both |s1|, |s2| and the flags s3=0/1, s4=0/1 to
+	// negate the point instead of the corresponding scalar. Since s3, s4 are
+	// either 0 or 1, we only need to check the first limb is zero or not.
+	selector1 := c.api.IsZero(s3.Limbs[0])
+	selector2 := c.api.IsZero(s4.Limbs[0])
 
 	var Acc, B1 *AffinePoint[B]
 	// precompute -Q, -Φ(Q), Φ(Q)
@@ -541,9 +543,6 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 
 	// Acc = Q + Φ(Q)
 	Acc = c.Add(tableQ[1], tablePhiQ[1])
-
-	s1 = c.scalarApi.Select(selector1, s3, s1)
-	s2 = c.scalarApi.Select(selector2, s4, s2)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
@@ -744,36 +743,39 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulated.Element[S]) *AffinePoint[B] {
 	var st S
 	frModulus := c.scalarApi.Modulus()
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 5, s, c.eigenvalue, frModulus)
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 7, s, c.eigenvalue, frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	s1, s2, s3, s4 := sd[0], sd[1], sd[3], sd[4]
+	s1, s2, s3, s4, s5, s6 := sd[0], sd[1], sd[3], sd[4], sd[5], sd[6]
 
-	td, err := c.scalarApi.NewHint(decomposeScalarG1, 5, t, c.eigenvalue, frModulus)
+	td, err := c.scalarApi.NewHint(decomposeScalarG1, 7, t, c.eigenvalue, frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	t1, t2, t3, t4 := td[0], td[1], td[3], td[4]
+	t1, t2, t3, t4, t5, t6 := td[0], td[1], td[3], td[4], td[5], td[6]
 
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(s1, c.scalarApi.Mul(s2, c.eigenvalue)),
+		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
 		c.scalarApi.Add(s, c.scalarApi.Mul(frModulus, sd[2])),
 	)
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(t1, c.scalarApi.Mul(t2, c.eigenvalue)),
+		c.scalarApi.Add(t5, c.scalarApi.Mul(t6, c.eigenvalue)),
 		c.scalarApi.Add(t, c.scalarApi.Mul(frModulus, td[2])),
 	)
-	// s1, s2 can be negative (bigints) in the hint, but are reduced mod r in
-	// the circuit. So we return in the hint both s1, s2 and s3=|s1|, s4=|s2|.
-	// In-circuit we compare s1 and s3, s2 and s4 and negate the point when a
-	// corresponding scalar is naegative. Respectively for t1, t2, t3, t4.
-	selector1 := c.scalarApi.IsZero(c.scalarApi.Add(s3, s1))
-	selector2 := c.scalarApi.IsZero(c.scalarApi.Add(s4, s2))
-	selector3 := c.scalarApi.IsZero(c.scalarApi.Add(t3, t1))
-	selector4 := c.scalarApi.IsZero(c.scalarApi.Add(t4, t2))
+
+	// s1, s2 can be negative (bigints) in the hint, but will be reduced
+	// in-circuit modulo the SNARK scalar field and not the emulated field. So
+	// we return in the hint both |s1|, |s2| and the flags s3=0/1, s4=0/1 to
+	// negate the point instead of the corresponding scalar. Since s3, s4 are
+	// either 0 or 1, we only need to check the first limb is zero or not.
+	// Same goes for t1, t2.
+	selector1 := c.api.IsZero(s3.Limbs[0])
+	selector2 := c.api.IsZero(s4.Limbs[0])
+	selector3 := c.api.IsZero(t3.Limbs[0])
+	selector4 := c.api.IsZero(t4.Limbs[0])
 
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]*AffinePoint[B]
@@ -825,11 +827,6 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// suppose first bit is 1 and set:
 	// Acc = Q + R + Φ(Q) + Φ(R)
 	Acc := c.Add(tableS[1], tablePhiS[1])
-
-	s1 = c.scalarApi.Select(selector1, s3, s1)
-	s2 = c.scalarApi.Select(selector2, s4, s2)
-	t1 = c.scalarApi.Select(selector3, t3, t1)
-	t2 = c.scalarApi.Select(selector4, t4, t2)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)

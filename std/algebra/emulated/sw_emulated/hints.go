@@ -22,8 +22,8 @@ func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		if len(inputs) != 3 {
 			return fmt.Errorf("expecting three inputs")
 		}
-		if len(outputs) != 5 {
-			return fmt.Errorf("expecting five outputs")
+		if len(outputs) != 7 {
+			return fmt.Errorf("expecting seven outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(inputs[2], inputs[1], glvBasis)
@@ -36,18 +36,27 @@ func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		outputs[2].Sub(outputs[2], inputs[0])
 		outputs[2].Div(outputs[2], inputs[2])
 
-		// return:
-		// 		output0 = s0 mod r
-		// 		output1 = s1 mod r
-		// 		output3 = |s0| mod r
-		// 		output4 = |s1| mod r
-		outputs[3].Set(outputs[0])
+		// we need the negative values for to check that s0+λ*s1 == s mod r
+		// 		output5 = s0 mod r
+		// 		output6 = s1 mod r
+		outputs[5].Set(outputs[0])
+		outputs[6].Set(outputs[1])
+		// we need the absolute values for the in-circuit computations,
+		// otherwise the negative values will be reduced modulo the SNARK scalar
+		// field and not the emulated field.
+		// 		output0 = |s0| mod r
+		// 		output1 = |s1| mod r
+		// 		output3 = 1 if s0 is positive, 0 if s0 is negative
+		// 		output4 = 1 if s1 is positive, 0 if s0 is negative
+		outputs[3].SetUint64(1)
 		if outputs[0].Sign() == -1 {
-			outputs[3].Neg(outputs[0])
+			outputs[0].Neg(outputs[0])
+			outputs[3].SetUint64(0)
 		}
-		outputs[4].Set(outputs[1])
+		outputs[4].SetUint64(1)
 		if outputs[1].Sign() == -1 {
-			outputs[4].Neg(outputs[1])
+			outputs[1].Neg(outputs[1])
+			outputs[4].SetUint64(0)
 		}
 
 		return nil
