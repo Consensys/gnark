@@ -527,7 +527,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	selector1 := c.api.IsZero(s3.Limbs[0])
 	selector2 := c.api.IsZero(s4.Limbs[0])
 
-	var Acc, B1 *AffinePoint[B]
+	var Acc *AffinePoint[B]
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]*AffinePoint[B]
 	tableQ[1] = &AffinePoint[B]{
@@ -549,18 +549,25 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 
 	nbits := st.Modulus().BitLen()>>1 + 2
 
+	// At each iteration look up the point P:
+	// 		P = B1 = Q+Φ(Q)
+	// 		P = B2 = -Q-Φ(Q)
+	// 		P = B3 = -Φ(Q)+Q
+	// 		P = B4 = Φ(Q)-Q
+	// and compute [2]Acc+P. We don't use doubleAndAdd as it involves edge
+	// cases when bits are 00 or 11.
+	B1 := Acc
+	B2 := c.Neg(B1)
+	B3 := c.Add(tablePhiQ[0], tableQ[1])
+	B4 := c.Neg(B3)
+	var P *AffinePoint[B]
 	for i := nbits - 1; i > 0; i-- {
-		B1 = &AffinePoint[B]{
-			X: tableQ[0].X,
-			Y: *c.baseApi.Select(s1bits[i], &tableQ[1].Y, &tableQ[0].Y),
+		P = &AffinePoint[B]{
+			X: *c.baseApi.Select(c.api.Xor(s1bits[i], s2bits[i]), &B3.X, &B2.X),
+			Y: *c.baseApi.Lookup2(s1bits[i], s2bits[i], &B2.Y, &B3.Y, &B4.Y, &B1.Y),
 		}
-		Acc = c.doubleAndAdd(Acc, B1)
-		B1 = &AffinePoint[B]{
-			X: tablePhiQ[0].X,
-			Y: *c.baseApi.Select(s2bits[i], &tablePhiQ[1].Y, &tablePhiQ[0].Y),
-		}
-		Acc = c.Add(Acc, B1)
-
+		Acc = c.double(Acc)
+		Acc = c.add(Acc, P)
 	}
 
 	// i = 0
