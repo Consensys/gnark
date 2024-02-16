@@ -226,9 +226,8 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// decomposed, either the high bits of s1 or s2 are set and we can use the
 	// incomplete addition laws.
 
-	//     Acc = Q + Φ(Q)
-	Acc = tableQ[1]
-	Acc.AddAssign(api, tablePhiQ[1])
+	// Acc = Q + Φ(Q) = -Φ²(Q)
+	cc.phi2Neg(api, &Acc, &Q)
 
 	// However, we can not directly add step value conditionally as we may get
 	// to incomplete path of the addition formula. We either add or subtract
@@ -236,6 +235,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// Acc):
 	//     Acc = [2] (Q + Φ(Q)) ± Q ± Φ(Q)
 	// only y coordinate differs for negation, select on that instead.
+	// first bit
 	B.X = tableQ[0].X
 	B.Y = api.Select(s1bits[nbits-1], tableQ[1].Y, tableQ[0].Y)
 	Acc.DoubleAndAdd(api, &Acc, &B)
@@ -480,9 +480,9 @@ func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 	cc.phi1(api, &tablePhiS[3], &tableS[3])
 
 	// suppose first bit is 1 and set:
-	// Acc = Q + R + Φ(Q) + Φ(R)
-	Acc := tableS[1]
-	Acc.AddAssign(api, tablePhiS[1])
+	// Acc = Q + R + Φ(Q) + Φ(R) = -Φ²(Q+R)
+	var Acc G1Affine
+	cc.phi2Neg(api, &Acc, &tableS[1])
 
 	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
 	var B G1Affine
