@@ -64,12 +64,9 @@ type pairingBLS377 struct {
 }
 
 func (circuit *pairingBLS377) Define(api frontend.API) error {
-	cr, err := NewCurve(api)
-	if err != nil {
-		return err
-	}
-	cr.AssertIsOnG1(&circuit.P)
-	cr.AssertIsOnG2(&circuit.Q)
+	pr := NewPairing(api)
+	pr.AssertIsOnG1(&circuit.P)
+	pr.AssertIsOnG2(&circuit.Q)
 	pairingRes, _ := Pair(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
 	pairingRes.AssertIsEqual(api, circuit.Res)
 
@@ -224,12 +221,9 @@ type groupMembership struct {
 }
 
 func (circuit *groupMembership) Define(api frontend.API) error {
-	cr, err := NewCurve(api)
-	if err != nil {
-		return err
-	}
-	cr.AssertIsOnG1(&circuit.P)
-	cr.AssertIsOnG2(&circuit.Q)
+	pr := NewPairing(api)
+	pr.AssertIsOnG1(&circuit.P)
+	pr.AssertIsOnG2(&circuit.Q)
 
 	return nil
 }

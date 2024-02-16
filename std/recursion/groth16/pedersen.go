@@ -26,10 +26,8 @@ func FoldCommitments[FR emulated.FieldParams, G1El algebra.G1ElementT](api front
 }
 
 func (v *Verifier[FR, G1El, G2El, GtEl]) AssertCommitment(vk VerifyingKey[G1El, G2El, GtEl], commitment, knowledgeProof G1El) {
-	if pairing, ok := v.pairing.(algebra.SubGroup[G1El, G2El]); ok {
-		pairing.AssertIsOnG1(&commitment)
-		pairing.AssertIsOnG1(&knowledgeProof)
-	}
+	v.pairing.AssertIsOnG1(&commitment)
+	v.pairing.AssertIsOnG1(&knowledgeProof)
 
 	v.pairing.PairingCheck([]*G1El{&commitment, &knowledgeProof}, []*G2El{&vk.CommitmentKey.G, &vk.CommitmentKey.GRootSigmaNeg})
 }
