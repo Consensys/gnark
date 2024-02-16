@@ -549,19 +549,20 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 
 	nbits := st.Modulus().BitLen()>>1 + 2
 
-	// At each iteration look up the point P:
-	// 		P = B1 = Q+Φ(Q)
-	// 		P = B2 = -Q-Φ(Q)
-	// 		P = B3 = -Φ(Q)+Q
-	// 		P = B4 = Φ(Q)-Q
+	// At each iteration look up the point P from:
+	// 		B1 = Q+Φ(Q)
+	// 		B2 = -Q-Φ(Q)
+	// 		B3 = -Φ(Q)+Q
+	// 		B4 = Φ(Q)-Q
 	// and compute [2]Acc+P. We don't use doubleAndAdd as it involves edge
-	// cases when bits are 00 or 11.
+	// cases when first bits are 00 (P==-Acc) or 11 (P==Acc).
 	B1 := Acc
 	B2 := c.Neg(B1)
 	B3 := c.Add(tablePhiQ[0], tableQ[1])
 	B4 := c.Neg(B3)
 	var P *AffinePoint[B]
 	for i := nbits - 1; i > 0; i-- {
+		// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
 		P = &AffinePoint[B]{
 			X: *c.baseApi.Select(c.api.Xor(s1bits[i], s2bits[i]), &B3.X, &B2.X),
 			Y: *c.baseApi.Lookup2(s1bits[i], s2bits[i], &B2.Y, &B3.Y, &B4.Y, &B1.Y),
@@ -839,18 +840,61 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	t2bits := c.scalarApi.ToBits(t2)
 	nbits := st.Modulus().BitLen()>>1 + 2
 
-	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
+	// At each iteration look up the point P from:
+	// 		B1  = +Q + R + Φ(Q) + Φ(R)
+	B1 := Acc
+	// 		B2  = +Q + R + Φ(Q) - Φ(R)
+	B2 := c.Add(tableS[1], tablePhiS[2])
+	// 		B3  = +Q + R - Φ(Q) + Φ(R)
+	B3 := c.Add(tableS[1], tablePhiS[3])
+	// 		B4  = +Q + R - Φ(Q) - Φ(R)
+	B4 := c.Add(tableS[1], tablePhiS[0])
+	// 		B5  = +Q - R + Φ(Q) + Φ(R)
+	B5 := c.Add(tableS[2], tablePhiS[1])
+	// 		B6  = +Q - R + Φ(Q) - Φ(R)
+	B6 := c.Add(tableS[2], tablePhiS[2])
+	// 		B7  = +Q - R - Φ(Q) + Φ(R)
+	B7 := c.Add(tableS[2], tablePhiS[3])
+	// 		B8  = +Q - R - Φ(Q) - Φ(R)
+	B8 := c.Add(tableS[2], tablePhiS[0])
+	// 		B9  = -Q + R + Φ(Q) + Φ(R)
+	B9 := c.Neg(B8)
+	// 		B10 = -Q + R + Φ(Q) - Φ(R)
+	B10 := c.Neg(B7)
+	// 		B11 = -Q + R - Φ(Q) + Φ(R)
+	B11 := c.Neg(B6)
+	// 		B12 = -Q + R - Φ(Q) - Φ(R)
+	B12 := c.Neg(B5)
+	// 		B13 = -Q - R + Φ(Q) + Φ(R)
+	B13 := c.Neg(B4)
+	// 		B14 = -Q - R + Φ(Q) - Φ(R)
+	B14 := c.Neg(B3)
+	// 		B15 = -Q - R - Φ(Q) + Φ(R)
+	B15 := c.Neg(B2)
+	// 		B16 = -Q - R - Φ(Q) - Φ(R)
+	B16 := c.Neg(B1)
+	// and compute [2]Acc+P. We don't use doubleAndAdd as it involves edge cases.
+
+	var P *AffinePoint[B]
 	for i := nbits - 1; i > 0; i-- {
-		B1 := &AffinePoint[B]{
-			X: *c.baseApi.Select(c.api.Xor(s1bits[i], t1bits[i]), &tableS[2].X, &tableS[0].X),
-			Y: *c.baseApi.Lookup2(s1bits[i], t1bits[i], &tableS[0].Y, &tableS[2].Y, &tableS[3].Y, &tableS[1].Y),
+		selector := c.api.Add(
+			s1bits[i],
+			c.api.Mul(s2bits[i], 2),
+			c.api.Mul(t1bits[i], 4),
+			c.api.Mul(t2bits[i], 8),
+		)
+		P = &AffinePoint[B]{
+			X: *c.baseApi.Mux(selector,
+				&B16.X, &B8.X, &B14.X, &B6.X, &B12.X, &B4.X, &B10.X, &B2.X,
+				&B15.X, &B7.X, &B13.X, &B5.X, &B11.X, &B3.X, &B9.X, &B1.X,
+			),
+			Y: *c.baseApi.Mux(selector,
+				&B16.Y, &B8.Y, &B14.Y, &B6.Y, &B12.Y, &B4.Y, &B10.Y, &B2.Y,
+				&B15.Y, &B7.Y, &B13.Y, &B5.Y, &B11.Y, &B3.Y, &B9.Y, &B1.Y,
+			),
 		}
-		Acc = c.doubleAndAdd(Acc, B1)
-		B1 = &AffinePoint[B]{
-			X: *c.baseApi.Select(c.api.Xor(s2bits[i], t2bits[i]), &tablePhiS[2].X, &tablePhiS[0].X),
-			Y: *c.baseApi.Lookup2(s2bits[i], t2bits[i], &tablePhiS[0].Y, &tablePhiS[2].Y, &tablePhiS[3].Y, &tablePhiS[1].Y),
-		}
-		Acc = c.Add(Acc, B1)
+		Acc = c.double(Acc)
+		Acc = c.add(Acc, P)
 	}
 
 	// i = 0
