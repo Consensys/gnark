@@ -533,28 +533,33 @@ func ValueOfWitness[FR emulated.FieldParams](w witness.Witness) (Witness[FR], er
 
 // Verifier verifies Groth16 proofs.
 type Verifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	curve     algebra.Curve[FR, G1El]
-	pairing   algebra.Pairing[G1El, G2El, GtEl]
 	api       frontend.API
 	scalarApi *emulated.Field[FR]
+	curve     algebra.Curve[FR, G1El]
+	pairing   algebra.Pairing[G1El, G2El, GtEl]
 }
 
 // NewVerifier returns a new [Verifier] instance using the curve and pairing
 // interfaces. Use methods [algebra.GetCurve] and [algebra.GetPairing] to
 // initialize the instances.
-func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](
-	api frontend.API, curve algebra.Curve[FR, G1El], pairing algebra.Pairing[G1El, G2El, GtEl],
-) (*Verifier[FR, G1El, G2El, GtEl], error) {
+func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](api frontend.API) (*Verifier[FR, G1El, G2El, GtEl], error) {
 	f, err := emulated.NewField[FR](api)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get field: %w", err)
 	}
-
+	curve, err := algebra.GetCurve[FR, G1El](api)
+	if err != nil {
+		return nil, fmt.Errorf("get curve: %w", err)
+	}
+	pairing, err := algebra.GetPairing[G1El, G2El, GtEl](api)
+	if err != nil {
+		return nil, fmt.Errorf("get pairing: %w", err)
+	}
 	return &Verifier[FR, G1El, G2El, GtEl]{
-		curve:     curve,
-		pairing:   pairing,
 		api:       api,
 		scalarApi: f,
+		curve:     curve,
+		pairing:   pairing,
 	}, nil
 }
 

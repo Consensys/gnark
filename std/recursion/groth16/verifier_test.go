@@ -166,15 +166,7 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 		return err
 	}
 
-	curve, err := algebra.GetCurve[FR, G1El](api)
-	if err != nil {
-		return fmt.Errorf("new curve: %w", err)
-	}
-	pairing, err := algebra.GetPairing[G1El, G2El, GtEl](api)
-	if err != nil {
-		return fmt.Errorf("get pairing: %w", err)
-	}
-	verifier, err := NewVerifier(api, curve, pairing)
+	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
@@ -449,15 +441,7 @@ type OuterCircuitConstant[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El
 }
 
 func (c *OuterCircuitConstant[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
-	curve, err := algebra.GetCurve[FR, G1El](api)
-	if err != nil {
-		return fmt.Errorf("new curve: %w", err)
-	}
-	pairing, err := algebra.GetPairing[G1El, G2El, GtEl](api)
-	if err != nil {
-		return fmt.Errorf("get pairing: %w", err)
-	}
-	verifier, err := NewVerifier(api, curve, pairing)
+	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
