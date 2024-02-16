@@ -7,7 +7,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
 	github.com/consensys/compress v0.2.3
-	github.com/consensys/gnark-crypto v0.12.2-0.20231221171913-5d5eded6bb15
+	github.com/consensys/gnark-crypto v0.12.2-0.20240215234832-d72fcb379d3e
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b
@@ -34,5 +34,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-replace github.com/consensys/gnark-crypto => github.com/ahmetyalp/gnark-crypto v0.0.0-20240214111324-31b2e2478ddc
