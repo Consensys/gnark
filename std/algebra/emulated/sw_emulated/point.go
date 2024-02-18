@@ -889,8 +889,8 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 		// 		- when selectorY < 8: selectorX = selectorY
 		// 		- when selectorY >= 8: selectorX = 15 - selectorY
 		selectorX := c.api.Add(
-			c.api.Mul(c.api.Sub(1, t2bits[i]), selectorY),
-			c.api.Mul(t2bits[i], c.api.Sub(15, selectorY)),
+			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(t2bits[i], 2))),
+			c.api.Mul(t2bits[i], 15),
 		)
 		// Bi.Y are distints so we need a 16-to-1 multiplexer,
 		// but only half of the Bi.X are distinct so we need a 8-to-1.
