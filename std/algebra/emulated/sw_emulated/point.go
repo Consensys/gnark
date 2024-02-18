@@ -874,21 +874,31 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// 		B16 = -Q - R - Φ(Q) - Φ(R)
 	B16 := c.Neg(B1)
 	// and compute [2]Acc+P. We don't use doubleAndAdd as it involves edge cases.
+	// Note: half of the Bi points have the same X coordinates.
 
 	var P *AffinePoint[B]
 	for i := nbits - 1; i > 0; i-- {
-		selector := c.api.Add(
+		// selectorY takes values in [0,15]
+		selectorY := c.api.Add(
 			s1bits[i],
 			c.api.Mul(s2bits[i], 2),
 			c.api.Mul(t1bits[i], 4),
 			c.api.Mul(t2bits[i], 8),
 		)
+		// selectorX takes values in [0,7] with:
+		// 		- when selectorY < 8: selectorX = selectorY
+		// 		- when selectorY >= 8: selectorX = 15 - selectorY
+		selectorX := c.api.Add(
+			c.api.Mul(c.api.Sub(1, t2bits[i]), selectorY),
+			c.api.Mul(t2bits[i], c.api.Sub(15, selectorY)),
+		)
+		// Bi.Y are distints so we need a 16-to-1 multiplexer,
+		// but only half of the Bi.X are distinct so we need a 8-to-1.
 		P = &AffinePoint[B]{
-			X: *c.baseApi.Mux(selector,
+			X: *c.baseApi.Mux(selectorX,
 				&B16.X, &B8.X, &B14.X, &B6.X, &B12.X, &B4.X, &B10.X, &B2.X,
-				&B15.X, &B7.X, &B13.X, &B5.X, &B11.X, &B3.X, &B9.X, &B1.X,
 			),
-			Y: *c.baseApi.Mux(selector,
+			Y: *c.baseApi.Mux(selectorY,
 				&B16.Y, &B8.Y, &B14.Y, &B6.Y, &B12.Y, &B4.Y, &B10.Y, &B2.Y,
 				&B15.Y, &B7.Y, &B13.Y, &B5.Y, &B11.Y, &B3.Y, &B9.Y, &B1.Y,
 			),
