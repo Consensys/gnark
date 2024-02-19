@@ -2,28 +2,19 @@ package groth16
 
 import (
 	"fmt"
+	"math/big"
 
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/std/algebra/algopts"
-	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/recursion"
 )
 
 type verifierCfg struct {
-	HashToFieldFn hash.FieldHasher
-	algopt        []algopts.AlgebraOption
+	algopt []algopts.AlgebraOption
 }
 
 // VerifierOption allows to modify the behaviour of Groth16 verifier.
 type VerifierOption func(cfg *verifierCfg) error
-
-// WithVerifierHashToFieldFn changes the hash function used for hashing
-// bytes to field. If not set verifier will return an error when
-// hashing is required.
-func WithVerifierHashToFieldFn(h hash.FieldHasher) VerifierOption {
-	return func(cfg *verifierCfg) error {
-		cfg.HashToFieldFn = h
-		return nil
-	}
-}
 
 // WithCompleteArithmetic returns a VerifierOption that forces complete arithmetic.
 func WithCompleteArithmetic() VerifierOption {
@@ -41,4 +32,37 @@ func newCfg(opts ...VerifierOption) (*verifierCfg, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// GetNativeProverOptions returns Groth16 prover options for the native prover
+// to initialize the configuration suitable for in-circuit verification.
+func GetNativeProverOptions(outer, field *big.Int) backend.ProverOption {
+	return func(pc *backend.ProverConfig) error {
+		htfProverHasher, err := recursion.NewShort(outer, field)
+		if err != nil {
+			return fmt.Errorf("get hash to field: %w", err)
+		}
+		htfOpt := backend.WithProverHashToFieldFunction(htfProverHasher)
+		if err = htfOpt(pc); err != nil {
+			return fmt.Errorf("apply prover htf option: %w", err)
+		}
+		return nil
+
+	}
+}
+
+// GetNativeVerifierOptions returns Groth16 verifier options to initialize the
+// configuration to be compatible with in-circuit verification.
+func GetNativeVerifierOptions(outer, field *big.Int) backend.VerifierOption {
+	return func(vc *backend.VerifierConfig) error {
+		htfVerifierHasher, err := recursion.NewShort(outer, field)
+		if err != nil {
+			return fmt.Errorf("get hash to field: %w", err)
+		}
+		htfOpt := backend.WithVerifierHashToFieldFunction(htfVerifierHasher)
+		if err = htfOpt(vc); err != nil {
+			return fmt.Errorf("apply verifier htf option: %w", err)
+		}
+		return nil
+	}
 }

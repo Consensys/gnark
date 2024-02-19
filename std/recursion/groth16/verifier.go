@@ -32,6 +32,7 @@ import (
 	"github.com/consensys/gnark/std/commitments/pedersen"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/recursion"
 )
 
 // Proof is a typed Groth16 proof of SNARK. Use [ValueOfProof] to initialize the
@@ -566,6 +567,7 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 // AssertProof asserts that the SNARK proof holds for the given witness and
 // verifying key.
 func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El, GtEl], proof Proof[G1El, G2El], witness Witness[FR], opts ...VerifierOption) error {
+	var fr FR
 	nbPublicVars := len(vk.G1.K) - len(vk.PublicAndCommitmentCommitted)
 	if len(witness.Public) != nbPublicVars-1 {
 		return fmt.Errorf("invalid witness size, got %d, expected %d (public - ONE_WIRE)", len(witness.Public), len(vk.G1.K)-1)
@@ -582,11 +584,11 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 
 	opt, err := newCfg(opts...)
 	if err != nil {
-		return err
+		return fmt.Errorf("apply options: %w", err)
 	}
-
-	if opt.HashToFieldFn == nil && len(vk.PublicAndCommitmentCommitted) > 0 {
-		return fmt.Errorf("HashToFieldFn is required when there are commitments")
+	hashToField, err := recursion.NewHash(v.api, fr.Modulus(), true)
+	if err != nil {
+		return fmt.Errorf("hash to field: %w", err)
 	}
 
 	maxNbPublicCommitted := 0
@@ -596,13 +598,13 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 
 	commitmentAuxData := make([]*emulated.Element[FR], len(vk.PublicAndCommitmentCommitted))
 	for i := range vk.PublicAndCommitmentCommitted { // solveCommitmentWire
-		opt.HashToFieldFn.Write(v.curve.MarshalG1(proof.Commitments[i].G1El)...)
+		hashToField.Write(v.curve.MarshalG1(proof.Commitments[i].G1El)...)
 		for j := range vk.PublicAndCommitmentCommitted[i] {
-			opt.HashToFieldFn.Write(v.curve.MarshalScalar(*inS[vk.PublicAndCommitmentCommitted[i][j]-1])...)
+			hashToField.Write(v.curve.MarshalScalar(*inS[vk.PublicAndCommitmentCommitted[i][j]-1])...)
 		}
 
-		h := opt.HashToFieldFn.Sum()
-		opt.HashToFieldFn.Reset()
+		h := hashToField.Sum()
+		hashToField.Reset()
 
 		res := v.scalarApi.FromBits(v.api.ToBinary(h)...)
 

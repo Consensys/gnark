@@ -2,7 +2,6 @@ package groth16
 
 import (
 	"fmt"
-	"hash"
 	"math/big"
 	"testing"
 
@@ -11,7 +10,6 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	groth16backend_bls12377 "github.com/consensys/gnark/backend/groth16/bls12-377"
 	groth16backend_bls12381 "github.com/consensys/gnark/backend/groth16/bls12-381"
@@ -129,7 +127,7 @@ func getInner(assert *test.Assert, field *big.Int) (constraint.ConstraintSystem,
 	return innerCcs, innerVK, innerPubWitness, innerProof
 }
 
-func getInnerCommitment(assert *test.Assert, field *big.Int, h hash.Hash) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
+func getInnerCommitment(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
 	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &InnerCircuitCommitment{})
 	assert.NoError(err)
 	innerPK, innerVK, err := groth16.Setup(innerCcs)
@@ -143,13 +141,11 @@ func getInnerCommitment(assert *test.Assert, field *big.Int, h hash.Hash) (const
 	}
 	innerWitness, err := frontend.NewWitness(innerAssignment, field)
 	assert.NoError(err)
-	h.Reset()
-	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness, backend.WithProverHashToFieldFunction(h))
+	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
 	assert.NoError(err)
 	innerPubWitness, err := innerWitness.Public()
 	assert.NoError(err)
-	h.Reset()
-	err = groth16.Verify(innerProof, innerVK, innerPubWitness, backend.WithVerifierHashToFieldFunction(h))
+	err = groth16.Verify(innerProof, innerVK, innerPubWitness, GetNativeVerifierOptions(outer, field))
 	assert.NoError(err)
 	return innerCcs, innerVK, innerPubWitness, innerProof
 }
@@ -161,16 +157,11 @@ type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 }
 
 func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
-	mimc, err := recursion.NewHash(api, api.Compiler().Field(), true)
-	if err != nil {
-		return err
-	}
-
 	verifier, err := NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
-	return verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness, WithVerifierHashToFieldFn(mimc))
+	return verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
 }
 
 func TestBN254InBN254(t *testing.T) {
@@ -195,18 +186,14 @@ func TestBN254InBN254(t *testing.T) {
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
 	}
-	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BN254))
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }
 
 func TestBN254InBN254Commitment(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	h, err := recursion.NewShort(ecc.BN254.ScalarField(), ecc.BN254.ScalarField())
-	if err != nil {
-		panic("hash function failed: " + err.Error())
-	}
-
-	innerCcs, innerVK, innerWitness, innerProof := getInnerCommitment(assert, ecc.BN254.ScalarField(), h)
+	innerCcs, innerVK, innerWitness, innerProof := getInnerCommitment(assert, ecc.BN254.ScalarField(), ecc.BN254.ScalarField())
 
 	// outer proof
 	circuitVk, err := ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVK)
