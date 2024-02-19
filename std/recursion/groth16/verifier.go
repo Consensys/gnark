@@ -594,20 +594,13 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 		maxNbPublicCommitted = utils.Max(maxNbPublicCommitted, len(s))
 	}
 
-	var fp FR
-	nbBits := 8 * ((fp.Modulus().BitLen() + 7) / 8)
-
-	// commitmentsSerialized := make([]frontend.Variable, len(vk.PublicAndCommitmentCommitted)*nbBits)
-	commitmentPrehashSerialized := make([]frontend.Variable, 2*nbBits+maxNbPublicCommitted*nbBits)
+	// commitmentPrehashSerialized := make([]frontend.Variable, 2*nbBits+maxNbPublicCommitted*nbBits)
 	for i := range vk.PublicAndCommitmentCommitted { // solveCommitmentWire
-		copy(commitmentPrehashSerialized, v.curve.MarshalG1(proof.Commitments[i].G1El))
-		offset := 2 * nbBits
+		opt.HashToFieldFn.Write(v.curve.MarshalG1(proof.Commitments[i].G1El)...)
 		for j := range vk.PublicAndCommitmentCommitted[i] {
-			copy(commitmentPrehashSerialized[offset:], v.curve.MarshalScalar(*inS[vk.PublicAndCommitmentCommitted[i][j]-1]))
-			offset += nbBits
+			opt.HashToFieldFn.Write(v.curve.MarshalScalar(*inS[vk.PublicAndCommitmentCommitted[i][j]-1])...)
 		}
 
-		opt.HashToFieldFn.Write(commitmentPrehashSerialized[:offset]...)
 		h := opt.HashToFieldFn.Sum()
 		opt.HashToFieldFn.Reset()
 
