@@ -128,7 +128,7 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 		return
 	}
 
-	diff := f.subNoReduce(b, a)
+	diff := f.Sub(b, a)
 
 	// we compute k such that diff / p == k
 	// so essentially, we say "I know an element k such that k*p == diff"

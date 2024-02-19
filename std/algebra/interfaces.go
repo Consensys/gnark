@@ -33,7 +33,7 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	//
 	// Depending on the implementation the scalar multiplication may be
 	// incomplete for zero scalar or point at infinity. To allow the exceptional
-	// case use the [algopts.WithUseSafe] option.
+	// case use the [algopts.WithCompleteArithmetic] option.
 	ScalarMul(*G1El, *emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
 	// ScalarMulBase returns the scalar multiplication of the curve base point
@@ -41,7 +41,7 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	//
 	// Depending on the implementation the scalar multiplication may be
 	// incomplete for zero scalar. To allow the exceptional case use the
-	// [algopts.WithUseSafe] option.
+	// [algopts.WithCompleteArithmetic] option.
 	ScalarMulBase(*emulated.Element[FR], ...algopts.AlgebraOption) *G1El
 
 	// MultiScalarMul computes the sum ∑ s_i P_i for the input
@@ -50,7 +50,7 @@ type Curve[FR emulated.FieldParams, G1El G1ElementT] interface {
 	//
 	// Depending on the implementation the scalar multiplication may be
 	// incomplete for zero scalar or point at infinity. To allow the exceptional
-	// case use the [algopts.WithUseSafe] option.
+	// case use the [algopts.WithCompleteArithmetic] option.
 	MultiScalarMul([]*G1El, []*emulated.Element[FR], ...algopts.AlgebraOption) (*G1El, error)
 
 	// MarshalG1 returns the binary decomposition G1.X || G1.Y. It matches the
