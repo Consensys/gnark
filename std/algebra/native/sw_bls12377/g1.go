@@ -23,7 +23,6 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 )
@@ -147,6 +146,33 @@ func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 	return p
 }
 
+func (P *G1Affine) doubleN(api frontend.API, Q *G1Affine, n int) *G1Affine {
+	pn := Q
+	for s := 0; s < n; s++ {
+		pn.Double(api, *pn)
+	}
+	return pn
+}
+
+func (P *G1Affine) scalarMulBySeed(api frontend.API, Q *G1Affine) *G1Affine {
+	var z, t0, t1 G1Affine
+	z.Double(api, *Q)
+	z.AddAssign(api, *Q)
+	z.DoubleAndAdd(api, &z, Q)
+	t0.Double(api, z)
+	t0.Double(api, t0)
+	z.AddAssign(api, t0)
+	t1.Double(api, z)
+	t1.AddAssign(api, z)
+	t0.AddAssign(api, t1)
+	t0.doubleN(api, &t0, 9)
+	z.DoubleAndAdd(api, &t0, &z)
+	z.doubleN(api, &z, 45)
+	P.DoubleAndAdd(api, &z, Q)
+
+	return P
+}
+
 // ScalarMul sets P = [s] Q and returns P.
 //
 // The method chooses an implementation based on scalar s. If it is constant,
@@ -158,31 +184,6 @@ func (P *G1Affine) ScalarMul(api frontend.API, Q G1Affine, s interface{}, opts .
 	} else {
 		return P.varScalarMul(api, Q, s, opts...)
 	}
-}
-
-var DecomposeScalarG1 = func(scalarField *big.Int, inputs []*big.Int, res []*big.Int) error {
-	cc := getInnerCurveConfig(scalarField)
-	sp := ecc.SplitScalar(inputs[0], cc.glvBasis)
-	res[0].Set(&(sp[0]))
-	res[1].Set(&(sp[1]))
-	one := big.NewInt(1)
-	// add (lambda+1, lambda) until scalar compostion is over Fr to ensure that
-	// the high bits are set in decomposition.
-	for res[0].Cmp(cc.lambda) < 1 && res[1].Cmp(cc.lambda) < 1 {
-		res[0].Add(res[0], cc.lambda)
-		res[0].Add(res[0], one)
-		res[1].Add(res[1], cc.lambda)
-	}
-	// figure out how many times we have overflowed
-	res[2].Mul(res[1], cc.lambda).Add(res[2], res[0])
-	res[2].Sub(res[2], inputs[0])
-	res[2].Div(res[2], cc.fr)
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DecomposeScalarG1)
 }
 
 // varScalarMul sets P = [s] Q and returns P.
@@ -217,7 +218,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
 	// where λ is third root of one in 𝔽_r.
-	sd, err := api.Compiler().NewHint(DecomposeScalarG1, 3, s)
+	sd, err := api.Compiler().NewHint(decomposeScalarG1, 3, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -474,14 +475,14 @@ func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
-	sd, err := api.Compiler().NewHint(DecomposeScalarG1, 3, s)
+	sd, err := api.Compiler().NewHint(decomposeScalarG1, 3, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	s1, s2 := sd[0], sd[1]
 
-	td, err := api.Compiler().NewHint(DecomposeScalarG1, 3, t)
+	td, err := api.Compiler().NewHint(decomposeScalarG1, 3, t)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

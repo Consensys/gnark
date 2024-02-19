@@ -72,6 +72,8 @@ func (c *PairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
+	pairing.AssertIsOnG1(&c.InG1)
+	pairing.AssertIsOnG2(&c.InG2)
 	res, err := pairing.Pair([]*G1Affine{&c.InG1}, []*G2Affine{&c.InG2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
@@ -120,6 +122,8 @@ func (c *MultiPairCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
+	pairing.AssertIsOnG1(&c.InG1)
+	pairing.AssertIsOnG2(&c.InG2)
 	P, Q := []*G1Affine{}, []*G2Affine{}
 	for i := 0; i < c.n; i++ {
 		P = append(P, &c.InG1)
@@ -191,6 +195,32 @@ func TestPairingCheckTestSolve(t *testing.T) {
 		In2G2: NewG2Affine(q2),
 	}
 	err := test.IsSolved(&PairingCheckCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
+type GroupMembershipCircuit struct {
+	InG1 G1Affine
+	InG2 G2Affine
+}
+
+func (c *GroupMembershipCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	pairing.AssertIsOnG1(&c.InG1)
+	pairing.AssertIsOnG2(&c.InG2)
+	return nil
+}
+
+func TestGroupMembershipSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+	witness := GroupMembershipCircuit{
+		InG1: NewG1Affine(p),
+		InG2: NewG2Affine(q),
+	}
+	err := test.IsSolved(&GroupMembershipCircuit{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
 

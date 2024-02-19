@@ -91,6 +91,76 @@ func (c *Curve) AssertIsEqual(P, Q *G1Affine) {
 	P.AssertIsEqual(c.api, *Q)
 }
 
+// AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.
+func (c *Curve) AssertIsOnCurve(p *G1Affine) {
+	// (X,Y) ∈ {Y² == X³ + 1} U (0,0)
+
+	// if p=(0,0) we assign b=0 and continue
+	selector := c.api.And(c.api.IsZero(p.X), c.api.IsZero(p.Y))
+	b := c.api.Select(selector, 0, 1)
+
+	left := c.api.Mul(p.Y, p.Y)
+	right := c.api.Mul(p.X, c.api.Mul(p.X, p.X))
+	right = c.api.Add(right, b)
+	c.api.AssertIsEqual(left, right)
+}
+
+func (c *Curve) AssertIsOnG1(P *G1Affine) {
+	// 1- Check P is on the curve
+	c.AssertIsOnCurve(P)
+
+	// 2- Check P has the right subgroup order
+	// [x²]ϕ(P)
+	phiP := G1Affine{
+		X: c.api.Mul(P.X, "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945"),
+		Y: P.Y,
+	}
+	var _P G1Affine
+	_P.scalarMulBySeed(c.api, &phiP)
+	_P.scalarMulBySeed(c.api, &_P)
+	_P.Neg(c.api, _P)
+
+	// [r]Q == 0 <==>  P = -[x²]ϕ(P)
+	P.AssertIsEqual(c.api, _P)
+}
+
+// AssertIsOnTwist asserts if p belongs to the curve. It doesn't modify p.
+func (c *Curve) AssertIsOnTwist(p *G2Affine) {
+	// (X,Y) ∈ {Y² == X³ + 1/u} U (0,0)
+
+	// if p=(0,0) we assign b=0 and continue
+	selector := c.api.And(p.P.X.IsZero(c.api), p.P.Y.IsZero(c.api))
+	var zero fields_bls12377.E2
+	zero.SetZero()
+	b := fields_bls12377.E2{
+		A0: 0,
+		A1: "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906",
+	}
+	b.Select(c.api, selector, zero, b)
+
+	var left, right fields_bls12377.E2
+	left.Square(c.api, p.P.Y)
+	right.Square(c.api, p.P.X)
+	right.Mul(c.api, right, p.P.X)
+	right.Add(c.api, right, b)
+	left.AssertIsEqual(c.api, right)
+}
+
+func (c *Curve) AssertIsOnG2(P *G2Affine) {
+	// 1- Check P is on the curve
+	c.AssertIsOnTwist(P)
+
+	// 2- Check P has the right subgroup order
+	// [x₀]Q
+	var xP, psiP g2AffP
+	xP.scalarMulBySeed(c.api, &P.P)
+	// ψ(Q)
+	psiP.psi(c.api, &P.P)
+
+	// [r]Q == 0 <==>  ψ(Q) == [x₀]Q
+	xP.AssertIsEqual(c.api, psiP)
+}
+
 // Neg negates P and returns the result. Does not modify P.
 func (c *Curve) Neg(P *G1Affine) *G1Affine {
 	res := &G1Affine{
@@ -175,7 +245,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		gamma := c.packScalarToVar(scalars[0])
 		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
 		cc := getInnerCurveConfig(c.api.Compiler().Field())
-		sd, err := c.api.Compiler().NewHint(DecomposeScalarG1, 3, gamma)
+		sd, err := c.api.Compiler().NewHint(decomposeScalarG1, 3, gamma)
 		if err != nil {
 			panic(err)
 		}
