@@ -409,29 +409,6 @@ func TestBW6InBN254(t *testing.T) {
 	}
 	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BN254))
 }
-
-func TestBW6InBN254Precomputed(t *testing.T) {
-	assert := test.NewAssert(t)
-	innerCcs, innerVK, innerWitness, innerProof := getInner(assert, ecc.BW6_761.ScalarField())
-
-	// outer proof
-	circuitVk, err := ValueOfVerifyingKeyFixed[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl](innerVK)
-	assert.NoError(err)
-	circuitWitness, err := ValueOfWitness[sw_bw6761.ScalarField](innerWitness)
-	assert.NoError(err)
-	circuitProof, err := ValueOfProof[sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerProof)
-	assert.NoError(err)
-
-	outerCircuit := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
-		InnerWitness: PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
-		VerifyingKey: PlaceholderVerifyingKeyFixed[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl](innerCcs),
-	}
-	outerAssignment := &OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
-		InnerWitness: circuitWitness,
-		Proof:        circuitProof,
-		VerifyingKey: circuitVk,
-	}
-	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BN254))
 }
 
 type OuterCircuitConstant[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {

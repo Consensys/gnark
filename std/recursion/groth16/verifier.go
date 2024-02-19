@@ -186,63 +186,6 @@ func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, G
 	}
 }
 
-func PlaceholderVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT](ccs constraint.ConstraintSystem) VerifyingKey[G1El, G2El, GtEl] {
-	commitments := ccs.GetCommitments().(constraint.Groth16Commitments)
-	commitmentWires := commitments.CommitmentIndexes()
-
-	vk := VerifyingKey[G1El, G2El, GtEl]{
-		G1: struct{ K []G1El }{
-			K: make([]G1El, ccs.GetNbPublicVariables()+len(ccs.GetCommitments().(constraint.Groth16Commitments))),
-		},
-		PublicAndCommitmentCommitted: commitments.GetPublicAndCommitmentCommitted(commitmentWires, ccs.GetNbPublicVariables()),
-	}
-	switch s := any(&vk).(type) {
-	case *VerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl]:
-		s.G2 = struct {
-			GammaNeg sw_bn254.G2Affine
-			DeltaNeg sw_bn254.G2Affine
-		}{
-			GammaNeg: sw_bn254.NewG2AffineFixedPlaceholder(),
-			DeltaNeg: sw_bn254.NewG2AffineFixedPlaceholder(),
-		}
-	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
-		s.G2 = struct {
-			GammaNeg sw_bls12377.G2Affine
-			DeltaNeg sw_bls12377.G2Affine
-		}{
-			GammaNeg: sw_bls12377.NewG2AffineFixedPlaceholder(),
-			DeltaNeg: sw_bls12377.NewG2AffineFixedPlaceholder(),
-		}
-	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
-		s.G2 = struct {
-			GammaNeg sw_bls12381.G2Affine
-			DeltaNeg sw_bls12381.G2Affine
-		}{
-			GammaNeg: sw_bls12381.NewG2AffineFixedPlaceholder(),
-			DeltaNeg: sw_bls12381.NewG2AffineFixedPlaceholder(),
-		}
-	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
-		s.G2 = struct {
-			GammaNeg sw_bls24315.G2Affine
-			DeltaNeg sw_bls24315.G2Affine
-		}{
-			GammaNeg: sw_bls24315.NewG2AffineFixedPlaceholder(),
-			DeltaNeg: sw_bls24315.NewG2AffineFixedPlaceholder(),
-		}
-	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
-		s.G2 = struct {
-			GammaNeg sw_bw6761.G2Affine
-			DeltaNeg sw_bw6761.G2Affine
-		}{
-			GammaNeg: sw_bw6761.NewG2AffineFixedPlaceholder(),
-			DeltaNeg: sw_bw6761.NewG2AffineFixedPlaceholder(),
-		}
-	default:
-		panic("not supported")
-	}
-	return vk
-}
-
 // ValueOfVerifyingKey initializes witness from the given Groth16 verifying key.
 // It returns an error if there is a mismatch between the type parameters and
 // the provided native verifying key.

@@ -23,6 +23,14 @@ func WithVerifierHashToFieldFn(h hash.FieldHasher) VerifierOption {
 	}
 }
 
+// WithCompleteArithmetic returns a VerifierOption that forces complete arithmetic.
+func WithCompleteArithmetic() VerifierOption {
+	return func(cfg *verifierCfg) error {
+		cfg.algopt = append(cfg.algopt, algopts.WithCompleteArithmetic())
+		return nil
+	}
+}
+
 func newCfg(opts ...VerifierOption) (*verifierCfg, error) {
 	cfg := new(verifierCfg)
 	for i := range opts {
