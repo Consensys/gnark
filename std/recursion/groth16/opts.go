@@ -3,11 +3,13 @@ package groth16
 import (
 	"fmt"
 
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/hash"
 )
 
 type verifierCfg struct {
 	HashToFieldFn hash.FieldHasher
+	algopt        []algopts.AlgebraOption
 }
 
 // VerifierOption allows to modify the behaviour of Groth16 verifier.

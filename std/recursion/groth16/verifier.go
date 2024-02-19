@@ -24,7 +24,6 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
-	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
@@ -629,7 +628,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 		}
 	}
 
-	kSum, err := v.curve.MultiScalarMul(inP, inS, algopts.WithCompleteArithmetic())
+	kSum, err := v.curve.MultiScalarMul(inP, inS, opt.algopt...)
 	if err != nil {
 		return fmt.Errorf("multi scalar mul: %w", err)
 	}
