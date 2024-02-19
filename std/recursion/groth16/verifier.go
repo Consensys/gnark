@@ -575,9 +575,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 	for i := range inP {
 		inP[i] = &vk.G1.K[i+1]
 	}
-	inS := make([]*emulated.Element[FR], 0, len(witness.Public)+len(vk.PublicAndCommitmentCommitted))
+	inS := make([]*emulated.Element[FR], len(witness.Public)+len(vk.PublicAndCommitmentCommitted))
 	for i := range witness.Public {
-		inS = append(inS, &witness.Public[i])
+		inS[i] = &witness.Public[i]
 	}
 
 	opt, err := newCfg(opts...)
@@ -613,7 +613,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 
 		res := v.scalarApi.FromBits(v.api.ToBinary(h)...)
 
-		inS = append(inS, res)
+		inS[nbPublicVars-1+i] = res
 		// copy(commitmentsSerialized[i*nbBits:], v.curve.MarshalScalar(*res))
 	}
 
