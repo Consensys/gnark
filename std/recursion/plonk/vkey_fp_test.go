@@ -52,7 +52,7 @@ func (c *OuterCircuitDual[FR, G1El, G2El, GtEl]) Define(api frontend.API) error 
 		return fmt.Errorf("new curve for verification keys: %w", err)
 	}
 	api.Println(fp3)
-	// different constant value should result different verification key
+	// different constant values should result in different verification keys
 	api.AssertIsDifferent(fp, fp3)
 
 	return err
