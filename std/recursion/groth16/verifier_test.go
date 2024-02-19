@@ -49,40 +49,25 @@ func (c *InnerCircuitCommitment) Define(api frontend.API) error {
 	return nil
 }
 
-type InnerCircuitEmulation struct {
-	P, Q emulated.Element[emparams.Goldilocks]
-	N    emulated.Element[emparams.Goldilocks] `gnark:",public"`
-}
-
-func (c *InnerCircuitEmulation) Define(api frontend.API) error {
-	f, err := emulated.NewField[emparams.Goldilocks](api)
-	if err != nil {
-		return err
-	}
-	res := f.Mul(&c.P, &c.Q)
-	f.AssertIsEqual(res, &c.N)
-	return nil
-}
-
-type InnerCircuitNative struct {
+type InnerCircuit struct {
 	P, Q frontend.Variable
 	N    frontend.Variable `gnark:",public"`
 }
 
-func (c *InnerCircuitNative) Define(api frontend.API) error {
+func (c *InnerCircuit) Define(api frontend.API) error {
 	res := api.Mul(c.P, c.Q)
 	api.AssertIsEqual(res, c.N)
 	return nil
 }
 
 func getInner(assert *test.Assert, field *big.Int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
-	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &InnerCircuitNative{})
+	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &InnerCircuit{})
 	assert.NoError(err)
 	innerPK, innerVK, err := groth16.Setup(innerCcs)
 	assert.NoError(err)
 
 	// inner proof
-	innerAssignment := &InnerCircuitNative{
+	innerAssignment := &InnerCircuit{
 		P: 3,
 		Q: 5,
 		N: 15,
