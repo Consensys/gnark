@@ -25,39 +25,10 @@ import (
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
-	"github.com/consensys/gnark/std/hash/sha2"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
-	"github.com/consensys/gnark/std/math/uints"
-	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 )
-
-// TODO: placeholder circuits for when we have implemented commitment verification for the verifier.
-type InnerCircuitSHA2 struct {
-	PreImage [9]uints.U8
-	Digest   [32]uints.U8 `gnark:",public"`
-}
-
-func (c *InnerCircuitSHA2) Define(api frontend.API) error {
-	h, err := sha2.New(api)
-	if err != nil {
-		return fmt.Errorf("new sha2: %w", err)
-	}
-	h.Write(c.PreImage[:])
-	dgst := h.Sum()
-	if len(dgst) != len(c.Digest) {
-		return fmt.Errorf("wrong digest size")
-	}
-	uapi, err := uints.New[uints.U32](api)
-	if err != nil {
-		return fmt.Errorf("new uints api: %w", err)
-	}
-	for i := range dgst {
-		uapi.ByteAssertEq(dgst[i], c.Digest[i])
-	}
-	return nil
-}
 
 type InnerCircuitCommitment struct {
 	P, Q frontend.Variable
