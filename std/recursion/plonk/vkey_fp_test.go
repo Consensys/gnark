@@ -35,13 +35,15 @@ func (c *OuterCircuitDual[FR, G1El, G2El, GtEl]) Define(api frontend.API) error 
 	}
 	api.Println(fp)
 	err = verifier.AssertProof(c.VerifyingKeys[0], c.Proofs[0], c.InnerWitnesses[0], WithCompleteArithmetic())
+	if err != nil {
+		return err
+	}
 
 	fp2, err := c.VerifyingKeys[1].FingerPrint(api)
 	if err != nil {
 		return fmt.Errorf("new curve for verification keys: %w", err)
 	}
 	api.Println(fp2)
-	// err = verifier.AssertProof(c.VerifyingKeys[1], c.Proofs[1], c.InnerWitnesses[1], WithCompleteArithmetic())
 	// same constant value should result same verification key
 	api.AssertIsEqual(fp, fp2)
 
@@ -50,7 +52,6 @@ func (c *OuterCircuitDual[FR, G1El, G2El, GtEl]) Define(api frontend.API) error 
 		return fmt.Errorf("new curve for verification keys: %w", err)
 	}
 	api.Println(fp3)
-	// err = verifier.AssertProof(c.VerifyingKeys[2], c.Proofs[2], c.InnerWitnesses[2], WithCompleteArithmetic())
 	// different constant value should result different verification key
 	api.AssertIsDifferent(fp, fp3)
 
