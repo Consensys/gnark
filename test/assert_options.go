@@ -139,14 +139,6 @@ func NoSolidityChecks() TestingOption {
 	}
 }
 
-// WithProverChecks forces to run prover checks and disables solver checks.
-func WithProverChecks() TestingOption {
-	return func(opt *testingConfig) error {
-		opt.checkProver = true
-		return nil
-	}
-}
-
 // WithProverOpts is a testing option which uses the given proverOpts when
 // calling backend.Prover, backend.ReadAndProve and backend.IsSolved methods in
 // assertions.
