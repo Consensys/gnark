@@ -42,7 +42,7 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 // FoldCommitments folds the given commitments into a single commitment for efficient verification.
 //
 // Currently the function panics as folding is not implemented yet.
-func (v *Verifier[FR, G1El, G2El, GtEl]) FoldCommitments(commitments []Commitment[G1El], auxTranscript ...emulated.Element[FR]) (Commitment[G1El], error) {
+func (v *Verifier[FR, G1El, G2El, GtEl]) FoldCommitments(commitments []Commitment[G1El], auxTranscript ...*emulated.Element[FR]) (Commitment[G1El], error) {
 	if len(commitments) == 0 {
 		return Commitment[G1El]{}, fmt.Errorf("number of commitments must be at least 1")
 	}

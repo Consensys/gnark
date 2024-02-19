@@ -594,7 +594,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 		maxNbPublicCommitted = utils.Max(maxNbPublicCommitted, len(s))
 	}
 
-	// commitmentPrehashSerialized := make([]frontend.Variable, 2*nbBits+maxNbPublicCommitted*nbBits)
+	commitmentAuxData := make([]*emulated.Element[FR], len(vk.PublicAndCommitmentCommitted))
 	for i := range vk.PublicAndCommitmentCommitted { // solveCommitmentWire
 		opt.HashToFieldFn.Write(v.curve.MarshalG1(proof.Commitments[i].G1El)...)
 		for j := range vk.PublicAndCommitmentCommitted[i] {
@@ -607,11 +607,11 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 		res := v.scalarApi.FromBits(v.api.ToBinary(h)...)
 
 		inS[nbPublicVars-1+i] = res
-		// copy(commitmentsSerialized[i*nbBits:], v.curve.MarshalScalar(*res))
+		commitmentAuxData[i] = res
 	}
 
 	if len(vk.PublicAndCommitmentCommitted) > 0 {
-		folded, err := v.commitment.FoldCommitments(proof.Commitments)
+		folded, err := v.commitment.FoldCommitments(proof.Commitments, commitmentAuxData...)
 		if err != nil {
 			return fmt.Errorf("fold commitments: %w", err)
 		}
