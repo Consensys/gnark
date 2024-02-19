@@ -213,11 +213,8 @@ func TestBN254InBN254Commitment(t *testing.T) {
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
 	}
-	assert.CheckCircuit(
-		outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BN254), test.NoTestEngine(), test.WithBackends(backend.GROTH16),
-		test.WithProverOpts(backend.WithProverHashToFieldFunction(h)), test.WithVerifierOpts(backend.WithVerifierHashToFieldFunction(h)),
-		test.WithProverChecks(),
-	)
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }
 
 func TestBLS12InBW6(t *testing.T) {
@@ -241,7 +238,8 @@ func TestBLS12InBW6(t *testing.T) {
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
 	}
-	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BW6_761))
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
 }
 
 type WitnessCircut struct {
@@ -394,8 +392,8 @@ func TestBW6InBN254(t *testing.T) {
 		Proof:        circuitProof,
 		VerifyingKey: circuitVk,
 	}
-	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BN254))
-}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }
 
 type OuterCircuitConstant[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
@@ -432,5 +430,6 @@ func TestBW6InBN254Constant(t *testing.T) {
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 	}
-	assert.CheckCircuit(outerCircuit, test.WithValidAssignment(outerAssignment), test.WithCurves(ecc.BN254))
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
 }
