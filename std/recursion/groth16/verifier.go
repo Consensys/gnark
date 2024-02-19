@@ -212,9 +212,10 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bn254.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bn254.NewG2Affine(gammaNeg)
-
-		s.CommitmentKey.G = sw_bn254.NewG2Affine(tVk.CommitmentKey.G)
-		s.CommitmentKey.GRootSigmaNeg = sw_bn254.NewG2Affine(tVk.CommitmentKey.GRootSigmaNeg)
+		s.CommitmentKey, err = pedersen.ValueOfVerifyingKey[sw_bn254.G2Affine](&tVk.CommitmentKey)
+		if err != nil {
+			return ret, fmt.Errorf("commitment key: %w", err)
+		}
 	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
@@ -235,9 +236,10 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12377.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls12377.NewG2Affine(gammaNeg)
-
-		s.CommitmentKey.G = sw_bls12377.NewG2Affine(tVk.CommitmentKey.G)
-		s.CommitmentKey.GRootSigmaNeg = sw_bls12377.NewG2Affine(tVk.CommitmentKey.GRootSigmaNeg)
+		s.CommitmentKey, err = pedersen.ValueOfVerifyingKey[sw_bls12377.G2Affine](&tVk.CommitmentKey)
+		if err != nil {
+			return ret, fmt.Errorf("commitment key: %w", err)
+		}
 	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
 		tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
 		if !ok {
@@ -258,9 +260,10 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12381.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls12381.NewG2Affine(gammaNeg)
-
-		s.CommitmentKey.G = sw_bls12381.NewG2Affine(tVk.CommitmentKey.G)
-		s.CommitmentKey.GRootSigmaNeg = sw_bls12381.NewG2Affine(tVk.CommitmentKey.GRootSigmaNeg)
+		s.CommitmentKey, err = pedersen.ValueOfVerifyingKey[sw_bls12381.G2Affine](&tVk.CommitmentKey)
+		if err != nil {
+			return ret, fmt.Errorf("commitment key: %w", err)
+		}
 	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
 		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
 		if !ok {
@@ -281,9 +284,10 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls24315.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls24315.NewG2Affine(gammaNeg)
-
-		s.CommitmentKey.G = sw_bls24315.NewG2Affine(tVk.CommitmentKey.G)
-		s.CommitmentKey.GRootSigmaNeg = sw_bls24315.NewG2Affine(tVk.CommitmentKey.GRootSigmaNeg)
+		s.CommitmentKey, err = pedersen.ValueOfVerifyingKey[sw_bls24315.G2Affine](&tVk.CommitmentKey)
+		if err != nil {
+			return ret, fmt.Errorf("commitment key: %w", err)
+		}
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
 		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
 		if !ok {
@@ -304,9 +308,10 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bw6761.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bw6761.NewG2Affine(gammaNeg)
-
-		s.CommitmentKey.G = sw_bw6761.NewG2Affine(tVk.CommitmentKey.G)
-		s.CommitmentKey.GRootSigmaNeg = sw_bw6761.NewG2Affine(tVk.CommitmentKey.GRootSigmaNeg)
+		s.CommitmentKey, err = pedersen.ValueOfVerifyingKey[sw_bw6761.G2Affine](&tVk.CommitmentKey)
+		if err != nil {
+			return ret, fmt.Errorf("commitment key: %w", err)
+		}
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
@@ -339,6 +344,10 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bn254.NewG2AffineFixed(deltaNeg)
 		s.G2.GammaNeg = sw_bn254.NewG2AffineFixed(gammaNeg)
+		s.CommitmentKey, err = pedersen.ValueOfVerifyingKeyFixed[sw_bn254.G2Affine](&tVk.CommitmentKey)
+		if err != nil {
+			return ret, fmt.Errorf("commitment key: %w", err)
+		}
 	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
@@ -359,6 +368,10 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12377.NewG2AffineFixed(deltaNeg)
 		s.G2.GammaNeg = sw_bls12377.NewG2AffineFixed(gammaNeg)
+		s.CommitmentKey, err = pedersen.ValueOfVerifyingKeyFixed[sw_bls12377.G2Affine](&tVk.CommitmentKey)
+		if err != nil {
+			return ret, fmt.Errorf("commitment key: %w", err)
+		}
 	case *VerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]:
 		tVk, ok := vk.(*groth16backend_bls12381.VerifyingKey)
 		if !ok {
@@ -379,6 +392,10 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12381.NewG2AffineFixed(deltaNeg)
 		s.G2.GammaNeg = sw_bls12381.NewG2AffineFixed(gammaNeg)
+		s.CommitmentKey, err = pedersen.ValueOfVerifyingKeyFixed[sw_bls12381.G2Affine](&tVk.CommitmentKey)
+		if err != nil {
+			return ret, fmt.Errorf("commitment key: %w", err)
+		}
 	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
 		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
 		if !ok {
@@ -399,6 +416,10 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls24315.NewG2AffineFixed(deltaNeg)
 		s.G2.GammaNeg = sw_bls24315.NewG2AffineFixed(gammaNeg)
+		s.CommitmentKey, err = pedersen.ValueOfVerifyingKeyFixed[sw_bls24315.G2Affine](&tVk.CommitmentKey)
+		if err != nil {
+			return ret, fmt.Errorf("commitment key: %w", err)
+		}
 	case *VerifyingKey[sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]:
 		tVk, ok := vk.(*groth16backend_bw6761.VerifyingKey)
 		if !ok {
@@ -419,6 +440,10 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bw6761.NewG2AffineFixed(deltaNeg)
 		s.G2.GammaNeg = sw_bw6761.NewG2AffineFixed(gammaNeg)
+		s.CommitmentKey, err = pedersen.ValueOfVerifyingKeyFixed[sw_bw6761.G2Affine](&tVk.CommitmentKey)
+		if err != nil {
+			return ret, fmt.Errorf("commitment key: %w", err)
+		}
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination")
 	}
