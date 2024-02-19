@@ -30,5 +30,9 @@ func BlsAssertG2Verification(api frontend.API, pub G1Affine, sig G2Affine, msg [
 	g1GN := NewG1Affine(g1GNeg)
 
 	h, e := HashToG2(api, msg, []byte(g2_dst))
+	if e != nil {
+		return e
+	}
+
 	return pairing.PairingCheck([]*G1Affine{&g1GN, &pub}, []*G2Affine{&sig, h})
 }
