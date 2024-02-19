@@ -617,7 +617,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 		if err != nil {
 			return fmt.Errorf("fold commitments: %w", err)
 		}
-		err = v.commitment.AssertCommitment(folded, proof.CommitmentPok, vk.CommitmentKey)
+		err = v.commitment.AssertCommitment(folded, proof.CommitmentPok, vk.CommitmentKey, opt.pedopt...)
 		if err != nil {
 			return fmt.Errorf("assert commitment: %w", err)
 		}
@@ -633,6 +633,11 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 		kSum = v.curve.Add(kSum, &proof.Commitments[i].G1El)
 	}
 
+	if opt.forceSubgroupCheck {
+		v.pairing.AssertIsOnG1(&proof.Ar)
+		v.pairing.AssertIsOnG1(&proof.Krs)
+		v.pairing.AssertIsOnG2(&proof.Bs)
+	}
 	pairing, err := v.pairing.Pair([]*G1El{kSum, &proof.Krs, &proof.Ar}, []*G2El{&vk.G2.GammaNeg, &vk.G2.DeltaNeg, &proof.Bs})
 	if err != nil {
 		return fmt.Errorf("pairing: %w", err)

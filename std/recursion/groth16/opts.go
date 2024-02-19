@@ -6,11 +6,14 @@ import (
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/std/algebra/algopts"
+	"github.com/consensys/gnark/std/commitments/pedersen"
 	"github.com/consensys/gnark/std/recursion"
 )
 
 type verifierCfg struct {
-	algopt []algopts.AlgebraOption
+	algopt             []algopts.AlgebraOption
+	pedopt             []pedersen.VerifierOption
+	forceSubgroupCheck bool
 }
 
 // VerifierOption allows to modify the behaviour of Groth16 verifier.
@@ -20,6 +23,15 @@ type VerifierOption func(cfg *verifierCfg) error
 func WithCompleteArithmetic() VerifierOption {
 	return func(cfg *verifierCfg) error {
 		cfg.algopt = append(cfg.algopt, algopts.WithCompleteArithmetic())
+		return nil
+	}
+}
+
+// WithSubgroupCheck returns a VerifierOption that forces subgroup checks.
+func WithSubgroupCheck() VerifierOption {
+	return func(cfg *verifierCfg) error {
+		cfg.pedopt = append(cfg.pedopt, pedersen.WithSubgroupCheck())
+		cfg.forceSubgroupCheck = true
 		return nil
 	}
 }
