@@ -121,6 +121,46 @@ func TestMarshalG1(t *testing.T) {
 	})
 }
 
+func TestMarshalG1OnBN254(t *testing.T) {
+	assert := test.NewAssert(t)
+	testFn := func(r fr_bn.Element) {
+		var P bn254.G1Affine
+		P.ScalarMultiplicationBase(r.BigInt(new(big.Int)))
+
+		gBytes := P.Marshal()
+
+		nbBytes := 2 * fr_bn.Bytes
+		nbBits := nbBytes * 8
+		circuit := &MarshalG1Test[emulated.BN254Fp, emulated.BN254Fr]{
+			R: make([]frontend.Variable, nbBits),
+		}
+		witness := &MarshalG1Test[emulated.BN254Fp, emulated.BN254Fr]{
+			G: AffinePoint[emulated.BN254Fp]{
+				X: emulated.ValueOf[emulated.BN254Fp](P.X),
+				Y: emulated.ValueOf[emulated.BN254Fp](P.Y),
+			},
+			R: make([]frontend.Variable, nbBits),
+		}
+		for i := 0; i < nbBytes; i++ {
+			for j := 0; j < 8; j++ {
+				witness.R[i*8+j] = (gBytes[i] >> (7 - j)) & 1
+			}
+		}
+		err := test.IsSolved(circuit, witness, testCurve.ScalarField())
+		assert.NoError(err)
+	}
+	assert.Run(func(assert *test.Assert) {
+		var r fr_bn.Element
+		r.SetRandom()
+		testFn(r)
+	})
+	assert.Run(func(assert *test.Assert) {
+		var r fr_bn.Element
+		r.SetZero()
+		testFn(r)
+	})
+}
+
 type NegTest[T, S emulated.FieldParams] struct {
 	P, Q AffinePoint[T]
 }

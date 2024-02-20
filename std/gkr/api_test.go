@@ -427,7 +427,9 @@ func testPlonk(t *testing.T, circuit, assignment frontend.Circuit) {
 }
 
 func registerMiMC() {
-	bn254r1cs.RegisterHashBuilder("mimc", bn254MiMC.NewMiMC)
+	bn254r1cs.RegisterHashBuilder("mimc", func() hash.Hash {
+		return bn254MiMC.NewMiMC()
+	})
 	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err
