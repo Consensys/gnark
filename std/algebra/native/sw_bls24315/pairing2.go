@@ -306,6 +306,14 @@ func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
 }
 
+func (p *Pairing) AssertIsOnG1(P *G1Affine) {
+	panic("not implemented")
+}
+
+func (p *Pairing) AssertIsOnG2(P *G2Affine) {
+	panic("not implemented")
+}
+
 // NewG1Affine allocates a witness from the native G1 element and returns it.
 func NewG1Affine(v bls24315.G1Affine) G1Affine {
 	return G1Affine{
