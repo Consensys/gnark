@@ -153,9 +153,9 @@ func (c *MulNoOverflowCircuit[T]) Define(api frontend.API) error {
 }
 
 func TestMulCircuitNoOverflow(t *testing.T) {
-	// testMulCircuitNoOverflow[Goldilocks](t)
+	testMulCircuitNoOverflow[Goldilocks](t)
 	testMulCircuitNoOverflow[Secp256k1Fp](t)
-	// testMulCircuitNoOverflow[BN254Fp](t)
+	testMulCircuitNoOverflow[BN254Fp](t)
 }
 
 func testMulCircuitNoOverflow[T FieldParams](t *testing.T) {
