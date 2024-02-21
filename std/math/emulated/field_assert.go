@@ -129,19 +129,7 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 	}
 
 	diff := f.Sub(b, a)
-
-	// we compute k such that diff / p == k
-	// so essentially, we say "I know an element k such that k*p == diff"
-	// hence, diff == 0 mod p
-	p := f.Modulus()
-	k, err := f.computeQuoHint(diff)
-	if err != nil {
-		panic(fmt.Sprintf("hint error: %v", err))
-	}
-
-	kp := f.reduceAndOp(f.mul, f.mulPreCond, k, p)
-
-	f.AssertLimbsEquality(diff, kp)
+	f.checkZero(diff)
 }
 
 // AssertIsLessOrEqual ensures that e is less or equal than a. For proper

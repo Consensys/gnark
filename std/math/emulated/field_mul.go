@@ -122,6 +122,26 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint) *Element[T] {
 	return r
 }
 
+// checkZero creates multiplication check a * 1 = 0 + k*p.
+func (f *Field[T]) checkZero(a *Element[T]) {
+	// the method works similarly to mulMod, but we know that we are multiplying
+	// by one and expected result should be zero.
+	f.enforceWidthConditional(a)
+	k, r, c, err := f.callCheckZeroHint(a)
+	if err != nil {
+		panic(err)
+	}
+	mc := mulCheck[T]{
+		f: f,
+		a: a,
+		b: f.shortOne(), // one on single limb to speed up the polynomial evaluation
+		c: c,
+		k: k,
+		r: r, // expected to be zero on zero limbs.
+	}
+	f.mulChecks = append(f.mulChecks, mc)
+}
+
 // evalWithChallenge represents element a as a polynomial a(X) and evaluates at
 // at[0]. For efficiency, we use already evaluated powers of at[0] given by at.
 // It stores the evaluation result inside the Element and marks it as evaluated.
@@ -240,6 +260,53 @@ func (f *Field[T]) callMulHint(a, b *Element[T]) (quo, rem, carries *Element[T],
 	quo = f.packLimbs(ret[:nbQuoLimbs], false)
 	rem = f.packLimbs(ret[nbQuoLimbs:nbQuoLimbs+nbRemLimbs], true)
 	carries = f.newInternalElement(ret[nbQuoLimbs+nbRemLimbs:], 0)
+	return
+}
+
+func (f *Field[T]) callCheckZeroHint(a *Element[T]) (quo, rem, carries *Element[T], err error) {
+	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
+	// this is the same as callMulHint, but we know that we multiply a by one.
+	// This allows to optimize some bounds - namely we know that the overflow of
+	// the product would be the same as the overflow of a as we would be
+	// multiplying every limb of a by one. Secondly, the number of limbs of the
+	// result is also the same as for a.
+	nextOverflow := a.overflow
+	nbActualQuoLimbs := (uint(len(a.Limbs))*nbBits + nextOverflow + 1 - //
+		uint(f.fParams.Modulus().BitLen()) + //
+		nbBits - 1) /
+		nbBits
+
+	// also compute the number of limbs assuming that we have 1 on full
+	// number of limbs to keep compatibility with the multiplication hint
+	// (which assumes that the number of limbs is the same as the input).
+	// Otherwise, we would have to provide additional inputs to indicate the
+	// length of the quotient.
+	nbFullQuoLimbs := ((2*nbLimbs-1)*nbBits + nextOverflow + 1 - //
+		uint(f.fParams.Modulus().BitLen()) + //
+		nbBits - 1) /
+		nbBits
+	nbRemLimbs := nbLimbs
+	nbCarryLimbs := (nbFullQuoLimbs + nbLimbs) - 2
+	hintInputs := []frontend.Variable{
+		nbBits,
+		nbLimbs,
+	}
+	hintInputs = append(hintInputs, f.Modulus().Limbs...)
+	hintInputs = append(hintInputs, a.Limbs...)
+	hintInputs = append(hintInputs, f.One().Limbs...)
+	ret, err := f.api.NewHint(mulHint, int(nbFullQuoLimbs)+int(nbRemLimbs)+int(nbCarryLimbs), hintInputs...)
+	if err != nil {
+		err = fmt.Errorf("call hint: %w", err)
+		return
+	}
+	// now, we only pack the number of actual expected non-zero limbs for
+	// quotient. This makes later in the multiplication check later cheaper as
+	// we evaluate the polynomial with limbs as coefficients.
+	quo = f.packLimbs(ret[:nbActualQuoLimbs], false)
+	// and the remainder is supposed to be 0. As a polynomial this means it will
+	// be evaluated to zero.
+	rem = &Element[T]{}
+	carries = f.newInternalElement(ret[nbFullQuoLimbs+nbRemLimbs:], 0)
 	return
 }
 
