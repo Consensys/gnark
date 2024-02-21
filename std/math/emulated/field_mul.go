@@ -153,7 +153,10 @@ func (f *Field[T]) evalWithChallenge(a *Element[T], at []frontend.Variable) *Ele
 	if len(at) < len(a.Limbs)-1 {
 		panic("evaluation powers less than limbs")
 	}
-	sum := f.api.Mul(a.Limbs[0], 1) // copy because we use MulAcc
+	var sum frontend.Variable = 0
+	if len(a.Limbs) > 0 {
+		sum = f.api.Mul(a.Limbs[0], 1) // copy because we use MulAcc
+	}
 	for i := 1; i < len(a.Limbs); i++ {
 		sum = f.api.MulAcc(sum, a.Limbs[i], at[i-1])
 	}
