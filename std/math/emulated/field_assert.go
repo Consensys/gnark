@@ -196,11 +196,31 @@ func (f *Field[T]) AssertIsInRange(a *Element[T]) {
 func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	ca := f.Reduce(a)
 	f.AssertIsInRange(ca)
-	res := f.api.IsZero(ca.Limbs[0])
-	for i := 1; i < len(ca.Limbs); i++ {
-		res = f.api.Mul(res, f.api.IsZero(ca.Limbs[i]))
+	// we use two approaches for checking if the element is exactly zero. The
+	// first approach is to check that every limb individually is zero. The
+	// second approach is to check if the sum of all limbs is zero. Usually, we
+	// cannot use this approach as we could have false positive due to overflow
+	// in the native field. However, as the widths of the limbs are restricted,
+	// then we can ensure in most cases that no overflows happen.
+
+	// as ca is already reduced, then every limb overflow is already 0. Only
+	// every addition adds a bit to the overflow
+	totalOverflow := len(ca.Limbs) - 1
+	if totalOverflow < int(f.maxOverflow()) {
+		// the sums of limbs would overflow the native field. Use the first
+		// approach instead.
+		res := f.api.IsZero(ca.Limbs[0])
+		for i := 1; i < len(ca.Limbs); i++ {
+			res = f.api.Mul(res, f.api.IsZero(ca.Limbs[i]))
+		}
+		return res
 	}
-	return res
+	// default case, limbs sum does not overflow the native field
+	limbSum := ca.Limbs[0]
+	for i := 1; i < len(ca.Limbs); i++ {
+		limbSum = f.api.Add(limbSum, ca.Limbs[i])
+	}
+	return f.api.IsZero(limbSum)
 }
 
 // // Cmp returns:
