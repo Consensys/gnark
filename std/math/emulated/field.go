@@ -30,14 +30,16 @@ type Field[T FieldParams] struct {
 	maxOfOnce sync.Once
 
 	// constants for often used elements n, 0 and 1. Allocated only once
-	nConstOnce     sync.Once
-	nConst         *Element[T]
-	nprevConstOnce sync.Once
-	nprevConst     *Element[T]
-	zeroConstOnce  sync.Once
-	zeroConst      *Element[T]
-	oneConstOnce   sync.Once
-	oneConst       *Element[T]
+	nConstOnce        sync.Once
+	nConst            *Element[T]
+	nprevConstOnce    sync.Once
+	nprevConst        *Element[T]
+	zeroConstOnce     sync.Once
+	zeroConst         *Element[T]
+	oneConstOnce      sync.Once
+	oneConst          *Element[T]
+	shortOneConstOnce sync.Once
+	shortOneConst     *Element[T]
 
 	log zerolog.Logger
 
@@ -144,6 +146,14 @@ func (f *Field[T]) One() *Element[T] {
 		f.oneConst = newConstElement[T](1)
 	})
 	return f.oneConst
+}
+
+// shortOne returns one as a constant stored in a single limb.
+func (f *Field[T]) shortOne() *Element[T] {
+	f.shortOneConstOnce.Do(func() {
+		f.shortOneConst = f.newInternalElement([]frontend.Variable{1}, 0)
+	})
+	return f.shortOneConst
 }
 
 // Modulus returns the modulus of the emulated ring as a constant.
