@@ -199,10 +199,9 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 			coefsLen = max(coefsLen, len(f.mulChecks[i].c.Limbs))
 		}
 		at := make([]frontend.Variable, coefsLen)
-		var prev frontend.Variable = 1
-		for i := range at {
-			at[i] = api.Mul(prev, commitment)
-			prev = at[i]
+		at[0] = commitment
+		for i := 1; i < len(at); i++ {
+			at[i] = api.Mul(at[i-1], commitment)
 		}
 		// evaluate all r, k, c
 		for i := range f.mulChecks {
