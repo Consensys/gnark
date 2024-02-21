@@ -6,55 +6,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-// assertLimbsEqualitySlow is the main routine in the package. It asserts that the
-// two slices of limbs represent the same integer value. This is also the most
-// costly operation in the package as it does bit decomposition of the limbs.
-func (f *Field[T]) assertLimbsEqualitySlow(api frontend.API, l, r []frontend.Variable, nbBits, nbCarryBits uint) {
-
-	nbLimbs := max(len(l), len(r))
-	maxValue := new(big.Int).Lsh(big.NewInt(1), nbBits+nbCarryBits)
-	maxValueShift := new(big.Int).Lsh(big.NewInt(1), nbCarryBits)
-
-	var carry frontend.Variable = 0
-	for i := 0; i < nbLimbs; i++ {
-		diff := api.Add(maxValue, carry)
-		if i < len(l) {
-			diff = api.Add(diff, l[i])
-		}
-		if i < len(r) {
-			diff = api.Sub(diff, r[i])
-		}
-		if i > 0 {
-			diff = api.Sub(diff, maxValueShift)
-		}
-
-		// carry is stored in the highest bits of diff[nbBits:nbBits+nbCarryBits+1]
-		// we know that diff[:nbBits] are 0 bits, but still need to constrain them.
-		// to do both; we do a "clean" right shift and only need to boolean constrain the carry part
-		carry = f.rsh(diff, int(nbBits), int(nbBits+nbCarryBits+1))
-	}
-	api.AssertIsEqual(carry, maxValueShift)
-}
-
-func (f *Field[T]) rsh(v frontend.Variable, startDigit, endDigit int) frontend.Variable {
-	// if v is a constant, work with the big int value.
-	if c, ok := f.api.Compiler().ConstantValue(v); ok {
-		bits := make([]frontend.Variable, endDigit-startDigit)
-		for i := 0; i < len(bits); i++ {
-			bits[i] = c.Bit(i + startDigit)
-		}
-		return bits
-	}
-	shifted, err := f.api.Compiler().NewHint(RightShift, 1, startDigit, v)
-	if err != nil {
-		panic(fmt.Sprintf("right shift: %v", err))
-	}
-	f.checker.Check(shifted[0], endDigit-startDigit)
-	shift := new(big.Int).Lsh(big.NewInt(1), uint(startDigit))
-	composed := f.api.Mul(shifted[0], shift)
-	f.api.AssertIsEqual(composed, v)
-	return shifted[0]
-}
 // enforceWidth enforces the width of the limbs. When modWidth is true, then the
 // limbs are asserted to be the width of the modulus (highest limb may be less
 // than full limb width). Otherwise, every limb is assumed to have same width
