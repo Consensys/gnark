@@ -194,9 +194,10 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 	// we give all the inputs as inputs to obtain random verifier challenge.
 	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
 		// for efficiency, we compute all powers of the challenge as slice at.
-		coefsLen := 0
+		coefsLen := int(f.fParams.NbLimbs())
 		for i := range f.mulChecks {
-			coefsLen = max(coefsLen, len(f.mulChecks[i].c.Limbs))
+			coefsLen = max(coefsLen, len(f.mulChecks[i].a.Limbs), len(f.mulChecks[i].b.Limbs),
+				len(f.mulChecks[i].c.Limbs), len(f.mulChecks[i].k.Limbs))
 		}
 		at := make([]frontend.Variable, coefsLen)
 		at[0] = commitment
