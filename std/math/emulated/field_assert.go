@@ -2,7 +2,6 @@ package emulated
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -56,39 +55,6 @@ func (f *Field[T]) rsh(v frontend.Variable, startDigit, endDigit int) frontend.V
 	f.api.AssertIsEqual(composed, v)
 	return shifted[0]
 }
-
-// AssertLimbsEquality asserts that the limbs represent a same integer value.
-// This method does not ensure that the values are equal modulo the field order.
-// For strict equality, use AssertIsEqual.
-func (f *Field[T]) AssertLimbsEquality(a, b *Element[T]) {
-	f.enforceWidthConditional(a)
-	f.enforceWidthConditional(b)
-	ba, aConst := f.constantValue(a)
-	bb, bConst := f.constantValue(b)
-	if aConst && bConst {
-		ba.Mod(ba, f.fParams.Modulus())
-		bb.Mod(bb, f.fParams.Modulus())
-		if ba.Cmp(bb) != 0 {
-			panic(fmt.Errorf("constant values are different: %s != %s", ba.String(), bb.String()))
-		}
-		return
-	}
-
-	// first, we check if we can compact a and b; they could be using 8 limbs of 32bits
-	// but with our snark field, we could express them in 2 limbs of 128bits, which would make bit decomposition
-	// and limbs equality in-circuit (way) cheaper
-	ca, cb, bitsPerLimb := f.compact(a, b)
-
-	// slow path -- the overflows are different. Need to compare with carries.
-	// TODO: we previously assumed that one side was "larger" than the other
-	// side, but I think this assumption is not valid anymore
-	if a.overflow > b.overflow {
-		f.assertLimbsEqualitySlow(f.api, ca, cb, bitsPerLimb, a.overflow)
-	} else {
-		f.assertLimbsEqualitySlow(f.api, cb, ca, bitsPerLimb, b.overflow)
-	}
-}
-
 // enforceWidth enforces the width of the limbs. When modWidth is true, then the
 // limbs are asserted to be the width of the modulus (highest limb may be less
 // than full limb width). Otherwise, every limb is assumed to have same width
