@@ -1079,7 +1079,20 @@ func (c *Curve[B, S]) scalarBitsMulGeneric(p *AffinePoint[B], sBits []frontend.V
 	return R0
 }
 
-// ScalarMulBase computes s * g and returns it, where g is the fixed generator.
+// ScalarMulBase computes s * g and returns it where g is the fixed curve generator. It doesn't modify p nor s.
+//
+// ScalarMul calls scalarMulBaseGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
+func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	if c.eigenvalue != nil && c.thirdRootOne != nil {
+		return c.scalarMulGLV(c.Generator(), s, opts...)
+
+	} else {
+		return c.scalarMulBaseGeneric(s, opts...)
+
+	}
+}
+
+// scalarMulBaseGeneric computes s * g and returns it, where g is the fixed generator.
 // It doesn't modify s.
 //
 // ✅ When s=0, it returns (0,0).
@@ -1093,7 +1106,7 @@ func (c *Curve[B, S]) scalarBitsMulGeneric(p *AffinePoint[B], sBits []frontend.V
 //
 // [HMV04]: https://link.springer.com/book/10.1007/b97644
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+func (c *Curve[B, S]) scalarMulBaseGeneric(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(fmt.Sprintf("parse opts: %v", err))
