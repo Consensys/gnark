@@ -22,7 +22,7 @@ func fold(api *bigIntEngine, ml nativeMultilinear, r *big.Int) nativeMultilinear
 	return ml[:mid]
 }
 
-func hypesumX1One(api *bigIntEngine, ml nativeMultilinear) *big.Int {
+func hypersumX1One(api *bigIntEngine, ml nativeMultilinear) *big.Int {
 	sum := ml[len(ml)/2]
 	for i := len(ml)/2 + 1; i < len(ml); i++ {
 		sum = api.Add(sum, ml[i])

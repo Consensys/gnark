@@ -92,12 +92,12 @@ func (fn *nativeMultilinearClaim) NbVars() int {
 }
 
 func (fn *nativeMultilinearClaim) Combine(coeff *big.Int) nativePolynomial {
-	return []*big.Int{hypesumX1One(fn.be, fn.ml)}
+	return []*big.Int{hypersumX1One(fn.be, fn.ml)}
 }
 
 func (fn *nativeMultilinearClaim) Next(r *big.Int) nativePolynomial {
 	fn.ml = fold(fn.be, fn.ml, r)
-	return []*big.Int{hypesumX1One(fn.be, fn.ml)}
+	return []*big.Int{hypersumX1One(fn.be, fn.ml)}
 }
 
 func (fn *nativeMultilinearClaim) ProverFinalEval(r []*big.Int) nativeEvaluationProof {
