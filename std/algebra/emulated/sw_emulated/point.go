@@ -606,7 +606,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	T12 := c.Add(tablePhiQ[0], tableQ[1])
 	// T = [3]Φ(Q) - Q
 	// P = B4 and P' = B1
-	T13 := c.Add(tablePhiQ[2], tableQ[0])
+	T13 := c.Neg(T10)
 	// T = Φ(Q) - [3]Q
 	// P = B4 and P' = B2
 	T14 := c.Neg(T9)
