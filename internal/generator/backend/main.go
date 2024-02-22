@@ -67,6 +67,7 @@ func main() {
 		Curve:     "tinyfield",
 		CurveID:   "UNKNOWN",
 		noBackend: true,
+		NoGKR:     true,
 	}
 
 	// autogenerate tinyfield
@@ -235,4 +236,5 @@ type templateData struct {
 	Curve     string
 	CurveID   string
 	noBackend bool
+	NoGKR     bool
 }
