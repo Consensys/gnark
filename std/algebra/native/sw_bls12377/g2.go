@@ -154,6 +154,33 @@ func (p *g2AffP) Double(api frontend.API, p1 g2AffP) *g2AffP {
 
 }
 
+func (P *g2AffP) doubleN(api frontend.API, Q *g2AffP, n int) *g2AffP {
+	pn := Q
+	for s := 0; s < n; s++ {
+		pn.Double(api, *pn)
+	}
+	return pn
+}
+
+func (P *g2AffP) scalarMulBySeed(api frontend.API, Q *g2AffP) *g2AffP {
+	var z, t0, t1 g2AffP
+	z.Double(api, *Q)
+	z.AddAssign(api, *Q)
+	z.DoubleAndAdd(api, &z, Q)
+	t0.Double(api, z)
+	t0.Double(api, t0)
+	z.AddAssign(api, t0)
+	t1.Double(api, z)
+	t1.AddAssign(api, z)
+	t0.AddAssign(api, t1)
+	t0.doubleN(api, &t0, 9)
+	z.DoubleAndAdd(api, &t0, &z)
+	z.doubleN(api, &z, 45)
+	P.DoubleAndAdd(api, &z, Q)
+
+	return P
+}
+
 // ScalarMul sets P = [s] Q and returns P.
 //
 // The method chooses an implementation based on scalar s. If it is constant,
@@ -499,6 +526,19 @@ func (P *g2AffP) ScalarMulBase(api frontend.API, s frontend.Variable) *g2AffP {
 
 	P.X = res.X
 	P.Y = res.Y
+
+	return P
+}
+
+func (P *g2AffP) psi(api frontend.API, q *g2AffP) *g2AffP {
+	var x, y fields_bls12377.E2
+	x.Conjugate(api, q.X)
+	x.MulByFp(api, x, "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410946")
+	y.Conjugate(api, q.Y)
+	y.MulByFp(api, y, "216465761340224619389371505802605247630151569547285782856803747159100223055385581585702401816380679166954762214499")
+
+	P.X = x
+	P.Y = y
 
 	return P
 }

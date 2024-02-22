@@ -64,7 +64,9 @@ type pairingBLS377 struct {
 }
 
 func (circuit *pairingBLS377) Define(api frontend.API) error {
-
+	pr := NewPairing(api)
+	pr.AssertIsOnG1(&circuit.P)
+	pr.AssertIsOnG2(&circuit.Q)
 	pairingRes, _ := Pair(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
 	pairingRes.AssertIsEqual(api, circuit.Res)
 
@@ -211,6 +213,33 @@ func TestPairingCheckBLS377(t *testing.T) {
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&pairingCheckBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
 
+}
+
+type groupMembership struct {
+	P G1Affine
+	Q G2Affine
+}
+
+func (circuit *groupMembership) Define(api frontend.API) error {
+	pr := NewPairing(api)
+	pr.AssertIsOnG1(&circuit.P)
+	pr.AssertIsOnG2(&circuit.Q)
+
+	return nil
+}
+
+func TestGroupMembership(t *testing.T) {
+
+	// pairing test data
+	P, Q, _, _ := pairingData()
+
+	// assign values to witness
+	witness := groupMembership{
+		P: NewG1Affine(P),
+		Q: NewG2Affine(Q),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&groupMembership{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
 // utils

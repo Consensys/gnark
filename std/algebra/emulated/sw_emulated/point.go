@@ -129,8 +129,22 @@ func (c *Curve[B, S]) MarshalG1(p AffinePoint[B]) []frontend.Variable {
 	copy(res[len(bx):], by)
 	xZ := c.baseApi.IsZero(x)
 	yZ := c.baseApi.IsZero(y)
-	res[1] = c.api.Mul(xZ, yZ)
+	isZero := c.api.Mul(xZ, yZ)
+	// isZero = 0 -> res[1]=0
+	// isZero = 1, infty bit 0 -> res[1]=0
+	// isZero = 1, infty bit 1 -> res[1]=1
+	res[1] = c.api.Mul(isZero, c.marshalZeroG1())
 	return res
+}
+
+// different curves have different marshalling for zero point
+func (c *Curve[B, S]) marshalZeroG1() frontend.Variable {
+	var fp B
+	unusedBits := 64 - (fp.Modulus().BitLen() % 64)
+	if unusedBits >= 3 {
+		return 1
+	}
+	return 0
 }
 
 // Neg returns an inverse of p. It doesn't modify p.
