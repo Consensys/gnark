@@ -512,20 +512,17 @@ contract Verifier {
         {{- end }}
         uint256[{{$numWitness}}] calldata input
     ) public view {
-        (uint256 Ax, uint256 Ay) = decompress_g1(compressedProof[0]);
-        (uint256 Bx0, uint256 Bx1, uint256 By0, uint256 By1) = decompress_g2(
-                compressedProof[2], compressedProof[1]);
-        (uint256 Cx, uint256 Cy) = decompress_g1(compressedProof[3]);
-        {{- if eq $numCommitments 0 }}
-        (uint256 Lx, uint256 Ly) = publicInputMSM(input);
-        {{- else }}
+        {{- if gt $numCommitments 0 }}
         uint256[{{$numCommitments}}] memory publicCommitments;
         uint256[{{mul 2 $numCommitments}}] memory commitments;
+        {{- end }}
+        uint256[24] memory pairings;
 
-        (commitments[0], commitments[1]) = decompress_g1(compressedCommitments[0]);
-        (uint256 Px, uint256 Py) = decompress_g1(compressedCommitmentPok);
-
-        {{- range $i := intRange $numCommitments }}
+        {{- if gt $numCommitments 0 }}
+        {
+            (commitments[0], commitments[1]) = decompress_g1(compressedCommitments[0]);
+            (uint256 Px, uint256 Py) = decompress_g1(compressedCommitmentPok);
+            {{- range $i := intRange $numCommitments }}
             publicCommitments[{{$i}}] = uint256(
                 sha256(
                     abi.encodePacked(
@@ -539,89 +536,95 @@ contract Verifier {
                     )
                 )
             ) % R;
+            {{- end }}
+            // Commitments
+            pairings[ 0] = commitments[0];
+            pairings[ 1] = commitments[1];
+            pairings[ 2] = PEDERSEN_G_X_1;
+            pairings[ 3] = PEDERSEN_G_X_0;
+            pairings[ 4] = PEDERSEN_G_Y_1;
+            pairings[ 5] = PEDERSEN_G_Y_0;
+            pairings[ 6] = Px;
+            pairings[ 7] = Py;
+            pairings[ 8] = PEDERSEN_GROOTSIGMANEG_X_1;
+            pairings[ 9] = PEDERSEN_GROOTSIGMANEG_X_0;
+            pairings[10] = PEDERSEN_GROOTSIGMANEG_Y_1;
+            pairings[11] = PEDERSEN_GROOTSIGMANEG_Y_0;
+
+            // Verify pedersen commitments
+            bool success;
+            assembly ("memory-safe") {
+                let f := mload(0x40)
+
+                success := staticcall(gas(), PRECOMPILE_VERIFY, pairings, 0x180, f, 0x20)
+                success := and(success, mload(f))
+            }
+            if (!success) {
+                revert CommitmentInvalid();
+            }
+        }
         {{- end }}
 
-        uint256[24] memory pairings;
-        // Commitments
-        pairings[ 0] = commitments[0];
-        pairings[ 1] = commitments[1];
-        pairings[ 2] = PEDERSEN_G_X_1;
-        pairings[ 3] = PEDERSEN_G_X_0;
-        pairings[ 4] = PEDERSEN_G_Y_1;
-        pairings[ 5] = PEDERSEN_G_Y_0;
-        pairings[ 6] = Px;
-        pairings[ 7] = Py;
-        pairings[ 8] = PEDERSEN_GROOTSIGMANEG_X_1;
-        pairings[ 9] = PEDERSEN_GROOTSIGMANEG_X_0;
-        pairings[10] = PEDERSEN_GROOTSIGMANEG_Y_1;
-        pairings[11] = PEDERSEN_GROOTSIGMANEG_Y_0;
+        {
+            (uint256 Ax, uint256 Ay) = decompress_g1(compressedProof[0]);
+            (uint256 Bx0, uint256 Bx1, uint256 By0, uint256 By1) = decompress_g2(compressedProof[2], compressedProof[1]);
+            (uint256 Cx, uint256 Cy) = decompress_g1(compressedProof[3]);
+            {{- if eq $numCommitments 0 }}
+            (uint256 Lx, uint256 Ly) = publicInputMSM(input);
+            {{- else }}
+            (uint256 Lx, uint256 Ly) = publicInputMSM(
+                input,
+                publicCommitments,
+                commitments
+            );
+            {{- end}}
 
-        // Verify pedersen commitments
-        bool success;
-        assembly ("memory-safe") {
-            let f := mload(0x40)
+            // Verify the pairing
+            // Note: The precompile expects the F2 coefficients in big-endian order.
+            // Note: The pairing precompile rejects unreduced values, so we won't check that here.
+            {{- if eq $numCommitments 0 }}
+            uint256[24] memory pairings;
+            {{- end }}
+            // e(A, B)
+            pairings[ 0] = Ax;
+            pairings[ 1] = Ay;
+            pairings[ 2] = Bx1;
+            pairings[ 3] = Bx0;
+            pairings[ 4] = By1;
+            pairings[ 5] = By0;
+            // e(C, -δ)
+            pairings[ 6] = Cx;
+            pairings[ 7] = Cy;
+            pairings[ 8] = DELTA_NEG_X_1;
+            pairings[ 9] = DELTA_NEG_X_0;
+            pairings[10] = DELTA_NEG_Y_1;
+            pairings[11] = DELTA_NEG_Y_0;
+            // e(α, -β)
+            pairings[12] = ALPHA_X;
+            pairings[13] = ALPHA_Y;
+            pairings[14] = BETA_NEG_X_1;
+            pairings[15] = BETA_NEG_X_0;
+            pairings[16] = BETA_NEG_Y_1;
+            pairings[17] = BETA_NEG_Y_0;
+            // e(L_pub, -γ)
+            pairings[18] = Lx;
+            pairings[19] = Ly;
+            pairings[20] = GAMMA_NEG_X_1;
+            pairings[21] = GAMMA_NEG_X_0;
+            pairings[22] = GAMMA_NEG_Y_1;
+            pairings[23] = GAMMA_NEG_Y_0;
 
-            success := staticcall(gas(), PRECOMPILE_VERIFY, pairings, 0x180, f, 0x20)
-            success := and(success, mload(f))
-        }
-        if (!success) {
-            revert CommitmentInvalid();
-        }
-
-        (uint256 Lx, uint256 Ly) = publicInputMSM(
-            input,
-            publicCommitments,
-            commitments
-        );
-        {{- end}}
-
-        // Verify the pairing
-        // Note: The precompile expects the F2 coefficients in big-endian order.
-        // Note: The pairing precompile rejects unreduced values, so we won't check that here.
-        {{- if eq $numCommitments 0 }}
-        uint256[24] memory pairings;
-        {{- end }}
-        // e(A, B)
-        pairings[ 0] = Ax;
-        pairings[ 1] = Ay;
-        pairings[ 2] = Bx1;
-        pairings[ 3] = Bx0;
-        pairings[ 4] = By1;
-        pairings[ 5] = By0;
-        // e(C, -δ)
-        pairings[ 6] = Cx;
-        pairings[ 7] = Cy;
-        pairings[ 8] = DELTA_NEG_X_1;
-        pairings[ 9] = DELTA_NEG_X_0;
-        pairings[10] = DELTA_NEG_Y_1;
-        pairings[11] = DELTA_NEG_Y_0;
-        // e(α, -β)
-        pairings[12] = ALPHA_X;
-        pairings[13] = ALPHA_Y;
-        pairings[14] = BETA_NEG_X_1;
-        pairings[15] = BETA_NEG_X_0;
-        pairings[16] = BETA_NEG_Y_1;
-        pairings[17] = BETA_NEG_Y_0;
-        // e(L_pub, -γ)
-        pairings[18] = Lx;
-        pairings[19] = Ly;
-        pairings[20] = GAMMA_NEG_X_1;
-        pairings[21] = GAMMA_NEG_X_0;
-        pairings[22] = GAMMA_NEG_Y_1;
-        pairings[23] = GAMMA_NEG_Y_0;
-
-        // Check pairing equation.
-        {{- if eq $numCommitments 0 }}
-        bool success;
-        {{- end }}
-        uint256[1] memory output;
-        assembly ("memory-safe") {
-            success := staticcall(gas(), PRECOMPILE_VERIFY, pairings, 0x300, output, 0x20)
-        }
-        if (!success || output[0] != 1) {
-            // Either proof or verification key invalid.
-            // We assume the contract is correctly generated, so the verification key is valid.
-            revert ProofInvalid();
+            // Check pairing equation.
+            bool success;
+            uint256[1] memory output;
+            assembly ("memory-safe") {
+                success := staticcall(gas(), PRECOMPILE_VERIFY, pairings, 0x300, output, 0x20)
+            }
+            if (!success || output[0] != 1) {
+                // Either proof or verification key invalid.
+                // We assume the contract is correctly generated, so the verification key is valid.
+                revert ProofInvalid();
+            }
         }
     }
 
