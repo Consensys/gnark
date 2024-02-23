@@ -582,9 +582,6 @@ contract Verifier {
             // Verify the pairing
             // Note: The precompile expects the F2 coefficients in big-endian order.
             // Note: The pairing precompile rejects unreduced values, so we won't check that here.
-            {{- if eq $numCommitments 0 }}
-            uint256[24] memory pairings;
-            {{- end }}
             // e(A, B)
             pairings[ 0] = Ax;
             pairings[ 1] = Ay;
