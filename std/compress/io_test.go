@@ -2,6 +2,7 @@ package compress
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
@@ -116,4 +117,69 @@ type checksumTestCircuit struct {
 func (c *checksumTestCircuit) Define(api frontend.API) error {
 	Packed := append(Pack(api, c.Bytes, 8), len(c.Bytes))
 	return AssertChecksumEquals(api, Packed, c.Sum)
+}
+
+func TestSetNumNbBits(t *testing.T) {
+	const maxNbWords = 1000
+	buf := make([]byte, (maxNbWords+7)/8)
+
+	// action plan
+	_, err := rand.Read(buf)
+	assert.NoError(t, err)
+	nbWordsUsed := 0 // starting with one word per num
+	nbWordsPerNum := 1
+	increases := make([]byte, 0)
+	for nbWordsUsed < maxNbWords && nbWordsPerNum < 64 {
+		inc := buf[len(increases)] % 3 % 2 // double mod to make 0 more likely TODO try other increase values too
+		nbWordsPerNum += int(inc)
+		if nbWordsPerNum >= 64 {
+			inc = byte(nbWordsPerNum) - 63
+			nbWordsPerNum = 63
+		}
+
+		increases = append(increases, inc)
+		nbWordsUsed += nbWordsPerNum
+	}
+
+	words := make([]byte, nbWordsUsed) // random bits
+	_, err = rand.Read(buf[:(nbWordsUsed+7)/8])
+	assert.NoError(t, err)
+	for i := range words {
+		words[i] = (buf[i/8] >> (i % 8)) & 1
+	}
+
+	nbWordsPerNum = 1
+	nums := make([]uint64, len(increases))
+	for i := range nums {
+		nbWordsPerNum += int(increases[i])
+		for j := 0; j < nbWordsPerNum && j < len(words); j++ {
+			nums[i] |= words[i] << (nbWordsPerNum - j - 1)
+		}
+	}
+
+	test.NewAssert(t).CheckCircuit(&testSetNumNbBitsCircuit{increases: increases}, test.WithCurves(ecc.BLS12_377), test.WithBackends(backend.PLONK),
+		test.WithValidAssignment(&testSetNumNbBitsCircuit{
+			Words: test_vector_utils.ToVariableSlice(words),
+			Nums:  nil,
+		}))
+}
+
+type testSetNumNbBitsCircuit struct {
+	increases []byte
+	Words     []frontend.Variable
+	Nums      []frontend.Variable
+}
+
+func (c *testSetNumNbBitsCircuit) Define(api frontend.API) error {
+	if len(c.increases) != len(c.Nums) {
+		return errors.New("must have as many steps as read values")
+	}
+	l := 1
+	nr := NewNumReader(api, c.Words, l, 1)
+	for i := range c.increases {
+		l += int(c.increases[i])
+		nr.SetNumNbBits(l)
+		api.AssertIsEqual(c.Nums[i], nr.Next())
+	}
+	return nil
 }

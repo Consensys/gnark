@@ -22,10 +22,9 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 	// size-related "constants"
 	wordNbBits := int(level)
-	shortBackRefType, longBackRefType, dictBackRefType := lzss.InitBackRefTypes(len(dict), level) // init the dictionary and backref types; only needed for the constants below
+	shortBackRefType := lzss.NewShortBackrefType()
+	dynamicBackRefType := lzss.NewDynamicBackrefType(len(dict), len(d)) // TODO make sure the fact that len(d) is longer than actual dLength is okay
 	shortBrNbWords := int(shortBackRefType.NbBitsBackRef) / wordNbBits
-	longBrNbWords := int(longBackRefType.NbBitsBackRef) / wordNbBits
-	dictBrNbWords := int(dictBackRefType.NbBitsBackRef) / wordNbBits
 	byteNbWords := uint(8 / wordNbBits)
 
 	// check header: version and compression level
