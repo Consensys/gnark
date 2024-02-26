@@ -10,42 +10,40 @@ import (
 	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
+// TODO Provide option for c to be in sizes other than bytes
+
 // Decompress decompresses c into d using dict as the dictionary
 // which must come pre "augmented"
 // it is on the caller to ensure that the dictionary is correct; in particular it must consist of bytes. Decompress does not check this.
 // it is recommended to pack the dictionary using compress.Pack and take a MiMC checksum of it.
 // d will consist of bytes
 // It returns the length of d as a frontend.Variable; if the decompressed stream doesn't fit in d, dLength will be "-1"
-func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d, dict []frontend.Variable, level lzss.Level) (dLength frontend.Variable, err error) {
+func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d, dict []frontend.Variable) (dLength frontend.Variable, err error) {
 
 	api.AssertIsLessOrEqual(cLength, len(c)) // sanity check
 
 	// size-related "constants"
-	wordNbBits := int(level)
 	shortBackRefType := lzss.NewShortBackrefType()
 	dynamicBackRefType := lzss.NewDynamicBackrefType(len(dict), len(d)) // TODO make sure the fact that len(d) is longer than actual dLength is okay
-	shortBrNbWords := int(shortBackRefType.NbBitsBackRef) / wordNbBits
-	byteNbWords := uint(8 / wordNbBits)
 
 	// check header: version and compression level
 	const (
 		sizeHeader = 3
-		version    = 0
+		version    = 1
 	)
-	api.AssertIsEqual(c[0], version/256)
+	api.AssertIsEqual(c[0], version/256) // TODO Make it Big Endian in compress
 	api.AssertIsEqual(c[1], version%256)
-	fileCompressionMode := c[2]
-	api.AssertIsEqual(api.Mul(fileCompressionMode, fileCompressionMode), api.Mul(fileCompressionMode, wordNbBits)) // if fcm!=0, then fcm=wordNbBits
-	decompressionNotBypassed := api.Sub(1, api.IsZero(fileCompressionMode))
+	decompressionBypassed := c[2]
+	api.AssertIsBoolean(decompressionBypassed)
 
 	// check that the input is in range and convert into small words
 	rangeChecker := internal.NewRangeChecker(api)
 
 	bytes := make([]frontend.Variable, len(c)-sizeHeader+1)
 	copy(bytes, c[sizeHeader:])
-	bytes[len(bytes)-1] = 0                                             // pad with a zero to avoid out of range errors
-	c, bytes = rangeChecker.BreakUpBytesIntoWords(wordNbBits, bytes...) // from this point on c is in words
-	cLength = api.Mul(api.Sub(cLength, sizeHeader), 8/wordNbBits)       // one constraint; insignificant impact anyway
+	bytes[len(bytes)-1] = 0                                    // pad with a zero to avoid out of range errors
+	c, bytes = rangeChecker.BreakUpBytesIntoWords(1, bytes...) // from this point on c is in bits
+	cLength = api.Mul(api.Sub(cLength, sizeHeader), 8)         // one constraint; insignificant impact anyway
 
 	// create a random-access table to be referenced
 	outTable := logderivlookup.New(api)
@@ -56,7 +54,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	// formatted input
 	bytesTable := sliceToTable(api, bytes)
 
-	addrTable := initAddrTable(api, bytes, c, wordNbBits, []lzss.BackrefType{shortBackRefType, longBackRefType, dictBackRefType})
+	addrTable := initAddrTable(api, bytes, c, 1, []lzss.BackrefType{shortBackRefType, dynamicBackRefType})
 
 	// state variables
 	inI := frontend.Variable(0)
@@ -69,27 +67,29 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		curr := bytesTable.Lookup(inI)[0]
 
-		currMinusLong := api.Sub(api.Mul(curr, decompressionNotBypassed), lzss.SymbolLong) // if bypassing decompression, currIndicatesXX = 0
-		currIndicatesLongBr := api.IsZero(currMinusLong)
-		currIndicatesShortBr := api.IsZero(api.Sub(currMinusLong, lzss.SymbolShort-lzss.SymbolLong))
-		currIndicatesDr := api.IsZero(api.Sub(currMinusLong, lzss.SymbolDict-lzss.SymbolLong))
-		currIndicatesBr := api.Add(currIndicatesLongBr, currIndicatesShortBr)
-		currIndicatesCp := api.Add(currIndicatesBr, currIndicatesDr)
+		// ASSUMPTION: 0 is not a backref indicator
+		// TODO Make sure this is one constraint only
+		currMinusShort := api.Add(api.MulAcc(api.Neg(curr), curr, decompressionBypassed), lzss.SymbolShort)
+		// if bypassing decompression, currIndicatesXX = 0
+		// ( - curr + bypassed * curr + symbolXX == 0 ) == currIndicatesXX
+		currIndicatesShortBr := api.IsZero(currMinusShort)
 
-		//currIndicatedCpLen := api.Add(1, lenTable.Lookup(inI)[0]) // TODO Get rid of the +1
-		currIndicatedCpLen := api.Add(1, bytesTable.Lookup(api.Add(inI, byteNbWords))[0]) // TODO Get rid of the +1
-		currIndicatedCpAddr := addrTable.Lookup(inI)[0]
+		currMinusDyn := api.Add(api.MulAcc(api.Neg(curr), curr, decompressionBypassed), lzss.SymbolDynamic)
+		currIndicatesDynBr := api.IsZero(currMinusDyn)
 
-		copyLen = api.Select(copyLen01, api.Mul(currIndicatesCp, currIndicatedCpLen), api.Sub(copyLen, 1))
-		copyLen01 = api.IsZero(api.MulAcc(api.Neg(copyLen), copyLen, copyLen))
+		currIndicatesBr := api.Add(currIndicatesShortBr, currIndicatesDynBr)
+
+		currIndicatedBrLen := api.Add(1, bytesTable.Lookup(api.Add(inI, 8))[0]) // TODO Get rid of the +1
+		currIndicatedBrAddr := addrTable.Lookup(inI)[0]
+
+		copyLen = api.Select(copyLen01, api.Mul(currIndicatesBr, currIndicatedBrLen), api.Sub(copyLen, 1))
+		copyLen01 = api.IsZero(api.MulAcc(api.Neg(copyLen), copyLen, copyLen)) // - copyLen + copyLen^2 == 0?
 
 		// copying = copyLen01 ? copyLen==1 : 1			either from previous iterations or starting a new copy
 		// copying = copyLen01 ? copyLen : 1
 		copying := plonk.EvaluateExpression(api, copyLen01, copyLen, -1, 0, 1, 1)
 
-		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedCpAddr), currIndicatesBr)
-		dictCopyAddr := api.Add(currIndicatedCpAddr, api.Sub(currIndicatedCpLen, copyLen))
-		copyAddr = api.MulAcc(copyAddr, currIndicatesDr, dictCopyAddr)
+		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedBrAddr), currIndicatesBr) // if no backref, don't read to avoid out of range TODO for expected compression ratio > 8, move the "check" to initAddrTable
 		toCopy := outTable.Lookup(copyAddr)[0]
 
 		// write to output
@@ -99,10 +99,11 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		// WARNING: curr modified by MulAcc
 		outTable.Insert(d[outI])
 
-		// EOF Logic
-		inIDelta := api.Add(api.Mul(currIndicatesLongBr, longBrNbWords), api.Mul(currIndicatesShortBr, shortBrNbWords))
-		inIDelta = api.MulAcc(inIDelta, currIndicatesDr, dictBrNbWords)
-		inIDelta = api.Select(copying, api.Mul(inIDelta, copyLen01), byteNbWords)
+		// advancing inI and EOF
+		// advance by byte or backref length
+		inIDelta := api.Add(8, api.Mul(currIndicatesDynBr, dynamicBackRefType.NbBitsLength-8), api.Mul(currIndicatesShortBr, shortBackRefType.NbBitsLength-8))
+		// ... unless we're in the middle of a copy
+		inIDelta = api.Mul(copying, inIDelta)
 
 		// TODO Try removing this check and requiring the user to pad the input with nonzeros
 		// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged
@@ -113,7 +114,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 			inI = api.Add(inI, plonk.EvaluateExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
 		}
 
-		eofNow := rangeChecker.IsLessThan(byteNbWords, api.Sub(cLength, inI)) // less than a byte left; meaning we are at the end of the input
+		eofNow := rangeChecker.IsLessThan(8, api.Sub(cLength, inI)) // less than a byte left; meaning we are at the end of the input
 
 		// if eof, don't advance dLength
 		// if eof was JUST hit, dLength += outI + 2; so dLength = -1 + outI + 2 = outI + 1 which is the current output length
