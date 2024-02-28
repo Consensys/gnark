@@ -443,3 +443,20 @@ func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	}
 	return
 }
+
+func (f *Field[T]) MulNoReduce(a, b *Element[T]) *Element[T] {
+	return f.reduceAndOp(f.mulNoReduce, f.mulPreCond, a, b)
+}
+
+func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] {
+	resLimbs := make([]frontend.Variable, nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs)))
+	for i := range resLimbs {
+		resLimbs[i] = 0
+	}
+	for i := range a.Limbs {
+		for j := range b.Limbs {
+			resLimbs[i+j] = f.api.MulAcc(resLimbs[i+j], a.Limbs[i], b.Limbs[j])
+		}
+	}
+	return f.newInternalElement(resLimbs, nextoverflow)
+}
