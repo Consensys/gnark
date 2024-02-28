@@ -234,21 +234,33 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 }
 
 // callMulHint uses hint to compute r, k and c.
-func (f *Field[T]) callMulHint(a, b *Element[T], packRem bool) (quo, rem, carries *Element[T], err error) {
-	// inputs is always nblimbs
-	// quotient may be larger if inputs have overflow
-	// remainder is always nblimbs
-	// carries is 2 * nblimbs - 2 (do not consider first limb)
+func (f *Field[T]) callMulHint(a, b *Element[T], isMulMod bool) (quo, rem, carries *Element[T], err error) {
+	// compute the expected overflow after the multiplication of a*b to be able
+	// to estimate the number of bits required to represent the result.
 	nextOverflow, _ := f.mulPreCond(a, b)
 	// skip error handle - it happens when we are supposed to reduce. But we
 	// already check it as a precondition. We only need the overflow here.
+	if !isMulMod {
+		// b is one on single limb. We do not increase the overflow
+		nextOverflow = a.overflow
+	}
 	nbLimbs, nbBits := f.fParams.NbLimbs(), f.fParams.BitsPerLimb()
+	// we need to compute the number of limbs for the quotient. To compute it,
+	// we compute the width of the product of a*b, then we divide it by the
+	// width of the modulus. We add 1 to the result to ensure that we have
+	// enough space for the quotient.
 	nbQuoLimbs := (uint(nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs)))*nbBits + nextOverflow + 1 - //
 		uint(f.fParams.Modulus().BitLen()) + //
 		nbBits - 1) /
 		nbBits
+	// the remainder is always less than modulus so can represent on the same
+	// number of limbs as the modulus.
 	nbRemLimbs := nbLimbs
+	// we need to compute the number of limbs for the carries. It is maximum of
+	// the number of limbs of the product of a*b or k*p.
 	nbCarryLimbs := max(nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs)), nbMultiplicationResLimbs(int(nbQuoLimbs), int(nbLimbs))) - 1
+	// we encode the computed parameters and widths to the hint function so can
+	// know how many limbs to expect.
 	hintInputs := []frontend.Variable{
 		nbBits,
 		nbLimbs,
@@ -263,12 +275,19 @@ func (f *Field[T]) callMulHint(a, b *Element[T], packRem bool) (quo, rem, carrie
 		err = fmt.Errorf("call hint: %w", err)
 		return
 	}
+	// quotient is always range checked according to how many limbs we expect.
 	quo = f.packLimbs(ret[:nbQuoLimbs], false)
-	if packRem {
+	// remainder is always range checked when we use it as a result of
+	// multiplication (and it needs to be strictly less than modulus). However,
+	// when we use the hint for equality assertion then we assume the result to
+	// be 0 which can be represented by 0 limbs.
+	if isMulMod {
 		rem = f.packLimbs(ret[nbQuoLimbs:nbQuoLimbs+nbRemLimbs], true)
 	} else {
 		rem = &Element[T]{}
 	}
+	// pack the carries into element. Used in the deferred multiplication check
+	// to align the limbs due to different overflows.
 	carries = f.newInternalElement(ret[nbQuoLimbs+nbRemLimbs:], 0)
 	return
 }
@@ -325,6 +344,8 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 		yp[i] = new(big.Int)
 	}
 	tmp := new(big.Int)
+	// we know compute the schoolbook multiprecision multiplication of a*b and
+	// r+k*p
 	for i := 0; i < nbALen; i++ {
 		for j := 0; j < nbBLen; j++ {
 			tmp.Mul(alimbs[i], blimbs[j])
