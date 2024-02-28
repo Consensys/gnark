@@ -414,7 +414,7 @@ func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	nbResLimbs := nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs))
 	nbLimbsOverflow := uint(1)
 	if nbResLimbs > 0 {
-		nbLimbsOverflow = uint(bits.Len(uint(2*nbResLimbs - 1)))
+		nbLimbsOverflow = uint(bits.Len(uint(nbResLimbs)))
 	}
 	nextOverflow = f.fParams.BitsPerLimb() + nbLimbsOverflow + a.overflow + b.overflow
 	if nextOverflow > f.maxOverflow() {
