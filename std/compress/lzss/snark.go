@@ -24,7 +24,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 	// size-related "constants"
 	shortBackRefType := lzss.NewShortBackrefType()
-	dynamicBackRefType := lzss.NewDynamicBackrefType(len(dict), len(d)) // TODO make sure the fact that len(d) is longer than actual dLength is okay
+	dynamicBackRefType := lzss.NewDynamicBackrefType(len(dict), 0)
 
 	// check header: version and compression level
 	const (
@@ -54,7 +54,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	// formatted input
 	bytesTable := sliceToTable(api, bytes)
 
-	addrTable := initAddrTable(api, bytes, c, 1, []lzss.BackrefType{shortBackRefType, dynamicBackRefType})
+	addrTable := initAddrTable(api, bytes, c, shortBackRefType, dynamicBackRefType)
 
 	// state variables
 	inI := frontend.Variable(0)
@@ -67,6 +67,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		curr := bytesTable.Lookup(inI)[0]
 
+		dynamicBackRefType = lzss.NewDynamicBackrefType(len(dict), outI)
 		// ASSUMPTION: 0 is not a backref indicator
 		// TODO Make sure this is one constraint only
 		currMinusShort := api.Add(api.MulAcc(api.Neg(curr), curr, decompressionBypassed), lzss.SymbolShort)
@@ -133,29 +134,34 @@ func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.T
 	return table
 }
 
-func initAddrTable(api frontend.API, bytes, c []frontend.Variable, wordNbBits int, backrefs []lzss.BackrefType) *logderivlookup.Table {
-	for i := range backrefs {
-		if backrefs[i].NbBitsLength != backrefs[0].NbBitsLength {
+func initAddrTable(api frontend.API, bytes, c []frontend.Variable, backRefs ...lzss.BackrefType) *logderivlookup.Table {
+	for i := range backRefs {
+		if backRefs[i].NbBitsLength != backRefs[0].NbBitsLength {
 			panic("all backref types must have the same length size")
 		}
 	}
-	readers := make([]*compress.NumReader, len(backrefs))
-	delimAndLenNbWords := int(8+backrefs[0].NbBitsLength) / wordNbBits
-	for i := range backrefs {
+
+	readers := make([]*compress.NumReader, len(backRefs))
+	delimAndLenNbWords := int(8 + backRefs[0].NbBitsLength)
+	for i := range backRefs {
 		var readerC []frontend.Variable
 		if len(c) >= delimAndLenNbWords {
 			readerC = c[delimAndLenNbWords:]
 		}
 
-		readers[i] = compress.NewNumReader(api, readerC, int(backrefs[i].NbBitsAddress), wordNbBits)
+		readers[i] = compress.NewNumReader(api, readerC, int(backRefs[i].NbBitsAddress), 1)
 	}
 
 	res := logderivlookup.New(api)
 
 	for i := range c {
 		entry := frontend.Variable(0)
-		for j := range backrefs {
-			isSymb := api.IsZero(api.Sub(bytes[i], backrefs[j].Delimiter))
+		for j := range backRefs {
+			if backRefs[j].DictLen != 0 {
+				backRefs[j] = lzss.NewDynamicBackrefType(backRefs[j].DictLen, i)
+				readers[j].SetNumNbBits(int(backRefs[j].NbBitsAddress))
+			}
+			isSymb := api.IsZero(api.Sub(bytes[i], backRefs[j].Delimiter))
 			entry = api.MulAcc(entry, isSymb, readers[j].Next())
 		}
 		res.Insert(entry)
