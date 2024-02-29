@@ -24,9 +24,11 @@ package uints
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/internal/logderivprecomp"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/bitslice"
 	"github.com/consensys/gnark/std/rangecheck"
 )
@@ -165,6 +167,34 @@ func NewU64Array(v []uint64) []U64 {
 func (bf *BinaryField[T]) ByteValueOf(a frontend.Variable) U8 {
 	bf.rchecker.Check(a, 8)
 	return U8{Val: a, internal: true}
+}
+
+// Convert any varialbe to bits first then to U8 array
+// Note that if expectedLen is shorter than actual value, the converted value is *not*
+// equal to the original value!
+// TODO optimization
+func (bf *BinaryField[T]) ByteArrayValueOf(a frontend.Variable, expectedLen ...int) []U8 {
+	var opt bits.BaseConversionOption
+	if len(expectedLen) == 1 {
+		opt = bits.WithNbDigits(expectedLen[0] * 8)
+	}
+
+	bits := bits.ToBinary(bf.api, a, opt)
+	lenBits := len(bits)
+	lenBytes := int(math.Ceil(float64(lenBits) / 8.0))
+
+	ret := make([]U8, lenBytes)
+	for i := 0; i < lenBytes; i++ {
+		b := bits[i*8]
+		for j := 1; j < 8; j++ {
+			v := bits[i*8+j]
+			v = bf.api.Mul(v, 1<<j)
+			b = bf.api.Add(b, v)
+		}
+		ret[i] = bf.ByteValueOf(b)
+	}
+
+	return ret
 }
 
 func (bf *BinaryField[T]) ValueOf(a frontend.Variable) T {

@@ -79,3 +79,40 @@ func TestRshift(t *testing.T) {
 	err = test.IsSolved(&rshiftCircuit{Shift: 11}, &rshiftCircuit{Shift: 11, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 11)}, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+type byteArrayValueOfCircuit struct {
+	In       frontend.Variable
+	Expected []U8
+}
+
+func (c *byteArrayValueOfCircuit) Define(api frontend.API) error {
+	uapi, err := New[U32](api)
+	if err != nil {
+		return err
+	}
+
+	res := uapi.ByteArrayValueOf(c.In, 3)
+	api.AssertIsEqual(len(res), len(c.Expected))
+	for i := 0; i < len(res); i++ {
+		uapi.ByteAssertEq(res[i], c.Expected[i])
+	}
+
+	return nil
+}
+
+func TestByteArrayValueOf(t *testing.T) {
+	assert := test.NewAssert(t)
+	a, b, c := 13, 17, 19
+	p := a + (b << 8) + (c << 16)
+	expected := NewU8Array([]uint8{uint8(a), uint8(b), uint8(c)})
+	circuit := &byteArrayValueOfCircuit{
+		Expected: expected,
+	}
+	assignment := &byteArrayValueOfCircuit{
+		In:       frontend.Variable(p),
+		Expected: expected,
+	}
+
+	err := test.IsSolved(circuit, assignment, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
