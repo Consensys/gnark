@@ -31,7 +31,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		sizeHeader = 3
 		version    = 1
 	)
-	api.AssertIsEqual(c[0], version/256) // TODO Make it Big Endian in compress
+	api.AssertIsEqual(c[0], version/256)
 	api.AssertIsEqual(c[1], version%256)
 	decompressionBypassed := c[2]
 	api.AssertIsBoolean(decompressionBypassed)
@@ -104,7 +104,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		// advance by byte or backref length
 		inIDelta := api.Add(8, api.Mul(currIndicatesDynBr, dynamicBackRefType.NbBitsLength-8), api.Mul(currIndicatesShortBr, shortBackRefType.NbBitsLength-8))
 		// ... unless we're in the middle of a copy
-		inIDelta = api.Mul(copying, inIDelta)
+		inIDelta = api.MulAcc(api.Mul(1, inIDelta), api.Neg(copying), inIDelta)
 
 		// TODO Try removing this check and requiring the user to pad the input with nonzeros
 		// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged
