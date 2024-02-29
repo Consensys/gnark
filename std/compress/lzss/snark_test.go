@@ -20,7 +20,7 @@ func Test1One(t *testing.T) {
 	testCompressionRoundTrip(t, []byte{1}, nil)
 }
 
-func TestGoodCompression(t *testing.T) {
+func TestOneTwo(t *testing.T) {
 	testCompressionRoundTrip(t, []byte{1, 2}, nil)
 }
 
@@ -30,17 +30,69 @@ func Test0To10Explicit(t *testing.T) {
 
 const inputExtraBytes = 5
 
-func TestNoCompression(t *testing.T) {
+func craftExpandingInput(dict []byte, size int) []byte {
+	const nbBytesExpandingBlock = 4 // TODO @gbotrel check that
 
-	d, err := os.ReadFile("./testdata/3c2943/data.bin")
-	assert.NoError(t, err)
+	// the following two methods convert between a byte slice and a number; just for convenient use as map keys and counters
+	bytesToNum := func(b []byte) uint64 {
+		var res uint64
+		for i := range b {
+			res += uint64(b[i]) << uint64(i*8)
+		}
+		return res
+	}
+
+	fillNum := func(dst []byte, n uint64) {
+		for i := range dst {
+			dst[i] = byte(n)
+			n >>= 8
+		}
+	}
+
+	covered := make(map[uint64]struct{}) // combinations present in the dictionary, to avoid
+	for i := range dict {
+		if dict[i] == 255 {
+			covered[bytesToNum(dict[i+1:i+nbBytesExpandingBlock])] = struct{}{}
+		}
+	}
+	isCovered := func(n uint64) bool {
+		_, ok := covered[n]
+		return ok
+	}
+
+	res := make([]byte, size)
+	var blockCtr uint64
+	for i := 0; i < len(res); i += nbBytesExpandingBlock {
+		for isCovered(blockCtr) {
+			blockCtr++
+			if blockCtr == 0 {
+				panic("overflow")
+			}
+		}
+		res[i] = 255
+		fillNum(res[i+1:i+nbBytesExpandingBlock], blockCtr)
+		blockCtr++
+		if blockCtr == 0 {
+			panic("overflow")
+		}
+	}
+	return res
+}
+
+func TestNoCompression(t *testing.T) {
 
 	dict := getDictionary()
 
+	d := craftExpandingInput(dict, 1000)
+
 	compressor, err := lzss.NewCompressor(dict)
 	require.NoError(t, err)
-	c, err := compressor.Compress(d)
+	_, err = compressor.Write(d)
 	require.NoError(t, err)
+
+	require.True(t, compressor.ConsiderBypassing(), "not expanding; refer back to the compress repo for an updated craftExpandingInput implementation.")
+
+	c := compressor.Bytes()
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
