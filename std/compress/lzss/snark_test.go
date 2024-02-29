@@ -21,7 +21,7 @@ func Test1One(t *testing.T) {
 }
 
 func TestGoodCompression(t *testing.T) {
-	testCompressionRoundTrip(t, []byte{1, 2}, nil, withLevel(lzss.GoodCompression))
+	testCompressionRoundTrip(t, []byte{1, 2}, nil)
 }
 
 func Test0To10Explicit(t *testing.T) {
@@ -37,19 +37,16 @@ func TestNoCompression(t *testing.T) {
 
 	dict := getDictionary()
 
-	compressor, err := lzss.NewCompressor(dict, lzss.NoCompression)
+	compressor, err := lzss.NewCompressor(dict)
 	require.NoError(t, err)
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
-
-	decompressorLevel := lzss.BestCompression
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
-		Level:            decompressorLevel,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
@@ -80,20 +77,17 @@ func Test3c2943withHeader(t *testing.T) {
 
 	dict := getDictionary()
 
-	compressor, err := lzss.NewCompressor(dict, lzss.BestCompression)
+	compressor, err := lzss.NewCompressor(dict)
 	require.NoError(t, err)
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 	c = append([]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, c...)
-
-	decompressorLevel := lzss.BestCompression
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
-		Level:            decompressorLevel,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
@@ -108,7 +102,7 @@ func Test3c2943withHeader(t *testing.T) {
 func TestOutBufTooShort(t *testing.T) {
 	const truncationAmount = 3
 	d := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
-	compressor, err := lzss.NewCompressor(nil, lzss.BestCompression)
+	compressor, err := lzss.NewCompressor(nil)
 	require.NoError(t, err)
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
@@ -147,7 +141,6 @@ func Fuzz(f *testing.F) { // TODO This is always skipped
 }
 
 type testCompressionRoundTripSettings struct {
-	level                lzss.Level
 	cBegin               int
 	compressedPaddingLen int
 	compressedPaddedLen  int
@@ -155,12 +148,6 @@ type testCompressionRoundTripSettings struct {
 }
 
 type testCompressionRoundTripOption func(settings *testCompressionRoundTripSettings)
-
-func withLevel(level lzss.Level) testCompressionRoundTripOption {
-	return func(s *testCompressionRoundTripSettings) {
-		s.level = level
-	}
-}
 
 func withCBegin(cBegin int) testCompressionRoundTripOption {
 	return func(s *testCompressionRoundTripSettings) {
@@ -199,7 +186,6 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 	t.Log("using dict", checksum(dict))
 
 	s := testCompressionRoundTripSettings{
-		level:               lzss.BestCompression,
 		compressedPaddedLen: -1,
 	}
 
@@ -208,7 +194,7 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 	}
 
 	if s.compressed == nil {
-		compressor, err := lzss.NewCompressor(dict, s.level)
+		compressor, err := lzss.NewCompressor(dict)
 		require.NoError(t, err)
 		s.compressed, err = compressor.Compress(d)
 		require.NoError(t, err)
@@ -237,7 +223,6 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 		D:                d,
 		Dict:             dict,
 		CheckCorrectness: true,
-		Level:            s.level,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(s.compressed, make([]byte, s.compressedPaddingLen)...)),
@@ -265,7 +250,7 @@ type decompressionLengthTestCircuit struct {
 
 func (c *decompressionLengthTestCircuit) Define(api frontend.API) error {
 	dict := test_vector_utils.ToVariableSlice(lzss.AugmentDict(nil))
-	if dLength, err := Decompress(api, c.C, c.CLength, c.D, dict, lzss.BestCompression); err != nil {
+	if dLength, err := Decompress(api, c.C, c.CLength, c.D, dict); err != nil {
 		return err
 	} else {
 		api.AssertIsEqual(dLength, c.ExpectedDLength)

@@ -14,7 +14,6 @@ type DecompressionTestCircuit struct {
 	CBegin           frontend.Variable
 	CLength          frontend.Variable
 	CheckCorrectness bool
-	Level            lzss.Level
 }
 
 func (c *DecompressionTestCircuit) Define(api frontend.API) error {
@@ -23,7 +22,7 @@ func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 	if cb, ok := c.CBegin.(int); !ok || cb != 0 {
 		c.C = compress.ShiftLeft(api, c.C, c.CBegin)
 	}
-	dLen, err := Decompress(api, c.C, c.CLength, dBack, dict, c.Level)
+	dLen, err := Decompress(api, c.C, c.CLength, dBack, dict)
 	if err != nil {
 		return err
 	}
