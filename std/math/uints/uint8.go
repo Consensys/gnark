@@ -175,19 +175,22 @@ func (bf *BinaryField[T]) ByteValueOf(a frontend.Variable) U8 {
 // TODO optimization
 func (bf *BinaryField[T]) ByteArrayValueOf(a frontend.Variable, expectedLen ...int) []U8 {
 	var opt bits.BaseConversionOption
+	var bs []frontend.Variable
 	if len(expectedLen) == 1 {
 		opt = bits.WithNbDigits(expectedLen[0] * 8)
+		bs = bits.ToBinary(bf.api, a, opt)
+	} else {
+		bs = bits.ToBinary(bf.api, a)
 	}
 
-	bits := bits.ToBinary(bf.api, a, opt)
-	lenBits := len(bits)
+	lenBits := len(bs)
 	lenBytes := int(math.Ceil(float64(lenBits) / 8.0))
 
 	ret := make([]U8, lenBytes)
 	for i := 0; i < lenBytes; i++ {
-		b := bits[i*8]
+		b := bs[i*8]
 		for j := 1; j < 8 && i*8+j < lenBits; j++ {
-			v := bits[i*8+j]
+			v := bs[i*8+j]
 			v = bf.api.Mul(v, 1<<j)
 			b = bf.api.Add(b, v)
 		}
