@@ -15,6 +15,7 @@
 package utils
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 	"reflect"
@@ -83,6 +84,7 @@ func FromInterface(input interface{}) big.Int {
 				}
 			}
 		}
+		fmt.Println("hi")
 		panic(reflect.TypeOf(input).String() + " to big.Int not supported")
 	}
 

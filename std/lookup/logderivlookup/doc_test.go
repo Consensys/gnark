@@ -27,7 +27,10 @@ func (c *LookupCircuit) Define(api frontend.API) error {
 		return fmt.Errorf("length mismatch")
 	}
 	for i := range results {
-		api.AssertIsEqual(results[i], c.Expected[i])
+		if len(results[i]) != 1 {
+			return fmt.Errorf("unexpected number of columns")
+		}
+		api.AssertIsEqual(results[i][0], c.Expected[i])
 	}
 	return nil
 }

@@ -61,7 +61,7 @@ func GetHints() []solver.Hint {
 type Table [][]frontend.Variable
 
 // AsTable returns a vector as a single-column table.
-func AsTable(vector []frontend.Variable) Table {
+func AsTable(vector []frontend.Variable) Table { // TODO @Tabaie make multi column compatible
 	ret := make([][]frontend.Variable, len(vector))
 	for i := range vector {
 		ret[i] = []frontend.Variable{vector[i]}

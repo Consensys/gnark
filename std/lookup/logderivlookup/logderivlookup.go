@@ -28,7 +28,7 @@ import (
 type Table struct {
 	api frontend.API
 
-	entries   []frontend.Variable
+	entries   [][]frontend.Variable
 	immutable bool
 	results   []result
 
@@ -41,7 +41,7 @@ type Table struct {
 
 type result struct {
 	ind frontend.Variable
-	val frontend.Variable
+	val []frontend.Variable
 }
 
 // New returns a new [*Table]. It additionally defers building the
@@ -57,15 +57,20 @@ func New(api frontend.API) *Table {
 
 // Insert inserts variable val into the lookup table and returns its index as a
 // constant. It panics if the table is already committed.
-func (t *Table) Insert(val frontend.Variable) (index int) {
+func (t *Table) Insert(vals ...frontend.Variable) (index int) {
 	if t.immutable {
 		panic("inserting into committed lookup table")
 	}
-	t.entries = append(t.entries, val)
+	if len(t.entries) != 0 && len(vals) != len(t.entries[0]) {
+		panic("inconsistent number of entries")
+	}
+	t.entries = append(t.entries, vals)
 
 	// each time we insert a new entry, we update the blueprint
-	v := t.api.Compiler().ToCanonicalVariable(val)
-	v.Compress(&t.blueprint.EntriesCalldata)
+	for _, val := range vals {
+		v := t.api.Compiler().ToCanonicalVariable(val)
+		v.Compress(&t.blueprint.EntriesCalldata)
+	}
 
 	return len(t.entries) - 1
 }
@@ -74,7 +79,7 @@ func (t *Table) Insert(val frontend.Variable) (index int) {
 // returns a variable for every index. It panics during compile time when
 // looking up from a committed or empty table. It panics during solving time
 // when the index is out of bounds.
-func (t *Table) Lookup(inds ...frontend.Variable) (vals []frontend.Variable) {
+func (t *Table) Lookup(inds ...frontend.Variable) (vals [][]frontend.Variable) {
 	if t.immutable {
 		panic("looking up from a committed lookup table")
 	}
@@ -89,7 +94,7 @@ func (t *Table) Lookup(inds ...frontend.Variable) (vals []frontend.Variable) {
 
 // performLookup performs the lookup and returns the resulting variables.
 // underneath, it does use the blueprint to encode the lookup hint.
-func (t *Table) performLookup(inds []frontend.Variable) []frontend.Variable {
+func (t *Table) performLookup(inds []frontend.Variable) [][]frontend.Variable {
 	// to build the instruction, we need to first encode its dependency as a calldata []uint32 slice.
 	// * calldata[0] is the length of the calldata,
 	// * calldata[1] is the number of entries in the table we consider.
@@ -118,13 +123,18 @@ func (t *Table) performLookup(inds []frontend.Variable) []frontend.Variable {
 		panic("sanity check")
 	}
 
+	nbCols := len(t.entries[0])
+
 	// we need to return the variables corresponding to the outputs
-	internalVariables := make([]frontend.Variable, len(inds))
+	internalVariables := make([][]frontend.Variable, len(inds))
 	lookupResult := make([]result, len(inds))
 
 	// we need to store the result of the lookup in the table
 	for i := range inds {
-		internalVariables[i] = compiler.InternalVariable(outputs[i])
+		internalVariables[i] = make([]frontend.Variable, nbCols)
+		for j := range internalVariables[i] {
+			internalVariables[i][j] = compiler.InternalVariable(outputs[i*nbCols+j])
+		}
 		lookupResult[i] = result{ind: inds[i], val: internalVariables[i]}
 	}
 	t.results = append(t.results, lookupResult...)
@@ -134,7 +144,7 @@ func (t *Table) performLookup(inds []frontend.Variable) []frontend.Variable {
 func (t *Table) entryTable() [][]frontend.Variable {
 	tbl := make([][]frontend.Variable, len(t.entries))
 	for i := range t.entries {
-		tbl[i] = []frontend.Variable{i, t.entries[i]}
+		tbl[i] = append([]frontend.Variable{i}, t.entries[i]...)
 	}
 	return tbl
 }
@@ -142,7 +152,7 @@ func (t *Table) entryTable() [][]frontend.Variable {
 func (t *Table) resultsTable() [][]frontend.Variable {
 	tbl := make([][]frontend.Variable, len(t.results))
 	for i := range t.results {
-		tbl[i] = []frontend.Variable{t.results[i].ind, t.results[i].val}
+		tbl[i] = append([]frontend.Variable{t.results[i].ind}, t.results[i].val...)
 	}
 	return tbl
 }
