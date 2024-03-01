@@ -1,4 +1,4 @@
-package polynomial_test
+package polynomial
 
 import (
 	"testing"
@@ -6,7 +6,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
-	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/test"
 )
 
@@ -17,7 +16,7 @@ type evalPolyCircuit[FR emulated.FieldParams] struct {
 }
 
 func (c *evalPolyCircuit[FR]) Define(api frontend.API) error {
-	p, err := polynomial.New[FR](api)
+	p, err := New[FR](api)
 	if err != nil {
 		return err
 	}
@@ -57,12 +56,12 @@ type evalMultiLinCircuit[FR emulated.FieldParams] struct {
 }
 
 func (c *evalMultiLinCircuit[FR]) Define(api frontend.API) error {
-	p, err := polynomial.New[FR](api)
+	p, err := New[FR](api)
 	if err != nil {
 		return err
 	}
 	// M := polynomial.FromSlice(c.M)
-	X := polynomial.FromSlice(c.At)
+	X := FromSlice(c.At)
 	res, err := p.EvalMultilinear(c.M, X)
 	if err != nil {
 		return err
@@ -108,12 +107,12 @@ type evalEqCircuit[FR emulated.FieldParams] struct {
 }
 
 func (c *evalEqCircuit[FR]) Define(api frontend.API) error {
-	p, err := polynomial.New[FR](api)
+	p, err := New[FR](api)
 	if err != nil {
 		return err
 	}
-	X := polynomial.FromSlice(c.X)
-	Y := polynomial.FromSlice(c.Y)
+	X := FromSlice(c.X)
+	Y := FromSlice(c.Y)
 	evaluation := p.EvalEqual(X, Y)
 	f, err := emulated.NewField[FR](api)
 	if err != nil {
@@ -154,11 +153,11 @@ type interpolateLDECircuit[FR emulated.FieldParams] struct {
 }
 
 func (c *interpolateLDECircuit[FR]) Define(api frontend.API) error {
-	p, err := polynomial.New[FR](api)
+	p, err := New[FR](api)
 	if err != nil {
 		return err
 	}
-	vals := polynomial.FromSlice(c.Values)
+	vals := FromSlice(c.Values)
 	res := p.InterpolateLDE(&c.At, vals)
 	f, err := emulated.NewField[FR](api)
 	if err != nil {
