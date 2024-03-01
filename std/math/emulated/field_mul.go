@@ -444,6 +444,9 @@ func (f *Field[T]) mulPreCond(a, b *Element[T]) (nextOverflow uint, err error) {
 	return
 }
 
+// MulNoReduce computes a*b and returns the result without reducing it modulo
+// the field order. The number of limbs of the returned element depends on the
+// number of limbs of the inputs.
 func (f *Field[T]) MulNoReduce(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(f.mulNoReduce, f.mulPreCond, a, b)
 }
