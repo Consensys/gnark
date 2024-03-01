@@ -1,6 +1,7 @@
 package lzss
 
 import (
+	"fmt"
 	"github.com/consensys/compress/lzss"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
@@ -95,6 +96,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		// write to output
 		outVal := api.Select(copying, toCopy, curr)
+		api.Println("writing", outVal)
 		// TODO previously the last byte of the output kept getting repeated. That can be worked with. If there was a reason to save some 600K constraints in the zkEVM decompressor, take this out again
 		d[outI] = plonk.EvaluateExpression(api, outVal, eof, 1, 0, -1, 0) // write zeros past eof
 		// WARNING: curr modified by MulAcc
@@ -102,9 +104,9 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		// advancing inI and EOF
 		// advance by byte or backref length
-		inIDelta := api.Add(8, api.Mul(currIndicatesDynBr, dynamicBackRefType.NbBitsLength-8), api.Mul(currIndicatesShortBr, shortBackRefType.NbBitsLength-8))
-		// ... unless we're in the middle of a copy
-		inIDelta = api.MulAcc(api.Mul(1, inIDelta), api.Neg(copying), inIDelta)
+		inIDelta := api.Add(8, api.Mul(currIndicatesDynBr, dynamicBackRefType.NbBitsBackRef-8), api.Mul(currIndicatesShortBr, shortBackRefType.NbBitsBackRef-8))
+		// ... unless we're IN THE MIDDLE OF a copy
+		inIDelta = api.Mul(inIDelta, copyLen01)
 
 		// TODO Try removing this check and requiring the user to pad the input with nonzeros
 		// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged
@@ -114,6 +116,8 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		} else {
 			inI = api.Add(inI, plonk.EvaluateExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
 		}
+
+		api.Println("next inI", inI)
 
 		eofNow := rangeChecker.IsLessThan(8, api.Sub(cLength, inI)) // less than a byte left; meaning we are at the end of the input
 
@@ -155,10 +159,13 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, backRefs ...l
 	res := logderivlookup.New(api)
 
 	for i := range c {
+		if i == 18 {
+			fmt.Println("herein lies the trouble")
+		}
 		entry := frontend.Variable(0)
 		for j := range backRefs {
 			if backRefs[j].DictLen != 0 {
-				backRefs[j] = lzss.NewDynamicBackrefType(backRefs[j].DictLen, i)
+				backRefs[j] = lzss.NewDynamicBackrefType(backRefs[j].DictLen, i) // OH NOOOO this needs to be aware of outI not inI
 				readers[j].SetNumNbBits(int(backRefs[j].NbBitsAddress))
 			}
 			isSymb := api.IsZero(api.Sub(bytes[i], backRefs[j].Delimiter))
