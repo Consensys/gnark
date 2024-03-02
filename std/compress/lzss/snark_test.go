@@ -259,11 +259,9 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 	require.NoError(t, err)
 	assert.Equal(t, d, dBack)
 
-	info, err := lzss.CompressedStreamInfo(s.compressed, dict)
+	/*info, err := lzss.CompressedStreamInfo(s.compressed, dict)
 	require.NoError(t, err)
-	assert.NoError(t, os.WriteFile("compress.csv", info.ToCSV(), 0644))
-
-	// from the blob maker it seems like the compressed stream is 129091 bytes long
+	assert.NoError(t, os.WriteFile("compress.csv", info.ToCSV(), 0600))*/
 
 	if s.compressedPaddedLen != -1 {
 		s.compressedPaddingLen = s.compressedPaddedLen - len(s.compressed)

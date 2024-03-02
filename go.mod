@@ -8,7 +8,7 @@ require (
 	github.com/bits-and-blooms/bitset v1.8.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/consensys/bavard v0.1.13
-	github.com/consensys/compress v0.2.5-0.20240224222023-cd179cc6db86
+	github.com/consensys/compress v0.2.5-0.20240302001543-8bd32cc03c5a
 	github.com/consensys/gnark-crypto v0.12.2-0.20240215234832-d72fcb379d3e
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/google/go-cmp v0.5.9

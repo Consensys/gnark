@@ -1,7 +1,6 @@
 package lzss
 
 import (
-	"fmt"
 	"github.com/consensys/compress/lzss"
 	hint "github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
@@ -85,18 +84,17 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		currIndicatedBrAddr := addrTable.Lookup(inI)[0]
 
 		copyLen = api.Select(copyLen01, api.Mul(currIndicatesBr, currIndicatedBrLen), api.Sub(copyLen, 1))
-		copyLen01 = api.IsZero(api.MulAcc(api.Neg(copyLen), copyLen, copyLen)) // - copyLen + copyLen^2 == 0?
+		copyLen01 = api.IsZero(api.MulAcc(api.Neg(copyLen), copyLen, copyLen)) // - copyLen + copyLen² == 0?
 
 		// copying = copyLen01 ? copyLen==1 : 1			either from previous iterations or starting a new copy
 		// copying = copyLen01 ? copyLen : 1
 		copying := plonk.EvaluateExpression(api, copyLen01, copyLen, -1, 0, 1, 1)
 
-		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedBrAddr), currIndicatesBr) // if no backref, don't read to avoid out of range TODO for expected compression ratio > 8, move the "check" to initAddrTable
+		copyAddr := api.Mul(api.Sub(outI+len(dict)-1, currIndicatedBrAddr), currIndicatesBr) // if no backref, don't read to avoid out of range TODO for expected compression ratio > 8, just zero out the input past cLen
 		toCopy := outTable.Lookup(copyAddr)[0]
 
 		// write to output
 		outVal := api.Select(copying, toCopy, curr)
-		api.Println("writing", outVal)
 		// TODO previously the last byte of the output kept getting repeated. That can be worked with. If there was a reason to save some 600K constraints in the zkEVM decompressor, take this out again
 		d[outI] = plonk.EvaluateExpression(api, outVal, eof, 1, 0, -1, 0) // write zeros past eof
 		// WARNING: curr modified by MulAcc
@@ -117,8 +115,6 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 			inI = api.Add(inI, plonk.EvaluateExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
 		}
 
-		api.Println("next inI", inI)
-
 		eofNow := rangeChecker.IsLessThan(8, api.Sub(cLength, inI)) // less than a byte left; meaning we are at the end of the input
 
 		// if eof, don't advance dLength
@@ -138,7 +134,8 @@ func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.T
 	return table
 }
 
-func initAddrTable(api frontend.API, bytes, c []frontend.Variable, backRefs ...lzss.BackrefType) *logderivlookup.Table {
+// the "address" is zero when we don't have a backref delimiter
+func initAddrTable(api frontend.API, bytes, _bits []frontend.Variable, backRefs ...lzss.BackrefType) *logderivlookup.Table {
 	for i := range backRefs {
 		if backRefs[i].NbBitsLength != backRefs[0].NbBitsLength {
 			panic("all backref types must have the same length size")
@@ -149,8 +146,8 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, backRefs ...l
 	delimAndLenNbWords := int(8 + backRefs[0].NbBitsLength)
 	for i := range backRefs {
 		var readerC []frontend.Variable
-		if len(c) >= delimAndLenNbWords {
-			readerC = c[delimAndLenNbWords:]
+		if len(_bits) >= delimAndLenNbWords {
+			readerC = _bits[delimAndLenNbWords:]
 		}
 
 		readers[i] = compress.NewNumReader(api, readerC, int(backRefs[i].NbBitsAddress), 1)
@@ -158,16 +155,9 @@ func initAddrTable(api frontend.API, bytes, c []frontend.Variable, backRefs ...l
 
 	res := logderivlookup.New(api)
 
-	for i := range c {
-		if i == 18 {
-			fmt.Println("herein lies the trouble")
-		}
+	for i := range _bits {
 		entry := frontend.Variable(0)
 		for j := range backRefs {
-			if backRefs[j].DictLen != 0 {
-				backRefs[j] = lzss.NewDynamicBackrefType(backRefs[j].DictLen, i) // OH NOOOO this needs to be aware of outI not inI
-				readers[j].SetNumNbBits(int(backRefs[j].NbBitsAddress))
-			}
 			isSymb := api.IsZero(api.Sub(bytes[i], backRefs[j].Delimiter))
 			entry = api.MulAcc(entry, isSymb, readers[j].Next())
 		}

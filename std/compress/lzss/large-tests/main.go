@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	lzss2 "github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
@@ -32,6 +31,6 @@ type decompressionCircuit struct {
 
 func (c *decompressionCircuit) Define(api frontend.API) error {
 	d := make([]frontend.Variable, len(c.Compressed)*c.MaxCompressionRatio)
-	_, err := lzss.Decompress(api, c.Compressed, c.CompressedLen, d, c.Dict, lzss2.BestCompression)
+	_, err := lzss.Decompress(api, c.Compressed, c.CompressedLen, d, c.Dict)
 	return err
 }
