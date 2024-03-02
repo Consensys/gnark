@@ -136,6 +136,10 @@ func sliceToTable(api frontend.API, slice []frontend.Variable) *logderivlookup.T
 
 // the "address" is zero when we don't have a backref delimiter
 func initAddrTable(api frontend.API, bytes, _bits []frontend.Variable, backRefs ...lzss.BackrefType) *logderivlookup.Table {
+	if len(backRefs) != 2 {
+		panic("two backref types are expected, due to opts at the end of the function")
+	}
+
 	for i := range backRefs {
 		if backRefs[i].NbBitsLength != backRefs[0].NbBitsLength {
 			panic("all backref types must have the same length size")
@@ -156,11 +160,13 @@ func initAddrTable(api frontend.API, bytes, _bits []frontend.Variable, backRefs 
 	res := logderivlookup.New(api)
 
 	for i := range _bits {
-		entry := frontend.Variable(0)
+		/*entry := frontend.Variable(0)
 		for j := range backRefs {
 			isSymb := api.IsZero(api.Sub(bytes[i], backRefs[j].Delimiter))
 			entry = api.MulAcc(entry, isSymb, readers[j].Next())
-		}
+		}*/
+		is0 := api.IsZero(api.Sub(bytes[i], backRefs[0].Delimiter))
+		entry := api.Select(is0, readers[0].Next(), readers[1].Next())
 		res.Insert(entry)
 	}
 
