@@ -14,7 +14,7 @@ func main() {
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &decompressionCircuit{
 		Dict:                make([]frontend.Variable, 128*1024),
 		Compressed:          make([]frontend.Variable, 125*1024),
-		MaxCompressionRatio: 8,
+		MaxCompressionRatio: 6.4,
 	})
 	if err != nil {
 		panic(err)
@@ -26,11 +26,12 @@ func main() {
 type decompressionCircuit struct {
 	Dict, Compressed    []frontend.Variable
 	CompressedLen       frontend.Variable
-	MaxCompressionRatio int
+	MaxCompressionRatio float32
 }
 
 func (c *decompressionCircuit) Define(api frontend.API) error {
-	d := make([]frontend.Variable, len(c.Compressed)*c.MaxCompressionRatio)
+	d := make([]frontend.Variable, int(float32(len(c.Compressed))*c.MaxCompressionRatio))
+	fmt.Println("decompressed length", len(d), "bytes")
 	_, err := lzss.Decompress(api, c.Compressed, c.CompressedLen, d, c.Dict)
 	return err
 }
