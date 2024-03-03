@@ -320,3 +320,12 @@ func TestBuildDecompress1KBto7KB(t *testing.T) {
 	assert.NoError(t, err)
 	fmt.Println(cs.GetNbConstraints())
 }
+
+func TestBuildDecompress1KBto9KB(t *testing.T) {
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &decompressionLengthTestCircuit{
+		C: make([]frontend.Variable, 1024),
+		D: make([]frontend.Variable, 9*1024),
+	})
+	assert.NoError(t, err)
+	fmt.Println(cs.GetNbConstraints())
+}

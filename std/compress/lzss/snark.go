@@ -80,10 +80,11 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		currIndicatesBr := api.Add(currIndicatesShortBr, currIndicatesDynBr)
 
-		currIndicatedBrLen := api.Add(1, bytesTable.Lookup(api.Add(inI, 8))[0]) // TODO Get rid of the +1
-		currIndicatedBrAddr := addrTable.Lookup(inI)[0]
+		currIndicatedBrLen := bytesTable.Lookup(api.Add(inI, 8))[0]                                         // this is too small by 1
+		currIndicatedBrLen = plonk.EvaluateExpression(api, currIndicatesBr, currIndicatedBrLen, 1, 0, 1, 0) // if not at a br, len is guaranteed to be 0
+		currIndicatedBrAddr := addrTable.Lookup(inI)[0]                                                     // unlike len, addr can be non-zero even if we're not at a br
 
-		copyLen = api.Select(copyLen01, api.Mul(currIndicatesBr, currIndicatedBrLen), api.Sub(copyLen, 1))
+		copyLen = api.Select(copyLen01, currIndicatedBrLen, api.Sub(copyLen, 1))
 		copyLen01 = api.IsZero(api.MulAcc(api.Neg(copyLen), copyLen, copyLen)) // - copyLen + copyLen² == 0?
 
 		// copying = copyLen01 ? copyLen==1 : 1			either from previous iterations or starting a new copy
