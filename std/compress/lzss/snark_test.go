@@ -3,6 +3,8 @@ package lzss
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"os"
 	"testing"
 
@@ -308,4 +310,13 @@ func (c *decompressionLengthTestCircuit) Define(api frontend.API) error {
 		api.AssertIsEqual(dLength, c.ExpectedDLength)
 		return nil
 	}
+}
+
+func TestBuildDecompress1KBto7KB(t *testing.T) {
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &decompressionLengthTestCircuit{
+		C: make([]frontend.Variable, 1024),
+		D: make([]frontend.Variable, 7*1024),
+	})
+	assert.NoError(t, err)
+	fmt.Println(cs.GetNbConstraints())
 }

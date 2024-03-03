@@ -15,7 +15,7 @@ func main() {
 		Dict:                make([]frontend.Variable, 128*1024),
 		Compressed:          make([]frontend.Variable, 125*1024),
 		MaxCompressionRatio: 6.4,
-	})
+	}, frontend.WithCapacity(100000000))
 	if err != nil {
 		panic(err)
 	}
