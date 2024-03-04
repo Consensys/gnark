@@ -10,17 +10,34 @@ import (
 )
 
 func main() {
-	p := profile.Start()
+	compileDecompressionCircuit(800 * 1024)
+	compileDecompressionCircuit(700 * 1024)
+}
+
+func compileDecompressionCircuit(decompressedSize int) {
+	var nameWithUnit string
+	{
+		nameWithUnit = "K"
+		size := decompressedSize / 1024
+		if size >= 1024 {
+			nameWithUnit = "M"
+			size /= 1024
+		}
+		nameWithUnit = fmt.Sprintf("%d%s", size, nameWithUnit)
+	}
+
+	p := profile.Start(profile.WithPath(nameWithUnit + ".pprof"))
+	const compressedSize = 125 * 1024
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &decompressionCircuit{
 		Dict:                make([]frontend.Variable, 128*1024),
-		Compressed:          make([]frontend.Variable, 125*1024),
-		MaxCompressionRatio: 6.4,
+		Compressed:          make([]frontend.Variable, compressedSize),
+		MaxCompressionRatio: float32(decompressedSize) / compressedSize,
 	}, frontend.WithCapacity(100000000))
 	if err != nil {
 		panic(err)
 	}
 	p.Stop()
-	fmt.Println(cs.GetNbConstraints(), "constraints")
+	fmt.Println(nameWithUnit, ":", cs.GetNbConstraints(), "constraints")
 }
 
 type decompressionCircuit struct {
