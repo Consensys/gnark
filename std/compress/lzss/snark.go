@@ -69,13 +69,13 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		dynamicBackRefType = lzss.NewDynamicBackrefType(len(dict), outI)
 		// ASSUMPTION: 0 is not a backref indicator
-		// TODO Make sure this is one constraint only
-		currMinusShort := api.Add(api.MulAcc(api.Neg(curr), curr, decompressionBypassed), lzss.SymbolShort)
+
 		// if bypassing decompression, currIndicatesXX = 0
 		// ( - curr + bypassed * curr + symbolXX == 0 ) == currIndicatesXX
+		currMinusShort := plonk.EvaluateExpression(api, curr, decompressionBypassed, -1, 0, 1, int(lzss.SymbolShort))
 		currIndicatesShortBr := api.IsZero(currMinusShort)
 
-		currMinusDyn := api.Add(api.MulAcc(api.Neg(curr), curr, decompressionBypassed), lzss.SymbolDynamic)
+		currMinusDyn := plonk.EvaluateExpression(api, curr, decompressionBypassed, -1, 0, 1, int(lzss.SymbolDynamic))
 		currIndicatesDynBr := api.IsZero(currMinusDyn)
 
 		currIndicatesBr := api.Add(currIndicatesShortBr, currIndicatesDynBr)
