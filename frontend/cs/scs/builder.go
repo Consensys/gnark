@@ -518,7 +518,7 @@ func (builder *builder) addConstraintExist(a, b expr.Term, k constraint.Element)
 			q4 := qR
 			q3 = builder.cs.Mul(q3, q2)
 			q1 = builder.cs.Mul(q1, q4)
-			if q1 == q3 && !q2.IsZero() {
+			if q1 == q3 {
 				// no need to introduce a new constraint;
 				// compute n, the coefficient for the output wire
 				q2, ok = builder.cs.Inverse(q2)
@@ -583,14 +583,14 @@ func (builder *builder) mulConstraintExist(a, b expr.Term) (expr.Term, bool) {
 		// recompute the qM coeff and check that it matches;
 		qM := builder.cs.Mul(a.Coeff, b.Coeff)
 		tm := builder.cs.MakeTerm(qM, 0)
-		N := builder.cs.GetCoefficient(int(c.QM))
-		if int(c.QM) != tm.CoeffID() && !N.IsZero() {
+		if int(c.QM) != tm.CoeffID() {
 			// so we wanted to compute
 			// N * xC == qM*xA*xB
 			// but found a constraint
 			// xC == qM'*xA*xB
 			// the coefficient for our resulting wire is different;
 			// N = qM / qM'
+			N := builder.cs.GetCoefficient(int(c.QM))
 			N, ok := builder.cs.Inverse(N)
 			if !ok {
 				panic("div by 0") // sanity check.
