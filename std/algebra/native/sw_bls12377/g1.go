@@ -134,7 +134,7 @@ func (p *G1Affine) Double(api frontend.API, p1 G1Affine) *G1Affine {
 	// compute lambda = (3*p1.x**2+a)/2*p1.y, here we assume a=0 (j invariant 0 curve)
 	lambda := api.DivUnchecked(api.Mul(p1.X, p1.X, three), api.Mul(p1.Y, two))
 
-	// xr = lambda**2-p1.x-p1.x
+	// xr = lambda**2-2*p1.x
 	xr := api.Sub(api.Mul(lambda, lambda), api.Mul(p1.X, two))
 
 	// p.y = lambda(p.x-xr) - p.y
@@ -420,20 +420,18 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 
 	// compute x3 = lambda1**2-x1-x2
 	x3 := api.Mul(l1, l1)
-	x3 = api.Sub(x3, p1.X)
-	x3 = api.Sub(x3, p2.X)
+	x3 = api.Sub(x3, api.Add(p1.X, p2.X))
 
 	// omit y3 computation
 	// compute lambda2 = lambda1+2*y1/(x3-x1)
-	l2 := api.DivUnchecked(api.Add(p1.Y, p1.Y), api.Sub(x3, p1.X))
+	l2 := api.DivUnchecked(api.Mul(p1.Y, big.NewInt(2)), api.Sub(x3, p1.X))
 	l2 = api.Add(l2, l1)
 
 	// compute x4 =lambda2**2-x1-x3
 	x4 := api.Mul(l2, l2)
-	x4 = api.Sub(x4, p1.X)
-	x4 = api.Sub(x4, x3)
+	x4 = api.Sub(x4, api.Add(p1.X, x3))
 
-	// compute y4 = lambda2*(x1 - x4)-y1
+	// compute y4 = lambda2*(x4 - x1)-y1
 	y4 := api.Sub(x4, p1.X)
 	y4 = api.Mul(l2, y4)
 	y4 = api.Sub(y4, p1.Y)
