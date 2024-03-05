@@ -186,6 +186,33 @@ func TestExistDiv02(t *testing.T) {
 	assert.NoError(err)
 }
 
+type TestZeroMulNoConstraintCircuit struct {
+	A, B frontend.Variable
+}
+
+func (c *TestZeroMulNoConstraintCircuit) Define(api frontend.API) error {
+	// case 1
+	t1 := api.Mul(0, c.A)
+	t2 := api.Mul(t1, c.B)
+
+	t3 := api.Sub(c.A, c.A)
+	t4 := api.Mul(3, t3)
+
+	// test solver
+	api.AssertIsEqual(t2, 0)
+	api.AssertIsEqual(t4, 0)
+	return nil
+}
+
+func TestZeroMulNoConstraint(t *testing.T) {
+	assert := test.NewAssert(t)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &TestZeroMulNoConstraintCircuit{})
+	assert.NoError(err)
+	if ccs.GetNbConstraints() != 0 {
+		t.Fatal("expected 0 constraints")
+	}
+}
+
 type mulAccFastTrackCircuit struct {
 	A, B frontend.Variable
 	Res  frontend.Variable
