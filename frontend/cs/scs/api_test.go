@@ -135,9 +135,6 @@ func (c *IssueDiv0Circuit) Define(api frontend.API) error {
 func TestExistDiv0(t *testing.T) {
 	assert := test.NewAssert(t)
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &IssueDiv0Circuit{})
-	if err != nil {
-		t.Fatal(err)
-	}
 	assert.NoError(err)
 	w, err := frontend.NewWitness(&IssueDiv0Circuit{
 		A1: 11, B1: 21,
