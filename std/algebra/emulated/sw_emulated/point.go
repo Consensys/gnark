@@ -548,14 +548,15 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	var Acc *AffinePoint[B]
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [3]*AffinePoint[B]
+	negQY := c.baseApi.Neg(&Q.Y)
 	tableQ[1] = &AffinePoint[B]{
 		X: Q.X,
-		Y: *c.baseApi.Select(selector1, c.baseApi.Neg(&Q.Y), &Q.Y),
+		Y: *c.baseApi.Select(selector1, negQY, &Q.Y),
 	}
 	tableQ[0] = c.Neg(tableQ[1])
 	tablePhiQ[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&Q.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector2, c.baseApi.Neg(&Q.Y), &Q.Y),
+		Y: *c.baseApi.Select(selector2, negQY, &Q.Y),
 	}
 	tablePhiQ[0] = c.Neg(tablePhiQ[1])
 	tableQ[2] = c.triple(tableQ[1])
@@ -893,26 +894,28 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]*AffinePoint[B]
+	negQY := c.baseApi.Neg(&Q.Y)
 	tableQ[1] = &AffinePoint[B]{
 		X: Q.X,
-		Y: *c.baseApi.Select(selector1, c.baseApi.Neg(&Q.Y), &Q.Y),
+		Y: *c.baseApi.Select(selector1, negQY, &Q.Y),
 	}
 	tableQ[0] = c.Neg(tableQ[1])
 	tablePhiQ[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&Q.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector2, c.baseApi.Neg(&Q.Y), &Q.Y),
+		Y: *c.baseApi.Select(selector2, negQY, &Q.Y),
 	}
 	tablePhiQ[0] = c.Neg(tablePhiQ[1])
 	// precompute -R, -Φ(R), Φ(R)
 	var tableR, tablePhiR [2]*AffinePoint[B]
+	negRY := c.baseApi.Neg(&R.Y)
 	tableR[1] = &AffinePoint[B]{
 		X: R.X,
-		Y: *c.baseApi.Select(selector3, c.baseApi.Neg(&R.Y), &R.Y),
+		Y: *c.baseApi.Select(selector3, negRY, &R.Y),
 	}
 	tableR[0] = c.Neg(tableR[1])
 	tablePhiR[1] = &AffinePoint[B]{
 		X: *c.baseApi.Mul(&R.X, c.thirdRootOne),
-		Y: *c.baseApi.Select(selector4, c.baseApi.Neg(&R.Y), &R.Y),
+		Y: *c.baseApi.Select(selector4, negRY, &R.Y),
 	}
 	tablePhiR[0] = c.Neg(tablePhiR[1])
 	// precompute Q+R, -Q-R, Q-R, -Q+R, Φ(Q)+Φ(R), -Φ(Q)-Φ(R), Φ(Q)-Φ(R), -Φ(Q)+Φ(R)
