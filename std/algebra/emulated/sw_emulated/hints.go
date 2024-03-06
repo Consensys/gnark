@@ -31,7 +31,6 @@ func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) erro
 		outputs[0].Set(&(sp[0]))
 		outputs[1].Set(&(sp[1]))
 		// figure out how many times we have overflowed
-		outputs[1].Set(&(sp[1]))
 		outputs[2].Mul(outputs[1], inputs[1]).Add(outputs[2], outputs[0])
 		outputs[2].Sub(outputs[2], inputs[0])
 		outputs[2].Div(outputs[2], inputs[2])
