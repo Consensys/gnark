@@ -1145,7 +1145,39 @@ func (c *Curve[B, S]) scalarMulBaseGeneric(s *emulated.Element[S], opts ...algop
 	return res
 }
 
-// JointScalarMulBase computes [s]G + [t]Q  and returns it, where G is the
+// JointScalarMulBase computes [s]G + [t]Q and returns it, where G is the
+// fixed generator. It doesn't modify Q, s and t.
+//
+// This function doesn't check that the Q is on the curve. See AssertIsOnCurve.
+//
+// JointScalarMulBase calls jointScalarMulGeneric or jointScalarMulBaseGLV depending on whether an efficient endomorphism is available.
+func (c *Curve[B, S]) JointScalarMulBase(Q *AffinePoint[B], s, t *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	if c.params.Eigenvalue != nil && c.params.ThirdRootOne != nil {
+		return c.jointScalarMulBaseGLV(Q, s, t, opts...)
+
+	} else {
+		return c.jointScalarMulGeneric(c.Generator(), Q, t, s, opts...)
+
+	}
+
+}
+
+func (c *Curve[B, S]) jointScalarMulBaseGLV(Q *AffinePoint[B], s, t *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
+	if cfg.CompleteArithmetic {
+		// TODO @yelhousni: optimize
+		res1 := c.ScalarMulBase(s, opts...)
+		res2 := c.scalarMulGLV(Q, t, opts...)
+		return c.AddUnified(res1, res2)
+	} else {
+		return c.jointScalarMulBaseGLVUnsafe(Q, s, t)
+	}
+}
+
+// JointScalarMulBaseGLVUnsafe computes [s]G + [t]Q using an endomorphism and returns it, where G is the
 // fixed generator. It doesn't modify Q, s and t.
 //
 // ⚠️   Q must NOT be (0,0).
@@ -1161,7 +1193,7 @@ func (c *Curve[B, S]) scalarMulBaseGeneric(s *emulated.Element[S], opts ...algop
 //
 // The [EVM] specifies these checks, wich are performed on the zkEVM
 // arithmetization side before calling the circuit that uses this method.
-func (c *Curve[B, S]) JointScalarMulBase(Q *AffinePoint[B], s, t *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+func (c *Curve[B, S]) jointScalarMulBaseGLVUnsafe(Q *AffinePoint[B], s, t *emulated.Element[S]) *AffinePoint[B] {
 	var st S
 	frModulus := c.scalarApi.Modulus()
 	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 7, s, c.eigenvalue, frModulus)

@@ -1001,6 +1001,35 @@ func TestJointScalarMulBase(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestJointScalarMulBase4(t *testing.T) {
+	assert := test.NewAssert(t)
+	p256 := elliptic.P256()
+	s1, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	s2, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	p1x, p1y := p256.ScalarBaseMult(s1.Bytes())
+	resx, resy := p256.ScalarMult(p1x, p1y, s1.Bytes())
+	tmpx, tmpy := p256.ScalarBaseMult(s2.Bytes())
+	resx, resy = p256.Add(resx, resy, tmpx, tmpy)
+
+	circuit := JointScalarMulBaseTest[emulated.P256Fp, emulated.P256Fr]{}
+	witness := JointScalarMulBaseTest[emulated.P256Fp, emulated.P256Fr]{
+		S1: emulated.ValueOf[emulated.P256Fr](s2),
+		S2: emulated.ValueOf[emulated.P256Fr](s1),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p1x),
+			Y: emulated.ValueOf[emulated.P256Fp](p1y),
+		},
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](resx),
+			Y: emulated.ValueOf[emulated.P256Fp](resy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
 type MultiScalarMulEdgeCasesTest[T, S emulated.FieldParams] struct {
 	Points  []AffinePoint[T]
 	Scalars []emulated.Element[S]
