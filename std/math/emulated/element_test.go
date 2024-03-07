@@ -1015,3 +1015,47 @@ func testMulNoReduce[T FieldParams](t *testing.T) {
 		assert.CheckCircuit(circuit, test.WithValidAssignment(assignment))
 	}, testName[T]())
 }
+
+type SumCircuit[T FieldParams] struct {
+	Inputs   []Element[T]
+	Expected Element[T]
+}
+
+func (c *SumCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	inputs := make([]*Element[T], len(c.Inputs))
+	for i := range inputs {
+		inputs[i] = &c.Inputs[i]
+	}
+	res := f.Sum(inputs...)
+	f.AssertIsEqual(res, &c.Expected)
+	return nil
+}
+
+func TestSum(t *testing.T) {
+	testSum[Goldilocks](t)
+	testSum[Secp256k1Fp](t)
+	testSum[BN254Fp](t)
+}
+
+func testSum[T FieldParams](t *testing.T) {
+	var fp T
+	nbInputs := 1024
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		circuit := &SumCircuit[T]{Inputs: make([]Element[T], nbInputs)}
+		inputs := make([]Element[T], nbInputs)
+		result := new(big.Int)
+		for i := range inputs {
+			val, _ := rand.Int(rand.Reader, fp.Modulus())
+			result.Add(result, val)
+			inputs[i] = ValueOf[T](val)
+		}
+		result.Mod(result, fp.Modulus())
+		witness := &SumCircuit[T]{Inputs: inputs, Expected: ValueOf[T](result)}
+		assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
+	}, testName[T]())
+}
