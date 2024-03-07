@@ -133,7 +133,7 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 	return f.newInternalElement(limbs, nextOverflow)
 }
 
-func (f *Field[T]) AddMany(inputs ...*Element[T]) *Element[T] {
+func (f *Field[T]) Sum(inputs ...*Element[T]) *Element[T] {
 	if len(inputs) == 0 {
 		return f.Zero()
 	}
