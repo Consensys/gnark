@@ -137,6 +137,9 @@ func (f *Field[T]) Sum(inputs ...*Element[T]) *Element[T] {
 	if len(inputs) == 0 {
 		return f.Zero()
 	}
+	if len(inputs) == 1 {
+		return inputs[0]
+	}
 	overflow := uint(0)
 	nbLimbs := 0
 	for i := range inputs {
