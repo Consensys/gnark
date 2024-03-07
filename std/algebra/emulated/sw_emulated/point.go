@@ -522,15 +522,15 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 		one := c.baseApi.One()
 		Q = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, Q)
 	}
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 7, s, c.eigenvalue, frModulus)
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 6, s, c.eigenvalue, frModulus)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
-	s1, s2, s3, s4, s5, s6 := sd[0], sd[1], sd[3], sd[4], sd[5], sd[6]
+	s1, s2, s3, s4, s5, s6 := sd[0], sd[1], sd[2], sd[3], sd[4], sd[5]
 
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
-		c.scalarApi.Add(s, c.scalarApi.Mul(frModulus, sd[2])),
+		s,
 	)
 
 	// s1, s2 can be negative (bigints) in the hint, but will be reduced
@@ -858,27 +858,27 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulated.Element[S]) *AffinePoint[B] {
 	var st S
 	frModulus := c.scalarApi.Modulus()
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 7, s, c.eigenvalue, frModulus)
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 6, s, c.eigenvalue, frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	s1, s2, s3, s4, s5, s6 := sd[0], sd[1], sd[3], sd[4], sd[5], sd[6]
+	s1, s2, s3, s4, s5, s6 := sd[0], sd[1], sd[2], sd[3], sd[4], sd[5]
 
-	td, err := c.scalarApi.NewHint(decomposeScalarG1, 7, t, c.eigenvalue, frModulus)
+	td, err := c.scalarApi.NewHint(decomposeScalarG1, 6, t, c.eigenvalue, frModulus)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	t1, t2, t3, t4, t5, t6 := td[0], td[1], td[3], td[4], td[5], td[6]
+	t1, t2, t3, t4, t5, t6 := td[0], td[1], td[2], td[3], td[4], td[5]
 
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
-		c.scalarApi.Add(s, c.scalarApi.Mul(frModulus, sd[2])),
+		s,
 	)
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(t5, c.scalarApi.Mul(t6, c.eigenvalue)),
-		c.scalarApi.Add(t, c.scalarApi.Mul(frModulus, td[2])),
+		t,
 	)
 
 	// s1, s2 can be negative (bigints) in the hint, but will be reduced
