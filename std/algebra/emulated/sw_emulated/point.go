@@ -528,9 +528,20 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	}
 	s1, s2, s3, s4, s5, s6 := sd[0], sd[1], sd[2], sd[3], sd[4], sd[5]
 
+	// s == s5 + lambda*s6
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
 		s,
+	)
+	// s1^2 == s5^2 (s1 = |s5|)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Mul(s1, s1),
+		c.scalarApi.Mul(s5, s5),
+	)
+	// s2^2 == s6^2 (s2 = |s6|)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Mul(s2, s2),
+		c.scalarApi.Mul(s6, s6),
 	)
 
 	// s1, s2 can be negative (bigints) in the hint, but will be reduced
@@ -634,7 +645,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 
 	// when nbits is odd, we need to handle the first iteration separately
 	if nbits%2 == 0 {
-		// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
+		// Acc = [2]Acc ± Q ± Φ(Q)
 		T := &AffinePoint[B]{
 			X: *c.baseApi.Select(c.api.Xor(s1bits[nbits-1], s2bits[nbits-1]), &T12.X, &T5.X),
 			Y: *c.baseApi.Lookup2(s1bits[nbits-1], s2bits[nbits-1], &T5.Y, &T12.Y, &T15.Y, &T2.Y),
@@ -872,13 +883,35 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	}
 	t1, t2, t3, t4, t5, t6 := td[0], td[1], td[2], td[3], td[4], td[5]
 
+	// s == s5 + lambda*s6
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
 		s,
 	)
+	// s1^2 == s5^2 (s1 = |s5|)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Mul(s1, s1),
+		c.scalarApi.Mul(s5, s5),
+	)
+	// s2^2 == s6^2 (s2 = |s6|)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Mul(s2, s2),
+		c.scalarApi.Mul(s6, s6),
+	)
+	// t == t5 + lambda*t6
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(t5, c.scalarApi.Mul(t6, c.eigenvalue)),
 		t,
+	)
+	// t1^2 == t5^2 (t1 = |t5|)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Mul(t1, t1),
+		c.scalarApi.Mul(t5, t5),
+	)
+	// t2^2 == t6^2 (t2 = |t6|)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Mul(t2, t2),
+		c.scalarApi.Mul(t6, t6),
 	)
 
 	// s1, s2 can be negative (bigints) in the hint, but will be reduced
