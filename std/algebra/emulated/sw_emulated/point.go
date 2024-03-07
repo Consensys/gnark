@@ -943,14 +943,30 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// Acc = Q + R + Φ(Q) + Φ(R)
 	Acc := c.Add(tableS[1], tablePhiS[1])
 	B1 := Acc
-	// and then add the base point G to it to avoid incomplete additions in the
-	// loop, because when doing doubleAndAdd(Acc, Bi) as (Acc+Bi)+Acc it might
-	// happen that Acc==Bi or -Bi. But now we force Acc to be different than
-	// the stored Bi.  However we need at the end to subtract [2^nbits]G
-	// (harcoded) from the result.
+	// then conditionally add to Acc either Φ²(G) or G (if Acc==-Φ²(G)) where G is
+	// the base point to avoid incomplete additions in the loop, because when
+	// doing doubleAndAdd(Acc, Bi) as (Acc+Bi)+Acc it might happen that Acc==Bi
+	// or Acc==-Bi. But now we force Acc to be different than the stored Bi.
+	// However we need at the end to subtract [2^nbits]Φ²(G) (or conditionally
+	// [2^nbits]G) from the result.
 	//
-	// Acc = Q + R + Φ(Q) + Φ(R) + G
-	Acc = c.Add(Acc, c.Generator())
+	// Acc = Q + R + Φ(Q) + Φ(R) + Φ²(G) or Q + R + Φ(Q) + Φ(R) + G ( = -Φ²(G)+G )
+	g0 := c.Generator()
+	selector0 := c.baseApi.IsZero(
+		c.baseApi.Add(&Acc.Y, &c.Generator().Y),
+	)
+	g := c.Select(
+		selector0,
+		// G
+		g0,
+		// Φ²(G)
+		&AffinePoint[B]{
+			X: *c.baseApi.Mul(
+				c.baseApi.Mul(&g0.X, c.thirdRootOne), c.thirdRootOne),
+			Y: g0.Y,
+		},
+	)
+	Acc = c.Add(Acc, g)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
@@ -990,8 +1006,6 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	B15 := c.Neg(B2)
 	// 		B16 = -Q - R - Φ(Q) - Φ(R)
 	B16 := c.Neg(B1)
-	// and compute [2]Acc+P. We don't use doubleAndAdd as it involves edge cases.
-	// Note: half of the Bi points have the same X coordinates.
 
 	var P *AffinePoint[B]
 	for i := nbits - 1; i > 0; i-- {
@@ -1034,9 +1048,20 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	tablePhiR[0] = c.Add(tablePhiR[0], Acc)
 	Acc = c.Select(t2bits[0], Acc, tablePhiR[0])
 
-	// subtract [2^nbits]G since we added G at the beginning
+	// subtract [2^nbits]Φ²(G) (or conditionally [2^nbits]G)
 	gm := c.GeneratorMultiples()[nbits-1]
-	Acc = c.Add(Acc, c.Neg(&gm))
+	g = c.Select(
+		selector0,
+		// [2^nbits]G
+		&gm,
+		// [2^nbits]Φ²(G)
+		&AffinePoint[B]{
+			X: *c.baseApi.Mul(
+				c.baseApi.Mul(&gm.X, c.thirdRootOne), c.thirdRootOne),
+			Y: gm.Y,
+		},
+	)
+	Acc = c.Add(Acc, c.Neg(g))
 
 	return Acc
 

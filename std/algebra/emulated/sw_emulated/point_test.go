@@ -1532,6 +1532,48 @@ func TestJointScalarMul4(t *testing.T) {
 	assert.NoError(err)
 }
 
+// We explicitly choose here P1 and P2 s.t. P1+P2 = G (the base point).  This
+// triggers the edge case where Q + R + Φ(Q) + Φ(R) + Φ²(G) == inf
+func TestJointScalarMulSpecial6(t *testing.T) {
+	assert := test.NewAssert(t)
+	var r1, r2 fr_bw6761.Element
+	_, _ = r1.SetRandom()
+	_, _ = r2.SetRandom()
+	s1 := new(big.Int)
+	s2 := new(big.Int)
+	r1.BigInt(s1)
+	r2.BigInt(s2)
+	var res, tmp, p1, p2 bw6761.G1Affine
+	// P1
+	p1.ScalarMultiplicationBase(s1)
+	// P2 = G-P1
+	_, _, g, _ := bw6761.Generators()
+	p2.Sub(&g, &p1)
+	tmp.ScalarMultiplication(&p1, s1)
+	res.ScalarMultiplication(&p2, s2)
+	res.Add(&res, &tmp)
+
+	circuit := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
+	witness := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S1: emulated.ValueOf[emulated.BW6761Fr](s1),
+		S2: emulated.ValueOf[emulated.BW6761Fr](s2),
+		P1: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](p1.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](p1.Y),
+		},
+		P2: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](p2.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](p2.Y),
+		},
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](res.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](res.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
 type JointScalarMulEdgeCasesTest[T, S emulated.FieldParams] struct {
 	P1, P2, Q AffinePoint[T]
 	S1, S2    emulated.Element[S]
