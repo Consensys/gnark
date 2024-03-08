@@ -903,8 +903,8 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	}
 	selector3, selector4 := tdBits[0], tdBits[1]
 
-	t5 := c.scalarApi.Select(selector1, c.scalarApi.Neg(t1), t1)
-	t6 := c.scalarApi.Select(selector2, c.scalarApi.Neg(t2), t2)
+	t5 := c.scalarApi.Select(selector3, c.scalarApi.Neg(t1), t1)
+	t6 := c.scalarApi.Select(selector4, c.scalarApi.Neg(t2), t2)
 
 	// t == t5 + lambda*t6
 	c.scalarApi.AssertIsEqual(
