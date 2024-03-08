@@ -17,40 +17,9 @@ import (
 
 const testCurve = ecc.BN254
 
-type AssertLimbEqualityCircuit[T FieldParams] struct {
-	A, B Element[T]
-}
-
-func (c *AssertLimbEqualityCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
-	if err != nil {
-		return err
-	}
-	f.AssertLimbsEquality(&c.A, &c.B)
-	return nil
-}
-
 func testName[T FieldParams]() string {
 	var fp T
 	return fmt.Sprintf("%s/limb=%d", reflect.TypeOf(fp).Name(), fp.BitsPerLimb())
-}
-
-func TestAssertLimbEqualityNoOverflow(t *testing.T) {
-	testAssertLimbEqualityNoOverflow[Goldilocks](t)
-	testAssertLimbEqualityNoOverflow[Secp256k1Fp](t)
-	testAssertLimbEqualityNoOverflow[BN254Fp](t)
-}
-
-func testAssertLimbEqualityNoOverflow[T FieldParams](t *testing.T) {
-	var fp T
-	assert := test.NewAssert(t)
-	assert.Run(func(assert *test.Assert) {
-		var circuit, witness AssertLimbEqualityCircuit[T]
-		val, _ := rand.Int(rand.Reader, fp.Modulus())
-		witness.A = ValueOf[T](val)
-		witness.B = ValueOf[T](val)
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
-	}, testName[T]())
 }
 
 // TODO: add also cases which should fail
@@ -184,9 +153,9 @@ func (c *MulNoOverflowCircuit[T]) Define(api frontend.API) error {
 }
 
 func TestMulCircuitNoOverflow(t *testing.T) {
-	// testMulCircuitNoOverflow[Goldilocks](t)
+	testMulCircuitNoOverflow[Goldilocks](t)
 	testMulCircuitNoOverflow[Secp256k1Fp](t)
-	// testMulCircuitNoOverflow[BN254Fp](t)
+	testMulCircuitNoOverflow[BN254Fp](t)
 }
 
 func testMulCircuitNoOverflow[T FieldParams](t *testing.T) {
