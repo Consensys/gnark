@@ -1532,8 +1532,9 @@ func TestJointScalarMul4(t *testing.T) {
 	assert.NoError(err)
 }
 
-// We explicitly choose here P1 and P2 s.t. P1+P2 = G (the base point).  This
-// triggers the edge case where Q + R + Φ(Q) + Φ(R) + Φ²(G) == inf
+// We explicitly choose here P1 and P2 s.t. P1+P2 = Φ(G) (G the base point).
+// This should sometimes (when the sub-scalars are positive in the hint)
+// triggers the edge case Q + R + Φ(Q) + Φ(R) + G == inf
 func TestJointScalarMulSpecial6(t *testing.T) {
 	assert := test.NewAssert(t)
 	var r1, r2 fr_bw6761.Element
@@ -1546,9 +1547,13 @@ func TestJointScalarMulSpecial6(t *testing.T) {
 	var res, tmp, p1, p2 bw6761.G1Affine
 	// P1
 	p1.ScalarMultiplicationBase(s1)
-	// P2 = G-P1
+	// P2 = Φ(G)-P1
 	_, _, g, _ := bw6761.Generators()
+	var lambdaGLV big.Int
+	lambdaGLV.SetString("80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945", 10) // (x⁵-3x⁴+3x³-x+1)
+	g.ScalarMultiplication(&g, &lambdaGLV)
 	p2.Sub(&g, &p1)
+	// res = [s1]P+[s2]P
 	tmp.ScalarMultiplication(&p1, s1)
 	res.ScalarMultiplication(&p2, s2)
 	res.Add(&res, &tmp)

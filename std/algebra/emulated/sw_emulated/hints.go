@@ -20,10 +20,10 @@ func GetHints() []solver.Hint {
 func decomposeScalarG1Subscalars(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 2 {
-			return fmt.Errorf("expecting three inputs")
+			return fmt.Errorf("expecting two inputs")
 		}
 		if len(outputs) != 2 {
-			return fmt.Errorf("expecting six outputs")
+			return fmt.Errorf("expecting two outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
@@ -49,10 +49,10 @@ func decomposeScalarG1Subscalars(mod *big.Int, inputs []*big.Int, outputs []*big
 func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeOutput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 2 {
-			return fmt.Errorf("expecting three inputs")
+			return fmt.Errorf("expecting two inputs")
 		}
 		if len(outputs) != 2 {
-			return fmt.Errorf("expecting six outputs")
+			return fmt.Errorf("expecting two outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(field, inputs[1], glvBasis)
@@ -73,10 +73,10 @@ func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int)
 func decomposeScalarG1(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(inputs) != 3 {
-			return fmt.Errorf("expecting three inputs")
+			return fmt.Errorf("expecting two inputs")
 		}
 		if len(outputs) != 6 {
-			return fmt.Errorf("expecting six outputs")
+			return fmt.Errorf("expecting two outputs")
 		}
 		glvBasis := new(ecc.Lattice)
 		ecc.PrecomputeLattice(inputs[2], inputs[1], glvBasis)
