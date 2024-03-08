@@ -58,11 +58,6 @@ func TestIntegrationAPI(t *testing.T) {
 				opts = append(opts, test.WithInvalidAssignment(tData.InvalidAssignments[i]))
 			}
 
-			// for "mul" only we test with PLONKFRI
-			if name == "mul" {
-				opts = append(opts, test.WithBackends(backend.PLONK, backend.GROTH16, backend.PLONKFRI))
-			}
-
 			if name == "multi-output-hint" {
 				// TODO @gbotrel FIXME
 				opts = append(opts, test.NoFuzzing())
