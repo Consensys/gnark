@@ -862,26 +862,19 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 // ⚠️  The scalars must be nonzero and the points different from (0,0).
 func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulated.Element[S]) *AffinePoint[B] {
 	var st S
-	frModulus := c.scalarApi.Modulus()
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 6, s, c.eigenvalue, frModulus)
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1Subscalars, 2, s, c.eigenvalue)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	s1, s2, s3, s4, s5, s6 := sd[0], sd[1], sd[2], sd[3], sd[4], sd[5]
+	s1, s2 := sd[0], sd[1]
 
-	td, err := c.scalarApi.NewHint(decomposeScalarG1, 6, t, c.eigenvalue, frModulus)
+	td, err := c.scalarApi.NewHint(decomposeScalarG1Subscalars, 2, t, c.eigenvalue)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
-	t1, t2, t3, t4, t5, t6 := td[0], td[1], td[2], td[3], td[4], td[5]
-
-	// s == s5 + lambda*s6
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
-		s,
-	)
+	t1, t2 := td[0], td[1]
 
 	// s1, s2 can be negative (bigints) in the hint, but will be reduced
 	// in-circuit modulo the SNARK scalar field and not the emulated field. So
@@ -889,31 +882,34 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	// negate the point instead of the corresponding scalar. Since s3, s4 are
 	// either 0 or 1, we only need to check the first limb is zero or not.
 	// Same goes for t1, t2.
-	selector1 := c.api.IsZero(s3.Limbs[0])
-	selector2 := c.api.IsZero(s4.Limbs[0])
-	selector3 := c.api.IsZero(t3.Limbs[0])
-	selector4 := c.api.IsZero(t4.Limbs[0])
+	sdBits, err := c.scalarApi.NewHintWithNativeOutput(decomposeScalarG1Signs, 2, s, c.eigenvalue)
+	if err != nil {
+		panic(fmt.Sprintf("compute s GLV decomposition bits: %v", err))
+	}
+	selector1, selector2 := sdBits[0], sdBits[1]
 
-	// check that s1 and s5 correspond to the same scalar (depending on the sign bit)
+	s5 := c.scalarApi.Select(selector1, c.scalarApi.Neg(s1), s1)
+	s6 := c.scalarApi.Select(selector2, c.scalarApi.Neg(s2), s2)
+
+	// s == s5 + lambda*s6
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Select(selector1, c.scalarApi.Neg(s1), s1),
-		s5,
-	)
-	// check that s2 and s6 correspond to the same scalar (depending on the sign bit)
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Select(selector2, c.scalarApi.Neg(s2), s2),
-		s6,
+		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
+		s,
 	)
 
-	// check that t1 and t5 correspond to the same scalar (depending on the sign bit)
+	tdBits, err := c.scalarApi.NewHintWithNativeOutput(decomposeScalarG1Signs, 2, t, c.eigenvalue)
+	if err != nil {
+		panic(fmt.Sprintf("compute t GLV decomposition bits: %v", err))
+	}
+	selector3, selector4 := tdBits[0], tdBits[1]
+
+	t5 := c.scalarApi.Select(selector1, c.scalarApi.Neg(t1), t1)
+	t6 := c.scalarApi.Select(selector2, c.scalarApi.Neg(t2), t2)
+
+	// t == t5 + lambda*t6
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Select(selector3, c.scalarApi.Neg(t1), t1),
-		t5,
-	)
-	// check that t2 and t6 correspond to the same scalar (depending on the sign bit)
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Select(selector4, c.scalarApi.Neg(t2), t2),
-		t6,
+		c.scalarApi.Add(t5, c.scalarApi.Mul(t6, c.eigenvalue)),
+		t,
 	)
 
 	// precompute -Q, -Φ(Q), Φ(Q)
