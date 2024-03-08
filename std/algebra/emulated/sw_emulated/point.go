@@ -533,16 +533,6 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
 		s,
 	)
-	// s1^2 == s5^2 (s1 = |s5|)
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Mul(s1, s1),
-		c.scalarApi.Mul(s5, s5),
-	)
-	// s2^2 == s6^2 (s2 = |s6|)
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Mul(s2, s2),
-		c.scalarApi.Mul(s6, s6),
-	)
 
 	// s1, s2 can be negative (bigints) in the hint, but will be reduced
 	// in-circuit modulo the SNARK scalar field and not the emulated field. So
@@ -551,6 +541,17 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// either 0 or 1, we only need to check the first limb is zero or not.
 	selector1 := c.api.IsZero(s3.Limbs[0])
 	selector2 := c.api.IsZero(s4.Limbs[0])
+
+	// check that s1 and s5 correspond to the same scalar (depending on the sign bit)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Select(selector1, c.scalarApi.Neg(s1), s1),
+		s5,
+	)
+	// check that s2 and s6 correspond to the same scalar (depending on the sign bit)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Select(selector2, c.scalarApi.Neg(s2), s2),
+		s6,
+	)
 
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
@@ -888,31 +889,6 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
 		s,
 	)
-	// s1^2 == s5^2 (s1 = |s5|)
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Mul(s1, s1),
-		c.scalarApi.Mul(s5, s5),
-	)
-	// s2^2 == s6^2 (s2 = |s6|)
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Mul(s2, s2),
-		c.scalarApi.Mul(s6, s6),
-	)
-	// t == t5 + lambda*t6
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(t5, c.scalarApi.Mul(t6, c.eigenvalue)),
-		t,
-	)
-	// t1^2 == t5^2 (t1 = |t5|)
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Mul(t1, t1),
-		c.scalarApi.Mul(t5, t5),
-	)
-	// t2^2 == t6^2 (t2 = |t6|)
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Mul(t2, t2),
-		c.scalarApi.Mul(t6, t6),
-	)
 
 	// s1, s2 can be negative (bigints) in the hint, but will be reduced
 	// in-circuit modulo the SNARK scalar field and not the emulated field. So
@@ -924,6 +900,28 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 	selector2 := c.api.IsZero(s4.Limbs[0])
 	selector3 := c.api.IsZero(t3.Limbs[0])
 	selector4 := c.api.IsZero(t4.Limbs[0])
+
+	// check that s1 and s5 correspond to the same scalar (depending on the sign bit)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Select(selector1, c.scalarApi.Neg(s1), s1),
+		s5,
+	)
+	// check that s2 and s6 correspond to the same scalar (depending on the sign bit)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Select(selector2, c.scalarApi.Neg(s2), s2),
+		s6,
+	)
+
+	// check that t1 and t5 correspond to the same scalar (depending on the sign bit)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Select(selector3, c.scalarApi.Neg(t1), t1),
+		t5,
+	)
+	// check that t2 and t6 correspond to the same scalar (depending on the sign bit)
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Select(selector4, c.scalarApi.Neg(t2), t2),
+		t6,
+	)
 
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]*AffinePoint[B]
