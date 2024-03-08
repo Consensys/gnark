@@ -129,9 +129,7 @@ type e6Mul01By01 struct {
 }
 
 func (circuit *e6Mul01By01) Define(api frontend.API) error {
-	expected := E6{}
-
-	expected = *Mul01By01(api, circuit.A0, circuit.A1, circuit.B0, circuit.B1)
+	expected := *Mul01By01(api, circuit.A0, circuit.A1, circuit.B0, circuit.B1)
 	expected.AssertIsEqual(api, circuit.C)
 
 	return nil
