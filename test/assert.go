@@ -133,6 +133,8 @@ func (assert *Assert) compile(circuit frontend.Circuit, curveID ecc.ID, backendI
 		newBuilder = r1cs.NewBuilder
 	case backend.PLONK:
 		newBuilder = scs.NewBuilder
+	case backend.PLONKFRI:
+		newBuilder = scs.NewBuilder
 	default:
 		panic("not implemented")
 	}
