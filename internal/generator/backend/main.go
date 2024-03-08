@@ -105,16 +105,12 @@ func main() {
 				groth16Dir         = strings.Replace(d.RootPath, "{?}", "groth16", 1)
 				groth16MpcSetupDir = filepath.Join(groth16Dir, "mpcsetup")
 				plonkDir           = strings.Replace(d.RootPath, "{?}", "plonk", 1)
-				plonkFriDir        = strings.Replace(d.RootPath, "{?}", "plonkfri", 1)
 			)
 
 			if err := os.MkdirAll(groth16Dir, 0700); err != nil {
 				panic(err)
 			}
 			if err := os.MkdirAll(plonkDir, 0700); err != nil {
-				panic(err)
-			}
-			if err := os.MkdirAll(plonkFriDir, 0700); err != nil {
 				panic(err)
 			}
 
@@ -201,16 +197,6 @@ func main() {
 				{File: filepath.Join(plonkDir, "marshal_test.go"), Templates: []string{"plonk/tests/marshal.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "plonk", "./template/zkpschemes/", entries...); err != nil {
-				panic(err)
-			}
-
-			// plonkfri
-			entries = []bavard.Entry{
-				{File: filepath.Join(plonkFriDir, "verify.go"), Templates: []string{"plonkfri/plonk.verify.go.tmpl", importCurve}},
-				{File: filepath.Join(plonkFriDir, "prove.go"), Templates: []string{"plonkfri/plonk.prove.go.tmpl", importCurve}},
-				{File: filepath.Join(plonkFriDir, "setup.go"), Templates: []string{"plonkfri/plonk.setup.go.tmpl", importCurve}},
-			}
-			if err := bgen.Generate(d, "plonkfri", "./template/zkpschemes/", entries...); err != nil {
 				panic(err)
 			}
 
