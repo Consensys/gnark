@@ -139,6 +139,7 @@ func (circuit *e6Mul01By01) Define(api frontend.API) error {
 
 func TestMul01By01(t *testing.T) {
 
+	// we test our new E3.Mul01By01 against E3.MulBy01
 	var circuit, witness e6Mul01By01
 	// witness values
 	var a, c bls12377.E6
@@ -147,6 +148,9 @@ func TestMul01By01(t *testing.T) {
 	_, _ = A1.SetRandom()
 	_, _ = B0.SetRandom()
 	_, _ = B1.SetRandom()
+	// build a 01 sparse E3 with,
+	// first two elements as A1 and A2,
+	// and the third as 0
 	a.B0 = A0
 	a.B1 = A1
 	a.B2.SetZero()

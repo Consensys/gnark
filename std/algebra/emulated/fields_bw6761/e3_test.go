@@ -168,6 +168,7 @@ func (circuit *e3Mul01By01) Define(api frontend.API) error {
 
 func TestMul01By01(t *testing.T) {
 
+	// we test our new E3.Mul01By01 against E3.MulBy01
 	assert := test.NewAssert(t)
 	// witness values
 	var a, c bw6761.E3
@@ -176,6 +177,9 @@ func TestMul01By01(t *testing.T) {
 	A1.SetRandom()
 	B0.SetRandom()
 	B1.SetRandom()
+	// build a 01 sparse E3 with,
+	// first two elements as A1 and A2,
+	// and the third as 0
 	a.A0 = A0
 	a.A1 = A1
 	a.A2.SetZero()
