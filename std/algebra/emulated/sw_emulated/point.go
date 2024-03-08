@@ -512,7 +512,6 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 		panic(err)
 	}
 	var st S
-	frModulus := c.scalarApi.Modulus()
 	addFn := c.Add
 	var selector frontend.Variable
 	if cfg.CompleteArithmetic {
@@ -522,35 +521,29 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 		one := c.baseApi.One()
 		Q = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, Q)
 	}
-	sd, err := c.scalarApi.NewHint(decomposeScalarG1, 6, s, c.eigenvalue, frModulus)
+	sd, err := c.scalarApi.NewHint(decomposeScalarG1Subscalars, 2, s, c.eigenvalue)
 	if err != nil {
 		panic(fmt.Sprintf("compute GLV decomposition: %v", err))
 	}
-	s1, s2, s3, s4, s5, s6 := sd[0], sd[1], sd[2], sd[3], sd[4], sd[5]
+	s1, s2 := sd[0], sd[1]
+
+	// s1, s2 can be negative (bigints) in the hint, but will be reduced
+	// in-circuit modulo the SNARK scalar field and not the emulated field. So
+	// we return in the hint both |s1|, |s2| and the flags s5=0/1, s6=0/1 to
+	// negate the point instead of the corresponding scalar.
+	sdBits, err := c.scalarApi.NewHintWithNativeOutput(decomposeScalarG1Signs, 2, s, c.eigenvalue)
+	if err != nil {
+		panic(fmt.Sprintf("compute GLV decomposition bits: %v", err))
+	}
+	selector1, selector2 := sdBits[0], sdBits[1]
+
+	s5 := c.scalarApi.Select(selector1, c.scalarApi.Neg(s1), s1)
+	s6 := c.scalarApi.Select(selector2, c.scalarApi.Neg(s2), s2)
 
 	// s == s5 + lambda*s6
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s5, c.scalarApi.Mul(s6, c.eigenvalue)),
 		s,
-	)
-
-	// s1, s2 can be negative (bigints) in the hint, but will be reduced
-	// in-circuit modulo the SNARK scalar field and not the emulated field. So
-	// we return in the hint both |s1|, |s2| and the flags s3=0/1, s4=0/1 to
-	// negate the point instead of the corresponding scalar. Since s3, s4 are
-	// either 0 or 1, we only need to check the first limb is zero or not.
-	selector1 := c.api.IsZero(s3.Limbs[0])
-	selector2 := c.api.IsZero(s4.Limbs[0])
-
-	// check that s1 and s5 correspond to the same scalar (depending on the sign bit)
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Select(selector1, c.scalarApi.Neg(s1), s1),
-		s5,
-	)
-	// check that s2 and s6 correspond to the same scalar (depending on the sign bit)
-	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Select(selector2, c.scalarApi.Neg(s2), s2),
-		s6,
 	)
 
 	s1bits := c.scalarApi.ToBits(s1)
