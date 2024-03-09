@@ -154,9 +154,10 @@ func (e Ext3) MulBy01(z *E3, c0, c1 *baseEl) *E3 {
 	t0 = e.fp.MulConst(t0, big.NewInt(4))
 	t0 = e.fp.Add(t0, a)
 
-	tmp = e.fp.Add(&z.A0, &z.A2)
-	t2 := e.fp.Mul(c0, tmp)
-	t2 = e.fp.Sub(t2, a)
+	// for t2, schoolbook is faster than karatsuba
+	// c2 = a0b2 + a1b1 + a2b0,
+	// c2 = a2b0 + b ∵ b2 = 0, b = a1b1
+	t2 := e.fp.Mul(&z.A2, c0)
 	t2 = e.fp.Add(t2, b)
 
 	t1 := e.fp.Add(c0, c1)
