@@ -483,7 +483,7 @@ func (c *Curve[B, S]) Mux(sel frontend.Variable, inputs ...*AffinePoint[B]) *Aff
 	}
 }
 
-// ScalarMul computes s * p and returns it. It doesn't modify p nor s.
+// ScalarMul computes [s]p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
 // ScalarMul calls scalarMulGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
@@ -497,7 +497,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 	}
 }
 
-// scalarMulGLV computes s * Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
+// scalarMulGLV computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
 // It implements algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
@@ -705,7 +705,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	return Acc
 }
 
-// scalarMulGeneric computes s * p and returns it. It doesn't modify p nor s.
+// scalarMulGeneric computes [s]p and returns it. It doesn't modify p nor s.
 // This function doesn't check that the p is on the curve. See AssertIsOnCurve.
 //
 // ⚠️  p must not be (0,0) and s must not be 0, unless [algopts.WithCompleteArithmetic] option is set.
@@ -865,7 +865,9 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 }
 
 // jointScalarMulGLVUnsafe computes [s]Q + [t]R using Shamir's trick with an efficient endomorphism and returns it. It doesn't modify Q, R nor s, t.
-// ⚠️  The scalars must be nonzero and the points different from (0,0).
+// ⚠️  The scalars must be nonzero and the points
+//   - ≠ (0,0),
+//   - P ≠ ±Q,
 func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulated.Element[S]) *AffinePoint[B] {
 	// We use the endomorphism à la GLV to compute [s]Q + [t]R as
 	// 		[s1]Q + [s2]Φ(Q) + [t1]R + [t2]Φ(R)
@@ -1094,7 +1096,7 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 
 }
 
-// scalarBitsMulGeneric computes s * p and returns it where sBits is the bit decomposition of s. It doesn't modify p nor sBits.
+// scalarBitsMulGeneric computes [s]p and returns it where sBits is the bit decomposition of s. It doesn't modify p nor sBits.
 // ⚠️  p must not be (0,0) and sBits not [0,...,0], unless [algopts.WithCompleteArithmetic] option is set.
 func (c *Curve[B, S]) scalarBitsMulGeneric(p *AffinePoint[B], sBits []frontend.Variable, opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
@@ -1145,7 +1147,7 @@ func (c *Curve[B, S]) scalarBitsMulGeneric(p *AffinePoint[B], sBits []frontend.V
 	return R0
 }
 
-// ScalarMulBase computes s * g and returns it where g is the fixed curve generator. It doesn't modify p nor s.
+// ScalarMulBase computes [s]g and returns it where g is the fixed curve generator. It doesn't modify p nor s.
 //
 // ScalarMul calls scalarMulBaseGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
 func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
@@ -1158,7 +1160,7 @@ func (c *Curve[B, S]) ScalarMulBase(s *emulated.Element[S], opts ...algopts.Alge
 	}
 }
 
-// scalarMulBaseGeneric computes s * g and returns it, where g is the fixed generator.
+// scalarMulBaseGeneric computes [s]g and returns it, where g is the fixed generator.
 // It doesn't modify s.
 //
 // ✅ When s=0, it returns (0,0).
@@ -1211,10 +1213,11 @@ func (c *Curve[B, S]) scalarMulBaseGeneric(s *emulated.Element[S], opts ...algop
 	return res
 }
 
-// JointScalarMulBase computes s2 * p + s1 * g and returns it, where g is the
+// JointScalarMulBase computes [s1]g + [s2]p and returns it, where g is the
 // fixed generator. It doesn't modify p, s1 and s2.
 //
-// ⚠️   p must NOT be (0,0).
+// ⚠️   p must NOT be (0,0),
+// ⚠️   p must NOT be ±g,
 // ⚠️   s1 and s2 must NOT be 0.
 //
 // JointScalarMulBase is used to verify an ECDSA signature (r,s) for example on
