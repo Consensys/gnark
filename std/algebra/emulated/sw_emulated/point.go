@@ -1096,57 +1096,6 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 
 }
 
-// scalarBitsMulGeneric computes [s]p and returns it where sBits is the bit decomposition of s. It doesn't modify p nor sBits.
-// ⚠️  p must not be (0,0) and sBits not [0,...,0], unless [algopts.WithCompleteArithmetic] option is set.
-func (c *Curve[B, S]) scalarBitsMulGeneric(p *AffinePoint[B], sBits []frontend.Variable, opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(fmt.Sprintf("parse opts: %v", err))
-	}
-	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
-		// if p=(0,0) we assign a dummy (0,1) to p and continue
-		selector = c.api.And(c.baseApi.IsZero(&p.X), c.baseApi.IsZero(&p.Y))
-		one := c.baseApi.One()
-		p = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, p)
-	}
-
-	var st S
-	n := st.Modulus().BitLen()
-	if cfg.NbScalarBits > 2 && cfg.NbScalarBits < n {
-		n = cfg.NbScalarBits
-	}
-
-	// i = 1
-	Rb := c.triple(p)
-	R0 := c.Select(sBits[1], Rb, p)
-	R1 := c.Select(sBits[1], p, Rb)
-
-	for i := 2; i < n-1; i++ {
-		Rb = c.doubleAndAddSelect(sBits[i], R0, R1)
-		R0 = c.Select(sBits[i], Rb, R0)
-		R1 = c.Select(sBits[i], R1, Rb)
-	}
-
-	// i = n-1
-	Rb = c.doubleAndAddSelect(sBits[n-1], R0, R1)
-	R0 = c.Select(sBits[n-1], Rb, R0)
-
-	// i = 0
-	// we use AddUnified instead of Add. This is because:
-	// 		- when s=0 then R0=P and AddUnified(P, -P) = (0,0). We return (0,0).
-	// 		- when s=1 then R0=P AddUnified(Q, -Q) is well defined. We return R0=P.
-	R0 = c.Select(sBits[0], R0, c.AddUnified(R0, c.Neg(p)))
-
-	if cfg.CompleteArithmetic {
-		// if p=(0,0), return (0,0)
-		zero := c.baseApi.Zero()
-		R0 = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, R0)
-	}
-
-	return R0
-}
-
 // ScalarMulBase computes [s]g and returns it where g is the fixed curve generator. It doesn't modify p nor s.
 //
 // ScalarMul calls scalarMulBaseGeneric or scalarMulGLV depending on whether an efficient endomorphism is available.
@@ -1278,12 +1227,10 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 			return nil, fmt.Errorf("need scalar for folding")
 		}
 		gamma := s[0]
-		gamma = c.scalarApi.Reduce(gamma)
-		gammaBits := c.scalarApi.ToBits(gamma)
-		res := c.scalarBitsMulGeneric(p[len(p)-1], gammaBits, opts...)
+		res := c.ScalarMul(p[len(p)-1], gamma, opts...)
 		for i := len(p) - 2; i > 0; i-- {
 			res = addFn(p[i], res)
-			res = c.scalarBitsMulGeneric(res, gammaBits, opts...)
+			res = c.ScalarMul(res, gamma, opts...)
 		}
 		res = addFn(p[0], res)
 		return res, nil
