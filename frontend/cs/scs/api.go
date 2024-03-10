@@ -138,6 +138,14 @@ func (builder *builder) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 	if len(vars) == 0 {
 		return builder.cs.ToBigInt(k)
 	}
+	if k.IsZero() {
+		return 0
+	}
+	for i := range vars {
+		if vars[i].Coeff.IsZero() {
+			return 0
+		}
+	}
 	l := builder.mulConstant(vars[0], k)
 
 	return builder.splitProd(l, vars[1:])
