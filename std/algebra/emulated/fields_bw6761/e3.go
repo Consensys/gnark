@@ -236,22 +236,15 @@ func (e Ext3) MulBy12(x *E3, b1, b2 *baseEl) *E3 {
 func (e Ext3) Mul01By01(c0, c1, d0, d1 *baseEl) *E3 {
 	a := e.fp.Mul(d0, c0)
 	b := e.fp.Mul(d1, c1)
-	t0 := e.fp.Mul(c1, d1)
-	t0 = e.fp.Sub(b, t0)
-	t0 = e.fp.MulConst(t0, big.NewInt(4))
-	t0 = e.fp.Add(t0, a)
-	t2 := e.fp.Mul(c0, d0)
-	t2 = e.fp.Sub(t2, a)
-	t2 = e.fp.Add(t2, b)
 	t1 := e.fp.Add(c0, c1)
 	tmp := e.fp.Add(d0, d1)
 	t1 = e.fp.Mul(t1, tmp)
 	t1 = e.fp.Sub(t1, a)
 	t1 = e.fp.Sub(t1, b)
 	return &E3{
-		A0: *t0,
+		A0: *a,
 		A1: *t1,
-		A2: *t2,
+		A2: *b,
 	}
 }
 
