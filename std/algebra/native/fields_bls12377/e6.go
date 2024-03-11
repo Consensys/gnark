@@ -261,9 +261,10 @@ func (e *E6) MulBy01(api frontend.API, c0, c1 E2) *E6 {
 	t0.MulByNonResidue(api, t0)
 	t0.Add(api, t0, a)
 
-	tmp.Add(api, e.B0, e.B2)
-	t2.Mul(api, c0, tmp)
-	t2.Sub(api, t2, a)
+	// for t2, schoolbook is faster than karatsuba
+	// c2 = a0b2 + a1b1 + a2b0,
+	// c2 = a2b0 + b ∵ b2 = 0, b = a1b1
+	t2.Mul(api, e.B2, c0)
 	t2.Add(api, t2, b)
 
 	t1.Add(api, c0, c1)
