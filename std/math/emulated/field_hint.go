@@ -19,6 +19,13 @@ func (f *Field[T]) wrapHint(nonnativeInputs ...*Element[T]) []frontend.Variable 
 	return res
 }
 
+func (f *Field[T]) wrapHintNatives(nativeInputs ...frontend.Variable) []frontend.Variable {
+	res := []frontend.Variable{f.fParams.BitsPerLimb(), f.fParams.NbLimbs()}
+	res = append(res, f.Modulus().Limbs...)
+	res = append(res, nativeInputs...)
+	return res
+}
+
 // UnwrapHint unwraps the native inputs into nonnative inputs. Then it calls
 // nonnativeHint function with nonnative inputs. After nonnativeHint returns, it
 // decomposes the outputs into limbs.
@@ -31,6 +38,13 @@ func UnwrapHint(nativeInputs, nativeOutputs []*big.Int, nonnativeHint solver.Hin
 // returns, it returns native outputs as-is.
 func UnwrapHintWithNativeOutput(nativeInputs, nativeOutputs []*big.Int, nonnativeHint solver.Hint) error {
 	return unwrapHint(true, false, nativeInputs, nativeOutputs, nonnativeHint)
+}
+
+// UnwrapHintWithNativeInput unwraps the native inputs into native inputs. Then
+// it calls nonnativeHint function with native inputs. After nonnativeHint
+// returns, it decomposes the outputs into limbs.
+func UnwrapHintWithNativeInput(nativeInputs, nativeOutputs []*big.Int, nonnativeHint solver.Hint) error {
+	return unwrapHint(false, true, nativeInputs, nativeOutputs, nonnativeHint)
 }
 
 func unwrapHint(isEmulatedInput, isEmulatedOutput bool, nativeInputs, nativeOutputs []*big.Int, nonnativeHint solver.Hint) error {
@@ -49,28 +63,38 @@ func unwrapHint(isEmulatedInput, isEmulatedOutput bool, nativeInputs, nativeOutp
 	if err := recompose(nativeInputs[2:2+nbLimbs], uint(nbBits), nonnativeMod); err != nil {
 		return fmt.Errorf("cannot recover nonnative mod: %w", err)
 	}
-	if !nativeInputs[2+nbLimbs].IsInt64() {
-		return fmt.Errorf("number of nonnative elements must be castable to int64")
-	}
-	nbInputs := int(nativeInputs[2+nbLimbs].Int64())
-	nonnativeInputs := make([]*big.Int, nbInputs)
-	readPtr := 3 + nbLimbs
-	for i := 0; i < nbInputs; i++ {
-		if len(nativeInputs) < readPtr+1 {
-			return fmt.Errorf("can not read %d-th native input", i)
+	var nonnativeInputs []*big.Int
+	if isEmulatedInput {
+		if !nativeInputs[2+nbLimbs].IsInt64() {
+			return fmt.Errorf("number of nonnative elements must be castable to int64")
 		}
-		if !nativeInputs[readPtr].IsInt64() {
-			return fmt.Errorf("corrupted %d-th native input", i)
+		nbInputs := int(nativeInputs[2+nbLimbs].Int64())
+		readPtr := 3 + nbLimbs
+		nonnativeInputs = make([]*big.Int, nbInputs)
+		for i := 0; i < nbInputs; i++ {
+			if len(nativeInputs) < readPtr+1 {
+				return fmt.Errorf("can not read %d-th native input", i)
+			}
+			if !nativeInputs[readPtr].IsInt64() {
+				return fmt.Errorf("corrupted %d-th native input", i)
+			}
+			currentInputLen := int(nativeInputs[readPtr].Int64())
+			if len(nativeInputs) < (readPtr + 1 + currentInputLen) {
+				return fmt.Errorf("cannot read %d-th nonnative element", i)
+			}
+			nonnativeInputs[i] = new(big.Int)
+			if err := recompose(nativeInputs[readPtr+1:readPtr+1+currentInputLen], uint(nbBits), nonnativeInputs[i]); err != nil {
+				return fmt.Errorf("recompose %d-th element: %w", i, err)
+			}
+			readPtr += 1 + currentInputLen
 		}
-		currentInputLen := int(nativeInputs[readPtr].Int64())
-		if len(nativeInputs) < (readPtr + 1 + currentInputLen) {
-			return fmt.Errorf("cannot read %d-th nonnative element", i)
+	} else {
+		nbInputs := len(nativeInputs[2+nbLimbs:])
+		readPtr := 2 + nbLimbs
+		nonnativeInputs = make([]*big.Int, nbInputs)
+		for i := 0; i < nbInputs; i++ {
+			nonnativeInputs[i] = new(big.Int).Set(nativeInputs[readPtr+i])
 		}
-		nonnativeInputs[i] = new(big.Int)
-		if err := recompose(nativeInputs[readPtr+1:readPtr+1+currentInputLen], uint(nbBits), nonnativeInputs[i]); err != nil {
-			return fmt.Errorf("recompose %d-th element: %w", i, err)
-		}
-		readPtr += 1 + currentInputLen
 	}
 
 	var nonnativeOutputs []*big.Int
@@ -149,4 +173,24 @@ func (f *Field[T]) NewHintWithNativeOutput(hf solver.Hint, nbOutputs int, inputs
 		return nil, fmt.Errorf("call hint: %w", err)
 	}
 	return nativeOutputs, nil
+}
+
+// NewHintWithNativeInput allows to call the emulation hint function hf on
+// native inputs, expecting nbOutputs results. This function passes the native
+// inputs to the hint function directly and reconstructs the outputs into
+// non-native elements. There is [UnwrapHintWithNativeInput] function which
+// performs corresponding recomposition of limbs into integer values (and vice
+// verse for output).
+func (f *Field[T]) NewHintWithNativeInput(hf solver.Hint, nbOutputs int, inputs ...frontend.Variable) ([]*Element[T], error) {
+	nativeInputs := f.wrapHintNatives(inputs...)
+	nbNativeOutputs := int(f.fParams.NbLimbs()) * nbOutputs
+	nativeOutputs, err := f.api.Compiler().NewHint(hf, nbNativeOutputs, nativeInputs...)
+	if err != nil {
+		return nil, fmt.Errorf("call hint: %w", err)
+	}
+	outputs := make([]*Element[T], nbOutputs)
+	for i := 0; i < nbOutputs; i++ {
+		outputs[i] = f.packLimbs(nativeOutputs[i*int(f.fParams.NbLimbs()):(i+1)*int(f.fParams.NbLimbs())], true)
+	}
+	return outputs, nil
 }
