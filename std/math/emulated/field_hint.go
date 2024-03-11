@@ -158,13 +158,21 @@ func (f *Field[T]) NewHint(hf solver.Hint, nbOutputs int, inputs ...*Element[T])
 // NewHintWithNativeOutput allows to call the emulation hint function hf on
 // nonnative inputs, expecting nbOutputs results. This function splits
 // internally the emulated element into limbs and passes these to the hint
-// function. There is [UnwrapHint] function which performs corresponding
-// recomposition of limbs into integer values (and vice verse for output).
+// function. There is [UnwrapHintWithNativeOutput] function which performs
+// corresponding recomposition of limbs into integer values (and vice verse for
+// output).
 //
 // This method is an alternation of [NewHint] method, which allows to pass
 // nonnative inputs to the hint function and returns native outputs. This is
 // useful when the outputs do not necessarily have to be emulated elements (e.g.
 // bits) as it skips enforcing range checks on the outputs.
+//
+// The hint function for this method is defined as:
+//
+//	func HintFn(nativeMod *big.Int, inputs, outputs []*big.Int) error {
+//	    return emulated.UnwrapHintWithNativeOutput(inputs, outputs, func(emulatedMod *big.Int, inputs, outputs []*big.Int) error {
+//	        // in the function we have access to both native and nonantive modulus
+//	    })}
 func (f *Field[T]) NewHintWithNativeOutput(hf solver.Hint, nbOutputs int, inputs ...*Element[T]) ([]frontend.Variable, error) {
 	nativeInputs := f.wrapHint(inputs...)
 	nbNativeOutputs := nbOutputs
