@@ -122,6 +122,50 @@ func TestMulFp6(t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
+type e6Mul01By01 struct {
+	A0, A1 E2
+	B0, B1 E2
+	C      E6 `gnark:",public"`
+}
+
+func (circuit *e6Mul01By01) Define(api frontend.API) error {
+	expected := *Mul01By01(api, circuit.A0, circuit.A1, circuit.B0, circuit.B1)
+	expected.AssertIsEqual(api, circuit.C)
+
+	return nil
+}
+
+func TestMul01By01(t *testing.T) {
+
+	// we test our new E3.Mul01By01 against E3.MulBy01
+	var circuit, witness e6Mul01By01
+	// witness values
+	var a, c bls12377.E6
+	var A0, A1, B0, B1 bls12377.E2
+	_, _ = A0.SetRandom()
+	_, _ = A1.SetRandom()
+	_, _ = B0.SetRandom()
+	_, _ = B1.SetRandom()
+	// build a 01 sparse E3 with,
+	// first two elements as A1 and A2,
+	// and the third as 0
+	a.B0 = A0
+	a.B1 = A1
+	a.B2.SetZero()
+	c.Set(&a)
+	c.MulBy01(&B0, &B1)
+
+	witness.A0.Assign(&A0)
+	witness.A1.Assign(&A1)
+	witness.B0.Assign(&B0)
+	witness.B1.Assign(&B1)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+
+}
+
 type fp6MulByNonResidue struct {
 	A E6
 	C E6 `gnark:",public"`
