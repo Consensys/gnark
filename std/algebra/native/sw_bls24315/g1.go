@@ -226,9 +226,8 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// decomposed, either the high bits of s1 or s2 are set and we can use the
 	// incomplete addition laws.
 
-	//     Acc = Q + Φ(Q)
-	Acc = tableQ[1]
-	Acc.AddAssign(api, tablePhiQ[1])
+	// Acc = Q + Φ(Q) = -Φ²(Q)
+	cc.phi2Neg(api, &Acc, &Q)
 
 	// However, we can not directly add step value conditionally as we may get
 	// to incomplete path of the addition formula. We either add or subtract
@@ -236,6 +235,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// Acc):
 	//     Acc = [2] (Q + Φ(Q)) ± Q ± Φ(Q)
 	// only y coordinate differs for negation, select on that instead.
+	// first bit
 	B.X = tableQ[0].X
 	B.Y = api.Select(s1bits[nbits-1], tableQ[1].Y, tableQ[0].Y)
 	Acc.DoubleAndAdd(api, &Acc, &B)
@@ -392,20 +392,18 @@ func (p *G1Affine) DoubleAndAdd(api frontend.API, p1, p2 *G1Affine) *G1Affine {
 
 	// compute x3 = lambda1**2-x1-x2
 	x3 := api.Mul(l1, l1)
-	x3 = api.Sub(x3, p1.X)
-	x3 = api.Sub(x3, p2.X)
+	x3 = api.Sub(x3, api.Add(p1.X, p2.X))
 
 	// omit y3 computation
 	// compute lambda2 = lambda1+2*y1/(x3-x1)
-	l2 := api.DivUnchecked(api.Add(p1.Y, p1.Y), api.Sub(x3, p1.X))
+	l2 := api.DivUnchecked(api.Mul(p1.Y, big.NewInt(2)), api.Sub(x3, p1.X))
 	l2 = api.Add(l2, l1)
 
 	// compute x4 =lambda2**2-x1-x3
 	x4 := api.Mul(l2, l2)
-	x4 = api.Sub(x4, p1.X)
-	x4 = api.Sub(x4, x3)
+	x4 = api.Sub(x4, api.Add(p1.X, x3))
 
-	// compute y4 = lambda2*(x1 - x4)-y1
+	// compute y4 = lambda2*(x4 - x1)-y1
 	y4 := api.Sub(x4, p1.X)
 	y4 = api.Mul(l2, y4)
 	y4 = api.Sub(y4, p1.Y)
@@ -480,9 +478,9 @@ func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 	cc.phi1(api, &tablePhiS[3], &tableS[3])
 
 	// suppose first bit is 1 and set:
-	// Acc = Q + R + Φ(Q) + Φ(R)
-	Acc := tableS[1]
-	Acc.AddAssign(api, tablePhiS[1])
+	// Acc = Q + R + Φ(Q) + Φ(R) = -Φ²(Q+R)
+	var Acc G1Affine
+	cc.phi2Neg(api, &Acc, &tableS[1])
 
 	// Acc = [2]Acc ± Q ± R ± Φ(Q) ± Φ(R)
 	var B G1Affine
