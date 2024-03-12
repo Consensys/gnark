@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
@@ -183,7 +184,7 @@ func testHint[T FieldParams](t *testing.T) {
 		Denominator: ValueOf[T](b),
 		Expected:    ValueOf[T](c),
 	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithSolverOpts(solver.WithHints(nnaHint)))
 }
 
 func TestHint(t *testing.T) {
@@ -241,7 +242,7 @@ func testHintNativeInput[T FieldParams](t *testing.T) {
 		Denominator: b,
 		Expected:    ValueOf[T](c),
 	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(testCurve))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(testCurve), test.WithSolverOpts(solver.WithHints(nativeInputHint)))
 }
 
 func TestHintNativeInput(t *testing.T) {
@@ -281,6 +282,7 @@ func (c *hintNativeOutputCircuit[T]) Define(api frontend.API) error {
 		return err
 	}
 	api.AssertIsEqual(res[0], c.Expected)
+	api.AssertIsDifferent(c.Expected, 0)
 	return nil
 }
 
@@ -299,7 +301,7 @@ func testHintNativeOutput[T FieldParams](t *testing.T) {
 		Denominator: ValueOf[T](b),
 		Expected:    c,
 	}
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(testCurve))
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(testCurve), test.WithSolverOpts(solver.WithHints(nativeOutputHint)))
 }
 
 func TestHintNativeOutput(t *testing.T) {
