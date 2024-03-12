@@ -282,6 +282,7 @@ func (c *hintNativeOutputCircuit[T]) Define(api frontend.API) error {
 		return err
 	}
 	api.AssertIsEqual(res[0], c.Expected)
+	api.AssertIsDifferent(c.Expected, 0)
 	return nil
 }
 
