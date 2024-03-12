@@ -122,6 +122,42 @@ func TestMulFp6(t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
+type fp6MulBy01 struct {
+	A      E6
+	C0, C1 E2
+	C      E6 `gnark:",public"`
+}
+
+func (circuit *fp6MulBy01) Define(api frontend.API) error {
+	expected := circuit.A
+	expected.MulBy01(api, circuit.C0, circuit.C1)
+	expected.AssertIsEqual(api, circuit.C)
+
+	return nil
+}
+
+func TestMulFp6By01(t *testing.T) {
+
+	var circuit, witness fp6MulBy01
+	// witness values
+	var a, c bls12377.E6
+	var C0, C1 bls12377.E2
+	_, _ = a.SetRandom()
+	_, _ = C0.SetRandom()
+	_, _ = C1.SetRandom()
+	c.Set(&a)
+	c.MulBy01(&C0, &C1)
+
+	witness.A.Assign(&a)
+	witness.C0.Assign(&C0)
+	witness.C1.Assign(&C1)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+
+}
+
 type fp6MulByNonResidue struct {
 	A E6
 	C E6 `gnark:",public"`
