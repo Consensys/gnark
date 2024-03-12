@@ -67,7 +67,7 @@ type Curve[Base, Scalars emulated.FieldParams] struct {
 	// g is the generator (base point) of the curve.
 	g AffinePoint[Base]
 
-	// gm are the pre-computed multiples the generator (base point) of the curve.
+	// gm are the pre-computed doubles the generator (base point) of the curve.
 	gm []AffinePoint[Base]
 
 	a            emulated.Element[Base]
@@ -83,7 +83,7 @@ func (c *Curve[B, S]) Generator() *AffinePoint[B] {
 	return &c.g
 }
 
-// GeneratorMultiples returns the pre-computed multiples of the base point of the curve. The method does not copy and
+// GeneratorMultiples returns the pre-computed doubles of the base point of the curve. The method does not copy and
 // modifying the returned element leads to undefined behaviour!
 func (c *Curve[B, S]) GeneratorMultiples() []AffinePoint[B] {
 	return c.gm
@@ -498,7 +498,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 }
 
 // scalarMulGLV computes [s]Q using an efficient endomorphism and returns it. It doesn't modify Q nor s.
-// It implements algorithm 1 of [Halo] (see Section 6.2 and appendix C).
+// It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
 //
 // ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
 // (0,0) is not on the curve but we conventionally take it as the
@@ -581,8 +581,8 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// We can compute [2]Acc and look up the (precomputed) point P from:
 	// 		B1 = Q+Φ(Q)
 	// 		B2 = -Q-Φ(Q)
-	// 		B3 = -Φ(Q)+Q
-	// 		B4 = Φ(Q)-Q
+	// 		B3 = Q-Φ(Q)
+	// 		B4 = -QΦ(Q)
 	//
 	// If we extend this by merging two iterations, we need to look up P and P'
 	// both from {B1, B2, B3, B4} and compute:
@@ -665,14 +665,14 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 			c.api.Mul(s1bits[i-1], 4),
 			c.api.Mul(s2bits[i-1], 8),
 		)
-		// selectorX takes values in [0,7] with:
+		// selectorX takes values in [0,7] s.t.:
 		// 		- when selectorY < 8: selectorX = selectorY
 		// 		- when selectorY >= 8: selectorX = 15 - selectorY
 		selectorX := c.api.Add(
 			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(s2bits[i-1], 2))),
 			c.api.Mul(s2bits[i-1], 15),
 		)
-		// Bi.Y are distints so we need a 16-to-1 multiplexer,
+		// Bi.Y are distincts so we need a 16-to-1 multiplexer,
 		// but only half of the Bi.X are distinct so we need a 8-to-1.
 		T := &AffinePoint[B]{
 			X: *c.baseApi.Mux(selectorX,
@@ -1044,14 +1044,14 @@ func (c *Curve[B, S]) jointScalarMulGLVUnsafe(Q, R *AffinePoint[B], s, t *emulat
 			c.api.Mul(t1bits[i], 4),
 			c.api.Mul(t2bits[i], 8),
 		)
-		// selectorX takes values in [0,7] with:
+		// selectorX takes values in [0,7] s.t.:
 		// 		- when selectorY < 8: selectorX = selectorY
 		// 		- when selectorY >= 8: selectorX = 15 - selectorY
 		selectorX := c.api.Add(
 			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(t2bits[i], 2))),
 			c.api.Mul(t2bits[i], 15),
 		)
-		// Bi.Y are distints so we need a 16-to-1 multiplexer,
+		// Bi.Y are distincts so we need a 16-to-1 multiplexer,
 		// but only half of the Bi.X are distinct so we need a 8-to-1.
 		Bi = &AffinePoint[B]{
 			X: *c.baseApi.Mux(selectorX,
