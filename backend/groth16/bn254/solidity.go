@@ -1,5 +1,11 @@
 package groth16
 
+import (
+	"bytes"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+)
+
 // solidityTemplate
 // this is an experimental feature and gnark solidity generator as not been thoroughly tested
 const solidityTemplate = `
@@ -409,6 +415,7 @@ contract Verifier {
         //       code-size is in the PUB_ constants.
         // ECMUL has input (x, y, scalar) and output (x', y').
         // ECADD has input (x1, y1, x2, y2) and output (x', y').
+        // We reduce commitments(if any) with constants as the first point argument to ECADD.
         // We call them such that ecmul output is already in the second point
         // argument to ECADD so we can have a tight loop.
         bool success = true;
@@ -419,7 +426,12 @@ contract Verifier {
             mstore(f, CONSTANT_X)
             mstore(add(f, 0x20), CONSTANT_Y)
             {{- if gt $numCommitments 0 }}
+            {{- if eq $numWitness 1 }}
+            mstore(g, mload(commitments))
+            mstore(add(g, 0x20), mload(add(commitments, 0x20)))
+            {{- else }}
             success := and(success,  staticcall(gas(), PRECOMPILE_ADD, commitments, {{mul 0x40 $numCommitments}}, g, 0x40))
+            {{- end }}
             success := and(success,  staticcall(gas(), PRECOMPILE_ADD, f, 0x80, f, 0x40))
             {{- end }}
             {{- range $i := intRange $numPublic }}
@@ -520,7 +532,14 @@ contract Verifier {
 
         {{- if gt $numCommitments 0 }}
         {
+            {{- if eq $numCommitments 1 }}
             (commitments[0], commitments[1]) = decompress_g1(compressedCommitments[0]);
+            {{- else }}
+            // TODO: We need to fold commitments into single point
+            for (uint256 i = 0; i < {{$numCommitments}}; i++) {
+                (commitments[2*i], commitments[2*i+1]) = decompress_g1(compressedCommitments[i]);
+            }
+            {{- end}}
             (uint256 Px, uint256 Py) = decompress_g1(compressedCommitmentPok);
             {{- range $i := intRange $numCommitments }}
             publicCommitments[{{$i}}] = uint256(
@@ -744,3 +763,20 @@ contract Verifier {
     }
 }
 `
+
+// MarshalSolidity converts a proof to a byte array that can be used in a
+// Solidity contract.
+func (proof *Proof) MarshalSolidity() []byte {
+	var buf bytes.Buffer
+	_, err := proof.WriteRawTo(&buf)
+	if err != nil {
+		panic(err)
+	}
+
+	// If there are no commitments, we can return only Ar | Bs | Krs
+	if len(proof.Commitments) > 0 {
+		return buf.Bytes()
+	} else {
+		return buf.Bytes()[:8*fr.Bytes]
+	}
+}

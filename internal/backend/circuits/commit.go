@@ -29,7 +29,7 @@ func (circuit *commitCircuit) Define(api frontend.API) error {
 }
 
 func init() {
-	h := sha256.New()
+	h1, h2 := sha256.New(), sha256.New()
 	var circuit, good, bad commitCircuit
 
 	good.X = 3
@@ -39,6 +39,6 @@ func init() {
 	bad.Public = 0
 
 	addEntry("commit_Groth16", &circuit, &good, &bad, nil,
-		WithProverOpts(backend.WithProverHashToFieldFunction(h)), WithVerifierOpts(backend.WithVerifierHashToFieldFunction(h)))
+		WithProverOpts(backend.WithProverHashToFieldFunction(h1)), WithVerifierOpts(backend.WithVerifierHashToFieldFunction(h2)))
 	addEntry("commit_Plonk", &circuit, &good, &bad, nil)
 }

@@ -1,7 +1,6 @@
 package test
 
 import (
-	"bytes"
 	"encoding/hex"
 	"io"
 	"os"
@@ -11,8 +10,6 @@ import (
 
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend"
-	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
-	plonk_bn254 "github.com/consensys/gnark/backend/plonk/bn254"
 	"github.com/consensys/gnark/backend/witness"
 )
 
@@ -57,30 +54,22 @@ func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
 	// len(vk.K) - 1 == len(publicWitness) + len(commitments)
 	numOfCommitments := vk.NbPublicWitness() - len(validPublicWitness.Vector().(fr_bn254.Vector))
 
-	// proof to hex
-	var proofStr string
-	var checkerOpts []string
-	checkerOpts = []string{"verify"}
-
+	checkerOpts := []string{"verify"}
 	if b == backend.GROTH16 {
 		checkerOpts = append(checkerOpts, "--groth16")
-		var buf bytes.Buffer
-		_proof := proof.(*groth16_bn254.Proof)
-		_, err = _proof.WriteRawTo(&buf)
-		assert.NoError(err)
-		proofBytes := buf.Bytes()
-		if numOfCommitments == 0 {
-			proofBytes = proofBytes[:32*8] // exclude commitments count if there are no commitments
-		}
-		proofStr = hex.EncodeToString(proofBytes)
 	} else if b == backend.PLONK {
 		checkerOpts = append(checkerOpts, "--plonk")
-		_proof := proof.(*plonk_bn254.Proof)
-		// TODO @gbotrel make a single Marshal function for PlonK proof.
-		proofStr = hex.EncodeToString(_proof.MarshalSolidity())
 	} else {
 		panic("not implemented")
 	}
+
+	// proof to hex
+	_proof, ok := proof.(interface{ MarshalSolidity() []byte })
+	if !ok {
+		panic("proof does not implement MarshalSolidity()")
+	}
+
+	proofStr := hex.EncodeToString(_proof.MarshalSolidity())
 
 	if numOfCommitments > 0 {
 		checkerOpts = append(checkerOpts, "--commitment", strconv.Itoa(numOfCommitments))
