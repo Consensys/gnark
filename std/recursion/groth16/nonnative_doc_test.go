@@ -37,7 +37,7 @@ func (c *InnerCircuitNative) Define(api frontend.API) error {
 // computeInnerProof computes the proof for the inner circuit we want to verify
 // recursively. In this example the Groth16 keys are generated on the fly, but
 // in practice should be genrated once and using MPC.
-func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
+func computeInnerProof(field, outer *big.Int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
 	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &InnerCircuitNative{})
 	if err != nil {
 		panic(err)
@@ -58,7 +58,7 @@ func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.Ver
 	if err != nil {
 		panic(err)
 	}
-	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness)
+	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness, stdgroth16.GetNativeProverOptions(outer, field))
 	if err != nil {
 		panic(err)
 	}
@@ -66,7 +66,7 @@ func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.Ver
 	if err != nil {
 		panic(err)
 	}
-	err = groth16.Verify(innerProof, innerVK, innerPubWitness)
+	err = groth16.Verify(innerProof, innerVK, innerPubWitness, stdgroth16.GetNativeVerifierOptions(outer, field))
 	if err != nil {
 		panic(err)
 	}
@@ -82,23 +82,17 @@ type OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 }
 
 func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
-	curve, err := algebra.GetCurve[FR, G1El](api)
+	verifier, err := stdgroth16.NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
-		return fmt.Errorf("new curve: %w", err)
+		return fmt.Errorf("new verifier: %w", err)
 	}
-	pairing, err := algebra.GetPairing[G1El, G2El, GtEl](api)
-	if err != nil {
-		return fmt.Errorf("get pairing: %w", err)
-	}
-	verifier := stdgroth16.NewVerifier(curve, pairing)
-	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
-	return err
+	return verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
 }
 
 // Example of verifying recursively BN254 Groth16 proof in BN254 Groth16 circuit using field emulation
 func Example_emulated() {
 	// compute the proof which we want to verify recursively
-	innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BN254.ScalarField())
+	innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BN254.ScalarField(), ecc.BN254.ScalarField())
 
 	// initialize the witness elements
 	circuitVk, err := stdgroth16.ValueOfVerifyingKey[sw_bn254.G1Affine, sw_bn254.G2Affine, sw_bn254.GTEl](innerVK)
