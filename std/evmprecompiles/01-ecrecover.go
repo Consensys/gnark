@@ -72,13 +72,11 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	Rynormal := fpField.Reduce(&R.Y)
 	Rybits := fpField.ToBits(Rynormal)
 	api.AssertIsEqual(vbits[0], Rybits[0])
-	// compute rinv = r^{-1} mod fr
-	rinv := frField.Inverse(&r)
-	// compute u1 = -msg * rinv
-	u1 := frField.MulMod(&msg, rinv)
+	// compute u1 = -msg * r^{-1} mod fr
+	u1 := frField.Div(&msg, &r)
 	u1 = frField.Neg(u1)
-	// compute u2 = s * rinv
-	u2 := frField.MulMod(&s, rinv)
+	// compute u2 = s * r^{-1} mod fr
+	u2 := frField.Div(&s, &r)
 	// check u1 * G + u2 R == P
 	C := curve.JointScalarMulBase(&R, u2, u1)
 	curve.AssertIsEqual(C, &P)

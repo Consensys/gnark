@@ -561,6 +561,44 @@ func TestScalarMulBase3(t *testing.T) {
 
 func TestScalarMulBase4(t *testing.T) {
 	assert := test.NewAssert(t)
+	p256 := elliptic.P256()
+	s, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	px, py := p256.ScalarBaseMult(s.Bytes())
+
+	circuit := ScalarMulBaseTest[emulated.P256Fp, emulated.P256Fr]{}
+	witness := ScalarMulBaseTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fr](s),
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestScalarMulBase5(t *testing.T) {
+	assert := test.NewAssert(t)
+	p384 := elliptic.P384()
+	s, err := rand.Int(rand.Reader, p384.Params().N)
+	assert.NoError(err)
+	px, py := p384.ScalarBaseMult(s.Bytes())
+
+	circuit := ScalarMulBaseTest[emulated.P384Fp, emulated.P384Fr]{}
+	witness := ScalarMulBaseTest[emulated.P384Fp, emulated.P384Fr]{
+		S: emulated.ValueOf[emulated.P384Fr](s),
+		Q: AffinePoint[emulated.P384Fp]{
+			X: emulated.ValueOf[emulated.P384Fp](px),
+			Y: emulated.ValueOf[emulated.P384Fp](py),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestScalarMulBase6(t *testing.T) {
+	assert := test.NewAssert(t)
 	_, _, g, _ := bw6761.Generators()
 	var r fr_bw6761.Element
 	_, _ = r.SetRandom()
@@ -960,6 +998,35 @@ func TestJointScalarMulBase(t *testing.T) {
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestJointScalarMulBase4(t *testing.T) {
+	assert := test.NewAssert(t)
+	p256 := elliptic.P256()
+	s1, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	s2, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	p1x, p1y := p256.ScalarBaseMult(s1.Bytes())
+	resx, resy := p256.ScalarMult(p1x, p1y, s1.Bytes())
+	tmpx, tmpy := p256.ScalarBaseMult(s2.Bytes())
+	resx, resy = p256.Add(resx, resy, tmpx, tmpy)
+
+	circuit := JointScalarMulBaseTest[emulated.P256Fp, emulated.P256Fr]{}
+	witness := JointScalarMulBaseTest[emulated.P256Fp, emulated.P256Fr]{
+		S1: emulated.ValueOf[emulated.P256Fr](s2),
+		S2: emulated.ValueOf[emulated.P256Fr](s1),
+		P: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p1x),
+			Y: emulated.ValueOf[emulated.P256Fp](p1y),
+		},
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](resx),
+			Y: emulated.ValueOf[emulated.P256Fp](resy),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
@@ -1462,6 +1529,53 @@ func TestJointScalarMul4(t *testing.T) {
 		},
 	}
 	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+// We explicitly choose here P1 and P2 s.t. P1+P2 = Φ(G) (G the base point).
+// This should sometimes (when the sub-scalars are positive in the hint)
+// triggers the edge case Q + R + Φ(Q) + Φ(R) + G == inf
+func TestJointScalarMulSpecial6(t *testing.T) {
+	assert := test.NewAssert(t)
+	var r1, r2 fr_bw6761.Element
+	_, _ = r1.SetRandom()
+	_, _ = r2.SetRandom()
+	s1 := new(big.Int)
+	s2 := new(big.Int)
+	r1.BigInt(s1)
+	r2.BigInt(s2)
+	var res, tmp, p1, p2 bw6761.G1Affine
+	// P1
+	p1.ScalarMultiplicationBase(s1)
+	// P2 = Φ(G)-P1
+	_, _, g, _ := bw6761.Generators()
+	var lambdaGLV big.Int
+	lambdaGLV.SetString("80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945", 10) // (x⁵-3x⁴+3x³-x+1)
+	g.ScalarMultiplication(&g, &lambdaGLV)
+	p2.Sub(&g, &p1)
+	// res = [s1]P+[s2]P
+	tmp.ScalarMultiplication(&p1, s1)
+	res.ScalarMultiplication(&p2, s2)
+	res.Add(&res, &tmp)
+
+	circuit := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{}
+	witness := JointScalarMulTest[emulated.BW6761Fp, emulated.BW6761Fr]{
+		S1: emulated.ValueOf[emulated.BW6761Fr](s1),
+		S2: emulated.ValueOf[emulated.BW6761Fr](s2),
+		P1: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](p1.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](p1.Y),
+		},
+		P2: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](p2.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](p2.Y),
+		},
+		Q: AffinePoint[emulated.BW6761Fp]{
+			X: emulated.ValueOf[emulated.BW6761Fp](res.X),
+			Y: emulated.ValueOf[emulated.BW6761Fp](res.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
