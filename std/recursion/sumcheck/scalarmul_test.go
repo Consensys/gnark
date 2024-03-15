@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	stdbits "math/bits"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -12,9 +13,13 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/math/polynomial"
+	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/test"
 )
 
@@ -30,6 +35,7 @@ type ScalarMulCircuit[Base, Scalars emulated.FieldParams] struct {
 }
 
 func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
+	var fp B
 	if len(c.Points) != len(c.Scalars) {
 		return fmt.Errorf("len(inputs) != len(scalars)")
 	}
@@ -41,13 +47,78 @@ func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new scalar field: %w", err)
 	}
+	poly, err := polynomial.New[B](api)
+	if err != nil {
+		return fmt.Errorf("new polynomial: %w", err)
+	}
+	// we use curve for marshaling points and scalars
+	curve, err := algebra.GetCurve[S, sw_emulated.AffinePoint[B]](api)
+	if err != nil {
+		return fmt.Errorf("get curve: %w", err)
+	}
+	fs, err := recursion.NewTranscript(api, fp.Modulus(), []string{"alpha", "beta"})
+	if err != nil {
+		return fmt.Errorf("new transcript: %w", err)
+	}
+	// compute the all double-and-add steps for each scalar multiplication
+	var results, accs []ProjectivePoint[B]
 	for i := range c.Points {
-		results, accs, err := callHintScalarMulSteps[B, S](api, baseApi, scalarApi, c.nbScalarBits, c.Points[i], c.Scalars[i])
+		if err := fs.Bind("alpha", curve.MarshalScalar(c.Scalars[i])); err != nil {
+			return fmt.Errorf("bind scalar %d alpha: %w", i, err)
+		}
+		if err := fs.Bind("alpha", curve.MarshalG1(c.Points[i])); err != nil {
+			return fmt.Errorf("bind point %d alpha: %w", i, err)
+		}
+		result, acc, err := callHintScalarMulSteps[B, S](api, baseApi, scalarApi, c.nbScalarBits, c.Points[i], c.Scalars[i])
 		if err != nil {
 			return fmt.Errorf("hint scalar mul steps: %w", err)
 		}
-		_, _ = results, accs
+		results = append(results, result...)
+		accs = append(accs, acc...)
 	}
+	// derive the randomness for random linear combination
+	alphaNative, err := fs.ComputeChallenge("alpha")
+	if err != nil {
+		return fmt.Errorf("compute challenge alpha: %w", err)
+	}
+	alphaBts := bits.ToBinary(api, alphaNative, bits.WithNbDigits(fp.Modulus().BitLen()))
+	alpha1 := baseApi.FromBits(alphaBts...)
+	alpha2 := baseApi.Mul(alpha1, alpha1)
+	alpha3 := baseApi.Mul(alpha1, alpha2)
+	alpha4 := baseApi.Mul(alpha1, alpha3)
+	alpha5 := baseApi.Mul(alpha1, alpha4)
+	claimed := make([]*emulated.Element[B], len(results))
+	// compute the random linear combinations of the intermediate results provided by the hint
+	for i := range results {
+		claimed[i] = baseApi.Sum(
+			&accs[i].X,
+			baseApi.MulNoReduce(alpha1, &accs[i].Y),
+			baseApi.MulNoReduce(alpha2, &accs[i].Z),
+			baseApi.MulNoReduce(alpha3, &results[i].X),
+			baseApi.MulNoReduce(alpha4, &results[i].Y),
+			baseApi.MulNoReduce(alpha5, &results[i].Z),
+		)
+	}
+	// derive the randomness for folding
+	betaNative, err := fs.ComputeChallenge("beta")
+	if err != nil {
+		return fmt.Errorf("compute challenge alpha: %w", err)
+	}
+	betaBts := bits.ToBinary(api, betaNative, bits.WithNbDigits(fp.Modulus().BitLen()))
+	evalPoints := make([]*emulated.Element[B], stdbits.Len(uint(len(claimed)))-1)
+	evalPoints[0] = baseApi.FromBits(betaBts...)
+	for i := 1; i < len(evalPoints); i++ {
+		evalPoints[i] = baseApi.Mul(evalPoints[i-1], evalPoints[0])
+	}
+	// compute the polynomial evaluation
+	claimedPoly := polynomial.FromSliceReferences(claimed)
+	claim, err := poly.EvalMultilinear(evalPoints, claimedPoly)
+	if err != nil {
+		return fmt.Errorf("eval multilinear: %w", err)
+	}
+
+	_ = claim
+
 	return nil
 }
 
