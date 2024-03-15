@@ -63,11 +63,11 @@ func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 	// compute the all double-and-add steps for each scalar multiplication
 	// var results, accs []ProjectivePoint[B]
 	for i := range c.Points {
-		if err := fs.Bind("alpha", curve.MarshalScalar(c.Scalars[i])); err != nil {
-			return fmt.Errorf("bind scalar %d alpha: %w", i, err)
-		}
 		if err := fs.Bind("alpha", curve.MarshalG1(c.Points[i])); err != nil {
 			return fmt.Errorf("bind point %d alpha: %w", i, err)
+		}
+		if err := fs.Bind("alpha", curve.MarshalScalar(c.Scalars[i])); err != nil {
+			return fmt.Errorf("bind scalar %d alpha: %w", i, err)
 		}
 	}
 	result, acc, err := callHintScalarMulSteps[B, S](api, baseApi, scalarApi, c.nbScalarBits, c.Points, c.Scalars)
@@ -213,12 +213,19 @@ func hintScalarMulSteps(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 		}
 	}
 
+	// first, we need to provide the steps of the scalar multiplication to the
+	// verifier. As the output of one step is an input of the next step, we need
+	// to provide the results and the accumulators. By checking the consistency
+	// of the inputs related to the outputs (inputs using multilinear evaluation
+	// in the final round of the sumcheck and outputs by requiring the verifier
+	// to construct the claim itself), we can ensure that the final step is the
+	// actual scalar multiplication result.
 	scalarLength := len(outputs) / (6 * nbLimbs * nbInputs)
 	api := newBigIntEngine(fp)
 	selector := new(big.Int)
 	outPtr := 0
 	for i := 0; i < nbInputs; i++ {
-		scalar := scalars[i]
+		scalar := new(big.Int).Set(scalars[i])
 		x := xs[i]
 		y := ys[i]
 		accX := new(big.Int).Set(x)
@@ -260,13 +267,32 @@ func hintScalarMulSteps(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 		}
 	}
 
-	// now, we construct the sumcheck proof
+	// now, we construct the sumcheck proof. For that we first need to compute
+	// the challenges for computing the random linear combination of the
+	// double-and-add outputs and for the claim polynomial evaluation.
 	h, err := recursion.NewShort(mod, fp)
 	if err != nil {
 		return fmt.Errorf("new short hash: %w", err)
 	}
 	fs := cryptofs.NewTranscript(h, "alpha", "beta")
-	_ = fs
+	for i := range xs {
+		var P secp256k1.G1Affine
+		var s fr_secp256k1.Element
+		P.X.SetBigInt(xs[i])
+		P.Y.SetBigInt(ys[i])
+		raw := P.RawBytes()
+		if err := fs.Bind("alpha", raw[:]); err != nil {
+			return fmt.Errorf("bind alpha point: %w", err)
+		}
+		s.SetBigInt(scalars[i])
+		if err := fs.Bind("alpha", s.Marshal()); err != nil {
+			return fmt.Errorf("bind alpha scalar: %w", err)
+		}
+	}
+	alpha, err := fs.ComputeChallenge("alpha")
+	if err != nil {
+		return fmt.Errorf("compute challenge alpha: %w", err)
+	}
 
 	return nil
 }
