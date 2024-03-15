@@ -10,9 +10,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	fr_secp256k1 "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
-
+	cryptofs "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/bits"
@@ -36,6 +35,7 @@ type ScalarMulCircuit[Base, Scalars emulated.FieldParams] struct {
 
 func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 	var fp B
+	nbInputs := len(c.Points)
 	if len(c.Points) != len(c.Scalars) {
 		return fmt.Errorf("len(inputs) != len(scalars)")
 	}
@@ -61,7 +61,7 @@ func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 		return fmt.Errorf("new transcript: %w", err)
 	}
 	// compute the all double-and-add steps for each scalar multiplication
-	var results, accs []ProjectivePoint[B]
+	// var results, accs []ProjectivePoint[B]
 	for i := range c.Points {
 		if err := fs.Bind("alpha", curve.MarshalScalar(c.Scalars[i])); err != nil {
 			return fmt.Errorf("bind scalar %d alpha: %w", i, err)
@@ -69,13 +69,12 @@ func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 		if err := fs.Bind("alpha", curve.MarshalG1(c.Points[i])); err != nil {
 			return fmt.Errorf("bind point %d alpha: %w", i, err)
 		}
-		result, acc, err := callHintScalarMulSteps[B, S](api, baseApi, scalarApi, c.nbScalarBits, c.Points[i], c.Scalars[i])
-		if err != nil {
-			return fmt.Errorf("hint scalar mul steps: %w", err)
-		}
-		results = append(results, result...)
-		accs = append(accs, acc...)
 	}
+	result, acc, err := callHintScalarMulSteps[B, S](api, baseApi, scalarApi, c.nbScalarBits, c.Points, c.Scalars)
+	if err != nil {
+		return fmt.Errorf("hint scalar mul steps: %w", err)
+	}
+
 	// derive the randomness for random linear combination
 	alphaNative, err := fs.ComputeChallenge("alpha")
 	if err != nil {
@@ -87,17 +86,19 @@ func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 	alpha3 := baseApi.Mul(alpha1, alpha2)
 	alpha4 := baseApi.Mul(alpha1, alpha3)
 	alpha5 := baseApi.Mul(alpha1, alpha4)
-	claimed := make([]*emulated.Element[B], len(results))
+	claimed := make([]*emulated.Element[B], nbInputs*c.nbScalarBits)
 	// compute the random linear combinations of the intermediate results provided by the hint
-	for i := range results {
-		claimed[i] = baseApi.Sum(
-			&accs[i].X,
-			baseApi.MulNoReduce(alpha1, &accs[i].Y),
-			baseApi.MulNoReduce(alpha2, &accs[i].Z),
-			baseApi.MulNoReduce(alpha3, &results[i].X),
-			baseApi.MulNoReduce(alpha4, &results[i].Y),
-			baseApi.MulNoReduce(alpha5, &results[i].Z),
-		)
+	for i := 0; i < nbInputs; i++ {
+		for j := 0; j < c.nbScalarBits; j++ {
+			claimed[i*c.nbScalarBits+j] = baseApi.Sum(
+				&acc[i][j].X,
+				baseApi.MulNoReduce(alpha1, &acc[i][j].Y),
+				baseApi.MulNoReduce(alpha2, &acc[i][j].Z),
+				baseApi.MulNoReduce(alpha3, &result[i][j].X),
+				baseApi.MulNoReduce(alpha4, &result[i][j].Y),
+				baseApi.MulNoReduce(alpha5, &result[i][j].Z),
+			)
+		}
 	}
 	// derive the randomness for folding
 	betaNative, err := fs.ComputeChallenge("beta")
@@ -125,111 +126,147 @@ func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 func callHintScalarMulSteps[B, S emulated.FieldParams](api frontend.API,
 	baseApi *emulated.Field[B], scalarApi *emulated.Field[S],
 	nbScalarBits int,
-	point sw_emulated.AffinePoint[B], scalar emulated.Element[S]) (results []ProjectivePoint[B], accumulators []ProjectivePoint[B], err error) {
+	points []sw_emulated.AffinePoint[B], scalars []emulated.Element[S]) (results [][]ProjectivePoint[B], accumulators [][]ProjectivePoint[B], err error) {
 	var fp B
 	var fr S
-	inputs := []frontend.Variable{fp.BitsPerLimb(), fp.NbLimbs()}
+	nbInputs := len(points)
+	inputs := []frontend.Variable{nbInputs, fp.BitsPerLimb(), fp.NbLimbs(), fr.BitsPerLimb(), fr.NbLimbs()}
 	inputs = append(inputs, baseApi.Modulus().Limbs...)
-	inputs = append(inputs, point.X.Limbs...)
-	inputs = append(inputs, point.Y.Limbs...)
-	inputs = append(inputs, fr.BitsPerLimb(), fr.NbLimbs())
 	inputs = append(inputs, scalarApi.Modulus().Limbs...)
-	inputs = append(inputs, scalar.Limbs...)
-	nbRes := nbScalarBits * int(fp.NbLimbs()) * 6
+	for i := range points {
+		inputs = append(inputs, points[i].X.Limbs...)
+		inputs = append(inputs, points[i].Y.Limbs...)
+		inputs = append(inputs, scalars[i].Limbs...)
+	}
+	nbRes := nbScalarBits * int(fp.NbLimbs()) * 6 * nbInputs
 	hintRes, err := api.Compiler().NewHint(hintScalarMulSteps, nbRes, inputs...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("new hint: %w", err)
 	}
-	res := make([]ProjectivePoint[B], nbScalarBits)
-	acc := make([]ProjectivePoint[B], nbScalarBits)
-	for i := range res {
-		coords := make([]*emulated.Element[B], 6)
-		for j := range coords {
-			limbs := hintRes[i*(6*int(fp.NbLimbs()))+j*int(fp.NbLimbs()) : i*(6*int(fp.NbLimbs()))+(j+1)*int(fp.NbLimbs())]
-			coords[j] = baseApi.NewElement(limbs)
-		}
-		res[i] = ProjectivePoint[B]{
-			X: *coords[0],
-			Y: *coords[1],
-			Z: *coords[2],
-		}
-		acc[i] = ProjectivePoint[B]{
-			X: *coords[3],
-			Y: *coords[4],
-			Z: *coords[5],
+	res := make([][]ProjectivePoint[B], nbInputs)
+	acc := make([][]ProjectivePoint[B], nbInputs)
+	for i := 0; i < nbInputs; i++ {
+		res[i] = make([]ProjectivePoint[B], nbScalarBits)
+		acc[i] = make([]ProjectivePoint[B], nbScalarBits)
+	}
+	for i := 0; i < nbInputs; i++ {
+		inputRes := hintRes[i*(6*int(fp.NbLimbs())*nbScalarBits) : (i+1)*(6*int(fp.NbLimbs())*nbScalarBits)]
+		for j := 0; j < nbScalarBits; j++ {
+			coords := make([]*emulated.Element[B], 6)
+			for k := range coords {
+				limbs := inputRes[j*(6*int(fp.NbLimbs()))+k*int(fp.NbLimbs()) : j*(6*int(fp.NbLimbs()))+(k+1)*int(fp.NbLimbs())]
+				coords[k] = baseApi.NewElement(limbs)
+			}
+			res[i][j] = ProjectivePoint[B]{
+				X: *coords[0],
+				Y: *coords[1],
+				Z: *coords[2],
+			}
+			acc[i][j] = ProjectivePoint[B]{
+				X: *coords[3],
+				Y: *coords[4],
+				Z: *coords[5],
+			}
 		}
 	}
 	return res, acc, nil
 }
 
 func hintScalarMulSteps(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	nbBits := int(inputs[0].Int64())
-	nbLimbs := int(inputs[1].Int64())
-	fpLimbs := inputs[2 : 2+nbLimbs]
-	xLimbs := inputs[2+nbLimbs : 2+2*nbLimbs]
-	yLimbs := inputs[2+2*nbLimbs : 2+3*nbLimbs]
-	nbScalarBits := int(inputs[2+3*nbLimbs].Int64())
-	nbScalarLimbs := int(inputs[3+3*nbLimbs].Int64())
-	frLimbs := inputs[4+3*nbLimbs : 4+3*nbLimbs+nbScalarLimbs]
-	scalarLimbs := inputs[4+3*nbLimbs+nbScalarLimbs : 4+3*nbLimbs+2*nbScalarLimbs]
-
-	x := new(big.Int)
-	y := new(big.Int)
+	nbInputs := int(inputs[0].Int64())
+	nbBits := int(inputs[1].Int64())
+	nbLimbs := int(inputs[2].Int64())
+	nbScalarBits := int(inputs[3].Int64())
+	nbScalarLimbs := int(inputs[4].Int64())
+	fpLimbs := inputs[5 : 5+nbLimbs]
+	frLimbs := inputs[5+nbLimbs : 5+nbLimbs+nbScalarLimbs]
 	fp := new(big.Int)
 	fr := new(big.Int)
-	scalar := new(big.Int)
 	if err := recompose(fpLimbs, uint(nbBits), fp); err != nil {
 		return fmt.Errorf("recompose fp: %w", err)
 	}
 	if err := recompose(frLimbs, uint(nbScalarBits), fr); err != nil {
 		return fmt.Errorf("recompose fr: %w", err)
 	}
-	if err := recompose(xLimbs, uint(nbBits), x); err != nil {
-		return fmt.Errorf("recompose x: %w", err)
-	}
-	if err := recompose(yLimbs, uint(nbBits), y); err != nil {
-		return fmt.Errorf("recompose y: %w", err)
-	}
-	if err := recompose(scalarLimbs, uint(nbScalarBits), scalar); err != nil {
-		return fmt.Errorf("recompose scalar: %w", err)
+	ptr := 5 + nbLimbs + nbScalarLimbs
+	xs := make([]*big.Int, nbInputs)
+	ys := make([]*big.Int, nbInputs)
+	scalars := make([]*big.Int, nbInputs)
+	for i := 0; i < nbInputs; i++ {
+		xLimbs := inputs[ptr : ptr+nbLimbs]
+		ptr += nbLimbs
+		yLimbs := inputs[ptr : ptr+nbLimbs]
+		ptr += nbLimbs
+		scalarLimbs := inputs[ptr : ptr+nbScalarLimbs]
+		ptr += nbScalarLimbs
+		xs[i] = new(big.Int)
+		ys[i] = new(big.Int)
+		scalars[i] = new(big.Int)
+		if err := recompose(xLimbs, uint(nbBits), xs[i]); err != nil {
+			return fmt.Errorf("recompose x: %w", err)
+		}
+		if err := recompose(yLimbs, uint(nbBits), ys[i]); err != nil {
+			return fmt.Errorf("recompose y: %w", err)
+		}
+		if err := recompose(scalarLimbs, uint(nbScalarBits), scalars[i]); err != nil {
+			return fmt.Errorf("recompose scalar: %w", err)
+		}
 	}
 
-	scalarLength := len(outputs) / (6 * nbLimbs)
-	accX := new(big.Int).Set(x)
-	accY := new(big.Int).Set(y)
-	accZ := big.NewInt(1)
-	resultX := big.NewInt(0)
-	resultY := big.NewInt(1)
-	resultZ := big.NewInt(0)
+	scalarLength := len(outputs) / (6 * nbLimbs * nbInputs)
 	api := newBigIntEngine(fp)
 	selector := new(big.Int)
-
-	for i := 0; i < scalarLength; i++ {
-		// selector := scalar.And()
-		selector.And(scalar, big.NewInt(1))
-		scalar.Rsh(scalar, 1)
-		tmpX, tmpY, tmpZ := projAdd(api, accX, accY, accZ, resultX, resultY, resultZ)
-		resultX, resultY, resultZ = projSelect(api, selector, tmpX, tmpY, tmpZ, resultX, resultY, resultZ)
-		accX, accY, accZ = projDbl(api, accX, accY, accZ)
-		if err := decompose(resultX, uint(nbBits), outputs[i*6*nbLimbs:i*6*nbLimbs+nbLimbs]); err != nil {
-			return fmt.Errorf("decompose resultX: %w", err)
-		}
-		if err := decompose(resultY, uint(nbBits), outputs[i*6*nbLimbs+nbLimbs:i*6*nbLimbs+2*nbLimbs]); err != nil {
-			return fmt.Errorf("decompose resultY: %w", err)
-		}
-		if err := decompose(resultZ, uint(nbBits), outputs[i*6*nbLimbs+2*nbLimbs:i*6*nbLimbs+3*nbLimbs]); err != nil {
-			return fmt.Errorf("decompose resultZ: %w", err)
-		}
-		if err := decompose(accX, uint(nbBits), outputs[i*6*nbLimbs+3*nbLimbs:i*6*nbLimbs+4*nbLimbs]); err != nil {
-			return fmt.Errorf("decompose accX: %w", err)
-		}
-		if err := decompose(accY, uint(nbBits), outputs[i*6*nbLimbs+4*nbLimbs:i*6*nbLimbs+5*nbLimbs]); err != nil {
-			return fmt.Errorf("decompose accY: %w", err)
-		}
-		if err := decompose(accZ, uint(nbBits), outputs[i*6*nbLimbs+5*nbLimbs:(i+1)*6*nbLimbs]); err != nil {
-			return fmt.Errorf("decompose accZ: %w", err)
+	outPtr := 0
+	for i := 0; i < nbInputs; i++ {
+		scalar := scalars[i]
+		x := xs[i]
+		y := ys[i]
+		accX := new(big.Int).Set(x)
+		accY := new(big.Int).Set(y)
+		accZ := big.NewInt(1)
+		resultX := big.NewInt(0)
+		resultY := big.NewInt(1)
+		resultZ := big.NewInt(0)
+		for j := 0; j < scalarLength; j++ {
+			selector.And(scalar, big.NewInt(1))
+			scalar.Rsh(scalar, 1)
+			tmpX, tmpY, tmpZ := projAdd(api, accX, accY, accZ, resultX, resultY, resultZ)
+			resultX, resultY, resultZ = projSelect(api, selector, tmpX, tmpY, tmpZ, resultX, resultY, resultZ)
+			accX, accY, accZ = projDbl(api, accX, accY, accZ)
+			if err := decompose(resultX, uint(nbBits), outputs[outPtr:outPtr+nbLimbs]); err != nil {
+				return fmt.Errorf("decompose resultX: %w", err)
+			}
+			outPtr += nbLimbs
+			if err := decompose(resultY, uint(nbBits), outputs[outPtr:outPtr+nbLimbs]); err != nil {
+				return fmt.Errorf("decompose resultY: %w", err)
+			}
+			outPtr += nbLimbs
+			if err := decompose(resultZ, uint(nbBits), outputs[outPtr:outPtr+nbLimbs]); err != nil {
+				return fmt.Errorf("decompose resultZ: %w", err)
+			}
+			outPtr += nbLimbs
+			if err := decompose(accX, uint(nbBits), outputs[outPtr:outPtr+nbLimbs]); err != nil {
+				return fmt.Errorf("decompose accX: %w", err)
+			}
+			outPtr += nbLimbs
+			if err := decompose(accY, uint(nbBits), outputs[outPtr:outPtr+nbLimbs]); err != nil {
+				return fmt.Errorf("decompose accY: %w", err)
+			}
+			outPtr += nbLimbs
+			if err := decompose(accZ, uint(nbBits), outputs[outPtr:outPtr+nbLimbs]); err != nil {
+				return fmt.Errorf("decompose accZ: %w", err)
+			}
+			outPtr += nbLimbs
 		}
 	}
+
+	// now, we construct the sumcheck proof
+	h, err := recursion.NewShort(mod, fp)
+	if err != nil {
+		return fmt.Errorf("new short hash: %w", err)
+	}
+	fs := cryptofs.NewTranscript(h, "alpha", "beta")
+	_ = fs
 
 	return nil
 }
