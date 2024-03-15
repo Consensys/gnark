@@ -578,9 +578,19 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
 		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
 	}
+
+	// We use the endomorphism à la GLV to compute [s]Q as
+	// 		[s1]Q + [s2]Φ(Q)
+	//
+	// The context we are working is based on the `outer` curve. However, the
+	// points and the operations on the points are performed on the `inner`
+	// curve of the outer curve. We require some parameters from the inner
+	// curve.
 	cc := getInnerCurveConfig(api.Compiler().Field())
-	nbits := cc.lambda.BitLen() + 1
-	var Acc /*accumulator*/, B, B2 /*tmp vars*/ G1Affine
+
+	// For BLS12 λ bitsize is 127 equal to half of r bitsize
+	nbits := cc.lambda.BitLen()
+
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]G1Affine
 	tableQ[1] = Q
@@ -588,45 +598,48 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 	cc.phi1(api, &tablePhiQ[1], &Q)
 	tablePhiQ[0].Neg(api, tablePhiQ[1])
 
-	// We now initialize the accumulator. Due to the way the scalar is
-	// decomposed, either the high bits of s1 or s2 are set and we can use the
-	// incomplete addition laws.
+	// we suppose that the first bits of the sub-scalars are 1 and set:
+	// 		Acc = Q + Φ(Q) = -Φ²(Q)
+	var Acc, B G1Affine
+	cc.phi2Neg(api, &Acc, &Q)
 
-	//     Acc = Q + Φ(Q)
-	Acc = tableQ[1]
-	Acc.AddAssign(api, tablePhiQ[1])
+	// At each iteration we need to compute:
+	// 		[2]Acc ± Q ± Φ(Q).
+	// We can compute [2]Acc and look up the (precomputed) point B from:
+	// 		B1 = +Q + Φ(Q)
+	B1 := Acc
+	// 		B2 = -Q - Φ(Q)
+	B2 := G1Affine{}
+	B2.Neg(api, B1)
+	// 		B3 = +Q - Φ(Q)
+	B3 := tableQ[1]
+	B3.AddAssign(api, tablePhiQ[0])
+	// 		B4 = -Q + Φ(Q)
+	B4 := G1Affine{}
+	B4.Neg(api, B3)
+	//
+	// Note that half the points are negatives of the other half,
+	// hence have the same X coordinates.
 
-	// However, we can not directly add step value conditionally as we may get
-	// to incomplete path of the addition formula. We either add or subtract
-	// step value from [2] Acc (instead of conditionally adding step value to
-	// Acc):
-	//     Acc = [2] (Q + Φ(Q)) ± Q ± Φ(Q)
-	// only y coordinate differs for negation, select on that instead.
-	B.X = tableQ[0].X
-	B.Y = api.Select(s1bits[nbits-1], tableQ[1].Y, tableQ[0].Y)
-	Acc.DoubleAndAdd(api, &Acc, &B)
-	B.X = tablePhiQ[0].X
-	B.Y = api.Select(s2bits[nbits-1], tablePhiQ[1].Y, tablePhiQ[0].Y)
-	Acc.AddAssign(api, B)
+	// However when doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen
+	// that Acc==B or -B. So we add the base point G to it to avoid incomplete
+	// additions in the loop by forcing Acc to be different than the stored B.
+	// However now we need at the end to subtract [2^nbits]G (harcoded) from
+	// the result.
+	//
+	// Acc = Q + Φ(Q) + G
+	points := getCurvePoints()
+	Acc.AddAssign(api, G1Affine{X: points.G1x, Y: points.G1y})
 
-	// second bit
-	B.X = tableQ[0].X
-	B.Y = api.Select(s1bits[nbits-2], tableQ[1].Y, tableQ[0].Y)
-	Acc.DoubleAndAdd(api, &Acc, &B)
-	B.X = tablePhiQ[0].X
-	B.Y = api.Select(s2bits[nbits-2], tablePhiQ[1].Y, tablePhiQ[0].Y)
-	Acc.AddAssign(api, B)
-
-	B2.X = tablePhiQ[0].X
-	for i := nbits - 3; i > 0; i-- {
-		B.X = Q.X
-		B.Y = api.Select(s1bits[i], tableQ[1].Y, tableQ[0].Y)
-		B2.Y = api.Select(s2bits[i], tablePhiQ[1].Y, tablePhiQ[0].Y)
-		B.AddAssign(api, B2)
+	for i := nbits - 1; i > 0; i-- {
+		B.X = api.Select(api.Xor(s1bits[i], s2bits[i]), B3.X, B2.X)
+		B.Y = api.Lookup2(s1bits[i], s2bits[i], B2.Y, B3.Y, B4.Y, B1.Y)
+		// Acc = [2]Acc + B
 		Acc.DoubleAndAdd(api, &Acc, &B)
 	}
 
 	// i = 0
+	// subtract the Q, R, Φ(Q), Φ(R) if the first bits are 0.
 	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
 	if cfg.CompleteArithmetic {
@@ -640,6 +653,19 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 		Acc.Select(api, s1bits[0], Acc, tableQ[0])
 		tablePhiQ[0].AddAssign(api, Acc)
 		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	}
+
+	// subtract [2^nbits]G since we added G at the beginning
+	B.X = points.G1m[nbits-1][0]
+	B.Y = api.Neg(points.G1m[nbits-1][1])
+	if cfg.CompleteArithmetic {
+		Acc.AddUnified(api, B)
+	} else {
+		Acc.AddAssign(api, B)
+	}
+
+	if cfg.CompleteArithmetic {
+		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
 	}
 
 	P.X = Acc.X
