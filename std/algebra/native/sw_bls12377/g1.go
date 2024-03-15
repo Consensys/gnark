@@ -219,7 +219,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
 	// where λ is third root of one in 𝔽_r.
-	sd, err := api.Compiler().NewHint(decomposeScalarG1, 2, s)
+	sd, err := api.Compiler().NewHint(decomposeScalarG1Simple, 2, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -304,7 +304,15 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// subtract [2^nbits]G since we added G at the beginning
 	B.X = points.G1m[nbits-1][0]
 	B.Y = api.Neg(points.G1m[nbits-1][1])
-	Acc.AddAssign(api, B)
+	if cfg.CompleteArithmetic {
+		Acc.AddUnified(api, B)
+	} else {
+		Acc.AddAssign(api, B)
+	}
+
+	if cfg.CompleteArithmetic {
+		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+	}
 
 	P.X = Acc.X
 	P.Y = Acc.Y
