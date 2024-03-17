@@ -70,7 +70,7 @@ func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 			return fmt.Errorf("bind scalar %d alpha: %w", i, err)
 		}
 	}
-	result, acc, err := callHintScalarMulSteps[B, S](api, baseApi, scalarApi, c.nbScalarBits, c.Points, c.Scalars)
+	result, acc, proof, err := callHintScalarMulSteps[B, S](api, baseApi, scalarApi, c.nbScalarBits, c.Points, c.Scalars)
 	if err != nil {
 		return fmt.Errorf("hint scalar mul steps: %w", err)
 	}
@@ -81,22 +81,23 @@ func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 		return fmt.Errorf("compute challenge alpha: %w", err)
 	}
 	alphaBts := bits.ToBinary(api, alphaNative, bits.WithNbDigits(fp.Modulus().BitLen()))
-	alpha1 := baseApi.FromBits(alphaBts...)
-	alpha2 := baseApi.Mul(alpha1, alpha1)
-	alpha3 := baseApi.Mul(alpha1, alpha2)
-	alpha4 := baseApi.Mul(alpha1, alpha3)
-	alpha5 := baseApi.Mul(alpha1, alpha4)
+	alphas := make([]*emulated.Element[B], 6)
+	alphas[0] = baseApi.One()
+	alphas[1] = baseApi.FromBits(alphaBts...)
+	for i := 2; i < len(alphas); i++ {
+		alphas[i] = baseApi.Mul(alphas[i-1], alphas[1])
+	}
 	claimed := make([]*emulated.Element[B], nbInputs*c.nbScalarBits)
 	// compute the random linear combinations of the intermediate results provided by the hint
 	for i := 0; i < nbInputs; i++ {
 		for j := 0; j < c.nbScalarBits; j++ {
 			claimed[i*c.nbScalarBits+j] = baseApi.Sum(
 				&acc[i][j].X,
-				baseApi.MulNoReduce(alpha1, &acc[i][j].Y),
-				baseApi.MulNoReduce(alpha2, &acc[i][j].Z),
-				baseApi.MulNoReduce(alpha3, &result[i][j].X),
-				baseApi.MulNoReduce(alpha4, &result[i][j].Y),
-				baseApi.MulNoReduce(alpha5, &result[i][j].Z),
+				baseApi.MulNoReduce(alphas[1], &acc[i][j].Y),
+				baseApi.MulNoReduce(alphas[2], &acc[i][j].Z),
+				baseApi.MulNoReduce(alphas[3], &result[i][j].X),
+				baseApi.MulNoReduce(alphas[4], &result[i][j].Y),
+				baseApi.MulNoReduce(alphas[5], &result[i][j].Z),
 			)
 		}
 	}
@@ -113,12 +114,38 @@ func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 	}
 	// compute the polynomial evaluation
 	claimedPoly := polynomial.FromSliceReferences(claimed)
-	claim, err := poly.EvalMultilinear(evalPoints, claimedPoly)
+	evaluation, err := poly.EvalMultilinear(evalPoints, claimedPoly)
 	if err != nil {
 		return fmt.Errorf("eval multilinear: %w", err)
 	}
+	fmt.Printf("claim: %s\n", baseApi.String(evaluation))
 
-	_ = claim
+	inputs := make([][]*emulated.Element[B], 7)
+	for i := range inputs {
+		inputs[i] = make([]*emulated.Element[B], nbInputs*c.nbScalarBits)
+	}
+	for i := 0; i < nbInputs; i++ {
+		scalarBts := scalarApi.ToBits(&c.Scalars[i])
+		for j := 0; j < c.nbScalarBits; j++ {
+			inputs[0][i*c.nbScalarBits+j] = &acc[i][j].X
+			inputs[1][i*c.nbScalarBits+j] = &acc[i][j].Y
+			inputs[2][i*c.nbScalarBits+j] = &acc[i][j].Z
+			inputs[3][i*c.nbScalarBits+j] = &result[i][j].X
+			inputs[4][i*c.nbScalarBits+j] = &result[i][j].Y
+			inputs[5][i*c.nbScalarBits+j] = &result[i][j].Z
+			inputs[6][i*c.nbScalarBits+j] = baseApi.NewElement(scalarBts[j])
+		}
+	}
+	gate := dblAddSelectGate[*emuEngine[B], *emulated.Element[B]]{folding: alphas}
+	claim, err := newGate[B](api, gate, inputs, [][]*emulated.Element[B]{evalPoints}, []*emulated.Element[B]{evaluation})
+	v, err := NewVerifier[B](api)
+	if err != nil {
+		return fmt.Errorf("new sumcheck verifier: %w", err)
+	}
+	if err = v.Verify(claim, proof); err != nil {
+		return fmt.Errorf("verify sumcheck: %w", err)
+	}
+	_ = evaluation
 
 	return nil
 }
@@ -126,7 +153,7 @@ func (c *ScalarMulCircuit[B, S]) Define(api frontend.API) error {
 func callHintScalarMulSteps[B, S emulated.FieldParams](api frontend.API,
 	baseApi *emulated.Field[B], scalarApi *emulated.Field[S],
 	nbScalarBits int,
-	points []sw_emulated.AffinePoint[B], scalars []emulated.Element[S]) (results [][]ProjectivePoint[B], accumulators [][]ProjectivePoint[B], err error) {
+	points []sw_emulated.AffinePoint[B], scalars []emulated.Element[S]) (results [][]ProjectivePoint[B], accumulators [][]ProjectivePoint[B], proof Proof[B], err error) {
 	var fp B
 	var fr S
 	nbInputs := len(points)
@@ -138,10 +165,13 @@ func callHintScalarMulSteps[B, S emulated.FieldParams](api frontend.API,
 		inputs = append(inputs, points[i].Y.Limbs...)
 		inputs = append(inputs, scalars[i].Limbs...)
 	}
+	// steps part
 	nbRes := nbScalarBits * int(fp.NbLimbs()) * 6 * nbInputs
+	// proof part
+	nbRes += int(fp.NbLimbs()) * (stdbits.Len(uint(nbInputs*nbScalarBits)) - 1) * (dblAddSelectGate[*noopEngine, element]{}.Degree() + 1)
 	hintRes, err := api.Compiler().NewHint(hintScalarMulSteps, nbRes, inputs...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("new hint: %w", err)
+		return nil, nil, proof, fmt.Errorf("new hint: %w", err)
 	}
 	res := make([][]ProjectivePoint[B], nbInputs)
 	acc := make([][]ProjectivePoint[B], nbInputs)
@@ -169,7 +199,18 @@ func callHintScalarMulSteps[B, S emulated.FieldParams](api frontend.API,
 			}
 		}
 	}
-	return res, acc, nil
+	proof.RoundPolyEvaluations = make([]polynomial.Univariate[B], stdbits.Len(uint(nbInputs*nbScalarBits))-1)
+	ptr := nbInputs * 6 * int(fp.NbLimbs()) * nbScalarBits
+	for i := range proof.RoundPolyEvaluations {
+		proof.RoundPolyEvaluations[i] = make(polynomial.Univariate[B], dblAddSelectGate[*noopEngine, element]{}.Degree()+1)
+		for j := range proof.RoundPolyEvaluations[i] {
+			limbs := hintRes[ptr : ptr+int(fp.NbLimbs())]
+			el := baseApi.NewElement(limbs)
+			proof.RoundPolyEvaluations[i][j] = *el
+			ptr += int(fp.NbLimbs())
+		}
+	}
+	return res, acc, proof, nil
 }
 
 func hintScalarMulSteps(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
@@ -224,6 +265,10 @@ func hintScalarMulSteps(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	api := newBigIntEngine(fp)
 	selector := new(big.Int)
 	outPtr := 0
+	proofInput := make([][]*big.Int, 7)
+	for i := range proofInput {
+		proofInput[i] = make([]*big.Int, nbInputs*scalarLength)
+	}
 	for i := 0; i < nbInputs; i++ {
 		scalar := new(big.Int).Set(scalars[i])
 		x := xs[i]
@@ -237,6 +282,13 @@ func hintScalarMulSteps(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 		for j := 0; j < scalarLength; j++ {
 			selector.And(scalar, big.NewInt(1))
 			scalar.Rsh(scalar, 1)
+			proofInput[0][i*scalarLength+j] = new(big.Int).Set(accX)
+			proofInput[1][i*scalarLength+j] = new(big.Int).Set(accY)
+			proofInput[2][i*scalarLength+j] = new(big.Int).Set(accZ)
+			proofInput[3][i*scalarLength+j] = new(big.Int).Set(resultX)
+			proofInput[4][i*scalarLength+j] = new(big.Int).Set(resultY)
+			proofInput[5][i*scalarLength+j] = new(big.Int).Set(resultZ)
+			proofInput[6][i*scalarLength+j] = new(big.Int).Set(selector)
 			tmpX, tmpY, tmpZ := projAdd(api, accX, accY, accZ, resultX, resultY, resultZ)
 			resultX, resultY, resultZ = projSelect(api, selector, tmpX, tmpY, tmpZ, resultX, resultY, resultZ)
 			accX, accY, accZ = projDbl(api, accX, accY, accZ)
@@ -289,11 +341,49 @@ func hintScalarMulSteps(mod *big.Int, inputs []*big.Int, outputs []*big.Int) err
 			return fmt.Errorf("bind alpha scalar: %w", err)
 		}
 	}
+	// challenges.
+	// alpha is used for the random linear combination of the double-and-add
 	alpha, err := fs.ComputeChallenge("alpha")
 	if err != nil {
 		return fmt.Errorf("compute challenge alpha: %w", err)
 	}
+	alphas := make([]*big.Int, 6)
+	alphas[0] = big.NewInt(1)
+	alphas[1] = new(big.Int).SetBytes(alpha)
+	for i := 2; i < len(alphas); i++ {
+		alphas[i] = new(big.Int).Mul(alphas[i-1], alphas[1])
+	}
 
+	// beta is used for the claim polynomial evaluation
+	beta, err := fs.ComputeChallenge("beta")
+	if err != nil {
+		return fmt.Errorf("compute challenge beta: %w", err)
+	}
+	betas := make([]*big.Int, stdbits.Len(uint(nbInputs*scalarLength))-1)
+	betas[0] = new(big.Int).SetBytes(beta)
+	for i := 1; i < len(betas); i++ {
+		betas[i] = new(big.Int).Mul(betas[i-1], betas[0])
+	}
+
+	nativeGate := dblAddSelectGate[*bigIntEngine, *big.Int]{folding: alphas}
+	claim, evals, err := newNativeGate(fp, nativeGate, proofInput, [][]*big.Int{betas})
+	if err != nil {
+		return fmt.Errorf("new native gate: %w", err)
+	}
+	proof, err := prove(mod, fp, claim)
+	if err != nil {
+		return fmt.Errorf("prove: %w", err)
+	}
+	for _, pl := range proof.RoundPolyEvaluations {
+		for j := range pl {
+			if err := decompose(pl[j], uint(nbBits), outputs[outPtr:outPtr+nbLimbs]); err != nil {
+				return fmt.Errorf("decompose claim: %w", err)
+			}
+			outPtr += nbLimbs
+		}
+	}
+	// verifier computes the evaluation itself for consistency
+	_ = evals
 	return nil
 }
 
