@@ -198,7 +198,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	}
 	s1, s2 := sd[0], sd[1]
 
-	// s1 + λ * s2 == s mod r,
+	// s1 + λ * s2 == s mod r
 	api.AssertIsEqual(
 		api.Add(s1, api.Mul(s2, cc.lambda)),
 		api.Add(s, api.Mul(cc.fr, sd[2])),
