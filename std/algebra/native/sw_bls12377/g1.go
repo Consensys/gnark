@@ -268,14 +268,17 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// hence have the same X coordinates.
 
 	// However when doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen
-	// that Acc==B or -B. So we add the base point G to it to avoid incomplete
-	// additions in the loop by forcing Acc to be different than the stored B.
-	// However now we need at the end to subtract [2^nbits]G (harcoded) from
-	// the result.
+	// that Acc==B or -B. So we add the point H=(0,1) on BLS12-377 of order 2
+	// to it to avoid incomplete additions in the loop by forcing Acc to be
+	// different than the stored B.  Normally, the point H should be "killed
+	// out" by the first doubling in the loop and the result will remain
+	// unchanged. However, we are using affine coordinates that do not encode
+	// the infinity point. Given the affine formulae, doubling (0,1) results in
+	// (0,-1). Since the loop size N=nbits-1 is even we need to subtract
+	// [2^N]H = (0,1) from the result at the end.
 	//
-	// Acc = Q + Φ(Q) + G
-	points := getCurvePoints()
-	Acc.AddAssign(api, G1Affine{X: points.G1x, Y: points.G1y})
+	// Acc = Q + Φ(Q) + H
+	Acc.AddAssign(api, G1Affine{X: 0, Y: 1})
 
 	for i := nbits - 1; i > 0; i-- {
 		B.X = api.Select(api.Xor(s1bits[i], s2bits[i]), B3.X, B2.X)
@@ -301,17 +304,13 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
 	}
 
-	// subtract [2^nbits]G since we added G at the beginning
-	B.X = points.G1m[nbits-1][0]
-	B.Y = api.Neg(points.G1m[nbits-1][1])
 	if cfg.CompleteArithmetic {
-		Acc.AddUnified(api, B)
-	} else {
-		Acc.AddAssign(api, B)
-	}
-
-	if cfg.CompleteArithmetic {
+		// subtract [2^N]G = (0,1) since we added H at the beginning
+		Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
 		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+	} else {
+		// subtract [2^N]G = (0,1) since we added H at the beginning
+		Acc.AddAssign(api, G1Affine{X: 0, Y: -1})
 	}
 
 	P.X = Acc.X
@@ -565,7 +564,7 @@ func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t fr
 	return P
 }
 
-// scalarBitsMul computes s * p and returns it where sBits is the bit decomposition of s. It doesn't modify p nor sBits.
+// scalarBitsMul computes [s]Q and returns it where sBits is the bit decomposition of s. It doesn't modify Q nor sBits.
 // The method is similar to varScalarMul.
 func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
 	cfg, err := algopts.NewConfig(opts...)
@@ -622,14 +621,17 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 	// hence have the same X coordinates.
 
 	// However when doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen
-	// that Acc==B or -B. So we add the base point G to it to avoid incomplete
-	// additions in the loop by forcing Acc to be different than the stored B.
-	// However now we need at the end to subtract [2^nbits]G (harcoded) from
-	// the result.
+	// that Acc==B or -B. So we add the point H=(0,1) on BLS12-377 of order 2
+	// to it to avoid incomplete additions in the loop by forcing Acc to be
+	// different than the stored B.  Normally, the point H should be "killed
+	// out" by the first doubling in the loop and the result will remain
+	// unchanged. However, we are using affine coordinates that do not encode
+	// the infinity point. Given the affine formulae, doubling (0,1) results in
+	// (0,-1). Since the loop size N=nbits-1 is even we need to subtract
+	// [2^N]H = (0,1) from the result at the end.
 	//
-	// Acc = Q + Φ(Q) + G
-	points := getCurvePoints()
-	Acc.AddAssign(api, G1Affine{X: points.G1x, Y: points.G1y})
+	// Acc = Q + Φ(Q) + H
+	Acc.AddAssign(api, G1Affine{X: 0, Y: 1})
 
 	for i := nbits - 1; i > 0; i-- {
 		B.X = api.Select(api.Xor(s1bits[i], s2bits[i]), B3.X, B2.X)
@@ -655,17 +657,14 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
 	}
 
-	// subtract [2^nbits]G since we added G at the beginning
-	B.X = points.G1m[nbits-1][0]
-	B.Y = api.Neg(points.G1m[nbits-1][1])
 	if cfg.CompleteArithmetic {
-		Acc.AddUnified(api, B)
-	} else {
-		Acc.AddAssign(api, B)
-	}
-
-	if cfg.CompleteArithmetic {
+		// subtract [2^N]G = (0,1) since we added H at the beginning
+		Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
 		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+	} else {
+		// subtract [2^N]G = (0,1) since we added H at the beginning
+		Acc.AddAssign(api, G1Affine{X: 0, Y: -1})
+
 	}
 
 	P.X = Acc.X
