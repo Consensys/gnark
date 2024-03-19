@@ -62,7 +62,7 @@ func (c *evalMultiLinCircuit[FR]) Define(api frontend.API) error {
 	}
 	// M := polynomial.FromSlice(c.M)
 	X := FromSlice(c.At)
-	res, err := p.EvalMultilinear(c.M, X)
+	res, err := p.EvalMultilinear(X, c.M)
 	if err != nil {
 		return err
 	}
@@ -201,4 +201,114 @@ func TestInterpolateQuadraticExtension(t *testing.T) {
 	// The polynomial is 1 + 2X + 3X²
 	testInterpolateLDE[emparams.BN254Fr](t, 3, []int64{1, 6, 17}, 34)
 	testInterpolateLDE[emparams.BN254Fr](t, -1, []int64{1, 6, 17}, 2)
+}
+
+type TestPartialMultilinearEvalCircuit[FR emulated.FieldParams] struct {
+	At []emulated.Element[FR] `gnark:",public"`
+}
+
+func (c *TestPartialMultilinearEvalCircuit[FR]) Define(api frontend.API) error {
+	p, err := New[FR](api)
+	if err != nil {
+		return err
+	}
+	f, err := emulated.NewField[FR](api)
+	if err != nil {
+		return err
+	}
+	At := FromSlice(c.At)
+	coefs := p.partialMultilinearEval(At)
+	res := f.Zero()
+	for i := range coefs {
+		res = f.Add(res, coefs[i])
+	}
+	ones := make([]emulated.Element[FR], 1<<len(c.At))
+	for i := range ones {
+		ones[i] = emulated.ValueOf[FR](1)
+	}
+	evaled, err := p.EvalMultilinear(At, ones)
+	if err != nil {
+		return err
+	}
+	f.AssertIsEqual(res, evaled)
+	return nil
+}
+
+func TestPartialMultilinearEval(t *testing.T) {
+	testPartialMultilinearEval[emparams.BN254Fr](t, []int64{2, 3, 4, 5})
+}
+
+func testPartialMultilinearEval[FR emulated.FieldParams](t *testing.T, at []int64) {
+	assert := test.NewAssert(t)
+	atAssignment := make([]emulated.Element[FR], len(at))
+	for i := range at {
+		atAssignment[i] = emulated.ValueOf[FR](at[i])
+	}
+	assignment := &TestPartialMultilinearEvalCircuit[FR]{
+		At: atAssignment,
+	}
+	assert.CheckCircuit(&TestPartialMultilinearEvalCircuit[FR]{At: make([]emulated.Element[FR], len(atAssignment))}, test.WithValidAssignment(assignment))
+}
+
+type TestEvalMultilinear2Circuit[FR emulated.FieldParams] struct {
+	M  []Multilinear[FR]      `gnark:",public"`
+	At []emulated.Element[FR] `gnark:",secret"`
+}
+
+func (c *TestEvalMultilinear2Circuit[FR]) Define(api frontend.API) error {
+	f, err := emulated.NewField[FR](api)
+	if err != nil {
+		return err
+	}
+	p, err := New[FR](api)
+	if err != nil {
+		return err
+	}
+	X := FromSlice(c.At)
+	res2, err := p.EvalMultilinearMany(X, c.M...)
+	if err != nil {
+		return err
+	}
+	for i := range c.M {
+		res, err := p.evalMultilinearOld(c.M[i], X)
+		if err != nil {
+			return err
+		}
+		f.AssertIsEqual(res2[i], res)
+	}
+	return nil
+}
+
+func TestEvalMultiLin2(t *testing.T) {
+	testEvalMultiLin2[emparams.BN254Fr](t)
+}
+
+func testEvalMultiLin2[FR emulated.FieldParams](t *testing.T) {
+	assert := test.NewAssert(t)
+	nbML := 4
+	nbVar := 3
+	nbVals := 1 << nbVar
+
+	M := make([]Multilinear[FR], nbML)
+	for i := range M {
+		M[i] = make([]emulated.Element[FR], nbVals)
+		for j := range M[i] {
+			M[i][j] = emulated.ValueOf[FR](1 + nbML*i + j)
+		}
+	}
+	X := make([]emulated.Element[FR], 3)
+	for i := range X {
+		X[i] = emulated.ValueOf[FR](5 + i)
+	}
+
+	// M = 2 X₀ + X₁ + 1
+	witness := TestEvalMultilinear2Circuit[FR]{
+		M:  M,
+		At: X,
+	}
+	circuit := &TestEvalMultilinear2Circuit[FR]{M: make([]Multilinear[FR], nbML), At: make([]emulated.Element[FR], nbVar)}
+	for i := range circuit.M {
+		circuit.M[i] = make([]emulated.Element[FR], nbVals)
+	}
+	assert.CheckCircuit(circuit, test.WithValidAssignment(&witness))
 }
