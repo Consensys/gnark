@@ -68,8 +68,8 @@ func (e *E2) Add(api frontend.API, e1, e2 E2) *E2 {
 
 // Double e2 elmt
 func (e *E2) Double(api frontend.API, e1 E2) *E2 {
-	e.A0 = api.Add(e1.A0, e1.A0)
-	e.A1 = api.Add(e1.A1, e1.A1)
+	e.A0 = api.Mul(e1.A0, 2)
+	e.A1 = api.Mul(e1.A1, 2)
 	return e
 }
 
