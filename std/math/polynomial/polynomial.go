@@ -156,6 +156,9 @@ func (p *Polynomial[FR]) EvalMultilinearMany(at []*emulated.Element[FR], M ...Mu
 }
 
 func (p *Polynomial[FR]) partialMultilinearEval(at []*emulated.Element[FR]) []*emulated.Element[FR] {
+	if len(at) == 0 {
+		return []*emulated.Element[FR]{p.f.One()}
+	}
 	res := []*emulated.Element[FR]{p.f.Sub(p.f.One(), at[len(at)-1]), at[len(at)-1]}
 	at = at[:len(at)-1]
 	for len(at) > 0 {
