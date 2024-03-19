@@ -277,14 +277,14 @@ func doubleAndAddStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, *lineEvaluation
 	d.Sub(api, p1.X, p2.X)
 	l1.DivUnchecked(api, n, d)
 
-	// x3 =lambda1**2-p1.x-p2.x
-	x3.Square(api, l1).
-		Sub(api, x3, p1.X).
-		Sub(api, x3, p2.X)
+	// x3 =lambda1**2-(p1.x+p2.x)
+	x3.Square(api, l1)
+	n.Add(api, p1.X, p2.X)
+	x3.Sub(api, x3, n)
 
-		// omit y3 computation
+	// omit y3 computation
 
-		// compute line1
+	// compute line1
 	line1.R0 = l1
 	line1.R1.Mul(api, l1, p1.X).Sub(api, line1.R1, p1.Y)
 
@@ -294,10 +294,10 @@ func doubleAndAddStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, *lineEvaluation
 	l2.DivUnchecked(api, n, d)
 	l2.Add(api, l2, l1).Neg(api, l2)
 
-	// compute x4 = lambda2**2-x1-x3
-	x4.Square(api, l2).
-		Sub(api, x4, p1.X).
-		Sub(api, x4, x3)
+	// compute x4 = lambda2**2-(x1+x3)
+	x4.Square(api, l2)
+	n.Add(api, p1.X, x3)
+	x4.Sub(api, x4, n)
 
 	// compute y4 = lambda2*(x1 - x4)-y1
 	y4.Sub(api, p1.X, x4).
@@ -328,9 +328,9 @@ func doubleStep(api frontend.API, p1 *g2AffP) (g2AffP, *lineEvaluation) {
 	l.DivUnchecked(api, n, d)
 
 	// xr = lambda**2-2*p1.x
-	xr.Square(api, l).
-		Sub(api, xr, p1.X).
-		Sub(api, xr, p1.X)
+	xr.Square(api, l)
+	n.MulByFp(api, p1.X, 2)
+	xr.Sub(api, xr, n)
 
 	// yr = lambda*(p.x-xr)-p.y
 	yr.Sub(api, p1.X, xr).
@@ -359,9 +359,9 @@ func linesCompute(api frontend.API, p1, p2 *g2AffP) (*lineEvaluation, *lineEvalu
 	l1.DivUnchecked(api, n, d)
 
 	// x3 =lambda1**2-p1.x-p2.x
-	x3.Square(api, l1).
-		Sub(api, x3, p1.X).
-		Sub(api, x3, p2.X)
+	x3.Square(api, l1)
+	n.Add(api, p1.X, p2.X)
+	x3.Sub(api, x3, n)
 
 	// omit y3 computation
 	// compute line1
