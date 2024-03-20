@@ -3,6 +3,7 @@ package emulated
 import (
 	"crypto/rand"
 	"fmt"
+	"math"
 	"math/big"
 	"reflect"
 	"testing"
@@ -968,5 +969,93 @@ func testSqrt[T FieldParams](t *testing.T) {
 			}
 		}
 		assert.ProverSucceeded(&SqrtCircuit[T]{}, &SqrtCircuit[T]{X: ValueOf[T](X), Expected: ValueOf[T](exp)}, test.WithCurves(testCurve), test.NoSerializationChecks(), test.WithBackends(backend.GROTH16, backend.PLONK))
+	}, testName[T]())
+}
+
+type MulNoReduceCircuit[T FieldParams] struct {
+	A, B, C          Element[T]
+	expectedOverflow uint
+	expectedNbLimbs  int
+}
+
+func (c *MulNoReduceCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	res := f.MulNoReduce(&c.A, &c.B)
+	f.AssertIsEqual(res, &c.C)
+	if res.overflow != c.expectedOverflow {
+		return fmt.Errorf("unexpected overflow: got %d, expected %d", res.overflow, c.expectedOverflow)
+	}
+	if len(res.Limbs) != c.expectedNbLimbs {
+		return fmt.Errorf("unexpected number of limbs: got %d, expected %d", len(res.Limbs), c.expectedNbLimbs)
+	}
+	return nil
+}
+
+func TestMulNoReduce(t *testing.T) {
+	testMulNoReduce[Goldilocks](t)
+	testMulNoReduce[Secp256k1Fp](t)
+	testMulNoReduce[BN254Fp](t)
+}
+
+func testMulNoReduce[T FieldParams](t *testing.T) {
+	var fp T
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		A, _ := rand.Int(rand.Reader, fp.Modulus())
+		B, _ := rand.Int(rand.Reader, fp.Modulus())
+		C := new(big.Int).Mul(A, B)
+		C.Mod(C, fp.Modulus())
+		expectedLimbs := 2*fp.NbLimbs() - 1
+		expectedOverFlow := math.Ceil(math.Log2(float64(expectedLimbs+1))) + float64(fp.BitsPerLimb())
+		circuit := &MulNoReduceCircuit[T]{expectedOverflow: uint(expectedOverFlow), expectedNbLimbs: int(expectedLimbs)}
+		assignment := &MulNoReduceCircuit[T]{A: ValueOf[T](A), B: ValueOf[T](B), C: ValueOf[T](C)}
+		assert.CheckCircuit(circuit, test.WithValidAssignment(assignment))
+	}, testName[T]())
+}
+
+type SumCircuit[T FieldParams] struct {
+	Inputs   []Element[T]
+	Expected Element[T]
+}
+
+func (c *SumCircuit[T]) Define(api frontend.API) error {
+	f, err := NewField[T](api)
+	if err != nil {
+		return err
+	}
+	inputs := make([]*Element[T], len(c.Inputs))
+	for i := range inputs {
+		inputs[i] = &c.Inputs[i]
+	}
+	res := f.Sum(inputs...)
+	f.AssertIsEqual(res, &c.Expected)
+	return nil
+}
+
+func TestSum(t *testing.T) {
+	testSum[Goldilocks](t)
+	testSum[Secp256k1Fp](t)
+	testSum[BN254Fp](t)
+}
+
+func testSum[T FieldParams](t *testing.T) {
+	var fp T
+	nbInputs := 1024
+	assert := test.NewAssert(t)
+	assert.Run(func(assert *test.Assert) {
+		circuit := &SumCircuit[T]{Inputs: make([]Element[T], nbInputs)}
+		inputs := make([]Element[T], nbInputs)
+		result := new(big.Int)
+		for i := range inputs {
+			val, _ := rand.Int(rand.Reader, fp.Modulus())
+			result.Add(result, val)
+			inputs[i] = ValueOf[T](val)
+		}
+		result.Mod(result, fp.Modulus())
+		witness := &SumCircuit[T]{Inputs: inputs, Expected: ValueOf[T](result)}
+		assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
 	}, testName[T]())
 }
