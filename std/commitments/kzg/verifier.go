@@ -424,22 +424,20 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 // commitment at point.
 func (v *Verifier[FR, G1El, G2El, GTEl]) CheckOpeningProof(commitment Commitment[G1El], proof OpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
 
-	claimedValueG1 := v.curve.ScalarMul(&vk.G1, &proof.ClaimedValue)
+	// [f(a)]G1 + [-a]([H(α)]G₁) = [f(a) - a*H(α)]G₁
+	pointNeg := v.scalarApi.Neg(&point)
+	totalG1, err := v.curve.MultiScalarMul([]*G1El{&vk.G1, &proof.Quotient}, []*emulated.Element[FR]{&proof.ClaimedValue, pointNeg})
+	if err != nil {
+		return fmt.Errorf("check opening proof: %w", err)
+	}
 
-	// [f(α) - f(a)]G₁
-	fminusfaG1 := v.curve.Neg(claimedValueG1)
-	fminusfaG1 = v.curve.Add(fminusfaG1, &commitment.G1El)
+	// [f(a) - a*H(α)]G₁ + [-f(α)]G₁  = [f(a) - f(α) - a*H(α)]G₁
+	commitmentNeg := v.curve.Neg(&commitment.G1El)
+	totalG1 = v.curve.Add(totalG1, commitmentNeg)
 
-	// [-H(α)]G₁
-	negQuotientPoly := v.curve.Neg(&proof.Quotient)
-
-	// [f(α) - f(a) + a*H(α)]G₁
-	totalG1 := v.curve.ScalarMul(&proof.Quotient, &point)
-	totalG1 = v.curve.Add(totalG1, fminusfaG1)
-
-	// e([f(α)-f(a)+aH(α)]G₁], G₂).e([-H(α)]G₁, [α]G₂) == 1
+	// e([f(a)-f(α)-a*H(α)]G₁], G₂).e([H(α)]G₁, [α]G₂) == 1
 	if err := v.pairing.PairingCheck(
-		[]*G1El{totalG1, negQuotientPoly},
+		[]*G1El{totalG1, &proof.Quotient},
 		[]*G2El{&vk.G2[0], &vk.G2[1]},
 	); err != nil {
 		return fmt.Errorf("pairing check: %w", err)
