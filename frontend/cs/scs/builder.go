@@ -17,6 +17,7 @@ limitations under the License.
 package scs
 
 import (
+	"fmt"
 	"math/big"
 	"reflect"
 	"sort"
@@ -64,10 +65,6 @@ type builder struct {
 	// see addConstraintExist(...)
 	mAddInstructions map[uint64]int
 
-	// map from wire to column to gate where this wire appears. Used to interleave range
-	// checks with other gates.
-	mRangecheckInterleave map[int]map[int]int
-
 	// frequently used coefficients
 	tOne, tMinusOne constraint.Element
 
@@ -86,13 +83,9 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 		mtBooleans:       make(map[expr.Term]struct{}),
 		mMulInstructions: make(map[uint64]int, config.Capacity/2),
 		mAddInstructions: make(map[uint64]int, config.Capacity/2),
-		mRangecheckInterleave: map[int]map[int]int{
-			0: make(map[int]int, config.Capacity/2),
-			1: make(map[int]int, config.Capacity/2),
-		},
-		config: config,
-		Store:  kvstore.New(),
-		bufL:   make(expr.LinearExpression, 20),
+		config:           config,
+		Store:            kvstore.New(),
+		bufL:             make(expr.LinearExpression, 20),
 	}
 	// init hint buffer.
 	_ = b.hintBuffer(256)
@@ -154,7 +147,6 @@ func (builder *builder) addMulGate(a, b, c expr.Term) {
 	qM := builder.cs.Mul(a.Coeff, b.Coeff)
 	QM := builder.cs.AddCoeff(qM)
 
-	builder.storeWireLocation(a.WireID(), b.WireID())
 	builder.cs.AddSparseR1C(constraint.SparseR1C{
 		XA: uint32(a.VID),
 		XB: uint32(b.VID),
@@ -170,7 +162,6 @@ func (builder *builder) addAddGate(a, b expr.Term, xc uint32, k constraint.Eleme
 	qR := builder.cs.AddCoeff(b.Coeff)
 	qC := builder.cs.AddCoeff(k)
 
-	builder.storeWireLocation(a.WireID(), b.WireID())
 	builder.cs.AddSparseR1C(constraint.SparseR1C{
 		XA: uint32(a.VID),
 		XB: uint32(b.VID),
@@ -210,7 +201,6 @@ func (builder *builder) addPlonkConstraint(c sparseR1C, debugInfo ...constraint.
 	QM := builder.cs.AddCoeff(c.qM)
 	QC := builder.cs.AddCoeff(c.qC)
 
-	builder.storeWireLocation(c.xa, c.xb)
 	cID := builder.cs.AddSparseR1C(constraint.SparseR1C{
 		XA: uint32(c.xa),
 		XB: uint32(c.xb),
@@ -698,38 +688,56 @@ func (builder *builder) ToCanonicalVariable(v frontend.Variable) frontend.Canoni
 	}
 }
 
-func (builder *builder) storeWireLocation(a, b int) {
-	for i, v := range []int{a, b} {
-		if _, ok := builder.mRangecheckInterleave[i][v]; !ok {
-			builder.mRangecheckInterleave[i][v] = builder.cs.GetNbConstraints()
-		}
-	}
-}
-
-func (builder *builder) GetWireGates(wires []frontend.Variable) [2][]int {
-	res := [2][]int{
-		make([]int, 0, len(wires)),
-		make([]int, 0, len(wires)),
-	}
-	existing := make(map[int]struct{})
+// GetWireGates returns the pairs (gateId, wireLocation) for the given wires in
+// the compiled constraint system:
+//   - gateId is the index of the gate in the constraint system.
+//   - wireLocation is the location of the wire in the gate (0=xA or 1=xB).
+//
+// If the argument addMissing is true, then the function will add a new
+// instruction for each wire that is not found in the constraint system. This
+// may happen when getting the gate for a witness which is not used in gates.
+// Otherwise, when addMissing is false, the function returns an error if a wire
+// is not found in the constraint system.
+//
+// The order of the returned pairs is not the same as for the given arguments.
+func (builder *builder) GetWireGates(wires []frontend.Variable, addMissing bool) ([][2]int, error) {
+	// construct a lookup table table for later quick access when iterating over instructions
+	lookup := make(map[int]struct{})
 	for _, w := range wires {
 		ww, ok := w.(expr.Term)
 		if !ok {
-			panic("not Term")
+			panic("input wire is not a Term")
 		}
-		if _, ok := existing[ww.WireID()]; ok {
-			// double check
+		lookup[ww.WireID()] = struct{}{}
+	}
+	res := make([][2]int, 0, len(wires))
+	iterator := builder.cs.GetSparseR1CIterator()
+	for c, gate := iterator.Next(), 0; c != nil; c, gate = iterator.Next(), gate+1 {
+		if _, ok := lookup[int(c.XA)]; ok {
+			res = append(res, [2]int{gate, 0})
+			delete(lookup, int(c.XA))
 			continue
 		}
-		for i := 0; i < 2; i++ {
-			loc, ok := builder.mRangecheckInterleave[i][ww.WireID()]
-			if !ok {
-				continue
-			}
-			res[i] = append(res[i], loc)
-			existing[ww.WireID()] = struct{}{}
-			break
+		if _, ok := lookup[int(c.XB)]; ok {
+			res = append(res, [2]int{gate, 1})
+			delete(lookup, int(c.XB))
+			continue
 		}
 	}
-	return res
+	if addMissing {
+		for k := range lookup {
+			gate := builder.cs.AddSparseR1C(constraint.SparseR1C{
+				XA: uint32(k),
+				XC: uint32(k),
+				QL: constraint.CoeffIdOne,
+				QO: constraint.CoeffIdMinusOne,
+			}, builder.genericGate)
+			res = append(res, [2]int{gate, 0})
+			delete(lookup, k)
+		}
+	}
+	if len(lookup) > 0 {
+		return nil, fmt.Errorf("gate with wire not found in circuit")
+	}
+	return res, nil
 }
