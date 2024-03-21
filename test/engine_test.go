@@ -2,6 +2,8 @@ package test
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/std/rangecheck"
 	"math/big"
 	"testing"
 
@@ -100,4 +102,38 @@ func TestPreCompileHook(t *testing.T) {
 	if !isDeferCalled {
 		t.Error("callback not called")
 	}
+}
+
+// TODO @ivokob is this test necessary, considering that the rangechecker is already tested against the test engine?
+
+func TestRangeCheck(t *testing.T) {
+	NewAssert(t).CheckCircuit(&rangeCheckTestCircuit{bits: 4}, WithCurves(ecc.BN254), WithBackends(backend.PLONK),
+		WithValidAssignment(&rangeCheckTestCircuit{X: 0}),
+		WithValidAssignment(&rangeCheckTestCircuit{X: 15}),
+		WithInvalidAssignment(&rangeCheckTestCircuit{X: 16}),
+		WithInvalidAssignment(&rangeCheckTestCircuit{X: -1}),
+	)
+
+	NewAssert(t).CheckCircuit(&rangeCheckTestCircuit{bits: 254}, WithCurves(ecc.BN254), WithBackends(backend.PLONK),
+		WithValidAssignment(&rangeCheckTestCircuit{X: -1}),
+	)
+}
+
+type rangeCheckTestCircuit struct {
+	X    frontend.Variable
+	bits int
+}
+
+func (c *rangeCheckTestCircuit) Define(api frontend.API) error {
+	r := rangecheck.New(api)
+
+	r.Check(c.X, c.bits)
+
+	// 0 ≤ X ≤ 2ᵇⁱᵗˢ - 1 ⇔ - 2ᵇⁱᵗˢ + 1 ≤ -X ≤ 0 ⇔ 0 ≤ (2ᵇⁱᵗˢ - 1) - X ≤ 2ᵇⁱᵗˢ - 1
+	// i.e. X is in range iff (2ᵇⁱᵗˢ - 1) - X is
+	bound := big.NewInt(1)
+	bound.Lsh(bound, uint(c.bits)).Sub(bound, big.NewInt(1))
+	r.Check(api.Sub(bound, c.X), c.bits)
+
+	return nil
 }
