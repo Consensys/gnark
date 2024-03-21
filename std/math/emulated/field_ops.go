@@ -3,6 +3,7 @@ package emulated
 import (
 	"errors"
 	"fmt"
+	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/selector"
@@ -130,6 +131,37 @@ func (f *Field[T]) add(a, b *Element[T], nextOverflow uint) *Element[T] {
 		}
 	}
 	return f.newInternalElement(limbs, nextOverflow)
+}
+
+func (f *Field[T]) Sum(inputs ...*Element[T]) *Element[T] {
+	if len(inputs) == 0 {
+		return f.Zero()
+	}
+	if len(inputs) == 1 {
+		return inputs[0]
+	}
+	overflow := uint(0)
+	nbLimbs := 0
+	for i := range inputs {
+		f.enforceWidthConditional(inputs[i])
+		if inputs[i].overflow > overflow {
+			overflow = inputs[i].overflow
+		}
+		if len(inputs[i].Limbs) > nbLimbs {
+			nbLimbs = len(inputs[i].Limbs)
+		}
+	}
+	addOverflow := bits.Len(uint(len(inputs)))
+	limbs := make([]frontend.Variable, nbLimbs)
+	for i := range limbs {
+		limbs[i] = 0
+	}
+	for i := range inputs {
+		for j := range inputs[i].Limbs {
+			limbs[j] = f.api.Add(limbs[j], inputs[i].Limbs[j])
+		}
+	}
+	return f.newInternalElement(limbs, overflow+uint(addOverflow))
 }
 
 // Reduce reduces a modulo the field order and returns it.
