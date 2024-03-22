@@ -13,6 +13,25 @@ import (
 	cs "github.com/consensys/gnark/constraint/bn254"
 )
 
+const (
+	setup_l int = iota
+	setup_r
+	setup_m
+	setup_o
+	setup_k
+	setup_s1
+	setup_s2
+	setup_s3
+
+	// at this stage we should offset by nb_qcp. "g" here stands for
+	// gate.
+	prover_l
+	prover_r
+	prover_o
+	prover_z
+	prover_h
+)
+
 // VerifyingKey stores the data needed to verify a proof:
 // * The commitment scheme
 // * Commitments of ql prepended with as many ones as there are public inputs
@@ -41,7 +60,7 @@ type VerifyingKey struct {
 
 	// Fflonk commitment of
 	// Ql(Xᵗ) + XQr(Xᵗ) + X²Qm(Xᵗ) + X³Qo(Xᵗ) + X₄Qk(Xᵗ) + X₅S₁(Xᵗ) + X₆S₂(Xᵗ) + X₇S₃(Xᵗ) + X₈Qcp(Xᵗ)
-	// where t = |{Ql,Qr,Qm,Qo,Qk,S_{1},S_{2},S_{3},Qcp,L,R,O,H_{1},H_{2},H_{3}}|
+	// where t = |{Ql,Qr,Qm,Qo,Qk,S₁,S₂,S₃,Qcp,L,R,O,H₁,H₂,H₃}|
 	Qpublic kzg.Digest
 
 	CommitmentConstraintIndexes []uint64
@@ -205,6 +224,12 @@ func NewTrace(spr *cs.SparseR1CS, domain *fft.Domain) *Trace {
 // commitTrace commits to every polynomial in the trace, and put
 // the commitments int the verifying key.
 func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.ProvingKey) error {
+
+	// step 0: put everyithing in canonical regular form
+
+	// step 1: intertwine the polynomials to obtain the following polynomial:
+	// Q_{public}:=Q_{L}(Xᵗ)+XQ_{R}(Xᵗ)+X²Q_{M}(Xᵗ)+X³Q_{O}(Xᵗ)+X⁴Q_{K}(Xᵗ)+X⁵S₁(Xᵗ)+X⁶S₂(Xᵗ)+X⁷S₃(Xᵗ)+X⁸Q_{Cp}(Xᵗ)
+	// where t = 13 + |nb_custom_gates|
 
 	// var err error
 	// vk.Qcp = make([]kzg.Digest, len(trace.Qcp))
