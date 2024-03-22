@@ -688,19 +688,21 @@ func (builder *builder) ToCanonicalVariable(v frontend.Variable) frontend.Canoni
 	}
 }
 
-// GetWireGates returns the pairs (gateId, wireLocation) for the given wires in
-// the compiled constraint system:
-//   - gateId is the index of the gate in the constraint system.
-//   - wireLocation is the location of the wire in the gate (0=xA or 1=xB).
+// GetWireConstraints returns the pairs (constraintID, wireLocation) for the
+// given wires in the compiled constraint system:
+//   - constraintID is the index of the constraint in the constraint system.
+//   - wireLocation is the location of the wire in the constraint (0=xA or 1=xB).
 //
 // If the argument addMissing is true, then the function will add a new
-// instruction for each wire that is not found in the constraint system. This
-// may happen when getting the gate for a witness which is not used in gates.
-// Otherwise, when addMissing is false, the function returns an error if a wire
-// is not found in the constraint system.
+// constraint for each wire that is not found in the constraint system. This may
+// happen when getting the constraint for a witness which is not used in
+// constraints. Otherwise, when addMissing is false, the function returns an
+// error if a wire is not found in the constraint system.
 //
-// The order of the returned pairs is not the same as for the given arguments.
-func (builder *builder) GetWireGates(wires []frontend.Variable, addMissing bool) ([][2]int, error) {
+// The method only returns a single pair (constraintID, wireLocation) for every
+// unique wire (removing duplicates). The order of the returned pairs is not the
+// same as for the given arguments.
+func (builder *builder) GetWireConstraints(wires []frontend.Variable, addMissing bool) ([][2]int, error) {
 	// construct a lookup table table for later quick access when iterating over instructions
 	lookup := make(map[int]struct{})
 	for _, w := range wires {
@@ -712,32 +714,32 @@ func (builder *builder) GetWireGates(wires []frontend.Variable, addMissing bool)
 	}
 	res := make([][2]int, 0, len(wires))
 	iterator := builder.cs.GetSparseR1CIterator()
-	for c, gate := iterator.Next(), 0; c != nil; c, gate = iterator.Next(), gate+1 {
+	for c, constraintIdx := iterator.Next(), 0; c != nil; c, constraintIdx = iterator.Next(), constraintIdx+1 {
 		if _, ok := lookup[int(c.XA)]; ok {
-			res = append(res, [2]int{gate, 0})
+			res = append(res, [2]int{constraintIdx, 0})
 			delete(lookup, int(c.XA))
 			continue
 		}
 		if _, ok := lookup[int(c.XB)]; ok {
-			res = append(res, [2]int{gate, 1})
+			res = append(res, [2]int{constraintIdx, 1})
 			delete(lookup, int(c.XB))
 			continue
 		}
 	}
 	if addMissing {
 		for k := range lookup {
-			gate := builder.cs.AddSparseR1C(constraint.SparseR1C{
+			constraintIdx := builder.cs.AddSparseR1C(constraint.SparseR1C{
 				XA: uint32(k),
 				XC: uint32(k),
 				QL: constraint.CoeffIdOne,
 				QO: constraint.CoeffIdMinusOne,
 			}, builder.genericGate)
-			res = append(res, [2]int{gate, 0})
+			res = append(res, [2]int{constraintIdx, 0})
 			delete(lookup, k)
 		}
 	}
 	if len(lookup) > 0 {
-		return nil, fmt.Errorf("gate with wire not found in circuit")
+		return nil, fmt.Errorf("constraint with wire not found in circuit")
 	}
 	return res, nil
 }
