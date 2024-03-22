@@ -167,7 +167,7 @@ type subSameNoConstraintCircuit struct {
 
 func (c *subSameNoConstraintCircuit) Define(api frontend.API) error {
 	r := api.Sub(c.A, c.A)
-	api.AssertIsEqual(r, 1)
+	api.AssertIsEqual(r, 0)
 	return nil
 }
 
