@@ -312,7 +312,10 @@ func (builder *builder) ConstantValue(v frontend.Variable) (*big.Int, bool) {
 }
 
 func (builder *builder) constantValue(v frontend.Variable) (constraint.Element, bool) {
-	if _, ok := v.(expr.Term); ok {
+	if vv, ok := v.(expr.Term); ok {
+		if vv.Coeff.IsZero() {
+			return constraint.Element{}, true
+		}
 		return constraint.Element{}, false
 	}
 	return builder.cs.FromInterface(v), true
