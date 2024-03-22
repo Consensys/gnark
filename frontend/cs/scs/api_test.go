@@ -238,3 +238,22 @@ func TestMulAccFastTrack(t *testing.T) {
 	assert.NoError(err)
 	_ = solution
 }
+
+type subSameNoConstraintCircuit struct {
+	A frontend.Variable
+}
+
+func (c *subSameNoConstraintCircuit) Define(api frontend.API) error {
+	r := api.Sub(c.A, c.A)
+	api.AssertIsEqual(r, 0)
+	return nil
+}
+
+func TestSubSameNoConstraint(t *testing.T) {
+	assert := test.NewAssert(t)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &subSameNoConstraintCircuit{})
+	assert.NoError(err)
+	if ccs.GetNbConstraints() != 0 {
+		t.Fatal("expected 0 constraints")
+	}
+}
