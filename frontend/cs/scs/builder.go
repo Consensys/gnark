@@ -727,7 +727,11 @@ func (builder *builder) GetWireConstraints(wires []frontend.Variable, addMissing
 		}
 	}
 	if addMissing {
+		nbWitnessWires := builder.cs.GetNbPublicVariables() + builder.cs.GetNbSecretVariables()
 		for k := range lookup {
+			if k >= nbWitnessWires {
+				return nil, fmt.Errorf("addMissing is true, but wire %d is not a witness", k)
+			}
 			constraintIdx := builder.cs.AddSparseR1C(constraint.SparseR1C{
 				XA: uint32(k),
 				XC: uint32(k),
