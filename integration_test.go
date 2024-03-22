@@ -57,14 +57,25 @@ func TestIntegrationAPI(t *testing.T) {
 			for i := range tData.InvalidAssignments {
 				opts = append(opts, test.WithInvalidAssignment(tData.InvalidAssignments[i]))
 			}
+			// add all prover options
+			if len(tData.ProverOptions) > 0 {
+				opts = append(opts, test.WithProverOpts(tData.ProverOptions...))
+			}
+			// add all verifier options
+			if len(tData.VerifierOptions) > 0 {
+				opts = append(opts, test.WithVerifierOpts(tData.VerifierOptions...))
+			}
 
 			if name == "multi-output-hint" {
 				// TODO @gbotrel FIXME
 				opts = append(opts, test.NoFuzzing())
 			}
 
-			if name == "commit" && test.SolcCheck {
-				// TODO @gbotrel FIXME groth16 solidity verifier needs updating.
+			if name == "commit_Groth16" && test.SolcCheck {
+				opts = append(opts, test.WithBackends(backend.GROTH16))
+			}
+
+			if name == "commit_Plonk" && test.SolcCheck {
 				opts = append(opts, test.WithBackends(backend.PLONK))
 			}
 

@@ -94,14 +94,14 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	// compute e(Σx.[Kvk(t)]1, -[γ]2)
 	var kSum curve.G1Jac
 	if _, err := kSum.MultiExp(vk.G1.K[1:], publicWitness, ecc.MultiExpConfig{}); err != nil {
-		return err 
+		return err
 	}
 	kSum.AddMixed(&vk.G1.K[0])
 
 	for i := range proof.Commitments {
 		kSum.AddMixed(&proof.Commitments[i])
 	}
-	
+
 	var kSumAff curve.G1Affine
 	kSumAff.FromJacobian(&kSum)
 
@@ -112,7 +112,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 
 	// wait for (eKrsδ, eArBs)
 	if err := <-chDone; err != nil {
-		return err 
+		return err
 	}
 
 	right = curve.FinalExponentiation(&right, &doubleML)
@@ -128,10 +128,13 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 {{if eq .Curve "BN254"}}
 // ExportSolidity writes a solidity Verifier contract on provided writer.
 // This is an experimental feature and gnark solidity generator as not been thoroughly tested.
-// 
+//
 // See https://github.com/ConsenSys/gnark-tests for example usage.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	helpers := template.FuncMap{
+		"sum": func(a, b int) int {
+			return a + b
+		},
 		"sub": func(a, b int) int {
 			return a - b
 		},
@@ -145,6 +148,13 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 			}
 			return out
 		},
+	}
+
+	log := logger.Logger()
+	if len(vk.PublicAndCommitmentCommitted) > 1 {
+		log.Warn().Msg("exporting solidity verifier with more than one commitment is not supported")
+	} else if len(vk.PublicAndCommitmentCommitted) == 1 {
+		log.Warn().Msg("exporting solidity verifier only supports `sha256` as `HashToField`. The generated contract may not work for proofs generated with other hash functions.")
 	}
 
 	tmpl, err := template.New("").Funcs(helpers).Parse(solidityTemplate)
