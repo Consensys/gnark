@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	setup_l int = iota
-	setup_r
-	setup_m
-	setup_o
-	setup_k
+	setup_ql int = iota
+	setup_qr
+	setup_qm
+	setup_qo
+	setup_qk_incomplete
 	setup_s1
 	setup_s2
 	setup_s3
@@ -30,6 +30,8 @@ const (
 	prover_o
 	prover_z
 	prover_h
+
+	number_polynomials
 )
 
 // VerifyingKey stores the data needed to verify a proof:
@@ -225,45 +227,50 @@ func NewTrace(spr *cs.SparseR1CS, domain *fft.Domain) *Trace {
 // the commitments int the verifying key.
 func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.ProvingKey) error {
 
+	size := int(domain.Cardinality)
+
 	// step 0: put everyithing in canonical regular form
+	trace.Ql.ToCanonical(domain).ToRegular()
+	trace.Qr.ToCanonical(domain).ToRegular()
+	trace.Qm.ToCanonical(domain).ToRegular()
+	trace.Qo.ToCanonical(domain).ToRegular()
+	trace.Qk.ToCanonical(domain).ToRegular()
+	trace.S1.ToCanonical(domain).ToRegular()
+	trace.S2.ToCanonical(domain).ToRegular()
+	trace.S3.ToCanonical(domain).ToRegular()
+	for i := 0; i < len(trace.Qcp); i++ {
+		trace.Qcp[i].ToCanonical(domain).ToRegular()
+	}
 
 	// step 1: intertwine the polynomials to obtain the following polynomial:
 	// Q_{public}:=Q_{L}(Xᵗ)+XQ_{R}(Xᵗ)+X²Q_{M}(Xᵗ)+X³Q_{O}(Xᵗ)+X⁴Q_{K}(Xᵗ)+X⁵S₁(Xᵗ)+X⁶S₂(Xᵗ)+X⁷S₃(Xᵗ)+X⁸Q_{Cp}(Xᵗ)
 	// where t = 13 + |nb_custom_gates|
+	currentNbPolynomials := setup_s3 + len(trace.Qcp) + 1
+	traceList := make([][]fr.Element, currentNbPolynomials)
+	traceList[setup_ql] = trace.Ql.Coefficients()
+	traceList[setup_qr] = trace.Qr.Coefficients()
+	traceList[setup_qm] = trace.Qm.Coefficients()
+	traceList[setup_qo] = trace.Qo.Coefficients()
+	traceList[setup_qk_incomplete] = trace.Qk.Coefficients()
+	traceList[setup_s1] = trace.S1.Coefficients()
+	traceList[setup_s2] = trace.S2.Coefficients()
+	traceList[setup_s3] = trace.S3.Coefficients()
+	for i := 0; i < len(trace.Qcp); i++ {
+		traceList[setup_s3+i+1] = trace.Qcp[i].Coefficients()
+	}
+	t := (number_polynomials + len(trace.Qcp))
+	upperBoundSize := t * size
+	buf := make([]fr.Element, upperBoundSize)
+	for i := 0; i < size; i++ {
+		for j := 0; j < currentNbPolynomials; i++ {
+			buf[i*t+j].Set(&traceList[j][i])
+		}
+	}
 
-	// var err error
-	// vk.Qcp = make([]kzg.Digest, len(trace.Qcp))
-	// for i := range trace.Qcp {
-	// 	if vk.Qcp[i], err = kzg.Commit(trace.Qcp[i].Coefficients(), srsPk); err != nil {
-	// 		return err
-	// 	}
-	// }
-	// if vk.Ql, err = kzg.Commit(trace.Ql.Coefficients(), srsPk); err != nil {
-	// 	return err
-	// }
-	// if vk.Qr, err = kzg.Commit(trace.Qr.Coefficients(), srsPk); err != nil {
-	// 	return err
-	// }
-	// if vk.Qm, err = kzg.Commit(trace.Qm.Coefficients(), srsPk); err != nil {
-	// 	return err
-	// }
-	// if vk.Qo, err = kzg.Commit(trace.Qo.Coefficients(), srsPk); err != nil {
-	// 	return err
-	// }
-	// if vk.Qk, err = kzg.Commit(trace.Qk.Coefficients(), srsPk); err != nil {
-	// 	return err
-	// }
-	// if vk.S[0], err = kzg.Commit(trace.S1.Coefficients(), srsPk); err != nil {
-	// 	return err
-	// }
-	// if vk.S[1], err = kzg.Commit(trace.S2.Coefficients(), srsPk); err != nil {
-	// 	return err
-	// }
-	// if vk.S[2], err = kzg.Commit(trace.S3.Coefficients(), srsPk); err != nil {
-	// 	return err
-	// }
-
-	return nil
+	// step 2: KZG commit to the resulting polynomial
+	var err error
+	vk.Qpublic, err = kzg.Commit(buf, srsPk)
+	return err
 }
 
 func initFFTDomain(spr *cs.SparseR1CS) *fft.Domain {
