@@ -37,6 +37,11 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
+	fp, err := c.VerifyingKey.FingerPrint(api)
+	if err != nil {
+		return fmt.Errorf("new curve for verification keys: %w", err)
+	}
+	api.Println(fp)
 	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness, WithCompleteArithmetic())
 	return err
 }
