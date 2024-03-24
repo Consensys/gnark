@@ -28,6 +28,15 @@ import (
 
 // AssertIsEqual adds an assertion in the constraint builder (i1 == i2)
 func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
+	c1, i1Constant := builder.constantValue(i1)
+	c2, i2Constant := builder.constantValue(i2)
+
+	if i1Constant && i2Constant {
+		if c1 != c2 {
+			panic("non-equal constant values")
+		}
+		return
+	}
 	// encoded 1 * i1 == i2
 	r := builder.getLinearExpression(builder.toVariable(i1))
 	o := builder.getLinearExpression(builder.toVariable(i2))
