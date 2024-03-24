@@ -22,16 +22,17 @@ func (e *E12) Square034(api frontend.API, x E12) *E12 {
 
 	c0.B0.Sub(api, x.C0.B0, x.C1.B0)
 	c0.B1.Neg(api, x.C1.B1)
-	c0.B2 = E2{0, 0}
 
 	c3.B0 = x.C0.B0
 	c3.B1.Neg(api, x.C1.B0)
 	c3.B2.Neg(api, x.C1.B1)
 
 	c2.Mul0By01(api, x.C0.B0, x.C1.B0, x.C1.B1)
-	c3.MulBy01(api, c0.B0, c0.B1).Add(api, c3, c2)
-	e.C1.B0.Add(api, c2.B0, c2.B0)
-	e.C1.B1.Add(api, c2.B1, c2.B1)
+	c3.MulBy01(api, c0.B0, c0.B1)
+	c3.B0.Add(api, c3.B0, c2.B0)
+	c3.B1.Add(api, c3.B1, c2.B1)
+	e.C1.B0.MulByFp(api, c2.B0, 2)
+	e.C1.B1.MulByFp(api, c2.B1, 2)
 
 	e.C0.B0 = c3.B0
 	e.C0.B1.Add(api, c3.B1, c2.B0)
@@ -49,8 +50,7 @@ func (e *E12) MulBy034(api frontend.API, c3, c4 E2) *E12 {
 	b := e.C1
 
 	b.MulBy01(api, c3, c4)
-
-	c3.Add(api, E2{A0: 1, A1: 0}, c3)
+	c3.A0 = api.Add(1, c3.A0)
 	d.Add(api, e.C0, e.C1)
 	d.MulBy01(api, c3, c4)
 
@@ -81,17 +81,19 @@ func Mul034By034(api frontend.API, d3, d4, c3, c4 E2) *[5]E2 {
 }
 
 func Mul01234By034(api frontend.API, x [5]E2, z3, z4 E2) *E12 {
-	var a, b, z1, z0, one E6
-	var zero E2
-	zero.SetZero()
-	one.SetOne()
+	var a, b, z1, z0 E6
 	c0 := &E6{B0: x[0], B1: x[1], B2: x[2]}
-	c1 := &E6{B0: x[3], B1: x[4], B2: zero}
-	a.Add(api, one, E6{B0: z3, B1: z4, B2: zero})
-	b.Add(api, *c0, *c1)
-	a.Mul(api, a, b)
+	a.B0.A0 = api.Add(z3.A0, 1)
+	a.B0.A1 = z3.A1
+	a.B1 = z4
+	a.B2.A0 = 0
+	a.B2.A1 = 0
+	b.B0.Add(api, c0.B0, x[3])
+	b.B1.Add(api, c0.B1, x[4])
+	b.B2 = c0.B2
+	b.MulBy01(api, a.B0, a.B1)
 	c := *Mul01By01(api, z3, z4, x[3], x[4])
-	z1.Sub(api, a, *c0)
+	z1.Sub(api, b, *c0)
 	z1.Sub(api, z1, c)
 	z0.MulByNonResidue(api, c)
 	z0.Add(api, z0, *c0)
@@ -103,12 +105,11 @@ func Mul01234By034(api frontend.API, x [5]E2, z3, z4 E2) *E12 {
 
 func (e *E12) MulBy01234(api frontend.API, x [5]E2) *E12 {
 	var a, b, c, z1, z0 E6
-	var zero E2
-	zero.SetZero()
 	c0 := &E6{B0: x[0], B1: x[1], B2: x[2]}
-	c1 := &E6{B0: x[3], B1: x[4], B2: zero}
 	a.Add(api, e.C0, e.C1)
-	b.Add(api, *c0, *c1)
+	b.B0.Add(api, x[0], x[3])
+	b.B1.Add(api, x[1], x[4])
+	b.B2 = x[2]
 	a.Mul(api, a, b)
 	b.Mul(api, e.C0, *c0)
 	c = e.C1

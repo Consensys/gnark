@@ -582,7 +582,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// 		B1 = Q+Φ(Q)
 	// 		B2 = -Q-Φ(Q)
 	// 		B3 = Q-Φ(Q)
-	// 		B4 = -QΦ(Q)
+	// 		B4 = -Q+Φ(Q)
 	//
 	// If we extend this by merging two iterations, we need to look up P and P'
 	// both from {B1, B2, B3, B4} and compute:

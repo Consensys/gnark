@@ -175,13 +175,16 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		gamma := c.packScalarToVar(scalars[0])
 		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
 		cc := getInnerCurveConfig(c.api.Compiler().Field())
-		sd, err := c.api.Compiler().NewHint(decomposeScalarG1, 3, gamma)
+		sd, err := c.api.Compiler().NewHint(decomposeScalarG1Simple, 2, gamma)
 		if err != nil {
 			panic(err)
 		}
 		gamma1, gamma2 := sd[0], sd[1]
-		c.api.AssertIsEqual(c.api.Add(gamma1, c.api.Mul(gamma2, cc.lambda)), c.api.Add(gamma, c.api.Mul(cc.fr, sd[2])))
-		nbits := cc.lambda.BitLen() + 1
+		c.api.AssertIsEqual(
+			c.api.Add(gamma1, c.api.Mul(gamma2, cc.lambda)),
+			gamma,
+		)
+		nbits := cc.lambda.BitLen()
 		gamma1Bits := c.api.ToBinary(gamma1, nbits)
 		gamma2Bits := c.api.ToBinary(gamma2, nbits)
 
