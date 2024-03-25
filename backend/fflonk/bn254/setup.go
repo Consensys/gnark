@@ -123,7 +123,8 @@ func Setup(spr *cs.SparseR1CS, srs kzg.SRS) (*ProvingKey, *VerifyingKey, error) 
 	vk.Generator.Set(&domain.Generator)
 	vk.NbPublicVariables = uint64(len(spr.Public))
 
-	pk.Kzg.G1 = srs.Pk.G1[:int(vk.Size)+3]
+	// TODO compute the accurate size
+	pk.Kzg.G1 = srs.Pk.G1
 	vk.Kzg = srs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
@@ -261,8 +262,9 @@ func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.
 	t := (number_polynomials + len(trace.Qcp))
 	upperBoundSize := t * size
 	buf := make([]fr.Element, upperBoundSize)
+	fmt.Printf("upperbound size: %d\n", upperBoundSize)
 	for i := 0; i < size; i++ {
-		for j := 0; j < currentNbPolynomials; i++ {
+		for j := 0; j < currentNbPolynomials; j++ {
 			buf[i*t+j].Set(&traceList[j][i])
 		}
 	}
