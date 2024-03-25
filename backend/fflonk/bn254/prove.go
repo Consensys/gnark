@@ -443,7 +443,9 @@ func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G
 
 	// LAGRANGE
 	// commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange)
+	p.ToCanonical(s.domain0).ToRegular()
 	commit, err = kzg.Commit(p.Coefficients(), s.pk.Kzg)
+	p.ToLagrange(s.domain0)
 
 	// we add in the blinding contribution
 	n := int(s.domain0.Cardinality)
