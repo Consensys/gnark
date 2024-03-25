@@ -5,6 +5,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint"
 
 	cs_bls12377 "github.com/consensys/gnark/constraint/bls12-377"
@@ -15,7 +16,10 @@ import (
 	cs_bw6633 "github.com/consensys/gnark/constraint/bw6-633"
 	cs_bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 
+	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+
 	fflonk_bn254 "github.com/consensys/gnark/backend/fflonk/bn254"
+	"github.com/consensys/gnark/backend/witness"
 
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
 
@@ -87,93 +91,93 @@ func Setup(ccs constraint.ConstraintSystem, srs, srsLagrange kzg.SRS) (ProvingKe
 //		will execute all the prover computations, even if the witness is invalid
 //	 will produce an invalid proof
 //		internally, the solution vector to the SparseR1CS will be filled with random values which may impact benchmarking
-// func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (Proof, error) {
+func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (Proof, error) {
 
-// 	switch tccs := ccs.(type) {
-// 	case *cs_bn254.SparseR1CS:
-// 		return plonk_bn254.Prove(tccs, pk.(*plonk_bn254.ProvingKey), fullWitness, opts...)
+	switch tccs := ccs.(type) {
+	case *cs_bn254.SparseR1CS:
+		return fflonk_bn254.Prove(tccs, pk.(*fflonk_bn254.ProvingKey), fullWitness, opts...)
 
-// 	case *cs_bls12381.SparseR1CS:
-// 		return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), fullWitness, opts...)
+	// case *cs_bls12381.SparseR1CS:
+	// 	return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), fullWitness, opts...)
 
-// 	case *cs_bls12377.SparseR1CS:
-// 		return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), fullWitness, opts...)
+	// case *cs_bls12377.SparseR1CS:
+	// 	return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), fullWitness, opts...)
 
-// 	case *cs_bw6761.SparseR1CS:
-// 		return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), fullWitness, opts...)
+	// case *cs_bw6761.SparseR1CS:
+	// 	return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), fullWitness, opts...)
 
-// 	case *cs_bw6633.SparseR1CS:
-// 		return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), fullWitness, opts...)
+	// case *cs_bw6633.SparseR1CS:
+	// 	return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), fullWitness, opts...)
 
-// 	case *cs_bls24317.SparseR1CS:
-// 		return plonk_bls24317.Prove(tccs, pk.(*plonk_bls24317.ProvingKey), fullWitness, opts...)
+	// case *cs_bls24317.SparseR1CS:
+	// 	return plonk_bls24317.Prove(tccs, pk.(*plonk_bls24317.ProvingKey), fullWitness, opts...)
 
-// 	case *cs_bls24315.SparseR1CS:
-// 		return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), fullWitness, opts...)
+	// case *cs_bls24315.SparseR1CS:
+	// 	return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), fullWitness, opts...)
 
-// 	default:
-// 		panic("unrecognized SparseR1CS curve type")
-// 	}
-// }
+	default:
+		panic("unrecognized SparseR1CS curve type")
+	}
+}
 
 // Verify verifies a PLONK proof, from the proof, preprocessed public data, and public witness.
-// func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
+func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
 
-// 	switch _proof := proof.(type) {
+	switch _proof := proof.(type) {
 
-// 	case *plonk_bn254.Proof:
-// 		w, ok := publicWitness.Vector().(fr_bn254.Vector)
-// 		if !ok {
-// 			return witness.ErrInvalidWitness
-// 		}
-// 		return plonk_bn254.Verify(_proof, vk.(*plonk_bn254.VerifyingKey), w, opts...)
+	case *fflonk_bn254.Proof:
+		w, ok := publicWitness.Vector().(fr_bn254.Vector)
+		if !ok {
+			return witness.ErrInvalidWitness
+		}
+		return fflonk_bn254.Verify(_proof, vk.(*fflonk_bn254.VerifyingKey), w, opts...)
 
-// 	case *plonk_bls12381.Proof:
-// 		w, ok := publicWitness.Vector().(fr_bls12381.Vector)
-// 		if !ok {
-// 			return witness.ErrInvalidWitness
-// 		}
-// 		return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), w, opts...)
+	// case *plonk_bls12381.Proof:
+	// 	w, ok := publicWitness.Vector().(fr_bls12381.Vector)
+	// 	if !ok {
+	// 		return witness.ErrInvalidWitness
+	// 	}
+	// 	return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), w, opts...)
 
-// 	case *plonk_bls12377.Proof:
-// 		w, ok := publicWitness.Vector().(fr_bls12377.Vector)
-// 		if !ok {
-// 			return witness.ErrInvalidWitness
-// 		}
-// 		return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), w, opts...)
+	// case *plonk_bls12377.Proof:
+	// 	w, ok := publicWitness.Vector().(fr_bls12377.Vector)
+	// 	if !ok {
+	// 		return witness.ErrInvalidWitness
+	// 	}
+	// 	return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), w, opts...)
 
-// 	case *plonk_bw6761.Proof:
-// 		w, ok := publicWitness.Vector().(fr_bw6761.Vector)
-// 		if !ok {
-// 			return witness.ErrInvalidWitness
-// 		}
-// 		return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), w, opts...)
+	// case *plonk_bw6761.Proof:
+	// 	w, ok := publicWitness.Vector().(fr_bw6761.Vector)
+	// 	if !ok {
+	// 		return witness.ErrInvalidWitness
+	// 	}
+	// 	return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), w, opts...)
 
-// 	case *plonk_bw6633.Proof:
-// 		w, ok := publicWitness.Vector().(fr_bw6633.Vector)
-// 		if !ok {
-// 			return witness.ErrInvalidWitness
-// 		}
-// 		return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), w, opts...)
+	// case *plonk_bw6633.Proof:
+	// 	w, ok := publicWitness.Vector().(fr_bw6633.Vector)
+	// 	if !ok {
+	// 		return witness.ErrInvalidWitness
+	// 	}
+	// 	return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), w, opts...)
 
-// 	case *plonk_bls24317.Proof:
-// 		w, ok := publicWitness.Vector().(fr_bls24317.Vector)
-// 		if !ok {
-// 			return witness.ErrInvalidWitness
-// 		}
-// 		return plonk_bls24317.Verify(_proof, vk.(*plonk_bls24317.VerifyingKey), w, opts...)
+	// case *plonk_bls24317.Proof:
+	// 	w, ok := publicWitness.Vector().(fr_bls24317.Vector)
+	// 	if !ok {
+	// 		return witness.ErrInvalidWitness
+	// 	}
+	// 	return plonk_bls24317.Verify(_proof, vk.(*plonk_bls24317.VerifyingKey), w, opts...)
 
-// 	case *plonk_bls24315.Proof:
-// 		w, ok := publicWitness.Vector().(fr_bls24315.Vector)
-// 		if !ok {
-// 			return witness.ErrInvalidWitness
-// 		}
-// 		return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), w, opts...)
+	// case *plonk_bls24315.Proof:
+	// 	w, ok := publicWitness.Vector().(fr_bls24315.Vector)
+	// 	if !ok {
+	// 		return witness.ErrInvalidWitness
+	// 	}
+	// 	return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), w, opts...)
 
-// 	default:
-// 		panic("unrecognized proof type")
-// 	}
-// }
+	default:
+		panic("unrecognized proof type")
+	}
+}
 
 // NewCS instantiate a concrete curved-typed SparseR1CS and return a ConstraintSystem interface
 // This method exists for (de)serialization purposes
@@ -202,81 +206,81 @@ func NewCS(curveID ecc.ID) constraint.ConstraintSystem {
 
 // NewProvingKey instantiates a curve-typed ProvingKey and returns an interface
 // This function exists for serialization purposes
-// func NewProvingKey(curveID ecc.ID) ProvingKey {
-// 	var pk ProvingKey
-// 	switch curveID {
-// 	case ecc.BN254:
-// 		pk = &plonk_bn254.ProvingKey{}
-// 	case ecc.BLS12_377:
-// 		pk = &plonk_bls12377.ProvingKey{}
-// 	case ecc.BLS12_381:
-// 		pk = &plonk_bls12381.ProvingKey{}
-// 	case ecc.BW6_761:
-// 		pk = &plonk_bw6761.ProvingKey{}
-// 	case ecc.BLS24_317:
-// 		pk = &plonk_bls24317.ProvingKey{}
-// 	case ecc.BLS24_315:
-// 		pk = &plonk_bls24315.ProvingKey{}
-// 	case ecc.BW6_633:
-// 		pk = &plonk_bw6633.ProvingKey{}
-// 	default:
-// 		panic("not implemented")
-// 	}
+func NewProvingKey(curveID ecc.ID) ProvingKey {
+	var pk ProvingKey
+	switch curveID {
+	case ecc.BN254:
+		pk = &fflonk_bn254.ProvingKey{}
+	// case ecc.BLS12_377:
+	// 	pk = &plonk_bls12377.ProvingKey{}
+	// case ecc.BLS12_381:
+	// 	pk = &plonk_bls12381.ProvingKey{}
+	// case ecc.BW6_761:
+	// 	pk = &plonk_bw6761.ProvingKey{}
+	// case ecc.BLS24_317:
+	// 	pk = &plonk_bls24317.ProvingKey{}
+	// case ecc.BLS24_315:
+	// 	pk = &plonk_bls24315.ProvingKey{}
+	// case ecc.BW6_633:
+	// 	pk = &plonk_bw6633.ProvingKey{}
+	default:
+		panic("not implemented")
+	}
 
-// 	return pk
-// }
+	return pk
+}
 
 // NewProof instantiates a curve-typed ProvingKey and returns an interface
 // This function exists for serialization purposes
-// func NewProof(curveID ecc.ID) Proof {
-// 	var proof Proof
-// 	switch curveID {
-// 	case ecc.BN254:
-// 		proof = &plonk_bn254.Proof{}
-// 	case ecc.BLS12_377:
-// 		proof = &plonk_bls12377.Proof{}
-// 	case ecc.BLS12_381:
-// 		proof = &plonk_bls12381.Proof{}
-// 	case ecc.BW6_761:
-// 		proof = &plonk_bw6761.Proof{}
-// 	case ecc.BLS24_317:
-// 		proof = &plonk_bls24317.Proof{}
-// 	case ecc.BLS24_315:
-// 		proof = &plonk_bls24315.Proof{}
-// 	case ecc.BW6_633:
-// 		proof = &plonk_bw6633.Proof{}
-// 	default:
-// 		panic("not implemented")
-// 	}
+func NewProof(curveID ecc.ID) Proof {
+	var proof Proof
+	switch curveID {
+	case ecc.BN254:
+		proof = &fflonk_bn254.Proof{}
+	// case ecc.BLS12_377:
+	// 	proof = &plonk_bls12377.Proof{}
+	// case ecc.BLS12_381:
+	// 	proof = &plonk_bls12381.Proof{}
+	// case ecc.BW6_761:
+	// 	proof = &plonk_bw6761.Proof{}
+	// case ecc.BLS24_317:
+	// 	proof = &plonk_bls24317.Proof{}
+	// case ecc.BLS24_315:
+	// 	proof = &plonk_bls24315.Proof{}
+	// case ecc.BW6_633:
+	// 	proof = &plonk_bw6633.Proof{}
+	default:
+		panic("not implemented")
+	}
 
-// 	return proof
-// }
+	return proof
+}
 
 // NewVerifyingKey instantiates a curve-typed VerifyingKey and returns an interface
 // This function exists for serialization purposes
-// func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
-// 	var vk VerifyingKey
-// 	switch curveID {
-// 	case ecc.BN254:
-// 		vk = &plonk_bn254.VerifyingKey{}
-// 	case ecc.BLS12_377:
-// 		vk = &plonk_bls12377.VerifyingKey{}
-// 	case ecc.BLS12_381:
-// 		vk = &plonk_bls12381.VerifyingKey{}
-// 	case ecc.BW6_761:
-// 		vk = &plonk_bw6761.VerifyingKey{}
-// 	case ecc.BLS24_317:
-// 		vk = &plonk_bls24317.VerifyingKey{}
-// 	case ecc.BLS24_315:
-// 		vk = &plonk_bls24315.VerifyingKey{}
-// 	case ecc.BW6_633:
-// 		vk = &plonk_bw6633.VerifyingKey{}
-// 	default:
-// 		panic("not implemented")
-// 	}
+func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
+	var vk VerifyingKey
+	switch curveID {
+	case ecc.BN254:
+		vk = &fflonk_bn254.VerifyingKey{}
+	// case ecc.BLS12_377:
+	// 	vk = &plonk_bls12377.VerifyingKey{}
+	// case ecc.BLS12_381:
+	// 	vk = &plonk_bls12381.VerifyingKey{}
+	// case ecc.BW6_761:
+	// 	vk = &plonk_bw6761.VerifyingKey{}
+	// case ecc.BLS24_317:
+	// 	vk = &plonk_bls24317.VerifyingKey{}
+	// case ecc.BLS24_315:
+	// 	vk = &plonk_bls24315.VerifyingKey{}
+	// case ecc.BW6_633:
+	// 	vk = &plonk_bw6633.VerifyingKey{}
+	default:
+		panic("not implemented")
+	}
 
-// 	return vk
-// }
+	return vk
+}
 
 // SRSSize returns the required size of the kzg SRS for a given constraint system
 // Note that the SRS size in Lagrange form is a power of 2,
