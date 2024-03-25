@@ -17,6 +17,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fflonk"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 
@@ -84,13 +85,14 @@ type Proof struct {
 	// Commitments to h1, h2, h3 such that h = h1 + Xⁿ⁺²*h2 + X²⁽ⁿ⁺²⁾*h3 is the quotient polynomial
 	H [3]kzg.Digest
 
+	// commitment to the wires associated to the custom gates
 	Bsb22Commitments []kzg.Digest
 
-	// Batch opening proof of linearizedPolynomial, l, r, o, s1, s2, qCPrime
-	BatchedProof kzg.BatchOpeningProof
-
-	// Opening proof of Z at zeta*mu
-	ZShiftedOpening kzg.OpeningProof
+	// fflonk batch opening proof of
+	// * (Ql,Qr,Qm,Qo,QkIncomplete,S1,S2,S3,(SetupQcp)_i,L,R,O,(GateQcp)_i,Z,H₁,H₂,H₃) at ζᵗ where
+	// t is the number of polynomials to open
+	// * Z at ωζᵐ
+	BatchOpeningProof fflonk.OpeningProof
 }
 
 func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
@@ -1031,7 +1033,7 @@ func coefficients(p []*iop.Polynomial) [][]fr.Element {
 
 func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKey) error {
 	g := new(errgroup.Group)
-	t := number_polynomials + len(s.pk.Vk.Qcp)
+	t := number_polynomials + 2*len(s.pk.Vk.Qcp)
 	lenQcp := len(s.pk.Vk.Qcp)
 	rh1 := lenQcp + prover_h_1
 	rh2 := lenQcp + prover_h_2

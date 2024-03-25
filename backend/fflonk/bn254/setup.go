@@ -22,9 +22,9 @@ const (
 	setup_s1
 	setup_s2
 	setup_s3
+	// #Qcp
 
-	// at this stage we should offset by nb_qcp. "g" here stands for
-	// gate.
+	//at this stage we should offset by nb_qcp
 	prover_l
 	prover_r
 	prover_o
@@ -32,6 +32,7 @@ const (
 	prover_h_1
 	prover_h_2
 	prover_h_3
+	// #GQCp
 
 	number_polynomials
 )
@@ -261,7 +262,7 @@ func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.
 	for i := 0; i < len(trace.Qcp); i++ {
 		traceList[setup_s3+i+1] = trace.Qcp[i].Coefficients()
 	}
-	t := (number_polynomials + len(trace.Qcp))
+	t := (number_polynomials + 2*len(trace.Qcp))
 	upperBoundSize := t * size
 	buf := make([]fr.Element, upperBoundSize)
 	fmt.Printf("upperbound size: %d\n", upperBoundSize)
