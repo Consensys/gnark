@@ -63,7 +63,7 @@ type mulCheck[T FieldParams] struct {
 // evalRound1 evaluates first c(X), r(X) and k(X) at a given random point at[0].
 // In the first round we do not assume that any of them is already evaluated as
 // they come directly from hint.
-func (mc *mulCheck[T]) evalRound1(api frontend.API, at []frontend.Variable) {
+func (mc *mulCheck[T]) evalRound1(at []frontend.Variable) {
 	mc.c = mc.f.evalWithChallenge(mc.c, at)
 	mc.r = mc.f.evalWithChallenge(mc.r, at)
 	mc.k = mc.f.evalWithChallenge(mc.k, at)
@@ -72,7 +72,7 @@ func (mc *mulCheck[T]) evalRound1(api frontend.API, at []frontend.Variable) {
 // evalRound2 now evaluates a and b at a given random point at[0]. However, it
 // may happen that a or b is equal to r from a previous mulcheck. In that case
 // we can reuse the evaluation to save constraints.
-func (mc *mulCheck[T]) evalRound2(api frontend.API, at []frontend.Variable) {
+func (mc *mulCheck[T]) evalRound2(at []frontend.Variable) {
 	mc.a = mc.f.evalWithChallenge(mc.a, at)
 	mc.b = mc.f.evalWithChallenge(mc.b, at)
 }
@@ -207,11 +207,11 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 		}
 		// evaluate all r, k, c
 		for i := range f.mulChecks {
-			f.mulChecks[i].evalRound1(api, at)
+			f.mulChecks[i].evalRound1(at)
 		}
 		// assuming r is input to some other multiplication, then is already evaluated
 		for i := range f.mulChecks {
-			f.mulChecks[i].evalRound2(api, at)
+			f.mulChecks[i].evalRound2(at)
 		}
 		// evaluate p(X) at challenge
 		pval := f.evalWithChallenge(f.Modulus(), at)
