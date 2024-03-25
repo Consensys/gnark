@@ -29,7 +29,9 @@ const (
 	prover_r
 	prover_o
 	prover_z
-	prover_h
+	prover_h_1
+	prover_h_2
+	prover_h_3
 
 	number_polynomials
 )

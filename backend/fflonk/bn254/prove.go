@@ -133,10 +133,6 @@ func Prove(spr *cs.SparseR1CS, pk *ProvingKey, fullWitness witness.Witness, opts
 	g.Go(instance.computeQuotient)
 
 	// open Z (blinded) at ωζ (proof.ZShiftedOpening)
-	g.Go(instance.openZ)
-
-	// linearized polynomial
-	g.Go(instance.computeLinearizedPolynomial)
 
 	// Batch opening
 	g.Go(instance.batchOpening)
@@ -202,25 +198,23 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 		opts.HashToFieldFn = hash_to_field.New([]byte("BSB22-Plonk"))
 	}
 	s := instance{
-		ctx:                    ctx,
-		pk:                     pk,
-		proof:                  &Proof{},
-		spr:                    spr,
-		opt:                    opts,
-		fullWitness:            fullWitness,
-		bp:                     make([]*iop.Polynomial, nb_blinding_polynomials),
-		fs:                     fiatshamir.NewTranscript(opts.ChallengeHash, "gamma", "beta", "alpha", "zeta"),
-		kzgFoldingHash:         opts.KZGFoldingHash,
-		htfFunc:                opts.HashToFieldFn,
-		chLRO:                  make(chan struct{}, 1),
-		chQk:                   make(chan struct{}, 1),
-		chbp:                   make(chan struct{}, 1),
-		chGammaBeta:            make(chan struct{}, 1),
-		chZ:                    make(chan struct{}, 1),
-		chH:                    make(chan struct{}, 1),
-		chZOpening:             make(chan struct{}, 1),
-		chLinearizedPolynomial: make(chan struct{}, 1),
-		chRestoreLRO:           make(chan struct{}, 1),
+		ctx:            ctx,
+		pk:             pk,
+		proof:          &Proof{},
+		spr:            spr,
+		opt:            opts,
+		fullWitness:    fullWitness,
+		bp:             make([]*iop.Polynomial, nb_blinding_polynomials),
+		fs:             fiatshamir.NewTranscript(opts.ChallengeHash, "gamma", "beta", "alpha", "zeta"),
+		kzgFoldingHash: opts.KZGFoldingHash,
+		htfFunc:        opts.HashToFieldFn,
+		chLRO:          make(chan struct{}, 1),
+		chQk:           make(chan struct{}, 1),
+		chbp:           make(chan struct{}, 1),
+		chGammaBeta:    make(chan struct{}, 1),
+		chZ:            make(chan struct{}, 1),
+		chH:            make(chan struct{}, 1),
+		chRestoreLRO:   make(chan struct{}, 1),
 	}
 	s.initBSB22Commitments()
 	s.x = make([]*iop.Polynomial, id_Qci+2*len(s.commitmentInfo))
@@ -584,26 +578,6 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 	return
 }
 
-// open Z (blinded) at ωζ
-func (s *instance) openZ() (err error) {
-	// wait for H to be committed and zeta to be derived (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chH:
-	}
-	var zetaShifted fr.Element
-	zetaShifted.Mul(&s.zeta, &s.pk.Vk.Generator)
-	s.blindedZ = getBlindedCoefficients(s.x[id_Z], s.bp[id_Bz])
-	// open z at zeta
-	s.proof.ZShiftedOpening, err = kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg)
-	if err != nil {
-		return err
-	}
-	close(s.chZOpening)
-	return nil
-}
-
 func (s *instance) h1() []fr.Element {
 	h1 := s.h.Coefficients()[:s.domain0.Cardinality+2]
 	return h1
@@ -617,76 +591,6 @@ func (s *instance) h2() []fr.Element {
 func (s *instance) h3() []fr.Element {
 	h3 := s.h.Coefficients()[2*(s.domain0.Cardinality+2) : 3*(s.domain0.Cardinality+2)]
 	return h3
-}
-
-func (s *instance) computeLinearizedPolynomial() error {
-
-	// wait for H to be committed and zeta to be derived (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chH:
-	}
-
-	qcpzeta := make([]fr.Element, len(s.commitmentInfo))
-	var blzeta, brzeta, bozeta fr.Element
-	var wg sync.WaitGroup
-	wg.Add(3 + len(s.commitmentInfo))
-
-	for i := 0; i < len(s.commitmentInfo); i++ {
-		go func(i int) {
-			qcpzeta[i] = s.trace.Qcp[i].Evaluate(s.zeta)
-			wg.Done()
-		}(i)
-	}
-
-	go func() {
-		blzeta = evaluateBlinded(s.x[id_L], s.bp[id_Bl], s.zeta)
-		wg.Done()
-	}()
-
-	go func() {
-		brzeta = evaluateBlinded(s.x[id_R], s.bp[id_Br], s.zeta)
-		wg.Done()
-	}()
-
-	go func() {
-		bozeta = evaluateBlinded(s.x[id_O], s.bp[id_Bo], s.zeta)
-		wg.Done()
-	}()
-
-	// wait for Z to be opened at zeta (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chZOpening:
-	}
-	bzuzeta := s.proof.ZShiftedOpening.ClaimedValue
-
-	wg.Wait()
-
-	s.linearizedPolynomial = s.innerComputeLinearizedPoly(
-		blzeta,
-		brzeta,
-		bozeta,
-		s.alpha,
-		s.beta,
-		s.gamma,
-		s.zeta,
-		bzuzeta,
-		qcpzeta,
-		s.blindedZ,
-		coefficients(s.cCommitments),
-		s.pk,
-	)
-
-	var err error
-	s.linearizedPolynomialDigest, err = kzg.Commit(s.linearizedPolynomial, s.pk.Kzg, runtime.NumCPU()*2)
-	if err != nil {
-		return err
-	}
-	close(s.chLinearizedPolynomial)
-	return nil
 }
 
 func (s *instance) batchOpening() error {
