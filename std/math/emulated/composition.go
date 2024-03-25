@@ -40,7 +40,7 @@ func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 	}
 	for _, r := range res {
 		if r == nil {
-			return fmt.Errorf("result slice element uninitalized")
+			return fmt.Errorf("result slice element uninitialized")
 		}
 	}
 	base := new(big.Int).Lsh(big.NewInt(1), nbBits)
