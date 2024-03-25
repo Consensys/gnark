@@ -15,6 +15,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -524,7 +525,7 @@ func (s *instance) computeQuotient() (err error) {
 	}
 
 	// commit to h
-	if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
+	if err := s.commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
 		return err
 	}
 
@@ -1028,25 +1029,47 @@ func coefficients(p []*iop.Polynomial) [][]fr.Element {
 	return res
 }
 
-func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKey) error {
+func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKey) error {
 	g := new(errgroup.Group)
 
 	g.Go(func() (err error) {
-		proof.H[0], err = kzg.Commit(h1, kzgPk)
+		var subPk kzg.ProvingKey
+		subPk.G1 = make([]bn254.G1Affine, len(h1))
+		remainder := prover_h_1 + len(s.pk.Vk.Qcp)
+		t := number_polynomials + len(s.pk.Vk.Qcp)
+		for i := 0; i < len(h1); i++ {
+			subPk.G1[i].Set(&kzgPk.G1[i*t+remainder])
+		}
+		proof.H[0], err = kzg.Commit(h1, subPk)
 		return
 	})
 
 	g.Go(func() (err error) {
-		proof.H[1], err = kzg.Commit(h2, kzgPk)
+		var subPk kzg.ProvingKey
+		subPk.G1 = make([]bn254.G1Affine, len(h2))
+		remainder := prover_h_2 + len(s.pk.Vk.Qcp)
+		t := number_polynomials + len(s.pk.Vk.Qcp)
+		for i := 0; i < len(h1); i++ {
+			subPk.G1[i].Set(&kzgPk.G1[i*t+remainder])
+		}
+		proof.H[1], err = kzg.Commit(h2, subPk)
 		return
 	})
 
 	g.Go(func() (err error) {
-		proof.H[2], err = kzg.Commit(h3, kzgPk)
+		var subPk kzg.ProvingKey
+		subPk.G1 = make([]bn254.G1Affine, len(h3))
+		remainder := prover_h_3 + len(s.pk.Vk.Qcp)
+		t := number_polynomials + len(s.pk.Vk.Qcp)
+		for i := 0; i < len(h1); i++ {
+			subPk.G1[i].Set(&kzgPk.G1[i*t+remainder])
+		}
+		proof.H[2], err = kzg.Commit(h2, subPk)
 		return
 	})
 
-	return g.Wait()
+	// return g.Wait()
+	return nil
 }
 
 // divideByXMinusOne

@@ -62,7 +62,7 @@ type VerifyingKey interface {
 // The kzg SRS must be provided in canonical and lagrange form.
 // For test purposes, see test/unsafekzg package. With an existing SRS generated through MPC in canonical form,
 // gnark-crypto offers the ToLagrangeG1 method to convert it to lagrange form.
-func Setup(ccs constraint.ConstraintSystem, srs, srsLagrange kzg.SRS) (ProvingKey, VerifyingKey, error) {
+func Setup(ccs constraint.ConstraintSystem, srs kzg.SRS) (ProvingKey, VerifyingKey, error) {
 
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
