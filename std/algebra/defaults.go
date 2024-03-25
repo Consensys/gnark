@@ -51,6 +51,12 @@ func GetCurve[FR emulated.FieldParams, G1El G1ElementT](api frontend.API) (Curve
 			return ret, fmt.Errorf("new curve: %w", err)
 		}
 		*s = c
+	case *Curve[emparams.Secp256k1Fr, sw_emulated.AffinePoint[emparams.Secp256k1Fp]]:
+		c, err := sw_emulated.New[emparams.Secp256k1Fp, emparams.Secp256k1Fr](api, sw_emulated.GetSecp256k1Params())
+		if err != nil {
+			return ret, fmt.Errorf("new curve: %w", err)
+		}
+		*s = c
 	default:
 		return ret, fmt.Errorf("unknown type parametrisation")
 	}
