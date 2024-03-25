@@ -139,12 +139,9 @@ func (g *gateClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationC
 	// For that, we first have to map the random challenges to a random input to
 	// the gate. As the inputs mapping is given by multilinear extension, then
 	// this means evaluating the MLE at the random point.
-	inputEvals := make([]*emulated.Element[FR], len(g.inputPreprocessors))
-	for i := range inputEvals {
-		inputEvals[i], err = g.p.EvalMultilinear(g.inputPreprocessors[i], r)
-		if err != nil {
-			return fmt.Errorf("eval multilin: %w", err)
-		}
+	inputEvals, err := g.p.EvalMultilinearMany(r, g.inputPreprocessors...)
+	if err != nil {
+		return fmt.Errorf("eval multilin: %w", err)
 	}
 	// now, we can evaluate the gate at the random input.
 	gateEval := g.gate.Evaluate(g.engine, inputEvals...)

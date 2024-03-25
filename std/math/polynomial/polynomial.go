@@ -3,6 +3,7 @@ package polynomial
 import (
 	"fmt"
 	"math/big"
+	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -102,45 +103,88 @@ func (p *Polynomial[FR]) EvalUnivariate(P Univariate[FR], at *emulated.Element[F
 
 // EvalMultilinear evaluates multilinear polynomial at variable values at. It
 // returns the evaluation. The method does not mutate the inputs.
-func (p *Polynomial[FR]) EvalMultilinear(M Multilinear[FR], at []*emulated.Element[FR]) (*emulated.Element[FR], error) {
-	var s *emulated.Element[FR]
-	scaleCorrectionFactor := p.f.One()
-	for len(M) > 1 {
-		if len(M) >= minFoldScaledLogSize {
-			M, s = p.foldScaled(M, at[0])
-			scaleCorrectionFactor = p.f.Mul(scaleCorrectionFactor, s)
-		} else {
-			M = p.fold(M, at[0])
-		}
-		at = at[1:]
+func (p *Polynomial[FR]) EvalMultilinear(at []*emulated.Element[FR], M Multilinear[FR]) (*emulated.Element[FR], error) {
+	ret, err := p.EvalMultilinearMany(at, M)
+	if err != nil {
+		return nil, err
 	}
-	if len(at) != 0 {
+	return ret[0], nil
+}
+
+// EvalMultilinearMany evaluates multilinear polynomials at variable values at. It
+// returns the evaluations. The method does not mutate the inputs.
+//
+// The method allows to share computations of computing the coefficients of the
+// multilinear polynomials at the given evaluation points.
+func (p *Polynomial[FR]) EvalMultilinearMany(at []*emulated.Element[FR], M ...Multilinear[FR]) ([]*emulated.Element[FR], error) {
+	lenM := len(M[0])
+	for i := range M {
+		if len(M[i]) != lenM {
+			return nil, fmt.Errorf("incompatible multilinear polynomial sizes")
+		}
+	}
+	mlelems := make([][]*emulated.Element[FR], len(M))
+	for i := range M {
+		mlelems[i] = FromSlice(M[i])
+	}
+	if bits.OnesCount(uint(lenM)) != 1 {
+		return nil, fmt.Errorf("multilinear polynomial length must be a power of 2")
+	}
+	nbExpvars := bits.Len(uint(lenM)) - 1
+	if len(at) != nbExpvars {
 		return nil, fmt.Errorf("incompatible evaluation vector size")
 	}
-	return p.f.Mul(&M[0], scaleCorrectionFactor), nil
+	split1 := nbExpvars / 2
+	nbSplit1Elems := 1 << split1
+	split2 := nbExpvars - split1
+	nbSplit2Elems := 1 << split2
+	partialMLEval1 := p.partialMultilinearEval(at[:split1])
+	partialMLEval2 := p.partialMultilinearEval(at[split1:])
+	sums := make([]*emulated.Element[FR], len(M))
+	for k := range mlelems {
+		partialSums := make([]*emulated.Element[FR], nbSplit2Elems)
+		for i := range partialSums {
+			b := make([]*emulated.Element[FR], nbSplit1Elems)
+			for j := range b {
+				b[j] = mlelems[k][i+j*nbSplit2Elems]
+			}
+			partialSums[i] = p.innerProduct(b, partialMLEval1)
+		}
+		sums[k] = p.innerProduct(partialSums, partialMLEval2)
+	}
+	return sums, nil
 }
 
-func (p *Polynomial[FR]) fold(M Multilinear[FR], at *emulated.Element[FR]) Multilinear[FR] {
-	mid := len(M) / 2
-	R := make([]emulated.Element[FR], mid)
-	for j := range R {
-		diff := p.f.Sub(&M[mid+j], &M[j])
-		diffAt := p.f.Mul(diff, at)
-		R[j] = *p.f.Add(&M[j], diffAt)
+func (p *Polynomial[FR]) partialMultilinearEval(at []*emulated.Element[FR]) []*emulated.Element[FR] {
+	if len(at) == 0 {
+		return []*emulated.Element[FR]{p.f.One()}
 	}
-	return R
+	res := []*emulated.Element[FR]{p.f.Sub(p.f.One(), at[len(at)-1]), at[len(at)-1]}
+	at = at[:len(at)-1]
+	for len(at) > 0 {
+		newRes := make([]*emulated.Element[FR], len(res)*2)
+		x := at[len(at)-1]
+		for j := range res {
+			resX := p.f.Mul(res[j], x)
+			newRes[j] = p.f.Sub(res[j], resX)
+			newRes[j+len(res)] = resX
+		}
+		res = newRes
+		at = at[:len(at)-1]
+	}
+	return res
 }
 
-func (p *Polynomial[FR]) foldScaled(M Multilinear[FR], at *emulated.Element[FR]) (Multilinear[FR], *emulated.Element[FR]) {
-	denom := p.f.Sub(p.f.One(), at)
-	coeff := p.f.Div(at, denom)
-	mid := len(M) / 2
-	R := make([]emulated.Element[FR], mid)
-	for j := range R {
-		tmp := p.f.Mul(&M[mid+j], coeff)
-		R[j] = *p.f.Add(&M[j], tmp)
+func (p *Polynomial[FR]) innerProduct(a, b []*emulated.Element[FR]) *emulated.Element[FR] {
+	if len(a) != len(b) {
+		panic(fmt.Sprintf("incompatible sizes: %d and %d", len(a), len(b)))
 	}
-	return R, denom
+	muls := make([]*emulated.Element[FR], len(a))
+	for i := range a {
+		muls[i] = p.f.MulNoReduce(a[i], b[i])
+	}
+	res := p.f.Sum(muls...)
+	return res
 }
 
 func (p *Polynomial[FR]) computeDeltaAtNaive(at *emulated.Element[FR], vLen int) []*emulated.Element[FR] {
