@@ -1031,12 +1031,12 @@ func coefficients(p []*iop.Polynomial) [][]fr.Element {
 
 func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKey) error {
 	g := new(errgroup.Group)
+	t := number_polynomials + len(s.pk.Vk.Qcp)
 
 	g.Go(func() (err error) {
 		var subPk kzg.ProvingKey
 		subPk.G1 = make([]bn254.G1Affine, len(h1))
 		remainder := prover_h_1 + len(s.pk.Vk.Qcp)
-		t := number_polynomials + len(s.pk.Vk.Qcp)
 		for i := 0; i < len(h1); i++ {
 			subPk.G1[i].Set(&kzgPk.G1[i*t+remainder])
 		}
@@ -1048,7 +1048,6 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 		var subPk kzg.ProvingKey
 		subPk.G1 = make([]bn254.G1Affine, len(h2))
 		remainder := prover_h_2 + len(s.pk.Vk.Qcp)
-		t := number_polynomials + len(s.pk.Vk.Qcp)
 		for i := 0; i < len(h1); i++ {
 			subPk.G1[i].Set(&kzgPk.G1[i*t+remainder])
 		}
@@ -1060,7 +1059,6 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 		var subPk kzg.ProvingKey
 		subPk.G1 = make([]bn254.G1Affine, len(h3))
 		remainder := prover_h_3 + len(s.pk.Vk.Qcp)
-		t := number_polynomials + len(s.pk.Vk.Qcp)
 		for i := 0; i < len(h1); i++ {
 			subPk.G1[i].Set(&kzgPk.G1[i*t+remainder])
 		}
@@ -1068,8 +1066,7 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 		return
 	})
 
-	// return g.Wait()
-	return nil
+	return g.Wait()
 }
 
 // divideByXMinusOne
