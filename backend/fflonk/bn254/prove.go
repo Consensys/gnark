@@ -189,7 +189,6 @@ type instance struct {
 	chH,
 	chRestoreLRO,
 	chZOpening,
-	chLinearizedPolynomial,
 	chGammaBeta chan struct{}
 
 	domain0, domain1 *fft.Domain
@@ -604,13 +603,6 @@ func (s *instance) batchOpening() error {
 	case <-s.ctx.Done():
 		return errContextDone
 	case <-s.chLRO:
-	}
-
-	// wait for linearizedPolynomial to be computed (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chLinearizedPolynomial:
 	}
 
 	polysQcp := coefficients(s.trace.Qcp)

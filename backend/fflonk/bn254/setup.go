@@ -234,8 +234,6 @@ func NewTrace(spr *cs.SparseR1CS, domain *fft.Domain) *Trace {
 // the commitments int the verifying key.
 func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.ProvingKey) error {
 
-	size := int(domain.Cardinality)
-
 	// step 0: put everyithing in canonical regular form
 	currentNbPolynomials := setup_s3 + len(trace.Qcp) + 1
 	traceList := make([][]fr.Element, currentNbPolynomials)
@@ -255,9 +253,9 @@ func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.
 	// Q_{public}:=Q_{L}(Xᵗ)+XQ_{R}(Xᵗ)+X²Q_{M}(Xᵗ)+X³Q_{O}(Xᵗ)+X⁴Q_{K}(Xᵗ)+X⁵S₁(Xᵗ)+X⁶S₂(Xᵗ)+X⁷S₃(Xᵗ)+X⁸Q_{Cp}(Xᵗ)
 	// where t = 13 + |nb_custom_gates|
 	t := (number_polynomials + 2*len(trace.Qcp))
+	size := int(domain.Cardinality)
 	upperBoundSize := t * size
 	buf := make([]fr.Element, upperBoundSize)
-	fmt.Printf("upperbound size: %d\n", upperBoundSize)
 	for i := 0; i < size; i++ {
 		for j := 0; j < currentNbPolynomials; j++ {
 			buf[i*t+j].Set(&traceList[j][i])
