@@ -293,9 +293,18 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	// if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
 	// 	return err
 	// }
-	if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.Kzg); err != nil {
+	s.cCommitments[commDepth].ToCanonical(s.domain0).ToRegular()
+	var subPk kzg.ProvingKey
+	subPk.G1 = make([]curve.G1Affine, len(s.cCommitments[commDepth].Coefficients()))
+	t := number_polynomials + 2*len(s.pk.Vk.Qcp)
+	id := setup_s3 + 1 + commDepth
+	for i := 0; i < len(s.cCommitments[commDepth].Coefficients()); i++ {
+		subPk.G1[i].Set(&s.pk.Kzg.G1[i*t+id])
+	}
+	if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), subPk); err != nil {
 		return err
 	}
+	s.cCommitments[commDepth].ToLagrange(s.domain0).ToRegular()
 
 	s.htfFunc.Write(s.proof.Bsb22Commitments[commDepth].Marshal())
 	hashBts := s.htfFunc.Sum(nil)
