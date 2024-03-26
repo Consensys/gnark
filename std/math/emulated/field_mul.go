@@ -58,6 +58,7 @@ type mulCheck[T FieldParams] struct {
 	r    *Element[T] // reduced value
 	k    *Element[T] // coefficient
 	c    *Element[T] // carry
+	p    *Element[T] // modulus if non-nil
 }
 
 // evalRound1 evaluates first c(X), r(X) and k(X) at a given random point at[0].
@@ -67,6 +68,9 @@ func (mc *mulCheck[T]) evalRound1(at []frontend.Variable) {
 	mc.c = mc.f.evalWithChallenge(mc.c, at)
 	mc.r = mc.f.evalWithChallenge(mc.r, at)
 	mc.k = mc.f.evalWithChallenge(mc.k, at)
+	if mc.p != nil {
+		mc.p = mc.f.evalWithChallenge(mc.p, at)
+	}
 }
 
 // evalRound2 now evaluates a and b at a given random point at[0]. However, it
@@ -81,6 +85,9 @@ func (mc *mulCheck[T]) evalRound2(at []frontend.Variable) {
 // computation of p(ch) and (2^t-ch) can be shared over all mulCheck instances,
 // then we get them already evaluated as peval and coef.
 func (mc *mulCheck[T]) check(api frontend.API, peval, coef frontend.Variable) {
+	if mc.p != nil {
+		peval = mc.p.evaluation
+	}
 	ls := api.Mul(mc.a.evaluation, mc.b.evaluation)
 	rs := api.Add(mc.r.evaluation, api.Mul(peval, mc.k.evaluation), api.Mul(mc.c.evaluation, coef))
 	api.AssertIsEqual(ls, rs)
@@ -99,6 +106,8 @@ func (mc *mulCheck[T]) cleanEvaluations() {
 	mc.k.isEvaluated = false
 	mc.c.evaluation = 0
 	mc.c.isEvaluated = false
+	mc.p.evaluation = 0
+	mc.p.isEvaluated = false
 }
 
 // mulMod returns a*b mod r. In practice it computes the result using a hint and
@@ -106,7 +115,7 @@ func (mc *mulCheck[T]) cleanEvaluations() {
 func (f *Field[T]) mulMod(a, b *Element[T], _ uint) *Element[T] {
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
-	k, r, c, err := f.callMulHint(a, b, true)
+	k, r, c, err := f.callMulHint(a, b, true, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -122,13 +131,34 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint) *Element[T] {
 	return r
 }
 
+func (f *Field[T]) mulModCustom(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
+	f.enforceWidthConditional(p)
+	k, r, c, err := f.callMulHint(a, b, true, p)
+	if err != nil {
+		panic(err)
+	}
+	mc := mulCheck[T]{
+		f: f,
+		a: a,
+		b: b,
+		c: c,
+		k: k,
+		r: r,
+		p: p,
+	}
+	f.mulChecks = append(f.mulChecks, mc)
+	return r
+}
+
 // checkZero creates multiplication check a * 1 = 0 + k*p.
 func (f *Field[T]) checkZero(a *Element[T]) {
 	// the method works similarly to mulMod, but we know that we are multiplying
 	// by one and expected result should be zero.
 	f.enforceWidthConditional(a)
 	b := f.shortOne()
-	k, r, c, err := f.callMulHint(a, b, false)
+	k, r, c, err := f.callMulHint(a, b, false, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -191,6 +221,9 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 		toCommit = append(toCommit, f.mulChecks[i].r.Limbs...)
 		toCommit = append(toCommit, f.mulChecks[i].k.Limbs...)
 		toCommit = append(toCommit, f.mulChecks[i].c.Limbs...)
+		if f.mulChecks[i].p != nil {
+			toCommit = append(toCommit, f.mulChecks[i].p.Limbs...)
+		}
 	}
 	// we give all the inputs as inputs to obtain random verifier challenge.
 	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
@@ -234,7 +267,7 @@ func (f *Field[T]) performMulChecks(api frontend.API) error {
 }
 
 // callMulHint uses hint to compute r, k and c.
-func (f *Field[T]) callMulHint(a, b *Element[T], isMulMod bool) (quo, rem, carries *Element[T], err error) {
+func (f *Field[T]) callMulHint(a, b *Element[T], isMulMod bool, customMod *Element[T]) (quo, rem, carries *Element[T], err error) {
 	// compute the expected overflow after the multiplication of a*b to be able
 	// to estimate the number of bits required to represent the result.
 	nextOverflow, _ := f.mulPreCond(a, b)
@@ -267,7 +300,11 @@ func (f *Field[T]) callMulHint(a, b *Element[T], isMulMod bool) (quo, rem, carri
 		len(a.Limbs),
 		nbQuoLimbs,
 	}
-	hintInputs = append(hintInputs, f.Modulus().Limbs...)
+	modulusLimbs := f.Modulus().Limbs
+	if customMod != nil {
+		modulusLimbs = customMod.Limbs
+	}
+	hintInputs = append(hintInputs, modulusLimbs...)
 	hintInputs = append(hintInputs, a.Limbs...)
 	hintInputs = append(hintInputs, b.Limbs...)
 	ret, err := f.api.NewHint(mulHint, int(nbQuoLimbs)+int(nbRemLimbs)+int(nbCarryLimbs), hintInputs...)
