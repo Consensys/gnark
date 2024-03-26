@@ -237,34 +237,23 @@ func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.
 	size := int(domain.Cardinality)
 
 	// step 0: put everyithing in canonical regular form
-	trace.Ql.ToCanonical(domain).ToRegular()
-	trace.Qr.ToCanonical(domain).ToRegular()
-	trace.Qm.ToCanonical(domain).ToRegular()
-	trace.Qo.ToCanonical(domain).ToRegular()
-	trace.Qk.ToCanonical(domain).ToRegular()
-	trace.S1.ToCanonical(domain).ToRegular()
-	trace.S2.ToCanonical(domain).ToRegular()
-	trace.S3.ToCanonical(domain).ToRegular()
+	currentNbPolynomials := setup_s3 + len(trace.Qcp) + 1
+	traceList := make([][]fr.Element, currentNbPolynomials)
+	traceList[setup_ql] = trace.Ql.ToCanonical(domain).ToRegular().Coefficients()
+	traceList[setup_qr] = trace.Qr.ToCanonical(domain).ToRegular().Coefficients()
+	traceList[setup_qm] = trace.Qm.ToCanonical(domain).ToRegular().Coefficients()
+	traceList[setup_qo] = trace.Qo.ToCanonical(domain).ToRegular().Coefficients()
+	traceList[setup_qk_incomplete] = trace.Qk.ToCanonical(domain).ToRegular().Coefficients()
+	traceList[setup_s1] = trace.S1.ToCanonical(domain).ToRegular().Coefficients()
+	traceList[setup_s2] = trace.S2.ToCanonical(domain).ToRegular().Coefficients()
+	traceList[setup_s3] = trace.S3.ToCanonical(domain).ToRegular().Coefficients()
 	for i := 0; i < len(trace.Qcp); i++ {
-		trace.Qcp[i].ToCanonical(domain).ToRegular()
+		traceList[setup_s3+i+1] = trace.Qcp[i].ToCanonical(domain).ToRegular().Coefficients()
 	}
 
 	// step 1: intertwine the polynomials to obtain the following polynomial:
 	// Q_{public}:=Q_{L}(Xᵗ)+XQ_{R}(Xᵗ)+X²Q_{M}(Xᵗ)+X³Q_{O}(Xᵗ)+X⁴Q_{K}(Xᵗ)+X⁵S₁(Xᵗ)+X⁶S₂(Xᵗ)+X⁷S₃(Xᵗ)+X⁸Q_{Cp}(Xᵗ)
 	// where t = 13 + |nb_custom_gates|
-	currentNbPolynomials := setup_s3 + len(trace.Qcp) + 1
-	traceList := make([][]fr.Element, currentNbPolynomials)
-	traceList[setup_ql] = trace.Ql.Coefficients()
-	traceList[setup_qr] = trace.Qr.Coefficients()
-	traceList[setup_qm] = trace.Qm.Coefficients()
-	traceList[setup_qo] = trace.Qo.Coefficients()
-	traceList[setup_qk_incomplete] = trace.Qk.Coefficients()
-	traceList[setup_s1] = trace.S1.Coefficients()
-	traceList[setup_s2] = trace.S2.Coefficients()
-	traceList[setup_s3] = trace.S3.Coefficients()
-	for i := 0; i < len(trace.Qcp); i++ {
-		traceList[setup_s3+i+1] = trace.Qcp[i].Coefficients()
-	}
 	t := (number_polynomials + 2*len(trace.Qcp))
 	upperBoundSize := t * size
 	buf := make([]fr.Element, upperBoundSize)
