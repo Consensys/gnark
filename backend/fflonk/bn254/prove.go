@@ -81,7 +81,7 @@ const (
 type Proof struct {
 
 	// Commitments to the solution vectors, entangled
-	LRO [3]kzg.Digest
+	LROEntangled kzg.Digest
 
 	// Commitment to Z, the permutation polynomial (perpared to be entangled)
 	ZEntangled kzg.Digest
@@ -90,7 +90,7 @@ type Proof struct {
 	// Z kzg.Digest
 
 	// Commitments to h1, h2, h3 (entangled) such that h = h1 + Xⁿ⁺²*h2 + X²⁽ⁿ⁺²⁾*h3 is the quotient polynomial
-	H [3]kzg.Digest
+	HEntangled [3]kzg.Digest
 
 	// commitment to the wires associated to the custom gates (entangled)
 	Bsb22Commitments []kzg.Digest
@@ -384,20 +384,24 @@ func (s *instance) commitToLRO() error {
 	g := new(errgroup.Group)
 	offsetQcp := len(s.pk.Vk.Qcp)
 
+	var l, r, o kzg.Digest
+
 	g.Go(func() (err error) {
-		s.proof.LRO[0], err = s.commitToPolyAndBlinding(s.x[id_L], s.bp[id_Bl], prover_l+offsetQcp)
+		l, err = s.commitToPolyAndBlinding(s.x[id_L], s.bp[id_Bl], prover_l+offsetQcp)
 		return
 	})
 
 	g.Go(func() (err error) {
-		s.proof.LRO[1], err = s.commitToPolyAndBlinding(s.x[id_R], s.bp[id_Br], prover_r+offsetQcp)
+		r, err = s.commitToPolyAndBlinding(s.x[id_R], s.bp[id_Br], prover_r+offsetQcp)
 		return
 	})
 
 	g.Go(func() (err error) {
-		s.proof.LRO[2], err = s.commitToPolyAndBlinding(s.x[id_O], s.bp[id_Bo], prover_o+offsetQcp)
+		o, err = s.commitToPolyAndBlinding(s.x[id_O], s.bp[id_Bo], prover_o+offsetQcp)
 		return
 	})
+
+	s.proof.LROEntangled.Add(&l, &r).Add(&s.proof.LROEntangled, &o)
 
 	return g.Wait()
 }
@@ -420,7 +424,7 @@ func (s *instance) deriveGammaAndBeta() error {
 	case <-s.chLRO:
 	}
 
-	gamma, err := deriveRandomness(s.fs, "gamma", &s.proof.LRO[0], &s.proof.LRO[1], &s.proof.LRO[2])
+	gamma, err := deriveRandomness(s.fs, "gamma", &s.proof.LROEntangled)
 	if err != nil {
 		return err
 	}
@@ -478,7 +482,7 @@ func (s *instance) deriveAlpha() (err error) {
 }
 
 func (s *instance) deriveZeta() (err error) {
-	s.zeta, err = deriveRandomness(s.fs, "zeta", &s.proof.H[0], &s.proof.H[1], &s.proof.H[2])
+	s.zeta, err = deriveRandomness(s.fs, "zeta", &s.proof.HEntangled[0], &s.proof.HEntangled[1], &s.proof.HEntangled[2])
 	return
 }
 
@@ -621,7 +625,12 @@ func (s *instance) batchOpening() error {
 	case <-s.chLRO:
 	}
 
-	// step 0: compute the folded digest
+	// step 0: compute the folded digest, which corresponds to the polynomial
+	// Q_{public}+Qₗᵣₒ+Q_{Z}+Q_{H}
+	var foldedDigest kzg.Digest
+	foldedDigest.Set(&s.pk.Vk.Qpublic).
+		Add(&foldedDigest, &s.proof.LROEntangled).
+		Add(&foldedDigest, &s.proof.ZEntangled)
 
 	// step 1: compute the commitment to Z
 
@@ -1029,7 +1038,7 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 		for i := 0; i < len(h1); i++ {
 			subPk.G1[i].Set(&kzgPk.G1[i*t+rh1])
 		}
-		proof.H[0], err = kzg.Commit(h1, subPk)
+		proof.HEntangled[0], err = kzg.Commit(h1, subPk)
 		return
 	})
 
@@ -1039,7 +1048,7 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 		for i := 0; i < len(h1); i++ {
 			subPk.G1[i].Set(&kzgPk.G1[i*t+rh2])
 		}
-		proof.H[1], err = kzg.Commit(h2, subPk)
+		proof.HEntangled[1], err = kzg.Commit(h2, subPk)
 		return
 	})
 
@@ -1049,7 +1058,7 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 		for i := 0; i < len(h1); i++ {
 			subPk.G1[i].Set(&kzgPk.G1[i*t+rh3])
 		}
-		proof.H[2], err = kzg.Commit(h3, subPk)
+		proof.HEntangled[2], err = kzg.Commit(h3, subPk)
 		return
 	})
 

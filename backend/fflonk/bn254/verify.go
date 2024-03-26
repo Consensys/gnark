@@ -48,7 +48,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	if err := bindPublicData(fs, "gamma", vk, publicWitness); err != nil {
 		return err
 	}
-	gamma, err := deriveRandomness(fs, "gamma", &proof.LRO[0], &proof.LRO[1], &proof.LRO[2])
+	gamma, err := deriveRandomness(fs, "gamma", &proof.LROEntangled)
 	if err != nil {
 		return err
 	}
@@ -64,14 +64,14 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	for i := range proof.Bsb22Commitments {
 		alphaDeps[i] = &proof.Bsb22Commitments[i]
 	}
-	alphaDeps[len(alphaDeps)-1] = &proof.Z
+	alphaDeps[len(alphaDeps)-1] = &proof.ZEntangled
 	alpha, err := deriveRandomness(fs, "alpha", alphaDeps...)
 	if err != nil {
 		return err
 	}
 
 	// derive zeta, the point of evaluation
-	zeta, err := deriveRandomness(fs, "zeta", &proof.H[0], &proof.H[1], &proof.H[2])
+	zeta, err := deriveRandomness(fs, "zeta", &proof.HEntangled[0], &proof.HEntangled[1], &proof.HEntangled[2])
 	if err != nil {
 		return err
 	}
