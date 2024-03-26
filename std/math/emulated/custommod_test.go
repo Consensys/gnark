@@ -24,7 +24,7 @@ func (c *variableAddition[T]) Define(api frontend.API) error {
 	}
 	res := v.Add(&c.A, &c.B, &c.Modulus)
 	// v.f.AssertIsEqual(&c.Expected, res)
-	v.f.Println(res)
+	// v.f.Println(res)
 	_ = res
 	return nil
 }
@@ -56,8 +56,8 @@ func (c *variableMultiplication[T]) Define(api frontend.API) error {
 	}
 	res := v.Mul(&c.A, &c.B, &c.Modulus)
 	// v.f.AssertIsEqual(&c.Expected, res)
-	v.f.Println(res)
-	v.f.Println(&c.Expected)
+	// v.f.Println(res)
+	// v.f.Println(&c.Expected)
 	_ = res
 	return nil
 }
