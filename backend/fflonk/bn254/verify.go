@@ -71,7 +71,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	}
 
 	// derive zeta, the point of evaluation
-	zeta, err := deriveRandomness(fs, "zeta", &proof.HEntangled[0], &proof.HEntangled[1], &proof.HEntangled[2])
+	zeta, err := deriveRandomness(fs, "zeta", &proof.HEntangled)
 	if err != nil {
 		return err
 	}

@@ -24,9 +24,7 @@ func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64
 	toEncode := []interface{}{
 		&proof.LROEntangled,
 		&proof.ZEntangled,
-		&proof.HEntangled[0],
-		&proof.HEntangled[1],
-		&proof.HEntangled[2],
+		&proof.HEntangled,
 		proof.Bsb22Commitments,
 	}
 
@@ -45,9 +43,7 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 	toDecode := []interface{}{
 		&proof.LROEntangled,
 		&proof.ZEntangled,
-		&proof.HEntangled[0],
-		&proof.HEntangled[1],
-		&proof.HEntangled[2],
+		&proof.HEntangled,
 		&proof.Bsb22Commitments,
 	}
 

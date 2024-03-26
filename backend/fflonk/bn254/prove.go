@@ -90,7 +90,7 @@ type Proof struct {
 	// Z kzg.Digest
 
 	// Commitments to h1, h2, h3 (entangled) such that h = h1 + Xⁿ⁺²*h2 + X²⁽ⁿ⁺²⁾*h3 is the quotient polynomial
-	HEntangled [3]kzg.Digest
+	HEntangled kzg.Digest
 
 	// commitment to the wires associated to the custom gates (entangled)
 	Bsb22Commitments []kzg.Digest
@@ -482,7 +482,7 @@ func (s *instance) deriveAlpha() (err error) {
 }
 
 func (s *instance) deriveZeta() (err error) {
-	s.zeta, err = deriveRandomness(s.fs, "zeta", &s.proof.HEntangled[0], &s.proof.HEntangled[1], &s.proof.HEntangled[2])
+	s.zeta, err = deriveRandomness(s.fs, "zeta", &s.proof.HEntangled)
 	return
 }
 
@@ -630,7 +630,8 @@ func (s *instance) batchOpening() error {
 	var foldedDigest kzg.Digest
 	foldedDigest.Set(&s.pk.Vk.Qpublic).
 		Add(&foldedDigest, &s.proof.LROEntangled).
-		Add(&foldedDigest, &s.proof.ZEntangled)
+		Add(&foldedDigest, &s.proof.ZEntangled).
+		Add(&foldedDigest, &s.proof.HEntangled)
 
 	// step 1: compute the commitment to Z
 
@@ -1032,13 +1033,15 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 	rh2 := lenQcp + prover_h_2
 	rh3 := lenQcp + prover_h_3
 
+	var commitmentH1, commitmentH2, commitmentH3 kzg.Digest
+
 	g.Go(func() (err error) {
 		var subPk kzg.ProvingKey
 		subPk.G1 = make([]bn254.G1Affine, len(h1))
 		for i := 0; i < len(h1); i++ {
 			subPk.G1[i].Set(&kzgPk.G1[i*t+rh1])
 		}
-		proof.HEntangled[0], err = kzg.Commit(h1, subPk)
+		commitmentH1, err = kzg.Commit(h1, subPk)
 		return
 	})
 
@@ -1048,7 +1051,7 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 		for i := 0; i < len(h1); i++ {
 			subPk.G1[i].Set(&kzgPk.G1[i*t+rh2])
 		}
-		proof.HEntangled[1], err = kzg.Commit(h2, subPk)
+		commitmentH2, err = kzg.Commit(h2, subPk)
 		return
 	})
 
@@ -1058,11 +1061,16 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 		for i := 0; i < len(h1); i++ {
 			subPk.G1[i].Set(&kzgPk.G1[i*t+rh3])
 		}
-		proof.HEntangled[2], err = kzg.Commit(h3, subPk)
+		commitmentH3, err = kzg.Commit(h3, subPk)
 		return
 	})
 
-	return g.Wait()
+	err := g.Wait()
+
+	s.proof.HEntangled.Add(&commitmentH1, &commitmentH2).
+		Add(&s.proof.HEntangled, &commitmentH3)
+
+	return err
 }
 
 // divideByXMinusOne
