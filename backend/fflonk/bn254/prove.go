@@ -68,10 +68,14 @@ const (
 
 // blinding orders (-1 to deactivate)
 const (
-	order_blinding_L = 1
-	order_blinding_R = 1
-	order_blinding_O = 1
-	order_blinding_Z = 2
+	// order_blinding_L = 1
+	// order_blinding_R = 1
+	// order_blinding_O = 1
+	// order_blinding_Z = 2
+	order_blinding_L = -1
+	order_blinding_R = -1
+	order_blinding_O = -1
+	order_blinding_Z = -1
 )
 
 type Proof struct {
@@ -166,9 +170,6 @@ type instance struct {
 	bp       []*iop.Polynomial // blinding polynomials
 	h        *iop.Polynomial   // h is the quotient polynomial
 	blindedZ []fr.Element      // blindedZ is the blinded version of Z
-
-	linearizedPolynomial       []fr.Element
-	linearizedPolynomialDigest kzg.Digest
 
 	fullWitness witness.Witness
 
@@ -616,7 +617,6 @@ func (s *instance) batchOpening() error {
 	polysToOpen := make([][]fr.Element, 6+len(polysQcp))
 	copy(polysToOpen[6:], polysQcp)
 
-	polysToOpen[0] = s.linearizedPolynomial
 	polysToOpen[1] = getBlindedCoefficients(s.x[id_L], s.bp[id_Bl])
 	polysToOpen[2] = getBlindedCoefficients(s.x[id_R], s.bp[id_Br])
 	polysToOpen[3] = getBlindedCoefficients(s.x[id_O], s.bp[id_Bo])
@@ -626,7 +626,6 @@ func (s *instance) batchOpening() error {
 	digestsToOpen := make([]curve.G1Affine, len(s.pk.Vk.Qcp)+6)
 	copy(digestsToOpen[6:], s.pk.Vk.Qcp)
 
-	digestsToOpen[0] = s.linearizedPolynomialDigest
 	digestsToOpen[1] = s.proof.LRO[0]
 	digestsToOpen[2] = s.proof.LRO[1]
 	digestsToOpen[3] = s.proof.LRO[2]
@@ -634,14 +633,6 @@ func (s *instance) batchOpening() error {
 	digestsToOpen[5] = s.pk.Vk.S[1]
 
 	var err error
-	s.proof.BatchedProof, err = kzg.BatchOpenSinglePoint(
-		polysToOpen,
-		digestsToOpen,
-		s.zeta,
-		s.kzgFoldingHash,
-		s.pk.Kzg,
-		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
-	)
 
 	return err
 }

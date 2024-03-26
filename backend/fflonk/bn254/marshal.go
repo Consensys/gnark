@@ -29,10 +29,6 @@ func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64
 		&proof.H[0],
 		&proof.H[1],
 		&proof.H[2],
-		&proof.BatchedProof.H,
-		proof.BatchedProof.ClaimedValues,
-		&proof.ZShiftedOpening.H,
-		&proof.ZShiftedOpening.ClaimedValue,
 		proof.Bsb22Commitments,
 	}
 
@@ -56,10 +52,6 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		&proof.H[0],
 		&proof.H[1],
 		&proof.H[2],
-		&proof.BatchedProof.H,
-		&proof.BatchedProof.ClaimedValues,
-		&proof.ZShiftedOpening.H,
-		&proof.ZShiftedOpening.ClaimedValue,
 		&proof.Bsb22Commitments,
 	}
 

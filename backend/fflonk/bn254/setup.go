@@ -13,6 +13,9 @@ import (
 	cs "github.com/consensys/gnark/constraint/bn254"
 )
 
+// This enum describes how the polynomials are entangled in the fflonk proof.
+// Namely in the folded polnyomial ∑_i P_i(X^t)Xⁱ the i-th term corresponds to
+// the i-th polynomial in the enum (ex P₀ = ql)
 const (
 	setup_ql int = iota
 	setup_qr
@@ -32,7 +35,7 @@ const (
 	prover_h_1
 	prover_h_2
 	prover_h_3
-	// #GQCp
+	// #Bsb22Commitments
 
 	number_polynomials
 )
@@ -65,7 +68,7 @@ type VerifyingKey struct {
 
 	// Fflonk commitment of
 	// Ql(Xᵗ) + XQr(Xᵗ) + X²Qm(Xᵗ) + X³Qo(Xᵗ) + X₄Qk(Xᵗ) + X₅S₁(Xᵗ) + X₆S₂(Xᵗ) + X₇S₃(Xᵗ) + X₈Qcp(Xᵗ)
-	// where t = |{Ql,Qr,Qm,Qo,Qk,S₁,S₂,S₃,Qcp,L,R,O,H₁,H₂,H₃}|
+	// where t = |{Ql,Qr,Qm,Qo,Qk,S₁,S₂,S₃,(Qcp)_i,L,R,O,H₁,H₂,H₃,(Pi)_i}|
 	Qpublic kzg.Digest
 
 	CommitmentConstraintIndexes []uint64
