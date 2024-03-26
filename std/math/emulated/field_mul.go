@@ -106,8 +106,10 @@ func (mc *mulCheck[T]) cleanEvaluations() {
 	mc.k.isEvaluated = false
 	mc.c.evaluation = 0
 	mc.c.isEvaluated = false
-	mc.p.evaluation = 0
-	mc.p.isEvaluated = false
+	if mc.p != nil {
+		mc.p.evaluation = 0
+		mc.p.isEvaluated = false
+	}
 }
 
 // mulMod returns a*b mod r. In practice it computes the result using a hint and
