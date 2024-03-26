@@ -80,16 +80,19 @@ const (
 
 type Proof struct {
 
-	// Commitments to the solution vectors
+	// Commitments to the solution vectors, entangled
 	LRO [3]kzg.Digest
 
-	// Commitment to Z, the permutation polynomial
-	Z kzg.Digest
+	// Commitment to Z, the permutation polynomial (perpared to be entangled)
+	ZEntangled kzg.Digest
 
-	// Commitments to h1, h2, h3 such that h = h1 + Xⁿ⁺²*h2 + X²⁽ⁿ⁺²⁾*h3 is the quotient polynomial
+	// Commitment to Z, not entangled
+	// Z kzg.Digest
+
+	// Commitments to h1, h2, h3 (entangled) such that h = h1 + Xⁿ⁺²*h2 + X²⁽ⁿ⁺²⁾*h3 is the quotient polynomial
 	H [3]kzg.Digest
 
-	// commitment to the wires associated to the custom gates
+	// commitment to the wires associated to the custom gates (entangled)
 	Bsb22Commitments []kzg.Digest
 
 	// fflonk batch opening proof of
@@ -370,6 +373,7 @@ func (s *instance) completeQk() error {
 }
 
 func (s *instance) commitToLRO() error {
+
 	// wait for blinding polynomials to be initialized or context to be done
 	select {
 	case <-s.ctx.Done():
@@ -378,19 +382,20 @@ func (s *instance) commitToLRO() error {
 	}
 
 	g := new(errgroup.Group)
+	offsetQcp := len(s.pk.Vk.Qcp)
 
 	g.Go(func() (err error) {
-		s.proof.LRO[0], err = s.commitToPolyAndBlinding(s.x[id_L], s.bp[id_Bl])
+		s.proof.LRO[0], err = s.commitToPolyAndBlinding(s.x[id_L], s.bp[id_Bl], prover_l+offsetQcp)
 		return
 	})
 
 	g.Go(func() (err error) {
-		s.proof.LRO[1], err = s.commitToPolyAndBlinding(s.x[id_R], s.bp[id_Br])
+		s.proof.LRO[1], err = s.commitToPolyAndBlinding(s.x[id_R], s.bp[id_Br], prover_r+offsetQcp)
 		return
 	})
 
 	g.Go(func() (err error) {
-		s.proof.LRO[2], err = s.commitToPolyAndBlinding(s.x[id_O], s.bp[id_Bo])
+		s.proof.LRO[2], err = s.commitToPolyAndBlinding(s.x[id_O], s.bp[id_Bo], prover_o+offsetQcp)
 		return
 	})
 
@@ -436,12 +441,22 @@ func (s *instance) deriveGammaAndBeta() error {
 // in Lagrange form (large degree)
 // and add the contribution of a blinding polynomial b (small degree)
 // /!\ The polynomial p is supposed to be in Lagrange form.
-func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G1Affine, err error) {
+// id indicates the entangled position of p in the folded commitment
+func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial, id int) (commit curve.G1Affine, err error) {
 
 	// LAGRANGE
 	// commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange)
 	p.ToCanonical(s.domain0).ToRegular()
-	commit, err = kzg.Commit(p.Coefficients(), s.pk.Kzg)
+
+	// get the sub KZG proving key
+	t := number_polynomials + 2*len(s.pk.Vk.Qcp)
+	var subPk kzg.ProvingKey
+	subPk.G1 = make([]bn254.G1Affine, len(p.Coefficients()))
+	for i := 0; i < len(p.Coefficients()); i++ {
+		subPk.G1[i].Set(&s.pk.Kzg.G1[i*t+id])
+	}
+
+	commit, err = kzg.Commit(p.Coefficients(), subPk)
 	p.ToLagrange(s.domain0)
 
 	// we add in the blinding contribution
@@ -457,7 +472,7 @@ func (s *instance) deriveAlpha() (err error) {
 	for i := range s.proof.Bsb22Commitments {
 		alphaDeps[i] = &s.proof.Bsb22Commitments[i]
 	}
-	alphaDeps[len(alphaDeps)-1] = &s.proof.Z
+	alphaDeps[len(alphaDeps)-1] = &s.proof.ZEntangled
 	s.alpha, err = deriveRandomness(s.fs, "alpha", alphaDeps...)
 	return err
 }
@@ -573,8 +588,9 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 		return err
 	}
 
-	// commit to the blinded version of z
-	s.proof.Z, err = s.commitToPolyAndBlinding(s.x[id_Z], s.bp[id_Bz])
+	// commit to the blinded version of z (entangled)
+	offsetQcp := len(s.pk.Vk.Qcp)
+	s.proof.ZEntangled, err = s.commitToPolyAndBlinding(s.x[id_Z], s.bp[id_Bz], prover_z+offsetQcp)
 
 	close(s.chZ)
 
@@ -605,24 +621,9 @@ func (s *instance) batchOpening() error {
 	case <-s.chLRO:
 	}
 
-	polysQcp := coefficients(s.trace.Qcp)
-	polysToOpen := make([][]fr.Element, 6+len(polysQcp))
-	copy(polysToOpen[6:], polysQcp)
+	// step 0: compute the folded digest
 
-	polysToOpen[1] = getBlindedCoefficients(s.x[id_L], s.bp[id_Bl])
-	polysToOpen[2] = getBlindedCoefficients(s.x[id_R], s.bp[id_Br])
-	polysToOpen[3] = getBlindedCoefficients(s.x[id_O], s.bp[id_Bo])
-	polysToOpen[4] = s.trace.S1.Coefficients()
-	polysToOpen[5] = s.trace.S2.Coefficients()
-
-	digestsToOpen := make([]curve.G1Affine, len(s.pk.Vk.Qcp)+6)
-	copy(digestsToOpen[6:], s.pk.Vk.Qcp)
-
-	digestsToOpen[1] = s.proof.LRO[0]
-	digestsToOpen[2] = s.proof.LRO[1]
-	digestsToOpen[3] = s.proof.LRO[2]
-	digestsToOpen[4] = s.pk.Vk.S[0]
-	digestsToOpen[5] = s.pk.Vk.S[1]
+	// step 1: compute the commitment to Z
 
 	var err error
 
@@ -1048,7 +1049,7 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 		for i := 0; i < len(h1); i++ {
 			subPk.G1[i].Set(&kzgPk.G1[i*t+rh3])
 		}
-		proof.H[2], err = kzg.Commit(h2, subPk)
+		proof.H[2], err = kzg.Commit(h3, subPk)
 		return
 	})
 
