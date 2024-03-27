@@ -83,6 +83,9 @@ type Proof struct {
 	// Commitments to the solution vectors, entangled
 	LROEntangled kzg.Digest
 
+	// Non entangled commitment to Z
+	Z kzg.Digest
+
 	// Commitment to Z, the permutation polynomial (perpared to be entangled)
 	ZEntangled kzg.Digest
 
@@ -396,17 +399,17 @@ func (s *instance) commitToLRO() error {
 	var l, r, o kzg.Digest
 
 	g.Go(func() (err error) {
-		l, err = s.commitToPolyAndBlinding(s.x[id_L], s.bp[id_Bl], prover_l+offsetQcp)
+		l, err = s.commitToEntangledPolyAndBlinding(s.x[id_L], s.bp[id_Bl], prover_l+offsetQcp)
 		return
 	})
 
 	g.Go(func() (err error) {
-		r, err = s.commitToPolyAndBlinding(s.x[id_R], s.bp[id_Br], prover_r+offsetQcp)
+		r, err = s.commitToEntangledPolyAndBlinding(s.x[id_R], s.bp[id_Br], prover_r+offsetQcp)
 		return
 	})
 
 	g.Go(func() (err error) {
-		o, err = s.commitToPolyAndBlinding(s.x[id_O], s.bp[id_Bo], prover_o+offsetQcp)
+		o, err = s.commitToEntangledPolyAndBlinding(s.x[id_O], s.bp[id_Bo], prover_o+offsetQcp)
 		return
 	})
 
@@ -454,8 +457,25 @@ func (s *instance) deriveGammaAndBeta() error {
 // in Lagrange form (large degree)
 // and add the contribution of a blinding polynomial b (small degree)
 // /!\ The polynomial p is supposed to be in Lagrange form.
+func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G1Affine, err error) {
+
+	p.ToCanonical(s.domain0).ToRegular()
+	commit, err = kzg.Commit(p.Coefficients(), s.pk.Kzg)
+
+	// we add in the blinding contribution
+	n := int(s.domain0.Cardinality)
+	cb := commitBlindingFactor(n, b, s.pk.Kzg)
+	commit.Add(&commit, &cb)
+
+	return
+}
+
+// commitToEntangledPolyAndBlinding computes the KZG commitment of a polynomial p
+// in Lagrange form (large degree)
+// and add the contribution of a blinding polynomial b (small degree)
+// /!\ The polynomial p is supposed to be in Lagrange form.
 // id indicates the entangled position of p in the folded commitment
-func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial, id int) (commit curve.G1Affine, err error) {
+func (s *instance) commitToEntangledPolyAndBlinding(p, b *iop.Polynomial, id int) (commit curve.G1Affine, err error) {
 
 	// LAGRANGE
 	// commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange)
@@ -603,7 +623,11 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 
 	// commit to the blinded version of z (entangled)
 	offsetQcp := len(s.pk.Vk.Qcp)
-	s.proof.ZEntangled, err = s.commitToPolyAndBlinding(s.x[id_Z], s.bp[id_Bz], prover_z+offsetQcp)
+	s.proof.ZEntangled, err = s.commitToEntangledPolyAndBlinding(s.x[id_Z], s.bp[id_Bz], prover_z+offsetQcp)
+	if err != nil {
+		return err
+	}
+	s.proof.Z, err = s.commitToPolyAndBlinding(s.x[id_Z], s.bp[id_Z])
 
 	close(s.chZ)
 
@@ -636,15 +660,67 @@ func (s *instance) batchOpening() error {
 
 	// step 0: compute the folded digest, which corresponds to the polynomial
 	// Q_{public}+Qₗᵣₒ+Q_{Z}+Q_{H}
-	var foldedDigest kzg.Digest
-	foldedDigest.Set(&s.pk.Vk.Qpublic).
-		Add(&foldedDigest, &s.proof.LROEntangled).
-		Add(&foldedDigest, &s.proof.ZEntangled).
-		Add(&foldedDigest, &s.proof.HEntangled)
+	var foldedDigests [2]kzg.Digest
+	foldedDigests[0].Set(&s.pk.Vk.Qpublic).
+		Add(&foldedDigests[0], &s.proof.LROEntangled).
+		Add(&foldedDigests[0], &s.proof.ZEntangled).
+		Add(&foldedDigests[0], &s.proof.HEntangled)
+	for i := 0; i < len(s.proof.Bsb22Commitments); i++ {
+		foldedDigests[0].Add(&foldedDigests[0], &s.proof.Bsb22Commitments[i])
+	}
+	foldedDigests[1].Set(&s.proof.Z)
 
-	// step 1: compute the commitment to Z
+	// step 1: prepare all the polynomials, there are two sets of polynomials:
+	// Set 1 = {Ql,Qr,Qm,Qo,Qk,S₁,S₂,S₃,(Qcp)_i,L,R,O,H₁,H₂,H₃,(BSB)_i}
+	// Set 2 = {Z}
+	polysToOpen := make([][][]fr.Element, 2)
+	polysToOpen[0] = make([][]fr.Element, number_polynomials+2*len(s.proof.Bsb22Commitments))
+	polysToOpen[0][setup_ql] = s.trace.Ql.ToCanonical(s.domain0).ToRegular().Coefficients()
+	polysToOpen[0][setup_qr] = s.trace.Qr.ToCanonical(s.domain0).ToRegular().Coefficients()
+	polysToOpen[0][setup_qm] = s.trace.Qm.ToCanonical(s.domain0).ToRegular().Coefficients()
+	polysToOpen[0][setup_qo] = s.trace.Qo.ToCanonical(s.domain0).ToRegular().Coefficients()
+	polysToOpen[0][setup_qk_incomplete] = s.trace.Qk.ToCanonical(s.domain0).ToRegular().Coefficients()
+	polysToOpen[0][setup_s1] = s.trace.S1.ToCanonical(s.domain0).ToRegular().Coefficients()
+	polysToOpen[0][setup_s2] = s.trace.S2.ToCanonical(s.domain0).ToRegular().Coefficients()
+	polysToOpen[0][setup_s3] = s.trace.S3.ToCanonical(s.domain0).ToRegular().Coefficients()
+	for i := 0; i < len(s.trace.Qcp); i++ {
+		polysToOpen[0][setup_s3+1+i] = s.trace.Qcp[i].ToCanonical(s.domain0).ToRegular().Coefficients()
+	}
+	offset := len(s.trace.Qcp)
+	polysToOpen[0][prover_l+offset] = getBlindedCoefficients(s.x[id_L], s.bp[id_Bl])
+	polysToOpen[0][prover_r+offset] = getBlindedCoefficients(s.x[id_R], s.bp[id_Br])
+	polysToOpen[0][prover_o+offset] = getBlindedCoefficients(s.x[id_O], s.bp[id_Bo])
+	polysToOpen[0][prover_z+offset] = getBlindedCoefficients(s.x[id_Z], s.bp[id_Bz])
+	polysToOpen[0][prover_h_1+offset] = s.h1()
+	polysToOpen[0][prover_h_2+offset] = s.h2()
+	polysToOpen[0][prover_h_3+offset] = s.h3()
+	for i := 0; i < len(s.trace.Qcp); i++ {
+		polysToOpen[0][number_polynomials+offset+i] = s.x[id_Qci+2*i+1].ToCanonical(s.domain0).ToRegular().Coefficients()
+	}
 
+	polysToOpen[1] = make([][]fr.Element, 1)
+	polysToOpen[1][0] = getBlindedCoefficients(s.x[id_Z], s.bp[id_Bz])
+
+	// step 2: prepare the points, there are two sets (one for each set of polynomials)
+	// set 1: {ζ}
+	// set 2: {ωζ^{15+2*|Qcp|}}
+	// The opening of the first set is done using fflonk, and the size of the first set of
+	// polynomial is 15+2*|Qcp| so the the claimed values in the fllonk proof are the evaluations
+	// of the polynomial in this set at ζ^{15+2*|Qcp|}.
+	var omegaZetaT fr.Element
+	t := number_polynomials + 2*len(s.pk.Vk.Qcp)
+	var tBigInt big.Int
+	tBigInt.SetUint64(uint64(t))
+	omegaZetaT.Exp(s.zeta, &tBigInt).Mul(&omegaZetaT, &s.domain0.Generator)
+	points := make([][]fr.Element, 2)
+	points[0] = make([]fr.Element, 1)
+	points[0][0].Set(&s.zeta)
+	points[1] = make([]fr.Element, 1)
+	points[1][0].Set(&omegaZetaT)
+
+	// step 3: batch open
 	var err error
+	s.proof.BatchOpeningProof, err = fflonk.BatchOpen(polysToOpen, foldedDigests[:], points, s.opt.KZGFoldingHash, s.pk.Kzg)
 
 	return err
 }
