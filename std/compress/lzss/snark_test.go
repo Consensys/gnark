@@ -18,6 +18,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNothingRoundTrip(t *testing.T) {
+	testCompressionRoundTrip(t, nil, nil)
+}
+
+func TestPaddedNothingRoundTrip(t *testing.T) {
+
+	d := []frontend.Variable{0, 0, 0}
+	c := []frontend.Variable{0, 1, 0, 255}
+
+	circuit := &DecompressionTestCircuit{
+		C:                make([]frontend.Variable, len(c)),
+		D:                make([]frontend.Variable, len(d)),
+		Dict:             nil,
+		CheckCorrectness: true,
+	}
+	assignment := &DecompressionTestCircuit{
+		C:       c,
+		D:       d,
+		CBegin:  0,
+		CLength: 3,
+		DLength: 0,
+	}
+
+	RegisterHints()
+	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
+
+}
+
 func Test1One(t *testing.T) {
 	testCompressionRoundTrip(t, []byte{1}, nil)
 }
@@ -98,14 +126,16 @@ func TestNoCompression(t *testing.T) {
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
-		D:                d,
+		D:                make([]frontend.Variable, len(d)),
 		Dict:             dict,
 		CheckCorrectness: true,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		D:       test_vector_utils.ToVariableSlice(d),
 		CBegin:  0,
 		CLength: len(c),
+		DLength: len(d),
 	}
 
 	RegisterHints()
@@ -139,14 +169,16 @@ func Test3c2943withHeader(t *testing.T) {
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
-		D:                d,
+		D:                make([]frontend.Variable, len(d)),
 		Dict:             dict,
 		CheckCorrectness: true,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		D:       test_vector_utils.ToVariableSlice(d),
 		CBegin:  10,
 		CLength: len(c) - 10,
+		DLength: len(d),
 	}
 
 	RegisterHints()
@@ -259,6 +291,9 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 	// duplicating tests from the compress repo, for sanity checking
 	dBack, err := lzss.Decompress(s.compressed, dict)
 	require.NoError(t, err)
+	if d == nil {
+		d = []byte{}
+	}
 	assert.Equal(t, d, dBack)
 
 	/*info, err := lzss.CompressedStreamInfo(s.compressed, dict)
@@ -274,14 +309,16 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, len(s.compressed)+s.compressedPaddingLen),
-		D:                d,
+		D:                make([]frontend.Variable, len(d)),
 		Dict:             dict,
 		CheckCorrectness: true,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(s.compressed, make([]byte, s.compressedPaddingLen)...)),
+		D:       test_vector_utils.ToVariableSlice(d),
 		CBegin:  s.cBegin,
 		CLength: len(s.compressed),
+		DLength: len(d),
 	}
 
 	RegisterHints()

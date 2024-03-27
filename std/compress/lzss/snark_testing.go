@@ -9,10 +9,11 @@ import (
 
 type DecompressionTestCircuit struct {
 	C                []frontend.Variable
-	D                []byte
+	D                []frontend.Variable
 	Dict             []byte
 	CBegin           frontend.Variable
 	CLength          frontend.Variable
+	DLength          frontend.Variable
 	CheckCorrectness bool
 }
 
@@ -27,7 +28,7 @@ func (c *DecompressionTestCircuit) Define(api frontend.API) error {
 		return err
 	}
 	if c.CheckCorrectness {
-		api.AssertIsEqual(len(c.D), dLen)
+		api.AssertIsEqual(c.DLength, dLen)
 		for i := range c.D {
 			api.AssertIsEqual(c.D[i], dBack[i])
 		}

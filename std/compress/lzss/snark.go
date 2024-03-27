@@ -31,10 +31,14 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		sizeHeader = 3
 		version    = 1
 	)
+	api.AssertIsLessOrEqual(sizeHeader, len(c))
 	api.AssertIsEqual(c[0], version/256)
 	api.AssertIsEqual(c[1], version%256)
 	decompressionBypassed := c[2]
 	api.AssertIsBoolean(decompressionBypassed)
+	if len(c) == 3 {
+		return 0, nil
+	}
 
 	// check that the input is in range and convert into small words
 	rangeChecker := internal.NewRangeChecker(api)
@@ -60,8 +64,8 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 	inI := frontend.Variable(0)
 	copyLen := frontend.Variable(0) // remaining length of the current copy
 	copyLen01 := frontend.Variable(1)
-	eof := frontend.Variable(0)
-	dLength = -1 // if the following loop ends before hitting eof, we will get the "error" value -1 for dLength
+	eof := api.IsZero(cLength)
+	dLength = api.Add(-1, eof) // if the following loop ends before hitting eof, we will get the "error" value -1 for dLength
 
 	for outI := range d {
 
