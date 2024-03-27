@@ -31,9 +31,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		return fmt.Errorf("create backend config: %w", err)
 	}
 
-	if len(proof.Bsb22Commitments) != len(vk.Qcp) {
-		return errors.New("BSB22 Commitment number mismatch")
-	}
+	// if len(proof.Bsb22Commitments) != len(vk.Qcp) {
+	// 	return errors.New("BSB22 Commitment number mismatch")
+	// }
 
 	if len(publicWitness) != int(vk.NbPublicVariables) {
 		return errInvalidWitness

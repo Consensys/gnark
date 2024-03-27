@@ -194,7 +194,6 @@ type instance struct {
 	chZ,
 	chH,
 	chRestoreLRO,
-	chZOpening,
 	chGammaBeta chan struct{}
 
 	domain0, domain1 *fft.Domain
@@ -299,7 +298,7 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	s.cCommitments[commDepth].ToCanonical(s.domain0).ToRegular()
 	var subPk kzg.ProvingKey
 	subPk.G1 = make([]curve.G1Affine, len(s.cCommitments[commDepth].Coefficients()))
-	t := number_polynomials + 2*len(s.pk.Vk.Qcp)
+	t := getNextDivisorRMinusOne(*s.pk.Vk)
 	id := setup_s3 + 1 + commDepth
 	for i := 0; i < len(s.cCommitments[commDepth].Coefficients()); i++ {
 		subPk.G1[i].Set(&s.pk.Kzg.G1[i*t+id])
@@ -482,7 +481,7 @@ func (s *instance) commitToEntangledPolyAndBlinding(p, b *iop.Polynomial, id int
 	p.ToCanonical(s.domain0).ToRegular()
 
 	// get the sub KZG proving key
-	t := number_polynomials + 2*len(s.pk.Vk.Qcp)
+	t := getNextDivisorRMinusOne(*s.pk.Vk)
 	var subPk kzg.ProvingKey
 	subPk.G1 = make([]bn254.G1Affine, len(p.Coefficients()))
 	for i := 0; i < len(p.Coefficients()); i++ {
@@ -658,6 +657,12 @@ func (s *instance) batchOpening() error {
 	case <-s.chLRO:
 	}
 
+	select {
+	case <-s.ctx.Done():
+		return errContextDone
+	case <-s.chH:
+	}
+
 	// step 0: compute the folded digest, which corresponds to the polynomial
 	// Q_{public}+Qₗᵣₒ+Q_{Z}+Q_{H}
 	var foldedDigests [2]kzg.Digest
@@ -674,7 +679,8 @@ func (s *instance) batchOpening() error {
 	// Set 1 = {Ql,Qr,Qm,Qo,Qk,S₁,S₂,S₃,(Qcp)_i,L,R,O,H₁,H₂,H₃,(BSB)_i}
 	// Set 2 = {Z}
 	polysToOpen := make([][][]fr.Element, 2)
-	polysToOpen[0] = make([][]fr.Element, number_polynomials+2*len(s.proof.Bsb22Commitments))
+	t := getNextDivisorRMinusOne(*s.pk.Vk)
+	polysToOpen[0] = make([][]fr.Element, t)
 	polysToOpen[0][setup_ql] = s.trace.Ql.ToCanonical(s.domain0).ToRegular().Coefficients()
 	polysToOpen[0][setup_qr] = s.trace.Qr.ToCanonical(s.domain0).ToRegular().Coefficients()
 	polysToOpen[0][setup_qm] = s.trace.Qm.ToCanonical(s.domain0).ToRegular().Coefficients()
@@ -708,7 +714,6 @@ func (s *instance) batchOpening() error {
 	// polynomial is 15+2*|Qcp| so the the claimed values in the fllonk proof are the evaluations
 	// of the polynomial in this set at ζ^{15+2*|Qcp|}.
 	var omegaZetaT fr.Element
-	t := number_polynomials + 2*len(s.pk.Vk.Qcp)
 	var tBigInt big.Int
 	tBigInt.SetUint64(uint64(t))
 	omegaZetaT.Exp(s.zeta, &tBigInt).Mul(&omegaZetaT, &s.domain0.Generator)

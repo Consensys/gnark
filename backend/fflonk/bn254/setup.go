@@ -2,6 +2,7 @@ package fflonk
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -102,6 +103,24 @@ type ProvingKey struct {
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
+}
+
+// computes the smallest t bounding above number_polynomials + 2*len(vk.CommitmentConstraintIndexes)
+// and dividing r-1.
+func getNextDivisorRMinusOne(vk VerifyingKey) int {
+	var zero, tmp, one big.Int
+	r := fr.Modulus()
+	one.SetUint64(1)
+	r.Sub(r, &one)
+	t := number_polynomials + 2*len(vk.CommitmentConstraintIndexes)
+	tmp.SetUint64(uint64(t))
+	tmp.Mod(r, &tmp)
+	for tmp.Cmp(&zero) != 0 {
+		t += 1
+		tmp.SetUint64(uint64(t))
+		tmp.Mod(r, &tmp)
+	}
+	return t
 }
 
 func Setup(spr *cs.SparseR1CS, srs kzg.SRS) (*ProvingKey, *VerifyingKey, error) {
@@ -252,7 +271,7 @@ func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.
 	// step 1: intertwine the polynomials to obtain the following polynomial:
 	// Q_{public}:=Q_{L}(Xᵗ)+XQ_{R}(Xᵗ)+X²Q_{M}(Xᵗ)+X³Q_{O}(Xᵗ)+X⁴Q_{K}(Xᵗ)+X⁵S₁(Xᵗ)+X⁶S₂(Xᵗ)+X⁷S₃(Xᵗ)+X⁸Q_{Cp}(Xᵗ)
 	// where t = 13 + |nb_custom_gates|
-	t := (number_polynomials + 2*len(trace.Qcp))
+	t := getNextDivisorRMinusOne(*vk)
 	size := int(domain.Cardinality)
 	upperBoundSize := t * size
 	buf := make([]fr.Element, upperBoundSize)
