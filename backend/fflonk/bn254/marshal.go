@@ -25,7 +25,7 @@ func (proof *Proof) writeTo(w io.Writer, options ...func(*curve.Encoder)) (int64
 		&proof.LROEntangled,
 		&proof.ZEntangled,
 		&proof.HEntangled,
-		proof.Bsb22Commitments,
+		proof.BsbComEntangled,
 	}
 
 	for _, v := range toEncode {
@@ -44,7 +44,7 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		&proof.LROEntangled,
 		&proof.ZEntangled,
 		&proof.HEntangled,
-		&proof.Bsb22Commitments,
+		&proof.BsbComEntangled,
 	}
 
 	for _, v := range toDecode {
@@ -53,8 +53,8 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 		}
 	}
 
-	if proof.Bsb22Commitments == nil {
-		proof.Bsb22Commitments = []kzg.Digest{}
+	if proof.BsbComEntangled == nil {
+		proof.BsbComEntangled = []kzg.Digest{}
 	}
 
 	return dec.BytesRead(), nil

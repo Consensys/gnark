@@ -96,7 +96,7 @@ type Proof struct {
 	HEntangled kzg.Digest
 
 	// commitment to the wires associated to the custom gates (entangled)
-	Bsb22Commitments []kzg.Digest
+	BsbComEntangled []kzg.Digest
 
 	// fflonk batch opening proof of
 	// * (Ql,Qr,Qm,Qo,QkIncomplete,S1,S2,S3,(SetupQcp)_i,L,R,O,(GateQcp)_i,Z,H₁,H₂,H₃) at ζᵗ where
@@ -262,7 +262,7 @@ func (s *instance) initBSB22Commitments() {
 	s.commitmentInfo = s.spr.CommitmentInfo.(constraint.PlonkCommitments)
 	s.commitmentVal = make([]fr.Element, len(s.commitmentInfo)) // TODO @Tabaie get rid of this
 	s.cCommitments = make([]*iop.Polynomial, len(s.commitmentInfo))
-	s.proof.Bsb22Commitments = make([]kzg.Digest, len(s.commitmentInfo))
+	s.proof.BsbComEntangled = make([]kzg.Digest, len(s.commitmentInfo))
 
 	// override the hint for the commitment constraints
 	bsb22ID := solver.GetHintID(fcs.Bsb22CommitmentComputePlaceholder)
@@ -292,7 +292,7 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	s.cCommitments[commDepth] = iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 
 	// /!\ LAGRANGE
-	// if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
+	// if s.proof.BsbComEntangled[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
 	// 	return err
 	// }
 	s.cCommitments[commDepth].ToCanonical(s.domain0).ToRegular()
@@ -303,12 +303,12 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	for i := 0; i < len(s.cCommitments[commDepth].Coefficients()); i++ {
 		subPk.G1[i].Set(&s.pk.Kzg.G1[i*t+id])
 	}
-	if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), subPk); err != nil {
+	if s.proof.BsbComEntangled[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), subPk); err != nil {
 		return err
 	}
 	s.cCommitments[commDepth].ToLagrange(s.domain0).ToRegular()
 
-	s.htfFunc.Write(s.proof.Bsb22Commitments[commDepth].Marshal())
+	s.htfFunc.Write(s.proof.BsbComEntangled[commDepth].Marshal())
 	hashBts := s.htfFunc.Sum(nil)
 	s.htfFunc.Reset()
 	nbBuf := fr.Bytes
@@ -500,9 +500,9 @@ func (s *instance) commitToEntangledPolyAndBlinding(p, b *iop.Polynomial, id int
 }
 
 func (s *instance) deriveAlpha() (err error) {
-	alphaDeps := make([]*curve.G1Affine, len(s.proof.Bsb22Commitments)+1)
-	for i := range s.proof.Bsb22Commitments {
-		alphaDeps[i] = &s.proof.Bsb22Commitments[i]
+	alphaDeps := make([]*curve.G1Affine, len(s.proof.BsbComEntangled)+1)
+	for i := range s.proof.BsbComEntangled {
+		alphaDeps[i] = &s.proof.BsbComEntangled[i]
 	}
 	alphaDeps[len(alphaDeps)-1] = &s.proof.ZEntangled
 	s.alpha, err = deriveRandomness(s.fs, "alpha", alphaDeps...)
@@ -670,8 +670,8 @@ func (s *instance) batchOpening() error {
 		Add(&foldedDigests[0], &s.proof.LROEntangled).
 		Add(&foldedDigests[0], &s.proof.ZEntangled).
 		Add(&foldedDigests[0], &s.proof.HEntangled)
-	for i := 0; i < len(s.proof.Bsb22Commitments); i++ {
-		foldedDigests[0].Add(&foldedDigests[0], &s.proof.Bsb22Commitments[i])
+	for i := 0; i < len(s.proof.BsbComEntangled); i++ {
+		foldedDigests[0].Add(&foldedDigests[0], &s.proof.BsbComEntangled[i])
 	}
 	foldedDigests[1].Set(&s.proof.Z)
 
@@ -726,6 +726,13 @@ func (s *instance) batchOpening() error {
 	// step 3: batch open
 	var err error
 	s.proof.BatchOpeningProof, err = fflonk.BatchOpen(polysToOpen, foldedDigests[:], points, s.opt.KZGFoldingHash, s.pk.Kzg)
+
+	for i := 0; i < len(s.proof.BatchOpeningProof.ClaimedValues); i++ {
+		for j := 0; j < len(s.proof.BatchOpeningProof.ClaimedValues[i]); j++ {
+			fmt.Printf("%s\n", s.proof.BatchOpeningProof.ClaimedValues[i][j][0].String())
+		}
+		fmt.Println("--")
+	}
 
 	return err
 }
