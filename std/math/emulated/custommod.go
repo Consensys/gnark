@@ -59,3 +59,19 @@ func (Any4096Field) Modulus() *big.Int {
 
 // TODO: how to we ensure that it is prime?
 func (Any4096Field) IsPrime() bool { return false }
+
+func (v *VariableModulus[T]) callSubPaddingHint(overflow uint, nbLimbs uint, modulus *Element[T]) *Element[T] {
+	var fp T
+	inputs := []frontend.Variable{fp.NbLimbs(), fp.BitsPerLimb(), overflow, nbLimbs}
+	inputs = append(inputs, modulus.Limbs...)
+	res, err := v.f.api.NewHint(SubPaddingHint, int(nbLimbs), inputs...)
+	if err != nil {
+		panic(fmt.Sprintf("sub padding hint: %v", err))
+	}
+	for i := range res {
+		v.f.checker.Check(res[i], int(fp.BitsPerLimb()+overflow+1))
+	}
+	padding := v.f.newInternalElement(res, fp.BitsPerLimb()+overflow+1)
+	v.f.checkZeroCustom(padding, modulus)
+	return padding
+}

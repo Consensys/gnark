@@ -66,10 +66,7 @@ func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 //
 // then no such underflow happens and s = a-b (mod p) as the padding is multiple
 // of p.
-func subPadding[T FieldParams](overflow uint, nbLimbs uint) []*big.Int {
-	var fp T
-	p := fp.Modulus()
-	bitsPerLimbs := fp.BitsPerLimb()
+func subPadding(modulus *big.Int, bitsPerLimbs uint, overflow uint, nbLimbs uint) []*big.Int {
 
 	// first, we build a number nLimbs, such that nLimbs > b;
 	// here b is defined by its bounds, that is b is an element with nbLimbs of (bitsPerLimbs+overflow)
@@ -86,8 +83,8 @@ func subPadding[T FieldParams](overflow uint, nbLimbs uint) []*big.Int {
 		panic(fmt.Sprintf("recompose: %v", err))
 	}
 	// mod reduce n, and negate it
-	n.Mod(n, p)
-	n.Sub(p, n)
+	n.Mod(n, modulus)
+	n.Sub(modulus, n)
 
 	// construct pad such that:
 	// pad := n - neg(n mod p) == kp
@@ -102,4 +99,31 @@ func subPadding[T FieldParams](overflow uint, nbLimbs uint) []*big.Int {
 		pad[i].Add(pad[i], nLimbs[i])
 	}
 	return pad
+}
+
+func SubPaddingHint(mod *big.Int, inputs, outputs []*big.Int) error {
+	if len(inputs) < 4 {
+		return fmt.Errorf("input must be at least four elements")
+	}
+	nbLimbs := int(inputs[0].Int64())
+	bitsPerLimbs := uint(inputs[1].Uint64())
+	overflow := uint(inputs[2].Uint64())
+	retLimbs := int(inputs[3].Int64())
+	if len(inputs[4:]) != nbLimbs {
+		return fmt.Errorf("input length mismatch")
+	}
+	if len(outputs) != retLimbs {
+		return fmt.Errorf("result does not fit into output")
+	}
+	pLimbs := inputs[4 : 4+nbLimbs]
+	p := new(big.Int)
+	if err := recompose(pLimbs, bitsPerLimbs, p); err != nil {
+		return fmt.Errorf("recompose modulus: %w", err)
+	}
+	padLimbs := subPadding(p, bitsPerLimbs, overflow, uint(nbLimbs))
+	for i := range padLimbs {
+		outputs[i].Set(padLimbs[i])
+	}
+
+	return nil
 }
