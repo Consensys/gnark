@@ -51,10 +51,11 @@ func (v *VariableModulus[T]) Sub(a, b *Element[T], modulus *Element[T]) *Element
 	return res
 }
 
-func (v *VariableModulus[T]) AssertIsEqual(a, b *Element[T]) {
+func (v *VariableModulus[T]) AssertIsEqual(a, b *Element[T], modulus *Element[T]) {
 	// like fixed modulus AssertIsEqual, but uses current Sub implementation for
 	// computing the diff
-	v.f.AssertIsEqual(a, b)
+	diff := v.Sub(b, a, modulus)
+	v.f.checkZeroCustom(diff, modulus)
 }
 
 func (v *VariableModulus[T]) Exp(base, exp, modulus *Element[T]) *Element[T] {
