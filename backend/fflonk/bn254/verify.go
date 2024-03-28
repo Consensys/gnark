@@ -9,8 +9,10 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254/fflonk"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/hash_to_field"
+	"github.com/consensys/gnark-crypto/ecc/bn254/kzg"
 
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/backend"
@@ -143,6 +145,27 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 			pi.Add(&pi, &xiLi)
 		}
 	}
+
+	// reconstruct the entangled digest and verify the opening proof
+	points := make([][]fr.Element, 2)
+	points[0] = make([]fr.Element, 1)
+	points[1] = make([]fr.Element, 1)
+	// points[0][0].Set(&zeta)
+	points[0][0].Set(&zeta)
+	t := getNextDivisorRMinusOne(*vk)
+	tBigInt := big.NewInt(int64(t))
+	var omegaZetaT fr.Element
+	omegaZetaT.Exp(zeta, tBigInt).Mul(&omegaZetaT, &vk.Generator)
+	var foldedDigests [2]kzg.Digest
+	foldedDigests[0].Set(&vk.Qpublic).
+		Add(&foldedDigests[0], &proof.LROEntangled).
+		Add(&foldedDigests[0], &proof.ZEntangled).
+		Add(&foldedDigests[0], &proof.HEntangled)
+	for i := 0; i < len(proof.BsbComEntangled); i++ {
+		foldedDigests[0].Add(&foldedDigests[0], &proof.BsbComEntangled[i])
+	}
+	foldedDigests[1].Set(&proof.Z)
+	err = fflonk.BatchVerify(proof.BatchOpeningProof, foldedDigests[:], points, cfg.KZGFoldingHash, vk.Kzg)
 
 	log.Debug().Dur("took", time.Since(start)).Msg("verifier done")
 
