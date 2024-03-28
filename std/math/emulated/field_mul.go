@@ -175,6 +175,26 @@ func (f *Field[T]) checkZero(a *Element[T]) {
 	f.mulChecks = append(f.mulChecks, mc)
 }
 
+func (f *Field[T]) checkZeroCustom(a *Element[T], p *Element[T]) {
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(p)
+	b := f.shortOne()
+	k, r, c, err := f.callMulHint(a, b, false, p)
+	if err != nil {
+		panic(err)
+	}
+	mc := mulCheck[T]{
+		f: f,
+		a: a,
+		b: b, // one on single limb to speed up the polynomial evaluation
+		c: c,
+		k: k,
+		r: r, // expected to be zero on zero limbs.
+		p: p,
+	}
+	f.mulChecks = append(f.mulChecks, mc)
+}
+
 // evalWithChallenge represents element a as a polynomial a(X) and evaluates at
 // at[0]. For efficiency, we use already evaluated powers of at[0] given by at.
 // It stores the evaluation result inside the Element and marks it as evaluated.
