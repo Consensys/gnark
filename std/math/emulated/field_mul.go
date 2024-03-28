@@ -304,8 +304,15 @@ func (f *Field[T]) callMulHint(a, b *Element[T], isMulMod bool, customMod *Eleme
 	// we compute the width of the product of a*b, then we divide it by the
 	// width of the modulus. We add 1 to the result to ensure that we have
 	// enough space for the quotient.
+	modbits := uint(f.fParams.Modulus().BitLen())
+	if customMod != nil {
+		// when we're using custom modulus, then we do not really know its
+		// length ahead of time. We assume worst case scenario and assume that
+		// the quotient can be the total length of the multiplication result.
+		modbits = 0
+	}
 	nbQuoLimbs := (uint(nbMultiplicationResLimbs(len(a.Limbs), len(b.Limbs)))*nbBits + nextOverflow + 1 - //
-		uint(f.fParams.Modulus().BitLen()) + //
+		modbits + //
 		nbBits - 1) /
 		nbBits
 	// the remainder is always less than modulus so can represent on the same
