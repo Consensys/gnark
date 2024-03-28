@@ -11,6 +11,35 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
+type variableEquality[T FieldParams] struct {
+	Modulus Element[T]
+	A, B    Element[T]
+}
+
+func (c *variableEquality[T]) Define(api frontend.API) error {
+	v, err := NewVariableModulus[T](api)
+	if err != nil {
+		return fmt.Errorf("new variable modulus: %w", err)
+	}
+	v.AssertIsEqual(&c.A, &c.B, &c.Modulus)
+	return nil
+}
+
+func TestVariableEquality(t *testing.T) {
+	assert := test.NewAssert(t)
+	modulus, _ := new(big.Int).SetString("13407807929942597099574024998205846127479365820592393377723561443721764030073546976801874298166903427690031858186486050853753882811946569946433649006084171", 10)
+	a := big.NewInt(10)
+	b := new(big.Int).Add(a, modulus)
+	circuit := &variableEquality[Any4096Field]{}
+	assignment := &variableEquality[Any4096Field]{
+		Modulus: ValueOf[Any4096Field](modulus),
+		A:       ValueOf[Any4096Field](a),
+		B:       ValueOf[Any4096Field](b),
+	}
+	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+}
+
 type variableAddition[T FieldParams] struct {
 	Modulus  Element[T]
 	A, B     Element[T]
@@ -23,9 +52,7 @@ func (c *variableAddition[T]) Define(api frontend.API) error {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
 	res := v.Add(&c.A, &c.B, &c.Modulus)
-	// v.f.AssertIsEqual(&c.Expected, res)
-	// v.f.Println(res)
-	_ = res
+	v.AssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
 
@@ -43,6 +70,37 @@ func TestVariableAddition(t *testing.T) {
 	assert.NoError(err)
 }
 
+type variableSubtraction[T FieldParams] struct {
+	Modulus  Element[T]
+	A, B     Element[T]
+	Expected Element[T]
+}
+
+func (c *variableSubtraction[T]) Define(api frontend.API) error {
+	v, err := NewVariableModulus[T](api)
+	if err != nil {
+		return fmt.Errorf("new variable modulus: %w", err)
+	}
+	res := v.Sub(&c.A, &c.B, &c.Modulus)
+	v.AssertIsEqual(&c.Expected, res, &c.Modulus)
+	return nil
+}
+
+func TestVariableSubtraction(t *testing.T) {
+	assert := test.NewAssert(t)
+	modulus, _ := new(big.Int).SetString("13407807929942597099574024998205846127479365820592393377723561443721764030073546976801874298166903427690031858186486050853753882811946569946433649006084171", 10)
+	circuit := &variableSubtraction[Any4096Field]{}
+	res := new(big.Int).Sub(modulus, big.NewInt(10))
+	assignment := &variableSubtraction[Any4096Field]{
+		Modulus:  ValueOf[Any4096Field](modulus),
+		A:        ValueOf[Any4096Field](10),
+		B:        ValueOf[Any4096Field](20),
+		Expected: ValueOf[Any4096Field](res),
+	}
+	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+}
+
 type variableMultiplication[T FieldParams] struct {
 	Modulus  Element[T]
 	A, B     Element[T]
@@ -55,10 +113,7 @@ func (c *variableMultiplication[T]) Define(api frontend.API) error {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
 	res := v.Mul(&c.A, &c.B, &c.Modulus)
-	// v.f.AssertIsEqual(&c.Expected, res)
-	// v.f.Println(res)
-	// v.f.Println(&c.Expected)
-	_ = res
+	v.AssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
 
@@ -78,5 +133,4 @@ func TestVariableMultiplication(t *testing.T) {
 	}
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
-	assert.CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithCurves(ecc.BLS12_377))
 }
