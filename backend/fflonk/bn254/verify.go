@@ -74,11 +74,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		return err
 	}
 
-	fmt.Printf("[VERIFIER] beta = %s\n", beta.String())
-	fmt.Printf("[VERIFIER] gamma = %s\n", gamma.String())
-	fmt.Printf("[VERIFIER] alpha = %s\n", alpha.String())
-	fmt.Printf("[VERIFIER] zeta = %s\n", zeta.String())
-
 	// evaluation of zhZeta=ζⁿ-1
 	var zetaPowerM, zhZeta, lagrangeOne fr.Element
 	var bExpo big.Int
@@ -146,16 +141,102 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		}
 	}
 
+	// verify the algebraic relation
+	ql := proof.BatchOpeningProof.ClaimedValues[0][setup_ql][0]
+	qr := proof.BatchOpeningProof.ClaimedValues[0][setup_qr][0]
+	qm := proof.BatchOpeningProof.ClaimedValues[0][setup_qm][0]
+	qo := proof.BatchOpeningProof.ClaimedValues[0][setup_qo][0]
+	qkIncomplete := proof.BatchOpeningProof.ClaimedValues[0][setup_qk_incomplete][0]
+	s1 := proof.BatchOpeningProof.ClaimedValues[0][setup_s1][0]
+	s2 := proof.BatchOpeningProof.ClaimedValues[0][setup_s2][0]
+	s3 := proof.BatchOpeningProof.ClaimedValues[0][setup_s3][0]
+	nbQcp := len(vk.CommitmentConstraintIndexes)
+	qcp := make([]fr.Element, nbQcp)
+	for i := 0; i < nbQcp; i++ {
+		qcp[i] = proof.BatchOpeningProof.ClaimedValues[0][setup_s3+1+i][0]
+	}
+	l := proof.BatchOpeningProof.ClaimedValues[0][prover_l+nbQcp][0]
+	r := proof.BatchOpeningProof.ClaimedValues[0][prover_r+nbQcp][0]
+	o := proof.BatchOpeningProof.ClaimedValues[0][prover_o+nbQcp][0]
+	z := proof.BatchOpeningProof.ClaimedValues[0][prover_z+nbQcp][0]
+	zw := proof.BatchOpeningProof.ClaimedValues[1][0][0]
+	h1 := proof.BatchOpeningProof.ClaimedValues[0][prover_h_1+nbQcp][0]
+	h2 := proof.BatchOpeningProof.ClaimedValues[0][prover_h_2+nbQcp][0]
+	h3 := proof.BatchOpeningProof.ClaimedValues[0][prover_h_3+nbQcp][0]
+	bsb := make([]fr.Element, nbQcp)
+	for i := 0; i < nbQcp; i++ {
+		bsb[i] = proof.BatchOpeningProof.ClaimedValues[0][prover_h_3+1+nbQcp+i][0]
+	}
+
+	// 1 - gates
+	var gates, tmp fr.Element
+	gates.Mul(&ql, &l)
+	tmp.Mul(&qr, &r)
+	gates.Add(&gates, &tmp)
+	tmp.Mul(&qm, &r).Mul(&tmp, &l)
+	gates.Add(&gates, &tmp)
+	tmp.Mul(&qo, &o)
+	gates.Add(&gates, &tmp).Add(&gates, &qkIncomplete).Add(&gates, &pi)
+	for i := 0; i < nbQcp; i++ {
+		tmp.Mul(&qcp[i], &bsb[i])
+		gates.Add(&gates, &tmp)
+	}
+
+	// 2 - permutation
+	var permutation, tmp2, zetaT, uZetaT, uuZetaT fr.Element
+	permutation.Mul(&beta, &s1).Add(&permutation, &l).Add(&permutation, &gamma)
+	tmp.Mul(&beta, &s2).Add(&tmp, &r).Add(&tmp, &gamma)
+	permutation.Mul(&permutation, &tmp)
+	tmp.Mul(&beta, &s3).Add(&tmp, &o).Add(&tmp, &gamma)
+	permutation.Mul(&permutation, &tmp).Mul(&permutation, &zw)
+
+	t := getNextDivisorRMinusOne(*vk)
+	tBigInt := big.NewInt(int64(t))
+	zetaT.Exp(zeta, tBigInt)
+	tmp2.Mul(&beta, &zetaT).Add(&tmp2, &l).Add(&tmp2, &gamma)
+	uZetaT.Mul(&zetaT, &vk.CosetShift)
+	tmp.Mul(&uZetaT, &beta).Add(&tmp, &r).Add(&tmp, &gamma)
+	tmp.Mul(&tmp, &tmp2)
+	uuZetaT.Mul(&uZetaT, &vk.CosetShift)
+	tmp2.Mul(&uuZetaT, &beta).Add(&o, &tmp2).Add(&tmp2, &gamma)
+	tmp.Mul(&tmp, &tmp2).Mul(&tmp, &z)
+	permutation.Sub(&permutation, &tmp)
+
+	// 3 - "Z starts at one"
+	var startAtOne fr.Element
+	startAtOne.Sub(&z, &one).Mul(&startAtOne, &lagrangeOne)
+
+	var lhs fr.Element
+	lhs.Mul(&startAtOne, &alpha).
+		Add(&lhs, &permutation).
+		Mul(&lhs, &alpha).
+		Add(&lhs, &gates)
+
+	// 4 - quotient H₀(ζ) + ζᵐ⁺²*H₁(ζ) + ζ²⁽ᵐ⁺²⁾*H₂(ζ)
+	var quotient fr.Element
+	var zetaNPlusTwo fr.Element
+	nPlusTwo := vk.Size + 2
+	nPlusTwoBigInt := big.NewInt(int64(nPlusTwo))
+	zetaNPlusTwo.Exp(zeta, nPlusTwoBigInt)
+	quotient.Mul(&h3, &zetaNPlusTwo).
+		Add(&quotient, &h2).
+		Mul(&quotient, &zetaNPlusTwo).
+		Add(&quotient, &h1)
+
+	// 5 - ζ^{n}-1
+	var rhs fr.Element
+	rhs.Mul(&rhs, &quotient)
+
+	if !rhs.Equal(&lhs) {
+		return errAlgebraicRelation
+	}
+
 	// reconstruct the entangled digest and verify the opening proof
 	points := make([][]fr.Element, 2)
 	points[0] = make([]fr.Element, 1)
 	points[1] = make([]fr.Element, 1)
-	// points[0][0].Set(&zeta)
 	points[0][0].Set(&zeta)
-	t := getNextDivisorRMinusOne(*vk)
-	tBigInt := big.NewInt(int64(t))
-	var omegaZetaT fr.Element
-	omegaZetaT.Exp(zeta, tBigInt).Mul(&omegaZetaT, &vk.Generator)
+	points[1][0].Mul(&zetaT, &vk.Generator)
 	var foldedDigests [2]kzg.Digest
 	foldedDigests[0].Set(&vk.Qpublic).
 		Add(&foldedDigests[0], &proof.LROEntangled).
