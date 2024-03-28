@@ -29,12 +29,26 @@ func (v *VariableModulus[T]) Add(a, b *Element[T], modulus *Element[T]) *Element
 	return res
 }
 
-func (v *VariableModulus[T]) Sub(a, b *Element[T], modulus *Element[T]) {
-	panic("todo")
+func (v *VariableModulus[T]) Sub(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	// like fixed modulus subtraction, but for sub padding need to use hint
 	// instead of assuming T as a constant. And when doing as a hint, then need
 	// to assert that the lower limbs are all ones at right places and the
 	// highest limb covers everything else.
+	nextOverflow := max(b.overflow+1, a.overflow) + 1
+	nbLimbs := max(len(a.Limbs), len(b.Limbs))
+	limbs := make([]frontend.Variable, nbLimbs)
+	padding := v.callSubPaddingHint(b.overflow, uint(nbLimbs), modulus)
+	for i := range limbs {
+		limbs[i] = padding.Limbs[i]
+		if i < len(a.Limbs) {
+			limbs[i] = v.f.api.Add(limbs[i], a.Limbs[i])
+		}
+		if i < len(b.Limbs) {
+			limbs[i] = v.f.api.Sub(limbs[i], b.Limbs[i])
+		}
+	}
+	res := v.f.newInternalElement(limbs, nextOverflow)
+	return res
 }
 
 func (v *VariableModulus[T]) AssertIsEqual(a, b *Element[T]) {
