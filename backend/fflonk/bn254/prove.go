@@ -727,13 +727,6 @@ func (s *instance) batchOpening() error {
 	var err error
 	s.proof.BatchOpeningProof, err = fflonk.BatchOpen(polysToOpen, foldedDigests[:], points, s.opt.KZGFoldingHash, s.pk.Kzg)
 
-	for i := 0; i < len(s.proof.BatchOpeningProof.ClaimedValues); i++ {
-		for j := 0; j < len(s.proof.BatchOpeningProof.ClaimedValues[i]); j++ {
-			fmt.Printf("%s\n", s.proof.BatchOpeningProof.ClaimedValues[i][j][0].String())
-		}
-		fmt.Println("--")
-	}
-
 	return err
 }
 

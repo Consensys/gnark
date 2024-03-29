@@ -217,22 +217,22 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 
 	// 4 - quotient H₀(ζ) + ζᵐ⁺²*H₁(ζ) + ζ²⁽ᵐ⁺²⁾*H₂(ζ)
 	var quotient fr.Element
-	var zetaNPlusTwo fr.Element
+	var zetaTNPlusTwo fr.Element
 	nPlusTwo := vk.Size + 2
 	nPlusTwoBigInt := big.NewInt(int64(nPlusTwo))
-	zetaNPlusTwo.Exp(zeta, nPlusTwoBigInt)
-	quotient.Mul(&h3, &zetaNPlusTwo).
+	zetaTNPlusTwo.Exp(zetaT, nPlusTwoBigInt)
+	quotient.Mul(&h3, &zetaTNPlusTwo).
 		Add(&quotient, &h2).
-		Mul(&quotient, &zetaNPlusTwo).
+		Mul(&quotient, &zetaTNPlusTwo).
 		Add(&quotient, &h1)
 
 	// 5 - ζⁿ-1
 	var rhs fr.Element
-	rhs.Mul(&rhs, &quotient)
+	rhs.Mul(&zhZetaT, &quotient)
 
-	// if !rhs.Equal(&lhs) {
-	// 	return errAlgebraicRelation
-	// }
+	if !rhs.Equal(&lhs) {
+		return errAlgebraicRelation
+	}
 
 	// reconstruct the entangled digest and verify the opening proof
 	points := make([][]fr.Element, 2)
