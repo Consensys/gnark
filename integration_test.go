@@ -49,6 +49,9 @@ func TestIntegrationAPI(t *testing.T) {
 			if tData.Curves != nil {
 				opts = append(opts, test.WithCurves(tData.Curves[0], tData.Curves[1:]...))
 			}
+			if len(tData.Backends) > 0 {
+				opts = append(opts, test.WithBackends(tData.Backends[0], tData.Backends[1:]...))
+			}
 			// add all valid assignments
 			for i := range tData.ValidAssignments {
 				opts = append(opts, test.WithValidAssignment(tData.ValidAssignments[i]))
@@ -74,14 +77,6 @@ func TestIntegrationAPI(t *testing.T) {
 			if name == "multi-output-hint" {
 				// TODO @gbotrel FIXME
 				opts = append(opts, test.NoFuzzing())
-			}
-
-			if name == "commit_Groth16" && test.SolcCheck {
-				opts = append(opts, test.WithBackends(backend.GROTH16))
-			}
-
-			if name == "commit_Plonk" && test.SolcCheck {
-				opts = append(opts, test.WithBackends(backend.PLONK))
 			}
 
 			assert.CheckCircuit(tData.Circuit, opts...)
