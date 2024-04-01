@@ -165,11 +165,6 @@ func initAddrTable(api frontend.API, bytes, _bits []frontend.Variable, backRefs 
 	res := logderivlookup.New(api)
 
 	for i := range _bits {
-		/*entry := frontend.Variable(0)
-		for j := range backRefs {
-			isSymb := api.IsZero(api.Sub(bytes[i], backRefs[j].Delimiter))
-			entry = api.MulAcc(entry, isSymb, readers[j].Next())
-		}*/
 		is0 := api.IsZero(api.Sub(bytes[i], backRefs[0].Delimiter))
 		entry := api.Select(is0, readers[0].Next(), readers[1].Next())
 		res.Insert(entry)
