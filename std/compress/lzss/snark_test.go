@@ -3,6 +3,8 @@ package lzss
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"os"
 	"testing"
 
@@ -16,12 +18,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNothingRoundTrip(t *testing.T) {
+	testCompressionRoundTrip(t, nil, nil)
+}
+
+func TestPaddedNothingRoundTrip(t *testing.T) {
+
+	d := []frontend.Variable{0, 0, 0}
+	c := []frontend.Variable{0, 1, 0, 255}
+
+	circuit := &DecompressionTestCircuit{
+		C:                make([]frontend.Variable, len(c)),
+		D:                make([]frontend.Variable, len(d)),
+		Dict:             nil,
+		CheckCorrectness: true,
+	}
+	assignment := &DecompressionTestCircuit{
+		C:       c,
+		D:       d,
+		CBegin:  0,
+		CLength: 3,
+		DLength: 0,
+	}
+
+	RegisterHints()
+	test.NewAssert(t).CheckCircuit(circuit, test.WithValidAssignment(assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
+
+}
+
 func Test1One(t *testing.T) {
 	testCompressionRoundTrip(t, []byte{1}, nil)
 }
 
-func TestGoodCompression(t *testing.T) {
-	testCompressionRoundTrip(t, []byte{1, 2}, nil, withLevel(lzss.GoodCompression))
+func TestOneTwo(t *testing.T) {
+	testCompressionRoundTrip(t, []byte{1, 2}, nil)
 }
 
 func Test0To10Explicit(t *testing.T) {
@@ -30,31 +60,82 @@ func Test0To10Explicit(t *testing.T) {
 
 const inputExtraBytes = 5
 
-func TestNoCompression(t *testing.T) {
+func craftExpandingInput(dict []byte, size int) []byte {
+	const nbBytesExpandingBlock = 4 // TODO @gbotrel check that
 
-	d, err := os.ReadFile("./testdata/3c2943/data.bin")
-	assert.NoError(t, err)
+	// the following two methods convert between a byte slice and a number; just for convenient use as map keys and counters
+	bytesToNum := func(b []byte) uint64 {
+		var res uint64
+		for i := range b {
+			res += uint64(b[i]) << uint64(i*8)
+		}
+		return res
+	}
+
+	fillNum := func(dst []byte, n uint64) {
+		for i := range dst {
+			dst[i] = byte(n)
+			n >>= 8
+		}
+	}
+
+	covered := make(map[uint64]struct{}) // combinations present in the dictionary, to avoid
+	for i := range dict {
+		if dict[i] == 255 {
+			covered[bytesToNum(dict[i+1:i+nbBytesExpandingBlock])] = struct{}{}
+		}
+	}
+	isCovered := func(n uint64) bool {
+		_, ok := covered[n]
+		return ok
+	}
+
+	res := make([]byte, size)
+	var blockCtr uint64
+	for i := 0; i < len(res); i += nbBytesExpandingBlock {
+		for isCovered(blockCtr) {
+			blockCtr++
+			if blockCtr == 0 {
+				panic("overflow")
+			}
+		}
+		res[i] = 255
+		fillNum(res[i+1:i+nbBytesExpandingBlock], blockCtr)
+		blockCtr++
+		if blockCtr == 0 {
+			panic("overflow")
+		}
+	}
+	return res
+}
+
+func TestNoCompression(t *testing.T) {
 
 	dict := getDictionary()
 
-	compressor, err := lzss.NewCompressor(dict, lzss.NoCompression)
+	d := craftExpandingInput(dict, 1000)
+
+	compressor, err := lzss.NewCompressor(dict)
 	require.NoError(t, err)
-	c, err := compressor.Compress(d)
+	_, err = compressor.Write(d)
 	require.NoError(t, err)
 
-	decompressorLevel := lzss.BestCompression
+	require.True(t, compressor.ConsiderBypassing(), "not expanding; refer back to the compress repo for an updated craftExpandingInput implementation.")
+
+	c := compressor.Bytes()
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
-		D:                d,
+		D:                make([]frontend.Variable, len(d)),
 		Dict:             dict,
 		CheckCorrectness: true,
-		Level:            decompressorLevel,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		D:       test_vector_utils.ToVariableSlice(d),
 		CBegin:  0,
 		CLength: len(c),
+		DLength: len(d),
 	}
 
 	RegisterHints()
@@ -80,25 +161,24 @@ func Test3c2943withHeader(t *testing.T) {
 
 	dict := getDictionary()
 
-	compressor, err := lzss.NewCompressor(dict, lzss.BestCompression)
+	compressor, err := lzss.NewCompressor(dict)
 	require.NoError(t, err)
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
 	c = append([]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, c...)
 
-	decompressorLevel := lzss.BestCompression
-
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, len(c)+inputExtraBytes),
-		D:                d,
+		D:                make([]frontend.Variable, len(d)),
 		Dict:             dict,
 		CheckCorrectness: true,
-		Level:            decompressorLevel,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(c, make([]byte, inputExtraBytes)...)),
+		D:       test_vector_utils.ToVariableSlice(d),
 		CBegin:  10,
 		CLength: len(c) - 10,
+		DLength: len(d),
 	}
 
 	RegisterHints()
@@ -108,7 +188,7 @@ func Test3c2943withHeader(t *testing.T) {
 func TestOutBufTooShort(t *testing.T) {
 	const truncationAmount = 3
 	d := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
-	compressor, err := lzss.NewCompressor(nil, lzss.BestCompression)
+	compressor, err := lzss.NewCompressor(nil)
 	require.NoError(t, err)
 	c, err := compressor.Compress(d)
 	require.NoError(t, err)
@@ -147,7 +227,6 @@ func Fuzz(f *testing.F) { // TODO This is always skipped
 }
 
 type testCompressionRoundTripSettings struct {
-	level                lzss.Level
 	cBegin               int
 	compressedPaddingLen int
 	compressedPaddedLen  int
@@ -155,12 +234,6 @@ type testCompressionRoundTripSettings struct {
 }
 
 type testCompressionRoundTripOption func(settings *testCompressionRoundTripSettings)
-
-func withLevel(level lzss.Level) testCompressionRoundTripOption {
-	return func(s *testCompressionRoundTripSettings) {
-		s.level = level
-	}
-}
 
 func withCBegin(cBegin int) testCompressionRoundTripOption {
 	return func(s *testCompressionRoundTripSettings) {
@@ -199,7 +272,6 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 	t.Log("using dict", checksum(dict))
 
 	s := testCompressionRoundTripSettings{
-		level:               lzss.BestCompression,
 		compressedPaddedLen: -1,
 	}
 
@@ -208,7 +280,7 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 	}
 
 	if s.compressed == nil {
-		compressor, err := lzss.NewCompressor(dict, s.level)
+		compressor, err := lzss.NewCompressor(dict)
 		require.NoError(t, err)
 		s.compressed, err = compressor.Compress(d)
 		require.NoError(t, err)
@@ -219,11 +291,14 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 	// duplicating tests from the compress repo, for sanity checking
 	dBack, err := lzss.Decompress(s.compressed, dict)
 	require.NoError(t, err)
+	if d == nil {
+		d = []byte{}
+	}
 	assert.Equal(t, d, dBack)
 
-	//assert.NoError(t, os.WriteFile("compress.csv", lzss.CompressedStreamInfo(c, dict).ToCsv(), 0644))
-
-	// from the blob maker it seems like the compressed stream is 129091 bytes long
+	/*info, err := lzss.CompressedStreamInfo(s.compressed, dict)
+	require.NoError(t, err)
+	assert.NoError(t, os.WriteFile("compress.csv", info.ToCSV(), 0600))*/
 
 	if s.compressedPaddedLen != -1 {
 		s.compressedPaddingLen = s.compressedPaddedLen - len(s.compressed)
@@ -234,15 +309,16 @@ func testCompressionRoundTrip(t *testing.T, d, dict []byte, options ...testCompr
 
 	circuit := &DecompressionTestCircuit{
 		C:                make([]frontend.Variable, len(s.compressed)+s.compressedPaddingLen),
-		D:                d,
+		D:                make([]frontend.Variable, len(d)),
 		Dict:             dict,
 		CheckCorrectness: true,
-		Level:            s.level,
 	}
 	assignment := &DecompressionTestCircuit{
 		C:       test_vector_utils.ToVariableSlice(append(s.compressed, make([]byte, s.compressedPaddingLen)...)),
+		D:       test_vector_utils.ToVariableSlice(d),
 		CBegin:  s.cBegin,
 		CLength: len(s.compressed),
+		DLength: len(d),
 	}
 
 	RegisterHints()
@@ -265,10 +341,28 @@ type decompressionLengthTestCircuit struct {
 
 func (c *decompressionLengthTestCircuit) Define(api frontend.API) error {
 	dict := test_vector_utils.ToVariableSlice(lzss.AugmentDict(nil))
-	if dLength, err := Decompress(api, c.C, c.CLength, c.D, dict, lzss.BestCompression); err != nil {
+	if dLength, err := Decompress(api, c.C, c.CLength, c.D, dict); err != nil {
 		return err
 	} else {
 		api.AssertIsEqual(dLength, c.ExpectedDLength)
 		return nil
 	}
+}
+
+func TestBuildDecompress1KBto7KB(t *testing.T) {
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &decompressionLengthTestCircuit{
+		C: make([]frontend.Variable, 1024),
+		D: make([]frontend.Variable, 7*1024),
+	})
+	assert.NoError(t, err)
+	fmt.Println(cs.GetNbConstraints())
+}
+
+func TestBuildDecompress1KBto9KB(t *testing.T) {
+	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &decompressionLengthTestCircuit{
+		C: make([]frontend.Variable, 1024),
+		D: make([]frontend.Variable, 9*1024),
+	})
+	assert.NoError(t, err)
+	fmt.Println(cs.GetNbConstraints())
 }
