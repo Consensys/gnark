@@ -47,13 +47,11 @@ func (circuit *noCommitCircuit) Define(api frontend.API) error {
 }
 
 func init() {
-	h1, h2 := sha256.New(), sha256.New()
-
 	// need to have separate test cases as the hash-to-field for PLONK and Groth16 verifiers are different
 	addEntry(
 		"commit_Groth16",
 		&commitCircuit{}, &commitCircuit{Public: 16, X: 3}, &commitCircuit{Public: 0, X: 4},
-		[]ecc.ID{bn254.ID}, WithBackends(backend.GROTH16), WithProverOpts(backend.WithProverHashToFieldFunction(h1)), WithVerifierOpts(backend.WithVerifierHashToFieldFunction(h2)))
+		[]ecc.ID{bn254.ID}, WithBackends(backend.GROTH16), WithProverOpts(backend.WithProverHashToFieldFunction(sha256.New())), WithVerifierOpts(backend.WithVerifierHashToFieldFunction(sha256.New())))
 	addEntry(
 		"commit_Plonk",
 		&commitCircuit{}, &commitCircuit{Public: 16, X: 3}, &commitCircuit{Public: 0, X: 4},
@@ -61,7 +59,7 @@ func init() {
 	addEntry(
 		"no_commit_Groth16",
 		&noCommitCircuit{}, &noCommitCircuit{Public: 16, X: 3}, &noCommitCircuit{Public: 0, X: 4},
-		[]ecc.ID{bn254.ID}, WithBackends(backend.GROTH16), WithProverOpts(backend.WithProverHashToFieldFunction(h1)), WithVerifierOpts(backend.WithVerifierHashToFieldFunction(h2)))
+		[]ecc.ID{bn254.ID}, WithBackends(backend.GROTH16), WithProverOpts(backend.WithProverHashToFieldFunction(sha256.New())), WithVerifierOpts(backend.WithVerifierHashToFieldFunction(sha256.New())))
 	addEntry(
 		"no_commit_Plonk",
 		&noCommitCircuit{}, &noCommitCircuit{Public: 16, X: 3}, &noCommitCircuit{Public: 0, X: 4},
