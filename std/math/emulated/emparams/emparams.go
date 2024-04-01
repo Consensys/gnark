@@ -254,7 +254,7 @@ type BW6761Fr struct{ sixLimbPrimeField }
 
 func (fp BW6761Fr) Modulus() *big.Int { return ecc.BW6_761.ScalarField() }
 
-// BLS12315Fp provides type parametrization for field emulation:
+// BLS24315Fp provides type parametrization for field emulation:
 //   - limbs: 5
 //   - limb width: 64 bits
 //
@@ -264,11 +264,11 @@ func (fp BW6761Fr) Modulus() *big.Int { return ecc.BW6_761.ScalarField() }
 //	39705142709513438335025689890408969744933502416914749335064285505637884093126342347073617133569 (base 10)
 //
 // This is the base field of the BLS24-315 curve.
-type BLS12315Fp struct{ fiveLimbPrimeField }
+type BLS24315Fp struct{ fiveLimbPrimeField }
 
-func (fp BLS12315Fp) Modulus() *big.Int { return ecc.BLS24_315.BaseField() }
+func (fp BLS24315Fp) Modulus() *big.Int { return ecc.BLS24_315.BaseField() }
 
-// BLS12315Fr provides type parametrization for field emulation:
+// BLS24315Fr provides type parametrization for field emulation:
 //   - limbs: 4
 //   - limb width: 64 bits
 //
@@ -278,6 +278,6 @@ func (fp BLS12315Fp) Modulus() *big.Int { return ecc.BLS24_315.BaseField() }
 //	0x196deac24a9da12b25fc7ec9cf927a98c8c480ece644e36419d0c5fd00c00001 (base 10)
 //
 // This is the scalar field of the BLS24-315 curve.
-type BLS12315Fr struct{ fourLimbPrimeField }
+type BLS24315Fr struct{ fourLimbPrimeField }
 
-func (fr BLS12315Fr) Modulus() *big.Int { return ecc.BLS24_315.ScalarField() }
+func (fr BLS24315Fr) Modulus() *big.Int { return ecc.BLS24_315.ScalarField() }

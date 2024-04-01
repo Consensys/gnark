@@ -152,6 +152,53 @@ func TestMulFp3(t *testing.T) {
 	assert.NoError(err)
 }
 
+type e3Mul01By01 struct {
+	A0, A1 baseEl
+	B0, B1 baseEl
+	C      E3
+}
+
+func (circuit *e3Mul01By01) Define(api frontend.API) error {
+	e := NewExt3(api)
+	expected := e.Mul01By01(&circuit.A0, &circuit.A1, &circuit.B0, &circuit.B1)
+	e.AssertIsEqual(expected, &circuit.C)
+
+	return nil
+}
+
+func TestMul01By01(t *testing.T) {
+
+	// we test our new E3.Mul01By01 against E3.MulBy01
+	assert := test.NewAssert(t)
+	// witness values
+	var a, c bw6761.E3
+	var A0, A1, B0, B1 fp.Element
+	A0.SetRandom()
+	A1.SetRandom()
+	B0.SetRandom()
+	B1.SetRandom()
+	// build a 01 sparse E3 with,
+	// first two elements as A1 and A2,
+	// and the third as 0
+	a.A0 = A0
+	a.A1 = A1
+	a.A2.SetZero()
+	c.Set(&a)
+	c.MulBy01(&B0, &B1)
+
+	witness := e3Mul01By01{
+		A0: emulated.ValueOf[emulated.BW6761Fp](A0),
+		A1: emulated.ValueOf[emulated.BW6761Fp](A1),
+		B0: emulated.ValueOf[emulated.BW6761Fp](B0),
+		B1: emulated.ValueOf[emulated.BW6761Fp](B1),
+		C:  FromE3(&c),
+	}
+
+	err := test.IsSolved(&e3Mul01By01{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e3MulByNonResidue struct {
 	A, B E3
 }

@@ -160,3 +160,23 @@ func TestPreCompileHook(t *testing.T) {
 		t.Error("callback not called")
 	}
 }
+
+type subSameNoConstraintCircuit struct {
+	A frontend.Variable
+}
+
+func (c *subSameNoConstraintCircuit) Define(api frontend.API) error {
+	r := api.Sub(c.A, c.A)
+	api.AssertIsEqual(r, 0)
+	return nil
+}
+
+func TestSubSameNoConstraint(t *testing.T) {
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), NewBuilder, &subSameNoConstraintCircuit{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ccs.GetNbConstraints() != 0 {
+		t.Fatal("expected 0 constraints")
+	}
+}
