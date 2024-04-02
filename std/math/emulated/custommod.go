@@ -6,11 +6,25 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// ModMul computes a*b mod modulus. Instead of taking modulus as a constant
+// parametrized by T, it is passed as an argument. This allows to use a variable
+// modulus in the circuit. Type parameter T should be sufficiently big to fit a,
+// b and modulus. Recommended to use [emparams.Mod1e512] or
+// [emparams.Mod1e4096].
+//
+// NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModMul(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	res := f.mulMod(a, b, 0, modulus)
 	return res
 }
 
+// ModAdd computes a+b mod modulus. Instead of taking modulus as a constant
+// parametrized by T, it is passed as an argument. This allows to use a variable
+// modulus in the circuit. Type parameter T should be sufficiently big to fit a,
+// b and modulus. Recommended to use [emparams.Mod1e512] or
+// [emparams.Mod1e4096].
+//
+// NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModAdd(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	// inlined version of [Field.reduceAndOp] which uses variable-modulus reduction
 	var nextOverflow uint
@@ -50,6 +64,13 @@ func (f *Field[T]) modSub(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	return res
 }
 
+// ModAssertIsEqual asserts equality of a and b mod modulus. Instead of taking
+// modulus as a constant parametrized by T, it is passed as an argument. This
+// allows to use a variable modulus in the circuit. Type parameter T should be
+// sufficiently big to fit a, b and modulus. Recommended to use
+// [emparams.Mod1e512] or [emparams.Mod1e4096].
+//
+// NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModAssertIsEqual(a, b *Element[T], modulus *Element[T]) {
 	// like fixed modulus AssertIsEqual, but uses current Sub implementation for
 	// computing the diff
@@ -57,6 +78,13 @@ func (f *Field[T]) ModAssertIsEqual(a, b *Element[T], modulus *Element[T]) {
 	f.checkZero(diff, modulus)
 }
 
+// ModExp computes base^exp mod modulus. Instead of taking modulus as a constant
+// parametrized by T, it is passed as an argument. This allows to use a variable
+// modulus in the circuit. Type parameter T should be sufficiently big to fit
+// base, exp and modulus. Recommended to use [emparams.Mod1e512] or
+// [emparams.Mod1e4096].
+//
+// NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 	expBts := f.ToBits(exp)
 	res := f.One()
