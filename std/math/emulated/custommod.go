@@ -2,7 +2,6 @@ package emulated
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -37,7 +36,7 @@ func (f *Field[T]) modSub(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	nextOverflow := max(b.overflow+1, a.overflow) + 1
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
 	limbs := make([]frontend.Variable, nbLimbs)
-	padding := f.callSubPaddingHint(b.overflow, uint(nbLimbs), modulus)
+	padding := f.computeSubPaddingHint(b.overflow, uint(nbLimbs), modulus)
 	for i := range limbs {
 		limbs[i] = padding.Limbs[i]
 		if i < len(a.Limbs) {
@@ -66,20 +65,4 @@ func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 		base = f.ModMul(base, base, modulus)
 	}
 	return res
-}
-
-func (f *Field[T]) callSubPaddingHint(overflow uint, nbLimbs uint, modulus *Element[T]) *Element[T] {
-	var fp T
-	inputs := []frontend.Variable{fp.NbLimbs(), fp.BitsPerLimb(), overflow, nbLimbs}
-	inputs = append(inputs, modulus.Limbs...)
-	res, err := f.api.NewHint(SubPaddingHint, int(nbLimbs), inputs...)
-	if err != nil {
-		panic(fmt.Sprintf("sub padding hint: %v", err))
-	}
-	for i := range res {
-		f.checker.Check(res[i], int(fp.BitsPerLimb()+overflow+1))
-	}
-	padding := f.newInternalElement(res, fp.BitsPerLimb()+overflow+1)
-	f.checkZero(padding, modulus)
-	return padding
 }
