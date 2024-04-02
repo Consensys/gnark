@@ -258,17 +258,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 
 func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk *VerifyingKey, publicInputs []fr.Element) error {
 
-	// permutation
-	if err := fs.Bind(challenge, vk.S[0].Marshal()); err != nil {
-		return err
-	}
-	if err := fs.Bind(challenge, vk.S[1].Marshal()); err != nil {
-		return err
-	}
-	if err := fs.Bind(challenge, vk.S[2].Marshal()); err != nil {
-		return err
-	}
-
 	// coefficients
 	if err := fs.Bind(challenge, vk.Qpublic.Marshal()); err != nil {
 		return err
