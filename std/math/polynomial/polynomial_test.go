@@ -43,7 +43,7 @@ func testEvalPoly[FR emulated.FieldParams](t *testing.T, p []int64, at int64, ev
 		Evaluation: emulated.ValueOf[FR](evaluation),
 	}
 
-	assert.CheckCircuit(&evalPolyCircuit[FR]{P: make([]emulated.Element[FR], len(p))}, test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&evalPolyCircuit[FR]{P: make([]emulated.Element[FR], len(p))}, test.WithValidAssignment(&witness), test.NoSolidityChecks())
 }
 
 func TestEvalPoly(t *testing.T) {
@@ -98,7 +98,7 @@ func testEvalMultiLin[FR emulated.FieldParams](t *testing.T) {
 		Evaluation: emulated.ValueOf[FR](17),
 	}
 
-	assert.CheckCircuit(&evalMultiLinCircuit[FR]{M: make([]emulated.Element[FR], 4), At: make([]emulated.Element[FR], 2)}, test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&evalMultiLinCircuit[FR]{M: make([]emulated.Element[FR], 4), At: make([]emulated.Element[FR], 2)}, test.WithValidAssignment(&witness), test.NoSolidityChecks())
 }
 
 type evalEqCircuit[FR emulated.FieldParams] struct {
@@ -144,7 +144,7 @@ func testEvalEq[FR emulated.FieldParams](t *testing.T) {
 		Eq: emulated.ValueOf[FR](148665),
 	}
 
-	assert.CheckCircuit(&evalEqCircuit[FR]{X: make([]emulated.Element[FR], 4), Y: make([]emulated.Element[FR], 4)}, test.WithValidAssignment(&witness))
+	assert.CheckCircuit(&evalEqCircuit[FR]{X: make([]emulated.Element[FR], 4), Y: make([]emulated.Element[FR], 4)}, test.WithValidAssignment(&witness), test.NoSolidityChecks())
 }
 
 type interpolateLDECircuit[FR emulated.FieldParams] struct {
@@ -180,7 +180,7 @@ func testInterpolateLDE[FR emulated.FieldParams](t *testing.T, at int64, values 
 		Expected: emulated.ValueOf[FR](expected),
 	}
 
-	assert.CheckCircuit(&interpolateLDECircuit[FR]{Values: make([]emulated.Element[FR], len(values))}, test.WithValidAssignment(assignment))
+	assert.CheckCircuit(&interpolateLDECircuit[FR]{Values: make([]emulated.Element[FR], len(values))}, test.WithValidAssignment(assignment), test.NoSolidityChecks())
 }
 
 func TestInterpolateLDEOnRange(t *testing.T) {
