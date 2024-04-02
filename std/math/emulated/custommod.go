@@ -43,7 +43,7 @@ func (v *VariableModulus[T]) ModAdd(a, b *Element[T], modulus *Element[T]) *Elem
 	return res
 }
 
-func (v *VariableModulus[T]) Sub(a, b *Element[T], modulus *Element[T]) *Element[T] {
+func (v *VariableModulus[T]) modSub(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	// like fixed modulus subtraction, but for sub padding need to use hint
 	// instead of assuming T as a constant. And when doing as a hint, then need
 	// to assert that the padding is a multiple of the modulus (done inside callSubPaddingHint)
@@ -67,7 +67,7 @@ func (v *VariableModulus[T]) Sub(a, b *Element[T], modulus *Element[T]) *Element
 func (v *VariableModulus[T]) ModAssertIsEqual(a, b *Element[T], modulus *Element[T]) {
 	// like fixed modulus AssertIsEqual, but uses current Sub implementation for
 	// computing the diff
-	diff := v.Sub(b, a, modulus)
+	diff := v.modSub(b, a, modulus)
 	v.f.checkZero(diff, modulus)
 }
 

@@ -81,7 +81,7 @@ func (c *variableSubtraction[T]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
-	res := v.Sub(&c.A, &c.B, &c.Modulus)
+	res := v.modSub(&c.A, &c.B, &c.Modulus)
 	v.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
