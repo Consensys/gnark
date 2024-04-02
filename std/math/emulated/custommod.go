@@ -58,9 +58,14 @@ func (v *VariableModulus[T]) AssertIsEqual(a, b *Element[T], modulus *Element[T]
 	v.f.checkZeroCustom(diff, modulus)
 }
 
-func (v *VariableModulus[T]) Exp(base, exp, modulus *Element[T]) *Element[T] {
-	// does square-and-multiply with modulus reduction
-	panic("todo")
+func (v *VariableModulus[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
+	expBts := v.f.ToBits(exp)
+	res := v.f.One()
+	for i := range expBts {
+		res = v.f.Select(expBts[i], v.Mul(base, res, modulus), res)
+		base = v.Mul(base, base, modulus)
+	}
+	return res
 }
 
 type Any4096Field struct{}

@@ -134,3 +134,37 @@ func TestVariableMultiplication(t *testing.T) {
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
 }
+
+type variableExp[T FieldParams] struct {
+	Modulus  Element[T]
+	Base     Element[T]
+	Exp      Element[T]
+	Expected Element[T]
+}
+
+func (c *variableExp[T]) Define(api frontend.API) error {
+	v, err := NewVariableModulus[T](api)
+	if err != nil {
+		return fmt.Errorf("new variable modulus: %w", err)
+	}
+	res := v.Exp(&c.Base, &c.Exp, &c.Modulus)
+	v.AssertIsEqual(&c.Expected, res, &c.Modulus)
+	return nil
+}
+
+func TestVariableExp(t *testing.T) {
+	assert := test.NewAssert(t)
+	modulus, _ := new(big.Int).SetString("4294967311", 10)
+	base, _ := rand.Int(rand.Reader, modulus)
+	exp, _ := rand.Int(rand.Reader, modulus)
+	expected := new(big.Int).Exp(base, exp, modulus)
+	circuit := &variableExp[Any4096Field]{}
+	assignment := &variableExp[Any4096Field]{
+		Modulus:  ValueOf[Any4096Field](modulus),
+		Base:     ValueOf[Any4096Field](base),
+		Exp:      ValueOf[Any4096Field](exp),
+		Expected: ValueOf[Any4096Field](expected),
+	}
+	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
+	assert.NoError(err)
+}
