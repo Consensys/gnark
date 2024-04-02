@@ -16,7 +16,6 @@ type TestCircuit struct {
 	Curves                               []ecc.ID
 	ProverOptions                        []backend.ProverOption
 	VerifierOptions                      []backend.VerifierOption
-	Backends                             []backend.ID
 }
 
 type TestCircuitOptionsFunc func(*TestCircuit)
@@ -30,12 +29,6 @@ func WithProverOpts(opts ...backend.ProverOption) TestCircuitOptionsFunc {
 func WithVerifierOpts(opts ...backend.VerifierOption) TestCircuitOptionsFunc {
 	return func(c *TestCircuit) {
 		c.VerifierOptions = append(c.VerifierOptions, opts...)
-	}
-}
-
-func WithBackends(backends ...backend.ID) TestCircuitOptionsFunc {
-	return func(c *TestCircuit) {
-		c.Backends = append(c.Backends, backends...)
 	}
 }
 
