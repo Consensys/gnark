@@ -89,9 +89,6 @@ type Proof struct {
 	// Commitment to Z, the permutation polynomial (perpared to be entangled)
 	ZEntangled kzg.Digest
 
-	// Commitment to Z, not entangled
-	// Z kzg.Digest
-
 	// Commitments to h1, h2, h3 (entangled) such that h = h1 + Xⁿ⁺²*h2 + X²⁽ⁿ⁺²⁾*h3 is the quotient polynomial
 	HEntangled kzg.Digest
 
