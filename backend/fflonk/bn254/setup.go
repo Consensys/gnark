@@ -59,14 +59,6 @@ type VerifyingKey struct {
 	// cosetShift generator of the coset on the small domain
 	CosetShift fr.Element
 
-	// S commitments to S1, S2, S3
-	S [3]kzg.Digest
-
-	// Commitments to ql, qr, qm, qo, qcp prepended with as many zeroes (ones for l) as there are public inputs.
-	// In particular Qk is not complete.
-	// Ql, Qr, Qm, Qo, Qk kzg.Digest
-	// Qcp                []kzg.Digest
-
 	// Fflonk commitment of
 	// Ql(Xᵗ) + XQr(Xᵗ) + X²Qm(Xᵗ) + X³Qo(Xᵗ) + X₄Qk(Xᵗ) + X₅S₁(Xᵗ) + X₆S₂(Xᵗ) + X₇S₃(Xᵗ) + X₈Qcp(Xᵗ)
 	// where t = |{Ql,Qr,Qm,Qo,Qk,S₁,S₂,S₃,(Qcp)_i,L,R,O,H₁,H₂,H₃,(Pi)_i}|
