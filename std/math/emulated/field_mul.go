@@ -492,3 +492,15 @@ func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] 
 	}
 	return f.newInternalElement(resLimbs, nextoverflow)
 }
+
+// Exp computes base^exp modulo the field order. The returned Element has default
+// number of limbs and zero overflow.
+func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
+	expBts := f.ToBits(exp)
+	res := f.One()
+	for i := range expBts {
+		res = f.Select(expBts[i], f.Mul(base, res), res)
+		base = f.Mul(base, base)
+	}
+	return res
+}
