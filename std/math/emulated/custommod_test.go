@@ -21,7 +21,7 @@ func (c *variableEquality[T]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
-	v.AssertIsEqual(&c.A, &c.B, &c.Modulus)
+	v.ModAssertIsEqual(&c.A, &c.B, &c.Modulus)
 	return nil
 }
 
@@ -51,8 +51,8 @@ func (c *variableAddition[T]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
-	res := v.Add(&c.A, &c.B, &c.Modulus)
-	v.AssertIsEqual(&c.Expected, res, &c.Modulus)
+	res := v.ModAdd(&c.A, &c.B, &c.Modulus)
+	v.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
 
@@ -82,7 +82,7 @@ func (c *variableSubtraction[T]) Define(api frontend.API) error {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
 	res := v.Sub(&c.A, &c.B, &c.Modulus)
-	v.AssertIsEqual(&c.Expected, res, &c.Modulus)
+	v.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
 
@@ -112,8 +112,8 @@ func (c *variableMultiplication[T]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
-	res := v.Mul(&c.A, &c.B, &c.Modulus)
-	v.AssertIsEqual(&c.Expected, res, &c.Modulus)
+	res := v.ModMul(&c.A, &c.B, &c.Modulus)
+	v.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
 
@@ -147,8 +147,8 @@ func (c *variableExp[T]) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
-	res := v.Exp(&c.Base, &c.Exp, &c.Modulus)
-	v.AssertIsEqual(&c.Expected, res, &c.Modulus)
+	res := v.ModExp(&c.Base, &c.Exp, &c.Modulus)
+	v.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
 

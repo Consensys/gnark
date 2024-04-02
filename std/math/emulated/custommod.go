@@ -19,12 +19,13 @@ func NewVariableModulus[T FieldParams](api frontend.API) (*VariableModulus[T], e
 	return &VariableModulus[T]{f: f}, nil
 }
 
-func (v *VariableModulus[T]) Mul(a, b *Element[T], modulus *Element[T]) *Element[T] {
-	res := v.f.mulModCustom(a, b, 0, modulus)
+func (v *VariableModulus[T]) ModMul(a, b *Element[T], modulus *Element[T]) *Element[T] {
+	res := v.f.mulMod(a, b, 0, modulus)
 	return res
 }
 
-func (v *VariableModulus[T]) Add(a, b *Element[T], modulus *Element[T]) *Element[T] {
+func (v *VariableModulus[T]) ModAdd(a, b *Element[T], modulus *Element[T]) *Element[T] {
+	// TODO reduce if would overflow
 	res := v.f.Add(a, b)
 	return res
 }
@@ -32,8 +33,7 @@ func (v *VariableModulus[T]) Add(a, b *Element[T], modulus *Element[T]) *Element
 func (v *VariableModulus[T]) Sub(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	// like fixed modulus subtraction, but for sub padding need to use hint
 	// instead of assuming T as a constant. And when doing as a hint, then need
-	// to assert that the lower limbs are all ones at right places and the
-	// highest limb covers everything else.
+	// to assert that the padding is a multiple of the modulus (done inside callSubPaddingHint)
 	nextOverflow := max(b.overflow+1, a.overflow) + 1
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
 	limbs := make([]frontend.Variable, nbLimbs)
@@ -51,19 +51,19 @@ func (v *VariableModulus[T]) Sub(a, b *Element[T], modulus *Element[T]) *Element
 	return res
 }
 
-func (v *VariableModulus[T]) AssertIsEqual(a, b *Element[T], modulus *Element[T]) {
+func (v *VariableModulus[T]) ModAssertIsEqual(a, b *Element[T], modulus *Element[T]) {
 	// like fixed modulus AssertIsEqual, but uses current Sub implementation for
 	// computing the diff
 	diff := v.Sub(b, a, modulus)
-	v.f.checkZeroCustom(diff, modulus)
+	v.f.checkZero(diff, modulus)
 }
 
 func (v *VariableModulus[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 	expBts := v.f.ToBits(exp)
 	res := v.f.One()
 	for i := range expBts {
-		res = v.f.Select(expBts[i], v.Mul(base, res, modulus), res)
-		base = v.Mul(base, base, modulus)
+		res = v.f.Select(expBts[i], v.ModMul(base, res, modulus), res)
+		base = v.ModMul(base, base, modulus)
 	}
 	return res
 }
