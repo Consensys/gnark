@@ -1,11 +1,8 @@
 package circuits
 
 import (
-	"crypto/sha256"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -49,19 +46,11 @@ func (circuit *noCommitCircuit) Define(api frontend.API) error {
 func init() {
 	// need to have separate test cases as the hash-to-field for PLONK and Groth16 verifiers are different
 	addEntry(
-		"commit_Groth16",
+		"commit",
 		&commitCircuit{}, &commitCircuit{Public: 16, X: 3}, &commitCircuit{Public: 0, X: 4},
-		[]ecc.ID{bn254.ID}, WithBackends(backend.GROTH16), WithProverOpts(backend.WithProverHashToFieldFunction(sha256.New())), WithVerifierOpts(backend.WithVerifierHashToFieldFunction(sha256.New())))
+		[]ecc.ID{bn254.ID})
 	addEntry(
-		"commit_Plonk",
-		&commitCircuit{}, &commitCircuit{Public: 16, X: 3}, &commitCircuit{Public: 0, X: 4},
-		[]ecc.ID{bn254.ID}, WithBackends(backend.PLONK))
-	addEntry(
-		"no_commit_Groth16",
+		"no_commit",
 		&noCommitCircuit{}, &noCommitCircuit{Public: 16, X: 3}, &noCommitCircuit{Public: 0, X: 4},
-		[]ecc.ID{bn254.ID}, WithBackends(backend.GROTH16), WithProverOpts(backend.WithProverHashToFieldFunction(sha256.New())), WithVerifierOpts(backend.WithVerifierHashToFieldFunction(sha256.New())))
-	addEntry(
-		"no_commit_Plonk",
-		&noCommitCircuit{}, &noCommitCircuit{Public: 16, X: 3}, &noCommitCircuit{Public: 0, X: 4},
-		[]ecc.ID{bn254.ID}, WithBackends(backend.PLONK))
+		[]ecc.ID{bn254.ID})
 }
