@@ -18,11 +18,11 @@ type variableEquality[T FieldParams] struct {
 }
 
 func (c *variableEquality[T]) Define(api frontend.API) error {
-	v, err := NewVariableModulus[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
-	v.ModAssertIsEqual(&c.A, &c.B, &c.Modulus)
+	f.ModAssertIsEqual(&c.A, &c.B, &c.Modulus)
 	return nil
 }
 
@@ -48,12 +48,12 @@ type variableAddition[T FieldParams] struct {
 }
 
 func (c *variableAddition[T]) Define(api frontend.API) error {
-	v, err := NewVariableModulus[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
-	res := v.ModAdd(&c.A, &c.B, &c.Modulus)
-	v.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
+	res := f.ModAdd(&c.A, &c.B, &c.Modulus)
+	f.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
 
@@ -78,12 +78,12 @@ type variableSubtraction[T FieldParams] struct {
 }
 
 func (c *variableSubtraction[T]) Define(api frontend.API) error {
-	v, err := NewVariableModulus[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
-	res := v.modSub(&c.A, &c.B, &c.Modulus)
-	v.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
+	res := f.modSub(&c.A, &c.B, &c.Modulus)
+	f.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
 
@@ -109,12 +109,12 @@ type variableMultiplication[T FieldParams] struct {
 }
 
 func (c *variableMultiplication[T]) Define(api frontend.API) error {
-	v, err := NewVariableModulus[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
-	res := v.ModMul(&c.A, &c.B, &c.Modulus)
-	v.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
+	res := f.ModMul(&c.A, &c.B, &c.Modulus)
+	f.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
 
@@ -144,12 +144,12 @@ type variableExp[T FieldParams] struct {
 }
 
 func (c *variableExp[T]) Define(api frontend.API) error {
-	v, err := NewVariableModulus[T](api)
+	f, err := NewField[T](api)
 	if err != nil {
 		return fmt.Errorf("new variable modulus: %w", err)
 	}
-	res := v.ModExp(&c.Base, &c.Exp, &c.Modulus)
-	v.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
+	res := f.ModExp(&c.Base, &c.Exp, &c.Modulus)
+	f.ModAssertIsEqual(&c.Expected, res, &c.Modulus)
 	return nil
 }
 
