@@ -176,7 +176,7 @@ func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 		panic("trying to reduce a constant, which happen to have an overflow flag set")
 	}
 	// slow path - use hint to reduce value
-	return f.mulMod(a, f.One(), 0)
+	return f.mulMod(a, f.One(), 0, nil)
 }
 
 // Sub subtracts b from a and returns it. Reduces locally if wouldn't fit into

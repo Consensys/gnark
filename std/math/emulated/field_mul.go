@@ -114,26 +114,7 @@ func (mc *mulCheck[T]) cleanEvaluations() {
 
 // mulMod returns a*b mod r. In practice it computes the result using a hint and
 // defers the actual multiplication check.
-func (f *Field[T]) mulMod(a, b *Element[T], _ uint) *Element[T] {
-	f.enforceWidthConditional(a)
-	f.enforceWidthConditional(b)
-	k, r, c, err := f.callMulHint(a, b, true, nil)
-	if err != nil {
-		panic(err)
-	}
-	mc := mulCheck[T]{
-		f: f,
-		a: a,
-		b: b,
-		c: c,
-		k: k,
-		r: r,
-	}
-	f.mulChecks = append(f.mulChecks, mc)
-	return r
-}
-
-func (f *Field[T]) mulModCustom(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
+func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
 	f.enforceWidthConditional(p)
@@ -155,27 +136,9 @@ func (f *Field[T]) mulModCustom(a, b *Element[T], _ uint, p *Element[T]) *Elemen
 }
 
 // checkZero creates multiplication check a * 1 = 0 + k*p.
-func (f *Field[T]) checkZero(a *Element[T]) {
+func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
 	// the method works similarly to mulMod, but we know that we are multiplying
 	// by one and expected result should be zero.
-	f.enforceWidthConditional(a)
-	b := f.shortOne()
-	k, r, c, err := f.callMulHint(a, b, false, nil)
-	if err != nil {
-		panic(err)
-	}
-	mc := mulCheck[T]{
-		f: f,
-		a: a,
-		b: b, // one on single limb to speed up the polynomial evaluation
-		c: c,
-		k: k,
-		r: r, // expected to be zero on zero limbs.
-	}
-	f.mulChecks = append(f.mulChecks, mc)
-}
-
-func (f *Field[T]) checkZeroCustom(a *Element[T], p *Element[T]) {
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(p)
 	b := f.shortOne()
@@ -446,7 +409,7 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 // For multiplying by a constant, use [Field[T].MulConst] method which is more
 // efficient.
 func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
-	return f.reduceAndOp(f.mulMod, f.mulPreCond, a, b)
+	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
 }
 
 // MulMod computes a*b and reduces it modulo the field order. The returned Element
@@ -454,7 +417,7 @@ func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 //
 // Equivalent to [Field[T].Mul], kept for backwards compatibility.
 func (f *Field[T]) MulMod(a, b *Element[T]) *Element[T] {
-	return f.reduceAndOp(f.mulMod, f.mulPreCond, a, b)
+	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
 }
 
 // MulConst multiplies a by a constant c and returns it. We assume that the

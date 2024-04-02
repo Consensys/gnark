@@ -92,6 +92,6 @@ func (v *VariableModulus[T]) callSubPaddingHint(overflow uint, nbLimbs uint, mod
 		v.f.checker.Check(res[i], int(fp.BitsPerLimb()+overflow+1))
 	}
 	padding := v.f.newInternalElement(res, fp.BitsPerLimb()+overflow+1)
-	v.f.checkZeroCustom(padding, modulus)
+	v.f.checkZero(padding, modulus)
 	return padding
 }
