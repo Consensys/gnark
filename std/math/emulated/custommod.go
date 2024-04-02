@@ -3,7 +3,6 @@ package emulated
 import (
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/consensys/gnark/frontend"
 )
@@ -80,18 +79,6 @@ func (v *VariableModulus[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] 
 	}
 	return res
 }
-
-type Any4096Field struct{}
-
-func (Any4096Field) NbLimbs() uint     { return 64 }
-func (Any4096Field) BitsPerLimb() uint { return 64 }
-func (Any4096Field) Modulus() *big.Int {
-	val, _ := new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
-	return val
-}
-
-// TODO: how to we ensure that it is prime?
-func (Any4096Field) IsPrime() bool { return false }
 
 func (v *VariableModulus[T]) callSubPaddingHint(overflow uint, nbLimbs uint, modulus *Element[T]) *Element[T] {
 	var fp T

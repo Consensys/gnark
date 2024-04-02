@@ -8,6 +8,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
 
@@ -30,11 +31,11 @@ func TestVariableEquality(t *testing.T) {
 	modulus, _ := new(big.Int).SetString("13407807929942597099574024998205846127479365820592393377723561443721764030073546976801874298166903427690031858186486050853753882811946569946433649006084171", 10)
 	a := big.NewInt(10)
 	b := new(big.Int).Add(a, modulus)
-	circuit := &variableEquality[Any4096Field]{}
-	assignment := &variableEquality[Any4096Field]{
-		Modulus: ValueOf[Any4096Field](modulus),
-		A:       ValueOf[Any4096Field](a),
-		B:       ValueOf[Any4096Field](b),
+	circuit := &variableEquality[emparams.Mod1e4096]{}
+	assignment := &variableEquality[emparams.Mod1e4096]{
+		Modulus: ValueOf[emparams.Mod1e4096](modulus),
+		A:       ValueOf[emparams.Mod1e4096](a),
+		B:       ValueOf[emparams.Mod1e4096](b),
 	}
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
@@ -59,12 +60,12 @@ func (c *variableAddition[T]) Define(api frontend.API) error {
 func TestVariableAddition(t *testing.T) {
 	assert := test.NewAssert(t)
 	modulus, _ := new(big.Int).SetString("13407807929942597099574024998205846127479365820592393377723561443721764030073546976801874298166903427690031858186486050853753882811946569946433649006084171", 10)
-	circuit := &variableAddition[Any4096Field]{}
-	assignment := &variableAddition[Any4096Field]{
-		Modulus:  ValueOf[Any4096Field](modulus),
-		A:        ValueOf[Any4096Field](10),
-		B:        ValueOf[Any4096Field](20),
-		Expected: ValueOf[Any4096Field](30),
+	circuit := &variableAddition[emparams.Mod1e4096]{}
+	assignment := &variableAddition[emparams.Mod1e4096]{
+		Modulus:  ValueOf[emparams.Mod1e4096](modulus),
+		A:        ValueOf[emparams.Mod1e4096](10),
+		B:        ValueOf[emparams.Mod1e4096](20),
+		Expected: ValueOf[emparams.Mod1e4096](30),
 	}
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
@@ -89,13 +90,13 @@ func (c *variableSubtraction[T]) Define(api frontend.API) error {
 func TestVariableSubtraction(t *testing.T) {
 	assert := test.NewAssert(t)
 	modulus, _ := new(big.Int).SetString("13407807929942597099574024998205846127479365820592393377723561443721764030073546976801874298166903427690031858186486050853753882811946569946433649006084171", 10)
-	circuit := &variableSubtraction[Any4096Field]{}
+	circuit := &variableSubtraction[emparams.Mod1e4096]{}
 	res := new(big.Int).Sub(modulus, big.NewInt(10))
-	assignment := &variableSubtraction[Any4096Field]{
-		Modulus:  ValueOf[Any4096Field](modulus),
-		A:        ValueOf[Any4096Field](10),
-		B:        ValueOf[Any4096Field](20),
-		Expected: ValueOf[Any4096Field](res),
+	assignment := &variableSubtraction[emparams.Mod1e4096]{
+		Modulus:  ValueOf[emparams.Mod1e4096](modulus),
+		A:        ValueOf[emparams.Mod1e4096](10),
+		B:        ValueOf[emparams.Mod1e4096](20),
+		Expected: ValueOf[emparams.Mod1e4096](res),
 	}
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
@@ -124,12 +125,12 @@ func TestVariableMultiplication(t *testing.T) {
 	b, _ := rand.Int(rand.Reader, modulus)
 	exp := new(big.Int).Mul(a, b)
 	exp.Mod(exp, modulus)
-	circuit := &variableMultiplication[Any4096Field]{}
-	assignment := &variableMultiplication[Any4096Field]{
-		Modulus:  ValueOf[Any4096Field](modulus),
-		A:        ValueOf[Any4096Field](a),
-		B:        ValueOf[Any4096Field](b),
-		Expected: ValueOf[Any4096Field](exp),
+	circuit := &variableMultiplication[emparams.Mod1e4096]{}
+	assignment := &variableMultiplication[emparams.Mod1e4096]{
+		Modulus:  ValueOf[emparams.Mod1e4096](modulus),
+		A:        ValueOf[emparams.Mod1e4096](a),
+		B:        ValueOf[emparams.Mod1e4096](b),
+		Expected: ValueOf[emparams.Mod1e4096](exp),
 	}
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
@@ -158,12 +159,12 @@ func TestVariableExp(t *testing.T) {
 	base, _ := rand.Int(rand.Reader, modulus)
 	exp, _ := rand.Int(rand.Reader, modulus)
 	expected := new(big.Int).Exp(base, exp, modulus)
-	circuit := &variableExp[Any4096Field]{}
-	assignment := &variableExp[Any4096Field]{
-		Modulus:  ValueOf[Any4096Field](modulus),
-		Base:     ValueOf[Any4096Field](base),
-		Exp:      ValueOf[Any4096Field](exp),
-		Expected: ValueOf[Any4096Field](expected),
+	circuit := &variableExp[emparams.Mod1e4096]{}
+	assignment := &variableExp[emparams.Mod1e4096]{
+		Modulus:  ValueOf[emparams.Mod1e4096](modulus),
+		Base:     ValueOf[emparams.Mod1e4096](base),
+		Exp:      ValueOf[emparams.Mod1e4096](exp),
+		Expected: ValueOf[emparams.Mod1e4096](expected),
 	}
 	err := test.IsSolved(circuit, assignment, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
