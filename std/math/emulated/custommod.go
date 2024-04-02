@@ -1,6 +1,7 @@
 package emulated
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -25,8 +26,20 @@ func (v *VariableModulus[T]) ModMul(a, b *Element[T], modulus *Element[T]) *Elem
 }
 
 func (v *VariableModulus[T]) ModAdd(a, b *Element[T], modulus *Element[T]) *Element[T] {
-	// TODO reduce if would overflow
-	res := v.f.Add(a, b)
+	// inlined version of [Field.reduceAndOp] which uses variable-modulus reduction
+	var nextOverflow uint
+	var err error
+	var target overflowError
+	for nextOverflow, err = v.f.addPreCond(a, b); errors.As(err, &target); nextOverflow, err = v.f.addPreCond(a, b) {
+		if errors.As(err, &target) {
+			if !target.reduceRight {
+				a = v.f.mulMod(a, v.f.shortOne(), 0, modulus)
+			} else {
+				b = v.f.mulMod(b, v.f.shortOne(), 0, modulus)
+			}
+		}
+	}
+	res := v.f.add(a, b, nextOverflow)
 	return res
 }
 
