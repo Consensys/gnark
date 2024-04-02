@@ -148,12 +148,7 @@ func (vk *VerifyingKey) writeTo(w io.Writer, options ...func(*curve.Encoder)) (n
 		&vk.S[0],
 		&vk.S[1],
 		&vk.S[2],
-		&vk.Ql,
-		&vk.Qr,
-		&vk.Qm,
-		&vk.Qo,
-		&vk.Qk,
-		vk.Qcp,
+		&vk.Qpublic,
 		&vk.Kzg.G1,
 		&vk.Kzg.G2[0],
 		&vk.Kzg.G2[1],
@@ -188,12 +183,7 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		&vk.S[0],
 		&vk.S[1],
 		&vk.S[2],
-		&vk.Ql,
-		&vk.Qr,
-		&vk.Qm,
-		&vk.Qo,
-		&vk.Qk,
-		&vk.Qcp,
+		&vk.Qpublic,
 		&vk.Kzg.G1,
 		&vk.Kzg.G2[0],
 		&vk.Kzg.G2[1],
@@ -205,10 +195,6 @@ func (vk *VerifyingKey) ReadFrom(r io.Reader) (int64, error) {
 		if err := dec.Decode(v); err != nil {
 			return dec.BytesRead(), err
 		}
-	}
-
-	if vk.Qcp == nil {
-		vk.Qcp = []kzg.Digest{}
 	}
 
 	return dec.BytesRead(), nil

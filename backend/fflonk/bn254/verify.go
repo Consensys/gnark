@@ -270,27 +270,9 @@ func bindPublicData(fs *fiatshamir.Transcript, challenge string, vk *VerifyingKe
 	}
 
 	// coefficients
-	if err := fs.Bind(challenge, vk.Ql.Marshal()); err != nil {
+	if err := fs.Bind(challenge, vk.Qpublic.Marshal()); err != nil {
 		return err
 	}
-	if err := fs.Bind(challenge, vk.Qr.Marshal()); err != nil {
-		return err
-	}
-	if err := fs.Bind(challenge, vk.Qm.Marshal()); err != nil {
-		return err
-	}
-	if err := fs.Bind(challenge, vk.Qo.Marshal()); err != nil {
-		return err
-	}
-	if err := fs.Bind(challenge, vk.Qk.Marshal()); err != nil {
-		return err
-	}
-	for i := range vk.Qcp {
-		if err := fs.Bind(challenge, vk.Qcp[i].Marshal()); err != nil {
-			return err
-		}
-	}
-
 	// public inputs
 	for i := 0; i < len(publicInputs); i++ {
 		if err := fs.Bind(challenge, publicInputs[i].Marshal()); err != nil {

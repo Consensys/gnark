@@ -390,7 +390,7 @@ func (s *instance) commitToLRO() error {
 	}
 
 	g := new(errgroup.Group)
-	offsetQcp := len(s.pk.Vk.Qcp)
+	offsetQcp := len(s.pk.Vk.CommitmentConstraintIndexes)
 
 	var l, r, o kzg.Digest
 
@@ -618,7 +618,7 @@ func (s *instance) buildRatioCopyConstraint() (err error) {
 	}
 
 	// commit to the blinded version of z (entangled)
-	offsetQcp := len(s.pk.Vk.Qcp)
+	offsetQcp := len(s.pk.Vk.CommitmentConstraintIndexes)
 	s.proof.ZEntangled, err = s.commitToEntangledPolyAndBlinding(s.x[id_Z], s.bp[id_Bz], prover_z+offsetQcp)
 	if err != nil {
 		return err
@@ -1114,8 +1114,8 @@ func coefficients(p []*iop.Polynomial) [][]fr.Element {
 
 func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKey) error {
 	g := new(errgroup.Group)
-	t := number_polynomials + 2*len(s.pk.Vk.Qcp)
-	lenQcp := len(s.pk.Vk.Qcp)
+	t := number_polynomials + 2*len(s.pk.Vk.CommitmentConstraintIndexes)
+	lenQcp := len(s.pk.Vk.CommitmentConstraintIndexes)
 	rh1 := lenQcp + prover_h_1
 	rh2 := lenQcp + prover_h_2
 	rh3 := lenQcp + prover_h_3

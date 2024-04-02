@@ -64,8 +64,8 @@ type VerifyingKey struct {
 
 	// Commitments to ql, qr, qm, qo, qcp prepended with as many zeroes (ones for l) as there are public inputs.
 	// In particular Qk is not complete.
-	Ql, Qr, Qm, Qo, Qk kzg.Digest
-	Qcp                []kzg.Digest
+	// Ql, Qr, Qm, Qo, Qk kzg.Digest
+	// Qcp                []kzg.Digest
 
 	// Fflonk commitment of
 	// Ql(Xᵗ) + XQr(Xᵗ) + X²Qm(Xᵗ) + X³Qo(Xᵗ) + X₄Qk(Xᵗ) + X₅S₁(Xᵗ) + X₆S₂(Xᵗ) + X₇S₃(Xᵗ) + X₈Qcp(Xᵗ)
