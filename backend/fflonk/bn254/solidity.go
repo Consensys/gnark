@@ -55,8 +55,8 @@ contract PlonkVerifier {
   uint256 private constant PROOF_Z_Y = 0x60;
   uint256 private constant PROOF_Z_ENTANGLED_X = 0x80;
   uint256 private constant PROOF_Z_ENTANGLED_Y = 0xa0;
-  uint256 private constant PROOF_H_ENTANGLED = 0xc0;
-  uint256 private constant PROOF_H_ENTANGLED = 0xe0;
+  uint256 private constant PROOF_H_ENTANGLED_X = 0xc0;
+  uint256 private constant PROOF_H_ENTANGLED_Y = 0xe0;
   {{- range $index, $element := .CommitmentConstraintIndexes}}
   uint256 private constant PROOF_BSB_{{ $index }}_X = {{ hex ( add 0x100 (mul 0x20 $index) ) }};
   uint256 private constant PROOF_BSB_{{ $index }}_Y = {{ hex ( add 0x120 (mul 0x20 $index) ) }};
@@ -84,7 +84,7 @@ contract PlonkVerifier {
   {{ end -}}
   uint256 private constant PROOF_Z_AT_ZETA_OMEGA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_SHPLONK_W_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_W_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_SHPLONK_W_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_SHPLONK_W_PRIME_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_SHPLONK_W_PRIME_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
@@ -105,10 +105,27 @@ contract PlonkVerifier {
   uint256 private constant PROOF_SHPLONK_P0_14 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_SHPLONK_P0_15 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   {{- range $index, $element := .CommitmentConstraintIndexes }}
-  uint256 private constant PROOF_SHPLONK_P0_{{ add 15 (mul 2 $index)}} = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_SHPLONK_P0_{{ add 16 (mul 2 $index)}} = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_SHPLONK_P0_{{ add 17 (mul 2 $index)}} = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   {{ end -}}
   uint256 private constant PROOF_SHPLONK_P1_0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+
+  // -------- offset state
+  {{ $offset = 0 }}
+  uint256 private constant STATE_ALPHA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_BETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_GAMMA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ALPHA_SQUARE_LAGRANGE_0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_LAST_MEM = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+
+  // -------- errors
+  uint256 private constant ERROR_STRING_ID = 0x08c379a000000000000000000000000000000000000000000000000000000000; // selector for function Error(string)
+
+  // -------- precompiles
+  uint256 private constant SHA_256 = 0x2;
 
   /// Verify a Plonk proof.
   /// Reverts if the proof or the public inputs are malformed.
@@ -117,6 +134,212 @@ contract PlonkVerifier {
   /// @return success true if the proof passes false otherwise
   function Verify(bytes calldata proof, uint256[] calldata public_inputs) 
   public view returns(bool success) {
+
+	assembly {
+
+		// state memory and scratch memory
+		let mem := mload(0x40)
+		let freeMem := add(mem, STATE_LAST_MEM)
+
+		// compute the challenges
+		let prev_challenge_non_reduced
+		prev_challenge_non_reduced := derive_gamma(proof.offset, public_inputs.length, public_inputs.offset)
+		// prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
+		// prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
+		// derive_zeta(proof.offset, prev_challenge_non_reduced)
+
+		// Beginning errors -------------------------------------------------
+
+      function error_nb_public_inputs() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x1d)
+        mstore(add(ptError, 0x44), "wrong number of public inputs")
+        revert(ptError, 0x64)
+      }
+
+      /// Called when an operation on Bn254 fails
+      /// @dev for instance when calling EcMul on a point not on Bn254.
+      function error_ec_op() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x12)
+        mstore(add(ptError, 0x44), "error ec operation")
+        revert(ptError, 0x64)
+      }
+
+      /// Called when one of the public inputs is not reduced.
+      function error_inputs_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x18)
+        mstore(add(ptError, 0x44), "inputs are bigger than r")
+        revert(ptError, 0x64)
+      }
+
+      /// Called when the size proof is not as expected
+      /// @dev to avoid overflow attack for instance
+      function error_proof_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x10)
+        mstore(add(ptError, 0x44), "wrong proof size")
+        revert(ptError, 0x64)
+      }
+
+      /// Called when one the openings is bigger than r
+      /// The openings are the claimed evalutions of a polynomial
+      /// in a Kzg proof.
+      function error_proof_openings_size() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x16)
+        mstore(add(ptError, 0x44), "openings bigger than r")
+        revert(ptError, 0x64)
+      }
+
+      function error_verify() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0xc)
+        mstore(add(ptError, 0x44), "error verify")
+        revert(ptError, 0x64)
+      }
+
+      function error_random_generation() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0x14)
+        mstore(add(ptError, 0x44), "error random gen kzg")
+        revert(ptError, 0x64)
+      }
+      // end errors -------------------------------------------------
+
+		// Beginning challenges -------------------------------------------------
+
+		/// Derive gamma as Sha256(<transcript>)
+		/// @param aproof pointer to the proof
+		/// @param nb_pi number of public inputs
+		/// @param pi pointer to the array of public inputs
+		/// @return the challenge gamma, not reduced
+		/// @notice The transcript is the concatenation (in this order) of:
+		/// * the word "gamma" in ascii, equal to [0x67,0x61,0x6d, 0x6d, 0x61] and encoded as a uint256.
+		/// * the entangled commitments to ql,qr,qm,qo,qkIncomplete,s1,s2,s3,qcp_i
+		/// * the entangled commitment to l, r, o
+		/// The data described above is written starting at mPtr. "gamma" lies on 5 bytes,
+		/// and is encoded as a uint256 number n. In basis b = 256, the number looks like this
+		/// [0 0 0 .. 0x67 0x61 0x6d, 0x6d, 0x61]. The first non zero entry is at position 27=0x1b
+		/// Gamma reduced (the actual challenge) is stored at add(state, state_gamma)
+		function derive_gamma(aproof, nb_pi, pi)->gamma_not_reduced {
+			let state := mload(0x40)
+			let mPtr := add(state, STATE_LAST_MEM)
+			mstore(mPtr, 0x67616d6d61) // "gamma" in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
+			mstore(add(mPtr, 0x20), VK_QPUBLIC_COM_X)
+			mstore(add(mPtr, 0x40), VK_QPUBLIC_COM_Y)
+			let _mPtr := add(mPtr, 0x60)
+			let size_pi_in_bytes := mul(nb_pi, 0x20)
+			calldatacopy(_mPtr, pi, size_pi_in_bytes)
+			_mPtr := add(_mPtr, size_pi_in_bytes)
+			calldatacopy(_mPtr, add(aproof, PROOF_LROENTANGLED_COM_X), 0x40)
+			let size := add(0x85, size_pi_in_bytes)
+			
+			let l_success := staticcall(gas(), SHA_256, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
+			if iszero(l_success) {
+			error_verify()
+			}
+			gamma_not_reduced := mload(mPtr)
+			mstore(add(state, STATE_GAMMA), mod(gamma_not_reduced, R_MOD))
+		}
+
+		/// derive beta as Sha256<transcript>
+		/// @param gamma_not_reduced the previous challenge (gamma) not reduced
+		/// @return beta_not_reduced the next challenge, beta, not reduced
+		/// @notice the transcript consists of the previous challenge only.
+		/// The reduced version of beta is stored at add(state, state_beta)
+		// function derive_beta(gamma_not_reduced)->beta_not_reduced{
+			
+		// 	let state := mload(0x40)
+		// 	let mPtr := add(mload(0x40), STATE_LAST_MEM)
+
+		// 	// beta
+		// 	mstore(mPtr, 0x62657461) // "beta"
+		// 	mstore(add(mPtr, 0x20), gamma_not_reduced)
+		// 	let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
+		// 	if iszero(l_success) {
+		// 	error_verify()
+		// 	}
+		// 	beta_not_reduced := mload(mPtr)
+		// 	mstore(add(state, STATE_BETA), mod(beta_not_reduced, R_MOD))
+		// }
+
+		/// derive alpha as sha256<transcript>
+		/// @param aproof pointer to the proof object
+		/// @param beta_not_reduced the previous challenge (beta) not reduced
+		/// @return alpha_not_reduced the next challenge, alpha, not reduced
+		/// @notice the transcript consists of the previous challenge (beta)
+		/// not reduced, the commitments to the wires associated to the QCP_i,
+		/// and the commitment to the grand product polynomial 
+		// function derive_alpha(aproof, beta_not_reduced)->alpha_not_reduced {
+			
+		// 	let state := mload(0x40)
+		// 	let mPtr := add(mload(0x40), STATE_LAST_MEM)
+		// 	let full_size := 0x65 // size("alpha") + 0x20 (previous challenge)
+
+		// 	// alpha
+		// 	mstore(mPtr, 0x616C706861) // "alpha"
+		// 	let _mPtr := add(mPtr, 0x20)
+		// 	mstore(_mPtr, beta_not_reduced)
+		// 	_mPtr := add(_mPtr, 0x20)
+			
+		// 	// Bsb22Commitments
+		// 	let proof_bsb_commitments := add(aproof, PROOF_COMMITMENTS_WIRES_CUSTOM_GATES)
+		// 	let size_bsb_commitments := mul(0x40, VK_NB_CUSTOM_GATES)
+		// 	calldatacopy(_mPtr, proof_bsb_commitments, size_bsb_commitments)
+		// 	_mPtr := add(_mPtr, size_bsb_commitments)
+		// 	full_size := add(full_size, size_bsb_commitments)
+			
+		// 	// [Z], the commitment to the grand product polynomial
+		// 	calldatacopy(_mPtr, add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X), 0x40)
+		// 	let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), full_size, mPtr, 0x20)
+		// 	if iszero(l_success) {
+		// 	error_verify()
+		// 	}
+
+		// 	alpha_not_reduced := mload(mPtr)
+		// 	mstore(add(state, STATE_ALPHA), mod(alpha_not_reduced, R_MOD))
+		// }
+
+		/// derive zeta as sha256<transcript>
+		/// @param aproof pointer to the proof object
+		/// @param alpha_not_reduced the previous challenge (alpha) not reduced
+		/// The transcript consists of the previous challenge and the commitment to
+		/// the quotient polynomial h.
+		// function derive_zeta(aproof, alpha_not_reduced) {
+			
+		// 	let state := mload(0x40)
+		// 	let mPtr := add(mload(0x40), STATE_LAST_MEM)
+
+		// 	// zeta
+		// 	mstore(mPtr, 0x7a657461) // "zeta"
+		// 	mstore(add(mPtr, 0x20), alpha_not_reduced)
+		// 	calldatacopy(add(mPtr, 0x40), add(aproof, PROOF_H_0_X), 0xc0)
+		// 	let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
+		// 	if iszero(l_success) {
+		// 	error_verify()
+		// 	}
+		// 	let zeta_not_reduced := mload(mPtr)
+		// 	mstore(add(state, STATE_ZETA), mod(zeta_not_reduced, R_MOD))
+		// }
+		// END challenges -------------------------------------------------
+
+	}
 
 	return true;
 
