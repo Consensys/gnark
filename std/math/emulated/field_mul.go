@@ -357,7 +357,9 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	quo := new(big.Int)
 	rem := new(big.Int)
 	ab := new(big.Int).Mul(a, b)
-	quo.QuoRem(ab, p, rem)
+	if p.Cmp(new(big.Int)) != 0 {
+		quo.QuoRem(ab, p, rem)
+	}
 	if err := decompose(quo, uint(nbBits), quoLimbs); err != nil {
 		return fmt.Errorf("decompose quo: %w", err)
 	}
