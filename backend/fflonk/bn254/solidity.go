@@ -116,7 +116,7 @@ contract PlonkVerifier {
   uint256 private constant STATE_BETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_GAMMA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_ZETA_T_POWER_N_MINUS_ONE = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ZH_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ALPHA_SQUARE_LAGRANGE_0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -165,8 +165,8 @@ contract PlonkVerifier {
 
     // evaluation of Z=Xⁿ-1 at ζᵗ, we save this value
     let zeta := mload(add(mem, STATE_ZETA))
-    let zeta_t_power_n_minus_one := addmod(pow(zeta, mul(VK_T,VK_DOMAIN_SIZE), freeMem), sub(R_MOD, 1), R_MOD)
-    mstore(add(mem, STATE_ZETA_T_POWER_N_MINUS_ONE), zeta_t_power_n_minus_one)
+    let zh_zeta_t := addmod(pow(zeta, mul(VK_T,VK_DOMAIN_SIZE), freeMem), sub(R_MOD, 1), R_MOD)
+    mstore(add(mem, STATE_ZH_ZETA_T), zh_zeta_t)
 
 		// Beginning errors -------------------------------------------------
 
@@ -355,7 +355,7 @@ contract PlonkVerifier {
       function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
         let state := mload(0x40)
         let z := mload(add(state, STATE_ZETA))
-        let zpnmo := mload(add(state, STATE_ZETA_T_POWER_N_MINUS_ONE))
+        let zpnmo := mload(add(state, STATE_ZH_ZETA_T))
         let li := mPtr
         batch_compute_lagranges_at_z(z, zpnmo, n, li)
         let tmp := 0
@@ -432,7 +432,7 @@ contract PlonkVerifier {
       function sum_pi_commit(aproof, nb_public_inputs, mPtr)->pi_commit {
         let state := mload(0x40)
         let z := mload(add(state, STATE_ZETA))
-        let zpnmo := mload(add(state, STATE_ZETA_T_POWER_N_MINUS_ONE))
+        let zpnmo := mload(add(state, STATE_ZH_ZETA_T))
         let p := add(aproof, PROOF_BSB_0_X)
         let h_fr, ith_lagrange
         {{ range $index, $element := .CommitmentConstraintIndexes}}
