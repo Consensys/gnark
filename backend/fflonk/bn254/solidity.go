@@ -46,6 +46,7 @@ contract PlonkVerifier {
   uint256 private constant VK_INDEX_COMMIT_API_{{ $index }} = {{ $element }};
   {{ end -}}
   uint256 private constant VK_NB_CUSTOM_GATES = {{ len .CommitmentConstraintIndexes }};
+  uint256 private constant VK_T = {{ add 15 (mul 2 (len .CommitmentConstraintIndexes) )}};
 
   // --------------------------- proof -----------------
 
@@ -144,9 +145,9 @@ contract PlonkVerifier {
 		// compute the challenges
 		let prev_challenge_non_reduced
 		prev_challenge_non_reduced := derive_gamma(proof.offset, public_inputs.length, public_inputs.offset)
-		// prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
-		// prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
-		// derive_zeta(proof.offset, prev_challenge_non_reduced)
+		prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
+		prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
+		derive_zeta(proof.offset, prev_challenge_non_reduced)
 
 		// Beginning errors -------------------------------------------------
 
