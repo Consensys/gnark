@@ -166,9 +166,9 @@ contract PlonkVerifier {
 		derive_zeta(proof.offset, prev_challenge_non_reduced)
     compute_zh_zeta_t(freeMem)
 
-    let l_pi := sum_pi_wo_api_commit(public_inputs.offset, public_inputs.length, freeMem)
+    let l_pi := compute_pi(public_inputs.offset, public_inputs.length, freeMem)
     {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
-    let l_pi_with_commit := sum_pi_commit(proof.offset, public_inputs.length, freeMem)
+    let l_pi_with_commit := compute_pi_commit(proof.offset, public_inputs.length, freeMem)
     l_pi := addmod(l_pi_with_commit, l_pi, R_MOD)
     {{ end -}}
     mstore(add(mem, STATE_PI), l_pi)
@@ -363,13 +363,13 @@ contract PlonkVerifier {
     }
 
 
-    /// sum_pi_wo_api_commit computes the public inputs contributions,
+    /// compute_pi computes the public inputs contributions,
     /// except for the public inputs coming from the custom gate
     /// @param ins pointer to the public inputs
     /// @param n number of public inputs
     /// @param mPtr free memory
     /// @return pi_wo_commit public inputs contribution (except the public inputs coming from the custom gate)
-    function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
+    function compute_pi(ins, n, mPtr)->pi_wo_commit {
       let state := mload(0x40)
       let zt := mload(add(state, STATE_ZETA_T))
       let zh_zeta_t := mload(add(state, STATE_ZH_ZETA_T))
@@ -446,7 +446,7 @@ contract PlonkVerifier {
     /// @param nb_public_inputs number of public inputs
     /// @param mPtr pointer to free memory
     /// @return pi_commit custom gate public inputs contribution
-    function sum_pi_commit(aproof, nb_public_inputs, mPtr)->pi_commit {
+    function compute_pi_commit(aproof, nb_public_inputs, mPtr)->pi_commit {
       let state := mload(0x40)
       let zt := mload(add(state, STATE_ZETA_T))
       let zh_zeta_t := mload(add(state, STATE_ZH_ZETA_T))
