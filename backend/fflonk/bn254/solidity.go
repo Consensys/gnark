@@ -294,7 +294,7 @@ contract PlonkVerifier {
 			calldatacopy(_mPtr, add(aproof, PROOF_BSB_0_X), size_bsb_commitments)
 			_mPtr := add(_mPtr, size_bsb_commitments)
 			calldatacopy(_mPtr, add(aproof, PROOF_Z_ENTANGLED_X), 0x40)
-      let size := add(0x45, size_bsb_commitments)
+      let size := add(0x65, size_bsb_commitments)
 			let l_success := staticcall(gas(), SHA_256, add(mPtr, 0x1b), size, mPtr, 0x20)
 			if iszero(l_success) {
 			error_verify()
@@ -309,22 +309,19 @@ contract PlonkVerifier {
 		/// @param alpha_not_reduced the previous challenge (alpha) not reduced
 		/// The transcript consists of the previous challenge and the commitment to
 		/// the quotient polynomial h.
-		// function derive_zeta(aproof, alpha_not_reduced) {
-			
-		// 	let state := mload(0x40)
-		// 	let mPtr := add(mload(0x40), STATE_LAST_MEM)
-
-		// 	// zeta
-		// 	mstore(mPtr, 0x7a657461) // "zeta"
-		// 	mstore(add(mPtr, 0x20), alpha_not_reduced)
-		// 	calldatacopy(add(mPtr, 0x40), add(aproof, PROOF_H_0_X), 0xc0)
-		// 	let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
-		// 	if iszero(l_success) {
-		// 	error_verify()
-		// 	}
-		// 	let zeta_not_reduced := mload(mPtr)
-		// 	mstore(add(state, STATE_ZETA), mod(zeta_not_reduced, R_MOD))
-		// }
+		function derive_zeta(aproof, alpha_not_reduced) {
+			let state := mload(0x40)
+			let mPtr := add(mload(0x40), STATE_LAST_MEM)
+			mstore(mPtr, 0x7a657461) // "zeta" in ascii is [0x7a,0x65,0x74,0x61]
+			mstore(add(mPtr, 0x20), alpha_not_reduced)
+			calldatacopy(add(mPtr, 0x40), add(aproof, PROOF_H_ENTANGLED_X), 0xc0)
+			let l_success := staticcall(gas(), SHA_256, add(mPtr, 0x1c), 0x64, mPtr, 0x20)
+			if iszero(l_success) {
+			error_verify()
+			}
+			let zeta_not_reduced := mload(mPtr)
+			mstore(add(state, STATE_ZETA), mod(zeta_not_reduced, R_MOD))
+		}
 		// END challenges -------------------------------------------------
 
 	}
