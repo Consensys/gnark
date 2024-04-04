@@ -127,6 +127,11 @@ contract PlonkVerifier {
 
   // -------- precompiles
   uint256 private constant SHA_256 = 0x2;
+  uint256 private constant MOD_EXP = 0x5;
+  uint256 private constant EC_ADD = 0x6;
+  uint256 private constant EC_MUL = 0x7;
+  uint256 private constant EC_PAIRING = 0x8;
+  
 
   /// Verify a Plonk proof.
   /// Reverts if the proof or the public inputs are malformed.
@@ -337,7 +342,7 @@ contract PlonkVerifier {
       mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
       mstore(add(mPtr, 0x40), mload(q))
       mstore(add(mPtr, 0x60), mload(add(q, 0x20)))
-      let l_success := staticcall(gas(),6,mPtr,0x80,dst,0x40)
+      let l_success := staticcall(gas(),EC_ADD,mPtr,0x80,dst,0x40)
       if iszero(l_success) {
         error_ec_op()
       }
@@ -353,7 +358,7 @@ contract PlonkVerifier {
       mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
       mstore(add(mPtr, 0x40), calldataload(q))
       mstore(add(mPtr, 0x60), calldataload(add(q, 0x20)))
-      let l_success := staticcall(gas(), 6, mPtr, 0x80, dst, 0x40)
+      let l_success := staticcall(gas(), EC_ADD, mPtr, 0x80, dst, 0x40)
       if iszero(l_success) {
         error_ec_op()
       }
@@ -368,7 +373,7 @@ contract PlonkVerifier {
       mstore(mPtr,mload(src))
       mstore(add(mPtr,0x20),mload(add(src,0x20)))
       mstore(add(mPtr,0x40),s)
-      let l_success := staticcall(gas(),7,mPtr,0x60,dst,0x40)
+      let l_success := staticcall(gas(),EC_MUL,mPtr,0x60,dst,0x40)
       if iszero(l_success) {
         error_ec_op()
       }
@@ -383,7 +388,7 @@ contract PlonkVerifier {
       mstore(mPtr, calldataload(src))
       mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
       mstore(add(mPtr, 0x40), s)
-      let l_success := staticcall(gas(), 7, mPtr, 0x60, dst, 0x40)
+      let l_success := staticcall(gas(), EC_MUL, mPtr, 0x60, dst, 0x40)
       if iszero(l_success) {
         error_ec_op()
       }
@@ -399,10 +404,10 @@ contract PlonkVerifier {
       mstore(mPtr,mload(src))
       mstore(add(mPtr,0x20),mload(add(src,0x20)))
       mstore(add(mPtr,0x40),s)
-      let l_success := staticcall(gas(),7,mPtr,0x60,mPtr,0x40)
+      let l_success := staticcall(gas(),EC_MUL,mPtr,0x60,mPtr,0x40)
       mstore(add(mPtr,0x40),mload(dst))
       mstore(add(mPtr,0x60),mload(add(dst,0x20)))
-      l_success := and(l_success, staticcall(gas(),6,mPtr,0x80,dst, 0x40))
+      l_success := and(l_success, staticcall(gas(),EC_ADD,mPtr,0x80,dst, 0x40))
       if iszero(l_success) {
         error_ec_op()
       }
@@ -418,10 +423,10 @@ contract PlonkVerifier {
       mstore(mPtr, calldataload(src))
       mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
       mstore(add(mPtr, 0x40), s)
-      let l_success := staticcall(gas(), 7, mPtr, 0x60, mPtr, 0x40)
+      let l_success := staticcall(gas(), EC_MUL, mPtr, 0x60, mPtr, 0x40)
       mstore(add(mPtr, 0x40), mload(dst))
       mstore(add(mPtr, 0x60), mload(add(dst, 0x20)))
-      l_success := and(l_success, staticcall(gas(), 6, mPtr, 0x80, dst, 0x40))
+      l_success := and(l_success, staticcall(gas(), EC_ADD, mPtr, 0x80, dst, 0x40))
       if iszero(l_success) {
         error_ec_op()
       }
@@ -447,7 +452,7 @@ contract PlonkVerifier {
       mstore(add(mPtr, 0x60), x)
       mstore(add(mPtr, 0x80), e)
       mstore(add(mPtr, 0xa0), R_MOD)
-      let check_staticcall := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
+      let check_staticcall := staticcall(gas(),MOD_EXP,mPtr,0xc0,mPtr,0x20)
       if eq(check_staticcall, 0) {
         error_verify()
       }
