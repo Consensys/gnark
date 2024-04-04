@@ -53,13 +53,14 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		return err
 	}
 
-	// derive beta from Comm(l), Comm(r), Comm(o)
+	// derive beta
 	beta, err := deriveRandomness(fs, "beta")
 	if err != nil {
 		return err
 	}
 
-	// derive alpha from Com(Z), BsbComEntangled
+	// derive alpha from Com(ZEntangled), BsbComEntangled
+	// /!\ Com(Z) must be added
 	alphaDeps := make([]*curve.G1Affine, len(proof.BsbComEntangled)+1)
 	for i := range proof.BsbComEntangled {
 		alphaDeps[i] = &proof.BsbComEntangled[i]
@@ -89,7 +90,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	bExpo.SetUint64(vk.Size)
 	zetaTPowerM.Exp(zetaT, &bExpo)  // ζᵗⁿ
 	zhZetaT.Sub(&zetaTPowerM, &one) // ζᵗⁿ-1
-	lagrangeOne.Sub(&zetaT, &one).  // ζᵗ-1
+	fmt.Println(zhZetaT.String())
+	lagrangeOne.Sub(&zetaT, &one). // ζᵗ-1
 					Inverse(&lagrangeOne).         // 1/(ζᵗ-1)
 					Mul(&lagrangeOne, &zhZetaT).   // (ζᵗⁿ-1)/(ζᵗ-1)
 					Mul(&lagrangeOne, &vk.SizeInv) // 1/n * (ζᵗⁿ-1)/(ζᵗ-1)
@@ -302,6 +304,10 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 // Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	funcMap := template.FuncMap{
+		"nextDivisorRMinusOne": func(v VerifyingKey) string {
+			t := getNextDivisorRMinusOne(v)
+			return fmt.Sprintf("%d", t)
+		},
 		"hex": func(i int) string {
 			return fmt.Sprintf("0x%x", i)
 		},
