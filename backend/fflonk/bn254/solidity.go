@@ -221,7 +221,7 @@ contract PlonkVerifier {
         mstore(add(ptError, 0x44), "error random gen kzg")
         revert(ptError, 0x64)
       }
-      // end errors -------------------------------------------------
+    // end errors -------------------------------------------------
 
 		// Beginning challenges -------------------------------------------------
 
@@ -324,6 +324,136 @@ contract PlonkVerifier {
 			mstore(add(state, STATE_ZETA), mod(zeta_not_reduced, R_MOD))
 		}
 		// END challenges -------------------------------------------------
+
+    // BEGINNING utils math functions -------------------------------------------------
+      
+    /// @param dst pointer storing the result
+    /// @param p pointer to the first point
+    /// @param q pointer to the second point
+    /// @param mPtr pointer to free memory
+    function point_add(dst, p, q, mPtr) {
+      let state := mload(0x40)
+      mstore(mPtr, mload(p))
+      mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
+      mstore(add(mPtr, 0x40), mload(q))
+      mstore(add(mPtr, 0x60), mload(add(q, 0x20)))
+      let l_success := staticcall(gas(),6,mPtr,0x80,dst,0x40)
+      if iszero(l_success) {
+        error_ec_op()
+      }
+    }
+
+    /// @param dst pointer storing the result
+    /// @param p pointer to the first point (calldata)
+    /// @param q pointer to the second point (calladata)
+    /// @param mPtr pointer to free memory
+    function point_add_calldata(dst, p, q, mPtr) {
+      let state := mload(0x40)
+      mstore(mPtr, mload(p))
+      mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
+      mstore(add(mPtr, 0x40), calldataload(q))
+      mstore(add(mPtr, 0x60), calldataload(add(q, 0x20)))
+      let l_success := staticcall(gas(), 6, mPtr, 0x80, dst, 0x40)
+      if iszero(l_success) {
+        error_ec_op()
+      }
+    }
+
+    /// @parma dst pointer storing the result
+    /// @param src pointer to a point on Bn254(𝔽_p)
+    /// @param s scalar
+    /// @param mPtr free memory
+    function point_mul(dst,src,s, mPtr) {
+      let state := mload(0x40)
+      mstore(mPtr,mload(src))
+      mstore(add(mPtr,0x20),mload(add(src,0x20)))
+      mstore(add(mPtr,0x40),s)
+      let l_success := staticcall(gas(),7,mPtr,0x60,dst,0x40)
+      if iszero(l_success) {
+        error_ec_op()
+      }
+    }
+
+    /// @parma dst pointer storing the result
+    /// @param src pointer to a point on Bn254(𝔽_p) on calldata
+    /// @param s scalar
+    /// @param mPtr free memory
+    function point_mul_calldata(dst, src, s, mPtr) {
+      let state := mload(0x40)
+      mstore(mPtr, calldataload(src))
+      mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
+      mstore(add(mPtr, 0x40), s)
+      let l_success := staticcall(gas(), 7, mPtr, 0x60, dst, 0x40)
+      if iszero(l_success) {
+        error_ec_op()
+      }
+    }
+
+    /// @notice dst <- dst + [s]src (Elliptic curve)
+    /// @param dst pointer accumulator point storing the result
+    /// @param src pointer to the point to multiply and add
+    /// @param s scalar
+    /// @param mPtr free memory
+    function point_acc_mul(dst,src,s, mPtr) {
+      let state := mload(0x40)
+      mstore(mPtr,mload(src))
+      mstore(add(mPtr,0x20),mload(add(src,0x20)))
+      mstore(add(mPtr,0x40),s)
+      let l_success := staticcall(gas(),7,mPtr,0x60,mPtr,0x40)
+      mstore(add(mPtr,0x40),mload(dst))
+      mstore(add(mPtr,0x60),mload(add(dst,0x20)))
+      l_success := and(l_success, staticcall(gas(),6,mPtr,0x80,dst, 0x40))
+      if iszero(l_success) {
+        error_ec_op()
+      }
+    }
+
+    /// @notice dst <- dst + [s]src (Elliptic curve)
+    /// @param dst pointer accumulator point storing the result
+    /// @param src pointer to the point to multiply and add (on calldata)
+    /// @param s scalar
+    /// @mPtr free memory
+    function point_acc_mul_calldata(dst, src, s, mPtr) {
+      let state := mload(0x40)
+      mstore(mPtr, calldataload(src))
+      mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
+      mstore(add(mPtr, 0x40), s)
+      let l_success := staticcall(gas(), 7, mPtr, 0x60, mPtr, 0x40)
+      mstore(add(mPtr, 0x40), mload(dst))
+      mstore(add(mPtr, 0x60), mload(add(dst, 0x20)))
+      l_success := and(l_success, staticcall(gas(), 6, mPtr, 0x80, dst, 0x40))
+      if iszero(l_success) {
+        error_ec_op()
+      }
+    }
+
+    /// @notice dst <- dst + src*s (Fr) dst,src are addresses, s is a value
+    /// @param dst pointer storing the result
+    /// @param src pointer to the scalar to multiply and add (on calldata)
+    /// @param s scalar
+    function fr_acc_mul_calldata(dst, src, s) {
+      let tmp :=  mulmod(calldataload(src), s, R_MOD)
+      mstore(dst, addmod(mload(dst), tmp, R_MOD))
+    }
+
+    /// @param x element to exponentiate
+    /// @param e exponent
+    /// @param mPtr free memory
+    /// @return res x ** e mod r
+    function pow(x, e, mPtr)->res {
+      mstore(mPtr, 0x20)
+      mstore(add(mPtr, 0x20), 0x20)
+      mstore(add(mPtr, 0x40), 0x20)
+      mstore(add(mPtr, 0x60), x)
+      mstore(add(mPtr, 0x80), e)
+      mstore(add(mPtr, 0xa0), R_MOD)
+      let check_staticcall := staticcall(gas(),0x05,mPtr,0xc0,mPtr,0x20)
+      if eq(check_staticcall, 0) {
+        error_verify()
+      }
+      res := mload(mPtr)
+    }
+    // end math functions -------------------------------------------------
 
 	}
 
