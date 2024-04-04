@@ -62,28 +62,28 @@ contract PlonkVerifier {
   uint256 private constant PROOF_BSB_{{ $index }}_X = {{ hex ( add 0x100 (mul 0x20 $index) ) }};
   uint256 private constant PROOF_BSB_{{ $index }}_Y = {{ hex ( add 0x120 (mul 0x20 $index) ) }};
   {{ end -}}{{ $offset := add 0x140 (mul 0x20 (len .CommitmentConstraintIndexes )) }}
-  uint256 private constant PROOF_QL_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_QR_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_QM_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_QO_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_QKINCOMPLETE_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_S1_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_S2_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_S3_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_QL_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_QR_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_QM_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_QO_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_QKINCOMPLETE_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_S1_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_S2_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_S3_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   {{- range $index, $element := .CommitmentConstraintIndexes}}
-  uint256 private constant PROOF_QCP_{{ $index }}_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_QCP_{{ $index }}_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   {{ end -}}
-  uint256 private constant PROOF_L_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_R_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_O_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_Z_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H1_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H2_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H3_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_L_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_R_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_O_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_Z_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H1_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H2_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H3_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   {{- range $index, $element := .CommitmentConstraintIndexes}}
-  uint256 private constant PROOF_BSB_{{ $index }}_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_BSB_{{ $index }}_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   {{ end -}}
-  uint256 private constant PROOF_Z_AT_ZETA_OMEGA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_Z_AT_ZETA_T_OMEGA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_SHPLONK_W_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_SHPLONK_W_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_SHPLONK_W_PRIME_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -710,6 +710,43 @@ contract PlonkVerifier {
       res := mload(mPtr)
     }
     // end math functions -------------------------------------------------
+
+    function check_algebraic_relation(aproof) {
+
+    }
+
+    function check_constraints(aproof)->ag {
+      let state := mload(0x40)
+      let ql := mload(add(aproof, PROOF_QL_AT_ZETA_T))
+      let qr := mload(add(aproof, PROOF_QR_AT_ZETA_T))
+      let qm := mload(add(aproof, PROOF_QM_AT_ZETA_T))
+      let qo := mload(add(aproof, PROOF_QO_AT_ZETA_T))
+      let qk := mload(add(aproof, PROOF_QKINCOMPLETE_AT_ZETA_T))
+      let l := mload(add(aproof, PROOF_L_AT_ZETA_T))
+      let r := mload(add(aproof, PROOF_R_AT_ZETA_T))
+      let o := mload(add(aproof, PROOF_O_AT_ZETA_T))
+      ag := mulmod(ql, l, R_MOD)
+      let tmp := mulmod(qr, r, R_MOD)
+      ag := addmod(ag, tmp, R_MOD)
+      tmp := mulmod(mulmod(qm, l, R_MOD), r, R_MOD)
+      ag := addmod(ag, tmp)
+      tmp := mulmod(qo, o, R_MOD)
+      ag := addmod(ag, tmp)
+      tmp := addmod(qk, mload(add(state, STATE_PI)), R_MOD)
+      ag := addmod(ag, tmp)
+      {{ range $index, $element := .CommitmentConstraintIndexes -}}
+      tmp := mulmod(mload(add(state, PROOF_QCP_{{$index}}_AT_ZETA_T)), mload(add(state, PROOF_BSB_{{$index}}_AT_ZETA_T)), R_MOD)
+      ag := addmod(ag, tmp, R_MOD)
+      {{ end -}}
+    }
+
+    function check_permutation(aproof) {
+
+    }
+
+    function check_z_start_at_one(aproof) {
+
+    }
 
 	}
 
