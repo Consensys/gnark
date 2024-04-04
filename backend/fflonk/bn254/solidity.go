@@ -61,7 +61,7 @@ contract PlonkVerifier {
   {{- range $index, $element := .CommitmentConstraintIndexes}}
   uint256 private constant PROOF_BSB_{{ $index }}_X = {{ hex ( add 0x100 (mul 0x20 $index) ) }};
   uint256 private constant PROOF_BSB_{{ $index }}_Y = {{ hex ( add 0x120 (mul 0x20 $index) ) }};
-  {{ end -}}{{ $offset := add 0x140 (mul 0x20 (len .CommitmentConstraintIndexes )) }}
+  {{ end -}}{{ $offset := add 0x100 (mul 0x40 (len .CommitmentConstraintIndexes )) }}
   uint256 private constant PROOF_QL_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_QR_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_QM_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -711,11 +711,11 @@ contract PlonkVerifier {
     }
     // end math functions -------------------------------------------------
 
-    function check_algebraic_relation(aproof) {
+    function check_constraints(aproof) {
 
     }
 
-    function check_constraints(aproof)->ag {
+    function check_algebraic_relation(aproof)->ag {
       let state := mload(0x40)
       let ql := mload(add(aproof, PROOF_QL_AT_ZETA_T))
       let qr := mload(add(aproof, PROOF_QR_AT_ZETA_T))
