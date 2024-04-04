@@ -116,8 +116,10 @@ contract PlonkVerifier {
   uint256 private constant STATE_BETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_GAMMA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ZH_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ALPHA_SQUARE_LAGRANGE_0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_PI = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_LAST_MEM = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -164,88 +166,85 @@ contract PlonkVerifier {
 		derive_zeta(proof.offset, prev_challenge_non_reduced)
     compute_zh_zeta_t(freeMem)
 
-    // Beginning misc -------------------------------------------------
-    
-    /// computes  Z=Xⁿ-1 at ζᵗ
-    function compute_zh_zeta_t(mPtr) {
-      let state := mload(0x40)
-      let zeta := mload(add(state, STATE_ZETA))
-      let zh_zeta_t := addmod(pow(zeta, mul(VK_T,VK_DOMAIN_SIZE), mPtr), R_MOD_MINUS_ONE, R_MOD)
-      mstore(add(state, STATE_ZH_ZETA_T), zh_zeta_t)
-    }
+    let l_pi := sum_pi_wo_api_commit(public_inputs.offset, public_inputs.length, freeMem)
+    {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
+    let l_pi_with_commit := sum_pi_commit(proof.offset, public_inputs.length, freeMem)
+    l_pi := addmod(l_pi_with_commit, l_pi, R_MOD)
+    {{ end -}}
+    mstore(add(mem, STATE_PI), l_pi)
 
 		// Beginning errors -------------------------------------------------
 
-      function error_nb_public_inputs() {
-        let ptError := mload(0x40)
-        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x1d)
-        mstore(add(ptError, 0x44), "wrong number of public inputs")
-        revert(ptError, 0x64)
-      }
+    function error_nb_public_inputs() {
+      let ptError := mload(0x40)
+      mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+      mstore(add(ptError, 0x4), 0x20)
+      mstore(add(ptError, 0x24), 0x1d)
+      mstore(add(ptError, 0x44), "wrong number of public inputs")
+      revert(ptError, 0x64)
+    }
 
-      /// Called when an operation on Bn254 fails
-      /// @dev for instance when calling EcMul on a point not on Bn254.
-      function error_ec_op() {
-        let ptError := mload(0x40)
-        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x12)
-        mstore(add(ptError, 0x44), "error ec operation")
-        revert(ptError, 0x64)
-      }
+    /// Called when an operation on Bn254 fails
+    /// @dev for instance when calling EcMul on a point not on Bn254.
+    function error_ec_op() {
+      let ptError := mload(0x40)
+      mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+      mstore(add(ptError, 0x4), 0x20)
+      mstore(add(ptError, 0x24), 0x12)
+      mstore(add(ptError, 0x44), "error ec operation")
+      revert(ptError, 0x64)
+    }
 
-      /// Called when one of the public inputs is not reduced.
-      function error_inputs_size() {
-        let ptError := mload(0x40)
-        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x18)
-        mstore(add(ptError, 0x44), "inputs are bigger than r")
-        revert(ptError, 0x64)
-      }
+    /// Called when one of the public inputs is not reduced.
+    function error_inputs_size() {
+      let ptError := mload(0x40)
+      mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+      mstore(add(ptError, 0x4), 0x20)
+      mstore(add(ptError, 0x24), 0x18)
+      mstore(add(ptError, 0x44), "inputs are bigger than r")
+      revert(ptError, 0x64)
+    }
 
-      /// Called when the size proof is not as expected
-      /// @dev to avoid overflow attack for instance
-      function error_proof_size() {
-        let ptError := mload(0x40)
-        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x10)
-        mstore(add(ptError, 0x44), "wrong proof size")
-        revert(ptError, 0x64)
-      }
+    /// Called when the size proof is not as expected
+    /// @dev to avoid overflow attack for instance
+    function error_proof_size() {
+      let ptError := mload(0x40)
+      mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+      mstore(add(ptError, 0x4), 0x20)
+      mstore(add(ptError, 0x24), 0x10)
+      mstore(add(ptError, 0x44), "wrong proof size")
+      revert(ptError, 0x64)
+    }
 
-      /// Called when one the openings is bigger than r
-      /// The openings are the claimed evalutions of a polynomial
-      /// in a Kzg proof.
-      function error_proof_openings_size() {
-        let ptError := mload(0x40)
-        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x16)
-        mstore(add(ptError, 0x44), "openings bigger than r")
-        revert(ptError, 0x64)
-      }
+    /// Called when one the openings is bigger than r
+    /// The openings are the claimed evalutions of a polynomial
+    /// in a Kzg proof.
+    function error_proof_openings_size() {
+      let ptError := mload(0x40)
+      mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+      mstore(add(ptError, 0x4), 0x20)
+      mstore(add(ptError, 0x24), 0x16)
+      mstore(add(ptError, 0x44), "openings bigger than r")
+      revert(ptError, 0x64)
+    }
 
-      function error_verify() {
-        let ptError := mload(0x40)
-        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0xc)
-        mstore(add(ptError, 0x44), "error verify")
-        revert(ptError, 0x64)
-      }
+    function error_verify() {
+      let ptError := mload(0x40)
+      mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+      mstore(add(ptError, 0x4), 0x20)
+      mstore(add(ptError, 0x24), 0xc)
+      mstore(add(ptError, 0x44), "error verify")
+      revert(ptError, 0x64)
+    }
 
-      function error_random_generation() {
-        let ptError := mload(0x40)
-        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
-        mstore(add(ptError, 0x4), 0x20)
-        mstore(add(ptError, 0x24), 0x14)
-        mstore(add(ptError, 0x44), "error random gen kzg")
-        revert(ptError, 0x64)
-      }
+    function error_random_generation() {
+      let ptError := mload(0x40)
+      mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+      mstore(add(ptError, 0x4), 0x20)
+      mstore(add(ptError, 0x24), 0x14)
+      mstore(add(ptError, 0x44), "error random gen kzg")
+      revert(ptError, 0x64)
+    }
     // end errors -------------------------------------------------
 
 		// Beginning challenges -------------------------------------------------
@@ -352,223 +351,235 @@ contract PlonkVerifier {
 
     // BEGINNING compute_pi -------------------------------------------------
 
-      /// sum_pi_wo_api_commit computes the public inputs contributions,
-      /// except for the public inputs coming from the custom gate
-      /// @param ins pointer to the public inputs
-      /// @param n number of public inputs
-      /// @param mPtr free memory
-      /// @return pi_wo_commit public inputs contribution (except the public inputs coming from the custom gate)
-      function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
-        let state := mload(0x40)
-        let z := mload(add(state, STATE_ZETA))
-        let zpnmo := mload(add(state, STATE_ZH_ZETA_T))
-        let li := mPtr
-        batch_compute_lagranges_at_z(z, zpnmo, n, li)
-        let tmp := 0
-        for {let i:=0} lt(i,n) {i:=add(i,1)}
-        {
-          tmp := mulmod(mload(li), calldataload(ins), R_MOD)
-          pi_wo_commit := addmod(pi_wo_commit, tmp, R_MOD)
-          li := add(li, 0x20)
-          ins := add(ins, 0x20)
-        } 
-      }
+    /// compute ζᵗ and
+    /// computes  Z=Xⁿ-1 at ζᵗ
+    function compute_zh_zeta_t(mPtr) {
+      let state := mload(0x40)
+      let zeta := mload(add(state, STATE_ZETA))
+      let zh_zeta_t := pow(zeta, VK_T, mPtr)
+      mstore(add(state, STATE_ZETA_T), zh_zeta_t)
+      zh_zeta_t := addmod(pow(zh_zeta_t, VK_DOMAIN_SIZE, mPtr), R_MOD_MINUS_ONE, R_MOD)
+      mstore(add(state, STATE_ZH_ZETA_T), zh_zeta_t)
+    }
 
-      /// batch_compute_lagranges_at_z computes [L_0(z), .., L_{n-1}(z)]
-      /// @param z point at which the Lagranges are evaluated
-      /// @param zpnmo ζⁿ-1
-      /// @param n number of public inputs (number of Lagranges to compute)
-      /// @param mPtr pointer to which the results are stored
-      function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
-        let zn := mulmod(zpnmo, VK_INV_DOMAIN_SIZE, R_MOD) // 1/n * (ζⁿ - 1)
-        let _w := 1
-        let _mPtr := mPtr
-        for {let i:=0} lt(i,n) {i:=add(i,1)}
-        {
-          mstore(_mPtr, addmod(z,sub(R_MOD, _w), R_MOD))
-          _w := mulmod(_w, VK_OMEGA, R_MOD)
-          _mPtr := add(_mPtr, 0x20)
-        }
-        batch_invert(mPtr, n, _mPtr)
-        _mPtr := mPtr
-        _w := 1
-        for {let i:=0} lt(i,n) {i:=add(i,1)}
-        {
-          mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , R_MOD), _w, R_MOD))
-          _mPtr := add(_mPtr, 0x20)
-          _w := mulmod(_w, VK_OMEGA, R_MOD)
-        }
+
+    /// sum_pi_wo_api_commit computes the public inputs contributions,
+    /// except for the public inputs coming from the custom gate
+    /// @param ins pointer to the public inputs
+    /// @param n number of public inputs
+    /// @param mPtr free memory
+    /// @return pi_wo_commit public inputs contribution (except the public inputs coming from the custom gate)
+    function sum_pi_wo_api_commit(ins, n, mPtr)->pi_wo_commit {
+      let state := mload(0x40)
+      let zt := mload(add(state, STATE_ZETA_T))
+      let zh_zeta_t := mload(add(state, STATE_ZH_ZETA_T))
+      let li := mPtr
+      batch_compute_lagranges_at_z(zt, zh_zeta_t, n, li)
+      let tmp := 0
+      for {let i:=0} lt(i,n) {i:=add(i,1)}
+      {
+        tmp := mulmod(mload(li), calldataload(ins), R_MOD)
+        pi_wo_commit := addmod(pi_wo_commit, tmp, R_MOD)
+        li := add(li, 0x20)
+        ins := add(ins, 0x20)
       } 
+    }
 
-      /// @notice Montgomery trick for batch inversion mod R_MOD
-      /// @param ins pointer to the data to batch invert
-      /// @param number of elements to batch invert
-      /// @param mPtr free memory
-      function batch_invert(ins, nb_ins, mPtr) {
-        mstore(mPtr, 1)
-        let offset := 0
-        for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
-        {
-          let prev := mload(add(mPtr, offset))
-          let cur := mload(add(ins, offset))
-          cur := mulmod(prev, cur, R_MOD)
-          offset := add(offset, 0x20)
-          mstore(add(mPtr, offset), cur)
-        }
-        ins := add(ins, sub(offset, 0x20))
-        mPtr := add(mPtr, offset)
-        let inv := pow(mload(mPtr), sub(R_MOD,2), add(mPtr, 0x20))
-        for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
-        {
-          mPtr := sub(mPtr, 0x20)
-          let tmp := mload(ins)
-          let cur := mulmod(inv, mload(mPtr), R_MOD)
-          mstore(ins, cur)
-          inv := mulmod(inv, tmp, R_MOD)
-          ins := sub(ins, 0x20)
-        }
+    /// batch_compute_lagranges_at_z computes [L_0(z), .., L_{n-1}(z)]
+    /// @param z point at which the Lagranges are evaluated
+    /// @param zh_zeta_t ζⁿ-1
+    /// @param n number of public inputs (number of Lagranges to compute)
+    /// @param mPtr pointer to which the results are stored
+    function batch_compute_lagranges_at_z(z, zh_zeta_t, n, mPtr) {
+      let zn := mulmod(zh_zeta_t, VK_INV_DOMAIN_SIZE, R_MOD) // 1/n * (ζⁿ - 1)
+      let _w := 1
+      let _mPtr := mPtr
+      for {let i:=0} lt(i,n) {i:=add(i,1)}
+      {
+        mstore(_mPtr, addmod(z,sub(R_MOD, _w), R_MOD))
+        _w := mulmod(_w, VK_OMEGA, R_MOD)
+        _mPtr := add(_mPtr, 0x20)
       }
-
-      {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
-      /// Public inputs (the ones coming from the custom gate) contribution
-      /// @param aproof pointer to the proof
-      /// @param nb_public_inputs number of public inputs
-      /// @param mPtr pointer to free memory
-      /// @return pi_commit custom gate public inputs contribution
-      function sum_pi_commit(aproof, nb_public_inputs, mPtr)->pi_commit {
-        let state := mload(0x40)
-        let z := mload(add(state, STATE_ZETA))
-        let zpnmo := mload(add(state, STATE_ZH_ZETA_T))
-        let p := add(aproof, PROOF_BSB_0_X)
-        let h_fr, ith_lagrange
-        {{ range $index, $element := .CommitmentConstraintIndexes}}
-        h_fr := hash_fr(calldataload(p), calldataload(add(p, 0x20)), mPtr)
-        ith_lagrange := compute_ith_lagrange_at_z(z, zpnmo, add(nb_public_inputs, VK_INDEX_COMMIT_API_{{ $index }}), mPtr)
-        pi_commit := addmod(pi_commit, mulmod(h_fr, ith_lagrange, R_MOD), R_MOD)
-        p := add(p, 0x40)
-        {{ end }}
+      batch_invert(mPtr, n, _mPtr)
+      _mPtr := mPtr
+      _w := 1
+      for {let i:=0} lt(i,n) {i:=add(i,1)}
+      {
+        mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , R_MOD), _w, R_MOD))
+        _mPtr := add(_mPtr, 0x20)
+        _w := mulmod(_w, VK_OMEGA, R_MOD)
       }
+    } 
 
-      /// Computes L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
-      /// @param z zeta
-      /// @param zpmno ζⁿ-1
-      /// @param i i-th lagrange
-      /// @param mPtr free memory
-      /// @return res = ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) 
-      function compute_ith_lagrange_at_z(z, zpnmo, i, mPtr)->res {
-        let w := pow(VK_OMEGA, i, mPtr) // w**i
-        i := addmod(z, sub(R_MOD, w), R_MOD) // z-w**i
-        w := mulmod(w, VK_INV_DOMAIN_SIZE, R_MOD) // w**i/n
-        i := pow(i, sub(R_MOD,2), mPtr) // (z-w**i)**-1
-        w := mulmod(w, i, R_MOD) // w**i/n*(z-w)**-1
-        res := mulmod(w, zpnmo, R_MOD)
+    /// @notice Montgomery trick for batch inversion mod R_MOD
+    /// @param ins pointer to the data to batch invert
+    /// @param number of elements to batch invert
+    /// @param mPtr free memory
+    function batch_invert(ins, nb_ins, mPtr) {
+      mstore(mPtr, 1)
+      let offset := 0
+      for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
+      {
+        let prev := mload(add(mPtr, offset))
+        let cur := mload(add(ins, offset))
+        cur := mulmod(prev, cur, R_MOD)
+        offset := add(offset, 0x20)
+        mstore(add(mPtr, offset), cur)
       }
-
-      /// @dev https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
-      /// @param x x coordinate of a point on Bn254(𝔽_p)
-      /// @param y y coordinate of a point on Bn254(𝔽_p)
-      /// @param mPtr free memory
-      /// @return res an element mod R_MOD
-      function hash_fr(x, y, mPtr)->res {
-
-        // [0x00, .. , 0x00 || x, y, || 0, 48, 0, dst, HASH_FR_SIZE_DOMAIN]
-        // <-  64 bytes  ->  <-64b -> <-       1 bytes each     ->
-
-        // [0x00, .., 0x00] 64 bytes of zero
-        mstore(mPtr, HASH_FR_ZERO_UINT256)
-        mstore(add(mPtr, 0x20), HASH_FR_ZERO_UINT256)
-    
-        // msg =  x || y , both on 32 bytes
-        mstore(add(mPtr, 0x40), x)
-        mstore(add(mPtr, 0x60), y)
-
-        // 0 || 48 || 0 all on 1 byte
-        mstore8(add(mPtr, 0x80), 0)
-        mstore8(add(mPtr, 0x81), HASH_FR_LEN_IN_BYTES)
-        mstore8(add(mPtr, 0x82), 0)
-
-        // "BSB22-Plonk" = [42, 53, 42, 32, 32, 2d, 50, 6c, 6f, 6e, 6b,]
-        mstore8(add(mPtr, 0x83), 0x42)
-        mstore8(add(mPtr, 0x84), 0x53)
-        mstore8(add(mPtr, 0x85), 0x42)
-        mstore8(add(mPtr, 0x86), 0x32)
-        mstore8(add(mPtr, 0x87), 0x32)
-        mstore8(add(mPtr, 0x88), 0x2d)
-        mstore8(add(mPtr, 0x89), 0x50)
-        mstore8(add(mPtr, 0x8a), 0x6c)
-        mstore8(add(mPtr, 0x8b), 0x6f)
-        mstore8(add(mPtr, 0x8c), 0x6e)
-        mstore8(add(mPtr, 0x8d), 0x6b)
-
-        // size domain
-        mstore8(add(mPtr, 0x8e), HASH_FR_SIZE_DOMAIN)
-
-        let l_success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
-        if iszero(l_success) {
-          error_verify()
-        }
-
-        let b0 := mload(mPtr)
-
-        // [b0         || one || dst || HASH_FR_SIZE_DOMAIN]
-        // <-64bytes ->  <-    1 byte each      ->
-        mstore8(add(mPtr, 0x20), HASH_FR_ONE) // 1
-        
-        mstore8(add(mPtr, 0x21), 0x42) // dst
-        mstore8(add(mPtr, 0x22), 0x53)
-        mstore8(add(mPtr, 0x23), 0x42)
-        mstore8(add(mPtr, 0x24), 0x32)
-        mstore8(add(mPtr, 0x25), 0x32)
-        mstore8(add(mPtr, 0x26), 0x2d)
-        mstore8(add(mPtr, 0x27), 0x50)
-        mstore8(add(mPtr, 0x28), 0x6c)
-        mstore8(add(mPtr, 0x29), 0x6f)
-        mstore8(add(mPtr, 0x2a), 0x6e)
-        mstore8(add(mPtr, 0x2b), 0x6b)
-
-        mstore8(add(mPtr, 0x2c), HASH_FR_SIZE_DOMAIN) // size domain
-        l_success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
-        if iszero(l_success) {
-          error_verify()
-        }
-
-        // b1 is located at mPtr. We store b2 at add(mPtr, 0x20)
-
-        // [b0^b1      || two || dst || HASH_FR_SIZE_DOMAIN]
-        // <-64bytes ->  <-    1 byte each      ->
-        mstore(add(mPtr, 0x20), xor(mload(mPtr), b0))
-        mstore8(add(mPtr, 0x40), HASH_FR_TWO)
-
-        mstore8(add(mPtr, 0x41), 0x42) // dst
-        mstore8(add(mPtr, 0x42), 0x53)
-        mstore8(add(mPtr, 0x43), 0x42)
-        mstore8(add(mPtr, 0x44), 0x32)
-        mstore8(add(mPtr, 0x45), 0x32)
-        mstore8(add(mPtr, 0x46), 0x2d)
-        mstore8(add(mPtr, 0x47), 0x50)
-        mstore8(add(mPtr, 0x48), 0x6c)
-        mstore8(add(mPtr, 0x49), 0x6f)
-        mstore8(add(mPtr, 0x4a), 0x6e)
-        mstore8(add(mPtr, 0x4b), 0x6b)
-
-        mstore8(add(mPtr, 0x4c), HASH_FR_SIZE_DOMAIN) // size domain
-
-        let offset := add(mPtr, 0x20)
-        l_success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
-        if iszero(l_success) {
-          error_verify()
-        }
-
-        // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
-        // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
-        // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
-        res := mulmod(mload(mPtr), HASH_FR_BB, R_MOD) // <- res = 2**128 * mPtr[:32]
-        let b1 := shr(128, mload(add(mPtr, 0x20))) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
-        res := addmod(res, b1, R_MOD)
-
+      ins := add(ins, sub(offset, 0x20))
+      mPtr := add(mPtr, offset)
+      let inv := pow(mload(mPtr), sub(R_MOD,2), add(mPtr, 0x20))
+      for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
+      {
+        mPtr := sub(mPtr, 0x20)
+        let tmp := mload(ins)
+        let cur := mulmod(inv, mload(mPtr), R_MOD)
+        mstore(ins, cur)
+        inv := mulmod(inv, tmp, R_MOD)
+        ins := sub(ins, 0x20)
       }
+    }
+
+    {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+    /// Public inputs (the ones coming from the custom gate) contribution
+    /// @param aproof pointer to the proof
+    /// @param nb_public_inputs number of public inputs
+    /// @param mPtr pointer to free memory
+    /// @return pi_commit custom gate public inputs contribution
+    function sum_pi_commit(aproof, nb_public_inputs, mPtr)->pi_commit {
+      let state := mload(0x40)
+      let zt := mload(add(state, STATE_ZETA_T))
+      let zh_zeta_t := mload(add(state, STATE_ZH_ZETA_T))
+      let p := add(aproof, PROOF_BSB_0_X)
+      let h_fr, ith_lagrange
+      {{ range $index, $element := .CommitmentConstraintIndexes}}
+      h_fr := hash_fr(calldataload(p), calldataload(add(p, 0x20)), mPtr)
+      ith_lagrange := compute_ith_lagrange_at_z(zt, zh_zeta_t, add(nb_public_inputs, VK_INDEX_COMMIT_API_{{ $index }}), mPtr)
+      pi_commit := addmod(pi_commit, mulmod(h_fr, ith_lagrange, R_MOD), R_MOD)
+      p := add(p, 0x40)
       {{ end }}
-      // END compute_pi -------------------------------------------------
+    }
+
+    /// Computes L_i(zeta) =  ωⁱ/n * (ζᵗⁿ-1)/(ζᵗ-ωⁱ) where:
+    /// @param ζᵗ zeta
+    /// @param zt ζᵗⁿ-1
+    /// @param i i-th lagrange
+    /// @param mPtr free memory
+    /// @return res = ωⁱ/n * (ζᵗⁿ-1)/(ζᵗ-ωⁱ) 
+    function compute_ith_lagrange_at_z(zt, zh_zeta_t, i, mPtr)->res {
+      let w := pow(VK_OMEGA, i, mPtr) // w**i
+      i := addmod(zt, sub(R_MOD, w), R_MOD) // z-w**i
+      w := mulmod(w, VK_INV_DOMAIN_SIZE, R_MOD) // w**i/n
+      i := pow(i, sub(R_MOD,2), mPtr) // (z-w**i)**-1
+      w := mulmod(w, i, R_MOD) // w**i/n*(z-w)**-1
+      res := mulmod(w, zh_zeta_t, R_MOD)
+    }
+
+    /// @dev https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
+    /// @param x x coordinate of a point on Bn254(𝔽_p)
+    /// @param y y coordinate of a point on Bn254(𝔽_p)
+    /// @param mPtr free memory
+    /// @return res an element mod R_MOD
+    function hash_fr(x, y, mPtr)->res {
+
+      // [0x00, .. , 0x00 || x, y, || 0, 48, 0, dst, HASH_FR_SIZE_DOMAIN]
+      // <-  64 bytes  ->  <-64b -> <-       1 bytes each     ->
+
+      // [0x00, .., 0x00] 64 bytes of zero
+      mstore(mPtr, HASH_FR_ZERO_UINT256)
+      mstore(add(mPtr, 0x20), HASH_FR_ZERO_UINT256)
+  
+      // msg =  x || y , both on 32 bytes
+      mstore(add(mPtr, 0x40), x)
+      mstore(add(mPtr, 0x60), y)
+
+      // 0 || 48 || 0 all on 1 byte
+      mstore8(add(mPtr, 0x80), 0)
+      mstore8(add(mPtr, 0x81), HASH_FR_LEN_IN_BYTES)
+      mstore8(add(mPtr, 0x82), 0)
+
+      // "BSB22-Plonk" = [42, 53, 42, 32, 32, 2d, 50, 6c, 6f, 6e, 6b,]
+      mstore8(add(mPtr, 0x83), 0x42)
+      mstore8(add(mPtr, 0x84), 0x53)
+      mstore8(add(mPtr, 0x85), 0x42)
+      mstore8(add(mPtr, 0x86), 0x32)
+      mstore8(add(mPtr, 0x87), 0x32)
+      mstore8(add(mPtr, 0x88), 0x2d)
+      mstore8(add(mPtr, 0x89), 0x50)
+      mstore8(add(mPtr, 0x8a), 0x6c)
+      mstore8(add(mPtr, 0x8b), 0x6f)
+      mstore8(add(mPtr, 0x8c), 0x6e)
+      mstore8(add(mPtr, 0x8d), 0x6b)
+
+      // size domain
+      mstore8(add(mPtr, 0x8e), HASH_FR_SIZE_DOMAIN)
+
+      let l_success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
+      if iszero(l_success) {
+        error_verify()
+      }
+
+      let b0 := mload(mPtr)
+
+      // [b0         || one || dst || HASH_FR_SIZE_DOMAIN]
+      // <-64bytes ->  <-    1 byte each      ->
+      mstore8(add(mPtr, 0x20), HASH_FR_ONE) // 1
+      
+      mstore8(add(mPtr, 0x21), 0x42) // dst
+      mstore8(add(mPtr, 0x22), 0x53)
+      mstore8(add(mPtr, 0x23), 0x42)
+      mstore8(add(mPtr, 0x24), 0x32)
+      mstore8(add(mPtr, 0x25), 0x32)
+      mstore8(add(mPtr, 0x26), 0x2d)
+      mstore8(add(mPtr, 0x27), 0x50)
+      mstore8(add(mPtr, 0x28), 0x6c)
+      mstore8(add(mPtr, 0x29), 0x6f)
+      mstore8(add(mPtr, 0x2a), 0x6e)
+      mstore8(add(mPtr, 0x2b), 0x6b)
+
+      mstore8(add(mPtr, 0x2c), HASH_FR_SIZE_DOMAIN) // size domain
+      l_success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
+      if iszero(l_success) {
+        error_verify()
+      }
+
+      // b1 is located at mPtr. We store b2 at add(mPtr, 0x20)
+
+      // [b0^b1      || two || dst || HASH_FR_SIZE_DOMAIN]
+      // <-64bytes ->  <-    1 byte each      ->
+      mstore(add(mPtr, 0x20), xor(mload(mPtr), b0))
+      mstore8(add(mPtr, 0x40), HASH_FR_TWO)
+
+      mstore8(add(mPtr, 0x41), 0x42) // dst
+      mstore8(add(mPtr, 0x42), 0x53)
+      mstore8(add(mPtr, 0x43), 0x42)
+      mstore8(add(mPtr, 0x44), 0x32)
+      mstore8(add(mPtr, 0x45), 0x32)
+      mstore8(add(mPtr, 0x46), 0x2d)
+      mstore8(add(mPtr, 0x47), 0x50)
+      mstore8(add(mPtr, 0x48), 0x6c)
+      mstore8(add(mPtr, 0x49), 0x6f)
+      mstore8(add(mPtr, 0x4a), 0x6e)
+      mstore8(add(mPtr, 0x4b), 0x6b)
+
+      mstore8(add(mPtr, 0x4c), HASH_FR_SIZE_DOMAIN) // size domain
+
+      let offset := add(mPtr, 0x20)
+      l_success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
+      if iszero(l_success) {
+        error_verify()
+      }
+
+      // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
+      // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
+      // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
+      res := mulmod(mload(mPtr), HASH_FR_BB, R_MOD) // <- res = 2**128 * mPtr[:32]
+      let b1 := shr(128, mload(add(mPtr, 0x20))) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
+      res := addmod(res, b1, R_MOD)
+
+    }
+    {{ end }}
+    // END compute_pi -------------------------------------------------
 
     // BEGINNING utils math functions -------------------------------------------------
       
