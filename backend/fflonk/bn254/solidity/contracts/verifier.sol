@@ -1,6 +1,4 @@
-package fflonk
-
-const tmplSolidityVerifier = `// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0
 
 // Copyright 2023 Consensys Software Inc.
 //
@@ -25,27 +23,27 @@ contract PlonkVerifier {
   uint256 private constant R_MOD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
   uint256 private constant R_MOD_MINUS_ONE = 21888242871839275222246405745257275088548364400416034343698204186575808495616;
   uint256 private constant P_MOD = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
-  {{- range $index, $element := .Kzg.G2 }}
-  uint256 private constant G2_SRS_{{ $index }}_X_0 = {{ (fpstr $element.X.A1) }};
-  uint256 private constant G2_SRS_{{ $index }}_X_1 = {{ (fpstr $element.X.A0) }};
-  uint256 private constant G2_SRS_{{ $index }}_Y_0 = {{ (fpstr $element.Y.A1) }};
-  uint256 private constant G2_SRS_{{ $index }}_Y_1 = {{ (fpstr $element.Y.A0) }};
-  {{ end -}}
-  uint256 private constant G1_SRS_X = {{ fpstr .Kzg.G1.X }};
-  uint256 private constant G1_SRS_Y = {{ fpstr .Kzg.G1.Y }};
+  uint256 private constant G2_SRS_0_X_0 = 11559732032986387107991004021392285783925812861821192530917403151452391805634;
+  uint256 private constant G2_SRS_0_X_1 = 10857046999023057135944570762232829481370756359578518086990519993285655852781;
+  uint256 private constant G2_SRS_0_Y_0 = 4082367875863433681332203403145435568316851327593401208105741076214120093531;
+  uint256 private constant G2_SRS_0_Y_1 = 8495653923123431417604973247489272438418190587263600148770280649306958101930;
+  
+  uint256 private constant G2_SRS_1_X_0 = 2443430939986969712743682923434644543094899517010817087050769422599268135103;
+  uint256 private constant G2_SRS_1_X_1 = 14502447760486387799059318541209757040844770937862468921929310682431317530875;
+  uint256 private constant G2_SRS_1_Y_0 = 4704672529862198727079301732358554332963871698433558481208245291096060730807;
+  uint256 private constant G2_SRS_1_Y_1 = 11721331165636005533649329538372312212753336165656329339895621434122061690013;
+  uint256 private constant G1_SRS_X = 1;
+  uint256 private constant G1_SRS_Y = 2;
 
   // ----------------------- vk ---------------------
-  uint256 private constant VK_DOMAIN_SIZE = {{ .Size }};
-  uint256 private constant VK_INV_DOMAIN_SIZE = {{ (frstr .SizeInv) }};
-  uint256 private constant VK_OMEGA = {{ (frstr .Generator) }};
-  uint256 private constant VK_NB_PUBLIC_INPUTS = {{ .NbPublicVariables }};
+  uint256 private constant VK_DOMAIN_SIZE = 16;
+  uint256 private constant VK_INV_DOMAIN_SIZE = 20520227692349320520856005386178695395514091625390032197217066424914820464641;
+  uint256 private constant VK_OMEGA = 14940766826517323942636479241147756311199852622225275649687664389641784935947;
+  uint256 private constant VK_NB_PUBLIC_INPUTS = 1;
   uint256 private constant VK_COSET_SHIFT = 5;
-  uint256 private constant VK_QPUBLIC_COM_X = {{ (fpstr .Qpublic.X) }};
-  uint256 private constant VK_QPUBLIC_COM_Y = {{ (fpstr .Qpublic.Y) }};
-  {{- range $index, $element := .CommitmentConstraintIndexes -}}
-  uint256 private constant VK_INDEX_COMMIT_API_{{ $index }} = {{ $element }};
-  {{ end -}}
-  uint256 private constant VK_NB_CUSTOM_GATES = {{ len .CommitmentConstraintIndexes }};
+  uint256 private constant VK_QPUBLIC_COM_X = 17443873348629404854512717542222672836727832681524810124661542853709261714171;
+  uint256 private constant VK_QPUBLIC_COM_Y = 16230738686584538149177705638663046415086069376976404115028486550000826831885;uint256 private constant VK_INDEX_COMMIT_API_0 = 7;
+  uint256 private constant VK_NB_CUSTOM_GATES = 1;
 
   // --------------------------- proof -----------------
 
@@ -57,69 +55,62 @@ contract PlonkVerifier {
   uint256 private constant PROOF_Z_ENTANGLED_Y = 0xa0;
   uint256 private constant PROOF_H_ENTANGLED_X = 0xc0;
   uint256 private constant PROOF_H_ENTANGLED_Y = 0xe0;
-  {{- range $index, $element := .CommitmentConstraintIndexes}}
-  uint256 private constant PROOF_BSB_{{ $index }}_X = {{ hex ( add 0x100 (mul 0x20 $index) ) }};
-  uint256 private constant PROOF_BSB_{{ $index }}_Y = {{ hex ( add 0x120 (mul 0x20 $index) ) }};
-  {{ end -}}{{ $offset := add 0x140 (mul 0x20 (len .CommitmentConstraintIndexes )) }}
-  uint256 private constant PROOF_QL_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_QR_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_QM_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_QO_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_QKINCOMPLETE_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_S1_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_S2_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_S3_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  {{- range $index, $element := .CommitmentConstraintIndexes}}
-  uint256 private constant PROOF_QCP_{{ $index }}_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  {{ end -}}
-  uint256 private constant PROOF_L_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_R_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_O_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_Z_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H1_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H2_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H3_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  {{- range $index, $element := .CommitmentConstraintIndexes}}
-  uint256 private constant PROOF_BSB_{{ $index }}_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  {{ end -}}
-  uint256 private constant PROOF_Z_AT_ZETA_OMEGA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_W_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_W_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_W_PRIME_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_W_PRIME_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_BSB_0_X = 0x100;
+  uint256 private constant PROOF_BSB_0_Y = 0x120;
+  
+  uint256 private constant PROOF_QL_AT_ZETA = 0x160;
+  uint256 private constant PROOF_QR_AT_ZETA = 0x180;
+  uint256 private constant PROOF_QM_AT_ZETA = 0x1a0;
+  uint256 private constant PROOF_QO_AT_ZETA = 0x1c0;
+  uint256 private constant PROOF_QKINCOMPLETE_AT_ZETA = 0x1e0;
+  uint256 private constant PROOF_S1_AT_ZETA = 0x200;
+  uint256 private constant PROOF_S2_AT_ZETA = 0x220;
+  uint256 private constant PROOF_S3_AT_ZETA = 0x240;
+  uint256 private constant PROOF_QCP_0_AT_ZETA = 0x260;
+  uint256 private constant PROOF_L_AT_ZETA = 0x280;
+  uint256 private constant PROOF_R_AT_ZETA = 0x2a0;
+  uint256 private constant PROOF_O_AT_ZETA = 0x2c0;
+  uint256 private constant PROOF_Z_AT_ZETA = 0x2e0;
+  uint256 private constant PROOF_H1_AT_ZETA = 0x300;
+  uint256 private constant PROOF_H2_AT_ZETA = 0x320;
+  uint256 private constant PROOF_H3_AT_ZETA = 0x340;
+  uint256 private constant PROOF_BSB_0_AT_ZETA = 0x360;
+  uint256 private constant PROOF_Z_AT_ZETA_OMEGA = 0x380;
+  uint256 private constant PROOF_SHPLONK_W_X = 0x3a0;
+  uint256 private constant PROOF_SHPLONK_W_Y = 0x3c0;
+  uint256 private constant PROOF_SHPLONK_W_PRIME_X = 0x3e0;
+  uint256 private constant PROOF_SHPLONK_W_PRIME_Y = 0x400;
 
-  uint256 private constant PROOF_SHPLONK_P0_0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_1 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_2 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_3 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_4 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_5 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_6 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_7 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_8 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_9 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_10 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_11 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_12 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_13 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_14 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_15 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  {{- range $index, $element := .CommitmentConstraintIndexes }}
-  uint256 private constant PROOF_SHPLONK_P0_{{ add 16 (mul 2 $index)}} = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_SHPLONK_P0_{{ add 17 (mul 2 $index)}} = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  {{ end -}}
-  uint256 private constant PROOF_SHPLONK_P1_0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_SHPLONK_P0_0 = 0x420;
+  uint256 private constant PROOF_SHPLONK_P0_1 = 0x440;
+  uint256 private constant PROOF_SHPLONK_P0_2 = 0x460;
+  uint256 private constant PROOF_SHPLONK_P0_3 = 0x480;
+  uint256 private constant PROOF_SHPLONK_P0_4 = 0x4a0;
+  uint256 private constant PROOF_SHPLONK_P0_5 = 0x4c0;
+  uint256 private constant PROOF_SHPLONK_P0_6 = 0x4e0;
+  uint256 private constant PROOF_SHPLONK_P0_7 = 0x500;
+  uint256 private constant PROOF_SHPLONK_P0_8 = 0x520;
+  uint256 private constant PROOF_SHPLONK_P0_9 = 0x540;
+  uint256 private constant PROOF_SHPLONK_P0_10 = 0x560;
+  uint256 private constant PROOF_SHPLONK_P0_11 = 0x580;
+  uint256 private constant PROOF_SHPLONK_P0_12 = 0x5a0;
+  uint256 private constant PROOF_SHPLONK_P0_13 = 0x5c0;
+  uint256 private constant PROOF_SHPLONK_P0_14 = 0x5e0;
+  uint256 private constant PROOF_SHPLONK_P0_15 = 0x600;
+  uint256 private constant PROOF_SHPLONK_P0_16 = 0x620;
+  uint256 private constant PROOF_SHPLONK_P0_17 = 0x640;
+  uint256 private constant PROOF_SHPLONK_P1_0 = 0x660;
 
   // -------- offset state
-  {{ $offset = 0 }}
-  uint256 private constant STATE_ALPHA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_BETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_GAMMA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_ALPHA_SQUARE_LAGRANGE_0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_LAST_MEM = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  
+  uint256 private constant STATE_ALPHA = 0x0;
+  uint256 private constant STATE_BETA = 0x20;
+  uint256 private constant STATE_GAMMA = 0x40;
+  uint256 private constant STATE_ZETA = 0x60;
+  uint256 private constant STATE_ALPHA_SQUARE_LAGRANGE_0 = 0x80;
+  uint256 private constant STATE_SUCCESS = 0xa0;
+  uint256 private constant STATE_CHECK_VAR = 0xc0;
+  uint256 private constant STATE_LAST_MEM = 0xe0;
 
   // -------- errors
   uint256 private constant ERROR_STRING_ID = 0x08c379a000000000000000000000000000000000000000000000000000000000; // selector for function Error(string)
@@ -127,13 +118,17 @@ contract PlonkVerifier {
   // -------- precompiles
   uint256 private constant SHA_256 = 0x2;
 
+  event PrintUint256(uint256 x);
+
   /// Verify a Plonk proof.
   /// Reverts if the proof or the public inputs are malformed.
   /// @param proof serialised plonk proof (using gnark's MarshalSolidity)
   /// @param public_inputs (must be reduced)
   /// @return success true if the proof passes false otherwise
   function Verify(bytes calldata proof, uint256[] calldata public_inputs) 
-  public view returns(bool success) {
+  public returns(bool success) {
+
+    uint256 check;
 
 	assembly {
 
@@ -144,8 +139,9 @@ contract PlonkVerifier {
 		// compute the challenges
 		let prev_challenge_non_reduced
 		prev_challenge_non_reduced := derive_gamma(proof.offset, public_inputs.length, public_inputs.offset)
-		// prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
-		// prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
+		prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
+		prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
+    check := mload(add(mem, STATE_ALPHA))
 		// derive_zeta(proof.offset, prev_challenge_non_reduced)
 
 		// Beginning errors -------------------------------------------------
@@ -294,7 +290,7 @@ contract PlonkVerifier {
 			calldatacopy(_mPtr, add(aproof, PROOF_BSB_0_X), size_bsb_commitments)
 			_mPtr := add(_mPtr, size_bsb_commitments)
 			calldatacopy(_mPtr, add(aproof, PROOF_Z_ENTANGLED_X), 0x40)
-      let size := add(0x45, size_bsb_commitments)
+      let size := add(0x65, size_bsb_commitments)
 			let l_success := staticcall(gas(), SHA_256, add(mPtr, 0x1b), size, mPtr, 0x20)
 			if iszero(l_success) {
 			error_verify()
@@ -328,71 +324,8 @@ contract PlonkVerifier {
 		// END challenges -------------------------------------------------
 
 	}
-
+  emit PrintUint256(check);
 	return true;
 
   }
-}
-`
-
-// MarshalSolidity convert  s a proof to a byte array that can be used in a
-// Solidity contract.
-func (proof *Proof) MarshalSolidity() []byte {
-
-	res := make([]byte, 0, 1024)
-
-	// uint256 lro_entangled_com_x;
-	// uint256 lro_entangled_com_y;
-	var tmp64 [64]byte
-	tmp64 = proof.LROEntangled.RawBytes()
-	res = append(res, tmp64[:]...)
-
-	// uint256 Z non entangled
-	tmp64 = proof.Z.RawBytes()
-	res = append(res, tmp64[:]...)
-
-	// uint256 Z entangled
-	tmp64 = proof.ZEntangled.RawBytes()
-	res = append(res, tmp64[:]...)
-
-	// H entangled
-	tmp64 = proof.HEntangled.RawBytes()
-	res = append(res, tmp64[:]...)
-
-	// BSB commitments
-	for i := 0; i < len(proof.BsbComEntangled); i++ {
-		tmp64 = proof.BsbComEntangled[i].RawBytes()
-		res = append(res, tmp64[:]...)
-	}
-
-	// at this stage we serialise the fflonk proof
-
-	// claimed values of (in that order):
-	// ql, qr, qm, qo, qkIncomplete, s1, s2, s3, qcp_i, l, r, o, z, h1, h2, h3, bsb_i at ζ
-	// z at ωζ
-	var tmp32 [32]byte
-	for i := 0; i < len(proof.BatchOpeningProof.ClaimedValues[0]); i++ {
-		tmp32 = proof.BatchOpeningProof.ClaimedValues[0][i][0].Bytes()
-		res = append(res, tmp32[:]...)
-	}
-	tmp32 = proof.BatchOpeningProof.ClaimedValues[0][0][0].Bytes()
-	res = append(res, tmp32[:]...)
-
-	// shplonk.W
-	tmp64 = proof.BatchOpeningProof.SOpeningProof.W.RawBytes()
-	res = append(res, tmp64[:]...)
-
-	// shplonk.WPrime
-	tmp64 = proof.BatchOpeningProof.SOpeningProof.WPrime.RawBytes()
-	res = append(res, tmp64[:]...)
-
-	// shplonk.ClaimedValues
-	for i := 0; i < len(proof.BatchOpeningProof.SOpeningProof.ClaimedValues[0]); i++ {
-		tmp32 = proof.BatchOpeningProof.SOpeningProof.ClaimedValues[0][i].Bytes()
-		res = append(res, tmp32[:]...)
-	}
-	tmp32 = proof.BatchOpeningProof.SOpeningProof.ClaimedValues[1][0].Bytes()
-	res = append(res, tmp32[:]...)
-
-	return res
 }
