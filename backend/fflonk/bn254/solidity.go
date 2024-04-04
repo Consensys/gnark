@@ -46,7 +46,7 @@ contract PlonkVerifier {
   uint256 private constant VK_INDEX_COMMIT_API_{{ $index }} = {{ $element }};
   {{ end -}}
   uint256 private constant VK_NB_CUSTOM_GATES = {{ len .CommitmentConstraintIndexes }};
-  uint256 private constant VK_T = {{ add 15 (mul 2 (len .CommitmentConstraintIndexes) )}};
+  uint256 private constant VK_T = {{ nextDivisorRMinusOne . }};
 
   // --------------------------- proof -----------------
 
@@ -162,11 +162,17 @@ contract PlonkVerifier {
 		prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
 		prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
 		derive_zeta(proof.offset, prev_challenge_non_reduced)
+    compute_zh_zeta_t(freeMem)
 
-    // evaluation of Z=Xⁿ-1 at ζᵗ, we save this value
-    let zeta := mload(add(mem, STATE_ZETA))
-    let zh_zeta_t := addmod(pow(zeta, mul(VK_T,VK_DOMAIN_SIZE), freeMem), sub(R_MOD, 1), R_MOD)
-    mstore(add(mem, STATE_ZH_ZETA_T), zh_zeta_t)
+    // Beginning misc -------------------------------------------------
+    
+    /// computes  Z=Xⁿ-1 at ζᵗ
+    function compute_zh_zeta_t(mPtr) {
+      let state := mload(0x40)
+      let zeta := mload(add(state, STATE_ZETA))
+      let zh_zeta_t := addmod(pow(zeta, mul(VK_T,VK_DOMAIN_SIZE), mPtr), R_MOD_MINUS_ONE, R_MOD)
+      mstore(add(state, STATE_ZH_ZETA_T), zh_zeta_t)
+    }
 
 		// Beginning errors -------------------------------------------------
 
