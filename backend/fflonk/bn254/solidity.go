@@ -118,7 +118,7 @@ contract PlonkVerifier {
   uint256 private constant STATE_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ZH_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_ALPHA_SQUARE_LAGRANGE_0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_LAGRANGE_0_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_PI = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -375,6 +375,7 @@ contract PlonkVerifier {
       let zh_zeta_t := mload(add(state, STATE_ZH_ZETA_T))
       let li := mPtr
       batch_compute_lagranges_at_z(zt, zh_zeta_t, n, li)
+      mstore(add(state, STATE_LAGRANGE_0_AT_ZETA_T), mload(li))
       let tmp := 0
       for {let i:=0} lt(i,n) {i:=add(i,1)}
       {
@@ -780,8 +781,12 @@ contract PlonkVerifier {
       permutation := addmod(permutation, tmp, R_MOD)
     }
 
-    function check_z_start_at_one(aproof) {
-
+    function check_z_start_at_one(aproof)->start_at_one {
+      let state := mload(0x40)
+      let z := calldataload(add(aproof, PROOF_Z_AT_ZETA_T))
+      start_at_one := addmod(z, R_MOD_MINUS_ONE, R_MOD)
+      let l0 := mload(add(state, STATE_LAGRANGE_0_AT_ZETA_T))
+      start_at_one := mulmod(l0, start_at_one, R_MOD)
     }
 
 	}
