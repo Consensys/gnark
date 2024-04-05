@@ -740,8 +740,44 @@ contract PlonkVerifier {
       {{ end -}}
     }
 
-    function check_permutation(aproof) {
+    function check_permutation(aproof)->permutation {
+      let state := mload(0x40)
+      let zeta_t := mload(add(state, STATE_ZETA_T))
+      let u_zeta_t := mulmod(zeta_t, VK_COSET_SHIFT, R_MOD)
+      let uu_zeta_t := mulmod(u_zeta_t, VK_COSET_SHIFT, R_MOD)
+      let beta := mload(add(state, STATE_BETA))
+      let gamma := mload(add(state, STATE_GAMMA))
+      let l := calldataload(add(aproof, PROOF_L_AT_ZETA_T))
+      let r := calldataload(add(aproof, PROOF_R_AT_ZETA_T))
+      let o := calldataload(add(aproof, PROOF_O_AT_ZETA_T))
 
+      permutation := mulmod(beta, calldataload(add(aproof, PROOF_S1_AT_ZETA_T)), R_MOD)
+      permutation := addmod(permutation, l, R_MOD)
+      permutation := addmod(permutation, gamma, R_MOD)
+      let tmp := mulmod(beta, calldataload(add(aproof, PROOF_S2_AT_ZETA_T)), R_MOD)
+      tmp := addmod(tmp, r, R_MOD)
+      tmp := addmod(tmp, gamma, R_MOD)
+      permutation := mulmod(permutation, tmp, R_MOD)
+      tmp := mulmod(beta, calldataload(add(aproof, PROOF_S3_AT_ZETA_T)), R_MOD)
+      tmp := addmod(tmp, o, R_MOD)
+      tmp := addmod(tmp, gamma, R_MOD)
+      permutation := mulmod(permutation, tmp, R_MOD)
+      permutation := mulmod(permutation, calldataload(add(aproof, PROOF_Z_AT_ZETA_T_OMEGA)), R_MOD)
+
+      tmp := mulmod(beta, zeta_t, R_MOD)
+      tmp := addmod(tmp, l, R_MOD)
+      tmp := addmod(tmp, gamma, R_MOD)
+      let tmp2 := mulmod(beta, u_zeta_t, R_MOD)
+      tmp2 := addmod(tmp2, r, R_MOD)
+      tmp2 := addmod(tmp2, gamma, R_MOD)
+      tmp := mulmod(tmp2, tmp, R_MOD)
+      tmp2 := mulmod(beta, uu_zeta_t, R_MOD)
+      tmp2 := addmod(tmp2, o, R_MOD)
+      tmp2 := addmod(tmp2, gamma, R_MOD)
+      tmp := mulmod(tmp, tmp2, R_MOD)
+      tmp := mulmod(tmp, calldataload(add(aproof, PROOF_Z_AT_ZETA_T)), R_MOD)
+      tmp := sub(R_MOD, tmp)
+      permutation := addmod(permutation, tmp, R_MOD)
     }
 
     function check_z_start_at_one(aproof) {
@@ -792,11 +828,12 @@ func (proof *Proof) MarshalSolidity() []byte {
 	// ql, qr, qm, qo, qkIncomplete, s1, s2, s3, qcp_i, l, r, o, z, h1, h2, h3, bsb_i at ζ
 	// z at ωζ
 	var tmp32 [32]byte
-	for i := 0; i < len(proof.BatchOpeningProof.ClaimedValues[0]); i++ {
+	nbPolynomials := number_polynomials + 2*len(proof.BsbComEntangled)
+	for i := 0; i < nbPolynomials; i++ { // -> there are some extra values that might be zero, we don't serialise them
 		tmp32 = proof.BatchOpeningProof.ClaimedValues[0][i][0].Bytes()
 		res = append(res, tmp32[:]...)
 	}
-	tmp32 = proof.BatchOpeningProof.ClaimedValues[0][0][0].Bytes()
+	tmp32 = proof.BatchOpeningProof.ClaimedValues[1][0][0].Bytes()
 	res = append(res, tmp32[:]...)
 
 	// shplonk.W
