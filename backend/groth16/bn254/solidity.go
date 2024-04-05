@@ -542,16 +542,22 @@ contract Verifier {
             {{- end}}
             (uint256 Px, uint256 Py) = decompress_g1(compressedCommitmentPok);
             {{- range $i := intRange $numCommitments }}
+            {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
+            uint256[] memory publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
+            assembly ("memory-safe") {
+                let start := add(publicAndCommitmentCommitted, 0x20)
+                {{- range $j := intRange (len $pcIndex) }}
+                {{- $l := index $pcIndex $j }}
+                calldatacopy(add(start, {{mul $j 0x20}}), add(input, {{mul 0x20 (sub $l 1)}}), 0x20)
+                {{- end }}
+            }
+
             publicCommitments[{{$i}}] = uint256(
                 sha256(
                     abi.encodePacked(
                         commitments[{{mul $i 2}}],
-                        commitments[{{sum (mul $i 2) 1}}]
-                        {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
-                        {{- range $j := intRange (len $pcIndex) }}
-                        {{- $l := index $pcIndex $j }}
-                        ,input[{{sub $l 1}}]
-                        {{- end }}
+                        commitments[{{sum (mul $i 2) 1}}],
+                        publicAndCommitmentCommitted
                     )
                 )
             ) % R;
@@ -671,16 +677,22 @@ contract Verifier {
         // HashToField
         uint256[{{$numCommitments}}] memory publicCommitments;
         {{- range $i := intRange $numCommitments }}
+        {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
+        uint256[] memory publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
+        assembly ("memory-safe") {
+            let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
+            {{- range $j := intRange (len $pcIndex) }}
+            {{- $l := index $pcIndex $j }}
+            calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $j 0x20}}), add(input, {{mul 0x20 (sub $l 1)}}), 0x20)
+            {{- end }}
+        }
+
             publicCommitments[{{$i}}] = uint256(
                 sha256(
                     abi.encodePacked(
                         commitments[{{mul $i 2}}],
-                        commitments[{{sum (mul $i 2) 1}}]
-                        {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
-                        {{- range $j := intRange (len $pcIndex) }}
-                        {{- $l := index $pcIndex $j }}
-                        ,input[{{sub $l 1}}]
-                        {{- end }}
+                        commitments[{{sum (mul $i 2) 1}}],
+                        publicAndCommitmentCommitted
                     )
                 )
             ) % R;
