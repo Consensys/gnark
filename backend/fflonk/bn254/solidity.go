@@ -717,14 +717,14 @@ contract PlonkVerifier {
 
     function check_algebraic_relation(aproof)->ag {
       let state := mload(0x40)
-      let ql := mload(add(aproof, PROOF_QL_AT_ZETA_T))
-      let qr := mload(add(aproof, PROOF_QR_AT_ZETA_T))
-      let qm := mload(add(aproof, PROOF_QM_AT_ZETA_T))
-      let qo := mload(add(aproof, PROOF_QO_AT_ZETA_T))
-      let qk := mload(add(aproof, PROOF_QKINCOMPLETE_AT_ZETA_T))
-      let l := mload(add(aproof, PROOF_L_AT_ZETA_T))
-      let r := mload(add(aproof, PROOF_R_AT_ZETA_T))
-      let o := mload(add(aproof, PROOF_O_AT_ZETA_T))
+      let ql := calldataload(add(aproof, PROOF_QL_AT_ZETA_T))
+      let qr := calldataload(add(aproof, PROOF_QR_AT_ZETA_T))
+      let qm := calldataload(add(aproof, PROOF_QM_AT_ZETA_T))
+      let qo := calldataload(add(aproof, PROOF_QO_AT_ZETA_T))
+      let qk := calldataload(add(aproof, PROOF_QKINCOMPLETE_AT_ZETA_T))
+      let l := calldataload(add(aproof, PROOF_L_AT_ZETA_T))
+      let r := calldataload(add(aproof, PROOF_R_AT_ZETA_T))
+      let o := calldataload(add(aproof, PROOF_O_AT_ZETA_T))
       ag := mulmod(ql, l, R_MOD)
       let tmp := mulmod(qr, r, R_MOD)
       ag := addmod(ag, tmp, R_MOD)
@@ -735,7 +735,7 @@ contract PlonkVerifier {
       tmp := addmod(qk, mload(add(state, STATE_PI)), R_MOD)
       ag := addmod(ag, tmp, R_MOD)
       {{ range $index, $element := .CommitmentConstraintIndexes -}}
-      tmp := mulmod(mload(add(state, PROOF_QCP_{{$index}}_AT_ZETA_T)), mload(add(state, PROOF_BSB_{{$index}}_AT_ZETA_T)), R_MOD)
+      tmp := mulmod(calldataload(add(aproof, PROOF_QCP_{{$index}}_AT_ZETA_T)), calldataload(add(aproof, PROOF_BSB_{{$index}}_AT_ZETA_T)), R_MOD)
       ag := addmod(ag, tmp, R_MOD)
       {{ end -}}
     }
