@@ -541,9 +541,11 @@ contract Verifier {
             }
             {{- end}}
             (uint256 Px, uint256 Py) = decompress_g1(compressedCommitmentPok);
+
+            uint256[] memory publicAndCommitmentCommitted;
             {{- range $i := intRange $numCommitments }}
             {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
-            uint256[] memory publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
+            publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
             assembly ("memory-safe") {
                 let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
                 {{- range $j := intRange (len $pcIndex) }}
@@ -676,9 +678,10 @@ contract Verifier {
         {{- else }}
         // HashToField
         uint256[{{$numCommitments}}] memory publicCommitments;
+        uint256[] memory publicAndCommitmentCommitted;
         {{- range $i := intRange $numCommitments }}
         {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
-        uint256[] memory publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
+        publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
         assembly ("memory-safe") {
             let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
             {{- range $j := intRange (len $pcIndex) }}
