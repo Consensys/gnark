@@ -90,8 +90,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	bExpo.SetUint64(vk.Size)
 	zetaTPowerM.Exp(zetaT, &bExpo)  // ζᵗⁿ
 	zhZetaT.Sub(&zetaTPowerM, &one) // ζᵗⁿ-1
-	fmt.Println(zhZetaT.String())
-	lagrangeOne.Sub(&zetaT, &one). // ζᵗ-1
+	lagrangeOne.Sub(&zetaT, &one).  // ζᵗ-1
 					Inverse(&lagrangeOne).         // 1/(ζᵗ-1)
 					Mul(&lagrangeOne, &zhZetaT).   // (ζᵗⁿ-1)/(ζᵗ-1)
 					Mul(&lagrangeOne, &vk.SizeInv) // 1/n * (ζᵗⁿ-1)/(ζᵗ-1)
@@ -199,6 +198,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	permutation.Mul(&permutation, &tmp)
 	tmp.Mul(&beta, &s3).Add(&tmp, &o).Add(&tmp, &gamma)
 	permutation.Mul(&permutation, &tmp).Mul(&permutation, &zw)
+	// fmt.Println(permutation.String())
 
 	tmp2.Mul(&beta, &zetaT).Add(&tmp2, &l).Add(&tmp2, &gamma)
 	uZetaT.Mul(&zetaT, &vk.CosetShift)
