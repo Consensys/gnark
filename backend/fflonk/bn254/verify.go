@@ -198,7 +198,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	permutation.Mul(&permutation, &tmp)
 	tmp.Mul(&beta, &s3).Add(&tmp, &o).Add(&tmp, &gamma)
 	permutation.Mul(&permutation, &tmp).Mul(&permutation, &zw)
-	// fmt.Println(permutation.String())
 
 	tmp2.Mul(&beta, &zetaT).Add(&tmp2, &l).Add(&tmp2, &gamma)
 	uZetaT.Mul(&zetaT, &vk.CosetShift)
@@ -304,6 +303,21 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 // Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	funcMap := template.FuncMap{
+		"tThRootOne": func(v VerifyingKey) string {
+			t := getNextDivisorRMinusOne(v)
+			var omega fr.Element
+			var tmpBigInt big.Int
+			oneBigInt := big.NewInt(1)
+			rMinusOneBigInt := fr.Modulus()
+			rMinusOneBigInt.Sub(rMinusOneBigInt, oneBigInt)
+			tmpBigInt.SetUint64(uint64(t))
+			var genFrStar fr.Element
+			genFrStar.SetUint64(5)
+			tmpBigInt.SetUint64(uint64(t))
+			tmpBigInt.Div(rMinusOneBigInt, &tmpBigInt)
+			omega.Exp(genFrStar, &tmpBigInt)
+			return omega.String()
+		},
 		"nextDivisorRMinusOne": func(v VerifyingKey) string {
 			t := getNextDivisorRMinusOne(v)
 			return fmt.Sprintf("%d", t)
@@ -331,6 +345,9 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 		},
 		"add": func(i, j int) int {
 			return i + j
+		},
+		"sub": func(i, j int) int {
+			return i - j
 		},
 	}
 
