@@ -46,6 +46,7 @@ contract PlonkVerifier {
   uint256 private constant VK_INDEX_COMMIT_API_{{ $index }} = {{ $element }};
   {{ end -}}
   uint256 private constant VK_NB_CUSTOM_GATES = {{ len .CommitmentConstraintIndexes }};
+  uint256 private constant T_TH_ROOT_ONE = {{ tThRootOne . }};
   uint256 private constant VK_T = {{ nextDivisorRMinusOne . }};
 
   // --------------------------- proof -----------------
@@ -369,7 +370,7 @@ contract PlonkVerifier {
     /// @param n number of public inputs
     /// @param mPtr free memory
     /// @return pi_wo_commit public inputs contribution (except the public inputs coming from the custom gate)
-    function compute_pi(ins, n, mPtr)->pi_wo_commit {
+    function compute_pi(ins, n, mPtr)-check_constraints>pi_wo_commit {
       let state := mload(0x40)
       let zt := mload(add(state, STATE_ZETA_T))
       let zh_zeta_t := mload(add(state, STATE_ZH_ZETA_T))
@@ -713,10 +714,34 @@ contract PlonkVerifier {
     // end math functions -------------------------------------------------
 
     function check_constraints(aproof) {
+      let state := mload(0x40)
+      let gates := check_gates(aproof)
+      let permutation := check_permutation(aproof)
+      let start_at_one := check_z_start_at_one(aproof)
+      let alpha := mload(add(state, STATE_ALPHA))
+      let lhs := mulmod(start_at_one, alpha, R_MOD)
+      lhs := addmod(lhs, permutation, R_MOD)
+      lhs := mulmod(lhs, alpha, R_MOD)
+      lhs := addmod(lhs, gates, R_MOD)
+      
+      let mPtr := mload(add(state, STATE_LAST_MEM))
+      let zt := mload(add(state, STATE_ZETA_T))
+      let zh_zeta_t := mload(add(state, STATE_ZH_ZETA_T))
+      let zzt := addmod(zh_zeta_t, 1, R_MOD)
+      zzt := mulmod(zt, mulmod(zzt, zt, R_MOD), R_MOD)
+      let rhs := calldataload(add(aproof, PROOF_H3_AT_ZETA_T))
+      rhs := mulmod(rhs, zzt, R_MOD)
+      rhs := addmod(rhs, calldataload(add(aproof, PROOF_H2_AT_ZETA_T)), R_MOD)
+      rhs := mulmod(rhs, zzt, R_MOD)
+      rhs := addmod(rhs, calldataload(add(aproof, PROOF_H1_AT_ZETA_T)), R_MOD)
+      rhs := mulmod(rhs, zh_zeta_t, R_MOD)
 
+      if iszero(eq(lhs, rhs)) {
+        error_verify()
+      }
     }
 
-    function check_algebraic_relation(aproof)->ag {
+    function check_gates(aproof)->ag {
       let state := mload(0x40)
       let ql := calldataload(add(aproof, PROOF_QL_AT_ZETA_T))
       let qr := calldataload(add(aproof, PROOF_QR_AT_ZETA_T))
