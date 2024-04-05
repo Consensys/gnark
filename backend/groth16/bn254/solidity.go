@@ -545,10 +545,10 @@ contract Verifier {
             {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
             uint256[] memory publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
             assembly ("memory-safe") {
-                let start := add(publicAndCommitmentCommitted, 0x20)
+                let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
                 {{- range $j := intRange (len $pcIndex) }}
                 {{- $l := index $pcIndex $j }}
-                calldatacopy(add(start, {{mul $j 0x20}}), add(input, {{mul 0x20 (sub $l 1)}}), 0x20)
+                calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $j 0x20}}), add(input, {{mul 0x20 (sub $l 1)}}), 0x20)
                 {{- end }}
             }
 
