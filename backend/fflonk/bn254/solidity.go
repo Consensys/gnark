@@ -46,7 +46,7 @@ contract PlonkVerifier {
   uint256 private constant VK_INDEX_COMMIT_API_{{ $index }} = {{ $element }};
   {{ end -}}
   uint256 private constant VK_NB_CUSTOM_GATES = {{ len .CommitmentConstraintIndexes }};
-  uint256 private constant T_TH_ROOT_ONE = {{ tThRootOne . }};
+  uint256 private constant VK_T_TH_ROOT_ONE = {{ tThRootOne . }};
   uint256 private constant VK_T = {{ nextDivisorRMinusOne . }};
 
   // --------------------------- proof -----------------
@@ -812,6 +812,15 @@ contract PlonkVerifier {
       start_at_one := addmod(z, R_MOD_MINUS_ONE, R_MOD)
       let l0 := mload(add(state, STATE_LAGRANGE_0_AT_ZETA_T))
       start_at_one := mulmod(l0, start_at_one, R_MOD)
+    }
+
+    // Beginning fflonk verification -------------------------------------------------
+    function check_fflonk_opening(aproof) {
+
+    }
+
+    function check_consistency_claimed_values(aproof) {
+      // let w := 
     }
 
 	}
