@@ -548,10 +548,19 @@ contract Verifier {
             publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
             assembly ("memory-safe") {
                 let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
-                {{- range $j := intRange (len $pcIndex) }}
-                {{- $l := index $pcIndex $j }}
-                calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $j 0x20}}), add(input, {{mul 0x20 (sub $l 1)}}), 0x20)
+                {{- $segment_start := index $pcIndex 0 }}
+                {{- $segment_end := index $pcIndex 0 }}
+                {{- $l := 0 }}
+                {{- range $k := intRange (sub (len $pcIndex) 1) }}
+                    {{- $next := index $pcIndex (sum $k 1) }}
+                    {{- if ne $next (sum $segment_end 1) }}
+                calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
+                        {{- $segment_start = $next }}
+                        {{- $l = (sum $k 1) }}
+                    {{- end }}
+                    {{- $segment_end = $next }}
                 {{- end }}
+                calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
             }
 
             publicCommitments[{{$i}}] = uint256(
@@ -684,10 +693,19 @@ contract Verifier {
         publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
         assembly ("memory-safe") {
             let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
-            {{- range $j := intRange (len $pcIndex) }}
-            {{- $l := index $pcIndex $j }}
-            calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $j 0x20}}), add(input, {{mul 0x20 (sub $l 1)}}), 0x20)
+            {{- $segment_start := index $pcIndex 0 }}
+            {{- $segment_end := index $pcIndex 0 }}
+            {{- $l := 0 }}
+            {{- range $k := intRange (sub (len $pcIndex) 1) }}
+                {{- $next := index $pcIndex (sum $k 1) }}
+                {{- if ne $next (sum $segment_end 1) }}
+            calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
+                    {{- $segment_start = $next }}
+                    {{- $l = (sum $k 1) }}
+                {{- end }}
+                {{- $segment_end = $next }}
             {{- end }}
+            calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
         }
 
             publicCommitments[{{$i}}] = uint256(
