@@ -121,6 +121,10 @@ contract PlonkVerifier {
   uint256 private constant STATE_ZH_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_LAGRANGE_0_AT_ZETA_T = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_PI = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_GAMMA_SHPLONK = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_Z_SHPLONK = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ENTANGLED_COMMITMENT_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ENTANGLED_COMMITMENT_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_LAST_MEM = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -834,13 +838,36 @@ contract PlonkVerifier {
           acc := addmod(acc, calldataload(add(aproof, offset_at_zeta_t)), R_MOD)
           offset_at_zeta_t := sub(offset_at_zeta_t, 0x20)
         }
-        if iszero(eq(a, calldataload(add(aproof, offset_shplonk)))){
+        if iszero(eq(acc, calldataload(add(aproof, offset_shplonk)))){
           error_verify()
         }
         wzeta := mulmod(wzeta, VK_T_TH_ROOT_ONE, R_MOD)
         offset_shplonk := add(offset_shplonk, 0x20)
       }
     }
+
+    function build_entangled_commitment(aproof) {
+      let state := mload(0x40)
+      let mPtr := add(state, STATE_LAST_MEM)
+      let state_entangled_commitment_x := add(state, STATE_ENTANGLED_COMMITMENT_X)
+      let state_entangled_commitment_y := add(state, STATE_ENTANGLED_COMMITMENT_Y)
+      mstore(state_entangled_commitment_x, VK_QPUBLIC_COM_X)
+      mstore(state_entangled_commitment_y, VK_QPUBLIC_COM_Y)
+      point_add_calldata(state_entangled_commitment_x, state_entangled_commitment_x, add(aproof, PROOF_LROENTANGLED_COM_X), mPtr)
+      point_add_calldata(state_entangled_commitment_x, state_entangled_commitment_x, add(aproof, PROOF_Z_ENTANGLED_X), mPtr)
+      point_add_calldata(state_entangled_commitment_x, state_entangled_commitment_x, add(aproof, PROOF_H_ENTANGLED_X), mPtr)
+      {{ range $index, $element := .CommitmentConstraintIndexes -}}
+      point_add_calldata(state_entangled_commitment_x, state_entangled_commitment_x, add(aproof, PROOF_BSB_{{ $index }}_X), mPtr)
+      {{ end -}}
+    }
+
+    function derive_gamma_z_shplonk(aproof) {
+      let state := mload(0x40)
+			let mPtr := add(state, STATE_LAST_MEM)
+			mstore(mPtr, 0x67616d6d61) // "gamma" in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
+      // calldatacopy(_mPtr, pi, size_pi_in_bytes)
+    }
+
 
 	}
 
