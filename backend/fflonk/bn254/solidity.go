@@ -819,73 +819,26 @@ contract PlonkVerifier {
 
     }
 
-    function check_consistency_part_1(aproof, w)->acc {
-      let l_at_zeta_t := calldataload(add(aproof, PROOF_L_AT_ZETA_T))
-      let r_at_zeta_t := calldataload(add(aproof, PROOF_R_AT_ZETA_T))
-      let o_at_zeta_t := calldataload(add(aproof, PROOF_O_AT_ZETA_T))
-      let z_at_zeta_t := calldataload(add(aproof, PROOF_Z_AT_ZETA_T))
-      let h1_at_zeta_t := calldataload(add(aproof, PROOF_H1_AT_ZETA_T))
-      let h2_at_zeta_t := calldataload(add(aproof, PROOF_H2_AT_ZETA_T))
-      let h3_at_zeta_t := calldataload(add(aproof, PROOF_H3_AT_ZETA_T))
-
-      {{ range $index, $element := .CommitmentConstraintIndexes -}}
-      acc := addmod(acc, calldataload(add(aproof,PROOF_BSB_{{ sub (len $.CommitmentConstraintIndexes) (add $index 1) }}_AT_ZETA_T)), R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      {{ end -}}
-      acc := addmod(acc, h3_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, h2_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, h1_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, z_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, o_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, r_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, l_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-    }
-
-    function check_consistency_part_2(aproof, cur, w)->acc {
-      let ql_at_zeta_t := calldataload(add(aproof, PROOF_QL_AT_ZETA_T))
-      let qr_at_zeta_t := calldataload(add(aproof, PROOF_QR_AT_ZETA_T))
-      let qm_at_zeta_t := calldataload(add(aproof, PROOF_QM_AT_ZETA_T))
-      let qo_at_zeta_t := calldataload(add(aproof, PROOF_QO_AT_ZETA_T))
-      let qk_incomplete_at_zeta_t := calldataload(add(aproof, PROOF_QKINCOMPLETE_AT_ZETA_T))
-      let s1_at_zeta_t := calldataload(add(aproof, PROOF_S1_AT_ZETA_T))
-      let s2_at_zeta_t := calldataload(add(aproof, PROOF_S2_AT_ZETA_T))
-      let s3_at_zeta_t := calldataload(add(aproof, PROOF_S3_AT_ZETA_T))
-      acc := cur
-      {{ range $index, $element := .CommitmentConstraintIndexes -}}
-      acc := addmod(acc, calldataload(add(aproof,PROOF_QCP_{{ sub (len $.CommitmentConstraintIndexes) (add $index 1) }}_AT_ZETA_T)), R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      {{ end -}}
-      acc := addmod(acc, s3_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, s2_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, s1_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, qk_incomplete_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, qo_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, qm_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, qr_at_zeta_t, R_MOD)
-      acc := mulmod(acc, w, R_MOD)
-      acc := addmod(acc, ql_at_zeta_t, R_MOD)
-    }
-
     function check_consistency_claimed_values(aproof) {
       let w := 1
-      for {let i} lt(i, {{ add (mul (len .CommitmentConstraintIndexes) 2) 15 }}) {i:=add(i,1)}
+      let state := mload(0x40)
+      let wzeta := mload(add(state, STATE_ZETA))
+      let offset_shplonk := PROOF_SHPLONK_P0_0
+      for {let i} lt(i, {{ add (mul 2 (len .CommitmentConstraintIndexes)) 15 }}) {i:=add(i,1)}
       {
-        let a := check_consistency_part_1(aproof, w)
-        a := check_consistency_part_2(aproof, a, w)
-        w := mulmod(w, VK_T_TH_ROOT_ONE, R_MOD)
+        let offset_at_zeta_t := add(PROOF_QL_AT_ZETA_T, {{ hex (mul 0x20 (add 14 (mul 2 (len .CommitmentConstraintIndexes)))) }} )
+        let acc
+        for {let j} lt(j, {{ add (mul 2 (len .CommitmentConstraintIndexes)) 15 }}) {j:=add(j,1)}
+        {
+          acc := mulmod(acc, wzeta, R_MOD)
+          acc := addmod(acc, calldataload(add(aproof, offset_at_zeta_t)), R_MOD)
+          offset_at_zeta_t := sub(offset_at_zeta_t, 0x20)
+        }
+        if iszero(eq(a, calldataload(add(aproof, offset_shplonk)))){
+          error_verify()
+        }
+        wzeta := mulmod(wzeta, VK_T_TH_ROOT_ONE, R_MOD)
+        offset_shplonk := add(offset_shplonk, 0x20)
       }
     }
 
