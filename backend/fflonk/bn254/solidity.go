@@ -48,6 +48,8 @@ contract PlonkVerifier {
   uint256 private constant VK_NB_CUSTOM_GATES = {{ len .CommitmentConstraintIndexes }};
   uint256 private constant VK_T_TH_ROOT_ONE = {{ tThRootOne . }};
   uint256 private constant VK_T = {{ nextDivisorRMinusOne . }};
+  uint256 private constant VK_T_INV = {{ nextDivisorRMinusOne . }};
+  uint256 private constant VK_T_INV = {{ invFr (nextDivisorRMinusOneInt .) }};
 
   // --------------------------- proof -----------------
 
@@ -179,7 +181,7 @@ contract PlonkVerifier {
     mstore(add(mem, STATE_PI), l_pi)
 
     build_entangled_commitment(proof.offset)
-    derive_gamma_shplonk(proof.offset)
+    pop(derive_gamma_shplonk(proof.offset))
 
 		// Beginning errors -------------------------------------------------
 
@@ -409,7 +411,7 @@ contract PlonkVerifier {
         _w := mulmod(_w, VK_OMEGA, R_MOD)
         _mPtr := add(_mPtr, 0x20)
       }
-      batch_invert(mPtr, n, _mPtr)
+      batch_invert_in_place(mPtr, n, _mPtr)
       _mPtr := mPtr
       _w := 1
       for {let i:=0} lt(i,n) {i:=add(i,1)}
@@ -424,7 +426,7 @@ contract PlonkVerifier {
     /// @param ins pointer to the data to batch invert
     /// @param number of elements to batch invert
     /// @param mPtr free memory
-    function batch_invert(ins, nb_ins, mPtr) {
+    function batch_invert_in_place(ins, nb_ins, mPtr) {
       mstore(mPtr, 1)
       let offset := 0
       for {let i:=0} lt(i, nb_ins) {i:=add(i,1)}
@@ -863,6 +865,78 @@ contract PlonkVerifier {
       point_add_calldata(state_entangled_commitment_x, state_entangled_commitment_x, add(aproof, PROOF_BSB_{{ $index }}_X), mPtr)
       {{ end -}}
     }
+
+    /// batch_compute_lagranges_at_z computes [L_0(z), .., L_{t-1}(z)]
+    /// where Lᵢ = ωⁱζᵗ⁻¹/t(z^t-ζ^t)/(z-ωⁱζ)
+    /// @param mPtr pointer to which the results are stored
+    function batch_compute_li_shplonk_at_z(mPtr) {
+      let state := mload(0x40)
+      // batch invert (z-ωⁱζ)ᵢ
+      let z := mload(add(state, STATE_Z_SHPLONK))
+      let acc_omega_i_zeta := mload(add(state, ZETA))
+      let _mPtr := mPtr
+      for {let i} lt(i,VK_T) {i:=add(i,1)}
+      {
+        mstore(_mPtr, addmod(z, sub(R_MOD,acc_omega_i_zeta), R_MOD))
+        acc_omega_i_zeta := mulmod(acc_omega_i_zeta, VK_T_TH_ROOT_ONE, R_MOD)
+        _mPtr := add(_mPtr, 0x20)
+      }
+      batch_invert_in_place(mPtr, VK_T, _mPtr)
+      let num := pow(mload(z), VK_T, _mPtr)
+      let zeta_t := mload(add(state, STATE_ZETA_T))
+      num := addmod(num, sub(R_MOD, zeta_t), R_MOD)
+      let zeta_t_minus_one := pow(zeta, sub(VK_T,1), _mPtr)
+      num := mulmod(num, zeta_t_minus_one, R_MOD)
+      num := mulmod(num, VK_T_INV, R_MOD)
+      for {let t:=0} lt(i, VK_T) {i:=add(i,1)}
+      {
+        num := mulmod(num, mload(mPtr), R_mod)
+        
+      }
+
+      // let zn := mulmod(zh_zeta_t, VK_INV_DOMAIN_SIZE, R_MOD) // 1/n * (ζⁿ - 1)
+      // let _w := 1
+      // let _mPtr := mPtr
+      // for {let i:=0} lt(i,n) {i:=add(i,1)}
+      // {
+      //   mstore(_mPtr, addmod(z,sub(R_MOD, _w), R_MOD))
+      //   _w := mulmod(_w, VK_OMEGA, R_MOD)
+      //   _mPtr := add(_mPtr, 0x20)
+      // }
+      // batch_invert_in_place(mPtr, n, _mPtr)
+      // _mPtr := mPtr
+      // _w := 1
+      // for {let i:=0} lt(i,n) {i:=add(i,1)}
+      // {
+      //   mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , R_MOD), _w, R_MOD))
+      //   _mPtr := add(_mPtr, 0x20)
+      //   _w := mulmod(_w, VK_OMEGA, R_MOD)
+      // }
+    } 
+
+    /// batch_compute_lagranges_at_z computes [L_0(z), .., L_{t-1}(z)]
+    /// where Lᵢ = ωⁱζᵗ⁻¹/t(z^t-ζ^t)/(z-ωⁱζ)
+    /// @param mPtr pointer to which the results are stored
+    function batch_compute_li_shplonk_at_z(mPtr) {
+      let zn := mulmod(zh_zeta_t, VK_INV_DOMAIN_SIZE, R_MOD) // 1/n * (ζⁿ - 1)
+      let _w := 1
+      let _mPtr := mPtr
+      for {let i:=0} lt(i,n) {i:=add(i,1)}
+      {
+        mstore(_mPtr, addmod(z,sub(R_MOD, _w), R_MOD))
+        _w := mulmod(_w, VK_OMEGA, R_MOD)
+        _mPtr := add(_mPtr, 0x20)
+      }
+      batch_invert_in_place(mPtr, n, _mPtr)
+      _mPtr := mPtr
+      _w := 1
+      for {let i:=0} lt(i,n) {i:=add(i,1)}
+      {
+        mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , R_MOD), _w, R_MOD))
+        _mPtr := add(_mPtr, 0x20)
+        _w := mulmod(_w, VK_OMEGA, R_MOD)
+      }
+    } 
 
     function derive_z_shplonk(aproof, prev_challenge_not_reduced) {
       let state := mload(0x40)
