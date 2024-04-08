@@ -178,6 +178,9 @@ contract PlonkVerifier {
     {{ end -}}
     mstore(add(mem, STATE_PI), l_pi)
 
+    build_entangled_commitment(proof.offset)
+    derive_gamma_shplonk(proof.offset)
+
 		// Beginning errors -------------------------------------------------
 
     function error_nb_public_inputs() {
@@ -861,11 +864,34 @@ contract PlonkVerifier {
       {{ end -}}
     }
 
-    function derive_gamma_z_shplonk(aproof) {
+    function derive_gamma_shplonk(aproof)->gamma_not_reduced {
       let state := mload(0x40)
 			let mPtr := add(state, STATE_LAST_MEM)
 			mstore(mPtr, 0x67616d6d61) // "gamma" in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
-      // calldatacopy(_mPtr, pi, size_pi_in_bytes)
+      let _mPtr := add(mPtr, 0x20)
+      let zeta := mload(add(state, STATE_ZETA))
+      for {let i} lt(i, VK_T) {i:=add(i,1)}
+      {
+        mstore(_mPtr, zeta)
+        zeta := mulmod(zeta, VK_T_TH_ROOT_ONE, R_MOD)
+        _mPtr := add(_mPtr, 0x20)
+      }
+      zeta := mload(add(state, STATE_ZETA_T))
+      zeta  := mulmod(zeta, VK_OMEGA, R_MOD)
+      mstore(_mPtr, zeta)
+      _mPtr := add(_mPtr, 0x20)
+      mstore(_mPtr, mload(add(state, STATE_ENTANGLED_COMMITMENT_X)))
+      mstore(add(_mPtr,0x20), mload(add(state, STATE_ENTANGLED_COMMITMENT_Y)))
+      _mPtr := add(_mPtr, 0x40)
+      calldatacopy(_mPtr, add(aproof, PROOF_Z_X), 0x40)
+      _mPtr := add(_mPtr, 0x40)
+      let l_success := staticcall(gas(), SHA_256, add(mPtr, 0x1b), {{ hex (add 0xa5 (mul 0x20 (nextDivisorRMinusOneInt .)))}}, mPtr, 0x20) //0x1b -> 000.."gamma"
+			gamma_not_reduced := mload(mPtr)
+      mstore(add(state, STATE_GAMMA_SHPLONK), mod(gamma_not_reduced,R_MOD))
+			if iszero(l_success) {
+			  error_verify()
+      }
+      
     }
 
 
