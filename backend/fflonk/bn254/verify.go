@@ -303,6 +303,11 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 // Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	funcMap := template.FuncMap{
+		"invFr": func(i int) string {
+			var t fr.Element
+			t.SetUint64(uint64(i))
+			return t.String()
+		},
 		"tThRootOne": func(v VerifyingKey) string {
 			t := getNextDivisorRMinusOne(v)
 			var omega fr.Element
@@ -317,6 +322,10 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 			tmpBigInt.Div(rMinusOneBigInt, &tmpBigInt)
 			omega.Exp(genFrStar, &tmpBigInt)
 			return omega.String()
+		},
+		"nextDivisorRMinusOneInt": func(v VerifyingKey) int {
+			t := getNextDivisorRMinusOne(v)
+			return t
 		},
 		"nextDivisorRMinusOne": func(v VerifyingKey) string {
 			t := getNextDivisorRMinusOne(v)
