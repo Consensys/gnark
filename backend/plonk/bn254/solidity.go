@@ -68,46 +68,47 @@ contract PlonkVerifier {
   // ------------------------------------------------
 
   // offset proof
-  uint256 private constant PROOF_L_COM_X = 0x00;
-  uint256 private constant PROOF_L_COM_Y = 0x20;
-  uint256 private constant PROOF_R_COM_X = 0x40;
-  uint256 private constant PROOF_R_COM_Y = 0x60;
-  uint256 private constant PROOF_O_COM_X = 0x80;
-  uint256 private constant PROOF_O_COM_Y = 0xa0;
+  {{ $offset := 0 }}
+  uint256 private constant PROOF_L_COM_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_L_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_R_COM_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_R_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_O_COM_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_O_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
   // h = h_0 + x^{n+2}h_1 + x^{2(n+2)}h_2
-  uint256 private constant PROOF_H_0_X = 0xc0;
-  uint256 private constant PROOF_H_0_Y = 0xe0;
-  uint256 private constant PROOF_H_1_X = 0x100;
-  uint256 private constant PROOF_H_1_Y = 0x120;
-  uint256 private constant PROOF_H_2_X = 0x140;
-  uint256 private constant PROOF_H_2_Y = 0x160;
+  uint256 private constant PROOF_H_0_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_0_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_1_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_1_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_2_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_2_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
   // wire values at zeta
-  uint256 private constant PROOF_L_AT_ZETA = 0x180;
-  uint256 private constant PROOF_R_AT_ZETA = 0x1a0;
-  uint256 private constant PROOF_O_AT_ZETA = 0x1c0;
+  uint256 private constant PROOF_L_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_R_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_O_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
   // S1(zeta),S2(zeta)
-  uint256 private constant PROOF_S1_AT_ZETA = 0x1e0; // Sσ1(zeta)
-  uint256 private constant PROOF_S2_AT_ZETA = 0x200; // Sσ2(zeta)
+  uint256 private constant PROOF_S1_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}} // Sσ1(zeta)
+  uint256 private constant PROOF_S2_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}} // Sσ2(zeta)
 
   // [Z]
-  uint256 private constant PROOF_GRAND_PRODUCT_COMMITMENT_X = 0x220;
-  uint256 private constant PROOF_GRAND_PRODUCT_COMMITMENT_Y = 0x240;
+  uint256 private constant PROOF_GRAND_PRODUCT_COMMITMENT_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_GRAND_PRODUCT_COMMITMENT_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
-  uint256 private constant PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA = 0x260; // z(w*zeta)
-  uint256 private constant PROOF_LINEARISED_POLYNOMIAL_AT_ZETA = 0x280; // r(zeta)
+  uint256 private constant PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA = {{ hex $offset }};{{ $offset = add $offset 0x20}} // z(w*zeta)
+  uint256 private constant PROOF_LINEARISED_POLYNOMIAL_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}} // r(zeta)
 
   // Folded proof for the opening of linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 private constant PROOF_BATCH_OPENING_AT_ZETA_X = 0x2a0;
-  uint256 private constant PROOF_BATCH_OPENING_AT_ZETA_Y = 0x2c0;
+  uint256 private constant PROOF_BATCH_OPENING_AT_ZETA_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_BATCH_OPENING_AT_ZETA_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
-  uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_X = 0x2e0;
-  uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_Y = 0x300;
+  uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
-  uint256 private constant PROOF_OPENING_QCP_AT_ZETA = 0x320;
-  uint256 private constant PROOF_BSB_COMMITMENTS = {{ hex (add 800 (mul (len .CommitmentConstraintIndexes) 32 ) )}};
+  uint256 private constant PROOF_OPENING_QCP_AT_ZETA = {{ hex $offset }};
+  uint256 private constant PROOF_BSB_COMMITMENTS = {{ hex (add $offset (mul (len .CommitmentConstraintIndexes) 32 ) )}};
 
   // -> next part of proof is
   // [ openings_selector_commits || commitments_wires_commit_api]
