@@ -48,7 +48,6 @@ contract PlonkVerifier {
   uint256 private constant VK_NB_CUSTOM_GATES = {{ len .CommitmentConstraintIndexes }};
   uint256 private constant VK_T_TH_ROOT_ONE = {{ tThRootOne . }};
   uint256 private constant VK_T = {{ nextDivisorRMinusOne . }};
-  uint256 private constant VK_T_INV = {{ nextDivisorRMinusOne . }};
   uint256 private constant VK_T_INV = {{ invFr (nextDivisorRMinusOneInt .) }};
 
   // --------------------------- proof -----------------
@@ -181,7 +180,7 @@ contract PlonkVerifier {
     mstore(add(mem, STATE_PI), l_pi)
 
     build_entangled_commitment(proof.offset)
-    pop(derive_gamma_shplonk(proof.offset))
+    derive_challenges_shplonk(proof.offset)
 
 		// Beginning errors -------------------------------------------------
 
@@ -866,14 +865,12 @@ contract PlonkVerifier {
       {{ end -}}
     }
 
-    /// batch_compute_lagranges_at_z computes [L_0(z), .., L_{t-1}(z)]
-    /// where Lᵢ = ωⁱζᵗ⁻¹/t(z^t-ζ^t)/(z-ωⁱζ)
-    /// @param mPtr pointer to which the results are stored
     function batch_compute_li_shplonk_at_z(mPtr) {
       let state := mload(0x40)
       // batch invert (z-ωⁱζ)ᵢ
       let z := mload(add(state, STATE_Z_SHPLONK))
-      let acc_omega_i_zeta := mload(add(state, ZETA))
+      let zeta := mload(add(state, STATE_ZETA))
+      let acc_omega_i_zeta := zeta
       let _mPtr := mPtr
       for {let i} lt(i,VK_T) {i:=add(i,1)}
       {
@@ -888,66 +885,31 @@ contract PlonkVerifier {
       let zeta_t_minus_one := pow(zeta, sub(VK_T,1), _mPtr)
       num := mulmod(num, zeta_t_minus_one, R_MOD)
       num := mulmod(num, VK_T_INV, R_MOD)
-      for {let t:=0} lt(i, VK_T) {i:=add(i,1)}
+      let tmp
+      for {let i:=0} lt(i, VK_T) {i:=add(i,1)}
       {
-        num := mulmod(num, mload(mPtr), R_mod)
-        
-      }
-
-      // let zn := mulmod(zh_zeta_t, VK_INV_DOMAIN_SIZE, R_MOD) // 1/n * (ζⁿ - 1)
-      // let _w := 1
-      // let _mPtr := mPtr
-      // for {let i:=0} lt(i,n) {i:=add(i,1)}
-      // {
-      //   mstore(_mPtr, addmod(z,sub(R_MOD, _w), R_MOD))
-      //   _w := mulmod(_w, VK_OMEGA, R_MOD)
-      //   _mPtr := add(_mPtr, 0x20)
-      // }
-      // batch_invert_in_place(mPtr, n, _mPtr)
-      // _mPtr := mPtr
-      // _w := 1
-      // for {let i:=0} lt(i,n) {i:=add(i,1)}
-      // {
-      //   mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , R_MOD), _w, R_MOD))
-      //   _mPtr := add(_mPtr, 0x20)
-      //   _w := mulmod(_w, VK_OMEGA, R_MOD)
-      // }
-    } 
-
-    /// batch_compute_lagranges_at_z computes [L_0(z), .., L_{t-1}(z)]
-    /// where Lᵢ = ωⁱζᵗ⁻¹/t(z^t-ζ^t)/(z-ωⁱζ)
-    /// @param mPtr pointer to which the results are stored
-    function batch_compute_li_shplonk_at_z(mPtr) {
-      let zn := mulmod(zh_zeta_t, VK_INV_DOMAIN_SIZE, R_MOD) // 1/n * (ζⁿ - 1)
-      let _w := 1
-      let _mPtr := mPtr
-      for {let i:=0} lt(i,n) {i:=add(i,1)}
-      {
-        mstore(_mPtr, addmod(z,sub(R_MOD, _w), R_MOD))
-        _w := mulmod(_w, VK_OMEGA, R_MOD)
-        _mPtr := add(_mPtr, 0x20)
-      }
-      batch_invert_in_place(mPtr, n, _mPtr)
-      _mPtr := mPtr
-      _w := 1
-      for {let i:=0} lt(i,n) {i:=add(i,1)}
-      {
-        mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , R_MOD), _w, R_MOD))
-        _mPtr := add(_mPtr, 0x20)
-        _w := mulmod(_w, VK_OMEGA, R_MOD)
+        tmp := mulmod(num, mload(mPtr), R_MOD)
+        mstore(mPtr, tmp)
+        num := mulmod(num, VK_T_TH_ROOT_ONE, R_MOD)
+        mPtr := add(mPtr, 0x20)
       }
     } 
+
+    function derive_challenges_shplonk(aproof) {
+      let g := derive_gamma_shplonk(aproof)
+      derive_z_shplonk(aproof, g)
+    }
 
     function derive_z_shplonk(aproof, prev_challenge_not_reduced) {
       let state := mload(0x40)
       let mPtr := add(state, STATE_LAST_MEM)
       let _mPtr := mPtr
-      mstore(_mPtr, 0x7a) // "z" in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
+      mstore(_mPtr, 0x7a) // "z" in ascii is [0x7a]
       _mPtr := add(_mPtr, 0x20)
       mstore(_mPtr, prev_challenge_not_reduced)
       _mPtr := add(_mPtr, 0x20)
-      calldatacopy(_mPtr, add(aproof, PROOF_SHPLONK_W_PRIME_X), 0x40)
-      let l_success := staticcall(gas(), SHA_256, add(_mPtr, 0x1f), 0x61, mPtr, 0x20) //0x1f -> 000.."z"
+      calldatacopy(_mPtr, add(aproof, PROOF_SHPLONK_W_X), 0x40)
+      let l_success := staticcall(gas(), SHA_256, add(mPtr, 0x1f), 0x61, mPtr, 0x20) //0x1f -> 000.."z"
       mstore(add(state, STATE_Z_SHPLONK), mod(mload(mPtr),R_MOD))
       if iszero(l_success) {
         error_verify()
