@@ -1,7 +1,6 @@
 package test
 
 import (
-	"bytes"
 	"encoding/hex"
 	"io"
 	"os"
@@ -9,9 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 
+	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend"
-	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
-	plonk_bn254 "github.com/consensys/gnark/backend/plonk/bn254"
 	"github.com/consensys/gnark/backend/witness"
 )
 
@@ -26,7 +24,7 @@ type verifyingKey interface {
 func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
 	proof any,
 	validPublicWitness witness.Witness) {
-	if !SolcCheck || vk.NbPublicWitness() == 0 {
+	if !SolcCheck || len(validPublicWitness.Vector().(fr_bn254.Vector)) == 0 {
 		return // nothing to check, will make solc fail.
 	}
 	assert.t.Helper()
@@ -53,27 +51,28 @@ func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
 	out, err := cmd.CombinedOutput()
 	assert.NoError(err, string(out))
 
-	// proof to hex
-	var proofStr string
-	var optBackend string
+	// len(vk.K) - 1 == len(publicWitness) + len(commitments)
+	numOfCommitments := vk.NbPublicWitness() - len(validPublicWitness.Vector().(fr_bn254.Vector))
 
+	checkerOpts := []string{"verify"}
 	if b == backend.GROTH16 {
-		optBackend = "--groth16"
-		var buf bytes.Buffer
-		_proof := proof.(*groth16_bn254.Proof)
-		_, err = _proof.WriteRawTo(&buf)
-		assert.NoError(err)
-		proofBytes := buf.Bytes()
-		// keep only fpSize * 8 bytes; for now solidity contract doesn't handle the commitment part.
-		proofBytes = proofBytes[:32*8]
-		proofStr = hex.EncodeToString(proofBytes)
+		checkerOpts = append(checkerOpts, "--groth16")
 	} else if b == backend.PLONK {
-		optBackend = "--plonk"
-		_proof := proof.(*plonk_bn254.Proof)
-		// TODO @gbotrel make a single Marshal function for PlonK proof.
-		proofStr = hex.EncodeToString(_proof.MarshalSolidity())
+		checkerOpts = append(checkerOpts, "--plonk")
 	} else {
 		panic("not implemented")
+	}
+
+	// proof to hex
+	_proof, ok := proof.(interface{ MarshalSolidity() []byte })
+	if !ok {
+		panic("proof does not implement MarshalSolidity()")
+	}
+
+	proofStr := hex.EncodeToString(_proof.MarshalSolidity())
+
+	if numOfCommitments > 0 {
+		checkerOpts = append(checkerOpts, "--commitment", strconv.Itoa(numOfCommitments))
 	}
 
 	// public witness to hex
@@ -86,14 +85,14 @@ func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
 	bPublicWitness = bPublicWitness[12:]
 	publicWitnessStr := hex.EncodeToString(bPublicWitness)
 
+	checkerOpts = append(checkerOpts, "--dir", tmpDir)
+	checkerOpts = append(checkerOpts, "--nb-public-inputs", strconv.Itoa(len(validPublicWitness.Vector().(fr_bn254.Vector))))
+	checkerOpts = append(checkerOpts, "--proof", proofStr)
+	checkerOpts = append(checkerOpts, "--public-inputs", publicWitnessStr)
+
 	// verify proof
 	// gnark-solidity-checker verify --dir tmdir --groth16 --nb-public-inputs 1 --proof 1234 --public-inputs dead
-	cmd = exec.Command("gnark-solidity-checker", "verify",
-		"--dir", tmpDir,
-		optBackend,
-		"--nb-public-inputs", strconv.Itoa(vk.NbPublicWitness()),
-		"--proof", proofStr,
-		"--public-inputs", publicWitnessStr)
+	cmd = exec.Command("gnark-solidity-checker", checkerOpts...)
 	assert.t.Log("running ", cmd.String())
 	out, err = cmd.CombinedOutput()
 	assert.NoError(err, string(out))

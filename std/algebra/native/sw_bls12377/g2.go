@@ -194,30 +194,32 @@ func (P *g2AffP) ScalarMul(api frontend.API, Q g2AffP, s interface{}, opts ...al
 	}
 }
 
-// varScalarMul sets P = [s] Q and returns P.
+// varScalarMul sets P = [s]Q and returns P. It doesn't modify Q nor s.
+// It implements an optimized version based on algorithm 1 of [Halo] (see Section 6.2 and appendix C).
+//
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// [Halo]: https://eprint.iacr.org/2019/1021.pdf
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, opts ...algopts.AlgebraOption) *g2AffP {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
-	// This method computes [s] Q. We use several methods to reduce the number
-	// of added constraints - first, instead of classical double-and-add, we use
-	// the optimized version from https://github.com/zcash/zcash/issues/3924
-	// which allows to omit computation of several intermediate values.
-	// Secondly, we use the GLV scalar multiplication to reduce the number
-	// iterations in the main loop. There is a small difference though - as
-	// two-bit select takes three constraints, then it takes as many constraints
-	// to compute ± Q ± Φ(Q) every iteration instead of selecting the value
-	// from a precomputed table. However, precomputing the table adds 12
-	// additional constraints and thus table-version is more expensive than
-	// addition-version.
 	var selector frontend.Variable
+	one := fields_bls12377.E2{A0: 1, A1: 0}
+	zero := fields_bls12377.E2{A0: 0, A1: 0}
 	if cfg.CompleteArithmetic {
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = api.And(Q.X.IsZero(api), Q.Y.IsZero(api))
-		one := fields_bls12377.E2{A0: 1, A1: 0}
 		Q.Select(api, selector, g2AffP{X: one, Y: one}, Q)
 	}
+
+	// We use the endomorphism à la GLV to compute [s]Q as
+	// 		[s1]Q + [s2]Φ(Q)
+	//
 	// The context we are working is based on the `outer` curve. However, the
 	// points and the operations on the points are performed on the `inner`
 	// curve of the outer curve. We require some parameters from the inner
@@ -227,31 +229,24 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	// the hints allow to decompose the scalar s into s1 and s2 such that
 	//     s1 + λ * s2 == s mod r,
 	// where λ is third root of one in 𝔽_r.
-	sd, err := api.Compiler().NewHint(decomposeScalarG2, 3, s)
+	sd, err := api.Compiler().NewHint(decomposeScalarG1Simple, 2, s)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 	s1, s2 := sd[0], sd[1]
 
-	// when we split scalar, then s1, s2 < lambda by default. However, to have
-	// the high 1-2 bits of s1, s2 set, the hint functions compute the
-	// decomposition for
-	//     s + k*r (for some k)
-	// instead and omits the last reduction. Thus, to constrain s1 and s2, we
-	// have to assert that
-	//     s1 + λ * s2 == s + k*r
-	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), api.Add(s, api.Mul(cc.fr, sd[2])))
+	// s1 + λ * s2 == s
+	api.AssertIsEqual(
+		api.Add(s1, api.Mul(s2, cc.lambda)),
+		s,
+	)
 
-	// As the decomposed scalars are not fully reduced, then in addition of
-	// having the high bit set, an overflow bit may also be set. Thus, the total
-	// number of bits may be one more than the bitlength of λ.
-	nbits := cc.lambda.BitLen() + 1
-
+	// For BLS12 λ bitsize is 127 equal to half of r bitsize
+	nbits := cc.lambda.BitLen()
 	s1bits := api.ToBinary(s1, nbits)
 	s2bits := api.ToBinary(s2, nbits)
 
-	var Acc, B, B1, B2, B3, B4 g2AffP
 	// precompute -Q, -Φ(Q), Φ(Q)
 	var tableQ, tablePhiQ [2]g2AffP
 	tableQ[1] = Q
@@ -259,49 +254,53 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	cc.phi2(api, &tablePhiQ[1], &Q)
 	tablePhiQ[0].Neg(api, tablePhiQ[1])
 
-	// We now initialize the accumulator. Due to the way the scalar is
-	// decomposed, either the high bits of s1 or s2 are set and we can use the
-	// incomplete addition laws.
-
-	// Acc = Q + Φ(Q) = B1
+	// we suppose that the first bits of the sub-scalars are 1 and set:
+	// 		Acc = Q + Φ(Q) = -Φ²(Q)
+	var Acc, B g2AffP
 	cc.phi1Neg(api, &Acc, &Q)
-	B1 = Acc
 
-	// However, we can not directly add step value conditionally as we may get
-	// to incomplete path of the addition formula. We either add or subtract
-	// step value from [2] Acc (instead of conditionally adding step value to
-	// Acc):
-	//     Acc = [2] (Q + Φ(Q)) ± Q ± Φ(Q)
-	// only y coordinate differs for negation, select on that instead.
-	B.X = tableQ[0].X
-	B.Y.Select(api, s1bits[nbits-1], tableQ[1].Y, tableQ[0].Y)
-	Acc.DoubleAndAdd(api, &Acc, &B)
-	B.X = tablePhiQ[0].X
-	B.Y.Select(api, s2bits[nbits-1], tablePhiQ[1].Y, tablePhiQ[0].Y)
-	Acc.AddAssign(api, B)
-
-	// second bit
-	B.X = tableQ[0].X
-	B.Y.Select(api, s1bits[nbits-2], tableQ[1].Y, tableQ[0].Y)
-	Acc.DoubleAndAdd(api, &Acc, &B)
-	B.X = tablePhiQ[0].X
-	B.Y.Select(api, s2bits[nbits-2], tablePhiQ[1].Y, tablePhiQ[0].Y)
-	Acc.AddAssign(api, B)
-
-	// B2 = -Q-Φ(Q)
+	// At each iteration we need to compute:
+	// 		[2]Acc ± Q ± Φ(Q).
+	// We can compute [2]Acc and look up the (precomputed) point B from:
+	// 		B1 = +Q + Φ(Q)
+	B1 := Acc
+	// 		B2 = -Q - Φ(Q)
+	B2 := g2AffP{}
 	B2.Neg(api, B1)
-	// B3 = Q-Φ(Q)
-	B3 = tablePhiQ[0]
-	B3.AddAssign(api, tableQ[1])
-	// B4 = -Q+Φ(Q)
+	// 		B3 = +Q - Φ(Q)
+	B3 := tableQ[1]
+	B3.AddAssign(api, tablePhiQ[0])
+	// 		B4 = -Q + Φ(Q)
+	B4 := g2AffP{}
 	B4.Neg(api, B3)
-	for i := nbits - 3; i > 0; i-- {
+	//
+	// Note that half the points are negatives of the other half,
+	// hence have the same X coordinates.
+
+	// However when doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen
+	// that Acc==B or -B. So we add the base point G to it to avoid incomplete
+	// additions in the loop by forcing Acc to be different than the stored B.
+	// However we need at the end to subtract [2^nbits]G or conditionally
+	// [2^nbits]Φ²(G) from the result.
+	//
+	// Acc = Q + Φ(Q) + G
+	points := getTwistPoints()
+	Acc.AddAssign(api,
+		g2AffP{
+			X: fields_bls12377.E2{A0: points.G2x[0], A1: points.G2x[1]},
+			Y: fields_bls12377.E2{A0: points.G2y[0], A1: points.G2y[1]},
+		},
+	)
+
+	for i := nbits - 1; i > 0; i-- {
 		B.X.Select(api, api.Xor(s1bits[i], s2bits[i]), B3.X, B2.X)
 		B.Y.Lookup2(api, s1bits[i], s2bits[i], B2.Y, B3.Y, B4.Y, B1.Y)
+		// Acc = [2]Acc + B
 		Acc.DoubleAndAdd(api, &Acc, &B)
 	}
 
 	// i = 0
+	// subtract the Q, R, Φ(Q), Φ(R) if the first bits are 0.
 	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
 	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
 	if cfg.CompleteArithmetic {
@@ -309,13 +308,32 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 		Acc.Select(api, s1bits[0], Acc, tableQ[0])
 		tablePhiQ[0].AddUnified(api, Acc)
 		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
-		zero := fields_bls12377.E2{A0: 0, A1: 0}
 		Acc.Select(api, selector, g2AffP{X: zero, Y: zero}, Acc)
 	} else {
 		tableQ[0].AddAssign(api, Acc)
 		Acc.Select(api, s1bits[0], Acc, tableQ[0])
 		tablePhiQ[0].AddAssign(api, Acc)
 		Acc.Select(api, s2bits[0], Acc, tablePhiQ[0])
+	}
+
+	// subtract [2^nbits]G since we added G at the beginning
+	B.X = fields_bls12377.E2{
+		A0: points.G2m[nbits-1][0],
+		A1: points.G2m[nbits-1][1],
+	}
+	B.Y = fields_bls12377.E2{
+		A0: points.G2m[nbits-1][2],
+		A1: points.G2m[nbits-1][3],
+	}
+	B.Y.Neg(api, B.Y)
+	if cfg.CompleteArithmetic {
+		Acc.AddUnified(api, B)
+	} else {
+		Acc.AddAssign(api, B)
+	}
+
+	if cfg.CompleteArithmetic {
+		Acc.Select(api, selector, g2AffP{X: zero, Y: zero}, Acc)
 	}
 
 	P.X = Acc.X

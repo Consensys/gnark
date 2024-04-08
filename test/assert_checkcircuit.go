@@ -1,6 +1,8 @@
 package test
 
 import (
+	"crypto/sha256"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
@@ -120,10 +122,19 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 						w := w
 						assert.Run(func(assert *Assert) {
 							checkSolidity := opt.checkSolidity && curve == ecc.BN254
-							proof, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
+							proverOpts := opt.proverOpts
+							verifierOpts := opt.verifierOpts
+							if b == backend.GROTH16 {
+								// currently groth16 Solidity checker only supports circuits with up to 1 commitment
+								checkSolidity = checkSolidity && (len(ccs.GetCommitments().CommitmentIndexes()) <= 1)
+								// additionally, we use sha256 as hash to field (fixed in Solidity contract)
+								proverOpts = append(proverOpts, backend.WithProverHashToFieldFunction(sha256.New()))
+								verifierOpts = append(verifierOpts, backend.WithVerifierHashToFieldFunction(sha256.New()))
+							}
+							proof, err := concreteBackend.prove(ccs, pk, w.full, proverOpts...)
 							assert.noError(err, &w)
 
-							err = concreteBackend.verify(proof, vk, w.public, opt.verifierOpts...)
+							err = concreteBackend.verify(proof, vk, w.public, verifierOpts...)
 							assert.noError(err, &w)
 
 							if checkSolidity {

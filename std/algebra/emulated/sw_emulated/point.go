@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"golang.org/x/exp/slices"
 )
 
@@ -127,6 +128,11 @@ func (c *Curve[B, S]) MarshalG1(p AffinePoint[B]) []frontend.Variable {
 	res := make([]frontend.Variable, 2*nbBits)
 	copy(res, bx)
 	copy(res[len(bx):], by)
+	switch any(fp).(type) {
+	case emparams.Secp256k1Fp:
+		// in gnark-crypto we do not store the infinity bit for secp256k1 points
+		return res
+	}
 	xZ := c.baseApi.IsZero(x)
 	yZ := c.baseApi.IsZero(y)
 	isZero := c.api.Mul(xZ, yZ)
@@ -582,7 +588,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	// 		B1 = Q+Φ(Q)
 	// 		B2 = -Q-Φ(Q)
 	// 		B3 = Q-Φ(Q)
-	// 		B4 = -QΦ(Q)
+	// 		B4 = -Q+Φ(Q)
 	//
 	// If we extend this by merging two iterations, we need to look up P and P'
 	// both from {B1, B2, B3, B4} and compute:

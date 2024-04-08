@@ -308,6 +308,9 @@ func (builder *builder) constantValue(v frontend.Variable) (constraint.Element, 
 			// and are always reduced to one element. may not always be true?
 			return constraint.Element{}, false
 		}
+		if _v[0].Coeff.IsZero() {
+			return constraint.Element{}, true
+		}
 		if !(_v[0].WireID() == 0) { // public ONE WIRE
 			return constraint.Element{}, false
 		}
