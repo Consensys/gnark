@@ -150,12 +150,16 @@ contract PlonkVerifier {
   // -------- utils (for hash_fr)
 	uint256 private constant HASH_FR_BB = 340282366920938463463374607431768211456; // 2**128
 	uint256 private constant HASH_FR_ZERO_UINT256 = 0;
-
 	uint8 private constant HASH_FR_LEN_IN_BYTES = 48;
 	uint8 private constant HASH_FR_SIZE_DOMAIN = 11;
 	uint8 private constant HASH_FR_ONE = 1;
 	uint8 private constant HASH_FR_TWO = 2;
   {{ end }}
+
+  // -------- precompiles
+  uint8 private constant EC_ADD = 0x6;
+  uint8 private constant EC_MUL = 0x7;
+  uint8 private constant EC_PAIR = 0x8;
   
   /// Verify a Plonk proof.
   /// Reverts if the proof or the public inputs are malformed.
