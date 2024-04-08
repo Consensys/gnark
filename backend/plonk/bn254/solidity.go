@@ -116,39 +116,25 @@ contract PlonkVerifier {
   // -------- offset state
 
   // challenges to check the claimed quotient
-  uint256 private constant STATE_ALPHA = 0x00;
-  uint256 private constant STATE_BETA = 0x20;
-  uint256 private constant STATE_GAMMA = 0x40;
-  uint256 private constant STATE_ZETA = 0x60;
-
-  // reusable value
-  uint256 private constant STATE_ALPHA_SQUARE_LAGRANGE_0 = 0x80;
-
-  // commitment to H
-  uint256 private constant STATE_FOLDED_H_X = 0xa0;
-  uint256 private constant STATE_FOLDED_H_Y = 0xc0;
-
-  // commitment to the linearised polynomial
-  uint256 private constant STATE_LINEARISED_POLYNOMIAL_X = 0xe0;
-  uint256 private constant STATE_LINEARISED_POLYNOMIAL_Y = 0x100;
-
-  // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 private constant STATE_FOLDED_CLAIMED_VALUES = 0x120;
-
-  // folded digests of H, linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 private constant STATE_FOLDED_DIGESTS_X = 0x140;
-  uint256 private constant STATE_FOLDED_DIGESTS_Y = 0x160;
-
-  uint256 private constant STATE_PI = 0x180;
-
-  uint256 private constant STATE_ZETA_POWER_N_MINUS_ONE = 0x1a0;
-
-  uint256 private constant STATE_GAMMA_KZG = 0x1c0;
-
-  uint256 private constant STATE_SUCCESS = 0x1e0;
-  uint256 private constant STATE_CHECK_VAR = 0x200; // /!\ this slot is used for debugging only
-
-  uint256 private constant STATE_LAST_MEM = 0x220;
+  {{ $offset = 0 }}
+  uint256 private constant STATE_ALPHA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_BETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_GAMMA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ALPHA_SQUARE_LAGRANGE_0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_FOLDED_H_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_FOLDED_H_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_LINEARISED_POLYNOMIAL_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_LINEARISED_POLYNOMIAL_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_FOLDED_CLAIMED_VALUES = {{ hex $offset }};{{ $offset = add $offset 0x20}} // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
+  uint256 private constant STATE_FOLDED_DIGESTS_X = {{ hex $offset }};{{ $offset = add $offset 0x20}} // folded digests of H, linearised poly, l, r, o, s_1, s_2, qcp
+  uint256 private constant STATE_FOLDED_DIGESTS_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_PI = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_ZETA_POWER_N_MINUS_ONE = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_GAMMA_KZG = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}} // /!\ this slot is used for debugging only
+  uint256 private constant STATE_LAST_MEM = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
   // -------- utils (for Fiat Shamir)
   uint256 private constant FS_ALPHA = 0x616C706861; // "alpha"
