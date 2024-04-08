@@ -864,7 +864,23 @@ contract PlonkVerifier {
       {{ end -}}
     }
 
-    function derive_gamma_shplonk(aproof)->gamma_not_reduced {
+    function derive_z_shplonk(aproof, prev_challenge_not_reduced) {
+      let state := mload(0x40)
+      let mPtr := add(state, STATE_LAST_MEM)
+      let _mPtr := mPtr
+      mstore(_mPtr, 0x7a) // "z" in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
+      _mPtr := add(_mPtr, 0x20)
+      mstore(_mPtr, prev_challenge_not_reduced)
+      _mPtr := add(_mPtr, 0x20)
+      calldatacopy(_mPtr, add(aproof, PROOF_SHPLONK_W_PRIME_X), 0x40)
+      let l_success := staticcall(gas(), SHA_256, add(_mPtr, 0x1f), 0x61, mPtr, 0x20) //0x1f -> 000.."z"
+      mstore(add(state, STATE_Z_SHPLONK), mod(mload(mPtr),R_MOD))
+      if iszero(l_success) {
+        error_verify()
+      }
+    }
+
+    function derive_gamma_shplonk(aproof)->gamma_shplonk_not_reduced {
       let state := mload(0x40)
 			let mPtr := add(state, STATE_LAST_MEM)
 			mstore(mPtr, 0x67616d6d61) // "gamma" in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
@@ -886,12 +902,11 @@ contract PlonkVerifier {
       calldatacopy(_mPtr, add(aproof, PROOF_Z_X), 0x40)
       _mPtr := add(_mPtr, 0x40)
       let l_success := staticcall(gas(), SHA_256, add(mPtr, 0x1b), {{ hex (add 0xa5 (mul 0x20 (nextDivisorRMinusOneInt .)))}}, mPtr, 0x20) //0x1b -> 000.."gamma"
-			gamma_not_reduced := mload(mPtr)
-      mstore(add(state, STATE_GAMMA_SHPLONK), mod(gamma_not_reduced,R_MOD))
+			gamma_shplonk_not_reduced := mload(mPtr)
+      mstore(add(state, STATE_GAMMA_SHPLONK), mod(gamma_shplonk_not_reduced,R_MOD))
 			if iszero(l_success) {
 			  error_verify()
-      }
-      
+      }  
     }
 
 
