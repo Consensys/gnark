@@ -879,11 +879,12 @@ contract PlonkVerifier {
         _mPtr := add(_mPtr, 0x20)
       }
       batch_invert_in_place(mPtr, VK_T, _mPtr)
-      let num := pow(mload(z), VK_T, _mPtr)
+      let num := pow(z, VK_T, _mPtr)
       let zeta_t := mload(add(state, STATE_ZETA_T))
       num := addmod(num, sub(R_MOD, zeta_t), R_MOD)
-      let zeta_t_minus_one := pow(zeta, sub(VK_T,1), _mPtr)
-      num := mulmod(num, zeta_t_minus_one, R_MOD)
+      let inv_zeta_t := pow(zeta_t, sub(R_MOD,2), _mPtr)
+      num := mulmod(num, inv_zeta_t, R_MOD)
+      num := mulmod(num, zeta, R_MOD)
       num := mulmod(num, VK_T_INV, R_MOD)
       let tmp
       for {let i:=0} lt(i, VK_T) {i:=add(i,1)}
