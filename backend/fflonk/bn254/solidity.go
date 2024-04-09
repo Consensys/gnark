@@ -126,6 +126,8 @@ contract PlonkVerifier {
   uint256 private constant STATE_Z_SHPLONK = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ENTANGLED_COMMITMENT_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ENTANGLED_COMMITMENT_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_R0_Z = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_R1_Z = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_LAST_MEM = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -141,7 +143,7 @@ contract PlonkVerifier {
 	uint8 private constant HASH_FR_SIZE_DOMAIN = 11;
 	uint8 private constant HASH_FR_ONE = 1;
 	uint8 private constant HASH_FR_TWO = 2;
-  {{ end }}
+  {{ end -}}
 
   // -------- precompiles
   uint256 private constant SHA_256 = 0x2;
@@ -863,6 +865,23 @@ contract PlonkVerifier {
       {{ range $index, $element := .CommitmentConstraintIndexes -}}
       point_add_calldata(state_entangled_commitment_x, state_entangled_commitment_x, add(aproof, PROOF_BSB_{{ $index }}_X), mPtr)
       {{ end -}}
+    }
+
+    function build_ri_z(aproof, mPtr) {
+      batch_compute_li_shplonk_at_z(mPtr)
+      let state := mload(0x40)
+      let r0
+      let offset := add(aproof, PROOF_SHPLONK_P0_0)
+      let tmp
+      for {let i} lt(i, {{ add 15 (mul 2 (len .CommitmentConstraintIndexes)) }}) {i:=add(i,1)}
+      {
+        tmp := mulmod(calldataload(offset), mload(mPtr), R_MOD)
+        r0 := addmod(r0, tmp, R_MOD)
+        offset := add(offset, 0x20)
+        mPtr := add(mPtr, 0x20)
+      }
+      mstore(add(state, STATE_R0_Z), r0)
+      mstore(add(state, STATE_R1_Z), calldataload(add(aproof, PROOF_SHPLONK_P1_0)))
     }
 
     function batch_compute_li_shplonk_at_z(mPtr) {
