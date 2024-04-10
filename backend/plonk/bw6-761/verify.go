@@ -45,7 +45,7 @@ var (
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.VerifierOption) error {
 
-	log := logger.Logger().With().Str("curve", "bn254").Str("backend", "plonk").Logger()
+	log := logger.Logger().With().Str("curve", "bw6-761").Str("backend", "plonk").Logger()
 	start := time.Now()
 	cfg, err := backend.NewVerifierConfig(opts...)
 	if err != nil {
