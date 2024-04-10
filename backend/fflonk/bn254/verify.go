@@ -76,6 +76,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	if err != nil {
 		return err
 	}
+	fmt.Printf("zeta=Fr(%s)\n", zeta.String())
 
 	// ζᵗ
 	var zetaT fr.Element
@@ -306,7 +307,7 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 		"invFr": func(i int) string {
 			var t fr.Element
 			t.SetUint64(uint64(i))
-			return t.String()
+			return t.Inverse(&t).String()
 		},
 		"tThRootOne": func(v VerifyingKey) string {
 			t := getNextDivisorRMinusOne(v)

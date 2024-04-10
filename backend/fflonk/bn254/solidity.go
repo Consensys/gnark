@@ -922,14 +922,14 @@ contract PlonkVerifier {
       num := mulmod(num, zeta, R_MOD)
       num := mulmod(num, VK_T_INV, R_MOD)
       let tmp
-      for {let i:=0} lt(i, VK_T) {i:=add(i,1)}
+      for {let i:=0} lt(i, 18) {i:=add(i,1)}
       {
         tmp := mulmod(num, mload(mPtr), R_MOD)
         mstore(mPtr, tmp)
         num := mulmod(num, VK_T_TH_ROOT_ONE, R_MOD)
         mPtr := add(mPtr, 0x20)
       }
-    } 
+    }  
 
     function derive_challenges_shplonk(aproof) {
       let g := derive_gamma_shplonk(aproof)
