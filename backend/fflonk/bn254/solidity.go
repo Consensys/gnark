@@ -128,6 +128,7 @@ contract PlonkVerifier {
   uint256 private constant STATE_ENTANGLED_COMMITMENT_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_R0_Z = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_R1_Z = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_Z_T_SHPLONK = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_LAST_MEM = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -183,6 +184,8 @@ contract PlonkVerifier {
 
     build_entangled_commitment(proof.offset)
     derive_challenges_shplonk(proof.offset)
+    batch_compute_li_shplonk_at_z(freeMem)
+    build_ri_z(proof.offset, freeMem)
 
 		// Beginning errors -------------------------------------------------
 
@@ -867,6 +870,18 @@ contract PlonkVerifier {
       {{ end -}}
     }
 
+    function batch_open_shplonk(aproof, mPtr) {
+      let state := mload(0x40)
+      let r0 := mload(add(state,STATE_R0_Z))
+      let r1 := mload(add(state,STATE_R1_Z))
+      let z_t_minus_s0
+      let gamma_z_t_minus_s1
+      z_t_minus_s0 := mulmod(VK_OMEGA, mload(add(state,STATE_ZETA)), R_MOD)
+      z_t_minus_s0 := addmod(mload(add(state,STATE_Z_SHPLONK)),sub(R_MOD,z_t_minus_s0),R_MOD)
+      gamma_z_t_minus_s1 := addmod(mload(add(state,STATE_Z_T_SHPLONK)), sub(R_MOD,mload(add(state,STATE_ZETA_T))), R_MOD)
+      gamma_z_t_minus_s1 := mulmod(mload(add(state,STATE_GAMMA_SHPLONK)), gamma_z_t_minus_s1, R_MOD)
+    }
+
     function build_ri_z(aproof, mPtr) {
       batch_compute_li_shplonk_at_z(mPtr)
       let state := mload(0x40)
@@ -899,6 +914,7 @@ contract PlonkVerifier {
       }
       batch_invert_in_place(mPtr, VK_T, _mPtr)
       let num := pow(z, VK_T, _mPtr)
+      mstore(add(state, STATE_Z_T_SHPLONK), num)
       let zeta_t := mload(add(state, STATE_ZETA_T))
       num := addmod(num, sub(R_MOD, zeta_t), R_MOD)
       let inv_zeta_t := pow(zeta_t, sub(R_MOD,2), _mPtr)
