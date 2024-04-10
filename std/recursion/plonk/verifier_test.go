@@ -84,32 +84,28 @@ func getInnerWoCommit(assert *test.Assert, field, outer *big.Int) (constraint.Co
 func TestBLS12InBW6WoCommit(t *testing.T) {
 
 	assert := test.NewAssert(t)
-	// innerCcs, innerVK, innerWitness, innerProof := getInnerWoCommit(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
-	innerCcs, innerVK, _, _ := getInnerWoCommit(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
+	innerCcs, innerVK, innerWitness, innerProof := getInnerWoCommit(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
 
 	// outer proof
 	circuitVk, err := ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerVK)
 	assert.NoError(err)
-	// circuitWitness, err := ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
-	// assert.NoError(err)
-	// circuitProof, err := ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
-	// assert.NoError(err)
+	circuitWitness, err := ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
+	assert.NoError(err)
+	circuitProof, err := ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
+	assert.NoError(err)
 
 	outerCircuit := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
 		Proof:        PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
 		VerifyingKey: circuitVk,
 	}
-	ccs, err := frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, outerCircuit)
 	assert.NoError(err)
-	nbConstraints := ccs.GetNbConstraints()
-	fmt.Printf("nb constraints: %d\n", nbConstraints)
-	// outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-	// 	InnerWitness: circuitWitness,
-	// 	Proof:        circuitProof,
-	// }
-	// err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
-	// assert.NoError(err)
+	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		InnerWitness: circuitWitness,
+		Proof:        circuitProof,
+	}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
 
 }
 
