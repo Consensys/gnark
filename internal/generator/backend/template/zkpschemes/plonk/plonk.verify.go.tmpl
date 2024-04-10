@@ -172,8 +172,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	tmp.Add(&o, &gamma)                                                      // (o(ζ)+γ)
 	constLin.Mul(&tmp, &constLin).Mul(&constLin, &alpha).Mul(&constLin, &zu) // α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
 
-	constLin.Sub(&constLin, &alphaSquareLagrangeOne).Add(&constLin, &pi) // PI(ζ) - α²*L₁(ζ) - α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
-	constLin.Neg(&constLin)                                              // -[PI(ζ) - α²*L₁(ζ) - α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)]
+	constLin.Sub(&constLin, &alphaSquareLagrangeOne).Add(&constLin, &pi) // PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
+	constLin.Neg(&constLin)                                              // -[PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)]
 
 	// check that the opening of the linearised polynomial is equal to -constLin
 	openingLinPol := proof.BatchedProof.ClaimedValues[0]
