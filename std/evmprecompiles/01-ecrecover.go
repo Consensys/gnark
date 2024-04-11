@@ -15,7 +15,8 @@ import (
 // [ECRECOVER]: https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/ecrecover/index.html
 func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	v frontend.Variable, r, s emulated.Element[emulated.Secp256k1Fr],
-	strictRange frontend.Variable) *sw_emulated.AffinePoint[emulated.Secp256k1Fp] {
+	strictRange frontend.Variable, isFailure frontend.Variable) *sw_emulated.AffinePoint[emulated.Secp256k1Fp] {
+	api.AssertIsBoolean(isFailure)
 	// EVM uses v \in {27, 28}, but everyone else v >= 0. Convert back
 	v = api.Sub(v, 27)
 	var emfp emulated.Secp256k1Fp

@@ -40,12 +40,13 @@ func TestSignForRecoverCorrectness(t *testing.T) {
 }
 
 type ecrecoverCircuit struct {
-	Message  emulated.Element[emulated.Secp256k1Fr]
-	V        frontend.Variable
-	R        emulated.Element[emulated.Secp256k1Fr]
-	S        emulated.Element[emulated.Secp256k1Fr]
-	Strict   frontend.Variable
-	Expected sw_emulated.AffinePoint[emulated.Secp256k1Fp]
+	Message   emulated.Element[emulated.Secp256k1Fr]
+	V         frontend.Variable
+	R         emulated.Element[emulated.Secp256k1Fr]
+	S         emulated.Element[emulated.Secp256k1Fr]
+	Strict    frontend.Variable
+	IsFailure frontend.Variable
+	Expected  sw_emulated.AffinePoint[emulated.Secp256k1Fp]
 }
 
 func (c *ecrecoverCircuit) Define(api frontend.API) error {
@@ -53,7 +54,7 @@ func (c *ecrecoverCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new curve: %w", err)
 	}
-	res := ECRecover(api, c.Message, c.V, c.R, c.S, c.Strict)
+	res := ECRecover(api, c.Message, c.V, c.R, c.S, c.Strict, c.IsFailure)
 	curve.AssertIsEqual(&c.Expected, res)
 	return nil
 }
@@ -85,11 +86,12 @@ func testRoutineECRecover(t *testing.T, wantStrict bool) (circ, wit *ecrecoverCi
 	}
 	circuit := ecrecoverCircuit{}
 	witness := ecrecoverCircuit{
-		Message: emulated.ValueOf[emulated.Secp256k1Fr](ecdsa.HashToInt(msg)),
-		V:       v + 27, // EVM constant
-		R:       emulated.ValueOf[emulated.Secp256k1Fr](r),
-		S:       emulated.ValueOf[emulated.Secp256k1Fr](s),
-		Strict:  strict,
+		Message:   emulated.ValueOf[emulated.Secp256k1Fr](ecdsa.HashToInt(msg)),
+		V:         v + 27, // EVM constant
+		R:         emulated.ValueOf[emulated.Secp256k1Fr](r),
+		S:         emulated.ValueOf[emulated.Secp256k1Fr](s),
+		Strict:    strict,
+		IsFailure: 0,
 		Expected: sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
 			X: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.X),
 			Y: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.Y),
@@ -153,11 +155,12 @@ func TestECRecoverQNR(t *testing.T) {
 	s, _ := new(big.Int).SetString("31110821449234674195879853497860775923588666272130120981349127974920000247897", 10)
 	circuit := ecrecoverCircuit{}
 	witness := ecrecoverCircuit{
-		Message: emulated.ValueOf[emulated.Secp256k1Fr](ecdsa.HashToInt(msg)),
-		V:       v + 27, // EVM constant
-		R:       emulated.ValueOf[emulated.Secp256k1Fr](r),
-		S:       emulated.ValueOf[emulated.Secp256k1Fr](s),
-		Strict:  0,
+		Message:   emulated.ValueOf[emulated.Secp256k1Fr](ecdsa.HashToInt(msg)),
+		V:         v + 27, // EVM constant
+		R:         emulated.ValueOf[emulated.Secp256k1Fr](r),
+		S:         emulated.ValueOf[emulated.Secp256k1Fr](s),
+		Strict:    0,
+		IsFailure: 1,
 		Expected: sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
 			X: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.X),
 			Y: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.Y),
@@ -181,11 +184,12 @@ func TestECRecoverInfinity(t *testing.T) {
 	}
 	circuit := ecrecoverCircuit{}
 	witness := ecrecoverCircuit{
-		Message: emulated.ValueOf[emulated.Secp256k1Fr](ecdsa.HashToInt(msg)),
-		V:       v + 27, // EVM constant
-		R:       emulated.ValueOf[emulated.Secp256k1Fr](r),
-		S:       emulated.ValueOf[emulated.Secp256k1Fr](s),
-		Strict:  0,
+		Message:   emulated.ValueOf[emulated.Secp256k1Fr](ecdsa.HashToInt(msg)),
+		V:         v + 27, // EVM constant
+		R:         emulated.ValueOf[emulated.Secp256k1Fr](r),
+		S:         emulated.ValueOf[emulated.Secp256k1Fr](s),
+		Strict:    0,
+		IsFailure: 1,
 		Expected: sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
 			X: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.X),
 			Y: emulated.ValueOf[emulated.Secp256k1Fp](pk.A.Y),
