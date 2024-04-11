@@ -916,9 +916,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	_s1 = v.scalarApi.Mul(_s1, alpha)
 	_s1 = v.scalarApi.Mul(_s1, &zu)
 
-	constLin := v.scalarApi.Sub(pi, alphaSquareLagrangeOne)
-	constLin = v.scalarApi.Add(constLin, _s1)
-	constLin = v.scalarApi.Neg(constLin)
+	constLin := v.scalarApi.Add(pi, _s1)
+	constLin = v.scalarApi.Sub(alphaSquareLagrangeOne, constLin)
 
 	// check that the opening of the linearised polynomial is equal to -constLin
 	openingLinPol := proof.BatchedProof.ClaimedValues[0]
@@ -949,10 +948,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	tmp = v.scalarApi.Add(tmp, &o)                                           // β*u²*ζ+γ+o
 	_s2 = v.scalarApi.Mul(_s2, tmp)                                          // (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)(o+β*u²*ζ+γ)
 	_s2 = v.scalarApi.Mul(_s2, alpha)                                        // α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)(o+β*u²*ζ+γ)
-	_s2 = v.scalarApi.Neg(_s2)                                               // -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)(o+β*u²*ζ+γ)
 
 	// α²*L₁(ζ) - α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
-	coeffZ := v.scalarApi.Add(alphaSquareLagrangeOne, _s2)
+	coeffZ := v.scalarApi.Sub(alphaSquareLagrangeOne, _s2)
 
 	// l(ζ)*r(ζ)
 	rl := v.scalarApi.Mul(&l, &r)
