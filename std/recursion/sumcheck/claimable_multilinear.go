@@ -53,7 +53,7 @@ func (fn *multilinearClaim[FR]) Degree(i int) int {
 }
 
 func (fn *multilinearClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff *emulated.Element[FR], expectedValue *emulated.Element[FR], proof EvaluationProof) error {
-	val, err := fn.p.EvalMultilinear(fn.ml, r)
+	val, err := fn.p.EvalMultilinear(r, fn.ml)
 	if err != nil {
 		return fmt.Errorf("eval: %w", err)
 	}
