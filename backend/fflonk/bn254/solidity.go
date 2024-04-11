@@ -939,6 +939,12 @@ contract PlonkVerifier {
       point_mul(add(state,STATE_GAMMA_I_Z_T_SI_RI_X),ptr_g1_srs,s,mPtr)
     }
 
+    function compute_zt_w(aproof,mPtr) {
+      let state := mload(0x40)
+      let z_t := mulmod(mload(add(state,STATE_Z_T_MINUS_S0)), mload(add(state,STATE_Z_T_MINUS_S1)), R_MOD)
+      point_mul_calldata(add(state,STATE_Z_T_Z_W_X),add(aproof,PROOF_SHPLONK_W_X),z_t,mPtr)
+    }
+
     function build_ri_z(aproof, mPtr) {
       batch_compute_li_shplonk_at_z(mPtr)
       let state := mload(0x40)
