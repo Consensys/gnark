@@ -128,6 +128,14 @@ contract PlonkVerifier {
   uint256 private constant STATE_ENTANGLED_COMMITMENT_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_R0_Z = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_R1_Z = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_R0_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_R0_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_R1_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_R1_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_Z_T_Z_W_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_Z_T_Z_W_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_F_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_F_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_Z_T_SHPLONK = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_SUCCESS = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_CHECK_VAR = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -165,7 +173,7 @@ contract PlonkVerifier {
 
 		// state memory and scratch memory
 		let mem := mload(0x40)
-		let freeMem := add(mem, STATE_LAST_MEM)
+		let free_mem := add(mem, STATE_LAST_MEM)
 
 		// compute the challenges
 		let prev_challenge_non_reduced
@@ -173,19 +181,18 @@ contract PlonkVerifier {
 		prev_challenge_non_reduced := derive_beta(prev_challenge_non_reduced)
 		prev_challenge_non_reduced := derive_alpha(proof.offset, prev_challenge_non_reduced)
 		derive_zeta(proof.offset, prev_challenge_non_reduced)
-    compute_zh_zeta_t(freeMem)
+    compute_zh_zeta_t(free_mem)
 
-    let l_pi := compute_pi(public_inputs.offset, public_inputs.length, freeMem)
-    {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
-    let l_pi_with_commit := compute_pi_commit(proof.offset, public_inputs.length, freeMem)
+    let l_pi := compute_pi(public_inputs.offset, public_inputs.length, free_mem)
+    let l_pi_with_commit := compute_pi_commit(proof.offset, public_inputs.length, free_mem)
     l_pi := addmod(l_pi_with_commit, l_pi, R_MOD)
-    {{ end -}}
     mstore(add(mem, STATE_PI), l_pi)
 
     build_entangled_commitment(proof.offset)
     derive_challenges_shplonk(proof.offset)
-    batch_compute_li_shplonk_at_z(freeMem)
-    build_ri_z(proof.offset, freeMem)
+    batch_compute_li_shplonk_at_z(free_mem)
+    build_ri_z(proof.offset, free_mem)
+    batch_open_shplonk(proof.offset, free_mem)
 
 		// Beginning errors -------------------------------------------------
 
@@ -888,7 +895,7 @@ contract PlonkVerifier {
       let r0
       let offset := add(aproof, PROOF_SHPLONK_P0_0)
       let tmp
-      for {let i} lt(i, {{ add 15 (mul 2 (len .CommitmentConstraintIndexes)) }}) {i:=add(i,1)}
+      for {let i} lt(i, VK_T) {i:=add(i,1)}
       {
         tmp := mulmod(calldataload(offset), mload(mPtr), R_MOD)
         r0 := addmod(r0, tmp, R_MOD)
