@@ -957,12 +957,18 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	// l(ζ)*r(ζ)
 	rl := v.scalarApi.Mul(&l, &r)
 
-	// -ζⁿ⁺²*(ζⁿ-1), -ζ²⁽ⁿ⁺²⁾*(ζⁿ-1), -(ζⁿ-1)
+	// -ζⁿ⁺², -ζ²⁽ⁿ⁺²⁾, -(ζⁿ-1)
 	zhZeta = v.scalarApi.Neg(zhZeta) // -(ζⁿ-1)
 	zetaPowerNPlusTwo := v.scalarApi.Mul(zeta, zetaPowerN)
-	zetaPowerNPlusTwo = v.scalarApi.Mul(zeta, zetaPowerNPlusTwo)               // ζⁿ⁺²
-	zetaNPlusTwoZh := v.scalarApi.Mul(zetaPowerNPlusTwo, zhZeta)               // -ζⁿ⁺²*(ζⁿ-1)
-	zetaNPlusTwoSquareZh := v.scalarApi.Mul(zetaPowerNPlusTwo, zetaNPlusTwoZh) // -ζ²⁽ⁿ⁺²⁾*(ζⁿ-1)
+	zetaPowerNPlusTwo = v.scalarApi.Mul(zeta, zetaPowerNPlusTwo)                     // ζⁿ⁺²
+	zetaPowerNPlusTwoSquare := v.scalarApi.Mul(zetaPowerNPlusTwo, zetaPowerNPlusTwo) // ζ²⁽ⁿ⁺²⁾
+
+	// [H₀] + ζⁿ⁺²*[H₁] + ζ²⁽ⁿ⁺²⁾*[H₂]
+	foldedH, err := v.curve.MultiScalarMul([]*G1El{&proof.H[1].G1El, &proof.H[2].G1El}, []*emulated.Element[FR]{zetaPowerNPlusTwo, zetaPowerNPlusTwoSquare})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("folded H: %w", err)
+	}
+	foldedH = v.curve.Add(foldedH, &proof.H[0].G1El)
 
 	points := make([]*G1El, len(proof.Bsb22Commitments))
 	for i := range proof.Bsb22Commitments {
@@ -970,7 +976,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	}
 	points = append(points,
 		&vk.Ql.G1El, &vk.Qr.G1El, &vk.Qm.G1El, &vk.Qo.G1El, // first part
-		&vk.S[2].G1El, &proof.Z.G1El, &proof.H[0].G1El, &proof.H[1].G1El, &proof.H[2].G1El, // second & third part
+		&vk.S[2].G1El, &proof.Z.G1El, // second part
+		foldedH, // third part
 	)
 
 	qC := make([]*emulated.Element[FR], len(proof.Bsb22Commitments))
@@ -979,7 +986,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	}
 	scalars := append(qC,
 		&l, &r, rl, &o, // first part
-		_s1, coeffZ, zhZeta, zetaNPlusTwoZh, zetaNPlusTwoSquareZh, // second & third part
+		_s1, coeffZ, // second part
+		zhZeta, // third part
 	)
 
 	var msmOpts []algopts.AlgebraOption
