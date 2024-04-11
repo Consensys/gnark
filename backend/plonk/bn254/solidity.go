@@ -1384,9 +1384,8 @@ func (proof *Proof) MarshalSolidity() []byte {
 	tmp32 = proof.ZShiftedOpening.ClaimedValue.Bytes()
 	res = append(res, tmp32[:]...)
 
-	// uint256 linearization_polynomial_at_zeta;
-	// tmp32 = proof.BatchedProof.ClaimedValues[0].Bytes()
-	// res = append(res, tmp32[:]...)
+	// we skip the claimed value of the linearised polynomial at zeta because it
+	// is recomputed by the verifier and plugged in the batch opening proof directly
 
 	// uint256 opening_at_zeta_proof_x;
 	// uint256 opening_at_zeta_proof_y;
