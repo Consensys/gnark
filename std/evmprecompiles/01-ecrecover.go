@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -79,7 +80,12 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	// compute u2 = s * r^{-1} mod fr
 	u2 := frField.Div(&s, &r)
 	// check u1 * G + u2 R == P
-	C := curve.JointScalarMulBase(&R, u2, u1)
+	C := curve.JointScalarMulBase(&R, u2, u1, algopts.WithCompleteArithmetic())
 	curve.AssertIsEqual(C, &P)
+	// check that the result is zero if isFailure is true
+	xIsZero := fpField.IsZero(&P.X)
+	yIsZero := fpField.IsZero(&P.Y)
+	isZero := api.Mul(xIsZero, yIsZero)
+	api.AssertIsEqual(isZero, isFailure)
 	return &P
 }
