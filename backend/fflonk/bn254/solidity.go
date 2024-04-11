@@ -128,8 +128,8 @@ contract PlonkVerifier {
   uint256 private constant STATE_ENTANGLED_COMMITMENT_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_R0_Z = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_R1_Z = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_R0_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_R0_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_GAMMA_I_Z_T_SI_RI_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_GAMMA_I_Z_T_SI_RI_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_R1_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_R1_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_Z_T_Z_W_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -882,11 +882,23 @@ contract PlonkVerifier {
       let r0 := mload(add(state,STATE_R0_Z))
       let r1 := mload(add(state,STATE_R1_Z))
       let z_t_minus_s0
+      let z_t_minus_s1
       let gamma_z_t_minus_s1
-      z_t_minus_s0 := mulmod(VK_OMEGA, mload(add(state,STATE_ZETA)), R_MOD)
+      z_t_minus_s0 := mulmod(VK_OMEGA, mload(add(state,STATE_ZETA_T)), R_MOD)
       z_t_minus_s0 := addmod(mload(add(state,STATE_Z_SHPLONK)),sub(R_MOD,z_t_minus_s0),R_MOD)
-      gamma_z_t_minus_s1 := addmod(mload(add(state,STATE_Z_T_SHPLONK)), sub(R_MOD,mload(add(state,STATE_ZETA_T))), R_MOD)
-      gamma_z_t_minus_s1 := mulmod(mload(add(state,STATE_GAMMA_SHPLONK)), gamma_z_t_minus_s1, R_MOD)
+      z_t_minus_s1 := addmod(mload(add(state,STATE_Z_T_SHPLONK)), sub(R_MOD,mload(add(state,STATE_ZETA_T))), R_MOD)
+      gamma_z_t_minus_s1 := mulmod(mload(add(state,STATE_GAMMA_SHPLONK)), z_t_minus_s1, R_MOD)
+      let s := mulmod(gamma_z_t_minus_s1, r1, R_MOD)
+      let r0_z_t_minus_s0 := mulmod(r0, z_t_minus_s0, R_MOD)
+      s := addmod(s, r0_z_t_minus_s0, R_MOD)
+      let ptr_g1_srs := mPtr
+      mstore(ptr_g1_srs,G1_SRS_X)
+      mstore(add(ptr_g1_srs,0x20),G1_SRS_Y)
+      mPtr := add(mPtr,0x40)
+      point_mul(add(state,STATE_GAMMA_I_Z_T_SI_RI),ptr_g1_srs,s,mPtr)
+      let z_t := mulmod(z_t_minus_s0, z_t_minus_s1, R_MOD)
+      point_mul_calldata(add(state,STATE_Z_T_Z_W_X),add(aproof,PROOF_SHPLONK_W_X),z_t,mPtr)
+      mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_Z_T_Z_W_X)))
     }
 
     function build_ri_z(aproof, mPtr) {
