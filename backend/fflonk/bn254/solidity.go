@@ -140,8 +140,8 @@ contract PlonkVerifier {
   uint256 private constant STATE_Z_T_Z_W_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_F_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_F_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_GAMMA_I_COM_I_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_GAMMA_I_COM_I_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_GAMMA_I_Z_T_SI_COM_I_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_GAMMA_I_Z_T_SI_COM_I_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_Z_T_MINUS_S0 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_Z_T_MINUS_S1 = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_Z_T_SHPLONK = {{ hex $offset }};{{ $offset = add $offset 0x20}}
