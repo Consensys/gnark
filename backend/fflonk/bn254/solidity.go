@@ -128,14 +128,8 @@ contract PlonkVerifier {
   uint256 private constant STATE_ENTANGLED_COMMITMENT_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_R0_Z = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_R1_Z = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_GAMMA_I_Z_T_SI_RI_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_GAMMA_I_Z_T_SI_RI_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_R1_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_R1_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_GAMMA_I_COM_I_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_GAMMA_I_COM_I_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_GAMMA_I_Z_T_SI_RI_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant STATE_GAMMA_I_Z_T_SI_RI_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_GAMMA_I_Z_T_SI_RI_Z_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant STATE_GAMMA_I_Z_T_SI_RI_Z_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_Z_T_Z_W_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_Z_T_Z_W_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_F_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -889,25 +883,9 @@ contract PlonkVerifier {
       let state := mload(0x40)
       compute_zt_minus_si()
       compute_com_gamma_i_z_t_si_ri_z(add(state,STATE_LAST_MEM))
-      mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_GAMMA_I_Z_T_SI_RI_Y)))
-      // let gamma_shplonk := mload(add(state,STATE_GAMMA_SHPLONK))
-      // let r0 := mload(add(state,STATE_R0_Z))
-      // let r1 := mload(add(state,STATE_R1_Z))
-      // gamma_z_t_minus_s1 := mulmod(gamma_shplonk, z_t_minus_s1, R_MOD)
-      // let s := mulmod(gamma_z_t_minus_s1, r1, R_MOD)
-      // let r0_z_t_minus_s0 := mulmod(r0, z_t_minus_s0, R_MOD)
-      // s := addmod(s, r0_z_t_minus_s0, R_MOD)
-      // let ptr_g1_srs := mPtr
-      // mstore(ptr_g1_srs,G1_SRS_X)
-      // mstore(add(ptr_g1_srs,0x20),G1_SRS_Y)
-      // mPtr := add(mPtr,0x40)
-      // point_mul(add(state,STATE_GAMMA_I_Z_T_SI_RI_X),ptr_g1_srs,s,mPtr)
-      // let z_t := mulmod(z_t_minus_s0, z_t_minus_s1, R_MOD)
-      // point_mul_calldata(add(state,STATE_Z_T_Z_W_X),add(aproof,PROOF_SHPLONK_W_X),z_t,mPtr)
-      // point_mul_calldata(add(state,STATE_GAMMA_I_COM_I_X),add(aproof,PROOF_Z_X),gamma_z_t_minus_s1,mPtr)
-      // point_mul(mPtr,add(state,STATE_ENTANGLED_COMMITMENT_X),z_t_minus_s0,mPtr)
-      // point_add(add(state,STATE_GAMMA_I_COM_I_X),add(state,STATE_GAMMA_I_COM_I_X),mPtr,add(mPtr,0x40))
-      // mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_GAMMA_I_COM_I_X)))
+      compute_zt_w(aproof,mPtr)
+      compute_gamma_i_z_t_si_com_i(aproof,mPtr)
+      mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_GAMMA_I_Z_T_SI_COM_I_Y)))
     }
 
     function compute_zt_minus_si() {
@@ -936,13 +914,22 @@ contract PlonkVerifier {
       mstore(ptr_g1_srs,G1_SRS_X)
       mstore(add(ptr_g1_srs,0x20),G1_SRS_Y)
       mPtr := add(mPtr,0x40)
-      point_mul(add(state,STATE_GAMMA_I_Z_T_SI_RI_X),ptr_g1_srs,s,mPtr)
+      point_mul(add(state,STATE_GAMMA_I_Z_T_SI_RI_Z_X),ptr_g1_srs,s,mPtr)
     }
 
     function compute_zt_w(aproof,mPtr) {
       let state := mload(0x40)
       let z_t := mulmod(mload(add(state,STATE_Z_T_MINUS_S0)), mload(add(state,STATE_Z_T_MINUS_S1)), R_MOD)
       point_mul_calldata(add(state,STATE_Z_T_Z_W_X),add(aproof,PROOF_SHPLONK_W_X),z_t,mPtr)
+    }
+
+    function compute_gamma_i_z_t_si_com_i(aproof,mPtr) {
+      let state := mload(0x40)
+      let gamma_z_t_minus_s1 := mulmod(mload(add(state,STATE_GAMMA_SHPLONK)),mload(add(state,STATE_Z_T_MINUS_S1)),R_MOD)
+      let z_t_minus_s0 := mload(add(state,STATE_Z_T_MINUS_S0))
+      point_mul_calldata(add(state,STATE_GAMMA_I_Z_T_SI_COM_I_X),add(aproof,PROOF_Z_X),gamma_z_t_minus_s1,mPtr)
+      point_mul(mPtr,add(state,STATE_ENTANGLED_COMMITMENT_X),z_t_minus_s0,mPtr)
+      point_add(add(state,STATE_GAMMA_I_Z_T_SI_COM_I_X),add(state,STATE_GAMMA_I_Z_T_SI_COM_I_X),mPtr,add(mPtr,0x40))
     }
 
     function build_ri_z(aproof, mPtr) {
