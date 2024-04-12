@@ -11,18 +11,18 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
+// TODO: reorder initializations of curve and emulated fields to the beggining of the method
+// TODO: add newlines to structure different parts better
+
 // ECRecover implements [ECRECOVER] precompile contract at address 0x01.
 //
 // [ECRECOVER]: https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/ecrecover/index.html
 func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	v frontend.Variable, r, s emulated.Element[emulated.Secp256k1Fr],
 	strictRange frontend.Variable, isFailure frontend.Variable) *sw_emulated.AffinePoint[emulated.Secp256k1Fp] {
-	api.AssertIsBoolean(isFailure)
-	// EVM uses v \in {27, 28}, but everyone else v >= 0. Convert back
-	v = api.Sub(v, 27)
-	// check that len(v) = 2
-	vbits := bits.ToBinary(api, v, bits.WithNbDigits(2))
-
+	// the field implementations are cached. So it is safe to initialize
+	// them at every call to ECRecover. This allows to simplify the
+	// interface of ECRecover.
 	var emfp emulated.Secp256k1Fp
 	var emfr emulated.Secp256k1Fr
 	fpField, err := emulated.NewField[emulated.Secp256k1Fp](api)
@@ -33,6 +33,20 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	if err != nil {
 		panic(fmt.Sprintf("new field: %v", err))
 	}
+	curve, err := sw_emulated.New[emulated.Secp256k1Fp, emulated.Secp256k1Fr](api, sw_emulated.GetSecp256k1Params())
+	if err != nil {
+		panic(fmt.Sprintf("new curve: %v", err))
+	}
+
+	// sanity check that input is valid. First we need to ensure the failure
+	// tag is boolean.
+	api.AssertIsBoolean(isFailure)
+
+	// EVM uses v \in {27, 28}, but everyone else v >= 0. Convert back
+	v = api.Sub(v, 27)
+	// check that len(v) = 2
+	vbits := bits.ToBinary(api, v, bits.WithNbDigits(2))
+
 	// with the encoding we may have that r,s < 2*Fr (i.e. not r,s < Fr). Apply more thorough checks.
 	frField.AssertIsLessOrEqual(&r, frField.Modulus())
 	// Ethereum Yellow Paper defines that the check for s should be more strict
@@ -42,11 +56,6 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	halfFr.Div(halfFr, big.NewInt(2))
 	bound := frField.Select(strictRange, frField.NewElement(halfFr), frField.Modulus())
 	frField.AssertIsLessOrEqual(&s, bound)
-
-	curve, err := sw_emulated.New[emulated.Secp256k1Fp, emulated.Secp256k1Fr](api, sw_emulated.GetSecp256k1Params())
-	if err != nil {
-		panic(fmt.Sprintf("new curve: %v", err))
-	}
 
 	// compute P, the public key
 	// we cannot directly use the field emulation hint calling wrappers as we work between two fields.
@@ -62,6 +71,7 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	// is only set when we have no QNR failure.
 	pIsZero := Plimbs[2*emfp.NbLimbs()]
 	api.AssertIsBoolean(pIsZero)
+
 	// the failure can be either that we have quadratic non residue or that the
 	// public key is zero. We set the QNR failure flag here.
 	//
@@ -76,10 +86,11 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	rfp := fpField.FromBits(rbits...)
 	// compute R.X x = r+v[1]*fr
 	Rx := fpField.Select(vbits[1], fpField.NewElement(emfr.Modulus()), fpField.NewElement(0))
-	Rx = fpField.Add(rfp, Rx)  // Rx = r + v[1]*fr
-	Ry := fpField.Mul(Rx, Rx)  // Ry = x^2
+	Rx = fpField.Add(rfp, Rx) // Rx = r + v[1]*fr
+	Ry := fpField.Mul(Rx, Rx) // Ry = x^2
+	// compute R.y y = sqrt(x^3+7)
 	Ry = fpField.Mul(Ry, Rx)   // Ry = x^3
-	b := fpField.NewElement(7) // b = 7 for secp256k1, a = 0 and we omit
+	b := fpField.NewElement(7) // b = 7 for secp256k1, a = 0
 	Ry = fpField.Add(Ry, b)    // Ry = x^3 + 7
 	// in case of failure due to no QNR, negate Ry so that exists a square root
 	Ry = fpField.Select(isQNRFailure, fpField.Sub(fpField.Modulus(), Ry), Ry)
