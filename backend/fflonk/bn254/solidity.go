@@ -260,6 +260,15 @@ contract PlonkVerifier {
       revert(ptError, 0x64)
     }
 
+    function error_pairing() {
+      let ptError := mload(0x40)
+      mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+      mstore(add(ptError, 0x4), 0x20)
+      mstore(add(ptError, 0x24), 0xd)
+      mstore(add(ptError, 0x44), "error pairing")
+      revert(ptError, 0x64)
+    }
+
     function error_random_generation() {
       let ptError := mload(0x40)
       mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
@@ -883,7 +892,32 @@ contract PlonkVerifier {
       compute_zt_w(aproof,mPtr)
       compute_gamma_i_z_t_si_com_i(aproof,mPtr)
       compute_f(mPtr)
-      mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_F_X)))
+      point_acc_mul_calldata(add(state,STATE_F_X),add(aproof,PROOF_SHPLONK_W_PRIME_X),mload(add(state,STATE_Z_SHPLONK)),mPtr)
+      let tmp := mload(add(state,STATE_F_Y))
+      tmp := sub(P_MOD, tmp)
+      mstore(add(state,STATE_F_Y),tmp)
+      compute_pairing(aproof, mPtr)
+      mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_F_Y)))
+    }
+
+    function compute_pairing(aproof, mPtr) {
+      let state := mload(0x40)
+      mstore(mPtr, mload(add(state,STATE_F_X)))
+      mstore(add(mPtr, 0x20), mload(add(state,STATE_F_Y)))
+      mstore(add(mPtr, 0x40), G2_SRS_0_X_0) // the 4 lines are the canonical G2 point on BN254
+      mstore(add(mPtr, 0x60), G2_SRS_0_X_1)
+      mstore(add(mPtr, 0x80), G2_SRS_0_Y_0)
+      mstore(add(mPtr, 0xa0), G2_SRS_0_Y_1)
+      mstore(add(mPtr, 0xc0), calldataload(add(aproof,PROOF_SHPLONK_W_PRIME_X)))
+      mstore(add(mPtr, 0xe0), calldataload(add(aproof,PROOF_SHPLONK_W_PRIME_Y)))
+      mstore(add(mPtr, 0x100), G2_SRS_1_X_0)
+      mstore(add(mPtr, 0x120), G2_SRS_1_X_1)
+      mstore(add(mPtr, 0x140), G2_SRS_1_Y_0)
+      mstore(add(mPtr, 0x160), G2_SRS_1_Y_1)
+      let l_success := staticcall(gas(), 8, mPtr, 0x180, 0x00, 0x20)
+      if iszero(l_success) {
+        error_pairing()
+      }
     }
 
     function compute_f(mPtr) {
