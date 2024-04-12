@@ -1196,8 +1196,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(exp frontend.V
 	// \omega^{i}
 	iBits := bits.ToBinary(v.api, exp, bits.WithNbDigits(maxExpBits))
 
-	omegai := one
-	for i := maxExpBits - 1; i >= 0; i-- {
+	omegai := v.scalarApi.Select(iBits[maxExpBits-1], &vk.Generator, one)
+	for i := maxExpBits - 2; i >= 0; i-- {
 		omegai = v.scalarApi.Mul(omegai, omegai)
 		tmp := v.scalarApi.Mul(omegai, &vk.Generator)
 		omegai = v.scalarApi.Select(iBits[i], tmp, omegai)
