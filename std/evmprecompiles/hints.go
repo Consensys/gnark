@@ -74,7 +74,7 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	if !inputs[emfr.NbLimbs()].IsInt64() {
 		return fmt.Errorf("second input input must be in [0,3]")
 	}
-	if len(outputs) != 2*int(emfp.NbLimbs()) {
+	if len(outputs) != 2*int(emfp.NbLimbs())+1 {
 		return fmt.Errorf("expected output %d limbs got %d", 2*emfp.NbLimbs(), len(outputs))
 	}
 	msg := recompose(inputs[:emfr.NbLimbs()], emfr.BitsPerLimb())
@@ -93,5 +93,10 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	if err := decompose(Py, emfp.BitsPerLimb(), outputs[emfp.NbLimbs():2*emfp.NbLimbs()]); err != nil {
 		return fmt.Errorf("decompose y: %w", err)
 	}
+	zero := new(big.Int)
+	xIsZero := 1 - Px.Cmp(zero)
+	yIsZero := 1 - Py.Cmp(zero)
+	isZero := xIsZero * yIsZero
+	outputs[2*emfp.NbLimbs()].SetInt64(int64(isZero))
 	return nil
 }

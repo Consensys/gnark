@@ -68,8 +68,9 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 		X: *Rx,
 		Y: *Ry,
 	}
+	// compute P, the public key
 	// we cannot directly use the field emulation hint calling wrappers as we work between two fields.
-	Plimbs, err := api.Compiler().NewHint(recoverPublicKeyHint, 2*int(emfp.NbLimbs()), recoverPublicKeyHintArgs(msg, v, r, s)...)
+	Plimbs, err := api.Compiler().NewHint(recoverPublicKeyHint, 2*int(emfp.NbLimbs())+1, recoverPublicKeyHintArgs(msg, v, r, s)...)
 	if err != nil {
 		panic(fmt.Sprintf("point hint: %v", err))
 	}
@@ -77,6 +78,7 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 		X: *fpField.NewElement(Plimbs[0:emfp.NbLimbs()]),
 		Y: *fpField.NewElement(Plimbs[emfp.NbLimbs() : 2*emfp.NbLimbs()]),
 	}
+	pIsZero := Plimbs[2*emfp.NbLimbs()]
 	// compute u1 = -msg * r^{-1} mod fr
 	u1 := frField.Div(&msg, &r)
 	u1 = frField.Neg(u1)
@@ -90,5 +92,6 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	yIsZero := fpField.IsZero(&P.Y)
 	isZero := api.Mul(xIsZero, yIsZero)
 	api.AssertIsEqual(isZero, isFailure)
+	api.AssertIsEqual(pIsZero, isZero)
 	return &P
 }
