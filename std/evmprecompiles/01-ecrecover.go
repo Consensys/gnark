@@ -20,6 +20,9 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	api.AssertIsBoolean(isFailure)
 	// EVM uses v \in {27, 28}, but everyone else v >= 0. Convert back
 	v = api.Sub(v, 27)
+	// check that len(v) = 2
+	vbits := bits.ToBinary(api, v, bits.WithNbDigits(2))
+
 	var emfp emulated.Secp256k1Fp
 	var emfr emulated.Secp256k1Fr
 	fpField, err := emulated.NewField[emulated.Secp256k1Fp](api)
@@ -44,14 +47,26 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	if err != nil {
 		panic(fmt.Sprintf("new curve: %v", err))
 	}
-	// we cannot directly use the field emulation hint calling wrappers as we work between two fields.
-	Rlimbs, err := api.Compiler().NewHint(recoverPointHint, 2*int(emfp.NbLimbs()), recoverPointHintArgs(v, r)...)
-	if err != nil {
-		panic(fmt.Sprintf("point hint: %v", err))
-	}
+
+	// compute R, the commitment
+	// the signature as elements in Fr, but it actually represents elements in Fp. Convert to Fp element.
+	rbits := frField.ToBits(&r)
+	rfp := fpField.FromBits(rbits...)
+	// compute R.X x = r+v[1]*fr
+	Rx := fpField.Select(vbits[1], fpField.NewElement(emfr.Modulus()), fpField.NewElement(0))
+	Rx = fpField.Add(rfp, Rx)  // Rx = r + v[1]*fr
+	Ry := fpField.Mul(Rx, Rx)  // Ry = x^2
+	Ry = fpField.Mul(Ry, Rx)   // Ry = x^3
+	b := fpField.NewElement(7) // b = 7 for secp256k1, a = 0 and we omit
+	Ry = fpField.Add(Ry, b)    // Ry = x^3 + 7
+	Ry = fpField.Sqrt(Ry)      // Ry = sqrt(x^3 + 7)
+	// ensure the oddity of Ry is same as vbits[0], otherwise negate Ry
+	Rybits := fpField.ToBits(Ry)
+	Ry = fpField.Select(api.Xor(vbits[0], Rybits[0]), fpField.Sub(fpField.Modulus(), Ry), Ry)
+
 	R := sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
-		X: *fpField.NewElement(Rlimbs[0:emfp.NbLimbs()]),
-		Y: *fpField.NewElement(Rlimbs[emfp.NbLimbs() : 2*emfp.NbLimbs()]),
+		X: *Rx,
+		Y: *Ry,
 	}
 	// we cannot directly use the field emulation hint calling wrappers as we work between two fields.
 	Plimbs, err := api.Compiler().NewHint(recoverPublicKeyHint, 2*int(emfp.NbLimbs()), recoverPublicKeyHintArgs(msg, v, r, s)...)
@@ -62,18 +77,6 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 		X: *fpField.NewElement(Plimbs[0:emfp.NbLimbs()]),
 		Y: *fpField.NewElement(Plimbs[emfp.NbLimbs() : 2*emfp.NbLimbs()]),
 	}
-	// check that len(v) = 2
-	vbits := bits.ToBinary(api, v, bits.WithNbDigits(2))
-	// check that Rx is correct: x = r+v[1]*fr
-	tmp := fpField.Select(vbits[1], fpField.NewElement(emfr.Modulus()), fpField.NewElement(0))
-	rbits := frField.ToBits(&r)
-	rfp := fpField.FromBits(rbits...)
-	tmp = fpField.Add(rfp, tmp)
-	fpField.AssertIsEqual(tmp, &R.X)
-	// check that Ry is correct: oddity(y) = v[0]
-	Rynormal := fpField.Reduce(&R.Y)
-	Rybits := fpField.ToBits(Rynormal)
-	api.AssertIsEqual(vbits[0], Rybits[0])
 	// compute u1 = -msg * r^{-1} mod fr
 	u1 := frField.Div(&msg, &r)
 	u1 = frField.Neg(u1)
