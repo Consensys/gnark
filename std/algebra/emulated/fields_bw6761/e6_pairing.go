@@ -182,24 +182,15 @@ func (e *Ext6) MulBy014(z *E6, c0, c1 *baseEl) *E6 {
 //		B1: E3{A0: 0,  A1: 1,  A2: 0},
 //	}
 func (e Ext6) Mul014By014(d0, d1, c0, c1 *baseEl) [5]*baseEl {
-	one := e.fp.One()
 	x0 := e.fp.Mul(c0, d0)
 	x1 := e.fp.Mul(c1, d1)
-	tmp := e.fp.Add(c0, one)
-	x04 := e.fp.Add(d0, one)
-	x04 = e.fp.Mul(x04, tmp)
-	x04 = e.fp.Sub(x04, x0)
-	x04 = e.fp.Sub(x04, one)
-	tmp = e.fp.Add(c0, c1)
+	x04 := e.fp.Add(c0, d0)
+	tmp := e.fp.Add(c0, c1)
 	x01 := e.fp.Add(d0, d1)
 	x01 = e.fp.Mul(x01, tmp)
 	x01 = e.fp.Sub(x01, x0)
 	x01 = e.fp.Sub(x01, x1)
-	tmp = e.fp.Add(c1, one)
-	x14 := e.fp.Add(d1, one)
-	x14 = e.fp.Mul(x14, tmp)
-	x14 = e.fp.Sub(x14, x1)
-	x14 = e.fp.Sub(x14, one)
+	x14 := e.fp.Add(c1, d1)
 
 	four := emulated.ValueOf[emulated.BW6761Fp](big.NewInt(4))
 	zC0B0 := e.fp.Sub(x0, &four)
