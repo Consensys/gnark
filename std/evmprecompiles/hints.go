@@ -1,6 +1,7 @@
 package evmprecompiles
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -82,8 +83,14 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	r := recompose(inputs[emfr.NbLimbs()+1:2*emfr.NbLimbs()+1], emfr.BitsPerLimb())
 	s := recompose(inputs[2*emfr.NbLimbs()+1:3*emfr.NbLimbs()+1], emfr.BitsPerLimb())
 	var pk ecdsa.PublicKey
+	var isQNRFailure int
 	if err := pk.RecoverFrom(msg.Bytes(), uint(v), r, s); err != nil {
-		return fmt.Errorf("recover public key: %w", err)
+		// in case we have some other possible error except QNR failure, then we return the error as is
+		if !errors.Is(err, ecdsa.ErrNoSqrtR) {
+			return fmt.Errorf("recover public key: %w", err)
+		}
+		// otherwise, we set the flag to 1. NB! In this case the public key is (0,0).
+		isQNRFailure = 1
 	}
 	Px := pk.A.X.BigInt(new(big.Int))
 	Py := pk.A.Y.BigInt(new(big.Int))
@@ -93,10 +100,12 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	if err := decompose(Py, emfp.BitsPerLimb(), outputs[emfp.NbLimbs():2*emfp.NbLimbs()]); err != nil {
 		return fmt.Errorf("decompose y: %w", err)
 	}
+	// we also return a flag that indicates if the public key is zero but only
+	// if the QNR failure flag is not set.
 	zero := new(big.Int)
 	xIsZero := 1 - Px.Cmp(zero)
 	yIsZero := 1 - Py.Cmp(zero)
-	isZero := xIsZero * yIsZero
+	isZero := (1 - isQNRFailure) * xIsZero * yIsZero
 	outputs[2*emfp.NbLimbs()].SetInt64(int64(isZero))
 	return nil
 }
