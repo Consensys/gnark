@@ -18,7 +18,12 @@ import (
 // it is recommended to pack the dictionary using compress.Pack and take a MiMC checksum of it.
 // d will consist of bytes
 // It returns the length of d as a frontend.Variable; if the decompressed stream doesn't fit in d, dLength will be "-1"
-func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d, dict []frontend.Variable) (dLength frontend.Variable, err error) {
+func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variable, d, dict []frontend.Variable, options ...DecompressionOption) (dLength frontend.Variable, err error) {
+
+	var aux decompressionAux
+	for _, opt := range options {
+		opt(&aux)
+	}
 
 	api.AssertIsLessOrEqual(cLength, len(c)) // sanity check
 
@@ -100,8 +105,11 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 
 		// write to output
 		outVal := api.Select(copying, toCopy, curr)
-		// TODO previously the last byte of the output kept getting repeated. That can be worked with. If there was a reason to save some 600K constraints in the zkEVM decompressor, take this out again
-		d[outI] = plonk.EvaluateExpression(api, outVal, eof, 1, 0, -1, 0) // write zeros past eof
+		if aux.noZeroPaddingOutput {
+			d[outI] = outVal
+		} else {
+			d[outI] = plonk.EvaluateExpression(api, outVal, eof, 1, 0, -1, 0) // write zeros past eof
+		}
 		// WARNING: curr modified by MulAcc
 		outTable.Insert(d[outI])
 
@@ -114,11 +122,8 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		// TODO Try removing this check and requiring the user to pad the input with nonzeros
 		// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged
 		// inI = inI + inIDelta * (1 - eof)
-		if eof == 0 {
-			inI = api.Add(inI, inIDelta)
-		} else {
-			inI = api.Add(inI, plonk.EvaluateExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
-		}
+
+		inI = api.Add(inI, plonk.EvaluateExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put
 
 		eofNow := rangeChecker.IsLessThan(8, api.Sub(cLength, inI)) // less than a byte left; meaning we are at the end of the input
 
@@ -178,4 +183,19 @@ func RegisterHints() {
 	hint.RegisterHint(internal.BreakUpBytesIntoCrumbsHint)
 	hint.RegisterHint(internal.BreakUpBytesIntoHalfHint)
 	hint.RegisterHint(compress.UnpackIntoBytesHint)
+}
+
+// options and other auxiliary input
+type decompressionAux struct {
+	noZeroPaddingOutput bool
+}
+
+type DecompressionOption func(*decompressionAux)
+
+// WithoutZeroPaddingOutput disables the feature where all decompressor output past the end is zeroed out
+// It saves one constraint per byte of output but necessitates more assignment work
+// If using this option, the output will be padded by the first byte of the input past the end
+// If further the input is not padded, the output still will be padded with zeros
+func WithoutZeroPaddingOutput(aux *decompressionAux) {
+	aux.noZeroPaddingOutput = true
 }
