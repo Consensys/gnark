@@ -837,8 +837,13 @@ contract PlonkVerifier {
     }
 
     // Beginning fflonk verification -------------------------------------------------
-    function check_fflonk_opening(aproof) {
-
+    function batch_open_shplonk(aproof, mPtr) {
+      let state := mload(0x40)
+      compute_zt_minus_si()
+      compute_com_gamma_i_z_t_si_ri_z(add(state,STATE_LAST_MEM))
+      compute_zt_w(aproof,mPtr)
+      compute_gamma_i_z_t_si_com_i(aproof,mPtr)
+      mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_GAMMA_I_Z_T_SI_COM_I_X)))
     }
 
     function check_consistency_claimed_values(aproof) {
@@ -877,15 +882,6 @@ contract PlonkVerifier {
       {{ range $index, $element := .CommitmentConstraintIndexes -}}
       point_add_calldata(state_entangled_commitment_x, state_entangled_commitment_x, add(aproof, PROOF_BSB_{{ $index }}_X), mPtr)
       {{ end -}}
-    }
-
-    function batch_open_shplonk(aproof, mPtr) {
-      let state := mload(0x40)
-      compute_zt_minus_si()
-      compute_com_gamma_i_z_t_si_ri_z(add(state,STATE_LAST_MEM))
-      compute_zt_w(aproof,mPtr)
-      compute_gamma_i_z_t_si_com_i(aproof,mPtr)
-      mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_GAMMA_I_Z_T_SI_COM_I_Y)))
     }
 
     function compute_zt_minus_si() {
