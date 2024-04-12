@@ -1176,12 +1176,13 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) fixedExpN(n frontend.Variable, s *emula
 	const maxExpBits = 30
 	// n is power of two.
 	nBits := bits.ToBinary(v.api, n, bits.WithNbDigits(maxExpBits))
-	acc := s
-	res := v.scalarApi.Zero()
-	for i := range nBits {
+	res := v.scalarApi.Select(nBits[0], s, v.scalarApi.Zero())
+	acc := v.scalarApi.Mul(s, s)
+	for i := 1; i < maxExpBits-1; i++ {
 		res = v.scalarApi.Select(nBits[i], acc, res)
 		acc = v.scalarApi.Mul(acc, acc)
 	}
+	res = v.scalarApi.Select(nBits[maxExpBits-1], acc, res)
 	return res
 }
 
