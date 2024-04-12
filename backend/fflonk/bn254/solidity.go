@@ -888,13 +888,13 @@ contract PlonkVerifier {
 
     function compute_f(mPtr) {
       let state := mload(0x40)
-      let tmp := mload(add(state,STATE_GAMMA_I_Z_T_SI_RI_Z_X))
+      let tmp := mload(add(state,STATE_GAMMA_I_Z_T_SI_RI_Z_Y))
       tmp := sub(P_MOD,tmp)
-      mstore(add(state,STATE_GAMMA_I_Z_T_SI_RI_Z_X),tmp)
+      mstore(add(state,STATE_GAMMA_I_Z_T_SI_RI_Z_Y),tmp)
       tmp := mload(add(state,STATE_Z_T_Z_W_Y))
       tmp := sub(P_MOD,tmp)
       mstore(add(state,STATE_Z_T_Z_W_Y), tmp)
-      let f := mload(add(state,STATE_F_X))
+      let f := add(state,STATE_F_X)
       point_add(f, add(state,STATE_GAMMA_I_Z_T_SI_COM_I_X),add(state,STATE_GAMMA_I_Z_T_SI_RI_Z_X), mPtr)
       point_add(f, f, add(state,STATE_Z_T_Z_W_X), mPtr)
     }
