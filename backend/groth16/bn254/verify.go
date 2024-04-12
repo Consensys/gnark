@@ -146,6 +146,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 // See https://github.com/ConsenSys/gnark-tests for example usage.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	helpers := template.FuncMap{
+		"sum": func(a, b int) int {
+			return a + b
+		},
 		"sub": func(a, b int) int {
 			return a - b
 		},
@@ -159,6 +162,13 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 			}
 			return out
 		},
+	}
+
+	log := logger.Logger()
+	if len(vk.PublicAndCommitmentCommitted) > 1 {
+		log.Warn().Msg("exporting solidity verifier with more than one commitment is not supported")
+	} else if len(vk.PublicAndCommitmentCommitted) == 1 {
+		log.Warn().Msg("exporting solidity verifier only supports `sha256` as `HashToField`. The generated contract may not work for proofs generated with other hash functions.")
 	}
 
 	tmpl, err := template.New("").Funcs(helpers).Parse(solidityTemplate)
