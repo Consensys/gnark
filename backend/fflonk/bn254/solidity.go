@@ -194,7 +194,7 @@ contract PlonkVerifier {
     derive_challenges_shplonk(proof.offset)
     batch_compute_li_shplonk_at_z(free_mem)
     build_ri_z(proof.offset, free_mem)
-    batch_open_shplonk(proof.offset, free_mem)
+    batch_open_shplonk(proof.offset)
 
 		// Beginning errors -------------------------------------------------
 
@@ -837,15 +837,6 @@ contract PlonkVerifier {
     }
 
     // Beginning fflonk verification -------------------------------------------------
-    function batch_open_shplonk(aproof, mPtr) {
-      let state := mload(0x40)
-      compute_zt_minus_si()
-      compute_com_gamma_i_z_t_si_ri_z(add(state,STATE_LAST_MEM))
-      compute_zt_w(aproof,mPtr)
-      compute_gamma_i_z_t_si_com_i(aproof,mPtr)
-      mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_GAMMA_I_Z_T_SI_COM_I_X)))
-    }
-
     function check_consistency_claimed_values(aproof) {
       let w := 1
       let state := mload(0x40)
@@ -882,6 +873,30 @@ contract PlonkVerifier {
       {{ range $index, $element := .CommitmentConstraintIndexes -}}
       point_add_calldata(state_entangled_commitment_x, state_entangled_commitment_x, add(aproof, PROOF_BSB_{{ $index }}_X), mPtr)
       {{ end -}}
+    }
+
+    function batch_open_shplonk(aproof) {
+      let state := mload(0x40)
+      let mPtr := add(state, STATE_LAST_MEM)
+      compute_zt_minus_si()
+      compute_com_gamma_i_z_t_si_ri_z(mPtr)
+      compute_zt_w(aproof,mPtr)
+      compute_gamma_i_z_t_si_com_i(aproof,mPtr)
+      compute_f(mPtr)
+      mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_F_X)))
+    }
+
+    function compute_f(mPtr) {
+      let state := mload(0x40)
+      let tmp := mload(add(state,STATE_GAMMA_I_Z_T_SI_RI_Z_X))
+      tmp := sub(P_MOD,tmp)
+      mstore(add(state,STATE_GAMMA_I_Z_T_SI_RI_Z_X),tmp)
+      tmp := mload(add(state,STATE_Z_T_Z_W_Y))
+      tmp := sub(P_MOD,tmp)
+      mstore(add(state,STATE_Z_T_Z_W_Y), tmp)
+      let f := mload(add(state,STATE_F_X))
+      point_add(f, add(state,STATE_GAMMA_I_Z_T_SI_COM_I_X),add(state,STATE_GAMMA_I_Z_T_SI_RI_Z_X), mPtr)
+      point_add(f, f, add(state,STATE_Z_T_Z_W_X), mPtr)
     }
 
     function compute_zt_minus_si() {
