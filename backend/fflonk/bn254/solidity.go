@@ -23,7 +23,7 @@ pragma solidity ^0.8.19;
 contract PlonkVerifier {
 
   uint256 private constant R_MOD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-  uint256 private constant R_MOD_MINUS_ONE = 21888242871839275222246405745257275088548364400416034343698204186575808495616;
+  uint256 private constant R_MOD_MINUcompute_pairingS_ONE = 21888242871839275222246405745257275088548364400416034343698204186575808495616;
   uint256 private constant P_MOD = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
   {{- range $index, $element := .Kzg.G2 }}
   uint256 private constant G2_SRS_{{ $index }}_X_0 = {{ (fpstr $element.X.A1) }};
@@ -195,6 +195,7 @@ contract PlonkVerifier {
     batch_compute_li_shplonk_at_z(free_mem)
     build_ri_z(proof.offset, free_mem)
     batch_open_shplonk(proof.offset)
+    success := mload(add(mem, STATE_SUCCESS))
 
 		// Beginning errors -------------------------------------------------
 
@@ -897,7 +898,6 @@ contract PlonkVerifier {
       tmp := sub(P_MOD, tmp)
       mstore(add(state,STATE_F_Y),tmp)
       compute_pairing(aproof, mPtr)
-      mstore(add(state,STATE_CHECK_VAR), mload(add(state,STATE_F_Y)))
     }
 
     function compute_pairing(aproof, mPtr) {
@@ -914,10 +914,12 @@ contract PlonkVerifier {
       mstore(add(mPtr, 0x120), G2_SRS_1_X_1)
       mstore(add(mPtr, 0x140), G2_SRS_1_Y_0)
       mstore(add(mPtr, 0x160), G2_SRS_1_Y_1)
-      let l_success := staticcall(gas(), 8, mPtr, 0x180, 0x00, 0x20)
+      let l_success := staticcall(gas(), EC_PAIRING, mPtr, 0x180, 0x00, 0x20)
       if iszero(l_success) {
         error_pairing()
       }
+      let res_pairing := mload(0x00)
+      mstore(add(state, STATE_SUCCESS), res_pairing)
     }
 
     function compute_f(mPtr) {
@@ -1079,7 +1081,7 @@ contract PlonkVerifier {
 
 	}
 
-	return true;
+	// return true;
 
   }
 }
