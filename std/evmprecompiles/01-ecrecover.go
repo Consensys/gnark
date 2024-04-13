@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -112,7 +111,14 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	// compute u2 = s * r^{-1} mod fr
 	u2 := frField.Div(&s, &r)
 	// compute public key in circuit C = u1 * G + u2 R
-	C := curve.JointScalarMulBase(&R, u2, u1, algopts.WithCompleteArithmetic())
+	//
+	// in case the public key is expected to be zero, then we add -1 to u1 to
+	// avoid falling to incomplete edge case in scalar multiplication. Otherwise we add 0.
+	u1 = frField.Add(u1, frField.Neg(frField.Select(pIsZero, frField.One(), frField.Zero())))
+	C := curve.JointScalarMulBase(&R, u2, u1)
+	// now, when we added -1 to u1, we also need to add the generator to the
+	// computed public key. Otherwise, we add zero.
+	C = curve.AddUnified(C, curve.Select(pIsZero, curve.Generator(), &sw_emulated.AffinePoint[emulated.Secp256k1Fp]{X: *fpField.Zero(), Y: *fpField.Zero()}))
 	// check that the in-circuit computed public key corresponds to the hint
 	// public key if it is not a QNR failure.
 	xIsEqual := fpField.IsZero(fpField.Sub(&C.X, &P.X))
