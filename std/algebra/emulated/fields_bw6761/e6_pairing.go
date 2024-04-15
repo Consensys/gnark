@@ -198,6 +198,33 @@ func (e Ext6) Mul014By014(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	return [5]*baseEl{zC0B0, x01, x1, x04, x14}
 }
 
+// MulBy01245 multiplies z by an E6 sparse element of the form
+//
+//	E6{
+//		B0: E3{A0: c0, A1: c1, A2: c2},
+//		B1: E3{A0: 0, A1: c4, A2: c5},
+//	}
+func (e *Ext6) MulBy01245(z *E6, x [5]*baseEl) *E6 {
+	c0 := &E3{A0: *x[0], A1: *x[1], A2: *x[2]}
+	a := e.Ext3.Add(&z.B0, &z.B1)
+	b := &E3{
+		A0: c0.A0,
+		A1: *e.fp.Add(&c0.A1, x[3]),
+		A2: *e.fp.Add(&c0.A2, x[4]),
+	}
+	a = e.Ext3.Mul(a, b)
+	b = e.Ext3.Mul(&z.B0, c0)
+	c := e.Ext3.MulBy12(&z.B1, x[3], x[4])
+	z1 := e.Ext3.Sub(a, b)
+	z1 = e.Ext3.Sub(z1, c)
+	z0 := e.Ext3.MulByNonResidue(c)
+	z0 = e.Ext3.Add(z0, b)
+	return &E6{
+		B0: *z0,
+		B1: *z1,
+	}
+}
+
 // Mul01245By014 multiplies two E6 sparse element of the form
 //
 //	E6{
