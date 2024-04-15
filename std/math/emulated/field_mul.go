@@ -499,10 +499,13 @@ func (f *Field[T]) mulNoReduce(a, b *Element[T], nextoverflow uint) *Element[T] 
 // number of limbs and zero overflow.
 func (f *Field[T]) Exp(base, exp *Element[T]) *Element[T] {
 	expBts := f.ToBits(exp)
-	res := f.One()
-	for i := range expBts {
+	n := len(expBts)
+	res := f.Select(expBts[0], base, f.One())
+	base = f.Mul(base, base)
+	for i := 1; i < n-1; i++ {
 		res = f.Select(expBts[i], f.Mul(base, res), res)
 		base = f.Mul(base, base)
 	}
+	res = f.Select(expBts[n-1], f.Mul(base, res), res)
 	return res
 }

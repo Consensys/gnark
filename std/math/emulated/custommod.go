@@ -87,10 +87,13 @@ func (f *Field[T]) ModAssertIsEqual(a, b *Element[T], modulus *Element[T]) {
 // NB! circuit complexity depends on T rather on the actual length of the modulus.
 func (f *Field[T]) ModExp(base, exp, modulus *Element[T]) *Element[T] {
 	expBts := f.ToBits(exp)
-	res := f.One()
-	for i := range expBts {
+	n := len(expBts)
+	res := f.Select(expBts[0], base, f.One())
+	base = f.ModMul(base, base, modulus)
+	for i := 1; i < n-1; i++ {
 		res = f.Select(expBts[i], f.ModMul(base, res, modulus), res)
 		base = f.ModMul(base, base, modulus)
 	}
+	res = f.Select(expBts[n-1], f.ModMul(base, res, modulus), res)
 	return res
 }
