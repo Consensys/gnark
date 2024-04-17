@@ -112,17 +112,20 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	u2 := frField.Div(&s, &r)
 	// compute public key in circuit C = u1 * G + u2 R
 	//
-	// in case the public key is expected to be zero, then we add -1 to u1 to
+	// in case the public key is expected to be zero, then we add 1 to u1 to
 	// avoid falling to incomplete edge case in scalar multiplication. Otherwise we add 0.
-	u1 = frField.Add(u1, frField.Neg(frField.Select(pIsZero, frField.One(), frField.Zero())))
+	u1 = frField.Add(u1, frField.Select(pIsZero, frField.One(), frField.Zero()))
 	C := curve.JointScalarMulBase(&R, u2, u1)
-	// now, when we added -1 to u1, we also need to add the generator to the
-	// computed public key. Otherwise, we add zero.
-	C = curve.AddUnified(C, curve.Select(pIsZero, curve.Generator(), &sw_emulated.AffinePoint[emulated.Secp256k1Fp]{X: *fpField.Zero(), Y: *fpField.Zero()}))
 	// check that the in-circuit computed public key corresponds to the hint
 	// public key if it is not a QNR failure.
-	xIsEqual := fpField.IsZero(fpField.Sub(&C.X, &P.X))
-	yIsEqual := fpField.IsZero(fpField.Sub(&C.Y, &P.Y))
+	//
+	// now, when we added 1 to u1, then the computed public key should be
+	// generator (as we only add 1 when pIsZero=1). Instead of needing to
+	// subtract G using complete arithmetic, we switch between G and the
+	// computed public key.
+	condP := curve.Select(pIsZero, curve.Generator(), &P)
+	xIsEqual := fpField.IsZero(fpField.Sub(&C.X, &condP.X))
+	yIsEqual := fpField.IsZero(fpField.Sub(&C.Y, &condP.Y))
 	isEqual := api.Mul(xIsEqual, yIsEqual)
 	api.AssertIsEqual(isEqual, api.Sub(1, isQNRFailure))
 	// check that the result is zero if isFailure is true. This holds because in
