@@ -10,10 +10,18 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-// TODO: reorder initializations of curve and emulated fields to the beggining of the method
-// TODO: add newlines to structure different parts better
-
 // ECRecover implements [ECRECOVER] precompile contract at address 0x01.
+//
+// The method allows checking both the transaction signatures and ECRecover
+// precompile calls. The difference between TX signature verification and
+// ECRecover precompile call is that there is additional check for s <= (Fr-1)/2
+// in the former case. To enforce this check, the strictRange variable should be
+// set to 1.
+//
+// The isFailure variable is set to 1 when the inputs are expected to be invalid
+// in the context of ECRecover. The failure cases are:
+//  1. The public key is zero.
+//  2. The value r^3 + 7 is not a quadratic residue.
 //
 // [ECRECOVER]: https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/ecrecover/index.html
 func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
