@@ -14,8 +14,7 @@ import (
 // upper bounding the sizes of the inputs. The runtime is constant regardless of
 // the actual length of the inputs.
 //
-// [MODEXP]:
-// https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/expmod/index.html
+// [MODEXP]: https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/expmod/index.html
 func Expmod(api frontend.API, base, exp, modulus *emulated.Element[emparams.Mod1e4096]) *emulated.Element[emparams.Mod1e4096] {
 	// x^0 = 1
 	// x mod 0 = 0
