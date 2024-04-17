@@ -138,9 +138,9 @@ func ECRecover(api frontend.API, msg emulated.Element[emulated.Secp256k1Fr],
 	api.AssertIsEqual(isEqual, api.Sub(1, isQNRFailure))
 	// check that the result is zero if isFailure is true. This holds because in
 	// case of any failure the returned public key from hint is zero.
-	xIsZero := fpField.IsZero(&P.X)
-	yIsZero := fpField.IsZero(&P.Y)
-	isZero := api.Mul(xIsZero, yIsZero)
+	isZero := fpField.IsZero(&P.X)
+	// yIsZero := fpField.IsZero(&P.Y)
+	// isZero := api.Mul(xIsZero, yIsZero)
 	api.AssertIsEqual(isZero, isFailure)
 	// when there was a QNR failure then the computed public key C is random. We
 	// only check for zero public key failure in case of no QNR failure.
