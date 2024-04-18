@@ -566,7 +566,7 @@ contract Verifier {
             {{- end }}
 
             publicCommitments[{{$i}}] = uint256(
-                sha256(
+                {{ hashFnName }}(
                     abi.encodePacked(
                         commitments[{{mul $i 2}}],
                         commitments[{{sum (mul $i 2) 1}}],
@@ -713,7 +713,7 @@ contract Verifier {
         {{- end }}
 
             publicCommitments[{{$i}}] = uint256(
-                sha256(
+                {{ hashFnName }}(
                     abi.encodePacked(
                         commitments[{{mul $i 2}}],
                         commitments[{{sum (mul $i 2) 1}}],
