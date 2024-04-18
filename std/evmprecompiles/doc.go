@@ -4,7 +4,7 @@
 // easier integration. The main functionality is implemented elsewhere. This
 // package right now implements:
 //  1. ECRECOVER ✅ -- function [ECRecover]
-//  2. SHA256 ❌ -- in progress
+//  2. SHA256 ✅ -- function [SHA256Permute]
 //  3. RIPEMD160 ❌ -- postponed
 //  4. ID ❌ -- trivial to implement without function
 //  5. EXPMOD ✅ -- function [Expmod]
