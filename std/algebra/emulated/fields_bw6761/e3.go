@@ -249,44 +249,90 @@ func (e Ext3) Mul01By01(c0, c1, d0, d1 *baseEl) *E3 {
 }
 
 func (e Ext3) Mul(x, y *E3) *E3 {
-	// Algorithm 13 from https://eprint.iacr.org/2010/354.pdf
-	t0 := e.fp.Mul(&x.A0, &y.A0)
-	t1 := e.fp.Mul(&x.A1, &y.A1)
-	t2 := e.fp.Mul(&x.A2, &y.A2)
+	// Toom-Cook-3x:
+	// We start by computing five interpolation points – these are evaluations of
+	// the product x(u)y(u) with u ∈ {0, ±1, 2, ∞}:
+	//
+	// v0 = x(0)y(0) = x.A0 * y.A0
+	// v1 = x(1)y(1) = (x.A0 + x.A1 + x.A2)(y.A0 + y.A1 + y.A2)
+	// v2 = x(−1)y(−1) = (x.A0 − x.A1 + x.A2)(y.A0 − y.A1 + y.A2)
+	// v3 = x(2)y(2) = (x.A0 + 2x.A1 + 4x.A2)(y.A0 + 2y.A1 + 4y.A2)
+	// v4 = x(∞)y(∞) = x.A2 * y.A2
+	//
+	// Then the interpolation is performed as:
+	//
+	// a0 = v0 + β((1/2)v0 − (1/2)v1 − (1/6)v2 + (1/6)v3 − 2v4)
+	// a1 = −(1/2)v0 + v1 − (1/3)v2 − (1/6)v3 + 2v4 + βv4
+	// a2 = −v0 + (1/2)v1 + (1/2)v2 − v4
+	//
+	// where is β=-4 the cubic non-residue (mulFpByNonResidue).
+	//
+	// In-circuit, we compute 6*x*y as
+	// a0 = 6v0 - β(3(v0 + v1 + 4v4) + v2 - v3)
+	// a1 = -(3v0 + 2v2 + v3) + 6(v1 + 2v4 + βv4)
+	// a2 = 3(v1 + v2 - 2(v0 + v4))
+	//
+	// and then divide a0, a1 and a2 by 6 using a hint.
+	//
+	// This costs 5M + 22A.
 
-	c0 := e.fp.Add(&x.A1, &x.A2)
-	tmp := e.fp.Add(&y.A1, &y.A2)
-	c0 = e.fp.Mul(c0, tmp)
-	c0 = e.fp.Sub(c0, t1)
-	c0 = e.fp.Sub(t2, c0)
-	c0 = e.fp.MulConst(c0, big.NewInt(4))
+	v0 := e.fp.Mul(&x.A0, &y.A0)
+	t1 := e.fp.Add(&x.A0, &x.A2)
+	t2 := e.fp.Add(&y.A0, &y.A2)
+	t3 := e.fp.Add(t2, &y.A1)
+	v1 := e.fp.Add(t1, &x.A1)
+	v1 = e.fp.Mul(v1, t3)
+	t3 = e.fp.Sub(t2, &y.A1)
+	v2 := e.fp.Sub(t1, &x.A1)
+	v2 = e.fp.Mul(v2, t3)
+	t1 = e.fp.MulConst(&x.A1, big.NewInt(2))
+	t2 = e.fp.MulConst(&x.A2, big.NewInt(4))
+	v3 := e.fp.Add(t1, t2)
+	v3 = e.fp.Add(v3, &x.A0)
+	t1 = e.fp.MulConst(&y.A1, big.NewInt(2))
+	t2 = e.fp.MulConst(&y.A2, big.NewInt(4))
+	t3 = e.fp.Add(t1, t2)
+	v3 = e.fp.Mul(v3, t3)
+	v4 := e.fp.Mul(&x.A2, &y.A2)
 
-	tmp = e.fp.Add(&x.A0, &x.A2)
-	c2 := e.fp.Add(&y.A0, &y.A2)
-	c2 = e.fp.Mul(c2, tmp)
-	c2 = e.fp.Sub(c2, t0)
-	c2 = e.fp.Sub(c2, t2)
+	a0 := e.fp.Add(v0, v1)
+	a0 = e.fp.MulConst(a0, big.NewInt(3))
+	a0 = e.fp.Add(a0, v2)
+	a0 = e.fp.Sub(a0, v3)
+	t1 = e.fp.MulConst(v4, big.NewInt(12))
+	a0 = e.fp.Add(a0, t1)
+	a0 = e.fp.MulConst(a0, big.NewInt(4))
+	t1 = e.fp.MulConst(v0, big.NewInt(6))
+	a0 = e.fp.Add(a0, t1)
 
-	c1 := e.fp.Add(&x.A0, &x.A1)
-	tmp = e.fp.Add(&y.A0, &y.A1)
-	c1 = e.fp.Mul(c1, tmp)
-	c1 = e.fp.Sub(c1, t0)
-	c1 = e.fp.Sub(c1, t1)
-	t2 = mulFpByNonResidue(e.fp, t2)
+	t1 = e.fp.MulConst(v0, big.NewInt(3))
+	t2 = e.fp.MulConst(v2, big.NewInt(2))
+	t1 = e.fp.Add(t1, t2)
+	t1 = e.fp.Add(t1, v3)
+	a1 := e.fp.MulConst(v4, big.NewInt(4))
+	a1 = e.fp.Sub(v1, a1)
+	t2 = e.fp.MulConst(v4, big.NewInt(2))
+	a1 = e.fp.Add(a1, t2)
+	a1 = e.fp.MulConst(a1, big.NewInt(6))
+	a1 = e.fp.Sub(a1, t1)
 
-	a0 := e.fp.Add(c0, t0)
-	a1 := e.fp.Add(c1, t2)
-	a2 := e.fp.Add(c2, t1)
+	t1 = e.fp.Add(v0, v4)
+	t1 = e.fp.MulConst(t1, big.NewInt(2))
+	a2 := e.fp.Add(v1, v2)
+	a2 = e.fp.Sub(a2, t1)
+	a2 = e.fp.MulConst(a2, big.NewInt(3))
 
-	return &E3{
-		A0: *a0,
-		A1: *a1,
-		A2: *a2,
-	}
+	// sixInv := emulated.ValueOf[emulated.BW6761Fp]("5742875320263110449497324735229714618733057427113458424594825133508019518536243113406402652741176406367387139794822177875968132600461873132791259749271084665793004249482090708643786359519663996626583083691640927368970760932556916")
+	// return e.MulByElement(&E3{A0: *a0, A1: *a1, A2: *a2}, &sixInv)
+
+	return e.divE3By6(
+		&E3{A0: *a0, A1: *a1, A2: *a2},
+	)
 }
 
 func (e Ext3) Square(x *E3) *E3 {
 
+	// TODO: Chung-Hasan-2 instead of Karatsuba
 	// Algorithm 16 from https://eprint.iacr.org/2010/354.pdf
 
 	c6 := e.fp.MulConst(&x.A1, big.NewInt(2))
@@ -357,6 +403,26 @@ func (e Ext3) DivUnchecked(x, y *E3) *E3 {
 
 	return &div
 
+}
+
+func (e Ext3) divE3By6(x *E3) *E3 {
+	res, err := e.fp.NewHint(divE3By6Hint, 3, &x.A0, &x.A1, &x.A2)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	y := E3{
+		A0: *res[0],
+		A1: *res[1],
+		A2: *res[2],
+	}
+
+	// x == 6 * y
+	_x := e.MulByConstElement(&y, big.NewInt(6))
+	e.AssertIsEqual(x, _x)
+
+	return &y
 }
 
 // MulByNonResidue mul x by (0,1,0)
