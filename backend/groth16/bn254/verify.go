@@ -17,9 +17,12 @@
 package groth16
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	"golang.org/x/crypto/sha3"
 	"io"
 	"math/big"
 	"text/template"
@@ -151,6 +154,32 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 //
 // See https://github.com/ConsenSys/gnark-tests for example usage.
 func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
+	cfg, err := solidity.NewExportConfig(exportOpts...)
+	log := logger.Logger()
+	if err != nil {
+		return err
+	}
+	if cfg.HashToFieldFn == nil {
+		// set the target hash function to legacy keccak256 as it is the default for `solidity.WithTargetSolidityVerifier``
+		cfg.HashToFieldFn = sha3.NewLegacyKeccak256()
+		log.Debug().Msg("hash to field function not set, using keccak256 as default")
+	}
+	// a bit hacky way to understand what hash function is provided. We already
+	// receive instance of hash function but it is difficult to compare it with
+	// sha256.New() or sha3.NewLegacyKeccak256() directly.
+	//
+	// So, we hash an empty input and compare the outputs.
+	cfg.HashToFieldFn.Reset()
+	hashBts := cfg.HashToFieldFn.Sum(nil)
+	var hashFnName string
+	if bytes.Equal(hashBts, sha256.New().Sum(nil)) {
+		hashFnName = "sha256"
+	} else if bytes.Equal(hashBts, sha3.NewLegacyKeccak256().Sum(nil)) {
+		hashFnName = "keccak256"
+	} else {
+		return fmt.Errorf("unsupported hash function used, only supported sha256 and legacy keccak256")
+	}
+	cfg.HashToFieldFn.Reset()
 	helpers := template.FuncMap{
 		"sum": func(a, b int) int {
 			return a + b
@@ -173,9 +202,11 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 			x.BigInt(bv)
 			return bv.String()
 		},
+		"hashFnName": func() string {
+			return hashFnName
+		},
 	}
 
-	log := logger.Logger()
 	if len(vk.PublicAndCommitmentCommitted) > 1 {
 		log.Warn().Msg("exporting solidity verifier with more than one commitment is not supported")
 	} else if len(vk.PublicAndCommitmentCommitted) == 1 {
@@ -194,11 +225,6 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 	vk.G2.Beta = betaNeg
 	vk.G2.Gamma, vk.G2.gammaNeg = vk.G2.gammaNeg, vk.G2.Gamma
 	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
-
-	cfg, err := solidity.NewExportConfig(exportOpts...)
-	if err != nil {
-		return err
-	}
 
 	// execute template
 	err = tmpl.Execute(w, struct {
