@@ -268,13 +268,18 @@ func (e Ext3) Mul(x, y *E3) *E3 {
 	// where is β=-4 the cubic non-residue (mulFpByNonResidue).
 	//
 	// In-circuit, we compute 6*x*y as
-	// a0 = 6v0 - β(3(v0 + v1 + 4v4) + v2 - v3)
+	// a0 = 6v0 - β(3(v1 - v0 + 4v4) + v2 - v3)
 	// a1 = -(3v0 + 2v2 + v3) + 6(v1 + 2v4 + βv4)
 	// a2 = 3(v1 + v2 - 2(v0 + v4))
 	//
 	// and then divide a0, a1 and a2 by 6 using a hint.
 	//
 	// This costs 5M + 22A.
+
+	two := big.NewInt(2)
+	three := big.NewInt(3)
+	four := big.NewInt(4)
+	six := big.NewInt(6)
 
 	v0 := e.fp.Mul(&x.A0, &y.A0)
 	t1 := e.fp.Add(&x.A0, &x.A2)
@@ -285,45 +290,41 @@ func (e Ext3) Mul(x, y *E3) *E3 {
 	t3 = e.fp.Sub(t2, &y.A1)
 	v2 := e.fp.Sub(t1, &x.A1)
 	v2 = e.fp.Mul(v2, t3)
-	t1 = e.fp.MulConst(&x.A1, big.NewInt(2))
-	t2 = e.fp.MulConst(&x.A2, big.NewInt(4))
+	t1 = e.fp.MulConst(&x.A1, two)
+	t2 = e.fp.MulConst(&x.A2, four)
 	v3 := e.fp.Add(t1, t2)
 	v3 = e.fp.Add(v3, &x.A0)
-	t1 = e.fp.MulConst(&y.A1, big.NewInt(2))
-	t2 = e.fp.MulConst(&y.A2, big.NewInt(4))
+	t1 = e.fp.MulConst(&y.A1, two)
+	t2 = e.fp.MulConst(&y.A2, four)
 	t3 = e.fp.Add(t1, t2)
+	t3 = e.fp.Add(t3, &y.A0)
 	v3 = e.fp.Mul(v3, t3)
 	v4 := e.fp.Mul(&x.A2, &y.A2)
 
-	a0 := e.fp.Add(v0, v1)
-	a0 = e.fp.MulConst(a0, big.NewInt(3))
-	a0 = e.fp.Add(a0, v2)
-	a0 = e.fp.Sub(a0, v3)
-	t1 = e.fp.MulConst(v4, big.NewInt(12))
+	a0 := e.fp.Sub(v1, v0)
+	t1 = e.fp.MulConst(v4, four)
 	a0 = e.fp.Add(a0, t1)
-	a0 = e.fp.MulConst(a0, big.NewInt(4))
-	t1 = e.fp.MulConst(v0, big.NewInt(6))
+	a0 = e.fp.MulConst(a0, three)
+	a0 = e.fp.Sub(a0, v3)
+	a0 = e.fp.Add(a0, v2)
+	a0 = e.fp.MulConst(a0, four)
+	t1 = e.fp.MulConst(v0, six)
 	a0 = e.fp.Add(a0, t1)
 
-	t1 = e.fp.MulConst(v0, big.NewInt(3))
-	t2 = e.fp.MulConst(v2, big.NewInt(2))
+	t1 = e.fp.MulConst(v0, three)
+	t2 = e.fp.MulConst(v2, two)
 	t1 = e.fp.Add(t1, t2)
 	t1 = e.fp.Add(t1, v3)
-	a1 := e.fp.MulConst(v4, big.NewInt(4))
+	a1 := e.fp.MulConst(v4, two)
 	a1 = e.fp.Sub(v1, a1)
-	t2 = e.fp.MulConst(v4, big.NewInt(2))
-	a1 = e.fp.Add(a1, t2)
-	a1 = e.fp.MulConst(a1, big.NewInt(6))
+	a1 = e.fp.MulConst(a1, six)
 	a1 = e.fp.Sub(a1, t1)
 
 	t1 = e.fp.Add(v0, v4)
-	t1 = e.fp.MulConst(t1, big.NewInt(2))
+	t1 = e.fp.MulConst(t1, two)
 	a2 := e.fp.Add(v1, v2)
 	a2 = e.fp.Sub(a2, t1)
-	a2 = e.fp.MulConst(a2, big.NewInt(3))
-
-	// sixInv := emulated.ValueOf[emulated.BW6761Fp]("5742875320263110449497324735229714618733057427113458424594825133508019518536243113406402652741176406367387139794822177875968132600461873132791259749271084665793004249482090708643786359519663996626583083691640927368970760932556916")
-	// return e.MulByElement(&E3{A0: *a0, A1: *a1, A2: *a2}, &sixInv)
+	a2 = e.fp.MulConst(a2, three)
 
 	return e.divE3By6(
 		&E3{A0: *a0, A1: *a1, A2: *a2},
@@ -331,8 +332,6 @@ func (e Ext3) Mul(x, y *E3) *E3 {
 }
 
 func (e Ext3) Square(x *E3) *E3 {
-
-	// TODO: Chung-Hasan-2 instead of Karatsuba
 	// Algorithm 16 from https://eprint.iacr.org/2010/354.pdf
 
 	c6 := e.fp.MulConst(&x.A1, big.NewInt(2))
