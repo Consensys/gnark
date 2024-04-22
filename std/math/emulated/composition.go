@@ -66,7 +66,10 @@ func decompose(input *big.Int, nbBits uint, res []*big.Int) error {
 //
 // then no such underflow happens and s = a-b (mod p) as the padding is multiple
 // of p.
-func subPadding(modulus *big.Int, bitsPerLimbs uint, overflow uint, nbLimbs uint) []*big.Int {
+func subPadding[T FieldParams](overflow uint, nbLimbs uint) []*big.Int {
+	var fp T
+	p := fp.Modulus()
+	bitsPerLimbs := fp.BitsPerLimb()
 
 	// first, we build a number nLimbs, such that nLimbs > b;
 	// here b is defined by its bounds, that is b is an element with nbLimbs of (bitsPerLimbs+overflow)
@@ -83,8 +86,8 @@ func subPadding(modulus *big.Int, bitsPerLimbs uint, overflow uint, nbLimbs uint
 		panic(fmt.Sprintf("recompose: %v", err))
 	}
 	// mod reduce n, and negate it
-	n.Mod(n, modulus)
-	n.Sub(modulus, n)
+	n.Mod(n, p)
+	n.Sub(p, n)
 
 	// construct pad such that:
 	// pad := n - neg(n mod p) == kp

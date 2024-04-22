@@ -541,36 +541,17 @@ contract Verifier {
             }
             {{- end}}
             (uint256 Px, uint256 Py) = decompress_g1(compressedCommitmentPok);
-
-            uint256[] memory publicAndCommitmentCommitted;
             {{- range $i := intRange $numCommitments }}
-            {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
-            {{- if gt (len $pcIndex) 0 }}
-            publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
-            assembly ("memory-safe") {
-                let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
-                {{- $segment_start := index $pcIndex 0 }}
-                {{- $segment_end := index $pcIndex 0 }}
-                {{- $l := 0 }}
-                {{- range $k := intRange (sub (len $pcIndex) 1) }}
-                    {{- $next := index $pcIndex (sum $k 1) }}
-                    {{- if ne $next (sum $segment_end 1) }}
-                calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-                        {{- $segment_start = $next }}
-                        {{- $l = (sum $k 1) }}
-                    {{- end }}
-                    {{- $segment_end = $next }}
-                {{- end }}
-                calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-            }
-            {{- end }}
-
             publicCommitments[{{$i}}] = uint256(
                 sha256(
                     abi.encodePacked(
                         commitments[{{mul $i 2}}],
-                        commitments[{{sum (mul $i 2) 1}}],
-                        publicAndCommitmentCommitted
+                        commitments[{{sum (mul $i 2) 1}}]
+                        {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
+                        {{- range $j := intRange (len $pcIndex) }}
+                        {{- $l := index $pcIndex $j }}
+                        ,input[{{sub $l 1}}]
+                        {{- end }}
                     )
                 )
             ) % R;
@@ -689,35 +670,17 @@ contract Verifier {
         {{- else }}
         // HashToField
         uint256[{{$numCommitments}}] memory publicCommitments;
-        uint256[] memory publicAndCommitmentCommitted;
         {{- range $i := intRange $numCommitments }}
-        {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
-        {{- if gt (len $pcIndex) 0 }}
-        publicAndCommitmentCommitted = new uint256[]({{(len $pcIndex)}});
-        assembly ("memory-safe") {
-            let publicAndCommitmentCommittedOffset := add(publicAndCommitmentCommitted, 0x20)
-            {{- $segment_start := index $pcIndex 0 }}
-            {{- $segment_end := index $pcIndex 0 }}
-            {{- $l := 0 }}
-            {{- range $k := intRange (sub (len $pcIndex) 1) }}
-                {{- $next := index $pcIndex (sum $k 1) }}
-                {{- if ne $next (sum $segment_end 1) }}
-            calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-                    {{- $segment_start = $next }}
-                    {{- $l = (sum $k 1) }}
-                {{- end }}
-                {{- $segment_end = $next }}
-            {{- end }}
-            calldatacopy(add(publicAndCommitmentCommittedOffset, {{mul $l 0x20}}), add(input, {{mul 0x20 (sub $segment_start 1)}}), {{mul 0x20 (sum 1 (sub $segment_end $segment_start))}})
-        }
-        {{- end }}
-
             publicCommitments[{{$i}}] = uint256(
                 sha256(
                     abi.encodePacked(
                         commitments[{{mul $i 2}}],
-                        commitments[{{sum (mul $i 2) 1}}],
-                        publicAndCommitmentCommitted
+                        commitments[{{sum (mul $i 2) 1}}]
+                        {{- $pcIndex := index $PublicAndCommitmentCommitted $i }}
+                        {{- range $j := intRange (len $pcIndex) }}
+                        {{- $l := index $pcIndex $j }}
+                        ,input[{{sub $l 1}}]
+                        {{- end }}
                     )
                 )
             ) % R;

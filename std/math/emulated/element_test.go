@@ -13,7 +13,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
 
@@ -1059,42 +1058,4 @@ func testSum[T FieldParams](t *testing.T) {
 		witness := &SumCircuit[T]{Inputs: inputs, Expected: ValueOf[T](result)}
 		assert.CheckCircuit(circuit, test.WithValidAssignment(witness))
 	}, testName[T]())
-}
-
-type expCircuit[T FieldParams] struct {
-	Base     Element[T]
-	Exp      Element[T]
-	Expected Element[T]
-}
-
-func (c *expCircuit[T]) Define(api frontend.API) error {
-	f, err := NewField[T](api)
-	if err != nil {
-		return fmt.Errorf("new variable modulus: %w", err)
-	}
-	res := f.Exp(&c.Base, &c.Exp)
-	f.AssertIsEqual(&c.Expected, res)
-	return nil
-}
-
-func testExp[T FieldParams](t *testing.T) {
-	var fp T
-	assert := test.NewAssert(t)
-	assert.Run(func(assert *test.Assert) {
-		var circuit expCircuit[T]
-		base, _ := rand.Int(rand.Reader, fp.Modulus())
-		exp, _ := rand.Int(rand.Reader, fp.Modulus())
-		expected := new(big.Int).Exp(base, exp, fp.Modulus())
-		assignment := &expCircuit[T]{
-			Base:     ValueOf[T](base),
-			Exp:      ValueOf[T](exp),
-			Expected: ValueOf[T](expected),
-		}
-		assert.CheckCircuit(&circuit, test.WithValidAssignment(assignment))
-	}, testName[T]())
-}
-func TestExp(t *testing.T) {
-	testExp[Goldilocks](t)
-	testExp[BN254Fr](t)
-	testExp[emparams.Mod1e512](t)
 }
