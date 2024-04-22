@@ -182,7 +182,6 @@ func RegisterHints() {
 	hint.RegisterHint(internal.BreakUpBytesIntoBitsHint)
 	hint.RegisterHint(internal.BreakUpBytesIntoCrumbsHint)
 	hint.RegisterHint(internal.BreakUpBytesIntoHalfHint)
-	hint.RegisterHint(compress.UnpackIntoBytesHint)
 }
 
 // options and other auxiliary input
