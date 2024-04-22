@@ -884,7 +884,6 @@ contract PlonkVerifier {
       function check_pairing_kzg(mPtr) {
         let state := mload(0x40)
 
-        // TODO test the staticcall using the method from audit_4-5
         let l_success := staticcall(gas(), 8, mPtr, 0x180, 0x00, 0x20)
         if iszero(l_success) {
           error_pairing()
