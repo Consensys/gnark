@@ -99,12 +99,14 @@ func TestBLS12InBW6WoCommit(t *testing.T) {
 		Proof:        PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
 		VerifyingKey: circuitVk,
 	}
+	assert.NoError(err)
 	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 	}
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
+
 }
 
 func TestBW6InBN254WoCommit(t *testing.T) {
@@ -401,7 +403,7 @@ func getRandomParametricProof(assert *test.Assert, field, outer *big.Int, ccss [
 	return idx, innerPubWitness, innerProof
 }
 
-type AggregagationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+type AggregationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	BaseKey     BaseVerifyingKey[FR, G1El, G2El] `gnark:"-"`
 	CircuitKeys []CircuitVerifyingKey[FR, G1El]
 	Selectors   []frontend.Variable
@@ -409,7 +411,7 @@ type AggregagationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El
 	Witnesses   []Witness[FR] `gnark:",public"`
 }
 
-func (c *AggregagationCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+func (c *AggregationCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	v, err := NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
@@ -455,7 +457,7 @@ func TestBLS12InBW6Multi(t *testing.T) {
 		circuitWitnesses[i], err = ValueOfWitness[sw_bls12377.ScalarField](innerWitnesses[i])
 		assert.NoError(err)
 	}
-	aggCircuit := &AggregagationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	aggCircuit := &AggregationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		BaseKey:     circuitBvk,
 		CircuitKeys: make([]CircuitVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine], nbCircuits),
 		Selectors:   make([]frontend.Variable, nbProofs),
@@ -469,7 +471,7 @@ func TestBLS12InBW6Multi(t *testing.T) {
 		aggCircuit.Proofs[i] = PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](ccss[0])
 		aggCircuit.Witnesses[i] = PlaceholderWitness[sw_bls12377.ScalarField](ccss[0])
 	}
-	aggAssignment := &AggregagationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	aggAssignment := &AggregationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		CircuitKeys: circuitVks,
 		Selectors:   circuitSelector,
 		Proofs:      circuitProofs,
@@ -479,7 +481,7 @@ func TestBLS12InBW6Multi(t *testing.T) {
 	assert.NoError(err)
 }
 
-type AggregagationCircuitWithHash[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+type AggregationCircuitWithHash[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	BaseKey     BaseVerifyingKey[FR, G1El, G2El] `gnark:"-"`
 	CircuitKeys []CircuitVerifyingKey[FR, G1El]
 	Selectors   []frontend.Variable
@@ -488,7 +490,7 @@ type AggregagationCircuitWithHash[FR emulated.FieldParams, G1El algebra.G1Elemen
 	WitnessHash frontend.Variable
 }
 
-func (c *AggregagationCircuitWithHash[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+func (c *AggregationCircuitWithHash[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	v, err := NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
@@ -572,7 +574,7 @@ func TestBLS12InBW6MultiHashed(t *testing.T) {
 	}
 	digest := h.Sum(nil)
 
-	aggAssignment := &AggregagationCircuitWithHash[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	aggAssignment := &AggregationCircuitWithHash[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		CircuitKeys: circuitVks,
 		Selectors:   circuitSelector,
 		Proofs:      circuitProofs,
@@ -580,7 +582,7 @@ func TestBLS12InBW6MultiHashed(t *testing.T) {
 		WitnessHash: digest,
 	}
 
-	aggCircuit := &AggregagationCircuitWithHash[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	aggCircuit := &AggregationCircuitWithHash[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		BaseKey:     circuitBvk,
 		CircuitKeys: make([]CircuitVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine], nbCircuits),
 		Selectors:   make([]frontend.Variable, nbProofs),
