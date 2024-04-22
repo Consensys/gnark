@@ -2,7 +2,6 @@ package evmprecompiles
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/uints"
@@ -71,19 +70,4 @@ func SHA256Permute(api frontend.API, prevDigest [16]frontend.Variable, block [32
 	for i := range computedDigest {
 		uapi.AssertEq(computedDigest[i], expectedDigestU32[i])
 	}
-}
-
-func uint16ToUint8(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(outputs) != 2*len(inputs) {
-		return fmt.Errorf("invalid number of outputs")
-	}
-	mask := big.NewInt(0xff)
-	for i, v := range inputs {
-		if v.BitLen() > 16 {
-			return fmt.Errorf("input %d is too large", i)
-		}
-		outputs[2*i].And(v, mask)
-		outputs[2*i+1].Rsh(v, 8)
-	}
-	return nil
 }
