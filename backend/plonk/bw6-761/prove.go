@@ -254,8 +254,6 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	} else {
 		s.domain1 = fft.NewDomain(4*sizeSystem, fft.WithoutPrecompute())
 	}
-	// TODO @gbotrel domain1 is used for only 1 FFT → precomputing the twiddles
-	// and storing them in memory is costly given its size. → do a FFT on the fly
 
 	// build trace
 	s.trace = NewTrace(spr, s.domain0)
@@ -1223,8 +1221,6 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 // + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X) + ∑ᵢQcp_(ζ)Pi_(X)
 // - Z_{H}(ζ)*((H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
 func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta, blindedZCanonical []fr.Element, pi2Canonical [][]fr.Element, pk *ProvingKey) []fr.Element {
-
-	// TODO @gbotrel rename
 
 	// l(ζ)r(ζ)
 	var rl fr.Element
