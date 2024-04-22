@@ -163,8 +163,8 @@ func (e Ext3) MulBy01(z *E3, c0, c1 *baseEl) *E3 {
 	t1 := e.fp.Add(c0, c1)
 	tmp = e.fp.Add(&z.A0, &z.A1)
 	t1 = e.fp.Mul(t1, tmp)
-	t1 = e.fp.Sub(t1, a)
-	t1 = e.fp.Sub(t1, b)
+	tmp = e.fp.Add(b, a)
+	t1 = e.fp.Sub(t1, tmp)
 
 	return &E3{
 		A0: *t0,
@@ -239,8 +239,8 @@ func (e Ext3) Mul01By01(c0, c1, d0, d1 *baseEl) *E3 {
 	t1 := e.fp.Add(c0, c1)
 	tmp := e.fp.Add(d0, d1)
 	t1 = e.fp.Mul(t1, tmp)
-	t1 = e.fp.Sub(t1, a)
-	t1 = e.fp.Sub(t1, b)
+	tmp = e.fp.Add(b, a)
+	t1 = e.fp.Sub(t1, tmp)
 	return &E3{
 		A0: *a,
 		A1: *t1,
@@ -249,6 +249,46 @@ func (e Ext3) Mul01By01(c0, c1, d0, d1 *baseEl) *E3 {
 }
 
 func (e Ext3) Mul(x, y *E3) *E3 {
+	return e.MulKaratsuba(x, y)
+}
+
+func (e Ext3) MulKaratsuba(x, y *E3) *E3 {
+	// Algorithm 13 from https://eprint.iacr.org/2010/354.pdf
+	t0 := e.fp.Mul(&x.A0, &y.A0)
+	t1 := e.fp.Mul(&x.A1, &y.A1)
+	t2 := e.fp.Mul(&x.A2, &y.A2)
+
+	c0 := e.fp.Add(&x.A1, &x.A2)
+	tmp := e.fp.Add(&y.A1, &y.A2)
+	c0 = e.fp.Mul(c0, tmp)
+	tmp = e.fp.Add(t2, t1)
+	c0 = e.fp.Sub(c0, tmp)
+	c0 = mulFpByNonResidue(e.fp, c0)
+	c0 = e.fp.Add(c0, t0)
+
+	c1 := e.fp.Add(&x.A0, &x.A1)
+	tmp = e.fp.Add(&y.A0, &y.A1)
+	c1 = e.fp.Mul(c1, tmp)
+	tmp = e.fp.MulConst(t2, big.NewInt(4))
+	tmp = e.fp.Add(tmp, t1)
+	tmp = e.fp.Add(tmp, t0)
+	c1 = e.fp.Sub(c1, tmp)
+
+	c2 := e.fp.Add(&y.A0, &y.A2)
+	tmp = e.fp.Add(&x.A0, &x.A2)
+	c2 = e.fp.Mul(c2, tmp)
+	c2 = e.fp.Add(c2, t1)
+	tmp = e.fp.Add(t2, t0)
+	c2 = e.fp.Sub(c2, tmp)
+
+	return &E3{
+		A0: *c0,
+		A1: *c1,
+		A2: *c2,
+	}
+}
+
+func (e Ext3) MulToomCook3(x, y *E3) *E3 {
 	// Toom-Cook-3x:
 	// We start by computing five interpolation points – these are evaluations of
 	// the product x(u)y(u) with u ∈ {0, ±1, 2, ∞}:
@@ -332,6 +372,7 @@ func (e Ext3) Mul(x, y *E3) *E3 {
 }
 
 func (e Ext3) Square(x *E3) *E3 {
+	// Chung-Hasan (SQR2)
 	// Algorithm 16 from https://eprint.iacr.org/2010/354.pdf
 
 	c6 := e.fp.MulConst(&x.A1, big.NewInt(2))

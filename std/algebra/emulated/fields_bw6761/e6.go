@@ -68,15 +68,16 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 	x = e.Reduce(x)
 	y = e.Reduce(y)
 
-	a := e.Ext3.Add(&x.B0, &x.B1)
-	b := e.Ext3.Add(&y.B0, &y.B1)
-	a = e.Ext3.Mul(a, b)
-	b = e.Ext3.Mul(&x.B0, &y.B0)
-	c := e.Ext3.Mul(&x.B1, &y.B1)
-	b1 := e.Ext3.Sub(a, b)
-	b1 = e.Ext3.Sub(b1, c)
-	b0 := e.Ext3.MulByNonResidue(c)
-	b0 = e.Ext3.Add(b0, b)
+	v0 := e.Ext3.Mul(&x.B0, &y.B0)
+	v1 := e.Ext3.Mul(&x.B1, &y.B1)
+
+	b0 := e.Ext3.MulByNonResidue(v1)
+	b0 = e.Ext3.Add(b0, v0)
+	b1 := e.Ext3.Add(&x.B0, &x.B1)
+	tmp := e.Ext3.Add(&y.B0, &y.B1)
+	b1 = e.Ext3.Mul(b1, tmp)
+	tmp = e.Ext3.Add(v0, v1)
+	b1 = e.Ext3.Sub(b1, tmp)
 
 	return &E6{
 		B0: *b0,
@@ -85,13 +86,18 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 }
 
 func (e Ext6) Square(x *E6) *E6 {
-
-	x = e.Reduce(x)
 	//Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
+	x = e.Reduce(x)
 	c0 := e.Ext3.Sub(&x.B0, &x.B1)
-	c3 := e.Ext3.MulByNonResidue(&x.B1)
-	c3 = e.Ext3.Neg(c3)
-	c3 = e.Ext3.Add(&x.B0, c3)
+	c3 := &E3{
+		A0: x.B1.A2,
+		A1: x.B1.A0,
+		A2: x.B1.A1,
+	}
+	c3.A0 = *e.fp.MulConst(&c3.A0, big.NewInt(4))
+	c3.A0 = *e.fp.Add(&x.B0.A0, &c3.A0)
+	c3.A1 = *e.fp.Sub(&x.B0.A1, &c3.A1)
+	c3.A2 = *e.fp.Sub(&x.B0.A2, &c3.A2)
 	c2 := e.Ext3.Mul(&x.B0, &x.B1)
 	c0 = e.Ext3.Mul(c0, c3)
 	c0 = e.Ext3.Add(c0, c2)
@@ -370,14 +376,14 @@ func (e Ext6) CyclotomicSquare(x *E6) *E6 {
 	t[1] = e.fp.Mul(&x.B0.A0, &x.B0.A0)
 	t[6] = e.fp.Add(&x.B1.A1, &x.B0.A0)
 	t[6] = e.fp.Mul(t[6], t[6])
-	t[6] = e.fp.Sub(t[6], t[0])
-	t[6] = e.fp.Sub(t[6], t[1]) // 2*x4*x0
+	tmp := e.fp.Add(t[0], t[1])
+	t[6] = e.fp.Sub(t[6], tmp) // 2*x4*x0
 	t[2] = e.fp.Mul(&x.B0.A2, &x.B0.A2)
 	t[3] = e.fp.Mul(&x.B1.A0, &x.B1.A0)
 	t[7] = e.fp.Add(&x.B0.A2, &x.B1.A0)
 	t[7] = e.fp.Mul(t[7], t[7])
-	t[7] = e.fp.Sub(t[7], t[2])
-	t[7] = e.fp.Sub(t[7], t[3]) // 2*x2*x3
+	tmp = e.fp.Add(t[2], t[3])
+	t[7] = e.fp.Sub(t[7], tmp) // 2*x2*x3
 	t[4] = e.fp.Mul(&x.B1.A2, &x.B1.A2)
 	t[5] = e.fp.Mul(&x.B0.A1, &x.B0.A1)
 	t[8] = e.fp.Add(&x.B1.A2, &x.B0.A1)
