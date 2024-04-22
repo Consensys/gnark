@@ -46,7 +46,7 @@ func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 	}
 
 	diff := f.Sub(b, a)
-	f.checkZero(diff)
+	f.checkZero(diff, nil)
 }
 
 // AssertIsLessOrEqual ensures that e is less or equal than a. For proper

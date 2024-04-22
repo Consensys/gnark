@@ -1,7 +1,6 @@
 package compress
 
 import (
-	"errors"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress/internal/plonk"
 	"github.com/consensys/gnark/std/hash/mimc"
@@ -71,48 +70,6 @@ func ChecksumPaddedBytes(b []byte, validLength int, hsh hash.Hash, fieldNbBits i
 	return hsh.Sum(nil)
 }
 
-// UnpackIntoBytes construes every element in packed as consisting of bytesPerElem bytes, returning those bytes
-// it DOES NOT prove that the elements in unpacked are actually bytes
-// nbBytes is the number of "valid" bytes according to the padding scheme in https://github.com/Consensys/zkevm-monorepo/blob/main/prover/lib/compressor/blob/blob_maker.go#L299
-// TODO @tabaie @gbotrel move the padding/packing code to gnark or compress
-// the very last non-zero byte in the unpacked stream is meant to encode the number of unused bytes in the last field element used.
-// though UnpackIntoBytes includes that last byte in unpacked, it is not counted in nbBytes
-func UnpackIntoBytes(api frontend.API, bytesPerElem int, packed []frontend.Variable) (unpacked []frontend.Variable, nbBytes frontend.Variable, err error) {
-	if unpacked, err = api.Compiler().NewHint(UnpackIntoBytesHint, bytesPerElem*len(packed), packed...); err != nil {
-		return
-	}
-	found := frontend.Variable(0)
-	nbBytes = frontend.Variable(0)
-	for i := len(unpacked) - 1; i >= 0; i-- {
-
-		z := api.IsZero(unpacked[i])
-
-		lastNonZero := plonk.EvaluateExpression(api, z, found, -1, -1, 1, 1)   // nz - found
-		nbBytes = api.Add(nbBytes, api.Mul(lastNonZero, frontend.Variable(i))) // the last nonzero byte itself is useless
-
-		//api.AssertIsEqual(api.Mul(api.Sub(bytesPerElem-i%bytesPerElem, unpacked[i]), lastNonZero), 0) // sanity check, technically unnecessary TODO @Tabaie make sure it's one constraint only or better yet, remove
-
-		found = plonk.EvaluateExpression(api, z, found, -1, 0, 1, 1) // found ? 1 : nz = nz + found (1 - nz) = 1 - z + found z
-	}
-	return
-}
-
-func UnpackIntoBytesHint(_ *big.Int, ins, outs []*big.Int) error {
-	bytesPerElem := len(outs) / len(ins)
-	if len(ins)*bytesPerElem != len(outs) {
-		return errors.New("in length must divide out length")
-	}
-	_256 := big.NewInt(256)
-	var v big.Int
-	for i := range ins {
-		v.Set(ins[i])
-		for j := bytesPerElem - 1; j >= 0; j-- {
-			v.DivMod(&v, _256, outs[i*bytesPerElem+j])
-		}
-	}
-	return nil
-}
-
 // ReadNum reads the slice c as a big endian number in base radix
 func ReadNum(api frontend.API, c []frontend.Variable, radix *big.Int) frontend.Variable {
 	if len(c) == 0 {
@@ -177,7 +134,7 @@ func NewNumReader(api frontend.API, toRead []frontend.Variable, numNbBits, wordN
 }
 
 func (nr *NumReader) SetNumNbBits(numNbBits int) {
-	wordNbBits := nr.radix.BitLen() - 1 // TODO check
+	wordNbBits := nr.radix.BitLen() - 1
 	wordsPerNum := numNbBits / wordNbBits
 	if wordsPerNum*wordNbBits != numNbBits {
 		panic("numNbBits must be divisible by wordNbBits")

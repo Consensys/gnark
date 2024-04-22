@@ -11,7 +11,6 @@ import (
 
 func main() {
 	compileDecompressionCircuit(800 * 1024)
-	compileDecompressionCircuit(700 * 1024)
 }
 
 func compileDecompressionCircuit(decompressedSize int) {
@@ -27,9 +26,9 @@ func compileDecompressionCircuit(decompressedSize int) {
 	}
 
 	p := profile.Start(profile.WithPath(nameWithUnit + ".pprof"))
-	const compressedSize = 125 * 1024
+	const compressedSize = 127 * 1024
 	cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &decompressionCircuit{
-		Dict:                make([]frontend.Variable, 128*1024),
+		Dict:                make([]frontend.Variable, 64*1024),
 		Compressed:          make([]frontend.Variable, compressedSize),
 		MaxCompressionRatio: float32(decompressedSize) / compressedSize,
 	}, frontend.WithCapacity(100000000))
