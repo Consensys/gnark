@@ -230,7 +230,7 @@ func newCircuitDataForSnark(info constraint.GkrInfo, assignment assignment) circ
 	for i := range circuit {
 		w := info.Circuit[i]
 		circuit[i] = Wire{
-			Gate:            ite(w.IsInput(), Gates[w.Gate], Gate(IdentityGate{})),
+			Gate:            ite(w.IsInput(), Gates[w.GateName], Gate(IdentityGate{})),
 			Inputs:          algo_utils.Map(w.Inputs, circuitAt),
 			nbUniqueOutputs: w.NbUniqueOutputs,
 		}

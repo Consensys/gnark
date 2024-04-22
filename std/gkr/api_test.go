@@ -349,8 +349,8 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 
 	// cheat{
 	gkr.toStore.Circuit = append(gkr.toStore.Circuit, constraint.GkrWire{
-		Gate:   "mimc",
-		Inputs: []int{int(x), int(y)},
+		GateName: "mimc",
+		Inputs:   []int{int(x), int(y)},
 	})
 	gkr.assignments = append(gkr.assignments, nil)
 	z := constraint.GkrVariable(2)
@@ -583,8 +583,8 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 	z = y
 	for i := 0; i < c.mimcDepth; i++ {
 		_gkr.toStore.Circuit = append(_gkr.toStore.Circuit, constraint.GkrWire{
-			Gate:   "mimc",
-			Inputs: []int{int(x), int(z)},
+			GateName: "mimc",
+			Inputs:   []int{int(x), int(z)},
 		})
 		_gkr.assignments = append(_gkr.assignments, nil)
 		z = constraint.GkrVariable(len(_gkr.toStore.Circuit) - 1)

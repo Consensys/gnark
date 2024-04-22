@@ -17,7 +17,7 @@ type InputDependency struct {
 }
 
 type GkrWire struct {
-	Gate            string // TODO: Change to description
+	GateName        string
 	Inputs          []int
 	Dependencies    []InputDependency // nil for input wires
 	NbUniqueOutputs int
@@ -120,7 +120,7 @@ func (d *GkrInfo) Compile(nbInstances int) (GkrPermutations, error) {
 		} // TODO: Check that dependencies and explicit assignments cover all instances
 
 		sorted[newI] = GkrWire{
-			Gate:            oldW.Gate,
+			GateName:        oldW.GateName,
 			Inputs:          algo_utils.Map(oldW.Inputs, wirePermutationAt),
 			Dependencies:    oldW.Dependencies,
 			NbUniqueOutputs: len(uniqueOuts[oldI]),

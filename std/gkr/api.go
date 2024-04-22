@@ -11,8 +11,8 @@ func frontendVarToInt(a constraint.GkrVariable) int {
 
 func (api *API) NamedGate(gate string, in ...constraint.GkrVariable) constraint.GkrVariable {
 	api.toStore.Circuit = append(api.toStore.Circuit, constraint.GkrWire{
-		Gate:   gate,
-		Inputs: algo_utils.Map(in, frontendVarToInt),
+		GateName: gate,
+		Inputs:   algo_utils.Map(in, frontendVarToInt),
 	})
 	api.assignments = append(api.assignments, nil)
 	return constraint.GkrVariable(len(api.toStore.Circuit) - 1)
