@@ -503,7 +503,11 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 	randomNumbers[1] = v.scalarApi.FromBits(binSeed...)
 
 	for i := 2; i < len(randomNumbers); i++ {
-		// TODO use real random numbers, follow the solidity smart contract to know which variables are used as seed
+		// TODO: we can also use random number from the higher level transcript
+		// instead of computing it from the inputs. Currently it is inefficient
+		// as it computes hash of something for which we already have a hash.
+		// Maybe add an option to provide the folding coefficient? See issue
+		// https://github.com/Consensys/gnark/issues/1108
 		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[1], randomNumbers[i-1])
 	}
 	randomPointNumbers := make([]*emulated.Element[FR], len(randomNumbers))

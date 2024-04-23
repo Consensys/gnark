@@ -248,7 +248,7 @@ func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 		if err != nil {
 			return ret, fmt.Errorf("z shifted opening proof value assignment: %w", err)
 		}
-		// TODO: missing bls12-381, bls24315, bn254, bls24317
+		// TODO: missing bls24317
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination: %T", ret)
 	}
