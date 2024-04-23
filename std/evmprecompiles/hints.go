@@ -16,7 +16,7 @@ func init() {
 
 // GetHints returns all the hints used in this package.
 func GetHints() []solver.Hint {
-	return []solver.Hint{recoverPointHint, recoverPublicKeyHint}
+	return []solver.Hint{recoverPointHint, recoverPublicKeyHint, uint16ToUint8}
 }
 
 func recoverPointHintArgs(v frontend.Variable, r emulated.Element[emulated.Secp256k1Fr]) []frontend.Variable {
@@ -92,6 +92,21 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	}
 	if err := decompose(Py, emfp.BitsPerLimb(), outputs[emfp.NbLimbs():2*emfp.NbLimbs()]); err != nil {
 		return fmt.Errorf("decompose y: %w", err)
+	}
+	return nil
+}
+
+func uint16ToUint8(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(outputs) != 2*len(inputs) {
+		return fmt.Errorf("invalid number of outputs")
+	}
+	mask := big.NewInt(0xff)
+	for i, v := range inputs {
+		if v.BitLen() > 16 {
+			return fmt.Errorf("input %d is too large", i)
+		}
+		outputs[2*i].And(v, mask)
+		outputs[2*i+1].Rsh(v, 8)
 	}
 	return nil
 }

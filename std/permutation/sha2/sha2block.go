@@ -16,10 +16,18 @@ var _K = uints.NewU32Array([]uint32{
 })
 
 func Permute(uapi *uints.BinaryField[uints.U32], currentHash [8]uints.U32, p [64]uints.U8) (newHash [8]uints.U32) {
+	var pu32 [16]uints.U32
+	for i := range pu32 {
+		pu32[i] = uapi.PackMSB(p[4*i], p[4*i+1], p[4*i+2], p[4*i+3])
+	}
+	return PermuteU32(uapi, currentHash, pu32)
+}
+
+func PermuteU32(uapi *uints.BinaryField[uints.U32], currentHash [8]uints.U32, p [16]uints.U32) (newHash [8]uints.U32) {
 	var w [64]uints.U32
 
 	for i := 0; i < 16; i++ {
-		w[i] = uapi.PackMSB(p[4*i], p[4*i+1], p[4*i+2], p[4*i+3])
+		w[i] = p[i]
 	}
 
 	for i := 16; i < 64; i++ {
