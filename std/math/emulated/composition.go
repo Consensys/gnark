@@ -23,7 +23,8 @@ func recompose(inputs []*big.Int, nbBits uint, res *big.Int) error {
 		res.Lsh(res, nbBits)
 		res.Add(res, inputs[len(inputs)-i-1])
 	}
-	// TODO @gbotrel mod reduce ?
+	// we do not mod-reduce here as the result is mod-reduced by the caller if
+	// needed. In some places we need non-reduced results.
 	return nil
 }
 

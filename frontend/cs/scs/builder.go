@@ -192,6 +192,13 @@ func (builder *builder) addPlonkConstraint(c sparseR1C, debugInfo ...constraint.
 	if !c.qM.IsZero() && (c.xa == 0 || c.xb == 0) {
 		// TODO this is internal but not easy to detect; if qM is set, but one or both of xa / xb is not,
 		// since wireID == 0 is a valid wire, it may trigger unexpected behavior.
+		//
+		// ivokub: This essentially means we add a constraint which is always
+		// satisfied for any input. It only increases the number of constraints
+		// without adding any real constraints on the inputs. But this is good
+		// to catch unoptimal code on the caller side -- we have found a few
+		// multiplications by zero in field emulation and emulated group
+		// arithmetic. And this has allowed to optimize the implementation.
 		log := logger.Logger()
 		log.Warn().Msg("adding a plonk constraint with qM set but xa or xb == 0 (wire 0)")
 	}

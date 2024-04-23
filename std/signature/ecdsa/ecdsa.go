@@ -34,7 +34,6 @@ type PublicKey[Base, Scalar emulated.FieldParams] sw_emulated.AffinePoint[Base]
 func (pk PublicKey[T, S]) Verify(api frontend.API, params sw_emulated.CurveParams, msg *emulated.Element[S], sig *Signature[S]) {
 	cr, err := sw_emulated.New[T, S](api, params)
 	if err != nil {
-		// TODO: softer handling.
 		panic(err)
 	}
 	scalarApi, err := emulated.NewField[S](api)
