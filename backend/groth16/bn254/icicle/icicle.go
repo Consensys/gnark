@@ -1,17 +1,16 @@
 //go:build icicle
 
-package icicle_bn254
+package icicle
 
 import (
 	"fmt"
 	"math/big"
 	"math/bits"
 	"time"
-	"unsafe"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/hash_to_field"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark/backend"
@@ -23,7 +22,16 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
-	iciclegnark "github.com/ingonyama-zk/iciclegnark/curves/bn254"
+
+	icicle_core "github.com/ingonyama-zk/icicle/v2/wrappers/golang/core"
+	icicle_cr "github.com/ingonyama-zk/icicle/v2/wrappers/golang/cuda_runtime"
+	icicle_bn254 "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254"
+	icicle_g2 "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/g2"
+	icicle_msm "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/msm"
+	icicle_ntt "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/ntt"
+	icicle_vecops "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/vecOps"
+
+	fcs "github.com/consensys/gnark/frontend/cs"
 )
 
 const HasIcicle = true
@@ -33,20 +41,33 @@ func (pk *ProvingKey) setupDevicePointers() error {
 		return nil
 	}
 	pk.deviceInfo = &deviceInfo{}
-	n := int(pk.Domain.Cardinality)
-	sizeBytes := n * fr.Bytes
-
 	/*************************  Start Domain Device Setup  ***************************/
-	copyCosetInvDone := make(chan unsafe.Pointer, 1)
-	copyCosetDone := make(chan unsafe.Pointer, 1)
-	copyDenDone := make(chan unsafe.Pointer, 1)
 	/*************************     CosetTableInv      ***************************/
-	go iciclegnark.CopyToDevice(pk.Domain.CosetTableInv, sizeBytes, copyCosetInvDone)
+	copyCosetInvDone := make(chan bool, 1)
+	go func() {
+		cosetTableInv, err := pk.Domain.CosetTableInv()
+		if err != nil {
+			panic("Something went wrong") // TODO
+		}
+		cosetTableInvHost := (icicle_core.HostSlice[fr.Element])(cosetTableInv)
+		cosetTableInvHost.CopyToDevice(&pk.DomainDevice.CosetTableInv, true)
+		copyCosetInvDone <- true
+	}()
 
 	/*************************     CosetTable      ***************************/
-	go iciclegnark.CopyToDevice(pk.Domain.CosetTable, sizeBytes, copyCosetDone)
+	copyCosetDone := make(chan bool, 1)
+	go func() {
+		coestTable, err := pk.Domain.CosetTable()
+		if err != nil {
+			panic("SOmething went wrong") // TODO
+		}
+		cosetTableHost := (icicle_core.HostSlice[fr.Element])(coestTable)
+		cosetTableHost.CopyToDevice(&pk.DomainDevice.CosetTable, true)
+		copyCosetDone <- true
+	}()
 
 	/*************************     Den      ***************************/
+	n := int(pk.Domain.Cardinality)
 	var denI, oneI fr.Element
 	oneI.SetOne()
 	denI.Exp(pk.Domain.FrMultiplicativeGen, big.NewInt(int64(pk.Domain.Cardinality)))
@@ -62,71 +83,135 @@ func (pk *ProvingKey) setupDevicePointers() error {
 		denIcicleArr = append(denIcicleArr, denI)
 	}
 
-	go iciclegnark.CopyToDevice(denIcicleArr, sizeBytes, copyDenDone)
+	copyDenDone := make(chan bool, 1)
+	go func() {
+		denIcicleArrHost := (icicle_core.HostSlice[fr.Element])(denIcicleArr)
+		denIcicleArrHost.CopyToDevice(&pk.DenDevice, true)
+		copyDenDone <- true
+	}()
 
 	/*************************     Twiddles and Twiddles Inv    ***************************/
-	twiddlesInv_d_gen, twddles_err := iciclegnark.GenerateTwiddleFactors(n, true)
-	if twddles_err != nil {
-		return twddles_err
+	ctx, err := icicle_cr.GetDefaultDeviceContext()
+	if err != icicle_cr.CudaSuccess {
+		panic("Couldn't create device context") // TODO
 	}
 
-	twiddles_d_gen, twddles_err := iciclegnark.GenerateTwiddleFactors(n, false)
-	if twddles_err != nil {
-		return twddles_err
+	rou := pk.Domain.Generator.Bits()
+	rouIcicle := icicle_bn254.ScalarField{}
+	limbs := icicle_core.ConvertUint64ArrToUint32Arr(rou[:])
+	rouIcicle.FromLimbs(limbs)
+	e := icicle_ntt.InitDomain(rouIcicle, ctx, false)
+	if e.IcicleErrorCode != icicle_core.IcicleSuccess {
+		panic("Couldn't initialize domain") // TODO
 	}
 
 	/*************************  End Domain Device Setup  ***************************/
-	pk.DomainDevice.Twiddles = twiddles_d_gen
-	pk.DomainDevice.TwiddlesInv = twiddlesInv_d_gen
 
-	pk.DomainDevice.CosetTableInv = <-copyCosetInvDone
-	pk.DomainDevice.CosetTable = <-copyCosetDone
-	pk.DenDevice = <-copyDenDone
-
+	<-copyCosetInvDone
+	<-copyCosetDone
+	<-copyDenDone
 	/*************************  Start G1 Device Setup  ***************************/
 	/*************************     A      ***************************/
-	pointsBytesA := len(pk.G1.A) * fp.Bytes * 2
-	copyADone := make(chan unsafe.Pointer, 1)
-	go iciclegnark.CopyPointsToDevice(pk.G1.A, pointsBytesA, copyADone) // Make a function for points
-
+	copyADone := make(chan bool, 1)
+	go func() {
+		g1AHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.A)
+		g1AHost.CopyToDevice(&pk.G1Device.A, true)
+		copyADone <- true
+	}()
 	/*************************     B      ***************************/
-	pointsBytesB := len(pk.G1.B) * fp.Bytes * 2
-	copyBDone := make(chan unsafe.Pointer, 1)
-	go iciclegnark.CopyPointsToDevice(pk.G1.B, pointsBytesB, copyBDone) // Make a function for points
-
-	/*************************     K      ***************************/
-	var pointsNoInfinity []curve.G1Affine
-	for i, gnarkPoint := range pk.G1.K {
-		if gnarkPoint.IsInfinity() {
-			pk.InfinityPointIndicesK = append(pk.InfinityPointIndicesK, i)
-		} else {
-			pointsNoInfinity = append(pointsNoInfinity, gnarkPoint)
-		}
-	}
-
-	pointsBytesK := len(pointsNoInfinity) * fp.Bytes * 2
-	copyKDone := make(chan unsafe.Pointer, 1)
-	go iciclegnark.CopyPointsToDevice(pointsNoInfinity, pointsBytesK, copyKDone) // Make a function for points
-
+	copyBDone := make(chan bool, 1)
+	go func() {
+		g1BHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.B)
+		g1BHost.CopyToDevice(&pk.G1Device.B, true)
+		copyBDone <- true
+	}()
+	/*************************     K      ***************************/	
+	copyKDone := make(chan bool, 1)
+	go func() {
+		g1KHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.K)
+		g1KHost.CopyToDevice(&pk.G1Device.K, true)
+		copyKDone <- true
+	}()
 	/*************************     Z      ***************************/
-	pointsBytesZ := len(pk.G1.Z) * fp.Bytes * 2
-	copyZDone := make(chan unsafe.Pointer, 1)
-	go iciclegnark.CopyPointsToDevice(pk.G1.Z, pointsBytesZ, copyZDone) // Make a function for points
-
+	copyZDone := make(chan bool, 1)
+	go func() {
+		g1ZHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.Z)
+		g1ZHost.CopyToDevice(&pk.G1Device.Z, true)
+		copyZDone <- true
+	}()
 	/*************************  End G1 Device Setup  ***************************/
-	pk.G1Device.A = <-copyADone
-	pk.G1Device.B = <-copyBDone
-	pk.G1Device.K = <-copyKDone
-	pk.G1Device.Z = <-copyZDone
-
+	<-copyADone
+	<-copyBDone
+	<-copyKDone
+	<-copyZDone
 	/*************************  Start G2 Device Setup  ***************************/
-	pointsBytesB2 := len(pk.G2.B) * fp.Bytes * 4
-	copyG2BDone := make(chan unsafe.Pointer, 1)
-	go iciclegnark.CopyG2PointsToDevice(pk.G2.B, pointsBytesB2, copyG2BDone) // Make a function for points
-	pk.G2Device.B = <-copyG2BDone
+	copyG2BDone := make(chan bool, 1)
+	go func() {
+		g2BHost := (icicle_core.HostSlice[curve.G2Affine])(pk.G2.B)
+		g2BHost.CopyToDevice(&pk.G2Device.B, true)
+		copyG2BDone <- true
+	}()
 
+	<-copyG2BDone
 	/*************************  End G2 Device Setup  ***************************/
 	return nil
+}
+
+func projectiveToGnarkAffine(p icicle_bn254.Projective) *curve.G1Affine {
+	px, _ := fp.LittleEndian.Element((*[fp.Bytes]byte)(p.X.ToBytesLittleEndian()))
+	py, _ := fp.LittleEndian.Element((*[fp.Bytes]byte)(p.Y.ToBytesLittleEndian()))
+	pz, _ := fp.LittleEndian.Element((*[fp.Bytes]byte)(p.Z.ToBytesLittleEndian()))
+
+	var x, y, zInv fp.Element
+
+	zInv.Inverse(&pz)
+	x.Mul(&px, &zInv)
+	y.Mul(&py, &zInv)
+
+	return &curve.G1Affine{X: x, Y: y}
+}
+
+func g1ProjectiveToG1Jac(p icicle_bn254.Projective) curve.G1Jac {
+	var p1 curve.G1Jac
+	p1.FromAffine(projectiveToGnarkAffine(p))
+	
+	return p1
+}
+
+func toGnarkE2(f icicle_g2.G2BaseField) curve.E2 {
+	bytes := f.ToBytesLittleEndian()
+	a0, _ := fp.LittleEndian.Element((*[fp.Bytes]byte)(bytes[:len(bytes)/2]))
+	a1, _ := fp.LittleEndian.Element((*[fp.Bytes]byte)(bytes[len(bytes)/2:]))
+	return curve.E2{
+		A0: a0,
+		A1: a1,
+	}
+}
+
+func g2ProjectiveToGnarkAffine(p icicle_g2.G2Projective) *curve.G2Affine {
+	x := toGnarkE2(p.X)
+	y := toGnarkE2(p.Y)
+	z := toGnarkE2(p.Z)
+	var zSquared curve.E2
+	zSquared.Mul(&z, &z)
+
+	var X curve.E2
+	X.Mul(&x, &z)
+
+	var Y curve.E2
+	Y.Mul(&y, &zSquared)
+
+	return &curve.G2Affine{
+		X: x,
+		Y: y,
+	}
+}
+
+func g2ProjectiveToG2Jac(p icicle_g2.G2Projective) curve.G2Jac{
+	var p1 curve.G2Jac
+	p1.FromAffine(g2ProjectiveToGnarkAffine(p))
+
+	return p1
 }
 
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
@@ -156,42 +241,36 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
 
 	privateCommittedValues := make([][]fr.Element, len(commitmentInfo))
-	for i := range commitmentInfo {
-		solverOpts = append(solverOpts, solver.OverrideHint(commitmentInfo[i].HintID, func(i int) solver.Hint {
-			return func(_ *big.Int, in []*big.Int, out []*big.Int) error {
-				privateCommittedValues[i] = make([]fr.Element, len(commitmentInfo[i].PrivateCommitted))
-				hashed := in[:len(commitmentInfo[i].PublicAndCommitmentCommitted)]
-				committed := in[len(hashed):]
-				for j, inJ := range committed {
-					privateCommittedValues[i][j].SetBigInt(inJ)
-				}
 
-				var err error
-				if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(privateCommittedValues[i]); err != nil {
-					return err
-				}
+		// override hints
+	bsb22ID := solver.GetHintID(fcs.Bsb22CommitmentComputePlaceholder)
+	solverOpts = append(solverOpts, solver.OverrideHint(bsb22ID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+		i := int(in[0].Int64())
+		in = in[1:]
+		privateCommittedValues[i] = make([]fr.Element, len(commitmentInfo[i].PrivateCommitted))
+		hashed := in[:len(commitmentInfo[i].PublicAndCommitmentCommitted)]
+		committed := in[+len(hashed):]
+		for j, inJ := range committed {
+			privateCommittedValues[i][j].SetBigInt(inJ)
+		}
 
-				opt.HashToFieldFn.Write(constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
-				hashBts := opt.HashToFieldFn.Sum(nil)
-				opt.HashToFieldFn.Reset()
-				nbBuf := fr.Bytes
-				if opt.HashToFieldFn.Size() < fr.Bytes {
-					nbBuf = opt.HashToFieldFn.Size()
-				}
-				var res fr.Element
-				res.SetBytes(hashBts[:nbBuf])
-				res.BigInt(out[0])
-				return err
-			}
-		}(i)))
-	}
+		var err error
+		if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(privateCommittedValues[i]); err != nil {
+			return err
+		}
 
-	if r1cs.GkrInfo.Is() {
-		var gkrData cs.GkrSolvingData
-		solverOpts = append(solverOpts,
-			solver.OverrideHint(r1cs.GkrInfo.SolveHintID, cs.GkrSolveHint(r1cs.GkrInfo, &gkrData)),
-			solver.OverrideHint(r1cs.GkrInfo.ProveHintID, cs.GkrProveHint(r1cs.GkrInfo.HashName, &gkrData)))
-	}
+		opt.HashToFieldFn.Write(constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
+		hashBts := opt.HashToFieldFn.Sum(nil)
+		opt.HashToFieldFn.Reset()
+		nbBuf := fr.Bytes
+		if opt.HashToFieldFn.Size() < fr.Bytes {
+			nbBuf = opt.HashToFieldFn.Size()
+		}
+		var res fr.Element
+		res.SetBytes(hashBts[:nbBuf])
+		res.BigInt(out[0])
+		return nil
+	}))
 
 	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
 	if err != nil {
@@ -213,7 +292,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 
 	// H (witness reduction / FFT part)
-	var h unsafe.Pointer
+	var h icicle_core.DeviceSlice
 	chHDone := make(chan struct{}, 1)
 	go func() {
 		h = computeH(solution.A, solution.B, solution.C, pk)
@@ -225,7 +304,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	// we need to copy and filter the wireValues for each multi exp
 	// as pk.G1.A, pk.G1.B and pk.G2.B may have (a significant) number of point at infinity
-	var wireValuesADevice, wireValuesBDevice iciclegnark.OnDeviceData
+	var wireValuesADevice, wireValuesBDevice icicle_core.DeviceSlice
 	chWireValuesA, chWireValuesB := make(chan struct{}, 1), make(chan struct{}, 1)
 
 	go func() {
@@ -237,18 +316,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			wireValuesA[j] = wireValues[i]
 			j++
 		}
-		wireValuesASize := len(wireValuesA)
-		scalarBytes := wireValuesASize * fr.Bytes
 
 		// Copy scalars to the device and retain ptr to them
-		copyDone := make(chan unsafe.Pointer, 1)
-		iciclegnark.CopyToDevice(wireValuesA, scalarBytes, copyDone)
-		wireValuesADevicePtr := <-copyDone
-
-		wireValuesADevice = iciclegnark.OnDeviceData{
-			P:    wireValuesADevicePtr,
-			Size: wireValuesASize,
-		}
+		wireValuesAHost := (icicle_core.HostSlice[fr.Element])(wireValuesA)
+		wireValuesAHost.CopyToDevice(&wireValuesADevice, true)
 
 		close(chWireValuesA)
 	}()
@@ -261,18 +332,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			wireValuesB[j] = wireValues[i]
 			j++
 		}
-		wireValuesBSize := len(wireValuesB)
-		scalarBytes := wireValuesBSize * fr.Bytes
 
 		// Copy scalars to the device and retain ptr to them
-		copyDone := make(chan unsafe.Pointer, 1)
-		iciclegnark.CopyToDevice(wireValuesB, scalarBytes, copyDone)
-		wireValuesBDevicePtr := <-copyDone
-
-		wireValuesBDevice = iciclegnark.OnDeviceData{
-			P:    wireValuesBDevicePtr,
-			Size: wireValuesBSize,
-		}
+		wireValuesBHost := (icicle_core.HostSlice[fr.Element])(wireValuesB)
+		wireValuesBHost.CopyToDevice(&wireValuesBDevice, true)
 
 		close(chWireValuesB)
 	}()
@@ -299,9 +362,16 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	computeBS1 := func() error {
 		<-chWireValuesB
 
-		if bs1, _, err = iciclegnark.MsmOnDevice(wireValuesBDevice.P, pk.G1Device.B, wireValuesBDevice.Size, true); err != nil {
-			return err
-		}
+		cfg := icicle_msm.GetDefaultMSMConfig()
+		cfg.ArePointsMontgomeryForm = true
+		cfg.AreScalarsMontgomeryForm = true
+		bs1Stream, _ := icicle_cr.CreateStream()
+		cfg.Ctx.Stream = &bs1Stream
+		res := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
+		icicle_msm.Msm(wireValuesBDevice, pk.G1Device.B, &cfg, res)
+
+		// TODO - convert res[0] back to G1Jac
+		bs1 = g1ProjectiveToG1Jac(res[0])
 
 		bs1.AddMixed(&pk.G1.Beta)
 		bs1.AddMixed(&deltas[1])
@@ -312,9 +382,16 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	computeAR1 := func() error {
 		<-chWireValuesA
 
-		if ar, _, err = iciclegnark.MsmOnDevice(wireValuesADevice.P, pk.G1Device.A, wireValuesADevice.Size, true); err != nil {
-			return err
-		}
+		cfg := icicle_msm.GetDefaultMSMConfig()
+		cfg.ArePointsMontgomeryForm = true
+		cfg.AreScalarsMontgomeryForm = true
+		arStream, _ := icicle_cr.CreateStream()
+		cfg.Ctx.Stream = &arStream
+		res := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
+		icicle_msm.Msm(wireValuesADevice, pk.G1Device.A, &cfg, res)
+
+		// TODO - convert res[0] back to G1Jac
+		ar = g1ProjectiveToG1Jac(res[0])
 
 		ar.AddMixed(&pk.G1.Alpha)
 		ar.AddMixed(&deltas[0])
@@ -325,39 +402,27 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	computeKRS := func() error {
 		var krs, krs2, p1 curve.G1Jac
-		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
 
-		// check for small circuits as iciclegnark doesn't handle zero sizes well
-		if len(pk.G1.Z) > 0 {
-			if krs2, _, err = iciclegnark.MsmOnDevice(h, pk.G1Device.Z, sizeH, true); err != nil {
-				return err
-			}
-		}
+		cfg := icicle_msm.GetDefaultMSMConfig()
+		cfg.ArePointsMontgomeryForm = true
+		cfg.AreScalarsMontgomeryForm = true
+		krsStream, _ := icicle_cr.CreateStream()
+		cfg.Ctx.Stream = &krsStream
+		resKrs2 := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
+		icicle_msm.Msm(h, pk.G1Device.Z, &cfg, resKrs2)
+		// TODO - convert res[0] back to G1Jac
+		krs2 = g1ProjectiveToG1Jac(resKrs2[0])
 
 		// filter the wire values if needed
 		// TODO Perf @Tabaie worst memory allocation offender
 		toRemove := commitmentInfo.GetPrivateCommitted()
 		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
-		scalars := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
-
-		// filter zero/infinity points since icicle doesn't handle them
-		// See https://github.com/ingonyama-zk/icicle/issues/169 for more info
-		for _, indexToRemove := range pk.InfinityPointIndicesK {
-			scalars = append(scalars[:indexToRemove], scalars[indexToRemove+1:]...)
-		}
-
-		scalarBytes := len(scalars) * fr.Bytes
-
-		copyDone := make(chan unsafe.Pointer, 1)
-		iciclegnark.CopyToDevice(scalars, scalarBytes, copyDone)
-		scalars_d := <-copyDone
-
-		krs, _, err = iciclegnark.MsmOnDevice(scalars_d, pk.G1Device.K, len(scalars), true)
-		iciclegnark.FreeDevicePointer(scalars_d)
-
-		if err != nil {
-			return err
-		}
+		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
+		_wireValuesHost := (icicle_core.HostSlice[fr.Element])(_wireValues)
+		resKrs := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
+		icicle_msm.Msm(_wireValuesHost, pk.G1Device.K, &cfg, resKrs)
+		// TODO - convert res[0] back to G1Jac
+		krs2 = g1ProjectiveToG1Jac(resKrs[0])
 
 		krs.AddMixed(&deltas[2])
 
@@ -379,9 +444,16 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		var Bs, deltaS curve.G2Jac
 
 		<-chWireValuesB
-		if Bs, _, err = iciclegnark.MsmG2OnDevice(wireValuesBDevice.P, pk.G2Device.B, wireValuesBDevice.Size, true); err != nil {
-			return err
-		}
+
+		cfg := icicle_msm.GetDefaultMSMConfig()
+		cfg.ArePointsMontgomeryForm = true
+		cfg.AreScalarsMontgomeryForm = true
+		krsStream, _ := icicle_cr.CreateStream()
+		cfg.Ctx.Stream = &krsStream
+		res := make(icicle_core.HostSlice[icicle_g2.G2Projective], 1)
+		icicle_msm.Msm(wireValuesBDevice, pk.G2Device.B, &cfg, res)
+		// TODO - convert res[0] back to G1Jac
+		Bs = g2ProjectiveToG2Jac(res[0])
 
 		deltaS.FromAffine(&pk.G2.Delta)
 		deltaS.ScalarMultiplication(&deltaS, &s)
@@ -413,9 +485,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 	// free device/GPU memory that is not needed for future proofs (scalars/hpoly)
 	go func() {
-		iciclegnark.FreeDevicePointer(wireValuesADevice.P)
-		iciclegnark.FreeDevicePointer(wireValuesBDevice.P)
-		iciclegnark.FreeDevicePointer(h)
+		wireValuesADevice.Free()
+		wireValuesBDevice.Free()
+		h.Free()
 	}()
 
 	return proof, nil
@@ -450,7 +522,7 @@ func filterHeap(slice []fr.Element, sliceFirstIndex int, toRemove []int) (r []fr
 	return
 }
 
-func computeH(a, b, c []fr.Element, pk *ProvingKey) unsafe.Pointer {
+func computeH(a, b, c []fr.Element, pk *ProvingKey) icicle_core.DeviceSlice {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -466,48 +538,44 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey) unsafe.Pointer {
 	c = append(c, padding...)
 	n = len(a)
 
-	sizeBytes := n * fr.Bytes
+	computeADone := make(chan icicle_core.DeviceSlice, 1)
+	computeBDone := make(chan icicle_core.DeviceSlice, 1)
+	computeCDone := make(chan icicle_core.DeviceSlice, 1)
 
-	/*********** Copy a,b,c to Device Start ************/
-	// Individual channels are necessary to know which device pointers
-	// point to which vector
-	copyADone := make(chan unsafe.Pointer, 1)
-	copyBDone := make(chan unsafe.Pointer, 1)
-	copyCDone := make(chan unsafe.Pointer, 1)
-
-	go iciclegnark.CopyToDevice(a, sizeBytes, copyADone)
-	go iciclegnark.CopyToDevice(b, sizeBytes, copyBDone)
-	go iciclegnark.CopyToDevice(c, sizeBytes, copyCDone)
-
-	a_device := <-copyADone
-	b_device := <-copyBDone
-	c_device := <-copyCDone
-	/*********** Copy a,b,c to Device End ************/
-
-	computeInttNttDone := make(chan error, 1)
-	computeInttNttOnDevice := func(devicePointer unsafe.Pointer) {
-		a_intt_d := iciclegnark.INttOnDevice(devicePointer, pk.DomainDevice.TwiddlesInv, nil, n, sizeBytes, false)
-		iciclegnark.NttOnDevice(devicePointer, a_intt_d, pk.DomainDevice.Twiddles, pk.DomainDevice.CosetTable, n, n, sizeBytes, true)
-		computeInttNttDone <- nil
-		iciclegnark.FreeDevicePointer(a_intt_d)
+	computeInttNttOnDevice := func(scalars []fr.Element, channel chan icicle_core.DeviceSlice) {
+		cfg := icicle_ntt.GetDefaultNttConfig()
+		scalarsStream, _ := icicle_cr.CreateStream()
+		cfg.Ctx.Stream = &scalarsStream
+		cfg.Ordering = icicle_core.KNR
+		cfg.IsAsync = true
+		scalarsHost := icicle_core.HostSliceFromElements(scalars)
+		var scalarsDevice icicle_core.DeviceSlice
+		scalarsHost.CopyToDeviceAsync(&scalarsDevice, scalarsStream, true)
+		icicle_ntt.Ntt(scalarsDevice, icicle_core.KInverse, &cfg, scalarsDevice)
+		cfg.Ordering = icicle_core.KRN
+		cfg.CosetGen = [8]uint32(icicle_core.ConvertUint64ArrToUint32Arr(pk.Domain.FrMultiplicativeGen[:]))
+		icicle_ntt.Ntt(scalarsDevice, icicle_core.KForward, &cfg, scalarsDevice)
+		icicle_cr.SynchronizeStream(&scalarsStream)
+		channel <-scalarsDevice
 	}
+ 
+	go computeInttNttOnDevice(a, computeADone)
+	go computeInttNttOnDevice(b, computeBDone)
+	go computeInttNttOnDevice(c, computeCDone)
 
-	go computeInttNttOnDevice(a_device)
-	go computeInttNttOnDevice(b_device)
-	go computeInttNttOnDevice(c_device)
-	_, _, _ = <-computeInttNttDone, <-computeInttNttDone, <-computeInttNttDone
+	aDevice := <-computeADone
+	bDevice := <-computeBDone
+	cDevice := <-computeCDone
+	
+	vecCfg := icicle_core.DefaultVecOpsConfig()
+	icicle_vecops.VecOp(aDevice, bDevice, aDevice, vecCfg, icicle_core.Mul)
+	icicle_vecops.VecOp(aDevice, cDevice, aDevice, vecCfg, icicle_core.Sub)
+	icicle_vecops.VecOp(aDevice, pk.DenDevice, aDevice, vecCfg, icicle_core.Mul)
 
-	iciclegnark.PolyOps(a_device, b_device, c_device, pk.DenDevice, n)
+	cfg := icicle_ntt.GetDefaultNttConfig()
+	cfg.CosetGen = [8]uint32(icicle_core.ConvertUint64ArrToUint32Arr(pk.Domain.FrMultiplicativeGenInv[:]))
+	cfg.Ordering = icicle_core.KNR
+	icicle_ntt.Ntt(aDevice, icicle_core.KInverse, &cfg, aDevice)
 
-	h := iciclegnark.INttOnDevice(a_device, pk.DomainDevice.TwiddlesInv, pk.DomainDevice.CosetTableInv, n, sizeBytes, true)
-
-	go func() {
-		iciclegnark.FreeDevicePointer(a_device)
-		iciclegnark.FreeDevicePointer(b_device)
-		iciclegnark.FreeDevicePointer(c_device)
-	}()
-
-	iciclegnark.ReverseScalars(h, n)
-
-	return h
+	return aDevice
 }

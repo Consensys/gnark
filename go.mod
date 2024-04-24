@@ -14,7 +14,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b
 	github.com/icza/bitio v1.1.0
-	github.com/ingonyama-zk/iciclegnark v0.1.0
+	github.com/ingonyama-zk/icicle/v2 v2.0.1
 	github.com/leanovate/gopter v0.2.9
 	github.com/rs/zerolog v1.30.0
 	github.com/stretchr/testify v1.8.4
@@ -25,14 +25,14 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/ingonyama-zk/icicle v0.0.0-20230928131117-97f0079e5c71 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
+
+replace github.com/ingonyama-zk/icicle/v2 v2.0.1 => github.com/ingonyama-zk/icicle/v2 v2.0.0-20240424145405-78befff3d61b

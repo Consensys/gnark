@@ -1,4 +1,4 @@
-package icicle_bn254_test
+package icicle_test
 
 import (
 	"bytes"
