@@ -1,8 +1,8 @@
 package fields_bw6761
 
 import (
+	"github.com/consensys/gnark/std/math/emulated"
 	"math/big"
-	// "github.com/consensys/gnark/std/math/emulated"
 )
 
 func (e Ext6) nSquareKarabina12345(z *E6, n int) *E6 {
@@ -266,7 +266,6 @@ func (e *Ext6) MulBy023(x *E6, c0, c1 *baseEl) *E6 {
 	}
 }
 
-/*
 //	Mul023By023 multiplies two E6 sparse element of the form:
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
@@ -291,6 +290,7 @@ func (e Ext6) Mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	return [5]*baseEl{zC0B0, x01, x1, x04, x14}
 }
 
+/*
 // MulBy01245 multiplies z by an E6 sparse element of the form
 //
 //	E6{
