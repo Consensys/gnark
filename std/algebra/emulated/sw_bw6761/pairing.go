@@ -302,11 +302,10 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 				pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
 				pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
 			)
-			if i > 0 && loopCounter2[i]*3+loopCounter1[i] != 0 {
-				result = pr.MulBy023(result,
-					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
-					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
-				)
+		}
+
+		if i > 0 && loopCounter2[i]*3+loopCounter1[i] != 0 {
+			for k := 0; k < n; k++ {
 				result = pr.MulBy023(result,
 					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
 					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
