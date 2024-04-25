@@ -248,34 +248,6 @@ func TestConjugateFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e6CyclotomicSquare struct {
-	A, B E6
-}
-
-func (circuit *e6CyclotomicSquare) Define(api frontend.API) error {
-	e := NewExt6(api)
-	expected := e.CyclotomicSquare(&circuit.A)
-	e.AssertIsEqual(expected, &circuit.B)
-	return nil
-}
-
-func TestCyclotomicSquareFp6(t *testing.T) {
-	assert := test.NewAssert(t)
-	// witness values
-	var a, b bw6761.E6
-	_, _ = a.SetRandom()
-	b.Set(&a)
-	b.CyclotomicSquare(&a)
-
-	witness := e6CyclotomicSquare{
-		A: FromE6(&a),
-		B: FromE6(&b),
-	}
-
-	err := test.IsSolved(&e6CyclotomicSquare{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
 type e6Expt struct {
 	A, B E6
 }
