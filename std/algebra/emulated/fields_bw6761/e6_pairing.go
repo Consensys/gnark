@@ -25,7 +25,7 @@ func (e Ext6) ExpX0Minus1(z *E6) *E6 {
 	result = e.Mul(result, z33)
 	result = e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, z)
-	result = e.CyclotomicSquare(result)
+	result = e.nSquareKarabina12345(result, 1)
 	result = e.Mul(result, z)
 	result = e.nSquareKarabina12345(result, 46)
 
@@ -38,11 +38,11 @@ func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
 	result = e.nSquareKarabina12345(result, 3)
-	t0 := e.CyclotomicSquare(result)
+	t0 := e.nSquareKarabina12345(result, 1)
 	t2 := e.Mul(z, t0)
 	result = e.Mul(result, t2)
 	t0 = e.Mul(z, result)
-	t1 := e.CyclotomicSquare(t0)
+	t1 := e.nSquareKarabina12345(t0, 1)
 	t1 = e.Mul(t2, t1)
 	t3 := e.nSquareKarabina12345(t1, 7)
 	t2 = e.Mul(t2, t3)
@@ -64,7 +64,7 @@ func (e Ext6) ExpX0Minus1Square(z *E6) *E6 {
 func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	t := e.CyclotomicSquare(result)
+	t := e.nSquareKarabina12345(result, 1)
 	result = e.nSquareKarabina12345(t, 4)
 	result = e.Mul(result, z)
 	z33 := e.Copy(result)
@@ -72,7 +72,7 @@ func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	result = e.Mul(result, z33)
 	result = e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, z)
-	result = e.CyclotomicSquare(result)
+	result = e.nSquareKarabina12345(result, 1)
 	result = e.Mul(result, z)
 	result = e.nSquareKarabina12345(result, 46)
 	result = e.Mul(result, t)
@@ -85,10 +85,9 @@ func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	result = e.CyclotomicSquare(result)
-	result = e.CyclotomicSquare(result)
+	result = e.nSquareKarabina12345(result, 2)
 	result = e.Mul(result, z)
-	result = e.CyclotomicSquare(result)
+	result = e.nSquareKarabina12345(result, 1)
 	result = e.Mul(result, z)
 	t0 := e.nSquareKarabina12345(result, 7)
 	result = e.Mul(result, t0)
@@ -105,10 +104,9 @@ func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 func (e Ext6) ExpC1(z *E6) *E6 {
 	z = e.Reduce(z)
 	result := e.Copy(z)
-	result = e.CyclotomicSquare(result)
-	result = e.CyclotomicSquare(result)
+	result = e.nSquareKarabina12345(result, 2)
 	result = e.Mul(result, z)
-	result = e.CyclotomicSquare(result)
+	result = e.nSquareKarabina12345(result, 1)
 	result = e.Mul(result, z)
 
 	return result
@@ -119,11 +117,11 @@ func (e Ext6) ExpC1(z *E6) *E6 {
 // C2 = (ht**2+3*hy**2)/4 = 103
 func (e Ext6) ExpC2(z *E6) *E6 {
 	z = e.Reduce(z)
-	result := e.CyclotomicSquare(z)
+	result := e.nSquareKarabina12345(z, 1)
 	result = e.Mul(result, z)
 	t0 := e.nSquareKarabina12345(result, 4)
 	result = e.Mul(result, t0)
-	result = e.CyclotomicSquare(result)
+	result = e.nSquareKarabina12345(result, 1)
 	result = e.Mul(result, z)
 
 	return result

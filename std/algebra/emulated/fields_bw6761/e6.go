@@ -685,9 +685,6 @@ func (e Ext6) MulToomCook6x(x, y *E6) *E6 {
 // Karabina's compressed cyclotomic square SQR12345
 // https://eprint.iacr.org/2010/542.pdf
 // Sec. 5.6 with minor modifications to fit our tower
-//
-//	a00 a01 a02 a10 a11 a12
-//	A0  A2  A4  A1  A3  A5
 func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
 	x = e.Reduce(x)
 
