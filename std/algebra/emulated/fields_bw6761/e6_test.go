@@ -1,12 +1,15 @@
 package fields_bw6761
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fp"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
@@ -245,62 +248,6 @@ func TestConjugateFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e6CyclotomicSquareKarabina2345 struct {
-	A, B E6
-}
-
-func (circuit *e6CyclotomicSquareKarabina2345) Define(api frontend.API) error {
-	e := NewExt6(api)
-	expected := e.CyclotomicSquareKarabina2345(&circuit.A)
-	e.AssertIsEqual(expected, &circuit.B)
-	return nil
-}
-
-func TestCyclotomicSquareKarabina2345Fp6(t *testing.T) {
-	assert := test.NewAssert(t)
-	// witness values
-	var a, b bw6761.E6
-	_, _ = a.SetRandom()
-	b.Set(&a)
-	b.CyclotomicSquareCompressed(&a)
-
-	witness := e6CyclotomicSquareKarabina2345{
-		A: FromE6(&a),
-		B: FromE6(&b),
-	}
-
-	err := test.IsSolved(&e6CyclotomicSquareKarabina2345{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type e6DecompressKarabina2345 struct {
-	A, B E6
-}
-
-func (circuit *e6DecompressKarabina2345) Define(api frontend.API) error {
-	e := NewExt6(api)
-	expected := e.DecompressKarabina2345(&circuit.A)
-	e.AssertIsEqual(expected, &circuit.B)
-	return nil
-}
-
-func TestDecompressKarabina2345Fp6(t *testing.T) {
-	assert := test.NewAssert(t)
-	// witness values
-	var a, b bw6761.E6
-	_, _ = a.SetRandom()
-	b.Set(&a)
-	a.DecompressKarabina(&a)
-
-	witness := e6DecompressKarabina2345{
-		A: FromE6(&b),
-		B: FromE6(&a),
-	}
-
-	err := test.IsSolved(&e6DecompressKarabina2345{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
 type e6CyclotomicSquare struct {
 	A, B E6
 }
@@ -365,20 +312,20 @@ func TestExptFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e6MulBy014 struct {
+type e6MulBy023 struct {
 	A    E6 `gnark:",public"`
 	W    E6
 	B, C baseEl
 }
 
-func (circuit *e6MulBy014) Define(api frontend.API) error {
+func (circuit *e6MulBy023) Define(api frontend.API) error {
 	e := NewExt6(api)
-	res := e.MulBy014(&circuit.A, &circuit.B, &circuit.C)
+	res := e.MulBy023(&circuit.A, &circuit.B, &circuit.C)
 	e.AssertIsEqual(res, &circuit.W)
 	return nil
 }
 
-func TestFp6MulBy014(t *testing.T) {
+func TestFp6MulBy023(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
@@ -391,14 +338,29 @@ func TestFp6MulBy014(t *testing.T) {
 	w.Set(&a)
 	w.MulBy014(&b, &c, &one)
 
-	witness := e6MulBy014{
+	witness := e6MulBy023{
 		A: FromE6(&a),
 		B: emulated.ValueOf[emulated.BW6761Fp](&b),
 		C: emulated.ValueOf[emulated.BW6761Fp](&c),
 		W: FromE6(&w),
 	}
 
-	err := test.IsSolved(&e6MulBy014{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&e6MulBy023{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
+}
 
+func BenchmarkMulMontgomery6(b *testing.B) {
+	var c e6Mul
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("Fp6 Mul (Montgomery-6): ", p.NbConstraints())
+}
+
+func BenchmarkSqMontgomery6(b *testing.B) {
+	var c e6Square
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("Fp6 Square (Montgomery-6): ", p.NbConstraints())
 }

@@ -2,8 +2,7 @@ package fields_bw6761
 
 import (
 	"math/big"
-
-	"github.com/consensys/gnark/std/math/emulated"
+	// "github.com/consensys/gnark/std/math/emulated"
 )
 
 func (e Ext6) nSquareKarabina12345(z *E6, n int) *E6 {
@@ -130,58 +129,154 @@ func (e Ext6) ExpC2(z *E6) *E6 {
 	return result
 }
 
-// MulBy014 multiplies z by an E6 sparse element of the form
+// MulBy023 multiplies z by an E6 sparse element of the form
 //
-//	E6{
-//		B0: E3{A0: c0, A1: c1, A2: 0},
-//		B1: E3{A0: 0,  A1: 1,  A2: 0},
-//	}
-func (e *Ext6) MulBy014(z *E6, c0, c1 *baseEl) *E6 {
-	z = e.Reduce(z)
+//	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
+func (e *Ext6) MulBy023(x *E6, c0, c1 *baseEl) *E6 {
+	x = e.Reduce(x)
+	//		v0 = (a0 + a1 + a2 + a3 + a4 + a5)(c0 + c1 + 1)
+	//		v2 = (a0 + a1 + a3 + a4)(c0 + 1)
+	//		v3 = (a0 − a2 − a3 + a5)(c0 − c1 − 1)
+	//		v4 = (a0 − a2 − a5)(c0 − c1)
+	//		v5 = (a0 + a3 − a5)(c0 + 1)
+	//		v6 = (a0 + a1 + a2)(c0 + c1)
+	//		v7 = (a3 + a4 + a5)
+	//		v8 = (a2 + a3)(c1 + 1)
+	//		v10 = (a1 + a2)c1
+	//		v11 = (a3 + a4)
+	//		v12 = (a0 + a1)c0
+	//		v14 = a0c0
 
-	a := e.MulBy01(&z.B0, c0, c1)
+	_t0 := e.fp.Add(&x.A0, &x.A1)
+	t0 := e.fp.Add(_t0, &x.A2)
+	t1 := e.fp.Add(&x.A3, &x.A4)
+	t2 := e.fp.Add(_t0, t1)
+	t3 := e.fp.Add(t2, &x.A5)
+	t3 = e.fp.Add(t3, &x.A2)
 
-	var b E3
-	// Mul by E3{0, 1, 0}
-	b.A0 = *e.fp.MulConst(&z.B1.A2, big.NewInt(4))
-	b.A2 = *e.fp.Neg(&z.B1.A1)
-	b.A1 = *e.fp.Neg(&z.B1.A0)
-
+	s0 := e.fp.Add(c0, c1)
 	one := e.fp.One()
-	d := e.fp.Add(c1, one)
+	s2 := e.fp.Add(c0, one)
+	s3 := e.fp.Add(s2, c1)
 
-	zC1 := e.Ext3.Add(&z.B1, &z.B0)
-	zC1 = e.Ext3.MulBy01(zC1, c0, d)
-	zC1 = e.Ext3.Sub(zC1, a)
-	zC1 = e.Ext3.Add(zC1, &b)
-	zC0 := &E3{
-		A0: *e.fp.MulConst(&b.A2, big.NewInt(4)),
-		A1: *e.fp.Neg(&b.A0),
-		A2: *e.fp.Neg(&b.A1),
-	}
+	v0 := e.fp.Mul(t3, s3)
+	v2 := e.fp.Mul(t2, s2)
+	v6 := e.fp.Mul(t0, s0)
+	t4 := e.fp.Add(t1, &x.A5)
+	v7 := t4
+	v12 := e.fp.Mul(_t0, c0)
+	v11 := t1
+	t0 = e.fp.Add(&x.A2, &x.A3)
+	s0 = e.fp.Add(c1, one)
+	v8 := e.fp.Mul(t0, s0)
+	t1 = e.fp.Add(&x.A1, &x.A2)
+	v10 := e.fp.Mul(t1, c1)
+	v3 := e.fp.Add(&x.A0, &x.A5)
+	v3 = e.fp.Sub(v3, t0)
+	s1 := e.fp.Sub(c0, s0)
+	v3 = e.fp.Mul(v3, s1)
+	t1 = e.fp.Add(&x.A2, &x.A5)
+	t2 = e.fp.Sub(&x.A0, t1)
+	s2 = e.fp.Sub(c0, c1)
+	v4 := e.fp.Mul(t2, s2)
+	t1 = e.fp.Add(&x.A0, &x.A3)
+	t1 = e.fp.Sub(t1, &x.A5)
+	s1 = e.fp.Add(c0, one)
+	v5 := e.fp.Mul(t1, s1)
+	v14 := e.fp.Mul(&x.A0, c0)
 
-	zC0 = e.Ext3.Add(zC0, a)
+	z0 := e.fp.Sub(v0, v2)
+	z0 = e.fp.Add(z0, v4)
+	s1 = e.fp.Add(v3, v5)
+	s1 = e.fp.Add(s1, v6)
+	s1 = e.fp.Sub(s1, v12)
+	s1 = e.fp.MulConst(s1, big.NewInt(2))
+	z0 = e.fp.Add(z0, s1)
+	s2 = e.fp.Add(v8, v10)
+	s2 = e.fp.Add(s2, v11)
+	s1 = e.fp.Sub(v7, s2)
+	s1 = e.fp.MulConst(s1, big.NewInt(3))
+	z0 = e.fp.Add(z0, s1)
+	s1 = e.fp.MulConst(v14, big.NewInt(5))
+	z0 = e.fp.Sub(z0, s1)
+	z0 = mulFpByNonResidue(e.fp, z0)
+	z0 = e.fp.Add(z0, v14)
+
+	z1 := e.fp.Sub(v12, v14)
+	s2 = e.fp.Add(v3, v5)
+	s2 = e.fp.Add(s2, v6)
+	s1 = e.fp.Add(v10, v8)
+	s1 = e.fp.Add(s1, v12)
+	s1 = e.fp.Sub(s1, s2)
+	s2 = e.fp.Sub(v14, v7)
+	s2 = e.fp.MulConst(s2, big.NewInt(2))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v11, big.NewInt(3))
+	s1 = e.fp.Add(s1, s2)
+	s1 = mulFpByNonResidue(e.fp, s1)
+	z1 = e.fp.Add(z1, s1)
+
+	z2 := v6
+	s1 = e.fp.Add(v10, v12)
+	z2 = e.fp.Sub(z2, s1)
+	s1 = e.fp.Sub(v7, v11)
+	s1 = mulFpByNonResidue(e.fp, s1)
+	z2 = e.fp.Add(z2, s1)
+
+	z3 := e.fp.Add(v8, v11)
+	s1 = e.fp.Add(v3, v4)
+	s1 = e.fp.Add(s1, v7)
+	z3 = e.fp.Sub(z3, s1)
+	s1 = e.fp.MulConst(v10, big.NewInt(3))
+	z3 = e.fp.Add(z3, s1)
+	s1 = e.fp.Add(v12, v14)
+	s1 = e.fp.Sub(s1, v6)
+	s1 = e.fp.MulConst(s1, big.NewInt(2))
+	z3 = e.fp.Add(z3, s1)
+
+	z4 := e.fp.Add(v2, v3)
+	z4 = e.fp.Add(z4, v4)
+	z4 = e.fp.Add(z4, v7)
+	z4 = e.fp.Sub(z4, v8)
+	s1 = e.fp.MulConst(v12, big.NewInt(3))
+	z4 = e.fp.Sub(z4, s1)
+	s1 = e.fp.Add(v10, v11)
+	s1 = e.fp.Add(s1, v14)
+	s1 = e.fp.Sub(v6, s1)
+	s1 = e.fp.MulConst(s1, big.NewInt(2))
+	z4 = e.fp.Add(z4, s1)
+
+	z5 := e.fp.Add(v8, v10)
+	z5 = e.fp.Add(z5, v11)
+	z5 = e.fp.Add(z5, v12)
+	s1 = e.fp.Add(v6, v7)
+	z5 = e.fp.Sub(z5, s1)
+	z5 = e.fp.MulConst(z5, big.NewInt(2))
+	s1 = e.fp.MulConst(v14, big.NewInt(3))
+	z5 = e.fp.Add(z5, s1)
+	s1 = e.fp.Add(v3, v4)
+	s1 = e.fp.Add(s1, v5)
+	z5 = e.fp.Sub(z5, s1)
 
 	return &E6{
-		B0: *zC0,
-		B1: *zC1,
+		A0: *z0,
+		A1: *z1,
+		A2: *z2,
+		A3: *z3,
+		A4: *z4,
+		A5: *z5,
 	}
 }
 
-//	multiplies two E6 sparse element of the form:
+/*
+//	Mul023By023 multiplies two E6 sparse element of the form:
 //
-//	E6{
-//		B0: E3{A0: c0, A1: c1, A2: 0},
-//		B1: E3{A0: 0,  A1: 1,  A2: 0},
-//	}
+//	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
 //
 // and
 //
-//	E6{
-//		B0: E3{A0: d0, A1: d1, A2: 0},
-//		B1: E3{A0: 0,  A1: 1,  A2: 0},
-//	}
-func (e Ext6) Mul014By014(d0, d1, c0, c1 *baseEl) [5]*baseEl {
+//	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
+func (e Ext6) Mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	x0 := e.fp.Mul(c0, d0)
 	x1 := e.fp.Mul(c1, d1)
 	x04 := e.fp.Add(c0, d0)
@@ -267,3 +362,4 @@ func (e *Ext6) Mul01245By014(x [5]*baseEl, d0, d1 *baseEl) *E6 {
 		B1: *z1,
 	}
 }
+*/
