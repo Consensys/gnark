@@ -8,11 +8,9 @@ import (
 )
 
 type deviceInfo struct {
+	CosetGenerator []uint32
 	G1Device struct {
 		A, B, K, Z icicle_core.DeviceSlice
-	}
-	DomainDevice struct {
-		CosetTable, CosetTableInv icicle_core.DeviceSlice
 	}
 	G2Device struct {
 		B icicle_core.DeviceSlice
