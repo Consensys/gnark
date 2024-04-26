@@ -18,6 +18,7 @@ package fflonk
 
 import (
 	"errors"
+	"fmt"
 	"html/template"
 	"io"
 	"math/big"
