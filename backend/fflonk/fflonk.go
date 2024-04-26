@@ -16,12 +16,30 @@ import (
 	cs_bw6633 "github.com/consensys/gnark/constraint/bw6-633"
 	cs_bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 
+	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
+	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	fr_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/fr"
+	fr_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	fr_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
+	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
+	fflonk_bls12377 "github.com/consensys/gnark/backend/fflonk/bls12-377"
+	fflonk_bls12381 "github.com/consensys/gnark/backend/fflonk/bls12-381"
+	fflonk_bls24315 "github.com/consensys/gnark/backend/fflonk/bls24-315"
+	fflonk_bls24317 "github.com/consensys/gnark/backend/fflonk/bls24-317"
 	fflonk_bn254 "github.com/consensys/gnark/backend/fflonk/bn254"
+	fflonk_bw6633 "github.com/consensys/gnark/backend/fflonk/bw6-633"
+	fflonk_bw6761 "github.com/consensys/gnark/backend/fflonk/bw6-761"
 	"github.com/consensys/gnark/backend/witness"
 
+	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
+	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"
+	kzg_bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315/kzg"
+	kzg_bls24317 "github.com/consensys/gnark-crypto/ecc/bls24-317/kzg"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
+	kzg_bw6633 "github.com/consensys/gnark-crypto/ecc/bw6-633/kzg"
+	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
 
 	gnarkio "github.com/consensys/gnark/io"
 )
@@ -67,18 +85,18 @@ func Setup(ccs constraint.ConstraintSystem, srs kzg.SRS) (ProvingKey, VerifyingK
 	switch tccs := ccs.(type) {
 	case *cs_bn254.SparseR1CS:
 		return fflonk_bn254.Setup(tccs, *srs.(*kzg_bn254.SRS))
-	// case *cs_bls12381.SparseR1CS:
-	// 	return plonk_bls12381.Setup(tccs, *srs.(*kzg_bls12381.SRS), *srsLagrange.(*kzg_bls12381.SRS))
-	// case *cs_bls12377.SparseR1CS:
-	// 	return plonk_bls12377.Setup(tccs, *srs.(*kzg_bls12377.SRS), *srsLagrange.(*kzg_bls12377.SRS))
-	// case *cs_bw6761.SparseR1CS:
-	// 	return plonk_bw6761.Setup(tccs, *srs.(*kzg_bw6761.SRS), *srsLagrange.(*kzg_bw6761.SRS))
-	// case *cs_bls24317.SparseR1CS:
-	// 	return plonk_bls24317.Setup(tccs, *srs.(*kzg_bls24317.SRS), *srsLagrange.(*kzg_bls24317.SRS))
-	// case *cs_bls24315.SparseR1CS:
-	// 	return plonk_bls24315.Setup(tccs, *srs.(*kzg_bls24315.SRS), *srsLagrange.(*kzg_bls24315.SRS))
-	// case *cs_bw6633.SparseR1CS:
-	// 	return plonk_bw6633.Setup(tccs, *srs.(*kzg_bw6633.SRS), *srsLagrange.(*kzg_bw6633.SRS))
+	case *cs_bls12381.SparseR1CS:
+		return fflonk_bls12381.Setup(tccs, *srs.(*kzg_bls12381.SRS))
+	case *cs_bls12377.SparseR1CS:
+		return fflonk_bls12377.Setup(tccs, *srs.(*kzg_bls12377.SRS))
+	case *cs_bw6761.SparseR1CS:
+		return fflonk_bw6761.Setup(tccs, *srs.(*kzg_bw6761.SRS))
+	case *cs_bls24317.SparseR1CS:
+		return fflonk_bls24317.Setup(tccs, *srs.(*kzg_bls24317.SRS))
+	case *cs_bls24315.SparseR1CS:
+		return fflonk_bls24315.Setup(tccs, *srs.(*kzg_bls24315.SRS))
+	case *cs_bw6633.SparseR1CS:
+		return fflonk_bw6633.Setup(tccs, *srs.(*kzg_bw6633.SRS))
 	default:
 		panic("unrecognized SparseR1CS curve type")
 	}
@@ -97,23 +115,23 @@ func Prove(ccs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.W
 	case *cs_bn254.SparseR1CS:
 		return fflonk_bn254.Prove(tccs, pk.(*fflonk_bn254.ProvingKey), fullWitness, opts...)
 
-	// case *cs_bls12381.SparseR1CS:
-	// 	return plonk_bls12381.Prove(tccs, pk.(*plonk_bls12381.ProvingKey), fullWitness, opts...)
+	case *cs_bls12381.SparseR1CS:
+		return fflonk_bls12381.Prove(tccs, pk.(*fflonk_bls12381.ProvingKey), fullWitness, opts...)
 
-	// case *cs_bls12377.SparseR1CS:
-	// 	return plonk_bls12377.Prove(tccs, pk.(*plonk_bls12377.ProvingKey), fullWitness, opts...)
+	case *cs_bls12377.SparseR1CS:
+		return fflonk_bls12377.Prove(tccs, pk.(*fflonk_bls12377.ProvingKey), fullWitness, opts...)
 
-	// case *cs_bw6761.SparseR1CS:
-	// 	return plonk_bw6761.Prove(tccs, pk.(*plonk_bw6761.ProvingKey), fullWitness, opts...)
+	case *cs_bw6761.SparseR1CS:
+		return fflonk_bw6761.Prove(tccs, pk.(*fflonk_bw6761.ProvingKey), fullWitness, opts...)
 
-	// case *cs_bw6633.SparseR1CS:
-	// 	return plonk_bw6633.Prove(tccs, pk.(*plonk_bw6633.ProvingKey), fullWitness, opts...)
+	case *cs_bw6633.SparseR1CS:
+		return fflonk_bw6633.Prove(tccs, pk.(*fflonk_bw6633.ProvingKey), fullWitness, opts...)
 
-	// case *cs_bls24317.SparseR1CS:
-	// 	return plonk_bls24317.Prove(tccs, pk.(*plonk_bls24317.ProvingKey), fullWitness, opts...)
+	case *cs_bls24317.SparseR1CS:
+		return fflonk_bls24317.Prove(tccs, pk.(*fflonk_bls24317.ProvingKey), fullWitness, opts...)
 
-	// case *cs_bls24315.SparseR1CS:
-	// 	return plonk_bls24315.Prove(tccs, pk.(*plonk_bls24315.ProvingKey), fullWitness, opts...)
+	case *cs_bls24315.SparseR1CS:
+		return fflonk_bls24315.Prove(tccs, pk.(*fflonk_bls24315.ProvingKey), fullWitness, opts...)
 
 	default:
 		panic("unrecognized SparseR1CS curve type")
@@ -132,47 +150,47 @@ func Verify(proof Proof, vk VerifyingKey, publicWitness witness.Witness, opts ..
 		}
 		return fflonk_bn254.Verify(_proof, vk.(*fflonk_bn254.VerifyingKey), w, opts...)
 
-	// case *plonk_bls12381.Proof:
-	// 	w, ok := publicWitness.Vector().(fr_bls12381.Vector)
-	// 	if !ok {
-	// 		return witness.ErrInvalidWitness
-	// 	}
-	// 	return plonk_bls12381.Verify(_proof, vk.(*plonk_bls12381.VerifyingKey), w, opts...)
+	case *fflonk_bls12381.Proof:
+		w, ok := publicWitness.Vector().(fr_bls12381.Vector)
+		if !ok {
+			return witness.ErrInvalidWitness
+		}
+		return fflonk_bls12381.Verify(_proof, vk.(*fflonk_bls12381.VerifyingKey), w, opts...)
 
-	// case *plonk_bls12377.Proof:
-	// 	w, ok := publicWitness.Vector().(fr_bls12377.Vector)
-	// 	if !ok {
-	// 		return witness.ErrInvalidWitness
-	// 	}
-	// 	return plonk_bls12377.Verify(_proof, vk.(*plonk_bls12377.VerifyingKey), w, opts...)
+	case *fflonk_bls12377.Proof:
+		w, ok := publicWitness.Vector().(fr_bls12377.Vector)
+		if !ok {
+			return witness.ErrInvalidWitness
+		}
+		return fflonk_bls12377.Verify(_proof, vk.(*fflonk_bls12377.VerifyingKey), w, opts...)
 
-	// case *plonk_bw6761.Proof:
-	// 	w, ok := publicWitness.Vector().(fr_bw6761.Vector)
-	// 	if !ok {
-	// 		return witness.ErrInvalidWitness
-	// 	}
-	// 	return plonk_bw6761.Verify(_proof, vk.(*plonk_bw6761.VerifyingKey), w, opts...)
+	case *fflonk_bw6761.Proof:
+		w, ok := publicWitness.Vector().(fr_bw6761.Vector)
+		if !ok {
+			return witness.ErrInvalidWitness
+		}
+		return fflonk_bw6761.Verify(_proof, vk.(*fflonk_bw6761.VerifyingKey), w, opts...)
 
-	// case *plonk_bw6633.Proof:
-	// 	w, ok := publicWitness.Vector().(fr_bw6633.Vector)
-	// 	if !ok {
-	// 		return witness.ErrInvalidWitness
-	// 	}
-	// 	return plonk_bw6633.Verify(_proof, vk.(*plonk_bw6633.VerifyingKey), w, opts...)
+	case *fflonk_bw6633.Proof:
+		w, ok := publicWitness.Vector().(fr_bw6633.Vector)
+		if !ok {
+			return witness.ErrInvalidWitness
+		}
+		return fflonk_bw6633.Verify(_proof, vk.(*fflonk_bw6633.VerifyingKey), w, opts...)
 
-	// case *plonk_bls24317.Proof:
-	// 	w, ok := publicWitness.Vector().(fr_bls24317.Vector)
-	// 	if !ok {
-	// 		return witness.ErrInvalidWitness
-	// 	}
-	// 	return plonk_bls24317.Verify(_proof, vk.(*plonk_bls24317.VerifyingKey), w, opts...)
+	case *fflonk_bls24317.Proof:
+		w, ok := publicWitness.Vector().(fr_bls24317.Vector)
+		if !ok {
+			return witness.ErrInvalidWitness
+		}
+		return fflonk_bls24317.Verify(_proof, vk.(*fflonk_bls24317.VerifyingKey), w, opts...)
 
-	// case *plonk_bls24315.Proof:
-	// 	w, ok := publicWitness.Vector().(fr_bls24315.Vector)
-	// 	if !ok {
-	// 		return witness.ErrInvalidWitness
-	// 	}
-	// 	return plonk_bls24315.Verify(_proof, vk.(*plonk_bls24315.VerifyingKey), w, opts...)
+	case *fflonk_bls24315.Proof:
+		w, ok := publicWitness.Vector().(fr_bls24315.Vector)
+		if !ok {
+			return witness.ErrInvalidWitness
+		}
+		return fflonk_bls24315.Verify(_proof, vk.(*fflonk_bls24315.VerifyingKey), w, opts...)
 
 	default:
 		panic("unrecognized proof type")
@@ -211,18 +229,18 @@ func NewProvingKey(curveID ecc.ID) ProvingKey {
 	switch curveID {
 	case ecc.BN254:
 		pk = &fflonk_bn254.ProvingKey{}
-	// case ecc.BLS12_377:
-	// 	pk = &plonk_bls12377.ProvingKey{}
-	// case ecc.BLS12_381:
-	// 	pk = &plonk_bls12381.ProvingKey{}
-	// case ecc.BW6_761:
-	// 	pk = &plonk_bw6761.ProvingKey{}
-	// case ecc.BLS24_317:
-	// 	pk = &plonk_bls24317.ProvingKey{}
-	// case ecc.BLS24_315:
-	// 	pk = &plonk_bls24315.ProvingKey{}
-	// case ecc.BW6_633:
-	// 	pk = &plonk_bw6633.ProvingKey{}
+	case ecc.BLS12_377:
+		pk = &fflonk_bls12377.ProvingKey{}
+	case ecc.BLS12_381:
+		pk = &fflonk_bls12381.ProvingKey{}
+	case ecc.BW6_761:
+		pk = &fflonk_bw6761.ProvingKey{}
+	case ecc.BLS24_317:
+		pk = &fflonk_bls24317.ProvingKey{}
+	case ecc.BLS24_315:
+		pk = &fflonk_bls24315.ProvingKey{}
+	case ecc.BW6_633:
+		pk = &fflonk_bw6633.ProvingKey{}
 	default:
 		panic("not implemented")
 	}
@@ -237,18 +255,18 @@ func NewProof(curveID ecc.ID) Proof {
 	switch curveID {
 	case ecc.BN254:
 		proof = &fflonk_bn254.Proof{}
-	// case ecc.BLS12_377:
-	// 	proof = &plonk_bls12377.Proof{}
-	// case ecc.BLS12_381:
-	// 	proof = &plonk_bls12381.Proof{}
-	// case ecc.BW6_761:
-	// 	proof = &plonk_bw6761.Proof{}
-	// case ecc.BLS24_317:
-	// 	proof = &plonk_bls24317.Proof{}
-	// case ecc.BLS24_315:
-	// 	proof = &plonk_bls24315.Proof{}
-	// case ecc.BW6_633:
-	// 	proof = &plonk_bw6633.Proof{}
+	case ecc.BLS12_377:
+		proof = &fflonk_bls12377.Proof{}
+	case ecc.BLS12_381:
+		proof = &fflonk_bls12381.Proof{}
+	case ecc.BW6_761:
+		proof = &fflonk_bw6761.Proof{}
+	case ecc.BLS24_317:
+		proof = &fflonk_bls24317.Proof{}
+	case ecc.BLS24_315:
+		proof = &fflonk_bls24315.Proof{}
+	case ecc.BW6_633:
+		proof = &fflonk_bw6633.Proof{}
 	default:
 		panic("not implemented")
 	}
@@ -263,18 +281,18 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 	switch curveID {
 	case ecc.BN254:
 		vk = &fflonk_bn254.VerifyingKey{}
-	// case ecc.BLS12_377:
-	// 	vk = &plonk_bls12377.VerifyingKey{}
-	// case ecc.BLS12_381:
-	// 	vk = &plonk_bls12381.VerifyingKey{}
-	// case ecc.BW6_761:
-	// 	vk = &plonk_bw6761.VerifyingKey{}
-	// case ecc.BLS24_317:
-	// 	vk = &plonk_bls24317.VerifyingKey{}
-	// case ecc.BLS24_315:
-	// 	vk = &plonk_bls24315.VerifyingKey{}
-	// case ecc.BW6_633:
-	// 	vk = &plonk_bw6633.VerifyingKey{}
+	case ecc.BLS12_377:
+		vk = &fflonk_bls12377.VerifyingKey{}
+	case ecc.BLS12_381:
+		vk = &fflonk_bls12381.VerifyingKey{}
+	case ecc.BW6_761:
+		vk = &fflonk_bw6761.VerifyingKey{}
+	case ecc.BLS24_317:
+		vk = &fflonk_bls24317.VerifyingKey{}
+	case ecc.BLS24_315:
+		vk = &fflonk_bls24315.VerifyingKey{}
+	case ecc.BW6_633:
+		vk = &fflonk_bw6633.VerifyingKey{}
 	default:
 		panic("not implemented")
 	}
