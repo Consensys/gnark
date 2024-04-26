@@ -184,9 +184,9 @@ func (e *Ext6) MulBy023(x *E6, c0, c1 *baseEl) *E6 {
 	v14 := e.fp.Mul(&x.A0, c0)
 
 	z0 := e.fp.MulConst(v2, big.NewInt(4))
-	s1 = e.fp.Add(v8, v10)
-	s1 = e.fp.Add(s1, v11)
-	s1 = e.fp.MulConst(s1, big.NewInt(12))
+	s811 := e.fp.Add(v8, v11)
+	s81110 := e.fp.Add(s811, v10)
+	s1 = e.fp.MulConst(s81110, big.NewInt(12))
 	z0 = e.fp.Add(z0, s1)
 	s1 = e.fp.MulConst(v12, big.NewInt(8))
 	z0 = e.fp.Add(z0, s1)
@@ -205,8 +205,8 @@ func (e *Ext6) MulBy023(x *E6, c0, c1 *baseEl) *E6 {
 	s1 = e.fp.Add(s1, s2)
 	z0 = e.fp.Sub(z0, s1)
 
-	z1 := e.fp.Add(v3, v5)
-	z1 = e.fp.Add(z1, v6)
+	s35 := e.fp.Add(v3, v5)
+	z1 := e.fp.Add(s35, v6)
 	z1 = e.fp.MulConst(z1, big.NewInt(4))
 	s1 = e.fp.MulConst(v7, big.NewInt(8))
 	z1 = e.fp.Add(z1, s1)
@@ -228,22 +228,20 @@ func (e *Ext6) MulBy023(x *E6, c0, c1 *baseEl) *E6 {
 	s1 = e.fp.Add(s1, s2)
 	z2 = e.fp.Sub(z2, s1)
 
-	z3 := e.fp.Add(v8, v11)
 	s1 = e.fp.MulConst(v10, big.NewInt(3))
-	z3 = e.fp.Add(z3, s1)
+	z3 := e.fp.Add(s811, s1)
 	s1 = e.fp.MulConst(v12, big.NewInt(2))
 	z3 = e.fp.Add(z3, s1)
 	s1 = e.fp.MulConst(v14, big.NewInt(2))
 	z3 = e.fp.Add(z3, s1)
-	s1 = e.fp.Add(v3, v4)
-	s1 = e.fp.Add(s1, v7)
+	s34 := e.fp.Add(v3, v4)
+	s1 = e.fp.Add(s34, v7)
 	s2 = e.fp.MulConst(v6, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
 	z3 = e.fp.Sub(z3, s1)
 
-	z4 := e.fp.Add(v2, v3)
-	z4 = e.fp.Add(z4, v7)
-	z4 = e.fp.Add(z4, v4)
+	z4 := e.fp.Add(v2, v7)
+	z4 = e.fp.Add(z4, s34)
 	s1 = e.fp.MulConst(v6, big.NewInt(2))
 	z4 = e.fp.Add(z4, s1)
 	s2 = e.fp.MulConst(v10, big.NewInt(2))
@@ -256,14 +254,11 @@ func (e *Ext6) MulBy023(x *E6, c0, c1 *baseEl) *E6 {
 	s1 = e.fp.Add(s1, s2)
 	z4 = e.fp.Sub(z4, s1)
 
-	z5 := e.fp.Add(v8, v10)
-	z5 = e.fp.Add(z5, v11)
-	z5 = e.fp.Add(z5, v12)
+	z5 := e.fp.Add(s81110, v12)
 	z5 = e.fp.MulConst(z5, big.NewInt(2))
 	s1 = e.fp.MulConst(v14, big.NewInt(3))
 	z5 = e.fp.Add(z5, s1)
-	s1 = e.fp.Add(v3, v4)
-	s1 = e.fp.Add(s1, v5)
+	s1 = e.fp.Add(s34, v5)
 	s2 = e.fp.MulConst(v6, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
 	s2 = e.fp.MulConst(v7, big.NewInt(2))
@@ -301,7 +296,7 @@ func (e Ext6) Mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	four := emulated.ValueOf[emulated.BW6761Fp](big.NewInt(4))
 	zC0B0 := e.fp.Sub(x0, &four)
 
-	return [5]*baseEl{zC0B0, x01, x1, x04, x14}
+	return [5]*baseEl{zC0B0, x01, x04, x1, x14}
 }
 
 // MulBy02345 multiplies z by an E6 sparse element of the form

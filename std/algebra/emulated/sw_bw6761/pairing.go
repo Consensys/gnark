@@ -319,8 +319,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 			A0: *prodLines[0],
 			A1: result.A1,
 			A2: *prodLines[1],
-			A3: *prodLines[3],
-			A4: *prodLines[2],
+			A3: *prodLines[2],
+			A4: *prodLines[3],
 			A5: *prodLines[4],
 		}
 	}
@@ -351,8 +351,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 						A0: *prodLines[0],
 						A1: *pr.curveF.Zero(),
 						A2: *prodLines[1],
-						A3: *prodLines[3],
-						A4: *prodLines[2],
+						A3: *prodLines[2],
+						A4: *prodLines[3],
 						A5: *prodLines[4],
 					},
 				)
@@ -381,8 +381,8 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 						A0: *prodLines[0],
 						A1: *pr.curveF.Zero(),
 						A2: *prodLines[1],
-						A3: *prodLines[3],
-						A4: *prodLines[2],
+						A3: *prodLines[2],
+						A4: *prodLines[3],
 						A5: *prodLines[4],
 					},
 				)
