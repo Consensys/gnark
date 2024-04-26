@@ -105,6 +105,7 @@ func main() {
 				groth16Dir         = strings.Replace(d.RootPath, "{?}", "groth16", 1)
 				groth16MpcSetupDir = filepath.Join(groth16Dir, "mpcsetup")
 				plonkDir           = strings.Replace(d.RootPath, "{?}", "plonk", 1)
+				fflonkDir          = strings.Replace(d.RootPath, "{?}", "fflonk", 1)
 			)
 
 			if err := os.MkdirAll(groth16Dir, 0700); err != nil {
@@ -141,7 +142,7 @@ func main() {
 				panic(err)
 			}
 
-			// groth16 & plonk
+			// groth16, plonk and fflonk
 			if d.noBackend {
 				// no backend with just the field defined
 				return
@@ -151,6 +152,9 @@ func main() {
 				panic(err)
 			}
 			if err := os.MkdirAll(plonkDir, 0700); err != nil {
+				panic(err)
+			}
+			if err := os.MkdirAll(fflonkDir, 0700); err != nil {
 				panic(err)
 			}
 
@@ -197,6 +201,18 @@ func main() {
 				{File: filepath.Join(plonkDir, "marshal_test.go"), Templates: []string{"plonk/tests/marshal.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "plonk", "./template/zkpschemes/", entries...); err != nil {
+				panic(err)
+			}
+
+			// fflonk
+			entries = []bavard.Entry{
+				{File: filepath.Join(plonkDir, "verify.go"), Templates: []string{"fflonk/plonk.verify.go.tmpl", importCurve}},
+				{File: filepath.Join(plonkDir, "prove.go"), Templates: []string{"fflonk/plonk.prove.go.tmpl", importCurve}},
+				{File: filepath.Join(plonkDir, "setup.go"), Templates: []string{"fflonk/plonk.setup.go.tmpl", importCurve}},
+				{File: filepath.Join(plonkDir, "marshal.go"), Templates: []string{"fflonk/plonk.marshal.go.tmpl", importCurve}},
+				{File: filepath.Join(plonkDir, "marshal_test.go"), Templates: []string{"fflonk/tests/marshal.go.tmpl", importCurve}},
+			}
+			if err := bgen.Generate(d, "fflonk", "./template/zkpschemes/", entries...); err != nil {
 				panic(err)
 			}
 
