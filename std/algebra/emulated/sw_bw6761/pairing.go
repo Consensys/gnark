@@ -345,17 +345,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
 					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
 				)
-				result = pr.Mul(
-					result,
-					&fields_bw6761.E6{
-						A0: *prodLines[0],
-						A1: *pr.curveF.Zero(),
-						A2: *prodLines[1],
-						A3: *prodLines[2],
-						A4: *prodLines[3],
-						A5: *prodLines[4],
-					},
-				)
+				result = pr.MulBy02345(result, prodLines)
 			}
 		} else {
 			// if number of lines is odd, mul last line by res
@@ -375,17 +365,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 					pr.curveF.Mul(&lines[k-1][0][i].R1, yInv[k-1]),
 					pr.curveF.Mul(&lines[k-1][0][i].R0, xNegOverY[k-1]),
 				)
-				result = pr.Mul(
-					result,
-					&fields_bw6761.E6{
-						A0: *prodLines[0],
-						A1: *pr.curveF.Zero(),
-						A2: *prodLines[1],
-						A3: *prodLines[2],
-						A4: *prodLines[3],
-						A5: *prodLines[4],
-					},
-				)
+				result = pr.MulBy02345(result, prodLines)
 			}
 		}
 	}

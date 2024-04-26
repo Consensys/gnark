@@ -301,9 +301,7 @@ func (e Ext6) Mul023By023(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 
 // MulBy02345 multiplies z by an E6 sparse element of the form
 //
-//	E6{
-//		B0: E3{A0: c0, A1: c1, A2: c2},
-//		B1: E3{A0: 0, A1: c4, A2: c5},
+//	E6{A0: y0, A1: 0, A2: y1, A3: y2, A4: y3, A5: y4},
 //	}
 func (e *Ext6) MulBy02345(x *E6, y [5]*baseEl) *E6 {
 	_t0 := e.fp.Add(&x.A0, &x.A1)
@@ -313,10 +311,9 @@ func (e *Ext6) MulBy02345(x *E6, y [5]*baseEl) *E6 {
 	t3 := e.fp.Add(t2, &x.A5)
 	t3 = e.fp.Add(t3, &x.A2)
 
-	_s0 := y[0]
-	s0 := e.fp.Add(_s0, y[1])
+	s0 := e.fp.Add(y[0], y[1])
 	s1 := e.fp.Add(y[2], y[3])
-	s2 := e.fp.Add(_s0, s1)
+	s2 := e.fp.Add(y[0], s1)
 	s3 := e.fp.Add(s2, y[4])
 	s3 = e.fp.Add(s3, y[1])
 
@@ -326,7 +323,7 @@ func (e *Ext6) MulBy02345(x *E6, y [5]*baseEl) *E6 {
 	t4 := e.fp.Add(t1, &x.A5)
 	s4 := e.fp.Add(s1, y[4])
 	v7 := e.fp.Mul(t4, s4)
-	v12 := e.fp.Mul(_t0, _s0)
+	v12 := e.fp.Mul(_t0, y[0])
 	v11 := e.fp.Mul(t1, s1)
 	t0 = e.fp.Add(&x.A2, &x.A3)
 	s0 = e.fp.Add(y[1], y[2])
@@ -334,7 +331,7 @@ func (e *Ext6) MulBy02345(x *E6, y [5]*baseEl) *E6 {
 	_t0 = e.fp.Sub(&x.A4, &x.A1)
 	v9 := e.fp.Mul(_t0, y[3])
 	t1 = e.fp.Add(&x.A1, &x.A2)
-	v10 := e.fp.Mul(t1, y[2])
+	v10 := e.fp.Mul(t1, y[1])
 	t1 = e.fp.Add(&x.A4, &x.A5)
 	s1 = e.fp.Add(y[3], y[4])
 	v13 := e.fp.Mul(t1, s1)
@@ -358,9 +355,9 @@ func (e *Ext6) MulBy02345(x *E6, y [5]*baseEl) *E6 {
 	v17 := e.fp.Mul(&x.A5, y[4])
 
 	c0 := e.fp.MulConst(v2, big.NewInt(4))
-	s1 = e.fp.Add(v8, v10)
-	s1 = e.fp.Add(s1, v11)
-	s1 = e.fp.MulConst(s1, big.NewInt(12))
+	s811 := e.fp.Add(v8, v11)
+	s81110 := e.fp.Add(s811, v10)
+	s1 = e.fp.MulConst(s81110, big.NewInt(12))
 	c0 = e.fp.Add(c0, s1)
 	s1 = e.fp.MulConst(v12, big.NewInt(8))
 	c0 = e.fp.Add(c0, s1)
@@ -370,7 +367,9 @@ func (e *Ext6) MulBy02345(x *E6, y [5]*baseEl) *E6 {
 	c0 = e.fp.Add(c0, s1)
 	s1 = e.fp.MulConst(v17, big.NewInt(20))
 	c0 = e.fp.Add(c0, s1)
-	s1 = e.fp.MulConst(v0, big.NewInt(4))
+	s1 = e.fp.MulConst(v16, big.NewInt(16))
+	s2 = e.fp.MulConst(v0, big.NewInt(4))
+	s1 = e.fp.Add(s1, s2)
 	s2 = e.fp.MulConst(v3, big.NewInt(8))
 	s1 = e.fp.Add(s1, s2)
 	s2 = e.fp.MulConst(v4, big.NewInt(4))
@@ -383,8 +382,8 @@ func (e *Ext6) MulBy02345(x *E6, y [5]*baseEl) *E6 {
 	s1 = e.fp.Add(s1, s2)
 	c0 = e.fp.Sub(c0, s1)
 
-	c1 := e.fp.Add(v3, v5)
-	c1 = e.fp.Add(c1, v6)
+	s35 := e.fp.Add(v3, v5)
+	c1 := e.fp.Add(s35, v6)
 	c1 = e.fp.MulConst(c1, big.NewInt(4))
 	s1 = e.fp.MulConst(v7, big.NewInt(8))
 	c1 = e.fp.Add(c1, s1)
@@ -405,21 +404,19 @@ func (e *Ext6) MulBy02345(x *E6, y [5]*baseEl) *E6 {
 	s1 = e.fp.Add(s1, s2)
 	c1 = e.fp.Sub(c1, s1)
 
-	c2 := v6
 	s1 = e.fp.MulConst(v11, big.NewInt(4))
-	c2 = e.fp.Add(c2, s1)
+	c2 := e.fp.Add(v6, s1)
 	s1 = e.fp.MulConst(v13, big.NewInt(4))
 	c2 = e.fp.Add(c2, s1)
-	s1 = e.fp.Add(v10, v12)
+	s1012 := e.fp.Add(v10, v12)
 	s2 = e.fp.MulConst(v7, big.NewInt(4))
-	s1 = e.fp.Add(s1, s2)
+	s1 = e.fp.Add(s1012, s2)
 	s2 = e.fp.MulConst(v16, big.NewInt(8))
 	s1 = e.fp.Add(s1, s2)
 	c2 = e.fp.Sub(c2, s1)
 
-	c3 := e.fp.Add(v8, v11)
 	s1 = e.fp.MulConst(v10, big.NewInt(3))
-	c3 = e.fp.Add(c3, s1)
+	c3 := e.fp.Add(s811, s1)
 	s1 = e.fp.MulConst(v12, big.NewInt(2))
 	c3 = e.fp.Add(c3, s1)
 	s1 = e.fp.MulConst(v14, big.NewInt(2))
@@ -428,18 +425,17 @@ func (e *Ext6) MulBy02345(x *E6, y [5]*baseEl) *E6 {
 	c3 = e.fp.Add(c3, s1)
 	s1 = e.fp.MulConst(v17, big.NewInt(6))
 	c3 = e.fp.Add(c3, s1)
-	s1 = e.fp.Add(v3, v4)
-	s1 = e.fp.Add(s1, v7)
+	s34 := e.fp.Add(v3, v4)
+	s1 = e.fp.Add(s34, v7)
 	s2 = e.fp.MulConst(v6, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
 	s2 = e.fp.MulConst(v13, big.NewInt(3))
 	s1 = e.fp.Add(s1, s2)
 	c3 = e.fp.Sub(c3, s1)
 
-	c4 := e.fp.Add(v2, v3)
-	c4 = e.fp.Add(c4, v9)
+	c4 := e.fp.Add(v2, v9)
 	c4 = e.fp.Add(c4, v7)
-	c4 = e.fp.Add(c4, v4)
+	c4 = e.fp.Add(c4, s34)
 	s1 = e.fp.MulConst(v6, big.NewInt(2))
 	c4 = e.fp.Add(c4, s1)
 	s1 = e.fp.Add(v13, v8)
@@ -455,16 +451,14 @@ func (e *Ext6) MulBy02345(x *E6, y [5]*baseEl) *E6 {
 	s1 = e.fp.Add(s1, s2)
 	c4 = e.fp.Sub(c4, s1)
 
-	c5 := e.fp.Add(v8, v10)
-	c5 = e.fp.Add(c5, v11)
-	c5 = e.fp.Add(c5, v12)
+	c5 := e.fp.Add(s81110, v12)
 	c5 = e.fp.Add(c5, v13)
 	c5 = e.fp.MulConst(c5, big.NewInt(2))
 	s1 = e.fp.MulConst(v14, big.NewInt(3))
 	c5 = e.fp.Add(c5, s1)
 	s1 = e.fp.MulConst(v17, big.NewInt(3))
 	c5 = e.fp.Add(c5, s1)
-	s1 = e.fp.Add(v4, v3)
+	s1 = e.fp.Add(v16, s34)
 	s1 = e.fp.Add(s1, v5)
 	s1 = e.fp.Add(s1, v9)
 	s2 = e.fp.MulConst(v6, big.NewInt(2))
