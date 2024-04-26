@@ -1,6 +1,5 @@
 import (
 	"errors"
-	"fmt"
 	{{ if eq .Curve "BN254" -}}
     "html/template"
     {{- end }}
@@ -78,7 +77,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	if err != nil {
 		return err
 	}
-	fmt.Printf("zeta=Fr(%s)\n", zeta.String())
 
 	// ζᵗ
 	var zetaT fr.Element
