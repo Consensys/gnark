@@ -189,14 +189,6 @@ func mulFpByNonResidue(fp *curveF, x *baseEl) *baseEl {
 	return z
 }
 
-func (e Ext6) Mul(x, y *E6) *E6 {
-	x = e.Reduce(x)
-	y = e.Reduce(y)
-	v := e.interpolationX6Mul(x, y)
-	return e.mulMontgomery6(v)
-	// return e.mulToomCook6(v)
-}
-
 func (e Ext6) interpolationX6Mul(x, y *E6) [18]*baseEl {
 	// Fixing the polynomial to X^6 we first compute the interpolation points
 	// vi = x(pi)*y(pi) at {0, ±1, ±2, ±3, ±4, 5,∞}:
@@ -495,11 +487,101 @@ func (e Ext6) mulMontgomery6(v [18]*baseEl) *E6 {
 	}
 }
 
-func (e Ext6) Square(x *E6) *E6 {
+func (e Ext6) Mul(x, y *E6) *E6 {
 	x = e.Reduce(x)
-	v := e.interpolationX6Sq(x)
+	y = e.Reduce(y)
+	v := e.interpolationX6Mul(x, y)
 	return e.mulMontgomery6(v)
 	// return e.mulToomCook6(v)
+}
+
+func (e Ext6) Square(x *E6) *E6 {
+	// We don't use Montgomery-6 or Toom-Cook-6 for the squaring but instead we
+	// simulate a quadratic over cubic extension tower because Karatsuba over
+	// Chung-Hasan SQR2 is better constraint wise.
+	//
+	// Algorithm 22 from https://eprint.iacr.org/2010/354.pdf
+	x = e.Reduce(x)
+
+	// c0
+	c00 := e.fp.Sub(&x.A0, &x.A1)
+	c01 := e.fp.Sub(&x.A2, &x.A3)
+	c02 := e.fp.Sub(&x.A4, &x.A5)
+
+	// c3
+	c30 := e.fp.Add(&x.A0, e.fp.MulConst(&x.A5, big.NewInt(4)))
+	c31 := e.fp.Sub(&x.A2, &x.A1)
+	c32 := e.fp.Sub(&x.A4, &x.A3)
+
+	t0 := e.fp.Mul(&x.A0, &x.A1)
+	t1 := e.fp.Mul(&x.A2, &x.A3)
+	t2 := e.fp.Mul(&x.A4, &x.A5)
+	c0 := e.fp.Add(&x.A2, &x.A4)
+	tmp := e.fp.Add(&x.A3, &x.A5)
+	c0 = e.fp.Mul(c0, tmp)
+	c0 = e.fp.Sub(c0, t1)
+	c0 = e.fp.Sub(t2, c0)
+	c0 = e.fp.MulConst(c0, big.NewInt(4))
+	tmp = e.fp.Add(&x.A0, &x.A4)
+	c2 := e.fp.Add(&x.A1, &x.A5)
+	c2 = e.fp.Mul(c2, tmp)
+	c2 = e.fp.Sub(c2, t0)
+	c2 = e.fp.Sub(c2, t2)
+	c1 := e.fp.Add(&x.A0, &x.A2)
+	tmp = e.fp.Add(&x.A1, &x.A3)
+	c1 = e.fp.Mul(c1, tmp)
+	c1 = e.fp.Sub(c1, t0)
+	c1 = e.fp.Sub(c1, t1)
+	t2 = mulFpByNonResidue(e.fp, t2)
+	// c2
+	c20 := e.fp.Add(c0, t0)
+	c21 := e.fp.Add(c1, t2)
+	c22 := e.fp.Add(c2, t1)
+
+	t0 = e.fp.Mul(c00, c30)
+	t1 = e.fp.Mul(c01, c31)
+	t2 = e.fp.Mul(c02, c32)
+	c0 = e.fp.Add(c01, c02)
+	tmp = e.fp.Add(c31, c32)
+	c0 = e.fp.Mul(c0, tmp)
+	c0 = e.fp.Sub(c0, t1)
+	c0 = e.fp.Sub(t2, c0)
+	c0 = e.fp.MulConst(c0, big.NewInt(4))
+	tmp = e.fp.Add(c00, c02)
+	c2 = e.fp.Add(c30, c32)
+	c2 = e.fp.Mul(c2, tmp)
+	c2 = e.fp.Sub(c2, t0)
+	c2 = e.fp.Sub(c2, t2)
+	c1 = e.fp.Add(c00, c01)
+	tmp = e.fp.Add(c30, c31)
+	c1 = e.fp.Mul(c1, tmp)
+	c1 = e.fp.Sub(c1, t0)
+	c1 = e.fp.Sub(c1, t1)
+	t2 = mulFpByNonResidue(e.fp, t2)
+	c00 = e.fp.Add(c0, t0)
+	c01 = e.fp.Add(c1, t2)
+	c02 = e.fp.Add(c2, t1)
+
+	c00 = e.fp.Add(c00, c20)
+	c01 = e.fp.Add(c01, c21)
+	c02 = e.fp.Add(c02, c22)
+
+	b10 := e.fp.MulConst(c20, big.NewInt(2))
+	b11 := e.fp.MulConst(c21, big.NewInt(2))
+	b12 := e.fp.MulConst(c22, big.NewInt(2))
+
+	b00 := e.fp.Sub(c00, e.fp.MulConst(c22, big.NewInt(4)))
+	b01 := e.fp.Add(c01, c20)
+	b02 := e.fp.Add(c02, c21)
+
+	return &E6{
+		A0: *b00,
+		A1: *b10,
+		A2: *b01,
+		A3: *b11,
+		A4: *b02,
+		A5: *b12,
+	}
 }
 
 /*
