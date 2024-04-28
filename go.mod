@@ -15,7 +15,9 @@ require (
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b
 	github.com/icza/bitio v1.1.0
 	github.com/ingonyama-zk/iciclegnark v0.1.0
+	github.com/klauspost/compress v1.17.8
 	github.com/leanovate/gopter v0.2.9
+	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.30.0
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/crypto v0.17.0

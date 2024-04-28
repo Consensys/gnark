@@ -17,14 +17,18 @@
 package cs
 
 import (
+	"bytes"
+	"encoding/binary"
+	"errors"
+	"github.com/blang/semver/v4"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/ronanh/intcomp"
 	"io"
 	"time"
 
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/logger"
 	"reflect"
 
@@ -149,23 +153,145 @@ func (cs *system) CurveID() ecc.ID {
 	return ecc.BW6_633
 }
 
-// WriteTo encodes R1CS into provided io.Writer using cbor
-func (cs *system) WriteTo(w io.Writer) (int64, error) {
-	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
+func (cs *system) ToBytes() ([]byte, error) {
+	buf := make([]byte, 0, cs.GetNbInstructions()*32)
+
+	// write the gnark version Major, Minor and Patch
+	gnarkVersion := semver.MustParse(cs.GnarkVersion)
+	buf = binary.LittleEndian.AppendUint32(buf, uint32(gnarkVersion.Major))
+	buf = binary.LittleEndian.AppendUint32(buf, uint32(gnarkVersion.Minor))
+	buf = binary.LittleEndian.AppendUint32(buf, uint32(gnarkVersion.Patch))
+
+	// write the binary-friendly part of the system
+	// * the packed instructions
+	// * the calldata
+	// * the levels
+	// * the coefficients
+
+	// prepare the []uint32 separated slices for the packed instructions
+	sBlueprintID := make([]uint32, len(cs.Instructions))
+	sConstraintOffset := make([]uint32, len(cs.Instructions))
+	sWireOffset := make([]uint32, len(cs.Instructions))
+	sStartCallData := make([]uint64, len(cs.Instructions))
+
+	// collect them
+	for i, inst := range cs.Instructions {
+		sBlueprintID[i] = uint32(inst.BlueprintID)
+		sConstraintOffset[i] = inst.ConstraintOffset
+		sWireOffset[i] = inst.WireOffset
+		sStartCallData[i] = inst.StartCallData
+	}
+
+	// they compress very well due to their nature (sequential integers)
+	var buf32 []uint32
+	buf32 = intcomp.CompressUint32(sBlueprintID, buf32)
+	buf = appendUint32Slice(buf, buf32)
+
+	buf32 = buf32[:0]
+	buf32 = intcomp.CompressUint32(sConstraintOffset, buf32)
+	buf = appendUint32Slice(buf, buf32)
+
+	buf32 = buf32[:0]
+	buf32 = intcomp.CompressUint32(sWireOffset, buf32)
+	buf = appendUint32Slice(buf, buf32)
+
+	buf64 := intcomp.CompressUint64(sStartCallData, nil)
+	buf = appendUint64Slice(buf, buf64)
+
+	// write the calldata as var uints
+	buf = binary.LittleEndian.AppendUint64(buf, uint64(len(cs.CallData)))
+	for _, v := range cs.CallData {
+		buf = binary.AppendUvarint(buf, uint64(v))
+	}
+
+	// TODO levels
+	// TODO coefficients
+
+	// the rest is encoded with CBOR
 	ts := getTagSet()
 	enc, err := cbor.CoreDetEncOptions().EncModeWithTags(ts)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	encoder := enc.NewEncoder(&_w)
+	var bbuf bytes.Buffer
+	encoder := enc.NewEncoder(&bbuf)
 
 	// encode our object
 	err = encoder.Encode(cs)
-	return _w.N, err
+	if err != nil {
+		return nil, err
+	}
+
+	// append the CBOR encoded part to the buffer
+	buf = append(buf, bbuf.Bytes()...)
+
+	return buf, nil
 }
 
-// ReadFrom attempts to decode R1CS from io.Reader using cbor
-func (cs *system) ReadFrom(r io.Reader) (int64, error) {
+func (cs *system) FromBytes(buf []byte) error {
+	// read the gnark version Major, Minor and Patch
+	if len(buf) < 12 {
+		return errors.New("invalid buffer size")
+	}
+	_ = binary.LittleEndian.Uint32(buf[:4])
+	_ = binary.LittleEndian.Uint32(buf[4:8])
+	_ = binary.LittleEndian.Uint32(buf[8:12])
+	// if major != 0 || minor <= 10 {
+	// 	return errors.New("unsupported gnark version")
+	// }
+
+	// read the binary-friendly part of the system
+	// * the packed instructions
+	// * the calldata
+	// * the levels
+	// * the coefficients
+
+	// prepare the []uint32 separated slices for the packed instructions
+	var sBlueprintID, sConstraintOffset, sWireOffset []uint32
+	var sStartCallData []uint64
+
+	// read the packed instructions
+	buf = buf[12:]
+
+	var n int
+	n, sBlueprintID = readUint32Slice(buf)
+	buf = buf[n:]
+	n, sConstraintOffset = readUint32Slice(buf)
+	buf = buf[n:]
+	n, sWireOffset = readUint32Slice(buf)
+	buf = buf[n:]
+	n, sStartCallData = readUint64Slice(buf)
+	buf = buf[n:]
+
+	// rebuild the instructions
+	cs.Instructions = make([]constraint.PackedInstruction, len(sBlueprintID))
+	for i := range cs.Instructions {
+		cs.Instructions[i] = constraint.PackedInstruction{
+			BlueprintID:      constraint.BlueprintID(sBlueprintID[i]),
+			ConstraintOffset: sConstraintOffset[i],
+			WireOffset:       sWireOffset[i],
+			StartCallData:    sStartCallData[i],
+		}
+	}
+
+	// read the calldata
+	calldataLen := binary.LittleEndian.Uint64(buf[:4])
+	buf = buf[4:]
+	cs.CallData = make([]uint32, calldataLen)
+
+	for i := range cs.CallData {
+		v, n := binary.Uvarint(buf)
+		if n <= 0 {
+			return errors.New("invalid uvarint")
+		}
+		cs.CallData[i] = uint32(v)
+		buf = buf[n:]
+	}
+
+	// TODO levels
+	// TODO coefficients
+
+	// the rest is encoded with CBOR
 	ts := getTagSet()
 	dm, err := cbor.DecOptions{
 		MaxArrayElements: 2147483647,
@@ -173,19 +299,19 @@ func (cs *system) ReadFrom(r io.Reader) (int64, error) {
 	}.DecModeWithTags(ts)
 
 	if err != nil {
-		return 0, err
+		return err
 	}
-	decoder := dm.NewDecoder(r)
+	decoder := dm.NewDecoder(bytes.NewReader(buf))
 
 	// initialize coeff table
 	cs.CoeffTable = newCoeffTable(0)
 
 	if err := decoder.Decode(&cs); err != nil {
-		return int64(decoder.NumBytesRead()), err
+		return err
 	}
 
 	if err := cs.CheckSerializationHeader(); err != nil {
-		return int64(decoder.NumBytesRead()), err
+		return err
 	}
 
 	switch v := cs.CommitmentInfo.(type) {
@@ -195,7 +321,63 @@ func (cs *system) ReadFrom(r io.Reader) (int64, error) {
 		cs.CommitmentInfo = *v
 	}
 
-	return int64(decoder.NumBytesRead()), nil
+	return nil
+}
+
+func appendUint32Slice(buf []byte, slice []uint32) []byte {
+	buf = binary.LittleEndian.AppendUint64(buf, uint64(len(slice)))
+	for _, v := range slice {
+		buf = binary.LittleEndian.AppendUint32(buf, v)
+	}
+	return buf
+}
+
+func readUint32Slice(data []byte) (int, []uint32) {
+	length := binary.LittleEndian.Uint64(data[:8])
+	in := make([]uint32, length)
+	for i := range in {
+		in[i] = binary.LittleEndian.Uint32(data[8+i*4:])
+	}
+	nbBytesRead := 8 + len(in)*4
+	return nbBytesRead, intcomp.UncompressUint32(in, nil)
+}
+
+func appendUint64Slice(buf []byte, slice []uint64) []byte {
+	buf = binary.LittleEndian.AppendUint64(buf, uint64(len(slice)))
+	for _, v := range slice {
+		buf = binary.LittleEndian.AppendUint64(buf, v)
+	}
+	return buf
+}
+
+func readUint64Slice(data []byte) (int, []uint64) {
+	length := binary.LittleEndian.Uint64(data[:8])
+	in := make([]uint64, length)
+	for i := range in {
+		in[i] = binary.LittleEndian.Uint64(data[8+i*8:])
+	}
+	nbBytesRead := 8 + len(in)*8
+	return nbBytesRead, intcomp.UncompressUint64(in, nil)
+}
+
+// WriteTo encodes R1CS into provided io.Writer using cbor
+func (cs *system) WriteTo(w io.Writer) (int64, error) {
+	buf, err := cs.ToBytes()
+	if err != nil {
+		return 0, err
+	}
+	n, err := w.Write(buf)
+	return int64(n), err
+}
+
+// ReadFrom attempts to decode R1CS from io.Reader using cbor
+func (cs *system) ReadFrom(r io.Reader) (int64, error) {
+	buf, err := io.ReadAll(r)
+	if err != nil {
+		return 0, err
+	}
+	err = cs.FromBytes(buf)
+	return int64(len(buf)), err
 }
 
 func (cs *system) GetCoefficient(i int) (r constraint.Element) {

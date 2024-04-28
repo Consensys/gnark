@@ -81,9 +81,9 @@ type System struct {
 
 	Type SystemType
 
-	Instructions []PackedInstruction
+	Instructions []PackedInstruction `cbor:"-"`
 	Blueprints   []Blueprint
-	CallData     []uint32 // huge slice.
+	CallData     []uint32 `cbor:"-"`
 
 	// can be != than len(instructions)
 	NbConstraints int
