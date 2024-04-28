@@ -18,6 +18,10 @@ package groth16
 
 import (
 	"fmt"
+	"math/big"
+	"runtime"
+	"time"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -32,9 +36,7 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
-	"math/big"
-	"runtime"
-	"time"
+	"github.com/rs/zerolog"
 
 	fcs "github.com/consensys/gnark/frontend/cs"
 )
@@ -132,7 +134,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	var h []fr.Element
 	chHDone := make(chan struct{}, 1)
 	go func() {
-		h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
+		h = computeH(solution.A, solution.B, solution.C, &pk.Domain, log)
 		solution.A = nil
 		solution.B = nil
 		solution.C = nil
@@ -191,7 +193,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	chBs1Done := make(chan error, 1)
 	computeBS1 := func() {
 		<-chWireValuesB
-		if _, err := bs1.MultiExp(pk.G1.B, wireValuesB, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+		start := time.Now()
+		_, err := bs1.MultiExp(pk.G1.B, wireValuesB, ecc.MultiExpConfig{NbTasks: n / 2})
+		log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs1")
+		if err != nil {
 			chBs1Done <- err
 			close(chBs1Done)
 			return
@@ -204,7 +209,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	chArDone := make(chan error, 1)
 	computeAR1 := func() {
 		<-chWireValuesA
-		if _, err := ar.MultiExp(pk.G1.A, wireValuesA, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+		start := time.Now()
+		_, err := ar.MultiExp(pk.G1.A, wireValuesA, ecc.MultiExpConfig{NbTasks: n / 2})
+		log.Debug().Dur("took", time.Since(start)).Msg("MSM Ar1")
+		if err != nil {
 			chArDone <- err
 			close(chArDone)
 			return
@@ -224,7 +232,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		chKrs2Done := make(chan error, 1)
 		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
 		go func() {
+			start := time.Now()
 			_, err := krs2.MultiExp(pk.G1.Z, h[:sizeH], ecc.MultiExpConfig{NbTasks: n / 2})
+			log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs2")
 			chKrs2Done <- err
 		}()
 
@@ -234,7 +244,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
 		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
 
-		if _, err := krs.MultiExp(pk.G1.K, _wireValues, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
+		start := time.Now()
+		_, err := krs.MultiExp(pk.G1.K, _wireValues, ecc.MultiExpConfig{NbTasks: n / 2})
+		log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs")
+		if err != nil {
 			chKrsDone <- err
 			return
 		}
@@ -280,7 +293,10 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			nbTasks *= 2
 		}
 		<-chWireValuesB
-		if _, err := Bs.MultiExp(pk.G2.B, wireValuesB, ecc.MultiExpConfig{NbTasks: nbTasks}); err != nil {
+		start := time.Now()
+		_, err := Bs.MultiExp(pk.G2.B, wireValuesB, ecc.MultiExpConfig{NbTasks: nbTasks})
+		log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs2 G2")
+		if err != nil {
 			return err
 		}
 
@@ -343,7 +359,7 @@ func filterHeap(slice []fr.Element, sliceFirstIndex int, toRemove []int) (r []fr
 	return
 }
 
-func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
+func computeH(a, b, c []fr.Element, domain *fft.Domain, log zerolog.Logger) []fr.Element {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -359,13 +375,21 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 	c = append(c, padding...)
 	n = len(a)
 
+	start := time.Now()
 	domain.FFTInverse(a, fft.DIF)
-	domain.FFTInverse(b, fft.DIF)
-	domain.FFTInverse(c, fft.DIF)
-
 	domain.FFT(a, fft.DIT, fft.OnCoset())
+	log.Debug().Dur("took", time.Since(start)).Msg("computeH: NTT + INTT")
+
+	start = time.Now()
+	domain.FFTInverse(b, fft.DIF)
 	domain.FFT(b, fft.DIT, fft.OnCoset())
+	log.Debug().Dur("took", time.Since(start)).Msg("computeH: NTT + INTT")
+
+	start = time.Now()
+	domain.FFTInverse(c, fft.DIF)
 	domain.FFT(c, fft.DIT, fft.OnCoset())
+	log.Debug().Dur("took", time.Since(start)).Msg("computeH: NTT + INTT")
+
 
 	var den, one fr.Element
 	one.SetOne()
@@ -374,6 +398,7 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 
 	// h = ifft_coset(ca o cb - cc)
 	// reusing a to avoid unnecessary memory allocation
+	start = time.Now()
 	utils.Parallelize(n, func(start, end int) {
 		for i := start; i < end; i++ {
 			a[i].Mul(&a[i], &b[i]).
@@ -381,9 +406,12 @@ func computeH(a, b, c []fr.Element, domain *fft.Domain) []fr.Element {
 				Mul(&a[i], &den)
 		}
 	})
+	log.Debug().Dur("took", time.Since(start)).Msg("computeH: vecOps")
 
 	// ifft_coset
+	start = time.Now()
 	domain.FFTInverse(a, fft.DIF, fft.OnCoset())
+	log.Debug().Dur("took", time.Since(start)).Msg("computeH: INTT final")
 
 	return a
 }

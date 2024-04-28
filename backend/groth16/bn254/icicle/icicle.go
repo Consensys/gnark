@@ -23,6 +23,7 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	"github.com/rs/zerolog"
 
 	icicle_core "github.com/ingonyama-zk/icicle/v2/wrappers/golang/core"
 	icicle_cr "github.com/ingonyama-zk/icicle/v2/wrappers/golang/cuda_runtime"
@@ -42,11 +43,12 @@ func (pk *ProvingKey) setupDevicePointers() error {
 		return nil
 	}
 	pk.deviceInfo = &deviceInfo{}
+	gen, _ := fft.Generator(2 * pk.Domain.Cardinality)
 	/*************************     Den      ***************************/
 	n := int(pk.Domain.Cardinality)
 	var denI, oneI fr.Element
 	oneI.SetOne()
-	denI.Exp(pk.Domain.FrMultiplicativeGen, big.NewInt(int64(pk.Domain.Cardinality)))
+	denI.Exp(gen, big.NewInt(int64(pk.Domain.Cardinality)))
 	denI.Sub(&denI, &oneI).Inverse(&denI)
 	
 	log2SizeFloor := bits.Len(uint(n)) - 1
@@ -63,6 +65,7 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	go func() {
 		denIcicleArrHost := (icicle_core.HostSlice[fr.Element])(denIcicleArr)
 		denIcicleArrHost.CopyToDevice(&pk.DenDevice, true)
+		icicle_bn254.FromMontgomery(&pk.DenDevice)
 		copyDenDone <- true
 		}()
 		
@@ -72,10 +75,9 @@ func (pk *ProvingKey) setupDevicePointers() error {
 		panic("Couldn't create device context") // TODO
 	}
 
-	gen, _ := fft.Generator(2 * pk.Domain.Cardinality)
 	genBits := gen.Bits()
 	limbs := icicle_core.ConvertUint64ArrToUint32Arr(genBits[:])
-	pk.CosetGenerator = limbs
+	copy(pk.CosetGenerator[:], limbs[:fr.Limbs*2])
 	var rouIcicle icicle_bn254.ScalarField
 	rouIcicle.FromLimbs(limbs)
 	e := icicle_ntt.InitDomain(rouIcicle, ctx, false)
@@ -264,7 +266,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	var h icicle_core.DeviceSlice
 	chHDone := make(chan struct{}, 1)
 	go func() {
-		h = computeH(solution.A, solution.B, solution.C, pk)
+		h = computeH(solution.A, solution.B, solution.C, pk, log)
 
 		solution.A = nil
 		solution.B = nil
@@ -336,7 +338,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		cfg.ArePointsMontgomeryForm = true
 		cfg.AreScalarsMontgomeryForm = true
 		res := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
+		start := time.Now()
 		icicle_msm.Msm(wireValuesBDevice, pk.G1Device.B, &cfg, res)
+		log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs1")
 		bs1 = g1ProjectiveToG1Jac(res[0])
 
 		bs1.AddMixed(&pk.G1.Beta)
@@ -352,7 +356,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		cfg.ArePointsMontgomeryForm = true
 		cfg.AreScalarsMontgomeryForm = true
 		res := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
+		start := time.Now()
 		icicle_msm.Msm(wireValuesADevice, pk.G1Device.A, &cfg, res)
+		log.Debug().Dur("took", time.Since(start)).Msg("MSM Ar1")
 		ar = g1ProjectiveToG1Jac(res[0])
 
 		ar.AddMixed(&pk.G1.Alpha)
@@ -370,7 +376,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		cfg.ArePointsMontgomeryForm = true
 		cfg.AreScalarsMontgomeryForm = true
 		resKrs2 := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
+		start := time.Now()
 		icicle_msm.Msm(h.RangeTo(sizeH, false), pk.G1Device.Z, &cfg, resKrs2)
+		log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs2")
 		krs2 = g1ProjectiveToG1Jac(resKrs2[0])
 
 		// filter the wire values if needed
@@ -380,7 +388,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
 		_wireValuesHost := (icicle_core.HostSlice[fr.Element])(_wireValues)
 		resKrs := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
+		start = time.Now()
 		icicle_msm.Msm(_wireValuesHost, pk.G1Device.K, &cfg, resKrs)
+		log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs")
 		krs = g1ProjectiveToG1Jac(resKrs[0])
 
 		krs.AddMixed(&deltas[2])
@@ -408,7 +418,9 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		cfg.ArePointsMontgomeryForm = true
 		cfg.AreScalarsMontgomeryForm = true
 		res := make(icicle_core.HostSlice[icicle_g2.G2Projective], 1)
+		start := time.Now()
 		icicle_g2.G2Msm(wireValuesBDevice, pk.G2Device.B, &cfg, res)
+		log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs2 G2")
 		Bs = g2ProjectiveToG2Jac(&res[0])
 
 		deltaS.FromAffine(&pk.G2.Delta)
@@ -478,7 +490,7 @@ func filterHeap(slice []fr.Element, sliceFirstIndex int, toRemove []int) (r []fr
 	return
 }
 
-func computeH(a, b, c []fr.Element, pk *ProvingKey) icicle_core.DeviceSlice {
+func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_core.DeviceSlice {
 	// H part of Krs
 	// Compute H (hz=ab-c, where z=-2 on ker X^n+1 (z(x)=x^n-1))
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
@@ -498,25 +510,22 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey) icicle_core.DeviceSlice {
 	computeBDone := make(chan icicle_core.DeviceSlice, 1)
 	computeCDone := make(chan icicle_core.DeviceSlice, 1)
 
-	cosetGenBits := pk.Domain.FrMultiplicativeGen.Bits()
-	cosetGen := icicle_core.ConvertUint64ArrToUint32Arr(cosetGenBits[:])
-	var configCosetGen [8]uint32
-	copy(configCosetGen[:], cosetGen[:8])
-
 	computeInttNttOnDevice := func(scalars []fr.Element, channel chan icicle_core.DeviceSlice) {
 		cfg := icicle_ntt.GetDefaultNttConfig()
 		scalarsStream, _ := icicle_cr.CreateStream()
 		cfg.Ctx.Stream = &scalarsStream
-		cfg.Ordering = icicle_core.KNR
+		cfg.Ordering = icicle_core.KNM
 		cfg.IsAsync = true
 		scalarsHost := icicle_core.HostSliceFromElements(scalars)
 		var scalarsDevice icicle_core.DeviceSlice
 		scalarsHost.CopyToDeviceAsync(&scalarsDevice, scalarsStream, true)
+		start := time.Now()
 		icicle_ntt.Ntt(scalarsDevice, icicle_core.KInverse, &cfg, scalarsDevice)
-		cfg.Ordering = icicle_core.KRN
-		cfg.CosetGen = configCosetGen
+		cfg.Ordering = icicle_core.KMN
+		cfg.CosetGen = pk.CosetGenerator
 		icicle_ntt.Ntt(scalarsDevice, icicle_core.KForward, &cfg, scalarsDevice)
 		icicle_cr.SynchronizeStream(&scalarsStream)
+		log.Debug().Dur("took", time.Since(start)).Msg("computeH: NTT + INTT")
 		channel <-scalarsDevice
 	}
 
@@ -529,16 +538,21 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey) icicle_core.DeviceSlice {
 	cDevice := <-computeCDone
 
 	vecCfg := icicle_core.DefaultVecOpsConfig()
+	start := time.Now()
 	icicle_bn254.FromMontgomery(&aDevice)
 	icicle_vecops.VecOp(aDevice, bDevice, aDevice, vecCfg, icicle_core.Mul)
 	icicle_vecops.VecOp(aDevice, cDevice, aDevice, vecCfg, icicle_core.Sub)
-	icicle_bn254.FromMontgomery(&aDevice)
 	icicle_vecops.VecOp(aDevice, pk.DenDevice, aDevice, vecCfg, icicle_core.Mul)
+	log.Debug().Dur("took", time.Since(start)).Msg("computeH: vecOps")
+	defer bDevice.Free()
+	defer cDevice.Free()
 
 	cfg := icicle_ntt.GetDefaultNttConfig()
-	cfg.CosetGen = configCosetGen
-	cfg.Ordering = icicle_core.KNR
+	cfg.CosetGen = pk.CosetGenerator
+	cfg.Ordering = icicle_core.KNM
+	start = time.Now()
 	icicle_ntt.Ntt(aDevice, icicle_core.KInverse, &cfg, aDevice)
+	log.Debug().Dur("took", time.Since(start)).Msg("computeH: INTT final")
 
 	return aDevice
 }
