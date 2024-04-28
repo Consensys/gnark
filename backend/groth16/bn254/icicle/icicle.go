@@ -80,7 +80,7 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	copy(pk.CosetGenerator[:], limbs[:fr.Limbs*2])
 	var rouIcicle icicle_bn254.ScalarField
 	rouIcicle.FromLimbs(limbs)
-	e := icicle_ntt.InitDomain(rouIcicle, ctx, false)
+	e := icicle_ntt.InitDomain(rouIcicle, ctx, true)
 	if e.IcicleErrorCode != icicle_core.IcicleSuccess {
 		panic("Couldn't initialize domain") // TODO
 	}
@@ -520,6 +520,7 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_c
 		var scalarsDevice icicle_core.DeviceSlice
 		scalarsHost.CopyToDeviceAsync(&scalarsDevice, scalarsStream, true)
 		start := time.Now()
+		cfg.NttAlgorithm = icicle_core.Radix2
 		icicle_ntt.Ntt(scalarsDevice, icicle_core.KInverse, &cfg, scalarsDevice)
 		cfg.Ordering = icicle_core.KMN
 		cfg.CosetGen = pk.CosetGenerator
@@ -550,6 +551,7 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_c
 	cfg := icicle_ntt.GetDefaultNttConfig()
 	cfg.CosetGen = pk.CosetGenerator
 	cfg.Ordering = icicle_core.KNM
+	cfg.NttAlgorithm = icicle_core.Radix2
 	start = time.Now()
 	icicle_ntt.Ntt(aDevice, icicle_core.KInverse, &cfg, aDevice)
 	log.Debug().Dur("took", time.Since(start)).Msg("computeH: INTT final")
