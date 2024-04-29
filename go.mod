@@ -15,9 +15,7 @@ require (
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b
 	github.com/icza/bitio v1.1.0
 	github.com/ingonyama-zk/iciclegnark v0.1.0
-	github.com/klauspost/compress v1.17.8
 	github.com/leanovate/gopter v0.2.9
-	github.com/pkg/profile v1.7.0
 	github.com/ronanh/intcomp v1.1.0
 	github.com/rs/zerolog v1.30.0
 	github.com/stretchr/testify v1.8.4
@@ -28,7 +26,6 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/ingonyama-zk/icicle v0.0.0-20230928131117-97f0079e5c71 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
