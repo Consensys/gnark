@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/consensys/gnark/internal/backend/ioutils"
@@ -12,12 +11,18 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// ToBytes serializes the constraint system to a byte slice
+// This is not meant to be called directly since the constraint.System is embedded in
+// a "curve-typed" system (e.g. bls12-381.system)
 func (cs *System) ToBytes() ([]byte, error) {
+	// we prepare and write 4 distinct blocks of data;
+	// that allow for a more efficient serialization/deserialization (+ parallelism)
 	var calldata, instructions, levels []byte
 	var g errgroup.Group
 	g.Go(func() error {
-		calldata = cs.calldataToBytes()
-		return nil
+		var err error
+		calldata, err = cs.calldataToBytes()
+		return err
 	})
 	g.Go(func() error {
 		var err error
@@ -56,23 +61,24 @@ func (cs *System) ToBytes() ([]byte, error) {
 	return buf, nil
 }
 
+// FromBytes deserializes the constraint system from a byte slice
+// This is not meant to be called directly since the constraint.System is embedded in
+// a "curve-typed" system (e.g. bls12-381.system)
 func (cs *System) FromBytes(data []byte) (int, error) {
 	if len(data) < headerLen {
 		return 0, errors.New("invalid data length")
 	}
+
+	// read the header which contains the length of each section
 	h := new(header)
 	h.fromBytes(data)
 
-	// read the binary-friendly part of the system
-	// * the packed instructions
-	// * the calldata
-	// * the levels
 	if len(data) < headerLen+int(h.levelsLen)+int(h.instructionsLen)+int(h.calldataLen)+int(h.bodyLen) {
 		return 0, errors.New("invalid data length")
 	}
 
+	// read the sections in parallel
 	var g errgroup.Group
-
 	g.Go(func() error {
 		return cs.levelsFromBytes(data[headerLen : headerLen+h.levelsLen])
 	})
@@ -156,8 +162,6 @@ func (h *header) toBytes() []byte {
 	buf = binary.LittleEndian.AppendUint64(buf, h.calldataLen)
 	buf = binary.LittleEndian.AppendUint64(buf, h.bodyLen)
 
-	fmt.Printf("calldataLen: %d\n", h.calldataLen/1024/1024)
-
 	return buf
 }
 
@@ -168,15 +172,18 @@ func (h *header) fromBytes(buf []byte) {
 	h.bodyLen = binary.LittleEndian.Uint64(buf[24:32])
 }
 
-func (cs *System) calldataToBytes() []byte {
-	buf := make([]byte, 0, 8+len(cs.CallData)*binary.MaxVarintLen64)
-
-	buf = binary.LittleEndian.AppendUint64(buf, uint64(len(cs.CallData)))
-	for _, v := range cs.CallData {
-		buf = binary.AppendUvarint(buf, uint64(v))
+func (cs *System) calldataToBytes() ([]byte, error) {
+	// calldata doesn't compress as well as the other sections;
+	// it still give a better size to use intcomp.CompressUint32 here,
+	// and an even better one to use binary.UVarint
+	// but, we keep it simple as it makes deserialization much faster
+	// user is still free to compress the final []byte slice if needed.
+	buf := make([]byte, 8+len(cs.CallData)*4)
+	binary.LittleEndian.PutUint64(buf, uint64(len(cs.CallData)))
+	for i, v := range cs.CallData {
+		binary.LittleEndian.PutUint32(buf[8+i*4:8+i*4+4], v)
 	}
-
-	return buf
+	return buf, nil
 }
 
 func (cs *System) instructionsToBytes() ([]byte, error) {
@@ -239,49 +246,56 @@ func (cs *System) levelsToBytes() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (cs *System) levelsFromBytes(buf []byte) error {
-	r := bytes.NewReader(buf)
+func (cs *System) levelsFromBytes(in []byte) error {
 
-	var levelsLen uint64
-	if err := binary.Read(r, binary.LittleEndian, &levelsLen); err != nil {
-		return err
-	}
+	levelsLen := binary.LittleEndian.Uint64(in[:8])
+
+	in = in[8:]
+
+	var (
+		buf32 []uint32
+		err   error
+		n     int
+	)
 
 	cs.Levels = make([][]uint32, levelsLen)
 	for i := range cs.Levels {
-		n, l, err := ioutils.ReadAndDecompressUints32(r)
+		buf32, n, cs.Levels[i], err = ioutils.ReadAndDecompressUints32(in, buf32)
 		if err != nil {
 			return err
 		}
-		if n == 0 {
-			return errors.New("invalid data")
-		}
-		cs.Levels[i] = l
+		in = in[n:]
 	}
 
 	return nil
 }
 
-func (cs *System) instructionsFromBytes(buf []byte) error {
-	r := bytes.NewReader(buf)
+func (cs *System) instructionsFromBytes(in []byte) error {
 
 	// read the packed instructions
-	var sBlueprintID, sConstraintOffset, sWireOffset []uint32
-	var sStartCallData []uint64
-	var err error
-	_, sBlueprintID, err = ioutils.ReadAndDecompressUints32(r)
+	var (
+		sBlueprintID, sConstraintOffset, sWireOffset []uint32
+		sStartCallData                               []uint64
+		err                                          error
+		n                                            int
+		buf32                                        []uint32
+	)
+	buf32, n, sBlueprintID, err = ioutils.ReadAndDecompressUints32(in, buf32)
 	if err != nil {
 		return err
 	}
-	_, sConstraintOffset, err = ioutils.ReadAndDecompressUints32(r)
+	in = in[n:]
+	buf32, n, sConstraintOffset, err = ioutils.ReadAndDecompressUints32(in, buf32)
 	if err != nil {
 		return err
 	}
-	_, sWireOffset, err = ioutils.ReadAndDecompressUints32(r)
+	in = in[n:]
+	_, n, sWireOffset, err = ioutils.ReadAndDecompressUints32(in, buf32)
 	if err != nil {
 		return err
 	}
-	_, sStartCallData, err = ioutils.ReadAndDecompressUints64(r)
+	in = in[n:]
+	_, sStartCallData, err = ioutils.ReadAndDecompressUints64(in)
 	if err != nil {
 		return err
 	}
@@ -301,25 +315,11 @@ func (cs *System) instructionsFromBytes(buf []byte) error {
 }
 
 func (cs *System) calldataFromBytes(buf []byte) error {
-
 	calldataLen := binary.LittleEndian.Uint64(buf[:8])
 	cs.CallData = make([]uint32, calldataLen)
-
-	invalid := false
-	offset := 8
-	for i := range cs.CallData {
-		v, n := binary.Uvarint(buf[offset:])
-		if n <= 0 {
-			invalid = true
-		}
-		offset += n
-		cs.CallData[i] = uint32(v)
+	for i := uint64(0); i < calldataLen; i++ {
+		cs.CallData[i] = binary.LittleEndian.Uint32(buf[8+i*4 : 8+i*4+4])
 	}
-
-	if invalid {
-		return errors.New("invalid data")
-	}
-
 	return nil
 }
 
