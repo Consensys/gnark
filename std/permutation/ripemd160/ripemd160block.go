@@ -1,3 +1,4 @@
+// Package ripemd160 implements the permutation used in the ripemd160 hash function.
 package ripemd160
 
 import (

@@ -1,3 +1,8 @@
+// Package ripemd160 implements in-circuit ripemd160 hash function.
+//
+// This package extends the permutation function [ripemd160.Permute] into a full
+// hash function with padding computation and [hash.BinaryHasher] interface
+// implementation.
 package ripemd160
 
 import (
@@ -19,6 +24,7 @@ type digest struct {
 	in   []uints.U8
 }
 
+// New returns a new ripemd160 hasher.
 func New(api frontend.API) (hash.BinaryHasher, error) {
 	uapi, err := uints.New[uints.U32](api)
 	if err != nil {
