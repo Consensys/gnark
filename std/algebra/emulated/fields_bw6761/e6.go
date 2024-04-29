@@ -268,68 +268,6 @@ func (e Ext6) interpolationX6Mul(x, y *E6) [18]*baseEl {
 	return [18]*baseEl{v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17}
 }
 
-func (e Ext6) interpolationX6Sq(x *E6) [18]*baseEl {
-	// Fixing the polynomial to X^6 we first compute the interpolation points
-	// vi = x(pi)*y(pi) at {0, ±1, ±2, ±3, ±4, 5,∞}:
-	//
-	//		v0 = (a0 + a1 + a2 + a3 + a4 + a5)^2
-	//		v2 = (a0 + a1 + a3 + a4)^2
-	//		v3 = (a0 − a2 − a3 + a5)^2
-	//		v4 = (a0 − a2 − a5)^2
-	//		v5 = (a0 + a3 − a5)^2
-	//		v6 = (a0 + a1 + a2)^2
-	//		v7 = (a3 + a4 + a5)^2
-	//		v8 = (a2 + a3)^2
-	//		v9 = (a1 − a4)^2
-	//		v10 = (a1 + a2)^2
-	//		v11 = (a3 + a4)^2
-	//		v12 = (a0 + a1)^2
-	//		v13 = (a4 + a5)^2
-	//		v14 = a0^2
-	//		v15 = a1^2
-	//		v16 = a4^2
-	//		v17 = a5^2
-
-	_t0 := e.fp.Add(&x.A0, &x.A1)
-	t0 := e.fp.Add(_t0, &x.A2)
-	t1 := e.fp.Add(&x.A3, &x.A4)
-	t2 := e.fp.Add(_t0, t1)
-	t3 := e.fp.Add(t2, &x.A5)
-	t3 = e.fp.Add(t3, &x.A2)
-
-	v0 := e.fp.Mul(t3, t3)
-	v2 := e.fp.Mul(t2, t2)
-	v6 := e.fp.Mul(t0, t0)
-	t4 := e.fp.Add(t1, &x.A5)
-	v7 := e.fp.Mul(t4, t4)
-	v12 := e.fp.Mul(_t0, _t0)
-	v11 := e.fp.Mul(t1, t1)
-	t0 = e.fp.Add(&x.A2, &x.A3)
-	v8 := e.fp.Mul(t0, t0)
-	_t0 = e.fp.Sub(&x.A1, &x.A4)
-	v9 := e.fp.Mul(_t0, _t0)
-	t1 = e.fp.Add(&x.A1, &x.A2)
-	v10 := e.fp.Mul(t1, t1)
-	t1 = e.fp.Add(&x.A4, &x.A5)
-	v13 := e.fp.Mul(t1, t1)
-	v3 := e.fp.Add(&x.A0, &x.A5)
-	v3 = e.fp.Sub(v3, t0)
-	v3 = e.fp.Mul(v3, v3)
-	t1 = e.fp.Add(&x.A2, &x.A5)
-	t2 = e.fp.Sub(&x.A0, t1)
-	v4 := e.fp.Mul(t2, t2)
-	t1 = e.fp.Add(&x.A0, &x.A3)
-	t1 = e.fp.Sub(t1, &x.A5)
-	v5 := e.fp.Mul(t1, t1)
-	v14 := e.fp.Mul(&x.A0, &x.A0)
-	v15 := e.fp.Mul(&x.A1, &x.A1)
-	v16 := e.fp.Mul(&x.A4, &x.A4)
-	v17 := e.fp.Mul(&x.A5, &x.A5)
-	v1 := e.fp.Zero()
-
-	return [18]*baseEl{v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17}
-}
-
 func (e Ext6) mulMontgomery6(v [18]*baseEl) *E6 {
 	// Then we compute the coefficients c0,c1,c3,c4 and c5 in the direct sextic
 	// extension of the product x*y as follows:
