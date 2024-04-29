@@ -178,10 +178,13 @@ func (cs *System) calldataToBytes() ([]byte, error) {
 	// and an even better one to use binary.UVarint
 	// but, we keep it simple as it makes deserialization much faster
 	// user is still free to compress the final []byte slice if needed.
-	buf := make([]byte, 8+len(cs.CallData)*4)
-	binary.LittleEndian.PutUint64(buf, uint64(len(cs.CallData)))
-	for i, v := range cs.CallData {
-		binary.LittleEndian.PutUint32(buf[8+i*4:8+i*4+4], v)
+	buf := make([]byte, 0, 8+len(cs.CallData)*binary.MaxVarintLen32)
+	buf = binary.LittleEndian.AppendUint64(buf, uint64(len(cs.CallData)))
+	// binary.LittleEndian.PutUint64(buf, uint64(len(cs.CallData)))
+	// buf = buf[:8+len(cs.CallData)*4]
+	for _, v := range cs.CallData {
+		buf = binary.AppendUvarint(buf, uint64(v))
+		// binary.LittleEndian.PutUint32(buf[8+i*4:8+i*4+4], v)
 	}
 	return buf, nil
 }
@@ -317,8 +320,14 @@ func (cs *System) instructionsFromBytes(in []byte) error {
 func (cs *System) calldataFromBytes(buf []byte) error {
 	calldataLen := binary.LittleEndian.Uint64(buf[:8])
 	cs.CallData = make([]uint32, calldataLen)
+	buf = buf[8:]
 	for i := uint64(0); i < calldataLen; i++ {
-		cs.CallData[i] = binary.LittleEndian.Uint32(buf[8+i*4 : 8+i*4+4])
+		v, n := binary.Uvarint(buf[:min(len(buf), binary.MaxVarintLen64)])
+		if n <= 0 {
+			return errors.New("invalid calldata")
+		}
+		cs.CallData[i] = uint32(v)
+		buf = buf[n:]
 	}
 	return nil
 }
