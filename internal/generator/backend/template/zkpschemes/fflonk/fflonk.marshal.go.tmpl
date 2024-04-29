@@ -43,7 +43,7 @@ func (proof *Proof) ReadFrom(r io.Reader) (int64, error) {
 	dec := curve.NewDecoder(r)
 	toDecode := []interface{}{
 		&proof.LROEntangled,
-		&proof.ZEntangled,
+		&proof.Z,
 		&proof.ZEntangled,
 		&proof.HEntangled,
 		&proof.BsbComEntangled,
