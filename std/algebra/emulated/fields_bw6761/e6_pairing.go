@@ -130,149 +130,79 @@ func (e Ext6) ExpC2(z *E6) *E6 {
 // MulBy023 multiplies z by an E6 sparse element of the form
 //
 //	E6{A0: c0, A1: 0, A2: c1, A3: 1,  A4: 0,  A5: 0}
-func (e *Ext6) MulBy023(x *E6, c0, c1 *baseEl) *E6 {
-	x = e.Reduce(x)
-	//		v0 = (a0 + a1 + a2 + a3 + a4 + a5)(c0 + c1 + 1)
-	//		v2 = (a0 + a1 + a3 + a4)(c0 + 1)
-	//		v3 = (a0 − a2 − a3 + a5)(c0 − c1 − 1)
-	//		v4 = (a0 − a2 − a5)(c0 − c1)
-	//		v5 = (a0 + a3 − a5)(c0 + 1)
-	//		v6 = (a0 + a1 + a2)(c0 + c1)
-	//		v7 = (a3 + a4 + a5)
-	//		v8 = (a2 + a3)(c1 + 1)
-	//		v10 = (a1 + a2)c1
-	//		v11 = (a3 + a4)
-	//		v12 = (a0 + a1)c0
-	//		v14 = a0c0
+func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
+	z = e.Reduce(z)
 
-	_t0 := e.fp.Add(&x.A0, &x.A1)
-	t0 := e.fp.Add(_t0, &x.A2)
-	t1 := e.fp.Add(&x.A3, &x.A4)
-	t2 := e.fp.Add(_t0, t1)
-	t3 := e.fp.Add(t2, &x.A5)
-	t3 = e.fp.Add(t3, &x.A2)
+	// a := e.MulBy01(&z.B0, c0, c1)
+	a := e.fp.Mul(&z.A0, c0)
+	b := e.fp.Mul(&z.A2, c1)
+	tmp := e.fp.Add(&z.A2, &z.A4)
+	a0 := e.fp.Mul(c1, tmp)
+	a0 = e.fp.Sub(b, a0)
+	a0 = e.fp.MulConst(a0, big.NewInt(4))
+	a0 = e.fp.Add(a0, a)
+	a2 := e.fp.Mul(&z.A4, c0)
+	a2 = e.fp.Add(a2, b)
+	a1 := e.fp.Add(c0, c1)
+	tmp = e.fp.Add(&z.A0, &z.A2)
+	a1 = e.fp.Mul(a1, tmp)
+	a1 = e.fp.Sub(a1, a)
+	a1 = e.fp.Sub(a1, b)
 
-	s0 := e.fp.Add(c0, c1)
+	b0 := e.fp.MulConst(&z.A5, big.NewInt(4))
+	b2 := e.fp.Neg(&z.A3)
+	b1 := e.fp.Neg(&z.A1)
+
 	one := e.fp.One()
-	s2 := e.fp.Add(c0, one)
-	s3 := e.fp.Add(s2, c1)
+	d := e.fp.Add(c1, one)
 
-	v0 := e.fp.Mul(t3, s3)
-	v2 := e.fp.Mul(t2, s2)
-	v6 := e.fp.Mul(t0, s0)
-	t4 := e.fp.Add(t1, &x.A5)
-	v7 := t4
-	v12 := e.fp.Mul(_t0, c0)
-	v11 := t1
-	t0 = e.fp.Add(&x.A2, &x.A3)
-	s0 = e.fp.Add(c1, one)
-	v8 := e.fp.Mul(t0, s0)
-	t1 = e.fp.Add(&x.A1, &x.A2)
-	v10 := e.fp.Mul(t1, c1)
-	v3 := e.fp.Add(&x.A0, &x.A5)
-	v3 = e.fp.Sub(v3, t0)
-	s1 := e.fp.Sub(c0, s0)
-	v3 = e.fp.Mul(v3, s1)
-	t1 = e.fp.Add(&x.A2, &x.A5)
-	t2 = e.fp.Sub(&x.A0, t1)
-	s2 = e.fp.Sub(c0, c1)
-	v4 := e.fp.Mul(t2, s2)
-	t1 = e.fp.Add(&x.A0, &x.A3)
-	t1 = e.fp.Sub(t1, &x.A5)
-	s1 = e.fp.Add(c0, one)
-	v5 := e.fp.Mul(t1, s1)
-	v14 := e.fp.Mul(&x.A0, c0)
+	// zC1 := e.Ext3.Add(&z.B1, &z.B0)
+	// 		a00 a01 a02 a10 a11 a12
+	// 		A0  A2  A4  A1  A3  A5
+	zC10 := e.fp.Add(&z.A1, &z.A0)
+	zC11 := e.fp.Add(&z.A3, &z.A2)
+	zC12 := e.fp.Add(&z.A5, &z.A4)
 
-	z0 := e.fp.MulConst(v2, big.NewInt(4))
-	s811 := e.fp.Add(v8, v11)
-	s81110 := e.fp.Add(s811, v10)
-	s1 = e.fp.MulConst(s81110, big.NewInt(12))
-	z0 = e.fp.Add(z0, s1)
-	s1 = e.fp.MulConst(v12, big.NewInt(8))
-	z0 = e.fp.Add(z0, s1)
-	s1 = e.fp.MulConst(v14, big.NewInt(21))
-	z0 = e.fp.Add(z0, s1)
-	s1 = e.fp.MulConst(v0, big.NewInt(4))
-	s2 = e.fp.MulConst(v3, big.NewInt(8))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v4, big.NewInt(4))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v5, big.NewInt(8))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v6, big.NewInt(8))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v7, big.NewInt(12))
-	s1 = e.fp.Add(s1, s2)
-	z0 = e.fp.Sub(z0, s1)
+	// zC1 = e.Ext3.MulBy01(zC1, c0, d)
+	a = e.fp.Mul(zC10, c0)
+	b = e.fp.Mul(zC11, d)
+	tmp = e.fp.Add(zC11, zC12)
+	t0 := e.fp.Mul(d, tmp)
+	t0 = e.fp.Sub(b, t0)
+	t0 = e.fp.MulConst(t0, big.NewInt(4))
+	t0 = e.fp.Add(t0, a)
+	t2 := e.fp.Mul(zC12, c0)
+	t2 = e.fp.Add(t2, b)
+	t1 := e.fp.Add(c0, d)
+	tmp = e.fp.Add(zC10, zC11)
+	t1 = e.fp.Mul(t1, tmp)
+	t1 = e.fp.Sub(t1, a)
+	t1 = e.fp.Sub(t1, b)
 
-	s35 := e.fp.Add(v3, v5)
-	z1 := e.fp.Add(s35, v6)
-	z1 = e.fp.MulConst(z1, big.NewInt(4))
-	s1 = e.fp.MulConst(v7, big.NewInt(8))
-	z1 = e.fp.Add(z1, s1)
-	s1 = e.fp.MulConst(v12, big.NewInt(3))
-	s2 = e.fp.MulConst(v14, big.NewInt(9))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v8, big.NewInt(4))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v10, big.NewInt(4))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v11, big.NewInt(12))
-	s1 = e.fp.Add(s1, s2)
-	z1 = e.fp.Sub(z1, s1)
+	// zC1 = e.Ext3.Sub(zC1, a)
+	zC10 = e.fp.Sub(t0, a0)
+	zC11 = e.fp.Sub(t1, a1)
+	zC12 = e.fp.Sub(t2, a2)
 
-	s1 = e.fp.MulConst(v11, big.NewInt(4))
-	z2 := e.fp.Add(v6, s1)
-	s1 = e.fp.Add(v10, v12)
-	s2 = e.fp.MulConst(v7, big.NewInt(4))
-	s1 = e.fp.Add(s1, s2)
-	z2 = e.fp.Sub(z2, s1)
+	// zC1 = e.Ext3.Add(zC1, &b)
+	zC10 = e.fp.Add(zC10, b0)
+	zC11 = e.fp.Add(zC11, b1)
+	zC12 = e.fp.Add(zC12, b2)
 
-	s1 = e.fp.MulConst(v10, big.NewInt(3))
-	z3 := e.fp.Add(s811, s1)
-	s1 = e.fp.MulConst(v12, big.NewInt(2))
-	z3 = e.fp.Add(z3, s1)
-	s1 = e.fp.MulConst(v14, big.NewInt(2))
-	z3 = e.fp.Add(z3, s1)
-	s34 := e.fp.Add(v3, v4)
-	s1 = e.fp.Add(s34, v7)
-	s2 = e.fp.MulConst(v6, big.NewInt(2))
-	s1 = e.fp.Add(s1, s2)
-	z3 = e.fp.Sub(z3, s1)
-
-	z4 := e.fp.Add(v2, v7)
-	z4 = e.fp.Add(z4, s34)
-	s1 = e.fp.MulConst(v6, big.NewInt(2))
-	z4 = e.fp.Add(z4, s1)
-	s2 = e.fp.MulConst(v10, big.NewInt(2))
-	s1 = e.fp.Add(v8, s2)
-	s2 = e.fp.MulConst(v11, big.NewInt(2))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v12, big.NewInt(3))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v14, big.NewInt(2))
-	s1 = e.fp.Add(s1, s2)
-	z4 = e.fp.Sub(z4, s1)
-
-	z5 := e.fp.Add(s81110, v12)
-	z5 = e.fp.MulConst(z5, big.NewInt(2))
-	s1 = e.fp.MulConst(v14, big.NewInt(3))
-	z5 = e.fp.Add(z5, s1)
-	s1 = e.fp.Add(s34, v5)
-	s2 = e.fp.MulConst(v6, big.NewInt(2))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v7, big.NewInt(2))
-	s1 = e.fp.Add(s1, s2)
-	z5 = e.fp.Sub(z5, s1)
+	// zC0 = e.Ext3.Add(zC0, a)
+	zC00 := e.fp.Add(a0, e.fp.MulConst(b2, big.NewInt(4)))
+	zC01 := e.fp.Sub(a1, b0)
+	zC02 := e.fp.Sub(a2, b1)
 
 	return &E6{
-		A0: *z0,
-		A1: *z1,
-		A2: *z2,
-		A3: *z3,
-		A4: *z4,
-		A5: *z5,
+		A0: *zC00,
+		A1: *zC10,
+		A2: *zC01,
+		A3: *zC11,
+		A4: *zC02,
+		A5: *zC12,
 	}
+
 }
 
 //	Mul023By023 multiplies two E6 sparse element of the form:
