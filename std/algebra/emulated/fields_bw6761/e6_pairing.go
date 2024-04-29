@@ -133,7 +133,6 @@ func (e Ext6) ExpC2(z *E6) *E6 {
 func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
 	z = e.Reduce(z)
 
-	// a := e.MulBy01(&z.B0, c0, c1)
 	a := e.fp.Mul(&z.A0, c0)
 	b := e.fp.Mul(&z.A2, c1)
 	tmp := e.fp.Add(&z.A2, &z.A4)
@@ -156,14 +155,10 @@ func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
 	one := e.fp.One()
 	d := e.fp.Add(c1, one)
 
-	// zC1 := e.Ext3.Add(&z.B1, &z.B0)
-	// 		a00 a01 a02 a10 a11 a12
-	// 		A0  A2  A4  A1  A3  A5
 	zC10 := e.fp.Add(&z.A1, &z.A0)
 	zC11 := e.fp.Add(&z.A3, &z.A2)
 	zC12 := e.fp.Add(&z.A5, &z.A4)
 
-	// zC1 = e.Ext3.MulBy01(zC1, c0, d)
 	a = e.fp.Mul(zC10, c0)
 	b = e.fp.Mul(zC11, d)
 	tmp = e.fp.Add(zC11, zC12)
@@ -179,17 +174,14 @@ func (e *Ext6) MulBy023(z *E6, c0, c1 *baseEl) *E6 {
 	t1 = e.fp.Sub(t1, a)
 	t1 = e.fp.Sub(t1, b)
 
-	// zC1 = e.Ext3.Sub(zC1, a)
 	zC10 = e.fp.Sub(t0, a0)
 	zC11 = e.fp.Sub(t1, a1)
 	zC12 = e.fp.Sub(t2, a2)
 
-	// zC1 = e.Ext3.Add(zC1, &b)
 	zC10 = e.fp.Add(zC10, b0)
 	zC11 = e.fp.Add(zC11, b1)
 	zC12 = e.fp.Add(zC12, b2)
 
-	// zC0 = e.Ext3.Add(zC0, a)
 	zC00 := e.fp.Add(a0, e.fp.MulConst(b2, big.NewInt(4)))
 	zC01 := e.fp.Sub(a1, b0)
 	zC02 := e.fp.Sub(a2, b1)
@@ -328,48 +320,3 @@ func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
 		A5: *z12,
 	}
 }
-
-/*
-// Mul01245By014 multiplies two E6 sparse element of the form
-//
-//	E6{
-//		C0: E3{B0: x0, B1: x1, B2: x2},
-//		C1: E3{B0: 0,  B1: x4, B2: x5},
-//	}
-//
-//	and
-//
-//	E6{
-//		C0: E3{B0: d0, B1: d1, B2: 0},
-//		C1: E3{B0: 0,  B1: 1,  B2: 0},
-//	}
-func (e *Ext6) Mul01245By014(x [5]*baseEl, d0, d1 *baseEl) *E6 {
-	zero := e.fp.Zero()
-	c0 := &E3{A0: *x[0], A1: *x[1], A2: *x[2]}
-	b := &E3{
-		A0: *x[0],
-		A1: *e.fp.Add(x[1], x[3]),
-		A2: *e.fp.Add(x[2], x[4]),
-	}
-	a := e.Ext3.MulBy01(b, d0, e.fp.Add(d1, e.fp.One()))
-	b = e.Ext3.MulBy01(c0, d0, d1)
-	c := &E3{
-		A0: *e.fp.MulConst(x[4], big.NewInt(4)),
-		A1: *e.fp.Neg(zero),
-		A2: *e.fp.Neg(x[3]),
-	}
-	z1 := e.Ext3.Sub(a, b)
-	z1 = e.Ext3.Add(z1, c)
-	z0 := &E3{
-		A0: *e.fp.MulConst(&c.A2, big.NewInt(4)),
-		A1: *e.fp.Neg(&c.A0),
-		A2: *e.fp.Neg(&c.A1),
-	}
-
-	z0 = e.Ext3.Add(z0, b)
-	return &E6{
-		B0: *z0,
-		B1: *z1,
-	}
-}
-*/
