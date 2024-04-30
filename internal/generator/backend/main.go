@@ -210,7 +210,7 @@ func main() {
 				{File: filepath.Join(fflonkDir, "prove.go"), Templates: []string{"fflonk/fflonk.prove.go.tmpl", importCurve}},
 				{File: filepath.Join(fflonkDir, "setup.go"), Templates: []string{"fflonk/fflonk.setup.go.tmpl", importCurve}},
 				{File: filepath.Join(fflonkDir, "marshal.go"), Templates: []string{"fflonk/fflonk.marshal.go.tmpl", importCurve}},
-				// {File: filepath.Join(plonkDir, "marshal_test.go"), Templates: []string{"fflonk/tests/marshal.go.tmpl", importCurve}},
+				{File: filepath.Join(fflonkDir, "marshal_test.go"), Templates: []string{"fflonk/tests/marshal.go.tmpl", importCurve}},
 			}
 			if err := bgen.Generate(d, "fflonk", "./template/zkpschemes/", entries...); err != nil {
 				panic(err)
