@@ -520,7 +520,6 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_c
 		var scalarsDevice icicle_core.DeviceSlice
 		scalarsHost.CopyToDeviceAsync(&scalarsDevice, scalarsStream, true)
 		start := time.Now()
-		cfg.NttAlgorithm = icicle_core.Radix2
 		icicle_ntt.Ntt(scalarsDevice, icicle_core.KInverse, &cfg, scalarsDevice)
 		cfg.Ordering = icicle_core.KMN
 		cfg.CosetGen = pk.CosetGenerator
@@ -550,8 +549,7 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_c
 
 	cfg := icicle_ntt.GetDefaultNttConfig()
 	cfg.CosetGen = pk.CosetGenerator
-	cfg.Ordering = icicle_core.KNM
-	cfg.NttAlgorithm = icicle_core.Radix2
+	cfg.Ordering = icicle_core.KNR
 	start = time.Now()
 	icicle_ntt.Ntt(aDevice, icicle_core.KInverse, &cfg, aDevice)
 	log.Debug().Dur("took", time.Since(start)).Msg("computeH: INTT final")
