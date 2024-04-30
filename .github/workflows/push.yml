@@ -80,6 +80,7 @@ jobs:
         go test -v -p 4 -tags=release_checks,solccheck .
         go test -v -p 4 -timeout=50m -tags=release_checks -race ./examples/cubic/...
         go test -v -p 4 -timeout=50m -tags=release_checks -short -race ./test/...
+        go test -v -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils
 
   
   slack-workflow-status-failed:
