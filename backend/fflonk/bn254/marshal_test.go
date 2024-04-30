@@ -15,6 +15,8 @@
 package fflonk
 
 import (
+	"bytes"
+
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
 	"math/big"
@@ -31,6 +33,11 @@ func TestProofSerialization(t *testing.T) {
 	// create a  proof
 	var proof Proof
 	proof.randomize()
+
+	var bb bytes.Buffer
+	proof.writeTo(&bb)
+	var bproof Proof
+	bproof.ReadFrom(&bb)
 
 	assert.NoError(t, io.RoundTripCheck(&proof, func() interface{} { return new(Proof) }))
 }
