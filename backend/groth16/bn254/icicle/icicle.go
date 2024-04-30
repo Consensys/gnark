@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/bits"
+	"os"
 	"time"
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
@@ -92,6 +93,7 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	go func() {
 		g1AHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.A)
 		g1AHost.CopyToDevice(&pk.G1Device.A, true)
+		icicle_bn254.AffineFromMontgomery(&pk.G1Device.A)
 		copyADone <- true
 	}()
 	/*************************     B      ***************************/
@@ -99,6 +101,7 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	go func() {
 		g1BHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.B)
 		g1BHost.CopyToDevice(&pk.G1Device.B, true)
+		icicle_bn254.AffineFromMontgomery(&pk.G1Device.B)
 		copyBDone <- true
 	}()
 	/*************************     K      ***************************/
@@ -106,6 +109,7 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	go func() {
 		g1KHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.K)
 		g1KHost.CopyToDevice(&pk.G1Device.K, true)
+		icicle_bn254.AffineFromMontgomery(&pk.G1Device.K)
 		copyKDone <- true
 	}()
 	/*************************     Z      ***************************/
@@ -113,6 +117,7 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	go func() {
 		g1ZHost := (icicle_core.HostSlice[curve.G1Affine])(pk.G1.Z)
 		g1ZHost.CopyToDevice(&pk.G1Device.Z, true)
+		icicle_bn254.AffineFromMontgomery(&pk.G1Device.Z)
 		copyZDone <- true
 	}()
 	/*************************  End G1 Device Setup  ***************************/
@@ -126,6 +131,7 @@ func (pk *ProvingKey) setupDevicePointers() error {
 	go func() {
 		g2BHost := (icicle_core.HostSlice[curve.G2Affine])(pk.G2.B)
 		g2BHost.CopyToDevice(&pk.G2Device.B, true)
+		icicle_g2.G2AffineFromMontgomery(&pk.G2Device.B)
 		copyG2BDone <- true
 	}()
 
@@ -204,6 +210,8 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 			return nil, fmt.Errorf("setup device pointers: %w", err)
 		}
 	}
+
+	_, isProfile := os.LookupEnv("profile")
 
 	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
 
@@ -292,6 +300,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		// Copy scalars to the device and retain ptr to them
 		wireValuesAHost := (icicle_core.HostSlice[fr.Element])(wireValuesA)
 		wireValuesAHost.CopyToDevice(&wireValuesADevice, true)
+		icicle_bn254.FromMontgomery(&wireValuesADevice)
 
 		close(chWireValuesA)
 	}()
@@ -308,6 +317,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		// Copy scalars to the device and retain ptr to them
 		wireValuesBHost := (icicle_core.HostSlice[fr.Element])(wireValuesB)
 		wireValuesBHost.CopyToDevice(&wireValuesBDevice, true)
+		icicle_bn254.FromMontgomery(&wireValuesBDevice)
 
 		close(chWireValuesB)
 	}()
@@ -335,12 +345,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		<-chWireValuesB
 
 		cfg := icicle_msm.GetDefaultMSMConfig()
-		cfg.ArePointsMontgomeryForm = true
-		cfg.AreScalarsMontgomeryForm = true
 		res := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		start := time.Now()
 		icicle_msm.Msm(wireValuesBDevice, pk.G1Device.B, &cfg, res)
-		log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs1")
+		if isProfile {
+			log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs1")
+		}
 		bs1 = g1ProjectiveToG1Jac(res[0])
 
 		bs1.AddMixed(&pk.G1.Beta)
@@ -353,12 +363,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		<-chWireValuesA
 
 		cfg := icicle_msm.GetDefaultMSMConfig()
-		cfg.ArePointsMontgomeryForm = true
-		cfg.AreScalarsMontgomeryForm = true
 		res := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		start := time.Now()
 		icicle_msm.Msm(wireValuesADevice, pk.G1Device.A, &cfg, res)
-		log.Debug().Dur("took", time.Since(start)).Msg("MSM Ar1")
+		if isProfile {
+			log.Debug().Dur("took", time.Since(start)).Msg("MSM Ar1")
+		}
 		ar = g1ProjectiveToG1Jac(res[0])
 
 		ar.AddMixed(&pk.G1.Alpha)
@@ -373,14 +383,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		sizeH := int(pk.Domain.Cardinality - 1)
 
 		cfg := icicle_msm.GetDefaultMSMConfig()
-		cfg.ArePointsMontgomeryForm = true
-		cfg.AreScalarsMontgomeryForm = true
 		resKrs2 := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
 		start := time.Now()
 		icicle_msm.Msm(h.RangeTo(sizeH, false), pk.G1Device.Z, &cfg, resKrs2)
-		log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs2")
+		if isProfile {
+			log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs2")
+		}
 		krs2 = g1ProjectiveToG1Jac(resKrs2[0])
-
+		
 		// filter the wire values if needed
 		// TODO Perf @Tabaie worst memory allocation offender
 		toRemove := commitmentInfo.GetPrivateCommitted()
@@ -388,9 +398,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
 		_wireValuesHost := (icicle_core.HostSlice[fr.Element])(_wireValues)
 		resKrs := make(icicle_core.HostSlice[icicle_bn254.Projective], 1)
+		cfg.AreScalarsMontgomeryForm = true
 		start = time.Now()
 		icicle_msm.Msm(_wireValuesHost, pk.G1Device.K, &cfg, resKrs)
-		log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs")
+		if isProfile {
+			log.Debug().Dur("took", time.Since(start)).Msg("MSM Krs")
+		}
 		krs = g1ProjectiveToG1Jac(resKrs[0])
 
 		krs.AddMixed(&deltas[2])
@@ -415,12 +428,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		<-chWireValuesB
 
 		cfg := icicle_g2.G2GetDefaultMSMConfig()
-		cfg.ArePointsMontgomeryForm = true
-		cfg.AreScalarsMontgomeryForm = true
 		res := make(icicle_core.HostSlice[icicle_g2.G2Projective], 1)
 		start := time.Now()
 		icicle_g2.G2Msm(wireValuesBDevice, pk.G2Device.B, &cfg, res)
-		log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs2 G2")
+		if isProfile {
+			log.Debug().Dur("took", time.Since(start)).Msg("MSM Bs2 G2")
+		}
 		Bs = g2ProjectiveToG2Jac(&res[0])
 
 		deltaS.FromAffine(&pk.G2.Delta)
@@ -496,8 +509,10 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_c
 	// 	1 - _a = ifft(a), _b = ifft(b), _c = ifft(c)
 	// 	2 - ca = fft_coset(_a), ba = fft_coset(_b), cc = fft_coset(_c)
 	// 	3 - h = ifft_coset(ca o cb - cc)
-
+	_, isProfile := os.LookupEnv("profile")
+	startTotal := time.Now()
 	n := len(a)
+
 
 	// add padding to ensure input length is domain cardinality
 	padding := make([]fr.Element, int(pk.Domain.Cardinality)-n)
@@ -525,7 +540,9 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_c
 		cfg.CosetGen = pk.CosetGenerator
 		icicle_ntt.Ntt(scalarsDevice, icicle_core.KForward, &cfg, scalarsDevice)
 		icicle_cr.SynchronizeStream(&scalarsStream)
-		log.Debug().Dur("took", time.Since(start)).Msg("computeH: NTT + INTT")
+		if isProfile {
+			log.Debug().Dur("took", time.Since(start)).Msg("computeH: NTT + INTT")
+		}
 		channel <-scalarsDevice
 	}
 
@@ -543,7 +560,9 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_c
 	icicle_vecops.VecOp(aDevice, bDevice, aDevice, vecCfg, icicle_core.Mul)
 	icicle_vecops.VecOp(aDevice, cDevice, aDevice, vecCfg, icicle_core.Sub)
 	icicle_vecops.VecOp(aDevice, pk.DenDevice, aDevice, vecCfg, icicle_core.Mul)
-	log.Debug().Dur("took", time.Since(start)).Msg("computeH: vecOps")
+	if isProfile {
+		log.Debug().Dur("took", time.Since(start)).Msg("computeH: vecOps")
+	}
 	defer bDevice.Free()
 	defer cDevice.Free()
 
@@ -552,7 +571,13 @@ func computeH(a, b, c []fr.Element, pk *ProvingKey, log zerolog.Logger) icicle_c
 	cfg.Ordering = icicle_core.KNR
 	start = time.Now()
 	icicle_ntt.Ntt(aDevice, icicle_core.KInverse, &cfg, aDevice)
-	log.Debug().Dur("took", time.Since(start)).Msg("computeH: INTT final")
-
+	if isProfile {
+		log.Debug().Dur("took", time.Since(start)).Msg("computeH: INTT final")
+	}
+	icicle_bn254.FromMontgomery(&aDevice)
+	
+	if isProfile {
+		log.Debug().Dur("took", time.Since(startTotal)).Msg("computeH: Total")
+	}
 	return aDevice
 }
