@@ -442,14 +442,16 @@ func (e Ext6) Square(x *E6) *E6 {
 	x = e.Reduce(x)
 
 	// c0
-	c00 := e.fp.Sub(&x.A0, &x.A1)
-	c01 := e.fp.Sub(&x.A2, &x.A3)
+	x1n := e.fp.Neg(&x.A1)
+	x3n := e.fp.Neg(&x.A3)
+	c00 := e.fp.Add(&x.A0, x1n)
+	c01 := e.fp.Add(&x.A2, x3n)
 	c02 := e.fp.Sub(&x.A4, &x.A5)
 
 	// c3
 	c30 := e.fp.Add(&x.A0, e.fp.MulConst(&x.A5, big.NewInt(4)))
-	c31 := e.fp.Sub(&x.A2, &x.A1)
-	c32 := e.fp.Sub(&x.A4, &x.A3)
+	c31 := e.fp.Add(&x.A2, x1n)
+	c32 := e.fp.Add(&x.A4, x3n)
 
 	t0 := e.fp.Mul(&x.A0, &x.A1)
 	t1 := e.fp.Mul(&x.A2, &x.A3)
