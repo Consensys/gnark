@@ -430,8 +430,217 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 	y = e.Reduce(y)
 	v := e.interpolationX6Mul(x, y)
 	return e.mulMontgomery6(v)
-	// return e.mulToomCook6(v)
 }
+
+/*
+func (e Ext6) Mul(x, y *E6) *E6 {
+	x = e.Reduce(x)
+	y = e.Reduce(y)
+	// Toom-Cook 6-way multiplication:
+	//
+	// Fixing the polynomial to X^6 we first compute the interpolation points
+	// vi = x(pi)*y(pi) at {0, ±1, ±2, ±3, ±4, 5,∞}:
+	//
+	//     v0 = (a0 + a1 + a2 + a3 + a4 + a5)(b0 + b1 + b2 + b3 + b4 + b5)
+	//     v2 = (a0 + a1 + a3 + a4)(b0 + b1 + b3 + b4)
+	//     v3 = (a0 − a2 − a3 + a5)(b0 − b2 − b3 + b5)
+	//     v4 = (a0 − a2 − a5)(b0 − b2 − b5)
+	//     v5 = (a0 + a3 − a5)(b0 + b3 − b5)
+	//     v6 = (a0 + a1 + a2)(b0 + b1 + b2)
+	//     v7 = (a3 + a4 + a5)(b3 + b4 + b5)
+	//     v8 = (a2 + a3)(b2 + b3)
+	//     v9 = (a1 − a4)(b1 − b4)
+	//     v10 = (a1 + a2)(b1 + b2)
+	//     v11 = (a3 + a4)(b3 + b4)
+	//     v12 = (a0 + a1)(b0 + b1)
+	//     v13 = (a4 + a5)(b4 + b5)
+	//     v14 = a0b0
+	//     v15 = a1b1
+	//     v16 = a4b4
+	//     v17 = a5b5
+	_t0 := e.fp.Add(&x.A0, &x.A1)
+	t0 := e.fp.Add(_t0, &x.A2)
+	t1 := e.fp.Add(&x.A3, &x.A4)
+	t2 := e.fp.Add(_t0, t1)
+	t3 := e.fp.Add(t2, &x.A5)
+	t3 = e.fp.Add(t3, &x.A2)
+
+	_s0 := e.fp.Add(&y.A0, &y.A1)
+	s0 := e.fp.Add(_s0, &y.A2)
+	s1 := e.fp.Add(&y.A3, &y.A4)
+	s2 := e.fp.Add(_s0, s1)
+	s3 := e.fp.Add(s2, &y.A5)
+	s3 = e.fp.Add(s3, &y.A2)
+
+	v0 := e.fp.Mul(t3, s3)
+	v2 := e.fp.Mul(t2, s2)
+	v6 := e.fp.Mul(t0, s0)
+	t4 := e.fp.Add(t1, &x.A5)
+	s4 := e.fp.Add(s1, &y.A5)
+	v7 := e.fp.Mul(t4, s4)
+	t0 = e.fp.Add(&x.A2, &x.A3)
+	s0 = e.fp.Add(&y.A2, &y.A3)
+	v8 := e.fp.Mul(t0, s0)
+	_t0 = e.fp.Sub(&x.A1, &x.A4)
+	_s0 = e.fp.Sub(&y.A1, &y.A4)
+	v9 := e.fp.Mul(_t0, _s0)
+	t1 = e.fp.Add(&x.A1, &x.A2)
+	s1 = e.fp.Add(&y.A1, &y.A2)
+	v10 := e.fp.Mul(t1, s1)
+	v3 := e.fp.Add(&x.A0, &x.A5)
+	v3 = e.fp.Sub(v3, t0)
+	s1 = e.fp.Add(&y.A0, &y.A5)
+	s1 = e.fp.Sub(s1, s0)
+	v3 = e.fp.Mul(v3, s1)
+	t1 = e.fp.Add(&x.A2, &x.A5)
+	t2 = e.fp.Sub(&x.A0, t1)
+	s1 = e.fp.Add(&y.A2, &y.A5)
+	s2 = e.fp.Sub(&y.A0, s1)
+	v4 := e.fp.Mul(t2, s2)
+	t1 = e.fp.Add(&x.A0, &x.A3)
+	t1 = e.fp.Sub(t1, &x.A5)
+	s1 = e.fp.Add(&y.A0, &y.A3)
+	s1 = e.fp.Sub(s1, &y.A5)
+	v5 := e.fp.Mul(t1, s1)
+	v1 := e.fp.One()
+
+	//	Then we compute the product  362880*x*y to avoid divisions:
+	//
+	// 		c0 = 438480 v0 + 26208(v3 + v4) + 504(v7 + v8)
+	// 		- (58464(v1 + v2) + 6048(v5 + v6) + 396264960 v10)
+	//
+	c0 := e.fp.MulConst(v0, big.NewInt(438480))
+	s1 = e.fp.Add(v3, v4)
+	s1 = e.fp.MulConst(s1, big.NewInt(26208))
+	c0 = e.fp.Add(c0, s1)
+	s1 = e.fp.MulConst(v7, big.NewInt(504))
+	c0 = e.fp.Add(c0, s1)
+	s1 = e.fp.MulConst(v8, big.NewInt(504))
+	c0 = e.fp.Add(c0, s1)
+	s1 = e.fp.Add(v2, v1)
+	s1 = e.fp.MulConst(s1, big.NewInt(58464))
+	s2 = e.fp.Add(v5, v6)
+	s2 = e.fp.MulConst(s2, big.NewInt(6048))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v10, big.NewInt(396264960))
+	s1 = e.fp.Add(s1, s2)
+	c0 = e.fp.Sub(c0, s1)
+	// 		c1 = 744 v8 + 696 v9 + 49536 v4 + 39744 v5  + 379016 v1
+	// 		− (87696 v0 + 233856 v2 + 133056 v3 + 8424 v6 + 7704 v7 + 1260814400 v10)
+	c1 := e.fp.MulConst(v8, big.NewInt(744))
+	s1 = e.fp.MulConst(v9, big.NewInt(696))
+	c1 = e.fp.Add(c1, s1)
+	s1 = e.fp.MulConst(v4, big.NewInt(49536))
+	c1 = e.fp.Add(c1, s1)
+	s1 = e.fp.MulConst(v5, big.NewInt(39744))
+	c1 = e.fp.Add(c1, s1)
+	s1 = e.fp.MulConst(v1, big.NewInt(379016))
+	c1 = e.fp.Add(c1, s1)
+	s1 = e.fp.MulConst(v0, big.NewInt(87696))
+	s2 = e.fp.MulConst(v2, big.NewInt(233856))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v3, big.NewInt(133056))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v6, big.NewInt(8424))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v7, big.NewInt(7704))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v10, big.NewInt(1260814400))
+	s1 = e.fp.Add(s1, s2)
+	c1 = e.fp.Sub(c1, s1)
+	// 		c2 = 4896(v5 + v6) + 292320(v1 + v2) + 252564480 v10
+	// 		− (519120 v0 + 360(v7 + v8) + 37296(v3 + v4))
+	c2 := e.fp.Add(v5, v6)
+	c2 = e.fp.MulConst(c2, big.NewInt(4896))
+	s1 = e.fp.Add(v1, v2)
+	s1 = e.fp.MulConst(s1, big.NewInt(292320))
+	c2 = e.fp.Add(c2, s1)
+	s1 = e.fp.MulConst(v10, big.NewInt(252564480))
+	c2 = e.fp.Add(c2, s1)
+	s1 = e.fp.MulConst(v0, big.NewInt(519120))
+	s2 = e.fp.Add(v7, v8)
+	s2 = e.fp.MulConst(s2, big.NewInt(360))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.Add(v3, v4)
+	s2 = e.fp.MulConst(s2, big.NewInt(37296))
+	s1 = e.fp.Add(s1, s2)
+	c2 = e.fp.Sub(c2, s1)
+	// 		c3 = 103824 v0 + 1495065600 v10 + 10728 v6 + 9180 v7 + 53760 v2 + 154392 v3
+	//  	− (55512 v4 + 47520 v5 + 940 v8 + 816 v9 + 225792 v1)
+	c3 := e.fp.MulConst(v0, big.NewInt(103824))
+	s1 = e.fp.MulConst(v10, big.NewInt(1495065600))
+	c3 = e.fp.Add(c3, s1)
+	s1 = e.fp.MulConst(v6, big.NewInt(10728))
+	c3 = e.fp.Add(c3, s1)
+	s1 = e.fp.MulConst(v7, big.NewInt(9180))
+	c3 = e.fp.Add(c3, s1)
+	s1 = e.fp.MulConst(v2, big.NewInt(53760))
+	c3 = e.fp.Add(c3, s1)
+	s1 = e.fp.MulConst(v3, big.NewInt(154392))
+	c3 = e.fp.Add(c3, s1)
+	s1 = e.fp.MulConst(v4, big.NewInt(55512))
+	s2 = e.fp.MulConst(v5, big.NewInt(47520))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v8, big.NewInt(940))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v9, big.NewInt(816))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v1, big.NewInt(225792))
+	s1 = e.fp.Add(s1, s2)
+	c3 = e.fp.Sub(c3, s1)
+	// 		c4 = 171990 v0 + 42588(v3 + v4) + 63(v7 + v8)
+	// 		− (299013120 v10 + 122976(v1 + v2) + 6048(v5 + v6))
+	c4 := e.fp.MulConst(v0, big.NewInt(171990))
+	s1 = e.fp.Add(v3, v4)
+	s1 = e.fp.MulConst(s1, big.NewInt(42588))
+	c4 = e.fp.Add(c4, s1)
+	s1 = e.fp.Add(v7, v8)
+	s1 = e.fp.MulConst(s1, big.NewInt(63))
+	c4 = e.fp.Add(c4, s1)
+	s1 = e.fp.MulConst(v10, big.NewInt(299013120))
+	s2 = e.fp.Add(v1, v2)
+	s2 = e.fp.MulConst(s2, big.NewInt(122976))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.Add(v5, v6)
+	s2 = e.fp.MulConst(s2, big.NewInt(6048))
+	s1 = e.fp.Add(s1, s2)
+	c4 = e.fp.Sub(c4, s1)
+	// 		c5 = 231 v8 + 273 v9 + 3276 v4 + 8316 v2 + 14364 v5 + 49014 v1
+	// 		- (34398 v0 + 36036 v3 + 2079 v6 + 2961 v7 + 495331200 v10)
+	c5 := e.fp.MulConst(v8, big.NewInt(231))
+	s1 = e.fp.MulConst(v9, big.NewInt(273))
+	c5 = e.fp.Add(c5, s1)
+	s1 = e.fp.MulConst(v4, big.NewInt(3276))
+	c5 = e.fp.Add(c5, s1)
+	s1 = e.fp.MulConst(v2, big.NewInt(8316))
+	c5 = e.fp.Add(c5, s1)
+	s1 = e.fp.MulConst(v5, big.NewInt(14364))
+	c5 = e.fp.Add(c5, s1)
+	s1 = e.fp.MulConst(v1, big.NewInt(49014))
+	c5 = e.fp.Add(c5, s1)
+	s1 = e.fp.MulConst(v0, big.NewInt(34398))
+	s2 = e.fp.MulConst(v3, big.NewInt(36036))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v6, big.NewInt(2079))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v7, big.NewInt(2961))
+	s1 = e.fp.Add(s1, s2)
+	s2 = e.fp.MulConst(v10, big.NewInt(495331200))
+	s1 = e.fp.Add(s1, s2)
+	c5 = e.fp.Sub(c5, s1)
+
+	// inv362880 := emulated.ValueOf[emulated.BW6761Fp]("4671422665851984694040348663017660157508519176517181272289218522372474038323623073011971993796055931265397672069676435635279488178552288409646583546248183456271259848848724056226545014884280653287710097584502403952205015690976464")
+
+	return &E6{
+		A0: *c0, //e.fp.Mul(c0, &inv362880),
+		A1: *c1, //e.fp.Mul(c1, &inv362880),
+		A2: *c2, //e.fp.Mul(c2, &inv362880),
+		A3: *c3, //e.fp.Mul(c3, &inv362880),
+		A4: *c4, //e.fp.Mul(c4, &inv362880),
+		A5: *c5, //e.fp.Mul(c5, &inv362880),
+	}
+}
+*/
 
 func (e Ext6) Square(x *E6) *E6 {
 	// We don't use Montgomery-6 or Toom-Cook-6 for the squaring but instead we
@@ -517,203 +726,6 @@ func (e Ext6) Square(x *E6) *E6 {
 		A5: *b12,
 	}
 }
-
-/*
-func (e Ext6) MulToomCook6x(x, y *E6) *E6 {
-	//	Then we compute the product  362880*x*y to avoid divisions:
-	//
-	//		c0 = 362880v0 + β(−18900v0 + 14616v2 − 6552(v3 + v4) + 1512(v5 +
-	//		v6) − 126(v7 + v8) + 99066240v10)
-	//
-	//		c1 = −(72576v0 + 241920v2 + 120960v3 - 51840v4 - 34560v5 + 8640v6 +
-	//		6480v7 - 720v8 - 576v9 + 1045094400v10 + β(-3780v0 + 2016v2 -
-	//		3024v3 - 576v4 + 1296v5 + 54v6 - 306v7 + 6v8 + 30v9 - 54432000v10))
-	//
-	//		c2 = −516600v0 + 290304v2 − 36288(v3 + v4) + 4608(v5 + v6) − 324(v7
-	//		+ v8) + 209018880v10 + β(630v0 − 504v2 + 252(v3 + v4) − 72(v5 + v6)
-	//		+ 9(v7 + v8) − 10886400v10)
-	//
-	//		c3 = 103320v0 + 54096v2 + 154056v3 − 55656v4 − 47664v5 + 10764v6 +
-	//		9144v7 − 944v8 − 820v9 + 1487808000v10 + β(−126v0 + 84(v2 − v3) −
-	//		36(v4 + v5) + 9(v6 − v7) − (v8 + v9) − 1814400v10)
-	//
-	//		c4 = 171990v0 − 122976v2 + 42588(v3 + v4) − 6048(v5 + v6) + 63(v7 +
-	//		v8) − 297561600v10 + β(362880v10)
-	//
-	//		c5 = −34398v0 + 8316v2 + 14364v5 − 36036v3 + 3276v4 − 2079v6 −
-	//		2961v7 + 231v8 + 273v9 − 495331200v10.
-
-	t1 = e.fp.Add(v3, v4) // v3 + v4
-	t2 = e.fp.Add(v5, v6) // v5 + v6
-	t3 = e.fp.Add(v7, v8) // v7 + v8
-	t4 = e.fp.Add(v4, v5) // v4 + v5
-	// _t0 = e.fp.Add(v8, v9) // v8 + v9
-
-	c0 := e.fp.MulConst(t2, big.NewInt(1512))
-	s1 = e.fp.MulConst(t1, big.NewInt(6552))
-	c0 = e.fp.Sub(c0, s1)
-	s1 = e.fp.MulConst(v2, big.NewInt(14616))
-	c0 = e.fp.Add(c0, s1)
-	s1 = e.fp.MulConst(v0, big.NewInt(18900))
-	c0 = e.fp.Sub(c0, s1)
-	s1 = e.fp.MulConst(v10, big.NewInt(99066240))
-	c0 = e.fp.Add(c0, s1)
-	s1 = e.fp.MulConst(t3, big.NewInt(126))
-	c0 = e.fp.Sub(c0, s1)
-	c0 = mulFpByNonResidue(e.fp, c0)
-	s1 = e.fp.MulConst(v0, big.NewInt(362880))
-	c0 = e.fp.Add(c0, s1)
-
-	c1 := e.fp.MulConst(v0, big.NewInt(72576))
-	s1 = e.fp.MulConst(v2, big.NewInt(241920))
-	c1 = e.fp.Add(c1, s1)
-	s1 = e.fp.MulConst(v3, big.NewInt(120960))
-	c1 = e.fp.Add(c1, s1)
-	s1 = e.fp.MulConst(v4, big.NewInt(51840))
-	c1 = e.fp.Sub(c1, s1)
-	s1 = e.fp.MulConst(v5, big.NewInt(34560))
-	c1 = e.fp.Sub(c1, s1)
-	s1 = e.fp.MulConst(v6, big.NewInt(8640))
-	c1 = e.fp.Add(c1, s1)
-	s1 = e.fp.MulConst(v7, big.NewInt(6480))
-	c1 = e.fp.Add(c1, s1)
-	s1 = e.fp.MulConst(v8, big.NewInt(720))
-	c1 = e.fp.Sub(c1, s1)
-	s1 = e.fp.MulConst(v9, big.NewInt(576))
-	c1 = e.fp.Sub(c1, s1)
-	s1 = e.fp.MulConst(v10, big.NewInt(1045094400))
-	c1 = e.fp.Add(c1, s1)
-	s1 = e.fp.MulConst(v0, big.NewInt(3780))
-	s2 = e.fp.MulConst(v2, big.NewInt(2016))
-	s1 = e.fp.Sub(s2, s1)
-	s2 = e.fp.MulConst(v3, big.NewInt(3024))
-	s1 = e.fp.Sub(s1, s2)
-	s2 = e.fp.MulConst(v4, big.NewInt(576))
-	s1 = e.fp.Sub(s1, s2)
-	s2 = e.fp.MulConst(v5, big.NewInt(1296))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v6, big.NewInt(54))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v7, big.NewInt(306))
-	s1 = e.fp.Sub(s1, s2)
-	s2 = e.fp.MulConst(v8, big.NewInt(6))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v9, big.NewInt(30))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v10, big.NewInt(54432000))
-	s1 = e.fp.Sub(s1, s2)
-	s1 = mulFpByNonResidue(e.fp, s1)
-	c1 = e.fp.Add(c1, s1)
-	c1 = e.fp.Neg(c1)
-
-	c2 := e.fp.MulConst(v2, big.NewInt(290304))
-	s1 = e.fp.MulConst(t1, big.NewInt(36288))
-	c2 = e.fp.Sub(c2, s1)
-	s1 = e.fp.MulConst(v0, big.NewInt(516600))
-	c2 = e.fp.Sub(c2, s1)
-	s1 = e.fp.MulConst(t2, big.NewInt(4608))
-	c2 = e.fp.Add(c2, s1)
-	s1 = e.fp.MulConst(t3, big.NewInt(324))
-	c2 = e.fp.Sub(c2, s1)
-	s1 = e.fp.MulConst(v10, big.NewInt(209018880))
-	c2 = e.fp.Add(c2, s1)
-	s2 = e.fp.MulConst(v0, big.NewInt(630))
-	s1 = e.fp.MulConst(v2, big.NewInt(504))
-	s1 = e.fp.Sub(s2, s1)
-	s2 = e.fp.MulConst(t1, big.NewInt(252))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(t2, big.NewInt(72))
-	s1 = e.fp.Sub(s1, s2)
-	s2 = e.fp.MulConst(t3, big.NewInt(9))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v10, big.NewInt(10886400))
-	s1 = e.fp.Sub(s1, s2)
-	s1 = mulFpByNonResidue(e.fp, s1)
-	c2 = e.fp.Add(c2, s1)
-
-	c3 := e.fp.MulConst(v0, big.NewInt(103320))
-	s1 = e.fp.MulConst(v2, big.NewInt(54096))
-	c3 = e.fp.Add(c3, s1)
-	s1 = e.fp.MulConst(v3, big.NewInt(154056))
-	c3 = e.fp.Add(c3, s1)
-	s1 = e.fp.MulConst(v4, big.NewInt(55656))
-	c3 = e.fp.Sub(c3, s1)
-	s1 = e.fp.MulConst(v5, big.NewInt(47664))
-	c3 = e.fp.Sub(c3, s1)
-	s1 = e.fp.MulConst(v6, big.NewInt(10764))
-	c3 = e.fp.Add(c3, s1)
-	s1 = e.fp.MulConst(v7, big.NewInt(9144))
-	c3 = e.fp.Add(c3, s1)
-	s1 = e.fp.MulConst(v8, big.NewInt(944))
-	c3 = e.fp.Sub(c3, s1)
-	s1 = e.fp.MulConst(v9, big.NewInt(820))
-	c3 = e.fp.Sub(c3, s1)
-	s1 = e.fp.MulConst(v10, big.NewInt(1487808000))
-	c3 = e.fp.Add(c3, s1)
-	s1 = e.fp.MulConst(v0, big.NewInt(126))
-	s2 = e.fp.Sub(v2, v3)
-	s2 = e.fp.MulConst(s2, big.NewInt(84))
-	s1 = e.fp.Sub(s2, s1)
-	s2 = e.fp.Add(v4, v5)
-	s2 = e.fp.MulConst(s2, big.NewInt(36))
-	s1 = e.fp.Sub(s1, s2)
-	s2 = e.fp.Sub(v6, v7)
-	s2 = e.fp.MulConst(s2, big.NewInt(9))
-	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v10, big.NewInt(1814400))
-	s2 = e.fp.Add(s2, v8)
-	s2 = e.fp.Add(s2, v9)
-	s1 = e.fp.Sub(s1, s2)
-	s1 = mulFpByNonResidue(e.fp, s1)
-	c3 = e.fp.Add(c3, s1)
-
-	c4 := e.fp.MulConst(v0, big.NewInt(171990))
-	s1 = e.fp.MulConst(v2, big.NewInt(122976))
-	c4 = e.fp.Sub(c4, s1)
-	s1 = e.fp.MulConst(t1, big.NewInt(42588))
-	c4 = e.fp.Add(c4, s1)
-	s1 = e.fp.MulConst(t2, big.NewInt(6048))
-	c4 = e.fp.Sub(c4, s1)
-	s1 = e.fp.MulConst(t3, big.NewInt(63))
-	c4 = e.fp.Add(c4, s1)
-	s1 = e.fp.MulConst(v10, big.NewInt(297561600))
-	c4 = e.fp.Sub(c4, s1)
-	s1 = e.fp.MulConst(v10, big.NewInt(362880))
-	s1 = mulFpByNonResidue(e.fp, s1)
-	c4 = e.fp.Add(c4, s1)
-
-	c5 := e.fp.MulConst(v2, big.NewInt(8316))
-	s1 = e.fp.MulConst(v0, big.NewInt(34398))
-	c5 = e.fp.Sub(c5, s1)
-	s1 = e.fp.MulConst(v5, big.NewInt(14364))
-	c5 = e.fp.Add(c5, s1)
-	s1 = e.fp.MulConst(v3, big.NewInt(36036))
-	c5 = e.fp.Sub(c5, s1)
-	s1 = e.fp.MulConst(v4, big.NewInt(3276))
-	c5 = e.fp.Add(c5, s1)
-	s1 = e.fp.MulConst(v6, big.NewInt(2079))
-	c5 = e.fp.Sub(c5, s1)
-	s1 = e.fp.MulConst(v7, big.NewInt(2961))
-	c5 = e.fp.Sub(c5, s1)
-	s1 = e.fp.MulConst(v8, big.NewInt(231))
-	c5 = e.fp.Add(c5, s1)
-	s1 = e.fp.MulConst(v9, big.NewInt(273))
-	c5 = e.fp.Add(c5, s1)
-	s1 = e.fp.MulConst(v10, big.NewInt(495331200))
-	c5 = e.fp.Sub(c5, s1)
-
-	inv362880 := emulated.ValueOf[emulated.BW6761Fp]("4671422665851984694040348663017660157508519176517181272289218522372474038323623073011971993796055931265397672069676435635279488178552288409646583546248183456271259848848724056226545014884280653287710097584502403952205015690976464")
-
-	return &E6{
-		A0: *e.fp.Mul(&inv362880, c0),
-		A1: *e.fp.Mul(&inv362880, c1),
-		A2: *e.fp.Mul(&inv362880, c2),
-		A3: *e.fp.Mul(&inv362880, c3),
-		A4: *e.fp.Mul(&inv362880, c4),
-		A5: *e.fp.Mul(&inv362880, c5),
-	}
-}
-*/
 
 // Karabina's compressed cyclotomic square SQR12345
 // https://eprint.iacr.org/2010/542.pdf
