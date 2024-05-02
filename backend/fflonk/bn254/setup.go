@@ -113,6 +113,11 @@ type ProvingKey struct {
 	Vk *VerifyingKey
 }
 
+// getNumberOfPolynomials returns the total number of polynomials involved in plonk
+func getNumberOfPolynomials(vk VerifyingKey) int {
+	return number_polynomials + 2*len(vk.CommitmentConstraintIndexes)
+}
+
 // computes the smallest t bounding above number_polynomials + 2*len(vk.CommitmentConstraintIndexes)
 // and dividing r-1.
 func getNextDivisorRMinusOne(vk VerifyingKey) int {
@@ -120,7 +125,7 @@ func getNextDivisorRMinusOne(vk VerifyingKey) int {
 	r := fr.Modulus()
 	one.SetUint64(1)
 	r.Sub(r, &one)
-	t := number_polynomials + 2*len(vk.CommitmentConstraintIndexes)
+	t := getNumberOfPolynomials(vk)
 	tmp.SetUint64(uint64(t))
 	tmp.Mod(r, &tmp)
 	for tmp.Cmp(&zero) != 0 {
