@@ -102,6 +102,37 @@ func TestDoubleFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
+type e6MulVariants struct {
+	A, B, C E6
+}
+
+func (circuit *e6MulVariants) Define(api frontend.API) error {
+	e := NewExt6(api)
+	expected1 := *e.mulMontgomery(&circuit.A, &circuit.B)
+	expected2 := *e.mulToomCook6(&circuit.A, &circuit.B)
+	e.AssertIsEqual(&expected1, &circuit.C)
+	e.AssertIsEqual(&expected2, &circuit.C)
+	return nil
+}
+
+func TestMulVariantsFp6(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bw6761.E6
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Mul(&a, &b)
+
+	witness := e6MulVariants{
+		A: FromE6(&a),
+		B: FromE6(&b),
+		C: FromE6(&c),
+	}
+
+	err := test.IsSolved(&e6MulVariants{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type e6Mul struct {
 	A, B, C E6
 }
