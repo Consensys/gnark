@@ -198,10 +198,9 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 func (e Ext6) mulMontgomery6(x, y *E6) *E6 {
 	// Ref.: Peter L. Montgomery. Five, six, and seven-term Karatsuba-like formulae. IEEE
 	// Transactions on Computers, 54(3):362–369, 2005.
-	x = e.Reduce(x)
-	y = e.Reduce(y)
-	// Fixing the polynomial to X^6 we first compute the interpolation points
-	// vi = x(pi)*y(pi) at {0, ±1, ±2, ±3, ±4, 5,∞}:
+	//
+	// Fixing the polynomial C to X^6 we first compute the interpolation points
+	// vi = x(Xi)*y(Xi) at Xi={0, ±1, ±2, ±3, ±4, 5,∞}:
 	//
 	//		v0 = (a0 + a1 + a2 + a3 + a4 + a5)(b0 + b1 + b2 + b3 + b4 + b5)
 	//		v2 = (a0 + a1 + a3 + a4)(b0 + b1 + b3 + b4)
@@ -428,8 +427,6 @@ func (e Ext6) mulMontgomery6(x, y *E6) *E6 {
 }
 
 func (e Ext6) mulToomCook6(x, y *E6) *E6 {
-	x = e.Reduce(x)
-	y = e.Reduce(y)
 	// Toom-Cook 6-way multiplication:
 	//
 	// Ref.: https://eprint.iacr.org/2006/471.pdf
@@ -700,19 +697,6 @@ func (e Ext6) mulToomCook6(x, y *E6) *E6 {
 	s2 = e.fp.MulConst(v10, big.NewInt(495331200))
 	s1 = e.fp.Add(s1, s2)
 	c5 = e.fp.Sub(c5, s1)
-
-	/*
-		inv362880 := emulated.ValueOf[emulated.BW6761Fp]("4671422665851984694040348663017660157508519176517181272289218522372474038323623073011971993796055931265397672069676435635279488178552288409646583546248183456271259848848724056226545014884280653287710097584502403952205015690976464")
-
-		return &E6{
-			A0: *e.fp.Mul(c0, &inv362880),
-			A1: *e.fp.Mul(c1, &inv362880),
-			A2: *e.fp.Mul(c2, &inv362880),
-			A3: *e.fp.Mul(c3, &inv362880),
-			A4: *e.fp.Mul(c4, &inv362880),
-			A5: *e.fp.Mul(c5, &inv362880),
-		}
-	*/
 
 	res := e.divE6By362880([6]*baseEl{c0, c1, c2, c3, c4, c5})
 	return &E6{
