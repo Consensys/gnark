@@ -109,8 +109,15 @@ type Trace struct {
 type ProvingKey struct {
 	Kzg kzg.ProvingKey
 
+	KzgBis []kzg.ProvingKey
+
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
+}
+
+// getNumberOfPolynomials returns the total number of polynomials involved in plonk
+func getNumberOfPolynomials(vk VerifyingKey) int {
+	return number_polynomials + 2*len(vk.CommitmentConstraintIndexes)
 }
 
 // computes the smallest t bounding above number_polynomials + 2*len(vk.CommitmentConstraintIndexes)
@@ -120,7 +127,7 @@ func getNextDivisorRMinusOne(vk VerifyingKey) int {
 	r := fr.Modulus()
 	one.SetUint64(1)
 	r.Sub(r, &one)
-	t := number_polynomials + 2*len(vk.CommitmentConstraintIndexes)
+	t := getNumberOfPolynomials(vk)
 	tmp.SetUint64(uint64(t))
 	tmp.Mod(r, &tmp)
 	for tmp.Cmp(&zero) != 0 {
@@ -158,6 +165,7 @@ func Setup(spr *cs.SparseR1CS, srs kzg.SRS) (*ProvingKey, *VerifyingKey, error) 
 
 	// TODO compute the accurate size
 	pk.Kzg.G1 = srs.Pk.G1
+	splitKzg(&pk, &vk, srs)
 	vk.Kzg = srs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
@@ -169,13 +177,30 @@ func Setup(spr *cs.SparseR1CS, srs kzg.SRS) (*ProvingKey, *VerifyingKey, error) 
 	// All the above polynomials are expressed in canonical basis afterwards. This is why
 	// we save lqk before, because the prover needs to complete it in Lagrange form, and
 	// then express it on the Lagrange coset basis.
-	if err := vk.commitTrace(trace, domain, pk.Kzg); err != nil {
+	if err := vk.commitTrace(trace, domain, pk.Kzg, &pk); err != nil {
 		return nil, nil, err
 	}
 
 	// fflonk commit to ql, qr, qm, qo, qk (incomplete), s1, s2, s3, qcp
 
 	return &pk, &vk, nil
+}
+
+// splitKzg splits KZG proving key in chunks, where the i-th chunk contains the entries
+// of the original SRS whose index is i mod t, where t is the closest integer bounding above
+// the total number of polynomials and dividing r-1.
+func splitKzg(pk *ProvingKey, vk *VerifyingKey, srs kzg.SRS) {
+	t := getNextDivisorRMinusOne(*vk)
+	numberOfPolynomials := getNumberOfPolynomials(*vk)
+	pk.KzgBis = make([]kzg.ProvingKey, numberOfPolynomials)
+	for i := 0; i < numberOfPolynomials; i++ {
+		pk.KzgBis[i].G1 = make([]bn254.G1Affine, vk.Size+3) // due to the blinding
+	}
+	for i := 0; i < int(vk.Size)+3; i++ {
+		for j := 0; j < numberOfPolynomials; j++ {
+			pk.KzgBis[j].G1[i] = srs.Pk.G1[i*t+j]
+		}
+	}
 }
 
 // NbPublicWitness returns the expected public witness size (number of field elements)
@@ -259,11 +284,11 @@ func NewTrace(spr *cs.SparseR1CS, domain *fft.Domain) *Trace {
 
 // commitTrace commits to every polynomial in the trace, and put
 // the commitments int the verifying key.
-func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.ProvingKey) error {
+func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.ProvingKey, pk *ProvingKey) error {
 
-	// step 0: put everyithing in canonical regular form
-	currentNbPolynomials := setup_s3 + len(trace.Qcp) + 1
-	traceList := make([][]fr.Element, currentNbPolynomials)
+	// step 0: put everything in canonical regular form
+	nbPublicPolynomials := setup_s3 + len(trace.Qcp) + 1
+	traceList := make([][]fr.Element, nbPublicPolynomials)
 	traceList[setup_ql] = trace.Ql.ToCanonical(domain).ToRegular().Coefficients()
 	traceList[setup_qr] = trace.Qr.ToCanonical(domain).ToRegular().Coefficients()
 	traceList[setup_qm] = trace.Qm.ToCanonical(domain).ToRegular().Coefficients()
@@ -278,21 +303,32 @@ func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.
 
 	// step 1: intertwine the polynomials to obtain the following polynomial:
 	// Q_{public}:=Q_{L}(Xᵗ)+XQ_{R}(Xᵗ)+X²Q_{M}(Xᵗ)+X³Q_{O}(Xᵗ)+X⁴Q_{K}(Xᵗ)+X⁵S₁(Xᵗ)+X⁶S₂(Xᵗ)+X⁷S₃(Xᵗ)+X⁸Q_{Cp}(Xᵗ)
-	// where t = 13 + |nb_custom_gates|
+	// where t = 15 + |nb_custom_gates|
 	t := getNextDivisorRMinusOne(*vk)
 	size := int(domain.Cardinality)
 	upperBoundSize := t * size
 	buf := make([]fr.Element, upperBoundSize)
 	for i := 0; i < size; i++ {
-		for j := 0; j < currentNbPolynomials; j++ {
+		for j := 0; j < nbPublicPolynomials; j++ {
 			buf[i*t+j].Set(&traceList[j][i])
 		}
 	}
 
-	// step 2: KZG commit to the resulting polynomial
+	publicCommitments := make([]bn254.G1Affine, nbPublicPolynomials)
 	var err error
-	vk.Qpublic, err = kzg.Commit(buf, srsPk)
-	return err
+	// TODO could be done in parallel
+	for i := 0; i < nbPublicPolynomials; i++ {
+		publicCommitments[i], err = kzg.Commit(traceList[i], pk.KzgBis[i])
+		if err != nil {
+			return err
+		}
+	}
+	vk.Qpublic.Set(&publicCommitments[0])
+	for i := 1; i < nbPublicPolynomials; i++ {
+		vk.Qpublic.Add(&vk.Qpublic, &publicCommitments[i])
+	}
+
+	return nil
 }
 
 func initFFTDomain(spr *cs.SparseR1CS) *fft.Domain {
