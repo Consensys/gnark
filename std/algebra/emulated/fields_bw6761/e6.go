@@ -189,7 +189,17 @@ func mulFpByNonResidue(fp *curveF, x *baseEl) *baseEl {
 	return z
 }
 
-func (e Ext6) interpolationX6Mul(x, y *E6) [18]*baseEl {
+func (e Ext6) Mul(x, y *E6) *E6 {
+	x = e.Reduce(x)
+	y = e.Reduce(y)
+	return e.mulToomCook6(x, y)
+}
+
+func (e Ext6) mulMontgomery6(x, y *E6) *E6 {
+	// Ref.: Peter L. Montgomery. Five, six, and seven-term Karatsuba-like formulae. IEEE
+	// Transactions on Computers, 54(3):362–369, 2005.
+	x = e.Reduce(x)
+	y = e.Reduce(y)
 	// Fixing the polynomial to X^6 we first compute the interpolation points
 	// vi = x(pi)*y(pi) at {0, ±1, ±2, ±3, ±4, 5,∞}:
 	//
@@ -263,17 +273,9 @@ func (e Ext6) interpolationX6Mul(x, y *E6) [18]*baseEl {
 	v15 := e.fp.Mul(&x.A1, &y.A1)
 	v16 := e.fp.Mul(&x.A4, &y.A4)
 	v17 := e.fp.Mul(&x.A5, &y.A5)
-	v1 := e.fp.Zero()
 
-	return [18]*baseEl{v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17}
-}
-
-func (e Ext6) mulMontgomery6(v [18]*baseEl) *E6 {
 	// Then we compute the coefficients c0,c1,c3,c4 and c5 in the direct sextic
 	// extension of the product x*y as follows:
-	//
-	// Ref.: Peter L. Montgomery. Five, six, and seven-term Karatsuba-like formulae. IEEE
-	// Transactions on Computers, 54(3):362–369, 2005.
 	//
 	// 	c0 = v14 + β(v0 − v2 + v4 + 2(v3+v5+v6-v12) + 3(v7+v15-v8-v10-v11) +
 	// 	4(v16-v13) − 5(v14+v17))
@@ -292,126 +294,126 @@ func (e Ext6) mulMontgomery6(v [18]*baseEl) *E6 {
 	//  c5 = −(v3 + v4 + v5 + v9 + v15 + v16) + 2(v8 + v10 + v11 + v12 + v13 −
 	//  (v6 + v7)) + 3(v14 + v17)
 
-	c0 := e.fp.MulConst(v[2], big.NewInt(4))
-	s811 := e.fp.Add(v[8], v[11])
-	s81110 := e.fp.Add(s811, v[10])
-	s1 := e.fp.MulConst(s81110, big.NewInt(12))
+	c0 := e.fp.MulConst(v2, big.NewInt(4))
+	s811 := e.fp.Add(v8, v11)
+	s81110 := e.fp.Add(s811, v10)
+	s1 = e.fp.MulConst(s81110, big.NewInt(12))
 	c0 = e.fp.Add(c0, s1)
-	s1 = e.fp.MulConst(v[12], big.NewInt(8))
+	s1 = e.fp.MulConst(v12, big.NewInt(8))
 	c0 = e.fp.Add(c0, s1)
-	s1 = e.fp.MulConst(v[13], big.NewInt(16))
+	s1 = e.fp.MulConst(v13, big.NewInt(16))
 	c0 = e.fp.Add(c0, s1)
-	s1 = e.fp.MulConst(v[14], big.NewInt(21))
+	s1 = e.fp.MulConst(v14, big.NewInt(21))
 	c0 = e.fp.Add(c0, s1)
-	s1 = e.fp.MulConst(v[17], big.NewInt(20))
+	s1 = e.fp.MulConst(v17, big.NewInt(20))
 	c0 = e.fp.Add(c0, s1)
-	s1 = e.fp.MulConst(v[15], big.NewInt(12))
-	s2 := e.fp.MulConst(v[16], big.NewInt(16))
+	s1 = e.fp.MulConst(v15, big.NewInt(12))
+	s2 = e.fp.MulConst(v16, big.NewInt(16))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[0], big.NewInt(4))
+	s2 = e.fp.MulConst(v0, big.NewInt(4))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[3], big.NewInt(8))
+	s2 = e.fp.MulConst(v3, big.NewInt(8))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[4], big.NewInt(4))
+	s2 = e.fp.MulConst(v4, big.NewInt(4))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[5], big.NewInt(8))
+	s2 = e.fp.MulConst(v5, big.NewInt(8))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[6], big.NewInt(8))
+	s2 = e.fp.MulConst(v6, big.NewInt(8))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[7], big.NewInt(12))
+	s2 = e.fp.MulConst(v7, big.NewInt(12))
 	s1 = e.fp.Add(s1, s2)
 	c0 = e.fp.Sub(c0, s1)
 
-	s35 := e.fp.Add(v[3], v[5])
-	c1 := e.fp.Add(s35, v[6])
+	s35 := e.fp.Add(v3, v5)
+	c1 := e.fp.Add(s35, v6)
 	c1 = e.fp.MulConst(c1, big.NewInt(4))
-	s1 = e.fp.MulConst(v[7], big.NewInt(8))
+	s1 = e.fp.MulConst(v7, big.NewInt(8))
 	c1 = e.fp.Add(c1, s1)
-	s1 = e.fp.MulConst(v[16], big.NewInt(12))
+	s1 = e.fp.MulConst(v16, big.NewInt(12))
 	c1 = e.fp.Add(c1, s1)
-	s1 = e.fp.MulConst(v[15], big.NewInt(3))
+	s1 = e.fp.MulConst(v15, big.NewInt(3))
 	c1 = e.fp.Add(c1, s1)
-	s1 = e.fp.MulConst(v[12], big.NewInt(3))
-	s2 = e.fp.MulConst(v[14], big.NewInt(9))
+	s1 = e.fp.MulConst(v12, big.NewInt(3))
+	s2 = e.fp.MulConst(v14, big.NewInt(9))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[8], big.NewInt(4))
+	s2 = e.fp.MulConst(v8, big.NewInt(4))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[10], big.NewInt(4))
+	s2 = e.fp.MulConst(v10, big.NewInt(4))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[11], big.NewInt(12))
+	s2 = e.fp.MulConst(v11, big.NewInt(12))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[13], big.NewInt(8))
+	s2 = e.fp.MulConst(v13, big.NewInt(8))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[17], big.NewInt(8))
+	s2 = e.fp.MulConst(v17, big.NewInt(8))
 	s1 = e.fp.Add(s1, s2)
 	c1 = e.fp.Sub(c1, s1)
 
-	c2 := e.fp.MulConst(v[15], big.NewInt(2))
-	c2 = e.fp.Add(c2, v[6])
-	s1 = e.fp.MulConst(v[11], big.NewInt(4))
+	c2 := e.fp.MulConst(v15, big.NewInt(2))
+	c2 = e.fp.Add(c2, v6)
+	s1 = e.fp.MulConst(v11, big.NewInt(4))
 	c2 = e.fp.Add(c2, s1)
-	s1 = e.fp.MulConst(v[13], big.NewInt(4))
+	s1 = e.fp.MulConst(v13, big.NewInt(4))
 	c2 = e.fp.Add(c2, s1)
-	s1012 := e.fp.Add(v[10], v[12])
-	s2 = e.fp.MulConst(v[7], big.NewInt(4))
+	s1012 := e.fp.Add(v10, v12)
+	s2 = e.fp.MulConst(v7, big.NewInt(4))
 	s1 = e.fp.Add(s1012, s2)
-	s2 = e.fp.MulConst(v[16], big.NewInt(8))
+	s2 = e.fp.MulConst(v16, big.NewInt(8))
 	s1 = e.fp.Add(s1, s2)
 	c2 = e.fp.Sub(c2, s1)
 
-	s1 = e.fp.MulConst(v[10], big.NewInt(3))
+	s1 = e.fp.MulConst(v10, big.NewInt(3))
 	c3 := e.fp.Add(s811, s1)
-	s1 = e.fp.MulConst(v[12], big.NewInt(2))
+	s1 = e.fp.MulConst(v12, big.NewInt(2))
 	c3 = e.fp.Add(c3, s1)
-	s1 = e.fp.MulConst(v[14], big.NewInt(2))
+	s1 = e.fp.MulConst(v14, big.NewInt(2))
 	c3 = e.fp.Add(c3, s1)
-	s1 = e.fp.MulConst(v[16], big.NewInt(3))
+	s1 = e.fp.MulConst(v16, big.NewInt(3))
 	c3 = e.fp.Add(c3, s1)
-	s1 = e.fp.MulConst(v[17], big.NewInt(6))
+	s1 = e.fp.MulConst(v17, big.NewInt(6))
 	c3 = e.fp.Add(c3, s1)
-	s34 := e.fp.Add(v[3], v[4])
-	s1 = e.fp.Add(s34, v[7])
-	s2 = e.fp.MulConst(v[6], big.NewInt(2))
+	s34 := e.fp.Add(v3, v4)
+	s1 = e.fp.Add(s34, v7)
+	s2 = e.fp.MulConst(v6, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[13], big.NewInt(3))
+	s2 = e.fp.MulConst(v13, big.NewInt(3))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[15], big.NewInt(3))
+	s2 = e.fp.MulConst(v15, big.NewInt(3))
 	s1 = e.fp.Add(s1, s2)
 	c3 = e.fp.Sub(c3, s1)
 
-	c4 := e.fp.Add(v[2], v[15])
-	c4 = e.fp.Add(c4, v[9])
-	c4 = e.fp.Add(c4, v[7])
+	c4 := e.fp.Add(v2, v15)
+	c4 = e.fp.Add(c4, v9)
+	c4 = e.fp.Add(c4, v7)
 	c4 = e.fp.Add(c4, s34)
-	s1 = e.fp.MulConst(v[6], big.NewInt(2))
+	s1 = e.fp.MulConst(v6, big.NewInt(2))
 	c4 = e.fp.Add(c4, s1)
-	s1 = e.fp.Add(v[13], v[8])
-	s2 = e.fp.MulConst(v[10], big.NewInt(2))
+	s1 = e.fp.Add(v13, v8)
+	s2 = e.fp.MulConst(v10, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[11], big.NewInt(2))
+	s2 = e.fp.MulConst(v11, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[12], big.NewInt(3))
+	s2 = e.fp.MulConst(v12, big.NewInt(3))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[14], big.NewInt(2))
+	s2 = e.fp.MulConst(v14, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[17], big.NewInt(6))
+	s2 = e.fp.MulConst(v17, big.NewInt(6))
 	s1 = e.fp.Add(s1, s2)
 	c4 = e.fp.Sub(c4, s1)
 
-	c5 := e.fp.Add(s81110, v[12])
-	c5 = e.fp.Add(c5, v[13])
+	c5 := e.fp.Add(s81110, v12)
+	c5 = e.fp.Add(c5, v13)
 	c5 = e.fp.MulConst(c5, big.NewInt(2))
-	s1 = e.fp.MulConst(v[14], big.NewInt(3))
+	s1 = e.fp.MulConst(v14, big.NewInt(3))
 	c5 = e.fp.Add(c5, s1)
-	s1 = e.fp.MulConst(v[17], big.NewInt(3))
+	s1 = e.fp.MulConst(v17, big.NewInt(3))
 	c5 = e.fp.Add(c5, s1)
-	s1 = e.fp.Add(v[15], v[16])
+	s1 = e.fp.Add(v15, v16)
 	s1 = e.fp.Add(s1, s34)
-	s1 = e.fp.Add(s1, v[5])
-	s1 = e.fp.Add(s1, v[9])
-	s2 = e.fp.MulConst(v[6], big.NewInt(2))
+	s1 = e.fp.Add(s1, v5)
+	s1 = e.fp.Add(s1, v9)
+	s2 = e.fp.MulConst(v6, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
-	s2 = e.fp.MulConst(v[7], big.NewInt(2))
+	s2 = e.fp.MulConst(v7, big.NewInt(2))
 	s1 = e.fp.Add(s1, s2)
 	c5 = e.fp.Sub(c5, s1)
 
@@ -425,21 +427,13 @@ func (e Ext6) mulMontgomery6(v [18]*baseEl) *E6 {
 	}
 }
 
-func (e Ext6) Mul(x, y *E6) *E6 {
-	x = e.Reduce(x)
-	y = e.Reduce(y)
-	return e.mulToomCook6(x, y)
-}
-
-func (e Ext6) mulMontgomery(x, y *E6) *E6 {
-	v := e.interpolationX6Mul(x, y)
-	return e.mulMontgomery6(v)
-}
-
 func (e Ext6) mulToomCook6(x, y *E6) *E6 {
 	x = e.Reduce(x)
 	y = e.Reduce(y)
 	// Toom-Cook 6-way multiplication:
+	//
+	// Ref.: https://eprint.iacr.org/2006/471.pdf
+	// ⚠️  but has sign errors in c1 and coefficient errors in c3 and c4.
 	//
 	// We first represent a, b as the polynomials:
 	// 	x(X) = a0 + a1*X + a2*X^2 + a3*X^3 + a4*X^4 + a5*X^5
@@ -448,17 +442,18 @@ func (e Ext6) mulToomCook6(x, y *E6) *E6 {
 	// and we compute the interpolation points
 	// vi = a(Xi)*b(Xi) at Xi={0, ±1, ±2, ±3, ±4, 5, ∞}:
 	//
-	//     v0 = x(0)y(0)   = a0b0
-	//     v1 = x(1)y(1)   = (a0 + a1 + a2 + a3 + a4 + a5)(b0 + b1 + b2 + b3 + b4 + b5)
-	//     v2 = x(-1)y(-1) = (a0 - a1 + a2 - a3 + a4 - a5)(b0 - b1 + b2 - b3 + b4 - b5)
-	//     v3 = x(2)y(2)   = (a0 + 2a1 + 4a2 + 8a3 + 16a4 + 32a5)(b0 + 2b1 + 4b2 + 8b3 + 16b4 + 32b5)
-	//     v4 = x(-2)y(-2) = (a0 - 2a1 + 4a2 - 8a3 + 16a4 - 32a5)(b0 - 2b1 + 4b2 - 8b3 + 16b4 - 32b5)
-	//     v5 = x(3)y(3)   = (a0 + 3a1 + 9a2 + 27a3 + 81a4 + 243a5)(b0 + 3b1 + 9b2 + 27b3 + 81b4 + 243b5)
-	//     v6 = x(-3)y(-3) = (a0 - 3a1 + 9a2 - 27a3 + 81a4 - 243a5)(b0 - 3b1 + 9b2 - 27b3 + 81b4 - 243b5)
-	//     v7 = x(4)y(4)   = (a0 + 4a1 + 16a2 + 64a3 + 256a4 + 1024a5)(b0 + 4b1 + 16b2 + 64b3 + 256b4 + 1024b5)
-	//     v8 = x(-4)y(-4) = (a0 - 4a1 + 16a2 - 64a3 + 256a4 - 1024a5)(b0 - 4b1 + 16b2 - 64b3 + 256b4 - 1024b5)
-	//     v9 = x(5)y(5)   = (a0 + 5a1 + 25a2 + 125a3 + 625a4 + 3125a5)(b0 + 5b1 + 25b2 + 125b3 + 625b4 + 3125b5)
-	// 	   v10 = x(∞)y(∞)  = a5b5
+	//     v0 = x(0)y(0)   = x0y0
+	//     v1 = x(1)y(1)   = (x0 + x1 + x2 + x3 + x4 + x5)(y0 + y1 + y2 + y3 + y4 + y5)
+	//     v2 = x(-1)y(-1) = (x0 - x1 + x2 - x3 + x4 - x5)(y0 - y1 + y2 - y3 + y4 - y5)
+	//     v3 = x(2)y(2)   = (x0 + 2x1 + 4x2 + 8x3 + 16x4 + 32x5)(y0 + 2y1 + 4y2 + 8y3 + 16y4 + 32y5)
+	//     v4 = x(-2)y(-2) = (x0 - 2x1 + 4x2 - 8x3 + 16x4 - 32x5)(y0 - 2y1 + 4y2 - 8y3 + 16y4 - 32y5)
+	//     v5 = x(3)y(3)   = (x0 + 3x1 + 9x2 + 27x3 + 81x4 + 243x5)(y0 + 3y1 + 9y2 + 27y3 + 81y4 + 243y5)
+	//     v6 = x(-3)y(-3) = (x0 - 3x1 + 9x2 - 27x3 + 81x4 - 243x5)(y0 - 3y1 + 9y2 - 27y3 + 81y4 - 243y5)
+	//     v7 = x(4)y(4)   = (x0 + 4x1 + 16x2 + 64x3 + 256x4 + 1024x5)(y0 + 4y1 + 16y2 + 64y3 + 256y4 + 1024y5)
+	//     v8 = x(-4)y(-4) = (x0 - 4x1 + 16x2 - 64x3 + 256x4 - 1024x5)(y0 - 4y1 + 16y2 - 64y3 + 256y4 - 1024y5)
+	//     v9 = x(5)y(5)   = (x0 + 5x1 + 25x2 + 125x3 + 625x4 + 3125x5)(y0 + 5y1 + 25y2 + 125y3 + 625y4 + 3125y5)
+	// 	   v10 = x(∞)y(∞)  = x5y5
+
 	v0 := e.fp.Mul(&x.A0, &y.A0)
 
 	t1 := e.fp.Add(&x.A0, &x.A2)
@@ -583,7 +578,7 @@ func (e Ext6) mulToomCook6(x, y *E6) *E6 {
 
 	v10 := e.fp.Mul(&x.A5, &y.A5)
 
-	//	Then we compute the product  362880*x*y to avoid divisions:
+	//	Then we compute the product  362880 * x * y to avoid divisions (mul by large coeffs):
 	//
 	// 		c0 = 438480 v0 + 26208(v3 + v4) + 504(v7 + v8)
 	// 		- (58464(v1 + v2) + 6048(v5 + v6) + 396264960 v10)
@@ -706,15 +701,27 @@ func (e Ext6) mulToomCook6(x, y *E6) *E6 {
 	s1 = e.fp.Add(s1, s2)
 	c5 = e.fp.Sub(c5, s1)
 
-	inv362880 := emulated.ValueOf[emulated.BW6761Fp]("4671422665851984694040348663017660157508519176517181272289218522372474038323623073011971993796055931265397672069676435635279488178552288409646583546248183456271259848848724056226545014884280653287710097584502403952205015690976464")
+	/*
+		inv362880 := emulated.ValueOf[emulated.BW6761Fp]("4671422665851984694040348663017660157508519176517181272289218522372474038323623073011971993796055931265397672069676435635279488178552288409646583546248183456271259848848724056226545014884280653287710097584502403952205015690976464")
 
+		return &E6{
+			A0: *e.fp.Mul(c0, &inv362880),
+			A1: *e.fp.Mul(c1, &inv362880),
+			A2: *e.fp.Mul(c2, &inv362880),
+			A3: *e.fp.Mul(c3, &inv362880),
+			A4: *e.fp.Mul(c4, &inv362880),
+			A5: *e.fp.Mul(c5, &inv362880),
+		}
+	*/
+
+	res := e.divE6By362880([6]*baseEl{c0, c1, c2, c3, c4, c5})
 	return &E6{
-		A0: *e.fp.Mul(c0, &inv362880),
-		A1: *e.fp.Mul(c1, &inv362880),
-		A2: *e.fp.Mul(c2, &inv362880),
-		A3: *e.fp.Mul(c3, &inv362880),
-		A4: *e.fp.Mul(c4, &inv362880),
-		A5: *e.fp.Mul(c5, &inv362880),
+		A0: *res[0],
+		A1: *res[1],
+		A2: *res[2],
+		A3: *res[3],
+		A4: *res[4],
+		A5: *res[5],
 	}
 }
 
@@ -925,6 +932,37 @@ func (e Ext6) DivUnchecked(x, y *E6) *E6 {
 
 	return &div
 
+}
+
+func (e Ext6) divE6By362880(x [6]*baseEl) [6]*baseEl {
+	res, err := e.fp.NewHint(divE6By362880Hint, 6, x[0], x[1], x[2], x[3], x[4], x[5])
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	y0 := *res[0]
+	y1 := *res[1]
+	y2 := *res[2]
+	y3 := *res[3]
+	y4 := *res[4]
+	y5 := *res[5]
+
+	// xi == 362880 * yi
+	x0 := e.fp.MulConst(&y0, big.NewInt(362880))
+	x1 := e.fp.MulConst(&y1, big.NewInt(362880))
+	x2 := e.fp.MulConst(&y2, big.NewInt(362880))
+	x3 := e.fp.MulConst(&y3, big.NewInt(362880))
+	x4 := e.fp.MulConst(&y4, big.NewInt(362880))
+	x5 := e.fp.MulConst(&y5, big.NewInt(362880))
+	e.fp.AssertIsEqual(x[0], x0)
+	e.fp.AssertIsEqual(x[1], x1)
+	e.fp.AssertIsEqual(x[2], x2)
+	e.fp.AssertIsEqual(x[3], x3)
+	e.fp.AssertIsEqual(x[4], x4)
+	e.fp.AssertIsEqual(x[5], x5)
+
+	return [6]*baseEl{&y0, &y1, &y2, &y3, &y4, &y5}
 }
 
 func (e Ext6) AssertIsEqual(a, b *E6) {

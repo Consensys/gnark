@@ -108,7 +108,7 @@ type e6MulVariants struct {
 
 func (circuit *e6MulVariants) Define(api frontend.API) error {
 	e := NewExt6(api)
-	expected1 := *e.mulMontgomery(&circuit.A, &circuit.B)
+	expected1 := *e.mulMontgomery6(&circuit.A, &circuit.B)
 	expected2 := *e.mulToomCook6(&circuit.A, &circuit.B)
 	e.AssertIsEqual(&expected1, &circuit.C)
 	e.AssertIsEqual(&expected2, &circuit.C)
