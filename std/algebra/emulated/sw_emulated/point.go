@@ -804,7 +804,6 @@ func (c *Curve[B, S]) jointScalarMulGeneric(p1, p2 *AffinePoint[B], s1, s2 *emul
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
 	if cfg.CompleteArithmetic {
-		// TODO @yelhousni: optimize
 		res1 := c.scalarMulGeneric(p1, s1, opts...)
 		res2 := c.scalarMulGeneric(p2, s2, opts...)
 		return c.AddUnified(res1, res2)
@@ -861,7 +860,6 @@ func (c *Curve[B, S]) jointScalarMulGLV(p1, p2 *AffinePoint[B], s1, s2 *emulated
 		panic(fmt.Sprintf("parse opts: %v", err))
 	}
 	if cfg.CompleteArithmetic {
-		// TODO @yelhousni: optimize
 		res1 := c.scalarMulGLV(p1, s1, opts...)
 		res2 := c.scalarMulGLV(p2, s2, opts...)
 		return c.AddUnified(res1, res2)
