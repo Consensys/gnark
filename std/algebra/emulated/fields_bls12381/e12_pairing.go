@@ -93,8 +93,8 @@ func (e *Ext12) MulBy014(z *E12, c0, c1 *E2) *E12 {
 
 	zC1 := e.Ext6.Add(&z.C1, &z.C0)
 	zC1 = e.Ext6.MulBy01(zC1, c0, d)
-	zC1 = e.Ext6.Sub(zC1, a)
-	zC1 = e.Ext6.Sub(zC1, &b)
+	tmp := e.Ext6.Add(&b, a)
+	zC1 = e.Ext6.Sub(zC1, tmp)
 	zC0 := e.Ext6.MulByNonResidue(&b)
 	zC0 = e.Ext6.Add(zC0, a)
 
@@ -124,8 +124,8 @@ func (e Ext12) Mul014By014(d0, d1, c0, c1 *E2) [5]*E2 {
 	tmp := e.Ext2.Add(c0, c1)
 	x01 := e.Ext2.Add(d0, d1)
 	x01 = e.Ext2.Mul(x01, tmp)
-	x01 = e.Ext2.Sub(x01, x0)
-	x01 = e.Ext2.Sub(x01, x1)
+	tmp = e.Ext2.Add(x1, x0)
+	x01 = e.Ext2.Sub(x01, tmp)
 	x14 := e.Ext2.Add(c1, d1)
 
 	zC0B0 := e.Ext2.NonResidue()
@@ -148,8 +148,8 @@ func (e *Ext12) MulBy01245(z *E12, x [5]*E2) *E12 {
 	a = e.Ext6.Mul(a, b)
 	b = e.Ext6.Mul(&z.C0, c0)
 	c := e.Ext6.MulBy12(&z.C1, x[3], x[4])
-	z1 := e.Ext6.Sub(a, b)
-	z1 = e.Ext6.Sub(z1, c)
+	d := e.Ext6.Add(c, b)
+	z1 := e.Ext6.Sub(a, d)
 	z0 := e.Ext6.MulByNonResidue(c)
 	z0 = e.Ext6.Add(z0, b)
 	return &E12{

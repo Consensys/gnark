@@ -188,8 +188,8 @@ func (e Ext6) Mul014By014(d0, d1, c0, c1 *baseEl) [5]*baseEl {
 	tmp := e.fp.Add(c0, c1)
 	x01 := e.fp.Add(d0, d1)
 	x01 = e.fp.Mul(x01, tmp)
-	x01 = e.fp.Sub(x01, x0)
-	x01 = e.fp.Sub(x01, x1)
+	tmp = e.fp.Add(x0, x1)
+	x01 = e.fp.Sub(x01, tmp)
 	x14 := e.fp.Add(c1, d1)
 
 	four := emulated.ValueOf[emulated.BW6761Fp](big.NewInt(4))
