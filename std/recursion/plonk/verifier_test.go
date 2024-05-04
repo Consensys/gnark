@@ -99,12 +99,14 @@ func TestBLS12InBW6WoCommit(t *testing.T) {
 		Proof:        PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
 		VerifyingKey: circuitVk,
 	}
+	assert.NoError(err)
 	outerAssignment := &OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 	}
 	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
+
 }
 
 func TestBW6InBN254WoCommit(t *testing.T) {
@@ -401,7 +403,7 @@ func getRandomParametricProof(assert *test.Assert, field, outer *big.Int, ccss [
 	return idx, innerPubWitness, innerProof
 }
 
-type AggregagationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+type AggregationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	BaseKey     BaseVerifyingKey[FR, G1El, G2El] `gnark:"-"`
 	CircuitKeys []CircuitVerifyingKey[FR, G1El]
 	Selectors   []frontend.Variable
@@ -409,7 +411,7 @@ type AggregagationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El
 	Witnesses   []Witness[FR] `gnark:",public"`
 }
 
-func (c *AggregagationCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+func (c *AggregationCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	v, err := NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
@@ -455,7 +457,7 @@ func TestBLS12InBW6Multi(t *testing.T) {
 		circuitWitnesses[i], err = ValueOfWitness[sw_bls12377.ScalarField](innerWitnesses[i])
 		assert.NoError(err)
 	}
-	aggCircuit := &AggregagationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	aggCircuit := &AggregationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		BaseKey:     circuitBvk,
 		CircuitKeys: make([]CircuitVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine], nbCircuits),
 		Selectors:   make([]frontend.Variable, nbProofs),
@@ -469,7 +471,7 @@ func TestBLS12InBW6Multi(t *testing.T) {
 		aggCircuit.Proofs[i] = PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](ccss[0])
 		aggCircuit.Witnesses[i] = PlaceholderWitness[sw_bls12377.ScalarField](ccss[0])
 	}
-	aggAssignment := &AggregagationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	aggAssignment := &AggregationCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		CircuitKeys: circuitVks,
 		Selectors:   circuitSelector,
 		Proofs:      circuitProofs,
@@ -479,7 +481,7 @@ func TestBLS12InBW6Multi(t *testing.T) {
 	assert.NoError(err)
 }
 
-type AggregagationCircuitWithHash[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+type AggregationCircuitWithHash[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	BaseKey     BaseVerifyingKey[FR, G1El, G2El] `gnark:"-"`
 	CircuitKeys []CircuitVerifyingKey[FR, G1El]
 	Selectors   []frontend.Variable
@@ -488,7 +490,7 @@ type AggregagationCircuitWithHash[FR emulated.FieldParams, G1El algebra.G1Elemen
 	WitnessHash frontend.Variable
 }
 
-func (c *AggregagationCircuitWithHash[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+func (c *AggregationCircuitWithHash[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	v, err := NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
@@ -572,7 +574,7 @@ func TestBLS12InBW6MultiHashed(t *testing.T) {
 	}
 	digest := h.Sum(nil)
 
-	aggAssignment := &AggregagationCircuitWithHash[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	aggAssignment := &AggregationCircuitWithHash[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		CircuitKeys: circuitVks,
 		Selectors:   circuitSelector,
 		Proofs:      circuitProofs,
@@ -580,7 +582,7 @@ func TestBLS12InBW6MultiHashed(t *testing.T) {
 		WitnessHash: digest,
 	}
 
-	aggCircuit := &AggregagationCircuitWithHash[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	aggCircuit := &AggregationCircuitWithHash[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		BaseKey:     circuitBvk,
 		CircuitKeys: make([]CircuitVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine], nbCircuits),
 		Selectors:   make([]frontend.Variable, nbProofs),
@@ -593,6 +595,208 @@ func TestBLS12InBW6MultiHashed(t *testing.T) {
 	for i := 0; i < nbProofs; i++ {
 		aggCircuit.Proofs[i] = PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](ccss[0])
 		aggCircuit.Witnesses[i] = PlaceholderWitness[sw_bls12377.ScalarField](ccss[0])
+	}
+	err = test.IsSolved(aggCircuit, aggAssignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+}
+
+// interconnection circuit
+type HubCircuit struct {
+	PerCircuitInput []frontend.Variable `gnark:",public"`
+	RootInput       frontend.Variable   `gnark:",public"`
+}
+
+func (c *HubCircuit) Define(api frontend.API) error {
+	p := api.Mul(c.PerCircuitInput[0], c.PerCircuitInput[1])
+	for i := 2; i < len(c.PerCircuitInput); i++ {
+		p = api.Mul(p, c.PerCircuitInput[i])
+	}
+	api.AssertIsEqual(p, c.RootInput)
+	return nil
+}
+
+type AggregationDiffPubs[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	BaseKeySinglePub BaseVerifyingKey[FR, G1El, G2El] `gnark:"-"`
+	CircuitKeys      []CircuitVerifyingKey[FR, G1El]
+	Selectors        []frontend.Variable
+	Proofs           []Proof[FR, G1El, G2El]
+	Witnesses        []Witness[FR]
+
+	HubKey      VerifyingKey[FR, G1El, G2El] `gnark:"-"`
+	PublicInput emulated.Element[FR]         `gnark:",public"`
+	HubProof    Proof[FR, G1El, G2El]
+}
+
+func (c *AggregationDiffPubs[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+	v, err := NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return fmt.Errorf("plonk verifier: %w", err)
+	}
+	// var foldedDigests []kzg.Commitment[G1El]
+	// var foldedProofs []kzg.OpeningProof[FR, G1El]
+	// var foldedPoints []emulated.Element[FR]
+	// for i := range c.Proofs {
+	// 	vk, err := v.SwitchVerificationKey(c.BaseKeySinglePub, c.Selectors[i], c.CircuitKeys)
+	// 	if err != nil {
+	// 		return fmt.Errorf("switch verification key: %w", err)
+	// 	}
+	// 	dg, pr, pts, err := v.PrepareVerification(vk, c.Proofs[i], c.Witnesses[i])
+	// 	if err != nil {
+	// 		return fmt.Errorf("prepare proof %d: %w", i, err)
+	// 	}
+	// 	foldedDigests = append(foldedDigests, dg...)
+	// 	foldedProofs = append(foldedProofs, pr...)
+	// 	foldedPoints = append(foldedPoints, pts...)
+	// }
+	if err := v.AssertDifferentProofs(c.BaseKeySinglePub, c.CircuitKeys, c.Selectors, c.Proofs, c.Witnesses); err != nil {
+		return fmt.Errorf("assert different proofs: %w", err)
+	}
+	hubWitness := Witness[FR]{Public: make([]emulated.Element[FR], len(c.Witnesses)+1)}
+	for i := range c.Witnesses {
+		hubWitness.Public[i] = c.Witnesses[i].Public[0]
+	}
+	hubWitness.Public[len(c.Witnesses)] = c.PublicInput
+	if err := v.AssertProof(c.HubKey, c.HubProof, hubWitness, WithCompleteArithmetic()); err != nil {
+		return fmt.Errorf("assert hub proof: %w", err)
+	}
+	// dg, pr, pts, err := v.PrepareVerification(c.HubKey, c.HubProof, hubWitness, WithCompleteArithmetic())
+	// if err != nil {
+	// 	return fmt.Errorf("prepare hub proof: %w", err)
+	// }
+	// foldedDigests = append(foldedDigests, dg...)
+	// foldedProofs = append(foldedProofs, pr...)
+	// foldedPoints = append(foldedPoints, pts...)
+	// k, err := kzg.NewVerifier[FR, G1El, G2El, GtEl](api)
+	// if err != nil {
+	// 	return fmt.Errorf("kzg verifier: %w", err)
+	// }
+	// if err := k.BatchVerifyMultiPoints(foldedDigests, foldedProofs, foldedPoints, c.BaseKeySinglePub.Kzg); err != nil {
+	// 	return fmt.Errorf("batch verify multi points: %w", err)
+	// }
+
+	return nil
+}
+
+func getParametricSetups2[FR emulated.FieldParams](assert *test.Assert, field *big.Int, nbParams, nbInner int) ([]constraint.ConstraintSystem, []native_plonk.VerifyingKey, []native_plonk.ProvingKey) {
+	var err error
+
+	ccss := make([]constraint.ConstraintSystem, nbParams+1)
+	vks := make([]native_plonk.VerifyingKey, nbParams+1)
+	pks := make([]native_plonk.ProvingKey, nbParams+1)
+	for i := range ccss {
+		ccss[i], err = frontend.Compile(field, scs.NewBuilder, &InnerCircuitParametric{parameter: 8 << i})
+		assert.NoError(err)
+	}
+	ccss[nbParams], err = frontend.Compile(field, scs.NewBuilder, &HubCircuit{PerCircuitInput: make([]frontend.Variable, nbInner)})
+	assert.NoError(err)
+
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccss[nbParams-1])
+	assert.NoError(err)
+	srsT, ok := srs.(*kzg_bls12377.SRS)
+	assert.True(ok)
+	srsLagrangeT, ok := srsLagrange.(*kzg_bls12377.SRS)
+	assert.True(ok)
+
+	for i := range vks {
+		sizeSystem := ccss[i].GetNbPublicVariables() + ccss[i].GetNbConstraints()
+		nextPowerTwo := 1 << stdbits.Len(uint(sizeSystem))
+		srsLagrangeT.Pk.G1, err = kzg_bls12377.ToLagrangeG1(srsT.Pk.G1[:nextPowerTwo])
+		assert.NoError(err)
+		pks[i], vks[i], err = native_plonk.Setup(ccss[i], srsT, srsLagrangeT)
+		assert.NoError(err)
+	}
+	return ccss, vks, pks
+}
+
+func getHubProof(assert *test.Assert, outer, field *big.Int, witness []witness.Witness, ccs constraint.ConstraintSystem, vk native_plonk.VerifyingKey, pk native_plonk.ProvingKey) (native_plonk.Proof, fr_bls12377.Element) {
+	witnesses := make([]fr_bls12377.Element, len(witness))
+	root := fr_bls12377.One()
+	for i := range witness {
+		pubWit, err := witness[i].Public()
+		assert.NoError(err)
+		vec, ok := pubWit.Vector().(fr_bls12377.Vector)
+		assert.True(ok)
+		witnesses[i] = vec[0]
+		root.Mul(&root, &witnesses[i])
+	}
+	hubAssignment := HubCircuit{PerCircuitInput: make([]frontend.Variable, len(witnesses)), RootInput: root.String()}
+	for i := range witnesses {
+		hubAssignment.PerCircuitInput[i] = witnesses[i].String()
+	}
+	hubWit, err := frontend.NewWitness(&hubAssignment, field)
+	assert.NoError(err)
+	proof, err := native_plonk.Prove(ccs, pk, hubWit, GetNativeProverOptions(outer, field))
+	assert.NoError(err)
+	hubWitPub, err := hubWit.Public()
+	assert.NoError(err)
+	err = native_plonk.Verify(proof, vk, hubWitPub, GetNativeVerifierOptions(outer, field))
+	assert.NoError(err)
+	return proof, root
+}
+
+func TestAggregationDiff(t *testing.T) {
+	innerField := ecc.BLS12_377.ScalarField()
+	outerField := ecc.BW6_761.ScalarField()
+	nbCircuits := 5
+	nbProofs := 20
+	assert := test.NewAssert(t)
+	ccss, vks, pks := getParametricSetups2[sw_bls12377.ScalarField](assert, innerField, nbCircuits, nbProofs)
+	hubCcs, hubVk, hubPk := ccss[nbCircuits], vks[nbCircuits], pks[nbCircuits]
+	innerProofs := make([]native_plonk.Proof, nbProofs)
+	innerWitnesses := make([]witness.Witness, nbProofs)
+	innerSelectors := make([]int, nbProofs)
+	for i := 0; i < nbProofs; i++ {
+		innerSelectors[i], innerWitnesses[i], innerProofs[i] = getRandomParametricProof(assert, innerField, outerField, ccss[:nbCircuits], vks[:nbCircuits], pks[:nbCircuits])
+	}
+	hubProof, hubRoot := getHubProof(assert, outerField, innerField, innerWitnesses, hubCcs, hubVk, hubPk)
+	circuitHubProof, err := ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](hubProof)
+	assert.NoError(err)
+	circuitVk, err := ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](hubVk)
+	assert.NoError(err)
+	circuitBvk, err := ValueOfBaseVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](vks[0])
+	assert.NoError(err)
+	circuitVks := make([]CircuitVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine], nbCircuits)
+	for i := range circuitVks {
+		circuitVks[i], err = ValueOfCircuitVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine](vks[i])
+		assert.NoError(err)
+	}
+	circuitSelector := make([]frontend.Variable, nbProofs)
+	for i := range circuitSelector {
+		circuitSelector[i] = innerSelectors[i]
+	}
+	circuitProofs := make([]Proof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine], nbProofs)
+	for i := range circuitProofs {
+		circuitProofs[i], err = ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProofs[i])
+		assert.NoError(err)
+	}
+	circuitWitnesses := make([]Witness[sw_bls12377.ScalarField], nbProofs)
+	for i := range circuitWitnesses {
+		circuitWitnesses[i], err = ValueOfWitness[sw_bls12377.ScalarField](innerWitnesses[i])
+		assert.NoError(err)
+	}
+	aggCircuit := &AggregationDiffPubs[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		BaseKeySinglePub: circuitBvk,
+		CircuitKeys:      make([]CircuitVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine], nbCircuits),
+		Selectors:        make([]frontend.Variable, nbProofs),
+		Proofs:           make([]Proof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine], nbProofs),
+		Witnesses:        make([]Witness[sw_bls12377.ScalarField], nbProofs),
+		HubKey:           circuitVk,
+		HubProof:         PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](hubCcs),
+	}
+	for i := 0; i < nbCircuits; i++ {
+		aggCircuit.CircuitKeys[i] = PlaceholderCircuitVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine](ccss[i])
+	}
+	for i := 0; i < nbProofs; i++ {
+		aggCircuit.Proofs[i] = PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](ccss[0])
+		aggCircuit.Witnesses[i] = PlaceholderWitness[sw_bls12377.ScalarField](ccss[0])
+	}
+	aggAssignment := &AggregationDiffPubs[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		CircuitKeys: circuitVks,
+		Selectors:   circuitSelector,
+		Proofs:      circuitProofs,
+		Witnesses:   circuitWitnesses,
+		PublicInput: emulated.ValueOf[sw_bls12377.ScalarField](hubRoot),
+		HubProof:    circuitHubProof,
 	}
 	err = test.IsSolved(aggCircuit, aggAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)

@@ -248,7 +248,7 @@ func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 		if err != nil {
 			return ret, fmt.Errorf("z shifted opening proof value assignment: %w", err)
 		}
-		// TODO: missing bls12-381, bls24315, bn254, bls24317
+		// TODO: missing bls24317
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination: %T", ret)
 	}
@@ -262,7 +262,7 @@ func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 	nbCommitments := len(ccs.GetCommitments().CommitmentIndexes())
 	ret := Proof[FR, G1El, G2El]{
 		BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
-			ClaimedValues: make([]emulated.Element[FR], 7+nbCommitments),
+			ClaimedValues: make([]emulated.Element[FR], 6+nbCommitments),
 		},
 		Bsb22Commitments: make([]kzg.Commitment[G1El], nbCommitments),
 	}
@@ -828,20 +828,19 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 		return nil, nil, nil, err
 	}
 
-	// evaluation of Z=Xⁿ-1 at ζ
+	// evaluation of zhZetaZ=ζⁿ-1
 	one := v.scalarApi.One()
-	zetaPowerM := v.fixedExpN(vk.Size, zeta)               // ζⁿ
-	zetaPowerMMinusOne := v.scalarApi.Sub(zetaPowerM, one) // ζⁿ-1
+	zetaPowerN := v.fixedExpN(vk.Size, zeta)   // ζⁿ
+	zhZeta := v.scalarApi.Sub(zetaPowerN, one) // ζⁿ-1
 
 	// L1 = (1/n)(ζⁿ-1)/(ζ-1)
 	denom := v.scalarApi.Sub(zeta, one)
-	lagrangeOne := v.scalarApi.Div(zetaPowerMMinusOne, denom)
+	lagrangeOne := v.scalarApi.Div(zhZeta, denom)
 	lagrangeOne = v.scalarApi.Mul(lagrangeOne, &vk.SizeInv)
 	lagrange := lagrangeOne
+
 	// compute PI = ∑_{i<n} Lᵢ*wᵢ
 	wPowI := one
-
-	// i = 0
 	xiLi := v.scalarApi.Mul(lagrange, &witness.Public[0])
 	pi := xiLi
 	if len(witness.Public) != 1 {
@@ -869,7 +868,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 			return nil, nil, nil, err
 		}
 		for i := range vk.CommitmentConstraintIndexes {
-			li := v.computeIthLagrangeAtZeta(v.api.Add(vk.CommitmentConstraintIndexes[i], vk.NbPublicVariables), zeta, zetaPowerM, vk)
+			li := v.computeIthLagrangeAtZeta(v.api.Add(vk.CommitmentConstraintIndexes[i], vk.NbPublicVariables), zeta, zetaPowerN, vk)
 			marshalledCommitment := v.curve.MarshalG1(proof.Bsb22Commitments[i].G1El)
 			hashToField.Write(marshalledCommitment...)
 			hashedCmt := hashToField.Sum()
@@ -881,112 +880,93 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 		}
 	}
 
-	// linearizedpolynomial + pi(ζ) + α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ) - α²*L₁(ζ)
+	l := proof.BatchedProof.ClaimedValues[1]
+	r := proof.BatchedProof.ClaimedValues[2]
+	o := proof.BatchedProof.ClaimedValues[3]
+	s1 := proof.BatchedProof.ClaimedValues[4]
+	s2 := proof.BatchedProof.ClaimedValues[5]
+
+	// Z(ωζ)
 	zu := proof.ZShiftedOpening.ClaimedValue
-	claimedQuotient := &proof.BatchedProof.ClaimedValues[0]
-	linearizedPolynomialZeta := &proof.BatchedProof.ClaimedValues[1]
-	l := proof.BatchedProof.ClaimedValues[2]
-	r := proof.BatchedProof.ClaimedValues[3]
-	o := proof.BatchedProof.ClaimedValues[4]
-	s1 := proof.BatchedProof.ClaimedValues[5]
-	s2 := proof.BatchedProof.ClaimedValues[6]
+
+	// α²*L₁(ζ)
+	alphaSquareLagrangeOne := v.scalarApi.Mul(alpha, lagrangeOne)
+	alphaSquareLagrangeOne = v.scalarApi.Mul(alphaSquareLagrangeOne, alpha)
+
+	// computing the constant coefficient of the full algebraic relation
+	// , corresponding to the value of the linearisation polynomiat at ζ
+	// PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
 
 	// _s1 = (l(ζ)+β*s1(ζ)+γ)
-	_s1 := v.scalarApi.Mul(&s1, beta)
-	_s1 = v.scalarApi.Add(_s1, &l)
-	_s1 = v.scalarApi.Add(_s1, gamma)
+	lPlusBetaS1PlusGamma := v.scalarApi.Mul(&s1, beta)
+	lPlusBetaS1PlusGamma = v.scalarApi.Add(lPlusBetaS1PlusGamma, &l)
+	lPlusBetaS1PlusGamma = v.scalarApi.Add(lPlusBetaS1PlusGamma, gamma)
 
 	// _s2 = (r(ζ)+β*s2(ζ)+γ)
-	_s2 := v.scalarApi.Mul(&s2, beta)
-	_s2 = v.scalarApi.Add(_s2, &r)
-	_s2 = v.scalarApi.Add(_s2, gamma)
+	rPlusBetaS2PlusGamma := v.scalarApi.Mul(&s2, beta)
+	rPlusBetaS2PlusGamma = v.scalarApi.Add(rPlusBetaS2PlusGamma, &r)
+	rPlusBetaS2PlusGamma = v.scalarApi.Add(rPlusBetaS2PlusGamma, gamma)
 
 	// _o = (o(ζ)+γ)
 	_o := v.scalarApi.Add(&o, gamma)
 
 	// _s1 = α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
-	_s1 = v.scalarApi.Mul(_s1, _s2)
-	_s1 = v.scalarApi.Mul(_s1, _o)
+	lPlusBetaS1PlusGammaTimesRPlusBetaS2PlusGamma := v.scalarApi.Mul(lPlusBetaS1PlusGamma, rPlusBetaS2PlusGamma)
+	_s1 := v.scalarApi.Mul(lPlusBetaS1PlusGammaTimesRPlusBetaS2PlusGamma, _o)
 	_s1 = v.scalarApi.Mul(_s1, alpha)
 	_s1 = v.scalarApi.Mul(_s1, &zu)
 
-	// alphaSquareLagrange = α²*L₁(ζ)
-	alphaSquareLagrange := v.scalarApi.Mul(lagrangeOne, alpha)
-	alphaSquareLagrange = v.scalarApi.Mul(alphaSquareLagrange, alpha)
+	constLin := v.scalarApi.Add(pi, _s1)
+	constLin = v.scalarApi.Sub(alphaSquareLagrangeOne, constLin)
 
-	// linearizedPolynomialZeta = linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
-	linearizedPolynomialZeta = v.scalarApi.Add(linearizedPolynomialZeta, pi)
-	linearizedPolynomialZeta = v.scalarApi.Add(linearizedPolynomialZeta, _s1)
-	linearizedPolynomialZeta = v.scalarApi.Sub(linearizedPolynomialZeta, alphaSquareLagrange)
+	// check that the opening of the linearised polynomial is equal to -constLin
+	openingLinPol := proof.BatchedProof.ClaimedValues[0]
+	v.scalarApi.AssertIsEqual(&openingLinPol, constLin)
 
-	// Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)
-	linearizedPolynomialZeta = v.scalarApi.Div(linearizedPolynomialZeta, zetaPowerMMinusOne)
+	// computing the linearised polynomial digest
+	// α²*L₁(ζ)*[Z] +
+	// _s1*[s3]+_s2*[Z] + l(ζ)*[Ql] +
+	// l(ζ)r(ζ)*[Qm] + r(ζ)*[Qr] + o(ζ)*[Qo] + [Qk] + ∑ᵢQcp_(ζ)[Pi_i] -
+	// Z_{H}(ζ)*(([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾*[H₂])
+	// where
+	// _s1 =  α*(l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ)
+	// _s2 = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 
-	// check that H(ζ) is as claimed
-	v.scalarApi.AssertIsEqual(claimedQuotient, linearizedPolynomialZeta)
+	_s1 = v.scalarApi.Mul(lPlusBetaS1PlusGammaTimesRPlusBetaS2PlusGamma, beta) // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(ζ)+γ)*β
+	_s1 = v.scalarApi.Mul(_s1, &zu)                                            // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ)
+	_s1 = v.scalarApi.Mul(_s1, alpha)                                          // α*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ)
 
-	// compute the folded commitment to H: Comm(h₁) + ζᵐ⁺²*Comm(h₂) + ζ²⁽ᵐ⁺²⁾*Comm(h₃)
-	zetaMPlusTwo := v.scalarApi.Mul(zetaPowerM, zeta)
-	zetaMPlusTwo = v.scalarApi.Mul(zetaMPlusTwo, zeta)
-	zetaMPlusTwoSquare := v.scalarApi.Mul(zetaMPlusTwo, zetaMPlusTwo)
+	betaZeta := v.scalarApi.Mul(beta, zeta)                                  // β*ζ
+	_s2 := v.scalarApi.Add(&l, betaZeta)                                     // l(ζ)+β*ζ
+	_s2 = v.scalarApi.Add(_s2, gamma)                                        // (l(ζ)+β*ζ+γ)
+	betaZetaCosetShift := v.scalarApi.Mul(betaZeta, &vk.CosetShift)          // u*β*ζ
+	tmp := v.scalarApi.Add(&r, betaZetaCosetShift)                           // r(ζ)+β*u*ζ
+	tmp = v.scalarApi.Add(tmp, gamma)                                        // r(ζ)+β*u*ζ+γ
+	_s2 = v.scalarApi.Mul(_s2, tmp)                                          // (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)
+	betaZetaCosetShift = v.scalarApi.Mul(betaZetaCosetShift, &vk.CosetShift) // β*u²*ζ
+	tmp = v.scalarApi.Add(betaZetaCosetShift, gamma)                         // β*u²*ζ+γ
+	tmp = v.scalarApi.Add(tmp, &o)                                           // β*u²*ζ+γ+o
+	_s2 = v.scalarApi.Mul(_s2, tmp)                                          // (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)(o+β*u²*ζ+γ)
+	_s2 = v.scalarApi.Mul(_s2, alpha)                                        // α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)(o+β*u²*ζ+γ)
 
-	foldedH, err := v.curve.MultiScalarMul([]*G1El{&proof.H[2].G1El, &proof.H[1].G1El}, []*emulated.Element[FR]{zetaMPlusTwoSquare, zetaMPlusTwo})
+	// α²*L₁(ζ) - α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
+	coeffZ := v.scalarApi.Sub(alphaSquareLagrangeOne, _s2)
+
+	// l(ζ)*r(ζ)
+	rl := v.scalarApi.Mul(&l, &r)
+
+	// -ζⁿ⁺², -ζ²⁽ⁿ⁺²⁾, -(ζⁿ-1)
+	zhZeta = v.scalarApi.Neg(zhZeta) // -(ζⁿ-1)
+	zetaPowerNPlusTwo := v.scalarApi.Mul(zeta, zetaPowerN)
+	zetaPowerNPlusTwo = v.scalarApi.Mul(zeta, zetaPowerNPlusTwo)                     // ζⁿ⁺²
+	zetaPowerNPlusTwoSquare := v.scalarApi.Mul(zetaPowerNPlusTwo, zetaPowerNPlusTwo) // ζ²⁽ⁿ⁺²⁾
+
+	// [H₀] + ζⁿ⁺²*[H₁] + ζ²⁽ⁿ⁺²⁾*[H₂]
+	foldedH, err := v.curve.MultiScalarMul([]*G1El{&proof.H[1].G1El, &proof.H[2].G1El}, []*emulated.Element[FR]{zetaPowerNPlusTwo, zetaPowerNPlusTwoSquare})
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("folded proof MSM: %w", err)
+		return nil, nil, nil, fmt.Errorf("folded H: %w", err)
 	}
 	foldedH = v.curve.Add(foldedH, &proof.H[0].G1El)
-
-	// Compute the commitment to the linearized polynomial
-	// linearizedPolynomialDigest =
-	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+Σᵢqc'ᵢ(ζ)*BsbCommitmentᵢ +
-	// 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
-	// 		α²*L₁(ζ)*Z
-
-	// second part: α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
-
-	uu := v.scalarApi.Mul(&zu, beta)
-
-	vv := v.scalarApi.Mul(beta, &s1)
-	vv = v.scalarApi.Add(vv, &l)
-	vv = v.scalarApi.Add(vv, gamma)
-
-	ww := v.scalarApi.Mul(beta, &s2)
-	ww = v.scalarApi.Add(ww, &r)
-	ww = v.scalarApi.Add(ww, gamma)
-
-	// α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
-	_s1 = v.scalarApi.Mul(uu, vv)
-	_s1 = v.scalarApi.Mul(_s1, ww)
-	_s1 = v.scalarApi.Mul(_s1, alpha)
-
-	cosetsquare := v.scalarApi.Mul(&vk.CosetShift, &vk.CosetShift)
-
-	// (l(ζ)+β*ζ+γ)
-	uu = v.scalarApi.Mul(beta, zeta)
-	vv = uu
-	ww = uu
-	uu = v.scalarApi.Add(uu, &l)
-	uu = v.scalarApi.Add(uu, gamma)
-
-	// (r(ζ)+β*μ*ζ+γ)
-	vv = v.scalarApi.Mul(vv, &vk.CosetShift)
-	vv = v.scalarApi.Add(vv, &r)
-	vv = v.scalarApi.Add(vv, gamma)
-
-	// (o(ζ)+β*μ²*ζ+γ)
-	ww = v.scalarApi.Mul(ww, cosetsquare)
-	ww = v.scalarApi.Add(ww, &o)
-	ww = v.scalarApi.Add(ww, gamma)
-
-	// -(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
-	_s2 = v.scalarApi.Mul(uu, vv)
-	_s2 = v.scalarApi.Mul(_s2, ww)
-	_s2 = v.scalarApi.Neg(_s2)
-
-	// note since third part =  α²*L₁(ζ)*Z
-	// -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
-	_s2 = v.scalarApi.Mul(_s2, alpha)
-	_s2 = v.scalarApi.Add(_s2, alphaSquareLagrange)
 
 	points := make([]*G1El, len(proof.Bsb22Commitments))
 	for i := range proof.Bsb22Commitments {
@@ -994,17 +974,18 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	}
 	points = append(points,
 		&vk.Ql.G1El, &vk.Qr.G1El, &vk.Qm.G1El, &vk.Qo.G1El, // first part
-		&vk.S[2].G1El, &proof.Z.G1El, // second & third part
+		&vk.S[2].G1El, &proof.Z.G1El, // second part
+		foldedH, // third part
 	)
 
 	qC := make([]*emulated.Element[FR], len(proof.Bsb22Commitments))
-	for i := range proof.BatchedProof.ClaimedValues[7:] {
-		qC[i] = &proof.BatchedProof.ClaimedValues[7+i]
+	for i := range proof.BatchedProof.ClaimedValues[6:] {
+		qC[i] = &proof.BatchedProof.ClaimedValues[6+i]
 	}
-	rl := v.scalarApi.Mul(&r, &l)
 	scalars := append(qC,
 		&l, &r, rl, &o, // first part
-		_s1, _s2, // second & third part
+		_s1, coeffZ, // second part
+		zhZeta, // third part
 	)
 
 	var msmOpts []algopts.AlgebraOption
@@ -1023,15 +1004,14 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	}
 
 	// Fold the first proof
-	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+7)
-	copy(digestsToFold[7:], vk.Qcp)
-	digestsToFold[0] = kzg.Commitment[G1El]{G1El: *foldedH}
-	digestsToFold[1] = kzg.Commitment[G1El]{G1El: *linearizedPolynomialDigest}
-	digestsToFold[2] = proof.LRO[0]
-	digestsToFold[3] = proof.LRO[1]
-	digestsToFold[4] = proof.LRO[2]
-	digestsToFold[5] = vk.S[0]
-	digestsToFold[6] = vk.S[1]
+	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+6)
+	copy(digestsToFold[6:], vk.Qcp)
+	digestsToFold[0] = kzg.Commitment[G1El]{G1El: *linearizedPolynomialDigest}
+	digestsToFold[1] = proof.LRO[0]
+	digestsToFold[2] = proof.LRO[1]
+	digestsToFold[3] = proof.LRO[2]
+	digestsToFold[4] = vk.S[0]
+	digestsToFold[5] = vk.S[1]
 	foldedProof, foldedDigest, err := v.kzg.FoldProof(
 		digestsToFold,
 		proof.BatchedProof,
@@ -1196,28 +1176,29 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) fixedExpN(n frontend.Variable, s *emula
 	const maxExpBits = 30
 	// n is power of two.
 	nBits := bits.ToBinary(v.api, n, bits.WithNbDigits(maxExpBits))
-	acc := s
-	res := v.scalarApi.Zero()
-	for i := range nBits {
+	res := v.scalarApi.Select(nBits[0], s, v.scalarApi.Zero())
+	acc := v.scalarApi.Mul(s, s)
+	for i := 1; i < maxExpBits-1; i++ {
 		res = v.scalarApi.Select(nBits[i], acc, res)
 		acc = v.scalarApi.Mul(acc, acc)
 	}
+	res = v.scalarApi.Select(nBits[maxExpBits-1], acc, res)
 	return res
 }
 
 // computeIthLagrangeAtZeta computes L_{i}(\omega) = \omega^{i}/n (\zeta^{n}-1)/(\zeta-\omega^{i})
-func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(exp frontend.Variable, zeta, zetaPowerM *emulated.Element[FR], vk VerifyingKey[FR, G1El, G2El]) *emulated.Element[FR] {
+func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(exp frontend.Variable, zeta, zetaPowerN *emulated.Element[FR], vk VerifyingKey[FR, G1El, G2El]) *emulated.Element[FR] {
 	// assume circuit of maximum size 2**30.
 	const maxExpBits = 30
 
 	one := v.scalarApi.One()
-	num := v.scalarApi.Sub(zetaPowerM, one)
+	num := v.scalarApi.Sub(zetaPowerN, one)
 
 	// \omega^{i}
 	iBits := bits.ToBinary(v.api, exp, bits.WithNbDigits(maxExpBits))
 
-	omegai := one
-	for i := maxExpBits - 1; i >= 0; i-- {
+	omegai := v.scalarApi.Select(iBits[maxExpBits-1], &vk.Generator, one)
+	for i := maxExpBits - 2; i >= 0; i-- {
 		omegai = v.scalarApi.Mul(omegai, omegai)
 		tmp := v.scalarApi.Mul(omegai, &vk.Generator)
 		omegai = v.scalarApi.Select(iBits[i], tmp, omegai)

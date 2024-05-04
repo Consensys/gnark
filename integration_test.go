@@ -20,7 +20,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/test"
@@ -61,11 +60,6 @@ func TestIntegrationAPI(t *testing.T) {
 			if name == "multi-output-hint" {
 				// TODO @gbotrel FIXME
 				opts = append(opts, test.NoFuzzing())
-			}
-
-			if name == "commit" && test.SolcCheck {
-				// TODO @gbotrel FIXME groth16 solidity verifier needs updating.
-				opts = append(opts, test.WithBackends(backend.PLONK))
 			}
 
 			assert.CheckCircuit(tData.Circuit, opts...)

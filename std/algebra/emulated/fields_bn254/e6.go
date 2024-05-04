@@ -86,22 +86,22 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 	c0 := e.Ext2.Add(&x.B1, &x.B2)
 	tmp := e.Ext2.Add(&y.B1, &y.B2)
 	c0 = e.Ext2.Mul(c0, tmp)
-	c0 = e.Ext2.Sub(c0, t1)
-	c0 = e.Ext2.Sub(c0, t2)
+	tmp = e.Ext2.Add(t2, t1)
+	c0 = e.Ext2.Sub(c0, tmp)
 	c0 = e.Ext2.MulByNonResidue(c0)
 	c0 = e.Ext2.Add(c0, t0)
 	c1 := e.Ext2.Add(&x.B0, &x.B1)
 	tmp = e.Ext2.Add(&y.B0, &y.B1)
 	c1 = e.Ext2.Mul(c1, tmp)
-	c1 = e.Ext2.Sub(c1, t0)
-	c1 = e.Ext2.Sub(c1, t1)
+	tmp = e.Ext2.Add(t0, t1)
+	c1 = e.Ext2.Sub(c1, tmp)
 	tmp = e.Ext2.MulByNonResidue(t2)
 	c1 = e.Ext2.Add(c1, tmp)
 	tmp = e.Ext2.Add(&x.B0, &x.B2)
 	c2 := e.Ext2.Add(&y.B0, &y.B2)
 	c2 = e.Ext2.Mul(c2, tmp)
-	c2 = e.Ext2.Sub(c2, t0)
-	c2 = e.Ext2.Sub(c2, t2)
+	tmp = e.Ext2.Add(t0, t2)
+	c2 = e.Ext2.Sub(c2, tmp)
 	c2 = e.Ext2.Add(c2, t1)
 	return &E6{
 		B0: *c0,
@@ -204,8 +204,8 @@ func (e Ext6) MulBy01(z *E6, c0, c1 *E2) *E6 {
 	t1 := e.Ext2.Add(c0, c1)
 	tmp = e.Ext2.Add(&z.B0, &z.B1)
 	t1 = e.Ext2.Mul(t1, tmp)
-	t1 = e.Ext2.Sub(t1, a)
-	t1 = e.Ext2.Sub(t1, b)
+	tmp = e.Ext2.Add(a, b)
+	t1 = e.Ext2.Sub(t1, tmp)
 	return &E6{
 		B0: *t0,
 		B1: *t1,
@@ -234,8 +234,8 @@ func (e Ext6) Mul01By01(c0, c1, d0, d1 *E2) *E6 {
 	t1 := e.Ext2.Add(c0, c1)
 	tmp := e.Ext2.Add(d0, d1)
 	t1 = e.Ext2.Mul(t1, tmp)
-	t1 = e.Ext2.Sub(t1, a)
-	t1 = e.Ext2.Sub(t1, b)
+	tmp = e.Ext2.Add(a, b)
+	t1 = e.Ext2.Sub(t1, tmp)
 	return &E6{
 		B0: *a,
 		B1: *t1,

@@ -322,7 +322,7 @@ func NewVerifyingKey(curveID ecc.ID) VerifyingKey {
 // SRSSize returns the required size of the kzg SRS for a given constraint system
 // Note that the SRS size in Lagrange form is a power of 2,
 // and the SRS size in canonical form need few extra elements (3) to account for the blinding factors
-func SRSSize(ccs constraint.System) (sizeCanonical, sizeLagrange int) {
+func SRSSize(ccs constraint.ConstraintSystem) (sizeCanonical, sizeLagrange int) {
 	nbConstraints := ccs.GetNbConstraints()
 	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
 

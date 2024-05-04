@@ -7,7 +7,7 @@
 //  2. SHA256 ❌ -- in progress
 //  3. RIPEMD160 ❌ -- postponed
 //  4. ID ❌ -- trivial to implement without function
-//  5. EXPMOD ❌ -- in progress
+//  5. EXPMOD ✅ -- function [Expmod]
 //  6. BN_ADD ✅ -- function [ECAdd]
 //  7. BN_MUL ✅ -- function [ECMul]
 //  8. SNARKV ✅ -- function [ECPair]

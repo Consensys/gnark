@@ -176,6 +176,26 @@ func NewNumReader(api frontend.API, toRead []frontend.Variable, numNbBits, wordN
 	}
 }
 
+func (nr *NumReader) SetNumNbBits(numNbBits int) {
+	wordNbBits := nr.radix.BitLen() - 1 // TODO check
+	wordsPerNum := numNbBits / wordNbBits
+	if wordsPerNum*wordNbBits != numNbBits {
+		panic("numNbBits must be divisible by wordNbBits")
+	}
+	if wordsPerNum < nr.wordsPerNum {
+		panic("decreasing wordsPerNum not supported")
+	}
+
+	if nr.last != nil { // nothing to compensate for if no values have yet been read
+		nbToRead := min(len(nr.toRead), wordsPerNum-nr.wordsPerNum)
+		delta := ReadNum(nr.api, nr.toRead[:nbToRead], nr.radix)
+		nr.toRead = nr.toRead[:nbToRead]
+		nr.last = nr.api.Add(nr.api.Mul(nr.last, twoPow(wordsPerNum-nr.wordsPerNum)), delta)
+	}
+
+	nr.wordsPerNum, nr.numBound = wordsPerNum, twoPow(numNbBits)
+}
+
 func twoPow(n int) *big.Int {
 	res := big.NewInt(1)
 	return res.Lsh(res, uint(n))
