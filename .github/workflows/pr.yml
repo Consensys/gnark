@@ -74,6 +74,7 @@ jobs:
         go test -json -v -p 4 -tags=release_checks,solccheck . 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
         go test -json -v -p 4 -tags=prover_checks ./test/... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
         go test -json -v -p 4 -tags=prover_checks ./examples/... 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
+        go test -json -v -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils 2>&1 | gotestfmt -hide=all | tee -a /tmp/gotest.log
 
     - name: Generate job summary
       id: generate-job-summary

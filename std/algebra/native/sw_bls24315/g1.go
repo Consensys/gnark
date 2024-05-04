@@ -438,7 +438,6 @@ func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 		panic(err)
 	}
 	if cfg.CompleteArithmetic {
-		// TODO @yelhousni: optimize
 		var tmp G1Affine
 		P.ScalarMul(api, Q, s, opts...)
 		tmp.ScalarMul(api, R, t, opts...)

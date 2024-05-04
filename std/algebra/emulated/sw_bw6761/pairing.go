@@ -358,19 +358,35 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		// (∏ᵢfᵢ)²
 		result = pr.Square(result)
 
-		for k := 0; k < n; k++ {
-			result = pr.MulBy014(result,
-				pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
-				pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
-			)
-		}
-
 		if i > 0 && loopCounter2[i]*3+loopCounter1[i] != 0 {
 			for k := 0; k < n; k++ {
-				result = pr.MulBy014(result,
+				prodLines = pr.Mul014By014(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
 					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
 					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
 				)
+				result = pr.MulBy01245(result, prodLines)
+			}
+		} else {
+			// if number of lines is odd, mul last line by res
+			// works for n=1 as well
+			if n%2 != 0 {
+				// ℓ × res
+				result = pr.MulBy014(result,
+					pr.curveF.Mul(&lines[n-1][0][i].R1, yInv[n-1]),
+					pr.curveF.Mul(&lines[n-1][0][i].R0, xNegOverY[n-1]),
+				)
+			}
+			// mul lines 2-by-2
+			for k := 1; k < n; k += 2 {
+				prodLines = pr.Mul014By014(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k-1][0][i].R1, yInv[k-1]),
+					pr.curveF.Mul(&lines[k-1][0][i].R0, xNegOverY[k-1]),
+				)
+				result = pr.MulBy01245(result, prodLines)
 			}
 		}
 	}

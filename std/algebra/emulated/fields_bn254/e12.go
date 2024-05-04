@@ -49,8 +49,8 @@ func (e Ext12) Mul(x, y *E12) *E12 {
 	a = e.Ext6.Mul(a, b)
 	b = e.Ext6.Mul(&x.C0, &y.C0)
 	c := e.Ext6.Mul(&x.C1, &y.C1)
-	z1 := e.Ext6.Sub(a, b)
-	z1 = e.Ext6.Sub(z1, c)
+	d := e.Ext6.Add(c, b)
+	z1 := e.Ext6.Sub(a, d)
 	z0 := e.Ext6.MulByNonResidue(c)
 	z0 = e.Ext6.Add(z0, b)
 	return &E12{
@@ -101,8 +101,7 @@ func (e Ext12) IsZero(z *E12) frontend.Variable {
 func (e Ext12) Square(x *E12) *E12 {
 	c0 := e.Ext6.Sub(&x.C0, &x.C1)
 	c3 := e.Ext6.MulByNonResidue(&x.C1)
-	c3 = e.Ext6.Neg(c3)
-	c3 = e.Ext6.Add(&x.C0, c3)
+	c3 = e.Ext6.Sub(&x.C0, c3)
 	c2 := e.Ext6.Mul(&x.C0, &x.C1)
 	c0 = e.Ext6.Mul(c0, c3)
 	c0 = e.Ext6.Add(c0, c2)

@@ -281,3 +281,41 @@ func (fp BLS24315Fp) Modulus() *big.Int { return ecc.BLS24_315.BaseField() }
 type BLS24315Fr struct{ fourLimbPrimeField }
 
 func (fr BLS24315Fr) Modulus() *big.Int { return ecc.BLS24_315.ScalarField() }
+
+// Mod1e4096 provides type parametrization for emulated aritmetic:
+//   - limbs: 64
+//   - limb width: 64 bits
+//
+// The modulus for type parametrisation is 2^4096-1.
+//
+// This is non-prime modulus. It is mainly targeted for using variable-modulus
+// operations (ModAdd, ModMul, ModExp, ModAssertIsEqual) for variable modulus
+// arithmetic.
+type Mod1e4096 struct{}
+
+func (Mod1e4096) NbLimbs() uint     { return 64 }
+func (Mod1e4096) BitsPerLimb() uint { return 64 }
+func (Mod1e4096) IsPrime() bool     { return false }
+func (Mod1e4096) Modulus() *big.Int {
+	val, _ := new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
+	return val
+}
+
+// Mod1e512 provides type parametrization for emulated aritmetic:
+//   - limbs: 8
+//   - limb width: 64 bits
+//
+// The modulus for type parametrisation is 2^512-1.
+//
+// This is non-prime modulus. It is mainly targeted for using variable-modulus
+// operations (ModAdd, ModMul, ModExp, ModAssertIsEqual) for variable modulus
+// arithmetic.
+type Mod1e512 struct{}
+
+func (Mod1e512) NbLimbs() uint     { return 8 }
+func (Mod1e512) BitsPerLimb() uint { return 64 }
+func (Mod1e512) IsPrime() bool     { return false }
+func (Mod1e512) Modulus() *big.Int {
+	val, _ := new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
+	return val
+}

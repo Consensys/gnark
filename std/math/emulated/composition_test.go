@@ -54,7 +54,7 @@ func testSubPadding[T FieldParams](t *testing.T) {
 	assert := test.NewAssert(t)
 	for i := fp.NbLimbs(); i < 2*fp.NbLimbs(); i++ {
 		assert.Run(func(assert *test.Assert) {
-			limbs := subPadding[T](0, i)
+			limbs := subPadding(fp.Modulus(), fp.BitsPerLimb(), 0, i)
 			padValue := new(big.Int)
 			if err := recompose(limbs, fp.BitsPerLimb(), padValue); err != nil {
 				assert.FailNow("recompose", err)
