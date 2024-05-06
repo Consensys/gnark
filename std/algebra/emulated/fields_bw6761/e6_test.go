@@ -351,19 +351,3 @@ func TestFp6MulBy023(t *testing.T) {
 	err := test.IsSolved(&e6MulBy023{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
-
-func BenchmarkMulMontgomery6(b *testing.B) {
-	var c e6Mul
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("Fp6 Mul (Montgomery-6): ", p.NbConstraints())
-}
-
-func BenchmarkSqMontgomery6(b *testing.B) {
-	var c e6Square
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("Fp6 Square (Montgomery-6): ", p.NbConstraints())
-}
