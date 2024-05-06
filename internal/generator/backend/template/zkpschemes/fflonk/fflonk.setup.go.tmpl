@@ -92,7 +92,7 @@ type Trace struct {
 type ProvingKey struct {
 	Kzg kzg.ProvingKey
 
-	KzgBis []kzg.ProvingKey
+	KzgSplitted []kzg.ProvingKey
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
@@ -175,13 +175,13 @@ func Setup(spr *cs.SparseR1CS, srs kzg.SRS) (*ProvingKey, *VerifyingKey, error) 
 func splitKzg(pk *ProvingKey, vk *VerifyingKey, srs kzg.SRS) {
 	t := getNextDivisorRMinusOne(*vk)
 	numberOfPolynomials := getNumberOfPolynomials(*vk)
-	pk.KzgBis = make([]kzg.ProvingKey, numberOfPolynomials)
+	pk.KzgSplitted = make([]kzg.ProvingKey, numberOfPolynomials)
 	for i := 0; i < numberOfPolynomials; i++ {
-		pk.KzgBis[i].G1 = make([]curve.G1Affine, vk.Size+3) // due to the blinding
+		pk.KzgSplitted[i].G1 = make([]curve.G1Affine, vk.Size+3) // due to the blinding
 	}
 	for i := 0; i < int(vk.Size)+3; i++ {
 		for j := 0; j < numberOfPolynomials; j++ {
-			pk.KzgBis[j].G1[i] = srs.Pk.G1[i*t+j]
+			pk.KzgSplitted[j].G1[i] = srs.Pk.G1[i*t+j]
 		}
 	}
 }
@@ -301,7 +301,7 @@ func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.
 	var err error
 	// TODO could be done in parallel
 	for i := 0; i < nbPublicPolynomials; i++ {
-		publicCommitments[i], err = kzg.Commit(traceList[i], pk.KzgBis[i])
+		publicCommitments[i], err = kzg.Commit(traceList[i], pk.KzgSplitted[i])
 		if err != nil {
 			return err
 		}

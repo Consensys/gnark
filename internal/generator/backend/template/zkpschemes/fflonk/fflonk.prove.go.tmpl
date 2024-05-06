@@ -470,7 +470,7 @@ func (s *instance) commitToEntangledPolyAndBlinding(p, b *iop.Polynomial, id int
 
 	// LAGRANGE
 	p.ToCanonical(s.domain0).ToRegular()
-	commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgBis[id])
+	commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgSplitted[id])
 	
 	p.ToLagrange(s.domain0)
 
@@ -557,7 +557,7 @@ func (s *instance) computeQuotient() (err error) {
 	}
 
 	// commit to h
-	if err := s.commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
+	if err := s.commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof); err != nil {
 		return err
 	}
 
@@ -1098,9 +1098,8 @@ func coefficients(p []*iop.Polynomial) [][]fr.Element {
 	return res
 }
 
-func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKey) error {
+func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof) error {
 	g := new(errgroup.Group)
-	t := number_polynomials + 2*len(s.pk.Vk.CommitmentConstraintIndexes)
 	lenQcp := len(s.pk.Vk.CommitmentConstraintIndexes)
 	rh1 := lenQcp + prover_h_1
 	rh2 := lenQcp + prover_h_2
@@ -1109,32 +1108,17 @@ func (s *instance) commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk
 	var commitmentH1, commitmentH2, commitmentH3 kzg.Digest
 
 	g.Go(func() (err error) {
-		var subPk kzg.ProvingKey
-		subPk.G1 = make([]curve.G1Affine, len(h1))
-		for i := 0; i < len(h1); i++ {
-			subPk.G1[i].Set(&kzgPk.G1[i*t+rh1])
-		}
-		commitmentH1, err = kzg.Commit(h1, subPk)
+		commitmentH1, err = kzg.Commit(h1, s.pk.KzgSplitted[rh1])
 		return
 	})
 
 	g.Go(func() (err error) {
-		var subPk kzg.ProvingKey
-		subPk.G1 = make([]curve.G1Affine, len(h2))
-		for i := 0; i < len(h1); i++ {
-			subPk.G1[i].Set(&kzgPk.G1[i*t+rh2])
-		}
-		commitmentH2, err = kzg.Commit(h2, subPk)
+		commitmentH2, err = kzg.Commit(h2, s.pk.KzgSplitted[rh2])
 		return
 	})
 
 	g.Go(func() (err error) {
-		var subPk kzg.ProvingKey
-		subPk.G1 = make([]curve.G1Affine, len(h3))
-		for i := 0; i < len(h1); i++ {
-			subPk.G1[i].Set(&kzgPk.G1[i*t+rh3])
-		}
-		commitmentH3, err = kzg.Commit(h3, subPk)
+		commitmentH3, err = kzg.Commit(h3, s.pk.KzgSplitted[rh3])
 		return
 	})
 
