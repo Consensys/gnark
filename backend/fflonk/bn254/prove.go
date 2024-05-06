@@ -490,18 +490,9 @@ func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G
 func (s *instance) commitToEntangledPolyAndBlinding(p, b *iop.Polynomial, id int) (commit curve.G1Affine, err error) {
 
 	// LAGRANGE
-	// commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange)
 	p.ToCanonical(s.domain0).ToRegular()
-
-	// get the sub KZG proving key
-	t := getNextDivisorRMinusOne(*s.pk.Vk)
-	var subPk kzg.ProvingKey
-	subPk.G1 = make([]curve.G1Affine, len(p.Coefficients()))
-	for i := 0; i < len(p.Coefficients()); i++ {
-		subPk.G1[i].Set(&s.pk.Kzg.G1[i*t+id])
-	}
-
-	commit, err = kzg.Commit(p.Coefficients(), subPk)
+	commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgBis[id])
+	
 	p.ToLagrange(s.domain0)
 
 	// we add in the blinding contribution
