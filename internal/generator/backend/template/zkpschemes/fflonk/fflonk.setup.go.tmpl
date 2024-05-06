@@ -4,6 +4,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/{{ toLower .Curve }}/fr/iop"
+	{{- template "import_curve" . }}
 	{{- template "import_kzg" . }}
 	{{- template "import_fr" . }}
 	{{- template "import_fft" . }}
@@ -176,7 +177,7 @@ func splitKzg(pk *ProvingKey, vk *VerifyingKey, srs kzg.SRS) {
 	numberOfPolynomials := getNumberOfPolynomials(*vk)
 	pk.KzgBis = make([]kzg.ProvingKey, numberOfPolynomials)
 	for i := 0; i < numberOfPolynomials; i++ {
-		pk.KzgBis[i].G1 = make([]bn254.G1Affine, vk.Size+3) // due to the blinding
+		pk.KzgBis[i].G1 = make([]curve.G1Affine, vk.Size+3) // due to the blinding
 	}
 	for i := 0; i < int(vk.Size)+3; i++ {
 		for j := 0; j < numberOfPolynomials; j++ {
@@ -296,7 +297,7 @@ func (vk *VerifyingKey) commitTrace(trace *Trace, domain *fft.Domain, srsPk kzg.
 		}
 	}
 
-	publicCommitments := make([]bn254.G1Affine, nbPublicPolynomials)
+	publicCommitments := make([]curve.G1Affine, nbPublicPolynomials)
 	var err error
 	// TODO could be done in parallel
 	for i := 0; i < nbPublicPolynomials; i++ {
