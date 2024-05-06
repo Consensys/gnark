@@ -492,7 +492,7 @@ func (s *instance) commitToEntangledPolyAndBlinding(p, b *iop.Polynomial, id int
 	// LAGRANGE
 	p.ToCanonical(s.domain0).ToRegular()
 	commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgBis[id])
-	
+
 	p.ToLagrange(s.domain0)
 
 	// we add in the blinding contribution
