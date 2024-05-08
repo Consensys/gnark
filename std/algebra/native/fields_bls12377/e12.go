@@ -176,7 +176,7 @@ func (e *E12) Square(api frontend.API, x E12) *E12 {
 	c3.Sub(api, x.C0, c3)
 	c2.Mul(api, x.C0, x.C1)
 	c0.Mul(api, c0, c3).Add(api, c0, c2)
-	e.C1.Add(api, c2, c2)
+	e.C1.Double(api, c2)
 	c2.MulByNonResidue(api, c2)
 	e.C0.Add(api, c0, c2)
 
@@ -423,13 +423,13 @@ func (e *E12) CyclotomicSquare(api frontend.API, x E12) *E12 {
 	t[2].MulByNonResidue(api, t[2]).Add(api, t[2], t[3]) // x2²*u + x3²
 	t[4].MulByNonResidue(api, t[4]).Add(api, t[4], t[5]) // x5²*u + x1²
 
-	e.C0.B0.Sub(api, t[0], x.C0.B0).Add(api, e.C0.B0, e.C0.B0).Add(api, e.C0.B0, t[0])
-	e.C0.B1.Sub(api, t[2], x.C0.B1).Add(api, e.C0.B1, e.C0.B1).Add(api, e.C0.B1, t[2])
-	e.C0.B2.Sub(api, t[4], x.C0.B2).Add(api, e.C0.B2, e.C0.B2).Add(api, e.C0.B2, t[4])
+	e.C0.B0.Sub(api, t[0], x.C0.B0).Double(api, e.C0.B0).Add(api, e.C0.B0, t[0])
+	e.C0.B1.Sub(api, t[2], x.C0.B1).Double(api, e.C0.B1).Add(api, e.C0.B1, t[2])
+	e.C0.B2.Sub(api, t[4], x.C0.B2).Double(api, e.C0.B2).Add(api, e.C0.B2, t[4])
 
-	e.C1.B0.Add(api, t[8], x.C1.B0).Add(api, e.C1.B0, e.C1.B0).Add(api, e.C1.B0, t[8])
-	e.C1.B1.Add(api, t[6], x.C1.B1).Add(api, e.C1.B1, e.C1.B1).Add(api, e.C1.B1, t[6])
-	e.C1.B2.Add(api, t[7], x.C1.B2).Add(api, e.C1.B2, e.C1.B2).Add(api, e.C1.B2, t[7])
+	e.C1.B0.Add(api, t[8], x.C1.B0).Double(api, e.C1.B0).Add(api, e.C1.B0, t[8])
+	e.C1.B1.Add(api, t[6], x.C1.B1).Double(api, e.C1.B1).Add(api, e.C1.B1, t[6])
+	e.C1.B2.Add(api, t[7], x.C1.B2).Double(api, e.C1.B2).Add(api, e.C1.B2, t[7])
 
 	return e
 }

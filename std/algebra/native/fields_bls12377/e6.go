@@ -52,6 +52,14 @@ func (e *E6) assign(e1 []frontend.Variable) {
 	e.B2.A1 = e1[5]
 }
 
+// Double e6 elmt
+func (e *E6) Double(api frontend.API, e1 E6) *E6 {
+	e.B0.Double(api, e1.B0)
+	e.B1.Double(api, e1.B1)
+	e.B2.Double(api, e1.B2)
+	return e
+}
+
 // Add creates a fp6elmt from fp elmts
 func (e *E6) Add(api frontend.API, e1, e2 E6) *E6 {
 
@@ -101,16 +109,26 @@ func (e *E6) Mul(api frontend.API, e1, e2 E6) *E6 {
 
 	c0.Add(api, e1.B1, e1.B2)
 	tmp.Add(api, e2.B1, e2.B2)
-	c0.Mul(api, c0, tmp).Sub(api, c0, t1).Sub(api, c0, t2).MulByNonResidue(api, c0).Add(api, c0, t0)
+	c0.Mul(api, c0, tmp).
+		Sub(api, c0, t1).
+		Sub(api, c0, t2).
+		MulByNonResidue(api, c0).
+		Add(api, c0, t0)
 
 	c1.Add(api, e1.B0, e1.B1)
 	tmp.Add(api, e2.B0, e2.B1)
-	c1.Mul(api, c1, tmp).Sub(api, c1, t0).Sub(api, c1, t1)
+	c1.Mul(api, c1, tmp).
+		Sub(api, c1, t0).
+		Sub(api, c1, t1)
 	tmp.MulByNonResidue(api, t2)
 	c1.Add(api, c1, tmp)
 
 	tmp.Add(api, e1.B0, e1.B2)
-	c2.Add(api, e2.B0, e2.B2).Mul(api, c2, tmp).Sub(api, c2, t0).Sub(api, c2, t2).Add(api, c2, t1)
+	c2.Add(api, e2.B0, e2.B2).
+		Mul(api, c2, tmp).
+		Sub(api, c2, t0).
+		Sub(api, c2, t2).
+		Add(api, c2, t1)
 
 	e.B0 = c0
 	e.B1 = c1
