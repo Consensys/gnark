@@ -10,6 +10,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/bitslice"
 	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/std/math/uints"
@@ -105,7 +106,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	last8BytesPos := api.Sub(totalLen, 8)
 
 	var dataLenBtyes [8]frontend.Variable
-	bigEndianPutUint64(api, dataLenBtyes[:], api.Mul(length, 8))
+	d.bigEndianPutUint64(dataLenBtyes[:], api.Mul(length, 8))
 
 	for i := range data {
 		isPaddingStartPos := api.IsZero(api.Sub(i, length))
@@ -161,9 +162,9 @@ func (d *digest) mod64(v frontend.Variable) frontend.Variable {
 	return lower
 }
 
-func bigEndianPutUint64(api frontend.API, b []frontend.Variable, x frontend.Variable) {
-	bits := api.ToBinary(x, 64)
+func (d *digest) bigEndianPutUint64(b []frontend.Variable, x frontend.Variable) {
+	bts := bits.ToBinary(d.api, x, bits.WithNbDigits(64))
 	for i := 0; i < 8; i++ {
-		b[i] = api.FromBinary(bits[(8-i-1)*8 : (8-i)*8]...)
+		b[i] = bits.FromBinary(d.api, bts[(8-i-1)*8:(8-i)*8])
 	}
 }
