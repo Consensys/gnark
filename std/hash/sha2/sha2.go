@@ -6,12 +6,14 @@ package sha2
 
 import (
 	"encoding/binary"
+	"math/big"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/math/bitslice"
 	"github.com/consensys/gnark/std/math/cmp"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/permutation/sha2"
-	"math/big"
 )
 
 var _seed = uints.NewU32Array([]uint32{
@@ -93,7 +95,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 		data = append(data, uints.NewU8(0))
 	}
 
-	lenMod64 := mod64(api, length)
+	lenMod64 := d.mod64(length)
 	lenMod64Less56 := comparator.IsLess(lenMod64, 56)
 
 	paddingCount := api.Sub(64, lenMod64)
@@ -154,9 +156,9 @@ func (d *digest) Reset() {
 
 func (d *digest) Size() int { return 32 }
 
-func mod64(api frontend.API, v frontend.Variable) frontend.Variable {
-	bits := api.ToBinary(v)
-	return api.FromBinary(bits[:6]...)
+func (d *digest) mod64(v frontend.Variable) frontend.Variable {
+	lower, _ := bitslice.Partition(d.api, v, 6, bitslice.WithNbDigits(64))
+	return lower
 }
 
 func bigEndianPutUint64(api frontend.API, b []frontend.Variable, x frontend.Variable) {
