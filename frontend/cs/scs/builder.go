@@ -736,6 +736,10 @@ func (builder *builder) GetWireConstraints(wires []frontend.Variable, addMissing
 			delete(lookup, int(c.XB))
 			continue
 		}
+		if len(lookup) == 0 {
+			// we can break early if we found constraints for all the wires
+			break
+		}
 	}
 	if addMissing {
 		nbWitnessWires := builder.cs.GetNbPublicVariables() + builder.cs.GetNbSecretVariables()
