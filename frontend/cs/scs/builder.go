@@ -722,16 +722,17 @@ func (builder *builder) GetWireConstraints(wires []frontend.Variable, addMissing
 		}
 		lookup[ww.WireID()] = struct{}{}
 	}
+	nbPub := builder.cs.GetNbPublicVariables()
 	res := make([][2]int, 0, len(wires))
 	iterator := builder.cs.GetSparseR1CIterator()
 	for c, constraintIdx := iterator.Next(), 0; c != nil; c, constraintIdx = iterator.Next(), constraintIdx+1 {
 		if _, ok := lookup[int(c.XA)]; ok {
-			res = append(res, [2]int{constraintIdx, 0})
+			res = append(res, [2]int{nbPub + constraintIdx, 0})
 			delete(lookup, int(c.XA))
 			continue
 		}
 		if _, ok := lookup[int(c.XB)]; ok {
-			res = append(res, [2]int{constraintIdx, 1})
+			res = append(res, [2]int{nbPub + constraintIdx, 1})
 			delete(lookup, int(c.XB))
 			continue
 		}
@@ -748,7 +749,7 @@ func (builder *builder) GetWireConstraints(wires []frontend.Variable, addMissing
 				QL: constraint.CoeffIdOne,
 				QO: constraint.CoeffIdMinusOne,
 			}, builder.genericGate)
-			res = append(res, [2]int{constraintIdx, 0})
+			res = append(res, [2]int{nbPub + constraintIdx, 0})
 			delete(lookup, k)
 		}
 	}
