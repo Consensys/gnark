@@ -194,25 +194,25 @@ func TestFp24CyclotomicSquare(t *testing.T) {
 
 }
 
-type fp24CycloSquareCompressed struct {
+type fp24CycloSquareKarabina2345 struct {
 	A E24
 	B E24 `gnark:",public"`
 }
 
-func (circuit *fp24CycloSquareCompressed) Define(api frontend.API) error {
+func (circuit *fp24CycloSquareKarabina2345) Define(api frontend.API) error {
 
 	var u, v E24
 	u.Square(api, circuit.A)
-	v.CyclotomicSquareCompressed(api, circuit.A)
-	v.Decompress(api, v)
+	v.CyclotomicSquareKarabina2345(api, circuit.A)
+	v.DecompressKarabina2345(api, v)
 	u.AssertIsEqual(api, v)
 	u.AssertIsEqual(api, circuit.B)
 	return nil
 }
 
-func TestFp24CyclotomicSquareCompressed(t *testing.T) {
+func TestFp24CyclotomicSquareKarabina2345(t *testing.T) {
 
-	var circuit, witness fp24CycloSquareCompressed
+	var circuit, witness fp24CycloSquareKarabina2345
 
 	// witness values
 	var a, b bls24315.E24
@@ -225,7 +225,7 @@ func TestFp24CyclotomicSquareCompressed(t *testing.T) {
 	tmp.Mul(&tmp, &a)
 	a.FrobeniusQuad(&tmp).Mul(&a, &tmp)
 
-	b.CyclotomicSquare(&a)
+	b.CyclotomicSquareCompressed(&a)
 	b.DecompressKarabina(&b)
 	witness.A.Assign(&a)
 	witness.B.Assign(&b)

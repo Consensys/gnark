@@ -54,8 +54,55 @@ func (builder *builder) Add(i1, i2 frontend.Variable, in ...frontend.Variable) f
 }
 
 func (builder *builder) MulAcc(a, b, c frontend.Variable) frontend.Variable {
+
+	if fastTrack := builder.mulAccFastTrack(a, b, c); fastTrack != nil {
+		return fastTrack
+	}
+
 	// TODO can we do better here to limit allocations?
 	return builder.Add(a, builder.Mul(b, c))
+}
+
+// special case for when a/c is constant
+// let a = a' * α, b = b' * β, c = c' * α
+// then a + b * c = a' * α + (b' * c') (β * α)
+// thus qL = a', qR = 0, qM = b'c'
+func (builder *builder) mulAccFastTrack(a, b, c frontend.Variable) frontend.Variable {
+	var (
+		aVar, bVar, cVar expr.Term
+		ok               bool
+	)
+	if aVar, ok = a.(expr.Term); !ok {
+		return nil
+	}
+	if bVar, ok = b.(expr.Term); !ok {
+		return nil
+	}
+	if cVar, ok = c.(expr.Term); !ok {
+		return nil
+	}
+
+	if aVar.VID == bVar.VID {
+		bVar, cVar = cVar, bVar
+	}
+
+	if aVar.VID != cVar.VID {
+		return nil
+	}
+
+	res := builder.newInternalVariable()
+	builder.addPlonkConstraint(sparseR1C{
+		xa:         aVar.VID,
+		xb:         bVar.VID,
+		xc:         res.VID,
+		qL:         aVar.Coeff,
+		qR:         constraint.Element{},
+		qO:         builder.tMinusOne,
+		qM:         builder.cs.Mul(bVar.Coeff, cVar.Coeff),
+		qC:         constraint.Element{},
+		commitment: 0,
+	})
+	return res
 }
 
 // neg returns -in
@@ -90,6 +137,14 @@ func (builder *builder) Mul(i1, i2 frontend.Variable, in ...frontend.Variable) f
 	vars, k := builder.filterConstantProd(append([]frontend.Variable{i1, i2}, in...))
 	if len(vars) == 0 {
 		return builder.cs.ToBigInt(k)
+	}
+	if k.IsZero() {
+		return 0
+	}
+	for i := range vars {
+		if vars[i].Coeff.IsZero() {
+			return 0
+		}
 	}
 	l := builder.mulConstant(vars[0], k)
 
@@ -185,7 +240,7 @@ func (builder *builder) Inverse(i1 frontend.Variable) frontend.Variable {
 // n is the number of bits to select (starting from lsb)
 // n default value is fr.Bits the number of bits needed to represent a field element
 //
-// The result in in little endian (first bit= lsb)
+// The result is in little endian (first bit= lsb)
 func (builder *builder) ToBinary(i1 frontend.Variable, n ...int) []frontend.Variable {
 	// nbBits
 	nbBits := builder.cs.FieldBitLen()
@@ -410,14 +465,11 @@ func (builder *builder) Lookup2(b0, b1 frontend.Variable, i0, i1, i2, i3 fronten
 	//    (3) (in2 - in0) * s1 = RES - tmp2 - in0
 	// the variables tmp1 and tmp2 are new internal variables and the variables
 	// RES will be the returned result
-
-	// TODO check how it can be optimized for PLONK (currently it's a copy
-	// paste of the r1cs version)
-	tmp1 := builder.Add(i3, i0)
-	tmp1 = builder.Sub(tmp1, i2, i1)
+	tmp1 := builder.Sub(i3, i2)
+	tmp := builder.Sub(i0, i1)
+	tmp1 = builder.Add(tmp1, tmp)
 	tmp1 = builder.Mul(tmp1, b1)
-	tmp1 = builder.Add(tmp1, i1)
-	tmp1 = builder.Sub(tmp1, i0)  // (1) tmp1 = s1 * (in3 - in2 - in1 + in0) + in1 - in0
+	tmp1 = builder.Sub(tmp1, tmp) // (1) tmp1 = s1 * (in3 - in2 - in1 + in0) + in1 - in0
 	tmp2 := builder.Mul(tmp1, b0) // (2) tmp2 = tmp1 * s0
 	res := builder.Sub(i2, i0)
 	res = builder.Mul(res, b1)
@@ -467,6 +519,8 @@ func (builder *builder) IsZero(i1 frontend.Variable) frontend.Variable {
 		xb: m.VID,
 		qM: a.Coeff,
 	})
+
+	builder.MarkBoolean(m)
 
 	return m
 }
@@ -588,13 +642,11 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 		builder.addPlonkConstraint(sparseR1C{xa: vINeg.VID, qL: vINeg.Coeff, commitment: constraint.COMMITTED})
 	}
 
-	hintId, err := cs.RegisterBsb22CommitmentComputePlaceholder(len(commitments))
+	inputs := make([]frontend.Variable, len(v)+1)
+	inputs[0] = len(commitments) // commitment depth
+	copy(inputs[1:], v)
+	outs, err := builder.NewHint(cs.Bsb22CommitmentComputePlaceholder, 1, inputs...)
 	if err != nil {
-		return nil, err
-	}
-
-	var outs []frontend.Variable
-	if outs, err = builder.NewHintForId(hintId, 1, v...); err != nil {
 		return nil, err
 	}
 
@@ -604,9 +656,66 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 	builder.addPlonkConstraint(sparseR1C{xa: commitmentVar.VID, qL: commitmentVar.Coeff, commitment: constraint.COMMITMENT}) // value will be injected later
 
 	return outs[0], builder.cs.AddCommitment(constraint.PlonkCommitment{
-		HintID:          hintId,
 		CommitmentIndex: commitmentConstraintIndex,
 		Committed:       committed,
+	})
+}
+
+// EvaluatePlonkExpression in the form of res = qL.a + qR.b + qM.ab + qC
+func (builder *builder) EvaluatePlonkExpression(a, b frontend.Variable, qL, qR, qM, qC int) frontend.Variable {
+	_, aConstant := builder.constantValue(a)
+	_, bConstant := builder.constantValue(b)
+	if aConstant || bConstant {
+		return builder.Add(
+			builder.Mul(a, qL),
+			builder.Mul(b, qR),
+			builder.Mul(a, b, qM),
+			qC,
+		)
+	}
+
+	res := builder.newInternalVariable()
+	builder.addPlonkConstraint(sparseR1C{
+		xa: a.(expr.Term).VID,
+		xb: b.(expr.Term).VID,
+		xc: res.VID,
+		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term).Coeff),
+		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term).Coeff),
+		qO: builder.tMinusOne,
+		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term).Coeff, b.(expr.Term).Coeff)),
+		qC: builder.cs.FromInterface(qC),
+	})
+	return res
+}
+
+// AddPlonkConstraint asserts qL.a + qR.b + qO.o + qM.ab + qC = 0
+func (builder *builder) AddPlonkConstraint(a, b, o frontend.Variable, qL, qR, qO, qM, qC int) {
+	_, aConstant := builder.constantValue(a)
+	_, bConstant := builder.constantValue(b)
+	_, oConstant := builder.constantValue(o)
+	if aConstant || bConstant || oConstant {
+		builder.AssertIsEqual(
+			builder.Add(
+				builder.Mul(a, qL),
+				builder.Mul(b, qR),
+				builder.Mul(a, b, qM),
+				builder.Mul(o, qO),
+				qC,
+			),
+			0,
+		)
+		return
+	}
+
+	builder.addPlonkConstraint(sparseR1C{
+		xa: a.(expr.Term).VID,
+		xb: b.(expr.Term).VID,
+		xc: o.(expr.Term).VID,
+		qL: builder.cs.Mul(builder.cs.FromInterface(qL), a.(expr.Term).Coeff),
+		qR: builder.cs.Mul(builder.cs.FromInterface(qR), b.(expr.Term).Coeff),
+		qO: builder.cs.Mul(builder.cs.FromInterface(qO), o.(expr.Term).Coeff),
+		qM: builder.cs.Mul(builder.cs.FromInterface(qM), builder.cs.Mul(a.(expr.Term).Coeff, b.(expr.Term).Coeff)),
+		qC: builder.cs.FromInterface(qC),
 	})
 }
 

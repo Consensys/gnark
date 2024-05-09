@@ -1,15 +1,17 @@
 package test
 
 import (
+	"crypto/sha256"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
-	"github.com/consensys/gnark/backend/plonkfri"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // CheckCircuit performs a series of check on the provided circuit.
@@ -107,8 +109,6 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 						concreteBackend = _groth16
 					case backend.PLONK:
 						concreteBackend = _plonk
-					case backend.PLONKFRI:
-						concreteBackend = _plonkfri
 					default:
 						panic("backend not implemented")
 					}
@@ -122,10 +122,19 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 						w := w
 						assert.Run(func(assert *Assert) {
 							checkSolidity := opt.checkSolidity && curve == ecc.BN254
-							proof, err := concreteBackend.prove(ccs, pk, w.full, opt.proverOpts...)
+							proverOpts := opt.proverOpts
+							verifierOpts := opt.verifierOpts
+							if b == backend.GROTH16 {
+								// currently groth16 Solidity checker only supports circuits with up to 1 commitment
+								checkSolidity = checkSolidity && (len(ccs.GetCommitments().CommitmentIndexes()) <= 1)
+								// additionally, we use sha256 as hash to field (fixed in Solidity contract)
+								proverOpts = append(proverOpts, backend.WithProverHashToFieldFunction(sha256.New()))
+								verifierOpts = append(verifierOpts, backend.WithVerifierHashToFieldFunction(sha256.New()))
+							}
+							proof, err := concreteBackend.prove(ccs, pk, w.full, proverOpts...)
 							assert.noError(err, &w)
 
-							err = concreteBackend.verify(proof, vk, w.public)
+							err = concreteBackend.verify(proof, vk, w.public, verifierOpts...)
 							assert.noError(err, &w)
 
 							if checkSolidity {
@@ -225,7 +234,7 @@ type fnSetup func(ccs constraint.ConstraintSystem, curve ecc.ID) (
 	pkBuilder, vkBuilder, proofBuilder func() any,
 	err error)
 type fnProve func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error)
-type fnVerify func(proof, vk any, publicWitness witness.Witness) error
+type fnVerify func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error
 
 // tBackend abstracts the backend implementation in the test package.
 type tBackend struct {
@@ -246,8 +255,8 @@ var (
 		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
 			return groth16.Prove(ccs, pk.(groth16.ProvingKey), fullWitness, opts...)
 		},
-		verify: func(proof, vk any, publicWitness witness.Witness) error {
-			return groth16.Verify(proof.(groth16.Proof), vk.(groth16.VerifyingKey), publicWitness)
+		verify: func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
+			return groth16.Verify(proof.(groth16.Proof), vk.(groth16.VerifyingKey), publicWitness, opts...)
 		},
 	}
 
@@ -256,34 +265,18 @@ var (
 			pk, vk any,
 			pkBuilder, vkBuilder, proofBuilder func() any,
 			err error) {
-			srs, err := NewKZGSRS(ccs)
+			srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
 			if err != nil {
 				return nil, nil, nil, nil, nil, err
 			}
-			pk, vk, err = plonk.Setup(ccs, srs)
+			pk, vk, err = plonk.Setup(ccs, srs, srsLagrange)
 			return pk, vk, func() any { return plonk.NewProvingKey(curve) }, func() any { return plonk.NewVerifyingKey(curve) }, func() any { return plonk.NewProof(curve) }, err
 		},
 		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
 			return plonk.Prove(ccs, pk.(plonk.ProvingKey), fullWitness, opts...)
 		},
-		verify: func(proof, vk any, publicWitness witness.Witness) error {
-			return plonk.Verify(proof.(plonk.Proof), vk.(plonk.VerifyingKey), publicWitness)
-		},
-	}
-
-	_plonkfri = tBackend{
-		setup: func(ccs constraint.ConstraintSystem, curve ecc.ID) (
-			pk, vk any,
-			pkBuilder, vkBuilder, proofBuilder func() any,
-			err error) {
-			pk, vk, err = plonkfri.Setup(ccs)
-			return pk, vk, func() any { return nil }, func() any { return nil }, func() any { return nil }, err
-		},
-		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
-			return plonkfri.Prove(ccs, pk.(plonkfri.ProvingKey), fullWitness, opts...)
-		},
-		verify: func(proof, vk any, publicWitness witness.Witness) error {
-			return plonkfri.Verify(proof, vk.(plonkfri.VerifyingKey), publicWitness)
+		verify: func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
+			return plonk.Verify(proof.(plonk.Proof), vk.(plonk.VerifyingKey), publicWitness, opts...)
 		},
 	}
 )

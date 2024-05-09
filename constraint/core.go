@@ -81,9 +81,9 @@ type System struct {
 
 	Type SystemType
 
-	Instructions []PackedInstruction
+	Instructions []PackedInstruction `cbor:"-"`
 	Blueprints   []Blueprint
-	CallData     []uint32 // huge slice.
+	CallData     []uint32 `cbor:"-"`
 
 	// can be != than len(instructions)
 	NbConstraints int
@@ -114,15 +114,14 @@ type System struct {
 	// TODO @gbotrel these are currently updated after we add a constraint.
 	// but in case the object is built from a serialized representation
 	// we need to init the level builder lbWireLevel from the existing constraints.
-	Levels [][]int
+	Levels [][]uint32 `cbor:"-"`
 
 	// scalar field
 	q      *big.Int `cbor:"-"`
 	bitLen int      `cbor:"-"`
 
 	// level builder
-	lbWireLevel []int    `cbor:"-"` // at which level we solve a wire. init at -1.
-	lbOutputs   []uint32 `cbor:"-"` // wire outputs for current constraint.
+	lbWireLevel []Level `cbor:"-"` // at which level we solve a wire. init at -1.
 
 	CommitmentInfo Commitments
 	GkrInfo        GkrInfo
@@ -143,9 +142,8 @@ func NewSystem(scalarField *big.Int, capacity int, t SystemType) System {
 		bitLen:             scalarField.BitLen(),
 		Instructions:       make([]PackedInstruction, 0, capacity),
 		CallData:           make([]uint32, 0, capacity*8),
-		lbOutputs:          make([]uint32, 0, 256),
-		lbWireLevel:        make([]int, 0, capacity),
-		Levels:             make([][]int, 0, capacity/2),
+		lbWireLevel:        make([]Level, 0, capacity),
+		Levels:             make([][]uint32, 0, capacity/2),
 		CommitmentInfo:     NewCommitments(t),
 	}
 
@@ -192,7 +190,7 @@ func (system *System) CheckSerializationHeader() error {
 
 	if binaryVersion.Compare(objectVersion) != 0 {
 		log := logger.Logger()
-		log.Warn().Str("binary", binaryVersion.String()).Str("object", objectVersion.String()).Msg("gnark version (binary) mismatch with constraint system. there are no guarantees on compatibilty")
+		log.Warn().Str("binary", binaryVersion.String()).Str("object", objectVersion.String()).Msg("gnark version (binary) mismatch with constraint system. there are no guarantees on compatibility")
 	}
 
 	// TODO @gbotrel maintain version changes and compare versions properly
@@ -229,6 +227,11 @@ func (system *System) FieldBitLen() int {
 func (system *System) AddInternalVariable() (idx int) {
 	idx = system.NbInternalVariables + system.GetNbPublicVariables() + system.GetNbSecretVariables()
 	system.NbInternalVariables++
+	// also grow the level slice
+	system.lbWireLevel = append(system.lbWireLevel, LevelUnset)
+	if debug.Debug && len(system.lbWireLevel) != system.NbInternalVariables {
+		panic("internal error")
+	}
 	return idx
 }
 
@@ -405,7 +408,15 @@ func (cs *System) AddInstruction(bID BlueprintID, calldata []uint32) []uint32 {
 	cs.Instructions = append(cs.Instructions, pi)
 
 	// update the instruction dependency tree
-	cs.updateLevel(len(cs.Instructions)-1, blueprint.WireWalker(inst))
+	level := blueprint.UpdateInstructionTree(inst, cs)
+	iID := uint32(len(cs.Instructions) - 1)
+
+	// we can't skip levels, so appending is fine.
+	if int(level) >= len(cs.Levels) {
+		cs.Levels = append(cs.Levels, []uint32{iID})
+	} else {
+		cs.Levels[level] = append(cs.Levels[level], iID)
+	}
 
 	return wires
 }

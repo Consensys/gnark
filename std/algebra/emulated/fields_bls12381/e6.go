@@ -86,22 +86,22 @@ func (e Ext6) Mul(x, y *E6) *E6 {
 	c0 := e.Ext2.Add(&x.B1, &x.B2)
 	tmp := e.Ext2.Add(&y.B1, &y.B2)
 	c0 = e.Ext2.Mul(c0, tmp)
-	c0 = e.Ext2.Sub(c0, t1)
-	c0 = e.Ext2.Sub(c0, t2)
+	tmp = e.Ext2.Add(t2, t1)
+	c0 = e.Ext2.Sub(c0, tmp)
 	c0 = e.Ext2.MulByNonResidue(c0)
 	c0 = e.Ext2.Add(c0, t0)
 	c1 := e.Ext2.Add(&x.B0, &x.B1)
 	tmp = e.Ext2.Add(&y.B0, &y.B1)
 	c1 = e.Ext2.Mul(c1, tmp)
-	c1 = e.Ext2.Sub(c1, t0)
-	c1 = e.Ext2.Sub(c1, t1)
+	tmp = e.Ext2.Add(t0, t1)
+	c1 = e.Ext2.Sub(c1, tmp)
 	tmp = e.Ext2.MulByNonResidue(t2)
 	c1 = e.Ext2.Add(c1, tmp)
 	tmp = e.Ext2.Add(&x.B0, &x.B2)
 	c2 := e.Ext2.Add(&y.B0, &y.B2)
 	c2 = e.Ext2.Mul(c2, tmp)
-	c2 = e.Ext2.Sub(c2, t0)
-	c2 = e.Ext2.Sub(c2, t2)
+	tmp = e.Ext2.Add(t0, t2)
+	c2 = e.Ext2.Sub(c2, tmp)
 	c2 = e.Ext2.Add(c2, t1)
 	return &E6{
 		B0: *c0,
@@ -166,8 +166,8 @@ func (e Ext6) MulBy12(x *E6, b1, b2 *E2) *E6 {
 	c0 := e.Ext2.Add(&x.B1, &x.B2)
 	tmp := e.Ext2.Add(b1, b2)
 	c0 = e.Ext2.Mul(c0, tmp)
-	c0 = e.Ext2.Sub(c0, t1)
-	c0 = e.Ext2.Sub(c0, t2)
+	tmp = e.Ext2.Add(t1, t2)
+	c0 = e.Ext2.Sub(c0, tmp)
 	c0 = e.Ext2.MulByNonResidue(c0)
 	c1 := e.Ext2.Add(&x.B0, &x.B1)
 	c1 = e.Ext2.Mul(c1, b1)
@@ -207,7 +207,13 @@ func (e Ext6) MulBy0(z *E6, c0 *E2) *E6 {
 	}
 }
 
-// MulBy01 multiplication by sparse element (c0,c1,0)
+// MulBy01 multiplies z by an E6 sparse element of the form
+//
+//	E6{
+//		B0: c0,
+//		B1: c1,
+//		B2: 0,
+//	}
 func (e Ext6) MulBy01(z *E6, c0, c1 *E2) *E6 {
 	a := e.Ext2.Mul(&z.B0, c0)
 	b := e.Ext2.Mul(&z.B1, c1)
@@ -216,15 +222,16 @@ func (e Ext6) MulBy01(z *E6, c0, c1 *E2) *E6 {
 	t0 = e.Ext2.Sub(t0, b)
 	t0 = e.Ext2.MulByNonResidue(t0)
 	t0 = e.Ext2.Add(t0, a)
-	tmp = e.Ext2.Add(&z.B0, &z.B2)
-	t2 := e.Ext2.Mul(c0, tmp)
-	t2 = e.Ext2.Sub(t2, a)
+	// for t2, schoolbook is faster than karatsuba
+	// c2 = a0b2 + a1b1 + a2b0,
+	// c2 = a2b0 + b ∵ b2 = 0, b = a1b1
+	t2 := e.Ext2.Mul(&z.B2, c0)
 	t2 = e.Ext2.Add(t2, b)
 	t1 := e.Ext2.Add(c0, c1)
 	tmp = e.Ext2.Add(&z.B0, &z.B1)
 	t1 = e.Ext2.Mul(t1, tmp)
-	t1 = e.Ext2.Sub(t1, a)
-	t1 = e.Ext2.Sub(t1, b)
+	tmp = e.Ext2.Add(a, b)
+	t1 = e.Ext2.Sub(t1, tmp)
 	return &E6{
 		B0: *t0,
 		B1: *t1,

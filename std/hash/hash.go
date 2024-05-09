@@ -18,6 +18,9 @@ limitations under the License.
 package hash
 
 import (
+	"errors"
+	"sync"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/uints"
 )
@@ -37,7 +40,26 @@ type FieldHasher interface {
 	Reset()
 }
 
-var BuilderRegistry = make(map[string]func(api frontend.API) (FieldHasher, error))
+var (
+	builderRegistry = make(map[string]func(api frontend.API) (FieldHasher, error))
+	lock            sync.RWMutex
+)
+
+func Register(name string, builder func(api frontend.API) (FieldHasher, error)) {
+	lock.Lock()
+	defer lock.Unlock()
+	builderRegistry[name] = builder
+}
+
+func GetFieldHasher(name string, api frontend.API) (FieldHasher, error) {
+	lock.RLock()
+	defer lock.RUnlock()
+	builder, ok := builderRegistry[name]
+	if !ok {
+		return nil, errors.New("hash function not found")
+	}
+	return builder(api)
+}
 
 // BinaryHasher hashes inputs into a short digest. It takes as inputs bytes and
 // outputs byte array whose length depends on the underlying hash function. For

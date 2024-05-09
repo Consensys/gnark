@@ -45,12 +45,12 @@ func init() {
 
 func NewGlobalStats() *globalStats {
 	return &globalStats{
-		Stats: make(map[string][backend.PLONKFRI + 1][nbCurves + 1]snippetStats),
+		Stats: make(map[string][backend.PLONK + 1][nbCurves + 1]snippetStats),
 	}
 }
 
 func (s *globalStats) Save(path string) error {
-	fStats, err := os.Create(path) //#nosec G304 -- ignoring internal pacakge s
+	fStats, err := os.Create(path) //#nosec G304 -- ignoring internal package s
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func NewSnippetStats(curve ecc.ID, backendID backend.ID, circuit frontend.Circui
 	switch backendID {
 	case backend.GROTH16:
 		newCompiler = r1cs.NewBuilder
-	case backend.PLONK, backend.PLONKFRI:
+	case backend.PLONK:
 		newCompiler = scs.NewBuilder
 	default:
 		panic("not implemented")
@@ -112,7 +112,7 @@ type Circuit struct {
 
 type globalStats struct {
 	sync.RWMutex
-	Stats map[string][backend.PLONKFRI + 1][nbCurves + 1]snippetStats
+	Stats map[string][backend.PLONK + 1][nbCurves + 1]snippetStats
 }
 
 type snippetStats struct {

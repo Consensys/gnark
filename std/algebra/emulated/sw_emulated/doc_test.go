@@ -18,7 +18,7 @@ type ExampleCurveCircuit[Base, Scalar emulated.FieldParams] struct {
 }
 
 func (c *ExampleCurveCircuit[B, S]) Define(api frontend.API) error {
-	curve, err := sw_emulated.New[B, S](api, sw_emulated.GetCurveParams[emulated.BN254Fp]())
+	curve, err := sw_emulated.New[B, S](api, sw_emulated.GetCurveParams[emulated.Secp256k1Fp]())
 	if err != nil {
 		panic("initalize new curve")
 	}
@@ -42,8 +42,8 @@ func ExampleCurve() {
 	circuit := ExampleCurveCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{}
 	witness := ExampleCurveCircuit[emulated.Secp256k1Fp, emulated.Secp256k1Fr]{
 		Res: sw_emulated.AffinePoint[emulated.Secp256k1Fp]{
-			X: emulated.ValueOf[emulated.Secp256k1Fp](g.X),
-			Y: emulated.ValueOf[emulated.Secp256k1Fp](g.Y),
+			X: emulated.ValueOf[emulated.Secp256k1Fp](Q.X),
+			Y: emulated.ValueOf[emulated.Secp256k1Fp](Q.Y),
 		},
 	}
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
@@ -82,4 +82,11 @@ func ExampleCurve() {
 	} else {
 		fmt.Println("verify")
 	}
+	// Output:
+	// result ([5101572491822586484 7988715582840633164 10154617462969804093 9788323565107423858], [12871521579461060004 12592355681102286208 17300415163085174132 96321138099943804])compiled
+	// setup done
+	// secret witness
+	// public witness
+	// proof
+	// verify
 }

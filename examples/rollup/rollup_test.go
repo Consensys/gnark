@@ -33,7 +33,7 @@ func TestOperatorReadAccount(t *testing.T) {
 	// create operator with 10 accounts
 	operator, _ := createOperator(10)
 
-	// check if the account read from the operator are correct
+	// check if the account read from the operator is correct
 	for i := 0; i < 10; i++ {
 		opAccount, err := operator.readAccount(uint64(i))
 		if err != nil {
@@ -168,7 +168,7 @@ func createAccount(i int) (Account, eddsa.PrivateKey) {
 	return acc, privkey
 }
 
-// Returns a newly created operator and tha private keys of the associated accounts
+// Returns a newly created operator and the private keys of the associated accounts
 func createOperator(nbAccounts int) (Operator, []eddsa.PrivateKey) {
 
 	operator := NewOperator(nbAccounts)

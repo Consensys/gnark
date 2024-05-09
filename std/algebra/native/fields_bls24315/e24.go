@@ -20,7 +20,6 @@ import (
 	"math/big"
 
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -185,7 +184,7 @@ func (e *E24) Square(api frontend.API, x E24) *E24 {
 
 // Karabina's compressed cyclotomic square
 // https://eprint.iacr.org/2010/542.pdf
-func (e *E24) CyclotomicSquareCompressed(api frontend.API, x E24) *E24 {
+func (e *E24) CyclotomicSquareKarabina2345(api frontend.API, x E24) *E24 {
 	var t [7]E4
 
 	// t0 = g1²
@@ -257,27 +256,42 @@ func (e *E24) CyclotomicSquareCompressed(api frontend.API, x E24) *E24 {
 	return e
 }
 
-// Decompress Karabina's cyclotomic square result
-func (e *E24) Decompress(api frontend.API, x E24) *E24 {
+// DecompressKarabina2345 Karabina's cyclotomic square result
+func (e *E24) DecompressKarabina2345(api frontend.API, x E24) *E24 {
 
 	var t [3]E4
+	var _t [2]E4
 	var one E4
 	one.SetOne()
 
-	// t0 = g1²
+	// if g3 == 0
+	// t0 = 2 * g1 * g5
+	// t1 = g2
+	selector1 := x.D1.C0.IsZero(api)
+	_t[0].Square(api, x.D0.C1)
+	_t[0].Double(api, _t[0])
+	_t[1] = x.D0.C2
+
+	// if g3 != 0
+	// t0 = E * g5^2 + 3 * g1^2 - 2 * g2
+	// t1 = 4 * g3
 	t[0].Square(api, x.D0.C1)
-	// t1 = 3 * g1² - 2 * g2
 	t[1].Sub(api, t[0], x.D0.C2).
 		Double(api, t[1]).
 		Add(api, t[1], t[0])
-	// t0 = E * g5² + t1
 	t[2].Square(api, x.D1.C2)
 	t[0].MulByNonResidue(api, t[2]).
 		Add(api, t[0], t[1])
-	// t1 = 4 * g3
 	t[1].Double(api, x.D1.C0).
 		Double(api, t[1])
-	// z4 = g4 / t1
+
+	// g4 = (E * g5^2 + 3 * g1^2 - 2 * g2)/4g3 or (2 * g1 * g5)/g2
+	t[0].Select(api, selector1, _t[0], t[0])
+	t[1].Select(api, selector1, _t[1], t[1])
+	// if g2 == g3 == 0 we do nothing as DivUnchecked sets g4 to 0
+	// and all gi to 0 returning, correctly in this case, at the end:
+	// e = E * (2 * g4² + g3 * g5 - 3 * g2 * g1) + 1 = 1
+
 	e.D1.C1.DivUnchecked(api, t[0], t[1])
 
 	// t1 = g2 * g1
@@ -341,72 +355,10 @@ func (e *E24) Conjugate(api frontend.API, e1 E24) *E24 {
 	return e
 }
 
-var InverseE24Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, c bls24315.E24
-
-	a.D0.C0.B0.A0.SetBigInt(inputs[0])
-	a.D0.C0.B0.A1.SetBigInt(inputs[1])
-	a.D0.C0.B1.A0.SetBigInt(inputs[2])
-	a.D0.C0.B1.A1.SetBigInt(inputs[3])
-	a.D0.C1.B0.A0.SetBigInt(inputs[4])
-	a.D0.C1.B0.A1.SetBigInt(inputs[5])
-	a.D0.C1.B1.A0.SetBigInt(inputs[6])
-	a.D0.C1.B1.A1.SetBigInt(inputs[7])
-	a.D0.C2.B0.A0.SetBigInt(inputs[8])
-	a.D0.C2.B0.A1.SetBigInt(inputs[9])
-	a.D0.C2.B1.A0.SetBigInt(inputs[10])
-	a.D0.C2.B1.A1.SetBigInt(inputs[11])
-	a.D1.C0.B0.A0.SetBigInt(inputs[12])
-	a.D1.C0.B0.A1.SetBigInt(inputs[13])
-	a.D1.C0.B1.A0.SetBigInt(inputs[14])
-	a.D1.C0.B1.A1.SetBigInt(inputs[15])
-	a.D1.C1.B0.A0.SetBigInt(inputs[16])
-	a.D1.C1.B0.A1.SetBigInt(inputs[17])
-	a.D1.C1.B1.A0.SetBigInt(inputs[18])
-	a.D1.C1.B1.A1.SetBigInt(inputs[19])
-	a.D1.C2.B0.A0.SetBigInt(inputs[20])
-	a.D1.C2.B0.A1.SetBigInt(inputs[21])
-	a.D1.C2.B1.A0.SetBigInt(inputs[22])
-	a.D1.C2.B1.A1.SetBigInt(inputs[23])
-
-	c.Inverse(&a)
-
-	c.D0.C0.B0.A0.BigInt(res[0])
-	c.D0.C0.B0.A1.BigInt(res[1])
-	c.D0.C0.B1.A0.BigInt(res[2])
-	c.D0.C0.B1.A1.BigInt(res[3])
-	c.D0.C1.B0.A0.BigInt(res[4])
-	c.D0.C1.B0.A1.BigInt(res[5])
-	c.D0.C1.B1.A0.BigInt(res[6])
-	c.D0.C1.B1.A1.BigInt(res[7])
-	c.D0.C2.B0.A0.BigInt(res[8])
-	c.D0.C2.B0.A1.BigInt(res[9])
-	c.D0.C2.B1.A0.BigInt(res[10])
-	c.D0.C2.B1.A1.BigInt(res[11])
-	c.D1.C0.B0.A0.BigInt(res[12])
-	c.D1.C0.B0.A1.BigInt(res[13])
-	c.D1.C0.B1.A0.BigInt(res[14])
-	c.D1.C0.B1.A1.BigInt(res[15])
-	c.D1.C1.B0.A0.BigInt(res[16])
-	c.D1.C1.B0.A1.BigInt(res[17])
-	c.D1.C1.B1.A0.BigInt(res[18])
-	c.D1.C1.B1.A1.BigInt(res[19])
-	c.D1.C2.B0.A0.BigInt(res[20])
-	c.D1.C2.B0.A1.BigInt(res[21])
-	c.D1.C2.B1.A0.BigInt(res[22])
-	c.D1.C2.B1.A1.BigInt(res[23])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(InverseE24Hint)
-}
-
 // Inverse e24 elmts
 func (e *E24) Inverse(api frontend.API, e1 E24) *E24 {
 
-	res, err := api.NewHint(InverseE24Hint, 24, e1.D0.C0.B0.A0, e1.D0.C0.B0.A1, e1.D0.C0.B1.A0, e1.D0.C0.B1.A1, e1.D0.C1.B0.A0, e1.D0.C1.B0.A1, e1.D0.C1.B1.A0, e1.D0.C1.B1.A1, e1.D0.C2.B0.A0, e1.D0.C2.B0.A1, e1.D0.C2.B1.A0, e1.D0.C2.B1.A1, e1.D1.C0.B0.A0, e1.D1.C0.B0.A1, e1.D1.C0.B1.A0, e1.D1.C0.B1.A1, e1.D1.C1.B0.A0, e1.D1.C1.B0.A1, e1.D1.C1.B1.A0, e1.D1.C1.B1.A1, e1.D1.C2.B0.A0, e1.D1.C2.B0.A1, e1.D1.C2.B1.A0, e1.D1.C2.B1.A1)
+	res, err := api.NewHint(inverseE24Hint, 24, e1.D0.C0.B0.A0, e1.D0.C0.B0.A1, e1.D0.C0.B1.A0, e1.D0.C0.B1.A1, e1.D0.C1.B0.A0, e1.D0.C1.B0.A1, e1.D0.C1.B1.A0, e1.D0.C1.B1.A1, e1.D0.C2.B0.A0, e1.D0.C2.B0.A1, e1.D0.C2.B1.A0, e1.D0.C2.B1.A1, e1.D1.C0.B0.A0, e1.D1.C0.B0.A1, e1.D1.C0.B1.A0, e1.D1.C0.B1.A1, e1.D1.C1.B0.A0, e1.D1.C1.B0.A1, e1.D1.C1.B1.A0, e1.D1.C1.B1.A1, e1.D1.C2.B0.A0, e1.D1.C2.B0.A1, e1.D1.C2.B1.A0, e1.D1.C2.B1.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -426,97 +378,10 @@ func (e *E24) Inverse(api frontend.API, e1 E24) *E24 {
 	return e
 }
 
-var DivE24Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, b, c bls24315.E24
-
-	a.D0.C0.B0.A0.SetBigInt(inputs[0])
-	a.D0.C0.B0.A1.SetBigInt(inputs[1])
-	a.D0.C0.B1.A0.SetBigInt(inputs[2])
-	a.D0.C0.B1.A1.SetBigInt(inputs[3])
-	a.D0.C1.B0.A0.SetBigInt(inputs[4])
-	a.D0.C1.B0.A1.SetBigInt(inputs[5])
-	a.D0.C1.B1.A0.SetBigInt(inputs[6])
-	a.D0.C1.B1.A1.SetBigInt(inputs[7])
-	a.D0.C2.B0.A0.SetBigInt(inputs[8])
-	a.D0.C2.B0.A1.SetBigInt(inputs[9])
-	a.D0.C2.B1.A0.SetBigInt(inputs[10])
-	a.D0.C2.B1.A1.SetBigInt(inputs[11])
-	a.D1.C0.B0.A0.SetBigInt(inputs[12])
-	a.D1.C0.B0.A1.SetBigInt(inputs[13])
-	a.D1.C0.B1.A0.SetBigInt(inputs[14])
-	a.D1.C0.B1.A1.SetBigInt(inputs[15])
-	a.D1.C1.B0.A0.SetBigInt(inputs[16])
-	a.D1.C1.B0.A1.SetBigInt(inputs[17])
-	a.D1.C1.B1.A0.SetBigInt(inputs[18])
-	a.D1.C1.B1.A1.SetBigInt(inputs[19])
-	a.D1.C2.B0.A0.SetBigInt(inputs[20])
-	a.D1.C2.B0.A1.SetBigInt(inputs[21])
-	a.D1.C2.B1.A0.SetBigInt(inputs[22])
-	a.D1.C2.B1.A1.SetBigInt(inputs[23])
-
-	b.D0.C0.B0.A0.SetBigInt(inputs[24])
-	b.D0.C0.B0.A1.SetBigInt(inputs[25])
-	b.D0.C0.B1.A0.SetBigInt(inputs[26])
-	b.D0.C0.B1.A1.SetBigInt(inputs[27])
-	b.D0.C1.B0.A0.SetBigInt(inputs[28])
-	b.D0.C1.B0.A1.SetBigInt(inputs[29])
-	b.D0.C1.B1.A0.SetBigInt(inputs[30])
-	b.D0.C1.B1.A1.SetBigInt(inputs[31])
-	b.D0.C2.B0.A0.SetBigInt(inputs[32])
-	b.D0.C2.B0.A1.SetBigInt(inputs[33])
-	b.D0.C2.B1.A0.SetBigInt(inputs[34])
-	b.D0.C2.B1.A1.SetBigInt(inputs[35])
-	b.D1.C0.B0.A0.SetBigInt(inputs[36])
-	b.D1.C0.B0.A1.SetBigInt(inputs[37])
-	b.D1.C0.B1.A0.SetBigInt(inputs[38])
-	b.D1.C0.B1.A1.SetBigInt(inputs[39])
-	b.D1.C1.B0.A0.SetBigInt(inputs[40])
-	b.D1.C1.B0.A1.SetBigInt(inputs[41])
-	b.D1.C1.B1.A0.SetBigInt(inputs[42])
-	b.D1.C1.B1.A1.SetBigInt(inputs[43])
-	b.D1.C2.B0.A0.SetBigInt(inputs[44])
-	b.D1.C2.B0.A1.SetBigInt(inputs[45])
-	b.D1.C2.B1.A0.SetBigInt(inputs[46])
-	b.D1.C2.B1.A1.SetBigInt(inputs[47])
-
-	c.Inverse(&b).Mul(&c, &a)
-
-	c.D0.C0.B0.A0.BigInt(res[0])
-	c.D0.C0.B0.A1.BigInt(res[1])
-	c.D0.C0.B1.A0.BigInt(res[2])
-	c.D0.C0.B1.A1.BigInt(res[3])
-	c.D0.C1.B0.A0.BigInt(res[4])
-	c.D0.C1.B0.A1.BigInt(res[5])
-	c.D0.C1.B1.A0.BigInt(res[6])
-	c.D0.C1.B1.A1.BigInt(res[7])
-	c.D0.C2.B0.A0.BigInt(res[8])
-	c.D0.C2.B0.A1.BigInt(res[9])
-	c.D0.C2.B1.A0.BigInt(res[10])
-	c.D0.C2.B1.A1.BigInt(res[11])
-	c.D1.C0.B0.A0.BigInt(res[12])
-	c.D1.C0.B0.A1.BigInt(res[13])
-	c.D1.C0.B1.A0.BigInt(res[14])
-	c.D1.C0.B1.A1.BigInt(res[15])
-	c.D1.C1.B0.A0.BigInt(res[16])
-	c.D1.C1.B0.A1.BigInt(res[17])
-	c.D1.C1.B1.A0.BigInt(res[18])
-	c.D1.C1.B1.A1.BigInt(res[19])
-	c.D1.C2.B0.A0.BigInt(res[20])
-	c.D1.C2.B0.A1.BigInt(res[21])
-	c.D1.C2.B1.A0.BigInt(res[22])
-	c.D1.C2.B1.A1.BigInt(res[23])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DivE24Hint)
-}
-
 // DivUnchecked e24 elmts
 func (e *E24) DivUnchecked(api frontend.API, e1, e2 E24) *E24 {
 
-	res, err := api.NewHint(DivE24Hint, 24, e1.D0.C0.B0.A0, e1.D0.C0.B0.A1, e1.D0.C0.B1.A0, e1.D0.C0.B1.A1, e1.D0.C1.B0.A0, e1.D0.C1.B0.A1, e1.D0.C1.B1.A0, e1.D0.C1.B1.A1, e1.D0.C2.B0.A0, e1.D0.C2.B0.A1, e1.D0.C2.B1.A0, e1.D0.C2.B1.A1, e1.D1.C0.B0.A0, e1.D1.C0.B0.A1, e1.D1.C0.B1.A0, e1.D1.C0.B1.A1, e1.D1.C1.B0.A0, e1.D1.C1.B0.A1, e1.D1.C1.B1.A0, e1.D1.C1.B1.A1, e1.D1.C2.B0.A0, e1.D1.C2.B0.A1, e1.D1.C2.B1.A0, e1.D1.C2.B1.A1, e2.D0.C0.B0.A0, e2.D0.C0.B0.A1, e2.D0.C0.B1.A0, e2.D0.C0.B1.A1, e2.D0.C1.B0.A0, e2.D0.C1.B0.A1, e2.D0.C1.B1.A0, e2.D0.C1.B1.A1, e2.D0.C2.B0.A0, e2.D0.C2.B0.A1, e2.D0.C2.B1.A0, e2.D0.C2.B1.A1, e2.D1.C0.B0.A0, e2.D1.C0.B0.A1, e2.D1.C0.B1.A0, e2.D1.C0.B1.A1, e2.D1.C1.B0.A0, e2.D1.C1.B0.A1, e2.D1.C1.B1.A0, e2.D1.C1.B1.A1, e2.D1.C2.B0.A0, e2.D1.C2.B0.A1, e2.D1.C2.B1.A0, e2.D1.C2.B1.A1)
+	res, err := api.NewHint(divE24Hint, 24, e1.D0.C0.B0.A0, e1.D0.C0.B0.A1, e1.D0.C0.B1.A0, e1.D0.C0.B1.A1, e1.D0.C1.B0.A0, e1.D0.C1.B0.A1, e1.D0.C1.B1.A0, e1.D0.C1.B1.A1, e1.D0.C2.B0.A0, e1.D0.C2.B0.A1, e1.D0.C2.B1.A0, e1.D0.C2.B1.A1, e1.D1.C0.B0.A0, e1.D1.C0.B0.A1, e1.D1.C0.B1.A0, e1.D1.C0.B1.A1, e1.D1.C1.B0.A0, e1.D1.C1.B0.A1, e1.D1.C1.B1.A0, e1.D1.C1.B1.A1, e1.D1.C2.B0.A0, e1.D1.C2.B0.A1, e1.D1.C2.B1.A0, e1.D1.C2.B1.A1, e2.D0.C0.B0.A0, e2.D0.C0.B0.A1, e2.D0.C0.B1.A0, e2.D0.C0.B1.A1, e2.D0.C1.B0.A0, e2.D0.C1.B0.A1, e2.D0.C1.B1.A0, e2.D0.C1.B1.A1, e2.D0.C2.B0.A0, e2.D0.C2.B0.A1, e2.D0.C2.B1.A0, e2.D0.C2.B1.A1, e2.D1.C0.B0.A0, e2.D1.C0.B0.A1, e2.D1.C0.B1.A0, e2.D1.C0.B1.A1, e2.D1.C1.B0.A0, e2.D1.C1.B0.A1, e2.D1.C1.B1.A0, e2.D1.C1.B1.A1, e2.D1.C2.B0.A0, e2.D1.C2.B0.A1, e2.D1.C2.B1.A0, e2.D1.C2.B1.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -534,10 +399,10 @@ func (e *E24) DivUnchecked(api frontend.API, e1, e2 E24) *E24 {
 	return e
 }
 
-// nSquareCompressed repeated compressed cyclotmic square
-func (e *E24) nSquareCompressed(api frontend.API, n int) {
+// nSquareKarabina2345 repeated compressed cyclotmic square
+func (e *E24) nSquareKarabina2345(api frontend.API, n int) {
 	for i := 0; i < n; i++ {
-		e.CyclotomicSquareCompressed(api, *e)
+		e.CyclotomicSquareKarabina2345(api, *e)
 	}
 }
 

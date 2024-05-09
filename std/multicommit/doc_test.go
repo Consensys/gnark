@@ -61,44 +61,27 @@ func ExampleWithCommitment() {
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("compiled")
 	}
 	pk, vk, err := groth16.Setup(ccs)
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("setup done")
 	}
 	secretWitness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("secret witness")
 	}
 	publicWitness, err := secretWitness.Public()
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("public witness")
 	}
 	proof, err := groth16.Prove(ccs, pk, secretWitness)
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("proof")
 	}
 	err = groth16.Verify(proof, vk, publicWitness)
 	if err != nil {
 		panic(err)
-	} else {
-		fmt.Println("verify")
 	}
-	// Output:
-	// compiled
-	// setup done
-	// secret witness
-	// public witness
-	// proof
-	// verify
+	fmt.Println("done")
+	// Output: done
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/consensys/gnark/internal/utils"
 )
 
+// TODO use gnark-crypto for this op
 func lagrangeCoeffsG1(powers []curve.G1Affine, size int) []curve.G1Affine {
 	coeffs := make([]curve.G1Affine, size)
 	copy(coeffs, powers[:size])
@@ -35,7 +36,8 @@ func lagrangeCoeffsG1(powers []curve.G1Affine, size int) []curve.G1Affine {
 	numCPU := uint64(runtime.NumCPU())
 	maxSplits := bits.TrailingZeros64(ecc.NextPowerOfTwo(numCPU))
 
-	difFFTG1(coeffs, domain.TwiddlesInv, 0, maxSplits, nil)
+	twiddlesInv, _ := domain.TwiddlesInv()
+	difFFTG1(coeffs, twiddlesInv, 0, maxSplits, nil)
 	bitReverse(coeffs)
 
 	var invBigint big.Int
@@ -49,6 +51,7 @@ func lagrangeCoeffsG1(powers []curve.G1Affine, size int) []curve.G1Affine {
 	return coeffs
 }
 
+// TODO use gnark-crypto for this op
 func lagrangeCoeffsG2(powers []curve.G2Affine, size int) []curve.G2Affine {
 	coeffs := make([]curve.G2Affine, size)
 	copy(coeffs, powers[:size])
@@ -56,7 +59,8 @@ func lagrangeCoeffsG2(powers []curve.G2Affine, size int) []curve.G2Affine {
 	numCPU := uint64(runtime.NumCPU())
 	maxSplits := bits.TrailingZeros64(ecc.NextPowerOfTwo(numCPU))
 
-	difFFTG2(coeffs, domain.TwiddlesInv, 0, maxSplits, nil)
+	twiddlesInv, _ := domain.TwiddlesInv()
+	difFFTG2(coeffs, twiddlesInv, 0, maxSplits, nil)
 	bitReverse(coeffs)
 
 	var invBigint big.Int

@@ -17,11 +17,8 @@ limitations under the License.
 package fields_bls12377
 
 import (
-	"math/big"
-
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -53,6 +50,14 @@ func (e *E6) assign(e1 []frontend.Variable) {
 	e.B1.A1 = e1[3]
 	e.B2.A0 = e1[4]
 	e.B2.A1 = e1[5]
+}
+
+// Double e6 elmt
+func (e *E6) Double(api frontend.API, e1 E6) *E6 {
+	e.B0.Double(api, e1.B0)
+	e.B1.Double(api, e1.B1)
+	e.B2.Double(api, e1.B2)
+	return e
 }
 
 // Add creates a fp6elmt from fp elmts
@@ -104,16 +109,26 @@ func (e *E6) Mul(api frontend.API, e1, e2 E6) *E6 {
 
 	c0.Add(api, e1.B1, e1.B2)
 	tmp.Add(api, e2.B1, e2.B2)
-	c0.Mul(api, c0, tmp).Sub(api, c0, t1).Sub(api, c0, t2).MulByNonResidue(api, c0).Add(api, c0, t0)
+	c0.Mul(api, c0, tmp).
+		Sub(api, c0, t1).
+		Sub(api, c0, t2).
+		MulByNonResidue(api, c0).
+		Add(api, c0, t0)
 
 	c1.Add(api, e1.B0, e1.B1)
 	tmp.Add(api, e2.B0, e2.B1)
-	c1.Mul(api, c1, tmp).Sub(api, c1, t0).Sub(api, c1, t1)
+	c1.Mul(api, c1, tmp).
+		Sub(api, c1, t0).
+		Sub(api, c1, t1)
 	tmp.MulByNonResidue(api, t2)
 	c1.Add(api, c1, tmp)
 
 	tmp.Add(api, e1.B0, e1.B2)
-	c2.Add(api, e2.B0, e2.B2).Mul(api, c2, tmp).Sub(api, c2, t0).Sub(api, c2, t2).Add(api, c2, t1)
+	c2.Add(api, e2.B0, e2.B2).
+		Mul(api, c2, tmp).
+		Sub(api, c2, t0).
+		Sub(api, c2, t2).
+		Add(api, c2, t1)
 
 	e.B0 = c0
 	e.B1 = c1
@@ -184,43 +199,10 @@ func (e *E6) Square(api frontend.API, x E6) *E6 {
 	return e
 }
 
-var DivE6Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, b, c bls12377.E6
-
-	a.B0.A0.SetBigInt(inputs[0])
-	a.B0.A1.SetBigInt(inputs[1])
-	a.B1.A0.SetBigInt(inputs[2])
-	a.B1.A1.SetBigInt(inputs[3])
-	a.B2.A0.SetBigInt(inputs[4])
-	a.B2.A1.SetBigInt(inputs[5])
-
-	b.B0.A0.SetBigInt(inputs[6])
-	b.B0.A1.SetBigInt(inputs[7])
-	b.B1.A0.SetBigInt(inputs[8])
-	b.B1.A1.SetBigInt(inputs[9])
-	b.B2.A0.SetBigInt(inputs[10])
-	b.B2.A1.SetBigInt(inputs[11])
-
-	c.Inverse(&b).Mul(&c, &a)
-
-	c.B0.A0.BigInt(res[0])
-	c.B0.A1.BigInt(res[1])
-	c.B1.A0.BigInt(res[2])
-	c.B1.A1.BigInt(res[3])
-	c.B2.A0.BigInt(res[4])
-	c.B2.A1.BigInt(res[5])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DivE6Hint)
-}
-
 // DivUnchecked e6 elmts
 func (e *E6) DivUnchecked(api frontend.API, e1, e2 E6) *E6 {
 
-	res, err := api.NewHint(DivE6Hint, 6, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e1.B2.A0, e1.B2.A1, e2.B0.A0, e2.B0.A1, e2.B1.A0, e2.B1.A1, e2.B2.A0, e2.B2.A1)
+	res, err := api.NewHint(divE6Hint, 6, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e1.B2.A0, e1.B2.A1, e2.B0.A0, e2.B0.A1, e2.B1.A0, e2.B1.A1, e2.B2.A0, e2.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -239,36 +221,10 @@ func (e *E6) DivUnchecked(api frontend.API, e1, e2 E6) *E6 {
 	return e
 }
 
-var InverseE6Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, c bls12377.E6
-
-	a.B0.A0.SetBigInt(inputs[0])
-	a.B0.A1.SetBigInt(inputs[1])
-	a.B1.A0.SetBigInt(inputs[2])
-	a.B1.A1.SetBigInt(inputs[3])
-	a.B2.A0.SetBigInt(inputs[4])
-	a.B2.A1.SetBigInt(inputs[5])
-
-	c.Inverse(&a)
-
-	c.B0.A0.BigInt(res[0])
-	c.B0.A1.BigInt(res[1])
-	c.B1.A0.BigInt(res[2])
-	c.B1.A1.BigInt(res[3])
-	c.B2.A0.BigInt(res[4])
-	c.B2.A1.BigInt(res[5])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(InverseE6Hint)
-}
-
 // Inverse e6 elmts
 func (e *E6) Inverse(api frontend.API, e1 E6) *E6 {
 
-	res, err := api.NewHint(InverseE6Hint, 6, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e1.B2.A0, e1.B2.A1)
+	res, err := api.NewHint(inverseE6Hint, 6, e1.B0.A0, e1.B0.A1, e1.B1.A0, e1.B1.A1, e1.B2.A0, e1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -323,9 +279,10 @@ func (e *E6) MulBy01(api frontend.API, c0, c1 E2) *E6 {
 	t0.MulByNonResidue(api, t0)
 	t0.Add(api, t0, a)
 
-	tmp.Add(api, e.B0, e.B2)
-	t2.Mul(api, c0, tmp)
-	t2.Sub(api, t2, a)
+	// for t2, schoolbook is faster than karatsuba
+	// c2 = a0b2 + a1b1 + a2b0,
+	// c2 = a2b0 + b ∵ b2 = 0, b = a1b1
+	t2.Mul(api, e.B2, c0)
 	t2.Add(api, t2, b)
 
 	t1.Add(api, c0, c1)
@@ -342,17 +299,10 @@ func (e *E6) MulBy01(api frontend.API, c0, c1 E2) *E6 {
 }
 
 func Mul01By01(api frontend.API, c0, c1, d0, d1 E2) *E6 {
-	var a, b, t0, t1, t2, tmp E2
+	var a, b, t1, tmp E2
 
 	a.Mul(api, d0, c0)
 	b.Mul(api, d1, c1)
-	t0.Mul(api, c1, d1)
-	t0.Sub(api, t0, b)
-	t0.MulByNonResidue(api, t0)
-	t0.Add(api, t0, a)
-	t2.Mul(api, c0, d0)
-	t2.Sub(api, t2, a)
-	t2.Add(api, t2, b)
 	t1.Add(api, c0, c1)
 	tmp.Add(api, d0, d1)
 	t1.Mul(api, t1, tmp)
@@ -360,8 +310,18 @@ func Mul01By01(api frontend.API, c0, c1, d0, d1 E2) *E6 {
 	t1.Sub(api, t1, b)
 
 	return &E6{
-		B0: t0,
+		B0: a,
 		B1: t1,
-		B2: t2,
+		B2: b,
 	}
+}
+
+// Select sets e to r1 if b=1, r2 otherwise
+func (e *E6) Select(api frontend.API, b frontend.Variable, r1, r2 E6) *E6 {
+
+	e.B0.Select(api, b, r1.B0, r2.B0)
+	e.B1.Select(api, b, r1.B1, r2.B1)
+	e.B2.Select(api, b, r1.B2, r2.B2)
+
+	return e
 }

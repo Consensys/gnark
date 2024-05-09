@@ -122,6 +122,42 @@ func TestMulFp6(t *testing.T) {
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
+type fp6MulBy01 struct {
+	A      E6
+	C0, C1 E2
+	C      E6 `gnark:",public"`
+}
+
+func (circuit *fp6MulBy01) Define(api frontend.API) error {
+	expected := circuit.A
+	expected.MulBy01(api, circuit.C0, circuit.C1)
+	expected.AssertIsEqual(api, circuit.C)
+
+	return nil
+}
+
+func TestMulFp6By01(t *testing.T) {
+
+	var circuit, witness fp6MulBy01
+	// witness values
+	var a, c bls12377.E6
+	var C0, C1 bls12377.E2
+	_, _ = a.SetRandom()
+	_, _ = C0.SetRandom()
+	_, _ = C1.SetRandom()
+	c.Set(&a)
+	c.MulBy01(&C0, &C1)
+
+	witness.A.Assign(&a)
+	witness.C0.Assign(&C0)
+	witness.C1.Assign(&C1)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+
+}
+
 type fp6MulByNonResidue struct {
 	A E6
 	C E6 `gnark:",public"`
@@ -213,55 +249,4 @@ func TestDivFp6(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	assert.SolvingSucceeded(&e6Div{}, &witness, test.WithCurves(ecc.BW6_761))
-}
-
-func TestMulByFp2Fp6(t *testing.T) {
-	// TODO fixme
-	t.Skip("missing e6.MulByE2")
-	// var circuit, witness XXXX
-	// r1cs, err := compiler.Compile(ecc.BW6_761, backend.GROTH16, &circuit)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// ext := getBLS377ExtensionFp6(&gnark)
-
-	// // witness values
-	// var a, c bls12377.E6
-	// var b bls12377.E2
-	// a.SetRandom()
-	// b.SetRandom()
-
-	// // TODO c.MulByE2(&a, &b)
-
-	// // cs values
-	// fp6a := newOperandFp6(&cs, "a")
-	// fp2b := newOperandFp2(&cs, "b")
-	// fp6c := NewFp6Elmt(&cs, nil, nil, nil, nil, nil, nil)
-	// fp6c.MulByFp2(&cs, &fp6a, &fp2b)
-	// tagFp6Elmt(&cs, fp6c, "c")
-
-	// // assign the inputs
-	// inputs := make(map[string]interface{})
-	// assignOperandFp6(inputs, "a", a)
-	// assignOperandFp2(inputs, "b", b)
-
-	// // assign the exepcted values
-	// expectedValues := make(map[string]*fp.Element)
-	// getExpectedValuesFp6(expectedValues, "c", c)
-
-	// r1cs := api.ToR1CS().ToR1CS(ecc.BW6_761)
-
-	// // inspect and compare the results
-	// res, err := r1cs.Inspect(inputs, false)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// for k, v := range res {
-	// 	var _v fp.Element
-	// 	_v.SetInterface(v)
-	// 	if !expectedValues[k].Equal(&_v) {
-	// 		t.Fatal("error MulByFp2Fp6")
-	// 	}
-	// }
 }

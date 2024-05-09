@@ -70,7 +70,7 @@ func Mul034By034(api frontend.API, d3, d4, c3, c4 E4) *[5]E4 {
 
 // Expt compute e1**exponent, where the exponent is hardcoded
 // This function is only used for the final expo of the pairing for bls24315, so the exponent is supposed to be hardcoded and on 32 bits.
-func (e *E24) Expt(api frontend.API, x E24, exponent uint64) *E24 {
+func (e *E24) Expt(api frontend.API, x E24) *E24 {
 
 	xInv := E24{}
 	res := x
@@ -78,13 +78,13 @@ func (e *E24) Expt(api frontend.API, x E24, exponent uint64) *E24 {
 
 	res.nSquare(api, 2)
 	res.Mul(api, res, xInv)
-	res.nSquareCompressed(api, 8)
-	res.Decompress(api, res)
+	res.nSquareKarabina2345(api, 8)
+	res.DecompressKarabina2345(api, res)
 	res.Mul(api, res, xInv)
 	res.nSquare(api, 2)
 	res.Mul(api, res, x)
-	res.nSquareCompressed(api, 20)
-	res.Decompress(api, res)
+	res.nSquareKarabina2345(api, 20)
+	res.DecompressKarabina2345(api, res)
 	res.Mul(api, res, xInv)
 	res.Conjugate(api, res)
 

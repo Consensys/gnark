@@ -2,16 +2,16 @@ package gkr
 
 import (
 	"fmt"
-	"github.com/consensys/gnark-crypto/kzg"
-	"github.com/consensys/gnark/backend/plonk"
-	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
-	"github.com/consensys/gnark/test"
-	"github.com/stretchr/testify/require"
 	"hash"
 	"math/rand"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/consensys/gnark-crypto/kzg"
+	"github.com/consensys/gnark/backend/plonk"
+	bn254r1cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/stretchr/testify/require"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -26,6 +26,7 @@ import (
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
 	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // compressThreshold --> if linear expressions are larger than this, the frontend will introduce
@@ -370,7 +371,7 @@ func (c *benchMiMCMerkleTreeCircuit) Define(api frontend.API) error {
 	}
 	Z := solution.Export(z)
 
-	challenge, err := api.Compiler().(frontend.Committer).Commit(Z...)
+	challenge, err := api.(frontend.Committer).Commit(Z...)
 	if err != nil {
 		return err
 	}
@@ -415,9 +416,9 @@ func testPlonk(t *testing.T, circuit, assignment frontend.Circuit) {
 	require.NoError(t, err)
 	publicWitness, err = fullWitness.Public()
 	require.NoError(t, err)
-	kzgSrs, err = test.NewKZGSRS(cs)
+	kzgSrs, srsLagrange, err := unsafekzg.NewSRS(cs)
 	require.NoError(t, err)
-	pk, vk, err = plonk.Setup(cs, kzgSrs)
+	pk, vk, err = plonk.Setup(cs, kzgSrs, srsLagrange)
 	require.NoError(t, err)
 	proof, err = plonk.Prove(cs, pk, fullWitness)
 	require.NoError(t, err)
@@ -426,21 +427,23 @@ func testPlonk(t *testing.T, circuit, assignment frontend.Circuit) {
 }
 
 func registerMiMC() {
-	bn254r1cs.HashBuilderRegistry["mimc"] = bn254MiMC.NewMiMC
-	stdHash.BuilderRegistry["mimc"] = func(api frontend.API) (stdHash.FieldHasher, error) {
+	bn254r1cs.RegisterHashBuilder("mimc", func() hash.Hash {
+		return bn254MiMC.NewMiMC()
+	})
+	stdHash.Register("mimc", func(api frontend.API) (stdHash.FieldHasher, error) {
 		m, err := mimc.NewMiMC(api)
 		return &m, err
-	}
+	})
 }
 
 func registerConstant(c int) {
 	name := strconv.Itoa(c)
-	bn254r1cs.HashBuilderRegistry[name] = func() hash.Hash {
+	bn254r1cs.RegisterHashBuilder(name, func() hash.Hash {
 		return constHashBn254(c)
-	}
-	stdHash.BuilderRegistry[name] = func(frontend.API) (stdHash.FieldHasher, error) {
+	})
+	stdHash.Register(name, func(frontend.API) (stdHash.FieldHasher, error) {
 		return constHash(c), nil
-	}
+	})
 }
 
 func init() {
@@ -559,6 +562,7 @@ type mimcNoDepCircuit struct {
 	X         []frontend.Variable
 	Y         []frontend.Variable
 	mimcDepth int
+	hashName  string
 }
 
 func (c *mimcNoDepCircuit) Define(api frontend.API) error {
@@ -591,10 +595,10 @@ func (c *mimcNoDepCircuit) Define(api frontend.API) error {
 		return err
 	}
 	Z := solution.Export(z)
-	return solution.Verify("-20", Z...)
+	return solution.Verify(c.hashName, Z...)
 }
 
-func mimcNoDepCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend.Circuit) {
+func mimcNoDepCircuits(mimcDepth, nbInstances int, hashName string) (circuit, assignment frontend.Circuit) {
 	X := make([]frontend.Variable, nbInstances)
 	Y := make([]frontend.Variable, nbInstances)
 	for i := range X {
@@ -609,23 +613,24 @@ func mimcNoDepCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend
 		X:         make([]frontend.Variable, nbInstances),
 		Y:         make([]frontend.Variable, nbInstances),
 		mimcDepth: mimcDepth,
+		hashName:  hashName,
 	}
 	return
 }
 
 func BenchmarkMiMCNoDepSolve(b *testing.B) {
 	//defer profile.Start().Stop()
-	circuit, assignment := mimcNoDepCircuits(1, 1<<9)
+	circuit, assignment := mimcNoDepCircuits(1, 1<<9, "-20")
 	benchProof(b, circuit, assignment)
 }
 
 func BenchmarkMiMCFullDepthNoDepSolve(b *testing.B) {
-	circuit, assignment := mimcNoDepCircuits(91, 1<<19)
+	circuit, assignment := mimcNoDepCircuits(91, 1<<19, "-20")
 	benchProof(b, circuit, assignment)
 }
 
 func BenchmarkMiMCFullDepthNoDepCompile(b *testing.B) {
-	circuit, _ := mimcNoDepCircuits(91, 1<<17)
+	circuit, _ := mimcNoDepCircuits(91, 1<<17, "-20")
 	benchCompile(b, circuit)
 }
 
@@ -637,10 +642,17 @@ func BenchmarkMiMCNoGkrFullDepthSolve(b *testing.B) {
 func TestMiMCFullDepthNoDepSolve(t *testing.T) {
 	registerMiMC()
 	for i := 0; i < 100; i++ {
-		circuit, assignment := mimcNoDepCircuits(5, 1<<2)
+		circuit, assignment := mimcNoDepCircuits(5, 1<<2, "-20")
 		testGroth16(t, circuit, assignment)
 		testPlonk(t, circuit, assignment)
 	}
+}
+
+func TestMiMCFullDepthNoDepSolveWithMiMCHash(t *testing.T) {
+	registerMiMC()
+	circuit, assignment := mimcNoDepCircuits(5, 1<<2, "mimc")
+	testGroth16(t, circuit, assignment)
+	testPlonk(t, circuit, assignment)
 }
 
 func mimcNoGkrCircuits(mimcDepth, nbInstances int) (circuit, assignment frontend.Circuit) {

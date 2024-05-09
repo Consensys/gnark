@@ -20,7 +20,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/backend/circuits"
 	"github.com/consensys/gnark/test"
@@ -56,11 +55,6 @@ func TestIntegrationAPI(t *testing.T) {
 			// add all invalid assignments
 			for i := range tData.InvalidAssignments {
 				opts = append(opts, test.WithInvalidAssignment(tData.InvalidAssignments[i]))
-			}
-
-			// for "mul" only we test with PLONKFRI
-			if name == "mul" {
-				opts = append(opts, test.WithBackends(backend.PLONK, backend.GROTH16, backend.PLONKFRI))
 			}
 
 			if name == "multi-output-hint" {

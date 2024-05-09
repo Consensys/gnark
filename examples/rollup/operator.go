@@ -35,7 +35,7 @@ type Queue struct {
 	listTransfers chan Transfer
 }
 
-// NewQueue creates a new queue, BatchSizeCircuit is the capaciy
+// NewQueue creates a new queue, BatchSizeCircuit is the capacity
 func NewQueue(BatchSizeCircuit int) Queue {
 	resChan := make(chan Transfer, BatchSizeCircuit)
 	var res Queue
@@ -52,7 +52,7 @@ type Operator struct {
 	h          hash.Hash         // hash function used to build the Merkle Tree
 	q          Queue             // queue of transfers
 	batch      int               // current number of transactions in a batch
-	witnesses  Circuit           // witnesses for the snark cicruit
+	witnesses  Circuit           // witnesses for the snark circuit
 }
 
 // NewOperator creates a new operator.

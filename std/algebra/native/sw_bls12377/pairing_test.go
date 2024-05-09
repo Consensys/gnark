@@ -17,6 +17,7 @@ limitations under the License.
 package sw_bls12377
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -30,13 +31,13 @@ import (
 
 type finalExp struct {
 	ML fields_bls12377.E12
-	R  bls12377.GT
+	R  GT
 }
 
 func (circuit *finalExp) Define(api frontend.API) error {
 
 	finalExpRes := FinalExponentiation(api, circuit.ML)
-	mustbeEq(api, finalExpRes, &circuit.R)
+	finalExpRes.AssertIsEqual(api, circuit.R)
 
 	return nil
 }
@@ -47,25 +48,27 @@ func TestFinalExp(t *testing.T) {
 	_, _, milRes, pairingRes := pairingData()
 
 	// create cs
-	var circuit, witness finalExp
-	witness.ML.Assign(&milRes)
-	circuit.R = pairingRes
+	witness := finalExp{
+		ML: NewGTEl(milRes),
+		R:  NewGTEl(pairingRes),
+	}
 
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&finalExp{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
 type pairingBLS377 struct {
-	P          G1Affine `gnark:",public"`
-	Q          G2Affine
-	pairingRes bls12377.GT
+	P   G1Affine
+	Q   G2Affine
+	Res GT
 }
 
 func (circuit *pairingBLS377) Define(api frontend.API) error {
-
+	pr := NewPairing(api)
+	pr.AssertIsOnG1(&circuit.P)
+	pr.AssertIsOnG2(&circuit.Q)
 	pairingRes, _ := Pair(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
-
-	mustbeEq(api, pairingRes, &circuit.pairingRes)
+	pairingRes.AssertIsEqual(api, circuit.Res)
 
 	return nil
 }
@@ -75,30 +78,27 @@ func TestPairingBLS377(t *testing.T) {
 	// pairing test data
 	P, Q, _, pairingRes := pairingData()
 
-	// create cs
-	var circuit, witness pairingBLS377
-	circuit.pairingRes = pairingRes
-
 	// assign values to witness
-	witness.P.Assign(&P)
-	witness.Q.Assign(&Q)
-
+	witness := pairingBLS377{
+		P:   NewG1Affine(P),
+		Q:   NewG2Affine(Q),
+		Res: NewGTEl(pairingRes),
+	}
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&pairingBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 
 }
 
 type triplePairingBLS377 struct {
-	P1, P2, P3 G1Affine `gnark:",public"`
+	P1, P2, P3 G1Affine
 	Q1, Q2, Q3 G2Affine
-	pairingRes bls12377.GT
+	Res        GT
 }
 
 func (circuit *triplePairingBLS377) Define(api frontend.API) error {
 
 	pairingRes, _ := Pair(api, []G1Affine{circuit.P1, circuit.P2, circuit.P3}, []G2Affine{circuit.Q1, circuit.Q2, circuit.Q3})
-
-	mustbeEq(api, pairingRes, &circuit.pairingRes)
+	pairingRes.AssertIsEqual(api, circuit.Res)
 
 	return nil
 }
@@ -108,33 +108,30 @@ func TestTriplePairingBLS377(t *testing.T) {
 	// pairing test data
 	P, Q, pairingRes := triplePairingData()
 
-	// create cs
-	var circuit, witness triplePairingBLS377
-	circuit.pairingRes = pairingRes
-
-	// assign values to witness
-	witness.P1.Assign(&P[0])
-	witness.P2.Assign(&P[1])
-	witness.P3.Assign(&P[2])
-	witness.Q1.Assign(&Q[0])
-	witness.Q2.Assign(&Q[1])
-	witness.Q3.Assign(&Q[2])
-
+	witness := triplePairingBLS377{
+		P1:  NewG1Affine(P[0]),
+		P2:  NewG1Affine(P[1]),
+		P3:  NewG1Affine(P[2]),
+		Q1:  NewG2Affine(Q[0]),
+		Q2:  NewG2Affine(Q[1]),
+		Q3:  NewG2Affine(Q[2]),
+		Res: NewGTEl(pairingRes),
+	}
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+	assert.CheckCircuit(&triplePairingBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
 
 }
 
 type pairingFixedBLS377 struct {
-	P          G1Affine `gnark:",public"`
-	pairingRes bls12377.GT
+	P   G1Affine
+	Q   G2Affine
+	Res GT
 }
 
 func (circuit *pairingFixedBLS377) Define(api frontend.API) error {
 
-	pairingRes, _ := PairFixedQ(api, circuit.P)
-
-	mustbeEq(api, pairingRes, &circuit.pairingRes)
+	pairingRes, _ := Pair(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
+	pairingRes.AssertIsEqual(api, circuit.Res)
 
 	return nil
 }
@@ -142,18 +139,107 @@ func (circuit *pairingFixedBLS377) Define(api frontend.API) error {
 func TestPairingFixedBLS377(t *testing.T) {
 
 	// pairing test data
-	P, _, _, pairingRes := pairingData()
+	P, Q, _, pairingRes := pairingData()
 
-	// create cs
-	var circuit, witness pairingFixedBLS377
-	circuit.pairingRes = pairingRes
+	witness := pairingBLS377{
+		P:   NewG1Affine(P),
+		Q:   NewG2AffineFixed(Q),
+		Res: NewGTEl(pairingRes),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&pairingFixedBLS377{Q: NewG2AffineFixedPlaceholder()}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+
+}
+
+type doublePairingFixedBLS377 struct {
+	P0  G1Affine
+	P1  G1Affine
+	Q0  G2Affine
+	Q1  G2Affine
+	Res GT
+}
+
+func (circuit *doublePairingFixedBLS377) Define(api frontend.API) error {
+
+	pairingRes, _ := Pair(api, []G1Affine{circuit.P0, circuit.P1}, []G2Affine{circuit.Q0, circuit.Q1})
+	pairingRes.AssertIsEqual(api, circuit.Res)
+
+	return nil
+}
+
+func TestDoublePairingFixedBLS377(t *testing.T) {
+
+	// pairing test data
+	P, Q, _, pairingRes := doublePairingFixedQData()
+
+	witness := doublePairingFixedBLS377{
+		P0:  NewG1Affine(P[0]),
+		P1:  NewG1Affine(P[1]),
+		Q0:  NewG2AffineFixed(Q[0]),
+		Q1:  NewG2AffineFixed(Q[1]),
+		Res: NewGTEl(pairingRes),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&doublePairingFixedBLS377{Q0: NewG2AffineFixedPlaceholder(), Q1: NewG2AffineFixedPlaceholder()}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+
+}
+
+type pairingCheckBLS377 struct {
+	P1, P2 G1Affine
+	Q1, Q2 G2Affine
+}
+
+func (circuit *pairingCheckBLS377) Define(api frontend.API) error {
+
+	err := PairingCheck(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
+
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+
+	return nil
+}
+
+func TestPairingCheckBLS377(t *testing.T) {
+
+	// pairing test data
+	P, Q := pairingCheckData()
+	witness := pairingCheckBLS377{
+		P1: NewG1Affine(P[0]),
+		P2: NewG1Affine(P[1]),
+		Q1: NewG2Affine(Q[0]),
+		Q2: NewG2Affine(Q[1]),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&pairingCheckBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
+
+}
+
+type groupMembership struct {
+	P G1Affine
+	Q G2Affine
+}
+
+func (circuit *groupMembership) Define(api frontend.API) error {
+	pr := NewPairing(api)
+	pr.AssertIsOnG1(&circuit.P)
+	pr.AssertIsOnG2(&circuit.Q)
+
+	return nil
+}
+
+func TestGroupMembership(t *testing.T) {
+
+	// pairing test data
+	P, Q, _, _ := pairingData()
 
 	// assign values to witness
-	witness.P.Assign(&P)
-
+	witness := groupMembership{
+		P: NewG1Affine(P),
+		Q: NewG2Affine(Q),
+	}
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
-
+	assert.CheckCircuit(&groupMembership{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
 // utils
@@ -161,6 +247,14 @@ func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes
 	_, _, P, Q = bls12377.Generators()
 	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})
 	pairingRes = bls12377.FinalExponentiation(&milRes)
+	return
+}
+
+func pairingCheckData() (P [2]bls12377.G1Affine, Q [2]bls12377.G2Affine) {
+	_, _, P[0], Q[0] = bls12377.Generators()
+	P[1].Neg(&P[0])
+	Q[1].Set(&Q[0])
+
 	return
 }
 
@@ -182,17 +276,17 @@ func triplePairingData() (P [3]bls12377.G1Affine, Q [3]bls12377.G2Affine, pairin
 	return
 }
 
-func mustbeEq(api frontend.API, fp12 fields_bls12377.E12, e12 *bls12377.GT) {
-	api.AssertIsEqual(fp12.C0.B0.A0, e12.C0.B0.A0)
-	api.AssertIsEqual(fp12.C0.B0.A1, e12.C0.B0.A1)
-	api.AssertIsEqual(fp12.C0.B1.A0, e12.C0.B1.A0)
-	api.AssertIsEqual(fp12.C0.B1.A1, e12.C0.B1.A1)
-	api.AssertIsEqual(fp12.C0.B2.A0, e12.C0.B2.A0)
-	api.AssertIsEqual(fp12.C0.B2.A1, e12.C0.B2.A1)
-	api.AssertIsEqual(fp12.C1.B0.A0, e12.C1.B0.A0)
-	api.AssertIsEqual(fp12.C1.B0.A1, e12.C1.B0.A1)
-	api.AssertIsEqual(fp12.C1.B1.A0, e12.C1.B1.A0)
-	api.AssertIsEqual(fp12.C1.B1.A1, e12.C1.B1.A1)
-	api.AssertIsEqual(fp12.C1.B2.A0, e12.C1.B2.A0)
-	api.AssertIsEqual(fp12.C1.B2.A1, e12.C1.B2.A1)
+func doublePairingFixedQData() (P [2]bls12377.G1Affine, Q [2]bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
+	_, _, P[0], Q[0] = bls12377.Generators()
+	var u, v fr.Element
+	var _u, _v big.Int
+	_, _ = u.SetRandom()
+	_, _ = v.SetRandom()
+	u.BigInt(&_u)
+	v.BigInt(&_v)
+	P[1].ScalarMultiplication(&P[0], &_u)
+	Q[1].ScalarMultiplication(&Q[0], &_v)
+	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P[0], P[1]}, []bls12377.G2Affine{Q[0], Q[1]})
+	pairingRes = bls12377.FinalExponentiation(&milRes)
+	return
 }

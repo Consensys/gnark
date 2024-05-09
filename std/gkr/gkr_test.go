@@ -485,7 +485,9 @@ func (c *constHashCircuit) Define(api frontend.API) error {
 	hsh := NewMessageCounter(api, 0, 0)
 	hsh.Reset()
 	hsh.Write(c.X)
-	api.AssertIsEqual(hsh.Sum(), 0)
+	sum := hsh.Sum()
+	api.AssertIsEqual(sum, 0)
+	api.AssertIsEqual(api.Mul(c.X, c.X), 1) // ensure we have at least 2 constraints
 	return nil
 }
 

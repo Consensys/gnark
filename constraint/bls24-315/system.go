@@ -17,16 +17,13 @@
 package cs
 
 import (
-	"github.com/fxamacker/cbor/v2"
 	"io"
 	"time"
 
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/consensys/gnark/logger"
-	"reflect"
 
 	"github.com/consensys/gnark-crypto/ecc"
 
@@ -43,10 +40,14 @@ type system struct {
 	field
 }
 
+// NewR1CS is a constructor for R1CS. It is meant to be use by gnark frontend only,
+// and should not be used by gnark users. See groth16.NewCS(...) instead.
 func NewR1CS(capacity int) *R1CS {
 	return newSystem(capacity, constraint.SystemR1CS)
 }
 
+// NewSparseR1CS is a constructor for SparseR1CS. It is meant to be use by gnark frontend only,
+// and should not be used by gnark users. See plonk.NewCS(...) instead.
 func NewSparseR1CS(capacity int) *SparseR1CS {
 	return newSystem(capacity, constraint.SystemSparseR1CS)
 }
@@ -72,6 +73,13 @@ func (cs *system) Solve(witness witness.Witness, opts ...csolver.Option) (any, e
 	if err != nil {
 		log.Err(err).Send()
 		return nil, err
+	}
+
+	// reset the stateful blueprints
+	for i := range cs.Blueprints {
+		if b, ok := cs.Blueprints[i].(constraint.BlueprintStateful); ok {
+			b.Reset()
+		}
 	}
 
 	// defer log printing once all solver.values are computed
@@ -138,55 +146,6 @@ func (cs *system) CurveID() ecc.ID {
 	return ecc.BLS24_315
 }
 
-// WriteTo encodes R1CS into provided io.Writer using cbor
-func (cs *system) WriteTo(w io.Writer) (int64, error) {
-	_w := ioutils.WriterCounter{W: w} // wraps writer to count the bytes written
-	ts := getTagSet()
-	enc, err := cbor.CoreDetEncOptions().EncModeWithTags(ts)
-	if err != nil {
-		return 0, err
-	}
-	encoder := enc.NewEncoder(&_w)
-
-	// encode our object
-	err = encoder.Encode(cs)
-	return _w.N, err
-}
-
-// ReadFrom attempts to decode R1CS from io.Reader using cbor
-func (cs *system) ReadFrom(r io.Reader) (int64, error) {
-	ts := getTagSet()
-	dm, err := cbor.DecOptions{
-		MaxArrayElements: 2147483647,
-		MaxMapPairs:      2147483647,
-	}.DecModeWithTags(ts)
-
-	if err != nil {
-		return 0, err
-	}
-	decoder := dm.NewDecoder(r)
-
-	// initialize coeff table
-	cs.CoeffTable = newCoeffTable(0)
-
-	if err := decoder.Decode(&cs); err != nil {
-		return int64(decoder.NumBytesRead()), err
-	}
-
-	if err := cs.CheckSerializationHeader(); err != nil {
-		return int64(decoder.NumBytesRead()), err
-	}
-
-	switch v := cs.CommitmentInfo.(type) {
-	case *constraint.Groth16Commitments:
-		cs.CommitmentInfo = *v
-	case *constraint.PlonkCommitments:
-		cs.CommitmentInfo = *v
-	}
-
-	return int64(decoder.NumBytesRead()), nil
-}
-
 func (cs *system) GetCoefficient(i int) (r constraint.Element) {
 	copy(r[:], cs.Coefficients[i][:])
 	return
@@ -218,9 +177,9 @@ func evaluateLROSmallDomain(cs *system, solution []fr.Element) ([]fr.Element, []
 	s = int(ecc.NextPowerOfTwo(uint64(s)))
 
 	var l, r, o []fr.Element
-	l = make([]fr.Element, s)
-	r = make([]fr.Element, s)
-	o = make([]fr.Element, s)
+	l = make([]fr.Element, s, s+4) // +4 to leave room for the blinding in plonk
+	r = make([]fr.Element, s, s+4)
+	o = make([]fr.Element, s, s+4)
 	s0 := solution[0]
 
 	for i := 0; i < len(cs.Public); i++ { // placeholders
@@ -338,36 +297,6 @@ func (t *SparseR1CSSolution) ReadFrom(r io.Reader) (int64, error) {
 	a, err = t.O.ReadFrom(r)
 	n += a
 	return n, err
-}
-
-func getTagSet() cbor.TagSet {
-	// temporary for refactor
-	ts := cbor.NewTagSet()
-	// https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml
-	// 65536-15309735 Unassigned
-	tagNum := uint64(5309735)
-	addType := func(t reflect.Type) {
-		if err := ts.Add(
-			cbor.TagOptions{EncTag: cbor.EncTagRequired, DecTag: cbor.DecTagRequired},
-			t,
-			tagNum,
-		); err != nil {
-			panic(err)
-		}
-		tagNum++
-	}
-
-	addType(reflect.TypeOf(constraint.BlueprintGenericHint{}))
-	addType(reflect.TypeOf(constraint.BlueprintGenericR1C{}))
-	addType(reflect.TypeOf(constraint.BlueprintGenericSparseR1C{}))
-	addType(reflect.TypeOf(constraint.BlueprintSparseR1CAdd{}))
-	addType(reflect.TypeOf(constraint.BlueprintSparseR1CMul{}))
-	addType(reflect.TypeOf(constraint.BlueprintSparseR1CBool{}))
-	addType(reflect.TypeOf(constraint.BlueprintLookupHint{}))
-	addType(reflect.TypeOf(constraint.Groth16Commitments{}))
-	addType(reflect.TypeOf(constraint.PlonkCommitments{}))
-
-	return ts
 }
 
 func (s *system) AddGkr(gkr constraint.GkrInfo) error {

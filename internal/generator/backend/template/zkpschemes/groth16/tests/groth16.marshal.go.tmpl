@@ -173,9 +173,16 @@ func TestProvingKeySerialization(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			err := io.RoundTripCheck(&pk, func() any {return new(ProvingKey)})
-			return err == nil 
+			if err := io.RoundTripCheck(&pk, func() any {return new(ProvingKey)}); err != nil {
+				t.Log(err)
+				return false
+			}
 
+			if err := io.DumpRoundTripCheck(&pk, func() any {return new(ProvingKey)}); err != nil {
+				t.Log(err)
+				return false
+			}
+			return true
 		},
 		GenG1(),
 		GenG2(),
