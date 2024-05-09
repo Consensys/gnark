@@ -85,8 +85,6 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	// idea - have a mask for blocks where 1 is only for the block we want to
 	// use.
 
-	api := d.api
-
 	data := make([]uints.U8, len(d.in))
 	copy(data, d.in)
 
@@ -99,28 +97,28 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 	lenMod64 := d.mod64(length)
 	lenMod64Less56 := comparator.IsLess(lenMod64, 56)
 
-	paddingCount := api.Sub(64, lenMod64)
-	paddingCount = api.Select(lenMod64Less56, paddingCount, api.Add(paddingCount, 64))
+	paddingCount := d.api.Sub(64, lenMod64)
+	paddingCount = d.api.Select(lenMod64Less56, paddingCount, d.api.Add(paddingCount, 64))
 
-	totalLen := api.Add(length, paddingCount)
-	last8BytesPos := api.Sub(totalLen, 8)
+	totalLen := d.api.Add(length, paddingCount)
+	last8BytesPos := d.api.Sub(totalLen, 8)
 
 	var dataLenBtyes [8]frontend.Variable
-	d.bigEndianPutUint64(dataLenBtyes[:], api.Mul(length, 8))
+	d.bigEndianPutUint64(dataLenBtyes[:], d.api.Mul(length, 8))
 
 	for i := range data {
-		isPaddingStartPos := api.IsZero(api.Sub(i, length))
-		data[i].Val = api.Select(isPaddingStartPos, 0x80, data[i].Val)
+		isPaddingStartPos := d.api.IsZero(d.api.Sub(i, length))
+		data[i].Val = d.api.Select(isPaddingStartPos, 0x80, data[i].Val)
 
 		isPaddingPos := comparator.IsLess(length, i)
-		data[i].Val = api.Select(isPaddingPos, 0, data[i].Val)
+		data[i].Val = d.api.Select(isPaddingPos, 0, data[i].Val)
 	}
 
 	for i := range data {
-		isLast8BytesPos := api.IsZero(api.Sub(i, last8BytesPos))
+		isLast8BytesPos := d.api.IsZero(d.api.Sub(i, last8BytesPos))
 		for j := 0; j < 8; j++ {
 			if i+j < len(data) {
-				data[i+j].Val = api.Select(isLast8BytesPos, dataLenBtyes[j], data[i+j].Val)
+				data[i+j].Val = d.api.Select(isLast8BytesPos, dataLenBtyes[j], data[i+j].Val)
 			}
 		}
 	}
@@ -139,7 +137,7 @@ func (d *digest) FixedLengthSum(length frontend.Variable) []uints.U8 {
 
 		for j := 0; j < 8; j++ {
 			for k := 0; k < 4; k++ {
-				resultDigest[j][k].Val = api.Select(isInRange, runningDigest[j][k].Val, resultDigest[j][k].Val)
+				resultDigest[j][k].Val = d.api.Select(isInRange, runningDigest[j][k].Val, resultDigest[j][k].Val)
 			}
 		}
 	}
