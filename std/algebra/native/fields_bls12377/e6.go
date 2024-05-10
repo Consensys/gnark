@@ -106,14 +106,14 @@ func (e *E6) Mul(api frontend.API, e1, e2 E6) *E6 {
 		case frontendtype.R1CS:
 			return e.mulToom3OverKaratsuba(api, e1, e2)
 		case frontendtype.SCS:
-			return e.mulKaratusbaOverKaratusba(api, e1, e2)
+			return e.mulKaratsubaOverKaratsuba(api, e1, e2)
 		}
 	}
-	return e.mulKaratusbaOverKaratusba(api, e1, e2)
+	return e.mulKaratsubaOverKaratsuba(api, e1, e2)
 }
 
-func (e *E6) mulKaratusbaOverKaratusba(api frontend.API, e1, e2 E6) *E6 {
-	// Karatsuba over Karatusba:
+func (e *E6) mulKaratsubaOverKaratsuba(api frontend.API, e1, e2 E6) *E6 {
+	// Karatsuba over Karatsuba:
 	// Algorithm 13 from https://eprint.iacr.org/2010/354.pdf
 	var t0, t1, t2, c0, c1, c2, tmp E2
 	t0.Mul(api, e1.B0, e2.B0)

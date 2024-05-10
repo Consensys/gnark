@@ -131,8 +131,8 @@ func (circuit *fp6MulVariants) Define(api frontend.API) error {
 	expected1 := E6{}
 	expected2 := E6{}
 
-	expected1.mulKoK(api, circuit.A, circuit.B)
-	expected2.mulT3oK(api, circuit.A, circuit.B)
+	expected1.mulKaratsubaOverKaratsuba(api, circuit.A, circuit.B)
+	expected2.mulToom3OverKaratsuba(api, circuit.A, circuit.B)
 
 	expected1.AssertIsEqual(api, circuit.C)
 	expected2.AssertIsEqual(api, circuit.C)
