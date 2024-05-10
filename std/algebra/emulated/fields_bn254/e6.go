@@ -136,7 +136,7 @@ func (e Ext6) mulToom3OverKaratsuba(x, y *E6) *E6 {
 	// a1 = −(1/2)v0 + v1 − (1/3)v2 − (1/6)v3 + 2v4 + βv4
 	// a2 = −v0 + (1/2)v1 + (1/2)v2 − v4
 	//
-	// where is β=-5 the cubic non-residue (mulFpByNonResidue).
+	// where β is the cubic non-residue.
 	//
 	// In-circuit, we compute 6*x*y as
 	// c0 = 6v0 + β(3v0 − 3v1 − v2 + v3 − 12v4)

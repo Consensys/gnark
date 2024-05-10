@@ -102,6 +102,39 @@ func TestMulFp6(t *testing.T) {
 
 }
 
+type e6MulVariant struct {
+	A, B, C E6
+}
+
+func (circuit *e6MulVariant) Define(api frontend.API) error {
+	e := NewExt6(api)
+	expected1 := e.mulKaratsubaOverKaratsuba(&circuit.A, &circuit.B)
+	expected2 := e.mulToom3OverKaratsuba(&circuit.A, &circuit.B)
+	e.AssertIsEqual(expected1, &circuit.C)
+	e.AssertIsEqual(expected2, &circuit.C)
+	return nil
+}
+
+func TestMulFp6Variants(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bls12381.E6
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Mul(&a, &b)
+
+	witness := e6Mul{
+		A: FromE6(&a),
+		B: FromE6(&b),
+		C: FromE6(&c),
+	}
+
+	err := test.IsSolved(&e6Mul{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+}
+
 type e6Square struct {
 	A, C E6
 }
