@@ -1,8 +1,9 @@
 package fields_bw6761
 
 import (
-	"github.com/consensys/gnark/std/math/emulated"
 	"math/big"
+
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 func (e Ext6) nSquareKarabina12345(z *E6, n int) *E6 {
@@ -252,7 +253,7 @@ func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
 	c1 = e.fp.Mul(c1, tmp)
 	c1 = e.fp.Sub(c1, t0)
 	c1 = e.fp.Sub(c1, t1)
-	t2 = mulFpByNonResidue(e.fp, t2)
+	t2 = e.mulFpByNonResidue(e.fp, t2)
 	a0 = e.fp.Add(c0, t0)
 	a1 = e.fp.Add(c1, t2)
 	a2 = e.fp.Add(c2, t1)
@@ -276,7 +277,7 @@ func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
 	c1 = e.fp.Mul(c1, tmp)
 	c1 = e.fp.Sub(c1, t0)
 	c1 = e.fp.Sub(c1, t1)
-	t2 = mulFpByNonResidue(e.fp, t2)
+	t2 = e.mulFpByNonResidue(e.fp, t2)
 	b0 := e.fp.Add(c0, t0)
 	b1 = e.fp.Add(c1, t2)
 	b2 = e.fp.Add(c2, t1)
@@ -292,7 +293,7 @@ func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
 	c1 = e.fp.Add(&z.A1, &z.A3)
 	c1 = e.fp.Mul(c1, x[2])
 	c1 = e.fp.Sub(c1, t1)
-	tmp = mulFpByNonResidue(e.fp, t2)
+	tmp = e.mulFpByNonResidue(e.fp, t2)
 	c1 = e.fp.Add(c1, tmp)
 	tmp = e.fp.Add(&z.A1, &z.A5)
 	c2 = e.fp.Mul(x[4], tmp)
@@ -306,7 +307,7 @@ func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
 	tmp = e.fp.Add(b2, c2)
 	z12 := e.fp.Sub(a2, tmp)
 
-	z00 := mulFpByNonResidue(e.fp, c2)
+	z00 := e.mulFpByNonResidue(e.fp, c2)
 	z00 = e.fp.Add(z00, b0)
 	z01 := e.fp.Add(c0, b1)
 	z02 := e.fp.Add(c1, b2)

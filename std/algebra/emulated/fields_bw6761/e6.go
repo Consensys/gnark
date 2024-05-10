@@ -182,7 +182,7 @@ func (e Ext6) Conjugate(x *E6) *E6 {
 	}
 }
 
-func mulFpByNonResidue(fp *curveF, x *baseEl) *baseEl {
+func (e Ext6) mulFpByNonResidue(fp *curveF, x *baseEl) *baseEl {
 
 	z := fp.Neg(x)
 	z = fp.MulConst(z, big.NewInt(4))
@@ -739,7 +739,7 @@ func (e Ext6) Square(x *E6) *E6 {
 	tmp = e.fp.Add(&x.A1, &x.A3)
 	c1 = e.fp.Mul(c1, tmp)
 	c1 = e.fp.Sub(c1, e.fp.Add(t0, t1))
-	t2 = mulFpByNonResidue(e.fp, t2)
+	t2 = e.mulFpByNonResidue(e.fp, t2)
 	// c2
 	c20 := e.fp.Add(c0, t0)
 	c21 := e.fp.Add(c1, t2)
@@ -761,7 +761,7 @@ func (e Ext6) Square(x *E6) *E6 {
 	tmp = e.fp.Add(c30, c31)
 	c1 = e.fp.Mul(c1, tmp)
 	c1 = e.fp.Sub(c1, e.fp.Add(t0, t1))
-	t2 = mulFpByNonResidue(e.fp, t2)
+	t2 = e.mulFpByNonResidue(e.fp, t2)
 	c00 = e.fp.Add(c0, t0)
 	c01 = e.fp.Add(c1, t2)
 	c02 = e.fp.Add(c2, t1)
@@ -797,7 +797,7 @@ func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
 	// h4 = -g4 + 3((g3+g5)(g1+c*g2)-g1g5-c*g3g2)
 	g1g5 := e.fp.Mul(&x.A2, &x.A5)
 	g3g2 := e.fp.Mul(&x.A1, &x.A4)
-	h4 := mulFpByNonResidue(e.fp, &x.A4)
+	h4 := e.mulFpByNonResidue(e.fp, &x.A4)
 	h4 = e.fp.Add(h4, &x.A2)
 	t := e.fp.Add(&x.A1, &x.A5)
 	h4 = e.fp.Mul(h4, t)
@@ -808,13 +808,13 @@ func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
 	h4 = e.fp.Sub(h4, &x.A3)
 
 	// h3 = 2(g3+3c*g1g5)
-	h3 := mulFpByNonResidue(e.fp, g1g5)
+	h3 := e.mulFpByNonResidue(e.fp, g1g5)
 	h3 = e.fp.MulConst(h3, big.NewInt(3))
 	h3 = e.fp.Add(h3, &x.A1)
 	h3 = e.fp.MulConst(h3, big.NewInt(2))
 
 	// h2 = 3((g1+g5)(g1+c*g5)-(c+1)*g1g5)-2g2
-	t = mulFpByNonResidue(e.fp, &x.A5)
+	t = e.mulFpByNonResidue(e.fp, &x.A5)
 	t = e.fp.Add(t, &x.A2)
 	h2 := e.fp.Add(&x.A5, &x.A2)
 	h2 = e.fp.Mul(h2, t)
@@ -825,7 +825,7 @@ func (e Ext6) CyclotomicSquareKarabina12345(x *E6) *E6 {
 	h2 = e.fp.Sub(h2, t)
 
 	// h1 = 3((g3+g2)(g3+c*g2)-(c+1)*g3g2)-2g1
-	t = mulFpByNonResidue(e.fp, &x.A4)
+	t = e.mulFpByNonResidue(e.fp, &x.A4)
 	t = e.fp.Add(t, &x.A1)
 	h1 := e.fp.Add(&x.A4, &x.A1)
 	h1 = e.fp.Mul(h1, t)

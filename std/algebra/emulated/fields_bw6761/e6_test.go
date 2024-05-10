@@ -1,15 +1,12 @@
 package fields_bw6761
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fp"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/test"
 )
@@ -350,20 +347,4 @@ func TestFp6MulBy023(t *testing.T) {
 
 	err := test.IsSolved(&e6MulBy023{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
-}
-
-func BenchmarkMulMontgomery6(b *testing.B) {
-	var c e6Mul
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("Fp6 Mul (Montgomery-6): ", p.NbConstraints())
-}
-
-func BenchmarkSqMontgomery6(b *testing.B) {
-	var c e6Square
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("Fp6 Square (Montgomery-6): ", p.NbConstraints())
 }
