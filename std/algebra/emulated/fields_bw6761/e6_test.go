@@ -99,6 +99,37 @@ func TestDoubleFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
+type e6MulVariants struct {
+	A, B, C E6
+}
+
+func (circuit *e6MulVariants) Define(api frontend.API) error {
+	e := NewExt6(api)
+	expected1 := *e.mulMontgomery6(&circuit.A, &circuit.B)
+	expected2 := *e.mulToomCook6(&circuit.A, &circuit.B)
+	e.AssertIsEqual(&expected1, &circuit.C)
+	e.AssertIsEqual(&expected2, &circuit.C)
+	return nil
+}
+
+func TestMulVariantsFp6(t *testing.T) {
+	assert := test.NewAssert(t)
+	// witness values
+	var a, b, c bw6761.E6
+	_, _ = a.SetRandom()
+	_, _ = b.SetRandom()
+	c.Mul(&a, &b)
+
+	witness := e6MulVariants{
+		A: FromE6(&a),
+		B: FromE6(&b),
+		C: FromE6(&c),
+	}
+
+	err := test.IsSolved(&e6MulVariants{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type e6Mul struct {
 	A, B, C E6
 }
@@ -245,90 +276,6 @@ func TestConjugateFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e6CyclotomicSquareKarabina2345 struct {
-	A, B E6
-}
-
-func (circuit *e6CyclotomicSquareKarabina2345) Define(api frontend.API) error {
-	e := NewExt6(api)
-	expected := e.CyclotomicSquareKarabina2345(&circuit.A)
-	e.AssertIsEqual(expected, &circuit.B)
-	return nil
-}
-
-func TestCyclotomicSquareKarabina2345Fp6(t *testing.T) {
-	assert := test.NewAssert(t)
-	// witness values
-	var a, b bw6761.E6
-	_, _ = a.SetRandom()
-	b.Set(&a)
-	b.CyclotomicSquareCompressed(&a)
-
-	witness := e6CyclotomicSquareKarabina2345{
-		A: FromE6(&a),
-		B: FromE6(&b),
-	}
-
-	err := test.IsSolved(&e6CyclotomicSquareKarabina2345{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type e6DecompressKarabina2345 struct {
-	A, B E6
-}
-
-func (circuit *e6DecompressKarabina2345) Define(api frontend.API) error {
-	e := NewExt6(api)
-	expected := e.DecompressKarabina2345(&circuit.A)
-	e.AssertIsEqual(expected, &circuit.B)
-	return nil
-}
-
-func TestDecompressKarabina2345Fp6(t *testing.T) {
-	assert := test.NewAssert(t)
-	// witness values
-	var a, b bw6761.E6
-	_, _ = a.SetRandom()
-	b.Set(&a)
-	a.DecompressKarabina(&a)
-
-	witness := e6DecompressKarabina2345{
-		A: FromE6(&b),
-		B: FromE6(&a),
-	}
-
-	err := test.IsSolved(&e6DecompressKarabina2345{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
-type e6CyclotomicSquare struct {
-	A, B E6
-}
-
-func (circuit *e6CyclotomicSquare) Define(api frontend.API) error {
-	e := NewExt6(api)
-	expected := e.CyclotomicSquare(&circuit.A)
-	e.AssertIsEqual(expected, &circuit.B)
-	return nil
-}
-
-func TestCyclotomicSquareFp6(t *testing.T) {
-	assert := test.NewAssert(t)
-	// witness values
-	var a, b bw6761.E6
-	_, _ = a.SetRandom()
-	b.Set(&a)
-	b.CyclotomicSquare(&a)
-
-	witness := e6CyclotomicSquare{
-		A: FromE6(&a),
-		B: FromE6(&b),
-	}
-
-	err := test.IsSolved(&e6CyclotomicSquare{}, &witness, ecc.BN254.ScalarField())
-	assert.NoError(err)
-}
-
 type e6Expt struct {
 	A, B E6
 }
@@ -365,20 +312,20 @@ func TestExptFp6(t *testing.T) {
 	assert.NoError(err)
 }
 
-type e6MulBy014 struct {
+type e6MulBy023 struct {
 	A    E6 `gnark:",public"`
 	W    E6
 	B, C baseEl
 }
 
-func (circuit *e6MulBy014) Define(api frontend.API) error {
+func (circuit *e6MulBy023) Define(api frontend.API) error {
 	e := NewExt6(api)
-	res := e.MulBy014(&circuit.A, &circuit.B, &circuit.C)
+	res := e.MulBy023(&circuit.A, &circuit.B, &circuit.C)
 	e.AssertIsEqual(res, &circuit.W)
 	return nil
 }
 
-func TestFp6MulBy014(t *testing.T) {
+func TestFp6MulBy023(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	// witness values
@@ -391,14 +338,13 @@ func TestFp6MulBy014(t *testing.T) {
 	w.Set(&a)
 	w.MulBy014(&b, &c, &one)
 
-	witness := e6MulBy014{
+	witness := e6MulBy023{
 		A: FromE6(&a),
 		B: emulated.ValueOf[emulated.BW6761Fp](&b),
 		C: emulated.ValueOf[emulated.BW6761Fp](&c),
 		W: FromE6(&w),
 	}
 
-	err := test.IsSolved(&e6MulBy014{}, &witness, ecc.BN254.ScalarField())
+	err := test.IsSolved(&e6MulBy023{}, &witness, ecc.BN254.ScalarField())
 	assert.NoError(err)
-
 }

@@ -26,16 +26,12 @@ type GTEl = fields_bw6761.E6
 
 func NewGTEl(v bw6761.GT) GTEl {
 	return GTEl{
-		B0: fields_bw6761.E3{
-			A0: emulated.ValueOf[BaseField](v.B0.A0),
-			A1: emulated.ValueOf[BaseField](v.B0.A1),
-			A2: emulated.ValueOf[BaseField](v.B0.A2),
-		},
-		B1: fields_bw6761.E3{
-			A0: emulated.ValueOf[BaseField](v.B1.A0),
-			A1: emulated.ValueOf[BaseField](v.B1.A1),
-			A2: emulated.ValueOf[BaseField](v.B1.A2),
-		},
+		A0: emulated.ValueOf[BaseField](v.B0.A0),
+		A1: emulated.ValueOf[BaseField](v.B1.A0),
+		A2: emulated.ValueOf[BaseField](v.B0.A1),
+		A3: emulated.ValueOf[BaseField](v.B1.A1),
+		A4: emulated.ValueOf[BaseField](v.B0.A2),
+		A5: emulated.ValueOf[BaseField](v.B1.A2),
 	}
 }
 
@@ -100,7 +96,8 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 	a = pr.Mul(a, pr.Frobenius(result))
 	b := pr.ExpX0Plus1(a)
 	b = pr.Mul(b, pr.Conjugate(result))
-	t := pr.CyclotomicSquare(a)
+	t := pr.CyclotomicSquareKarabina12345(a)
+	t = pr.DecompressKarabina12345(t)
 	a = pr.Mul(a, t)
 	c := pr.ExptMinus1Div3(b)
 	d := pr.ExpX0Minus1(c)
@@ -116,7 +113,8 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 	i = pr.Mul(i, pr.Conjugate(f))
 	j := pr.ExpC1(h)
 	j = pr.Mul(j, e)
-	k := pr.CyclotomicSquare(j)
+	k := pr.CyclotomicSquareKarabina12345(j)
+	k = pr.DecompressKarabina12345(k)
 	k = pr.Mul(k, j)
 	k = pr.Mul(k, b)
 	t = pr.ExpC2(i)
@@ -300,57 +298,38 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	// i = 188
 	// k = 0
 	result = &fields_bw6761.E6{
-		B0: fields_bw6761.E3{
-			A0: *pr.curveF.Mul(&lines[0][0][188].R1, yInv[0]),
-			A1: *pr.curveF.Mul(&lines[0][0][188].R0, xNegOverY[0]),
-			A2: result.B0.A2,
-		},
-		B1: fields_bw6761.E3{
-			A0: result.B1.A0,
-			A1: *pr.curveF.One(),
-			A2: result.B1.A2,
-		},
+		A0: *pr.curveF.Mul(&lines[0][0][188].R1, yInv[0]),
+		A1: result.A1,
+		A2: *pr.curveF.Mul(&lines[0][0][188].R0, xNegOverY[0]),
+		A3: *pr.curveF.One(),
+		A4: result.A4,
+		A5: result.A5,
 	}
 
 	if n >= 2 {
-		// k = 1, separately to avoid MulBy014 (res × ℓ)
-		// (res is also a line at this point, so we use Mul014By014 ℓ × ℓ)
-		prodLines = pr.Mul014By014(
+		// k = 1, separately to avoid MulBy023 (res × ℓ)
+		// (res is also a line at this point, so we use Mul023By023 ℓ × ℓ)
+		prodLines = pr.Mul023By023(
 			pr.curveF.Mul(&lines[1][0][188].R1, yInv[1]),
 			pr.curveF.Mul(&lines[1][0][188].R0, xNegOverY[1]),
-			&result.B0.A0,
-			&result.B0.A1,
+			&result.A0,
+			&result.A2,
 		)
 		result = &fields_bw6761.E6{
-			B0: fields_bw6761.E3{
-				A0: *prodLines[0],
-				A1: *prodLines[1],
-				A2: *prodLines[2],
-			},
-			B1: fields_bw6761.E3{
-				A0: result.B1.A0,
-				A1: *prodLines[3],
-				A2: *prodLines[4],
-			},
+			A0: *prodLines[0],
+			A1: result.A1,
+			A2: *prodLines[1],
+			A3: *prodLines[2],
+			A4: *prodLines[3],
+			A5: *prodLines[4],
 		}
 	}
 
-	if n >= 3 {
-		// k = 2, separately to avoid MulBy014 (res × ℓ)
-		// (res has a zero E2 element, so we use Mul01245By014)
-		result = pr.Mul01245By014(
-			prodLines,
-			pr.curveF.Mul(&lines[2][0][188].R1, yInv[2]),
-			pr.curveF.Mul(&lines[2][0][188].R0, xNegOverY[2]),
+	for k := 2; k < n; k++ {
+		result = pr.MulBy023(result,
+			pr.curveF.Mul(&lines[k][0][188].R1, yInv[k]),
+			pr.curveF.Mul(&lines[k][0][188].R0, xNegOverY[k]),
 		)
-
-		// k >= 3
-		for k := 3; k < n; k++ {
-			result = pr.MulBy014(result,
-				pr.curveF.Mul(&lines[k][0][188].R1, yInv[k]),
-				pr.curveF.Mul(&lines[k][0][188].R0, xNegOverY[k]),
-			)
-		}
 	}
 
 	for i := 187; i >= 0; i-- {
@@ -360,33 +339,33 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 
 		if i > 0 && loopCounter2[i]*3+loopCounter1[i] != 0 {
 			for k := 0; k < n; k++ {
-				prodLines = pr.Mul014By014(
+				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
 					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
 					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
 					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
 				)
-				result = pr.MulBy01245(result, prodLines)
+				result = pr.MulBy02345(result, prodLines)
 			}
 		} else {
 			// if number of lines is odd, mul last line by res
 			// works for n=1 as well
 			if n%2 != 0 {
 				// ℓ × res
-				result = pr.MulBy014(result,
+				result = pr.MulBy023(result,
 					pr.curveF.Mul(&lines[n-1][0][i].R1, yInv[n-1]),
 					pr.curveF.Mul(&lines[n-1][0][i].R0, xNegOverY[n-1]),
 				)
 			}
 			// mul lines 2-by-2
 			for k := 1; k < n; k += 2 {
-				prodLines = pr.Mul014By014(
+				prodLines = pr.Mul023By023(
 					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
 					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
 					pr.curveF.Mul(&lines[k-1][0][i].R1, yInv[k-1]),
 					pr.curveF.Mul(&lines[k-1][0][i].R0, xNegOverY[k-1]),
 				)
-				result = pr.MulBy01245(result, prodLines)
+				result = pr.MulBy02345(result, prodLines)
 			}
 		}
 	}

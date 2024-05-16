@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,9 +17,11 @@ limitations under the License.
 package fields_bls12377
 
 import (
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
+	"math/big"
 
+	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/frontendtype"
 )
 
 // E6 element in a quadratic extension
@@ -50,6 +52,14 @@ func (e *E6) assign(e1 []frontend.Variable) {
 	e.B1.A1 = e1[3]
 	e.B2.A0 = e1[4]
 	e.B2.A1 = e1[5]
+}
+
+// Double e6 elmt
+func (e *E6) Double(api frontend.API, e1 E6) *E6 {
+	e.B0.Double(api, e1.B0)
+	e.B1.Double(api, e1.B1)
+	e.B2.Double(api, e1.B2)
+	return e
 }
 
 // Add creates a fp6elmt from fp elmts
@@ -89,10 +99,21 @@ func (e *E6) Neg(api frontend.API, e1 E6) *E6 {
 	return e
 }
 
-// Mul creates a fp6elmt from fp elmts
-// icube is the imaginary elmt to the cube
+// Mul multiplies two E6 elmts
 func (e *E6) Mul(api frontend.API, e1, e2 E6) *E6 {
+	if ft, ok := api.(frontendtype.FrontendTyper); ok {
+		switch ft.FrontendType() {
+		case frontendtype.R1CS:
+			return e.mulToom3OverKaratsuba(api, e1, e2)
+		case frontendtype.SCS:
+			return e.mulKaratsubaOverKaratsuba(api, e1, e2)
+		}
+	}
+	return e.mulKaratsubaOverKaratsuba(api, e1, e2)
+}
 
+func (e *E6) mulKaratsubaOverKaratsuba(api frontend.API, e1, e2 E6) *E6 {
+	// Karatsuba over Karatsuba:
 	// Algorithm 13 from https://eprint.iacr.org/2010/354.pdf
 	var t0, t1, t2, c0, c1, c2, tmp E2
 	t0.Mul(api, e1.B0, e2.B0)
@@ -101,20 +122,118 @@ func (e *E6) Mul(api frontend.API, e1, e2 E6) *E6 {
 
 	c0.Add(api, e1.B1, e1.B2)
 	tmp.Add(api, e2.B1, e2.B2)
-	c0.Mul(api, c0, tmp).Sub(api, c0, t1).Sub(api, c0, t2).MulByNonResidue(api, c0).Add(api, c0, t0)
+	c0.Mul(api, c0, tmp).
+		Sub(api, c0, t1).
+		Sub(api, c0, t2).
+		MulByNonResidue(api, c0).
+		Add(api, c0, t0)
 
 	c1.Add(api, e1.B0, e1.B1)
 	tmp.Add(api, e2.B0, e2.B1)
-	c1.Mul(api, c1, tmp).Sub(api, c1, t0).Sub(api, c1, t1)
+	c1.Mul(api, c1, tmp).
+		Sub(api, c1, t0).
+		Sub(api, c1, t1)
 	tmp.MulByNonResidue(api, t2)
 	c1.Add(api, c1, tmp)
 
 	tmp.Add(api, e1.B0, e1.B2)
-	c2.Add(api, e2.B0, e2.B2).Mul(api, c2, tmp).Sub(api, c2, t0).Sub(api, c2, t2).Add(api, c2, t1)
+	c2.Add(api, e2.B0, e2.B2).
+		Mul(api, c2, tmp).
+		Sub(api, c2, t0).
+		Sub(api, c2, t2).
+		Add(api, c2, t1)
 
 	e.B0 = c0
 	e.B1 = c1
 	e.B2 = c2
+
+	return e
+}
+
+func (e *E6) mulToom3OverKaratsuba(api frontend.API, e1, e2 E6) *E6 {
+	// Toom-Cook-3x over Karatsuba:
+	// We start by computing five interpolation points – these are evaluations of
+	// the product x(u)y(u) with u ∈ {0, ±1, 2, ∞}:
+	//
+	// v0 = x(0)y(0) = x.A0 * y.A0
+	// v1 = x(1)y(1) = (x.A0 + x.A1 + x.A2)(y.A0 + y.A1 + y.A2)
+	// v2 = x(−1)y(−1) = (x.A0 − x.A1 + x.A2)(y.A0 − y.A1 + y.A2)
+	// v3 = x(2)y(2) = (x.A0 + 2x.A1 + 4x.A2)(y.A0 + 2y.A1 + 4y.A2)
+	// v4 = x(∞)y(∞) = x.A2 * y.A2
+	var v0, v1, v2, v3, v4, t1, t2, t3 E2
+
+	v0.Mul(api, e1.B0, e2.B0)
+
+	t1.Add(api, e1.B0, e1.B2)
+	t2.Add(api, e2.B0, e2.B2)
+	t3.Add(api, t2, e2.B1)
+	v1.Add(api, t1, e1.B1)
+	v1.Mul(api, v1, t3)
+
+	t3.Sub(api, t2, e2.B1)
+	v2.Sub(api, t1, e1.B1)
+	v2.Mul(api, v2, t3)
+
+	t1.MulByFp(api, e1.B1, big.NewInt(2))
+	t2.MulByFp(api, e1.B2, big.NewInt(4))
+	v3.Add(api, t1, t2)
+	v3.Add(api, v3, e1.B0)
+	t1.MulByFp(api, e2.B1, big.NewInt(2))
+	t2.MulByFp(api, e2.B2, big.NewInt(4))
+	t3.Add(api, t1, t2)
+	t3.Add(api, t3, e2.B0)
+	v3.Mul(api, v3, t3)
+
+	v4.Mul(api, e1.B2, e2.B2)
+
+	// Then the interpolation is performed as:
+	//
+	// a0 = v0 + β((1/2)v0 − (1/2)v1 − (1/6)v2 + (1/6)v3 − 2v4)
+	// a1 = −(1/2)v0 + v1 − (1/3)v2 − (1/6)v3 + 2v4 + βv4
+	// a2 = −v0 + (1/2)v1 + (1/2)v2 − v4
+	//
+	// where β is the cubic non-residue.
+	//
+	// In-circuit, we compute 6*x*y as
+	// c0 = 6v0 + β(3v0 − 3v1 − v2 + v3 − 12v4)
+	// a1 = -(3v0 + 2v2 + v3) + 6(v1 + 2v4 + βv4)
+	// a2 = 3(v1 + v2 - 2(v0 + v4))
+	//
+	// and then divide a0, a1 and a2 by 6 using a hint.
+	var a0, a1, a2 E2
+	a0.MulByFp(api, v0, big.NewInt(6))
+	t1.Sub(api, v0, v1)
+	t1.MulByFp(api, t1, big.NewInt(3))
+	t1.Sub(api, t1, v2)
+	t1.Add(api, t1, v3)
+	t2.MulByFp(api, v4, big.NewInt(12))
+	t1.Sub(api, t1, t2)
+	t1.MulByNonResidue(api, t1)
+	a0.Add(api, a0, t1)
+
+	a1.MulByFp(api, v0, big.NewInt(3))
+	t1.MulByFp(api, v2, big.NewInt(2))
+	a1.Add(api, a1, t1)
+	a1.Add(api, a1, v3)
+	t1.MulByFp(api, v4, big.NewInt(2))
+	t1.Add(api, t1, v1)
+	t2.MulByNonResidue(api, v4)
+	t1.Add(api, t1, t2)
+	t1.MulByFp(api, t1, big.NewInt(6))
+	a1.Sub(api, t1, a1)
+
+	a2.Add(api, v1, v2)
+	a2.MulByFp(api, a2, big.NewInt(3))
+	t1.Add(api, v0, v4)
+	t1.MulByFp(api, t1, big.NewInt(6))
+	a2.Sub(api, a2, t1)
+
+	e.B0.A0 = api.Div(a0.A0, 6)
+	e.B0.A1 = api.Div(a0.A1, 6)
+	e.B1.A0 = api.Div(a1.A0, 6)
+	e.B1.A1 = api.Div(a1.A1, 6)
+	e.B2.A0 = api.Div(a2.A0, 6)
+	e.B2.A1 = api.Div(a2.A1, 6)
 
 	return e
 }

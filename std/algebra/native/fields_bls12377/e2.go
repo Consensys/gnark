@@ -83,13 +83,11 @@ func (e *E2) Sub(api frontend.API, e1, e2 E2) *E2 {
 // Mul e2 elmts
 func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
 
-	// 1C
 	l1 := api.Add(e1.A0, e1.A1)
 	l2 := api.Add(e2.A0, e2.A1)
 
 	u := api.Mul(l1, l2)
 
-	// 2C
 	ac := api.Mul(e1.A0, e2.A0)
 	bd := api.Mul(e1.A1, e2.A1)
 
@@ -111,9 +109,9 @@ func (e *E2) Square(api frontend.API, x E2) *E2 {
 
 	c0 = api.Mul(c0, c2) // (x1+x2)*(x1+(u**2)x2)
 	c2 = api.Mul(x.A0, x.A1)
-	c2 = api.Add(c2, c2)
+	c2 = api.Mul(c2, 2)
 	e.A1 = c2
-	c2 = api.Add(c2, c2)
+	c2 = api.Mul(c2, 2)
 	e.A0 = api.Add(c0, c2)
 
 	return e
