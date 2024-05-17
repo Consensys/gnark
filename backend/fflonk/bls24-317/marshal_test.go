@@ -23,6 +23,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bls24-317/fr"
 
+	"github.com/consensys/gnark-crypto/ecc/bls24-317/kzg"
+
 	"math/big"
 	"math/rand"
 	"testing"
@@ -62,7 +64,6 @@ func TestVerifyingKeySerialization(t *testing.T) {
 }
 
 func (pk *ProvingKey) randomize() {
-
 	var vk VerifyingKey
 	vk.randomize()
 	pk.Vk = &vk
@@ -71,7 +72,14 @@ func (pk *ProvingKey) randomize() {
 	for i := range pk.Kzg.G1 {
 		pk.Kzg.G1[i] = randomG1Point()
 	}
-
+	nbPolynomials := getNumberOfPolynomials(*pk.Vk)
+	pk.KzgSplitted = make([]kzg.ProvingKey, nbPolynomials)
+	for i := 0; i < nbPolynomials; i++ {
+		pk.KzgSplitted[i].G1 = make([]curve.G1Affine, 32)
+		for j := 0; j < 32; j++ {
+			pk.KzgSplitted[i].G1[j] = randomG1Point()
+		}
+	}
 }
 
 func (vk *VerifyingKey) randomize() {

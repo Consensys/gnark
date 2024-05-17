@@ -96,7 +96,7 @@ func (pk *ProvingKey) WriteRawTo(w io.Writer) (n int64, err error) {
 }
 
 func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err error) {
-	
+
 	// encode the verifying key
 	if withCompression {
 		n, err = pk.Vk.WriteTo(w)
@@ -108,33 +108,33 @@ func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err e
 	}
 
 	var n2, ntmp int64
-	
+
 	// KZG key
 	if withCompression {
 		ntmp, err = pk.Kzg.WriteTo(w)
 		if err != nil {
 			return
 		}
-		n2+=ntmp
-		for i := 0; i<len(pk.KzgSplitted); i++ {
+		n2 += ntmp
+		for i := 0; i < len(pk.KzgSplitted); i++ {
 			ntmp, err = pk.KzgSplitted[i].WriteTo(w)
 			if err != nil {
 				return
 			}
-			n2+=ntmp
+			n2 += ntmp
 		}
 	} else {
 		ntmp, err = pk.Kzg.WriteRawTo(w)
 		if err != nil {
 			return
 		}
-		n2+=ntmp
-		for i := 0; i<len(pk.KzgSplitted); i++ {
+		n2 += ntmp
+		for i := 0; i < len(pk.KzgSplitted); i++ {
 			ntmp, err = pk.KzgSplitted[i].WriteRawTo(w)
 			if err != nil {
 				return
 			}
-			n2+=ntmp
+			n2 += ntmp
 		}
 	}
 	if err != nil {
@@ -164,7 +164,7 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 
 	nbKzg := getNumberOfPolynomials(*pk.Vk)
 	if len(pk.KzgSplitted) < nbKzg {
-		pk.KzgSplitted = make([]kzg.ProvingKey ,nbKzg)
+		pk.KzgSplitted = make([]kzg.ProvingKey, nbKzg)
 	}
 
 	var n2, ntmp int64
@@ -173,8 +173,8 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		if err != nil {
 			return n, err
 		}
-		n2+=ntmp
-		for i := 0; i<len(pk.KzgSplitted); i++ {
+		n2 += ntmp
+		for i := 0; i < len(pk.KzgSplitted); i++ {
 			ntmp, err = pk.KzgSplitted[i].ReadFrom(r)
 			if err != nil {
 				return n, err
@@ -186,13 +186,13 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		if err != nil {
 			return n, err
 		}
-		n2+=ntmp
-		for i := 0; i<len(pk.KzgSplitted); i++ {
+		n2 += ntmp
+		for i := 0; i < len(pk.KzgSplitted); i++ {
 			ntmp, err = pk.KzgSplitted[i].UnsafeReadFrom(r)
 			if err != nil {
 				return n, err
 			}
-			n2+=ntmp
+			n2 += ntmp
 		}
 	}
 	n += n2
