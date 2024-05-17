@@ -96,6 +96,7 @@ func (pk *ProvingKey) WriteRawTo(w io.Writer) (n int64, err error) {
 }
 
 func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err error) {
+	
 	// encode the verifying key
 	if withCompression {
 		n, err = pk.Vk.WriteTo(w)
@@ -106,12 +107,35 @@ func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err e
 		return
 	}
 
-	var n2 int64
+	var n2, ntmp int64
+	
 	// KZG key
 	if withCompression {
-		n2, err = pk.Kzg.WriteTo(w)
+		ntmp, err = pk.Kzg.WriteTo(w)
+		if err != nil {
+			return
+		}
+		n2+=ntmp
+		for i := 0; i<len(pk.KzgSplitted); i++ {
+			ntmp, err = pk.KzgSplitted[i].WriteTo(w)
+			if err != nil {
+				return
+			}
+			n2+=ntmp
+		}
 	} else {
-		n2, err = pk.Kzg.WriteRawTo(w)
+		ntmp, err = pk.Kzg.WriteRawTo(w)
+		if err != nil {
+			return
+		}
+		n2+=ntmp
+		for i := 0; i<len(pk.KzgSplitted); i++ {
+			ntmp, err = pk.KzgSplitted[i].WriteRawTo(w)
+			if err != nil {
+				return
+			}
+			n2+=ntmp
+		}
 	}
 	if err != nil {
 		return
@@ -138,16 +162,41 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		return n, err
 	}
 
-	var n2 int64
+	nbCustomGates := len(pk.Vk.CommitmentConstraintIndexes)
+	nbKzg := nbCustomGates+number_polynomials
+	if len(pk.KzgSplitted) < nbKzg {
+		pk.KzgSplitted = make([]kzg.ProvingKey ,nbKzg)
+	}
+
+	var n2, ntmp int64
 	if withSubgroupChecks {
-		n2, err = pk.Kzg.ReadFrom(r)
+		ntmp, err = pk.Kzg.ReadFrom(r)
+		if err != nil {
+			return n, err
+		}
+		n2+=ntmp
+		for i := 0; i<len(pk.KzgSplitted); i++ {
+			ntmp, err = pk.KzgSplitted[i].ReadFrom(r)
+			if err != nil {
+				return n, err
+			}
+			n2 += ntmp
+		}
 	} else {
-		n2, err = pk.Kzg.UnsafeReadFrom(r)
+		ntmp, err = pk.Kzg.UnsafeReadFrom(r)
+		if err != nil {
+			return n, err
+		}
+		n2+=ntmp
+		for i := 0; i<len(pk.KzgSplitted); i++ {
+			ntmp, err = pk.KzgSplitted[i].UnsafeReadFrom(r)
+			if err != nil {
+				return n, err
+			}
+			n2+=ntmp
+		}
 	}
 	n += n2
-	if err != nil {
-		return n, err
-	}
 	return n, err
 }
 

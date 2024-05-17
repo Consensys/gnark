@@ -87,12 +87,34 @@ func (pk *ProvingKey) writeTo(w io.Writer, withCompression bool) (n int64, err e
 		return
 	}
 
-	var n2 int64
+	var n2, ntmp int64
 	// KZG key
 	if withCompression {
-		n2, err = pk.Kzg.WriteTo(w)
+		ntmp, err = pk.Kzg.WriteTo(w)
+		if err != nil {
+			return
+		}
+		n2+=ntmp
+		for i := 0; i<len(pk.KzgSplitted); i++ {
+			ntmp, err = pk.KzgSplitted[i].WriteTo(w)
+			if err != nil {
+				return
+			}
+			n2+=ntmp
+		}
 	} else {
-		n2, err = pk.Kzg.WriteRawTo(w)
+		ntmp, err = pk.Kzg.WriteRawTo(w)
+		if err != nil {
+			return
+		}
+		n2+=ntmp
+		for i := 0; i<len(pk.KzgSplitted); i++ {
+			ntmp, err = pk.KzgSplitted[i].WriteRawTo(w)
+			if err != nil {
+				return
+			}
+			n2+=ntmp
+		}
 	}
 	if err != nil {
 		return
