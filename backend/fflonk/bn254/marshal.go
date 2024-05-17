@@ -162,8 +162,7 @@ func (pk *ProvingKey) readFrom(r io.Reader, withSubgroupChecks bool) (int64, err
 		return n, err
 	}
 
-	nbCustomGates := len(pk.Vk.CommitmentConstraintIndexes)
-	nbKzg := nbCustomGates+number_polynomials
+	nbKzg := getNumberOfPolynomials(*pk.Vk)
 	if len(pk.KzgSplitted) < nbKzg {
 		pk.KzgSplitted = make([]kzg.ProvingKey ,nbKzg)
 	}
