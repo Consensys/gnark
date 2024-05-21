@@ -1,4 +1,4 @@
-module github.com/irfanbozkurt/gnark
+module github.com/consensys/gnark
 
 go 1.21
 
