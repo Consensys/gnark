@@ -53,7 +53,7 @@ contract PlonkVerifier {
   uint256 private constant VK_S{{ inc $index }}_COM_X = {{ (fpstr $element.X) }};
   uint256 private constant VK_S{{ inc $index }}_COM_Y = {{ (fpstr $element.Y) }};
   {{ end }}
-  uint256 private constant VK_COSET_SHIFT = {{ .Vk.CosetShift }};
+  uint256 private constant VK_COSET_SHIFT = {{ frstr .Vk.CosetShift }};
   
   {{ range $index, $element := .Vk.Qcp}}
   uint256 private constant VK_QCP_{{ $index }}_X = {{ (fpstr $element.X) }};
@@ -63,7 +63,7 @@ contract PlonkVerifier {
   {{ range $index, $element := .Vk.CommitmentConstraintIndexes -}}
   uint256 private constant VK_INDEX_COMMIT_API_{{ $index }} = {{ $element }};
   {{ end -}}
-  uint256 private constant VK_NB_CUSTOM_GATES = {{ len .CommitmentConstraintIndexes }};
+  uint256 private constant VK_NB_CUSTOM_GATES = {{ len .Vk.CommitmentConstraintIndexes }};
 
   // ------------------------------------------------
 
@@ -107,7 +107,7 @@ contract PlonkVerifier {
   uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
   uint256 private constant PROOF_OPENING_QCP_AT_ZETA = {{ hex $offset }};
-  uint256 private constant PROOF_BSB_COMMITMENTS = {{ hex (add $offset (mul (len .CommitmentConstraintIndexes) 32 ) )}};
+  uint256 private constant PROOF_BSB_COMMITMENTS = {{ hex (add $offset (mul (len .Vk.CommitmentConstraintIndexes) 32 ) )}};
 
   // -> next part of proof is
   // [ openings_selector_commits || commitments_wires_commit_api]
@@ -146,7 +146,7 @@ contract PlonkVerifier {
   // -------- errors
   uint256 private constant ERROR_STRING_ID = 0x08c379a000000000000000000000000000000000000000000000000000000000; // selector for function Error(string)
 
-  {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+  {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
   // -------- utils (for hash_fr)
 	uint256 private constant HASH_FR_BB = 340282366920938463463374607431768211456; // 2**128
 	uint256 private constant HASH_FR_ZERO_UINT256 = 0;
@@ -195,7 +195,7 @@ contract PlonkVerifier {
 
       // public inputs contribution
       let l_pi := sum_pi_wo_api_commit(public_inputs.offset, public_inputs.length, freeMem)
-      {{ if (gt (len .CommitmentConstraintIndexes) 0 ) -}}
+      {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 ) -}}
       let l_pi_commit := sum_pi_commit(proof.offset, public_inputs.length, freeMem)
       l_pi := addmod(l_pi_commit, l_pi, R_MOD)
       {{ end -}}
@@ -424,12 +424,12 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0x1c0), VK_QO_COM_Y)
         mstore(add(mPtr, 0x1e0), VK_QK_COM_X)
         mstore(add(mPtr, 0x200), VK_QK_COM_Y)
-        {{ range $index, $element := .CommitmentConstraintIndexes}}
+        {{ range $index, $element := .Vk.CommitmentConstraintIndexes}}
         mstore(add(mPtr, {{ hex (add 544 (mul $index 64)) }}), VK_QCP_{{ $index }}_X)
         mstore(add(mPtr, {{ hex (add 576 (mul $index 64)) }}), VK_QCP_{{ $index }}_Y)
         {{ end }}
         // public inputs
-        let _mPtr := add(mPtr, {{ hex (add (mul (len .CommitmentConstraintIndexes) 64) 544) }})
+        let _mPtr := add(mPtr, {{ hex (add (mul (len .Vk.CommitmentConstraintIndexes) 64) 544) }})
         let size_pi_in_bytes := mul(nb_pi, 0x20)
         calldatacopy(_mPtr, pi, size_pi_in_bytes)
         _mPtr := add(_mPtr, size_pi_in_bytes)
@@ -444,7 +444,7 @@ contract PlonkVerifier {
         // + nb_public_inputs*0x20
         // + nb_custom gates*0x40
         let size := add(0x2c5, size_pi_in_bytes)
-        {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+        {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
         size := add(size, mul(VK_NB_CUSTOM_GATES, 0x40))
         {{ end -}}
         let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
@@ -494,7 +494,7 @@ contract PlonkVerifier {
         let _mPtr := add(mPtr, 0x20)
         mstore(_mPtr, beta_not_reduced)
         _mPtr := add(_mPtr, 0x20)
-        {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+        {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
         // Bsb22Commitments
         let proof_bsb_commitments := add(aproof, PROOF_BSB_COMMITMENTS)
         let size_bsb_commitments := mul(0x40, VK_NB_CUSTOM_GATES)
@@ -621,7 +621,7 @@ contract PlonkVerifier {
         }
       }
 
-      {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+      {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
       /// Public inputs (the ones coming from the custom gate) contribution
       /// @param aproof pointer to the proof
       /// @param nb_public_inputs number of public inputs
@@ -637,7 +637,7 @@ contract PlonkVerifier {
 
         let h_fr, ith_lagrange
        
-        {{ range $index, $element := .CommitmentConstraintIndexes}}
+        {{ range $index, $element := .Vk.CommitmentConstraintIndexes}}
         h_fr := hash_fr(calldataload(p), calldataload(add(p, 0x20)), mPtr)
         ith_lagrange := compute_ith_lagrange_at_z(z, zpnmo, add(nb_public_inputs, VK_INDEX_COMMIT_API_{{ $index }}), mPtr)
         pi_commit := addmod(pi_commit, mulmod(h_fr, ith_lagrange, R_MOD), R_MOD)
@@ -935,9 +935,9 @@ contract PlonkVerifier {
         point_acc_mul(state_folded_digests, mPtr, acc_gamma, mPtr40)
         fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_S2_AT_ZETA), acc_gamma)
 
-        {{- if (gt (len .CommitmentConstraintIndexes) 0 ) }}
+        {{- if (gt (len .Vk.CommitmentConstraintIndexes) 0 ) }}
         let poqaz := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
-        {{ range $index, $element := .CommitmentConstraintIndexes }}
+        {{ range $index, $element := .Vk.CommitmentConstraintIndexes }}
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
         mstore(mPtr, VK_QCP_{{ $index }}_X)
         mstore(mPtr20, VK_QCP_{{ $index }}_Y)
@@ -979,7 +979,7 @@ contract PlonkVerifier {
         
         let offset := 0x1c0
         
-        {{ range $index, $element := .CommitmentConstraintIndexes -}}
+        {{ range $index, $element := .Vk.CommitmentConstraintIndexes -}}
         mstore(add(mPtr,offset), VK_QCP_{{ $index }}_X)
         mstore(add(mPtr,add(offset, 0x20)), VK_QCP_{{ $index }}_Y)
         offset := add(offset, 0x40)
@@ -994,7 +994,7 @@ contract PlonkVerifier {
 
         let _mPtr := add(mPtr, add(offset, 0xc0))
 
-        {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+        {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
         let _poqaz := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
         calldatacopy(_mPtr, _poqaz, mul(VK_NB_CUSTOM_GATES, 0x20))
         _mPtr := add(_mPtr, mul(VK_NB_CUSTOM_GATES, 0x20))
@@ -1058,7 +1058,7 @@ contract PlonkVerifier {
           add(mPtr, 0x40)
         )
 
-        {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
+        {{ if (gt (len .Vk.CommitmentConstraintIndexes) 0 )}}
         let qcp_opening_at_zeta := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
         let bsb_commitments := add(aproof, PROOF_BSB_COMMITMENTS)
         for {
