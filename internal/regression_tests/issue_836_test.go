@@ -5,10 +5,10 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/irfanbozkurt/gnark/constraint/solver"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/math/cmp"
-	"github.com/irfanbozkurt/gnark/test"
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/cmp"
+	"github.com/consensys/gnark/test"
 )
 
 type CmpCircuit struct {
@@ -55,7 +55,7 @@ func (c *MathCmpAssertIsLessOrEqCircuitFull) Define(api frontend.API) error {
 
 func getNBitsHint() (solver.HintID, error) {
 	for _, v := range solver.GetRegisteredHints() {
-		if solver.GetHintName(v) == "github.com/irfanbozkurt/gnark/std/math/bits.nBits" {
+		if solver.GetHintName(v) == "github.com/consensys/gnark/std/math/bits.nBits" {
 			return solver.GetHintID(v), nil
 		}
 	}

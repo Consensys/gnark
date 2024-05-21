@@ -8,13 +8,13 @@ import (
 	"encoding/binary"
 	"math/big"
 
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/hash"
-	"github.com/irfanbozkurt/gnark/std/math/bits"
-	"github.com/irfanbozkurt/gnark/std/math/bitslice"
-	"github.com/irfanbozkurt/gnark/std/math/cmp"
-	"github.com/irfanbozkurt/gnark/std/math/uints"
-	"github.com/irfanbozkurt/gnark/std/permutation/sha2"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/math/bitslice"
+	"github.com/consensys/gnark/std/math/cmp"
+	"github.com/consensys/gnark/std/math/uints"
+	"github.com/consensys/gnark/std/permutation/sha2"
 )
 
 var _seed = uints.NewU32Array([]uint32{

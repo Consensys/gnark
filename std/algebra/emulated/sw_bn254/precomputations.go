@@ -2,7 +2,7 @@ package sw_bn254
 
 import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/fields_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/fields_bn254"
 )
 
 // lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)

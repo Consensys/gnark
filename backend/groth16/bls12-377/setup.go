@@ -23,9 +23,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/pedersen"
-	"github.com/irfanbozkurt/gnark/backend/groth16/internal"
-	"github.com/irfanbozkurt/gnark/constraint"
-	cs "github.com/irfanbozkurt/gnark/constraint/bls12-377"
+	"github.com/consensys/gnark/backend/groth16/internal"
+	"github.com/consensys/gnark/constraint"
+	cs "github.com/consensys/gnark/constraint/bls12-377"
 	"math/big"
 	"math/bits"
 )

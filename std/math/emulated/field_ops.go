@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math/bits"
 
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/selector"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/selector"
 )
 
 // Div computes a/b and returns it. It uses [DivHint] as a hint function.

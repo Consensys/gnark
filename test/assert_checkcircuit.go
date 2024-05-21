@@ -4,14 +4,14 @@ import (
 	"crypto/sha256"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/irfanbozkurt/gnark/backend"
-	"github.com/irfanbozkurt/gnark/backend/groth16"
-	"github.com/irfanbozkurt/gnark/backend/plonk"
-	"github.com/irfanbozkurt/gnark/backend/witness"
-	"github.com/irfanbozkurt/gnark/constraint"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/frontend/schema"
-	"github.com/irfanbozkurt/gnark/test/unsafekzg"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // CheckCircuit performs a series of check on the provided circuit.

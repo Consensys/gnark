@@ -8,13 +8,13 @@ import (
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/algebra/algopts"
-	"github.com/irfanbozkurt/gnark/std/algebra/native/fields_bls12377"
-	"github.com/irfanbozkurt/gnark/std/math/bits"
-	"github.com/irfanbozkurt/gnark/std/math/emulated"
-	"github.com/irfanbozkurt/gnark/std/math/emulated/emparams"
-	"github.com/irfanbozkurt/gnark/std/selector"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/algopts"
+	"github.com/consensys/gnark/std/algebra/native/fields_bls12377"
+	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/selector"
 )
 
 // Curve allows G1 operations in BLS12-377.

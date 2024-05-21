@@ -19,7 +19,7 @@ package frontend
 import (
 	"math/big"
 
-	"github.com/irfanbozkurt/gnark/constraint/solver"
+	"github.com/consensys/gnark/constraint/solver"
 )
 
 // API represents the available functions to circuit developers
@@ -107,7 +107,7 @@ type API interface {
 	//
 	// If the absolute difference between the variables i1 and i2 is known, then
 	// it is more efficient to use the bounded methdods in package
-	// [github.com/irfanbozkurt/gnark/std/math/bits].
+	// [github.com/consensys/gnark/std/math/bits].
 	Cmp(i1, i2 Variable) Variable
 
 	// ---------------------------------------------------------------------------------------------
@@ -128,7 +128,7 @@ type API interface {
 	//
 	// If the absolute difference between the variables b and bound is known, then
 	// it is more efficient to use the bounded methdods in package
-	// [github.com/irfanbozkurt/gnark/std/math/bits].
+	// [github.com/consensys/gnark/std/math/bits].
 	AssertIsLessOrEqual(v Variable, bound Variable)
 
 	// Println behaves like fmt.Println but accepts cd.Variable as parameter

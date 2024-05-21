@@ -7,10 +7,10 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/irfanbozkurt/gnark/constraint/solver"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/frontend/cs/r1cs"
-	"github.com/irfanbozkurt/gnark/test"
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/test"
 )
 
 type WrapperCircuit struct {

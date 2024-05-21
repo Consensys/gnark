@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/math/emulated"
-	"github.com/irfanbozkurt/gnark/std/math/emulated/emparams"
-	"github.com/irfanbozkurt/gnark/std/math/polynomial"
-	"github.com/irfanbozkurt/gnark/test"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/math/polynomial"
+	"github.com/consensys/gnark/test"
 )
 
 type projAddGate[AE arithEngine[E], E element] struct {

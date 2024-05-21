@@ -5,9 +5,9 @@ import (
 	"math/big"
 	"math/bits"
 
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/math/emulated"
-	"github.com/irfanbozkurt/gnark/std/math/polynomial"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/polynomial"
 )
 
 type multilinearClaim[FR emulated.FieldParams] struct {

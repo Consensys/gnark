@@ -3,9 +3,9 @@ package bits_test
 import (
 	"testing"
 
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/math/bits"
-	"github.com/irfanbozkurt/gnark/test"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/test"
 )
 
 type toNAFCircuit struct {

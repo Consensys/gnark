@@ -2,11 +2,11 @@ package groth16_test
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/irfanbozkurt/gnark/backend/groth16"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/frontend/cs/r1cs"
-	"github.com/irfanbozkurt/gnark/std/algebra/native/sw_bls12377"
-	stdgroth16 "github.com/irfanbozkurt/gnark/std/recursion/groth16"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	stdgroth16 "github.com/consensys/gnark/std/recursion/groth16"
 )
 
 // Example of verifying recursively BLS12-377 Groth16 proof in BW6-761 Groth16

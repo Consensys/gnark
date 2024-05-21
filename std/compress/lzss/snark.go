@@ -2,12 +2,12 @@ package lzss
 
 import (
 	"github.com/consensys/compress/lzss"
-	hint "github.com/irfanbozkurt/gnark/constraint/solver"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/compress"
-	"github.com/irfanbozkurt/gnark/std/compress/internal"
-	"github.com/irfanbozkurt/gnark/std/compress/internal/plonk"
-	"github.com/irfanbozkurt/gnark/std/lookup/logderivlookup"
+	hint "github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/compress/internal"
+	"github.com/consensys/gnark/std/compress/internal/plonk"
+	"github.com/consensys/gnark/std/lookup/logderivlookup"
 )
 
 // TODO Provide option for c to be in sizes other than bytes
@@ -120,7 +120,7 @@ func Decompress(api frontend.API, c []frontend.Variable, cLength frontend.Variab
 		inIDelta = api.Mul(inIDelta, copyLen01)
 
 		// TODO Try removing this check and requiring the user to pad the input with nonzeros
-		// TODO Change inner to mulacc once https://github.com/irfanbozkurt/gnark/pull/859 is merged
+		// TODO Change inner to mulacc once https://github.com/Consensys/gnark/pull/859 is merged
 		// inI = inI + inIDelta * (1 - eof)
 
 		inI = api.Add(inI, plonk.EvaluateExpression(api, inIDelta, eof, 1, 0, -1, 0)) // if eof, stay put

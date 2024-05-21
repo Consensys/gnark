@@ -17,7 +17,7 @@ package exponentiate
 import (
 	"testing"
 
-	"github.com/irfanbozkurt/gnark/test"
+	"github.com/consensys/gnark/test"
 )
 
 func TestExponentiateGroth16(t *testing.T) {

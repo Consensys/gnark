@@ -15,8 +15,8 @@
 package mimc
 
 import (
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hash/mimc"
 )
 
 // Circuit defines a pre-image knowledge proof

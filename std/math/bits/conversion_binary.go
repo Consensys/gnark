@@ -3,7 +3,7 @@ package bits
 import (
 	"math/big"
 
-	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/consensys/gnark/frontend"
 )
 
 // ToBinary is an alias of ToBase(api, Binary, v, opts)

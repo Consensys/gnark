@@ -3,7 +3,7 @@ package cs
 import (
 	"math/big"
 
-	"github.com/irfanbozkurt/gnark/constraint"
+	"github.com/consensys/gnark/constraint"
 )
 
 // CoeffTable helps build a constraint system but need not be serialized after compilation

@@ -5,11 +5,11 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/internal/kvstore"
-	"github.com/irfanbozkurt/gnark/internal/utils"
-	"github.com/irfanbozkurt/gnark/logger"
-	"github.com/irfanbozkurt/gnark/std/rangecheck"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/kvstore"
+	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/logger"
+	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/rs/zerolog"
 	"golang.org/x/exp/constraints"
 )

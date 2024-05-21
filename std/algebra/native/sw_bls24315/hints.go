@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/irfanbozkurt/gnark/constraint/solver"
+	"github.com/consensys/gnark/constraint/solver"
 )
 
 func GetHints() []solver.Hint {

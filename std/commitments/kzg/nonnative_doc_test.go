@@ -7,13 +7,13 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	kzg_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/kzg"
-	"github.com/irfanbozkurt/gnark/backend/groth16"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/frontend/cs/r1cs"
-	"github.com/irfanbozkurt/gnark/std/algebra"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bn254"
-	"github.com/irfanbozkurt/gnark/std/commitments/kzg"
-	"github.com/irfanbozkurt/gnark/std/math/emulated"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/commitments/kzg"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 type KZGVerificationCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GTEl algebra.GtElementT] struct {

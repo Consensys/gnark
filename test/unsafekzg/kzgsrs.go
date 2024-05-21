@@ -16,9 +16,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
-	"github.com/irfanbozkurt/gnark/constraint"
-	"github.com/irfanbozkurt/gnark/internal/utils"
-	"github.com/irfanbozkurt/gnark/logger"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/logger"
 
 	kzg_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/kzg"
 	kzg_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/kzg"

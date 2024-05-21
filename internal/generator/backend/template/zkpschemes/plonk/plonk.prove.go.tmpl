@@ -19,14 +19,14 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/iop"
 	{{ template "import_kzg" . }}
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/irfanbozkurt/gnark/backend"
-	"github.com/irfanbozkurt/gnark/backend/witness"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/witness"
 	{{ template "import_backend_cs" . }}
-	"github.com/irfanbozkurt/gnark/constraint"
-	"github.com/irfanbozkurt/gnark/constraint/solver"
-	"github.com/irfanbozkurt/gnark/internal/utils"
-	"github.com/irfanbozkurt/gnark/logger"
-	fcs "github.com/irfanbozkurt/gnark/frontend/cs"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/logger"
+	fcs "github.com/consensys/gnark/frontend/cs"
 )
 
 const (

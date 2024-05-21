@@ -20,7 +20,7 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/irfanbozkurt/gnark/io"
+	"github.com/consensys/gnark/io"
 	"math/big"
 	"math/rand"
 	"testing"

@@ -5,16 +5,16 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	native_plonk "github.com/irfanbozkurt/gnark/backend/plonk"
-	"github.com/irfanbozkurt/gnark/backend/witness"
-	"github.com/irfanbozkurt/gnark/constraint"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/frontend/cs/scs"
-	"github.com/irfanbozkurt/gnark/std/algebra"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bw6761"
-	"github.com/irfanbozkurt/gnark/std/math/emulated"
-	"github.com/irfanbozkurt/gnark/std/recursion/plonk"
-	"github.com/irfanbozkurt/gnark/test/unsafekzg"
+	native_plonk "github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/recursion/plonk"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // InnerCircuitNative is the definition of the inner circuit we want to

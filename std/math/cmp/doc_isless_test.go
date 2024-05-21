@@ -5,10 +5,10 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/irfanbozkurt/gnark/backend/groth16"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/frontend/cs/r1cs"
-	"github.com/irfanbozkurt/gnark/std/math/cmp"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/std/math/cmp"
 )
 
 // sortCheckerCircuit is a circuit that uses BoundedComparator.IsLess method to

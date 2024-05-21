@@ -21,9 +21,9 @@ import (
 
 	"golang.org/x/exp/slices"
 
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/hash"
-	"github.com/irfanbozkurt/gnark/std/math/bits"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // errChallengeNotFound is returned when a wrong challenge name is provided.

@@ -1,7 +1,7 @@
 package circuits
 
 import (
-	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/consensys/gnark/frontend"
 )
 
 // circuit designed to test if plonk compiler recognizes

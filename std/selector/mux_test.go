@@ -1,10 +1,9 @@
 package selector
 
 import (
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/test"
 	"testing"
-
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/test"
 )
 
 type binaryMuxCircuit struct {

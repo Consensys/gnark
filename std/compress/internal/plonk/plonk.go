@@ -1,6 +1,6 @@
 package plonk
 
-import "github.com/irfanbozkurt/gnark/frontend"
+import "github.com/consensys/gnark/frontend"
 
 func EvaluateExpression(api frontend.API, a, b frontend.Variable, aCoeff, bCoeff, mCoeff, constant int) frontend.Variable {
 	if plonkAPI, ok := api.(frontend.PlonkAPI); ok {

@@ -1,7 +1,7 @@
 package std
 
 import (
-	"github.com/irfanbozkurt/gnark/constraint"
+	"github.com/consensys/gnark/constraint"
 )
 
 func ExampleRegisterHints() {

@@ -10,16 +10,16 @@ import (
 	{{- template "import_fft" . }}
 	{{- template "import_hash_to_field" . }}
 	{{- template "import_pedersen" .}}
-	"github.com/irfanbozkurt/gnark/constraint"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/irfanbozkurt/gnark/internal/utils"
-	"github.com/irfanbozkurt/gnark/backend"
-	"github.com/irfanbozkurt/gnark/backend/groth16/internal"
-	"github.com/irfanbozkurt/gnark/constraint/solver"
-	"github.com/irfanbozkurt/gnark/backend/witness"
-	"github.com/irfanbozkurt/gnark/logger"
+	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16/internal"
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/logger"
 
-	fcs "github.com/irfanbozkurt/gnark/frontend/cs"
+	fcs "github.com/consensys/gnark/frontend/cs"
 )
 
 

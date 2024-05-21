@@ -1,7 +1,7 @@
 package circuits
 
 import (
-	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/consensys/gnark/frontend"
 )
 
 type andCircuit struct {

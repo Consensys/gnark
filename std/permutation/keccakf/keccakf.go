@@ -2,7 +2,7 @@
 //
 // This package exposes only the permutation primitive. For SHA3, SHAKE3 etc.
 // functions it is necessary to apply the sponge construction. The constructions
-// will be implemented in future in [github.com/irfanbozkurt/gnark/std/hash/sha3]
+// will be implemented in future in [github.com/consensys/gnark/std/hash/sha3]
 // package.
 //
 // The cost for a single application of permutation is:
@@ -11,7 +11,7 @@
 package keccakf
 
 import (
-	"github.com/irfanbozkurt/gnark/std/math/uints"
+	"github.com/consensys/gnark/std/math/uints"
 )
 
 var rc = [24]uints.U64{

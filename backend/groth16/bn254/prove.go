@@ -24,19 +24,19 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/hash_to_field"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
-	"github.com/irfanbozkurt/gnark/backend"
-	"github.com/irfanbozkurt/gnark/backend/groth16/internal"
-	"github.com/irfanbozkurt/gnark/backend/witness"
-	"github.com/irfanbozkurt/gnark/constraint"
-	cs "github.com/irfanbozkurt/gnark/constraint/bn254"
-	"github.com/irfanbozkurt/gnark/constraint/solver"
-	"github.com/irfanbozkurt/gnark/internal/utils"
-	"github.com/irfanbozkurt/gnark/logger"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/groth16/internal"
+	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
+	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/logger"
 	"math/big"
 	"runtime"
 	"time"
 
-	fcs "github.com/irfanbozkurt/gnark/frontend/cs"
+	fcs "github.com/consensys/gnark/frontend/cs"
 )
 
 // Proof represents a Groth16 proof that was encoded with a ProvingKey and can be verified

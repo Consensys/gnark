@@ -2,12 +2,11 @@ package main
 
 import (
 	"fmt"
-
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/frontend/cs/scs"
-	"github.com/irfanbozkurt/gnark/profile"
-	"github.com/irfanbozkurt/gnark/std/compress/lzss"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
+	"github.com/consensys/gnark/std/compress/lzss"
 )
 
 func main() {

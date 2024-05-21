@@ -29,17 +29,17 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	fr_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 	kzg_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/kzg"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/algebra"
-	"github.com/irfanbozkurt/gnark/std/algebra/algopts"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bls12381"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bn254"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bw6761"
-	"github.com/irfanbozkurt/gnark/std/algebra/native/sw_bls12377"
-	"github.com/irfanbozkurt/gnark/std/algebra/native/sw_bls24315"
-	"github.com/irfanbozkurt/gnark/std/math/bits"
-	"github.com/irfanbozkurt/gnark/std/math/emulated"
-	"github.com/irfanbozkurt/gnark/std/recursion"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/algopts"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
+	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/recursion"
 )
 
 // ValueOfScalar initializes a scalar in a witness from a native scalar (Fr) point.
@@ -507,7 +507,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 		// instead of computing it from the inputs. Currently it is inefficient
 		// as it computes hash of something for which we already have a hash.
 		// Maybe add an option to provide the folding coefficient? See issue
-		// https://github.com/irfanbozkurt/gnark/issues/1108
+		// https://github.com/Consensys/gnark/issues/1108
 		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[1], randomNumbers[i-1])
 	}
 	randomPointNumbers := make([]*emulated.Element[FR], len(randomNumbers))

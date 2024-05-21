@@ -3,20 +3,19 @@ package internal_test
 import (
 	"bytes"
 	"crypto/rand"
-	"testing"
-
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/std/compress"
+	"github.com/consensys/gnark/std/compress/internal"
+	"github.com/consensys/gnark/std/compress/lzss"
+	"github.com/consensys/gnark/std/math/bits"
+	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
+	"github.com/consensys/gnark/test"
 	"github.com/icza/bitio"
-	"github.com/irfanbozkurt/gnark/backend"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/frontend/cs/scs"
-	"github.com/irfanbozkurt/gnark/std/compress"
-	"github.com/irfanbozkurt/gnark/std/compress/internal"
-	"github.com/irfanbozkurt/gnark/std/compress/lzss"
-	"github.com/irfanbozkurt/gnark/std/math/bits"
-	test_vector_utils "github.com/irfanbozkurt/gnark/std/utils/test_vectors_utils"
-	"github.com/irfanbozkurt/gnark/test"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestRecombineBytes(t *testing.T) {

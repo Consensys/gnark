@@ -4,15 +4,14 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"reflect"
-	"testing"
-
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
-	"github.com/irfanbozkurt/gnark/backend"
-	"github.com/irfanbozkurt/gnark/frontend"
-	test_vector_utils "github.com/irfanbozkurt/gnark/std/utils/test_vectors_utils"
-	"github.com/irfanbozkurt/gnark/test"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
+	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
+	"github.com/consensys/gnark/test"
+	"reflect"
+	"testing"
 )
 
 func TestCustomConstraint(t *testing.T) {

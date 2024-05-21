@@ -13,12 +13,12 @@ import (
 	ped_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	ped_bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761/fr/pedersen"
-	"github.com/irfanbozkurt/gnark/std/algebra"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bls12381"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bn254"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bw6761"
-	"github.com/irfanbozkurt/gnark/std/algebra/native/sw_bls12377"
-	"github.com/irfanbozkurt/gnark/std/algebra/native/sw_bls24315"
+	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 )
 
 // ValueOfVerifyingKey returns a VerifyingKey from a native Pedersen verifying

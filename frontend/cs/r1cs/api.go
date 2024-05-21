@@ -24,17 +24,17 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/irfanbozkurt/gnark/internal/utils"
+	"github.com/consensys/gnark/internal/utils"
 
-	"github.com/irfanbozkurt/gnark/debug"
-	"github.com/irfanbozkurt/gnark/frontend/cs"
+	"github.com/consensys/gnark/debug"
+	"github.com/consensys/gnark/frontend/cs"
 
-	"github.com/irfanbozkurt/gnark/constraint"
-	"github.com/irfanbozkurt/gnark/constraint/solver"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/frontend/internal/expr"
-	"github.com/irfanbozkurt/gnark/frontend/schema"
-	"github.com/irfanbozkurt/gnark/std/math/bits"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/internal/expr"
+	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // ---------------------------------------------------------------------------------------------

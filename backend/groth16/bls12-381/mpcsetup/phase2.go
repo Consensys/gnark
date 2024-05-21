@@ -23,8 +23,8 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	"github.com/irfanbozkurt/gnark/constraint"
-	cs "github.com/irfanbozkurt/gnark/constraint/bls12-381"
+	"github.com/consensys/gnark/constraint"
+	cs "github.com/consensys/gnark/constraint/bls12-381"
 )
 
 type Phase2Evaluations struct {

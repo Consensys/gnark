@@ -4,17 +4,17 @@ import (
 	"math"
 	"sync"
 
+	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/irfanbozkurt/gnark"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bls12381"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bn254"
-	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bw6761"
-	"github.com/irfanbozkurt/gnark/std/algebra/native/sw_bls12377"
-	"github.com/irfanbozkurt/gnark/std/algebra/native/sw_bls24315"
-	"github.com/irfanbozkurt/gnark/std/hash/mimc"
-	"github.com/irfanbozkurt/gnark/std/math/bits"
-	"github.com/irfanbozkurt/gnark/std/math/emulated"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
+	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 var (

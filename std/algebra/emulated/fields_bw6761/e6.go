@@ -4,8 +4,8 @@ import (
 	"math/big"
 
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
-	"github.com/irfanbozkurt/gnark/frontend"
-	"github.com/irfanbozkurt/gnark/std/math/emulated"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 type curveF = emulated.Field[emulated.BW6761Fp]

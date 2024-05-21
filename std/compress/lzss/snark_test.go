@@ -4,17 +4,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"os"
 	"testing"
 
-	"github.com/irfanbozkurt/gnark/frontend/cs/scs"
-
 	"github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/irfanbozkurt/gnark/backend"
-	"github.com/irfanbozkurt/gnark/frontend"
-	test_vector_utils "github.com/irfanbozkurt/gnark/std/utils/test_vectors_utils"
-	"github.com/irfanbozkurt/gnark/test"
+	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
+	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
+	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

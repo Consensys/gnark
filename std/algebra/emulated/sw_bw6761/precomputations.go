@@ -2,7 +2,7 @@ package sw_bw6761
 
 import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
-	"github.com/irfanbozkurt/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 // lineEvaluation represents a sparse Fp6 Elmt (result of the line evaluation)
