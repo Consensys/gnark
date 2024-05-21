@@ -9,10 +9,10 @@ import (
 // solidityTemplate
 // this is an experimental feature and gnark solidity generator as not been thoroughly tested
 const solidityTemplate = `
-{{- $numPublic := sub (len .G1.K) 1 }}
-{{- $numCommitments := len .PublicAndCommitmentCommitted }}
+{{- $numPublic := sub (len .Vk.G1.K) 1 }}
+{{- $numCommitments := len .Vk.PublicAndCommitmentCommitted }}
 {{- $numWitness := sub $numPublic $numCommitments }}
-{{- $PublicAndCommitmentCommitted := .PublicAndCommitmentCommitted }}
+{{- $PublicAndCommitmentCommitted := .Vk.PublicAndCommitmentCommitted }}
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.0;
@@ -75,46 +75,46 @@ contract Verifier {
     uint256 constant EXP_SQRT_FP = 0xC19139CB84C680A6E14116DA060561765E05AA45A1C72A34F082305B61F3F52; // (P + 1) / 4;
 
     // Groth16 alpha point in G1
-    uint256 constant ALPHA_X = {{.G1.Alpha.X.String}};
-    uint256 constant ALPHA_Y = {{.G1.Alpha.Y.String}};
+    uint256 constant ALPHA_X = {{.Vk.G1.Alpha.X.String}};
+    uint256 constant ALPHA_Y = {{.Vk.G1.Alpha.Y.String}};
 
     // Groth16 beta point in G2 in powers of i
-    uint256 constant BETA_NEG_X_0 = {{.G2.Beta.X.A0.String}};
-    uint256 constant BETA_NEG_X_1 = {{.G2.Beta.X.A1.String}};
-    uint256 constant BETA_NEG_Y_0 = {{.G2.Beta.Y.A0.String}};
-    uint256 constant BETA_NEG_Y_1 = {{.G2.Beta.Y.A1.String}};
+    uint256 constant BETA_NEG_X_0 = {{.Vk.G2.Beta.X.A0.String}};
+    uint256 constant BETA_NEG_X_1 = {{.Vk.G2.Beta.X.A1.String}};
+    uint256 constant BETA_NEG_Y_0 = {{.Vk.G2.Beta.Y.A0.String}};
+    uint256 constant BETA_NEG_Y_1 = {{.Vk.G2.Beta.Y.A1.String}};
 
     // Groth16 gamma point in G2 in powers of i
-    uint256 constant GAMMA_NEG_X_0 = {{.G2.Gamma.X.A0.String}};
-    uint256 constant GAMMA_NEG_X_1 = {{.G2.Gamma.X.A1.String}};
-    uint256 constant GAMMA_NEG_Y_0 = {{.G2.Gamma.Y.A0.String}};
-    uint256 constant GAMMA_NEG_Y_1 = {{.G2.Gamma.Y.A1.String}};
+    uint256 constant GAMMA_NEG_X_0 = {{.Vk.G2.Gamma.X.A0.String}};
+    uint256 constant GAMMA_NEG_X_1 = {{.Vk.G2.Gamma.X.A1.String}};
+    uint256 constant GAMMA_NEG_Y_0 = {{.Vk.G2.Gamma.Y.A0.String}};
+    uint256 constant GAMMA_NEG_Y_1 = {{.Vk.G2.Gamma.Y.A1.String}};
 
     // Groth16 delta point in G2 in powers of i
-    uint256 constant DELTA_NEG_X_0 = {{.G2.Delta.X.A0.String}};
-    uint256 constant DELTA_NEG_X_1 = {{.G2.Delta.X.A1.String}};
-    uint256 constant DELTA_NEG_Y_0 = {{.G2.Delta.Y.A0.String}};
-    uint256 constant DELTA_NEG_Y_1 = {{.G2.Delta.Y.A1.String}};
+    uint256 constant DELTA_NEG_X_0 = {{.Vk.G2.Delta.X.A0.String}};
+    uint256 constant DELTA_NEG_X_1 = {{.Vk.G2.Delta.X.A1.String}};
+    uint256 constant DELTA_NEG_Y_0 = {{.Vk.G2.Delta.Y.A0.String}};
+    uint256 constant DELTA_NEG_Y_1 = {{.Vk.G2.Delta.Y.A1.String}};
 
     {{- if gt $numCommitments 0 }}
     // Pedersen G point in G2 in powers of i
-    uint256 constant PEDERSEN_G_X_0 = {{.CommitmentKey.G.X.A0.String}};
-    uint256 constant PEDERSEN_G_X_1 = {{.CommitmentKey.G.X.A1.String}};
-    uint256 constant PEDERSEN_G_Y_0 = {{.CommitmentKey.G.Y.A0.String}};
-    uint256 constant PEDERSEN_G_Y_1 = {{.CommitmentKey.G.Y.A1.String}};
+    uint256 constant PEDERSEN_G_X_0 = {{.Vk.CommitmentKey.G.X.A0.String}};
+    uint256 constant PEDERSEN_G_X_1 = {{.Vk.CommitmentKey.G.X.A1.String}};
+    uint256 constant PEDERSEN_G_Y_0 = {{.Vk.CommitmentKey.G.Y.A0.String}};
+    uint256 constant PEDERSEN_G_Y_1 = {{.Vk.CommitmentKey.G.Y.A1.String}};
 
     // Pedersen GRootSigmaNeg point in G2 in powers of i
-    uint256 constant PEDERSEN_GROOTSIGMANEG_X_0 = {{.CommitmentKey.GRootSigmaNeg.X.A0.String}};
-    uint256 constant PEDERSEN_GROOTSIGMANEG_X_1 = {{.CommitmentKey.GRootSigmaNeg.X.A1.String}};
-    uint256 constant PEDERSEN_GROOTSIGMANEG_Y_0 = {{.CommitmentKey.GRootSigmaNeg.Y.A0.String}};
-    uint256 constant PEDERSEN_GROOTSIGMANEG_Y_1 = {{.CommitmentKey.GRootSigmaNeg.Y.A1.String}};
+    uint256 constant PEDERSEN_GROOTSIGMANEG_X_0 = {{.Vk.CommitmentKey.GRootSigmaNeg.X.A0.String}};
+    uint256 constant PEDERSEN_GROOTSIGMANEG_X_1 = {{.Vk.CommitmentKey.GRootSigmaNeg.X.A1.String}};
+    uint256 constant PEDERSEN_GROOTSIGMANEG_Y_0 = {{.Vk.CommitmentKey.GRootSigmaNeg.Y.A0.String}};
+    uint256 constant PEDERSEN_GROOTSIGMANEG_Y_1 = {{.Vk.CommitmentKey.GRootSigmaNeg.Y.A1.String}};
     {{- end }}
 
     // Constant and public input points
-    {{- $k0 := index .G1.K 0}}
+    {{- $k0 := index .Vk.G1.K 0}}
     uint256 constant CONSTANT_X = {{$k0.X.String}};
     uint256 constant CONSTANT_Y = {{$k0.Y.String}};
-    {{- range $i, $ki := .G1.K }}
+    {{- range $i, $ki := .Vk.G1.K }}
         {{- if gt $i 0 }}
     uint256 constant PUB_{{sub $i 1}}_X = {{$ki.X.String}};
     uint256 constant PUB_{{sub $i 1}}_Y = {{$ki.Y.String}};
