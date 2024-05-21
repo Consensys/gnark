@@ -7,14 +7,14 @@ import (
 	"sync"
 
 	"github.com/blang/semver/v4"
-	"github.com/consensys/gnark"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/debug"
-	"github.com/consensys/gnark/internal/tinyfield"
-	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/logger"
-	"github.com/consensys/gnark/profile"
+	"github.com/irfanbozkurt/gnark"
+	"github.com/irfanbozkurt/gnark/constraint/solver"
+	"github.com/irfanbozkurt/gnark/debug"
+	"github.com/irfanbozkurt/gnark/internal/tinyfield"
+	"github.com/irfanbozkurt/gnark/internal/utils"
+	"github.com/irfanbozkurt/gnark/logger"
+	"github.com/irfanbozkurt/gnark/profile"
 )
 
 type SystemType uint16

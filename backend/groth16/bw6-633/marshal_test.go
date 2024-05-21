@@ -22,8 +22,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/pedersen"
-	"github.com/consensys/gnark/backend/groth16/internal/test_utils"
-	"github.com/consensys/gnark/io"
+	"github.com/irfanbozkurt/gnark/backend/groth16/internal/test_utils"
+	"github.com/irfanbozkurt/gnark/io"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

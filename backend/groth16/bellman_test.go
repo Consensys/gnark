@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/backend/witness"
+	"github.com/irfanbozkurt/gnark/backend/witness"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

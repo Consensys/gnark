@@ -5,8 +5,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/test"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/test"
 )
 
 type e6Add struct {

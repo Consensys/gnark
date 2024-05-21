@@ -3,7 +3,7 @@ package emulated
 import (
 	"fmt"
 
-	"github.com/consensys/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/frontend"
 )
 
 // enforceWidth enforces the width of the limbs. When modWidth is true, then the

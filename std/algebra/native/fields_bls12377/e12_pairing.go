@@ -1,6 +1,6 @@
 package fields_bls12377
 
-import "github.com/consensys/gnark/frontend"
+import "github.com/irfanbozkurt/gnark/frontend"
 
 // nSquareKarabina2345 repeated compressed cyclotmic square
 func (e *E12) nSquareKarabina2345(api frontend.API, n int) {

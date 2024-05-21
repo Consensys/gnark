@@ -6,11 +6,11 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/hash"
+	fiatshamir "github.com/irfanbozkurt/gnark/std/fiat-shamir"
+	"github.com/irfanbozkurt/gnark/std/hash"
 
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/accumulator/merkle"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/std/accumulator/merkle"
 )
 
 // same constant as in gnark-crypto

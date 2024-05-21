@@ -19,7 +19,7 @@ import (
 	"crypto/sha256"
 	"hash"
 
-	"github.com/consensys/gnark/constraint/solver"
+	"github.com/irfanbozkurt/gnark/constraint/solver"
 )
 
 // ID represent a unique ID for a proving scheme

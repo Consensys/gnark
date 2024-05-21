@@ -2,7 +2,7 @@ package test
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
+	"github.com/irfanbozkurt/gnark/backend"
 )
 
 // serializationThreshold is the number of constraints above which we don't

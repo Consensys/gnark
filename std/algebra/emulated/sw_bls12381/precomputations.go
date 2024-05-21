@@ -2,7 +2,7 @@ package sw_bls12381
 
 import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
-	"github.com/consensys/gnark/std/algebra/emulated/fields_bls12381"
+	"github.com/irfanbozkurt/gnark/std/algebra/emulated/fields_bls12381"
 )
 
 // lineEvaluation represents a sparse Fp12 Elmt (result of the line evaluation)

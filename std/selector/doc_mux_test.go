@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/selector"
+	"github.com/irfanbozkurt/gnark/backend/groth16"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/frontend/cs/r1cs"
+	"github.com/irfanbozkurt/gnark/std/selector"
 )
 
 // MuxCircuit is a minimal circuit using a selector mux.

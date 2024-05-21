@@ -535,7 +535,7 @@ contract Verifier {
             {{- if eq $numCommitments 1 }}
             (commitments[0], commitments[1]) = decompress_g1(compressedCommitments[0]);
             {{- else }}
-            // TODO: We can fold commitments into a single point for more efficient verification (https://github.com/Consensys/gnark/issues/1095)
+            // TODO: We can fold commitments into a single point for more efficient verification (https://github.com/irfanbozkurt/gnark/issues/1095)
             for (uint256 i = 0; i < {{$numCommitments}}; i++) {
                 (commitments[2*i], commitments[2*i+1]) = decompress_g1(compressedCommitments[i]);
             }

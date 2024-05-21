@@ -27,21 +27,21 @@ import (
 	"sync/atomic"
 
 	"github.com/bits-and-blooms/bitset"
-	"github.com/consensys/gnark/constraint"
+	"github.com/irfanbozkurt/gnark/constraint"
 
-	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/debug"
-	"github.com/consensys/gnark/frontend/schema"
-	"github.com/consensys/gnark/logger"
+	"github.com/irfanbozkurt/gnark/constraint/solver"
+	"github.com/irfanbozkurt/gnark/debug"
+	"github.com/irfanbozkurt/gnark/frontend/schema"
+	"github.com/irfanbozkurt/gnark/logger"
 	"golang.org/x/crypto/sha3"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/field/pool"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/circuitdefer"
-	"github.com/consensys/gnark/internal/kvstore"
-	"github.com/consensys/gnark/internal/utils"
+	"github.com/irfanbozkurt/gnark/backend"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/internal/circuitdefer"
+	"github.com/irfanbozkurt/gnark/internal/kvstore"
+	"github.com/irfanbozkurt/gnark/internal/utils"
 )
 
 // engine implements frontend.API

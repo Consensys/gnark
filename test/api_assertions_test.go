@@ -1,9 +1,10 @@
 package test
 
 import (
-	"github.com/consensys/gnark/frontend"
 	"math/rand"
 	"testing"
+
+	"github.com/irfanbozkurt/gnark/frontend"
 )
 
 func TestIsCrumb(t *testing.T) {

@@ -1,6 +1,6 @@
 package fields_bls12381
 
-import "github.com/consensys/gnark/std/math/emulated"
+import "github.com/irfanbozkurt/gnark/std/math/emulated"
 
 func (e Ext12) nSquareTorus(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {

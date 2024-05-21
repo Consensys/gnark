@@ -6,8 +6,8 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/consensys/gnark/internal/backend/ioutils"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/irfanbozkurt/gnark/internal/backend/ioutils"
 	"golang.org/x/sync/errgroup"
 )
 

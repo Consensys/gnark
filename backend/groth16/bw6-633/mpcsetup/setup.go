@@ -19,7 +19,7 @@ package mpcsetup
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
-	groth16 "github.com/consensys/gnark/backend/groth16/bw6-633"
+	groth16 "github.com/irfanbozkurt/gnark/backend/groth16/bw6-633"
 )
 
 func ExtractKeys(srs1 *Phase1, srs2 *Phase2, evals *Phase2Evaluations, nConstraints int) (pk groth16.ProvingKey, vk groth16.VerifyingKey) {

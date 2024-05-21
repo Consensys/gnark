@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/irfanbozkurt/gnark/frontend/cs/r1cs"
 
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/selector"
-	"github.com/consensys/gnark/test"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/std/selector"
+	"github.com/irfanbozkurt/gnark/test"
 )
 
 type muxCircuit struct {

@@ -1,9 +1,9 @@
 package sha3
 
 import (
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/hash"
-	"github.com/consensys/gnark/std/math/uints"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/std/hash"
+	"github.com/irfanbozkurt/gnark/std/math/uints"
 )
 
 // New256 creates a new SHA3-256 hash.

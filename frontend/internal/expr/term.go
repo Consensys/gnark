@@ -1,6 +1,6 @@
 package expr
 
-import "github.com/consensys/gnark/constraint"
+import "github.com/irfanbozkurt/gnark/constraint"
 
 type Term struct {
 	VID   int

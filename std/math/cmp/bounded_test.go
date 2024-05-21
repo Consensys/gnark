@@ -1,11 +1,12 @@
 package cmp_test
 
 import (
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/cmp"
-	"github.com/consensys/gnark/test"
 	"math/big"
 	"testing"
+
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/std/math/cmp"
+	"github.com/irfanbozkurt/gnark/test"
 )
 
 func TestAssertIsLessEq(t *testing.T) {

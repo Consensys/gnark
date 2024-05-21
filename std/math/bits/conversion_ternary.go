@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/consensys/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/frontend"
 )
 
 // ToTernary is an alias of ToBase(api, Ternary, v, opts...)

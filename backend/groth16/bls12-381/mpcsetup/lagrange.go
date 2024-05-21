@@ -25,7 +25,7 @@ import (
 	curve "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/fft"
-	"github.com/consensys/gnark/internal/utils"
+	"github.com/irfanbozkurt/gnark/internal/utils"
 )
 
 // TODO use gnark-crypto for this op

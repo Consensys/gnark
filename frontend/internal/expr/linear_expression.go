@@ -1,7 +1,7 @@
 package expr
 
 import (
-	"github.com/consensys/gnark/constraint"
+	"github.com/irfanbozkurt/gnark/constraint"
 )
 
 type LinearExpression []Term

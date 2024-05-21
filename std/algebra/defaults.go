@@ -3,15 +3,15 @@ package algebra
 import (
 	"fmt"
 
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
-	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
-	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bls12381"
+	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bn254"
+	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_bw6761"
+	"github.com/irfanbozkurt/gnark/std/algebra/emulated/sw_emulated"
+	"github.com/irfanbozkurt/gnark/std/algebra/native/sw_bls12377"
+	"github.com/irfanbozkurt/gnark/std/algebra/native/sw_bls24315"
+	"github.com/irfanbozkurt/gnark/std/math/emulated"
+	"github.com/irfanbozkurt/gnark/std/math/emulated/emparams"
 )
 
 // GetCurve returns the [Curve] implementation corresponding to the scalar and

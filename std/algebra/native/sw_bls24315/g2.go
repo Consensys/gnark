@@ -22,9 +22,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra/algopts"
-	"github.com/consensys/gnark/std/algebra/native/fields_bls24315"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/std/algebra/algopts"
+	"github.com/irfanbozkurt/gnark/std/algebra/native/fields_bls24315"
 )
 
 type g2AffP struct {

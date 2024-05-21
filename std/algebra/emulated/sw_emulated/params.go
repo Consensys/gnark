@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
-	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/irfanbozkurt/gnark/std/math/emulated"
 )
 
 // CurveParams defines parameters of an elliptic curve in short Weierstrass form

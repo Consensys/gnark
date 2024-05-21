@@ -21,10 +21,10 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
-	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/test"
+	"github.com/irfanbozkurt/gnark/constraint"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/frontend/cs/r1cs"
+	"github.com/irfanbozkurt/gnark/test"
 )
 
 //--------------------------------------------------------------------

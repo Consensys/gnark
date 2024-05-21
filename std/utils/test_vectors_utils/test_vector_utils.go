@@ -2,13 +2,14 @@ package test_vector_utils
 
 import (
 	"encoding/json"
-	"github.com/consensys/gnark/frontend"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/stretchr/testify/assert"
 )
 
 // These data structures fail to equate different representations of the same number. i.e. 5 = -10/-2

@@ -10,9 +10,9 @@
 package rangecheck
 
 import (
-	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/irfanbozkurt/gnark/constraint/solver"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/frontend/cs/r1cs"
 )
 
 // only for documentation purposes. If we import the package then godoc knows

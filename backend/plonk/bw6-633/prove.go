@@ -41,15 +41,15 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/kzg"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
-	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/backend/witness"
+	"github.com/irfanbozkurt/gnark/backend"
+	"github.com/irfanbozkurt/gnark/backend/witness"
 
-	"github.com/consensys/gnark/constraint"
-	cs "github.com/consensys/gnark/constraint/bw6-633"
-	"github.com/consensys/gnark/constraint/solver"
-	fcs "github.com/consensys/gnark/frontend/cs"
-	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/logger"
+	"github.com/irfanbozkurt/gnark/constraint"
+	cs "github.com/irfanbozkurt/gnark/constraint/bw6-633"
+	"github.com/irfanbozkurt/gnark/constraint/solver"
+	fcs "github.com/irfanbozkurt/gnark/frontend/cs"
+	"github.com/irfanbozkurt/gnark/internal/utils"
+	"github.com/irfanbozkurt/gnark/logger"
 )
 
 const (

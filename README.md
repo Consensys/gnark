@@ -7,22 +7,19 @@
 
 `gnark` is a fast zk-SNARK library that offers a high-level API to design circuits. The library is open source and developed under the Apache 2.0 license
 
-
 ## Useful Links
 
-* [`gnark` User Documentation]
-* [`gnark` Playground]
-* [`gnark` Issues]
-* [`gnark` Benchmarks](https://docs.gnark.consensys.net/overview#gnark-is-fast) 🏁
-* [`gnark-announce`] - Announcement list for new releases and security patches
-
+- [`gnark` User Documentation]
+- [`gnark` Playground]
+- [`gnark` Issues]
+- [`gnark` Benchmarks](https://docs.gnark.consensys.net/overview#gnark-is-fast) 🏁
+- [`gnark-announce`] - Announcement list for new releases and security patches
 
 ## `gnark` Users
 
 To get started with `gnark` and write your first circuit, follow [these instructions][`gnark` User Documentation].
 
 Checkout the [online playground][`gnark` Playground] to compile circuits and visualize constraint systems.
-
 
 ## Warning
 
@@ -74,9 +71,9 @@ package main
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/irfanbozkurt/gnark/backend/groth16"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/frontend/cs/r1cs"
 )
 
 // CubicCircuit defines a simple circuit
@@ -135,7 +132,7 @@ You can then toggle on or off icicle acceleration by providing the `WithIcicleAc
 ```go
     // toggle on
     proofIci, err := groth16.Prove(ccs, pk, secretWitness, backend.WithIcicleAcceleration())
-    
+
     // toggle off
     proof, err := groth16.Prove(ccs, pk, secretWitness)
 ```
@@ -170,16 +167,16 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our [code of condu
 
 ## Versioning
 
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/consensys/gnark/tags).
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/irfanbozkurt/gnark/tags).
 
 ## License
 
 This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE) file for details
 
-[`gnark` Issues]: https://github.com/consensys/gnark/issues
+[`gnark` Issues]: https://github.com/irfanbozkurt/gnark/issues
 [`gnark` Playground]: https://play.gnark.io
 [`gnark` User Documentation]: https://docs.gnark.consensys.net/
-[GitHub discussions]: https://github.com/ConsenSys/gnark/discussions
+[GitHub discussions]: https://github.com/irfanbozkurt/gnark/discussions
 [Proving schemes and curves]: https://docs.gnark.consensys.net/Concepts/schemes_curves
 [`gnark-announce`]: https://groups.google.com/g/gnark-announce
 [@gnark_team]: https://twitter.com/gnark_team

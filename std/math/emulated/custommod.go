@@ -3,7 +3,7 @@ package emulated
 import (
 	"errors"
 
-	"github.com/consensys/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/frontend"
 )
 
 // ModMul computes a*b mod modulus. Instead of taking modulus as a constant

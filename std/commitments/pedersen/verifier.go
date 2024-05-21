@@ -4,9 +4,9 @@ package pedersen
 import (
 	"fmt"
 
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra"
-	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/std/algebra"
+	"github.com/irfanbozkurt/gnark/std/math/emulated"
 )
 
 // Commitment is a Pedersen commitment to a vector.

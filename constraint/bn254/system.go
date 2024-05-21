@@ -20,10 +20,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/constraint"
-	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/logger"
+	"github.com/irfanbozkurt/gnark/backend/witness"
+	"github.com/irfanbozkurt/gnark/constraint"
+	csolver "github.com/irfanbozkurt/gnark/constraint/solver"
+	"github.com/irfanbozkurt/gnark/logger"
 
 	"github.com/consensys/gnark-crypto/ecc"
 

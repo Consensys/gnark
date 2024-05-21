@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
-	"github.com/consensys/gnark/test"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/std/math/emulated/emparams"
+	"github.com/irfanbozkurt/gnark/test"
 )
 
 type testIssue867Circuit struct {

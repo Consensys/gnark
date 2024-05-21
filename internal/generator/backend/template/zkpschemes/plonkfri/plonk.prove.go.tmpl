@@ -3,15 +3,15 @@ import (
 	"math/bits"
 	"runtime"
 
-	"github.com/consensys/gnark/backend/witness"
+	"github.com/irfanbozkurt/gnark/backend/witness"
 
 	{{ template "import_fr" . }}
 	{{ template "import_fft" . }}
 	{{ template "import_backend_cs" . }}
     {{ template "import_fri" . }}
 	
-    "github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/backend"
+    "github.com/irfanbozkurt/gnark/internal/utils"
+	"github.com/irfanbozkurt/gnark/backend"
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 )
 

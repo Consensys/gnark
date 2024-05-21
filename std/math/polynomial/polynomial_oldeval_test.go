@@ -3,7 +3,7 @@ package polynomial
 import (
 	"fmt"
 
-	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/irfanbozkurt/gnark/std/math/emulated"
 )
 
 // evalMultilinearOld evaluates a multilinear polynomial at a given point.

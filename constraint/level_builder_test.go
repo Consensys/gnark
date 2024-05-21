@@ -5,9 +5,9 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/test"
+	"github.com/irfanbozkurt/gnark/constraint/solver"
+	"github.com/irfanbozkurt/gnark/frontend"
+	"github.com/irfanbozkurt/gnark/test"
 )
 
 func idHint(_ *big.Int, in []*big.Int, out []*big.Int) error {

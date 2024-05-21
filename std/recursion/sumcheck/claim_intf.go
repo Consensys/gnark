@@ -3,7 +3,7 @@ package sumcheck
 import (
 	"math/big"
 
-	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/irfanbozkurt/gnark/std/math/emulated"
 )
 
 // LazyClaims allows to verify the sumcheck proof by allowing different final evaluations.
