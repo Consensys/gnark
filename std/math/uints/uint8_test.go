@@ -79,3 +79,29 @@ func TestRshift(t *testing.T) {
 	err = test.IsSolved(&rshiftCircuit{Shift: 11}, &rshiftCircuit{Shift: 11, In: NewU32(0x12345678), Expected: NewU32(0x12345678 >> 11)}, ecc.BN254.ScalarField())
 	assert.NoError(err)
 }
+
+type valueOfCircuit[T U32 | U64] struct {
+	In       frontend.Variable
+	Expected T
+}
+
+func (c *valueOfCircuit[T]) Define(api frontend.API) error {
+	uapi, err := New[T](api)
+	if err != nil {
+		return err
+	}
+	res := uapi.ValueOf(c.In)
+	uapi.AssertEq(res, c.Expected)
+	return nil
+}
+
+func TestValueOf(t *testing.T) {
+	assert := test.NewAssert(t)
+	var err error
+	err = test.IsSolved(&valueOfCircuit[U64]{}, &valueOfCircuit[U64]{In: 0x12345678, Expected: [8]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12), NewU8(0), NewU8(0), NewU8(0), NewU8(0)}}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	err = test.IsSolved(&valueOfCircuit[U32]{}, &valueOfCircuit[U32]{In: 0x12345678, Expected: [4]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12)}}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	err = test.IsSolved(&valueOfCircuit[U32]{}, &valueOfCircuit[U32]{In: 0x1234567812345678, Expected: [4]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12)}}, ecc.BN254.ScalarField())
+	assert.Error(err)
+}
