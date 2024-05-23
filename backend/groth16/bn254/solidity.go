@@ -15,7 +15,7 @@ const solidityTemplate = `
 {{- $PublicAndCommitmentCommitted := .Vk.PublicAndCommitmentCommitted }}
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity {{ .Cfg.PragmaVersion }};
 
 /// @title Groth16 verifier template.
 /// @author Remco Bloemen
