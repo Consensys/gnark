@@ -4,6 +4,48 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
+func (e Ext12) nSquare(z *E12, n int) *E12 {
+	for i := 0; i < n; i++ {
+		z = e.Square(z)
+	}
+	return z
+}
+
+// Exponentiation by the seed t=4965661367192848881
+func (e Ext12) Expt(x *E12) *E12 {
+	t3 := e.Square(x)
+	t5 := e.Square(t3)
+	result := e.Square(t5)
+	t0 := e.Square(result)
+	t2 := e.Mul(x, t0)
+	t0 = e.Mul(t3, t2)
+	t1 := e.Mul(x, t0)
+	t4 := e.Mul(result, t2)
+	t6 := e.Square(t2)
+	t1 = e.Mul(t0, t1)
+	t0 = e.Mul(t3, t1)
+	t6 = e.nSquare(t6, 6)
+	t5 = e.Mul(t5, t6)
+	t5 = e.Mul(t4, t5)
+	t5 = e.nSquare(t5, 7)
+	t4 = e.Mul(t4, t5)
+	t4 = e.nSquare(t4, 8)
+	t4 = e.Mul(t0, t4)
+	t3 = e.Mul(t3, t4)
+	t3 = e.nSquare(t3, 6)
+	t2 = e.Mul(t2, t3)
+	t2 = e.nSquare(t2, 8)
+	t2 = e.Mul(t0, t2)
+	t2 = e.nSquare(t2, 6)
+	t2 = e.Mul(t0, t2)
+	t2 = e.nSquare(t2, 10)
+	t1 = e.Mul(t1, t2)
+	t1 = e.nSquare(t1, 6)
+	t0 = e.Mul(t0, t1)
+	z := e.Mul(result, t0)
+	return z
+}
+
 func (e Ext12) nSquareTorus(z *E6, n int) *E6 {
 	for i := 0; i < n; i++ {
 		z = e.SquareTorus(z)
@@ -350,4 +392,129 @@ func (e Ext12) FrobeniusCubeTorus(y *E6) *E6 {
 	res = e.Ext6.MulBy0(res, &v0)
 
 	return res
+}
+
+func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
+	res, err := e.fp.NewHint(finalExpHint, 24, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	cInv := E12{
+		C0: E6{
+			B0: E2{A0: *res[0], A1: *res[1]},
+			B1: E2{A0: *res[2], A1: *res[3]},
+			B2: E2{A0: *res[4], A1: *res[5]},
+		},
+		C1: E6{
+			B0: E2{A0: *res[6], A1: *res[7]},
+			B1: E2{A0: *res[8], A1: *res[9]},
+			B2: E2{A0: *res[10], A1: *res[11]},
+		},
+	}
+	w := E12{
+		C0: E6{
+			B0: E2{A0: *res[12], A1: *res[13]},
+			B1: E2{A0: *res[14], A1: *res[15]},
+			B2: E2{A0: *res[16], A1: *res[17]},
+		},
+		C1: E6{
+			B0: E2{A0: *res[18], A1: *res[19]},
+			B1: E2{A0: *res[20], A1: *res[21]},
+			B2: E2{A0: *res[22], A1: *res[23]},
+		},
+	}
+
+	one := e.One()
+
+	// Check that cInv ^ λ * x * w == 1
+	// where λ = 2(3x + 1) + q - q^2 +q^3
+	// and cInv, w from the hint.
+	_one := e.Mul(&w, x)
+
+	t1 := e.FrobeniusCube(&cInv)
+	t0 := e.FrobeniusSquare(&cInv)
+	t1 = e.DivUnchecked(t1, t0)
+	t0 = e.Frobenius(&cInv)
+	t1 = e.Mul(t1, t0)
+
+	t2 := e.Expt(&cInv)
+	t0 = e.Square(t2)
+	t0 = e.Mul(t0, t2)
+	t0 = e.Mul(t0, &cInv)
+	t0 = e.Square(t0)
+
+	t0 = e.Mul(t0, t1)
+
+	_one = e.Mul(_one, t0)
+
+	e.AssertIsEqual(one, _one)
+
+	return nil
+}
+
+func (e Ext12) Frobenius(x *E12) *E12 {
+	t0 := e.Ext2.Conjugate(&x.C0.B0)
+	t1 := e.Ext2.Conjugate(&x.C0.B1)
+	t2 := e.Ext2.Conjugate(&x.C0.B2)
+	t3 := e.Ext2.Conjugate(&x.C1.B0)
+	t4 := e.Ext2.Conjugate(&x.C1.B1)
+	t5 := e.Ext2.Conjugate(&x.C1.B2)
+	t1 = e.Ext2.MulByNonResidue1Power2(t1)
+	t2 = e.Ext2.MulByNonResidue1Power4(t2)
+	t3 = e.Ext2.MulByNonResidue1Power1(t3)
+	t4 = e.Ext2.MulByNonResidue1Power3(t4)
+	t5 = e.Ext2.MulByNonResidue1Power5(t5)
+	return &E12{
+		C0: E6{
+			B0: *t0,
+			B1: *t1,
+			B2: *t2,
+		},
+		C1: E6{
+			B0: *t3,
+			B1: *t4,
+			B2: *t5,
+		},
+	}
+}
+
+func (e Ext12) FrobeniusSquare(x *E12) *E12 {
+	z00 := &x.C0.B0
+	z01 := e.Ext2.MulByNonResidue2Power2(&x.C0.B1)
+	z02 := e.Ext2.MulByNonResidue2Power4(&x.C0.B2)
+	z10 := e.Ext2.MulByNonResidue2Power1(&x.C1.B0)
+	z11 := e.Ext2.MulByNonResidue2Power3(&x.C1.B1)
+	z12 := e.Ext2.MulByNonResidue2Power5(&x.C1.B2)
+	return &E12{
+		C0: E6{B0: *z00, B1: *z01, B2: *z02},
+		C1: E6{B0: *z10, B1: *z11, B2: *z12},
+	}
+}
+
+func (e Ext12) FrobeniusCube(x *E12) *E12 {
+	t0 := e.Ext2.Conjugate(&x.C0.B0)
+	t1 := e.Ext2.Conjugate(&x.C0.B1)
+	t2 := e.Ext2.Conjugate(&x.C0.B2)
+	t3 := e.Ext2.Conjugate(&x.C1.B0)
+	t4 := e.Ext2.Conjugate(&x.C1.B1)
+	t5 := e.Ext2.Conjugate(&x.C1.B2)
+	t1 = e.Ext2.MulByNonResidue3Power2(t1)
+	t2 = e.Ext2.MulByNonResidue3Power4(t2)
+	t3 = e.Ext2.MulByNonResidue3Power1(t3)
+	t4 = e.Ext2.MulByNonResidue3Power3(t4)
+	t5 = e.Ext2.MulByNonResidue3Power5(t5)
+	return &E12{
+		C0: E6{
+			B0: *t0,
+			B1: *t1,
+			B2: *t2,
+		},
+		C1: E6{
+			B0: *t3,
+			B1: *t4,
+			B2: *t5,
+		},
+	}
 }

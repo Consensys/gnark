@@ -245,13 +245,12 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	f, err := pr.Pair(P, Q)
+	f, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return err
 
 	}
-	one := pr.One()
-	pr.AssertIsEqual(f, one)
+	pr.FinalExponentiationCheck(f)
 
 	return nil
 }
