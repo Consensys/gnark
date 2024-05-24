@@ -394,6 +394,12 @@ func (e Ext12) FrobeniusCubeTorus(y *E6) *E6 {
 	return res
 }
 
+// FinalExponentiationCheck checks that a Miller function output x lies in the
+// same equivalence class as the reduced pairing. This replaces the final
+// exponentiation step in-circuit.
+// The method follows [On Proving Pairings] paper by A. Novakovic and L. Eagen.
+//
+// https://eprint.iacr.org/2024/640.pdf (Section 4).
 func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
 	res, err := e.fp.NewHint(finalExpHint, 24, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1)
 	if err != nil {
@@ -401,7 +407,7 @@ func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
 		panic(err)
 	}
 
-	cInv := E12{
+	residueWitnessInv := E12{
 		C0: E6{
 			B0: E2{A0: *res[0], A1: *res[1]},
 			B1: E2{A0: *res[2], A1: *res[3]},
@@ -413,7 +419,7 @@ func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
 			B2: E2{A0: *res[10], A1: *res[11]},
 		},
 	}
-	w := E12{
+	cubicNonResiduePower := E12{
 		C0: E6{
 			B0: E2{A0: *res[12], A1: *res[13]},
 			B1: E2{A0: *res[14], A1: *res[15]},
@@ -426,30 +432,28 @@ func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
 		},
 	}
 
-	one := e.One()
+	// Check that residueWitnessInv^λ * x * cubicNonResiduePower == 1
+	// where λ = 2(3x + 1) + q^3 - q^2 + q
+	// and residueWitnessInv, cubicNonResiduePower from the hint.
+	result := e.Mul(&cubicNonResiduePower, x)
 
-	// Check that cInv ^ λ * x * w == 1
-	// where λ = 2(3x + 1) + q - q^2 +q^3
-	// and cInv, w from the hint.
-	_one := e.Mul(&w, x)
-
-	t1 := e.FrobeniusCube(&cInv)
-	t0 := e.FrobeniusSquare(&cInv)
+	t1 := e.FrobeniusCube(&residueWitnessInv)
+	t0 := e.FrobeniusSquare(&residueWitnessInv)
 	t1 = e.DivUnchecked(t1, t0)
-	t0 = e.Frobenius(&cInv)
+	t0 = e.Frobenius(&residueWitnessInv)
 	t1 = e.Mul(t1, t0)
 
-	t2 := e.Expt(&cInv)
+	t2 := e.Expt(&residueWitnessInv)
 	t0 = e.Square(t2)
 	t0 = e.Mul(t0, t2)
-	t0 = e.Mul(t0, &cInv)
+	t0 = e.Mul(t0, &residueWitnessInv)
 	t0 = e.Square(t0)
 
 	t0 = e.Mul(t0, t1)
 
-	_one = e.Mul(_one, t0)
+	result = e.Mul(result, t0)
 
-	e.AssertIsEqual(one, _one)
+	e.AssertIsEqual(e.One(), result)
 
 	return nil
 }
