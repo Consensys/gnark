@@ -642,13 +642,3 @@ func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*G
 	res = pr.Mul(res, previous)
 	return res, err
 }
-
-// FinalExponentiationIsOne performs the final exponentiation on e
-// and checks that the result in 1 in GT.
-//
-// This method is needed for evmprecompiles/ecpair.
-func (pr Pairing) FinalExponentiationIsOne(e *GTEl) {
-	res := pr.finalExponentiation(e, false)
-	one := pr.One()
-	pr.AssertIsEqual(res, one)
-}

@@ -11,7 +11,9 @@ import (
 //
 // To have a fixed-circuit regardless of the number of inputs, we need 2 fixed circuits:
 // - A Miller loop of fixed size 1 followed with a multiplication in 𝔽p¹² (MillerLoopAndMul)
-// - A final exponentiation followed with an equality check in GT (FinalExponentiationIsOne)
+// - A final exponentiation circuit that checks that the reduced pairing
+//   supposed to be 1 lies in the same equivalence class of the Miller function
+//   output (FinalExponentiationCheck)
 //
 //   N.B.: This is a sub-optimal routine but defines a fixed circuit regardless
 //   of the number of inputs.  We can extend this routine to handle a 2-by-2
@@ -46,5 +48,5 @@ func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	}
 
 	// fixed circuit 2
-	pair.FinalExponentiationIsOne(ml)
+	pair.FinalExponentiationCheck(ml)
 }
