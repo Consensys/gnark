@@ -435,7 +435,7 @@ func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
 		panic(err)
 	}
 
-	residueWitnessInv := E12{
+	residueWitness := E12{
 		C0: E6{
 			B0: E2{A0: *res[0], A1: *res[1]},
 			B1: E2{A0: *res[2], A1: *res[3]},
@@ -460,25 +460,23 @@ func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
 		},
 	}
 
-	// Check that residueWitnessInv^λ * x * cubicNonResiduePower == 1
+	// Check that  x * cubicNonResiduePower == residueWitness^λ
 	// where λ = 6u + 2 + q^3 - q^2 + q, with u the BN254 seed
-	// and residueWitnessInv, cubicNonResiduePower from the hint.
-	result := e.Mul(&cubicNonResiduePower, x)
+	// and residueWitness, cubicNonResiduePower from the hint.
+	t2 := e.Mul(&cubicNonResiduePower, x)
 
-	t1 := e.FrobeniusCube(&residueWitnessInv)
-	t0 := e.FrobeniusSquare(&residueWitnessInv)
+	t1 := e.FrobeniusCube(&residueWitness)
+	t0 := e.FrobeniusSquare(&residueWitness)
 	t1 = e.DivUnchecked(t1, t0)
-	t0 = e.Frobenius(&residueWitnessInv)
+	t0 = e.Frobenius(&residueWitness)
 	t1 = e.Mul(t1, t0)
 
 	// exponentiation by U=6u+2
-	t0 = e.ExpByU(&residueWitnessInv)
+	t0 = e.ExpByU(&residueWitness)
 
 	t0 = e.Mul(t0, t1)
 
-	result = e.Mul(result, t0)
-
-	e.AssertIsEqual(e.One(), result)
+	e.AssertIsEqual(t0, t2)
 
 	return nil
 }

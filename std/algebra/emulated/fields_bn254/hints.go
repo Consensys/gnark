@@ -362,21 +362,18 @@ func finalExpHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) er
 			// x is now the cube root of residueWitness
 			residueWitness.Set(&x)
 
-			// we return the inverse of residueWitness to avoid computing it in-circuit
-			residueWitnessInv.Inverse(&residueWitness)
-
-			residueWitnessInv.C0.B0.A0.BigInt(outputs[0])
-			residueWitnessInv.C0.B0.A1.BigInt(outputs[1])
-			residueWitnessInv.C0.B1.A0.BigInt(outputs[2])
-			residueWitnessInv.C0.B1.A1.BigInt(outputs[3])
-			residueWitnessInv.C0.B2.A0.BigInt(outputs[4])
-			residueWitnessInv.C0.B2.A1.BigInt(outputs[5])
-			residueWitnessInv.C1.B0.A0.BigInt(outputs[6])
-			residueWitnessInv.C1.B0.A1.BigInt(outputs[7])
-			residueWitnessInv.C1.B1.A0.BigInt(outputs[8])
-			residueWitnessInv.C1.B1.A1.BigInt(outputs[9])
-			residueWitnessInv.C1.B2.A0.BigInt(outputs[10])
-			residueWitnessInv.C1.B2.A1.BigInt(outputs[11])
+			residueWitness.C0.B0.A0.BigInt(outputs[0])
+			residueWitness.C0.B0.A1.BigInt(outputs[1])
+			residueWitness.C0.B1.A0.BigInt(outputs[2])
+			residueWitness.C0.B1.A1.BigInt(outputs[3])
+			residueWitness.C0.B2.A0.BigInt(outputs[4])
+			residueWitness.C0.B2.A1.BigInt(outputs[5])
+			residueWitness.C1.B0.A0.BigInt(outputs[6])
+			residueWitness.C1.B0.A1.BigInt(outputs[7])
+			residueWitness.C1.B1.A0.BigInt(outputs[8])
+			residueWitness.C1.B1.A1.BigInt(outputs[9])
+			residueWitness.C1.B2.A0.BigInt(outputs[10])
+			residueWitness.C1.B2.A1.BigInt(outputs[11])
 
 			// we also need to return the cubic non-residue power
 			cubicNonResiduePower.C0.B0.A0.BigInt(outputs[12])
