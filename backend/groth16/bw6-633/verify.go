@@ -140,6 +140,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 }
 
 // ExportSolidity not implemented for BW6-633
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, opts ...backend.VerifierOption) error {
 	return errors.New("not implemented")
 }

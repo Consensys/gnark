@@ -365,6 +365,6 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 }
 
 // ExportSolidity not implemented for BLS12-377
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, opts ...backend.VerifierOption) error {
 	return errors.New("not implemented")
 }

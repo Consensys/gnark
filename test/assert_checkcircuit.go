@@ -127,9 +127,12 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 							if b == backend.GROTH16 {
 								// currently groth16 Solidity checker only supports circuits with up to 1 commitment
 								checkSolidity = checkSolidity && (len(ccs.GetCommitments().CommitmentIndexes()) <= 1)
-								// additionally, we use sha256 as hash to field (fixed in Solidity contract)
-								proverOpts = append(proverOpts, backend.WithProverHashToFieldFunction(sha256.New()))
-								verifierOpts = append(verifierOpts, backend.WithVerifierHashToFieldFunction(sha256.New()))
+								// set the default hash function to sha256 in
+								// case of custom hash function not set. This is
+								// to ensure that the proof can be verified by
+								// gnark-solidity-checker
+								proverOpts = append([]backend.ProverOption{backend.WithProverHashToFieldFunction(sha256.New())}, opt.proverOpts...)
+								verifierOpts = append([]backend.VerifierOption{backend.WithVerifierHashToFieldFunction(sha256.New())}, opt.verifierOpts...)
 							}
 							proof, err := concreteBackend.prove(ccs, pk, w.full, proverOpts...)
 							assert.noError(err, &w)
@@ -141,7 +144,7 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 								// check that the proof can be verified by gnark-solidity-checker
 								if _vk, ok := vk.(verifyingKey); ok {
 									assert.Run(func(assert *Assert) {
-										assert.solidityVerification(b, _vk, proof, w.public)
+										assert.solidityVerification(b, _vk, proof, w.public, verifierOpts...)
 									}, "solidity")
 								}
 							}

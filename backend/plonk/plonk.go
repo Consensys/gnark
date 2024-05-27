@@ -92,7 +92,7 @@ type VerifyingKey interface {
 	gnarkio.WriterRawTo
 	gnarkio.UnsafeReaderFrom
 	NbPublicWitness() int // number of elements expected in the public witness
-	ExportSolidity(w io.Writer) error
+	ExportSolidity(w io.Writer, opts ...backend.VerifierOption) error
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.

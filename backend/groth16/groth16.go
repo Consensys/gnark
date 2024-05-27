@@ -105,7 +105,7 @@ type VerifyingKey interface {
 
 	// ExportSolidity writes a solidity Verifier contract from the VerifyingKey
 	// this will return an error if not supported on the CurveID()
-	ExportSolidity(w io.Writer) error
+	ExportSolidity(w io.Writer, opts ...backend.VerifierOption) error
 
 	IsDifferent(interface{}) bool
 }

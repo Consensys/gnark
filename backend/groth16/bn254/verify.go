@@ -17,8 +17,11 @@
 package groth16
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/sha3"
 	"io"
 	"text/template"
 	"time"
@@ -144,7 +147,30 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 // This is an experimental feature and gnark solidity generator as not been thoroughly tested.
 //
 // See https://github.com/ConsenSys/gnark-tests for example usage.
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, opts ...backend.VerifierOption) error {
+	opt, err := backend.NewVerifierConfig(opts...)
+	if err != nil {
+		return fmt.Errorf("new verifier config: %w", err)
+	}
+	if opt.HashToFieldFn == nil {
+		return fmt.Errorf("hash to field function not set, only supported sha256 and legacy keccak256")
+	}
+	// a bit hacky way to understand what hash function is provided. We already
+	// receive instance of hash function but it is difficult to compare it with
+	// sha256.New() or sha3.NewLegacyKeccak256() directly.
+	//
+	// So, we hash an empty input and compare the outputs.
+	opt.HashToFieldFn.Reset()
+	hashBts := opt.HashToFieldFn.Sum(nil)
+	var hashFnName string
+	if bytes.Equal(hashBts, sha256.New().Sum(nil)) {
+		hashFnName = "sha256"
+	} else if bytes.Equal(hashBts, sha3.NewLegacyKeccak256().Sum(nil)) {
+		hashFnName = "keccak256"
+	} else {
+		return fmt.Errorf("unsupported hash function used, only supported sha256 and legacy keccak256")
+	}
+	opt.HashToFieldFn.Reset()
 	helpers := template.FuncMap{
 		"sum": func(a, b int) int {
 			return a + b
@@ -161,6 +187,9 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 				out[i] = i
 			}
 			return out
+		},
+		"hashFnName": func() string {
+			return hashFnName
 		},
 	}
 

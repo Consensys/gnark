@@ -369,7 +369,7 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 // See https://github.com/ConsenSys/gnark-tests for example usage.
 //
 // Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, opts ...backend.VerifierOption) error {
 	funcMap := template.FuncMap{
 		"hex": func(i int) string {
 			return fmt.Sprintf("0x%x", i)
