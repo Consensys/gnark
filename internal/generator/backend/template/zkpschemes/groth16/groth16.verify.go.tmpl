@@ -176,13 +176,14 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		return err
 	}
 
-	vkToExport := VerifyingKeyToExport{
+	// execute template
+	err = tmpl.Execute(w, struct {
+	Cfg solidity.ExportConfig
+	Vk VerifyingKey
+	}{
 		Cfg: cfg,
 		Vk:  *vk,
-	}
-
-	// execute template
-	err = tmpl.Execute(w, vkToExport)
+	})
 
 	// restore Beta, Gamma and Delta
 	vk.G2.Beta = beta
@@ -190,17 +191,6 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
 
 	return err
-}
-
-// verifyingKeyToExport stores a Verifying key and a configuration object used for
-// generating the solidity verifier.
-type VerifyingKeyToExport struct {
-
-	// Cfg contains solidity specific customisation
-	Cfg solidity.ExportConfig
-
-	// Copy of the verifying key
-	Vk VerifyingKey
 }
 
 {{else}}
