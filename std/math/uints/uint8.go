@@ -43,8 +43,6 @@ import (
 // TODO: maybe can store everything in a single table? Later! Or if we have a
 // lot of queries then makes sense to extract into separate table?
 
-// TODO: in ValueOf ensure consistency
-
 // TODO: distinguish between when we set constant in-circuit or witness
 // assignment. For constant we don't have to range check but for witness
 // assignment we have to.
@@ -173,7 +171,8 @@ func (bf *BinaryField[T]) ValueOf(a frontend.Variable) T {
 	if err != nil {
 		panic(err)
 	}
-	// TODO: add constraint which ensures that map back to
+	expectedValue := bf.ToValue(r)
+	bf.api.AssertIsEqual(a, expectedValue)
 	for i := range bts {
 		r[i] = bf.ByteValueOf(bts[i])
 	}
