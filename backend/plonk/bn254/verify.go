@@ -408,20 +408,11 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 		return err
 	}
 
-	vkToExport := VerifyingKeyToExport{
+	return t.Execute(w, struct {
+		Cfg solidity.ExportConfig
+		Vk  VerifyingKey
+	}{
 		Cfg: cfg,
 		Vk:  *vk,
-	}
-	return t.Execute(w, vkToExport)
-}
-
-// verifyingKeyToExport stores a Verifying key and a configuration object used for
-// generating the solidity verifier.
-type VerifyingKeyToExport struct {
-
-	// Cfg contains solidity specific customisation
-	Cfg solidity.ExportConfig
-
-	// Copy of the verifying key
-	Vk VerifyingKey
+	})
 }
