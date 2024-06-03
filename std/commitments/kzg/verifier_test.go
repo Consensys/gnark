@@ -623,7 +623,9 @@ func (c *BatchVerifySinglePointTest[S, G1El, G2El, GTEl]) Define(api frontend.AP
 	if err != nil {
 		return fmt.Errorf("get pairing: %w", err)
 	}
-	verifier.BatchVerifySinglePoint(c.Digests[:], c.BatchOpeningProof, c.Point, c.Vk)
+	if err := verifier.BatchVerifySinglePoint(c.Digests[:], c.BatchOpeningProof, c.Point, c.Vk); err != nil {
+		return fmt.Errorf("batch verify single point: %w", err)
+	}
 
 	return nil
 }
@@ -708,7 +710,9 @@ func (circuit *BatchVerifyMultiPointsTest[S, G1El, G2El, GTEl]) Define(api front
 		return fmt.Errorf("get pairing: %w", err)
 	}
 
-	verifier.BatchVerifyMultiPoints(circuit.Digests[:], circuit.Proofs[:], circuit.Points[:], circuit.Vk)
+	if err := verifier.BatchVerifyMultiPoints(circuit.Digests[:], circuit.Proofs[:], circuit.Points[:], circuit.Vk); err != nil {
+		return fmt.Errorf("batch verify multi points: %w", err)
+	}
 
 	return nil
 }
