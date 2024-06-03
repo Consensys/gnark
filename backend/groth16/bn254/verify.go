@@ -19,6 +19,7 @@ package groth16
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/backend/solidity"
 	"io"
 	"text/template"
 	"time"
@@ -144,7 +145,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 // This is an experimental feature and gnark solidity generator as not been thoroughly tested.
 //
 // See https://github.com/ConsenSys/gnark-tests for example usage.
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	helpers := template.FuncMap{
 		"sum": func(a, b int) int {
 			return a + b
@@ -184,8 +185,19 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	vk.G2.Gamma, vk.G2.gammaNeg = vk.G2.gammaNeg, vk.G2.Gamma
 	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
 
+	cfg, err := solidity.NewExportConfig(exportOpts...)
+	if err != nil {
+		return err
+	}
+
 	// execute template
-	err = tmpl.Execute(w, vk)
+	err = tmpl.Execute(w, struct {
+		Cfg solidity.ExportConfig
+		Vk  VerifyingKey
+	}{
+		Cfg: cfg,
+		Vk:  *vk,
+	})
 
 	// restore Beta, Gamma and Delta
 	vk.G2.Beta = beta

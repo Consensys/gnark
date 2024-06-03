@@ -24,6 +24,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	cs_bls12377 "github.com/consensys/gnark/constraint/bls12-377"
@@ -105,7 +106,7 @@ type VerifyingKey interface {
 
 	// ExportSolidity writes a solidity Verifier contract from the VerifyingKey
 	// this will return an error if not supported on the CurveID()
-	ExportSolidity(w io.Writer) error
+	ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error
 
 	IsDifferent(interface{}) bool
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/constraint"
 
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/backend/witness"
 	cs_bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	cs_bls12381 "github.com/consensys/gnark/constraint/bls12-381"
@@ -92,7 +93,7 @@ type VerifyingKey interface {
 	gnarkio.WriterRawTo
 	gnarkio.UnsafeReaderFrom
 	NbPublicWitness() int // number of elements expected in the public witness
-	ExportSolidity(w io.Writer) error
+	ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.
