@@ -321,3 +321,205 @@ func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
 		A5: *z12,
 	}
 }
+
+// FinalExponentiationCheck checks that a Miller function output x lies in the
+// same equivalence class as the reduced pairing. This replaces the final
+// exponentiation step in-circuit.
+// The method is adapted from Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
+func (e Ext6) FinalExponentiationCheck(x *E6) *E6 {
+	res, err := e.fp.NewHint(finalExpHint, 6, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	residueWitness := E6{
+		A0: *res[0],
+		A1: *res[1],
+		A2: *res[2],
+		A3: *res[3],
+		A4: *res[4],
+		A5: *res[5],
+	}
+
+	// Check that  x == residueWitness^λ
+	// where λ = u^3-u^2+1 - (u+1)p, with u the BW6-761 seed
+	// and residueWitness from the hint.
+
+	// exponentiation by U1=u^3-u^2+1
+	t0 := e.ExpByU1(&residueWitness)
+	// exponentiation by U2=u+1
+	t1 := e.ExpByU2(&residueWitness)
+
+	t1 = e.Frobenius(t1)
+	t0 = e.DivUnchecked(t0, t1)
+
+	e.AssertIsEqual(t0, x)
+
+	return nil
+}
+
+func (e Ext6) nSquare(z *E6, n int) *E6 {
+	for i := 0; i < n; i++ {
+		z = e.Square(z)
+	}
+	return z
+}
+
+// ExpByU2 set z to z^(x₀+1) in E12 and return z
+// x₀+1 = 9586122913090633730
+func (e Ext6) ExpByU2(z *E6) *E6 {
+	z = e.Reduce(z)
+	result := e.Copy(z)
+	t := e.nSquare(result, 1)
+	result = e.nSquare(t, 4)
+	result = e.Mul(result, z)
+	z33 := e.Copy(result)
+	result = e.nSquare(result, 7)
+	result = e.Mul(result, z33)
+	result = e.nSquare(result, 4)
+	result = e.Mul(result, z)
+	result = e.nSquare(result, 1)
+	result = e.Mul(result, z)
+	result = e.nSquare(result, 46)
+	result = e.Mul(result, t)
+
+	return result
+}
+
+// ExpByU1 set z to z^(x₀^3-x₀^2+1) in E12 and return z
+// x₀^3-x₀^2+1 = 880904806456922042166256752416502360965158762994674434049
+func (e Ext6) ExpByU1(x *E6) *E6 {
+	// t5.Square(&x)
+	t5 := e.Square(x)
+	// z.Mul(&x, &t5)
+	z := e.Mul(x, t5)
+	// t0.Square(&z)
+	t0 := e.Square(z)
+	// t6.Mul(&x, &t0)
+	t6 := e.Mul(x, t0)
+	// t8.Mul(&x, &t6)
+	t8 := e.Mul(x, t6)
+	// t7.Mul(&t5, &t8)
+	t7 := e.Mul(t5, t8)
+	// t9.Mul(&t0, &t8)
+	t9 := e.Mul(t0, t8)
+	// t3.Mul(&z, &t9)
+	t3 := e.Mul(z, t9)
+	// t2.Mul(&x, &t3)
+	t2 := e.Mul(x, t3)
+	// t1.Mul(&t6, &t2)
+	t1 := e.Mul(t6, t2)
+	// t0.Mul(&t8, &t1)
+	t0 = e.Mul(t8, t1)
+	// t4.Square(&t0)
+	t4 := e.Square(t0)
+	// t4.Mul(&z, &t4)
+	t4 = e.Mul(z, t4)
+	// t8.Mul(&t8, &t4)
+	t8 = e.Mul(t8, t4)
+	// t2.Mul(&t2, &t8)
+	t2 = e.Mul(t2, t8)
+	// t9.Mul(&t9, &t2)
+	t9 = e.Mul(t9, t2)
+	// t5.Mul(&t5, &t9)
+	t5 = e.Mul(t5, t9)
+	// t10.Mul(&t0, &t9)
+	t10 := e.Mul(t0, t9)
+	// for s := 0; s < 6; s++ {
+	// 	t10.Square(t10t10)
+	// }
+	t10 = e.nSquare(t10, 6)
+	// t9.Mul(&t9, &t10)
+	t9 = e.Mul(t9, t10)
+	// for s := 0; s < 10; s++ {
+	// 	t9.Square(t9t9)
+	// }
+	t9 = e.nSquare(t9, 10)
+	// t8.Mul(&t8, &t9)
+	t8 = e.Mul(t8, t9)
+	// for s := 0; s < 10; s++ {
+	// 	t8.Square(t8t8)
+	// }
+	t8 = e.nSquare(t8, 10)
+	// t8.Mul(&t5, &t8)
+	t8 = e.Mul(t5, t8)
+	// t7.Mul(&t7, &t8)
+	t7 = e.Mul(t7, t8)
+	// for s := 0; s < 4; s++ {
+	// 	t7.Square(t7t7)
+	// }
+	t7 = e.nSquare(t7, 4)
+	// t6.Mul(&t6, &t7)
+	t6 = e.Mul(t6, t7)
+	// for s := 0; s < 11; s++ {
+	// 	t6.Square(t6t6)
+	// }
+	t6 = e.nSquare(t6, 11)
+	// t5.Mul(&t5, &t6)
+	t5 = e.Mul(t5, t6)
+	// for s := 0; s < 3; s++ {
+	// 	t5.Square(t5t5)
+	// }
+	t5 = e.nSquare(t5, 3)
+	// t5.Mul(&z, &t5)
+	t5 = e.Mul(z, t5)
+	// for s := 0; s < 17; s++ {
+	// 	t5.Square(t5t5)
+	// }
+	t5 = e.nSquare(t5, 17)
+	// t4.Mul(&t4, &t5)
+	t4 = e.Mul(t4, t5)
+	// for s := 0; s < 7; s++ {
+	// 	t4.Square(t4t4)
+	// }
+	t4 = e.nSquare(t4, 7)
+	// t3.Mul(&t3, &t4)
+	t3 = e.Mul(t3, t4)
+	// for s := 0; s < 11; s++ {
+	// 	t3.Square(t3t3)
+	// }
+	t3 = e.nSquare(t3, 11)
+	// t2.Mul(&t2, &t3)
+	t2 = e.Mul(t2, t3)
+	// for s := 0; s < 7; s++ {
+	// 	t2.Square(t2t2)
+	// }
+	t2 = e.nSquare(t2, 7)
+	// t1.Mul(&t1, &t2)
+	t1 = e.Mul(t1, t2)
+	// for s := 0; s < 3; s++ {
+	// 	t1.Square(t1t1)
+	// }
+	t1 = e.nSquare(t1, 3)
+	// t1.Mul(&x, &t1)
+	t1 = e.Mul(x, t1)
+	// for s := 0; s < 35; s++ {
+	// 	t1.Square(t1t1)
+	// }
+	t1 = e.nSquare(t1, 35)
+	// t1.Mul(&t0, &t1)
+	t1 = e.Mul(t0, t1)
+	// for s := 0; s < 7; s++ {
+	// 	t1.Square(t1t1)
+	// }
+	t1 = e.nSquare(t1, 7)
+	// t0.Mul(&t0, &t1)
+	t0 = e.Mul(t0, t1)
+	// for s := 0; s < 5; s++ {
+	// 	t0.Square(t0t0)
+	// }
+	t0 = e.nSquare(t0, 5)
+	// z.Mul(&z, &t0)
+	z = e.Mul(z, t0)
+	// for s := 0; s < 46; s++ {
+	// 	z.Square(zz)
+	// }
+	z = e.nSquare(z, 46)
+	// z.Mul(&x, &z)
+	z = e.Mul(x, z)
+
+	return z
+}
