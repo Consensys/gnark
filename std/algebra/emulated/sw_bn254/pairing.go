@@ -364,7 +364,6 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
 
-	// f_{x₀+1+λ(x₀³-x₀²-x₀),Q}(P), Q is known in advance
 	var prodLines [5]*fields_bn254.E2
 	res := pr.Ext12.One()
 
@@ -641,4 +640,152 @@ func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*G
 	}
 	res = pr.Mul(res, previous)
 	return res, err
+}
+
+// MillerLoopAndFinalExpCheck computes the Miller loop between P and Q,
+// multiplies it in 𝔽p¹² by previous and checks that the result lies in the
+// same equivalence class as the reduced pairing purported to be 1. This check
+// replaces the final exponentiation step in-circuit and follows Section 4 of
+// [On Proving Pairings] paper by A. Novakovic and L. Eagen.
+//
+// This method is needed for evmprecompiles/ecpair.
+//
+// [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
+func (pr Pairing) MillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous *GTEl) error {
+
+	// hint the non-residue witness
+	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 36, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, &previous.C0.B0.A0, &previous.C0.B0.A1, &previous.C0.B1.A0, &previous.C0.B1.A1, &previous.C0.B2.A0, &previous.C0.B2.A1, &previous.C1.B0.A0, &previous.C1.B0.A1, &previous.C1.B1.A0, &previous.C1.B1.A1, &previous.C1.B2.A0, &previous.C1.B2.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	residueWitness := fields_bn254.E12{
+		C0: fields_bn254.E6{
+			B0: fields_bn254.E2{A0: *hint[0], A1: *hint[1]},
+			B1: fields_bn254.E2{A0: *hint[2], A1: *hint[3]},
+			B2: fields_bn254.E2{A0: *hint[4], A1: *hint[5]},
+		},
+		C1: fields_bn254.E6{
+			B0: fields_bn254.E2{A0: *hint[6], A1: *hint[7]},
+			B1: fields_bn254.E2{A0: *hint[8], A1: *hint[9]},
+			B2: fields_bn254.E2{A0: *hint[10], A1: *hint[11]},
+		},
+	}
+	residueWitnessInv := fields_bn254.E12{
+		C0: fields_bn254.E6{
+			B0: fields_bn254.E2{A0: *hint[12], A1: *hint[13]},
+			B1: fields_bn254.E2{A0: *hint[14], A1: *hint[15]},
+			B2: fields_bn254.E2{A0: *hint[16], A1: *hint[17]},
+		},
+		C1: fields_bn254.E6{
+			B0: fields_bn254.E2{A0: *hint[18], A1: *hint[19]},
+			B1: fields_bn254.E2{A0: *hint[20], A1: *hint[21]},
+			B2: fields_bn254.E2{A0: *hint[22], A1: *hint[23]},
+		},
+	}
+	cubicNonResiduePower := fields_bn254.E12{
+		C0: fields_bn254.E6{
+			B0: fields_bn254.E2{A0: *hint[24], A1: *hint[25]},
+			B1: fields_bn254.E2{A0: *hint[26], A1: *hint[27]},
+			B2: fields_bn254.E2{A0: *hint[28], A1: *hint[29]},
+		},
+		C1: fields_bn254.E6{
+			B0: fields_bn254.E2{A0: *hint[30], A1: *hint[31]},
+			B1: fields_bn254.E2{A0: *hint[32], A1: *hint[33]},
+			B2: fields_bn254.E2{A0: *hint[34], A1: *hint[35]},
+		},
+	}
+
+	if Q.Lines == nil {
+		Qlines := pr.computeLines(&Q.P)
+		Q.Lines = &Qlines
+	}
+	lines := *Q.Lines
+
+	// precomputations
+	yInv := pr.curveF.Inverse(&P.Y)
+	xNegOverY := pr.curveF.MulMod(&P.X, yInv)
+	xNegOverY = pr.curveF.Neg(xNegOverY)
+
+	// init Miller loop accumulator to residueWitnessInv to share the squarings
+	// of residueWitnessInv^{6x₀+2}
+	res := &residueWitnessInv
+
+	// Compute f_{6x₀+2,Q}(P)
+	for i := 64; i >= 0; i-- {
+		res = pr.Square(res)
+
+		switch loopCounter[i] {
+		case 0:
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines[0][i].R0, xNegOverY),
+				pr.MulByElement(&lines[0][i].R1, yInv),
+			)
+		case 1:
+			// multiply by residueWitnessInv when bit=1
+			res = pr.Mul(res, &residueWitnessInv)
+			// lines evaluations at P
+			// and ℓ × ℓ
+			prodLines := pr.Mul034By034(
+				pr.MulByElement(&lines[0][i].R0, xNegOverY),
+				pr.MulByElement(&lines[0][i].R1, yInv),
+				pr.MulByElement(&lines[1][i].R0, xNegOverY),
+				pr.MulByElement(&lines[1][i].R1, yInv),
+			)
+			// (ℓ × ℓ) × res
+			res = pr.MulBy01234(res, prodLines)
+		case -1:
+			// multiply by 1/residueWitnessInv=residueWitness when bit=-1
+			res = pr.Mul(res, &residueWitness)
+			// lines evaluations at P
+			// and ℓ × ℓ
+			prodLines := pr.Mul034By034(
+				pr.MulByElement(&lines[0][i].R0, xNegOverY),
+				pr.MulByElement(&lines[0][i].R1, yInv),
+				pr.MulByElement(&lines[1][i].R0, xNegOverY),
+				pr.MulByElement(&lines[1][i].R1, yInv),
+			)
+			// (ℓ × ℓ) × res
+			res = pr.MulBy01234(res, prodLines)
+		default:
+			return nil
+		}
+	}
+
+	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
+	// lines evaluations at P
+	// and ℓ × ℓ
+	prodLines := pr.Mul034By034(
+		pr.MulByElement(&lines[0][65].R0, xNegOverY),
+		pr.MulByElement(&lines[0][65].R1, yInv),
+		pr.MulByElement(&lines[1][65].R0, xNegOverY),
+		pr.MulByElement(&lines[1][65].R1, yInv),
+	)
+	// (ℓ × ℓ) × res
+	res = pr.MulBy01234(res, prodLines)
+
+	// multiply by previous multi-Miller function
+	res = pr.Mul(res, previous)
+
+	// Check that  res * cubicNonResiduePower * residueWitnessInv^λ' == 1
+	// where λ' = q^3 - q^2 + q, with u the BN254 seed
+	// and residueWitnessInv, cubicNonResiduePower from the hint.
+	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{6x₀+2} since
+	// we initialized the Miller loop accumulator with residueWitnessInv.
+	t2 := pr.Mul(&cubicNonResiduePower, res)
+
+	t1 := pr.FrobeniusCube(&residueWitnessInv)
+	t0 := pr.FrobeniusSquare(&residueWitnessInv)
+	t1 = pr.DivUnchecked(t1, t0)
+	t0 = pr.Frobenius(&residueWitnessInv)
+	t1 = pr.Mul(t1, t0)
+
+	t2 = pr.Mul(t2, t1)
+
+	pr.AssertIsEqual(t2, pr.One())
+
+	return nil
 }
