@@ -19,6 +19,7 @@ package groth16
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/backend/solidity"
 	"io"
 	"time"
 
@@ -140,6 +141,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 }
 
 // ExportSolidity not implemented for BLS12-377
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	return errors.New("not implemented")
 }
