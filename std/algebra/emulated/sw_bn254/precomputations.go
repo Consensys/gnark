@@ -38,21 +38,17 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 		Y: *p.Ext2.Neg(&Q.Y),
 	}
 	n := len(bn254.LoopCounter)
-	/*
-		Qacc, cLines[0][n-2] = p.doubleStep(Qacc)
-		cLines[1][n-3] = p.lineCompute(Qacc, QNeg)
-		Qacc, cLines[0][n-3] = p.addStep(Qacc, Q)
-	*/
-	for i := n - 2; i >= 0; i-- {
+	Qacc, cLines[0][n-2] = p.doubleStep(Qacc)
+	cLines[1][n-3] = p.lineCompute(Qacc, QNeg)
+	Qacc, cLines[0][n-3] = p.addStep(Qacc, Q)
+	for i := n - 4; i >= 0; i-- {
 		switch loopCounter[i] {
 		case 0:
 			Qacc, cLines[0][i] = p.doubleStep(Qacc)
 		case 1:
-			Qacc, cLines[0][i] = p.doubleStep(Qacc)
-			Qacc, cLines[1][i] = p.addStep(Qacc, Q)
+			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, Q)
 		case -1:
-			Qacc, cLines[0][i] = p.doubleStep(Qacc)
-			Qacc, cLines[1][i] = p.addStep(Qacc, QNeg)
+			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, QNeg)
 		default:
 			return lineEvaluations{}
 		}
@@ -75,7 +71,7 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 	}
 
 	Qacc, cLines[0][n-1] = p.addStep(Qacc, Q1)
-	Qacc, cLines[1][n-1] = p.addStep(Qacc, Q2)
+	cLines[1][n-1] = p.lineCompute(Qacc, Q2)
 
 	return cLines
 }
