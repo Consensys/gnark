@@ -1,23 +1,15 @@
 package sumcheck
 
-import "github.com/consensys/gnark/frontend"
-
-// negFactorial returns (-n)(-n+1)...(-2)(-1)
-// There are more efficient algorithms, but we are talking small values here so it doesn't matter
-func negFactorial(n int) int {
-	result := n
-	n = -n
-	for n++; n < -1; n++ {
-		result *= n
-	}
-	return result
-}
+import (
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/internal"
+)
 
 // InterpolateOnRange fits a polynomial f of degree len(values)-1 such that f(i) = values[i] whenever defined. Returns f(at)
 // Algorithm taken from https://people.cs.georgetown.edu/jthaler/ProofsArgsAndZK.pdf section 2.4
 func InterpolateOnRange(api frontend.API, at frontend.Variable, values ...frontend.Variable) frontend.Variable {
 	deltaAt := make([]frontend.Variable, len(values))
-	deltaAt[0] = api.Inverse(negFactorial(len(values) - 1))
+	deltaAt[0] = api.Inverse(internal.NegFactorial(len(values) - 1))
 	for k := 1; k < len(values); k++ {
 		deltaAt[0] = api.Mul(deltaAt[0], api.Sub(at, k))
 	}

@@ -1,6 +1,7 @@
 package polynomial
 
 import (
+	"github.com/consensys/gnark/std/internal"
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
@@ -87,17 +88,6 @@ func (p Polynomial) Eval(api frontend.API, at frontend.Variable) (pAt frontend.V
 	return
 }
 
-// negFactorial returns (-n)(-n+1)...(-2)(-1)
-// There are more efficient algorithms, but we are talking small values here so it doesn't matter
-func negFactorial(n int) int {
-	n = -n
-	result := n
-	for n++; n <= -1; n++ {
-		result *= n
-	}
-	return result
-}
-
 // computeDeltaAtNaive brute forces the computation of the δᵢ(at)
 func computeDeltaAtNaive(api frontend.API, at frontend.Variable, valuesLen int) []frontend.Variable {
 	deltaAt := make([]frontend.Variable, valuesLen)
@@ -105,7 +95,7 @@ func computeDeltaAtNaive(api frontend.API, at frontend.Variable, valuesLen int) 
 	for i := range atMinus {
 		atMinus[i] = api.Sub(at, i)
 	}
-	factInv := api.Inverse(negFactorial(valuesLen - 1))
+	factInv := api.Inverse(internal.NegFactorial(valuesLen - 1))
 
 	for i := range deltaAt {
 		deltaAt[i] = factInv

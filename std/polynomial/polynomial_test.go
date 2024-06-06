@@ -215,15 +215,6 @@ func TestInterpolateQuadraticExtension(t *testing.T) {
 	)
 }
 
-func TestNegFactorial(t *testing.T) {
-	for n, expected := range []int{0, -1, 2, -6, 24} {
-
-		if observed := negFactorial(n); observed != expected {
-			t.Error("negFactorial at", n, "gave", observed, "rather than", expected)
-		}
-	}
-}
-
 func int64SliceToVariableSlice(slice []int64) []frontend.Variable {
 	res := make([]frontend.Variable, 0, len(slice))
 	for _, v := range slice {
