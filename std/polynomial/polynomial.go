@@ -87,7 +87,7 @@ func (p Polynomial) Eval(api frontend.API, at frontend.Variable) (pAt frontend.V
 	return
 }
 
-// negFactorial returns (-n)(-n+1)...(-2)(-1) for n \geq 1, and -n otherwise.
+// negFactorial returns (-n)(-n+1)...(-2)(-1) for n ≥ 1, and -n otherwise.
 // This is not asymptotically efficient, but works for small values.
 func negFactorial(n int) int {
 	n = -n
