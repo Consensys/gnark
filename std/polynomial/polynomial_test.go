@@ -216,6 +216,12 @@ func TestInterpolateQuadraticExtension(t *testing.T) {
 	)
 }
 
+func TestNegFactorial(t *testing.T) {
+	for n, expected := range []int{0, -1, 2, -6, 24} {
+		assert.Equal(t, expected, negFactorial(n))
+	}
+}
+
 func int64SliceToVariableSlice(slice []int64) []frontend.Variable {
 	res := make([]frontend.Variable, 0, len(slice))
 	for _, v := range slice {
@@ -244,10 +250,4 @@ func ExampleMultiLin_Evaluate() {
 
 	// Output: r1cs size: 1048627
 	//scs size: 2097226
-}
-
-func TestNegFactorial(t *testing.T) {
-	for n, expected := range []int{0, -1, 2, -6, 24} {
-		assert.Equal(t, expected, negFactorial(n))
-	}
 }
