@@ -3,6 +3,7 @@ package polynomial
 import (
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -243,4 +244,10 @@ func ExampleMultiLin_Evaluate() {
 
 	// Output: r1cs size: 1048627
 	//scs size: 2097226
+}
+
+func TestNegFactorial(t *testing.T) {
+	for n, expected := range []int{0, -1, 2, -6, 24} {
+		assert.Equal(t, expected, negFactorial(n))
+	}
 }

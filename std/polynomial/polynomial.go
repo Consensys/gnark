@@ -1,7 +1,6 @@
 package polynomial
 
 import (
-	"github.com/consensys/gnark/std/internal"
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
@@ -95,7 +94,7 @@ func computeDeltaAtNaive(api frontend.API, at frontend.Variable, valuesLen int) 
 	for i := range atMinus {
 		atMinus[i] = api.Sub(at, i)
 	}
-	factInv := api.Inverse(internal.NegFactorial(valuesLen - 1))
+	factInv := api.Inverse(negFactorial(valuesLen - 1))
 
 	for i := range deltaAt {
 		deltaAt[i] = factInv
@@ -142,4 +141,15 @@ func EvalEq(api frontend.API, x, y []frontend.Variable) (eq frontend.Variable) {
 		eq = api.Mul(eq, next)
 	}
 	return
+}
+
+// negFactorial returns (-n)(-n+1)...(-2)(-1) for n \geq 1, and -n otherwise.
+// This is not asymptotically efficient, but works for small values.
+func negFactorial(n int) int {
+	n = -n
+	result := n
+	for n++; n <= -1; n++ {
+		result *= n
+	}
+	return result
 }
