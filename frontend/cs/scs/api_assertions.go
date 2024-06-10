@@ -183,7 +183,7 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 
 func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) {
 
-	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
+	debugInfo := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -216,17 +216,34 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 		if ai, ok := builder.constantValue(aBits[i]); ok {
 			// a is constant; ensure l == 0
 			l.Coeff = builder.cs.Mul(l.Coeff, ai)
-			builder.addPlonkConstraint(sparseR1C{
-				xa: l.VID,
-				qL: l.Coeff,
-			}, debug)
+			if debug.Debug {
+				builder.addPlonkConstraint(sparseR1C{
+					xa: l.VID,
+					qL: l.Coeff,
+				}, debugInfo)
+			} else {
+				builder.addPlonkConstraint(sparseR1C{
+					xa: l.VID,
+					qL: l.Coeff,
+				})
+			}
+
 		} else {
 			// l * a[i] == 0
-			builder.addPlonkConstraint(sparseR1C{
-				xa: l.VID,
-				xb: aBits[i].(expr.Term).VID,
-				qM: l.Coeff,
-			}, debug)
+			if debug.Debug {
+				builder.addPlonkConstraint(sparseR1C{
+					xa: l.VID,
+					xb: aBits[i].(expr.Term).VID,
+					qM: l.Coeff,
+				}, debugInfo)
+			} else {
+				builder.addPlonkConstraint(sparseR1C{
+					xa: l.VID,
+					xb: aBits[i].(expr.Term).VID,
+					qM: l.Coeff,
+				})
+			}
+
 		}
 
 	}
@@ -254,8 +271,8 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
 	}
 
-	// debug info
-	debug := builder.newDebugInfo("mustBeLessOrEq", aForDebug, " <= ", bound)
+	// debugInfo info
+	debugInfo := builder.newDebugInfo("mustBeLessOrEq", aForDebug, " <= ", bound)
 
 	// t trailing bits in the bound
 	t := 0
@@ -285,11 +302,20 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 			l := builder.Sub(1, p[i+1], aBits[i]).(expr.Term)
 			//l = builder.Sub(l, ).(term)
 
-			builder.addPlonkConstraint(sparseR1C{
-				xa: l.VID,
-				xb: aBits[i].(expr.Term).VID,
-				qM: builder.tOne,
-			}, debug)
+			if debug.Debug {
+				builder.addPlonkConstraint(sparseR1C{
+					xa: l.VID,
+					xb: aBits[i].(expr.Term).VID,
+					qM: builder.tOne,
+				}, debugInfo)
+			} else {
+				builder.addPlonkConstraint(sparseR1C{
+					xa: l.VID,
+					xb: aBits[i].(expr.Term).VID,
+					qM: builder.tOne,
+				})
+			}
+
 		} else {
 			builder.AssertIsBoolean(aBits[i])
 		}
