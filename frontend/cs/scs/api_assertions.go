@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/debug"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/internal/expr"
@@ -182,8 +183,10 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 }
 
 func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) {
-
-	debugInfo := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
+	var debugInfo []constraint.DebugInfo
+	if debug.Debug {
+		debugInfo = []constraint.DebugInfo{builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)}
+	}
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -216,34 +219,17 @@ func (builder *builder) mustBeLessOrEqVar(a frontend.Variable, bound expr.Term) 
 		if ai, ok := builder.constantValue(aBits[i]); ok {
 			// a is constant; ensure l == 0
 			l.Coeff = builder.cs.Mul(l.Coeff, ai)
-			if debug.Debug {
-				builder.addPlonkConstraint(sparseR1C{
-					xa: l.VID,
-					qL: l.Coeff,
-				}, debugInfo)
-			} else {
-				builder.addPlonkConstraint(sparseR1C{
-					xa: l.VID,
-					qL: l.Coeff,
-				})
-			}
-
+			builder.addPlonkConstraint(sparseR1C{
+				xa: l.VID,
+				qL: l.Coeff,
+			}, debugInfo...)
 		} else {
 			// l * a[i] == 0
-			if debug.Debug {
-				builder.addPlonkConstraint(sparseR1C{
-					xa: l.VID,
-					xb: aBits[i].(expr.Term).VID,
-					qM: l.Coeff,
-				}, debugInfo)
-			} else {
-				builder.addPlonkConstraint(sparseR1C{
-					xa: l.VID,
-					xb: aBits[i].(expr.Term).VID,
-					qM: l.Coeff,
-				})
-			}
-
+			builder.addPlonkConstraint(sparseR1C{
+				xa: l.VID,
+				xb: aBits[i].(expr.Term).VID,
+				qM: l.Coeff,
+			}, debugInfo...)
 		}
 
 	}
@@ -272,7 +258,10 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 	}
 
 	// debugInfo info
-	debugInfo := builder.newDebugInfo("mustBeLessOrEq", aForDebug, " <= ", bound)
+	var debugInfo []constraint.DebugInfo
+	if debug.Debug {
+		debugInfo = []constraint.DebugInfo{builder.newDebugInfo("mustBeLessOrEq", aForDebug, " <= ", bound)}
+	}
 
 	// t trailing bits in the bound
 	t := 0
@@ -302,20 +291,11 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 			l := builder.Sub(1, p[i+1], aBits[i]).(expr.Term)
 			//l = builder.Sub(l, ).(term)
 
-			if debug.Debug {
-				builder.addPlonkConstraint(sparseR1C{
-					xa: l.VID,
-					xb: aBits[i].(expr.Term).VID,
-					qM: builder.tOne,
-				}, debugInfo)
-			} else {
-				builder.addPlonkConstraint(sparseR1C{
-					xa: l.VID,
-					xb: aBits[i].(expr.Term).VID,
-					qM: builder.tOne,
-				})
-			}
-
+			builder.addPlonkConstraint(sparseR1C{
+				xa: l.VID,
+				xb: aBits[i].(expr.Term).VID,
+				qM: builder.tOne,
+			}, debugInfo...)
 		} else {
 			builder.AssertIsBoolean(aBits[i])
 		}
