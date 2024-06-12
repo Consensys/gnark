@@ -175,7 +175,7 @@ func (bf *BinaryField[T]) ValueOf(a frontend.Variable) T {
 		panic(err)
 	}
 
-	for i := len(bts) - 1; i >= 0; i-- {
+	for i := range bts {
 		r[i] = bf.ByteValueOf(bts[i])
 	}
 	expectedValue := bf.ToValue(r)
