@@ -673,24 +673,6 @@ func (v *GKRVerifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName
 	return nil
 }
 
-// deriveChallenge binds the values for challengeName and then returns the
-// challenge using in-circuit Fiat-Shamir transcript. It also returns the rest
-// of the challenge names for used in the protocol.
-func (v *GKRVerifier[FR]) deriveChallenge(fs *fiatshamir.Transcript, challengeNames []string, values []emulated.Element[FR]) (challenge *emulated.Element[FR], restChallengeNames []string, err error) {
-	var fr FR
-	if err = v.bindChallenge(fs, challengeNames[0], values); err != nil {
-		return nil, nil, fmt.Errorf("bind: %w", err)
-	}
-	nativeChallenge, err := fs.ComputeChallenge(challengeNames[0])
-	if err != nil {
-		return nil, nil, fmt.Errorf("compute challenge %s: %w", challengeNames[0], err)
-	}
-	// TODO: when implementing better way (construct from limbs instead of bits) then change
-	chBts := bits.ToBinary(v.api, nativeChallenge, bits.WithNbDigits(fr.Modulus().BitLen()))
-	challenge = v.f.FromBits(chBts...)
-	return challenge, challengeNames[1:], nil
-}
-
 func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitFr[FR], assignment WireAssignmentFr[FR], transcriptSettings fiatshamir.Settings, options []OptionFr[FR], sumcheck_opts ...VerifyOption[FR]) (settingsFr[FR], error) {
 	var fr FR
 	var o settingsFr[FR]
@@ -866,15 +848,6 @@ func getChallenges(transcript *fiatshamir.Transcript, names []string) (challenge
 	return
 }
 
-func getFirstChallengeNamesFr[FR emulated.FieldParams](logNbInstances int, prefix string) []string {
-	res := make([]string, logNbInstances)
-	firstChallengePrefix := prefix + "fC."
-	for i := 0; i < logNbInstances; i++ {
-		res[i] = firstChallengePrefix + strconv.Itoa(i)
-	}
-	return res
-}
-
 func (v *GKRVerifier[FR]) getChallengesFr(transcript *fiatshamir.Transcript, names []string) (challenges []emulated.Element[FR], err error) {
 	challenges = make([]emulated.Element[FR], len(names))
 	var challenge emulated.Element[FR]
@@ -963,7 +936,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 
 	claims := newClaimsManagerFr(c, assignment)
 	var firstChallenge []emulated.Element[FR]
-	firstChallenge, err = v.getChallengesFr(o.transcript, getFirstChallengeNamesFr[FR](o.nbVars, o.transcriptPrefix))
+	firstChallenge, err = v.getChallengesFr(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
 	if err != nil {
 		return err
 	}
