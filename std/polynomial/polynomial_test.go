@@ -82,7 +82,7 @@ func (c *foldMultiLinCircuit) Define(api frontend.API) error {
 		return errors.New("folding size mismatch")
 	}
 	m := MultiLin(c.M)
-	m.fold(api, c.At)
+	m.Fold(api, c.At)
 	for i := range c.Result {
 		api.AssertIsEqual(m[i], c.Result[i])
 	}

@@ -3,6 +3,7 @@ package fiatshamir
 import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/math/emulated"
 )
 
 type Settings struct {
@@ -12,8 +13,23 @@ type Settings struct {
 	Hash           hash.FieldHasher
 }
 
+type SettingsFr[FR emulated.FieldParams] struct {
+	Transcript     *Transcript
+	Prefix         string
+	BaseChallenges []emulated.Element[FR]
+	Hash           hash.FieldHasher
+}
+
 func WithTranscript(transcript *Transcript, prefix string, baseChallenges ...frontend.Variable) Settings {
 	return Settings{
+		Transcript:     transcript,
+		Prefix:         prefix,
+		BaseChallenges: baseChallenges,
+	}
+}
+
+func WithTranscriptFr[FR emulated.FieldParams](transcript *Transcript, prefix string, baseChallenges ...emulated.Element[FR]) SettingsFr[FR] {
+	return SettingsFr[FR]{
 		Transcript:     transcript,
 		Prefix:         prefix,
 		BaseChallenges: baseChallenges,

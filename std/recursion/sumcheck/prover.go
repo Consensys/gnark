@@ -3,8 +3,14 @@ package sumcheck
 import (
 	"fmt"
 	"math/big"
+	"slices"
+	"strconv"
 
 	fiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
+	"github.com/consensys/gnark/frontend"
+	fiatshamirGnark "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/math/bits"
+	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/std/recursion"
 )
 
@@ -85,6 +91,94 @@ func prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 		return proof, fmt.Errorf("excessive challenges")
 	}
 	proof.FinalEvalProof = claims.ProverFinalEval(challenges)
+
+	return proof, nil
+}
+
+// todo change this bind as limbs instead of bits, ask @arya if necessary
+// bindChallenge binds the values for challengeName using in-circuit Fiat-Shamir transcript.
+func bindChallenge(api frontend.API, targetModulus *big.Int, fs *fiatshamirGnark.Transcript, challengeName string, values []frontend.Variable) error {
+	for i := range values {
+		bts := bits.ToBinary(api, values[i], bits.WithNbDigits(targetModulus.BitLen()))
+		slices.Reverse(bts)
+		if err := fs.Bind(challengeName, bts); err != nil {
+			return fmt.Errorf("bind challenge %s %d: %w", challengeName, i, err)
+		}
+	}
+	return nil
+}
+
+func setupTranscript(api frontend.API, targetModulus *big.Int, claimsNum int, varsNum int, settings *fiatshamirGnark.Settings) ([]string, error) {
+
+	numChallenges := varsNum
+	if claimsNum >= 2 {
+		numChallenges++
+	}
+	challengeNames := make([]string, numChallenges)
+	if claimsNum >= 2 {
+		challengeNames[0] = settings.Prefix + "comb"
+	}
+	prefix := settings.Prefix + "pSP."
+	for i := 0; i < varsNum; i++ {
+		challengeNames[i+numChallenges-varsNum] = prefix + strconv.Itoa(i)
+	}
+	// todo check if settings.Transcript is nil
+	if settings.Transcript == nil {
+		var err error
+		settings.Transcript, err = recursion.NewTranscript(api, targetModulus, challengeNames) // not passing settings.hash check
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return challengeNames, bindChallenge(api, targetModulus, settings.Transcript, challengeNames[0], settings.BaseChallenges)
+}
+
+func next(transcript *fiatshamirGnark.Transcript, bindings []frontend.Variable, remainingChallengeNames *[]string) (frontend.Variable, error) {
+	challengeName := (*remainingChallengeNames)[0]
+	if err := transcript.Bind(challengeName, bindings); err != nil {
+		return nil, err
+	}
+
+	res, err := transcript.ComputeChallenge(challengeName)
+	*remainingChallengeNames = (*remainingChallengeNames)[1:]
+	return res, err
+}
+
+// Prove create a non-interactive sumcheck proof
+func SumcheckProve(api frontend.API, targetModulus *big.Int, claims claimsVar, transcriptSettings fiatshamirGnark.Settings) (nativeProofGKR, error) {
+
+	var proof nativeProofGKR
+	remainingChallengeNames, err := setupTranscript(api, targetModulus, claims.NbClaims(), claims.NbVars(), &transcriptSettings)
+	transcript := transcriptSettings.Transcript
+	if err != nil {
+		return proof, err
+	}
+
+	var combinationCoeff frontend.Variable
+	if claims.NbClaims() >= 2 {
+		if combinationCoeff, err = next(transcript, []frontend.Variable{}, &remainingChallengeNames); err != nil {
+			return proof, err
+		}
+	}
+
+	varsNum := claims.NbVars()
+	proof.PartialSumPolys = make([]polynomial.Polynomial, varsNum)
+	proof.PartialSumPolys[0] = claims.Combine(api, &combinationCoeff)
+	challenges := make([]frontend.Variable, varsNum)
+
+	for j := 0; j+1 < varsNum; j++ {
+		if challenges[j], err = next(transcript, proof.PartialSumPolys[j], &remainingChallengeNames); err != nil {
+			return proof, err
+		}
+		proof.PartialSumPolys[j+1] = claims.Next(api, &challenges[j])
+	}
+
+	if challenges[varsNum-1], err = next(transcript, proof.PartialSumPolys[varsNum-1], &remainingChallengeNames); err != nil {
+		return proof, err
+	}
+
+	proof.FinalEvalProof = claims.ProverFinalEval(api, challenges)
 
 	return proof, nil
 }

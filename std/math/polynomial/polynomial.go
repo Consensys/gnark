@@ -22,6 +22,10 @@ type Univariate[FR emulated.FieldParams] []emulated.Element[FR]
 // coefficients.
 type Multilinear[FR emulated.FieldParams] []emulated.Element[FR]
 
+func (ml *Multilinear[FR]) NumVars() int {
+	return bits.Len(uint(len(*ml) - 1))
+}
+
 func valueOf[FR emulated.FieldParams](univ []*big.Int) []emulated.Element[FR] {
 	ret := make([]emulated.Element[FR], len(univ))
 	for i := range univ {
@@ -87,6 +91,18 @@ func New[FR emulated.FieldParams](api frontend.API) (*Polynomial[FR], error) {
 		api: api,
 		f:   f,
 	}, nil
+}
+
+func (p *Polynomial[FR]) Mul(a, b *emulated.Element[FR]) *emulated.Element[FR] {
+	return p.f.Mul(a, b)
+}
+
+func (p *Polynomial[FR]) Add(a, b *emulated.Element[FR]) *emulated.Element[FR] {
+	return p.f.Add(a, b)
+}
+
+func (p *Polynomial[FR]) AssertIsEqual(a, b *emulated.Element[FR]) {
+	p.f.AssertIsEqual(a, b)
 }
 
 // EvalUnivariate evaluates univariate polynomial at a point at. It returns the

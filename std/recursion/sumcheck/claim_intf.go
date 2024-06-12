@@ -3,7 +3,9 @@ package sumcheck
 import (
 	"math/big"
 
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/polynomial"
 )
 
 // LazyClaims allows to verify the sumcheck proof by allowing different final evaluations.
@@ -36,4 +38,36 @@ type claims interface {
 	Next(r *big.Int) nativePolynomial
 	// ProverFinalEval returns the (lazy) evaluation proof.
 	ProverFinalEval(r []*big.Int) nativeEvaluationProof
+}
+
+// claims is the interface for the claimable function for proving.
+type claimsVar interface {
+	// NbClaims is the number of parallel sumcheck proofs. If larger than one then sumcheck verifier computes a challenge for combining the claims.
+	NbClaims() int
+	// NbVars is the number of variables for the evaluatable function. Defines the number of rounds in the sumcheck protocol.
+	NbVars() int
+	// Combine combines separate claims into a single sumcheckable claim using
+	// the coefficient coeff.
+	Combine(api frontend.API, coeff *frontend.Variable) polynomial.Polynomial
+	// Next fixes the next free variable to r, keeps the next variable free and
+	// sums over a hypercube for the last variables. Instead of returning the
+	// polynomial in coefficient form, it returns the evaluations at degree
+	// different points.	
+	Next(api frontend.API, r *frontend.Variable) polynomial.Polynomial
+	// ProverFinalEval returns the (lazy) evaluation proof.
+	ProverFinalEval(api frontend.API, r []frontend.Variable) nativeEvaluationProof
+}
+
+// LazyClaims allows to verify the sumcheck proof by allowing different final evaluations.
+type LazyClaimsVar[FR emulated.FieldParams] interface {
+	// NbClaims is the number of parallel sumcheck proofs. If larger than one then sumcheck verifier computes a challenge for combining the claims.
+	NbClaims() int
+	// NbVars is the number of variables for the evaluatable function. Defines the number of rounds in the sumcheck protocol.
+	NbVars() int
+	// CombinedSum returns the folded claim for parallel verification.
+	CombinedSum(coeff *emulated.Element[FR]) *emulated.Element[FR]
+	// Degree returns the maximum degree of the variable i-th variable.
+	Degree(i int) int
+	// AssertEvaluation (lazily) asserts the correctness of the evaluation value expectedValue of the claim at r.
+	VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof interface{}) error
 }

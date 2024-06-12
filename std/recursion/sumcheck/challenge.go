@@ -51,6 +51,7 @@ func deriveChallengeProver(fs *cryptofiatshamir.Transcript, challengeNames []str
 	return challenge, challengeNames[1:], nil
 }
 
+// todo change this bind as limbs instead of bits, ask @arya if necessary
 // bindChallenge binds the values for challengeName using in-circuit Fiat-Shamir transcript.
 func (v *Verifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName string, values []emulated.Element[FR]) error {
 	for i := range values {

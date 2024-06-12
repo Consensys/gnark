@@ -308,6 +308,7 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 	claims := newClaimsManager(c, assignment)
 
 	var firstChallenge []frontend.Variable
+	// why no bind values here?
 	firstChallenge, err = getChallenges(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
 	if err != nil {
 		return err

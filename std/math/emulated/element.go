@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/std/math/bits"
 )
 
 // Element defines an element in the ring of integers modulo n. The integer
@@ -105,4 +106,22 @@ func (e *Element[T]) copy() *Element[T] {
 	r.overflow = e.overflow
 	r.internal = e.internal
 	return &r
+}
+
+// newInternalElement sets the limbs and overflow. Given as a function for later
+// possible refactor.
+func newInternalElement[T FieldParams](limbs []frontend.Variable, overflow uint) *Element[T] {
+	return &Element[T]{Limbs: limbs, overflow: overflow, internal: true}
+}
+
+// FromBits returns a new Element given the bits is little-endian order.
+func FromBits[FR FieldParams](api frontend.API, bs ...frontend.Variable) *Element[FR] {
+	var fParams FR
+	nbLimbs := (uint(len(bs)) + fParams.BitsPerLimb() - 1) / fParams.BitsPerLimb()
+	limbs := make([]frontend.Variable, nbLimbs)
+	for i := uint(0); i < nbLimbs-1; i++ {
+		limbs[i] = bits.FromBinary(api, bs[i*fParams.BitsPerLimb():(i+1)*fParams.BitsPerLimb()])
+	}
+	limbs[nbLimbs-1] = bits.FromBinary(api, bs[(nbLimbs-1)*fParams.BitsPerLimb():])	
+	return newInternalElement[FR](limbs, 0)
 }

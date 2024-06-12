@@ -414,6 +414,16 @@ func (f *Field[T]) Mul(a, b *Element[T]) *Element[T] {
 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
 }
 
+// // MulAcc computes a*b and reduces it modulo the field order. The returned Element
+// // has default number of limbs and zero overflow. If the result wouldn't fit
+// // into Element, then locally reduces the inputs first. Doesn't mutate inputs.
+// //
+// // For multiplying by a constant, use [Field[T].MulConst] method which is more
+// // efficient.
+// func (f *Field[T]) MulAcc(a, b *Element[T], c *Element[T]) *Element[T] {
+// 	return f.reduceAndOp(func(a, b *Element[T], u uint) *Element[T] { return f.mulMod(a, b, u, nil) }, f.mulPreCond, a, b)
+// }
+
 // MulMod computes a*b and reduces it modulo the field order. The returned Element
 // has default number of limbs and zero overflow.
 //

@@ -2,8 +2,9 @@ package sumcheck
 
 import (
 	"fmt"
-
+	"strconv"
 	"github.com/consensys/gnark/frontend"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/std/recursion"
@@ -15,6 +16,38 @@ type config struct {
 
 // Option allows to alter the sumcheck verifier behaviour.
 type Option func(c *config) error
+
+func (v *Verifier[FR]) setupTranscript(claimsNum int, varsNum int, settings *fiatshamir.SettingsFr[FR]) ([]string, error) {
+	var fr FR
+	numChallenges := varsNum
+	if claimsNum >= 2 {
+		numChallenges++
+	}
+	challengeNames := make([]string, numChallenges)
+	if claimsNum >= 2 {
+		challengeNames[0] = settings.Prefix + "comb"
+	}
+	prefix := settings.Prefix + "pSP."
+	for i := 0; i < varsNum; i++ {
+		challengeNames[i+numChallenges-varsNum] = prefix + strconv.Itoa(i)
+	}
+	// todo check if settings.Transcript is nil
+	if settings.Transcript == nil {
+		var err error
+		settings.Transcript, err = recursion.NewTranscript(v.api, fr.Modulus(), challengeNames) // not passing settings.hash check
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return challengeNames, v.bindChallenge(settings.Transcript, challengeNames[0], settings.BaseChallenges)
+}
+
+func (v *Verifier[FR]) next(transcript *fiatshamir.Transcript, bindings []emulated.Element[FR], remainingChallengeNames *[]string) (emulated.Element[FR], error) {
+	challenge, newRemainingChallengeNames, err := v.deriveChallenge(transcript, *remainingChallengeNames, bindings)
+	*remainingChallengeNames = newRemainingChallengeNames
+	return *challenge, err
+}
 
 // WithClaimPrefix prepends the given string to the challenge names when
 // computing the challenges inside the sumcheck verifier. The option is used in
@@ -178,4 +211,56 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	}
 
 	return nil
+}
+
+// VerifyForGkr verifies the sumcheck proof for the given (lazy) claims.
+func (v *Verifier[FR]) VerifyForGkr(claims LazyClaimsVar[FR], proof nonNativeProofGKR[FR], transcriptSettings fiatshamir.SettingsFr[FR]) error {
+
+	remainingChallengeNames, err := v.setupTranscript(claims.NbClaims(), claims.NbVars(), &transcriptSettings)
+	transcript := transcriptSettings.Transcript
+	if err != nil {
+		return err
+	}
+
+	var combinationCoef emulated.Element[FR]
+
+	if claims.NbClaims() >= 2 {
+		if combinationCoef, err = v.next(transcript, []emulated.Element[FR]{}, &remainingChallengeNames); err != nil {
+			return err
+		}
+	}
+
+	r := make([]emulated.Element[FR], claims.NbVars())
+
+	// Just so that there is enough room for gJ to be reused
+	maxDegree := claims.Degree(0)
+	for j := 1; j < claims.NbVars(); j++ {
+		if d := claims.Degree(j); d > maxDegree {
+			maxDegree = d
+		}
+	}
+
+	gJ := make([]*emulated.Element[FR], maxDegree+1)   //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
+	// gJR is the claimed value. In case of multiple claims it is combined
+	// claimed value we're going to check against.
+	gJR := claims.CombinedSum(&combinationCoef)
+
+	for j := 0; j < claims.NbVars(); j++ {
+		partialSumPoly := proof.PartialSumPolys[j] //proof.PartialSumPolys(j)
+		if len(partialSumPoly) != claims.Degree(j) {
+			return fmt.Errorf("malformed proof") //Malformed proof
+		}
+		copy(polynomial.FromSliceReferences(gJ[1:]), partialSumPoly)
+		gJ[0] = v.f.Sub(gJR, &partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
+		// gJ is ready
+
+		//Prepare for the next iteration
+		if r[j], err = v.next(transcript, proof.PartialSumPolys[j], &remainingChallengeNames); err != nil {
+			return err
+		}
+
+		gJR = v.p.InterpolateLDE(&r[j], gJ[:(claims.Degree(j)+1)])
+	}
+
+	return claims.VerifyFinalEval(r, combinationCoef, *gJR, proof.FinalEvalProof)
 }

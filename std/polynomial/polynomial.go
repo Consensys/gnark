@@ -4,12 +4,77 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark-crypto/utils"
 )
 
 type Polynomial []frontend.Variable
 type MultiLin []frontend.Variable
 
 var minFoldScaledLogSize = 16
+
+func FromSlice(s []frontend.Variable) []*frontend.Variable {
+	r := make([]*frontend.Variable, len(s))
+	for i := range s {
+		r[i] = &s[i]
+	}
+	return r
+}
+
+// FromSliceReferences maps slice of emulated element references to their values.
+func FromSliceReferences(in []*frontend.Variable) []frontend.Variable {
+	r := make([]frontend.Variable, len(in))
+	for i := range in {
+		r[i] = *in[i]
+	}
+	return r
+}
+
+func _clone(m MultiLin, p *Pool) MultiLin {
+	if p == nil {
+		return m.Clone()
+	} else {
+		return p.Clone(m)
+	}
+}
+
+func _dump(m MultiLin, p *Pool) {
+	if p != nil {
+		p.Dump(m)
+	}
+}
+
+// Evaluate assumes len(m) = 1 << len(at)
+// it doesn't modify m
+func (m MultiLin) EvaluatePool(api frontend.API, at []frontend.Variable, pool *Pool) frontend.Variable {
+	_m := _clone(m, pool)
+
+	/*minFoldScaledLogSize := 16
+	if api is r1cs {
+		minFoldScaledLogSize = math.MaxInt64  // no scaling for r1cs
+	}*/
+
+	scaleCorrectionFactor := frontend.Variable(1)
+	// at each iteration fold by at[i]
+	for len(_m) > 1 {
+		if len(_m) >= minFoldScaledLogSize {
+			scaleCorrectionFactor = api.Mul(scaleCorrectionFactor, _m.foldScaled(api, at[0]))
+		} else {
+			_m.Fold(api, at[0])
+		}
+		_m = _m[:len(_m)/2]
+		at = at[1:]
+	}
+
+	if len(at) != 0 {
+		panic("incompatible evaluation vector size")
+	}
+
+	result := _m[0]
+
+	_dump(_m, pool)
+
+	return api.Mul(result, scaleCorrectionFactor)
+}
 
 // Evaluate assumes len(m) = 1 << len(at)
 // it doesn't modify m
@@ -27,7 +92,7 @@ func (m MultiLin) Evaluate(api frontend.API, at []frontend.Variable) frontend.Va
 		if len(_m) >= minFoldScaledLogSize {
 			scaleCorrectionFactor = api.Mul(scaleCorrectionFactor, _m.foldScaled(api, at[0]))
 		} else {
-			_m.fold(api, at[0])
+			_m.Fold(api, at[0])
 		}
 		_m = _m[:len(_m)/2]
 		at = at[1:]
@@ -42,12 +107,49 @@ func (m MultiLin) Evaluate(api frontend.API, at []frontend.Variable) frontend.Va
 
 // fold fixes the value of m's first variable to at, thus halving m's required bookkeeping table size
 // WARNING: The user should halve m themselves after the call
-func (m MultiLin) fold(api frontend.API, at frontend.Variable) {
+func (m MultiLin) Fold(api frontend.API, at frontend.Variable) {
 	zero := m[:len(m)/2]
 	one := m[len(m)/2:]
 	for j := range zero {
 		diff := api.Sub(one[j], zero[j])
 		zero[j] = api.MulAcc(zero[j], diff, at)
+	}
+}
+
+func (m *MultiLin) FoldParallel(api frontend.API, r frontend.Variable) utils.Task {
+	mid := len(*m) / 2
+	bottom, top := (*m)[:mid], (*m)[mid:]
+
+	*m = bottom
+
+	return func(start, end int) {
+		var t frontend.Variable // no need to update the top part
+		for i := start; i < end; i++ {
+			// table[i] ← table[i]  + r (table[i + mid] - table[i])
+			t = api.Sub(&top[i], &bottom[i])
+			t = api.Mul(&t, &r)
+			bottom[i] = api.Add(&bottom[i], &t)
+		}
+	}
+}
+
+// Eq sets m to the representation of the polynomial Eq(q₁, ..., qₙ, *, ..., *) × m[0]
+func (m *MultiLin) Eq(api frontend.API, q []frontend.Variable) {
+	n := len(q)
+
+	if len(*m) != 1<<n {
+		panic("destination must have size 2 raised to the size of source")
+	}
+
+	//At the end of each iteration, m(h₁, ..., hₙ) = Eq(q₁, ..., qᵢ₊₁, h₁, ..., hᵢ₊₁)
+	for i := range q { // In the comments we use a 1-based index so q[i] = qᵢ₊₁
+		// go through all assignments of (b₁, ..., bᵢ) ∈ {0,1}ⁱ
+		for j := 0; j < (1 << i); j++ {
+			j0 := j << (n - i)                 // bᵢ₊₁ = 0
+			j1 := j0 + 1<<(n-1-i)              // bᵢ₊₁ = 1
+			(*m)[j1] = api.Mul((*m)[j1], q[i])     // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
+			(*m)[j0] = api.Sub((*m)[j0], (*m)[j1]) // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
+		}
 	}
 }
 

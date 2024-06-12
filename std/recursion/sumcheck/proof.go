@@ -3,6 +3,7 @@ package sumcheck
 import (
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
+	polynative "github.com/consensys/gnark/std/polynomial"
 )
 
 // Proof contains the prover messages in the sumcheck protocol.
@@ -17,6 +18,16 @@ type Proof[FR emulated.FieldParams] struct {
 type nativeProof struct {
 	RoundPolyEvaluations []nativePolynomial
 	FinalEvalProof       nativeEvaluationProof
+}
+
+type nativeProofGKR struct {
+	PartialSumPolys []polynative.Polynomial
+	FinalEvalProof  nativeEvaluationProof
+}
+
+type nonNativeProofGKR[FR emulated.FieldParams] struct {
+	PartialSumPolys []polynomial.Univariate[FR]
+	FinalEvalProof   nativeEvaluationProof
 }
 
 // EvaluationProof is proof for allowing the sumcheck verifier to perform the
