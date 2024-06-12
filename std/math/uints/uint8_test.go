@@ -105,3 +105,24 @@ func TestValueOf(t *testing.T) {
 	err = test.IsSolved(&valueOfCircuit[U32]{}, &valueOfCircuit[U32]{In: 0x1234567812345678, Expected: [4]U8{NewU8(0x78), NewU8(0x56), NewU8(0x34), NewU8(0x12)}}, ecc.BN254.ScalarField())
 	assert.Error(err)
 }
+
+type addCircuit struct {
+	In       [2]U32
+	Expected U32
+}
+
+func (c *addCircuit) Define(api frontend.API) error {
+	uapi, err := New[U32](api)
+	if err != nil {
+		return err
+	}
+	res := uapi.Add(c.In[0], c.In[1])
+	uapi.AssertEq(res, c.Expected)
+	return nil
+}
+
+func TestAdd(t *testing.T) {
+	assert := test.NewAssert(t)
+	err := test.IsSolved(&addCircuit{}, &addCircuit{In: [2]U32{NewU32(^uint32(0)), NewU32(2)}, Expected: NewU32(1)}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
