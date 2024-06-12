@@ -174,16 +174,11 @@ func (bf *BinaryField[T]) ValueOf(a frontend.Variable) T {
 		panic(err)
 	}
 
-	var checker frontend.Variable = 0x00
 	for i := len(bts) - 1; i >= 0; i-- {
 		r[i] = bf.ByteValueOf(bts[i])
-
-		// Reconstruct the value of a
-		checker = bf.api.Add(bf.api.Mul(checker, 256), r[i].Val)
-
 	}
-
-	bf.api.AssertIsEqual(checker, a)
+	expectedValue := bf.ToValue(r)
+	bf.api.AssertIsEqual(a, expectedValue)
 
 	return r
 }
