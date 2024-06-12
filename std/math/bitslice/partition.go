@@ -58,7 +58,7 @@ func Partition(api frontend.API, v frontend.Variable, split uint, opts ...Option
 	if opt.digits > 0 {
 		upperBound = opt.digits
 	}
-	rh.Check(upper, upperBound)
+	rh.Check(upper, upperBound-int(split))
 	rh.Check(lower, int(split))
 
 	m := big.NewInt(1)
