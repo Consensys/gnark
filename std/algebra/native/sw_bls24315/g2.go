@@ -201,21 +201,7 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	// curve.
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
-	// the hints allow to decompose the scalar s into s1 and s2 such that
-	//     s1 + λ * s2 == s mod r,
-	// where λ is third root of one in 𝔽_r.
-	sd, err := api.Compiler().NewHint(decomposeScalarG1Simple, 3, s)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-	s1, s2 := sd[0], sd[1]
-
-	// s1 + λ * s2 == s mod r,
-	api.AssertIsEqual(
-		api.Add(s1, api.Mul(s2, cc.lambda)),
-		api.Add(s, api.Mul(cc.fr, sd[2])),
-	)
+	s1, s2 := callDecomposeScalarG1Simple(api, s)
 
 	nbits := 127
 	s1bits := api.ToBinary(s1, nbits)
