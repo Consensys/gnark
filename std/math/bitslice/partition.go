@@ -1,3 +1,4 @@
+// Package bitslice allows partitioning variables.
 package bitslice
 
 import (
