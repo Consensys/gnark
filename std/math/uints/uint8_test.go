@@ -80,7 +80,7 @@ func TestRshift(t *testing.T) {
 	assert.NoError(err)
 }
 
-type valueOfCircuit[T U32 | U64] struct {
+type valueOfCircuit[T Long] struct {
 	In       frontend.Variable
 	Expected T
 }
