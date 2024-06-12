@@ -78,6 +78,9 @@ func (circuit *divBy0Trace) Define(api frontend.API) error {
 }
 
 func TestTraceDivBy0(t *testing.T) {
+	if !debug.Debug {
+		t.Skip("skipping test in non debug mode")
+	}
 	assert := require.New(t)
 
 	var circuit, witness divBy0Trace
