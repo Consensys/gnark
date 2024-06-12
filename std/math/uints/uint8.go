@@ -24,6 +24,7 @@ package uints
 
 import (
 	"fmt"
+	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/internal/logderivprecomp"
@@ -258,13 +259,17 @@ func (bf *BinaryField[T]) Not(a T) T {
 }
 
 func (bf *BinaryField[T]) Add(a ...T) T {
-	va := make([]frontend.Variable, len(a))
+	tLen := bf.lenBts() * 8
+	inLen := len(a)
+	va := make([]frontend.Variable, inLen)
 	for i := range a {
 		va[i] = bf.ToValue(a[i])
 	}
 	vres := bf.api.Add(va[0], va[1], va[2:]...)
-	res := bf.ValueOf(vres)
-	// TODO: should also check the that carry we omitted is correct.
+	maxBitlen := bits.Len(uint(inLen)) + tLen
+	// bitslice.Partition below checks that the input is less than 2^maxBitlen and that we have omitted carry correctly
+	vreslow, _ := bitslice.Partition(bf.api, vres, uint(tLen), bitslice.WithNbDigits(maxBitlen), bitslice.WithUnconstrainedOutputs())
+	res := bf.ValueOf(vreslow)
 	return res
 }
 
@@ -326,6 +331,11 @@ func (bf *BinaryField[T]) AssertEq(a, b T) {
 	for i := 0; i < len(a); i++ {
 		bf.ByteAssertEq(a[i], b[i])
 	}
+}
+
+func (bf *BinaryField[T]) lenBts() int {
+	var a T
+	return len(a)
 }
 
 func reslice[T U32 | U64](in []T) [][]U8 {
