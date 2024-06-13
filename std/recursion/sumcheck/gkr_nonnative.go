@@ -219,7 +219,7 @@ type claimsManagerFr[FR emulated.FieldParams] struct {
 	assignment WireAssignmentFr[FR]
 }
 
-func newClaimsManagerFr[FR emulated.FieldParams](c CircuitFr[FR], assignment WireAssignmentFr[FR], verifier GKRVerifier[FR]) (claims claimsManagerFr[FR]) {
+func newClaimsManagerFr[FR emulated.FieldParams](c CircuitFr[FR], assignment WireAssignmentFr[FR]) (claims claimsManagerFr[FR]) {
 	claims.assignment = assignment
 	claims.claimsMap = make(map[*WireFr[FR]]*eqTimesGateEvalSumcheckLazyClaimsFr[FR], len(c))
 
@@ -231,8 +231,6 @@ func newClaimsManagerFr[FR emulated.FieldParams](c CircuitFr[FR], assignment Wir
 			evaluationPoints:   make([][]emulated.Element[FR], 0, wire.NbClaims()),
 			claimedEvaluations: make(polynomial.Multilinear[FR], wire.NbClaims()),
 			manager:            &claims,
-			verifier:           &verifier,
-
 		}
 	}
 	return
@@ -940,7 +938,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 		return err
 	}
 
-	claims := newClaimsManagerFr(c, assignment, *v)
+	claims := newClaimsManagerFr(c, assignment)
 	var firstChallenge []emulated.Element[FR]
 	firstChallenge, err = v.getChallengesFr(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
 	if err != nil {
@@ -980,7 +978,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 					return err
 				}
 				evaluation = *evaluationPtr
-				v.f.AssertIsEqual(&claim.claimedEvaluations[0], &evaluation)
+				api.AssertIsEqual(claim.claimedEvaluations[0], evaluation)
 			}
 		} else if err = sumcheck_verifier.VerifyForGkr(
 			claim, proof[i], fiatshamir.WithTranscriptFr(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
