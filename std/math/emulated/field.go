@@ -101,7 +101,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	if uint(f.api.Compiler().FieldBitLen()) < 2*f.fParams.BitsPerLimb()+1 {
 		return nil, fmt.Errorf("elements with limb length %d does not fit into scalar field", f.fParams.BitsPerLimb())
 	}
-
+	println("NewField mulcheck")
 	native.Compiler().Defer(f.performMulChecks)
 	if storer, ok := native.(kvstore.Store); ok {
 		storer.SetKeyValue(ctxKey[T]{}, f)

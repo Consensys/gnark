@@ -6,7 +6,6 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
-	"github.com/consensys/gnark/std/math/bits"
 )
 
 // Element defines an element in the ring of integers modulo n. The integer

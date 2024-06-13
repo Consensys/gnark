@@ -240,7 +240,7 @@ func (v *Verifier[FR]) VerifyForGkr(claims LazyClaimsVar[FR], proof nonNativePro
 		}
 	}
 
-	gJ := make([]*emulated.Element[FR], maxDegree+1)   //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
+	gJ := make([]emulated.Element[FR], maxDegree+1)   //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
 	// gJR is the claimed value. In case of multiple claims it is combined
 	// claimed value we're going to check against.
 	gJR := claims.CombinedSum(&combinationCoef)
@@ -250,8 +250,8 @@ func (v *Verifier[FR]) VerifyForGkr(claims LazyClaimsVar[FR], proof nonNativePro
 		if len(partialSumPoly) != claims.Degree(j) {
 			return fmt.Errorf("malformed proof") //Malformed proof
 		}
-		copy(polynomial.FromSliceReferences(gJ[1:]), partialSumPoly)
-		gJ[0] = v.f.Sub(gJR, &partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
+		copy(gJ[1:], partialSumPoly)
+		gJ[0] = *v.f.Sub(gJR, &partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
 		// gJ is ready
 
 		//Prepare for the next iteration
@@ -259,7 +259,7 @@ func (v *Verifier[FR]) VerifyForGkr(claims LazyClaimsVar[FR], proof nonNativePro
 			return err
 		}
 
-		gJR = v.p.InterpolateLDE(&r[j], gJ[:(claims.Degree(j)+1)])
+		gJR = v.p.InterpolateLDE(&r[j], polynomial.FromSlice(gJ[:(claims.Degree(j)+1)]))
 	}
 
 	return claims.VerifyFinalEval(r, combinationCoef, *gJR, proof.FinalEvalProof)
