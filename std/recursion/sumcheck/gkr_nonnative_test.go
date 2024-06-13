@@ -147,7 +147,7 @@ func (c *GkrVerifierCircuitFr) Define(api frontend.API) error {
 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
 
 	// initiating hash in bitmode, remove and do it with hashdescription instead
-	h, err := recursion.NewHash(api, fr.Modulus(), true)
+	hsh, err := recursion.NewHash(api, fr.Modulus(), true)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (c *GkrVerifierCircuitFr) Define(api frontend.API) error {
 	// 	}
 	// }
 
-	return v.Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHashFr[FR](h))
+	return v.Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHashFr[FR](hsh))
 }
 
 func makeInOutAssignment[FR emulated.FieldParams](c CircuitFr[FR], inputValues [][]emulated.Element[FR], outputValues [][]emulated.Element[FR]) WireAssignmentFr[FR] {
@@ -416,9 +416,9 @@ func TestTopSortWide(t *testing.T) {
 func ToVariableFr[FR emulated.FieldParams](v interface{}) emulated.Element[FR] {
 	switch vT := v.(type) {
 	case float64:
-		return *emulated.CreateConstElement[FR](int(vT))
+		return *new(emulated.Field[FR]).NewElement(int(vT))
 	default:
-		return *emulated.CreateConstElement[FR](v)
+		return *new(emulated.Field[FR]).NewElement(v)
 	}
 }
 
@@ -556,157 +556,3 @@ func (m MiMCCipherGate) Degree() int {
 	return 7
 }
 
-// type PrintableProof []PrintableSumcheckProof
-
-// type PrintableSumcheckProof struct {
-// 	FinalEvalProof  interface{}     `json:"finalEvalProof"`
-// 	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
-// }
-
-// func unmarshalProof(printable PrintableProof) (Proof, error) {
-// 	proof := make(Proof, len(printable))
-// 	for i := range printable {
-// 		finalEvalProof := []fr.Element(nil)
-
-// 		if printable[i].FinalEvalProof != nil {
-// 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
-// 			finalEvalProof = make([]fr.Element, finalEvalSlice.Len())
-// 			for k := range finalEvalProof {
-// 				if _, err := test_vector_utils.SetElement(&finalEvalProof[k], finalEvalSlice.Index(k).Interface()); err != nil {
-// 					return nil, err
-// 				}
-// 			}
-// 		}
-
-// 		proof[i] = sumcheck.Proof{
-// 			PartialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
-// 			FinalEvalProof:  finalEvalProof,
-// 		}
-// 		for k := range printable[i].PartialSumPolys {
-// 			var err error
-// 			if proof[i].PartialSumPolys[k], err = test_vector_utils.SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
-// 				return nil, err
-// 			}
-// 		}
-// 	}
-// 	return proof, nil
-// }
-
-// type TestCase struct {
-// 	Circuit         Circuit
-// 	Hash            hash.Hash
-// 	Proof           Proof
-// 	FullAssignment  WireAssignment
-// 	InOutAssignment WireAssignment
-// }
-
-// type TestCaseInfo struct {
-// 	Hash    test_vector_utils.HashDescription `json:"hash"`
-// 	Circuit string                            `json:"circuit"`
-// 	Input   [][]interface{}                   `json:"input"`
-// 	Output  [][]interface{}                   `json:"output"`
-// 	Proof   PrintableProof                    `json:"proof"`
-// }
-
-// var testCases = make(map[string]*TestCase)
-
-// func newTestCase(path string) (*TestCase, error) {
-// 	path, err := filepath.Abs(path)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	dir := filepath.Dir(path)
-
-// 	tCase, ok := testCases[path]
-// 	if !ok {
-// 		var bytes []byte
-// 		if bytes, err = os.ReadFile(path); err == nil {
-// 			var info TestCaseInfo
-// 			err = json.Unmarshal(bytes, &info)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-
-// 			var circuit Circuit
-// 			if circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
-// 				return nil, err
-// 			}
-// 			var _hash hash.Hash
-// 			if _hash, err = test_vector_utils.HashFromDescription(info.Hash); err != nil {
-// 				return nil, err
-// 			}
-// 			var proof Proof
-// 			if proof, err = unmarshalProof(info.Proof); err != nil {
-// 				return nil, err
-// 			}
-
-// 			fullAssignment := make(WireAssignment)
-// 			inOutAssignment := make(WireAssignment)
-
-// 			sorted := topologicalSort(circuit)
-
-// 			inI, outI := 0, 0
-// 			for _, w := range sorted {
-// 				var assignmentRaw []interface{}
-// 				if w.IsInput() {
-// 					if inI == len(info.Input) {
-// 						return nil, fmt.Errorf("fewer input in vector than in circuit")
-// 					}
-// 					assignmentRaw = info.Input[inI]
-// 					inI++
-// 				} else if w.IsOutput() {
-// 					if outI == len(info.Output) {
-// 						return nil, fmt.Errorf("fewer output in vector than in circuit")
-// 					}
-// 					assignmentRaw = info.Output[outI]
-// 					outI++
-// 				}
-// 				if assignmentRaw != nil {
-// 					var wireAssignment []fr.Element
-// 					if wireAssignment, err = test_vector_utils.SliceToElementSlice(assignmentRaw); err != nil {
-// 						return nil, err
-// 					}
-
-// 					fullAssignment[w] = wireAssignment
-// 					inOutAssignment[w] = wireAssignment
-// 				}
-// 			}
-
-// 			fullAssignment.Complete(circuit)
-
-// 			for _, w := range sorted {
-// 				if w.IsOutput() {
-
-// 					if err = test_vector_utils.SliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
-// 						return nil, fmt.Errorf("assignment mismatch: %v", err)
-// 					}
-
-// 				}
-// 			}
-
-// 			tCase = &TestCase{
-// 				FullAssignment:  fullAssignment,
-// 				InOutAssignment: inOutAssignment,
-// 				Proof:           proof,
-// 				Hash:            _hash,
-// 				Circuit:         circuit,
-// 			}
-
-// 			testCases[path] = tCase
-// 		} else {
-// 			return nil, err
-// 		}
-// 	}
-
-// 	return tCase, nil
-// }
-
-// type _select int
-
-// func (g _select) Evaluate(in ...fr.Element) fr.Element {
-// 	return in[g]
-// }
-
-// func (g _select) Degree() int {
-// 	return 1
-// }
