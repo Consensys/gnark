@@ -42,3 +42,10 @@ func WithHash(hash hash.FieldHasher, baseChallenges ...frontend.Variable) Settin
 		Hash:           hash,
 	}
 }
+
+func WithHashFr[FR emulated.FieldParams](hash hash.FieldHasher, baseChallenges ...emulated.Element[FR]) SettingsFr[FR] {
+	return SettingsFr[FR]{
+		BaseChallenges: baseChallenges,
+		Hash:           hash,
+	}
+}

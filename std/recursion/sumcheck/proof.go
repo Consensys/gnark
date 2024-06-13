@@ -27,7 +27,7 @@ type nativeProofGKR struct {
 
 type nonNativeProofGKR[FR emulated.FieldParams] struct {
 	PartialSumPolys []polynomial.Univariate[FR]
-	FinalEvalProof   nativeEvaluationProof
+	FinalEvalProof   EvaluationProofFr[FR]
 }
 
 // EvaluationProof is proof for allowing the sumcheck verifier to perform the
@@ -37,6 +37,8 @@ type nonNativeProofGKR[FR emulated.FieldParams] struct {
 //   - if it is multivariate polynomial opening proof, then it is the opening value,
 //   - if it is deferred, then it is a slice.
 type EvaluationProof any
+
+type EvaluationProofFr[FR emulated.FieldParams] []emulated.Element[FR]
 
 type nativeEvaluationProof any
 

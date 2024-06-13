@@ -21,6 +21,11 @@ import (
 
 // The goal is to prove/verify evaluations of many instances of the same circuit
 
+// type gateinput struct {
+// 	api arithEngine
+// 	element ...emulated.Element
+// }
+
 // Gate must be a low-degree polynomial
 type Gate interface {
 	Evaluate(...frontend.Variable) frontend.Variable // removed api ?
@@ -35,7 +40,7 @@ type Wire struct {
 
 // Gate must be a low-degree polynomial
 type GateFr[FR emulated.FieldParams] interface {
-	Evaluate(...emulated.Element[FR]) emulated.Element[FR] // removed api ?
+	Evaluate(emuEngine[FR], ...emulated.Element[FR]) emulated.Element[FR] // removed api ?
 	Degree() int
 }
 
@@ -129,8 +134,8 @@ type eqTimesGateEvalSumcheckLazyClaimsFr[FR emulated.FieldParams] struct {
 	verifier           *GKRVerifier[FR]
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof interface{}) error {
-	inputEvaluationsNoRedundancy := proof.([]emulated.Element[FR])
+func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof EvaluationProofFr[FR]) error {
+	inputEvaluationsNoRedundancy := proof
 
 	p, err := polynomial.New[FR](e.verifier.api)
 	if err != nil {
@@ -174,7 +179,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.E
 		if proofI != len(inputEvaluationsNoRedundancy) {
 			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
 		}
-		gateEvaluation = e.wire.Gate.Evaluate(inputEvaluations...)
+		gateEvaluation = e.wire.Gate.Evaluate(e.verifier.engine, inputEvaluations...)
 	}
 	evaluation = p.Mul(evaluation, &gateEvaluation)
 
@@ -199,7 +204,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) Degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof EvaluationProof) error {
+func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof EvaluationProofFr[FR]) error {
 	val, err := e.verifier.p.EvalMultilinear(r, e.manager.assignment[e.wire])
 	if err != nil {
 		return fmt.Errorf("evaluation error: %w", err)
@@ -533,8 +538,6 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 		option(&o)
 	}
 
-
-
 	o.nbVars = assignment.NumVars()
 	nbInstances := assignment.NumInstances()
 	if 1<<o.nbVars != nbInstances {
@@ -632,6 +635,7 @@ func WithSortedCircuit[FR emulated.FieldParams](sorted []*WireFr[FR]) OptionFr[F
 // Verifier allows to check sumcheck proofs. See [NewVerifier] for initializing the instance.
 type GKRVerifier[FR emulated.FieldParams] struct {
 	api frontend.API
+	engine emuEngine[FR]
 	f   *emulated.Field[FR]
 	p   *polynomial.Polynomial[FR]
 	*config
@@ -673,7 +677,7 @@ func (v *GKRVerifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName
 	return nil
 }
 
-func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitFr[FR], assignment WireAssignmentFr[FR], transcriptSettings fiatshamir.Settings, options []OptionFr[FR], sumcheck_opts ...VerifyOption[FR]) (settingsFr[FR], error) {
+func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitFr[FR], assignment WireAssignmentFr[FR], transcriptSettings fiatshamir.SettingsFr[FR], options ...OptionFr[FR]) (settingsFr[FR], error) {
 	var fr FR
 	var o settingsFr[FR]
 	var err error
@@ -681,7 +685,7 @@ func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitFr[FR], assignment Wi
 		option(&o)
 	}
 
-	cfg, err := newVerificationConfig(sumcheck_opts...)
+	cfg, err := newVerificationConfig[FR]()
 	if err != nil {
 		return o, fmt.Errorf("verification opts: %w", err)
 	}
@@ -924,8 +928,8 @@ func Prove(api frontend.API, target *big.Int, c Circuit, assignment WireAssignme
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete, 
 // Use valueOfProof[FR](proof) to convert nativeproof by prover into nonnativeproof used by in-circuit verifier
-func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment WireAssignmentFr[FR], proof Proofs[FR], transcriptSettings fiatshamir.Settings, options []OptionFr[FR], sumcheck_opts ...VerifyOption[FR]) error {
-	o, err := v.setup(api, c, assignment, transcriptSettings, options, sumcheck_opts...)
+func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment WireAssignmentFr[FR], proof Proofs[FR], transcriptSettings fiatshamir.SettingsFr[FR], options ...OptionFr[FR]) error {
+	o, err := v.setup(api, c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
 	}
@@ -957,7 +961,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 		}
 
 		proofW := proof[i]
-		finalEvalProof := proofW.FinalEvalProof.([]emulated.Element[FR])
+		finalEvalProof := proofW.FinalEvalProof
 		claim := claims.getLazyClaim(wire)
 
 		if wire.noProof() { // input wires with one claim only
@@ -1067,7 +1071,7 @@ func statusList(c Circuit) []int {
 
 type IdentityGateFr[FR emulated.FieldParams] struct{}
 
-func (IdentityGateFr[FR]) Evaluate(input ...emulated.Element[FR]) emulated.Element[FR] {
+func (IdentityGateFr[FR]) Evaluate(api emuEngine[FR], input ...emulated.Element[FR]) emulated.Element[FR] {
 	return input[0]
 }
 
@@ -1226,7 +1230,7 @@ func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 		for j := range p[i].PartialSumPolys {
 			size += len(p[i].PartialSumPolys[j])
 		}
-		size += len(p[i].FinalEvalProof.([]emulated.Element[FR]))
+		size += len(p[i].FinalEvalProof)
 	}
 
 	res := make([]emulated.Element[FR], 0, size)
@@ -1234,7 +1238,7 @@ func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 		for j := range p[i].PartialSumPolys {
 			res = append(res, p[i].PartialSumPolys[j]...)
 		}
-		res = append(res, p[i].FinalEvalProof.([]emulated.Element[FR])...)
+		res = append(res, p[i].FinalEvalProof...)
 	}
 	if len(res) != size {
 		panic("bug") // TODO: Remove
@@ -1320,16 +1324,6 @@ func (a AddGate[FR]) Degree() int {
 	return 1
 }
 
-// var Gates[FR] = map[string]Gate[FR]{
-// 	"identity": IdentityGate[FR]{},
-// 	"add":      AddGate[FR]{},
-// 	"mul":      MulGate[FR]{},
-// }
 
-// func Gates[FR emulated.FieldParams]() map[string]Gate[FR] {
-// 	return map[string]Gate[FR]{
-// 		"identity": IdentityGate[FR]{},
-// 		"add":      AddGate[FR]{},
-// 		"mul":      MulGate[FR]{},
-// 	}
-// }
+
+

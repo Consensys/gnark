@@ -69,5 +69,5 @@ type LazyClaimsVar[FR emulated.FieldParams] interface {
 	// Degree returns the maximum degree of the variable i-th variable.
 	Degree(i int) int
 	// AssertEvaluation (lazily) asserts the correctness of the evaluation value expectedValue of the claim at r.
-	VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof interface{}) error
+	VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof EvaluationProofFr[FR]) error
 }

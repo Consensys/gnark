@@ -125,3 +125,7 @@ func FromBits[FR FieldParams](api frontend.API, bs ...frontend.Variable) *Elemen
 	limbs[nbLimbs-1] = bits.FromBinary(api, bs[(nbLimbs-1)*fParams.BitsPerLimb():])	
 	return newInternalElement[FR](limbs, 0)
 }
+
+func CreateConstElement[T FieldParams](v interface{}) *Element[T] {
+	return newConstElement[T](v)
+}
