@@ -201,7 +201,7 @@ func (P *g2AffP) varScalarMul(api frontend.API, Q g2AffP, s frontend.Variable, o
 	// curve.
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
-	s1, s2 := callDecomposeScalarG1Simple(api, s)
+	s1, s2 := callDecomposeScalar(api, s, true)
 
 	nbits := 127
 	s1bits := api.ToBinary(s1, nbits)

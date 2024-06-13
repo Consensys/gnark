@@ -174,7 +174,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		}
 		gamma := c.packScalarToVar(scalars[0])
 		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
-		gamma1, gamma2 := callDecomposeScalarG1Simple(c.api, gamma)
+		gamma1, gamma2 := callDecomposeScalar(c.api, gamma, true)
 		nbits := 127
 		gamma1Bits := c.api.ToBinary(gamma1, nbits)
 		gamma2Bits := c.api.ToBinary(gamma2, nbits)
