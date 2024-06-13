@@ -654,7 +654,7 @@ func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*G
 func (pr Pairing) MillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous *GTEl) error {
 
 	// hint the non-residue witness
-	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 36, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, &previous.C0.B0.A0, &previous.C0.B0.A1, &previous.C0.B1.A0, &previous.C0.B1.A1, &previous.C0.B2.A0, &previous.C0.B2.A1, &previous.C1.B0.A0, &previous.C1.B0.A1, &previous.C1.B1.A0, &previous.C1.B1.A1, &previous.C1.B2.A0, &previous.C1.B2.A1)
+	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 24, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, &previous.C0.B0.A0, &previous.C0.B0.A1, &previous.C0.B1.A0, &previous.C0.B1.A1, &previous.C0.B2.A0, &previous.C0.B2.A1, &previous.C1.B0.A0, &previous.C1.B0.A1, &previous.C1.B1.A0, &previous.C1.B1.A1, &previous.C1.B2.A0, &previous.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -672,7 +672,7 @@ func (pr Pairing) MillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous 
 			B2: fields_bn254.E2{A0: *hint[10], A1: *hint[11]},
 		},
 	}
-	residueWitnessInv := fields_bn254.E12{
+	cubicNonResiduePower := fields_bn254.E12{
 		C0: fields_bn254.E6{
 			B0: fields_bn254.E2{A0: *hint[12], A1: *hint[13]},
 			B1: fields_bn254.E2{A0: *hint[14], A1: *hint[15]},
@@ -684,18 +684,9 @@ func (pr Pairing) MillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous 
 			B2: fields_bn254.E2{A0: *hint[22], A1: *hint[23]},
 		},
 	}
-	cubicNonResiduePower := fields_bn254.E12{
-		C0: fields_bn254.E6{
-			B0: fields_bn254.E2{A0: *hint[24], A1: *hint[25]},
-			B1: fields_bn254.E2{A0: *hint[26], A1: *hint[27]},
-			B2: fields_bn254.E2{A0: *hint[28], A1: *hint[29]},
-		},
-		C1: fields_bn254.E6{
-			B0: fields_bn254.E2{A0: *hint[30], A1: *hint[31]},
-			B1: fields_bn254.E2{A0: *hint[32], A1: *hint[33]},
-			B2: fields_bn254.E2{A0: *hint[34], A1: *hint[35]},
-		},
-	}
+
+	// residueWitnessInv = 1 / residueWitness
+	residueWitnessInv := pr.Inverse(&residueWitness)
 
 	if Q.Lines == nil {
 		Qlines := pr.computeLines(&Q.P)
@@ -710,7 +701,7 @@ func (pr Pairing) MillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous 
 
 	// init Miller loop accumulator to residueWitnessInv to share the squarings
 	// of residueWitnessInv^{6x₀+2}
-	res := &residueWitnessInv
+	res := residueWitnessInv
 
 	// Compute f_{6x₀+2,Q}(P)
 	for i := 64; i >= 0; i-- {
@@ -726,7 +717,7 @@ func (pr Pairing) MillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous 
 			)
 		case 1:
 			// multiply by residueWitnessInv when bit=1
-			res = pr.Mul(res, &residueWitnessInv)
+			res = pr.Mul(res, residueWitnessInv)
 			// lines evaluations at P
 			// and ℓ × ℓ
 			prodLines := pr.Mul034By034(
@@ -738,7 +729,7 @@ func (pr Pairing) MillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous 
 			// (ℓ × ℓ) × res
 			res = pr.MulBy01234(res, prodLines)
 		case -1:
-			// multiply by 1/residueWitnessInv=residueWitness when bit=-1
+			// multiply by residueWitness when bit=-1
 			res = pr.Mul(res, &residueWitness)
 			// lines evaluations at P
 			// and ℓ × ℓ
@@ -777,10 +768,10 @@ func (pr Pairing) MillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous 
 	// we initialized the Miller loop accumulator with residueWitnessInv.
 	t2 := pr.Mul(&cubicNonResiduePower, res)
 
-	t1 := pr.FrobeniusCube(&residueWitnessInv)
-	t0 := pr.FrobeniusSquare(&residueWitnessInv)
+	t1 := pr.FrobeniusCube(residueWitnessInv)
+	t0 := pr.FrobeniusSquare(residueWitnessInv)
 	t1 = pr.DivUnchecked(t1, t0)
-	t0 = pr.Frobenius(&residueWitnessInv)
+	t0 = pr.Frobenius(residueWitnessInv)
 	t1 = pr.Mul(t1, t0)
 
 	t2 = pr.Mul(t2, t1)
