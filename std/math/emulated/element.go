@@ -107,25 +107,3 @@ func (e *Element[T]) copy() *Element[T] {
 	r.internal = e.internal
 	return &r
 }
-
-// newInternalElement sets the limbs and overflow. Given as a function for later
-// possible refactor.
-func newInternalElement[T FieldParams](limbs []frontend.Variable, overflow uint) *Element[T] {
-	return &Element[T]{Limbs: limbs, overflow: overflow, internal: true}
-}
-
-// FromBits returns a new Element given the bits is little-endian order.
-func FromBits[FR FieldParams](api frontend.API, bs ...frontend.Variable) *Element[FR] {
-	var fParams FR
-	nbLimbs := (uint(len(bs)) + fParams.BitsPerLimb() - 1) / fParams.BitsPerLimb()
-	limbs := make([]frontend.Variable, nbLimbs)
-	for i := uint(0); i < nbLimbs-1; i++ {
-		limbs[i] = bits.FromBinary(api, bs[i*fParams.BitsPerLimb():(i+1)*fParams.BitsPerLimb()])
-	}
-	limbs[nbLimbs-1] = bits.FromBinary(api, bs[(nbLimbs-1)*fParams.BitsPerLimb():])	
-	return newInternalElement[FR](limbs, 0)
-}
-
-func CreateConstElement[T FieldParams](v interface{}) *Element[T] {
-	return newConstElement[T](v)
-}
