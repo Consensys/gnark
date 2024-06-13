@@ -416,9 +416,9 @@ func TestTopSortWide(t *testing.T) {
 func ToVariableFr[FR emulated.FieldParams](v interface{}) emulated.Element[FR] {
 	switch vT := v.(type) {
 	case float64:
-		return *emulated.CreateConstElement[FR](int(vT))
+		return *new(emulated.Field[FR]).NewElement(int(vT))
 	default:
-		return *emulated.CreateConstElement[FR](v)
+		return *new(emulated.Field[FR]).NewElement(v)
 	}
 }
 
