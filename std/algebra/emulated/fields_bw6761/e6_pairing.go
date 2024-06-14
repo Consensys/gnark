@@ -361,13 +361,6 @@ func (e Ext6) FinalExponentiationCheck(x *E6) *E6 {
 	return nil
 }
 
-func (e Ext6) nSquare(z *E6, n int) *E6 {
-	for i := 0; i < n; i++ {
-		z = e.Square(z)
-	}
-	return z
-}
-
 // ExpByU2 set z to z^(x₀+1) in E12 and return z
 // x₀+1 = 9586122913090633730
 func (e Ext6) ExpByU2(z *E6) *E6 {
@@ -392,9 +385,9 @@ func (e Ext6) ExpByU2(z *E6) *E6 {
 // ExpByU1 set z to z^(x₀^3-x₀^2+1) in E12 and return z
 // x₀^3-x₀^2+1 = 880904806456922042166256752416502360965158762994674434049
 func (e Ext6) ExpByU1(x *E6) *E6 {
-	t5 := e.Square(x)
+	t5 := e.nSquareKarabina12345(x, 1)
 	z := e.Mul(x, t5)
-	t0 := e.Square(z)
+	t0 := e.nSquareKarabina12345(z, 1)
 	t6 := e.Mul(x, t0)
 	t8 := e.Mul(x, t6)
 	t7 := e.Mul(t5, t8)
@@ -403,7 +396,7 @@ func (e Ext6) ExpByU1(x *E6) *E6 {
 	t2 := e.Mul(x, t3)
 	t1 := e.Mul(t6, t2)
 	t0 = e.Mul(t8, t1)
-	t4 := e.Square(t0)
+	t4 := e.nSquareKarabina12345(t0, 1)
 	t4 = e.Mul(z, t4)
 	t8 = e.Mul(t8, t4)
 	t2 = e.Mul(t2, t8)
