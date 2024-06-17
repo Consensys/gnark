@@ -3,7 +3,6 @@ package sumcheck
 import (
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
-	polynative "github.com/consensys/gnark/std/polynomial"
 )
 
 // Proof contains the prover messages in the sumcheck protocol.
@@ -12,22 +11,12 @@ type Proof[FR emulated.FieldParams] struct {
 	RoundPolyEvaluations []polynomial.Univariate[FR]
 	// FinalEvalProof is the witness for helping the verifier to compute the
 	// final round of the sumcheck protocol.
-	FinalEvalProof EvaluationProof
+	FinalEvalProof DeferredEvalProof[FR]
 }
 
-type nativeProof struct {
-	RoundPolyEvaluations []nativePolynomial
-	FinalEvalProof       nativeEvaluationProof
-}
-
-type nativeProofGKR struct {
-	PartialSumPolys []polynative.Polynomial
-	FinalEvalProof  nativeEvaluationProof
-}
-
-type nonNativeProofGKR[FR emulated.FieldParams] struct {
-	PartialSumPolys []polynomial.Univariate[FR]
-	FinalEvalProof   EvaluationProofFr[FR]
+type NativeProof struct {
+	RoundPolyEvaluations []NativePolynomial
+	FinalEvalProof       NativeEvaluationProof
 }
 
 // EvaluationProof is proof for allowing the sumcheck verifier to perform the
@@ -38,11 +27,12 @@ type nonNativeProofGKR[FR emulated.FieldParams] struct {
 //   - if it is deferred, then it is a slice.
 type EvaluationProof any
 
-type EvaluationProofFr[FR emulated.FieldParams] []emulated.Element[FR]
+// evaluationProof for gkr
+type DeferredEvalProof[FR emulated.FieldParams] []emulated.Element[FR]
 
-type nativeEvaluationProof any
+type NativeEvaluationProof any
 
-func valueOfProof[FR emulated.FieldParams](nproof nativeProof) Proof[FR] {
+func valueOfProof[FR emulated.FieldParams](nproof NativeProof) Proof[FR] {
 	rps := make([]polynomial.Univariate[FR], len(nproof.RoundPolyEvaluations))
 	for i := range nproof.RoundPolyEvaluations {
 		rps[i] = polynomial.ValueOfUnivariate[FR](nproof.RoundPolyEvaluations[i])

@@ -4,12 +4,28 @@ import (
 	"math/big"
 )
 
-type nativePolynomial []*big.Int
-type nativeMultilinear []*big.Int
+type NativePolynomial []*big.Int
+type NativeMultilinear []*big.Int
 
 // helper functions for multilinear polynomial evaluations
 
-func fold(api *bigIntEngine, ml nativeMultilinear, r *big.Int) nativeMultilinear {
+func DereferenceBigIntSlice(ptrs []*big.Int) []big.Int {
+	vals := make([]big.Int, len(ptrs))
+	for i, ptr := range ptrs {
+		vals[i] = *ptr
+	}
+	return vals
+}
+
+func ReferenceBigIntSlice(vals []big.Int) []*big.Int {
+	ptrs := make([]*big.Int, len(vals))
+	for i := range ptrs {
+		ptrs[i] = &vals[i]
+	}
+	return ptrs
+}
+
+func Fold(api *bigIntEngine, ml NativeMultilinear, r *big.Int) NativeMultilinear {
 	// NB! it modifies ml in-place and also returns
 	mid := len(ml) / 2
 	bottom, top := ml[:mid], ml[mid:]
@@ -22,7 +38,7 @@ func fold(api *bigIntEngine, ml nativeMultilinear, r *big.Int) nativeMultilinear
 	return ml[:mid]
 }
 
-func hypersumX1One(api *bigIntEngine, ml nativeMultilinear) *big.Int {
+func hypersumX1One(api *bigIntEngine, ml NativeMultilinear) *big.Int {
 	sum := ml[len(ml)/2]
 	for i := len(ml)/2 + 1; i < len(ml); i++ {
 		sum = api.Add(sum, ml[i])
@@ -30,7 +46,7 @@ func hypersumX1One(api *bigIntEngine, ml nativeMultilinear) *big.Int {
 	return sum
 }
 
-func eq(api *bigIntEngine, ml nativeMultilinear, q []*big.Int) nativeMultilinear {
+func Eq(api *bigIntEngine, ml NativeMultilinear, q []*big.Int) NativeMultilinear {
 	if (1 << len(q)) != len(ml) {
 		panic("scalar length mismatch")
 	}
@@ -46,20 +62,20 @@ func eq(api *bigIntEngine, ml nativeMultilinear, q []*big.Int) nativeMultilinear
 	return ml
 }
 
-func eval(api *bigIntEngine, ml nativeMultilinear, r []*big.Int) *big.Int {
-	mlCopy := make(nativeMultilinear, len(ml))
+func Eval(api *bigIntEngine, ml NativeMultilinear, r []*big.Int) *big.Int {
+	mlCopy := make(NativeMultilinear, len(ml))
 	for i := range mlCopy {
 		mlCopy[i] = new(big.Int).Set(ml[i])
 	}
 
 	for _, ri := range r {
-		mlCopy = fold(api, mlCopy, ri)
+		mlCopy = Fold(api, mlCopy, ri)
 	}
 
 	return mlCopy[0]
 }
 
-func eqAcc(api *bigIntEngine, e nativeMultilinear, m nativeMultilinear, q []*big.Int) nativeMultilinear {
+func eqAcc(api *bigIntEngine, e NativeMultilinear, m NativeMultilinear, q []*big.Int) NativeMultilinear {
 	if len(e) != len(m) {
 		panic("length mismatch")
 	}
@@ -83,84 +99,3 @@ func eqAcc(api *bigIntEngine, e nativeMultilinear, m nativeMultilinear, q []*big
 	}
 	return e
 }
-
-// func (m nonNativeMultilinear[FR]) Clone() nonNativeMultilinear[FR] {
-// 	clone := make(nonNativeMultilinear[FR], len(m))
-// 	for i := range m {
-// 		clone[i] = new(emulated.Element[FR])
-// 		*clone[i] = *m[i]
-// 	}
-// 	return clone
-// }
-
-// // fold fixes the value of m's first variable to at, thus halving m's required bookkeeping table size
-// // WARNING: The user should halve m themselves after the call
-// func (m nonNativeMultilinear[FR]) fold(api emuEngine[FR], at emulated.Element[FR]) {
-// 	zero := m[:len(m)/2]
-// 	one := m[len(m)/2:]
-// 	for j := range zero {
-// 		diff := api.Sub(one[j], zero[j])
-// 		zero[j] = api.MulAcc(zero[j], diff, &at)
-// 	}
-// }
-
-// // foldScaled(m, at) = fold(m, at) / (1 - at)
-// // it returns 1 - at, for convenience
-// func (m nonNativeMultilinear[FR]) foldScaled(api emuEngine[FR], at emulated.Element[FR]) (denom emulated.Element[FR]) {
-// 	denom = *api.Sub(api.One(), &at)
-// 	coeff := *api.Div(&at, &denom)
-// 	zero := m[:len(m)/2]
-// 	one := m[len(m)/2:]
-// 	for j := range zero {
-// 		zero[j] = api.MulAcc(zero[j], one[j], &coeff)
-// 	}
-// 	return
-// }
-
-// var minFoldScaledLogSize = 16
-
-// // Evaluate assumes len(m) = 1 << len(at)
-// // it doesn't modify m
-// func (m nonNativeMultilinear[FR]) EvaluateFR(api emuEngine[FR], at []emulated.Element[FR]) emulated.Element[FR] {
-// 	_m := m.Clone()
-
-// 	/*minFoldScaledLogSize := 16
-// 	if api is r1cs {
-// 		minFoldScaledLogSize = math.MaxInt64  // no scaling for r1cs
-// 	}*/
-
-// 	scaleCorrectionFactor := api.One()
-// 	// at each iteration fold by at[i]
-// 	for len(_m) > 1 {
-// 		if len(_m) >= minFoldScaledLogSize {
-// 			denom := _m.foldScaled(api, at[0])
-// 			scaleCorrectionFactor = api.Mul(scaleCorrectionFactor, &denom)
-// 		} else {
-// 			_m.fold(api, at[0])
-// 		}
-// 		_m = _m[:len(_m)/2]
-// 		at = at[1:]
-// 	}
-
-// 	if len(at) != 0 {
-// 		panic("incompatible evaluation vector size")
-// 	}
-
-// 	return *api.Mul(_m[0], scaleCorrectionFactor)
-// }
-
-// // EvalEq returns Πⁿ₁ Eq(xᵢ, yᵢ) = Πⁿ₁ xᵢyᵢ + (1-xᵢ)(1-yᵢ) = Πⁿ₁ (1 + 2xᵢyᵢ - xᵢ - yᵢ). Is assumes len(x) = len(y) =: n
-// func EvalEqFR[FR emulated.FieldParams](api emuEngine[FR], x, y []emulated.Element[FR]) (eq emulated.Element[FR]) {
-
-// 	eq = *api.One()
-// 	for i := range x {
-// 		next := api.Mul(&x[i], &y[i])
-// 		next = api.Add(next, next)
-// 		next = api.Add(next, api.One())
-// 		next = api.Sub(next, &x[i])
-// 		next = api.Sub(next, &y[i])
-
-// 		eq = *api.Mul(&eq, next)
-// 	}
-// 	return
-// }

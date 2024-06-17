@@ -2,19 +2,20 @@ package sumcheck
 
 import (
 	"fmt"
+	"math/big"
 	"slices"
 	"strconv"
-	"math/big"
 	"sync"
 
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	cryptofiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/std/recursion"
-	polynative "github.com/consensys/gnark/std/polynomial"
+	"github.com/consensys/gnark/std/recursion/sumcheck"
 )
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
@@ -28,7 +29,7 @@ import (
 
 // Gate must be a low-degree polynomial
 type Gate interface {
-	Evaluate(...frontend.Variable) frontend.Variable // removed api ?
+	Evaluate(...big.Int) big.Int // removed api ?
 	Degree() int
 }
 
@@ -40,14 +41,14 @@ type Wire struct {
 
 // Gate must be a low-degree polynomial
 type GateFr[FR emulated.FieldParams] interface {
-	Evaluate(emuEngine[FR], ...emulated.Element[FR]) emulated.Element[FR] // removed api ?
+	Evaluate(...emulated.Element[FR]) emulated.Element[FR] 
 	Degree() int
 }
 
 type WireFr[FR emulated.FieldParams] struct {
 	Gate            GateFr[FR]
 	Inputs          []*WireFr[FR] // if there are no Inputs, the wire is assumed an input wire
-	nbUniqueOutputs int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
+	nbUniqueOutputs int           // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
 }
 
 type Circuit []Wire
@@ -119,12 +120,12 @@ func (w WireFr[FR]) noProof() bool {
 }
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
-type WireAssignment map[*Wire]polynative.MultiLin
+type WireAssignment map[*Wire]sumcheck.NativeMultilinear
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
 type WireAssignmentFr[FR emulated.FieldParams] map[*WireFr[FR]]polynomial.Multilinear[FR]
 
-type Proofs[FR emulated.FieldParams] []nonNativeProofGKR[FR] // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
+type Proofs[FR emulated.FieldParams] []sumcheck.Proof[FR] // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
 type eqTimesGateEvalSumcheckLazyClaimsFr[FR emulated.FieldParams] struct {
 	wire               *WireFr[FR]
@@ -134,9 +135,9 @@ type eqTimesGateEvalSumcheckLazyClaimsFr[FR emulated.FieldParams] struct {
 	verifier           *GKRVerifier[FR]
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof EvaluationProofFr[FR]) error {
+func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof sumcheck.DeferredEvalProof[FR]) error {
 	inputEvaluationsNoRedundancy := proof
-
+	field := emulated.Field[FR]{}
 	p, err := polynomial.New[FR](e.verifier.api)
 	if err != nil {
 		return err
@@ -146,9 +147,9 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.E
 	numClaims := len(e.evaluationPoints)
 	evaluation := p.EvalEqual(polynomial.FromSlice(e.evaluationPoints[numClaims-1]), polynomial.FromSlice(r))
 	for i := numClaims - 2; i >= 0; i-- {
-		evaluation = p.Mul(evaluation, &combinationCoeff)
+		evaluation = field.Mul(evaluation, &combinationCoeff)
 		eq := p.EvalEqual(polynomial.FromSlice(e.evaluationPoints[i]), polynomial.FromSlice(r))
-		evaluation = p.Add(evaluation, eq)	
+		evaluation = field.Add(evaluation, eq)
 	}
 
 	// the g(...) term
@@ -179,11 +180,11 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.E
 		if proofI != len(inputEvaluationsNoRedundancy) {
 			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
 		}
-		gateEvaluation = e.wire.Gate.Evaluate(e.verifier.engine, inputEvaluations...)
+		gateEvaluation = e.wire.Gate.Evaluate(inputEvaluations...)
 	}
-	evaluation = p.Mul(evaluation, &gateEvaluation)
+	evaluation = field.Mul(evaluation, &gateEvaluation)
 
-	p.AssertIsEqual(evaluation, &purportedValue)
+	field.AssertIsEqual(evaluation, &purportedValue)
 	return nil
 }
 
@@ -204,15 +205,15 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) Degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof EvaluationProofFr[FR]) error {
+func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof sumcheck.DeferredEvalProof[FR]) error {
+	field := emulated.Field[FR]{}
 	val, err := e.verifier.p.EvalMultilinear(r, e.manager.assignment[e.wire])
 	if err != nil {
 		return fmt.Errorf("evaluation error: %w", err)
 	}
-	e.verifier.p.AssertIsEqual(val, expectedValue)
+	field.AssertIsEqual(val, expectedValue)
 	return nil
 }
-
 
 type claimsManagerFr[FR emulated.FieldParams] struct {
 	claimsMap  map[*WireFr[FR]]*eqTimesGateEvalSumcheckLazyClaimsFr[FR]
@@ -255,30 +256,26 @@ func (m *claimsManagerFr[FR]) deleteClaim(wire *WireFr[FR]) {
 type claimsManager struct {
 	claimsMap  map[*Wire]*eqTimesGateEvalSumcheckLazyClaims
 	assignment WireAssignment
-	memPool    *polynative.Pool
-	workers    *utils.WorkerPool
 }
 
 func newClaimsManager(c Circuit, assignment WireAssignment, o settings) (claims claimsManager) {
 	claims.assignment = assignment
 	claims.claimsMap = make(map[*Wire]*eqTimesGateEvalSumcheckLazyClaims, len(c))
-	claims.memPool = o.pool
-	claims.workers = o.workers
 
 	for i := range c {
 		wire := &c[i]
 
 		claims.claimsMap[wire] = &eqTimesGateEvalSumcheckLazyClaims{
 			wire:               wire,
-			evaluationPoints:   make([][]frontend.Variable, 0, wire.NbClaims()),
-			claimedEvaluations: make([]frontend.Variable, wire.NbClaims()),
+			evaluationPoints:   make([][]big.Int, 0, wire.NbClaims()),
+			claimedEvaluations: make([]big.Int, wire.NbClaims()),
 			manager:            &claims,
 		}
 	}
 	return
 }
 
-func (m *claimsManager) add(wire *Wire, evaluationPoint []frontend.Variable, evaluation frontend.Variable) {
+func (m *claimsManager) add(wire *Wire, evaluationPoint []big.Int, evaluation big.Int) {
 	claim := m.claimsMap[wire]
 	i := len(claim.evaluationPoints)
 	claim.claimedEvaluations[i] = evaluation
@@ -299,12 +296,12 @@ func (m *claimsManager) getClaim(wire *Wire) *eqTimesGateEvalSumcheckClaims {
 	}
 
 	if wire.IsInput() {
-		res.inputPreprocessors = []polynative.MultiLin{m.memPool.Clone(m.assignment[wire])}
+		res.inputPreprocessors = []sumcheck.NativeMultilinear{m.assignment[wire]}
 	} else {
-		res.inputPreprocessors = make([]polynative.MultiLin, len(wire.Inputs))
+		res.inputPreprocessors = make([]sumcheck.NativeMultilinear, len(wire.Inputs))
 
 		for inputI, inputW := range wire.Inputs {
-			res.inputPreprocessors[inputI] = m.memPool.Clone(m.assignment[inputW]) //will be edited later, so must be deep copied
+			res.inputPreprocessors[inputI] = m.assignment[inputW] //will be edited later, so must be deep copied
 		}
 	}
 	return res
@@ -316,20 +313,20 @@ func (m *claimsManager) deleteClaim(wire *Wire) {
 
 type eqTimesGateEvalSumcheckLazyClaims struct {
 	wire               *Wire
-	evaluationPoints   [][]frontend.Variable // x in the paper
-	claimedEvaluations []frontend.Variable   // y in the paper
+	evaluationPoints   [][]big.Int // x in the paper
+	claimedEvaluations []big.Int   // y in the paper
 	manager            *claimsManager
 }
 
 type eqTimesGateEvalSumcheckClaims struct {
 	wire               *Wire
-	evaluationPoints   [][]frontend.Variable // x in the paper
-	claimedEvaluations []frontend.Variable   // y in the paper
+	evaluationPoints   [][]big.Int // x in the paper
+	claimedEvaluations []big.Int   // y in the paper
 	manager            *claimsManager
+	engine             *sumcheck.BigIntEngineWrapper 
+	inputPreprocessors []sumcheck.NativeMultilinear // P_u in the paper, so that we don't need to pass along all the circuit's evaluations
 
-	inputPreprocessors []polynative.MultiLin // P_u in the paper, so that we don't need to pass along all the circuit's evaluations
-
-	eq polynative.MultiLin // ∑_i τ_i eq(x_i, -)
+	eq sumcheck.NativeMultilinear // ∑_i τ_i eq(x_i, -)
 }
 
 func (e *eqTimesGateEvalSumcheckClaims) NbClaims() int {
@@ -340,90 +337,72 @@ func (e *eqTimesGateEvalSumcheckClaims) NbVars() int {
 	return len(e.evaluationPoints[0])
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) Combine(api frontend.API, combinationCoeff *frontend.Variable) polynative.Polynomial {
-	varsNum := c.NbVars()
+func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff *big.Int) sumcheck.NativePolynomial {
+	varsNum := c.VarsNum()
 	eqLength := 1 << varsNum
-	claimsNum := c.NbClaims()
+	claimsNum := c.ClaimsNum()
 	// initialize the eq tables
-	c.eq = c.manager.memPool.Make(eqLength)
+	c.eq = make(sumcheck.NativeMultilinear, eqLength)
 
-	c.eq[0] = frontend.Variable(1)
-	c.eq.Eq(api, c.evaluationPoints[0])
+	c.eq[0] = big.NewInt(1)
+	sumcheck.Eq(c.engine.Engine, c.eq, sumcheck.ReferenceBigIntSlice(c.evaluationPoints[0]))
 
-	newEq := polynative.MultiLin(c.manager.memPool.Make(eqLength))
+	newEq := make(sumcheck.NativeMultilinear, eqLength)
 	aI := combinationCoeff
 
 	for k := 1; k < claimsNum; k++ { // TODO: parallelizable?
 		// define eq_k = aᵏ eq(x_k1, ..., x_kn, *, ..., *) where x_ki are the evaluation points
-		frontend.Set(&newEq[0], &aI)
+		newEq[0].Set(aI)
 
-		c.eqAcc(api, c.eq, newEq, c.evaluationPoints[k])
+		c.eqAcc(c.eq, newEq, c.evaluationPoints[k])
 
 		// newEq.Eq(c.evaluationPoints[k])
-		// eqAsPoly := polynomial.Polynomial(c.eq) //just semantics
-		// eqAsPoly.Add(eqAsPoly, polynomial.Polynomial(newEq))
+		// eqAsPoly := sumcheck.NativePolynomial(c.eq) //just semantics
+		// eqAsPoly.Add(eqAsPoly, sumcheck.NativePolynomial(newEq))
 
 		if k+1 < claimsNum {
-			api.Mul(&aI, &combinationCoeff)
+			aI.Mul(aI, combinationCoeff)
 		}
 	}
 
-	c.manager.memPool.Dump(newEq)
-
 	// from this point on the claim is a rather simple one: g = E(h) × R_v (P_u0(h), ...) where E and the P_u are multilinear and R_v is of low-degree
-
-	return c.computeGJ(api)
+	return c.computeGJ()
 }
 
 // eqAcc sets m to an eq table at q and then adds it to e
-func (c *eqTimesGateEvalSumcheckClaims) eqAcc(api frontend.API, e, m polynative.MultiLin, q []frontend.Variable) {
+func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m sumcheck.NativeMultilinear, q []big.Int) {
 	n := len(q)
 
 	//At the end of each iteration, m(h₁, ..., hₙ) = Eq(q₁, ..., qᵢ₊₁, h₁, ..., hᵢ₊₁)
 	for i := range q { // In the comments we use a 1-based index so q[i] = qᵢ₊₁
 		// go through all assignments of (b₁, ..., bᵢ) ∈ {0,1}ⁱ
-		const threshold = 1 << 6
 		k := 1 << i
-		if k < threshold {
 			for j := 0; j < k; j++ {
 				j0 := j << (n - i)    // bᵢ₊₁ = 0
 				j1 := j0 + 1<<(n-1-i) // bᵢ₊₁ = 1
 
-				m[j1] = api.Mul(&q[i], &m[j0])  // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
-				m[j0] = api.Sub(&m[j0], &m[j1]) // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
+				m[j1].Mul(&q[i], m[j0])  // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
+				m[j0].Sub(m[j0], m[j1]) // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
 			}
-		} else {
-			c.manager.workers.Submit(k, func(start, end int) {
-				for j := start; j < end; j++ {
-					j0 := j << (n - i)    // bᵢ₊₁ = 0
-					j1 := j0 + 1<<(n-1-i) // bᵢ₊₁ = 1
-
-					m[j1] = api.Mul(&q[i], &m[j0])  // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
-					m[j0] = api.Sub(&m[j0], &m[j1]) // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
-				}
-			}, 1024).Wait()
-		}
 
 	}
-	c.manager.workers.Submit(len(e), func(start, end int) {
-		for i := start; i < end; i++ {
-			e[i] = api.Add(&e[i], &m[i])
-		}
-	}, 512).Wait()
 
-	// e.Add(e, polynomial.Polynomial(m))
+	for i := 0; i < len(e); i++ {
+		e[i].Add(e[i], m[i])
+	}
+	// e.Add(e, sumcheck.NativePolynomial(m))
 }
 
 // computeGJ: gⱼ = ∑_{0≤i<2ⁿ⁻ʲ} g(r₁, r₂, ..., rⱼ₋₁, Xⱼ, i...) = ∑_{0≤i<2ⁿ⁻ʲ} E(r₁, ..., X_j, i...) R_v( P_u0(r₁, ..., X_j, i...), ... ) where  E = ∑ eq_k
 // the polynomial is represented by the evaluations g_j(1), g_j(2), ..., g_j(deg(g_j)).
 // The value g_j(0) is inferred from the equation g_j(0) + g_j(1) = gⱼ₋₁(rⱼ₋₁). By convention, g₀ is a constant polynomial equal to the claimed sum.
-func (c *eqTimesGateEvalSumcheckClaims) computeGJ(api frontend.API) polynative.Polynomial {
+func (c *eqTimesGateEvalSumcheckClaims) computeGJ() sumcheck.NativePolynomial {
 
 	degGJ := 1 + c.wire.Gate.Degree() // guaranteed to be no smaller than the actual deg(g_j)
 	nbGateIn := len(c.inputPreprocessors)
 
 	// Let f ∈ { E(r₁, ..., X_j, d...) } ∪ {P_ul(r₁, ..., X_j, d...) }. It is linear in X_j, so f(m) = m×(f(1) - f(0)) + f(0), and f(0), f(1) are easily computed from the bookkeeping tables
-	s := make([]polynative.MultiLin, nbGateIn+1)
+	s := make([]sumcheck.NativeMultilinear, nbGateIn+1)
 	s[0] = c.eq
 	copy(s[1:], c.inputPreprocessors)
 
@@ -431,23 +410,23 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ(api frontend.API) polynative.P
 	nbInner := len(s) // wrt output, which has high nbOuter and low nbInner
 	nbOuter := len(s[0]) / 2
 
-	gJ := make([]frontend.Variable, degGJ)
+	gJ := make([]*big.Int, degGJ)
 	var mu sync.Mutex
 	computeAll := func(start, end int) {
-		var step frontend.Variable
+		var step big.Int
 
-		res := make([]frontend.Variable, degGJ)
-		operands := make([]frontend.Variable, degGJ*nbInner)
+		res := make([]big.Int, degGJ)
+		operands := make([]big.Int, degGJ*nbInner)
 
 		for i := start; i < end; i++ {
 
 			block := nbOuter + i
 			for j := 0; j < nbInner; j++ {
-				frontend.Set(step, s[j][i])
-				frontend.Set(operands[j], s[j][block])
-				step = api.Sub(&operands[j], &step)
+				step.Set(s[j][i])
+				operands[j].Set(s[j][block])
+				step.Sub(&operands[j], &step)
 				for d := 1; d < degGJ; d++ {
-					operands[d*nbInner+j] = api.Add(&operands[(d-1)*nbInner+j], &step)
+					operands[d*nbInner+j].Add(&operands[(d-1)*nbInner+j], &step)
 				}
 			}
 
@@ -455,14 +434,14 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ(api frontend.API) polynative.P
 			_e := nbInner
 			for d := 0; d < degGJ; d++ {
 				summand := c.wire.Gate.Evaluate(operands[_s+1 : _e]...)
-				summand = api.Mul(&summand, &operands[_s])
-				res[d] = api.Add(&res[d], &summand)
+				summand.Mul(&summand, &operands[_s])
+				res[d].Add(&res[d], &summand)
 				_s, _e = _e, _e+nbInner
 			}
 		}
 		mu.Lock()
 		for i := 0; i < len(gJ); i++ {
-			gJ[i] = api.Add(&gJ[i], &res[i])
+			gJ[i].Add(gJ[i], &res[i])
 		}
 		mu.Unlock()
 	}
@@ -472,9 +451,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ(api frontend.API) polynative.P
 	if nbOuter < minBlockSize {
 		// no parallelization
 		computeAll(0, nbOuter)
-	} else {
-		c.manager.workers.Submit(nbOuter, computeAll, minBlockSize).Wait()
-	}
+	} 
 
 	// Perf-TODO: Separate functions Gate.TotalDegree and Gate.Degree(i) so that we get to use possibly smaller values for degGJ. Won't help with MiMC though
 
@@ -482,33 +459,32 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ(api frontend.API) polynative.P
 }
 
 // Next first folds the "preprocessing" and "eq" polynomials then compute the new g_j
-func (c *eqTimesGateEvalSumcheckClaims) Next(api frontend.API, element *frontend.Variable) polynative.Polynomial {
-	const minBlockSize = 512
+func (c *eqTimesGateEvalSumcheckClaims) Next(element *big.Int) sumcheck.NativePolynomial {
+	const minBlockSize = 512 //asktodo whats the block size for our usecase/number of variable in multilinear poly?
 	n := len(c.eq) / 2
 	if n < minBlockSize {
 		// no parallelization
 		for i := 0; i < len(c.inputPreprocessors); i++ {
-			c.inputPreprocessors[i].Fold(api, element)
+			sumcheck.Fold(c.engine.Engine, c.inputPreprocessors[i], element)
 		}
-		c.eq.Fold(api, element)
-	} else {
-		wgs := make([]*sync.WaitGroup, len(c.inputPreprocessors))
-		for i := 0; i < len(c.inputPreprocessors); i++ {
-			wgs[i] = c.manager.workers.Submit(n, c.inputPreprocessors[i].FoldParallel(api, element), minBlockSize)
-		}
-		c.manager.workers.Submit(n, c.eq.FoldParallel(api, element), minBlockSize).Wait()
-		for _, wg := range wgs {
-			wg.Wait()
-		}
+		sumcheck.Fold(c.engine.Engine, c.eq, element)
 	}
 
-	return c.computeGJ(api)
+	return c.computeGJ()
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) ProverFinalEval(api frontend.API, r []frontend.Variable) nativeEvaluationProof {
+func (c *eqTimesGateEvalSumcheckClaims) VarsNum() int {
+	return len(c.evaluationPoints[0])
+}
+
+func (c *eqTimesGateEvalSumcheckClaims) ClaimsNum() int {
+	return len(c.claimedEvaluations)
+}
+
+func (c *eqTimesGateEvalSumcheckClaims) ProverFinalEval(r []*big.Int) sumcheck.NativeEvaluationProof {
 
 	//defer the proof, return list of claims
-	evaluations := make([]frontend.Variable, 0, len(c.wire.Inputs))
+	evaluations := make([]big.Int, 0, len(c.wire.Inputs))
 	noMoreClaimsAllowed := make(map[*Wire]struct{}, len(c.inputPreprocessors))
 	noMoreClaimsAllowed[c.wire] = struct{}{}
 
@@ -516,14 +492,11 @@ func (c *eqTimesGateEvalSumcheckClaims) ProverFinalEval(api frontend.API, r []fr
 		puI := c.inputPreprocessors[inI]
 		if _, found := noMoreClaimsAllowed[in]; !found {
 			noMoreClaimsAllowed[in] = struct{}{}
-			puI.Fold(api, r[len(r)-1])
-			c.manager.add(in, r, puI[0])
-			evaluations = append(evaluations, puI[0])
+			sumcheck.Fold(c.engine.Engine, puI, r[len(r)-1])
+			c.manager.add(in, sumcheck.DereferenceBigIntSlice(r), *puI[0])
+			evaluations = append(evaluations, *puI[0])
 		}
-		c.manager.memPool.Dump(puI)
 	}
-
-	c.manager.memPool.Dump(c.claimedEvaluations, c.eq)
 
 	return evaluations
 }
@@ -532,7 +505,7 @@ func (e *eqTimesGateEvalSumcheckClaims) Degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
-func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...OptionGkr) (settings, error) {
+func setup(api frontend.API, current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, options ...OptionGkr) (settings, error) {
 	var o settings
 	var err error
 	for _, option := range options {
@@ -545,48 +518,43 @@ func setup(api frontend.API, c Circuit, assignment WireAssignment, transcriptSet
 		return o, fmt.Errorf("number of instances must be power of 2")
 	}
 
-	if o.pool == nil {
-		pool := polynative.NewPool(c.MemoryRequirements(nbInstances)...)
-		o.pool = &pool
-	}
-
-	if o.workers == nil {
-		o.workers = utils.NewWorkerPool()
-	}
-
 	if o.sorted == nil {
 		o.sorted = topologicalSort(c)
 	}
 
-	if transcriptSettings.Transcript == nil {
-		challengeNames := ChallengeNames(o.sorted, o.nbVars, transcriptSettings.Prefix)
-		o.transcript = fiatshamir.NewTranscript(api, transcriptSettings.Hash, challengeNames)
-		if err = o.transcript.Bind(challengeNames[0], transcriptSettings.BaseChallenges); err != nil {
-			return o, err
+	if o.transcript == nil {
+
+		challengeNames := ChallengeNames(o.sorted, o.nbVars, o.transcriptPrefix)
+		fshash, err := recursion.NewShort(current, target)
+		if err != nil {
+			return o, fmt.Errorf("new short hash: %w", err)
 		}
+		o.transcript = cryptofiatshamir.NewTranscript(fshash, challengeNames...)
+		if err != nil {
+			return o, fmt.Errorf("new transcript: %w", err)
+		}
+
+		// bind challenge from previous round if it is a continuation
+		if err = sumcheck.BindChallengeProver(o.transcript, challengeNames[0], o.baseChallenges); err != nil {
+			return o, fmt.Errorf("base: %w", err)
+		}
+
 	} else {
-		o.transcript, o.transcriptPrefix = transcriptSettings.Transcript, transcriptSettings.Prefix
+		o.transcript, o.transcriptPrefix = o.transcript, o.transcriptPrefix
 	}
 
 	return o, err
 }
 
 type settings struct {
-	pool             *polynative.Pool
 	sorted           []*Wire
-	transcript       *fiatshamir.Transcript
+	transcript       *cryptofiatshamir.Transcript
+	baseChallenges   []*big.Int
 	transcriptPrefix string
 	nbVars           int
-	workers          *utils.WorkerPool
 }
 
 type OptionSet func(*settings)
-
-func WithPool(pool *polynative.Pool) OptionSet {
-	return func(options *settings) {
-		options.pool = pool
-	}
-}
 
 func WithSortedCircuitSet(sorted []*Wire) OptionSet {
 	return func(options *settings) {
@@ -594,27 +562,7 @@ func WithSortedCircuitSet(sorted []*Wire) OptionSet {
 	}
 }
 
-func WithWorkers(workers *utils.WorkerPool) OptionSet {
-	return func(options *settings) {
-		options.workers = workers
-	}
-}
-
-// MemoryRequirements returns an increasing vector of memory allocation sizes required for proving a GKR statement
-func (c Circuit) MemoryRequirements(nbInstances int) []int {
-	res := []int{256, nbInstances, nbInstances * (c.maxGateDegree() + 1)}
-
-	if res[0] > res[1] { // make sure it's sorted
-		res[0], res[1] = res[1], res[0]
-		if res[1] > res[2] {
-			res[1], res[2] = res[2], res[1]
-		}
-	}
-
-	return res
-}
-
-type ProofGkr []nativeProofGKR
+type NativeProofs []sumcheck.NativeProof
 
 type OptionGkr func(*settings)
 
@@ -633,38 +581,53 @@ func WithSortedCircuit[FR emulated.FieldParams](sorted []*WireFr[FR]) OptionFr[F
 	}
 }
 
+type config struct {
+	prefix string
+}
+
+func newConfig(opts ...sumcheck.Option) (*config, error) {
+	cfg := new(config)
+	for i := range opts {
+		if err := opts[i](cfg); err != nil {
+			return nil, fmt.Errorf("apply option %d: %w", i, err)
+		}
+	}
+	return cfg, nil
+}
+
 // Verifier allows to check sumcheck proofs. See [NewVerifier] for initializing the instance.
 type GKRVerifier[FR emulated.FieldParams] struct {
-	api frontend.API
-	engine emuEngine[FR]
-	f   *emulated.Field[FR]
-	p   *polynomial.Polynomial[FR]
+	api    frontend.API
+	f      *emulated.Field[FR]
+	p      *polynomial.Polynomial[FR]
 	*config
 }
 
-// NewVerifier initializes a new sumcheck verifier for the parametric emulated
-// field FR. It returns an error if the given options are invalid or when
-// initializing emulated arithmetic fails.
-func NewGKRVerifier[FR emulated.FieldParams](api frontend.API, opts ...Option) (*GKRVerifier[FR], error) {
-	cfg, err := newConfig(opts...)
-	if err != nil {
-		return nil, fmt.Errorf("new configuration: %w", err)
-	}
-	f, err := emulated.NewField[FR](api)
-	if err != nil {
-		return nil, fmt.Errorf("new field: %w", err)
-	}
-	p, err := polynomial.New[FR](api)
-	if err != nil {
-		return nil, fmt.Errorf("new polynomial: %w", err)
-	}
-	return &GKRVerifier[FR]{
-		api:    api,
-		f:      f,
-		p:      p,
-		config: cfg,
-	}, nil
-}
+// // NewVerifier initializes a new sumcheck verifier for the parametric emulated
+// // field FR. It returns an error if the given options are invalid or when
+// // initializing emulated arithmetic fails.
+// func NewGKRVerifier[FR emulated.FieldParams](api frontend.API, opts ...sumcheck.Option) (*GKRVerifier[FR], error) {
+// 	cfg, err := newConfig(opts...)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("new configuration: %w", err)
+// 	}
+
+// 	f, err := emulated.NewField[FR](api)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("new field: %w", err)
+// 	}
+
+// 	p, err := polynomial.New[FR](api)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("new polynomial: %w", err)
+// 	}
+// 	return &GKRVerifier[FR]{
+// 		api:    api,
+// 		f:      f,
+// 		p:      p,
+// 		config: cfg,
+// 	}, nil
+// }
 
 // bindChallenge binds the values for challengeName using in-circuit Fiat-Shamir transcript.
 func (v *GKRVerifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName string, values []emulated.Element[FR]) error {
@@ -858,65 +821,67 @@ func (v *GKRVerifier[FR]) getChallengesFr(transcript *fiatshamir.Transcript, nam
 	var challenge emulated.Element[FR]
 	var fr FR
 	for i, name := range names {
-		nativeChallenge, err := transcript.ComputeChallenge(name);
+		nativeChallenge, err := transcript.ComputeChallenge(name)
 		if err != nil {
 			return nil, fmt.Errorf("compute challenge %s: %w", names, err)
 		}
-		// TODO: when implementing better way (construct from limbs instead of bits) then change 
+		// TODO: when implementing better way (construct from limbs instead of bits) then change
 		chBts := bits.ToBinary(v.api, nativeChallenge, bits.WithNbDigits(fr.Modulus().BitLen()))
 		challenge = *v.f.FromBits(chBts...)
 		challenges[i] = challenge
-		
+
 	}
 	return challenges, nil
 }
 
 // Prove consistency of the claimed assignment
-func Prove(api frontend.API, target *big.Int, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...OptionGkr) (ProofGkr, error) {
-	o, err := setup(api, c, assignment, transcriptSettings, options...)
+func Prove(api frontend.API, current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...OptionGkr) (NativeProofs, error) {
+	be := sumcheck.NewBigIntEngine(target)
+	o, err := setup(api, current, target, c, assignment, options...)
 	if err != nil {
 		return nil, err
 	}
-	defer o.workers.Stop()
 
 	claims := newClaimsManager(c, assignment, o)
 
-	proof := make(ProofGkr, len(c))
+	proof := make(NativeProofs, len(c))
 	// firstChallenge called rho in the paper
-	var firstChallenge []frontend.Variable
-	firstChallenge, err = getChallenges(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
-	if err != nil {
-		return nil, err
+	var firstChallenge []*big.Int
+	challengeNames := getFirstChallengeNames(o.nbVars, o.transcriptPrefix)
+	for i := 0; i < len(challengeNames); i++ {
+		firstChallenge[i], _, err = sumcheck.DeriveChallengeProver(o.transcript, challengeNames[i:], nil)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	wirePrefix := o.transcriptPrefix + "w"
-	var baseChallenge []frontend.Variable
+	var baseChallenge []*big.Int
 	for i := len(c) - 1; i >= 0; i-- {
 
 		wire := o.sorted[i]
 
 		if wire.IsOutput() {
-			claims.add(wire, firstChallenge, assignment[wire].EvaluatePool(api, firstChallenge, claims.memPool))
+			evaluation := sumcheck.Eval(be, assignment[wire], firstChallenge)
+			claims.add(wire, sumcheck.DereferenceBigIntSlice(firstChallenge), *evaluation)
 		}
 
 		claim := claims.getClaim(wire)
 		if wire.noProof() { // input wires with one claim only
-			proof[i] = nativeProofGKR{
-				PartialSumPolys: []polynative.Polynomial{},
-				FinalEvalProof:  []frontend.Variable{},
+			proof[i] = sumcheck.NativeProof{
+				RoundPolyEvaluations: []sumcheck.NativePolynomial{},
+				FinalEvalProof:  []big.Int{},
 			}
 		} else {
-			if proof[i], err = SumcheckProve(
-				api, target, claim, fiatshamir.WithTranscript(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
+			if proof[i], err = sumcheck.Prove(
+				current, target, claim,
 			); err != nil {
 				return proof, err
 			}
 
-			finalEvalProof := proof[i].FinalEvalProof.([]frontend.Variable)
-			baseChallenge = make([]frontend.Variable, len(finalEvalProof))
+			finalEvalProof := proof[i].FinalEvalProof.([]*big.Int)
+			baseChallenge = make([]*big.Int, len(finalEvalProof))
 			for j := range finalEvalProof {
-				bytes := frontend.ToBytes(finalEvalProof[j])
-				baseChallenge[j] = bytes[:]
+				baseChallenge[j] = finalEvalProof[j]
 			}
 		}
 		// the verifier checks a single claim about input wires itself
@@ -927,14 +892,14 @@ func Prove(api frontend.API, target *big.Int, c Circuit, assignment WireAssignme
 }
 
 // Verify the consistency of the claimed output with the claimed input
-// Unlike in Prove, the assignment argument need not be complete, 
+// Unlike in Prove, the assignment argument need not be complete,
 // Use valueOfProof[FR](proof) to convert nativeproof by prover into nonnativeproof used by in-circuit verifier
 func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment WireAssignmentFr[FR], proof Proofs[FR], transcriptSettings fiatshamir.SettingsFr[FR], options ...OptionFr[FR]) error {
 	o, err := v.setup(api, c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
 	}
-	sumcheck_verifier, err := NewVerifier[FR](api)
+	sumcheck_verifier, err := sumcheck.NewVerifier[FR](api)
 	if err != nil {
 		return err
 	}
@@ -967,7 +932,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 
 		if wire.noProof() { // input wires with one claim only
 			// make sure the proof is empty
-			if len(finalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
+			if len(finalEvalProof) != 0 || len(proofW.RoundPolyEvaluations) != 0 {
 				return fmt.Errorf("no proof allowed for input wire with a single claim")
 			}
 
@@ -996,7 +961,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 
 type IdentityGate struct{}
 
-func (IdentityGate) Evaluate(input ...frontend.Variable) frontend.Variable {
+func (IdentityGate) Evaluate(input ...big.Int) big.Int {
 	return input[0]
 }
 
@@ -1228,16 +1193,16 @@ func (a WireAssignmentFr[FR]) NumVars() int {
 func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 	size := 0
 	for i := range p {
-		for j := range p[i].PartialSumPolys {
-			size += len(p[i].PartialSumPolys[j])
+		for j := range p[i].RoundPolyEvaluations {
+			size += len(p[i].RoundPolyEvaluations[j])
 		}
 		size += len(p[i].FinalEvalProof)
 	}
 
 	res := make([]emulated.Element[FR], 0, size)
 	for i := range p {
-		for j := range p[i].PartialSumPolys {
-			res = append(res, p[i].PartialSumPolys[j]...)
+		for j := range p[i].RoundPolyEvaluations {
+			res = append(res, p[i].RoundPolyEvaluations[j]...)
 		}
 		res = append(res, p[i].FinalEvalProof...)
 	}
@@ -1277,9 +1242,9 @@ func DeserializeProof[FR emulated.FieldParams](sorted []*WireFr[FR], serializedP
 	reader := variablesReader[FR](serializedProof)
 	for i, wI := range sorted {
 		if !wI.noProof() {
-			proof[i].PartialSumPolys = make([]polynomial.Univariate[FR], logNbInstances)
-			for j := range proof[i].PartialSumPolys {
-				proof[i].PartialSumPolys[j] = reader.nextN(wI.Gate.Degree() + 1)
+			proof[i].RoundPolyEvaluations = make([]polynomial.Univariate[FR], logNbInstances)
+			for j := range proof[i].RoundPolyEvaluations {
+				proof[i].RoundPolyEvaluations[j] = reader.nextN(wI.Gate.Degree() + 1)
 			}
 		}
 		proof[i].FinalEvalProof = reader.nextN(wI.nbUniqueInputs())
@@ -1324,7 +1289,3 @@ func (a AddGate[FR]) Evaluate(api emuEngine[FR], v ...emulated.Element[FR]) emul
 func (a AddGate[FR]) Degree() int {
 	return 1
 }
-
-
-
-

@@ -8,28 +8,29 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/profile"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/hash"
+	"github.com/consensys/gnark/std/math/emulated"
 	mathpoly "github.com/consensys/gnark/std/math/polynomial"
+	"github.com/consensys/gnark/std/recursion"
+	"github.com/consensys/gnark/std/recursion/sumcheck"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
-	"github.com/consensys/gnark/std/recursion"
-	"github.com/consensys/gnark/std/hash"
 )
 
-type FR = emulated.P256Fp
+type FR = emulated.BN254Fr
 
 var Gates = map[string]GateFr[FR]{
 	"identity": IdentityGateFr[FR]{},
 	"add":      AddGate[FR]{},
 	"mul":      MulGate[FR]{},
 }
-func TestGkrVectors(t *testing.T) {
+func TestGkrVectorsFr(t *testing.T) {
 
 	testDirPath := "./test_vectors"
 	dirEntries, err := os.ReadDir(testDirPath)
@@ -297,7 +298,7 @@ func init() {
 	Gates["select-input-3"] = _select(2)
 }
 
-func (g _select) Evaluate(_ emuEngine[FR], in ...emulated.Element[FR]) emulated.Element[FR] {
+func (g _select) Evaluate(_ sumcheck.emuEngine[FR], in ...emulated.Element[FR]) emulated.Element[FR] {
 	return in[g]
 }
 
@@ -309,7 +310,7 @@ type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
 	FinalEvalProof  interface{}     `json:"finalEvalProof"`
-	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
+	RoundPolyEvaluations [][]interface{} `json:"partialSumPolys"`
 }
 
 func unmarshalProof(printable PrintableProof) (proof Proofs[FR]) {
@@ -328,9 +329,9 @@ func unmarshalProof(printable PrintableProof) (proof Proofs[FR]) {
 			proof[i].FinalEvalProof = nil
 		}
 
-		proof[i].PartialSumPolys = make([]mathpoly.Univariate[FR], len(printable[i].PartialSumPolys))
-		for k := range printable[i].PartialSumPolys {
-			proof[i].PartialSumPolys[k] = ToVariableSliceFr[FR](printable[i].PartialSumPolys[k])
+		proof[i].RoundPolyEvaluations = make([]mathpoly.Univariate[FR], len(printable[i].RoundPolyEvaluations))
+		for k := range printable[i].RoundPolyEvaluations {
+			proof[i].RoundPolyEvaluations[k] = ToVariableSliceFr[FR](printable[i].RoundPolyEvaluations[k])
 		}
 	}
 	return

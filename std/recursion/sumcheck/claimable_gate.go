@@ -163,13 +163,13 @@ type nativeGateClaim struct {
 	// multi-instance input id to the instance value. This allows running
 	// sumcheck over the hypercube. Every element in the slice represents the
 	// input.
-	inputPreprocessors []nativeMultilinear
+	inputPreprocessors []NativeMultilinear
 
-	eq nativeMultilinear
+	eq NativeMultilinear
 }
 
 func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [][]*big.Int, evaluationPoints [][]*big.Int) (claim claims, evaluations []*big.Int, err error) {
-	be := newBigIntEngine(target)
+	be := &bigIntEngine{mod: new(big.Int).Set(target)}
 	nbInputs := gate.NbInputs()
 	if len(inputs) != nbInputs {
 		return nil, nil, fmt.Errorf("expected %d inputs got %d", nbInputs, len(inputs))
@@ -184,7 +184,7 @@ func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [
 	evalInput := make([][]*big.Int, nbInstances)
 	// TODO: pad input to power of two
 	for i := range evalInput {
-		evalInput[i] = make(nativeMultilinear, nbInputs)
+		evalInput[i] = make(NativeMultilinear, nbInputs)
 		for j := range evalInput[i] {
 			evalInput[i][j] = new(big.Int).Set(inputs[j][i])
 		}
@@ -196,9 +196,9 @@ func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [
 		evaluations[i] = gate.Evaluate(be, evalInput[i]...)
 	}
 	// construct the mapping (inputIdx, instanceIdx) -> inputVal
-	inputPreprocessors := make([]nativeMultilinear, nbInputs)
+	inputPreprocessors := make([]NativeMultilinear, nbInputs)
 	for i := range inputs {
-		inputPreprocessors[i] = make(nativeMultilinear, nbInstances)
+		inputPreprocessors[i] = make(NativeMultilinear, nbInstances)
 		for j := range inputs[i] {
 			inputPreprocessors[i][j] = new(big.Int).Set(inputs[i][j])
 		}
@@ -211,7 +211,7 @@ func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [
 	// compute the random linear combinations of the evaluation values of the gate
 	claimedEvaluations := make([]*big.Int, len(evaluationPoints))
 	for i := range claimedEvaluations {
-		claimedEvaluations[i] = eval(be, evaluations, evaluationPoints[i])
+		claimedEvaluations[i] = Eval(be, evaluations, evaluationPoints[i])
 	}
 	return &nativeGateClaim{
 		engine:             be,
@@ -231,19 +231,19 @@ func (g *nativeGateClaim) NbVars() int {
 	return len(g.evaluationPoints[0])
 }
 
-func (g *nativeGateClaim) Combine(coeff *big.Int) nativePolynomial {
+func (g *nativeGateClaim) Combine(coeff *big.Int) NativePolynomial {
 	nbVars := g.NbVars()
 	eqLength := 1 << nbVars
 	nbClaims := g.NbClaims()
 
-	g.eq = make(nativeMultilinear, eqLength)
+	g.eq = make(NativeMultilinear, eqLength)
 	g.eq[0] = g.engine.One()
 	for i := 1; i < eqLength; i++ {
 		g.eq[i] = new(big.Int)
 	}
-	g.eq = eq(g.engine, g.eq, g.evaluationPoints[0])
+	g.eq = Eq(g.engine, g.eq, g.evaluationPoints[0])
 
-	newEq := make(nativeMultilinear, eqLength)
+	newEq := make(NativeMultilinear, eqLength)
 	for i := 1; i < eqLength; i++ {
 		newEq[i] = new(big.Int)
 	}
@@ -260,32 +260,32 @@ func (g *nativeGateClaim) Combine(coeff *big.Int) nativePolynomial {
 	return g.computeGJ()
 }
 
-func (g *nativeGateClaim) Next(r *big.Int) nativePolynomial {
+func (g *nativeGateClaim) Next(r *big.Int) NativePolynomial {
 	for i := range g.inputPreprocessors {
-		g.inputPreprocessors[i] = fold(g.engine, g.inputPreprocessors[i], r)
+		g.inputPreprocessors[i] = Fold(g.engine, g.inputPreprocessors[i], r)
 	}
-	g.eq = fold(g.engine, g.eq, r)
+	g.eq = Fold(g.engine, g.eq, r)
 	return g.computeGJ()
 }
 
-func (g *nativeGateClaim) ProverFinalEval(r []*big.Int) nativeEvaluationProof {
+func (g *nativeGateClaim) ProverFinalEval(r []*big.Int) NativeEvaluationProof {
 	// verifier computes the value of the gate (times the eq) itself
 	return nil
 }
 
-func (g *nativeGateClaim) computeGJ() nativePolynomial {
+func (g *nativeGateClaim) computeGJ() NativePolynomial {
 	// returns the polynomial GJ through its evaluations
 	degGJ := 1 + g.gate.Degree()
 	nbGateIn := len(g.inputPreprocessors)
 
-	s := make([]nativeMultilinear, nbGateIn+1)
+	s := make([]NativeMultilinear, nbGateIn+1)
 	s[0] = g.eq
 	copy(s[1:], g.inputPreprocessors)
 
 	nbInner := len(s)
 	nbOuter := len(s[0]) / 2
 
-	gJ := make(nativePolynomial, degGJ)
+	gJ := make(NativePolynomial, degGJ)
 	for i := range gJ {
 		gJ[i] = new(big.Int)
 	}

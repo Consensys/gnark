@@ -126,7 +126,7 @@ func testProjAddSumCheckInstance[FR emulated.FieldParams](t *testing.T, current 
 	evalPointsB, evalPointsPH, evalPointsC := getChallengeEvaluationPoints[FR](inputB)
 	claim, evals, err := newNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
 	assert.NoError(err)
-	proof, err := prove(current, fr.Modulus(), claim)
+	proof, err := Prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(inputs[0]))) - 1
 	circuit := &ProjAddSumcheckCircuit[FR]{
@@ -299,7 +299,7 @@ func TestDblAndAddGate(t *testing.T) {
 	assert.True(ok)
 	secpfp, ok := new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
 	assert.True(ok)
-	eng := newBigIntEngine(secpfp)
+	eng := NewBigIntEngine(secpfp)
 	res := nativeGate.Evaluate(eng, px, py, big.NewInt(1), big.NewInt(0), big.NewInt(1), big.NewInt(0), big.NewInt(1))
 	t.Log(res)
 	_ = res
@@ -380,7 +380,7 @@ func testProjDblAddSelectSumCheckInstance[FR emulated.FieldParams](t *testing.T,
 	evalPointsB, evalPointsPH, evalPointsC := getChallengeEvaluationPoints[FR](inputB)
 	claim, evals, err := newNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
 	assert.NoError(err)
-	proof, err := prove(current, fr.Modulus(), claim)
+	proof, err := Prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(inputs[0]))) - 1
 	circuit := &ProjDblAddSelectSumcheckCircuit[FR]{

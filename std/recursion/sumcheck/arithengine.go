@@ -30,6 +30,18 @@ type bigIntEngine struct {
 	// TODO: we should also add pools for more efficient memory management.
 }
 
+// BigIntEngineWrapper is an exported wrapper for bigIntEngine.
+type BigIntEngineWrapper struct {
+	Engine *bigIntEngine
+}
+
+// NewBigIntEngineWrapper creates a new BigIntEngineWrapper with the given modulus.
+func NewBigIntEngineWrapper(mod *big.Int) *BigIntEngineWrapper {
+	return &BigIntEngineWrapper{
+		Engine: NewBigIntEngine(mod),
+	}
+}
+
 func (be *bigIntEngine) Add(a, b *big.Int) *big.Int {
 	dst := new(big.Int)
 	dst.Add(a, b)
@@ -59,7 +71,7 @@ func (be *bigIntEngine) Const(i *big.Int) *big.Int {
 	return new(big.Int).Set(i)
 }
 
-func newBigIntEngine(mod *big.Int) *bigIntEngine {
+func NewBigIntEngine(mod *big.Int) *bigIntEngine {
 	return &bigIntEngine{mod: new(big.Int).Set(mod)}
 }
 
@@ -76,17 +88,8 @@ func (ee *emuEngine[FR]) Mul(a, b *emulated.Element[FR]) *emulated.Element[FR] {
 	return ee.f.Mul(a, b)
 }
 
-//todo fix this
-func (ee *emuEngine[FR]) MulAcc(a, b, c *emulated.Element[FR]) *emulated.Element[FR] {
-	return ee.f.Mul(a, b)
-}
-
 func (ee *emuEngine[FR]) Sub(a, b *emulated.Element[FR]) *emulated.Element[FR] {
 	return ee.f.Sub(a, b)
-}
-
-func (ee *emuEngine[FR]) Div(a, b *emulated.Element[FR]) *emulated.Element[FR] {
-	return ee.f.Div(a, b)
 }
 
 func (ee *emuEngine[FR]) One() *emulated.Element[FR] {
@@ -95,10 +98,6 @@ func (ee *emuEngine[FR]) One() *emulated.Element[FR] {
 
 func (ee *emuEngine[FR]) Const(i *big.Int) *emulated.Element[FR] {
 	return ee.f.NewElement(i)
-}
-
-func (ee *emuEngine[FR]) AssertIsEqual(a, b *emulated.Element[FR]) {
-	ee.f.AssertIsEqual(a, b)
 }
 
 func newEmulatedEngine[FR emulated.FieldParams](api frontend.API) (*emuEngine[FR], error) {

@@ -3,6 +3,7 @@ package sumcheck
 import (
 	"fmt"
 	"strconv"
+
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -214,7 +215,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 }
 
 // VerifyForGkr verifies the sumcheck proof for the given (lazy) claims.
-func (v *Verifier[FR]) VerifyForGkr(claims LazyClaimsVar[FR], proof nonNativeProofGKR[FR], transcriptSettings fiatshamir.SettingsFr[FR]) error {
+func (v *Verifier[FR]) VerifyForGkr(claims LazyClaims[FR], proof Proof[FR], transcriptSettings fiatshamir.SettingsFr[FR]) error {
 
 	remainingChallengeNames, err := v.setupTranscript(claims.NbClaims(), claims.NbVars(), &transcriptSettings)
 	transcript := transcriptSettings.Transcript
@@ -240,13 +241,13 @@ func (v *Verifier[FR]) VerifyForGkr(claims LazyClaimsVar[FR], proof nonNativePro
 		}
 	}
 
-	gJ := make([]emulated.Element[FR], maxDegree+1)   //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
+	gJ := make([]emulated.Element[FR], maxDegree+1) //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
 	// gJR is the claimed value. In case of multiple claims it is combined
 	// claimed value we're going to check against.
 	gJR := claims.CombinedSum(&combinationCoef)
 
 	for j := 0; j < claims.NbVars(); j++ {
-		partialSumPoly := proof.PartialSumPolys[j] //proof.PartialSumPolys(j)
+		partialSumPoly := proof.RoundPolyEvaluations[j] //proof.PartialSumPolys(j)
 		if len(partialSumPoly) != claims.Degree(j) {
 			return fmt.Errorf("malformed proof") //Malformed proof
 		}
@@ -255,12 +256,12 @@ func (v *Verifier[FR]) VerifyForGkr(claims LazyClaimsVar[FR], proof nonNativePro
 		// gJ is ready
 
 		//Prepare for the next iteration
-		if r[j], err = v.next(transcript, proof.PartialSumPolys[j], &remainingChallengeNames); err != nil {
+		if r[j], err = v.next(transcript, proof.RoundPolyEvaluations[j], &remainingChallengeNames); err != nil {
 			return err
 		}
 
 		gJR = v.p.InterpolateLDE(&r[j], polynomial.FromSlice(gJ[:(claims.Degree(j)+1)]))
 	}
 
-	return claims.VerifyFinalEval(r, combinationCoef, *gJR, proof.FinalEvalProof)
+	return claims.AssertEvaluation(polynomial.FromSlice(r), &combinationCoef, gJR, proof.FinalEvalProof)
 }

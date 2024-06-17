@@ -8,11 +8,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/profile"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/polynomial"
 	"github.com/consensys/gnark/test"
@@ -76,14 +73,6 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			ToFail:          false,
 			TestCaseName:    path,
 		}
-
-		p:= profile.Start() 
-		frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, validCircuit)
-		p.Stop()
-
-		fmt.Println(p.NbConstraints())
-		fmt.Println(p.Top())
-		//r1cs.CheckUnconstrainedWires()
 
 		invalidCircuit := &GkrVerifierCircuit{
 			Input:           make([][]frontend.Variable, len(testCase.Input)),

@@ -46,7 +46,7 @@ func testMultilinearSumcheckInstance[FR emulated.FieldParams](t *testing.T, curr
 
 	claim, value, err := newNativeMultilinearClaim(fr.Modulus(), mleB)
 	assert.NoError(err)
-	proof, err := prove(current, fr.Modulus(), claim)
+	proof, err := Prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(mle))) - 1
 	circuit := &MultilinearSumcheckCircuit[FR]{
@@ -157,7 +157,7 @@ func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current
 	evalPointsB, evalPointsPH, evalPointsC := getChallengeEvaluationPoints[FR](inputB)
 	claim, evals, err := newNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
 	assert.NoError(err)
-	proof, err := prove(current, fr.Modulus(), claim)
+	proof, err := Prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(inputs[0]))) - 1
 	circuit := &MulGateSumcheck[FR]{

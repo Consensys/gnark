@@ -93,18 +93,6 @@ func New[FR emulated.FieldParams](api frontend.API) (*Polynomial[FR], error) {
 	}, nil
 }
 
-func (p *Polynomial[FR]) Mul(a, b *emulated.Element[FR]) *emulated.Element[FR] {
-	return p.f.Mul(a, b)
-}
-
-func (p *Polynomial[FR]) Add(a, b *emulated.Element[FR]) *emulated.Element[FR] {
-	return p.f.Add(a, b)
-}
-
-func (p *Polynomial[FR]) AssertIsEqual(a, b *emulated.Element[FR]) {
-	p.f.AssertIsEqual(a, b)
-}
-
 // EvalUnivariate evaluates univariate polynomial at a point at. It returns the
 // evaluation. The method does not mutate the inputs.
 func (p *Polynomial[FR]) EvalUnivariate(P Univariate[FR], at *emulated.Element[FR]) *emulated.Element[FR] {

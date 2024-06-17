@@ -14,7 +14,7 @@ type LazyClaims interface {
 	ClaimsNum() int                                                      // ClaimsNum = m
 	VarsNum() int                                                        // VarsNum = n
 	CombinedSum(api frontend.API, a frontend.Variable) frontend.Variable // CombinedSum returns c = ∑_{1≤j≤m} aʲ⁻¹cⱼ
-	Degree(i int) int                                                    // Degree of the total claim in the i'th variable
+	Degree(i int) int                                                    //Degree of the total claim in the i'th variable
 	VerifyFinalEval(api frontend.API, r []frontend.Variable, combinationCoeff, purportedValue frontend.Variable, proof interface{}) error
 }
 
@@ -81,7 +81,7 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcriptSettings
 		}
 	}
 
-	gJ := make(polynomial.Polynomial, maxDegree+1)   // At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
+	gJ := make(polynomial.Polynomial, maxDegree+1)   //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
 	gJR := claims.CombinedSum(api, combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
 
 	for j := 0; j < claims.VarsNum(); j++ {
