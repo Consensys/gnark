@@ -11,7 +11,7 @@ import (
 )
 
 // gate defines a multivariate polynomial which can be sumchecked.
-type gate[AE arithEngine[E], E element] interface {
+type gate[AE ArithEngine[E], E element] interface {
 	// NbInputs is the number of inputs the gate takes.
 	NbInputs() int
 	// Evaluate evaluates the gate at inputs vars.
@@ -27,9 +27,9 @@ type gate[AE arithEngine[E], E element] interface {
 type gateClaim[FR emulated.FieldParams] struct {
 	f      *emulated.Field[FR]
 	p      *polynomial.Polynomial[FR]
-	engine *emuEngine[FR]
+	engine *EmuEngine[FR]
 
-	gate gate[*emuEngine[FR], *emulated.Element[FR]]
+	gate gate[*EmuEngine[FR], *emulated.Element[FR]]
 
 	evaluationPoints   [][]*emulated.Element[FR]
 	claimedEvaluations []*emulated.Element[FR]
@@ -48,7 +48,7 @@ type gateClaim[FR emulated.FieldParams] struct {
 // evaluationPoints is the random coefficients for ensuring the consistency of
 // the inputs during the final round and claimedEvals is the claimed evaluation
 // values with the inputs combined at the evaluationPoints.
-func newGate[FR emulated.FieldParams](api frontend.API, gate gate[*emuEngine[FR], *emulated.Element[FR]],
+func newGate[FR emulated.FieldParams](api frontend.API, gate gate[*EmuEngine[FR], *emulated.Element[FR]],
 	inputs [][]*emulated.Element[FR], evaluationPoints [][]*emulated.Element[FR],
 	claimedEvals []*emulated.Element[FR]) (LazyClaims[FR], error) {
 	nbInputs := gate.NbInputs()
@@ -152,9 +152,9 @@ func (g *gateClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationC
 }
 
 type nativeGateClaim struct {
-	engine *bigIntEngine
+	engine *BigIntEngine
 
-	gate gate[*bigIntEngine, *big.Int]
+	gate gate[*BigIntEngine, *big.Int]
 
 	evaluationPoints   [][]*big.Int
 	claimedEvaluations []*big.Int
@@ -168,8 +168,8 @@ type nativeGateClaim struct {
 	eq NativeMultilinear
 }
 
-func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [][]*big.Int, evaluationPoints [][]*big.Int) (claim claims, evaluations []*big.Int, err error) {
-	be := &bigIntEngine{mod: new(big.Int).Set(target)}
+func newNativeGate(target *big.Int, gate gate[*BigIntEngine, *big.Int], inputs [][]*big.Int, evaluationPoints [][]*big.Int) (claim claims, evaluations []*big.Int, err error) {
+	be := &BigIntEngine{mod: new(big.Int).Set(target)}
 	nbInputs := gate.NbInputs()
 	if len(inputs) != nbInputs {
 		return nil, nil, fmt.Errorf("expected %d inputs got %d", nbInputs, len(inputs))

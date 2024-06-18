@@ -29,7 +29,7 @@ import (
 
 // Gate must be a low-degree polynomial
 type Gate interface {
-	Evaluate(...big.Int) big.Int // removed api ?
+	Evaluate(*sumcheck.BigIntEngine, ...*big.Int) *big.Int
 	Degree() int
 }
 
@@ -41,7 +41,7 @@ type Wire struct {
 
 // Gate must be a low-degree polynomial
 type GateFr[FR emulated.FieldParams] interface {
-	Evaluate(...emulated.Element[FR]) emulated.Element[FR] 
+	Evaluate(*sumcheck.EmuEngine[FR], ...*emulated.Element[FR]) *emulated.Element[FR] 
 	Degree() int
 }
 
@@ -133,6 +133,7 @@ type eqTimesGateEvalSumcheckLazyClaimsFr[FR emulated.FieldParams] struct {
 	claimedEvaluations []emulated.Element[FR]
 	manager            *claimsManagerFr[FR] // WARNING: Circular references
 	verifier           *GKRVerifier[FR]
+	engine             *sumcheck.EmuEngine[FR]
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof sumcheck.DeferredEvalProof[FR]) error {
@@ -180,7 +181,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.E
 		if proofI != len(inputEvaluationsNoRedundancy) {
 			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
 		}
-		gateEvaluation = e.wire.Gate.Evaluate(inputEvaluations...)
+		gateEvaluation = *e.wire.Gate.Evaluate(e.engine, polynomial.FromSlice(inputEvaluations)...)
 	}
 	evaluation = field.Mul(evaluation, &gateEvaluation)
 
@@ -205,7 +206,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) Degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof sumcheck.DeferredEvalProof[FR]) error {
+func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof sumcheck.EvaluationProof) error {
 	field := emulated.Field[FR]{}
 	val, err := e.verifier.p.EvalMultilinear(r, e.manager.assignment[e.wire])
 	if err != nil {
@@ -258,7 +259,7 @@ type claimsManager struct {
 	assignment WireAssignment
 }
 
-func newClaimsManager(c Circuit, assignment WireAssignment, o settings) (claims claimsManager) {
+func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManager) {
 	claims.assignment = assignment
 	claims.claimsMap = make(map[*Wire]*eqTimesGateEvalSumcheckLazyClaims, len(c))
 
@@ -280,10 +281,6 @@ func (m *claimsManager) add(wire *Wire, evaluationPoint []big.Int, evaluation bi
 	i := len(claim.evaluationPoints)
 	claim.claimedEvaluations[i] = evaluation
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
-}
-
-func (m *claimsManager) getLazyClaim(wire *Wire) *eqTimesGateEvalSumcheckLazyClaims {
-	return m.claimsMap[wire]
 }
 
 func (m *claimsManager) getClaim(wire *Wire) *eqTimesGateEvalSumcheckClaims {
@@ -323,7 +320,7 @@ type eqTimesGateEvalSumcheckClaims struct {
 	evaluationPoints   [][]big.Int // x in the paper
 	claimedEvaluations []big.Int   // y in the paper
 	manager            *claimsManager
-	engine             *sumcheck.BigIntEngineWrapper 
+	engine             *sumcheck.BigIntEngine
 	inputPreprocessors []sumcheck.NativeMultilinear // P_u in the paper, so that we don't need to pass along all the circuit's evaluations
 
 	eq sumcheck.NativeMultilinear // ∑_i τ_i eq(x_i, -)
@@ -345,7 +342,7 @@ func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff *big.Int) sumch
 	c.eq = make(sumcheck.NativeMultilinear, eqLength)
 
 	c.eq[0] = big.NewInt(1)
-	sumcheck.Eq(c.engine.Engine, c.eq, sumcheck.ReferenceBigIntSlice(c.evaluationPoints[0]))
+	sumcheck.Eq(c.engine, c.eq, sumcheck.ReferenceBigIntSlice(c.evaluationPoints[0]))
 
 	newEq := make(sumcheck.NativeMultilinear, eqLength)
 	aI := combinationCoeff
@@ -433,9 +430,9 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() sumcheck.NativePolynomial {
 			_s := 0
 			_e := nbInner
 			for d := 0; d < degGJ; d++ {
-				summand := c.wire.Gate.Evaluate(operands[_s+1 : _e]...)
-				summand.Mul(&summand, &operands[_s])
-				res[d].Add(&res[d], &summand)
+				summand := c.wire.Gate.Evaluate(c.engine, sumcheck.ReferenceBigIntSlice(operands[_s+1 : _e])...)
+				summand.Mul(summand, &operands[_s])
+				res[d].Add(&res[d], summand)
 				_s, _e = _e, _e+nbInner
 			}
 		}
@@ -465,9 +462,9 @@ func (c *eqTimesGateEvalSumcheckClaims) Next(element *big.Int) sumcheck.NativePo
 	if n < minBlockSize {
 		// no parallelization
 		for i := 0; i < len(c.inputPreprocessors); i++ {
-			sumcheck.Fold(c.engine.Engine, c.inputPreprocessors[i], element)
+			sumcheck.Fold(c.engine, c.inputPreprocessors[i], element)
 		}
-		sumcheck.Fold(c.engine.Engine, c.eq, element)
+		sumcheck.Fold(c.engine, c.eq, element)
 	}
 
 	return c.computeGJ()
@@ -492,7 +489,7 @@ func (c *eqTimesGateEvalSumcheckClaims) ProverFinalEval(r []*big.Int) sumcheck.N
 		puI := c.inputPreprocessors[inI]
 		if _, found := noMoreClaimsAllowed[in]; !found {
 			noMoreClaimsAllowed[in] = struct{}{}
-			sumcheck.Fold(c.engine.Engine, puI, r[len(r)-1])
+			sumcheck.Fold(c.engine, puI, r[len(r)-1])
 			c.manager.add(in, sumcheck.DereferenceBigIntSlice(r), *puI[0])
 			evaluations = append(evaluations, *puI[0])
 		}
@@ -505,7 +502,7 @@ func (e *eqTimesGateEvalSumcheckClaims) Degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
-func setup(api frontend.API, current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, options ...OptionGkr) (settings, error) {
+func setup(current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, options ...OptionGkr) (settings, error) {
 	var o settings
 	var err error
 	for _, option := range options {
@@ -530,17 +527,12 @@ func setup(api frontend.API, current *big.Int, target *big.Int, c Circuit, assig
 			return o, fmt.Errorf("new short hash: %w", err)
 		}
 		o.transcript = cryptofiatshamir.NewTranscript(fshash, challengeNames...)
-		if err != nil {
-			return o, fmt.Errorf("new transcript: %w", err)
-		}
 
 		// bind challenge from previous round if it is a continuation
 		if err = sumcheck.BindChallengeProver(o.transcript, challengeNames[0], o.baseChallenges); err != nil {
 			return o, fmt.Errorf("base: %w", err)
 		}
 
-	} else {
-		o.transcript, o.transcriptPrefix = o.transcript, o.transcriptPrefix
 	}
 
 	return o, err
@@ -581,53 +573,51 @@ func WithSortedCircuit[FR emulated.FieldParams](sorted []*WireFr[FR]) OptionFr[F
 	}
 }
 
-type config struct {
-	prefix string
-}
+// type config struct {
+// 	prefix string
+// }
 
-func newConfig(opts ...sumcheck.Option) (*config, error) {
-	cfg := new(config)
-	for i := range opts {
-		if err := opts[i](cfg); err != nil {
-			return nil, fmt.Errorf("apply option %d: %w", i, err)
-		}
-	}
-	return cfg, nil
-}
+// func newConfig(opts ...sumcheck.Option) (*config, error) {
+// 	cfg := new(config)
+// 	for i := range opts {
+// 		if err := opts[i](cfg); err != nil {
+// 			return nil, fmt.Errorf("apply option %d: %w", i, err)
+// 		}
+// 	}
+// 	return cfg, nil
+// }
 
 // Verifier allows to check sumcheck proofs. See [NewVerifier] for initializing the instance.
 type GKRVerifier[FR emulated.FieldParams] struct {
 	api    frontend.API
 	f      *emulated.Field[FR]
 	p      *polynomial.Polynomial[FR]
-	*config
+	*sumcheck.Config
 }
 
-// // NewVerifier initializes a new sumcheck verifier for the parametric emulated
-// // field FR. It returns an error if the given options are invalid or when
-// // initializing emulated arithmetic fails.
-// func NewGKRVerifier[FR emulated.FieldParams](api frontend.API, opts ...sumcheck.Option) (*GKRVerifier[FR], error) {
-// 	cfg, err := newConfig(opts...)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("new configuration: %w", err)
-// 	}
-
-// 	f, err := emulated.NewField[FR](api)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("new field: %w", err)
-// 	}
-
-// 	p, err := polynomial.New[FR](api)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("new polynomial: %w", err)
-// 	}
-// 	return &GKRVerifier[FR]{
-// 		api:    api,
-// 		f:      f,
-// 		p:      p,
-// 		config: cfg,
-// 	}, nil
-// }
+// NewVerifier initializes a new sumcheck verifier for the parametric emulated
+// field FR. It returns an error if the given options are invalid or when
+// initializing emulated arithmetic fails.
+func NewGKRVerifier[FR emulated.FieldParams](api frontend.API, opts ...sumcheck.Option) (*GKRVerifier[FR], error) {
+	cfg, err := sumcheck.NewConfig(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("new configuration: %w", err)
+	}
+	f, err := emulated.NewField[FR](api)
+	if err != nil {
+		return nil, fmt.Errorf("new field: %w", err)
+	}
+	p, err := polynomial.New[FR](api)
+	if err != nil {
+		return nil, fmt.Errorf("new polynomial: %w", err)
+	}
+	return &GKRVerifier[FR]{
+		api:    api,
+		f:      f,
+		p:      p,
+		Config: cfg,
+	}, nil
+}
 
 // bindChallenge binds the values for challengeName using in-circuit Fiat-Shamir transcript.
 func (v *GKRVerifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName string, values []emulated.Element[FR]) error {
@@ -649,7 +639,7 @@ func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitFr[FR], assignment Wi
 		option(&o)
 	}
 
-	cfg, err := newVerificationConfig[FR]()
+	cfg, err := sumcheck.NewVerificationConfig[FR]()
 	if err != nil {
 		return o, fmt.Errorf("verification opts: %w", err)
 	}
@@ -671,7 +661,7 @@ func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitFr[FR], assignment Wi
 			return o, fmt.Errorf("new transcript: %w", err)
 		}
 		// bind challenge from previous round if it is a continuation
-		if err = v.bindChallenge(o.transcript, challengeNames[0], cfg.baseChallenges); err != nil {
+		if err = v.bindChallenge(o.transcript, challengeNames[0], cfg.BaseChallenges); err != nil {
 			return o, fmt.Errorf("base: %w", err)
 		}
 	} else {
@@ -806,16 +796,6 @@ func getFirstChallengeNames(logNbInstances int, prefix string) []string {
 	return res
 }
 
-func getChallenges(transcript *fiatshamir.Transcript, names []string) (challenges []frontend.Variable, err error) {
-	challenges = make([]frontend.Variable, len(names))
-	for i, name := range names {
-		if challenges[i], err = transcript.ComputeChallenge(name); err != nil {
-			return
-		}
-	}
-	return
-}
-
 func (v *GKRVerifier[FR]) getChallengesFr(transcript *fiatshamir.Transcript, names []string) (challenges []emulated.Element[FR], err error) {
 	challenges = make([]emulated.Element[FR], len(names))
 	var challenge emulated.Element[FR]
@@ -837,17 +817,17 @@ func (v *GKRVerifier[FR]) getChallengesFr(transcript *fiatshamir.Transcript, nam
 // Prove consistency of the claimed assignment
 func Prove(api frontend.API, current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...OptionGkr) (NativeProofs, error) {
 	be := sumcheck.NewBigIntEngine(target)
-	o, err := setup(api, current, target, c, assignment, options...)
+	o, err := setup(current, target, c, assignment, options...)
 	if err != nil {
 		return nil, err
 	}
 
-	claims := newClaimsManager(c, assignment, o)
+	claims := newClaimsManager(c, assignment)
 
 	proof := make(NativeProofs, len(c))
-	// firstChallenge called rho in the paper
-	var firstChallenge []*big.Int
 	challengeNames := getFirstChallengeNames(o.nbVars, o.transcriptPrefix)
+	// firstChallenge called rho in the paper
+	firstChallenge := make([]*big.Int, len(challengeNames))
 	for i := 0; i < len(challengeNames); i++ {
 		firstChallenge[i], _, err = sumcheck.DeriveChallengeProver(o.transcript, challengeNames[i:], nil)
 		if err != nil {
@@ -880,9 +860,7 @@ func Prove(api frontend.API, current *big.Int, target *big.Int, c Circuit, assig
 
 			finalEvalProof := proof[i].FinalEvalProof.([]*big.Int)
 			baseChallenge = make([]*big.Int, len(finalEvalProof))
-			for j := range finalEvalProof {
-				baseChallenge[j] = finalEvalProof[j]
-			}
+			copy(baseChallenge, finalEvalProof)
 		}
 		// the verifier checks a single claim about input wires itself
 		claims.deleteClaim(wire)
@@ -911,7 +889,6 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 		return err
 	}
 
-	wirePrefix := o.transcriptPrefix + "w"
 	var baseChallenge []emulated.Element[FR]
 	for i := len(c) - 1; i >= 0; i-- {
 		wire := o.sorted[i]
@@ -932,7 +909,8 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 
 		if wire.noProof() { // input wires with one claim only
 			// make sure the proof is empty
-			if len(finalEvalProof) != 0 || len(proofW.RoundPolyEvaluations) != 0 {
+			// make sure finalevalproof is of type deferred for gkr
+			if (finalEvalProof != nil && len(finalEvalProof.(sumcheck.DeferredEvalProof[emulated.FieldParams])) != 0) || len(proofW.RoundPolyEvaluations) != 0 {
 				return fmt.Errorf("no proof allowed for input wire with a single claim")
 			}
 
@@ -946,10 +924,10 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 				evaluation = *evaluationPtr
 				v.f.AssertIsEqual(&claim.claimedEvaluations[0], &evaluation)
 			}
-		} else if err = sumcheck_verifier.VerifyForGkr(
-			claim, proof[i], fiatshamir.WithTranscriptFr(o.transcript, wirePrefix+strconv.Itoa(i)+".", baseChallenge...),
+		} else if err = sumcheck_verifier.Verify(
+			claim, proof[i],
 		); err == nil {
-			baseChallenge = finalEvalProof
+			baseChallenge = finalEvalProof.(sumcheck.DeferredEvalProof[FR])
 			_ = baseChallenge
 		} else {
 			return err
@@ -959,16 +937,6 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 	return nil
 }
 
-type IdentityGate struct{}
-
-func (IdentityGate) Evaluate(input ...big.Int) big.Int {
-	return input[0]
-}
-
-func (IdentityGate) Degree() int {
-	return 1
-}
-
 // outputsList also sets the nbUniqueOutputs fields. It also sets the wire metadata.
 func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 	res := make([][]int, len(c))
@@ -976,7 +944,7 @@ func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 		res[i] = make([]int, 0)
 		c[i].nbUniqueOutputs = 0
 		if c[i].IsInput() {
-			c[i].Gate = IdentityGate{}
+			c[i].Gate = IdentityGate[*sumcheck.BigIntEngine, *big.Int]{}
 		}
 	}
 	ins := make(map[int]struct{}, len(c))
@@ -1035,13 +1003,13 @@ func statusList(c Circuit) []int {
 	return res
 }
 
-type IdentityGateFr[FR emulated.FieldParams] struct{}
+type IdentityGate[AE sumcheck.ArithEngine[E], E element] struct{}
 
-func (IdentityGateFr[FR]) Evaluate(api emuEngine[FR], input ...emulated.Element[FR]) emulated.Element[FR] {
+func (IdentityGate[AE, E]) Evaluate(api AE, input ...E) E {
 	return input[0]
 }
 
-func (IdentityGateFr[FR]) Degree() int {
+func (IdentityGate[AE, E]) Degree() int {
 	return 1
 }
 
@@ -1052,7 +1020,7 @@ func outputsListFr[FR emulated.FieldParams](c CircuitFr[FR], indexes map[*WireFr
 		res[i] = make([]int, 0)
 		c[i].nbUniqueOutputs = 0
 		if c[i].IsInput() {
-			c[i].Gate = IdentityGateFr[FR]{}
+			c[i].Gate = IdentityGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{}
 		}
 	}
 	ins := make(map[int]struct{}, len(c))
@@ -1196,7 +1164,7 @@ func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 		for j := range p[i].RoundPolyEvaluations {
 			size += len(p[i].RoundPolyEvaluations[j])
 		}
-		size += len(p[i].FinalEvalProof)
+		size += len(p[i].FinalEvalProof.(sumcheck.DeferredEvalProof[FR]))
 	}
 
 	res := make([]emulated.Element[FR], 0, size)
@@ -1204,7 +1172,7 @@ func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 		for j := range p[i].RoundPolyEvaluations {
 			res = append(res, p[i].RoundPolyEvaluations[j]...)
 		}
-		res = append(res, p[i].FinalEvalProof...)
+		res = append(res, p[i].FinalEvalProof.(sumcheck.DeferredEvalProof[FR])...)
 	}
 	if len(res) != size {
 		panic("bug") // TODO: Remove
@@ -1255,37 +1223,39 @@ func DeserializeProof[FR emulated.FieldParams](sorted []*WireFr[FR], serializedP
 	return proof, nil
 }
 
-type MulGate[FR emulated.FieldParams] struct{}
+type element any 
 
-func (g MulGate[FR]) Evaluate(api emuEngine[FR], x ...emulated.Element[FR]) emulated.Element[FR] {
+type MulGate[AE sumcheck.ArithEngine[E], E element] struct{}
+
+func (g MulGate[AE, E]) Evaluate(api AE, x ...E) E {
 	if len(x) != 2 {
 		panic("mul has fan-in 2")
 	}
-	return *api.Mul(&x[0], &x[1])
+	return api.Mul(x[0], x[1])
 }
 
 // TODO: Degree must take nbInputs as an argument and return degree = nbInputs
-func (g MulGate[FR]) Degree() int {
+func (g MulGate[AE, E]) Degree() int {
 	return 2
 }
 
-type AddGate[FR emulated.FieldParams] struct{}
+type AddGate[AE sumcheck.ArithEngine[E], E element] struct{}
 
-func (a AddGate[FR]) Evaluate(api emuEngine[FR], v ...emulated.Element[FR]) emulated.Element[FR] {
+func (a AddGate[AE, E]) Evaluate(api AE, v ...E) E {
 	switch len(v) {
 	case 0:
-		return *api.Const(big.NewInt(0))
+		return api.Const(big.NewInt(0))
 	case 1:
 		return v[0]
 	}
 	rest := v[2:]
-	res := api.Add(&v[0], &v[1])
+	res := api.Add(v[0], v[1])
 	for _, e := range rest {
-		res = api.Add(res, &e)
+		res = api.Add(res, e)
 	}
-	return *res
+	return res
 }
 
-func (a AddGate[FR]) Degree() int {
+func (a AddGate[AE, E]) Degree() int {
 	return 1
 }

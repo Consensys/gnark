@@ -62,7 +62,7 @@ func (fn *multilinearClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], comb
 }
 
 type nativeMultilinearClaim struct {
-	be *bigIntEngine
+	be *BigIntEngine
 
 	ml []*big.Int
 }

@@ -2,6 +2,7 @@ package sumcheck
 
 import (
 	"math/big"
+	"math/bits"
 )
 
 type NativePolynomial []*big.Int
@@ -25,7 +26,7 @@ func ReferenceBigIntSlice(vals []big.Int) []*big.Int {
 	return ptrs
 }
 
-func Fold(api *bigIntEngine, ml NativeMultilinear, r *big.Int) NativeMultilinear {
+func Fold(api *BigIntEngine, ml NativeMultilinear, r *big.Int) NativeMultilinear {
 	// NB! it modifies ml in-place and also returns
 	mid := len(ml) / 2
 	bottom, top := ml[:mid], ml[mid:]
@@ -38,7 +39,7 @@ func Fold(api *bigIntEngine, ml NativeMultilinear, r *big.Int) NativeMultilinear
 	return ml[:mid]
 }
 
-func hypersumX1One(api *bigIntEngine, ml NativeMultilinear) *big.Int {
+func hypersumX1One(api *BigIntEngine, ml NativeMultilinear) *big.Int {
 	sum := ml[len(ml)/2]
 	for i := len(ml)/2 + 1; i < len(ml); i++ {
 		sum = api.Add(sum, ml[i])
@@ -46,7 +47,7 @@ func hypersumX1One(api *bigIntEngine, ml NativeMultilinear) *big.Int {
 	return sum
 }
 
-func Eq(api *bigIntEngine, ml NativeMultilinear, q []*big.Int) NativeMultilinear {
+func Eq(api *BigIntEngine, ml NativeMultilinear, q []*big.Int) NativeMultilinear {
 	if (1 << len(q)) != len(ml) {
 		panic("scalar length mismatch")
 	}
@@ -62,7 +63,7 @@ func Eq(api *bigIntEngine, ml NativeMultilinear, q []*big.Int) NativeMultilinear
 	return ml
 }
 
-func Eval(api *bigIntEngine, ml NativeMultilinear, r []*big.Int) *big.Int {
+func Eval(api *BigIntEngine, ml NativeMultilinear, r []*big.Int) *big.Int {
 	mlCopy := make(NativeMultilinear, len(ml))
 	for i := range mlCopy {
 		mlCopy[i] = new(big.Int).Set(ml[i])
@@ -75,7 +76,7 @@ func Eval(api *bigIntEngine, ml NativeMultilinear, r []*big.Int) *big.Int {
 	return mlCopy[0]
 }
 
-func eqAcc(api *bigIntEngine, e NativeMultilinear, m NativeMultilinear, q []*big.Int) NativeMultilinear {
+func eqAcc(api *BigIntEngine, e NativeMultilinear, m NativeMultilinear, q []*big.Int) NativeMultilinear {
 	if len(e) != len(m) {
 		panic("length mismatch")
 	}
@@ -98,4 +99,8 @@ func eqAcc(api *bigIntEngine, e NativeMultilinear, m NativeMultilinear, q []*big
 		e[i] = api.Add(e[i], m[i])
 	}
 	return e
+}
+
+func (m NativeMultilinear) NumVars() int {
+	return bits.TrailingZeros(uint(len(m)))
 }

@@ -26,10 +26,11 @@ import (
 type FR = emulated.BN254Fr
 
 var Gates = map[string]GateFr[FR]{
-	"identity": IdentityGateFr[FR]{},
-	"add":      AddGate[FR]{},
-	"mul":      MulGate[FR]{},
+	"identity": IdentityGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+	"add":      AddGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+	"mul":      MulGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
 }
+
 func TestGkrVectorsFr(t *testing.T) {
 
 	testDirPath := "./test_vectors"
@@ -86,7 +87,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			TestCaseName:    path,
 		}
 
-		p:= profile.Start() 
+		p := profile.Start()
 		frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, validCircuit)
 		p.Stop()
 
@@ -202,7 +203,7 @@ type TestCaseInfo struct {
 	Proof   PrintableProof  `json:"proof"`
 }
 
-//var testCases = make(map[string]*TestCase[emulated.FieldParams])
+// var testCases = make(map[string]*TestCase[emulated.FieldParams])
 var testCases = make(map[string]interface{})
 
 func getTestCase(path string) (*TestCase[FR], error) {
@@ -249,7 +250,7 @@ type WireInfo struct {
 
 type CircuitInfo []WireInfo
 
-//var circuitCache = make(map[string]CircuitFr[emulated.FieldParams])
+// var circuitCache = make(map[string]CircuitFr[emulated.FieldParams])
 var circuitCache = make(map[string]interface{})
 
 func getCircuit(path string) (circuit CircuitFr[FR], err error) {
@@ -298,7 +299,7 @@ func init() {
 	Gates["select-input-3"] = _select(2)
 }
 
-func (g _select) Evaluate(_ sumcheck.emuEngine[FR], in ...emulated.Element[FR]) emulated.Element[FR] {
+func (g _select) Evaluate(_ *sumcheck.EmuEngine[FR], in ...*emulated.Element[FR]) *emulated.Element[FR] {
 	return in[g]
 }
 
@@ -309,7 +310,7 @@ func (g _select) Degree() int {
 type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
-	FinalEvalProof  interface{}     `json:"finalEvalProof"`
+	FinalEvalProof       interface{}     `json:"finalEvalProof"`
 	RoundPolyEvaluations [][]interface{} `json:"partialSumPolys"`
 }
 
@@ -320,7 +321,7 @@ func unmarshalProof(printable PrintableProof) (proof Proofs[FR]) {
 
 		if printable[i].FinalEvalProof != nil {
 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
-			finalEvalProof := make([]emulated.Element[FR], finalEvalSlice.Len())
+			finalEvalProof := make(sumcheck.DeferredEvalProof[FR], finalEvalSlice.Len())
 			for k := range finalEvalProof {
 				finalEvalProof[k] = ToVariableFr[FR](finalEvalSlice.Index(k).Interface())
 			}
@@ -371,7 +372,6 @@ func TestTopSortTrivial(t *testing.T) {
 	sorted := topologicalSortFr(c)
 	assert.Equal(t, []*WireFr[FR]{&c[1], &c[0]}, sorted)
 }
-
 
 func TestTopSortSingleGate(t *testing.T) {
 	c := make(CircuitFr[FR], 3)

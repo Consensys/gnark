@@ -44,9 +44,6 @@ func Prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 		return proof, fmt.Errorf("new short hash: %w", err)
 	}
 	fs := fiatshamir.NewTranscript(fshash, challengeNames...)
-	if err != nil {
-		return proof, fmt.Errorf("new transcript: %w", err)
-	}
 	// bind challenge from previous round if it is a continuation
 	if err = BindChallengeProver(fs, challengeNames[0], cfg.baseChallenges); err != nil {
 		return proof, fmt.Errorf("base: %w", err)

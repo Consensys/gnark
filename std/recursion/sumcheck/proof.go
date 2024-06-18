@@ -11,7 +11,7 @@ type Proof[FR emulated.FieldParams] struct {
 	RoundPolyEvaluations []polynomial.Univariate[FR]
 	// FinalEvalProof is the witness for helping the verifier to compute the
 	// final round of the sumcheck protocol.
-	FinalEvalProof DeferredEvalProof[FR]
+	FinalEvalProof EvaluationProof
 }
 
 type NativeProof struct {

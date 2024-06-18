@@ -92,7 +92,7 @@ func getChallengeEvaluationPoints[FR emulated.FieldParams](inputs [][]*big.Int) 
 	return
 }
 
-type mulGate1[AE arithEngine[E], E element] struct{}
+type mulGate1[AE ArithEngine[E], E element] struct{}
 
 func (m mulGate1[AE, E]) NbInputs() int { return 2 }
 func (m mulGate1[AE, E]) Degree() int   { return 2 }
@@ -133,7 +133,7 @@ func (c *MulGateSumcheck[FR]) Define(api frontend.API) error {
 	for i := range c.EvaluationPoints {
 		evalPoints[i] = polynomial.FromSlice[FR](c.EvaluationPoints[i])
 	}
-	claim, err := newGate[FR](api, mulGate1[*emuEngine[FR], *emulated.Element[FR]]{}, inputs, evalPoints, claimedEvals)
+	claim, err := newGate[FR](api, mulGate1[*EmuEngine[FR], *emulated.Element[FR]]{}, inputs, evalPoints, claimedEvals)
 	if err != nil {
 		return fmt.Errorf("new gate claim: %w", err)
 	}
@@ -145,7 +145,7 @@ func (c *MulGateSumcheck[FR]) Define(api frontend.API) error {
 
 func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, inputs [][]int) {
 	var fr FR
-	var nativeGate mulGate1[*bigIntEngine, *big.Int]
+	var nativeGate mulGate1[*BigIntEngine, *big.Int]
 	assert := test.NewAssert(t)
 	inputB := make([][]*big.Int, len(inputs))
 	for i := range inputB {
