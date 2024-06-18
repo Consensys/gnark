@@ -40,14 +40,14 @@ type Wire struct {
 }
 
 // Gate must be a low-degree polynomial
-type GateFr[FR emulated.FieldParams] interface {
+type GateEmulated[FR emulated.FieldParams] interface {
 	Evaluate(*sumcheck.EmuEngine[FR], ...*emulated.Element[FR]) *emulated.Element[FR] 
 	Degree() int
 }
 
-type WireFr[FR emulated.FieldParams] struct {
-	Gate            GateFr[FR]
-	Inputs          []*WireFr[FR] // if there are no Inputs, the wire is assumed an input wire
+type WireEmulated[FR emulated.FieldParams] struct {
+	Gate            GateEmulated[FR]
+	Inputs          []*WireEmulated[FR] // if there are no Inputs, the wire is assumed an input wire
 	nbUniqueOutputs int           // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
 }
 
@@ -90,32 +90,32 @@ func (c Circuit) maxGateDegree() int {
 	return res
 }
 
-type CircuitFr[FR emulated.FieldParams] []WireFr[FR]
+type CircuitEmulated[FR emulated.FieldParams] []WireEmulated[FR]
 
-func (w WireFr[FR]) IsInput() bool {
+func (w WireEmulated[FR]) IsInput() bool {
 	return len(w.Inputs) == 0
 }
 
-func (w WireFr[FR]) IsOutput() bool {
+func (w WireEmulated[FR]) IsOutput() bool {
 	return w.nbUniqueOutputs == 0
 }
 
-func (w WireFr[FR]) NbClaims() int {
+func (w WireEmulated[FR]) NbClaims() int {
 	if w.IsOutput() {
 		return 1
 	}
 	return w.nbUniqueOutputs
 }
 
-func (w WireFr[FR]) nbUniqueInputs() int {
-	set := make(map[*WireFr[FR]]struct{}, len(w.Inputs))
+func (w WireEmulated[FR]) nbUniqueInputs() int {
+	set := make(map[*WireEmulated[FR]]struct{}, len(w.Inputs))
 	for _, in := range w.Inputs {
 		set[in] = struct{}{}
 	}
 	return len(set)
 }
 
-func (w WireFr[FR]) noProof() bool {
+func (w WireEmulated[FR]) noProof() bool {
 	return w.IsInput() && w.NbClaims() == 1
 }
 
@@ -123,15 +123,15 @@ func (w WireFr[FR]) noProof() bool {
 type WireAssignment map[*Wire]sumcheck.NativeMultilinear
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
-type WireAssignmentFr[FR emulated.FieldParams] map[*WireFr[FR]]polynomial.Multilinear[FR]
+type WireAssignmentEmulated[FR emulated.FieldParams] map[*WireEmulated[FR]]polynomial.Multilinear[FR]
 
 type Proofs[FR emulated.FieldParams] []sumcheck.Proof[FR] // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
 type eqTimesGateEvalSumcheckLazyClaimsFr[FR emulated.FieldParams] struct {
-	wire               *WireFr[FR]
+	wire               *WireEmulated[FR]
 	evaluationPoints   [][]emulated.Element[FR]
 	claimedEvaluations []emulated.Element[FR]
-	manager            *claimsManagerFr[FR] // WARNING: Circular references
+	manager            *claimsManagerEmulated[FR] // WARNING: Circular references
 	verifier           *GKRVerifier[FR]
 	engine             *sumcheck.EmuEngine[FR]
 }
@@ -163,7 +163,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.E
 		gateEvaluation = *gateEvaluationPtr
 	} else {
 		inputEvaluations := make([]emulated.Element[FR], len(e.wire.Inputs))
-		indexesInProof := make(map[*WireFr[FR]]int, len(inputEvaluationsNoRedundancy))
+		indexesInProof := make(map[*WireEmulated[FR]]int, len(inputEvaluationsNoRedundancy))
 
 		proofI := 0
 		for inI, in := range e.wire.Inputs {
@@ -216,14 +216,14 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) AssertEvaluation(r []*emulated
 	return nil
 }
 
-type claimsManagerFr[FR emulated.FieldParams] struct {
-	claimsMap  map[*WireFr[FR]]*eqTimesGateEvalSumcheckLazyClaimsFr[FR]
-	assignment WireAssignmentFr[FR]
+type claimsManagerEmulated[FR emulated.FieldParams] struct {
+	claimsMap  map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsFr[FR]
+	assignment WireAssignmentEmulated[FR]
 }
 
-func newClaimsManagerFr[FR emulated.FieldParams](c CircuitFr[FR], assignment WireAssignmentFr[FR], verifier GKRVerifier[FR]) (claims claimsManagerFr[FR]) {
+func newClaimsManagerEmulated[FR emulated.FieldParams](c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], verifier GKRVerifier[FR]) (claims claimsManagerEmulated[FR]) {
 	claims.assignment = assignment
-	claims.claimsMap = make(map[*WireFr[FR]]*eqTimesGateEvalSumcheckLazyClaimsFr[FR], len(c))
+	claims.claimsMap = make(map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsFr[FR], len(c))
 
 	for i := range c {
 		wire := &c[i]
@@ -239,18 +239,18 @@ func newClaimsManagerFr[FR emulated.FieldParams](c CircuitFr[FR], assignment Wir
 	return
 }
 
-func (m *claimsManagerFr[FR]) add(wire *WireFr[FR], evaluationPoint []emulated.Element[FR], evaluation emulated.Element[FR]) {
+func (m *claimsManagerEmulated[FR]) add(wire *WireEmulated[FR], evaluationPoint []emulated.Element[FR], evaluation emulated.Element[FR]) {
 	claim := m.claimsMap[wire]
 	i := len(claim.evaluationPoints)
 	claim.claimedEvaluations[i] = evaluation
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
 }
 
-func (m *claimsManagerFr[FR]) getLazyClaim(wire *WireFr[FR]) *eqTimesGateEvalSumcheckLazyClaimsFr[FR] {
+func (m *claimsManagerEmulated[FR]) getLazyClaim(wire *WireEmulated[FR]) *eqTimesGateEvalSumcheckLazyClaimsFr[FR] {
 	return m.claimsMap[wire]
 }
 
-func (m *claimsManagerFr[FR]) deleteClaim(wire *WireFr[FR]) {
+func (m *claimsManagerEmulated[FR]) deleteClaim(wire *WireEmulated[FR]) {
 	delete(m.claimsMap, wire)
 }
 
@@ -558,17 +558,17 @@ type NativeProofs []sumcheck.NativeProof
 
 type OptionGkr func(*settings)
 
-type settingsFr[FR emulated.FieldParams] struct {
-	sorted           []*WireFr[FR]
+type SettingsEmulated[FR emulated.FieldParams] struct {
+	sorted           []*WireEmulated[FR]
 	transcript       *fiatshamir.Transcript
 	transcriptPrefix string
 	nbVars           int
 }
 
-type OptionFr[FR emulated.FieldParams] func(*settingsFr[FR])
+type OptionFr[FR emulated.FieldParams] func(*SettingsEmulated[FR])
 
-func WithSortedCircuit[FR emulated.FieldParams](sorted []*WireFr[FR]) OptionFr[FR] {
-	return func(options *settingsFr[FR]) {
+func WithSortedCircuit[FR emulated.FieldParams](sorted []*WireEmulated[FR]) OptionFr[FR] {
+	return func(options *SettingsEmulated[FR]) {
 		options.sorted = sorted
 	}
 }
@@ -631,9 +631,9 @@ func (v *GKRVerifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName
 	return nil
 }
 
-func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitFr[FR], assignment WireAssignmentFr[FR], transcriptSettings fiatshamir.SettingsFr[FR], options ...OptionFr[FR]) (settingsFr[FR], error) {
+func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], transcriptSettings fiatshamir.SettingsEmulated[FR], options ...OptionFr[FR]) (SettingsEmulated[FR], error) {
 	var fr FR
-	var o settingsFr[FR]
+	var o SettingsEmulated[FR]
 	var err error
 	for _, option := range options {
 		option(&o)
@@ -651,7 +651,7 @@ func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitFr[FR], assignment Wi
 	}
 
 	if o.sorted == nil {
-		o.sorted = topologicalSortFr(c)
+		o.sorted = topologicalSortEmulated(c)
 	}
 
 	if transcriptSettings.Transcript == nil {
@@ -672,7 +672,7 @@ func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitFr[FR], assignment Wi
 }
 
 // ProofSize computes how large the proof for a circuit would be. It needs nbUniqueOutputs to be set
-func ProofSize[FR emulated.FieldParams](c CircuitFr[FR], logNbInstances int) int {
+func ProofSize[FR emulated.FieldParams](c CircuitEmulated[FR], logNbInstances int) int {
 	nbUniqueInputs := 0
 	nbPartialEvalPolys := 0
 	for i := range c {
@@ -739,7 +739,7 @@ func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string 
 	return challenges
 }
 
-func ChallengeNamesFr[FR emulated.FieldParams](sorted []*WireFr[FR], logNbInstances int, prefix string) []string {
+func ChallengeNamesFr[FR emulated.FieldParams](sorted []*WireEmulated[FR], logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
@@ -872,7 +872,7 @@ func Prove(api frontend.API, current *big.Int, target *big.Int, c Circuit, assig
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete,
 // Use valueOfProof[FR](proof) to convert nativeproof by prover into nonnativeproof used by in-circuit verifier
-func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment WireAssignmentFr[FR], proof Proofs[FR], transcriptSettings fiatshamir.SettingsFr[FR], options ...OptionFr[FR]) error {
+func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], proof Proofs[FR], transcriptSettings fiatshamir.SettingsEmulated[FR], options ...OptionFr[FR]) error {
 	o, err := v.setup(api, c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
@@ -882,7 +882,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitFr[FR], assignment W
 		return err
 	}
 
-	claims := newClaimsManagerFr(c, assignment, *v)
+	claims := newClaimsManagerEmulated[FR](c, assignment, *v)
 	var firstChallenge []emulated.Element[FR]
 	firstChallenge, err = v.getChallengesFr(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
 	if err != nil {
@@ -1014,7 +1014,7 @@ func (IdentityGate[AE, E]) Degree() int {
 }
 
 // outputsList also sets the nbUniqueOutputs fields. It also sets the wire metadata.
-func outputsListFr[FR emulated.FieldParams](c CircuitFr[FR], indexes map[*WireFr[FR]]int) [][]int {
+func outputsListEmulated[FR emulated.FieldParams](c CircuitEmulated[FR], indexes map[*WireEmulated[FR]]int) [][]int {
 	res := make([][]int, len(c))
 	for i := range c {
 		res[i] = make([]int, 0)
@@ -1040,14 +1040,14 @@ func outputsListFr[FR emulated.FieldParams](c CircuitFr[FR], indexes map[*WireFr
 	return res
 }
 
-type topSortDataFr[FR emulated.FieldParams] struct {
+type topSortDataEmulated[FR emulated.FieldParams] struct {
 	outputs    [][]int
 	status     []int // status > 0 indicates number of inputs left to be ready. status = 0 means ready. status = -1 means done
-	index      map[*WireFr[FR]]int
+	index      map[*WireEmulated[FR]]int
 	leastReady int
 }
 
-func (d *topSortDataFr[FR]) markDone(i int) {
+func (d *topSortDataEmulated[FR]) markDone(i int) {
 
 	d.status[i] = -1
 
@@ -1063,15 +1063,15 @@ func (d *topSortDataFr[FR]) markDone(i int) {
 	}
 }
 
-func indexMapFr[FR emulated.FieldParams](c CircuitFr[FR]) map[*WireFr[FR]]int {
-	res := make(map[*WireFr[FR]]int, len(c))
+func indexMapEmulated[FR emulated.FieldParams](c CircuitEmulated[FR]) map[*WireEmulated[FR]]int {
+	res := make(map[*WireEmulated[FR]]int, len(c))
 	for i := range c {
 		res[&c[i]] = i
 	}
 	return res
 }
 
-func statusListFr[FR emulated.FieldParams](c CircuitFr[FR]) []int {
+func statusListEmulated[FR emulated.FieldParams](c CircuitEmulated[FR]) []int {
 	res := make([]int, len(c))
 	for i := range c {
 		res[i] = len(c[i].Inputs)
@@ -1122,12 +1122,12 @@ func (a WireAssignment) NumVars() int {
 	panic("empty assignment")
 }
 
-func topologicalSortFr[FR emulated.FieldParams](c CircuitFr[FR]) []*WireFr[FR] {
-	var data topSortDataFr[FR]
-	data.index = indexMapFr(c)
-	data.outputs = outputsListFr(c, data.index)
-	data.status = statusListFr(c)
-	sorted := make([]*WireFr[FR], len(c))
+func topologicalSortEmulated[FR emulated.FieldParams](c CircuitEmulated[FR]) []*WireEmulated[FR] {
+	var data topSortDataEmulated[FR]
+	data.index = indexMapEmulated(c)
+	data.outputs = outputsListEmulated(c, data.index)
+	data.status = statusListEmulated(c)
+	sorted := make([]*WireEmulated[FR], len(c))
 
 	for data.leastReady = 0; data.status[data.leastReady] != 0; data.leastReady++ {
 	}
@@ -1140,7 +1140,7 @@ func topologicalSortFr[FR emulated.FieldParams](c CircuitFr[FR]) []*WireFr[FR] {
 	return sorted
 }
 
-func (a WireAssignmentFr[FR]) NumInstances() int {
+func (a WireAssignmentEmulated[FR]) NumInstances() int {
 	for _, aW := range a {
 		if aW != nil {
 			return len(aW)
@@ -1149,7 +1149,7 @@ func (a WireAssignmentFr[FR]) NumInstances() int {
 	panic("empty assignment")
 }
 
-func (a WireAssignmentFr[FR]) NumVars() int {
+func (a WireAssignmentEmulated[FR]) NumVars() int {
 	for _, aW := range a {
 		if aW != nil {
 			return aW.NumVars()
@@ -1180,7 +1180,7 @@ func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 	return res
 }
 
-func computeLogNbInstances[FR emulated.FieldParams](wires []*WireFr[FR], serializedProofLen int) int {
+func computeLogNbInstances[FR emulated.FieldParams](wires []*WireEmulated[FR], serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
 	for _, w := range wires {
 		if !w.noProof() {
@@ -1203,7 +1203,7 @@ func (r *variablesReader[FR]) hasNextN(n int) bool {
 	return len(*r) >= n
 }
 
-func DeserializeProof[FR emulated.FieldParams](sorted []*WireFr[FR], serializedProof []emulated.Element[FR]) (Proofs[FR], error) {
+func DeserializeProof[FR emulated.FieldParams](sorted []*WireEmulated[FR], serializedProof []emulated.Element[FR]) (Proofs[FR], error) {
 	proof := make(Proofs[FR], len(sorted))
 	logNbInstances := computeLogNbInstances(sorted, len(serializedProof))
 

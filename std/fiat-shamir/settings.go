@@ -13,7 +13,7 @@ type Settings struct {
 	Hash           hash.FieldHasher
 }
 
-type SettingsFr[FR emulated.FieldParams] struct {
+type SettingsEmulated[FR emulated.FieldParams] struct {
 	Transcript     *Transcript
 	Prefix         string
 	BaseChallenges []emulated.Element[FR]
@@ -28,8 +28,8 @@ func WithTranscript(transcript *Transcript, prefix string, baseChallenges ...fro
 	}
 }
 
-func WithTranscriptFr[FR emulated.FieldParams](transcript *Transcript, prefix string, baseChallenges ...emulated.Element[FR]) SettingsFr[FR] {
-	return SettingsFr[FR]{
+func WithTranscriptFr[FR emulated.FieldParams](transcript *Transcript, prefix string, baseChallenges ...emulated.Element[FR]) SettingsEmulated[FR] {
+	return SettingsEmulated[FR]{
 		Transcript:     transcript,
 		Prefix:         prefix,
 		BaseChallenges: baseChallenges,
@@ -43,8 +43,8 @@ func WithHash(hash hash.FieldHasher, baseChallenges ...frontend.Variable) Settin
 	}
 }
 
-func WithHashFr[FR emulated.FieldParams](hash hash.FieldHasher, baseChallenges ...emulated.Element[FR]) SettingsFr[FR] {
-	return SettingsFr[FR]{
+func WithHashFr[FR emulated.FieldParams](hash hash.FieldHasher, baseChallenges ...emulated.Element[FR]) SettingsEmulated[FR] {
+	return SettingsEmulated[FR]{
 		BaseChallenges: baseChallenges,
 		Hash:           hash,
 	}

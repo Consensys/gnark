@@ -25,7 +25,7 @@ import (
 
 type FR = emulated.BN254Fr
 
-var Gates = map[string]GateFr[FR]{
+var Gates = map[string]GateEmulated[FR]{
 	"identity": IdentityGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
 	"add":      AddGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
 	"mul":      MulGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
@@ -141,7 +141,7 @@ func (c *GkrVerifierCircuitFr) Define(api frontend.API) error {
 	if testCase, err = getTestCase(c.TestCaseName); err != nil {
 		return err
 	}
-	sorted := topologicalSortFr(testCase.Circuit)
+	sorted := topologicalSortEmulated(testCase.Circuit)
 
 	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
 		return err
@@ -165,9 +165,9 @@ func (c *GkrVerifierCircuitFr) Define(api frontend.API) error {
 	return v.Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHashFr[FR](h))
 }
 
-func makeInOutAssignment[FR emulated.FieldParams](c CircuitFr[FR], inputValues [][]emulated.Element[FR], outputValues [][]emulated.Element[FR]) WireAssignmentFr[FR] {
-	sorted := topologicalSortFr(c)
-	res := make(WireAssignmentFr[FR], len(inputValues)+len(outputValues))
+func makeInOutAssignment[FR emulated.FieldParams](c CircuitEmulated[FR], inputValues [][]emulated.Element[FR], outputValues [][]emulated.Element[FR]) WireAssignmentEmulated[FR] {
+	sorted := topologicalSortEmulated(c)
+	res := make(WireAssignmentEmulated[FR], len(inputValues)+len(outputValues))
 	inI, outI := 0, 0
 	for _, w := range sorted {
 		if w.IsInput() {
@@ -188,7 +188,7 @@ func fillWithBlanks[FR emulated.FieldParams](slice [][]emulated.Element[FR], siz
 }
 
 type TestCase[FR emulated.FieldParams] struct {
-	Circuit CircuitFr[FR]
+	Circuit CircuitEmulated[FR]
 	Hash    HashDescription
 	Proof   Proofs[FR]
 	Input   [][]emulated.Element[FR]
@@ -253,13 +253,13 @@ type CircuitInfo []WireInfo
 // var circuitCache = make(map[string]CircuitFr[emulated.FieldParams])
 var circuitCache = make(map[string]interface{})
 
-func getCircuit(path string) (circuit CircuitFr[FR], err error) {
+func getCircuit(path string) (circuit CircuitEmulated[FR], err error) {
 	path, err = filepath.Abs(path)
 	if err != nil {
 		return
 	}
 	var ok bool
-	if circuit, ok = circuitCache[path].(CircuitFr[FR]); ok {
+	if circuit, ok = circuitCache[path].(CircuitEmulated[FR]); ok {
 		return
 	}
 	var bytes []byte
@@ -275,10 +275,10 @@ func getCircuit(path string) (circuit CircuitFr[FR], err error) {
 	return
 }
 
-func toCircuitFr(c CircuitInfo) (circuit CircuitFr[FR], err error) {
-	circuit = make(CircuitFr[FR], len(c))
+func toCircuitFr(c CircuitInfo) (circuit CircuitEmulated[FR], err error) {
+	circuit = make(CircuitEmulated[FR], len(c))
 	for i, wireInfo := range c {
-		circuit[i].Inputs = make([]*WireFr[FR], len(wireInfo.Inputs))
+		circuit[i].Inputs = make([]*WireEmulated[FR], len(wireInfo.Inputs))
 		for iAsInput, iAsWire := range wireInfo.Inputs {
 			input := &circuit[iAsWire]
 			circuit[i].Inputs[iAsInput] = input
@@ -344,7 +344,7 @@ func TestLogNbInstances(t *testing.T) {
 		return func(t *testing.T) {
 			testCase, err := getTestCase(path)
 			assert.NoError(t, err)
-			wires := topologicalSortFr(testCase.Circuit)
+			wires := topologicalSortEmulated(testCase.Circuit)
 			serializedProof := testCase.Proof.Serialize()
 			logNbInstances := computeLogNbInstances(wires, len(serializedProof))
 			assert.Equal(t, 1, logNbInstances)
@@ -361,23 +361,23 @@ func TestLogNbInstances(t *testing.T) {
 func TestLoadCircuit(t *testing.T) {
 	c, err := getCircuit("test_vectors/resources/two_identity_gates_composed_single_input.json")
 	assert.NoError(t, err)
-	assert.Equal(t, []*WireFr[FR]{}, c[0].Inputs)
-	assert.Equal(t, []*WireFr[FR]{&c[0]}, c[1].Inputs)
-	assert.Equal(t, []*WireFr[FR]{&c[1]}, c[2].Inputs)
+	assert.Equal(t, []*WireEmulated[FR]{}, c[0].Inputs)
+	assert.Equal(t, []*WireEmulated[FR]{&c[0]}, c[1].Inputs)
+	assert.Equal(t, []*WireEmulated[FR]{&c[1]}, c[2].Inputs)
 }
 
 func TestTopSortTrivial(t *testing.T) {
-	c := make(CircuitFr[FR], 2)
-	c[0].Inputs = []*WireFr[FR]{&c[1]}
-	sorted := topologicalSortFr(c)
-	assert.Equal(t, []*WireFr[FR]{&c[1], &c[0]}, sorted)
+	c := make(CircuitEmulated[FR], 2)
+	c[0].Inputs = []*WireEmulated[FR]{&c[1]}
+	sorted := topologicalSortEmulated(c)
+	assert.Equal(t, []*WireEmulated[FR]{&c[1], &c[0]}, sorted)
 }
 
 func TestTopSortSingleGate(t *testing.T) {
-	c := make(CircuitFr[FR], 3)
-	c[0].Inputs = []*WireFr[FR]{&c[1], &c[2]}
-	sorted := topologicalSortFr[FR](c)
-	expected := []*WireFr[FR]{&c[1], &c[2], &c[0]}
+	c := make(CircuitEmulated[FR], 3)
+	c[0].Inputs = []*WireEmulated[FR]{&c[1], &c[2]}
+	sorted := topologicalSortEmulated(c)
+	expected := []*WireEmulated[FR]{&c[1], &c[2], &c[0]}
 	assert.True(t, SliceEqual(sorted, expected)) //TODO: Remove
 	AssertSliceEqual(t, sorted, expected)
 	assert.Equal(t, c[0].nbUniqueOutputs, 0)
@@ -386,30 +386,30 @@ func TestTopSortSingleGate(t *testing.T) {
 }
 
 func TestTopSortDeep(t *testing.T) {
-	c := make(CircuitFr[FR], 4)
-	c[0].Inputs = []*WireFr[FR]{&c[2]}
-	c[1].Inputs = []*WireFr[FR]{&c[3]}
-	c[2].Inputs = []*WireFr[FR]{}
-	c[3].Inputs = []*WireFr[FR]{&c[0]}
-	sorted := topologicalSortFr[FR](c)
-	assert.Equal(t, []*WireFr[FR]{&c[2], &c[0], &c[3], &c[1]}, sorted)
+	c := make(CircuitEmulated[FR], 4)
+	c[0].Inputs = []*WireEmulated[FR]{&c[2]}
+	c[1].Inputs = []*WireEmulated[FR]{&c[3]}
+	c[2].Inputs = []*WireEmulated[FR]{}
+	c[3].Inputs = []*WireEmulated[FR]{&c[0]}
+	sorted := topologicalSortEmulated(c)
+	assert.Equal(t, []*WireEmulated[FR]{&c[2], &c[0], &c[3], &c[1]}, sorted)
 }
 
 func TestTopSortWide(t *testing.T) {
-	c := make(CircuitFr[FR], 10)
-	c[0].Inputs = []*WireFr[FR]{&c[3], &c[8]}
-	c[1].Inputs = []*WireFr[FR]{&c[6]}
-	c[2].Inputs = []*WireFr[FR]{&c[4]}
-	c[3].Inputs = []*WireFr[FR]{}
-	c[4].Inputs = []*WireFr[FR]{}
-	c[5].Inputs = []*WireFr[FR]{&c[9]}
-	c[6].Inputs = []*WireFr[FR]{&c[9]}
-	c[7].Inputs = []*WireFr[FR]{&c[9], &c[5], &c[2]}
-	c[8].Inputs = []*WireFr[FR]{&c[4], &c[3]}
-	c[9].Inputs = []*WireFr[FR]{}
+	c := make(CircuitEmulated[FR], 10)
+	c[0].Inputs = []*WireEmulated[FR]{&c[3], &c[8]}
+	c[1].Inputs = []*WireEmulated[FR]{&c[6]}
+	c[2].Inputs = []*WireEmulated[FR]{&c[4]}
+	c[3].Inputs = []*WireEmulated[FR]{}
+	c[4].Inputs = []*WireEmulated[FR]{}
+	c[5].Inputs = []*WireEmulated[FR]{&c[9]}
+	c[6].Inputs = []*WireEmulated[FR]{&c[9]}
+	c[7].Inputs = []*WireEmulated[FR]{&c[9], &c[5], &c[2]}
+	c[8].Inputs = []*WireEmulated[FR]{&c[4], &c[3]}
+	c[9].Inputs = []*WireEmulated[FR]{}
 
-	sorted := topologicalSortFr[FR](c)
-	sortedExpected := []*WireFr[FR]{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
+	sorted := topologicalSortEmulated(c)
+	sortedExpected := []*WireEmulated[FR]{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
 
 	assert.Equal(t, sortedExpected, sorted)
 }
