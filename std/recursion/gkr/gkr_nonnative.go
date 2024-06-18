@@ -127,7 +127,7 @@ type WireAssignmentEmulated[FR emulated.FieldParams] map[*WireEmulated[FR]]polyn
 
 type Proofs[FR emulated.FieldParams] []sumcheck.Proof[FR] // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
-type eqTimesGateEvalSumcheckLazyClaimsFr[FR emulated.FieldParams] struct {
+type eqTimesGateEvalSumcheckLazyClaimsEmulated[FR emulated.FieldParams] struct {
 	wire               *WireEmulated[FR]
 	evaluationPoints   [][]emulated.Element[FR]
 	claimedEvaluations []emulated.Element[FR]
@@ -136,7 +136,7 @@ type eqTimesGateEvalSumcheckLazyClaimsFr[FR emulated.FieldParams] struct {
 	engine             *sumcheck.EmuEngine[FR]
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof sumcheck.DeferredEvalProof[FR]) error {
+func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof sumcheck.DeferredEvalProof[FR]) error {
 	inputEvaluationsNoRedundancy := proof
 	field := emulated.Field[FR]{}
 	p, err := polynomial.New[FR](e.verifier.api)
@@ -189,24 +189,24 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) VerifyFinalEval(r []emulated.E
 	return nil
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) NbClaims() int {
+func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) NbClaims() int {
 	return len(e.evaluationPoints)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) NbVars() int {
+func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) NbVars() int {
 	return len(e.evaluationPoints[0])
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) CombinedSum(a *emulated.Element[FR]) *emulated.Element[FR] {
+func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) CombinedSum(a *emulated.Element[FR]) *emulated.Element[FR] {
 	evalsAsPoly := polynomial.Univariate[FR](e.claimedEvaluations)
 	return e.verifier.p.EvalUnivariate(evalsAsPoly, a)
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) Degree(int) int {
+func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) Degree(int) int {
 	return 1 + e.wire.Gate.Degree()
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof sumcheck.EvaluationProof) error {
+func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof sumcheck.EvaluationProof) error {
 	field := emulated.Field[FR]{}
 	val, err := e.verifier.p.EvalMultilinear(r, e.manager.assignment[e.wire])
 	if err != nil {
@@ -217,18 +217,18 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsFr[FR]) AssertEvaluation(r []*emulated
 }
 
 type claimsManagerEmulated[FR emulated.FieldParams] struct {
-	claimsMap  map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsFr[FR]
+	claimsMap  map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]
 	assignment WireAssignmentEmulated[FR]
 }
 
 func newClaimsManagerEmulated[FR emulated.FieldParams](c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], verifier GKRVerifier[FR]) (claims claimsManagerEmulated[FR]) {
 	claims.assignment = assignment
-	claims.claimsMap = make(map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsFr[FR], len(c))
+	claims.claimsMap = make(map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR], len(c))
 
 	for i := range c {
 		wire := &c[i]
 
-		claims.claimsMap[wire] = &eqTimesGateEvalSumcheckLazyClaimsFr[FR]{
+		claims.claimsMap[wire] = &eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]{
 			wire:               wire,
 			evaluationPoints:   make([][]emulated.Element[FR], 0, wire.NbClaims()),
 			claimedEvaluations: make(polynomial.Multilinear[FR], wire.NbClaims()),
@@ -246,7 +246,7 @@ func (m *claimsManagerEmulated[FR]) add(wire *WireEmulated[FR], evaluationPoint 
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
 }
 
-func (m *claimsManagerEmulated[FR]) getLazyClaim(wire *WireEmulated[FR]) *eqTimesGateEvalSumcheckLazyClaimsFr[FR] {
+func (m *claimsManagerEmulated[FR]) getLazyClaim(wire *WireEmulated[FR]) *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR] {
 	return m.claimsMap[wire]
 }
 
@@ -565,9 +565,9 @@ type SettingsEmulated[FR emulated.FieldParams] struct {
 	nbVars           int
 }
 
-type OptionFr[FR emulated.FieldParams] func(*SettingsEmulated[FR])
+type OptionEmulated[FR emulated.FieldParams] func(*SettingsEmulated[FR])
 
-func WithSortedCircuit[FR emulated.FieldParams](sorted []*WireEmulated[FR]) OptionFr[FR] {
+func WithSortedCircuitEmulated[FR emulated.FieldParams](sorted []*WireEmulated[FR]) OptionEmulated[FR] {
 	return func(options *SettingsEmulated[FR]) {
 		options.sorted = sorted
 	}
@@ -631,7 +631,7 @@ func (v *GKRVerifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName
 	return nil
 }
 
-func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], transcriptSettings fiatshamir.SettingsEmulated[FR], options ...OptionFr[FR]) (SettingsEmulated[FR], error) {
+func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], transcriptSettings fiatshamir.SettingsEmulated[FR], options ...OptionEmulated[FR]) (SettingsEmulated[FR], error) {
 	var fr FR
 	var o SettingsEmulated[FR]
 	var err error
@@ -655,7 +655,7 @@ func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitEmulated[FR], assignm
 	}
 
 	if transcriptSettings.Transcript == nil {
-		challengeNames := ChallengeNamesFr(o.sorted, o.nbVars, transcriptSettings.Prefix)
+		challengeNames := ChallengeNamesEmulated(o.sorted, o.nbVars, transcriptSettings.Prefix)
 		o.transcript, err = recursion.NewTranscript(api, fr.Modulus(), challengeNames)
 		if err != nil {
 			return o, fmt.Errorf("new transcript: %w", err)
@@ -739,7 +739,7 @@ func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string 
 	return challenges
 }
 
-func ChallengeNamesFr[FR emulated.FieldParams](sorted []*WireEmulated[FR], logNbInstances int, prefix string) []string {
+func ChallengeNamesEmulated[FR emulated.FieldParams](sorted []*WireEmulated[FR], logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
@@ -872,7 +872,7 @@ func Prove(api frontend.API, current *big.Int, target *big.Int, c Circuit, assig
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete,
 // Use valueOfProof[FR](proof) to convert nativeproof by prover into nonnativeproof used by in-circuit verifier
-func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], proof Proofs[FR], transcriptSettings fiatshamir.SettingsEmulated[FR], options ...OptionFr[FR]) error {
+func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], proof Proofs[FR], transcriptSettings fiatshamir.SettingsEmulated[FR], options ...OptionEmulated[FR]) error {
 	o, err := v.setup(api, c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
