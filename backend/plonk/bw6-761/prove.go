@@ -529,7 +529,7 @@ func (s *instance) computeQuotient() (err error) {
 		return err
 	}
 
-	s.h, err = divideByXMinusOne(numerator, [2]*fft.Domain{s.domain0, s.domain1})
+	s.h, err = divideByZH(numerator, [2]*fft.Domain{s.domain0, s.domain1})
 	if err != nil {
 		return err
 	}
@@ -1150,10 +1150,10 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKe
 	return g.Wait()
 }
 
-// divideByXMinusOne
+// divideByZH
 // The input must be in LagrangeCoset.
 // The result is in Canonical Regular. (in place using a)
-func divideByXMinusOne(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, error) {
+func divideByZH(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, error) {
 
 	// check that the basis is LagrangeCoset
 	if a.Basis != iop.LagrangeCoset || a.Layout != iop.BitReverse {
