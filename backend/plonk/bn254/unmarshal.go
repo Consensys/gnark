@@ -11,7 +11,7 @@ func UnmarshalSolidity(s []byte, nbCommits int) Proof {
 	offset := 0
 	point_size := 64
 	fr_size := 32
-	proof.BatchedProof.ClaimedValues = make([]fr.Element, 7+nbCommits)
+	proof.BatchedProof.ClaimedValues = make([]fr.Element, 6+nbCommits)
 	proof.Bsb22Commitments = make([]bn254.G1Affine, nbCommits)
 
 	// uint256 l_com_x;
@@ -73,7 +73,7 @@ func UnmarshalSolidity(s []byte, nbCommits int) Proof {
 	// uint256[] selector_commit_api_at_zeta;
 	// uint256[] wire_committed_commitments;
 	for i := 0; i < nbCommits; i++ {
-		proof.BatchedProof.ClaimedValues[7+i].SetBytes(s[offset : offset+fr_size])
+		proof.BatchedProof.ClaimedValues[6+i].SetBytes(s[offset : offset+fr_size])
 		offset += fr_size
 	}
 
