@@ -55,7 +55,6 @@ func UnmarshalSolidity(s []byte, nbCommits int) Proof {
 	proof.ZShiftedOpening.ClaimedValue.SetBytes(s[offset : offset+fr_size])
 	offset += fr_size
 
-	// uint256 quotient_polynomial_at_zeta;
 	// uint256 linearization_polynomial_at_zeta;
 	proof.BatchedProof.ClaimedValues[0].SetBytes(s[offset : offset+fr_size])
 	offset += fr_size
