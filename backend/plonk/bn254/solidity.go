@@ -109,9 +109,6 @@ contract PlonkVerifier {
   uint256 private constant PROOF_OPENING_QCP_AT_ZETA = {{ hex $offset }};
   uint256 private constant PROOF_BSB_COMMITMENTS = {{ hex (add $offset (mul (len .CommitmentConstraintIndexes) 32 ) )}};
 
-  // -> next part of proof is
-  // [ openings_selector_commits || commitments_wires_commit_api]
-
   // -------- offset state
 
   // challenges to check the claimed quotient
