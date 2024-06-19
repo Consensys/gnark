@@ -1077,7 +1077,7 @@ func evaluateBlinded(p, bp *iop.Polynomial, zeta fr.Element) fr.Element {
 	return pEvaluatedAtZeta
 }
 
-// /!\ modifies p's underlying array of coefficients, in particular the size changes
+// /!\ modifies the size
 func getBlindedCoefficients(p, bp *iop.Polynomial) []fr.Element {
 	cp := p.Coefficients()
 	cbp := bp.Coefficients()
