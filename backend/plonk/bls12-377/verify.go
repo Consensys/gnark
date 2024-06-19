@@ -41,7 +41,6 @@ import (
 var (
 	errAlgebraicRelation = errors.New("algebraic relation does not hold")
 	errInvalidWitness    = errors.New("witness length is invalid")
-	errInvalidPoint      = errors.New("point is not on the curve")
 )
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.VerifierOption) error {
@@ -59,32 +58,6 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 
 	if len(publicWitness) != int(vk.NbPublicVariables) {
 		return errInvalidWitness
-	}
-
-	// check that the points in the proof are on the curve
-	for i := 0; i < len(proof.LRO); i++ {
-		if !proof.LRO[i].IsInSubGroup() {
-			return errInvalidPoint
-		}
-	}
-	if !proof.Z.IsInSubGroup() {
-		return errInvalidPoint
-	}
-	for i := 0; i < len(proof.H); i++ {
-		if !proof.H[i].IsInSubGroup() {
-			return errInvalidPoint
-		}
-	}
-	for i := 0; i < len(proof.Bsb22Commitments); i++ {
-		if !proof.Bsb22Commitments[i].IsInSubGroup() {
-			return errInvalidPoint
-		}
-	}
-	if !proof.BatchedProof.H.IsInSubGroup() {
-		return errInvalidPoint
-	}
-	if !proof.ZShiftedOpening.H.IsInSubGroup() {
-		return errInvalidPoint
 	}
 
 	// transcript to derive the challenge
