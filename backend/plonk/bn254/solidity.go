@@ -403,9 +403,6 @@ contract PlonkVerifier {
         let state := mload(0x40)
         let mPtr := add(state, STATE_LAST_MEM)
 
-        // gamma
-        // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
-        // (same for alpha, beta, zeta)
         mstore(mPtr, FS_GAMMA) // "gamma"
 
         mstore(add(mPtr, 0x20), VK_S1_COM_X)
