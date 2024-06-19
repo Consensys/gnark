@@ -1,7 +1,8 @@
 package fiatshamir
 
 import (
-	"github.com/consensys/gnark/frontend"
+	"math/big"
+	gohash "hash"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -9,8 +10,8 @@ import (
 type Settings struct {
 	Transcript     *Transcript
 	Prefix         string
-	BaseChallenges []frontend.Variable
-	Hash           hash.FieldHasher
+	BaseChallenges []big.Int
+	Hash           gohash.Hash
 }
 
 type SettingsEmulated[FR emulated.FieldParams] struct {
@@ -20,7 +21,7 @@ type SettingsEmulated[FR emulated.FieldParams] struct {
 	Hash           hash.FieldHasher
 }
 
-func WithTranscript(transcript *Transcript, prefix string, baseChallenges ...frontend.Variable) Settings {
+func WithTranscript(transcript *Transcript, prefix string, baseChallenges ...big.Int) Settings {
 	return Settings{
 		Transcript:     transcript,
 		Prefix:         prefix,
@@ -36,7 +37,7 @@ func WithTranscriptFr[FR emulated.FieldParams](transcript *Transcript, prefix st
 	}
 }
 
-func WithHash(hash hash.FieldHasher, baseChallenges ...frontend.Variable) Settings {
+func WithHash(hash gohash.Hash, baseChallenges ...big.Int) Settings {
 	return Settings{
 		BaseChallenges: baseChallenges,
 		Hash:           hash,

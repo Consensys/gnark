@@ -16,6 +16,7 @@ import (
 	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
+	"github.com/consensys/gnark/internal/parallel"
 )
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
@@ -815,7 +816,7 @@ func (v *GKRVerifier[FR]) getChallengesFr(transcript *fiatshamir.Transcript, nam
 }
 
 // Prove consistency of the claimed assignment
-func Prove(api frontend.API, current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...OptionGkr) (NativeProofs, error) {
+func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...OptionGkr) (NativeProofs, error) {
 	be := sumcheck.NewBigIntEngine(target)
 	o, err := setup(current, target, c, assignment, options...)
 	if err != nil {
@@ -1102,6 +1103,38 @@ func topologicalSort(c Circuit) []*Wire {
 	}
 
 	return sorted
+}
+
+// Complete the circuit evaluation from input values
+func (a WireAssignment) Complete(c Circuit, target *big.Int) WireAssignment {
+
+	engine := sumcheck.NewBigIntEngine(target)
+	sortedWires := topologicalSort(c)
+	nbInstances := a.NumInstances()
+	maxNbIns := 0
+
+	for _, w := range sortedWires {
+		maxNbIns = utils.Max(maxNbIns, len(w.Inputs))
+		if a[w] == nil {
+			a[w] = make([]*big.Int, nbInstances)
+		}
+	}
+
+	parallel.Execute(nbInstances, func(start, end int) {
+		ins := make([]*big.Int, maxNbIns)
+		for i := start; i < end; i++ {
+			for _, w := range sortedWires {
+				if !w.IsInput() {
+					for inI, in := range w.Inputs {
+						ins[inI] = a[in][i]
+					}
+					a[w][i] = w.Gate.Evaluate(engine, ins[:len(w.Inputs)]...)
+				}
+			}
+		}
+	})
+
+	return a
 }
 
 func (a WireAssignment) NumInstances() int {

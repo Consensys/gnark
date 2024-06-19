@@ -12,23 +12,6 @@ type MultiLin []frontend.Variable
 
 var minFoldScaledLogSize = 16
 
-func FromSlice(s []frontend.Variable) []*frontend.Variable {
-	r := make([]*frontend.Variable, len(s))
-	for i := range s {
-		r[i] = &s[i]
-	}
-	return r
-}
-
-// FromSliceReferences maps slice of emulated element references to their values.
-func FromSliceReferences(in []*frontend.Variable) []frontend.Variable {
-	r := make([]frontend.Variable, len(in))
-	for i := range in {
-		r[i] = *in[i]
-	}
-	return r
-}
-
 func _clone(m MultiLin, p *Pool) MultiLin {
 	if p == nil {
 		return m.Clone()
