@@ -84,7 +84,7 @@ contract PlonkVerifier {
   uint256 private constant PROOF_H_2_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_H_2_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
-  // evaluations of wire polynomials at zeta
+  // "evaluations of wire polynomials at zeta
   uint256 private constant PROOF_L_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_R_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_O_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -1151,7 +1151,7 @@ contract PlonkVerifier {
         compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
       }
 
-      /// @notice compute -z_h(ζ)*([H₁] + ζᵐ⁺²[H₂] + ζ²⁽ᵐ⁺²⁾[H₃]) and store the result at
+      /// @notice compute -z_h(ζ)*([H₁] + ζⁿ⁺²[H₂] + ζ²⁽ⁿ⁺²⁾[H₃]) and store the result at
       /// state + state_folded_h
       /// @param aproof pointer to the proof
       function fold_h(aproof) {
