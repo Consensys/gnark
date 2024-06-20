@@ -18,7 +18,6 @@ package plonk
 
 import (
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr/iop"
@@ -154,9 +153,7 @@ func (pk *ProvingKey) VerifyingKey() interface{} {
 func NewTrace(spr *cs.SparseR1CS, domain *fft.Domain) *Trace {
 	var trace Trace
 
-	nbConstraints := spr.GetNbConstraints()
-	sizeSystem := uint64(nbConstraints + len(spr.Public))
-	size := ecc.NextPowerOfTwo(sizeSystem)
+	size := int(domain.Cardinality)
 	commitmentInfo := spr.CommitmentInfo.(constraint.PlonkCommitments)
 
 	ql := make([]fr.Element, size)
