@@ -77,12 +77,12 @@ contract PlonkVerifier {
   uint256 private constant PROOF_O_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
   // h = h_0 + x^{n+2}h_1 + x^{2(n+2)}h_2
-  uint256 private constant PROOF_H_0_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H_0_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H_1_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H_1_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H_2_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H_2_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_0_COM_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_0_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_1_COM_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_1_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_2_COM_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_2_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
   // "evaluations of wire polynomials at zeta
   uint256 private constant PROOF_L_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -526,7 +526,7 @@ contract PlonkVerifier {
         // zeta
         mstore(mPtr, FS_ZETA) // "zeta"
         mstore(add(mPtr, 0x20), alpha_not_reduced)
-        calldatacopy(add(mPtr, 0x40), add(aproof, PROOF_H_0_X), 0xc0)
+        calldatacopy(add(mPtr, 0x40), add(aproof, PROOF_H_0_COM_X), 0xc0)
         let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
         if iszero(l_success) {
           error_verify()
@@ -567,24 +567,24 @@ contract PlonkVerifier {
       /// batch_compute_lagranges_at_z computes [L_0(z), .., L_{n-1}(z)]
       /// @param z point at which the Lagranges are evaluated
       /// @param zpnmo ζⁿ-1
-      /// @param n number of public inputs (number of Lagranges to compute)
+      /// @param n_pub number of public inputs (number of Lagranges to compute)
       /// @param mPtr pointer to which the results are stored
-      function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
+      function batch_compute_lagranges_at_z(z, zpnmo, n_pub, mPtr) {
 
         let zn := mulmod(zpnmo, VK_INV_DOMAIN_SIZE, R_MOD) // 1/n * (ζⁿ - 1)
         
         let _w := 1
         let _mPtr := mPtr
-        for {let i:=0} lt(i,n) {i:=add(i,1)}
+        for {let i:=0} lt(i,n_pub) {i:=add(i,1)}
         {
           mstore(_mPtr, addmod(z,sub(R_MOD, _w), R_MOD))
           _w := mulmod(_w, VK_OMEGA, R_MOD)
           _mPtr := add(_mPtr, 0x20)
         }
-        batch_invert(mPtr, n, _mPtr)
+        batch_invert(mPtr, n_pub, _mPtr)
         _mPtr := mPtr
         _w := 1
-        for {let i:=0} lt(i,n) {i:=add(i,1)}
+        for {let i:=0} lt(i,n_pub) {i:=add(i,1)}
         {
           mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , R_MOD), _w, R_MOD))
           _mPtr := add(_mPtr, 0x20)
@@ -1159,10 +1159,10 @@ contract PlonkVerifier {
         let n_plus_two := add(VK_DOMAIN_SIZE, 2)
         let mPtr := add(mload(0x40), STATE_LAST_MEM)
         let zeta_power_n_plus_two := pow(mload(add(state, STATE_ZETA)), n_plus_two, mPtr)
-        point_mul_calldata(add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_2_X), zeta_power_n_plus_two, mPtr)
-        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_1_X), mPtr)
+        point_mul_calldata(add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_2_COM_X), zeta_power_n_plus_two, mPtr)
+        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_1_COM_X), mPtr)
         point_mul(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), zeta_power_n_plus_two, mPtr)
-        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_0_X), mPtr)
+        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_0_COM_X), mPtr)
           point_mul(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE)), mPtr)
         let folded_h_y := mload(add(state, STATE_FOLDED_H_Y))
         folded_h_y := sub(P_MOD, folded_h_y)
