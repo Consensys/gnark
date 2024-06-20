@@ -1398,16 +1398,14 @@ func (proof *Proof) MarshalSolidity() []byte {
 
 	// uint256[] selector_commit_api_at_zeta;
 	// uint256[] wire_committed_commitments;
-	if len(proof.Bsb22Commitments) > 0 {
-		for i := 0; i < len(proof.Bsb22Commitments); i++ {
-			tmp32 = proof.BatchedProof.ClaimedValues[6+i].Bytes()
-			res = append(res, tmp32[:]...)
-		}
+	for i := 0; i < len(proof.Bsb22Commitments); i++ {
+		tmp32 = proof.BatchedProof.ClaimedValues[6+i].Bytes()
+		res = append(res, tmp32[:]...)
+	}
 
-		for _, bc := range proof.Bsb22Commitments {
-			tmp64 = bc.RawBytes()
-			res = append(res, tmp64[:]...)
-		}
+	for _, bc := range proof.Bsb22Commitments {
+		tmp64 = bc.RawBytes()
+		res = append(res, tmp64[:]...)
 	}
 
 	return res
