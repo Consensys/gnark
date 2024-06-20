@@ -696,13 +696,6 @@ func (s *instance) computeLinearizedPolynomial() error {
 
 func (s *instance) batchOpening() error {
 
-	// wait for LRO to be committed (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chLRO:
-	}
-
 	// wait for linearizedPolynomial to be computed (or ctx.Done())
 	select {
 	case <-s.ctx.Done():
