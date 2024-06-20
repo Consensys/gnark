@@ -908,11 +908,11 @@ contract PlonkVerifier {
         let acc_gamma := l_gamma_kzg
         let state_folded_digests := add(state, STATE_FOLDED_DIGESTS_X)
 
-        mstore(add(state, STATE_FOLDED_DIGESTS_X), mload(add(state, STATE_LINEARISED_POLYNOMIAL_X)))
+        mstore(state_folded_digests, mload(add(state, STATE_LINEARISED_POLYNOMIAL_X)))
         mstore(add(state, STATE_FOLDED_DIGESTS_Y), mload(add(state, STATE_LINEARISED_POLYNOMIAL_Y)))
         mstore(add(state, STATE_FOLDED_CLAIMED_VALUES), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA)))
 
-        point_acc_mul_calldata(add(state, STATE_FOLDED_DIGESTS_X), add(aproof, PROOF_L_COM_X), acc_gamma, mPtr)
+        point_acc_mul_calldata(state_folded_digests, add(aproof, PROOF_L_COM_X), acc_gamma, mPtr)
         fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_L_AT_ZETA), acc_gamma)
 
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
