@@ -144,14 +144,14 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 			nbBuf = cfg.HashToFieldFn.Size()
 		}
 		var wPowI, den, lagrange fr.Element
-		for i := range vk.CommitmentConstraintIndexes {
+		for i, cci := range vk.CommitmentConstraintIndexes {
 			cfg.HashToFieldFn.Write(proof.Bsb22Commitments[i].Marshal())
 			hashBts := cfg.HashToFieldFn.Sum(nil)
 			cfg.HashToFieldFn.Reset()
 			hashedCmt.SetBytes(hashBts[:nbBuf])
 
 			// Computing Lᵢ(ζ) where i=CommitmentIndex
-			wPowI.Exp(vk.Generator, big.NewInt(int64(vk.NbPublicVariables)+int64(vk.CommitmentConstraintIndexes[i])))
+			wPowI.Exp(vk.Generator, big.NewInt(int64(vk.NbPublicVariables)+int64(cci)))
 			den.Sub(&zeta, &wPowI) // ζ-wⁱ
 			lagrange.SetOne().
 				Sub(&zetaPowerM, &lagrange). // ζⁿ-1
