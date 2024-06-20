@@ -641,7 +641,9 @@ contract PlonkVerifier {
         h_fr := hash_fr(calldataload(p), calldataload(add(p, 0x20)), mPtr)
         ith_lagrange := compute_ith_lagrange_at_z(z, zpnmo, add(nb_public_inputs, VK_INDEX_COMMIT_API_{{ $index }}), mPtr)
         pi_commit := addmod(pi_commit, mulmod(h_fr, ith_lagrange, R_MOD), R_MOD)
+        {{ if (lt (inc $index) (len $.CommitmentConstraintIndexes) )}}
         p := add(p, 0x40)
+        {{ end }}
         {{ end }}
 
       }
