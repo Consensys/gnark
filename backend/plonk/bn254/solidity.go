@@ -762,7 +762,7 @@ contract PlonkVerifier {
 
         // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
         // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
-        // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
+        // the result is then 2**(8*16)*mPtr[:32] + mPtr[32:48]
         res := mulmod(mload(mPtr), HASH_FR_BB, R_MOD) // <- res = 2**128 * mPtr[:32]
         let b1 := shr(128, mload(add(mPtr, 0x20))) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
         res := addmod(res, b1, R_MOD)
