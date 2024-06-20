@@ -468,7 +468,7 @@ contract PlonkVerifier {
         // beta
         mstore(mPtr, FS_BETA) // "beta"
         mstore(add(mPtr, 0x20), gamma_not_reduced)
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
+        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1c -> 000.."beta"
         if iszero(l_success) {
           error_verify()
         }
