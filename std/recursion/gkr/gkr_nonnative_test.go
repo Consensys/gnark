@@ -450,7 +450,7 @@ func testSingleAddGate[FR emulated.FieldParams](t *testing.T, current *big.Int, 
 // 		slice[i].SetRandom()
 // 	}
 // }
-func TestGkrVectorsFr(t *testing.T) {
+func TestGkrVectorsEmulated(t *testing.T) {
 
 	testDirPath := "./test_vectors"
 	dirEntries, err := os.ReadDir(testDirPath)

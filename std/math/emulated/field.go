@@ -261,19 +261,22 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 
 func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 	if v == nil {
+		println("v is nil")
 		f.log.Error().Msg("constantValue: input element is nil")
 		return nil, false
 	}
 	if v.Limbs == nil {
+		println("v.Limbs is nil")
 		f.log.Error().Msg("constantValue: input element limbs are nil")
 		return nil, false
 	}
 
 	var ok bool
-	println("len(v.Limbs)", len(v.Limbs))
+
 	constLimbs := make([]*big.Int, len(v.Limbs))
 	for i, l := range v.Limbs {
 		if l == nil {
+			println("l is nil")
 			f.log.Error().Msgf("constantValue: limb %d is nil", i)
 			return nil, false
 		}
