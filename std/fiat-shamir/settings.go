@@ -5,9 +5,17 @@ import (
 	gohash "hash"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/frontend"
 )
 
 type Settings struct {
+	Transcript     *Transcript
+	Prefix         string
+	BaseChallenges []frontend.Variable
+	Hash           hash.FieldHasher
+}
+
+type SettingsBigInt struct {
 	Transcript     *Transcript
 	Prefix         string
 	BaseChallenges []big.Int
@@ -21,8 +29,16 @@ type SettingsEmulated[FR emulated.FieldParams] struct {
 	Hash           hash.FieldHasher
 }
 
-func WithTranscript(transcript *Transcript, prefix string, baseChallenges ...big.Int) Settings {
+func WithTranscript(transcript *Transcript, prefix string, baseChallenges ...frontend.Variable) Settings {
 	return Settings{
+		Transcript:     transcript,
+		Prefix:         prefix,
+		BaseChallenges: baseChallenges,
+	}
+}
+
+func WithTranscriptBigInt(transcript *Transcript, prefix string, baseChallenges ...big.Int) SettingsBigInt {
+	return SettingsBigInt{
 		Transcript:     transcript,
 		Prefix:         prefix,
 		BaseChallenges: baseChallenges,
@@ -37,8 +53,15 @@ func WithTranscriptFr[FR emulated.FieldParams](transcript *Transcript, prefix st
 	}
 }
 
-func WithHash(hash gohash.Hash, baseChallenges ...big.Int) Settings {
+func WithHash(hash hash.FieldHasher, baseChallenges ...frontend.Variable) Settings {
 	return Settings{
+		BaseChallenges: baseChallenges,
+		Hash:           hash,
+	}
+}
+
+func WithHashBigInt(hash gohash.Hash, baseChallenges ...big.Int) SettingsBigInt {
+	return SettingsBigInt{
 		BaseChallenges: baseChallenges,
 		Hash:           hash,
 	}

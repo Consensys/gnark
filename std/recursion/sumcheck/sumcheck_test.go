@@ -56,7 +56,7 @@ func testMultilinearSumcheckInstance[FR emulated.FieldParams](t *testing.T, curr
 	assignment := &MultilinearSumcheckCircuit[FR]{
 		Function: polynomial.ValueOfMultilinear[FR](mleB),
 		Claim:    emulated.ValueOf[FR](value),
-		Proof:    valueOfProof[FR](proof),
+		Proof:    ValueOfProof[FR](proof),
 	}
 	err = test.IsSolved(circuit, assignment, current)
 	assert.NoError(err)
@@ -168,7 +168,7 @@ func testMulGate1SumcheckInstance[FR emulated.FieldParams](t *testing.T, current
 	}
 	assignment := &MulGateSumcheck[FR]{
 		Inputs:           make([][]emulated.Element[FR], len(inputs)),
-		Proof:            valueOfProof[FR](proof),
+		Proof:            ValueOfProof[FR](proof),
 		EvaluationPoints: evalPointsC,
 		Claimed:          []emulated.Element[FR]{emulated.ValueOf[FR](evals[0])},
 	}

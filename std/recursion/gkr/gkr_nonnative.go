@@ -213,6 +213,8 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) AssertEvaluation(r []*em
 	if err != nil {
 		return fmt.Errorf("evaluation error: %w", err)
 	}
+	println("val", val)
+	println("expectedValue", expectedValue)
 	field.AssertIsEqual(val, expectedValue)
 	return nil
 }
@@ -284,13 +286,14 @@ func (m *claimsManager) add(wire *Wire, evaluationPoint []big.Int, evaluation bi
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
 }
 
-func (m *claimsManager) getClaim(wire *Wire) *eqTimesGateEvalSumcheckClaims {
+func (m *claimsManager) getClaim(engine *sumcheck.BigIntEngine, wire *Wire) *eqTimesGateEvalSumcheckClaims {
 	lazy := m.claimsMap[wire]
 	res := &eqTimesGateEvalSumcheckClaims{
 		wire:               wire,
 		evaluationPoints:   lazy.evaluationPoints,
 		claimedEvaluations: lazy.claimedEvaluations,
 		manager:            m,
+		engine:             engine,
 	}
 
 	if wire.IsInput() {
@@ -408,7 +411,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() sumcheck.NativePolynomial {
 	nbInner := len(s) // wrt output, which has high nbOuter and low nbInner
 	nbOuter := len(s[0]) / 2
 
-	gJ := make([]*big.Int, degGJ)
+	gJ := make([]big.Int, degGJ)
 	var mu sync.Mutex
 	computeAll := func(start, end int) {
 		var step big.Int
@@ -417,7 +420,6 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() sumcheck.NativePolynomial {
 		operands := make([]big.Int, degGJ*nbInner)
 
 		for i := start; i < end; i++ {
-
 			block := nbOuter + i
 			for j := 0; j < nbInner; j++ {
 				step.Set(s[j][i])
@@ -439,7 +441,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() sumcheck.NativePolynomial {
 		}
 		mu.Lock()
 		for i := 0; i < len(gJ); i++ {
-			gJ[i].Add(gJ[i], &res[i])
+			gJ[i].Add(&gJ[i], &res[i])
 		}
 		mu.Unlock()
 	}
@@ -453,7 +455,7 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() sumcheck.NativePolynomial {
 
 	// Perf-TODO: Separate functions Gate.TotalDegree and Gate.Degree(i) so that we get to use possibly smaller values for degGJ. Won't help with MiMC though
 
-	return gJ
+	return sumcheck.ReferenceBigIntSlice(gJ)
 }
 
 // Next first folds the "preprocessing" and "eq" polynomials then compute the new g_j
@@ -816,7 +818,7 @@ func (v *GKRVerifier[FR]) getChallengesFr(transcript *fiatshamir.Transcript, nam
 }
 
 // Prove consistency of the claimed assignment
-func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.Settings, options ...OptionGkr) (NativeProofs, error) {
+func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.SettingsBigInt, options ...OptionGkr) (NativeProofs, error) {
 	be := sumcheck.NewBigIntEngine(target)
 	o, err := setup(current, target, c, assignment, options...)
 	if err != nil {
@@ -846,7 +848,7 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 			claims.add(wire, sumcheck.DereferenceBigIntSlice(firstChallenge), *evaluation)
 		}
 
-		claim := claims.getClaim(wire)
+		claim := claims.getClaim(be, wire)
 		if wire.noProof() { // input wires with one claim only
 			proof[i] = sumcheck.NativeProof{
 				RoundPolyEvaluations: []sumcheck.NativePolynomial{},
@@ -859,9 +861,11 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 				return proof, err
 			}
 
-			finalEvalProof := proof[i].FinalEvalProof.([]*big.Int)
+			finalEvalProof := proof[i].FinalEvalProof.([]big.Int)
 			baseChallenge = make([]*big.Int, len(finalEvalProof))
-			copy(baseChallenge, finalEvalProof)
+			for i := range finalEvalProof {
+				baseChallenge[i] = &finalEvalProof[i]
+			}
 		}
 		// the verifier checks a single claim about input wires itself
 		claims.deleteClaim(wire)

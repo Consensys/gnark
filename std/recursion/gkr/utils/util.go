@@ -173,3 +173,59 @@ func NewMessageCounterGenerator(startState, step int) func() hash.Hash {
 		return NewMessageCounter(startState, step)
 	}
 }
+
+// type HashDescriptionEmulated map[string]interface{}
+
+// func HashFromDescriptionEmulated(api frontend.API, d HashDescriptionEmulated) (hash.FieldHasher, error) {
+// 	if _type, ok := d["type"]; ok {
+// 		switch _type {
+// 		case "const":
+// 			startState := int64(d["val"].(float64))
+// 			return &MessageCounter{startState: startState, step: 0, state: startState, api: api}, nil
+// 		default:
+// 			return nil, fmt.Errorf("unknown fake hash type \"%s\"", _type)
+// 		}
+// 	}
+// 	return nil, fmt.Errorf("hash description missing type")
+// }
+
+// type MessageCounterEmulated struct {
+// 	startState int64
+// 	state      int64
+// 	step       int64
+
+
+// 	// cheap trick to avoid unconstrained input errors
+// 	api  frontend.API
+// 	zero frontend.Variable
+// }
+
+// func (m *MessageCounterEmulated) Write(data ...frontend.Variable) {
+
+// 	for i := range data {
+// 		sq1, sq2 := m.api.Mul(data[i], data[i]), m.api.Mul(data[i], data[i])
+// 		m.zero = m.api.Sub(sq1, sq2, m.zero)
+// 	}
+
+// 	m.state += int64(len(data)) * m.step
+// }
+
+// func (m *MessageCounterEmulated) Sum() frontend.Variable {
+// 	return m.api.Add(m.state, m.zero)
+// }
+
+// func (m *MessageCounterEmulated) Reset() {
+// 	m.zero = 0
+// 	m.state = m.startState
+// }
+
+// func NewMessageCounterEmulated(api frontend.API, startState, step int) hash.FieldHasher {
+// 	transcript := &MessageCounterEmulated{startState: int64(startState), state: int64(startState), step: int64(step), api: api}
+// 	return transcript
+// }
+
+// func NewMessageCounterGeneratorEmulated(startState, step int) func(frontend.API) hash.FieldHasher {
+// 	return func(api frontend.API) hash.FieldHasher {
+// 		return NewMessageCounterEmulated(api, startState, step)
+// 	}
+// }

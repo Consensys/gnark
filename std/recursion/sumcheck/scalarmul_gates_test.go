@@ -137,7 +137,7 @@ func testProjAddSumCheckInstance[FR emulated.FieldParams](t *testing.T, current 
 	}
 	assignment := &ProjAddSumcheckCircuit[FR]{
 		Inputs:           make([][]emulated.Element[FR], len(inputs)),
-		Proof:            valueOfProof[FR](proof),
+		Proof:            ValueOfProof[FR](proof),
 		EvaluationPoints: evalPointsC,
 		Claimed:          []emulated.Element[FR]{emulated.ValueOf[FR](evals[0])},
 	}
@@ -391,7 +391,7 @@ func testProjDblAddSelectSumCheckInstance[FR emulated.FieldParams](t *testing.T,
 	}
 	assignment := &ProjDblAddSelectSumcheckCircuit[FR]{
 		Inputs:           make([][]emulated.Element[FR], len(inputs)),
-		Proof:            valueOfProof[FR](proof),
+		Proof:            ValueOfProof[FR](proof),
 		EvaluationPoints: evalPointsC,
 		Claimed:          []emulated.Element[FR]{emulated.ValueOf[FR](evals[0])},
 	}

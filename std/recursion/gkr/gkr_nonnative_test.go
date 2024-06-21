@@ -16,20 +16,16 @@ import (
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/recursion/gkr/utils"
 	"github.com/consensys/gnark/std/math/emulated"
-	mathpoly "github.com/consensys/gnark/std/math/polynomial"
+	"github.com/consensys/gnark/std/math/polynomial"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	//"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 )
 
-type FR = emulated.BN254Fp
-
-var GatesEmulated = map[string]GateEmulated[FR]{
-	"identity": IdentityGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
-	"add":      AddGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
-	"mul":      MulGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
-}
+// type FR = emulated.BN254Fp
 
 var Gates = map[string]Gate{
 	"identity": IdentityGate[*sumcheck.BigIntEngine, *big.Int]{},
@@ -46,11 +42,6 @@ var Gates = map[string]Gate{
 // 	testManyInstances(t, 1, testNoGate)
 // }
 
-func TestSingleAddGateTwoInstances(t *testing.T) {
-	current := ecc.BN254.ScalarField()
-	var fr FR
-	testSingleAddGate(t, current, fr.Modulus(), []*big.Int{&four, &three}, []*big.Int{&two, &three})
-}
 
 // func TestSingleAddGate(t *testing.T) {
 // 	testManyInstances(t, 2, testSingleAddGate)
@@ -215,18 +206,74 @@ var one, two, three, four, five, six big.Int
 // 	assert.NoError(t, err, "proof rejected")
 // }
 
-func testSingleAddGate(t *testing.T, current *big.Int, target *big.Int, inputAssignments ...[]*big.Int) {
+func toEmulated[FR emulated.FieldParams](input [][]*big.Int) [][]emulated.Element[FR] {
+	output := make([][]emulated.Element[FR], len(input))
+	for i, in := range input {
+		output[i] = make([]emulated.Element[FR], len(in))
+		for j, in2 := range in {
+			output[i][j] = emulated.ValueOf[FR](*in2)
+		}
+	}
+	return output
+}
+
+func TestSingleAddGateTwoInstances(t *testing.T) {
+	current := ecc.BN254.ScalarField()
+	type FR = emulated.BN254Fp
+	var fr FR
+	testSingleAddGate[FR](t, current, fr.Modulus(), []*big.Int{&four, &three}, []*big.Int{&two, &three})
+}
+
+func testSingleAddGate[FR emulated.FieldParams](t *testing.T, current *big.Int, target *big.Int, inputAssignments ...[]*big.Int) {
 	c := make(Circuit, 3)
 	c[2] = Wire{
 		Gate:   Gates["add"],
 		Inputs: []*Wire{&c[0], &c[1]},
 	}
 
+	//assert := test.NewAssert(t)
+	be := sumcheck.NewBigIntEngine(current)
+	output := make([][]*big.Int, len(inputAssignments))
+	for i, in := range inputAssignments {
+		output[i] = make([]*big.Int, len(in))
+		for j, in2 := range in {
+			output[i][j] = Gates["add"].Evaluate(be, in2)
+		}
+	}
+
 	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c, target)
 
-	proof, err := Prove(current, target, c, assignment, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
+	proof, err := Prove(current, target, c, assignment, fiatshamir.WithHashBigInt(utils.NewMessageCounter(1, 1)))
 	assert.NoError(t, err)
-	fmt.Println(proof)
+ 
+	proofEmulated := make(Proofs[FR], len(proof))
+	for i, proof := range proof {
+		proofEmulated[i] = sumcheck.ValueOfProof[FR](proof)
+	}
+
+	assignmentGkr := &GkrVerifierCircuitEmulated[FR]{
+		Input:           toEmulated[FR](inputAssignments),
+		Output:          toEmulated[FR](output),
+		SerializedProof: proofEmulated.Serialize(),
+		ToFail:          false,
+	}
+
+	validCircuit := &GkrVerifierCircuitEmulated[FR]{
+		Input:           make([][]emulated.Element[FR], len(toEmulated[FR](inputAssignments))),
+		Output:          make([][]emulated.Element[FR], len(toEmulated[FR](output))),
+		SerializedProof: make([]emulated.Element[FR], len(proofEmulated)),
+		ToFail:          false,
+	}	
+
+	println("start_isSolved")
+	err = test.IsSolved(validCircuit, assignmentGkr, current)
+	println("err", err)
+	//assert.NoError(t, err)
+	_, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, validCircuit)
+	println("err", err)
+
+
+	//t.Run("testSingleAddGate", generateVerifier(toEmulated(inputAssignments), toEmulated(output), proofEmulated))
 
 	// err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
 	// assert.NoError(t, err, "proof rejected")
@@ -234,6 +281,18 @@ func testSingleAddGate(t *testing.T, current *big.Int, target *big.Int, inputAss
 	// err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
 	// assert.NotNil(t, err, "bad proof accepted")
 }
+
+// func TestMulGate1Sumcheck(t *testing.T) {
+// 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{4, 3}, {2, 3}})
+// 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{1, 2, 3, 4}, {5, 6, 7, 8}})
+// 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{1, 2, 3, 4, 5, 6, 7, 8}, {11, 12, 13, 14, 15, 16, 17, 18}})
+// 	inputs := [][]int{{1}, {2}}
+// 	for i := 1; i < (1 << 10); i++ {
+// 		inputs[0] = append(inputs[0], inputs[0][i-1]+1)
+// 		inputs[1] = append(inputs[1], inputs[1][i-1]+2)
+// 	}
+// 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), inputs)
+// }
 
 // func testSingleMulGate(t *testing.T, inputAssignments ...[]fr.Element) {
 
@@ -403,7 +462,7 @@ func TestGkrVectorsFr(t *testing.T) {
 			path := filepath.Join(testDirPath, dirEntry.Name())
 			noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
 
-			t.Run(noExt, generateTestVerifier(path))
+			t.Run(noExt, generateTestVerifier[emulated.BN254Fr](path))
 		}
 	}
 }
@@ -419,7 +478,45 @@ func noSuccess(o *_options) {
 	o.noSuccess = true
 }
 
-func generateTestVerifier(path string, options ...option) func(t *testing.T) {
+func generateVerifier[FR emulated.FieldParams](Input [][]emulated.Element[FR], Output [][]emulated.Element[FR], Proof Proofs[FR]) func(t *testing.T) {
+
+	return func(t *testing.T) {
+
+		assert := test.NewAssert(t)
+
+		assignment := &GkrVerifierCircuitEmulated[FR]{
+			Input:           Input,
+			Output:          Output,
+			SerializedProof: Proof.Serialize(),
+			ToFail:          false,
+		}
+
+		validCircuit := &GkrVerifierCircuitEmulated[FR]{
+			Input:           make([][]emulated.Element[FR], len(Input)),
+			Output:          make([][]emulated.Element[FR], len(Output)),
+			SerializedProof: make([]emulated.Element[FR], len(assignment.SerializedProof)),
+			ToFail:          false,
+		}
+
+		invalidCircuit := &GkrVerifierCircuitEmulated[FR]{
+			Input:           make([][]emulated.Element[FR], len(Input)),
+			Output:          make([][]emulated.Element[FR], len(Output)),
+			SerializedProof: make([]emulated.Element[FR], len(assignment.SerializedProof)),
+			ToFail:          true,
+		}
+
+		fillWithBlanks(validCircuit.Input, len(Input[0]))
+		fillWithBlanks(validCircuit.Output, len(Input[0]))
+		fillWithBlanks(invalidCircuit.Input, len(Input[0]))
+		fillWithBlanks(invalidCircuit.Output, len(Input[0]))
+
+		assert.CheckCircuit(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
+		//assert.CheckCircuit(invalidCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithInvalidAssignment(assignment))
+	}
+}
+
+
+func generateTestVerifier[FR emulated.FieldParams](path string, options ...option) func(t *testing.T) {
 	var opts _options
 	for _, opt := range options {
 		opt(&opts)
@@ -427,11 +524,11 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 
 	return func(t *testing.T) {
 
-		testCase, err := getTestCase(path)
+		testCase, err := getTestCase[FR](path)
 		assert := test.NewAssert(t)
 		assert.NoError(err)
 
-		assignment := &GkrVerifierCircuitEmulated{
+		assignment := &GkrVerifierCircuitEmulated[FR]{
 			Input:           testCase.Input,
 			Output:          testCase.Output,
 			SerializedProof: testCase.Proof.Serialize(),
@@ -439,7 +536,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			TestCaseName:    path,
 		}
 
-		validCircuit := &GkrVerifierCircuitEmulated{
+		validCircuit := &GkrVerifierCircuitEmulated[FR]{
 			Input:           make([][]emulated.Element[FR], len(testCase.Input)),
 			Output:          make([][]emulated.Element[FR], len(testCase.Output)),
 			SerializedProof: make([]emulated.Element[FR], len(assignment.SerializedProof)),
@@ -447,7 +544,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 			TestCaseName:    path,
 		}
 
-		invalidCircuit := &GkrVerifierCircuitEmulated{
+		invalidCircuit := &GkrVerifierCircuitEmulated[FR]{
 			Input:           make([][]emulated.Element[FR], len(testCase.Input)),
 			Output:          make([][]emulated.Element[FR], len(testCase.Output)),
 			SerializedProof: make([]emulated.Element[FR], len(assignment.SerializedProof)),
@@ -470,7 +567,7 @@ func generateTestVerifier(path string, options ...option) func(t *testing.T) {
 	}
 }
 
-type GkrVerifierCircuitEmulated struct {
+type GkrVerifierCircuitEmulated[FR emulated.FieldParams] struct {
 	Input           [][]emulated.Element[FR]
 	Output          [][]emulated.Element[FR] `gnark:",public"`
 	SerializedProof []emulated.Element[FR]
@@ -478,7 +575,7 @@ type GkrVerifierCircuitEmulated struct {
 	TestCaseName    string
 }
 
-func (c *GkrVerifierCircuitEmulated) Define(api frontend.API) error {
+func (c *GkrVerifierCircuitEmulated[FR]) Define(api frontend.API) error {
 	var fr FR
 	var testCase *TestCase[FR]
 	var proof Proofs[FR]
@@ -489,8 +586,8 @@ func (c *GkrVerifierCircuitEmulated) Define(api frontend.API) error {
 		return fmt.Errorf("new verifier: %w", err)
 	}
 
-	//var proofRef Proof
-	if testCase, err = getTestCase(c.TestCaseName); err != nil {
+	// var proofRef Proof
+	if testCase, err = getTestCase[FR](c.TestCaseName); err != nil {
 		return err
 	}
 	sorted := topologicalSortEmulated(testCase.Circuit)
@@ -558,7 +655,7 @@ type TestCaseInfo struct {
 // var testCases = make(map[string]*TestCase[emulated.FieldParams])
 var testCases = make(map[string]interface{})
 
-func getTestCase(path string) (*TestCase[FR], error) {
+func getTestCase[FR emulated.FieldParams](path string) (*TestCase[FR], error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -576,11 +673,11 @@ func getTestCase(path string) (*TestCase[FR], error) {
 				return nil, err
 			}
 
-			if cse.Circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
+			if cse.Circuit, err = getCircuit[FR](filepath.Join(dir, info.Circuit)); err != nil {
 				return nil, err
 			}
 
-			cse.Proof = unmarshalProof(info.Proof)
+			cse.Proof = unmarshalProof[FR](info.Proof)
 
 			cse.Input = utils.ToVariableSliceSliceFr[FR](info.Input)
 			cse.Output = utils.ToVariableSliceSliceFr[FR](info.Output)
@@ -605,7 +702,7 @@ type CircuitInfo []WireInfo
 // var circuitCache = make(map[string]CircuitFr[emulated.FieldParams])
 var circuitCache = make(map[string]interface{})
 
-func getCircuit(path string) (circuit CircuitEmulated[FR], err error) {
+func getCircuit[FR emulated.FieldParams](path string) (circuit CircuitEmulated[FR], err error) {
 	path, err = filepath.Abs(path)
 	if err != nil {
 		return
@@ -618,7 +715,7 @@ func getCircuit(path string) (circuit CircuitEmulated[FR], err error) {
 	if bytes, err = os.ReadFile(path); err == nil {
 		var circuitInfo CircuitInfo
 		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
-			circuit, err = toCircuitEmulated(circuitInfo)
+			circuit, err = toCircuitEmulated[FR](circuitInfo)
 			if err == nil {
 				circuitCache[path] = circuit
 			}
@@ -627,7 +724,13 @@ func getCircuit(path string) (circuit CircuitEmulated[FR], err error) {
 	return
 }
 
-func toCircuitEmulated(c CircuitInfo) (circuit CircuitEmulated[FR], err error) {
+func toCircuitEmulated[FR emulated.FieldParams](c CircuitInfo) (circuit CircuitEmulated[FR], err error) {
+	var GatesEmulated = map[string]GateEmulated[FR]{
+		"identity": IdentityGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+		"add":      AddGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+		"mul":      MulGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+	}
+
 	circuit = make(CircuitEmulated[FR], len(c))
 	for i, wireInfo := range c {
 		circuit[i].Inputs = make([]*WireEmulated[FR], len(wireInfo.Inputs))
@@ -645,17 +748,23 @@ func toCircuitEmulated(c CircuitInfo) (circuit CircuitEmulated[FR], err error) {
 	return
 }
 
-type _select int
+type _select[FR emulated.FieldParams] int
 
-func init() {
-	GatesEmulated["select-input-3"] = _select(2)
-}
+// func init() {
+// 	var GatesEmulated = map[string]GateEmulated[FR]{
+// 		"identity": IdentityGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+// 		"add":      AddGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+// 		"mul":      MulGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+// 	}
+	
+// 	GatesEmulated["select-input-3"] = _select[FR](2)
+// }
 
-func (g _select) Evaluate(_ *sumcheck.EmuEngine[FR], in ...*emulated.Element[FR]) *emulated.Element[FR] {
+func (g _select[FR]) Evaluate(_ *sumcheck.EmuEngine[FR], in ...*emulated.Element[FR]) *emulated.Element[FR] {
 	return in[g]
 }
 
-func (g _select) Degree() int {
+func (g _select[FR]) Degree() int {
 	return 1
 }
 
@@ -666,7 +775,7 @@ type PrintableSumcheckProof struct {
 	RoundPolyEvaluations [][]interface{} `json:"partialSumPolys"`
 }
 
-func unmarshalProof(printable PrintableProof) (proof Proofs[FR]) {
+func unmarshalProof[FR emulated.FieldParams](printable PrintableProof) (proof Proofs[FR]) {
 
 	proof = make(Proofs[FR], len(printable))
 	for i := range printable {
@@ -682,7 +791,7 @@ func unmarshalProof(printable PrintableProof) (proof Proofs[FR]) {
 			proof[i].FinalEvalProof = nil
 		}
 
-		proof[i].RoundPolyEvaluations = make([]mathpoly.Univariate[FR], len(printable[i].RoundPolyEvaluations))
+		proof[i].RoundPolyEvaluations = make([]polynomial.Univariate[FR], len(printable[i].RoundPolyEvaluations))
 		for k := range printable[i].RoundPolyEvaluations {
 			proof[i].RoundPolyEvaluations[k] = utils.ToVariableSliceFr[FR](printable[i].RoundPolyEvaluations[k])
 		}
@@ -691,10 +800,10 @@ func unmarshalProof(printable PrintableProof) (proof Proofs[FR]) {
 }
 
 func TestLogNbInstances(t *testing.T) {
-
+	type FR = emulated.BN254Fp
 	testLogNbInstances := func(path string) func(t *testing.T) {
 		return func(t *testing.T) {
-			testCase, err := getTestCase(path)
+			testCase, err := getTestCase[FR](path)
 			assert.NoError(t, err)
 			wires := topologicalSortEmulated(testCase.Circuit)
 			serializedProof := testCase.Proof.Serialize()
@@ -711,7 +820,8 @@ func TestLogNbInstances(t *testing.T) {
 }
 
 func TestLoadCircuit(t *testing.T) {
-	c, err := getCircuit("test_vectors/resources/two_identity_gates_composed_single_input.json")
+	type FR = emulated.BN254Fp
+	c, err := getCircuit[FR]("test_vectors/resources/two_identity_gates_composed_single_input.json")
 	assert.NoError(t, err)
 	assert.Equal(t, []*WireEmulated[FR]{}, c[0].Inputs)
 	assert.Equal(t, []*WireEmulated[FR]{&c[0]}, c[1].Inputs)
@@ -719,6 +829,7 @@ func TestLoadCircuit(t *testing.T) {
 }
 
 func TestTopSortTrivial(t *testing.T) {
+	type FR = emulated.BN254Fp
 	c := make(CircuitEmulated[FR], 2)
 	c[0].Inputs = []*WireEmulated[FR]{&c[1]}
 	sorted := topologicalSortEmulated(c)
@@ -726,6 +837,7 @@ func TestTopSortTrivial(t *testing.T) {
 }
 
 func TestTopSortSingleGate(t *testing.T) {
+	type FR = emulated.BN254Fp
 	c := make(CircuitEmulated[FR], 3)
 	c[0].Inputs = []*WireEmulated[FR]{&c[1], &c[2]}
 	sorted := topologicalSortEmulated(c)
@@ -738,6 +850,7 @@ func TestTopSortSingleGate(t *testing.T) {
 }
 
 func TestTopSortDeep(t *testing.T) {
+	type FR = emulated.BN254Fp
 	c := make(CircuitEmulated[FR], 4)
 	c[0].Inputs = []*WireEmulated[FR]{&c[2]}
 	c[1].Inputs = []*WireEmulated[FR]{&c[3]}
@@ -748,6 +861,7 @@ func TestTopSortDeep(t *testing.T) {
 }
 
 func TestTopSortWide(t *testing.T) {
+	type FR = emulated.BN254Fp
 	c := make(CircuitEmulated[FR], 10)
 	c[0].Inputs = []*WireEmulated[FR]{&c[3], &c[8]}
 	c[1].Inputs = []*WireEmulated[FR]{&c[6]}
