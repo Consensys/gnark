@@ -4,9 +4,9 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
-func (e Ext12) nSquare(z *E12, n int) *E12 {
+func (e Ext12) nSquareGS(z *E12, n int) *E12 {
 	for i := 0; i < n; i++ {
-		z = e.Square(z)
+		z = e.CyclotomicSquare(z)
 	}
 	return z
 }
@@ -39,37 +39,37 @@ func (e Ext12) ExpByU(x *E12) *E12 {
 	z = e.Mul(x, t1)
 	t2 := e.Square(t1)
 	t1 = e.Mul(t0, t2)
-	t2 = e.nSquare(t2, 3)
+	t2 = e.nSquareGS(t2, 3)
 	t2 = e.Mul(z, t2)
-	t2 = e.nSquare(t2, 2)
+	t2 = e.nSquareGS(t2, 2)
 	t2 = e.Mul(x, t2)
-	t2 = e.nSquare(t2, 5)
+	t2 = e.nSquareGS(t2, 5)
 	t2 = e.Mul(t1, t2)
-	t2 = e.nSquare(t2, 3)
+	t2 = e.nSquareGS(t2, 3)
 	t2 = e.Mul(x, t2)
-	t2 = e.nSquare(t2, 4)
+	t2 = e.nSquareGS(t2, 4)
 	t2 = e.Mul(z, t2)
-	t2 = e.nSquare(t2, 9)
+	t2 = e.nSquareGS(t2, 9)
 	t2 = e.Mul(z, t2)
-	t2 = e.nSquare(t2, 4)
+	t2 = e.nSquareGS(t2, 4)
 	t2 = e.Mul(t0, t2)
-	t2 = e.nSquare(t2, 5)
+	t2 = e.nSquareGS(t2, 5)
 	t1 = e.Mul(t1, t2)
 	t1 = e.Square(t1)
 	t1 = e.Mul(x, t1)
-	t1 = e.nSquare(t1, 5)
+	t1 = e.nSquareGS(t1, 5)
 	t1 = e.Mul(z, t1)
-	t1 = e.nSquare(t1, 3)
+	t1 = e.nSquareGS(t1, 3)
 	t0 = e.Mul(t0, t1)
-	t0 = e.nSquare(t0, 6)
+	t0 = e.nSquareGS(t0, 6)
 	t0 = e.Mul(z, t0)
-	t0 = e.nSquare(t0, 4)
+	t0 = e.nSquareGS(t0, 4)
 	z = e.Mul(z, t0)
-	z = e.nSquare(z, 2)
+	z = e.nSquareGS(z, 2)
 	z = e.Mul(x, z)
-	z = e.nSquare(z, 2)
+	z = e.nSquareGS(z, 2)
 	z = e.Mul(x, z)
-	z = e.nSquare(z, 3)
+	z = e.nSquareGS(z, 3)
 
 	return z
 }
