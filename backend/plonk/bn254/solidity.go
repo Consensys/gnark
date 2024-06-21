@@ -408,25 +408,26 @@ contract PlonkVerifier {
         // (same for alpha, beta, zeta)
         mstore(mPtr, FS_GAMMA) // "gamma"
 
-        mstore(add(mPtr, 0x20), VK_S1_COM_X)
-        mstore(add(mPtr, 0x40), VK_S1_COM_Y)
-        mstore(add(mPtr, 0x60), VK_S2_COM_X)
-        mstore(add(mPtr, 0x80), VK_S2_COM_Y)
-        mstore(add(mPtr, 0xa0), VK_S3_COM_X)
-        mstore(add(mPtr, 0xc0), VK_S3_COM_Y)
-        mstore(add(mPtr, 0xe0), VK_QL_COM_X)
-        mstore(add(mPtr, 0x100), VK_QL_COM_Y)
-        mstore(add(mPtr, 0x120), VK_QR_COM_X)
-        mstore(add(mPtr, 0x140), VK_QR_COM_Y)
-        mstore(add(mPtr, 0x160), VK_QM_COM_X)
-        mstore(add(mPtr, 0x180), VK_QM_COM_Y)
-        mstore(add(mPtr, 0x1a0), VK_QO_COM_X)
-        mstore(add(mPtr, 0x1c0), VK_QO_COM_Y)
-        mstore(add(mPtr, 0x1e0), VK_QK_COM_X)
-        mstore(add(mPtr, 0x200), VK_QK_COM_Y)
+        {{ $offset = 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_X) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S1_COM_Y) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_X) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S2_COM_Y) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_X) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_S3_COM_Y) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_X) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QL_COM_Y) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_X) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QR_COM_Y) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_X) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QM_COM_Y) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_X) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QO_COM_Y) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_X) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_Y) {{ $offset = add $offset 0x20}}
         {{ range $index, $element := .CommitmentConstraintIndexes}}
-        mstore(add(mPtr, {{ hex (add 544 (mul $index 64)) }}), VK_QCP_{{ $index }}_X)
-        mstore(add(mPtr, {{ hex (add 576 (mul $index 64)) }}), VK_QCP_{{ $index }}_Y)
+        mstore(add(mPtr, {{ hex (add $offset (mul $index 64)) }}), VK_QCP_{{ $index }}_X)
+        mstore(add(mPtr, {{ hex (add (add $offset 0x20) (mul $index 64)) }}), VK_QCP_{{ $index }}_Y)
         {{ end }}
         // public inputs
         let _mPtr := add(mPtr, {{ hex (add (mul (len .CommitmentConstraintIndexes) 64) 544) }})
