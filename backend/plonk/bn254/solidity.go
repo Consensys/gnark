@@ -864,17 +864,18 @@ contract PlonkVerifier {
         mstore(folded_quotients_y, sub(P_MOD, mload(folded_quotients_y)))
 
         mstore(mPtr, mload(folded_digests))
-        mstore(add(mPtr, 0x20), mload(add(folded_digests, 0x20)))
-        mstore(add(mPtr, 0x40), G2_SRS_0_X_0) // the 4 lines are the canonical G2 point on BN254
-        mstore(add(mPtr, 0x60), G2_SRS_0_X_1)
-        mstore(add(mPtr, 0x80), G2_SRS_0_Y_0)
-        mstore(add(mPtr, 0xa0), G2_SRS_0_Y_1)
-        mstore(add(mPtr, 0xc0), mload(folded_quotients))
-        mstore(add(mPtr, 0xe0), mload(add(folded_quotients, 0x20)))
-        mstore(add(mPtr, 0x100), G2_SRS_1_X_0)
-        mstore(add(mPtr, 0x120), G2_SRS_1_X_1)
-        mstore(add(mPtr, 0x140), G2_SRS_1_Y_0)
-        mstore(add(mPtr, 0x160), G2_SRS_1_Y_1)
+        {{ $offset = 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), mload(add(folded_digests, 0x20))) {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), G2_SRS_0_X_0) {{ $offset = add $offset 0x20 }} // the 4 lines are the canonical G2 point on BN254
+        mstore(add(mPtr, {{ hex $offset }}), G2_SRS_0_X_1) {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), G2_SRS_0_Y_0) {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), G2_SRS_0_Y_1) {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), mload(folded_quotients)) {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), mload(add(folded_quotients, 0x20))) {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), G2_SRS_1_X_0) {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), G2_SRS_1_X_1) {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), G2_SRS_1_Y_0) {{ $offset = add $offset 0x20 }}
+        mstore(add(mPtr, {{ hex $offset }}), G2_SRS_1_Y_1) {{ $offset = add $offset 0x20 }}
         check_pairing_kzg(mPtr)
       }
 
