@@ -245,6 +245,17 @@ func (c *Phase2) Contribute() {
 	c.Parameters.G1.Delta.ScalarMultiplication(&c.Parameters.G1.Delta, &deltaBI)
 	c.Parameters.G2.Delta.ScalarMultiplication(&c.Parameters.G2.Delta, &deltaBI)
 
+	// Update BasisExpSigma with δ
+	// TODO: Is it sound to use the same δ for all basis?
+	for i := 0; i < len(c.Parameters.G1.BasisExpSigma); i++ {
+		for j := 0; j < len(c.Parameters.G1.BasisExpSigma[i]); j++ {
+			c.Parameters.G1.BasisExpSigma[i][j].ScalarMultiplication(&c.Parameters.G1.BasisExpSigma[i][j], &deltaBI)
+		}
+	}
+
+	// Update GRootSigmaNeg using δ⁻¹
+	c.Parameters.G2.GRootSigmaNeg.ScalarMultiplication(&c.Parameters.G2.GRootSigmaNeg, &deltaInvBI)
+
 	// Update Z using δ⁻¹
 	for i := 0; i < len(c.Parameters.G1.Z); i++ {
 		c.Parameters.G1.Z[i].ScalarMultiplication(&c.Parameters.G1.Z[i], &deltaInvBI)
