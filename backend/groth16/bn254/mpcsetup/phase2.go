@@ -128,7 +128,7 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	evals.G2.B = make([]curve.G2Affine, nbWires)
 	bA := make([]curve.G1Affine, nbWires)
 	aB := make([]curve.G1Affine, nbWires)
-	CC := make([]curve.G1Affine, nbWires)
+	C := make([]curve.G1Affine, nbWires)
 
 	// TODO @gbotrel use constraint iterator when available.
 
@@ -148,7 +148,7 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 		}
 		// C
 		for _, t := range c.O {
-			accumulateG1(&CC[t.WireID()], t, &coeffTau1[i])
+			accumulateG1(&C[t.WireID()], t, &coeffTau1[i])
 		}
 		i++
 	}
@@ -183,7 +183,7 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	for i := range bA {
 		var tmp curve.G1Affine
 		tmp.Add(&bA[i], &aB[i])
-		tmp.Add(&tmp, &CC[i])
+		tmp.Add(&tmp, &C[i])
 		commitment := -1 // index of the commitment that commits to this variable as a private or commitment value
 		var isCommitment, isPublic bool
 		if isPublic = i < r1cs.GetNbPublicVariables(); !isPublic {
