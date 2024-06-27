@@ -1305,7 +1305,8 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 
 	s.trace.Qk.ToCanonical(s.domain0).ToRegular()
 
-	// len(h1)=len(h2)=len(blindedZCanonical)=len(h3)+1
+	// len(h1)=len(h2)=len(blindedZCanonical)=len(h3)+1 when Statistical ZK is activated
+	// len(h1)=len(h2)=len(h3)=len(blindedZCanonical)-1 when Statistical ZK is deactivated
 	h1 := s.h1()
 	h2 := s.h2()
 	h3 := s.h3()
