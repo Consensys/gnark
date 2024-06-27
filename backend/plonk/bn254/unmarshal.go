@@ -11,7 +11,7 @@ func UnmarshalSolidity(s []byte, nbCommits int) Proof {
 	offset := 0
 	point_size := 64
 	fr_size := 32
-	proof.BatchedProof.ClaimedValues = make([]fr.Element, 6+nbCommits)
+	proof.BatchedProof.ClaimedValues = make([]fr.Element, 7+nbCommits)
 	proof.Bsb22Commitments = make([]bn254.G1Affine, nbCommits)
 
 	// uint256 l_com_x;
@@ -55,10 +55,8 @@ func UnmarshalSolidity(s []byte, nbCommits int) Proof {
 	proof.ZShiftedOpening.ClaimedValue.SetBytes(s[offset : offset+fr_size])
 	offset += fr_size
 
-	// uint256 quotient_polynomial_at_zeta;
-	// uint256 linearization_polynomial_at_zeta;
-	proof.BatchedProof.ClaimedValues[0].SetBytes(s[offset : offset+fr_size])
-	offset += fr_size
+	// we skip the claimed value of the linearised polynomial at zeta as
+	// it is not in the marshal solidity proof
 
 	// uint256 opening_at_zeta_proof_x;
 	// uint256 opening_at_zeta_proof_y;
