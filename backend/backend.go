@@ -134,8 +134,8 @@ func WithIcicleAcceleration() ProverOption {
 	}
 }
 
-// WithStatisticalZeroKnowledge ensures that statisitacal zero knowledgeness is achieved.
-// This option makes the prover a little more memory costly, are 3 more size n (size of the circuit)
+// WithStatisticalZeroKnowledge ensures that statistical zero knowledgeness is achieved.
+// This option makes the prover more memory costly, as there are 3 more size n (size of the circuit)
 // allocations.
 func WithStatisticalZeroKnowledge() ProverOption {
 	return func(pc *ProverConfig) error {
