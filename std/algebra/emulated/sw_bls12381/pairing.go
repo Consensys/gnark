@@ -245,13 +245,22 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	f, err := pr.Pair(P, Q)
+	f, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return err
 
 	}
-	one := pr.One()
-	pr.AssertIsEqual(f, one)
+	// We perform the easy part of the final exp to push f to the cyclotomic
+	// subgroup so that FinalExponentiationCheck is carried with optimized
+	// cyclotomic squaring (e.g. Karabina12345).
+	//
+	// f = f^(p⁶-1)(p²+1)
+	buf := pr.Conjugate(f)
+	buf = pr.DivUnchecked(buf, f)
+	f = pr.FrobeniusSquare(buf)
+	f = pr.Mul(f, buf)
+
+	pr.FinalExponentiationCheck(f)
 
 	return nil
 }
