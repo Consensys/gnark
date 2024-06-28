@@ -1,10 +1,9 @@
-package fields_bn254
+package sw_bn254
 
 import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -16,279 +15,49 @@ func init() {
 // GetHints returns all hint functions used in the package.
 func GetHints() []solver.Hint {
 	return []solver.Hint{
-		// E2
-		divE2Hint,
-		inverseE2Hint,
-		// E6
-		divE6Hint,
-		inverseE6Hint,
-		squareTorusHint,
-		divE6By6Hint,
-		// E12
-		divE12Hint,
-		inverseE12Hint,
-		finalExpHint,
+		millerLoopAndCheckFinalExpHint,
 	}
 }
 
-func inverseE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E2
-
-			a.A0.SetBigInt(inputs[0])
-			a.A1.SetBigInt(inputs[1])
-
-			c.Inverse(&a)
-
-			c.A0.BigInt(outputs[0])
-			c.A1.BigInt(outputs[1])
-
-			return nil
-		})
-}
-
-func divE2Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, b, c bn254.E2
-
-			a.A0.SetBigInt(inputs[0])
-			a.A1.SetBigInt(inputs[1])
-			b.A0.SetBigInt(inputs[2])
-			b.A1.SetBigInt(inputs[3])
-
-			c.Inverse(&b).Mul(&c, &a)
-
-			c.A0.BigInt(outputs[0])
-			c.A1.BigInt(outputs[1])
-
-			return nil
-		})
-}
-
-// E6 hints
-func inverseE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E6
-
-			a.B0.A0.SetBigInt(inputs[0])
-			a.B0.A1.SetBigInt(inputs[1])
-			a.B1.A0.SetBigInt(inputs[2])
-			a.B1.A1.SetBigInt(inputs[3])
-			a.B2.A0.SetBigInt(inputs[4])
-			a.B2.A1.SetBigInt(inputs[5])
-
-			c.Inverse(&a)
-
-			c.B0.A0.BigInt(outputs[0])
-			c.B0.A1.BigInt(outputs[1])
-			c.B1.A0.BigInt(outputs[2])
-			c.B1.A1.BigInt(outputs[3])
-			c.B2.A0.BigInt(outputs[4])
-			c.B2.A1.BigInt(outputs[5])
-
-			return nil
-		})
-}
-
-func divE6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, b, c bn254.E6
-
-			a.B0.A0.SetBigInt(inputs[0])
-			a.B0.A1.SetBigInt(inputs[1])
-			a.B1.A0.SetBigInt(inputs[2])
-			a.B1.A1.SetBigInt(inputs[3])
-			a.B2.A0.SetBigInt(inputs[4])
-			a.B2.A1.SetBigInt(inputs[5])
-
-			b.B0.A0.SetBigInt(inputs[6])
-			b.B0.A1.SetBigInt(inputs[7])
-			b.B1.A0.SetBigInt(inputs[8])
-			b.B1.A1.SetBigInt(inputs[9])
-			b.B2.A0.SetBigInt(inputs[10])
-			b.B2.A1.SetBigInt(inputs[11])
-
-			c.Inverse(&b).Mul(&c, &a)
-
-			c.B0.A0.BigInt(outputs[0])
-			c.B0.A1.BigInt(outputs[1])
-			c.B1.A0.BigInt(outputs[2])
-			c.B1.A1.BigInt(outputs[3])
-			c.B2.A0.BigInt(outputs[4])
-			c.B2.A1.BigInt(outputs[5])
-
-			return nil
-		})
-}
-
-func squareTorusHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E6
-
-			a.B0.A0.SetBigInt(inputs[0])
-			a.B0.A1.SetBigInt(inputs[1])
-			a.B1.A0.SetBigInt(inputs[2])
-			a.B1.A1.SetBigInt(inputs[3])
-			a.B2.A0.SetBigInt(inputs[4])
-			a.B2.A1.SetBigInt(inputs[5])
-
-			_c := a.DecompressTorus()
-			_c.CyclotomicSquare(&_c)
-			c, _ = _c.CompressTorus()
-
-			c.B0.A0.BigInt(outputs[0])
-			c.B0.A1.BigInt(outputs[1])
-			c.B1.A0.BigInt(outputs[2])
-			c.B1.A1.BigInt(outputs[3])
-			c.B2.A0.BigInt(outputs[4])
-			c.B2.A1.BigInt(outputs[5])
-
-			return nil
-		})
-}
-
-func divE6By6Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E6
-
-			a.B0.A0.SetBigInt(inputs[0])
-			a.B0.A1.SetBigInt(inputs[1])
-			a.B1.A0.SetBigInt(inputs[2])
-			a.B1.A1.SetBigInt(inputs[3])
-			a.B2.A0.SetBigInt(inputs[4])
-			a.B2.A1.SetBigInt(inputs[5])
-
-			var sixInv fp.Element
-			sixInv.SetString("6")
-			sixInv.Inverse(&sixInv)
-			c.B0.MulByElement(&a.B0, &sixInv)
-			c.B1.MulByElement(&a.B1, &sixInv)
-			c.B2.MulByElement(&a.B2, &sixInv)
-
-			c.B0.A0.BigInt(outputs[0])
-			c.B0.A1.BigInt(outputs[1])
-			c.B1.A0.BigInt(outputs[2])
-			c.B1.A1.BigInt(outputs[3])
-			c.B2.A0.BigInt(outputs[4])
-			c.B2.A1.BigInt(outputs[5])
-
-			return nil
-		})
-}
-
-// E12 hints
-func inverseE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, c bn254.E12
-
-			a.C0.B0.A0.SetBigInt(inputs[0])
-			a.C0.B0.A1.SetBigInt(inputs[1])
-			a.C0.B1.A0.SetBigInt(inputs[2])
-			a.C0.B1.A1.SetBigInt(inputs[3])
-			a.C0.B2.A0.SetBigInt(inputs[4])
-			a.C0.B2.A1.SetBigInt(inputs[5])
-			a.C1.B0.A0.SetBigInt(inputs[6])
-			a.C1.B0.A1.SetBigInt(inputs[7])
-			a.C1.B1.A0.SetBigInt(inputs[8])
-			a.C1.B1.A1.SetBigInt(inputs[9])
-			a.C1.B2.A0.SetBigInt(inputs[10])
-			a.C1.B2.A1.SetBigInt(inputs[11])
-
-			c.Inverse(&a)
-
-			c.C0.B0.A0.BigInt(outputs[0])
-			c.C0.B0.A1.BigInt(outputs[1])
-			c.C0.B1.A0.BigInt(outputs[2])
-			c.C0.B1.A1.BigInt(outputs[3])
-			c.C0.B2.A0.BigInt(outputs[4])
-			c.C0.B2.A1.BigInt(outputs[5])
-			c.C1.B0.A0.BigInt(outputs[6])
-			c.C1.B0.A1.BigInt(outputs[7])
-			c.C1.B1.A0.BigInt(outputs[8])
-			c.C1.B1.A1.BigInt(outputs[9])
-			c.C1.B2.A0.BigInt(outputs[10])
-			c.C1.B2.A1.BigInt(outputs[11])
-
-			return nil
-		})
-}
-
-func divE12Hint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
-		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var a, b, c bn254.E12
-
-			a.C0.B0.A0.SetBigInt(inputs[0])
-			a.C0.B0.A1.SetBigInt(inputs[1])
-			a.C0.B1.A0.SetBigInt(inputs[2])
-			a.C0.B1.A1.SetBigInt(inputs[3])
-			a.C0.B2.A0.SetBigInt(inputs[4])
-			a.C0.B2.A1.SetBigInt(inputs[5])
-			a.C1.B0.A0.SetBigInt(inputs[6])
-			a.C1.B0.A1.SetBigInt(inputs[7])
-			a.C1.B1.A0.SetBigInt(inputs[8])
-			a.C1.B1.A1.SetBigInt(inputs[9])
-			a.C1.B2.A0.SetBigInt(inputs[10])
-			a.C1.B2.A1.SetBigInt(inputs[11])
-
-			b.C0.B0.A0.SetBigInt(inputs[12])
-			b.C0.B0.A1.SetBigInt(inputs[13])
-			b.C0.B1.A0.SetBigInt(inputs[14])
-			b.C0.B1.A1.SetBigInt(inputs[15])
-			b.C0.B2.A0.SetBigInt(inputs[16])
-			b.C0.B2.A1.SetBigInt(inputs[17])
-			b.C1.B0.A0.SetBigInt(inputs[18])
-			b.C1.B0.A1.SetBigInt(inputs[19])
-			b.C1.B1.A0.SetBigInt(inputs[20])
-			b.C1.B1.A1.SetBigInt(inputs[21])
-			b.C1.B2.A0.SetBigInt(inputs[22])
-			b.C1.B2.A1.SetBigInt(inputs[23])
-
-			c.Inverse(&b).Mul(&c, &a)
-
-			c.C0.B0.A0.BigInt(outputs[0])
-			c.C0.B0.A1.BigInt(outputs[1])
-			c.C0.B1.A0.BigInt(outputs[2])
-			c.C0.B1.A1.BigInt(outputs[3])
-			c.C0.B2.A0.BigInt(outputs[4])
-			c.C0.B2.A1.BigInt(outputs[5])
-			c.C1.B0.A0.BigInt(outputs[6])
-			c.C1.B0.A1.BigInt(outputs[7])
-			c.C1.B1.A0.BigInt(outputs[8])
-			c.C1.B1.A1.BigInt(outputs[9])
-			c.C1.B2.A0.BigInt(outputs[10])
-			c.C1.B2.A1.BigInt(outputs[11])
-
-			return nil
-		})
-}
-
-func finalExpHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
+func millerLoopAndCheckFinalExpHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 	// This follows section 4.3.2 of https://eprint.iacr.org/2024/640.pdf
 	return emulated.UnwrapHint(nativeInputs, nativeOutputs,
 		func(mod *big.Int, inputs, outputs []*big.Int) error {
-			var tmp, x3, cubicNonResiduePower, x, millerLoop, residueWitness, residueWitnessInv, one, root27thOf1 bn254.E12
+			var previous, tmp, x3, cubicNonResiduePower, x, millerLoop, residueWitness, residueWitnessInv, one, root27thOf1 bn254.E12
 			var exp1, exp2, rInv, mInv big.Int
+			var P bn254.G1Affine
+			var Q bn254.G2Affine
 
-			millerLoop.C0.B0.A0.SetBigInt(inputs[0])
-			millerLoop.C0.B0.A1.SetBigInt(inputs[1])
-			millerLoop.C0.B1.A0.SetBigInt(inputs[2])
-			millerLoop.C0.B1.A1.SetBigInt(inputs[3])
-			millerLoop.C0.B2.A0.SetBigInt(inputs[4])
-			millerLoop.C0.B2.A1.SetBigInt(inputs[5])
-			millerLoop.C1.B0.A0.SetBigInt(inputs[6])
-			millerLoop.C1.B0.A1.SetBigInt(inputs[7])
-			millerLoop.C1.B1.A0.SetBigInt(inputs[8])
-			millerLoop.C1.B1.A1.SetBigInt(inputs[9])
-			millerLoop.C1.B2.A0.SetBigInt(inputs[10])
-			millerLoop.C1.B2.A1.SetBigInt(inputs[11])
+			P.X.SetBigInt(inputs[0])
+			P.Y.SetBigInt(inputs[1])
+			Q.X.A0.SetBigInt(inputs[2])
+			Q.X.A1.SetBigInt(inputs[3])
+			Q.Y.A0.SetBigInt(inputs[4])
+			Q.Y.A1.SetBigInt(inputs[5])
+
+			previous.C0.B0.A0.SetBigInt(inputs[6])
+			previous.C0.B0.A1.SetBigInt(inputs[7])
+			previous.C0.B1.A0.SetBigInt(inputs[8])
+			previous.C0.B1.A1.SetBigInt(inputs[9])
+			previous.C0.B2.A0.SetBigInt(inputs[10])
+			previous.C0.B2.A1.SetBigInt(inputs[11])
+			previous.C1.B0.A0.SetBigInt(inputs[12])
+			previous.C1.B0.A1.SetBigInt(inputs[13])
+			previous.C1.B1.A0.SetBigInt(inputs[14])
+			previous.C1.B1.A1.SetBigInt(inputs[15])
+			previous.C1.B2.A0.SetBigInt(inputs[16])
+			previous.C1.B2.A1.SetBigInt(inputs[17])
+
+			lines := bn254.PrecomputeLines(Q)
+			millerLoop, err := bn254.MillerLoopFixedQ(
+				[]bn254.G1Affine{P},
+				[][2][len(bn254.LoopCounter)]bn254.LineEvaluationAff{lines},
+			)
+			if err != nil {
+				return err
+			}
+
+			millerLoop.Mul(&millerLoop, &previous)
 
 			// exp1 = (p^12-1)/3
 			exp1.SetString("4030969696062745741797811005853058291874379204406359442560681893891674450106959530046539719647151210908190211459382793062006703141168852426020468083171325367934590379984666859998399967609544754664110191464072930598755441160008826659219834762354786403012110463250131961575955268597858015384895449311534622125256548620283853223733396368939858981844663598065852816056384933498610930035891058807598891752166582271931875150099691598048016175399382213304673796601585080509443902692818733420199004555566113537482054218823936116647313678747500267068559627206777530424029211671772692598157901876223857571299238046741502089890557442500582300718504160740314926185458079985126192563953772118929726791041828902047546977272656240744693339962973939047279285351052107950250121751682659529260304162131862468322644288196213423232132152125277136333208005221619443705106431645884840489295409272576227859206166894626854018093044908314720", 10)
@@ -361,6 +130,7 @@ func finalExpHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) er
 
 			// x is now the cube root of residueWitness
 			residueWitness.Set(&x)
+			residueWitnessInv.Inverse(&residueWitness)
 
 			residueWitness.C0.B0.A0.BigInt(outputs[0])
 			residueWitness.C0.B0.A1.BigInt(outputs[1])
