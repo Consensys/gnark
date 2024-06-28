@@ -29,8 +29,9 @@ type NativeProof struct {
 //   - if it is deferred, then it is a slice.
 type EvaluationProof any
 
-// evaluationProof for gkr
+// evaluationProof for gkr 
 type DeferredEvalProof[FR emulated.FieldParams] []emulated.Element[FR]
+type NativeDeferredEvalProof []big.Int
 
 type NativeEvaluationProof any
 
@@ -39,7 +40,7 @@ func ValueOfProof[FR emulated.FieldParams](nproof NativeProof) Proof[FR] {
 	finaleval := nproof.FinalEvalProof
 	if finaleval != nil {
 		switch v := finaleval.(type) {
-		case []big.Int:
+		case NativeDeferredEvalProof:
 			deferredEval := make(DeferredEvalProof[FR], len(v))
 			for i := range v {
 				deferredEval[i] = emulated.ValueOf[FR](v[i])

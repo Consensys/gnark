@@ -65,6 +65,9 @@ type Polynomial[FR emulated.FieldParams] struct {
 
 // FromSlice maps slice of emulated element values to their references.
 func FromSlice[FR emulated.FieldParams](in []emulated.Element[FR]) []*emulated.Element[FR] {
+	if len(in) == 0 {
+		return []*emulated.Element[FR]{}
+	}
 	r := make([]*emulated.Element[FR], len(in))
 	for i := range in {
 		r[i] = &in[i]
@@ -117,7 +120,7 @@ func (p *Polynomial[FR]) EvalMultilinear(at []*emulated.Element[FR], M Multiline
 
 // EvalMultilinearMany evaluates multilinear polynomials at variable values at. It
 // returns the evaluations. The method does not mutate the inputs.
-//
+// 
 // The method allows to share computations of computing the coefficients of the
 // multilinear polynomials at the given evaluation points.
 func (p *Polynomial[FR]) EvalMultilinearMany(at []*emulated.Element[FR], M ...Multilinear[FR]) ([]*emulated.Element[FR], error) {

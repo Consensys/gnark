@@ -328,7 +328,7 @@ func Verify(api frontend.API, c Circuit, assignment WireAssignment, proof Proof,
 		claim := claims.getLazyClaim(wire)
 		if wire.noProof() { // input wires with one claim only
 			// make sure the proof is empty
-			if len(finalEvalProof) != 0 || len(proofW.PartialSumPolys) != 0 {
+			if len(finalEvalProof) != 0 || len(proofW.RoundPolyEvaluations) != 0 {
 				return fmt.Errorf("no proof allowed for input wire with a single claim")
 			}
 
@@ -471,16 +471,16 @@ func (a WireAssignment) NumVars() int {
 func (p Proof) Serialize() []frontend.Variable {
 	size := 0
 	for i := range p {
-		for j := range p[i].PartialSumPolys {
-			size += len(p[i].PartialSumPolys[j])
+		for j := range p[i].RoundPolyEvaluations {
+			size += len(p[i].RoundPolyEvaluations[j])
 		}
 		size += len(p[i].FinalEvalProof.([]frontend.Variable))
 	}
 
 	res := make([]frontend.Variable, 0, size)
 	for i := range p {
-		for j := range p[i].PartialSumPolys {
-			res = append(res, p[i].PartialSumPolys[j]...)
+		for j := range p[i].RoundPolyEvaluations {
+			res = append(res, p[i].RoundPolyEvaluations[j]...)
 		}
 		res = append(res, p[i].FinalEvalProof.([]frontend.Variable)...)
 	}
@@ -520,9 +520,9 @@ func DeserializeProof(sorted []*Wire, serializedProof []frontend.Variable) (Proo
 	reader := variablesReader(serializedProof)
 	for i, wI := range sorted {
 		if !wI.noProof() {
-			proof[i].PartialSumPolys = make([]polynomial.Polynomial, logNbInstances)
-			for j := range proof[i].PartialSumPolys {
-				proof[i].PartialSumPolys[j] = reader.nextN(wI.Gate.Degree() + 1)
+			proof[i].RoundPolyEvaluations = make([]polynomial.Polynomial, logNbInstances)
+			for j := range proof[i].RoundPolyEvaluations {
+				proof[i].RoundPolyEvaluations[j] = reader.nextN(wI.Gate.Degree() + 1)
 			}
 		}
 		proof[i].FinalEvalProof = reader.nextN(wI.nbUniqueInputs())

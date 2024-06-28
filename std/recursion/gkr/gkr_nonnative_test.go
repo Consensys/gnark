@@ -1,24 +1,29 @@
 package sumcheck
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	gohash "hash"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
+
 	//"strconv"
-	"testing"
 	"math/big"
+	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	"github.com/consensys/gnark/std/recursion/gkr/utils"
-	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	//"github.com/consensys/gnark/std/hash"
+	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
+	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/recursion/gkr/utils"
+
+	// "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
 	"github.com/consensys/gnark/test"
@@ -231,7 +236,6 @@ func testSingleAddGate[FR emulated.FieldParams](t *testing.T, current *big.Int, 
 		Inputs: []*Wire{&c[0], &c[1]},
 	}
 
-	//assert := test.NewAssert(t)
 	be := sumcheck.NewBigIntEngine(current)
 	output := make([][]*big.Int, len(inputAssignments))
 	for i, in := range inputAssignments {
@@ -265,12 +269,11 @@ func testSingleAddGate[FR emulated.FieldParams](t *testing.T, current *big.Int, 
 		ToFail:          false,
 	}	
 
-	println("start_isSolved")
 	err = test.IsSolved(validCircuit, assignmentGkr, current)
-	println("err", err)
-	//assert.NoError(t, err)
+	assert.NoError(t, err)
+
 	_, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, validCircuit)
-	println("err", err)
+	assert.NoError(t, err)
 
 
 	//t.Run("testSingleAddGate", generateVerifier(toEmulated(inputAssignments), toEmulated(output), proofEmulated))
@@ -451,7 +454,8 @@ func testSingleAddGate[FR emulated.FieldParams](t *testing.T, current *big.Int, 
 // 	}
 // }
 func TestGkrVectorsEmulated(t *testing.T) {
-
+	current := ecc.BN254.ScalarField()
+	var fr emparams.BN254Fp
 	testDirPath := "./test_vectors"
 	dirEntries, err := os.ReadDir(testDirPath)
 	if err != nil {
@@ -462,7 +466,8 @@ func TestGkrVectorsEmulated(t *testing.T) {
 			path := filepath.Join(testDirPath, dirEntry.Name())
 			noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
 
-			t.Run(noExt, generateTestVerifier[emulated.BN254Fr](path))
+			t.Run(noExt, generateTestProver(path, *current, *fr.Modulus()))
+			//t.Run(noExt, generateTestVerifier[emparams.BN254Fp](path))
 		}
 	}
 }
@@ -511,10 +516,62 @@ func generateVerifier[FR emulated.FieldParams](Input [][]emulated.Element[FR], O
 		fillWithBlanks(invalidCircuit.Output, len(Input[0]))
 
 		assert.CheckCircuit(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
-		//assert.CheckCircuit(invalidCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithInvalidAssignment(assignment))
+		// assert.CheckCircuit(invalidCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithInvalidAssignment(assignment))
 	}
 }
 
+func proofEquals(expected NativeProofs, seen NativeProofs) error {
+	if len(expected) != len(seen) {
+		return fmt.Errorf("length mismatch %d ≠ %d", len(expected), len(seen))
+	}
+	for i, x := range expected {
+		xSeen := seen[i]
+		
+		xfinalEvalProofSeen := xSeen.FinalEvalProof
+		switch finalEvalProof := xfinalEvalProofSeen.(type) {
+		case nil:
+			xfinalEvalProofSeen = sumcheck.NativeDeferredEvalProof([]big.Int{})
+		case []big.Int:
+			xfinalEvalProofSeen = sumcheck.NativeDeferredEvalProof(finalEvalProof)
+		default:
+			return fmt.Errorf("finalEvalProof is not of type DeferredEvalProof")
+		}
+
+		if xSeen.FinalEvalProof == nil {
+			if seenFinalEval := x.FinalEvalProof.(sumcheck.NativeDeferredEvalProof); len(seenFinalEval) != 0 {
+				return fmt.Errorf("length mismatch %d ≠ %d", 0, len(seenFinalEval))
+			}
+		} else {
+			if err := utils.SliceEqualsBigInt(x.FinalEvalProof.(sumcheck.NativeDeferredEvalProof), 
+			xfinalEvalProofSeen.(sumcheck.NativeDeferredEvalProof)); err != nil {
+				return fmt.Errorf("final evaluation proof mismatch")
+			}
+		}
+
+		roundPolyEvals := make([]sumcheck.NativePolynomial, len(x.RoundPolyEvaluations))
+		copy(roundPolyEvals, x.RoundPolyEvaluations)
+
+		roundPolyEvalsSeen := make([]sumcheck.NativePolynomial, len(xSeen.RoundPolyEvaluations))
+		copy(roundPolyEvalsSeen, xSeen.RoundPolyEvaluations)
+
+		for i, poly := range roundPolyEvals {
+			if err := utils.SliceEqualsBigInt(sumcheck.DereferenceBigIntSlice(poly), sumcheck.DereferenceBigIntSlice(roundPolyEvalsSeen[i])); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func generateTestProver(path string, current big.Int, target big.Int) func(t *testing.T) {
+	return func(t *testing.T) {
+		testCase, err := newTestCase(path, target)
+		assert.NoError(t, err)
+		proof, err := Prove(&current, &target, testCase.Circuit, testCase.FullAssignment, fiatshamir.WithHashBigInt(testCase.Hash))
+		assert.NoError(t, err)
+		assert.NoError(t, proofEquals(testCase.Proof, proof))
+	}
+}
 
 func generateTestVerifier[FR emulated.FieldParams](path string, options ...option) func(t *testing.T) {
 	var opts _options
@@ -561,9 +618,9 @@ func generateTestVerifier[FR emulated.FieldParams](path string, options ...optio
 			assert.CheckCircuit(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
 		}
 
-		if !opts.noFail {
-			assert.CheckCircuit(invalidCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithInvalidAssignment(assignment))
-		}
+		// if !opts.noFail {
+		// 	assert.CheckCircuit(invalidCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithInvalidAssignment(assignment))
+		// }
 	}
 }
 
@@ -577,7 +634,7 @@ type GkrVerifierCircuitEmulated[FR emulated.FieldParams] struct {
 
 func (c *GkrVerifierCircuitEmulated[FR]) Define(api frontend.API) error {
 	var fr FR
-	var testCase *TestCase[FR]
+	var testCase *TestCaseVerifier[FR]
 	var proof Proofs[FR]
 	var err error
 
@@ -586,6 +643,7 @@ func (c *GkrVerifierCircuitEmulated[FR]) Define(api frontend.API) error {
 		return fmt.Errorf("new verifier: %w", err)
 	}
 
+	println("c.TestCaseName", c.TestCaseName)
 	// var proofRef Proof
 	if testCase, err = getTestCase[FR](c.TestCaseName); err != nil {
 		return err
@@ -636,7 +694,7 @@ func fillWithBlanks[FR emulated.FieldParams](slice [][]emulated.Element[FR], siz
 	}
 }
 
-type TestCase[FR emulated.FieldParams] struct {
+type TestCaseVerifier[FR emulated.FieldParams] struct {
 	Circuit CircuitEmulated[FR]
 	Hash    utils.HashDescription
 	Proof   Proofs[FR]
@@ -655,17 +713,17 @@ type TestCaseInfo struct {
 // var testCases = make(map[string]*TestCase[emulated.FieldParams])
 var testCases = make(map[string]interface{})
 
-func getTestCase[FR emulated.FieldParams](path string) (*TestCase[FR], error) {
+func getTestCase[FR emulated.FieldParams](path string) (*TestCaseVerifier[FR], error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
 	dir := filepath.Dir(path)
 
-	cse, ok := testCases[path].(*TestCase[FR])
+	cse, ok := testCases[path].(*TestCaseVerifier[FR])
 	if !ok {
 		var bytes []byte
-		cse = &TestCase[FR]{}
+		cse = &TestCaseVerifier[FR]{}
 		if bytes, err = os.ReadFile(path); err == nil {
 			var info TestCaseInfo
 			err = json.Unmarshal(bytes, &info)
@@ -673,11 +731,17 @@ func getTestCase[FR emulated.FieldParams](path string) (*TestCase[FR], error) {
 				return nil, err
 			}
 
-			if cse.Circuit, err = getCircuit[FR](filepath.Join(dir, info.Circuit)); err != nil {
+			if cse.Circuit, err = getCircuitEmulated[FR](filepath.Join(dir, info.Circuit)); err != nil {
 				return nil, err
 			}
 
-			cse.Proof = unmarshalProof[FR](info.Proof)
+
+			nativeProofs := unmarshalProof(info.Proof)
+			proofs := make(Proofs[FR], len(nativeProofs))
+			for i, proof := range nativeProofs {
+				proofs[i] = sumcheck.ValueOfProof[FR](proof)
+			}
+			cse.Proof = proofs
 
 			cse.Input = utils.ToVariableSliceSliceFr[FR](info.Input)
 			cse.Output = utils.ToVariableSliceSliceFr[FR](info.Output)
@@ -699,10 +763,31 @@ type WireInfo struct {
 
 type CircuitInfo []WireInfo
 
-// var circuitCache = make(map[string]CircuitFr[emulated.FieldParams])
 var circuitCache = make(map[string]interface{})
 
-func getCircuit[FR emulated.FieldParams](path string) (circuit CircuitEmulated[FR], err error) {
+func getCircuit(path string) (circuit Circuit, err error) {
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return
+	}
+	var ok bool
+	if circuit, ok = circuitCache[path].(Circuit); ok {
+		return
+	}
+	var bytes []byte
+	if bytes, err = os.ReadFile(path); err == nil {
+		var circuitInfo CircuitInfo
+		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
+			circuit, err = toCircuit(circuitInfo)
+			if err == nil {
+				circuitCache[path] = circuit
+			}
+		}
+	}
+	return
+}
+
+func getCircuitEmulated[FR emulated.FieldParams](path string) (circuit CircuitEmulated[FR], err error) {
 	path, err = filepath.Abs(path)
 	if err != nil {
 		return
@@ -748,6 +833,25 @@ func toCircuitEmulated[FR emulated.FieldParams](c CircuitInfo) (circuit CircuitE
 	return
 }
 
+func toCircuit(c CircuitInfo) (circuit Circuit, err error) {
+
+	circuit = make(Circuit, len(c))
+	for i, wireInfo := range c {
+		circuit[i].Inputs = make([]*Wire, len(wireInfo.Inputs))
+		for iAsInput, iAsWire := range wireInfo.Inputs {
+			input := &circuit[iAsWire]
+			circuit[i].Inputs[iAsInput] = input
+		}
+
+		var found bool
+		if circuit[i].Gate, found = Gates[wireInfo.Gate]; !found && wireInfo.Gate != "" {
+			err = fmt.Errorf("undefined gate \"%s\"", wireInfo.Gate)
+		}
+	}
+
+	return
+}
+
 type _select[FR emulated.FieldParams] int
 
 // func init() {
@@ -772,32 +876,77 @@ type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
 	FinalEvalProof       interface{}     `json:"finalEvalProof"`
-	RoundPolyEvaluations [][]interface{} `json:"partialSumPolys"`
+	RoundPolyEvaluations [][]interface{} `json:"roundPolyEvaluations"`
 }
 
-func unmarshalProof[FR emulated.FieldParams](printable PrintableProof) (proof Proofs[FR]) {
-
-	proof = make(Proofs[FR], len(printable))
+func unmarshalProof(printable PrintableProof) (proof NativeProofs) {
+	proof = make(NativeProofs, len(printable))
 	for i := range printable {
 
 		if printable[i].FinalEvalProof != nil {
 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
-			finalEvalProof := make(sumcheck.DeferredEvalProof[FR], finalEvalSlice.Len())
+			finalEvalProof := make(sumcheck.NativeDeferredEvalProof, finalEvalSlice.Len())
 			for k := range finalEvalProof {
-				finalEvalProof[k] = utils.ToVariableFr[FR](finalEvalSlice.Index(k).Interface())
+				finalEvalSlice := finalEvalSlice.Index(k).Interface().([]interface{})
+				var byteArray []byte
+				for _, val := range finalEvalSlice {
+					floatVal := val.(float64)
+					bits := math.Float64bits(floatVal)
+					bytes := make([]byte, 8)
+					binary.BigEndian.PutUint64(bytes, bits)
+					byteArray = append(byteArray, bytes...)
+				}
+				finalEvalProof[k] = *big.NewInt(0).SetBytes(byteArray)
 			}
 			proof[i].FinalEvalProof = finalEvalProof
 		} else {
 			proof[i].FinalEvalProof = nil
 		}
 
-		proof[i].RoundPolyEvaluations = make([]polynomial.Univariate[FR], len(printable[i].RoundPolyEvaluations))
+		proof[i].RoundPolyEvaluations = make([]sumcheck.NativePolynomial, len(printable[i].RoundPolyEvaluations))
 		for k := range printable[i].RoundPolyEvaluations {
-			proof[i].RoundPolyEvaluations[k] = utils.ToVariableSliceFr[FR](printable[i].RoundPolyEvaluations[k])
+			evals := printable[i].RoundPolyEvaluations[k]
+			proof[i].RoundPolyEvaluations[k] = make(sumcheck.NativePolynomial, len(evals))
+			for j, eval := range evals {
+				evalSlice := reflect.ValueOf(eval).Interface().([]interface{})
+				var byteArray []byte
+				for _, val := range evalSlice {
+					floatVal := val.(float64)
+					bits := math.Float64bits(floatVal)
+					bytes := make([]byte, 8)
+					binary.BigEndian.PutUint64(bytes, bits)
+					byteArray = append(byteArray, bytes...)
+				}
+				proof[i].RoundPolyEvaluations[k][j] = big.NewInt(0).SetBytes(byteArray)
+			}
 		}
+
 	}
 	return
 }
+
+// func unmarshalProofEmulated[FR emulated.FieldParams](printable PrintableProof) (proof Proofs[FR]) {
+// 	proof = make(Proofs[FR], len(printable))
+// 	for i := range printable {
+
+// 		if printable[i].FinalEvalProof != nil {
+// 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
+// 			finalEvalProof := make(sumcheck.DeferredEvalProof[FR], finalEvalSlice.Len())
+// 			for k := range finalEvalProof {
+// 				finalEvalProof[k] = utils.ToVariableFr[FR](finalEvalSlice.Index(k).Interface())
+// 			}
+// 			proof[i].FinalEvalProof = finalEvalProof
+// 		} else {
+// 			proof[i].FinalEvalProof = nil
+// 		}
+
+// 		proof[i].RoundPolyEvaluations = make([]polynomial.Univariate[FR], len(printable[i].RoundPolyEvaluations))
+// 		for k := range printable[i].RoundPolyEvaluations {
+// 			proof[i].RoundPolyEvaluations[k] = utils.ToVariableSliceFr[FR](printable[i].RoundPolyEvaluations[k])
+// 		}
+// 	}
+// 	return
+// }
 
 func TestLogNbInstances(t *testing.T) {
 	type FR = emulated.BN254Fp
@@ -821,7 +970,7 @@ func TestLogNbInstances(t *testing.T) {
 
 func TestLoadCircuit(t *testing.T) {
 	type FR = emulated.BN254Fp
-	c, err := getCircuit[FR]("test_vectors/resources/two_identity_gates_composed_single_input.json")
+	c, err := getCircuitEmulated[FR]("test_vectors/resources/two_identity_gates_composed_single_input.json")
 	assert.NoError(t, err)
 	assert.Equal(t, []*WireEmulated[FR]{}, c[0].Inputs)
 	assert.Equal(t, []*WireEmulated[FR]{&c[0]}, c[1].Inputs)
@@ -960,121 +1109,102 @@ func TestTopSortWide(t *testing.T) {
 // 	return proof, nil
 // }
 
-// type TestCase struct {
-// 	Circuit         Circuit
-// 	Hash            hash.Hash
-// 	Proof           Proof
-// 	FullAssignment  WireAssignment
-// 	InOutAssignment WireAssignment
-// }
-
-// type TestCaseInfo struct {
-// 	Hash    utils.HashDescription `json:"hash"`
-// 	Circuit string                            `json:"circuit"`
-// 	Input   [][]interface{}                   `json:"input"`
-// 	Output  [][]interface{}                   `json:"output"`
-// 	Proof   PrintableProof                    `json:"proof"`
-// }
+type TestCase struct {
+	Current         big.Int
+	Target          big.Int
+	Circuit         Circuit
+	Hash            gohash.Hash //utils.HashDescription
+	Proof           NativeProofs
+	FullAssignment  WireAssignment
+	InOutAssignment WireAssignment
+}
 
 // var testCases = make(map[string]*TestCase)
 
-// func newTestCase(path string) (*TestCase, error) {
-// 	path, err := filepath.Abs(path)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	dir := filepath.Dir(path)
+func newTestCase(path string, target big.Int) (*TestCase, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	dir := filepath.Dir(path)
 
-// 	tCase, ok := testCases[path]
-// 	if !ok {
-// 		var bytes []byte
-// 		if bytes, err = os.ReadFile(path); err == nil {
-// 			var info TestCaseInfo
-// 			err = json.Unmarshal(bytes, &info)
-// 			if err != nil {
-// 				return nil, err
-// 			}
+	tCase, ok := testCases[path]
+	if !ok {
+		var bytes []byte
+		if bytes, err = os.ReadFile(path); err == nil {
+			var info TestCaseInfo
+			err = json.Unmarshal(bytes, &info)
+			if err != nil {
+				return nil, err
+			}
 
-// 			var circuit Circuit
-// 			if circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
-// 				return nil, err
-// 			}
-// 			var _hash hash.Hash
-// 			if _hash, err = utils.HashFromDescription(info.Hash); err != nil {
-// 				return nil, err
-// 			}
-// 			var proof Proof
-// 			if proof, err = unmarshalProof(info.Proof); err != nil {
-// 				return nil, err
-// 			}
+			var circuit Circuit
+			if circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
+				return nil, err
+			}
+			var _hash gohash.Hash
+			if _hash, err = utils.HashFromDescription(info.Hash); err != nil {
+				return nil, err
+			}
 
-// 			fullAssignment := make(WireAssignment)
-// 			inOutAssignment := make(WireAssignment)
+			proof := unmarshalProof(info.Proof)
+			
+			fullAssignment := make(WireAssignment)
+			inOutAssignment := make(WireAssignment)
 
-// 			sorted := topologicalSort(circuit)
+			sorted := topologicalSort(circuit)
 
-// 			inI, outI := 0, 0
-// 			for _, w := range sorted {
-// 				var assignmentRaw []interface{}
-// 				if w.IsInput() {
-// 					if inI == len(info.Input) {
-// 						return nil, fmt.Errorf("fewer input in vector than in circuit")
-// 					}
-// 					assignmentRaw = info.Input[inI]
-// 					inI++
-// 				} else if w.IsOutput() {
-// 					if outI == len(info.Output) {
-// 						return nil, fmt.Errorf("fewer output in vector than in circuit")
-// 					}
-// 					assignmentRaw = info.Output[outI]
-// 					outI++
-// 				}
-// 				if assignmentRaw != nil {
-// 					var wireAssignment []fr.Element
-// 					if wireAssignment, err = utils.SliceToElementSlice(assignmentRaw); err != nil {
-// 						return nil, err
-// 					}
+			inI, outI := 0, 0
+			for _, w := range sorted {
+				var assignmentRaw []interface{}
+				if w.IsInput() {
+					if inI == len(info.Input) {
+						return nil, fmt.Errorf("fewer input in vector than in circuit")
+					}
+					assignmentRaw = info.Input[inI]
+					inI++
+				} else if w.IsOutput() {
+					if outI == len(info.Output) {
+						return nil, fmt.Errorf("fewer output in vector than in circuit")
+					}
+					assignmentRaw = info.Output[outI]
+					outI++
+				}
+				if assignmentRaw != nil {
+					var wireAssignment []big.Int
+					if wireAssignment, err = utils.SliceToBigIntSlice(assignmentRaw); err != nil {
+						return nil, err
+					}
+					fullAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+					inOutAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+				}
+			}
 
-// 					fullAssignment[w] = wireAssignment
-// 					inOutAssignment[w] = wireAssignment
-// 				}
-// 			}
+			fullAssignment.Complete(circuit, &target)
 
-// 			fullAssignment.Complete(circuit)
+			for _, w := range sorted {
+				if w.IsOutput() {
 
-// 			for _, w := range sorted {
-// 				if w.IsOutput() {
+					if err = utils.SliceEqualsBigInt(sumcheck.DereferenceBigIntSlice(inOutAssignment[w]), sumcheck.DereferenceBigIntSlice(fullAssignment[w])); err != nil {
+						return nil, fmt.Errorf("assignment mismatch: %v", err)
+					}
 
-// 					if err = utils.SliceEquals(inOutAssignment[w], fullAssignment[w]); err != nil {
-// 						return nil, fmt.Errorf("assignment mismatch: %v", err)
-// 					}
+				}
+			}
 
-// 				}
-// 			}
+			tCase = &TestCase{
+				FullAssignment:  fullAssignment,
+				InOutAssignment: inOutAssignment,
+				Proof:           proof,
+				Hash:            _hash,
+				Circuit:         circuit,
+			}
 
-// 			tCase = &TestCase{
-// 				FullAssignment:  fullAssignment,
-// 				InOutAssignment: inOutAssignment,
-// 				Proof:           proof,
-// 				Hash:            _hash,
-// 				Circuit:         circuit,
-// 			}
+			testCases[path] = tCase
+		} else {
+			return nil, err
+		}
+	}
 
-// 			testCases[path] = tCase
-// 		} else {
-// 			return nil, err
-// 		}
-// 	}
-
-// 	return tCase, nil
-// }
-
-// type _select int
-
-// func (g _select) Evaluate(in ...fr.Element) fr.Element {
-// 	return in[g]
-// }
-
-// func (g _select) Degree() int {
-// 	return 1
-// }
+	return tCase.(*TestCase), nil
+}

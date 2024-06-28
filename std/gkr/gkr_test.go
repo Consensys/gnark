@@ -276,7 +276,7 @@ type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
 	FinalEvalProof  interface{}     `json:"finalEvalProof"`
-	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
+	RoundPolyEvaluations [][]interface{} `json:"roundPolyEvaluations"`
 }
 
 func unmarshalProof(printable PrintableProof) (proof Proof) {
@@ -294,9 +294,9 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 			proof[i].FinalEvalProof = nil
 		}
 
-		proof[i].PartialSumPolys = make([]polynomial.Polynomial, len(printable[i].PartialSumPolys))
-		for k := range printable[i].PartialSumPolys {
-			proof[i].PartialSumPolys[k] = ToVariableSlice(printable[i].PartialSumPolys[k])
+		proof[i].RoundPolyEvaluations = make([]polynomial.Polynomial, len(printable[i].RoundPolyEvaluations))
+		for k := range printable[i].RoundPolyEvaluations {
+			proof[i].RoundPolyEvaluations[k] = ToVariableSlice(printable[i].RoundPolyEvaluations[k])
 		}
 	}
 	return

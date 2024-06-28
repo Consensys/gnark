@@ -251,7 +251,7 @@ func (g *nativeGateClaim) Combine(coeff *big.Int) NativePolynomial {
 
 	for k := 1; k < nbClaims; k++ {
 		newEq[0] = g.engine.One()
-		g.eq = eqAcc(g.engine, g.eq, newEq, g.evaluationPoints[k])
+		g.eq = EqAcc(g.engine, g.eq, newEq, g.evaluationPoints[k])
 		if k+1 < nbClaims {
 			aI = g.engine.Mul(aI, coeff)
 		}

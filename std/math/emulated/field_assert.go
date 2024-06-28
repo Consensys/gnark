@@ -32,14 +32,11 @@ func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
 
 // AssertIsEqual ensures that a is equal to b modulo the modulus.
 func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
-	constrain_a := f.enforceWidthConditional(a)
-	constrain_b := f.enforceWidthConditional(b)
-	println("constrain_a", constrain_a)
-	println("constrain_b", constrain_b)
+	f.enforceWidthConditional(a)
+	f.enforceWidthConditional(b)
+
 	ba, aConst := f.constantValue(a)
-	println("aConst", aConst)
 	bb, bConst := f.constantValue(b)
-	println("bConst", bConst)
 	if aConst && bConst {
 		ba.Mod(ba, f.fParams.Modulus())
 		bb.Mod(bb, f.fParams.Modulus())

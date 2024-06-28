@@ -76,7 +76,7 @@ func Eval(api *BigIntEngine, ml NativeMultilinear, r []*big.Int) *big.Int {
 	return mlCopy[0]
 }
 
-func eqAcc(api *BigIntEngine, e NativeMultilinear, m NativeMultilinear, q []*big.Int) NativeMultilinear {
+func EqAcc(api *BigIntEngine, e NativeMultilinear, m NativeMultilinear, q []*big.Int) NativeMultilinear {
 	if len(e) != len(m) {
 		panic("length mismatch")
 	}

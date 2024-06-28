@@ -239,50 +239,13 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 	return
 }
 
-// func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
-// 	var ok bool
-
-// 	constLimbs := make([]*big.Int, len(v.Limbs))
-// 	println("v.Limbs", v.Limbs)
-// 	for i, l := range v.Limbs {
-// 		// for each limb we get it's constant value if we can, or fail.
-// 		if constLimbs[i], ok = f.api.Compiler().ConstantValue(l); !ok {
-// 			return nil, false
-// 		}
-// 	}
-// 	println("start_recompose")
-// 	res := new(big.Int)
-// 	if err := recompose(constLimbs, f.fParams.BitsPerLimb(), res); err != nil {
-// 		f.log.Error().Err(err).Msg("recomposing constant")
-// 		return nil, false
-// 	}
-// 	return res, true
-// }
-
 func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
-	if v == nil {
-		println("v is nil")
-		f.log.Error().Msg("constantValue: input element is nil")
-		return nil, false
-	}
-	if v.Limbs == nil {
-		println("v.Limbs is nil")
-		f.log.Error().Msg("constantValue: input element limbs are nil")
-		return nil, false
-	}
-
 	var ok bool
 
 	constLimbs := make([]*big.Int, len(v.Limbs))
 	for i, l := range v.Limbs {
-		if l == nil {
-			println("l is nil")
-			f.log.Error().Msgf("constantValue: limb %d is nil", i)
-			return nil, false
-		}
-		// for each limb we get its constant value if we can, or fail.
+		// for each limb we get it's constant value if we can, or fail.
 		if constLimbs[i], ok = f.api.Compiler().ConstantValue(l); !ok {
-			f.log.Error().Msgf("constantValue: failed to get constant value for limb %d", i)
 			return nil, false
 		}
 	}

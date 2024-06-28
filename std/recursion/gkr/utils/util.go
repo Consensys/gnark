@@ -11,6 +11,38 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func SliceToBigIntSlice[T any](slice []T) ([]big.Int, error) {
+	elementSlice := make([]big.Int, len(slice))
+	for i, v := range slice {
+		switch v := any(v).(type) {
+		case float64:
+			elementSlice[i] = *big.NewInt(int64(v))
+		default:
+			return nil, fmt.Errorf("unsupported type: %T", v)
+		}
+	}
+	return elementSlice, nil
+}
+
+func ConvertToBigIntSlice(input []big.Int) []*big.Int {
+	output := make([]*big.Int, len(input))
+	for i := range input {
+		output[i] = &input[i]
+	}
+	return output
+}
+
+func SliceEqualsBigInt(a []big.Int, b []big.Int) error {
+	if len(a) != len(b) {
+		return fmt.Errorf("length mismatch %d≠%d", len(a), len(b))
+	}
+	for i := range a {
+		if a[i].Cmp(&b[i]) != 0 {
+			return fmt.Errorf("at index %d: %s ≠ %s", i, a[i].String(), b[i].String())
+		}
+	}
+	return nil
+}
 
 func ToVariableFr[FR emulated.FieldParams](v interface{}) emulated.Element[FR] {
 	switch vT := v.(type) {

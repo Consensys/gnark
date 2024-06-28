@@ -3,27 +3,27 @@
 		"type": "const",
 		"val": -1
 	},
-	"circuit": "resources/single_input_two_identity_gates.json",
+	"circuit": "resources/single_input_two_outs.json",
 	"input": [
 		[
-			2,
-			3
+			1,
+			2
 		]
 	],
 	"output": [
 		[
-			2,
-			3
+			1,
+			4
 		],
 		[
-			2,
-			3
+			1,
+			2
 		]
 	],
 	"proof": [
 		{
 			"finalEvalProof": [],
-			"partialSumPolys": [
+			"roundPolyEvaluations": [
 				[
 					0,
 					0
@@ -32,23 +32,24 @@
 		},
 		{
 			"finalEvalProof": [
-				1
+				0
 			],
-			"partialSumPolys": [
+			"roundPolyEvaluations": [
 				[
-					-3,
-					-16
+					-4,
+					-36,
+					-112
 				]
 			]
 		},
 		{
 			"finalEvalProof": [
-				1
+				0
 			],
-			"partialSumPolys": [
+			"roundPolyEvaluations": [
 				[
-					-3,
-					-16
+					-2,
+					-12
 				]
 			]
 		}

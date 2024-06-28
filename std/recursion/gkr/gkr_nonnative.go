@@ -5,18 +5,17 @@ import (
 	"math/big"
 	"slices"
 	"strconv"
-	"sync"
 
+	cryptofiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/parallel"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
-	cryptofiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
-	"github.com/consensys/gnark/internal/parallel"
 )
 
 // @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
@@ -139,7 +138,10 @@ type eqTimesGateEvalSumcheckLazyClaimsEmulated[FR emulated.FieldParams] struct {
 
 func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof sumcheck.DeferredEvalProof[FR]) error {
 	inputEvaluationsNoRedundancy := proof
-	field := emulated.Field[FR]{}
+	field, err := emulated.NewField[FR](e.verifier.api)
+	if err != nil {
+		return fmt.Errorf("failed to create field: %w", err)
+	}
 	p, err := polynomial.New[FR](e.verifier.api)
 	if err != nil {
 		return err
@@ -208,16 +210,18 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) Degree(int) int {
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof sumcheck.EvaluationProof) error {
-	field := emulated.Field[FR]{}
+	field, err := emulated.NewField[FR](e.verifier.api)
+	if err != nil {
+		return fmt.Errorf("failed to create field: %w", err)
+	}
 	val, err := e.verifier.p.EvalMultilinear(r, e.manager.assignment[e.wire])
 	if err != nil {
 		return fmt.Errorf("evaluation error: %w", err)
 	}
-	println("val", val)
-	println("expectedValue", expectedValue)
+
 	field.AssertIsEqual(val, expectedValue)
 	return nil
-}
+}      
 
 type claimsManagerEmulated[FR emulated.FieldParams] struct {
 	claimsMap  map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]
@@ -280,10 +284,14 @@ func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManage
 }
 
 func (m *claimsManager) add(wire *Wire, evaluationPoint []big.Int, evaluation big.Int) {
+	println("claim add")
 	claim := m.claimsMap[wire]
 	i := len(claim.evaluationPoints)
+	println("len claim.evaluationPoints before", i)
+	fmt.Printf("evaluation: %v\n", evaluation)
 	claim.claimedEvaluations[i] = evaluation
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
+	println("len claim.evaluationPoints after", len(claim.evaluationPoints))
 }
 
 func (m *claimsManager) getClaim(engine *sumcheck.BigIntEngine, wire *Wire) *eqTimesGateEvalSumcheckClaims {
@@ -339,28 +347,28 @@ func (e *eqTimesGateEvalSumcheckClaims) NbVars() int {
 }
 
 func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff *big.Int) sumcheck.NativePolynomial {
-	varsNum := c.VarsNum()
+	varsNum := c.NbVars()
 	eqLength := 1 << varsNum
-	claimsNum := c.ClaimsNum()
+	claimsNum := c.NbClaims()
+
 	// initialize the eq tables
 	c.eq = make(sumcheck.NativeMultilinear, eqLength)
-
-	c.eq[0] = big.NewInt(1)
+	for i := 1; i < eqLength; i++ {
+		c.eq[i] = new(big.Int)
+	}
+	c.eq[0] = c.engine.One()
 	sumcheck.Eq(c.engine, c.eq, sumcheck.ReferenceBigIntSlice(c.evaluationPoints[0]))
 
 	newEq := make(sumcheck.NativeMultilinear, eqLength)
-	aI := combinationCoeff
+	for i := 1; i < eqLength; i++ {
+		newEq[i] = new(big.Int)
+	}
+	aI := new(big.Int).Set(combinationCoeff)
 
 	for k := 1; k < claimsNum; k++ { // TODO: parallelizable?
 		// define eq_k = aᵏ eq(x_k1, ..., x_kn, *, ..., *) where x_ki are the evaluation points
-		newEq[0].Set(aI)
-
-		c.eqAcc(c.eq, newEq, c.evaluationPoints[k])
-
-		// newEq.Eq(c.evaluationPoints[k])
-		// eqAsPoly := sumcheck.NativePolynomial(c.eq) //just semantics
-		// eqAsPoly.Add(eqAsPoly, sumcheck.NativePolynomial(newEq))
-
+		newEq[0].Set(aI) // check if this is one or ai
+		sumcheck.EqAcc(c.engine, c.eq, newEq, sumcheck.ReferenceBigIntSlice(c.evaluationPoints[k]))
 		if k+1 < claimsNum {
 			aI.Mul(aI, combinationCoeff)
 		}
@@ -368,30 +376,6 @@ func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff *big.Int) sumch
 
 	// from this point on the claim is a rather simple one: g = E(h) × R_v (P_u0(h), ...) where E and the P_u are multilinear and R_v is of low-degree
 	return c.computeGJ()
-}
-
-// eqAcc sets m to an eq table at q and then adds it to e
-func (c *eqTimesGateEvalSumcheckClaims) eqAcc(e, m sumcheck.NativeMultilinear, q []big.Int) {
-	n := len(q)
-
-	//At the end of each iteration, m(h₁, ..., hₙ) = Eq(q₁, ..., qᵢ₊₁, h₁, ..., hᵢ₊₁)
-	for i := range q { // In the comments we use a 1-based index so q[i] = qᵢ₊₁
-		// go through all assignments of (b₁, ..., bᵢ) ∈ {0,1}ⁱ
-		k := 1 << i
-			for j := 0; j < k; j++ {
-				j0 := j << (n - i)    // bᵢ₊₁ = 0
-				j1 := j0 + 1<<(n-1-i) // bᵢ₊₁ = 1
-
-				m[j1].Mul(&q[i], m[j0])  // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
-				m[j0].Sub(m[j0], m[j1]) // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
-			}
-
-	}
-
-	for i := 0; i < len(e); i++ {
-		e[i].Add(e[i], m[i])
-	}
-	// e.Add(e, sumcheck.NativePolynomial(m))
 }
 
 // computeGJ: gⱼ = ∑_{0≤i<2ⁿ⁻ʲ} g(r₁, r₂, ..., rⱼ₋₁, Xⱼ, i...) = ∑_{0≤i<2ⁿ⁻ʲ} E(r₁, ..., X_j, i...) R_v( P_u0(r₁, ..., X_j, i...), ... ) where  E = ∑ eq_k
@@ -411,74 +395,55 @@ func (c *eqTimesGateEvalSumcheckClaims) computeGJ() sumcheck.NativePolynomial {
 	nbInner := len(s) // wrt output, which has high nbOuter and low nbInner
 	nbOuter := len(s[0]) / 2
 
-	gJ := make([]big.Int, degGJ)
-	var mu sync.Mutex
-	computeAll := func(start, end int) {
-		var step big.Int
-
-		res := make([]big.Int, degGJ)
-		operands := make([]big.Int, degGJ*nbInner)
-
-		for i := start; i < end; i++ {
-			block := nbOuter + i
-			for j := 0; j < nbInner; j++ {
-				step.Set(s[j][i])
-				operands[j].Set(s[j][block])
-				step.Sub(&operands[j], &step)
-				for d := 1; d < degGJ; d++ {
-					operands[d*nbInner+j].Add(&operands[(d-1)*nbInner+j], &step)
-				}
-			}
-
-			_s := 0
-			_e := nbInner
-			for d := 0; d < degGJ; d++ {
-				summand := c.wire.Gate.Evaluate(c.engine, sumcheck.ReferenceBigIntSlice(operands[_s+1 : _e])...)
-				summand.Mul(summand, &operands[_s])
-				res[d].Add(&res[d], summand)
-				_s, _e = _e, _e+nbInner
-			}
-		}
-		mu.Lock()
-		for i := 0; i < len(gJ); i++ {
-			gJ[i].Add(&gJ[i], &res[i])
-		}
-		mu.Unlock()
+	gJ := make(sumcheck.NativePolynomial, degGJ)
+	for i := range gJ {
+		gJ[i] = new(big.Int)
 	}
 
-	const minBlockSize = 64
+	step := new(big.Int)
+	res := make([]*big.Int, degGJ)
+	for i := range res {
+		res[i] = new(big.Int)
+	}
+	operands := make([]*big.Int, degGJ*nbInner)
+	for i := range operands {
+		operands[i] = new(big.Int)
+	}
 
-	if nbOuter < minBlockSize {
-		// no parallelization
-		computeAll(0, nbOuter)
-	} 
-
-	// Perf-TODO: Separate functions Gate.TotalDegree and Gate.Degree(i) so that we get to use possibly smaller values for degGJ. Won't help with MiMC though
-
-	return sumcheck.ReferenceBigIntSlice(gJ)
+	for i := 0; i < nbOuter; i++ {
+		block := nbOuter + i
+		for j := 0; j < nbInner; j++ {
+			// TODO: instead of set can assign?
+			step.Set(s[j][i])
+			operands[j].Set(s[j][block])
+			step = c.engine.Sub(operands[j], step)
+			for d := 1; d < degGJ; d++ {
+				operands[d*nbInner+j] = c.engine.Add(operands[(d-1)*nbInner+j], step)
+			}
+		}
+		_s := 0
+		_e := nbInner
+		for d := 0; d < degGJ; d++ {
+			summand := c.wire.Gate.Evaluate(c.engine, operands[_s+1:_e]...)
+			summand = c.engine.Mul(summand, operands[_s])
+			res[d] = c.engine.Add(res[d], summand)
+			_s, _e = _e, _e+nbInner
+		}
+	}
+	for i := 0; i < degGJ; i++ {
+		gJ[i] = c.engine.Add(gJ[i], res[i])
+	}
+	return gJ
 }
 
 // Next first folds the "preprocessing" and "eq" polynomials then compute the new g_j
 func (c *eqTimesGateEvalSumcheckClaims) Next(element *big.Int) sumcheck.NativePolynomial {
-	const minBlockSize = 512 //asktodo whats the block size for our usecase/number of variable in multilinear poly?
-	n := len(c.eq) / 2
-	if n < minBlockSize {
-		// no parallelization
-		for i := 0; i < len(c.inputPreprocessors); i++ {
-			sumcheck.Fold(c.engine, c.inputPreprocessors[i], element)
-		}
-		sumcheck.Fold(c.engine, c.eq, element)
+	for i := 0; i < len(c.inputPreprocessors); i++ {
+		sumcheck.Fold(c.engine, c.inputPreprocessors[i], element)
 	}
+	sumcheck.Fold(c.engine, c.eq, element)
 
 	return c.computeGJ()
-}
-
-func (c *eqTimesGateEvalSumcheckClaims) VarsNum() int {
-	return len(c.evaluationPoints[0])
-}
-
-func (c *eqTimesGateEvalSumcheckClaims) ClaimsNum() int {
-	return len(c.claimedEvaluations)
 }
 
 func (c *eqTimesGateEvalSumcheckClaims) ProverFinalEval(r []*big.Int) sumcheck.NativeEvaluationProof {
@@ -840,31 +805,48 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 
 	var baseChallenge []*big.Int
 	for i := len(c) - 1; i >= 0; i-- {
-
+		println("i", i)
 		wire := o.sorted[i]
 
 		if wire.IsOutput() {
+			println("wire is output prove i ", i)
 			evaluation := sumcheck.Eval(be, assignment[wire], firstChallenge)
 			claims.add(wire, sumcheck.DereferenceBigIntSlice(firstChallenge), *evaluation)
 		}
 
 		claim := claims.getClaim(be, wire)
+		var finalEvalProofLen int
+		finalEvalProof := proof[i].FinalEvalProof
+
 		if wire.noProof() { // input wires with one claim only
+			println("wire is input prove i ", i)
 			proof[i] = sumcheck.NativeProof{
 				RoundPolyEvaluations: []sumcheck.NativePolynomial{},
-				FinalEvalProof:  []big.Int{},
+				FinalEvalProof:  finalEvalProof,
 			}
 		} else {
-			if proof[i], err = sumcheck.Prove(
+			proof[i], err = sumcheck.Prove(
 				current, target, claim,
-			); err != nil {
+			)
+			if err != nil {
 				return proof, err
 			}
 
-			finalEvalProof := proof[i].FinalEvalProof.([]big.Int)
-			baseChallenge = make([]*big.Int, len(finalEvalProof))
-			for i := range finalEvalProof {
-				baseChallenge[i] = &finalEvalProof[i]
+			finalEvalProof := proof[i].FinalEvalProof
+			switch finalEvalProof := finalEvalProof.(type) {
+			case nil:
+				finalEvalProof = sumcheck.NativeDeferredEvalProof([]big.Int{})
+			case []big.Int:
+				finalEvalProofLen = len(finalEvalProof)
+				finalEvalProof = sumcheck.NativeDeferredEvalProof(finalEvalProof)
+			default:
+				return nil, fmt.Errorf("finalEvalProof is not of type DeferredEvalProof")
+			}
+
+			proof[i].FinalEvalProof = finalEvalProof
+			baseChallenge = make([]*big.Int, finalEvalProofLen)
+			for i := 0; i < finalEvalProofLen; i++ {
+				baseChallenge[i] = &finalEvalProof.([]big.Int)[i]
 			}
 		}
 		// the verifier checks a single claim about input wires itself
@@ -897,8 +879,9 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 	var baseChallenge []emulated.Element[FR]
 	for i := len(c) - 1; i >= 0; i-- {
 		wire := o.sorted[i]
-
+		println("i", i)
 		if wire.IsOutput() {
+			println("wire is output verify i ", i)
 			var evaluation emulated.Element[FR]
 			evaluationPtr, err := v.p.EvalMultilinear(polynomial.FromSlice(firstChallenge), assignment[wire])
 			if err != nil {
@@ -912,15 +895,33 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 		finalEvalProof := proofW.FinalEvalProof
 		claim := claims.getLazyClaim(wire)
 
+		println("len(claim.evaluationPoints)", len(claim.evaluationPoints))
+		if len(claim.evaluationPoints) > 0 {
+			println("len(claim.evaluationPoints[0])", len(claim.evaluationPoints[0]))
+		} else {
+			println("claim.evaluationPoints is empty")
+		}
+
 		if wire.noProof() { // input wires with one claim only
 			// make sure the proof is empty
 			// make sure finalevalproof is of type deferred for gkr
-			if (finalEvalProof != nil && len(finalEvalProof.(sumcheck.DeferredEvalProof[emulated.FieldParams])) != 0) || len(proofW.RoundPolyEvaluations) != 0 {
+			println("wire is input verify i ", i)
+			var proofLen int
+			switch proof := finalEvalProof.(type) {
+			case []emulated.Element[FR]:
+				proofLen = len(sumcheck.DeferredEvalProof[FR](proof))
+			default:
+				return fmt.Errorf("finalEvalProof is not of type DeferredEvalProof")
+			}
+			
+			if (finalEvalProof != nil && proofLen != 0) || len(proofW.RoundPolyEvaluations) != 0 {
 				return fmt.Errorf("no proof allowed for input wire with a single claim")
 			}
 
 			if wire.NbClaims() == 1 { // input wire
 				// simply evaluate and see if it matches
+				println("wire is input verify i ", i)
+				//println("claim.claimedEvaluations[0]", claim.claimedEvaluations[0].Limbs)
 				var evaluation emulated.Element[FR]
 				evaluationPtr, err := v.p.EvalMultilinear(polynomial.FromSlice(claim.evaluationPoints[0]), assignment[wire])
 				if err != nil {
@@ -932,7 +933,12 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 		} else if err = sumcheck_verifier.Verify(
 			claim, proof[i],
 		); err == nil {
-			baseChallenge = finalEvalProof.(sumcheck.DeferredEvalProof[FR])
+			switch proof := finalEvalProof.(type) {
+			case []emulated.Element[FR]:
+				baseChallenge = sumcheck.DeferredEvalProof[FR](proof)
+			default:
+				return fmt.Errorf("finalEvalProof is not of type DeferredEvalProof")
+			}
 			_ = baseChallenge
 		} else {
 			return err
@@ -1195,13 +1201,38 @@ func (a WireAssignmentEmulated[FR]) NumVars() int {
 	panic("empty assignment")
 }
 
+// func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
+// 	size := 0
+// 	for i := range p {
+// 		for j := range p[i].RoundPolyEvaluations {
+// 			size += len(p[i].RoundPolyEvaluations[j])
+// 		}
+// 		size += len(p[i].FinalEvalProof.(sumcheck.DeferredEvalProof[FR]))
+// 	}
+
+// 	res := make([]emulated.Element[FR], 0, size)
+// 	for i := range p {
+// 		for j := range p[i].RoundPolyEvaluations {
+// 			res = append(res, p[i].RoundPolyEvaluations[j]...)
+// 		}
+// 		res = append(res, p[i].FinalEvalProof.(sumcheck.DeferredEvalProof[FR])...)
+// 	}
+// 	if len(res) != size {
+// 		panic("bug") // TODO: Remove
+// 	}
+// 	return res
+// }
+
 func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 	size := 0
 	for i := range p {
 		for j := range p[i].RoundPolyEvaluations {
 			size += len(p[i].RoundPolyEvaluations[j])
 		}
-		size += len(p[i].FinalEvalProof.(sumcheck.DeferredEvalProof[FR]))
+		switch v := p[i].FinalEvalProof.(type) {
+		case sumcheck.DeferredEvalProof[FR]:
+			size += len(v)
+		}
 	}
 
 	res := make([]emulated.Element[FR], 0, size)
@@ -1209,7 +1240,10 @@ func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 		for j := range p[i].RoundPolyEvaluations {
 			res = append(res, p[i].RoundPolyEvaluations[j]...)
 		}
-		res = append(res, p[i].FinalEvalProof.(sumcheck.DeferredEvalProof[FR])...)
+		switch v := p[i].FinalEvalProof.(type) {
+		case sumcheck.DeferredEvalProof[FR]:
+			res = append(res, v...)
+		}
 	}
 	if len(res) != size {
 		panic("bug") // TODO: Remove
