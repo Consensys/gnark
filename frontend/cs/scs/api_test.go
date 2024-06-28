@@ -257,3 +257,36 @@ func TestSubSameNoConstraint(t *testing.T) {
 		t.Fatal("expected 0 constraints")
 	}
 }
+
+type regressionOr struct {
+	A          frontend.Variable
+	constOr    int
+	constCheck int
+}
+
+func (c *regressionOr) Define(api frontend.API) error {
+	y := api.Or(c.A, c.constOr)
+	api.AssertIsEqual(y, c.constCheck)
+	return nil
+}
+
+func TestRegressionOr(t *testing.T) {
+	assert := test.NewAssert(t)
+	for _, tc := range []struct{ in, o, c int }{
+		{1, 1, 1}, {0, 1, 1},
+		{1, 0, 1}, {0, 0, 0},
+	} {
+		ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &regressionOr{constOr: tc.o, constCheck: tc.c})
+		assert.NoError(err)
+		w, err := frontend.NewWitness(&regressionOr{
+			A: tc.in,
+		}, ecc.BN254.ScalarField())
+		if err != nil {
+			t.Error("compile", err)
+		}
+		_, err = ccs.Solve(w)
+		if err != nil {
+			t.Error("solve", err)
+		}
+	}
+}
