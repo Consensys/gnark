@@ -188,21 +188,7 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	// curve.
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
-	// the hints allow to decompose the scalar s into s1 and s2 such that
-	//     s1 + λ * s2 == s mod r,
-	// where λ is third root of one in 𝔽_r.
-	sd, err := api.Compiler().NewHint(decomposeScalarG1Simple, 3, s)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-	s1, s2 := sd[0], sd[1]
-
-	// s1 + λ * s2 == s mod r
-	api.AssertIsEqual(
-		api.Add(s1, api.Mul(s2, cc.lambda)),
-		api.Add(s, api.Mul(cc.fr, sd[2])),
-	)
+	s1, s2 := callDecomposeScalar(api, s, true)
 
 	nbits := 127
 	s1bits := api.ToBinary(s1, nbits)
@@ -451,24 +437,8 @@ func (P *G1Affine) jointScalarMul(api frontend.API, Q, R G1Affine, s, t frontend
 // P = [s]Q + [t]R using Shamir's trick
 func (P *G1Affine) jointScalarMulUnsafe(api frontend.API, Q, R G1Affine, s, t frontend.Variable) *G1Affine {
 	cc := getInnerCurveConfig(api.Compiler().Field())
-
-	sd, err := api.Compiler().NewHint(decomposeScalarG1, 3, s)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-	s1, s2 := sd[0], sd[1]
-
-	td, err := api.Compiler().NewHint(decomposeScalarG1, 3, t)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-	t1, t2 := td[0], td[1]
-
-	api.AssertIsEqual(api.Add(s1, api.Mul(s2, cc.lambda)), api.Add(s, api.Mul(cc.fr, sd[2])))
-	api.AssertIsEqual(api.Add(t1, api.Mul(t2, cc.lambda)), api.Add(t, api.Mul(cc.fr, td[2])))
-
+	s1, s2 := callDecomposeScalar(api, s, false)
+	t1, t2 := callDecomposeScalar(api, t, false)
 	nbits := cc.lambda.BitLen() + 1
 
 	s1bits := api.ToBinary(s1, nbits)
