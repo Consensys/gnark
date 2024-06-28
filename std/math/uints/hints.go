@@ -15,6 +15,7 @@ func GetHints() []solver.Hint {
 	return []solver.Hint{
 		andHint,
 		xorHint,
+		orHint,
 		toBytes,
 	}
 }
@@ -26,6 +27,11 @@ func xorHint(_ *big.Int, inputs, outputs []*big.Int) error {
 
 func andHint(_ *big.Int, inputs, outputs []*big.Int) error {
 	outputs[0].And(inputs[0], inputs[1])
+	return nil
+}
+
+func orHint(_ *big.Int, inputs, outputs []*big.Int) error {
+	outputs[0].Or(inputs[0], inputs[1])
 	return nil
 }
 

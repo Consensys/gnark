@@ -84,10 +84,10 @@ type U32 [4]U8
 type Long interface{ U32 | U64 }
 
 type BinaryField[T U32 | U64] struct {
-	api        frontend.API
-	xorT, andT *logderivprecomp.Precomputed
-	rchecker   frontend.Rangechecker
-	allOne     U8
+	api             frontend.API
+	xorT, andT, orT *logderivprecomp.Precomputed
+	rchecker        frontend.Rangechecker
+	allOne          U8
 }
 
 func New[T Long](api frontend.API) (*BinaryField[T], error) {
@@ -99,11 +99,16 @@ func New[T Long](api frontend.API) (*BinaryField[T], error) {
 	if err != nil {
 		return nil, fmt.Errorf("new and table: %w", err)
 	}
+	orT, err := logderivprecomp.New(api, orHint, []uint{8})
+	if err != nil {
+		return nil, fmt.Errorf("new or table: %w", err)
+	}
 	rchecker := rangecheck.New(api)
 	bf := &BinaryField[T]{
 		api:      api,
 		xorT:     xorT,
 		andT:     andT,
+		orT:      orT,
 		rchecker: rchecker,
 	}
 	// TODO: this is const. add way to init constants
@@ -244,6 +249,7 @@ func (bf *BinaryField[T]) twoArgWideFn(tbl *logderivprecomp.Precomputed, a ...T)
 
 func (bf *BinaryField[T]) And(a ...T) T { return bf.twoArgWideFn(bf.andT, a...) }
 func (bf *BinaryField[T]) Xor(a ...T) T { return bf.twoArgWideFn(bf.xorT, a...) }
+func (bf *BinaryField[T]) Or(a ...T) T  { return bf.twoArgWideFn(bf.orT, a...) }
 
 func (bf *BinaryField[T]) not(a U8) U8 {
 	ret := bf.xorT.Query(a.Val, bf.allOne.Val)
