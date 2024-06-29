@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"math/big"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
@@ -134,7 +135,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
 	sorted := topologicalSort(c)
-	res := make(WireAssignment, len(inputValues)+len(outputValues))
+	res := make(WireAssignment, len(inputValues) + len(outputValues))
 	inI, outI := 0, 0
 	for _, w := range sorted {
 		if w.IsInput() {
@@ -165,8 +166,8 @@ type TestCase struct {
 type TestCaseInfo struct {
 	Hash    HashDescription `json:"hash"`
 	Circuit string          `json:"circuit"`
-	Input   [][]interface{} `json:"input"`
-	Output  [][]interface{} `json:"output"`
+	Input   [][]big.Int `json:"input"`
+	Output  [][]big.Int `json:"output"`
 	Proof   PrintableProof  `json:"proof"`
 }
 
@@ -276,7 +277,7 @@ type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
 	FinalEvalProof  interface{}     `json:"finalEvalProof"`
-	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
+	RoundPolyEvaluations [][]interface{} `json:"roundPolyEvaluations"`
 }
 
 func unmarshalProof(printable PrintableProof) (proof Proof) {
@@ -294,9 +295,9 @@ func unmarshalProof(printable PrintableProof) (proof Proof) {
 			proof[i].FinalEvalProof = nil
 		}
 
-		proof[i].PartialSumPolys = make([]polynomial.Polynomial, len(printable[i].PartialSumPolys))
-		for k := range printable[i].PartialSumPolys {
-			proof[i].PartialSumPolys[k] = ToVariableSlice(printable[i].PartialSumPolys[k])
+		proof[i].RoundPolyEvaluations = make([]polynomial.Polynomial, len(printable[i].RoundPolyEvaluations))
+		for k := range printable[i].RoundPolyEvaluations {
+			proof[i].RoundPolyEvaluations[k] = ToVariableSlice(printable[i].RoundPolyEvaluations[k])
 		}
 	}
 	return
@@ -327,7 +328,6 @@ func TestLoadCircuit(t *testing.T) {
 	assert.Equal(t, []*Wire{}, c[0].Inputs)
 	assert.Equal(t, []*Wire{&c[0]}, c[1].Inputs)
 	assert.Equal(t, []*Wire{&c[1]}, c[2].Inputs)
-
 }
 
 func TestTopSortTrivial(t *testing.T) {

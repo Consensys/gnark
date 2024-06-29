@@ -28,12 +28,12 @@ type claims interface {
 	NbVars() int
 	// Combine combines separate claims into a single sumcheckable claim using
 	// the coefficient coeff.
-	Combine(coeff *big.Int) nativePolynomial
+	Combine(coeff *big.Int) NativePolynomial
 	// Next fixes the next free variable to r, keeps the next variable free and
 	// sums over a hypercube for the last variables. Instead of returning the
 	// polynomial in coefficient form, it returns the evaluations at degree
 	// different points.
-	Next(r *big.Int) nativePolynomial
+	Next(r *big.Int) NativePolynomial
 	// ProverFinalEval returns the (lazy) evaluation proof.
-	ProverFinalEval(r []*big.Int) nativeEvaluationProof
+	ProverFinalEval(r []*big.Int) NativeEvaluationProof
 }

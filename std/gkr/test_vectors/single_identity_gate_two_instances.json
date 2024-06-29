@@ -19,13 +19,13 @@
 	"proof": [
 		{
 			"finalEvalProof": [],
-			"partialSumPolys": []
+			"roundPolyEvaluations": []
 		},
 		{
 			"finalEvalProof": [
 				5
 			],
-			"partialSumPolys": [
+			"roundPolyEvaluations": [
 				[
 					-3,
 					-8
