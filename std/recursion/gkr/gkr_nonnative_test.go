@@ -467,7 +467,7 @@ func TestGkrVectorsEmulated(t *testing.T) {
 			noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
 
 			t.Run(noExt, generateTestProver(path, *current, *fr.Modulus()))
-			//t.Run(noExt, generateTestVerifier[emparams.BN254Fp](path))
+			t.Run(noExt, generateTestVerifier[emparams.BN254Fp](path))
 		}
 	}
 }
@@ -516,6 +516,7 @@ func generateVerifier[FR emulated.FieldParams](Input [][]emulated.Element[FR], O
 		fillWithBlanks(invalidCircuit.Output, len(Input[0]))
 
 		assert.CheckCircuit(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
+		//test.IsSolved(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
 		// assert.CheckCircuit(invalidCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithInvalidAssignment(assignment))
 	}
 }

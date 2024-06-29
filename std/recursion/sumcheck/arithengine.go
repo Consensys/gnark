@@ -88,7 +88,7 @@ func (ee *EmuEngine[FR]) Const(i *big.Int) *emulated.Element[FR] {
 	return ee.f.NewElement(i)
 }
 
-func newEmulatedEngine[FR emulated.FieldParams](api frontend.API) (*EmuEngine[FR], error) {
+func NewEmulatedEngine[FR emulated.FieldParams](api frontend.API) (*EmuEngine[FR], error) {
 	f, err := emulated.NewField[FR](api)
 	if err != nil {
 		return nil, fmt.Errorf("new field: %w", err)

@@ -71,7 +71,7 @@ func newGate[FR emulated.FieldParams](api frontend.API, gate gate[*EmuEngine[FR]
 	if err != nil {
 		return nil, fmt.Errorf("new polynomial: %w", err)
 	}
-	engine, err := newEmulatedEngine[FR](api)
+	engine, err := NewEmulatedEngine[FR](api)
 	if err != nil {
 		return nil, fmt.Errorf("new emulated engine: %w", err)
 	}

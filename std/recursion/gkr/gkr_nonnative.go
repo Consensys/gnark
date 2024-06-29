@@ -5,7 +5,6 @@ import (
 	"math/big"
 	"slices"
 	"strconv"
-
 	cryptofiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
@@ -136,62 +135,6 @@ type eqTimesGateEvalSumcheckLazyClaimsEmulated[FR emulated.FieldParams] struct {
 	engine             *sumcheck.EmuEngine[FR]
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) VerifyFinalEval(r []emulated.Element[FR], combinationCoeff, purportedValue emulated.Element[FR], proof sumcheck.DeferredEvalProof[FR]) error {
-	inputEvaluationsNoRedundancy := proof
-	field, err := emulated.NewField[FR](e.verifier.api)
-	if err != nil {
-		return fmt.Errorf("failed to create field: %w", err)
-	}
-	p, err := polynomial.New[FR](e.verifier.api)
-	if err != nil {
-		return err
-	}
-
-	// the eq terms
-	numClaims := len(e.evaluationPoints)
-	evaluation := p.EvalEqual(polynomial.FromSlice(e.evaluationPoints[numClaims-1]), polynomial.FromSlice(r))
-	for i := numClaims - 2; i >= 0; i-- {
-		evaluation = field.Mul(evaluation, &combinationCoeff)
-		eq := p.EvalEqual(polynomial.FromSlice(e.evaluationPoints[i]), polynomial.FromSlice(r))
-		evaluation = field.Add(evaluation, eq)
-	}
-
-	// the g(...) term
-	var gateEvaluation emulated.Element[FR]
-	if e.wire.IsInput() {
-		gateEvaluationPtr, err := p.EvalMultilinear(polynomial.FromSlice(r), e.manager.assignment[e.wire])
-		if err != nil {
-			return err
-		}
-		gateEvaluation = *gateEvaluationPtr
-	} else {
-		inputEvaluations := make([]emulated.Element[FR], len(e.wire.Inputs))
-		indexesInProof := make(map[*WireEmulated[FR]]int, len(inputEvaluationsNoRedundancy))
-
-		proofI := 0
-		for inI, in := range e.wire.Inputs {
-			indexInProof, found := indexesInProof[in]
-			if !found {
-				indexInProof = proofI
-				indexesInProof[in] = indexInProof
-
-				// defer verification, store new claim
-				e.manager.add(in, r, inputEvaluationsNoRedundancy[indexInProof])
-				proofI++
-			}
-			inputEvaluations[inI] = inputEvaluationsNoRedundancy[indexInProof]
-		}
-		if proofI != len(inputEvaluationsNoRedundancy) {
-			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
-		}
-		gateEvaluation = *e.wire.Gate.Evaluate(e.engine, polynomial.FromSlice(inputEvaluations)...)
-	}
-	evaluation = field.Mul(evaluation, &gateEvaluation)
-
-	field.AssertIsEqual(evaluation, &purportedValue)
-	return nil
-}
-
 func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) NbClaims() int {
 	return len(e.evaluationPoints)
 }
@@ -210,18 +153,67 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) Degree(int) int {
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof sumcheck.EvaluationProof) error {
+	inputEvaluationsNoRedundancy := proof.([]emulated.Element[FR])
+	// switch proof := proof.(type) {
+	// case []emulated.Element[FR]:
+	// 	fmt.Println("proof type: []emulated.Element")
+	// 	inputEvaluationsNoRedundancy = sumcheck.DeferredEvalProof[FR](proof)
+	// default:
+	// 	return fmt.Errorf("proof is not a DeferredEvalProof")
+	// }
 	field, err := emulated.NewField[FR](e.verifier.api)
 	if err != nil {
 		return fmt.Errorf("failed to create field: %w", err)
 	}
-	val, err := e.verifier.p.EvalMultilinear(r, e.manager.assignment[e.wire])
+	p, err := polynomial.New[FR](e.verifier.api)
 	if err != nil {
-		return fmt.Errorf("evaluation error: %w", err)
+		return err
 	}
 
-	field.AssertIsEqual(val, expectedValue)
+	// the eq terms
+	numClaims := len(e.evaluationPoints)
+	evaluation := p.EvalEqual(polynomial.FromSlice(e.evaluationPoints[numClaims-1]), r)
+	for i := numClaims - 2; i >= 0; i-- {
+		evaluation = field.Mul(evaluation, combinationCoeff)
+		eq := p.EvalEqual(polynomial.FromSlice(e.evaluationPoints[i]), r)
+		evaluation = field.Add(evaluation, eq)
+	}
+
+	// the g(...) term
+	var gateEvaluation emulated.Element[FR]
+	if e.wire.IsInput() {
+		gateEvaluationPtr, err := p.EvalMultilinear(r, e.manager.assignment[e.wire])
+		if err != nil {
+			return err
+		}
+		gateEvaluation = *gateEvaluationPtr
+	} else {
+		inputEvaluations := make([]emulated.Element[FR], len(e.wire.Inputs))
+		indexesInProof := make(map[*WireEmulated[FR]]int, len(inputEvaluationsNoRedundancy))
+
+		proofI := 0
+		for inI, in := range e.wire.Inputs {
+			indexInProof, found := indexesInProof[in]
+			if !found {
+				indexInProof = proofI
+				indexesInProof[in] = indexInProof
+
+				// defer verification, store new claim
+				e.manager.add(in, polynomial.FromSliceReferences(r), inputEvaluationsNoRedundancy[indexInProof])
+				proofI++
+			}
+			inputEvaluations[inI] = inputEvaluationsNoRedundancy[indexInProof]
+		}
+		if proofI != len(inputEvaluationsNoRedundancy) {
+			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
+		}
+		gateEvaluation = *e.wire.Gate.Evaluate(e.engine, polynomial.FromSlice(inputEvaluations)...)
+	}
+	evaluation = field.Mul(evaluation, &gateEvaluation)
+
+	field.AssertIsEqual(evaluation, expectedValue)
 	return nil
-}      
+}
 
 type claimsManagerEmulated[FR emulated.FieldParams] struct {
 	claimsMap  map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]
@@ -231,7 +223,10 @@ type claimsManagerEmulated[FR emulated.FieldParams] struct {
 func newClaimsManagerEmulated[FR emulated.FieldParams](c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], verifier GKRVerifier[FR]) (claims claimsManagerEmulated[FR]) {
 	claims.assignment = assignment
 	claims.claimsMap = make(map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR], len(c))
-
+	engine, err := sumcheck.NewEmulatedEngine[FR](verifier.api)
+	if err != nil {
+		panic(err)
+	}
 	for i := range c {
 		wire := &c[i]
 
@@ -241,6 +236,7 @@ func newClaimsManagerEmulated[FR emulated.FieldParams](c CircuitEmulated[FR], as
 			claimedEvaluations: make(polynomial.Multilinear[FR], wire.NbClaims()),
 			manager:            &claims,
 			verifier:           &verifier,
+			engine:             engine,
 		}
 	}
 	return
@@ -284,14 +280,10 @@ func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManage
 }
 
 func (m *claimsManager) add(wire *Wire, evaluationPoint []big.Int, evaluation big.Int) {
-	println("claim add")
 	claim := m.claimsMap[wire]
 	i := len(claim.evaluationPoints)
-	println("len claim.evaluationPoints before", i)
-	fmt.Printf("evaluation: %v\n", evaluation)
 	claim.claimedEvaluations[i] = evaluation
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
-	println("len claim.evaluationPoints after", len(claim.evaluationPoints))
 }
 
 func (m *claimsManager) getClaim(engine *sumcheck.BigIntEngine, wire *Wire) *eqTimesGateEvalSumcheckClaims {
@@ -805,11 +797,9 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 
 	var baseChallenge []*big.Int
 	for i := len(c) - 1; i >= 0; i-- {
-		println("i", i)
 		wire := o.sorted[i]
 
 		if wire.IsOutput() {
-			println("wire is output prove i ", i)
 			evaluation := sumcheck.Eval(be, assignment[wire], firstChallenge)
 			claims.add(wire, sumcheck.DereferenceBigIntSlice(firstChallenge), *evaluation)
 		}
@@ -819,7 +809,6 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 		finalEvalProof := proof[i].FinalEvalProof
 
 		if wire.noProof() { // input wires with one claim only
-			println("wire is input prove i ", i)
 			proof[i] = sumcheck.NativeProof{
 				RoundPolyEvaluations: []sumcheck.NativePolynomial{},
 				FinalEvalProof:  finalEvalProof,
@@ -879,9 +868,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 	var baseChallenge []emulated.Element[FR]
 	for i := len(c) - 1; i >= 0; i-- {
 		wire := o.sorted[i]
-		println("i", i)
 		if wire.IsOutput() {
-			println("wire is output verify i ", i)
 			var evaluation emulated.Element[FR]
 			evaluationPtr, err := v.p.EvalMultilinear(polynomial.FromSlice(firstChallenge), assignment[wire])
 			if err != nil {
@@ -895,17 +882,9 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 		finalEvalProof := proofW.FinalEvalProof
 		claim := claims.getLazyClaim(wire)
 
-		println("len(claim.evaluationPoints)", len(claim.evaluationPoints))
-		if len(claim.evaluationPoints) > 0 {
-			println("len(claim.evaluationPoints[0])", len(claim.evaluationPoints[0]))
-		} else {
-			println("claim.evaluationPoints is empty")
-		}
-
 		if wire.noProof() { // input wires with one claim only
 			// make sure the proof is empty
 			// make sure finalevalproof is of type deferred for gkr
-			println("wire is input verify i ", i)
 			var proofLen int
 			switch proof := finalEvalProof.(type) {
 			case []emulated.Element[FR]:
@@ -920,8 +899,6 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 
 			if wire.NbClaims() == 1 { // input wire
 				// simply evaluate and see if it matches
-				println("wire is input verify i ", i)
-				//println("claim.claimedEvaluations[0]", claim.claimedEvaluations[0].Limbs)
 				var evaluation emulated.Element[FR]
 				evaluationPtr, err := v.p.EvalMultilinear(polynomial.FromSlice(claim.evaluationPoints[0]), assignment[wire])
 				if err != nil {
