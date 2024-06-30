@@ -67,7 +67,7 @@ func (api *API) Series(input, output constraint.GkrVariable, inputInstance, outp
 }
 
 // Import creates a new input variable, whose values across all instances are given by assignment.
-// If the value in an instance depends on an output of another instance, leave the corresponding index in assigment nil and use Series to specify the dependency.
+// If the value in an instance depends on an output of another instance, leave the corresponding index in assignment nil and use Series to specify the dependency.
 func (api *API) Import(assignment []frontend.Variable) (constraint.GkrVariable, error) {
 	nbInstances := len(assignment)
 	logNbInstances := log2(uint(nbInstances))
