@@ -133,7 +133,7 @@ func (e *E24) Add(api frontend.API, e1, e2 E24) *E24 {
 	return e
 }
 
-// Sub substracts 2 elmts in Fp24
+// Sub subtracts 2 elmts in Fp24
 func (e *E24) Sub(api frontend.API, e1, e2 E24) *E24 {
 	e.D0.Sub(api, e1.D0, e2.D0)
 	e.D1.Sub(api, e1.D1, e2.D1)

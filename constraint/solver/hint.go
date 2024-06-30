@@ -100,7 +100,7 @@ func GetHintID(fn Hint) HintID {
 	hf := fnv.New32a()
 	name := GetHintName(fn)
 
-	// TODO relying on name to derive UUID is risky; if fn is an anonymous func, wil be package.glob..funcN
+	// TODO relying on name to derive UUID is risky; if fn is an anonymous func, will be package.glob..funcN
 	// and if new anonymous functions are added in the package, N may change, so will UUID.
 	hf.Write([]byte(name)) // #nosec G104 -- does not err
 

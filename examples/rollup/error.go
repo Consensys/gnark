@@ -34,7 +34,7 @@ var (
 	// ErrNonce inconsistent nonce between transfer and account
 	ErrNonce = errors.New("incorrect nonce")
 
-	// ErrIndexConsistency the map publicKey(string) -> index(int) gives acces to the account position.
+	// ErrIndexConsistency the map publicKey(string) -> index(int) gives access to the account position.
 	// Account has a field index, that should match position.
 	ErrIndexConsistency = errors.New("account's position should match account's index")
 )

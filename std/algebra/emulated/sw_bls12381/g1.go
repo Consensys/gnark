@@ -118,7 +118,7 @@ func (g1 G1) doubleAndAdd(p, q *G1Affine) *G1Affine {
 	xqxp = g1.curveF.Add(&p.X, &q.X)
 	x2 := g1.curveF.Sub(λ1λ1, xqxp)
 
-	// ommit y1 computation
+	// omit y1 computation
 	// compute λ1 = -λ1-1*p.y/(x1-p.x)
 	ypyp := g1.curveF.Add(&p.Y, &p.Y)
 	x2xp := g1.curveF.Sub(x2, &p.X)
@@ -173,8 +173,8 @@ func NewScalar(v fr_bls12381.Element) Scalar {
 	return emulated.ValueOf[ScalarField](v)
 }
 
-// ScalarField is the [emulated.FieldParams] impelementation of the curve scalar field.
+// ScalarField is the [emulated.FieldParams] implementation of the curve scalar field.
 type ScalarField = emulated.BLS12381Fr
 
-// BaseField is the [emulated.FieldParams] impelementation of the curve base field.
+// BaseField is the [emulated.FieldParams] implementation of the curve base field.
 type BaseField = emulated.BLS12381Fp

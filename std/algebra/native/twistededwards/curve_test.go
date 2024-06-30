@@ -204,7 +204,7 @@ func TestCurve(t *testing.T) {
 // testData generates random test data for given curve
 // returns p1, p2 and r, d such that p1 + p2 == r and p1 + p1 == d
 // returns rs1, rs12, s1, s2 such that rs1 = p2 * s2 and rs12 = p1*s1 + p2 * s2
-// retunrs n such that n = -p2
+// returns n such that n = -p2
 func testData(params *CurveParams, curveID twistededwards.ID) (
 	_p1,
 	_p2,
