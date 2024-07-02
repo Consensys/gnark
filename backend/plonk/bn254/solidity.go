@@ -228,6 +228,17 @@ contract PlonkVerifier {
 
       /// Called when an operation on Bn254 fails
       /// @dev for instance when calling EcMul on a point not on Bn254.
+      function error_mod_exp() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0xc)
+        mstore(add(ptError, 0x44), "error mod exp")
+        revert(ptError, 0x64)
+      }
+
+      /// Called when an operation on Bn254 fails
+      /// @dev for instance when calling EcMul on a point not on Bn254.
       function error_ec_op() {
         let ptError := mload(0x40)
         mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
@@ -1330,7 +1341,7 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0xa0), R_MOD)
         let check_staticcall := staticcall(gas(),MOD_EXP,mPtr,0xc0,mPtr,0x20)
         if eq(check_staticcall, 0) {
-            
+            error_mod_exp()
         }
         res := mload(mPtr)
       }
