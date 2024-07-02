@@ -67,6 +67,9 @@ contract PlonkVerifier {
 
   // ------------------------------------------------
 
+  // size of the proof without call custom gate
+  uint256 private constant FIXED_PROOF_SIZE = 0x300;
+
   // offset proof
   {{ $offset := 0 }}
   uint256 private constant PROOF_L_COM_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -157,6 +160,7 @@ contract PlonkVerifier {
   {{ end }}
 
   // -------- precompiles
+  uint8 private constant SHA2 = 0x2;
   uint8 private constant MOD_EXP = 0x5;
   uint8 private constant EC_ADD = 0x6;
   uint8 private constant EC_MUL = 0x7;
@@ -319,7 +323,7 @@ contract PlonkVerifier {
       /// Checks if the proof is of the correct size
       /// @param actual_proof_size size of the proof (not the expected size)
       function check_proof_size(actual_proof_size) {
-        let expected_proof_size := add(0x300, mul(VK_NB_CUSTOM_GATES,0x60))
+        let expected_proof_size := add(FIXED_PROOF_SIZE, mul(VK_NB_CUSTOM_GATES,0x60))
         if iszero(eq(actual_proof_size, expected_proof_size)) {
          error_proof_size() 
         }
@@ -448,7 +452,7 @@ contract PlonkVerifier {
         {{ if (gt (len .CommitmentConstraintIndexes) 0 )}}
         size := add(size, mul(VK_NB_CUSTOM_GATES, 0x40))
         {{ end -}}
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
         if iszero(l_success) {
           error_verify()
         }
@@ -469,7 +473,7 @@ contract PlonkVerifier {
         // beta
         mstore(mPtr, FS_BETA) // "beta"
         mstore(add(mPtr, 0x20), gamma_not_reduced)
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
         if iszero(l_success) {
           error_verify()
         }
@@ -505,7 +509,7 @@ contract PlonkVerifier {
         {{ end }}
         // [Z], the commitment to the grand product polynomial
         calldatacopy(_mPtr, add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X), 0x40)
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), full_size, mPtr, 0x20)
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1b), full_size, mPtr, 0x20)
         if iszero(l_success) {
           error_verify()
         }
@@ -528,7 +532,7 @@ contract PlonkVerifier {
         mstore(mPtr, FS_ZETA) // "zeta"
         mstore(add(mPtr, 0x20), alpha_not_reduced)
         calldatacopy(add(mPtr, 0x40), add(aproof, PROOF_H_0_X), 0xc0)
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
         if iszero(l_success) {
           error_verify()
         }
@@ -703,7 +707,7 @@ contract PlonkVerifier {
         // size domain
         mstore8(add(mPtr, 0x8e), HASH_FR_SIZE_DOMAIN)
 
-        let l_success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
+        let l_success := staticcall(gas(), SHA2, mPtr, 0x8f, mPtr, 0x20)
         if iszero(l_success) {
           error_verify()
         }
@@ -727,7 +731,7 @@ contract PlonkVerifier {
         mstore8(add(mPtr, 0x2b), 0x6b)
 
         mstore8(add(mPtr, 0x2c), HASH_FR_SIZE_DOMAIN) // size domain
-        l_success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
+        l_success := staticcall(gas(), SHA2, mPtr, 0x2d, mPtr, 0x20)
         if iszero(l_success) {
           error_verify()
         }
@@ -754,7 +758,7 @@ contract PlonkVerifier {
         mstore8(add(mPtr, 0x4c), HASH_FR_SIZE_DOMAIN) // size domain
 
         let offset := add(mPtr, 0x20)
-        l_success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
+        l_success := staticcall(gas(), SHA2, offset, 0x2d, offset, 0x20)
         if iszero(l_success) {
           error_verify()
         }
@@ -814,7 +818,7 @@ contract PlonkVerifier {
         mstore(add(mPtr, 0xe0), calldataload(add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_Y)))
         mstore(add(mPtr, 0x100), mload(add(state, STATE_ZETA)))
         mstore(add(mPtr, 0x120), mload(add(state, STATE_GAMMA_KZG)))
-        let random := staticcall(gas(), 0x2, mPtr, 0x140, mPtr, 0x20)
+        let random := staticcall(gas(), SHA2, mPtr, 0x140, mPtr, 0x20)
         if iszero(random){
           error_random_generation()
         }
@@ -1007,7 +1011,7 @@ contract PlonkVerifier {
         let start_input := 0x1b // 00.."gamma"
         let size_input := add(0x14, mul(VK_NB_CUSTOM_GATES,3)) // number of 32bytes elmts = 0x17 (zeta+3*6 for the digests+openings) + 3*VK_NB_CUSTOM_GATES (for the commitments of the selectors) + 1 (opening of Z at ζω)
         size_input := add(0x5, mul(size_input, 0x20)) // size in bytes: 15*32 bytes + 5 bytes for gamma
-        let check_staticcall := staticcall(gas(), 0x2, add(mPtr,start_input), size_input, add(state, STATE_GAMMA_KZG), 0x20)
+        let check_staticcall := staticcall(gas(), SHA2, add(mPtr,start_input), size_input, add(state, STATE_GAMMA_KZG), 0x20)
         if iszero(check_staticcall) {
           error_verify()
         }
