@@ -156,10 +156,11 @@ type instance struct {
 	htfFunc        hash.Hash // hash to field function
 
 	// polynomials
-	x        []*iop.Polynomial // x stores tracks the polynomial we need
-	bp       []*iop.Polynomial // blinding polynomials
-	h        *iop.Polynomial   // h is the quotient polynomial
-	blindedZ []fr.Element      // blindedZ is the blinded version of Z
+	x                         []*iop.Polynomial // x stores tracks the polynomial we need
+	bp                        []*iop.Polynomial // blinding polynomials
+	h                         *iop.Polynomial   // h is the quotient polynomial
+	blindedZ                  []fr.Element      // blindedZ is the blinded version of Z
+	quotientShardsRandomizers [2]fr.Element     // random elements for blinding the shards of the quotient
 
 	linearizedPolynomial       []fr.Element
 	linearizedPolynomialDigest kzg.Digest
@@ -222,6 +223,12 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	s.domain0 = fft.NewDomain(sizeSystem)
+
+	// sampling random numbers for blinding the quotient
+	if opts.StatisticalZK {
+		s.quotientShardsRandomizers[0].SetRandom()
+		s.quotientShardsRandomizers[1].SetRandom()
+	}
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
 	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
@@ -587,17 +594,39 @@ func (s *instance) openZ() (err error) {
 }
 
 func (s *instance) h1() []fr.Element {
-	h1 := s.h.Coefficients()[:s.domain0.Cardinality+2]
+	var h1 []fr.Element
+	if !s.opt.StatisticalZK {
+		h1 = s.h.Coefficients()[:s.domain0.Cardinality+2]
+	} else {
+		h1 = make([]fr.Element, s.domain0.Cardinality+3)
+		copy(h1, s.h.Coefficients()[:s.domain0.Cardinality+2])
+		h1[s.domain0.Cardinality+2].Set(&s.quotientShardsRandomizers[0])
+	}
 	return h1
 }
 
 func (s *instance) h2() []fr.Element {
-	h2 := s.h.Coefficients()[s.domain0.Cardinality+2 : 2*(s.domain0.Cardinality+2)]
+	var h2 []fr.Element
+	if !s.opt.StatisticalZK {
+		h2 = s.h.Coefficients()[s.domain0.Cardinality+2 : 2*(s.domain0.Cardinality+2)]
+	} else {
+		h2 = make([]fr.Element, s.domain0.Cardinality+3)
+		copy(h2, s.h.Coefficients()[s.domain0.Cardinality+2:2*(s.domain0.Cardinality+2)])
+		h2[0].Sub(&h2[0], &s.quotientShardsRandomizers[0])
+		h2[s.domain0.Cardinality+2].Set(&s.quotientShardsRandomizers[1])
+	}
 	return h2
 }
 
 func (s *instance) h3() []fr.Element {
-	h3 := s.h.Coefficients()[2*(s.domain0.Cardinality+2) : 3*(s.domain0.Cardinality+2)]
+	var h3 []fr.Element
+	if !s.opt.StatisticalZK {
+		h3 = s.h.Coefficients()[2*(s.domain0.Cardinality+2) : 3*(s.domain0.Cardinality+2)]
+	} else {
+		h3 = make([]fr.Element, s.domain0.Cardinality+2)
+		copy(h3, s.h.Coefficients()[2*(s.domain0.Cardinality+2):3*(s.domain0.Cardinality+2)])
+		h3[0].Sub(&h3[0], &s.quotientShardsRandomizers[1])
+	}
 	return h3
 }
 
@@ -1248,7 +1277,8 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 
 	s.trace.Qk.ToCanonical(s.domain0).ToRegular()
 
-	// the hi are all of the same length
+	// len(h1)=len(h2)=len(blindedZCanonical)=len(h3)+1 when Statistical ZK is activated
+	// len(h1)=len(h2)=len(h3)=len(blindedZCanonical)-1 when Statistical ZK is deactivated
 	h1 := s.h1()
 	h2 := s.h2()
 	h3 := s.h3()
@@ -1291,17 +1321,26 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 			t0.Mul(&blindedZCanonical[i], &alphaSquareLagrangeZero) // α²L₁(ζ)Z(X)
 			blindedZCanonical[i].Add(&t, &t0)                      // linPol += α²L₁(ζ)Z(X)
 
-			if i < len(h1) {
+			// if statistical zeroknowledge is deactivated, len(h1)=len(h2)=len(h3)=len(blindedZ)-1.
+			// Else len(h1)=len(h2)=len(blindedZCanonical)=len(h3)+1
+			if i < len(h3) {
 				t.Mul(&h3[i], &zetaNPlusTwo).
 					Add(&t, &h2[i]).
 					Mul(&t, &zetaNPlusTwo).
-					Add(&t, &h1[i])
-				t.Mul(&t, &zhZeta)
+					Add(&t, &h1[i]).
+					Mul(&t, &zhZeta)
 				blindedZCanonical[i].Sub(&blindedZCanonical[i], &t) // linPol -= Z_h(ζ)*(H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
+			} else {
+				if s.opt.StatisticalZK {
+					t.Mul(&h2[i], &zetaNPlusTwo).
+						Add(&t, &h1[i]).
+						Mul(&t, &zhZeta)
+					blindedZCanonical[i].Sub(&blindedZCanonical[i], &t) // linPol -= Z_h(ζ)*(H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
+				}
 			}
-
 		}
 	})
+
 	return blindedZCanonical
 }
 
