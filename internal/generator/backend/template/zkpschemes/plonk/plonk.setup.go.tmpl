@@ -77,7 +77,7 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 	// step 0: set the fft domains
 	domain := initFFTDomain(spr)
 	if domain.Cardinality < 2 {
-		return nil, nil, fmt.Errorf("circuit has only %d constraints; unsupported by the current implementation", spr.GetNbConstraints())
+		return nil, nil, fmt.Errorf("circuit has only %d constraints; unsupported by the current implementation", len(spr.Public)+spr.GetNbConstraints())
 	}
 
 	// check the size of the kzg srs.

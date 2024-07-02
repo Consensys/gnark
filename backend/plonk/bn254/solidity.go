@@ -112,9 +112,6 @@ contract PlonkVerifier {
   uint256 private constant PROOF_OPENING_QCP_AT_ZETA = {{ hex $offset }};
   uint256 private constant PROOF_BSB_COMMITMENTS = {{ hex (add $offset (mul (len .CommitmentConstraintIndexes) 32 ) )}};
 
-  // -> next part of proof is
-  // [ openings_selector_commits || commitments_wires_commit_api]
-
   // -------- offset state
 
   // challenges to check the claimed quotient
@@ -130,7 +127,7 @@ contract PlonkVerifier {
   uint256 private constant STATE_LINEARISED_POLYNOMIAL_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_FOLDED_CLAIMED_VALUES = {{ hex $offset }};{{ $offset = add $offset 0x20}} // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 private constant STATE_FOLDED_DIGESTS_X = {{ hex $offset }};{{ $offset = add $offset 0x20}} // folded digests of H, linearised poly, l, r, o, s_1, s_2, qcp
+  uint256 private constant STATE_FOLDED_DIGESTS_X = {{ hex $offset }};{{ $offset = add $offset 0x20}} // linearised poly, l, r, o, s_1, s_2, qcp
   uint256 private constant STATE_FOLDED_DIGESTS_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_PI = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant STATE_ZETA_POWER_N_MINUS_ONE = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -418,9 +415,6 @@ contract PlonkVerifier {
         let state := mload(0x40)
         let mPtr := add(state, STATE_LAST_MEM)
 
-        // gamma
-        // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
-        // (same for alpha, beta, zeta)
         mstore(mPtr, FS_GAMMA) // "gamma"
 
         {{ $offset = 0x20 }}
@@ -911,7 +905,7 @@ contract PlonkVerifier {
 
       /// @notice Fold the opening proofs at ζ:
       /// * at state+state_folded_digest we store: [Linearised_polynomial]+γ[L] + γ²[R] + γ³[O] + γ⁴[S₁] +γ⁵[S₂] + ∑ᵢγ⁵⁺ⁱ[Pi_{i}]
-      /// * at state+state_folded_claimed_values we store: H(ζ) + γLinearised_polynomial(ζ)+γ²L(ζ) + γ³R(ζ)+ γ⁴O(ζ) + γ⁵S₁(ζ) +γ⁶S₂(ζ) + ∑ᵢγ⁶⁺ⁱPi_{i}(ζ)
+      /// * at state+state_folded_claimed_values we store: Linearised_polynomial(ζ)+γL(ζ) + γ²R(ζ)+ γ³O(ζ) + γ⁴S₁(ζ) +γ⁵S₂(ζ) + ∑ᵢγ⁵⁺ⁱPi_{i}(ζ)
       /// @param aproof pointer to the proof
       /// acc_gamma stores the γⁱ
       function fold_state(aproof) {
@@ -1020,7 +1014,7 @@ contract PlonkVerifier {
         mstore(_mPtr, calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)))
 
         let start_input := 0x1b // 00.."gamma"
-        let size_input := add(0x14, mul(VK_NB_CUSTOM_GATES,3)) // number of 32bytes elmts = 0x17 (zeta+3*6 for the digests+openings) + 3*VK_NB_CUSTOM_GATES (for the commitments of the selectors) + 1 (opening of Z at ζω)
+        let size_input := add(0x14, mul(VK_NB_CUSTOM_GATES,3)) // number of 32bytes elmts = 0x14 (zeta+3*6 for the digests+openings) + 3*VK_NB_CUSTOM_GATES (for the commitments of the selectors) + 1 (opening of Z at ζω)
         size_input := add(0x5, mul(size_input, 0x20)) // size in bytes: 15*32 bytes + 5 bytes for gamma
         let check_staticcall := staticcall(gas(), SHA2, add(mPtr,start_input), size_input, add(state, STATE_GAMMA_KZG), 0x20)
         if iszero(check_staticcall) {

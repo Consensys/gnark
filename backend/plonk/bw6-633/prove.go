@@ -320,7 +320,7 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 }
 
 // solveConstraints computes the evaluation of the polynomials L, R, O
-// and sets x[id_L], x[id_R], x[id_O] in canonical form
+// and sets x[id_L], x[id_R], x[id_O] in Lagrange form
 func (s *instance) solveConstraints() error {
 	_solution, err := s.spr.Solve(s.fullWitness, s.opt.SolverOpts...)
 	if err != nil {
@@ -1070,7 +1070,7 @@ func evaluateBlinded(p, bp *iop.Polynomial, zeta fr.Element) fr.Element {
 	return pEvaluatedAtZeta
 }
 
-// /!\ modifies p's underlying array of coefficients, in particular the size changes
+// /!\ modifies the size
 func getBlindedCoefficients(p, bp *iop.Polynomial) []fr.Element {
 	cp := p.Coefficients()
 	cbp := bp.Coefficients()
