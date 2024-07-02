@@ -202,7 +202,7 @@ contract PlonkVerifier {
       mstore(add(mem, STATE_PI), l_pi)
 
       compute_alpha_square_lagrange_0()
-      verify_opening_linearised_polynomial(proof.offset)
+      compute_opening_linearised_polynomial(proof.offset)
       fold_h(proof.offset)
       compute_commitment_linearised_polynomial(proof.offset)
       compute_gamma_kzg(proof.offset)
@@ -1170,7 +1170,7 @@ contract PlonkVerifier {
       /// @notice check that the opening of the linearised polynomial at zeta is equal to
       /// - [ PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ) ]
       /// @param aproof pointer to the proof
-      function verify_opening_linearised_polynomial(aproof) {
+      function compute_opening_linearised_polynomial(aproof) {
         
         let state := mload(0x40)
 
