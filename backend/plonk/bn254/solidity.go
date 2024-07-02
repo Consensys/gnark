@@ -1296,7 +1296,6 @@ contract PlonkVerifier {
       /// @param s scalar
       /// @mPtr free memory
       function point_acc_mul_calldata(dst, src, s, mPtr) {
-        let state := mload(0x40)
         mstore(mPtr, calldataload(src))
         mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
         mstore(add(mPtr, 0x40), s)
