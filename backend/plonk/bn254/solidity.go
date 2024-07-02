@@ -80,14 +80,14 @@ contract PlonkVerifier {
   uint256 private constant PROOF_O_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
   // h = h_0 + x^{n+2}h_1 + x^{2(n+2)}h_2
-  uint256 private constant PROOF_H_0_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H_0_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H_1_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H_1_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H_2_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
-  uint256 private constant PROOF_H_2_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_0_COM_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_0_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_1_COM_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_1_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_2_COM_X = {{ hex $offset }};{{ $offset = add $offset 0x20}}
+  uint256 private constant PROOF_H_2_COM_Y = {{ hex $offset }};{{ $offset = add $offset 0x20}}
 
-  // wire values at zeta
+  // "evaluations of wire polynomials at zeta
   uint256 private constant PROOF_L_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_R_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
   uint256 private constant PROOF_O_AT_ZETA = {{ hex $offset }};{{ $offset = add $offset 0x20}}
@@ -577,24 +577,24 @@ contract PlonkVerifier {
       /// batch_compute_lagranges_at_z computes [L_0(z), .., L_{n-1}(z)]
       /// @param z point at which the Lagranges are evaluated
       /// @param zpnmo ζⁿ-1
-      /// @param n number of public inputs (number of Lagranges to compute)
+      /// @param n_pub number of public inputs (number of Lagranges to compute)
       /// @param mPtr pointer to which the results are stored
-      function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
+      function batch_compute_lagranges_at_z(z, zpnmo, n_pub, mPtr) {
 
         let zn := mulmod(zpnmo, VK_INV_DOMAIN_SIZE, R_MOD) // 1/n * (ζⁿ - 1)
         
         let _w := 1
         let _mPtr := mPtr
-        for {let i:=0} lt(i,n) {i:=add(i,1)}
+        for {let i:=0} lt(i,n_pub) {i:=add(i,1)}
         {
           mstore(_mPtr, addmod(z,sub(R_MOD, _w), R_MOD))
           _w := mulmod(_w, VK_OMEGA, R_MOD)
           _mPtr := add(_mPtr, 0x20)
         }
-        batch_invert(mPtr, n, _mPtr)
+        batch_invert(mPtr, n_pub, _mPtr)
         _mPtr := mPtr
         _w := 1
-        for {let i:=0} lt(i,n) {i:=add(i,1)}
+        for {let i:=0} lt(i,n_pub) {i:=add(i,1)}
         {
           mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn , R_MOD), _w, R_MOD))
           _mPtr := add(_mPtr, 0x20)
@@ -651,7 +651,9 @@ contract PlonkVerifier {
         h_fr := hash_fr(calldataload(p), calldataload(add(p, 0x20)), mPtr)
         ith_lagrange := compute_ith_lagrange_at_z(z, zpnmo, add(nb_public_inputs, VK_INDEX_COMMIT_API_{{ $index }}), mPtr)
         pi_commit := addmod(pi_commit, mulmod(h_fr, ith_lagrange, R_MOD), R_MOD)
+        {{ if (lt (inc $index) (len $.CommitmentConstraintIndexes) )}}
         p := add(p, 0x40)
+        {{ end }}
         {{ end }}
 
       }
@@ -770,7 +772,7 @@ contract PlonkVerifier {
 
         // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
         // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
-        // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
+        // the result is then 2**(8*16)*mPtr[:32] + mPtr[32:48]
         res := mulmod(mload(mPtr), HASH_FR_BB, R_MOD) // <- res = 2**128 * mPtr[:32]
         let b1 := shr(128, mload(add(mPtr, 0x20))) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
         res := addmod(res, b1, R_MOD)
@@ -1160,7 +1162,7 @@ contract PlonkVerifier {
         compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
       }
 
-      /// @notice compute -z_h(ζ)*([H₁] + ζᵐ⁺²[H₂] + ζ²⁽ᵐ⁺²⁾[H₃]) and store the result at
+      /// @notice compute -z_h(ζ)*([H₁] + ζⁿ⁺²[H₂] + ζ²⁽ⁿ⁺²⁾[H₃]) and store the result at
       /// state + state_folded_h
       /// @param aproof pointer to the proof
       function fold_h(aproof) {
@@ -1168,10 +1170,10 @@ contract PlonkVerifier {
         let n_plus_two := add(VK_DOMAIN_SIZE, 2)
         let mPtr := add(mload(0x40), STATE_LAST_MEM)
         let zeta_power_n_plus_two := pow(mload(add(state, STATE_ZETA)), n_plus_two, mPtr)
-        point_mul_calldata(add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_2_X), zeta_power_n_plus_two, mPtr)
-        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_1_X), mPtr)
+        point_mul_calldata(add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_2_COM_X), zeta_power_n_plus_two, mPtr)
+        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_1_COM_X), mPtr)
         point_mul(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), zeta_power_n_plus_two, mPtr)
-        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_0_X), mPtr)
+        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_0_COM_X), mPtr)
           point_mul(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE)), mPtr)
         let folded_h_y := mload(add(state, STATE_FOLDED_H_Y))
         folded_h_y := sub(P_MOD, folded_h_y)
