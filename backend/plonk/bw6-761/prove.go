@@ -765,7 +765,7 @@ func (s *instance) computeNumerator() (*iop.Polynomial, error) {
 	case <-s.chQk:
 	}
 
-	nbBsbGates := (len(s.x) - id_Qci + 1) >> 1
+	nbBsbGates := len(s.proof.Bsb22Commitments)
 
 	gateConstraint := func(u ...fr.Element) fr.Element {
 
