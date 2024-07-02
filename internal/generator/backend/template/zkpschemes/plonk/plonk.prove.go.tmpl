@@ -297,7 +297,7 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 }
 
 // solveConstraints computes the evaluation of the polynomials L, R, O
-// and sets x[id_L], x[id_R], x[id_O] in canonical form
+// and sets x[id_L], x[id_R], x[id_O] in Lagrange form
 func (s *instance) solveConstraints() error {
 	_solution, err := s.spr.Solve(s.fullWitness, s.opt.SolverOpts...)
 	if err != nil {
@@ -506,7 +506,7 @@ func (s *instance) computeQuotient() (err error) {
 		return err
 	}
 
-	s.h, err = divideByXMinusOne(numerator, [2]*fft.Domain{s.domain0, s.domain1})
+	s.h, err = divideByZH(numerator, [2]*fft.Domain{s.domain0, s.domain1})
 	if err != nil {
 		return err
 	}
@@ -672,13 +672,6 @@ func (s *instance) computeLinearizedPolynomial() error {
 }
 
 func (s *instance) batchOpening() error {
-
-	// wait for LRO to be committed (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chLRO:
-	}
 
 	// wait for linearizedPolynomial to be computed (or ctx.Done())
 	select {
@@ -1054,7 +1047,7 @@ func evaluateBlinded(p, bp *iop.Polynomial, zeta fr.Element) fr.Element {
 	return pEvaluatedAtZeta
 }
 
-// /!\ modifies p's underlying array of coefficients, in particular the size changes
+// /!\ modifies the size
 func getBlindedCoefficients(p, bp *iop.Polynomial) []fr.Element {
 	cp := p.Coefficients()
 	cbp := bp.Coefficients()
@@ -1127,10 +1120,10 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKe
 	return g.Wait()
 }
 
-// divideByXMinusOne
+// divideByZH
 // The input must be in LagrangeCoset.
 // The result is in Canonical Regular. (in place using a)
-func divideByXMinusOne(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, error) {
+func divideByZH(a *iop.Polynomial, domains [2]*fft.Domain) (*iop.Polynomial, error) {
 
 	// check that the basis is LagrangeCoset
 	if a.Basis != iop.LagrangeCoset || a.Layout != iop.BitReverse {
@@ -1170,7 +1163,7 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 	res[0].Exp(domains[1].FrMultiplicativeGen, expo)
 
 	var t fr.Element
-	t.Exp(domains[1].Generator, big.NewInt(int64(domains[0].Cardinality)))
+	t.Exp(domains[1].Generator, expo)
 
 	one := fr.One()
 
@@ -1197,6 +1190,8 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 // + α*( (l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(β*s3(X))*Z(μζ) - Z(X)*(l(ζ)+β*id1(ζ)+γ)*(r(ζ)+β*id2(ζ)+γ)*(o(ζ)+β*id3(ζ)+γ))
 // + l(ζ)*Ql(X) + l(ζ)r(ζ)*Qm(X) + r(ζ)*Qr(X) + o(ζ)*Qo(X) + Qk(X) + ∑ᵢQcp_(ζ)Pi_(X)
 // - Z_{H}(ζ)*((H₀(X) + ζᵐ⁺²*H₁(X) + ζ²⁽ᵐ⁺²⁾*H₂(X))
+//
+// /!\ blindedZCanonical is modified
 func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, gamma, zeta, zu fr.Element, qcpZeta, blindedZCanonical []fr.Element, pi2Canonical [][]fr.Element, pk *ProvingKey) []fr.Element {
 
 	// l(ζ)r(ζ)
@@ -1235,19 +1230,19 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 	s2.Neg(&s2).Mul(&s2, &alpha)
 
 	// Z_h(ζ), ζⁿ⁺², L₁(ζ)*α²*Z
-	var zhZeta, zetaNPlusTwo, alphaSquareLagrangeOne, one, den, frNbElmt fr.Element
+	var zhZeta, zetaNPlusTwo, alphaSquareLagrangeZero, one, den, frNbElmt fr.Element
 	one.SetOne()
 	nbElmt := int64(s.domain0.Cardinality)
-	alphaSquareLagrangeOne.Set(&zeta).Exp(alphaSquareLagrangeOne, big.NewInt(nbElmt)) // ζⁿ
-	zetaNPlusTwo.Mul(&alphaSquareLagrangeOne, &zeta).Mul(&zetaNPlusTwo, &zeta)        // ζⁿ⁺²
-	alphaSquareLagrangeOne.Sub(&alphaSquareLagrangeOne, &one)                         // ζⁿ - 1
-	zhZeta.Set(&alphaSquareLagrangeOne)                                               // Z_h(ζ) = ζⁿ - 1
+	alphaSquareLagrangeZero.Set(&zeta).Exp(alphaSquareLagrangeZero, big.NewInt(nbElmt)) // ζⁿ
+	zetaNPlusTwo.Mul(&alphaSquareLagrangeZero, &zeta).Mul(&zetaNPlusTwo, &zeta)        // ζⁿ⁺²
+	alphaSquareLagrangeZero.Sub(&alphaSquareLagrangeZero, &one)                         // ζⁿ - 1
+	zhZeta.Set(&alphaSquareLagrangeZero)                                               // Z_h(ζ) = ζⁿ - 1
 	frNbElmt.SetUint64(uint64(nbElmt))
 	den.Sub(&zeta, &one).Inverse(&den)                         // 1/(ζ-1)
-	alphaSquareLagrangeOne.Mul(&alphaSquareLagrangeOne, &den). // L₁ = (ζⁿ - 1)/(ζ-1)
-									Mul(&alphaSquareLagrangeOne, &alpha).
-									Mul(&alphaSquareLagrangeOne, &alpha).
-									Mul(&alphaSquareLagrangeOne, &s.domain0.CardinalityInv) // α²*L₁(ζ)
+	alphaSquareLagrangeZero.Mul(&alphaSquareLagrangeZero, &den). // L₁ = (ζⁿ - 1)/(ζ-1)
+									Mul(&alphaSquareLagrangeZero, &alpha).
+									Mul(&alphaSquareLagrangeZero, &alpha).
+									Mul(&alphaSquareLagrangeZero, &s.domain0.CardinalityInv) // α²*L₁(ζ)
 
 	s3canonical := s.trace.S3.Coefficients()
 
@@ -1293,7 +1288,7 @@ func (s *instance) innerComputeLinearizedPoly(lZeta, rZeta, oZeta, alpha, beta, 
 				}
 			}
 
-			t0.Mul(&blindedZCanonical[i], &alphaSquareLagrangeOne) // α²L₁(ζ)Z(X)
+			t0.Mul(&blindedZCanonical[i], &alphaSquareLagrangeZero) // α²L₁(ζ)Z(X)
 			blindedZCanonical[i].Add(&t, &t0)                      // linPol += α²L₁(ζ)Z(X)
 
 			if i < len(h1) {
