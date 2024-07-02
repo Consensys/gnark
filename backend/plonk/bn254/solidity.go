@@ -925,11 +925,11 @@ contract PlonkVerifier {
         let acc_gamma := l_gamma_kzg
         let state_folded_digests := add(state, STATE_FOLDED_DIGESTS_X)
 
-        mstore(add(state, STATE_FOLDED_DIGESTS_X), mload(add(state, STATE_LINEARISED_POLYNOMIAL_X)))
+        mstore(state_folded_digests, mload(add(state, STATE_LINEARISED_POLYNOMIAL_X)))
         mstore(add(state, STATE_FOLDED_DIGESTS_Y), mload(add(state, STATE_LINEARISED_POLYNOMIAL_Y)))
         mstore(add(state, STATE_FOLDED_CLAIMED_VALUES), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA)))
 
-        point_acc_mul_calldata(add(state, STATE_FOLDED_DIGESTS_X), add(aproof, PROOF_L_COM_X), acc_gamma, mPtr)
+        point_acc_mul_calldata(state_folded_digests, add(aproof, PROOF_L_COM_X), acc_gamma, mPtr)
         fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_L_AT_ZETA), acc_gamma)
 
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
@@ -1414,16 +1414,14 @@ func (proof *Proof) MarshalSolidity() []byte {
 
 	// uint256[] selector_commit_api_at_zeta;
 	// uint256[] wire_committed_commitments;
-	if len(proof.Bsb22Commitments) > 0 {
-		for i := 0; i < len(proof.Bsb22Commitments); i++ {
-			tmp32 = proof.BatchedProof.ClaimedValues[6+i].Bytes()
-			res = append(res, tmp32[:]...)
-		}
+	for i := 0; i < len(proof.Bsb22Commitments); i++ {
+		tmp32 = proof.BatchedProof.ClaimedValues[6+i].Bytes()
+		res = append(res, tmp32[:]...)
+	}
 
-		for _, bc := range proof.Bsb22Commitments {
-			tmp64 = bc.RawBytes()
-			res = append(res, tmp64[:]...)
-		}
+	for _, bc := range proof.Bsb22Commitments {
+		tmp64 = bc.RawBytes()
+		res = append(res, tmp64[:]...)
 	}
 
 	return res

@@ -696,13 +696,6 @@ func (s *instance) computeLinearizedPolynomial() error {
 
 func (s *instance) batchOpening() error {
 
-	// wait for LRO to be committed (or ctx.Done())
-	select {
-	case <-s.ctx.Done():
-		return errContextDone
-	case <-s.chLRO:
-	}
-
 	// wait for linearizedPolynomial to be computed (or ctx.Done())
 	select {
 	case <-s.ctx.Done():
@@ -1193,7 +1186,7 @@ func evaluateXnMinusOneDomainBigCoset(domains [2]*fft.Domain) []fr.Element {
 	res[0].Exp(domains[1].FrMultiplicativeGen, expo)
 
 	var t fr.Element
-	t.Exp(domains[1].Generator, big.NewInt(int64(domains[0].Cardinality)))
+	t.Exp(domains[1].Generator, expo)
 
 	one := fr.One()
 

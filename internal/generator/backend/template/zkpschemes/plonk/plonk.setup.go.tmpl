@@ -5,7 +5,6 @@ import (
 	{{- template "import_backend_cs" . }}
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/iop"
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/plonk/internal"
 	"github.com/consensys/gnark/constraint"
 )
@@ -136,9 +135,7 @@ func (pk *ProvingKey) VerifyingKey() interface{} {
 func NewTrace(spr *cs.SparseR1CS, domain *fft.Domain) *Trace {
 	var trace Trace
 
-	nbConstraints := spr.GetNbConstraints()
-	sizeSystem := uint64(nbConstraints + len(spr.Public))
-	size := ecc.NextPowerOfTwo(sizeSystem)
+	size := int(domain.Cardinality)
 	commitmentInfo := spr.CommitmentInfo.(constraint.PlonkCommitments)
 
 	ql := make([]fr.Element, size)
