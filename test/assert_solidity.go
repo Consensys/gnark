@@ -2,7 +2,6 @@ package test
 
 import (
 	"encoding/hex"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,18 +9,14 @@ import (
 
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/backend/witness"
 )
-
-type verifyingKey interface {
-	NbPublicWitness() int
-	ExportSolidity(io.Writer) error
-}
 
 // solidityVerification checks that the exported solidity contract can verify the proof
 // and that the proof is valid.
 // It uses gnark-solidity-checker see test.WithSolidity option.
-func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
+func (assert *Assert) solidityVerification(b backend.ID, vk solidity.VerifyingKey,
 	proof any,
 	validPublicWitness witness.Witness) {
 	if !SolcCheck || len(validPublicWitness.Vector().(fr_bn254.Vector)) == 0 {
