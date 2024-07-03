@@ -2,9 +2,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"github.com/consensys/gnark/backend/solidity"
 	{{- if eq .Curve "BN254"}}
+	"math/big"
 	"text/template"
+	{{- template "import_fp" . }}
 	{{- end}}
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	{{- template "import_hash_to_field" . }}
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
 )
@@ -148,6 +150,11 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 				out[i] = i
 			}
 			return out
+		},
+		"fpstr": func(x fp.Element) string {
+			bv := new(big.Int)
+			x.BigInt(bv)
+			return bv.String()
 		},
 	}
 
