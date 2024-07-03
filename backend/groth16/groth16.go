@@ -94,6 +94,10 @@ type ProvingKey interface {
 type VerifyingKey interface {
 	groth16Object
 	gnarkio.UnsafeReaderFrom
+	// VerifyingKey are the methods required for generating the Solidity
+	// verifier contract from the VerifyingKey. This will return an error if not
+	// supported on the CurveID().
+	solidity.VerifyingKey
 
 	// NbPublicWitness returns number of elements expected in the public witness
 	NbPublicWitness() int
