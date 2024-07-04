@@ -61,7 +61,6 @@ func Prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 	proof.RoundPolyEvaluations = make([]NativePolynomial, nbVars)
 	// the first round in the sumcheck is without verifier challenge. Combine challenges and provers sends the first polynomial
 	proof.RoundPolyEvaluations[0] = claims.Combine(combinationCoef)
-
 	challenges := make([]*big.Int, nbVars)
 
 	// we iterate over all variables. However, we omit the last round as the
@@ -81,6 +80,7 @@ func Prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 	if len(challengeNames) > 0 {
 		return proof, fmt.Errorf("excessive challenges")
 	}
+
 	proof.FinalEvalProof = claims.ProverFinalEval(challenges)
 
 	return proof, nil

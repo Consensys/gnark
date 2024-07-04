@@ -1,4 +1,4 @@
-package sumcheck
+package gkr
 
 import (
 	"fmt"
@@ -16,15 +16,6 @@ import (
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
 )
-
-// @tabaie TODO: Contains many things copy-pasted from gnark-crypto. Generify somehow?
-
-// The goal is to prove/verify evaluations of many instances of the same circuit
-
-// type gateinput struct {
-// 	api arithEngine
-// 	element ...emulated.Element
-// }
 
 // Gate must be a low-degree polynomial
 type Gate interface {
@@ -154,13 +145,6 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) Degree(int) int {
 
 func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof sumcheck.EvaluationProof) error {
 	inputEvaluationsNoRedundancy := proof.([]emulated.Element[FR])
-	// switch proof := proof.(type) {
-	// case []emulated.Element[FR]:
-	// 	fmt.Println("proof type: []emulated.Element")
-	// 	inputEvaluationsNoRedundancy = sumcheck.DeferredEvalProof[FR](proof)
-	// default:
-	// 	return fmt.Errorf("proof is not a DeferredEvalProof")
-	// }
 	field, err := emulated.NewField[FR](e.verifier.api)
 	if err != nil {
 		return fmt.Errorf("failed to create field: %w", err)
@@ -209,6 +193,7 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) AssertEvaluation(r []*em
 		}
 		gateEvaluation = *e.wire.Gate.Evaluate(e.engine, polynomial.FromSlice(inputEvaluations)...)
 	}
+
 	evaluation = field.Mul(evaluation, &gateEvaluation)
 
 	field.AssertIsEqual(evaluation, expectedValue)
@@ -302,7 +287,7 @@ func (m *claimsManager) getClaim(engine *sumcheck.BigIntEngine, wire *Wire) *eqT
 		res.inputPreprocessors = make([]sumcheck.NativeMultilinear, len(wire.Inputs))
 
 		for inputI, inputW := range wire.Inputs {
-			res.inputPreprocessors[inputI] = m.assignment[inputW] //will be edited later, so must be deep copied
+			res.inputPreprocessors[inputI] = m.assignment[inputW].Clone()
 		}
 	}
 	return res
@@ -345,21 +330,21 @@ func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff *big.Int) sumch
 
 	// initialize the eq tables
 	c.eq = make(sumcheck.NativeMultilinear, eqLength)
-	for i := 1; i < eqLength; i++ {
+	for i := 0; i < eqLength; i++ {
 		c.eq[i] = new(big.Int)
 	}
 	c.eq[0] = c.engine.One()
 	sumcheck.Eq(c.engine, c.eq, sumcheck.ReferenceBigIntSlice(c.evaluationPoints[0]))
 
 	newEq := make(sumcheck.NativeMultilinear, eqLength)
-	for i := 1; i < eqLength; i++ {
+	for i := 0; i < eqLength; i++ {
 		newEq[i] = new(big.Int)
 	}
 	aI := new(big.Int).Set(combinationCoeff)
 
 	for k := 1; k < claimsNum; k++ { // TODO: parallelizable?
 		// define eq_k = aᵏ eq(x_k1, ..., x_kn, *, ..., *) where x_ki are the evaluation points
-		newEq[0].Set(aI) // check if this is one or ai
+		newEq[0].Set(aI)
 		sumcheck.EqAcc(c.engine, c.eq, newEq, sumcheck.ReferenceBigIntSlice(c.evaluationPoints[k]))
 		if k+1 < claimsNum {
 			aI.Mul(aI, combinationCoeff)
@@ -450,8 +435,9 @@ func (c *eqTimesGateEvalSumcheckClaims) ProverFinalEval(r []*big.Int) sumcheck.N
 		if _, found := noMoreClaimsAllowed[in]; !found {
 			noMoreClaimsAllowed[in] = struct{}{}
 			sumcheck.Fold(c.engine, puI, r[len(r)-1])
-			c.manager.add(in, sumcheck.DereferenceBigIntSlice(r), *puI[0])
-			evaluations = append(evaluations, *puI[0])
+			puI0 := new(big.Int).Set(puI[0])
+			c.manager.add(in, sumcheck.DereferenceBigIntSlice(r), *puI0)
+			evaluations = append(evaluations, *puI0)
 		}
 	}
 
@@ -532,20 +518,6 @@ func WithSortedCircuitEmulated[FR emulated.FieldParams](sorted []*WireEmulated[F
 		options.sorted = sorted
 	}
 }
-
-// type config struct {
-// 	prefix string
-// }
-
-// func newConfig(opts ...sumcheck.Option) (*config, error) {
-// 	cfg := new(config)
-// 	for i := range opts {
-// 		if err := opts[i](cfg); err != nil {
-// 			return nil, fmt.Errorf("apply option %d: %w", i, err)
-// 		}
-// 	}
-// 	return cfg, nil
-// }
 
 // Verifier allows to check sumcheck proofs. See [NewVerifier] for initializing the instance.
 type GKRVerifier[FR emulated.FieldParams] struct {
@@ -1177,28 +1149,6 @@ func (a WireAssignmentEmulated[FR]) NumVars() int {
 	}
 	panic("empty assignment")
 }
-
-// func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
-// 	size := 0
-// 	for i := range p {
-// 		for j := range p[i].RoundPolyEvaluations {
-// 			size += len(p[i].RoundPolyEvaluations[j])
-// 		}
-// 		size += len(p[i].FinalEvalProof.(sumcheck.DeferredEvalProof[FR]))
-// 	}
-
-// 	res := make([]emulated.Element[FR], 0, size)
-// 	for i := range p {
-// 		for j := range p[i].RoundPolyEvaluations {
-// 			res = append(res, p[i].RoundPolyEvaluations[j]...)
-// 		}
-// 		res = append(res, p[i].FinalEvalProof.(sumcheck.DeferredEvalProof[FR])...)
-// 	}
-// 	if len(res) != size {
-// 		panic("bug") // TODO: Remove
-// 	}
-// 	return res
-// }
 
 func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 	size := 0

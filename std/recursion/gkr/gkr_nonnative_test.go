@@ -1,36 +1,26 @@
-package sumcheck
+package gkr
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	gohash "hash"
-	"math"
 	"os"
 	"path/filepath"
-	"reflect"
-
-	//"strconv"
 	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/recursion/gkr/utils"
-
-	// "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
 )
-
-// type FR = emulated.BN254Fp
 
 var Gates = map[string]Gate{
 	"identity": IdentityGate[*sumcheck.BigIntEngine, *big.Int]{},
@@ -38,421 +28,6 @@ var Gates = map[string]Gate{
 	"mul":      MulGate[*sumcheck.BigIntEngine, *big.Int]{},
 }
 
-// func TestNoGateTwoInstances(t *testing.T) {
-// 	// Testing a single instance is not possible because the sumcheck implementation doesn't cover the trivial 0-variate case
-// 	testNoGate(t, []emulated.Element[FR]{four, three})
-// }
-
-// func TestNoGate(t *testing.T) {
-// 	testManyInstances(t, 1, testNoGate)
-// }
-
-
-// func TestSingleAddGate(t *testing.T) {
-// 	testManyInstances(t, 2, testSingleAddGate)
-// }
-
-// func TestSingleMulGateTwoInstances(t *testing.T) {
-// 	testSingleMulGate(t, []emulated.Element[FR]{four, three}, []emulated.Element[FR]{two, three})
-// }
-
-// func TestSingleMulGate(t *testing.T) {
-// 	testManyInstances(t, 2, testSingleMulGate)
-// }
-
-// func TestSingleInputTwoIdentityGatesTwoInstances(t *testing.T) {
-
-// 	testSingleInputTwoIdentityGates(t, []fr.Element{two, three})
-// }
-
-// func TestSingleInputTwoIdentityGates(t *testing.T) {
-
-// 	testManyInstances(t, 2, testSingleInputTwoIdentityGates)
-// }
-
-// func TestSingleInputTwoIdentityGatesComposedTwoInstances(t *testing.T) {
-// 	testSingleInputTwoIdentityGatesComposed(t, []fr.Element{two, one})
-// }
-
-// func TestSingleInputTwoIdentityGatesComposed(t *testing.T) {
-// 	testManyInstances(t, 1, testSingleInputTwoIdentityGatesComposed)
-// }
-
-// func TestSingleMimcCipherGateTwoInstances(t *testing.T) {
-// 	testSingleMimcCipherGate(t, []fr.Element{one, one}, []fr.Element{one, two})
-// }
-
-// func TestSingleMimcCipherGate(t *testing.T) {
-// 	testManyInstances(t, 2, testSingleMimcCipherGate)
-// }
-
-// func TestATimesBSquaredTwoInstances(t *testing.T) {
-// 	testATimesBSquared(t, 2, []fr.Element{one, one}, []fr.Element{one, two})
-// }
-
-// func TestShallowMimcTwoInstances(t *testing.T) {
-// 	testMimc(t, 2, []fr.Element{one, one}, []fr.Element{one, two})
-// }
-// func TestMimcTwoInstances(t *testing.T) {
-// 	testMimc(t, 93, []fr.Element{one, one}, []fr.Element{one, two})
-// }
-
-// func TestMimc(t *testing.T) {
-// 	testManyInstances(t, 2, generateTestMimc(93))
-// }
-
-// func generateTestMimc(numRounds int) func(*testing.T, ...[]fr.Element) {
-// 	return func(t *testing.T, inputAssignments ...[]fr.Element) {
-// 		testMimc(t, numRounds, inputAssignments...)
-// 	}
-// }
-
-// func TestSumcheckFromSingleInputTwoIdentityGatesGateTwoInstances(t *testing.T) {
-// 	circuit := Circuit{Wire{
-// 		Gate:            IdentityGate{},
-// 		Inputs:          []*Wire{},
-// 		nbUniqueOutputs: 2,
-// 	}}
-
-// 	wire := &circuit[0]
-
-// 	assignment := WireAssignment{&circuit[0]: []fr.Element{two, three}}
-// 	var o settings
-// 	pool := polynomial.NewPool(256, 1<<11)
-// 	workers := utils.NewWorkerPool()
-// 	o.pool = &pool
-// 	o.workers = workers
-
-// 	claimsManagerGen := func() *claimsManager {
-// 		manager := newClaimsManager(circuit, assignment, o)
-// 		manager.add(wire, []fr.Element{three}, five)
-// 		manager.add(wire, []fr.Element{four}, six)
-// 		return &manager
-// 	}
-
-// 	transcriptGen := utils.NewMessageCounterGenerator(4, 1)
-
-// 	proof, err := sumcheck.Prove(claimsManagerGen().getClaim(wire), fiatshamir.WithHash(transcriptGen(), nil))
-// 	assert.NoError(t, err)
-// 	err = sumcheck.Verify(claimsManagerGen().getLazyClaim(wire), proof, fiatshamir.WithHash(transcriptGen(), nil))
-// 	assert.NoError(t, err)
-// }
-
-var one, two, three, four, five, six big.Int
-
-// func init() {
-// 	one.SetOne()
-// 	two.Double(&one)
-// 	three.Add(&two, &one)
-// 	four.Double(&two)
-// 	five.Add(&three, &two)
-// 	six.Double(&three)
-// }
-
-// var testManyInstancesLogMaxInstances = -1
-
-// func getLogMaxInstances(t *testing.T) int {
-// 	if testManyInstancesLogMaxInstances == -1 {
-
-// 		s := os.Getenv("GKR_LOG_INSTANCES")
-// 		if s == "" {
-// 			testManyInstancesLogMaxInstances = 5
-// 		} else {
-// 			var err error
-// 			testManyInstancesLogMaxInstances, err = strconv.Atoi(s)
-// 			if err != nil {
-// 				t.Error(err)
-// 			}
-// 		}
-
-// 	}
-// 	return testManyInstancesLogMaxInstances
-// }
-
-// func testManyInstances(t *testing.T, numInput int, test func(*testing.T, ...[]emulated.Element[FR])) {
-// 	fullAssignments := make([][]emulated.Element[FR], numInput)
-// 	maxSize := 1 << getLogMaxInstances(t)
-
-// 	t.Log("Entered test orchestrator, assigning and randomizing inputs")
-
-// 	for i := range fullAssignments {
-// 		fullAssignments[i] = make([]emulated.Element[FR], maxSize)
-// 		setRandom(fullAssignments[i])
-// 	}
-
-// 	inputAssignments := make([][]emulated.Element[FR], numInput)
-// 	for numEvals := maxSize; numEvals <= maxSize; numEvals *= 2 {
-// 		for i, fullAssignment := range fullAssignments {
-// 			inputAssignments[i] = fullAssignment[:numEvals]
-// 		}
-
-// 		t.Log("Selected inputs for test")
-// 		test(t, inputAssignments...)
-// 	}
-// }
-
-// func testNoGate(t *testing.T, inputAssignments ...[]*big.Int) {
-// 	c := Circuit{
-// 		{
-// 			Inputs: []*Wire{},
-// 			Gate:   nil,
-// 		},
-// 	}
-
-// 	assignment := WireAssignment{&c[0]: sumcheck.NativeMultilinear(inputAssignments[0])}
-// 	assignmentEmulated := WireAssignmentEmulated[FR]{&c[0]: sumcheck.NativeMultilinear(inputAssignments[0])}
-
-// 	proof, err := Prove(c, assignment, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
-// 	assert.NoError(t, err)
-
-// 	// Even though a hash is called here, the proof is empty
-
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
-// 	assert.NoError(t, err, "proof rejected")
-// }
-
-func toEmulated[FR emulated.FieldParams](input [][]*big.Int) [][]emulated.Element[FR] {
-	output := make([][]emulated.Element[FR], len(input))
-	for i, in := range input {
-		output[i] = make([]emulated.Element[FR], len(in))
-		for j, in2 := range in {
-			output[i][j] = emulated.ValueOf[FR](*in2)
-		}
-	}
-	return output
-}
-
-func TestSingleAddGateTwoInstances(t *testing.T) {
-	current := ecc.BN254.ScalarField()
-	type FR = emulated.BN254Fp
-	var fr FR
-	testSingleAddGate[FR](t, current, fr.Modulus(), []*big.Int{&four, &three}, []*big.Int{&two, &three})
-}
-
-func testSingleAddGate[FR emulated.FieldParams](t *testing.T, current *big.Int, target *big.Int, inputAssignments ...[]*big.Int) {
-	c := make(Circuit, 3)
-	c[2] = Wire{
-		Gate:   Gates["add"],
-		Inputs: []*Wire{&c[0], &c[1]},
-	}
-
-	be := sumcheck.NewBigIntEngine(current)
-	output := make([][]*big.Int, len(inputAssignments))
-	for i, in := range inputAssignments {
-		output[i] = make([]*big.Int, len(in))
-		for j, in2 := range in {
-			output[i][j] = Gates["add"].Evaluate(be, in2)
-		}
-	}
-
-	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c, target)
-
-	proof, err := Prove(current, target, c, assignment, fiatshamir.WithHashBigInt(utils.NewMessageCounter(1, 1)))
-	assert.NoError(t, err)
- 
-	proofEmulated := make(Proofs[FR], len(proof))
-	for i, proof := range proof {
-		proofEmulated[i] = sumcheck.ValueOfProof[FR](proof)
-	}
-
-	assignmentGkr := &GkrVerifierCircuitEmulated[FR]{
-		Input:           toEmulated[FR](inputAssignments),
-		Output:          toEmulated[FR](output),
-		SerializedProof: proofEmulated.Serialize(),
-		ToFail:          false,
-	}
-
-	validCircuit := &GkrVerifierCircuitEmulated[FR]{
-		Input:           make([][]emulated.Element[FR], len(toEmulated[FR](inputAssignments))),
-		Output:          make([][]emulated.Element[FR], len(toEmulated[FR](output))),
-		SerializedProof: make([]emulated.Element[FR], len(proofEmulated)),
-		ToFail:          false,
-	}	
-
-	err = test.IsSolved(validCircuit, assignmentGkr, current)
-	assert.NoError(t, err)
-
-	_, err = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, validCircuit)
-	assert.NoError(t, err)
-
-
-	//t.Run("testSingleAddGate", generateVerifier(toEmulated(inputAssignments), toEmulated(output), proofEmulated))
-
-	// err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
-	// assert.NoError(t, err, "proof rejected")
-
-	// err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-	// assert.NotNil(t, err, "bad proof accepted")
-}
-
-// func TestMulGate1Sumcheck(t *testing.T) {
-// 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{4, 3}, {2, 3}})
-// 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{1, 2, 3, 4}, {5, 6, 7, 8}})
-// 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{1, 2, 3, 4, 5, 6, 7, 8}, {11, 12, 13, 14, 15, 16, 17, 18}})
-// 	inputs := [][]int{{1}, {2}}
-// 	for i := 1; i < (1 << 10); i++ {
-// 		inputs[0] = append(inputs[0], inputs[0][i-1]+1)
-// 		inputs[1] = append(inputs[1], inputs[1][i-1]+2)
-// 	}
-// 	testMulGate1SumcheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), inputs)
-// }
-
-// func testSingleMulGate(t *testing.T, inputAssignments ...[]fr.Element) {
-
-// 	c := make(Circuit, 3)
-// 	c[2] = Wire{
-// 		Gate:   Gates["mul"],
-// 		Inputs: []*Wire{&c[0], &c[1]},
-// 	}
-
-// 	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c)
-
-// 	proof, err := Prove(c, assignment, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
-// 	assert.NoError(t, err)
-
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
-// 	assert.NoError(t, err, "proof rejected")
-
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NotNil(t, err, "bad proof accepted")
-// }
-
-// func testSingleInputTwoIdentityGates(t *testing.T, inputAssignments ...[]fr.Element) {
-// 	c := make(Circuit, 3)
-
-// 	c[1] = Wire{
-// 		Gate:   IdentityGate{},
-// 		Inputs: []*Wire{&c[0]},
-// 	}
-
-// 	c[2] = Wire{
-// 		Gate:   IdentityGate{},
-// 		Inputs: []*Wire{&c[0]},
-// 	}
-
-// 	assignment := WireAssignment{&c[0]: inputAssignments[0]}.Complete(c)
-
-// 	proof, err := Prove(c, assignment, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NoError(t, err)
-
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NoError(t, err, "proof rejected")
-
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
-// 	assert.NotNil(t, err, "bad proof accepted")
-// }
-
-// func testSingleMimcCipherGate(t *testing.T, inputAssignments ...[]fr.Element) {
-// 	c := make(Circuit, 3)
-
-// 	c[2] = Wire{
-// 		Gate:   mimcCipherGate{},
-// 		Inputs: []*Wire{&c[0], &c[1]},
-// 	}
-
-// 	t.Log("Evaluating all circuit wires")
-// 	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c)
-// 	t.Log("Circuit evaluation complete")
-// 	proof, err := Prove(c, assignment, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NoError(t, err)
-// 	t.Log("Proof complete")
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NoError(t, err, "proof rejected")
-
-// 	t.Log("Successful verification complete")
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
-// 	assert.NotNil(t, err, "bad proof accepted")
-// 	t.Log("Unsuccessful verification complete")
-// }
-
-// func testSingleInputTwoIdentityGatesComposed(t *testing.T, inputAssignments ...[]fr.Element) {
-// 	c := make(Circuit, 3)
-
-// 	c[1] = Wire{
-// 		Gate:   IdentityGate{},
-// 		Inputs: []*Wire{&c[0]},
-// 	}
-// 	c[2] = Wire{
-// 		Gate:   IdentityGate{},
-// 		Inputs: []*Wire{&c[1]},
-// 	}
-
-// 	assignment := WireAssignment{&c[0]: inputAssignments[0]}.Complete(c)
-
-// 	proof, err := Prove(c, assignment, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NoError(t, err)
-
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NoError(t, err, "proof rejected")
-
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
-// 	assert.NotNil(t, err, "bad proof accepted")
-// }
-
-// func mimcCircuit(numRounds int) Circuit {
-// 	c := make(Circuit, numRounds+2)
-
-// 	for i := 2; i < len(c); i++ {
-// 		c[i] = Wire{
-// 			Gate:   mimcCipherGate{},
-// 			Inputs: []*Wire{&c[i-1], &c[0]},
-// 		}
-// 	}
-// 	return c
-// }
-
-// func testMimc(t *testing.T, numRounds int, inputAssignments ...[]fr.Element) {
-// 	// TODO: Implement mimc correctly. Currently, the computation is mimc(a,b) = cipher( cipher( ... cipher(a, b), b) ..., b)
-// 	// @AlexandreBelling: Please explain the extra layers in https://github.com/ConsenSys/gkr-mimc/blob/81eada039ab4ed403b7726b535adb63026e8011f/examples/mimc.go#L10
-
-// 	c := mimcCircuit(numRounds)
-
-// 	t.Log("Evaluating all circuit wires")
-// 	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c)
-// 	t.Log("Circuit evaluation complete")
-
-// 	proof, err := Prove(c, assignment, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NoError(t, err)
-
-// 	t.Log("Proof finished")
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NoError(t, err, "proof rejected")
-
-// 	t.Log("Successful verification finished")
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
-// 	assert.NotNil(t, err, "bad proof accepted")
-// 	t.Log("Unsuccessful verification finished")
-// }
-
-// func testATimesBSquared(t *testing.T, numRounds int, inputAssignments ...[]fr.Element) {
-// 	// This imitates the MiMC circuit
-
-// 	c := make(Circuit, numRounds+2)
-
-// 	for i := 2; i < len(c); i++ {
-// 		c[i] = Wire{
-// 			Gate:   Gates["mul"],
-// 			Inputs: []*Wire{&c[i-1], &c[0]},
-// 		}
-// 	}
-
-// 	assignment := WireAssignment{&c[0]: inputAssignments[0], &c[1]: inputAssignments[1]}.Complete(c)
-
-// 	proof, err := Prove(c, assignment, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NoError(t, err)
-
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(0, 1)))
-// 	assert.NoError(t, err, "proof rejected")
-
-// 	err = Verify(c, assignment, proof, fiatshamir.WithHash(utils.NewMessageCounter(1, 1)))
-// 	assert.NotNil(t, err, "bad proof accepted")
-// }
-
-// func setRandom(slice []fr.Element) {
-// 	for i := range slice {
-// 		slice[i].SetRandom()
-// 	}
-// }
 func TestGkrVectorsEmulated(t *testing.T) {
 	current := ecc.BN254.ScalarField()
 	var fr emparams.BN254Fp
@@ -466,58 +41,9 @@ func TestGkrVectorsEmulated(t *testing.T) {
 			path := filepath.Join(testDirPath, dirEntry.Name())
 			noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
 
-			t.Run(noExt, generateTestProver(path, *current, *fr.Modulus()))
-			t.Run(noExt, generateTestVerifier[emparams.BN254Fp](path))
+			t.Run(noExt+"_prover", generateTestProver(path, *current, *fr.Modulus()))
+			t.Run(noExt+"_verifier", generateTestVerifier[emparams.BN254Fp](path))
 		}
-	}
-}
-
-type _options struct {
-	noSuccess bool
-	noFail    bool
-}
-
-type option func(*_options)
-
-func noSuccess(o *_options) {
-	o.noSuccess = true
-}
-
-func generateVerifier[FR emulated.FieldParams](Input [][]emulated.Element[FR], Output [][]emulated.Element[FR], Proof Proofs[FR]) func(t *testing.T) {
-
-	return func(t *testing.T) {
-
-		assert := test.NewAssert(t)
-
-		assignment := &GkrVerifierCircuitEmulated[FR]{
-			Input:           Input,
-			Output:          Output,
-			SerializedProof: Proof.Serialize(),
-			ToFail:          false,
-		}
-
-		validCircuit := &GkrVerifierCircuitEmulated[FR]{
-			Input:           make([][]emulated.Element[FR], len(Input)),
-			Output:          make([][]emulated.Element[FR], len(Output)),
-			SerializedProof: make([]emulated.Element[FR], len(assignment.SerializedProof)),
-			ToFail:          false,
-		}
-
-		invalidCircuit := &GkrVerifierCircuitEmulated[FR]{
-			Input:           make([][]emulated.Element[FR], len(Input)),
-			Output:          make([][]emulated.Element[FR], len(Output)),
-			SerializedProof: make([]emulated.Element[FR], len(assignment.SerializedProof)),
-			ToFail:          true,
-		}
-
-		fillWithBlanks(validCircuit.Input, len(Input[0]))
-		fillWithBlanks(validCircuit.Output, len(Input[0]))
-		fillWithBlanks(invalidCircuit.Input, len(Input[0]))
-		fillWithBlanks(invalidCircuit.Output, len(Input[0]))
-
-		assert.CheckCircuit(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
-		//test.IsSolved(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
-		// assert.CheckCircuit(invalidCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithInvalidAssignment(assignment))
 	}
 }
 
@@ -574,11 +100,7 @@ func generateTestProver(path string, current big.Int, target big.Int) func(t *te
 	}
 }
 
-func generateTestVerifier[FR emulated.FieldParams](path string, options ...option) func(t *testing.T) {
-	var opts _options
-	for _, opt := range options {
-		opt(&opts)
-	}
+func generateTestVerifier[FR emulated.FieldParams](path string) func(t *testing.T) {
 
 	return func(t *testing.T) {
 
@@ -602,26 +124,10 @@ func generateTestVerifier[FR emulated.FieldParams](path string, options ...optio
 			TestCaseName:    path,
 		}
 
-		invalidCircuit := &GkrVerifierCircuitEmulated[FR]{
-			Input:           make([][]emulated.Element[FR], len(testCase.Input)),
-			Output:          make([][]emulated.Element[FR], len(testCase.Output)),
-			SerializedProof: make([]emulated.Element[FR], len(assignment.SerializedProof)),
-			ToFail:          true,
-			TestCaseName:    path,
-		}
-
 		fillWithBlanks(validCircuit.Input, len(testCase.Input[0]))
 		fillWithBlanks(validCircuit.Output, len(testCase.Input[0]))
-		fillWithBlanks(invalidCircuit.Input, len(testCase.Input[0]))
-		fillWithBlanks(invalidCircuit.Output, len(testCase.Input[0]))
 
-		if !opts.noSuccess {
-			assert.CheckCircuit(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
-		}
-
-		// if !opts.noFail {
-		// 	assert.CheckCircuit(invalidCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithInvalidAssignment(assignment))
-		// }
+		assert.CheckCircuit(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
 	}
 }
 
@@ -644,8 +150,6 @@ func (c *GkrVerifierCircuitEmulated[FR]) Define(api frontend.API) error {
 		return fmt.Errorf("new verifier: %w", err)
 	}
 
-	println("c.TestCaseName", c.TestCaseName)
-	// var proofRef Proof
 	if testCase, err = getTestCase[FR](c.TestCaseName); err != nil {
 		return err
 	}
@@ -656,21 +160,13 @@ func (c *GkrVerifierCircuitEmulated[FR]) Define(api frontend.API) error {
 	}
 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
 
-	// initiating hash in bitmode, remove and do it with hashdescription instead
-	h, err := recursion.NewHash(api, fr.Modulus(), true)
+	// initiating hash in bitmode
+	hsh, err := recursion.NewHash(api, fr.Modulus(), true)
 	if err != nil {
 		return err
 	}
-	// var hsh hash.FieldHasher
-	// if c.ToFail {
-	// 	hsh = NewMessageCounter(api, 1, 1)
-	// } else {
-	// 	if hsh, err = HashFromDescription(api, testCase.Hash); err != nil {
-	// 		return err
-	// 	}
-	// }
 
-	return v.Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHashFr[FR](h))
+	return v.Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHashFr[FR](hsh))
 }
 
 func makeInOutAssignment[FR emulated.FieldParams](c CircuitEmulated[FR], inputValues [][]emulated.Element[FR], outputValues [][]emulated.Element[FR]) WireAssignmentEmulated[FR] {
@@ -711,7 +207,6 @@ type TestCaseInfo struct {
 	Proof   PrintableProof  `json:"proof"`
 }
 
-// var testCases = make(map[string]*TestCase[emulated.FieldParams])
 var testCases = make(map[string]interface{})
 
 func getTestCase[FR emulated.FieldParams](path string) (*TestCaseVerifier[FR], error) {
@@ -853,101 +348,47 @@ func toCircuit(c CircuitInfo) (circuit Circuit, err error) {
 	return
 }
 
-type _select[FR emulated.FieldParams] int
-
-// func init() {
-// 	var GatesEmulated = map[string]GateEmulated[FR]{
-// 		"identity": IdentityGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
-// 		"add":      AddGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
-// 		"mul":      MulGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
-// 	}
-	
-// 	GatesEmulated["select-input-3"] = _select[FR](2)
-// }
-
-func (g _select[FR]) Evaluate(_ *sumcheck.EmuEngine[FR], in ...*emulated.Element[FR]) *emulated.Element[FR] {
-	return in[g]
-}
-
-func (g _select[FR]) Degree() int {
-	return 1
-}
-
 type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
-	FinalEvalProof       interface{}     `json:"finalEvalProof"`
-	RoundPolyEvaluations [][]interface{} `json:"roundPolyEvaluations"`
+	FinalEvalProof       [][]uint64       `json:"finalEvalProof"`
+	RoundPolyEvaluations [][][]uint64     `json:"roundPolyEvaluations"`
 }
 
-func unmarshalProof(printable PrintableProof) (proof NativeProofs) {
-	proof = make(NativeProofs, len(printable))
-	for i := range printable {
+func unmarshalProof(printable []PrintableSumcheckProof) (proof NativeProofs) {
+    proof = make(NativeProofs, len(printable))
 
-		if printable[i].FinalEvalProof != nil {
-			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
-			finalEvalProof := make(sumcheck.NativeDeferredEvalProof, finalEvalSlice.Len())
-			for k := range finalEvalProof {
-				finalEvalSlice := finalEvalSlice.Index(k).Interface().([]interface{})
-				var byteArray []byte
-				for _, val := range finalEvalSlice {
-					floatVal := val.(float64)
-					bits := math.Float64bits(floatVal)
-					bytes := make([]byte, 8)
-					binary.BigEndian.PutUint64(bytes, bits)
-					byteArray = append(byteArray, bytes...)
-				}
-				finalEvalProof[k] = *big.NewInt(0).SetBytes(byteArray)
-			}
-			proof[i].FinalEvalProof = finalEvalProof
-		} else {
-			proof[i].FinalEvalProof = nil
-		}
+    for i := range printable {
+        if printable[i].FinalEvalProof != nil {
+            finalEvalProof := make(sumcheck.NativeDeferredEvalProof, len(printable[i].FinalEvalProof))
+            for k, val := range printable[i].FinalEvalProof {
+                var temp big.Int
+                temp.SetUint64(val[0])
+                for _, v := range val[1:] {
+                    temp.Lsh(&temp, 64).Add(&temp, new(big.Int).SetUint64(v))
+                }
+                finalEvalProof[k] = temp
+            }
+            proof[i].FinalEvalProof = finalEvalProof
+        } else {
+            proof[i].FinalEvalProof = nil
+        }
 
-		proof[i].RoundPolyEvaluations = make([]sumcheck.NativePolynomial, len(printable[i].RoundPolyEvaluations))
-		for k := range printable[i].RoundPolyEvaluations {
-			evals := printable[i].RoundPolyEvaluations[k]
-			proof[i].RoundPolyEvaluations[k] = make(sumcheck.NativePolynomial, len(evals))
-			for j, eval := range evals {
-				evalSlice := reflect.ValueOf(eval).Interface().([]interface{})
-				var byteArray []byte
-				for _, val := range evalSlice {
-					floatVal := val.(float64)
-					bits := math.Float64bits(floatVal)
-					bytes := make([]byte, 8)
-					binary.BigEndian.PutUint64(bytes, bits)
-					byteArray = append(byteArray, bytes...)
-				}
-				proof[i].RoundPolyEvaluations[k][j] = big.NewInt(0).SetBytes(byteArray)
-			}
-		}
-
-	}
-	return
+        proof[i].RoundPolyEvaluations = make([]sumcheck.NativePolynomial, len(printable[i].RoundPolyEvaluations))
+        for k, evals := range printable[i].RoundPolyEvaluations {
+            proof[i].RoundPolyEvaluations[k] = make(sumcheck.NativePolynomial, len(evals))
+            for j, eval := range evals {
+                var temp big.Int
+                temp.SetUint64(eval[0])
+                for _, v := range eval[1:] {
+                    temp.Lsh(&temp, 64).Add(&temp, new(big.Int).SetUint64(v))
+                }
+                proof[i].RoundPolyEvaluations[k][j] = &temp
+            }
+        }
+    }
+	return proof
 }
-
-// func unmarshalProofEmulated[FR emulated.FieldParams](printable PrintableProof) (proof Proofs[FR]) {
-// 	proof = make(Proofs[FR], len(printable))
-// 	for i := range printable {
-
-// 		if printable[i].FinalEvalProof != nil {
-// 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
-// 			finalEvalProof := make(sumcheck.DeferredEvalProof[FR], finalEvalSlice.Len())
-// 			for k := range finalEvalProof {
-// 				finalEvalProof[k] = utils.ToVariableFr[FR](finalEvalSlice.Index(k).Interface())
-// 			}
-// 			proof[i].FinalEvalProof = finalEvalProof
-// 		} else {
-// 			proof[i].FinalEvalProof = nil
-// 		}
-
-// 		proof[i].RoundPolyEvaluations = make([]polynomial.Univariate[FR], len(printable[i].RoundPolyEvaluations))
-// 		for k := range printable[i].RoundPolyEvaluations {
-// 			proof[i].RoundPolyEvaluations[k] = utils.ToVariableSliceFr[FR](printable[i].RoundPolyEvaluations[k])
-// 		}
-// 	}
-// 	return
-// }
 
 func TestLogNbInstances(t *testing.T) {
 	type FR = emulated.BN254Fp
@@ -1030,97 +471,77 @@ func TestTopSortWide(t *testing.T) {
 	assert.Equal(t, sortedExpected, sorted)
 }
 
-// type constHashCircuit struct {
-// 	X frontend.Variable
-// }
+var mimcSnarkTotalCalls = 0
 
-// func (c *constHashCircuit) Define(api frontend.API) error {
-// 	hsh := utils.NewMessageCounter(api, 0, 0)
-// 	hsh.Reset()
-// 	hsh.Write(c.X)
-// 	sum := hsh.Sum()
-// 	api.AssertIsEqual(sum, 0)
-// 	api.AssertIsEqual(api.Mul(c.X, c.X), 1) // ensure we have at least 2 constraints
-// 	return nil
-// }
+//todo add ark
+type MiMCCipherGate struct {
+}
 
-// func TestConstHash(t *testing.T) {
-// 	test.NewAssert(t).CheckCircuit(
-// 		&constHashCircuit{},
+func (m MiMCCipherGate) Evaluate(api *sumcheck.BigIntEngine, input ...*big.Int) *big.Int {
+	mimcSnarkTotalCalls++
 
-// 		test.WithValidAssignment(&constHashCircuit{X: 1}),
-// 	)
-// }
+	if len(input) != 2 {
+		panic("mimc has fan-in 2")
+	}
+	sum := api.Add(input[0], input[1])
+	sumSquared := api.Mul(sum, sum)
+	sumCubed := api.Mul(sumSquared, sum)
+	return api.Mul(sumCubed, sum)
+}
 
-// var mimcSnarkTotalCalls = 0
+func (m MiMCCipherGate) Degree() int {
+	return 7
+}
 
-// type MiMCCipherGate struct {
-// 	Ark frontend.Variable
-// }
+type _select int
 
-// func (m MiMCCipherGate) Evaluate(api frontend.API, input ...frontend.Variable) frontend.Variable {
-// 	mimcSnarkTotalCalls++
+func init() {
+	Gates["mimc"] = MiMCCipherGate{}
+	Gates["select-input-3"] = _select(2)
+}
 
-// 	if len(input) != 2 {
-// 		panic("mimc has fan-in 2")
-// 	}
-// 	sum := api.Add(input[0], input[1], m.Ark)
+func (g _select) Evaluate(_ *sumcheck.BigIntEngine, in ...*big.Int) *big.Int {
+	return in[g]
+}
 
-// 	sumCubed := api.Mul(sum, sum, sum) // sum^3
-// 	return api.Mul(sumCubed, sumCubed, sum)
-// }
-
-// func (m MiMCCipherGate) Degree() int {
-// 	return 7
-// }
-
-// type PrintableProof []PrintableSumcheckProof
-
-// type PrintableSumcheckProof struct {
-// 	FinalEvalProof  interface{}     `json:"finalEvalProof"`
-// 	PartialSumPolys [][]interface{} `json:"partialSumPolys"`
-// }
-
-// func unmarshalProof(printable PrintableProof) (Proof, error) {
-// 	proof := make(Proof, len(printable))
-// 	for i := range printable {
-// 		finalEvalProof := []fr.Element(nil)
-
-// 		if printable[i].FinalEvalProof != nil {
-// 			finalEvalSlice := reflect.ValueOf(printable[i].FinalEvalProof)
-// 			finalEvalProof = make([]fr.Element, finalEvalSlice.Len())
-// 			for k := range finalEvalProof {
-// 				if _, err := utils.SetElement(&finalEvalProof[k], finalEvalSlice.Index(k).Interface()); err != nil {
-// 					return nil, err
-// 				}
-// 			}
-// 		}
-
-// 		proof[i] = sumcheck.Proof{
-// 			PartialSumPolys: make([]polynomial.Polynomial, len(printable[i].PartialSumPolys)),
-// 			FinalEvalProof:  finalEvalProof,
-// 		}
-// 		for k := range printable[i].PartialSumPolys {
-// 			var err error
-// 			if proof[i].PartialSumPolys[k], err = utils.SliceToElementSlice(printable[i].PartialSumPolys[k]); err != nil {
-// 				return nil, err
-// 			}
-// 		}
-// 	}
-// 	return proof, nil
-// }
+func (g _select) Degree() int {
+	return 1
+}
 
 type TestCase struct {
 	Current         big.Int
 	Target          big.Int
 	Circuit         Circuit
-	Hash            gohash.Hash //utils.HashDescription
+	Hash            gohash.Hash 
 	Proof           NativeProofs
 	FullAssignment  WireAssignment
 	InOutAssignment WireAssignment
 }
 
-// var testCases = make(map[string]*TestCase)
+func (p *PrintableSumcheckProof) UnmarshalJSON(data []byte) error {
+	var temp struct {
+		FinalEvalProof       [][]uint64       `json:"finalEvalProof"`
+		RoundPolyEvaluations [][][]uint64    `json:"roundPolyEvaluations"`
+	}
+
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	p.FinalEvalProof = temp.FinalEvalProof
+
+	p.RoundPolyEvaluations = make([][][]uint64, len(temp.RoundPolyEvaluations))
+	for i, arr2D := range temp.RoundPolyEvaluations {
+		p.RoundPolyEvaluations[i] = make([][]uint64, len(arr2D))
+		for j, arr1D := range arr2D {
+			p.RoundPolyEvaluations[i][j] = make([]uint64, len(arr1D))
+			for k, v := range arr1D {
+				p.RoundPolyEvaluations[i][j][k] = uint64(v)
+			}
+		}
+	}
+	return nil
+}
 
 func newTestCase(path string, target big.Int) (*TestCase, error) {
 	path, err := filepath.Abs(path)
@@ -1133,7 +554,7 @@ func newTestCase(path string, target big.Int) (*TestCase, error) {
 	if !ok {
 		var bytes []byte
 		if bytes, err = os.ReadFile(path); err == nil {
-			var info TestCaseInfo
+			var info TestCaseInfo			
 			err = json.Unmarshal(bytes, &info)
 			if err != nil {
 				return nil, err

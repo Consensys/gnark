@@ -10,6 +10,23 @@ type NativeMultilinear []*big.Int
 
 // helper functions for multilinear polynomial evaluations
 
+// Clone returns a deep copy of p.
+// If capacity is provided, the new coefficient slice capacity will be set accordingly.
+func (p NativeMultilinear) Clone(capacity ...int) NativeMultilinear {
+	var newCapacity int
+	if len(capacity) > 0 {
+		newCapacity = capacity[0]
+	} else {
+		newCapacity = len(p)
+	}
+	
+	res := make(NativeMultilinear, len(p), newCapacity)
+	for i, v := range p {
+		res[i] = new(big.Int).Set(v)
+	}
+	return res
+}
+
 func DereferenceBigIntSlice(ptrs []*big.Int) []big.Int {
 	vals := make([]big.Int, len(ptrs))
 	for i, ptr := range ptrs {

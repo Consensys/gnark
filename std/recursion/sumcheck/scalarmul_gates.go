@@ -15,7 +15,7 @@ import (
 )
 
 type projAddGate[AE ArithEngine[E], E element] struct {
-	folding E
+	Folding E
 }
 
 func (m projAddGate[AE, E]) NbInputs() int { return 6 }
@@ -61,9 +61,9 @@ func (m projAddGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	Z3 = api.Mul(Z3, t4)
 	Z3 = api.Add(Z3, t0)
 
-	res := api.Mul(m.folding, Z3)
+	res := api.Mul(m.Folding, Z3)
 	res = api.Add(res, Y3)
-	res = api.Mul(m.folding, res)
+	res = api.Mul(m.Folding, res)
 	res = api.Add(res, X3)
 	return res
 }
@@ -114,7 +114,7 @@ func (c *ProjAddSumcheckCircuit[FR]) Define(api frontend.API) error {
 
 func testProjAddSumCheckInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, inputs [][]int) {
 	var fr FR
-	nativeGate := projAddGate[*BigIntEngine, *big.Int]{folding: big.NewInt(123)}
+	nativeGate := projAddGate[*BigIntEngine, *big.Int]{Folding: big.NewInt(123)}
 	assert := test.NewAssert(t)
 	inputB := make([][]*big.Int, len(inputs))
 	for i := range inputB {
@@ -168,8 +168,8 @@ func TestProjAddSumCheckSumcheck(t *testing.T) {
 	testProjAddSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), inputs)
 }
 
-type dblAddSelectGate[AE ArithEngine[E], E element] struct {
-	folding []E
+type DblAddSelectGate[AE ArithEngine[E], E element] struct {
+	Folding []E
 }
 
 func projAdd[AE ArithEngine[E], E element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
@@ -248,14 +248,14 @@ func projDbl[AE ArithEngine[E], E element](api AE, X, Y, Z E) (X3, Y3, Z3 E) {
 	return
 }
 
-func (m dblAddSelectGate[AE, E]) NbInputs() int { return 7 }
-func (m dblAddSelectGate[AE, E]) Degree() int   { return 5 }
-func (m dblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
+func (m DblAddSelectGate[AE, E]) NbInputs() int { return 7 }
+func (m DblAddSelectGate[AE, E]) Degree() int   { return 5 }
+func (m DblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	if len(vars) != m.NbInputs() {
 		panic("incorrect nb of inputs")
 	}
-	if len(m.folding) != m.NbInputs()-1 {
-		panic("incorrect nb of folding vars")
+	if len(m.Folding) != m.NbInputs()-1 {
+		panic("incorrect nb of Folding vars")
 	}
 	// X1, Y1, Z1 == accumulator
 	X1, Y1, Z1 := vars[0], vars[1], vars[2]
@@ -267,13 +267,13 @@ func (m dblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	ResX, ResY, ResZ := projSelect(api, selector, tmpX, tmpY, tmpZ, X2, Y2, Z2)
 	AccX, AccY, AccZ := projDbl(api, X1, Y1, Z1)
 
-	// folding part
-	f0 := api.Mul(m.folding[0], AccX)
-	f1 := api.Mul(m.folding[1], AccY)
-	f2 := api.Mul(m.folding[2], AccZ)
-	f3 := api.Mul(m.folding[3], ResX)
-	f4 := api.Mul(m.folding[4], ResY)
-	f5 := api.Mul(m.folding[5], ResZ)
+	// Folding part
+	f0 := api.Mul(m.Folding[0], AccX)
+	f1 := api.Mul(m.Folding[1], AccY)
+	f2 := api.Mul(m.Folding[2], AccZ)
+	f3 := api.Mul(m.Folding[3], ResX)
+	f4 := api.Mul(m.Folding[4], ResY)
+	f5 := api.Mul(m.Folding[5], ResZ)
 	res := api.Add(f0, f1)
 	res = api.Add(res, f2)
 	res = api.Add(res, f3)
@@ -285,7 +285,7 @@ func (m dblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
 func TestDblAndAddGate(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	nativeGate := dblAddSelectGate[*BigIntEngine, *big.Int]{folding: []*big.Int{
+	nativeGate := DblAddSelectGate[*BigIntEngine, *big.Int]{Folding: []*big.Int{
 		big.NewInt(1),
 		big.NewInt(2),
 		big.NewInt(3),
@@ -339,9 +339,9 @@ func (c *ProjDblAddSelectSumcheckCircuit[FR]) Define(api frontend.API) error {
 	for i := range c.EvaluationPoints {
 		evalPoints[i] = polynomial.FromSlice[FR](c.EvaluationPoints[i])
 	}
-	claim, err := newGate[FR](api, dblAddSelectGate[*EmuEngine[FR],
+	claim, err := newGate[FR](api, DblAddSelectGate[*EmuEngine[FR],
 		*emulated.Element[FR]]{
-		folding: []*emulated.Element[FR]{
+		Folding: []*emulated.Element[FR]{
 			f.NewElement(1),
 			f.NewElement(2),
 			f.NewElement(3),
@@ -361,7 +361,7 @@ func (c *ProjDblAddSelectSumcheckCircuit[FR]) Define(api frontend.API) error {
 
 func testProjDblAddSelectSumCheckInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, inputs [][]int) {
 	var fr FR
-	nativeGate := dblAddSelectGate[*BigIntEngine, *big.Int]{folding: []*big.Int{
+	nativeGate := DblAddSelectGate[*BigIntEngine, *big.Int]{Folding: []*big.Int{
 		big.NewInt(1),
 		big.NewInt(2),
 		big.NewInt(3),
