@@ -296,7 +296,7 @@ func getCircuitEmulated[FR emulated.FieldParams](path string) (circuit CircuitEm
 	if bytes, err = os.ReadFile(path); err == nil {
 		var circuitInfo CircuitInfo
 		if err = json.Unmarshal(bytes, &circuitInfo); err == nil {
-			circuit, err = toCircuitEmulated[FR](circuitInfo)
+			circuit, err = ToCircuitEmulated[FR](circuitInfo)
 			if err == nil {
 				circuitCache[path] = circuit
 			}
@@ -305,7 +305,7 @@ func getCircuitEmulated[FR emulated.FieldParams](path string) (circuit CircuitEm
 	return
 }
 
-func toCircuitEmulated[FR emulated.FieldParams](c CircuitInfo) (circuit CircuitEmulated[FR], err error) {
+func ToCircuitEmulated[FR emulated.FieldParams](c CircuitInfo) (circuit CircuitEmulated[FR], err error) {
 	var GatesEmulated = map[string]GateEmulated[FR]{
 		"identity": IdentityGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
 		"add":      AddGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
