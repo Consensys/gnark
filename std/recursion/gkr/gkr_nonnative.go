@@ -793,18 +793,6 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 				return proof, err
 			}
 
-			finalEvalProof := proof[i].FinalEvalProof
-			switch finalEvalProof := finalEvalProof.(type) {
-			case nil:
-				finalEvalProof = sumcheck.NativeDeferredEvalProof([]big.Int{})
-			case []big.Int:
-				finalEvalProofLen = len(finalEvalProof)
-				finalEvalProof = sumcheck.NativeDeferredEvalProof(finalEvalProof)
-			default:
-				return nil, fmt.Errorf("finalEvalProof is not of type DeferredEvalProof")
-			}
-
-			proof[i].FinalEvalProof = finalEvalProof
 			baseChallenge = make([]*big.Int, finalEvalProofLen)
 			for i := 0; i < finalEvalProofLen; i++ {
 				baseChallenge[i] = &finalEvalProof.([]big.Int)[i]
