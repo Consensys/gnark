@@ -12,6 +12,7 @@ import (
 	fr_secp256k1 "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	cryptofs "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/bits"
