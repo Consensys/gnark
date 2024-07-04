@@ -3,10 +3,10 @@ package emulated
 import (
 	"errors"
 	"fmt"
-	"math/bits"
-	"math/big"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/selector"
+	"math/big"
+	"math/bits"
 )
 
 // Div computes a/b and returns it. It uses [DivHint] as a hint function.

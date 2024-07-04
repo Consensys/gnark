@@ -3,8 +3,8 @@ package polynomial
 import (
 	"math/bits"
 
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark-crypto/utils"
+	"github.com/consensys/gnark/frontend"
 )
 
 type Polynomial []frontend.Variable
@@ -128,8 +128,8 @@ func (m *MultiLin) Eq(api frontend.API, q []frontend.Variable) {
 	for i := range q { // In the comments we use a 1-based index so q[i] = qᵢ₊₁
 		// go through all assignments of (b₁, ..., bᵢ) ∈ {0,1}ⁱ
 		for j := 0; j < (1 << i); j++ {
-			j0 := j << (n - i)                 // bᵢ₊₁ = 0
-			j1 := j0 + 1<<(n-1-i)              // bᵢ₊₁ = 1
+			j0 := j << (n - i)                     // bᵢ₊₁ = 0
+			j1 := j0 + 1<<(n-1-i)                  // bᵢ₊₁ = 1
 			(*m)[j1] = api.Mul((*m)[j1], q[i])     // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 1) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) qᵢ₊₁
 			(*m)[j0] = api.Sub((*m)[j0], (*m)[j1]) // Eq(q₁, ..., qᵢ₊₁, b₁, ..., bᵢ, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) Eq(qᵢ₊₁, 0) = Eq(q₁, ..., qᵢ, b₁, ..., bᵢ) (1-qᵢ₊₁)
 		}

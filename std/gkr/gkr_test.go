@@ -3,11 +3,11 @@ package gkr
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
-	"math/big"
 
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
@@ -135,7 +135,7 @@ func (c *GkrVerifierCircuit) Define(api frontend.API) error {
 
 func makeInOutAssignment(c Circuit, inputValues [][]frontend.Variable, outputValues [][]frontend.Variable) WireAssignment {
 	sorted := topologicalSort(c)
-	res := make(WireAssignment, len(inputValues) + len(outputValues))
+	res := make(WireAssignment, len(inputValues)+len(outputValues))
 	inI, outI := 0, 0
 	for _, w := range sorted {
 		if w.IsInput() {
@@ -166,8 +166,8 @@ type TestCase struct {
 type TestCaseInfo struct {
 	Hash    HashDescription `json:"hash"`
 	Circuit string          `json:"circuit"`
-	Input   [][]big.Int `json:"input"`
-	Output  [][]big.Int `json:"output"`
+	Input   [][]big.Int     `json:"input"`
+	Output  [][]big.Int     `json:"output"`
 	Proof   PrintableProof  `json:"proof"`
 }
 
@@ -276,7 +276,7 @@ func (g _select) Degree() int {
 type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
-	FinalEvalProof  interface{}     `json:"finalEvalProof"`
+	FinalEvalProof       interface{}     `json:"finalEvalProof"`
 	RoundPolyEvaluations [][]interface{} `json:"roundPolyEvaluations"`
 }
 

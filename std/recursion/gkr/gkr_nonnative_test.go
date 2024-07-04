@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	gohash "hash"
+	"math/big"
 	"os"
 	"path/filepath"
-	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -15,8 +15,8 @@ import (
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
-	"github.com/consensys/gnark/std/recursion/gkr/utils"
 	"github.com/consensys/gnark/std/recursion"
+	"github.com/consensys/gnark/std/recursion/gkr/utils"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
 	"github.com/consensys/gnark/test"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +53,7 @@ func proofEquals(expected NativeProofs, seen NativeProofs) error {
 	}
 	for i, x := range expected {
 		xSeen := seen[i]
-		
+
 		xfinalEvalProofSeen := xSeen.FinalEvalProof
 		switch finalEvalProof := xfinalEvalProofSeen.(type) {
 		case nil:
@@ -69,8 +69,8 @@ func proofEquals(expected NativeProofs, seen NativeProofs) error {
 				return fmt.Errorf("length mismatch %d ≠ %d", 0, len(seenFinalEval))
 			}
 		} else {
-			if err := utils.SliceEqualsBigInt(x.FinalEvalProof.(sumcheck.NativeDeferredEvalProof), 
-			xfinalEvalProofSeen.(sumcheck.NativeDeferredEvalProof)); err != nil {
+			if err := utils.SliceEqualsBigInt(x.FinalEvalProof.(sumcheck.NativeDeferredEvalProof),
+				xfinalEvalProofSeen.(sumcheck.NativeDeferredEvalProof)); err != nil {
 				return fmt.Errorf("final evaluation proof mismatch")
 			}
 		}
@@ -201,10 +201,10 @@ type TestCaseVerifier[FR emulated.FieldParams] struct {
 }
 type TestCaseInfo struct {
 	Hash    utils.HashDescription `json:"hash"`
-	Circuit string                 `json:"circuit"`
+	Circuit string                `json:"circuit"`
 	Input   [][]interface{}       `json:"input"`
-	Output  [][]interface{} `json:"output"`
-	Proof   PrintableProof  `json:"proof"`
+	Output  [][]interface{}       `json:"output"`
+	Proof   PrintableProof        `json:"proof"`
 }
 
 var testCases = make(map[string]interface{})
@@ -230,7 +230,6 @@ func getTestCase[FR emulated.FieldParams](path string) (*TestCaseVerifier[FR], e
 			if cse.Circuit, err = getCircuitEmulated[FR](filepath.Join(dir, info.Circuit)); err != nil {
 				return nil, err
 			}
-
 
 			nativeProofs := unmarshalProof(info.Proof)
 			proofs := make(Proofs[FR], len(nativeProofs))
@@ -351,42 +350,42 @@ func toCircuit(c CircuitInfo) (circuit Circuit, err error) {
 type PrintableProof []PrintableSumcheckProof
 
 type PrintableSumcheckProof struct {
-	FinalEvalProof       [][]uint64       `json:"finalEvalProof"`
-	RoundPolyEvaluations [][][]uint64     `json:"roundPolyEvaluations"`
+	FinalEvalProof       [][]uint64   `json:"finalEvalProof"`
+	RoundPolyEvaluations [][][]uint64 `json:"roundPolyEvaluations"`
 }
 
 func unmarshalProof(printable []PrintableSumcheckProof) (proof NativeProofs) {
-    proof = make(NativeProofs, len(printable))
+	proof = make(NativeProofs, len(printable))
 
-    for i := range printable {
-        if printable[i].FinalEvalProof != nil {
-            finalEvalProof := make(sumcheck.NativeDeferredEvalProof, len(printable[i].FinalEvalProof))
-            for k, val := range printable[i].FinalEvalProof {
-                var temp big.Int
-                temp.SetUint64(val[0])
-                for _, v := range val[1:] {
-                    temp.Lsh(&temp, 64).Add(&temp, new(big.Int).SetUint64(v))
-                }
-                finalEvalProof[k] = temp
-            }
-            proof[i].FinalEvalProof = finalEvalProof
-        } else {
-            proof[i].FinalEvalProof = nil
-        }
+	for i := range printable {
+		if printable[i].FinalEvalProof != nil {
+			finalEvalProof := make(sumcheck.NativeDeferredEvalProof, len(printable[i].FinalEvalProof))
+			for k, val := range printable[i].FinalEvalProof {
+				var temp big.Int
+				temp.SetUint64(val[0])
+				for _, v := range val[1:] {
+					temp.Lsh(&temp, 64).Add(&temp, new(big.Int).SetUint64(v))
+				}
+				finalEvalProof[k] = temp
+			}
+			proof[i].FinalEvalProof = finalEvalProof
+		} else {
+			proof[i].FinalEvalProof = nil
+		}
 
-        proof[i].RoundPolyEvaluations = make([]sumcheck.NativePolynomial, len(printable[i].RoundPolyEvaluations))
-        for k, evals := range printable[i].RoundPolyEvaluations {
-            proof[i].RoundPolyEvaluations[k] = make(sumcheck.NativePolynomial, len(evals))
-            for j, eval := range evals {
-                var temp big.Int
-                temp.SetUint64(eval[0])
-                for _, v := range eval[1:] {
-                    temp.Lsh(&temp, 64).Add(&temp, new(big.Int).SetUint64(v))
-                }
-                proof[i].RoundPolyEvaluations[k][j] = &temp
-            }
-        }
-    }
+		proof[i].RoundPolyEvaluations = make([]sumcheck.NativePolynomial, len(printable[i].RoundPolyEvaluations))
+		for k, evals := range printable[i].RoundPolyEvaluations {
+			proof[i].RoundPolyEvaluations[k] = make(sumcheck.NativePolynomial, len(evals))
+			for j, eval := range evals {
+				var temp big.Int
+				temp.SetUint64(eval[0])
+				for _, v := range eval[1:] {
+					temp.Lsh(&temp, 64).Add(&temp, new(big.Int).SetUint64(v))
+				}
+				proof[i].RoundPolyEvaluations[k][j] = &temp
+			}
+		}
+	}
 	return proof
 }
 
@@ -473,7 +472,7 @@ func TestTopSortWide(t *testing.T) {
 
 var mimcSnarkTotalCalls = 0
 
-//todo add ark
+// todo add ark
 type MiMCCipherGate struct {
 }
 
@@ -512,7 +511,7 @@ type TestCase struct {
 	Current         big.Int
 	Target          big.Int
 	Circuit         Circuit
-	Hash            gohash.Hash 
+	Hash            gohash.Hash
 	Proof           NativeProofs
 	FullAssignment  WireAssignment
 	InOutAssignment WireAssignment
@@ -520,8 +519,8 @@ type TestCase struct {
 
 func (p *PrintableSumcheckProof) UnmarshalJSON(data []byte) error {
 	var temp struct {
-		FinalEvalProof       [][]uint64       `json:"finalEvalProof"`
-		RoundPolyEvaluations [][][]uint64    `json:"roundPolyEvaluations"`
+		FinalEvalProof       [][]uint64   `json:"finalEvalProof"`
+		RoundPolyEvaluations [][][]uint64 `json:"roundPolyEvaluations"`
 	}
 
 	if err := json.Unmarshal(data, &temp); err != nil {
@@ -554,7 +553,7 @@ func newTestCase(path string, target big.Int) (*TestCase, error) {
 	if !ok {
 		var bytes []byte
 		if bytes, err = os.ReadFile(path); err == nil {
-			var info TestCaseInfo			
+			var info TestCaseInfo
 			err = json.Unmarshal(bytes, &info)
 			if err != nil {
 				return nil, err
@@ -570,7 +569,7 @@ func newTestCase(path string, target big.Int) (*TestCase, error) {
 			}
 
 			proof := unmarshalProof(info.Proof)
-			
+
 			fullAssignment := make(WireAssignment)
 			inOutAssignment := make(WireAssignment)
 

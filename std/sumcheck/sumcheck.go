@@ -21,7 +21,7 @@ type LazyClaims interface {
 // Proof of a multi-sumcheck statement.
 type Proof struct {
 	RoundPolyEvaluations []polynomial.Polynomial
-	FinalEvalProof  interface{}
+	FinalEvalProof       interface{}
 }
 
 func setupTranscript(api frontend.API, claimsNum int, varsNum int, settings *fiatshamir.Settings) ([]string, error) {

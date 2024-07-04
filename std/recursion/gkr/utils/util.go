@@ -2,9 +2,9 @@ package utils
 
 import (
 	"fmt"
+	gohash "hash"
 	"math/big"
 	"testing"
-	gohash "hash"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"

@@ -1,11 +1,11 @@
 package fiatshamir
 
 import (
-	"math/big"
-	gohash "hash"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/frontend"
+	gohash "hash"
+	"math/big"
 )
 
 type Settings struct {

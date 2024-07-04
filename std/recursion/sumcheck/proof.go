@@ -29,7 +29,7 @@ type NativeProof struct {
 //   - if it is deferred, then it is a slice.
 type EvaluationProof any
 
-// evaluationProof for gkr 
+// evaluationProof for gkr
 type DeferredEvalProof[FR emulated.FieldParams] []emulated.Element[FR]
 type NativeDeferredEvalProof []big.Int
 

@@ -19,7 +19,7 @@ func (p NativeMultilinear) Clone(capacity ...int) NativeMultilinear {
 	} else {
 		newCapacity = len(p)
 	}
-	
+
 	res := make(NativeMultilinear, len(p), newCapacity)
 	for i, v := range p {
 		res[i] = new(big.Int).Set(v)

@@ -2,9 +2,6 @@ package gkr
 
 import (
 	"fmt"
-	"math/big"
-	"slices"
-	"strconv"
 	cryptofiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
@@ -15,6 +12,9 @@ import (
 	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
+	"math/big"
+	"slices"
+	"strconv"
 )
 
 // Gate must be a low-degree polynomial
@@ -31,14 +31,14 @@ type Wire struct {
 
 // Gate must be a low-degree polynomial
 type GateEmulated[FR emulated.FieldParams] interface {
-	Evaluate(*sumcheck.EmuEngine[FR], ...*emulated.Element[FR]) *emulated.Element[FR] 
+	Evaluate(*sumcheck.EmuEngine[FR], ...*emulated.Element[FR]) *emulated.Element[FR]
 	Degree() int
 }
 
 type WireEmulated[FR emulated.FieldParams] struct {
 	Gate            GateEmulated[FR]
 	Inputs          []*WireEmulated[FR] // if there are no Inputs, the wire is assumed an input wire
-	nbUniqueOutputs int           // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
+	nbUniqueOutputs int                 // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
 }
 
 type Circuit []Wire
@@ -521,9 +521,9 @@ func WithSortedCircuitEmulated[FR emulated.FieldParams](sorted []*WireEmulated[F
 
 // Verifier allows to check sumcheck proofs. See [NewVerifier] for initializing the instance.
 type GKRVerifier[FR emulated.FieldParams] struct {
-	api    frontend.API
-	f      *emulated.Field[FR]
-	p      *polynomial.Polynomial[FR]
+	api frontend.API
+	f   *emulated.Field[FR]
+	p   *polynomial.Polynomial[FR]
 	*sumcheck.Config
 }
 
@@ -783,7 +783,7 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 		if wire.noProof() { // input wires with one claim only
 			proof[i] = sumcheck.NativeProof{
 				RoundPolyEvaluations: []sumcheck.NativePolynomial{},
-				FinalEvalProof:  finalEvalProof,
+				FinalEvalProof:       finalEvalProof,
 			}
 		} else {
 			proof[i], err = sumcheck.Prove(
@@ -864,7 +864,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 			default:
 				return fmt.Errorf("finalEvalProof is not of type DeferredEvalProof")
 			}
-			
+
 			if (finalEvalProof != nil && proofLen != 0) || len(proofW.RoundPolyEvaluations) != 0 {
 				return fmt.Errorf("no proof allowed for input wire with a single claim")
 			}
@@ -1221,7 +1221,7 @@ func DeserializeProof[FR emulated.FieldParams](sorted []*WireEmulated[FR], seria
 	return proof, nil
 }
 
-type element any 
+type element any
 
 type MulGate[AE sumcheck.ArithEngine[E], E element] struct{}
 

@@ -16,7 +16,7 @@ limitations under the License.
 
 package frontend
 
-import (	
+import (
 	"github.com/consensys/gnark/frontend/internal/expr"
 )
 
