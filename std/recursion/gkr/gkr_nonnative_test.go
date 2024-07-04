@@ -389,26 +389,6 @@ func unmarshalProof(printable []PrintableSumcheckProof) (proof NativeProofs) {
 	return proof
 }
 
-func TestLogNbInstances(t *testing.T) {
-	type FR = emulated.BN254Fp
-	testLogNbInstances := func(path string) func(t *testing.T) {
-		return func(t *testing.T) {
-			testCase, err := getTestCase[FR](path)
-			assert.NoError(t, err)
-			wires := topologicalSortEmulated(testCase.Circuit)
-			serializedProof := testCase.Proof.Serialize()
-			logNbInstances := computeLogNbInstances(wires, len(serializedProof))
-			assert.Equal(t, 1, logNbInstances)
-		}
-	}
-
-	cases := []string{"two_inputs_select-input-3_gate_two_instances", "two_identity_gates_composed_single_input_two_instances"}
-
-	for _, caseName := range cases {
-		t.Run("log_nb_instances:"+caseName, testLogNbInstances("test_vectors/"+caseName+".json"))
-	}
-}
-
 func TestLoadCircuit(t *testing.T) {
 	type FR = emulated.BN254Fp
 	c, err := getCircuitEmulated[FR]("test_vectors/resources/two_identity_gates_composed_single_input.json")
