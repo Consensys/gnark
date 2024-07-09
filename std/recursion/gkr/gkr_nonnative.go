@@ -1,4 +1,4 @@
-package gkr
+package gkrnonative
 
 import (
 	"fmt"
@@ -778,12 +778,11 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 
 		claim := claims.getClaim(be, wire)
 		var finalEvalProofLen int
-		finalEvalProof := proof[i].FinalEvalProof
 
 		if wire.noProof() { // input wires with one claim only
 			proof[i] = sumcheck.NativeProof{
 				RoundPolyEvaluations: []sumcheck.NativePolynomial{},
-				FinalEvalProof:       finalEvalProof,
+				FinalEvalProof:       sumcheck.NativeDeferredEvalProof([]big.Int{}),
 			}
 		} else {
 			proof[i], err = sumcheck.Prove(
@@ -791,6 +790,19 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 			)
 			if err != nil {
 				return proof, err
+			}
+
+			finalEvalProof := proof[i].FinalEvalProof
+			switch finalEvalProof := finalEvalProof.(type) {
+			case nil:
+				finalEvalProofCasted := sumcheck.NativeDeferredEvalProof([]big.Int{})
+				proof[i].FinalEvalProof = finalEvalProofCasted
+			case []big.Int:
+				finalEvalProofLen = len(finalEvalProof)
+				finalEvalProofCasted := sumcheck.NativeDeferredEvalProof(finalEvalProof)
+				proof[i].FinalEvalProof = finalEvalProofCasted
+			default:
+				return nil, fmt.Errorf("finalEvalProof is not of type DeferredEvalProof")
 			}
 
 			baseChallenge = make([]*big.Int, finalEvalProofLen)

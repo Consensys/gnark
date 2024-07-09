@@ -1,4 +1,4 @@
-package gkr
+package gkrnonative
 
 import (
 	"encoding/json"
@@ -10,11 +10,15 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254"
+	fpbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fp"
+	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/gkr/utils"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
@@ -30,7 +34,7 @@ var Gates = map[string]Gate{
 
 func TestGkrVectorsEmulated(t *testing.T) {
 	current := ecc.BN254.ScalarField()
-	var fr emparams.BN254Fp
+	var fp emparams.BN254Fp
 	testDirPath := "./test_vectors"
 	dirEntries, err := os.ReadDir(testDirPath)
 	if err != nil {
@@ -41,7 +45,7 @@ func TestGkrVectorsEmulated(t *testing.T) {
 			path := filepath.Join(testDirPath, dirEntry.Name())
 			noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
 
-			t.Run(noExt+"_prover", generateTestProver(path, *current, *fr.Modulus()))
+			t.Run(noExt+"_prover", generateTestProver(path, *current, *fp.Modulus()))
 			t.Run(noExt+"_verifier", generateTestVerifier[emparams.BN254Fp](path))
 		}
 	}
@@ -53,17 +57,8 @@ func proofEquals(expected NativeProofs, seen NativeProofs) error {
 	}
 	for i, x := range expected {
 		xSeen := seen[i]
-
+		// todo: REMOVE GKR PROOF ABSTRACTION FROM PROOFEQUALS
 		xfinalEvalProofSeen := xSeen.FinalEvalProof
-		switch finalEvalProof := xfinalEvalProofSeen.(type) {
-		case nil:
-			xfinalEvalProofSeen = sumcheck.NativeDeferredEvalProof([]big.Int{})
-		case []big.Int:
-			xfinalEvalProofSeen = sumcheck.NativeDeferredEvalProof(finalEvalProof)
-		default:
-			return fmt.Errorf("finalEvalProof is not of type DeferredEvalProof")
-		}
-
 		if xSeen.FinalEvalProof == nil {
 			if seenFinalEval := x.FinalEvalProof.(sumcheck.NativeDeferredEvalProof); len(seenFinalEval) != 0 {
 				return fmt.Errorf("length mismatch %d ≠ %d", 0, len(seenFinalEval))
@@ -608,4 +603,366 @@ func newTestCase(path string, target big.Int) (*TestCase, error) {
 	}
 
 	return tCase.(*TestCase), nil
+}
+
+type ProjAddGkrVerifierCircuit[FR emulated.FieldParams] struct {
+	Circuit         CircuitEmulated[FR]
+	Input           [][]emulated.Element[FR]
+	Output          [][]emulated.Element[FR] `gnark:",public"`
+	SerializedProof []emulated.Element[FR]
+}
+
+func (c *ProjAddGkrVerifierCircuit[FR]) Define(api frontend.API) error {
+	var fr FR
+	var proof Proofs[FR]
+	var err error
+
+	v, err := NewGKRVerifier[FR](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+
+	sorted := topologicalSortEmulated(c.Circuit)
+
+	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
+		return err
+	}
+	assignment := makeInOutAssignment(c.Circuit, c.Input, c.Output)
+
+	// initiating hash in bitmode, since bn254 basefield is bigger than scalarfield
+	hsh, err := recursion.NewHash(api, fr.Modulus(), true)
+	if err != nil {
+		return err
+	}
+
+	return v.Verify(api, c.Circuit, assignment, proof, fiatshamir.WithHashFr[FR](hsh))
+}
+
+func testDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, target *big.Int, inputs [][]*big.Int, outputs [][]*big.Int) {
+	folding := []*big.Int{
+		big.NewInt(1),
+		big.NewInt(2),
+		big.NewInt(3),
+		big.NewInt(4),
+		big.NewInt(5),
+		big.NewInt(6),
+	}
+	c := make(Circuit, 8)
+	// c[8] = Wire{
+	// 	Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
+	// 	Inputs: []*Wire{&c[7]},
+	// }
+	// check rlc of inputs to second layer is equal to output 
+	c[7] = Wire{
+		Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
+		Inputs: []*Wire{&c[0], &c[1], &c[2], &c[3], &c[4], &c[5], &c[6]},
+	}
+
+	res := make([]*big.Int, len(inputs[0]))
+	for i := 0; i < len(inputs[0]); i++ {
+		res[i] = c[7].Gate.Evaluate(sumcheck.NewBigIntEngine(target), inputs[0][i], inputs[1][i], inputs[2][i], inputs[3][i], inputs[4][i], inputs[5][i], inputs[6][i])
+	}
+	fmt.Println("res", res)
+
+	foldingEmulated := make([]emulated.Element[FR], len(folding))
+	for i, f := range folding {
+		foldingEmulated[i] = emulated.ValueOf[FR](f)
+	}
+	cEmulated := make(CircuitEmulated[FR], len(c))
+	cEmulated[7] = WireEmulated[FR]{
+		Gate:  sumcheck.DblAddSelectGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{
+			Folding: polynomial.FromSlice(foldingEmulated),
+		},
+		Inputs: []*WireEmulated[FR]{&cEmulated[0], &cEmulated[1], &cEmulated[2], &cEmulated[3], &cEmulated[4], &cEmulated[5], &cEmulated[6]},
+	}
+
+	assert := test.NewAssert(t)
+
+	hash, err := recursion.NewShort(current, target)
+	if err != nil {
+		t.Errorf("new short hash: %v", err)
+		return
+	}
+	t.Log("Evaluating all circuit wires")
+
+	fullAssignment := make(WireAssignment)
+	inOutAssignment := make(WireAssignment)
+
+	sorted := topologicalSort(c)
+
+	inI, outI := 0, 0
+	for _, w := range sorted {
+		var assignmentRaw []*big.Int
+		if w.IsInput() {
+			if inI == len(inputs) {
+				t.Errorf("fewer input in vector than in circuit")
+				return
+			}
+			assignmentRaw = inputs[inI]
+			inI++
+		} else if w.IsOutput() {
+			if outI == len(outputs) {
+				t.Errorf("fewer output in vector than in circuit")
+				return
+			}
+			assignmentRaw = outputs[outI]
+			outI++
+		}
+
+		if assignmentRaw != nil {
+			var wireAssignment []big.Int
+			wireAssignment, err := utils.SliceToBigIntSlice(assignmentRaw)
+			assert.NoError(err)
+			fullAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+			inOutAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+		}
+	}
+
+	fullAssignment.Complete(c, target)
+
+	for _, w := range sorted {
+		if w.IsOutput() {
+
+			if err = utils.SliceEqualsBigInt(sumcheck.DereferenceBigIntSlice(inOutAssignment[w]), sumcheck.DereferenceBigIntSlice(fullAssignment[w])); err != nil {
+				t.Errorf("assignment mismatch: %v", err)
+			}
+
+		}
+	}
+
+	t.Log("Circuit evaluation complete")
+	proof, err := Prove(current, target, c, fullAssignment, fiatshamir.WithHashBigInt(hash))
+	assert.NoError(err)
+	t.Log("Proof complete")
+
+	proofEmulated := make(Proofs[FR], len(proof))
+	for i, proof := range proof {
+		proofEmulated[i] = sumcheck.ValueOfProof[FR](proof)
+	}
+	
+	validCircuit := &ProjAddGkrVerifierCircuit[FR]{
+		Circuit: cEmulated,
+		Input:   make([][]emulated.Element[FR], len(inputs)),
+		Output:  make([][]emulated.Element[FR], len(outputs)),
+		SerializedProof: proofEmulated.Serialize(),
+	}
+
+	validAssignment := &ProjAddGkrVerifierCircuit[FR]{
+		Circuit: cEmulated,
+		Input:   make([][]emulated.Element[FR], len(inputs)),
+		Output:  make([][]emulated.Element[FR], len(outputs)),
+		SerializedProof: proofEmulated.Serialize(),
+	}
+
+	for i := range inputs {
+		validCircuit.Input[i] = make([]emulated.Element[FR], len(inputs[i]))
+		validAssignment.Input[i] = make([]emulated.Element[FR], len(inputs[i]))
+		for j := range inputs[i] {
+			validAssignment.Input[i][j] = emulated.ValueOf[FR](inputs[i][j])
+		}
+	}
+
+	for i := range outputs {
+		validCircuit.Output[i] = make([]emulated.Element[FR], len(outputs[i]))
+		validAssignment.Output[i] = make([]emulated.Element[FR], len(outputs[i]))
+		for j := range outputs[i] {
+			validAssignment.Output[i][j] = emulated.ValueOf[FR](outputs[i][j])
+		}
+	}
+
+	err = test.IsSolved(validCircuit, validAssignment, current)
+	assert.NoError(err)
+}
+
+func ElementToBigInt(element fpbn254.Element) *big.Int {
+	var temp big.Int
+	return element.BigInt(&temp)
+}
+
+func TestProjDblAddSelectGKR(t *testing.T) {
+	var P bn254.G1Affine
+	var Q bn254.G1Affine
+	var U bn254.G1Affine
+	var one fpbn254.Element
+	one.SetOne()
+	var zero fpbn254.Element
+	zero.SetZero()
+
+	var s frbn254.Element
+	s.SetOne()
+	var r frbn254.Element
+	r.SetOne()
+	P.ScalarMultiplicationBase(s.BigInt(new(big.Int)))
+	Q.ScalarMultiplicationBase(r.BigInt(new(big.Int)))
+	U.Add(&P, &Q)
+
+	result, err := new(big.Int).SetString("21888242871839275222246405745257275088696311157297823662689037894645226206973", 10)
+	if !err {
+		panic("error result")
+	}
+
+	var fp emparams.BN254Fp
+	testDblAddSelectGKRInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), fp.Modulus(), [][]*big.Int{{ElementToBigInt(P.X), ElementToBigInt(P.X)}, {ElementToBigInt(P.Y), ElementToBigInt(P.Y)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one)}}, [][]*big.Int{{result, result}})
+}
+
+func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, target *big.Int, inputs [][]*big.Int, outputs [][]*big.Int) {
+	folding := []*big.Int{
+		big.NewInt(1),
+		big.NewInt(2),
+		big.NewInt(3),
+		big.NewInt(4),
+		big.NewInt(5),
+		big.NewInt(6),
+	}
+	c := make(Circuit, 9)
+	c[8] = Wire{
+		Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
+		Inputs: []*Wire{&c[7]},
+	}
+	// check rlc of inputs to second layer is equal to output 
+	c[7] = Wire{
+		Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
+		Inputs: []*Wire{&c[0], &c[1], &c[2], &c[3], &c[4], &c[5], &c[6]},
+	}
+
+	res := make([]*big.Int, len(inputs[0]))
+	for i := 0; i < len(inputs[0]); i++ {
+		res[i] = c[7].Gate.Evaluate(sumcheck.NewBigIntEngine(target), inputs[0][i], inputs[1][i], inputs[2][i], inputs[3][i], inputs[4][i], inputs[5][i], inputs[6][i])
+	}
+	fmt.Println("res", res)
+
+	foldingEmulated := make([]emulated.Element[FR], len(folding))
+	for i, f := range folding {
+		foldingEmulated[i] = emulated.ValueOf[FR](f)
+	}
+	cEmulated := make(CircuitEmulated[FR], len(c))
+	cEmulated[7] = WireEmulated[FR]{
+		Gate:  sumcheck.DblAddSelectGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{
+			Folding: polynomial.FromSlice(foldingEmulated),
+		},
+		Inputs: []*WireEmulated[FR]{&cEmulated[0], &cEmulated[1], &cEmulated[2], &cEmulated[3], &cEmulated[4], &cEmulated[5], &cEmulated[6]},
+	}
+
+	assert := test.NewAssert(t)
+
+	hash, err := recursion.NewShort(current, target)
+	if err != nil {
+		t.Errorf("new short hash: %v", err)
+		return
+	}
+	t.Log("Evaluating all circuit wires")
+
+	fullAssignment := make(WireAssignment)
+	inOutAssignment := make(WireAssignment)
+
+	sorted := topologicalSort(c)
+
+	inI, outI := 0, 0
+	for _, w := range sorted {
+		var assignmentRaw []*big.Int
+		if w.IsInput() {
+			if inI == len(inputs) {
+				t.Errorf("fewer input in vector than in circuit")
+				return
+			}
+			assignmentRaw = inputs[inI]
+			inI++
+		} else if w.IsOutput() {
+			if outI == len(outputs) {
+				t.Errorf("fewer output in vector than in circuit")
+				return
+			}
+			assignmentRaw = outputs[outI]
+			outI++
+		}
+
+		if assignmentRaw != nil {
+			var wireAssignment []big.Int
+			wireAssignment, err := utils.SliceToBigIntSlice(assignmentRaw)
+			assert.NoError(err)
+			fullAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+			inOutAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+		}
+	}
+
+	fullAssignment.Complete(c, target)
+
+	for _, w := range sorted {
+		if w.IsOutput() {
+
+			if err = utils.SliceEqualsBigInt(sumcheck.DereferenceBigIntSlice(inOutAssignment[w]), sumcheck.DereferenceBigIntSlice(fullAssignment[w])); err != nil {
+				t.Errorf("assignment mismatch: %v", err)
+			}
+
+		}
+	}
+
+	t.Log("Circuit evaluation complete")
+	proof, err := Prove(current, target, c, fullAssignment, fiatshamir.WithHashBigInt(hash))
+	assert.NoError(err)
+	t.Log("Proof complete")
+
+	proofEmulated := make(Proofs[FR], len(proof))
+	for i, proof := range proof {
+		proofEmulated[i] = sumcheck.ValueOfProof[FR](proof)
+	}
+	
+	validCircuit := &ProjAddGkrVerifierCircuit[FR]{
+		Circuit: cEmulated,
+		Input:   make([][]emulated.Element[FR], len(inputs)),
+		Output:  make([][]emulated.Element[FR], len(outputs)),
+		SerializedProof: proofEmulated.Serialize(),
+	}
+
+	validAssignment := &ProjAddGkrVerifierCircuit[FR]{
+		Circuit: cEmulated,
+		Input:   make([][]emulated.Element[FR], len(inputs)),
+		Output:  make([][]emulated.Element[FR], len(outputs)),
+		SerializedProof: proofEmulated.Serialize(),
+	}
+
+	for i := range inputs {
+		validCircuit.Input[i] = make([]emulated.Element[FR], len(inputs[i]))
+		validAssignment.Input[i] = make([]emulated.Element[FR], len(inputs[i]))
+		for j := range inputs[i] {
+			validAssignment.Input[i][j] = emulated.ValueOf[FR](inputs[i][j])
+		}
+	}
+
+	for i := range outputs {
+		validCircuit.Output[i] = make([]emulated.Element[FR], len(outputs[i]))
+		validAssignment.Output[i] = make([]emulated.Element[FR], len(outputs[i]))
+		for j := range outputs[i] {
+			validAssignment.Output[i][j] = emulated.ValueOf[FR](outputs[i][j])
+		}
+	}
+
+	err = test.IsSolved(validCircuit, validAssignment, current)
+	assert.NoError(err)
+}
+
+func TestMultipleDblAddSelectGKR(t *testing.T) {
+	var P bn254.G1Affine
+	var Q bn254.G1Affine
+	var U bn254.G1Affine
+	var one fpbn254.Element
+	one.SetOne()
+	var zero fpbn254.Element
+	zero.SetZero()
+
+	var s frbn254.Element
+	s.SetOne()
+	var r frbn254.Element
+	r.SetOne()
+	P.ScalarMultiplicationBase(s.BigInt(new(big.Int)))
+	Q.ScalarMultiplicationBase(r.BigInt(new(big.Int)))
+	U.Add(&P, &Q)
+
+	result, err := new(big.Int).SetString("21888242871839275222246405745257275088696311157297823662689037894645226206973", 10)
+	if !err {
+		panic("error result")
+	}
+
+	var fp emparams.BN254Fp
+	testMultipleDblAddSelectGKRInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), fp.Modulus(), [][]*big.Int{{ElementToBigInt(P.X), ElementToBigInt(P.X)}, {ElementToBigInt(P.Y), ElementToBigInt(P.Y)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one)}}, [][]*big.Int{{result, result}})
 }

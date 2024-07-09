@@ -14,13 +14,13 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-type projAddGate[AE ArithEngine[E], E element] struct {
+type ProjAddGate[AE ArithEngine[E], E element] struct {
 	Folding E
 }
 
-func (m projAddGate[AE, E]) NbInputs() int { return 6 }
-func (m projAddGate[AE, E]) Degree() int   { return 4 }
-func (m projAddGate[AE, E]) Evaluate(api AE, vars ...E) E {
+func (m ProjAddGate[AE, E]) NbInputs() int { return 6 }
+func (m ProjAddGate[AE, E]) Degree() int   { return 4 }
+func (m ProjAddGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	if len(vars) != m.NbInputs() {
 		panic("incorrect nb of inputs")
 	}
@@ -102,7 +102,7 @@ func (c *ProjAddSumcheckCircuit[FR]) Define(api frontend.API) error {
 	for i := range c.EvaluationPoints {
 		evalPoints[i] = polynomial.FromSlice[FR](c.EvaluationPoints[i])
 	}
-	claim, err := newGate[FR](api, projAddGate[*EmuEngine[FR], *emulated.Element[FR]]{f.NewElement(123)}, inputs, evalPoints, claimedEvals)
+	claim, err := newGate[FR](api, ProjAddGate[*EmuEngine[FR], *emulated.Element[FR]]{f.NewElement(123)}, inputs, evalPoints, claimedEvals)
 	if err != nil {
 		return fmt.Errorf("new gate claim: %w", err)
 	}
@@ -114,7 +114,7 @@ func (c *ProjAddSumcheckCircuit[FR]) Define(api frontend.API) error {
 
 func testProjAddSumCheckInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, inputs [][]int) {
 	var fr FR
-	nativeGate := projAddGate[*BigIntEngine, *big.Int]{Folding: big.NewInt(123)}
+	nativeGate := ProjAddGate[*BigIntEngine, *big.Int]{Folding: big.NewInt(123)}
 	assert := test.NewAssert(t)
 	inputB := make([][]*big.Int, len(inputs))
 	for i := range inputB {

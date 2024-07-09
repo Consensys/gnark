@@ -16,6 +16,8 @@ func SliceToBigIntSlice[T any](slice []T) ([]big.Int, error) {
 	elementSlice := make([]big.Int, len(slice))
 	for i, v := range slice {
 		switch v := any(v).(type) {
+		case *big.Int:
+			elementSlice[i] = *v
 		case float64:
 			elementSlice[i] = *big.NewInt(int64(v))
 		default:
