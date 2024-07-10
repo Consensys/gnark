@@ -224,7 +224,6 @@ contract PlonkVerifier {
       }
 
       /// Called when an operation on Bn254 fails
-      /// @dev for instance when calling EcMul on a point not on Bn254.
       function error_mod_exp() {
         let ptError := mload(0x40)
         mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
