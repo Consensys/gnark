@@ -434,8 +434,8 @@ contract PlonkVerifier {
         mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_X) {{ $offset = add $offset 0x20}}
         mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_Y) {{ $offset = add $offset 0x20}}
         {{ range $index, $element := .CommitmentConstraintIndexes}}
-        mstore(add(mPtr, {{ hex (add $offset (mul $index 64)) }}), VK_QCP_{{ $index }}_X)
-        mstore(add(mPtr, {{ hex (add (add $offset 0x20) (mul $index 64)) }}), VK_QCP_{{ $index }}_Y)
+        mstore(add(mPtr, {{ hex (add $offset (mul $index 0x40)) }}), VK_QCP_{{ $index }}_X)
+        mstore(add(mPtr, {{ hex (add (add $offset 0x20) (mul $index 0x40)) }}), VK_QCP_{{ $index }}_Y)
         {{ end }}
         // public inputs
         let _mPtr := add(mPtr, {{ hex (add (mul (len .CommitmentConstraintIndexes) 64) 544) }})
@@ -535,7 +535,7 @@ contract PlonkVerifier {
         // zeta
         mstore(mPtr, FS_ZETA) // "zeta"
         mstore(add(mPtr, 0x20), alpha_not_reduced)
-        calldatacopy(add(mPtr, 0x40), add(aproof, PROOF_H_0_X), 0xc0)
+        calldatacopy(add(mPtr, 0x40), add(aproof, PROOF_H_0_COM_X), 0xc0)
         let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
         if iszero(l_success) {
           error_verify()
