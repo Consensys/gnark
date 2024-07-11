@@ -223,7 +223,7 @@ contract PlonkVerifier {
         revert(ptError, 0x64)
       }
 
-      /// Called when an operation on Bn254 fails
+      /// Called when an exponentiation mod r fails
       function error_mod_exp() {
         let ptError := mload(0x40)
         mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
