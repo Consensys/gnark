@@ -19,6 +19,7 @@ package plonk
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/backend/solidity"
 	"io"
 	"math/big"
 	"text/template"
@@ -396,7 +397,7 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 // See https://github.com/ConsenSys/gnark-tests for example usage.
 //
 // Code has not been audited and is provided as-is, we make no guarantees or warranties to its safety and reliability.
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	funcMap := template.FuncMap{
 		"hex": func(i int) string {
 			return fmt.Sprintf("0x%x", i)
@@ -428,5 +429,17 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return t.Execute(w, vk)
+
+	cfg, err := solidity.NewExportConfig(exportOpts...)
+	if err != nil {
+		return err
+	}
+
+	return t.Execute(w, struct {
+		Cfg solidity.ExportConfig
+		Vk  VerifyingKey
+	}{
+		Cfg: cfg,
+		Vk:  *vk,
+	})
 }

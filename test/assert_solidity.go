@@ -2,7 +2,6 @@ package test
 
 import (
 	"encoding/hex"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,24 +9,27 @@ import (
 
 	fr_bn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/backend/witness"
 )
-
-type verifyingKey interface {
-	NbPublicWitness() int
-	ExportSolidity(io.Writer) error
-}
 
 // solidityVerification checks that the exported solidity contract can verify the proof
 // and that the proof is valid.
 // It uses gnark-solidity-checker see test.WithSolidity option.
-func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
+func (assert *Assert) solidityVerification(b backend.ID, vk solidity.VerifyingKey,
 	proof any,
-	validPublicWitness witness.Witness) {
+	validPublicWitness witness.Witness,
+	opts []solidity.ExportOption,
+) {
 	if !SolcCheck || len(validPublicWitness.Vector().(fr_bn254.Vector)) == 0 {
 		return // nothing to check, will make solc fail.
 	}
 	assert.t.Helper()
+
+	// set default options for CI when none are provided
+	if len(opts) == 0 {
+		opts = append(opts, solidity.WithPragmaVersion("^0.8.0")) // to avoid needing sync Solidity CI all the time
+	}
 
 	// make temp dir
 	tmpDir, err := os.MkdirTemp("", "gnark-solidity-check*")
@@ -38,7 +40,7 @@ func (assert *Assert) solidityVerification(b backend.ID, vk verifyingKey,
 	fSolidity, err := os.Create(filepath.Join(tmpDir, "gnark_verifier.sol"))
 	assert.NoError(err)
 
-	err = vk.ExportSolidity(fSolidity)
+	err = vk.ExportSolidity(fSolidity, opts...)
 	assert.NoError(err)
 
 	err = fSolidity.Close()

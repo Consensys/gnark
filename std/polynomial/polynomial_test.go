@@ -3,6 +3,7 @@ package polynomial
 import (
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -217,10 +218,7 @@ func TestInterpolateQuadraticExtension(t *testing.T) {
 
 func TestNegFactorial(t *testing.T) {
 	for n, expected := range []int{0, -1, 2, -6, 24} {
-
-		if observed := negFactorial(n); observed != expected {
-			t.Error("negFactorial at", n, "gave", observed, "rather than", expected)
-		}
+		assert.Equal(t, expected, negFactorial(n))
 	}
 }
 
