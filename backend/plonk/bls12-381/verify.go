@@ -22,6 +22,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/consensys/gnark/backend/solidity"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -392,6 +393,6 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 }
 
 // ExportSolidity not implemented for BLS12-381
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	return errors.New("not implemented")
 }

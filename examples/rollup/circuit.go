@@ -172,7 +172,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	return nil
 }
 
-// verifySignatureTransfer ensures that the signature of the transfer is valid
+// verifyTransferSignature ensures that the signature of the transfer is valid
 func verifyTransferSignature(api frontend.API, t TransferConstraints, hFunc mimc.MiMC) error {
 
 	// Reset the hash state!

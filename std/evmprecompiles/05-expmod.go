@@ -5,7 +5,6 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
-	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 // Expmod implements [MODEXP] precompile contract at address 0x05.
@@ -15,10 +14,10 @@ import (
 // the actual length of the inputs.
 //
 // [MODEXP]: https://ethereum.github.io/execution-specs/autoapi/ethereum/paris/vm/precompiled_contracts/expmod/index.html
-func Expmod(api frontend.API, base, exp, modulus *emulated.Element[emparams.Mod1e4096]) *emulated.Element[emparams.Mod1e4096] {
+func Expmod[P emulated.FieldParams](api frontend.API, base, exp, modulus *emulated.Element[P]) *emulated.Element[P] {
 	// x^0 = 1
 	// x mod 0 = 0
-	f, err := emulated.NewField[emparams.Mod1e4096](api)
+	f, err := emulated.NewField[P](api)
 	if err != nil {
 		panic(fmt.Sprintf("new field: %v", err))
 	}
