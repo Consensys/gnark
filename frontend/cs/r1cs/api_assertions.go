@@ -114,11 +114,10 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 		}
 	}
 
-	nbBits := builder.cs.FieldBitLen()
-	vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
-
 	// bound is constant
 	if bConst {
+		nbBits := builder.cs.FieldBitLen()
+		vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 		builder.MustBeLessOrEqCst(vBits, builder.cs.ToBigInt(cb), v)
 		return
 	}
