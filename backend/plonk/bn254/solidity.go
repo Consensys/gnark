@@ -434,8 +434,8 @@ contract PlonkVerifier {
         mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_X) {{ $offset = add $offset 0x20}}
         mstore(add(mPtr, {{ hex $offset }}), VK_QK_COM_Y) {{ $offset = add $offset 0x20}}
         {{ range $index, $element := .CommitmentConstraintIndexes}}
-        mstore(add(mPtr, {{ hex (add $offset (mul $index 0x40)) }}), VK_QCP_{{ $index }}_X)
-        mstore(add(mPtr, {{ hex (add (add $offset 0x20) (mul $index 0x40)) }}), VK_QCP_{{ $index }}_Y)
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_X) {{ $offset = add $offset 0x20}}
+        mstore(add(mPtr, {{ hex $offset }}), VK_QCP_{{ $index }}_Y) {{ $offset = add $offset 0x20}}
         {{ end }}
         // public inputs
         let _mPtr := add(mPtr, {{ hex (add (mul (len .CommitmentConstraintIndexes) 64) 544) }})
