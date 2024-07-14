@@ -253,13 +253,22 @@ func Pair(api frontend.API, P []G1Affine, Q []G2Affine) (GT, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups
 func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
-	f, err := Pair(api, P, Q)
+	f, err := MillerLoop(api, P, Q)
 	if err != nil {
 		return err
 	}
-	var one GT
-	one.SetOne()
-	f.AssertIsEqual(api, one)
+	// We perform the easy part of the final exp to push f to the cyclotomic
+	// subgroup so that FinalExponentiationCheck is carried with optimized
+	// cyclotomic squaring (e.g. Karabina12345).
+	//
+	// f = f^(p⁶-1)(p²+1)
+	var buf GT
+	buf.Conjugate(api, f)
+	buf.DivUnchecked(api, buf, f)
+	f.FrobeniusSquare(api, buf).
+		Mul(api, f, buf)
+
+	f.FinalExponentiationCheck(api)
 
 	return nil
 }
