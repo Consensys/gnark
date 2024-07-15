@@ -198,7 +198,7 @@ func (f *Field[T]) computeSubPaddingHint(overflow uint, nbLimbs uint, modulus *E
 	for i := range res {
 		f.checker.Check(res[i], int(fp.BitsPerLimb()+overflow+1))
 	}
-	padding := f.newInternalElement(res, fp.BitsPerLimb()+overflow+1)
+	padding := f.newInternalElement(res, overflow+1)
 	f.checkZero(padding, modulus)
 	return padding
 }
