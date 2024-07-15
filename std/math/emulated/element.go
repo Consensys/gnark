@@ -32,6 +32,12 @@ type Element[T FieldParams] struct {
 	// enforcement info in the Element to prevent modifying the witness.
 	internal bool
 
+	// modReduced indicates that the element has been reduced modulo the modulus
+	// and we have asserted that the integer value of the element is strictly
+	// less than the modulus. This is required for some operations which depend
+	// on the bit-representation of the element (ToBits, exponentiation etc.).
+	modReduced bool
+
 	isEvaluated bool
 	evaluation  frontend.Variable `gnark:"-"`
 }
@@ -104,5 +110,6 @@ func (e *Element[T]) copy() *Element[T] {
 	copy(r.Limbs, e.Limbs)
 	r.overflow = e.overflow
 	r.internal = e.internal
+	r.modReduced = e.modReduced
 	return &r
 }
