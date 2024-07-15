@@ -200,7 +200,8 @@ func (f *Field[T]) computeSubPaddingHint(overflow uint, nbLimbs uint, modulus *E
 	if err != nil {
 		panic(fmt.Sprintf("sub padding hint: %v", err))
 	}
-	maxLimb := (1 << (int(fp.BitsPerLimb()) + int(overflow))) - 1
+	maxLimb := new(big.Int).Lsh(big.NewInt(1), fp.BitsPerLimb()+overflow)
+	maxLimb.Sub(maxLimb, big.NewInt(1))
 	for i := range res {
 		// ensure that condition 3 always holds. As we compute the padding hint
 		// depending on the overflow of the inputs, then can use the maximum
