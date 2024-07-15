@@ -188,16 +188,33 @@ func subPaddingHint(mod *big.Int, inputs, outputs []*big.Int) error {
 }
 
 func (f *Field[T]) computeSubPaddingHint(overflow uint, nbLimbs uint, modulus *Element[T]) *Element[T] {
+	// we compute the subtraction padding hint in-circuit. The padding has satisfy:
+	// 1. padding % modulus = 0
+	// 2. padding[i] >= (1 << (bits+overflow))
+	// 3. padding[i] + a[i] < native_field for all valid a[i] (defined by overflow)
 	var fp T
 	inputs := []frontend.Variable{fp.NbLimbs(), fp.BitsPerLimb(), overflow, nbLimbs}
 	inputs = append(inputs, modulus.Limbs...)
+	// compute the actual padding value
 	res, err := f.api.NewHint(subPaddingHint, int(nbLimbs), inputs...)
 	if err != nil {
 		panic(fmt.Sprintf("sub padding hint: %v", err))
 	}
+	maxLimb := (1 << (int(fp.BitsPerLimb()) + int(overflow))) - 1
 	for i := range res {
+		// ensure that condition 3 always holds. As we compute the padding hint
+		// depending on the overflow of the inputs, then can use the maximum
+		// possible value
 		f.checker.Check(res[i], int(fp.BitsPerLimb()+overflow+1))
+		// to ensure that condition 2 holds we subtract the maximum possible
+		// value from the padding and check that the result is small (fits into
+		// expected range). If we would have underflow then the result would
+		// underflow the native field otherwise and the range check wouldn't
+		// hold.
+		f.checker.Check(f.api.Sub(res[i], maxLimb), int(fp.BitsPerLimb()+overflow+1))
 	}
+
+	// ensure that condition 1 holds
 	padding := f.newInternalElement(res, overflow+1)
 	f.checkZero(padding, modulus)
 	return padding
