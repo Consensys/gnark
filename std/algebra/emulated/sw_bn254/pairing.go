@@ -306,7 +306,7 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 	pr.AssertIsOnCurve(P)
 }
 
-func (pr Pairing) computeSubgroupEquation(Q *G2Affine) (_Q *G2Affine) {
+func (pr Pairing) computeG2ShortVector(Q *G2Affine) (_Q *G2Affine) {
 	// [x₀]Q
 	xQ := pr.g2.scalarMulBySeed(Q)
 	// ψ([x₀]Q)
@@ -329,7 +329,7 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	pr.AssertIsOnTwist(Q)
 
 	// 2- Check Q has the right subgroup order
-	_Q := pr.computeSubgroupEquation(Q)
+	_Q := pr.computeG2ShortVector(Q)
 	// [r]Q == 0 <==>  _Q == Q
 	pr.g2.AssertIsEqual(Q, _Q)
 }
@@ -341,7 +341,7 @@ func (pr Pairing) IsOnG2(Q *G2Affine) frontend.Variable {
 	// 1 - is Q on curve
 	isOnCurve := pr.IsOnTwist(Q)
 	// 2 - is Q in the subgroup
-	_Q := pr.computeSubgroupEquation(Q)
+	_Q := pr.computeG2ShortVector(Q)
 	isInSubgroup := pr.g2.IsEqual(Q, _Q)
 	return pr.api.And(isOnCurve, isInSubgroup)
 }
