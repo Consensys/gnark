@@ -306,12 +306,7 @@ func (pr Pairing) AssertIsOnG1(P *G1Affine) {
 	pr.AssertIsOnCurve(P)
 }
 
-func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
-	// 1- Check Q is on the curve
-	pr.AssertIsOnTwist(Q)
-
-	// 2- Check Q has the right subgroup order
-
+func (pr Pairing) computeSubgroupEquation(Q *G2Affine) (_Q *G2Affine) {
 	// [x₀]Q
 	xQ := pr.g2.scalarMulBySeed(Q)
 	// ψ([x₀]Q)
@@ -323,12 +318,32 @@ func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
 	psi3xxQ = pr.g2.psi(psi3xxQ)
 
 	// _Q = ψ³([2x₀]Q) - ψ²([x₀]Q) - ψ([x₀]Q) - [x₀]Q
-	_Q := pr.g2.sub(psi2xQ, psi3xxQ)
+	_Q = pr.g2.sub(psi2xQ, psi3xxQ)
 	_Q = pr.g2.sub(_Q, psixQ)
 	_Q = pr.g2.sub(_Q, xQ)
+	return _Q
+}
 
+func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
+	// 1- Check Q is on the curve
+	pr.AssertIsOnTwist(Q)
+
+	// 2- Check Q has the right subgroup order
+	_Q := pr.computeSubgroupEquation(Q)
 	// [r]Q == 0 <==>  _Q == Q
 	pr.g2.AssertIsEqual(Q, _Q)
+}
+
+// IsOnG2 returns a boolean indicating if the G2 point is in the subgroup. The
+// method assumes that the point is already on the curve. Call
+// [Pairing.AssertIsOnTwist] before to ensure point is on the curve.
+func (pr Pairing) IsOnG2(Q *G2Affine) frontend.Variable {
+	// 1 - is Q on curve
+	isOnCurve := pr.IsOnTwist(Q)
+	// 2 - is Q in the subgroup
+	_Q := pr.computeSubgroupEquation(Q)
+	isInSubgroup := pr.g2.IsEqual(Q, _Q)
+	return pr.api.And(isOnCurve, isInSubgroup)
 }
 
 // loopCounter = 6x₀+2 = 29793968203157093288
