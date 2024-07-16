@@ -24,8 +24,8 @@ func convertCircuit(noPtr constraint.GkrCircuit) (gkr.Circuit, error) {
 	resCircuit := make(gkr.Circuit, len(noPtr))
 	var found bool
 	for i := range noPtr {
-		if resCircuit[i].Gate, found = gkr.Gates[noPtr[i].Gate]; !found && noPtr[i].Gate != "" {
-			return nil, fmt.Errorf("gate \"%s\" not found", noPtr[i].Gate)
+		if resCircuit[i].Gate, found = gkr.Gates[noPtr[i].GateName]; !found && noPtr[i].GateName != "" {
+			return nil, fmt.Errorf("gate \"%s\" not found", noPtr[i].GateName)
 		}
 		resCircuit[i].Inputs = algo_utils.Map(noPtr[i].Inputs, algo_utils.SlicePtrAt(resCircuit))
 	}
