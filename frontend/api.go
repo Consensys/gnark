@@ -106,7 +106,7 @@ type API interface {
 	//  * -1 if i1<i2.
 	//
 	// If the absolute difference between the variables i1 and i2 is known, then
-	// it is more efficient to use the bounded methdods in package
+	// it is more efficient to use the bounded methods in package
 	// [github.com/consensys/gnark/std/math/bits].
 	Cmp(i1, i2 Variable) Variable
 
