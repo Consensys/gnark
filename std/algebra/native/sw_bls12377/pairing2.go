@@ -298,13 +298,11 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := Pair(p.api, inP, inQ)
+	res, err := MillerLoop(p.api, inP, inQ)
 	if err != nil {
 		return err
 	}
-	var one fields_bls12377.E12
-	one.SetOne()
-	res.AssertIsEqual(p.api, one)
+	res.FinalExponentiationCheck(p.api)
 	return nil
 }
 
