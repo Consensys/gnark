@@ -273,7 +273,7 @@ func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
 	pr.curve.AssertIsOnCurve(P)
 }
 
-func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+func (pr Pairing) computeTwistEquation(Q *G2Affine) (left, right *fields_bn254.E2) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=3/(9+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
 
@@ -281,11 +281,23 @@ func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 	selector := pr.api.And(pr.Ext2.IsZero(&Q.P.X), pr.Ext2.IsZero(&Q.P.Y))
 	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
 
-	left := pr.Ext2.Square(&Q.P.Y)
-	right := pr.Ext2.Square(&Q.P.X)
+	left = pr.Ext2.Square(&Q.P.Y)
+	right = pr.Ext2.Square(&Q.P.X)
 	right = pr.Ext2.Mul(right, &Q.P.X)
 	right = pr.Ext2.Add(right, b)
+	return left, right
+}
+
+func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+	left, right := pr.computeTwistEquation(Q)
 	pr.Ext2.AssertIsEqual(left, right)
+}
+
+// IsOnTwist returns a boolean indicating if the G2 point is in the twist.
+func (pr Pairing) IsOnTwist(Q *G2Affine) frontend.Variable {
+	left, right := pr.computeTwistEquation(Q)
+	diff := pr.Ext2.Sub(left, right)
+	return pr.Ext2.IsZero(diff)
 }
 
 func (pr Pairing) AssertIsOnG1(P *G1Affine) {

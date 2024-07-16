@@ -263,6 +263,51 @@ func TestGroupMembershipSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+type IsOnTwistCircuit struct {
+	Q        G2Affine
+	Expected frontend.Variable
+}
+
+func (c *IsOnTwistCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res := pairing.IsOnTwist(&c.Q)
+	api.AssertIsEqual(res, c.Expected)
+	return nil
+}
+
+func TestIsOnTwistSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	// test for a point not on the twist
+	var Q bn254.G2Affine
+	_, err := Q.X.A0.SetString("0x119606e6d3ea97cea4eff54433f5c7dbc026b8d0670ddfbe6441e31225028d31")
+	assert.NoError(err)
+	_, err = Q.X.A1.SetString("0x1d3df5be6084324da6333a6ad1367091ca9fbceb70179ec484543a58b8cb5d63")
+	assert.NoError(err)
+	_, err = Q.Y.A0.SetString("0x1b9a36ea373fe2c5b713557042ce6deb2907d34e12be595f9bbe84c144de86ef")
+	assert.NoError(err)
+	_, err = Q.Y.A1.SetString("0x49fe60975e8c78b7b31a6ed16a338ac8b28cf6a065cfd2ca47e9402882518ba0")
+	assert.NoError(err)
+	assert.False(Q.IsOnCurve())
+	witness := IsOnTwistCircuit{
+		Q:        NewG2Affine(Q),
+		Expected: 0,
+	}
+	err = test.IsSolved(&IsOnTwistCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	// test for a point on the twist
+	_, Q = randomG1G2Affines()
+	assert.True(Q.IsOnCurve())
+	witness = IsOnTwistCircuit{
+		Q:        NewG2Affine(Q),
+		Expected: 1,
+	}
+	err = test.IsSolved(&IsOnTwistCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 // bench
 func BenchmarkPairing(b *testing.B) {
 
