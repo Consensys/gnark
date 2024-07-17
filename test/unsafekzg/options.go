@@ -31,7 +31,7 @@ func WithFflonk() Option {
 // WithNbCommitments specifies the number of calls to Commit
 // in the circuit. It is necessary to know this data when fflonk
 // is used, because the size of the SRS is (15+nb_calls_to_commit)*size(ccs)
-func WithNbCommitments(nbCommitments int) Option {
+func WithNbCommitments(nbCommitments uint64) Option {
 	return func(opt *config) error {
 		opt.nbCommitments = nbCommitments
 		return nil
@@ -42,7 +42,7 @@ type config struct {
 	fsCache       bool
 	cacheDir      string
 	fflonk        bool
-	nbCommitments int
+	nbCommitments uint64
 }
 
 // default options

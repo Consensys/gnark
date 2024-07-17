@@ -63,20 +63,25 @@ var (
 // Default options use a memory cache, see Option for more details & options.
 func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS, lagrange kzg.SRS, err error) {
 
-	nbConstraints := ccs.GetNbConstraints()
-	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
-
-	sizeLagrange := ecc.NextPowerOfTwo(uint64(sizeSystem))
-	sizeCanonical := sizeLagrange + 3
-
-	curveID := utils.FieldToCurve(ccs.Field())
-
-	log := logger.Logger().With().Str("package", "kzgsrs").Int("size", int(sizeCanonical)).Str("curve", curveID.String()).Logger()
-
 	cfg, err := options(opts...)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	nbConstraints := ccs.GetNbConstraints()
+	sizeSystem := nbConstraints + ccs.GetNbPublicVariables()
+
+	curveID := utils.FieldToCurve(ccs.Field())
+
+	sizeLagrange := ecc.NextPowerOfTwo(uint64(sizeSystem))
+	sizeCanonical := sizeLagrange + 3
+
+	if cfg.fflonk {
+		t := getNextDivisorRMinusOne(curveID, 15+2*cfg.nbCommitments)
+		sizeCanonical = t * sizeCanonical
+	}
+
+	log := logger.Logger().With().Str("package", "kzgsrs").Int("size", int(sizeCanonical)).Str("curve", curveID.String()).Logger()
 
 	key := cacheKey(curveID, sizeCanonical)
 	log.Debug().Str("key", key).Msg("fetching SRS from mem cache")
@@ -109,7 +114,11 @@ func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS,
 	log.Debug().Msg("SRS not found in cache, generating")
 
 	// not in cache, generate
-	canonical, lagrange, err = newSRS(curveID, sizeCanonical)
+	if !cfg.fflonk {
+		canonical, lagrange, err = newSRS(curveID, sizeCanonical)
+	} else {
+		canonical, _, err = newSRSCanonical(curveID, sizeCanonical)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -149,12 +158,23 @@ func extractCurveID(key string) (ecc.ID, error) {
 
 func newSRS(curveID ecc.ID, size uint64) (kzg.SRS, kzg.SRS, error) {
 
-	tau, err := rand.Int(rand.Reader, curveID.ScalarField())
+	srs, tau, err := newSRSCanonical(curveID, size)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	return srs, toLagrange(srs, tau), nil
+}
+
+func newSRSCanonical(curveID ecc.ID, size uint64) (kzg.SRS, *big.Int, error) {
+
 	var srs kzg.SRS
+	var err error
+
+	tau, err := rand.Int(rand.Reader, curveID.ScalarField())
+	if err != nil {
+		return nil, nil, err
+	}
 
 	switch curveID {
 	case ecc.BN254:
@@ -176,10 +196,10 @@ func newSRS(curveID ecc.ID, size uint64) (kzg.SRS, kzg.SRS, error) {
 	}
 
 	if err != nil {
-		return nil, nil, err
+		return nil, tau, err
 	}
 
-	return srs, toLagrange(srs, tau), nil
+	return srs, tau, err
 }
 
 func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
