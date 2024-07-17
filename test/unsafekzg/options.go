@@ -18,9 +18,31 @@ func WithFSCache() Option {
 	}
 }
 
+// WithFflonk enables the construction of an SRS specific for fflonk,
+// which is at least 15 times the SRS size required for plonk (and more
+// if Commit is used)
+func WithFflonk() Option {
+	return func(opt *config) error {
+		opt.fflonk = true
+		return nil
+	}
+}
+
+// WithNbCommitments specifies the number of calls to Commit
+// in the circuit. It is necessary to know this data when fflonk
+// is used, because the size of the SRS is (15+nb_calls_to_commit)*size(ccs)
+func WithNbCommitments(nbCommitments int) Option {
+	return func(opt *config) error {
+		opt.nbCommitments = nbCommitments
+		return nil
+	}
+}
+
 type config struct {
-	fsCache  bool
-	cacheDir string
+	fsCache       bool
+	cacheDir      string
+	fflonk        bool
+	nbCommitments int
 }
 
 // default options
