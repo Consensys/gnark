@@ -387,17 +387,18 @@ func (e Ext12) FrobeniusSquareTorus(y *E6) *E6 {
 // FinalExponentiationCheck checks that a Miller function output x lies in the
 // same equivalence class as the reduced pairing. This replaces the final
 // exponentiation step in-circuit.
-// The method follows Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
+// The method is inspired from [On Proving Pairings] paper by A. Novakovic and
+// L. Eagen, and is based on a personal communication with A. Novakovic.
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
-	res, err := e.fp.NewHint(finalExpHint, 12, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1)
+	res, err := e.fp.NewHint(finalExpHint, 24, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 
-	residueWitness := E12{
+	scalingFactor := E12{
 		C0: E6{
 			B0: E2{A0: *res[0], A1: *res[1]},
 			B1: E2{A0: *res[2], A1: *res[3]},
@@ -409,17 +410,28 @@ func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
 			B2: E2{A0: *res[10], A1: *res[11]},
 		},
 	}
+	residueWitness := E12{
+		C0: E6{
+			B0: E2{A0: *res[12], A1: *res[13]},
+			B1: E2{A0: *res[14], A1: *res[15]},
+			B2: E2{A0: *res[16], A1: *res[17]},
+		},
+		C1: E6{
+			B0: E2{A0: *res[18], A1: *res[19]},
+			B1: E2{A0: *res[20], A1: *res[21]},
+			B2: E2{A0: *res[22], A1: *res[23]},
+		},
+	}
 
-	// Check that  x == residueWitness^r by checking that:
-	// x^k == residueWitness^(q-u)
-	// where k = (u-1)^2/3, u=-0xd201000000010000 the BLS12-381 seed
-	// and residueWitness from the hint.
+	// Check that  x * scalingFactor == residueWitness^(q-u)
+	// where u=-0xd201000000010000 is the BLS12-381 seed,
+	// and residueWitness, scalingFactor from the hint.
 	t0 := e.Frobenius(&residueWitness)
 	// exponentiation by -u
 	t1 := e.Expt(&residueWitness)
 	t0 = e.Mul(t0, t1)
-	// exponentiation by U=(u-1)^2/3
-	t1 = e.ExpByU(x)
+
+	t1 = e.Mul(x, &scalingFactor)
 
 	e.AssertIsEqual(t0, t1)
 
