@@ -776,7 +776,7 @@ func (pr Pairing) computeMillerLoopAndFinalExp(P *G1Affine, Q *G2Affine, previou
 			// (ℓ × ℓ) × res
 			res = pr.MulBy01234(res, prodLines)
 		default:
-			return nil
+			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
 		}
 	}
 
