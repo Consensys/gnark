@@ -173,6 +173,12 @@ func (e Ext12) CyclotomicSquare(x *E12) *E12 {
 	}
 }
 
+func (e Ext12) IsEqual(x, y *E12) frontend.Variable {
+	isC0Equal := e.Ext6.IsEqual(&x.C0, &y.C0)
+	isC1Equal := e.Ext6.IsEqual(&x.C1, &y.C1)
+	return e.api.And(isC0Equal, isC1Equal)
+}
+
 func (e Ext12) AssertIsEqual(x, y *E12) {
 	e.Ext6.AssertIsEqual(&x.C0, &y.C0)
 	e.Ext6.AssertIsEqual(&x.C1, &y.C1)

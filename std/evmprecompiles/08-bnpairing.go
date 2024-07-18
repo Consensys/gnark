@@ -54,5 +54,5 @@ func ECPair(api frontend.API, P []*sw_bn254.G1Affine, Q []*sw_bn254.G2Affine) {
 	}
 
 	// fixed circuit 2
-	pair.MillerLoopAndFinalExpCheck(P[n-1], Q[n-1], ml)
+	pair.AssertMillerLoopAndFinalExpCheck(P[n-1], Q[n-1], ml)
 }
