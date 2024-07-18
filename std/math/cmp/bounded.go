@@ -29,7 +29,7 @@ func GetHints() []solver.Hint {
 // NewBoundedComparator, for more information.
 type BoundedComparator struct {
 	// absDiffUppBitLen is the assumed maximum length for the binary representation
-	// of |a - b|. Every method preforms exactly one binary decomposition of this
+	// of |a - b|. Every method performs exactly one binary decomposition of this
 	// length.
 	absDiffUppBitLen int
 	api              frontend.API

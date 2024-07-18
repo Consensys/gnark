@@ -32,10 +32,10 @@ func NewScalar(v fr_bw6761.Element) Scalar {
 	return emulated.ValueOf[ScalarField](v)
 }
 
-// ScalarField is the [emulated.FieldParams] impelementation of the curve scalar field.
+// ScalarField is the [emulated.FieldParams] implementation of the curve scalar field.
 type ScalarField = emulated.BW6761Fr
 
-// BaseField is the [emulated.FieldParams] impelementation of the curve base field.
+// BaseField is the [emulated.FieldParams] implementation of the curve base field.
 type BaseField = emulated.BW6761Fp
 
 type G1 struct {
@@ -143,7 +143,7 @@ func (g1 G1) doubleAndAdd(p, q *G1Affine) *G1Affine {
 	xqxp = g1.curveF.Add(&p.X, &q.X)
 	x2 := g1.curveF.Sub(λ1λ1, xqxp)
 
-	// ommit y1 computation
+	// omit y1 computation
 	// compute λ1 = -λ1-1*p.y/(x1-p.x)
 	ypyp := g1.curveF.Add(&p.Y, &p.Y)
 	x2xp := g1.curveF.Sub(x2, &p.X)
@@ -180,7 +180,7 @@ func (g1 G1) triple(p *G1Affine) *G1Affine {
 	λ1λ1 := g1.curveF.Mul(λ1, λ1)
 	x2 = g1.curveF.Sub(λ1λ1, x2)
 
-	// ommit y2 computation, and
+	// omit y2 computation, and
 	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
 	x1x2 := g1.curveF.Sub(&p.X, x2)
 	λ2 := g1.curveF.Div(y2, x1x2)

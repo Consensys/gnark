@@ -28,8 +28,8 @@ func NewScalar(v fr_bn254.Element) Scalar {
 	return emulated.ValueOf[ScalarField](v)
 }
 
-// ScalarField is the [emulated.FieldParams] impelementation of the curve scalar field.
+// ScalarField is the [emulated.FieldParams] implementation of the curve scalar field.
 type ScalarField = emulated.BN254Fr
 
-// BaseField is the [emulated.FieldParams] impelementation of the curve base field.
+// BaseField is the [emulated.FieldParams] implementation of the curve base field.
 type BaseField = emulated.BN254Fp

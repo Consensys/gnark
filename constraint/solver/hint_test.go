@@ -8,7 +8,7 @@ func TestRegexpRename(t *testing.T) {
 		{"github.com/consensys/gnark/internal/regression_tests/issue1045.init.func1", "github.com/consensys/gnark/internal/regression_tests/issue1045.glob..func1"},
 		// conversion from old to old same
 		{"github.com/consensys/gnark/internal/regression_tests/issue1045.glob..func1", "github.com/consensys/gnark/internal/regression_tests/issue1045.glob..func1"},
-		// conversion from explicit to explit same
+		// conversion from explicit to explicit same
 		{"github.com/consensys/gnark/internal/regression_tests/issue1045.ExplicitHint", "github.com/consensys/gnark/internal/regression_tests/issue1045.ExplicitHint"},
 	} {
 		if got := newToOldStyle(v.input); got != v.expected {
