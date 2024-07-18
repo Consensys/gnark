@@ -19,7 +19,9 @@ package groth16
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"io"
+	"math/big"
 	"text/template"
 	"time"
 
@@ -30,6 +32,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
 )
@@ -144,7 +147,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 // This is an experimental feature and gnark solidity generator as not been thoroughly tested.
 //
 // See https://github.com/ConsenSys/gnark-tests for example usage.
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	helpers := template.FuncMap{
 		"sum": func(a, b int) int {
 			return a + b
@@ -161,6 +164,11 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 				out[i] = i
 			}
 			return out
+		},
+		"fpstr": func(x fp.Element) string {
+			bv := new(big.Int)
+			x.BigInt(bv)
+			return bv.String()
 		},
 	}
 
@@ -184,8 +192,19 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
 	vk.G2.Gamma, vk.G2.gammaNeg = vk.G2.gammaNeg, vk.G2.Gamma
 	vk.G2.Delta, vk.G2.deltaNeg = vk.G2.deltaNeg, vk.G2.Delta
 
+	cfg, err := solidity.NewExportConfig(exportOpts...)
+	if err != nil {
+		return err
+	}
+
 	// execute template
-	err = tmpl.Execute(w, vk)
+	err = tmpl.Execute(w, struct {
+		Cfg solidity.ExportConfig
+		Vk  VerifyingKey
+	}{
+		Cfg: cfg,
+		Vk:  *vk,
+	})
 
 	// restore Beta, Gamma and Delta
 	vk.G2.Beta = beta

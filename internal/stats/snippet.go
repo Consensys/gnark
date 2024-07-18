@@ -70,12 +70,6 @@ func initSnippets() {
 	registerSnippet("math/bits.ToTernary/unconstrained", func(api frontend.API, newVariable func() frontend.Variable) {
 		_ = bits.ToTernary(api, newVariable(), bits.WithUnconstrainedOutputs())
 	})
-	registerSnippet("math/bits.ToNAF", func(api frontend.API, newVariable func() frontend.Variable) {
-		_ = bits.ToNAF(api, newVariable())
-	})
-	registerSnippet("math/bits.ToNAF/unconstrained", func(api frontend.API, newVariable func() frontend.Variable) {
-		_ = bits.ToNAF(api, newVariable(), bits.WithUnconstrainedOutputs())
-	})
 
 	registerSnippet("hash/mimc", func(api frontend.API, newVariable func() frontend.Variable) {
 		mimc, _ := mimc.NewMiMC(api)

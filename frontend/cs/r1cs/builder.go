@@ -58,7 +58,7 @@ type builder struct {
 	kvstore.Store
 
 	// map for recording boolean constrained variables (to not constrain them twice)
-	mtBooleans map[uint64][]expr.LinearExpression
+	mtBooleans map[[16]byte][]expr.LinearExpression
 
 	tOne        constraint.Element
 	eZero, eOne expr.LinearExpression
@@ -82,7 +82,7 @@ func newBuilder(field *big.Int, config frontend.CompileConfig) *builder {
 		macCapacity = config.CompressThreshold
 	}
 	builder := builder{
-		mtBooleans: make(map[uint64][]expr.LinearExpression, config.Capacity/10),
+		mtBooleans: make(map[[16]byte][]expr.LinearExpression, config.Capacity/10),
 		config:     config,
 		heap:       make(minHeap, 0, 100),
 		mbuf1:      make(expr.LinearExpression, 0, macCapacity),

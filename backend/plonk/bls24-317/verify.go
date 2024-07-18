@@ -22,6 +22,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/consensys/gnark/backend/solidity"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -41,6 +42,7 @@ import (
 var (
 	errAlgebraicRelation = errors.New("algebraic relation does not hold")
 	errInvalidWitness    = errors.New("witness length is invalid")
+	errInvalidPoint      = errors.New("point is not on the curve")
 )
 
 func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...backend.VerifierOption) error {
@@ -58,6 +60,32 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 
 	if len(publicWitness) != int(vk.NbPublicVariables) {
 		return errInvalidWitness
+	}
+
+	// check that the points in the proof are on the curve
+	for i := 0; i < len(proof.LRO); i++ {
+		if !proof.LRO[i].IsInSubGroup() {
+			return errInvalidPoint
+		}
+	}
+	if !proof.Z.IsInSubGroup() {
+		return errInvalidPoint
+	}
+	for i := 0; i < len(proof.H); i++ {
+		if !proof.H[i].IsInSubGroup() {
+			return errInvalidPoint
+		}
+	}
+	for i := 0; i < len(proof.Bsb22Commitments); i++ {
+		if !proof.Bsb22Commitments[i].IsInSubGroup() {
+			return errInvalidPoint
+		}
+	}
+	if !proof.BatchedProof.H.IsInSubGroup() {
+		return errInvalidPoint
+	}
+	if !proof.ZShiftedOpening.H.IsInSubGroup() {
+		return errInvalidPoint
 	}
 
 	// transcript to derive the challenge
@@ -98,16 +126,16 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	}
 
 	// evaluation of zhZeta=ζⁿ-1
-	var zetaPowerM, zhZeta, lagrangeOne fr.Element
+	var zetaPowerM, zhZeta, lagrangeZero fr.Element
 	var bExpo big.Int
 	one := fr.One()
 	bExpo.SetUint64(vk.Size)
 	zetaPowerM.Exp(zeta, &bExpo)
-	zhZeta.Sub(&zetaPowerM, &one) // ζⁿ-1
-	lagrangeOne.Sub(&zeta, &one). // ζ-1
-					Inverse(&lagrangeOne).         // 1/(ζ-1)
-					Mul(&lagrangeOne, &zhZeta).    // (ζ^n-1)/(ζ-1)
-					Mul(&lagrangeOne, &vk.SizeInv) // 1/n * (ζ^n-1)/(ζ-1)
+	zhZeta.Sub(&zetaPowerM, &one)  // ζⁿ-1
+	lagrangeZero.Sub(&zeta, &one). // ζ-1
+					Inverse(&lagrangeZero).         // 1/(ζ-1)
+					Mul(&lagrangeZero, &zhZeta).    // (ζ^n-1)/(ζ-1)
+					Mul(&lagrangeZero, &vk.SizeInv) // 1/n * (ζ^n-1)/(ζ-1)
 
 	// compute PI = ∑_{i<n} Lᵢ*wᵢ
 	var pi fr.Element
@@ -144,14 +172,14 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 			nbBuf = cfg.HashToFieldFn.Size()
 		}
 		var wPowI, den, lagrange fr.Element
-		for i := range vk.CommitmentConstraintIndexes {
+		for i, cci := range vk.CommitmentConstraintIndexes {
 			cfg.HashToFieldFn.Write(proof.Bsb22Commitments[i].Marshal())
 			hashBts := cfg.HashToFieldFn.Sum(nil)
 			cfg.HashToFieldFn.Reset()
 			hashedCmt.SetBytes(hashBts[:nbBuf])
 
 			// Computing Lᵢ(ζ) where i=CommitmentIndex
-			wPowI.Exp(vk.Generator, big.NewInt(int64(vk.NbPublicVariables)+int64(vk.CommitmentConstraintIndexes[i])))
+			wPowI.Exp(vk.Generator, big.NewInt(int64(vk.NbPublicVariables)+int64(cci)))
 			den.Sub(&zeta, &wPowI) // ζ-wⁱ
 			lagrange.SetOne().
 				Sub(&zetaPowerM, &lagrange). // ζⁿ-1
@@ -175,9 +203,9 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	zu := proof.ZShiftedOpening.ClaimedValue
 
 	// α²*L₁(ζ)
-	var alphaSquareLagrangeOne fr.Element
-	alphaSquareLagrangeOne.Mul(&lagrangeOne, &alpha).
-		Mul(&alphaSquareLagrangeOne, &alpha) // α²*L₁(ζ)
+	var alphaSquarelagrangeZero fr.Element
+	alphaSquarelagrangeZero.Mul(&lagrangeZero, &alpha).
+		Mul(&alphaSquarelagrangeZero, &alpha) // α²*L₁(ζ)
 
 	// computing the constant coefficient of the full algebraic relation
 	// , corresponding to the value of the linearisation polynomiat at ζ
@@ -189,8 +217,8 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 	tmp.Add(&o, &gamma)                                                      // (o(ζ)+γ)
 	constLin.Mul(&tmp, &constLin).Mul(&constLin, &alpha).Mul(&constLin, &zu) // α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
 
-	constLin.Sub(&constLin, &alphaSquareLagrangeOne).Add(&constLin, &pi) // PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
-	constLin.Neg(&constLin)                                              // -[PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)]
+	constLin.Sub(&constLin, &alphaSquarelagrangeZero).Add(&constLin, &pi) // PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
+	constLin.Neg(&constLin)                                               // -[PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)]
 
 	// check that the opening of the linearised polynomial is equal to -constLin
 	openingLinPol := proof.BatchedProof.ClaimedValues[0]
@@ -221,7 +249,7 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 
 	// α²*L₁(ζ) - α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 	var coeffZ fr.Element
-	coeffZ.Add(&alphaSquareLagrangeOne, &_s2)
+	coeffZ.Add(&alphaSquarelagrangeZero, &_s2)
 
 	// l(ζ)*r(ζ)
 	var rl fr.Element
@@ -365,6 +393,6 @@ func deriveRandomness(fs *fiatshamir.Transcript, challenge string, points ...*cu
 }
 
 // ExportSolidity not implemented for BLS24-317
-func (vk *VerifyingKey) ExportSolidity(w io.Writer) error {
+func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error {
 	return errors.New("not implemented")
 }

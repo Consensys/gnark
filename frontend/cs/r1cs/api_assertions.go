@@ -114,11 +114,10 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 		}
 	}
 
-	nbBits := builder.cs.FieldBitLen()
-	vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
-
 	// bound is constant
 	if bConst {
+		nbBits := builder.cs.FieldBitLen()
+		vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 		builder.MustBeLessOrEqCst(vBits, builder.cs.ToBigInt(cb), v)
 		return
 	}
@@ -131,8 +130,6 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 	// but a can be either constant or a wire.
 
 	_, aConst := builder.constantValue(a)
-
-	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -179,7 +176,10 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 		}
 	}
 
-	builder.cs.AttachDebugInfo(debug, added)
+	if debug.Debug {
+		debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
+		builder.cs.AttachDebugInfo(debug, added)
+	}
 
 }
 
@@ -203,9 +203,6 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 	if bound.BitLen() > nbBits {
 		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
 	}
-
-	// debug info
-	debug := builder.newDebugInfo("mustBeLessOrEq", aForDebug, " <= ", builder.toVariable(bound))
 
 	// t trailing bits in the bound
 	t := 0
@@ -243,7 +240,8 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 		}
 	}
 
-	if len(added) != 0 {
+	if debug.Debug && len(added) != 0 {
+		debug := builder.newDebugInfo("mustBeLessOrEq", aForDebug, " <= ", builder.toVariable(bound))
 		builder.cs.AttachDebugInfo(debug, added)
 	}
 }
