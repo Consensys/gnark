@@ -78,7 +78,11 @@ func NewSRS(ccs constraint.ConstraintSystem, opts ...Option) (canonical kzg.SRS,
 
 	if cfg.fflonk {
 		t := getNextDivisorRMinusOne(curveID, 15+2*cfg.nbCommitments)
-		sizeCanonical = t * sizeCanonical
+
+		// t * sizeCanonical is the degree of the full entangled polynomial.
+		// the 15+2*cfg.nbCommitments is because we multipliy the full entangled polynomial
+		// by the vanishing polynomial at (\zeta^{t}\mu^i)_i where \mu is a t-th root of 1
+		sizeCanonical = t*sizeCanonical + 15 + 2*cfg.nbCommitments
 	}
 
 	log := logger.Logger().With().Str("package", "kzgsrs").Int("size", int(sizeCanonical)).Str("curve", curveID.String()).Logger()
