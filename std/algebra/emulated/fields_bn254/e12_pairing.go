@@ -447,17 +447,14 @@ func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
 			B2: E2{A0: *res[10], A1: *res[11]},
 		},
 	}
+	// constrain cubicNonResiduePower to be in Fp6
 	cubicNonResiduePower := E12{
 		C0: E6{
 			B0: E2{A0: *res[12], A1: *res[13]},
 			B1: E2{A0: *res[14], A1: *res[15]},
 			B2: E2{A0: *res[16], A1: *res[17]},
 		},
-		C1: E6{
-			B0: E2{A0: *res[18], A1: *res[19]},
-			B1: E2{A0: *res[20], A1: *res[21]},
-			B2: E2{A0: *res[22], A1: *res[23]},
-		},
+		C1: (*e.Ext6.Zero()),
 	}
 
 	// Check that  x * cubicNonResiduePower == residueWitness^λ
