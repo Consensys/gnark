@@ -398,17 +398,14 @@ func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
 		panic(err)
 	}
 
+	// constrain cubicNonResiduePower to be in Fp6
 	scalingFactor := E12{
 		C0: E6{
 			B0: E2{A0: *res[0], A1: *res[1]},
 			B1: E2{A0: *res[2], A1: *res[3]},
 			B2: E2{A0: *res[4], A1: *res[5]},
 		},
-		C1: E6{
-			B0: E2{A0: *res[6], A1: *res[7]},
-			B1: E2{A0: *res[8], A1: *res[9]},
-			B2: E2{A0: *res[10], A1: *res[11]},
-		},
+		C1: (*e.Ext6.Zero()),
 	}
 	residueWitness := E12{
 		C0: E6{
