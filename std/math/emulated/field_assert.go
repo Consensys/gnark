@@ -91,8 +91,13 @@ func (f *Field[T]) AssertIsLessOrEqual(e, a *Element[T]) {
 // it is not. For binary comparison the values have both to be below the
 // modulus.
 func (f *Field[T]) AssertIsInRange(a *Element[T]) {
+	// short path - this element is already enforced to be less than the modulus
+	if a.modReduced {
+		return
+	}
 	// we omit conditional width assertion as is done in ToBits down the calling stack
 	f.AssertIsLessOrEqual(a, f.modulusPrev())
+	a.modReduced = true
 }
 
 // IsZero returns a boolean indicating if the element is strictly zero. The
