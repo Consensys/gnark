@@ -709,17 +709,14 @@ func (pr Pairing) MillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous 
 			B2: fields_bn254.E2{A0: *hint[10], A1: *hint[11]},
 		},
 	}
+	// constrain cubicNonResiduePower to be in Fp6
 	cubicNonResiduePower := fields_bn254.E12{
 		C0: fields_bn254.E6{
 			B0: fields_bn254.E2{A0: *hint[12], A1: *hint[13]},
 			B1: fields_bn254.E2{A0: *hint[14], A1: *hint[15]},
 			B2: fields_bn254.E2{A0: *hint[16], A1: *hint[17]},
 		},
-		C1: fields_bn254.E6{
-			B0: fields_bn254.E2{A0: *hint[18], A1: *hint[19]},
-			B1: fields_bn254.E2{A0: *hint[20], A1: *hint[21]},
-			B2: fields_bn254.E2{A0: *hint[22], A1: *hint[23]},
-		},
+		C1: (*pr.Ext6.Zero()),
 	}
 
 	// residueWitnessInv = 1 / residueWitness
