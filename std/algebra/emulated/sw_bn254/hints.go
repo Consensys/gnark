@@ -1,6 +1,7 @@
 package sw_bn254
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
@@ -47,6 +48,10 @@ func millerLoopAndCheckFinalExpHint(nativeMod *big.Int, nativeInputs, nativeOutp
 			previous.C1.B1.A1.SetBigInt(inputs[15])
 			previous.C1.B2.A0.SetBigInt(inputs[16])
 			previous.C1.B2.A1.SetBigInt(inputs[17])
+
+			if previous.IsZero() {
+				return errors.New("previous Miller loop result is zero")
+			}
 
 			lines := bn254.PrecomputeLines(Q)
 			millerLoop, err := bn254.MillerLoopFixedQ(
