@@ -290,7 +290,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	// specify constraints
 	mimc.Write(circuit.PreImage)
 	api.AssertIsEqual(circuit.Hash, mimc.Sum())
-
 	return nil
 }
 
@@ -311,10 +310,18 @@ func (phase1 *Phase1) clone() Phase1 {
 
 func (phase2 *Phase2) clone() Phase2 {
 	r := Phase2{}
+	r.Parameters.G1.BasisExpSigma = make([][]curve.G1Affine, len(r.Parameters.G1.BasisExpSigma))
+	for i := 0; i < len(r.Parameters.G1.BasisExpSigma); i++ {
+		r.Parameters.G1.BasisExpSigma[i] = append(
+			r.Parameters.G1.BasisExpSigma[i],
+			phase2.Parameters.G1.BasisExpSigma[i]...,
+		)
+	}
 	r.Parameters.G1.Delta = phase2.Parameters.G1.Delta
 	r.Parameters.G1.L = append(r.Parameters.G1.L, phase2.Parameters.G1.L...)
 	r.Parameters.G1.Z = append(r.Parameters.G1.Z, phase2.Parameters.G1.Z...)
 	r.Parameters.G2.Delta = phase2.Parameters.G2.Delta
+	r.Parameters.G2.GRootSigmaNeg = phase2.Parameters.G2.GRootSigmaNeg
 	r.PublicKey = phase2.PublicKey
 	r.Hash = append(r.Hash, phase2.Hash...)
 

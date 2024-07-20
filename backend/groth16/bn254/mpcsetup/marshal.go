@@ -108,13 +108,19 @@ func (c *Phase2) writeTo(writer io.Writer) (int64, error) {
 		&c.Parameters.G1.Delta,
 		c.Parameters.G1.L,
 		c.Parameters.G1.Z,
-		c.Parameters.G1.BasisExpSigma,
 		&c.Parameters.G2.Delta,
 		&c.Parameters.G2.GRootSigmaNeg,
 	}
 
 	for _, v := range toEncode {
 		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+
+	enc.Encode(uint64(len(c.Parameters.G1.BasisExpSigma)))
+	for _, h := range c.Parameters.G1.BasisExpSigma {
+		if err := enc.Encode(h); err != nil {
 			return enc.BytesWritten(), err
 		}
 	}
@@ -132,13 +138,24 @@ func (c *Phase2) ReadFrom(reader io.Reader) (int64, error) {
 		&c.Parameters.G1.Delta,
 		&c.Parameters.G1.L,
 		&c.Parameters.G1.Z,
-		&c.Parameters.G1.BasisExpSigma,
 		&c.Parameters.G2.Delta,
 		&c.Parameters.G2.GRootSigmaNeg,
 	}
 
 	for _, v := range toEncode {
 		if err := dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+
+	var basisExpSigmanLen uint64
+	if err := dec.Decode(&basisExpSigmanLen); err != nil {
+		return dec.BytesRead(), err
+	}
+
+	c.Parameters.G1.BasisExpSigma = make([][]curve.G1Affine, basisExpSigmanLen)
+	for i := 0; i < int(basisExpSigmanLen); i++ {
+		if err := dec.Decode(&c.Parameters.G1.BasisExpSigma[i]); err != nil {
 			return dec.BytesRead(), err
 		}
 	}
@@ -155,12 +172,18 @@ func (c *Phase2Evaluations) WriteTo(writer io.Writer) (int64, error) {
 		c.G1.A,
 		c.G1.B,
 		c.G1.VKK,
-		c.G1.Basis,
 		c.G2.B,
 	}
 
 	for _, v := range toEncode {
 		if err := enc.Encode(v); err != nil {
+			return enc.BytesWritten(), err
+		}
+	}
+
+	enc.Encode(uint64(len(c.G1.Basis)))
+	for _, h := range c.G1.Basis {
+		if err := enc.Encode(h); err != nil {
 			return enc.BytesWritten(), err
 		}
 	}
@@ -175,12 +198,23 @@ func (c *Phase2Evaluations) ReadFrom(reader io.Reader) (int64, error) {
 		&c.G1.A,
 		&c.G1.B,
 		&c.G1.VKK,
-		&c.G1.Basis,
 		&c.G2.B,
 	}
 
 	for _, v := range toEncode {
 		if err := dec.Decode(v); err != nil {
+			return dec.BytesRead(), err
+		}
+	}
+
+	var basisLen uint64
+	if err := dec.Decode(&basisLen); err != nil {
+		return dec.BytesRead(), err
+	}
+
+	c.G1.Basis = make([][]curve.G1Affine, basisLen)
+	for i := 0; i < int(basisLen); i++ {
+		if err := dec.Decode(&c.G1.Basis[i]); err != nil {
 			return dec.BytesRead(), err
 		}
 	}

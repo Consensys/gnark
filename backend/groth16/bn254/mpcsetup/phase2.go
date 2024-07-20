@@ -245,16 +245,19 @@ func (c *Phase2) Contribute() {
 	c.Parameters.G1.Delta.ScalarMultiplication(&c.Parameters.G1.Delta, &deltaBI)
 	c.Parameters.G2.Delta.ScalarMultiplication(&c.Parameters.G2.Delta, &deltaBI)
 
-	// Update BasisExpSigma with δ
-	// TODO: Is it sound to use the same δ for all basis?
+	// Update GRootSigmaNeg using δ
+	c.Parameters.G2.GRootSigmaNeg.ScalarMultiplication(&c.Parameters.G2.GRootSigmaNeg, &deltaBI)
+
+	// Update BasisExpSigma with δ⁻¹
+	// TODO: Is it sound to use the same δ⁻¹ for all basis?
 	for i := 0; i < len(c.Parameters.G1.BasisExpSigma); i++ {
 		for j := 0; j < len(c.Parameters.G1.BasisExpSigma[i]); j++ {
-			c.Parameters.G1.BasisExpSigma[i][j].ScalarMultiplication(&c.Parameters.G1.BasisExpSigma[i][j], &deltaBI)
+			c.Parameters.G1.BasisExpSigma[i][j].ScalarMultiplication(
+				&c.Parameters.G1.BasisExpSigma[i][j],
+				&deltaInvBI,
+			)
 		}
 	}
-
-	// Update GRootSigmaNeg using δ⁻¹
-	c.Parameters.G2.GRootSigmaNeg.ScalarMultiplication(&c.Parameters.G2.GRootSigmaNeg, &deltaInvBI)
 
 	// Update Z using δ⁻¹
 	for i := 0; i < len(c.Parameters.G1.Z); i++ {
@@ -281,6 +284,14 @@ func VerifyPhase2(c0, c1 *Phase2, c ...*Phase2) error {
 }
 
 func verifyPhase2(current, contribution *Phase2) error {
+	// Check hash of the contribution
+	h := contribution.hash()
+	for i := 0; i < len(h); i++ {
+		if h[i] != contribution.Hash[i] {
+			return errors.New("couldn't verify hash of contribution")
+		}
+	}
+
 	// Compute R for δ
 	deltaR := genR(contribution.PublicKey.SG, contribution.PublicKey.SXG, current.Hash[:], 1)
 
@@ -293,7 +304,12 @@ func verifyPhase2(current, contribution *Phase2) error {
 	if !sameRatio(contribution.Parameters.G1.Delta, current.Parameters.G1.Delta, deltaR, contribution.PublicKey.XR) {
 		return errors.New("couldn't verify that [δ]₁ is based on previous contribution")
 	}
-	if !sameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
+	if !sameRatio(
+		contribution.PublicKey.SG,
+		contribution.PublicKey.SXG,
+		contribution.Parameters.G2.Delta,
+		current.Parameters.G2.Delta,
+	) {
 		return errors.New("couldn't verify that [δ]₂ is based on previous contribution")
 	}
 
@@ -307,11 +323,26 @@ func verifyPhase2(current, contribution *Phase2) error {
 		return errors.New("couldn't verify valid updates of L using δ⁻¹")
 	}
 
-	// Check hash of the contribution
-	h := contribution.hash()
-	for i := 0; i < len(h); i++ {
-		if h[i] != contribution.Hash[i] {
-			return errors.New("couldn't verify hash of contribution")
+	// Check for valid update of the pedersen key
+	if !sameRatio(
+		current.Parameters.G1.Delta,
+		contribution.Parameters.G1.Delta,
+		contribution.Parameters.G2.GRootSigmaNeg,
+		current.Parameters.G2.GRootSigmaNeg,
+	) {
+		return errors.New("couldn't verify that GRootSigmaNeg is based on previous contribution")
+	}
+	for i := 0; i < len(current.Parameters.G1.BasisExpSigma); i++ {
+		basisExpSigma, prevBasisExpSigma := merge(
+			contribution.Parameters.G1.BasisExpSigma[i],
+			current.Parameters.G1.BasisExpSigma[i],
+		)
+		if !sameRatio(
+			basisExpSigma,
+			prevBasisExpSigma,
+			contribution.Parameters.G2.Delta, current.Parameters.G2.Delta,
+		) {
+			return errors.New("couldn't verify valid updates of BasisExpSigma using δ⁻¹")
 		}
 	}
 
