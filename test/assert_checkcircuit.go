@@ -3,6 +3,7 @@ package test
 import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/fflonk"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
@@ -107,6 +108,8 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 						concreteBackend = _groth16
 					case backend.PLONK:
 						concreteBackend = _plonk
+					case backend.FFLONK:
+						concreteBackend = _fflonk
 					default:
 						panic("backend not implemented")
 					}
@@ -266,6 +269,26 @@ var (
 		},
 		verify: func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
 			return plonk.Verify(proof.(plonk.Proof), vk.(plonk.VerifyingKey), publicWitness, opts...)
+		},
+	}
+
+	_fflonk = tBackend{
+		setup: func(ccs constraint.ConstraintSystem, curve ecc.ID) (
+			pk, vk any,
+			pkBuilder, vkBuilder, proofBuilder func() any,
+			err error) {
+			srs, _, err := unsafekzg.NewSRS(ccs, unsafekzg.WithFflonk())
+			if err != nil {
+				return nil, nil, nil, nil, nil, err
+			}
+			pk, vk, err = fflonk.Setup(ccs, srs)
+			return pk, vk, func() any { return fflonk.NewProvingKey(curve) }, func() any { return fflonk.NewVerifyingKey(curve) }, func() any { return fflonk.NewProof(curve) }, err
+		},
+		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
+			return fflonk.Prove(ccs, pk.(fflonk.ProvingKey), fullWitness, opts...)
+		},
+		verify: func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
+			return fflonk.Verify(proof.(fflonk.Proof), vk.(fflonk.VerifyingKey), publicWitness, opts...)
 		},
 	}
 )
