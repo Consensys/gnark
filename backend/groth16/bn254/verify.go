@@ -19,8 +19,9 @@ package groth16
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/backend/solidity"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	"io"
+	"math/big"
 	"text/template"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
 )
@@ -162,6 +164,11 @@ func (vk *VerifyingKey) ExportSolidity(w io.Writer, exportOpts ...solidity.Expor
 				out[i] = i
 			}
 			return out
+		},
+		"fpstr": func(x fp.Element) string {
+			bv := new(big.Int)
+			x.BigInt(bv)
+			return bv.String()
 		},
 	}
 
