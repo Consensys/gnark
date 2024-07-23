@@ -416,6 +416,65 @@ func TestIsOnG2Solve(t *testing.T) {
 	assert.NoError(err)
 }
 
+type IsMillerLoopAndFinalExpCircuit struct {
+	Prev     GTEl
+	P        G1Affine
+	Q        G2Affine
+	Expected frontend.Variable
+}
+
+func (c *IsMillerLoopAndFinalExpCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res := pairing.IsMillerLoopAndFinalExpCheck(&c.P, &c.Q, &c.Prev)
+	api.AssertIsEqual(res, c.Expected)
+	return nil
+
+}
+
+func TestIsMillerLoopAndFinalExpCircuitTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	p, q := randomG1G2Affines()
+
+	var np bn254.G1Affine
+	np.Neg(&p)
+
+	ok, err := bn254.PairingCheck([]bn254.G1Affine{p, np}, []bn254.G2Affine{q, q})
+	assert.NoError(err)
+	assert.True(ok)
+
+	lines := bn254.PrecomputeLines(q)
+	// need to use ML with precomputed lines. Otherwise, the result will be different
+	mlres, err := bn254.MillerLoopFixedQ(
+		[]bn254.G1Affine{p},
+		[][2][len(bn254.LoopCounter)]bn254.LineEvaluationAff{lines},
+	)
+	assert.NoError(err)
+
+	witness := IsMillerLoopAndFinalExpCircuit{
+		Prev:     NewGTEl(mlres),
+		P:        NewG1Affine(np),
+		Q:        NewG2Affine(q),
+		Expected: 1,
+	}
+	err = test.IsSolved(&IsMillerLoopAndFinalExpCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+
+	var randPrev bn254.GT
+	randPrev.SetRandom()
+
+	witness = IsMillerLoopAndFinalExpCircuit{
+		Prev:     NewGTEl(randPrev),
+		P:        NewG1Affine(np),
+		Q:        NewG2Affine(q),
+		Expected: 0,
+	}
+	err = test.IsSolved(&IsMillerLoopAndFinalExpCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 // bench
 func BenchmarkPairing(b *testing.B) {
 
