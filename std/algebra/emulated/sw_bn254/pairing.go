@@ -683,9 +683,9 @@ func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*G
 	return res, err
 }
 
-// computeMillerLoopAndFinalExp computes the Miller loop between P and Q,
+// millerLoopAndFinalExpResult computes the Miller loop between P and Q,
 // multiplies it in 𝔽p¹² by previous and returns the result.
-func (pr Pairing) computeMillerLoopAndFinalExp(P *G1Affine, Q *G2Affine, previous *GTEl) *GTEl {
+func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous *GTEl) *GTEl {
 
 	// hint the non-residue witness
 	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 24, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, &previous.C0.B0.A0, &previous.C0.B0.A1, &previous.C0.B1.A0, &previous.C0.B1.A1, &previous.C0.B2.A0, &previous.C0.B2.A1, &previous.C1.B0.A0, &previous.C1.B0.A1, &previous.C1.B1.A0, &previous.C1.B1.A1, &previous.C1.B2.A0, &previous.C1.B2.A1)
@@ -813,14 +813,14 @@ func (pr Pairing) computeMillerLoopAndFinalExp(P *G1Affine, Q *G2Affine, previou
 	return t2
 }
 
-func (pr Pairing) IsMillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous *GTEl) frontend.Variable {
-	t2 := pr.computeMillerLoopAndFinalExp(P, Q, previous)
+func (pr Pairing) IsMillerLoopAndFinalExpOne(P *G1Affine, Q *G2Affine, previous *GTEl) frontend.Variable {
+	t2 := pr.millerLoopAndFinalExpResult(P, Q, previous)
 
 	res := pr.IsEqual(t2, pr.One())
 	return res
 }
 
-// AssertMillerLoopAndFinalExpCheck computes the Miller loop between P and Q,
+// AssertMillerLoopAndFinalExpIsOne computes the Miller loop between P and Q,
 // multiplies it in 𝔽p¹² by previous and checks that the result lies in the
 // same equivalence class as the reduced pairing purported to be 1. This check
 // replaces the final exponentiation step in-circuit and follows Section 4 of
@@ -829,7 +829,7 @@ func (pr Pairing) IsMillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previou
 // This method is needed for evmprecompiles/ecpair.
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
-func (pr Pairing) AssertMillerLoopAndFinalExpCheck(P *G1Affine, Q *G2Affine, previous *GTEl) {
-	t2 := pr.computeMillerLoopAndFinalExp(P, Q, previous)
+func (pr Pairing) AssertMillerLoopAndFinalExpIsOne(P *G1Affine, Q *G2Affine, previous *GTEl) {
+	t2 := pr.millerLoopAndFinalExpResult(P, Q, previous)
 	pr.AssertIsEqual(t2, pr.One())
 }

@@ -428,7 +428,7 @@ func (c *IsMillerLoopAndFinalExpCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	res := pairing.IsMillerLoopAndFinalExpCheck(&c.P, &c.Q, &c.Prev)
+	res := pairing.IsMillerLoopAndFinalExpOne(&c.P, &c.Q, &c.Prev)
 	api.AssertIsEqual(res, c.Expected)
 	return nil
 
