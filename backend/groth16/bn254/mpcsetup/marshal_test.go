@@ -17,37 +17,37 @@
 package mpcsetup
 
 import (
-	// "testing"
+	"testing"
 
-	// curve "github.com/consensys/gnark-crypto/ecc/bn254"
-	// cs "github.com/consensys/gnark/constraint/bn254"
-	// "github.com/consensys/gnark/frontend"
-	// "github.com/consensys/gnark/frontend/cs/r1cs"
-	// gnarkio "github.com/consensys/gnark/io"
-	// "github.com/stretchr/testify/require"
+	curve "github.com/consensys/gnark-crypto/ecc/bn254"
+	cs "github.com/consensys/gnark/constraint/bn254"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
+	gnarkio "github.com/consensys/gnark/io"
+	"github.com/stretchr/testify/require"
 )
 
-// func TestContributionSerialization(t *testing.T) {
-// 	if testing.Short() {
-// 		t.Skip("skipping test in short mode.")
-// 	}
-// 	assert := require.New(t)
+func TestContributionSerialization(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
+	assert := require.New(t)
 
-// 	// Phase 1
-// 	srs1 := InitPhase1(9)
-// 	srs1.Contribute()
+	// Phase 1
+	srs1 := InitPhase1(9)
+	srs1.Contribute()
 
-// 	assert.NoError(gnarkio.RoundTripCheck(&srs1, func() interface{} { return new(Phase1) }))
+	assert.NoError(gnarkio.RoundTripCheck(&srs1, func() interface{} { return new(Phase1) }))
 
-// 	var myCircuit Circuit
-// 	ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &myCircuit)
-// 	assert.NoError(err)
+	var myCircuit Circuit
+	ccs, err := frontend.Compile(curve.ID.ScalarField(), r1cs.NewBuilder, &myCircuit)
+	assert.NoError(err)
 
-// 	r1cs := ccs.(*cs.R1CS)
+	r1cs := ccs.(*cs.R1CS)
 
-// 	// Phase 2
-// 	srs2, _ := InitPhase2(r1cs, &srs1)
-// 	srs2.Contribute()
+	// Phase 2
+	srs2, _ := InitPhase2(r1cs, &srs1)
+	srs2.Contribute()
 
-// 	assert.NoError(gnarkio.RoundTripCheck(&srs2, func() interface{} { return new(Phase2) }))
-// }
+	assert.NoError(gnarkio.RoundTripCheck(&srs2, func() interface{} { return new(Phase2) }))
+}
