@@ -688,7 +688,7 @@ func (pr Pairing) MillerLoopAndMul(P *G1Affine, Q *G2Affine, previous *GTEl) (*G
 func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous *GTEl) *GTEl {
 
 	// hint the non-residue witness
-	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 24, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, &previous.C0.B0.A0, &previous.C0.B0.A1, &previous.C0.B1.A0, &previous.C0.B1.A1, &previous.C0.B2.A0, &previous.C0.B2.A1, &previous.C1.B0.A0, &previous.C1.B0.A1, &previous.C1.B1.A0, &previous.C1.B1.A1, &previous.C1.B2.A0, &previous.C1.B2.A1)
+	hint, err := pr.curveF.NewHint(millerLoopAndCheckFinalExpHint, 18, &P.X, &P.Y, &Q.P.X.A0, &Q.P.X.A1, &Q.P.Y.A0, &Q.P.Y.A1, &previous.C0.B0.A0, &previous.C0.B0.A1, &previous.C0.B1.A0, &previous.C0.B1.A1, &previous.C0.B2.A0, &previous.C0.B2.A1, &previous.C1.B0.A0, &previous.C1.B0.A1, &previous.C1.B1.A0, &previous.C1.B1.A1, &previous.C1.B2.A0, &previous.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

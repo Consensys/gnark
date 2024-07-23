@@ -157,12 +157,6 @@ func millerLoopAndCheckFinalExpHint(nativeMod *big.Int, nativeInputs, nativeOutp
 			cubicNonResiduePower.C0.B1.A1.BigInt(outputs[15])
 			cubicNonResiduePower.C0.B2.A0.BigInt(outputs[16])
 			cubicNonResiduePower.C0.B2.A1.BigInt(outputs[17])
-			cubicNonResiduePower.C1.B0.A0.BigInt(outputs[18])
-			cubicNonResiduePower.C1.B0.A1.BigInt(outputs[19])
-			cubicNonResiduePower.C1.B1.A0.BigInt(outputs[20])
-			cubicNonResiduePower.C1.B1.A1.BigInt(outputs[21])
-			cubicNonResiduePower.C1.B2.A0.BigInt(outputs[22])
-			cubicNonResiduePower.C1.B2.A1.BigInt(outputs[23])
 
 			return nil
 		})
