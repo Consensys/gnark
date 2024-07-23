@@ -100,6 +100,51 @@ func TestMillerLoopTestSolve(t *testing.T) {
 	assert.NoError(err)
 }
 
+type MillerLoopAndMulCircuit struct {
+	Prev    GTEl
+	P       G1Affine
+	Q       G2Affine
+	Current GTEl
+}
+
+func (c *MillerLoopAndMulCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	res, err := pairing.MillerLoopAndMul(&c.P, &c.Q, &c.Prev)
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	pairing.AssertIsEqual(res, &c.Current)
+	return nil
+
+}
+
+func TestMillerLoopAndMulTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	var prev, curr bn254.GT
+	prev.SetRandom()
+	p, q := randomG1G2Affines()
+	lines := bn254.PrecomputeLines(q)
+	// need to use ML with precomputed lines. Otherwise, the result will be different
+	mlres, err := bn254.MillerLoopFixedQ(
+		[]bn254.G1Affine{p},
+		[][2][len(bn254.LoopCounter)]bn254.LineEvaluationAff{lines},
+	)
+	assert.NoError(err)
+	curr.Mul(&prev, &mlres)
+
+	witness := MillerLoopAndMulCircuit{
+		Prev:    NewGTEl(prev),
+		P:       NewG1Affine(p),
+		Q:       NewG2Affine(q),
+		Current: NewGTEl(curr),
+	}
+	err = test.IsSolved(&MillerLoopAndMulCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type PairCircuit struct {
 	InG1 G1Affine
 	InG2 G2Affine
