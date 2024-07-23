@@ -392,32 +392,32 @@ func (e Ext12) FrobeniusSquareTorus(y *E6) *E6 {
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
-	res, err := e.fp.NewHint(finalExpHint, 24, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1)
+	res, err := e.fp.NewHint(finalExpHint, 18, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 
-	// constrain cubicNonResiduePower to be in Fp6
-	scalingFactor := E12{
+	residueWitness := E12{
 		C0: E6{
 			B0: E2{A0: *res[0], A1: *res[1]},
 			B1: E2{A0: *res[2], A1: *res[3]},
 			B2: E2{A0: *res[4], A1: *res[5]},
 		},
-		C1: (*e.Ext6.Zero()),
+		C1: E6{
+			B0: E2{A0: *res[6], A1: *res[7]},
+			B1: E2{A0: *res[8], A1: *res[9]},
+			B2: E2{A0: *res[10], A1: *res[11]},
+		},
 	}
-	residueWitness := E12{
+	// constrain cubicNonResiduePower to be in Fp6
+	scalingFactor := E12{
 		C0: E6{
 			B0: E2{A0: *res[12], A1: *res[13]},
 			B1: E2{A0: *res[14], A1: *res[15]},
 			B2: E2{A0: *res[16], A1: *res[17]},
 		},
-		C1: E6{
-			B0: E2{A0: *res[18], A1: *res[19]},
-			B1: E2{A0: *res[20], A1: *res[21]},
-			B2: E2{A0: *res[22], A1: *res[23]},
-		},
+		C1: (*e.Ext6.Zero()),
 	}
 
 	// Check that  x * scalingFactor == residueWitness^(q-u)
