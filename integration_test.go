@@ -63,9 +63,12 @@ func TestIntegrationAPI(t *testing.T) {
 				opts = append(opts, test.NoFuzzing())
 			}
 
-			if name == "commit" && test.SolcCheck {
-				// TODO @gbotrel FIXME groth16 solidity verifier needs updating.
-				opts = append(opts, test.WithBackends(backend.PLONK))
+			if name == "commit" {
+				opts = append(opts, test.WithBackends(backend.PLONK, backend.GROTH16))
+				if test.SolcCheck {
+					// TODO @gbotrel FIXME groth16 solidity verifier needs updating.
+					opts = append(opts, test.WithBackends(backend.PLONK))
+				}
 			}
 
 			assert.CheckCircuit(tData.Circuit, opts...)

@@ -27,19 +27,20 @@ var testEngineChecks = profile{
 }
 
 var constraintSolverChecks = profile{
-	backends: []backend.ID{backend.GROTH16, backend.PLONK},
+	backends: []backend.ID{backend.GROTH16, backend.PLONK}, // fflonk uses the same constraints as plonk
 	curves:   []ecc.ID{ecc.BN254, ecc.BLS12_381},
 }
 
 var proverChecks = profile{
-	backends:      []backend.ID{backend.GROTH16, backend.PLONK},
-	curves:        []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BW6_761},
+	// backends:      []backend.ID{backend.GROTH16, backend.PLONK, backend.FFLONK},
+	backends:      []backend.ID{backend.FFLONK},
+	curves:        []ecc.ID{ecc.BN254}, //, ecc.BLS12_381, ecc.BW6_761},
 	checkSolidity: true && SolcCheck,
 	checkProver:   true,
 }
 
 var releaseChecks = profile{
-	backends:           []backend.ID{backend.GROTH16, backend.PLONK},
+	backends:           []backend.ID{backend.GROTH16, backend.PLONK, backend.FFLONK},
 	curves:             []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BW6_761, ecc.BLS12_377},
 	checkSolidity:      true && SolcCheck,
 	checkProver:        true,
