@@ -203,15 +203,12 @@ func (f *Field[T]) computeSubPaddingHint(overflow uint, nbLimbs uint, modulus *E
 	maxLimb := new(big.Int).Lsh(big.NewInt(1), fp.BitsPerLimb()+overflow)
 	maxLimb.Sub(maxLimb, big.NewInt(1))
 	for i := range res {
-		// ensure that condition 3 always holds. As we compute the padding hint
-		// depending on the overflow of the inputs, then can use the maximum
-		// possible value
-		f.checker.Check(res[i], int(fp.BitsPerLimb()+overflow+1))
-		// to ensure that condition 2 holds we subtract the maximum possible
-		// value from the padding and check that the result is small (fits into
-		// expected range). If we would have underflow then the result would
-		// underflow the native field otherwise and the range check wouldn't
-		// hold.
+		// we can check conditions 2 and 3 together by subtracting the maximum
+		// value which can be subtracted from the padding. The result should not
+		// underflow (in which case the width of the subtraction result could be
+		// at least native_width-overflow) and should be nbBits+overflow+1 bits
+		// wide (as expected padding is one bit wider than the maximum allowed
+		// subtraction limb).
 		f.checker.Check(f.api.Sub(res[i], maxLimb), int(fp.BitsPerLimb()+overflow+1))
 	}
 
