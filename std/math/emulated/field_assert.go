@@ -104,8 +104,15 @@ func (f *Field[T]) AssertIsInRange(a *Element[T]) {
 // method internally reduces the element and asserts that the value is less than
 // the modulus.
 func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
+	// to avoid using strict reduction (which is expensive as requires binary
+	// assertion that value is less than modulus), we use ordinary reduction but
+	// in this case the result can be either 0 or p (if it is zero).
+	//
+	// so we check that the reduced value limbs are either all zeros or
+	// corrspond to the modulus limbs.
 	ca := f.Reduce(a)
-	f.AssertIsInRange(ca)
+	p := f.Modulus()
+
 	// we use two approaches for checking if the element is exactly zero. The
 	// first approach is to check that every limb individually is zero. The
 	// second approach is to check if the sum of all limbs is zero. Usually, we
@@ -114,23 +121,32 @@ func (f *Field[T]) IsZero(a *Element[T]) frontend.Variable {
 	// then we can ensure in most cases that no overflows happen.
 
 	// as ca is already reduced, then every limb overflow is already 0. Only
-	// every addition adds a bit to the overflow
+	// every addition adds a bit to the overflow.
+	var res0 frontend.Variable
 	totalOverflow := len(ca.Limbs) - 1
 	if totalOverflow > int(f.maxOverflow()) {
 		// the sums of limbs would overflow the native field. Use the first
 		// approach instead.
-		res := f.api.IsZero(ca.Limbs[0])
+		res0 = f.api.IsZero(ca.Limbs[0])
 		for i := 1; i < len(ca.Limbs); i++ {
-			res = f.api.Mul(res, f.api.IsZero(ca.Limbs[i]))
+			res0 = f.api.Mul(res0, f.api.IsZero(ca.Limbs[i]))
 		}
-		return res
+	} else {
+		// default case, limbs sum does not overflow the native field
+		limbSum := ca.Limbs[0]
+		for i := 1; i < len(ca.Limbs); i++ {
+			limbSum = f.api.Add(limbSum, ca.Limbs[i])
+		}
+		res0 = f.api.IsZero(limbSum)
 	}
-	// default case, limbs sum does not overflow the native field
-	limbSum := ca.Limbs[0]
+	// however, for checking if the element is p, we can not use the
+	// optimization as we may have underflows. So we have to check every limb
+	// individually.
+	resP := f.api.IsZero(f.api.Sub(p.Limbs[0], ca.Limbs[0]))
 	for i := 1; i < len(ca.Limbs); i++ {
-		limbSum = f.api.Add(limbSum, ca.Limbs[i])
+		resP = f.api.Mul(resP, f.api.IsZero(f.api.Sub(p.Limbs[i], ca.Limbs[i])))
 	}
-	return f.api.IsZero(limbSum)
+	return f.api.Or(res0, resP)
 }
 
 // // Cmp returns:
