@@ -3,6 +3,7 @@ package sw_bls12377
 import (
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
@@ -15,7 +16,6 @@ import (
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/selector"
-	"golang.org/x/exp/slices"
 )
 
 // Curve allows G1 operations in BLS12-377.
