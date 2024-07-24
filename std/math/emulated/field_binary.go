@@ -36,6 +36,14 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 // ToBitsCanonical represents the unique bit representation in the canonical
 // format (less that the modulus).
 func (f *Field[T]) ToBitsCanonical(a *Element[T]) []frontend.Variable {
+	// TODO: implement a inline version of this function. We perform binary
+	// decomposition both in the `ReduceStrict` and `ToBits` methods, but we can
+	// essentially do them at the same time.
+	//
+	// If we do this, then also check in places where we use `Reduce` and
+	// `ToBits` after that manually (e.g. in point and scalar marshaling) and
+	// replace them with this method.
+
 	var fp T
 	nbBits := fp.Modulus().BitLen()
 	ca := f.ReduceStrict(a)
