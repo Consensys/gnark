@@ -101,6 +101,11 @@ func (e *Element[T]) GnarkInitHook() {
 		*e = ValueOf[T](0)
 		e.internal = false // we need to constrain in later.
 	}
+	// set modReduced to false - in case the circuit is compiled we may change
+	// the value for an existing element. If we don't reset it here, then during
+	// second compilation we may take a shortPath where we assume that modReduce
+	// flag is set.
+	e.modReduced = false
 }
 
 // copy makes a deep copy of the element.
