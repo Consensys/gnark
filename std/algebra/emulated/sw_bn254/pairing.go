@@ -251,7 +251,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 
 	}
 	// We perform the easy part of the final exp to push f to the cyclotomic
-	// subgroup so that FinalExponentiationCheck is carried with optimized
+	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
 	// cyclotomic squaring (e.g. Karabina12345).
 	//
 	// f = f^(p⁶-1)(p²+1)
@@ -260,7 +260,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	f = pr.FrobeniusSquare(buf)
 	f = pr.Mul(f, buf)
 
-	pr.FinalExponentiationCheck(f)
+	pr.AssertFinalExponentiationIsOne(f)
 
 	return nil
 }

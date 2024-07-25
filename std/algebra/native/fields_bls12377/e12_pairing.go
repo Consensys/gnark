@@ -206,13 +206,13 @@ func (e *E12) ExpU(api frontend.API, e1 E12) *E12 {
 	return e
 }
 
-// FinalExponentiationCheck checks that a Miller function output x lies in the
+// AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
 // same equivalence class as the reduced pairing. This replaces the final
 // exponentiation step in-circuit.
 // The method follows Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
-func (x *E12) FinalExponentiationCheck(api frontend.API) *E12 {
+func (x *E12) AssertFinalExponentiationIsOne(api frontend.API) {
 	res, err := api.NewHint(finalExpHint, 18, x.C0.B0.A0, x.C0.B0.A1, x.C0.B1.A0, x.C0.B1.A1, x.C0.B2.A0, x.C0.B2.A1, x.C1.B0.A0, x.C1.B0.A1, x.C1.B1.A0, x.C1.B1.A1, x.C1.B2.A0, x.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
@@ -241,6 +241,4 @@ func (x *E12) FinalExponentiationCheck(api frontend.API) *E12 {
 	t1.Mul(api, *x, scalingFactor)
 
 	t0.AssertIsEqual(api, t1)
-
-	return nil
 }
