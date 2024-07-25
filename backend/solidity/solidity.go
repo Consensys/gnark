@@ -24,7 +24,7 @@ func NewExportConfig(opts ...ExportOption) (ExportConfig, error) {
 	return config, nil
 }
 
-// WithPragmaVersion changes the pragma version used in the solidit verifier.
+// WithPragmaVersion changes the pragma version used in the solidity verifier.
 func WithPragmaVersion(version string) ExportOption {
 	return func(cfg *ExportConfig) error {
 		cfg.PragmaVersion = version

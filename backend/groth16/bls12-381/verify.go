@@ -19,7 +19,6 @@ package groth16
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark/backend/solidity"
 	"io"
 	"time"
 
@@ -30,6 +29,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr/pedersen"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/logger"
 )

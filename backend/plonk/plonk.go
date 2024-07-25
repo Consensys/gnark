@@ -92,8 +92,10 @@ type VerifyingKey interface {
 	io.ReaderFrom
 	gnarkio.WriterRawTo
 	gnarkio.UnsafeReaderFrom
-	NbPublicWitness() int // number of elements expected in the public witness
-	ExportSolidity(w io.Writer, exportOpts ...solidity.ExportOption) error
+	// VerifyingKey are the methods required for generating the Solidity
+	// verifier contract from the VerifyingKey. This will return an error if not
+	// supported on the CurveID().
+	solidity.VerifyingKey
 }
 
 // Setup prepares the public data associated to a circuit + public inputs.

@@ -7,6 +7,7 @@ import (
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/backend/solidity"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -139,9 +140,9 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 
 							if checkSolidity {
 								// check that the proof can be verified by gnark-solidity-checker
-								if _vk, ok := vk.(verifyingKey); ok {
+								if _vk, ok := vk.(solidity.VerifyingKey); ok {
 									assert.Run(func(assert *Assert) {
-										assert.solidityVerification(b, _vk, proof, w.public)
+										assert.solidityVerification(b, _vk, proof, w.public, opt.solidityOpts)
 									}, "solidity")
 								}
 							}
