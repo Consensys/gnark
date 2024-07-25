@@ -228,12 +228,7 @@ func (x *E12) FinalExponentiationCheck(api frontend.API) *E12 {
 	scalingFactor.C0.B1.A1 = res[15]
 	scalingFactor.C0.B2.A0 = res[16]
 	scalingFactor.C0.B2.A1 = res[17]
-	scalingFactor.C1.B0.A0 = 0
-	scalingFactor.C1.B0.A1 = 0
-	scalingFactor.C1.B1.A0 = 0
-	scalingFactor.C1.B1.A1 = 0
-	scalingFactor.C1.B2.A0 = 0
-	scalingFactor.C1.B2.A1 = 0
+	scalingFactor.C1.SetZero()
 
 	// Check that  x * scalingFactor == residueWitness^(q-u)
 	// where u=0x8508c00000000001 is the BLS12-377 seed,
