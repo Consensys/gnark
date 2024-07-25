@@ -3,6 +3,7 @@ package sw_bls24315
 import (
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
@@ -36,25 +37,38 @@ func NewCurve(api frontend.API) (*Curve, error) {
 }
 
 // MarshalScalar returns
-func (c *Curve) MarshalScalar(s Scalar) []frontend.Variable {
-	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
-	ss := c.fr.Reduce(&s)
-	x := c.fr.ToBits(ss)
-	for i, j := 0, nbBits-1; i < j; {
-		x[i], x[j] = x[j], x[i]
-		i++
-		j--
+func (c *Curve) MarshalScalar(s Scalar, opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
 	}
+	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
+	var ss *emulated.Element[ScalarField]
+	if cfg.ToBitsCanonical {
+		ss = c.fr.ReduceStrict(&s)
+	} else {
+		ss = c.fr.Reduce(&s)
+	}
+	x := c.fr.ToBits(ss)[:nbBits]
+	slices.Reverse(x)
 	return x
 }
 
 // MarshalG1 returns [P.X || P.Y] in binary. Both P.X and P.Y are
 // in little endian.
-func (c *Curve) MarshalG1(P G1Affine) []frontend.Variable {
+func (c *Curve) MarshalG1(P G1Affine, opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
 	nbBits := 8 * ((ecc.BLS24_315.BaseField().BitLen() + 7) / 8)
+	bOpts := []bits.BaseConversionOption{bits.WithNbDigits(nbBits)}
+	if !cfg.ToBitsCanonical {
+		bOpts = append(bOpts, bits.OmitModulusCheck())
+	}
 	res := make([]frontend.Variable, 2*nbBits)
-	x := bits.ToBinary(c.api, P.X, bits.WithNbDigits(nbBits))
-	y := bits.ToBinary(c.api, P.Y, bits.WithNbDigits(nbBits))
+	x := bits.ToBinary(c.api, P.X, bOpts...)
+	y := bits.ToBinary(c.api, P.Y, bOpts...)
 	for i := 0; i < nbBits; i++ {
 		res[i] = x[nbBits-1-i]
 		res[i+nbBits] = y[nbBits-1-i]

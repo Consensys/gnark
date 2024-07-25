@@ -8,8 +8,7 @@ import (
 // ToBits returns the bit representation of the Element in little-endian (LSB
 // first) order. The returned bits are constrained to be 0-1. The number of
 // returned bits is nbLimbs*nbBits+overflow. To obtain the bits of the canonical
-// representation of Element, reduce Element first and take less significant
-// bits corresponding to the bitwidth of the emulated modulus.
+// representation of Element, use method [Field.ToBitsCanonical].
 func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 	f.enforceWidthConditional(a)
 	ba, aConst := f.constantValue(a)
@@ -32,6 +31,29 @@ func (f *Field[T]) ToBits(a *Element[T]) []frontend.Variable {
 	}
 	fullBits = append(fullBits, limbBits[f.fParams.BitsPerLimb():f.fParams.BitsPerLimb()+a.overflow]...)
 	return fullBits
+}
+
+// ToBitsCanonical represents the unique bit representation in the canonical
+// format (less that the modulus).
+func (f *Field[T]) ToBitsCanonical(a *Element[T]) []frontend.Variable {
+	// TODO: implement a inline version of this function. We perform binary
+	// decomposition both in the `ReduceStrict` and `ToBits` methods, but we can
+	// essentially do them at the same time.
+	//
+	// If we do this, then also check in places where we use `Reduce` and
+	// `ToBits` after that manually (e.g. in point and scalar marshaling) and
+	// replace them with this method.
+
+	var fp T
+	nbBits := fp.Modulus().BitLen()
+	// when the modulus is a power of 2, then we can remove the most significant
+	// bit as it is always zero.
+	if fp.Modulus().TrailingZeroBits() == uint(nbBits-1) {
+		nbBits--
+	}
+	ca := f.ReduceStrict(a)
+	bts := f.ToBits(ca)
+	return bts[:nbBits]
 }
 
 // FromBits returns a new Element given the bits is little-endian order.
