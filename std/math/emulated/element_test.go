@@ -1120,6 +1120,10 @@ func (c *ReduceStrictCircuit[T]) Define(api frontend.API) error {
 	for i := range elR.Limbs {
 		api.AssertIsEqual(elR.Limbs[i], c.Expected[i])
 	}
+
+	// TODO: dummy constraint to have at least two constraints in the circuit.
+	// Otherwise PLONK setup phase fails.
+	api.AssertIsEqual(c.Expected[0], elR.Limbs[0])
 	return nil
 }
 
