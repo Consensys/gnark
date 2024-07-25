@@ -46,6 +46,11 @@ func (f *Field[T]) ToBitsCanonical(a *Element[T]) []frontend.Variable {
 
 	var fp T
 	nbBits := fp.Modulus().BitLen()
+	// when the modulus is a power of 2, then we can remove the most significant
+	// bit as it is always zero.
+	if fp.Modulus().TrailingZeroBits() == uint(nbBits-1) {
+		nbBits--
+	}
 	ca := f.ReduceStrict(a)
 	bts := f.ToBits(ca)
 	return bts[:nbBits]
