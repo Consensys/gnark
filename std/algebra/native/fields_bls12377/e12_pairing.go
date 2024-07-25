@@ -213,25 +213,37 @@ func (e *E12) ExpU(api frontend.API, e1 E12) *E12 {
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
 func (x *E12) FinalExponentiationCheck(api frontend.API) *E12 {
-	res, err := api.NewHint(finalExpHint, 12, x.C0.B0.A0, x.C0.B0.A1, x.C0.B1.A0, x.C0.B1.A1, x.C0.B2.A0, x.C0.B2.A1, x.C1.B0.A0, x.C1.B0.A1, x.C1.B1.A0, x.C1.B1.A1, x.C1.B2.A0, x.C1.B2.A1)
+	res, err := api.NewHint(finalExpHint, 18, x.C0.B0.A0, x.C0.B0.A1, x.C0.B1.A0, x.C0.B1.A1, x.C0.B2.A0, x.C0.B2.A1, x.C1.B0.A0, x.C1.B0.A1, x.C1.B1.A0, x.C1.B1.A1, x.C1.B2.A0, x.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
 	}
 
-	var residueWitness, t0, t1 E12
+	var residueWitness, scalingFactor, t0, t1 E12
 	residueWitness.assign(res[:12])
+	// constrain cubicNonResiduePower to be in Fp6
+	scalingFactor.C0.B0.A0 = res[12]
+	scalingFactor.C0.B0.A1 = res[13]
+	scalingFactor.C0.B1.A0 = res[14]
+	scalingFactor.C0.B1.A1 = res[15]
+	scalingFactor.C0.B2.A0 = res[16]
+	scalingFactor.C0.B2.A1 = res[17]
+	scalingFactor.C1.B0.A0 = 0
+	scalingFactor.C1.B0.A1 = 0
+	scalingFactor.C1.B1.A0 = 0
+	scalingFactor.C1.B1.A1 = 0
+	scalingFactor.C1.B2.A0 = 0
+	scalingFactor.C1.B2.A1 = 0
 
-	// Check that  x == residueWitness^r by checking that:
-	// x^k == residueWitness^(q-u)
-	// where k = (u-1)^2/3, u=0x8508c00000000001 the BLS12-377 seed
-	// and residueWitness from the hint.
+	// Check that  x * scalingFactor == residueWitness^(q-u)
+	// where u=0x8508c00000000001 is the BLS12-377 seed,
+	// and residueWitness, scalingFactor from the hint.
 	t0.Frobenius(api, residueWitness)
 	// exponentiation by u
 	t1.ExpX0(api, residueWitness)
 	t0.DivUnchecked(api, t0, t1)
-	// exponentiation by U=(u-1)^2/3
-	t1.ExpU(api, *x)
+
+	t1.Mul(api, *x, scalingFactor)
 
 	t0.AssertIsEqual(api, t1)
 

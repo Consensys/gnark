@@ -368,7 +368,7 @@ func finalExpHint(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) er
 			residueWitness.C1.B2.A0.BigInt(outputs[10])
 			residueWitness.C1.B2.A1.BigInt(outputs[11])
 
-			// return the witness residue
+			// return the scaling factor
 			scalingFactor.C0.B0.A0.BigInt(outputs[12])
 			scalingFactor.C0.B0.A1.BigInt(outputs[13])
 			scalingFactor.C0.B1.A0.BigInt(outputs[14])
