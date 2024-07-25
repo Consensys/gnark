@@ -15,7 +15,7 @@ func (f *Field[T]) Reduce(a *Element[T]) *Element[T] {
 
 func (f *Field[T]) reduce(a *Element[T], strict bool) *Element[T] {
 	f.enforceWidthConditional(a)
-	if strict && a.modReduced {
+	if a.modReduced {
 		// fast path - we are in the strict case and the element was just strictly reduced
 		return a
 	}
