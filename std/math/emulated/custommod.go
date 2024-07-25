@@ -48,6 +48,13 @@ func (f *Field[T]) modSub(a, b *Element[T], modulus *Element[T]) *Element[T] {
 	// instead of assuming T as a constant. And when doing as a hint, then need
 	// to assert that the padding is a multiple of the modulus (done inside callSubPaddingHint)
 	nextOverflow := max(b.overflow+1, a.overflow) + 1
+	if nextOverflow > f.maxOverflow() {
+		// TODO: in general we should handle it more gracefully, but this method
+		// is only used in ModAssertIsEqual which in turn is only used in tests,
+		// then for now we avoid automatic overflow handling (like we have for fixed modulus case).
+		// We only panic here so that the user would know to manually handle the overflow.
+		panic("next overflow would overflow the native field")
+	}
 	nbLimbs := max(len(a.Limbs), len(b.Limbs))
 	limbs := make([]frontend.Variable, nbLimbs)
 	padding := f.computeSubPaddingHint(b.overflow, uint(nbLimbs), modulus)
