@@ -129,9 +129,13 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 	// here bound is NOT a constant,
 	// but a can be either constant or a wire.
 
-	_, aConst := builder.constantValue(a)
-
 	nbBits := builder.cs.FieldBitLen()
+	if ca, aConst := builder.constantValue(a); aConst {
+		// if a is a constant, we only need the number of bits of a;
+		// the binary decomposition of the bound will fail if nbBits(bound) > nbBits(a)
+		ba := builder.cs.ToBigInt(ca)
+		nbBits = ba.BitLen()
+	}
 
 	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs(), bits.OmitModulusCheck())
 	boundBits := bits.ToBinary(builder, bound, bits.WithNbDigits(nbBits))
@@ -152,28 +156,18 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 		// else
 		// 		p[i] = p[i+1] * a[i]
 		//		t = 0
+
 		v := builder.Mul(p[i+1], aBits[i])
+
 		p[i] = builder.Select(boundBits[i], v, p[i+1])
-
 		t := builder.Select(boundBits[i], zero, p[i+1])
-
-		// (1 - t - ai) * ai == 0
-		var l frontend.Variable
-		l = builder.cstOne()
-		l = builder.Sub(l, t, aBits[i])
-
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
 
-		if aConst {
-			// aBits[i] is a constant;
-			l = builder.Mul(l, aBits[i])
-			// TODO @gbotrel this constraint seems useless.
-			added = append(added, builder.cs.AddR1C(builder.newR1C(l, zero, zero), builder.genericGate))
-		} else {
-			added = append(added, builder.cs.AddR1C(builder.newR1C(l, aBits[i], zero), builder.genericGate))
-		}
+		// (1 - t - ai) * ai == 0
+		l := builder.Sub(builder.cstOne(), t, aBits[i])
+		added = append(added, builder.cs.AddR1C(builder.newR1C(l, builder.Mul(aBits[i], builder.cstOne()), zero), builder.genericGate))
 	}
 
 	if debug.Debug {
