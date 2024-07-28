@@ -20,7 +20,7 @@ type ProjAddGate[AE ArithEngine[E], E element] struct {
 
 func (m ProjAddGate[AE, E]) NbInputs() int { return 6 }
 func (m ProjAddGate[AE, E]) Degree() int   { return 4 }
-func (m ProjAddGate[AE, E]) Evaluate(api AE, vars ...E) E {
+func (m ProjAddGate[AE, E]) Evaluate(api AE, vars ...E) []E {
 	if len(vars) != m.NbInputs() {
 		panic("incorrect nb of inputs")
 	}
@@ -65,7 +65,7 @@ func (m ProjAddGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	res = api.Add(res, Y3)
 	res = api.Mul(m.Folding, res)
 	res = api.Add(res, X3)
-	return res
+	return []E{res}
 }
 
 type ProjAddSumcheckCircuit[FR emulated.FieldParams] struct {
@@ -172,7 +172,7 @@ type DblAddSelectGate[AE ArithEngine[E], E element] struct {
 	Folding []E
 }
 
-func projAdd[AE ArithEngine[E], E element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
+func ProjAdd[AE ArithEngine[E], E element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
 	b3 := api.Const(big.NewInt(21))
 	t0 := api.Mul(X1, X2)
 	t1 := api.Mul(Y1, Y2)
@@ -210,7 +210,7 @@ func projAdd[AE ArithEngine[E], E element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3
 	return
 }
 
-func projSelect[AE ArithEngine[E], E element](api AE, selector, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
+func ProjSelect[AE ArithEngine[E], E element](api AE, selector, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
 	X3 = api.Sub(X1, X2)
 	X3 = api.Mul(selector, X3)
 	X3 = api.Add(X3, X2)
@@ -225,7 +225,7 @@ func projSelect[AE ArithEngine[E], E element](api AE, selector, X1, Y1, Z1, X2, 
 	return
 }
 
-func projDbl[AE ArithEngine[E], E element](api AE, X, Y, Z E) (X3, Y3, Z3 E) {
+func ProjDbl[AE ArithEngine[E], E element](api AE, X, Y, Z E) (X3, Y3, Z3 E) {
 	b3 := api.Const(big.NewInt(21))
 	t0 := api.Mul(Y, Y)
 	Z3 = api.Add(t0, t0)
@@ -249,8 +249,9 @@ func projDbl[AE ArithEngine[E], E element](api AE, X, Y, Z E) (X3, Y3, Z3 E) {
 }
 
 func (m DblAddSelectGate[AE, E]) NbInputs() int { return 7 }
+func (m DblAddSelectGate[AE, E]) NbOutputs() int { return 1 }
 func (m DblAddSelectGate[AE, E]) Degree() int   { return 5 }
-func (m DblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
+func (m DblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) []E {
 	if len(vars) != m.NbInputs() {
 		panic("incorrect nb of inputs")
 	}
@@ -263,9 +264,9 @@ func (m DblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	X2, Y2, Z2 := vars[3], vars[4], vars[5]
 	selector := vars[6]
 
-	tmpX, tmpY, tmpZ := projAdd(api, X1, Y1, Z1, X2, Y2, Z2)
-	ResX, ResY, ResZ := projSelect(api, selector, tmpX, tmpY, tmpZ, X2, Y2, Z2)
-	AccX, AccY, AccZ := projDbl(api, X1, Y1, Z1)
+	tmpX, tmpY, tmpZ := ProjAdd(api, X1, Y1, Z1, X2, Y2, Z2)
+	ResX, ResY, ResZ := ProjSelect(api, selector, tmpX, tmpY, tmpZ, X2, Y2, Z2)
+	AccX, AccY, AccZ := ProjDbl(api, X1, Y1, Z1)
 
 	// Folding part
 	f0 := api.Mul(m.Folding[0], AccX)
@@ -279,7 +280,58 @@ func (m DblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	res = api.Add(res, f3)
 	res = api.Add(res, f4)
 	res = api.Add(res, f5)
-	return res
+	return []E{res}
+}
+
+type MultipleDblAddSelectGate[AE ArithEngine[E], E any] struct {
+	selector []E
+}
+
+func (m MultipleDblAddSelectGate[AE, E]) NbInputs() int { return 7 }
+func (m MultipleDblAddSelectGate[AE, E]) Degree() int   { return 5 }
+func (m MultipleDblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) []E {
+	if len(vars) != m.NbInputs() {
+		panic("incorrect nb of inputs")
+	}
+	// X1, Y1, Z1 == accumulator
+	X1, Y1, Z1 := vars[0], vars[1], vars[2]
+	// X2, Y2, Z2 == result
+	X2, Y2, Z2 := vars[3], vars[4], vars[5]
+	selector := vars[6]
+
+	tmpX, tmpY, tmpZ := ProjAdd(api, X1, Y1, Z1, X2, Y2, Z2)
+	ResX, ResY, ResZ := ProjSelect(api, selector, tmpX, tmpY, tmpZ, X2, Y2, Z2)
+	AccX, AccY, AccZ := ProjDbl(api, X1, Y1, Z1)
+
+	return []E{AccX, AccY, AccZ, ResX, ResY, ResZ}
+}
+
+type DblAddSelectGateFullOutput[AE ArithEngine[E], E any] struct {
+	Selector E
+}
+
+func (m DblAddSelectGateFullOutput[AE, E]) NbInputs() int { return 6 }
+func (m DblAddSelectGateFullOutput[AE, E]) NbOutputs() int { return 6 }
+func (m DblAddSelectGateFullOutput[AE, E]) Degree() int   { return 5 }
+func (m DblAddSelectGateFullOutput[AE, E]) GetName() string {
+	return "dbl_add_select_full_output"
+}
+func (m DblAddSelectGateFullOutput[AE, E]) Evaluate(api AE, vars ...E) []E {
+	if len(vars) != m.NbInputs() {
+		panic("incorrect nb of inputs")
+	}
+	// X1, Y1, Z1 == accumulator
+	X1, Y1, Z1 := vars[0], vars[1], vars[2]
+	// X2, Y2, Z2 == result
+	X2, Y2, Z2 := vars[3], vars[4], vars[5]
+	selector := m.Selector //vars[6]
+
+	tmpX, tmpY, tmpZ := ProjAdd(api, X1, Y1, Z1, X2, Y2, Z2)
+	ResX, ResY, ResZ := ProjSelect(api, selector, tmpX, tmpY, tmpZ, X2, Y2, Z2)
+	AccX, AccY, AccZ := ProjDbl(api, X1, Y1, Z1)
+
+	output := []E{AccX, AccY, AccZ, ResX, ResY, ResZ}
+	return output
 }
 
 func TestDblAndAddGate(t *testing.T) {

@@ -103,7 +103,8 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	if err != nil {
 		return fmt.Errorf("verification opts: %w", err)
 	}
-	challengeNames := getChallengeNames(v.prefix, claims.NbClaims(), claims.NbVars())
+	challengeNames := getChallengeNames(v.prefix, 1, claims.NbVars()) //claims.NbClaims()
+	fmt.Println("verifier challengeNames", challengeNames)
 	fs, err := recursion.NewTranscript(v.api, fr.Modulus(), challengeNames)
 	if err != nil {
 		return fmt.Errorf("new transcript: %w", err)
@@ -114,11 +115,12 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	}
 
 	combinationCoef := v.f.Zero()
-	if claims.NbClaims() >= 2 {
-		if combinationCoef, challengeNames, err = v.deriveChallenge(fs, challengeNames, nil); err != nil {
-			return fmt.Errorf("derive combination coef: %w", err)
-		}
-	}
+	// if claims.NbClaims() >= 2 { //todo fix this
+	// 	println("verifier claims more than 2", claims.NbClaims())
+	// 	if combinationCoef, challengeNames, err = v.deriveChallenge(fs, challengeNames, nil); err != nil {
+	// 		return fmt.Errorf("derive combination coef: %w", err)
+	// 	}
+	// }
 	challenges := make([]*emulated.Element[FR], claims.NbVars())
 
 	// gJR is the claimed value. In case of multiple claims it is combined

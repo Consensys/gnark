@@ -38,7 +38,7 @@ func Prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 	if err != nil {
 		return proof, fmt.Errorf("parse options: %w", err)
 	}
-	challengeNames := getChallengeNames(cfg.prefix, claims.NbClaims(), claims.NbVars())
+	challengeNames := getChallengeNames(cfg.prefix, 1, claims.NbVars()) // claims.NbClaims()
 	fshash, err := recursion.NewShort(current, target)
 	if err != nil {
 		return proof, fmt.Errorf("new short hash: %w", err)
@@ -50,11 +50,14 @@ func Prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 	}
 
 	combinationCoef := big.NewInt(0)
-	if claims.NbClaims() >= 2 {
-		if combinationCoef, challengeNames, err = DeriveChallengeProver(fs, challengeNames, nil); err != nil {
-			return proof, fmt.Errorf("derive combination coef: %w", err)
-		}
-	}
+	//change nbClaims to 2 if anyone of the individual claims has more than 1 claim
+	// if claims.NbClaims() >= 2 {
+	// 	println("prove claims", claims.NbClaims())
+	// 	if combinationCoef, challengeNames, err = DeriveChallengeProver(fs, challengeNames, nil); err != nil {
+	// 		return proof, fmt.Errorf("derive combination coef: %w", err)
+	// 	} // todo change this nbclaims give 6 results in combination coeff
+	// }
+
 	// in sumcheck we run a round for every variable. So the number of variables
 	// defines the number of rounds.
 	nbVars := claims.NbVars()

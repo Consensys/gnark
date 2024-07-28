@@ -15,7 +15,7 @@ type gate[AE ArithEngine[E], E element] interface {
 	// NbInputs is the number of inputs the gate takes.
 	NbInputs() int
 	// Evaluate evaluates the gate at inputs vars.
-	Evaluate(api AE, vars ...E) E
+	Evaluate(api AE, vars ...E) []E
 	// Degree returns the maximum degree of the variables.
 	Degree() int // TODO: return degree of variable for optimized verification
 }
@@ -146,7 +146,7 @@ func (g *gateClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationC
 	// now, we can evaluate the gate at the random input.
 	gateEval := g.gate.Evaluate(g.engine, inputEvals...)
 
-	res := g.f.Mul(eqEval, gateEval)
+	res := g.f.Mul(eqEval, gateEval[0])
 	g.f.AssertIsEqual(res, expectedValue)
 	return nil
 }
@@ -193,7 +193,7 @@ func newNativeGate(target *big.Int, gate gate[*BigIntEngine, *big.Int], inputs [
 	evaluations = make([]*big.Int, nbInstances)
 	for i := range evaluations {
 		evaluations[i] = new(big.Int)
-		evaluations[i] = gate.Evaluate(be, evalInput[i]...)
+		evaluations[i] = gate.Evaluate(be, evalInput[i]...)[0]
 	}
 	// construct the mapping (inputIdx, instanceIdx) -> inputVal
 	inputPreprocessors := make([]NativeMultilinear, nbInputs)
@@ -314,7 +314,7 @@ func (g *nativeGateClaim) computeGJ() NativePolynomial {
 		_s := 0
 		_e := nbInner
 		for d := 0; d < degGJ; d++ {
-			summand := g.gate.Evaluate(g.engine, operands[_s+1:_e]...)
+			summand := g.gate.Evaluate(g.engine, operands[_s+1:_e]...)[0]
 			summand = g.engine.Mul(summand, operands[_s])
 			res[d] = g.engine.Add(res[d], summand)
 			_s, _e = _e, _e+nbInner

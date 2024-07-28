@@ -5,7 +5,7 @@ import (
 	cryptofiatshamir "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/internal/parallel"
+	//"github.com/consensys/gnark/internal/parallel"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -19,8 +19,115 @@ import (
 
 // Gate must be a low-degree polynomial
 type Gate interface {
-	Evaluate(*sumcheck.BigIntEngine, ...*big.Int) *big.Int
+	Evaluate(*sumcheck.BigIntEngine, ...*big.Int) []*big.Int
 	Degree() int
+	NbInputs() int
+	NbOutputs() int
+	GetName() string
+}
+
+type WireBundle struct {
+	Gate             Gate
+	Layer            int
+	Inputs           []*Wires // if there are no Inputs, the wire is assumed an input wire
+	Outputs          []*Wires `SameBundle:"true"` // if there are no Outputs, the wire is assumed an output wire
+	nbUniqueOutputs  int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
+}
+
+// func getPreviousWireBundle(wireBundle *WireBundle) *WireBundle {
+// 	return &WireBundle{
+// 		Gate:            wireBundle.Gate,
+// 		Layer:           wireBundle.Layer - 1,
+// 		Inputs:          wireBundle.Inputs,
+// 		Outputs:         wireBundle.Outputs,
+// 		nbUniqueOutputs: wireBundle.nbUniqueOutputs,
+// 	}
+// }
+
+// InitFirstWireBundle initializes the first WireBundle for Layer 0 padded with IdentityGate as relayer
+func InitFirstWireBundle(inputsLen int) WireBundle {
+	gate := IdentityGate[*sumcheck.BigIntEngine, *big.Int]{Arity: inputsLen}
+	inputs := make([]*Wires, inputsLen)
+	for i := 0; i < inputsLen; i++ {
+		inputs[i] = &Wires{
+			SameBundle:      true,
+			BundleIndex:     -1,
+			BundleLength:    inputsLen,
+			WireIndex:       i,
+			nbUniqueOutputs: 0,
+		}
+	}
+
+	outputs := make([]*Wires, gate.NbOutputs())
+	for i := 0; i < len(outputs); i++ {
+		outputs[i] = &Wires{
+			SameBundle:      true,
+			BundleIndex:     0,
+			BundleLength:    len(outputs),
+			WireIndex:       i,
+			nbUniqueOutputs: 0,
+		}
+	}
+
+	return WireBundle{
+		Gate:            gate,
+		Layer:           0,
+		Inputs:          inputs,
+		Outputs:         outputs,
+		nbUniqueOutputs: 0,
+	}
+}
+
+// NewWireBundle connects previous output wires to current input wires and initializes the current output wires
+func NewWireBundle(gate Gate, inputWires []*Wires, layer int) WireBundle {
+	inputs := make([]*Wires, len(inputWires))
+	for i := 0; i < len(inputWires); i++ {
+		inputs[i] = &Wires{
+			SameBundle:      true,
+			BundleIndex:     layer - 1, //takes inputs from previous layer
+			BundleLength:    len(inputs),
+			WireIndex:       i,
+			nbUniqueOutputs: inputWires[i].nbUniqueOutputs,
+		}
+	}
+
+	outputs := make([]*Wires, gate.NbOutputs())
+	for i := 0; i < len(outputs); i++ {
+		outputs[i] = &Wires{
+			SameBundle:      true,
+			BundleIndex:     layer,
+			BundleLength:    len(outputs),
+			WireIndex:       i,
+			nbUniqueOutputs: 0,
+		}
+	}
+
+	return WireBundle{
+		Gate:            gate,
+		Layer:           layer,
+		Inputs:          inputs,
+		Outputs:         outputs,
+		nbUniqueOutputs: 0,
+	}
+}
+
+type Wires struct {
+	SameBundle 	 bool
+	BundleIndex  int
+	BundleLength int
+	WireIndex    int
+	nbUniqueOutputs  int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
+}
+
+func getInputWire(outputWire *Wires) *Wires { // todo need to add layer for multiple gates in single layer
+	inputs := &Wires{
+			SameBundle:      true,
+			BundleIndex:     outputWire.BundleIndex - 1, //takes inputs from previous layer
+			BundleLength:    outputWire.BundleLength,
+			WireIndex:       outputWire.WireIndex,
+			nbUniqueOutputs: outputWire.nbUniqueOutputs,
+		}
+	return inputs
 }
 
 type Wire struct {
@@ -31,14 +138,91 @@ type Wire struct {
 
 // Gate must be a low-degree polynomial
 type GateEmulated[FR emulated.FieldParams] interface {
-	Evaluate(*sumcheck.EmuEngine[FR], ...*emulated.Element[FR]) *emulated.Element[FR]
+	Evaluate(*sumcheck.EmuEngine[FR], ...*emulated.Element[FR]) []*emulated.Element[FR]
+	NbInputs() int
+	NbOutputs() int
 	Degree() int
 }
 
 type WireEmulated[FR emulated.FieldParams] struct {
-	Gate            GateEmulated[FR]
-	Inputs          []*WireEmulated[FR] // if there are no Inputs, the wire is assumed an input wire
-	nbUniqueOutputs int                 // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
+	Gate             GateEmulated[FR]
+	Inputs           []*WireEmulated[FR] // if there are no Inputs, the wire is assumed an input wire
+	nbUniqueOutputs  int                 // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
+}
+
+type WireBundleEmulated[FR emulated.FieldParams] struct {
+	Gate             GateEmulated[FR]
+	Layer            int
+	Inputs           []*Wires // if there are no Inputs, the wire is assumed an input wire
+	Outputs          []*Wires `SameBundle:"true"` // if there are no Outputs, the wire is assumed an output wire
+	nbUniqueOutputs  int     // number of other wires using it as input, not counting duplicates (i.e. providing two inputs to the same gate counts as one)
+}
+
+// InitFirstWireBundle initializes the first WireBundle for Layer 0 padded with IdentityGate as relayer
+func InitFirstWireBundleEmulated[FR emulated.FieldParams](inputsLen int) WireBundleEmulated[FR] {
+	gate := IdentityGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{Arity: inputsLen}
+	inputs := make([]*Wires, inputsLen)
+	for i := 0; i < inputsLen; i++ {
+		inputs[i] = &Wires{
+			SameBundle:      true,
+			BundleIndex:     -1,
+			BundleLength:    inputsLen,
+			WireIndex:       i,
+			nbUniqueOutputs: 0,
+		}
+	}
+
+	outputs := make([]*Wires, gate.NbOutputs())
+	for i := 0; i < len(outputs); i++ {
+		outputs[i] = &Wires{
+			SameBundle:      true,
+			BundleIndex:     0,
+			BundleLength:    len(outputs),
+			WireIndex:       i,
+			nbUniqueOutputs: 0,
+		}
+	}
+
+	return WireBundleEmulated[FR]{
+		Gate:            gate,
+		Layer:           0,
+		Inputs:          inputs,
+		Outputs:         outputs,
+		nbUniqueOutputs: 0,
+	}
+}
+
+// NewWireBundle connects previous output wires to current input wires and initializes the current output wires
+func NewWireBundleEmulated[FR emulated.FieldParams](gate GateEmulated[FR], inputWires []*Wires, layer int) WireBundleEmulated[FR] {
+	inputs := make([]*Wires, len(inputWires))
+	for i := 0; i < len(inputWires); i++ {
+		inputs[i] = &Wires{
+			SameBundle:      true,
+			BundleIndex:     layer - 1,
+			BundleLength:    len(inputs),
+			WireIndex:       i,
+			nbUniqueOutputs: inputWires[i].nbUniqueOutputs,
+		}
+	}
+
+	outputs := make([]*Wires, gate.NbOutputs())
+	for i := 0; i < len(outputs); i++ {
+		outputs[i] = &Wires{
+			SameBundle:      true,
+			BundleIndex:     layer,
+			BundleLength:    len(outputs),
+			WireIndex:       i,
+			nbUniqueOutputs: 0,
+		}
+	}
+
+	return WireBundleEmulated[FR]{
+		Gate:            gate,
+		Layer:           layer,
+		Inputs:          inputs,
+		Outputs:         outputs,
+		nbUniqueOutputs: 0,
+	}
 }
 
 type Circuit []Wire
@@ -70,6 +254,41 @@ func (w Wire) noProof() bool {
 	return w.IsInput() && w.NbClaims() == 1
 }
 
+type CircuitBundle []WireBundle
+
+func (w WireBundle) IsInput() bool {
+	return w.Layer == 0
+}
+
+// func (w WireBundle) NbDiffBundlesInput() int {
+// 	for inputs := range 
+// 	return len(w.Inputs)
+// }
+
+func (w WireBundle) IsOutput() bool {
+	return w.nbUniqueOutputs == 0 && w.Layer != 0
+}
+
+func (w WireBundle) NbClaims() int {
+	//todo check this
+	if w.IsOutput() {
+		return w.Gate.NbOutputs()
+	}
+	return w.nbUniqueOutputs
+}
+
+func (w WireBundle) nbUniqueInputs() int {
+	set := make(map[*Wires]struct{}, len(w.Inputs))
+	for _, in := range w.Inputs {
+		set[in] = struct{}{}
+	}
+	return len(set)
+}
+
+func (w WireBundle) noProof() bool {
+	return w.IsInput() // && w.NbClaims() == 1
+}
+
 func (c Circuit) maxGateDegree() int {
 	res := 1
 	for i := range c {
@@ -78,6 +297,37 @@ func (c Circuit) maxGateDegree() int {
 		}
 	}
 	return res
+}
+
+type CircuitBundleEmulated[FR emulated.FieldParams] []WireBundleEmulated[FR]
+//todo change these methods
+func (w WireBundleEmulated[FR]) IsInput() bool {
+	return w.Layer == 0
+}
+
+func (w WireBundleEmulated[FR]) IsOutput() bool {
+	return w.nbUniqueOutputs == 0
+}
+
+//todo check this - assuming single claim per individual wire
+func (w WireBundleEmulated[FR]) NbClaims() int {
+	return w.Gate.NbOutputs()
+	// if w.IsOutput() {
+	// 	return 1
+	// }
+	//return w.nbUniqueOutputs
+}
+
+func (w WireBundleEmulated[FR]) nbUniqueInputs() int {
+	set := make(map[*Wires]struct{}, len(w.Inputs))
+	for _, in := range w.Inputs {
+		set[in] = struct{}{}
+	}
+	return len(set)
+}
+
+func (w WireBundleEmulated[FR]) noProof() bool {
+	return w.IsInput() // && w.NbClaims() == 1
 }
 
 type CircuitEmulated[FR emulated.FieldParams] []WireEmulated[FR]
@@ -110,15 +360,21 @@ func (w WireEmulated[FR]) noProof() bool {
 }
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
-type WireAssignment map[*Wire]sumcheck.NativeMultilinear
+type WireAssignment map[string]sumcheck.NativeMultilinear
+
+type WireAssignmentBundle map[*WireBundle]WireAssignment
 
 // WireAssignment is assignment of values to the same wire across many instances of the circuit
-type WireAssignmentEmulated[FR emulated.FieldParams] map[*WireEmulated[FR]]polynomial.Multilinear[FR]
+type WireAssignmentEmulated[FR emulated.FieldParams] map[*Wires]polynomial.Multilinear[FR]
+
+// WireAssignment is assignment of values to the same wire across many instances of the circuit
+type WireAssignmentBundleEmulated[FR emulated.FieldParams] map[*WireBundleEmulated[FR]]WireAssignmentEmulated[FR]
 
 type Proofs[FR emulated.FieldParams] []sumcheck.Proof[FR] // for each layer, for each wire, a sumcheck (for each variable, a polynomial)
 
 type eqTimesGateEvalSumcheckLazyClaimsEmulated[FR emulated.FieldParams] struct {
-	wire               *WireEmulated[FR]
+	wire               *Wires
+	commonGate 		    GateEmulated[FR]
 	evaluationPoints   [][]emulated.Element[FR]
 	claimedEvaluations []emulated.Element[FR]
 	manager            *claimsManagerEmulated[FR] // WARNING: Circular references
@@ -140,10 +396,47 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) CombinedSum(a *emulated.
 }
 
 func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) Degree(int) int {
-	return 1 + e.wire.Gate.Degree()
+	return 1 + e.commonGate.Degree()
 }
 
-func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof sumcheck.EvaluationProof) error {
+type eqTimesGateEvalSumcheckLazyClaimsBundleEmulated[FR emulated.FieldParams] struct {
+	wireBundle         *WireBundleEmulated[FR]
+	claimsMapOutputs   map[string]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]
+	claimsMapInputs    map[string]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]
+	verifier           *GKRVerifier[FR]
+	engine             *sumcheck.EmuEngine[FR]
+}
+
+// todo assuming single claim per wire
+func (e *eqTimesGateEvalSumcheckLazyClaimsBundleEmulated[FR]) NbClaims() int {
+	return len(e.claimsMapOutputs)
+}
+
+// to batch sumchecks in the bundle all claims should have the same number of variables - taking first outputwire
+func (e *eqTimesGateEvalSumcheckLazyClaimsBundleEmulated[FR]) NbVars() int {
+	return len(e.claimsMapOutputs[wireKey(e.wireBundle.Outputs[0])].evaluationPoints[0])
+}
+
+func (e *eqTimesGateEvalSumcheckLazyClaimsBundleEmulated[FR]) CombinedSum(a *emulated.Element[FR]) *emulated.Element[FR] {
+	challengesRLC := make([]*emulated.Element[FR], len(e.claimsMapOutputs))
+	for i := range challengesRLC {
+		challengesRLC[i] = e.engine.Const(big.NewInt(int64(1))) // todo check this
+	}
+	acc := e.engine.Const(big.NewInt(0))
+	for i, claim := range e.claimsMapOutputs {
+		_, wireIndex := parseWireKey(i)
+		sum := claim.CombinedSum(a)
+		sumRLC := e.engine.Mul(sum, challengesRLC[wireIndex])
+		acc = e.engine.Add(acc, sumRLC)
+	}
+	return acc
+}
+
+func (e *eqTimesGateEvalSumcheckLazyClaimsBundleEmulated[FR]) Degree(int) int {
+	return 1 + e.wireBundle.Gate.Degree()
+}
+
+func (e *eqTimesGateEvalSumcheckLazyClaimsBundleEmulated[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationCoeff, expectedValue *emulated.Element[FR], proof sumcheck.EvaluationProof) error {
 	inputEvaluationsNoRedundancy := proof.([]emulated.Element[FR])
 	field, err := emulated.NewField[FR](e.verifier.api)
 	if err != nil {
@@ -154,36 +447,56 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) AssertEvaluation(r []*em
 		return err
 	}
 
+	// todo for testing, get from transcript
+	challengesRLC := make([]*emulated.Element[FR], len(e.wireBundle.Outputs))
+	for i := range challengesRLC {
+		challengesRLC[i] = e.engine.Const(big.NewInt(int64(1))) //e.engine.Const(big.NewInt(int64(i)))
+	}
+
+	var evaluationFinal emulated.Element[FR]
+
 	// the eq terms
-	numClaims := len(e.evaluationPoints)
-	evaluation := p.EvalEqual(polynomial.FromSlice(e.evaluationPoints[numClaims-1]), r)
-	for i := numClaims - 2; i >= 0; i-- {
-		evaluation = field.Mul(evaluation, combinationCoeff)
-		eq := p.EvalEqual(polynomial.FromSlice(e.evaluationPoints[i]), r)
-		evaluation = field.Add(evaluation, eq)
+	evaluationEq := make([]*emulated.Element[FR], len(e.claimsMapOutputs))
+	for k, claims := range e.claimsMapOutputs {
+		_, wireIndex := parseWireKey(k)
+		numClaims := len(claims.evaluationPoints)
+		eval := p.EvalEqual(polynomial.FromSlice(claims.evaluationPoints[numClaims - 1]), r) // assuming single claim per wire
+		for i := numClaims - 2; i >= 0; i-- { 	// assuming single claim per wire so doesn't run
+			eval = field.Mul(eval, combinationCoeff)
+			eq  := p.EvalEqual(polynomial.FromSlice(claims.evaluationPoints[i]), r)
+			eval = field.Add(eval, eq)
+		}
+		evaluationEq[wireIndex] = eval
 	}
 
 	// the g(...) term
 	var gateEvaluation emulated.Element[FR]
-	if e.wire.IsInput() {
-		gateEvaluationPtr, err := p.EvalMultilinear(r, e.manager.assignment[e.wire])
-		if err != nil {
+	var gateEvaluations []emulated.Element[FR]
+	if e.wireBundle.IsInput() {
+		for _, output := range e.wireBundle.Outputs { // doing on output as first layer is dummy layer with identity gate
+			gateEvaluationsPtr, err := p.EvalMultilinear(r, e.claimsMapOutputs[wireKey(output)].manager.assignment[output])
+			if err != nil {
 			return err
+			}
+			gateEvaluations = append(gateEvaluations, *gateEvaluationsPtr)
+			for i, s := range gateEvaluations {
+				gateEvaluationRLC := e.engine.Mul(&s, challengesRLC[i])
+				gateEvaluation = *e.engine.Add(&gateEvaluation, gateEvaluationRLC)
+			}
 		}
-		gateEvaluation = *gateEvaluationPtr
 	} else {
-		inputEvaluations := make([]emulated.Element[FR], len(e.wire.Inputs))
-		indexesInProof := make(map[*WireEmulated[FR]]int, len(inputEvaluationsNoRedundancy))
+		inputEvaluations := make([]emulated.Element[FR], len(e.wireBundle.Inputs))
+		indexesInProof := make(map[*Wires]int, len(inputEvaluationsNoRedundancy))
 
 		proofI := 0
-		for inI, in := range e.wire.Inputs {
+		for inI, in := range e.wireBundle.Inputs {
 			indexInProof, found := indexesInProof[in]
 			if !found {
 				indexInProof = proofI
 				indexesInProof[in] = indexInProof
 
 				// defer verification, store new claim
-				e.manager.add(in, polynomial.FromSliceReferences(r), inputEvaluationsNoRedundancy[indexInProof])
+				e.claimsMapInputs[wireKey(in)].manager.add(in, polynomial.FromSliceReferences(r), inputEvaluationsNoRedundancy[indexInProof])
 				proofI++
 			}
 			inputEvaluations[inI] = inputEvaluationsNoRedundancy[indexInProof]
@@ -191,35 +504,88 @@ func (e *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]) AssertEvaluation(r []*em
 		if proofI != len(inputEvaluationsNoRedundancy) {
 			return fmt.Errorf("%d input wire evaluations given, %d expected", len(inputEvaluationsNoRedundancy), proofI)
 		}
-		gateEvaluation = *e.wire.Gate.Evaluate(e.engine, polynomial.FromSlice(inputEvaluations)...)
+		gateEvaluationOutputs := e.wireBundle.Gate.Evaluate(e.engine, polynomial.FromSlice(inputEvaluations)...)
+
+		for i , s := range gateEvaluationOutputs {
+			gateEvaluationMulEq := e.engine.Mul(s, evaluationEq[i])
+			evaluationRLC := e.engine.Mul(gateEvaluationMulEq, challengesRLC[i])
+			evaluationFinal = *e.engine.Add(&evaluationFinal, evaluationRLC)
+		}
 	}
 
-	evaluation = field.Mul(evaluation, &gateEvaluation)
-
-	field.AssertIsEqual(evaluation, expectedValue)
+	field.AssertIsEqual(&evaluationFinal, expectedValue)
 	return nil
 }
 
 type claimsManagerEmulated[FR emulated.FieldParams] struct {
-	claimsMap  map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]
+	claimsMap  map[string]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]
 	assignment WireAssignmentEmulated[FR]
 }
 
-func newClaimsManagerEmulated[FR emulated.FieldParams](c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], verifier GKRVerifier[FR]) (claims claimsManagerEmulated[FR]) {
+func (m *claimsManagerEmulated[FR]) add(wire *Wires, evaluationPoint []emulated.Element[FR], evaluation emulated.Element[FR]) {
+	claim := m.claimsMap[wireKey(wire)]
+
+	i := len(claim.evaluationPoints) //todo check this
+	claim.claimedEvaluations[i] = evaluation
+	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
+}
+
+type claimsManagerBundleEmulated[FR emulated.FieldParams] struct {
+	claimsMap  map[*WireBundleEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsBundleEmulated[FR]
+	assignment WireAssignmentBundleEmulated[FR]
+}
+
+func newClaimsManagerBundleEmulated[FR emulated.FieldParams](c CircuitBundleEmulated[FR], assignment WireAssignmentBundleEmulated[FR], verifier GKRVerifier[FR]) (claims claimsManagerBundleEmulated[FR]) {
 	claims.assignment = assignment
-	claims.claimsMap = make(map[*WireEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR], len(c))
+	claims.claimsMap = make(map[*WireBundleEmulated[FR]]*eqTimesGateEvalSumcheckLazyClaimsBundleEmulated[FR], len(c))
 	engine, err := sumcheck.NewEmulatedEngine[FR](verifier.api)
 	if err != nil {
 		panic(err)
 	}
-	for i := range c {
-		wire := &c[i]
 
-		claims.claimsMap[wire] = &eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]{
-			wire:               wire,
-			evaluationPoints:   make([][]emulated.Element[FR], 0, wire.NbClaims()),
-			claimedEvaluations: make(polynomial.Multilinear[FR], wire.NbClaims()),
-			manager:            &claims,
+	for i := range c {
+		wireBundle := &c[i]
+		claimsMapOutputs := make(map[string]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR], len(wireBundle.Outputs))
+		claimsMapInputs := make(map[string]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR], len(wireBundle.Inputs))
+
+		for _, wire := range wireBundle.Outputs {
+			inputClaimsManager := &claimsManagerEmulated[FR]{}
+			inputClaimsManager.assignment = assignment[wireBundle]
+			// todo we assume each individual wire has only one claim
+			inputClaimsManager.claimsMap = make(map[string]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR], 1)
+			new_claim := &eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]{
+				wire:               wire,
+				commonGate: 		wireBundle.Gate,
+				evaluationPoints:   make([][]emulated.Element[FR], 0, 1), // assuming single claim per wire
+				claimedEvaluations: make([]emulated.Element[FR], 1),
+				manager:            inputClaimsManager,
+				verifier:           &verifier,
+				engine:             engine,
+			}
+			inputClaimsManager.claimsMap[wireKey(wire)] = new_claim
+			claimsMapOutputs[wireKey(wire)] = new_claim
+		}
+		for _, wire := range wireBundle.Inputs {
+			inputClaimsManager := &claimsManagerEmulated[FR]{}
+			inputClaimsManager.assignment = assignment[wireBundle]
+			// todo we assume each individual wire has only one claim
+			inputClaimsManager.claimsMap = make(map[string]*eqTimesGateEvalSumcheckLazyClaimsEmulated[FR], 1)
+			new_claim := &eqTimesGateEvalSumcheckLazyClaimsEmulated[FR]{
+				wire:               wire,
+				commonGate: 		wireBundle.Gate,
+				evaluationPoints:   make([][]emulated.Element[FR], 0, 1), // assuming single claim per wire
+				claimedEvaluations: make([]emulated.Element[FR], 1),
+				manager:            inputClaimsManager,
+				verifier:           &verifier,
+				engine:             engine,
+			}
+			inputClaimsManager.claimsMap[wireKey(wire)] = new_claim
+			claimsMapInputs[wireKey(wire)] = new_claim
+		}
+		claims.claimsMap[wireBundle] = &eqTimesGateEvalSumcheckLazyClaimsBundleEmulated[FR]{
+			wireBundle: wireBundle,
+			claimsMapOutputs:   claimsMapOutputs,
+			claimsMapInputs:    claimsMapInputs,
 			verifier:           &verifier,
 			engine:             engine,
 		}
@@ -227,85 +593,186 @@ func newClaimsManagerEmulated[FR emulated.FieldParams](c CircuitEmulated[FR], as
 	return
 }
 
-func (m *claimsManagerEmulated[FR]) add(wire *WireEmulated[FR], evaluationPoint []emulated.Element[FR], evaluation emulated.Element[FR]) {
-	claim := m.claimsMap[wire]
+func (m *claimsManagerBundleEmulated[FR]) getLazyClaim(wire *WireBundleEmulated[FR]) *eqTimesGateEvalSumcheckLazyClaimsBundleEmulated[FR] {
+	return m.claimsMap[wire]
+}
+
+func (m *claimsManagerBundleEmulated[FR]) deleteClaim(wire *WireBundleEmulated[FR]) {
+	delete(m.claimsMap, wire)
+}
+
+type claimsManager struct {
+	claimsMap  map[string]*eqTimesGateEvalSumcheckLazyClaims
+	assignment WireAssignment
+}
+
+func wireKey(w *Wires) string { // todo need to add layer for multiple gates in single layer
+	return fmt.Sprintf("%d-%d", w.BundleIndex, w.WireIndex)
+}
+
+func getOuputWireKey(w *Wires) string { // todo need to add layer for multiple gates in single layer
+	return fmt.Sprintf("%d-%d", w.BundleIndex + 1, w.WireIndex)
+}
+
+func getInputWireKey(w *Wires) string { // todo need to add layer for multiple gates in single layer
+	return fmt.Sprintf("%d-%d", w.BundleIndex - 1, w.WireIndex)
+}
+
+func parseWireKey(key string) (int, int) {
+	var bundleIndex, wireIndex int
+	_, err := fmt.Sscanf(key, "%d-%d", &bundleIndex, &wireIndex)
+	if err != nil {
+		panic(err)
+	}
+	return bundleIndex, wireIndex
+}
+
+func (m *claimsManager) add(wire *Wires, evaluationPoint []big.Int, evaluation big.Int) {
+	fmt.Println("wire", wire.BundleIndex, wire.WireIndex)
+	claim := m.claimsMap[wireKey(wire)]
+	fmt.Println("claim.evaluationPoints", claim.evaluationPoints)
+	fmt.Println("claim.claimedEvaluations", claim.claimedEvaluations)
 	i := len(claim.evaluationPoints)
 	claim.claimedEvaluations[i] = evaluation
 	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
 }
 
-func (m *claimsManagerEmulated[FR]) getLazyClaim(wire *WireEmulated[FR]) *eqTimesGateEvalSumcheckLazyClaimsEmulated[FR] {
-	return m.claimsMap[wire]
+type claimsManagerBundle struct {
+	claimsMap  map[*WireBundle]*eqTimesGateEvalSumcheckLazyClaimsBundle
+	assignment WireAssignmentBundle
 }
 
-func (m *claimsManagerEmulated[FR]) deleteClaim(wire *WireEmulated[FR]) {
-	delete(m.claimsMap, wire)
-}
-
-type claimsManager struct {
-	claimsMap  map[*Wire]*eqTimesGateEvalSumcheckLazyClaims
-	assignment WireAssignment
-}
-
-func newClaimsManager(c Circuit, assignment WireAssignment) (claims claimsManager) {
+func newClaimsManagerBundle(c CircuitBundle, assignment WireAssignmentBundle) (claims claimsManagerBundle) {
 	claims.assignment = assignment
-	claims.claimsMap = make(map[*Wire]*eqTimesGateEvalSumcheckLazyClaims, len(c))
+	claims.claimsMap = make(map[*WireBundle]*eqTimesGateEvalSumcheckLazyClaimsBundle, len(c))
 
 	for i := range c {
-		wire := &c[i]
-
-		claims.claimsMap[wire] = &eqTimesGateEvalSumcheckLazyClaims{
-			wire:               wire,
-			evaluationPoints:   make([][]big.Int, 0, wire.NbClaims()),
-			claimedEvaluations: make([]big.Int, wire.NbClaims()),
-			manager:            &claims,
+		wireBundle := &c[i]
+		claimsMapOutputs := make(map[string]*eqTimesGateEvalSumcheckLazyClaims, len(wireBundle.Outputs))
+		claimsMapInputs := make(map[string]*eqTimesGateEvalSumcheckLazyClaims, len(wireBundle.Inputs))
+		for _, wire := range wireBundle.Outputs {
+			inputClaimsManager := &claimsManager{}
+			inputClaimsManager.assignment = assignment[wireBundle]
+			// todo we assume each individual wire has only one claim
+			inputClaimsManager.claimsMap = make(map[string]*eqTimesGateEvalSumcheckLazyClaims, len(wireBundle.Inputs))
+			new_claim := &eqTimesGateEvalSumcheckLazyClaims{
+				wire:               wire,
+				evaluationPoints:   make([][]big.Int, 0, 1), //assuming single claim per wire
+				claimedEvaluations: make([]big.Int, 1),
+				manager:            inputClaimsManager,
+			}
+			inputClaimsManager.claimsMap[wireKey(wire)] = new_claim
+			claimsMapOutputs[wireKey(wire)] = new_claim
+		}
+		for _, wire := range wireBundle.Inputs {
+			inputClaimsManager := &claimsManager{}
+			inputClaimsManager.assignment = assignment[wireBundle]
+			// todo we assume each individual wire has only one claim
+			inputClaimsManager.claimsMap = make(map[string]*eqTimesGateEvalSumcheckLazyClaims, len(wireBundle.Inputs))
+			new_claim := &eqTimesGateEvalSumcheckLazyClaims{
+				wire:               wire,
+				evaluationPoints:   make([][]big.Int, 0, 1), //assuming single claim per wire
+				claimedEvaluations: make([]big.Int, 1),
+				manager:            inputClaimsManager,
+			}
+			inputClaimsManager.claimsMap[wireKey(wire)] = new_claim
+			claimsMapInputs[wireKey(wire)] = new_claim
+		}
+		claims.claimsMap[wireBundle] = &eqTimesGateEvalSumcheckLazyClaimsBundle{
+			wireBundle: 	     wireBundle,
+			claimsMapOutputs:    claimsMapOutputs,
+			claimsMapInputs: 	 claimsMapInputs,
 		}
 	}
 	return
 }
 
-func (m *claimsManager) add(wire *Wire, evaluationPoint []big.Int, evaluation big.Int) {
-	claim := m.claimsMap[wire]
-	i := len(claim.evaluationPoints)
-	claim.claimedEvaluations[i] = evaluation
-	claim.evaluationPoints = append(claim.evaluationPoints, evaluationPoint)
-}
+func (m *claimsManagerBundle) getClaim(engine *sumcheck.BigIntEngine, wireBundle *WireBundle) *eqTimesGateEvalSumcheckClaimsBundle {	
+	lazyClaimsOutputs := m.claimsMap[wireBundle].claimsMapOutputs
+	lazyClaimsInputs := m.claimsMap[wireBundle].claimsMapInputs
+	claimsMapOutputs := make(map[string]*eqTimesGateEvalSumcheckClaims, len(lazyClaimsOutputs))
+	claimsMapInputs := make(map[string]*eqTimesGateEvalSumcheckClaims, len(lazyClaimsInputs))
+	for _, lazyClaim := range lazyClaimsOutputs {
+		output_claim := &eqTimesGateEvalSumcheckClaims{
+			wire:               lazyClaim.wire,
+			evaluationPoints:   lazyClaim.evaluationPoints,
+			claimedEvaluations: lazyClaim.claimedEvaluations,
+			manager:            lazyClaim.manager,
+			engine:             engine,
+		}
 
-func (m *claimsManager) getClaim(engine *sumcheck.BigIntEngine, wire *Wire) *eqTimesGateEvalSumcheckClaims {
-	lazy := m.claimsMap[wire]
-	res := &eqTimesGateEvalSumcheckClaims{
-		wire:               wire,
-		evaluationPoints:   lazy.evaluationPoints,
-		claimedEvaluations: lazy.claimedEvaluations,
-		manager:            m,
-		engine:             engine,
+		claimsMapOutputs[wireKey(lazyClaim.wire)] = output_claim
+		fmt.Println("lazyClaim.wire", lazyClaim.wire)
+		fmt.Println("lazyClaim.evaluationPoints", lazyClaim.evaluationPoints)
+		fmt.Println("lazyClaim.claimedEvaluations", lazyClaim.claimedEvaluations)
+
+		input_claims := &eqTimesGateEvalSumcheckClaims{
+			wire:               getInputWire(lazyClaim.wire),
+			evaluationPoints:   make([][]big.Int, 0, 1),
+			claimedEvaluations: make([]big.Int, 1),
+			manager:            lazyClaim.manager,
+			engine:             engine,
+		}
+
+		lazyClaim.manager.claimsMap[getInputWireKey(lazyClaim.wire)] = toLazyClaims(input_claims)
+		claimsMapInputs[getInputWireKey(lazyClaim.wire)] = input_claims
+		fmt.Println("lazyClaim.manager.claimsMap", lazyClaim.manager.claimsMap[getInputWireKey(lazyClaim.wire)])
+
+		if wireBundle.IsInput() {
+			output_claim.inputPreprocessors = []sumcheck.NativeMultilinear{m.assignment[wireBundle][getInputWireKey(lazyClaim.wire)]}	
+		} else {	
+			output_claim.inputPreprocessors = make([]sumcheck.NativeMultilinear, 1) //change this
+			output_claim.inputPreprocessors[0] = m.assignment[wireBundle][getInputWireKey(lazyClaim.wire)].Clone()
+			fmt.Println("getInputWire(lazyClaim.wire)", getInputWire(lazyClaim.wire))
+			fmt.Println("wireBundle.Layer", wireBundle.Layer)
+			// for wire, assignment := range m.assignment[wireBundle][getInputWire(lazyClaim.wire)] {
+			// 	fmt.Println("wire", wire)
+			// 	fmt.Println("assignment", assignment)
+			// }
+			fmt.Println("output_claims.inputPreprocessors[0]", output_claim.inputPreprocessors[0])
+		}
+
 	}
 
-	if wire.IsInput() {
-		res.inputPreprocessors = []sumcheck.NativeMultilinear{m.assignment[wire]}
-	} else {
-		res.inputPreprocessors = make([]sumcheck.NativeMultilinear, len(wire.Inputs))
+	// for _, lazyClaim := range lazyClaimsInputs {
+	// 	input_claims := &eqTimesGateEvalSumcheckClaims{
+	// 		wire:               lazyClaim.wire,
+	// 		evaluationPoints:   lazyClaim.evaluationPoints,
+	// 		claimedEvaluations: lazyClaim.claimedEvaluations,
+	// 		manager:            lazyClaim.manager,
+	// 		engine:             engine,
+	// 	}
 
-		for inputI, inputW := range wire.Inputs {
-			res.inputPreprocessors[inputI] = m.assignment[inputW].Clone()
-		}
+	// 	if wireBundle.IsInput() {
+	// 		input_claims.inputPreprocessors = []sumcheck.NativeMultilinear{m.assignment[wireBundle][lazyClaim.wire]}	
+	// 	} else {	
+	// 		input_claims.inputPreprocessors = make([]sumcheck.NativeMultilinear, 1) //change this
+	// 		input_claims.inputPreprocessors[0] = m.assignment[wireBundle][lazyClaim.wire].Clone()
+	// 		fmt.Println("input_claims.inputPreprocessors[0]", input_claims.inputPreprocessors[0])
+	// 	}
+	// }
+
+	res := &eqTimesGateEvalSumcheckClaimsBundle{
+		wireBundle:			 wireBundle,
+		claimsMapOutputs:    claimsMapOutputs,
+		claimsMapInputs: 	 claimsMapInputs,
 	}
 	return res
 }
 
-func (m *claimsManager) deleteClaim(wire *Wire) {
+func (m *claimsManagerBundle) deleteClaim(wire *WireBundle) {
 	delete(m.claimsMap, wire)
 }
 
 type eqTimesGateEvalSumcheckLazyClaims struct {
-	wire               *Wire
+	wire               *Wires
 	evaluationPoints   [][]big.Int // x in the paper
 	claimedEvaluations []big.Int   // y in the paper
 	manager            *claimsManager
 }
 
 type eqTimesGateEvalSumcheckClaims struct {
-	wire               *Wire
+	wire               *Wires
 	evaluationPoints   [][]big.Int // x in the paper
 	claimedEvaluations []big.Int   // y in the paper
 	manager            *claimsManager
@@ -313,6 +780,15 @@ type eqTimesGateEvalSumcheckClaims struct {
 	inputPreprocessors []sumcheck.NativeMultilinear // P_u in the paper, so that we don't need to pass along all the circuit's evaluations
 
 	eq sumcheck.NativeMultilinear // ∑_i τ_i eq(x_i, -)
+}
+
+func toLazyClaims(claims *eqTimesGateEvalSumcheckClaims) *eqTimesGateEvalSumcheckLazyClaims {
+	return &eqTimesGateEvalSumcheckLazyClaims{
+		wire:               claims.wire,
+		evaluationPoints:   claims.evaluationPoints,
+		claimedEvaluations: claims.claimedEvaluations,
+		manager:            claims.manager,
+	}
 }
 
 func (e *eqTimesGateEvalSumcheckClaims) NbClaims() int {
@@ -323,7 +799,7 @@ func (e *eqTimesGateEvalSumcheckClaims) NbVars() int {
 	return len(e.evaluationPoints[0])
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff *big.Int) sumcheck.NativePolynomial {
+func (c *eqTimesGateEvalSumcheckClaims) CombineWithoutComputeGJ(combinationCoeff *big.Int) {
 	varsNum := c.NbVars()
 	eqLength := 1 << varsNum
 	claimsNum := c.NbClaims()
@@ -350,102 +826,193 @@ func (c *eqTimesGateEvalSumcheckClaims) Combine(combinationCoeff *big.Int) sumch
 			aI.Mul(aI, combinationCoeff)
 		}
 	}
-
-	// from this point on the claim is a rather simple one: g = E(h) × R_v (P_u0(h), ...) where E and the P_u are multilinear and R_v is of low-degree
-	return c.computeGJ()
 }
 
-// computeGJ: gⱼ = ∑_{0≤i<2ⁿ⁻ʲ} g(r₁, r₂, ..., rⱼ₋₁, Xⱼ, i...) = ∑_{0≤i<2ⁿ⁻ʲ} E(r₁, ..., X_j, i...) R_v( P_u0(r₁, ..., X_j, i...), ... ) where  E = ∑ eq_k
+type eqTimesGateEvalSumcheckLazyClaimsBundle struct {
+	wireBundle         *WireBundle
+	claimsMapOutputs   map[string]*eqTimesGateEvalSumcheckLazyClaims
+	claimsMapInputs	   map[string]*eqTimesGateEvalSumcheckLazyClaims
+}
+
+type eqTimesGateEvalSumcheckClaimsBundle struct {
+	wireBundle         *WireBundle
+	claimsMapOutputs   map[string]*eqTimesGateEvalSumcheckClaims
+	claimsMapInputs	   map[string]*eqTimesGateEvalSumcheckClaims
+}
+// assuming each individual wire has a single claim
+func (e *eqTimesGateEvalSumcheckClaimsBundle) NbClaims() int {
+	return len(e.claimsMapOutputs)
+}
+// to batch sumchecks in the bundle all claims should have the same number of variables
+func (e *eqTimesGateEvalSumcheckClaimsBundle) NbVars() int {
+	return len(e.claimsMapOutputs[wireKey(e.wireBundle.Outputs[0])].evaluationPoints[0])
+}
+
+func (cB *eqTimesGateEvalSumcheckClaimsBundle) Combine(combinationCoeff *big.Int) sumcheck.NativePolynomial {
+	for _, claim := range cB.claimsMapOutputs {
+		claim.CombineWithoutComputeGJ(combinationCoeff)
+	}
+
+	// from this point on the claims are rather simple : g_i = E(h) × R_v (P_u0(h), ...) where E and the P_u are multilinear and R_v is of low-degree
+	// we batch sumchecks for g_i using RLC
+	return cB.bundleComputeGJ()
+}
+
+// bundleComputeGJ: gⱼ = ∑_{0≤i<2ⁿ⁻ʲ} g(r₁, r₂, ..., rⱼ₋₁, Xⱼ, i...) = ∑_{0≤i<2ⁿ⁻ʲ} E(r₁, ..., X_j, i...) R_v( P_u0(r₁, ..., X_j, i...), ... ) where  E = ∑ eq_k
 // the polynomial is represented by the evaluations g_j(1), g_j(2), ..., g_j(deg(g_j)).
 // The value g_j(0) is inferred from the equation g_j(0) + g_j(1) = gⱼ₋₁(rⱼ₋₁). By convention, g₀ is a constant polynomial equal to the claimed sum.
-func (c *eqTimesGateEvalSumcheckClaims) computeGJ() sumcheck.NativePolynomial {
-
-	degGJ := 1 + c.wire.Gate.Degree() // guaranteed to be no smaller than the actual deg(g_j)
-	nbGateIn := len(c.inputPreprocessors)
-
+func (cB *eqTimesGateEvalSumcheckClaimsBundle) bundleComputeGJ() sumcheck.NativePolynomial {
+	degGJ := 1 + cB.wireBundle.Gate.Degree() // guaranteed to be no smaller than the actual deg(g_j)
+	s := make([][]sumcheck.NativeMultilinear, len(cB.claimsMapOutputs))
 	// Let f ∈ { E(r₁, ..., X_j, d...) } ∪ {P_ul(r₁, ..., X_j, d...) }. It is linear in X_j, so f(m) = m×(f(1) - f(0)) + f(0), and f(0), f(1) are easily computed from the bookkeeping tables
-	s := make([]sumcheck.NativeMultilinear, nbGateIn+1)
-	s[0] = c.eq
-	copy(s[1:], c.inputPreprocessors)
+	for i, c := range cB.claimsMapOutputs {
+		_, wireIndex := parseWireKey(i)
+		s[wireIndex] = make([]sumcheck.NativeMultilinear, len(c.inputPreprocessors)+1)
+		s[wireIndex][0] = c.eq
+		copy(s[wireIndex][1:], c.inputPreprocessors)
+		fmt.Println("s", s[wireIndex])
+	}
 
 	// Perf-TODO: Collate once at claim "combination" time and not again. then, even folding can be done in one operation every time "next" is called
-	nbInner := len(s) // wrt output, which has high nbOuter and low nbInner
-	nbOuter := len(s[0]) / 2
-
+	nbInner := len(s[0])  // wrt output, which has high nbOuter and low nbInner
+	nbOuter := len(s[0][0]) / 2
 	gJ := make(sumcheck.NativePolynomial, degGJ)
 	for i := range gJ {
 		gJ[i] = new(big.Int)
 	}
 
-	step := new(big.Int)
+	println("nbOuter", nbOuter)
+	println("nbInner", nbInner)
+
+	engine := cB.claimsMapOutputs[wireKey(cB.wireBundle.Outputs[0])].engine
+
+	step := make([]*big.Int, len(cB.claimsMapOutputs))
+	for i := range step {
+		step[i] = new(big.Int)
+	}
 	res := make([]*big.Int, degGJ)
 	for i := range res {
 		res[i] = new(big.Int)
 	}
-	operands := make([]*big.Int, degGJ*nbInner)
-	for i := range operands {
-		operands[i] = new(big.Int)
+
+	// operands := make([][]*big.Int, len(cB.claims))
+	// for t, c := range cB.claims {
+	// 	_, wireIndex := parseWireKey(t)
+	// 	operands[wireIndex] = make([]*big.Int, degGJ*nbInner)
+	// 	for k := range operands[wireIndex] {
+	// 		operands[wireIndex][k] = new(big.Int)
+	// 	}
+
+	// 	for i := 0; i < nbOuter; i++ {
+	// 		block := nbOuter + i
+	// 		for j := 0; j < nbInner; j++ {
+	// 			// TODO: instead of set can assign?
+	// 			step[wireIndex].Set(s[wireIndex][j][i])
+	// 			operands[wireIndex][j].Set(s[wireIndex][j][block])
+	// 			fmt.Println("operands[", wireIndex, "][", j, "]", operands[wireIndex][j])
+	// 			step[wireIndex] = c.engine.Sub(operands[wireIndex][j], step[wireIndex])
+	// 			for d := 1; d < degGJ; d++ {
+	// 				operands[wireIndex][d*nbInner+j] = c.engine.Add(operands[wireIndex][(d-1)*nbInner+j], step[wireIndex])
+	// 				fmt.Println("operands[", wireIndex, "][", d*nbInner+j, "]", operands[wireIndex][d*nbInner+j])
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	operands := make([][]*big.Int, degGJ*nbInner)
+	for op := range operands {
+		operands[op] = make([]*big.Int, len(cB.claimsMapOutputs))
+		for k := range cB.claimsMapOutputs {
+			_, wireIndex := parseWireKey(k)
+			operands[op][wireIndex] = new(big.Int)
+		}
 	}
 
 	for i := 0; i < nbOuter; i++ {
 		block := nbOuter + i
 		for j := 0; j < nbInner; j++ {
-			// TODO: instead of set can assign?
-			step.Set(s[j][i])
-			operands[j].Set(s[j][block])
-			step = c.engine.Sub(operands[j], step)
-			for d := 1; d < degGJ; d++ {
-				operands[d*nbInner+j] = c.engine.Add(operands[(d-1)*nbInner+j], step)
+			for k, claim := range cB.claimsMapOutputs {
+				_, wireIndex := parseWireKey(k)
+				// TODO: instead of set can assign?
+				step[wireIndex].Set(s[wireIndex][j][i])
+				operands[j][wireIndex].Set(s[wireIndex][j][block])
+				step[wireIndex] = claim.engine.Sub(operands[j][wireIndex], step[wireIndex])
+				for d := 1; d < degGJ; d++ {
+					operands[d*nbInner+j][wireIndex] = claim.engine.Add(operands[(d-1)*nbInner+j][wireIndex], step[wireIndex])
+				}
 			}
 		}
-		_s := 0
-		_e := nbInner
-		for d := 0; d < degGJ; d++ {
-			summand := c.wire.Gate.Evaluate(c.engine, operands[_s+1:_e]...)
-			summand = c.engine.Mul(summand, operands[_s])
-			res[d] = c.engine.Add(res[d], summand)
-			_s, _e = _e, _e+nbInner
-		}
 	}
+	
+	_s := 0
+	_e := nbInner
+	for d := 0; d < degGJ; d++ {
+		summands := cB.wireBundle.Gate.Evaluate(engine, operands[_s+1:_e][0]...) // TODO WHY USING [0]
+		// todo: get challenges from transcript
+		// for testing only
+		challengesRLC := make([]*big.Int, len(summands))
+		for i := range challengesRLC {
+			challengesRLC[i] = big.NewInt(int64(1))
+		}
+
+		summand := big.NewInt(0)
+		for i , s := range summands {
+			//multiplying eq with corresponding gateEval
+			summandMulEq := engine.Mul(s, operands[_s][i])
+			summandRLC := engine.Mul(summandMulEq, challengesRLC[i])
+			summand = engine.Add(summand, summandRLC)
+		}
+		
+		res[d] = engine.Add(res[d], summand)
+		_s, _e = _e, _e+nbInner
+	}
+
 	for i := 0; i < degGJ; i++ {
-		gJ[i] = c.engine.Add(gJ[i], res[i])
+		gJ[i] = engine.Add(gJ[i], res[i])
 	}
 	return gJ
 }
 
 // Next first folds the "preprocessing" and "eq" polynomials then compute the new g_j
-func (c *eqTimesGateEvalSumcheckClaims) Next(element *big.Int) sumcheck.NativePolynomial {
-	for i := 0; i < len(c.inputPreprocessors); i++ {
-		sumcheck.Fold(c.engine, c.inputPreprocessors[i], element)
+func (c *eqTimesGateEvalSumcheckClaimsBundle) Next(element *big.Int) sumcheck.NativePolynomial {
+	for _, claim := range c.claimsMapOutputs {
+		for i := 0; i < len(claim.inputPreprocessors); i++ {
+			sumcheck.Fold(claim.engine, claim.inputPreprocessors[i], element)
+		}
+		sumcheck.Fold(claim.engine, claim.eq, element)
 	}
-	sumcheck.Fold(c.engine, c.eq, element)
 
-	return c.computeGJ()
+	return c.bundleComputeGJ()
 }
 
-func (c *eqTimesGateEvalSumcheckClaims) ProverFinalEval(r []*big.Int) sumcheck.NativeEvaluationProof {
-
+func (c *eqTimesGateEvalSumcheckClaimsBundle) ProverFinalEval(r []*big.Int) sumcheck.NativeEvaluationProof {
+	engine := c.claimsMapOutputs[wireKey(c.wireBundle.Outputs[0])].engine
 	//defer the proof, return list of claims
-	evaluations := make([]big.Int, 0, len(c.wire.Inputs))
-	noMoreClaimsAllowed := make(map[*Wire]struct{}, len(c.inputPreprocessors))
-	noMoreClaimsAllowed[c.wire] = struct{}{}
-
-	for inI, in := range c.wire.Inputs {
-		puI := c.inputPreprocessors[inI]
+	evaluations := make([]big.Int, len(c.wireBundle.Outputs))
+	noMoreClaimsAllowed := make(map[*Wires]struct{}, len(c.claimsMapOutputs))
+	for _, claim := range c.claimsMapInputs {
+		noMoreClaimsAllowed[claim.wire] = struct{}{}
+	}
+	// each claim corresponds to a wireBundle, P_u is folded and added to corresponding claimBundle
+	for _, in  := range c.wireBundle.Inputs {
+		puI := c.claimsMapOutputs[getOuputWireKey(in)].inputPreprocessors[0] //todo change this - maybe not required
+		fmt.Println("puI", puI)
 		if _, found := noMoreClaimsAllowed[in]; !found {
 			noMoreClaimsAllowed[in] = struct{}{}
-			sumcheck.Fold(c.engine, puI, r[len(r)-1])
+			sumcheck.Fold(engine, puI, r[len(r)-1])
 			puI0 := new(big.Int).Set(puI[0])
-			c.manager.add(in, sumcheck.DereferenceBigIntSlice(r), *puI0)
-			evaluations = append(evaluations, *puI0)
+			c.claimsMapInputs[wireKey(in)].manager.add(in, sumcheck.DereferenceBigIntSlice(r), *puI0)
+			evaluations[in.WireIndex] = *puI0
 		}
 	}
-
+	for i := range evaluations {
+		fmt.Println("evaluations[", i, "]", evaluations[i].String())
+	}
 	return evaluations
 }
 
-func (e *eqTimesGateEvalSumcheckClaims) Degree(int) int {
-	return 1 + e.wire.Gate.Degree()
+func (e *eqTimesGateEvalSumcheckClaimsBundle) Degree(int) int {
+	return 1 + e.wireBundle.Gate.Degree()
 }
 
 func setup(current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, options ...OptionGkr) (settings, error) {
@@ -484,8 +1051,52 @@ func setup(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 	return o, err
 }
 
+func setupBundle(current *big.Int, target *big.Int, c CircuitBundle, assignment WireAssignmentBundle, options ...OptionGkrBundle) (settingsBundle, error) {
+	var o settingsBundle
+	var err error
+	for _, option := range options {
+		option(&o)
+	}
+
+	o.nbVars = assignment.NumVars()
+	nbInstances := assignment.NumInstances()
+	if 1<<o.nbVars != nbInstances {
+		return o, fmt.Errorf("number of instances must be power of 2")
+	}
+
+	if o.sorted == nil {
+		o.sorted = topologicalSortBundle(c)
+	}
+
+	if o.transcript == nil {
+
+		challengeNames := ChallengeNamesBundle(o.sorted, o.nbVars, o.transcriptPrefix)
+		fshash, err := recursion.NewShort(current, target)
+		if err != nil {
+			return o, fmt.Errorf("new short hash: %w", err)
+		}
+		o.transcript = cryptofiatshamir.NewTranscript(fshash, challengeNames...)
+
+		// bind challenge from previous round if it is a continuation
+		if err = sumcheck.BindChallengeProver(o.transcript, challengeNames[0], o.baseChallenges); err != nil {
+			return o, fmt.Errorf("base: %w", err)
+		}
+
+	}
+
+	return o, err
+}
+
 type settings struct {
 	sorted           []*Wire
+	transcript       *cryptofiatshamir.Transcript
+	baseChallenges   []*big.Int
+	transcriptPrefix string
+	nbVars           int
+}
+
+type settingsBundle struct {
+	sorted           []*WireBundle
 	transcript       *cryptofiatshamir.Transcript
 	baseChallenges   []*big.Int
 	transcriptPrefix string
@@ -504,8 +1115,10 @@ type NativeProofs []sumcheck.NativeProof
 
 type OptionGkr func(*settings)
 
+type OptionGkrBundle func(*settingsBundle)
+
 type SettingsEmulated[FR emulated.FieldParams] struct {
-	sorted           []*WireEmulated[FR]
+	sorted           []*WireBundleEmulated[FR]
 	transcript       *fiatshamir.Transcript
 	transcriptPrefix string
 	nbVars           int
@@ -513,7 +1126,7 @@ type SettingsEmulated[FR emulated.FieldParams] struct {
 
 type OptionEmulated[FR emulated.FieldParams] func(*SettingsEmulated[FR])
 
-func WithSortedCircuitEmulated[FR emulated.FieldParams](sorted []*WireEmulated[FR]) OptionEmulated[FR] {
+func WithSortedCircuitEmulated[FR emulated.FieldParams](sorted []*WireBundleEmulated[FR]) OptionEmulated[FR] {
 	return func(options *SettingsEmulated[FR]) {
 		options.sorted = sorted
 	}
@@ -563,7 +1176,7 @@ func (v *GKRVerifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName
 	return nil
 }
 
-func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], transcriptSettings fiatshamir.SettingsEmulated[FR], options ...OptionEmulated[FR]) (SettingsEmulated[FR], error) {
+func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitBundleEmulated[FR], assignment WireAssignmentBundleEmulated[FR], transcriptSettings fiatshamir.SettingsEmulated[FR], options ...OptionEmulated[FR]) (SettingsEmulated[FR], error) {
 	var fr FR
 	var o SettingsEmulated[FR]
 	var err error
@@ -583,7 +1196,7 @@ func (v *GKRVerifier[FR]) setup(api frontend.API, c CircuitEmulated[FR], assignm
 	}
 
 	if o.sorted == nil {
-		o.sorted = topologicalSortEmulated(c)
+		o.sorted = topologicalSortBundleEmulated(c)
 	}
 
 	if transcriptSettings.Transcript == nil {
@@ -671,7 +1284,55 @@ func ChallengeNames(sorted []*Wire, logNbInstances int, prefix string) []string 
 	return challenges
 }
 
-func ChallengeNamesEmulated[FR emulated.FieldParams](sorted []*WireEmulated[FR], logNbInstances int, prefix string) []string {
+func ChallengeNamesBundle(sorted []*WireBundle, logNbInstances int, prefix string) []string {
+
+	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
+	size := logNbInstances // first challenge
+
+	for _, w := range sorted {
+		if w.noProof() { // no proof, no challenge
+			continue
+		}
+		if w.NbClaims() > 1 { //combine the claims
+			size++
+		}
+		size += logNbInstances // full run of sumcheck on logNbInstances variables
+	}
+
+	nums := make([]string, max(len(sorted), logNbInstances))
+	for i := range nums {
+		nums[i] = strconv.Itoa(i)
+	}
+
+	challenges := make([]string, size)
+
+	// output wire claims
+	firstChallengePrefix := prefix + "fC."
+	for j := 0; j < logNbInstances; j++ {
+		challenges[j] = firstChallengePrefix + nums[j]
+	}
+	j := logNbInstances
+	for i := len(sorted) - 1; i >= 0; i-- {
+		if sorted[i].noProof() {
+			continue
+		}
+		wirePrefix := prefix + "w" + nums[i] + "."
+
+		if sorted[i].NbClaims() > 1 {
+			challenges[j] = wirePrefix + "comb"
+			j++
+		}
+
+		partialSumPrefix := wirePrefix + "pSP."
+		for k := 0; k < logNbInstances; k++ {
+			challenges[j] = partialSumPrefix + nums[k]
+			j++
+		}
+	}
+	return challenges
+}
+
+func ChallengeNamesEmulated[FR emulated.FieldParams](sorted []*WireBundleEmulated[FR], logNbInstances int, prefix string) []string {
 
 	// Pre-compute the size TODO: Consider not doing this and just grow the list by appending
 	size := logNbInstances // first challenge
@@ -747,15 +1408,14 @@ func (v *GKRVerifier[FR]) getChallengesFr(transcript *fiatshamir.Transcript, nam
 }
 
 // Prove consistency of the claimed assignment
-func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignment, transcriptSettings fiatshamir.SettingsBigInt, options ...OptionGkr) (NativeProofs, error) {
+func Prove(current *big.Int, target *big.Int, c CircuitBundle, assignment WireAssignmentBundle, transcriptSettings fiatshamir.SettingsBigInt, options ...OptionGkrBundle) (NativeProofs, error) {
 	be := sumcheck.NewBigIntEngine(target)
-	o, err := setup(current, target, c, assignment, options...)
+	o, err := setupBundle(current, target, c, assignment, options...)
 	if err != nil {
 		return nil, err
 	}
 
-	claims := newClaimsManager(c, assignment)
-
+	claimBundle := newClaimsManagerBundle(c, assignment)
 	proof := make(NativeProofs, len(c))
 	challengeNames := getFirstChallengeNames(o.nbVars, o.transcriptPrefix)
 	// firstChallenge called rho in the paper
@@ -767,26 +1427,34 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 		}
 	}
 
+	for _, challenge := range firstChallenge {
+		println("challenge", challenge.String())
+	}
+
 	var baseChallenge []*big.Int
 	for i := len(c) - 1; i >= 0; i-- {
-		wire := o.sorted[i]
+		println("i", i)
+		wireBundle := o.sorted[i]
+		claimBundleMap := claimBundle.claimsMap[wireBundle]
 
-		if wire.IsOutput() {
-			evaluation := sumcheck.Eval(be, assignment[wire], firstChallenge)
-			claims.add(wire, sumcheck.DereferenceBigIntSlice(firstChallenge), *evaluation)
+		if wireBundle.IsOutput() {
+			for _ , outputs := range wireBundle.Outputs {
+				evaluation := sumcheck.Eval(be, assignment[wireBundle][wireKey(outputs)], firstChallenge)
+				claimBundleMap.claimsMapOutputs[wireKey(outputs)].manager.add(outputs, sumcheck.DereferenceBigIntSlice(firstChallenge), *evaluation)
+			}
 		}
 
-		claim := claims.getClaim(be, wire)
+		claimBundleSumcheck := claimBundle.getClaim(be, wireBundle)
 		var finalEvalProofLen int
 
-		if wire.noProof() { // input wires with one claim only
+		if wireBundle.noProof() { // input wires with one claim only
 			proof[i] = sumcheck.NativeProof{
 				RoundPolyEvaluations: []sumcheck.NativePolynomial{},
 				FinalEvalProof:       sumcheck.NativeDeferredEvalProof([]big.Int{}),
 			}
 		} else {
 			proof[i], err = sumcheck.Prove(
-				current, target, claim,
+				current, target, claimBundleSumcheck,
 			)
 			if err != nil {
 				return proof, err
@@ -811,7 +1479,7 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 			}
 		}
 		// the verifier checks a single claim about input wires itself
-		claims.deleteClaim(wire)
+		claimBundle.deleteClaim(wireBundle)
 	}
 
 	return proof, nil
@@ -820,7 +1488,7 @@ func Prove(current *big.Int, target *big.Int, c Circuit, assignment WireAssignme
 // Verify the consistency of the claimed output with the claimed input
 // Unlike in Prove, the assignment argument need not be complete,
 // Use valueOfProof[FR](proof) to convert nativeproof by prover into nonnativeproof used by in-circuit verifier
-func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assignment WireAssignmentEmulated[FR], proof Proofs[FR], transcriptSettings fiatshamir.SettingsEmulated[FR], options ...OptionEmulated[FR]) error {
+func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitBundleEmulated[FR], assignment WireAssignmentBundleEmulated[FR], proof Proofs[FR], transcriptSettings fiatshamir.SettingsEmulated[FR], options ...OptionEmulated[FR]) error {
 	o, err := v.setup(api, c, assignment, transcriptSettings, options...)
 	if err != nil {
 		return err
@@ -830,7 +1498,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 		return err
 	}
 
-	claims := newClaimsManagerEmulated[FR](c, assignment, *v)
+	claimBundle := newClaimsManagerBundleEmulated[FR](c, assignment, *v)
 	var firstChallenge []emulated.Element[FR]
 	firstChallenge, err = v.getChallengesFr(o.transcript, getFirstChallengeNames(o.nbVars, o.transcriptPrefix))
 	if err != nil {
@@ -839,26 +1507,32 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 
 	var baseChallenge []emulated.Element[FR]
 	for i := len(c) - 1; i >= 0; i-- {
-		wire := o.sorted[i]
-		if wire.IsOutput() {
-			var evaluation emulated.Element[FR]
-			evaluationPtr, err := v.p.EvalMultilinear(polynomial.FromSlice(firstChallenge), assignment[wire])
-			if err != nil {
-				return err
+		wireBundle := o.sorted[i]
+		claimBundleMap := claimBundle.claimsMap[wireBundle]
+		if wireBundle.IsOutput() && !wireBundle.IsInput() { //todo fix this
+			for _, outputs := range wireBundle.Outputs {
+				var evaluation emulated.Element[FR]
+				evaluationPtr, err := v.p.EvalMultilinear(polynomial.FromSlice(firstChallenge), assignment[wireBundle][outputs])
+				if err != nil {
+					return err
+				}
+				evaluation = *evaluationPtr
+				claimBundleMap.claimsMapOutputs[wireKey(outputs)].manager.add(outputs, firstChallenge, evaluation)
 			}
-			evaluation = *evaluationPtr
-			claims.add(wire, firstChallenge, evaluation)
 		}
 
 		proofW := proof[i]
 		finalEvalProof := proofW.FinalEvalProof
-		claim := claims.getLazyClaim(wire)
+		claim := claimBundle.getLazyClaim(wireBundle)
 
-		if wire.noProof() { // input wires with one claim only
+		if wireBundle.noProof() { // input wires with one claim only
 			// make sure the proof is empty
 			// make sure finalevalproof is of type deferred for gkr
+			println("wireBundle.noProof()", wireBundle.noProof())
 			var proofLen int
 			switch proof := finalEvalProof.(type) {
+			case nil: //todo check this
+				proofLen = 0
 			case []emulated.Element[FR]:
 				proofLen = len(sumcheck.DeferredEvalProof[FR](proof))
 			default:
@@ -869,15 +1543,19 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 				return fmt.Errorf("no proof allowed for input wire with a single claim")
 			}
 
-			if wire.NbClaims() == 1 { // input wire
+			if wireBundle.NbClaims() == len(wireBundle.Inputs) { // input wire // todo fix this
 				// simply evaluate and see if it matches
-				var evaluation emulated.Element[FR]
-				evaluationPtr, err := v.p.EvalMultilinear(polynomial.FromSlice(claim.evaluationPoints[0]), assignment[wire])
+				fmt.Println("wireBundle.layer", wireBundle.Layer)
+				fmt.Println("wireBundle.NbClaims()", wireBundle.NbClaims())
+				for _, output := range wireBundle.Outputs {
+					var evaluation emulated.Element[FR]
+					evaluationPtr, err := v.p.EvalMultilinear(polynomial.FromSlice(claim.claimsMapOutputs[wireKey(output)].manager.claimsMap[wireKey(output)].evaluationPoints[0]), assignment[wireBundle][output])
 				if err != nil {
 					return err
 				}
-				evaluation = *evaluationPtr
-				v.f.AssertIsEqual(&claim.claimedEvaluations[0], &evaluation)
+					evaluation = *evaluationPtr
+					v.f.AssertIsEqual(&claim.claimsMapOutputs[wireKey(output)].claimedEvaluations[0], &evaluation)
+				}
 			}
 		} else if err = sumcheck_verifier.Verify(
 			claim, proof[i],
@@ -892,7 +1570,7 @@ func (v *GKRVerifier[FR]) Verify(api frontend.API, c CircuitEmulated[FR], assign
 		} else {
 			return err
 		}
-		claims.deleteClaim(wire)
+		claimBundle.deleteClaim(wireBundle)
 	}
 	return nil
 }
@@ -924,10 +1602,43 @@ func outputsList(c Circuit, indexes map[*Wire]int) [][]int {
 	return res
 }
 
+func outputsListBundle(c CircuitBundle, indexes map[*WireBundle]map[*Wires]int) [][][]int {
+	res := make([][][]int, len(c))
+	for i := range c {
+		res[i] = make([][]int, len(c[i].Inputs))
+		c[i].nbUniqueOutputs = 0
+		// if c[i].IsInput() {
+		// 	c[i].Gate = IdentityGate[*sumcheck.BigIntEngine, *big.Int]{ Arity: len(c[i].Inputs) }
+		// }
+	}
+	ins := make(map[int]struct{}, len(c))
+	for i := range c {
+			for k := range ins { // clear map
+				delete(ins, k)
+			}
+			for _, in := range c[i].Inputs {
+				inI := indexes[&c[i]][in]
+				res[i][inI] = append(res[i][inI], len(c[i].Inputs))
+				if _, ok := ins[inI]; !ok {
+					in.nbUniqueOutputs++
+					ins[inI] = struct{}{}
+				}
+			}
+	}
+	return res
+}
+
 type topSortData struct {
 	outputs    [][]int
 	status     []int // status > 0 indicates number of inputs left to be ready. status = 0 means ready. status = -1 means done
 	index      map[*Wire]int
+	leastReady int
+}
+
+type topSortDataBundle struct {
+	outputs    [][][]int
+	status     [][]int // status > 0 indicates number of inputs left to be ready. status = 0 means ready. status = -1 means done
+	index      map[*WireBundle]map[*Wires]int
 	leastReady int
 }
 
@@ -947,10 +1658,41 @@ func (d *topSortData) markDone(i int) {
 	}
 }
 
+func (d *topSortDataBundle) markDone(i int, j int) {
+	fmt.Println("len d.status[", i, "]", len(d.status[i]))
+	d.status[i][j] = -1
+	fmt.Println("d.status[", i, "][", j, "]", d.status[i][j])
+	fmt.Println("len d.outputs[", i, "]", len(d.outputs[i]))
+	for _, outI := range d.outputs[i][j] {
+		fmt.Println("outI", outI)
+		fmt.Println("j", j)
+		fmt.Println("i", i)
+		d.status[j][outI]--
+		if d.status[j][outI] == 0 && outI < d.leastReady {
+			d.leastReady = outI
+		}
+	}
+
+	for d.leastReady < len(d.status) && d.status[i][d.leastReady] != 0 {
+		d.leastReady++
+	}
+}
+
 func indexMap(c Circuit) map[*Wire]int {
 	res := make(map[*Wire]int, len(c))
 	for i := range c {
 		res[&c[i]] = i
+	}
+	return res
+}
+
+func indexMapBundle(c CircuitBundle) map[*WireBundle]map[*Wires]int {
+	res := make(map[*WireBundle]map[*Wires]int, len(c))
+	for i := range c {
+		res[&c[i]] = make(map[*Wires]int, len(c[i].Inputs))
+		for j := range c[i].Inputs {
+			res[&c[i]][c[i].Inputs[j]] = j
+		}
 	}
 	return res
 }
@@ -963,14 +1705,53 @@ func statusList(c Circuit) []int {
 	return res
 }
 
-type IdentityGate[AE sumcheck.ArithEngine[E], E element] struct{}
+func statusListBundle(c CircuitBundle) [][]int {
+	res := make([][]int, len(c))
+	for i := range c {
+		res[i] = make([]int, len(c[i].Inputs))
+		for j := range c[i].Inputs {
+			if c[i].IsInput() {
+				res[i][j] = 0
+			} else {
+				res[i][j] = len(c[i].Inputs)
+			}
+		}
 
-func (IdentityGate[AE, E]) Evaluate(api AE, input ...E) E {
-	return input[0]
+		for range c[i].Outputs {
+			res[i] = append(res[i], len(c[i].Outputs))
+			// todo fix this
+			// if c[i].IsOutput() {
+			// 	res[i][j] = 0
+			// } else {
+			// 	res[i][j] = len(c[i].Inputs)
+			// }
+		}
+	}
+	return res
+}
+
+type IdentityGate[AE sumcheck.ArithEngine[E], E element] struct{
+	Arity int
+}
+
+func (gate IdentityGate[AE, E]) NbOutputs() int {
+	return gate.Arity
+}
+
+func (IdentityGate[AE, E]) Evaluate(api AE, input ...E) []E {
+	return input
 }
 
 func (IdentityGate[AE, E]) Degree() int {
 	return 1
+}
+
+func (gate IdentityGate[AE, E]) NbInputs() int {
+	return gate.Arity
+}
+
+func (gate IdentityGate[AE, E]) GetName() string {
+	return "identity"
 }
 
 // outputsList also sets the nbUniqueOutputs fields. It also sets the wire metadata.
@@ -1064,34 +1845,100 @@ func topologicalSort(c Circuit) []*Wire {
 	return sorted
 }
 
+func topologicalSortBundle(c CircuitBundle) []*WireBundle {
+	// var data topSortDataBundle
+	// data.index = indexMapBundle(c)
+	// data.outputs = outputsListBundle(c, data.index)
+	// data.status = statusListBundle(c)
+	// fmt.Println("data.status", data.status)
+	// sorted := make([]*WireBundle, len(c))
+
+	// data.leastReady = 0
+	// for i := range c {
+	// 	fmt.Println("data.status[", i, "][", data.leastReady, "]", data.status[i][data.leastReady])
+	// 	for data.leastReady < len(data.status[i]) - 1 && data.status[i][data.leastReady] != 0 {
+	// 		data.leastReady++
+	// 	}
+	// 	fmt.Println("data.leastReady", data.leastReady)
+	// }
+	// 	// if data.leastReady < len(data.status[i]) - 1 && data.status[i][data.leastReady] != 0 {
+	// 	// 	break
+	// // }
+
+	// for i := range c {
+	// 	fmt.Println("data.leastReady", data.leastReady)
+	// 	fmt.Println("i", i)
+	// 	sorted[i] = &c[i] // .wires[data.leastReady]
+	// 	data.markDone(i, data.leastReady)
+	// }
+
+	//return sorted
+
+	sorted := make([]*WireBundle, len(c))
+	for i := range c {
+		sorted[i] = &c[i]
+	}
+	return sorted
+}
+
 // Complete the circuit evaluation from input values
-func (a WireAssignment) Complete(c Circuit, target *big.Int) WireAssignment {
+func (a WireAssignmentBundle) Complete(c CircuitBundle, target *big.Int) WireAssignmentBundle {
 
 	engine := sumcheck.NewBigIntEngine(target)
-	sortedWires := topologicalSort(c)
+	sortedWires := topologicalSortBundle(c)
 	nbInstances := a.NumInstances()
 	maxNbIns := 0
 
 	for _, w := range sortedWires {
 		maxNbIns = utils.Max(maxNbIns, len(w.Inputs))
-		if a[w] == nil {
-			a[w] = make([]*big.Int, nbInstances)
+		for _, output := range w.Outputs {
+			if a[w][wireKey(output)] == nil {
+				a[w][wireKey(output)] = make(sumcheck.NativeMultilinear, nbInstances)
+			}
+		}
+		for _, input := range w.Inputs {
+			if a[w][wireKey(input)] == nil {
+				a[w][wireKey(input)] = make(sumcheck.NativeMultilinear, nbInstances)
+			}
 		}
 	}
 
-	parallel.Execute(nbInstances, func(start, end int) {
-		ins := make([]*big.Int, maxNbIns)
-		for i := start; i < end; i++ {
-			for _, w := range sortedWires {
-				if !w.IsInput() {
-					for inI, in := range w.Inputs {
-						ins[inI] = a[in][i]
-					}
-					a[w][i] = w.Gate.Evaluate(engine, ins[:len(w.Inputs)]...)
+	// parallel.Execute(nbInstances, func(start, end int) {
+	// 	ins := make([]*big.Int, maxNbIns)
+	// 	for i := start; i < end; i++ {
+	// 		for _, w := range sortedWires {
+	// 			if !w.IsInput() {
+	// 				for inI, in := range w.Inputs {
+	// 					ins[inI] = a[in][i]
+	// 				}
+	// 				a[w][i] = w.Gate.Evaluate(engine, ins[:len(w.Inputs)]...)
+	// 			}
+	// 		}
+	// 	}
+	// })
+
+	ins := make([]*big.Int, maxNbIns)
+	sewWireOutputs := make([][]*big.Int, nbInstances) // assuming inputs outputs same
+    for i := 0; i < nbInstances; i++ {
+		sewWireOutputs[i] = make([]*big.Int, len(sortedWires[0].Inputs))
+        for _, w := range sortedWires {
+			if !w.IsInput() {
+				for inI, in := range w.Inputs {
+					a[w][wireKey(in)][i] = sewWireOutputs[i][inI]
 				}
 			}
-		}
-	})
+            for inI, in := range w.Inputs {
+                ins[inI] = a[w][wireKey(in)][i]
+            }
+			if !w.IsOutput() {
+				res := w.Gate.Evaluate(engine, ins[:len(w.Inputs)]...)
+				for outputI, output := range w.Outputs {
+					a[w][wireKey(output)][i] = res[outputI]
+					sewWireOutputs[i][outputI] = a[w][wireKey(output)][i]
+				}
+			}
+        }
+    }
 
 	return a
 }
@@ -1114,21 +1961,45 @@ func (a WireAssignment) NumVars() int {
 	panic("empty assignment")
 }
 
-func topologicalSortEmulated[FR emulated.FieldParams](c CircuitEmulated[FR]) []*WireEmulated[FR] {
-	var data topSortDataEmulated[FR]
-	data.index = indexMapEmulated(c)
-	data.outputs = outputsListEmulated(c, data.index)
-	data.status = statusListEmulated(c)
-	sorted := make([]*WireEmulated[FR], len(c))
-
-	for data.leastReady = 0; data.status[data.leastReady] != 0; data.leastReady++ {
+func (a WireAssignmentBundle) NumInstances() int {
+	for _, aWBundle := range a {
+		for _, aW := range aWBundle {
+			if aW != nil {
+				return len(aW)
+			}
+		}
 	}
+	panic("empty assignment")
+}
 
+func (a WireAssignmentBundle) NumVars() int {
+	for _, aW := range a {
+		if aW != nil {
+			return aW.NumVars()
+		}
+	}
+	panic("empty assignment")
+}
+
+func topologicalSortBundleEmulated[FR emulated.FieldParams](c CircuitBundleEmulated[FR]) []*WireBundleEmulated[FR] {
+	// var data topSortDataEmulated[FR]
+	// data.index = indexMapEmulated(c)
+	// data.outputs = outputsListEmulated(c, data.index)
+	// data.status = statusListEmulated(c)
+	// sorted := make([]*WireBundleEmulated[FR], len(c))
+
+	// for data.leastReady = 0; data.status[data.leastReady] != 0; data.leastReady++ {
+	// }
+
+	// for i := range c {
+	// 	sorted[i] = &c[data.leastReady]
+	// 	data.markDone(data.leastReady)
+	// }
+
+	sorted := make([]*WireBundleEmulated[FR], len(c))
 	for i := range c {
-		sorted[i] = &c[data.leastReady]
-		data.markDone(data.leastReady)
+		sorted[i] = &c[i]
 	}
-
 	return sorted
 }
 
@@ -1142,6 +2013,26 @@ func (a WireAssignmentEmulated[FR]) NumInstances() int {
 }
 
 func (a WireAssignmentEmulated[FR]) NumVars() int {
+	for _, aW := range a {
+		if aW != nil {
+			return aW.NumVars()
+		}
+	}
+	panic("empty assignment")
+}
+
+func (a WireAssignmentBundleEmulated[FR]) NumInstances() int {
+	for _, aWBundle := range a {
+		for _, aW := range aWBundle {
+			if aW != nil {
+				return len(aW)
+			}
+		}
+	}
+	panic("empty assignment")
+}
+
+func (a WireAssignmentBundleEmulated[FR]) NumVars() int {
 	for _, aW := range a {
 		if aW != nil {
 			return aW.NumVars()
@@ -1178,14 +2069,32 @@ func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 	return res
 }
 
-func computeLogNbInstances[FR emulated.FieldParams](wires []*WireEmulated[FR], serializedProofLen int) int {
+// func computeLogNbInstances[FR emulated.FieldParams](wires []*WireEmulated[FR], serializedProofLen int) int {
+// 	partialEvalElemsPerVar := 0
+// 	for _, w := range wires {
+// 		if !w.noProof() {
+// 			partialEvalElemsPerVar += w.Gate.Degree() + 1
+// 		}
+// 		serializedProofLen -= w.nbUniqueOutputs
+// 	}
+// 	return serializedProofLen / partialEvalElemsPerVar
+// }
+
+func computeLogNbInstancesBundle[FR emulated.FieldParams](wires []*WireBundleEmulated[FR], serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
+	fmt.Println("serializedProofLen", serializedProofLen)
 	for _, w := range wires {
 		if !w.noProof() {
 			partialEvalElemsPerVar += w.Gate.Degree() + 1
+		} else {
+			partialEvalElemsPerVar = 1 //todo check this
 		}
+
 		serializedProofLen -= w.nbUniqueOutputs
+		//serializedProofLen -= len(w.Outputs)
 	}
+	fmt.Println("partialEvalElemsPerVar", partialEvalElemsPerVar)
+	fmt.Println("serializedProofLen", serializedProofLen)
 	return serializedProofLen / partialEvalElemsPerVar
 }
 
@@ -1201,9 +2110,30 @@ func (r *variablesReader[FR]) hasNextN(n int) bool {
 	return len(*r) >= n
 }
 
-func DeserializeProof[FR emulated.FieldParams](sorted []*WireEmulated[FR], serializedProof []emulated.Element[FR]) (Proofs[FR], error) {
+// func DeserializeProof[FR emulated.FieldParams](sorted []*WireEmulated[FR], serializedProof []emulated.Element[FR]) (Proofs[FR], error) {
+// 	proof := make(Proofs[FR], len(sorted))
+// 	logNbInstances := computeLogNbInstancesB(sorted, len(serializedProof))
+
+// 	reader := variablesReader[FR](serializedProof)
+// 	for i, wI := range sorted {
+// 		if !wI.noProof() {
+// 			proof[i].RoundPolyEvaluations = make([]polynomial.Univariate[FR], logNbInstances)
+// 			for j := range proof[i].RoundPolyEvaluations {
+// 				proof[i].RoundPolyEvaluations[j] = reader.nextN(wI.Gate.Degree() + 1)
+// 			}
+// 		}
+// 		proof[i].FinalEvalProof = reader.nextN(wI.nbUniqueInputs())
+// 	}
+// 	if reader.hasNextN(1) {
+// 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
+// 	}
+// 	return proof, nil
+// }
+
+func DeserializeProofBundle[FR emulated.FieldParams](api frontend.API, sorted []*WireBundleEmulated[FR], serializedProof []emulated.Element[FR]) (Proofs[FR], error) {
 	proof := make(Proofs[FR], len(sorted))
-	logNbInstances := computeLogNbInstances(sorted, len(serializedProof))
+	logNbInstances := computeLogNbInstancesBundle(sorted, len(serializedProof))
+	fmt.Println("logNbInstances", logNbInstances)
 
 	reader := variablesReader[FR](serializedProof)
 	for i, wI := range sorted {
@@ -1212,8 +2142,9 @@ func DeserializeProof[FR emulated.FieldParams](sorted []*WireEmulated[FR], seria
 			for j := range proof[i].RoundPolyEvaluations {
 				proof[i].RoundPolyEvaluations[j] = reader.nextN(wI.Gate.Degree() + 1)
 			}
+			proof[i].FinalEvalProof = reader.nextN(wI.nbUniqueInputs())
 		}
-		proof[i].FinalEvalProof = reader.nextN(wI.nbUniqueInputs())
+		// proof[i].FinalEvalProof = reader.nextN(wI.nbUniqueInputs()) // todo changed gives error since for noproof we dont need finalEval
 	}
 	if reader.hasNextN(1) {
 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
@@ -1225,11 +2156,15 @@ type element any
 
 type MulGate[AE sumcheck.ArithEngine[E], E element] struct{}
 
-func (g MulGate[AE, E]) Evaluate(api AE, x ...E) E {
+func (g MulGate[AE, E]) NbOutputs() int {
+	return 1
+}
+
+func (g MulGate[AE, E]) Evaluate(api AE, x ...E) []E {
 	if len(x) != 2 {
 		panic("mul has fan-in 2")
 	}
-	return api.Mul(x[0], x[1])
+	return []E{api.Mul(x[0], x[1])}
 }
 
 // TODO: Degree must take nbInputs as an argument and return degree = nbInputs
@@ -1237,23 +2172,43 @@ func (g MulGate[AE, E]) Degree() int {
 	return 2
 }
 
+func (g MulGate[AE, E]) NbInputs() int {
+	return 2
+}
+
+func (g MulGate[AE, E]) GetName() string {
+	return "mul"
+}
+
 type AddGate[AE sumcheck.ArithEngine[E], E element] struct{}
 
-func (a AddGate[AE, E]) Evaluate(api AE, v ...E) E {
+func (a AddGate[AE, E]) Evaluate(api AE, v ...E) []E {
 	switch len(v) {
 	case 0:
-		return api.Const(big.NewInt(0))
+		return []E{api.Const(big.NewInt(0))}
 	case 1:
-		return v[0]
+		return []E{v[0]}
 	}
 	rest := v[2:]
 	res := api.Add(v[0], v[1])
 	for _, e := range rest {
 		res = api.Add(res, e)
 	}
-	return res
+	return []E{res}
 }
 
 func (a AddGate[AE, E]) Degree() int {
 	return 1
+}
+
+func (a AddGate[AE, E]) NbInputs() int {
+	return 2
+}
+
+func (a AddGate[AE, E]) NbOutputs() int {
+	return 1
+}
+
+func (a AddGate[AE, E]) GetName() string {
+	return "add"
 }

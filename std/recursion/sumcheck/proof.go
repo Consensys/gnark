@@ -47,7 +47,7 @@ func ValueOfProof[FR emulated.FieldParams](nproof NativeProof) Proof[FR] {
 			}
 			finaleval = deferredEval
 		}
-	}
+	} 
 	for i := range nproof.RoundPolyEvaluations {
 		rps[i] = polynomial.ValueOfUnivariate[FR](nproof.RoundPolyEvaluations[i])
 	}

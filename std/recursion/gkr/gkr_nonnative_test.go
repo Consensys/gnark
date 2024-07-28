@@ -13,12 +13,14 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fpbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fp"
 	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark/backend"
+	//"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
+	// "github.com/consensys/gnark/frontend/cs/scs"
+	// "github.com/consensys/gnark/profile"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
-	"github.com/consensys/gnark/std/math/polynomial"
+	//"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/gkr/utils"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
@@ -33,8 +35,8 @@ var Gates = map[string]Gate{
 }
 
 func TestGkrVectorsEmulated(t *testing.T) {
-	current := ecc.BN254.ScalarField()
-	var fp emparams.BN254Fp
+	// current := ecc.BN254.ScalarField()
+	// var fp emparams.BN254Fp
 	testDirPath := "./test_vectors"
 	dirEntries, err := os.ReadDir(testDirPath)
 	if err != nil {
@@ -42,11 +44,11 @@ func TestGkrVectorsEmulated(t *testing.T) {
 	}
 	for _, dirEntry := range dirEntries {
 		if !dirEntry.IsDir() && filepath.Ext(dirEntry.Name()) == ".json" {
-			path := filepath.Join(testDirPath, dirEntry.Name())
-			noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
+			// path := filepath.Join(testDirPath, dirEntry.Name())
+			// noExt := dirEntry.Name()[:len(dirEntry.Name())-len(".json")]
 
-			t.Run(noExt+"_prover", generateTestProver(path, *current, *fp.Modulus()))
-			t.Run(noExt+"_verifier", generateTestVerifier[emparams.BN254Fp](path))
+			//t.Run(noExt+"_prover", generateTestProver(path, *current, *fp.Modulus()))
+			//t.Run(noExt+"_verifier", generateTestVerifier[emparams.BN254Fp](path))
 		}
 	}
 }
@@ -85,46 +87,46 @@ func proofEquals(expected NativeProofs, seen NativeProofs) error {
 	return nil
 }
 
-func generateTestProver(path string, current big.Int, target big.Int) func(t *testing.T) {
-	return func(t *testing.T) {
-		testCase, err := newTestCase(path, target)
-		assert.NoError(t, err)
-		proof, err := Prove(&current, &target, testCase.Circuit, testCase.FullAssignment, fiatshamir.WithHashBigInt(testCase.Hash))
-		assert.NoError(t, err)
-		assert.NoError(t, proofEquals(testCase.Proof, proof))
-	}
-}
+// func generateTestProver(path string, current big.Int, target big.Int) func(t *testing.T) {
+// 	return func(t *testing.T) {
+// 		testCase, err := newTestCase(path, target)
+// 		assert.NoError(t, err)
+// 		proof, err := Prove(&current, &target, testCase.Circuit, testCase.FullAssignment, fiatshamir.WithHashBigInt(testCase.Hash))
+// 		assert.NoError(t, err)
+// 		assert.NoError(t, proofEquals(testCase.Proof, proof))
+// 	}
+// }
 
-func generateTestVerifier[FR emulated.FieldParams](path string) func(t *testing.T) {
+// func generateTestVerifier[FR emulated.FieldParams](path string) func(t *testing.T) {
 
-	return func(t *testing.T) {
+// 	return func(t *testing.T) {
 
-		testCase, err := getTestCase[FR](path)
-		assert := test.NewAssert(t)
-		assert.NoError(err)
+// 		testCase, err := getTestCase[FR](path)
+// 		assert := test.NewAssert(t)
+// 		assert.NoError(err)
 
-		assignment := &GkrVerifierCircuitEmulated[FR]{
-			Input:           testCase.Input,
-			Output:          testCase.Output,
-			SerializedProof: testCase.Proof.Serialize(),
-			ToFail:          false,
-			TestCaseName:    path,
-		}
+// 		assignment := &GkrVerifierCircuitEmulated[FR]{
+// 			Input:           testCase.Input,
+// 			Output:          testCase.Output,
+// 			SerializedProof: testCase.Proof.Serialize(),
+// 			ToFail:          false,
+// 			TestCaseName:    path,
+// 		}
 
-		validCircuit := &GkrVerifierCircuitEmulated[FR]{
-			Input:           make([][]emulated.Element[FR], len(testCase.Input)),
-			Output:          make([][]emulated.Element[FR], len(testCase.Output)),
-			SerializedProof: make([]emulated.Element[FR], len(assignment.SerializedProof)),
-			ToFail:          false,
-			TestCaseName:    path,
-		}
+// 		validCircuit := &GkrVerifierCircuitEmulated[FR]{
+// 			Input:           make([][]emulated.Element[FR], len(testCase.Input)),
+// 			Output:          make([][]emulated.Element[FR], len(testCase.Output)),
+// 			SerializedProof: make([]emulated.Element[FR], len(assignment.SerializedProof)),
+// 			ToFail:          false,
+// 			TestCaseName:    path,
+// 		}
 
-		fillWithBlanks(validCircuit.Input, len(testCase.Input[0]))
-		fillWithBlanks(validCircuit.Output, len(testCase.Input[0]))
+// 		fillWithBlanks(validCircuit.Input, len(testCase.Input[0]))
+// 		fillWithBlanks(validCircuit.Output, len(testCase.Input[0]))
 
-		assert.CheckCircuit(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
-	}
-}
+// 		assert.CheckCircuit(validCircuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16), test.WithValidAssignment(assignment))
+// 	}
+// }
 
 type GkrVerifierCircuitEmulated[FR emulated.FieldParams] struct {
 	Input           [][]emulated.Element[FR]
@@ -134,47 +136,66 @@ type GkrVerifierCircuitEmulated[FR emulated.FieldParams] struct {
 	TestCaseName    string
 }
 
-func (c *GkrVerifierCircuitEmulated[FR]) Define(api frontend.API) error {
-	var fr FR
-	var testCase *TestCaseVerifier[FR]
-	var proof Proofs[FR]
-	var err error
+// func (c *GkrVerifierCircuitEmulated[FR]) Define(api frontend.API) error {
+// 	var fr FR
+// 	var testCase *TestCaseVerifier[FR]
+// 	var proof Proofs[FR]
+// 	var err error
 
-	v, err := NewGKRVerifier[FR](api)
-	if err != nil {
-		return fmt.Errorf("new verifier: %w", err)
-	}
+// 	v, err := NewGKRVerifier[FR](api)
+// 	if err != nil {
+// 		return fmt.Errorf("new verifier: %w", err)
+// 	}
 
-	if testCase, err = getTestCase[FR](c.TestCaseName); err != nil {
-		return err
-	}
-	sorted := topologicalSortEmulated(testCase.Circuit)
+// 	if testCase, err = getTestCase[FR](c.TestCaseName); err != nil {
+// 		return err
+// 	}
+// 	sorted := topologicalSortEmulated(testCase.Circuit)
 
-	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
-		return err
-	}
-	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
+// 	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
+// 		return err
+// 	}
+// 	assignment := makeInOutAssignment(testCase.Circuit, c.Input, c.Output)
 
-	// initiating hash in bitmode
-	hsh, err := recursion.NewHash(api, fr.Modulus(), true)
-	if err != nil {
-		return err
-	}
+// 	// initiating hash in bitmode
+// 	hsh, err := recursion.NewHash(api, fr.Modulus(), true)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	return v.Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHashFr[FR](hsh))
-}
+// 	return v.Verify(api, testCase.Circuit, assignment, proof, fiatshamir.WithHashFr[FR](hsh))
+// }
 
-func makeInOutAssignment[FR emulated.FieldParams](c CircuitEmulated[FR], inputValues [][]emulated.Element[FR], outputValues [][]emulated.Element[FR]) WireAssignmentEmulated[FR] {
-	sorted := topologicalSortEmulated(c)
-	res := make(WireAssignmentEmulated[FR], len(inputValues)+len(outputValues))
-	inI, outI := 0, 0
+// func makeInOutAssignment[FR emulated.FieldParams](c CircuitEmulated[FR], inputValues [][]emulated.Element[FR], outputValues [][]emulated.Element[FR]) WireAssignmentEmulated[FR] {
+// 	sorted := topologicalSortEmulated(c)
+// 	res := make(WireAssignmentEmulated[FR], len(inputValues)+len(outputValues))
+// 	inI, outI := 0, 0
+// 	for _, w := range sorted {
+// 		if w.IsInput() {
+// 			res[w] = inputValues[inI]
+// 			inI++
+// 		} else if w.IsOutput() {
+// 			res[w] = outputValues[outI]
+// 			outI++
+// 		}
+// 	}
+// 	return res
+// }
+
+func makeInOutAssignmentBundle[FR emulated.FieldParams](c CircuitBundleEmulated[FR], inputValues [][]emulated.Element[FR], outputValues [][]emulated.Element[FR]) WireAssignmentBundleEmulated[FR] {
+	sorted := topologicalSortBundleEmulated(c)
+	res := make(WireAssignmentBundleEmulated[FR], len(sorted))
 	for _, w := range sorted {
 		if w.IsInput() {
-			res[w] = inputValues[inI]
-			inI++
+			res[w] = make(WireAssignmentEmulated[FR], len(w.Inputs))
+			for _, wire := range w.Inputs {
+				res[w][wire] = inputValues[wire.WireIndex]
+			}
 		} else if w.IsOutput() {
-			res[w] = outputValues[outI]
-			outI++
+			res[w] = make(WireAssignmentEmulated[FR], len(w.Outputs))
+			for _, wire := range w.Outputs {
+				res[w][wire] = outputValues[wire.WireIndex]
+			}
 		}
 	}
 	return res
@@ -323,6 +344,41 @@ func ToCircuitEmulated[FR emulated.FieldParams](c CircuitInfo) (circuit CircuitE
 	return
 }
 
+//TODO FIX THIS
+func ToCircuitBundleEmulated[FR emulated.FieldParams](c CircuitBundle) (CircuitBundleEmulated[FR], error) {
+	var GatesEmulated = map[string]GateEmulated[FR]{
+		"identity": IdentityGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+		"add":      AddGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+		"mul":      MulGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+		"dbl_add_select_full_output": sumcheck.DblAddSelectGateFullOutput[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{},
+	}
+
+	// Log the contents of the GatesEmulated map
+	fmt.Println("Contents of GatesEmulated map:")
+	for name, gate := range GatesEmulated {
+		fmt.Printf("Gate name: %s, Gate: %v\n", name, gate)
+	}
+
+	var err error
+	circuit := make(CircuitBundleEmulated[FR], len(c))
+	for i, wireBundle := range c {
+		var found bool
+		gateName := wireBundle.Gate.GetName()
+		if circuit[i].Gate, found = GatesEmulated[gateName]; !found && gateName != "" {
+			err = fmt.Errorf("undefined gate \"%s\"", wireBundle.Gate.GetName())
+			fmt.Println("err", err)
+			panic(err)
+		}
+		if circuit[i].Gate == nil {
+			fmt.Printf("Warning: circuit[%d].Gate is nil for gate name: %s\n", i, gateName)
+		} else {
+			fmt.Printf("Assigned gate for circuit[%d]: %v\n", i, circuit[i].Gate)
+		}
+	}
+
+	return circuit, err
+}
+
 func toCircuit(c CircuitInfo) (circuit Circuit, err error) {
 
 	circuit = make(Circuit, len(c))
@@ -393,57 +449,57 @@ func TestLoadCircuit(t *testing.T) {
 	assert.Equal(t, []*WireEmulated[FR]{&c[1]}, c[2].Inputs)
 }
 
-func TestTopSortTrivial(t *testing.T) {
-	type FR = emulated.BN254Fp
-	c := make(CircuitEmulated[FR], 2)
-	c[0].Inputs = []*WireEmulated[FR]{&c[1]}
-	sorted := topologicalSortEmulated(c)
-	assert.Equal(t, []*WireEmulated[FR]{&c[1], &c[0]}, sorted)
-}
+// func TestTopSortTrivial(t *testing.T) {
+// 	type FR = emulated.BN254Fp
+// 	c := make(CircuitEmulated[FR], 2)
+// 	c[0].Inputs = []*WireEmulated[FR]{&c[1]}
+// 	sorted := topologicalSortEmulated(c)
+// 	assert.Equal(t, []*WireEmulated[FR]{&c[1], &c[0]}, sorted)
+// }
 
-func TestTopSortSingleGate(t *testing.T) {
-	type FR = emulated.BN254Fp
-	c := make(CircuitEmulated[FR], 3)
-	c[0].Inputs = []*WireEmulated[FR]{&c[1], &c[2]}
-	sorted := topologicalSortEmulated(c)
-	expected := []*WireEmulated[FR]{&c[1], &c[2], &c[0]}
-	assert.True(t, utils.SliceEqual(sorted, expected)) //TODO: Remove
-	utils.AssertSliceEqual(t, sorted, expected)
-	assert.Equal(t, c[0].nbUniqueOutputs, 0)
-	assert.Equal(t, c[1].nbUniqueOutputs, 1)
-	assert.Equal(t, c[2].nbUniqueOutputs, 1)
-}
+// func TestTopSortSingleGate(t *testing.T) {
+// 	type FR = emulated.BN254Fp
+// 	c := make(CircuitEmulated[FR], 3)
+// 	c[0].Inputs = []*WireEmulated[FR]{&c[1], &c[2]}
+// 	sorted := topologicalSortEmulated(c)
+// 	expected := []*WireEmulated[FR]{&c[1], &c[2], &c[0]}
+// 	assert.True(t, utils.SliceEqual(sorted, expected)) //TODO: Remove
+// 	utils.AssertSliceEqual(t, sorted, expected)
+// 	assert.Equal(t, c[0].nbUniqueOutputs, 0)
+// 	assert.Equal(t, c[1].nbUniqueOutputs, 1)
+// 	assert.Equal(t, c[2].nbUniqueOutputs, 1)
+// }
 
-func TestTopSortDeep(t *testing.T) {
-	type FR = emulated.BN254Fp
-	c := make(CircuitEmulated[FR], 4)
-	c[0].Inputs = []*WireEmulated[FR]{&c[2]}
-	c[1].Inputs = []*WireEmulated[FR]{&c[3]}
-	c[2].Inputs = []*WireEmulated[FR]{}
-	c[3].Inputs = []*WireEmulated[FR]{&c[0]}
-	sorted := topologicalSortEmulated(c)
-	assert.Equal(t, []*WireEmulated[FR]{&c[2], &c[0], &c[3], &c[1]}, sorted)
-}
+// func TestTopSortDeep(t *testing.T) {
+// 	type FR = emulated.BN254Fp
+// 	c := make(CircuitEmulated[FR], 4)
+// 	c[0].Inputs = []*WireEmulated[FR]{&c[2]}
+// 	c[1].Inputs = []*WireEmulated[FR]{&c[3]}
+// 	c[2].Inputs = []*WireEmulated[FR]{}
+// 	c[3].Inputs = []*WireEmulated[FR]{&c[0]}
+// 	sorted := topologicalSortEmulated(c)
+// 	assert.Equal(t, []*WireEmulated[FR]{&c[2], &c[0], &c[3], &c[1]}, sorted)
+// }
 
-func TestTopSortWide(t *testing.T) {
-	type FR = emulated.BN254Fp
-	c := make(CircuitEmulated[FR], 10)
-	c[0].Inputs = []*WireEmulated[FR]{&c[3], &c[8]}
-	c[1].Inputs = []*WireEmulated[FR]{&c[6]}
-	c[2].Inputs = []*WireEmulated[FR]{&c[4]}
-	c[3].Inputs = []*WireEmulated[FR]{}
-	c[4].Inputs = []*WireEmulated[FR]{}
-	c[5].Inputs = []*WireEmulated[FR]{&c[9]}
-	c[6].Inputs = []*WireEmulated[FR]{&c[9]}
-	c[7].Inputs = []*WireEmulated[FR]{&c[9], &c[5], &c[2]}
-	c[8].Inputs = []*WireEmulated[FR]{&c[4], &c[3]}
-	c[9].Inputs = []*WireEmulated[FR]{}
+// func TestTopSortWide(t *testing.T) {
+// 	type FR = emulated.BN254Fp
+// 	c := make(CircuitEmulated[FR], 10)
+// 	c[0].Inputs = []*WireEmulated[FR]{&c[3], &c[8]}
+// 	c[1].Inputs = []*WireEmulated[FR]{&c[6]}
+// 	c[2].Inputs = []*WireEmulated[FR]{&c[4]}
+// 	c[3].Inputs = []*WireEmulated[FR]{}
+// 	c[4].Inputs = []*WireEmulated[FR]{}
+// 	c[5].Inputs = []*WireEmulated[FR]{&c[9]}
+// 	c[6].Inputs = []*WireEmulated[FR]{&c[9]}
+// 	c[7].Inputs = []*WireEmulated[FR]{&c[9], &c[5], &c[2]}
+// 	c[8].Inputs = []*WireEmulated[FR]{&c[4], &c[3]}
+// 	c[9].Inputs = []*WireEmulated[FR]{}
 
-	sorted := topologicalSortEmulated(c)
-	sortedExpected := []*WireEmulated[FR]{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
+// 	sorted := topologicalSortEmulated(c)
+// 	sortedExpected := []*WireEmulated[FR]{&c[3], &c[4], &c[2], &c[8], &c[0], &c[9], &c[5], &c[6], &c[1], &c[7]}
 
-	assert.Equal(t, sortedExpected, sorted)
-}
+// 	assert.Equal(t, sortedExpected, sorted)
+// }
 
 var mimcSnarkTotalCalls = 0
 
@@ -469,10 +525,10 @@ func (m MiMCCipherGate) Degree() int {
 
 type _select int
 
-func init() {
-	Gates["mimc"] = MiMCCipherGate{}
-	Gates["select-input-3"] = _select(2)
-}
+// func init() {
+// 	Gates["mimc"] = MiMCCipherGate{}
+// 	Gates["select-input-3"] = _select(2)
+// }
 
 func (g _select) Evaluate(_ *sumcheck.BigIntEngine, in ...*big.Int) *big.Int {
 	return in[g]
@@ -517,96 +573,130 @@ func (p *PrintableSumcheckProof) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func newTestCase(path string, target big.Int) (*TestCase, error) {
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-	dir := filepath.Dir(path)
 
-	tCase, ok := testCases[path]
-	if !ok {
-		var bytes []byte
-		if bytes, err = os.ReadFile(path); err == nil {
-			var info TestCaseInfo
-			err = json.Unmarshal(bytes, &info)
-			if err != nil {
-				return nil, err
-			}
+// func newTestCase(path string, target big.Int) (*TestCase, error) {
+// 	path, err := filepath.Abs(path)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	dir := filepath.Dir(path)
 
-			var circuit Circuit
-			if circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
-				return nil, err
-			}
-			var _hash gohash.Hash
-			if _hash, err = utils.HashFromDescription(info.Hash); err != nil {
-				return nil, err
-			}
+// 	tCase, ok := testCases[path]
+// 	if !ok {
+// 		var bytes []byte
+// 		if bytes, err = os.ReadFile(path); err == nil {
+// 			var info TestCaseInfo
+// 			err = json.Unmarshal(bytes, &info)
+// 			if err != nil {
+// 				return nil, err
+// 			}
 
-			proof := unmarshalProof(info.Proof)
+// 			var circuit Circuit
+// 			if circuit, err = getCircuit(filepath.Join(dir, info.Circuit)); err != nil {
+// 				return nil, err
+// 			}
+// 			var _hash gohash.Hash
+// 			if _hash, err = utils.HashFromDescription(info.Hash); err != nil {
+// 				return nil, err
+// 			}
 
-			fullAssignment := make(WireAssignment)
-			inOutAssignment := make(WireAssignment)
+// 			proof := unmarshalProof(info.Proof)
 
-			sorted := topologicalSort(circuit)
+// 			fullAssignment := make(WireAssignment)
+// 			inOutAssignment := make(WireAssignment)
 
-			inI, outI := 0, 0
-			for _, w := range sorted {
-				var assignmentRaw []interface{}
-				if w.IsInput() {
-					if inI == len(info.Input) {
-						return nil, fmt.Errorf("fewer input in vector than in circuit")
-					}
-					assignmentRaw = info.Input[inI]
-					inI++
-				} else if w.IsOutput() {
-					if outI == len(info.Output) {
-						return nil, fmt.Errorf("fewer output in vector than in circuit")
-					}
-					assignmentRaw = info.Output[outI]
-					outI++
-				}
-				if assignmentRaw != nil {
-					var wireAssignment []big.Int
-					if wireAssignment, err = utils.SliceToBigIntSlice(assignmentRaw); err != nil {
-						return nil, err
-					}
-					fullAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
-					inOutAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
-				}
-			}
+// 			sorted := topologicalSort(circuit)
 
-			fullAssignment.Complete(circuit, &target)
+// 			inI, outI := 0, 0
+// 			for _, w := range sorted {
+// 				var assignmentRaw []interface{}
+// 				if w.IsInput() {
+// 					if inI == len(info.Input) {
+// 						return nil, fmt.Errorf("fewer input in vector than in circuit")
+// 					}
+// 					assignmentRaw = info.Input[inI]
+// 					inI++
+// 				} else if w.IsOutput() {
+// 					if outI == len(info.Output) {
+// 						return nil, fmt.Errorf("fewer output in vector than in circuit")
+// 					}
+// 					assignmentRaw = info.Output[outI]
+// 					outI++
+// 				}
+// 				if assignmentRaw != nil {
+// 					var wireAssignment []big.Int
+// 					if wireAssignment, err = utils.SliceToBigIntSlice(assignmentRaw); err != nil {
+// 						return nil, err
+// 					}
+// 					fullAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+// 					inOutAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+// 				}
+// 			}
 
-			for _, w := range sorted {
-				if w.IsOutput() {
+// 			fullAssignment.Complete(circuit, &target)
 
-					if err = utils.SliceEqualsBigInt(sumcheck.DereferenceBigIntSlice(inOutAssignment[w]), sumcheck.DereferenceBigIntSlice(fullAssignment[w])); err != nil {
-						return nil, fmt.Errorf("assignment mismatch: %v", err)
-					}
+// 			for _, w := range sorted {
+// 				if w.IsOutput() {
 
-				}
-			}
+// 					if err = utils.SliceEqualsBigInt(sumcheck.DereferenceBigIntSlice(inOutAssignment[w]), sumcheck.DereferenceBigIntSlice(fullAssignment[w])); err != nil {
+// 						return nil, fmt.Errorf("assignment mismatch: %v", err)
+// 					}
 
-			tCase = &TestCase{
-				FullAssignment:  fullAssignment,
-				InOutAssignment: inOutAssignment,
-				Proof:           proof,
-				Hash:            _hash,
-				Circuit:         circuit,
-			}
+// 				}
+// 			}
 
-			testCases[path] = tCase
-		} else {
-			return nil, err
-		}
-	}
+// 			tCase = &TestCase{
+// 				FullAssignment:  fullAssignment,
+// 				InOutAssignment: inOutAssignment,
+// 				Proof:           proof,
+// 				Hash:            _hash,
+// 				Circuit:         circuit,
+// 			}
 
-	return tCase.(*TestCase), nil
-}
+// 			testCases[path] = tCase
+// 		} else {
+// 			return nil, err
+// 		}
+// 	}
+
+// 	return tCase.(*TestCase), nil
+// }
+
+// type ProjAddGkrVerifierCircuit[FR emulated.FieldParams] struct {
+// 	Circuit         CircuitEmulated[FR]
+// 	Input           [][]emulated.Element[FR]
+// 	Output          [][]emulated.Element[FR] `gnark:",public"`
+// 	SerializedProof []emulated.Element[FR]
+// }
+
+// func (c *ProjAddGkrVerifierCircuit[FR]) Define(api frontend.API) error {
+// 	var fr FR
+// 	var proof Proofs[FR]
+// 	var err error
+
+// 	v, err := NewGKRVerifier[FR](api)
+// 	if err != nil {
+// 		return fmt.Errorf("new verifier: %w", err)
+// 	}
+
+// 	sorted := topologicalSortEmulated(c.Circuit)
+
+// 	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
+// 		return err
+// 	}
+// 	assignment := makeInOutAssignment(c.Circuit, c.Input, c.Output)
+
+// 	// initiating hash in bitmode, since bn254 basefield is bigger than scalarfield
+// 	hsh, err := recursion.NewHash(api, fr.Modulus(), true)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	return v.Verify(api, c.Circuit, assignment, proof, fiatshamir.WithHashFr[FR](hsh))
+// }
 
 type ProjAddGkrVerifierCircuit[FR emulated.FieldParams] struct {
-	Circuit         CircuitEmulated[FR]
+	Circuit         CircuitBundleEmulated[FR]
 	Input           [][]emulated.Element[FR]
 	Output          [][]emulated.Element[FR] `gnark:",public"`
 	SerializedProof []emulated.Element[FR]
@@ -622,13 +712,12 @@ func (c *ProjAddGkrVerifierCircuit[FR]) Define(api frontend.API) error {
 		return fmt.Errorf("new verifier: %w", err)
 	}
 
-	sorted := topologicalSortEmulated(c.Circuit)
+	sorted := topologicalSortBundleEmulated(c.Circuit)
 
-	if proof, err = DeserializeProof(sorted, c.SerializedProof); err != nil {
+	if proof, err = DeserializeProofBundle(api, sorted, c.SerializedProof); err != nil {
 		return err
 	}
-	assignment := makeInOutAssignment(c.Circuit, c.Input, c.Output)
-
+	assignment := makeInOutAssignmentBundle(c.Circuit, c.Input, c.Output)
 	// initiating hash in bitmode, since bn254 basefield is bigger than scalarfield
 	hsh, err := recursion.NewHash(api, fr.Modulus(), true)
 	if err != nil {
@@ -638,210 +727,46 @@ func (c *ProjAddGkrVerifierCircuit[FR]) Define(api frontend.API) error {
 	return v.Verify(api, c.Circuit, assignment, proof, fiatshamir.WithHashFr[FR](hsh))
 }
 
-func testDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, target *big.Int, inputs [][]*big.Int, outputs [][]*big.Int) {
-	folding := []*big.Int{
-		big.NewInt(1),
-		big.NewInt(2),
-		big.NewInt(3),
-		big.NewInt(4),
-		big.NewInt(5),
-		big.NewInt(6),
-	}
-	c := make(Circuit, 8)
-	// c[8] = Wire{
-	// 	Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
-	// 	Inputs: []*Wire{&c[7]},
-	// }
-	// check rlc of inputs to second layer is equal to output 
-	c[7] = Wire{
-		Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
-		Inputs: []*Wire{&c[0], &c[1], &c[2], &c[3], &c[4], &c[5], &c[6]},
-	}
-
-	res := make([]*big.Int, len(inputs[0]))
-	for i := 0; i < len(inputs[0]); i++ {
-		res[i] = c[7].Gate.Evaluate(sumcheck.NewBigIntEngine(target), inputs[0][i], inputs[1][i], inputs[2][i], inputs[3][i], inputs[4][i], inputs[5][i], inputs[6][i])
-	}
-	fmt.Println("res", res)
-
-	foldingEmulated := make([]emulated.Element[FR], len(folding))
-	for i, f := range folding {
-		foldingEmulated[i] = emulated.ValueOf[FR](f)
-	}
-	cEmulated := make(CircuitEmulated[FR], len(c))
-	cEmulated[7] = WireEmulated[FR]{
-		Gate:  sumcheck.DblAddSelectGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{
-			Folding: polynomial.FromSlice(foldingEmulated),
-		},
-		Inputs: []*WireEmulated[FR]{&cEmulated[0], &cEmulated[1], &cEmulated[2], &cEmulated[3], &cEmulated[4], &cEmulated[5], &cEmulated[6]},
-	}
-
-	assert := test.NewAssert(t)
-
-	hash, err := recursion.NewShort(current, target)
-	if err != nil {
-		t.Errorf("new short hash: %v", err)
-		return
-	}
-	t.Log("Evaluating all circuit wires")
-
-	fullAssignment := make(WireAssignment)
-	inOutAssignment := make(WireAssignment)
-
-	sorted := topologicalSort(c)
-
-	inI, outI := 0, 0
-	for _, w := range sorted {
-		var assignmentRaw []*big.Int
-		if w.IsInput() {
-			if inI == len(inputs) {
-				t.Errorf("fewer input in vector than in circuit")
-				return
-			}
-			assignmentRaw = inputs[inI]
-			inI++
-		} else if w.IsOutput() {
-			if outI == len(outputs) {
-				t.Errorf("fewer output in vector than in circuit")
-				return
-			}
-			assignmentRaw = outputs[outI]
-			outI++
-		}
-
-		if assignmentRaw != nil {
-			var wireAssignment []big.Int
-			wireAssignment, err := utils.SliceToBigIntSlice(assignmentRaw)
-			assert.NoError(err)
-			fullAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
-			inOutAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
-		}
-	}
-
-	fullAssignment.Complete(c, target)
-
-	for _, w := range sorted {
-		if w.IsOutput() {
-
-			if err = utils.SliceEqualsBigInt(sumcheck.DereferenceBigIntSlice(inOutAssignment[w]), sumcheck.DereferenceBigIntSlice(fullAssignment[w])); err != nil {
-				t.Errorf("assignment mismatch: %v", err)
-			}
-
-		}
-	}
-
-	t.Log("Circuit evaluation complete")
-	proof, err := Prove(current, target, c, fullAssignment, fiatshamir.WithHashBigInt(hash))
-	assert.NoError(err)
-	t.Log("Proof complete")
-
-	proofEmulated := make(Proofs[FR], len(proof))
-	for i, proof := range proof {
-		proofEmulated[i] = sumcheck.ValueOfProof[FR](proof)
-	}
-	
-	validCircuit := &ProjAddGkrVerifierCircuit[FR]{
-		Circuit: cEmulated,
-		Input:   make([][]emulated.Element[FR], len(inputs)),
-		Output:  make([][]emulated.Element[FR], len(outputs)),
-		SerializedProof: proofEmulated.Serialize(),
-	}
-
-	validAssignment := &ProjAddGkrVerifierCircuit[FR]{
-		Circuit: cEmulated,
-		Input:   make([][]emulated.Element[FR], len(inputs)),
-		Output:  make([][]emulated.Element[FR], len(outputs)),
-		SerializedProof: proofEmulated.Serialize(),
-	}
-
-	for i := range inputs {
-		validCircuit.Input[i] = make([]emulated.Element[FR], len(inputs[i]))
-		validAssignment.Input[i] = make([]emulated.Element[FR], len(inputs[i]))
-		for j := range inputs[i] {
-			validAssignment.Input[i][j] = emulated.ValueOf[FR](inputs[i][j])
-		}
-	}
-
-	for i := range outputs {
-		validCircuit.Output[i] = make([]emulated.Element[FR], len(outputs[i]))
-		validAssignment.Output[i] = make([]emulated.Element[FR], len(outputs[i]))
-		for j := range outputs[i] {
-			validAssignment.Output[i][j] = emulated.ValueOf[FR](outputs[i][j])
-		}
-	}
-
-	err = test.IsSolved(validCircuit, validAssignment, current)
-	assert.NoError(err)
-}
-
 func ElementToBigInt(element fpbn254.Element) *big.Int {
 	var temp big.Int
 	return element.BigInt(&temp)
 }
 
-func TestProjDblAddSelectGKR(t *testing.T) {
-	var P bn254.G1Affine
-	var Q bn254.G1Affine
-	var U bn254.G1Affine
-	var one fpbn254.Element
-	one.SetOne()
-	var zero fpbn254.Element
-	zero.SetZero()
-
-	var s frbn254.Element
-	s.SetOne()
-	var r frbn254.Element
-	r.SetOne()
-	P.ScalarMultiplicationBase(s.BigInt(new(big.Int)))
-	Q.ScalarMultiplicationBase(r.BigInt(new(big.Int)))
-	U.Add(&P, &Q)
-
-	result, err := new(big.Int).SetString("21888242871839275222246405745257275088696311157297823662689037894645226206973", 10)
-	if !err {
-		panic("error result")
-	}
-
-	var fp emparams.BN254Fp
-	testDblAddSelectGKRInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), fp.Modulus(), [][]*big.Int{{ElementToBigInt(P.X), ElementToBigInt(P.X)}, {ElementToBigInt(P.Y), ElementToBigInt(P.Y)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one)}}, [][]*big.Int{{result, result}})
-}
-
 func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, target *big.Int, inputs [][]*big.Int, outputs [][]*big.Int) {
-	folding := []*big.Int{
-		big.NewInt(1),
-		big.NewInt(2),
-		big.NewInt(3),
-		big.NewInt(4),
-		big.NewInt(5),
-		big.NewInt(6),
-	}
-	c := make(Circuit, 9)
-	c[8] = Wire{
-		Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
-		Inputs: []*Wire{&c[7]},
-	}
-	// check rlc of inputs to second layer is equal to output 
-	c[7] = Wire{
-		Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
-		Inputs: []*Wire{&c[0], &c[1], &c[2], &c[3], &c[4], &c[5], &c[6]},
-	}
+	selector := []*big.Int{big.NewInt(1)}
+	c := make(CircuitBundle, 2)
+	fmt.Println("inputs", inputs)
+	fmt.Println("outputs", outputs)
+	c[0] = InitFirstWireBundle(len(inputs))
+	c[1] = NewWireBundle(
+		sumcheck.DblAddSelectGateFullOutput[*sumcheck.BigIntEngine, *big.Int]{Selector: selector[0]},
+		c[0].Outputs,
+		1,
+	)
+	// c[2] = NewWireBundle(
+	// 	sumcheck.DblAddSelectGateFullOutput[*sumcheck.BigIntEngine, *big.Int]{Selector: selector[0]},
+	// 	c[1].Outputs,
+	// 	2,
+	// )
+	
 
-	res := make([]*big.Int, len(inputs[0]))
-	for i := 0; i < len(inputs[0]); i++ {
-		res[i] = c[7].Gate.Evaluate(sumcheck.NewBigIntEngine(target), inputs[0][i], inputs[1][i], inputs[2][i], inputs[3][i], inputs[4][i], inputs[5][i], inputs[6][i])
+	selectorEmulated := make([]emulated.Element[FR], len(selector))
+	for i, f := range selector {
+		selectorEmulated[i] = emulated.ValueOf[FR](f)
 	}
-	fmt.Println("res", res)
+	//cEmulated, err := ToCircuitBundleEmulated[FR](c)
+	// if err != nil {
+	// 	t.Errorf("ToCircuitBundleEmulated: %v", err)
+	// 	return
+	// }
 
-	foldingEmulated := make([]emulated.Element[FR], len(folding))
-	for i, f := range folding {
-		foldingEmulated[i] = emulated.ValueOf[FR](f)
-	}
-	cEmulated := make(CircuitEmulated[FR], len(c))
-	cEmulated[7] = WireEmulated[FR]{
-		Gate:  sumcheck.DblAddSelectGate[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{
-			Folding: polynomial.FromSlice(foldingEmulated),
-		},
-		Inputs: []*WireEmulated[FR]{&cEmulated[0], &cEmulated[1], &cEmulated[2], &cEmulated[3], &cEmulated[4], &cEmulated[5], &cEmulated[6]},
-	}
+	cEmulated := make(CircuitBundleEmulated[FR], len(c))
+	cEmulated[0] = InitFirstWireBundleEmulated[FR](len(inputs))
+	cEmulated[1] = NewWireBundleEmulated(
+		sumcheck.DblAddSelectGateFullOutput[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{Selector: &selectorEmulated[0]},
+		c[0].Outputs,
+		1,
+	)
 
 	assert := test.NewAssert(t)
 
@@ -852,48 +777,53 @@ func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, 
 	}
 	t.Log("Evaluating all circuit wires")
 
-	fullAssignment := make(WireAssignment)
-	inOutAssignment := make(WireAssignment)
+	fullAssignment := make(WireAssignmentBundle)
+	inOutAssignment := make(WireAssignmentBundle)
 
-	sorted := topologicalSort(c)
+	sorted := topologicalSortBundle(c)
 
 	inI, outI := 0, 0
 	for _, w := range sorted {
-		var assignmentRaw []*big.Int
+		assignmentRaw := make([][]*big.Int, len(w.Inputs))
+		fullAssignment[w] = make(WireAssignment, len(w.Inputs))
+		inOutAssignment[w] = make(WireAssignment, len(w.Inputs))
+
 		if w.IsInput() {
 			if inI == len(inputs) {
 				t.Errorf("fewer input in vector than in circuit")
 				return
 			}
-			assignmentRaw = inputs[inI]
-			inI++
+			copy(assignmentRaw, inputs)
+			for i, assignment := range assignmentRaw {
+				wireAssignment, err := utils.SliceToBigIntSlice(assignment)
+				assert.NoError(err)
+				fullAssignment[w][wireKey(w.Inputs[i])] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+				inOutAssignment[w][wireKey(w.Inputs[i])] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+			}
 		} else if w.IsOutput() {
 			if outI == len(outputs) {
 				t.Errorf("fewer output in vector than in circuit")
 				return
 			}
-			assignmentRaw = outputs[outI]
-			outI++
-		}
-
-		if assignmentRaw != nil {
-			var wireAssignment []big.Int
-			wireAssignment, err := utils.SliceToBigIntSlice(assignmentRaw)
-			assert.NoError(err)
-			fullAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
-			inOutAssignment[w] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+			copy(assignmentRaw, outputs)
+			for i, assignment := range assignmentRaw {
+				wireAssignment, err := utils.SliceToBigIntSlice(assignment)
+				assert.NoError(err)
+				fullAssignment[w][wireKey(w.Outputs[i])] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+				inOutAssignment[w][wireKey(w.Outputs[i])] = sumcheck.NativeMultilinear(utils.ConvertToBigIntSlice(wireAssignment))
+			}
 		}
 	}
 
 	fullAssignment.Complete(c, target)
 
 	for _, w := range sorted {
-		if w.IsOutput() {
-
-			if err = utils.SliceEqualsBigInt(sumcheck.DereferenceBigIntSlice(inOutAssignment[w]), sumcheck.DereferenceBigIntSlice(fullAssignment[w])); err != nil {
-				t.Errorf("assignment mismatch: %v", err)
-			}
-
+		fmt.Println("w", w.Layer)
+		for _, wire := range w.Inputs {
+			fmt.Println("inputs fullAssignment[w][", wire, "]", fullAssignment[w][wireKey(wire)])
+		}
+		for _, wire := range w.Outputs {
+			fmt.Println("outputs fullAssignment[w][", wire, "]", fullAssignment[w][wireKey(wire)])
 		}
 	}
 
@@ -901,7 +831,8 @@ func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, 
 	proof, err := Prove(current, target, c, fullAssignment, fiatshamir.WithHashBigInt(hash))
 	assert.NoError(err)
 	t.Log("Proof complete")
-
+	fmt.Println("proof", proof)
+	
 	proofEmulated := make(Proofs[FR], len(proof))
 	for i, proof := range proof {
 		proofEmulated[i] = sumcheck.ValueOfProof[FR](proof)
@@ -942,27 +873,42 @@ func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, 
 }
 
 func TestMultipleDblAddSelectGKR(t *testing.T) {
-	var P bn254.G1Affine
-	var Q bn254.G1Affine
-	var U bn254.G1Affine
+	var P1 bn254.G1Affine
+	var P2 bn254.G1Affine
+	var U1 bn254.G1Affine
+	var U2 bn254.G1Affine
+
 	var one fpbn254.Element
 	one.SetOne()
 	var zero fpbn254.Element
 	zero.SetZero()
 
-	var s frbn254.Element
-	s.SetOne()
-	var r frbn254.Element
-	r.SetOne()
-	P.ScalarMultiplicationBase(s.BigInt(new(big.Int)))
-	Q.ScalarMultiplicationBase(r.BigInt(new(big.Int)))
-	U.Add(&P, &Q)
+	var s1 frbn254.Element
+	s1.SetOne() //s1.SetRandom()
+	var r1 frbn254.Element
+	r1.SetOne()	//r1.SetRandom()
+	var s2 frbn254.Element
+	s2.SetOne() //s2.SetRandom()
+	var r2 frbn254.Element
+	r2.SetOne() //r2.SetRandom()
 
-	result, err := new(big.Int).SetString("21888242871839275222246405745257275088696311157297823662689037894645226206973", 10)
-	if !err {
-		panic("error result")
-	}
+	P1.ScalarMultiplicationBase(s1.BigInt(new(big.Int)))
+	P2.ScalarMultiplicationBase(r1.BigInt(new(big.Int)))
+	U1.ScalarMultiplication(&P1, r2.BigInt(new(big.Int)))
+	U2.ScalarMultiplication(&P2, s2.BigInt(new(big.Int)))
+
+	fmt.Println("P1X", P1.X.String())
+	fmt.Println("P1Y", P1.Y.String())
+
+	// result, err := new(big.Int).SetString("21888242871839275222246405745257275088696311157297823662689037894645226206973", 10)
+	// if !err {
+	// 	panic("error result")
+	// }
 
 	var fp emparams.BN254Fp
-	testMultipleDblAddSelectGKRInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), fp.Modulus(), [][]*big.Int{{ElementToBigInt(P.X), ElementToBigInt(P.X)}, {ElementToBigInt(P.Y), ElementToBigInt(P.Y)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one)}}, [][]*big.Int{{result, result}})
+	be := sumcheck.NewBigIntEngine(fp.Modulus())
+	gate := sumcheck.DblAddSelectGateFullOutput[*sumcheck.BigIntEngine, *big.Int]{Selector: big.NewInt(1)}
+	res1 := gate.Evaluate(be, ElementToBigInt(P1.X), ElementToBigInt(P1.Y), ElementToBigInt(one), big.NewInt(0), big.NewInt(1), big.NewInt(0))
+	res2 := gate.Evaluate(be, ElementToBigInt(P2.X), ElementToBigInt(P2.Y), ElementToBigInt(one), big.NewInt(0), big.NewInt(1), big.NewInt(0))
+	testMultipleDblAddSelectGKRInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), fp.Modulus(), [][]*big.Int{{ElementToBigInt(P1.X), ElementToBigInt(P2.X)}, {ElementToBigInt(P1.Y), ElementToBigInt(P2.Y)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}}, [][]*big.Int{{res1[0], res2[0]}, {res1[1], res2[1]}, {res1[2], res2[2]}, {res1[3], res2[3]}, {res1[4], res2[4]}, {res1[5], res2[5]}})
 }

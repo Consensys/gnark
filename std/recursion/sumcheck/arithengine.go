@@ -95,3 +95,13 @@ func NewEmulatedEngine[FR emulated.FieldParams](api frontend.API) (*EmuEngine[FR
 	}
 	return &EmuEngine[FR]{f: f}, nil
 }
+
+
+// noopEngine is a no-operation arithmetic engine. Can be used to access methods of the gates without performing any computation.
+type noopEngine struct{}
+
+func (ne *noopEngine) Add(a, b element) element { panic("noop engine: Add called") }
+func (ne *noopEngine) Mul(a, b element) element { panic("noop engine: Mul called") }
+func (ne *noopEngine) Sub(a, b element) element { panic("noop engine: Sub called") }
+func (ne *noopEngine) One() element             { panic("noop engine: One called") }
+func (ne *noopEngine) Const(i *big.Int) element { panic("noop engine: Const called") }
