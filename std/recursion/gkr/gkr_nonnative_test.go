@@ -15,8 +15,8 @@ import (
 	frbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	//"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
-	// "github.com/consensys/gnark/frontend/cs/scs"
-	// "github.com/consensys/gnark/profile"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -79,7 +79,7 @@ func proofEquals(expected NativeProofs, seen NativeProofs) error {
 		copy(roundPolyEvalsSeen, xSeen.RoundPolyEvaluations)
 
 		for i, poly := range roundPolyEvals {
-			if err := utils.SliceEqualsBigInt(sumcheck.DereferenceBigIntSlice(poly), sumcheck.DereferenceBigIntSlice(roundPolyEvalsSeen[i])); err != nil {
+			if err := utils.SliceEqualsBigInt(poly, roundPolyEvalsSeen[i]); err != nil {
 				return err
 			}
 		}
@@ -189,12 +189,12 @@ func makeInOutAssignmentBundle[FR emulated.FieldParams](c CircuitBundleEmulated[
 		if w.IsInput() {
 			res[w] = make(WireAssignmentEmulated[FR], len(w.Inputs))
 			for _, wire := range w.Inputs {
-				res[w][wire] = inputValues[wire.WireIndex]
+				res[w][wireKey(wire)] = inputValues[wire.WireIndex]
 			}
 		} else if w.IsOutput() {
 			res[w] = make(WireAssignmentEmulated[FR], len(w.Outputs))
 			for _, wire := range w.Outputs {
-				res[w][wire] = outputValues[wire.WireIndex]
+				res[w][wireKey(wire)] = outputValues[wire.WireIndex]
 			}
 		}
 	}
@@ -417,7 +417,7 @@ func unmarshalProof(printable []PrintableSumcheckProof) (proof NativeProofs) {
 				for _, v := range val[1:] {
 					temp.Lsh(&temp, 64).Add(&temp, new(big.Int).SetUint64(v))
 				}
-				finalEvalProof[k] = temp
+				finalEvalProof[k] = &temp
 			}
 			proof[i].FinalEvalProof = finalEvalProof
 		} else {
@@ -714,7 +714,7 @@ func (c *ProjAddGkrVerifierCircuit[FR]) Define(api frontend.API) error {
 
 	sorted := topologicalSortBundleEmulated(c.Circuit)
 
-	if proof, err = DeserializeProofBundle(api, sorted, c.SerializedProof); err != nil {
+	if proof, err = DeserializeProofBundle(sorted, c.SerializedProof); err != nil {
 		return err
 	}
 	assignment := makeInOutAssignmentBundle(c.Circuit, c.Input, c.Output)
@@ -734,21 +734,23 @@ func ElementToBigInt(element fpbn254.Element) *big.Int {
 
 func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, target *big.Int, inputs [][]*big.Int, outputs [][]*big.Int) {
 	selector := []*big.Int{big.NewInt(1)}
-	c := make(CircuitBundle, 2)
-	fmt.Println("inputs", inputs)
-	fmt.Println("outputs", outputs)
-	c[0] = InitFirstWireBundle(len(inputs))
-	c[1] = NewWireBundle(
-		sumcheck.DblAddSelectGateFullOutput[*sumcheck.BigIntEngine, *big.Int]{Selector: selector[0]},
-		c[0].Outputs,
-		1,
-	)
+	depth := 16 //64
+	c := make(CircuitBundle, depth + 1)
+	c[0] = InitFirstWireBundle(len(inputs), len(c))
+	for i := 1; i < depth + 1; i++ {
+		c[i] = NewWireBundle(
+			sumcheck.DblAddSelectGateFullOutput[*sumcheck.BigIntEngine, *big.Int]{Selector: selector[0]},
+			c[i-1].Outputs,
+			i,
+			len(c),
+		)
+	}
 	// c[2] = NewWireBundle(
 	// 	sumcheck.DblAddSelectGateFullOutput[*sumcheck.BigIntEngine, *big.Int]{Selector: selector[0]},
 	// 	c[1].Outputs,
 	// 	2,
+	// 	len(c),
 	// )
-	
 
 	selectorEmulated := make([]emulated.Element[FR], len(selector))
 	for i, f := range selector {
@@ -761,12 +763,21 @@ func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, 
 	// }
 
 	cEmulated := make(CircuitBundleEmulated[FR], len(c))
-	cEmulated[0] = InitFirstWireBundleEmulated[FR](len(inputs))
-	cEmulated[1] = NewWireBundleEmulated(
-		sumcheck.DblAddSelectGateFullOutput[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{Selector: &selectorEmulated[0]},
-		c[0].Outputs,
-		1,
-	)
+	cEmulated[0] = InitFirstWireBundleEmulated[FR](len(inputs), len(c))
+	for i := 1; i < depth + 1; i++ {
+		cEmulated[i] = NewWireBundleEmulated(
+			sumcheck.DblAddSelectGateFullOutput[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{Selector: &selectorEmulated[0]},
+			c[i-1].Outputs,
+			i,
+			len(c),
+		)
+	}
+	// cEmulated[2] = NewWireBundleEmulated(
+	// 	sumcheck.DblAddSelectGateFullOutput[*sumcheck.EmuEngine[FR], *emulated.Element[FR]]{Selector: &selectorEmulated[0]},
+	// 	c[1].Outputs,
+	// 	2,
+	// 	len(c),
+	// )
 
 	assert := test.NewAssert(t)
 
@@ -817,21 +828,23 @@ func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, 
 
 	fullAssignment.Complete(c, target)
 
-	for _, w := range sorted {
-		fmt.Println("w", w.Layer)
-		for _, wire := range w.Inputs {
-			fmt.Println("inputs fullAssignment[w][", wire, "]", fullAssignment[w][wireKey(wire)])
-		}
-		for _, wire := range w.Outputs {
-			fmt.Println("outputs fullAssignment[w][", wire, "]", fullAssignment[w][wireKey(wire)])
-		}
-	}
+
+	// for _, w := range sorted {
+	// 	fmt.Println("w", w.Layer)
+	// 	for _, wire := range w.Inputs {
+	// 		fmt.Println("inputs fullAssignment[w][", wire, "]", fullAssignment[w][wireKey(wire)])
+	// 	}
+	// 	for _, wire := range w.Outputs {
+	// 		fmt.Println("outputs fullAssignment[w][", wire, "]", fullAssignment[w][wireKey(wire)])
+	// 	}
+	// }
+
 
 	t.Log("Circuit evaluation complete")
 	proof, err := Prove(current, target, c, fullAssignment, fiatshamir.WithHashBigInt(hash))
 	assert.NoError(err)
 	t.Log("Proof complete")
-	fmt.Println("proof", proof)
+	//fmt.Println("proof", proof)
 	
 	proofEmulated := make(Proofs[FR], len(proof))
 	for i, proof := range proof {
@@ -870,6 +883,12 @@ func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, 
 
 	err = test.IsSolved(validCircuit, validAssignment, current)
 	assert.NoError(err)
+
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, validCircuit)
+	p.Stop()
+
+	fmt.Println(p.NbConstraints())
 }
 
 func TestMultipleDblAddSelectGKR(t *testing.T) {
@@ -877,16 +896,18 @@ func TestMultipleDblAddSelectGKR(t *testing.T) {
 	var P2 bn254.G1Affine
 	var U1 bn254.G1Affine
 	var U2 bn254.G1Affine
+	var V1 bn254.G1Affine
+	var V2 bn254.G1Affine
 
 	var one fpbn254.Element
-	one.SetOne()
+	one.SetOne() 
 	var zero fpbn254.Element
 	zero.SetZero()
 
 	var s1 frbn254.Element
 	s1.SetOne() //s1.SetRandom()
 	var r1 frbn254.Element
-	r1.SetOne()	//r1.SetRandom()
+	r1.SetOne() //r1.SetRandom()
 	var s2 frbn254.Element
 	s2.SetOne() //s2.SetRandom()
 	var r2 frbn254.Element
@@ -896,19 +917,34 @@ func TestMultipleDblAddSelectGKR(t *testing.T) {
 	P2.ScalarMultiplicationBase(r1.BigInt(new(big.Int)))
 	U1.ScalarMultiplication(&P1, r2.BigInt(new(big.Int)))
 	U2.ScalarMultiplication(&P2, s2.BigInt(new(big.Int)))
-
-	fmt.Println("P1X", P1.X.String())
-	fmt.Println("P1Y", P1.Y.String())
-
-	// result, err := new(big.Int).SetString("21888242871839275222246405745257275088696311157297823662689037894645226206973", 10)
-	// if !err {
-	// 	panic("error result")
-	// }
+	V1.ScalarMultiplication(&U1, s2.BigInt(new(big.Int)))
+	V2.ScalarMultiplication(&U2, r2.BigInt(new(big.Int)))
 
 	var fp emparams.BN254Fp
 	be := sumcheck.NewBigIntEngine(fp.Modulus())
 	gate := sumcheck.DblAddSelectGateFullOutput[*sumcheck.BigIntEngine, *big.Int]{Selector: big.NewInt(1)}
-	res1 := gate.Evaluate(be, ElementToBigInt(P1.X), ElementToBigInt(P1.Y), ElementToBigInt(one), big.NewInt(0), big.NewInt(1), big.NewInt(0))
-	res2 := gate.Evaluate(be, ElementToBigInt(P2.X), ElementToBigInt(P2.Y), ElementToBigInt(one), big.NewInt(0), big.NewInt(1), big.NewInt(0))
-	testMultipleDblAddSelectGKRInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), fp.Modulus(), [][]*big.Int{{ElementToBigInt(P1.X), ElementToBigInt(P2.X)}, {ElementToBigInt(P1.Y), ElementToBigInt(P2.Y)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero)}}, [][]*big.Int{{res1[0], res2[0]}, {res1[1], res2[1]}, {res1[2], res2[2]}, {res1[3], res2[3]}, {res1[4], res2[4]}, {res1[5], res2[5]}})
+	res := gate.Evaluate(be, gate.Evaluate(be, ElementToBigInt(P1.X), ElementToBigInt(P1.Y), ElementToBigInt(one), big.NewInt(0), big.NewInt(1), big.NewInt(0))...)
+	//res2 := gate.Evaluate(be, gate.Evaluate(be, ElementToBigInt(P2.X), ElementToBigInt(P2.Y), ElementToBigInt(one), big.NewInt(0), big.NewInt(1), big.NewInt(0))...)
+
+	inputLayer := []*big.Int{ElementToBigInt(P1.X), ElementToBigInt(P1.Y), ElementToBigInt(one), ElementToBigInt(one), ElementToBigInt(zero), ElementToBigInt(one)}
+
+	arity := 6
+	nBInstances := 2 //2048
+	inputs := make([][]*big.Int, arity)
+	outputs := make([][]*big.Int, arity)
+	for i := 0; i < arity; i++ {
+		inputs[i] = repeat(inputLayer[i], nBInstances)
+		outputs[i] = repeat(res[i], nBInstances)
+	}
+
+	testMultipleDblAddSelectGKRInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), fp.Modulus(), inputs, outputs)
+	// testMultipleDblAddSelectGKRInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), fp.Modulus(), [][]*big.Int{{ElementToBigInt(P1.X), ElementToBigInt(P2.X), ElementToBigInt(P1.X), ElementToBigInt(P2.X)}, {ElementToBigInt(P1.Y), ElementToBigInt(P2.Y), ElementToBigInt(P1.Y), ElementToBigInt(P2.Y)}, {ElementToBigInt(one), ElementToBigInt(one), ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero), ElementToBigInt(zero), ElementToBigInt(zero)}, {ElementToBigInt(one), ElementToBigInt(one), ElementToBigInt(one), ElementToBigInt(one)}, {ElementToBigInt(zero), ElementToBigInt(zero), ElementToBigInt(zero), ElementToBigInt(zero)}}, [][]*big.Int{{res1[0], res2[0], res1[0], res2[0]}, {res1[1], res2[1], res1[1], res2[1]}, {res1[2], res2[2], res1[2], res2[2]}, {res1[3], res2[3], res1[3], res2[3]}, {res1[4], res2[4], res1[4], res2[4]}, {res1[5], res2[5], res1[5], res2[5]}})
+}
+
+func repeat(value *big.Int, count int) []*big.Int {
+	result := make([]*big.Int, count)
+	for i := range result {
+		result[i] = new(big.Int).Set(value)
+	}
+	return result
 }

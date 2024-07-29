@@ -75,6 +75,7 @@ func Prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 		}
 		// compute the univariate polynomial with first j variables fixed.
 		proof.RoundPolyEvaluations[j+1] = claims.Next(challenges[j])
+		//fmt.Println("proof.RoundPolyEvaluations[j+1]", proof.RoundPolyEvaluations[j+1])
 
 	}
 	if challenges[nbVars-1], challengeNames, err = DeriveChallengeProver(fs, challengeNames, proof.RoundPolyEvaluations[nbVars-1]); err != nil {

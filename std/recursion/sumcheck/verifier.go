@@ -103,8 +103,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	if err != nil {
 		return fmt.Errorf("verification opts: %w", err)
 	}
-	challengeNames := getChallengeNames(v.prefix, 1, claims.NbVars()) //claims.NbClaims()
-	fmt.Println("verifier challengeNames", challengeNames)
+	challengeNames := getChallengeNames(v.prefix, 1, claims.NbVars()) //claims.NbClaims()  todo change this
 	fs, err := recursion.NewTranscript(v.api, fr.Modulus(), challengeNames)
 	if err != nil {
 		return fmt.Errorf("new transcript: %w", err)
@@ -113,7 +112,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	if err = v.bindChallenge(fs, challengeNames[0], cfg.BaseChallenges); err != nil {
 		return fmt.Errorf("base: %w", err)
 	}
-
+	nbVars := claims.NbVars()
 	combinationCoef := v.f.Zero()
 	// if claims.NbClaims() >= 2 { //todo fix this
 	// 	println("verifier claims more than 2", claims.NbClaims())
@@ -121,14 +120,14 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	// 		return fmt.Errorf("derive combination coef: %w", err)
 	// 	}
 	// }
-	challenges := make([]*emulated.Element[FR], claims.NbVars())
+	challenges := make([]*emulated.Element[FR], nbVars) //claims.NbVars()
 
 	// gJR is the claimed value. In case of multiple claims it is combined
 	// claimed value we're going to check against.
 	gJR := claims.CombinedSum(combinationCoef)
 
 	// sumcheck rounds
-	for j := 0; j < claims.NbVars(); j++ {
+	for j := 0; j < nbVars; j++ {
 		// instead of sending the polynomials themselves, the provers sends n evaluations of the round polynomial:
 		//
 		//   g_j(X_j) = \sum_{x_{j+1},...\x_k \in {0,1}} g(r_1, ..., r_{j-1}, X_j, x_{j+1}, ...)
@@ -145,10 +144,14 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		}
 		// computes g_{j-1}(r) - g_j(1) as missing evaluation
 		gj0 := v.f.Sub(gJR, &evals[0])
+		// fmt.Println("gj0")
+		// v.f.Println(gj0)
 		// construct the n+1 evaluations for interpolation
 		gJ := []*emulated.Element[FR]{gj0}
 		for i := range evals {
 			gJ = append(gJ, &evals[i])
+			// fmt.Println("evals[i]")
+			// v.f.Println(&evals[i])
 		}
 
 		// we derive the challenge from prover message.
@@ -160,6 +163,8 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		// interpolating and then evaluating we are computing the value
 		// directly.
 		gJR = v.p.InterpolateLDE(challenges[j], gJ)
+		// fmt.Println("gJR")
+		// v.f.Println(gJR)
 
 		// we do not directly need to check gJR now - as in the next round we
 		// compute new evaluation point from gJR then the check is performed

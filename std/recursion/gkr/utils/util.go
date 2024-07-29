@@ -35,12 +35,12 @@ func ConvertToBigIntSlice(input []big.Int) []*big.Int {
 	return output
 }
 
-func SliceEqualsBigInt(a []big.Int, b []big.Int) error {
+func SliceEqualsBigInt(a []*big.Int, b []*big.Int) error {
 	if len(a) != len(b) {
 		return fmt.Errorf("length mismatch %d≠%d", len(a), len(b))
 	}
 	for i := range a {
-		if a[i].Cmp(&b[i]) != 0 {
+		if a[i].Cmp(b[i]) != 0 {
 			return fmt.Errorf("at index %d: %s ≠ %s", i, a[i].String(), b[i].String())
 		}
 	}

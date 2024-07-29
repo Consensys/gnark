@@ -44,7 +44,6 @@ func ReferenceBigIntSlice(vals []big.Int) []*big.Int {
 }
 
 func Fold(api *BigIntEngine, ml NativeMultilinear, r *big.Int) NativeMultilinear {
-	// NB! it modifies ml in-place and also returns
 	mid := len(ml) / 2
 	bottom, top := ml[:mid], ml[mid:]
 	var t *big.Int
