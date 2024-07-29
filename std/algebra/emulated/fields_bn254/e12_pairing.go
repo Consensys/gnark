@@ -422,13 +422,13 @@ func (e Ext12) FrobeniusCubeTorus(y *E6) *E6 {
 	return res
 }
 
-// FinalExponentiationCheck checks that a Miller function output x lies in the
+// AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
 // same equivalence class as the reduced pairing. This replaces the final
 // exponentiation step in-circuit.
 // The method follows Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
-func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
+func (e Ext12) AssertFinalExponentiationIsOne(x *E12) {
 	res, err := e.fp.NewHint(finalExpHint, 24, &x.C0.B0.A0, &x.C0.B0.A1, &x.C0.B1.A0, &x.C0.B1.A1, &x.C0.B2.A0, &x.C0.B2.A1, &x.C1.B0.A0, &x.C1.B0.A1, &x.C1.B1.A0, &x.C1.B1.A1, &x.C1.B2.A0, &x.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
@@ -474,8 +474,6 @@ func (e Ext12) FinalExponentiationCheck(x *E12) *E12 {
 	t0 = e.Mul(t0, t1)
 
 	e.AssertIsEqual(t0, t2)
-
-	return nil
 }
 
 func (e Ext12) Frobenius(x *E12) *E12 {
