@@ -436,9 +436,9 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) CheckOpeningProof(commitment Commitment
 	totalG1 = v.curve.Add(totalG1, commitmentNeg)
 
 	// e([f(a)-f(α)-a*H(α)]G₁], G₂).e([H(α)]G₁, [α]G₂) == 1
-	if err := v.pairing.PairingCheck(
-		[]*G1El{totalG1, &proof.Quotient},
-		[]*G2El{&vk.G2[0], &vk.G2[1]},
+	if err := v.pairing.DoublePairingCheck(
+		[2]*G1El{totalG1, &proof.Quotient},
+		[2]*G2El{&vk.G2[0], &vk.G2[1]},
 	); err != nil {
 		return fmt.Errorf("pairing check: %w", err)
 	}
@@ -580,9 +580,9 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) BatchVerifyMultiPoints(digests []Commit
 	}
 
 	// pairing check
-	err = v.pairing.PairingCheck(
-		[]*G1El{foldedDigest, foldedQuotients},
-		[]*G2El{&vk.G2[0], &vk.G2[1]},
+	err = v.pairing.DoublePairingCheck(
+		[2]*G1El{foldedDigest, foldedQuotients},
+		[2]*G2El{&vk.G2[0], &vk.G2[1]},
 	)
 	if err != nil {
 		return fmt.Errorf("pairingcheck: %w", err)
