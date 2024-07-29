@@ -182,12 +182,12 @@ func TestDoublePairingFixedBLS315(t *testing.T) {
 
 }
 
-type pairingCheckBLS315 struct {
+type pairingCheck struct {
 	P1, P2 G1Affine
 	Q1, Q2 G2Affine
 }
 
-func (circuit *pairingCheckBLS315) Define(api frontend.API) error {
+func (circuit *pairingCheck) Define(api frontend.API) error {
 
 	err := PairingCheck(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
 
@@ -198,19 +198,48 @@ func (circuit *pairingCheckBLS315) Define(api frontend.API) error {
 	return nil
 }
 
-func TestPairingCheckBLS315(t *testing.T) {
+func TestPairingCheck(t *testing.T) {
 
 	// pairing test data
 	P, Q := pairingCheckData()
-	witness := pairingCheckBLS315{
+	witness := pairingCheck{
 		P1: NewG1Affine(P[0]),
 		P2: NewG1Affine(P[1]),
 		Q1: NewG2Affine(Q[0]),
 		Q2: NewG2Affine(Q[1]),
 	}
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&pairingCheckBLS315{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
+	assert.CheckCircuit(&pairingCheck{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
+}
 
+type doublePairingCheck struct {
+	P1, P2 G1Affine
+	Q1, Q2 G2Affine
+}
+
+func (circuit *doublePairingCheck) Define(api frontend.API) error {
+
+	err := DoublePairingCheck(api, [2]G1Affine{circuit.P1, circuit.P2}, [2]G2Affine{circuit.Q1, circuit.Q2})
+
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+
+	return nil
+}
+
+func TestDoublePairingCheck(t *testing.T) {
+
+	// pairing test data
+	P, Q := pairingCheckData()
+	witness := doublePairingCheck{
+		P1: NewG1Affine(P[0]),
+		P2: NewG1Affine(P[1]),
+		Q1: NewG2Affine(Q[0]),
+		Q2: NewG2Affine(Q[1]),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&doublePairingCheck{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_633), test.NoProverChecks())
 }
 
 // utils

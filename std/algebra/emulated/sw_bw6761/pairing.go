@@ -161,6 +161,14 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
+// DoublePairingCheck calculates the reduced pairing for a 2 pairs of points and asserts if the result is One
+// e(P0, Q0) * e(P1, Q1) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+func (pr Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
+	return pr.PairingCheck(P[:], Q[:])
+}
+
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext6.AssertIsEqual(x, y)
 }

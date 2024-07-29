@@ -97,6 +97,10 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 	// when the inputs are of mismatching length. It does not modify the inputs.
 	PairingCheck([]*G1El, []*G2El) error
 
+	// DoublePairingCheck asserts that the pairing result of 2 pairs of points
+	// is 1.  It does not modify the inputs.
+	DoublePairingCheck([2]*G1El, [2]*G2El) error
+
 	// AssertIsEqual asserts the equality of the inputs.
 	AssertIsEqual(*GtEl, *GtEl)
 
