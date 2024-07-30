@@ -57,6 +57,35 @@ func TestFinalExp(t *testing.T) {
 	assert.CheckCircuit(&finalExp{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
+type millerLoopBLS377 struct {
+	P   G1Affine
+	Q   G2Affine
+	Res GT
+}
+
+func (circuit *millerLoopBLS377) Define(api frontend.API) error {
+	pairingRes, _ := MillerLoop(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
+	pairingRes.AssertIsEqual(api, circuit.Res)
+
+	return nil
+}
+
+func TestMillerLoopBLS377(t *testing.T) {
+
+	// Miller loop test data
+	P, Q, milRes := millerLoopData()
+
+	// assign values to witness
+	witness := millerLoopBLS377{
+		P:   NewG1Affine(P),
+		Q:   NewG2Affine(Q),
+		Res: NewGTEl(milRes),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&millerLoopBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+
+}
+
 type pairingBLS377 struct {
 	P   G1Affine
 	Q   G2Affine
@@ -272,6 +301,16 @@ func TestGroupMembership(t *testing.T) {
 }
 
 // utils
+func millerLoopData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes bls12377.GT) {
+	_, _, P, Q = bls12377.Generators()
+	lines := bls12377.PrecomputeLines(Q)
+	milRes, _ = bls12377.MillerLoopFixedQ(
+		[]bls12377.G1Affine{P},
+		[][2][len(bls12377.LoopCounter) - 1]bls12377.LineEvaluationAff{lines},
+	)
+	return
+}
+
 func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
 	_, _, P, Q = bls12377.Generators()
 	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})

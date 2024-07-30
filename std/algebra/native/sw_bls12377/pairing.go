@@ -278,7 +278,123 @@ func PairingCheck(api frontend.API, P []G1Affine, Q []G2Affine) error {
 //
 // This function doesn't check that the inputs are in the correct subgroups
 func DoublePairingCheck(api frontend.API, P [2]G1Affine, Q [2]G2Affine) error {
-	return PairingCheck(api, P[:], Q[:])
+	// hint the non-residue witness
+	hint, err := api.NewHint(doublePairingCheckHint, 18, P[0].X, P[0].Y, P[1].X, P[1].Y, Q[0].P.X.A0, Q[0].P.X.A1, Q[0].P.Y.A0, Q[0].P.Y.A1, Q[1].P.X.A0, Q[1].P.X.A1, Q[1].P.Y.A0, Q[1].P.Y.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	var residueWitness, residueWitnessInv, scalingFactor, t0 fields_bls12377.E12
+	residueWitness.C0.B0.A0 = hint[0]
+	residueWitness.C0.B0.A1 = hint[1]
+	residueWitness.C0.B1.A0 = hint[2]
+	residueWitness.C0.B1.A1 = hint[3]
+	residueWitness.C0.B2.A0 = hint[4]
+	residueWitness.C0.B2.A1 = hint[5]
+	residueWitness.C1.B0.A0 = hint[6]
+	residueWitness.C1.B0.A1 = hint[7]
+	residueWitness.C1.B1.A0 = hint[8]
+	residueWitness.C1.B1.A1 = hint[9]
+	residueWitness.C1.B2.A0 = hint[10]
+	residueWitness.C1.B2.A1 = hint[11]
+	// constrain cubicNonResiduePower to be in Fp6
+	scalingFactor.C0.B0.A0 = hint[12]
+	scalingFactor.C0.B0.A1 = hint[13]
+	scalingFactor.C0.B1.A0 = hint[14]
+	scalingFactor.C0.B1.A1 = hint[15]
+	scalingFactor.C0.B2.A0 = hint[16]
+	scalingFactor.C0.B2.A1 = hint[17]
+	scalingFactor.C1.SetZero()
+
+	// residueWitnessInv = 1 / residueWitness
+	residueWitnessInv.Inverse(api, residueWitness)
+
+	if Q[0].Lines == nil {
+		Q0lines := computeLines(api, Q[0].P)
+		Q[0].Lines = Q0lines
+	}
+	lines0 := *Q[0].Lines
+	if Q[1].Lines == nil {
+		Q1lines := computeLines(api, Q[1].P)
+		Q[1].Lines = Q1lines
+	}
+	lines1 := *Q[1].Lines
+
+	// precomputations
+	y0Inv := api.Inverse(P[0].Y)
+	x0NegOverY0 := api.Mul(P[0].X, y0Inv)
+	x0NegOverY0 = api.Neg(x0NegOverY0)
+	y1Inv := api.Inverse(P[1].Y)
+	x1NegOverY1 := api.Mul(P[1].X, y1Inv)
+	x1NegOverY1 = api.Neg(x1NegOverY1)
+
+	// init Miller loop accumulator to residueWitness to share the squarings
+	// of residueWitnessInv^{-x₀}
+	res := residueWitness
+
+	// Compute f_{x₀,Q}(P)
+	var prodLines [5]fields_bls12377.E2
+	var l0, l1 lineEvaluation
+	for i := 62; i >= 0; i-- {
+		// mutualize the square among n Miller loops
+		// (∏ᵢfᵢ)²
+		res.Square(api, res)
+
+		if loopCounter[i] == 0 {
+			// line evaluation at P
+			// ℓ × res
+			res.MulBy034(api,
+				*l0.R0.MulByFp(api, lines0[0][i].R0, x0NegOverY0),
+				*l0.R1.MulByFp(api, lines0[0][i].R1, y0Inv),
+			)
+			// ℓ × res
+			res.MulBy034(api,
+				*l0.R0.MulByFp(api, lines1[0][i].R0, x1NegOverY1),
+				*l0.R1.MulByFp(api, lines1[0][i].R1, y1Inv),
+			)
+		} else {
+			// multiply by residueWitness when bit=1
+			res.Mul(api, res, residueWitness)
+
+			// lines evaluation at P
+			// ℓ × ℓ
+			prodLines = *fields_bls12377.Mul034By034(api,
+				*l0.R0.MulByFp(api, lines0[0][i].R0, x0NegOverY0),
+				*l0.R1.MulByFp(api, lines0[0][i].R1, y0Inv),
+				*l1.R0.MulByFp(api, lines0[1][i].R0, x0NegOverY0),
+				*l1.R1.MulByFp(api, lines0[1][i].R1, y0Inv),
+			)
+			// (ℓ × ℓ) × res
+			res.MulBy01234(api, prodLines)
+			// lines evaluation at P
+			// ℓ × ℓ
+			prodLines = *fields_bls12377.Mul034By034(api,
+				*l0.R0.MulByFp(api, lines1[0][i].R0, x1NegOverY1),
+				*l0.R1.MulByFp(api, lines1[0][i].R1, y1Inv),
+				*l1.R0.MulByFp(api, lines1[1][i].R0, x1NegOverY1),
+				*l1.R1.MulByFp(api, lines1[1][i].R1, y1Inv),
+			)
+			// (ℓ × ℓ) × res
+			res.MulBy01234(api, prodLines)
+		}
+	}
+
+	// Check that  res * scalingFactor * residueWitnessInv^λ' == 1
+	// where λ' = q, with u the BLS12-377 seed
+	// and residueWitnessInv, scalingFactor from the hint.
+	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{x₀} since
+	// we initialized the Miller loop accumulator with residueWitnessInv.
+	t0.Frobenius(api, residueWitnessInv)
+	t0.Mul(api, t0, res)
+	t0.Mul(api, t0, scalingFactor)
+
+	var one GT
+	one.SetOne()
+	t0.AssertIsEqual(api, one)
+
+	return nil
+
 }
 
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
