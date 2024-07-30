@@ -337,7 +337,6 @@ func (pr Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
 				pr.MulByElement(&lines0[0][i].R0, x0NegOverY0),
 				pr.MulByElement(&lines0[0][i].R1, y0Inv),
 			)
-
 			// ℓ × res
 			res = pr.MulBy034(
 				res,
@@ -348,79 +347,87 @@ func (pr Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
 			// multiply by residueWitnessInv when bit=1
 			res = pr.Mul(res, residueWitnessInv)
 
-			// lines evaluations at P
-			// and ℓ × ℓ
-			prodLines := pr.Mul034By034(
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
 				pr.MulByElement(&lines0[0][i].R0, x0NegOverY0),
 				pr.MulByElement(&lines0[0][i].R1, y0Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
 				pr.MulByElement(&lines0[1][i].R0, x0NegOverY0),
 				pr.MulByElement(&lines0[1][i].R1, y0Inv),
 			)
-			// (ℓ × ℓ) × res
-			res = pr.MulBy01234(res, prodLines)
-
-			// lines evaluations at P
-			// and ℓ × ℓ
-			prodLines = pr.Mul034By034(
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
 				pr.MulByElement(&lines1[0][i].R0, x1NegOverY1),
 				pr.MulByElement(&lines1[0][i].R1, y1Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
 				pr.MulByElement(&lines1[1][i].R0, x1NegOverY1),
 				pr.MulByElement(&lines1[1][i].R1, y1Inv),
 			)
-			// (ℓ × ℓ) × res
-			res = pr.MulBy01234(res, prodLines)
 		case -1:
 			// multiply by residueWitness when bit=-1
 			res = pr.Mul(res, &residueWitness)
 
-			// lines evaluations at P
-			// and ℓ × ℓ
-			prodLines := pr.Mul034By034(
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
 				pr.MulByElement(&lines0[0][i].R0, x0NegOverY0),
 				pr.MulByElement(&lines0[0][i].R1, y0Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
 				pr.MulByElement(&lines0[1][i].R0, x0NegOverY0),
 				pr.MulByElement(&lines0[1][i].R1, y0Inv),
 			)
-			// (ℓ × ℓ) × res
-			res = pr.MulBy01234(res, prodLines)
-
-			// lines evaluations at P
-			// and ℓ × ℓ
-			prodLines = pr.Mul034By034(
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
 				pr.MulByElement(&lines1[0][i].R0, x1NegOverY1),
 				pr.MulByElement(&lines1[0][i].R1, y1Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
 				pr.MulByElement(&lines1[1][i].R0, x1NegOverY1),
 				pr.MulByElement(&lines1[1][i].R1, y1Inv),
 			)
-			// (ℓ × ℓ) × res
-			res = pr.MulBy01234(res, prodLines)
 		default:
 			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
 		}
 	}
 
 	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
-	// lines evaluations at P
-	// and ℓ × ℓ
-	prodLines := pr.Mul034By034(
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
 		pr.MulByElement(&lines0[0][65].R0, x0NegOverY0),
 		pr.MulByElement(&lines0[0][65].R1, y0Inv),
+	)
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
 		pr.MulByElement(&lines0[1][65].R0, x0NegOverY0),
 		pr.MulByElement(&lines0[1][65].R1, y0Inv),
 	)
-	// (ℓ × ℓ) × res
-	res = pr.MulBy01234(res, prodLines)
-
-	// lines evaluations at P
-	// and ℓ × ℓ
-	prodLines = pr.Mul034By034(
+	res = pr.MulBy034(
+		res,
 		pr.MulByElement(&lines1[0][65].R0, x1NegOverY1),
 		pr.MulByElement(&lines1[0][65].R1, y1Inv),
+	)
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
 		pr.MulByElement(&lines1[1][65].R0, x1NegOverY1),
 		pr.MulByElement(&lines1[1][65].R1, y1Inv),
 	)
-	// (ℓ × ℓ) × res
-	res = pr.MulBy01234(res, prodLines)
 
 	// Check that  res * cubicNonResiduePower * residueWitnessInv^λ' == 1
 	// where λ' = q^3 - q^2 + q, with u the BN254 seed
