@@ -130,12 +130,6 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 	// but a can be either constant or a wire.
 
 	nbBits := builder.cs.FieldBitLen()
-	if ca, aConst := builder.constantValue(a); aConst {
-		// if a is a constant, we only need the number of bits of a;
-		// the binary decomposition of the bound will fail if nbBits(bound) > nbBits(a)
-		ba := builder.cs.ToBigInt(ca)
-		nbBits = ba.BitLen()
-	}
 
 	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs(), bits.OmitModulusCheck())
 	boundBits := bits.ToBinary(builder, bound, bits.WithNbDigits(nbBits))
