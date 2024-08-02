@@ -330,6 +330,19 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	return nil
 }
 
+// DoublePairingCheck computes the multi-pairing of the 2 input pairs and asserts that
+// the result is an identity element in the target group. It returns an error if
+// there is a mismatch between the lengths of the inputs.
+func (p *Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
+	var inP [2]G1Affine
+	inP[0] = *P[0]
+	inP[1] = *P[1]
+	var inQ [2]G2Affine
+	inQ[0] = *Q[0]
+	inQ[1] = *Q[1]
+	return DoublePairingCheck(p.api, inP, inQ)
+}
+
 // AssertIsEqual asserts the equality of the target group elements.
 func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
