@@ -20,8 +20,8 @@ type LazyClaims interface {
 
 // Proof of a multi-sumcheck statement.
 type Proof struct {
-	PartialSumPolys []polynomial.Polynomial
-	FinalEvalProof  interface{}
+	RoundPolyEvaluations []polynomial.Polynomial
+	FinalEvalProof       interface{}
 }
 
 func setupTranscript(api frontend.API, claimsNum int, varsNum int, settings *fiatshamir.Settings) ([]string, error) {
@@ -83,18 +83,17 @@ func Verify(api frontend.API, claims LazyClaims, proof Proof, transcriptSettings
 
 	gJ := make(polynomial.Polynomial, maxDegree+1)   //At the end of iteration j, gJ = ∑_{i < 2ⁿ⁻ʲ⁻¹} g(X₁, ..., Xⱼ₊₁, i...)		NOTE: n is shorthand for claims.VarsNum()
 	gJR := claims.CombinedSum(api, combinationCoeff) // At the beginning of iteration j, gJR = ∑_{i < 2ⁿ⁻ʲ} g(r₁, ..., rⱼ, i...)
-
 	for j := 0; j < claims.VarsNum(); j++ {
-		partialSumPoly := proof.PartialSumPolys[j] //proof.PartialSumPolys(j)
-		if len(partialSumPoly) != claims.Degree(j) {
+		roundPolyEvaluation := proof.RoundPolyEvaluations[j] //proof.RoundPolyEvaluations(j)
+		if len(roundPolyEvaluation) != claims.Degree(j) {
 			return fmt.Errorf("malformed proof") //Malformed proof
 		}
-		copy(gJ[1:], partialSumPoly)
-		gJ[0] = api.Sub(gJR, partialSumPoly[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
+		copy(gJ[1:], roundPolyEvaluation)
+		gJ[0] = api.Sub(gJR, roundPolyEvaluation[0]) // Requirement that gⱼ(0) + gⱼ(1) = gⱼ₋₁(r)
 		// gJ is ready
 
 		//Prepare for the next iteration
-		if r[j], err = next(transcript, proof.PartialSumPolys[j], &remainingChallengeNames); err != nil {
+		if r[j], err = next(transcript, proof.RoundPolyEvaluations[j], &remainingChallengeNames); err != nil {
 			return err
 		}
 

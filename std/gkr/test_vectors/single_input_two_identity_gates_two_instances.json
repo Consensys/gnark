@@ -23,7 +23,7 @@
 	"proof": [
 		{
 			"finalEvalProof": [],
-			"partialSumPolys": [
+			"roundPolyEvaluations": [
 				[
 					0,
 					0
@@ -34,7 +34,7 @@
 			"finalEvalProof": [
 				1
 			],
-			"partialSumPolys": [
+			"roundPolyEvaluations": [
 				[
 					-3,
 					-16
@@ -45,7 +45,7 @@
 			"finalEvalProof": [
 				1
 			],
-			"partialSumPolys": [
+			"roundPolyEvaluations": [
 				[
 					-3,
 					-16

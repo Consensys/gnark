@@ -25,7 +25,7 @@ func getChallengeNames(prefix string, nbClaims int, nbVars int) []string {
 }
 
 // bindChallengeProver binds the values for challengeName using native Fiat-Shamir transcript.
-func bindChallengeProver(fs *cryptofiatshamir.Transcript, challengeName string, values []*big.Int) error {
+func BindChallengeProver(fs *cryptofiatshamir.Transcript, challengeName string, values []*big.Int) error {
 	for i := range values {
 		buf := make([]byte, 32)
 		values[i].FillBytes(buf)
@@ -39,8 +39,8 @@ func bindChallengeProver(fs *cryptofiatshamir.Transcript, challengeName string, 
 // deriveChallengeProver binds the values for challengeName and then returns the
 // challenge using native Fiat-Shamir transcript. It also returns the rest of
 // the challenge names for used in the protocol.
-func deriveChallengeProver(fs *cryptofiatshamir.Transcript, challengeNames []string, values []*big.Int) (challenge *big.Int, restChallengeNames []string, err error) {
-	if err = bindChallengeProver(fs, challengeNames[0], values); err != nil {
+func DeriveChallengeProver(fs *cryptofiatshamir.Transcript, challengeNames []string, values []*big.Int) (challenge *big.Int, restChallengeNames []string, err error) {
+	if err = BindChallengeProver(fs, challengeNames[0], values); err != nil {
 		return nil, nil, fmt.Errorf("bind: %w", err)
 	}
 	nativeChallenge, err := fs.ComputeChallenge(challengeNames[0])
@@ -51,6 +51,7 @@ func deriveChallengeProver(fs *cryptofiatshamir.Transcript, challengeNames []str
 	return challenge, challengeNames[1:], nil
 }
 
+// todo change this bind as limbs instead of bits, ask @arya if necessary
 // bindChallenge binds the values for challengeName using in-circuit Fiat-Shamir transcript.
 func (v *Verifier[FR]) bindChallenge(fs *fiatshamir.Transcript, challengeName string, values []emulated.Element[FR]) error {
 	for i := range values {

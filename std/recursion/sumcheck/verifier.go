@@ -9,25 +9,25 @@ import (
 	"github.com/consensys/gnark/std/recursion"
 )
 
-type config struct {
+type Config struct {
 	prefix string
 }
 
 // Option allows to alter the sumcheck verifier behaviour.
-type Option func(c *config) error
+type Option func(c *Config) error
 
 // WithClaimPrefix prepends the given string to the challenge names when
 // computing the challenges inside the sumcheck verifier. The option is used in
 // a higher level protocols to ensure that sumcheck claims are not interchanged.
 func WithClaimPrefix(prefix string) Option {
-	return func(c *config) error {
+	return func(c *Config) error {
 		c.prefix = prefix
 		return nil
 	}
 }
 
-func newConfig(opts ...Option) (*config, error) {
-	cfg := new(config)
+func NewConfig(opts ...Option) (*Config, error) {
+	cfg := new(Config)
 	for i := range opts {
 		if err := opts[i](cfg); err != nil {
 			return nil, fmt.Errorf("apply option %d: %w", i, err)
@@ -37,7 +37,7 @@ func newConfig(opts ...Option) (*config, error) {
 }
 
 type verifyCfg[FR emulated.FieldParams] struct {
-	baseChallenges []emulated.Element[FR]
+	BaseChallenges []emulated.Element[FR]
 }
 
 // VerifyOption allows to alter the behaviour of the single sumcheck proof verification.
@@ -48,13 +48,13 @@ type VerifyOption[FR emulated.FieldParams] func(c *verifyCfg[FR]) error
 func WithBaseChallenges[FR emulated.FieldParams](baseChallenges []*emulated.Element[FR]) VerifyOption[FR] {
 	return func(c *verifyCfg[FR]) error {
 		for i := range baseChallenges {
-			c.baseChallenges = append(c.baseChallenges, *baseChallenges[i])
+			c.BaseChallenges = append(c.BaseChallenges, *baseChallenges[i])
 		}
 		return nil
 	}
 }
 
-func newVerificationConfig[FR emulated.FieldParams](opts ...VerifyOption[FR]) (*verifyCfg[FR], error) {
+func NewVerificationConfig[FR emulated.FieldParams](opts ...VerifyOption[FR]) (*verifyCfg[FR], error) {
 	cfg := new(verifyCfg[FR])
 	for i := range opts {
 		if err := opts[i](cfg); err != nil {
@@ -69,14 +69,14 @@ type Verifier[FR emulated.FieldParams] struct {
 	api frontend.API
 	f   *emulated.Field[FR]
 	p   *polynomial.Polynomial[FR]
-	*config
+	*Config
 }
 
 // NewVerifier initializes a new sumcheck verifier for the parametric emulated
 // field FR. It returns an error if the given options are invalid or when
 // initializing emulated arithmetic fails.
 func NewVerifier[FR emulated.FieldParams](api frontend.API, opts ...Option) (*Verifier[FR], error) {
-	cfg, err := newConfig(opts...)
+	cfg, err := NewConfig(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("new configuration: %w", err)
 	}
@@ -92,14 +92,14 @@ func NewVerifier[FR emulated.FieldParams](api frontend.API, opts ...Option) (*Ve
 		api:    api,
 		f:      f,
 		p:      p,
-		config: cfg,
+		Config: cfg,
 	}, nil
 }
 
 // Verify verifies the sumcheck proof for the given (lazy) claims.
 func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...VerifyOption[FR]) error {
 	var fr FR
-	cfg, err := newVerificationConfig(opts...)
+	cfg, err := NewVerificationConfig(opts...)
 	if err != nil {
 		return fmt.Errorf("verification opts: %w", err)
 	}
@@ -109,7 +109,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		return fmt.Errorf("new transcript: %w", err)
 	}
 	// bind challenge from previous round if it is a continuation
-	if err = v.bindChallenge(fs, challengeNames[0], cfg.baseChallenges); err != nil {
+	if err = v.bindChallenge(fs, challengeNames[0], cfg.BaseChallenges); err != nil {
 		return fmt.Errorf("base: %w", err)
 	}
 
