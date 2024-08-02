@@ -23,6 +23,8 @@ import (
 
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+
+	utils "github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
 )
@@ -30,6 +32,7 @@ import (
 type Phase2Evaluations struct {
 	G1 struct {
 		A, B, VKK []curve.G1Affine
+		Basis     [][]curve.G1Affine
 	}
 	G2 struct {
 		B []curve.G2Affine
@@ -39,11 +42,12 @@ type Phase2Evaluations struct {
 type Phase2 struct {
 	Parameters struct {
 		G1 struct {
-			Delta curve.G1Affine
-			L, Z  []curve.G1Affine
+			Delta         curve.G1Affine
+			L, Z          []curve.G1Affine
+			BasisExpSigma [][]curve.G1Affine
 		}
 		G2 struct {
-			Delta curve.G2Affine
+			Delta, GRootSigmaNeg curve.G2Affine
 		}
 	}
 	PublicKey PublicKey
@@ -105,15 +109,26 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	coeffAlphaTau1 := lagrangeCoeffsG1(srs.G1.AlphaTau, size)
 	coeffBetaTau1 := lagrangeCoeffsG1(srs.G1.BetaTau, size)
 
-	internal, secret, public := r1cs.GetNbVariables()
-	nWires := internal + secret + public
+	// a commitment is itself defined by a hint so the prover considers it private
+	// but the verifier will need to inject the value itself so on the groth16
+	// level it must be considered public
+	nbWires := r1cs.NbInternalVariables + r1cs.GetNbPublicVariables() + r1cs.GetNbSecretVariables()
+	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+	commitmentWires := commitmentInfo.CommitmentIndexes()
+	privateCommitted := commitmentInfo.GetPrivateCommitted()
+	nbPrivateCommittedWires := utils.NbElements(privateCommitted)
+
+	nbPublicWires := r1cs.GetNbPublicVariables() + len(commitmentInfo)
+	nbPrivateWires := r1cs.GetNbSecretVariables() + r1cs.NbInternalVariables - nbPrivateCommittedWires - len(commitmentInfo)
+
 	var evals Phase2Evaluations
-	evals.G1.A = make([]curve.G1Affine, nWires)
-	evals.G1.B = make([]curve.G1Affine, nWires)
-	evals.G2.B = make([]curve.G2Affine, nWires)
-	bA := make([]curve.G1Affine, nWires)
-	aB := make([]curve.G1Affine, nWires)
-	C := make([]curve.G1Affine, nWires)
+	evals.G1.A = make([]curve.G1Affine, nbWires)
+	evals.G1.B = make([]curve.G1Affine, nbWires)
+	evals.G1.Basis = make([][]curve.G1Affine, nbPrivateCommittedWires)
+	evals.G2.B = make([]curve.G2Affine, nbWires)
+	bA := make([]curve.G1Affine, nbWires)
+	aB := make([]curve.G1Affine, nbWires)
+	C := make([]curve.G1Affine, nbWires)
 
 	// TODO @gbotrel use constraint iterator when available.
 
@@ -153,21 +168,56 @@ func InitPhase2(r1cs *cs.R1CS, srs1 *Phase1) (Phase2, Phase2Evaluations) {
 	bitReverse(c2.Parameters.G1.Z)
 	c2.Parameters.G1.Z = c2.Parameters.G1.Z[:n-1]
 
-	// Evaluate L
-	nPrivate := internal + secret
-	c2.Parameters.G1.L = make([]curve.G1Affine, nPrivate)
-	evals.G1.VKK = make([]curve.G1Affine, public)
-	offset := public
-	for i := 0; i < nWires; i++ {
+	c2.Parameters.G1.L = make([]curve.G1Affine, nbPrivateWires)
+	evals.G1.VKK = make([]curve.G1Affine, nbPublicWires)
+	evals.G1.Basis = make([][]curve.G1Affine, len(commitmentInfo))
+	for i := range commitmentInfo {
+		evals.G1.Basis[i] = make([]curve.G1Affine, len(privateCommitted[i]))
+	}
+
+	vI := 0                                // number of public wires seen so far
+	cI := make([]int, len(commitmentInfo)) // number of private committed wires seen so far for each commitment
+	nbPrivateCommittedSeen := 0            // = ∑ᵢ cI[i]
+	nbCommitmentsSeen := 0
+
+	for i := range bA {
 		var tmp curve.G1Affine
 		tmp.Add(&bA[i], &aB[i])
 		tmp.Add(&tmp, &C[i])
-		if i < public {
-			evals.G1.VKK[i].Set(&tmp)
+		commitment := -1 // index of the commitment that commits to this variable as a private or commitment value
+		var isCommitment, isPublic bool
+		if isPublic = i < r1cs.GetNbPublicVariables(); !isPublic {
+			if nbCommitmentsSeen < len(commitmentWires) && commitmentWires[nbCommitmentsSeen] == i {
+				isCommitment = true
+				nbCommitmentsSeen++
+			}
+
+			for j := range commitmentInfo { // does commitment j commit to i?
+				if cI[j] < len(privateCommitted[j]) && privateCommitted[j][cI[j]] == i {
+					commitment = j
+					break // frontend guarantees that no private variable is committed to more than once
+				}
+			}
+		}
+
+		if isPublic || commitment != -1 || isCommitment {
+			if isPublic || isCommitment {
+				evals.G1.VKK[vI] = tmp
+				vI++
+			} else { // committed and private
+				evals.G1.Basis[commitment][cI[commitment]] = tmp
+				cI[commitment]++
+				nbPrivateCommittedSeen++
+			}
 		} else {
-			c2.Parameters.G1.L[i-offset].Set(&tmp)
+			c2.Parameters.G1.L[i-vI-nbPrivateCommittedSeen] = tmp // vI = nbPublicSeen + nbCommitmentsSeen
 		}
 	}
+
+	basisExpSigma, gRootSigmaNeg := InitPedersen(evals.G1.Basis...)
+	c2.Parameters.G1.BasisExpSigma = basisExpSigma
+	c2.Parameters.G2.GRootSigmaNeg = gRootSigmaNeg
+
 	// Set δ public key
 	var delta fr.Element
 	delta.SetOne()
@@ -195,6 +245,20 @@ func (c *Phase2) Contribute() {
 	c.Parameters.G1.Delta.ScalarMultiplication(&c.Parameters.G1.Delta, &deltaBI)
 	c.Parameters.G2.Delta.ScalarMultiplication(&c.Parameters.G2.Delta, &deltaBI)
 
+	// Update GRootSigmaNeg using δ
+	c.Parameters.G2.GRootSigmaNeg.ScalarMultiplication(&c.Parameters.G2.GRootSigmaNeg, &deltaBI)
+
+	// Update BasisExpSigma with δ⁻¹
+	// TODO: Is it sound to use the same δ⁻¹ for all basis?
+	for i := 0; i < len(c.Parameters.G1.BasisExpSigma); i++ {
+		for j := 0; j < len(c.Parameters.G1.BasisExpSigma[i]); j++ {
+			c.Parameters.G1.BasisExpSigma[i][j].ScalarMultiplication(
+				&c.Parameters.G1.BasisExpSigma[i][j],
+				&deltaInvBI,
+			)
+		}
+	}
+
 	// Update Z using δ⁻¹
 	for i := 0; i < len(c.Parameters.G1.Z); i++ {
 		c.Parameters.G1.Z[i].ScalarMultiplication(&c.Parameters.G1.Z[i], &deltaInvBI)
@@ -220,6 +284,14 @@ func VerifyPhase2(c0, c1 *Phase2, c ...*Phase2) error {
 }
 
 func verifyPhase2(current, contribution *Phase2) error {
+	// Check hash of the contribution
+	h := contribution.hash()
+	for i := 0; i < len(h); i++ {
+		if h[i] != contribution.Hash[i] {
+			return errors.New("couldn't verify hash of contribution")
+		}
+	}
+
 	// Compute R for δ
 	deltaR := genR(contribution.PublicKey.SG, contribution.PublicKey.SXG, current.Hash[:], 1)
 
@@ -232,7 +304,12 @@ func verifyPhase2(current, contribution *Phase2) error {
 	if !sameRatio(contribution.Parameters.G1.Delta, current.Parameters.G1.Delta, deltaR, contribution.PublicKey.XR) {
 		return errors.New("couldn't verify that [δ]₁ is based on previous contribution")
 	}
-	if !sameRatio(contribution.PublicKey.SG, contribution.PublicKey.SXG, contribution.Parameters.G2.Delta, current.Parameters.G2.Delta) {
+	if !sameRatio(
+		contribution.PublicKey.SG,
+		contribution.PublicKey.SXG,
+		contribution.Parameters.G2.Delta,
+		current.Parameters.G2.Delta,
+	) {
 		return errors.New("couldn't verify that [δ]₂ is based on previous contribution")
 	}
 
@@ -246,11 +323,26 @@ func verifyPhase2(current, contribution *Phase2) error {
 		return errors.New("couldn't verify valid updates of L using δ⁻¹")
 	}
 
-	// Check hash of the contribution
-	h := contribution.hash()
-	for i := 0; i < len(h); i++ {
-		if h[i] != contribution.Hash[i] {
-			return errors.New("couldn't verify hash of contribution")
+	// Check for valid update of the pedersen key
+	if !sameRatio(
+		current.Parameters.G1.Delta,
+		contribution.Parameters.G1.Delta,
+		contribution.Parameters.G2.GRootSigmaNeg,
+		current.Parameters.G2.GRootSigmaNeg,
+	) {
+		return errors.New("couldn't verify that GRootSigmaNeg is based on previous contribution")
+	}
+	for i := 0; i < len(current.Parameters.G1.BasisExpSigma); i++ {
+		basisExpSigma, prevBasisExpSigma := merge(
+			contribution.Parameters.G1.BasisExpSigma[i],
+			current.Parameters.G1.BasisExpSigma[i],
+		)
+		if !sameRatio(
+			basisExpSigma,
+			prevBasisExpSigma,
+			contribution.Parameters.G2.Delta, current.Parameters.G2.Delta,
+		) {
+			return errors.New("couldn't verify valid updates of BasisExpSigma using δ⁻¹")
 		}
 	}
 
@@ -261,4 +353,29 @@ func (c *Phase2) hash() []byte {
 	sha := sha256.New()
 	c.writeTo(sha)
 	return sha.Sum(nil)
+}
+
+func InitPedersen(bases ...[]curve.G1Affine) (BasisExpSigma [][]curve.G1Affine, GRootSigmaNeg curve.G2Affine) {
+	_, _, _, g2 := curve.Generators()
+
+	var modMinusOne big.Int
+	modMinusOne.Sub(fr.Modulus(), big.NewInt(1))
+
+	// set sigma to 1
+	sigma := big.NewInt(1)
+
+	// Todo: simplify
+	var sigmaInvNeg big.Int
+	sigmaInvNeg.ModInverse(sigma, fr.Modulus())
+	sigmaInvNeg.Sub(fr.Modulus(), &sigmaInvNeg)
+	GRootSigmaNeg.ScalarMultiplication(&g2, &sigmaInvNeg)
+
+	BasisExpSigma = make([][]curve.G1Affine, len(bases))
+	for i := range bases {
+		BasisExpSigma[i] = make([]curve.G1Affine, len(bases[i]))
+		for j := range bases[i] {
+			BasisExpSigma[i][j].ScalarMultiplication(&bases[i][j], sigma)
+		}
+	}
+	return
 }

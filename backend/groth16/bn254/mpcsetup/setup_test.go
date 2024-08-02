@@ -17,19 +17,147 @@
 package mpcsetup
 
 import (
+	"crypto/rand"
+	"math/big"
+	"testing"
+
+	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	cs "github.com/consensys/gnark/constraint/bn254"
-	"testing"
+	"github.com/consensys/gnark/test"
 
+	"github.com/consensys/gnark-crypto/ecc/bn254/ecdsa"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/witness"
+	bn254 "github.com/consensys/gnark/constraint/bn254"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/hash/mimc"
+	"github.com/consensys/gnark/std/math/emulated"
+	sig "github.com/consensys/gnark/std/signature/ecdsa"
 	"github.com/stretchr/testify/require"
 
 	native_mimc "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 )
+
+type EcdsaCircuit[T, S emulated.FieldParams] struct {
+	Sig sig.Signature[S]
+	Msg emulated.Element[S]
+	Pub sig.PublicKey[T, S]
+}
+
+func (c *EcdsaCircuit[T, S]) Define(api frontend.API) error {
+	c.Pub.Verify(api, sw_emulated.GetCurveParams[T](), &c.Msg, &c.Sig)
+	return nil
+}
+
+func buildEcdsa() (*bn254.R1CS, *witness.Witness, error) {
+	// defer the closing of our jsonFile so that we can parse it later on
+	privKey, _ := ecdsa.GenerateKey(rand.Reader)
+	publicKey := privKey.PublicKey
+
+	// sign
+	msg := []byte("testing ECDSA (pre-hashed)")
+	sigBin, _ := privKey.Sign(msg, nil)
+
+	// check that the signature is correct
+	_, err := publicKey.Verify(sigBin, msg, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// unmarshal signature
+	var signature ecdsa.Signature
+	signature.SetBytes(sigBin)
+	r, s := new(big.Int), new(big.Int)
+	r.SetBytes(signature.R[:32])
+	s.SetBytes(signature.S[:32])
+
+	hash := ecdsa.HashToInt(msg)
+
+	circuit := EcdsaCircuit[emulated.BN254Fp, emulated.BN254Fr]{}
+	w := EcdsaCircuit[emulated.BN254Fp, emulated.BN254Fr]{
+		Sig: sig.Signature[emulated.BN254Fr]{
+			R: emulated.ValueOf[emulated.BN254Fr](r),
+			S: emulated.ValueOf[emulated.BN254Fr](s),
+		},
+		Msg: emulated.ValueOf[emulated.BN254Fr](hash),
+		Pub: sig.PublicKey[emulated.BN254Fp, emulated.BN254Fr]{
+			X: emulated.ValueOf[emulated.BN254Fp](privKey.PublicKey.A.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](privKey.PublicKey.A.Y),
+		},
+	}
+
+	err = test.IsSolved(&circuit, &w, ecc.BN254.ScalarField())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	witness, err := frontend.NewWitness(&w, ecc.BN254.ScalarField())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return r1cs.(*bn254.R1CS), &witness, err
+}
+
+func TestEcdsa(t *testing.T) {
+	const (
+		nContributionsPhase1 = 3
+		nContributionsPhase2 = 3
+		power                = 17
+	)
+
+	assert := require.New(t)
+
+	srs1 := InitPhase1(power)
+
+	// Make and verify contributions for phase1
+	for i := 1; i < nContributionsPhase1; i++ {
+		// we clone test purposes; but in practice, participant will receive a []byte, deserialize it,
+		// add his contribution and send back to coordinator.
+		prev := srs1.clone()
+
+		srs1.Contribute()
+		assert.NoError(VerifyPhase1(&prev, &srs1))
+	}
+
+	r1cs, witness, err := buildEcdsa()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srs2, evals := InitPhase2(r1cs, &srs1)
+
+	// Make and verify contributions for phase1
+	for i := 1; i < nContributionsPhase2; i++ {
+		// we clone for test purposes; but in practice, participant will receive a []byte, deserialize it,
+		// add his contribution and send back to coordinator.
+		prev := srs2.clone()
+
+		srs2.Contribute()
+		assert.NoError(VerifyPhase2(&prev, &srs2))
+	}
+
+	// Extract the proving and verifying keys
+	pk, vk := ExtractKeys(r1cs, &srs1, &srs2, &evals)
+
+	proof, err := groth16.Prove(r1cs, &pk, *witness)
+	assert.NoError(err)
+
+	pubWitness, err := (*witness).Public()
+	assert.NoError(err)
+
+	err = groth16.Verify(proof, &vk, pubWitness)
+	assert.NoError(err)
+}
 
 func TestSetupCircuit(t *testing.T) {
 	const (
@@ -74,7 +202,7 @@ func TestSetupCircuit(t *testing.T) {
 	}
 
 	// Extract the proving and verifying keys
-	pk, vk := ExtractKeys(&srs1, &srs2, &evals, ccs.GetNbConstraints())
+	pk, vk := ExtractKeys(ccs.(*cs.R1CS), &srs1, &srs2, &evals)
 
 	// Build the witness
 	var preImage, hash fr.Element
@@ -115,7 +243,6 @@ func BenchmarkPhase1(b *testing.B) {
 			srs1.Contribute()
 		}
 	})
-
 }
 
 func BenchmarkPhase2(b *testing.B) {
@@ -145,7 +272,6 @@ func BenchmarkPhase2(b *testing.B) {
 			srs2.Contribute()
 		}
 	})
-
 }
 
 // Circuit defines a pre-image knowledge proof
@@ -164,7 +290,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	// specify constraints
 	mimc.Write(circuit.PreImage)
 	api.AssertIsEqual(circuit.Hash, mimc.Sum())
-
 	return nil
 }
 
@@ -185,10 +310,18 @@ func (phase1 *Phase1) clone() Phase1 {
 
 func (phase2 *Phase2) clone() Phase2 {
 	r := Phase2{}
+	r.Parameters.G1.BasisExpSigma = make([][]curve.G1Affine, len(r.Parameters.G1.BasisExpSigma))
+	for i := 0; i < len(r.Parameters.G1.BasisExpSigma); i++ {
+		r.Parameters.G1.BasisExpSigma[i] = append(
+			r.Parameters.G1.BasisExpSigma[i],
+			phase2.Parameters.G1.BasisExpSigma[i]...,
+		)
+	}
 	r.Parameters.G1.Delta = phase2.Parameters.G1.Delta
 	r.Parameters.G1.L = append(r.Parameters.G1.L, phase2.Parameters.G1.L...)
 	r.Parameters.G1.Z = append(r.Parameters.G1.Z, phase2.Parameters.G1.Z...)
 	r.Parameters.G2.Delta = phase2.Parameters.G2.Delta
+	r.Parameters.G2.GRootSigmaNeg = phase2.Parameters.G2.GRootSigmaNeg
 	r.PublicKey = phase2.PublicKey
 	r.Hash = append(r.Hash, phase2.Hash...)
 

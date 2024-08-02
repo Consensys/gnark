@@ -19,14 +19,20 @@ package mpcsetup
 import (
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/pedersen"
 	groth16 "github.com/consensys/gnark/backend/groth16/bn254"
+	"github.com/consensys/gnark/constraint"
+	cs "github.com/consensys/gnark/constraint/bn254"
 )
 
-func ExtractKeys(srs1 *Phase1, srs2 *Phase2, evals *Phase2Evaluations, nConstraints int) (pk groth16.ProvingKey, vk groth16.VerifyingKey) {
+func ExtractKeys(r1cs *cs.R1CS, srs1 *Phase1, srs2 *Phase2, evals *Phase2Evaluations) (pk groth16.ProvingKey, vk groth16.VerifyingKey) {
 	_, _, _, g2 := curve.Generators()
 
+	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+	commitmentWires := commitmentInfo.CommitmentIndexes()
+
 	// Initialize PK
-	pk.Domain = *fft.NewDomain(uint64(nConstraints))
+	pk.Domain = *fft.NewDomain(uint64(r1cs.NbConstraints))
 	pk.G1.Alpha.Set(&srs1.Parameters.G1.AlphaTau[0])
 	pk.G1.Beta.Set(&srs1.Parameters.G1.BetaTau[0])
 	pk.G1.Delta.Set(&srs2.Parameters.G1.Delta)
@@ -36,6 +42,12 @@ func ExtractKeys(srs1 *Phase1, srs2 *Phase2, evals *Phase2Evaluations, nConstrai
 	pk.G1.K = srs2.Parameters.G1.L
 	pk.G2.Beta.Set(&srs1.Parameters.G2.Beta)
 	pk.G2.Delta.Set(&srs2.Parameters.G2.Delta)
+
+	pk.CommitmentKeys = make([]pedersen.ProvingKey, len(evals.G1.Basis))
+	for i := range evals.G1.Basis {
+		pk.CommitmentKeys[i].Basis = evals.G1.Basis[i]
+		pk.CommitmentKeys[i].BasisExpSigma = srs2.Parameters.G1.BasisExpSigma[i]
+	}
 
 	// Filter out infinity points
 	nWires := len(evals.G1.A)
@@ -87,6 +99,9 @@ func ExtractKeys(srs1 *Phase1, srs2 *Phase2, evals *Phase2Evaluations, nConstrai
 	vk.G2.Delta.Set(&srs2.Parameters.G2.Delta)
 	vk.G2.Gamma.Set(&g2)
 	vk.G1.K = evals.G1.VKK
+	vk.CommitmentKey.G = g2
+	vk.CommitmentKey.GRootSigmaNeg = srs2.Parameters.G2.GRootSigmaNeg
+	vk.PublicAndCommitmentCommitted = commitmentInfo.GetPublicAndCommitmentCommitted(commitmentWires, r1cs.GetNbPublicVariables())
 
 	// sets e, -[δ]2, -[γ]2
 	if err := vk.Precompute(); err != nil {
