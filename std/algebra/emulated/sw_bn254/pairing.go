@@ -449,6 +449,291 @@ func (pr Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
 
 }
 
+// QuadruplePairingCheck calculates the reduced pairing for a 4 pairs of points and asserts if the result is One
+// e(P0, Q0) * e(P1, Q1) * e(P2, Q2) * e(P3, Q3) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+func (pr Pairing) QuadruplePairingCheck(P [4]*G1Affine, Q [4]*G2Affine) error {
+	// hint the non-residue witness
+	hint, err := pr.curveF.NewHint(quadruplePairingCheckHint, 18, &P[0].X, &P[0].Y, &P[1].X, &P[1].Y, &P[2].X, &P[2].Y, &P[3].X, &P[3].Y, &Q[0].P.X.A0, &Q[0].P.X.A1, &Q[0].P.Y.A0, &Q[0].P.Y.A1, &Q[1].P.X.A0, &Q[1].P.X.A1, &Q[1].P.Y.A0, &Q[1].P.Y.A1, &Q[2].P.X.A0, &Q[2].P.X.A1, &Q[2].P.Y.A0, &Q[2].P.Y.A1, &Q[3].P.X.A0, &Q[3].P.X.A1, &Q[3].P.Y.A0, &Q[3].P.Y.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	residueWitness := fields_bn254.E12{
+		C0: fields_bn254.E6{
+			B0: fields_bn254.E2{A0: *hint[0], A1: *hint[1]},
+			B1: fields_bn254.E2{A0: *hint[2], A1: *hint[3]},
+			B2: fields_bn254.E2{A0: *hint[4], A1: *hint[5]},
+		},
+		C1: fields_bn254.E6{
+			B0: fields_bn254.E2{A0: *hint[6], A1: *hint[7]},
+			B1: fields_bn254.E2{A0: *hint[8], A1: *hint[9]},
+			B2: fields_bn254.E2{A0: *hint[10], A1: *hint[11]},
+		},
+	}
+	// constrain cubicNonResiduePower to be in Fp6
+	cubicNonResiduePower := fields_bn254.E12{
+		C0: fields_bn254.E6{
+			B0: fields_bn254.E2{A0: *hint[12], A1: *hint[13]},
+			B1: fields_bn254.E2{A0: *hint[14], A1: *hint[15]},
+			B2: fields_bn254.E2{A0: *hint[16], A1: *hint[17]},
+		},
+		C1: (*pr.Ext6.Zero()),
+	}
+
+	// residueWitnessInv = 1 / residueWitness
+	residueWitnessInv := pr.Inverse(&residueWitness)
+
+	if Q[0].Lines == nil {
+		Q0lines := pr.computeLines(&Q[0].P)
+		Q[0].Lines = &Q0lines
+	}
+	lines0 := *Q[0].Lines
+	if Q[1].Lines == nil {
+		Q1lines := pr.computeLines(&Q[1].P)
+		Q[1].Lines = &Q1lines
+	}
+	lines1 := *Q[1].Lines
+	if Q[2].Lines == nil {
+		Q2lines := pr.computeLines(&Q[2].P)
+		Q[2].Lines = &Q2lines
+	}
+	lines2 := *Q[2].Lines
+	if Q[3].Lines == nil {
+		Q3lines := pr.computeLines(&Q[3].P)
+		Q[3].Lines = &Q3lines
+	}
+	lines3 := *Q[3].Lines
+
+	// precomputations
+	y0Inv := pr.curveF.Inverse(&P[0].Y)
+	x0NegOverY0 := pr.curveF.Mul(&P[0].X, y0Inv)
+	x0NegOverY0 = pr.curveF.Neg(x0NegOverY0)
+	y1Inv := pr.curveF.Inverse(&P[1].Y)
+	x1NegOverY1 := pr.curveF.Mul(&P[1].X, y1Inv)
+	x1NegOverY1 = pr.curveF.Neg(x1NegOverY1)
+	y2Inv := pr.curveF.Inverse(&P[2].Y)
+	x2NegOverY2 := pr.curveF.Mul(&P[2].X, y2Inv)
+	x2NegOverY2 = pr.curveF.Neg(x2NegOverY2)
+	y3Inv := pr.curveF.Inverse(&P[3].Y)
+	x3NegOverY3 := pr.curveF.Mul(&P[3].X, y3Inv)
+	x3NegOverY3 = pr.curveF.Neg(x3NegOverY3)
+
+	// init Miller loop accumulator to residueWitnessInv to share the squarings
+	// of residueWitnessInv^{6x₀+2}
+	res := residueWitnessInv
+
+	// Compute f_{6x₀+2,Q}(P)
+	for i := 64; i >= 0; i-- {
+		res = pr.Square(res)
+
+		switch loopCounter[i] {
+		case 0:
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines0[0][i].R0, x0NegOverY0),
+				pr.MulByElement(&lines0[0][i].R1, y0Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines1[0][i].R0, x1NegOverY1),
+				pr.MulByElement(&lines1[0][i].R1, y1Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines2[0][i].R0, x2NegOverY2),
+				pr.MulByElement(&lines2[0][i].R1, y2Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines3[0][i].R0, x3NegOverY3),
+				pr.MulByElement(&lines3[0][i].R1, y3Inv),
+			)
+		case 1:
+			// multiply by residueWitnessInv when bit=1
+			res = pr.Mul(res, residueWitnessInv)
+
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines0[0][i].R0, x0NegOverY0),
+				pr.MulByElement(&lines0[0][i].R1, y0Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines0[1][i].R0, x0NegOverY0),
+				pr.MulByElement(&lines0[1][i].R1, y0Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines1[0][i].R0, x1NegOverY1),
+				pr.MulByElement(&lines1[0][i].R1, y1Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines1[1][i].R0, x1NegOverY1),
+				pr.MulByElement(&lines1[1][i].R1, y1Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines2[0][i].R0, x2NegOverY2),
+				pr.MulByElement(&lines2[0][i].R1, y2Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines2[1][i].R0, x2NegOverY2),
+				pr.MulByElement(&lines2[1][i].R1, y2Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines3[0][i].R0, x3NegOverY3),
+				pr.MulByElement(&lines3[0][i].R1, y3Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines3[1][i].R0, x3NegOverY3),
+				pr.MulByElement(&lines3[1][i].R1, y3Inv),
+			)
+		case -1:
+			// multiply by residueWitness when bit=-1
+			res = pr.Mul(res, &residueWitness)
+
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines0[0][i].R0, x0NegOverY0),
+				pr.MulByElement(&lines0[0][i].R1, y0Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines0[1][i].R0, x0NegOverY0),
+				pr.MulByElement(&lines0[1][i].R1, y0Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines1[0][i].R0, x1NegOverY1),
+				pr.MulByElement(&lines1[0][i].R1, y1Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines1[1][i].R0, x1NegOverY1),
+				pr.MulByElement(&lines1[1][i].R1, y1Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines2[0][i].R0, x2NegOverY2),
+				pr.MulByElement(&lines2[0][i].R1, y2Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines2[1][i].R0, x2NegOverY2),
+				pr.MulByElement(&lines2[1][i].R1, y2Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines3[0][i].R0, x3NegOverY3),
+				pr.MulByElement(&lines3[0][i].R1, y3Inv),
+			)
+			// ℓ × res
+			res = pr.MulBy034(
+				res,
+				pr.MulByElement(&lines3[1][i].R0, x3NegOverY3),
+				pr.MulByElement(&lines3[1][i].R1, y3Inv),
+			)
+		default:
+			panic(fmt.Sprintf("invalid loop counter value %d", loopCounter[i]))
+		}
+	}
+
+	// Compute  ℓ_{[6x₀+2]Q,π(Q)}(P) · ℓ_{[6x₀+2]Q+π(Q),-π²(Q)}(P)
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
+		pr.MulByElement(&lines0[0][65].R0, x0NegOverY0),
+		pr.MulByElement(&lines0[0][65].R1, y0Inv),
+	)
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
+		pr.MulByElement(&lines0[1][65].R0, x0NegOverY0),
+		pr.MulByElement(&lines0[1][65].R1, y0Inv),
+	)
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
+		pr.MulByElement(&lines1[0][65].R0, x1NegOverY1),
+		pr.MulByElement(&lines1[0][65].R1, y1Inv),
+	)
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
+		pr.MulByElement(&lines1[1][65].R0, x1NegOverY1),
+		pr.MulByElement(&lines1[1][65].R1, y1Inv),
+	)
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
+		pr.MulByElement(&lines2[0][65].R0, x2NegOverY2),
+		pr.MulByElement(&lines2[0][65].R1, y2Inv),
+	)
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
+		pr.MulByElement(&lines2[1][65].R0, x2NegOverY2),
+		pr.MulByElement(&lines2[1][65].R1, y2Inv),
+	)
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
+		pr.MulByElement(&lines3[0][65].R0, x3NegOverY3),
+		pr.MulByElement(&lines3[0][65].R1, y3Inv),
+	)
+	// ℓ × res
+	res = pr.MulBy034(
+		res,
+		pr.MulByElement(&lines3[1][65].R0, x3NegOverY3),
+		pr.MulByElement(&lines3[1][65].R1, y3Inv),
+	)
+
+	// Check that  res * cubicNonResiduePower * residueWitnessInv^λ' == 1
+	// where λ' = q^3 - q^2 + q, with u the BN254 seed
+	// and residueWitnessInv, cubicNonResiduePower from the hint.
+	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{6x₀+2} since
+	// we initialized the Miller loop accumulator with residueWitnessInv.
+	t2 := pr.Mul(&cubicNonResiduePower, res)
+
+	t1 := pr.FrobeniusCube(residueWitnessInv)
+	t0 := pr.FrobeniusSquare(residueWitnessInv)
+	t1 = pr.DivUnchecked(t1, t0)
+	t0 = pr.Frobenius(residueWitnessInv)
+	t1 = pr.Mul(t1, t0)
+
+	t2 = pr.Mul(t2, t1)
+	pr.AssertIsEqual(t2, pr.One())
+
+	return nil
+
+}
+
 func (pr Pairing) IsEqual(x, y *GTEl) frontend.Variable {
 	return pr.Ext12.IsEqual(x, y)
 }

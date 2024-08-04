@@ -633,6 +633,6 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 		v.pairing.AssertIsOnG1(&proof.Krs)
 		v.pairing.AssertIsOnG2(&proof.Bs)
 	}
-	v.pairing.PairingCheck([]*G1El{kSum, &proof.Krs, &proof.Ar, &vk.G1.Alpha}, []*G2El{&vk.G2.GammaNeg, &vk.G2.DeltaNeg, &proof.Bs, &vk.G2.Beta})
+	v.pairing.QuadruplePairingCheck([4]*G1El{kSum, &proof.Krs, &proof.Ar, &vk.G1.Alpha}, [4]*G2El{&vk.G2.GammaNeg, &vk.G2.DeltaNeg, &proof.Bs, &vk.G2.Beta})
 	return nil
 }

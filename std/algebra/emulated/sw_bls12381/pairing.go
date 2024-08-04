@@ -380,6 +380,10 @@ func (pr Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
 
 }
 
+func (pr Pairing) QuadruplePairingCheck(P [4]*G1Affine, Q [4]*G2Affine) error {
+	return pr.PairingCheck(P[:], Q[:])
+}
+
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext12.AssertIsEqual(x, y)
 }

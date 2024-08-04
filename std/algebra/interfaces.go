@@ -101,6 +101,10 @@ type Pairing[G1El G1ElementT, G2El G2ElementT, GtEl GtElementT] interface {
 	// is 1.  It does not modify the inputs.
 	DoublePairingCheck([2]*G1El, [2]*G2El) error
 
+	// QuadruplePairingCheck asserts that the pairing result of 4 pairs of points
+	// is 1.  It does not modify the inputs.
+	QuadruplePairingCheck([4]*G1El, [4]*G2El) error
+
 	// AssertIsEqual asserts the equality of the inputs.
 	AssertIsEqual(*GtEl, *GtEl)
 

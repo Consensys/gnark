@@ -207,6 +207,10 @@ func DoublePairingCheck(api frontend.API, P [2]G1Affine, Q [2]G2Affine) error {
 	return PairingCheck(api, P[:], Q[:])
 }
 
+func QuadruplePairingCheck(api frontend.API, P [4]G1Affine, Q [4]G2Affine) error {
+	return PairingCheck(api, P[:], Q[:])
+}
+
 // doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
 func doubleAndAddStep(api frontend.API, p1, p2 *g2AffP) (g2AffP, *lineEvaluation, *lineEvaluation) {

@@ -320,6 +320,10 @@ func (p *Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
 	return p.PairingCheck(P[:], Q[:])
 }
 
+func (p *Pairing) QuadruplePairingCheck(P [4]*G1Affine, Q [4]*G2Affine) error {
+	return p.PairingCheck(P[:], Q[:])
+}
+
 // AssertIsEqual asserts the equality of the target group elements.
 func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
