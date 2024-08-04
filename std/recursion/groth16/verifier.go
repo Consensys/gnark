@@ -163,9 +163,11 @@ func PlaceholderProof[G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs cons
 // witness creation use the method [ValueOfVerifyingKey] and for stub
 // placeholder use [PlaceholderVerifyingKey].
 type VerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	E                            GtEl
-	G1                           struct{ K []G1El }
-	G2                           struct{ GammaNeg, DeltaNeg G2El }
+	G1 struct {
+		Alpha G1El
+		K     []G1El
+	}
+	G2                           struct{ GammaNeg, Beta, DeltaNeg G2El }
 	CommitmentKey                pedersen.VerifyingKey[G2El]
 	PublicAndCommitmentCommitted [][]int
 }
@@ -179,7 +181,10 @@ func PlaceholderVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, G
 	commitmentWires := commitments.CommitmentIndexes()
 
 	return VerifyingKey[G1El, G2El, GtEl]{
-		G1: struct{ K []G1El }{
+		G1: struct {
+			Alpha G1El
+			K     []G1El
+		}{
 			K: make([]G1El, ccs.GetNbPublicVariables()+len(ccs.GetCommitments().(constraint.Groth16Commitments))),
 		},
 		PublicAndCommitmentCommitted: commitments.GetPublicAndCommitmentCommitted(commitmentWires, ccs.GetNbPublicVariables()),
@@ -197,12 +202,10 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		if !ok {
 			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
 		}
-		// compute E
-		e, err := bn254.Pair([]bn254.G1Affine{tVk.G1.Alpha}, []bn254.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bn254.NewGTEl(e)
+		var alpha bn254.G1Affine
+		alpha.Neg(&tVk.G1.Alpha)
+		s.G1.Alpha = sw_bn254.NewG1Affine(alpha)
+		s.G2.Beta = sw_bn254.NewG2Affine(tVk.G2.Beta)
 		s.G1.K = make([]sw_bn254.G1Affine, len(tVk.G1.K))
 		for i := range s.G1.K {
 			s.G1.K[i] = sw_bn254.NewG1Affine(tVk.G1.K[i])
@@ -212,6 +215,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bn254.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bn254.NewG2Affine(gammaNeg)
+		var err error
 		s.CommitmentKey, err = pedersen.ValueOfVerifyingKey[sw_bn254.G2Affine](&tVk.CommitmentKey)
 		if err != nil {
 			return ret, fmt.Errorf("commitment key: %w", err)
@@ -219,14 +223,12 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
-			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
+			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
 		}
-		// compute E
-		e, err := bls12377.Pair([]bls12377.G1Affine{tVk.G1.Alpha}, []bls12377.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bls12377.NewGTEl(e)
+		var alpha bls12377.G1Affine
+		alpha.Neg(&tVk.G1.Alpha)
+		s.G1.Alpha = sw_bls12377.NewG1Affine(alpha)
+		s.G2.Beta = sw_bls12377.NewG2Affine(tVk.G2.Beta)
 		s.G1.K = make([]sw_bls12377.G1Affine, len(tVk.G1.K))
 		for i := range s.G1.K {
 			s.G1.K[i] = sw_bls12377.NewG1Affine(tVk.G1.K[i])
@@ -236,6 +238,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12377.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls12377.NewG2Affine(gammaNeg)
+		var err error
 		s.CommitmentKey, err = pedersen.ValueOfVerifyingKey[sw_bls12377.G2Affine](&tVk.CommitmentKey)
 		if err != nil {
 			return ret, fmt.Errorf("commitment key: %w", err)
@@ -245,12 +248,10 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		if !ok {
 			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
 		}
-		// compute E
-		e, err := bls12381.Pair([]bls12381.G1Affine{tVk.G1.Alpha}, []bls12381.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bls12381.NewGTEl(e)
+		var alpha bls12381.G1Affine
+		alpha.Neg(&tVk.G1.Alpha)
+		s.G1.Alpha = sw_bls12381.NewG1Affine(alpha)
+		s.G2.Beta = sw_bls12381.NewG2Affine(tVk.G2.Beta)
 		s.G1.K = make([]sw_bls12381.G1Affine, len(tVk.G1.K))
 		for i := range s.G1.K {
 			s.G1.K[i] = sw_bls12381.NewG1Affine(tVk.G1.K[i])
@@ -260,6 +261,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12381.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls12381.NewG2Affine(gammaNeg)
+		var err error
 		s.CommitmentKey, err = pedersen.ValueOfVerifyingKey[sw_bls12381.G2Affine](&tVk.CommitmentKey)
 		if err != nil {
 			return ret, fmt.Errorf("commitment key: %w", err)
@@ -267,14 +269,12 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
 		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
 		if !ok {
-			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
+			return ret, fmt.Errorf("expected bls24315.VerifyingKey, got %T", vk)
 		}
-		// compute E
-		e, err := bls24315.Pair([]bls24315.G1Affine{tVk.G1.Alpha}, []bls24315.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bls24315.NewGTEl(e)
+		var alpha bls24315.G1Affine
+		alpha.Neg(&tVk.G1.Alpha)
+		s.G1.Alpha = sw_bls24315.NewG1Affine(alpha)
+		s.G2.Beta = sw_bls24315.NewG2Affine(tVk.G2.Beta)
 		s.G1.K = make([]sw_bls24315.G1Affine, len(tVk.G1.K))
 		for i := range s.G1.K {
 			s.G1.K[i] = sw_bls24315.NewG1Affine(tVk.G1.K[i])
@@ -284,6 +284,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls24315.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bls24315.NewG2Affine(gammaNeg)
+		var err error
 		s.CommitmentKey, err = pedersen.ValueOfVerifyingKey[sw_bls24315.G2Affine](&tVk.CommitmentKey)
 		if err != nil {
 			return ret, fmt.Errorf("commitment key: %w", err)
@@ -293,12 +294,10 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		if !ok {
 			return ret, fmt.Errorf("expected bw6761.VerifyingKey, got %T", vk)
 		}
-		// compute E
-		e, err := bw6761.Pair([]bw6761.G1Affine{tVk.G1.Alpha}, []bw6761.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bw6761.NewGTEl(e)
+		var alpha bw6761.G1Affine
+		alpha.Neg(&tVk.G1.Alpha)
+		s.G1.Alpha = sw_bw6761.NewG1Affine(alpha)
+		s.G2.Beta = sw_bw6761.NewG2Affine(tVk.G2.Beta)
 		s.G1.K = make([]sw_bw6761.G1Affine, len(tVk.G1.K))
 		for i := range s.G1.K {
 			s.G1.K[i] = sw_bw6761.NewG1Affine(tVk.G1.K[i])
@@ -308,6 +307,7 @@ func ValueOfVerifyingKey[G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bw6761.NewG2Affine(deltaNeg)
 		s.G2.GammaNeg = sw_bw6761.NewG2Affine(gammaNeg)
+		var err error
 		s.CommitmentKey, err = pedersen.ValueOfVerifyingKey[sw_bw6761.G2Affine](&tVk.CommitmentKey)
 		if err != nil {
 			return ret, fmt.Errorf("commitment key: %w", err)
@@ -329,12 +329,10 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		if !ok {
 			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
 		}
-		// compute E
-		e, err := bn254.Pair([]bn254.G1Affine{tVk.G1.Alpha}, []bn254.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bn254.NewGTEl(e)
+		var alpha bn254.G1Affine
+		alpha.Neg(&tVk.G1.Alpha)
+		s.G1.Alpha = sw_bn254.NewG1Affine(alpha)
+		s.G2.Beta = sw_bn254.NewG2AffineFixed(tVk.G2.Beta)
 		s.G1.K = make([]sw_bn254.G1Affine, len(tVk.G1.K))
 		for i := range s.G1.K {
 			s.G1.K[i] = sw_bn254.NewG1Affine(tVk.G1.K[i])
@@ -344,6 +342,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bn254.NewG2AffineFixed(deltaNeg)
 		s.G2.GammaNeg = sw_bn254.NewG2AffineFixed(gammaNeg)
+		var err error
 		s.CommitmentKey, err = pedersen.ValueOfVerifyingKeyFixed[sw_bn254.G2Affine](&tVk.CommitmentKey)
 		if err != nil {
 			return ret, fmt.Errorf("commitment key: %w", err)
@@ -351,14 +350,12 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 	case *VerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]:
 		tVk, ok := vk.(*groth16backend_bls12377.VerifyingKey)
 		if !ok {
-			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
+			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
 		}
-		// compute E
-		e, err := bls12377.Pair([]bls12377.G1Affine{tVk.G1.Alpha}, []bls12377.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bls12377.NewGTEl(e)
+		var alpha bls12377.G1Affine
+		alpha.Neg(&tVk.G1.Alpha)
+		s.G1.Alpha = sw_bls12377.NewG1Affine(alpha)
+		s.G2.Beta = sw_bls12377.NewG2AffineFixed(tVk.G2.Beta)
 		s.G1.K = make([]sw_bls12377.G1Affine, len(tVk.G1.K))
 		for i := range s.G1.K {
 			s.G1.K[i] = sw_bls12377.NewG1Affine(tVk.G1.K[i])
@@ -368,6 +365,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12377.NewG2AffineFixed(deltaNeg)
 		s.G2.GammaNeg = sw_bls12377.NewG2AffineFixed(gammaNeg)
+		var err error
 		s.CommitmentKey, err = pedersen.ValueOfVerifyingKeyFixed[sw_bls12377.G2Affine](&tVk.CommitmentKey)
 		if err != nil {
 			return ret, fmt.Errorf("commitment key: %w", err)
@@ -377,12 +375,10 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		if !ok {
 			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
 		}
-		// compute E
-		e, err := bls12381.Pair([]bls12381.G1Affine{tVk.G1.Alpha}, []bls12381.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bls12381.NewGTEl(e)
+		var alpha bls12381.G1Affine
+		alpha.Neg(&tVk.G1.Alpha)
+		s.G1.Alpha = sw_bls12381.NewG1Affine(alpha)
+		s.G2.Beta = sw_bls12381.NewG2AffineFixed(tVk.G2.Beta)
 		s.G1.K = make([]sw_bls12381.G1Affine, len(tVk.G1.K))
 		for i := range s.G1.K {
 			s.G1.K[i] = sw_bls12381.NewG1Affine(tVk.G1.K[i])
@@ -392,6 +388,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls12381.NewG2AffineFixed(deltaNeg)
 		s.G2.GammaNeg = sw_bls12381.NewG2AffineFixed(gammaNeg)
+		var err error
 		s.CommitmentKey, err = pedersen.ValueOfVerifyingKeyFixed[sw_bls12381.G2Affine](&tVk.CommitmentKey)
 		if err != nil {
 			return ret, fmt.Errorf("commitment key: %w", err)
@@ -399,14 +396,12 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 	case *VerifyingKey[sw_bls24315.G1Affine, sw_bls24315.G2Affine, sw_bls24315.GT]:
 		tVk, ok := vk.(*groth16backend_bls24315.VerifyingKey)
 		if !ok {
-			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
+			return ret, fmt.Errorf("expected bls24315.VerifyingKey, got %T", vk)
 		}
-		// compute E
-		e, err := bls24315.Pair([]bls24315.G1Affine{tVk.G1.Alpha}, []bls24315.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bls24315.NewGTEl(e)
+		var alpha bls24315.G1Affine
+		alpha.Neg(&tVk.G1.Alpha)
+		s.G1.Alpha = sw_bls24315.NewG1Affine(alpha)
+		s.G2.Beta = sw_bls24315.NewG2AffineFixed(tVk.G2.Beta)
 		s.G1.K = make([]sw_bls24315.G1Affine, len(tVk.G1.K))
 		for i := range s.G1.K {
 			s.G1.K[i] = sw_bls24315.NewG1Affine(tVk.G1.K[i])
@@ -416,6 +411,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bls24315.NewG2AffineFixed(deltaNeg)
 		s.G2.GammaNeg = sw_bls24315.NewG2AffineFixed(gammaNeg)
+		var err error
 		s.CommitmentKey, err = pedersen.ValueOfVerifyingKeyFixed[sw_bls24315.G2Affine](&tVk.CommitmentKey)
 		if err != nil {
 			return ret, fmt.Errorf("commitment key: %w", err)
@@ -425,12 +421,10 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		if !ok {
 			return ret, fmt.Errorf("expected bw6761.VerifyingKey, got %T", vk)
 		}
-		// compute E
-		e, err := bw6761.Pair([]bw6761.G1Affine{tVk.G1.Alpha}, []bw6761.G2Affine{tVk.G2.Beta})
-		if err != nil {
-			return ret, fmt.Errorf("precompute pairing: %w", err)
-		}
-		s.E = sw_bw6761.NewGTEl(e)
+		var alpha bw6761.G1Affine
+		alpha.Neg(&tVk.G1.Alpha)
+		s.G1.Alpha = sw_bw6761.NewG1Affine(alpha)
+		s.G2.Beta = sw_bw6761.NewG2AffineFixed(tVk.G2.Beta)
 		s.G1.K = make([]sw_bw6761.G1Affine, len(tVk.G1.K))
 		for i := range s.G1.K {
 			s.G1.K[i] = sw_bw6761.NewG1Affine(tVk.G1.K[i])
@@ -440,6 +434,7 @@ func ValueOfVerifyingKeyFixed[G1El algebra.G1ElementT, G2El algebra.G2ElementT, 
 		gammaNeg.Neg(&tVk.G2.Gamma)
 		s.G2.DeltaNeg = sw_bw6761.NewG2AffineFixed(deltaNeg)
 		s.G2.GammaNeg = sw_bw6761.NewG2AffineFixed(gammaNeg)
+		var err error
 		s.CommitmentKey, err = pedersen.ValueOfVerifyingKeyFixed[sw_bw6761.G2Affine](&tVk.CommitmentKey)
 		if err != nil {
 			return ret, fmt.Errorf("commitment key: %w", err)
@@ -638,10 +633,6 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[G1El, G2El,
 		v.pairing.AssertIsOnG1(&proof.Krs)
 		v.pairing.AssertIsOnG2(&proof.Bs)
 	}
-	pairing, err := v.pairing.Pair([]*G1El{kSum, &proof.Krs, &proof.Ar}, []*G2El{&vk.G2.GammaNeg, &vk.G2.DeltaNeg, &proof.Bs})
-	if err != nil {
-		return fmt.Errorf("pairing: %w", err)
-	}
-	v.pairing.AssertIsEqual(pairing, &vk.E)
+	v.pairing.PairingCheck([]*G1El{kSum, &proof.Krs, &proof.Ar, &vk.G1.Alpha}, []*G2El{&vk.G2.GammaNeg, &vk.G2.DeltaNeg, &proof.Bs, &vk.G2.Beta})
 	return nil
 }
