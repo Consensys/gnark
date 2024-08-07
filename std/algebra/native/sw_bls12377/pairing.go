@@ -310,24 +310,23 @@ func DoublePairingCheck(api frontend.API, P [2]G1Affine, Q [2]G2Affine) error {
 	// residueWitnessInv = 1 / residueWitness
 	residueWitnessInv.Inverse(api, residueWitness)
 
-	if Q[0].Lines == nil {
-		Q0lines := computeLines(api, Q[0].P)
-		Q[0].Lines = Q0lines
-	}
-	lines0 := *Q[0].Lines
-	if Q[1].Lines == nil {
-		Q1lines := computeLines(api, Q[1].P)
-		Q[1].Lines = Q1lines
-	}
-	lines1 := *Q[1].Lines
+	// precompuations
+	n := 2
+	Qlines := make([]*lineEvaluations, n)
+	lines := make([]lineEvaluations, n)
+	yInv := make([]frontend.Variable, n)
+	xNegOverY := make([]frontend.Variable, n)
+	for k := 0; k < n; k++ {
+		if Q[k].Lines == nil {
+			Qlines[k] = computeLines(api, Q[k].P)
+			Q[k].Lines = Qlines[k]
+		}
+		lines[k] = *Q[k].Lines
 
-	// precomputations
-	y0Inv := api.Inverse(P[0].Y)
-	x0NegOverY0 := api.Mul(P[0].X, y0Inv)
-	x0NegOverY0 = api.Neg(x0NegOverY0)
-	y1Inv := api.Inverse(P[1].Y)
-	x1NegOverY1 := api.Mul(P[1].X, y1Inv)
-	x1NegOverY1 = api.Neg(x1NegOverY1)
+		yInv[k] = api.Inverse(P[k].Y)
+		xNegOverY[k] = api.Mul(P[k].X, yInv[k])
+		xNegOverY[k] = api.Neg(xNegOverY[k])
+	}
 
 	// init Miller loop accumulator to residueWitness to share the squarings
 	// of residueWitnessInv^{-x₀}
@@ -342,41 +341,30 @@ func DoublePairingCheck(api frontend.API, P [2]G1Affine, Q [2]G2Affine) error {
 		res.Square(api, res)
 
 		if loopCounter[i] == 0 {
-			// line evaluation at P
-			// ℓ × res
-			res.MulBy034(api,
-				*l0.R0.MulByFp(api, lines0[0][i].R0, x0NegOverY0),
-				*l0.R1.MulByFp(api, lines0[0][i].R1, y0Inv),
-			)
-			// ℓ × res
-			res.MulBy034(api,
-				*l0.R0.MulByFp(api, lines1[0][i].R0, x1NegOverY1),
-				*l0.R1.MulByFp(api, lines1[0][i].R1, y1Inv),
-			)
+			for k := 0; k < n; k++ {
+				// line evaluation at P
+				// ℓ × res
+				res.MulBy034(api,
+					*l0.R0.MulByFp(api, lines[k][0][i].R0, xNegOverY[k]),
+					*l0.R1.MulByFp(api, lines[k][0][i].R1, yInv[k]),
+				)
+			}
 		} else {
 			// multiply by residueWitness when bit=1
 			res.Mul(api, res, residueWitness)
 
-			// lines evaluation at P
-			// ℓ × ℓ
-			prodLines = *fields_bls12377.Mul034By034(api,
-				*l0.R0.MulByFp(api, lines0[0][i].R0, x0NegOverY0),
-				*l0.R1.MulByFp(api, lines0[0][i].R1, y0Inv),
-				*l1.R0.MulByFp(api, lines0[1][i].R0, x0NegOverY0),
-				*l1.R1.MulByFp(api, lines0[1][i].R1, y0Inv),
-			)
-			// (ℓ × ℓ) × res
-			res.MulBy01234(api, prodLines)
-			// lines evaluation at P
-			// ℓ × ℓ
-			prodLines = *fields_bls12377.Mul034By034(api,
-				*l0.R0.MulByFp(api, lines1[0][i].R0, x1NegOverY1),
-				*l0.R1.MulByFp(api, lines1[0][i].R1, y1Inv),
-				*l1.R0.MulByFp(api, lines1[1][i].R0, x1NegOverY1),
-				*l1.R1.MulByFp(api, lines1[1][i].R1, y1Inv),
-			)
-			// (ℓ × ℓ) × res
-			res.MulBy01234(api, prodLines)
+			for k := 0; k < n; k++ {
+				// lines evaluation at P
+				// ℓ × ℓ
+				prodLines = *fields_bls12377.Mul034By034(api,
+					*l0.R0.MulByFp(api, lines[k][0][i].R0, xNegOverY[k]),
+					*l0.R1.MulByFp(api, lines[k][0][i].R1, yInv[k]),
+					*l1.R0.MulByFp(api, lines[k][1][i].R0, xNegOverY[k]),
+					*l1.R1.MulByFp(api, lines[k][1][i].R1, yInv[k]),
+				)
+				// (ℓ × ℓ) × res
+				res.MulBy01234(api, prodLines)
+			}
 		}
 	}
 

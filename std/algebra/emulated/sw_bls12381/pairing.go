@@ -302,24 +302,23 @@ func (pr Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
 	// residueWitnessInv = 1 / residueWitness
 	residueWitnessInv := pr.Inverse(&residueWitness)
 
-	if Q[0].Lines == nil {
-		Q0lines := pr.computeLines(&Q[0].P)
-		Q[0].Lines = &Q0lines
-	}
-	lines0 := *Q[0].Lines
-	if Q[1].Lines == nil {
-		Q1lines := pr.computeLines(&Q[1].P)
-		Q[1].Lines = &Q1lines
-	}
-	lines1 := *Q[1].Lines
-
 	// precomputations
-	y0Inv := pr.curveF.Inverse(&P[0].Y)
-	x0NegOverY0 := pr.curveF.Mul(&P[0].X, y0Inv)
-	x0NegOverY0 = pr.curveF.Neg(x0NegOverY0)
-	y1Inv := pr.curveF.Inverse(&P[1].Y)
-	x1NegOverY1 := pr.curveF.Mul(&P[1].X, y1Inv)
-	x1NegOverY1 = pr.curveF.Neg(x1NegOverY1)
+	n := 2
+	Qlines := make([]lineEvaluations, n)
+	lines := make([]lineEvaluations, n)
+	yInv := make([]*emulated.Element[BaseField], n)
+	xNegOverY := make([]*emulated.Element[BaseField], n)
+	for i := 0; i < n; i++ {
+		if Q[i].Lines == nil {
+			Qlines[i] = pr.computeLines(&Q[i].P)
+			Q[i].Lines = &Qlines[i]
+		}
+		lines[i] = *Q[i].Lines
+
+		yInv[i] = pr.curveF.Inverse(&P[i].Y)
+		xNegOverY[i] = pr.curveF.Mul(&P[i].X, yInv[i])
+		xNegOverY[i] = pr.curveF.Neg(xNegOverY[i])
+	}
 
 	// init Miller loop accumulator to residueWitnessInv to share the squarings
 	// of residueWitnessInv^{-x₀}
@@ -330,38 +329,30 @@ func (pr Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
 		res = pr.Square(res)
 
 		if loopCounter[i] == 0 {
-			// ℓ × res
-			res = pr.MulBy014(res,
-				pr.MulByElement(&lines0[0][i].R1, y0Inv),
-				pr.MulByElement(&lines0[0][i].R0, x0NegOverY0),
-			)
-
-			// ℓ × res
-			res = pr.MulBy014(res,
-				pr.MulByElement(&lines1[0][i].R1, y1Inv),
-				pr.MulByElement(&lines1[0][i].R0, x1NegOverY1),
-			)
+			for k := 0; k < n; k++ {
+				// ℓ × res
+				res = pr.MulBy014(res,
+					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+				)
+			}
 		} else {
 			// multiply by residueWitnessInv when bit=1
 			res = pr.Mul(res, residueWitnessInv)
 
-			res = pr.MulBy014(res,
-				pr.MulByElement(&lines0[0][i].R1, y0Inv),
-				pr.MulByElement(&lines0[0][i].R0, x0NegOverY0),
-			)
-			res = pr.MulBy014(res,
-				pr.MulByElement(&lines0[1][i].R1, y0Inv),
-				pr.MulByElement(&lines0[1][i].R0, x0NegOverY0),
-			)
+			for k := 0; k < n; k++ {
+				// ℓ × res
+				res = pr.MulBy014(res,
+					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+				)
+				// ℓ × res
+				res = pr.MulBy014(res,
+					pr.MulByElement(&lines[k][1][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
+				)
 
-			res = pr.MulBy014(res,
-				pr.MulByElement(&lines1[0][i].R1, y1Inv),
-				pr.MulByElement(&lines1[0][i].R0, x1NegOverY1),
-			)
-			res = pr.MulBy014(res,
-				pr.MulByElement(&lines1[1][i].R1, y1Inv),
-				pr.MulByElement(&lines1[1][i].R0, x1NegOverY1),
-			)
+			}
 		}
 	}
 
