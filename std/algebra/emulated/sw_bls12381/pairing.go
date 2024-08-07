@@ -372,7 +372,105 @@ func (pr Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
 }
 
 func (pr Pairing) QuadruplePairingCheck(P [4]*G1Affine, Q [4]*G2Affine) error {
-	return pr.PairingCheck(P[:], Q[:])
+	// hint the non-residue witness
+	hint, err := pr.curveF.NewHint(quadruplePairingCheckHint, 18, &P[0].X, &P[0].Y, &P[1].X, &P[1].Y, &P[2].X, &P[2].Y, &P[3].X, &P[3].Y, &Q[0].P.X.A0, &Q[0].P.X.A1, &Q[0].P.Y.A0, &Q[0].P.Y.A1, &Q[1].P.X.A0, &Q[1].P.X.A1, &Q[1].P.Y.A0, &Q[1].P.Y.A1, &Q[2].P.X.A0, &Q[2].P.X.A1, &Q[2].P.Y.A0, &Q[2].P.Y.A1, &Q[3].P.X.A0, &Q[3].P.X.A1, &Q[3].P.Y.A0, &Q[3].P.Y.A1)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+
+	residueWitness := fields_bls12381.E12{
+		C0: fields_bls12381.E6{
+			B0: fields_bls12381.E2{A0: *hint[0], A1: *hint[1]},
+			B1: fields_bls12381.E2{A0: *hint[2], A1: *hint[3]},
+			B2: fields_bls12381.E2{A0: *hint[4], A1: *hint[5]},
+		},
+		C1: fields_bls12381.E6{
+			B0: fields_bls12381.E2{A0: *hint[6], A1: *hint[7]},
+			B1: fields_bls12381.E2{A0: *hint[8], A1: *hint[9]},
+			B2: fields_bls12381.E2{A0: *hint[10], A1: *hint[11]},
+		},
+	}
+	// constrain scaling factor to be in Fp6
+	scalingFactor := fields_bls12381.E12{
+		C0: fields_bls12381.E6{
+			B0: fields_bls12381.E2{A0: *hint[12], A1: *hint[13]},
+			B1: fields_bls12381.E2{A0: *hint[14], A1: *hint[15]},
+			B2: fields_bls12381.E2{A0: *hint[16], A1: *hint[17]},
+		},
+		C1: (*pr.Ext6.Zero()),
+	}
+
+	// residueWitnessInv = 1 / residueWitness
+	residueWitnessInv := pr.Inverse(&residueWitness)
+
+	// precomputations
+	n := 4
+	Qlines := make([]lineEvaluations, n)
+	lines := make([]lineEvaluations, n)
+	yInv := make([]*emulated.Element[BaseField], n)
+	xNegOverY := make([]*emulated.Element[BaseField], n)
+	for i := 0; i < n; i++ {
+		if Q[i].Lines == nil {
+			Qlines[i] = pr.computeLines(&Q[i].P)
+			Q[i].Lines = &Qlines[i]
+		}
+		lines[i] = *Q[i].Lines
+
+		yInv[i] = pr.curveF.Inverse(&P[i].Y)
+		xNegOverY[i] = pr.curveF.Mul(&P[i].X, yInv[i])
+		xNegOverY[i] = pr.curveF.Neg(xNegOverY[i])
+	}
+
+	// init Miller loop accumulator to residueWitnessInv to share the squarings
+	// of residueWitnessInv^{-x₀}
+	res := residueWitnessInv
+
+	// Compute f_{x₀,Q}(P)
+	for i := 62; i >= 0; i-- {
+		res = pr.Square(res)
+
+		if loopCounter[i] == 0 {
+			for k := 0; k < n; k++ {
+				// ℓ × res
+				res = pr.MulBy014(res,
+					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+				)
+			}
+		} else {
+			// multiply by residueWitnessInv when bit=1
+			res = pr.Mul(res, residueWitnessInv)
+
+			for k := 0; k < n; k++ {
+				// ℓ × res
+				res = pr.MulBy014(res,
+					pr.MulByElement(&lines[k][0][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][0][i].R0, xNegOverY[k]),
+				)
+				// ℓ × res
+				res = pr.MulBy014(res,
+					pr.MulByElement(&lines[k][1][i].R1, yInv[k]),
+					pr.MulByElement(&lines[k][1][i].R0, xNegOverY[k]),
+				)
+
+			}
+		}
+	}
+
+	// Check that  res * scalingFactor * residueWitnessInv^λ' == 1
+	// where λ' = q, with u the BLS12-381 seed
+	// and residueWitnessInv, scalingFactor from the hint.
+	// Note that res is already MillerLoop(P,Q) * residueWitnessInv^{x₀} since
+	// we initialized the Miller loop accumulator with residueWitnessInv.
+	t0 := pr.Frobenius(residueWitnessInv)
+	t0 = pr.Mul(t0, res)
+	t0 = pr.Mul(t0, &scalingFactor)
+
+	pr.AssertIsEqual(t0, pr.One())
+
+	return nil
+
 }
 
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
