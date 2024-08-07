@@ -43,6 +43,16 @@ func ReferenceBigIntSlice(vals []big.Int) []*big.Int {
 	return ptrs
 }
 
+func BatchRLC(api *BigIntEngine, mlpolys []NativeMultilinear, r []*big.Int) NativeMultilinear {
+	res := make(NativeMultilinear, len(mlpolys[0]))
+	for j := 0; j < len(mlpolys[0]); j++ {
+		for i := 0; i < len(mlpolys); i++ {
+			res[j] = api.Add(res[j], api.Mul(mlpolys[i][j], r[i]))
+		}
+	}
+	return res
+}
+
 func Fold(api *BigIntEngine, ml NativeMultilinear, r *big.Int) NativeMultilinear {
 	mid := len(ml) / 2
 	bottom, top := ml[:mid], ml[mid:]

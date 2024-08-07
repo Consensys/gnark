@@ -115,7 +115,6 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	nbVars := claims.NbVars()
 	combinationCoef := v.f.Zero()
 	// if claims.NbClaims() >= 2 { //todo fix this
-	// 	println("verifier claims more than 2", claims.NbClaims())
 	// 	if combinationCoef, challengeNames, err = v.deriveChallenge(fs, challengeNames, nil); err != nil {
 	// 		return fmt.Errorf("derive combination coef: %w", err)
 	// 	}
@@ -142,16 +141,14 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		if len(evals) != degree {
 			return fmt.Errorf("expected len %d, got %d", degree, len(evals))
 		}
-		// computes g_{j-1}(r) - g_j(1) as missing evaluation
+
 		gj0 := v.f.Sub(gJR, &evals[0])
-		// fmt.Println("gj0")
-		// v.f.Println(gj0)
+
 		// construct the n+1 evaluations for interpolation
 		gJ := []*emulated.Element[FR]{gj0}
 		for i := range evals {
 			gJ = append(gJ, &evals[i])
-			// fmt.Println("evals[i]")
-			// v.f.Println(&evals[i])
+
 		}
 
 		// we derive the challenge from prover message.
@@ -163,8 +160,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		// interpolating and then evaluating we are computing the value
 		// directly.
 		gJR = v.p.InterpolateLDE(challenges[j], gJ)
-		// fmt.Println("gJR")
-		// v.f.Println(gJR)
+
 
 		// we do not directly need to check gJR now - as in the next round we
 		// compute new evaluation point from gJR then the check is performed

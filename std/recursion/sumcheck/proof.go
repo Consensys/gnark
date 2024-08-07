@@ -31,7 +31,7 @@ type EvaluationProof any
 
 // evaluationProof for gkr
 type DeferredEvalProof[FR emulated.FieldParams] []emulated.Element[FR]
-type NativeDeferredEvalProof []*big.Int
+type NativeDeferredEvalProof []big.Int
 
 type NativeEvaluationProof any
 

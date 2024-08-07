@@ -173,7 +173,7 @@ type DblAddSelectGate[AE ArithEngine[E], E element] struct {
 }
 
 func ProjAdd[AE ArithEngine[E], E element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
-	b3 := api.Const(big.NewInt(21))
+	b3 := api.Const(big.NewInt(9)) //todo hardcoded for bn254, b3 = 3*b
 	t0 := api.Mul(X1, X2)
 	t1 := api.Mul(Y1, Y2)
 	t2 := api.Mul(Z1, Z2)
@@ -226,7 +226,7 @@ func ProjSelect[AE ArithEngine[E], E element](api AE, selector, X1, Y1, Z1, X2, 
 }
 
 func ProjDbl[AE ArithEngine[E], E element](api AE, X, Y, Z E) (X3, Y3, Z3 E) {
-	b3 := api.Const(big.NewInt(21))
+	b3 := api.Const(big.NewInt(9)) //todo hardcoded for bn254, b3 = 3*b
 	t0 := api.Mul(Y, Y)
 	Z3 = api.Add(t0, t0)
 	Z3 = api.Add(Z3, Z3)
@@ -330,8 +330,7 @@ func (m DblAddSelectGateFullOutput[AE, E]) Evaluate(api AE, vars ...E) []E {
 	ResX, ResY, ResZ := ProjSelect(api, selector, tmpX, tmpY, tmpZ, X2, Y2, Z2)
 	AccX, AccY, AccZ := ProjDbl(api, X1, Y1, Z1)
 
-	output := []E{AccX, AccY, AccZ, ResX, ResY, ResZ}
-	return output
+	return []E{AccX, AccY, AccZ, ResX, ResY, ResZ}
 }
 
 func TestDblAndAddGate(t *testing.T) {

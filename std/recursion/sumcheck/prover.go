@@ -15,13 +15,6 @@ type proverConfig struct {
 
 type proverOption func(*proverConfig) error
 
-func withProverPrefix(prefix string) proverOption {
-	return func(pc *proverConfig) error {
-		pc.prefix = prefix
-		return nil
-	}
-}
-
 func newProverConfig(opts ...proverOption) (*proverConfig, error) {
 	ret := new(proverConfig)
 	for i := range opts {
@@ -50,7 +43,7 @@ func Prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 	}
 
 	combinationCoef := big.NewInt(0)
-	//change nbClaims to 2 if anyone of the individual claims has more than 1 claim
+	//todo change nbClaims to 2 if anyone of the individual claims has more than 1 claim
 	// if claims.NbClaims() >= 2 {
 	// 	println("prove claims", claims.NbClaims())
 	// 	if combinationCoef, challengeNames, err = DeriveChallengeProver(fs, challengeNames, nil); err != nil {
@@ -75,7 +68,7 @@ func Prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 		}
 		// compute the univariate polynomial with first j variables fixed.
 		proof.RoundPolyEvaluations[j+1] = claims.Next(challenges[j])
-		//fmt.Println("proof.RoundPolyEvaluations[j+1]", proof.RoundPolyEvaluations[j+1])
+
 
 	}
 	if challenges[nbVars-1], challengeNames, err = DeriveChallengeProver(fs, challengeNames, proof.RoundPolyEvaluations[nbVars-1]); err != nil {
