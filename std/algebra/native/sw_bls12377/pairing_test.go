@@ -57,6 +57,35 @@ func TestFinalExp(t *testing.T) {
 	assert.CheckCircuit(&finalExp{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
 }
 
+type millerLoopBLS377 struct {
+	P   G1Affine
+	Q   G2Affine
+	Res GT
+}
+
+func (circuit *millerLoopBLS377) Define(api frontend.API) error {
+	pairingRes, _ := MillerLoop(api, []G1Affine{circuit.P}, []G2Affine{circuit.Q})
+	pairingRes.AssertIsEqual(api, circuit.Res)
+
+	return nil
+}
+
+func TestMillerLoopBLS377(t *testing.T) {
+
+	// Miller loop test data
+	P, Q, milRes := millerLoopData()
+
+	// assign values to witness
+	witness := millerLoopBLS377{
+		P:   NewG1Affine(P),
+		Q:   NewG2Affine(Q),
+		Res: NewGTEl(milRes),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&millerLoopBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+
+}
+
 type pairingBLS377 struct {
 	P   G1Affine
 	Q   G2Affine
@@ -184,12 +213,12 @@ func TestDoublePairingFixedBLS377(t *testing.T) {
 
 }
 
-type pairingCheckBLS377 struct {
+type pairingCheck struct {
 	P1, P2 G1Affine
 	Q1, Q2 G2Affine
 }
 
-func (circuit *pairingCheckBLS377) Define(api frontend.API) error {
+func (circuit *pairingCheck) Define(api frontend.API) error {
 
 	err := PairingCheck(api, []G1Affine{circuit.P1, circuit.P2}, []G2Affine{circuit.Q1, circuit.Q2})
 
@@ -200,19 +229,48 @@ func (circuit *pairingCheckBLS377) Define(api frontend.API) error {
 	return nil
 }
 
-func TestPairingCheckBLS377(t *testing.T) {
+func TestPairingCheck(t *testing.T) {
 
 	// pairing test data
 	P, Q := pairingCheckData()
-	witness := pairingCheckBLS377{
+	witness := pairingCheck{
 		P1: NewG1Affine(P[0]),
 		P2: NewG1Affine(P[1]),
 		Q1: NewG2Affine(Q[0]),
 		Q2: NewG2Affine(Q[1]),
 	}
 	assert := test.NewAssert(t)
-	assert.CheckCircuit(&pairingCheckBLS377{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
+	assert.CheckCircuit(&pairingCheck{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
+}
 
+type doublePairingCheck struct {
+	P1, P2 G1Affine
+	Q1, Q2 G2Affine
+}
+
+func (circuit *doublePairingCheck) Define(api frontend.API) error {
+
+	err := DoublePairingCheck(api, [2]G1Affine{circuit.P1, circuit.P2}, [2]G2Affine{circuit.Q1, circuit.Q2})
+
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+
+	return nil
+}
+
+func TestDoublePairingCheck(t *testing.T) {
+
+	// pairing test data
+	P, Q := pairingCheckData()
+	witness := doublePairingCheck{
+		P1: NewG1Affine(P[0]),
+		P2: NewG1Affine(P[1]),
+		Q1: NewG2Affine(Q[0]),
+		Q2: NewG2Affine(Q[1]),
+	}
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&doublePairingCheck{}, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761), test.NoProverChecks())
 }
 
 type groupMembership struct {
@@ -243,6 +301,16 @@ func TestGroupMembership(t *testing.T) {
 }
 
 // utils
+func millerLoopData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes bls12377.GT) {
+	_, _, P, Q = bls12377.Generators()
+	lines := bls12377.PrecomputeLines(Q)
+	milRes, _ = bls12377.MillerLoopFixedQ(
+		[]bls12377.G1Affine{P},
+		[][2][len(bls12377.LoopCounter) - 1]bls12377.LineEvaluationAff{lines},
+	)
+	return
+}
+
 func pairingData() (P bls12377.G1Affine, Q bls12377.G2Affine, milRes, pairingRes bls12377.GT) {
 	_, _, P, Q = bls12377.Generators()
 	milRes, _ = bls12377.MillerLoop([]bls12377.G1Affine{P}, []bls12377.G2Affine{Q})

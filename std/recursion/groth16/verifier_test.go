@@ -80,6 +80,32 @@ func (c *OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	return verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
 }
 
+func TestBLS12381InBLS12381(t *testing.T) {
+	assert := test.NewAssert(t)
+	innerCcs, innerVK, innerWitness, innerProof := getInner(assert, ecc.BLS12_381.ScalarField())
+
+	// outer proof
+	circuitVk, err := ValueOfVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl](innerVK)
+	assert.NoError(err)
+	circuitWitness, err := ValueOfWitness[sw_bls12381.ScalarField](innerWitness)
+	assert.NoError(err)
+	circuitProof, err := ValueOfProof[sw_bls12381.G1Affine, sw_bls12381.G2Affine](innerProof)
+	assert.NoError(err)
+
+	outerCircuit := &OuterCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{
+		Proof:        PlaceholderProof[sw_bls12381.G1Affine, sw_bls12381.G2Affine](innerCcs),
+		InnerWitness: PlaceholderWitness[sw_bls12381.ScalarField](innerCcs),
+		VerifyingKey: PlaceholderVerifyingKey[sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl](innerCcs),
+	}
+	outerAssignment := &OuterCircuit[sw_bls12381.ScalarField, sw_bls12381.G1Affine, sw_bls12381.G2Affine, sw_bls12381.GTEl]{
+		InnerWitness: circuitWitness,
+		Proof:        circuitProof,
+		VerifyingKey: circuitVk,
+	}
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BLS12_381.ScalarField())
+	assert.NoError(err)
+}
+
 func TestBN254InBN254(t *testing.T) {
 	assert := test.NewAssert(t)
 	innerCcs, innerVK, innerWitness, innerProof := getInner(assert, ecc.BN254.ScalarField())

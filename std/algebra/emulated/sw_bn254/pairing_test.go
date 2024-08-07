@@ -247,6 +247,44 @@ func TestMultiPairTestSolve(t *testing.T) {
 	}
 }
 
+type DoublePairingCheckCircuit struct {
+	In1G1 G1Affine
+	In2G1 G1Affine
+	In1G2 G2Affine
+	In2G2 G2Affine
+}
+
+func (c *DoublePairingCheckCircuit) Define(api frontend.API) error {
+	pairing, err := NewPairing(api)
+	if err != nil {
+		return fmt.Errorf("new pairing: %w", err)
+	}
+	err = pairing.DoublePairingCheck([2]*G1Affine{&c.In1G1, &c.In2G1}, [2]*G2Affine{&c.In1G2, &c.In2G2})
+	if err != nil {
+		return fmt.Errorf("pair: %w", err)
+	}
+	return nil
+}
+
+func TestDoublePairingCheckTestSolve(t *testing.T) {
+	assert := test.NewAssert(t)
+	// e(a,2b) * e(-2a,b) == 1
+	p1, q1 := randomG1G2Affines()
+	var p2 bn254.G1Affine
+	p2.Double(&p1).Neg(&p2)
+	var q2 bn254.G2Affine
+	q2.Set(&q1)
+	q1.Double(&q1)
+	witness := DoublePairingCheckCircuit{
+		In1G1: NewG1Affine(p1),
+		In1G2: NewG2Affine(q1),
+		In2G1: NewG1Affine(p2),
+		In2G2: NewG2Affine(q2),
+	}
+	err := test.IsSolved(&DoublePairingCheckCircuit{}, &witness, ecc.BN254.ScalarField())
+	assert.NoError(err)
+}
+
 type PairingCheckCircuit struct {
 	In1G1 G1Affine
 	In2G1 G1Affine
@@ -259,7 +297,7 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("new pairing: %w", err)
 	}
-	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2})
+	err = pairing.PairingCheck([]*G1Affine{&c.In1G1, &c.In1G1, &c.In2G1, &c.In2G1}, []*G2Affine{&c.In1G2, &c.In2G2, &c.In1G2, &c.In2G2})
 	if err != nil {
 		return fmt.Errorf("pair: %w", err)
 	}
@@ -268,13 +306,10 @@ func (c *PairingCheckCircuit) Define(api frontend.API) error {
 
 func TestPairingCheckTestSolve(t *testing.T) {
 	assert := test.NewAssert(t)
-	// e(a,2b) * e(-2a,b) == 1
 	p1, q1 := randomG1G2Affines()
+	_, q2 := randomG1G2Affines()
 	var p2 bn254.G1Affine
-	p2.Double(&p1).Neg(&p2)
-	var q2 bn254.G2Affine
-	q2.Set(&q1)
-	q1.Double(&q1)
+	p2.Neg(&p1)
 	witness := PairingCheckCircuit{
 		In1G1: NewG1Affine(p1),
 		In1G2: NewG2Affine(q1),
