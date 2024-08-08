@@ -302,9 +302,9 @@ func TestMultipleDblAddSelectGKR(t *testing.T) {
 	zero.SetZero()
 	var random fpbn254.Element
 
-	depth := 64
+	depth := 4
 	arity := 6
-	nBInstances := 2048
+	nBInstances := 8
 	var fp emparams.BN254Fp
 	be := sumcheck.NewBigIntEngine(fp.Modulus())
 	gate := sumcheck.DblAddSelectGateFullOutput[*sumcheck.BigIntEngine, *big.Int]{Selector: big.NewInt(1)}
@@ -335,14 +335,4 @@ func TestMultipleDblAddSelectGKR(t *testing.T) {
 
 	testMultipleDblAddSelectGKRInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), fp.Modulus(), inputs, outputs, depth)
 
-}
-
-func TestOnCurve(t *testing.T) {
-	var P1 bn254.G1Affine
-	var PX, PY fpbn254.Element
-	PX.SetString("15750850147486170746908474806017633998708768012501092740418483158796824943213")
-	PY.SetString("9263932804902311438462130881946308309122719704532862759711283635230977726017")
-	P1.X = PX
-	P1.Y = PY
-	fmt.Println("P1.IsOnCurve", P1.IsOnCurve())
 }

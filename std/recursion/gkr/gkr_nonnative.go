@@ -988,7 +988,6 @@ func (cB *eqTimesGateEvalSumcheckClaimsBundle) bundleComputeGJ() sumcheck.Native
 // The value g_j(0) is inferred from the equation g_j(0) + g_j(1) = gⱼ₋₁(rⱼ₋₁). By convention, g₀ is a constant polynomial equal to the claimed sum.
 func (cB *eqTimesGateEvalSumcheckClaimsBundle) bundleComputeGJFull() sumcheck.NativePolynomial {
 	degGJ := 1 + cB.wireBundle.Gate.Degree() // guaranteed to be no smaller than the actual deg(g_j)
-	nEvals := degGJ
 	batch := len(cB.claimsMapOutputs)
 	s := make([][]sumcheck.NativeMultilinear, batch)
 	// Let f ∈ { E(r₁, ..., X_j, d...) } ∪ {P_ul(r₁, ..., X_j, d...) }. It is linear in X_j, so f(m) = m×(f(1) - f(0)) + f(0), and f(0), f(1) are easily computed from the bookkeeping tables
@@ -1009,20 +1008,17 @@ func (cB *eqTimesGateEvalSumcheckClaimsBundle) bundleComputeGJFull() sumcheck.Na
 	}
 
 	// Contains the output of the algo
-	evals := make([]*big.Int, nEvals)
+	evals := make([]*big.Int, degGJ)
 	for i := range evals {
 		evals[i] = new(big.Int)
 	}
 	evaluationBuffer := make([][]*big.Int, batch)
 	tmpEvals := make([][]*big.Int, nbOuter)
 	eqChunk := make([][]*big.Int, nbOuter)
-	tmpEqs := make([][]*big.Int, nbOuter)
-	dEqs := make([][]*big.Int, nbOuter)
+	tmpEqs := make([]*big.Int, nbOuter)
+	dEqs := make([]*big.Int, nbOuter)
 	for i := range dEqs {
-		dEqs[i] = make([]*big.Int, batch)
-		for j := range dEqs[i] {
-			dEqs[i][j] = new(big.Int)
-		}
+		dEqs[i] = new(big.Int)
 	}
 	tmpXs := make([][]*big.Int, batch)
 	for i := range tmpXs {
@@ -1040,6 +1036,10 @@ func (cB *eqTimesGateEvalSumcheckClaimsBundle) bundleComputeGJFull() sumcheck.Na
 	}
 
 	engine := cB.claimsMapOutputs[wireKey(cB.wireBundle.Outputs[0])].engine
+	evalsVec := make([]*big.Int, nbOuter)
+	for i := range evalsVec {
+		evalsVec[i] = big.NewInt(0)
+	}
 	evalPtr := big.NewInt(0)
 	v := big.NewInt(0)
 	
@@ -1088,26 +1088,23 @@ func (cB *eqTimesGateEvalSumcheckClaimsBundle) bundleComputeGJFull() sumcheck.Na
 		evaluationBuffer[wireIndex] = s[wireIndex][1][nbOuter:nbOuter*2]
 	}
 
-	for i := 0; i < nbOuter; i++ {
-		inputs := make([]*big.Int, batch)
-		tmpEvals[i] = make([]*big.Int, batch)
-		for j := 0; j < batch; j++ {
-			inputs[j] = evaluationBuffer[j][i]
-		}
-		tmpEvals[i] = cB.wireBundle.Gate.Evaluate(engine, inputs...)
-	}
-
-
-
 	for x := 0; x < nbOuter; x++ {
+		inputs := make([]*big.Int, batch)
+		tmpEvals[x] = make([]*big.Int, batch)
+		for j := 0; j < batch; j++ {
+			inputs[j] = evaluationBuffer[j][x]
+		}
+		tmpEvals[x] = cB.wireBundle.Gate.Evaluate(engine, inputs...)
+
 		eqChunk[x] = make([]*big.Int, batch)
 		for i, _ := range cB.claimsMapOutputs {
 			_, wireIndex := parseWireKey(i)
-			eqChunk[x][wireIndex] = s[wireIndex][0][nbOuter:nbOuter*2][x]
-			v = engine.Mul(eqChunk[x][wireIndex], tmpEvals[x][wireIndex])
-			v = engine.Mul(v, challengesRLC[wireIndex])
-			evalPtr = engine.Add(evalPtr, v)
+			v = engine.Mul(tmpEvals[x][wireIndex], challengesRLC[wireIndex])
+			evalsVec[x] = engine.Add(evalsVec[x], v)
 		}
+		eqChunk[x][0] = s[0][0][nbOuter:nbOuter*2][x]
+		evalsVec[x] = engine.Mul(evalsVec[x], eqChunk[x][0])
+		evalPtr = engine.Add(evalPtr, evalsVec[x])
 	}		
 
 	// Then update the evalsValue
@@ -1117,46 +1114,22 @@ func (cB *eqTimesGateEvalSumcheckClaimsBundle) bundleComputeGJFull() sumcheck.Na
 
 	// Initialize the eq and dEq table, at the value for t = 1
 	// (We get the next values for t by adding dEqs)
-	for x := 0; x < nbOuter; x++ {
-		tmpEqs[x] = make([]*big.Int, batch)
-		// dEqs[x] = make([]*big.Int, batch)
-		for i, _ := range cB.claimsMapOutputs {
-			_, wireIndex := parseWireKey(i)
-			tmpEqs[x][wireIndex] = s[wireIndex][0][nbOuter:nbOuter*2][x]
-			dEqs[x][wireIndex] = engine.Sub(s[wireIndex][0][nbOuter+x], s[wireIndex][0][x])
-		}
-	}
-
 	// Initializes the dXs as P(t=1, x) - P(t=0, x)
 	// As for eq, we initialize each input table `X` with the value for t = 1
 	// (We get the next values for t by adding dXs)
 	for x := 0; x < nbOuter; x++ {
-		// dXs[x] = make([]*big.Int, batch)
-		// tmpXs[x] = make([]*big.Int, batch)
+		tmpEqs[x] = s[0][0][nbOuter:nbOuter*2][x]
+		dEqs[x] = engine.Sub(s[0][0][nbOuter+x], s[0][0][x])
 		for i, _ := range cB.claimsMapOutputs {
 			_, wireIndex := parseWireKey(i)
 			dXs[x][wireIndex] = engine.Sub(s[wireIndex][1][nbOuter+x], s[wireIndex][1][x])
 			tmpXs[wireIndex][0:nbOuter][x] = s[wireIndex][1][nbOuter:nbOuter*2][x]
+			evaluationBuffer[wireIndex] = tmpXs[wireIndex][0:nbOuter]
 		}
 	}
 
-
-	for i, _ := range cB.claimsMapOutputs {
-		_, wireIndex := parseWireKey(i)
-		// Also, we redirect the evaluation buffer over each subslice of tmpXs
-		// So we can easily pass each of these values of to the `gates.EvalBatch` table
-		evaluationBuffer[wireIndex] = tmpXs[wireIndex][0:nbOuter]
-	}
-
-	for t := 1; t < nEvals; t++ {
+	for t := 1; t < degGJ; t++ {
 		evalPtr = big.NewInt(0)
-		for x := 0; x < nbOuter; x++ {
-			for i, _ := range cB.claimsMapOutputs {
-				_, wireIndex := parseWireKey(i)
-				tmpEqs[x][wireIndex] = engine.Add(tmpEqs[x][wireIndex], dEqs[x][wireIndex])
-			}
-		}
-
 		nInputsSubChunkLen := 1 * nbOuter // assuming single input per claim
 		// Update the value of tmpXs : as dXs and tmpXs have the same layout,
 		// no need to make a double loop on k : the index of the separate inputs
@@ -1168,23 +1141,24 @@ func (cB *eqTimesGateEvalSumcheckClaimsBundle) bundleComputeGJFull() sumcheck.Na
 			}
 		}
 
-		// Recall that evaluationBuffer is a set of pointers to subslices of tmpXs
-		for i := 0; i < nbOuter; i++ {
-			inputs := make([]*big.Int, batch)
-			tmpEvals[i] = make([]*big.Int, batch)
-			for j := 0; j < batch; j++ {
-				inputs[j] = evaluationBuffer[j][i]
-			}
-			tmpEvals[i] = cB.wireBundle.Gate.Evaluate(engine, inputs...)
-		}
-
 		for x := 0; x < nbOuter; x++ {
+			evalsVec[x] = big.NewInt(0)
+			tmpEqs[x] = engine.Add(tmpEqs[x], dEqs[x])
+
+			inputs := make([]*big.Int, batch)
+			tmpEvals[x] = make([]*big.Int, batch)
+			for j := 0; j < batch; j++ {
+				inputs[j] = evaluationBuffer[j][x]
+			}
+			tmpEvals[x] = cB.wireBundle.Gate.Evaluate(engine, inputs...)
+
 			for i, _ := range cB.claimsMapOutputs {
 				_, wireIndex := parseWireKey(i)
-				v = engine.Mul(tmpEqs[x][wireIndex], tmpEvals[x][wireIndex])
-				v = engine.Mul(v, challengesRLC[wireIndex])
-				evalPtr = engine.Add(evalPtr, v)
+				v = engine.Mul(tmpEvals[x][wireIndex], challengesRLC[wireIndex])
+				evalsVec[x] = engine.Add(evalsVec[x], v)
 			}
+			evalsVec[x] = engine.Mul(evalsVec[x], tmpEqs[x])
+			evalPtr = engine.Add(evalPtr, evalsVec[x])
 		}
 
 		evals[t] = evalPtr
@@ -1200,11 +1174,16 @@ func (cB *eqTimesGateEvalSumcheckClaimsBundle) bundleComputeGJFull() sumcheck.Na
 
 // Next first folds the "preprocessing" and "eq" polynomials then compute the new g_j
 func (c *eqTimesGateEvalSumcheckClaimsBundle) Next(element *big.Int) sumcheck.NativePolynomial {
-	for _, claim := range c.claimsMapOutputs {
+	eq := []*big.Int{}
+	for j, claim := range c.claimsMapOutputs {
+		_, wireIndex := parseWireKey(j)
 		for i := 0; i < len(claim.inputPreprocessors); i++ {
 			claim.inputPreprocessors[i] = sumcheck.Fold(claim.engine, claim.inputPreprocessors[i], element).Clone()
 		}
-		claim.eq = sumcheck.Fold(claim.engine, claim.eq, element).Clone()
+		if wireIndex == 0 {
+			eq = sumcheck.Fold(claim.engine, claim.eq, element).Clone()
+		}
+		claim.eq = eq
 	}
 
 	return c.bundleComputeGJFull()
@@ -2167,6 +2146,7 @@ func (a WireAssignmentBundle) NumVars() int {
 	panic("empty assignment")
 }
 
+//todo complete this
 func topologicalSortBundleEmulated[FR emulated.FieldParams](c CircuitBundleEmulated[FR]) []*WireBundleEmulated[FR] {
 	// var data topSortDataEmulated[FR]
 	// data.index = indexMapEmulated(c)
@@ -2255,29 +2235,13 @@ func (p Proofs[FR]) Serialize() []emulated.Element[FR] {
 	return res
 }
 
-// func computeLogNbInstances[FR emulated.FieldParams](wires []*WireEmulated[FR], serializedProofLen int) int {
-// 	partialEvalElemsPerVar := 0
-// 	for _, w := range wires {
-// 		if !w.noProof() {
-// 			partialEvalElemsPerVar += w.Gate.Degree() + 1
-// 		}
-// 		serializedProofLen -= w.nbUniqueOutputs
-// 	}
-// 	return serializedProofLen / partialEvalElemsPerVar
-// }
-
 func computeLogNbInstancesBundle[FR emulated.FieldParams](wires []*WireBundleEmulated[FR], serializedProofLen int) int {
 	partialEvalElemsPerVar := 0
 	for _, w := range wires {
 		if !w.noProof() {
 			partialEvalElemsPerVar += w.Gate.Degree() + 1
 			serializedProofLen -= 1 //w.nbUniqueOutputs
-		} else {
-			//partialEvalElemsPerVar = 1 //todo check this
-		}
-
-		//serializedProofLen -= w.nbUniqueOutputs
-		//serializedProofLen -= len(w.Outputs)
+		} 
 	}
 	return serializedProofLen / partialEvalElemsPerVar
 }
@@ -2293,26 +2257,6 @@ func (r *variablesReader[FR]) nextN(n int) []emulated.Element[FR] {
 func (r *variablesReader[FR]) hasNextN(n int) bool {
 	return len(*r) >= n
 }
-
-// func DeserializeProof[FR emulated.FieldParams](sorted []*WireEmulated[FR], serializedProof []emulated.Element[FR]) (Proofs[FR], error) {
-// 	proof := make(Proofs[FR], len(sorted))
-// 	logNbInstances := computeLogNbInstancesB(sorted, len(serializedProof))
-
-// 	reader := variablesReader[FR](serializedProof)
-// 	for i, wI := range sorted {
-// 		if !wI.noProof() {
-// 			proof[i].RoundPolyEvaluations = make([]polynomial.Univariate[FR], logNbInstances)
-// 			for j := range proof[i].RoundPolyEvaluations {
-// 				proof[i].RoundPolyEvaluations[j] = reader.nextN(wI.Gate.Degree() + 1)
-// 			}
-// 		}
-// 		proof[i].FinalEvalProof = reader.nextN(wI.nbUniqueInputs())
-// 	}
-// 	if reader.hasNextN(1) {
-// 		return nil, fmt.Errorf("proof too long: expected %d encountered %d", len(serializedProof)-len(reader), len(serializedProof))
-// 	}
-// 	return proof, nil
-// }
 
 func DeserializeProofBundle[FR emulated.FieldParams](sorted []*WireBundleEmulated[FR], serializedProof []emulated.Element[FR]) (Proofs[FR], error) {
 	proof := make(Proofs[FR], len(sorted))
