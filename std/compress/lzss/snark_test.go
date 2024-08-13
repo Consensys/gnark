@@ -366,3 +366,38 @@ func TestBuildDecompress1KBto9KB(t *testing.T) {
 	assert.NoError(t, err)
 	fmt.Println(cs.GetNbConstraints())
 }
+
+func TestNoZeroPaddingOutput(t *testing.T) {
+	assignment := testNoZeroPaddingOutputCircuit{
+		C:    []frontend.Variable{0, 1, 0, 2, 3, 0, 0, 0},
+		D:    []frontend.Variable{2, 3, 3},
+		CLen: 4,
+		DLen: 1,
+	}
+	circuit := testNoZeroPaddingOutputCircuit{
+		C: make([]frontend.Variable, len(assignment.C)),
+		D: make([]frontend.Variable, len(assignment.D)),
+	}
+
+	RegisterHints()
+	test.NewAssert(t).CheckCircuit(&circuit, test.WithValidAssignment(&assignment), test.WithBackends(backend.PLONK), test.WithCurves(ecc.BLS12_377))
+}
+
+type testNoZeroPaddingOutputCircuit struct {
+	CLen, DLen frontend.Variable
+	C, D       []frontend.Variable
+}
+
+func (c *testNoZeroPaddingOutputCircuit) Define(api frontend.API) error {
+	dict := []frontend.Variable{254, 255}
+	d := make([]frontend.Variable, len(c.D))
+	dLen, err := Decompress(api, c.C, c.CLen, d, dict, WithoutZeroPaddingOutput)
+	if err != nil {
+		return err
+	}
+	api.AssertIsEqual(c.DLen, dLen)
+	for i := range c.D {
+		api.AssertIsEqual(c.D[i], d[i])
+	}
+	return nil
+}

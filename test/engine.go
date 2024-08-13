@@ -444,6 +444,15 @@ func (e *engine) Cmp(i1, i2 frontend.Variable) frontend.Variable {
 	return res
 }
 
+// Cmp returns 1 if i1>i2, 0 if i1==i2, -1 if i1<i2
+func (e *engine) CmpNOp(i1, i2 frontend.Variable, maxBits int, omitRangeCheck ...bool) frontend.Variable {
+	b1 := e.toBigInt(i1)
+	b2 := e.toBigInt(i2)
+	res := big.NewInt(int64(b1.Cmp(b2)))
+	res.Mod(res, e.modulus())
+	return res
+}
+
 func (e *engine) AssertIsEqual(i1, i2 frontend.Variable) {
 	atomic.AddUint64(&cptAssertIsEqual, 1)
 	b1, b2 := e.toBigInt(i1), e.toBigInt(i2)
@@ -471,6 +480,20 @@ func (e *engine) AssertIsCrumb(i1 frontend.Variable) {
 }
 
 func (e *engine) AssertIsLessOrEqual(v frontend.Variable, bound frontend.Variable) {
+
+	bValue := e.toBigInt(bound)
+
+	if bValue.Sign() == -1 {
+		panic(fmt.Sprintf("[assertIsLessOrEqual] bound (%s) must be positive", bValue.String()))
+	}
+
+	b1 := e.toBigInt(v)
+	if b1.Cmp(bValue) == 1 {
+		panic(fmt.Sprintf("[assertIsLessOrEqual] %s > %s", b1.String(), bValue.String()))
+	}
+}
+
+func (e *engine) AssertIsLessOrEqualNOp(v frontend.Variable, bound frontend.Variable, maxBits int, omitRangeCheck ...bool) {
 
 	bValue := e.toBigInt(bound)
 

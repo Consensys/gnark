@@ -49,7 +49,6 @@ func (circuit *poseidonCircuit1) Define(api frontend.API) error {
 	api.AssertIsEqual(result, circuit.Hash)
 	return nil
 }
-
 func (circuit *poseidonCircuit2) Define(api frontend.API) error {
 	result := Poseidon(api, circuit.Data[:]...)
 	api.AssertIsEqual(result, circuit.Hash)

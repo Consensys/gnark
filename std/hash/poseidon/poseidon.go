@@ -95,7 +95,7 @@ func Poseidon(api frontend.API, input ...frontend.Variable) frontend.Variable {
 		}
 	}
 
-	// For the remaining part of the input OR if 1 <= inputLength <= 16
+	// For the remaining part of the input OR if 1 <= inputLength <= 12
 	if lastIndex < inputLength {
 		lastIndex = inputLength
 		remainigLength := lastIndex - startIndex
