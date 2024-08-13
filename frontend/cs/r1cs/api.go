@@ -697,7 +697,7 @@ func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error
 			return nil, err
 		}
 		vCp[len(v)] = mask[0]
-		builder.cs.AddR1C(builder.newR1C(mask, 1, mask), builder.genericGate) // the variable needs to be involved in a constraint otherwise it will not affect the commitment
+		builder.cs.AddR1C(builder.newR1C(mask[0], builder.eOne, mask[0]), builder.genericGate) // the variable needs to be involved in a constraint otherwise it will not affect the commitment
 		v = vCp
 	}
 
