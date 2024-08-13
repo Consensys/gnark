@@ -32,9 +32,8 @@ var constraintSolverChecks = profile{
 }
 
 var proverChecks = profile{
-	// backends:      []backend.ID{backend.GROTH16, backend.PLONK, backend.FFLONK},
-	backends:      []backend.ID{backend.FFLONK},
-	curves:        []ecc.ID{ecc.BN254}, //, ecc.BLS12_381, ecc.BW6_761},
+	backends:      []backend.ID{backend.GROTH16, backend.PLONK, backend.FFLONK},
+	curves:        []ecc.ID{ecc.BN254, ecc.BLS12_381, ecc.BW6_761},
 	checkSolidity: true && SolcCheck,
 	checkProver:   true,
 }
