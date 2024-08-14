@@ -415,6 +415,9 @@ func (builder *builder) Select(b frontend.Variable, i1, i2 frontend.Variable) fr
 		return i1
 	}
 
+	// ensure the condition is a boolean
+	builder.AssertIsBoolean(b)
+
 	u := builder.Sub(i1, i2)
 	l := builder.Mul(u, b)
 
