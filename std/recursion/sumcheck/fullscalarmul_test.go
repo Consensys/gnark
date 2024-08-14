@@ -12,6 +12,7 @@ import (
 	fr_secp256k1 "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	cryptofs "github.com/consensys/gnark-crypto/fiat-shamir"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
@@ -462,5 +463,9 @@ func TestScalarMul(t *testing.T) {
 	}
 	err := test.IsSolved(&circuit, &witness, ecc.BLS12_377.ScalarField())
 	assert.NoError(err)
-	frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BLS12_377.ScalarField(), scs.NewBuilder, &circuit)
+	p.Stop()
+	fmt.Println(p.NbConstraints())
+
 }

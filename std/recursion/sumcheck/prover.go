@@ -43,9 +43,7 @@ func Prove(current *big.Int, target *big.Int, claims claims, opts ...proverOptio
 	}
 
 	combinationCoef := big.NewInt(0)
-	//todo change nbClaims to 2 if anyone of the individual claims has more than 1 claim
-	// if claims.NbClaims() >= 2 {
-	// 	println("prove claims", claims.NbClaims())
+	// if claims.NbClaims() >= 2 { // todo change this to handle multiple claims per wire - assuming single claim per wire so don't need to combine
 	// 	if combinationCoef, challengeNames, err = DeriveChallengeProver(fs, challengeNames, nil); err != nil {
 	// 		return proof, fmt.Errorf("derive combination coef: %w", err)
 	// 	} // todo change this nbclaims give 6 results in combination coeff

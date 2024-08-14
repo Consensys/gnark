@@ -114,7 +114,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 	}
 	nbVars := claims.NbVars()
 	combinationCoef := v.f.Zero()
-	// if claims.NbClaims() >= 2 { //todo fix this
+	// if claims.NbClaims() >= 2 { // todo change this to handle multiple claims per wire - assuming single claim per wire so don't need to combine
 	// 	if combinationCoef, challengeNames, err = v.deriveChallenge(fs, challengeNames, nil); err != nil {
 	// 		return fmt.Errorf("derive combination coef: %w", err)
 	// 	}

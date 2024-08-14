@@ -10,14 +10,12 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 	fpbn254 "github.com/consensys/gnark-crypto/ecc/bn254/fp"
 
-	//"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	// "github.com/consensys/gnark/frontend/cs/scs"
 	// "github.com/consensys/gnark/profile"
 	fiatshamir "github.com/consensys/gnark/std/fiat-shamir"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
-	//"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/std/recursion"
 	"github.com/consensys/gnark/std/recursion/gkr/utils"
 	"github.com/consensys/gnark/std/recursion/sumcheck"
@@ -232,22 +230,10 @@ func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, 
 
 	fullAssignment.Complete(c, target)
 
-	// for _, w := range sorted {
-	// 	fmt.Println("w", w.Layer)
-	// 	for _, wire := range w.Inputs {
-	// 		fmt.Println("inputs fullAssignment[w][", wire, "]", fullAssignment[w][wireKey(wire)])
-	// 	}
-	// 	for _, wire := range w.Outputs {
-	// 		fmt.Println("outputs fullAssignment[w][", wire, "]", fullAssignment[w][wireKey(wire)])
-	// 	}
-	// }
-
-
 	t.Log("Circuit evaluation complete")
 	proof, err := Prove(current, target, c, fullAssignment, fiatshamir.WithHashBigInt(hash))
 	assert.NoError(err)
 	t.Log("Proof complete")
-	//fmt.Println("proof", proof)
 	
 	proofEmulated := make(Proofs[FR], len(proof))
 	for i, proof := range proof {
@@ -302,9 +288,9 @@ func TestMultipleDblAddSelectGKR(t *testing.T) {
 	zero.SetZero()
 	var random fpbn254.Element
 
-	depth := 4
+	depth := 64
 	arity := 6
-	nBInstances := 8
+	nBInstances := 2048
 	var fp emparams.BN254Fp
 	be := sumcheck.NewBigIntEngine(fp.Modulus())
 	gate := sumcheck.DblAddSelectGateFullOutput[*sumcheck.BigIntEngine, *big.Int]{Selector: big.NewInt(1)}

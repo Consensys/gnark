@@ -8,6 +8,8 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/profile"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/math/polynomial"
@@ -428,6 +430,7 @@ func testProjDblAddSelectSumCheckInstance[FR emulated.FieldParams](t *testing.T,
 			inputB[i][j] = big.NewInt(int64(inputs[i][j]))
 		}
 	}
+
 	evalPointsB, evalPointsPH, evalPointsC := getChallengeEvaluationPoints[FR](inputB)
 	claim, evals, err := newNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
 	assert.NoError(err)
@@ -455,9 +458,14 @@ func testProjDblAddSelectSumCheckInstance[FR emulated.FieldParams](t *testing.T,
 	}
 	err = test.IsSolved(circuit, assignment, current)
 	assert.NoError(err)
+	p := profile.Start()
+	_, _ = frontend.Compile(current, scs.NewBuilder, circuit)
+	p.Stop()
+	fmt.Println(p.NbConstraints())
 }
 
-func TestProjDblAddSelectSumCheckSumcheck(t *testing.T) {
+//todo used this as Flattened SC benchmarks
+func TestProjDblAddSelectSumCheck(t *testing.T) {
 	// testProjDblAddSelectSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{4, 3}, {2, 3}, {3, 6}, {4, 9}, {13, 3}, {31, 9}})
 	// testProjDblAddSelectSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{1, 2, 3, 4}, {5, 6, 7, 8}})
 	// testProjDblAddSelectSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{1, 2, 3, 4, 5, 6, 7, 8}, {11, 12, 13, 14, 15, 16, 17, 18}})
