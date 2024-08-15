@@ -933,3 +933,40 @@ func TestMultiScalarMulFolded(t *testing.T) {
 	}, &assignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 }
+
+// -- Fake GLV test --
+type g1varScalarMulFakeGLV struct {
+	A G1Affine
+	C G1Affine `gnark:",public"`
+	R frontend.Variable
+}
+
+func (circuit *g1varScalarMulFakeGLV) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.scalarMulFakeGLV(api, circuit.A, circuit.R)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestVarScalarMulG1FakeGLV(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a, c bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g1varScalarMulFakeGLV
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	var br big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
