@@ -479,5 +479,5 @@ func TestProjDblAddSelectSumCheck(t *testing.T) {
 		inputs[5] = append(inputs[5], (inputs[4][i-1]+5)*4)
 		inputs[6] = append(inputs[6], (inputs[5][i-1]+6)*3)
 	}
-	testProjDblAddSelectSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), inputs)
+	testProjDblAddSelectSumCheckInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), inputs)
 }
