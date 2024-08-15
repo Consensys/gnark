@@ -648,11 +648,6 @@ func testDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, current 
 		big.NewInt(6),
 	}
 	c := make(Circuit, 8)
-	// c[8] = Wire{
-	// 	Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
-	// 	Inputs: []*Wire{&c[7]},
-	// }
-	// check rlc of inputs to second layer is equal to output 
 	c[7] = Wire{
 		Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
 		Inputs: []*Wire{&c[0], &c[1], &c[2], &c[3], &c[4], &c[5], &c[6]},
@@ -662,7 +657,6 @@ func testDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, current 
 	for i := 0; i < len(inputs[0]); i++ {
 		res[i] = c[7].Gate.Evaluate(sumcheck.NewBigIntEngine(target), inputs[0][i], inputs[1][i], inputs[2][i], inputs[3][i], inputs[4][i], inputs[5][i], inputs[6][i])
 	}
-	fmt.Println("res", res)
 
 	foldingEmulated := make([]emulated.Element[FR], len(folding))
 	for i, f := range folding {
@@ -722,7 +716,6 @@ func testDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, current 
 
 	for _, w := range sorted {
 		if w.IsOutput() {
-
 			if err = utils.SliceEqualsBigInt(sumcheck.DereferenceBigIntSlice(inOutAssignment[w]), sumcheck.DereferenceBigIntSlice(fullAssignment[w])); err != nil {
 				t.Errorf("assignment mismatch: %v", err)
 			}
@@ -814,11 +807,7 @@ func testMultipleDblAddSelectGKRInstance[FR emulated.FieldParams](t *testing.T, 
 		big.NewInt(5),
 		big.NewInt(6),
 	}
-	c := make(Circuit, 9)
-	c[8] = Wire{
-		Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
-		Inputs: []*Wire{&c[7]},
-	}
+	c := make(Circuit, 8)
 	// check rlc of inputs to second layer is equal to output 
 	c[7] = Wire{
 		Gate: sumcheck.DblAddSelectGate[*sumcheck.BigIntEngine, *big.Int]{Folding: folding},
