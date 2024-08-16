@@ -701,7 +701,12 @@ func (P *G1Affine) scalarMulFakeGLV(api frontend.API, Q G1Affine, s frontend.Var
 	cc := getInnerCurveConfig(api.Compiler().Field())
 
 	// first find the sub-salars
-	s0, s1 := callHalfGCD(api, s)
+	sd, err := api.Compiler().NewHint(halfGCD, 2, s)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	s0, s1 := sd[0], sd[1]
 
 	// then compute the hinted scalar mul R = [s]Q
 	R, err := api.Compiler().NewHint(scalarMulHint, 2, Q.X, Q.Y, s)

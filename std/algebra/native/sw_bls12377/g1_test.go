@@ -17,6 +17,7 @@ limitations under the License.
 package sw_bls12377
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -969,4 +972,21 @@ func TestVarScalarMulG1FakeGLV(t *testing.T) {
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+// bench
+func BenchmarkGLV(b *testing.B) {
+	var c g1varScalarMul
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("GLV: ", p.NbConstraints())
+}
+
+func BenchmarkFakeGLV(b *testing.B) {
+	var c g1varScalarMulFakeGLV
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("fake GLV: ", p.NbConstraints())
 }
