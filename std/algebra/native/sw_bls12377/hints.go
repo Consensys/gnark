@@ -124,11 +124,11 @@ func halfGCD(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
 		if len(nnOutputs) != 2 {
 			return fmt.Errorf("expecting two outputs")
 		}
-		glvBasis := new(ecc.Lattice)
+		var v0, v1 big.Int
 		cc := getInnerCurveConfig(nativeMod)
-		ecc.PrecomputeLattice(cc.fr, nninputs[0], glvBasis)
-		nnOutputs[0].Set(&(glvBasis.V1[0]))
-		nnOutputs[1].Set(&(glvBasis.V1[1]))
+		ecc.HalfGCD(cc.fr, nninputs[0], &v0, &v1)
+		nnOutputs[0].Set(&v0)
+		nnOutputs[1].Set(&v1)
 
 		return nil
 	})
