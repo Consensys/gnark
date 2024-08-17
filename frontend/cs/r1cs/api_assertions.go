@@ -233,3 +233,93 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 		builder.cs.AttachDebugInfo(debug, added)
 	}
 }
+
+func (builder *builder) AssertIsLessOrEqualNOp(_v frontend.Variable, bound frontend.Variable, maxBits int, omitRangeCheck ...bool) {
+	cv, vConst := builder.constantValue(_v)
+	cb, bConst := builder.constantValue(bound)
+
+	// both inputs are constants
+	if vConst && bConst {
+		bv, bb := builder.cs.ToBigInt(cv), builder.cs.ToBigInt(cb)
+		if bv.Cmp(bb) == 1 {
+			panic(fmt.Sprintf("AssertIsLessOrEqual: %s > %s", bv.String(), bb.String()))
+		}
+	}
+	omitRangeCheckFlag := false
+	if len(omitRangeCheck) > 0 {
+		omitRangeCheckFlag = omitRangeCheck[0]
+	}
+
+	// bound is constant
+	if bConst {
+		builder.MustBeLessOrEqCstNOp(_v, builder.cs.ToBigInt(cb), _v, maxBits, omitRangeCheckFlag)
+		return
+	}
+	builder.mustBeLessOrEqVarNOp(_v, bound, maxBits, omitRangeCheckFlag)
+}
+
+func (builder *builder) mustBeLessOrEqVarNOp(v, bound frontend.Variable, maxBits int, omitRangeCheck bool) {
+	c := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(maxBits)), nil)
+	if !omitRangeCheck {
+		// make sure v and bound are less than 2^maxBits
+		bits.ToBinary(builder, v, bits.WithNbDigits(maxBits))
+		bits.ToBinary(builder, bound, bits.WithNbDigits(maxBits))
+	}
+	
+	// res := v + 2^maxBits - (bound + 1)
+	// if v <= bound, res <= 2^maxBits - 1, then the max bit of res is 0
+	// if v > bound, 2^maxBits <= res < 2^(maxBits + 1), then the max bit of res is 1
+	res := builder.Add(v, c)
+	res = builder.Sub(res, bound)
+	res = builder.Sub(res, 1)
+	resBits := bits.ToBinary(builder, res, bits.WithNbDigits(maxBits+1))
+	builder.AssertIsEqual(resBits[maxBits], 0)
+}
+
+func (builder *builder) MustBeLessOrEqCstNOp(a frontend.Variable, bound *big.Int, aForDebug frontend.Variable, maxBits int, omitRangeCheck bool) {
+	nbBits := builder.cs.FieldBitLen()
+	if maxBits > nbBits {
+		panic("maxBits is larger than field bit length")
+	}
+
+	aBits := bits.ToBinary(builder, a, bits.WithNbDigits(maxBits), bits.WithUnconstrainedOutputs())
+	// ensure the bound is positive, it's bit-len doesn't matter
+	if bound.Sign() == -1 {
+		panic("AssertIsLessOrEqual: bound must be positive")
+	}
+	if bound.BitLen() > maxBits {
+		panic("AssertIsLessOrEqual: bound is too large, constraint will always be satisfied, please check the bound is correct")
+	}
+
+	// t trailing bits in the bound
+	t := 0
+	for i := 0; i < maxBits; i++ {
+		if bound.Bit(i) == 0 {
+			break
+		}
+		t++
+	}
+
+	p := make([]frontend.Variable, maxBits+1)
+	// p[i] == 1 → a[j] == c[j] for all j ⩾ i
+	p[maxBits] = builder.cstOne()
+
+	for i := maxBits - 1; i >= t; i-- {
+		if bound.Bit(i) == 0 {
+			p[i] = p[i+1]
+		} else {
+			p[i] = builder.Mul(p[i+1], aBits[i])
+		}
+	}
+
+	for i := maxBits - 1; i >= 0; i-- {
+		if bound.Bit(i) == 0 {
+			// (1 - p(i+1) - ai) * ai == 0
+			l := builder.Sub(1, p[i+1])
+			l = builder.Sub(l, aBits[i])
+			builder.cs.AddR1C(builder.newR1C(l, aBits[i], builder.cstZero()), builder.genericGate)
+		} else {
+			builder.AssertIsBoolean(aBits[i])
+		}
+	}
+}

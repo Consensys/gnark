@@ -109,6 +109,8 @@ type API interface {
 	// it is more efficient to use the bounded methdods in package
 	// [github.com/consensys/gnark/std/math/bits].
 	Cmp(i1, i2 Variable) Variable
+	// Optimized version of Cmp for the case where i1 and i2 are variables less than 2^maxBits
+	CmpNOp(i1, i2 Variable, maxBits int, omitRangeCheck ...bool) Variable
 
 	// ---------------------------------------------------------------------------------------------
 	// Assertions
@@ -130,6 +132,8 @@ type API interface {
 	// it is more efficient to use the bounded methdods in package
 	// [github.com/consensys/gnark/std/math/bits].
 	AssertIsLessOrEqual(v Variable, bound Variable)
+	// Optimized version of AssertIsLessOrEqual for the case where v and bound are variables less than 2^maxBits
+	AssertIsLessOrEqualNOp(v, bound Variable, maxBits int, omitRangeCheck ...bool)
 
 	// Println behaves like fmt.Println but accepts cd.Variable as parameter
 	// whose value will be resolved at runtime when computed by the solver

@@ -303,3 +303,7 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 	}
 
 }
+
+func (builder *builder) AssertIsLessOrEqualNOp(_v frontend.Variable, bound frontend.Variable, maxBits int, omitRangeCheck ...bool) {
+	panic("not implemented")
+}

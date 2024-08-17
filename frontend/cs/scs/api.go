@@ -730,3 +730,7 @@ func (*builder) FrontendType() frontendtype.Type {
 func (builder *builder) SetGkrInfo(info constraint.GkrInfo) error {
 	return builder.cs.AddGkr(info)
 }
+
+func (builder *builder) CmpNOp(i1, i2 frontend.Variable, maxBits int, omitRangeCheck ...bool) frontend.Variable {
+	panic("not implemented")
+}
