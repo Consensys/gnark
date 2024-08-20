@@ -17,7 +17,6 @@ limitations under the License.
 package sw_bls12377
 
 import (
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -25,8 +24,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -455,6 +452,76 @@ func TestVarScalarMulBaseG1(t *testing.T) {
 	gJac.ScalarMultiplication(&gJac, r.BigInt(&br))
 	c.FromJacobian(&gJac)
 	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type g1varScalarMulFakeGLV struct {
+	A G1Affine
+	C G1Affine `gnark:",public"`
+	R frontend.Variable
+}
+
+func (circuit *g1varScalarMulFakeGLV) Define(api frontend.API) error {
+	expected := G1Affine{}
+	expected.varScalarMulFakeGLV(api, circuit.A, circuit.R)
+	expected.AssertIsEqual(api, circuit.C)
+	return nil
+}
+
+func TestVarScalarMulG1FakeGLV(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a, c bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g1varScalarMulFakeGLV
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
+	// compute the result
+	var br big.Int
+	_a.ScalarMultiplication(&_a, r.BigInt(&br))
+	c.FromJacobian(&_a)
+	witness.C.Assign(&c)
+
+	assert := test.NewAssert(t)
+	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
+}
+
+type g1varScalarMulFakeGLVEdgeCases struct {
+	A G1Affine
+	R frontend.Variable
+}
+
+func (circuit *g1varScalarMulFakeGLVEdgeCases) Define(api frontend.API) error {
+	expected1 := G1Affine{}
+	expected2 := G1Affine{}
+	infinity := G1Affine{X: 0, Y: 0}
+	expected1.varScalarMulFakeGLV(api, circuit.A, 0, algopts.WithCompleteArithmetic())
+	expected2.varScalarMulFakeGLV(api, infinity, circuit.R, algopts.WithCompleteArithmetic())
+	expected1.AssertIsEqual(api, infinity)
+	expected2.AssertIsEqual(api, infinity)
+	return nil
+}
+
+func TestVarScalarMulFakeGLVG1EdgeCases(t *testing.T) {
+	// sample random point
+	_a := randomPointG1()
+	var a bls12377.G1Affine
+	a.FromJacobian(&_a)
+
+	// create the cs
+	var circuit, witness g1varScalarMulFakeGLVEdgeCases
+	var r fr.Element
+	_, _ = r.SetRandom()
+	witness.R = r.String()
+	// assign the inputs
+	witness.A.Assign(&a)
 
 	assert := test.NewAssert(t)
 	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
@@ -935,58 +1002,4 @@ func TestMultiScalarMulFolded(t *testing.T) {
 		Scalars: make([]emulated.Element[ScalarField], nbLen),
 	}, &assignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
-}
-
-// -- Fake GLV test --
-type g1varScalarMulFakeGLV struct {
-	A G1Affine
-	C G1Affine `gnark:",public"`
-	R frontend.Variable
-}
-
-func (circuit *g1varScalarMulFakeGLV) Define(api frontend.API) error {
-	expected := G1Affine{}
-	expected.scalarMulFakeGLV(api, circuit.A, circuit.R)
-	expected.AssertIsEqual(api, circuit.C)
-	return nil
-}
-
-func TestVarScalarMulG1FakeGLV(t *testing.T) {
-	// sample random point
-	_a := randomPointG1()
-	var a, c bls12377.G1Affine
-	a.FromJacobian(&_a)
-
-	// create the cs
-	var circuit, witness g1varScalarMulFakeGLV
-	var r fr.Element
-	_, _ = r.SetRandom()
-	witness.R = r.String()
-	// assign the inputs
-	witness.A.Assign(&a)
-	// compute the result
-	var br big.Int
-	_a.ScalarMultiplication(&_a, r.BigInt(&br))
-	c.FromJacobian(&_a)
-	witness.C.Assign(&c)
-
-	assert := test.NewAssert(t)
-	assert.CheckCircuit(&circuit, test.WithValidAssignment(&witness), test.WithCurves(ecc.BW6_761))
-}
-
-// bench
-func BenchmarkGLV(b *testing.B) {
-	var c g1varScalarMul
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("GLV: ", p.NbConstraints())
-}
-
-func BenchmarkFakeGLV(b *testing.B) {
-	var c g1varScalarMulFakeGLV
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("fake GLV: ", p.NbConstraints())
 }

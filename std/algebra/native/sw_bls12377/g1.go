@@ -410,6 +410,142 @@ func (P *G1Affine) constScalarMul(api frontend.API, Q G1Affine, s *big.Int, opts
 	return P
 }
 
+// varScalarMulFakeGLV sets P = [s]Q and returns P. It doesn't modify Q nor s.
+// It implements the fake GLV explained in: https://hackmd.io/@yelhousni/Hy-aWld50.
+//
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+func (P *G1Affine) varScalarMulFakeGLV(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
+
+	// The context we are working is based on the `outer` curve. However, the
+	// points and the operations on the points are performed on the `inner`
+	// curve of the outer curve. We require some parameters from the inner
+	// curve.
+	cc := getInnerCurveConfig(api.Compiler().Field())
+
+	// first find the sub-salars
+	sd, err := api.Compiler().NewHint(halfGCD, 2, s)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	s0, s1 := sd[0], sd[1]
+
+	// then compute the hinted scalar mul R = [s]Q
+	R, err := api.Compiler().NewHint(scalarMulHint, 2, Q.X, Q.Y, s)
+	if err != nil {
+		panic(fmt.Sprintf("scalar mul hint: %v", err))
+	}
+
+	var selector frontend.Variable
+	if cfg.CompleteArithmetic {
+		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
+		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
+	}
+
+	// For BLS12 λ bitsize is 127 equal to half of r bitsize
+	nbits := cc.lambda.BitLen()
+	s0bits := api.ToBinary(s0, nbits)
+	s1bits := api.ToBinary(s1, nbits)
+
+	// store Q, -Q, R, -R in a table
+	var tableQ, tableR [2]G1Affine
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	tableR[1] = G1Affine{X: R[0], Y: R[1]}
+	tableR[0].Neg(api, tableR[1])
+
+	// we suppose that the first bits of the sub-scalars are 1 and set:
+	// 		Acc = Q + R
+	var B G1Affine
+	Acc := tableQ[1]
+	if cfg.CompleteArithmetic {
+		// R=(0,0) when Q=(0,0) or s=0
+		// so we need unified addition.
+		Acc.AddUnified(api, tableR[1])
+	} else {
+		Acc.AddAssign(api, tableR[1])
+	}
+
+	// At each iteration we need to compute:
+	// 		[2]Acc ± Q ± R.
+	// We can compute [2]Acc and look up the (precomputed) point B from:
+	// 		B1 = +Q + R
+	B1 := Acc
+	// 		B2 = -Q - R
+	B2 := G1Affine{}
+	B2.Neg(api, B1)
+	// 		B3 = +Q - R
+	B3 := tableQ[1]
+	B3.AddAssign(api, tableR[0])
+	// 		B4 = -Q + R
+	B4 := G1Affine{}
+	B4.Neg(api, B3)
+	//
+	// Note that half the points are negatives of the other half,
+	// hence have the same X coordinates.
+
+	// However when doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen
+	// that Acc==B or -B. So we add the point H=(0,1) on BLS12-377 of order 2
+	// to it to avoid incomplete additions in the loop by forcing Acc to be
+	// different than the stored B.  Normally, the point H should be "killed
+	// out" by the first doubling in the loop and the result will remain
+	// unchanged. However, we are using affine coordinates that do not encode
+	// the infinity point. Given the affine formulae, doubling (0,1) results in
+	// (0,-1). Since the loop size N=nbits-1 is even we need to subtract
+	// [2^N]H = (0,1) from the result at the end.
+	//
+	// Acc = Q + R + H
+	Acc.AddAssign(api, G1Affine{X: 0, Y: 1})
+
+	for i := nbits - 1; i > 0; i-- {
+		B.X = api.Select(api.Xor(s0bits[i], s1bits[i]), B3.X, B2.X)
+		B.Y = api.Lookup2(s0bits[i], s1bits[i], B2.Y, B3.Y, B4.Y, B1.Y)
+		// Acc = [2]Acc + B
+		Acc.DoubleAndAdd(api, &Acc, &B)
+	}
+
+	// i = 0
+	// subtract the Q, R if the first bits are 0.
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	if cfg.CompleteArithmetic {
+		tableQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s0bits[0], Acc, tableQ[0])
+		tableR[0].AddUnified(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableR[0])
+		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+	} else {
+		tableQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s0bits[0], Acc, tableQ[0])
+		tableR[0].AddAssign(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableR[0])
+	}
+
+	if cfg.CompleteArithmetic {
+		// Acc should be equal infinity + [2^N]G = (0,1) since we added H at the beginning
+		Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
+		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
+		Acc.AssertIsEqual(api, G1Affine{X: 0, Y: 0})
+	} else {
+		// Acc should be equal infinity + [2^N]G = (0,1) since we added H at the beginning
+		Acc.AssertIsEqual(api, G1Affine{X: 0, Y: 1})
+	}
+
+	P.X = R[0]
+	P.Y = R[1]
+
+	return P
+}
+
 // Assign a value to self (witness assignment)
 func (p *G1Affine) Assign(p1 *bls12377.G1Affine) {
 	p.X = (fr.Element)(p1.X)
@@ -669,129 +805,6 @@ func (P *G1Affine) scalarBitsMul(api frontend.API, Q G1Affine, s1bits, s2bits []
 
 	P.X = Acc.X
 	P.Y = Acc.Y
-
-	return P
-}
-
-// ----
-// scalarMulFakeGLV sets P = [s]Q and returns P. It doesn't modify Q nor s.
-// It implements the fake GLV + GLV trick explained in: https://hackmd.io/@yelhousni/Hy-aWld50.
-//
-// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
-// (0,0) is not on the curve but we conventionally take it as the
-// neutral/infinity point as per the [EVM].
-//
-// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
-func (P *G1Affine) scalarMulFakeGLV(api frontend.API, Q G1Affine, s frontend.Variable, opts ...algopts.AlgebraOption) *G1Affine {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(err)
-	}
-	var selector frontend.Variable
-	if cfg.CompleteArithmetic {
-		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
-		selector = api.And(api.IsZero(Q.X), api.IsZero(Q.Y))
-		Q.Select(api, selector, G1Affine{X: 1, Y: 1}, Q)
-	}
-
-	// The context we are working is based on the `outer` curve. However, the
-	// points and the operations on the points are performed on the `inner`
-	// curve of the outer curve. We require some parameters from the inner
-	// curve.
-	cc := getInnerCurveConfig(api.Compiler().Field())
-
-	// first find the sub-salars
-	sd, err := api.Compiler().NewHint(halfGCD, 2, s)
-	if err != nil {
-		// err is non-nil only for invalid number of inputs
-		panic(err)
-	}
-	s0, s1 := sd[0], sd[1]
-
-	// then compute the hinted scalar mul R = [s]Q
-	R, err := api.Compiler().NewHint(scalarMulHint, 2, Q.X, Q.Y, s)
-	if err != nil {
-		panic(fmt.Sprintf("scalar mul hint: %v", err))
-	}
-
-	// For BLS12 λ bitsize is 127 equal to half of r bitsize
-	nbits := cc.lambda.BitLen()
-	s0bits := api.ToBinary(s0, nbits)
-	s1bits := api.ToBinary(s1, nbits)
-
-	// store Q, -Q, R, -R in a table
-	var tableQ, tableR [2]G1Affine
-	tableQ[1] = Q
-	tableQ[0].Neg(api, Q)
-	tableR[1] = G1Affine{X: R[0], Y: R[1]}
-	tableR[0].Neg(api, tableR[1])
-
-	// we suppose that the first bits of the sub-scalars are 1 and set:
-	// 		Acc = Q + R
-	var B G1Affine
-	Acc := tableQ[1]
-	Acc.AddAssign(api, tableR[1])
-
-	// At each iteration we need to compute:
-	// 		[2]Acc ± Q ± R.
-	// We can compute [2]Acc and look up the (precomputed) point B from:
-	// 		B1 = +Q + R
-	B1 := Acc
-	// 		B2 = -Q - R
-	B2 := G1Affine{}
-	B2.Neg(api, B1)
-	// 		B3 = +Q - R
-	B3 := tableQ[1]
-	B3.AddAssign(api, tableR[0])
-	// 		B4 = -Q + R
-	B4 := G1Affine{}
-	B4.Neg(api, B3)
-	//
-	// Note that half the points are negatives of the other half,
-	// hence have the same X coordinates.
-
-	// However when doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen
-	// that Acc==B or -B. So we add the point H=(0,1) on BLS12-377 of order 2
-	// to it to avoid incomplete additions in the loop by forcing Acc to be
-	// different than the stored B.  Normally, the point H should be "killed
-	// out" by the first doubling in the loop and the result will remain
-	// unchanged. However, we are using affine coordinates that do not encode
-	// the infinity point. Given the affine formulae, doubling (0,1) results in
-	// (0,-1). Since the loop size N=nbits-1 is even we need to subtract
-	// [2^N]H = (0,1) from the result at the end.
-	//
-	// Acc = Q + R + H
-	Acc.AddAssign(api, G1Affine{X: 0, Y: 1})
-
-	for i := nbits - 1; i > 0; i-- {
-		B.X = api.Select(api.Xor(s0bits[i], s1bits[i]), B3.X, B2.X)
-		B.Y = api.Lookup2(s0bits[i], s1bits[i], B2.Y, B3.Y, B4.Y, B1.Y)
-		// Acc = [2]Acc + B
-		Acc.DoubleAndAdd(api, &Acc, &B)
-	}
-
-	// i = 0
-	// subtract the Q, R if the first bits are 0.
-	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
-	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	if cfg.CompleteArithmetic {
-		tableQ[0].AddUnified(api, Acc)
-		Acc.Select(api, s0bits[0], Acc, tableQ[0])
-		tableR[0].AddUnified(api, Acc)
-		Acc.Select(api, s1bits[0], Acc, tableR[0])
-		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
-	} else {
-		tableQ[0].AddAssign(api, Acc)
-		Acc.Select(api, s0bits[0], Acc, tableQ[0])
-		tableR[0].AddAssign(api, Acc)
-		Acc.Select(api, s1bits[0], Acc, tableR[0])
-	}
-
-	// Acc should be equal infinity + [2^N]G = (0,1) since we added H at the beginning
-	Acc.AssertIsEqual(api, G1Affine{X: 0, Y: 1})
-
-	P.X = R[0]
-	P.Y = R[1]
 
 	return P
 }
