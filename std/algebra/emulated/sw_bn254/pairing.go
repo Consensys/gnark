@@ -548,8 +548,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 
 	// compute x3 =λ1²-x1-x2
 	x3 := pr.Ext2.Square(l1)
-	x3 = pr.Ext2.Sub(x3, &p1.X)
-	x3 = pr.Ext2.Sub(x3, &p2.X)
+	x3 = pr.Ext2.Sub(x3, pr.Ext2.Add(&p1.X, &p2.X))
 
 	// omit y3 computation
 
@@ -559,7 +558,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 	line1.R1 = *pr.Ext2.Sub(&line1.R1, &p1.Y)
 
 	// compute λ2 = -λ1-2y1/(x3-x1)
-	n = pr.Ext2.Double(&p1.Y)
+	n = pr.Ext2.MulByConstElement(&p1.Y, big.NewInt(2))
 	d = pr.Ext2.Sub(x3, &p1.X)
 	l2 := pr.Ext2.DivUnchecked(n, d)
 	l2 = pr.Ext2.Add(l2, l1)
@@ -567,8 +566,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 
 	// compute x4 = λ2²-x1-x3
 	x4 := pr.Ext2.Square(l2)
-	x4 = pr.Ext2.Sub(x4, &p1.X)
-	x4 = pr.Ext2.Sub(x4, x3)
+	x4 = pr.Ext2.Sub(x4, pr.Ext2.Add(&p1.X, x3))
 
 	// compute y4 = λ2(x1 - x4)-y1
 	y4 := pr.Ext2.Sub(&p1.X, x4)
@@ -595,15 +593,13 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 	// λ = 3x²/2y
 	n := pr.Ext2.Square(&p1.X)
-	three := big.NewInt(3)
-	n = pr.Ext2.MulByConstElement(n, three)
-	d := pr.Ext2.Double(&p1.Y)
+	n = pr.Ext2.MulByConstElement(n, big.NewInt(3))
+	d := pr.Ext2.MulByConstElement(&p1.Y, big.NewInt(2))
 	λ := pr.Ext2.DivUnchecked(n, d)
 
 	// xr = λ²-2x
 	xr := pr.Ext2.Square(λ)
-	xr = pr.Ext2.Sub(xr, &p1.X)
-	xr = pr.Ext2.Sub(xr, &p1.X)
+	xr = pr.Ext2.Sub(xr, pr.Ext2.MulByConstElement(&p1.X, big.NewInt(2)))
 
 	// yr = λ(x-xr)-y
 	yr := pr.Ext2.Sub(&p1.X, xr)
@@ -631,9 +627,8 @@ func (pr Pairing) addStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation) {
 	λ := pr.Ext2.DivUnchecked(p2ypy, p2xpx)
 
 	// xr = λ²-x1-x2
-	λλ := pr.Ext2.Square(λ)
-	p2xpx = pr.Ext2.Add(&p1.X, &p2.X)
-	xr := pr.Ext2.Sub(λλ, p2xpx)
+	xr := pr.Ext2.Square(λ)
+	xr = pr.Ext2.Sub(xr, pr.Ext2.Add(&p1.X, &p2.X))
 
 	// yr = λ(x1-xr) - y1
 	pxrx := pr.Ext2.Sub(&p1.X, xr)
