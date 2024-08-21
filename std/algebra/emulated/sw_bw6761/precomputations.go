@@ -35,25 +35,17 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 		X: *p.curveF.Mul(&Q.X, &thirdRootOne),
 		Y: *p.curveF.Neg(&Q.Y),
 	}
-	negQ := &g2AffP{
-		X: Q.X,
-		Y: imQ.Y,
-	}
 	accQ := &g2AffP{
 		X: imQ.X,
 		Y: imQ.Y,
-	}
-	imQneg := &g2AffP{
-		X: imQ.X,
-		Y: Q.Y,
 	}
 	for i := len(loopCounter2) - 2; i > 0; i-- {
 		switch loopCounter2[i]*3 + loopCounter1[i] {
 		// cases -4, -2, 2, 4 do not occur, given the static LoopCounters
 		case -3:
-			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, imQneg)
+			accQ, cLines[0][i], cLines[1][i] = p.doubleAndSubStep(accQ, imQ)
 		case -1:
-			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, negQ)
+			accQ, cLines[0][i], cLines[1][i] = p.doubleAndSubStep(accQ, Q)
 		case 0:
 			accQ, cLines[0][i] = p.doubleStep(accQ)
 		case 1:
