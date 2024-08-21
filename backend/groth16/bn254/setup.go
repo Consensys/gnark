@@ -287,7 +287,7 @@ func Setup(r1cs *cs.R1CS, pk *ProvingKey, vk *VerifyingKey) error {
 		return errors.New("didn't consume all G1 points") // TODO @Tabaie Remove this
 	}
 
-	pk.CommitmentKeys, vk.CommitmentKey, err = pedersen.Setup(commitmentBases...)
+	pk.CommitmentKeys, vk.CommitmentKey, err = pedersen.Setup(commitmentBases)
 	if err != nil {
 		return err
 	}
@@ -563,7 +563,7 @@ func DummySetup(r1cs *cs.R1CS, pk *ProvingKey) error {
 		}
 	}
 
-	pk.CommitmentKeys, _, err = pedersen.Setup(commitmentBases...)
+	pk.CommitmentKeys, _, err = pedersen.Setup(commitmentBases)
 	if err != nil {
 		return err
 	}
