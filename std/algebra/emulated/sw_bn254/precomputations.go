@@ -33,13 +33,9 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 
 	var cLines lineEvaluations
 	Qacc := Q
-	QNeg := &g2AffP{
-		X: Q.X,
-		Y: *p.Ext2.Neg(&Q.Y),
-	}
 	n := len(bn254.LoopCounter)
 	Qacc, cLines[0][n-2] = p.doubleStep(Qacc)
-	cLines[1][n-3] = p.lineCompute(Qacc, QNeg)
+	cLines[1][n-3] = p.lineCompute(Qacc, Q)
 	Qacc, cLines[0][n-3] = p.addStep(Qacc, Q)
 	for i := n - 4; i >= 0; i-- {
 		switch loopCounter[i] {
@@ -48,7 +44,7 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 		case 1:
 			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, Q)
 		case -1:
-			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, QNeg)
+			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndSubStep(Qacc, Q)
 		default:
 			return lineEvaluations{}
 		}
@@ -64,7 +60,6 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 	}
 
 	Q2Y := p.Ext2.MulByNonResidue2Power3(&Q.Y)
-	Q2Y = p.Ext2.Neg(Q2Y)
 	Q2 := &g2AffP{
 		X: *p.Ext2.MulByNonResidue2Power2(&Q.X),
 		Y: *Q2Y,

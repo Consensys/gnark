@@ -401,7 +401,7 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		// The point (x,0) is of order 2. But this function does not check
 		// subgroup membership.
 		yInv[k] = pr.curveF.Inverse(&P[k].Y)
-		xNegOverY[k] = pr.curveF.MulMod(&P[k].X, yInv[k])
+		xNegOverY[k] = pr.curveF.Mul(&P[k].X, yInv[k])
 		xNegOverY[k] = pr.curveF.Neg(xNegOverY[k])
 	}
 
@@ -584,6 +584,56 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 	return &p, &line1, &line2
 }
 
+// doubleAndSubStep doubles p1 and subs p2 to the result in affine coordinates, and evaluates the line in Miller loop
+// https://eprint.iacr.org/2022/1162 (Section 6.1)
+func (pr Pairing) doubleAndSubStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluation) {
+
+	var line1, line2 lineEvaluation
+	var p g2AffP
+
+	// compute λ1 = (y2-y1)/(x2-x1)
+	n := pr.Ext2.Add(&p1.Y, &p2.Y)
+	d := pr.Ext2.Sub(&p1.X, &p2.X)
+	l1 := pr.Ext2.DivUnchecked(n, d)
+
+	// compute x3 =λ1²-x1-x2
+	x3 := pr.Ext2.Square(l1)
+	x3 = pr.Ext2.Sub(x3, pr.Ext2.Add(&p1.X, &p2.X))
+
+	// omit y3 computation
+
+	// compute line1
+	line1.R0 = *l1
+	line1.R1 = *pr.Ext2.Mul(l1, &p1.X)
+	line1.R1 = *pr.Ext2.Sub(&line1.R1, &p1.Y)
+
+	// compute λ2 = -λ1-2y1/(x3-x1)
+	n = pr.Ext2.MulByConstElement(&p1.Y, big.NewInt(2))
+	d = pr.Ext2.Sub(x3, &p1.X)
+	l2 := pr.Ext2.DivUnchecked(n, d)
+	l2 = pr.Ext2.Add(l2, l1)
+	l2 = pr.Ext2.Neg(l2)
+
+	// compute x4 = λ2²-x1-x3
+	x4 := pr.Ext2.Square(l2)
+	x4 = pr.Ext2.Sub(x4, pr.Ext2.Add(&p1.X, x3))
+
+	// compute y4 = λ2(x1 - x4)-y1
+	y4 := pr.Ext2.Sub(&p1.X, x4)
+	y4 = pr.Ext2.Mul(l2, y4)
+	y4 = pr.Ext2.Sub(y4, &p1.Y)
+
+	p.X = *x4
+	p.Y = *y4
+
+	// compute line2
+	line2.R0 = *l2
+	line2.R1 = *pr.Ext2.Mul(l2, &p1.X)
+	line2.R1 = *pr.Ext2.Sub(&line2.R1, &p1.Y)
+
+	return &p, &line1, &line2
+}
+
 // doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
 func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
@@ -648,12 +698,12 @@ func (pr Pairing) addStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 }
 
-// lineCompute computes the line that goes through p1 and p2 but does not compute p1+p2
+// lineCompute computes the line that goes through p1 and -p2 but does not compute p1+p2
 func (pr Pairing) lineCompute(p1, p2 *g2AffP) *lineEvaluation {
 
-	// compute λ = (y2-y1)/(x2-x1)
-	qypy := pr.Ext2.Sub(&p2.Y, &p1.Y)
-	qxpx := pr.Ext2.Sub(&p2.X, &p1.X)
+	// compute λ = (y2+y1)/(x2-x1)
+	qypy := pr.Ext2.Add(&p1.Y, &p2.Y)
+	qxpx := pr.Ext2.Sub(&p1.X, &p2.X)
 	λ := pr.Ext2.DivUnchecked(qypy, qxpx)
 
 	var line lineEvaluation
@@ -722,7 +772,7 @@ func (pr Pairing) millerLoopAndFinalExpResult(P *G1Affine, Q *G2Affine, previous
 
 	// precomputations
 	yInv := pr.curveF.Inverse(&P.Y)
-	xNegOverY := pr.curveF.MulMod(&P.X, yInv)
+	xNegOverY := pr.curveF.Mul(&P.X, yInv)
 	xNegOverY = pr.curveF.Neg(xNegOverY)
 
 	// init Miller loop accumulator to residueWitnessInv to share the squarings
