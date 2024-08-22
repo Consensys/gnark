@@ -15,7 +15,8 @@ func GetHints() []solver.Hint {
 		decomposeScalarG1Simple,
 		decomposeScalarG2,
 		halfGCD,
-		scalarMulHint,
+		scalarMulG1Hint,
+		scalarMulG2Hint,
 	}
 }
 
@@ -92,7 +93,7 @@ func decomposeScalarG2(scalarField *big.Int, inputs []*big.Int, outputs []*big.I
 	return nil
 }
 
-func scalarMulHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	if len(inputs) != 3 {
 		return fmt.Errorf("expecting three inputs")
 	}
@@ -108,6 +109,30 @@ func scalarMulHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 
 	R.X.BigInt(outputs[0])
 	R.Y.BigInt(outputs[1])
+
+	return nil
+}
+
+func scalarMulG2Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) != 5 {
+		return fmt.Errorf("expecting five inputs")
+	}
+	if len(outputs) != 4 {
+		return fmt.Errorf("expecting four outputs")
+	}
+
+	// compute the resulting point [s]Q
+	var R bls12377.G2Affine
+	R.X.A0.SetBigInt(inputs[0])
+	R.X.A1.SetBigInt(inputs[1])
+	R.Y.A0.SetBigInt(inputs[2])
+	R.Y.A1.SetBigInt(inputs[3])
+	R.ScalarMultiplication(&R, inputs[4])
+
+	R.X.A0.BigInt(outputs[0])
+	R.X.A1.BigInt(outputs[1])
+	R.Y.A0.BigInt(outputs[2])
+	R.Y.A1.BigInt(outputs[3])
 
 	return nil
 }

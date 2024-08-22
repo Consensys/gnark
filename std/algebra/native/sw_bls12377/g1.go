@@ -306,11 +306,11 @@ func (P *G1Affine) varScalarMul(api frontend.API, Q G1Affine, s frontend.Variabl
 	}
 
 	if cfg.CompleteArithmetic {
-		// subtract [2^N]G = (0,1) since we added H at the beginning
+		// subtract [2^N]H = (0,1) since we added H at the beginning
 		Acc.AddUnified(api, G1Affine{X: 0, Y: -1})
 		Acc.Select(api, selector, G1Affine{X: 0, Y: 0}, Acc)
 	} else {
-		// subtract [2^N]G = (0,1) since we added H at the beginning
+		// subtract [2^N]H = (0,1) since we added H at the beginning
 		Acc.AddAssign(api, G1Affine{X: 0, Y: -1})
 	}
 
@@ -439,7 +439,7 @@ func (P *G1Affine) varScalarMulFakeGLV(api frontend.API, Q G1Affine, s frontend.
 	s0, s1 := sd[0], sd[1]
 
 	// then compute the hinted scalar mul R = [s]Q
-	R, err := api.Compiler().NewHint(scalarMulHint, 2, Q.X, Q.Y, s)
+	R, err := api.Compiler().NewHint(scalarMulG1Hint, 2, Q.X, Q.Y, s)
 	if err != nil {
 		panic(fmt.Sprintf("scalar mul hint: %v", err))
 	}

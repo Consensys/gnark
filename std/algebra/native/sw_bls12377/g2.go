@@ -17,6 +17,7 @@ limitations under the License.
 package sw_bls12377
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -429,6 +430,162 @@ func (P *g2AffP) constScalarMul(api frontend.API, Q g2AffP, s *big.Int, opts ...
 	}
 	Acc.Select(api, k[1].Bit(0), Acc, negPhiQ)
 	P.X, P.Y = Acc.X, Acc.Y
+
+	return P
+}
+
+// varScalarMulFakeGLV sets P = [s]Q and returns P. It doesn't modify Q nor s.
+// It implements the fake GLV explained in: https://hackmd.io/@yelhousni/Hy-aWld50.
+//
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
+func (P *g2AffP) varScalarMulFakeGLV(api frontend.API, Q g2AffP, s frontend.Variable, opts ...algopts.AlgebraOption) *g2AffP {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
+
+	zero := fields_bls12377.E2{A0: 0, A1: 0}
+	one := fields_bls12377.E2{A0: 1, A1: 0}
+	// The context we are working is based on the `outer` curve. However, the
+	// points and the operations on the points are performed on the `inner`
+	// curve of the outer curve. We require some parameters from the inner
+	// curve.
+	cc := getInnerCurveConfig(api.Compiler().Field())
+
+	// first find the sub-salars
+	sd, err := api.Compiler().NewHint(halfGCD, 2, s)
+	if err != nil {
+		// err is non-nil only for invalid number of inputs
+		panic(err)
+	}
+	s0, s1 := sd[0], sd[1]
+
+	// then compute the hinted scalar mul R = [s]Q
+	R, err := api.Compiler().NewHint(scalarMulG2Hint, 4, Q.X.A0, Q.X.A1, Q.Y.A0, Q.Y.A1, s)
+	if err != nil {
+		panic(fmt.Sprintf("scalar mul hint: %v", err))
+	}
+
+	var selector frontend.Variable
+	if cfg.CompleteArithmetic {
+		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+		selector = api.And(Q.X.IsZero(api), Q.Y.IsZero(api))
+		Q.Select(api, selector, g2AffP{X: one, Y: one}, Q)
+	}
+
+	// For BLS12 λ bitsize is 127 equal to half of r bitsize
+	nbits := cc.lambda.BitLen()
+	s0bits := api.ToBinary(s0, nbits)
+	s1bits := api.ToBinary(s1, nbits)
+
+	// store Q, -Q, R, -R in a table
+	var tableQ, tableR [2]g2AffP
+	tableQ[1] = Q
+	tableQ[0].Neg(api, Q)
+	tableR[1] = g2AffP{
+		X: fields_bls12377.E2{A0: R[0], A1: R[1]},
+		Y: fields_bls12377.E2{A0: R[2], A1: R[3]},
+	}
+	tableR[0].Neg(api, tableR[1])
+
+	// we suppose that the first bits of the sub-scalars are 1 and set:
+	// 		Acc = Q + R
+	var B g2AffP
+	Acc := tableQ[1]
+	if cfg.CompleteArithmetic {
+		// R=(0,0) when Q=(0,0) or s=0
+		// so we need unified addition.
+		Acc.AddUnified(api, tableR[1])
+	} else {
+		Acc.AddAssign(api, tableR[1])
+	}
+
+	// At each iteration we need to compute:
+	// 		[2]Acc ± Q ± R.
+	// We can compute [2]Acc and look up the (precomputed) point B from:
+	// 		B1 = +Q + R
+	B1 := Acc
+	// 		B2 = -Q - R
+	B2 := g2AffP{}
+	B2.Neg(api, B1)
+	// 		B3 = +Q - R
+	B3 := tableQ[1]
+	B3.AddAssign(api, tableR[0])
+	// 		B4 = -Q + R
+	B4 := g2AffP{}
+	B4.Neg(api, B3)
+	//
+	// Note that half the points are negatives of the other half,
+	// hence have the same X coordinates.
+
+	// However when doing doubleAndAdd(Acc, B) as (Acc+B)+Acc it might happen
+	// that Acc==B or -B. So we add the point H=(0,1) on BLS12-377 of order 2
+	// to it to avoid incomplete additions in the loop by forcing Acc to be
+	// different than the stored B.  Normally, the point H should be "killed
+	// out" by the first doubling in the loop and the result will remain
+	// unchanged. However, we are using affine coordinates that do not encode
+	// the infinity point. Given the affine formulae, doubling (0,1) results in
+	// (0,-1). Since the loop size N=nbits-1 is even we need to subtract
+	// [2^N]H = (0,1) from the result at the end.
+	//
+	// Acc = Q + Φ(Q) + G
+	points := getTwistPoints()
+	Acc.AddAssign(api,
+		g2AffP{
+			X: fields_bls12377.E2{A0: points.G2x[0], A1: points.G2x[1]},
+			Y: fields_bls12377.E2{A0: points.G2y[0], A1: points.G2y[1]},
+		},
+	)
+
+	for i := nbits - 1; i > 0; i-- {
+		B.X.Select(api, api.Xor(s0bits[i], s1bits[i]), B3.X, B2.X)
+		B.Y.Lookup2(api, s0bits[i], s1bits[i], B2.Y, B3.Y, B4.Y, B1.Y)
+		// Acc = [2]Acc + B
+		Acc.DoubleAndAdd(api, &Acc, &B)
+	}
+
+	// i = 0
+	// subtract the Q, R if the first bits are 0.
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add. This means
+	// when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	if cfg.CompleteArithmetic {
+		tableQ[0].AddUnified(api, Acc)
+		Acc.Select(api, s0bits[0], Acc, tableQ[0])
+		tableR[0].AddUnified(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableR[0])
+		Acc.Select(api, selector, g2AffP{X: zero, Y: zero}, Acc)
+	} else {
+		tableQ[0].AddAssign(api, Acc)
+		Acc.Select(api, s0bits[0], Acc, tableQ[0])
+		tableR[0].AddAssign(api, Acc)
+		Acc.Select(api, s1bits[0], Acc, tableR[0])
+	}
+
+	B.X = fields_bls12377.E2{
+		A0: points.G2m[nbits-1][0],
+		A1: points.G2m[nbits-1][1],
+	}
+	B.Y = fields_bls12377.E2{
+		A0: points.G2m[nbits-1][2],
+		A1: points.G2m[nbits-1][3],
+	}
+	if cfg.CompleteArithmetic {
+		// Acc should be equal infinity + [2^N]G = B since we added G at the beginning
+		B.Y.Neg(api, B.Y)
+		Acc.AddUnified(api, B)
+		Acc.Select(api, selector, g2AffP{X: zero, Y: zero}, Acc)
+		Acc.AssertIsEqual(api, g2AffP{X: zero, Y: zero})
+	} else {
+		// Acc should be equal infinity + [2^N]G = [2^N]G since we added H at the beginning
+		Acc.AssertIsEqual(api, B)
+	}
+
+	P.X = fields_bls12377.E2{A0: R[0], A1: R[1]}
+	P.Y = fields_bls12377.E2{A0: R[2], A1: R[3]}
 
 	return P
 }
