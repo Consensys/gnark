@@ -82,9 +82,8 @@ func TestAdvisory_ghsa_9xcg_3q8v_7fq6(t *testing.T) {
 		// We check our guess for the secret witness.
 		guessedCommitment.ScalarMultiplication(&pkConcrete.CommitmentKeys[0].Basis[0], big.NewInt(int64(i)))
 		if guessedCommitment.Equal(&proofConcrete.Commitments[0]) {
-			assert.Log("secret witness found: ", i)
+			assert.Fail("secret witness found: ", i)
 			return
 		}
 	}
-	assert.Fail("secret witness not found")
 }
