@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
@@ -52,7 +51,7 @@ func TestMultipleCommitments(t *testing.T) {
 	circuit := multipleCommitmentCircuit{}
 	assignment := multipleCommitmentCircuit{X: 10}
 	assert := test.NewAssert(t)
-	assert.ProverSucceeded(&circuit, &assignment, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16)) // right now PLONK doesn't implement commitment
+	assert.ProverSucceeded(&circuit, &assignment, test.WithCurves(ecc.BN254)) // right now PLONK doesn't implement commitment
 }
 
 type noCommitVariable struct {
