@@ -383,15 +383,21 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 
 }
 
-// doubleAndAddStep doubles p1 and adds p2 to the result in affine coordinates, and evaluates the line in Miller loop
+// doubleAndAddStep doubles p1 and adds or subs p2 to the result in affine coordinates, based on the isSub boolean.
+// Then evaluates the lines going through p1 and p2 or -p2 (line1) and p1 and p1+p2 or p1-p2 (line2).
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
-func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluation) {
+func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP, isSub bool) (*g2AffP, *lineEvaluation, *lineEvaluation) {
 
 	var line1, line2 lineEvaluation
 	var p g2AffP
 
-	// compute λ1 = (y2-y1)/(x2-x1)
-	n := pr.curveF.Sub(&p1.Y, &p2.Y)
+	// compute λ1 = (y1-y2)/(x1-x2) or λ1 = (y1+y2)/(x1-x2) if isSub is true
+	var n *emulated.Element[BaseField]
+	if isSub {
+		n = pr.curveF.Add(&p1.Y, &p2.Y)
+	} else {
+		n = pr.curveF.Sub(&p1.Y, &p2.Y)
+	}
 	d := pr.curveF.Sub(&p1.X, &p2.X)
 	l1 := pr.curveF.Div(n, d)
 
@@ -482,7 +488,7 @@ func (pr Pairing) doubleAndSubStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 	return &p, &line1, &line2
 }
 
-// doubleStep doubles a point in affine coordinates, and evaluates the line in Miller loop
+// doubleStep doubles p1 in affine coordinates, and evaluates the tangent line to p1.
 // https://eprint.iacr.org/2022/1162 (Section 6.1)
 func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
@@ -515,7 +521,7 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 }
 
-// tangentCompute computes the line that goes through p1 and p2 but does not compute p1+p2
+// tangentCompute computes the tangent line to p1, but does not compute [2]p1.
 func (pr Pairing) tangentCompute(p1 *g2AffP) *lineEvaluation {
 
 	// λ = 3x²/2y

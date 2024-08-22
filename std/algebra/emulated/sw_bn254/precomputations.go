@@ -42,9 +42,9 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 		case 0:
 			Qacc, cLines[0][i] = p.doubleStep(Qacc)
 		case 1:
-			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, Q)
+			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, Q, false)
 		case -1:
-			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndSubStep(Qacc, Q)
+			Qacc, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(Qacc, Q, true)
 		default:
 			return lineEvaluations{}
 		}

@@ -43,15 +43,15 @@ func (p *Pairing) computeLines(Q *g2AffP) lineEvaluations {
 		switch loopCounter2[i]*3 + loopCounter1[i] {
 		// cases -4, -2, 2, 4 do not occur, given the static LoopCounters
 		case -3:
-			accQ, cLines[0][i], cLines[1][i] = p.doubleAndSubStep(accQ, imQ)
+			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, imQ, true)
 		case -1:
-			accQ, cLines[0][i], cLines[1][i] = p.doubleAndSubStep(accQ, Q)
+			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, Q, true)
 		case 0:
 			accQ, cLines[0][i] = p.doubleStep(accQ)
 		case 1:
-			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, Q)
+			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, Q, false)
 		case 3:
-			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, imQ)
+			accQ, cLines[0][i], cLines[1][i] = p.doubleAndAddStep(accQ, imQ, false)
 		default:
 			panic("unknown case for loopCounter")
 		}
