@@ -41,7 +41,7 @@
 - update gnark version to v0.8.0
 - plonk constraints captured using Expressions
 - code gen
-- Evalute is used instead of manually evaluatin
+- Evalute is used instead of manually evaluation
 - removed printings
 - fixed verifier
 - add automatic non-native witness element limb constraining ([#446](https://github.com/consensys/gnark/issues/446))
@@ -128,7 +128,7 @@
 - IsZero throws panic on ([#367](https://github.com/consensys/gnark/issues/367))
 - fixes [#359](https://github.com/consensys/gnark/issues/359) missing fields in plonk serialized format ([#364](https://github.com/consensys/gnark/issues/364))
 - Sumcheck verifier usable as circuit
-- InterpolateOnRange works even when it doesn't really have to "inerpolate"
+- InterpolateOnRange works even when it doesn't really have to "interpolate"
 - extra nosec G404 in test file
 - minor typo
 - misspelled ("decsribes" ->  "describes") ([#339](https://github.com/consensys/gnark/issues/339))
@@ -179,7 +179,7 @@
 - more precomputation in plonk/iop ([#471](https://github.com/consensys/gnark/issues/471))
 - mimc on bls12-377/fr uses x^17 as a permutation
 - api.IsZero generate less constraints ([#356](https://github.com/consensys/gnark/issues/356))
-- minor improvments to big.Int test engine ([#344](https://github.com/consensys/gnark/issues/344))
+- minor improvements to big.Int test engine ([#344](https://github.com/consensys/gnark/issues/344))
 - allocate less in test engine
 - remove width enforcement in Reduce()
 - lazy reduction
