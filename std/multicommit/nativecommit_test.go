@@ -64,9 +64,11 @@ func (c *noCommitVariable) Define(api frontend.API) error {
 	return nil
 }
 
+// TestNoCommitVariable checks that a circuit that doesn't use the commitment variable
+// compiles and prover succeeds. This is due to the randomization of the commitment.
 func TestNoCommitVariable(t *testing.T) {
 	circuit := noCommitVariable{}
+	assignment := noCommitVariable{X: 10}
 	assert := test.NewAssert(t)
-	_, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
-	assert.Error(err)
+	assert.ProverSucceeded(&circuit, &assignment, test.WithCurves(ecc.BN254))
 }
