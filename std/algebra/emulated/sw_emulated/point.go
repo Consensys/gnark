@@ -1302,6 +1302,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	if err != nil {
 		panic(fmt.Sprintf("scalar mul hint: %v", err))
 	}
+	r0, r1 := R[0], R[1]
 
 	var selector frontend.Variable
 	one := c.baseApi.One()
@@ -1309,9 +1310,11 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	addFn := c.Add
 	if cfg.CompleteArithmetic {
 		addFn = c.AddUnified
-		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+		// if Q=(0,0) we assign a dummy (1,1) to Q and R and continue
 		selector = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
 		Q = c.Select(selector, dummy, Q)
+		r0 = c.baseApi.Select(selector, c.baseApi.Zero(), r0)
+		r1 = c.baseApi.Select(selector, &dummy.Y, r1)
 	}
 
 	var st S
@@ -1331,8 +1334,8 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	tableQ[0] = c.Neg(Q)
 	tableQ[2] = c.triple(tableQ[1])
 	tableR[1] = &AffinePoint[B]{
-		X: *R[0],
-		Y: *c.baseApi.Select(sign[0], c.baseApi.Neg(R[1]), R[1]),
+		X: *r0,
+		Y: *c.baseApi.Select(sign[0], c.baseApi.Neg(r1), r1),
 	}
 	tableR[0] = c.Neg(tableR[1])
 	tableR[2] = c.triple(tableR[1])
