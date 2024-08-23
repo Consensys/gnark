@@ -513,7 +513,7 @@ func (c *Curve[B, S]) ScalarMul(p *AffinePoint[B], s *emulated.Element[S], opts 
 		return c.scalarMulGLV(p, s, opts...)
 
 	} else {
-		return c.scalarMulGeneric(p, s, opts...)
+		return c.scalarMulFakeGLV(p, s, opts...)
 
 	}
 }
@@ -814,17 +814,9 @@ func (c *Curve[B, S]) jointScalarMul(p1, p2 *AffinePoint[B], s1, s2 *emulated.El
 //
 // ⚠️  The scalars s1, s2 must be nonzero and the point p1, p2 different from (0,0), unless [algopts.WithCompleteArithmetic] option is set.
 func (c *Curve[B, S]) jointScalarMulGeneric(p1, p2 *AffinePoint[B], s1, s2 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
-	cfg, err := algopts.NewConfig(opts...)
-	if err != nil {
-		panic(fmt.Sprintf("parse opts: %v", err))
-	}
-	if cfg.CompleteArithmetic {
-		res1 := c.scalarMulGeneric(p1, s1, opts...)
-		res2 := c.scalarMulGeneric(p2, s2, opts...)
-		return c.AddUnified(res1, res2)
-	} else {
-		return c.jointScalarMulGenericUnsafe(p1, p2, s1, s2)
-	}
+	sm1 := c.scalarMulFakeGLV(p1, s1, opts...)
+	sm2 := c.scalarMulFakeGLV(p2, s2, opts...)
+	return c.AddUnified(sm1, sm2)
 }
 
 // jointScalarMulGenericUnsafe computes [s1]p1 + [s2]p2 using Shamir's trick and returns it. It doesn't modify p1, p2 nor s1, s2.

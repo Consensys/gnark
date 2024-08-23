@@ -1944,7 +1944,7 @@ func (c *ScalarMulFakeGLVTest[T, S]) Define(api frontend.API) error {
 	return nil
 }
 
-func TestScalaFakeGLVMul(t *testing.T) {
+func TestScalarMulFakeGLV(t *testing.T) {
 	assert := test.NewAssert(t)
 	p256 := elliptic.P256()
 	s, err := rand.Int(rand.Reader, p256.Params().N)
@@ -1967,7 +1967,7 @@ func TestScalaFakeGLVMul(t *testing.T) {
 	assert.NoError(err)
 }
 
-func TestScalaFakeGLVMul2(t *testing.T) {
+func TestScalarMulFakeGLV2(t *testing.T) {
 	assert := test.NewAssert(t)
 	p384 := elliptic.P384()
 	s, err := rand.Int(rand.Reader, p384.Params().N)
