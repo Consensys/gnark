@@ -120,7 +120,7 @@ func halfGCDSigns(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 			return fmt.Errorf("expecting one output")
 		}
 		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(elliptic.P256().Params().N, inputs[0], glvBasis)
+		ecc.PrecomputeLattice(field, inputs[0], glvBasis)
 		outputs[0].SetUint64(0)
 		if glvBasis.V1[1].Sign() == -1 {
 			outputs[0].SetUint64(1)
@@ -139,7 +139,7 @@ func halfGCD(mod *big.Int, inputs, outputs []*big.Int) error {
 			return fmt.Errorf("expecting two outputs")
 		}
 		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(elliptic.P256().Params().N, inputs[0], glvBasis)
+		ecc.PrecomputeLattice(field, inputs[0], glvBasis)
 		outputs[0].Set(&glvBasis.V1[0])
 		outputs[1].Set(&glvBasis.V1[1])
 
