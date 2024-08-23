@@ -1934,27 +1934,24 @@ func (c *ScalarMulFakeGLVTest[T, S]) Define(api frontend.API) error {
 
 func TestScalaFakeGLVMul(t *testing.T) {
 	assert := test.NewAssert(t)
-	_, _, Q, _ := bn254.Generators()
-	var r fr_bn.Element
-	_, _ = r.SetRandom()
-	s := new(big.Int)
-	r.BigInt(s)
-	var R bn254.G1Affine
-	R.ScalarMultiplication(&Q, s)
+	p256 := elliptic.P256()
+	s, err := rand.Int(rand.Reader, p256.Params().N)
+	assert.NoError(err)
+	px, py := p256.ScalarBaseMult(s.Bytes())
 
-	circuit := ScalarMulFakeGLVTest[emulated.BN254Fp, emulated.BN254Fr]{}
-	witness := ScalarMulFakeGLVTest[emulated.BN254Fp, emulated.BN254Fr]{
-		S: emulated.ValueOf[emulated.BN254Fp](s),
-		Q: AffinePoint[emulated.BN254Fp]{
-			X: emulated.ValueOf[emulated.BN254Fp](Q.X),
-			Y: emulated.ValueOf[emulated.BN254Fp](Q.Y),
+	circuit := ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]{}
+	witness := ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]{
+		S: emulated.ValueOf[emulated.P256Fp](s),
+		Q: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](p256.Params().Gx),
+			Y: emulated.ValueOf[emulated.P256Fp](p256.Params().Gy),
 		},
-		R: AffinePoint[emulated.BN254Fp]{
-			X: emulated.ValueOf[emulated.BN254Fp](R.X),
-			Y: emulated.ValueOf[emulated.BN254Fp](R.Y),
+		R: AffinePoint[emulated.P256Fp]{
+			X: emulated.ValueOf[emulated.P256Fp](px),
+			Y: emulated.ValueOf[emulated.P256Fp](py),
 		},
 	}
-	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
 }
 
@@ -1974,26 +1971,18 @@ func (c *ScalarMulJoyeTest[T, S]) Define(api frontend.API) error {
 }
 
 // bench
-func BenchmarkBN254GLV(b *testing.B) {
-	c := ScalarMulTest[emulated.BN254Fp, emulated.BN254Fr]{}
+func BenchmarkP256ScalarMul(b *testing.B) {
+	c := ScalarMulTest[emulated.P256Fp, emulated.P256Fr]{}
 	p := profile.Start()
 	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
 	p.Stop()
-	fmt.Println("BN254 G1 GLV: ", p.NbConstraints())
+	fmt.Println("P256 scalar mul: ", p.NbConstraints())
 }
 
-func BenchmarkBN254FakeGLV(b *testing.B) {
-	c := ScalarMulFakeGLVTest[emulated.BN254Fp, emulated.BN254Fr]{}
+func BenchmarkP256FakeGLV(b *testing.B) {
+	c := ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]{}
 	p := profile.Start()
 	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
 	p.Stop()
-	fmt.Println("BN254 G1 fake GLV: ", p.NbConstraints())
-}
-
-func BenchmarkBN254Joye(b *testing.B) {
-	c := ScalarMulJoyeTest[emulated.BN254Fp, emulated.BN254Fr]{}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("BN254 G1 Joye: ", p.NbConstraints())
+	fmt.Println("P256 fake GLV: ", p.NbConstraints())
 }

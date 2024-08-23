@@ -1,11 +1,11 @@
 package sw_emulated
 
 import (
+	"crypto/elliptic"
 	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -87,13 +87,8 @@ func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		}
 
 		// compute the resulting point [s]Q
-		var R bn254.G1Affine
-		R.X.SetBigInt(inputs[0])
-		R.Y.SetBigInt(inputs[1])
-		R.ScalarMultiplication(&R, inputs[2])
-
-		R.X.BigInt(outputs[0])
-		R.Y.BigInt(outputs[1])
+		p256 := elliptic.P256()
+		outputs[0], outputs[1] = p256.ScalarMult(inputs[0], inputs[1], inputs[2].Bytes())
 
 		return nil
 	})
@@ -107,10 +102,8 @@ func halfGCDSigns(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		if len(outputs) != 1 {
 			return fmt.Errorf("expecting one output")
 		}
-		var modulus big.Int
-		modulus.SetString("21888242871839275222246405745257275088548364400416034343698204186575808495617", 10)
 		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(&modulus, inputs[0], glvBasis)
+		ecc.PrecomputeLattice(elliptic.P256().Params().N, inputs[0], glvBasis)
 		outputs[0].SetUint64(0)
 		if glvBasis.V1[1].Sign() == -1 {
 			outputs[0].SetUint64(1)
@@ -128,23 +121,20 @@ func halfGCD(mod *big.Int, inputs, outputs []*big.Int) error {
 		if len(outputs) != 2 {
 			return fmt.Errorf("expecting two outputs")
 		}
-		var modulus big.Int
-		modulus.SetString("21888242871839275222246405745257275088548364400416034343698204186575808495617", 10)
 		glvBasis := new(ecc.Lattice)
-		ecc.PrecomputeLattice(&modulus, inputs[0], glvBasis)
+		ecc.PrecomputeLattice(elliptic.P256().Params().N, inputs[0], glvBasis)
 		outputs[0].Set(&glvBasis.V1[0])
 		outputs[1].Set(&glvBasis.V1[1])
+
 		// we need the absolute values for the in-circuit computations,
 		// otherwise the negative values will be reduced modulo the SNARK scalar
 		// field and not the emulated field.
 		// 		output0 = |s0| mod r
 		// 		output1 = |s1| mod r
-		if outputs[0].Sign() == -1 {
-			outputs[0].Neg(outputs[0])
-		}
 		if outputs[1].Sign() == -1 {
 			outputs[1].Neg(outputs[1])
 		}
+
 		return nil
 	})
 }
