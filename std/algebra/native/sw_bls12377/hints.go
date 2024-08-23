@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark/constraint/solver"
 )
 
@@ -14,9 +13,6 @@ func GetHints() []solver.Hint {
 		decomposeScalarG1,
 		decomposeScalarG1Simple,
 		decomposeScalarG2,
-		halfGCD,
-		scalarMulG1Hint,
-		scalarMulG2Hint,
 	}
 }
 
@@ -89,66 +85,6 @@ func decomposeScalarG2(scalarField *big.Int, inputs []*big.Int, outputs []*big.I
 	outputs[2].Mul(outputs[1], cc.lambda).Add(outputs[2], outputs[0])
 	outputs[2].Sub(outputs[2], inputs[0])
 	outputs[2].Div(outputs[2], cc.fr)
-
-	return nil
-}
-
-func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(inputs) != 3 {
-		return fmt.Errorf("expecting three inputs")
-	}
-	if len(outputs) != 2 {
-		return fmt.Errorf("expecting two outputs")
-	}
-
-	// compute the resulting point [s]Q
-	var R bls12377.G1Affine
-	R.X.SetBigInt(inputs[0])
-	R.Y.SetBigInt(inputs[1])
-	R.ScalarMultiplication(&R, inputs[2])
-
-	R.X.BigInt(outputs[0])
-	R.Y.BigInt(outputs[1])
-
-	return nil
-}
-
-func scalarMulG2Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(inputs) != 5 {
-		return fmt.Errorf("expecting five inputs")
-	}
-	if len(outputs) != 4 {
-		return fmt.Errorf("expecting four outputs")
-	}
-
-	// compute the resulting point [s]Q
-	var R bls12377.G2Affine
-	R.X.A0.SetBigInt(inputs[0])
-	R.X.A1.SetBigInt(inputs[1])
-	R.Y.A0.SetBigInt(inputs[2])
-	R.Y.A1.SetBigInt(inputs[3])
-	R.ScalarMultiplication(&R, inputs[4])
-
-	R.X.A0.BigInt(outputs[0])
-	R.X.A1.BigInt(outputs[1])
-	R.Y.A0.BigInt(outputs[2])
-	R.Y.A1.BigInt(outputs[3])
-
-	return nil
-}
-
-func halfGCD(nativeMod *big.Int, inputs, outputs []*big.Int) error {
-	if len(inputs) != 1 {
-		return fmt.Errorf("expecting one input")
-	}
-	if len(outputs) != 2 {
-		return fmt.Errorf("expecting two outputs")
-	}
-	var v0, v1 big.Int
-	cc := getInnerCurveConfig(nativeMod)
-	ecc.HalfGCD(cc.fr, inputs[0], &v0, &v1)
-	outputs[0].Set(&v0)
-	outputs[1].Set(&v1)
 
 	return nil
 }

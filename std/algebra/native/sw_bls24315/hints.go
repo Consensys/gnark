@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -17,8 +16,6 @@ func GetHints() []solver.Hint {
 		decomposeScalar,
 		decomposeScalarSimple,
 		decompose,
-		halfGCD,
-		scalarMulHint,
 	}
 }
 
@@ -116,47 +113,6 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable, simple bool) (s1
 	return s1, s2
 }
 
-func callHalfGCD(api frontend.API, s frontend.Variable) (s1, s2 frontend.Variable) {
-	var fr emparams.BLS24315Fr
-	sapi, err := emulated.NewField[emparams.BLS24315Fr](api)
-	if err != nil {
-		panic(err)
-	}
-
-	// compute the decomposition using a hint. We have to use the emulated
-	// version which takes native input and outputs non-native outputs.
-	//
-	// the hints allow to decompose the scalar s into s1 and s2 such that
-	//     s1 + s * s2 == 0 mod r,
-	// where λ is third root of one in 𝔽_r.
-	sd, err := sapi.NewHintWithNativeInput(halfGCD, 2, s)
-	if err != nil {
-		panic(err)
-	}
-	// the scalar as nonnative element. We need to split at 64 bits.
-	limbs, err := api.NewHint(decompose, int(fr.NbLimbs()), s)
-	if err != nil {
-		panic(err)
-	}
-	semu := sapi.NewElement(limbs)
-	// s * s2 == -s1 mod r
-	lhs := sapi.MulNoReduce(sd[1], semu)
-	rhs := sapi.Neg(sd[0])
-
-	sapi.AssertIsEqual(lhs, rhs)
-
-	s1 = 0
-	s2 = 0
-	b := big.NewInt(1)
-	for i := range sd[0].Limbs {
-		s1 = api.Add(s1, api.Mul(sd[0].Limbs[i], b))
-		s2 = api.Add(s2, api.Mul(sd[1].Limbs[i], b))
-		b.Lsh(b, 64)
-	}
-
-	return s1, s2
-}
-
 func decompose(mod *big.Int, inputs, outputs []*big.Int) error {
 	if len(inputs) != 1 && len(outputs) != 4 {
 		return fmt.Errorf("input/output length mismatch")
@@ -168,42 +124,4 @@ func decompose(mod *big.Int, inputs, outputs []*big.Int) error {
 		tmp.Rsh(tmp, 64)
 	}
 	return nil
-}
-
-func scalarMulHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	if len(inputs) != 3 {
-		return fmt.Errorf("expecting three inputs")
-	}
-	if len(outputs) != 2 {
-		return fmt.Errorf("expecting two outputs")
-	}
-
-	// compute the resulting point [s]Q
-	var R bls24315.G1Affine
-	R.X.SetBigInt(inputs[0])
-	R.Y.SetBigInt(inputs[1])
-	R.ScalarMultiplication(&R, inputs[2])
-
-	R.X.BigInt(outputs[0])
-	R.Y.BigInt(outputs[1])
-
-	return nil
-}
-
-func halfGCD(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int) error {
-	return emulated.UnwrapHintWithNativeInput(nativeInputs, nativeOutputs, func(nnMod *big.Int, nninputs, nnOutputs []*big.Int) error {
-		if len(nninputs) != 1 {
-			return fmt.Errorf("expecting one input")
-		}
-		if len(nnOutputs) != 2 {
-			return fmt.Errorf("expecting two outputs")
-		}
-		var v0, v1 big.Int
-		cc := getInnerCurveConfig(nativeMod)
-		ecc.HalfGCD(cc.fr, nninputs[0], &v0, &v1)
-		nnOutputs[0].Set(&v0)
-		nnOutputs[1].Set(&v1)
-
-		return nil
-	})
 }
