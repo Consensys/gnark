@@ -4,7 +4,7 @@ import (
 	"github.com/consensys/compress/lzss"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/compress"
-	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
+	test_vector_utils "github.com/consensys/gnark/std/internal/test_vectors_utils"
 )
 
 type DecompressionTestCircuit struct {

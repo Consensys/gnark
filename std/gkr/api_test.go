@@ -2,6 +2,12 @@ package gkr
 
 import (
 	"fmt"
+	"hash"
+	"math/rand"
+	"strconv"
+	"testing"
+	"time"
+
 	bls12377 "github.com/consensys/gnark/constraint/bls12-377"
 	bls12381 "github.com/consensys/gnark/constraint/bls12-381"
 	bls24315 "github.com/consensys/gnark/constraint/bls24-315"
@@ -9,11 +15,6 @@ import (
 	bw6633 "github.com/consensys/gnark/constraint/bw6-633"
 	bw6761 "github.com/consensys/gnark/constraint/bw6-761"
 	"github.com/consensys/gnark/test"
-	"hash"
-	"math/rand"
-	"strconv"
-	"testing"
-	"time"
 
 	"github.com/consensys/gnark-crypto/kzg"
 	"github.com/consensys/gnark/backend/plonk"
@@ -32,7 +33,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	stdHash "github.com/consensys/gnark/std/hash"
 	"github.com/consensys/gnark/std/hash/mimc"
-	test_vector_utils "github.com/consensys/gnark/std/utils/test_vectors_utils"
+	test_vector_utils "github.com/consensys/gnark/std/internal/test_vectors_utils"
 	"github.com/consensys/gnark/test/unsafekzg"
 )
 
