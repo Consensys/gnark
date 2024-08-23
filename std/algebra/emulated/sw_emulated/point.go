@@ -1506,18 +1506,15 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	Acc = c.Select(s2bits[0], Acc, tableR[0])
 
 	if cfg.CompleteArithmetic {
-		zero := c.baseApi.Zero()
-		Acc = c.Select(c.api.Or(selector1, selector2), &AffinePoint[B]{X: *zero, Y: *zero}, Acc)
-		c.AssertIsEqual(Acc, &AffinePoint[B]{X: *zero, Y: *zero})
-	} else {
-		// we added [3]R at the last iteration so the result should be
-		// 		Acc = [s1]Q + [s2]R + [3]R
-		// 		    = [s1]Q + [s2*s]Q + [3]R
-		// 		    = [s1+s2*s]Q + [3]R
-		// 		    = [0]Q + [3]R
-		// 		    = [3]R
-		c.AssertIsEqual(Acc, tableR[2])
+		Acc = c.Select(c.api.Or(selector1, selector2), tableR[2], Acc)
 	}
+	// we added [3]R at the last iteration so the result should be
+	// 		Acc = [s1]Q + [s2]R + [3]R
+	// 		    = [s1]Q + [s2*s]Q + [3]R
+	// 		    = [s1+s2*s]Q + [3]R
+	// 		    = [0]Q + [3]R
+	// 		    = [3]R
+	c.AssertIsEqual(Acc, tableR[2])
 
 	return &AffinePoint[B]{
 		X: *R[0],
