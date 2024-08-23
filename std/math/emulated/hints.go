@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 )
 
 // TODO @gbotrel hint[T FieldParams] would simplify this . Issue is when registering hint, if QuoRem[T] was declared
@@ -63,17 +64,17 @@ func InverseHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
-	if err := recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
+	if err := limbs.Recompose(inputs[2:2+nbLimbs], nbBits, p); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
 	x := new(big.Int)
-	if err := recompose(inputs[2+nbLimbs:], nbBits, x); err != nil {
+	if err := limbs.Recompose(inputs[2+nbLimbs:], nbBits, x); err != nil {
 		return fmt.Errorf("recompose value: %w", err)
 	}
 	if x.ModInverse(x, p) == nil {
 		return fmt.Errorf("input and modulus not relatively primes")
 	}
-	if err := decompose(x, nbBits, outputs); err != nil {
+	if err := limbs.Decompose(x, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose: %w", err)
 	}
 	return nil
@@ -114,15 +115,15 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		return fmt.Errorf("result does not fit into output")
 	}
 	p := new(big.Int)
-	if err := recompose(inputs[4:4+nbLimbs], nbBits, p); err != nil {
+	if err := limbs.Recompose(inputs[4:4+nbLimbs], nbBits, p); err != nil {
 		return fmt.Errorf("recompose emulated order: %w", err)
 	}
 	nominator := new(big.Int)
-	if err := recompose(inputs[4+nbLimbs:4+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
+	if err := limbs.Recompose(inputs[4+nbLimbs:4+nbLimbs+nbNomLimbs], nbBits, nominator); err != nil {
 		return fmt.Errorf("recompose nominator: %w", err)
 	}
 	denominator := new(big.Int)
-	if err := recompose(inputs[4+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
+	if err := limbs.Recompose(inputs[4+nbLimbs+nbNomLimbs:], nbBits, denominator); err != nil {
 		return fmt.Errorf("recompose denominator: %w", err)
 	}
 	res := new(big.Int).ModInverse(denominator, p)
@@ -131,7 +132,7 @@ func DivHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	}
 	res.Mul(res, nominator)
 	res.Mod(res, p)
-	if err := decompose(res, nbBits, outputs); err != nil {
+	if err := limbs.Decompose(res, nbBits, outputs); err != nil {
 		return fmt.Errorf("decompose division: %w", err)
 	}
 	return nil
@@ -153,67 +154,4 @@ func SqrtHint(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 		outputs[0].Set(res)
 		return nil
 	})
-}
-
-// subPaddingHint computes the padding for the subtraction of two numbers. It
-// ensures that the padding is a multiple of the modulus. Can be used to avoid
-// underflow.
-//
-// In case of fixed modulus use subPadding instead.
-func subPaddingHint(mod *big.Int, inputs, outputs []*big.Int) error {
-	if len(inputs) < 4 {
-		return fmt.Errorf("input must be at least four elements")
-	}
-	nbLimbs := int(inputs[0].Int64())
-	bitsPerLimbs := uint(inputs[1].Uint64())
-	overflow := uint(inputs[2].Uint64())
-	retLimbs := int(inputs[3].Int64())
-	if len(inputs[4:]) != nbLimbs {
-		return fmt.Errorf("input length mismatch")
-	}
-	if len(outputs) != retLimbs {
-		return fmt.Errorf("result does not fit into output")
-	}
-	pLimbs := inputs[4 : 4+nbLimbs]
-	p := new(big.Int)
-	if err := recompose(pLimbs, bitsPerLimbs, p); err != nil {
-		return fmt.Errorf("recompose modulus: %w", err)
-	}
-	padLimbs := subPadding(p, bitsPerLimbs, overflow, uint(nbLimbs))
-	for i := range padLimbs {
-		outputs[i].Set(padLimbs[i])
-	}
-
-	return nil
-}
-
-func (f *Field[T]) computeSubPaddingHint(overflow uint, nbLimbs uint, modulus *Element[T]) *Element[T] {
-	// we compute the subtraction padding hint in-circuit. The padding has satisfy:
-	// 1. padding % modulus = 0
-	// 2. padding[i] >= (1 << (bits+overflow))
-	// 3. padding[i] + a[i] < native_field for all valid a[i] (defined by overflow)
-	var fp T
-	inputs := []frontend.Variable{fp.NbLimbs(), fp.BitsPerLimb(), overflow, nbLimbs}
-	inputs = append(inputs, modulus.Limbs...)
-	// compute the actual padding value
-	res, err := f.api.NewHint(subPaddingHint, int(nbLimbs), inputs...)
-	if err != nil {
-		panic(fmt.Sprintf("sub padding hint: %v", err))
-	}
-	maxLimb := new(big.Int).Lsh(big.NewInt(1), fp.BitsPerLimb()+overflow)
-	maxLimb.Sub(maxLimb, big.NewInt(1))
-	for i := range res {
-		// we can check conditions 2 and 3 together by subtracting the maximum
-		// value which can be subtracted from the padding. The result should not
-		// underflow (in which case the width of the subtraction result could be
-		// at least native_width-overflow) and should be nbBits+overflow+1 bits
-		// wide (as expected padding is one bit wider than the maximum allowed
-		// subtraction limb).
-		f.checker.Check(f.api.Sub(res[i], maxLimb), int(fp.BitsPerLimb()+overflow+1))
-	}
-
-	// ensure that condition 1 holds
-	padding := f.newInternalElement(res, overflow+1)
-	f.checkZero(padding, modulus)
-	return padding
 }
