@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/internal/utils"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 )
 
 // Element defines an element in the ring of integers modulo n. The integer
@@ -73,7 +74,7 @@ func newConstElement[T FieldParams](v interface{}) *Element[T] {
 	for i := range blimbs {
 		blimbs[i] = new(big.Int)
 	}
-	if err := decompose(&bValue, fp.BitsPerLimb(), blimbs); err != nil {
+	if err := limbs.Decompose(&bValue, fp.BitsPerLimb(), blimbs); err != nil {
 		panic(fmt.Errorf("decompose value: %w", err))
 	}
 
