@@ -1273,22 +1273,29 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		panic(err)
 	}
 
+	var selector1 frontend.Variable
+	_s := s
+	if cfg.CompleteArithmetic {
+		selector1 = c.scalarApi.IsZero(s)
+		_s = c.scalarApi.Select(selector1, c.scalarApi.One(), s)
+	}
+
 	// first find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r)
-	sd, err := c.scalarApi.NewHint(halfGCD, 2, s)
+	sd, err := c.scalarApi.NewHint(halfGCD, 2, _s)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCD hint: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
 	// s2 can be negative. If so, we return in halfGCD hint -s2
 	// and here compute _s2 = -s2 mod r
-	sign, err := c.scalarApi.NewHintWithNativeOutput(halfGCDSigns, 1, s)
+	sign, err := c.scalarApi.NewHintWithNativeOutput(halfGCDSigns, 1, _s)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
 	}
 	_s2 := c.scalarApi.Select(sign[0], c.scalarApi.Neg(s2), s2)
 	// we check that s1 + s*_s2 == 0 mod r
 	c.scalarApi.AssertIsEqual(
-		c.scalarApi.Add(s1, c.scalarApi.Mul(s, _s2)),
+		c.scalarApi.Add(s1, c.scalarApi.Mul(_s, _s2)),
 		c.scalarApi.Zero(),
 	)
 	// then compute the hinted scalar mul R = [s]Q
@@ -1304,17 +1311,17 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 	r0, r1 := R[0], R[1]
 
-	var selector frontend.Variable
+	var selector2 frontend.Variable
 	one := c.baseApi.One()
 	dummy := &AffinePoint[B]{X: *one, Y: *one}
 	addFn := c.Add
 	if cfg.CompleteArithmetic {
 		addFn = c.AddUnified
 		// if Q=(0,0) we assign a dummy (1,1) to Q and R and continue
-		selector = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
-		Q = c.Select(selector, dummy, Q)
-		r0 = c.baseApi.Select(selector, c.baseApi.Zero(), r0)
-		r1 = c.baseApi.Select(selector, &dummy.Y, r1)
+		selector2 = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
+		Q = c.Select(selector2, dummy, Q)
+		r0 = c.baseApi.Select(selector2, c.baseApi.Zero(), r0)
+		r1 = c.baseApi.Select(selector2, &dummy.Y, r1)
 	}
 
 	var st S
@@ -1338,7 +1345,12 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		Y: *c.baseApi.Select(sign[0], c.baseApi.Neg(r1), r1),
 	}
 	tableR[0] = c.Neg(tableR[1])
-	tableR[2] = c.triple(tableR[1])
+	if cfg.CompleteArithmetic {
+		tableR[2] = c.AddUnified(tableR[1], tableR[1])
+		tableR[2] = c.AddUnified(tableR[2], tableR[1])
+	} else {
+		tableR[2] = c.triple(tableR[1])
+	}
 
 	// we should start the accumulator by the infinity point, but since affine
 	// formulae are incomplete we suppose that the first bits of the
@@ -1503,7 +1515,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 
 	if cfg.CompleteArithmetic {
 		zero := c.baseApi.Zero()
-		Acc = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, Acc)
+		Acc = c.Select(c.api.Or(selector1, selector2), &AffinePoint[B]{X: *zero, Y: *zero}, Acc)
 		c.AssertIsEqual(Acc, &AffinePoint[B]{X: *zero, Y: *zero})
 	} else {
 		// we added [3]R at the last iteration so the result should be
