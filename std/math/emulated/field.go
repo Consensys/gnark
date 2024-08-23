@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/rs/zerolog"
 	"golang.org/x/exp/constraints"
@@ -251,7 +252,7 @@ func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 	}
 
 	res := new(big.Int)
-	if err := recompose(constLimbs, f.fParams.BitsPerLimb(), res); err != nil {
+	if err := limbs.Recompose(constLimbs, f.fParams.BitsPerLimb(), res); err != nil {
 		f.log.Error().Err(err).Msg("recomposing constant")
 		return nil, false
 	}
