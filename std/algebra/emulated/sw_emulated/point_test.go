@@ -1955,6 +1955,29 @@ func TestScalaFakeGLVMul(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestScalaFakeGLVMul2(t *testing.T) {
+	assert := test.NewAssert(t)
+	p384 := elliptic.P384()
+	s, err := rand.Int(rand.Reader, p384.Params().N)
+	assert.NoError(err)
+	px, py := p384.ScalarBaseMult(s.Bytes())
+
+	circuit := ScalarMulFakeGLVTest[emulated.P384Fp, emulated.P384Fr]{}
+	witness := ScalarMulFakeGLVTest[emulated.P384Fp, emulated.P384Fr]{
+		S: emulated.ValueOf[emulated.P384Fr](s),
+		Q: AffinePoint[emulated.P384Fp]{
+			X: emulated.ValueOf[emulated.P384Fp](p384.Params().Gx),
+			Y: emulated.ValueOf[emulated.P384Fp](p384.Params().Gy),
+		},
+		R: AffinePoint[emulated.P384Fp]{
+			X: emulated.ValueOf[emulated.P384Fp](px),
+			Y: emulated.ValueOf[emulated.P384Fp](py),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
 type ScalarMulJoyeTest[T, S emulated.FieldParams] struct {
 	P, Q AffinePoint[T]
 	S    emulated.Element[S]
@@ -1968,21 +1991,4 @@ func (c *ScalarMulJoyeTest[T, S]) Define(api frontend.API) error {
 	res := cr.scalarMulGeneric(&c.P, &c.S)
 	cr.AssertIsEqual(res, &c.Q)
 	return nil
-}
-
-// bench
-func BenchmarkP256ScalarMul(b *testing.B) {
-	c := ScalarMulTest[emulated.P256Fp, emulated.P256Fr]{}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("P256 scalar mul: ", p.NbConstraints())
-}
-
-func BenchmarkP256FakeGLV(b *testing.B) {
-	c := ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]{}
-	p := profile.Start()
-	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
-	p.Stop()
-	fmt.Println("P256 fake GLV: ", p.NbConstraints())
 }

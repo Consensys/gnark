@@ -79,33 +79,60 @@ func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int)
 	})
 }
 
+// TODO @yelhousni: generalize for any supported curve as it currently works
+// only for P-256 and P-384.
 func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeInput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(outputs) != 2 {
 			return fmt.Errorf("expecting two outputs")
 		}
-		var fp emparams.P256Fp
-		var fr emparams.P256Fr
-		PXLimbs := inputs[:fp.NbLimbs()]
-		PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
-		SLimbs := inputs[2*fp.NbLimbs():]
-		Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
-		if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
-			return err
+		if field.Cmp(elliptic.P256().Params().P) == 0 {
+			var fp emparams.P256Fp
+			var fr emparams.P256Fr
+			PXLimbs := inputs[:fp.NbLimbs()]
+			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
+			SLimbs := inputs[2*fp.NbLimbs():]
+			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
+			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
+				return err
 
+			}
+			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
+				return err
+
+			}
+			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
+				return err
+
+			}
+			curve := elliptic.P256()
+			// compute the resulting point [s]Q
+			outputs[0], outputs[1] = curve.ScalarMult(Px, Py, S.Bytes())
+		} else if field.Cmp(elliptic.P384().Params().P) == 0 {
+			var fp emparams.P384Fp
+			var fr emparams.P384Fr
+			PXLimbs := inputs[:fp.NbLimbs()]
+			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
+			SLimbs := inputs[2*fp.NbLimbs():]
+			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
+			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
+				return err
+
+			}
+			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
+				return err
+
+			}
+			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
+				return err
+
+			}
+			curve := elliptic.P384()
+			// compute the resulting point [s]Q
+			outputs[0], outputs[1] = curve.ScalarMult(Px, Py, S.Bytes())
+		} else {
+			return fmt.Errorf("unsupported curve")
 		}
-		if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
-			return err
-
-		}
-		if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
-			return err
-
-		}
-
-		// compute the resulting point [s]Q
-		p256 := elliptic.P256()
-		outputs[0], outputs[1] = p256.ScalarMult(Px, Py, S.Bytes())
 
 		return nil
 	})

@@ -1256,7 +1256,17 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 	}
 }
 
-// Fake GLV
+// scalarMulFakeGLV computes [s]Q and returns it. It doesn't modify Q nor s.
+// It implements the "fake GLV" explained in: https://hackmd.io/@yelhousni/Hy-aWld50.
+//
+// ⚠️  The scalar s must be nonzero and the point Q different from (0,0) unless [algopts.WithCompleteArithmetic] is set.
+// (0,0) is not on the curve but we conventionally take it as the
+// neutral/infinity point as per the [EVM].
+//
+// TODO @yelhousni: generalize for any supported curve as it currently works
+// only for P-256 and P-384 because of the scalarMulG1Hint.
+//
+// [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
