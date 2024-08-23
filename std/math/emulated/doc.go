@@ -55,8 +55,8 @@ know that the limb values do not overflow 2^w, then we say that the element is
 in normal form.
 
 In the implementation, we have two functions for splitting an element into limbs
-and composing an element from limbs -- [decompose] and [recompose]. The
-[recompose] function also accepts element in non-normal form.
+and composing an element from limbs -- [limbs.Decompose] and [limbs.Recompose].
+The [limbs.Recompose] function also accepts element in non-normal form.
 
 # Elements in non-normal form
 
