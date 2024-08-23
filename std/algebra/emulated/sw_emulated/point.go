@@ -574,7 +574,7 @@ func (c *Curve[B, S]) scalarMulGLV(Q *AffinePoint[B], s *emulated.Element[S], op
 	var st S
 	nbits := st.Modulus().BitLen()>>1 + 2
 
-	// precompute -Q, -Φ(Q), Φ(Q)
+	// precompute -Q, Q, 3Q, -Φ(Q), Φ(Q), 3Φ(Q)
 	var tableQ, tablePhiQ [3]*AffinePoint[B]
 	negQY := c.baseApi.Neg(&Q.Y)
 	tableQ[1] = &AffinePoint[B]{
@@ -1253,5 +1253,230 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 		}
 		res = addFn(p[0], res)
 		return res, nil
+	}
+}
+
+// Fake GLV
+func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[B], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(err)
+	}
+
+	// first find the sub-salars
+	sd, err := c.baseApi.NewHint(halfGCD, 2, s)
+	if err != nil {
+		panic(fmt.Sprintf("halfGCD hint: %v", err))
+	}
+	s1, s2 := sd[0], sd[1]
+	sign, err := c.baseApi.NewHintWithNativeOutput(halfGCDSigns, 1, s)
+	if err != nil {
+		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
+	}
+	// _s2 := c.baseApi.Select(sign[0], c.baseApi.Neg(s2), s2)
+	// check that s1 + s*_s2 == 0
+	// This is only true in scalarApi (mod r) not baseApi (mod p)!
+	// c.baseApi.AssertIsEqual(
+	// 	c.baseApi.Add(s1, c.baseApi.Mul(s, _s2)),
+	// 	c.baseApi.Zero(),
+	// )
+
+	// then compute the hinted scalar mul R = [s]Q
+	R, err := c.baseApi.NewHint(scalarMulG1Hint, 2, &Q.X, &Q.Y, s)
+	if err != nil {
+		panic(fmt.Sprintf("scalar mul hint: %v", err))
+	}
+
+	var selector frontend.Variable
+	if cfg.CompleteArithmetic {
+		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
+		selector = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
+		one := c.baseApi.One()
+		Q = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, Q)
+	}
+	var st S
+	nbits := st.Modulus().BitLen()>>1 + 2
+	s1bits := c.baseApi.ToBits(s1)
+	s2bits := c.baseApi.ToBits(s2)
+
+	// store Q, -Q, 3Q, R, -R, 3R in a table
+	var tableQ, tableR [3]*AffinePoint[B]
+	tableQ[1] = Q
+	tableQ[0] = c.Neg(Q)
+	tableQ[2] = c.triple(tableQ[1])
+	tableR[1] = &AffinePoint[B]{
+		X: *R[0],
+		Y: *c.baseApi.Select(sign[0], c.baseApi.Neg(R[1]), R[1]),
+	}
+	tableR[0] = c.Neg(tableR[1])
+	tableR[2] = c.triple(tableR[1])
+
+	// we suppose that the first bits of the sub-scalars are 1 and set:
+	// 		Acc = Q + R
+	Acc := c.Add(tableQ[1], tableR[1])
+
+	// At each iteration we need to compute:
+	// 		[2]Acc ± Q ± R.
+	// We can compute [2]Acc and look up the (precomputed) point P from:
+	// 		B1 = Q+R
+	// 		B2 = -Q-R
+	// 		B3 = Q-R
+	// 		B4 = -Q+R
+	//
+	// If we extend this by merging two iterations, we need to look up P and P'
+	// both from {B1, B2, B3, B4} and compute:
+	// 		[2]([2]Acc+P)+P' = [4]Acc + T
+	// where T = [2]P+P'. So at each (merged) iteration, we can compute [4]Acc
+	// and look up T from the precomputed list of points:
+	//
+	// T = [3](Q + R)
+	// P = B1 and P' = B1
+	T1 := c.Add(tableQ[2], tableR[2])
+	// T = Q + R
+	// P = B1 and P' = B2
+	T2 := Acc
+	// T = [3]Q + R
+	// P = B1 and P' = B3
+	T3 := c.Add(tableQ[2], tableR[1])
+	// T = Q + [3]R
+	// P = B1 and P' = B4
+	T4 := c.Add(tableQ[1], tableR[2])
+	// T  = -Q - R
+	// P = B2 and P' = B1
+	T5 := c.Neg(T2)
+	// T  = -[3](Q + R)
+	// P = B2 and P' = B2
+	T6 := c.Neg(T1)
+	// T = -Q - [3]R
+	// P = B2 and P' = B3
+	T7 := c.Neg(T4)
+	// T = -[3]Q - R
+	// P = B2 and P' = B4
+	T8 := c.Neg(T3)
+	// T = [3]Q - R
+	// P = B3 and P' = B1
+	T9 := c.Add(tableQ[2], tableR[0])
+	// T = Q - [3]R
+	// P = B3 and P' = B2
+	T11 := c.Neg(tableR[2])
+	T10 := c.Add(tableQ[1], T11)
+	// T = [3](Q - R)
+	// P = B3 and P' = B3
+	T11 = c.Add(tableQ[2], T11)
+	// T = -R + Q
+	// P = B3 and P' = B4
+	T12 := c.Add(tableR[0], tableQ[1])
+	// T = [3]R - Q
+	// P = B4 and P' = B1
+	T13 := c.Neg(T10)
+	// T = R - [3]Q
+	// P = B4 and P' = B2
+	T14 := c.Neg(T9)
+	// T = R - Q
+	// P = B4 and P' = B3
+	T15 := c.Neg(T12)
+	// T = [3](R - Q)
+	// P = B4 and P' = B4
+	T16 := c.Neg(T11)
+	// note that half the points are negatives of the other half,
+	// hence have the same X coordinates.
+
+	// when nbits is odd, we need to handle the first iteration separately
+	if nbits%2 == 0 {
+		// Acc = [2]Acc ± Q ± R
+		T := &AffinePoint[B]{
+			X: *c.baseApi.Select(c.api.Xor(s1bits[nbits-1], s2bits[nbits-1]), &T12.X, &T5.X),
+			Y: *c.baseApi.Lookup2(s1bits[nbits-1], s2bits[nbits-1], &T5.Y, &T12.Y, &T15.Y, &T2.Y),
+		}
+		// We don't use doubleAndAdd here as it would involve edge cases
+		// when bits are 00 (T==-Acc) or 11 (T==Acc).
+		Acc = c.double(Acc)
+		Acc = c.add(Acc, T)
+	} else {
+		// when nbits is even we start the main loop at normally nbits - 1
+		nbits++
+	}
+	for i := nbits - 2; i > 2; i -= 2 {
+		// selectorY takes values in [0,15]
+		selectorY := c.api.Add(
+			s1bits[i],
+			c.api.Mul(s2bits[i], 2),
+			c.api.Mul(s1bits[i-1], 4),
+			c.api.Mul(s2bits[i-1], 8),
+		)
+		// selectorX takes values in [0,7] s.t.:
+		// 		- when selectorY < 8: selectorX = selectorY
+		// 		- when selectorY >= 8: selectorX = 15 - selectorY
+		selectorX := c.api.Add(
+			c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(s2bits[i-1], 2))),
+			c.api.Mul(s2bits[i-1], 15),
+		)
+		// Bi.Y are distincts so we need a 16-to-1 multiplexer,
+		// but only half of the Bi.X are distinct so we need a 8-to-1.
+		T := &AffinePoint[B]{
+			X: *c.baseApi.Mux(selectorX,
+				&T6.X, &T10.X, &T14.X, &T2.X, &T7.X, &T11.X, &T15.X, &T3.X,
+			),
+			Y: *c.baseApi.Mux(selectorY,
+				&T6.Y, &T10.Y, &T14.Y, &T2.Y, &T7.Y, &T11.Y, &T15.Y, &T3.Y,
+				&T8.Y, &T12.Y, &T16.Y, &T4.Y, &T5.Y, &T9.Y, &T13.Y, &T1.Y,
+			),
+		}
+		// Acc = [4]Acc + T
+		Acc = c.double(Acc)
+		Acc = c.doubleAndAdd(Acc, T)
+	}
+
+	// i = 2
+	// selectorY takes values in [0,15]
+	selectorY := c.api.Add(
+		s1bits[2],
+		c.api.Mul(s2bits[2], 2),
+		c.api.Mul(s1bits[1], 4),
+		c.api.Mul(s2bits[1], 8),
+	)
+	// selectorX takes values in [0,7] s.t.:
+	// 		- when selectorY < 8: selectorX = selectorY
+	// 		- when selectorY >= 8: selectorX = 15 - selectorY
+	selectorX := c.api.Add(
+		c.api.Mul(selectorY, c.api.Sub(1, c.api.Mul(s2bits[1], 2))),
+		c.api.Mul(s2bits[1], 15),
+	)
+	// Bi.Y are distincts so we need a 16-to-1 multiplexer,
+	// but only half of the Bi.X are distinct so we need a 8-to-1.
+	T := &AffinePoint[B]{
+		X: *c.baseApi.Mux(selectorX,
+			&T6.X, &T10.X, &T14.X, &T2.X, &T7.X, &T11.X, &T15.X, &T3.X,
+		),
+		Y: *c.baseApi.Mux(selectorY,
+			&T6.Y, &T10.Y, &T14.Y, &T2.Y, &T7.Y, &T11.Y, &T15.Y, &T3.Y,
+			&T8.Y, &T12.Y, &T16.Y, &T4.Y, &T5.Y, &T9.Y, &T13.Y, &T1.Y,
+		),
+	}
+	// Acc = [4]Acc + T
+	Acc = c.double(Acc)
+	Acc = c.double(Acc)
+	Acc = c.AddUnified(Acc, T)
+
+	// i = 0
+	// subtract the Q, R if the first bits are 0.
+	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add.
+	// This means when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
+	tableQ[0] = c.AddUnified(tableQ[0], Acc)
+	Acc = c.Select(s1bits[0], Acc, tableQ[0])
+	tableR[0] = c.AddUnified(tableR[0], Acc)
+	Acc = c.Select(s2bits[0], Acc, tableR[0])
+
+	zero := c.baseApi.Zero()
+	if cfg.CompleteArithmetic {
+		Acc = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, Acc)
+		c.AssertIsEqual(Acc, &AffinePoint[B]{X: *zero, Y: *zero})
+	} else {
+		c.AssertIsEqual(Acc, &AffinePoint[B]{X: *zero, Y: *zero})
+	}
+
+	return &AffinePoint[B]{
+		X: *R[0],
+		Y: *R[1],
 	}
 }

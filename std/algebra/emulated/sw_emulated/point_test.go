@@ -3,6 +3,7 @@ package sw_emulated
 import (
 	"crypto/elliptic"
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -18,6 +19,8 @@ import (
 	fp_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
@@ -1911,4 +1914,86 @@ func TestMux(t *testing.T) {
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
 	assert.NoError(err)
+}
+
+// fake GLV
+type ScalarMulFakeGLVTest[T, S emulated.FieldParams] struct {
+	Q, R AffinePoint[T]
+	S    emulated.Element[T]
+}
+
+func (c *ScalarMulFakeGLVTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.scalarMulFakeGLV(&c.Q, &c.S)
+	cr.AssertIsEqual(res, &c.R)
+	return nil
+}
+
+func TestScalaFakeGLVMul(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, _, Q, _ := bn254.Generators()
+	var r fr_bn.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var R bn254.G1Affine
+	R.ScalarMultiplication(&Q, s)
+
+	circuit := ScalarMulFakeGLVTest[emulated.BN254Fp, emulated.BN254Fr]{}
+	witness := ScalarMulFakeGLVTest[emulated.BN254Fp, emulated.BN254Fr]{
+		S: emulated.ValueOf[emulated.BN254Fp](s),
+		Q: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](Q.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](Q.Y),
+		},
+		R: AffinePoint[emulated.BN254Fp]{
+			X: emulated.ValueOf[emulated.BN254Fp](R.X),
+			Y: emulated.ValueOf[emulated.BN254Fp](R.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+type ScalarMulJoyeTest[T, S emulated.FieldParams] struct {
+	P, Q AffinePoint[T]
+	S    emulated.Element[S]
+}
+
+func (c *ScalarMulJoyeTest[T, S]) Define(api frontend.API) error {
+	cr, err := New[T, S](api, GetCurveParams[T]())
+	if err != nil {
+		return err
+	}
+	res := cr.scalarMulGeneric(&c.P, &c.S)
+	cr.AssertIsEqual(res, &c.Q)
+	return nil
+}
+
+// bench
+func BenchmarkBN254GLV(b *testing.B) {
+	c := ScalarMulTest[emulated.BN254Fp, emulated.BN254Fr]{}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("BN254 G1 GLV: ", p.NbConstraints())
+}
+
+func BenchmarkBN254FakeGLV(b *testing.B) {
+	c := ScalarMulFakeGLVTest[emulated.BN254Fp, emulated.BN254Fr]{}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("BN254 G1 fake GLV: ", p.NbConstraints())
+}
+
+func BenchmarkBN254Joye(b *testing.B) {
+	c := ScalarMulJoyeTest[emulated.BN254Fp, emulated.BN254Fr]{}
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("BN254 G1 Joye: ", p.NbConstraints())
 }
