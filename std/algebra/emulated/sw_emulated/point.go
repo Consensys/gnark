@@ -1263,24 +1263,27 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		panic(err)
 	}
 
-	// first find the sub-salars
+	// first find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r)
 	sd, err := c.scalarApi.NewHint(halfGCD, 2, s)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCD hint: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
+	// s2 can be negative. If so, we return in halfGCD hint -s2
+	// and here compute _s2 = -s2 mod r
 	sign, err := c.scalarApi.NewHintWithNativeOutput(halfGCDSigns, 1, s)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
 	}
 	_s2 := c.scalarApi.Select(sign[0], c.scalarApi.Neg(s2), s2)
-	// check that s1 + s*_s2 == 0
+	// we check that s1 + s*_s2 == 0 mod r
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s1, c.scalarApi.Mul(s, _s2)),
 		c.scalarApi.Zero(),
 	)
-
 	// then compute the hinted scalar mul R = [s]Q
+	// Q coordinates are in Fp and the scalar s in Fr
+	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
 	var inps []frontend.Variable
 	inps = append(inps, Q.X.Limbs...)
 	inps = append(inps, Q.Y.Limbs...)
@@ -1291,18 +1294,28 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 
 	var selector frontend.Variable
+	one := c.baseApi.One()
+	dummy := &AffinePoint[B]{X: *one, Y: *one}
+	addFn := c.Add
 	if cfg.CompleteArithmetic {
+		addFn = c.AddUnified
 		// if Q=(0,0) we assign a dummy (1,1) to Q and continue
 		selector = c.api.And(c.baseApi.IsZero(&Q.X), c.baseApi.IsZero(&Q.Y))
-		one := c.baseApi.One()
-		Q = c.Select(selector, &AffinePoint[B]{X: *one, Y: *one}, Q)
+		Q = c.Select(selector, dummy, Q)
 	}
+
 	var st S
 	nbits := st.Modulus().BitLen()>>1 + 2
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
 
-	// store Q, -Q, 3Q, R, -R, 3R in a table
+	// precomputations:
+	// 		tableQ[0] = -Q
+	//   	tableQ[1] = Q
+	// 		tableQ[2] = [3]Q
+	// 		tableR[0] = -R or R if s2 is negative
+	//   	tableR[1] = R or -R if s2 is negative
+	// 		tableR[2] = [3]R or [-3]R if s2 is negative
 	var tableQ, tableR [3]*AffinePoint[B]
 	tableQ[1] = Q
 	tableQ[0] = c.Neg(Q)
@@ -1314,7 +1327,9 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	tableR[0] = c.Neg(tableR[1])
 	tableR[2] = c.triple(tableR[1])
 
-	// we suppose that the first bits of the sub-scalars are 1 and set:
+	// we should start the accumulator by the infinity point, but since affine
+	// formulae are incomplete we suppose that the first bits of the
+	// sub-scalars s1 and s2 are 1, and set:
 	// 		Acc = Q + R
 	Acc := c.Add(tableQ[1], tableR[1])
 
@@ -1381,7 +1396,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// T = [3](R - Q)
 	// P = B4 and P' = B4
 	T16 := c.Neg(T11)
-	// note that half the points are negatives of the other half,
+	// note that half of these points are negatives of the other half,
 	// hence have the same X coordinates.
 
 	// when nbits is odd, we need to handle the first iteration separately
@@ -1431,6 +1446,8 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	}
 
 	// i = 2
+	// we isolate the last iteration to avoid falling into incomplete additions
+	//
 	// selectorY takes values in [0,15]
 	selectorY := c.api.Add(
 		s1bits[2],
@@ -1456,26 +1473,33 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 			&T8.Y, &T12.Y, &T16.Y, &T4.Y, &T5.Y, &T9.Y, &T13.Y, &T1.Y,
 		),
 	}
-	// Acc = [4]Acc + T
+	// to avoid incomplete additions we add [3]R to the precomputed T before computing [4]Acc+T
+	// 		Acc = [4]Acc + T + [3]R
+	T = c.add(T, tableR[2])
 	Acc = c.double(Acc)
-	Acc = c.double(Acc)
-	Acc = c.AddUnified(Acc, T)
+	Acc = c.doubleAndAdd(Acc, T)
 
 	// i = 0
-	// subtract the Q, R if the first bits are 0.
+	// subtract Q and R if the first bits are 0.
 	// When cfg.CompleteArithmetic is set, we use AddUnified instead of Add.
 	// This means when s=0 then Acc=(0,0) because AddUnified(Q, -Q) = (0,0).
-	tableQ[0] = c.AddUnified(tableQ[0], Acc)
+	tableQ[0] = addFn(tableQ[0], Acc)
 	Acc = c.Select(s1bits[0], Acc, tableQ[0])
-	tableR[0] = c.AddUnified(tableR[0], Acc)
+	tableR[0] = addFn(tableR[0], Acc)
 	Acc = c.Select(s2bits[0], Acc, tableR[0])
 
-	zero := c.baseApi.Zero()
 	if cfg.CompleteArithmetic {
+		zero := c.baseApi.Zero()
 		Acc = c.Select(selector, &AffinePoint[B]{X: *zero, Y: *zero}, Acc)
 		c.AssertIsEqual(Acc, &AffinePoint[B]{X: *zero, Y: *zero})
 	} else {
-		c.AssertIsEqual(Acc, &AffinePoint[B]{X: *zero, Y: *zero})
+		// we added [3]R at the last iteration so the result should be
+		// 		Acc = [s1]Q + [s2]R + [3]R
+		// 		    = [s1]Q + [s2*s]Q + [3]R
+		// 		    = [s1+s2*s]Q + [3]R
+		// 		    = [0]Q + [3]R
+		// 		    = [3]R
+		c.AssertIsEqual(Acc, tableR[2])
 	}
 
 	return &AffinePoint[B]{
