@@ -1257,32 +1257,35 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 }
 
 // Fake GLV
-func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[B], opts ...algopts.AlgebraOption) *AffinePoint[B] {
+func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	cfg, err := algopts.NewConfig(opts...)
 	if err != nil {
 		panic(err)
 	}
 
 	// first find the sub-salars
-	sd, err := c.baseApi.NewHint(halfGCD, 2, s)
+	sd, err := c.scalarApi.NewHint(halfGCD, 2, s)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCD hint: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
-	sign, err := c.baseApi.NewHintWithNativeOutput(halfGCDSigns, 1, s)
+	sign, err := c.scalarApi.NewHintWithNativeOutput(halfGCDSigns, 1, s)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
 	}
-	// _s2 := c.baseApi.Select(sign[0], c.baseApi.Neg(s2), s2)
+	_s2 := c.scalarApi.Select(sign[0], c.scalarApi.Neg(s2), s2)
 	// check that s1 + s*_s2 == 0
-	// This is only true in scalarApi (mod r) not baseApi (mod p)!
-	// c.baseApi.AssertIsEqual(
-	// 	c.baseApi.Add(s1, c.baseApi.Mul(s, _s2)),
-	// 	c.baseApi.Zero(),
-	// )
+	c.scalarApi.AssertIsEqual(
+		c.scalarApi.Add(s1, c.scalarApi.Mul(s, _s2)),
+		c.scalarApi.Zero(),
+	)
 
 	// then compute the hinted scalar mul R = [s]Q
-	R, err := c.baseApi.NewHint(scalarMulG1Hint, 2, &Q.X, &Q.Y, s)
+	var inps []frontend.Variable
+	inps = append(inps, Q.X.Limbs...)
+	inps = append(inps, Q.Y.Limbs...)
+	inps = append(inps, s.Limbs...)
+	R, err := c.baseApi.NewHintWithNativeInput(scalarMulG1Hint, 2, inps...)
 	if err != nil {
 		panic(fmt.Sprintf("scalar mul hint: %v", err))
 	}
@@ -1296,8 +1299,8 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[B]
 	}
 	var st S
 	nbits := st.Modulus().BitLen()>>1 + 2
-	s1bits := c.baseApi.ToBits(s1)
-	s2bits := c.baseApi.ToBits(s2)
+	s1bits := c.scalarApi.ToBits(s1)
+	s2bits := c.scalarApi.ToBits(s2)
 
 	// store Q, -Q, 3Q, R, -R, 3R in a table
 	var tableQ, tableR [3]*AffinePoint[B]

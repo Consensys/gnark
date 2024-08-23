@@ -7,7 +7,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/emulated/emparams"
 )
 
 func init() {
@@ -78,17 +80,32 @@ func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int)
 }
 
 func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	return emulated.UnwrapHint(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
-		if len(inputs) != 3 {
-			return fmt.Errorf("expecting three inputs")
-		}
+	return emulated.UnwrapHintWithNativeInput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(outputs) != 2 {
 			return fmt.Errorf("expecting two outputs")
+		}
+		var fp emparams.P256Fp
+		var fr emparams.P256Fr
+		PXLimbs := inputs[:fp.NbLimbs()]
+		PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
+		SLimbs := inputs[2*fp.NbLimbs():]
+		Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
+		if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
+			return err
+
+		}
+		if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
+			return err
+
+		}
+		if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
+			return err
+
 		}
 
 		// compute the resulting point [s]Q
 		p256 := elliptic.P256()
-		outputs[0], outputs[1] = p256.ScalarMult(inputs[0], inputs[1], inputs[2].Bytes())
+		outputs[0], outputs[1] = p256.ScalarMult(Px, Py, S.Bytes())
 
 		return nil
 	})

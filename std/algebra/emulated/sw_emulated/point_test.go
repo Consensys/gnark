@@ -1919,7 +1919,7 @@ func TestMux(t *testing.T) {
 // fake GLV
 type ScalarMulFakeGLVTest[T, S emulated.FieldParams] struct {
 	Q, R AffinePoint[T]
-	S    emulated.Element[T]
+	S    emulated.Element[S]
 }
 
 func (c *ScalarMulFakeGLVTest[T, S]) Define(api frontend.API) error {
@@ -1941,7 +1941,7 @@ func TestScalaFakeGLVMul(t *testing.T) {
 
 	circuit := ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]{}
 	witness := ScalarMulFakeGLVTest[emulated.P256Fp, emulated.P256Fr]{
-		S: emulated.ValueOf[emulated.P256Fp](s),
+		S: emulated.ValueOf[emulated.P256Fr](s),
 		Q: AffinePoint[emulated.P256Fp]{
 			X: emulated.ValueOf[emulated.P256Fp](p256.Params().Gx),
 			Y: emulated.ValueOf[emulated.P256Fp](p256.Params().Gy),
