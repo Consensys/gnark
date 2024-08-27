@@ -60,7 +60,7 @@ jobs:
     - name: install solc deps
       if: startsWith(matrix.os, 'ubuntu') == true
       run: |
-        go install github.com/consensys/gnark-solidity-checker@latest
+        go install github.com/consensys/gnark-solidity-checker@v0.1.0
         sudo add-apt-repository ppa:ethereum/ethereum
         sudo apt-get update
         sudo apt-get install solc
