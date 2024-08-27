@@ -264,7 +264,7 @@ func NewPairing(api frontend.API) *Pairing {
 }
 
 // MillerLoop computes the Miller loop between the pairs of inputs. It doesn't
-// modify the inputs. It returns an error if there is a mismatch betwen the
+// modify the inputs. It returns an error if there is a mismatch between the
 // lengths of the inputs.
 func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	inP := make([]G1Affine, len(P))

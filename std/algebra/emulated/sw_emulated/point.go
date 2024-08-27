@@ -1196,7 +1196,7 @@ func (c *Curve[B, S]) scalarMulBaseGeneric(s *emulated.Element[S], opts ...algop
 //     curve, (_,0) is a point of order 2 which is not the prime subgroup.
 //   - (0,0) is not a valid public key.
 //
-// The [EVM] specifies these checks, wich are performed on the zkEVM
+// The [EVM] specifies these checks, which are performed on the zkEVM
 // arithmetization side before calling the circuit that uses this method.
 func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	return c.jointScalarMul(c.Generator(), p, s1, s2, opts...)
