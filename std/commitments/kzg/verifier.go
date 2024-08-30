@@ -424,22 +424,20 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 // commitment at point.
 func (v *Verifier[FR, G1El, G2El, GTEl]) CheckOpeningProof(commitment Commitment[G1El], proof OpeningProof[FR, G1El], point emulated.Element[FR], vk VerifyingKey[G1El, G2El]) error {
 
-	claimedValueG1 := v.curve.ScalarMulBase(&proof.ClaimedValue)
+	// [f(a)]G1 + [-a]([H(α)]G₁) = [f(a) - a*H(α)]G₁
+	pointNeg := v.scalarApi.Neg(&point)
+	totalG1, err := v.curve.MultiScalarMul([]*G1El{&vk.G1, &proof.Quotient}, []*emulated.Element[FR]{&proof.ClaimedValue, pointNeg})
+	if err != nil {
+		return fmt.Errorf("check opening proof: %w", err)
+	}
 
-	// [f(α) - f(a)]G₁
-	fminusfaG1 := v.curve.Neg(claimedValueG1)
-	fminusfaG1 = v.curve.Add(fminusfaG1, &commitment.G1El)
+	// [f(a) - a*H(α)]G₁ + [-f(α)]G₁  = [f(a) - f(α) - a*H(α)]G₁
+	commitmentNeg := v.curve.Neg(&commitment.G1El)
+	totalG1 = v.curve.Add(totalG1, commitmentNeg)
 
-	// [-H(α)]G₁
-	negQuotientPoly := v.curve.Neg(&proof.Quotient)
-
-	// [f(α) - f(a) + a*H(α)]G₁
-	totalG1 := v.curve.ScalarMul(&proof.Quotient, &point)
-	totalG1 = v.curve.Add(totalG1, fminusfaG1)
-
-	// e([f(α)-f(a)+aH(α)]G₁], G₂).e([-H(α)]G₁, [α]G₂) == 1
+	// e([f(a)-f(α)-a*H(α)]G₁], G₂).e([H(α)]G₁, [α]G₂) == 1
 	if err := v.pairing.PairingCheck(
-		[]*G1El{totalG1, negQuotientPoly},
+		[]*G1El{totalG1, &proof.Quotient},
 		[]*G2El{&vk.G2[0], &vk.G2[1]},
 	); err != nil {
 		return fmt.Errorf("pairing check: %w", err)
@@ -503,10 +501,13 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 	seed := whSnark.Sum()
 	binSeed := bits.ToBinary(v.api, seed, bits.WithNbDigits(fr.Modulus().BitLen()))
 	randomNumbers[1] = v.scalarApi.FromBits(binSeed...)
-	nbScalarBits := ((v.api.Compiler().FieldBitLen()+7)/8 - 1) * 8
 
 	for i := 2; i < len(randomNumbers); i++ {
-		// TODO use real random numbers, follow the solidity smart contract to know which variables are used as seed
+		// TODO: we can also use random number from the higher level transcript
+		// instead of computing it from the inputs. Currently it is inefficient
+		// as it computes hash of something for which we already have a hash.
+		// Maybe add an option to provide the folding coefficient? See issue
+		// https://github.com/Consensys/gnark/issues/1108
 		randomNumbers[i] = v.scalarApi.Mul(randomNumbers[1], randomNumbers[i-1])
 	}
 	randomPointNumbers := make([]*emulated.Element[FR], len(randomNumbers))
@@ -521,10 +522,11 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 	for i := 0; i < len(randomNumbers); i++ {
 		quotients[i] = &proofs[i].Quotient
 	}
-	foldedQuotients, err := v.curve.MultiScalarMul(quotients, []*emulated.Element[FR]{randomNumbers[1]}, algopts.WithFoldingScalarMul(), algopts.WithNbScalarBits(nbScalarBits))
+	foldedQuotients, err := v.curve.MultiScalarMul(quotients[1:], randomNumbers[1:])
 	if err != nil {
 		return nil, nil, fmt.Errorf("fold quotients: %w", err)
 	}
+	foldedQuotients = v.curve.Add(foldedQuotients, quotients[0])
 	foldedPointsQuotients, err := v.curve.MultiScalarMul(quotients, randomPointNumbers)
 	if err != nil {
 		return nil, nil, fmt.Errorf("fold point quotients: %w", err)
@@ -545,7 +547,7 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProofsMultiPoint(digests []Commitme
 	}
 
 	// compute commitment to folded Eval  [∑ᵢλᵢfᵢ(aᵢ)]G₁
-	foldedEvalsCommit := v.curve.ScalarMulBase(foldedEvals)
+	foldedEvalsCommit := v.curve.ScalarMul(&vk.G1, foldedEvals)
 
 	// compute foldedDigests = ∑ᵢλᵢ[fᵢ(α)]G₁ - [∑ᵢλᵢfᵢ(aᵢ)]G₁
 	tmp := v.curve.Neg(foldedEvalsCommit)
@@ -594,7 +596,6 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 	var retP OpeningProof[FR, G1El]
 	var retC Commitment[G1El]
 	// we assume the short hash output size is full byte fitting into the modulus length.
-	nbScalarBits := ((v.api.Compiler().FieldBitLen()+7)/8 - 1) * 8
 	nbDigests := len(digests)
 
 	// check consistency between numbers of claims vs number of digests
@@ -607,18 +608,6 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 	if err != nil {
 		return retP, retC, fmt.Errorf("derive gamma: %w", err)
 	}
-
-	// fold the claimed values and digests
-	// compute ∑ᵢ γ^i C_i = C_0 + γ(C_1 + γ(C2 ...)), allowing to bound the scalar multiplication iterations
-	digestsP := make([]*G1El, len(digests))
-	for i := range digestsP {
-		digestsP[i] = &digests[i].G1El
-	}
-	foldedDigests, err := v.curve.MultiScalarMul(digestsP, []*emulated.Element[FR]{gamma}, algopts.WithNbScalarBits(nbScalarBits), algopts.WithFoldingScalarMul())
-	if err != nil {
-		return retP, retC, fmt.Errorf("multi scalar mul: %w", err)
-	}
-
 	// gammai = [1,γ,γ²,..,γⁿ⁻¹]
 	gammai := make([]*emulated.Element[FR], nbDigests)
 	gammai[0] = v.scalarApi.One()
@@ -628,6 +617,18 @@ func (v *Verifier[FR, G1El, G2El, GTEl]) FoldProof(digests []Commitment[G1El], b
 	for i := 2; i < nbDigests; i++ {
 		gammai[i] = v.scalarApi.Mul(gammai[i-1], gamma)
 	}
+	// fold the claimed values and digests
+	// compute ∑ᵢ γ^i C_i = C_0 + γ(C_1 + γ(C2 ...)), allowing to bound the scalar multiplication iterations
+	digestsP := make([]*G1El, len(digests))
+	for i := range digestsP {
+		digestsP[i] = &digests[i].G1El
+	}
+	foldedDigests, err := v.curve.MultiScalarMul(digestsP[1:], gammai[1:])
+	if err != nil {
+		return retP, retC, fmt.Errorf("multi scalar mul: %w", err)
+	}
+	foldedDigests = v.curve.Add(foldedDigests, digestsP[0])
+
 	foldedEvaluations := &batchOpeningProof.ClaimedValues[0]
 	for i := 1; i < nbDigests; i++ {
 		tmp := v.scalarApi.Mul(&batchOpeningProof.ClaimedValues[i], gammai[i])

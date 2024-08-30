@@ -1,12 +1,14 @@
 package evmprecompiles
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -16,39 +18,7 @@ func init() {
 
 // GetHints returns all the hints used in this package.
 func GetHints() []solver.Hint {
-	return []solver.Hint{recoverPointHint, recoverPublicKeyHint}
-}
-
-func recoverPointHintArgs(v frontend.Variable, r emulated.Element[emulated.Secp256k1Fr]) []frontend.Variable {
-	args := []frontend.Variable{v}
-	args = append(args, r.Limbs...)
-	return args
-}
-
-func recoverPointHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
-	var emfp emulated.Secp256k1Fp
-	if len(inputs) != int(emfp.NbLimbs())+1 {
-		return fmt.Errorf("expected input %d limbs got %d", emfp.NbLimbs()+1, len(inputs))
-	}
-	if !inputs[0].IsInt64() {
-		return fmt.Errorf("first input supposed to be in [0,3]")
-	}
-	if len(outputs) != 2*int(emfp.NbLimbs()) {
-		return fmt.Errorf("expected output %d limbs got %d", 2*emfp.NbLimbs(), len(outputs))
-	}
-	v := inputs[0].Uint64()
-	r := recompose(inputs[1:], emfp.BitsPerLimb())
-	P, err := ecdsa.RecoverP(uint(v), r)
-	if err != nil {
-		return fmt.Errorf("recover: %s", err)
-	}
-	if err := decompose(P.X.BigInt(new(big.Int)), emfp.BitsPerLimb(), outputs[0:emfp.NbLimbs()]); err != nil {
-		return fmt.Errorf("decompose x: %w", err)
-	}
-	if err := decompose(P.Y.BigInt(new(big.Int)), emfp.BitsPerLimb(), outputs[emfp.NbLimbs():]); err != nil {
-		return fmt.Errorf("decompose y: %w", err)
-	}
-	return nil
+	return []solver.Hint{recoverPublicKeyHint}
 }
 
 func recoverPublicKeyHintArgs(msg emulated.Element[emulated.Secp256k1Fr],
@@ -74,24 +44,47 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	if !inputs[emfr.NbLimbs()].IsInt64() {
 		return fmt.Errorf("second input input must be in [0,3]")
 	}
-	if len(outputs) != 2*int(emfp.NbLimbs()) {
+	if len(outputs) != 2*int(emfp.NbLimbs())+1 {
 		return fmt.Errorf("expected output %d limbs got %d", 2*emfp.NbLimbs(), len(outputs))
 	}
-	msg := recompose(inputs[:emfr.NbLimbs()], emfr.BitsPerLimb())
+	msg, r, s := new(big.Int), new(big.Int), new(big.Int)
+	err := limbs.Recompose(inputs[:emfr.NbLimbs()], emfr.BitsPerLimb(), msg)
+	if err != nil {
+		return fmt.Errorf("recompose message: %w", err)
+	}
 	v := inputs[emfr.NbLimbs()].Uint64()
-	r := recompose(inputs[emfr.NbLimbs()+1:2*emfr.NbLimbs()+1], emfr.BitsPerLimb())
-	s := recompose(inputs[2*emfr.NbLimbs()+1:3*emfr.NbLimbs()+1], emfr.BitsPerLimb())
+	err = limbs.Recompose(inputs[emfr.NbLimbs()+1:2*emfr.NbLimbs()+1], emfr.BitsPerLimb(), r)
+	if err != nil {
+		return fmt.Errorf("recompose r: %w", err)
+	}
+	err = limbs.Recompose(inputs[2*emfr.NbLimbs()+1:3*emfr.NbLimbs()+1], emfr.BitsPerLimb(), s)
+	if err != nil {
+		return fmt.Errorf("recompose s: %w", err)
+	}
 	var pk ecdsa.PublicKey
+	var isQNRFailure int
 	if err := pk.RecoverFrom(msg.Bytes(), uint(v), r, s); err != nil {
-		return fmt.Errorf("recover public key: %w", err)
+		// in case we have some other possible error except QNR failure, then we return the error as is
+		if !errors.Is(err, ecdsa.ErrNoSqrtR) {
+			return fmt.Errorf("recover public key: %w", err)
+		}
+		// otherwise, we set the flag to 1. NB! In this case the public key is (0,0).
+		isQNRFailure = 1
 	}
 	Px := pk.A.X.BigInt(new(big.Int))
 	Py := pk.A.Y.BigInt(new(big.Int))
-	if err := decompose(Px, emfp.BitsPerLimb(), outputs[0:emfp.NbLimbs()]); err != nil {
+	if err := limbs.Decompose(Px, emfp.BitsPerLimb(), outputs[0:emfp.NbLimbs()]); err != nil {
 		return fmt.Errorf("decompose x: %w", err)
 	}
-	if err := decompose(Py, emfp.BitsPerLimb(), outputs[emfp.NbLimbs():2*emfp.NbLimbs()]); err != nil {
+	if err := limbs.Decompose(Py, emfp.BitsPerLimb(), outputs[emfp.NbLimbs():2*emfp.NbLimbs()]); err != nil {
 		return fmt.Errorf("decompose y: %w", err)
 	}
+	// we also return a flag that indicates if the public key is zero but only
+	// if the QNR failure flag is not set.
+	zero := new(big.Int)
+	xIsZero := 1 - Px.Cmp(zero)
+	yIsZero := 1 - Py.Cmp(zero)
+	isZero := (1 - isQNRFailure) * xIsZero * yIsZero
+	outputs[2*emfp.NbLimbs()].SetInt64(int64(isZero))
 	return nil
 }

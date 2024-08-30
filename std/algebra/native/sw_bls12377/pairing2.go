@@ -3,6 +3,7 @@ package sw_bls12377
 import (
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
@@ -14,6 +15,7 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/selector"
 )
 
 // Curve allows G1 operations in BLS12-377.
@@ -35,25 +37,38 @@ func NewCurve(api frontend.API) (*Curve, error) {
 }
 
 // MarshalScalar returns
-func (c *Curve) MarshalScalar(s Scalar) []frontend.Variable {
-	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
-	ss := c.fr.Reduce(&s)
-	x := c.fr.ToBits(ss)
-	for i, j := 0, nbBits-1; i < j; {
-		x[i], x[j] = x[j], x[i]
-		i++
-		j--
+func (c *Curve) MarshalScalar(s Scalar, opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
 	}
+	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
+	var ss *emulated.Element[ScalarField]
+	if cfg.ToBitsCanonical {
+		ss = c.fr.ReduceStrict(&s)
+	} else {
+		ss = c.fr.Reduce(&s)
+	}
+	x := c.fr.ToBits(ss)[:nbBits]
+	slices.Reverse(x)
 	return x
 }
 
 // MarshalG1 returns [P.X || P.Y] in binary. Both P.X and P.Y are
 // in little endian.
-func (c *Curve) MarshalG1(P G1Affine) []frontend.Variable {
+func (c *Curve) MarshalG1(P G1Affine, opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
 	nbBits := 8 * ((ecc.BLS12_377.BaseField().BitLen() + 7) / 8)
+	bOpts := []bits.BaseConversionOption{bits.WithNbDigits(nbBits)}
+	if !cfg.ToBitsCanonical {
+		bOpts = append(bOpts, bits.OmitModulusCheck())
+	}
 	res := make([]frontend.Variable, 2*nbBits)
-	x := bits.ToBinary(c.api, P.X, bits.WithNbDigits(nbBits))
-	y := bits.ToBinary(c.api, P.Y, bits.WithNbDigits(nbBits))
+	x := bits.ToBinary(c.api, P.X, bOpts...)
+	y := bits.ToBinary(c.api, P.Y, bOpts...)
 	for i := 0; i < nbBits; i++ {
 		res[i] = x[nbBits-1-i]
 		res[i+nbBits] = y[nbBits-1-i]
@@ -106,7 +121,7 @@ func (c *Curve) jointScalarMul(P1, P2 *G1Affine, s1, s2 *Scalar, opts ...algopts
 	res := &G1Affine{}
 	varScalar1 := c.packScalarToVar(s1)
 	varScalar2 := c.packScalarToVar(s2)
-	res.jointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2)
+	res.jointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2, opts...)
 	return res
 }
 
@@ -118,7 +133,7 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption)
 		Y: P.Y,
 	}
 	varScalar := c.packScalarToVar(s)
-	res.ScalarMul(c.api, *P, varScalar)
+	res.ScalarMul(c.api, *P, varScalar, opts...)
 	return res
 }
 
@@ -127,7 +142,7 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption)
 func (c *Curve) ScalarMulBase(s *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
 	res := new(G1Affine)
 	varScalar := c.packScalarToVar(s)
-	res.ScalarMulBase(c.api, varScalar)
+	res.ScalarMulBase(c.api, varScalar, opts...)
 	return res
 }
 
@@ -145,6 +160,10 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 	if err != nil {
 		return nil, fmt.Errorf("new config: %w", err)
 	}
+	addFn := c.Add
+	if cfg.CompleteArithmetic {
+		addFn = c.AddUnified
+	}
 	if !cfg.FoldMulti {
 		if len(P) != len(scalars) {
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
@@ -159,7 +178,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		}
 		for i := 1; i < n-1; i += 2 {
 			q := c.jointScalarMul(P[i-1], P[i], scalars[i-1], scalars[i], opts...)
-			res = c.Add(res, q)
+			res = addFn(res, q)
 		}
 		return res, nil
 	} else {
@@ -170,24 +189,27 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		gamma := c.packScalarToVar(scalars[0])
 		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
 		cc := getInnerCurveConfig(c.api.Compiler().Field())
-		sd, err := c.api.Compiler().NewHint(DecomposeScalarG1, 3, gamma)
+		sd, err := c.api.Compiler().NewHint(decomposeScalarG1Simple, 2, gamma)
 		if err != nil {
 			panic(err)
 		}
 		gamma1, gamma2 := sd[0], sd[1]
-		c.api.AssertIsEqual(c.api.Add(gamma1, c.api.Mul(gamma2, cc.lambda)), c.api.Add(gamma, c.api.Mul(cc.fr, sd[2])))
-		nbits := cc.lambda.BitLen() + 1
+		c.api.AssertIsEqual(
+			c.api.Add(gamma1, c.api.Mul(gamma2, cc.lambda)),
+			gamma,
+		)
+		nbits := cc.lambda.BitLen()
 		gamma1Bits := c.api.ToBinary(gamma1, nbits)
 		gamma2Bits := c.api.ToBinary(gamma2, nbits)
 
 		// points and scalars must be non-zero
 		var res G1Affine
-		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits)
+		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits, opts...)
 		for i := len(P) - 2; i > 0; i-- {
-			res = *c.Add(P[i], &res)
-			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits)
+			res = *addFn(P[i], &res)
+			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits, opts...)
 		}
-		res = *c.Add(P[0], &res)
+		res = *addFn(P[0], &res)
 		return &res, nil
 	}
 }
@@ -213,6 +235,22 @@ func (c *Curve) Lookup2(b1, b2 frontend.Variable, p1, p2, p3, p4 *G1Affine) *G1A
 	}
 }
 
+// Mux performs a lookup from the inputs and returns inputs[sel]. It is most
+// efficient for power of two lengths of the inputs, but works for any number of
+// inputs.
+func (c *Curve) Mux(sel frontend.Variable, inputs ...*G1Affine) *G1Affine {
+	xs := make([]frontend.Variable, len(inputs))
+	ys := make([]frontend.Variable, len(inputs))
+	for i := range inputs {
+		xs[i] = inputs[i].X
+		ys[i] = inputs[i].Y
+	}
+	return &G1Affine{
+		X: selector.Mux(c.api, sel, xs...),
+		Y: selector.Mux(c.api, sel, ys...),
+	}
+}
+
 // Pairing allows computing pairing-related operations in BLS12-377.
 type Pairing struct {
 	api frontend.API
@@ -226,7 +264,7 @@ func NewPairing(api frontend.API) *Pairing {
 }
 
 // MillerLoop computes the Miller loop between the pairs of inputs. It doesn't
-// modify the inputs. It returns an error if there is a mismatch betwen the
+// modify the inputs. It returns an error if there is a mismatch between the
 // lengths of the inputs.
 func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	inP := make([]G1Affine, len(P))
@@ -274,19 +312,97 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	for i := range Q {
 		inQ[i] = *Q[i]
 	}
-	res, err := Pair(p.api, inP, inQ)
+	res, err := MillerLoop(p.api, inP, inQ)
 	if err != nil {
 		return err
 	}
-	var one fields_bls12377.E12
-	one.SetOne()
-	res.AssertIsEqual(p.api, one)
+	// We perform the easy part of the final exp to push res to the cyclotomic
+	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
+	// cyclotomic squaring (e.g. Karabina12345).
+	//
+	// res = res^(p⁶-1)(p²+1)
+	var buf GT
+	buf.Conjugate(p.api, res)
+	buf.DivUnchecked(p.api, buf, res)
+	res.FrobeniusSquare(p.api, buf).Mul(p.api, res, buf)
+
+	res.AssertFinalExponentiationIsOne(p.api)
 	return nil
 }
 
 // AssertIsEqual asserts the equality of the target group elements.
 func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
+}
+
+// AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.
+func (c *Pairing) AssertIsOnCurve(p *G1Affine) {
+	// (X,Y) ∈ {Y² == X³ + 1} U (0,0)
+
+	// if p=(0,0) we assign b=0 and continue
+	selector := c.api.And(c.api.IsZero(p.X), c.api.IsZero(p.Y))
+	b := c.api.Select(selector, 0, 1)
+
+	left := c.api.Mul(p.Y, p.Y)
+	right := c.api.Mul(p.X, c.api.Mul(p.X, p.X))
+	right = c.api.Add(right, b)
+	c.api.AssertIsEqual(left, right)
+}
+
+func (c *Pairing) AssertIsOnG1(P *G1Affine) {
+	// 1- Check P is on the curve
+	c.AssertIsOnCurve(P)
+
+	// 2- Check P has the right subgroup order
+	// [x²]ϕ(P)
+	phiP := G1Affine{
+		X: c.api.Mul(P.X, "80949648264912719408558363140637477264845294720710499478137287262712535938301461879813459410945"),
+		Y: P.Y,
+	}
+	var _P G1Affine
+	_P.scalarMulBySeed(c.api, &phiP)
+	_P.scalarMulBySeed(c.api, &_P)
+	_P.Neg(c.api, _P)
+
+	// [r]Q == 0 <==>  P = -[x²]ϕ(P)
+	P.AssertIsEqual(c.api, _P)
+}
+
+// AssertIsOnTwist asserts if p belongs to the curve. It doesn't modify p.
+func (c *Pairing) AssertIsOnTwist(p *G2Affine) {
+	// (X,Y) ∈ {Y² == X³ + 1/u} U (0,0)
+
+	// if p=(0,0) we assign b=0 and continue
+	selector := c.api.And(p.P.X.IsZero(c.api), p.P.Y.IsZero(c.api))
+	var zero fields_bls12377.E2
+	zero.SetZero()
+	b := fields_bls12377.E2{
+		A0: 0,
+		A1: "155198655607781456406391640216936120121836107652948796323930557600032281009004493664981332883744016074664192874906",
+	}
+	b.Select(c.api, selector, zero, b)
+
+	var left, right fields_bls12377.E2
+	left.Square(c.api, p.P.Y)
+	right.Square(c.api, p.P.X)
+	right.Mul(c.api, right, p.P.X)
+	right.Add(c.api, right, b)
+	left.AssertIsEqual(c.api, right)
+}
+
+func (c *Pairing) AssertIsOnG2(P *G2Affine) {
+	// 1- Check P is on the curve
+	c.AssertIsOnTwist(P)
+
+	// 2- Check P has the right subgroup order
+	// [x₀]Q
+	var xP, psiP g2AffP
+	xP.scalarMulBySeed(c.api, &P.P)
+	// ψ(Q)
+	psiP.psi(c.api, &P.P)
+
+	// [r]Q == 0 <==>  ψ(Q) == [x₀]Q
+	xP.AssertIsEqual(c.api, psiP)
 }
 
 // NewG1Affine allocates a witness from the native G1 element and returns it.

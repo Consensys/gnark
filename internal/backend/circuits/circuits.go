@@ -27,7 +27,7 @@ func addEntry(name string, circuit, proverGood, proverBad frontend.Circuit, curv
 		panic("name " + name + "already taken by another test circuit ")
 	}
 
-	Circuits[name] = TestCircuit{circuit, []frontend.Circuit{proverGood}, []frontend.Circuit{proverBad}, nil, curves}
+	Circuits[name] = TestCircuit{Circuit: circuit, ValidAssignments: []frontend.Circuit{proverGood}, InvalidAssignments: []frontend.Circuit{proverBad}, HintFunctions: nil, Curves: curves}
 }
 
 func addNewEntry(name string, circuit frontend.Circuit, proverGood, proverBad []frontend.Circuit, curves []ecc.ID, hintFunctions ...solver.Hint) {
@@ -39,5 +39,5 @@ func addNewEntry(name string, circuit frontend.Circuit, proverGood, proverBad []
 	}
 	solver.RegisterHint(hintFunctions...)
 
-	Circuits[name] = TestCircuit{circuit, proverGood, proverBad, hintFunctions, curves}
+	Circuits[name] = TestCircuit{Circuit: circuit, ValidAssignments: proverGood, InvalidAssignments: proverBad, HintFunctions: nil, Curves: curves}
 }

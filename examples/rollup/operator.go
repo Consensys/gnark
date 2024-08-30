@@ -92,7 +92,7 @@ func (o *Operator) readAccount(i uint64) (Account, error) {
 	return res, nil
 }
 
-// updateAccount updates the state according to transfer
+// updateState updates the state according to transfer
 // numTransfer is the number of the transfer currently handled (between 0 and BatchSizeCircuit)
 func (o *Operator) updateState(t Transfer, numTransfer int) error {
 

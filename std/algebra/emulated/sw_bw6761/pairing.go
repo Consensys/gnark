@@ -8,6 +8,7 @@ import (
 	bw6761 "github.com/consensys/gnark-crypto/ecc/bw6-761"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/emulated/fields_bw6761"
+	"github.com/consensys/gnark/std/algebra/emulated/sw_emulated"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -15,6 +16,9 @@ type Pairing struct {
 	api frontend.API
 	*fields_bw6761.Ext6
 	curveF *emulated.Field[BaseField]
+	curve  *sw_emulated.Curve[BaseField, ScalarField]
+	g1     *G1
+	g2     *G2
 	g2gen  *G2Affine
 }
 
@@ -22,16 +26,12 @@ type GTEl = fields_bw6761.E6
 
 func NewGTEl(v bw6761.GT) GTEl {
 	return GTEl{
-		B0: fields_bw6761.E3{
-			A0: emulated.ValueOf[BaseField](v.B0.A0),
-			A1: emulated.ValueOf[BaseField](v.B0.A1),
-			A2: emulated.ValueOf[BaseField](v.B0.A2),
-		},
-		B1: fields_bw6761.E3{
-			A0: emulated.ValueOf[BaseField](v.B1.A0),
-			A1: emulated.ValueOf[BaseField](v.B1.A1),
-			A2: emulated.ValueOf[BaseField](v.B1.A2),
-		},
+		A0: emulated.ValueOf[BaseField](v.B0.A0),
+		A1: emulated.ValueOf[BaseField](v.B1.A0),
+		A2: emulated.ValueOf[BaseField](v.B0.A1),
+		A3: emulated.ValueOf[BaseField](v.B1.A1),
+		A4: emulated.ValueOf[BaseField](v.B0.A2),
+		A5: emulated.ValueOf[BaseField](v.B1.A2),
 	}
 }
 
@@ -40,10 +40,25 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new base api: %w", err)
 	}
+	curve, err := sw_emulated.New[BaseField, ScalarField](api, sw_emulated.GetBW6761Params())
+	if err != nil {
+		return nil, fmt.Errorf("new curve: %w", err)
+	}
+	g1, err := NewG1(api)
+	if err != nil {
+		return nil, fmt.Errorf("new G1 struct: %w", err)
+	}
+	g2, err := NewG2(api)
+	if err != nil {
+		return nil, fmt.Errorf("new G2 struct: %w", err)
+	}
 	return &Pairing{
 		api:    api,
 		Ext6:   fields_bw6761.NewExt6(api),
 		curveF: ba,
+		curve:  curve,
+		g1:     g1,
+		g2:     g2,
 	}, nil
 }
 
@@ -81,7 +96,8 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 	a = pr.Mul(a, pr.Frobenius(result))
 	b := pr.ExpX0Plus1(a)
 	b = pr.Mul(b, pr.Conjugate(result))
-	t := pr.CyclotomicSquare(a)
+	t := pr.CyclotomicSquareKarabina12345(a)
+	t = pr.DecompressKarabina12345(t)
 	a = pr.Mul(a, t)
 	c := pr.ExptMinus1Div3(b)
 	d := pr.ExpX0Minus1(c)
@@ -97,7 +113,8 @@ func (pr Pairing) FinalExponentiation(z *GTEl) *GTEl {
 	i = pr.Mul(i, pr.Conjugate(f))
 	j := pr.ExpC1(h)
 	j = pr.Mul(j, e)
-	k := pr.CyclotomicSquare(j)
+	k := pr.CyclotomicSquareKarabina12345(j)
+	k = pr.DecompressKarabina12345(k)
 	k = pr.Mul(k, j)
 	k = pr.Mul(k, b)
 	t = pr.ExpC2(i)
@@ -124,19 +141,86 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	f, err := pr.Pair(P, Q)
+	f, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return err
 
 	}
-	one := pr.One()
-	pr.AssertIsEqual(f, one)
+	// We perform the easy part of the final exp to push f to the cyclotomic
+	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
+	// cyclotomic squaring (e.g. Karabina12345).
+	//
+	// f = f^(p³-1)(p+1)
+	buf := pr.Conjugate(f)
+	buf = pr.DivUnchecked(buf, f)
+	f = pr.Frobenius(buf)
+	f = pr.Mul(f, buf)
+
+	pr.AssertFinalExponentiationIsOne(f)
 
 	return nil
 }
 
 func (pr Pairing) AssertIsEqual(x, y *GTEl) {
 	pr.Ext6.AssertIsEqual(x, y)
+}
+
+func (pr Pairing) AssertIsOnCurve(P *G1Affine) {
+	pr.curve.AssertIsOnCurve(P)
+}
+
+func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
+	// Twist: Y² == X³ + aX + b, where a=0 and b=4
+	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
+
+	// if Q=(0,0) we assign b=0 otherwise 4, and continue
+	selector := pr.api.And(pr.curveF.IsZero(&Q.P.X), pr.curveF.IsZero(&Q.P.Y))
+	bTwist := emulated.ValueOf[BaseField](4)
+	b := pr.curveF.Select(selector, pr.curveF.Zero(), &bTwist)
+
+	left := pr.curveF.Mul(&Q.P.Y, &Q.P.Y)
+	right := pr.curveF.Mul(&Q.P.X, &Q.P.X)
+	right = pr.curveF.Mul(right, &Q.P.X)
+	right = pr.curveF.Add(right, b)
+	pr.curveF.AssertIsEqual(left, right)
+}
+
+func (pr Pairing) AssertIsOnG1(P *G1Affine) {
+	// 1- Check P is on the curve
+	pr.AssertIsOnCurve(P)
+
+	// 2- Check P has the right subgroup order
+	// we check that [x₀+1]P == [-x₀³+x₀²-1]ϕ(P)
+	xP := pr.g1.scalarMulBySeed(P)
+	x2P := pr.g1.scalarMulBySeed(xP)
+	x3P := pr.g1.scalarMulBySeed(x2P)
+
+	left := pr.g1.add(xP, P)
+	right := pr.g1.sub(x2P, x3P)
+	right = pr.g1.sub(right, P)
+	right = pr.g1.phi(right)
+
+	// [r]P == 0 <==> [x₀+1]P == [-x₀³+x₀²-1]ϕ(P)
+	pr.curve.AssertIsEqual(left, right)
+}
+
+func (pr Pairing) AssertIsOnG2(Q *G2Affine) {
+	// 1- Check Q is on the curve
+	pr.AssertIsOnTwist(Q)
+
+	// 2- Check Q has the right subgroup order
+	// we check that [x₀+1]Q == [-x₀³+x₀²-1]ϕ(Q)
+	xQ := pr.g2.scalarMulBySeed(Q)
+	x2Q := pr.g2.scalarMulBySeed(xQ)
+	x3Q := pr.g2.scalarMulBySeed(x2Q)
+
+	left := pr.g2.add(xQ, Q)
+	right := pr.g2.sub(x2Q, x3Q)
+	right = pr.g2.sub(right, Q)
+	right = pr.g2.phi(right)
+
+	// [r]Q == 0 <==> [x₀+1]Q == [-x₀³+x₀²-1]ϕ(Q)
+	pr.g2.AssertIsEqual(left, right)
 }
 
 // seed x₀=9586122913090633729
@@ -223,57 +307,38 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 	// i = 188
 	// k = 0
 	result = &fields_bw6761.E6{
-		B0: fields_bw6761.E3{
-			A0: *pr.curveF.Mul(&lines[0][0][188].R1, yInv[0]),
-			A1: *pr.curveF.Mul(&lines[0][0][188].R0, xNegOverY[0]),
-			A2: result.B0.A2,
-		},
-		B1: fields_bw6761.E3{
-			A0: result.B1.A0,
-			A1: *pr.curveF.One(),
-			A2: result.B1.A2,
-		},
+		A0: *pr.curveF.Mul(&lines[0][0][188].R1, yInv[0]),
+		A1: result.A1,
+		A2: *pr.curveF.Mul(&lines[0][0][188].R0, xNegOverY[0]),
+		A3: *pr.curveF.One(),
+		A4: result.A4,
+		A5: result.A5,
 	}
 
 	if n >= 2 {
-		// k = 1, separately to avoid MulBy014 (res × ℓ)
-		// (res is also a line at this point, so we use Mul014By014 ℓ × ℓ)
-		prodLines = pr.Mul014By014(
+		// k = 1, separately to avoid MulBy023 (res × ℓ)
+		// (res is also a line at this point, so we use Mul023By023 ℓ × ℓ)
+		prodLines = pr.Mul023By023(
 			pr.curveF.Mul(&lines[1][0][188].R1, yInv[1]),
 			pr.curveF.Mul(&lines[1][0][188].R0, xNegOverY[1]),
-			&result.B0.A0,
-			&result.B0.A1,
+			&result.A0,
+			&result.A2,
 		)
 		result = &fields_bw6761.E6{
-			B0: fields_bw6761.E3{
-				A0: *prodLines[0],
-				A1: *prodLines[1],
-				A2: *prodLines[2],
-			},
-			B1: fields_bw6761.E3{
-				A0: result.B1.A0,
-				A1: *prodLines[3],
-				A2: *prodLines[4],
-			},
+			A0: *prodLines[0],
+			A1: result.A1,
+			A2: *prodLines[1],
+			A3: *prodLines[2],
+			A4: *prodLines[3],
+			A5: *prodLines[4],
 		}
 	}
 
-	if n >= 3 {
-		// k = 2, separately to avoid MulBy014 (res × ℓ)
-		// (res has a zero E2 element, so we use Mul01245By014)
-		result = pr.Mul01245By014(
-			prodLines,
-			pr.curveF.Mul(&lines[2][0][188].R1, yInv[2]),
-			pr.curveF.Mul(&lines[2][0][188].R0, xNegOverY[2]),
+	for k := 2; k < n; k++ {
+		result = pr.MulBy023(result,
+			pr.curveF.Mul(&lines[k][0][188].R1, yInv[k]),
+			pr.curveF.Mul(&lines[k][0][188].R0, xNegOverY[k]),
 		)
-
-		// k >= 3
-		for k := 3; k < n; k++ {
-			result = pr.MulBy014(result,
-				pr.curveF.Mul(&lines[k][0][188].R1, yInv[k]),
-				pr.curveF.Mul(&lines[k][0][188].R0, xNegOverY[k]),
-			)
-		}
 	}
 
 	for i := 187; i >= 0; i-- {
@@ -281,19 +346,35 @@ func (pr Pairing) millerLoopLines(P []*G1Affine, lines []lineEvaluations) (*GTEl
 		// (∏ᵢfᵢ)²
 		result = pr.Square(result)
 
-		for k := 0; k < n; k++ {
-			result = pr.MulBy014(result,
-				pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
-				pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
-			)
-		}
-
 		if i > 0 && loopCounter2[i]*3+loopCounter1[i] != 0 {
 			for k := 0; k < n; k++ {
-				result = pr.MulBy014(result,
+				prodLines = pr.Mul023By023(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
 					pr.curveF.Mul(&lines[k][1][i].R1, yInv[k]),
 					pr.curveF.Mul(&lines[k][1][i].R0, xNegOverY[k]),
 				)
+				result = pr.MulBy02345(result, prodLines)
+			}
+		} else {
+			// if number of lines is odd, mul last line by res
+			// works for n=1 as well
+			if n%2 != 0 {
+				// ℓ × res
+				result = pr.MulBy023(result,
+					pr.curveF.Mul(&lines[n-1][0][i].R1, yInv[n-1]),
+					pr.curveF.Mul(&lines[n-1][0][i].R0, xNegOverY[n-1]),
+				)
+			}
+			// mul lines 2-by-2
+			for k := 1; k < n; k += 2 {
+				prodLines = pr.Mul023By023(
+					pr.curveF.Mul(&lines[k][0][i].R1, yInv[k]),
+					pr.curveF.Mul(&lines[k][0][i].R0, xNegOverY[k]),
+					pr.curveF.Mul(&lines[k-1][0][i].R1, yInv[k-1]),
+					pr.curveF.Mul(&lines[k-1][0][i].R0, xNegOverY[k-1]),
+				)
+				result = pr.MulBy02345(result, prodLines)
 			}
 		}
 	}

@@ -21,7 +21,6 @@ import (
 
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -135,7 +134,7 @@ func (e *E12) Add(api frontend.API, e1, e2 E12) *E12 {
 	return e
 }
 
-// Sub substracts 2 elmts in Fp12
+// Sub subtracts 2 elmts in Fp12
 func (e *E12) Sub(api frontend.API, e1, e2 E12) *E12 {
 	e.C0.Sub(api, e1.C0, e2.C0)
 	e.C1.Sub(api, e1.C1, e2.C1)
@@ -177,7 +176,7 @@ func (e *E12) Square(api frontend.API, x E12) *E12 {
 	c3.Sub(api, x.C0, c3)
 	c2.Mul(api, x.C0, x.C1)
 	c0.Mul(api, c0, c3).Add(api, c0, c2)
-	e.C1.Add(api, c2, c2)
+	e.C1.Double(api, c2)
 	c2.MulByNonResidue(api, c2)
 	e.C0.Add(api, c0, c2)
 
@@ -424,13 +423,13 @@ func (e *E12) CyclotomicSquare(api frontend.API, x E12) *E12 {
 	t[2].MulByNonResidue(api, t[2]).Add(api, t[2], t[3]) // x2²*u + x3²
 	t[4].MulByNonResidue(api, t[4]).Add(api, t[4], t[5]) // x5²*u + x1²
 
-	e.C0.B0.Sub(api, t[0], x.C0.B0).Add(api, e.C0.B0, e.C0.B0).Add(api, e.C0.B0, t[0])
-	e.C0.B1.Sub(api, t[2], x.C0.B1).Add(api, e.C0.B1, e.C0.B1).Add(api, e.C0.B1, t[2])
-	e.C0.B2.Sub(api, t[4], x.C0.B2).Add(api, e.C0.B2, e.C0.B2).Add(api, e.C0.B2, t[4])
+	e.C0.B0.Sub(api, t[0], x.C0.B0).Double(api, e.C0.B0).Add(api, e.C0.B0, t[0])
+	e.C0.B1.Sub(api, t[2], x.C0.B1).Double(api, e.C0.B1).Add(api, e.C0.B1, t[2])
+	e.C0.B2.Sub(api, t[4], x.C0.B2).Double(api, e.C0.B2).Add(api, e.C0.B2, t[4])
 
-	e.C1.B0.Add(api, t[8], x.C1.B0).Add(api, e.C1.B0, e.C1.B0).Add(api, e.C1.B0, t[8])
-	e.C1.B1.Add(api, t[6], x.C1.B1).Add(api, e.C1.B1, e.C1.B1).Add(api, e.C1.B1, t[6])
-	e.C1.B2.Add(api, t[7], x.C1.B2).Add(api, e.C1.B2, e.C1.B2).Add(api, e.C1.B2, t[7])
+	e.C1.B0.Add(api, t[8], x.C1.B0).Double(api, e.C1.B0).Add(api, e.C1.B0, t[8])
+	e.C1.B1.Add(api, t[6], x.C1.B1).Double(api, e.C1.B1).Add(api, e.C1.B1, t[6])
+	e.C1.B2.Add(api, t[7], x.C1.B2).Double(api, e.C1.B2).Add(api, e.C1.B2, t[7])
 
 	return e
 }
@@ -469,48 +468,10 @@ func (e *E12) FrobeniusSquare(api frontend.API, e1 E12) *E12 {
 	return e
 }
 
-var InverseE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, c bls12377.E12
-
-	a.C0.B0.A0.SetBigInt(inputs[0])
-	a.C0.B0.A1.SetBigInt(inputs[1])
-	a.C0.B1.A0.SetBigInt(inputs[2])
-	a.C0.B1.A1.SetBigInt(inputs[3])
-	a.C0.B2.A0.SetBigInt(inputs[4])
-	a.C0.B2.A1.SetBigInt(inputs[5])
-	a.C1.B0.A0.SetBigInt(inputs[6])
-	a.C1.B0.A1.SetBigInt(inputs[7])
-	a.C1.B1.A0.SetBigInt(inputs[8])
-	a.C1.B1.A1.SetBigInt(inputs[9])
-	a.C1.B2.A0.SetBigInt(inputs[10])
-	a.C1.B2.A1.SetBigInt(inputs[11])
-
-	c.Inverse(&a)
-
-	c.C0.B0.A0.BigInt(res[0])
-	c.C0.B0.A1.BigInt(res[1])
-	c.C0.B1.A0.BigInt(res[2])
-	c.C0.B1.A1.BigInt(res[3])
-	c.C0.B2.A0.BigInt(res[4])
-	c.C0.B2.A1.BigInt(res[5])
-	c.C1.B0.A0.BigInt(res[6])
-	c.C1.B0.A1.BigInt(res[7])
-	c.C1.B1.A0.BigInt(res[8])
-	c.C1.B1.A1.BigInt(res[9])
-	c.C1.B2.A0.BigInt(res[10])
-	c.C1.B2.A1.BigInt(res[11])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(InverseE12Hint)
-}
-
 // Inverse e12 elmts
 func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 
-	res, err := api.NewHint(InverseE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C0.B2.A0, e1.C0.B2.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C1.B2.A0, e1.C1.B2.A1)
+	res, err := api.NewHint(inverseE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C0.B2.A0, e1.C0.B2.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C1.B2.A0, e1.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -529,61 +490,10 @@ func (e *E12) Inverse(api frontend.API, e1 E12) *E12 {
 	return e
 }
 
-var DivE12Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, b, c bls12377.E12
-
-	a.C0.B0.A0.SetBigInt(inputs[0])
-	a.C0.B0.A1.SetBigInt(inputs[1])
-	a.C0.B1.A0.SetBigInt(inputs[2])
-	a.C0.B1.A1.SetBigInt(inputs[3])
-	a.C0.B2.A0.SetBigInt(inputs[4])
-	a.C0.B2.A1.SetBigInt(inputs[5])
-	a.C1.B0.A0.SetBigInt(inputs[6])
-	a.C1.B0.A1.SetBigInt(inputs[7])
-	a.C1.B1.A0.SetBigInt(inputs[8])
-	a.C1.B1.A1.SetBigInt(inputs[9])
-	a.C1.B2.A0.SetBigInt(inputs[10])
-	a.C1.B2.A1.SetBigInt(inputs[11])
-
-	b.C0.B0.A0.SetBigInt(inputs[12])
-	b.C0.B0.A1.SetBigInt(inputs[13])
-	b.C0.B1.A0.SetBigInt(inputs[14])
-	b.C0.B1.A1.SetBigInt(inputs[15])
-	b.C0.B2.A0.SetBigInt(inputs[16])
-	b.C0.B2.A1.SetBigInt(inputs[17])
-	b.C1.B0.A0.SetBigInt(inputs[18])
-	b.C1.B0.A1.SetBigInt(inputs[19])
-	b.C1.B1.A0.SetBigInt(inputs[20])
-	b.C1.B1.A1.SetBigInt(inputs[21])
-	b.C1.B2.A0.SetBigInt(inputs[22])
-	b.C1.B2.A1.SetBigInt(inputs[23])
-
-	c.Inverse(&b).Mul(&c, &a)
-
-	c.C0.B0.A0.BigInt(res[0])
-	c.C0.B0.A1.BigInt(res[1])
-	c.C0.B1.A0.BigInt(res[2])
-	c.C0.B1.A1.BigInt(res[3])
-	c.C0.B2.A0.BigInt(res[4])
-	c.C0.B2.A1.BigInt(res[5])
-	c.C1.B0.A0.BigInt(res[6])
-	c.C1.B0.A1.BigInt(res[7])
-	c.C1.B1.A0.BigInt(res[8])
-	c.C1.B1.A1.BigInt(res[9])
-	c.C1.B2.A0.BigInt(res[10])
-	c.C1.B2.A1.BigInt(res[11])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DivE12Hint)
-}
-
 // DivUnchecked e12 elmts
 func (e *E12) DivUnchecked(api frontend.API, e1, e2 E12) *E12 {
 
-	res, err := api.NewHint(DivE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C0.B2.A0, e1.C0.B2.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C1.B2.A0, e1.C1.B2.A1, e2.C0.B0.A0, e2.C0.B0.A1, e2.C0.B1.A0, e2.C0.B1.A1, e2.C0.B2.A0, e2.C0.B2.A1, e2.C1.B0.A0, e2.C1.B0.A1, e2.C1.B1.A0, e2.C1.B1.A1, e2.C1.B2.A0, e2.C1.B2.A1)
+	res, err := api.NewHint(divE12Hint, 12, e1.C0.B0.A0, e1.C0.B0.A1, e1.C0.B1.A0, e1.C0.B1.A1, e1.C0.B2.A0, e1.C0.B2.A1, e1.C1.B0.A0, e1.C1.B0.A1, e1.C1.B1.A0, e1.C1.B1.A1, e1.C1.B2.A0, e1.C1.B2.A1, e2.C0.B0.A0, e2.C0.B0.A1, e2.C0.B1.A0, e2.C0.B1.A1, e2.C0.B2.A0, e2.C0.B2.A1, e2.C1.B0.A0, e2.C1.B0.A1, e2.C1.B1.A0, e2.C1.B1.A1, e2.C1.B2.A0, e2.C1.B2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)

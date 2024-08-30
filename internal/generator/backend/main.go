@@ -67,6 +67,7 @@ func main() {
 		Curve:     "tinyfield",
 		CurveID:   "UNKNOWN",
 		noBackend: true,
+		NoGKR:     true,
 	}
 
 	// autogenerate tinyfield
@@ -104,7 +105,6 @@ func main() {
 				groth16Dir         = strings.Replace(d.RootPath, "{?}", "groth16", 1)
 				groth16MpcSetupDir = filepath.Join(groth16Dir, "mpcsetup")
 				plonkDir           = strings.Replace(d.RootPath, "{?}", "plonk", 1)
-				plonkFriDir        = strings.Replace(d.RootPath, "{?}", "plonkfri", 1)
 			)
 
 			if err := os.MkdirAll(groth16Dir, 0700); err != nil {
@@ -113,15 +113,13 @@ func main() {
 			if err := os.MkdirAll(plonkDir, 0700); err != nil {
 				panic(err)
 			}
-			if err := os.MkdirAll(plonkFriDir, 0700); err != nil {
-				panic(err)
-			}
 
 			csDir := d.CSPath
 
 			// constraint systems
 			entries := []bavard.Entry{
 				{File: filepath.Join(csDir, "system.go"), Templates: []string{"system.go.tmpl", importCurve}},
+				{File: filepath.Join(csDir, "marshal.go"), Templates: []string{"marshal.go.tmpl", importCurve}},
 				{File: filepath.Join(csDir, "coeff.go"), Templates: []string{"coeff.go.tmpl", importCurve}},
 				{File: filepath.Join(csDir, "solver.go"), Templates: []string{"solver.go.tmpl", importCurve}},
 			}
@@ -203,16 +201,6 @@ func main() {
 				panic(err)
 			}
 
-			// plonkfri
-			entries = []bavard.Entry{
-				{File: filepath.Join(plonkFriDir, "verify.go"), Templates: []string{"plonkfri/plonk.verify.go.tmpl", importCurve}},
-				{File: filepath.Join(plonkFriDir, "prove.go"), Templates: []string{"plonkfri/plonk.prove.go.tmpl", importCurve}},
-				{File: filepath.Join(plonkFriDir, "setup.go"), Templates: []string{"plonkfri/plonk.setup.go.tmpl", importCurve}},
-			}
-			if err := bgen.Generate(d, "plonkfri", "./template/zkpschemes/", entries...); err != nil {
-				panic(err)
-			}
-
 		}(d)
 
 	}
@@ -235,4 +223,5 @@ type templateData struct {
 	Curve     string
 	CurveID   string
 	noBackend bool
+	NoGKR     bool
 }

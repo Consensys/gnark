@@ -109,7 +109,7 @@ func TestVerifyingKeySerialization(t *testing.T) {
 						elem.Add(&elem, &p1)
 					}
 				}
-				_, vk.CommitmentKey, err = pedersen.Setup(bases...)
+				_, vk.CommitmentKey, err = pedersen.Setup(bases)
 				assert.NoError(t, err)
 			}
 
@@ -183,13 +183,20 @@ func TestProvingKeySerialization(t *testing.T) {
 			}
 			{
 				var err error
-				pk.CommitmentKeys, _, err = pedersen.Setup(pedersenBases...)
+				pk.CommitmentKeys, _, err = pedersen.Setup(pedersenBases)
 				require.NoError(t, err)
 			}
 
-			err := io.RoundTripCheck(&pk, func() any { return new(ProvingKey) })
-			return err == nil
+			if err := io.RoundTripCheck(&pk, func() any { return new(ProvingKey) }); err != nil {
+				t.Log(err)
+				return false
+			}
 
+			if err := io.DumpRoundTripCheck(&pk, func() any { return new(ProvingKey) }); err != nil {
+				t.Log(err)
+				return false
+			}
+			return true
 		},
 		GenG1(),
 		GenG2(),

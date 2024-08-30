@@ -135,9 +135,6 @@ func (c *IssueDiv0Circuit) Define(api frontend.API) error {
 func TestExistDiv0(t *testing.T) {
 	assert := test.NewAssert(t)
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &IssueDiv0Circuit{})
-	if err != nil {
-		t.Fatal(err)
-	}
 	assert.NoError(err)
 	w, err := frontend.NewWitness(&IssueDiv0Circuit{
 		A1: 11, B1: 21,
@@ -150,9 +147,70 @@ func TestExistDiv0(t *testing.T) {
 		Res7: 0, Res8: 55,
 	}, ecc.BN254.ScalarField())
 	assert.NoError(err)
-	solution, err := ccs.Solve(w)
+	_, err = ccs.Solve(w)
 	assert.NoError(err)
-	_ = solution
+}
+
+type IssueDiv0Circuit2 struct {
+	A1, B1 frontend.Variable
+
+	Res1, Res2 frontend.Variable
+}
+
+func (c *IssueDiv0Circuit2) Define(api frontend.API) error {
+	// case 1
+	b1 := api.Mul(0, c.A1)
+	b2 := api.Mul(4, c.B1)
+	t1 := api.Mul(b1, b2)
+
+	b3 := api.Mul(2, c.A1)
+	b4 := api.Mul(5, c.B1)
+	t2 := api.Mul(b3, b4)
+
+	// test solver
+	api.AssertIsEqual(t1, c.Res1)
+	api.AssertIsEqual(t2, c.Res2)
+	return nil
+}
+
+func TestExistDiv02(t *testing.T) {
+	assert := test.NewAssert(t)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &IssueDiv0Circuit2{})
+	assert.NoError(err)
+	w, err := frontend.NewWitness(&IssueDiv0Circuit2{
+		A1: 11, B1: 21,
+		Res1: 0, Res2: 2310,
+	}, ecc.BN254.ScalarField())
+	assert.NoError(err)
+	_, err = ccs.Solve(w)
+	assert.NoError(err)
+}
+
+type TestZeroMulNoConstraintCircuit struct {
+	A, B frontend.Variable
+}
+
+func (c *TestZeroMulNoConstraintCircuit) Define(api frontend.API) error {
+	// case 1
+	t1 := api.Mul(0, c.A)
+	t2 := api.Mul(t1, c.B)
+
+	t3 := api.Sub(c.A, c.A)
+	t4 := api.Mul(3, t3)
+
+	// test solver
+	api.AssertIsEqual(t2, 0)
+	api.AssertIsEqual(t4, 0)
+	return nil
+}
+
+func TestZeroMulNoConstraint(t *testing.T) {
+	assert := test.NewAssert(t)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &TestZeroMulNoConstraintCircuit{})
+	assert.NoError(err)
+	if ccs.GetNbConstraints() != 0 {
+		t.Fatal("expected 0 constraints")
+	}
 }
 
 type mulAccFastTrackCircuit struct {
@@ -179,4 +237,56 @@ func TestMulAccFastTrack(t *testing.T) {
 	solution, err := ccs.Solve(w)
 	assert.NoError(err)
 	_ = solution
+}
+
+type subSameNoConstraintCircuit struct {
+	A frontend.Variable
+}
+
+func (c *subSameNoConstraintCircuit) Define(api frontend.API) error {
+	r := api.Sub(c.A, c.A)
+	api.AssertIsEqual(r, 0)
+	return nil
+}
+
+func TestSubSameNoConstraint(t *testing.T) {
+	assert := test.NewAssert(t)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &subSameNoConstraintCircuit{})
+	assert.NoError(err)
+	if ccs.GetNbConstraints() != 0 {
+		t.Fatal("expected 0 constraints")
+	}
+}
+
+type regressionOr struct {
+	A          frontend.Variable
+	constOr    int
+	constCheck int
+}
+
+func (c *regressionOr) Define(api frontend.API) error {
+	y := api.Or(c.A, c.constOr)
+	api.AssertIsEqual(y, c.constCheck)
+	return nil
+}
+
+func TestRegressionOr(t *testing.T) {
+	assert := test.NewAssert(t)
+	for _, tc := range []struct{ in, o, c int }{
+		{1, 1, 1}, {0, 1, 1},
+		{1, 0, 1}, {0, 0, 0},
+	} {
+		ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, &regressionOr{constOr: tc.o, constCheck: tc.c})
+		assert.NoError(err)
+		w, err := frontend.NewWitness(&regressionOr{
+			A: tc.in,
+		}, ecc.BN254.ScalarField())
+		if err != nil {
+			t.Error("compile", err)
+		}
+		_, err = ccs.Solve(w)
+		if err != nil {
+			t.Error("solve", err)
+		}
+	}
 }

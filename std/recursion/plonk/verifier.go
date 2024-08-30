@@ -2,7 +2,6 @@ package plonk
 
 import (
 	"fmt"
-	stdbits "math/bits"
 
 	fr_bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	fr_bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
@@ -19,6 +18,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bls12381"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bn254"
 	"github.com/consensys/gnark/std/algebra/emulated/sw_bw6761"
@@ -29,6 +29,7 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/recursion"
+	"github.com/consensys/gnark/std/selector"
 )
 
 // Proof is a typed PLONK proof of SNARK. Use [ValueOfProof] to initialize the
@@ -247,7 +248,7 @@ func ValueOfProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra
 		if err != nil {
 			return ret, fmt.Errorf("z shifted opening proof value assignment: %w", err)
 		}
-		// TODO: missing bls12-381, bls24315, bn254, bls24317
+		// TODO: missing bls24317
 	default:
 		return ret, fmt.Errorf("unknown parametric type combination: %T", ret)
 	}
@@ -261,7 +262,7 @@ func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 	nbCommitments := len(ccs.GetCommitments().CommitmentIndexes())
 	ret := Proof[FR, G1El, G2El]{
 		BatchedProof: kzg.BatchOpeningProof[FR, G1El]{
-			ClaimedValues: make([]emulated.Element[FR], 7+nbCommitments),
+			ClaimedValues: make([]emulated.Element[FR], 6+nbCommitments),
 		},
 		Bsb22Commitments: make([]kzg.Commitment[G1El], nbCommitments),
 	}
@@ -273,10 +274,6 @@ func PlaceholderProof[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 // Use [PlaceholderBaseVerifyingKey] for creating a placeholder for compiling
 // and [ValueOfBaseVerifyingKey] for witness assignment.
 type BaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
-	// Size circuit
-	Size              uint64
-	SizeInv           emulated.Element[FR]
-	Generator         emulated.Element[FR]
 	NbPublicVariables uint64
 
 	// Commitment scheme that is used for an instantiation of PLONK
@@ -290,7 +287,11 @@ type BaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El alg
 // circuits with same [BaseVerifyingKey]. Use [PlaceholderCircuitVerifyingKey]
 // for creating a placeholder for compiling the circuit or
 // [ValueOfCircuitVerifyingKey] for witness assignment.
-type CircuitVerifyingKey[G1El algebra.G1ElementT] struct {
+type CircuitVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT] struct {
+	// Size circuit
+	Size      frontend.Variable
+	SizeInv   emulated.Element[FR]
+	Generator emulated.Element[FR]
 	// S commitments to S1, S2, S3
 	S [3]kzg.Commitment[G1El]
 
@@ -307,7 +308,7 @@ type CircuitVerifyingKey[G1El algebra.G1ElementT] struct {
 // [PlaceholderVerifyingKey] for initializing.
 type VerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT] struct {
 	BaseVerifyingKey[FR, G1El, G2El]
-	CircuitVerifyingKey[G1El]
+	CircuitVerifyingKey[FR, G1El]
 }
 
 // ValueOfBaseVerifyingKey assigns the base verification key from the witness.
@@ -321,9 +322,6 @@ func ValueOfBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 		if !ok {
 			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
 		}
-		r.Size = tVk.Size
-		r.SizeInv = sw_bls12377.NewScalar(tVk.SizeInv)
-		r.Generator = sw_bls12377.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
 		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls12377.G1Affine, sw_bls12377.G2Affine](tVk.Kzg)
 		if err != nil {
@@ -335,9 +333,6 @@ func ValueOfBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 		if !ok {
 			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
 		}
-		r.Size = tVk.Size
-		r.SizeInv = sw_bls12381.NewScalar(tVk.SizeInv)
-		r.Generator = sw_bls12381.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
 		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls12381.G1Affine, sw_bls12381.G2Affine](tVk.Kzg)
 		if err != nil {
@@ -349,9 +344,6 @@ func ValueOfBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 		if !ok {
 			return ret, fmt.Errorf("expected bls24315.VerifyingKey, got %T", vk)
 		}
-		r.Size = tVk.Size
-		r.SizeInv = sw_bls24315.NewScalar(tVk.SizeInv)
-		r.Generator = sw_bls24315.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
 		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bls24315.G1Affine, sw_bls24315.G2Affine](tVk.Kzg)
 		if err != nil {
@@ -363,9 +355,6 @@ func ValueOfBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 		if !ok {
 			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
 		}
-		r.Size = tVk.Size
-		r.SizeInv = sw_bw6761.NewScalar(tVk.SizeInv)
-		r.Generator = sw_bw6761.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
 		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bw6761.G1Affine, sw_bw6761.G2Affine](tVk.Kzg)
 		if err != nil {
@@ -377,9 +366,6 @@ func ValueOfBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 		if !ok {
 			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
 		}
-		r.Size = tVk.Size
-		r.SizeInv = sw_bn254.NewScalar(tVk.SizeInv)
-		r.Generator = sw_bn254.NewScalar(tVk.Generator)
 		r.NbPublicVariables = tVk.NbPublicVariables
 		r.Kzg, err = kzg.ValueOfVerifyingKeyFixed[sw_bn254.G1Affine, sw_bn254.G2Affine](tVk.Kzg)
 		if err != nil {
@@ -395,15 +381,18 @@ func ValueOfBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G
 // ValueOfCircuitVerifyingKey returns the witness for the unique part of the
 // verification key. Returns an error if there is a mismatch between type
 // arguments and given witness.
-func ValueOfCircuitVerifyingKey[G1El algebra.G1ElementT](vk backend_plonk.VerifyingKey) (CircuitVerifyingKey[G1El], error) {
-	var ret CircuitVerifyingKey[G1El]
+func ValueOfCircuitVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT](vk backend_plonk.VerifyingKey) (CircuitVerifyingKey[FR, G1El], error) {
+	var ret CircuitVerifyingKey[FR, G1El]
 	var err error
 	switch r := any(&ret).(type) {
-	case *CircuitVerifyingKey[sw_bls12377.G1Affine]:
+	case *CircuitVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine]:
 		tVk, ok := vk.(*plonkbackend_bls12377.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
 		}
+		r.Size = tVk.Size
+		r.SizeInv = sw_bls12377.NewScalar(tVk.SizeInv)
+		r.Generator = sw_bls12377.NewScalar(tVk.Generator)
 		for i := range r.S {
 			r.S[i], err = kzg.ValueOfCommitment[sw_bls12377.G1Affine](tVk.S[i])
 			if err != nil {
@@ -441,11 +430,14 @@ func ValueOfCircuitVerifyingKey[G1El algebra.G1ElementT](vk backend_plonk.Verify
 		for i := range r.CommitmentConstraintIndexes {
 			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
 		}
-	case *CircuitVerifyingKey[sw_bls12381.G1Affine]:
+	case *CircuitVerifyingKey[sw_bls12381.ScalarField, sw_bls12381.G1Affine]:
 		tVk, ok := vk.(*plonkbackend_bls12381.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bls12381.VerifyingKey, got %T", vk)
 		}
+		r.Size = tVk.Size
+		r.SizeInv = sw_bls12381.NewScalar(tVk.SizeInv)
+		r.Generator = sw_bls12381.NewScalar(tVk.Generator)
 		for i := range r.S {
 			r.S[i], err = kzg.ValueOfCommitment[sw_bls12381.G1Affine](tVk.S[i])
 			if err != nil {
@@ -483,11 +475,14 @@ func ValueOfCircuitVerifyingKey[G1El algebra.G1ElementT](vk backend_plonk.Verify
 		for i := range r.CommitmentConstraintIndexes {
 			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
 		}
-	case *CircuitVerifyingKey[sw_bls24315.G1Affine]:
+	case *CircuitVerifyingKey[sw_bls24315.ScalarField, sw_bls24315.G1Affine]:
 		tVk, ok := vk.(*plonkbackend_bls24315.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bls24315.VerifyingKey, got %T", vk)
 		}
+		r.Size = tVk.Size
+		r.SizeInv = sw_bls24315.NewScalar(tVk.SizeInv)
+		r.Generator = sw_bls24315.NewScalar(tVk.Generator)
 		for i := range r.S {
 			r.S[i], err = kzg.ValueOfCommitment[sw_bls24315.G1Affine](tVk.S[i])
 			if err != nil {
@@ -525,11 +520,14 @@ func ValueOfCircuitVerifyingKey[G1El algebra.G1ElementT](vk backend_plonk.Verify
 		for i := range r.CommitmentConstraintIndexes {
 			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
 		}
-	case *CircuitVerifyingKey[sw_bw6761.G1Affine]:
+	case *CircuitVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine]:
 		tVk, ok := vk.(*plonkbackend_bw6761.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bls12377.VerifyingKey, got %T", vk)
 		}
+		r.Size = tVk.Size
+		r.SizeInv = sw_bw6761.NewScalar(tVk.SizeInv)
+		r.Generator = sw_bw6761.NewScalar(tVk.Generator)
 		for i := range r.S {
 			r.S[i], err = kzg.ValueOfCommitment[sw_bw6761.G1Affine](tVk.S[i])
 			if err != nil {
@@ -567,11 +565,14 @@ func ValueOfCircuitVerifyingKey[G1El algebra.G1ElementT](vk backend_plonk.Verify
 		for i := range r.CommitmentConstraintIndexes {
 			r.CommitmentConstraintIndexes[i] = tVk.CommitmentConstraintIndexes[i]
 		}
-	case *CircuitVerifyingKey[sw_bn254.G1Affine]:
+	case *CircuitVerifyingKey[sw_bn254.ScalarField, sw_bn254.G1Affine]:
 		tVk, ok := vk.(*plonkbackend_bn254.VerifyingKey)
 		if !ok {
 			return ret, fmt.Errorf("expected bn254.VerifyingKey, got %T", vk)
 		}
+		r.Size = tVk.Size
+		r.SizeInv = sw_bn254.NewScalar(tVk.SizeInv)
+		r.Generator = sw_bn254.NewScalar(tVk.Generator)
 		for i := range r.S {
 			r.S[i], err = kzg.ValueOfCommitment[sw_bn254.G1Affine](tVk.S[i])
 			if err != nil {
@@ -624,7 +625,7 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 	if err != nil {
 		return ret, fmt.Errorf("value of base verifying key: %w", err)
 	}
-	cvk, err := ValueOfCircuitVerifyingKey[G1El](vk)
+	cvk, err := ValueOfCircuitVerifyingKey[FR, G1El](vk)
 	if err != nil {
 		return ret, fmt.Errorf("value of circuit verifying key: %w", err)
 	}
@@ -639,11 +640,7 @@ func ValueOfVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El 
 // number of commitments.
 func PlaceholderBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) BaseVerifyingKey[FR, G1El, G2El] {
 	nbPublic := ccs.GetNbPublicVariables()
-	nbConstraints := ccs.GetNbConstraints()
-	sizeSystem := nbPublic + nbConstraints
-	nextPowerTwo := 1 << stdbits.Len(uint(sizeSystem))
 	return BaseVerifyingKey[FR, G1El, G2El]{
-		Size:              uint64(nextPowerTwo),
 		NbPublicVariables: uint64(nbPublic),
 		Kzg:               kzg.PlaceholderVerifyingKey[G1El, G2El](),
 	}
@@ -651,9 +648,9 @@ func PlaceholderBaseVerifyingKey[FR emulated.FieldParams, G1El algebra.G1Element
 
 // PlaceholderCircuitVerifyingKey returns the placeholder for the unique part of
 // the verification key with same [BaseVerifyingKey].
-func PlaceholderCircuitVerifyingKey[G1El algebra.G1ElementT](ccs constraint.ConstraintSystem) CircuitVerifyingKey[G1El] {
+func PlaceholderCircuitVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT](ccs constraint.ConstraintSystem) CircuitVerifyingKey[FR, G1El] {
 	commitmentIndexes := ccs.GetCommitments().CommitmentIndexes()
-	return CircuitVerifyingKey[G1El]{
+	return CircuitVerifyingKey[FR, G1El]{
 		CommitmentConstraintIndexes: make([]frontend.Variable, len(commitmentIndexes)),
 		Qcp:                         make([]kzg.Commitment[G1El], len(commitmentIndexes)),
 	}
@@ -664,7 +661,7 @@ func PlaceholderCircuitVerifyingKey[G1El algebra.G1ElementT](ccs constraint.Cons
 func PlaceholderVerifyingKey[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT](ccs constraint.ConstraintSystem) VerifyingKey[FR, G1El, G2El] {
 	return VerifyingKey[FR, G1El, G2El]{
 		BaseVerifyingKey:    PlaceholderBaseVerifyingKey[FR, G1El, G2El](ccs),
-		CircuitVerifyingKey: PlaceholderCircuitVerifyingKey[G1El](ccs),
+		CircuitVerifyingKey: PlaceholderCircuitVerifyingKey[FR, G1El](ccs),
 	}
 }
 
@@ -780,9 +777,13 @@ func NewVerifier[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.
 
 // PrepareVerification returns a list of (openingProof, commitment, point), which are to be
 // verified using kzg's BatchVerifyMultiPoints.
-func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR]) ([]kzg.Commitment[G1El], []kzg.OpeningProof[FR, G1El], []emulated.Element[FR], error) {
+func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR], opts ...VerifierOption) ([]kzg.Commitment[G1El], []kzg.OpeningProof[FR, G1El], []emulated.Element[FR], error) {
 
 	var fr FR
+	cfg, err := newCfg(opts...)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("apply options: %w", err)
+	}
 	if len(proof.Bsb22Commitments) != len(vk.Qcp) {
 		return nil, nil, nil, fmt.Errorf("BSB22 commitment number mismatch")
 	}
@@ -827,20 +828,19 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 		return nil, nil, nil, err
 	}
 
-	// evaluation of Z=Xⁿ-1 at ζ
+	// evaluation of zhZetaZ=ζⁿ-1
 	one := v.scalarApi.One()
-	zetaPowerM := v.fixedExpN(vk.Size, zeta)               // ζⁿ
-	zetaPowerMMinusOne := v.scalarApi.Sub(zetaPowerM, one) // ζⁿ-1
+	zetaPowerN := v.fixedExpN(vk.Size, zeta)   // ζⁿ
+	zhZeta := v.scalarApi.Sub(zetaPowerN, one) // ζⁿ-1
 
 	// L1 = (1/n)(ζⁿ-1)/(ζ-1)
 	denom := v.scalarApi.Sub(zeta, one)
-	lagrangeOne := v.scalarApi.Div(zetaPowerMMinusOne, denom)
+	lagrangeOne := v.scalarApi.Div(zhZeta, denom)
 	lagrangeOne = v.scalarApi.Mul(lagrangeOne, &vk.SizeInv)
 	lagrange := lagrangeOne
+
 	// compute PI = ∑_{i<n} Lᵢ*wᵢ
 	wPowI := one
-
-	// i = 0
 	xiLi := v.scalarApi.Mul(lagrange, &witness.Public[0])
 	pi := xiLi
 	if len(witness.Public) != 1 {
@@ -868,7 +868,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 			return nil, nil, nil, err
 		}
 		for i := range vk.CommitmentConstraintIndexes {
-			li := v.computeIthLagrangeAtZeta(v.api.Add(vk.CommitmentConstraintIndexes[i], vk.NbPublicVariables), zeta, zetaPowerM, vk)
+			li := v.computeIthLagrangeAtZeta(v.api.Add(vk.CommitmentConstraintIndexes[i], vk.NbPublicVariables), zeta, zetaPowerN, vk)
 			marshalledCommitment := v.curve.MarshalG1(proof.Bsb22Commitments[i].G1El)
 			hashToField.Write(marshalledCommitment...)
 			hashedCmt := hashToField.Sum()
@@ -880,112 +880,93 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 		}
 	}
 
-	// linearizedpolynomial + pi(ζ) + α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ) - α²*L₁(ζ)
+	l := proof.BatchedProof.ClaimedValues[1]
+	r := proof.BatchedProof.ClaimedValues[2]
+	o := proof.BatchedProof.ClaimedValues[3]
+	s1 := proof.BatchedProof.ClaimedValues[4]
+	s2 := proof.BatchedProof.ClaimedValues[5]
+
+	// Z(ωζ)
 	zu := proof.ZShiftedOpening.ClaimedValue
-	claimedQuotient := &proof.BatchedProof.ClaimedValues[0]
-	linearizedPolynomialZeta := &proof.BatchedProof.ClaimedValues[1]
-	l := proof.BatchedProof.ClaimedValues[2]
-	r := proof.BatchedProof.ClaimedValues[3]
-	o := proof.BatchedProof.ClaimedValues[4]
-	s1 := proof.BatchedProof.ClaimedValues[5]
-	s2 := proof.BatchedProof.ClaimedValues[6]
+
+	// α²*L₁(ζ)
+	alphaSquareLagrangeOne := v.scalarApi.Mul(alpha, lagrangeOne)
+	alphaSquareLagrangeOne = v.scalarApi.Mul(alphaSquareLagrangeOne, alpha)
+
+	// computing the constant coefficient of the full algebraic relation
+	// , corresponding to the value of the linearisation polynomiat at ζ
+	// PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
 
 	// _s1 = (l(ζ)+β*s1(ζ)+γ)
-	_s1 := v.scalarApi.Mul(&s1, beta)
-	_s1 = v.scalarApi.Add(_s1, &l)
-	_s1 = v.scalarApi.Add(_s1, gamma)
+	lPlusBetaS1PlusGamma := v.scalarApi.Mul(&s1, beta)
+	lPlusBetaS1PlusGamma = v.scalarApi.Add(lPlusBetaS1PlusGamma, &l)
+	lPlusBetaS1PlusGamma = v.scalarApi.Add(lPlusBetaS1PlusGamma, gamma)
 
 	// _s2 = (r(ζ)+β*s2(ζ)+γ)
-	_s2 := v.scalarApi.Mul(&s2, beta)
-	_s2 = v.scalarApi.Add(_s2, &r)
-	_s2 = v.scalarApi.Add(_s2, gamma)
+	rPlusBetaS2PlusGamma := v.scalarApi.Mul(&s2, beta)
+	rPlusBetaS2PlusGamma = v.scalarApi.Add(rPlusBetaS2PlusGamma, &r)
+	rPlusBetaS2PlusGamma = v.scalarApi.Add(rPlusBetaS2PlusGamma, gamma)
 
 	// _o = (o(ζ)+γ)
 	_o := v.scalarApi.Add(&o, gamma)
 
 	// _s1 = α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
-	_s1 = v.scalarApi.Mul(_s1, _s2)
-	_s1 = v.scalarApi.Mul(_s1, _o)
+	lPlusBetaS1PlusGammaTimesRPlusBetaS2PlusGamma := v.scalarApi.Mul(lPlusBetaS1PlusGamma, rPlusBetaS2PlusGamma)
+	_s1 := v.scalarApi.Mul(lPlusBetaS1PlusGammaTimesRPlusBetaS2PlusGamma, _o)
 	_s1 = v.scalarApi.Mul(_s1, alpha)
 	_s1 = v.scalarApi.Mul(_s1, &zu)
 
-	// alphaSquareLagrange = α²*L₁(ζ)
-	alphaSquareLagrange := v.scalarApi.Mul(lagrangeOne, alpha)
-	alphaSquareLagrange = v.scalarApi.Mul(alphaSquareLagrange, alpha)
+	constLin := v.scalarApi.Add(pi, _s1)
+	constLin = v.scalarApi.Sub(alphaSquareLagrangeOne, constLin)
 
-	// linearizedPolynomialZeta = linearizedpolynomial+pi(zeta)+α*(Z(μζ))*(l(ζ)+s1(ζ)+γ)*(r(ζ)+s2(ζ)+γ)*(o(ζ)+γ)-α²*L₁(ζ)
-	linearizedPolynomialZeta = v.scalarApi.Add(linearizedPolynomialZeta, pi)
-	linearizedPolynomialZeta = v.scalarApi.Add(linearizedPolynomialZeta, _s1)
-	linearizedPolynomialZeta = v.scalarApi.Sub(linearizedPolynomialZeta, alphaSquareLagrange)
+	// check that the opening of the linearised polynomial is equal to -constLin
+	openingLinPol := proof.BatchedProof.ClaimedValues[0]
+	v.scalarApi.AssertIsEqual(&openingLinPol, constLin)
 
-	// Compute H(ζ) using the previous result: H(ζ) = prev_result/(ζⁿ-1)
-	linearizedPolynomialZeta = v.scalarApi.Div(linearizedPolynomialZeta, zetaPowerMMinusOne)
+	// computing the linearised polynomial digest
+	// α²*L₁(ζ)*[Z] +
+	// _s1*[s3]+_s2*[Z] + l(ζ)*[Ql] +
+	// l(ζ)r(ζ)*[Qm] + r(ζ)*[Qr] + o(ζ)*[Qo] + [Qk] + ∑ᵢQcp_(ζ)[Pi_i] -
+	// Z_{H}(ζ)*(([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾*[H₂])
+	// where
+	// _s1 =  α*(l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ)
+	// _s2 = -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
 
-	// check that H(ζ) is as claimed
-	v.scalarApi.AssertIsEqual(claimedQuotient, linearizedPolynomialZeta)
+	_s1 = v.scalarApi.Mul(lPlusBetaS1PlusGammaTimesRPlusBetaS2PlusGamma, beta) // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(ζ)+γ)*β
+	_s1 = v.scalarApi.Mul(_s1, &zu)                                            // (l(ζ)+β*s1(β)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ)
+	_s1 = v.scalarApi.Mul(_s1, alpha)                                          // α*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(μζ)
 
-	// compute the folded commitment to H: Comm(h₁) + ζᵐ⁺²*Comm(h₂) + ζ²⁽ᵐ⁺²⁾*Comm(h₃)
-	zetaMPlusTwo := v.scalarApi.Mul(zetaPowerM, zeta)
-	zetaMPlusTwo = v.scalarApi.Mul(zetaMPlusTwo, zeta)
-	zetaMPlusTwoSquare := v.scalarApi.Mul(zetaMPlusTwo, zetaMPlusTwo)
+	betaZeta := v.scalarApi.Mul(beta, zeta)                                  // β*ζ
+	_s2 := v.scalarApi.Add(&l, betaZeta)                                     // l(ζ)+β*ζ
+	_s2 = v.scalarApi.Add(_s2, gamma)                                        // (l(ζ)+β*ζ+γ)
+	betaZetaCosetShift := v.scalarApi.Mul(betaZeta, &vk.CosetShift)          // u*β*ζ
+	tmp := v.scalarApi.Add(&r, betaZetaCosetShift)                           // r(ζ)+β*u*ζ
+	tmp = v.scalarApi.Add(tmp, gamma)                                        // r(ζ)+β*u*ζ+γ
+	_s2 = v.scalarApi.Mul(_s2, tmp)                                          // (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)
+	betaZetaCosetShift = v.scalarApi.Mul(betaZetaCosetShift, &vk.CosetShift) // β*u²*ζ
+	tmp = v.scalarApi.Add(betaZetaCosetShift, gamma)                         // β*u²*ζ+γ
+	tmp = v.scalarApi.Add(tmp, &o)                                           // β*u²*ζ+γ+o
+	_s2 = v.scalarApi.Mul(_s2, tmp)                                          // (l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)(o+β*u²*ζ+γ)
+	_s2 = v.scalarApi.Mul(_s2, alpha)                                        // α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)(o+β*u²*ζ+γ)
 
-	foldedH, err := v.curve.MultiScalarMul([]*G1El{&proof.H[2].G1El, &proof.H[1].G1El}, []*emulated.Element[FR]{zetaMPlusTwoSquare, zetaMPlusTwo})
+	// α²*L₁(ζ) - α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
+	coeffZ := v.scalarApi.Sub(alphaSquareLagrangeOne, _s2)
+
+	// l(ζ)*r(ζ)
+	rl := v.scalarApi.Mul(&l, &r)
+
+	// -ζⁿ⁺², -ζ²⁽ⁿ⁺²⁾, -(ζⁿ-1)
+	zhZeta = v.scalarApi.Neg(zhZeta) // -(ζⁿ-1)
+	zetaPowerNPlusTwo := v.scalarApi.Mul(zeta, zetaPowerN)
+	zetaPowerNPlusTwo = v.scalarApi.Mul(zeta, zetaPowerNPlusTwo)                     // ζⁿ⁺²
+	zetaPowerNPlusTwoSquare := v.scalarApi.Mul(zetaPowerNPlusTwo, zetaPowerNPlusTwo) // ζ²⁽ⁿ⁺²⁾
+
+	// [H₀] + ζⁿ⁺²*[H₁] + ζ²⁽ⁿ⁺²⁾*[H₂]
+	foldedH, err := v.curve.MultiScalarMul([]*G1El{&proof.H[1].G1El, &proof.H[2].G1El}, []*emulated.Element[FR]{zetaPowerNPlusTwo, zetaPowerNPlusTwoSquare})
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("folded proof MSM: %w", err)
+		return nil, nil, nil, fmt.Errorf("folded H: %w", err)
 	}
 	foldedH = v.curve.Add(foldedH, &proof.H[0].G1El)
-
-	// Compute the commitment to the linearized polynomial
-	// linearizedPolynomialDigest =
-	// 		l(ζ)*ql+r(ζ)*qr+r(ζ)l(ζ)*qm+o(ζ)*qo+qk+Σᵢqc'ᵢ(ζ)*BsbCommitmentᵢ +
-	// 		α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) +
-	// 		α²*L₁(ζ)*Z
-
-	// second part: α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
-
-	uu := v.scalarApi.Mul(&zu, beta)
-
-	vv := v.scalarApi.Mul(beta, &s1)
-	vv = v.scalarApi.Add(vv, &l)
-	vv = v.scalarApi.Add(vv, gamma)
-
-	ww := v.scalarApi.Mul(beta, &s2)
-	ww = v.scalarApi.Add(ww, &r)
-	ww = v.scalarApi.Add(ww, gamma)
-
-	// α*Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β
-	_s1 = v.scalarApi.Mul(uu, vv)
-	_s1 = v.scalarApi.Mul(_s1, ww)
-	_s1 = v.scalarApi.Mul(_s1, alpha)
-
-	cosetsquare := v.scalarApi.Mul(&vk.CosetShift, &vk.CosetShift)
-
-	// (l(ζ)+β*ζ+γ)
-	uu = v.scalarApi.Mul(beta, zeta)
-	vv = uu
-	ww = uu
-	uu = v.scalarApi.Add(uu, &l)
-	uu = v.scalarApi.Add(uu, gamma)
-
-	// (r(ζ)+β*μ*ζ+γ)
-	vv = v.scalarApi.Mul(vv, &vk.CosetShift)
-	vv = v.scalarApi.Add(vv, &r)
-	vv = v.scalarApi.Add(vv, gamma)
-
-	// (o(ζ)+β*μ²*ζ+γ)
-	ww = v.scalarApi.Mul(ww, cosetsquare)
-	ww = v.scalarApi.Add(ww, &o)
-	ww = v.scalarApi.Add(ww, gamma)
-
-	// -(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ)
-	_s2 = v.scalarApi.Mul(uu, vv)
-	_s2 = v.scalarApi.Mul(_s2, ww)
-	_s2 = v.scalarApi.Neg(_s2)
-
-	// note since third part =  α²*L₁(ζ)*Z
-	// -α*(l(ζ)+β*ζ+γ)*(r(ζ)+β*u*ζ+γ)*(o(ζ)+β*u²*ζ+γ) + α²*L₁(ζ)
-	_s2 = v.scalarApi.Mul(_s2, alpha)
-	_s2 = v.scalarApi.Add(_s2, alphaSquareLagrange)
 
 	points := make([]*G1El, len(proof.Bsb22Commitments))
 	for i := range proof.Bsb22Commitments {
@@ -993,35 +974,44 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 	}
 	points = append(points,
 		&vk.Ql.G1El, &vk.Qr.G1El, &vk.Qm.G1El, &vk.Qo.G1El, // first part
-		&vk.S[2].G1El, &proof.Z.G1El, // second & third part
+		&vk.S[2].G1El, &proof.Z.G1El, // second part
+		foldedH, // third part
 	)
 
 	qC := make([]*emulated.Element[FR], len(proof.Bsb22Commitments))
-	for i := range proof.BatchedProof.ClaimedValues[7:] {
-		qC[i] = &proof.BatchedProof.ClaimedValues[7+i]
+	for i := range proof.BatchedProof.ClaimedValues[6:] {
+		qC[i] = &proof.BatchedProof.ClaimedValues[6+i]
 	}
-	rl := v.scalarApi.Mul(&r, &l)
 	scalars := append(qC,
 		&l, &r, rl, &o, // first part
-		_s1, _s2, // second & third part
+		_s1, coeffZ, // second part
+		zhZeta, // third part
 	)
 
-	linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars)
+	var msmOpts []algopts.AlgebraOption
+	if cfg.withCompleteArithmetic {
+		msmOpts = append(msmOpts, algopts.WithCompleteArithmetic())
+	}
+	linearizedPolynomialDigest, err := v.curve.MultiScalarMul(points, scalars, msmOpts...)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("linearized polynomial digest MSM: %w", err)
 	}
-	linearizedPolynomialDigest = v.curve.Add(linearizedPolynomialDigest, &vk.Qk.G1El) // Qk=0 in PLONK W\ Commit ==> use AddUnified
+	if cfg.withCompleteArithmetic {
+		// in PLONK Wo Commit ==> use AddUnified
+		linearizedPolynomialDigest = v.curve.AddUnified(linearizedPolynomialDigest, &vk.Qk.G1El)
+	} else {
+		linearizedPolynomialDigest = v.curve.Add(linearizedPolynomialDigest, &vk.Qk.G1El)
+	}
 
 	// Fold the first proof
-	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+7)
-	copy(digestsToFold[7:], vk.Qcp)
-	digestsToFold[0] = kzg.Commitment[G1El]{G1El: *foldedH}
-	digestsToFold[1] = kzg.Commitment[G1El]{G1El: *linearizedPolynomialDigest}
-	digestsToFold[2] = proof.LRO[0]
-	digestsToFold[3] = proof.LRO[1]
-	digestsToFold[4] = proof.LRO[2]
-	digestsToFold[5] = vk.S[0]
-	digestsToFold[6] = vk.S[1]
+	digestsToFold := make([]kzg.Commitment[G1El], len(vk.Qcp)+6)
+	copy(digestsToFold[6:], vk.Qcp)
+	digestsToFold[0] = kzg.Commitment[G1El]{G1El: *linearizedPolynomialDigest}
+	digestsToFold[1] = proof.LRO[0]
+	digestsToFold[2] = proof.LRO[1]
+	digestsToFold[3] = proof.LRO[2]
+	digestsToFold[4] = vk.S[0]
+	digestsToFold[5] = vk.S[1]
 	foldedProof, foldedDigest, err := v.kzg.FoldProof(
 		digestsToFold,
 		proof.BatchedProof,
@@ -1042,9 +1032,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) PrepareVerification(vk VerifyingKey[FR,
 
 // AssertProof asserts that the SNARK proof holds for the given witness and
 // verifying key.
-func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR]) error {
+func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G2El], proof Proof[FR, G1El, G2El], witness Witness[FR], opts ...VerifierOption) error {
 
-	commitments, proofs, points, err := v.PrepareVerification(vk, proof, witness)
+	commitments, proofs, points, err := v.PrepareVerification(vk, proof, witness, opts...)
 	if err != nil {
 		return err
 	}
@@ -1057,7 +1047,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertProof(vk VerifyingKey[FR, G1El, G
 }
 
 // AssertSameProofs asserts that multiple proofs for the same circuit are valid.
-func (v *Verifier[FR, G1El, G2El, GtEl]) AssertSameProofs(vk VerifyingKey[FR, G1El, G2El], proofs []Proof[FR, G1El, G2El], witnesses []Witness[FR]) error {
+func (v *Verifier[FR, G1El, G2El, GtEl]) AssertSameProofs(vk VerifyingKey[FR, G1El, G2El], proofs []Proof[FR, G1El, G2El], witnesses []Witness[FR], opts ...VerifierOption) error {
 	if len(proofs) != len(witnesses) {
 		return fmt.Errorf("proofs and witness length mismatch")
 	}
@@ -1071,7 +1061,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertSameProofs(vk VerifyingKey[FR, G1
 	var foldedProofs []kzg.OpeningProof[FR, G1El]
 	var foldedPoints []emulated.Element[FR]
 	for i := range proofs {
-		dg, pr, pts, err := v.PrepareVerification(vk, proofs[i], witnesses[i])
+		dg, pr, pts, err := v.PrepareVerification(vk, proofs[i], witnesses[i], opts...)
 		if err != nil {
 			return fmt.Errorf("prepare proof %d: %w", i, err)
 		}
@@ -1090,8 +1080,8 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertSameProofs(vk VerifyingKey[FR, G1
 // cvks. The selector which verification key to use ise given in slice switches.
 // The proofs and witnesses are given in the argumens and must correspond to
 // each other.
-func (v *Verifier[FR, G1El, G2El, GtEl]) AssertDifferentProofs(bvk BaseVerifyingKey[FR, G1El, G2El], cvks []CircuitVerifyingKey[G1El],
-	switches []frontend.Variable, proofs []Proof[FR, G1El, G2El], witnesses []Witness[FR]) error {
+func (v *Verifier[FR, G1El, G2El, GtEl]) AssertDifferentProofs(bvk BaseVerifyingKey[FR, G1El, G2El], cvks []CircuitVerifyingKey[FR, G1El],
+	switches []frontend.Variable, proofs []Proof[FR, G1El, G2El], witnesses []Witness[FR], opts ...VerifierOption) error {
 	if len(proofs) != len(witnesses) || len(proofs) != len(switches) {
 		return fmt.Errorf("input lengths mismatch")
 	}
@@ -1106,7 +1096,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) AssertDifferentProofs(bvk BaseVerifying
 		if err != nil {
 			return fmt.Errorf("switch verification key: %w", err)
 		}
-		dg, pr, pts, err := v.PrepareVerification(vk, proofs[i], witnesses[i])
+		dg, pr, pts, err := v.PrepareVerification(vk, proofs[i], witnesses[i], opts...)
 		if err != nil {
 			return fmt.Errorf("prepare proof %d: %w", i, err)
 		}
@@ -1181,27 +1171,34 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) deriveRandomness(fs *fiatshamir.Transcr
 	return ret, nil
 }
 
-func (v *Verifier[FR, G1El, G2El, GtEl]) fixedExpN(n uint64, s *emulated.Element[FR]) *emulated.Element[FR] {
-	nlen := stdbits.Len64(n)
-	res := s
-	for i := 1; i < nlen; i++ {
-		res = v.scalarApi.Mul(res, res)
+func (v *Verifier[FR, G1El, G2El, GtEl]) fixedExpN(n frontend.Variable, s *emulated.Element[FR]) *emulated.Element[FR] {
+	// assume circuit of maximum size 2**30.
+	const maxExpBits = 30
+	// n is power of two.
+	nBits := bits.ToBinary(v.api, n, bits.WithNbDigits(maxExpBits))
+	res := v.scalarApi.Select(nBits[0], s, v.scalarApi.Zero())
+	acc := v.scalarApi.Mul(s, s)
+	for i := 1; i < maxExpBits-1; i++ {
+		res = v.scalarApi.Select(nBits[i], acc, res)
+		acc = v.scalarApi.Mul(acc, acc)
 	}
+	res = v.scalarApi.Select(nBits[maxExpBits-1], acc, res)
 	return res
 }
 
 // computeIthLagrangeAtZeta computes L_{i}(\omega) = \omega^{i}/n (\zeta^{n}-1)/(\zeta-\omega^{i})
-func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(exp frontend.Variable, zeta, zetaPowerM *emulated.Element[FR], vk VerifyingKey[FR, G1El, G2El]) *emulated.Element[FR] {
+func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(exp frontend.Variable, zeta, zetaPowerN *emulated.Element[FR], vk VerifyingKey[FR, G1El, G2El]) *emulated.Element[FR] {
+	// assume circuit of maximum size 2**30.
+	const maxExpBits = 30
 
 	one := v.scalarApi.One()
-	num := v.scalarApi.Sub(zetaPowerM, one)
+	num := v.scalarApi.Sub(zetaPowerN, one)
 
 	// \omega^{i}
-	nbBits := stdbits.Len(uint(vk.Size))
-	iBits := bits.ToBinary(v.api, exp, bits.WithNbDigits(nbBits))
+	iBits := bits.ToBinary(v.api, exp, bits.WithNbDigits(maxExpBits))
 
-	omegai := one
-	for i := nbBits - 1; i >= 0; i-- {
+	omegai := v.scalarApi.Select(iBits[maxExpBits-1], &vk.Generator, one)
+	for i := maxExpBits - 2; i >= 0; i-- {
 		omegai = v.scalarApi.Mul(omegai, omegai)
 		tmp := v.scalarApi.Mul(omegai, &vk.Generator)
 		omegai = v.scalarApi.Select(iBits[i], tmp, omegai)
@@ -1216,8 +1213,9 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) computeIthLagrangeAtZeta(exp frontend.V
 	return li
 }
 
-// SwitchVerificationKey returns a verification key by the index idx using the base verification key bvk and circuit specific verification key cvks[idx].
-func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifyingKey[FR, G1El, G2El], idx frontend.Variable, cvks []CircuitVerifyingKey[G1El]) (VerifyingKey[FR, G1El, G2El], error) {
+// SwitchVerificationKey returns a verification key by the index idx using the
+// base verification key bvk and circuit specific verification key cvks[idx].
+func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifyingKey[FR, G1El, G2El], idx frontend.Variable, cvks []CircuitVerifyingKey[FR, G1El]) (VerifyingKey[FR, G1El, G2El], error) {
 	var ret VerifyingKey[FR, G1El, G2El]
 	if len(cvks) == 0 {
 		return ret, fmt.Errorf("no circuit verification keys given")
@@ -1228,10 +1226,7 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifying
 			CircuitVerifyingKey: cvks[0],
 		}, nil
 	}
-	if len(cvks) > 4 {
-		return ret, fmt.Errorf("large verification key switching not implemented yet")
-
-	}
+	nbIns := len(cvks)
 	nbCmts := len(cvks[0].CommitmentConstraintIndexes)
 	for i := range cvks {
 		if len(cvks[i].CommitmentConstraintIndexes) != nbCmts {
@@ -1241,27 +1236,61 @@ func (v *Verifier[FR, G1El, G2El, GtEl]) SwitchVerificationKey(bvk BaseVerifying
 			return ret, fmt.Errorf("inconsistent circuit verification key")
 		}
 	}
-	for i := len(cvks); i < 4; i++ {
-		cvks = append(cvks, ret.CircuitVerifyingKey)
+	sizeEls := make([]frontend.Variable, nbIns)
+	sizeInvEls := make([]*emulated.Element[FR], nbIns)
+	genEls := make([]*emulated.Element[FR], nbIns)
+	QlEls := make([]*G1El, nbIns)
+	QrEls := make([]*G1El, nbIns)
+	QmEls := make([]*G1El, nbIns)
+	QoEls := make([]*G1El, nbIns)
+	QkEls := make([]*G1El, nbIns)
+	var SEls [3][]*G1El
+	QcpEls := make([][]*G1El, nbCmts)
+	cmtIndicesEls := make([][]frontend.Variable, nbCmts)
+	for i := range SEls {
+		SEls[i] = make([]*G1El, nbIns)
 	}
-	cvk := CircuitVerifyingKey[G1El]{
+	for i := range QcpEls {
+		QcpEls[i] = make([]*G1El, nbIns)
+		cmtIndicesEls[i] = make([]frontend.Variable, nbIns)
+	}
+	for i := range cvks {
+		sizeEls[i] = cvks[i].Size
+		sizeInvEls[i] = &cvks[i].SizeInv
+		genEls[i] = &cvks[i].Generator
+		QlEls[i] = &cvks[i].Ql.G1El
+		QrEls[i] = &cvks[i].Qr.G1El
+		QmEls[i] = &cvks[i].Qm.G1El
+		QoEls[i] = &cvks[i].Qo.G1El
+		QkEls[i] = &cvks[i].Qk.G1El
+		for j := range SEls {
+			SEls[j][i] = &cvks[i].S[j].G1El
+		}
+		for j := range QcpEls {
+			QcpEls[j][i] = &cvks[i].Qcp[j].G1El
+			cmtIndicesEls[j][i] = cvks[i].CommitmentConstraintIndexes[j]
+		}
+	}
+	cvk := CircuitVerifyingKey[FR, G1El]{
+		Size:      selector.Mux(v.api, idx, sizeEls...),
+		SizeInv:   *v.scalarApi.Mux(idx, sizeInvEls...),
+		Generator: *v.scalarApi.Mux(idx, genEls...),
+		S: [3]kzg.Commitment[G1El]{
+			{G1El: *v.curve.Mux(idx, SEls[0]...)},
+			{G1El: *v.curve.Mux(idx, SEls[1]...)},
+			{G1El: *v.curve.Mux(idx, SEls[2]...)},
+		},
+		Ql:                          kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QlEls...)},
+		Qr:                          kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QrEls...)},
+		Qm:                          kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QmEls...)},
+		Qo:                          kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QoEls...)},
+		Qk:                          kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QkEls...)},
 		Qcp:                         make([]kzg.Commitment[G1El], nbCmts),
 		CommitmentConstraintIndexes: make([]frontend.Variable, nbCmts),
 	}
-	bIdx := bits.ToBinary(v.api, idx, bits.WithNbDigits(2))
-	for i := range cvk.S {
-		cvk.S[i].G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].S[i].G1El, &cvks[1].S[i].G1El, &cvks[2].S[i].G1El, &cvks[3].S[i].G1El)
-	}
-	cvk.Ql.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Ql.G1El, &cvks[1].Ql.G1El, &cvks[2].Ql.G1El, &cvks[3].Ql.G1El)
-	cvk.Qr.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qr.G1El, &cvks[1].Qr.G1El, &cvks[2].Qr.G1El, &cvks[3].Qr.G1El)
-	cvk.Qm.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qm.G1El, &cvks[1].Qm.G1El, &cvks[2].Qm.G1El, &cvks[3].Qm.G1El)
-	cvk.Qo.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qo.G1El, &cvks[1].Qo.G1El, &cvks[2].Qo.G1El, &cvks[3].Qo.G1El)
-	cvk.Qk.G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qk.G1El, &cvks[1].Qk.G1El, &cvks[2].Qk.G1El, &cvks[3].Qk.G1El)
-	for i := range cvk.Qcp {
-		cvk.Qcp[i].G1El = *v.curve.Lookup2(bIdx[0], bIdx[1], &cvks[0].Qcp[i].G1El, &cvks[1].Qcp[i].G1El, &cvks[2].Qcp[i].G1El, &cvks[3].Qcp[i].G1El)
-	}
-	for i := range cvk.CommitmentConstraintIndexes {
-		cvk.CommitmentConstraintIndexes[i] = v.api.Lookup2(bIdx[0], bIdx[1], cvks[0].CommitmentConstraintIndexes[i], cvks[1].CommitmentConstraintIndexes[i], cvks[2].CommitmentConstraintIndexes[i], cvks[3].CommitmentConstraintIndexes[i])
+	for i := range QcpEls {
+		cvk.Qcp[i] = kzg.Commitment[G1El]{G1El: *v.curve.Mux(idx, QcpEls[i]...)}
+		cvk.CommitmentConstraintIndexes[i] = selector.Mux(v.api, idx, cmtIndicesEls[i]...)
 	}
 	return VerifyingKey[FR, G1El, G2El]{
 		BaseVerifyingKey:    bvk,

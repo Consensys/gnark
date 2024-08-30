@@ -3,6 +3,7 @@ package sw_bls24315
 import (
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	bls24315 "github.com/consensys/gnark-crypto/ecc/bls24-315"
@@ -14,6 +15,7 @@ import (
 	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
+	"github.com/consensys/gnark/std/selector"
 )
 
 // Curve allows G1 operations in BLS24-315.
@@ -35,25 +37,38 @@ func NewCurve(api frontend.API) (*Curve, error) {
 }
 
 // MarshalScalar returns
-func (c *Curve) MarshalScalar(s Scalar) []frontend.Variable {
-	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
-	ss := c.fr.Reduce(&s)
-	x := c.fr.ToBits(ss)
-	for i, j := 0, nbBits-1; i < j; {
-		x[i], x[j] = x[j], x[i]
-		i++
-		j--
+func (c *Curve) MarshalScalar(s Scalar, opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
 	}
+	nbBits := 8 * ((ScalarField{}.Modulus().BitLen() + 7) / 8)
+	var ss *emulated.Element[ScalarField]
+	if cfg.ToBitsCanonical {
+		ss = c.fr.ReduceStrict(&s)
+	} else {
+		ss = c.fr.Reduce(&s)
+	}
+	x := c.fr.ToBits(ss)[:nbBits]
+	slices.Reverse(x)
 	return x
 }
 
 // MarshalG1 returns [P.X || P.Y] in binary. Both P.X and P.Y are
 // in little endian.
-func (c *Curve) MarshalG1(P G1Affine) []frontend.Variable {
+func (c *Curve) MarshalG1(P G1Affine, opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
 	nbBits := 8 * ((ecc.BLS24_315.BaseField().BitLen() + 7) / 8)
+	bOpts := []bits.BaseConversionOption{bits.WithNbDigits(nbBits)}
+	if !cfg.ToBitsCanonical {
+		bOpts = append(bOpts, bits.OmitModulusCheck())
+	}
 	res := make([]frontend.Variable, 2*nbBits)
-	x := bits.ToBinary(c.api, P.X, bits.WithNbDigits(nbBits))
-	y := bits.ToBinary(c.api, P.Y, bits.WithNbDigits(nbBits))
+	x := bits.ToBinary(c.api, P.X, bOpts...)
+	y := bits.ToBinary(c.api, P.Y, bOpts...)
 	for i := 0; i < nbBits; i++ {
 		res[i] = x[nbBits-1-i]
 		res[i+nbBits] = y[nbBits-1-i]
@@ -106,7 +121,7 @@ func (c *Curve) jointScalarMul(P1, P2 *G1Affine, s1, s2 *Scalar, opts ...algopts
 	res := &G1Affine{}
 	varScalar1 := c.packScalarToVar(s1)
 	varScalar2 := c.packScalarToVar(s2)
-	res.jointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2)
+	res.jointScalarMul(c.api, *P1, *P2, varScalar1, varScalar2, opts...)
 	return res
 }
 
@@ -118,7 +133,7 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption)
 		Y: P.Y,
 	}
 	varScalar := c.packScalarToVar(s)
-	res.ScalarMul(c.api, *P, varScalar)
+	res.ScalarMul(c.api, *P, varScalar, opts...)
 	return res
 }
 
@@ -127,7 +142,7 @@ func (c *Curve) ScalarMul(P *G1Affine, s *Scalar, opts ...algopts.AlgebraOption)
 func (c *Curve) ScalarMulBase(s *Scalar, opts ...algopts.AlgebraOption) *G1Affine {
 	res := new(G1Affine)
 	varScalar := c.packScalarToVar(s)
-	res.ScalarMulBase(c.api, varScalar)
+	res.ScalarMulBase(c.api, varScalar, opts...)
 	return res
 }
 
@@ -145,6 +160,10 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 	if err != nil {
 		return nil, fmt.Errorf("new config: %w", err)
 	}
+	addFn := c.Add
+	if cfg.CompleteArithmetic {
+		addFn = c.AddUnified
+	}
 	if !cfg.FoldMulti {
 		if len(P) != len(scalars) {
 			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
@@ -159,7 +178,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		}
 		for i := 1; i < n-1; i += 2 {
 			q := c.jointScalarMul(P[i-1], P[i], scalars[i-1], scalars[i], opts...)
-			res = c.Add(res, q)
+			res = addFn(res, q)
 		}
 		return res, nil
 	} else {
@@ -169,25 +188,19 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 		}
 		gamma := c.packScalarToVar(scalars[0])
 		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
-		cc := getInnerCurveConfig(c.api.Compiler().Field())
-		sd, err := c.api.Compiler().NewHint(DecomposeScalarG1, 3, gamma)
-		if err != nil {
-			panic(err)
-		}
-		gamma1, gamma2 := sd[0], sd[1]
-		c.api.AssertIsEqual(c.api.Add(gamma1, c.api.Mul(gamma2, cc.lambda)), c.api.Add(gamma, c.api.Mul(cc.fr, sd[2])))
-		nbits := cc.lambda.BitLen() + 1
+		gamma1, gamma2 := callDecomposeScalar(c.api, gamma, true)
+		nbits := 127
 		gamma1Bits := c.api.ToBinary(gamma1, nbits)
 		gamma2Bits := c.api.ToBinary(gamma2, nbits)
 
 		// points and scalars must be non-zero
 		var res G1Affine
-		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits)
+		res.scalarBitsMul(c.api, *P[len(P)-1], gamma1Bits, gamma2Bits, opts...)
 		for i := len(P) - 2; i > 0; i-- {
-			res = *c.Add(P[i], &res)
-			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits)
+			res = *addFn(P[i], &res)
+			res.scalarBitsMul(c.api, res, gamma1Bits, gamma2Bits, opts...)
 		}
-		res = *c.Add(P[0], &res)
+		res = *addFn(P[0], &res)
 		return &res, nil
 	}
 }
@@ -213,6 +226,22 @@ func (c *Curve) Lookup2(b1, b2 frontend.Variable, p1, p2, p3, p4 *G1Affine) *G1A
 	}
 }
 
+// Mux performs a lookup from the inputs and returns inputs[sel]. It is most
+// efficient for power of two lengths of the inputs, but works for any number of
+// inputs.
+func (c *Curve) Mux(sel frontend.Variable, inputs ...*G1Affine) *G1Affine {
+	xs := make([]frontend.Variable, len(inputs))
+	ys := make([]frontend.Variable, len(inputs))
+	for i := range inputs {
+		xs[i] = inputs[i].X
+		ys[i] = inputs[i].Y
+	}
+	return &G1Affine{
+		X: selector.Mux(c.api, sel, xs...),
+		Y: selector.Mux(c.api, sel, ys...),
+	}
+}
+
 // Pairing allows computing pairing-related operations in BLS24-315.
 type Pairing struct {
 	api frontend.API
@@ -226,7 +255,7 @@ func NewPairing(api frontend.API) *Pairing {
 }
 
 // MillerLoop computes the Miller loop between the pairs of inputs. It doesn't
-// modify the inputs. It returns an error if there is a mismatch betwen the
+// modify the inputs. It returns an error if there is a mismatch between the
 // lengths of the inputs.
 func (p *Pairing) MillerLoop(P []*G1Affine, Q []*G2Affine) (*GT, error) {
 	inP := make([]G1Affine, len(P))
@@ -287,6 +316,14 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 // AssertIsEqual asserts the equality of the target group elements.
 func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
+}
+
+func (p *Pairing) AssertIsOnG1(P *G1Affine) {
+	panic("not implemented")
+}
+
+func (p *Pairing) AssertIsOnG2(P *G2Affine) {
+	panic("not implemented")
 }
 
 // NewG1Affine allocates a witness from the native G1 element and returns it.
@@ -450,4 +487,4 @@ func (c *Curve) packScalarToVar(s *Scalar) frontend.Variable {
 }
 
 // ScalarField defines the [emulated.FieldParams] implementation on a one limb of the scalar field.
-type ScalarField = emparams.BLS12315Fr
+type ScalarField = emparams.BLS24315Fr

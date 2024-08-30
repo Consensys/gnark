@@ -30,6 +30,9 @@ type shortNativeHash struct {
 // field and outputs element in the target field (usually the scalar field of
 // the circuit being recursed). The hash function is based on MiMC and
 // partitions the excess bits to not overflow the target field.
+//
+// NB! See the considerations in the package documentation of [mimc] for length
+// extension attack.
 func NewShort(current, target *big.Int) (hash.Hash, error) {
 	var h cryptomimc.Hash
 	var bitBlockSize int
@@ -65,9 +68,6 @@ func NewShort(current, target *big.Int) (hash.Hash, error) {
 		return nil, fmt.Errorf("no default mimc for scalar field: %s", current.String())
 	}
 	hh := h.New()
-	if target.Cmp(current) == 0 {
-		return hh, nil
-	}
 	nbBits := target.BitLen()
 	if nbBits > current.BitLen() {
 		nbBits = current.BitLen()
@@ -158,15 +158,16 @@ func newHashFromParameter(api frontend.API, hf stdhash.FieldHasher, bitLength in
 
 // NewHash returns a circuit hash function which reads elements in the current
 // native field and outputs element in the target field (usually the scalar
-// field of the circuit being recursed). The hash function is based on MiMC and
-// partitions the excess bits to not overflow the target field.
+// field of the circuit being recursed). The hash function is based on MiMC
+// (from [mimc] package) and partitions the excess bits to not overflow the
+// target field.
+//
+// NB! See the considerations in the package documentation of [mimc] for length
+// extension attack.
 func NewHash(api frontend.API, target *big.Int, bitmode bool) (stdhash.FieldHasher, error) {
 	h, err := mimc.NewMiMC(api)
 	if err != nil {
 		return nil, fmt.Errorf("get mimc: %w", err)
-	}
-	if api.Compiler().Field().Cmp(target) == 0 {
-		return &h, nil
 	}
 	nbBits := target.BitLen()
 	if nbBits > api.Compiler().FieldBitLen() {

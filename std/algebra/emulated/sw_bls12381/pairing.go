@@ -245,13 +245,22 @@ func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
 //
 // This function doesn't check that the inputs are in the correct subgroups.
 func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
-	f, err := pr.Pair(P, Q)
+	f, err := pr.MillerLoop(P, Q)
 	if err != nil {
 		return err
 
 	}
-	one := pr.One()
-	pr.AssertIsEqual(f, one)
+	// We perform the easy part of the final exp to push f to the cyclotomic
+	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
+	// cyclotomic squaring (e.g. Karabina12345).
+	//
+	// f = f^(p⁶-1)(p²+1)
+	buf := pr.Conjugate(f)
+	buf = pr.DivUnchecked(buf, f)
+	f = pr.FrobeniusSquare(buf)
+	f = pr.Mul(f, buf)
+
+	pr.AssertFinalExponentiationIsOne(f)
 
 	return nil
 }
@@ -268,7 +277,7 @@ func (pr Pairing) AssertIsOnTwist(Q *G2Affine) {
 	// Twist: Y² == X³ + aX + b, where a=0 and b=4(1+u)
 	// (X,Y) ∈ {Y² == X³ + aX + b} U (0,0)
 
-	// if Q=(0,0) we assign b=0 otherwise 3/(9+u), and continue
+	// if Q=(0,0) we assign b=0 otherwise 4(1+u), and continue
 	selector := pr.api.And(pr.Ext2.IsZero(&Q.P.X), pr.Ext2.IsZero(&Q.P.Y))
 	b := pr.Ext2.Select(selector, pr.Ext2.Zero(), pr.bTwist)
 
@@ -447,8 +456,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 
 	// compute x3 =λ1²-x1-x2
 	x3 := pr.Ext2.Square(l1)
-	x3 = pr.Ext2.Sub(x3, &p1.X)
-	x3 = pr.Ext2.Sub(x3, &p2.X)
+	x3 = pr.Ext2.Sub(x3, pr.Ext2.Add(&p1.X, &p2.X))
 
 	// omit y3 computation
 
@@ -466,8 +474,7 @@ func (pr Pairing) doubleAndAddStep(p1, p2 *g2AffP) (*g2AffP, *lineEvaluation, *l
 
 	// compute x4 = λ2²-x1-x3
 	x4 := pr.Ext2.Square(l2)
-	x4 = pr.Ext2.Sub(x4, &p1.X)
-	x4 = pr.Ext2.Sub(x4, x3)
+	x4 = pr.Ext2.Sub(x4, pr.Ext2.Add(&p1.X, x3))
 
 	// compute y4 = λ2(x1 - x4)-y1
 	y4 := pr.Ext2.Sub(&p1.X, x4)
@@ -501,8 +508,7 @@ func (pr Pairing) doubleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation) {
 
 	// xr = λ²-2x
 	xr := pr.Ext2.Square(λ)
-	xr = pr.Ext2.Sub(xr, &p1.X)
-	xr = pr.Ext2.Sub(xr, &p1.X)
+	xr = pr.Ext2.Sub(xr, pr.Ext2.MulByConstElement(&p1.X, big.NewInt(2)))
 
 	// yr = λ(x-xr)-y
 	yr := pr.Ext2.Sub(&p1.X, xr)
@@ -540,8 +546,7 @@ func (pr Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluat
 
 	// x2 = λ1²-2x
 	x2 := pr.Ext2.Square(λ1)
-	x2 = pr.Ext2.Sub(x2, &p1.X)
-	x2 = pr.Ext2.Sub(x2, &p1.X)
+	x2 = pr.Ext2.Sub(x2, pr.Ext2.MulByConstElement(&p1.X, big.NewInt(2)))
 
 	// ommit yr computation, and
 	// compute λ2 = 2y/(x2 − x) − λ1.

@@ -28,6 +28,15 @@ import (
 
 // AssertIsEqual adds an assertion in the constraint builder (i1 == i2)
 func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
+	c1, i1Constant := builder.constantValue(i1)
+	c2, i2Constant := builder.constantValue(i2)
+
+	if i1Constant && i2Constant {
+		if c1 != c2 {
+			panic("non-equal constant values")
+		}
+		return
+	}
 	// encoded 1 * i1 == i2
 	r := builder.getLinearExpression(builder.toVariable(i1))
 	o := builder.getLinearExpression(builder.toVariable(i2))
@@ -105,11 +114,10 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 		}
 	}
 
-	nbBits := builder.cs.FieldBitLen()
-	vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
-
 	// bound is constant
 	if bConst {
+		nbBits := builder.cs.FieldBitLen()
+		vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 		builder.MustBeLessOrEqCst(vBits, builder.cs.ToBigInt(cb), v)
 		return
 	}
@@ -120,10 +128,6 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 	// here bound is NOT a constant,
 	// but a can be either constant or a wire.
-
-	_, aConst := builder.constantValue(a)
-
-	debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
 
 	nbBits := builder.cs.FieldBitLen()
 
@@ -146,31 +150,24 @@ func (builder *builder) mustBeLessOrEqVar(a, bound frontend.Variable) {
 		// else
 		// 		p[i] = p[i+1] * a[i]
 		//		t = 0
+
 		v := builder.Mul(p[i+1], aBits[i])
+
 		p[i] = builder.Select(boundBits[i], v, p[i+1])
-
 		t := builder.Select(boundBits[i], zero, p[i+1])
-
-		// (1 - t - ai) * ai == 0
-		var l frontend.Variable
-		l = builder.cstOne()
-		l = builder.Sub(l, t, aBits[i])
-
 		// note if bound[i] == 1, this constraint is (1 - ai) * ai == 0
 		// → this is a boolean constraint
 		// if bound[i] == 0, t must be 0 or 1, thus ai must be 0 or 1 too
 
-		if aConst {
-			// aBits[i] is a constant;
-			l = builder.Mul(l, aBits[i])
-			// TODO @gbotrel this constraint seems useless.
-			added = append(added, builder.cs.AddR1C(builder.newR1C(l, zero, zero), builder.genericGate))
-		} else {
-			added = append(added, builder.cs.AddR1C(builder.newR1C(l, aBits[i], zero), builder.genericGate))
-		}
+		// (1 - t - ai) * ai == 0
+		l := builder.Sub(builder.cstOne(), t, aBits[i])
+		added = append(added, builder.cs.AddR1C(builder.newR1C(l, builder.Mul(aBits[i], builder.cstOne()), zero), builder.genericGate))
 	}
 
-	builder.cs.AttachDebugInfo(debug, added)
+	if debug.Debug {
+		debug := builder.newDebugInfo("mustBeLessOrEq", a, " <= ", bound)
+		builder.cs.AttachDebugInfo(debug, added)
+	}
 
 }
 
@@ -194,9 +191,6 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 	if bound.BitLen() > nbBits {
 		panic("AssertIsLessOrEqual: bound is too large, constraint will never be satisfied")
 	}
-
-	// debug info
-	debug := builder.newDebugInfo("mustBeLessOrEq", aForDebug, " <= ", builder.toVariable(bound))
 
 	// t trailing bits in the bound
 	t := 0
@@ -234,7 +228,8 @@ func (builder *builder) MustBeLessOrEqCst(aBits []frontend.Variable, bound *big.
 		}
 	}
 
-	if len(added) != 0 {
+	if debug.Debug && len(added) != 0 {
+		debug := builder.newDebugInfo("mustBeLessOrEq", aForDebug, " <= ", builder.toVariable(bound))
 		builder.cs.AttachDebugInfo(debug, added)
 	}
 }

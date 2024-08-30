@@ -8,8 +8,10 @@ package algopts
 import "fmt"
 
 type algebraCfg struct {
-	NbScalarBits int
-	FoldMulti    bool
+	NbScalarBits       int
+	FoldMulti          bool
+	CompleteArithmetic bool
+	ToBitsCanonical    bool
 }
 
 // AlgebraOption allows modifying algebraic operation behaviour.
@@ -40,6 +42,37 @@ func WithFoldingScalarMul() AlgebraOption {
 			return fmt.Errorf("withFoldingScalarMul already set")
 		}
 		ac.FoldMulti = true
+		return nil
+	}
+}
+
+// WithCompleteArithmetic forces the use of safe addition formulas for scalar
+// multiplication.
+func WithCompleteArithmetic() AlgebraOption {
+	return func(ac *algebraCfg) error {
+		if ac.CompleteArithmetic {
+			return fmt.Errorf("WithCompleteArithmetic already set")
+		}
+		ac.CompleteArithmetic = true
+		return nil
+	}
+}
+
+// WithCanonicalBitRepresentation enforces the marshalling methods to assert
+// that the bit representation is in canonical form. For field elements this
+// means that the bits represent a number less than the modulus.
+//
+// This option is useful when performing direct comparison between the bit form
+// of two elements. It can be avoided when the bit representation is used in
+// other cases, such as computing a challenge using a hash function, where
+// non-canonical bit representation leads to incorrect challenge (which in turn
+// makes the verification fail).
+func WithCanonicalBitRepresentation() AlgebraOption {
+	return func(ac *algebraCfg) error {
+		if ac.ToBitsCanonical {
+			return fmt.Errorf("WithCanonicalBitRepresentation already set")
+		}
+		ac.ToBitsCanonical = true
 		return nil
 	}
 }

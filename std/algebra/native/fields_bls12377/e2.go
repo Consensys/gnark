@@ -17,12 +17,9 @@ limitations under the License.
 package fields_bls12377
 
 import (
-	"math/big"
-
 	bls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377"
 	"github.com/consensys/gnark-crypto/ecc/bw6-761/fr"
 
-	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 )
 
@@ -71,8 +68,8 @@ func (e *E2) Add(api frontend.API, e1, e2 E2) *E2 {
 
 // Double e2 elmt
 func (e *E2) Double(api frontend.API, e1 E2) *E2 {
-	e.A0 = api.Add(e1.A0, e1.A0)
-	e.A1 = api.Add(e1.A1, e1.A1)
+	e.A0 = api.Mul(e1.A0, 2)
+	e.A1 = api.Mul(e1.A1, 2)
 	return e
 }
 
@@ -86,13 +83,11 @@ func (e *E2) Sub(api frontend.API, e1, e2 E2) *E2 {
 // Mul e2 elmts
 func (e *E2) Mul(api frontend.API, e1, e2 E2) *E2 {
 
-	// 1C
 	l1 := api.Add(e1.A0, e1.A1)
 	l2 := api.Add(e2.A0, e2.A1)
 
 	u := api.Mul(l1, l2)
 
-	// 2C
 	ac := api.Mul(e1.A0, e2.A0)
 	bd := api.Mul(e1.A1, e2.A1)
 
@@ -114,9 +109,9 @@ func (e *E2) Square(api frontend.API, x E2) *E2 {
 
 	c0 = api.Mul(c0, c2) // (x1+x2)*(x1+(u**2)x2)
 	c2 = api.Mul(x.A0, x.A1)
-	c2 = api.Add(c2, c2)
+	c2 = api.Mul(c2, 2)
 	e.A1 = c2
-	c2 = api.Add(c2, c2)
+	c2 = api.Mul(c2, 2)
 	e.A0 = api.Add(c0, c2)
 
 	return e
@@ -145,28 +140,10 @@ func (e *E2) Conjugate(api frontend.API, e1 E2) *E2 {
 	return e
 }
 
-var InverseE2Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, c bls12377.E2
-
-	a.A0.SetBigInt(inputs[0])
-	a.A1.SetBigInt(inputs[1])
-
-	c.Inverse(&a)
-
-	c.A0.BigInt(res[0])
-	c.A1.BigInt(res[1])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(InverseE2Hint)
-}
-
 // Inverse e2 elmts
 func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 
-	res, err := api.NewHint(InverseE2Hint, 2, e1.A0, e1.A1)
+	res, err := api.NewHint(inverseE2Hint, 2, e1.A0, e1.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
@@ -185,30 +162,10 @@ func (e *E2) Inverse(api frontend.API, e1 E2) *E2 {
 	return e
 }
 
-var DivE2Hint = func(_ *big.Int, inputs []*big.Int, res []*big.Int) error {
-	var a, b, c bls12377.E2
-
-	a.A0.SetBigInt(inputs[0])
-	a.A1.SetBigInt(inputs[1])
-	b.A0.SetBigInt(inputs[2])
-	b.A1.SetBigInt(inputs[3])
-
-	c.Inverse(&b).Mul(&c, &a)
-
-	c.A0.BigInt(res[0])
-	c.A1.BigInt(res[1])
-
-	return nil
-}
-
-func init() {
-	solver.RegisterHint(DivE2Hint)
-}
-
 // DivUnchecked e2 elmts
 func (e *E2) DivUnchecked(api frontend.API, e1, e2 E2) *E2 {
 
-	res, err := api.NewHint(DivE2Hint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
+	res, err := api.NewHint(divE2Hint, 2, e1.A0, e1.A1, e2.A0, e2.A1)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
 		panic(err)
