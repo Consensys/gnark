@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/secp256k1/ecdsa"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/math/emulated"
 )
 
@@ -46,10 +47,20 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	if len(outputs) != 2*int(emfp.NbLimbs())+1 {
 		return fmt.Errorf("expected output %d limbs got %d", 2*emfp.NbLimbs(), len(outputs))
 	}
-	msg := recompose(inputs[:emfr.NbLimbs()], emfr.BitsPerLimb())
+	msg, r, s := new(big.Int), new(big.Int), new(big.Int)
+	err := limbs.Recompose(inputs[:emfr.NbLimbs()], emfr.BitsPerLimb(), msg)
+	if err != nil {
+		return fmt.Errorf("recompose message: %w", err)
+	}
 	v := inputs[emfr.NbLimbs()].Uint64()
-	r := recompose(inputs[emfr.NbLimbs()+1:2*emfr.NbLimbs()+1], emfr.BitsPerLimb())
-	s := recompose(inputs[2*emfr.NbLimbs()+1:3*emfr.NbLimbs()+1], emfr.BitsPerLimb())
+	err = limbs.Recompose(inputs[emfr.NbLimbs()+1:2*emfr.NbLimbs()+1], emfr.BitsPerLimb(), r)
+	if err != nil {
+		return fmt.Errorf("recompose r: %w", err)
+	}
+	err = limbs.Recompose(inputs[2*emfr.NbLimbs()+1:3*emfr.NbLimbs()+1], emfr.BitsPerLimb(), s)
+	if err != nil {
+		return fmt.Errorf("recompose s: %w", err)
+	}
 	var pk ecdsa.PublicKey
 	var isQNRFailure int
 	if err := pk.RecoverFrom(msg.Bytes(), uint(v), r, s); err != nil {
@@ -62,10 +73,10 @@ func recoverPublicKeyHint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) err
 	}
 	Px := pk.A.X.BigInt(new(big.Int))
 	Py := pk.A.Y.BigInt(new(big.Int))
-	if err := decompose(Px, emfp.BitsPerLimb(), outputs[0:emfp.NbLimbs()]); err != nil {
+	if err := limbs.Decompose(Px, emfp.BitsPerLimb(), outputs[0:emfp.NbLimbs()]); err != nil {
 		return fmt.Errorf("decompose x: %w", err)
 	}
-	if err := decompose(Py, emfp.BitsPerLimb(), outputs[emfp.NbLimbs():2*emfp.NbLimbs()]); err != nil {
+	if err := limbs.Decompose(Py, emfp.BitsPerLimb(), outputs[emfp.NbLimbs():2*emfp.NbLimbs()]); err != nil {
 		return fmt.Errorf("decompose y: %w", err)
 	}
 	// we also return a flag that indicates if the public key is zero but only

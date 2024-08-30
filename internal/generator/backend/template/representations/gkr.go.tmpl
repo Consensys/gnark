@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark-crypto/utils"
 	"github.com/consensys/gnark/constraint"
 	hint "github.com/consensys/gnark/constraint/solver"
-	"github.com/consensys/gnark/std/utils/algo_utils"
+	"github.com/consensys/gnark/internal/algo_utils"
 	"hash"
 	"math/big"
 	"sync"
@@ -198,4 +198,29 @@ func GetHashBuilder(name string) (func() hash.Hash, error) {
 		return nil, fmt.Errorf("hash function not found")
 	}
 	return builder, nil
+}
+
+
+// For testing purposes
+type ConstPseudoHash int
+
+func (c ConstPseudoHash) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func (c ConstPseudoHash) Sum([]byte) []byte {
+	var x fr.Element
+	x.SetInt64(int64(c))
+	res := x.Bytes()
+	return res[:]
+}
+
+func (c ConstPseudoHash) Reset() {}
+
+func (c ConstPseudoHash) Size() int {
+	return fr.Bytes
+}
+
+func (c ConstPseudoHash) BlockSize() int {
+	return fr.Bytes
 }

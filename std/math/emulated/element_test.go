@@ -13,6 +13,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/test"
 )
@@ -1136,7 +1137,7 @@ func testReduceStrict[T FieldParams](t *testing.T) {
 		for i := range plimbs {
 			plimbs[i] = new(big.Int)
 		}
-		err := decompose(p, fp.BitsPerLimb(), plimbs)
+		err := limbs.Decompose(p, fp.BitsPerLimb(), plimbs)
 		assert.NoError(err)
 		plimbs[0].Add(plimbs[0], big.NewInt(1))
 		exp := make([]*big.Int, int(fp.NbLimbs()))
@@ -1191,7 +1192,7 @@ func testToBitsCanonical[T FieldParams](t *testing.T) {
 		for i := range plimbs {
 			plimbs[i] = new(big.Int)
 		}
-		err := decompose(p, fp.BitsPerLimb(), plimbs)
+		err := limbs.Decompose(p, fp.BitsPerLimb(), plimbs)
 		assert.NoError(err)
 		plimbs[0].Add(plimbs[0], big.NewInt(1))
 		exp := make([]*big.Int, int(nbBits))
@@ -1242,7 +1243,7 @@ func testIsZeroEdgeCases[T FieldParams](t *testing.T) {
 		for i := range plimbs {
 			plimbs[i] = new(big.Int)
 		}
-		err := decompose(p, fp.BitsPerLimb(), plimbs)
+		err := limbs.Decompose(p, fp.BitsPerLimb(), plimbs)
 		assert.NoError(err)
 		// limbs are for zero
 		witness1 := &IsZeroEdgeCase[T]{Limbs: make([]frontend.Variable, int(fp.NbLimbs())), Expected: 1}

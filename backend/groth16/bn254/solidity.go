@@ -189,7 +189,7 @@ contract Verifier {
     }
 
     /// Square test in Fp.
-    /// @notice Returns wheter a number x exists such that x * x = a in Fp.
+    /// @notice Returns whether a number x exists such that x * x = a in Fp.
     /// @notice Will revert with InvalidProof() if the input is not a square
     /// or not reduced.
     /// @param a the square
