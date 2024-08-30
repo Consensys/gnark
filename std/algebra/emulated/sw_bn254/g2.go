@@ -233,7 +233,7 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 	xqxp = g2.Ext2.Add(&p.P.X, &q.P.X)
 	x2 := g2.Ext2.Sub(λ1λ1, xqxp)
 
-	// ommit y2 computation
+	// omit y2 computation
 	// compute λ2 = -λ1-2*p.y/(x2-p.x)
 	ypyp := g2.Ext2.Add(&p.P.Y, &p.P.Y)
 	x2xp := g2.Ext2.Sub(x2, &p.P.X)

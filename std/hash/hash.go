@@ -28,7 +28,7 @@ import (
 // FieldHasher hashes inputs into a short digest. This interface mocks
 // [BinaryHasher], but is more suitable in-circuit by assuming the inputs are
 // scalar field elements and outputs digest as a field element. Such hash
-// functions are for examle Poseidon, MiMC etc.
+// functions are for example Poseidon, MiMC etc.
 type FieldHasher interface {
 	// Sum computes the hash of the internal state of the hash function.
 	Sum() frontend.Variable
