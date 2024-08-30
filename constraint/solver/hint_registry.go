@@ -2,6 +2,7 @@ package solver
 
 import (
 	"fmt"
+	"github.com/consensys/gnark/internal/hints"
 	"math/big"
 	"sync"
 
@@ -9,7 +10,7 @@ import (
 )
 
 func init() {
-	RegisterHint(InvZeroHint)
+	RegisterHint(InvZeroHint, hints.Randomize)
 }
 
 var (

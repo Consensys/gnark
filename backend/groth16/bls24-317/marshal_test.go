@@ -109,7 +109,7 @@ func TestVerifyingKeySerialization(t *testing.T) {
 						elem.Add(&elem, &p1)
 					}
 				}
-				_, vk.CommitmentKey, err = pedersen.Setup(bases...)
+				_, vk.CommitmentKey, err = pedersen.Setup(bases)
 				assert.NoError(t, err)
 			}
 
@@ -183,7 +183,7 @@ func TestProvingKeySerialization(t *testing.T) {
 			}
 			{
 				var err error
-				pk.CommitmentKeys, _, err = pedersen.Setup(pedersenBases...)
+				pk.CommitmentKeys, _, err = pedersen.Setup(pedersenBases)
 				require.NoError(t, err)
 			}
 

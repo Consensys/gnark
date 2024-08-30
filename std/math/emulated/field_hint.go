@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 )
 
 func (f *Field[T]) wrapHint(nonnativeInputs ...*Element[T]) []frontend.Variable {
@@ -60,7 +61,7 @@ func unwrapHint(isEmulatedInput, isEmulatedOutput bool, nativeInputs, nativeOutp
 		return fmt.Errorf("hint wrapper header is 2+nbLimbs elements")
 	}
 	nonnativeMod := new(big.Int)
-	if err := recompose(nativeInputs[2:2+nbLimbs], uint(nbBits), nonnativeMod); err != nil {
+	if err := limbs.Recompose(nativeInputs[2:2+nbLimbs], uint(nbBits), nonnativeMod); err != nil {
 		return fmt.Errorf("cannot recover nonnative mod: %w", err)
 	}
 	var nonnativeInputs []*big.Int
@@ -83,7 +84,7 @@ func unwrapHint(isEmulatedInput, isEmulatedOutput bool, nativeInputs, nativeOutp
 				return fmt.Errorf("cannot read %d-th nonnative element", i)
 			}
 			nonnativeInputs[i] = new(big.Int)
-			if err := recompose(nativeInputs[readPtr+1:readPtr+1+currentInputLen], uint(nbBits), nonnativeInputs[i]); err != nil {
+			if err := limbs.Recompose(nativeInputs[readPtr+1:readPtr+1+currentInputLen], uint(nbBits), nonnativeInputs[i]); err != nil {
 				return fmt.Errorf("recompose %d-th element: %w", i, err)
 			}
 			readPtr += 1 + currentInputLen
@@ -115,7 +116,7 @@ func unwrapHint(isEmulatedInput, isEmulatedOutput bool, nativeInputs, nativeOutp
 	if isEmulatedOutput {
 		for i := range nonnativeOutputs {
 			nonnativeOutputs[i].Mod(nonnativeOutputs[i], nonnativeMod)
-			if err := decompose(nonnativeOutputs[i], uint(nbBits), nativeOutputs[i*nbLimbs:(i+1)*nbLimbs]); err != nil {
+			if err := limbs.Decompose(nonnativeOutputs[i], uint(nbBits), nativeOutputs[i*nbLimbs:(i+1)*nbLimbs]); err != nil {
 				return fmt.Errorf("decompose %d-th element: %w", i, err)
 			}
 		}

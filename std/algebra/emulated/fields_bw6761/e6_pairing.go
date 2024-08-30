@@ -81,7 +81,7 @@ func (e Ext6) ExpX0Plus1(z *E6) *E6 {
 	return result
 }
 
-// ExpX0Minus1Div3 set z to z^(x₀-1)/3 in E6 and return z
+// ExptMinus1Div3 set z to z^(x₀-1)/3 in E6 and return z
 // (x₀-1)/3 = 3195374304363544576
 func (e Ext6) ExptMinus1Div3(z *E6) *E6 {
 	z = e.Reduce(z)
@@ -322,13 +322,13 @@ func (e *Ext6) MulBy02345(z *E6, x [5]*baseEl) *E6 {
 	}
 }
 
-// FinalExponentiationCheck checks that a Miller function output x lies in the
+// AssertFinalExponentiationIsOne checks that a Miller function output x lies in the
 // same equivalence class as the reduced pairing. This replaces the final
 // exponentiation step in-circuit.
 // The method is adapted from Section 4 of [On Proving Pairings] paper by A. Novakovic and L. Eagen.
 //
 // [On Proving Pairings]: https://eprint.iacr.org/2024/640.pdf
-func (e Ext6) FinalExponentiationCheck(x *E6) *E6 {
+func (e Ext6) AssertFinalExponentiationIsOne(x *E6) {
 	res, err := e.fp.NewHint(finalExpHint, 6, &x.A0, &x.A1, &x.A2, &x.A3, &x.A4, &x.A5)
 	if err != nil {
 		// err is non-nil only for invalid number of inputs
@@ -357,8 +357,6 @@ func (e Ext6) FinalExponentiationCheck(x *E6) *E6 {
 	t0 = e.DivUnchecked(t0, t1)
 
 	e.AssertIsEqual(t0, x)
-
-	return nil
 }
 
 // ExpByU2 set z to z^(x₀+1) in E12 and return z

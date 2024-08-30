@@ -3,12 +3,12 @@ package sw_emulated
 import (
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
-	"golang.org/x/exp/slices"
 )
 
 // New returns a new [Curve] instance over the base field Base and scalar field
@@ -101,26 +101,41 @@ type AffinePoint[Base emulated.FieldParams] struct {
 
 // MarshalScalar marshals the scalar into bits. Compatible with scalar
 // marshalling in gnark-crypto.
-func (c *Curve[B, S]) MarshalScalar(s emulated.Element[S]) []frontend.Variable {
+func (c *Curve[B, S]) MarshalScalar(s emulated.Element[S], opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
 	var fr S
 	nbBits := 8 * ((fr.Modulus().BitLen() + 7) / 8)
-	sReduced := c.scalarApi.Reduce(&s)
-	res := c.scalarApi.ToBits(sReduced)[:nbBits]
-	for i, j := 0, nbBits-1; i < j; {
-		res[i], res[j] = res[j], res[i]
-		i++
-		j--
+	var sReduced *emulated.Element[S]
+	if cfg.ToBitsCanonical {
+		sReduced = c.scalarApi.ReduceStrict(&s)
+	} else {
+		sReduced = c.scalarApi.Reduce(&s)
 	}
+	res := c.scalarApi.ToBits(sReduced)[:nbBits]
+	slices.Reverse(res)
 	return res
 }
 
 // MarshalG1 marshals the affine point into bits. The output is compatible with
 // the point marshalling in gnark-crypto.
-func (c *Curve[B, S]) MarshalG1(p AffinePoint[B]) []frontend.Variable {
+func (c *Curve[B, S]) MarshalG1(p AffinePoint[B], opts ...algopts.AlgebraOption) []frontend.Variable {
+	cfg, err := algopts.NewConfig(opts...)
+	if err != nil {
+		panic(fmt.Sprintf("parse opts: %v", err))
+	}
 	var fp B
 	nbBits := 8 * ((fp.Modulus().BitLen() + 7) / 8)
-	x := c.baseApi.Reduce(&p.X)
-	y := c.baseApi.Reduce(&p.Y)
+	var x, y *emulated.Element[B]
+	if cfg.ToBitsCanonical {
+		x = c.baseApi.ReduceStrict(&p.X)
+		y = c.baseApi.ReduceStrict(&p.Y)
+	} else {
+		x = c.baseApi.Reduce(&p.X)
+		y = c.baseApi.Reduce(&p.Y)
+	}
 	bx := c.baseApi.ToBits(x)[:nbBits]
 	by := c.baseApi.ToBits(y)[:nbBits]
 	slices.Reverse(bx)
@@ -333,7 +348,7 @@ func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
 	λ1λ1 := c.baseApi.MulMod(λ1, λ1)
 	x2 = c.baseApi.Sub(λ1λ1, x2)
 
-	// ommit y2 computation, and
+	// omit y2 computation, and
 	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
 	x1x2 := c.baseApi.Sub(&p.X, x2)
 	λ2 := c.baseApi.Div(y2, x1x2)
@@ -378,7 +393,7 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	xqxp = c.baseApi.Add(&p.X, &q.X)
 	x2 := c.baseApi.Sub(λ1λ1, xqxp)
 
-	// ommit y2 computation
+	// omit y2 computation
 	// compute λ2 = λ1+2*p.y/(x2-p.x)
 	ypyp := c.baseApi.MulConst(&p.Y, big.NewInt(2))
 	x2xp := c.baseApi.Sub(x2, &p.X)
@@ -420,7 +435,7 @@ func (c *Curve[B, S]) doubleAndAddSelect(b frontend.Variable, p, q *AffinePoint[
 	xqxp = c.baseApi.Add(&p.X, &q.X)
 	x2 := c.baseApi.Sub(λ1λ1, xqxp)
 
-	// ommit y2 computation
+	// omit y2 computation
 
 	// conditional second addition
 	t := c.Select(b, p, q)
@@ -1181,7 +1196,7 @@ func (c *Curve[B, S]) scalarMulBaseGeneric(s *emulated.Element[S], opts ...algop
 //     curve, (_,0) is a point of order 2 which is not the prime subgroup.
 //   - (0,0) is not a valid public key.
 //
-// The [EVM] specifies these checks, wich are performed on the zkEVM
+// The [EVM] specifies these checks, which are performed on the zkEVM
 // arithmetization side before calling the circuit that uses this method.
 func (c *Curve[B, S]) JointScalarMulBase(p *AffinePoint[B], s2, s1 *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
 	return c.jointScalarMul(c.Generator(), p, s1, s2, opts...)

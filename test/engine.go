@@ -755,7 +755,7 @@ func (e *engine) ToCanonicalVariable(v frontend.Variable) frontend.CanonicalVari
 }
 
 func (e *engine) SetGkrInfo(info constraint.GkrInfo) error {
-	return fmt.Errorf("not implemented")
+	return nil
 }
 
 // MustBeLessOrEqCst implements method comparing value given by its bits aBits

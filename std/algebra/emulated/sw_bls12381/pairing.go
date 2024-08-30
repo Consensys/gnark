@@ -156,7 +156,7 @@ func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
 
 	if unsafe {
 		// The Miller loop result is ≠ {-1,1}, otherwise this means P and Q are
-		// linearly dependant and not from G1 and G2 respectively.
+		// linearly dependent and not from G1 and G2 respectively.
 		// So e ∈ G_{q,2} \ {-1,1} and hence e.C1 ≠ 0.
 		// Nothing to do.
 
@@ -213,7 +213,7 @@ func (pr Pairing) finalExponentiation(e *GTEl, unsafe bool) *GTEl {
 		result = *pr.DecompressTorus(pr.MulTorus(c, t1))
 	} else {
 		// For a product of pairings this might happen when the result is expected to be 1.
-		// We assign a dummy value (1) to t1 and proceed furhter.
+		// We assign a dummy value (1) to t1 and proceed further.
 		// Finally we do a select on both edge cases:
 		//   - Only if seletor1=0 and selector2=0, we return MulTorus(c, t1) decompressed.
 		//   - Otherwise, we return 1.
@@ -251,7 +251,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 
 	}
 	// We perform the easy part of the final exp to push f to the cyclotomic
-	// subgroup so that FinalExponentiationCheck is carried with optimized
+	// subgroup so that AssertFinalExponentiationIsOne is carried with optimized
 	// cyclotomic squaring (e.g. Karabina12345).
 	//
 	// f = f^(p⁶-1)(p²+1)
@@ -260,7 +260,7 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 	f = pr.FrobeniusSquare(buf)
 	f = pr.Mul(f, buf)
 
-	pr.FinalExponentiationCheck(f)
+	pr.AssertFinalExponentiationIsOne(f)
 
 	return nil
 }
@@ -548,7 +548,7 @@ func (pr Pairing) tripleStep(p1 *g2AffP) (*g2AffP, *lineEvaluation, *lineEvaluat
 	x2 := pr.Ext2.Square(λ1)
 	x2 = pr.Ext2.Sub(x2, pr.Ext2.MulByConstElement(&p1.X, big.NewInt(2)))
 
-	// ommit yr computation, and
+	// omit yr computation, and
 	// compute λ2 = 2y/(x2 − x) − λ1.
 	x1x2 := pr.Ext2.Sub(&p1.X, x2)
 	λ2 := pr.Ext2.DivUnchecked(d, x1x2)

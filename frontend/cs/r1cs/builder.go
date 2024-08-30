@@ -211,9 +211,7 @@ func (builder *builder) getLinearExpression(_l interface{}) constraint.LinearExp
 	case constraint.LinearExpression:
 		L = tl
 	default:
-		if debug.Debug {
-			panic("invalid input for getLinearExpression") // sanity check
-		}
+		panic("invalid input for getLinearExpression") // sanity check
 	}
 
 	return L

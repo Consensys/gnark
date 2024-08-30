@@ -19,6 +19,7 @@ package r1cs
 import (
 	"errors"
 	"fmt"
+	"github.com/consensys/gnark/internal/hints"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -686,6 +687,19 @@ func (builder *builder) Compiler() frontend.Compiler {
 }
 
 func (builder *builder) Commit(v ...frontend.Variable) (frontend.Variable, error) {
+
+	// add a random mask to v
+	{
+		vCp := make([]frontend.Variable, len(v)+1)
+		copy(vCp, v)
+		mask, err := builder.NewHint(hints.Randomize, 1)
+		if err != nil {
+			return nil, err
+		}
+		vCp[len(v)] = mask[0]
+		builder.cs.AddR1C(builder.newR1C(mask[0], builder.eOne, mask[0]), builder.genericGate) // the variable needs to be involved in a constraint otherwise it will not affect the commitment
+		v = vCp
+	}
 
 	commitments := builder.cs.GetCommitments().(constraint.Groth16Commitments)
 	existingCommitmentIndexes := commitments.CommitmentIndexes()
