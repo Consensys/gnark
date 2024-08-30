@@ -19,7 +19,7 @@ import (
 // With this approach this is important that we do not change the [Element]
 // values after they are returned from [mulMod] as mulCheck keeps pointers and
 // the check will fail if the values referred to by the pointers change. By
-// following the [Field] public methods this shouldn't happened as we always take
+// following the [Field] public methods this shouldn't happen as we always take
 // and return pointers, and to change the values the user has to explicitly
 // dereference.
 //

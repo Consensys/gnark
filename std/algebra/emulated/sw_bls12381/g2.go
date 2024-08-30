@@ -198,7 +198,7 @@ func (g2 G2) triple(p *G2Affine) *G2Affine {
 	λ1λ1 := g2.Square(λ1)
 	x2 = g2.Sub(λ1λ1, x2)
 
-	// ommit y2 computation, and
+	// omit y2 computation, and
 	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
 	x1x2 := g2.Sub(&p.P.X, x2)
 	λ2 := g2.DivUnchecked(y2, x1x2)
@@ -234,7 +234,7 @@ func (g2 G2) doubleAndAdd(p, q *G2Affine) *G2Affine {
 	xqxp = g2.Ext2.Add(&p.P.X, &q.P.X)
 	x2 := g2.Ext2.Sub(λ1λ1, xqxp)
 
-	// ommit y2 computation
+	// omit y2 computation
 	// compute λ2 = -λ1-2*p.y/(x2-p.x)
 	ypyp := g2.Ext2.Add(&p.P.Y, &p.P.Y)
 	x2xp := g2.Ext2.Sub(x2, &p.P.X)

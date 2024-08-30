@@ -83,7 +83,7 @@ func collectSample(pc []uintptr) {
 
 		// TODO @gbotrel [...] -> from generics display poorly in pprof
 		// https://github.com/golang/go/issues/54105
-		frame.Function = strings.Replace(frame.Function, "[...]", "[T]", -1)
+		frame.Function = strings.ReplaceAll(frame.Function, "[...]", "[T]")
 
 		for i := 0; i < len(samples); i++ {
 			samples[i].Location = append(samples[i].Location, sessions[i].getLocation(&frame))

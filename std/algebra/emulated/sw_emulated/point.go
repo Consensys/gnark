@@ -348,7 +348,7 @@ func (c *Curve[B, S]) triple(p *AffinePoint[B]) *AffinePoint[B] {
 	λ1λ1 := c.baseApi.MulMod(λ1, λ1)
 	x2 = c.baseApi.Sub(λ1λ1, x2)
 
-	// ommit y2 computation, and
+	// omit y2 computation, and
 	// compute λ2 = 2p.y/(x2 − p.x) − λ1.
 	x1x2 := c.baseApi.Sub(&p.X, x2)
 	λ2 := c.baseApi.Div(y2, x1x2)
@@ -393,7 +393,7 @@ func (c *Curve[B, S]) doubleAndAdd(p, q *AffinePoint[B]) *AffinePoint[B] {
 	xqxp = c.baseApi.Add(&p.X, &q.X)
 	x2 := c.baseApi.Sub(λ1λ1, xqxp)
 
-	// ommit y2 computation
+	// omit y2 computation
 	// compute λ2 = λ1+2*p.y/(x2-p.x)
 	ypyp := c.baseApi.MulConst(&p.Y, big.NewInt(2))
 	x2xp := c.baseApi.Sub(x2, &p.X)
@@ -435,7 +435,7 @@ func (c *Curve[B, S]) doubleAndAddSelect(b frontend.Variable, p, q *AffinePoint[
 	xqxp = c.baseApi.Add(&p.X, &q.X)
 	x2 := c.baseApi.Sub(λ1λ1, xqxp)
 
-	// ommit y2 computation
+	// omit y2 computation
 
 	// conditional second addition
 	t := c.Select(b, p, q)

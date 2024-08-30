@@ -78,7 +78,7 @@ func parseCircuit(builder Builder, circuit Circuit) (err error) {
 	log := logger.Logger()
 	log.Info().Int("nbSecret", s.Secret).Int("nbPublic", s.Public).Msg("parsed circuit inputs")
 
-	// leaf handlers are called when encoutering leafs in the circuit data struct
+	// leaf handlers are called when encountering leafs in the circuit data struct
 	// leafs are Constraints that need to be initialized in the context of compiling a circuit
 	variableAdder := func(targetVisibility schema.Visibility) func(f schema.LeafInfo, tInput reflect.Value) error {
 		return func(f schema.LeafInfo, tInput reflect.Value) error {
