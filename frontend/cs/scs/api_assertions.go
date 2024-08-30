@@ -87,8 +87,10 @@ func (builder *builder) AssertIsEqual(i1, i2 frontend.Variable) {
 // AssertIsDifferent fails if i1 == i2
 func (builder *builder) AssertIsDifferent(i1, i2 frontend.Variable) {
 	s := builder.Sub(i1, i2)
-	if c, ok := builder.constantValue(s); ok && c.IsZero() {
-		panic("AssertIsDifferent(x,x) will never be satisfied")
+	if c, ok := builder.constantValue(s); ok {
+		if c.IsZero() {
+			panic("AssertIsDifferent(x,x) will never be satisfied")
+		}
 	} else if t := s.(expr.Term); t.Coeff.IsZero() {
 		panic("AssertIsDifferent(x,x) will never be satisfied")
 	}
@@ -166,11 +168,10 @@ func (builder *builder) AssertIsLessOrEqual(v frontend.Variable, bound frontend.
 		}
 	}
 
-	nbBits := builder.cs.FieldBitLen()
-	vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
-
 	// bound is constant
 	if bConst {
+		nbBits := builder.cs.FieldBitLen()
+		vBits := bits.ToBinary(builder, v, bits.WithNbDigits(nbBits), bits.WithUnconstrainedOutputs())
 		builder.MustBeLessOrEqCst(vBits, builder.cs.ToBigInt(cb), v)
 		return
 	}

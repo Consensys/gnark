@@ -9,6 +9,7 @@ import (
 	"github.com/consensys/gnark/internal/kvstore"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/rangecheck"
 	"github.com/rs/zerolog"
 	"golang.org/x/exp/constraints"
@@ -43,7 +44,7 @@ type Field[T FieldParams] struct {
 
 	log zerolog.Logger
 
-	constrainedLimbs map[uint64]struct{}
+	constrainedLimbs map[[16]byte]struct{}
 	checker          frontend.Rangechecker
 
 	mulChecks []mulCheck[T]
@@ -69,7 +70,7 @@ func NewField[T FieldParams](native frontend.API) (*Field[T], error) {
 	f := &Field[T]{
 		api:              native,
 		log:              logger.Logger(),
-		constrainedLimbs: make(map[uint64]struct{}),
+		constrainedLimbs: make(map[[16]byte]struct{}),
 		checker:          rangecheck.New(native),
 	}
 
@@ -216,7 +217,7 @@ func (f *Field[T]) enforceWidthConditional(a *Element[T]) (didConstrain bool) {
 			}
 			continue
 		}
-		if vv, ok := a.Limbs[i].(interface{ HashCode() uint64 }); ok {
+		if vv, ok := a.Limbs[i].(interface{ HashCode() [16]byte }); ok {
 			// okay, this is a canonical variable and it has a hashcode. We use
 			// it to see if the limb is already constrained.
 			h := vv.HashCode()
@@ -251,7 +252,7 @@ func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 	}
 
 	res := new(big.Int)
-	if err := recompose(constLimbs, f.fParams.BitsPerLimb(), res); err != nil {
+	if err := limbs.Recompose(constLimbs, f.fParams.BitsPerLimb(), res); err != nil {
 		f.log.Error().Err(err).Msg("recomposing constant")
 		return nil, false
 	}

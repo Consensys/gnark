@@ -6,6 +6,7 @@ import (
 	"math/bits"
 
 	"github.com/consensys/gnark/frontend"
+	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/multicommit"
 )
 
@@ -345,13 +346,13 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	p := new(big.Int)
 	a := new(big.Int)
 	b := new(big.Int)
-	if err := recompose(plimbs, uint(nbBits), p); err != nil {
+	if err := limbs.Recompose(plimbs, uint(nbBits), p); err != nil {
 		return fmt.Errorf("recompose p: %w", err)
 	}
-	if err := recompose(alimbs, uint(nbBits), a); err != nil {
+	if err := limbs.Recompose(alimbs, uint(nbBits), a); err != nil {
 		return fmt.Errorf("recompose a: %w", err)
 	}
-	if err := recompose(blimbs, uint(nbBits), b); err != nil {
+	if err := limbs.Recompose(blimbs, uint(nbBits), b); err != nil {
 		return fmt.Errorf("recompose b: %w", err)
 	}
 	quo := new(big.Int)
@@ -360,10 +361,10 @@ func mulHint(field *big.Int, inputs, outputs []*big.Int) error {
 	if p.Cmp(new(big.Int)) != 0 {
 		quo.QuoRem(ab, p, rem)
 	}
-	if err := decompose(quo, uint(nbBits), quoLimbs); err != nil {
+	if err := limbs.Decompose(quo, uint(nbBits), quoLimbs); err != nil {
 		return fmt.Errorf("decompose quo: %w", err)
 	}
-	if err := decompose(rem, uint(nbBits), remLimbs); err != nil {
+	if err := limbs.Decompose(rem, uint(nbBits), remLimbs); err != nil {
 		return fmt.Errorf("decompose rem: %w", err)
 	}
 	xp := make([]*big.Int, nbMultiplicationResLimbs(nbALen, nbBLen))

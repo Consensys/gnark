@@ -6,6 +6,15 @@
 	{{- end}}
 {{- end }}
 
+{{- define "import_fp" }}
+	{{- if eq .Curve "tinyfield"}}
+	fr "github.com/consensys/gnark/internal/tinyfield"
+	{{- else}}
+	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fp"
+	{{- end}}
+{{- end }}
+
+
 {{- define "import_fri" }}
 	"github.com/consensys/gnark-crypto/ecc/{{toLower .Curve}}/fr/fri"
 {{- end}}
