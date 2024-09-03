@@ -82,7 +82,7 @@ You can also get in touch directly: gnark@consensys.net
 * [OpenZeppelin - November 2023 - gnark PLONK Solidity verifier template](https://blog.openzeppelin.com/linea-verifier-audit-1)
 * [ZKSecurity.xyz - May 2024 - gnark standard library](docs/audits/2024-05 - zksecurity - gnark std.pdf)
 * [OpenZeppelin - June 2024 - gnark PLONK prover and verifier](https://blog.openzeppelin.com/linea-prover-audit)
-* [LeastAuthority - July 2024 - gnark GKR prover and verifier (initial report)](docs/audits/2024-07 - Least Authority - arithm and GKR.pdf)
+* [LeastAuthority - July 2024 - gnark general and GKR (initial report)](docs/audits/2024-07 - Least Authority - arithm and GKR.pdf)
 
 ## Proving schemes and curves
 
