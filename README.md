@@ -29,7 +29,7 @@ Checkout the [online playground][`gnark` Playground] to compile circuits and vis
 
 ## Security
 
-**`gnark` and [`gnark-crypto`] have been [extensively audited](Audits), but are provided as-is, we make no guarantees or warranties to its safety and reliability. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.**
+**`gnark` and [`gnark-crypto`] have been [extensively audited](#audits), but are provided as-is, we make no guarantees or warranties to its safety and reliability. In particular, `gnark` makes no security guarantees such as constant time implementation or side-channel attack resistance.**
 
 **To report a security bug, please refer to [`gnark` Security Policy](SECURITY.md).**
 
