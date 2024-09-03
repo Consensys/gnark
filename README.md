@@ -200,8 +200,8 @@ Please use the following BibTeX to cite the most recent release.
   year         = 2024,
   publisher    = {Zenodo},
   version      = {v0.10.0},
-  doi          = {10.5281/zenodo.11034183},
-  url          = {https://doi.org/10.5281/zenodo.11034183}
+  doi          = {10.5281/zenodo.5819104},
+  url          = {https://doi.org/10.5281/zenodo.5819104}
 }
 ```
 
