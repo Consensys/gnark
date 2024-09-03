@@ -42,7 +42,7 @@ Refer to [known security advisories](https://github.com/Consensys/gnark/security
 * circuit testing - we test the circuit implementation against several targets:
   - test engine - instead of running the full prover and verifier stack, we run the computations only to ensure the completeness of the circuits
   - proof engines - we compile the circuits, run the setup, prove and verify using native implementation
-  - Solidity verifier - in addition to the previous, we verify the proofs in Solidity verifier. See [`gnark-solidity-verifier`]
+  - Solidity verifier - in addition to the previous, we verify the proofs in Solidity verifier. See [`gnark-solidity-checker`]
 * regression testing - we have implemented [tests for reported issues](internal/regression_tests) to avoid regressions
 * constraint count testing - we have implemented [circuit size tests](internal/stats) to avoid regressions
 * serialization testing - we check that [serialization round-trip is complete](io/roundtrip.go)
