@@ -43,10 +43,10 @@ Refer to [known security advisories](https://github.com/Consensys/gnark/security
   - test engine - instead of running the full prover and verifier stack, we run the computations only to ensure the completeness of the circuits
   - proof engines - we compile the circuits, run the setup, prove and verify using native implementation
   - Solidity verifier - in addition to the previous, we verify the proofs in Solidity verifier. See [`gnark-solidity-verifier`]
-* regression testing - we have implemented [tests for reported issues](https://github.com/Consensys/gnark/tree/master/internal/regression_tests) to avoid regressions
-* constraint count testing - we have implemented [circuit size tests](https://github.com/Consensys/gnark/tree/master/internal/stats) to avoid regressions
-* serialization testing - we check that [serialization round-trip is complete](https://github.com/Consensys/gnark/blob/master/io/roundtrip.go)
-* side-effect testing - we check that circuit [compilation is deterministic](https://github.com/Consensys/gnark/blob/master/test/assert.go)
+* regression testing - we have implemented [tests for reported issues](internal/regression_tests) to avoid regressions
+* constraint count testing - we have implemented [circuit size tests](internal/stats) to avoid regressions
+* serialization testing - we check that [serialization round-trip is complete](io/roundtrip.go)
+* side-effect testing - we check that circuit [compilation is deterministic](test/assert.go)
 * fuzz testing:
   - circuit input fuzzing - we provide random inputs to the circuit to cause solver error
   - native input fuzzing - we provide random inputs to various native methods to cause errors. We have also stored initial fuzzing corpus for regression tests.
@@ -78,7 +78,7 @@ You can also get in touch directly: gnark@consensys.net
 
 ## Audits
 
-* [Kudelski Security - October 2022 - gnark-crypto (contracted by Algorand Foundation)](2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf)
+* [Kudelski Security - October 2022 - gnark-crypto (contracted by Algorand Foundation)](docs/audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf)
 * [Consensys Diligence - June 2023 - gnark PLONK Solidity verifier](https://consensys.io/diligence/audits/2023/06/linea-plonk-verifier/)
 * [OpenZeppelin - November 2023 - gnark PLONK Solidity verifier template](https://blog.openzeppelin.com/linea-verifier-audit-1)
 * [ZKSecurity.xyz - May 2024 - gnark standard library](docs/audits/2024-05%20-%20zksecurity%20-%20gnark%20std.pdf)
