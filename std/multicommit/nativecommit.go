@@ -83,13 +83,13 @@ func (mct *multicommitter) commitAndCall(api frontend.API) error {
 	if len(mct.cbs) == 0 {
 		// shouldn't happen. we defer this function on creating multicommitter
 		// instance. It is probably some race.
-		panic("calling commiter with zero callbacks")
+		panic("calling committer with zero callbacks")
 	}
-	commiter, ok := api.Compiler().(frontend.Committer)
+	committer, ok := api.Compiler().(frontend.Committer)
 	if !ok {
 		panic("compiler doesn't implement frontend.Committer")
 	}
-	rootCmt, err := commiter.Commit(mct.vars...)
+	rootCmt, err := committer.Commit(mct.vars...)
 	if err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
