@@ -70,6 +70,9 @@ import (
 type Proof interface {
 	io.WriterTo
 	io.ReaderFrom
+
+	// Raw methods for faster serialization-deserialization. Does not perform checks on the data.
+	// Only use if you are sure of the data you are reading comes from trusted source.
 	gnarkio.WriterRawTo
 }
 
@@ -79,8 +82,13 @@ type Proof interface {
 type ProvingKey interface {
 	io.WriterTo
 	io.ReaderFrom
+
+	// Raw methods for faster serialization-deserialization. Does not perform checks on the data.
+	// Only use if you are sure of the data you are reading comes from trusted source.
 	gnarkio.WriterRawTo
 	gnarkio.UnsafeReaderFrom
+
+	// VerifyingKey returns the corresponding VerifyingKey.
 	VerifyingKey() interface{}
 }
 
@@ -90,8 +98,12 @@ type ProvingKey interface {
 type VerifyingKey interface {
 	io.WriterTo
 	io.ReaderFrom
+
+	// Raw methods for faster serialization-deserialization. Does not perform checks on the data.
+	// Only use if you are sure of the data you are reading comes from trusted source.
 	gnarkio.WriterRawTo
 	gnarkio.UnsafeReaderFrom
+
 	// VerifyingKey are the methods required for generating the Solidity
 	// verifier contract from the VerifyingKey. This will return an error if not
 	// supported on the CurveID().
