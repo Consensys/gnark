@@ -78,12 +78,14 @@ You can also get in touch directly: gnark@consensys.net
 
 ## Audits
 
-* [Kudelski Security - October 2022 - gnark-crypto (contracted by Algorand Foundation)](docs/audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf)
+* [Kudelski Security - October 2022 - gnark-crypto (contracted by Algorand Foundation)](audits/2022-10%20-%20Kudelski%20-%20gnark-crypto.pdf)
+* [Sigma Prime - May 2023 - gnark-crypto KZG (contracted by Ethereum Foundation)](audits/2024-05%20-%20Sigma%20Prime%20-%20kzg.pdf)
 * [Consensys Diligence - June 2023 - gnark PLONK Solidity verifier](https://consensys.io/diligence/audits/2023/06/linea-plonk-verifier/)
+* [LeastAuthority - August 2023 - gnark Groth16 Solidity verifier template (contracted by Worldcoin)](https://leastauthority.com/wp-content/uploads/2023/08/Worldcoin_Groth16_Verifier_in_EVM_Smart_Contract_Final_Audit_Report.pdf)
 * [OpenZeppelin - November 2023 - gnark PLONK Solidity verifier template](https://blog.openzeppelin.com/linea-verifier-audit-1)
-* [ZKSecurity.xyz - May 2024 - gnark standard library](docs/audits/2024-05%20-%20zksecurity%20-%20gnark%20std.pdf)
+* [ZKSecurity.xyz - May 2024 - gnark standard library](audits/2024-05%20-%20zksecurity%20-%20gnark%20std.pdf)
 * [OpenZeppelin - June 2024 - gnark PLONK prover and verifier](https://blog.openzeppelin.com/linea-prover-audit)
-* [LeastAuthority - July 2024 - gnark general and GKR (initial report)](docs/audits/2024-07%20-%20Least%20Authority%20-%20arithm%20and%20GKR.pdf)
+* [LeastAuthority - July 2024 - gnark general and GKR (initial report)](audits/2024-07%20-%20Least%20Authority%20-%20arithm%20and%20GKR.pdf)
 
 ## Proving schemes and curves
 
