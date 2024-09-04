@@ -266,9 +266,11 @@ func (pr Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 }
 
 // DoublePairingCheck calculates the reduced pairing for a 2 pairs of points and asserts if the result is One
-// e(P0, Q0) * e(P1, Q1) =? 1
 //
-// This function doesn't check that the inputs are in the correct subgroups. See AssertIsOnG1 and AssertIsOnG2.
+//	e(P0, Q0) * e(P1, Q1) =? 1
+//
+// This function doesn't check that the inputs are in the correct subgroups. See
+// [Pairing.AssertIsOnG1] and [Pairing.AssertIsOnG2].
 func (pr Pairing) DoublePairingCheck(P [2]*G1Affine, Q [2]*G2Affine) error {
 	// hint the non-residue witness
 	hint, err := pr.curveF.NewHint(doublePairingCheckHint, 18, &P[0].X, &P[0].Y, &P[1].X, &P[1].Y, &Q[0].P.X.A0, &Q[0].P.X.A1, &Q[0].P.Y.A0, &Q[0].P.Y.A1, &Q[1].P.X.A0, &Q[1].P.X.A1, &Q[1].P.Y.A0, &Q[1].P.Y.A1)
