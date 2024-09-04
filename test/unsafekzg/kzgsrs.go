@@ -6,7 +6,7 @@ package unsafekzg
 
 import (
 	"bufio"
-	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"math/big"
 	"os"
@@ -149,28 +149,28 @@ func extractCurveID(key string) (ecc.ID, error) {
 
 func newSRS(curveID ecc.ID, size uint64) (kzg.SRS, kzg.SRS, error) {
 
-	tau, err := rand.Int(rand.Reader, curveID.ScalarField())
-	if err != nil {
-		return nil, nil, err
-	}
+	alpha := alpha()
 
-	var srs kzg.SRS
+	var (
+		srs kzg.SRS
+		err error
+	)
 
 	switch curveID {
 	case ecc.BN254:
-		srs, err = kzg_bn254.NewSRS(size, tau)
+		srs, err = kzg_bn254.NewSRS(size, alpha)
 	case ecc.BLS12_381:
-		srs, err = kzg_bls12381.NewSRS(size, tau)
+		srs, err = kzg_bls12381.NewSRS(size, alpha)
 	case ecc.BLS12_377:
-		srs, err = kzg_bls12377.NewSRS(size, tau)
+		srs, err = kzg_bls12377.NewSRS(size, alpha)
 	case ecc.BW6_761:
-		srs, err = kzg_bw6761.NewSRS(size, tau)
+		srs, err = kzg_bw6761.NewSRS(size, alpha)
 	case ecc.BLS24_317:
-		srs, err = kzg_bls24317.NewSRS(size, tau)
+		srs, err = kzg_bls24317.NewSRS(size, alpha)
 	case ecc.BLS24_315:
-		srs, err = kzg_bls24315.NewSRS(size, tau)
+		srs, err = kzg_bls24315.NewSRS(size, alpha)
 	case ecc.BW6_633:
-		srs, err = kzg_bw6633.NewSRS(size, tau)
+		srs, err = kzg_bw6633.NewSRS(size, alpha)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
@@ -179,7 +179,7 @@ func newSRS(curveID ecc.ID, size uint64) (kzg.SRS, kzg.SRS, error) {
 		return nil, nil, err
 	}
 
-	return srs, toLagrange(srs, tau), nil
+	return srs, toLagrange(srs, alpha), nil
 }
 
 func toLagrange(canonicalSRS kzg.SRS, tau *big.Int) kzg.SRS {
@@ -414,4 +414,16 @@ func fsWrite(key string, cacheDir string, canonical kzg.SRS, lagrange kzg.SRS) {
 	}
 
 	w.Flush()
+}
+
+// alpha is the base randomness for generating the SRS
+func alpha() *big.Int {
+	return sync.OnceValue(func() *big.Int {
+		h := sha256.New()
+		h.Write([]byte("gnark unsafe kzg-srs -- DO NOT USE IN PROD"))
+
+		var res big.Int
+		res.SetBytes(h.Sum(nil))
+		return &res
+	})()
 }
