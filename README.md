@@ -9,7 +9,7 @@
 
 `gnark` uses [`gnark-crypto`] for the finite-field arithmetic and out-circuit implementation of cryptographic algorithms.
 
-`gnark` powers [`Linea zk-rollup`](https://linea.build).
+`gnark` powers [`Linea zk-rollup`](https://linea.build). Include your project in the [known users](docs/KNOWN_USERS.md) section by opening a PR.
 
 ## Useful Links
 
