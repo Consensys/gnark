@@ -1273,25 +1273,29 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		_s = c.scalarApi.Select(selector1, c.scalarApi.One(), s)
 	}
 
-	// first find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r)
+	// First we find the sub-salars s1, s2 s.t. s1 + s2*s = 0 mod r and s1, s2 < sqrt(r).
 	sd, err := c.scalarApi.NewHint(halfGCD, 2, _s)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCD hint: %v", err))
 	}
 	s1, s2 := sd[0], sd[1]
-	// s2 can be negative. If so, we return in halfGCD hint -s2
+	// s2 can be negative. If so, we return in the halfGCD hint -s2
 	// and here compute _s2 = -s2 mod r
 	sign, err := c.scalarApi.NewHintWithNativeOutput(halfGCDSigns, 1, _s)
 	if err != nil {
 		panic(fmt.Sprintf("halfGCDSigns hint: %v", err))
 	}
 	_s2 := c.scalarApi.Select(sign[0], c.scalarApi.Neg(s2), s2)
-	// we check that s1 + s*_s2 == 0 mod r
+	// We check that s1 + s*_s2 == 0 mod r
 	c.scalarApi.AssertIsEqual(
 		c.scalarApi.Add(s1, c.scalarApi.Mul(_s, _s2)),
 		c.scalarApi.Zero(),
 	)
-	// then compute the hinted scalar mul R = [s]Q
+	// A malicious hint can provide s1=s2=0 mod r
+	// So we check that _s2 is non-zero otherwise [0]([s]Q = ∀R) is always true
+	c.api.AssertIsEqual(c.scalarApi.IsZero(_s2), 0)
+
+	// Then we compute the hinted scalar mul R = [s]Q
 	// Q coordinates are in Fp and the scalar s in Fr
 	// we decompose Q.X, Q.Y, s into limbs and recompose them in the hint.
 	var inps []frontend.Variable
@@ -1322,7 +1326,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	s1bits := c.scalarApi.ToBits(s1)
 	s2bits := c.scalarApi.ToBits(s2)
 
-	// precomputations:
+	// Precomputations:
 	// 		tableQ[0] = -Q
 	//   	tableQ[1] = Q
 	// 		tableQ[2] = [3]Q
@@ -1345,7 +1349,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 		tableR[2] = c.triple(tableR[1])
 	}
 
-	// we should start the accumulator by the infinity point, but since affine
+	// We should start the accumulator by the infinity point, but since affine
 	// formulae are incomplete we suppose that the first bits of the
 	// sub-scalars s1 and s2 are 1, and set:
 	// 		Acc = Q + R
@@ -1417,7 +1421,7 @@ func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S]
 	// note that half of these points are negatives of the other half,
 	// hence have the same X coordinates.
 
-	// when nbits is odd, we need to handle the first iteration separately
+	// When nbits is odd, we need to handle the first iteration separately
 	if nbits%2 == 0 {
 		// Acc = [2]Acc ± Q ± R
 		T := &AffinePoint[B]{
