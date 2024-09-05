@@ -17,6 +17,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/secp256k1"
 	fp_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fp"
 	fr_secp "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
+	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
+	fr_stark "github.com/consensys/gnark-crypto/ecc/stark-curve/fr"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/algopts"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -778,6 +780,32 @@ func TestScalarMul6(t *testing.T) {
 		Q: AffinePoint[emulated.BW6761Fp]{
 			X: emulated.ValueOf[emulated.BW6761Fp](res.X),
 			Y: emulated.ValueOf[emulated.BW6761Fp](res.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestScalarMul7(t *testing.T) {
+	assert := test.NewAssert(t)
+	var r fr_stark.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var res stark_curve.G1Affine
+	_, gen := stark_curve.Generators()
+	res.ScalarMultiplication(&gen, s)
+
+	circuit := ScalarMulTest[emulated.STARKCurveFp, emulated.STARKCurveFr]{}
+	witness := ScalarMulTest[emulated.STARKCurveFp, emulated.STARKCurveFr]{
+		S: emulated.ValueOf[emulated.STARKCurveFr](s),
+		P: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](gen.X),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](gen.Y),
+		},
+		Q: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](res.X),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](res.Y),
 		},
 	}
 	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
@@ -1990,6 +2018,32 @@ func TestScalarMulFakeGLV2(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestScalarMulFakeGLV3(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := stark_curve.Generators()
+	var r fr_stark.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var S stark_curve.G1Affine
+	S.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulFakeGLVTest[emulated.STARKCurveFp, emulated.STARKCurveFr]{}
+	witness := ScalarMulFakeGLVTest[emulated.STARKCurveFp, emulated.STARKCurveFr]{
+		S: emulated.ValueOf[emulated.STARKCurveFr](s),
+		Q: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](g.X),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](g.Y),
+		},
+		R: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](S.X),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](S.Y),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
 type ScalarMulFakeGLVEdgeCasesTest[T, S emulated.FieldParams] struct {
 	P, R AffinePoint[T]
 	S    emulated.Element[S]
@@ -2081,6 +2135,49 @@ func TestScalarMulFakeGLVEdgeCasesEdgeCases2(t *testing.T) {
 		R: AffinePoint[emulated.P384Fp]{
 			X: emulated.ValueOf[emulated.P384Fp](0),
 			Y: emulated.ValueOf[emulated.P384Fp](0),
+		},
+	}
+	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())
+	assert.NoError(err)
+}
+
+func TestScalarMulFakeGLVEdgeCasesEdgeCases3(t *testing.T) {
+	assert := test.NewAssert(t)
+	_, g := stark_curve.Generators()
+	var r fr_stark.Element
+	_, _ = r.SetRandom()
+	s := new(big.Int)
+	r.BigInt(s)
+	var S stark_curve.G1Affine
+	S.ScalarMultiplication(&g, s)
+
+	circuit := ScalarMulFakeGLVEdgeCasesTest[emulated.STARKCurveFp, emulated.STARKCurveFr]{}
+
+	// s * (0,0) == (0,0)
+	witness1 := ScalarMulFakeGLVEdgeCasesTest[emulated.STARKCurveFp, emulated.STARKCurveFr]{
+		S: emulated.ValueOf[emulated.STARKCurveFr](s),
+		P: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](0),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](0),
+		},
+		R: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](0),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](0),
+		},
+	}
+	err := test.IsSolved(&circuit, &witness1, testCurve.ScalarField())
+	assert.NoError(err)
+
+	// 0 * P == (0,0)
+	witness2 := ScalarMulFakeGLVEdgeCasesTest[emulated.STARKCurveFp, emulated.STARKCurveFr]{
+		S: emulated.ValueOf[emulated.STARKCurveFr](new(big.Int)),
+		P: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](S.X),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](S.X),
+		},
+		R: AffinePoint[emulated.STARKCurveFp]{
+			X: emulated.ValueOf[emulated.STARKCurveFp](0),
+			Y: emulated.ValueOf[emulated.STARKCurveFp](0),
 		},
 	}
 	err = test.IsSolved(&circuit, &witness2, testCurve.ScalarField())

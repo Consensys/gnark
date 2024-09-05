@@ -6,6 +6,8 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	stark_curve "github.com/consensys/gnark-crypto/ecc/stark-curve"
+	stark_fp "github.com/consensys/gnark-crypto/ecc/stark-curve/fp"
 	"github.com/consensys/gnark/constraint/solver"
 	limbs "github.com/consensys/gnark/std/internal/limbcomposition"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -79,8 +81,8 @@ func decomposeScalarG1Signs(mod *big.Int, inputs []*big.Int, outputs []*big.Int)
 	})
 }
 
-// TODO @yelhousni: generalize for any supported curve as it currently works
-// only for P-256 and P-384.
+// TODO @yelhousni: generalize for any supported curve.
+// as it currently works only for P-256, P-384 and STARK curve.
 func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 	return emulated.UnwrapHintWithNativeInput(inputs, outputs, func(field *big.Int, inputs, outputs []*big.Int) error {
 		if len(outputs) != 2 {
@@ -130,6 +132,32 @@ func scalarMulG1Hint(_ *big.Int, inputs []*big.Int, outputs []*big.Int) error {
 			curve := elliptic.P384()
 			// compute the resulting point [s]Q
 			outputs[0], outputs[1] = curve.ScalarMult(Px, Py, S.Bytes())
+		} else if field.Cmp(stark_fp.Modulus()) == 0 {
+			var fp emparams.STARKCurveFp
+			var fr emparams.STARKCurveFr
+			PXLimbs := inputs[:fp.NbLimbs()]
+			PYLimbs := inputs[fp.NbLimbs() : 2*fp.NbLimbs()]
+			SLimbs := inputs[2*fp.NbLimbs():]
+			Px, Py, S := new(big.Int), new(big.Int), new(big.Int)
+			if err := limbs.Recompose(PXLimbs, fp.BitsPerLimb(), Px); err != nil {
+				return err
+
+			}
+			if err := limbs.Recompose(PYLimbs, fp.BitsPerLimb(), Py); err != nil {
+				return err
+
+			}
+			if err := limbs.Recompose(SLimbs, fr.BitsPerLimb(), S); err != nil {
+				return err
+
+			}
+			// compute the resulting point [s]Q
+			var P stark_curve.G1Affine
+			P.X.SetBigInt(Px)
+			P.Y.SetBigInt(Py)
+			P.ScalarMultiplication(&P, S)
+			P.X.BigInt(outputs[0])
+			P.Y.BigInt(outputs[1])
 		} else {
 			return fmt.Errorf("unsupported curve")
 		}

@@ -1257,7 +1257,7 @@ func (c *Curve[B, S]) MultiScalarMul(p []*AffinePoint[B], s []*emulated.Element[
 // neutral/infinity point as per the [EVM].
 //
 // TODO @yelhousni: generalize for any supported curve as it currently works
-// only for P-256 and P-384 because of the scalarMulG1Hint.
+// only for P-256, P-384 and STARK curve because of the scalarMulG1Hint.
 //
 // [EVM]: https://ethereum.github.io/yellowpaper/paper.pdf
 func (c *Curve[B, S]) scalarMulFakeGLV(Q *AffinePoint[B], s *emulated.Element[S], opts ...algopts.AlgebraOption) *AffinePoint[B] {
