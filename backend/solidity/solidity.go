@@ -14,7 +14,8 @@ type ExportConfig struct {
 // applied.
 func NewExportConfig(opts ...ExportOption) (ExportConfig, error) {
 	config := ExportConfig{
-		PragmaVersion: "0.8.24",
+		// we set default pragma version to 0.8.0+ to avoid needing to sync Solidity CI all the time
+		PragmaVersion: "^0.8.0",
 	}
 	for _, option := range opts {
 		if err := option(&config); err != nil {

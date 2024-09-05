@@ -26,11 +26,6 @@ func (assert *Assert) solidityVerification(b backend.ID, vk solidity.VerifyingKe
 	}
 	assert.t.Helper()
 
-	// set default options for CI when none are provided
-	if len(opts) == 0 {
-		opts = append(opts, solidity.WithPragmaVersion("^0.8.0")) // to avoid needing sync Solidity CI all the time
-	}
-
 	// make temp dir
 	tmpDir, err := os.MkdirTemp("", "gnark-solidity-check*")
 	assert.NoError(err)
