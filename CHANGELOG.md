@@ -1,7 +1,3 @@
-<a name="unreleased"></a>
-## [Unreleased]
-
-
 <a name="v0.11.0"></a>
 ## [v0.11.0] - 2024-09-06
 ### Build
@@ -3203,7 +3199,6 @@
 - Merge pull request [#5](https://github.com/consensys/gnark/issues/5) from ConsenSys/go1.14_deps
 
 
-[Unreleased]: https://github.com/consensys/gnark/compare/v0.11.0...HEAD
 [v0.11.0]: https://github.com/consensys/gnark/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/consensys/gnark/compare/v0.9.1...v0.10.0
 [v0.9.1]: https://github.com/consensys/gnark/compare/v0.9.0...v0.9.1
