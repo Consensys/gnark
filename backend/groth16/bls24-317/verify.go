@@ -98,14 +98,12 @@ func Verify(proof *Proof, vk *VerifyingKey, publicWitness fr.Vector, opts ...bac
 		publicWitness = append(publicWitness, res)
 		copy(commitmentsSerialized[i*fr.Bytes:], res.Marshal())
 	}
-	challenge, err := fr.Hash(commitmentsSerialized, []byte("G16-BSB22"), 1)
-	if err != nil {
-		return err
-	}
-	if folded, err := pedersen.FoldCommitments(proof.Commitments, challenge[0]); err != nil {
-		return err
-	} else {
-		if err = vk.CommitmentKey.Verify(folded, proof.CommitmentPok); err != nil {
+	if len(vk.CommitmentKeys) > 0 {
+		challenge, err := fr.Hash(commitmentsSerialized, []byte("G16-BSB22"), 1)
+		if err != nil {
+			return err
+		}
+		if err = pedersen.BatchVerifyMultiVk(vk.CommitmentKeys, proof.Commitments, []curve.G1Affine{proof.CommitmentPok}, challenge[0]); err != nil {
 			return err
 		}
 	}

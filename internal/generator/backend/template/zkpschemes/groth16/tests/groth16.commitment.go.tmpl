@@ -130,3 +130,34 @@ func TestOneSecretOnePublicCommitted(t *testing.T) {
 		Two: 2,
 	})
 }
+
+type twoSecretCommitmentsCircuit struct {
+	One frontend.Variable
+	Two frontend.Variable
+}
+
+func (c *twoSecretCommitmentsCircuit) Define(api frontend.API) error {
+	commitCompiler, ok := api.Compiler().(frontend.Committer)
+	if !ok {
+		return fmt.Errorf("compiler does not commit")
+	}
+	commit1, err := commitCompiler.Commit(c.One)
+	if err != nil {
+	        return err
+	}
+	commit2, err := commitCompiler.Commit(c.Two)
+	if err != nil {
+	        return err
+	}
+	// constrain vars
+	api.AssertIsDifferent(commit1, 0)
+	api.AssertIsDifferent(commit2, 0)
+	return nil
+}
+
+func TestTwoSecretCommitments(t *testing.T) {
+	test(t, &twoSecretCommitmentsCircuit{}, &twoSecretCommitmentsCircuit{
+		One: 1,
+		Two: 2,
+	})
+}
