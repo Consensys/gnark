@@ -18,6 +18,7 @@ package twistededwards
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/internal/frontendtype"
 )
 
 // neg computes the negative of a point in SNARK coordinates
@@ -95,17 +96,12 @@ func (p *Point) double(api frontend.API, p1 *Point, curve *CurveParams) *Point {
 	return p
 }
 
-// scalarMul computes the scalar multiplication of a point on a twisted Edwards curve
+// scalarMulGeneric computes the scalar multiplication of a point on a twisted Edwards curve
 // p1: base point (as snark point)
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
 // Standard left to right double and add
-func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
-	if len(endo) == 1 && endo[0] != nil {
-		// use glv
-		return p.scalarMulGLV(api, p1, scalar, curve, endo[0])
-	}
-
+func (p *Point) scalarMulGeneric(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
 	// first unpack the scalar
 	b := api.ToBinary(scalar)
 
@@ -140,6 +136,28 @@ func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable,
 	p.Y = res.Y
 
 	return p
+}
+
+// scalarMul computes the scalar multiplication of a point on a twisted Edwards curve
+// p1: base point (as snark point)
+// curve: parameters of the Edwards curve
+// scal: scalar as a SNARK constraint
+// Standard left to right double and add
+func (p *Point) scalarMul(api frontend.API, p1 *Point, scalar frontend.Variable, curve *CurveParams, endo ...*EndoParams) *Point {
+	if ft, ok := api.(frontendtype.FrontendTyper); ok {
+		switch ft.FrontendType() {
+		case frontendtype.R1CS:
+			if len(endo) == 1 && endo[0] != nil {
+				// use glv
+				return p.scalarMulGLV(api, p1, scalar, curve, endo[0])
+			} else {
+				return p.scalarMulGeneric(api, p1, scalar, curve)
+			}
+		case frontendtype.SCS:
+			return p.scalarMulGeneric(api, p1, scalar, curve)
+		}
+	}
+	return p.scalarMulGeneric(api, p1, scalar, curve)
 }
 
 // doubleBaseScalarMul computes s1*P1+s2*P2
@@ -193,7 +211,7 @@ func (p *Point) phi(api frontend.API, p1 *Point, curve *CurveParams, endo *EndoP
 	return p
 }
 
-// ScalarMul computes the scalar multiplication of a point on a twisted Edwards curve
+// scalarMulGLV computes the scalar multiplication of a point on a twisted Edwards curve à la GLV
 // p1: base point (as snark point)
 // curve: parameters of the Edwards curve
 // scal: scalar as a SNARK constraint
