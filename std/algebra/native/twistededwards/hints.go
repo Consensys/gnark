@@ -14,6 +14,7 @@ import (
 func GetHints() []solver.Hint {
 	return []solver.Hint{
 		decomposeScalar,
+		decomposeScalarSigns,
 		decompose,
 	}
 }
@@ -41,18 +42,37 @@ func decomposeScalar(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 		ecc.PrecomputeLattice(&glv.order, &glv.lambda, &glv.glvBasis)
 		sp := ecc.SplitScalar(nninputs[0], &glv.glvBasis)
 		nnOutputs[0].Set(&(sp[0]))
-		nnOutputs[1].Neg(&(sp[1]))
+		nnOutputs[1].Set(&(sp[1]))
 
-		// TODO: @yelhousni handle negative s2
 		if nnOutputs[1].Sign() == -1 {
-			panic(fmt.Errorf("negative s2 not handled yet"))
+			nnOutputs[1].Neg(nnOutputs[1])
 		}
 
 		return nil
 	})
 }
 
-func callDecomposeScalar(api frontend.API, s frontend.Variable) (s1, s2 frontend.Variable) {
+func decomposeScalarSigns(mod *big.Int, inputs []*big.Int, outputs []*big.Int) error {
+	if len(inputs) != 1 {
+		return fmt.Errorf("expecting one input")
+	}
+	if len(outputs) != 1 {
+		return fmt.Errorf("expecting one output")
+	}
+	var glv glvParams
+	glv.lambda.SetString("8913659658109529928382530854484400854125314752504019737736543920008458395397", 10)
+	glv.order.SetString("13108968793781547619861935127046491459309155893440570251786403306729687672801", 10)
+	ecc.PrecomputeLattice(&glv.order, &glv.lambda, &glv.glvBasis)
+	sp := ecc.SplitScalar(inputs[0], &glv.glvBasis)
+	outputs[0].SetUint64(0)
+	if sp[1].Sign() == -1 {
+		outputs[0].SetUint64(1)
+	}
+
+	return nil
+}
+
+func callDecomposeScalar(api frontend.API, s frontend.Variable) (s1, s2, s3 frontend.Variable) {
 	var fr emparams.BandersnatchFr
 	var glv glvParams
 	glv.lambda.SetString("8913659658109529928382530854484400854125314752504019737736543920008458395397", 10)
@@ -71,6 +91,10 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable) (s1, s2 frontend
 	if err != nil {
 		panic(err)
 	}
+	bit, err := api.NewHint(decomposeScalarSigns, 1, s)
+	if err != nil {
+		panic(err)
+	}
 	// lambda as nonnative element
 	lambdaEmu := sapi.NewElement(glv.lambda)
 	// the scalar as nonnative element. We need to split at 64 bits.
@@ -80,20 +104,22 @@ func callDecomposeScalar(api frontend.API, s frontend.Variable) (s1, s2 frontend
 	}
 	semu := sapi.NewElement(limbs)
 	// we negated s2 in decomposeScalar so we check instead:
-	// 		s + λ * s2 == s1 mod r
-	rhs := sapi.MulNoReduce(sd[1], lambdaEmu)
-	rhs = sapi.Add(rhs, semu)
-	sapi.AssertIsEqual(rhs, sd[0])
+	// 		s1 + λ * s2 == s mod r
+	_s1 := sapi.Select(bit[0], sapi.Neg(sd[1]), sd[1])
+	rhs := sapi.MulNoReduce(_s1, lambdaEmu)
+	rhs = sapi.Add(rhs, sd[0])
+	sapi.AssertIsEqual(rhs, semu)
 
 	s1 = 0
 	s2 = 0
+	s3 = bit[0]
 	b := big.NewInt(1)
 	for i := range sd[0].Limbs {
 		s1 = api.Add(s1, api.Mul(sd[0].Limbs[i], b))
 		s2 = api.Add(s2, api.Mul(sd[1].Limbs[i], b))
 		b.Lsh(b, 64)
 	}
-	return s1, s2
+	return s1, s2, s3
 }
 
 func decompose(mod *big.Int, inputs, outputs []*big.Int) error {
