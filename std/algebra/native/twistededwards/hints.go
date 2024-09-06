@@ -43,6 +43,11 @@ func decomposeScalar(nativeMod *big.Int, nativeInputs, nativeOutputs []*big.Int)
 		nnOutputs[0].Set(&(sp[0]))
 		nnOutputs[1].Neg(&(sp[1]))
 
+		// TODO: @yelhousni handle negative s2
+		if nnOutputs[1].Sign() == -1 {
+			panic(fmt.Errorf("negative s2 not handled yet"))
+		}
+
 		return nil
 	})
 }
