@@ -98,16 +98,17 @@ contract Verifier {
 
     {{- if gt $numCommitments 0 }}
     // Pedersen G point in G2 in powers of i
-    uint256 constant PEDERSEN_G_X_0 = {{ (fpstr .Vk.CommitmentKey.G.X.A0) }};
-    uint256 constant PEDERSEN_G_X_1 = {{ (fpstr .Vk.CommitmentKey.G.X.A1) }};
-    uint256 constant PEDERSEN_G_Y_0 = {{ (fpstr .Vk.CommitmentKey.G.Y.A0) }};
-    uint256 constant PEDERSEN_G_Y_1 = {{ (fpstr .Vk.CommitmentKey.G.Y.A1) }};
+    {{- $cmtVk0 := index .Vk.CommitmentKeys 0 }}
+    uint256 constant PEDERSEN_G_X_0 = {{ (fpstr $cmtVk0.G.X.A0) }};
+    uint256 constant PEDERSEN_G_X_1 = {{ (fpstr $cmtVk0.G.X.A1) }};
+    uint256 constant PEDERSEN_G_Y_0 = {{ (fpstr $cmtVk0.G.Y.A0) }};
+    uint256 constant PEDERSEN_G_Y_1 = {{ (fpstr $cmtVk0.G.Y.A1) }};
 
-    // Pedersen GRootSigmaNeg point in G2 in powers of i
-    uint256 constant PEDERSEN_GROOTSIGMANEG_X_0 = {{ (fpstr .Vk.CommitmentKey.GRootSigmaNeg.X.A0) }};
-    uint256 constant PEDERSEN_GROOTSIGMANEG_X_1 = {{ (fpstr .Vk.CommitmentKey.GRootSigmaNeg.X.A1) }};
-    uint256 constant PEDERSEN_GROOTSIGMANEG_Y_0 = {{ (fpstr .Vk.CommitmentKey.GRootSigmaNeg.Y.A0) }};
-    uint256 constant PEDERSEN_GROOTSIGMANEG_Y_1 = {{ (fpstr .Vk.CommitmentKey.GRootSigmaNeg.Y.A1) }};
+    // Pedersen GSigma point in G2 in powers of i
+    uint256 constant PEDERSEN_GSIGMA_X_0 = {{ (fpstr $cmtVk0.GSigma.X.A0) }};
+    uint256 constant PEDERSEN_GSIGMA_X_1 = {{ (fpstr $cmtVk0.GSigma.X.A1) }};
+    uint256 constant PEDERSEN_GSIGMA_Y_0 = {{ (fpstr $cmtVk0.GSigma.Y.A0) }};
+    uint256 constant PEDERSEN_GSIGMA_Y_1 = {{ (fpstr $cmtVk0.GSigma.Y.A1) }};
     {{- end }}
 
     // Constant and public input points
@@ -578,16 +579,16 @@ contract Verifier {
             // Commitments
             pairings[ 0] = commitments[0];
             pairings[ 1] = commitments[1];
-            pairings[ 2] = PEDERSEN_G_X_1;
-            pairings[ 3] = PEDERSEN_G_X_0;
-            pairings[ 4] = PEDERSEN_G_Y_1;
-            pairings[ 5] = PEDERSEN_G_Y_0;
+            pairings[ 2] = PEDERSEN_GSIGMA_X_1;
+            pairings[ 3] = PEDERSEN_GSIGMA_X_0;
+            pairings[ 4] = PEDERSEN_GSIGMA_Y_1;
+            pairings[ 5] = PEDERSEN_GSIGMA_Y_0;
             pairings[ 6] = Px;
             pairings[ 7] = Py;
-            pairings[ 8] = PEDERSEN_GROOTSIGMANEG_X_1;
-            pairings[ 9] = PEDERSEN_GROOTSIGMANEG_X_0;
-            pairings[10] = PEDERSEN_GROOTSIGMANEG_Y_1;
-            pairings[11] = PEDERSEN_GROOTSIGMANEG_Y_0;
+            pairings[ 8] = PEDERSEN_G_X_1;
+            pairings[ 9] = PEDERSEN_G_X_0;
+            pairings[10] = PEDERSEN_G_Y_1;
+            pairings[11] = PEDERSEN_G_Y_0;
 
             // Verify pedersen commitments
             bool success;
@@ -729,15 +730,15 @@ contract Verifier {
             let f := mload(0x40)
 
             calldatacopy(f, commitments, 0x40) // Copy Commitments
-            mstore(add(f, 0x40), PEDERSEN_G_X_1)
-            mstore(add(f, 0x60), PEDERSEN_G_X_0)
-            mstore(add(f, 0x80), PEDERSEN_G_Y_1)
-            mstore(add(f, 0xa0), PEDERSEN_G_Y_0)
+            mstore(add(f, 0x40), PEDERSEN_GSIGMA_X_1)
+            mstore(add(f, 0x60), PEDERSEN_GSIGMA_X_0)
+            mstore(add(f, 0x80), PEDERSEN_GSIGMA_Y_1)
+            mstore(add(f, 0xa0), PEDERSEN_GSIGMA_Y_0)
             calldatacopy(add(f, 0xc0), commitmentPok, 0x40)
-            mstore(add(f, 0x100), PEDERSEN_GROOTSIGMANEG_X_1)
-            mstore(add(f, 0x120), PEDERSEN_GROOTSIGMANEG_X_0)
-            mstore(add(f, 0x140), PEDERSEN_GROOTSIGMANEG_Y_1)
-            mstore(add(f, 0x160), PEDERSEN_GROOTSIGMANEG_Y_0)
+            mstore(add(f, 0x100), PEDERSEN_G_X_1)
+            mstore(add(f, 0x120), PEDERSEN_G_X_0)
+            mstore(add(f, 0x140), PEDERSEN_G_Y_1)
+            mstore(add(f, 0x160), PEDERSEN_G_Y_0)
 
             success := staticcall(gas(), PRECOMPILE_VERIFY, f, 0x180, f, 0x20)
             success := and(success, mload(f))

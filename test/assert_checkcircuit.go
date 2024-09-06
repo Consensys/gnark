@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/schema"
+	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/test/unsafekzg"
 )
 
@@ -31,6 +32,7 @@ import (
 func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOption) {
 	// get the testing configuration
 	opt := assert.options(opts...)
+	log := logger.Logger()
 
 	// for each {curve, backend} tuple
 	for _, curve := range opt.curves {
@@ -125,6 +127,11 @@ func (assert *Assert) CheckCircuit(circuit frontend.Circuit, opts ...TestingOpti
 							verifierOpts := opt.verifierOpts
 							if b == backend.GROTH16 {
 								// currently groth16 Solidity checker only supports circuits with up to 1 commitment
+								if len(ccs.GetCommitments().CommitmentIndexes()) > 1 {
+									log.Warn().
+										Int("nb_commitments", len(ccs.GetCommitments().CommitmentIndexes())).
+										Msg("skipping solidity check, too many commitments")
+								}
 								checkSolidity = checkSolidity && (len(ccs.GetCommitments().CommitmentIndexes()) <= 1)
 								// set the default hash function in case of	custom hash function not set. This is to ensure that the proof can be verified by gnark-solidity-checker
 								proverOpts = append([]backend.ProverOption{solidity.WithProverTargetSolidityVerifier(b)}, opt.proverOpts...)

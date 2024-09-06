@@ -23,7 +23,6 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/hash_to_field"
-	"github.com/consensys/gnark-crypto/ecc/bls12-377/fr/pedersen"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16/internal"
 	"github.com/consensys/gnark/backend/witness"
@@ -118,7 +117,15 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	wireValues := []fr.Element(solution.W)
 
 	start := time.Now()
+	poks := make([]curve.G1Affine, len(pk.CommitmentKeys))
 
+	for i := range pk.CommitmentKeys {
+		var err error
+		if poks[i], err = pk.CommitmentKeys[i].ProveKnowledge(privateCommittedValues[i]); err != nil {
+			return nil, err
+		}
+	}
+	// compute challenge for folding the PoKs from the commitments
 	commitmentsSerialized := make([]byte, fr.Bytes*len(commitmentInfo))
 	for i := range commitmentInfo {
 		copy(commitmentsSerialized[fr.Bytes*i:], wireValues[commitmentInfo[i].CommitmentIndex].Marshal())
@@ -127,7 +134,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	if err != nil {
 		return nil, err
 	}
-	if proof.CommitmentPok, err = pedersen.BatchProve(pk.CommitmentKeys, privateCommittedValues, challenge[0]); err != nil {
+	if _, err = proof.CommitmentPok.Fold(poks, challenge[0], ecc.MultiExpConfig{NbTasks: 1}); err != nil {
 		return nil, err
 	}
 
