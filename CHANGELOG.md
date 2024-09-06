@@ -1,3 +1,251 @@
+<a name="unreleased"></a>
+## [Unreleased]
+
+
+<a name="v0.11.0"></a>
+## [v0.11.0] - 2024-09-06
+### Build
+- update runner and go version ([#1260](https://github.com/consensys/gnark/issues/1260))
+
+### Chore
+- update version
+- explicit IO methods in interfaces ([#1266](https://github.com/consensys/gnark/issues/1266))
+- update gnark-crypto module
+- clean old definition
+- generate
+- define interface for solidity-supported VK
+- make function comments match function names ([#1163](https://github.com/consensys/gnark/issues/1163))
+
+### Docs
+- update README ([#1255](https://github.com/consensys/gnark/issues/1255))
+- update reference
+- describe potential length extension attack when using MiMC in-circuit ([#1198](https://github.com/consensys/gnark/issues/1198))
+- fix typo in package doc
+- add documentation
+- update documentation for ecdsa and eddsa
+- update TODOs ([#1109](https://github.com/consensys/gnark/issues/1109))
+
+### Feat
+- use offset variable in derive_gamma
+- handle invalid signature failures in ECRecover precompile ([#1101](https://github.com/consensys/gnark/issues/1101))
+- allow configurable hash-to-field function for Groth16 Solidity verifier ([#1102](https://github.com/consensys/gnark/issues/1102))
+- add IsOnG2 for BN254 ([#1204](https://github.com/consensys/gnark/issues/1204))
+- use blake2 for variable hashcode ([#1197](https://github.com/consensys/gnark/issues/1197))
+- simplified offset computation
+- ensure verifying keys implement Solidity interface
+- handle solidity options in CI check
+- use fpstr in Groth16 Solidity template
+- define fpstr method for groth16 solidity template
+- define import_fp template
+- code gen
+- statistical zero knowledge option for bn254
+- use offset in pairing
+- capture O variable in gate for external range checker ([#1211](https://github.com/consensys/gnark/issues/1211))
+- code gen
+- add BN254 final exponentiation check with output ([#1209](https://github.com/consensys/gnark/issues/1209))
+- use anonymous struct
+- added version solidity template groth16 verifier
+- re ran code gen and add files
+- update solidity template groth16
+- update template
+- change signature ExportSolidity groth16
+- code gen
+- code gen
+- modified plonk template
+- code gen
+- modified signature of ExportSolidity in template
+- addition of export options for solidity verifiers
+- simplify loop constraint index
+- **bw6:** Fp6 as a direct extension using Montgomery-6
+
+### Feat
+- implement FixedLengthSum of sha2 ([#821](https://github.com/consensys/gnark/issues/821))
+
+### Fix
+- remove redundant select
+- variable modulus subtraction padding ([#1200](https://github.com/consensys/gnark/issues/1200))
+- branch with unchecked cast could panic at compile time ([#1234](https://github.com/consensys/gnark/issues/1234))
+- minimum 1 bit for constant binary decomposition ([#1229](https://github.com/consensys/gnark/issues/1229))
+- edge case with PLONK backend when 1 constraint ([#1226](https://github.com/consensys/gnark/issues/1226))
+- strict ModReduce in emulated fields ([#1224](https://github.com/consensys/gnark/issues/1224))
+- used size in domain instead of recomputing it
+- remove unconstrained and unused variables
+- remove unconstrained and unused variables ([#1218](https://github.com/consensys/gnark/issues/1218))
+- avoid malicious hint in BLS12-381 final exp check
+- avoid infinite loop in hint when previous ML=0
+- avoid malicious hint in BN254 final exp check
+- conditional check in non-native IsZero for applying optimization ([#1145](https://github.com/consensys/gnark/issues/1145))
+- use consecutive powers instead of squaring ([#1212](https://github.com/consensys/gnark/issues/1212))
+- use emulated arithmetic for GLV decomp ([#1167](https://github.com/consensys/gnark/issues/1167))
+- restored cfg struct
+- fixed error_mod_exp comment
+- shift constraint indices by nb of public vars ([#1128](https://github.com/consensys/gnark/issues/1128))
+- fixed conflicts
+- fixed comment prove
+- fixed typo PROOF_H_0_X -> PROOF_H_0_COM_X
+- fixed UnmarshalSolidity
+- fixed comment
+- fixed fold_h comment
+- fixed comment
+- fixed comment
+- removed redundant computation pointer update
+- remove redundant computation
+- several external typo fixes ([#1261](https://github.com/consensys/gnark/issues/1261))
+- ensure condition is bool in api.Select
+- fix OR computation in case one input is constant and other variable ([#1181](https://github.com/consensys/gnark/issues/1181))
+- fixed comment unmarshal
+- fixed comment solidity
+- fixed comment solidity
+- fixed comment solidity
+- fixed comment solidity
+- fixed some comments
+- fixed L-05
+- fixed L-04
+- fixed M-04
+- fixed L-04
+- fixed l-02
+- defer to math.bits when nbdigits big or not set
+- fix [#1149](https://github.com/consensys/gnark/issues/1149) by removing unused code ([#1164](https://github.com/consensys/gnark/issues/1164))
+- exact width for upper part
+- more descriptive error message ([#1104](https://github.com/consensys/gnark/issues/1104))
+- added missing import in template
+- fixed solidity template
+- fixes [#1157](https://github.com/consensys/gnark/issues/1157) ensures calls to AttachDebugInfo are surrounded with… ([#1160](https://github.com/consensys/gnark/issues/1160))
+- **bls12-377:** use FinalExponentiationCheck in pairing2.go
+- **bls12-377:** push to cyclo group in pairing2.go
+- **bls12-377:** hint computation for final exp
+- **bls12-377:** naming of Fp6 mul
+- **bw6:** Toom-Cook 6-way mul
+- **bw6:** pairing using direct sextic extension
+- **pairing:** fix benchmarks
+- **uints:** constrain valueOf ([#1139](https://github.com/consensys/gnark/issues/1139))
+
+### Fix
+- Build on 32-bit arch would raise int overflow https://github.com/Consensys/gnark/issues/1192 ([#1195](https://github.com/consensys/gnark/issues/1195))
+
+### Perf
+- eliminate final exp in bls12-381 optimized
+- eliminate final exp in bls12-377
+- optimize final exp bls12-377
+- **bls12-381:** use cyclotomic group in finel exp check
+- **bls12-381:** eliminate finalexp ~naively
+- **bls12-381:** revisit tower extension
+- **bn254:** eliminate finalexp as per eprint 2024/640
+- **bn254:** use cyclotomic group in final exp check
+- **bn254:** revisit tower extension
+- **bn254:** save one mul in finalExp check
+- **bn254:** optimize addchain for exp by 6u+2
+- **bn254:** eliminate finalexp in precompile
+- **bw6:** optimize specialized Montgomery-6 mul
+- **bw6:** sparse mul by lines
+- **bw6:** save 2 subs in fp6 sq
+- **bw6:** optimize mulby023
+- **bw6:** mulby02345
+- **bw6:** save some subs in Fp6 square
+- **bw6:** Square uses Karatsuba over Chung-Hasan instead of TC6
+- **bw6:** revisit tower extension
+- **bw6:** save some adds in specialized mul e6
+- **bw6:** use hint to divide by 362880 in Toom-6
+- **bw6:** optimize Montgomery-6 mul
+- **bw6:** optimize pairing with new tower
+- **bw6:** use Karabina12345 instead of GS for small sizes too
+- **bw6:** toom-cook-3x for Fp3 mul
+- **bw6-761:** eliminate finalexp
+- **bw6-761:** use Karabina even for 1 square
+- **bw6-761:** push ML to cyclo-group before FE elimination
+
+### Refactor
+- clean code
+- revert to old line computation and adjust gnark-crypto instead
+- move utils from std/ to internal
+- apply review suggestions
+- apply review suggestions
+- separate fixed circuits used in zkevm ([#1217](https://github.com/consensys/gnark/issues/1217))
+- clean code
+- clean code
+- move limb composition to package
+- use single implementation
+- clean code
+- removes todods ([#1111](https://github.com/consensys/gnark/issues/1111))
+- **bls12-377:** karabina decompression
+- **bn254:** clean FE elimination code
+- **bn254:** add some comments
+- **bw6:** remove dead code
+- **bw6:** remove benchmark
+- **bw6:** remove benchmark
+- **bw6:** apply review suggestion
+
+### Style
+- fixed wrong EcMul comment
+- fixed comment
+- fixed comment
+- fixed typos
+- added comment
+- removed unused variable
+- constant for fixed size proof
+- SHA2 constant to replace 0x2
+- cleaner computation nb BSB commitments
+- renamed H commitments constants
+- reuse variable
+- removed redundant if statement
+- lagrangeOne -> lagrangeZero
+- verify_opening_linearised_polynomial -> compute_opening_linearised_polynomial
+- divideByXMinusOne could -> divideByZH
+- fixed typo
+- clean code
+- remove old todos ([#1106](https://github.com/consensys/gnark/issues/1106))
+
+### Test
+- update stats
+- update stats
+- added non regression test for api.Select bool cond
+- add issue 1153 repro
+- update stats
+- check errors in test circuit ([#1140](https://github.com/consensys/gnark/issues/1140))
+- update stats
+- update stats
+- update stats
+- update stats
+- add PLONK test for public input mapping ([#1123](https://github.com/consensys/gnark/issues/1123))
+- update stats
+
+### Wip
+- toom-cook-3x
+
+### Pull Requests
+- Merge pull request [#1254](https://github.com/consensys/gnark/issues/1254) from Consensys/perf/ML
+- Merge pull request [#1258](https://github.com/consensys/gnark/issues/1258) from Consensys/refactor/limb-composition
+- Merge pull request [#1251](https://github.com/consensys/gnark/issues/1251) from Consensys/build/bump-gnarkcrypto-vsn
+- Merge pull request [#1247](https://github.com/consensys/gnark/issues/1247) from Consensys/fix/issue1246
+- Merge pull request [#1207](https://github.com/consensys/gnark/issues/1207) from Consensys/perf/eliminate-finalExp-bls
+- Merge pull request [#1214](https://github.com/consensys/gnark/issues/1214) from Consensys/fix/BN254-finalExp
+- Merge pull request [#1196](https://github.com/consensys/gnark/issues/1196) from ThomasPiellard/audit/final-commit-fixes
+- Merge pull request [#1143](https://github.com/consensys/gnark/issues/1143) from Consensys/perf/eliminate-finalExp
+- Merge pull request [#1187](https://github.com/consensys/gnark/issues/1187) from Consensys/fix/groth16-solidity-templates
+- Merge pull request [#1155](https://github.com/consensys/gnark/issues/1155) from Consensys/perf/eliminate-finalExp-bw6761
+- Merge pull request [#1173](https://github.com/consensys/gnark/issues/1173) from Consensys/perf/eliminate-finalExp-bls12381
+- Merge pull request [#11](https://github.com/consensys/gnark/issues/11) from ThomasPiellard/audit/M-04
+- Merge pull request [#10](https://github.com/consensys/gnark/issues/10) from ThomasPiellard/audit/L-02
+- Merge pull request [#14](https://github.com/consensys/gnark/issues/14) from ThomasPiellard/audit/H-01
+- Merge pull request [#13](https://github.com/consensys/gnark/issues/13) from ThomasPiellard/audit/N-05
+- Merge pull request [#2](https://github.com/consensys/gnark/issues/2) from ThomasPiellard/audit/N-01
+- Merge pull request [#5](https://github.com/consensys/gnark/issues/5) from ThomasPiellard/audit/L-08
+- Merge pull request [#7](https://github.com/consensys/gnark/issues/7) from ThomasPiellard/audit/L-06
+- Merge pull request [#6](https://github.com/consensys/gnark/issues/6) from ThomasPiellard/audit/L-07
+- Merge pull request [#8](https://github.com/consensys/gnark/issues/8) from ThomasPiellard/audit/L-05
+- Merge pull request [#4](https://github.com/consensys/gnark/issues/4) from ThomasPiellard/audit/N-03
+- Merge pull request [#3](https://github.com/consensys/gnark/issues/3) from ThomasPiellard/audit/N-02
+- Merge pull request [#1](https://github.com/consensys/gnark/issues/1) from ThomasPiellard/audit/N-04
+- Merge pull request [#9](https://github.com/consensys/gnark/issues/9) from ThomasPiellard/audit/L-04
+- Merge pull request [#12](https://github.com/consensys/gnark/issues/12) from ThomasPiellard/audit/L-03
+- Merge pull request [#1165](https://github.com/consensys/gnark/issues/1165) from Consensys/fix/partition-bounds
+- Merge pull request [#1138](https://github.com/consensys/gnark/issues/1138) from Consensys/feat/option_solidity
+- Merge pull request [#1131](https://github.com/consensys/gnark/issues/1131) from Consensys/perf/toom3-r1cs
+- Merge pull request [#1126](https://github.com/consensys/gnark/issues/1126) from Consensys/perf/direct-extensions
+- Merge pull request [#1110](https://github.com/consensys/gnark/issues/1110) from Consensys/perf/field-extensions
+- Merge pull request [#1113](https://github.com/consensys/gnark/issues/1113) from Consensys/docs/signatures
+
+
 <a name="v0.10.0"></a>
 ## [v0.10.0] - 2024-04-22
 ### Bench
@@ -2955,6 +3203,8 @@
 - Merge pull request [#5](https://github.com/consensys/gnark/issues/5) from ConsenSys/go1.14_deps
 
 
+[Unreleased]: https://github.com/consensys/gnark/compare/v0.11.0...HEAD
+[v0.11.0]: https://github.com/consensys/gnark/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/consensys/gnark/compare/v0.9.1...v0.10.0
 [v0.9.1]: https://github.com/consensys/gnark/compare/v0.9.0...v0.9.1
 [v0.9.0]: https://github.com/consensys/gnark/compare/v0.9.0-alpha...v0.9.0
