@@ -18,9 +18,11 @@ package twistededwards
 
 import (
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	tbls12377 "github.com/consensys/gnark-crypto/ecc/bls12-377/twistededwards"
 	tbls12381_bandersnatch "github.com/consensys/gnark-crypto/ecc/bls12-381/bandersnatch"
 	tbls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381/twistededwards"
@@ -32,7 +34,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/twistededwards"
 
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/internal/utils"
+	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 )
 
@@ -204,7 +208,7 @@ func TestCurve(t *testing.T) {
 // testData generates random test data for given curve
 // returns p1, p2 and r, d such that p1 + p2 == r and p1 + p1 == d
 // returns rs1, rs12, s1, s2 such that rs1 = p2 * s2 and rs12 = p1*s1 + p2 * s2
-// retunrs n such that n = -p2
+// returns n such that n = -p2
 func testData(params *CurveParams, curveID twistededwards.ID) (
 	_p1,
 	_p2,
@@ -418,4 +422,46 @@ func testData(params *CurveParams, curveID twistededwards.ID) (
 func (p *CurveParams) randomScalar() *big.Int {
 	r, _ := rand.Int(rand.Reader, p.Order)
 	return r
+}
+
+type varScalarMul struct {
+	curveID twistededwards.ID
+	P       Point
+	R       Point
+	S       frontend.Variable
+}
+
+func (circuit *varScalarMul) Define(api frontend.API) error {
+
+	// get edwards curve curve
+	curve, err := NewEdCurve(api, circuit.curveID)
+	if err != nil {
+		return err
+	}
+
+	// scalar mul
+	res := curve.ScalarMul(circuit.P, circuit.S)
+	api.AssertIsEqual(res.X, circuit.R.X)
+	api.AssertIsEqual(res.Y, circuit.R.Y)
+
+	return nil
+}
+
+// bench
+func BenchmarkBandersnatch(b *testing.B) {
+	var c varScalarMul
+	c.curveID = twistededwards.BLS12_381_BANDERSNATCH
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("Bandersnatch GLV: ", p.NbConstraints())
+}
+
+func BenchmarkJubjub(b *testing.B) {
+	var c varScalarMul
+	c.curveID = twistededwards.BLS12_381
+	p := profile.Start()
+	_, _ = frontend.Compile(ecc.BLS12_381.ScalarField(), r1cs.NewBuilder, &c)
+	p.Stop()
+	fmt.Println("Jubjub 2-bit double-and-add: ", p.NbConstraints())
 }
