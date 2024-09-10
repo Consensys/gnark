@@ -237,9 +237,11 @@ func initSnippets() {
 			}
 			return bn_fp.NewElement(limbs)
 		}
-		dummyG1 := sw_emulated.AffinePoint[emulated.BN254Fp]{*newFp(), *newFp()}
+		var dummyG1 sw_emulated.AffinePoint[emulated.BN254Fp]
+		dummyG1.X = *newFp()
+		dummyG1.Y = *newFp()
 		_ = cr.ScalarMul(
-			(&dummyG1),
+			&dummyG1,
 			newFr(),
 		)
 
@@ -267,9 +269,11 @@ func initSnippets() {
 			}
 			return bn_fp.NewElement(limbs)
 		}
-		dummyG1 := sw_emulated.AffinePoint[emulated.Secp256k1Fp]{*newFp(), *newFp()}
+		var dummyG1 sw_emulated.AffinePoint[emulated.Secp256k1Fp]
+		dummyG1.X = *newFp()
+		dummyG1.Y = *newFp()
 		_ = cr.ScalarMul(
-			(&dummyG1),
+			&dummyG1,
 			newFr(),
 		)
 
@@ -297,9 +301,11 @@ func initSnippets() {
 			}
 			return bn_fp.NewElement(limbs)
 		}
-		dummyG1 := sw_emulated.AffinePoint[emulated.P256Fp]{*newFp(), *newFp()}
+		var dummyG1 sw_emulated.AffinePoint[emulated.P256Fp]
+		dummyG1.X = *newFp()
+		dummyG1.Y = *newFp()
 		_ = cr.ScalarMul(
-			(&dummyG1),
+			&dummyG1,
 			newFr(),
 		)
 
