@@ -246,7 +246,7 @@ func (f *Field[T]) constantValue(v *Element[T]) (*big.Int, bool) {
 	constLimbs := make([]*big.Int, len(v.Limbs))
 	for i, l := range v.Limbs {
 		// for each limb we get it's constant value if we can, or fail.
-		if constLimbs[i], ok = f.api.ConstantValue(l); !ok {
+		if constLimbs[i], ok = f.api.Compiler().ConstantValue(l); !ok {
 			return nil, false
 		}
 	}

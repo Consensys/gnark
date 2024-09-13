@@ -1,6 +1,8 @@
 package sumcheck
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/polynomial"
 )
@@ -14,9 +16,9 @@ type Proof[FR emulated.FieldParams] struct {
 	FinalEvalProof EvaluationProof
 }
 
-type nativeProof struct {
-	RoundPolyEvaluations []nativePolynomial
-	FinalEvalProof       nativeEvaluationProof
+type NativeProof struct {
+	RoundPolyEvaluations []NativePolynomial
+	FinalEvalProof       NativeEvaluationProof
 }
 
 // EvaluationProof is proof for allowing the sumcheck verifier to perform the
@@ -27,16 +29,32 @@ type nativeProof struct {
 //   - if it is deferred, then it is a slice.
 type EvaluationProof any
 
-type nativeEvaluationProof any
+// evaluationProof for gkr
+type DeferredEvalProof[FR emulated.FieldParams] []emulated.Element[FR]
+type NativeDeferredEvalProof []big.Int
 
-func valueOfProof[FR emulated.FieldParams](nproof nativeProof) Proof[FR] {
+type NativeEvaluationProof any
+
+func ValueOfProof[FR emulated.FieldParams](nproof NativeProof) Proof[FR] {
 	rps := make([]polynomial.Univariate[FR], len(nproof.RoundPolyEvaluations))
+	finaleval := nproof.FinalEvalProof
+	if finaleval != nil {
+		switch v := finaleval.(type) {
+		case NativeDeferredEvalProof:
+			deferredEval := make(DeferredEvalProof[FR], len(v))
+			for i := range v {
+				deferredEval[i] = emulated.ValueOf[FR](v[i])
+			}
+			finaleval = deferredEval
+		}
+	} 
 	for i := range nproof.RoundPolyEvaluations {
 		rps[i] = polynomial.ValueOfUnivariate[FR](nproof.RoundPolyEvaluations[i])
 	}
-	// TODO: type switch FinalEvalProof when it is not-nil
+
 	return Proof[FR]{
 		RoundPolyEvaluations: rps,
+		FinalEvalProof:       finaleval,
 	}
 }
 

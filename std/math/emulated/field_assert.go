@@ -34,6 +34,7 @@ func (f *Field[T]) enforceWidth(a *Element[T], modWidth bool) {
 func (f *Field[T]) AssertIsEqual(a, b *Element[T]) {
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
+
 	ba, aConst := f.constantValue(a)
 	bb, bConst := f.constantValue(b)
 	if aConst && bConst {

@@ -11,11 +11,11 @@ import (
 )
 
 // gate defines a multivariate polynomial which can be sumchecked.
-type gate[AE arithEngine[E], E element] interface {
+type gate[AE ArithEngine[E], E element] interface {
 	// NbInputs is the number of inputs the gate takes.
 	NbInputs() int
 	// Evaluate evaluates the gate at inputs vars.
-	Evaluate(api AE, vars ...E) E
+	Evaluate(api AE, vars ...E) []E
 	// Degree returns the maximum degree of the variables.
 	Degree() int // TODO: return degree of variable for optimized verification
 }
@@ -27,9 +27,9 @@ type gate[AE arithEngine[E], E element] interface {
 type gateClaim[FR emulated.FieldParams] struct {
 	f      *emulated.Field[FR]
 	p      *polynomial.Polynomial[FR]
-	engine *emuEngine[FR]
+	engine *EmuEngine[FR]
 
-	gate gate[*emuEngine[FR], *emulated.Element[FR]]
+	gate gate[*EmuEngine[FR], *emulated.Element[FR]]
 
 	evaluationPoints   [][]*emulated.Element[FR]
 	claimedEvaluations []*emulated.Element[FR]
@@ -48,7 +48,7 @@ type gateClaim[FR emulated.FieldParams] struct {
 // evaluationPoints is the random coefficients for ensuring the consistency of
 // the inputs during the final round and claimedEvals is the claimed evaluation
 // values with the inputs combined at the evaluationPoints.
-func newGate[FR emulated.FieldParams](api frontend.API, gate gate[*emuEngine[FR], *emulated.Element[FR]],
+func newGate[FR emulated.FieldParams](api frontend.API, gate gate[*EmuEngine[FR], *emulated.Element[FR]],
 	inputs [][]*emulated.Element[FR], evaluationPoints [][]*emulated.Element[FR],
 	claimedEvals []*emulated.Element[FR]) (LazyClaims[FR], error) {
 	nbInputs := gate.NbInputs()
@@ -71,7 +71,7 @@ func newGate[FR emulated.FieldParams](api frontend.API, gate gate[*emuEngine[FR]
 	if err != nil {
 		return nil, fmt.Errorf("new polynomial: %w", err)
 	}
-	engine, err := newEmulatedEngine[FR](api)
+	engine, err := NewEmulatedEngine[FR](api)
 	if err != nil {
 		return nil, fmt.Errorf("new emulated engine: %w", err)
 	}
@@ -146,15 +146,15 @@ func (g *gateClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], combinationC
 	// now, we can evaluate the gate at the random input.
 	gateEval := g.gate.Evaluate(g.engine, inputEvals...)
 
-	res := g.f.Mul(eqEval, gateEval)
+	res := g.f.Mul(eqEval, gateEval[0])
 	g.f.AssertIsEqual(res, expectedValue)
 	return nil
 }
 
 type nativeGateClaim struct {
-	engine *bigIntEngine
+	engine *BigIntEngine
 
-	gate gate[*bigIntEngine, *big.Int]
+	gate gate[*BigIntEngine, *big.Int]
 
 	evaluationPoints   [][]*big.Int
 	claimedEvaluations []*big.Int
@@ -163,13 +163,13 @@ type nativeGateClaim struct {
 	// multi-instance input id to the instance value. This allows running
 	// sumcheck over the hypercube. Every element in the slice represents the
 	// input.
-	inputPreprocessors []nativeMultilinear
+	inputPreprocessors []NativeMultilinear
 
-	eq nativeMultilinear
+	eq NativeMultilinear
 }
 
-func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [][]*big.Int, evaluationPoints [][]*big.Int) (claim claims, evaluations []*big.Int, err error) {
-	be := newBigIntEngine(target)
+func newNativeGate(target *big.Int, gate gate[*BigIntEngine, *big.Int], inputs [][]*big.Int, evaluationPoints [][]*big.Int) (claim claims, evaluations []*big.Int, err error) {
+	be := &BigIntEngine{mod: new(big.Int).Set(target)}
 	nbInputs := gate.NbInputs()
 	if len(inputs) != nbInputs {
 		return nil, nil, fmt.Errorf("expected %d inputs got %d", nbInputs, len(inputs))
@@ -184,7 +184,7 @@ func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [
 	evalInput := make([][]*big.Int, nbInstances)
 	// TODO: pad input to power of two
 	for i := range evalInput {
-		evalInput[i] = make(nativeMultilinear, nbInputs)
+		evalInput[i] = make(NativeMultilinear, nbInputs)
 		for j := range evalInput[i] {
 			evalInput[i][j] = new(big.Int).Set(inputs[j][i])
 		}
@@ -193,12 +193,12 @@ func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [
 	evaluations = make([]*big.Int, nbInstances)
 	for i := range evaluations {
 		evaluations[i] = new(big.Int)
-		evaluations[i] = gate.Evaluate(be, evalInput[i]...)
+		evaluations[i] = gate.Evaluate(be, evalInput[i]...)[0]
 	}
 	// construct the mapping (inputIdx, instanceIdx) -> inputVal
-	inputPreprocessors := make([]nativeMultilinear, nbInputs)
+	inputPreprocessors := make([]NativeMultilinear, nbInputs)
 	for i := range inputs {
-		inputPreprocessors[i] = make(nativeMultilinear, nbInstances)
+		inputPreprocessors[i] = make(NativeMultilinear, nbInstances)
 		for j := range inputs[i] {
 			inputPreprocessors[i][j] = new(big.Int).Set(inputs[i][j])
 		}
@@ -211,7 +211,7 @@ func newNativeGate(target *big.Int, gate gate[*bigIntEngine, *big.Int], inputs [
 	// compute the random linear combinations of the evaluation values of the gate
 	claimedEvaluations := make([]*big.Int, len(evaluationPoints))
 	for i := range claimedEvaluations {
-		claimedEvaluations[i] = eval(be, evaluations, evaluationPoints[i])
+		claimedEvaluations[i] = Eval(be, evaluations, evaluationPoints[i])
 	}
 	return &nativeGateClaim{
 		engine:             be,
@@ -231,19 +231,19 @@ func (g *nativeGateClaim) NbVars() int {
 	return len(g.evaluationPoints[0])
 }
 
-func (g *nativeGateClaim) Combine(coeff *big.Int) nativePolynomial {
+func (g *nativeGateClaim) Combine(coeff *big.Int) NativePolynomial {
 	nbVars := g.NbVars()
 	eqLength := 1 << nbVars
 	nbClaims := g.NbClaims()
 
-	g.eq = make(nativeMultilinear, eqLength)
+	g.eq = make(NativeMultilinear, eqLength)
 	g.eq[0] = g.engine.One()
 	for i := 1; i < eqLength; i++ {
 		g.eq[i] = new(big.Int)
 	}
-	g.eq = eq(g.engine, g.eq, g.evaluationPoints[0])
+	g.eq = Eq(g.engine, g.eq, g.evaluationPoints[0])
 
-	newEq := make(nativeMultilinear, eqLength)
+	newEq := make(NativeMultilinear, eqLength)
 	for i := 1; i < eqLength; i++ {
 		newEq[i] = new(big.Int)
 	}
@@ -251,7 +251,7 @@ func (g *nativeGateClaim) Combine(coeff *big.Int) nativePolynomial {
 
 	for k := 1; k < nbClaims; k++ {
 		newEq[0] = g.engine.One()
-		g.eq = eqAcc(g.engine, g.eq, newEq, g.evaluationPoints[k])
+		g.eq = EqAcc(g.engine, g.eq, newEq, g.evaluationPoints[k])
 		if k+1 < nbClaims {
 			aI = g.engine.Mul(aI, coeff)
 		}
@@ -260,32 +260,32 @@ func (g *nativeGateClaim) Combine(coeff *big.Int) nativePolynomial {
 	return g.computeGJ()
 }
 
-func (g *nativeGateClaim) Next(r *big.Int) nativePolynomial {
+func (g *nativeGateClaim) Next(r *big.Int) NativePolynomial {
 	for i := range g.inputPreprocessors {
-		g.inputPreprocessors[i] = fold(g.engine, g.inputPreprocessors[i], r)
+		g.inputPreprocessors[i] = Fold(g.engine, g.inputPreprocessors[i], r)
 	}
-	g.eq = fold(g.engine, g.eq, r)
+	g.eq = Fold(g.engine, g.eq, r)
 	return g.computeGJ()
 }
 
-func (g *nativeGateClaim) ProverFinalEval(r []*big.Int) nativeEvaluationProof {
+func (g *nativeGateClaim) ProverFinalEval(r []*big.Int) NativeEvaluationProof {
 	// verifier computes the value of the gate (times the eq) itself
 	return nil
 }
 
-func (g *nativeGateClaim) computeGJ() nativePolynomial {
+func (g *nativeGateClaim) computeGJ() NativePolynomial {
 	// returns the polynomial GJ through its evaluations
 	degGJ := 1 + g.gate.Degree()
 	nbGateIn := len(g.inputPreprocessors)
 
-	s := make([]nativeMultilinear, nbGateIn+1)
+	s := make([]NativeMultilinear, nbGateIn+1)
 	s[0] = g.eq
 	copy(s[1:], g.inputPreprocessors)
 
 	nbInner := len(s)
 	nbOuter := len(s[0]) / 2
 
-	gJ := make(nativePolynomial, degGJ)
+	gJ := make(NativePolynomial, degGJ)
 	for i := range gJ {
 		gJ[i] = new(big.Int)
 	}
@@ -314,7 +314,7 @@ func (g *nativeGateClaim) computeGJ() nativePolynomial {
 		_s := 0
 		_e := nbInner
 		for d := 0; d < degGJ; d++ {
-			summand := g.gate.Evaluate(g.engine, operands[_s+1:_e]...)
+			summand := g.gate.Evaluate(g.engine, operands[_s+1:_e]...)[0]
 			summand = g.engine.Mul(summand, operands[_s])
 			res[d] = g.engine.Add(res[d], summand)
 			_s, _e = _e, _e+nbInner

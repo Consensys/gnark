@@ -116,10 +116,55 @@ func (mc *mulCheck[T]) cleanEvaluations() {
 // mulMod returns a*b mod r. In practice it computes the result using a hint and
 // defers the actual multiplication check.
 func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
+	return f.mulModProfiling(a, b, p, true)
+	// f.enforceWidthConditional(a)
+	// f.enforceWidthConditional(b)
+	// f.enforceWidthConditional(p)
+	// k, r, c, err := f.callMulHint(a, b, true, p)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// mc := mulCheck[T]{
+	// 	f: f,
+	// 	a: a,
+	// 	b: b,
+	// 	c: c,
+	// 	k: k,
+	// 	r: r,
+	// 	p: p,
+	// }
+	// f.mulChecks = append(f.mulChecks, mc)
+	// return r
+}
+
+// checkZero creates multiplication check a * 1 = 0 + k*p.
+func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
+	f.mulModProfiling(a, f.shortOne(), p, false)
+	// the method works similarly to mulMod, but we know that we are multiplying
+	// by one and expected result should be zero.
+	// f.enforceWidthConditional(a)
+	// f.enforceWidthConditional(p)
+	// b := f.shortOne()
+	// k, r, c, err := f.callMulHint(a, b, false, p)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// mc := mulCheck[T]{
+	// 	f: f,
+	// 	a: a,
+	// 	b: b, // one on single limb to speed up the polynomial evaluation
+	// 	c: c,
+	// 	k: k,
+	// 	r: r, // expected to be zero on zero limbs.
+	// 	p: p,
+	// }
+	// f.mulChecks = append(f.mulChecks, mc)
+}
+
+func (f *Field[T]) mulModProfiling(a, b *Element[T], p *Element[T], isMulMod bool) *Element[T] {
 	f.enforceWidthConditional(a)
 	f.enforceWidthConditional(b)
-	f.enforceWidthConditional(p)
-	k, r, c, err := f.callMulHint(a, b, true, p)
+	k, r, c, err := f.callMulHint(a, b, isMulMod, p)
 	if err != nil {
 		panic(err)
 	}
@@ -130,33 +175,39 @@ func (f *Field[T]) mulMod(a, b *Element[T], _ uint, p *Element[T]) *Element[T] {
 		c: c,
 		k: k,
 		r: r,
-		p: p,
 	}
-	f.mulChecks = append(f.mulChecks, mc)
-	return r
-}
+	var toCommit []frontend.Variable
+	toCommit = append(toCommit, mc.a.Limbs...)
+	toCommit = append(toCommit, mc.b.Limbs...)
+	toCommit = append(toCommit, mc.r.Limbs...)
+	toCommit = append(toCommit, mc.k.Limbs...)
+	toCommit = append(toCommit, mc.c.Limbs...)
+	multicommit.WithCommitment(f.api, func(api frontend.API, commitment frontend.Variable) error {
+		// we do nothing. We just want to ensure that we count the commitments
+		return nil
+	}, toCommit...)
+	// XXX: or use something variable to count the commitments and constraints properly. Maybe can use 123 from hint?
+	commitment := 123
 
-// checkZero creates multiplication check a * 1 = 0 + k*p.
-func (f *Field[T]) checkZero(a *Element[T], p *Element[T]) {
-	// the method works similarly to mulMod, but we know that we are multiplying
-	// by one and expected result should be zero.
-	f.enforceWidthConditional(a)
-	f.enforceWidthConditional(p)
-	b := f.shortOne()
-	k, r, c, err := f.callMulHint(a, b, false, p)
-	if err != nil {
-		panic(err)
+	// for efficiency, we compute all powers of the challenge as slice at.
+	coefsLen := max(len(mc.a.Limbs), len(mc.b.Limbs),
+		len(mc.c.Limbs), len(mc.k.Limbs))
+	at := make([]frontend.Variable, coefsLen)
+	at[0] = commitment
+	for i := 1; i < len(at); i++ {
+		at[i] = f.api.Mul(at[i-1], commitment)
 	}
-	mc := mulCheck[T]{
-		f: f,
-		a: a,
-		b: b, // one on single limb to speed up the polynomial evaluation
-		c: c,
-		k: k,
-		r: r, // expected to be zero on zero limbs.
-		p: p,
-	}
-	f.mulChecks = append(f.mulChecks, mc)
+	mc.evalRound1(at)
+	mc.evalRound2(at)
+	// evaluate p(X) at challenge
+	pval := f.evalWithChallenge(f.Modulus(), at)
+	// compute (2^t-X) at challenge
+	coef := big.NewInt(1)
+	coef.Lsh(coef, f.fParams.BitsPerLimb())
+	ccoef := f.api.Sub(coef, commitment)
+	// verify all mulchecks
+	mc.check(f.api, pval.evaluation, ccoef)
+	return r
 }
 
 // evalWithChallenge represents element a as a polynomial a(X) and evaluates at

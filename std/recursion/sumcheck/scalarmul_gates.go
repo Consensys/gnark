@@ -8,19 +8,21 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/profile"
+	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/emulated/emparams"
 	"github.com/consensys/gnark/std/math/polynomial"
 	"github.com/consensys/gnark/test"
 )
 
-type projAddGate[AE arithEngine[E], E element] struct {
-	folding E
+type ProjAddGate[AE ArithEngine[E], E element] struct {
+	Folding E
 }
 
-func (m projAddGate[AE, E]) NbInputs() int { return 6 }
-func (m projAddGate[AE, E]) Degree() int   { return 4 }
-func (m projAddGate[AE, E]) Evaluate(api AE, vars ...E) E {
+func (m ProjAddGate[AE, E]) NbInputs() int { return 6 }
+func (m ProjAddGate[AE, E]) Degree() int   { return 4 }
+func (m ProjAddGate[AE, E]) Evaluate(api AE, vars ...E) []E {
 	if len(vars) != m.NbInputs() {
 		panic("incorrect nb of inputs")
 	}
@@ -61,11 +63,11 @@ func (m projAddGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	Z3 = api.Mul(Z3, t4)
 	Z3 = api.Add(Z3, t0)
 
-	res := api.Mul(m.folding, Z3)
+	res := api.Mul(m.Folding, Z3)
 	res = api.Add(res, Y3)
-	res = api.Mul(m.folding, res)
+	res = api.Mul(m.Folding, res)
 	res = api.Add(res, X3)
-	return res
+	return []E{res}
 }
 
 type ProjAddSumcheckCircuit[FR emulated.FieldParams] struct {
@@ -102,7 +104,7 @@ func (c *ProjAddSumcheckCircuit[FR]) Define(api frontend.API) error {
 	for i := range c.EvaluationPoints {
 		evalPoints[i] = polynomial.FromSlice[FR](c.EvaluationPoints[i])
 	}
-	claim, err := newGate[FR](api, projAddGate[*emuEngine[FR], *emulated.Element[FR]]{f.NewElement(123)}, inputs, evalPoints, claimedEvals)
+	claim, err := newGate[FR](api, ProjAddGate[*EmuEngine[FR], *emulated.Element[FR]]{f.NewElement(123)}, inputs, evalPoints, claimedEvals)
 	if err != nil {
 		return fmt.Errorf("new gate claim: %w", err)
 	}
@@ -114,7 +116,7 @@ func (c *ProjAddSumcheckCircuit[FR]) Define(api frontend.API) error {
 
 func testProjAddSumCheckInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, inputs [][]int) {
 	var fr FR
-	nativeGate := projAddGate[*bigIntEngine, *big.Int]{folding: big.NewInt(123)}
+	nativeGate := ProjAddGate[*BigIntEngine, *big.Int]{Folding: big.NewInt(123)}
 	assert := test.NewAssert(t)
 	inputB := make([][]*big.Int, len(inputs))
 	for i := range inputB {
@@ -126,7 +128,7 @@ func testProjAddSumCheckInstance[FR emulated.FieldParams](t *testing.T, current 
 	evalPointsB, evalPointsPH, evalPointsC := getChallengeEvaluationPoints[FR](inputB)
 	claim, evals, err := newNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
 	assert.NoError(err)
-	proof, err := prove(current, fr.Modulus(), claim)
+	proof, err := Prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(inputs[0]))) - 1
 	circuit := &ProjAddSumcheckCircuit[FR]{
@@ -137,7 +139,7 @@ func testProjAddSumCheckInstance[FR emulated.FieldParams](t *testing.T, current 
 	}
 	assignment := &ProjAddSumcheckCircuit[FR]{
 		Inputs:           make([][]emulated.Element[FR], len(inputs)),
-		Proof:            valueOfProof[FR](proof),
+		Proof:            ValueOfProof[FR](proof),
 		EvaluationPoints: evalPointsC,
 		Claimed:          []emulated.Element[FR]{emulated.ValueOf[FR](evals[0])},
 	}
@@ -168,12 +170,12 @@ func TestProjAddSumCheckSumcheck(t *testing.T) {
 	testProjAddSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), inputs)
 }
 
-type dblAddSelectGate[AE arithEngine[E], E element] struct {
-	folding []E
+type DblAddSelectGate[AE ArithEngine[E], E element] struct {
+	Folding []E
 }
 
-func projAdd[AE arithEngine[E], E element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
-	b3 := api.Const(big.NewInt(21))
+func ProjAdd[AE ArithEngine[E], E element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
+	b3 := api.Const(big.NewInt(9)) //todo hardcoded for bn254, b3 = 3*b
 	t0 := api.Mul(X1, X2)
 	t1 := api.Mul(Y1, Y2)
 	t2 := api.Mul(Z1, Z2)
@@ -210,7 +212,7 @@ func projAdd[AE arithEngine[E], E element](api AE, X1, Y1, Z1, X2, Y2, Z2 E) (X3
 	return
 }
 
-func projSelect[AE arithEngine[E], E element](api AE, selector, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
+func ProjSelect[AE ArithEngine[E], E element](api AE, selector, X1, Y1, Z1, X2, Y2, Z2 E) (X3, Y3, Z3 E) {
 	X3 = api.Sub(X1, X2)
 	X3 = api.Mul(selector, X3)
 	X3 = api.Add(X3, X2)
@@ -225,8 +227,8 @@ func projSelect[AE arithEngine[E], E element](api AE, selector, X1, Y1, Z1, X2, 
 	return
 }
 
-func projDbl[AE arithEngine[E], E element](api AE, X, Y, Z E) (X3, Y3, Z3 E) {
-	b3 := api.Const(big.NewInt(21))
+func ProjDbl[AE ArithEngine[E], E element](api AE, X, Y, Z E) (X3, Y3, Z3 E) {
+	b3 := api.Const(big.NewInt(9)) //todo hardcoded for bn254, b3 = 3*b
 	t0 := api.Mul(Y, Y)
 	Z3 = api.Add(t0, t0)
 	Z3 = api.Add(Z3, Z3)
@@ -248,14 +250,15 @@ func projDbl[AE arithEngine[E], E element](api AE, X, Y, Z E) (X3, Y3, Z3 E) {
 	return
 }
 
-func (m dblAddSelectGate[AE, E]) NbInputs() int { return 7 }
-func (m dblAddSelectGate[AE, E]) Degree() int   { return 5 }
-func (m dblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
+func (m DblAddSelectGate[AE, E]) NbInputs() int { return 7 }
+func (m DblAddSelectGate[AE, E]) NbOutputs() int { return 1 }
+func (m DblAddSelectGate[AE, E]) Degree() int   { return 5 }
+func (m DblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) []E {
 	if len(vars) != m.NbInputs() {
 		panic("incorrect nb of inputs")
 	}
-	if len(m.folding) != m.NbInputs()-1 {
-		panic("incorrect nb of folding vars")
+	if len(m.Folding) != m.NbInputs()-1 {
+		panic("incorrect nb of Folding vars")
 	}
 	// X1, Y1, Z1 == accumulator
 	X1, Y1, Z1 := vars[0], vars[1], vars[2]
@@ -263,29 +266,79 @@ func (m dblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) E {
 	X2, Y2, Z2 := vars[3], vars[4], vars[5]
 	selector := vars[6]
 
-	tmpX, tmpY, tmpZ := projAdd(api, X1, Y1, Z1, X2, Y2, Z2)
-	ResX, ResY, ResZ := projSelect(api, selector, tmpX, tmpY, tmpZ, X2, Y2, Z2)
-	AccX, AccY, AccZ := projDbl(api, X1, Y1, Z1)
+	tmpX, tmpY, tmpZ := ProjAdd(api, X1, Y1, Z1, X2, Y2, Z2)
+	ResX, ResY, ResZ := ProjSelect(api, selector, tmpX, tmpY, tmpZ, X2, Y2, Z2)
+	AccX, AccY, AccZ := ProjDbl(api, X1, Y1, Z1)
 
-	// folding part
-	f0 := api.Mul(m.folding[0], AccX)
-	f1 := api.Mul(m.folding[1], AccY)
-	f2 := api.Mul(m.folding[2], AccZ)
-	f3 := api.Mul(m.folding[3], ResX)
-	f4 := api.Mul(m.folding[4], ResY)
-	f5 := api.Mul(m.folding[5], ResZ)
+	// Folding part
+	f0 := api.Mul(m.Folding[0], AccX)
+	f1 := api.Mul(m.Folding[1], AccY)
+	f2 := api.Mul(m.Folding[2], AccZ)
+	f3 := api.Mul(m.Folding[3], ResX)
+	f4 := api.Mul(m.Folding[4], ResY)
+	f5 := api.Mul(m.Folding[5], ResZ)
 	res := api.Add(f0, f1)
 	res = api.Add(res, f2)
 	res = api.Add(res, f3)
 	res = api.Add(res, f4)
 	res = api.Add(res, f5)
-	return res
+	return []E{res}
+}
+
+type MultipleDblAddSelectGate[AE ArithEngine[E], E any] struct {
+	selector []E
+}
+
+func (m MultipleDblAddSelectGate[AE, E]) NbInputs() int { return 7 }
+func (m MultipleDblAddSelectGate[AE, E]) Degree() int   { return 5 }
+func (m MultipleDblAddSelectGate[AE, E]) Evaluate(api AE, vars ...E) []E {
+	if len(vars) != m.NbInputs() {
+		panic("incorrect nb of inputs")
+	}
+	// X1, Y1, Z1 == accumulator
+	X1, Y1, Z1 := vars[0], vars[1], vars[2]
+	// X2, Y2, Z2 == result
+	X2, Y2, Z2 := vars[3], vars[4], vars[5]
+	selector := vars[6]
+
+	tmpX, tmpY, tmpZ := ProjAdd(api, X1, Y1, Z1, X2, Y2, Z2)
+	ResX, ResY, ResZ := ProjSelect(api, selector, tmpX, tmpY, tmpZ, X2, Y2, Z2)
+	AccX, AccY, AccZ := ProjDbl(api, X1, Y1, Z1)
+
+	return []E{AccX, AccY, AccZ, ResX, ResY, ResZ}
+}
+
+type DblAddSelectGateFullOutput[AE ArithEngine[E], E any] struct {
+	Selector E
+}
+
+func (m DblAddSelectGateFullOutput[AE, E]) NbInputs() int { return 6 }
+func (m DblAddSelectGateFullOutput[AE, E]) NbOutputs() int { return 6 }
+func (m DblAddSelectGateFullOutput[AE, E]) Degree() int   { return 5 }
+func (m DblAddSelectGateFullOutput[AE, E]) GetName() string {
+	return "dbl_add_select_full_output"
+}
+func (m DblAddSelectGateFullOutput[AE, E]) Evaluate(api AE, vars ...E) []E {
+	if len(vars) != m.NbInputs() {
+		panic("incorrect nb of inputs")
+	}
+	// X1, Y1, Z1 == accumulator
+	X1, Y1, Z1 := vars[0], vars[1], vars[2]
+	// X2, Y2, Z2 == result
+	X2, Y2, Z2 := vars[3], vars[4], vars[5]
+	selector := m.Selector //vars[6]
+
+	tmpX, tmpY, tmpZ := ProjAdd(api, X1, Y1, Z1, X2, Y2, Z2)
+	ResX, ResY, ResZ := ProjSelect(api, selector, tmpX, tmpY, tmpZ, X2, Y2, Z2)
+	AccX, AccY, AccZ := ProjDbl(api, X1, Y1, Z1)
+
+	return []E{AccX, AccY, AccZ, ResX, ResY, ResZ}
 }
 
 func TestDblAndAddGate(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	nativeGate := dblAddSelectGate[*bigIntEngine, *big.Int]{folding: []*big.Int{
+	nativeGate := DblAddSelectGate[*BigIntEngine, *big.Int]{Folding: []*big.Int{
 		big.NewInt(1),
 		big.NewInt(2),
 		big.NewInt(3),
@@ -299,7 +352,7 @@ func TestDblAndAddGate(t *testing.T) {
 	assert.True(ok)
 	secpfp, ok := new(big.Int).SetString("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f", 16)
 	assert.True(ok)
-	eng := newBigIntEngine(secpfp)
+	eng := NewBigIntEngine(secpfp)
 	res := nativeGate.Evaluate(eng, px, py, big.NewInt(1), big.NewInt(0), big.NewInt(1), big.NewInt(0), big.NewInt(1))
 	t.Log(res)
 	_ = res
@@ -339,9 +392,9 @@ func (c *ProjDblAddSelectSumcheckCircuit[FR]) Define(api frontend.API) error {
 	for i := range c.EvaluationPoints {
 		evalPoints[i] = polynomial.FromSlice[FR](c.EvaluationPoints[i])
 	}
-	claim, err := newGate[FR](api, dblAddSelectGate[*emuEngine[FR],
+	claim, err := newGate[FR](api, DblAddSelectGate[*EmuEngine[FR],
 		*emulated.Element[FR]]{
-		folding: []*emulated.Element[FR]{
+		Folding: []*emulated.Element[FR]{
 			f.NewElement(1),
 			f.NewElement(2),
 			f.NewElement(3),
@@ -361,7 +414,7 @@ func (c *ProjDblAddSelectSumcheckCircuit[FR]) Define(api frontend.API) error {
 
 func testProjDblAddSelectSumCheckInstance[FR emulated.FieldParams](t *testing.T, current *big.Int, inputs [][]int) {
 	var fr FR
-	nativeGate := dblAddSelectGate[*bigIntEngine, *big.Int]{folding: []*big.Int{
+	nativeGate := DblAddSelectGate[*BigIntEngine, *big.Int]{Folding: []*big.Int{
 		big.NewInt(1),
 		big.NewInt(2),
 		big.NewInt(3),
@@ -377,10 +430,11 @@ func testProjDblAddSelectSumCheckInstance[FR emulated.FieldParams](t *testing.T,
 			inputB[i][j] = big.NewInt(int64(inputs[i][j]))
 		}
 	}
+
 	evalPointsB, evalPointsPH, evalPointsC := getChallengeEvaluationPoints[FR](inputB)
 	claim, evals, err := newNativeGate(fr.Modulus(), nativeGate, inputB, evalPointsB)
 	assert.NoError(err)
-	proof, err := prove(current, fr.Modulus(), claim)
+	proof, err := Prove(current, fr.Modulus(), claim)
 	assert.NoError(err)
 	nbVars := bits.Len(uint(len(inputs[0]))) - 1
 	circuit := &ProjDblAddSelectSumcheckCircuit[FR]{
@@ -391,7 +445,7 @@ func testProjDblAddSelectSumCheckInstance[FR emulated.FieldParams](t *testing.T,
 	}
 	assignment := &ProjDblAddSelectSumcheckCircuit[FR]{
 		Inputs:           make([][]emulated.Element[FR], len(inputs)),
-		Proof:            valueOfProof[FR](proof),
+		Proof:            ValueOfProof[FR](proof),
 		EvaluationPoints: evalPointsC,
 		Claimed:          []emulated.Element[FR]{emulated.ValueOf[FR](evals[0])},
 	}
@@ -404,9 +458,14 @@ func testProjDblAddSelectSumCheckInstance[FR emulated.FieldParams](t *testing.T,
 	}
 	err = test.IsSolved(circuit, assignment, current)
 	assert.NoError(err)
+	p := profile.Start()
+	_, _ = frontend.Compile(current, scs.NewBuilder, circuit)
+	p.Stop()
+	fmt.Println(p.NbConstraints())
 }
 
-func TestProjDblAddSelectSumCheckSumcheck(t *testing.T) {
+//todo used this as Flattened SC benchmarks
+func TestProjDblAddSelectSumCheck(t *testing.T) {
 	// testProjDblAddSelectSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{4, 3}, {2, 3}, {3, 6}, {4, 9}, {13, 3}, {31, 9}})
 	// testProjDblAddSelectSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{1, 2, 3, 4}, {5, 6, 7, 8}})
 	// testProjDblAddSelectSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), [][]int{{1, 2, 3, 4, 5, 6, 7, 8}, {11, 12, 13, 14, 15, 16, 17, 18}})
@@ -420,5 +479,5 @@ func TestProjDblAddSelectSumCheckSumcheck(t *testing.T) {
 		inputs[5] = append(inputs[5], (inputs[4][i-1]+5)*4)
 		inputs[6] = append(inputs[6], (inputs[5][i-1]+6)*3)
 	}
-	testProjDblAddSelectSumCheckInstance[emparams.BN254Fr](t, ecc.BN254.ScalarField(), inputs)
+	testProjDblAddSelectSumCheckInstance[emparams.BN254Fp](t, ecc.BN254.ScalarField(), inputs)
 }

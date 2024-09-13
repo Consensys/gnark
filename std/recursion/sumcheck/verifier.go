@@ -9,25 +9,25 @@ import (
 	"github.com/consensys/gnark/std/recursion"
 )
 
-type config struct {
+type Config struct {
 	prefix string
 }
 
 // Option allows to alter the sumcheck verifier behaviour.
-type Option func(c *config) error
+type Option func(c *Config) error
 
 // WithClaimPrefix prepends the given string to the challenge names when
 // computing the challenges inside the sumcheck verifier. The option is used in
 // a higher level protocols to ensure that sumcheck claims are not interchanged.
 func WithClaimPrefix(prefix string) Option {
-	return func(c *config) error {
+	return func(c *Config) error {
 		c.prefix = prefix
 		return nil
 	}
 }
 
-func newConfig(opts ...Option) (*config, error) {
-	cfg := new(config)
+func NewConfig(opts ...Option) (*Config, error) {
+	cfg := new(Config)
 	for i := range opts {
 		if err := opts[i](cfg); err != nil {
 			return nil, fmt.Errorf("apply option %d: %w", i, err)
@@ -37,7 +37,7 @@ func newConfig(opts ...Option) (*config, error) {
 }
 
 type verifyCfg[FR emulated.FieldParams] struct {
-	baseChallenges []emulated.Element[FR]
+	BaseChallenges []emulated.Element[FR]
 }
 
 // VerifyOption allows to alter the behaviour of the single sumcheck proof verification.
@@ -48,13 +48,13 @@ type VerifyOption[FR emulated.FieldParams] func(c *verifyCfg[FR]) error
 func WithBaseChallenges[FR emulated.FieldParams](baseChallenges []*emulated.Element[FR]) VerifyOption[FR] {
 	return func(c *verifyCfg[FR]) error {
 		for i := range baseChallenges {
-			c.baseChallenges = append(c.baseChallenges, *baseChallenges[i])
+			c.BaseChallenges = append(c.BaseChallenges, *baseChallenges[i])
 		}
 		return nil
 	}
 }
 
-func newVerificationConfig[FR emulated.FieldParams](opts ...VerifyOption[FR]) (*verifyCfg[FR], error) {
+func NewVerificationConfig[FR emulated.FieldParams](opts ...VerifyOption[FR]) (*verifyCfg[FR], error) {
 	cfg := new(verifyCfg[FR])
 	for i := range opts {
 		if err := opts[i](cfg); err != nil {
@@ -69,14 +69,14 @@ type Verifier[FR emulated.FieldParams] struct {
 	api frontend.API
 	f   *emulated.Field[FR]
 	p   *polynomial.Polynomial[FR]
-	*config
+	*Config
 }
 
 // NewVerifier initializes a new sumcheck verifier for the parametric emulated
 // field FR. It returns an error if the given options are invalid or when
 // initializing emulated arithmetic fails.
 func NewVerifier[FR emulated.FieldParams](api frontend.API, opts ...Option) (*Verifier[FR], error) {
-	cfg, err := newConfig(opts...)
+	cfg, err := NewConfig(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("new configuration: %w", err)
 	}
@@ -92,41 +92,41 @@ func NewVerifier[FR emulated.FieldParams](api frontend.API, opts ...Option) (*Ve
 		api:    api,
 		f:      f,
 		p:      p,
-		config: cfg,
+		Config: cfg,
 	}, nil
 }
 
 // Verify verifies the sumcheck proof for the given (lazy) claims.
 func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...VerifyOption[FR]) error {
 	var fr FR
-	cfg, err := newVerificationConfig(opts...)
+	cfg, err := NewVerificationConfig(opts...)
 	if err != nil {
 		return fmt.Errorf("verification opts: %w", err)
 	}
-	challengeNames := getChallengeNames(v.prefix, claims.NbClaims(), claims.NbVars())
+	challengeNames := getChallengeNames(v.prefix, 1, claims.NbVars()) //claims.NbClaims()  todo change this
 	fs, err := recursion.NewTranscript(v.api, fr.Modulus(), challengeNames)
 	if err != nil {
 		return fmt.Errorf("new transcript: %w", err)
 	}
 	// bind challenge from previous round if it is a continuation
-	if err = v.bindChallenge(fs, challengeNames[0], cfg.baseChallenges); err != nil {
+	if err = v.bindChallenge(fs, challengeNames[0], cfg.BaseChallenges); err != nil {
 		return fmt.Errorf("base: %w", err)
 	}
-
+	nbVars := claims.NbVars()
 	combinationCoef := v.f.Zero()
-	if claims.NbClaims() >= 2 {
-		if combinationCoef, challengeNames, err = v.deriveChallenge(fs, challengeNames, nil); err != nil {
-			return fmt.Errorf("derive combination coef: %w", err)
-		}
-	}
-	challenges := make([]*emulated.Element[FR], claims.NbVars())
+	// if claims.NbClaims() >= 2 { // todo change this to handle multiple claims per wire - assuming single claim per wire so don't need to combine
+	// 	if combinationCoef, challengeNames, err = v.deriveChallenge(fs, challengeNames, nil); err != nil {
+	// 		return fmt.Errorf("derive combination coef: %w", err)
+	// 	}
+	// }
+	challenges := make([]*emulated.Element[FR], nbVars) //claims.NbVars()
 
 	// gJR is the claimed value. In case of multiple claims it is combined
 	// claimed value we're going to check against.
 	gJR := claims.CombinedSum(combinationCoef)
 
 	// sumcheck rounds
-	for j := 0; j < claims.NbVars(); j++ {
+	for j := 0; j < nbVars; j++ {
 		// instead of sending the polynomials themselves, the provers sends n evaluations of the round polynomial:
 		//
 		//   g_j(X_j) = \sum_{x_{j+1},...\x_k \in {0,1}} g(r_1, ..., r_{j-1}, X_j, x_{j+1}, ...)
@@ -141,12 +141,14 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		if len(evals) != degree {
 			return fmt.Errorf("expected len %d, got %d", degree, len(evals))
 		}
-		// computes g_{j-1}(r) - g_j(1) as missing evaluation
+
 		gj0 := v.f.Sub(gJR, &evals[0])
+
 		// construct the n+1 evaluations for interpolation
 		gJ := []*emulated.Element[FR]{gj0}
 		for i := range evals {
 			gJ = append(gJ, &evals[i])
+
 		}
 
 		// we derive the challenge from prover message.
@@ -158,6 +160,7 @@ func (v *Verifier[FR]) Verify(claims LazyClaims[FR], proof Proof[FR], opts ...Ve
 		// interpolating and then evaluating we are computing the value
 		// directly.
 		gJR = v.p.InterpolateLDE(challenges[j], gJ)
+
 
 		// we do not directly need to check gJR now - as in the next round we
 		// compute new evaluation point from gJR then the check is performed

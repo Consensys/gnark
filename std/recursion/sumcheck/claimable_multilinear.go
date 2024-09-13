@@ -62,7 +62,7 @@ func (fn *multilinearClaim[FR]) AssertEvaluation(r []*emulated.Element[FR], comb
 }
 
 type nativeMultilinearClaim struct {
-	be *bigIntEngine
+	be *BigIntEngine
 
 	ml []*big.Int
 }
@@ -71,7 +71,7 @@ func newNativeMultilinearClaim(target *big.Int, ml []*big.Int) (claim claims, hy
 	if bits.OnesCount(uint(len(ml))) != 1 {
 		return nil, nil, fmt.Errorf("expecting power of two coeffs")
 	}
-	be := newBigIntEngine(target)
+	be := NewBigIntEngine(target)
 	hypersum = new(big.Int)
 	for i := range ml {
 		hypersum = be.Add(hypersum, ml[i])
@@ -91,16 +91,16 @@ func (fn *nativeMultilinearClaim) NbVars() int {
 	return bits.Len(uint(len(fn.ml))) - 1
 }
 
-func (fn *nativeMultilinearClaim) Combine(coeff *big.Int) nativePolynomial {
+func (fn *nativeMultilinearClaim) Combine(coeff *big.Int) NativePolynomial {
 	return []*big.Int{hypersumX1One(fn.be, fn.ml)}
 }
 
-func (fn *nativeMultilinearClaim) Next(r *big.Int) nativePolynomial {
-	fn.ml = fold(fn.be, fn.ml, r)
+func (fn *nativeMultilinearClaim) Next(r *big.Int) NativePolynomial {
+	fn.ml = Fold(fn.be, fn.ml, r)
 	return []*big.Int{hypersumX1One(fn.be, fn.ml)}
 }
 
-func (fn *nativeMultilinearClaim) ProverFinalEval(r []*big.Int) nativeEvaluationProof {
+func (fn *nativeMultilinearClaim) ProverFinalEval(r []*big.Int) NativeEvaluationProof {
 	// verifier computes the value of the multilinear function itself
 	return nil
 }
