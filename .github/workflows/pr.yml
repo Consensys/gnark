@@ -100,3 +100,4 @@ jobs:
       branch: ${{ github.event.pull_request.head.ref }}
       run_id: ${{ github.run_id }}
       failures: ${{ needs.test.outputs.failures }}
+      bot_token: ${{ secrets.SLACK_BOT_TOKEN }}

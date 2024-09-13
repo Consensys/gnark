@@ -94,3 +94,4 @@ jobs:
       branch: ${{ github.ref_name }}
       run_id: ${{ github.run_id }}
       failures: ${{ needs.test.outputs.failures }}
+      bot_token: ${{ secrets.SLACK_BOT_TOKEN }}

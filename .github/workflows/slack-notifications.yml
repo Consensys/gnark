@@ -32,6 +32,10 @@ on:
         description: 'Test failure details (if any)'
         required: false
         type: string
+      bot_token:
+        description: 'The Slack bot token'
+        required: true
+        type: string
 
 jobs:
   notify_slack:
@@ -41,8 +45,6 @@ jobs:
         id: slack
         uses: slackapi/slack-github-action@v1.27.0
         with:
-          botToken: ${{ env.SLACK_BOT_TOKEN }}
-          bot-token: ${{ env.SLACK_BOT_TOKEN }}
           channel-id: 'team-gnark-build'
           payload: |
             {
@@ -110,4 +112,4 @@ jobs:
               ]
             }
         env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ inputs.bot_token }}
