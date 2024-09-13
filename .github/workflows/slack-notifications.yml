@@ -42,6 +42,7 @@ jobs:
           if [[ "${{ inputs.status }}" == "success" ]]; then
             SLACK_MESSAGE=$(cat <<-EOF
             {
+              "channel": "#team-gnark-build",
               "blocks": [
                 {
                   "type": "section",
