@@ -22,6 +22,10 @@ type Univariate[FR emulated.FieldParams] []emulated.Element[FR]
 // coefficients.
 type Multilinear[FR emulated.FieldParams] []emulated.Element[FR]
 
+func (ml *Multilinear[FR]) NumVars() int {
+	return bits.Len(uint(len(*ml) - 1))
+}
+
 func valueOf[FR emulated.FieldParams](univ []*big.Int) []emulated.Element[FR] {
 	ret := make([]emulated.Element[FR], len(univ))
 	for i := range univ {
@@ -61,6 +65,9 @@ type Polynomial[FR emulated.FieldParams] struct {
 
 // FromSlice maps slice of emulated element values to their references.
 func FromSlice[FR emulated.FieldParams](in []emulated.Element[FR]) []*emulated.Element[FR] {
+	if len(in) == 0 {
+		return []*emulated.Element[FR]{}
+	}
 	r := make([]*emulated.Element[FR], len(in))
 	for i := range in {
 		r[i] = &in[i]

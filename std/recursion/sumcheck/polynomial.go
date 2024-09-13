@@ -2,14 +2,48 @@ package sumcheck
 
 import (
 	"math/big"
+	"math/bits"
 )
 
-type nativePolynomial []*big.Int
-type nativeMultilinear []*big.Int
+type NativePolynomial []*big.Int
+type NativeMultilinear []*big.Int
 
 // helper functions for multilinear polynomial evaluations
 
-func fold(api *bigIntEngine, ml nativeMultilinear, r *big.Int) nativeMultilinear {
+// Clone returns a deep copy of p.
+// If capacity is provided, the new coefficient slice capacity will be set accordingly.
+func (p NativeMultilinear) Clone(capacity ...int) NativeMultilinear {
+	var newCapacity int
+	if len(capacity) > 0 {
+		newCapacity = capacity[0]
+	} else {
+		newCapacity = len(p)
+	}
+
+	res := make(NativeMultilinear, len(p), newCapacity)
+	for i, v := range p {
+		res[i] = new(big.Int).Set(v)
+	}
+	return res
+}
+
+func DereferenceBigIntSlice(ptrs []*big.Int) []big.Int {
+	vals := make([]big.Int, len(ptrs))
+	for i, ptr := range ptrs {
+		vals[i] = *ptr
+	}
+	return vals
+}
+
+func ReferenceBigIntSlice(vals []big.Int) []*big.Int {
+	ptrs := make([]*big.Int, len(vals))
+	for i := range ptrs {
+		ptrs[i] = &vals[i]
+	}
+	return ptrs
+}
+
+func Fold(api *BigIntEngine, ml NativeMultilinear, r *big.Int) NativeMultilinear {
 	// NB! it modifies ml in-place and also returns
 	mid := len(ml) / 2
 	bottom, top := ml[:mid], ml[mid:]
@@ -22,7 +56,7 @@ func fold(api *bigIntEngine, ml nativeMultilinear, r *big.Int) nativeMultilinear
 	return ml[:mid]
 }
 
-func hypersumX1One(api *bigIntEngine, ml nativeMultilinear) *big.Int {
+func hypersumX1One(api *BigIntEngine, ml NativeMultilinear) *big.Int {
 	sum := ml[len(ml)/2]
 	for i := len(ml)/2 + 1; i < len(ml); i++ {
 		sum = api.Add(sum, ml[i])
@@ -30,7 +64,7 @@ func hypersumX1One(api *bigIntEngine, ml nativeMultilinear) *big.Int {
 	return sum
 }
 
-func eq(api *bigIntEngine, ml nativeMultilinear, q []*big.Int) nativeMultilinear {
+func Eq(api *BigIntEngine, ml NativeMultilinear, q []*big.Int) NativeMultilinear {
 	if (1 << len(q)) != len(ml) {
 		panic("scalar length mismatch")
 	}
@@ -46,20 +80,20 @@ func eq(api *bigIntEngine, ml nativeMultilinear, q []*big.Int) nativeMultilinear
 	return ml
 }
 
-func eval(api *bigIntEngine, ml nativeMultilinear, r []*big.Int) *big.Int {
-	mlCopy := make(nativeMultilinear, len(ml))
+func Eval(api *BigIntEngine, ml NativeMultilinear, r []*big.Int) *big.Int {
+	mlCopy := make(NativeMultilinear, len(ml))
 	for i := range mlCopy {
 		mlCopy[i] = new(big.Int).Set(ml[i])
 	}
 
 	for _, ri := range r {
-		mlCopy = fold(api, mlCopy, ri)
+		mlCopy = Fold(api, mlCopy, ri)
 	}
 
 	return mlCopy[0]
 }
 
-func eqAcc(api *bigIntEngine, e nativeMultilinear, m nativeMultilinear, q []*big.Int) nativeMultilinear {
+func EqAcc(api *BigIntEngine, e NativeMultilinear, m NativeMultilinear, q []*big.Int) NativeMultilinear {
 	if len(e) != len(m) {
 		panic("length mismatch")
 	}
@@ -82,4 +116,8 @@ func eqAcc(api *bigIntEngine, e nativeMultilinear, m nativeMultilinear, q []*big
 		e[i] = api.Add(e[i], m[i])
 	}
 	return e
+}
+
+func (m NativeMultilinear) NumVars() int {
+	return bits.TrailingZeros(uint(len(m)))
 }

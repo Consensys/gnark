@@ -29,18 +29,18 @@
 	"proof": [
 		{
 			"finalEvalProof": [],
-			"partialSumPolys": []
+			"roundPolyEvaluations": []
 		},
 		{
 			"finalEvalProof": [],
-			"partialSumPolys": []
+			"roundPolyEvaluations": []
 		},
 		{
 			"finalEvalProof": [
 				-1,
 				-3
 			],
-			"partialSumPolys": [
+			"roundPolyEvaluations": [
 				[
 					-32640,
 					-2239484,
