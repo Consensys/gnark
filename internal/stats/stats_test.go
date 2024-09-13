@@ -9,7 +9,7 @@ import (
 )
 
 func TestCircuitStatistics(t *testing.T) {
-	const refPath = "latest.stats"
+	const refPath = "latest_stats.csv"
 	assert := require.New(t)
 
 	// load reference
@@ -35,7 +35,7 @@ func TestCircuitStatistics(t *testing.T) {
 				circuit := c.Circuit
 				t.Run(fmt.Sprintf("%s/%s/%s", name, curve.String(), backendID.String()), func(t *testing.T) {
 					assert := require.New(t)
-					rs := ref[backendID][CurveIdx(curve)]
+					rs := ref[backendID][curve]
 
 					s, err := NewSnippetStats(curve, backendID, circuit)
 					assert.NoError(err, "building stats for circuit "+name)
