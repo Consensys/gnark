@@ -81,7 +81,6 @@ jobs:
         go test -v -p 4 -timeout=50m -tags=release_checks -short -race ./test/...
         go test -v -run=NONE -fuzz=FuzzIntcomp -fuzztime=30s ./internal/backend/ioutils
 
-  
   slack-notifications:
     if: always()
     needs:
@@ -89,8 +88,9 @@ jobs:
       - test
     uses: ./.github/workflows/slack-notifications.yml
     with:
-      status: ${{ job.status }}
+      status: ${{ needs.test.result }}
       actor: ${{ github.actor }}
       repository: ${{ github.repository }}
       branch: ${{ github.ref_name }}
       run_id: ${{ github.run_id }}
+      failures: ${{ needs.test.outputs.failures }}

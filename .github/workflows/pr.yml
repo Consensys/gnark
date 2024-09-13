@@ -94,11 +94,10 @@ jobs:
       - test
     uses: ./.github/workflows/slack-notifications.yml
     with:
-      status: ${{ job.status }}
+      status: ${{ needs.test.result }}
       actor: ${{ github.actor }}
       repository: ${{ github.repository }}
       pr_title: ${{ github.event.pull_request.title }}
       branch: ${{ github.event.pull_request.head.ref }}
       run_id: ${{ github.run_id }}
-      failures: ${{ steps.tests.outputs.failures }}
-
+      failures: ${{ needs.test.outputs.failures }}
