@@ -37,13 +37,115 @@ jobs:
   notify_slack:
     runs-on: ubuntu-latest
     steps:
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
       - name: Notify Slack
         run: |
           if [[ "${{ inputs.status }}" == "success" ]]; then
-            SLACK_MESSAGE="{\"channel\": \"#team-gnark-build\", \"blocks\": [{\"type\": \"section\", \"text\": {\"type\": \"mrkdwn\", \"text\": \":white_check_mark: *Workflow Succeeded*\"}}, {\"type\": \"section\", \"fields\": [{\"type\": \"mrkdwn\", \"text\": \"*Actor:*\n${{ inputs.actor }}\"}, {\"type\": \"mrkdwn\", \"text\": \"*Repository:*\n${{ inputs.repository }}\"}, {\"type\": \"mrkdwn\", \"text\": \"*PR Title:*\n${{ inputs.pr_title }}\"}, {\"type\": \"mrkdwn\", \"text\": \"*Branch:*\n${{ inputs.branch }}\"}]}, {\"type\": \"section\", \"text\": {\"type\": \"mrkdwn\", \"text\": \"*View Run:* <https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}|View Details>\"}}]}"
+            SLACK_MESSAGE=$(jq -n \
+              --arg actor "${{ inputs.actor }}" \
+              --arg repository "${{ inputs.repository }}" \
+              --arg pr_title "${{ inputs.pr_title }}" \
+              --arg branch "${{ inputs.branch }}" \
+              --arg run_id "${{ inputs.run_id }}" \
+              '{
+                "channel": "#team-gnark-build",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": ":white_check_mark: *Workflow Succeeded*"
+                    }
+                  },
+                  {
+                    "type": "section",
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Actor:*\n\($actor)"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Repository:*\n\($repository)"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*PR Title:*\n\($pr_title)"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Branch:*\n\($branch)"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*View Run:* <https://github.com/\($repository)/actions/runs/\($run_id)|View Details>"
+                    }
+                  }
+                ]
+              }')
           else
-            SLACK_MESSAGE="{\"blocks\": [{\"type\": \"section\", \"text\": {\"type\": \"mrkdwn\", \"text\": \":x: *Workflow Failed*\"}}, {\"type\": \"section\", \"fields\": [{\"type\": \"mrkdwn\", \"text\": \"*Actor:*\n${{ inputs.actor }}\"}, {\"type\": \"mrkdwn\", \"text\": \"*Repository:*\n${{ inputs.repository }}\"}, {\"type\": \"mrkdwn\", \"text\": \"*PR Title:*\n${{ inputs.pr_title }}\"}, {\"type\": \"mrkdwn\", \"text\": \"*Branch:*\n${{ inputs.branch }}\"}]}, {\"type\": \"section\", \"text\": {\"type\": \"mrkdwn\", \"text\": \"*Failed Step:* <https://github.com/${{ inputs.repository }}/actions/runs/${{ inputs.run_id }}|View Details>\"}}, {\"type\": \"section\", \"text\": {\"type\": \"mrkdwn\", \"text\": \"*Test Failure Details:* \n${{ inputs.failures }}\"}}]}"
+            SLACK_MESSAGE=$(jq -n \
+              --arg actor "${{ inputs.actor }}" \
+              --arg repository "${{ inputs.repository }}" \
+              --arg pr_title "${{ inputs.pr_title }}" \
+              --arg branch "${{ inputs.branch }}" \
+              --arg run_id "${{ inputs.run_id }}" \
+              --arg failures "${{ inputs.failures }}" \
+              '{
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": ":x: *Workflow Failed*"
+                    }
+                  },
+                  {
+                    "type": "section",
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Actor:*\n\($actor)"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Repository:*\n\($repository)"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*PR Title:*\n\($pr_title)"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Branch:*\n\($branch)"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Failed Step:* <https://github.com/\($repository)/actions/runs/\($run_id)|View Details>"
+                    }
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Test Failure Details:* \n\($failures)"
+                    }
+                  }
+                ]
+              }')
           fi
+          
+          echo "SLACK_MESSAGE: $SLACK_MESSAGE"
           
           curl -X POST -H 'Content-type: application/json' \
           --data "$SLACK_MESSAGE" \
