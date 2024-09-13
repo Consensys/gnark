@@ -1,6 +1,9 @@
 # .github/workflows/slack-notifications.yml
 name: Slack Notifications
 
+env:
+  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
 on:
   workflow_call:
     inputs:
